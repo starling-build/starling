@@ -426,6 +426,7 @@ extension RichLayout {
         var lineSpaced = false  // … or ends, so far, with one
         var lineBlank = false   // a space character (U+0020) on the line so far
         var wordSpaces: [(k: Int, w: Double)] = []   // this line's space characters, and their widths
+        var spaceBaseX = 0.0   // x where the text before the line's last space ends (where that word starts)
         var breaks: [(end: Int, opener: Range<Int>, over: Double)] = []   // where a line ended because what followed was over
         // (A line's word spaces, measured: lab `wsf` (Word for Windows, 14pt, mode 15, 24 ideographs
         // and the next one taken as the line's width steps down, spaces 4 or 8, commas 0, 1 or 3,
@@ -1925,9 +1926,16 @@ extension RichLayout {
                     // to a tenth of a point, as are lab `jt`'s lines of
                     // "ab" and "abcd". bug65649's Cyrillic took a word
                     // Word leaves, or left one it takes, line after line.)
-                    let stretch = width - (x - (wordSpaces.last?.w ?? 0))
+                    // (Right to left, an Arabic word is placed in pieces, split after the letters that
+                    // do not join forward; the stretch is measured from where the word's text starts,
+                    // not from its last piece (kash2 lab, docs/plans/kashida.md). And lowKashida
+                    // stretches at kashida too: each joined pair on the line counts 3.1 spaces.)
+                    let arabicLine = RichTextTheme.wordWindowsPages && p.style.rightToLeft && !legacy
+                    let stretch = width - (arabicLine && !wordSpaces.isEmpty ? spaceBaseX : x - (wordSpaces.last?.w ?? 0))
+                    let lowJoins = arabicLine && p.style.eastAsian["w:jc"] == "lowKashida" && !wordSpaces.isEmpty
+                        ? 3.1 * Double(ArabicForms.joins(units[lineFrom ..< max(piece.b, wordSpaces.last?.k ?? lineFrom)].map { UInt32($0) }[...])) : 0
                     let halfStretch = wordSpaces.count < 2
-                        || need / Double(wordSpaces.count) <= stretch / Double(wordSpaces.count - 1) / 2 + hair
+                        || need / Double(wordSpaces.count) <= stretch / (Double(wordSpaces.count - 1) + lowJoins) / 2 + hair
                     // (Where automatic spaces give, off a character grid,
                     // they give as marks do from 2013's layout: what the
                     // spaces must give, as a share of what they can, is no
@@ -2136,6 +2144,7 @@ extension RichLayout {
             // follow — are the line's word spaces too: zh-e0ca7252's "…費用達", nine
             // underlined spaces, "元(上限，…" stretches them 7 to 8 and leaves
             // "能" 7.3pt over rather than squeeze its three marks.)
+            let spacesBefore = wordSpaces.count
             if squeezesSpaces, !flanked, RichTextTheme.wordWindowsPages, last > a {
                 for k in a ..< last where units[k] == 0x20 && (a ..< k).contains(where: { !isSpace(units[$0]) }) {
                     wordSpaces.append((k, boxes(k, k + 1)))
@@ -2145,6 +2154,7 @@ extension RichLayout {
                 let trailing = (last ..< piece.b).filter { units[$0] == 0x20 }
                 for k in trailing { wordSpaces.append((k, piece.trail / Double(max(1, trailing.count)))) }
             }
+            if wordSpaces.count != spacesBefore, let lastSpace = wordSpaces.last { spaceBaseX = x - lastSpace.w }
             if topLinePunct, let k = lineOpener, k > (lastTab ?? -1), own.contains(k), Self._openingUnits.contains(units[k]),
                !(onFirstLine && firstGiven) {
                 leadOpeners[k] = units.count

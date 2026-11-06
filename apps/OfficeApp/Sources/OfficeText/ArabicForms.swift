@@ -136,4 +136,29 @@ extension ArabicForms {
         }
         return total
     }
+
+    /// How many letter pairs of `units` join (the first joins forward, the second
+    /// back): the places Word's low kashida can stretch. Marks are transparent;
+    /// lam and an alef count one join with the letter before, none inside.
+    static func joins(_ units: ArraySlice<UInt32>) -> Int {
+        func joinsBoth(_ u: UInt32) -> Bool { u == 0x0640 || (letters[u]?[2] ?? 0) != 0 }
+        func joinsRight(_ u: UInt32) -> Bool { joinsBoth(u) || (letters[u]?[1] ?? 0) != 0 }
+        let shown = units.filter { !((0x064B ... 0x065F).contains($0) || $0 == 0x0670) }
+        var total = 0
+        var prevJoinsLeft = false
+        var k = 0
+        while k < shown.count {
+            let u = shown[k]
+            let joinsPrev = prevJoinsLeft && joinsRight(u)
+            if joinsPrev { total += 1 }
+            if u == 0x0644, k + 1 < shown.count, lamAlef[shown[k + 1]] != nil {
+                prevJoinsLeft = false
+                k += 2
+                continue
+            }
+            prevJoinsLeft = joinsBoth(u)
+            k += 1
+        }
+        return total
+    }
 }
