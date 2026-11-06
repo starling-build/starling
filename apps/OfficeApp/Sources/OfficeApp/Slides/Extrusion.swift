@@ -414,7 +414,7 @@ enum Extrusion {
             }
             // twoPt with no turn and no a:rot is the measured plain table (modernCamera); a turned or rot-ed one is Lab F's.
             let plain = scene.rig == "twoPt" && scene.rigTurn == 0 && scene.rigRot == nil
-            if let table = Extrusion.rigs[plain ? "twoPtPlain" : scene.rig] { return Extrusion.lit(base, n, rig: table, turn: scene.rigTurn, material: !plain && (scene.rig == "twoPt" || (scene.rig == "threePt" && !scene.material.isEmpty)) ? Extrusion.material(scene.material) : nil, threePt: scene.rig == "threePt", whiteShare: rim ? 1.0 : 0.5) }
+            if let table = Extrusion.rigs[plain ? "twoPtPlain" : scene.rig] { return Extrusion.lit(base, n, rig: table, turn: scene.rigTurn, material: !plain && (scene.rig == "twoPt" || (scene.rig == "threePt" && !scene.material.isEmpty)) ? Extrusion.material(scene.material) : nil, threePt: scene.rig == "threePt", whiteShare: rim || (scene.rig == "threePt" && !scene.legacy && !scene.cameraName.hasPrefix("perspective") && scene.material.isEmpty) ? 1.0 : 0.5) }
             let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
             var k = rig.ambient
             for l in lights { k += max(0, (n.x * l.x + n.y * l.y + n.z * l.z) / len) }
@@ -555,6 +555,10 @@ enum Extrusion {
                 if let i = at.firstIndex(where: { nm.hasSuffix($0) }) { sheen = turned && i == 1 ? 0.24 : (scene.perspective ? pe[i] : ob[i]) }
             } else if scene.rig == "twoPt", nm.hasSuffix("TopRight") { sheen = scene.perspective ? 0.10 : 0.18 }
         }
+        // Lab p3fit (six fills, isometricRightUp and a 20/330 tilt, threePt, no material): PowerPoint's face
+        // is the fill's multiple plus a white that grows as the face turns from the eye, 16 levels at
+        // the isometric camera (face normal z .577), 4.5 at the tilt (.814); 0.23 x (1 - z)^1.5.
+        if !scene.legacy, !scene.cameraName.hasPrefix("perspective"), scene.rig == "threePt", scene.material.isEmpty, frontShows, n0.z > 0 { sheen = 0.23 * pow(max(0, 1 - n0.z), 1.5) }
         var shownFace = shown
         if sheen > 0 {
             func lift(_ v: Int) -> Int { min(255, v + Int((255.0 * sheen).rounded())) }
