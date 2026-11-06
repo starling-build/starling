@@ -73,7 +73,7 @@ def fixture():
     return data.getvalue()
 
 
-def check(path):
+def check(path, turned_ok=(['0'], ['0', '3'])):
     with pymupdf.open(path) as pdf:
         assert len(pdf) == 11, f"{path}: expected eleven control pages, got {len(pdf)}"
         labels = [[w for w in page.get_text("words") if 150 < w[1] < 300] for page in pdf]
@@ -84,8 +84,10 @@ def check(path):
             assert abs(indented[0][0] - zero[0][0] - 9) < 0.2, "first glyph lost its 9pt indent"
             assert abs(indented[0][1] - zero[0][1]) < 0.2, "the indent occupied a line by itself"
             assert not hidden, f"glyph past the fixed frame still drawn: {hidden}"
-            # (Word's print holds both digits of the turned label: the "3" at the indent past the box, the "0" on its second line; zh-b24b396a.)
-            assert sorted(w[4] for w in turned) == ["0", "3"], f"turned frame must keep both digits: {turned}"
+            # (Word for Windows' print of the turned label shows only the "0" (a 1.6 pt sliver of it): the "3", at the indent past the box,
+            # is cut at the frame; zh-b24b396a. Mac mode keeps both: the "3" at the indent, the "0" on its second line. The browser's
+            # author-font mode is either, so it is told no mode.)
+            assert sorted(w[4] for w in turned) in turned_ok, f"turned frame must show one of {turned_ok}: {turned}"
         for page in list(pdf)[8:]:
             spans = [s for b in page.get_text("dict")["blocks"] for line in b.get("lines", [])
                      for s in line["spans"] if s["text"].strip() == "B" and s["color"] == 0]
@@ -131,7 +133,7 @@ def main():
                                     env=os.environ | {"OFFICE_WORD_FONTS": mode, "OFFICE_FONT_SOURCE": "bundled"},
                                     capture_output=True, text=True)
             assert result.returncode == 0, result.stdout + result.stderr
-            check(pdf)
+            check(pdf, (['0'],) if mode == "windows" else (['0', '3'],))
             print(f"PASS fixed text frames: {mode}, 11 control pages")
 
 
