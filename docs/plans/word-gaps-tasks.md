@@ -15035,3 +15035,5 @@ TIP WATCH amd-8, round 197 (584c352c5): Word no drops (six sections up 0 down 0)
 TIP WATCH amd-8, round 198 (72cccfe2a): Word v2 clean (756 up 2 down 0, lo up 0; vis v2 0/0). One v1-only drop again: zh-b4d36718 99.6 -> 99.3 (lines 756/755); it also dropped in round 195 and was level in 196, so it flips with the tip; v1 not gated. Span: 21316d3ef, cf9fa85de, d4abff2ba. COMBINED 756 99.94%, lo 99.98%. Unit tests 632, 0 failures. WEB build OK, layout exit 0.
 
 TIP WATCH amd-8, round 198 CORRECTION: the first run (72cccfe2a) used a stale PREV (c44e77699), so its zh-b4d36718 v1 drop is the round 195 one, not a flip. Re-run on 2d9bf4cb6 against 584c352c5: Word no drops in any section, nondeterminism check empty, unit tests 632 0 failures, WEB build OK, layout exit 0. zh-b4d36718 v1 99.6 -> 99.3 stands from round 195 (34dd753e1/16ca89b95/d0a6c345b), v2 clean.
+
+TIP WATCH amd-8, round 199 (ca4d7c619): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0.
