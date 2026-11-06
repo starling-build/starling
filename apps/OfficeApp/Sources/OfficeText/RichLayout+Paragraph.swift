@@ -266,7 +266,14 @@ extension RichLayout {
                     let tableSide = (side == "top" ? d.row > 0 : end < rows) ? "insideH" : side
                     let style = said?.style ?? ts.edgeStyles[tableSide] ?? ts.borderStyle
                     let width = said?.width ?? (ts.edgeWidths[tableSide] ?? ts.borderWidth ?? 0.5)
-                    return _px(Self._ruleRoom(style, width))
+                    var room = Self._ruleRoom(style, width)
+                    // (At the table's own edge the wider of its line and the
+                    // cell's wins: zh-cb56e605's outset top over a cell's
+                    // single 0.5 — Word's header stands 0.8 lower.)
+                    if said != nil, tableSide == side, theme.wordRules, ts.cellSpacing != nil {
+                        room = max(room, Self._ruleRoom(ts.edgeStyles[side] ?? ts.borderStyle, ts.edgeWidths[side] ?? ts.borderWidth ?? 0.5))
+                    }
+                    return _px(room)
                 }
                 // The cell's left and right lines, resolved as its top and
                 // bottom ones are: the cell's own side over the table's,
