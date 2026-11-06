@@ -16,6 +16,10 @@ result carry a format change.
   n2c   n1 with a comment on "March"
   w3    the wrapping item twice in a row, then a short one
   w4    the wrapping item with one more word so line 2 holds two words ("March 25th @ 14:00 sharp"), alone
+  ov1   14 short items: a column of 42 balloons, pushed far below its anchors
+  ov2   14 items, every third wrapping
+  ov3   delins' own run of nine items (its paragraphs 13-21), the wrapping one in the same place
+  ov4   four short items, then ov3's nine
 
 Print each to PDF in Word for Windows; compare the order of the Formatted / Field Code Changed / Commented balloons in the
 margin column and the x where each balloon's leader meets the text.
@@ -81,6 +85,21 @@ OTHER1 = ("Lucene/Solr Case Studies", [" - Erik Hatcher. ", "March", " 25th @ ",
 OTHER2 = ("Apache Droids - an intelligent standalone robot framework", [" - Thorsten Scherler. ", "March", " 26th @ ", "15:00"])
 LONG2 = (LONG[0], LONG[1][:-1] + ["14:00 sharp"])
 
+def short(i):
+    return (f"Session number {i}", [f" - Speaker {i}. ", "March", f" 25th @ {10 + i % 8}:00"])
+
+
+# delins' own run of items (its paragraphs 13-21), where Word prints C, F, F for the group of "Apache Solr - A Case Study"
+DELINS = [("Lucene will be extremely well represented", [" - Many speakers. ", "March", " 24th @ 10:00"]),
+          ("Lucene Boot Camp - A two day training session", [" - Grant Ingersoll. ", "March", " 23rd @ 09:00"]),
+          ("Solr Boot Camp - A one day training session", [" - Erik Hatcher. ", "March", " 24th @ 09:00"]),
+          ("Introducing Apache Mahout", [" - Grant Ingersoll. ", "March", " 25th @ 10:00"]),
+          OTHER1,
+          LONG,
+          ("Apache Solr - A Case Study", [" - Uri Boness. ", "March", " 26th @ 17:30"]),
+          ("Best of breed - httpd, forrest, solr and lucene", [" - Many speakers. ", "March", " 26th @ 14:00"]),
+          OTHER2]
+
 DOCS = {
     "w1": [OTHER1, LONG, OTHER2],
     "n1": [OTHER1, SHORTW, OTHER2],
@@ -90,6 +109,12 @@ DOCS = {
     "n2c": [OTHER1, SHORTW + ("March",), OTHER2],
     "w3": [LONG, LONG, OTHER1],
     "w4": [LONG2],
+    # Word pushes the balloons down when there are more of them than lines (delins: 33 balloons beside 11 lines). The labs above
+    # fit; these make the column long, so that most balloons stand far below their anchors, as in delins.
+    "ov1": [short(i) for i in range(14)],
+    "ov2": [LONG if i % 3 == 1 else short(i) for i in range(14)],
+    "ov3": DELINS,
+    "ov4": [short(i) for i in range(4)] + DELINS,
 }
 
 
