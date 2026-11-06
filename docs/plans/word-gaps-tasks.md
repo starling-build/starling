@@ -14613,3 +14613,4 @@ TIP WATCH amd-8, round 152 (12b1a78f8): Word no drops; unit tests 628 run, 0 fai
 - amd-1 2026-11-06 LANDED c5e9411c0: lo-c4c60fcb 93.8 -> 100 (a Word legend at the right, plot placed by the file, chart titled: legend 4.1 pt lower; the only such chart in 1,349 documents, so one data point; pair 0 down). lo-f9b9a8fc stays 87.5: remeasured on the tip, the same one line — Word puts label 5 (x173, y227) 9 pt above label 4 (x266, y236) in a chart of 8 EQUAL slices (mirror slices), ours level; no rule from one chart, parked (needs a lab: 8 equal slices, legend bottom vs none, label order).
 
 TIP WATCH amd-8, round 153 (67fac563c): Word no drops; unit tests 628 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
+- CLAIM (amd-5, 2026-11-06, starling-bd order): Thai body breaks in the 756/LO sets (the Thai lab is read by amd-3, no rule built yet). Listing the Thai roots, grouping by cause.
