@@ -2790,7 +2790,8 @@ enum ChartPainter {
                 }
                 if c.legendPosition == "l" {
                     columnX = area.left
-                    area = Rect.fromLTRB(area.left + columnW + 12 * k, area.top, area.right, area.bottom)
+                    let leftTaken = c.type == .pie && box == nil && !c.onSlide && !c.onSheet ? min(columnW + 12 * k, r.width / 3 + 9 * k) : columnW + 12 * k
+                    area = Rect.fromLTRB(area.left + leftTaken, area.top, area.right, area.bottom)
                 } else {
                     // (A point further in than the plot's margin on a slide:
                     // the names end 9.8 and 10.2 pt short of the frame in
@@ -2804,11 +2805,10 @@ enum ChartPainter {
                     // gap these gaps were measured with: its edge is
                     // PowerPoint's, the column's keys moved within it.)
                     let measured = (entries.map(\.tp.width).max() ?? 0) + 11 * k * m
-                    // (A Word pie's legend at the right takes at most 0.366 of the frame: forty-character names, 155 pt
-                    // wide, leave the pie as large as with no legend, its centre 64.5 pt left of the frame's: lab
-                    // piesize3 ps-len-40-legr.)
+                    // (A Word pie's legend at the right takes at most a third of the frame and 9 pt (129 pt of 360,
+                    // 169 of 480): names past 28 characters move the pie no further, lab piesize4's legr docs.)
                     let word = c.type == .pie && box == nil && !c.onSlide && !c.onSheet
-                    let taken = word ? min(measured + apart * k, 0.366 * r.width) : measured + apart * k
+                    let taken = word ? min(measured + (apart + 1.64) * k, r.width / 3 + 9 * k) : measured + apart * k
                     area = Rect.fromLTRB(area.left, area.top, area.right - taken, area.bottom)
                 }
             } else if c.legendPosition == "t" {
@@ -2835,7 +2835,11 @@ enum ChartPainter {
                 // Excel's prints of nine charts with the legend below.)
                 let pt = c.onSheet ? k / 0.75 : 0
                 y = area.bottom - 1.2 * k - lineH * Double(lines.count) - 2.2 * pt
-                area = Rect.fromLTRB(area.left, area.top, area.right, y - (printed && old ? 9.55 : 8.4) * k - 2.23 * pt)
+                // (A Word pie's legend takes no more room from it past seven rows: lab piesize3's eight
+                // 40-character entries leave it as seven do, R 16.80 and centre 128.71 in both.)
+                let roomRows = c.type == .pie && box == nil && !c.onSlide && !c.onSheet ? min(lines.count, 7) : lines.count
+                let yRoom = y + lineH * Double(lines.count - roomRows)
+                area = Rect.fromLTRB(area.left, area.top, area.right, yRoom - (printed && old ? 9.55 : 8.4) * k - 2.23 * pt)
                 if bareLegend { y += 1.2 * k }
             }
             let middle = printed ? r.center.dx + 2.28 * k * m : area.center.dx
@@ -5527,9 +5531,9 @@ enum ChartPainter {
                 // (No title and no legend band both: the larger, 2.7, only — lo-f391267c's pie, R 59.0 in Word's print. A legend of two
                 // rows takes 2.2 pt more of the radius than ours, as of the centre: 12 labels' legend, lab piesize and lo-f9b9a8fc.)
                 let rows = Self._pieLegendRows(c, frame: frame ?? area, k: k, text: text)
-                let wordRoom = 1.0307 * room - 5.82 * k + max(titled ? 0 : 2.7 * k, footOrTop ? 0 : 1.2 * k) - Self._pieLegendCost(rows) * k
+                let wordRoom = 1.0307 * room - 5.82 * k + (!titled && !footOrTop && c.legend ? 3.83 * k : max(titled ? 0 : 2.7 * k, footOrTop ? 0 : 1.2 * k)) - Self._pieLegendCost(rows) * k
                 RuleTrace.hit("word-flat-pie-outside-labels-size-the-pie-0.875-of-the-room-less-1.37pt")
-                radius = max(room / 2, 0.875 * wordRoom - 1.37 * k)
+                radius = max(room / 4, 0.875 * wordRoom - 1.37 * k)   // (7 legend rows leave R 16.80 of a room 42: lab piesize4 n7)
             }
         }
         // (Centred labels, lab piesize round 2 (Word for Windows): the room itself, without the outside labels' 0.875 and 1.37 — R 70.64,
@@ -5541,7 +5545,7 @@ enum ChartPainter {
             let footOrTop = c.legend && ["b", "t"].contains(c.legendPosition)
             let rows = Self._pieLegendRows(c, frame: frame ?? area, k: k, text: text)
             RuleTrace.hit("word-flat-pie-centred-labels-size-the-pie-by-the-room")
-            radius = max(room / 2, 1.0307 * room - 5.82 * k + max(titled ? 0 : 2.7 * k, footOrTop ? 0 : 1.2 * k) - Self._pieLegendCost(rows) * k)
+            radius = max(room / 2, 1.0307 * room - 5.82 * k + (!titled && !footOrTop && c.legend ? 3.83 * k : max(titled ? 0 : 2.7 * k, footOrTop ? 0 : 1.2 * k)) - Self._pieLegendCost(rows) * k)
         }
         // (Excel's doughnut on a sheet, no labels, a legend at the right: as wide as the chart less 89 pt and as high as it less
         // 22 pt, whole; at the top, 46.2 pt less than its height as at the foot. Windows lab wip/lab-doughnut: 200 x 400 ring 111 across
