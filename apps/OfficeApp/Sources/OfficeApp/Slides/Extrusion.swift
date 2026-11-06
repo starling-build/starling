@@ -373,10 +373,25 @@ enum Extrusion {
             }
             return q
         }
-        func flat(_ p: P3) -> Offset { Offset(c.dx + p.x, c.dy + p.y) }
+        // PowerPoint prints a solid with a material as a picture whose box is larger than the shape's:
+        // Scene3d_material_highlight, six donuts of five materials, ours 0.62 to 0.75 short on the left and
+        // top and 0.4 to 0.5 on the right and foot.
+        var grown: (lo: Offset, hi: Offset)? = nil
+        func flat(_ p: P3) -> Offset {
+            let o = Offset(c.dx + p.x, c.dy + p.y)
+            guard let g = grown else { return o }
+            let gx = 0.65 * px, gy = 0.75 * px, ex = 0.45 * px, ey = 0.62 * px
+            return Offset(g.lo.dx - gx + (o.dx - g.lo.dx) * (g.hi.dx - g.lo.dx + gx + ex) / max(1e-6, g.hi.dx - g.lo.dx),
+                          g.lo.dy - gy + (o.dy - g.lo.dy) * (g.hi.dy - g.lo.dy + gy + ey) / max(1e-6, g.hi.dy - g.lo.dy))
+        }
         // z runs toward the eye: the front at 0, the back `depth` behind.
         let front = rings.map { $0.map { place($0, scene.lift * px) } }
         let back = rings.map { $0.map { place($0, scene.lift * px - depth) } }
+        if !rim, !scene.wireframe, !scene.material.isEmpty {
+            var lo = Offset(.infinity, .infinity), hi = Offset(-.infinity, -.infinity)
+            for ring in front + back { for q in ring { let o = flat(q); lo = Offset(min(lo.dx, o.dx), min(lo.dy, o.dy)); hi = Offset(max(hi.dx, o.dx), max(hi.dy, o.dy)) } }
+            grown = (lo, hi)
+        }
 
         // The sides are the colour the file names, else the outline's where
         // the shape has one (PowerPoint's "automatic" depth colour), else
