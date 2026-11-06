@@ -1815,6 +1815,28 @@ extension RichLayout {
         return end
     }
 
+    /// How tall Word makes a footer that holds a full-width square-wrapped shape set from the bottom margin, when that
+    /// shape's band (distances included) lies across the footer's first lines (pixels): Word stands the footer's paragraphs
+    /// from the top of the bottom margin area, moves the paragraph the band covers to the band's foot, and then sets the
+    /// grown footer on the page's foot, so the shape rides up with it (LibreOffice's lo-9c6cc479, a 2.85pt rule 20.25pt
+    /// under the margin's top: the footer is 64.5pt, not 46, and page 1 loses a contents line).
+    func _footerBandHeight(_ footer: _HeaderFooter, _ setup: PageSetup) -> Double? {
+        var best: Double? = nil
+        for (j, hp) in footer.document.paragraphs.enumerated() where hp.cell == nil && j < footer.layout._tops.count {
+            for image in hp.inlineImages.inOrder + (hp.image.map { [$0] } ?? []) {
+                guard let f = image.float, f.wraps, !f.wrapsTight, f.wrapSide == nil, f.verticalFrom == "bottomMargin",
+                      f.verticalAlign == nil, image.height > 0,
+                      image.width >= setup.width - setup.marginLeft - setup.marginRight - 1 else { continue }
+                let top = _px(f.y) - _px(f.distanceTop), foot = _px(f.y) + _px(image.height) + _px(f.distanceBottom)
+                let at = footer.layout._tops[j]
+                guard at < foot, at + _px(8) > top else { continue }
+                RuleTrace.hit("footer-moves-below-its-square-wrapped-shape-and-grows")
+                best = max(best ?? 0, foot + footer.height - at)
+            }
+        }
+        return best
+    }
+
     /// How far below the paper's top page `p`'s text starts, and how far
     /// above its bottom it ends (pixels): the margins, or the header's
     /// and the footer's extent where that is more.
@@ -1845,6 +1867,7 @@ extension RichLayout {
             // above that paragraph and ends the body at its top — LibreOffice's floattable-footer-object, a picture 88.5pt
             // high raised 81pt, ends the body 91pt higher than the footer's line alone does, three rows a page, not five.)
             if theme.wordRules, RichTextTheme.wordWindowsPages, let end = _footerPictureEnd(footer, setup) { bottom = max(bottom, end) }
+            if theme.wordRules, RichTextTheme.wordWindowsPages, let grown = _footerBandHeight(footer, setup) { bottom = max(bottom, _px(setup.footerDistance) + grown) }
         }
         return (top, bottom)
     }
