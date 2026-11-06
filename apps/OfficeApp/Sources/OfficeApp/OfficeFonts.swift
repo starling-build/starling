@@ -3433,6 +3433,16 @@ enum OfficeFonts {
         if let own = ea.otherAdvances {
             face.otherAdvances = (face.otherAdvances ?? [:]).merging(own) { $1 }
             face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(own) { $1 }
+            // (SimSun's curly quotes, an em, where the run's Latin face is SimSun and nothing hints
+            // East Asian: lab pc2 (Word for Windows, 10.5pt, 宋体 in every slot) sets "“" 10.68-10.80
+            // and "”" 10.56-10.68; ours 3.5. The hinted quotes take the East Asian face's, as before:
+            // the same quotes in zh-e74dd0a1, zh-424775e4 and others, hinted, fell 99.9 to 54.)
+            let lowerFamily = family.lowercased()
+            if wordOnWindows, ["simsun", "宋体", "宋體"].contains(where: { lowerFamily.containsSubstring($0) }) {
+                let quotes: [UInt32: Double] = [0x2018: 1, 0x2019: 1, 0x201C: 1, 0x201D: 1]
+                face.otherAdvances = face.otherAdvances?.merging(quotes) { $1 }
+                face.boldOtherAdvances = face.boldOtherAdvances?.merging(quotes) { $1 }
+            }
         }
         // A no-break space in a square face is an em, where its space is
         // half of one (lab `nb1`, Word 16, 2026-10-15: "甲" + ten U+00A0 +
