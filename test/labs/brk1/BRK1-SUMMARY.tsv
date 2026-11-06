@@ -1,0 +1,33 @@
+# variant	firstW_OPEN2_on_line1	advOPEN1_there	advOPEN2_there	space_adv_there	min_advOPEN2_over_W	max_advOPEN2_over_W	advOPEN1_min	advOPEN1_max(all W)
+brk1-a-both-m14-s0	294.0	13.91	14.04		13.91	14.04	13.91	14.74
+brk1-a-both-m14-s1	none						13.91	15.11
+brk1-a-both-m15-s0	294.0	13.91	14.04		13.91	14.04	13.91	14.74
+brk1-a-both-m15-s1	none						13.91	15.11
+brk1-a-left-m14-s0	294.0	13.91	14.04		13.91	14.04	13.91	14.04
+brk1-a-left-m14-s1	none						13.91	14.04
+brk1-a-left-m15-s0	none						14.04	14.04
+brk1-a-left-m15-s1	none						14.04	14.04
+brk1-b-both-m14-s0	294.0	13.91	14.04		13.91	14.04	13.91	14.74
+brk1-b-both-m14-s1	none						13.91	15.11
+brk1-b-both-m15-s0	294.0	13.91	14.04		13.91	14.04	13.91	14.74
+brk1-b-both-m15-s1	none						13.91	15.11
+brk1-b-left-m14-s0	294.0	13.91	14.04		13.91	14.04	13.91	14.04
+brk1-b-left-m14-s1	none						13.91	14.04
+brk1-b-left-m15-s0	none						14.04	14.04
+brk1-b-left-m15-s1	none						14.04	14.04
+brk1-p-both-m14-s0	294.0	13.91	14.04		13.91	14.04	13.91	14.74
+brk1-p-both-m14-s1	none						13.91	15.11
+brk1-p-both-m15-s0	294.0	13.91	14.04		13.91	14.04	13.91	14.74
+brk1-p-both-m15-s1	none						13.91	15.11
+brk1-p-left-m14-s0	294.0	13.91	14.04		13.91	14.04	13.91	14.04
+brk1-p-left-m14-s1	none						13.91	14.04
+brk1-p-left-m15-s0	none						14.04	14.04
+brk1-p-left-m15-s1	none						14.04	14.04
+brk1-q-both-m14-s0	294.0	13.91	14.04		13.91	14.04	13.91	14.74
+brk1-q-both-m14-s1	none						13.91	15.11
+brk1-q-both-m15-s0	294.0	13.91	14.04		13.91	14.04	13.91	14.74
+brk1-q-both-m15-s1	none						13.91	15.11
+brk1-q-left-m14-s0	294.0	13.91	14.04		13.91	14.04	13.91	14.04
+brk1-q-left-m14-s1	none						13.91	14.04
+brk1-q-left-m15-s0	none						14.04	14.04
+brk1-q-left-m15-s1	none						14.04	14.04
