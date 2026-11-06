@@ -234,8 +234,11 @@ extension RichLayout {
                 RuleTrace.hit("word-chars-indent-after-drawing-anchor-follows-twips")
                 return p.style.firstLineIndent - _topLineSqueeze(p, document)
             }
+            // (The paragraph's own style's size where it has one: zh-b24b396a's footer page number,
+            // style 9pt under Normal's 12, firstLineChars 200 from Normal, is 18pt in, not 24, in
+            // Word's print; zh-c2c92639's TOC entries take Normal's as their style sets none.)
             let fieldFirst = RichTextTheme.wordWindowsPages && p.style.eastAsian["w:fieldFirst"] == "1"
-            let size: Double = fieldFirst ? (document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize) : (first?.style.fontSize ?? named?.char.fontSize ?? theme.fontSize)
+            let size: Double = fieldFirst ? (named?.char.fontSize ?? document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize) : (first?.style.fontSize ?? named?.char.fontSize ?? theme.fontSize)
             var spacing: Double = first?.style.letterSpacing ?? named?.char.letterSpacing ?? 0
             // (Twice where the document balances its widths: see `_span`.)
             if document.balancesSpaceWidth { spacing *= 2 }
