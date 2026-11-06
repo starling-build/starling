@@ -14842,3 +14842,4 @@ TIP WATCH amd-8, round 171 (740453791): Word no drops; unit tests 628 run, 0 fai
 - windows 01QbbApP (2026-11-06) LAB col2flow printed in Word (wip/lab-col2flow-prints, COL2FLOW-WORD.tsv, no PDFs): in all three docs Q77 sits on page 2 (baseline 994.5), Q78/Q79 on page 2 (1051.4, 1082.1), and Q80/Q81 go to page 3 (88.3, 145.2), so Word flows the section's last two empties to the next page. lastcols1 and higher show the same pages and baselines; higher's removed empties changed nothing there.
 
 TIP WATCH amd-8, round 172 (9a7b5c7ca): Word no drops; unit tests 628 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
+- lenovo-2 (2026-11-06) claims LO to 100: lo-c678e486, lo-717ff943, lo-9f27ef40, lo-a594fa6b, lo-9c6cc479, lo-7ec36a70 (Persian), and the kashida doc. zh-8e8d4c40 p1 fix in land.sh now (cause: drawing's object mark U+FFFC counted as a missing glyph, +2pt; plus distB in wrapSquare push).
