@@ -2665,6 +2665,18 @@ enum ChartPainter {
             // within it, set left: zh-61aaad09's pie legend, 26% of the
             // chart's width, sets "实体投诉举报" as "实体投诉" / "举报" in Word's
             // print.)
+            // (A Word pie's legend at a side wraps a name wider than 108.5 pt of a 360 frame (a third of it less 11.5) within that, at
+            // any letter, the lines 10.97 apart and the entries 5.8 apart after the last: lab piesize4's legr docs, 34 to 60 characters.)
+            let wordSidePie = c.type == .pie && beside && box == nil && !c.onSlide && !c.onSheet
+            if wordSidePie {
+                let wrapW = r.width / 3 - 11.5 * k + 5
+                entries = entries.map { e in
+                    guard e.tp.width > wrapW + 0.01 else { return e }
+                    RuleTrace.hit("word-pie-side-legend-name-wraps-at-a-third-of-the-frame")
+                    e.tp.dispose()
+                    return (i: e.i, tp: styled(names[e.i], size, wrapW, bold: c.legendBold, color: c.legendColor, align: .left, windowsLines: true))
+                }
+            }
             if let box {
                 entries = entries.map { e in
                     guard lead + e.tp.width > box.width + 0.01 else { return e }
@@ -2743,7 +2755,26 @@ enum ChartPainter {
                     lines = Array(lines[..<rows])
                 }
             }
-            var lineHs = lines.map { line in max(lineH, line.map { $0.tp.height }.max() ?? 0) }
+            var lineHs = lines.map { line in
+                let tall = line.map { $0.tp.height }.max() ?? 0
+                return wordSidePie && tall > 1.5 * textH ? tall + 5.8 * k : max(lineH, tall)
+            }
+            // (A Word pie's side legend too tall for the chart drops its last entries: lab piesize4's 60-character names, three lines
+            // each, stand four of five in a 212 pt frame; the room taken as 0.82 of the frame less 5 pt, as on a sheet.)
+            if wordSidePie, lines.count > 1 {
+                let cap = 0.82 * (r.height - 5 * k)
+                var keep = 0, h = 0.0
+                for (i, lh) in lineHs.enumerated() {
+                    if h + lh - 5.8 * k > cap { break }
+                    h += lh; keep = i + 1
+                }
+                if keep >= 1, keep < lines.count {
+                    RuleTrace.hit("word-pie-side-legend-drops-the-entries-its-room-cannot-hold")
+                    droppedLegend = lines[keep...].flatMap { $0 }
+                    lines = Array(lines[..<keep])
+                    lineHs = Array(lineHs[..<keep])
+                }
+            }
             // (A place of its own taller than its lines shares its height
             // among them: zh-61aaad09's two entries, in a box 94% of the
             // chart's height, stand 57pt apart in Word's print, each in the
@@ -2780,7 +2811,7 @@ enum ChartPainter {
                 RuleTrace.hit("word-legend-placed-by-its-corner-keeps-its-size-over-the-plot")
                 y = r.top + at.dy * r.height + 2.5 * k
             } else if beside {
-                y = c.legendPosition == "tr" ? area.top : area.center.dy - titleDrop / 2 - lineH * Double(lines.count) / 2
+                y = c.legendPosition == "tr" ? area.top : area.center.dy - titleDrop / 2 - (wordSidePie ? linesH - 5.8 * k : lineH * Double(lines.count)) / 2 + (wordSidePie ? 1.3 * k : 0)
                 // (A Word chart with a title, its plot left where the file puts it (manual layout) and
                 // the legend at the right: the legend's middle stands 4.1 pt lower than the middle of
                 // the room under the title — lo-c4c60fcb's two entries, 14 pt title, in Word's print.)
