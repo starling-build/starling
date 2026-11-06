@@ -2667,7 +2667,7 @@ enum ChartPainter {
             // print.)
             // (A Word pie's legend at a side wraps a name wider than 108.5 pt of a 360 frame (a third of it less 11.5) within that, at
             // any letter, the lines 10.97 apart and the entries 5.8 apart after the last: lab piesize4's legr docs, 34 to 60 characters.)
-            let wordSidePie = c.type == .pie && beside && box == nil && !c.onSlide && !c.onSheet
+            let wordSidePie = c.type == .pie && beside && box == nil && !c.onSlide && !c.onSheet && !libreLegend
             if wordSidePie {
                 let wrapW = r.width / 3 - 11.5 * k + 5
                 entries = entries.map { e in
