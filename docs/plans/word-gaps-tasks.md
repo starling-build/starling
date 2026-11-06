@@ -14902,3 +14902,4 @@ TIP WATCH amd-8, round 181 (b617cdab5, first on engine 458e9a6f4a): Word no drop
 - amd-5 CLAIMS lo-9c6cc479 (99.0, from amd-perf; page 1 fits one more contents line than Word)
 
 TIP WATCH amd-8, round 182 (7d1b0c2e7): Word no drops; unit tests 632 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. SLIDES mean 0.7848 -> 0.7842 (0 worse, 3 better, matched-win 98/98 exact). SHEETS 0.647 unchanged (0 worse). All gates green.
+- CLAIM lenovo-2 (2026-11-06, starling-bd order): lo-9f27ef40 (balloon order: find Word's rule, implement) and lo-717ff943 (98.2; first-bullet line 1.3 pt low: Symbol-bullet lift doubled beside a floating table, plus the caption table raised twice). lenovo-5's rank list names lo-9f27ef40 too; the balloon work is mine.
