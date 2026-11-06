@@ -3047,7 +3047,7 @@ enum ChartPainter {
         } else {
             _axes(c, canvas, area, frame: r, k: k, theme: theme, titleLines: titleLines, grid: c.gridColor ?? grid, text: text,
                    titleText: { styled($0, $1, $2, bold: false, color: c.onSlide || c.onSheet ? nil : c.axisTitleColor) },
-                  categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor) },
+                  categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor, windowsLines: c.barView == nil && c.lineSeries.isEmpty) },
                   valueText: { styled($0, $1, $2, bold: c.valueLabelBold, color: c.valueLabelColor) })
         }
         if let (tp, at) = placed {
