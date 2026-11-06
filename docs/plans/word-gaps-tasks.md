@@ -15040,3 +15040,9 @@ TIP WATCH amd-8, round 199 (ca4d7c619): Word no drops (six sections up 0 down 0)
 - Windows 01QbbApP (2026-11-06) LAB p3fit (for amd-2, via macos/starling-bd): F.pptx printed in PowerPoint for Windows, 9 slide PNGs (2400x1350, rendered from the PowerPoint PDF) on wip/lab-p3fit-prints (1500f549); no PDF committed. Not analysed.
 
 TIP WATCH amd-8, round 200 (6d0232726): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0. SHEETS 0.647 unchanged (0 worse). SLIDES mean 0.7848 -> 0.7448 (42 better, matched-win 98/98 exact); 8 worse, all approved by name (ececapstonespring2012, Scene3d_material_highlight, ImportWordArtGradient, Scene3d_isometricRightUp, ThemeColorTransparency, KEY02, lo-hyperlinktest, tdf164622). Slides baseline reseeded and landed as 95590a1a7 (baseline-win.tsv + STAMP).
+
+### lenovo-2 (2026-11-06): landed fa4b7a6e7, f43d071d3; pc2 comma/bracket lab read
+- fa4b7a6e7: a paragraph with snapToGrid 0 is not cut to whole grid cells when its characters are a point or more above the cell (zh-a78d52e7 p8, 99.3 to 100; pair +1/-0, LO 0/0).
+- f43d071d3: SimSun curly quotes are an em where the run's Latin face is SimSun and nothing hints East Asian. Lab pc2 (Word prints, wip/lenovo2-pc2-prints): 429 of 440 lines matched before, 440 of 440 now. Hinted (eastAsia) quotes stay as before; widening them in the shared table dropped 7 docs. No score moves.
+- Comma/bracket squeeze: the existing equal-share rule matches Word on all 385 lines of the first lab for the comma, enumeration comma, full stop and closing bracket. The quote difference was the font slot's width, not the squeeze rule (17d3619d4). The opening book-title bracket was not separated in pc2: its kinds all matched ours.
+- Still open: zh-ea43dd6d (1.5 pt line), zh-e61c3dff (99.6, not examined), the narrow-space gate (zh-6c447317).
