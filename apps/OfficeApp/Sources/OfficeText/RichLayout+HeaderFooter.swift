@@ -2179,6 +2179,7 @@ extension RichLayout {
             for p in firstPage ... lastPage {
                 pageBackground?(p, pageRect(p))
                 _paintPageTile(p, canvas, document)
+                _paintPageBorders(p, canvas, document)
                 _paintHeaderFooter(p, canvas, document)
                 _paintFootnotes(p, canvas, document)
             }
