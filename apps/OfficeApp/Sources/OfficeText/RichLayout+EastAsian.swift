@@ -1720,6 +1720,9 @@ extension RichLayout {
                     let dashGlued = wordRules && RichTextTheme.wordWindowsPages && last < units.count && units[last] == 0x2014
                         && units[last - 1] >= 0x30 && units[last - 1] <= 0x39 && need > hair && last - a == 1
                     let taken = takenFirst && !gridCapped && !pairedOpener && !timesGlued && !dashGlued && !letterWord && !(legacy && (a ..< last).contains { units[$0] == 0x20 } && Self._closingUnits.contains(units[last - 1]) && need > room + hair)
+                        // (Word for Windows, old format: it takes a character up to about 0.017pt past half an em and refuses from 0.019:
+                        // zh-d950cedb's "配" 8.02 over 8.0, zh-015abfaf's 7.897 over 7.874; the 15 takes in 3 documents are at most 0.016; not one that ends on a closing mark: zh-16e0a12a's "门)" is taken.)
+                        && !(legacy && wide && !Self._closingUnits.contains(units[last - 1]) && RichTextTheme.wordWindowsPages && over > before / 2 + _px(0.017) && over <= before / 2 + _px(0.03))
                     if Self.debugFitLog {
                         let pt = theme.pixelsPerPoint * scale
                         let gapSum = given.reduce(0.0) { $0 + (gaps[$1] ?? 0) }
