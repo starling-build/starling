@@ -1623,7 +1623,7 @@ extension RichLayout {
             // and takes only the SPLIT above and below the baseline from an override, so every run
             // of the tallest stretch gets one height and one split — the share of Arial's line under
             // its baseline, by the face the run is drawn in, not the stand-in a font name resolves to.)
-            if picturesInLine, theme.wordRules, RichTextTheme.wordWindowsPages, style.rightToLeft, !Self._risesForNumber(inline) {
+            if picturesInLine, theme.wordRules, RichTextTheme.wordWindowsPages, !Self._risesForNumber(inline) {
                 var top = 0.0
                 var counts: [Double: (Int, String?, Bool)] = [:]
                 func tallest(_ s: InlineSpan) {
@@ -1637,9 +1637,21 @@ extension RichLayout {
                 }
                 tallest(span)
                 // (The stretch most of the text has among those within 3% of the tallest, as `_strut` does.)
-                // (Right-to-left only: a left-to-right Chinese title line over a page-sized picture (zh-e49d7943 p14) is
-                // taller in Word than its runs' own height, and holding it put the picture 2.4pt high.)
+                // (Only where our stand-in's own line is taller than the authored face's: Persian's 15.9 against Arial's 13.8.
+                // (Persian's stand-in stands 15% over; zh's 6.6%, a margin that also keeps near-equal faces from flipping on rounding.)
+                // A face whose stand-in is no taller already lays out as Word does — zh-e49d7943 p14's Chinese title line held
+                // to its runs' height put the picture below it 2.4pt high.)
                 if top > 0, let held = counts.filter({ $0.key >= top * 0.97 }).max(by: { $0.value.0 < $1.value.0 }) {
+                    let standIn = painter.computeLineMetrics().map { $0.height }.filter { $0 >= held.key * 0.97 }.min() ?? 0
+                    // (The authored face's own line where the layout knows it — 標楷體's 1.30 — else the runs' own height.)
+                    var lab: String? = nil; var cjk = false; var sz = 0.0, hh = 1.0
+                    func probe(_ s: InlineSpan) { guard let t = s as? TextSpan else { return }
+                        if lab == nil, let x = t.style, let size = x.fontSize, let h = x.height, size * h >= top * 0.97, let tx = t.text, !tx.isEmpty {
+                            lab = x.debugLabel; sz = size; hh = h; cjk = tx.unicodeScalars.contains { $0.value >= 0x2E80 && $0.value < 0xA000 } }
+                        for c in t.children ?? [] { probe(c) } }
+                    probe(span)
+                    let authored = lab.flatMap { theme.faceResolver?($0, cjk) }?.naturalHeight.map { $0 * held.key / hh } ?? held.key
+                    if standIn > max(authored, held.key) * 1.1 {
                     let down = theme.descentShare(family: held.value.1, bold: held.value.2, italic: false)
                     func sized(_ s: InlineSpan) -> InlineSpan {
                         guard let t = s as? TextSpan else { return s }
@@ -1655,6 +1667,7 @@ extension RichLayout {
                     if !inline.isEmpty { each.setPlaceholderDimensions(inline.map { $0.dimensions }) }
                     each.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
                     if each.computeLineMetrics().count == lines { return each }
+                    }
                 }
             }
             if painter.strutStyle == nil, theme.wordRules, !picturesInLine, !Self._risesForNumber(inline),
