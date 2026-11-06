@@ -3968,7 +3968,9 @@ enum ChartPainter {
         // runs to the data and a twentieth past it, not rounded out to a
         // step: LIBRE_OFFICE-100610's 3-D bars reach 6 of 6.3 and 14 of
         // 14.7 in PowerPoint's print, where ours stopped at 6 of 7.
-        if c.valueAxisDeleted, !c.valueGrid, !c.percent {
+        // (But not a slide's 3-D bars: PowerPoint rounds those up to a step like a shown axis, 13 to 14, 26 to 30, 130 to 140:
+        // lab bar3dbox, the longest bar of x2 values 17 pt shorter than the original's and x10 values identical to it.)
+        if c.valueAxisDeleted, !c.valueGrid, !c.percent, !(c.onSlide && c.barView != nil) {
             let lo0 = min(0, lo), hi0 = max(0, hi), span = hi0 - lo0
             if span > 0 {
                 if c.valueMax == nil { valueScale.hi = hi0 + (hi0 > 0 ? span * 0.05 : 0) }
