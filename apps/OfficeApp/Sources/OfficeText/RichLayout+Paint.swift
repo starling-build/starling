@@ -1009,9 +1009,11 @@ extension RichLayout {
                             // above or left, the next below or right — zh-8f70b676's thick-and-thin
                             // separators, the thick line over the thin one in Word's print.)
                             let sign: Double = inward.dx + inward.dy > 0 ? 1 : -1
+                            // (Each line a box 0.96 of its width, the gaps 0.96 too, from the same outer edge:
+                            // zh-e2dc9dce p25's 1.5pt double is 1.44 + 1.44 gap + 1.44 in Word's print.)
                             for part in parts {
-                                cp.strokeWidth = _px(part.width)
-                                let dist = centred ? sign * (-room + _px(part.at) + cp.strokeWidth / 2) : _px(part.at) + cp.strokeWidth / 2
+                                cp.strokeWidth = _px(part.width) * 0.96
+                                let dist = centred ? sign * (-room + _px(part.at) * 0.96 + cp.strokeWidth / 2) : _px(part.at) * 0.96 + cp.strokeWidth / 2
                                 canvas.drawLine(from + inward * dist, to + inward * dist, cp)
                             }
                             canvas.restore()
@@ -1102,8 +1104,8 @@ extension RichLayout {
                     canvas.save()
                     canvas.clipRect(Rect.fromLTRB(-1e6, rowTop, 1e6, rowBottom))
                     for part in Self._ruleLines(band.style, band.width) {
-                        cp.strokeWidth = _px(part.width)
-                        let y = rowTop + _px(part.at) + cp.strokeWidth / 2
+                        cp.strokeWidth = _px(part.width) * 0.96
+                        let y = rowTop + _px(part.at) * 0.96 + cp.strokeWidth / 2
                         canvas.drawLine(Offset(d.colLeft, y), Offset(cellRight, y), cp)
                     }
                     canvas.restore()
