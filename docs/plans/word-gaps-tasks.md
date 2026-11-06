@@ -14703,3 +14703,4 @@ TIP WATCH amd-8, round 157 (f006f9dce): Word one DOWN, lo-8ab44df5 100 -> 97.7 (
 - amd-5 RELEASED zh-fec5fa30 p30 (rank 29): every line breaks as in Word; only glyphs differ (parentheses and digits drawn from a different face), row 1 ends 3 px higher. Font gap.
 - amd-5 CLAIM zh-3c055c9b p15 (rank 30)
 - amd-5 RELEASED zh-3c055c9b p15 (rank 30): digits drawn in a narrower mono face, so one line takes '111' that Word wraps; font gap. CLAIM zh-7a16a243 p2 (rank 31)
+- amd-5 RELEASED zh-7a16a243 p2 (rank 31): digits narrower than Word's, two lines break differently; font gap. CLAIM ranks 32-40: lo-14656c7f p1, zh-c15af02e p2, zh-1661a432 p7, zh-7488a70f p7, zh-d3d3f266 p5, bug65649 p41, zh-99a5f880 p7, zh-ae2dd08d p75, zh-faccbb01 p2
