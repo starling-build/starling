@@ -366,7 +366,10 @@ extension RichLayout {
                         pad = modern
                             ? EdgeInsets(left: inside ? pad.left + l / 2 : max(pad.left + l / 2, l), top: pad.top,
                                          right: insideRight ? max(pad.right - r / 2, r / 2) : max(pad.right - r / 2, min(pad.right, r / 2)), bottom: pad.bottom)
-                            : EdgeInsets(left: max(pad.left, half ? l / 2 : l), top: pad.top, right: half && (c.padding == nil || pad.right == 0) ? max(pad.right, r / 2) : pad.right, bottom: pad.bottom)
+                            : (pad.left == 0 && !half && l > 0
+                                // (Zero-margin cell in mode 12: Word's text stands at the margin, the wrap width the same as with the line's room taken; shifted, not widened.)
+                                ? EdgeInsets(left: 0, top: pad.top, right: pad.right + l, bottom: pad.bottom)
+                                : EdgeInsets(left: max(pad.left, half ? l / 2 : l), top: pad.top, right: half && (c.padding == nil || pad.right == 0) ? max(pad.right, r / 2) : pad.right, bottom: pad.bottom))
                         }
                     }
                 }
