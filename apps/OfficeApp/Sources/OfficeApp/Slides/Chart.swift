@@ -5424,6 +5424,20 @@ enum ChartPainter {
                                      k: k, theme: theme, ink: ink ?? theme.text, probe: true)
                 radius = out ? max(room / 2, room - 1.6 * size) : rIn
             }
+            // (A flat pie in a Word document, its labels at a best fit or outside: Word sizes it from the room it has, never from the
+            // labels' size, and whether they end inside or out. Lab piesize (Word for Windows, 5 equal slices, 6 to 24 pt labels, 14
+            // frame / legend / title / label-place variants): R 60.44 at every size where ours took 1.2 to 1.6 of it, and 60.44 with every
+            // label inside as with some out; centred labels (the room itself) 70.64. The room Word has is 1.0307 of ours less 5.82 pt
+            // (frames 240 x 160, 360 x 212, 300 x 300 at 44.52 / 70.64 / 114.51 against ours 48.84 / 74.18 / 116.74), 2.7 more with no
+            // title, 1.2 with no legend or one at a side; and the outside labels take it to 0.875 of it less 1.37 pt, to the tenth of a
+            // point at every variant. One-row legends: two rows take 2 pt more than ours.)
+            if c.type == .pie {
+                let titled = !(c.title ?? "").isEmpty && c.titleAt == nil
+                let footOrTop = c.legend && ["b", "t"].contains(c.legendPosition)
+                let wordRoom = 1.0307 * room - 5.82 * k + (titled ? 0 : 2.7 * k) + (footOrTop ? 0 : 1.2 * k)
+                RuleTrace.hit("word-flat-pie-outside-labels-size-the-pie-0.875-of-the-room-less-1.37pt")
+                radius = max(room / 2, 0.875 * wordRoom - 1.37 * k)
+            }
         }
         // (Excel's doughnut on a sheet, no labels, a legend at the right: as wide as the chart less 89 pt and as high as it less
         // 22 pt, whole; at the top, 46.2 pt less than its height as at the foot. Windows lab wip/lab-doughnut: 200 x 400 ring 111 across
@@ -5437,7 +5451,17 @@ enum ChartPainter {
         if c.type == .doughnut, c.onSheet, c.dataLabels || c.pieLabels != nil { radius *= 0.8655 }
         // (Pulled slices leave room: the pie is that much smaller, as the 3-D pie's.)
         if c.type == .pie, c.pieSeriesPull > 0, !c.chartex { radius /= 1 + c.pieExplosion }
-        let centre = libre ? Offset(area.center.dx, area.center.dy - 1.3 * k) : area.center
+        var centre = libre ? Offset(area.center.dx, area.center.dy - 1.3 * k) : area.center
+        // (Word's room for the pie is centred where its own title and legend bands leave it, not where ours: lab piesize's prints,
+        // centre against ours 1.55 pt lower under a title with the legend at the foot, 2.69 with no legend or one at a side, 3.47
+        // with it on top; with no title 2.68 higher than those.)
+        if c.type == .pie, c.pieLabelsAround, c.pieLabels?.outside == true, c.ofPie == nil, c.plotLayout == nil, !c.onSlide, !c.onSheet, !c.chartex {
+            let titled = !(c.title ?? "").isEmpty && c.titleAt == nil
+            let place = !c.legend ? "n" : c.legendPosition
+            let down = (place == "b" ? 1.55 : place == "t" ? 3.47 : 2.69) - (titled ? 0 : 2.68)
+            RuleTrace.hit("word-flat-pie-centre-by-its-title-and-legend-bands")
+            centre = Offset(centre.dx, centre.dy + down * k)
+        }
         let oval = Rect.fromCircle(center: centre, radius: radius)
         var angle = -Double.pi / 2 + c.pieTurn * .pi / 180
         let fill = Paint()
