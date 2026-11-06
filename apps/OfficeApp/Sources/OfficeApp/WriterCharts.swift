@@ -928,7 +928,7 @@ enum WriterGroups {
                                  SlideFill.GradientStop(position: 1, color: color(fillNode?["color2"]) ?? Color(0xFFFFFFFF))]
                     }
                     let focus = fraction(fillNode?["focus"]) ?? 0
-                    if abs(focus) > 0.75 { stops = stops.reversed().map { SlideFill.GradientStop(position: 1 - $0.position, color: $0.color) } }
+                    if abs(focus) > 0.75 { /* focus 100%: stops run as listed, blue at the top of lo-dc0529c3 */ }
                     else if abs(focus) > 0.25 {
                         let half = stops.map { SlideFill.GradientStop(position: $0.position / 2, color: $0.color) }
                         stops = half + half.reversed().map { SlideFill.GradientStop(position: 1 - $0.position, color: $0.color) }
