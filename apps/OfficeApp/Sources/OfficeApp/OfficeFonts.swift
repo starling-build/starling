@@ -2455,8 +2455,10 @@ enum OfficeFonts {
     }
 
     /// SimSun's characters from U+00A1 to U+024F an em wide, and those half
-    /// one (Simsun.ttc, Word's own; it maps no others there).
-    private static let simSunFullLatin: [UInt32] = [0x00A4, 0x00A7, 0x00A8, 0x00B0, 0x00B1, 0x00B7, 0x00D7, 0x00F7]
+    /// one (Simsun.ttc, Word's own; it maps no others there). Plus GB2312's
+    /// primes ′ ″, an em as well: zh-cd8987db's "e′（波美度）" in 宋体 steps
+    /// 10.6 at 10.5pt in Word's print, ours 2.0.
+    private static let simSunFullLatin: [UInt32] = [0x00A4, 0x00A7, 0x00A8, 0x00B0, 0x00B1, 0x00B7, 0x00D7, 0x00F7, 0x2032, 0x2033]
     private static let simSunHalfLatin: [UInt32] = [
         0x00A1, 0x00A2, 0x00A3, 0x00A5, 0x00A6, 0x00A9, 0x00AA, 0x00AB, 0x00AC, 0x00AD, 0x00AE, 0x00AF,
         0x00B2, 0x00B3, 0x00B4, 0x00B5, 0x00B6, 0x00B8, 0x00B9, 0x00BA, 0x00BB, 0x00BC, 0x00BD, 0x00BE,
