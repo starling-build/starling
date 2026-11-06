@@ -4895,7 +4895,11 @@ enum ChartPainter {
                     }
                     canvas.restore()
                 } else {
-                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : 7.6) * k + (widenedPlain ? 0 : belowOut) - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k))
+                    // (A 2007-style slide chart with no tick marks stands its names lower by 0.62 pt a point of their size over
+                    // 11.8: Windows' prints of 5864 slide 8 in 15 variants, 1.4 pt at 14 pt and 5.1 at 20, at the foot or the zero
+                    // line alike; 10 pt names stay where they are (cooper's charts match).)
+                    let slideNames = c.onSlide && !c.styled2013 && !c.categoryTicksOut ? max(0, 0.62 * (catSize - 11.8)) * k : 0
+                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : 7.6) * k + (widenedPlain ? 0 : belowOut) - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k + slideNames))
                 }
             }
             // The outer levels of a multi-level axis: each group's name under the names it
@@ -5130,7 +5134,10 @@ enum ChartPainter {
                         let behind = rowsDeep ? Double(j) : 0
                         let back = Offset(row.dx * (1 - own) / 2 + row.dx * behind, row.dy * (1 - own) / 2 + row.dy * behind)
                         rect = rect.shift(Offset(back.dx, -back.dy))
-                        if let last = labels.popLast() { labels.append((last.0, Offset(last.1.dx + back.dx, last.1.dy - back.dy), last.2)) }
+                        if let last = labels.popLast() { // (On a slide, PowerPoint stands the label higher still: 5.0 less 2.3 a unit of sin(rotX) pt, at any size, gap
+                        // depth or depth: Windows' lab b3dlabels, 9 variants of 5864 slide 5, within 0.2 pt.)
+                        let slideRise = c.onSlide ? (5.0 - 2.3 * sin(abs(v.x) * .pi / 180)) * k : 0
+                        labels.append((last.0, Offset(last.1.dx + back.dx, last.1.dy - back.dy - slideRise), last.2)) }
                     }
                     if c.series[j].labelLeader, !horizontal, !c.onSlide, nudge(j, i) != .zero, !labels.isEmpty, labels[labels.count - 1].2 == j {
                         leaderFrom[labels.count - 1] = Offset(rect.center.dx, rect.top)
