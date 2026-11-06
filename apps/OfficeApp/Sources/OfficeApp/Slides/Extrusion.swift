@@ -105,20 +105,35 @@ enum Extrusion {
             return Material(two: bd(t), two0: bd(z), three: bd(h), back: back)
         }
         switch name {
-        case "legacyPlastic": return m((0.69, 0.17, 0.89, 9, 6), (0.55, 0.18, 0.93, 11, -8), (0.87, 0.22, 0.36, 5, 0))
-        case "legacyMetal": return m((0.52, 0.17, 0.75, 8, 6), (0.47, 0.19, 0.75, 8, -8), (0.62, 0.21, 0.17, 5, -4), 0.17)
-        case "plastic": return m((0.72, 0.18, 0.68, 9, 4), (0.60, 0.20, 0.68, 11, -6), (0.87, 0.21, 0.16, 7, -4))
-        case "metal": return m((0.78, 0.17, 0.75, 9, 4), (0.63, 0.20, 0.80, 11, -6), (0.89, 0.21, 0.20, 5, -2))
+        case "legacyPlastic": return m((0.69, 0.17, 0.89, 9, 6), (0.55, 0.18, 0.93, 11, -8), (0.84, 0.20, 0.30, 12, -1))
+        case "legacyMetal": return m((0.52, 0.17, 0.75, 8, 6), (0.47, 0.19, 0.75, 8, -8), (0.63, 0.16, 0.25, 12, -1), 0.17)
+        case "plastic": return m((0.72, 0.18, 0.68, 9, 4), (0.60, 0.20, 0.68, 11, -6), (0.84, 0.20, 0.15, 10, -1))
+        case "metal": return m((0.78, 0.17, 0.75, 9, 4), (0.63, 0.20, 0.80, 11, -6), (0.84, 0.20, 0.20, 12, -1))
         case "translucentPowder": return m((0.26, 0.65, 0.32, 11, 2), (0.24, 0.65, 0.41, 12, -8), (0.34, 0.71, 0.09, 5, 0))
-        case "powder": return m((0.77, 0.19, 0.34, 12, 4), (0.72, 0.22, 0.26, 12, -8), (0.90, 0.24, 0.09, 5, -2))
-        case "dkEdge": return m((0.62, 0.16, 0.90, 7, 6), (0.52, 0.17, 0.89, 8, -8), (0.75, 0.24, 0.00, 30, 0), 0.23)
-        case "softEdge": return m((0.70, 0.16, 0.91, 7, 6), (0.59, 0.18, 0.93, 8, -8), (0.87, 0.22, 0.00, 30, 0))
+        case "powder": return m((0.77, 0.19, 0.34, 12, 4), (0.72, 0.22, 0.26, 12, -8), (0.84, 0.24, 0.10, 10, 3))
+        case "dkEdge": return m((0.62, 0.16, 0.90, 7, 6), (0.52, 0.17, 0.89, 8, -8), (0.80, 0.14, 0.15, 6, -1), 0.23)
+        case "softEdge": return m((0.70, 0.16, 0.91, 7, 6), (0.59, 0.18, 0.93, 8, -8), (0.84, 0.18, 0.10, 6, -1))
         case "clear": return m((0.21, 0.63, 0.45, 10, 10), (0.18, 0.66, 0.40, 11, -10), (0.44, 0.62, 0.16, 6, -2))
         case "flat": return m((0.94, 0.15, 0.95, 7, 6), (0.98, 0.17, 0.94, 7, -8), (0.90, 0.19, 0.00, 30, 0))
-        case "softmetal": return m((0.78, 0.19, 0.75, 10, 4), (0.63, 0.21, 0.82, 12, -6), (0.89, 0.22, 0.26, 5, 0))
-        case "matte", "legacyMatte": return m((0.70, 0.18, 0.00, 30, 0), (0.66, 0.18, 0.00, 30, 0), (0.84, 0.18, 0.00, 30, 0))
-        default: return m((0.73, 0.17, 0.33, 11, 4), (0.68, 0.21, 0.25, 11, -8), (0.90, 0.25, 0.00, 30, 0))   // warmMatte, PowerPoint's default
+        case "softmetal": return m((0.78, 0.19, 0.75, 10, 4), (0.63, 0.21, 0.82, 12, -6), (0.88, 0.16, 0.25, 16, -1))
+        case "matte", "legacyMatte": return m((0.70, 0.18, 0.00, 30, 0), (0.66, 0.18, 0.00, 30, 0), (0.84, 0.16, 0.00, 30, 0))
+        default: return m((0.73, 0.17, 0.33, 11, 4), (0.68, 0.21, 0.25, 11, -8), (0.84, 0.20, 0.10, 8, 0))   // warmMatte, PowerPoint's default
     }
+    }
+
+    /// The face the camera turns away from, seen from behind (Lab F, 14 materials): the fill times `share` plus
+    /// `white` of white. twoPt prints 0.26 for the opaque materials and threePt 0.77 (three times); the translucent
+    /// ones carry white of their own, flat none of the light.
+    static func backFace(_ material: String, threePt: Bool) -> (share: Double, white: Double) {
+        switch material {
+        case "legacyMetal": return threePt ? (0.52, 0) : (0.165, 0)
+        case "powder": return threePt ? (0.81, 0) : (0.32, 0)
+        case "dkEdge": return threePt ? (0.70, 0) : (0.225, 0)
+        case "translucentPowder": return threePt ? (0.33, 0.57) : (0.175, 0.48)
+        case "clear": return threePt ? (0.25, 0.66) : (0.05, 0.66)
+        case "flat": return (0.99, 0)
+        default: return threePt ? (0.77, 0) : (0.26, 0)
+        }
     }
 
     /// A wall at azimuth `az` (degrees, shape frame) under material `m`: its multiple of the rig's colour and the share of white added.
@@ -507,7 +522,10 @@ enum Extrusion {
         // tilt: twoPt at 60 degrees prints 0.39 of the fill (legacyCamera).
         let tilted = scene.legacy && n0.z > 0 && n0.z < 0.9
         let tiltK = (Extrusion.rigs[scene.rig]?.front.0 ?? 1) * pow(max(0, n0.z), 1.3)
-        let shown = !frontShows ? (scene.rig == "twoPt" ? Color(argb: fill.alpha, Int(Double(fill.red) * Extrusion.material(scene.material).back), Int(Double(fill.green) * Extrusion.material(scene.material).back), Int(Double(fill.blue) * Extrusion.material(scene.material).back)) : dark(side)) : tilted ? Color(argb: fill.alpha, Int(Double(fill.red) * tiltK), Int(Double(fill.green) * tiltK), Int(Double(fill.blue) * tiltK)) : scene.legacy && n0.z < 0.9 ? bright(fill) : litLocal(fill, P3(x: 0, y: 0, z: 1))
+        let shown = !frontShows ? (scene.rig == "twoPt" || (scene.rig == "threePt" && !scene.material.isEmpty) ? { () -> Color in
+            let b = Extrusion.backFace(scene.material, threePt: scene.rig == "threePt")
+            func ch(_ v: Int) -> Int { max(0, min(255, Int((Double(v) * b.share + 255 * b.white).rounded()))) }
+            return Color(argb: fill.alpha, ch(fill.red), ch(fill.green), ch(fill.blue)) }() : dark(side)) : tilted ? Color(argb: fill.alpha, Int(Double(fill.red) * tiltK), Int(Double(fill.green) * tiltK), Int(Double(fill.blue) * tiltK)) : scene.legacy && n0.z < 0.9 ? bright(fill) : litLocal(fill, P3(x: 0, y: 0, z: 1))
         // Lab E: a legacy oblique camera's face carries a white sheen the rig
         // lights it with — the bottom-facing ones under threePt (.19, .24
         // when the camera is also turned), TopRight under twoPt (.18).
