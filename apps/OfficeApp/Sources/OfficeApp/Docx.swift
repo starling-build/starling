@@ -5326,6 +5326,12 @@ enum DocxFormat {
                 for key in ["w:leftChars", "w:startChars", "w:hangingChars", "w:firstLineChars"] { style.eastAsian[key] = nil }
             }
             _paragraphProps(pPr, into: &style, direct: true)
+            // (A paragraph whose first run only opens a field and has no size of
+            // its own: Word counts its first-line characters in the style's
+            // size, not the first text's — zh-c2c92639 p8, "4.1" 3.1 pt in.)
+            if let r0 = p.first("w:r"), r0.first("w:fldChar") != nil, r0.first("w:rPr")?.first("w:sz") == nil {
+                style.eastAsian["w:fieldFirst"] = "1"
+            }
             if let g = pPr.first("w:snapToGrid") { style.ownGridOff = _isOff(g) }
             style.indentLeft += indent
             // (A moved paragraph's mark too: `w:moveFrom` is a deleted mark and
