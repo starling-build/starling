@@ -1249,6 +1249,18 @@ final class DeckController: ChangeNotifier {
                 }
                 for r in shape.rendered { if let n = nominal(r) { smallest[n] = min(smallest[n] ?? 1, r.fontScale) } }
                 for r in shape.rendered { if let n = nominal(r), let s = smallest[n] { r.fontScale = s } }
+                // A bullet's hanging indent follows the size the text ended
+                // at, as PowerPoint's does (cycle-matrix's 6 pt side boxes
+                // hang their bullets 4.5 pt, not the 22.5 of a 65 pt line).
+                for r in shape.rendered where r.autofit && r.insetsFollowFont && r.fontScale < 1 {
+                    guard let t = r.text else { continue }
+                    let k = r.fontScale
+                    FileHandle.standardError.write(Data("DBG k=\(k) ro=\(t.readOnly) ind=\(t.document.paragraphs.map { "\($0.style.indentLeft)/\($0.style.firstLineIndent)/\($0.style.listIndentLeft as Any)/\($0.style.list != nil)" })\n".utf8))
+                    t.selectAll()
+                    t.applyParagraphStyle { st in
+                        if st.list == nil { st.indentLeft *= k; st.firstLineIndent *= k }
+                    }
+                }
             }
         } else if case .chart = st.kind, !st.chartDrawing.isEmpty {
             if shape.rendered.map(_state) != st.chartDrawing { shape.rendered = st.chartDrawing.map(_make) }
