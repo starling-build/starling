@@ -823,10 +823,9 @@ enum WordArt {
     private static func _paintAlongEllipse(_ lines: [Line], _ warp: TextWarp, _ area: Rect, fits: Bool = false, narrow: Bool = false, slide: Bool = false, pxPerPt: Double = 1,
                                            _ draw: (Glyph, Offset, Offset, Offset) -> Void) {
         // A Word document's own shape text (not a fitted VML path, not a slide) rides an ellipse a
-        // few points narrower than the box: lab prints of a 105 x 11.6 and a
-        // 64 x 8.6 arch (lo-e8c1ae37) shrink the 10pt line to 0.85 and 0.81,
-        // the arcs of boxes 4.7pt narrower each side (the path works in twentieths).
-        let rx0 = max(1, area.width / 2 - (narrow && !fits ? 94 : 0)), ry0 = area.height / 2, c = area.center
+        // few points narrower than the box: lab prints (lo-e8c1ae37, lo-677416be arches) fit
+        // 7.6 pt narrower each side (the path works in twentieths); 4.7 pt left lo-677416be at 96.9.
+        let rx0 = max(1, area.width / 2 - (narrow && !fits ? 152 : 0)), ry0 = area.height / 2, c = area.center
         /// A line along the arc from `start`, sweeping `sweep` degrees
         /// (clockwise positive, as DrawingML measures).
         func along(_ line: Line, start: Double, sweep: Double, ring: Int = 0, room: Double = 1) {
