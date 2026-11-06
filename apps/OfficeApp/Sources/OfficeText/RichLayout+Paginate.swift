@@ -4074,6 +4074,9 @@ extension RichLayout {
                             // (Moved clear it lands at the other's right edge PLUS its own offset along the column: windows' overlap2.)
                             shift = max(shift, b.right - span.0 + (keptOffset ? r.left : 0))
                         }
+                        // (One moved clear that would leave the page stays where it is put: lo-6f698ba2's frame, 361 to 539,
+                        // over an earlier paragraph's picture in Word's print.)
+                        if keptOffset, shift > 0.5, r.right + shift > pageRect(page).width - _pxMarginLeft(page) + 0.5 { shift = 0 }
                         _floatShift[box.id] = shift > 0.5 ? shift : nil
                         r.left += shift; r.right += shift
                         placed.append(r)
