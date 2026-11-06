@@ -405,6 +405,8 @@ struct TextWarp: Equatable {
 /// file names one.
 struct Scene3D: Equatable {
     var depth: Double
+    /// `a:sp3d z`: the solid stands this far toward the eye.
+    var lift = 0.0
     var lat = 0.0, lon = 0.0, rev = 0.0
     var oblique: Offset? = nil
     /// A legacy perspective camera: what lies behind also shrinks toward

@@ -273,6 +273,7 @@ enum Extrusion {
         s.contourColor = sp3d?.first("a:contourClr").flatMap(colors.color(in:))
         s.contourW = (sp3d?["contourW"].flatMap(Double.init) ?? 0) / Pptx.emu
         s.wireframe = sp3d?["prstMaterial"] == "legacyWireframe"
+        s.lift = (sp3d?["z"].flatMap(Double.init) ?? 0) / Pptx.emu
         s.material = sp3d?["prstMaterial"] ?? ""
         if let camera = spPr?.first("a:scene3d")?.first("a:camera") {
             let name = camera["prst"] ?? ""
@@ -365,8 +366,8 @@ enum Extrusion {
         }
         func flat(_ p: P3) -> Offset { Offset(c.dx + p.x, c.dy + p.y) }
         // z runs toward the eye: the front at 0, the back `depth` behind.
-        let front = rings.map { $0.map { place($0, 0) } }
-        let back = rings.map { $0.map { place($0, -depth) } }
+        let front = rings.map { $0.map { place($0, scene.lift * px) } }
+        let back = rings.map { $0.map { place($0, scene.lift * px - depth) } }
 
         // The sides are the colour the file names, else the outline's where
         // the shape has one (PowerPoint's "automatic" depth colour), else
@@ -464,12 +465,25 @@ enum Extrusion {
             let p = Paint()
             p.style = .stroke
             p.isAntiAlias = true
-            p.strokeWidth = max(0.5, 0.5 * px)
-            p.color = Color(0xFFBFBFBF)
+            // PowerPoint draws the edges as a picture: one pixel of the shape's line
+            // colour (200 to the inch), its box a point larger on the left and
+            // above than the shape (Scene3d_material_wireframe's print: the
+            // front face's left edge 186.7 for a shape at 187.6, the back's 156.1
+            // for 157.4; the right and foot 0.4 beyond).
+            p.strokeWidth = 0.36 * px
+            p.color = line ?? Color(0xFF000000)
+            var lo = Offset(.infinity, .infinity), hi = Offset(-.infinity, -.infinity)
+            for ring in front + back { for q in ring { let o = flat(q); lo = Offset(min(lo.dx, o.dx), min(lo.dy, o.dy)); hi = Offset(max(hi.dx, o.dx), max(hi.dy, o.dy)) } }
+            let gx = 1.0 * px, gy = 1.0 * px, ex = 0.55 * px, ey = 0.45 * px
+            func wf(_ q: P3) -> Offset {
+                let o = flat(q)
+                return Offset(lo.dx - gx + (o.dx - lo.dx) * (hi.dx - lo.dx + gx + ex) / max(1e-6, hi.dx - lo.dx),
+                              lo.dy - gy + (o.dy - lo.dy) * (hi.dy - lo.dy + gy + ey) / max(1e-6, hi.dy - lo.dy))
+            }
             for (ri, ring) in front.enumerated() {
                 for rings3 in [ring, back[ri]] {
                     let path = Path()
-                    path.addPolygon(rings3.map(flat), true)
+                    path.addPolygon(rings3.map(wf), true)
                     canvas.drawPath(path, p)
                 }
                 // A corner is where the outline turns sharply.
@@ -477,7 +491,7 @@ enum Extrusion {
                     let a = ring[(i + ring.count - 1) % ring.count], b = ring[i], d = ring[(i + 1) % ring.count]
                     let u = Offset(b.x - a.x, b.y - a.y), v = Offset(d.x - b.x, d.y - b.y)
                     let cross = abs(u.dx * v.dy - u.dy * v.dx), dot = u.dx * v.dx + u.dy * v.dy
-                    if atan2(cross, dot) > 0.5 { canvas.drawLine(flat(b), flat(back[ri][i]), p) }
+                    if atan2(cross, dot) > 0.5 { canvas.drawLine(wf(b), wf(back[ri][i]), p) }
                 }
             }
             return true
