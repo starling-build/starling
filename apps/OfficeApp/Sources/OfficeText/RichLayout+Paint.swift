@@ -1439,7 +1439,10 @@ extension RichLayout {
                 let box = all[slot]
                 let image = _inline[i][k]
                 var rect = box.toRect().shift(Offset(g.textLeft, g.inkTop))
-                if let real = _pageFill[image.id], image.float == nil { rect = Rect.fromLTRB(rect.left, rect.top, rect.right, rect.top + real) }
+                if let real = _pageFill[image.id], image.float == nil {
+                    let down = _lineCentre[image.id] ?? 0
+                    rect = Rect.fromLTRB(rect.left, rect.top + down, rect.right, rect.top + down + real)
+                }
                 if _behindDrawn.contains("\(image.id)") { continue }
                 if theme.wordRules, let float = image.float, !float.takesRoom {
                     // A floating object, from its paragraph by its place:

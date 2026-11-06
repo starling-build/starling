@@ -2667,7 +2667,7 @@ extension RichLayout {
             // under it may hang past: zh-90e0cea8's last picture ends at
             // the foot of its page in Word's print, its line 2.6pt past.)
             if p.image != nil, i < _overhang.count { _overhang[i] = max(_overhang[i], descent) }
-        } else if theme.wordRules, p.image == nil, p.inlineImages.values.contains(where: { $0.float == nil && $0.baseline == nil }),
+        } else if theme.wordRules, p.image == nil, !_picturesTakeLines(p, textWidth: textWidth), p.inlineImages.values.contains(where: { $0.float == nil && $0.baseline == nil }),
                   style.lineHeightPoints == nil, !_offGrid(i, document),
                   let pitch = _grid(i, document).pitch, pitch > 0,
                   case let lines = painter.computeLineMetrics(), lines.count > 1,
@@ -2687,7 +2687,7 @@ extension RichLayout {
                 _inkShift[i] += max(0, snapped - first - descent)
                 bodyHeight += snapped - first
             }
-        } else if theme.wordRules, p.image == nil, p.inlineImages.values.contains(where: { $0.float == nil && $0.baseline == nil }),
+        } else if theme.wordRules, p.image == nil, !_picturesTakeLines(p, textWidth: textWidth), p.inlineImages.values.contains(where: { $0.float == nil && $0.baseline == nil }),
                   style.lineHeightPoints == nil || style.lineHeightIsMinimum, !_offGrid(i, document),
                   let pitch = _grid(i, document).pitch, pitch > 0,
                   case let lines = painter.computeLineMetrics(), lines.count > 1, let last = lines.last,

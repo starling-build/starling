@@ -37,6 +37,14 @@ extension RichTextTheme {
 
 extension RichLayout {
 
+    /// Several inline pictures, each wide enough for a line of its own, in a paragraph on the line grid
+    /// (Word for Windows): every picture's line is whole pitches (see `_span`).
+    func _picturesTakeLines(_ p: RichParagraph, textWidth: Double) -> Bool {
+        theme.wordRules && RichTextTheme.wordWindowsPages && p.image == nil && p.inlineImages.count >= 2
+            && p.style.lineHeightPoints == nil && p.style.eastAsian["w:snapToGrid"] != "0"
+            && p.inlineImages.values.allSatisfy { $0.float == nil && $0.textBox == nil && $0.baseline == nil && _px($0.width) * 2 > textWidth }
+    }
+
     /// The paragraph's runs as a span tree. An empty paragraph lays out a
     /// single space so it has a line height; offsets are clamped to 0 by
     /// every caller.
@@ -2165,6 +2173,30 @@ extension RichLayout {
                         hung = size.height
                         _pageFill[image.id] = size.height
                         size = Size(size.width, max(size.height, _px(setup.contentHeight) - _px(2)))
+                    }
+                }
+                // (Several pictures in one paragraph, each wide enough for a
+                // line of its own, on a line grid: each line is as many whole
+                // pitches as its picture and effect extent need, the rest
+                // under the picture, the text's descent not counted. Lab
+                // `inlinepic` (Word for Windows, zh-e5eb092a's pictures, a
+                // 15.6pt grid): pictures of 100/111/122/133/144/166/177pt
+                // stand 9.3/13.9/2.9/7.3/12.0/5.7/10.2pt apart, the pitches
+                // they need; ours stood them 0 to 1.6 apart, the pages'
+                // table 6 to 30pt high. The engine snapped a line only when
+                // the paragraph had one.)
+                if hung == nil, image.float == nil, let grid = pitch, grid > 0, size.height > 0,
+                   _picturesTakeLines(p, textWidth: textWidth) {
+                    let unit = _px(grid)
+                    let lines = ((size.height / unit) - 0.002).rounded(.up) * unit
+                    if lines > size.height + 0.01 {
+                        // (The picture stands half the spare room down, as a
+                        // picture alone in its paragraph does; its line's
+                        // metrics stay the box's: the room all under it.)
+                        hung = size.height
+                        _pageFill[image.id] = size.height
+                        _lineCentre[image.id] = (lines - size.height) / 2
+                        size = Size(size.width, lines)
                     }
                 }
                 // (Word's `w:textAlignment` "center" sets what is on a

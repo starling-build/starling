@@ -1235,6 +1235,8 @@ public final class RichLayout {
     var _inlineBoxes: [[Int]] = []
     /// An inline object's own height where its box is a page tall (`_span`), by id.
     var _pageFill: [String: Double] = [:]
+    /// Room above a picture centred in the grid pitches of its line (several pictures in a paragraph), by image id.
+    var _lineCentre: [String: Double] = [:]
     /// A picture paragraph's float, when its picture is anchored.
     var _floats: [ImageFloat?] = []
     var _floatImages: [ImageAttachment?] = []
