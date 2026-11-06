@@ -1690,6 +1690,7 @@ struct DiagramLayout {
         var lineWidth = 9525
         var fillRef = 1
         var lineRef = 2
+        var effectRef = 0
     }
 
     /// The colours and style references for a style label, by its index
@@ -1718,6 +1719,7 @@ struct DiagramLayout {
         if let s = st?.first("dgm:style") {
             l.fillRef = s.first("a:fillRef")?["idx"].flatMap(Int.init) ?? 1
             l.lineRef = s.first("a:lnRef")?["idx"].flatMap(Int.init) ?? 2
+            l.effectRef = s.first("a:effectRef")?["idx"].flatMap(Int.init) ?? 0
             if l.text == nil, let f = s.first("a:fontRef")?.children.first { l.text = clone(f) }
         }
         l.lineWidth = [0: 0, 1: 9525, 2: 25400, 3: 38100][l.lineRef] ?? 12700
@@ -1913,7 +1915,7 @@ struct DiagramLayout {
             return r
         }
         style.children = [ref("a:lnRef", look.lineRef, look.line), ref("a:fillRef", look.fillRef, look.fill),
-                          ref("a:effectRef", 0, look.fill)]
+                          ref("a:effectRef", n.hideGeom ? 0 : look.effectRef, look.fill)]
         let font = XNode(name: "a:fontRef", attrs: ["idx": "minor"])
         font.children = [look.text.map(clone) ?? XNode(name: "a:schemeClr", attrs: ["val": "lt1"])]
         style.children.append(font)
@@ -1976,7 +1978,11 @@ struct DiagramLayout {
         let noLine = XNode(name: "a:ln", attrs: [:])
         noLine.children = [XNode(name: "a:noFill", attrs: [:])]
         tPr.children = [txf, rectGeom, XNode(name: "a:noFill", attrs: [:]), noLine]
-        tx.children = [tnv, tPr, clone(style), body]
+        // (The text's own shape has no fill or line, so no shadow either: the style's effect would
+        // cast the text box's rectangle as a grey block under the wedge.)
+        let textStyle = clone(style)
+        textStyle.children.first { $0.name == "a:effectRef" }?.attrs["idx"] = "0"
+        tx.children = [tnv, tPr, textStyle, body]
         return [sp, tx]
     }
 

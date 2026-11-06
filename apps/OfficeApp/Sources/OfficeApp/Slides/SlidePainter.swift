@@ -680,6 +680,13 @@ final class SlidePainter: CustomPainter {
                 canvas.scale(sh.scale, sh.scale)
                 canvas.translate(-at.dx, -at.dy)
             }
+            if shape.picture == nil, shape.flipH || shape.flipV {
+                // A mirrored shape's shadow falls from the mirrored outline (cycleMatrix's third wedge).
+                let c = r.center
+                canvas.translate(c.dx, c.dy)
+                canvas.scale(shape.flipH ? -1 : 1, shape.flipV ? -1 : 1)
+                canvas.translate(-c.dx, -c.dy)
+            }
             if let line = shape.outline, shape.outlineWidth > 0, line.alpha > 0, shape.picture == nil,
                let body = shape.fill, body.alpha > 0, shape.fillStyle == nil {
                 // The silhouette that casts is the fill and its outline together (a title bar's thick white
