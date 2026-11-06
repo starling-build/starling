@@ -1,0 +1,10 @@
+slide	cells
+1	fill colours C86432 A9D18E 4472C4 808080 F2F2F2 203040 (row-major), iso threePt, extrusionH 36pt, rect 108pt, no line
+2	fill colours C86432 A9D18E 4472C4 808080 F2F2F2 203040 (row-major), iso twoPt, extrusionH 36pt, rect 108pt, no line
+3	fill colours C86432 A9D18E 4472C4 808080 F2F2F2 203040 (row-major), tilt 20/330 threePt, extrusionH 36pt, rect 108pt, no line
+4	z = 0, 9, 18, 36, -18 pt (row-major), camera legacyObliqueBottomRight, threePt t, extrusionH 36pt, fill A9D18E, rect 108pt
+5	z = 0, 9, 18, 36, -18 pt (row-major), camera legacyObliqueTopLeft, threePt t, extrusionH 36pt, fill A9D18E, rect 108pt
+6	z = 0, 9, 18, 36, -18 pt (row-major), camera legacyPerspectiveRight, threePt t, extrusionH 36pt, fill A9D18E, rect 108pt
+7	z = 0, 9, 18, 36, -18 pt (row-major), camera isometricRightUp, threePt t, extrusionH 36pt, fill A9D18E, rect 108pt
+8	legacyWireframe, camera obliqueTopLeft, edges: red 1pt; blue 2pt; black 0.25pt; black 3pt; line with no width, black; no line (row-major), extrusionH 72pt, 108pt rect
+9	legacyWireframe, 1pt black line, four sizes/cameras: 216x144 iso; 108x216 tilt 20/330; 216x108 obliqueTopLeft; 144x144 tilt 340/20; extrusionH 72pt

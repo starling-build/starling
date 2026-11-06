@@ -1,0 +1,3 @@
+Lab p3fit (amd-2 for windows): second samples for three single-deck fits (3-D shapes).
+Please print F.pptx (generate: python3 test/labs/p3fit/gen.py test/labs/p3fit/in) to PDF (Print to PDF, one page per slide) AND export each slide as a PNG at 2400x1350 named F-NNN.png; commit PDF + PNGs under test/labs/p3fit/prints/, branch wip/lab-p3fit.
+Questions: (1-3) how threePt/twoPt light a flat fill of six colours (face = a*fill + b*white?, per wall); (4-7) what `a:sp3d z` does under oblique, perspective and isometric cameras; (8-9) legacyWireframe edge colour, width, and its box against the shape's.
