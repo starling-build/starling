@@ -2031,6 +2031,7 @@ extension RichLayout {
                     let firstEnd = painter.getLineBoundary(TextPosition(offset: 0)).end - _lead(i)
                     let units = Array(p.text.utf16)
                     var start = 0
+                    var seenAcross = Set<String>()
                     scan: for run in p.runs where run.length > 0 {
                         defer { start += run.length }
                         guard start < firstEnd else { break }
@@ -2046,7 +2047,6 @@ extension RichLayout {
                         // line on JhengHei's baseline, 4.4pt under MS
                         // Gothic's. One face alone, the first such character's.)
                         var at: Int? = nil
-                        var seen = Set<String>()
                         for ch in String(decoding: units[start ..< end], as: UTF16.self) {
                             // (Not the object mark of a drawing: it is no character of the face, and Word sets no line by it — zh-8e8d4c40's title, 12pt 標楷體 after a wrapSquare box, stood 2pt low on JhengHei's baseline.)
                             guard let u = ch.unicodeScalars.first?.value, u >= 0x2E80, u != 0xFFFC else { continue }
@@ -2054,13 +2054,12 @@ extension RichLayout {
                             var r = run.style
                             if let chain = face.uncoveredChain {
                                 if let k = at, chain[k].covers?.contains(u) ?? true {} else { at = chain.firstIndex { $0.covers?.contains(u) ?? true } ?? chain.count - 1 }
-                                guard seen.insert(chain[at!].family).inserted else { continue }
+                                guard seenAcross.insert(chain[at!].family).inserted else { continue }
                                 r.eastAsiaFontFamily = chain[at!].family
                             } else { r.eastAsiaFontFamily = alt }
                             if let b = theme.baseline(for: r, in: style, named: named, eastAsian: true, gridPitch: pitch, centresInLine: document.spacesForUnderline) { target = max(target, b) }
                             if face.uncoveredChain == nil { break scan }
                         }
-                        if face.uncoveredChain != nil, !seen.isEmpty { break scan }
                     }
                     // (… and the tallest East Asian run on it, not the
                     // first: zh-17ac8aa2's "□" in 黑体 before "若本机关…" in
