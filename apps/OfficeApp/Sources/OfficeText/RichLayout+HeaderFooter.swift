@@ -274,6 +274,19 @@ extension RichLayout {
             canvas.clipRect(Rect.fromLTRB(rect.left - 1_000_000, rect.top - 1_000_000, rect.right + 1_000_000, rect.bottom),
                             clipOp: .intersect, doAntiAlias: false)
         }
+        // (A turned box that keeps its size, its first line indented past the line's length, cuts its text at its
+        // edge: zh-b24b396a's "30" dimension labels, vert270 boxes 11.9pt wide and 7.8 long under a 15pt first-line
+        // indent, set "3" past the foot and "0" on a second line half outside; Word's print shows neither the "3" nor
+        // more than a 1.6pt sliver of the "0" (read at 300 dpi). Only where the indent outruns the line: the same
+        // clip on every turned box took lines out of the text.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, text.textDirection != .horizontal, text.hasFixedFrame, !text.fitsText,
+           !text.fitsHeight, !text.growsToFit, text.parts.isEmpty, !text.uprightIdeographs,
+           [text.insetLeft, text.insetTop, text.insetRight, text.insetBottom].allSatisfy({ $0 == 0 }),
+           let p0 = inside.document.paragraphs.first,
+           inside.layout._px(inside.layout.firstLineIndent(p0, at: 0, inside.document)) > (text.textDirection == .up || text.textDirection == .down ? rect.height : rect.width) + 0.01 {
+            RuleTrace.hit("turnedTextBoxCutsAtEdge")
+            canvas.clipRect(rect, clipOp: .intersect, doAntiAlias: false)
+        }
         // (A picture in the line bigger than a box that keeps its size is
         // cut at the box's edge: zh-701eda18 p6's 154x159pt emblem in a
         // 126x27pt box shows as nothing in Word's print; ours drew it whole.)
