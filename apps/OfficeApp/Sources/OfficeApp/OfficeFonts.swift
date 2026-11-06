@@ -2907,6 +2907,9 @@ enum OfficeFonts {
             case mono: baseline = 0.833
             case calibri: baseline = 0.9625
             case cambria: baseline = 0.95
+            // (Noto Sans, bundled, is its own face: its baseline is its ascent, 2189 of 2048, no gap. The default's .938 stood
+            // every line 0.13 em high: lo-27918bf0's 14pt lines 1.9pt, its 12pt 1.6, in Word's print.)
+            case notoSans: baseline = 1.0688
             default: baseline = 0.938
             }
             // (Times and Arial as a Word line holds them, where they are
