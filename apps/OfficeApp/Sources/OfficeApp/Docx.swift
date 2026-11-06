@@ -5597,7 +5597,9 @@ enum DocxFormat {
                 // and at 396 the first fits 22 pitches of its 18pt grid
                 // exactly, where 396.45 took a 23rd and set its caption and
                 // page 18pt low.)
-                if !isRule, shape.first("v:imagedata") != nil, node.descendant("v:textbox") == nil {
+                // (Not for Word for Windows' print, which keeps zh-64044a1d's figure at 396.3 — its cell line is
+                // the 23 pitches, 414pt, that 396.45 needs, 9.3pt above the picture and 9.4 below — and 410.4 wide.)
+                if !isRule, !RichTextTheme.wordWindowsPages, shape.first("v:imagedata") != nil, node.descendant("v:textbox") == nil {
                     w = max(1, (w - 0.001).rounded())
                     h = max(1, (h - 0.001).rounded())
                 }
