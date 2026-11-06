@@ -1,5 +1,94 @@
 # Word flat-pie best-fit labels: the lo-f9b9a8fc label-5 jump (amd-opus, 2026-11-06)
 
+## Round 2 (after pielabel5 and pielabel6): verdict
+
+**Neither candidate reproduces Word, and nothing should be built for label 5.** Both the iterative
+overlap pass and the ordered "first position that does not overlap" search collapse, on these
+prints, to the one fixed layout our code already draws. Three findings rule them out (below).
+What Word does is a joint layout of all labels that we cannot recover from label positions alone.
+Recommendation: release label 5 as unexplained; lo-f9b9a8fc stays 87.5. One unrelated, cheap y fix is
+offered at the end (bottom labels 3.5 pt lower), to be checked on a real render first.
+
+Data: 104 prints, 754 outside labels: pielabel3 (`wip/lab-pielabels-prints`), pieang, piewid,
+pielabel5, pielabel6 (each `wip/lab-<name>-prints`). piesize3/4 were read but not scored (wrapped
+two-line labels, other columns, no leader data). Script: `test/lab/pie-spec/p7.py LABDIR`
+(LABDIR/<name>/test/lab/... from `git archive origin/wip/lab-<name>-prints test/lab`); its output,
+one row per print, is `test/lab/pie-spec/PREDICT.tsv`.
+
+### What pielabel5/6 add
+
+1. **Positions are whole pixels.** Every label's height from the pie centre is a whole number of
+   pixels at 96 dpi (0.75 pt steps: -57.76, -26.28, -21.76, +52.50, +61.50 ...). Across, labels carry
+   the pie centre's sub-pixel phase, so the same layout repeats every 3 pt (4 px) of frame width
+   with 0.5 pt of jitter.
+2. **The full 8-label chart has three layouts in 350-370 pt**, keyed by the frame width rounded to
+   pixels: A up to 479 px (label 5 at -26.8, +61.5), B 480-488 px (label 5 at -54.4, +52.5 with a
+   leader; this is lo-f9b9a8fc at 360 pt), C from 489 px (label 5 at -40.5, +58.5; labels 1, 2, 3, 4
+   and 7 move 3-9 pt as well). Label 7 changes earlier, between 359 and 359.25 pt, where the
+   pie centre crosses half a pixel. pw-w300 and pw-w400 are two more layouts.
+3. **Labels never come close to each other.** In all 104 prints the nearest two label boxes are at
+   least 7.3 pt apart, and the gaps do not bunch at any value.
+
+### Why both candidates fail
+
+- **No contact signature.** An overlap pass, or a search that skips blocked positions, leaves each
+  moved label touching what blocked it, at the padding distance. Word's prints show no such
+  contacts. The largest box padding at which Word's own layouts stay overlap-free is about
+  3.5 pt across and 1.25 pt up and down. At any padding in that range, the default layout (today's
+  rule) of the 8-slice chart has no overlap. So both candidates move nothing and predict one fixed
+  layout at every width.
+- **Labels attract.** Label 5 alone stands at (-49, +59). With label 4 present (p45) it stands at
+  (-39, +59), and label 4 at (+35.5, +60): the two move about 10 pt *toward* each other. Neither
+  candidate ever moves a label toward another.
+- **Width matters with nothing near an edge.** Between 479 and 480 px the nearest label is 79 pt
+  from the frame's side, yet label 5 moves 27 pt. Taking away label 2 (upper right) moves label 5
+  (lower left) 12 pt, with nothing touching in between. A test against neighbours or the frame
+  cannot see either.
+
+What fits all of this is a global optimiser over all the labels at once, whose objective changes
+smoothly with the frame's shape, with the result snapped to pixels. The jumps would then be switches
+between local optima. The irregular narrow frames (242 and 246 differ from 240 and 244) are what
+such an optimiser does once the frame edge binds. The objective cannot be read back from label
+centres, and guessing one would fit these 8-slice labs and nothing else.
+
+### Prediction table (best candidate = today's fixed layout)
+
+Both candidates reduce to today's rule, so their predictions are today's. Counts are labels
+within 3 pt of Word, with the label rule placed on **Word's own pie** (centre and R from the print).
+The per-print rows are in PREDICT.tsv.
+
+| lab | prints | outside labels | x and y within 3 pt | y within 3 pt |
+|---|---|---|---|---|
+| pielabel3 | 14 | 102 | 33 | 67 |
+| pieang | 7 | 56 | 31 | 46 |
+| piewid | 7 | 48 | 21 | 31 |
+| pielabel5 | 29 | 202 | 39 | 135 |
+| pielabel6 | 47 | 346 | 84 | 193 |
+| **all** | **104** | **754** | **208 (28%)** | **472 (63%)** |
+
+What fails: label 5 in every B print (label 5 is fixed at one place, so all of A, B and C cannot be
+right at once), the narrow frames 240-260 (labels pushed into the pie and the frame), and the
+moved labels in C. For scale, the best possible *fixed* rule (one best offset per radius and angle,
+fitted to these prints) gets 78% (x and y) and 92% (y). It would hit lo-f9b9a8fc's label 5 only by
+choosing B over A, and B wins there only because the labs crowd around 360 pt. That is fitting one
+print, so it is not recommended.
+
+### Chart.swift
+
+- **Label 5:** no change. `_pieLabels`, the `tuneFlat` branch, stays as it is.
+- **Optional y fix (separate task, low priority):** labels below the pie stand 3-4 pt lower in Word
+  than our rule puts them, on Word's own pie (median +4.3 at 157.5 deg, +2.7 at 202.5, +3.1 and
+  +3.9 at R 60). Round 1's fact 2 saw the same thing (about 2.5 pt more gap below). In `_pieLabels`,
+  `tuneFlat` branch: `gapY = tuneFlat ? (dy > 0 ? 7 : 3.5) * k : gap`. Offline that takes y hits from
+  472 to 589 of 754 (63% to 78%). **Check it on a real render first:** our pie on lo-f9b9a8fc is
+  0.74 pt bigger and sits differently from Word's, and label 4 there already matches. The y fix may
+  break it. Land only if the pair run shows lo-f9b9a8fc and the 756 set flat or up.
+
+---
+
+# Round 1 (superseded where round 2 disagrees)
+
+
 Planner's spec, from amd-1's Windows prints only (nothing built): pielabel3
 (`wip/lab-pielabels-prints`, PIEEQ-WORD.tsv), pieang (`wip/lab-pieang-prints`),
 piewid (`wip/lab-piewid-prints`), plus Word's own print of the document
