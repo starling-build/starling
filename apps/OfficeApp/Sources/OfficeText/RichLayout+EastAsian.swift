@@ -913,7 +913,7 @@ extension RichLayout {
                 // wrapped by Word and hangs at 580.)
                 if hang > 0, over <= hang + 0.0001 {
                     // (All of it, the hair too: the engine has none.)
-                    adjust[tail, default: 0] -= over + 0.02
+                    adjust[tail, default: 0] -= (!squeezes && !turned && wordRules && RichTextTheme.wordWindowsPages && !document.hangsHalf ? hang : over + 0.02)
                     fits = true
                 } else if squeezes || topOnly {
                     // (Its own marks give too: the same form's "       ），"
