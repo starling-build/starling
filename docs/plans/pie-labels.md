@@ -185,3 +185,28 @@ With (1)-(3), the rule is: which test, against what, and the step. amd-1 impleme
 `_pieLabels` as a placement pass in slice order after the pinned position, applied only
 to labels the test moves. Moved labels get the callout position from fact 3: label beside
 the rim point, leader 45 deg then flat.
+
+---
+
+## amd-1 2026-11-06: after the y change (a47956dbe), per-angle x and y on our renders v Word's prints
+
+Our renders of pielabel5 (29 docs) and pielabel6 (47 docs), 562 labels, each against Word's print (label centre minus its own pie centre). Angle = label centre's angle, clockwise from 12 o'clock, nearest 22.5. "x ok" = within 3 pt in x.
+
+| angle | n | median ours-Word dx | x ok | median dy | y ok |
+|---|---|---|---|---|---|
+| 22.5 | 38 | +6.0 | 9 | -0.9 | 29 |
+| 45 | 31 | -2.3 | 28 | -0.9 | 30 |
+| 67.5 | 60 | 0.0 | 60 | -1.9 | 48 |
+| 90 | 9 | -0.6 | 9 | -9.7 | 0 |
+| 112.5 | 69 | -1.0 | 57 | +0.1 | 48 |
+| 135 | 22 | -5.2 | 0 | +1.9 | 12 |
+| 157.5 | 51 | +2.7 | 30 | +0.8 | 51 |
+| 202.5 | 37 | -8.7 | 6 | 0.0 | 37 |
+| 225 | 38 | +13.4 | 13 | +3.0 | 11 |
+| 247.5 | 69 | +1.1 | 51 | +0.1 | 53 |
+| 270 | 2 | +6.4 | 0 | -9.7 | 0 |
+| 292.5 | 67 | +0.3 | 59 | -0.4 | 40 |
+| 315 | 52 | -0.3 | 43 | -1.6 | 43 |
+| 337.5 | 17 | -0.9 | 11 | -0.9 | 16 |
+
+Reading: the 135 bucket is all one cause, label 4 in Word's layout C (frame 489 px and wider: Word +45.5, y 58.5; ours +40.9, 61.5) and in the 470-490 pt frames (Word +49.0, y 65.8; ours +43.5, 67.7; our pie radius there, 60.49, is already Word's). 202.5 and 225 are label 5 and its neighbours across Word's layouts A, B, C and the narrow frames. No narrow x rule written: each is one label of one layout of Word's joint layout (see Round 2). Overall on these 562 labels: x and y within 3 pt 303 (54%), y within 3 pt 418 (74%).
