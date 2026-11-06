@@ -5442,6 +5442,7 @@ enum ChartPainter {
         // across a plot 107 high, where 0.97 made 103.7.)
         let fills = !c.onSlide && !c.onSheet && !c.chartex && c.plotLayout != nil
         var radius = min(area.width, area.height) / 2 * (libre ? 0.823 : fills ? 1.0 : 0.97)
+        let insideLabelled = c.pieLabels != nil && !c.pieLabelsAround && c.pieLabels?.position == "ctr" && c.plotLayout == nil && !c.onSlide && !c.onSheet && !c.chartex
         // On a sheet, a line of the labels' less each side where they
         // stand round the pie: Excel's prints of five labelled pies are
         // 8.5 to 17 pt smaller a side than ours were, the unlabelled
@@ -5496,6 +5497,17 @@ enum ChartPainter {
                 radius = max(room / 2, 0.875 * wordRoom - 1.37 * k)
             }
         }
+        // (Centred labels, lab piesize round 2 (Word for Windows): the room itself, without the outside labels' 0.875 and 1.37 — R 70.64,
+        // 44.52 and 114.51 at three frame sizes, 82.08 with no legend, 83.69 with no title, 62.95 with a legend of two rows, each to
+        // 0.05 pt; ours were 74.18, 48.84, 116.74, 84.17, 84.22, 68.85.)
+        if c.type == .pie, insideLabelled, values.contains(where: { $0 > 0 }) {
+            let room = min(area.width, area.height) / 2 * 0.97
+            let titled = !(c.title ?? "").isEmpty && c.titleAt == nil
+            let footOrTop = c.legend && ["b", "t"].contains(c.legendPosition)
+            let rows = Self._pieLegendRows(c, frame: frame ?? area, k: k, text: text)
+            RuleTrace.hit("word-flat-pie-centred-labels-size-the-pie-by-the-room")
+            radius = max(room / 2, 1.0307 * room - 5.82 * k + max(titled ? 0 : 2.7 * k, footOrTop ? 0 : 1.2 * k) - 2.2 * k * Double(max(0, rows - 1)))
+        }
         // (Excel's doughnut on a sheet, no labels, a legend at the right: as wide as the chart less 89 pt and as high as it less
         // 22 pt, whole; at the top, 46.2 pt less than its height as at the foot. Windows lab wip/lab-doughnut: 200 x 400 ring 111 across
         // (ours 120), 400 x 400 311 (314), the sizes limited by their height as they were.)
@@ -5512,7 +5524,7 @@ enum ChartPainter {
         // (Word's room for the pie is centred where its own title and legend bands leave it, not where ours: lab piesize's prints,
         // centre against ours 1.55 pt lower under a title with the legend at the foot, 2.69 with no legend or one at a side, 3.47
         // with it on top; with no title 2.68 higher than those.)
-        if c.type == .pie, c.pieLabelsAround, c.pieLabels?.outside == true, c.ofPie == nil, c.plotLayout == nil, !c.onSlide, !c.onSheet, !c.chartex {
+        if c.type == .pie, (c.pieLabelsAround && c.pieLabels?.outside == true) || insideLabelled, c.ofPie == nil, c.plotLayout == nil, !c.onSlide, !c.onSheet, !c.chartex {
             let titled = !(c.title ?? "").isEmpty && c.titleAt == nil
             let place = !c.legend ? "n" : c.legendPosition
             let down = (place == "b" ? 1.55 : place == "t" ? 3.47 : 2.69) - (titled ? 0 : 2.68)
