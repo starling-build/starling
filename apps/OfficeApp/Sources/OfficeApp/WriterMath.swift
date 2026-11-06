@@ -489,9 +489,9 @@ enum WriterMath {
             let opSize = display && level == 0 && !big ? s * 1.6 : s
             var op: Box
             if big {
-                let glyph = text(chr, size: s * 2.0, italic: false)
+                let glyph = text(chr, size: s * 2.864, italic: false)
                 op = Box(width: s * 1.326, ascent: s * 1.240, descent: s * 0.669) { canvas, at in
-                    glyph.draw(canvas, Offset(at.dx - s * 0.082, at.dy + s * 0.094))
+                    glyph.draw(canvas, Offset(at.dx - s * 0.374, at.dy + s * 0.669))
                 }
             } else {
                 op = raised(text(chr, size: opSize, italic: false), -(opSize - s) * 0.35)
