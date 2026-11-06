@@ -680,7 +680,29 @@ final class SlidePainter: CustomPainter {
                 canvas.scale(sh.scale, sh.scale)
                 canvas.translate(-at.dx, -at.dy)
             }
-            canvas.drawPath(outline, p)
+            if let line = shape.outline, shape.outlineWidth > 0, line.alpha > 0, shape.picture == nil,
+               let body = shape.fill, body.alpha > 0, shape.fillStyle == nil {
+                // The silhouette that casts is the fill and its outline together (a title bar's thick white
+                // border is part of the bar the shadow falls from: customGeo's titles print darker under
+                // the border, 188 against 219): both drawn opaque in one layer, which lays down the shadow's
+                // opacity once over their union.
+                let layer = Paint()
+                layer.color = Color(Int(p.color.alpha) << 24)
+                canvas.saveLayer(r.inflate(sh.blur * px * 2 + shape.outlineWidth * px + 4), layer)
+                let solid = Paint()
+                solid.style = .fill
+                solid.isAntiAlias = true
+                solid.color = p.color.withOpacity(1)
+                solid.maskFilter = p.maskFilter
+                canvas.drawPath(outline, solid)
+                solid.style = .stroke
+                solid.strokeWidth = max(0.5, shape.outlineWidth * px)
+                solid.strokeJoin = Self.join(shape.outlineJoin)
+                canvas.drawPath(outline, solid)
+                canvas.restore()
+            } else {
+                canvas.drawPath(outline, p)
+            }
             canvas.restore()
         } else if let sh = shape.shadow, let style = shape.fillStyle, style.image != nil, shape.picture == nil {
             // A shape filled with a picture casts the shadow of what the
