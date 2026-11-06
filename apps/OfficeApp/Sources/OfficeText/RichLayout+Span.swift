@@ -50,6 +50,23 @@ extension RichLayout {
     /// every caller.
     /// `autoSpaces` is told each character set wider by Word's automatic
     /// space after it (paragraph offset, pixels), for the line fitting.
+    /// A run's `w:fitText`: the width its group is fitted to, in points, and
+    /// the group's id (runs of one id are fitted together).
+    static func _fitText(_ xml: String?) -> (points: Double, id: String)? {
+        guard let xml else { return nil }
+        for element in xml.split(separator: "<") where element.hasPrefix("w:fitText ") {
+            let parts = element.split(separator: "\"", omittingEmptySubsequences: false)
+            var val: Double? = nil
+            var id = ""
+            for (k, part) in parts.enumerated() where k + 1 < parts.count {
+                if part.hasSuffix("w:val=") { val = Double(parts[k + 1]) }
+                if part.hasSuffix("w:id=") { id = String(parts[k + 1]) }
+            }
+            if let val, val > 0 { return (val / 20, id) }
+        }
+        return nil
+    }
+
     func _span(for p: RichParagraph, at index: Int?, _ document: RichDocument, textWidth: Double, lead: Double = 0, adjust: [Int: Double] = [:],
                        held: Set<Int> = [], spread: [Int: Double] = [:], autoSpaces: ((Int, Double) -> Void)? = nil)
         -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) {
@@ -610,8 +627,44 @@ extension RichLayout {
             // Asian hint, a Latin face that is not an East Asian one.)
             let latinShapes = theme.wordRules && run.fontHint != "eastAsia"
                 && theme.faceResolver?(run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false)?.isEastAsian != true
+            // (Word's "fit text", `w:fitText`: the runs of one id are spaced
+            // to be val/20 pt wide together. Word for Windows, zh-c2c92639's
+            // "本标准主要审查人员：" with fitText 2210: the nine ideographs
+            // 11.12pt apart, the colon at its own advance, and the next text
+            // 110.5pt from the start; the run's own spacing and the grid's
+            // addition are gone. Spaced to it here, through the style, so the
+            // line fitter sees what is drawn.)
+            let fitGroup = theme.wordRules && RichTextTheme.wordWindowsPages ? Self._fitText(run.keptXML) : nil
+            var fitPitch: Double? = nil
+            var fitBusy = false
+            var fitLastSingle = false
+            func fitSpacing() -> Double? {
+                guard let g = fitGroup else { return nil }
+                if let f = fitPitch { return f }
+                fitBusy = true
+                defer { fitBusy = false }
+                var total = 0.0, count = 0, lastLength = 0
+                var at = 0
+                let units = Array(p.text.utf16)
+                for r in p.runs {
+                    defer { at += r.length }
+                    guard Self._fitText(r.style.keptXML)?.id == g.id, at + r.length <= units.count else { continue }
+                    let piece = String(decoding: units[at ..< at + r.length], as: UTF16.self)
+                    lastLength = piece.count
+                    for ch in piece {
+                        total += _glyphWidth(style(RichLayout.isEastAsian(ch, hinted: hinted) ? -1 : 0), ch)
+                        count += 1
+                    }
+                }
+                let target = g.points * theme.pixelsPerPoint * scale
+                fitLastSingle = lastLength == 1
+                let gaps = lastLength == 1 ? count - 1 : count
+                let pitch = gaps > 0 ? (target - total) / Double(gaps) : 0
+                fitPitch = pitch
+                return pitch
+            }
             func style(_ kind: Int) -> TextStyle {
-                if let s = styles[kind] { return s }
+                if !fitBusy, let s = styles[kind] { return s }
                 var styled = run
                 let grown = wholeRaised ? theme.raisedLineHeight(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) : nil
                 if let grown { styled.raised = grown.raise }
@@ -709,7 +762,10 @@ extension RichLayout {
                         }
                     }
                 }
-                styles[kind] = s
+                if !fitBusy, fitGroup != nil, s.fontSize ?? 0 > 0.5, kind != -2, let f = fitSpacing() {
+                    s = s.copyWith(letterSpacing: text.count == 1 && fitLastSingle ? 0 : f)
+                }
+                if !fitBusy { styles[kind] = s }
                 return s
             }
             // (A zero-width character the layout puts in — a break the
