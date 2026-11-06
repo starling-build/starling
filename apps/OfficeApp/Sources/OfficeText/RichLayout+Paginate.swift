@@ -3772,7 +3772,9 @@ extension RichLayout {
             var leavesLead = false
             if theme.wordRules, lead > 0.01, (resumeCursor ?? top) <= top + 0.01 {
                 let st = document.paragraphs[i].style
-                let newSection = i > 0 && document.paragraphs[i - 1].style.sectionXML != nil
+                // (A section's first paragraph that opens with a column break
+                // loses it all the same: zh-b8de3ae2 p15, 3pt, compat 15.)
+                let newSection = i > 0 && document.paragraphs[i - 1].style.sectionXML != nil && !(st.columnBreak && (document.compatibilityMode ?? 12) >= 15)
                 let ownBreak = _pageBreak[i] && !st.pageBreakInline && !st.breakEndsPrevious
                 // (One its own page break opens keeps it before 2013's layout
                 // only: lab brk2 (Word for Windows) — zh-ae2dd08d's heading
