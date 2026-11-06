@@ -74,6 +74,10 @@ enum OfficeFonts {
              "segoe ui", "aptos", "arimo", "arial black":
             return sans
         case "verdana", "dejavu sans", "bitstream vera sans":
+            // (Windows has no DejaVu Sans: Word takes the font table's alternate. lo-9eaf41a6's entry says Times New
+            // Roman, and its empty 12pt header line stands 13.8pt high in Word's print, not Verdana's 14.6: the body
+            // and the floating tables on both pages stood 1.0pt low, every line with them.)
+            if wordOnWindows, n == "dejavu sans", let alt = fontEntry(family)?.alt, !alt.isEmpty { return substitute(alt) }
             return verdana
         case "liberation serif", "times new roman", "times", "georgia", "book antiqua",
              "garamond", "palatino", "palatino linotype", "tinos":
