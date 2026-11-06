@@ -161,6 +161,7 @@ extension RichLayout {
         }
         var prevContentH = contentH
         var prevY = 0.0   // how far down the page before was filled
+        var prevPartBottom: Double? = nil   // where the part of a row that parted there ends, when a cell runs on below it
         // The floating pictures on this page that text wraps round: page
         // y, and x from the column's edge.
         var bands: [(top: Double, bottom: Double, left: Double, right: Double)] = []
@@ -782,6 +783,7 @@ extension RichLayout {
         // page under it, what of it did not fit on the page before goes
         // on from the top of this one.
         func continueSpans(into i: Int, _ c: _CellGeo) {
+            defer { prevPartBottom = nil }
             guard theme.wordRules, page > 0 else { return }
             var spans: [[Int]] = []
             var open: (row: Int, column: Int)? = nil
@@ -813,7 +815,14 @@ extension RichLayout {
                 // (… or the foot of the table's last row there, where
                 // the row after it went over whole: the cell's lines
                 // below that go with it.)
-                let limit = ref.flowTop + (min(prevContentH - ruleUnder(c, parted: true), prevY) - ref.pageY) + 0.01
+                // (A centred cell merged down that runs on below the part keeps only the lines that end no
+                // lower than the part, as its neighbours' kept lines close it: lab cm4 (Word for Windows),
+                // zh-9ba2ead7 p7's "房屋及设施设备…", whose ninth line stood 15pt under the last line the row
+                // keeps there and goes over with the rest in Word's print.)
+                let firstMember = _cells[members[0]]!
+                let footY = prevContentH - ruleUnder(c, parted: true)
+                let closeY = prevPartBottom.map { firstMember.verticalAlign == "center" ? min(footY, $0) : footY } ?? footY
+                let limit = ref.flowTop + (min(closeY, prevY) - ref.pageY) + 0.01
                 let last = members[members.count - 1]
                 guard _tops[last] + _heights[last] > limit else { continue }
                 var cut: Double? = nil
@@ -1549,6 +1558,10 @@ extension RichLayout {
                         return true
                     }
                     if !below { partHeight = part }
+                    // (Only where the row's own text parts there: a sliver row beside a cell that runs on to the foot is centred
+                    // over that cell's reach — zh-64044a1d's.)
+                    prevPartBottom = below && theme.wordRules && RichTextTheme.wordWindowsPages
+                        && columns.indices.contains(where: { _cells[columns[$0].members[0]]!.rowSpan == 1 && next[$0] < rowBottom - 0.01 }) ? y + part : nil
                     // (A centred cell merged down from the rows above, its text on
                     // this page, is centred in the part of its rows that is on the
                     // page — down to this row's part — not over every row it
@@ -1589,6 +1602,10 @@ extension RichLayout {
                             guard free >= -0.01 else { continue }
                             let onPage = _allPieces.indices.filter { _allPieces[$0].page == page && members.contains(_allPieces[$0].paragraph) && _allPieces[$0].part != .rules && !_allPieces[$0].repeated }
                             guard let first0 = onPage.first else { continue }
+                            // (Not text that goes on from the page before: its lines stand where the cut left them, at the
+                            // part's head, level with the row's own first line. Lab cm4 and zh-9ba2ead7 p8, whose "房屋及设施
+                            // 设备…" block ours moved 36pt up, above the margin.)
+                            if theme.wordRules, _allPieces[first0].flowTop > top + 0.01 { continue }
                             // (Where the text stands now, by its piece; where it should stand, by the row's page y.)
                             let nowAt = _allPieces[first0].pageY + (top - _allPieces[first0].flowTop)
                             let wantAt = y + (d.rowTop + d.pad.top + max(0, free) * 0.5 - c.rowTop)
