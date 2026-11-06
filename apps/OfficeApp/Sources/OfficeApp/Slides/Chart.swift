@@ -173,6 +173,8 @@ struct Chart: Equatable {
     /// The legend's text size in points where the file gives one
     /// (`c:legend/c:txPr`); nil is the default, 12.
     var legendSize: Double? = nil
+    /// The legend's text names a size of its own (even the default 12), where LibreOffice's export names none.
+    var legendSized = false
     var dataLabels = false
     /// `c:grouping`: clustered/standard, stacked or percentStacked.
     var stacked = false
@@ -1676,6 +1678,7 @@ enum ChartXML {
         if let l = chart.first("c:legend") {
             c.legendPosition = l.first("c:legendPos")?["val"] ?? "r"
             c.legendOverlay = (l.first("c:overlay")?["val"] ?? "0") == "1" || l.first("c:overlay")?["val"] == "true"
+            c.legendSized = l.first("c:txPr")?.descendant("a:defRPr")?["sz"] != nil
             if let sz = l.first("c:txPr")?.descendant("a:defRPr")?["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 {
                 c.legendSize = sz / 100
             }
@@ -2647,9 +2650,9 @@ enum ChartPainter {
             // (A slide chart that sets no text size anywhere, LibreOffice's export: its legend's keys 3.1 pt
             // square, the names 6.9 from the key's edge and the entries 1.3 pt closer, the row 1.2 pt lower,
             // in PowerPoint's print of LIBRE_OFFICE-100610-0's pie and bar charts, ours 5.5 and 8.8 away.)
-            let bareLegend = c.onSlide && !beside && c.legendSize == nil && c.textSize == nil && !c.styled2013
+            let bareLegend = c.onSlide && !beside && c.legendSize == nil && !c.legendSized && c.textSize == nil && !c.styled2013
             let key = wideKeys ? 19.2 * k : libreLegend ? 6.12 * k * m : bareLegend ? 3.7 * k * m : (c.onSlide ? 6.57 : 7) * k * m, gap = libreLegend ? 2.64 * k * m : bareLegend ? 4.5 * k * m : (c.onSlide ? 2.92 : 4) * k * m
-            let spacing = (printed ? (c.styled2013 ? 11.2 : bareLegend ? 11.8 : 13.9) : c.styled2013 ? 9.5 : 12) * k * m + (wideKeys ? 1.3 * k : 0)
+            var spacing = (printed ? (c.styled2013 ? 11.2 : bareLegend ? 11.8 : 13.9) : c.styled2013 ? 9.5 : 12) * k * m + (wideKeys ? 1.3 * k : 0)
             let keyDrop = printed && c.styled2013 ? 1.3 * k * m : 0
             // A line's key is a stroke 19.2 pt long whatever the text's
             // size, ending 2 pt before its name; in a row, 3.6 more before
@@ -2875,8 +2878,27 @@ enum ChartPainter {
                 if bareLegend { y += 1.2 * k }
             }
             let middle = printed ? r.center.dx + 2.28 * k * m : area.center.dx
+            // (A column of entries in a box of the legend's own on a slide stands left-aligned, the widest entry's width centred on
+            // the box's middle and 0.19 of the size to its right: 5864 slide 16's five 16 pt entries in PowerPoint's print, all
+            // text at 282.6 pt where ours centred each entry on its own.)
+            let slideColumnW: Double? = box != nil && c.onSlide && !pie && lines.count > 1 && lines.allSatisfy { $0.count == 1 }
+                ? lines.map { $0.reduce(0.0) { $0 + lead + $1.tp.width } }.max() : nil
+            // (One row of entries in a box of the legend's own on a slide: the room left over by the entries is shared in
+            // n + 1 equal gaps, before the first, between and after the last, the row 0.19 of the size right of that:
+            // lab legbox in PowerPoint's print, five box widths and three sizes, pitch within 1 pt, 5864 slide 11's two 12 pt
+            // entries 95.6 apart in a 250 pt box where ours stood 45 apart.)
+            var slideRowStart: Double? = nil
+            if let b = box, c.onSlide, !pie, lines.count == 1, let only = lines.first, only.count > 1 {
+                let room = b.width - only.reduce(0.0) { $0 + lead + $1.tp.width }
+                if room > 0 {
+                    spacing = room / Double(only.count + 1)
+                    slideRowStart = b.left + spacing + 0.19 * (c.legendSize ?? c.baseTextSize) * k
+                }
+            }
             func startX(_ w: Double) -> Double {
-                beside ? columnX : (box == nil && c.legendAt != nil && !c.onSlide && !c.onSheet && !pie) ? r.left + c.legendAt!.dx * r.width + 15.8 * k : (box?.center.dx ?? middle) - w / 2
+                if let x = slideRowStart { return x }
+                if let cw = slideColumnW, let b = box { return b.center.dx + 0.19 * (c.legendSize ?? c.baseTextSize) * k - cw / 2 }
+                return beside ? columnX : (box == nil && c.legendAt != nil && !c.onSlide && !c.onSheet && !pie) ? r.left + c.legendAt!.dx * r.width + 15.8 * k : (box?.center.dx ?? middle) - w / 2
             }
             // (Its frame and fill where the file gives them, on a sheet, under its entries: Excel's prints of WithChartSheet's
             // black one and tdf135184RoundLineCap2's dotted green.)
