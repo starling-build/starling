@@ -1,0 +1,12 @@
+1	mat=none rig=threePt rev=90 lon=225
+2	mat=none rig=threePt rev=0 lon=225
+3	mat=none rig=twoPt rev=90 lon=225
+4	mat=none rig=twoPt rev=0 lon=225
+5	mat=none rig=threePt rev=90 lon=135
+6	mat=none rig=threePt rev=0 lon=135
+7	mat=none rig=twoPt rev=90 lon=135
+8	mat=none rig=twoPt rev=0 lon=135
+9	mat=none rig=threePt rev=90 lon=0
+10	mat=none rig=threePt rev=0 lon=0
+11	mat=none rig=twoPt rev=90 lon=0
+12	mat=none rig=twoPt rev=0 lon=0
