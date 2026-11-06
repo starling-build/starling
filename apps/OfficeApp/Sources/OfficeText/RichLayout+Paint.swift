@@ -1037,7 +1037,23 @@ extension RichLayout {
                     // edge, its lower half was cut off with the row; and
                     // zh-77bd4900's p3 tables open under a 2.16pt line at
                     // 68.64, ours at 67.6.)
-                    let into = theme.wordRules && (side == "bottom" || side == "top") ? max(0.5, p.strokeWidth / 2) : 0.5
+                    var into = theme.wordRules && (side == "bottom" || side == "top") ? max(0.5, p.strokeWidth / 2) : 0.5
+                    // (As a box: a heavy top line's top on the edge, a heavy bottom line's bottom on it, and one
+                    // between rows with its top on the edge. zh-77bd4900 p3's 2.25pt lines: boxes' tops at 68.64,
+                    // 104.78, 124.94, 161.06 under edges 68.7, 104.8, 125.0, 161.1.)
+                    let heavyBox = theme.wordRules && RichTextTheme.wordWindowsPages && p.strokeWidth >= _px(2) && p.strokeWidth < _px(5)
+                    if heavyBox, side == "top" { into = 0 }
+                    if heavyBox, side == "bottom" { into = p.strokeWidth * 0.96 }
+                    if heavyBox, side == "insideH", inward.dy < 0 {
+                        RuleTrace.hit("word-heavy-inside-rule-is-a-box-hanging-below-the-row-edge")
+                        canvas.save()
+                        canvas.clipRect(Rect.fromLTRB(-1e6, rowTop, 1e6, rowBottom + p.strokeWidth))
+                        let q = Offset(0, p.strokeWidth / 2)
+                        p.strokeWidth *= 0.96
+                        canvas.drawLine(from + q, to + q, p)
+                        canvas.restore()
+                        return
+                    }
                     if theme.wordRules, RichTextTheme.wordWindowsPages, side == "insideH", inward.dy < 0, p.strokeWidth >= _px(2) {
                         // (A heavy rule between two rows is one band centred on their edge, half in each:
                         // lo-5b86b731's 6pt inside rules, 3pt of each under the clip to the row above.)
