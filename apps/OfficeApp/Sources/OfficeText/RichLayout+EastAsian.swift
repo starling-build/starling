@@ -1423,6 +1423,23 @@ extension RichLayout {
                         let capacity: Double = stretch + gapSum * (RichTextTheme.wordWindowsPages ? 2.08 : 1) - macWordGap + spacedStretch
                         return !(need * capacity <= room * (stretchRoom + hair))
                     }()
+                    // (Bold spaces after a bold heading, first line, between East Asian text on a justified line, 2010's layout under the balance, give 0.16 of
+                    // themselves in Word for Windows' print (one of 0.149 is taken, one of 0.24 is not: zh-5dc5ce34), after the marks: zh-6c447317's "第二十七条  以上…"
+                    // sets its two bold spaces 7.05 each on every justified line and 8.03 on the paragraph's last, and so
+                    // takes the "保" ours left 0.85pt over; its "第三十八条 一次性…灵活就业" sets "、" at its half and the
+                    // one space 6.8 of 8.03, taking "业" 9.2pt over.)
+                    var flankedSpaces: [(k: Int, w: Double)] = []
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, legacy, p.style.alignment == .justify, document.balancesSpaceWidth,
+                       eastAsianAt(a), a > 0, lineFrom < a, !inCell {
+                        for k in lineFrom ..< a where units[k] == 0x20 && k < runOf.count && p.runs[runOf[k]].style.bold && k < eastAsianRuns.count && !eastAsianRuns[k]
+                            && lineFrom == 0 && k < runOf.count && (0 ..< k).allSatisfy({ units[$0] == 0x20 || p.runs[runOf[$0]].style.bold }) {
+                            var l = k - 1, r = k + 1
+                            while l >= 0, units[l] == 0x20 { l -= 1 }
+                            while r < units.count, units[r] == 0x20 { r += 1 }
+                            if l >= 0, r < units.count, units[l] >= 0x2E80, units[r] >= 0x2E80 { flankedSpaces.append((k, boxes(k, k + 1))) }
+                        }
+                    }
+                    let flankedRoom = flankedSpaces.reduce(0.0) { $0 + $1.w * 0.16 }
                     let takenFirst = squeezedFirst && !wordSpaced
                         ? lineWide > 1 && need * (gapStretch() + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2)
                             <= room * (stretchRoom + hair)
@@ -1535,7 +1552,7 @@ extension RichLayout {
                             // print leaves it and squeezes nothing.)
                             || ((a ..< last).contains { units[$0] >= 0x2E80 }
                                 && need <= set / 2 + (a ..< last).filter { units[$0] >= 0x2E80 }.reduce(0.0) { $0 + half($1) } + hair)))
-                            || x - spacesBefore + min(lead, w) - width <= before / 2 + (legacy ? gridGive ?? edge : edge)
+                            || x - spacesBefore + min(lead, w) - width <= before / 2 + flankedRoom + (legacy ? gridGive ?? edge : edge)
                             // (What the line's opening mark gives at its start (`w:topLinePunct`) moves the line
                             // left of the margin rather than squeezing it, and comes off before the half a character:
                             // zh-053f8706 p29 (mode 14) starts "《中华…" 8pt left of the margin and takes "医" 13.75
@@ -1766,7 +1783,7 @@ extension RichLayout {
                     // zh-30d86fcf's "…条件：①" (8.7 over, half an em 8) stays refused and its "…申请条件。③" (0.7 over, the "。"
                     // set 15.72) is taken.)
                     let circled = !inCell && !RichTextTheme.wordWindowsPages && a < units.count && (0x2460 ... 0x24FF).contains(units[a])
-                    if room + spacedGive + kinsokuGive > 0 || digitAfter, taken, !circled, need <= room + spacedGive + kinsokuGive - ownGive - finalGive + (gridGive ?? hair) + (digitAfter ? after / 2 : 0) {
+                    if room + spacedGive + kinsokuGive + flankedRoom > 0 || digitAfter, taken, !circled, need <= room + spacedGive + kinsokuGive + flankedRoom - ownGive - finalGive + (gridGive ?? hair) + (digitAfter ? after / 2 : 0) {
                         let share = room > 0 ? min(1, (need + 0.02) / room) : 0
                         // (The marks give first, and the automatic spaces
                         // what is still needed: the colon of lab `ovc` is
@@ -1787,6 +1804,12 @@ extension RichLayout {
                             let spaceDraw = min(1, short / spacedGive)
                             for space in wordSpaces where spaceGives(space.k) { adjust[space.k, default: 0] -= space.w * spaceGiveShare(space.k) * spaceDraw }
                             short -= spacedGive * spaceDraw
+                        }
+                        if short > 0.001, flankedRoom > 0 {
+                            RuleTrace.hit("word-justified-bold-spaces-between-ideographs-give-a-sixth-in-2010s-layout")
+                            let draw = min(1, short / flankedRoom)
+                            for sp in flankedSpaces { adjust[sp.k, default: 0] -= sp.w * 0.16 * draw }
+                            short -= flankedRoom * draw
                         }
                         // (Before a digit, what the marks cannot give the line's ideographs do, a
                         // hundredth of an em or so each: lab `dbs`'s print sets "（" 5.88 and the
