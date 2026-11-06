@@ -4306,6 +4306,12 @@ enum ChartPainter {
         // at 19.25 and 226.25; lo-79680f48's alike, 9 pt taller in a 77 pt chart.)
         let plainUntitledWord = !c.onSlide && !c.onSheet && !c.chartex && !c.styled2013 && c.barView == nil
             && (c.title ?? "").isEmpty && c.titleAt == nil
+        // (A titled flat column chart with its legend at the foot, in a Word document: the plot stands 1.5 pt lower than ours, the
+        // names and the legend where they are — the value labels 1.6 pt high at the foot and 1.4 at the top in all eight such
+        // charts of the LibreOffice set: lo-a4a783e2, lo-088e2078, lo-222628bc, lo-28bd8930, lo-76e8e9cd, lo-a14e916b, lo-c7a83a5a.)
+        let wordLegendFoot = inWord && word && c.barView == nil && c.lineSeries.isEmpty && c.type == .column && !horizontal
+            && c.legend && c.legendPosition == "b" && !(c.title ?? "").isEmpty && c.titleAt == nil && c.plotLayout == nil
+        let legendFootRise = wordLegendFoot ? 1.5 * k : 0
         let wordFoot = word && !(c.legend && c.legendPosition == "b") && c.categoryAxisTitle == nil && c.categoryAxisTitleAt == nil
         let besideOut = ticksPush && (horizontal ? c.categoryTicksOut : c.valueTicksOut) ? (horizontal ? 8.8 : 5.6) * k : 0
         let belowOut = ticksPush && (horizontal ? c.valueTicksOut : c.categoryTicksOut) ? 3.7 * k : 0
@@ -4352,7 +4358,7 @@ enum ChartPainter {
             // Not a box plot's, already higher than Excel's.)
             // (Each outer level of a multi-level axis takes a row of its own under the names.)
             let levelRows = c.categoryLevels.isEmpty ? 0 : Double(c.categoryLevels.count) * ((catLabels.first?.height ?? 12 * k) + 8.2 * k) + 4.5 * k
-            let bottom = levelRows + (atZero ? (slideBare ? 8.1 : 4) * k : tallest + 7.6 * k + belowOut + slideFoot) - (wordFoot ? 4.4 * k : 0) + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
+            let bottom = levelRows - legendFootRise + (atZero ? (slideBare ? 8.1 : 4) * k : tallest + 7.6 * k + belowOut + slideFoot) - (wordFoot ? 4.4 * k : 0) + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
@@ -4436,7 +4442,7 @@ enum ChartPainter {
                    // lab ch4 (Word for Windows, rotX 15 / rotY 20, legend below): the top value label's baseline
                    // 60.58 / 55.73 / 50.88 under the frame's top for a title of 18 / 14 / 10pt, ours 55.2 / 50.4 /
                    // 45.5; untitled they agree, 29.81 and 29.7. zh-b8de3ae2's four charts: 121 against 117.)
-                   : word && c.barView != nil && titled ? 5.4 * k : 0)
+                   : word && c.barView != nil && titled ? 5.4 * k : legendFootRise)
             // (An untitled 2007-style chart in a Word document, ticks out: its plot is 7.4 pt wider
             // at the left and 5.4 at the right than ours stood — lo-79680f48's axis from 97.9 to 305.3
             // in Word for Windows' print, ours 105.3 to 299.9, its value labels where ours are.)
@@ -4908,7 +4914,7 @@ enum ChartPainter {
                     // the rest down to the right (chart-chart-text-can-
                     // overlap's 45°).
                     canvas.save()
-                    canvas.translate(cx, foot + (wordFoot ? 5.7 : 7.6) * k + belowOut - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k)
+                    canvas.translate(cx, foot + (wordFoot ? 5.7 : 7.6) * k + belowOut - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k - legendFootRise)
                     canvas.rotate(clockwise ? slant : -slant)
                     // (Word's print has an aslant date label as outlines, not text:
                     // lo tdf82824's date axis leaves no characters in its PDF,
@@ -4929,7 +4935,7 @@ enum ChartPainter {
                     // 11.8: Windows' prints of 5864 slide 8 in 15 variants, 1.4 pt at 14 pt and 5.1 at 20, at the foot or the zero
                     // line alike; 10 pt names stay where they are (cooper's charts match).)
                     let slideNames = c.onSlide && !c.styled2013 && !c.categoryTicksOut ? max(0, 0.62 * (catSize - 11.8)) * k : 0
-                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : 7.6) * k + (widenedPlain ? 0 : belowOut) - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k + slideNames))
+                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : 7.6) * k + (widenedPlain ? 0 : belowOut) - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k - legendFootRise + slideNames))
                 }
             }
             // The outer levels of a multi-level axis: each group's name under the names it
