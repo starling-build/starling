@@ -706,6 +706,101 @@ enum DocxFormat {
         }
     }
 
+    /// An IF field that spans body blocks (paragraphs, tables) and shows nothing: Word works out the condition and
+    /// shows the true or the false text; when that text is empty, everything the field wraps is gone, the table
+    /// inside it too (lo-8928a1e9: `IF ="BASEDMAFAC" "Garantie` + a table + `"""` has no left operand, so the
+    /// comparison is false and the false text is empty; 1 page and no table in Word's print). Only a top-level IF
+    /// with literal operands whose code never separates; a nested field or any text inside a string counts as
+    /// something shown, so a field that might show something stays as it is.
+    static func _hideEmptyIfFields(_ root: XNode) {
+        guard let body = root.first("w:body") else { return }
+        func evaluate(_ code: String) -> Bool? {   // true = the field shows nothing
+            let c = Array(code)
+            var i = 0
+            func skip() { while i < c.count, c[i] == " " || c[i] == "\n" || c[i] == "\t" { i += 1 } }
+            func quoted() -> String? {
+                guard i < c.count, c[i] == "\"" else { return nil }
+                i += 1
+                var out = ""
+                while i < c.count, c[i] != "\"" { out.append(c[i]); i += 1 }
+                guard i < c.count else { return nil }
+                i += 1
+                return out
+            }
+            let ops: Set<Character> = ["=", "<", ">"]
+            func operand() -> String? {
+                skip()
+                if let q = quoted() { return q }
+                var out = ""
+                while i < c.count, c[i] != " ", !ops.contains(c[i]), c[i] != "\"" { out.append(c[i]); i += 1 }
+                return out
+            }
+            skip()
+            guard i + 2 <= c.count, String(c[i ..< i + 2]).uppercased() == "IF" else { return nil }
+            i += 2
+            guard let left = operand() else { return nil }
+            skip()
+            var op = ""
+            while i < c.count, ops.contains(c[i]) { op.append(c[i]); i += 1 }
+            guard ["=", "<>", "<", ">", "<=", ">="].contains(op), let right = operand() else { return nil }
+            skip()
+            guard let yes = quoted() else { return nil }
+            skip()
+            let no = i < c.count ? quoted() : ""
+            guard let no else { return nil }
+            let marker: Character = "\u{1}"
+            guard !left.contains(marker), !right.contains(marker) else { return nil }
+            let cmp: Bool
+            if let a = Double(left), let b = Double(right) {
+                switch op { case "=": cmp = a == b; case "<>": cmp = a != b; case "<": cmp = a < b; case ">": cmp = a > b; case "<=": cmp = a <= b; default: cmp = a >= b }
+            } else {
+                let a = left.lowercased(), b = right.lowercased()
+                switch op { case "=": cmp = a == b; case "<>": cmp = a != b; case "<": cmp = a < b; case ">": cmp = a > b; case "<=": cmp = a <= b; default: cmp = a >= b }
+            }
+            return (cmp ? yes : no).isEmpty
+        }
+        var depth = 0
+        var begin: (block: Int, run: XNode)?
+        var code = ""
+        var separated = false
+        var found: [(from: (block: Int, run: XNode), to: (block: Int, run: XNode))] = []
+        for (bi, block) in body.children.enumerated() {
+            if block.name == "w:tbl" { if depth == 1 { code += "\u{1}" }; continue }
+            guard block.name == "w:p" else { continue }
+            for run in block.children where run.name == "w:r" {
+                for c in run.children {
+                    if c.name == "w:fldChar" {
+                        switch c["w:fldCharType"] {
+                        case "begin":
+                            depth += 1
+                            if depth == 1 { begin = (bi, run); code = ""; separated = false } else if depth == 2 { code += "\u{1}" }
+                        case "separate": if depth == 1 { separated = true }
+                        case "end":
+                            if depth == 1, let b = begin, !separated, b.block != bi, evaluate(code) == true { found.append((b, (bi, run))) }
+                            depth = max(0, depth - 1)
+                        default: break
+                        }
+                    } else if depth == 1, !separated {
+                        if c.name == "w:instrText" { code += c.text }
+                        else if c.name == "w:t" || c.name == "w:drawing" || c.name == "w:tab" || c.name == "w:br" { code += "\u{1}" }
+                    }
+                }
+            }
+            if depth == 1, !separated { code += "\u{1}" }   // (a paragraph mark inside the code is text too)
+        }
+        // Back to front, so the indexes of the earlier fields stay true.
+        for (from, to) in found.reversed() {
+            guard let first = body.children[from.block...].first, let last = body.children.indices.contains(to.block) ? body.children[to.block] : nil,
+                  first.name == "w:p", last.name == "w:p",
+                  let a = first.children.firstIndex(where: { $0 === from.run }), let z = last.children.firstIndex(where: { $0 === to.run }) else { continue }
+            RuleTrace.hit("empty-if-field-hides-what-it-wraps")
+            let head = Array(first.children[..<a].filter { $0.name != "w:pPr" })
+            let tail = Array(last.children[(z + 1)...])
+            last.children = last.children.filter { $0.name == "w:pPr" } + head + tail
+            body.children.removeSubrange(from.block ..< to.block)
+        }
+    }
+
     /// A package whose main part is not named `word/document.xml`: the root
     /// relationships say which it is (LibreOffice's tdf104713_undefinedStyles
     /// names `word/trial.xml`), and it and its relationships file are read
@@ -733,6 +828,7 @@ enum DocxFormat {
         guard let root = XNode.parse(docData) else { throw DocxError.badXML("word/document.xml") }
         _hoistTablesOutOfParagraphs(root)
         _dropSectionBreaksInsideFields(root)
+        _hideEmptyIfFields(root)
         _renumberSequences(root)
         let kept = _keptParts(entries, part)
         // Relationships: hyperlink targets and media parts.
