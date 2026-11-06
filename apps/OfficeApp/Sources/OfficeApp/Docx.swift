@@ -635,6 +635,27 @@ enum DocxFormat {
                     p.first("w:pPr")?.children.removeAll { $0.name == "w:framePr" || (direction != nil && $0.name == "w:textDirection") }
                     content.children.append(p)
                 }
+                // (A lone empty paragraph with a border, in a frame of stated height: Word
+                // draws the box the frame's height, and an empty paragraph here is no
+                // taller than a line, or nothing at all: lo-dd3d953e. A line of the frame's
+                // height makes the box that tall.)
+                if range.count == 1, let p = content.children.first, p.descendant("w:r") == nil,
+                   let pPr = p.first("w:pPr"), pPr.first("w:pBdr") != nil, pPr.first("w:spacing") == nil,
+                   let fh = Double(frame["w:h"] ?? ""), fh > 0, frame["w:hRule"] != "auto" {
+                    // (The box is the line plus each side's width and space, so they come off it;
+                    // and a paragraph with no run paints no border in a text box, so it gets a space.)
+                    func give(_ side: String) -> Double {
+                        guard let b = pPr.first("w:pBdr")?.first(side), (b["w:val"] ?? "none") != "none", (b["w:val"] ?? "nil") != "nil" else { return 0 }
+                        return (Double(b["w:space"] ?? "") ?? 0) + (Double(b["w:sz"] ?? "") ?? 0) / 8
+                    }
+                    let line = Int(max(20, fh - 20 * (give("w:top") + give("w:bottom"))))
+                    let w = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\""
+                    if let sp = XNode.parse(Data("<w:spacing \(w) w:line=\"\(line)\" w:lineRule=\"exact\" w:before=\"0\" w:after=\"0\"/>".utf8)),
+                       let run = XNode.parse(Data("<w:r \(w)><w:t xml:space=\"preserve\"> </w:t></w:r>".utf8)) {
+                        pPr.children.append(sp)
+                        p.children.append(run)
+                    }
+                }
                 drawings.append(drawing)
             }
             out.append(contentsOf: kept)

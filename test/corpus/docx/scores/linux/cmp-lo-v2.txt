@@ -1,0 +1,6 @@
+NEW: 593 docs, mean with text 99.047 (n=551), all 92.032, >=95 544, 100% 541, pages equal 588
+OLD: 593 docs, mean with text 99.037 (n=551), all 92.023, >=95 544, 100% 538, pages equal 588
+up 3  down 0  pagecount-changed 0  missing-in-new 0
+  UP     96.9 ->  100.0  lines 32/32 -> 32/32  lo-677416bef0488597
+  UP     98.6 ->  100.0  lines 73/74 -> 73/75  lo-9f27ef4097b11c63
+  UP     98.9 ->  100.0  lines 178/178 -> 178/178  lo-a594fa6b751ec5bb
