@@ -14614,3 +14614,4 @@ TIP WATCH amd-8, round 152 (12b1a78f8): Word no drops; unit tests 628 run, 0 fai
 
 TIP WATCH amd-8, round 153 (67fac563c): Word no drops; unit tests 628 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. All gates green.
 - CLAIM (amd-5, 2026-11-06, starling-bd order): Thai body breaks in the 756/LO sets (the Thai lab is read by amd-3, no rule built yet). Listing the Thai roots, grouping by cause.
+- lenovo-5 CLAIM (2026-11-06, no unclaimed Word item on the board): zh-ab9cbe66/zh-ae2dd08d p67/p68 "□符合" rows (digits 1, 2, 7 about 7 pt off the row), then p46 "()Mbps" baseline split. Coordinator ok: private-use checkbox lines stay unfixable.
