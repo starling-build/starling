@@ -1,0 +1,8 @@
+slide	cells
+1	word HIH 66pt, lat 20 lon 330, extrusionH 0 9 18 36 72
+2	word at extrusionH 36, cameras 20/330 340/20 30/300 0/330 20/0 0/30
+3	plain 108x72 rect, lat 20 lon 330, extrusionH 0 9 18 36 72
+4	word with 1pt contour, extrusionH 0 18 36 72, lat 20 lon 330
+5	warped (textCurveDown) word, lat 20 lon 330, extrusionH 0 9 18 36 72
+6	same with bevelT softRound 9x3 pt
+7	warped word at extrusionH 36, six cameras as slide 2
