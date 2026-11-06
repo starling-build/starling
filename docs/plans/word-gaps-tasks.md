@@ -14980,3 +14980,5 @@ TIP WATCH amd-8 COMBINED SCORE (starling-bd order) LANDED 639d769af (test-only; 
   (3) high-kashida indent 250: not started (needs a lab fit of the medium/high reserve; kash1 is legacy compat so cannot inform it). Parked, queue otherwise empty.
 
 TIP WATCH amd-8, round 190 (1793ea7f9, first with the combined score): Word no drops (all six sections up 0 down 0); COMBINED 756 99.94% (746 text + 10 visual), LO 99.98% (546 + 47 visual); unit tests 632 run, 0 failures; visual: one rise over 2 points, zh-e49d7943 worst page 2.9% -> 5.4% (reported, not a gate); WEB build OK and layout exit 0. All gates green.
+
+TIP WATCH amd-8, round 191 (5acfcd179): Word no drops (six sections up 0 down 0); COMBINED 756 99.94%, LO 99.98%; unit tests 632 run, 0 failures; visual no rise over 2 points; WEB build OK and layout exit 0. SLIDES mean 0.7848 -> 0.7842 (0 worse, 3 better, matched-win 98/98 exact). SHEETS 0.647 unchanged (0 worse). All gates green. Chasing zh-e49d7943 visual rise (2.9 -> 5.4 in round 190) per starling-bd: bisect running.
