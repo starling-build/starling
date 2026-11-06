@@ -2890,6 +2890,12 @@ extension RichLayout {
         // (And before a full-width one after a digit too: zh-499adba6
         // (zh-TW, no list of its own — Taiwan's, which has neither) ends a
         // line "…總幹事占比為38.54" and starts the next "％，女性理事…".)
+        // (And between a geometric symbol set East Asian and the blank
+        // fill that follows it: zh-e0ca7252's "止；□" + "_________之日止"
+        // keeps its "□" on the line in Word's print, lab sqz8, the
+        // underscores starting the next; ours glued them as one word and
+        // took the "□" down with them.)
+        if b == "_", a.unicodeScalars.first.map({ $0.value >= 0x25A0 && $0.value <= 0x25EF }) == true { return true }
         if percentStarts, b == "%", wide(a), !_openingMarks.contains(a) { return true }
         if percentStarts, b == "％", wide(a) && !_openingMarks.contains(a) || a.isASCII && a.isNumber { return true }
         // (And after a plus sign before an ideograph, which the engine
