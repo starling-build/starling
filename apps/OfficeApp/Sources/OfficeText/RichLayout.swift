@@ -1737,5 +1737,7 @@ public final class RichLayout {
     /// column (pixels): a box placed from the page is placed from the page
     /// whatever column its anchor is in, and the paint moves by the column.
     var _floatColumnShift = 0.0
+    /// 1 while the page's body is painted without its drop caps, 2 while only they are.
+    var _dropCapPass = 0
     var _headerFooterSource: [RichHeaderFooter] = []
 }

@@ -896,6 +896,20 @@ extension RichLayout {
         }
     }
 
+    /// A paragraph's drop caps alone, painted in the pass after the page's body.
+    func _paintDropCaps(_ i: Int, _ canvas: any Canvas, _ document: RichDocument) {
+        guard i < _inline.count, !_inline[i].isEmpty else { return }
+        let g = geometry(i)
+        for image in _inline[i] where image.name == "Drop cap" {
+            guard let float = image.float, !float.takesRoom, _decoded[image.id] == nil, !_behindDrawn.contains("\(image.id)") else { continue }
+            let rect = _floatRect(float, image, g, i)
+            _paintOutline(image, rect, canvas)
+            if let inside = _textBox(image, document), let text = image.textBox {
+                _paintTurnedTextBox(inside, text, image, rect, canvas, clips: float.bandsPage || float.wraps)
+            }
+        }
+    }
+
     func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument, part: PagePiece.Part = .all,
                                  lines: (painter: TextPainter, top: Double, first: Bool, paragraph: RichParagraph)? = nil) {
         let g = geometry(i)
@@ -1534,6 +1548,9 @@ extension RichLayout {
                     // be drawn is left out.
                     if image.textBox?.fitsText == true { _ = _textBox(image, document) }
                     rect = _floatRect(float, image, g, i)
+                    // (Word writes a drop cap's text after the page's body text, so a reader of the page finds
+                    // it as one run at the end: lo-e6dce9d6's "- – — ".)
+                    if _dropCapPass == 1, image.name == "Drop cap", RichTextTheme.wordWindowsPages { continue }
                     if _decoded[image.id] == nil {
                         _paintOutline(image, rect, canvas)
                         if let inside = _textBox(image, document), let text = image.textBox {

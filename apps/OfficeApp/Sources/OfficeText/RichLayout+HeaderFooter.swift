@@ -2208,7 +2208,15 @@ extension RichLayout {
                 canvas.drawRect(r, paint)
             }
         }
-        _paintFlow(canvas, visible: visible, document: document, shading: false)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, isPaged, _inline.contains(where: { $0.contains { $0.name == "Drop cap" } }) {
+            _dropCapPass = 1
+            _paintFlow(canvas, visible: visible, document: document, shading: false)
+            _dropCapPass = 2
+            _paintFlow(canvas, visible: visible, document: document, shading: false)
+            _dropCapPass = 0
+        } else {
+            _paintFlow(canvas, visible: visible, document: document, shading: false)
+        }
         if let caret {
             let paint = Paint()
             paint.color = theme.caretColor
@@ -2558,9 +2566,9 @@ extension RichLayout {
                         canvas.translate(left, top - piece.flowTop)
                         if shading { _shadingFloats = floats; _paintShading(piece.paragraph, canvas, document, part: piece.part); _shadingFloats = false } else {
                             _floatColumnShift = (manyColumns && RichTextTheme.wordWindowsPages && _cells[piece.paragraph] == nil) ? left - _pxMarginLeft(p) : 0
-                            _paintParagraph(piece.paragraph, canvas, document, part: piece.part, lines: lines)
+                            if _dropCapPass == 2 { _paintDropCaps(piece.paragraph, canvas, document) } else { _paintParagraph(piece.paragraph, canvas, document, part: piece.part, lines: lines) }
                             _floatColumnShift = 0
-                            _paintPartedRules(piece, canvas, document)
+                            if _dropCapPass != 2 { _paintPartedRules(piece, canvas, document) }
                             // (Word's print keeps the text an exact-height row
                             // cuts off, clipped and unseen, and a reader of the
                             // page finds it there: lo-c6cd222f's "BAR BBB" and
@@ -2571,7 +2579,7 @@ extension RichLayout {
                             // (A centred cell's too where it is merged down, its text too tall to centre and set from the
                             // top: zh-df9310bd p8's "3.项目时间以证书时间为准；" and "4.专利申请项目…", under three exact
                             // rows of 25.7pt. Not one row's own: zh-16e0a12a's "经办人（签字）" form rows have none of it.)
-                            if theme.wordRules, RichTextTheme.wordWindowsPages, lines == nil, piece.part == .all, !overflowsExactRow, let c = _cells[piece.paragraph], c.verticalAlign == nil || c.verticalAlign == "top" || (c.verticalAlign == "center" && c.rowSpan > 1),
+                            if _dropCapPass != 2, theme.wordRules, RichTextTheme.wordWindowsPages, lines == nil, piece.part == .all, !overflowsExactRow, let c = _cells[piece.paragraph], c.verticalAlign == nil || c.verticalAlign == "top" || (c.verticalAlign == "center" && c.rowSpan > 1),
                                document.tableStyles[c.table]?.rowsExactHeight.contains(c.row) == true,
                                piece.flowBottom < _tops[piece.paragraph] + _heights[piece.paragraph] - 0.5 {
                                 canvas.restore()
@@ -2607,7 +2615,7 @@ extension RichLayout {
                                 }
                             }
                         }
-                        if numbered, let ordinal = ordinals[slot * 1_000_000 + pieceIndex] {
+                        if _dropCapPass != 2, numbered, let ordinal = ordinals[slot * 1_000_000 + pieceIndex] {
                             _paintLineNumbers(piece, ordinal: ordinal, origin: Offset(left, top - piece.flowTop), canvas, document)
                         }
                     }
