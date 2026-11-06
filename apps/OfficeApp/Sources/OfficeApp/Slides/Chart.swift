@@ -2755,6 +2755,7 @@ enum ChartPainter {
                     lines = Array(lines[..<rows])
                 }
             }
+            let wrappedSide = wordSidePie && entries.contains { $0.tp.height > 1.5 * textH }
             var lineHs = lines.map { line in
                 let tall = line.map { $0.tp.height }.max() ?? 0
                 return wordSidePie && tall > 1.5 * textH ? tall + 5.8 * k : max(lineH, tall)
@@ -2811,7 +2812,7 @@ enum ChartPainter {
                 RuleTrace.hit("word-legend-placed-by-its-corner-keeps-its-size-over-the-plot")
                 y = r.top + at.dy * r.height + 2.5 * k
             } else if beside {
-                y = c.legendPosition == "tr" ? area.top : area.center.dy - titleDrop / 2 - (wordSidePie ? linesH - 5.8 * k : lineH * Double(lines.count)) / 2 + (wordSidePie ? 1.3 * k : 0)
+                y = c.legendPosition == "tr" ? area.top : area.center.dy - titleDrop / 2 - (wrappedSide ? linesH - 5.8 * k : lineH * Double(lines.count)) / 2 + (wrappedSide ? 1.3 * k : 0)
                 // (A Word chart with a title, its plot left where the file puts it (manual layout) and
                 // the legend at the right: the legend's middle stands 4.1 pt lower than the middle of
                 // the room under the title — lo-c4c60fcb's two entries, 14 pt title, in Word's print.)
