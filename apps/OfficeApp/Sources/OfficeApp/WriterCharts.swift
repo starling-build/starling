@@ -643,7 +643,7 @@ enum WriterGroups {
         112: "flowChartPredefinedProcess", 113: "flowChartInternalStorage", 114: "flowChartDocument",
         115: "flowChartMultidocument", 116: "flowChartTerminator", 117: "flowChartPreparation",
         118: "flowChartManualInput", 119: "flowChartManualOperation", 120: "flowChartConnector",
-        176: "flowChartAlternateProcess", 202: "rect",
+        71: "irregularSeal1", 176: "flowChartAlternateProcess", 202: "rect",
         33: "bentConnector2", 34: "bentConnector3", 35: "bentConnector4", 37: "curvedConnector2", 38: "curvedConnector3",
     ]
     /// Connectors: lines, never filled.
@@ -789,7 +789,10 @@ enum WriterGroups {
                                fitsPath: !off(path["fitshape"] ?? "f") || !off(path["fitpath"] ?? "f"))
         }
         let g = style(group)
-        guard let gw = points(g["width"]), let gh = points(g["height"]), gw > 0, gh > 0 else { return false }
+        // (A flat frame — a straight connector alone, `registerVMLShape` — has one side 0: its
+        // box is kept at a hundredth of a point, the child's own mapped size 0 as written.)
+        guard var gw = points(g["width"]), var gh = points(g["height"]), gw >= 0, gh >= 0, gw + gh > 0 else { return false }
+        gw = max(gw, 0.01); gh = max(gh, 0.01)
         var shapes: [Shape] = []
         typealias Map = (Rect) -> Rect
         func walk(_ group: XNode, _ map: @escaping Map) {
@@ -983,9 +986,12 @@ enum WriterGroups {
             }
             return Double(t).map { $0 * k }
         }
-        guard let w = pt(st["width"]), let h = pt(st["height"]), w > 0, h > 0 else { return false }
+        // (A straight connector's box has no height or no width — WPS's t32 arrows between
+        // flowchart steps, `height:0pt`, drawn in Word's print.)
+        let flat = (shape["o:spt"].flatMap { Int($0) }).map { _vmlStraight.contains($0) } ?? false
+        guard let w = pt(st["width"]), let h = pt(st["height"]), (w > 0 || (flat && w == 0)), (h > 0 || (flat && h == 0)), w + h > 0 else { return false }
         // Its own box in hundredths of a point, the group's frame the same.
-        let cw = Int((w * 100).rounded()), ch = Int((h * 100).rounded())
+        let cw = max(1, Int((w * 100).rounded())), ch = max(1, Int((h * 100).rounded()))
         var keep = st.filter { ["rotation", "flip"].contains($0.key) }.map { "\($0.key):\($0.value)" }
         keep += ["left:0", "top:0", "width:\(cw)", "height:\(ch)"]
         var attrs = shape.attrs
@@ -1076,7 +1082,7 @@ enum WriterGroups {
         let entry = entries[attachment.id]
         lock.unlock()
         guard let entry else { return false }
-        let sx = entry.width > 0 ? rect.width / entry.width : 1, sy = entry.height > 0 ? rect.height / entry.height : 1
+        let sx = entry.width > 0.01 ? rect.width / entry.width : 1, sy = entry.height > 0.01 ? rect.height / entry.height : 1
         for s in entry.shapes {
             let r = Rect.fromLTWH(rect.left + s.rect.left * sx, rect.top + s.rect.top * sy, s.rect.width * sx, s.rect.height * sy)
             if let cid = s.chartID {
