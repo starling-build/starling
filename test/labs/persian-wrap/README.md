@@ -1,0 +1,2 @@
+Lab persian-wrap (amd-perf, lo-7ec36a70 paragraph 15): the real Persian paragraph (red "Select by Polygon" at both ends, 9 pt inline picture, arrow, PAGEREF) repeated at right-indent steps of 0.25 pt (5 twips, -2.00 to +2.00 pt; negative = wider), in three variants: A as authored, B picture removed, C left-to-right (bidi removed).
+Question for Word: at which step does the word that ends line 1 ("در" in the document) move to line 2? Please print to PDF (Word, Windows) and send the PDF. Each paragraph is preceded by a small label line.
