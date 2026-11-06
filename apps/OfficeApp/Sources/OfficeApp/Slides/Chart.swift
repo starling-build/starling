@@ -2745,6 +2745,10 @@ enum ChartPainter {
             latin.dispose()
             // (On a sheet a legend beside the plot sets its entries 1.2213 x the size + 5.88 pt apart: Excel's
             // COM readback of the lab legend, 8, 10 and 14 pt at 15.67, 18.08, 22.92 — ours 14.5, 16.5, 21.5.)
+            // (A Word pie's legend at the foot on two rows or more: the rows 16.9 pt apart at 9 pt (5.9 more than the line), set below, and the entries
+            // 5.3 pt closer than a row's of one: lo-f9b9a8fc's "datalabel1…8", four to a row.)
+            var wordPieRows = pie && !beside && box == nil && !c.onSlide && !c.onSheet && lines.count > 1
+            if wordPieRows { RuleTrace.hit("word-pie-foot-legend-rows-of-two-are-spaced-wider-apart-than-the-line"); spacing -= 5.3 * k }
             let lineH = beside ? (c.onSheet && box == nil ? 1.2213 * size * k + 5.88 : textH + 6 * k) : textH
             // (Each line as tall as its tallest name, a wrapped one too.)
             var droppedLegend: [(i: Int, tp: TextPainter)] = []
@@ -2877,6 +2881,8 @@ enum ChartPainter {
                 area = Rect.fromLTRB(area.left, area.top, area.right, yRoom - (printed && old ? 9.55 : 8.4) * k - 2.23 * pt)
                 if bareLegend { y += 1.2 * k }
             }
+            // (The plot keeps the room it had; only the rows are drawn further apart, the first 5.9 higher.)
+            if wordPieRows { lineHs = lineHs.map { $0 + 5.9 * k }; y -= 5.9 * k * Double(lines.count - 1) }
             let middle = printed ? r.center.dx + 2.28 * k * m : area.center.dx
             // (A column of entries in a box of the legend's own on a slide stands left-aligned, the widest entry's width centred on
             // the box's middle and 0.19 of the size to its right: 5864 slide 16's five 16 pt entries in PowerPoint's print, all
