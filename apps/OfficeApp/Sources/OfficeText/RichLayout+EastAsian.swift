@@ -1424,23 +1424,29 @@ extension RichLayout {
                         let capacity: Double = stretch + gapSum * (RichTextTheme.wordWindowsPages ? 2.08 : 1) - macWordGap + spacedStretch
                         return !(need * capacity <= room * (stretchRoom + hair))
                     }()
-                    // (Bold spaces after a bold heading, first line, between East Asian text on a justified line, 2010's layout under the balance, give 0.16 of
-                    // themselves in Word for Windows' print (one of 0.149 is taken, one of 0.24 is not: zh-5dc5ce34), after the marks: zh-6c447317's "第二十七条  以上…"
-                    // sets its two bold spaces 7.05 each on every justified line and 8.03 on the paragraph's last, and so
-                    // takes the "保" ours left 0.85pt over; its "第三十八条 一次性…灵活就业" sets "、" at its half and the
-                    // one space 6.8 of 8.03, taking "业" 9.2pt over.)
+                    // (Word for Windows sets the balanced spaces of a run in 仿宋_GB2312 (a face its box lacks, none embedded)
+                    // a good deal narrower, not the half em it gives 仿宋 or 宋体, on a justified line: lab `ss`, 2026-11-06, all five
+                    // documents. With the face present (仿宋, 宋体) the pair never takes the 25th character; in 仿宋_GB2312
+                    // it does, in compat 14 and 15 alike, bold or regular, on the first line or the second, a hint or none,
+                    // beside Latin too. The lab's headings were 4 characters, so its 19th body character is the one taken: the break steps put a plain space near 6.3 of the 8.03 and a bold one near 6.7.
+                    // zh-6c447317's "第二十七条  以上…" is the real case; an embedded face (zh-d9b085b1) keeps its half em.)
                     var flankedSpaces: [(k: Int, w: Double)] = []
-                    if theme.wordRules, RichTextTheme.wordWindowsPages, legacy, p.style.alignment == .justify, document.balancesSpaceWidth,
-                       eastAsianAt(a), a > 0, lineFrom < a, !inCell {
-                        for k in lineFrom ..< a where units[k] == 0x20 && k < runOf.count && p.runs[runOf[k]].style.bold && k < eastAsianRuns.count && !eastAsianRuns[k]
-                            && lineFrom == 0 && k < runOf.count && (0 ..< k).allSatisfy({ units[$0] == 0x20 || p.runs[runOf[$0]].style.bold }) {
-                            var l = k - 1, r = k + 1
-                            while l >= 0, units[l] == 0x20 { l -= 1 }
-                            while r < units.count, units[r] == 0x20 { r += 1 }
-                            if l >= 0, r < units.count, units[l] >= 0x2E80, units[r] >= 0x2E80 { flankedSpaces.append((k, boxes(k, k + 1))) }
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.alignment == .justify, document.balancesSpaceWidth,
+                       theme.faceResolver?("仿宋_GB2312", true)?.drawnFromSubset != true,
+                       // (The lab's lines hold no mark; with a mark to squeeze on the line Word does not take the
+                       // spaces' share as well: zh-6c447317's "第一条  为促进…导向，" keeps "实" off.)
+                       !(lineFrom ... a).contains(where: { (0x3000 ... 0x303F).contains(units[$0]) || (0xFF00 ... 0xFF65).contains(units[$0]) || (0x2018 ... 0x201F).contains(units[$0]) }) {
+                        for k in lineFrom ..< a where units[k] == 0x20 && k < runOf.count {
+                            let run = p.runs[runOf[k]]
+                            // (Its Latin face an ordinary one, Times New Roman: zh-8e6ce2ed's spaces, ascii 仿宋_GB2312 itself, keep
+                            // the half em and its "第八条  市本级…" keeps "预" off.)
+                            guard theme.faceResolver?(run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false)?.isEastAsian == false else { continue }
+                            guard (run.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily) == "仿宋_GB2312" else { continue }
+                            let w = boxes(k, k + 1)
+                            flankedSpaces.append((k, w * (run.style.bold ? 0.17 : 0.215)))
                         }
                     }
-                    let flankedRoom = flankedSpaces.reduce(0.0) { $0 + $1.w * 0.16 }
+                    let flankedRoom = flankedSpaces.reduce(0.0) { $0 + $1.w }
                     let takenFirst = squeezedFirst && !wordSpaced
                         ? lineWide > 1 && need * (gapStretch() + given.reduce(0.0) { $0 + (gaps[$1] ?? 0) } / 2)
                             <= room * (stretchRoom + hair)
@@ -1809,7 +1815,7 @@ extension RichLayout {
                         if short > 0.001, flankedRoom > 0 {
                             RuleTrace.hit("word-justified-bold-spaces-between-ideographs-give-a-sixth-in-2010s-layout")
                             let draw = min(1, short / flankedRoom)
-                            for sp in flankedSpaces { adjust[sp.k, default: 0] -= sp.w * 0.16 * draw }
+                            for sp in flankedSpaces { adjust[sp.k, default: 0] -= sp.w * draw }
                             short -= flankedRoom * draw
                         }
                         // (Before a digit, what the marks cannot give the line's ideographs do, a
