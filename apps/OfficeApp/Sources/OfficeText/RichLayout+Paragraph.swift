@@ -1647,7 +1647,7 @@ extension RichLayout {
         // (A line with a tab in it is fitted like any other, its tabs
         // as wide as they came out: a contents line typed with its own
         // dots takes its page number by what its commas give.)
-        let fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs, leftTabs: leftTabs, runsPast: runsPast, beyond: beyond, tieShort: tieShort,
+        var fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs, leftTabs: leftTabs, runsPast: runsPast, beyond: beyond, tieShort: tieShort,
                                      lineIndents: besideLeftRoom != nil || _setup(ofParagraph: i).headerWrapLeft > 0 ? besideLineIndents : [])
         if !fit.isEmpty {
             painter.dispose()
@@ -1675,6 +1675,60 @@ extension RichLayout {
                     held = hold.union(tabsHeld)
                 } else {
                     again.dispose()
+                }
+            }
+        }
+        // (A justified line's automatic spaces — between an ideograph and a
+        // Latin letter or digit — take its spare room first, each the same,
+        // up to a quarter em more, and only what is left after them is
+        // shared by the ideographs: zh-bee0b6d8's page 2 (Word for Windows,
+        // mode 14, 12pt) has every ideograph step 12.00 and its automatic
+        // spaces 3 to 6pt, from 0.3 on a line with room to spare to 3.0 more
+        // on one with plenty, where ours spread it all over the ideographs.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, document.usesEastAsianLayout, style.alignment == .justify,
+           style.eastAsian["w:jc"] != "distribute", textWidth < 50_000, !style.rightToLeft,
+           besideLineIndents.allSatisfy({ $0.left == 0 && $0.right == 0 }), painter.computeLineMetrics().count > 1 {
+            var gaps: [Int: Double] = [:]
+            let units = p.text.utf16.count
+            let (span, _, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit.isEmpty ? tabs : fit, held: held,
+                                           autoSpaces: { gaps[$0] = $1 })
+            if !gaps.isEmpty {
+                let map = _OffsetMap(lead: _lead(i), inserts: inserts)
+                let starts = _lineStarts(painter, map, count: units)
+                // The same text set to the left, to see how much room each line has.
+                let kept = align, keptLift = numberLift
+                align = .left
+                let flat = laidOut(span)
+                align = kept
+                numberLift = keptLift
+                var extra: [Int: Double] = [:]
+                let cap = gaps.values.max() ?? 0
+                for (k, start) in starts.enumerated() where k + 1 < starts.count {
+                    let end = starts[k + 1]
+                    let inside = gaps.keys.filter { $0 >= start && $0 + 1 < end }
+                    guard !inside.isEmpty, end > start else { continue }
+                    let boxes = flat.getBoxesForSelection(TextSelection(baseOffset: map.painter(start), extentOffset: map.painter(end)))
+                    guard let right = boxes.map({ $0.right }).max() else { continue }
+                    // (A space at the line's end is not part of it.)
+                    let spare = textWidth - right
+                    guard spare > _px(0.05) else { continue }
+                    let each = min(spare / Double(inside.count), cap)
+                    for g in inside { extra[g] = each }
+                }
+                flat.dispose()
+                if !extra.isEmpty {
+                    let widened = (fit.isEmpty ? tabs : fit).merging(extra) { $0 + $1 }
+                    let (again, _, againInserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: widened, held: held)
+                    let next = laidOut(again)
+                    if _lineStarts(next, _OffsetMap(lead: _lead(i), inserts: againInserts), count: units) == starts {
+                        painter.dispose()
+                        painter = next
+                        _inserts[i] = againInserts
+                        fit = widened
+                        RuleTrace.hit("word-justified-line-widens-automatic-spaces-first")
+                    } else {
+                        next.dispose()
+                    }
                 }
             }
         }
