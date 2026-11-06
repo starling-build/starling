@@ -2315,7 +2315,10 @@ enum DocxFormat {
                 }
                 if let ind = node.first("w:tblPr")?.first("w:tblInd"), (ind["w:type"] ?? "dxa") == "dxa",
                    let w = Double(ind["w:w"] ?? "") {
-                    style.indent = w / 20
+                    // (A table nested in a cell never starts left of the cell's text edge in
+                    // Word for Windows, either compat mode: lab nest51 prints tblInd -120, -60
+                    // and 0 all at the edge, +60 and +120 that far in. zh-/lo-51b81ccd's -60.)
+                    style.indent = Self.wordOnWindows && (currentCell != nil || depth > 0) ? max(0, w / 20) : w / 20
                 } else if node.first("w:tblPr")?.first("w:tblInd") == nil,
                           let w = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap({ tableIndents[$0] }) {
                     // (Or its style's: LibreOffice's NumberedList, a table style that
