@@ -1,0 +1,30 @@
+# doc	label	start_x	start_y	elbow_x	elbow_y	end_x	end_y	start_minus_R	end_to_label_dist
+pl5-no1-w350	-	no leaders
+pl5-no1-w360	-	no leaders
+pl5-no6-w350	-	no leaders
+pl5-no6-w360	-	no leaders
+pl5-only5-w350	-	no leaders
+pl5-only5-w360	-	no leaders
+pl5-p45-w350	-	no leaders
+pl5-p45-w360	-	no leaders
+pl5-w350	-	no leaders
+pl5-w351	-	no leaders
+pl5-w352	-	no leaders
+pl5-w353	-	no leaders
+pl5-w354	-	no leaders
+pl5-w355	-	no leaders
+pl5-w356	-	no leaders
+pl5-w357	-	no leaders
+pl5-w358	-	no leaders
+pl5-w359	-	no leaders
+pl5-w360	5	230.3	220.5	226.3	225.0	221.8	225.0	-0.0	25.3
+pl5-w361	5	230.8	220.5	226.8	225.0	222.3	225.0	-0.0	25.8
+pl5-w362	5	231.3	220.5	227.3	225.0	222.8	225.0	-0.0	25.6
+pl5-w363	5	231.8	220.5	227.8	225.0	223.3	225.0	-0.0	25.3
+pl5-w364	5	232.3	220.5	228.4	225.0	223.8	225.0	-0.0	25.8
+pl5-w365	5	232.8	220.5	228.8	225.0	224.3	225.0	-0.0	25.6
+pl5-w366	5	233.3	220.5	229.3	225.0	224.8	225.0	-0.0	25.3
+pl5-w367	-	no leaders
+pl5-w368	-	no leaders
+pl5-w369	-	no leaders
+pl5-w370	-	no leaders
