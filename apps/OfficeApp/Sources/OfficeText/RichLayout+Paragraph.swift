@@ -1932,6 +1932,10 @@ extension RichLayout {
             let pitch = _offGrid(i, document) ? nil : _grid(i, document).pitch
             var at = 0
             var lead: (CharStyle, Bool) = (p.runs[0].style, false)
+            // (A line opening on an anchored picture's mark is sized by the text after it:
+            // lo-7ec36a70's Persian line, Times 10 for the mark's run, stood 2pt high.)
+            if theme.wordRules, p.runs[0].length > 0, p.text.unicodeScalars.prefix(p.runs[0].length).allSatisfy({ $0 == "\u{FFFC}" }),
+               let next = p.runs.dropFirst().first(where: { $0.length > 0 }) { lead = (next.style, false) }
             search: for run in p.runs {
                 let hinted = (run.style.fontHint ?? named?.char.fontHint) == "eastAsia"
                 let a = p.text.utf16.index(p.text.utf16.startIndex, offsetBy: at)

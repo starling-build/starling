@@ -427,7 +427,10 @@ public final class RichTextTheme {
     /// face's own is not known.
     public func baseline(for style: CharStyle, in paragraph: RichParagraphStyle, named: RichNamedStyle?,
                          eastAsian: Bool, gridPitch: Double?, centresInLine: Bool = true) -> Double? {
-        let size = style.fontSize ?? named?.char.fontSize ?? fontSize
+        var size = style.fontSize ?? named?.char.fontSize ?? fontSize
+        // (A right-to-left run is set at the size the file gives complex script, as
+        // `textStyle` does: lo-7ec36a70's Persian, 12pt in a style of sz 10, stood 1pt high.)
+        if wordRules, style.rightToLeft, !eastAsian, style.fontSize == nil, let z = named?.char.complexFontSize { size = z }
         let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
         let familyName = eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
         let scaled = (style.horizontalScale ?? named?.char.horizontalScale ?? 1) != 1
