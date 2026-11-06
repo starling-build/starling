@@ -93,7 +93,12 @@ extension RichLayout {
             // of 10.5 hold 54.)
             let base = _named(p, document)?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
             let own = _px(p.runs.map { $0.style.fontSize ?? base }.max() ?? base)
-            if cell > 0, own >= cell - _px(0.01) { width = min(width, ((width + _px(0.01)) / cell).rounded(.down) * cell) }
+            // (Not a paragraph that says `w:snapToGrid` 0, with characters a point or more
+            // larger than the cell: zh-a78d52e7's 16pt lines on Normal's 15pt cell, the column
+            // cut to 435.0 of 436.5, hold the 27th character, 0.09pt over its 405.3 after the
+            // indent, in Word's print.)
+            let offGrid = RichTextTheme.wordWindowsPages && p.style.eastAsian["w:snapToGrid"] == "0" && own >= cell + _px(0.9)
+            if cell > 0, own >= cell - _px(0.01), !offGrid { width = min(width, ((width + _px(0.01)) / cell).rounded(.down) * cell) }
         }
         // A floating frame: as wide as it says, from where it says.
         var frameLeft: Double? = nil
