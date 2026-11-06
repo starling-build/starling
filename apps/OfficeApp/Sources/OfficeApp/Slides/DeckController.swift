@@ -59,6 +59,7 @@ struct ShapeState: Equatable {
     var chartDrawing: [ShapeState] = []
     var insetsFollowFont = false
     var sizeGroup: String? = nil
+    var generatedHang = false
     var outlineDash: String? = nil
     var outlineJoin: String? = nil
     var outlineCap: String? = nil
@@ -1158,6 +1159,7 @@ final class DeckController: ChangeNotifier {
         st.lineReduction = s.lineReduction
         st.pictureLevels = s.pictureLevels
         st.sizeGroup = s.sizeGroup
+        st.generatedHang = s.generatedHang
         st.outlineDash = s.outlineDash
         st.outlineJoin = s.outlineJoin
         st.outlineCap = s.outlineCap
@@ -1249,6 +1251,12 @@ final class DeckController: ChangeNotifier {
                 }
                 for r in shape.rendered { if let n = nominal(r) { smallest[n] = min(smallest[n] ?? 1, r.fontScale) } }
                 for r in shape.rendered { if let n = nominal(r), let s = smallest[n] { r.fontScale = s } }
+                // A hang this layout generated from the unshrunk size follows
+                // the size the text ended at (cycle-matrix's side boxes:
+                // 8 pt in PowerPoint, not 22.5); a stated hang stays.
+                for r in shape.rendered where r.generatedHang && r.autofit && r.fontScale < 1 {
+                    if let tt = r.textTheme { tt.listIndent = max(4.5, tt.listIndent * r.fontScale) }
+                }
             }
         } else if case .chart = st.kind, !st.chartDrawing.isEmpty {
             if shape.rendered.map(_state) != st.chartDrawing { shape.rendered = st.chartDrawing.map(_make) }
@@ -1270,6 +1278,7 @@ final class DeckController: ChangeNotifier {
         shape.fontScale = st.fontScale
         shape.insetsFollowFont = st.insetsFollowFont
         shape.sizeGroup = st.sizeGroup
+        shape.generatedHang = st.generatedHang
         shape.outlineDash = st.outlineDash
         shape.outlineJoin = st.outlineJoin
         shape.outlineCap = st.outlineCap

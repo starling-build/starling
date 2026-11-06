@@ -487,6 +487,8 @@ final class SlideShape {
     /// A diagram laid out here: the shapes that end at one size
     /// (`starling:sizeGroup`, from the layout's `op="equ"` constraints).
     var sizeGroup: String? = nil
+    /// The bullet hang was generated here (not stated by the data): it scales with the fitted size.
+    var generatedHang = false
     /// `a:ln/a:prstDash`: the outline's dash pattern ("dash", "sysDot"…);
     /// nil for a solid line.
     var outlineDash: String? = nil

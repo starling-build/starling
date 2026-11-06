@@ -2043,6 +2043,7 @@ struct DiagramLayout {
         let sec = min(n.value("secFontSz") ?? prim * 0.78, fontCap)
         var paragraphs: [XNode] = []
         var listed = false
+        var generatedHang = false
         for p in points {
             let level = max(0, p.depth - top)
             let bulleted = bullets && level + 1 >= startLevel
@@ -2064,6 +2065,7 @@ struct DiagramLayout {
                     // text right in PowerPoint's print.)
                     let said = para.first("a:pPr")?["indent"].flatMap(Int.init).map { -$0 }
                     let unit = said.flatMap { $0 > 0 ? $0 : nil } ?? Int(4.5 * Double(min(5, Int((own / 6.75).rounded(.up)))) * 12700)
+                    if said.flatMap({ $0 > 0 ? $0 : nil }) == nil { generatedHang = true }
                     pPr.attrs["marL"] = String(unit * (level + 2 - startLevel))
                     pPr.attrs["indent"] = String(-unit)
                     pPr.children = [XNode(name: "a:buChar", attrs: ["char": "•"])]
@@ -2157,6 +2159,7 @@ struct DiagramLayout {
             bodyPr.children = []
         } else {
             if let g = n.sizeGroup { bodyPr.attrs["starling:sizeGroup"] = g }
+            if generatedHang { bodyPr.attrs["starling:generatedHang"] = "1" }
             bodyPr.children = [XNode(name: "a:normAutofit", attrs: [:])]
         }
         // (PictureStrips' left margin is a distance from the picture, not a

@@ -1629,6 +1629,7 @@ private struct SlideContext {
         st.lineReduction = text.lineReduction
         st.insetsFollowFont = text.insetsFollowFont
         st.sizeGroup = text.sizeGroup
+        st.generatedHang = text.generatedHang
         st.noWrap = text.noWrap
         st.anchorCentred = text.anchorCentred
         st.textTurn = text.textTurn
@@ -3049,6 +3050,7 @@ private struct SlideContext {
         var insetsFollowFont = false
         /// A diagram laid out here: the shapes that end at one size.
         var sizeGroup: String? = nil
+        var generatedHang = false
         /// `bodyPr wrap="none"`.
         var noWrap = false
         /// `bodyPr anchorCtr="1"`.
@@ -3581,6 +3583,7 @@ private struct SlideContext {
                         columnGap: attr("spcCol").flatMap(Double.init).map { $0 / Pptx.emu } ?? 0,
                         warp: warp, runLooks: runLooks)
         body0.sizeGroup = body?.first("a:bodyPr")?["starling:sizeGroup"]
+        body0.generatedHang = body?.first("a:bodyPr")?["starling:generatedHang"] == "1"
         body0.anchorCentred = ["1", "true"].contains(attr("anchorCtr") ?? "")
         switch attr("vert") {
         case "vert", "eaVert", "mongolianVert": body0.textTurn = 1
