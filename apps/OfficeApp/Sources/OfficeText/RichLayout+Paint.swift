@@ -1013,7 +1013,9 @@ extension RichLayout {
                             // zh-e2dc9dce p25's 1.5pt double is 1.44 + 1.44 gap + 1.44 in Word's print.)
                             for part in parts {
                                 cp.strokeWidth = _px(part.width) * 0.96
-                                let dist = centred ? sign * (-room + _px(part.at) * 0.96 + cp.strokeWidth / 2) : _px(part.at) * 0.96 + cp.strokeWidth / 2
+                                // (The lines run from the text outward, so from the table's outer edge inward the first is the farthest:
+                                // zh-20c1d74a p28's thickThin bottom is the thin line over the thick one in Word's print.)
+                                let dist = centred ? sign * (-room + _px(part.at) * 0.96 + cp.strokeWidth / 2) : room * 0.96 - _px(part.at) * 0.96 - cp.strokeWidth / 2
                                 canvas.drawLine(from + inward * dist, to + inward * dist, cp)
                             }
                             canvas.restore()
@@ -1102,17 +1104,36 @@ extension RichLayout {
                       Self._ruleLines(said.style, said.width).count > 1 else { return nil }
                 return said
             }
+            // (The same for the bottom the row above states: where both rows
+            // state a compound rule, Word draws the upper row's, its lines
+            // from the text outward — zh-20c1d74a p28's thickThin bottom over
+            // a thinThick top is a thin line, then the thick one.)
+            func bandBottom(_ ref: CellRef?) -> (style: String, width: Double)? {
+                guard theme.wordRules, RichTextTheme.wordWindowsPages, let ref,
+                      let said = Self._cellSide(ref.bordersXML, "bottom") ?? Self._cellSide(ref.rowBordersXML, "bottom"),
+                      Self._ruleLines(said.style, said.width).count > 1 else { return nil }
+                return said
+            }
+            func bandAbove(_ d: _CellGeo) -> (style: String, width: Double)? {
+                var q = i - 1
+                while q >= 0, let e = _cells[q], e.table == c.table, e.row >= c.row - 1 {
+                    if e.row == c.row - 1, e.colLeft < d.colLeft + d.colWidth - 1, d.colLeft < e.colLeft + e.colWidth - 1,
+                       let b = bandBottom(document.paragraphs[q].cell) { return b }
+                    q -= 1
+                }
+                return nil
+            }
             func paintEdges(_ d: _CellGeo, ref: CellRef?, bottomHere: Bool, ownTop: Bool) {
                 let cellRight = (d.colLeft + d.colWidth).rounded()
                 var bandBelow = false
                 if bottomHere, !lastRow {
                     var q = probe
                     while q < _cells.count, let e = _cells[q], e.table == c.table, e.row == c.row + 1 {
-                        if e.column == d.column, bandTop(document.paragraphs[q].cell) != nil { bandBelow = true }
+                        if e.column == d.column, bandTop(document.paragraphs[q].cell) != nil || bandBottom(ref) != nil { bandBelow = true }
                         q += 1
                     }
                 }
-                if c.row > 0, d.row == c.row, let band = bandTop(ref) {
+                if c.row > 0, d.row == c.row, let band = bandAbove(d) ?? bandTop(ref) {
                     RuleTrace.hit("word-table-compound-rule-between-rows-is-one-band-below-the-edge")
                     let cp = Paint()
                     cp.style = .stroke
