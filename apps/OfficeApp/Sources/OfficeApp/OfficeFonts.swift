@@ -2604,6 +2604,12 @@ enum OfficeFonts {
         return 1 / (units(family) ?? altName(family).flatMap(units) ?? 256)
     }
 
+    /// Noto Serif CJK TC with its ink moved 0.07 em down (the engine reads the "Ink+" prefix): Word's
+    /// print draws PMingLiU's ideographs and marks that much lower than the stand-in's outlines on the
+    /// same baseline, 0.062-0.076 em at 9 to 32 pt in seven documents. Advances, metrics and the PDF's
+    /// text layer are the stand-in's own. An engine without the prefix draws the face unmoved.
+    static let pmingliuInkFamily = "Ink+0.07 Noto Serif CJK TC"
+
     /// The face a Song, Ming or Mincho name's ideographs are drawn in
     /// where the platform has none of those faces: Noto Serif CJK, in
     /// the variant of the name's script. Left to the theme's fallback
@@ -2620,7 +2626,7 @@ enum OfficeFonts {
         let n = family.trimmingWhitespace().lowercased()
         func has(_ keys: String...) -> Bool { keys.contains { faceHas(n, $0) } }
         if has("mincho", "明朝") { return "Noto Serif CJK JP" }
-        if has("mingliu", "明體") { return "Noto Serif CJK TC" }
+        if has("mingliu", "明體") { return pmingliuInkFamily }
         if has("simsun", "宋体", "宋體", "songti") { return "Noto Serif CJK SC" }
         #endif
         return nil
@@ -3924,6 +3930,14 @@ enum OfficeFonts {
                 } else if order > 0, !chain.contains(where: { $0.family == c[2] }) {
                     chain.append((order, c[2]))
                 }
+                #if os(Linux)
+                // (The Traditional Chinese serif a Ming name's ideographs are drawn in, a second time
+                // as the engine's "Ink+<em> " face: the same outlines drawn 0.07 em lower, as Word's
+                // print of PMingLiU stands on the same baseline: see `pmingliuInkFamily`.)
+                if c[2] == "Noto Serif CJK TC" {
+                    _ = flutter.swift_bridge.LoadFontFromFileFace(path, pmingliuInkFamily, index)
+                }
+                #endif
             }
             // (Bundled mode is the same on every platform: the system's CJK face — PingFang on a Mac
             // or iPhone, YaHei on Windows — gives way to the bundled one. Where the user chose the
