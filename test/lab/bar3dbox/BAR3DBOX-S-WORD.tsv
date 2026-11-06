@@ -1,0 +1,373 @@
+# doc	kind	text_or_fill	x0	y0	x1	y1
+bar3dbox-s1	word	Se	31.18	23.66	54.14	47.66
+bar3dbox-s1	word	você	59.47	23.66	104.78	47.66
+bar3dbox-s1	word	fosse	110.21	23.66	160.37	47.66
+bar3dbox-s1	word	comprar	165.79	23.66	247.97	47.66
+bar3dbox-s1	word	um	253.18	23.66	284.95	47.66
+bar3dbox-s1	word	carro	290.28	23.66	340.85	47.66
+bar3dbox-s1	word	que	345.96	23.66	383.11	47.66
+bar3dbox-s1	word	modelo	388.54	23.66	463.13	47.66
+bar3dbox-s1	word	escolheria?	468.36	23.66	578.9	47.66
+bar3dbox-s1	word	Sedan	33.74	60.17	93.46	84.17
+bar3dbox-s1	word	Hatch	234.46	60.17	291.29	84.17
+bar3dbox-s1	word	Cupe	437.21	60.17	487.15	84.17
+bar3dbox-s1	word	13	51.5	96.7	75.79	120.7
+bar3dbox-s1	word	6	256.9	96.7	269.07	120.7
+bar3dbox-s1	word	0	456.17	96.7	468.34	120.7
+bar3dbox-s1	word	De	31.18	132.96	57.89	156.96
+bar3dbox-s1	word	acordo	63.22	132.96	130.58	156.96
+bar3dbox-s1	word	com	135.94	132.96	177.72	156.96
+bar3dbox-s1	word	os	183.0	132.96	205.03	156.96
+bar3dbox-s1	word	dados,	210.38	132.96	275.04	156.96
+bar3dbox-s1	word	a	280.32	132.96	291.82	156.96
+bar3dbox-s1	word	pesquisa	297.24	132.96	382.78	156.96
+bar3dbox-s1	word	indica	388.08	132.96	445.78	156.96
+bar3dbox-s1	word	que	451.08	132.96	488.23	156.96
+bar3dbox-s1	word	o	493.66	132.96	506.3	156.96
+bar3dbox-s1	word	modelo	511.73	132.96	586.27	156.96
+bar3dbox-s1	word	sedan	591.5	132.96	649.54	156.96
+bar3dbox-s1	word	foi	654.96	132.96	679.99	156.96
+bar3dbox-s1	word	o	685.22	132.96	697.87	156.96
+bar3dbox-s1	word	modelo	703.22	132.96	777.77	156.96
+bar3dbox-s1	word	de	783.05	132.96	807.6	156.96
+bar3dbox-s1	word	carro	813.02	132.96	863.62	156.96
+bar3dbox-s1	word	preferido	31.18	161.98	121.46	186.01
+bar3dbox-s1	word	pelas	126.89	161.98	177.89	186.01
+bar3dbox-s1	word	pessoas	183.1	161.98	259.93	186.01
+bar3dbox-s1	word	entrevistadas	265.36	161.98	395.91	186.01
+bar3dbox-s1	word	13	354.58	381.94	365.65	393.08
+bar3dbox-s1	word	6	124.27	302.46	129.81	313.56
+bar3dbox-s1	word	0	225.53	266.46	231.07	277.56
+bar3dbox-s1	word	Gráfico	127.27	231.67	181.47	250.27
+bar3dbox-s1	word	de	185.58	231.67	204.61	250.27
+bar3dbox-s1	word	Setores	208.74	231.67	265.11	250.27
+bar3dbox-s1	word	ou	269.32	231.67	288.92	250.27
+bar3dbox-s1	word	Pizza	293.13	231.67	330.2	250.27
+bar3dbox-s1	word	Sedan	179.26	503.79	208.17	514.9
+bar3dbox-s1	word	Hatch	223.68	503.79	249.73	514.9
+bar3dbox-s1	word	Cupe	265.32	503.79	289.22	514.9
+bar3dbox-s1	word	13	778.42	381.95	789.48	393.05
+bar3dbox-s1	word	Gráfico	595.32	302.37	649.52	320.97
+bar3dbox-s1	word	de	653.63	302.37	672.66	320.97
+bar3dbox-s1	word	Colunas	676.79	302.37	736.48	320.97
+bar3dbox-s1	word	ou	740.68	302.37	760.3	320.97
+bar3dbox-s1	word	Barras	764.51	302.37	812.2	320.97
+bar3dbox-s1	word	Sedan	690.1	478.57	719.01	489.68
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	30.44	15.36	893.96	51.87
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	30.44	51.87	96.86	88.38
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	96.86	51.87	163.28	88.38
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	163.28	51.87	229.7	88.38
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	229.69	51.87	296.11	88.38
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	296.11	51.87	362.53	88.38
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	362.52	51.87	428.94	88.38
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	428.94	51.87	495.36	88.38
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	495.35	51.87	561.77	88.38
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	561.77	51.87	628.19	88.38
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	628.19	51.87	694.61	88.38
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	694.6	51.87	761.02	88.38
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	761.02	51.87	827.44	88.38
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	827.43	51.87	893.96	88.38
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	30.44	88.38	96.86	124.89
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	96.86	88.38	163.28	124.89
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	163.28	88.38	229.7	124.89
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	229.69	88.38	296.11	124.89
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	296.11	88.38	362.53	124.89
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	362.52	88.38	428.94	124.89
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	428.94	88.38	495.36	124.89
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	495.35	88.38	561.77	124.89
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	561.77	88.38	628.19	124.89
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	628.19	88.38	694.61	124.89
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	694.6	88.38	761.02	124.89
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	761.02	88.38	827.44	124.89
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	827.43	88.38	893.96	124.89
+bar3dbox-s1	fill	(0.91, 0.94, 0.97)	30.44	124.9	893.96	190.69
+bar3dbox-s1	fill	(0.85, 0.85, 0.85)	56.42	278.6	401.18	474.5
+bar3dbox-s1	fill	(0.36, 0.61, 0.83)	172.06	507.08	177.09	512.11
+bar3dbox-s1	fill	(0.93, 0.49, 0.19)	216.48	507.08	221.51	512.11
+bar3dbox-s1	fill	(0.65, 0.65, 0.65)	258.11	507.08	263.14	512.11
+bar3dbox-s1	fill	(0.36, 0.61, 0.83)	682.85	481.85	687.88	486.88
+bar3dbox-s2	word	Se	31.18	23.66	54.14	47.66
+bar3dbox-s2	word	você	59.47	23.66	104.78	47.66
+bar3dbox-s2	word	fosse	110.21	23.66	160.37	47.66
+bar3dbox-s2	word	comprar	165.79	23.66	247.97	47.66
+bar3dbox-s2	word	um	253.18	23.66	284.95	47.66
+bar3dbox-s2	word	carro	290.28	23.66	340.85	47.66
+bar3dbox-s2	word	que	345.96	23.66	383.11	47.66
+bar3dbox-s2	word	modelo	388.54	23.66	463.13	47.66
+bar3dbox-s2	word	escolheria?	468.36	23.66	578.9	47.66
+bar3dbox-s2	word	Sedan	33.74	60.17	93.46	84.17
+bar3dbox-s2	word	Hatch	234.46	60.17	291.29	84.17
+bar3dbox-s2	word	Cupe	437.21	60.17	487.15	84.17
+bar3dbox-s2	word	13	51.5	96.7	75.79	120.7
+bar3dbox-s2	word	6	256.9	96.7	269.07	120.7
+bar3dbox-s2	word	0	456.17	96.7	468.34	120.7
+bar3dbox-s2	word	De	31.18	132.96	57.89	156.96
+bar3dbox-s2	word	acordo	63.22	132.96	130.58	156.96
+bar3dbox-s2	word	com	135.94	132.96	177.72	156.96
+bar3dbox-s2	word	os	183.0	132.96	205.03	156.96
+bar3dbox-s2	word	dados,	210.38	132.96	275.04	156.96
+bar3dbox-s2	word	a	280.32	132.96	291.82	156.96
+bar3dbox-s2	word	pesquisa	297.24	132.96	382.78	156.96
+bar3dbox-s2	word	indica	388.08	132.96	445.78	156.96
+bar3dbox-s2	word	que	451.08	132.96	488.23	156.96
+bar3dbox-s2	word	o	493.66	132.96	506.3	156.96
+bar3dbox-s2	word	modelo	511.73	132.96	586.27	156.96
+bar3dbox-s2	word	sedan	591.5	132.96	649.54	156.96
+bar3dbox-s2	word	foi	654.96	132.96	679.99	156.96
+bar3dbox-s2	word	o	685.22	132.96	697.87	156.96
+bar3dbox-s2	word	modelo	703.22	132.96	777.77	156.96
+bar3dbox-s2	word	de	783.05	132.96	807.6	156.96
+bar3dbox-s2	word	carro	813.02	132.96	863.62	156.96
+bar3dbox-s2	word	preferido	31.18	161.98	121.46	186.01
+bar3dbox-s2	word	pelas	126.89	161.98	177.89	186.01
+bar3dbox-s2	word	pessoas	183.1	161.98	259.93	186.01
+bar3dbox-s2	word	entrevistadas	265.36	161.98	395.91	186.01
+bar3dbox-s2	word	13	354.58	381.94	365.65	393.08
+bar3dbox-s2	word	6	124.27	302.46	129.81	313.56
+bar3dbox-s2	word	0	225.53	266.46	231.07	277.56
+bar3dbox-s2	word	Gráfico	127.27	231.67	181.47	250.27
+bar3dbox-s2	word	de	185.58	231.67	204.61	250.27
+bar3dbox-s2	word	Setores	208.74	231.67	265.11	250.27
+bar3dbox-s2	word	ou	269.32	231.67	288.92	250.27
+bar3dbox-s2	word	Pizza	293.13	231.67	330.2	250.27
+bar3dbox-s2	word	Sedan	179.26	503.79	208.17	514.9
+bar3dbox-s2	word	Hatch	223.68	503.79	249.73	514.9
+bar3dbox-s2	word	Cupe	265.32	503.79	289.22	514.9
+bar3dbox-s2	word	13	805.2	416.73	816.26	427.83
+bar3dbox-s2	word	6	685.08	334.29	690.62	345.39
+bar3dbox-s2	word	Gráfico	595.32	302.37	649.52	320.97
+bar3dbox-s2	word	de	653.63	302.37	672.66	320.97
+bar3dbox-s2	word	Colunas	676.79	302.37	736.48	320.97
+bar3dbox-s2	word	ou	740.68	302.37	760.3	320.97
+bar3dbox-s2	word	Barras	764.51	302.37	812.2	320.97
+bar3dbox-s2	word	Hatch	669.5	478.57	695.55	489.68
+bar3dbox-s2	word	Sedan	710.71	478.57	739.62	489.68
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	30.44	15.36	893.96	51.87
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	30.44	51.87	96.86	88.38
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	96.86	51.87	163.28	88.38
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	163.28	51.87	229.7	88.38
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	229.69	51.87	296.11	88.38
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	296.11	51.87	362.53	88.38
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	362.52	51.87	428.94	88.38
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	428.94	51.87	495.36	88.38
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	495.35	51.87	561.77	88.38
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	561.77	51.87	628.19	88.38
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	628.19	51.87	694.61	88.38
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	694.6	51.87	761.02	88.38
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	761.02	51.87	827.44	88.38
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	827.43	51.87	893.96	88.38
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	30.44	88.38	96.86	124.89
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	96.86	88.38	163.28	124.89
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	163.28	88.38	229.7	124.89
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	229.69	88.38	296.11	124.89
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	296.11	88.38	362.53	124.89
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	362.52	88.38	428.94	124.89
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	428.94	88.38	495.36	124.89
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	495.35	88.38	561.77	124.89
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	561.77	88.38	628.19	124.89
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	628.19	88.38	694.61	124.89
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	694.6	88.38	761.02	124.89
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	761.02	88.38	827.44	124.89
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	827.43	88.38	893.96	124.89
+bar3dbox-s2	fill	(0.91, 0.94, 0.97)	30.44	124.9	893.96	190.69
+bar3dbox-s2	fill	(0.85, 0.85, 0.85)	56.42	278.6	401.18	474.5
+bar3dbox-s2	fill	(0.36, 0.61, 0.83)	172.06	507.08	177.09	512.11
+bar3dbox-s2	fill	(0.93, 0.49, 0.19)	216.48	507.08	221.51	512.11
+bar3dbox-s2	fill	(0.65, 0.65, 0.65)	258.11	507.08	263.14	512.11
+bar3dbox-s2	fill	(0.93, 0.49, 0.19)	662.25	481.85	667.28	486.88
+bar3dbox-s2	fill	(0.36, 0.61, 0.83)	703.44	481.85	708.47	486.88
+bar3dbox-s4	word	Se	31.18	23.66	54.14	47.66
+bar3dbox-s4	word	você	59.47	23.66	104.78	47.66
+bar3dbox-s4	word	fosse	110.21	23.66	160.37	47.66
+bar3dbox-s4	word	comprar	165.79	23.66	247.97	47.66
+bar3dbox-s4	word	um	253.18	23.66	284.95	47.66
+bar3dbox-s4	word	carro	290.28	23.66	340.85	47.66
+bar3dbox-s4	word	que	345.96	23.66	383.11	47.66
+bar3dbox-s4	word	modelo	388.54	23.66	463.13	47.66
+bar3dbox-s4	word	escolheria?	468.36	23.66	578.9	47.66
+bar3dbox-s4	word	Sedan	33.74	60.17	93.46	84.17
+bar3dbox-s4	word	Hatch	234.46	60.17	291.29	84.17
+bar3dbox-s4	word	Cupe	437.21	60.17	487.15	84.17
+bar3dbox-s4	word	13	51.5	96.7	75.79	120.7
+bar3dbox-s4	word	6	256.9	96.7	269.07	120.7
+bar3dbox-s4	word	0	456.17	96.7	468.34	120.7
+bar3dbox-s4	word	De	31.18	132.96	57.89	156.96
+bar3dbox-s4	word	acordo	63.22	132.96	130.58	156.96
+bar3dbox-s4	word	com	135.94	132.96	177.72	156.96
+bar3dbox-s4	word	os	183.0	132.96	205.03	156.96
+bar3dbox-s4	word	dados,	210.38	132.96	275.04	156.96
+bar3dbox-s4	word	a	280.32	132.96	291.82	156.96
+bar3dbox-s4	word	pesquisa	297.24	132.96	382.78	156.96
+bar3dbox-s4	word	indica	388.08	132.96	445.78	156.96
+bar3dbox-s4	word	que	451.08	132.96	488.23	156.96
+bar3dbox-s4	word	o	493.66	132.96	506.3	156.96
+bar3dbox-s4	word	modelo	511.73	132.96	586.27	156.96
+bar3dbox-s4	word	sedan	591.5	132.96	649.54	156.96
+bar3dbox-s4	word	foi	654.96	132.96	679.99	156.96
+bar3dbox-s4	word	o	685.22	132.96	697.87	156.96
+bar3dbox-s4	word	modelo	703.22	132.96	777.77	156.96
+bar3dbox-s4	word	de	783.05	132.96	807.6	156.96
+bar3dbox-s4	word	carro	813.02	132.96	863.62	156.96
+bar3dbox-s4	word	preferido	31.18	161.98	121.46	186.01
+bar3dbox-s4	word	pelas	126.89	161.98	177.89	186.01
+bar3dbox-s4	word	pessoas	183.1	161.98	259.93	186.01
+bar3dbox-s4	word	entrevistadas	265.36	161.98	395.91	186.01
+bar3dbox-s4	word	13	354.58	381.94	365.65	393.08
+bar3dbox-s4	word	6	124.27	302.46	129.81	313.56
+bar3dbox-s4	word	0	225.53	266.46	231.07	277.56
+bar3dbox-s4	word	Gráfico	127.27	231.67	181.47	250.27
+bar3dbox-s4	word	de	185.58	231.67	204.61	250.27
+bar3dbox-s4	word	Setores	208.74	231.67	265.11	250.27
+bar3dbox-s4	word	ou	269.32	231.67	288.92	250.27
+bar3dbox-s4	word	Pizza	293.13	231.67	330.2	250.27
+bar3dbox-s4	word	Sedan	179.26	503.79	208.17	514.9
+bar3dbox-s4	word	Hatch	223.68	503.79	249.73	514.9
+bar3dbox-s4	word	Cupe	265.32	503.79	289.22	514.9
+bar3dbox-s4	word	13	842.21	441.23	853.27	452.33
+bar3dbox-s4	word	6	695.93	394.38	701.47	405.48
+bar3dbox-s4	word	2	612.36	347.53	617.9	358.63
+bar3dbox-s4	word	13	842.21	300.69	853.27	311.79
+bar3dbox-s4	word	Gráfico	595.32	302.37	649.52	320.97
+bar3dbox-s4	word	de	653.63	302.37	672.66	320.97
+bar3dbox-s4	word	Colunas	676.79	302.37	736.48	320.97
+bar3dbox-s4	word	ou	740.68	302.37	760.3	320.97
+bar3dbox-s4	word	Barras	764.51	302.37	812.2	320.97
+bar3dbox-s4	word	Sedan	626.66	478.57	655.57	489.68
+bar3dbox-s4	word	Cupe	671.57	478.57	695.47	489.68
+bar3dbox-s4	word	Hatch	711.43	478.57	737.48	489.68
+bar3dbox-s4	word	Sedan	753.55	478.57	782.46	489.68
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	30.44	15.36	893.96	51.87
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	30.44	51.87	96.86	88.38
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	96.86	51.87	163.28	88.38
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	163.28	51.87	229.7	88.38
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	229.69	51.87	296.11	88.38
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	296.11	51.87	362.53	88.38
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	362.52	51.87	428.94	88.38
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	428.94	51.87	495.36	88.38
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	495.35	51.87	561.77	88.38
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	561.77	51.87	628.19	88.38
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	628.19	51.87	694.61	88.38
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	694.6	51.87	761.02	88.38
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	761.02	51.87	827.44	88.38
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	827.43	51.87	893.96	88.38
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	30.44	88.38	96.86	124.89
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	96.86	88.38	163.28	124.89
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	163.28	88.38	229.7	124.89
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	229.69	88.38	296.11	124.89
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	296.11	88.38	362.53	124.89
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	362.52	88.38	428.94	124.89
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	428.94	88.38	495.36	124.89
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	495.35	88.38	561.77	124.89
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	561.77	88.38	628.19	124.89
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	628.19	88.38	694.61	124.89
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	694.6	88.38	761.02	124.89
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	761.02	88.38	827.44	124.89
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	827.43	88.38	893.96	124.89
+bar3dbox-s4	fill	(0.91, 0.94, 0.97)	30.44	124.9	893.96	190.69
+bar3dbox-s4	fill	(0.85, 0.85, 0.85)	56.42	278.6	401.18	474.5
+bar3dbox-s4	fill	(0.36, 0.61, 0.83)	172.06	507.08	177.09	512.11
+bar3dbox-s4	fill	(0.93, 0.49, 0.19)	216.48	507.08	221.51	512.11
+bar3dbox-s4	fill	(0.65, 0.65, 0.65)	258.11	507.08	263.14	512.11
+bar3dbox-s4	fill	(0.36, 0.61, 0.83)	619.41	481.85	624.44	486.88
+bar3dbox-s4	fill	(0.65, 0.65, 0.65)	664.3	481.85	669.33	486.88
+bar3dbox-s4	fill	(0.93, 0.49, 0.19)	704.18	481.85	709.21	486.88
+bar3dbox-s4	fill	(0.36, 0.61, 0.83)	746.28	481.85	751.31	486.88
+bar3dbox-s5	word	Se	31.18	23.66	54.14	47.66
+bar3dbox-s5	word	você	59.47	23.66	104.78	47.66
+bar3dbox-s5	word	fosse	110.21	23.66	160.37	47.66
+bar3dbox-s5	word	comprar	165.79	23.66	247.97	47.66
+bar3dbox-s5	word	um	253.18	23.66	284.95	47.66
+bar3dbox-s5	word	carro	290.28	23.66	340.85	47.66
+bar3dbox-s5	word	que	345.96	23.66	383.11	47.66
+bar3dbox-s5	word	modelo	388.54	23.66	463.13	47.66
+bar3dbox-s5	word	escolheria?	468.36	23.66	578.9	47.66
+bar3dbox-s5	word	Sedan	33.74	60.17	93.46	84.17
+bar3dbox-s5	word	Hatch	234.46	60.17	291.29	84.17
+bar3dbox-s5	word	Cupe	437.21	60.17	487.15	84.17
+bar3dbox-s5	word	13	51.5	96.7	75.79	120.7
+bar3dbox-s5	word	6	256.9	96.7	269.07	120.7
+bar3dbox-s5	word	0	456.17	96.7	468.34	120.7
+bar3dbox-s5	word	De	31.18	132.96	57.89	156.96
+bar3dbox-s5	word	acordo	63.22	132.96	130.58	156.96
+bar3dbox-s5	word	com	135.94	132.96	177.72	156.96
+bar3dbox-s5	word	os	183.0	132.96	205.03	156.96
+bar3dbox-s5	word	dados,	210.38	132.96	275.04	156.96
+bar3dbox-s5	word	a	280.32	132.96	291.82	156.96
+bar3dbox-s5	word	pesquisa	297.24	132.96	382.78	156.96
+bar3dbox-s5	word	indica	388.08	132.96	445.78	156.96
+bar3dbox-s5	word	que	451.08	132.96	488.23	156.96
+bar3dbox-s5	word	o	493.66	132.96	506.3	156.96
+bar3dbox-s5	word	modelo	511.73	132.96	586.27	156.96
+bar3dbox-s5	word	sedan	591.5	132.96	649.54	156.96
+bar3dbox-s5	word	foi	654.96	132.96	679.99	156.96
+bar3dbox-s5	word	o	685.22	132.96	697.87	156.96
+bar3dbox-s5	word	modelo	703.22	132.96	777.77	156.96
+bar3dbox-s5	word	de	783.05	132.96	807.6	156.96
+bar3dbox-s5	word	carro	813.02	132.96	863.62	156.96
+bar3dbox-s5	word	preferido	31.18	161.98	121.46	186.01
+bar3dbox-s5	word	pelas	126.89	161.98	177.89	186.01
+bar3dbox-s5	word	pessoas	183.1	161.98	259.93	186.01
+bar3dbox-s5	word	entrevistadas	265.36	161.98	395.91	186.01
+bar3dbox-s5	word	13	354.58	381.94	365.65	393.08
+bar3dbox-s5	word	6	124.27	302.46	129.81	313.56
+bar3dbox-s5	word	0	225.53	266.46	231.07	277.56
+bar3dbox-s5	word	Gráfico	127.27	231.67	181.47	250.27
+bar3dbox-s5	word	de	185.58	231.67	204.61	250.27
+bar3dbox-s5	word	Setores	208.74	231.67	265.11	250.27
+bar3dbox-s5	word	ou	269.32	231.67	288.92	250.27
+bar3dbox-s5	word	Pizza	293.13	231.67	330.2	250.27
+bar3dbox-s5	word	Sedan	179.26	503.79	208.17	514.9
+bar3dbox-s5	word	Hatch	223.68	503.79	249.73	514.9
+bar3dbox-s5	word	Cupe	265.32	503.79	289.22	514.9
+bar3dbox-s5	word	13	847.13	446.96	858.19	458.07
+bar3dbox-s5	word	6	696.74	408.42	702.28	419.52
+bar3dbox-s5	word	2	610.85	369.9	616.39	381.0
+bar3dbox-s5	word	13	847.13	331.36	858.19	342.46
+bar3dbox-s5	word	6	696.74	292.84	702.28	303.94
+bar3dbox-s5	word	Gráfico	595.32	302.37	649.52	320.97
+bar3dbox-s5	word	de	653.63	302.37	672.66	320.97
+bar3dbox-s5	word	Colunas	676.79	302.37	736.48	320.97
+bar3dbox-s5	word	ou	740.68	302.37	760.3	320.97
+bar3dbox-s5	word	Barras	764.51	302.37	812.2	320.97
+bar3dbox-s5	word	Hatch	605.16	478.57	631.21	489.68
+bar3dbox-s5	word	Sedan	647.5	478.57	676.41	489.68
+bar3dbox-s5	word	Cupe	692.62	478.57	716.52	489.68
+bar3dbox-s5	word	Hatch	732.72	478.57	758.77	489.68
+bar3dbox-s5	word	Sedan	775.03	478.57	803.94	489.68
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	30.44	15.36	893.96	51.87
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	30.44	51.87	96.86	88.38
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	96.86	51.87	163.28	88.38
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	163.28	51.87	229.7	88.38
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	229.69	51.87	296.11	88.38
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	296.11	51.87	362.53	88.38
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	362.52	51.87	428.94	88.38
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	428.94	51.87	495.36	88.38
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	495.35	51.87	561.77	88.38
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	561.77	51.87	628.19	88.38
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	628.19	51.87	694.61	88.38
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	694.6	51.87	761.02	88.38
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	761.02	51.87	827.44	88.38
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	827.43	51.87	893.96	88.38
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	30.44	88.38	96.86	124.89
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	96.86	88.38	163.28	124.89
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	163.28	88.38	229.7	124.89
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	229.69	88.38	296.11	124.89
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	296.11	88.38	362.53	124.89
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	362.52	88.38	428.94	124.89
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	428.94	88.38	495.36	124.89
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	495.35	88.38	561.77	124.89
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	561.77	88.38	628.19	124.89
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	628.19	88.38	694.61	124.89
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	694.6	88.38	761.02	124.89
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	761.02	88.38	827.44	124.89
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	827.43	88.38	893.96	124.89
+bar3dbox-s5	fill	(0.91, 0.94, 0.97)	30.44	124.9	893.96	190.69
+bar3dbox-s5	fill	(0.85, 0.85, 0.85)	56.42	278.6	401.18	474.5
+bar3dbox-s5	fill	(0.36, 0.61, 0.83)	172.06	507.08	177.09	512.11
+bar3dbox-s5	fill	(0.93, 0.49, 0.19)	216.48	507.08	221.51	512.11
+bar3dbox-s5	fill	(0.65, 0.65, 0.65)	258.11	507.08	263.14	512.11
+bar3dbox-s5	fill	(0.93, 0.49, 0.19)	597.92	481.85	602.95	486.88
+bar3dbox-s5	fill	(0.36, 0.61, 0.83)	640.24	481.85	645.27	486.88
+bar3dbox-s5	fill	(0.65, 0.65, 0.65)	685.35	481.85	690.38	486.88
+bar3dbox-s5	fill	(0.93, 0.49, 0.19)	725.45	481.85	730.48	486.88
+bar3dbox-s5	fill	(0.36, 0.61, 0.83)	767.77	481.85	772.8	486.88
