@@ -14701,3 +14701,4 @@ TIP WATCH amd-8, round 157 (f006f9dce): Word one DOWN, lo-8ab44df5 100 -> 97.7 (
 - amd-5 RELEASED zh-72da925e p13 (rank 28): lines and table match Word; only the Latin face (mono fallback) differs.
 - amd-5 CLAIM zh-fec5fa30 p30 (rank 29)
 - amd-5 RELEASED zh-fec5fa30 p30 (rank 29): every line breaks as in Word; only glyphs differ (parentheses and digits drawn from a different face), row 1 ends 3 px higher. Font gap.
+- amd-5 CLAIM zh-3c055c9b p15 (rank 30)
