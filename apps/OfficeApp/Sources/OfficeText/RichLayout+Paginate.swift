@@ -615,7 +615,17 @@ extension RichLayout {
             // "5 O,O-二甲基…" row under a 0.5pt line with 0.22pt left,
             // where bug65649's 0.75 line with 0.6 left, mode 15, did not,
             // nor zh-d68ac84a's p36 row with 0.53 left, mode 14.)
-            if parted { return max(0, c.rules - c.ruleBelow) }
+            if parted {
+                let own = max(0, c.rules - c.ruleBelow)
+                // (A table framed by outer lines with none between its rows
+                // still closes a parted row with its bottom line and opens
+                // the next page's part with its top: lo-e1104feb's floating
+                // table, 3pt green outside and none inside, has a 3pt rule
+                // at p1's foot and p2's head in Word's print, the part 3pt lower.)
+                if own == 0, RichTextTheme.wordWindowsPages, let ts = document.tableStyles[c.table],
+                   Self._partedFrame(ts) { return _px(Self._ruleRoom(ts.edgeStyles["top"] ?? ts.borderStyle, ts.edgeWidths["top"] ?? ts.borderWidth ?? 0.5)) }
+                return own
+            }
             // (Where the row ends the page, the table's own bottom line
             // closes it there when that is the heavier: zh-77bd4900's
             // tables, a 0.75pt line between rows and 1.5 round them,
@@ -671,6 +681,7 @@ extension RichLayout {
         func headLift(_ i: Int, _ j: Int, _ c: _CellGeo) -> Double {
             guard theme.wordRules, c.row > 0, let ts = document.tableStyles[c.table],
                   ts.edges?.top ?? (ts.borders && !ts.bordersFromCells),
+                  !(RichTextTheme.wordWindowsPages && Self._partedFrame(ts)),
                   (i ..< j).contains(where: { k in
                       document.paragraphs[k].cell.map { d in !(d.bordersXML ?? "").containsSubstring("<w:top ") && d.edges?.top == nil } ?? false
                   }) else { return 0 }

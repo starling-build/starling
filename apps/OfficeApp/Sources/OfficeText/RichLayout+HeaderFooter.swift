@@ -2228,10 +2228,16 @@ extension RichLayout {
         j > i && (i ..< min(j, document.paragraphs.count)).allSatisfy { document.paragraphs[$0].cell?.edges?.top == false }
     }
 
+    /// A table with outer top and bottom lines and none between its rows.
+    static func _partedFrame(_ ts: TableStyle) -> Bool {
+        !ts.headerRow && ts.edges?.insideH == false && (ts.edges?.top ?? ts.borders) && (ts.edges?.bottom ?? ts.borders)
+    }
+
     func _paintPartedRules(_ piece: PagePiece, _ canvas: any Canvas, _ document: RichDocument) {
         guard theme.wordRules, !piece.repeated, piece.part != .text, let c = _cells[piece.paragraph], c.firstInRow else { return }
         let ts = document.tableStyles[c.table]
-        guard ts?.edges?.insideH ?? ts?.borders ?? true else { return }
+        let framed = RichTextTheme.wordWindowsPages && ts.map(Self._partedFrame) == true
+        guard ts?.edges?.insideH ?? ts?.borders ?? true || framed else { return }
         // (And over a row that starts a page under cells merged down
         // from the page before, which have no top of their own there.)
         let parted = piece.part == .rules && !piece.inner
@@ -2246,7 +2252,7 @@ extension RichLayout {
         let right = (left + widths.reduce(0, +)).rounded()
         let stroke = Paint()
         stroke.style = .stroke
-        stroke.strokeWidth = max(1, _px(ts?.edgeWidths["insideH"] ?? ts?.borderWidth ?? 0.5).rounded())
+        stroke.strokeWidth = max(1, _px(ts?.edgeWidths[framed ? "top" : "insideH"] ?? ts?.borderWidth ?? 0.5).rounded())
         stroke.color = ts?.borderColor ?? (theme.wordRules && RichTextTheme.wordWindowsPages ? Color(0xFF000000) : theme.textColor.withOpacity(0.6))
         let half = stroke.strokeWidth / 2
         if opens { canvas.drawLine(Offset(left, piece.flowTop + half), Offset(right, piece.flowTop + half), stroke) }
