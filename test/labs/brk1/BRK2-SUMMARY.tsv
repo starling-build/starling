@@ -1,0 +1,17 @@
+# variant	firstW_OPEN2_on_line1	advOPEN1_there	advOPEN2_there	advOPEN1_min	advOPEN1_max	advOPEN2_min	advOPEN2_max
+brk1-a-both-m12-s0	294.0	13.91	14.04	13.91	14.74	13.91	14.04
+brk1-a-both-m12-s1	none			13.91	15.11		
+brk1-a-left-m12-s0	294.0	13.91	14.04	13.91	14.04	13.91	14.04
+brk1-a-left-m12-s1	none			13.91	14.04		
+brk1-b-both-m12-s0	294.0	13.91	14.04	13.91	14.74	13.91	14.04
+brk1-b-both-m12-s1	none			13.91	15.11		
+brk1-b-left-m12-s0	294.0	13.91	14.04	13.91	14.04	13.91	14.04
+brk1-b-left-m12-s1	none			13.91	14.04		
+brk1-p-both-m12-s0	294.0	13.91	14.04	13.91	14.74	13.91	14.04
+brk1-p-both-m12-s1	none			13.91	15.11		
+brk1-p-left-m12-s0	294.0	13.91	14.04	13.91	14.04	13.91	14.04
+brk1-p-left-m12-s1	none			13.91	14.04		
+brk1-q-both-m12-s0	294.0	13.91	14.04	13.91	14.74	13.91	14.04
+brk1-q-both-m12-s1	none			13.91	15.11		
+brk1-q-left-m12-s0	294.0	13.91	14.04	13.91	14.04	13.91	14.04
+brk1-q-left-m12-s1	none			13.91	14.04		
