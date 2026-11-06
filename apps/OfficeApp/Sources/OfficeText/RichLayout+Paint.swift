@@ -1188,11 +1188,14 @@ extension RichLayout {
             // lab `tr`: 3.4 under the row's top at ind 113, 17.7 at 400.)
             // (A line set from its start only: not one distributed down
             // the cell — zh-701eda18's "個人申請" stands where it did.)
+            // (Nor one with space before it: zh-8f9b19f4's "性别" (ind 154, 208 twips before) and
+            // zh-264d7516's "被征地农户人员" (ind 1013, 207 before) start the whole 2.25 down in
+            // Word's print, where ours stood 2.1 and 2.4 above it.)
             let indent = _px(document.paragraphs[i].style.indentLeft)
             let fromStart = document.paragraphs[i].style.eastAsian["w:jc"] == nil && (aligned == .left || aligned == .justify)
             let along = c.alongStart + indent
                 - short * (aligned == .center ? 0.5 : aligned == .right ? 1 : 0)
-                - (theme.wordRules && fromStart && c.direction == .down && indent > 0.01 && !c.wrapsPart ? min(indent, _px(2.25)) : 0)
+                - (theme.wordRules && fromStart && c.direction == .down && indent > 0.01 && !c.wrapsPart && !(_spaceBefore[i] > 0.01) ? min(indent, _px(2.25)) : 0)
             let origin = Offset(along, c.across + _spaceBefore[i])
             if c.direction == .down, document.paragraphs[i].cell?.uprightIdeographs == true,
                _paintUpright(g.painter, at: origin, canvas, distribute: document.paragraphs[i].style.eastAsian["w:jc"] == "distribute", justify: theme.wordRules && aligned == .justify && document.paragraphs[i].style.eastAsian["w:jc"] == nil, mixed: true, centred: aligned == .center) {
