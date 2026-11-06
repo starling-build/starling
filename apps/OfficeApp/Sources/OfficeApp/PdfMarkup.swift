@@ -812,6 +812,28 @@ struct PdfMarkup {
                 let ka = ((a.element.anchor.top * 2).rounded(), lineRank(a.element.note), a.offset), kb = ((b.element.anchor.top * 2).rounded(), lineRank(b.element.note), b.offset)
                 return ka < kb
             }.map(\.element)
+            // (A column of more than 32 balloons: the run of Formatted / Field Code Changed balloons that stands at the middle one's
+            // line is printed with its last balloon first, "Field Code Changed", "Formatted", "Formatted" where the rest stand
+            // "Formatted", "Formatted", "Field Code Changed": labs balloon ov1, ov2 (42 balloons, run 21-23), ov4 (39, 18-20) and
+            // delins (34, the "Apache Solr" item's); ov3 (27) and every shorter column keep the order. Word's sort of the column
+            // looks to put tied balloons out of order past a length; the cutoff lies between 28 and 33.)
+            let mid = entries.count / 2
+            if entries.count > 32 {
+                func tie(_ k: Int) -> Bool {
+                    let n = entries[k].note
+                    return (n.label == "Formatted:" || n.label == "Field Code Changed")
+                        && (entries[k].anchor.top * 2).rounded() == (entries[mid].anchor.top * 2).rounded()
+                }
+                if tie(mid) {
+                    var lo = mid, hi = mid
+                    while lo > 0, tie(lo - 1) { lo -= 1 }
+                    while hi + 1 < entries.count, tie(hi + 1) { hi += 1 }
+                    if hi > lo {
+                        RuleTrace.hit("word-balloon-column-past-32-prints-the-middle-line-run-with-its-last-balloon-first")
+                        entries.insert(entries.remove(at: hi), at: lo)
+                    }
+                }
+            }
         }
         defer { for e in entries { e.tp.dispose() } }
         // Where each box stands: under its anchor and clear of the one before.
