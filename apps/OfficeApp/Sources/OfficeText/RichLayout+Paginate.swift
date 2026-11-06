@@ -5166,7 +5166,8 @@ extension RichLayout {
         // off this one's space before, so it comes off once. lo-563123f3's "C", 12pt before under
         // a continuous section's mark of 10 after: 111.9 in Word's print, lab sect563b, ours 109.9.)
         if theme.wordRules, _heights[above] == 0, document.paragraphs[above].text.isEmpty, document.paragraphs[above].image == nil,
-           document.paragraphs[above].style.sectionXML != nil { return 0 }
+           let sx = document.paragraphs[above].style.sectionXML,
+           (sx.rangeOfSubstring("w:num=\"").map { Int(sx[$0.upperBound...].prefix { $0.isNumber }) ?? 1 } ?? 1) <= 1 { return 0 }
         let shared = min(_spacing(above, document).after, _spacing(i, document).before)
         return theme.wordRules ? shared : shared.rounded(.down)
     }
