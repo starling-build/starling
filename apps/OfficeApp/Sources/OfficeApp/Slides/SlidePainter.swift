@@ -1055,6 +1055,21 @@ final class SlidePainter: CustomPainter {
         }
         // (Not a dark-edged one: bnc862510_5's grey box and tdf145528's
         // matrix print flat but for their own lines.)
+        // (A dark-edged bevel under the flat rig, SmartArt's quick style (8200 x 38100
+        // EMU): PowerPoint's print has a dark line as wide as the bevel centred on the
+        // edge, so the shape prints half a pixel larger all round: lab-sa-matrix and
+        // tdf145528's Windows print, 150 dpi.)
+        if let bevel = shape.bevel, bevel.material == "dkEdge", bevel.rig == "flat", bevel.width < 2, shape.fill != nil,
+           shape.fillStyle == nil, shape.picture == nil, shape.preset?.isOpenPath != true, shape.scene3d == nil {
+            let outline = path ?? { let q = Path(); q.addRect(area); return q }()
+            RuleTrace.hit("slide-dkedge-flat-bevel-is-a-dark-line-on-the-edge")
+            let rim = Paint()
+            rim.style = .stroke
+            rim.isAntiAlias = true
+            rim.strokeWidth = bevel.width * px
+            rim.color = Color(0x66000000)
+            canvas.drawPath(outline, rim)
+        }
         if let bevel = shape.bevel, bevel.material != "dkEdge", let fill = shape.fill, shape.fillStyle == nil,
            shape.picture == nil, shape.preset?.isOpenPath != true {
             let outline = path ?? { let q = Path(); q.addRect(area); return q }()
