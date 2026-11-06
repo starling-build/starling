@@ -14738,3 +14738,4 @@ TIP WATCH amd-8, round 161 (5757e5ad4): Word no drops; unit tests 628 run, 0 fai
 
 - amd-5 ranks 151-200, update (2026-11-06): LANDED 864a66fe5 hung closing mark hangs whole (not in a vertical cell: zh-0cd7bbaf's drop was a turned cell sitting 4 pt low, Word keeps the old place) and 126ccd4c0 w:bidi section runs its columns from the right (lo-998868b6 p2 "RTL 1" 258.3 = Word). Both pairs up 0 down 0. LO triage: 153 e1104feb p2 one split table row, Word's continuation cell starts 3 pt lower than its neighbour, ours 0 (rows after it 3 pt up); 154 eb12e7d4 p15 line count 14 vs 17 (not yet looked at); 181 4d273731 and 198 13d91f2d: sub-2 pt shifts, shape-only.
 - amd-5: lo-eb12e7d4 p15 released: same lines at the same positions as Word; the 14 vs 17 was only how the text splits at the list numbers/tabs.
+- CLAIM amd-5: lo-e1104feb p2 (split table row, continuation cell 3 pt low in Word), then visual ranks 251-300.
