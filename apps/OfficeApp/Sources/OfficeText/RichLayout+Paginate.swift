@@ -1164,6 +1164,14 @@ extension RichLayout {
                 if let traced = Self.debugRows, traced == page + 1 {
                     FileHandle.standardError.write(Data("split row \(c.row): first \(first) fresh \(fresh) y \(y / _px(1)) stated \(stated / _px(1)) avail \(avail / _px(1)) fits \(fits) rest \(rest / _px(1)) ghostBounds \(c.ghostBounds.map { $0 / _px(1) })\n".utf8))
                 }
+                // (A row that opens a page of a table with no top line of its own
+                // does not keep the room of the inside line above it, which Word
+                // neither draws nor reserves there: zh-37b6536f p5, row 12 under
+                // outset inside lines, 0.9pt high in ours.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, first, fresh, y < 0.01, c.firstInRow, c.row > 0, !repeats,
+                   let ts = document.tableStyles[c.table], ts.edges?.top == false, c.rules > 0.01, c.rules <= _px(2) {
+                    y -= c.rules
+                }
                 if first, !fresh, y > 0.01, stated > 0, stated + max(ruleUnder(c), theme.wordRules ? c.ruleBelow : 0) > avail + 0.01 {
                     newPage()
                     if repeats { repeatHeader(of: c.table, before: i) }
