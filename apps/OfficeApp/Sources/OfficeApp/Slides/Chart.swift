@@ -1807,6 +1807,11 @@ enum ChartXML {
                 if let i = d.first("c:idx")?["val"].flatMap(Int.init), let e = d.first("c:explosion")?["val"].flatMap(Double.init) { c.piePulls[i] = max(0, e) / 100 }
             }
         }
+        if el.name == "c:pieChart" || el.name == "c:doughnutChart" {
+            // (The first slice's start, degrees clockwise from twelve o'clock: Word's print of lab pielabel3's ang22 and ang45 turns
+            // the whole pie, its labels with it.)
+            c.pieTurn = el.first("c:firstSliceAng")?["val"].flatMap(Double.init) ?? 0
+        }
         if el.name == "c:pie3DChart" {
             // (No rotX is 15°: Excel draws 45544's pies the same with none
             // and with 15, and fits them otherwise at 30 and 60.)
@@ -5365,7 +5370,7 @@ enum ChartPainter {
             if c.type == .pie, let l = c.pieLabels, l.fitted, l.moves.isEmpty, values.allSatisfy({ $0 / sum < 0.34 }) {
                 let rIn = max(room / 2, room - 1.2 * size)
                 var mids: [(index: Int, mid: Double, value: Double, color: Color)] = []
-                var a = -Double.pi / 2
+                var a = -Double.pi / 2 + c.pieTurn * .pi / 180
                 for (i, v) in values.enumerated() where v > 0 {
                     let sweep = v / sum * 2 * .pi
                     mids.append((i, a + sweep / 2, v, c.pointColor(i, accents: theme.accents)))
@@ -5391,7 +5396,7 @@ enum ChartPainter {
         if c.type == .pie, c.pieSeriesPull > 0, !c.chartex { radius /= 1 + c.pieExplosion }
         let centre = libre ? Offset(area.center.dx, area.center.dy - 1.3 * k) : area.center
         let oval = Rect.fromCircle(center: centre, radius: radius)
-        var angle = -Double.pi / 2
+        var angle = -Double.pi / 2 + c.pieTurn * .pi / 180
         let fill = Paint()
         fill.style = .fill
         fill.isAntiAlias = true
@@ -6799,7 +6804,14 @@ extension ChartPainter {
             if let p = insideAt {
                 at = p
             } else if l.outside {
-                let gap = 4 * k
+                // (A flat pie's best-fit label outside, in a Word document: lab pielabel3's 17 prints (Word for Windows, 102
+                // outside labels, equal slices of 7, 8 and 9, turned, in frames of 200 to 360 pt): the box stands
+                // against the rim's point with no gap across, 3.5pt above or below it, and its half width comes in
+                // with how upright the slice is, whole from half the radius out (labels within 3pt of Word's:
+                // 14 of 102 with the old 4pt and the step at 0.15, 57 with these).)
+                let tuneFlat = point == nil && l.fitted && !c.onSlide && !c.onSheet && !c.chartex && l.moves[s.index] == nil
+                if tuneFlat { RuleTrace.hit("word-flat-pie-best-fit-label-outside-hugs-the-rim") }
+                let gap = (tuneFlat ? 0 : 4) * k
                 // (Where the file moves it, from `movedEdge`'s point when
                 // given: a 3-D pie's.)
                 let edge = l.moves[s.index] != nil ? movedEdge.map { Offset($0(s.mid).dx + lift.dx, $0(s.mid).dy + lift.dy) } ?? on(s.mid, 1) : on(s.mid, 1)
@@ -6819,7 +6831,7 @@ extension ChartPainter {
                 // 3-4 nearer up and down than the flat rule, lab pie5 outEnd
                 // against Word's print, all 56 labels.)
                 let wide3D = point != nil && !c.onSlide && !c.onSheet && l.moves[s.index] == nil && l.position == "outEnd"
-                let gapX = wide3D ? gap + 4.5 * k : gap, gapY = gap
+                let gapX = wide3D ? gap + 4.5 * k : gap, gapY = tuneFlat ? 3.5 * k : gap
                 // (A 3-D pie's best fit in a Word document stands level with its rim point
                 // until the slice's middle is about 20° off the horizontal, and from there
                 // its text's half height and 2.5pt above or below it — a step, not a slope:
@@ -6836,7 +6848,8 @@ extension ChartPainter {
                 let down = !stepped ? dy * upright * (gapY + h / 2)
                     : tp.computeLineMetrics().count > 2 ? (dy < 0 ? -1 : 1) * min(reach, 26 * k * abs(dy))
                     : abs(dy) > (dy < 0 ? 0.3 : 0.4) ? (dy < 0 ? -1 : 1) * reach : 0
-                at = Offset(edge.dx + dx * gapX + (abs(dx) < 0.15 ? 0 : dx >= 0 ? w / 2 : -w / 2), edge.dy + down)
+                                                let halfW = tuneFlat ? min(1, abs(dx) / 0.5) * w / 2 : (abs(dx) < 0.15 ? 0 : w / 2)
+                at = Offset(edge.dx + dx * gapX + (dx >= 0 ? halfW : -halfW), edge.dy + down)
             } else {
                 // (A 3-D pie's 0.9 of the way out: the survey's. Where the file
                 // says "ctr", half way out along the slice's middle, seen
