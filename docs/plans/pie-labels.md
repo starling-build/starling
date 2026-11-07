@@ -49,6 +49,7 @@ positions do not change with the frame width (only5, p45 at w350/w360 identical 
 A <= 479 px, B 480-488, C 489-497, E ~498-503, D 504-573 stable to w430; one legend row from w434).
 Leader lines: every leader stands >= 7.8 pt from its rim point, but narrow-frame side labels stand 8-13 pt away without one.
 R depends only on firstSliceAng (0: 53.76, 5: 54.80, 10: 55.42, 15: 55.62, 20: 55.39, 22.5: 55.19, period 45, symmetric) - for amd-1.
+amd-1 (2026-11-07): the law fits every point of pie1 to 0.1%: R = 55.62 * cos(d), d = the angle from firstSliceAng (mod 45) to the nearer of 15 and 30 degrees (R(0)=55.62*cos15=53.72, R(22.5)=55.62*cos7.5=55.14, R(5)=54.78, R(1)=53.97). 8 slices only measured; the corpus has no Word pie with 8 slices and a turned start (only 2-slice pies at 115/184/245), so no document can score it. Not implemented in Chart.swift: needs a lab with 2, 5 and 12 slices at several angles to learn whether 15/30 is 22.5 -/+ 7.5 for every slice count (half a slice +/- a fixed 7.5) or tied to 8.
 
 Opus advisor (scratchpad advisor/, 2026-11-07): no exact algorithm recovered. Best explanation: an iterative whole-pixel search over
 all labels together that also accepts equal-score moves, so labels drift along their equal-cost tangent line for as long as the loop
