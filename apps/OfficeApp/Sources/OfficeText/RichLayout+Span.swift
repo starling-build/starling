@@ -723,8 +723,11 @@ extension RichLayout {
                 if let grown, s.fontSize ?? 0 > 0.5 { s = s.copyWith(height: grown.height) }
                 // (A run with ruby over it makes its line room for the ruby.)
                 if theme.wordRules, run.ruby != nil, s.fontSize ?? 0 > 0.5,
-                   let h = theme.rubyLineHeight(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) {
-                    s = s.copyWith(height: h)
+                   let h = theme.rubyLine(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) {
+                    s = s.copyWith(height: h.height)
+                    if h.raise != 0, NativeParagraphBuilder.supportsBaselineShift {
+                        s = s.copyWith(baselineShift: (s.baselineShift ?? 0) - h.raise * theme.pixelsPerPoint * scale)
+                    }
                 }
                 // (A run of tabs alone takes no line of its own in a paragraph of
                 // other text: windows-1's lab `ttab`, zh-147bdae0's "四、承諾事項"
@@ -2655,7 +2658,7 @@ extension RichLayout {
     /// sets it. `painter` is the paragraph's (or its lines'), painted at
     /// `origin`; `map` as for `_paintScripts`.
     func _paintRuby(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
-                            _ canvas: any Canvas, _ document: RichDocument, map: _OffsetMap? = nil) {
+                            _ canvas: any Canvas, _ document: RichDocument, map: _OffsetMap? = nil, index: Int? = nil) {
         guard theme.wordRules, p.runs.contains(where: { $0.style.ruby != nil }) else { return }
         let named = _named(p, document)
         let lines = painter.computeLineMetrics()
@@ -2679,7 +2682,10 @@ extension RichLayout {
             let tp = TextPainter(text: TextSpan(text: g.ruby.text, style: style), textDirection: .ltr)
             tp.layout(minWidth: 0, maxWidth: Double.infinity)
             let raise = _px(g.ruby.raise > 0 ? g.ruby.raise : (g.style.fontSize ?? named?.char.fontSize ?? theme.fontSize) / 2)
-            tp.paint(canvas, Offset(origin.dx + x, origin.dy + line.baseline - raise - tp.computeDistanceToActualBaseline(.alphabetic)))
+            // (On a line grid the base text was moved with the ruby line: `rubyLine`.)
+            let moved = NativeParagraphBuilder.supportsBaselineShift
+                ? theme.rubyLine(for: g.style, in: p.style, named: named, eastAsian: true, gridPitch: _grid(index, document).pitch)?.raise ?? 0 : 0
+            tp.paint(canvas, Offset(origin.dx + x, origin.dy + line.baseline - raise - moved * _px(1) - tp.computeDistanceToActualBaseline(.alphabetic)))
             tp.dispose()
         }
     }

@@ -2125,6 +2125,14 @@ enum OfficeFonts {
         if wordOnWindows || wordOnMac, has("ms gothic", "ｍｓ ゴシック") {
             return EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
         }
+        // (MS PGothic, MS Mincho and MS PMincho are Word for Windows' own faces,
+        // each MS Gothic's square line, hhea .859 + .141 at Word's 1.3: jpn-z22855378's
+        // 11pt 1.5-spaced lines on an 18pt line grid are 27.0 apart in word-win's print,
+        // one pitch and a half, where YaHei's 1.715 em made them two pitches, 36.)
+        if wordOnWindows, has("ms pgothic", "ｍｓ ｐゴシック", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝") {
+            RuleTrace.hit("ms-japanese-face-square-line")
+            return EastAsianFace(height: 1.3, latin: has("mincho", "明朝") ? serif : sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
+        }
         if wordOnWindows, has("yu gothic", "游ゴシック") {
             return EastAsianFace(height: 1.2871 * 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 1.2871 * 0.15 + 0.98486)
         }

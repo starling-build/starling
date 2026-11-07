@@ -531,6 +531,18 @@ public final class RichTextTheme {
     /// metrics are not known.
     public func rubyLineHeight(for style: CharStyle, in paragraph: RichParagraphStyle, named: RichNamedStyle?,
                                eastAsian: Bool, gridPitch: Double?) -> Double? {
+        rubyLine(for: style, in: paragraph, named: named, eastAsian: eastAsian, gridPitch: gridPitch)?.height
+    }
+
+    /// The ruby line's height as a multiple of the text's size, and on a
+    /// line grid how far the text stands above where the engine puts it
+    /// (negative: below). The engine keeps the baseline where the line of
+    /// the text alone has it; Word centres the text and its ruby together
+    /// in the pitches they take, the text under the ruby's room: 61470's
+    /// 11pt MS Mincho line is 36pt with its baseline 24.3 down, the text
+    /// alone's 12.9 by the engine.
+    public func rubyLine(for style: CharStyle, in paragraph: RichParagraphStyle, named: RichNamedStyle?,
+                         eastAsian: Bool, gridPitch: Double?) -> (height: Double, raise: Double)? {
         guard let ruby = style.ruby else { return nil }
         let size = style.fontSize ?? named?.char.fontSize ?? fontSize
         let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
@@ -543,7 +555,11 @@ public final class RichTextTheme {
         let rubySize = ruby.size > 0 ? ruby.size : size / 2
         let raise = ruby.raise > 0 ? ruby.raise : size / 2
         let above = max(0, raise + ascent * rubySize - ascent * size)
-        return lineBox(size: size, natural: natural + above / size, baseline: nil, in: paragraph, gridPitch: gridPitch).height / size
+        let line = lineBox(size: size, natural: natural + above / size, baseline: nil, in: paragraph, gridPitch: gridPitch).height
+        guard gridPitch != nil, paragraph.lineHeightPoints == nil else { return (line / size, 0) }
+        let n = natural * size
+        let one = lineBox(size: size, natural: natural, baseline: nil, in: paragraph, gridPitch: gridPitch).height
+        return (line / size, ((one - n) - (line - n - above)) / 2 - above)
     }
 
     /// The height of an auto line whose text is all raised by its
