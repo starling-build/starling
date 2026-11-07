@@ -15064,3 +15064,10 @@ TIP WATCH amd-8, round 203 (1e78d3963): Word no drops (six sections up 0 down 0)
 TIP WATCH amd-8, round 204 (c742c753f): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0.
 
 TIP WATCH amd-8, round 205 (5edc3098e): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0.
+
+### lenovo-5 — three lo5 labs DONE (2026-11-07)
+- float-015dbec5: LANDED 969869895 (page-frame wrapper cell table: no cell-spacing outdent, float one wrapper margin down, not two).
+- checkbox-57bc4e3f: rule already in office (0146c3242): check box advance 1.295 em MS Gothic/SimSun/MS Mincho, 1.219 Calibri, 1.15 Times/Arial.
+- chart-ccd9da4b: LANDED ff81eaa1f (with 7de054fc3). The widenedPlain rule (7.4/5.4 pt) was fitted on non-LO lo-79680f48; LO charts (the `libre` flag) now skip it and keep valueLabelsBack 0. Side legend rows 17.07 apart and 1.35 higher (libre, not pie). Category x0 within 0.3 pt at 3 widths, legend rows within 0.25, value labels within 0.05. Pair 756 + LO: no movers.
+- OPEN: chart2 (4-entry legend, probably pie) pitch 17.5 vs Word 17.05, first row 0.47 low. Widths 2800000/5000000 not re-checked.
+- ChartTests NOT run: this server cannot build OfficeApp tests (see amd-perf entry above). amd-8's round is the first run.
