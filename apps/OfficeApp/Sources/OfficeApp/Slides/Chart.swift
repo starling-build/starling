@@ -1607,11 +1607,11 @@ enum ChartXML {
             // Text that says nothing of its look, nor does the chart: the
             // run's own defaults, 18 pt and not bold (openpyxl's titles,
             // chart-tdf119138's, in Excel's print).
-            if Self._bare(t, in: space) { titleSize = 20; titleBold = false }
+            if Self._bare(t, in: space) { titleSize = 18; titleBold = false }
             for layer in layers where titleColor == nil {
                 if let fill = layer.first("a:solidFill") { titleColor = color(fill) }
             }
-            titleFace = layers.lazy.compactMap { $0.first("a:latin")?["typeface"] }.first
+            titleFace = layers.lazy.compactMap { $0.first("a:latin")?["typeface"] }.first ?? (Self._bare(t, in: space) ? "Arial" : nil)
             // A later paragraph in a size of its own: every line it makes.
             if let first = titleSize, !paragraphs.isEmpty {
                 var line = 0
@@ -2502,10 +2502,10 @@ enum ChartPainter {
         let font = OfficeFonts.substitute(c.font ?? (c.onSlide || c.onSheet ? nil : c.axisFont) ?? theme.bodyFont)
         // Letters one by one, as PowerPoint sets them: no "ﬁ" in "Defined".
         let plain = [FontFeature("liga", 0), FontFeature("clig", 0)]
-        func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil, align: TextAlign = .center, maxLines: Int? = nil, windowsLines: Bool = false, mixedLine: Double = 1.3301 * 1.3) -> TextPainter {
+        func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil, align: TextAlign = .center, maxLines: Int? = nil, windowsLines: Bool = false, mixedLine: Double = 1.3301 * 1.3, family: String? = nil) -> TextPainter {
             let style = Flutter.TextStyle(
                 color: color ?? ink, fontSize: max(3, size * k), fontWeight: bold ? .bold : .normal,
-                fontFeatures: plain, fontFamily: font, fontFamilyFallback: Self.glyphFallback(c))
+                height: family == nil ? nil : 24.4 / 18, fontFeatures: plain, fontFamily: family.map { OfficeFonts.substitute($0) } ?? font, fontFamilyFallback: Self.glyphFallback(c))
             let tp = TextPainter(text: windowsLines ? Self.labelSpan(c, s, style, mixedLine: mixedLine) : TextSpan(text: s, style: style),
                 textAlign: align, textDirection: .ltr, maxLines: maxLines, ellipsis: maxLines == nil ? nil : "\u{2026}")   // (a label broken in two centres each line)
             tp.layout(minWidth: 0, maxWidth: max(1, maxWidth))
@@ -3126,7 +3126,7 @@ enum ChartPainter {
             _pie(c, canvas, area, k: k, theme: theme, text: text, frame: r, ink: ink)
         } else {
             _axes(c, canvas, area, frame: r, k: k, theme: theme, titleLines: titleLines, grid: c.gridColor ?? grid, text: text,
-                   titleText: { styled($0, $1, $2, bold: false, color: c.onSlide || c.onSheet ? nil : c.axisTitleColor) },
+                   titleText: { styled($0, c.onSheet && c.bareAxisTitle ? $1 * 0.9 : $1, $2, bold: false, color: c.onSlide || c.onSheet ? nil : c.axisTitleColor, family: c.onSheet && c.bareAxisTitle ? "Arial" : nil) },
                   categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor, windowsLines: true, mixedLine: 1.494) },
                   valueText: { styled($0, $1, $2, bold: c.valueLabelBold, color: c.valueLabelColor) })
         }
