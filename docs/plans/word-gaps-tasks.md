@@ -15190,3 +15190,16 @@ TIP WATCH amd-8, round 238 (ed32ca27a): Word no drops (six sections up 0 down 0)
 
 - lenovo-5 (2026-11-07): squeeze `），` before 約 (zh-25381d22) LANDED 74b0a4448, v2 clean (756 mean 99.947, no up/down). Word takes 約 from -2.0 to +0.5 pt right indent, refuses at +1.0 (lab test/lab/squeeze). Rule: on a Windows line whose last word space has ASCII both sides and the line has 3+ word spaces, up to 8 ideographs after that space each give em/64 (1.5 pt at 12 pt) on top of the spaces' quarters. Narrowed after 9 v2 drops: a space after a curly quote (zh-cd48112c), 12 tail chars after one space (zh-79d08edd), lines with 1-2 spaces (zh-15f60bac need 4.45 refused, zh-604e21e5 need 1.89 refused). LAB-PROVEN: only the boundary on one line (3 spaces, 8 tail chars: takes need 3.74, refuses 4.24). FITTED TO THE CORPUS, NOT LAB-PROVEN: the 3-space minimum (1-2 space lines refuse, zh-15f60bac, zh-604e21e5) and the 8-char cap (12 after one space refuses, zh-79d08edd); a later lab should vary space count and tail length. zh-ea70c30e not checked.
 - lenovo-5 note 7 (compat 15 ignores a table style's zero cell margins?): UNPROVEN. Word's b07 (compat 15) shifts cell text +5.4 pt vs b00 (compat 14); either a 5.4 margin is applied or the table moves; these prints cannot tell. Corpus compat-15 docs zh-dc9cfa34 and zh-147bdae0 match Word with zero margins honoured. No code change.
+
+### T-ea70c30e (lenovo-5, 2026-11-07): one p3 line, no-break spaces around a dash — measured, not fixed
+Documents: zh-ea70c30e (99.3, one missed line on p3 plus its knock-on lines to the paragraph end).
+The line "…警察服務 – 交通課；" then "動": Word ends it at "；" and puts "動" on the next line; ours pulls "動" in by squeezing
+all four "；" 1.8 pt each. No U+0020 on the line, so the spaces path (and the FITS trace) is not involved.
+Cause measured: the "nbsp – nbsp" groups. Word's group (ideograph to ideograph, around the dash) is 26.7 wide on this
+line (3 groups, +1.8 each = +5.4 over natural 24.9), and 23.6-26.2 on neighbouring justified lines. Ours holds 24.9.
+So Word justifies by stretching/squeezing the no-break spaces (like word spaces); the line is already full in Word,
+and "動" needs a whole em. Ideograph steps stay 12.5 in Word. Not a capacity rule; do NOT fit one from this line
+(T110 history: one-line limits broke zh-c2c92639).
+Left: make U+00A0 take justification stretch/squeeze as a word space does. 74 of 645 zh docs contain U+00A0, so it needs
+a lab (nbsp run in a justified line, steps of slack) and a pair; justification is in the engine paint, not in
+_fitEastAsianLines. Released for now.
