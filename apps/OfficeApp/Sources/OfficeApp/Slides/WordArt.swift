@@ -722,6 +722,10 @@ enum WordArt {
             // Every line at the widest one's scale, whichever band it is in —
             // but a ring's two halves each go the whole way across.
             let ring = warp.preset.hasPrefix("textRing")
+            // (textInflate's two lines stand 1.24 of a line box apart in PowerPoint's print, the
+            // inked parts as measured on ImportWordArtGradient's three blocks: ours, at 1.3,
+            // 6 pt too far apart with each line 3 to 7% too short.)
+            let linePitch = warp.preset == "textInflate" ? 1.24 : Self.linePitch
             let widestOfAll = max(1e-6, bands.flatMap(\.lines).map(\.width).max() ?? 1)
             for band in bands {
                 let n = Double(band.lines.count)
@@ -741,8 +745,8 @@ enum WordArt {
                             for g in line.glyphs {
                                 if let k = g.ink, !k.isEmpty, g.painter.height > 0 {
                                     l = min(l, x + k.left); r = max(r, x + k.right)
-                                    t = min(t, Double(li) * Self.linePitch + k.top / g.painter.height)
-                                    b = max(b, Double(li) * Self.linePitch + k.bottom / g.painter.height)
+                                    t = min(t, Double(li) * linePitch + k.top / g.painter.height)
+                                    b = max(b, Double(li) * linePitch + k.bottom / g.painter.height)
                                 }
                                 else if g.width > 0 { l = min(l, x); r = max(r, x + g.width) }  // a space counts by its advance
                                 x += g.width
@@ -788,7 +792,7 @@ enum WordArt {
                     // WordArtBitmapFill's frame top and foot; 20 decks 75.6 →
                     // 70.1 in sum, ImportWordArtGradient's two lines 0.9 worse.)
                     let above = 0.04, below = descends ? -0.02 : 0.15
-                    let pitch = Self.linePitch
+                    let pitch = linePitch
                     var span = (n - 1) * pitch + 1 - above - below
                     var top = above
                     if let (t, b) = inkV {
