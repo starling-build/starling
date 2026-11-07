@@ -15246,3 +15246,4 @@ TIP WATCH amd-8, round 245 (12cd167da): Word no drops (six sections up 0 down 0)
 - amd-3 2026-11-07 OPEN (record, not a park; back to it after the dot-run rule): zh-31d580df p27 merged-cell text sits 11 pt high, ours 252.9 vs Word 264.2, suspect vertical centring of the merged cell. Rules fixed in e6b9a7a72. Possible lab if needed: merged cell vAlign center/top/bottom x row span 1/2/3.
 
 TIP WATCH amd-8, round 246 (e6b9a7a72): Word no drops (six sections up 0 down 0); unit tests 642, 0 failures; WEB build OK, layout exit 0.
+- 2026-11-07 amd-2 CLAIM (macos' order, Sheets charts): chart-tdf119138-missing-autotitledeleted (6.95 worst page, 2 pages, baseline-mupdf). Released by amd-1 earlier; reading it against Excel's print first.
