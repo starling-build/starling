@@ -1680,6 +1680,19 @@ extension RichLayout {
                     RuleTrace.hit("ballot-box-with-check-is-segoe-ui-symbols")
                     extra += (1758.0 / 2048.0) * em - _glyphWidth(style(kind), ch)
                 }
+                // (A Hangul syllable is an em wide in every Korean face
+                // Word for Windows sets it in — Malgun Gothic, Gulim, Batang:
+                // all 1.000 em across the kor batch B prints — where the
+                // Noto Sans CJK stand-in's is 0.92. Lines held 8% more text
+                // and the pages drifted.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value,
+                   u >= 0xAC00 && u <= 0xD7A3 {
+                    let g = _glyphWidth(style(kind), ch)
+                    if g > 0.5, g < em - 0.01 {
+                        RuleTrace.hit("hangul-syllable-is-an-em")
+                        extra += em - g
+                    }
+                }
                 if ea, let u = ch.unicodeScalars.first?.value, u < 0x2E80,
                    let eaFace = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                                     ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true),
