@@ -4457,7 +4457,7 @@ enum ChartPainter {
             // in Word for Windows' print, ours 105.3 to 299.9, its value labels where ours are.)
             // (A LibreOffice chart's plot already stands there: lo-ccd9da4b's axis from 134.36 to 367.96 in Word's print,
             // 7.3 pt in at the left and 5.1 at the right of where the widening put it; its labels as before.)
-            if widenedPlain { if !libre { left -= 7.4 * k; right -= 5.4 * k }; valueLabelsBack = 7.4 * k }
+            if widenedPlain { if !libre { left -= 7.4 * k; right -= 5.4 * k }; valueLabelsBack = libre ? 0 : 7.4 * k }
             plot = Rect.fromLTRB(area.left + left, area.top + lineH / 2 + lower, area.right - right, area.bottom - bottom)
         }
         // A data table takes the foot of the frame, a row for the
