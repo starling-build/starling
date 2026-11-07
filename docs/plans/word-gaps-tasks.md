@@ -15203,3 +15203,5 @@ and "動" needs a whole em. Ideograph steps stay 12.5 in Word. Not a capacity ru
 Left: make U+00A0 take justification stretch/squeeze as a word space does. 74 of 645 zh docs contain U+00A0, so it needs
 a lab (nbsp run in a justified line, steps of slack) and a pair; justification is in the engine paint, not in
 _fitEastAsianLines. NBSP PREMISE WRONG (2026-11-07): this paragraph's spaces are plain U+0020 in separate runs (no U+00A0 in the file), so the lab (test/lab/nbsp, prints aab2f01d) does not explain it. Word does stretch these spaces (groups 23.7-26.7 vs 24.9 natural); the missed line holds ~5.4 pt of stretch and Word will not squeeze the four ； by the 7.2 pt that 動 needs: a squeeze-capacity gap, one line only, not fitted. Lab side finding: in Word a CJK-hinted U+00A0 beside an en dash prints zero advance; Latin nbsp = space (3.12).
+
+TIP WATCH amd-8, round 239 (e5c3b0de8): Word no drops (six sections up 0 down 0); unit tests 634, 0 failures; WEB build OK, layout exit 0.
