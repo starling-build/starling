@@ -15183,3 +15183,5 @@ TIP WATCH amd-8, round 236 (6c5370ae3): Word no drops (six sections up 0 down 0)
 - amd-3 yahei-fallback lab (wip/lab-yahei-fallback, prints in wip/lab-yahei-fallback-prints), V1: Word baselines 115.8/151.9/185.2/212.6, ours 129.6/165.8/194.9/222.3. With the 方正楷体_GBK runs set to KaiTi they agree (112.8 vs 112.7), so the YaHei fallback is the cause: Word's YaHei line is about +3.0 higher in ascent and +5.8 deeper in descent than a FangSong line (auto 422); ours about +7 ascent, +1.7 descent. Next: our YaHei ascent/descent split. NOT fitted.
 
 TIP WATCH amd-8, round 237 (50307649c): Word no drops (six sections up 0 down 0); unit tests 634, 0 failures; WEB build OK, layout exit 0.
+
+ACCEPTED GAP (relayed by starling-bd, 2026-11-07): lo-f9b9a8fc stays at 87.5% (7/8 lines). Accepted by the user 2026-11-07: Word's pie label placement in the diagonal zone, not reproducible without fitting one document (label 5 is Word's chaotic pie-label placement, unexplained after the pie1/pie2/piezone/pinsweep labs, docs/plans/pie-labels.md). No session chases it again.
