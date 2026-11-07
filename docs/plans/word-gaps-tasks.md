@@ -15218,3 +15218,5 @@ TIP WATCH amd-8, round 241 (feb397094): Word no drops (six sections up 0 down 0)
 ## ZH-ea70c30e ； ROUND 3 RESULT (lenovo-5, 2026-11-07) — LANDED c4d0f1eb4, doc 99.3 -> 100
 The cause was not the squeeze rule. Our en dash was 5.88 pt; Word sets every en dash 6.24 (half of 12.5 pt, Times hAnsi). Line 12 has three dashes, so it was 1.1 pt too short and took the 動 Word sends down. Fix: a latin-dash "–" is half an em (RichLayout+Span.swift). Round 3 d-docs now match Word (d1: 動 alone; d3: 動物 fits). Spaces-against-capacity theory dropped: the d-doc differences were our dash width. No corpus doc moved (756 up 1 down 0). Unit tests: 14 failures in 634, none touch dashes (cell auto-space x2, Segoe, markup, space-before): not checked against the base.
 Note: when Word and our lab disagree by a fixed amount per character, compare the plain advance of each character kind (dash, space) on an unsqueezed line before inventing a rule.
+
+TIP WATCH amd-8, round 242 (772563b4b, no code change since feb397094): Word no drops (six sections up 0 down 0); unit tests 642, 0 failures; WEB build OK, layout exit 0.
