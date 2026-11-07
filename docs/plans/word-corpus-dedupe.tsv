@@ -1,0 +1,1350 @@
+key	set	pages	score	action	keeper	reason	keeper_adds
+51921-Word-Crash067	756	0	100.0	keep		used by roundtrip.tsv; visual-scored (no text lines; the replay cannot see it)	
+52288	756	1	100.0	keep		used by roundtrip.tsv	
+52449	756	1	100.0	keep		used by roundtrip.tsv	
+55733	756	1	100.0	keep		used by roundtrip.tsv	
+55966	756	1	100.0	keep		used by roundtrip.tsv	
+56392	756	1	100.0	keep		used by roundtrip.tsv	
+57312	756	1	100.0	keep		used by roundtrip.tsv	
+58067	756	1	100.0	keep		used by roundtrip.tsv	
+58618	756	1	100.0	keep		used by roundtrip.tsv	
+59030	756	1	100.0	keep		used by roundtrip.tsv	
+59378	756	0	100.0	keep		used by roundtrip.tsv; visual-scored (no text lines; the replay cannot see it)	
+60293	756	3	100.0	keep		used by roundtrip.tsv	
+60316	756	1	100.0	keep		used by roundtrip.tsv	
+60329	756	3	100.0	keep		used by roundtrip.tsv	
+61470	756	1	100.0	keep		used by roundtrip.tsv	
+61745	756	1	100.0	keep		used by roundtrip.tsv	
+61787	756	2	100.0	keep		used by roundtrip.tsv	
+61991	756	1	100.0	keep		used by roundtrip.tsv	
+65099	756	1	100.0	keep		used by roundtrip.tsv	
+Bug51170	756	7	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+Bug54771a	756	1	100.0	keep		body of a CLAIMED entry; named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+Bug54771b	756	1	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+Bug54849	756	1	100.0	keep		used by roundtrip.tsv	
+Bug55142	756	1	100.0	keep		used by roundtrip.tsv	
+Bug60337	756	1	100.0	keep		used by roundtrip.tsv	
+Bug60341	756	1	100.0	keep		used by roundtrip.tsv	
+Bug62859	756	0	100.0	keep		used by roundtrip.tsv; visual-scored (no text lines; the replay cannot see it)	
+Bug64561	756	1	100.0	keep		used by roundtrip.tsv	
+Bug66263-paragraph	756	1	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+Bug66263-table	756	1	100.0	keep		used by roundtrip.tsv	
+Bug66988	756	1	100.0	keep		used by roundtrip.tsv	
+ComplexNumberedLists	756	1	100.0	keep		used by roundtrip.tsv	
+DiffFirstPageHeadFoot	756	2	100.0	keep		used by roundtrip.tsv	
+EmbeddedDocument	756	1	100.0	keep		used by roundtrip.tsv	
+EmptyDocumentWithHeaderFooter	756	1	100.0	keep		used by roundtrip.tsv	
+EnforcedWith	756	1	100.0	keep		used by roundtrip.tsv	
+FancyFoot	756	2	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+FieldCodes	756	1	100.0	keep		used by roundtrip.tsv	
+FldSimple	756	1	100.0	keep		used by roundtrip.tsv	
+HeaderFooterUnicode	756	2	100.0	keep		used by roundtrip.tsv	
+Headers	756	3	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+IllustrativeCases	756	4	100.0	keep		used by roundtrip.tsv	
+MultipleBodyBug	756	1	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+NoHeadFoot	756	2	100.0	keep		used by roundtrip.tsv	
+Numbering	756	1	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+NumberingWOverrides	756	1	100.0	keep		used by roundtrip.tsv	
+NumberingWithOutOfOrderId	756	1	100.0	keep		used by roundtrip.tsv	
+PageSpecificHeadFoot	756	2	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+SampleDoc	756	2	100.0	keep		used by roundtrip.tsv	
+SimpleHeadThreeColFoot	756	2	100.0	keep		used by roundtrip.tsv	
+Styles	756	1	100.0	keep		used by roundtrip.tsv	
+TestDocument	756	1	100.0	keep		used by roundtrip.tsv	
+TestPoiXMLDocumentCorePropertiesGetKeywords	756	1	100.0	keep		used by roundtrip.tsv	
+TestTableCellAlign	756	1	100.0	keep		used by roundtrip.tsv	
+TestTableColumns	756	0	100.0	keep		used by roundtrip.tsv; visual-scored (no text lines; the replay cannot see it)	
+ThreeColFoot	756	2	100.0	keep		used by roundtrip.tsv	
+ThreeColHead	756	2	100.0	keep		used by roundtrip.tsv	
+ThreeColHeadFoot	756	2	100.0	keep		used by roundtrip.tsv	
+Tika-792	756	1	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+VariousPictures	756	1	100.0	keep		used by roundtrip.tsv	
+WithGIF	756	1	100.0	keep		used by roundtrip.tsv	
+WithTabs	756	1	100.0	keep		used by roundtrip.tsv	
+WordWithAttachments	756	2	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry; header PARKED; header RELEASED; named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+bib-chernigovka.netdo.ru_download_docs_17459	756	15	100.0	keep		used by roundtrip.tsv	
+bookmarks	756	1	100.0	keep		used by roundtrip.tsv	
+bug-paragraph-alignment	756	1	100.0	keep		used by roundtrip.tsv	
+bug56075-changeTracking_off	756	1	100.0	keep		used by roundtrip.tsv	
+bug56075-changeTracking_on	756	1	100.0	keep		used by roundtrip.tsv	
+bug56076	756	1	100.0	keep		used by roundtrip.tsv	
+bug57031	756	14	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+bug59058	756	52	100.0	keep		body of a RELEASED entry; named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+bug65649	756	176	100.0	keep		body of a RELEASED entry; named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+bug65738	756	2	100.0	keep		body of a CLAIMED entry; used by roundtrip.tsv	
+bug66312	756	1	100.0	keep		used by roundtrip.tsv	
+bug69628	756	1	100.0	keep		used by roundtrip.tsv	
+capitalized	756	1	100.0	keep		used by roundtrip.tsv	
+chartex	756	3	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+checkboxes	756	1	100.0	keep		used by roundtrip.tsv	
+comment	756	0	100.0	keep		accepted drop / scorer artefact line; named in apps/OfficeApp/Tests; used by roundtrip.tsv; visual-scored (no text lines; the replay cannot see it)	
+delins	756	1	100.0	keep		body of a CLAIMED entry; body of a PARKED entry; body of a RELEASED entry; header PARKED; named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+documentProperties	756	1	100.0	keep		used by roundtrip.tsv	
+documentProtection_comments_no_password	756	1	100.0	keep		used by roundtrip.tsv	
+documentProtection_forms_no_password	756	1	100.0	keep		used by roundtrip.tsv	
+documentProtection_no_protection	756	1	100.0	keep		used by roundtrip.tsv	
+documentProtection_no_protection_tag_existing	756	1	100.0	keep		used by roundtrip.tsv	
+documentProtection_readonly_no_password	756	1	100.0	keep		used by roundtrip.tsv	
+documentProtection_trackedChanges_no_password	756	1	100.0	keep		used by roundtrip.tsv	
+drawing	756	20	100.0	keep		accepted drop / scorer artefact line; body of a CLAIMED entry; body of a PARKED entry; named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+emptyPPr	756	1	100.0	keep		used by roundtrip.tsv	
+endnotes	756	1	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+footnotes	756	1	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry; named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+form_footnotes	756	3	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+headerFooter	756	1	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+headerPic	756	0	100.0	keep		used by roundtrip.tsv; visual-scored (no text lines; the replay cannot see it)	
+heading123	756	1	100.0	keep		used by roundtrip.tsv	
+issue_51265_1	756	0	100.0	keep		used by roundtrip.tsv; visual-scored (no text lines; the replay cannot see it)	
+issue_51265_2	756	0	100.0	keep		used by roundtrip.tsv; visual-scored (no text lines; the replay cannot see it)	
+issue_51265_3	756	0	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv; visual-scored (no text lines; the replay cannot see it)	
+protected_sample	756	1	100.0	keep		used by roundtrip.tsv	
+rtl	756	1	100.0	keep		used by roundtrip.tsv	
+sample	756	1	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+saut_page	756	3	100.0	keep		used by roundtrip.tsv	
+shapes-with-text	756	1	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+smarttag-snippet	756	1	100.0	keep		used by roundtrip.tsv	
+table-alignment	756	1	100.0	keep		used by roundtrip.tsv	
+table-indent	756	1	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+table_footnotes	756	1	100.0	keep		used by roundtrip.tsv	
+testComment	756	1	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+tika-3388	756	1	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+tika-3816	756	1	100.0	keep		used by roundtrip.tsv	
+zero-length	756	0	100.0	keep		used by roundtrip.tsv; visual-scored (no text lines; the replay cannot see it)	
+zh-0060058e	756	64	100.0	keep		body of a CLAIMED entry; body of a OPEN entry; body of a RELEASED entry	
+zh-007ca091	756	11	100.0	keep		body of a CLAIMED entry	
+zh-00e19fb3	756	16	100.0	keep		carries tokens no kept document has	
+zh-00f207f1	756	37	100.0	drop	zh-aceb5de3	every token is in the keeper	breakrules_off compat:doNotSnapToGridInCell compat:doNotUseEastAsianBreakRules compat:doNotWrapTextWithPunct compat:growAutofit face:DFKaiShu fullwidth-form
+zh-0104b952	756	4	100.0	keep		named in apps/OfficeApp/Tests	
+zh-01071d55	756	16	100.0	keep		carries tokens no kept document has	
+zh-015abfaf	756	16	100.0	keep		body of a CLAIMED entry; body of a PARKED entry; body of a RELEASED entry; header CLAIMED; header RELEASED	
+zh-01bbcd4d	756	24	100.0	keep		named in apps/OfficeApp/Tests	
+zh-021b8feb	756	17	99.5	keep		below 100 combined; named in apps/OfficeApp/Tests	
+zh-0243e7fc	756	13	100.0	keep		carries tokens no kept document has	
+zh-02873533	756	16	100.0	keep		carries tokens no kept document has	
+zh-037d2845	756	42	100.0	keep		carries tokens no kept document has	
+zh-043aab43	756	12	100.0	drop	zh-73534289	every token is in the keeper	autospace_de_off autospace_dn_off ch:0028 ch:0029 ch:002b ch:007e ch:2026 ch:ff0f ch:ff1c ch:ff1e ch:ff5e char_spacing_runs fullwidth-form overflow_off rows_atleast sz:16
+zh-045c5a75	756	23	100.0	keep		named in apps/OfficeApp/Tests	
+zh-04ee992f	756	21	100.0	keep		carries tokens no kept document has	
+zh-04f73697	756	17	100.0	keep		used by roundtrip.tsv	
+zh-0513f641	756	20	100.0	keep		named in apps/OfficeApp/Tests	
+zh-05315c2a	756	22	100.0	keep		carries tokens no kept document has	
+zh-053f8706	756	64	100.0	keep		body of a CLAIMED entry	
+zh-05699f05	756	4	100.0	keep		carries tokens no kept document has	
+zh-06c46ba9	756	68	99.8	keep		below 100 combined; named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+zh-06f6a036	756	1	100.0	keep		used by roundtrip.tsv	
+zh-070573f3	756	5	100.0	keep		carries tokens no kept document has	
+zh-073c9234	756	16	100.0	keep		accepted drop / scorer artefact line	
+zh-08bdcb04	756	3	100.0	drop	zh-b2e0f286	every token is in the keeper	autospace_de_off autospace_dn_off ch:0028 ch:0029 ch:002c ch:003d ch:300c ch:300d ch:ff1b ch:ff1d char_spacing_runs fullwidth-form indent_chars kinsoku_off symbols
+zh-08dc38da	756	41	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry	
+zh-08e95de4	756	53	100.0	keep		accepted drop / scorer artefact line	
+zh-093c8713	756	15	100.0	keep		carries tokens no kept document has	
+zh-093d0f9a	756	3	100.0	drop	zh-070573f3	every token is in the keeper	ch:0021 ch:2022 ch:ff1b
+zh-0978dee9	756	322	100.0	keep		body of a CLAIMED entry; body of a OPEN entry	
+zh-098f687f	756	15	100.0	keep		carries tokens no kept document has	
+zh-0a56c942	756	10	100.0	keep		body of a CLAIMED entry; body of a OPEN entry	
+zh-0a89ec5d	756	18	100.0	drop	zh-0fb84ee5	every token is in the keeper	hf_page_field langs_ea:zh-HK x:contentctl
+zh-0aac9d1a	756	11	100.0	keep		used by roundtrip.tsv	
+zh-0b48a0db	756	8	100.0	keep		carries tokens no kept document has	
+zh-0b76d250	756	8	100.0	drop	zh-b2e0f286	every token is in the keeper	autospace_de_off autospace_dn_off ch:003d ch:ff1d fullwidth-form kinsoku_off symbols
+zh-0b87285b	756	7	100.0	keep		body of a CLAIMED entry; header CLAIMED	
+zh-0cd63a22	756	4	100.0	keep		carries tokens no kept document has	
+zh-0cd7bbaf	756	18	99.8	keep		below 100 combined	
+zh-0ceb75b8	756	14	100.0	keep		carries tokens no kept document has	
+zh-0d036e4e	756	9	100.0	keep		carries tokens no kept document has	
+zh-0daa510e	756	18	100.0	keep		named in apps/OfficeApp/Tests	
+zh-0f02e212	756	10	100.0	keep		carries tokens no kept document has	
+zh-0fb84ee5	756	18	100.0	keep		carries tokens no kept document has	
+zh-10347c68	756	15	100.0	keep		carries tokens no kept document has	
+zh-1078e06f	756	5	100.0	keep		carries tokens no kept document has	
+zh-10e3a42b	756	28	100.0	keep		named in apps/OfficeApp/Tests	
+zh-10eab555	756	135	100.0	keep		carries tokens no kept document has	
+zh-11701b00	756	4	100.0	keep		carries tokens no kept document has	
+zh-11709c74	756	2	100.0	keep		body of a CLAIMED entry	
+zh-117cf7c6	756	3	100.0	keep		named in apps/OfficeApp/Tests	
+zh-1252faed	756	13	100.0	drop	zh-f94d11c5	every token is in the keeper	
+zh-12c4f07a	756	57	100.0	keep		named in apps/OfficeApp/Tests	
+zh-12db188f	756	4	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry	
+zh-12f87285	756	39	100.0	keep		named in apps/OfficeApp/Tests	
+zh-13552a3a	756	30	100.0	keep		body of a OPEN entry; named in apps/OfficeApp/Tests	
+zh-13d11e99	756	9	100.0	keep		body of a CLAIMED entry; body of a OPEN entry; body of a RELEASED entry	
+zh-146f4e02	756	12	100.0	keep		carries tokens no kept document has	
+zh-147bdae0	756	75	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry; header CLAIMED; named in apps/OfficeApp/Tests	
+zh-15428325	756	14	99.7	keep		below 100 combined	
+zh-1563bd74	756	29	100.0	keep		body of a CLAIMED entry; named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+zh-15728c84	756	9	100.0	keep		used by roundtrip.tsv	
+zh-15ecc2c6	756	9	100.0	keep		carries tokens no kept document has	
+zh-15f60bac	756	28	100.0	keep		body of a CLAIMED entry; body of a PARKED entry; body of a RELEASED entry; named in apps/OfficeApp/Tests	
+zh-15f67ef1	756	5	100.0	keep		carries tokens no kept document has	
+zh-160a5e81	756	2	100.0	drop	zh-e7bdb543	every token is in the keeper	lang_default_ea=zh-CN
+zh-1661a432	756	10	100.0	keep		carries tokens no kept document has	
+zh-167ee06c	756	13	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry; named in apps/OfficeApp/Tests	
+zh-16e0a12a	756	102	99.9	keep		below 100 combined	
+zh-17749c13	756	64	100.0	keep		named in apps/OfficeApp/Tests	
+zh-17ac8aa2	756	2	100.0	keep		carries tokens no kept document has	
+zh-189b6acc	756	16	100.0	keep		accepted drop / scorer artefact line	
+zh-18cb2079	756	42	99.8	keep		below 100 combined; body of a CLAIMED entry; body of a RELEASED entry	
+zh-190d730c	756	9	100.0	keep		used by roundtrip.tsv	
+zh-19dde9e7	756	1	100.0	keep		body of a CLAIMED entry	
+zh-19fe7bff	756	17	100.0	keep		carries tokens no kept document has	
+zh-1a3c7aa0	756	61	100.0	keep		body of a PARKED entry; used by roundtrip.tsv	
+zh-1b74ed91	756	21	100.0	keep		body of a CLAIMED entry	
+zh-1b82f5d7	756	6	100.0	keep		carries tokens no kept document has	
+zh-1baae6a9	756	11	100.0	drop	zh-4ea36aa8	every token is in the keeper	ch:0025 ch:002b ch:002c ch:002f ch:ff0f ch:ff1a fullwidth-form
+zh-1cfb652b	756	23	100.0	keep		body of a CLAIMED entry; body of a PARKED entry; header PARKED	
+zh-1d2a7c35	756	12	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry	
+zh-1d3d66d3	756	8	100.0	keep		used by roundtrip.tsv	
+zh-1e7e7cb3	756	12	100.0	keep		carries tokens no kept document has	
+zh-1eeb9f9a	756	19	100.0	keep		named in apps/OfficeApp/Tests	
+zh-202582e2	756	14	100.0	keep		body of a CLAIMED entry	
+zh-207a7cc3	756	10	100.0	keep		carries tokens no kept document has	
+zh-20c1d74a	756	48	99.8	keep		ASSIGNMENTS bullet (not DONE); below 100 combined; body of a CLAIMED entry; body of a OPEN entry; body of a RELEASED entry; named in apps/OfficeApp/Tests	
+zh-20d0e98f	756	13	100.0	keep		carries tokens no kept document has	
+zh-20ff844e	756	85	99.9	keep		accepted drop / scorer artefact line; below 100 combined; named in apps/OfficeApp/Tests	
+zh-21151545	756	8	100.0	keep		carries tokens no kept document has	
+zh-2122bb17	756	4	100.0	keep		carries tokens no kept document has	
+zh-21421b7d	756	2	100.0	drop	zh-17ac8aa2	every token is in the keeper	
+zh-2261abf8	756	5	100.0	keep		carries tokens no kept document has	
+zh-22b31377	756	11	100.0	keep		body of a CLAIMED entry	
+zh-22ecbdc8	756	13	100.0	keep		body of a CLAIMED entry; body of a PARKED entry; header CLAIMED	
+zh-22f214eb	756	24	100.0	keep		witness floor	
+zh-232090e0	756	2	100.0	keep		used by roundtrip.tsv	
+zh-23ee8575	756	12	100.0	keep		carries tokens no kept document has	
+zh-25381d22	756	11	99.3	keep		below 100 combined	
+zh-25a06352	756	10	100.0	keep		carries tokens no kept document has	
+zh-25c4de17	756	3	100.0	keep		used by roundtrip.tsv	
+zh-264d7516	756	22	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry	
+zh-26660336	756	21	100.0	keep		body of a CLAIMED entry	
+zh-268f8d15	756	5	100.0	keep		carries tokens no kept document has	
+zh-27083953	756	29	99.7	keep		below 100 combined; body of a RELEASED entry	
+zh-27a874b7	756	3	94.6	keep		accepted drop / scorer artefact line; below 100 combined; body of a CLAIMED entry; body of a OPEN entry; body of a PARKED entry; body of a RELEASED entry; header CLAIMED; header OPEN	
+zh-27fc8f9d	756	8	100.0	keep		body of a CLAIMED entry; body of a OPEN entry; header CLAIMED	
+zh-28416dc9	756	2	100.0	keep		carries tokens no kept document has	
+zh-289155d6	756	20	100.0	keep		carries tokens no kept document has	
+zh-291fcea7	756	9	99.7	keep		below 100 combined; body of a CLAIMED entry; named in apps/OfficeApp/Tests	
+zh-29960072	756	20	100.0	keep		carries tokens no kept document has	
+zh-29b89abd	756	6	100.0	keep		carries tokens no kept document has	
+zh-2a241df1	756	4	100.0	keep		body of a CLAIMED entry; named in apps/OfficeApp/Tests	
+zh-2af9ab1b	756	20	100.0	keep		used by roundtrip.tsv	
+zh-2b21a9d4	756	2	100.0	keep		carries tokens no kept document has	
+zh-2b955411	756	29	100.0	keep		body of a RELEASED entry; used by roundtrip.tsv	
+zh-2bca0bdf	756	23	100.0	keep		carries tokens no kept document has	
+zh-2c1d91ec	756	8	100.0	keep		carries tokens no kept document has	
+zh-2c4098cb	756	5	100.0	keep		carries tokens no kept document has	
+zh-2c54ae74	756	9	100.0	keep		carries tokens no kept document has	
+zh-2dfde99a	756	32	100.0	keep		body of a RELEASED entry	
+zh-2e7ef069	756	16	100.0	keep		ASSIGNMENTS bullet (not DONE)	
+zh-2f7f5cb2	756	17	100.0	keep		carries tokens no kept document has	
+zh-2f9463d6	756	33	100.0	keep		carries tokens no kept document has	
+zh-3014f2e9	756	8	100.0	drop	zh-adfe24a7	every token is in the keeper	
+zh-301618c5	756	4	100.0	keep		accepted drop / scorer artefact line	
+zh-301f097c	756	3	100.0	keep		used by roundtrip.tsv	
+zh-30d86fcf	756	8	100.0	keep		carries tokens no kept document has	
+zh-3120c488	756	11	100.0	keep		carries tokens no kept document has	
+zh-312c4194	756	15	100.0	keep		carries tokens no kept document has	
+zh-314d6d09	756	4	100.0	keep		carries tokens no kept document has	
+zh-316044fe	756	7	100.0	keep		carries tokens no kept document has	
+zh-319a291b	756	10	100.0	keep		carries tokens no kept document has	
+zh-31d580df	756	41	99.8	keep		below 100 combined; body of a CLAIMED entry	
+zh-32f4ad9f	756	6	100.0	keep		body of a CLAIMED entry	
+zh-33aa9899	756	11	100.0	keep		body of a CLAIMED entry; used by roundtrip.tsv	
+zh-33d025f6	756	23	100.0	keep		carries tokens no kept document has	
+zh-340d52e9	756	9	100.0	keep		carries tokens no kept document has	
+zh-344a8d08	756	17	100.0	keep		named in apps/OfficeApp/Tests	
+zh-349fcbf8	756	7	100.0	keep		carries tokens no kept document has	
+zh-34a6519a	756	49	100.0	keep		body of a CLAIMED entry; named in apps/OfficeApp/Tests	
+zh-34c5b0c3	756	12	100.0	keep		carries tokens no kept document has	
+zh-3550642e	756	3	100.0	keep		used by roundtrip.tsv	
+zh-35e563eb	756	12	100.0	keep		carries tokens no kept document has	
+zh-360c1df1	756	30	100.0	keep		carries tokens no kept document has	
+zh-361f01dd	756	15	100.0	keep		carries tokens no kept document has	
+zh-37b6536f	756	6	100.0	keep		accepted drop / scorer artefact line; used by roundtrip.tsv	
+zh-38078fb3	756	3	100.0	keep		body of a RELEASED entry	
+zh-38758b14	756	22	100.0	keep		carries tokens no kept document has	
+zh-38d26944	756	18	100.0	keep		body of a CLAIMED entry; body of a PARKED entry; header CLAIMED	
+zh-39f01e11	756	23	100.0	keep		carries tokens no kept document has	
+zh-3a2eba04	756	3	100.0	keep		used by roundtrip.tsv	
+zh-3ab01d90	756	3	100.0	drop	zh-3c9bda5c	every token is in the keeper	
+zh-3ab8a2fb	756	28	100.0	keep		body of a CLAIMED entry; body of a PARKED entry	
+zh-3be15136	756	4	100.0	keep		carries tokens no kept document has	
+zh-3c055c9b	756	18	99.8	keep		below 100 combined; body of a CLAIMED entry; body of a RELEASED entry; header CLAIMED; named in apps/OfficeApp/Tests	
+zh-3c9bda5c	756	4	100.0	keep		carries tokens no kept document has	
+zh-3cb236a8	756	6	100.0	drop	zh-098f687f	every token is in the keeper	ch:0028 ch:0029 ch:002c ch:003d ch:005b ch:005d ch:203b ch:25ce ch:ff1b
+zh-3cdafcc9	756	2	100.0	keep		carries tokens no kept document has	
+zh-3da9d7f2	756	20	100.0	keep		carries tokens no kept document has	
+zh-3ecd3152	756	9	100.0	keep		witness floor	
+zh-3ee30264	756	10	100.0	drop	zh-de3410bd	every token is in the keeper	breakrules_off ch:ff62 ch:ff63 compat:doNotSnapToGridInCell compat:doNotUseEastAsianBreakRules compat:doNotWrapTextWithPunct compat:growAutofit fullwidth-form indent_chars
+zh-3f852ca2	756	13	100.0	drop	zh-f2441f00	every token is in the keeper	ch:002b ch:002f ch:007e ch:2014 ch:2500 ch:25cb ch:ff0e ch:ff1d face:DFKaiShu fullwidth-form
+zh-3f871b7d	756	4	100.0	keep		named in apps/OfficeApp/Tests	
+zh-3fe252ff	756	93	99.7	keep		below 100 combined; body of a CLAIMED entry; body of a PARKED entry; header CLAIMED; named in apps/OfficeApp/Tests	
+zh-40fe33a3	756	27	100.0	keep		carries tokens no kept document has	
+zh-41907c96	756	29	100.0	keep		body of a CLAIMED entry	
+zh-4197e764	756	8	100.0	keep		carries tokens no kept document has	
+zh-419ea527	756	8	100.0	keep		carries tokens no kept document has	
+zh-420ec188	756	9	100.0	keep		carries tokens no kept document has	
+zh-42145487	756	4	100.0	keep		carries tokens no kept document has	
+zh-424775e4	756	13	99.7	keep		below 100 combined; body of a CLAIMED entry; header CLAIMED	
+zh-427cb16c	756	29	100.0	keep		body of a CLAIMED entry	
+zh-42f93ca3	756	8	100.0	keep		carries tokens no kept document has	
+zh-436902f7	756	33	100.0	keep		carries tokens no kept document has	
+zh-43c87e12	756	7	100.0	keep		carries tokens no kept document has	
+zh-447f1d5c	756	96	99.7	keep		below 100 combined; body of a RELEASED entry	
+zh-44979b97	756	2	100.0	drop	zh-4f70ee2d	every token is in the keeper	ch:0025 ch:002b ch:002e ch:0040 ch:005f ch:2014 ch:201c ch:201d ch:3001 ch:3008 ch:3009 ch:300a ch:300b ch:3014 ch:3015 ch:ff1b char_spacing_runs drawings_anchor face:Arial Unicode MS face:KaiTi face:
+zh-454e2e29	756	5	100.0	keep		body of a CLAIMED entry; used by roundtrip.tsv	
+zh-457a8d62	756	27	100.0	keep		body of a CLAIMED entry; used by roundtrip.tsv	
+zh-45a714ef	756	18	100.0	keep		carries tokens no kept document has	
+zh-46e21320	756	14	100.0	drop	zh-aceb5de3	every token is in the keeper	ch:0026 ch:002b ch:002f ch:003b ch:003d ch:007b ch:007d ch:007e ch:2500 ch:ff0f ch:ff5e fullwidth-form
+zh-46f527f8	756	6	100.0	drop	zh-db93607e	every token is in the keeper	autospace_de_off autospace_dn_off ch:0028 ch:0029 sz:10 sz:4 sz:6
+zh-489ac253	756	4	100.0	keep		carries tokens no kept document has	
+zh-493e0fab	756	5	100.0	keep		used by roundtrip.tsv	
+zh-499adba6	756	88	100.0	keep		body of a CLAIMED entry; named in apps/OfficeApp/Tests	
+zh-4a2ab598	756	70	99.9	keep		below 100 combined; body of a CLAIMED entry	
+zh-4a90bb2f	756	11	100.0	keep		carries tokens no kept document has	
+zh-4adfcce2	756	4	100.0	keep		body of a CLAIMED entry	
+zh-4b8e0abc	756	30	99.7	keep		below 100 combined; used by roundtrip.tsv	
+zh-4c3793e8	756	1	100.0	keep		used by roundtrip.tsv	
+zh-4c4b1af8	756	19	100.0	drop	zh-da56ab3a	every token is in the keeper	ch:0025 ch:002e ch:003a ch:25a1 ch:ff0e char_scale fields line_atleast pagebreak_mid rows_atleast sz:20 sz:24 tables tables_merged x:gridSpan x:vMerge
+zh-4c5da793	756	18	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry; header RELEASED	
+zh-4c884684	756	7	100.0	keep		carries tokens no kept document has	
+zh-4d09e08e	756	4	100.0	drop	zh-25381d22	every token is in the keeper	ch:002c ch:002f ch:ff0f char_spacing_runs scripts:latin tracked x:revisions
+zh-4d143b5e	756	14	100.0	keep		carries tokens no kept document has	
+zh-4e5fe46f	756	11	99.6	keep		below 100 combined; body of a CLAIMED entry; body of a RELEASED entry; header RELEASED	
+zh-4ea36aa8	756	17	100.0	keep		accepted drop / scorer artefact line; body of a CLAIMED entry; body of a RELEASED entry; header RELEASED	
+zh-4ecb722b	756	17	100.0	drop	zh-19fe7bff	every token is in the keeper	
+zh-4f70ee2d	756	24	100.0	keep		body of a CLAIMED entry; body of a PARKED entry; body of a RELEASED entry	
+zh-4f883dce	756	5	100.0	drop	zh-301618c5	every token is in the keeper	snap_grid_runs
+zh-4fac83de	756	8	100.0	keep		carries tokens no kept document has	
+zh-4feaa34c	756	7	100.0	keep		carries tokens no kept document has	
+zh-503983e4	756	17	100.0	keep		carries tokens no kept document has	
+zh-505b9619	756	73	99.9	keep		below 100 combined; body of a CLAIMED entry; body of a OPEN entry; body of a RELEASED entry; named in apps/OfficeApp/Tests	
+zh-51af781b	756	65	100.0	keep		accepted drop / scorer artefact line; named in apps/OfficeApp/Tests	
+zh-5251dd23	756	17	100.0	keep		body of a CLAIMED entry; named in apps/OfficeApp/Tests	
+zh-529fa492	756	10	100.0	drop	zh-7eba7349	every token is in the keeper	autospace_de_off autospace_dn_off ch:3014 ch:3015 char_scale face:STZhongsong overflow_off sz:96 tab_stops tables_floating
+zh-52e5699c	756	12	100.0	keep		carries tokens no kept document has	
+zh-5313b71d	756	11	100.0	keep		carries tokens no kept document has	
+zh-5363b607	756	13	100.0	keep		carries tokens no kept document has	
+zh-53b15a2d	756	5	100.0	keep		carries tokens no kept document has	
+zh-53fa3030	756	11	100.0	keep		used by roundtrip.tsv	
+zh-540dc149	756	9	100.0	keep		body of a RELEASED entry	
+zh-5450d509	756	10	100.0	keep		ASSIGNMENTS bullet (not DONE); body of a OPEN entry; body of a RELEASED entry	
+zh-547fc43c	756	16	99.8	keep		below 100 combined; named in apps/OfficeApp/Tests	
+zh-54e91165	756	16	100.0	keep		carries tokens no kept document has	
+zh-55087b5f	756	8	100.0	keep		body of a CLAIMED entry	
+zh-55270438	756	24	100.0	keep		carries tokens no kept document has	
+zh-57d7a0ea	756	22	100.0	keep		carries tokens no kept document has	
+zh-57e33dec	756	14	100.0	keep		carries tokens no kept document has	
+zh-57f1de0d	756	51	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry; header RELEASED	
+zh-588ee9e3	756	12	100.0	keep		body of a CLAIMED entry	
+zh-5901e2b0	756	26	100.0	keep		used by roundtrip.tsv	
+zh-5a9a85c6	756	20	100.0	keep		body of a CLAIMED entry; header CLAIMED; named in apps/OfficeApp/Tests	
+zh-5b7ae054	756	43	100.0	keep		body of a RELEASED entry	
+zh-5be7e156	756	27	99.6	keep		below 100 combined; body of a CLAIMED entry	
+zh-5bfac68f	756	6	100.0	keep		named in apps/OfficeApp/Tests	
+zh-5c1e7a21	756	3	100.0	drop	zh-f5a71d87	every token is in the keeper	ch:002b ch:002e ch:002f ch:007e ch:2027 ch:ff0d ch:ff0e ch:ff0f char_spacing_runs fullwidth-form scripts:latin
+zh-5c6ff0d7	756	2	100.0	keep		carries tokens no kept document has	
+zh-5c7787f5	756	5	100.0	keep		body of a CLAIMED entry	
+zh-5d47a85c	756	5	100.0	drop	zh-189b6acc	every token is in the keeper	ch:0028 ch:0029 ch:002b ch:2014 ch:ff0d ch:ff0f ch:ff1a fullwidth-form
+zh-5d635acc	756	22	100.0	keep		carries tokens no kept document has	
+zh-5dc5ce34	756	21	100.0	keep		carries tokens no kept document has	
+zh-5f045fc1	756	29	100.0	keep		body of a CLAIMED entry	
+zh-5f2e209d	756	4	100.0	keep		used by roundtrip.tsv	
+zh-5f9b6549	756	4	100.0	keep		body of a CLAIMED entry	
+zh-5ff074a9	756	12	100.0	keep		carries tokens no kept document has	
+zh-60173bb6	756	14	100.0	keep		body of a CLAIMED entry	
+zh-602978ba	756	6	100.0	keep		carries tokens no kept document has	
+zh-6043ad90	756	6	100.0	keep		carries tokens no kept document has	
+zh-604e21e5	756	35	100.0	keep		body of a CLAIMED entry	
+zh-608e661b	756	4	100.0	keep		carries tokens no kept document has	
+zh-60c80728	756	33	99.7	keep		below 100 combined; named in apps/OfficeApp/Tests	
+zh-613fba74	756	5	100.0	keep		carries tokens no kept document has	
+zh-6143e5f0	756	10	100.0	keep		used by roundtrip.tsv	
+zh-619982e0	756	6	100.0	drop	zh-189b6acc	every token is in the keeper	ch:0025 ch:0028 ch:0029 ch:002b ch:002c ch:2014 ch:ff0f ch:ff1a
+zh-61a05efc	756	4	100.0	keep		carries tokens no kept document has	
+zh-61aaad09	756	3	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry; header CLAIMED; header RELEASED; named in apps/OfficeApp/Tests	
+zh-61b62a40	756	10	100.0	keep		carries tokens no kept document has	
+zh-621d8756	756	52	100.0	keep		carries tokens no kept document has	
+zh-625b6374	756	9	100.0	keep		carries tokens no kept document has	
+zh-62ae94f7	756	1	100.0	keep		carries tokens no kept document has	
+zh-633792eb	756	13	100.0	keep		body of a CLAIMED entry	
+zh-63a571aa	756	8	100.0	keep		named in apps/OfficeApp/Tests	
+zh-64044a1d	756	68	99.9	keep		below 100 combined; body of a CLAIMED entry; named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+zh-64c27df5	756	15	100.0	keep		carries tokens no kept document has	
+zh-65e6c317	756	10	100.0	keep		body of a RELEASED entry	
+zh-6600d539	756	6	100.0	keep		used by roundtrip.tsv	
+zh-66451627	756	13	100.0	keep		carries tokens no kept document has	
+zh-676e7b2d	756	20	100.0	keep		carries tokens no kept document has	
+zh-68a0ee2e	756	10	100.0	keep		body of a OPEN entry	
+zh-694447ca	756	16	99.8	keep		below 100 combined	
+zh-69bbcc3c	756	37	100.0	keep		used by roundtrip.tsv	
+zh-6a4fc013	756	27	99.7	keep		below 100 combined; body of a CLAIMED entry; body of a OPEN entry; named in apps/OfficeApp/Tests	
+zh-6aa8bd7c	756	23	100.0	keep		body of a CLAIMED entry	
+zh-6b242483	756	22	100.0	keep		body of a CLAIMED entry	
+zh-6b4b9397	756	8	100.0	keep		carries tokens no kept document has	
+zh-6bf80df7	756	4	100.0	keep		carries tokens no kept document has	
+zh-6c447317	756	20	100.0	keep		body of a CLAIMED entry	
+zh-6c568ae9	756	8	100.0	keep		used by roundtrip.tsv	
+zh-6c6adfde	756	15	100.0	keep		carries tokens no kept document has	
+zh-6c74f489	756	4	100.0	drop	zh-25381d22	every token is in the keeper	ch:002c ch:002f ch:ff0f ch:ff1a char_spacing_runs face:MicrosoftJhengHeiRegular scripts:latin tracked x:revisions
+zh-6cd1befe	756	57	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry; used by roundtrip.tsv	
+zh-6d1afa56	756	63	100.0	keep		body of a PARKED entry; header PARKED; used by roundtrip.tsv	
+zh-6d402586	756	35	99.6	keep		below 100 combined	
+zh-6de512cb	756	61	100.0	keep		carries tokens no kept document has	
+zh-6e653ca0	756	17	100.0	keep		carries tokens no kept document has	
+zh-6e6b9821	756	4	99.2	keep		below 100 combined	
+zh-6e7ff836	756	32	100.0	keep		body of a CLAIMED entry	
+zh-6fd2935e	756	10	100.0	keep		carries tokens no kept document has	
+zh-70094a34	756	19	100.0	keep		body of a RELEASED entry	
+zh-701eda18	756	7	99.6	keep		ASSIGNMENTS bullet (not DONE); below 100 combined; named in apps/OfficeApp/Tests	
+zh-70ec2a03	756	5	100.0	drop	zh-189b6acc	every token is in the keeper	ch:0025 ch:0028 ch:0029 ch:002b ch:002e ch:2014 ch:ff0d ch:ff0f fullwidth-form
+zh-71fbc1bb	756	7	100.0	drop	zh-a06ac4f2	every token is in the keeper	ch:002c
+zh-727812d5	756	2	100.0	drop	zh-51af781b	every token is in the keeper	ch:0025 ch:0028 ch:0029 ch:002a ch:002c ch:002d ch:002e ch:002f ch:003b ch:00a0 ch:00d7 ch:2014 ch:201c ch:201d ch:2264 ch:2265 ch:25a1 ch:3001 ch:3002 ch:300a ch:300b ch:3014 ch:3015 ch:ff08 ch:ff09 
+zh-72da925e	756	39	99.8	keep		accepted drop / scorer artefact line; below 100 combined; body of a CLAIMED entry; body of a OPEN entry; body of a RELEASED entry; header CLAIMED; header RELEASED; named in apps/OfficeApp/Tests	
+zh-73534289	756	33	100.0	keep		carries tokens no kept document has	
+zh-73dd512c	756	24	100.0	keep		carries tokens no kept document has	
+zh-7488a70f	756	11	100.0	keep		body of a RELEASED entry	
+zh-749cb15a	756	118	100.0	keep		named in apps/OfficeApp/Tests	
+zh-74b34f3b	756	5	100.0	keep		header PARKED	
+zh-74c58de0	756	9	100.0	keep		carries tokens no kept document has	
+zh-74ef1528	756	9	100.0	keep		carries tokens no kept document has	
+zh-753cd6a8	756	3	100.0	keep		body of a CLAIMED entry; named in apps/OfficeApp/Tests	
+zh-7654804a	756	22	100.0	keep		body of a CLAIMED entry; named in apps/OfficeApp/Tests	
+zh-76700e5f	756	10	100.0	keep		accepted drop / scorer artefact line; body of a CLAIMED entry; body of a RELEASED entry	
+zh-76cb73e2	756	11	100.0	keep		body of a CLAIMED entry; header CLAIMED	
+zh-76d361b2	756	15	100.0	keep		carries tokens no kept document has	
+zh-77079ee8	756	6	100.0	keep		carries tokens no kept document has	
+zh-7773163d	756	66	99.4	keep		below 100 combined; body of a CLAIMED entry; body of a OPEN entry; body of a PARKED entry; body of a RELEASED entry; header CLAIMED; named in apps/OfficeApp/Tests	
+zh-77bd4900	756	42	100.0	keep		body of a CLAIMED entry	
+zh-7825bf8d	756	2	100.0	keep		carries tokens no kept document has	
+zh-785d6dff	756	6	100.0	drop	zh-1b82f5d7	every token is in the keeper	
+zh-785e46f8	756	10	100.0	keep		ASSIGNMENTS bullet (not DONE); body of a CLAIMED entry	
+zh-78729cf9	756	18	100.0	keep		used by roundtrip.tsv	
+zh-788e9dae	756	10	100.0	keep		carries tokens no kept document has	
+zh-78d8bd98	756	12	100.0	keep		body of a CLAIMED entry	
+zh-796490ff	756	2	100.0	keep		carries tokens no kept document has	
+zh-799c91cd	756	11	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry; used by roundtrip.tsv	
+zh-79d08edd	756	5	100.0	drop	zh-189b6acc	every token is in the keeper	ch:0025 ch:0028 ch:0029 ch:002b ch:002c ch:002e ch:2014 ch:ff0f
+zh-7a16a243	756	32	99.9	keep		below 100 combined; body of a CLAIMED entry	
+zh-7b08d744	756	11	100.0	keep		body of a OPEN entry; body of a RELEASED entry	
+zh-7b125a21	756	105	99.9	keep		below 100 combined; body of a RELEASED entry	
+zh-7b5b3de2	756	11	100.0	keep		body of a CLAIMED entry	
+zh-7cf85f15	756	3	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry	
+zh-7dc3afad	756	24	100.0	keep		used by roundtrip.tsv	
+zh-7dd5643e	756	3	100.0	keep		carries tokens no kept document has	
+zh-7eba7349	756	11	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry; header CLAIMED	
+zh-7fd860f9	756	6	100.0	keep		body of a CLAIMED entry; body of a OPEN entry	
+zh-8112041b	756	4	100.0	keep		named in apps/OfficeApp/Tests	
+zh-8186c98d	756	16	100.0	keep		carries tokens no kept document has	
+zh-81a32de0	756	24	100.0	keep		body of a CLAIMED entry	
+zh-81aa310b	756	9	100.0	keep		accepted drop / scorer artefact line; body of a CLAIMED entry	
+zh-82b166b4	756	8	100.0	drop	zh-04f73697	every token is in the keeper	ch:0029 ch:002c ch:003a ch:003d ch:fe30
+zh-830ef10d	756	3	100.0	keep		carries tokens no kept document has	
+zh-8415d258	756	18	99.8	keep		below 100 combined; body of a CLAIMED entry; body of a RELEASED entry; header CLAIMED; header RELEASED	
+zh-84377537	756	8	100.0	drop	zh-189b6acc	every token is in the keeper	ch:0025 ch:0028 ch:0029 ch:002b ch:002c ch:002e ch:2014 ch:ff0f ch:ff1a
+zh-84702a67	756	10	100.0	keep		used by roundtrip.tsv	
+zh-849399df	756	8	100.0	keep		carries tokens no kept document has	
+zh-854a202e	756	31	100.0	keep		carries tokens no kept document has	
+zh-8628cfbe	756	43	100.0	keep		body of a CLAIMED entry; header CLAIMED; named in apps/OfficeApp/Tests	
+zh-86547e97	756	18	100.0	keep		body of a CLAIMED entry	
+zh-8666f731	756	7	100.0	keep		carries tokens no kept document has	
+zh-8699644f	756	5	100.0	keep		carries tokens no kept document has	
+zh-86aae09f	756	34	100.0	keep		carries tokens no kept document has	
+zh-875759ff	756	58	99.7	keep		below 100 combined	
+zh-877c188e	756	17	100.0	keep		carries tokens no kept document has	
+zh-881dda7b	756	1	100.0	keep		carries tokens no kept document has	
+zh-884c6e3e	756	5	100.0	keep		accepted drop / scorer artefact line; body of a CLAIMED entry; body of a PARKED entry; header CLAIMED	
+zh-8872cb39	756	3	100.0	keep		carries tokens no kept document has	
+zh-8892701a	756	18	100.0	keep		carries tokens no kept document has	
+zh-89385c94	756	14	99.8	keep		below 100 combined; used by roundtrip.tsv	
+zh-89ced60f	756	9	100.0	drop	zh-74c58de0	every token is in the keeper	
+zh-8afa5f4b	756	20	100.0	keep		carries tokens no kept document has	
+zh-8c2948a8	756	5	100.0	keep		used by roundtrip.tsv	
+zh-8c619e0c	756	6	100.0	drop	zh-b2e0f286	every token is in the keeper	autospace_de_off autospace_dn_off ch:003d ch:ff1d fullwidth-form kinsoku_off symbols
+zh-8cd03691	756	4	100.0	keep		used by roundtrip.tsv	
+zh-8d1a3d99	756	2	100.0	keep		body of a CLAIMED entry	
+zh-8d6f702e	756	42	99.8	keep		below 100 combined; body of a CLAIMED entry; body of a RELEASED entry; header CLAIMED; named in apps/OfficeApp/Tests	
+zh-8d72961c	756	2	100.0	keep		body of a RELEASED entry; named in apps/OfficeApp/Tests	
+zh-8dc59b5b	756	6	100.0	keep		body of a OPEN entry; body of a RELEASED entry	
+zh-8e6ce2ed	756	15	100.0	keep		carries tokens no kept document has	
+zh-8e8d4c40	756	4	100.0	keep		body of a CLAIMED entry; body of a PARKED entry; header CLAIMED; header PARKED; used by roundtrip.tsv	
+zh-8eb55158	756	15	100.0	drop	zh-f2441f00	every token is in the keeper	ch:002b ch:002f ch:25cb ch:ff0e ch:ff1d
+zh-8f3d7d79	756	5	100.0	keep		carries tokens no kept document has	
+zh-8f70b676	756	1	100.0	drop	zh-e2dc9dce	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002b ch:002e ch:002f ch:003d ch:003f ch:005f ch:007e ch:2026 ch:2027 ch:203b ch:25a1 ch:25cb ch:25ce ch:3000 ch:3001 ch:300a ch:300b ch:300
+zh-8f7aa519	756	12	100.0	keep		carries tokens no kept document has	
+zh-8f9b19f4	756	13	100.0	keep		body of a CLAIMED entry; body of a PARKED entry; body of a RELEASED entry; named in apps/OfficeApp/Tests	
+zh-8fa6164c	756	9	100.0	keep		carries tokens no kept document has	
+zh-903376c0	756	8	100.0	drop	zh-e74dd0a1	every token is in the keeper	breakrules_off ch:0025 ch:0028 ch:0029 ch:002b ch:002c ch:002e ch:002f ch:003a ch:00d7 ch:2014 ch:221a ch:25a1 ch:fe4d ch:ff0e char_spacing_runs compat:doNotUseEastAsianBreakRules compat:doNotUseInden
+zh-90e0cea8	756	10	100.0	keep		accepted drop / scorer artefact line; named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+zh-9162ead0	756	27	100.0	drop	zh-51af781b	every token is in the keeper	ch:0028 ch:0029 ch:002a ch:003b ch:00a0 ch:00d7 ch:2014 ch:2264 ch:2265 ch:25a1 ch:3014 ch:3015 ch:ff5e char_spacing_runs drawings_anchor drawings_inline face:Arial face:Arial Unicode MS face:Calibri 
+zh-91e44bcb	756	5	100.0	keep		used by roundtrip.tsv	
+zh-92373179	756	11	99.7	keep		below 100 combined; body of a RELEASED entry; named in apps/OfficeApp/Tests	
+zh-937b8442	756	8	100.0	drop	zh-f5a71d87	every token is in the keeper	ch:002f ch:007e ch:2027 ch:ff0d ch:ff0f char_spacing_runs fullwidth-form indent_chars overflow_off
+zh-93de9600	756	13	100.0	keep		carries tokens no kept document has	
+zh-93e855bc	756	7	100.0	drop	zh-8666f731	every token is in the keeper	breakrules_off compat:doNotUseEastAsianBreakRules compat:doNotUseIndentAsNumberingTabStop compat:doNotWrapTextWithPunct no_punct_kerning
+zh-9462c6d6	756	9	100.0	keep		named in apps/OfficeApp/Tests	
+zh-94f12659	756	24	100.0	keep		carries tokens no kept document has	
+zh-95d4dde0	756	71	99.9	keep		below 100 combined	
+zh-9636a1d5	756	10	100.0	drop	zh-319a291b	every token is in the keeper	ch:0028 ch:0029
+zh-984846dc	756	19	100.0	keep		body of a RELEASED entry	
+zh-9932bd83	756	88	100.0	keep		carries tokens no kept document has	
+zh-998727df	756	6	100.0	keep		carries tokens no kept document has	
+zh-99a5f880	756	8	100.0	keep		carries tokens no kept document has	
+zh-99d98d09	756	15	100.0	keep		carries tokens no kept document has	
+zh-9ab68137	756	7	100.0	drop	zh-0daa510e	every token is in the keeper	ch:002f ch:007e ch:00d7 ch:00f7 ch:2014 ch:3010 ch:3011 ch:ff0b ch:ff0f indent_chars pagebreak_first_before sz:18 x:gridSpan
+zh-9b778bb3	756	8	100.0	keep		carries tokens no kept document has	
+zh-9ba2ead7	756	12	100.0	keep		body of a CLAIMED entry; header CLAIMED	
+zh-9bcea239	756	17	100.0	keep		body of a RELEASED entry; named in apps/OfficeApp/Tests	
+zh-9c162f26	756	43	99.9	keep		accepted drop / scorer artefact line; below 100 combined; body of a OPEN entry; body of a PARKED entry; named in apps/OfficeApp/Tests	
+zh-9c5d0c3f	756	6	100.0	keep		used by roundtrip.tsv	
+zh-9ced0f2a	756	8	100.0	drop	zh-39f01e11	every token is in the keeper	ch:0028 ch:0029 ch:002b ch:002c ch:002f ch:003d ch:007e ch:fe59 ch:fe5a fullwidth-form
+zh-9db183d5	756	11	100.0	keep		carries tokens no kept document has	
+zh-9dd9ce6d	756	14	100.0	keep		used by roundtrip.tsv	
+zh-9de68392	756	6	100.0	keep		carries tokens no kept document has	
+zh-9e020c95	756	13	99.6	keep		below 100 combined; body of a RELEASED entry	
+zh-9e08ed28	756	21	100.0	keep		body of a CLAIMED entry; used by roundtrip.tsv	
+zh-9e8c1a98	756	22	100.0	keep		body of a RELEASED entry	
+zh-9ef811c8	756	9	100.0	keep		named in apps/OfficeApp/Tests	
+zh-9efdda47	756	40	100.0	keep		carries tokens no kept document has	
+zh-9f24d3eb	756	4	100.0	keep		carries tokens no kept document has	
+zh-a031fa16	756	4	100.0	keep		carries tokens no kept document has	
+zh-a06ac4f2	756	7	100.0	keep		carries tokens no kept document has	
+zh-a07193b8	756	10	100.0	drop	zh-b2e0f286	every token is in the keeper	ch:0028 ch:0029 ch:ff1d symbols
+zh-a0e932c2	756	5	100.0	keep		used by roundtrip.tsv	
+zh-a14072cc	756	1	100.0	keep		used by roundtrip.tsv	
+zh-a2aef793	756	17	100.0	keep		carries tokens no kept document has	
+zh-a2ecabd6	756	13	100.0	keep		carries tokens no kept document has	
+zh-a383ef50	756	8	100.0	drop	zh-f2441f00	every token is in the keeper	ch:0028 ch:0029 ch:002b ch:002c ch:002f ch:007e ch:2014 ch:25cb ch:ff0e ch:ff1d face:DFKaiShu fullwidth-form
+zh-a3cd108c	756	15	100.0	keep		carries tokens no kept document has	
+zh-a498e874	756	7	100.0	keep		body of a CLAIMED entry	
+zh-a4b0f6ea	756	22	100.0	keep		body of a CLAIMED entry; used by roundtrip.tsv	
+zh-a4e8599d	756	4	100.0	keep		carries tokens no kept document has	
+zh-a503bd3f	756	13	100.0	drop	zh-f2441f00	every token is in the keeper	ch:002b ch:002f ch:007e ch:2014 ch:2500 ch:25cb ch:ff0e ch:ff1d face:DFKaiShu fullwidth-form
+zh-a5745784	756	9	100.0	drop	zh-e2dc9dce	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002b ch:002d ch:002e ch:002f ch:003a ch:003d ch:003f ch:005f ch:007e ch:2026 ch:2027 ch:203b ch:25a1 ch:25cb ch:25ce ch:3000 ch:300a ch:300
+zh-a5e2c3fa	756	10	100.0	keep		used by roundtrip.tsv	
+zh-a7728bc9	756	2	100.0	keep		used by roundtrip.tsv	
+zh-a78d52e7	756	23	100.0	keep		carries tokens no kept document has	
+zh-a7a889eb	756	41	99.9	keep		below 100 combined; body of a RELEASED entry; named in apps/OfficeApp/Tests	
+zh-a917e13c	756	7	100.0	keep		named in apps/OfficeApp/Tests	
+zh-aa3f29a0	756	18	100.0	drop	zh-0fb84ee5	every token is in the keeper	langs_ea:zh-HK
+zh-ab1ea005	756	67	100.0	keep		body of a CLAIMED entry	
+zh-ab34d9cb	756	14	100.0	keep		body of a CLAIMED entry	
+zh-ab9cbe66	756	79	99.5	keep		below 100 combined; body of a CLAIMED entry	
+zh-abe7e063	756	12	100.0	keep		used by roundtrip.tsv	
+zh-ac627439	756	16	100.0	keep		used by roundtrip.tsv	
+zh-ac9f4f2c	756	1	100.0	keep		carries tokens no kept document has	
+zh-ace21d69	756	5	100.0	keep		carries tokens no kept document has	
+zh-ace7f6b2	756	2	100.0	drop	zh-4a2ab598	every token is in the keeper	breakrules_off ch:0026 ch:0028 ch:0029 ch:002b ch:002c ch:002d ch:003a ch:2014 ch:201c ch:201d ch:2264 ch:25b2 ch:2605 ch:300a ch:300b ch:ff05 compat:doNotUseEastAsianBreakRules compat:doNotUseIndentA
+zh-aceb5de3	756	39	100.0	keep		carries tokens no kept document has	
+zh-ad1e59ac	756	10	100.0	keep		carries tokens no kept document has	
+zh-ad224275	756	8	100.0	keep		carries tokens no kept document has	
+zh-ad9f4be1	756	4	100.0	keep		carries tokens no kept document has	
+zh-adc9538a	756	9	100.0	keep		carries tokens no kept document has	
+zh-adfe24a7	756	8	100.0	keep		used by roundtrip.tsv	
+zh-ae2dd08d	756	81	99.6	keep		below 100 combined; body of a CLAIMED entry	
+zh-ae3d78ee	756	33	100.0	keep		used by roundtrip.tsv	
+zh-ae655121	756	10	99.5	keep		below 100 combined; used by roundtrip.tsv	
+zh-ae79c618	756	12	100.0	keep		carries tokens no kept document has	
+zh-aeb49414	756	14	100.0	keep		carries tokens no kept document has	
+zh-afdd4a7e	756	8	100.0	drop	zh-f2441f00	every token is in the keeper	ch:0028 ch:0029 ch:002b ch:002c ch:002f ch:007e ch:2014 ch:2500 ch:25cb ch:ff0e ch:ff1d face:DFKaiShu fullwidth-form
+zh-b00fef0d	756	21	100.0	keep		body of a CLAIMED entry; body of a PARKED entry	
+zh-b0207333	756	9	100.0	keep		carries tokens no kept document has	
+zh-b0401810	756	19	100.0	keep		accepted drop / scorer artefact line; body of a CLAIMED entry; body of a PARKED entry	
+zh-b13d0fb4	756	8	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry	
+zh-b163c300	756	6	100.0	drop	zh-b58b4f0c	every token is in the keeper	ch:0025 ch:0026 ch:002b ch:002e ch:002f ch:003b ch:007e ch:ff0d ch:ff1a char_spacing_runs snap_off x:tabCenter x:tabRight
+zh-b1ccd1c2	756	15	100.0	keep		carries tokens no kept document has	
+zh-b24b396a	756	14	93.9	keep		accepted drop / scorer artefact line; below 100 combined; body of a CLAIMED entry; body of a RELEASED entry; header RELEASED	
+zh-b2e0f286	756	11	99.8	keep		below 100 combined; body of a CLAIMED entry; named in apps/OfficeApp/Tests	
+zh-b378d8c4	756	39	100.0	keep		body of a CLAIMED entry	
+zh-b3def805	756	17	100.0	keep		carries tokens no kept document has	
+zh-b3e887f7	756	7	100.0	keep		carries tokens no kept document has	
+zh-b3e8dec4	756	4	100.0	keep		carries tokens no kept document has	
+zh-b4d36718	756	25	100.0	keep		named in apps/OfficeApp/Tests	
+zh-b52c9233	756	18	100.0	keep		carries tokens no kept document has	
+zh-b5359de4	756	14	100.0	keep		body of a CLAIMED entry; header CLAIMED	
+zh-b56eeded	756	7	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+zh-b58b4f0c	756	14	99.8	keep		below 100 combined; named in apps/OfficeApp/Tests	
+zh-b5c0aa73	756	5	100.0	drop	zh-189b6acc	every token is in the keeper	ch:0025 ch:0028 ch:0029 ch:002b ch:002e ch:2014 ch:ff0d ch:ff0f ch:ff1a fullwidth-form
+zh-b62c9e11	756	15	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry	
+zh-b70df23f	756	16	100.0	keep		carries tokens no kept document has	
+zh-b711dc64	756	4	100.0	keep		carries tokens no kept document has	
+zh-b76a6636	756	19	100.0	keep		carries tokens no kept document has	
+zh-b84fecff	756	5	100.0	keep		body of a PARKED entry	
+zh-b875d786	756	7	100.0	keep		carries tokens no kept document has	
+zh-b8de3ae2	756	29	98.5	keep		accepted drop / scorer artefact line; below 100 combined; body of a CLAIMED entry; body of a OPEN entry; body of a PARKED entry; body of a RELEASED entry; header CLAIMED; named in apps/OfficeApp/Tests	
+zh-b9af65b5	756	11	100.0	keep		named in apps/OfficeApp/Tests	
+zh-ba93078c	756	6	100.0	keep		carries tokens no kept document has	
+zh-bbbb2e6a	756	13	100.0	keep		body of a CLAIMED entry	
+zh-bc645304	756	2	100.0	drop	zh-20ff844e	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0026 ch:0028 ch:0029 ch:002a ch:002b ch:002d ch:002e ch:002f ch:003b ch:003d ch:00b7 ch:201c ch:201d ch:2026 ch:2215 ch:2264 ch:2265 ch:3001 ch:3002 ch:300
+zh-bc6eda4e	756	4	100.0	keep		used by roundtrip.tsv	
+zh-bd4bc6ce	756	9	100.0	drop	zh-0daa510e	every token is in the keeper	ch:0025 ch:002c ch:002f ch:007e ch:00d7 ch:00f7 ch:2014 ch:3000 ch:3010 ch:3011 ch:ff0b ch:ff0d ch:ff0f ch:ff1a ch:ff62 char_spacing_runs fullwidth-form indent_chars pagebreak_first_before sz:18 x:gri
+zh-bd6f1bb5	756	2	100.0	keep		carries tokens no kept document has	
+zh-bd71a808	756	8	100.0	drop	zh-189b6acc	every token is in the keeper	ch:0025 ch:0028 ch:0029 ch:002b ch:002c ch:002e ch:2014 ch:ff0f ch:ff1a
+zh-bdae17c0	756	71	99.6	keep		below 100 combined; body of a CLAIMED entry	
+zh-bdb5c9c3	756	3	100.0	drop	zh-b2e0f286	every token is in the keeper	autospace_de_off autospace_dn_off ch:0028 ch:0029 ch:003d ch:ff1d fullwidth-form kinsoku_off symbols
+zh-bee0b6d8	756	16	100.0	keep		carries tokens no kept document has	
+zh-befe020e	756	13	100.0	keep		carries tokens no kept document has	
+zh-bfe04e2f	756	9	100.0	keep		body of a PARKED entry; header RELEASED	
+zh-c0ac6f55	756	5	100.0	keep		body of a CLAIMED entry	
+zh-c0e22afc	756	4	100.0	keep		carries tokens no kept document has	
+zh-c10532da	756	82	100.0	keep		carries tokens no kept document has	
+zh-c10f67de	756	4	100.0	keep		carries tokens no kept document has	
+zh-c15af02e	756	24	99.6	keep		below 100 combined; body of a CLAIMED entry; named in apps/OfficeApp/Tests	
+zh-c2229d4a	756	12	100.0	keep		body of a OPEN entry	
+zh-c25d08c5	756	28	99.9	keep		below 100 combined	
+zh-c2b13410	756	3	100.0	keep		body of a RELEASED entry	
+zh-c2c92639	756	54	99.6	keep		accepted drop / scorer artefact line; below 100 combined; body of a RELEASED entry; header RELEASED	
+zh-c2cd4b3f	756	14	99.7	keep		below 100 combined	
+zh-c2f6d17a	756	37	99.8	keep		below 100 combined; body of a CLAIMED entry; body of a RELEASED entry	
+zh-c34269bd	756	9	100.0	keep		body of a CLAIMED entry	
+zh-c399c91a	756	7	100.0	keep		body of a CLAIMED entry; body of a OPEN entry	
+zh-c3dd22c4	756	17	100.0	keep		used by roundtrip.tsv	
+zh-c4491c11	756	14	100.0	keep		carries tokens no kept document has	
+zh-c4eb4b19	756	1	100.0	keep		carries tokens no kept document has	
+zh-c4f2be3b	756	39	100.0	keep		carries tokens no kept document has	
+zh-c55dd6e5	756	14	100.0	drop	zh-0daa510e	every token is in the keeper	ch:002f ch:007e ch:2014 ch:ff0f ch:ff62 indent_chars
+zh-c591c1fa	756	12	100.0	keep		body of a CLAIMED entry; header CLAIMED	
+zh-c599aaa1	756	6	100.0	keep		carries tokens no kept document has	
+zh-c5b5087b	756	11	100.0	keep		body of a CLAIMED entry; header CLAIMED; named in apps/OfficeApp/Tests	
+zh-c5f59397	756	10	100.0	keep		body of a CLAIMED entry	
+zh-c6ab068c	756	13	100.0	keep		carries tokens no kept document has	
+zh-c6da60a9	756	13	99.6	keep		below 100 combined	
+zh-c757b0b1	756	12	100.0	drop	zh-73534289	every token is in the keeper	ch:002b ch:007e ch:2026 ch:ff0f ch:ff1c ch:ff1e ch:ff5e rows_atleast
+zh-c7fa439d	756	5	100.0	keep		carries tokens no kept document has	
+zh-c8cb5395	756	8	100.0	drop	zh-ea5c4a33	every token is in the keeper	fullwidth-form
+zh-c8eb6e92	756	27	100.0	keep		carries tokens no kept document has	
+zh-c92f964c	756	16	100.0	drop	zh-02873533	every token is in the keeper	
+zh-c97500b6	756	34	100.0	keep		body of a CLAIMED entry	
+zh-c9d38b65	756	26	100.0	keep		carries tokens no kept document has	
+zh-c9e78499	756	4	100.0	keep		carries tokens no kept document has	
+zh-c9f4d690	756	25	100.0	keep		named in apps/OfficeApp/Tests	
+zh-ca3ab35c	756	20	100.0	keep		carries tokens no kept document has	
+zh-cad6b8ca	756	22	100.0	keep		carries tokens no kept document has	
+zh-cada2385	756	18	100.0	keep		carries tokens no kept document has	
+zh-cb3ddfec	756	5	100.0	drop	zh-189b6acc	every token is in the keeper	ch:0028 ch:0029 ch:002b ch:2014 ch:ff0d ch:ff0f ch:ff1a fullwidth-form
+zh-cb56e605	756	7	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry	
+zh-cb57eaad	756	5	100.0	keep		carries tokens no kept document has	
+zh-cb63e9e3	756	2	100.0	keep		carries tokens no kept document has	
+zh-cbc2f113	756	13	100.0	drop	zh-abe7e063	every token is in the keeper	lang_default_ea=zh-CN
+zh-cc200612	756	1	100.0	keep		carries tokens no kept document has	
+zh-cc7a08e8	756	6	100.0	keep		body of a PARKED entry	
+zh-cccb5dbf	756	10	100.0	drop	zh-db93607e	every token is in the keeper	autospace_de_off autospace_dn_off breakrules_off char_spacing_runs compat:doNotSnapToGridInCell compat:doNotUseEastAsianBreakRules compat:doNotWrapTextWithPunct compat:growAutofit sz:10 sz:4 sz:6
+zh-cd48112c	756	7	98.9	keep		below 100 combined; body of a CLAIMED entry; named in apps/OfficeApp/Tests	
+zh-cd8987db	756	12	99.7	keep		below 100 combined; body of a RELEASED entry; header RELEASED; named in apps/OfficeApp/Tests	
+zh-cea91125	756	6	100.0	keep		carries tokens no kept document has	
+zh-cebc72ff	756	26	100.0	keep		carries tokens no kept document has	
+zh-cec9d337	756	21	99.8	keep		below 100 combined; body of a CLAIMED entry; body of a PARKED entry; named in apps/OfficeApp/Tests	
+zh-cee3c784	756	19	100.0	keep		carries tokens no kept document has	
+zh-cf8b03a5	756	11	100.0	keep		ASSIGNMENTS bullet (not DONE)	
+zh-cfb32050	756	24	100.0	keep		carries tokens no kept document has	
+zh-d0a207ac	756	16	100.0	keep		body of a CLAIMED entry	
+zh-d0bfd38c	756	64	100.0	drop	zh-17749c13	every token is in the keeper	
+zh-d0eb9f43	756	10	100.0	drop	zh-f2441f00	every token is in the keeper	ch:0028 ch:0029 ch:002b ch:002c ch:002f ch:007e ch:2014 ch:2500 ch:25cb ch:ff0e ch:ff1d face:DFKaiShu
+zh-d18c892e	756	3	100.0	drop	zh-3c9bda5c	every token is in the keeper	
+zh-d35cbbdb	756	8	100.0	keep		body of a CLAIMED entry; body of a OPEN entry	
+zh-d3d3f266	756	22	100.0	keep		carries tokens no kept document has	
+zh-d45f16c4	756	10	100.0	keep		carries tokens no kept document has	
+zh-d5afc6d9	756	12	100.0	keep		carries tokens no kept document has	
+zh-d5c3e058	756	12	100.0	keep		carries tokens no kept document has	
+zh-d5cc99a6	756	11	100.0	keep		carries tokens no kept document has	
+zh-d62da4dd	756	4	95.0	keep		accepted drop / scorer artefact line; below 100 combined; body of a CLAIMED entry; body of a PARKED entry; body of a RELEASED entry; header CLAIMED	
+zh-d68ac84a	756	53	100.0	keep		used by roundtrip.tsv	
+zh-d746674a	756	14	100.0	keep		named in apps/OfficeApp/Tests	
+zh-d79c7f82	756	6	100.0	keep		carries tokens no kept document has	
+zh-d8247da5	756	1	100.0	keep		body of a CLAIMED entry	
+zh-d89c3840	756	4	100.0	keep		carries tokens no kept document has	
+zh-d950cedb	756	14	100.0	drop	zh-95d4dde0	every token is in the keeper	breakrules_off ch:0026 ch:0028 ch:0029 ch:002b ch:002c ch:003b ch:00d7 ch:3008 ch:3009 ch:ff05 char_scale char_spacing_runs compat:doNotUseEastAsianBreakRules compat:doNotUseIndentAsNumberingTabStop c
+zh-d9563f2f	756	13	100.0	keep		carries tokens no kept document has	
+zh-d97c5474	756	2	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry; named in apps/OfficeApp/Tests	
+zh-d9b085b1	756	20	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry	
+zh-da4cc8ee	756	2	100.0	keep		carries tokens no kept document has	
+zh-da56ab3a	756	15	100.0	keep		carries tokens no kept document has	
+zh-db07d44e	756	42	99.9	keep		below 100 combined; body of a OPEN entry; named in apps/OfficeApp/Tests	
+zh-db93607e	756	9	100.0	keep		used by roundtrip.tsv	
+zh-dc25c47e	756	13	100.0	keep		carries tokens no kept document has	
+zh-dc9cfa34	756	10	100.0	keep		body of a CLAIMED entry; header CLAIMED	
+zh-dc9e54ca	756	4	100.0	keep		body of a CLAIMED entry	
+zh-dd4c6e05	756	5	100.0	keep		carries tokens no kept document has	
+zh-de073ee5	756	6	100.0	keep		body of a PARKED entry; header PARKED	
+zh-de3410bd	756	8	100.0	keep		carries tokens no kept document has	
+zh-de97afa7	756	13	100.0	keep		carries tokens no kept document has	
+zh-deb6743b	756	19	100.0	keep		carries tokens no kept document has	
+zh-df505e38	756	8	100.0	keep		carries tokens no kept document has	
+zh-df9310bd	756	8	100.0	keep		carries tokens no kept document has	
+zh-dfe38128	756	14	100.0	keep		carries tokens no kept document has	
+zh-e0268388	756	41	100.0	keep		carries tokens no kept document has	
+zh-e029cf49	756	12	100.0	keep		used by roundtrip.tsv	
+zh-e02b0479	756	2	100.0	keep		carries tokens no kept document has	
+zh-e061a08e	756	13	100.0	keep		used by roundtrip.tsv	
+zh-e076bb5a	756	2	100.0	drop	zh-e7bdb543	every token is in the keeper	lang_default_ea=zh-CN
+zh-e0ca7252	756	50	99.8	keep		accepted drop / scorer artefact line; below 100 combined; body of a OPEN entry; body of a RELEASED entry; named in apps/OfficeApp/Tests	
+zh-e1b09977	756	20	100.0	keep		body of a CLAIMED entry	
+zh-e27cd8bf	756	23	100.0	keep		body of a OPEN entry; used by roundtrip.tsv	
+zh-e2dc2598	756	17	100.0	drop	zh-6e653ca0	every token is in the keeper	
+zh-e2dc9dce	756	47	99.9	keep		below 100 combined; body of a CLAIMED entry; body of a PARKED entry; body of a RELEASED entry; named in apps/OfficeApp/Tests	
+zh-e329b438	756	5	100.0	keep		body of a CLAIMED entry; named in apps/OfficeApp/Tests	
+zh-e37f8d40	756	14	100.0	keep		named in apps/OfficeApp/Tests; used by roundtrip.tsv	
+zh-e49d7943	756	22	100.0	keep		body of a CLAIMED entry; body of a PARKED entry; header CLAIMED	
+zh-e4ef4c4d	756	5	100.0	keep		carries tokens no kept document has	
+zh-e51c31a7	756	8	99.6	keep		accepted drop / scorer artefact line; below 100 combined; body of a CLAIMED entry; body of a RELEASED entry	
+zh-e5709b89	756	12	100.0	keep		used by roundtrip.tsv	
+zh-e5eb092a	756	8	100.0	keep		body of a CLAIMED entry; named in apps/OfficeApp/Tests	
+zh-e61c3dff	756	11	99.6	keep		below 100 combined	
+zh-e64d4997	756	12	100.0	drop	zh-73534289	every token is in the keeper	autospace_de_off autospace_dn_off ch:002b ch:007e ch:2026 ch:ff0f ch:ff1c ch:ff1e ch:ff5e char_spacing_runs fullwidth-form rows_atleast sz:16
+zh-e653f583	756	12	100.0	keep		body of a PARKED entry; header PARKED	
+zh-e68a2f57	756	60	99.8	keep		below 100 combined; body of a CLAIMED entry; body of a PARKED entry; body of a RELEASED entry; named in apps/OfficeApp/Tests	
+zh-e6d54ae4	756	7	100.0	keep		used by roundtrip.tsv	
+zh-e74dd0a1	756	134	99.9	keep		below 100 combined; named in apps/OfficeApp/Tests	
+zh-e7bdb543	756	2	100.0	keep		body of a CLAIMED entry	
+zh-e8bf8b42	756	23	100.0	keep		carries tokens no kept document has	
+zh-e8d4c046	756	1	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry	
+zh-e923e69d	756	10	100.0	drop	zh-312c4194	every token is in the keeper	ch:002c ch:007e ch:2014 ch:2500 fullwidth-form
+zh-e9616b2b	756	5	100.0	keep		carries tokens no kept document has	
+zh-e9e8874a	756	4	100.0	drop	zh-b2e0f286	every token is in the keeper	autospace_de_off autospace_dn_off ch:0028 ch:0029 ch:002c ch:003d ch:300c ch:300d ch:ff1b ch:ff1d kinsoku_off symbols
+zh-e9f256c1	756	12	100.0	keep		carries tokens no kept document has	
+zh-ea1fe16b	756	6	100.0	keep		carries tokens no kept document has	
+zh-ea43dd6d	756	9	99.5	keep		below 100 combined	
+zh-ea4a6aa8	756	7	100.0	keep		carries tokens no kept document has	
+zh-ea5c4a33	756	10	100.0	keep		carries tokens no kept document has	
+zh-ea70c30e	756	8	100.0	keep		named in apps/OfficeApp/Tests	
+zh-eb54d3b0	756	16	100.0	keep		body of a CLAIMED entry	
+zh-eb577c58	756	20	100.0	keep		carries tokens no kept document has	
+zh-ebdec5ec	756	8	100.0	keep		carries tokens no kept document has	
+zh-ebea6d03	756	5	100.0	drop	zh-1078e06f	every token is in the keeper	
+zh-ec01ed87	756	9	100.0	keep		carries tokens no kept document has	
+zh-ec1b6f63	756	55	100.0	keep		carries tokens no kept document has	
+zh-ec6158d0	756	7	100.0	keep		body of a CLAIMED entry	
+zh-ec8f908f	756	2	100.0	keep		carries tokens no kept document has	
+zh-eccb2003	756	24	100.0	keep		carries tokens no kept document has	
+zh-ee2d19e6	756	12	100.0	keep		carries tokens no kept document has	
+zh-ee484cb1	756	10	100.0	keep		carries tokens no kept document has	
+zh-ee7c2e9b	756	5	100.0	drop	zh-189b6acc	every token is in the keeper	ch:0025 ch:0028 ch:0029 ch:002b ch:002e ch:2014 ch:ff0d ch:ff0f fullwidth-form
+zh-ee9d81b3	756	5	100.0	keep		named in apps/OfficeApp/Tests	
+zh-eec0747a	756	33	100.0	keep		body of a CLAIMED entry	
+zh-eecf4918	756	2	100.0	drop	zh-e68a2f57	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0026 ch:002b ch:002c ch:002e ch:003a ch:003b ch:00a0 ch:00b0 ch:00b1 ch:00d7 ch:2014 ch:201c ch:201d ch:2026 ch:2030 ch:2264 ch:2265 ch:25a1 ch:25b2 ch:25b
+zh-ef1dd71c	756	1	100.0	drop	zh-20c1d74a	every token is in the keeper	autospace_dn_off ch:0025 ch:002c ch:002d ch:002f ch:003f ch:005f ch:2026 ch:25a1 ch:25cb ch:25ce ch:3008 ch:3009 ch:300c ch:300d ch:ff08 ch:ff09 ch:ff0c ch:ff0f ch:ff1a ch:ff1b ch:ff1f char_spacing_ru
+zh-efd9229a	756	4	100.0	keep		carries tokens no kept document has	
+zh-f01f268a	756	10	100.0	keep		carries tokens no kept document has	
+zh-f0bd9ea8	756	15	100.0	keep		carries tokens no kept document has	
+zh-f10c8f34	756	12	100.0	keep		carries tokens no kept document has	
+zh-f145c451	756	4	100.0	keep		carries tokens no kept document has	
+zh-f1dd911a	756	8	100.0	drop	zh-db93607e	every token is in the keeper	autospace_de_off autospace_dn_off breakrules_off char_spacing_runs compat:doNotSnapToGridInCell compat:doNotUseEastAsianBreakRules compat:doNotWrapTextWithPunct compat:growAutofit sz:10 sz:4 sz:6
+zh-f1f73836	756	40	100.0	keep		carries tokens no kept document has	
+zh-f2441f00	756	23	100.0	keep		body of a CLAIMED entry	
+zh-f2835e26	756	7	100.0	keep		body of a CLAIMED entry	
+zh-f2ca3070	756	34	99.9	keep		below 100 combined; body of a CLAIMED entry; named in apps/OfficeApp/Tests	
+zh-f2cf109b	756	20	100.0	keep		carries tokens no kept document has	
+zh-f2f9b7db	756	10	100.0	drop	zh-04f73697	every token is in the keeper	ch:0029 ch:002c ch:003a ch:003d ch:fe30
+zh-f3802561	756	23	100.0	keep		carries tokens no kept document has	
+zh-f39e54b6	756	5	100.0	keep		body of a CLAIMED entry; body of a OPEN entry	
+zh-f43c9edf	756	17	100.0	keep		carries tokens no kept document has	
+zh-f47b8a74	756	59	99.7	keep		below 100 combined; body of a CLAIMED entry; body of a RELEASED entry	
+zh-f5183dcd	756	6	100.0	drop	zh-04f73697	every token is in the keeper	breakrules_off ch:0029 ch:002c ch:003a ch:003d ch:fe30 compat:doNotSnapToGridInCell compat:doNotUseEastAsianBreakRules compat:doNotWrapTextWithPunct compat:growAutofit
+zh-f59a76e9	756	34	99.7	keep		below 100 combined	
+zh-f5a71d87	756	14	100.0	keep		carries tokens no kept document has	
+zh-f619d0f7	756	28	100.0	keep		carries tokens no kept document has	
+zh-f6686f89	756	22	100.0	keep		carries tokens no kept document has	
+zh-f6886fbb	756	15	100.0	keep		body of a CLAIMED entry	
+zh-f784cc40	756	6	100.0	keep		carries tokens no kept document has	
+zh-f94d11c5	756	13	100.0	keep		used by roundtrip.tsv	
+zh-fa2da613	756	31	100.0	keep		carries tokens no kept document has	
+zh-fa7a52b1	756	10	100.0	keep		carries tokens no kept document has	
+zh-faccbb01	756	8	99.7	keep		below 100 combined	
+zh-fb482d33	756	6	100.0	keep		carries tokens no kept document has	
+zh-fce5583d	756	3	100.0	drop	zh-20ff844e	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0026 ch:0028 ch:0029 ch:002a ch:002b ch:002d ch:003b ch:003d ch:00b7 ch:201c ch:201d ch:2026 ch:2215 ch:2264 ch:2265 ch:3001 ch:3002 ch:300a ch:300b ch:301
+zh-fd4c6b86	756	17	100.0	keep		body of a RELEASED entry	
+zh-fe536967	756	40	100.0	keep		carries tokens no kept document has	
+zh-fea6e23a	756	7	100.0	drop	zh-b3e887f7	every token is in the keeper	
+zh-fec5fa30	756	55	99.8	keep		below 100 combined; body of a OPEN entry	
+zh-ff93733d	756	5	100.0	keep		carries tokens no kept document has	
+zh-ffc79f27	756	8	100.0	keep		carries tokens no kept document has	
+lo-000463df	lo	4	100.0	keep		carries tokens no kept document has	
+lo-00253c62	lo	2	100.0	keep		carries tokens no kept document has	
+lo-00895ac5	lo	1	100.0	keep		carries tokens no kept document has	
+lo-011c6ecd	lo	2	100.0	keep		carries tokens no kept document has	
+lo-01484854	lo	1	100.0	keep		carries tokens no kept document has	
+lo-015d52ef	lo	1	100.0	keep		carries tokens no kept document has	
+lo-015dbec5	lo	7	100.0	keep		carries tokens no kept document has	
+lo-01d7b0e5	lo	3	100.0	keep		body of a CLAIMED entry	
+lo-027a2c20	lo	1	100.0	keep		carries tokens no kept document has	
+lo-029954d7	lo	1	100.0	keep		named in apps/OfficeApp/Tests	
+lo-02c5b89d	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-0349db3a	lo	6	100.0	keep		carries tokens no kept document has	
+lo-03dc8c7c	lo	3	100.0	keep		carries tokens no kept document has	
+lo-0551e29e	lo	1	100.0	keep		carries tokens no kept document has	
+lo-0622682c	lo	1	100.0	keep		body of a PARKED entry	
+lo-0627e9c1	lo	1	100.0	keep		named in apps/OfficeApp/Tests	
+lo-06933f8e	lo	2	100.0	keep		body of a CLAIMED entry	
+lo-069707e4	lo	3	100.0	keep		carries tokens no kept document has	
+lo-0725bffd	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-075bce95	lo	2	100.0	keep		carries tokens no kept document has	
+lo-0770373f	lo	1	100.0	keep		history: moved 90.0->100.0 in be9afca07 (lo.v2) while its keeper lo-810cd0df did not; no commit in the range names it	
+lo-085e8dbb	lo	3	100.0	keep		carries tokens no kept document has	
+lo-088e2078	lo	1	100.0	drop	zh-b8de3ae2	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002c ch:002d ch:002e ch:002f ch:003a ch:007e ch:2026 ch:3001 ch:3002 ch:300c ch:300d ch:ff08 ch:ff09 ch:ff0c ch:ff0d ch:ff1a ch:ff1b char_s
+lo-08b61fb0	lo	1	100.0	keep		carries tokens no kept document has	
+lo-090b2205	lo	2	100.0	keep		carries tokens no kept document has	
+lo-09677d0b	lo	1	100.0	drop	lo-931c88e9	every token is in the keeper	ch:002c ch:002e ch:003a face:Arial face:Calibri face:CourierNew face:SimSun face:Symbol face:Tahoma face:TimesNewRoman face:Wingdings ftr:default ftr:even ftr:first hdr:default hdr:even hdr:first lang
+lo-099d1f3b	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-09ae12a5	lo	3	100.0	keep		carries tokens no kept document has	
+lo-09f49b68	lo	1	100.0	keep		carries tokens no kept document has	
+lo-0a475ed1	lo	1	100.0	keep		accepted drop / scorer artefact line	
+lo-0b140d34	lo	3	100.0	keep		carries tokens no kept document has	
+lo-0b6eee77	lo	1	100.0	drop	lo-5c5eb1f7	every token is in the keeper	ch:003a ch:003d ch:0040 face:Calibri face:CourierNew face:Symbol face:Tahoma face:TimesNewRoman face:Wingdings frames images langs_ea:ja-JP lists picts rows_atleast sz:16 sz:18 sz:20 sz:24 sz:28 sz:32
+lo-0ceaa045	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-0dd5bc0a	lo	1	100.0	keep		carries tokens no kept document has	
+lo-0df0276d	lo	1	100.0	drop	zh-b8de3ae2	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002c ch:002d ch:002e ch:002f ch:003a ch:007e ch:2026 ch:3001 ch:3002 ch:300c ch:300d ch:ff08 ch:ff09 ch:ff0c ch:ff0d ch:ff1a ch:ff1b char_s
+lo-112dd44a	lo	1	100.0	keep		carries tokens no kept document has	
+lo-11ad5a95	lo	3	100.0	keep		body of a CLAIMED entry; named in apps/OfficeApp/Tests	
+lo-11e501e0	lo	2	100.0	keep		carries tokens no kept document has	
+lo-1205239e	lo	4	100.0	keep		carries tokens no kept document has	
+lo-12398162	lo	1	100.0	keep		carries tokens no kept document has	
+lo-12baa2d9	lo	1	100.0	drop	lo-4885bf76	every token is in the keeper	face:Tahoma textboxes
+lo-12ec4f19	lo	1	100.0	keep		carries tokens no kept document has	
+lo-130300df	lo	1	100.0	keep		carries tokens no kept document has	
+lo-133254f0	lo	2	100.0	keep		carries tokens no kept document has	
+lo-137891e5	lo	1	100.0	drop	bug59058	every token is in the keeper	ch:0023 ch:0025 ch:0026 ch:0027 ch:0028 ch:0029 ch:002a ch:002b ch:002c ch:002d ch:002e ch:002f ch:003a ch:003b ch:003d ch:003f ch:0040 ch:005b ch:005c ch:005d ch:005f ch:007e ch:00a0 ch:00a7 ch:00a8 
+lo-13d91f2d	lo	1	100.0	keep		carries tokens no kept document has	
+lo-13f6ca33	lo	1	100.0	keep		history: moved 38.1->100.0 in e1bd3ea2a (lo.v2) while its keeper lo-717ff943 did not; no commit in the range names it	
+lo-144b33d2	lo	1	100.0	keep		carries tokens no kept document has	
+lo-14656c7f	lo	1	100.0	keep		carries tokens no kept document has	
+lo-148591d5	lo	2	100.0	keep		named in apps/OfficeApp/Tests	
+lo-152d87fe	lo	1	100.0	keep		carries tokens no kept document has	
+lo-158005c9	lo	2	100.0	keep		body of a CLAIMED entry	
+lo-158ec986	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-15c5d6cd	lo	1	100.0	keep		carries tokens no kept document has	
+lo-16d1ab43	lo	2	100.0	drop	lo-931c88e9	every token is in the keeper	ch:003a ftr:even ftr:first hdr:even hdr:first sz:28
+lo-1709e655	lo	2	100.0	keep		body of a CLAIMED entry	
+lo-170a2ec0	lo	1	100.0	drop	bug59058	every token is in the keeper	ch:0023 ch:0025 ch:0026 ch:0027 ch:0028 ch:0029 ch:002a ch:002b ch:002c ch:002e ch:002f ch:003a ch:003b ch:003d ch:003f ch:0040 ch:005b ch:005c ch:005d ch:005f ch:007e ch:00a0 ch:00a7 ch:00a8 ch:00a9 
+lo-17ef47ca	lo	1	100.0	keep		carries tokens no kept document has	
+lo-185f3a0e	lo	1	100.0	drop	zh-b8de3ae2	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002c ch:002d ch:002e ch:002f ch:003a ch:007e ch:2026 ch:3001 ch:3002 ch:300c ch:300d ch:ff08 ch:ff09 ch:ff0c ch:ff0d ch:ff1a ch:ff1b char_s
+lo-1960d9df	lo	1	100.0	keep		carries tokens no kept document has	
+lo-198cd200	lo	2	100.0	keep		body of a CLAIMED entry; named in apps/OfficeApp/Tests	
+lo-1a09ce52	lo	4	100.0	keep		body of a CLAIMED entry	
+lo-1ad591e9	lo	1	100.0	drop	lo-c657ba7d	every token is in the keeper	ch:0025 ch:0028 ch:0029 ch:002f ch:003a ch:003d ch:00a0 ch:00ab ch:00bb ch:2013 ch:2026 ch:20ac drawings_anchor drawings_inline face:Arial face:Calibri face:CourierNew face:Symbol face:Tahoma face:Tim
+lo-1ad81b17	lo	1	100.0	keep		carries tokens no kept document has	
+lo-1adf1d29	lo	1	100.0	drop	lo-5c5eb1f7	every token is in the keeper	ch:002e ch:003a ch:003d ch:0040 face:Calibri face:CourierNew face:Symbol face:TimesNewRoman face:Wingdings images langs_ea:ja-JP lists picts rows_atleast sz:16 sz:18 sz:20 sz:24 sz:28 sz:32 sz:36 tab_
+lo-1bd2003e	lo	1	100.0	keep		body of a CLAIMED entry; body of a PARKED entry	
+lo-1c56bb13	lo	1	100.0	keep		carries tokens no kept document has	
+lo-1daff819	lo	1	100.0	keep		carries tokens no kept document has	
+lo-1dee0523	lo	1	100.0	keep		carries tokens no kept document has	
+lo-1e0077c3	lo	2	100.0	keep		named in apps/OfficeApp/Tests	
+lo-1e474d4f	lo	1	100.0	keep		carries tokens no kept document has	
+lo-1e563001	lo	4	100.0	keep		carries tokens no kept document has	
+lo-1e6077df	lo	1	100.0	keep		accepted drop / scorer artefact line	
+lo-1e8fa600	lo	1	100.0	drop	zh-b8de3ae2	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002c ch:002d ch:002e ch:002f ch:003a ch:007e ch:2026 ch:3001 ch:3002 ch:300c ch:300d ch:ff08 ch:ff09 ch:ff0c ch:ff0d ch:ff1a ch:ff1b char_s
+lo-1f0928b9	lo	3	100.0	keep		carries tokens no kept document has	
+lo-1f8f612f	lo	2	100.0	drop	lo-836b334c	every token is in the keeper	char_spacing_runs line_exact sections>=3 sz:20 tabs
+lo-1fd6c41b	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-20ac0c45	lo	1	100.0	drop	lo-0770373f	every token is in the keeper	
+lo-20f5d558	lo	2	100.0	keep		body of a PARKED entry	
+lo-22161dc3	lo	2	100.0	drop	lo-cc084a84	every token is in the keeper	ch:0028 ch:0029 ch:002d ch:00ab ch:00bb drawings_anchor face:Arial face:Calibri face:CourierNew face:SegoeCondensed face:SegoeUI face:Symbol face:Tahoma face:TimesNewRoman face:Verdana face:Wingdings 
+lo-222628bc	lo	1	100.0	keep		carries tokens no kept document has	
+lo-22765157	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-22a53e2b	lo	1	100.0	keep		accepted drop / scorer artefact line	
+lo-22b9d6c3	lo	1	100.0	keep		carries tokens no kept document has	
+lo-23180ba1	lo	3	100.0	keep		body of a CLAIMED entry	
+lo-235e3561	lo	2	100.0	keep		carries tokens no kept document has	
+lo-24edac16	lo	1	100.0	drop	lo-9c6cc479	every token is in the keeper	autospace_de_off autospace_dn_off ch:0028 ch:0029 ch:002c ch:002e ch:002f ch:003a ch:005b ch:005d ch:005f drawings_anchor face:Arial face:CourierNew face:Symbol face:Tahoma face:TimesNewRoman face:Win
+lo-258ce53b	lo	1	100.0	drop	lo-7afc5602	every token is in the keeper	char_spacing_runs columns>=2 face:CourierNew face:SegoeUI face:Symbol face:TimesNewRoman face:Wingdings ftr:default ftr:even ftr:first hdr:default hdr:even hdr:first hf_textboxes jc_both langs_ea:es-E
+lo-25c072f7	lo	1	100.0	drop	lo-c657ba7d	every token is in the keeper	ch:0025 ch:0028 ch:0029 ch:002c ch:002f ch:003a ch:003d ch:00a0 ch:00ab ch:00bb ch:2013 ch:2026 ch:20ac drawings_anchor drawings_inline face:Arial face:Calibri face:CourierNew face:Symbol face:Tahoma 
+lo-25cc9bdd	lo	2	100.0	keep		carries tokens no kept document has	
+lo-25ea410e	lo	5	100.0	keep		carries tokens no kept document has	
+lo-26604da8	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-266e1df0	lo	1	100.0	keep		carries tokens no kept document has	
+lo-26c6feb9	lo	2	100.0	keep		carries tokens no kept document has	
+lo-27446c66	lo	6	100.0	keep		carries tokens no kept document has	
+lo-27918bf0	lo	2	100.0	keep		body of a CLAIMED entry	
+lo-28bd8930	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-28f9b886	lo	4	100.0	keep		ASSIGNMENTS bullet (not DONE)	
+lo-297bc5cd	lo	2	100.0	keep		carries tokens no kept document has	
+lo-297f6740	lo	2	100.0	drop	lo-9fbe1646	every token is in the keeper	ch:0026 ch:0028 ch:0029 ch:002e ch:003b face:AdvPS88D1 face:Times face:TimesNewRoman fields hf_frames hf_page_field jc_both lang_default_ea=en-US langs_ea:en-US sections>=3 sz:16 sz:20 sz:22 sz:28 sz:
+lo-2a59c98f	lo	2	100.0	keep		carries tokens no kept document has	
+lo-2adcf966	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-2c492205	lo	1	100.0	keep		carries tokens no kept document has	
+lo-2c55cb41	lo	1	100.0	keep		carries tokens no kept document has	
+lo-2c85bb14	lo	1	100.0	keep		carries tokens no kept document has	
+lo-2ce80753	lo	1	100.0	drop	lo-406a95f2	every token is in the keeper	ch:0024 ch:0025 ch:002c ch:002e ch:2014 face:Calibri face:TimesNewRoman jc_both langs_ea:es-ES langs_ea:ru-RU picts sz:28 vml x:behindDoc x:wrapTight
+lo-2d0cbd06	lo	4	100.0	keep		history: moved 6.2->100.0 in 732a45d29 (lo.v2) while its keeper zh-ae2dd08d did not; no commit in the range names it	
+lo-2d55573e	lo	2	100.0	drop	lo-f3312cb1	every token is in the keeper	frames title_page x:contSect
+lo-2dc13fbc	lo	2	100.0	keep		body of a CLAIMED entry	
+lo-2e7cb950	lo	4	100.0	drop	lo-a7c17673	every token is in the keeper	ch:002d ftr:default ftr:even ftr:first hdr:first landscape sections>=2 title_page
+lo-2eb00a73	lo	1	100.0	keep		carries tokens no kept document has	
+lo-31b823c9	lo	1	100.0	drop	bug59058	every token is in the keeper	ch:0023 ch:0025 ch:0026 ch:0027 ch:0028 ch:0029 ch:002a ch:002b ch:002c ch:002d ch:002f ch:003a ch:003b ch:003d ch:003f ch:0040 ch:005b ch:005c ch:005d ch:005f ch:007e ch:00a0 ch:00a7 ch:00a8 ch:00a9 
+lo-32419eb1	lo	1	100.0	drop	lo-cc084a84	every token is in the keeper	ch:0028 ch:0029 ch:002d ch:00ab ch:00bb drawings_anchor face:Arial face:Calibri face:CourierNew face:SegoeCondensed face:Symbol face:Tahoma face:TimesNewRoman face:Verdana face:Wingdings face:Wingding
+lo-32545a25	lo	1	100.0	keep		carries tokens no kept document has	
+lo-32f641b3	lo	1	100.0	keep		carries tokens no kept document has	
+lo-33c1e410	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-33cd23d8	lo	1	100.0	keep		carries tokens no kept document has	
+lo-349ce5e9	lo	1	100.0	keep		carries tokens no kept document has	
+lo-34a3d8a6	lo	1	100.0	keep		carries tokens no kept document has	
+lo-35ae94b3	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-36398db3	lo	1	100.0	drop	zh-b8de3ae2	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002c ch:002d ch:002e ch:002f ch:003a ch:007e ch:2026 ch:3001 ch:3002 ch:300c ch:300d ch:ff08 ch:ff09 ch:ff0c ch:ff0d ch:ff1a ch:ff1b char_s
+lo-36828905	lo	1	100.0	drop	zh-b8de3ae2	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002c ch:002d ch:002e ch:002f ch:003a ch:007e ch:2026 ch:3001 ch:3002 ch:300c ch:300d ch:ff08 ch:ff09 ch:ff0c ch:ff0d ch:ff1a ch:ff1b char_s
+lo-3685d1f7	lo	1	100.0	keep		carries tokens no kept document has	
+lo-373ee508	lo	1	100.0	keep		carries tokens no kept document has	
+lo-382401e9	lo	2	100.0	keep		carries tokens no kept document has	
+lo-38c4ff8a	lo	1	100.0	drop	zh-7773163d	every token is in the keeper	autospace_de_off autospace_dn_off ch:0028 ch:0029 ch:002c ch:002d ch:002e ch:002f ch:003a ch:005b ch:005d ch:00a7 ch:203b ch:2192 ch:25cb ch:25ce ch:25cf ch:3001 ch:3002 ch:300c ch:300d ch:3010 ch:301
+lo-38e0894c	lo	1	100.0	keep		carries tokens no kept document has	
+lo-395a4293	lo	1	100.0	keep		carries tokens no kept document has	
+lo-396f5587	lo	1	100.0	keep		carries tokens no kept document has	
+lo-3a0ca937	lo	1	100.0	keep		carries tokens no kept document has	
+lo-3a105ce5	lo	2	100.0	keep		carries tokens no kept document has	
+lo-3b33e295	lo	3	100.0	keep		carries tokens no kept document has	
+lo-3bc15974	lo	1	100.0	keep		carries tokens no kept document has	
+lo-3c0b22bb	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-3cc0740b	lo	1	100.0	drop	lo-810cd0df	every token is in the keeper	autospace_de_off autospace_dn_off ch:002c ch:002e face:Arial face:SegoeUI face:TimesNewRoman langs_ea:de-DE line_exact overflow_off sz:14 tab_stops tracked x:revisions
+lo-3cf1f018	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-3f1a88bc	lo	1	100.0	drop	bug59058	every token is in the keeper	ch:0023 ch:0025 ch:0026 ch:0027 ch:0028 ch:0029 ch:002a ch:002b ch:002c ch:002d ch:002e ch:002f ch:003a ch:003b ch:003d ch:003f ch:0040 ch:005b ch:005c ch:005d ch:005f ch:007e ch:00a0 ch:00a7 ch:00a8 
+lo-3ff36705	lo	1	100.0	drop	zh-b8de3ae2	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002c ch:002d ch:002f ch:003a ch:007e ch:2026 ch:3001 ch:3002 ch:300c ch:300d ch:ff08 ch:ff09 ch:ff0c ch:ff0d ch:ff1a ch:ff1b char_scale cha
+lo-406a95f2	lo	1	100.0	keep		accepted drop / scorer artefact line	
+lo-40949e85	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-40ccdb65	lo	1	100.0	keep		carries tokens no kept document has	
+lo-413892fe	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-415c2398	lo	2	100.0	keep		body of a CLAIMED entry	
+lo-41f726ef	lo	4	100.0	keep		body of a CLAIMED entry	
+lo-42331045	lo	9	100.0	keep		carries tokens no kept document has	
+lo-425b63cb	lo	2	100.0	keep		body of a PARKED entry	
+lo-428f189f	lo	1	100.0	drop	lo-e9f1e369	every token is in the keeper	rows_atleast
+lo-42fdd548	lo	1	100.0	drop	lo-7afc5602	every token is in the keeper	ch:002c ch:002e ch:201c ch:201d char_spacing_runs columns>=2 drawings_anchor face:CourierNew face:SegoeUI face:Symbol face:TimesNewRoman face:Wingdings ftr:default ftr:even ftr:first hdr:default hdr:e
+lo-43795e41	lo	3	100.0	keep		body of a CLAIMED entry	
+lo-43db5218	lo	1	100.0	keep		named in apps/OfficeApp/Tests	
+lo-43ffd8cb	lo	1	100.0	keep		carries tokens no kept document has	
+lo-452c2f0f	lo	1	100.0	drop	lo-60124a3f	every token is in the keeper	x:tabCenter x:tabRight
+lo-454e14c2	lo	1	100.0	keep		carries tokens no kept document has	
+lo-462f70fc	lo	1	100.0	keep		carries tokens no kept document has	
+lo-469a5520	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-4729718d	lo	1	100.0	keep		carries tokens no kept document has	
+lo-47598455	lo	2	100.0	keep		accepted drop / scorer artefact line	
+lo-47f8ee21	lo	1	100.0	keep		accepted drop / scorer artefact line	
+lo-486c3092	lo	1	100.0	keep		carries tokens no kept document has	
+lo-486e8e62	lo	1	100.0	keep		named in apps/OfficeApp/Tests	
+lo-4885bf76	lo	1	100.0	keep		carries tokens no kept document has	
+lo-488c442d	lo	1	100.0	keep		accepted drop / scorer artefact line; body of a CLAIMED entry	
+lo-48f9e064	lo	1	100.0	keep		carries tokens no kept document has	
+lo-4939a74c	lo	1	100.0	keep		carries tokens no kept document has	
+lo-496593e5	lo	5	100.0	keep		named in apps/OfficeApp/Tests	
+lo-4aa10ac2	lo	10	100.0	keep		carries tokens no kept document has	
+lo-4aa628bd	lo	1	100.0	keep		carries tokens no kept document has	
+lo-4aa850a1	lo	1	100.0	drop	zh-ae2dd08d	every token is in the keeper	autospace_de_off autospace_dn_off ch:0023 ch:0024 ch:0025 ch:0028 ch:0029 ch:002a ch:002b ch:002c ch:002d ch:002e ch:002f ch:003a ch:003d ch:003f ch:005f ch:007e ch:00a0 ch:00f7 ch:2019 ch:2027 ch:203
+lo-4c2ac4f7	lo	1	100.0	drop	zh-b8de3ae2	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002c ch:002d ch:002e ch:002f ch:003a ch:007e ch:2026 ch:3001 ch:3002 ch:300c ch:300d ch:ff08 ch:ff09 ch:ff0c ch:ff0d ch:ff1a ch:ff1b char_s
+lo-4c748aab	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-4c84a541	lo	1	100.0	drop	lo-cc084a84	every token is in the keeper	ch:0028 ch:0029 ch:002d ch:00ab ch:00bb drawings_anchor face:Arial face:Calibri face:CourierNew face:SegoeCondensed face:SegoeUI face:Symbol face:Tahoma face:TimesNewRoman face:Verdana face:Wingdings 
+lo-4d273731	lo	1	100.0	keep		body of a PARKED entry	
+lo-4dc8da49	lo	1	100.0	keep		carries tokens no kept document has	
+lo-4dd08ddc	lo	4	100.0	drop	lo-a7c17673	every token is in the keeper	even_odd ftr:default ftr:even ftr:first hdr:even landscape sections>=2
+lo-4dec07ec	lo	1	100.0	keep		carries tokens no kept document has	
+lo-4ef2ff3c	lo	1	100.0	keep		carries tokens no kept document has	
+lo-4f5353c6	lo	2	100.0	keep		carries tokens no kept document has	
+lo-512aa398	lo	3	100.0	keep		carries tokens no kept document has	
+lo-51b81ccd	lo	1	100.0	keep		carries tokens no kept document has	
+lo-520b5689	lo	1	100.0	keep		carries tokens no kept document has	
+lo-521a4e3e	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-52da6bc6	lo	2	100.0	keep		body of a CLAIMED entry	
+lo-536b79ce	lo	2	100.0	keep		carries tokens no kept document has	
+lo-544bbcb9	lo	2	100.0	drop	lo-b8885ba2	every token is in the keeper	ch:0022 ch:0026 ch:0028 ch:0029 ch:002c ch:002d ch:002f ch:003b ch:00a0 ch:00b4 ch:2019 ch:201c ch:201d face:Arial jc_both lists nobreak_hyphen_or_nbsp tab_stops x:widowOff
+lo-544f3da6	lo	1	100.0	keep		named in apps/OfficeApp/Tests	
+lo-54e24e50	lo	1	100.0	keep		carries tokens no kept document has	
+lo-554c0386	lo	2	100.0	keep		carries tokens no kept document has	
+lo-55c89a76	lo	1	100.0	drop	lo-c490d65b	every token is in the keeper	ch:002c ch:002e face:TimesNewRoman images picts sz:18 sz:20 sz:23 table_depth>=2 vml
+lo-563123f3	lo	2	100.0	drop	lo-6880a1aa	every token is in the keeper	ch:0026 ch:0028 ch:0029 ch:002d ch:002f ch:003a ch:003b ch:003f ch:2018 ch:2019 ch:201c ch:201d ch:2026 face:Noto Sans ftr:default hf_frames hf_page_field jc_both langs_ea:es-ES sz:22 sz:32 sz:36 titl
+lo-569d1b68	lo	1	100.0	keep		carries tokens no kept document has	
+lo-5700a8ed	lo	2	100.0	keep		carries tokens no kept document has	
+lo-5718b6f2	lo	1	100.0	drop	lo-406a95f2	every token is in the keeper	ch:0024 ch:0025 ch:002c ch:002e ch:2014 face:Calibri face:TimesNewRoman jc_both langs_ea:es-ES langs_ea:ru-RU picts sz:28 vml x:behindDoc x:wrapTight
+lo-57486ea9	lo	1	100.0	keep		carries tokens no kept document has	
+lo-57bc4e3f	lo	1	100.0	keep		carries tokens no kept document has	
+lo-587930f8	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-5897b12e	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-58cba335	lo	1	100.0	keep		carries tokens no kept document has	
+lo-59877f0b	lo	5	100.0	keep		carries tokens no kept document has	
+lo-5a78fd37	lo	1	100.0	keep		named in apps/OfficeApp/Tests	
+lo-5a97a8ea	lo	3	100.0	keep		carries tokens no kept document has	
+lo-5afb2204	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-5afd43f9	lo	1	100.0	keep		carries tokens no kept document has	
+lo-5b86b731	lo	1	100.0	keep		carries tokens no kept document has	
+lo-5b86f976	lo	1	100.0	drop	lo-09f49b68	every token is in the keeper	
+lo-5b9540e9	lo	5	100.0	keep		carries tokens no kept document has	
+lo-5c28b8d5	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-5c58126b	lo	3	100.0	keep		carries tokens no kept document has	
+lo-5c5eb1f7	lo	6	100.0	keep		accepted drop / scorer artefact line; body of a CLAIMED entry	
+lo-5c656cf8	lo	3	100.0	keep		accepted drop / scorer artefact line	
+lo-5c8f35c7	lo	1	100.0	keep		carries tokens no kept document has	
+lo-5d11d4a3	lo	2	100.0	keep		carries tokens no kept document has	
+lo-5d16f81b	lo	3	100.0	keep		accepted drop / scorer artefact line	
+lo-5dd4380f	lo	1	100.0	keep		carries tokens no kept document has	
+lo-5e49366b	lo	1	100.0	drop	zh-ae2dd08d	every token is in the keeper	autospace_de_off autospace_dn_off ch:0023 ch:0024 ch:0025 ch:0028 ch:0029 ch:002a ch:002b ch:002c ch:002d ch:002e ch:002f ch:003a ch:003d ch:003f ch:005f ch:007e ch:00a0 ch:00f7 ch:2019 ch:2027 ch:203
+lo-5e808096	lo	3	100.0	keep		carries tokens no kept document has	
+lo-5f963836	lo	1	100.0	keep		carries tokens no kept document has	
+lo-5fb33643	lo	1	100.0	drop	zh-b8de3ae2	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002c ch:002d ch:002f ch:003a ch:007e ch:2026 ch:3001 ch:3002 ch:300c ch:300d ch:ff08 ch:ff09 ch:ff0c ch:ff0d ch:ff1a ch:ff1b char_scale cha
+lo-60124a3f	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-60fd9368	lo	2	100.0	keep		accepted drop / scorer artefact line	
+lo-61f8f967	lo	1	100.0	drop	bib-chernigovka.netdo.ru_download_docs_17459	every token is in the keeper	ch:0028 ch:0029 ch:002c ch:002d ch:003a ch:005b ch:005d ch:00a0 ch:00ab ch:00bb ch:2019 face:Arial face:CourierNew face:Impact face:TimesNewRoman face:Verdana images langs_ea:ru-RU line_atleast nobrea
+lo-62f37fcc	lo	1	100.0	keep		carries tokens no kept document has	
+lo-63a91a19	lo	1	100.0	keep		carries tokens no kept document has	
+lo-6451fc26	lo	1	100.0	keep		carries tokens no kept document has	
+lo-64d032bf	lo	1	100.0	keep		carries tokens no kept document has	
+lo-65650bf1	lo	1	100.0	keep		carries tokens no kept document has	
+lo-658e8a53	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-660753a9	lo	2	100.0	keep		named in apps/OfficeApp/Tests	
+lo-662686b2	lo	1	100.0	keep		carries tokens no kept document has	
+lo-67232137	lo	1	100.0	keep		carries tokens no kept document has	
+lo-67635bac	lo	2	100.0	keep		carries tokens no kept document has	
+lo-677416be	lo	1	100.0	keep		body of a PARKED entry	
+lo-67c1eac8	lo	1	100.0	keep		carries tokens no kept document has	
+lo-6820b6a5	lo	3	100.0	keep		carries tokens no kept document has	
+lo-686a8dc9	lo	1	100.0	drop	zh-ae2dd08d	every token is in the keeper	autospace_de_off autospace_dn_off ch:0023 ch:0024 ch:0025 ch:0028 ch:0029 ch:002a ch:002b ch:002c ch:002d ch:002e ch:002f ch:003a ch:003d ch:003f ch:005f ch:007e ch:00a0 ch:00f7 ch:2019 ch:2027 ch:203
+lo-6880a1aa	lo	10	100.0	keep		carries tokens no kept document has	
+lo-69459b42	lo	4	100.0	keep		carries tokens no kept document has	
+lo-697c2375	lo	1	100.0	keep		carries tokens no kept document has	
+lo-6a5857f2	lo	6	100.0	keep		carries tokens no kept document has	
+lo-6a997675	lo	1	100.0	keep		carries tokens no kept document has	
+lo-6adfb44a	lo	2	100.0	keep		carries tokens no kept document has	
+lo-6b28a6c4	lo	1	100.0	drop	bug59058	every token is in the keeper	ch:0023 ch:0025 ch:0026 ch:0027 ch:0028 ch:0029 ch:002a ch:002b ch:002c ch:002d ch:002f ch:003a ch:003b ch:003d ch:003f ch:0040 ch:005b ch:005c ch:005d ch:005f ch:007e ch:00a0 ch:00a7 ch:00a8 ch:00a9 
+lo-6b6ece9c	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-6b7d4262	lo	2	100.0	keep		carries tokens no kept document has	
+lo-6b9b80a5	lo	1	100.0	drop	lo-09f49b68	every token is in the keeper	
+lo-6ccf0ac0	lo	2	100.0	keep		accepted drop / scorer artefact line	
+lo-6ce19e99	lo	1	100.0	keep		carries tokens no kept document has	
+lo-6e3ed3e7	lo	2	100.0	drop	lo-6ccf0ac0	every token is in the keeper	scripts:latin table_depth>=3 tables_floating x:caps x:kern
+lo-6e4ea74b	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-6e71a4d5	lo	1	100.0	keep		carries tokens no kept document has	
+lo-6e93e16d	lo	1	100.0	keep		carries tokens no kept document has	
+lo-6f698ba2	lo	2	100.0	keep		carries tokens no kept document has	
+lo-70b5bc87	lo	1	100.0	keep		carries tokens no kept document has	
+lo-717ff943	lo	1	100.0	keep		accepted drop / scorer artefact line	
+lo-71890ab3	lo	6	100.0	keep		carries tokens no kept document has	
+lo-72370bc4	lo	1	100.0	drop	lo-5c5eb1f7	every token is in the keeper	ch:002e ch:003a ch:003d ch:0040 face:Calibri face:CourierNew face:Symbol face:Tahoma face:Wingdings frames images langs_ea:ja-JP lists picts sz:16 sz:18 sz:20 sz:24 sz:28 sz:32 sz:36 tab_stops table_d
+lo-7271065f	lo	2	100.0	drop	lo-3b33e295	every token is in the keeper	ch:0028 ch:0029 ch:002a ch:002c ch:002d ch:002e ch:002f ch:003a ch:003f ch:005f ch:00a0 face:Arial face:Calibri face:CourierNew face:Symbol face:Tahoma face:TimesNewRoman face:Wingdings hyperlinks nob
+lo-72a4e3a9	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-72e72396	lo	2	100.0	keep		ASSIGNMENTS bullet (not DONE); used by clock.tsv	
+lo-73312d3d	lo	1	100.0	drop	60316	every token is in the keeper	ch:0021 ch:002c ch:002d ch:002e ch:003f ch:005b ch:005d ch:2019 drawings_anchor face:Calibri face:CourierNew face:Symbol face:Wingdings ftr:default ftr:even ftr:first hdr:default hdr:even hdr:first hf
+lo-73f1dccc	lo	1	100.0	drop	zh-b8de3ae2	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002c ch:002d ch:002e ch:002f ch:003a ch:007e ch:2026 ch:3001 ch:3002 ch:300c ch:300d ch:ff08 ch:ff09 ch:ff0c ch:ff0d ch:ff1a ch:ff1b char_s
+lo-744a14ed	lo	3	100.0	keep		carries tokens no kept document has	
+lo-74bd0b2f	lo	1	100.0	keep		carries tokens no kept document has	
+lo-75a4a49b	lo	1	100.0	keep		carries tokens no kept document has	
+lo-7607206e	lo	2	100.0	keep		carries tokens no kept document has	
+lo-761d0b40	lo	2	100.0	drop	lo-c657ba7d	every token is in the keeper	ch:0025 ch:0028 ch:0029 ch:002c ch:002f ch:003a ch:003d ch:00a0 ch:00ab ch:00bb ch:2013 ch:2026 ch:20ac drawings_anchor drawings_inline face:Arial face:Calibri face:CourierNew face:Symbol face:Tahoma 
+lo-76c4f856	lo	1	100.0	keep		carries tokens no kept document has	
+lo-76e8e9cd	lo	1	100.0	drop	lo-488c442d	every token is in the keeper	x:tabCenter x:tabRight
+lo-782edaea	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-79583fa0	lo	2	100.0	keep		named in apps/OfficeApp/Tests	
+lo-795d4603	lo	1	100.0	keep		carries tokens no kept document has	
+lo-79680f48	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-796c371e	lo	1	100.0	keep		carries tokens no kept document has	
+lo-7a2c3063	lo	2	100.0	keep		carries tokens no kept document has	
+lo-7a7b6f1b	lo	1	100.0	keep		carries tokens no kept document has	
+lo-7ab8dbc4	lo	1	100.0	keep		used by clock.tsv	
+lo-7afc5602	lo	2	100.0	keep		carries tokens no kept document has	
+lo-7b8ccfbe	lo	1	100.0	keep		carries tokens no kept document has	
+lo-7c394e05	lo	1	100.0	keep		carries tokens no kept document has	
+lo-7cba9019	lo	1	100.0	keep		carries tokens no kept document has	
+lo-7d161ef7	lo	2	100.0	keep		carries tokens no kept document has	
+lo-7d75ba19	lo	1	100.0	keep		carries tokens no kept document has	
+lo-7de905dc	lo	1	100.0	keep		carries tokens no kept document has	
+lo-7e277da1	lo	1	100.0	drop	lo-a197b7a8	every token is in the keeper	ch:0022 ch:0023 ch:0024 ch:0025 ch:0026 ch:0028 ch:0029 ch:002a ch:002b ch:002d ch:002e ch:002f ch:003a ch:003b ch:003d ch:003f ch:0040 ch:005b ch:005c ch:005d ch:005e ch:005f ch:0060 ch:007b ch:007c 
+lo-7e788bd7	lo	1	100.0	keep		carries tokens no kept document has	
+lo-7ec36a70	lo	1	100.0	keep		ASSIGNMENTS bullet (not DONE); body of a PARKED entry	
+lo-7fd81082	lo	10	100.0	drop	lo-d1e88d77	every token is in the keeper	ch:0023 ch:002a ch:0040 ch:005b ch:005c ch:005d ch:007c ch:2019 ch:201e fields hyperlinks lists x:ref
+lo-8091c411	lo	1	100.0	drop	lo-512aa398	every token is in the keeper	ch:002e endnotes face:CourierNew face:Symbol face:TimesNewRoman face:Wingdings footnotes ftr:default hdr:first hf_page_field landscape langs_ea:hu-HU rows_atleast scripts:latin tables tables_merged ti
+lo-80da0207	lo	1	100.0	drop	lo-fc75bd78	every token is in the keeper	ch:0027 ch:002c ch:002e ch:003f drawings_inline images
+lo-810cd0df	lo	1	100.0	keep		carries tokens no kept document has	
+lo-811b5975	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-813a93eb	lo	5	100.0	keep		carries tokens no kept document has	
+lo-817b02d4	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-818c4607	lo	1	100.0	keep		carries tokens no kept document has	
+lo-82511cfe	lo	1	100.0	drop	zh-ae2dd08d	every token is in the keeper	autospace_de_off autospace_dn_off ch:0023 ch:0024 ch:0025 ch:0028 ch:0029 ch:002a ch:002b ch:002c ch:002d ch:002e ch:002f ch:003a ch:003d ch:003f ch:005f ch:007e ch:00a0 ch:00f7 ch:2019 ch:2027 ch:203
+lo-82a03040	lo	1	100.0	keep		accepted drop / scorer artefact line	
+lo-836b334c	lo	2	100.0	keep		carries tokens no kept document has	
+lo-836f4a95	lo	1	100.0	keep		history: moved 0.0->100.0 in e1bd3ea2a (lo.v2) while its keeper lo-8ef061f8 did not; no commit in the range names it	
+lo-83c47ec6	lo	1	100.0	keep		carries tokens no kept document has	
+lo-83f286ac	lo	1	100.0	keep		carries tokens no kept document has	
+lo-83fd931a	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-8413c3eb	lo	3	100.0	keep		carries tokens no kept document has	
+lo-8480280e	lo	1	100.0	keep		carries tokens no kept document has	
+lo-84a48df2	lo	2	100.0	keep		accepted drop / scorer artefact line	
+lo-85172189	lo	1	100.0	keep		carries tokens no kept document has	
+lo-853c06a0	lo	1	100.0	keep		accepted drop / scorer artefact line	
+lo-857cd132	lo	3	100.0	keep		carries tokens no kept document has	
+lo-8595affd	lo	3	100.0	keep		carries tokens no kept document has	
+lo-85c92eee	lo	1	100.0	drop	lo-c4927bf5	every token is in the keeper	ch:003a drawings_anchor face:Mangal fields images kinsoku_on langs_ea:zxx page_breaks pagebreak_first pagebreak_para x:seq
+lo-8743d336	lo	1	100.0	keep		carries tokens no kept document has	
+lo-87d425e7	lo	1	100.0	drop	lo-12ec4f19	every token is in the keeper	
+lo-885976a3	lo	1	100.0	keep		carries tokens no kept document has	
+lo-8882730a	lo	1	100.0	keep		named in apps/OfficeApp/Tests	
+lo-88b29958	lo	1	100.0	keep		carries tokens no kept document has	
+lo-88dbf98c	lo	2	100.0	keep		carries tokens no kept document has	
+lo-8928a1e9	lo	0	100.0	keep		ASSIGNMENTS bullet (not DONE); visual-scored (no text lines; the replay cannot see it)	
+lo-896eea1d	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-89daf93d	lo	3	100.0	keep		carries tokens no kept document has	
+lo-8a950028	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-8ab44df5	lo	2	100.0	keep		ASSIGNMENTS bullet (not DONE); accepted drop / scorer artefact line	
+lo-8ab9b90f	lo	1	100.0	keep		body of a PARKED entry	
+lo-8b6d9004	lo	1	100.0	keep		carries tokens no kept document has	
+lo-8bd99b19	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-8c9436cd	lo	6	100.0	keep		carries tokens no kept document has	
+lo-8c97b9a2	lo	1	100.0	keep		accepted drop / scorer artefact line	
+lo-8ccd581d	lo	1	100.0	keep		carries tokens no kept document has	
+lo-8cdeaea8	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-8d362295	lo	2	100.0	drop	lo-26c6feb9	every token is in the keeper	autospace_de_off autospace_dn_off ch:0023 endnotes face:Arial face:Calibri face:Cambria face:CambriaMath face:Consolas face:CourierNew face:DemosEFOP-Medium face:Meta Offc face:SegoeUI face:SimSun fac
+lo-8d6e2681	lo	1	100.0	drop	lo-158005c9	every token is in the keeper	ch:0025 ch:002c ch:002d ch:002e ch:002f char_spacing_runs drawings_anchor face:Arial face:CG Times (WN) face:Noto Sans face:TimesNewRoman frames images langs_ea:es-CL langs_ea:es-ES lists rows_atleast
+lo-8ea09362	lo	3	100.0	drop	lo-425b63cb	every token is in the keeper	ch:0027 ch:002c ch:002e ch:003f
+lo-8ed8394b	lo	2	100.0	keep		carries tokens no kept document has	
+lo-8ef061f8	lo	1	100.0	keep		carries tokens no kept document has	
+lo-8ffe6370	lo	1	100.0	keep		carries tokens no kept document has	
+lo-90484c01	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-9106c8ec	lo	1	100.0	drop	lo-b8d932d6	every token is in the keeper	drawings_anchor langs_ea:en-GB picts rtl scripts:latin sdt textboxes title_page vml wps_shapes x:bidi x:wps
+lo-91816702	lo	1	100.0	keep		accepted drop / scorer artefact line	
+lo-91e56c04	lo	1	100.0	keep		body of a PARKED entry	
+lo-92110660	lo	1	100.0	drop	lo-836f4a95	every token is in the keeper	picts vml
+lo-9265c87e	lo	1	100.0	drop	lo-6e71a4d5	every token is in the keeper	ch:0021 ch:002d ch:002e ch:003a drawings_anchor hdr:default images smartart x:smartart x:tabCenter
+lo-931c88e9	lo	2	100.0	keep		carries tokens no kept document has	
+lo-932b76a1	lo	1	100.0	drop	lo-64d032bf	every token is in the keeper	ch:002d face:Arial face:Calibri fields langs_ea:de-DE rows_atleast tables tables_floating x:seq
+lo-93d26fdd	lo	1	100.0	keep		carries tokens no kept document has	
+lo-93dbabf8	lo	2	100.0	keep		carries tokens no kept document has	
+lo-94176665	lo	1	100.0	drop	bug59058	every token is in the keeper	ch:0023 ch:0025 ch:0026 ch:0027 ch:0028 ch:0029 ch:002a ch:002b ch:002c ch:002d ch:002e ch:002f ch:003a ch:003b ch:003d ch:003f ch:0040 ch:005b ch:005c ch:005d ch:005f ch:007e ch:00a0 ch:00a7 ch:00a8 
+lo-9444eb35	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-948cd424	lo	1	100.0	keep		body of a CLAIMED entry; body of a PARKED entry	
+lo-94db95ac	lo	1	100.0	keep		carries tokens no kept document has	
+lo-95de9983	lo	2	100.0	keep		carries tokens no kept document has	
+lo-9602a021	lo	1	100.0	drop	lo-09f49b68	every token is in the keeper	
+lo-960414e4	lo	1	100.0	drop	lo-1e474d4f	every token is in the keeper	ch:002e face:Aptos face:Noto Sans CJK SC face:Noto Sans Devanagari face:TimesNewRoman images picts sdt textboxes vml wordart x:behindDoc x:caps x:contentctl x:hyphen x:kern
+lo-972bbdc0	lo	2	100.0	keep		carries tokens no kept document has	
+lo-9749f2b5	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-97a7ead0	lo	1	100.0	keep		carries tokens no kept document has	
+lo-97bce3f6	lo	1	100.0	keep		carries tokens no kept document has	
+lo-97d1c939	lo	1	100.0	drop	lo-09f49b68	every token is in the keeper	
+lo-9803e8f6	lo	2	100.0	drop	lo-e1104feb	every token is in the keeper	
+lo-983ce30f	lo	1	100.0	keep		accepted drop / scorer artefact line	
+lo-9851fe4d	lo	1	100.0	keep		carries tokens no kept document has	
+lo-9864ba48	lo	1	100.0	keep		carries tokens no kept document has	
+lo-99590fe5	lo	1	100.0	keep		carries tokens no kept document has	
+lo-998868b6	lo	2	100.0	keep		carries tokens no kept document has	
+lo-9a272a5d	lo	1	100.0	keep		carries tokens no kept document has	
+lo-9a2bcefe	lo	1	100.0	keep		carries tokens no kept document has	
+lo-9aa6b2d9	lo	1	100.0	keep		carries tokens no kept document has	
+lo-9ab85980	lo	1	100.0	keep		carries tokens no kept document has	
+lo-9bb072ca	lo	1	100.0	keep		carries tokens no kept document has	
+lo-9c5dc9ad	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-9c6cc479	lo	3	100.0	keep		carries tokens no kept document has	
+lo-9cc5d6ef	lo	2	100.0	drop	lo-425b63cb	every token is in the keeper	ch:0027 ch:002c ch:002e ch:003f
+lo-9cce1f79	lo	3	100.0	keep		carries tokens no kept document has	
+lo-9cce40f9	lo	1	100.0	keep		carries tokens no kept document has	
+lo-9d2d78c1	lo	1	100.0	drop	Bug54849	every token is in the keeper	ch:002f ch:005f endnotes ftr:default hdr:default scripts:latin sdt tab_stops tables tabs x:contentctl x:endnoteRefs x:tabCenter x:tabRight
+lo-9e08e489	lo	1	100.0	drop	lo-c1656999	every token is in the keeper	ch:002e
+lo-9e88222d	lo	1	100.0	keep		history: moved 88.9->100.0 in e1bd3ea2a (lo.v2) while its keeper zh-b8de3ae2 did not; no commit in the range names it	
+lo-9eaf41a6	lo	2	100.0	keep		carries tokens no kept document has	
+lo-9eff85e5	lo	1	100.0	keep		carries tokens no kept document has	
+lo-9f27ef40	lo	1	100.0	keep		carries tokens no kept document has	
+lo-9f46ceca	lo	2	100.0	keep		body of a CLAIMED entry	
+lo-9f8577e6	lo	1	100.0	keep		carries tokens no kept document has	
+lo-9f8da60b	lo	4	100.0	drop	zh-ae2dd08d	every token is in the keeper	autospace_de_off autospace_dn_off ch:0023 ch:0024 ch:0025 ch:0028 ch:0029 ch:002a ch:002b ch:002c ch:002d ch:002f ch:003a ch:003d ch:003f ch:005f ch:007e ch:00a0 ch:00f7 ch:2019 ch:2027 ch:203b ch:221
+lo-9fa3dedd	lo	1	100.0	keep		carries tokens no kept document has	
+lo-9fbe1646	lo	3	100.0	keep		carries tokens no kept document has	
+lo-a07c5feb	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-a0aac249	lo	2	100.0	keep		history: moved 85.7->100.0 in e473b24f6 (lo.v2) while its keeper zh-8d72961c did not; no commit in the range names it	
+lo-a14e916b	lo	1	100.0	drop	lo-488c442d	every token is in the keeper	
+lo-a185cc8f	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-a197b7a8	lo	21	100.0	keep		carries tokens no kept document has	
+lo-a1b8e9ce	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-a2386f32	lo	4	100.0	keep		accepted drop / scorer artefact line	
+lo-a2845c6a	lo	1	100.0	drop	lo-c657ba7d	every token is in the keeper	ch:0025 ch:0028 ch:0029 ch:002c ch:002f ch:003a ch:003d ch:00a0 ch:00ab ch:00bb ch:2013 ch:2026 ch:20ac drawings_anchor drawings_inline face:Arial face:Calibri face:CourierNew face:Symbol face:Tahoma 
+lo-a32dec1f	lo	2	100.0	keep		carries tokens no kept document has	
+lo-a3f538af	lo	4	100.0	keep		carries tokens no kept document has	
+lo-a43021ca	lo	8	100.0	keep		ASSIGNMENTS bullet (not DONE); used by clock.tsv	
+lo-a48482e7	lo	3	100.0	keep		carries tokens no kept document has	
+lo-a4a783e2	lo	1	100.0	drop	zh-b8de3ae2	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002c ch:002d ch:002e ch:002f ch:003a ch:007e ch:2026 ch:3001 ch:3002 ch:300c ch:300d ch:ff08 ch:ff09 ch:ff0c ch:ff0d ch:ff1a ch:ff1b char_s
+lo-a593374f	lo	2	100.0	keep		carries tokens no kept document has	
+lo-a594fa6b	lo	4	100.0	keep		carries tokens no kept document has	
+lo-a640c5b9	lo	1	100.0	keep		carries tokens no kept document has	
+lo-a64612b3	lo	5	100.0	keep		carries tokens no kept document has	
+lo-a66590bc	lo	2	100.0	drop	lo-425b63cb	every token is in the keeper	ch:0027 ch:002c ch:003f
+lo-a7c17673	lo	6	100.0	keep		carries tokens no kept document has	
+lo-a87b38ce	lo	2	100.0	keep		carries tokens no kept document has	
+lo-a994ad5c	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-a998edda	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-a9a1991c	lo	4	100.0	drop	zh-ae2dd08d	every token is in the keeper	autospace_de_off autospace_dn_off ch:0023 ch:0024 ch:0025 ch:0028 ch:0029 ch:002a ch:002b ch:002c ch:002d ch:002f ch:003a ch:003d ch:003f ch:005f ch:007e ch:00a0 ch:00f7 ch:2019 ch:2027 ch:203b ch:221
+lo-aa64b13d	lo	1	100.0	keep		carries tokens no kept document has	
+lo-aa886326	lo	1	100.0	keep		carries tokens no kept document has	
+lo-ab6b45a5	lo	2	100.0	keep		carries tokens no kept document has	
+lo-ab823d15	lo	1	100.0	drop	zh-b8de3ae2	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002c ch:002d ch:002e ch:002f ch:003a ch:007e ch:2026 ch:3001 ch:3002 ch:300c ch:300d ch:ff08 ch:ff09 ch:ff0c ch:ff0d ch:ff1a ch:ff1b char_s
+lo-abef8321	lo	4	100.0	keep		body of a CLAIMED entry; named in apps/OfficeApp/Tests	
+lo-abf1da4d	lo	1	100.0	drop	lo-158005c9	every token is in the keeper	ch:0025 ch:002d ch:002e ch:002f ch:003a char_spacing_runs drawings_anchor face:Arial face:CG Times (WN) face:Noto Sans face:TimesNewRoman frames images langs_ea:es-CL langs_ea:es-ES lists rows_atleast
+lo-ad468a7b	lo	2	100.0	keep		carries tokens no kept document has	
+lo-ad478aff	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-adac3673	lo	1	100.0	keep		carries tokens no kept document has	
+lo-add1862e	lo	2	100.0	keep		carries tokens no kept document has	
+lo-af0a4e65	lo	2	100.0	keep		carries tokens no kept document has	
+lo-af36644e	lo	2	100.0	keep		ASSIGNMENTS bullet (not DONE); accepted drop / scorer artefact line	
+lo-af63e155	lo	1	100.0	keep		carries tokens no kept document has	
+lo-af81b53e	lo	1	100.0	keep		carries tokens no kept document has	
+lo-afff8bfe	lo	1	100.0	drop	lo-d2d20bdc	every token is in the keeper	ch:0027 ch:0028 ch:0029 ch:002d ch:002f ch:003a ch:003b ch:2018 ch:2019 drawings_anchor face:Tahoma page_breaks pagebreak_mid picts rows_atleast sz:20 sz:28 sz:32 tables tables_floating textboxes vml 
+lo-b0759235	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-b0f318a0	lo	1	100.0	keep		used by clock.tsv	
+lo-b180ddc0	lo	1	100.0	keep		carries tokens no kept document has	
+lo-b18b4a70	lo	3	100.0	keep		carries tokens no kept document has	
+lo-b1f7ac3b	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-b297308a	lo	1	100.0	keep		carries tokens no kept document has	
+lo-b35c1eb6	lo	1	100.0	keep		carries tokens no kept document has	
+lo-b3c44892	lo	1	100.0	keep		carries tokens no kept document has	
+lo-b40e97af	lo	2	100.0	keep		carries tokens no kept document has	
+lo-b41a6e91	lo	1	100.0	drop	lo-7cba9019	every token is in the keeper	
+lo-b47961e9	lo	1	100.0	keep		carries tokens no kept document has	
+lo-b4dca1d2	lo	1	100.0	drop	lo-c4927bf5	every token is in the keeper	ch:003a drawings_anchor face:Mangal fields images kinsoku_on langs_ea:zxx page_breaks pagebreak_first pagebreak_para x:seq
+lo-b552cc33	lo	1	100.0	drop	zh-31d580df	every token is in the keeper	autospace_de_off autospace_dn_off ch:0028 ch:0029 ch:002a ch:002d ch:002e ch:002f ch:003a ch:007e ch:00d7 ch:2026 ch:2266 ch:2267 ch:2573 ch:25a0 ch:25a1 ch:25cb ch:2605 ch:3000 ch:3001 ch:3002 ch:300
+lo-b60b7299	lo	1	100.0	keep		carries tokens no kept document has	
+lo-b68c791a	lo	1	100.0	keep		carries tokens no kept document has	
+lo-b6cd0d97	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-b7c1b8df	lo	29	100.0	keep		carries tokens no kept document has	
+lo-b8885ba2	lo	6	100.0	keep		carries tokens no kept document has	
+lo-b8d932d6	lo	1	100.0	keep		carries tokens no kept document has	
+lo-b9d70b44	lo	1	100.0	drop	zh-b8de3ae2	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002c ch:002d ch:002e ch:002f ch:003a ch:007e ch:2026 ch:3001 ch:3002 ch:300c ch:300d ch:ff08 ch:ff09 ch:ff0c ch:ff0d ch:ff1a ch:ff1b char_s
+lo-baa979fe	lo	1	100.0	drop	zh-ae2dd08d	every token is in the keeper	autospace_de_off autospace_dn_off ch:0023 ch:0024 ch:0025 ch:0028 ch:0029 ch:002a ch:002b ch:002c ch:002d ch:002e ch:002f ch:003a ch:003d ch:003f ch:005f ch:007e ch:00a0 ch:00f7 ch:2019 ch:2027 ch:203
+lo-bb46946d	lo	1	100.0	drop	lo-60124a3f	every token is in the keeper	x:tabCenter x:tabRight
+lo-bb67a275	lo	2	100.0	drop	zh-31d580df	every token is in the keeper	autospace_de_off autospace_dn_off ch:0028 ch:0029 ch:002a ch:002d ch:002e ch:002f ch:003a ch:007e ch:00d7 ch:2026 ch:2266 ch:2267 ch:2573 ch:25a0 ch:25a1 ch:25cb ch:2605 ch:3000 ch:3001 ch:3002 ch:300
+lo-bbc52bda	lo	2	100.0	keep		carries tokens no kept document has	
+lo-bbf61027	lo	1	100.0	keep		carries tokens no kept document has	
+lo-be1a88f4	lo	1	100.0	keep		carries tokens no kept document has	
+lo-be3ad9ac	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-be40d67a	lo	1	100.0	keep		carries tokens no kept document has	
+lo-be51ab2e	lo	1	100.0	keep		carries tokens no kept document has	
+lo-bf1e33f3	lo	1	100.0	keep		accepted drop / scorer artefact line	
+lo-bf4e9964	lo	1	100.0	keep		carries tokens no kept document has	
+lo-bf5dabc8	lo	1	100.0	drop	bug65738	every token is in the keeper	ch:0021 ch:002c ch:002e ch:002f ch:003a ch:2019 compat:useFELayout face:Georgia face:SegoeUI face:Times face:TimesNewRoman fe_layout ftr:default hdr:default hyperlinks langs_ea:en-GB x:tabCenter x:tab
+lo-bf8f3297	lo	0	100.0	keep		body of a CLAIMED entry; visual-scored (no text lines; the replay cannot see it)	
+lo-c1656999	lo	1	100.0	keep		carries tokens no kept document has	
+lo-c32650af	lo	2	100.0	drop	lo-425b63cb	every token is in the keeper	ch:0027 ch:002c ch:002e ch:003f
+lo-c490d65b	lo	1	100.0	keep		accepted drop / scorer artefact line	
+lo-c4927bf5	lo	2	100.0	keep		carries tokens no kept document has	
+lo-c4b6da8c	lo	1	100.0	keep		carries tokens no kept document has	
+lo-c4c60fcb	lo	1	100.0	keep		carries tokens no kept document has	
+lo-c4ea9f98	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-c4eed351	lo	2	100.0	keep		body of a CLAIMED entry	
+lo-c5419922	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-c5b5dcb9	lo	1	100.0	keep		carries tokens no kept document has	
+lo-c608a288	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-c61dabb3	lo	1	100.0	keep		carries tokens no kept document has	
+lo-c635ae3f	lo	1	100.0	keep		carries tokens no kept document has	
+lo-c657ba7d	lo	3	100.0	keep		accepted drop / scorer artefact line	
+lo-c678e486	lo	1	100.0	keep		carries tokens no kept document has	
+lo-c6cd222f	lo	1	100.0	keep		carries tokens no kept document has	
+lo-c6d022b6	lo	4	100.0	keep		carries tokens no kept document has	
+lo-c7082c66	lo	4	100.0	keep		accepted drop / scorer artefact line	
+lo-c72c1617	lo	1	100.0	drop	lo-7ec36a70	every token is in the keeper	ch:0028 ch:0029 ch:002e ch:003a ch:060c ch:2190 char_spacing_runs drawings_anchor even_odd face:Arial face:B Mitra face:Calibri face:Cambria face:CourierNew face:Symbol face:Tahoma face:TimesNewRoman 
+lo-c7a83a5a	lo	1	100.0	drop	zh-b8de3ae2	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002c ch:002d ch:002e ch:002f ch:003a ch:007e ch:2026 ch:3001 ch:3002 ch:300c ch:300d ch:ff08 ch:ff09 ch:ff0c ch:ff0d ch:ff1a ch:ff1b char_s
+lo-c83735dc	lo	2	100.0	drop	lo-425b63cb	every token is in the keeper	rows_atleast
+lo-c8c597fa	lo	1	100.0	drop	bib-chernigovka.netdo.ru_download_docs_17459	every token is in the keeper	ch:0028 ch:0029 ch:002c ch:002d ch:002e ch:003a ch:005b ch:005d ch:00a0 ch:00ab ch:00bb ch:2019 drawings_anchor face:Arial face:CourierNew face:Impact face:TimesNewRoman face:Verdana images langs_ea:r
+lo-c8e4ecd8	lo	3	100.0	keep		body of a PARKED entry	
+lo-c916a7ce	lo	1	100.0	keep		carries tokens no kept document has	
+lo-c9244c06	lo	2	100.0	keep		carries tokens no kept document has	
+lo-c98d1eaf	lo	2	100.0	drop	lo-931c88e9	every token is in the keeper	ch:003a ftr:even ftr:first hdr:even hdr:first landscape lists sz:16 sz:24 sz:28 tab_stops
+lo-c996762f	lo	1	100.0	drop	zh-b8de3ae2	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002c ch:002d ch:002e ch:002f ch:003a ch:007e ch:2026 ch:3001 ch:3002 ch:300c ch:300d ch:ff08 ch:ff09 ch:ff0c ch:ff0d ch:ff1a ch:ff1b char_s
+lo-c9b8c5ab	lo	2	100.0	keep		carries tokens no kept document has	
+lo-ca9b51bc	lo	3	100.0	keep		body of a CLAIMED entry	
+lo-cb0ad258	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-cbb7657e	lo	6	100.0	keep		carries tokens no kept document has	
+lo-cbd6607d	lo	2	100.0	keep		carries tokens no kept document has	
+lo-cbee0102	lo	1	100.0	keep		carries tokens no kept document has	
+lo-cc084a84	lo	1	100.0	keep		accepted drop / scorer artefact line	
+lo-ccca8bf3	lo	1	100.0	keep		body of a PARKED entry	
+lo-cccc9676	lo	1	100.0	keep		carries tokens no kept document has	
+lo-ccd9da4b	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-ce0d5e6d	lo	1	100.0	keep		carries tokens no kept document has	
+lo-cef1adef	lo	1	100.0	drop	bug57031	every token is in the keeper	autospace_de_off autospace_dn_off ch:0023 ch:0025 ch:0026 ch:0027 ch:0028 ch:0029 ch:002a ch:002b ch:002c ch:002d ch:002e ch:002f ch:003b ch:005b ch:005d ch:005f ch:007e ch:00a0 ch:00b1 ch:2212 ch:221
+lo-cefd47da	lo	1	100.0	keep		carries tokens no kept document has	
+lo-cf00dab7	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-cf2ad77e	lo	2	100.0	keep		carries tokens no kept document has	
+lo-cf2d6d4a	lo	1	100.0	keep		carries tokens no kept document has	
+lo-cf8cb3bb	lo	2	100.0	keep		carries tokens no kept document has	
+lo-cfc3a47b	lo	1	100.0	keep		carries tokens no kept document has	
+lo-d04a7466	lo	1	100.0	keep		carries tokens no kept document has	
+lo-d096abe2	lo	1	100.0	drop	lo-1960d9df	every token is in the keeper	
+lo-d11a272c	lo	2	100.0	keep		carries tokens no kept document has	
+lo-d1e88d77	lo	49	100.0	keep		carries tokens no kept document has	
+lo-d22e1e2b	lo	1	100.0	keep		carries tokens no kept document has	
+lo-d2d20bdc	lo	8	100.0	keep		carries tokens no kept document has	
+lo-d5dbaac5	lo	3	100.0	keep		carries tokens no kept document has	
+lo-d63aee2d	lo	2	100.0	drop	lo-e1104feb	every token is in the keeper	
+lo-d7fc61b7	lo	1	100.0	drop	lo-67232137	every token is in the keeper	sz:24
+lo-d8b25be3	lo	1	100.0	keep		carries tokens no kept document has	
+lo-d9632b6e	lo	2	100.0	keep		carries tokens no kept document has	
+lo-d9ffd233	lo	1	100.0	keep		carries tokens no kept document has	
+lo-db00fd9f	lo	1	100.0	keep		carries tokens no kept document has	
+lo-db739416	lo	2	100.0	keep		accepted drop / scorer artefact line	
+lo-db9bda66	lo	1	100.0	keep		carries tokens no kept document has	
+lo-dc0529c3	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-dcf44597	lo	2	100.0	keep		carries tokens no kept document has	
+lo-dd3d953e	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-ddcb1415	lo	1	100.0	keep		carries tokens no kept document has	
+lo-deb8b1bf	lo	1	100.0	keep		carries tokens no kept document has	
+lo-dee94b7e	lo	1	100.0	keep		carries tokens no kept document has	
+lo-df32fb80	lo	1	100.0	keep		carries tokens no kept document has	
+lo-df863800	lo	2	100.0	keep		carries tokens no kept document has	
+lo-e0696489	lo	1	100.0	keep		carries tokens no kept document has	
+lo-e07d5e6d	lo	4	100.0	keep		accepted drop / scorer artefact line	
+lo-e0bfbb26	lo	2	100.0	keep		carries tokens no kept document has	
+lo-e0dd265c	lo	2	100.0	drop	lo-67635bac	every token is in the keeper	face:Arial sz:28
+lo-e1104feb	lo	3	100.0	keep		accepted drop / scorer artefact line	
+lo-e13de6d7	lo	4	100.0	keep		carries tokens no kept document has	
+lo-e23d74c9	lo	1	100.0	keep		carries tokens no kept document has	
+lo-e25b58e6	lo	2	100.0	keep		carries tokens no kept document has	
+lo-e27644fb	lo	1	100.0	keep		carries tokens no kept document has	
+lo-e2dfec33	lo	1	100.0	keep		accepted drop / scorer artefact line	
+lo-e3095781	lo	2	100.0	keep		named in apps/OfficeApp/Tests	
+lo-e311acba	lo	1	100.0	keep		carries tokens no kept document has	
+lo-e3dca7be	lo	2	100.0	drop	lo-c9b8c5ab	every token is in the keeper	ch:002c ch:002e face:Helvetica landscape sz:16
+lo-e3fb31ad	lo	1	100.0	keep		carries tokens no kept document has	
+lo-e5a02eb4	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-e643d1ee	lo	1	100.0	drop	zh-b8de3ae2	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002c ch:002d ch:002f ch:003a ch:007e ch:2026 ch:3001 ch:3002 ch:300c ch:300d ch:ff08 ch:ff09 ch:ff0c ch:ff0d ch:ff1a ch:ff1b char_scale cha
+lo-e69b7cfc	lo	2	100.0	keep		carries tokens no kept document has	
+lo-e6dce9d6	lo	1	100.0	keep		body of a CLAIMED entry	
+lo-e7d811eb	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-e85b5b42	lo	2	100.0	keep		carries tokens no kept document has	
+lo-e88ee54e	lo	1	100.0	keep		carries tokens no kept document has	
+lo-e89f6520	lo	2	100.0	keep		carries tokens no kept document has	
+lo-e8c1ae37	lo	1	100.0	keep		body of a PARKED entry	
+lo-e8e5db45	lo	1	100.0	keep		carries tokens no kept document has	
+lo-e97858a4	lo	3	100.0	keep		carries tokens no kept document has	
+lo-e998b55c	lo	1	100.0	keep		carries tokens no kept document has	
+lo-e9f1e369	lo	1	100.0	keep		carries tokens no kept document has	
+lo-eae9bbb1	lo	1	100.0	keep		carries tokens no kept document has	
+lo-eb12e7d4	lo	15	100.0	keep		ASSIGNMENTS bullet (not DONE); body of a CLAIMED entry	
+lo-eb31667f	lo	1	100.0	keep		carries tokens no kept document has	
+lo-eba386b0	lo	3	100.0	keep		carries tokens no kept document has	
+lo-ebb078d7	lo	1	100.0	drop	lo-5a78fd37	every token is in the keeper	
+lo-ec231ad7	lo	1	100.0	keep		body of a PARKED entry	
+lo-ed539d0e	lo	2	100.0	keep		carries tokens no kept document has	
+lo-ee07437e	lo	1	100.0	keep		carries tokens no kept document has	
+lo-ee0e461d	lo	1	100.0	keep		carries tokens no kept document has	
+lo-ef81aa22	lo	1	100.0	drop	bug59058	every token is in the keeper	ch:0023 ch:0025 ch:0026 ch:0027 ch:0028 ch:0029 ch:002a ch:002b ch:002c ch:002d ch:002e ch:002f ch:003a ch:003b ch:003d ch:003f ch:0040 ch:005b ch:005c ch:005d ch:005f ch:007e ch:00a0 ch:00a7 ch:00a8 
+lo-f0be7488	lo	1	100.0	keep		carries tokens no kept document has	
+lo-f0ceb78c	lo	1	100.0	drop	lo-c657ba7d	every token is in the keeper	ch:0025 ch:0028 ch:0029 ch:002c ch:002f ch:003a ch:003d ch:00a0 ch:00ab ch:00bb ch:2013 ch:2026 ch:20ac drawings_anchor drawings_inline face:Arial face:Tahoma frames hdr:default images langs_ea:fr-FR 
+lo-f15439a9	lo	1	100.0	keep		carries tokens no kept document has	
+lo-f17a5616	lo	2	100.0	keep		carries tokens no kept document has	
+lo-f1b99324	lo	2	100.0	drop	lo-6ccf0ac0	every token is in the keeper	table_depth>=3 x:caps x:kern
+lo-f1cc2329	lo	1	100.0	keep		body of a PARKED entry	
+lo-f21fc316	lo	2	100.0	keep		carries tokens no kept document has	
+lo-f225432f	lo	1	100.0	keep		carries tokens no kept document has	
+lo-f2b254ac	lo	1	100.0	drop	lo-c1656999	every token is in the keeper	
+lo-f2ca6bfa	lo	1	100.0	drop	lo-152d87fe	every token is in the keeper	ch:0028 ch:0029 ch:002d ch:002e ch:002f ch:003b ch:003f ch:007c ch:2014 ch:2019 ch:2022 drawings_anchor drawings_inline face:Consolas face:SegoeUI face:Symbol face:TimesNewRoman ftr:default ftr:first 
+lo-f2fd7e59	lo	1	100.0	drop	lo-c1656999	every token is in the keeper	ch:002e
+lo-f3312cb1	lo	1	100.0	keep		carries tokens no kept document has	
+lo-f384af17	lo	1	100.0	keep		carries tokens no kept document has	
+lo-f391267c	lo	1	100.0	keep		body of a CLAIMED entry; body of a PARKED entry	
+lo-f47abfe0	lo	3	100.0	keep		carries tokens no kept document has	
+lo-f48e444e	lo	1	100.0	drop	lo-5c5eb1f7	every token is in the keeper	ch:003a ch:003d ch:0040 face:Calibri face:CourierNew face:Symbol face:Tahoma face:TimesNewRoman face:Wingdings frames images langs_ea:ja-JP lists picts rows_atleast sz:16 sz:18 sz:20 sz:24 sz:28 sz:32
+lo-f5c618c5	lo	2	100.0	keep		carries tokens no kept document has	
+lo-f5d3f9ec	lo	1	100.0	keep		carries tokens no kept document has	
+lo-f63fbb53	lo	2	100.0	keep		carries tokens no kept document has	
+lo-f6ecbe85	lo	5	100.0	keep		carries tokens no kept document has	
+lo-f83b3d39	lo	1	100.0	keep		carries tokens no kept document has	
+lo-f8601326	lo	1	100.0	keep		body of a PARKED entry	
+lo-f8963ddd	lo	1	100.0	keep		carries tokens no kept document has	
+lo-f9b9a8fc	lo	1	87.5	keep		accepted drop / scorer artefact line; below 100 combined	
+lo-fae4a662	lo	1	100.0	drop	lo-c5b5dcb9	every token is in the keeper	ch:0025 ch:0028 ch:0029 ch:002d ch:002e ch:003a face:Arial face:Tahoma lists sz:22
+lo-fb57942d	lo	1	100.0	keep		carries tokens no kept document has	
+lo-fbabd36e	lo	1	100.0	keep		carries tokens no kept document has	
+lo-fc098a0f	lo	1	100.0	keep		history: moved 0.0->66.7 in e1bd3ea2a (lo.v2) while its keeper lo-c608a288 did not; no commit in the range names it	
+lo-fc0b25c5	lo	0	100.0	keep		visual-scored (no text lines; the replay cannot see it)	
+lo-fc75bd78	lo	1	100.0	keep		carries tokens no kept document has	
+lo-fd0f09f9	lo	1	100.0	keep		carries tokens no kept document has	
+lo-fd73bf56	lo	1	100.0	drop	zh-b8de3ae2	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002c ch:002d ch:002e ch:002f ch:003a ch:007e ch:2026 ch:3001 ch:3002 ch:300c ch:300d ch:ff08 ch:ff09 ch:ff0c ch:ff0d ch:ff1a ch:ff1b char_s
+lo-fe125fc7	lo	1	100.0	keep		carries tokens no kept document has	
+lo-ff3b52d1	lo	2	100.0	keep		body of a CLAIMED entry	
+lo-ff7512b6	lo	1	100.0	keep		carries tokens no kept document has	
+lo-ffef711a	lo	1	100.0	keep		carries tokens no kept document has	

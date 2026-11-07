@@ -64,6 +64,15 @@ class Package:
         return [n for n in self.names if n.startswith(prefix) and n.endswith(".xml")]
 
 
+def iv(x, default=0):
+    """int() that also takes "612pt" / "419.60pt" (some producers write a unit)."""
+    try:
+        return int(x)
+    except (TypeError, ValueError):
+        m = re.match(r"\s*(-?[\d.]+)", x or "")
+        return int(float(m.group(1))) if m else default
+
+
 def attrs(tag):
     return dict(re.findall(r'([\w:]+)="([^"]*)"', tag))
 
@@ -82,7 +91,7 @@ RUN = re.compile(r"<w:r(?: [^>]*)?>(.*?)</w:r>", re.S)
 def space_before(spacing):
     """Whether a `w:spacing` tag asks for room above (twips or lines)."""
     a = attrs(spacing)
-    return any(int(a.get(k, "0") or 0) > 0 for k in ("w:before", "w:beforeLines")) or a.get("w:beforeAutospacing") == "1"
+    return any(iv(a.get(k, "0")) > 0 for k in ("w:before", "w:beforeLines")) or a.get("w:beforeAutospacing") == "1"
 
 
 def style_space_before(styles):
@@ -191,8 +200,8 @@ def features(path):
     grids = [attrs(t) for t in re.findall(r"<w:docGrid\b[^>]*>", body)]
     g = grids[-1] if grids else {}
     f["grid"] = g.get("w:type", "none")
-    f["grid_chars"] = int(g.get("w:charSpace", "0") or 0)
-    f["grid_line"] = int(g.get("w:linePitch", "0") or 0)
+    f["grid_chars"] = iv(g.get("w:charSpace", "0"))
+    f["grid_line"] = iv(g.get("w:linePitch", "0"))
     f["grids"] = sorted({x.get("w:type", "none") for x in grids})
 
     # --- the East Asian line rules, paragraph by paragraph
@@ -262,7 +271,7 @@ def features(path):
     f["rows_atleast"] = len(re.findall(r'<w:trHeight (?![^>]*w:hRule="(?:exact|auto)")[^>]*>', body))
     f["table_header_rows"] = body.count("<w:tblHeader")
     f["sections"] = body.count("<w:sectPr")
-    f["columns"] = max([1] + [int(attrs(t).get("w:num", "1") or 1) for t in re.findall(r"<w:cols\b[^>]*>", body)])
+    f["columns"] = max([1] + [iv(attrs(t).get("w:num", "1"), 1) for t in re.findall(r"<w:cols\b[^>]*>", body)])
     f["textboxes"] = everything.count("<w:txbxContent")
     f["vml"] = len(re.findall(r"<v:(?:shape|rect|roundrect|oval|line|group|polyline|curve|imagedata)\b", everything))
     f["picts"] = everything.count("<w:pict")
@@ -323,7 +332,7 @@ def features(path):
     f["snap_grid_runs"] = len(re.findall(r"<w:snapToGrid", body))
     f["size_pt_max"] = max([0] + [int(x) for x in re.findall(r'<w:sz w:val="(\d+)"', body)]) / 2
     f["size_pt_min"] = min([999] + [int(x) for x in re.findall(r'<w:sz w:val="(\d+)"', body)]) / 2
-    f["page_w"] = int(attrs(re.search(r"<w:pgSz\b[^>]*>", body).group(0)).get("w:w", "0") or 0) if "<w:pgSz" in body else 0
+    f["page_w"] = iv(attrs(re.search(r"<w:pgSz\b[^>]*>", body).group(0)).get("w:w", "0")) if "<w:pgSz" in body else 0
     f["landscape"] = bool(re.search(r'<w:pgSz\b[^>]*w:orient="landscape"', body))
     f["bytes"] = os.path.getsize(path)
     return f
