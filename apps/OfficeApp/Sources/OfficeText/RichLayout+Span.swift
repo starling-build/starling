@@ -499,7 +499,25 @@ extension RichLayout {
             }
             return false
         }
+        var splittingVariation = false
         func styled(_ rawText: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil, symbolsShown: Bool = false) -> [TextSpan] {
+            // (U+FE0F after a text-style emoji draws it in colour, U+FE0E after a colour one as an outline: each such
+            // pair is a piece of its own, in its own face.)
+            if !splittingVariation, let pieces = Self._variationPieces(rawText) {
+                splittingVariation = true
+                defer { splittingVariation = false }
+                var out: [TextSpan] = []
+                var at = base
+                for (k, piece) in pieces.enumerated() {
+                    let after = k + 1 < pieces.count ? pieces[k + 1].text.first : next
+                    let spans = styled(Substring(piece.text), run, at: at, next: after, symbolsShown: symbolsShown)
+                    out += piece.kind == 0 ? spans : spans.map {
+                        TextSpan(text: $0.text, children: $0.children, style: Self._variationStyle($0.style, kind: piece.kind), recognizer: $0.recognizer, locale: $0.locale)
+                    }
+                    at += piece.text.utf16.count
+                }
+                return out
+            }
             // (A run marked right-to-left in a left-to-right paragraph is an
             // embedding of its own: the one neutral mark that ends its Latin
             // text stands at its start. lo-bbc52bda's "after here:" is

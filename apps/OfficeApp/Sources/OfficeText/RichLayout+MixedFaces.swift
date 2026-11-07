@@ -8,9 +8,10 @@ extension RichLayout {
     /// before it) has its face's plain split of a single line, scaled to its size; the line is as tall as the
     /// largest piece's single line, and its baseline stands where the tallest ascent and the deepest depth,
     /// scaled to that height, put it: H * A / (A + D). One face gives its own split back. Single lines at single
-    /// spacing only: nil elsewhere, or when the paragraph holds one face.
+    /// spacing only: nil elsewhere, or when the paragraph holds one face. Right-to-left lines too (lab verdana-rtl, Hebrew and
+    /// Arabic with a Latin run and an end mark in another face, 90/100/110%, 60 cells within 0.16 pt).
     func _mixedFaceSpan(_ span: TextSpan, _ p: RichParagraph) -> (span: TextSpan, depth: Double, size: Double)? {
-        guard theme.exactLinesAsPowerPoint, let single = theme.singleLineHeight, p.style.lineHeightPoints == nil, !_hasRightToLeft(p) else { return nil }
+        guard theme.exactLinesAsPowerPoint, let single = theme.singleLineHeight, p.style.lineHeightPoints == nil else { return nil }
         let multiple = max(0.1, p.style.lineSpacing - theme.lineSpacingReduction)
         var pieces: [(name: String, size: Double, depth: Double)] = []
         func depthShare(_ name: String, drawn: String?, bold: Bool, italic: Bool) -> Double {
@@ -58,7 +59,7 @@ extension RichLayout {
     /// Single spacing only. Splits the runs at the lines `painter` made, gives each piece its line's split, and returns
     /// the span, or nil where no line holds two faces.
     func _mixedFaceLinesSpan(_ span: TextSpan, _ p: RichParagraph, _ painter: TextPainter) -> TextSpan? {
-        guard theme.exactLinesAsPowerPoint, let single = theme.singleLineHeight, p.style.lineHeightPoints == nil, !_hasRightToLeft(p),
+        guard theme.exactLinesAsPowerPoint, let single = theme.singleLineHeight, p.style.lineHeightPoints == nil,
               abs(max(0.1, p.style.lineSpacing - theme.lineSpacingReduction) - 1) < 1e-9 else { return nil }
         // The lines, as ranges of the painter's text.
         var lines: [(Int, Int)] = []
@@ -148,12 +149,5 @@ extension RichLayout {
             return TextSpan(text: nil, children: parts + kids, style: t.style, recognizer: t.recognizer, locale: t.locale)
         }
         return rebuild(span) as? TextSpan
-    }
-}
-
-extension RichLayout {
-    /// The mixed-face rule was measured on left-to-right text only.
-    func _hasRightToLeft(_ p: RichParagraph) -> Bool {
-        p.text.unicodeScalars.contains { $0.value >= 0x0590 && $0.value <= 0x08FF }
     }
 }
