@@ -2752,7 +2752,7 @@ enum ChartPainter {
             // 5.3 pt closer than a row's of one: lo-f9b9a8fc's "datalabel1…8", four to a row.)
             var wordPieRows = pie && !beside && box == nil && !c.onSlide && !c.onSheet && lines.count > 1
             if wordPieRows { RuleTrace.hit("word-pie-foot-legend-rows-of-two-are-spaced-wider-apart-than-the-line"); spacing -= 5.3 * k }
-            let lineH = beside ? (c.onSheet && box == nil ? 1.2213 * size * k + 5.88 : textH + (libreLegend && !pie && box == nil ? 5.57 : 6) * k) : textH
+            let lineH = beside ? (c.onSheet && box == nil ? 1.2213 * size * k + 5.88 : textH + (libreLegend && box == nil ? 5.57 : 6) * k) : textH
             // (Each line as tall as its tallest name, a wrapped one too.)
             var droppedLegend: [(i: Int, tp: TextPainter)] = []
             // (A column too tall for the chart drops its last entries: the lab legend's 12 and 20 entries
@@ -2832,7 +2832,7 @@ enum ChartPainter {
                 }
                 // (A LibreOffice column chart's legend at the right, in a Word document: the rows 17.07 pt apart at 10 pt,
                 // not 17.5, and the block's middle 1.35 pt higher — lo-ccd9da4b's two legends, 3 and 4 rows, Arial.)
-                if libreLegend, !pie, box == nil { y -= 1.35 * k }
+                if libreLegend, box == nil { y -= 1.35 * k }
                 if c.legendPosition == "l" {
                     columnX = area.left
                     let leftTaken = c.type == .pie && box == nil && !c.onSlide && !c.onSheet ? min(columnW + 12 * k, r.width / 3 + 9 * k) : columnW + 12 * k
