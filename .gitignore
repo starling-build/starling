@@ -50,3 +50,16 @@ ui/desktop/runtime/
 .stage-landings/
 # Generated local Office editors (build/office-web-preview.sh).
 ui/openoffice/apps/
+
+# The office test corpus binaries live OUTSIDE git (shared cache /data/corpus-cache, restored by
+# test/tools/corpus-cache.sh restore). Text files beside them (SHA256SUMS, manifests, scores, baselines,
+# READMEs) stay tracked; the four docx in docx/pdf-text are tracked too.
+/test/corpus/**/*.docx
+/test/corpus/**/*.pptx
+/test/corpus/**/*.xlsx
+/test/corpus/**/*.docm
+/test/corpus/**/*.dotx
+/test/corpus/**/*.xlsm
+/test/corpus/**/*.pptm
+/test/corpus/**/*.pdf
+!/test/corpus/docx/pdf-text/*

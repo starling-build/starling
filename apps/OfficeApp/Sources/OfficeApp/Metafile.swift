@@ -734,7 +734,7 @@ private struct Player {
                 // lo-activex_textbox's control pictures has their green.)
                 // (PowerPoint for Mac's print leaves it empty in the transparent
                 // mode: STARLING_PPT_MAC=1, which the sweep sets against test/
-                // corpus/pptx/powerpoint, keeps that.)
+                // corpus/pptx/powerpoint (the retired Mac prints), keeps that.)
                 let fills = options & 2 != 0 && (n > 0 || dc.bkOpaque || !Metafile.macReference)
                 text(ansi(at, n), at: Offset(x, y), opaque: fills ? box : nil)
             case 0x0940:   // DibBitBlt: rop, ySrc, xSrc, height, width, yDest, xDest, bitmap

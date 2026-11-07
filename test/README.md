@@ -343,3 +343,20 @@ as a scheduled task rather than over ssh.
 
 Z-order is separate and slower: `test/bench/win-latency/zorder-stress.ps1`,
 24 launch/close cycles with three shell restarts.
+
+## Where the office corpus lives (not in git)
+
+The documents (`test/corpus/{docx,pptx,xlsx}/…`, `pptx-wordart`) and every reference PDF
+(`word-win`, `powerpoint-win`, `excel`, `lo/word-win`) are **not tracked**. They sit in a shared
+cache, `/data/corpus-cache` (`$STARLING_CORPUS`), mirroring the repo paths, and are kept
+untracked (gitignored) at the same paths in every checkout, so no script needs a path change.
+Git keeps the text beside them: `SHA256SUMS`, manifests, `scores/`, baselines, READMEs.
+
+If `test/corpus` looks empty (a fresh clone, or after a pull that deleted the files):
+
+    test/tools/corpus-cache.sh restore          # copy from the cache, then verify the SHA-256s
+    test/tools/corpus-cache.sh install-hooks    # post-merge/-rewrite/-checkout do it for you
+
+Retired Mac sets (`docx/word`, `pptx/powerpoint`) are in `/data/corpus-cache/archive/`, not
+restored. Unit tests that open a corpus file skip when it is absent. Staging batches for new sets
+are in `/data/corpus-cache/staging/<set>` (`corpus-cache.sh check|sync`).

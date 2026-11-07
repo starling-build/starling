@@ -19,7 +19,7 @@
 #   test/pptx-app-render.sh                  # the corpus in the repo, into ~/starling-ppt-check/app
 #   test/pptx-app-render.sh WORK             # … into WORK
 #   OFFICE_WEB=1 test/pptx-app-render.sh WORK   # … drawn by the browser build
-#   test/pptx-app-render.sh test/corpus/pptx/decks test/corpus/pptx/powerpoint WORK [names…]
+#   test/pptx-app-render.sh test/corpus/pptx/decks test/corpus/pptx/powerpoint-win WORK [names…]
 # The decks and PowerPoint's PDFs of them are checked in under
 # test/corpus/pptx (its README says where they come from and how the PDFs
 # were made); with fewer than three arguments those are what is swept.
@@ -31,13 +31,13 @@ if [ "${1:-}" = -j ]; then JOBS=${2:?-j wants a number}; shift 2; fi
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/.." && pwd)
 if [ $# -le 1 ]; then
-  IN="$ROOT/test/corpus/pptx/decks"; PPT="$ROOT/test/corpus/pptx/powerpoint"; WORK="${1:-$HOME/starling-ppt-check/app}"
+  IN="$ROOT/test/corpus/pptx/decks"; PPT="$ROOT/test/corpus/pptx/powerpoint-win"; WORK="${1:-$HOME/starling-ppt-check/app}"
   shift $#
 else
   IN=$1; PPT=$2; WORK=$3; shift 3
 fi
 APP="${OFFICE_APP:-$ROOT/apps/OfficeApp/.build/release/OfficeApp}"
-# Against the Mac prints (test/corpus/pptx/powerpoint) the app draws as Mac PowerPoint does where the two differ.
+# Against the Mac prints (the retired test/corpus/pptx/powerpoint, now in the cache archive) the app draws as Mac PowerPoint does where the two differ.
 [ "$(basename "$PPT")" = powerpoint ] && export STARLING_PPT_MAC=1
 [ -d "$IN" ] && [ -d "$PPT" ] || { echo "usage: $0 IN_DIR PPT_DIR WORK [names]" >&2; exit 2; }
 mkdir -p "$WORK/pdf" "$WORK/pairs"

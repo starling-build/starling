@@ -12,10 +12,8 @@
 # running, two days of lab prints left 259 of them, 32 GB, and the box out
 # of memory. Attaching to a running one instead races another print's Quit.)
 #
-# Word for Windows has other faces than Word for Mac, and the corpus's
-# prints (test/corpus/docx/word) are the Mac's: a lab printed here settles
-# a layout rule only when it is set in a face both have (宋体, 黑体, 楷体,
-# 仿宋, Times New Roman, Arial).
+# The corpus's prints (test/corpus/docx/word-win) are Windows Word's, printed the same way
+# as a lab printed here.
 param(
     [Parameter(Mandatory = $true)][string]$Doc,
     [Parameter(Mandatory = $true)][string]$Pdf

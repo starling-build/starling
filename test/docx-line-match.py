@@ -6,7 +6,7 @@ sets in the same place.
 
 The page diff of test/docx-app-render.sh counts pixels, and a document whose
 every line is one line late scores like one that is all wrong. This reads
-the text instead: every line of Word's print (test/corpus/docx/word) and of
+the text instead: every line of Word's print (test/corpus/docx/word-win) and of
 ours (WORK/pdf, from a sweep) as page, height on the page and text, and a
 line of Word's is matched when ours has one on the same page, within 3pt
 of its height, that starts or ends with the same four characters. So the score is
@@ -37,7 +37,7 @@ import unicodedata
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 # (DOCX_WORD_REFS: another folder of Word's prints, for a sample not checked in.)
-WORD = os.environ.get("DOCX_WORD_REFS") or os.path.join(HERE, "corpus", "docx", "word")
+WORD = os.environ.get("DOCX_WORD_REFS") or os.path.join(HERE, "corpus", "docx", "word-win")
 
 
 def ignored():

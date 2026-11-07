@@ -7,7 +7,7 @@ corpus's text lines stand off PowerPoint's, by face and by deck.
 The page diff of test/pptx-app-render.sh counts pixels: a deck whose every
 line is a point low scores like one with a few wrong pictures. This reads
 the text instead. Every horizontal line of PowerPoint's print
-(test/corpus/pptx/powerpoint) and of ours (WORK/pdf, from a sweep) that
+(test/corpus/pptx/powerpoint-win) and of ours (WORK/pdf, from a sweep) that
 occurs once on its page is matched by its text, and the matched pairs are
 compared: their baselines (or, with --across, where they start). It prints,
 per face PowerPoint names, how many lines are off by half a point or more
@@ -57,7 +57,7 @@ def main():
     args = ap.parse_args()
     limit = 1.0 if args.across else 0.5
     off, total, rows = collections.Counter(), collections.Counter(), []
-    for ref in sorted(glob.glob(os.path.join(ROOT, "powerpoint", "*-orig.pdf"))):
+    for ref in sorted(glob.glob(os.path.join(ROOT, "powerpoint-win", "*-orig.pdf"))):
         base = os.path.basename(ref)[:-len("-orig.pdf")]
         ours = os.path.join(args.work, "pdf", base + ".pdf")
         if not os.path.exists(ours):

@@ -20,7 +20,7 @@
 #   test/docx-app-render.sh                  # the corpus in the repo, into ~/starling-doc-check/app
 #   test/docx-app-render.sh WORK             # … into WORK
 #   OFFICE_WEB=1 test/docx-app-render.sh WORK   # … drawn by the browser build
-#   test/docx-app-render.sh test/corpus/docx/docs test/corpus/docx/word WORK [names…]
+#   test/docx-app-render.sh test/corpus/docx/docs test/corpus/docx/word-win WORK [names…]
 # The documents and Word's PDFs of them are checked in under
 # test/corpus/docx (its README says where they come from and how the PDFs
 # were made); with fewer than three arguments those are what is swept.
@@ -30,7 +30,7 @@ export OFFICE_FONT_SOURCE="${OFFICE_FONT_SOURCE:-bundled}"
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/.." && pwd)
 if [ $# -le 1 ]; then
-  IN="$ROOT/test/corpus/docx/docs"; WD="$ROOT/test/corpus/docx/word"; WORK="${1:-$HOME/starling-doc-check/app}"
+  IN="$ROOT/test/corpus/docx/docs"; WD="$ROOT/test/corpus/docx/word-win"; WORK="${1:-$HOME/starling-doc-check/app}"
   shift $#
 else
   IN=$1; WD=$2; WORK=$3; shift 3

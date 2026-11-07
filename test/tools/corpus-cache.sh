@@ -5,7 +5,7 @@
 # check in all the corpus docs into repo, just leave locally").
 #
 # The documents and Word's reference PDFs sit in a shared cache, $STARLING_CORPUS (default
-# /data/docx-corpus-cache), as <set>/docs/<stem>.docx and <set>/word-win/<stem>.pdf. Git keeps only
+# /data/corpus-cache), as <set>/docs/<stem>.docx and <set>/word-win/<stem>.pdf. Git keeps only
 # the per-set manifest test/corpus/docx/<set>/manifest.tsv (a header row with a "name" (or "file")
 # and a "sha256" column; any others are kept) and the score files.
 #
@@ -20,6 +20,10 @@
 #                                             HOST at the same relative path (STARLING_REMOTE_REPO,
 #                                             default this checkout's path) or it checks by manifest
 #                                             over ssh from here.
+#   corpus-cache.sh restore [--quiet]         copy the corpus binaries from $STARLING_CORPUS/test/corpus (same paths) into this
+#                                             checkout and verify them against the SHA256SUMS (the whole office corpus
+#                                             is untracked, gitignored; hooks call `restore --quiet` after a pull)
+#   corpus-cache.sh install-hooks [CHECKOUT...]  post-merge/post-rewrite/post-checkout hooks that restore
 #   corpus-cache.sh path SET                  print <cache>/<set>
 #
 # Manifest of set X is read from the repo (test/corpus/docx/X/manifest.tsv), also for a set whose
@@ -28,7 +32,7 @@
 # when they differ (cache new-b <-> repo x-stage-b: CACHE_SET=new-b corpus-cache.sh check x-stage-b).
 set -u
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-CACHE=${STARLING_CORPUS:-/data/docx-corpus-cache}
+CACHE=${STARLING_CORPUS:-/data/corpus-cache}
 MAN=${STARLING_MANIFESTS:-$ROOT/test/corpus/docx}
 
 usage() { sed -n '5,25p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
@@ -36,7 +40,7 @@ usage() { sed -n '5,25p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 # check_local CACHE SET : prints problems, returns 1 if any
 check_local() {
   local cache=$1 set=$2 cs=${CACHE_SET:-$2}
-  local man=$MAN/$set/manifest.tsv dir=$cache/$cs
+  local man=$MAN/$set/manifest.tsv dir=$cache/staging/$cs
   [ -f "$man" ] || { echo "$set: no manifest at $man"; return 1; }
   [ -d "$dir/docs" ] || { echo "$set: no $dir/docs"; return 1; }
   python3 - "$man" "$dir" "$set" <<'PY'
@@ -72,7 +76,7 @@ case "$cmd" in
     [ $# -ge 1 ] || usage
     rc=0; for s in "$@"; do check_local "$CACHE" "$s" || rc=1; done; exit $rc;;
   path)
-    [ $# -eq 1 ] || usage; echo "$CACHE/${CACHE_SET:-$1}";;
+    [ $# -eq 1 ] || usage; echo "$CACHE/staging/${CACHE_SET:-$1}";;
   sync)
     [ $# -ge 2 ] || usage
     host=$1; shift
@@ -80,10 +84,10 @@ case "$cmd" in
     rc=0
     for s in "$@"; do
       cs=${CACHE_SET:-$s}
-      [ -d "$CACHE/$cs/docs" ] || { echo "$s: not in the local cache ($CACHE/$cs)"; rc=1; continue; }
+      [ -d "$CACHE/staging/$cs/docs" ] || { echo "$s: not in the local cache ($CACHE/staging/$cs)"; rc=1; continue; }
       if [ "$host" = local ]; then run() { sh -c "$1"; }; dest="$remote/$cs/"; else run() { ssh "$host" "$1"; }; dest="$host:$remote/$cs/"; fi
       run "mkdir -p '$remote/$cs'" || { rc=1; continue; }
-      rsync -a --delete "$CACHE/$cs/" "$dest" || { echo "$s: rsync failed"; rc=1; continue; }
+      rsync -a --delete "$CACHE/staging/$cs/" "$dest" || { echo "$s: rsync failed"; rc=1; continue; }
       # verify on the far side from the manifest: one hash list over ssh, compared here
       python3 - "$MAN/$s/manifest.tsv" "$s" > "/tmp/corpus-sums.$$" <<'PY'
 import csv, sys
@@ -100,5 +104,54 @@ PY
       rm -f "/tmp/corpus-sums.$$"
     done
     exit $rc;;
+  restore)
+    # copy the corpus binaries from the cache into THIS checkout's test/corpus (same paths), then check.
+    # --quiet (the git hooks): size-only copy, silent, never fails the git command.
+    quiet=0; [ "${1:-}" = --quiet ] && quiet=1
+    src=$CACHE/test/corpus/
+    [ -d "$src" ] || { [ $quiet = 1 ] || echo "no cache at $src"; exit $((quiet ? 0 : 1)); }
+    mkdir -p "$ROOT/test/corpus"
+    # only binaries; never the retired Mac sets (they sit in $CACHE/archive), nothing under pdf-text
+    rsync -a --size-only --prune-empty-dirs --exclude 'pdf-text/' \
+      --include '*/' $(for e in docx pptx xlsx pdf docm dotx xlsm pptm; do printf -- "--include=*.%s " $e; done) --exclude '*' \
+      "$src" "$ROOT/test/corpus/" || { [ $quiet = 1 ] || echo "rsync failed"; exit $((quiet ? 0 : 1)); }
+    [ $quiet = 1 ] && exit 0
+    rc=0
+    # every SHA256SUMS in the repo lists the files beside it (or in docs/ / decks/ / books/ for the input lists)
+    for f in $(cd "$ROOT" && git ls-files 'test/corpus/*SHA256SUMS' 2>/dev/null); do
+      d=$(dirname "$ROOT/$f")
+      case "$f" in
+        test/corpus/docx/SHA256SUMS) d=$d/docs;; test/corpus/docx/lo/SHA256SUMS) d=$d/docs;;
+        test/corpus/pptx/SHA256SUMS) d=$d/decks;; test/corpus/xlsx/SHA256SUMS) d=$d/books;;
+      esac
+      [ -d "$d" ] || { echo "$f: missing $d"; rc=1; continue; }
+      if (cd "$d" && sha256sum -c --quiet "$ROOT/$f" 2>&1 | head -3 | grep .); then rc=1; echo "$f: FAILED"; else echo "$f: ok ($(wc -l < "$ROOT/$f") files)"; fi
+    done
+    exit $rc;;
+  install-hooks)
+    # install post-merge / post-rewrite / post-checkout hooks that run `restore --quiet` in each given
+    # checkout (default: the one this script is in). Leaves any existing hook of those names in place
+    # as <name>.pre-corpus and chains to it.
+    [ $# -ge 1 ] || set -- "$ROOT"
+    for co in "$@"; do
+      gd=$(git -C "$co" rev-parse --git-common-dir 2>/dev/null) || { echo "$co: not a git checkout"; continue; }
+      case "$gd" in /*) ;; *) gd=$co/$gd;; esac
+      mkdir -p "$gd/hooks"
+      for h in post-merge post-rewrite post-checkout; do
+        f=$gd/hooks/$h
+        if [ -e "$f" ] && ! grep -q corpus-cache "$f"; then mv "$f" "$f.pre-corpus"; fi
+        cat > "$f" <<'HOOK'
+#!/bin/sh
+# corpus-cache: put the (untracked) test corpus back after git removes or rewrites files
+HOOKNAME=$(basename "$0")
+[ -x "$0.pre-corpus" ] && "$0.pre-corpus" "$@"
+top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+[ -x "$top/test/tools/corpus-cache.sh" ] && "$top/test/tools/corpus-cache.sh" restore --quiet >/dev/null 2>&1
+exit 0
+HOOK
+        chmod +x "$f"
+      done
+      echo "$co: hooks installed in $gd/hooks"
+    done;;
   *) usage;;
 esac

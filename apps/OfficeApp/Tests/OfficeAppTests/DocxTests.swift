@@ -888,7 +888,8 @@ final class DocxTests: XCTestCase {
         let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs/WordWithAttachments.docx")
-        let wmf = try XCTUnwrap(try Zip.read(Data(contentsOf: file)).first { $0.name == "word/media/image1.wmf" }).data
+        guard let docData = try? Data(contentsOf: file) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
+        let wmf = try XCTUnwrap(try Zip.read(docData).first { $0.name == "word/media/image1.wmf" }).data
         let icon = ImageAttachment(data: wmf, width: 54, height: 38.25, name: "image1.wmf")
         XCTAssertTrue(WriterMetafiles.register(wmf, for: icon.id))
         func painted() -> Int {
@@ -3138,7 +3139,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-499adba6") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-499adba6") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3200,7 +3201,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-8628cfbe") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-8628cfbe") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3232,7 +3233,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-db07d44e") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-db07d44e") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3265,7 +3266,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-d746674a") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-d746674a") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3295,7 +3296,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-20c1d74a") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-20c1d74a") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3325,7 +3326,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-0513f641") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-0513f641") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3355,7 +3356,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-51af781b") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-51af781b") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3387,7 +3388,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-8f9b19f4") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-8f9b19f4") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3439,7 +3440,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-72da925e") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-72da925e") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3470,7 +3471,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-e5eb092a") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-e5eb092a") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3502,7 +3503,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-753cd6a8") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-753cd6a8") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3954,7 +3955,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-117cf7c6") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-117cf7c6") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let entries = try Zip.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         func height(bulleted: Bool) throws -> Double {
             var parts = entries
@@ -4505,7 +4506,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-c15af02e") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-c15af02e") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)

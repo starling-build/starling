@@ -901,3 +901,11 @@ and the dart:io natives along with the code that carries its name.
   ```bash
   sudo -u "$USER" -g video env HOME="$HOME" build/run-desktop.sh --no-stage
   ```
+
+## The office test corpus
+
+The Word/Slides/Sheets corpora (about 1 GB of documents and reference PDFs under
+`test/corpus/`) are not in git. On the AMD box they are in `/data/corpus-cache`;
+`test/tools/corpus-cache.sh restore` copies them into a checkout and verifies them against the
+committed `SHA256SUMS`, and `install-hooks` makes git do that after a pull. A machine without the
+cache has no corpus: the app builds and `swift test` skips the corpus-backed tests.
