@@ -15250,3 +15250,4 @@ TIP WATCH amd-8, round 246 (e6b9a7a72): Word no drops (six sections up 0 down 0)
 
 ### Word corpus census + dedupe report — DONE (lenovo-5, 2026-11-07, landed 1a8f5638d)
 Tool test/tools/docx-census.py; report docs/plans/word-corpus-dedupe.md (+ .tsv, stage tsv). 201 of 1349 docs proposed to drop (218 with body-protect off); replay acceptance rule holds (0 side effects). Batches A+B: 61 docs / 483 pages proposed not to admit (all Arabic/Persian bar one French); windows prints 22 of the 80 unprinted. Layer C not included. Nothing removed.
+- amd-5 2026-11-07 CLAIM (macos' order, Sheets): dataValidationTableRange.xlsx chart — RANK formulas evaluating to 0 and the chart title read from a cell reference. docxcorp picks are on wip/corpus-docxcorp (manifest + fetch script, 119 docs, no .docx in git).
