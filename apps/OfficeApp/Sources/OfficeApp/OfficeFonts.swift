@@ -2717,7 +2717,8 @@ enum OfficeFonts {
         "calibri", "cambria", "cambria math", "courier new", "dubai", "myriad arabic", "arial unicode ms", "gadugi", "nirmala ui", "leelawadee ui",
     ]
 
-    private static let windowsArabicLines: [String: Double] = ["traditional arabic": 1.495, "sakkal majalla": 1.40]
+    private static let windowsArabicWidthsOn = false  // held with the lines: ara docs 3 to 5 points down on xb, being chased
+    private static let windowsArabicLines: [String: Double] = [:]  // held: "traditional arabic": 1.495, "sakkal majalla": 1.40
 
     static func complexFace(_ family: String?) -> RichResolvedFace? {
         // (A face neither embedded nor on the machine is the one Word sets
@@ -2787,7 +2788,7 @@ enum OfficeFonts {
                 face.boldJoinedAdvances = WindowsArabicAdvances.timesBold
             default: break
             }
-            if missing {
+            if missing, Self.windowsArabicWidthsOn {
                 switch asked {
                 case "traditional arabic":
                     face.joinedAdvances = WindowsArabicAdvances.tradArabic
