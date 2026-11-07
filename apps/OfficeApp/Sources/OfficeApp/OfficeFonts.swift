@@ -1790,6 +1790,12 @@ enum OfficeFonts {
         0.3276, 0.1455, 0.5457, 0.3645, 0.3645, 0.4001, 0.4001, 0.2183, 0.3276, 0.1821, 0.3645, 0.3276, 0.4731, 0.3276, 0.3276,
         0.3276, 0.2183, 0.1455, 0.2183, 0.4326,
     ]
+    /// Browallia New regular's widths for U+0021 to U+007E, in ems, from Word
+    /// for Windows' print of lab fitedge2/d00 (30 copies of each; means). They are
+    /// the bold Cordia table's, not the regular one's (P 0.435 not 0.400, "!" 0.181 not 0.218).
+    static let browalliaLatinAdvances: [Double] = [
+        0.1810, 0.2322, 0.3626, 0.3626, 0.5798, 0.4352, 0.1244, 0.2175, 0.2175, 0.2542, 0.3817, 0.1810, 0.2175, 0.1810, 0.1810, 0.3626, 0.3626, 0.3626, 0.3626, 0.3626, 0.3626, 0.3626, 0.3626, 0.3626, 0.3626, 0.1810, 0.1810, 0.3817, 0.3817, 0.3817, 0.3626, 0.6622, 0.4352, 0.4352, 0.4714, 0.4714, 0.4352, 0.3987, 0.5073, 0.4714, 0.1810, 0.3256, 0.4352, 0.3626, 0.5434, 0.4714, 0.5073, 0.4352, 0.5073, 0.4714, 0.4352, 0.3987, 0.4714, 0.4352, 0.6160, 0.4352, 0.4352, 0.3987, 0.1810, 0.1810, 0.1810, 0.3064, 0.3626, 0.2175, 0.3626, 0.3626, 0.3256, 0.3626, 0.3626, 0.1810, 0.3626, 0.3626, 0.1446, 0.1446, 0.3256, 0.1446, 0.5434, 0.3626, 0.3626, 0.3626, 0.3626, 0.2175, 0.3256, 0.1810, 0.3626, 0.3256, 0.4714, 0.3256, 0.3256, 0.3256, 0.2180, 0.1689, 0.2180, 0.3817,
+    ]
     static let cordiaNewBoldAdvances: [Double] = [
         0.2241, 0.1821, 0.2327, 0.3645, 0.3645, 0.5825, 0.437, 0.125, 0.2183, 0.2183, 0.2549, 0.3826, 0.1821, 0.2183, 0.1821,
         0.1821, 0.3645, 0.3645, 0.3645, 0.3645, 0.3645, 0.3645, 0.3645, 0.3645, 0.3645, 0.3645, 0.1821, 0.1821, 0.3826, 0.3826,
@@ -3140,6 +3146,9 @@ enum OfficeFonts {
                 // took 0.7pt a space too much and its line one fewer word.)
                 var regular = cordiaNewAdvances, bold = cordiaNewBoldAdvances
                 regular[0] = 0.222
+                if ["browallia new", "th sarabun new", "th sarabunpsk"].contains(family.trimmingWhitespace().lowercased()) {
+                    for (j, w) in Self.browalliaLatinAdvances.enumerated() { regular[j + 1] = w }
+                }
                 bold[0] = 0.181
                 face.advances = regular
                 face.boldAdvances = bold
