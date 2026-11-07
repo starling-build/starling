@@ -5509,7 +5509,13 @@ enum DocxFormat {
                 num = (n.numId, n.ilvl)
                 styleLeft = n.left; styleFirst = n.first
             }
-            if let (numId, ilvl) = num {
+            // (A numbered paragraph that holds nothing but a page break prints no label in Word for Windows:
+            // zh-7488a70f's empty "六、" item before "肆、討論事項" (numId 24, only <w:br w:type="page"/>) is a
+            // blank line at the paragraph's own position in the print, and ours set "六、" 8.5pt lower.)
+            let onlyPageBreak = DocxFormat.wordOnWindows && p.descendant("w:br").map { $0["w:type"] == "page" } == true
+                && p.descendants("w:t").allSatisfy { $0.text.allSatisfy { $0 == " " || $0 == "\n" } }
+                && p.descendant("w:drawing") == nil && p.descendant("w:pict") == nil && p.descendant("w:tab") == nil
+            if let (numId, ilvl) = num, !onlyPageBreak {
                 if numId != "0" {
                     style.list = nums[numId]?[ilvl] ?? nums[numId]?[0] ?? .bullet
                     style.listLevel = min(8, ilvl)
