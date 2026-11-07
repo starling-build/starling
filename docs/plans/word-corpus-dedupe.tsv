@@ -268,7 +268,7 @@ zh-3ab8a2fb	756	28	100.0	keep		body of a CLAIMED entry; body of a PARKED entry
 zh-3be15136	756	4	100.0	keep		carries tokens no kept document has	
 zh-3c055c9b	756	18	99.8	keep		below 100 combined; body of a CLAIMED entry; body of a RELEASED entry; header CLAIMED; named in apps/OfficeApp/Tests	
 zh-3c9bda5c	756	4	100.0	keep		carries tokens no kept document has	
-zh-3cb236a8	756	6	100.0	drop	zh-098f687f	every token is in the keeper	ch:0028 ch:0029 ch:002c ch:003d ch:005b ch:005d ch:203b ch:25ce ch:ff1b
+zh-3cb236a8	756	6	100.0	drop	zh-098f687f	every token is in the keeper	ch:0028 ch:0029 ch:002c ch:003d ch:005b ch:005d ch:203b ch:25ce ch:ff1b rule:word-east-asian-shape-is-the-cjk-faces-glyph
 zh-3cdafcc9	756	2	100.0	keep		carries tokens no kept document has	
 zh-3da9d7f2	756	20	100.0	keep		carries tokens no kept document has	
 zh-3ecd3152	756	9	100.0	keep		witness floor	
@@ -302,7 +302,7 @@ zh-4a90bb2f	756	11	100.0	keep		carries tokens no kept document has
 zh-4adfcce2	756	4	100.0	keep		body of a CLAIMED entry	
 zh-4b8e0abc	756	30	99.7	keep		below 100 combined; used by roundtrip.tsv	
 zh-4c3793e8	756	1	100.0	keep		used by roundtrip.tsv	
-zh-4c4b1af8	756	19	100.0	drop	zh-da56ab3a	every token is in the keeper	ch:0025 ch:002e ch:003a ch:25a1 ch:ff0e char_scale fields line_atleast pagebreak_mid rows_atleast sz:20 sz:24 tables tables_merged x:gridSpan x:vMerge
+zh-4c4b1af8	756	19	100.0	keep		carries tokens no kept document has	
 zh-4c5da793	756	18	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry; header RELEASED	
 zh-4c884684	756	7	100.0	keep		carries tokens no kept document has	
 zh-4d09e08e	756	4	100.0	drop	zh-25381d22	every token is in the keeper	ch:002c ch:002f ch:ff0f char_spacing_runs scripts:latin tracked x:revisions
@@ -467,7 +467,7 @@ zh-8e6ce2ed	756	15	100.0	keep		carries tokens no kept document has
 zh-8e8d4c40	756	4	100.0	keep		body of a CLAIMED entry; body of a PARKED entry; header CLAIMED; header PARKED; used by roundtrip.tsv	
 zh-8eb55158	756	15	100.0	drop	zh-f2441f00	every token is in the keeper	ch:002b ch:002f ch:25cb ch:ff0e ch:ff1d
 zh-8f3d7d79	756	5	100.0	keep		carries tokens no kept document has	
-zh-8f70b676	756	1	100.0	drop	zh-e2dc9dce	every token is in the keeper	autospace_de_off autospace_dn_off ch:0025 ch:0028 ch:0029 ch:002b ch:002e ch:002f ch:003d ch:003f ch:005f ch:007e ch:2026 ch:2027 ch:203b ch:25a1 ch:25cb ch:25ce ch:3000 ch:3001 ch:300a ch:300b ch:300
+zh-8f70b676	756	1	100.0	keep		carries tokens no kept document has	
 zh-8f7aa519	756	12	100.0	keep		carries tokens no kept document has	
 zh-8f9b19f4	756	13	100.0	keep		body of a CLAIMED entry; body of a PARKED entry; body of a RELEASED entry; named in apps/OfficeApp/Tests	
 zh-8fa6164c	756	9	100.0	keep		carries tokens no kept document has	
@@ -543,7 +543,7 @@ zh-ae3d78ee	756	33	100.0	keep		used by roundtrip.tsv
 zh-ae655121	756	10	99.5	keep		below 100 combined; used by roundtrip.tsv	
 zh-ae79c618	756	12	100.0	keep		carries tokens no kept document has	
 zh-aeb49414	756	14	100.0	keep		carries tokens no kept document has	
-zh-afdd4a7e	756	8	100.0	drop	zh-f2441f00	every token is in the keeper	ch:0028 ch:0029 ch:002b ch:002c ch:002f ch:007e ch:2014 ch:2500 ch:25cb ch:ff0e ch:ff1d face:DFKaiShu fullwidth-form
+zh-afdd4a7e	756	8	100.0	drop	zh-5f045fc1	every token is in the keeper	ch:0028 ch:0029 ch:002c ch:002f ch:003d ch:2014
 zh-b00fef0d	756	21	100.0	keep		body of a CLAIMED entry; body of a PARKED entry	
 zh-b0207333	756	9	100.0	keep		carries tokens no kept document has	
 zh-b0401810	756	19	100.0	keep		accepted drop / scorer artefact line; body of a CLAIMED entry; body of a PARKED entry	
@@ -650,7 +650,7 @@ zh-d746674a	756	14	100.0	keep		named in apps/OfficeApp/Tests
 zh-d79c7f82	756	6	100.0	keep		carries tokens no kept document has	
 zh-d8247da5	756	1	100.0	keep		body of a CLAIMED entry	
 zh-d89c3840	756	4	100.0	keep		carries tokens no kept document has	
-zh-d950cedb	756	14	100.0	drop	zh-95d4dde0	every token is in the keeper	breakrules_off ch:0026 ch:0028 ch:0029 ch:002b ch:002c ch:003b ch:00d7 ch:3008 ch:3009 ch:ff05 char_scale char_spacing_runs compat:doNotUseEastAsianBreakRules compat:doNotUseIndentAsNumberingTabStop c
+zh-d950cedb	756	14	100.0	keep		carries tokens no kept document has	
 zh-d9563f2f	756	13	100.0	keep		carries tokens no kept document has	
 zh-d97c5474	756	2	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry; named in apps/OfficeApp/Tests	
 zh-d9b085b1	756	20	100.0	keep		body of a CLAIMED entry; body of a RELEASED entry	
@@ -1125,7 +1125,7 @@ lo-9c6cc479	lo	3	100.0	keep		carries tokens no kept document has
 lo-9cc5d6ef	lo	2	100.0	drop	lo-425b63cb	every token is in the keeper	ch:0027 ch:002c ch:002e ch:003f
 lo-9cce1f79	lo	3	100.0	keep		carries tokens no kept document has	
 lo-9cce40f9	lo	1	100.0	keep		carries tokens no kept document has	
-lo-9d2d78c1	lo	1	100.0	drop	Bug54849	every token is in the keeper	ch:002f ch:005f endnotes ftr:default hdr:default scripts:latin sdt tab_stops tables tabs x:contentctl x:endnoteRefs x:tabCenter x:tabRight
+lo-9d2d78c1	lo	1	100.0	drop	Bug54849	every token is in the keeper	ch:002f ch:005f endnotes ftr:default hdr:default rule:word-row-is-its-cells-own-margins-tall rule:word-row-takes-the-line-its-other-cells-draw rule:word-table-rule-is-a-box-0.96-wide-hanging-below-a-h
 lo-9e08e489	lo	1	100.0	drop	lo-c1656999	every token is in the keeper	ch:002e
 lo-9e88222d	lo	1	100.0	keep		history: moved 88.9->100.0 in e1bd3ea2a (lo.v2) while its keeper zh-b8de3ae2 did not; no commit in the range names it	
 lo-9eaf41a6	lo	2	100.0	keep		carries tokens no kept document has	
@@ -1205,7 +1205,7 @@ lo-be40d67a	lo	1	100.0	keep		carries tokens no kept document has
 lo-be51ab2e	lo	1	100.0	keep		carries tokens no kept document has	
 lo-bf1e33f3	lo	1	100.0	keep		accepted drop / scorer artefact line	
 lo-bf4e9964	lo	1	100.0	keep		carries tokens no kept document has	
-lo-bf5dabc8	lo	1	100.0	drop	bug65738	every token is in the keeper	ch:0021 ch:002c ch:002e ch:002f ch:003a ch:2019 compat:useFELayout face:Georgia face:SegoeUI face:Times face:TimesNewRoman fe_layout ftr:default hdr:default hyperlinks langs_ea:en-GB x:tabCenter x:tab
+lo-bf5dabc8	lo	1	100.0	drop	bug65738	every token is in the keeper	ch:0021 ch:002c ch:002e ch:002f ch:003a ch:2019 compat:useFELayout face:Georgia face:SegoeUI face:Times face:TimesNewRoman fe_layout ftr:default hdr:default hyperlinks langs_ea:en-GB rule:word-row-is-
 lo-bf8f3297	lo	0	100.0	keep		body of a CLAIMED entry; visual-scored (no text lines; the replay cannot see it)	
 lo-c1656999	lo	1	100.0	keep		carries tokens no kept document has	
 lo-c32650af	lo	2	100.0	drop	lo-425b63cb	every token is in the keeper	ch:0027 ch:002c ch:002e ch:003f

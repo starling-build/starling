@@ -1,244 +1,352 @@
 doc	action	group	pages	printed	covered_by
 B/docx-5dc87fc7	admit	eng	9	yes	
 A/dx4j-7acb626022	admit	eng	6	yes	
+C/3bcf7e6184726a108beaa796047205ff03e1d76ef6a60de29323221e6791d99c	admit	eng	31	yes	
 A/th-044e3e71f7	admit	eng	22	yes	
 B/urd-z17694236-c03d57	admit	urd	16	yes	
+C/e91c88252330082c0e875b2e9c523ba44bd5d8563a573c561718108cd2557b58	admit	tha	37	yes	
+C/fd72fac2018cb6ebcb38d3b89f64297c286c185d94791bd77813f170f7d70ff2	admit	eng	24	yes	
+C/a91d8fed257c237f644df51d84e61badf1d8a20372827c5ecc320e7ce0fbb0c6	admit	jpn	26	yes	
 B/docx-ab94b38c	admit	eng	11	yes	
 B/urd-z17694289-27ac54	redundant, kept (thin group or budget met)	urd	12	yes	(kept set + several admitted)
 B/docx-a3f77cda	admit	eng	4	yes	
 A/gv-3db26a1d34	redundant, kept (thin group or budget met)	eng	37	yes	(kept set + several admitted)
+C/b718caa5122a1b4dbe4fa4f43f098c71e4255bb90a9f701be9d52c2662170bf1	admit	kor	30	yes	
 B/urd-z7294462-73d948	admit	urd	12	yes	
 A/gv-9febdcb8f3	admit	dan	32	yes	
 A/poi-59fdcfe90b	admit	ara	32	yes	
 A/gv-d4270b921d	redundant, kept (thin group or budget met)	dan	33	yes	A/gv-9febdcb8f3
 B/fra-g255-612f49	admit	fra	21	yes	
 A/gv-ccf7f258bf	redundant, kept (thin group or budget met)	dan	33	yes	A/gv-9febdcb8f3
+C/67a3b93acd3c10430b7cab8d43c8cb66c0c01d36e0cf711dbc7f4e76f5287129	redundant, kept (thin group or budget met)	kor	21	yes	(kept set + several admitted)
+C/e54d1fb0b49084e25b4cf2829907e3875c829ba235a241d4df149c3901b0ad17	admit	tha	21	yes	
 B/ara-z8199393-075ed2	admit	ara	13	yes	
 B/fra-z5579827-3c5db0	admit	fra	35	yes	
 B/urd-z7427432-7738e5	admit	urd	24	yes	
 B/ara-z4399437-5bde25	admit	ara	15	no	
-B/fra-g254-10e815	redundant, kept (thin group or budget met)	fra	23	yes	(kept set + several admitted)
+C/aab5ab3dff57bd419f630b9eb6e6ea61ed29a2790b7f9a79193b63b647cbd79b	admit	tha	25	yes	
+C/9ee94bf7a31f4aebe0e34f57f03f3321bcf2abb8d80322bff4c647a3d2afa57a	admit	eng	34	yes	
+C/8714e66e33b30cf0e8bde9092189b05a905dc95ef510620064e903b140c6501e	redundant, kept (thin group or budget met)	eng	16	yes	(kept set + several admitted)
+B/fra-g254-10e815	NOT ADMIT	fra	23	yes	(kept set + several admitted)
+C/c82d98bcc06e91e93a5cc0c26a1539cd824d9124853c6ca613b4c3dc6707bc1f	redundant, kept (thin group or budget met)	eng	12	yes	(kept set + several admitted)
 A/gv-690391482c	admit	eng	40	yes	
+C/3be2ea7f4100bf7935860cf416a4664617415ea21afe39d81e06eed61690fc17	redundant, kept (thin group or budget met)	eng	36	yes	(kept set + several admitted)
 A/gv-fbcf1434e7	admit	eng	29	yes	
 B/fra-g188-120f4b	admit	fra	8	yes	
 A/dx4j-a94b4fd3b1	admit	eng	5	yes	
+C/94baf8b9bd02bcef079fa101f025f3ecc4293e1032014fe0ae15eccb1a975f15	redundant, kept (thin group or budget met)	eng	40	yes	(kept set + several admitted)
+C/8948a622756ef506cd1c9244bb51dde111cdc58694ee7e86ae556bf2136701d5	redundant, kept (thin group or budget met)	eng	38	yes	(kept set + several admitted)
+C/0810551fd9bc15266a5da93a015195dfe6e15aad9f1bcae893544046eee0ccc7	redundant, kept (thin group or budget met)	eng	34	yes	(kept set + several admitted)
 B/urd-z10575633-e54653	admit	urd	27	yes	
 A/oxsdk-b790e6bc89	admit	eng	11	yes	
-B/fra-g74-252934	redundant, kept (thin group or budget met)	fra	37	yes	(kept set + several admitted)
+C/cab6d785b4bbfc5747616adb8732a3204f1f3ba68c77a41a7ddd178e5355d92a	admit	jpn	38	yes	
+B/fra-g74-252934	NOT ADMIT	fra	37	yes	(kept set + several admitted)
 B/fra-g210-1a6d33	admit	fra	20	yes	
 B/ara-z8157766-171cca	admit	ara	15	yes	
+C/f7888b70f2f14dbacf50c8a2641818105bdf303f27438791a556158ad1e8edc1	admit	eng	15	yes	
 B/ara-z8215570-1aa55d	admit	ara	7	yes	
 B/fra-g274-cccee1	admit	fra	32	yes	
-B/ara-z18174368-24a52d	redundant, kept (thin group or budget met)	ara	16	yes	(kept set + several admitted)
+C/f771e9db5b1e3a3715a453605cbf713204bbc372ee2be8268785b5f43d241b37	admit	eng	31	yes	
+C/07356df9ab0414ebc1b2af15a0834d0b7bc84a669b3a6bca3762dbd7c628a34a	admit	eng	30	yes	
+B/ara-z18174368-24a52d	NOT ADMIT	ara	16	yes	(kept set + several admitted)
+C/8b283c4dda0c7936140abe80007dfda066804a6668d66a57ec44554f3529af4c	admit	jpn	38	yes	
 A/gv-c71d651659	admit	eng	37	yes	
+C/e50792c2ee52b44abece2cffc71eb35115dc195df632bee5619101bf12a2e935	admit	eng	32	yes	
 A/gv-2fbb30d3cf	redundant, kept (thin group or budget met)	eng	27	yes	(kept set + several admitted)
+C/67f1ba7586e87486e0468adbc26bb25fbe0a86f1c99fc43d598e5d32bba5a5c4	redundant, kept (thin group or budget met)	eng	26	yes	(kept set + several admitted)
+C/2179cebe92d4052973bbfff80c8e25fa5dc5eb50489516130290e7c76f7e2a47	redundant, kept (thin group or budget met)	eng	25	yes	(kept set + several admitted)
 A/gv-d79af1faf9	admit	eng	12	yes	
 A/gv-1bfba88742	redundant, kept (thin group or budget met)	eng	35	yes	(kept set + several admitted)
-B/fra-g113-d1531b	redundant, kept (thin group or budget met)	fra	34	yes	(kept set + several admitted)
+B/fra-g113-d1531b	NOT ADMIT	fra	34	yes	(kept set + several admitted)
 A/gv-cd79f1fa6b	redundant, kept (thin group or budget met)	eng	27	yes	(kept set + several admitted)
 A/gv-ab9f5e58f1	admit	eng	20	yes	
 A/gv-48dbbfebfb	redundant, kept (thin group or budget met)	eng	38	yes	(kept set + several admitted)
-B/fra-g75-267353	redundant, kept (thin group or budget met)	fra	36	yes	(kept set + several admitted)
-B/fra-g259-a72f48	redundant, kept (thin group or budget met)	fra	18	yes	(kept set + several admitted)
-B/fra-g261-bfc26f	redundant, kept (thin group or budget met)	fra	18	yes	(kept set + several admitted)
+B/fra-g75-267353	NOT ADMIT	fra	36	yes	(kept set + several admitted)
+C/b7fe476aa1f548809e8b4b8f64feb2cedcbf0827f832c58a00bf35918aa8b153	admit	eng	25	yes	
+B/fra-g259-a72f48	NOT ADMIT	fra	18	yes	(kept set + several admitted)
+B/fra-g261-bfc26f	NOT ADMIT	fra	18	yes	(kept set + several admitted)
+C/2bd470cdc8e6f0c804c12f327f06d67136c5888eaf80985204c0ad3e5510707a	redundant, kept (thin group or budget met)	eng	16	yes	(kept set + several admitted)
 B/jpn-z21601833-4e6465	admit	jpn	1	yes	
 A/gv-5f403944ae	redundant, kept (thin group or budget met)	eng	20	yes	(kept set + several admitted)
 A/gv-989ecc4fa6	admit	eng	18	yes	
 B/jpn-z21601833-acd729	admit	jpn	1	yes	
+C/af62a1bbb6585e4353db0b153dd5875389c2ac4722d6438dcb8153c3d1a88450	redundant, kept (thin group or budget met)	eng	37	yes	(kept set + several admitted)
 A/gv-952807372b	redundant, kept (thin group or budget met)	eng	22	yes	(kept set + several admitted)
 A/gv-4120977a6e	redundant, kept (thin group or budget met)	eng	21	yes	(kept set + several admitted)
 B/ara-z21988051-184d63	admit	ara	15	yes	
-B/fra-g216-94ef9d	redundant, kept (thin group or budget met)	fra	22	yes	(kept set + several admitted)
+C/1527abbfb9238bf43a5752d16537f1cbca9a4dbdf48c557ea7c97feca5bc9aba	redundant, kept (thin group or budget met)	kor	5	yes	(kept set + several admitted)
+C/780426ed8b77191fbaf96f1fd7fce48b1940977d170f7ef7b466a130d9ee991d	redundant, kept (thin group or budget met)	eng	30	yes	(kept set + several admitted)
+B/fra-g216-94ef9d	NOT ADMIT	fra	22	yes	(kept set + several admitted)
 B/fra-g111-8b0e29	admit	fra	21	yes	
-A/dx4j-d3a9fd32e4	redundant, kept (thin group or budget met)	deu	20	yes	(kept set + several admitted)
+A/dx4j-d3a9fd32e4	NOT ADMIT	deu	20	yes	(kept set + several admitted)
 B/ell-z10407270-89615d	admit	ell	18	yes	
-B/fra-g114-b28c3a	redundant, kept (thin group or budget met)	fra	16	yes	(kept set + several admitted)
+B/fra-g114-b28c3a	NOT ADMIT	fra	16	yes	(kept set + several admitted)
+C/708e2879e917bd31e13294a1abb8f8428300aca4e6acebf394bae14890dfd7f3	admit	eng	39	yes	
 A/gv-6ed2720360	redundant, kept (thin group or budget met)	eng	22	yes	(kept set + several admitted)
 B/fra-g156-5d636a	admit	fra	19	yes	
 B/fra-g27-306125	admit	fra	4	yes	
-A/oxsdk-6eac499944	redundant, kept (thin group or budget met)	eng	3	yes	A/oxsdk-b790e6bc89
+A/oxsdk-6eac499944	NOT ADMIT	eng	3	yes	A/oxsdk-b790e6bc89
+C/99a68284e45f987ba28d569248dbf9f5e6d8e14eb9a0bed42bd66da4580f606c	redundant, kept (thin group or budget met)	eng	35	yes	(kept set + several admitted)
 A/gv-95df15ab58	redundant, kept (thin group or budget met)	eng	23	yes	(kept set + several admitted)
 A/gv-f711169bf7	admit	eng	23	yes	
 A/gv-f01921a2f4	redundant, kept (thin group or budget met)	eng	16	yes	A/gv-fbcf1434e7
-B/fra-g71-c7e5d1	redundant, kept (thin group or budget met)	fra	25	yes	(kept set + several admitted)
+C/3a493613ff875218da5822f054a00539017eb9b8df286c2f4f399868a29617ce	admit	tha	16	yes	
+C/f42177d2f9a2f68f1e2449880145d7d47e74ae963657e096ddff3107f91b07f4	admit	jpn	12	yes	
+C/366c740f67d17954ca2ac144b9ef90b67439de1c3748c7f0e4299a9c7194bddc	redundant, kept (thin group or budget met)	eng	34	yes	(kept set + several admitted)
+B/fra-g71-c7e5d1	NOT ADMIT	fra	25	yes	(kept set + several admitted)
 B/fra-g70-0ecec1	admit	fra	24	yes	
-B/fra-g63-071cc4	redundant, kept (thin group or budget met)	fra	19	yes	(kept set + several admitted)
+C/bf53d2b77c6106b174c9812ccf2b91583189acea85492a517280fd1eb0c7927e	redundant, kept (thin group or budget met)	heb	20	yes	(kept set + several admitted)
+B/fra-g63-071cc4	NOT ADMIT	fra	19	yes	(kept set + several admitted)
 A/gv-d152e362be	admit	eng	8	yes	
-A/oxsdk-bf81767784	redundant, kept (thin group or budget met)	eng	4	yes	A/oxsdk-b790e6bc89
+A/oxsdk-bf81767784	NOT ADMIT	eng	4	yes	A/oxsdk-b790e6bc89
 B/rus-z23849405-f5dafb	redundant, kept (thin group or budget met)	rus	4	yes	(kept set + several admitted)
 A/poi-51272c8358	admit	eng	37	yes	
-B/fra-g158-ce1b38	redundant, kept (thin group or budget met)	fra	28	yes	(kept set + several admitted)
+B/fra-g158-ce1b38	NOT ADMIT	fra	28	yes	(kept set + several admitted)
+C/0980009925a9e60577725ba1aca7cc2cac32313ee51db27edfedb03b9bc6448c	redundant, kept (thin group or budget met)	eng	20	yes	(kept set + several admitted)
 B/jpn-z19433747-8787f4	admit	jpn	19	yes	
+C/62034d671bdafc99e9ae888a25f4a96feee9aed89290591a86862616c251d9d5	admit	eng	17	yes	
 A/gv-bf9f5e8aef	redundant, kept (thin group or budget met)	eng	14	yes	(kept set + several admitted)
+C/ba3e11e2a1b6aa0c418488c63f65eab4ddf5329009e12d79e2e87d964fc11592	admit	heb	11	yes	
 A/gv-0de3e9bcf1	admit	eng	10	yes	
+C/66cda9e38c24673843300b81bc60056dfa88f9619b78766ceb41aa3ae1fb2182	admit	tha	20	yes	
 B/jpn-z23002680-ec6c96	redundant, kept (thin group or budget met)	jpn	13	yes	(kept set + several admitted)
+C/9ba344295ba2d6b0320538ebc9b43a72d2379a1a08c0a0f9e7aa8d22928ca396	admit	jpn	7	yes	
 B/hin-z20459061-8ec51c	admit	hin	6	yes	
 B/ara-z11030406-663296	admit	ara	1	no	
 B/jpn-z23002680-ee9f8f	redundant, kept (thin group or budget met)	jpn	17	yes	(kept set + several admitted)
-B/fra-g72-9584a9	redundant, kept (thin group or budget met)	fra	16	yes	(kept set + several admitted)
-B/fra-g227-322a6f	redundant, kept (thin group or budget met)	fra	11	yes	(kept set + several admitted)
+B/fra-g72-9584a9	NOT ADMIT	fra	16	yes	(kept set + several admitted)
+C/89a3482a39b972c4025ce389a95ec3da52237c7ee6a7823ee5488b126923abc6	admit	kor	14	yes	
+B/fra-g227-322a6f	NOT ADMIT	fra	11	yes	(kept set + several admitted)
 B/hin-z19974540-2e43e8	admit	hin	8	yes	
+C/7416edcde2a46a5906389c9920d46c27d5b30f24996c6e520c027c65549550c2	admit	kor	8	yes	
 B/hin-z21320572-6df882	redundant, kept (thin group or budget met)	hin	6	yes	(kept set + several admitted)
+C/d7bdf2fa9f11b77b0a0592d5b82db1044effc71ae7f2fe74827a7e6ed557e2be	admit	kor	3	yes	
 A/gv-30930cbf0f	redundant, kept (thin group or budget met)	eng	40	yes	(kept set + several admitted)
 B/jpn-z23002680-771abc	redundant, kept (thin group or budget met)	jpn	16	yes	(kept set + several admitted)
 B/hin-z21336921-9c7c87	redundant, kept (thin group or budget met)	hin	5	yes	(kept set + several admitted)
 B/ara-z6757469-27b88d	admit	ara	1	yes	
 B/jpn-z21601833-463426	admit	jpn	1	yes	
-A/dx4j-e07d23e981	redundant, kept (thin group or budget met)	eng	21	yes	(kept set + several admitted)
+A/dx4j-e07d23e981	NOT ADMIT	eng	21	yes	(kept set + several admitted)
 B/hin-z20049040-f01e57	redundant, kept (thin group or budget met)	hin	9	yes	(kept set + several admitted)
 B/hin-z20395056-4ee329	redundant, kept (thin group or budget met)	hin	5	yes	(kept set + several admitted)
 B/rus-z14923673-7a385d	admit	rus	3	yes	
-B/fra-g130-897ae7	redundant, kept (thin group or budget met)	fra	22	yes	(kept set + several admitted)
+B/fra-g130-897ae7	NOT ADMIT	fra	22	yes	(kept set + several admitted)
 A/gv-7b608a7d61	redundant, kept (thin group or budget met)	eng	21	yes	(kept set + several admitted)
+C/d9f52d28a0da1c32a91cf04630748890ee1e119a627815a46ea2c831d3c5a65d	redundant, kept (thin group or budget met)	eng	21	yes	(kept set + several admitted)
 B/jpn-z23002680-1e9281	redundant, kept (thin group or budget met)	jpn	13	yes	(kept set + several admitted)
 B/hin-z20759993-04d538	admit	hin	3	yes	
 A/gv-ab534ed145	redundant, kept (thin group or budget met)	eng	28	yes	A/gv-c71d651659
 B/fas-z8123021-fd38aa	admit	fas	26	no	
 A/lo-b9c4651087	admit	eng	23	yes	
 B/ell-z10407038-6c5718	admit	ell	20	yes	
+C/218dff529f1d38653037b29cdf4d5f9f43b3b356806db39785335f8f74ba0306	admit	kor	13	yes	
 B/nld-z22251521-8c1881	admit	nld	9	yes	
+C/20d9968b2e582be9ad55d7a4157dfe56bbf85242b6548e9093eb76ad7fd812af	admit	jpn	8	yes	
 B/hin-z20395192-2886e1	redundant, kept (thin group or budget met)	hin	7	yes	(kept set + several admitted)
 B/mar-z19707447-f8dac9	admit	mar	5	yes	
 B/kor-z19176375-004d7a	admit	kor	35	yes	
+C/6d273a8f4f2e87ac0d7da9b9a14bfbff2f087210e84f374c4a02aad66c2a994f	admit	kor	20	yes	
+C/b60ada181c6395ec4741260ff0ede860461e8dba7af73237561dc84a63ff6396	admit	kor	13	yes	
 B/jpn-z23002680-bb5c68	redundant, kept (thin group or budget met)	jpn	12	yes	(kept set + several admitted)
-A/poi-1609d3eed7	redundant, kept (thin group or budget met)	eng	7	yes	(kept set + several admitted)
+A/poi-1609d3eed7	NOT ADMIT	eng	7	yes	(kept set + several admitted)
 A/lo-ea00f54689	admit	eng	2	yes	
 B/ara-z20756589-698264	admit	ara	1	no	
 B/ara-z5546173-df5ec4	NOT ADMIT	ara	1	no	(kept set + several admitted)
 B/kor-z23967513-87f03c	admit	kor	1	yes	
+C/b6f6c7d44b86d0974df06500a8816c9a08b211057493f6f6cac150093822aa51	admit	kor	39	yes	
+C/a6d65f60d0e1fa40755779aea163637cd7c90ef6f0574217507feb3dfea48bf2	redundant, kept (thin group or budget met)	eng	36	yes	(kept set + several admitted)
 A/oxsdk-1c09b12993	admit	eng	20	yes	
-A/oxsdk-724feef715	redundant, kept (thin group or budget met)	eng	12	yes	(kept set + several admitted)
+A/oxsdk-724feef715	NOT ADMIT	eng	12	yes	(kept set + several admitted)
 A/lo-197f202205	admit	eng	11	yes	
-A/dx4j-9d80c52789	redundant, kept (thin group or budget met)	eng	9	yes	(kept set + several admitted)
+A/dx4j-9d80c52789	NOT ADMIT	eng	9	yes	(kept set + several admitted)
+C/efbb06c2116635495132f0a6bfd6788f24299b23be00258dac4369342d5e9716	admit	jpn	8	yes	
 B/hin-z18479909-61195a	admit	hin	7	yes	
 B/jpn-z21601833-c2301a	redundant, kept (thin group or budget met)	jpn	1	yes	(kept set + several admitted)
+C/1d944f7b254e29ff7a8ec50e43f60147920cb263cd04e8d697a6c6a152971b86	admit	eng	26	yes	
+C/0815aa59ccc6dbbdb908c5f6bd8acecf629fdaf9239178309471469e4e50f399	admit	tha	22	yes	
+C/aa51a122dac0019cd74a63478ee1aa23e58d27a93bb68a97a0955ca900052a38	redundant, kept (thin group or budget met)	kor	15	yes	(kept set + several admitted)
 A/gv-c898507cac	redundant, kept (thin group or budget met)	eng	10	yes	(kept set + several admitted)
 A/lo-2af13d3cd9	admit	bos	8	yes	
 A/gv-5cba2cd528	admit	eng	25	yes	
-A/dx4j-0c0fa3f688	redundant, kept (thin group or budget met)	eng	8	yes	(kept set + several admitted)
+C/eb52ce9bb9a24df73240c52f7f1e9a2e213c8e4c69767bdea3af25449a087b9c	redundant, kept (thin group or budget met)	tha	24	yes	(kept set + several admitted)
+C/8e81b68dbdee3cbb56e3e373fea685986d4a96ae86c3b6edbee71b1ef69e82a8	redundant, kept (thin group or budget met)	eng	21	yes	(kept set + several admitted)
+A/dx4j-0c0fa3f688	NOT ADMIT	eng	8	yes	(kept set + several admitted)
 A/lo-c25842c80b	admit	eng	5	yes	
+C/0539b975737d0acd36b0fcb444482bd2b632afd71897fa02ae908a0ec28efa4b	redundant, kept (thin group or budget met)	kor	5	yes	(kept set + several admitted)
 A/poi-0c58de6a75	admit	deu	4	yes	
+C/c90dbdb322296948de16523e1fa6e9e096d8e317b668e985a3e3b8a8e71eea33	admit	jpn	19	yes	
+C/07eecf7ad737871ca1956758fba71910a6ad9fcf463d521400c010736a533505	admit	kor	16	yes	
 B/jpn-z21461406-0d8cbc	admit	jpn	14	yes	
 B/kor-z20746312-59e77f	redundant, kept (thin group or budget met)	kor	13	yes	(kept set + several admitted)
+C/03cd29dc2f67a29e0fb011b58e6c07ab377c3b677a38fa29710e735a3bb43575	redundant, kept (thin group or budget met)	kor	11	yes	(kept set + several admitted)
 A/gv-e7920f5c77	redundant, kept (thin group or budget met)	eng	36	yes	(kept set + several admitted)
 A/gv-9fba5bc3b0	admit	eng	30	yes	
 A/gv-d21097f0f9	redundant, kept (thin group or budget met)	eng	17	yes	(kept set + several admitted)
 B/ell-z20423699-8d41bb	admit	ell	11	yes	
 B/ell-z20423699-f43340	redundant, kept (thin group or budget met)	ell	11	yes	(kept set + several admitted)
-A/oxsdk-be66d24bb6	redundant, kept (thin group or budget met)	eng	6	yes	(kept set + several admitted)
+A/oxsdk-be66d24bb6	NOT ADMIT	eng	6	yes	(kept set + several admitted)
 A/gv-efcf85d5fd	redundant, kept (thin group or budget met)	eng	26	yes	(kept set + several admitted)
 B/fas-z19537379-034075	admit	fas	22	no	
 B/ell-z20423699-e882cd	redundant, kept (thin group or budget met)	ell	12	yes	(kept set + several admitted)
 B/urd-z8387389-553f88	admit	urd	12	yes	
 B/ell-z20423699-49fb5c	redundant, kept (thin group or budget met)	ell	11	yes	B/ell-z20423699-8d41bb
 B/ara-z20648189-8e6ca0	admit	ara	33	no	
+C/aa5eda9b8831b64cb81485f3fb3de435f3b4186e112f4c03367c5e5fc51f8736	redundant, kept (thin group or budget met)	tha	18	yes	(kept set + several admitted)
 A/gv-dbc3c03efc	admit	eng	16	yes	
 B/ell-z20423699-05c22a	redundant, kept (thin group or budget met)	ell	10	yes	(kept set + several admitted)
 B/ell-z20423699-263d3d	redundant, kept (thin group or budget met)	ell	10	yes	(kept set + several admitted)
 A/oxsdk-6209c6d5a7	admit	eng	6	yes	
 B/fas-z21853138-0c740e	admit	fas	6	no	
+C/061a775742dd610e00805abbd32fa424fb4440ff177862f79ad05600616356d4	redundant, kept (thin group or budget met)	kor	5	yes	(kept set + several admitted)
+C/62909c9c4ef334acaf2cf7d94a629c295d73d9e7939505a84f44390434ac57ed	redundant, kept (thin group or budget met)	jpn	5	yes	(kept set + several admitted)
 B/jpn-g2-231fe1	admit	jpn	4	yes	
-A/gv-0ab5adb3c5	admit	dan	16	yes	
+C/658a33bb1e725fff4ec96b3cde57bb77c7f845c4e733410ff07ed1ff7548d641	admit	kor	4	yes	
+A/gv-0ab5adb3c5	redundant, kept (thin group or budget met)	dan	16	yes	(kept set + several admitted)
+C/44a22c5de7e67952fc2132c0a0c4a86b69029e182db78a4518b794d26a1e2965	redundant, kept (thin group or budget met)	eng	15	yes	(kept set + several admitted)
 B/ell-z20423699-d32504	redundant, kept (thin group or budget met)	ell	10	yes	(kept set + several admitted)
-B/jpn-z18981562-5ff3d0	admit	jpn	10	yes	
+B/jpn-z18981562-5ff3d0	redundant, kept (thin group or budget met)	jpn	10	yes	(kept set + several admitted)
 A/gv-40d42c6acc	redundant, kept (thin group or budget met)	eng	8	yes	(kept set + several admitted)
 A/gv-eea94e2b32	admit	eng	8	yes	
 B/ukr-z3545667-44f26f	admit	ukr	6	yes	
-B/fra-z21475910-3f014d	redundant, kept (thin group or budget met)	fra	3	yes	(kept set + several admitted)
-B/kor-z23132029-ff493b	admit	kor	35	yes	
+C/6dd1ef35e7a5f53b762f06c9fad9c32652680e81cb5c05150482f4b9a5e49d19	redundant, kept (thin group or budget met)	tam	5	yes	(kept set + several admitted)
+B/fra-z21475910-3f014d	NOT ADMIT	fra	3	yes	(kept set + several admitted)
+B/kor-z23132029-ff493b	redundant, kept (thin group or budget met)	kor	35	yes	(kept set + several admitted)
 B/jpn-g11-40dd71	admit	jpn	6	yes	
 B/hin-z20740649-94bde9	redundant, kept (thin group or budget met)	hin	4	yes	(kept set + several admitted)
 B/hin-z20747431-a0ee17	redundant, kept (thin group or budget met)	hin	4	yes	(kept set + several admitted)
+C/414170f039e08527fbf7d7edf909175bc5de4e9743a67e888f11fedfe7cb84f6	redundant, kept (thin group or budget met)	heb	30	yes	(kept set + several admitted)
 A/gv-0c37898d9c	redundant, kept (thin group or budget met)	eng	24	yes	(kept set + several admitted)
 A/gv-c9368dd9d4	redundant, kept (thin group or budget met)	eng	19	yes	(kept set + several admitted)
 A/gv-8ddf4f0650	redundant, kept (thin group or budget met)	eng	11	yes	(kept set + several admitted)
 B/jpn-z19363276-7f0539	redundant, kept (thin group or budget met)	jpn	11	yes	(kept set + several admitted)
 B/jpn-z19363276-f9df5b	redundant, kept (thin group or budget met)	jpn	7	yes	(kept set + several admitted)
+C/55680978a8a51f054311d578346b1518e75caf84a0dd0295de8c8d5e272c36ce	redundant, kept (thin group or budget met)	kor	7	yes	(kept set + several admitted)
+C/b88f2314606c5623142a0f964ee3581767f44b576617ed1ab61f882ebb194bc3	redundant, kept (thin group or budget met)	kor	7	yes	(kept set + several admitted)
 B/bul-z14225469-9d8b52	admit	bul	4	yes	
 B/kor-z19176375-30dbe1	admit	kor	1	yes	
 A/gv-d1907c960c	redundant, kept (thin group or budget met)	eng	13	yes	(kept set + several admitted)
+C/ac5ff286972c61450529a381802443a0c81c7cc96c0540cecb34727b80ff04e2	redundant, kept (thin group or budget met)	kor	13	yes	(kept set + several admitted)
+C/c7b72657cc93d5f227265469e2b862f7bb25b13426702d21ec19b03905084ff6	redundant, kept (thin group or budget met)	heb	13	yes	(kept set + several admitted)
 A/gv-6ce91f7085	redundant, kept (thin group or budget met)	eng	9	yes	(kept set + several admitted)
 B/jpn-g6-2212a2	redundant, kept (thin group or budget met)	jpn	4	yes	(kept set + several admitted)
+C/01943b11be4cc6582bda5866d85302f5c149fd43a95b4109aacee1f7886e10b1	redundant, kept (thin group or budget met)	tha	32	yes	(kept set + several admitted)
 A/gv-eabaa157a2	redundant, kept (thin group or budget met)	eng	21	yes	(kept set + several admitted)
 B/ara-z23762883-38b4e0	NOT ADMIT	ara	19	no	(kept set + several admitted)
-B/kor-z21348848-7369b1	admit	kor	9	yes	
+C/38d880e89fc4ddb0838ac90c3a3b1853fd3de66b8ca65ee56fbd813dbd7b4f05	admit	heb	15	yes	
+C/4fabe1f276d3965955ad74c15ef1849103f1443727c504999cdc76672c0b7cdf	admit	kor	15	yes	
+C/b9164bf3765e67b8c01c8df4ab3655df2029500f3a13f9e3e41cef4901b98254	redundant, kept (thin group or budget met)	heb	11	yes	(kept set + several admitted)
+B/kor-z21348848-7369b1	redundant, kept (thin group or budget met)	kor	9	yes	(kept set + several admitted)
 A/lo-00be6d5f88	admit	eng	8	yes	
+C/45acc7fe1a60cfb7690f9f95de477585ae0047c6e1f880033ceac9d42e9956fe	redundant, kept (thin group or budget met)	heb	7	yes	(kept set + several admitted)
 B/kor-z22157092-bb30b1	admit	kor	6	yes	
 B/ukr-z3546072-60118d	redundant, kept (thin group or budget met)	ukr	6	yes	(kept set + several admitted)
 A/lo-ae4f3e8e64	admit	eng	2	yes	
 A/dx4j-d5b6ee0cfa	admit	eng	16	yes	
 A/gv-57041316b7	admit	eng	14	yes	
 A/gv-02852086d1	admit	eng	13	yes	
+C/4d02d27f56475dd42de804c8b721cda6387d5fe82b94bdad1f3f46480af25c56	admit	tha	21	yes	
 B/hin-z19439612-b05873	admit	hin	9	yes	
 B/docx-7e68ac6f	redundant, kept (thin group or budget met)	eng	4	yes	(kept set + several admitted)
 A/lo-e4f1d70103	admit	eng	3	yes	
+C/4bc34886d3201912a9d9e6b2a4388a382860dd894592f01a0a9cfd95607e6497	admit	tam	3	yes	
 A/lo-4a364335ce	admit	deu	1	yes	
+C/a969ba6ce5b4bcfb348a9642b4ff6a47d60aef48f705e7a2bd9aa152c31d7b82	admit	eng	27	yes	
 B/jpn-z19126474-754366	redundant, kept (thin group or budget met)	jpn	15	yes	(kept set + several admitted)
 A/gv-c63b496e93	redundant, kept (thin group or budget met)	eng	11	yes	(kept set + several admitted)
 B/jpn-z17350624-9bde52	redundant, kept (thin group or budget met)	jpn	7	yes	(kept set + several admitted)
+C/47480880a8a34a9d23298450db7c9d339036a809d6beb64812085fbaa4cfbc4e	redundant, kept (thin group or budget met)	heb	7	yes	(kept set + several admitted)
 B/docx-b5656ae8	redundant, kept (thin group or budget met)	eng	4	yes	B/docx-a3f77cda
 A/lo-98ae9de23e	admit	eng	2	yes	
 B/kor-z17491512-222f3f	admit	kor	1	yes	
-B/por-z17495939-9061fd	redundant, kept (thin group or budget met)	por	22	yes	(kept set + several admitted)
-B/jpn-z22855378-6fca0f	admit	jpn	12	yes	
+B/por-z17495939-9061fd	NOT ADMIT	por	22	yes	(kept set + several admitted)
+B/jpn-z22855378-6fca0f	redundant, kept (thin group or budget met)	jpn	12	yes	(kept set + several admitted)
 B/ben-z17281487-bfc234	admit	ben	11	yes	
 A/gv-f4d57010c6	redundant, kept (thin group or budget met)	eng	9	yes	A/gv-eea94e2b32
 B/jpn-z19410533-d8cc8f	redundant, kept (thin group or budget met)	jpn	7	yes	(kept set + several admitted)
+C/1f977536e5d561bdbbe53e7c24159a4164af84cd34363e6ba6493d375bd83ff8	redundant, kept (thin group or budget met)	heb	7	yes	(kept set + several admitted)
 B/jpn-z20806225-930d98	admit	jpn	1	yes	
 B/jpn-z17544993-4a21de	admit	jpn	26	yes	
+C/bf230b4a88d78a56ea0a42ec7488f981418253cfb152b163c4ca7dcf2ebe80dc	redundant, kept (thin group or budget met)	tha	24	yes	(kept set + several admitted)
 A/gv-47bc2010eb	redundant, kept (thin group or budget met)	eng	14	yes	(kept set + several admitted)
-B/jpn-z19171856-2c8799	admit	jpn	9	yes	
-A/lo-cc6df6b11c	redundant, kept (thin group or budget met)	eng	7	yes	(kept set + several admitted)
+B/jpn-z19171856-2c8799	redundant, kept (thin group or budget met)	jpn	9	yes	(kept set + several admitted)
+A/lo-cc6df6b11c	NOT ADMIT	eng	7	yes	(kept set + several admitted)
 A/lo-a3e95e2fd2	admit	eng	6	yes	
 B/hin-z14202734-427945	redundant, kept (thin group or budget met)	hin	5	yes	(kept set + several admitted)
-B/fra-z21475910-42b70b	redundant, kept (thin group or budget met)	fra	4	yes	(kept set + several admitted)
+B/fra-z21475910-42b70b	NOT ADMIT	fra	4	yes	(kept set + several admitted)
 B/jpn-z19546822-fd00b5	redundant, kept (thin group or budget met)	jpn	4	yes	(kept set + several admitted)
 A/lo-544679e206	admit	eng	2	yes	
+C/f1b5cc8b9a6584e73b84adc3fab221bf7f26a18b00f8ce1ade2c6ff11e0eb4f9	admit	kor	1	yes	
+C/53eca83ab5f815de144fe2b03cedf7d8f97a14f3d5a76875f3aa1f19e608c17c	redundant, kept (thin group or budget met)	tha	31	yes	(kept set + several admitted)
 B/ara-z5177238-269693	NOT ADMIT	ara	27	no	(kept set + several admitted)
+C/a1263627d715578ee2fadeac1da5ecf857156c976c6e51979171d2ee13eececf	redundant, kept (thin group or budget met)	tha	26	yes	(kept set + several admitted)
 A/gv-872e3d1137	redundant, kept (thin group or budget met)	eng	22	yes	(kept set + several admitted)
+C/564a33e91520ce1464bf3490e1d61b2179ec0b6e675dfc99ca958b168c6e4d79	redundant, kept (thin group or budget met)	heb	7	yes	(kept set + several admitted)
 B/jpn-z18767990-11142e	redundant, kept (thin group or budget met)	jpn	5	yes	(kept set + several admitted)
 B/docx-35fcd124	redundant, kept (thin group or budget met)	eng	4	yes	B/docx-a3f77cda
 B/docx-8f1703b9	redundant, kept (thin group or budget met)	eng	4	yes	B/docx-a3f77cda
-B/jpn-g5-b79900	admit	jpn	1	yes	
+B/jpn-g5-b79900	redundant, kept (thin group or budget met)	jpn	1	yes	(kept set + several admitted)
 B/kor-z17264683-7d8a4b	redundant, kept (thin group or budget met)	kor	1	yes	(kept set + several admitted)
+C/28fa7f6928056a51feba60ed26a2fbf6f1bdf7ef3bf3bf38cd290abc75528687	redundant, kept (thin group or budget met)	tha	22	yes	(kept set + several admitted)
+C/f0ca095058645abeab3a86cb59dab8ef690b181684cfd4d8d3864ff1ee6e3cea	admit	eng	21	yes	
 B/ara-z20667329-d3eb59	NOT ADMIT	ara	17	no	(kept set + several admitted)
+C/f0818647b949d3dd8ebc1788b88d4955fff52e3f11b0de82486b398eedb23589	admit	tha	15	yes	
+C/72ea457ab4ff0e4110acff2b525d3984b09e06bf0f104ffb858abb6a4eb5574c	redundant, kept (thin group or budget met)	heb	12	yes	(kept set + several admitted)
+C/d760f1e5cf7162237267feddbcfc9bf59f563bf8a45071abe7b849b346b8c8b2	admit	hin	12	yes	
 B/ara-z18742477-b7775d	NOT ADMIT	ara	35	no	(kept set + several admitted)
+C/ecc32adb5aa1535ea4443cd8de6902a1c70d096dc13a7098f0641628242de7ea	redundant, kept (thin group or budget met)	kor	22	yes	(kept set + several admitted)
+C/a0570757f7f1e7ab6892cfdc9c2a97632a590ea18177ec183c4246dd07ca2a93	redundant, kept (thin group or budget met)	tha	19	yes	(kept set + several admitted)
 B/ara-z10840115-a1e854	admit	ara	12	yes	
-B/deu-z4300275-3a0ed2	redundant, kept (thin group or budget met)	deu	11	yes	(kept set + several admitted)
+B/deu-z4300275-3a0ed2	NOT ADMIT	deu	11	yes	(kept set + several admitted)
 B/jpn-z19306349-158454	redundant, kept (thin group or budget met)	jpn	10	yes	(kept set + several admitted)
 B/jpn-z19372928-8e85ed	redundant, kept (thin group or budget met)	jpn	7	yes	(kept set + several admitted)
 B/docx-33355364	redundant, kept (thin group or budget met)	eng	4	yes	B/docx-a3f77cda
 B/docx-aab66635	redundant, kept (thin group or budget met)	eng	4	yes	B/docx-a3f77cda
+C/745490897f9fdc1b9f36ce36694bcb0789331ac0e55bee58440032772ce954c1	redundant, kept (thin group or budget met)	hin	2	yes	(kept set + several admitted)
+C/ccd8dfa544d63a260fff4b51c8361fa1c5f612d33db4594e24aabb69933aa733	redundant, kept (thin group or budget met)	hin	2	yes	(kept set + several admitted)
 A/lo-0efd533166	admit	eng	1	yes	
 B/jpn-z23845932-12d9fb	admit	jpn	1	yes	
+C/9860c2864a7f833f24bab412655e5f0c66be6284075d8c2ed979a7b583f9d8c3	redundant, kept (thin group or budget met)	eng	26	yes	(kept set + several admitted)
 A/gv-50df6a582d	redundant, kept (thin group or budget met)	eng	15	yes	(kept set + several admitted)
+C/ce4069f154e322bf029d4c02b942cadbc332535ea8c85487fe96fdfe6baa8bf8	redundant, kept (thin group or budget met)	tha	9	yes	(kept set + several admitted)
 B/hin-z10093577-3af7d4	admit	hin	5	yes	
+C/b4b6fd1aafd12769832e3587dd6d837959e3e2eba961ecbf23ba3ea29379ed95	redundant, kept (thin group or budget met)	kor	5	yes	(kept set + several admitted)
+C/c11e840d4edf42137273f00eb59d896c53bd585ea0815899b006b97c9cd55af5	redundant, kept (thin group or budget met)	jpn	5	yes	(kept set + several admitted)
 B/docx-46bc4851	redundant, kept (thin group or budget met)	eng	4	yes	(kept set + several admitted)
+C/397da2bb023fe8bc0083bfaf7d461be469791b753ef9d6e43d5c1630ff997de4	redundant, kept (thin group or budget met)	kor	4	yes	(kept set + several admitted)
+C/5388cc246e9471bf5be02b3a148a6f118015ddb29afeef21f1a2046c2be6b5ac	redundant, kept (thin group or budget met)	hin	2	yes	(kept set + several admitted)
 A/lo-79216f499c	admit	eng	1	yes	
 A/gv-b1e764c5ad	admit	cym	12	yes	
+C/55850db1090aaf9037587ac523130cfd6af6fdcd3c91740949e34f0aafe70e2d	admit	hin	12	yes	
 A/lo-97906e33ec	admit	eng	3	yes	
 B/jpn-g4-76d7e3	redundant, kept (thin group or budget met)	jpn	3	yes	(kept set + several admitted)
+C/2dabcb0480eae34d5068b360a9cb48c3c6361b324f51c8acf22c31dc9ea12f46	redundant, kept (thin group or budget met)	tam	2	yes	(kept set + several admitted)
+C/4497b7215afcb220b42054113ef5d28c99d3fb6e656a01f1364357673cad1871	admit	hin	2	yes	
 A/lo-16e6e2a5dc	admit	eng	1	yes	
 B/ara-z18938499-0b6a0d	admit	ara	1	no	
 B/ara-z23060052-a6e54c	admit	ara	1	no	
 B/jpn-z22667840-bc5fb7	admit	jpn	1	yes	
 A/gv-802a85a40c	admit	eng	23	yes	
+C/b96afb371256c7b258eda84e7a80f4a8403b30a9f2846155cd7efd4a1176df58	redundant, kept (thin group or budget met)	tha	20	yes	(kept set + several admitted)
+C/7d58f74e7d8760dc4c5a761de02fbabed2a486a2336188458ebd6337518ac25b	redundant, kept (thin group or budget met)	heb	13	yes	(kept set + several admitted)
+C/fcd0d58cc640be2d21560e55fb83c55f4646084a24b27d2dcf951afc4704d432	redundant, kept (thin group or budget met)	heb	13	yes	(kept set + several admitted)
 B/ara-z3803947-de4a70	admit	ara	11	no	
 B/fas-z7989359-76a209	NOT ADMIT	fas	6	no	(kept set + several admitted)
 B/ukr-z8283218-68e478	admit	ukr	4	yes	
-A/lo-7cc06fe4db	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
+A/lo-7cc06fe4db	NOT ADMIT	eng	1	yes	(kept set + several admitted)
 B/ara-z21969436-3712ee	NOT ADMIT	ara	32	no	(kept set + several admitted)
 B/jpn-g3-496912	redundant, kept (thin group or budget met)	jpn	7	yes	(kept set + several admitted)
+C/6e0111015923e5d66046a0e2557163ab3aa51968570d0f511d1c7d9afb0c11a4	redundant, kept (thin group or budget met)	tam	5	yes	(kept set + several admitted)
 B/docx-9776508d	redundant, kept (thin group or budget met)	eng	4	yes	B/docx-a3f77cda
 A/dx4j-eb96d4f2fc	admit	eng	2	yes	
 B/docx-e925ae95	admit	eng	2	yes	
 B/fas-z22867828-b604ea	admit	fas	1	no	
 B/por-z1326468-80d0e5	admit	por	28	yes	
-B/por-z15844022-c060b2	redundant, kept (thin group or budget met)	por	15	yes	(kept set + several admitted)
-A/lo-4cd35ae2e8	redundant, kept (thin group or budget met)	eng	6	yes	(kept set + several admitted)
-A/dx4j-0926dc45f4	redundant, kept (thin group or budget met)	dan	4	yes	(kept set + several admitted)
-A/oxsdk-167d4ecab3	redundant, kept (thin group or budget met)	eng	3	yes	(kept set + several admitted)
-A/lo-38fe28f6d4	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
+B/por-z15844022-c060b2	NOT ADMIT	por	15	yes	(kept set + several admitted)
+C/107500a82f345ab815c38a54a47ea7a22901d26390168bfbd469d29da4d41a2b	redundant, kept (thin group or budget met)	kor	13	yes	(kept set + several admitted)
+A/lo-4cd35ae2e8	NOT ADMIT	eng	6	yes	(kept set + several admitted)
+A/dx4j-0926dc45f4	NOT ADMIT	dan	4	yes	(kept set + several admitted)
+A/oxsdk-167d4ecab3	NOT ADMIT	eng	3	yes	(kept set + several admitted)
+A/lo-38fe28f6d4	NOT ADMIT	eng	1	yes	(kept set + several admitted)
 B/ara-z3803947-b76203	NOT ADMIT	ara	11	no	B/ara-z3803947-de4a70
 A/gv-a13c6664cc	admit	eng	10	yes	
 B/fas-z22958620-bf2323	admit	fas	10	no	
@@ -250,53 +358,61 @@ B/docx-69a87cfd	redundant, kept (thin group or budget met)	eng	4	yes	B/docx-a3f7
 B/docx-bcd80994	redundant, kept (thin group or budget met)	eng	4	yes	B/docx-a3f77cda
 B/docx-d350f8c0	redundant, kept (thin group or budget met)	eng	4	yes	B/docx-a3f77cda
 B/docx-f32aa559	redundant, kept (thin group or budget met)	eng	4	yes	B/docx-a3f77cda
+C/1116b68df72593874a86d272f0441b8790ad2db200736a4b0bd86979b1113912	redundant, kept (thin group or budget met)	hin	4	yes	(kept set + several admitted)
 B/ara-z15770216-60b9da	admit	ara	3	no	
 B/fas-z22973278-768d17	admit	fas	1	no	
 B/jpn-z19135939-3f592b	admit	jpn	24	yes	
 B/ara-z3803947-f0c4be	NOT ADMIT	ara	10	no	B/ara-z3803947-de4a70
 B/urd-z7538882-13b0bc	redundant, kept (thin group or budget met)	urd	10	yes	(kept set + several admitted)
 B/ara-z21129205-1722ed	NOT ADMIT	ara	8	no	(kept set + several admitted)
+C/73caaeda0412eac713af2263a8d29bd498748f681642c3187bc3461be3288c26	admit	ben	5	yes	
 B/ukr-z4769265-9d1cc2	admit	ukr	4	yes	
 B/deu-z4548799-c5d058	admit	deu	2	yes	
 A/lo-af4c2d4632	admit	eng	1	yes	
+C/540fe10e4c35f3cfabb0c046f23cd76cfe0ea99d944f16300c1d139c85a500ad	redundant, kept (thin group or budget met)	tha	21	yes	(kept set + several admitted)
+C/77d6ca49ce2810c235f6f2630f3a8c309ff8dd05298851accd4523981807455d	redundant, kept (thin group or budget met)	hin	6	yes	(kept set + several admitted)
 A/oxsdk-0ca19916e7	admit	eng	1	yes	
 B/jpn-g1-5d7ee6	redundant, kept (thin group or budget met)	jpn	1	yes	(kept set + several admitted)
 A/gv-2eba1286c8	redundant, kept (thin group or budget met)	eng	37	yes	(kept set + several admitted)
 A/gv-c872700f55	redundant, kept (thin group or budget met)	eng	15	yes	(kept set + several admitted)
 B/rus-z8098805-98bc10	redundant, kept (thin group or budget met)	rus	11	yes	(kept set + several admitted)
-B/deu-z4548146-d37fdb	redundant, kept (thin group or budget met)	deu	2	yes	(kept set + several admitted)
-B/deu-z4548799-4d7cce	redundant, kept (thin group or budget met)	deu	2	yes	(kept set + several admitted)
-B/por-z8066895-c674a9	redundant, kept (thin group or budget met)	por	2	yes	(kept set + several admitted)
-B/por-z12735063-832e66	redundant, kept (thin group or budget met)	por	12	yes	(kept set + several admitted)
+B/deu-z4548146-d37fdb	NOT ADMIT	deu	2	yes	(kept set + several admitted)
+B/deu-z4548799-4d7cce	NOT ADMIT	deu	2	yes	(kept set + several admitted)
+B/por-z8066895-c674a9	NOT ADMIT	por	2	yes	(kept set + several admitted)
+C/c7678c38b0bed6f98904518b62a221bb87453a2ac9668b62008644b795e1cd06	redundant, kept (thin group or budget met)	tha	19	yes	(kept set + several admitted)
+B/por-z12735063-832e66	NOT ADMIT	por	12	yes	(kept set + several admitted)
+C/6be5dbc95a215614e620cfe48288f9f10263d3e8a00a15db14605de3fd1c3b53	admit	hin	12	yes	
 B/jpn-z20502518-8d25de	redundant, kept (thin group or budget met)	jpn	3	yes	(kept set + several admitted)
 B/ara-z21298544-b514c2	admit	ara	1	no	
 B/jpn-z20018134-2cadcb	admit	jpn	1	yes	
 B/jpn-z20019250-7084b9	redundant, kept (thin group or budget met)	jpn	1	yes	(kept set + several admitted)
+C/896ba13b04436a0773eb7b0f916010ea3fdc4913011c81075217ae7e2f8b7c3e	redundant, kept (thin group or budget met)	heb	3	yes	(kept set + several admitted)
 B/docx-79737edb	admit	eng	1	yes	
 B/heb-z24027390-bae91d	admit	heb	1	yes	
-B/ita-z8285745-7475df	redundant, kept (thin group or budget met)	ita	29	yes	(kept set + several admitted)
+B/ita-z8285745-7475df	NOT ADMIT	ita	29	yes	(kept set + several admitted)
 B/ell-z18377521-5297a3	admit	ell	3	yes	
 A/lo-c2de61e6ac	admit	deu	1	yes	
 B/fas-z15800253-e34e16	NOT ADMIT	fas	26	yes	(kept set + several admitted)
 A/gv-755b0e8699	redundant, kept (thin group or budget met)	eng	11	yes	(kept set + several admitted)
 B/tam-z20567949-e398e6	redundant, kept (thin group or budget met)	tam	11	yes	(kept set + several admitted)
-B/fas-z23209975-d693fd	redundant, kept (thin group or budget met)	fas	7	yes	(kept set + several admitted)
+B/fas-z23209975-d693fd	NOT ADMIT	fas	7	yes	(kept set + several admitted)
 A/lo-53f7bc758d	admit	eng	2	yes	
 A/lo-a5a3668a69	admit	eng	1	yes	
-A/oxsdk-eca7384a68	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
-B/pol-z3464555-a1d1a8	redundant, kept (thin group or budget met)	pol	7	yes	(kept set + several admitted)
+A/oxsdk-eca7384a68	NOT ADMIT	eng	1	yes	(kept set + several admitted)
+B/pol-z3464555-a1d1a8	NOT ADMIT	pol	7	yes	(kept set + several admitted)
 B/fas-z21853138-059a1f	NOT ADMIT	fas	6	no	(kept set + several admitted)
-B/fra-z18269510-4f6ca2	redundant, kept (thin group or budget met)	fra	6	yes	(kept set + several admitted)
-B/pol-z15852742-9e35ac	redundant, kept (thin group or budget met)	pol	6	yes	(kept set + several admitted)
+B/fra-z18269510-4f6ca2	NOT ADMIT	fra	6	yes	(kept set + several admitted)
+B/pol-z15852742-9e35ac	NOT ADMIT	pol	6	yes	(kept set + several admitted)
+C/80c852b094f6091029b41bc0710286fcf46cfd280d400eb90b24db48bd394deb	admit	heb	6	yes	
 A/lo-aeacc79b45	admit	bos	1	yes	
-A/lo-dd184d0235	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
+A/lo-dd184d0235	NOT ADMIT	eng	1	yes	(kept set + several admitted)
 B/fas-z22832287-ac7399	admit	fas	1	no	
 B/heb-z17544993-944544	redundant, kept (thin group or budget met)	heb	1	yes	(kept set + several admitted)
 B/ita-z8285745-bf891c	admit	ita	18	yes	
 B/pol-z17766367-469a9b	admit	pol	6	yes	
-B/por-z17371966-31d44f	redundant, kept (thin group or budget met)	por	6	yes	(kept set + several admitted)
+B/por-z17371966-31d44f	NOT ADMIT	por	6	yes	(kept set + several admitted)
 B/rus-z13956694-d18bfc	redundant, kept (thin group or budget met)	rus	5	yes	(kept set + several admitted)
-A/lo-c94e2eb5aa	redundant, kept (thin group or budget met)	por	3	yes	(kept set + several admitted)
+A/lo-c94e2eb5aa	NOT ADMIT	por	3	yes	(kept set + several admitted)
 A/lo-b286e0dc69	admit	eng	1	yes	
 B/ara-z20466358-9a1760	NOT ADMIT	ara	1	no	(kept set + several admitted)
 B/fas-z22910553-174812	admit	fas	1	no	
@@ -304,29 +420,30 @@ B/jpn-z20806500-dacd38	redundant, kept (thin group or budget met)	jpn	1	yes	(kep
 B/ita-z13342017-784e0d	admit	ita	31	yes	
 B/jpn-z23823926-b2a8e5	redundant, kept (thin group or budget met)	jpn	12	yes	(kept set + several admitted)
 B/jpn-z21971263-c098ef	redundant, kept (thin group or budget met)	jpn	2	yes	(kept set + several admitted)
-A/dx4j-198f98953c	redundant, kept (thin group or budget met)	ara	1	yes	(kept set + several admitted)
+A/dx4j-198f98953c	NOT ADMIT	ara	1	yes	(kept set + several admitted)
 A/lo-feae325324	admit	eng	1	yes	
 B/docx4j-198f9895	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
 B/jpn-z17607492-12a6ce	redundant, kept (thin group or budget met)	jpn	1	yes	(kept set + several admitted)
 A/lo-526c0b4970	admit	eng	15	yes	
-B/ita-z17902201-2132b6	redundant, kept (thin group or budget met)	ita	4	yes	(kept set + several admitted)
+B/ita-z17902201-2132b6	NOT ADMIT	ita	4	yes	(kept set + several admitted)
 B/ara-z19427756-0dd311	admit	ara	21	no	
 B/ara-z20723380-f61e95	NOT ADMIT	ara	17	no	(kept set + several admitted)
 B/fas-z20770790-cfac5a	NOT ADMIT	fas	14	no	(kept set + several admitted)
-B/nld-z23943183-8dd9e0	redundant, kept (thin group or budget met)	nld	14	yes	(kept set + several admitted)
+B/nld-z23943183-8dd9e0	NOT ADMIT	nld	14	yes	(kept set + several admitted)
 B/kor-z19581051-22de7d	redundant, kept (thin group or budget met)	kor	13	yes	(kept set + several admitted)
-B/spa-z17761495-f8bf9d	redundant, kept (thin group or budget met)	spa	11	yes	(kept set + several admitted)
+B/spa-z17761495-f8bf9d	NOT ADMIT	spa	11	yes	(kept set + several admitted)
 B/jpn-z19987559-2cbb2b	redundant, kept (thin group or budget met)	jpn	8	yes	(kept set + several admitted)
-B/fra-z18269510-055121	redundant, kept (thin group or budget met)	fra	5	yes	(kept set + several admitted)
+B/fra-z18269510-055121	NOT ADMIT	fra	5	yes	(kept set + several admitted)
 B/kor-z15852510-4e5851	redundant, kept (thin group or budget met)	kor	3	yes	(kept set + several admitted)
 B/kor-z21348848-b4a883	redundant, kept (thin group or budget met)	kor	3	yes	(kept set + several admitted)
-A/th-8202f4ed00	redundant, kept (thin group or budget met)	ara	2	yes	(kept set + several admitted)
+A/th-8202f4ed00	NOT ADMIT	ara	2	yes	(kept set + several admitted)
 A/gv-6785438d30	admit	eng	13	yes	
 B/fas-z20726231-d6c38d	NOT ADMIT	fas	8	no	(kept set + several admitted)
 B/rus-z8416341-265d01	redundant, kept (thin group or budget met)	rus	7	yes	(kept set + several admitted)
-A/dx4j-1e349e2029	redundant, kept (thin group or budget met)	spa	4	yes	(kept set + several admitted)
+C/c016493b3ee85185b659dba9f9d9f4270a9021fab2e23fc67cc405455094396a	admit	tam	6	yes	
+A/dx4j-1e349e2029	NOT ADMIT	spa	4	yes	(kept set + several admitted)
 B/docx4j-1e349e20	redundant, kept (thin group or budget met)	eng	4	yes	(kept set + several admitted)
-A/lo-1e05804326	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
+A/lo-1e05804326	NOT ADMIT	eng	1	yes	(kept set + several admitted)
 A/lo-2c2ec58d2a	admit	eng	1	yes	
 A/lo-3f27475c8d	admit	hun	1	yes	
 B/ara-z20813564-8f6b8d	NOT ADMIT	ara	1	no	(kept set + several admitted)
@@ -334,159 +451,161 @@ B/docx-bff1c672	redundant, kept (thin group or budget met)	eng	8	yes	(kept set +
 B/docx-6f1caa1e	redundant, kept (thin group or budget met)	eng	5	yes	(kept set + several admitted)
 A/dx4j-bacc7e5885	admit	eng	1	yes	
 A/lo-181b561b0a	admit	eng	1	yes	
-A/lo-cc707be00f	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
+A/lo-cc707be00f	NOT ADMIT	eng	1	yes	(kept set + several admitted)
 B/ben-z17448889-bd74bc	redundant, kept (thin group or budget met)	ben	16	yes	(kept set + several admitted)
-B/ara-z10634244-b99bdf	redundant, kept (thin group or budget met)	ara	6	yes	(kept set + several admitted)
+B/ara-z10634244-b99bdf	NOT ADMIT	ara	6	yes	(kept set + several admitted)
 B/bul-z22116004-d3c1d3	redundant, kept (thin group or budget met)	bul	5	yes	(kept set + several admitted)
 B/fas-z15392490-93ccf5	NOT ADMIT	fas	5	no	(kept set + several admitted)
 B/kor-z5039621-e62ab8	redundant, kept (thin group or budget met)	kor	5	yes	(kept set + several admitted)
-B/ces-z10561205-fa494b	redundant, kept (thin group or budget met)	ces	4	yes	(kept set + several admitted)
+B/ces-z10561205-fa494b	NOT ADMIT	ces	4	yes	(kept set + several admitted)
 A/dx4j-d1847304db	admit	eng	3	yes	
 A/lo-8f2f7e1a1b	admit	eng	1	yes	
-A/lo-d4d1fdbd3f	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
+A/lo-d4d1fdbd3f	NOT ADMIT	eng	1	yes	(kept set + several admitted)
 B/ara-z19962166-c2d173	NOT ADMIT	ara	18	no	(kept set + several admitted)
-B/ita-z17416520-ca4700	redundant, kept (thin group or budget met)	ita	17	yes	(kept set + several admitted)
-B/fas-z22952228-5e5b42	redundant, kept (thin group or budget met)	fas	14	yes	(kept set + several admitted)
+B/ita-z17416520-ca4700	NOT ADMIT	ita	17	yes	(kept set + several admitted)
+B/fas-z22952228-5e5b42	NOT ADMIT	fas	14	yes	(kept set + several admitted)
 B/ara-z20286074-aebf8d	NOT ADMIT	ara	13	no	(kept set + several admitted)
 B/rus-z18752500-4ec7ea	redundant, kept (thin group or budget met)	rus	4	yes	(kept set + several admitted)
-B/ita-z4110000-a883d5	redundant, kept (thin group or budget met)	ita	2	yes	(kept set + several admitted)
-A/lo-89c80ebbdd	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
-A/lo-e76c807a47	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
-B/fas-z15749591-d72b13	redundant, kept (thin group or budget met)	fas	11	yes	(kept set + several admitted)
+B/ita-z4110000-a883d5	NOT ADMIT	ita	2	yes	(kept set + several admitted)
+A/lo-89c80ebbdd	NOT ADMIT	eng	1	yes	(kept set + several admitted)
+A/lo-e76c807a47	NOT ADMIT	eng	1	yes	(kept set + several admitted)
+B/fas-z15749591-d72b13	NOT ADMIT	fas	11	yes	(kept set + several admitted)
 B/ara-z17017882-2700c0	NOT ADMIT	ara	8	no	(kept set + several admitted)
-B/por-z14984879-3530e8	redundant, kept (thin group or budget met)	por	5	yes	(kept set + several admitted)
+B/por-z14984879-3530e8	NOT ADMIT	por	5	yes	(kept set + several admitted)
 A/lo-28d584bb51	admit	eng	4	yes	
 B/jpn-z22306877-1047a4	admit	jpn	3	yes	
 A/lo-76ff18790c	admit	eng	1	yes	
 B/ara-z18906184-5684e8	NOT ADMIT	ara	1	no	B/urd-z7294462-73d948
 B/ara-z19490818-195567	NOT ADMIT	ara	1	no	(kept set + several admitted)
+C/54998088f8959e284979aff71250c8184edee4cc952f41cd6f30e96f65c73809	redundant, kept (thin group or budget met)	eng	24	yes	(kept set + several admitted)
 B/rus-z15764990-244a14	redundant, kept (thin group or budget met)	rus	6	yes	(kept set + several admitted)
-A/oxsdk-3191d8b270	redundant, kept (thin group or budget met)	ara	2	yes	(kept set + several admitted)
+A/oxsdk-3191d8b270	NOT ADMIT	ara	2	yes	(kept set + several admitted)
 B/kor-z15852510-c9baf7	redundant, kept (thin group or budget met)	kor	2	yes	(kept set + several admitted)
-A/lo-0567a39c1f	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
+A/lo-0567a39c1f	NOT ADMIT	eng	1	yes	(kept set + several admitted)
 B/ara-z15699863-842f1e	admit	ara	1	no	
 B/ara-z18489289-c25b7d	NOT ADMIT	ara	1	no	(kept set + several admitted)
 B/ara-z21823325-2a6dcd	NOT ADMIT	ara	1	no	(kept set + several admitted)
 B/fas-z15754822-6d1b64	NOT ADMIT	fas	39	yes	(kept set + several admitted)
-B/ces-z22850532-2d828b	redundant, kept (thin group or budget met)	ces	23	yes	(kept set + several admitted)
+B/ces-z22850532-2d828b	NOT ADMIT	ces	23	yes	(kept set + several admitted)
 B/ara-z20723715-280664	NOT ADMIT	ara	15	no	(kept set + several admitted)
 B/ara-z16961276-96074f	NOT ADMIT	ara	9	no	(kept set + several admitted)
-B/pol-z23891476-edf808	redundant, kept (thin group or budget met)	pol	8	yes	(kept set + several admitted)
+B/pol-z23891476-edf808	NOT ADMIT	pol	8	yes	(kept set + several admitted)
 B/heb-z23212898-e040af	redundant, kept (thin group or budget met)	heb	5	yes	(kept set + several admitted)
-A/lo-09f05f391b	redundant, kept (thin group or budget met)	eng	4	yes	A/lo-28d584bb51
-A/lo-770184c8eb	redundant, kept (thin group or budget met)	eng	4	yes	A/lo-28d584bb51
-B/ces-z14728513-c33e5c	redundant, kept (thin group or budget met)	ces	4	yes	(kept set + several admitted)
-A/lo-9b628b6d46	redundant, kept (thin group or budget met)	eng	3	yes	(kept set + several admitted)
-B/ces-z14728513-f2af69	redundant, kept (thin group or budget met)	ces	3	yes	(kept set + several admitted)
-A/lo-b5731cbcc7	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
-B/nld-z14236215-3c1c81	redundant, kept (thin group or budget met)	nld	9	yes	(kept set + several admitted)
+A/lo-09f05f391b	NOT ADMIT	eng	4	yes	A/lo-28d584bb51
+A/lo-770184c8eb	NOT ADMIT	eng	4	yes	A/lo-28d584bb51
+B/ces-z14728513-c33e5c	NOT ADMIT	ces	4	yes	(kept set + several admitted)
+A/lo-9b628b6d46	NOT ADMIT	eng	3	yes	(kept set + several admitted)
+B/ces-z14728513-f2af69	NOT ADMIT	ces	3	yes	(kept set + several admitted)
+A/lo-b5731cbcc7	NOT ADMIT	eng	1	yes	(kept set + several admitted)
+B/nld-z14236215-3c1c81	NOT ADMIT	nld	9	yes	(kept set + several admitted)
 B/ell-z10161459-ec79d6	redundant, kept (thin group or budget met)	ell	5	yes	(kept set + several admitted)
-B/fas-z15804678-64f2df	redundant, kept (thin group or budget met)	fas	5	yes	(kept set + several admitted)
+B/fas-z15804678-64f2df	NOT ADMIT	fas	5	yes	(kept set + several admitted)
 B/ara-z18906278-33d176	NOT ADMIT	ara	2	no	(kept set + several admitted)
 A/lo-1a9f1d7670	admit	eng	1	yes	
-A/lo-6a393a0ce2	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
+A/lo-6a393a0ce2	NOT ADMIT	eng	1	yes	(kept set + several admitted)
 B/ara-z15571400-c6d1fa	NOT ADMIT	ara	1	no	(kept set + several admitted)
-B/spa-z15730506-7e8a71	redundant, kept (thin group or budget met)	spa	29	yes	(kept set + several admitted)
+B/spa-z15730506-7e8a71	NOT ADMIT	spa	29	yes	(kept set + several admitted)
 B/ara-z20768827-c32401	NOT ADMIT	ara	18	no	(kept set + several admitted)
 B/ara-z21419813-1e4b7b	NOT ADMIT	ara	12	no	(kept set + several admitted)
 B/fas-z15800253-31f483	admit	fas	7	yes	
-B/nld-z5235278-3f6544	redundant, kept (thin group or budget met)	nld	6	yes	(kept set + several admitted)
-B/pol-z6093885-ceac35	redundant, kept (thin group or budget met)	pol	2	yes	(kept set + several admitted)
+B/nld-z5235278-3f6544	NOT ADMIT	nld	6	yes	(kept set + several admitted)
+B/pol-z6093885-ceac35	NOT ADMIT	pol	2	yes	(kept set + several admitted)
 B/ara-z23647536-beb90d	NOT ADMIT	ara	1	no	(kept set + several admitted)
-B/ces-z22850532-c6111b	redundant, kept (thin group or budget met)	ces	9	yes	(kept set + several admitted)
+B/ces-z22850532-c6111b	NOT ADMIT	ces	9	yes	(kept set + several admitted)
 B/ara-z17049043-bf01cc	NOT ADMIT	ara	8	no	(kept set + several admitted)
-B/nld-z5235278-6e647c	redundant, kept (thin group or budget met)	nld	5	yes	(kept set + several admitted)
-B/spa-z22232290-30e563	redundant, kept (thin group or budget met)	spa	4	yes	(kept set + several admitted)
+B/nld-z5235278-6e647c	NOT ADMIT	nld	5	yes	(kept set + several admitted)
+B/spa-z22232290-30e563	NOT ADMIT	spa	4	yes	(kept set + several admitted)
 B/ukr-z14922811-098d74	redundant, kept (thin group or budget met)	ukr	4	yes	(kept set + several admitted)
-B/hun-z12754767-e71e25	redundant, kept (thin group or budget met)	hun	3	yes	(kept set + several admitted)
-A/lo-adf9068ba2	redundant, kept (thin group or budget met)	eng	2	yes	(kept set + several admitted)
+B/hun-z12754767-e71e25	NOT ADMIT	hun	3	yes	(kept set + several admitted)
+A/lo-adf9068ba2	NOT ADMIT	eng	2	yes	(kept set + several admitted)
 B/ara-z18906123-b46a8b	NOT ADMIT	ara	2	no	B/urd-z7294462-73d948
 B/ara-z18906218-f8edc7	NOT ADMIT	ara	2	no	(kept set + several admitted)
 B/kor-z15281292-55c83c	redundant, kept (thin group or budget met)	kor	2	yes	(kept set + several admitted)
-A/lo-6013255885	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
+A/lo-6013255885	NOT ADMIT	eng	1	yes	(kept set + several admitted)
 A/lo-8a42a9ac3d	admit	ara	1	yes	
 A/lo-d0fc1bd5c5	admit	eng	1	yes	
 B/kor-z21941126-9b36b8	redundant, kept (thin group or budget met)	kor	7	yes	(kept set + several admitted)
-B/nld-z23338591-64bf7d	redundant, kept (thin group or budget met)	nld	5	yes	(kept set + several admitted)
-B/nld-z5235278-b2bc56	redundant, kept (thin group or budget met)	nld	4	yes	(kept set + several admitted)
+B/nld-z23338591-64bf7d	NOT ADMIT	nld	5	yes	(kept set + several admitted)
+B/nld-z5235278-b2bc56	NOT ADMIT	nld	4	yes	(kept set + several admitted)
 B/ara-z18906294-2b99fc	NOT ADMIT	ara	2	no	(kept set + several admitted)
 B/ara-z23663120-a0b424	NOT ADMIT	ara	2	no	(kept set + several admitted)
 B/fas-z3833724-c40a19	NOT ADMIT	fas	2	no	(kept set + several admitted)
-A/dx4j-da71badc72	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
+A/dx4j-da71badc72	NOT ADMIT	eng	1	yes	(kept set + several admitted)
 B/fas-z4476777-7bfbf3	admit	fas	1	no	
-B/nld-z14236215-bd65ed	redundant, kept (thin group or budget met)	nld	7	yes	(kept set + several admitted)
-B/pol-z23891476-924431	redundant, kept (thin group or budget met)	pol	7	yes	(kept set + several admitted)
+B/nld-z14236215-bd65ed	NOT ADMIT	nld	7	yes	(kept set + several admitted)
+B/pol-z23891476-924431	NOT ADMIT	pol	7	yes	(kept set + several admitted)
 B/fas-z15675170-55fcf8	NOT ADMIT	fas	6	no	(kept set + several admitted)
 B/ara-z21998730-6b7c32	NOT ADMIT	ara	4	no	(kept set + several admitted)
-B/ces-z10561205-da3776	redundant, kept (thin group or budget met)	ces	2	yes	(kept set + several admitted)
-A/lo-4b87b3b23c	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
+B/ces-z10561205-da3776	NOT ADMIT	ces	2	yes	(kept set + several admitted)
+A/lo-4b87b3b23c	NOT ADMIT	eng	1	yes	(kept set + several admitted)
 B/ara-z15758225-ef1121	NOT ADMIT	ara	1	no	(kept set + several admitted)
 B/docx-837e72c4	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
 B/fas-z16925283-2a9486	NOT ADMIT	fas	1	no	B/ara-z23060052-a6e54c
 B/fas-z14957015-3a9879	admit	fas	11	no	
 B/fas-z15754822-7aa3f2	NOT ADMIT	fas	5	yes	B/urd-z7294462-73d948
-B/fra-z23038193-cb8104	redundant, kept (thin group or budget met)	fra	4	yes	(kept set + several admitted)
+B/fra-z23038193-cb8104	NOT ADMIT	fra	4	yes	(kept set + several admitted)
 A/lo-6ab6059c5b	admit	eng	1	yes	
-A/oxsdk-d4bfc480d8	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
+A/oxsdk-d4bfc480d8	NOT ADMIT	eng	1	yes	(kept set + several admitted)
 B/ara-z18906256-ca4a12	NOT ADMIT	ara	1	no	(kept set + several admitted)
 B/ara-z23890367-8f4d67	NOT ADMIT	ara	1	no	(kept set + several admitted)
-B/fra-z20762606-302fd9	redundant, kept (thin group or budget met)	fra	1	yes	(kept set + several admitted)
+B/fra-z20762606-302fd9	NOT ADMIT	fra	1	yes	(kept set + several admitted)
 B/kor-z21941126-2a59fd	redundant, kept (thin group or budget met)	kor	11	yes	(kept set + several admitted)
 B/jpn-z21095281-ed642d	redundant, kept (thin group or budget met)	jpn	4	yes	B/urd-z7294462-73d948
 A/lo-f5a68fc90b	admit	eng	3	yes	
-B/hun-z21715404-1e606c	redundant, kept (thin group or budget met)	hun	3	yes	(kept set + several admitted)
+B/hun-z21715404-1e606c	NOT ADMIT	hun	3	yes	C/07356df9ab0414ebc1b2af15a0834d0b7bc84a669b3a6bca3762dbd7c628a34a
 B/ara-z18619307-daac26	NOT ADMIT	ara	2	no	(kept set + several admitted)
-B/heb-z21095281-f3f545	redundant, kept (thin group or budget met)	heb	2	yes	B/urd-z7294462-73d948
-A/lo-b459b01aaf	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
-B/spa-z22232290-0e563b	redundant, kept (thin group or budget met)	spa	5	yes	(kept set + several admitted)
+B/heb-z21095281-f3f545	redundant, kept (thin group or budget met)	heb	2	yes	C/fd72fac2018cb6ebcb38d3b89f64297c286c185d94791bd77813f170f7d70ff2
+A/lo-b459b01aaf	NOT ADMIT	eng	1	yes	(kept set + several admitted)
+B/spa-z22232290-0e563b	NOT ADMIT	spa	5	yes	(kept set + several admitted)
 B/heb-z5059159-4ac884	admit	heb	4	yes	
 B/hin-z19449382-045439	admit	hin	3	yes	
 B/ara-z18906245-18092e	NOT ADMIT	ara	2	no	B/urd-z7294462-73d948
 A/lo-14a898a945	admit	eng	1	yes	
-A/lo-235db53da9	redundant, kept (thin group or budget met)	bos	1	yes	(kept set + several admitted)
-A/lo-43b4e9cf5e	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
+A/lo-235db53da9	NOT ADMIT	bos	1	yes	(kept set + several admitted)
+A/lo-43b4e9cf5e	NOT ADMIT	eng	1	yes	(kept set + several admitted)
 B/ara-z18522852-e61333	NOT ADMIT	ara	1	no	B/ara-z8199393-075ed2
 B/ara-z18905974-0fd227	NOT ADMIT	ara	1	no	(kept set + several admitted)
 B/ara-z18906200-7d0dab	NOT ADMIT	ara	1	no	B/urd-z7294462-73d948
 B/ara-z21998730-2331d1	NOT ADMIT	ara	6	no	B/urd-z7294462-73d948
 B/ara-z18906271-cf13b1	NOT ADMIT	ara	2	no	B/urd-z7294462-73d948
 B/hin-z19363961-952d8a	redundant, kept (thin group or budget met)	hin	2	yes	(kept set + several admitted)
-A/lo-515f79edc1	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
+A/lo-515f79edc1	NOT ADMIT	eng	1	yes	(kept set + several admitted)
 B/ara-z20704895-79060d	NOT ADMIT	ara	33	no	B/ara-z20756589-698264
 B/kor-z22076349-aa9a7f	redundant, kept (thin group or budget met)	kor	12	yes	(kept set + several admitted)
-A/oxsdk-7b3da93a2f	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
+A/oxsdk-7b3da93a2f	NOT ADMIT	eng	1	yes	(kept set + several admitted)
 B/ara-z21998730-902172	NOT ADMIT	ara	2	no	B/urd-z17694236-c03d57
-B/deu-z19565947-d71fe2	redundant, kept (thin group or budget met)	deu	2	yes	(kept set + several admitted)
-A/dx4j-8652f60b18	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
+B/deu-z19565947-d71fe2	NOT ADMIT	deu	2	yes	(kept set + several admitted)
+A/dx4j-8652f60b18	NOT ADMIT	eng	1	yes	(kept set + several admitted)
 A/lo-3657739f63	admit	deu	1	yes	
-A/lo-8fad5c05ac	redundant, kept (thin group or budget met)	deu	1	yes	(kept set + several admitted)
+A/lo-8fad5c05ac	NOT ADMIT	deu	1	yes	(kept set + several admitted)
 B/fas-z17705363-349243	NOT ADMIT	fas	1	no	B/ara-z23060052-a6e54c
-B/deu-z10508391-a88446	redundant, kept (thin group or budget met)	deu	3	yes	(kept set + several admitted)
-B/nld-z14236215-32f0b8	redundant, kept (thin group or budget met)	nld	2	yes	B/ell-z10407270-89615d
-A/dx4j-395ebe2acd	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
+B/deu-z10508391-a88446	NOT ADMIT	deu	3	yes	(kept set + several admitted)
+B/nld-z14236215-32f0b8	NOT ADMIT	nld	2	yes	B/ell-z10407270-89615d
+C/a81e31f21a125805c86af3ee6ccd524336ef8c4e213d737aeca81fe63c6590aa	redundant, kept (thin group or budget met)	hin	2	yes	(kept set + several admitted)
+A/dx4j-395ebe2acd	NOT ADMIT	eng	1	yes	(kept set + several admitted)
 A/lo-2be5645886	admit	ces	1	yes	
 B/ara-z18906173-421a3e	NOT ADMIT	ara	1	no	B/urd-z7427432-7738e5
-A/lo-829e249e6e	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
-A/lo-cb5178191d	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
-A/lo-d638f23adc	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
+A/lo-829e249e6e	NOT ADMIT	eng	1	yes	(kept set + several admitted)
+A/lo-cb5178191d	NOT ADMIT	eng	1	yes	(kept set + several admitted)
+A/lo-d638f23adc	NOT ADMIT	eng	1	yes	(kept set + several admitted)
 B/ara-z18906086-9497c4	NOT ADMIT	ara	1	no	B/urd-z7427432-7738e5
-B/ces-z19605752-22198e	redundant, kept (thin group or budget met)	ces	8	yes	(kept set + several admitted)
+B/ces-z19605752-22198e	NOT ADMIT	ces	8	yes	(kept set + several admitted)
 A/lo-b252ca5786	admit	eng	1	yes	
 A/lo-eb04d5c77e	admit	eng	1	yes	
 B/heb-z5059159-95e6b1	redundant, kept (thin group or budget met)	heb	3	yes	B/heb-z5059159-4ac884
-A/dx4j-8abeada1e2	redundant, kept (thin group or budget met)	eng	1	yes	A/gv-c71d651659
+A/dx4j-8abeada1e2	NOT ADMIT	eng	1	yes	C/9ee94bf7a31f4aebe0e34f57f03f3321bcf2abb8d80322bff4c647a3d2afa57a
 A/pydocx-a5de256a9c	admit	eng	1	yes	
 B/docx-f3550c7b	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
-B/hun-z18832811-8b5de7	redundant, kept (thin group or budget met)	hun	1	yes	(kept set + several admitted)
+B/hun-z18832811-8b5de7	NOT ADMIT	hun	1	yes	(kept set + several admitted)
 A/lo-3e2712bc41	admit	eng	6	yes	
-A/lo-69dafb78e9	redundant, kept (thin group or budget met)	eng	6	yes	A/lo-3e2712bc41
-B/spa-z19462271-e67a88	redundant, kept (thin group or budget met)	spa	3	yes	(kept set + several admitted)
+A/lo-69dafb78e9	NOT ADMIT	eng	6	yes	A/lo-3e2712bc41
+B/spa-z19462271-e67a88	NOT ADMIT	spa	3	yes	(kept set + several admitted)
 B/docx-a567c5c2	redundant, kept (thin group or budget met)	eng	2	yes	(kept set + several admitted)
 B/fas-z23880734-8e2050	NOT ADMIT	fas	2	no	B/urd-z17694236-c03d57
-A/dx4j-e508f76290	redundant, kept (thin group or budget met)		1	yes	(kept set + several admitted)
+A/dx4j-e508f76290	NOT ADMIT		1	yes	(kept set + several admitted)
 A/lo-756cb72964	admit	eng	1	yes	
 B/ara-z10224360-f0c63f	NOT ADMIT	ara	1	no	(kept set + several admitted)
-A/lo-d81e3d2301	redundant, kept (thin group or budget met)	eng	6	yes	A/lo-3e2712bc41
-A/poi-759682d4b9	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
-A/lo-7f085b6035	redundant, kept (thin group or budget met)	eng	1	yes	(kept set + several admitted)
-A/lo-1e9e216d12	redundant, kept (thin group or budget met)	deu	1	yes	(kept set + several admitted)
+A/lo-d81e3d2301	NOT ADMIT	eng	6	yes	A/lo-3e2712bc41
+A/poi-759682d4b9	NOT ADMIT	eng	1	yes	(kept set + several admitted)
+A/lo-7f085b6035	NOT ADMIT	eng	1	yes	(kept set + several admitted)
+A/lo-1e9e216d12	NOT ADMIT	deu	1	yes	C/e91c88252330082c0e875b2e9c523ba44bd5d8563a573c561718108cd2557b58

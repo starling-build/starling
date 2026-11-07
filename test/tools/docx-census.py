@@ -631,6 +631,14 @@ def stage_report(a, T, kept, u, stat):
             break
         cut[k] = skip[k]
         saved += pages[k]
+    # 3. still over budget: redundant batch A test documents (never a thin group, never a long document, never docxcorp)
+    cut_a = lambda k: (k in skip and k not in cut and meta[k]["batch"] == "A" and meta[k]["kind"] == "test"
+                       and meta[k]["group"] not in NEVER)
+    for k in sorted((k for k in skip if cut_a(k)), key=lambda k: (-pages[k], k)):
+        if saved >= need:
+            break
+        cut[k] = skip[k]
+        saved += pages[k]
     with open(os.path.join(a.out, "stage.tsv"), "w") as fh:
         fh.write("doc\taction\tgroup\tpages\tprinted\tcovered_by\n")
         for k in order:
