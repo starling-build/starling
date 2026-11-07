@@ -15098,3 +15098,5 @@ TIP WATCH amd-8, round 211 (e214a671f): Word no drops (six sections up 0 down 0)
 
 TIP WATCH amd-8, round 212 (76da5f3ac): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0.
 - 2026-11-07 lenovo-2 LANDED 76021af90 + 907bafcec. (1) zh-7488a70f: a numbered paragraph holding only a page break prints no label in Word for Windows (empty "六、" before the page break was drawn 8.5 pt low in ours; Word shows a blank line); page 8 now equal, the rest of the doc already within 0.6 pt. (2) zh-b8de3ae2 p7: bold PMingLiU ASCII takes the regular's widths (34 bold 22pt spaces 5.74 each in Word, ours 5.19: centred-by-spaces heading 18.6 pt left). Pairs: up 0/down 0 and up 1/down 0. zh-b8de3ae2 remainder (not mine to fix): chart value/axis labels 1-3 pt on p9,11,12,14,17,18,20-27 (chart sessions); p4 TOC entries only differ in text-run splitting; p29 "資料期間：109年" and four 編/出/網 label glyphs are absent from Word's text layer (drawn as non-text), so not fixable from the layout.
+
+TIP WATCH amd-8, round 213 (a6e8efc6b): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0.
