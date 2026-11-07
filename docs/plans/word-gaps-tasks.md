@@ -15114,3 +15114,5 @@ TIP WATCH amd-8, round 216 (3b6b54098): Word no drops (six sections up 0 down 0)
 TIP WATCH amd-8, round 217 (830776708): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0. SLIDES 0.7434 -> 0.7375 (10 better, 1 worse: lo-tdf129686 0.18 -> 0.37, approved), matched-win 98/98 exact. SHEETS 0.640 -> 0.632 (12 better, 1 worse: 57362.xlsx 0.66 -> 0.73, approved). Baselines reseeded and landed as 914da1b9e. Waiting for windows branches wip/ref-poppins-prints and wip/ref-47813-print (not on origin yet).
 
 TIP WATCH amd-8, round 218 (81a593b09): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0.
+
+TIP WATCH amd-8, round 219 (44a139d83): Word no drops (six sections up 0 down 0); WEB build OK, layout exit 0. UNIT TESTS RED: the serial run dies with an illegal instruction (signal 4) at DocxTests.testListNumbersWord2010EffectsLeaveTheNumberingPartWellFormed after 12 tests (the test passes alone; repeated twice); from amd-7 dd12dd8cc (emoji subset font), confirmed by starling-bd. amd-7 fixing; revert dd12dd8cc via land.sh if still red an hour after the next round reports it.
