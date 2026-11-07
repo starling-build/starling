@@ -903,7 +903,10 @@ enum WordArt {
             var fit = fits ? arc / line.width : min(top, arc / line.width)
             if slide, room == 1, warp.preset == "textCircle" { fit = min(fit, Self.circleFit * arc / line.width) }
             let archSpread = slide && (warp.preset == "textArchDown" || (warp.preset == "textArchUp" && line.glyphs.count <= 8)) ? 1.05 : (slide && warp.preset == "textArchUp" ? 0.975 : 1.0)
-            let k = fit * archSpread * (slide ? 1 - (ring > 0 ? Self.circleSpacingOuter : Self.circleSpacing) * min(size / pxPerPt, 60) : 1)
+            // A slide's arch whose text is longer than the arc fills the arc exactly (texteffects shapes
+            // 1, 2, 6: the glyph origins span the arc, where the loose-fit spread left 7% short).
+            let tight = slide && ring == 0 && fit < 0.97 && (warp.preset == "textArchUp" || warp.preset == "textArchDown")
+            let k = tight ? fit : fit * archSpread * (slide ? 1 - (ring > 0 ? Self.circleSpacingOuter : Self.circleSpacing) * min(size / pxPerPt, 60) : 1)
             let used = line.width * k
             let free = arc * (slide ? room : 1) - used
             var s = line.alignment == .center ? free / 2 : line.alignment == .right ? free : 0
