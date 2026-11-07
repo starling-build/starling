@@ -3505,7 +3505,10 @@ enum ChartPainter {
         if narrow, !titled, !c.valueAxisDeleted {
             // (Excel's sheet charts: the box and the value names stand together in the middle of the frame, lab xl-3d.)
             let tp = valueText(tickLabel(sc.hi), c.valueLabelSize ?? c.baseTextSize, .infinity)
-            midTarget = (frame.left + frame.right) / 2 + (tp.width + 9.75 * k) / 2
+            // (The lab's value names stood 3.9 / 11.3 / 17.7 / 25.4 pt left of the centred group's at frames 180 / 270 / 360 / 480 pt wide:
+            // Excel keeps the group nearer the left side as the frame widens.)
+            let widthPt = frame.width / k * 0.75
+            midTarget = (frame.left + frame.right) / 2 + (tp.width + 9.75 * k) / 2 - (3.9 + 0.071 * (widthPt - 180)) * k / 0.75
             tp.dispose()
         }
         let shift = Offset(midTarget - midX, titled ? room.dy - midY : roomTop - rawY.min()!)
