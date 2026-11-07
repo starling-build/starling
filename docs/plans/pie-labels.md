@@ -97,6 +97,20 @@ labs still do not expose. The fallback rule is implemented (wip/pie-bestfit) per
   alone and label 1 alone at every step, sweep to 190 deg), then the three-copies test, then partner width.
 - Lab piezone2 (wip/lab-piezone, test/lab/piezone2, 171 docs) sent: both / one / two at s = 5..145 by 2.5 (partner middle 50-190).
 
+
+### Lab piezone read (wip/lab-piezone-prints, 51 docs)
+- Three identical charts in one document give identical layouts (all 8 labels, the lone 22.5 label, the pair 1-2): no state
+  carries over between charts; the B layout (label 5 at -54.4,+52.5 with its leader) reproduces exactly. Deterministic per chart.
+- ORDER decides: pair (1,2) at firstSliceAng 0 (zone label first) puts label 1 at dx +46.2 (its corner end) and label 2 at +77.7,-21.0;
+  the same geometry at firstSliceAng 45 with the zone label SECOND (labels 8 at 22.5 and 1 at 67.5) puts the zone label at +28.2
+  (2 pt from its lone +25.9) and the side label 3.7 pt higher (+77.7,-24.0). Zone second with a 112.5 partner: +39.4 (first: +37.9);
+  with a 202.5 partner: +45.4 and the partner at -40.1,+58.5 with no leader (first: +27.2 and the partner moved 36 px with a leader).
+- Pixel phase (widths 360-360.75) changes nothing. A partner's name of 12 characters changes nothing; a partner of 2 or 6 characters
+  goes INSIDE the pie and still moves the zone label (to +49.2,-54.0); 20 characters wrap and shrink the pie.
+- Partner sweep (3 slices, R 60.5, labels 56.5 pt wide): the zone label's text-left is a STEP function of the partner's sector, not of
+  its angle: partner at 50-60 deg (corner-anchored) -> +24.9 px; 62.5-75 (side-anchored) -> +7.9; from 77.5 on (the partner's row is
+  missing from the TSV, probably inside) -> +10.0; constant within each plateau. Controls (each label alone) are in piezone2.
+
 # Round 2 (after pielabel5 and pielabel6): verdict
 
 **Neither candidate reproduces Word, and nothing should be built for label 5.** Both the iterative
