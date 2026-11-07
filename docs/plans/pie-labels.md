@@ -23,9 +23,8 @@ Facts added to rounds 1-2 (all 104 prints):
 4. The layouts A/B/C are functions of the frame width in whole px (A <= 479, B 480-488, C >= 489; w400 is a fourth), yet
    nothing is near a wall: the label extremes vary print to print (top 45-50 px, bottom 218-224 px of a 283 px frame), the
    legend is centred, the pie is at W/2. No candidate wall (frame fraction, square plot, legend) fits.
-5. R is not set by the labels' bounding box (ang15 needs more room than ang0 in both axes and gets a bigger pie), nor by
-   their count or size (only5, lab7, lab11 all 53.76); it does vary with the slice angles (53.76-56.05). amd-1's
-   0.875 x room - 1.37 is the ang0/45 value.
+5. R does not depend on the labels (only5, lab7, lab11 all 53.76). (The apparent variation with the slice angles was the Bezier
+   control-point artefact above; amd-1's 0.875 x room - 1.37 stands.)
 
 Lab pie1 (wip/lab-pie1, 208 docs, sent to windows 2026-11-07): one label alone at 159 angles (5-degree grid, 1-2 degree
 scans at the sector edges), all 28 label pairs at ang 0 (index order = placement order), the full chart at widths 370-450.
@@ -48,7 +47,7 @@ with partner 2, 4, 6 or 8, +16 with 3 or 7, +1 with 5 (which then gets a leader)
 positions do not change with the frame width (only5, p45 at w350/w360 identical to the px phase); the 8-label layout does (bands
 A <= 479 px, B 480-488, C 489-497, E ~498-503, D 504-573 stable to w430; one legend row from w434).
 Leader lines: every leader stands >= 7.8 pt from its rim point, but narrow-frame side labels stand 8-13 pt away without one.
-R depends only on firstSliceAng (0: 53.76, 5: 54.80, 10: 55.42, 15: 55.62, 20: 55.39, 22.5: 55.19, period 45, symmetric) - for amd-1.
+CORRECTION (amd-1, 2026-11-07): the 'R depends on firstSliceAng' series (53.76-55.62) was meas.py's wedge-box extent, which includes the arcs' Bezier control points (R x 1.0346 for 45-degree arcs, cos-projected); Word's drawn radius is flat in angle. What stands is that the lone labels in pie1 sit EXACTLY (0.3 pt) on that control-point radius, not on the drawn circle: at firstSliceAng 15 the corner is 1.86 pt beyond the true rim. So Word anchors its labels on the pie path's bounding box (control points included), a square for equal 45-degree slices; for other slice sizes the box is not square (5 equal slices: 1.085 R across, 1.064 R up and down) - lab pie3 asks which. The rule landed uses the drawn radius (right for lo-f9b9a8fc's ang 0).
 amd-1 (2026-11-07) RETRACTED: there is no radius law. Word's pie radius does not depend on firstSliceAng. The "53.76 .. 55.62" series (and my cos(d) fit of it) measured Bezier CONTROL points: a circle drawn as arcs of angle t has control points at R*sqrt(1+k^2), k = 4/3*tan(t/4) (1.0346 for 45 degree arcs, 1.0153 for 30, 1.0898 for 72, 1.1424 for 90), so the farthest-point or box radius wobbles with where the arc ends fall. Lab pie3 (windows' rc.py, wip/amd1-pie3-prints) read right: R 54.54 (12 slices), 55.58 (8), 65.87 (5), 69.05 (2) divide by those factors to 53.72 / 53.72 / 60.44 / 60.44 - flat in angle. Measure radii from on-curve points only (first and last point of each curve item) or a circle fit. Our own pies, measured that way (a0): 53.70 / 53.70 / 60.44 / 60.44 - labelled Word pies are already right at every slice count. Open: label-less pies with a legend at the foot, Word 62.96 (8 slices) and 70.65 (5) after the factor, ours 68.85 and 74.18.
 
 Opus advisor (scratchpad advisor/, 2026-11-07): no exact algorithm recovered. Best explanation: an iterative whole-pixel search over
