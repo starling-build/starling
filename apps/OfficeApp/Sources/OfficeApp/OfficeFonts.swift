@@ -2708,6 +2708,17 @@ enum OfficeFonts {
     /// embedded face first, then installed Arabic-capable families. Word
     /// uses Cambria for spaces/punctuation and Times New Roman for Arabic
     /// when the named face is absent (rtl.docx and missing-face labs).
+    /// The Arabic and Hebrew faces Word for Windows has of its own, which a
+    /// missing complex-script name must not be mistaken for.
+    private static let windowsComplexFaces: Set<String> = [
+        "traditional arabic", "sakkal majalla", "arabic typesetting", "simplified arabic", "simplified arabic fixed", "andalus",
+        "segoe ui", "tahoma", "aharoni", "david", "miriam", "narkisim", "gisha", "levenim mt", "frankruehl", "rod", "miriam fixed",
+        "microsoft sans serif", "sylfaen", "urdu typesetting", "aldhabi", "estrangelo edessa", "mudir mt", "times new roman", "arial",
+        "calibri", "cambria", "cambria math", "courier new", "dubai", "myriad arabic", "arial unicode ms", "gadugi", "nirmala ui", "leelawadee ui",
+    ]
+
+    private static let windowsArabicLines: [String: Double] = ["traditional arabic": 1.495, "sakkal majalla": 1.40]
+
     static func complexFace(_ family: String?) -> RichResolvedFace? {
         // (A face neither embedded nor on the machine is the one Word sets
         // the text in, Times New Roman, and not a name nothing answers to:
@@ -2726,7 +2737,15 @@ enum OfficeFonts {
         // Arial in Word for Windows' print, not Times: lo tdf163575's
         // "B Mitra". A name the table does not know stays Times', as
         // rtl.docx's "Noto Sans Arabic UI".)
-        if missing, wordOnWindows, fontEntry(name)?.charset == "B2" {
+        // (And a complex-script name the table lists with no alternate, whatever its
+        // charset, that Word's Windows does not have: Arial, as Word's prints set
+        // Guttman Keren (Hebrew, B1) and Jameel Noori Nastaleeq, Alvi Nastaleeq
+        // (Urdu, charset 00) — heb-z5059159, urd-z8387389, z7427432, z17694236 —
+        // where the same Jameel with Times New Roman as its alternate, urd-z7538882's
+        // table, prints in Times. The faces Windows ships are as they were.)
+        if missing, wordOnWindows, let entry = fontEntry(name), !Self.windowsComplexFaces.contains(name.trimmingWhitespace().lowercased()),
+           entry.alt?.trimmingWhitespace().isEmpty ?? true {
+            RuleTrace.hit("missing-complex-face-is-arial")
             name = "Arial"
             missing = false
         }
@@ -2736,6 +2755,7 @@ enum OfficeFonts {
         // Cambria of a face Word lacks.)
         let wordHasIt = wordOnWindows && ["times new roman", "arial"].contains(name.trimmingWhitespace().lowercased())
         if missing, wordHasIt { missing = false }
+        let asked = name.trimmingWhitespace().lowercased()
         if missing { name = "Times New Roman" }
         var face = RichResolvedFace(family: missing ? cambria : embeddedFamily(name) ?? name)
         face.fallback = [cambria, "Times New Roman", "Noto Naskh Arabic", emojiPictographs, "DejaVu Sans"]
@@ -2767,6 +2787,25 @@ enum OfficeFonts {
                 face.boldJoinedAdvances = WindowsArabicAdvances.timesBold
             default: break
             }
+            if missing {
+                switch asked {
+                case "traditional arabic":
+                    face.joinedAdvances = WindowsArabicAdvances.tradArabic
+                    face.boldJoinedAdvances = WindowsArabicAdvances.tradArabicBold
+                case "sakkal majalla":
+                    face.joinedAdvances = WindowsArabicAdvances.sakkal
+                    face.boldJoinedAdvances = WindowsArabicAdvances.sakkalBold
+                default: break
+                }
+            }
+        }
+        // (Traditional Arabic's and Sakkal Majalla's own lines, which Windows has and we
+        // do not: Word's prints step single-spaced 14pt lines 20.93 and 19.6 apart,
+        // 1.495 and 1.40 em — ara-z8157766 and ara-z18174368 — where the Times
+        // stand-in's 1.15 ran those documents two pages short in three.)
+        if wordOnWindows, missing, embeddedFamily(asked) == nil, let tall = Self.windowsArabicLines[asked] {
+            RuleTrace.hit("windows-arabic-face-own-line")
+            face.naturalHeight = tall
         }
         // (… and its clone first in the chain, so the spaces and marks are set
         // in the clone and not the Cambria stand-in that comes before it.)
