@@ -2136,7 +2136,10 @@ enum OfficeFonts {
             RuleTrace.hit("ms-japanese-face-square-line")
             return EastAsianFace(height: 1.3, latin: has("mincho", "明朝") ? serif : sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
         }
-        if wordOnWindows, has("yu gothic", "游ゴシック") {
+        // Yu Mincho shares Yu Gothic's line (jpn-z23845932-12d9fb: 10.5pt Body
+        // Text at 1.5 lines steps 26.4pt in Word's print = 1.676 em natural,
+        // where YaHei's 1.715 em gave 27.0).
+        if wordOnWindows, has("yu gothic", "游ゴシック", "yu mincho", "游明朝") {
             return EastAsianFace(height: 1.2871 * 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 1.2871 * 0.15 + 0.98486)
         }
         if has("yahei ui") {
