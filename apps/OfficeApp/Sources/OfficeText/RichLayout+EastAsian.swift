@@ -781,7 +781,7 @@ extension RichLayout {
                 // em's hang is Word's — zh-7488a70f's "…（民間21項、機關16
                 // 項）。" is one line in its print. u5's blanks as "某" left
                 // Word's limit where it was and ours lower: not found.)
-                let closedUpTo = theme.wordRules && !legacy && lineOther && tail > a && closesUp(tail - 1)
+                let closedUpTo = theme.wordRules && !legacy && squeezes && lineOther && tail > a && closesUp(tail - 1)
                 // (Nor a full-width "？" that ends the paragraph where the
                 // marks are compressed: labs `qh`/`qe` (Word for Windows) keep
                 // zh-ab1ea005's heading "…税收优惠？" (mode 14, zh-CN, 16pt) to
