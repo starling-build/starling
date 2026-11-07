@@ -11,10 +11,16 @@ def w(v): return lambda x: x.replace(W0, '<c:w val="%s"/>' % v, 1)
 def nolab(f): return lambda x: f(x).replace('<c:showVal val="1"/>', '<c:showVal val="0"/>')
 V = {"w50": w(0.5), "w70": w(0.7), "w80": w(0.8), "w90": w(0.9), "w100": w(1.0),
      "nl-orig": nolab(lambda x: x), "nl-w60": nolab(w(0.6)), "nl-w95": nolab(w(0.95))}
-os.makedirs("test/labs/p3bx/decks", exist_ok=True)
+H0 = '<c:h val="0.748376623376623"/>'
+def h(v): return lambda x: x.replace(H0, '<c:h val="%s"/>' % v, 1)
+OUT = "test/labs/p3bx/decks"
+if os.environ.get("HEIGHTS"):
+    V = {"h30": h(0.3), "h50": h(0.5), "h60": h(0.6), "h90": h(0.9), "h100": h(1.0)}
+    OUT = "test/labs/p3bx/decks-h"
+os.makedirs(OUT, exist_ok=True)
 for k, f in V.items():
     zi = zipfile.ZipFile(SRC)
-    with zipfile.ZipFile("test/labs/p3bx/decks/p3bx-%s.pptx" % k, "w", zipfile.ZIP_DEFLATED) as zo:
+    with zipfile.ZipFile(OUT + "/p3bx-%s.pptx" % k, "w", zipfile.ZIP_DEFLATED) as zo:
         for it in zi.infolist():
             b = zi.read(it.filename)
             if it.filename == "ppt/charts/chart12.xml":
