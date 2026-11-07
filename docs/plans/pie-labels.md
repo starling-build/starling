@@ -1,6 +1,38 @@
 # Word flat-pie best-fit labels: the lo-f9b9a8fc label-5 jump (amd-opus, 2026-11-06)
 
-## Round 2 (after pielabel5 and pielabel6): verdict
+## Round 3 (lenovo-2, 2026-11-07, in progress): the raster, Word's box, and lab pie1
+
+Scripts: `test/lab/pie-fit/` (load.py reads every lab's TSVs; draw.py draws a print's boxes; pie1.py reads lab pie1).
+
+Facts added to rounds 1-2 (all 104 prints):
+1. **Word lays the chart out on a 96-dpi raster from the frame's top left.** Every label text box's left and top are
+   whole pixels there; the pie centre is at exactly W/2 px (fractional) and 100.0 pt (133.33 px) below the frame top in
+   the 212.25 pt frames. The 3 pt period in x is the centre's sub-pixel phase; the y values are the whole pixels.
+2. **Word's label box is the text advance box with Calibri's 0.952/0.269 em line (10.99 pt at 9 pt), no insets**: the fitz
+   box (typo 0.75/0.25) with its top 1.8 pt higher and its bottom 0.25 lower. With that box, every undisturbed label in the
+   pieang prints has a corner or an edge middle on the rim point within 0.2 pt, by a sector table: bottom-centre within
+   12.5 deg of twelve, bottom-left corner 25-60, left edge 62-103, top-left corner 122-148, top-centre 167-193, then the
+   mirror. Labels below the pie stand 1.2-2.6 pt lower than that, top ones 0.2 above. The side labels' inner edge is at
+   x = +-R (the pie's bounding square), not at the rim point's x.
+3. The 8-slice chart's labels all sit on the sector edges (22.5 + 45k). In it the top labels keep their y (box bottom 1-2 px
+   below the pie's top) and slide in x; the side labels keep x (inner edge about +-R) and slide in y; the bottom labels keep y
+   and slide in x. Which way and how far depends on which other labels exist, including far ones: removing label 7 moves
+   labels 8, 1 and 2 by 8-11 px (toward twelve o'clock, i.e. toward each other); label 1 alone (no8) sits at its corner anchor,
+   label 8 alone (no1) 15 px toward twelve o'clock with its bottom-right corner on the circle; layout C's label 1 also has
+   that corner on the circle (a bottom-centre anchor pushed out until it clears the pie).
+4. The layouts A/B/C are functions of the frame width in whole px (A <= 479, B 480-488, C >= 489; w400 is a fourth), yet
+   nothing is near a wall: the label extremes vary print to print (top 45-50 px, bottom 218-224 px of a 283 px frame), the
+   legend is centred, the pie is at W/2. No candidate wall (frame fraction, square plot, legend) fits.
+5. R is not set by the labels' bounding box (ang15 needs more room than ang0 in both axes and gets a bigger pie), nor by
+   their count or size (only5, lab7, lab11 all 53.76); it does vary with the slice angles (53.76-56.05). amd-1's
+   0.875 x room - 1.37 is the ang0/45 value.
+
+Lab pie1 (wip/lab-pie1, 208 docs, sent to windows 2026-11-07): one label alone at 159 angles (5-degree grid, 1-2 degree
+scans at the sector edges), all 28 label pairs at ang 0 (index order = placement order), the full chart at widths 370-450.
+It gives the anchor function and circle clearance, the pairwise interaction with its direction and order, and the layout bands.
+Until it is printed no rule is written; lo-f9b9a8fc stays 87.5.
+
+# Round 2 (after pielabel5 and pielabel6): verdict
 
 **Neither candidate reproduces Word, and nothing should be built for label 5.** Both the iterative
 overlap pass and the ordered "first position that does not overlap" search collapse, on these
