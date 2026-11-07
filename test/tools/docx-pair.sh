@@ -21,7 +21,7 @@
 # Dictionary order, fixed), so a document that moves with the inputs unchanged is a
 # BUG and is named loudly (SWIFT_DETERMINISTIC_HASHING=1 would hide such a bug, not fix it; not set): every mover is converted once more by
 # FIXBIN and kept as a mover only if the second print scores the same.
-#   SETS (default "756 lo xb"; "lo" alone for a LibreOffice-only check — then do not commit the scores)
+#   SETS (default "756 lo xb xa xd"; "lo" alone for a LibreOffice-only check — then do not commit the scores)
 #   PYTHON (needs PyMuPDF; default python3)   BASE_REV (default origin/office)   STAGE
 #   BASEBIN and FIXBIN must sit BESIDE their build's libFlutterShared.so and *.resources
 #   bundles (the release dir): a binary copied away on its own cannot load and fails every
@@ -36,7 +36,7 @@ BASEBIN=$(cd "$(dirname "$1")" && pwd)/$(basename "$1"); FIXBIN=$(cd "$(dirname 
 HERE=$(cd "$(dirname "$0")" && pwd); ROOT=$(cd "$HERE/../.." && pwd); cd "$ROOT" || exit 2
 case $(uname) in Darwin) HOST=mac;; Linux) HOST=linux;; *) HOST=windows;; esac
 PY=${PYTHON:-python3}; BASE_REV=${BASE_REV:-origin/office}; STAGE=${STAGE:-/tmp/docx-pair-$HOST}
-SETS=${SETS:-756 lo xb}
+SETS=${SETS:-756 lo xb xa xd}
 INPUTS="apps/OfficeApp sdk test/docx-line-match.py"
 for d in ${ENGINE_OUT:-} engine/src/out/host_release_arm64 engine/src/out/host_release; do [ -d "$d" ] && { EO=$(cd "$d" && pwd -P); break; }; done
 [ -n "${EO:-}" ] || { echo "no engine out dir (ENGINE_OUT)" >&2; exit 2; }
@@ -50,10 +50,10 @@ esac
 
 # xb: the admitted batch-B documents that have a Windows print (interim set before the corpus swap; lives in the cache,
 # not in git: $STARLING_CORPUS/staging/xb/{docs,word-win}, stems listed in test/corpus/docx/xb/manifest.tsv)
-corpus() { case $1 in 756) echo "$ROOT/test/corpus/docx";; lo) echo "$ROOT/test/corpus/docx/lo";; xb) echo "${STARLING_CORPUS:-/data/corpus-cache}/staging/xb";; esac; }
+corpus() { case $1 in 756) echo "$ROOT/test/corpus/docx";; lo) echo "$ROOT/test/corpus/docx/lo";; xb|xa|xd) echo "${STARLING_CORPUS:-/data/corpus-cache}/staging/$1";; esac; }
 # base_ok SET FILE — stored/cached base scores usable for the set? xb's membership has changed (a base with another
 # number of rows than the set has prints would show every new document as missing), so its row count must match.
-base_ok() { [ "$1" = xb ] || return 0; local C n; C=$(corpus xb); n=$(ls "$C"/word-win/*-orig.pdf 2>/dev/null | wc -l)
+base_ok() { case "$1" in xb|xa|xd) ;; *) return 0;; esac; local C n; C=$(corpus "$1"); n=$(ls "$C"/word-win/*-orig.pdf 2>/dev/null | wc -l)
   [ "$(grep -c '%  lines ' "$2" 2>/dev/null)" = "$n" ]; }
 # sweep BIN WORK SET → WORK/match-v2.txt, match-v1.txt
 sweep() {

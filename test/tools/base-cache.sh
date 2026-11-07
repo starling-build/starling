@@ -9,7 +9,7 @@
 #   base-cache.sh key REV            print the cache key of REV's tree (hash of its stamp)
 #   base-cache.sh get KEY            print the cache dir if complete, else exit 1 (and touch it: LRU)
 #   base-cache.sh put KEY BINDIR SCOREDIR   publish BINDIR (OfficeApp + libs + resources) and
-#                                    SCOREDIR (756.v2 756.v1 lo.v2 lo.v1, and xb.v2 xb.v1 when present) atomically; no-op if present
+#                                    SCOREDIR (756.v2 756.v1 lo.v2 lo.v1, and xb/xa/xd .v2 .v1 when present) atomically; no-op if present
 #   base-cache.sh prune [N]          keep the N newest entries (default 12)
 # Dir: ${BASE_CACHE:-/data/landlock/cache}. Needs the engine env of land.sh exported (stamp.sh reads it).
 set -u
@@ -19,7 +19,7 @@ case ${1:-} in
   get) [ -f "$C/$2/DONE" ] && { touch "$C/$2"; echo "$C/$2"; } || exit 1;;
   put) [ -f "$C/$2/DONE" ] && exit 0
        T=$(mktemp -d "$C/.tmp.XXXXXX") || exit 1
-       mkdir "$T/bin" "$T/scores" && cp -a "$3"/. "$T/bin/" && cp "$4"/756.v2 "$4"/756.v1 "$4"/lo.v2 "$4"/lo.v1 "$T/scores/" && { for f in "$4"/xb.v2 "$4"/xb.v1; do [ -s "$f" ] && cp "$f" "$T/scores/"; done; true; } || { rm -rf "$T"; exit 1; }
+       mkdir "$T/bin" "$T/scores" && cp -a "$3"/. "$T/bin/" && cp "$4"/756.v2 "$4"/756.v1 "$4"/lo.v2 "$4"/lo.v1 "$T/scores/" && { for f in "$4"/xb.v2 "$4"/xb.v1 "$4"/xa.v2 "$4"/xa.v1 "$4"/xd.v2 "$4"/xd.v1; do [ -s "$f" ] && cp "$f" "$T/scores/"; done; true; } || { rm -rf "$T"; exit 1; }
        : > "$T/DONE"; chmod -R a+rX "$T"
        mv -T "$T" "$C/$2" 2>/dev/null || rm -rf "$T";;
   prune) N=${2:-12}; ls -dt "$C"/*/ 2>/dev/null | tail -n +$((N+1)) | while read -r d; do rm -rf "$d"; done;;
