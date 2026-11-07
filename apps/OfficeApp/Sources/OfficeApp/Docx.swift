@@ -1157,7 +1157,7 @@ enum DocxFormat {
                     if style["w:default"] == "1" { defaultTableFixed = true }
                 }
                 if style["w:default"] == "1" {
-                    defaultMargins = _cellMargins(style.first("w:tblPr"))
+                    defaultMargins = _defaultStyleMargins(style)
                     defaultBorders = _borders(style.first("w:tblPr"), "w:tblBorders")
                 }
             }
@@ -1253,7 +1253,7 @@ enum DocxFormat {
                 var m = _Margins(), seen = Set<String>(), cur: String? = id
                 while let c = cur, !seen.contains(c), let node = tableNodes[c] {
                     seen.insert(c)
-                    m = m.under(_cellMargins(node.first("w:tblPr")))
+                    m = m.under(node["w:default"] == "1" ? _defaultStyleMargins(node) : _cellMargins(node.first("w:tblPr")))
                     cur = node.first("w:basedOn")?["w:val"]
                 }
                 tableMargins[id] = m
@@ -5153,6 +5153,20 @@ enum DocxFormat {
             return nil
         }
         return _Margins(top: side(["w:top"]), left: side(["w:left", "w:start"]), bottom: side(["w:bottom"]), right: side(["w:right", "w:end"]))
+    }
+
+    /// The cell margins of the DEFAULT table style. Word ignores a default style's
+    /// zero left and right (lab fitedge c00-c05, Windows prints: a table whose
+    /// style is the default one with margins 0 is set out by 5.4 pt all the
+    /// same, in compat 14 and 15, schema order or not); a non-default style's
+    /// zero is honoured (zh-dc9cfa34, zh-147bdae0).
+    private static func _defaultStyleMargins(_ style: XNode) -> _Margins {
+        let m = _cellMargins(style.first("w:tblPr"))
+        if m.left == 0 && m.right == 0 {
+            RuleTrace.hit("default-table-style-zero-margin-ignored")
+            return _Margins()
+        }
+        return m
     }
 
     /// `target` relative to the directory `base` ("word/charts" + "../media/x.png").
