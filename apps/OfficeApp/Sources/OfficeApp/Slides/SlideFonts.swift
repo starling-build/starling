@@ -185,7 +185,8 @@ enum SlideFonts {
     static func ownDescentShare(_ family: String) -> Double? {
         guard OfficeFonts.installed(family) == nil else { return nil }
         let n = windowsName(family)
-        if n == "verdana" { return 430.0 / 2489 }
+        // (PowerPoint's print, lab verdana-ls: the foot of a Verdana line is 0.202 em at every size and spacing, of 1.2 em: not hhea's 430 of 2489.)
+        if n == "verdana" { return 0.202 / 1.2 }
         if n.hasPrefix("tahoma") { return 423.0 / 2472 }
         if n.hasPrefix("segoe ui") { return 514.0 / 2724 }
         if n == "lucida sans unicode" { return 901.0 / 3147 }
