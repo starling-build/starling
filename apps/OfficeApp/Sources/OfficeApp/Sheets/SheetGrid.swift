@@ -719,7 +719,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let w = chart.areaLineWidth.map { $0 * scale } ?? 1
                 p.strokeWidth = w
                 p.color = chart.areaLine ?? Color(0xFFD9D9D9)
-                canvas.drawRect(r.deflate(w / 2), p)
+                if chart.areaLineCompound {
+                    // (Excel's print of a thickThin line: a 0.31 pt hairline at the frame edge and a 0.56 pt one 0.9 pt inside it, chart-external_str_ref.)
+                    p.strokeWidth = 0.31 * scale
+                    canvas.drawRect(r.deflate(0.155 * scale), p)
+                    p.strokeWidth = 0.56 * scale
+                    canvas.drawRect(r.deflate(0.9 * scale + 0.28 * scale), p)
+                } else {
+                    canvas.drawRect(r.deflate(w / 2), p)
+                }
             }
             // Excel's chart text is three quarters of PowerPoint's (14pt
             // titles, 9pt labels against 18.6 and 12), the painter's sizes.

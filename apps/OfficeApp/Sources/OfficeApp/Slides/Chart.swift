@@ -591,6 +591,8 @@ struct Chart: Equatable {
     var areaNoFill = true
     var areaLine: Color? = nil
     var areaLineWidth: Double? = nil
+    /// The chart area's line is a compound one (`cmpd="thickThin"` and the like): Excel prints it as two hairlines.
+    var areaLineCompound = false
     var areaNoLine = true
     /// A pie's or doughnut's labels where the file asks more of them than
     /// their values inside the slices (`c:dLbls`): what they say — series,
@@ -1998,6 +2000,7 @@ enum ChartXML {
                 if let f = ln.first("a:solidFill") {
                     c.areaLine = color(f)
                     c.areaLineWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 }
+                    c.areaLineCompound = ["thickThin", "thinThick", "dbl", "tri"].contains(ln["cmpd"] ?? "") && (c.areaLineWidth ?? 0) >= 2
                 } else if ln.first("a:noFill") != nil { c.areaNoLine = true }
             }
         }
