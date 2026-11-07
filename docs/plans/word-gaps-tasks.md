@@ -15202,4 +15202,4 @@ and "動" needs a whole em. Ideograph steps stay 12.5 in Word. Not a capacity ru
 (T110 history: one-line limits broke zh-c2c92639).
 Left: make U+00A0 take justification stretch/squeeze as a word space does. 74 of 645 zh docs contain U+00A0, so it needs
 a lab (nbsp run in a justified line, steps of slack) and a pair; justification is in the engine paint, not in
-_fitEastAsianLines. Released for now.
+_fitEastAsianLines. WAITING ON THE NBSP LAB (not released): test/lab/nbsp/docs on wip/lenovo-5-fitedge-c-prints (6ebe61b6d), needs a Windows print.
