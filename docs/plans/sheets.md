@@ -1479,3 +1479,10 @@ under the file's own `<styleSheet>` root, whose prefixes they use).
 - Excel fits Segoe UI 8 in a Calibri 11 book at 14.88 pt (Windows lab mx-cal11-SegoeUI8); sizes 9 to 12 do not follow it (hinted pixel rows), so it is a `hinted` table entry, not a formula. A sheet that sets its own default row height (56274, row ~12.4) does not use it.
 - lo-tdf76115 4.45 to 2.45. Approved drift: lo-tdf167019 3.50 to 3.53 and lo-tdf41722 0.06 to 0.08. Neither workbook has Segoe UI in its styles (fonts: Arial, Calibri / Arial, Arial Unicode MS), so these are not Segoe 8 rows; the change is from the base moving, not the table.
 - Still open: Segoe 8 in a Verdana 10 book prints 14.52 (ours 13.32); size-12 one-dot misses (Arial, Verdana, Calibri, Malgun 10); bug66675 wrapped header rows (15.24); 47813 parked (reference 13.20 vs reprint 12.60).
+
+**Chart-caused gaps, fresh sweep (2026-11-07, amd-1, 184 chart books, worst page %).**
+tdf119138 7.77 (2007-style bar plot width/bar thickness), LIBRE_OFFICE-128382-0 6.88 (3-D line),
+chart-hatch-fill 4.17 (pattern tile, not position), tdf140489 3.87 (now drawn; text/hatch remain),
+testDataseriesOverlapStackedChart 5.17 -> 3.42 (fixed: a stacked group with overlap under 100 keeps
+its series in lanes, each stacking on the last), tdf111824 6.25 (3-D series rows). 47813, 45544 and
+45540_* are cell-caused, not charts.

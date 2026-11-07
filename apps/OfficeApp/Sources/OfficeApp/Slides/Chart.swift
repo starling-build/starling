@@ -5241,8 +5241,11 @@ enum ChartPainter {
             // A category's slot holds its bars plus one gap; bars step by
             // (1 - overlap) of a bar, so a stacked chart's sit on one another.
             let rowsDeep = c.barView?.rows == true && !c.stacked && !horizontal
-            let lanes = c.stacked || rowsDeep ? 1.0 : Double(s)
-            let pitch = c.stacked || rowsDeep ? 0 : 1 - c.overlapFraction
+            // (A stacked group that states an overlap under 100 keeps its series in lanes, each stacking
+            // on the ones before it: chart-testDataseriesOverlapStackedChart, Excel's print.)
+            let stackLanes = c.stacked && c.overlap != nil && c.overlapFraction < 1 && c.barView == nil
+            let lanes = (c.stacked && !stackLanes) || rowsDeep ? 1.0 : Double(s)
+            let pitch = (c.stacked && !stackLanes) || rowsDeep ? 0 : 1 - c.overlapFraction
             let bar = slot / (1 + (lanes - 1) * pitch + c.gap)
             let step = bar * pitch
             let group = bar + (lanes - 1) * step
