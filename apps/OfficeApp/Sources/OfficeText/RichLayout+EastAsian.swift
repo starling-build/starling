@@ -935,7 +935,17 @@ extension RichLayout {
                 // and 28 ideographs and "。" on zh-d68ac84a's grid, the
                 // mark 0.003pt past its em at 586 twips of indent, is
                 // wrapped by Word and hangs at 580.)
-                if hang > 0, over <= hang + 0.0001 {
+                // (A line-end comma, full stop or enumeration comma on a line whose marks squeeze, Word for
+                // Windows: lab `comma-hang3` (zh-e0ca7252's "…備，", w:right stepped) keeps the pair while
+                // 5.76pt is left after "備" and carries it at 5.26: the mark squeezed to 0.76 em and hung
+                // 0.28 em past the margin, so it may stand about half an em over, not the whole em.)
+                let commaHalfHang = theme.wordRules && RichTextTheme.wordWindowsPages && squeezes && !inCell && !paragraphEnd
+                    && (document.compatibilityMode ?? 12) >= 15 && document.lineGridPitch == nil
+                    && p.style.eastAsian["w:overflowPunct"] != "0" && last == a + 2 && tail == a + 1
+                    && (units[tail] == 0xFF0C || units[tail] == 0x3002 || units[tail] == 0x3001)
+                    && over > em * 0.50 && hang > 0 && over <= hang + 0.0001
+                if commaHalfHang { RuleTrace.hit("e0ca7252-comma-hangs-by-half-em-only") }
+                if hang > 0, over <= hang + 0.0001, !commaHalfHang {
                     // (All of it, the hair too: the engine has none.)
                     adjust[tail, default: 0] -= (!squeezes && !turned && wordRules && RichTextTheme.wordWindowsPages && !document.hangsHalf ? hang : over + 0.02)
                     fits = true
