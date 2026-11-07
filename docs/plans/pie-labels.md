@@ -162,6 +162,18 @@ labs still do not expose. The fallback rule is implemented (wip/pie-bestfit) per
   frozen; re-placed side labels sit ~1.6-2.6 px further out and slide 2-9 degrees along the rim. Its reading: a sequential process whose
   state changes with the work each label causes. Notes: sim.snap's 133.33 px centre is wrong for piezone2 (143.73); score zone cases at 1.5 px.
 
+
+### In the default frame (8-slice ang 0 chart, R 53.76, labels 47.4 pt; pulls in px from Word's defaults above)
+Every auto label is pulled from its default toward its rim point / the nearer axis; the pull size is the whole story:
+- zone label 1 (22.5): alone -31; with partner 5: -30; with 3 or 7: -15; with 2, 4, 6 or 8: -4.  Layout A -8, B -8, C -19.
+- zone label 4 (157.5): alone -9; with 2, 3 or 8: -9/-10; 7: -13; 5: -18; 6: -19; 1: -28.  A/B -14, C -4.
+- zone label 5 (202.5): alone 0; with 4: +13; 6: +17; 8: +20; 7: +24; 2, 3: +27; 1: +36 (leader).  A +29, B (-7, -9) leader, C +11.
+- zone label 8 (337.5): alone +8; with 1, 2, 6: +8; 3, 7: 0; 5: +11; 4: +29.  A/B/C +11.
+- side labels: alone (-6, +4) / (-6, -3) / (+4, -3) / (+4, +4) (inward and toward the horizontal axis); with others 1-6 px different.
+- pinning label k (any offset) changes the others' pulls by up to 20 px, e.g. k1 pinned: 4 -> -30, 5 -> +6, 8 -> +15.
+So a partner can leave a zone label's pull unchanged (1 <- 5; 4 <- 2, 3, 8; 8 <- 1, 2, 6) or cut it to a few px (1 <- 2/4/6/8).
+Open question for the advisor (round 4): what limits the pull - a corridor, a budget, an order-dependent iteration.
+
 # Round 2 (after pielabel5 and pielabel6): verdict
 
 **Neither candidate reproduces Word, and nothing should be built for label 5.** Both the iterative
