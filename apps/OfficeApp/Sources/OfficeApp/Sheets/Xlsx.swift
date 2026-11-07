@@ -158,6 +158,43 @@ enum Xlsx {
         if book.sheets.isEmpty { book.sheets = [Worksheet(name: "Sheet1")] }
         book.activeTab = min(max(0, activeTab), book.sheets.count - 1)
 
+        // The values saved from linked workbooks, in the order [1], [2]... name them.
+        for ref in wbNode.child("externalReferences")?.kids("externalReference") ?? [] {
+            var ext = ExternalBook()
+            if let rid = ref["id"] ?? ref.attrs.first(where: { $0.key.hasSuffix(":id") })?.value,
+               let path = wbRels[rid] {
+                let relPath = path.replacingAll("externalLinks/", with: "externalLinks/_rels/") + ".rels"
+                if let rels = _part(parts, relPath).flatMap({ XNode.parse($0) }),
+                   let t = rels.kids("Relationship").first?["Target"] {
+                    ext.file = String(t.split(separator: "/").last ?? "")
+                }
+                if let root = xml(path), let eb = root.child("externalBook") {
+                    ext.sheetNames = (eb.child("sheetNames")?.kids("sheetName") ?? []).map { $0["val"] ?? "" }
+                    for n in eb.child("definedNames")?.kids("definedName") ?? [] {
+                        if let name = n["name"], let to = n["refersTo"] { ext.names[name.uppercased()] = to }
+                    }
+                    for sd in eb.child("sheetDataSet")?.kids("sheetData") ?? [] {
+                        let si = Int(sd["sheetId"] ?? "") ?? 0
+                        for row in sd.kids("row") {
+                            for c in row.kids("cell") {
+                                guard let a = c["r"].flatMap({ CellAddress($0) }) else { continue }
+                                let v = c.child("v")?.text
+                                let value: CellValue
+                                switch c["t"] ?? "n" {
+                                case "str", "s": value = .text(v ?? "")
+                                case "b": value = .bool(v == "1")
+                                case "e": value = .error(ExcelError(rawValue: v ?? "") ?? .value)
+                                default: value = v.flatMap { Double($0) }.map { .number($0) } ?? .empty
+                                }
+                                ext.cells[si, default: [:]][a] = value
+                            }
+                        }
+                    }
+                }
+            }
+            book.externals.append(ext)
+        }
+
         // Defined names (print areas and other built-ins are not formulas to
         // evaluate). A sheet's own name is read from `fileNames` by that
         // sheet; the book's table has it only where the book has none.

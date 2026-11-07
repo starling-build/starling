@@ -183,6 +183,26 @@ extension SheetsTableTests {
 }
 
 extension SheetsTableTests {
+    /// A reference into another workbook reads what the file saved of it.
+    func testExternalLinkReadsSavedValues() throws {
+        let c = WorkbookController()
+        c.load(try Xlsx.read(try withTable()))
+        var ext = ExternalBook()
+        ext.file = "other.xlsx"
+        ext.sheetNames = ["Munka1"]
+        ext.names["MONTHS"] = "='Munka1'!$A$2:$A$3"
+        ext.cells[0] = [CellAddress("A1")!: .number(10), CellAddress("B1")!: .number(20),
+                        CellAddress("A2")!: .text("January"), CellAddress("A3")!: .text("February")]
+        c.book.externals = [ext]
+        func v(_ f: String) -> CellValue { c.engine.evaluate(f, sheet: 0, at: CellAddress("L1")!) }
+        XCTAssertEqual(v("=SUM('[other.xlsx]Munka1'!A1:B1)").number, 30)
+        XCTAssertEqual(v("=SUM([1]Munka1!A1:B1)").number, 30)
+        XCTAssertEqual(v("='[1]Munka1'!A3"), .text("February"))
+        XCTAssertEqual(v("='[2]Munka1'!A3"), .error(.ref))
+        c.book.names["LINKED"] = "[1]!MONTHS"
+        XCTAssertEqual(v("=ROWS(LINKED)").number, 2)
+    }
+
     func testStructuredReferenceForms() throws {
         let c = WorkbookController()
         c.load(try Xlsx.read(try withTable()))   // Table1 over D3:J10, header row 3

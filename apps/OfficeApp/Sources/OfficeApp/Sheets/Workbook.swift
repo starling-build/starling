@@ -390,6 +390,9 @@ final class Workbook {
         }
         return max(1, (px * 0.556).rounded())
     }
+    /// Other workbooks this one links to, with the values the file saved
+    /// of them (xl/externalLinks): read as Excel does until a refresh.
+    var externals: [ExternalBook] = []
     var names: [String: String] = [:]   // defined name (uppercased) → "Sheet1!$A$1:$B$4"
     /// The names as the file spelled them, for writing back.
     var nameSpellings: [String: String] = [:]
@@ -527,4 +530,18 @@ struct StyleSource: Sendable {
     var cellStyleXfs: String? = nil
     var cellStyles: String? = nil
     var xfs: [Xf] = []
+}
+
+
+/// One externalLink part: the linked file's name, its sheets, its defined
+/// names (uppercased → refersTo) and the cells it saved.
+struct ExternalBook: Sendable {
+    var file: String = ""
+    var sheetNames: [String] = []
+    var names: [String: String] = [:]
+    var cells: [Int: [CellAddress: CellValue]] = [:]
+
+    func sheetIndex(_ name: String) -> Int? {
+        sheetNames.firstIndex { $0.lowercased() == name.lowercased() }
+    }
 }

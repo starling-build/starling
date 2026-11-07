@@ -313,6 +313,8 @@ final class CalcEngine {
                     }
                 }
                 func read(_ ref: FormulaRef) -> _Node? {
+                    // (A sheet of another workbook is none of ours.)
+                    if let n = ref.sheet, n.hasPrefix("[") { return nil }
                     let si = ref.sheet.flatMap { book.sheet(named: $0) } ?? k.sheet
                     guard si >= 0, si < book.sheets.count else { return nil }
                     let r = ref.range
@@ -485,6 +487,7 @@ final class CalcEngine {
         case .name(let n):
             if let local = ctx.locals[n.uppercased()] { return local }
             if let target = book.nameText(n, sheet: ctx.sheet), target.containsSubstring("#REF!") { return .error(.ref) }
+            if let target = book.nameText(n, sheet: ctx.sheet), let v = externalName(target) { return v }
             guard let target = book.nameText(n, sheet: ctx.sheet),
                   let parsed = try? Formula.parse(target) else {
                 // A table's own name is its data rows (Table1 = Table1[]).
@@ -571,9 +574,53 @@ final class CalcEngine {
         return n
     }
 
+    /// `[1]Sheet` or `[file.xlsx]Sheet` → the linked book and its sheet.
+    func externalSheet(_ name: String) -> (Int, Int)? {
+        guard let close = name.firstIndex(of: "]") else { return nil }
+        let key = String(name[name.index(after: name.startIndex) ..< close])
+        let sheet = String(name[name.index(after: close)...])
+        var bi: Int?
+        if let n = Int(key) { bi = n >= 1 && n <= book.externals.count ? n - 1 : nil }
+        else { bi = book.externals.firstIndex { $0.file.lowercased() == key.lowercased() } }
+        guard let b = bi, let si = book.externals[b].sheetIndex(sheet) else { return nil }
+        return (b, si)
+    }
+
+    /// A range of a linked book's saved cells (what it was when last read).
+    func externalValue(_ bi: Int, _ si: Int, _ r: FormulaRef) -> EvalValue {
+        let cells = book.externals[bi].cells[si] ?? [:]
+        let rng = r.range
+        if r.isCell { return .scalar(cells[rng.topLeft] ?? .empty) }
+        let maxRow = cells.keys.map { $0.row }.max() ?? 0, maxCol = cells.keys.map { $0.col }.max() ?? 0
+        let bottom = min(rng.bottom, max(maxRow, rng.top)), right = min(rng.right, max(maxCol, rng.left))
+        var rows: [[CellValue]] = []
+        for row in rng.top ... bottom {
+            rows.append((rng.left ... right).map { cells[CellAddress(row: row, col: $0)] ?? .empty })
+        }
+        return .array(rows)
+    }
+
+    /// A defined name written `[1]!Name`: the linked book's own name.
+    func externalName(_ target: String) -> EvalValue? {
+        guard target.hasPrefix("["), let close = target.firstIndex(of: "]"),
+              let n = Int(target[target.index(after: target.startIndex) ..< close]),
+              n >= 1, n <= book.externals.count else { return nil }
+        var rest = String(target[target.index(after: close)...])
+        if rest.hasPrefix("!") { rest.removeFirst() }
+        guard var to = book.externals[n - 1].names[rest.uppercased()] else { return nil }
+        if to.hasPrefix("=") { to.removeFirst() }
+        guard let parsed = try? Formula.parse(to), case .ref(var r) = parsed, let sn = r.sheet,
+              let si = book.externals[n - 1].sheetIndex(sn) else { return nil }
+        r.sheet = nil
+        return externalValue(n - 1, si, r)
+    }
+
     func resolve(_ r: FormulaRef, _ ctx: EvalContext) -> EvalValue {
         var sheet = ctx.sheet
         if let name = r.sheet {
+            if name.hasPrefix("["), let (bi, si) = externalSheet(name), !book.externals[bi].cells.isEmpty {
+                return externalValue(bi, si, r)
+            }
             guard let i = book.sheet(named: name) else { return .error(.ref) }
             sheet = i
         }
