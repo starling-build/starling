@@ -1,0 +1,21 @@
+cell	slide	row(0 top,1 bottom)	script	runs (face)	end mark (face, lang)	spacing %
+1	1	0	he-IL	cs:Arial	Arial,lat	100
+2	1	1	he-IL	cs:Arial	Calibri,lat	100
+3	2	0	he-IL	cs:Arial	Calibri,cs	100
+4	2	1	he-IL	cs:Arial | lat:Verdana	Arial,lat	100
+5	3	0	he-IL	cs:Arial | lat:Verdana	Calibri,lat	100
+6	3	1	he-IL	cs:Times New Roman	Arial,lat	100
+7	4	0	he-IL	cs:Arial	Calibri,lat	90
+8	4	1	he-IL	cs:Arial | lat:Verdana	Calibri,lat	90
+9	5	0	he-IL	cs:Arial	Calibri,lat	110
+10	5	1	he-IL	cs:Arial | lat:Verdana	Calibri,lat	110
+11	6	0	ar-SA	cs:Arial	Arial,lat	100
+12	6	1	ar-SA	cs:Arial	Calibri,lat	100
+13	7	0	ar-SA	cs:Arial	Calibri,cs	100
+14	7	1	ar-SA	cs:Arial | lat:Verdana	Arial,lat	100
+15	8	0	ar-SA	cs:Arial | lat:Verdana	Calibri,lat	100
+16	8	1	ar-SA	cs:Times New Roman	Arial,lat	100
+17	9	0	ar-SA	cs:Arial	Calibri,lat	90
+18	9	1	ar-SA	cs:Arial | lat:Verdana	Calibri,lat	90
+19	10	0	ar-SA	cs:Arial	Calibri,lat	110
+20	10	1	ar-SA	cs:Arial | lat:Verdana	Calibri,lat	110

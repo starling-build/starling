@@ -13,3 +13,6 @@ Print E.pptx to PDF as before; the line table as E-WORD.tsv. Question: does the 
 Lab verdana-mf (genmf.py -> in/MF.pptx, 13 slides, rows in in/cells-MF.tsv): the word "Hamburg" in 1-3 runs of different faces/sizes, end mark in the last run's face or another face. Each cell is two boxes: left column centred, right column top-anchored; cell 2k+1 in the top row of slide k+1, cell 2k+2 in the bottom row. Print to PDF; line table as MF-WORD.tsv.
 
 Lab verdana-mf2 (genmf2.py -> in/MF2.pptx, 6 slides, in/cells-MF2.tsv): Verdana 24 paragraphs in a 252 pt box that wrap to two lines (Calibri on line 2 only, line 1 only, mark only) and Verdana+Calibri single lines at 90/110%. Two cells per slide, centred (left) and top (right). Print as MF2-WORD.tsv.
+
+Lab verdana-rtl (genrtl.py -> in/RTL.pptx, 10 slides, rows in in/cells-RTL.tsv): Hebrew and Arabic 24 pt lines (rtl, right-aligned) with a Latin Verdana run inside, and the end mark in another face (latin Calibri, or cs Calibri), at 90/100/110%. Two cells per slide (top row 0, bottom row 1), three 252 x 108 pt boxes each: centred, top, bottom.
+Print RTL.pptx to PDF as before; line table as RTL-WORD.tsv (baseline, bbox, font, size, text per line, per slide) on wip/lab-verdana-ls-prints. Question: where PowerPoint puts the baseline of a right-to-left line holding two faces (complex-script run vs Latin run vs end mark).
