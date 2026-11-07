@@ -791,7 +791,14 @@ enum WordArt {
                     let pitch = Self.linePitch
                     var span = (n - 1) * pitch + 1 - above - below
                     var top = above
-                    if let (t, b) = inkV { span = b - t; top = t }
+                    if let (t, b) = inkV {
+                        span = b - t; top = t
+                        // Two lines or more stand 0.975 of the box, centred: ink to ink,
+                        // ImportWordArtGradient's three blocks end 2 pt in at the top and
+                        // 2.3 at the foot in PowerPoint's print (a single line fills it; textPlain's
+                        // two lines do not stand in: WordArtDefaultColor and FontText got worse).
+                        if n > 1.5, warp.preset == "textInflate" { let pad = span * (1 / 0.975 - 1) / 2; top -= pad; span += 2 * pad }
+                    }
                     let v0 = (Double(li) * pitch - top) / span, v1 = (Double(li) * pitch + 1 - top) / span
                     for g in line.glyphs {
                         var u0 = x / total, u1 = (x + g.width) / total
