@@ -15243,3 +15243,4 @@ TIP WATCH amd-8, round 244 (2f4b983be): Word no drops (six sections up 0 down 0)
   - zh-31d580df p27: the first column has no rules between the three merged groups: the layout paint ignores the last continuation cell's bottom edge (RichCell.continuationEdges). Fix written, in test. The row text is also 11 pt high (Word 264.2, ours 252.9), a second cause not yet found.
 
 TIP WATCH amd-8, round 245 (12cd167da): Word no drops (six sections up 0 down 0); unit tests 642, 0 failures; WEB build OK, layout exit 0.
+- amd-3 2026-11-07 OPEN (record, not a park; back to it after the dot-run rule): zh-31d580df p27 merged-cell text sits 11 pt high, ours 252.9 vs Word 264.2, suspect vertical centring of the merged cell. Rules fixed in e6b9a7a72. Possible lab if needed: merged cell vAlign center/top/bottom x row span 1/2/3.
