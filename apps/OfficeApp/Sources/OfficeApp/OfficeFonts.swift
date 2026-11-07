@@ -3356,6 +3356,13 @@ enum OfficeFonts {
                 face.otherAdvances = [0x2013: 1.0, 0xD7: 0.5, 0xF7: 0.591, 0xFF62: 0.5, 0xFF63: 0.5]
                 face.boldOtherAdvances = [0x2013: 1.0, 0xD7: 0.5, 0xF7: 0.591, 0xFF62: 0.5, 0xFF63: 0.5]
             }
+            // (DFKai-SB's hyphen U+2010 is half an em: zh-6d402586's "COVID‐19" in
+            // 標楷體 14pt steps 7.0 in Word's print, 4.6 in the stand-in's, and the
+            // line held a character Word sends down.)
+            if wordOnWindows, ["標楷", "dfkai"].contains(where: { family.lowercased().containsSubstring($0) }) {
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging([0x2010: 0.5]) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging([0x2010: 0.5]) { $1 }
+            }
             // (The square faces set GB2312's Latin-1 symbols an em, as
             // their ideographs: a "°" in a run Word sets in 宋体 — `w:hint`
             // eastAsia — is 10.50 at 10.5pt in its print of zh-cd8987db,
