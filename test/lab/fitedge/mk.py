@@ -8,12 +8,13 @@ def load(pref):
     p = glob.glob(f"{docs}/{pref}*.docx")[0]
     z = zipfile.ZipFile(p)
     return {n: z.read(n) for n in z.namelist()}
-def build(pkg, name, body_fn=None, settings_fn=None):
+def build(pkg, name, body_fn=None, settings_fn=None, styles_fn=None):
     pkg = dict(pkg)
     d = pkg['word/document.xml'].decode()
     if body_fn: d = body_fn(d)
     pkg['word/document.xml'] = d.encode()
     if settings_fn: pkg['word/settings.xml'] = settings_fn(pkg['word/settings.xml'].decode()).encode()
+    if styles_fn: pkg['word/styles.xml'] = styles_fn(pkg['word/styles.xml'].decode()).encode()
     with zipfile.ZipFile(f"{out}/{name}.docx", 'w', zipfile.ZIP_DEFLATED) as z:
         for n, b in pkg.items(): z.writestr(n, b)
 def only(el_start_marker, kind):
@@ -68,4 +69,8 @@ build(B, 'c00-compat14-rules', chain(tb, vis))
 build(B, 'c01-compat15-rules', chain(tb, vis), C15)
 build(B, 'c02-compat15-rules-margin0', chain(tb, vis, lambda d: d.replace('<w:tblLayout w:type="fixed"/>', '<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar>')), C15)
 build(B, 'c03-compat15-rules-margin108', chain(tb, vis, lambda d: d.replace('<w:tblLayout w:type="fixed"/>', '<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="108" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar>')), C15)
+ORD = setset('<w:tblCellMar><w:left w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:top w:w="0" w:type="dxa"/></w:tblCellMar>', '<w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="0" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="0" w:type="dxa"/></w:tblCellMar>')
+# c04/c05: the style's zero margins written in schema order (top,left,bottom,right); the source file has left,right,bottom,top
+build(B, 'c04-compat14-rules-style-in-order', chain(tb, vis), None, ORD)
+build(B, 'c05-compat15-rules-style-in-order', chain(tb, vis), C15, ORD)
 print(sorted(os.listdir(out)))
