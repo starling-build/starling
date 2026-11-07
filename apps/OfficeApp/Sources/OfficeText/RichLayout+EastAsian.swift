@@ -856,6 +856,14 @@ extension RichLayout {
                     // margin — and never hangs the 6.57pt "”"; ours hung it and
                     // took the pair 6pt further. Mode 15 takes it further.)
                     && !(legacy && squeezes && document.hangsHalf && (units[tail] == 0x201D || units[tail] == 0x2019) && !wideQuote(tail))
+                    // (Nor a full-width closing quote the run sets in the Latin slot, where a mark may squeeze: lab `ql`
+                    // (Word for Windows, zh-e61c3dff p1, mode 14, useAltKinsoku, 仿宋_GB2312 with w:hint="default"):
+                    // "…“科技特派团”、“科技副总”" 14.9 over keeps its last "”" inside the margin and squeezes the "”" and
+                    // "、" before it 5.3 each; hinted East Asian (E) it hangs 8 and squeezes less. Only margin 0 differs
+                    // of the 98 prints.)
+                    && !(wordRules && RichTextTheme.wordWindowsPages && legacy && squeezes && document.hangsHalf && !paragraphEnd
+                         && (units[tail] == 0x201D || units[tail] == 0x2019) && tail < runOf.count
+                         && (p.runs[runOf[tail]].style.fontHint ?? lineStyle?.char.fontHint) != "eastAsia")
                     // (Half the mark as the grid of characters sets it, its
                     // em and the grid's addition, under the alternative
                     // kinsoku rules: lab q18 (Word for Windows, zh-015abfaf's
