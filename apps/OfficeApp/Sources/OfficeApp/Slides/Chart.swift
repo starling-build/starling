@@ -4769,7 +4769,9 @@ enum ChartPainter {
                         // frame's width over its height (a 400 pt tall frame and a 480 pt wide one print alike): the labels start t in from the frame's
                         // left, the wall ends r in from its right, each a little less per point of label width, the axis 7.4 pt (and the format's ")"
                         // gap) right of the labels, and the wall's left edge one depth beyond the axis: within 0.3 pt on the lab, p9/p12/p18 within 0.8.)
-                        if c.valueAxisTitle != nil {
+                        // (Without a value-axis title the labels start about 21 pt nearer the frame's left (a category title only: 18.5 to 14.5), the
+                        // right inset a little more: lab bar3dleft2, 20 prints, each within 0.2 pt of a line (quadratic with a category title) in the shape.)
+                        if true {
                             RuleTrace.hit("word-3d-columns-wall-by-the-frames-shape-and-the-value-labels")
                             let rho = min(max(frame.width / max(frame.height, 1), 1.0), 2.3)
                             let lw = (valueLabels.map(\.width).max() ?? 0) / k
@@ -4779,8 +4781,17 @@ enum ChartPainter {
                                 pad = t.width / k
                                 t.dispose()
                             }
-                            let t = 4.2779 * rho * rho + 1.2012 * rho + 23.3635 - 0.0443 * (lw - 29.7)
-                            let r = 4.4255 * rho * rho + 0.8359 * rho + 7.2183 - 0.045 * (lw - 29.7)
+                            var t = 4.2779 * rho * rho + 1.2012 * rho + 23.3635 - 0.0443 * (lw - 29.7)
+                            var r = 4.4255 * rho * rho + 0.8359 * rho + 7.2183 - 0.045 * (lw - 29.7)
+                            if c.valueAxisTitle == nil {
+                                if c.categoryAxisTitle == nil {
+                                    t += 1.2586 * rho - 22.9307
+                                    r += 1.2666 * rho - 0.9411
+                                } else {
+                                    t += 3.6303 * rho * rho - 5.5198 * rho - 18.5117
+                                    r += 2.6428 * rho * rho - 2.678 * rho + 1.4977
+                                }
+                            }
                             let front = (t + lw + pad + 7.4) * k + frame.left
                             let right = frame.right - r * k
                             let a = box.dx / max(plot.width, 1)
