@@ -2863,9 +2863,13 @@ enum OfficeFonts {
                 case "traditional arabic":
                     face.joinedAdvances = WindowsArabicAdvances.tradArabic
                     face.boldJoinedAdvances = WindowsArabicAdvances.tradArabicBold
+                    face.joinedClusters = WindowsArabicAdvances.tradArabicClusters
+                    face.boldJoinedClusters = WindowsArabicAdvances.tradArabicBoldClusters
                 case "sakkal majalla":
                     face.joinedAdvances = WindowsArabicAdvances.sakkal
                     face.boldJoinedAdvances = WindowsArabicAdvances.sakkalBold
+                    face.joinedClusters = WindowsArabicAdvances.sakkalClusters
+                    face.boldJoinedClusters = WindowsArabicAdvances.sakkalBoldClusters
                 default: break
                 }
             }
