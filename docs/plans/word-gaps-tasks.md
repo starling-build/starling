@@ -15073,3 +15073,5 @@ TIP WATCH amd-8, round 205 (5edc3098e): Word no drops (six sections up 0 down 0)
 - ChartTests NOT run: this server cannot build OfficeApp tests (see amd-perf entry above). amd-8's round is the first run.
 
 TIP WATCH amd-8, round 206 (19d461a0c): Word no drops (six sections up 0 down 0); WEB build OK, layout exit 0. SLIDES mean 0.7448 -> 0.7434 (0 worse, 3 better, matched-win 98/98 exact). UNIT TEST RED: WordArtTests.testTheBendsKeepTheirEdges (3 asserts), from 7ec06f69a (textCurveDown); already fixed on office by 6f032d4c4, so no revert. SHEETS 0.647 unchanged, 1 worse: LIBRE_OFFICE-128382.xlsx (5, 6.9, 4.11) -> (5, 6.98, 4.18) from c9a47febf (line3DChart headroom), the workbook that commit targets: needs the author to confirm it is a cancelling error or approve by name.
+
+TIP WATCH amd-8, round 207 (3dc0da9a7): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures (WordArt test green again); WEB build OK, layout exit 0. Round 206 Sheets rise LIBRE_OFFICE-128382.xlsx (c9a47febf) approved by name by starling-bd: axis max now Excel $10,000, rise is Excel plot box/5-step axis showing through, amd-5 fixing from its xl-unit lab. Not reverted.
