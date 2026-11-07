@@ -1787,6 +1787,10 @@ public struct RichParagraph: Hashable, Sendable {
     public var bookmarks: [String] = []
     /// Ordered start/end markers at UTF-16 positions, including empty ranges.
     public var bookmarkMarkers: [RichBookmarkMarker] = []
+    /// Set on a paragraph that is a copy of an endnote (-1: the separator above them), flowed after the body's last
+    /// paragraph where the notes are too long to stand under it. Layout only: the file's endnotes part is kept as it
+    /// was and a save leaves these out.
+    public var flowedEndnote: Int? = nil
 
     public static let inlineImageCharacter = "\u{FFFC}"
 

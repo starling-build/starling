@@ -3355,6 +3355,23 @@ enum DocxFormat {
         document.endnotes = endnoteParagraphs
         document.endnoteSeparator = endnoteSeparator
         document.endnotesAtSectionEnd = part("word/settings.xml").flatMap(XNode.parse)?.first("w:endnotePr")?.first("w:pos")?["w:val"] == "sectEnd"
+        // (Endnotes too long to stand under the last paragraph run on over the pages after it, as Word's do — urd-z8387389's
+        // 58 notes are three pages of its 12 — so they are flowed as paragraphs of their own, in the order of their marks,
+        // after a separator line's height. The painter that sets short ones under the last paragraph drops any that do not
+        // fit it whole.)
+        if !document.endnotesAtSectionEnd, !endnoteParagraphs.isEmpty {
+            var order: [Int] = []
+            for p in paragraphs { for run in p.runs { if let n = run.style.note, n.kind == .endnote, endnoteParagraphs[n.id] != nil, !order.contains(n.id) { order.append(n.id) } } }
+            let characters = order.reduce(0) { $0 + (endnoteParagraphs[$1] ?? []).reduce(0) { $0 + $1.text.utf16.count } }
+            if characters > 1500 {
+                RuleTrace.hit("endnotes-flowed-after-body")
+                var flowed: [RichParagraph] = []
+                for var p in endnoteSeparator { p.flowedEndnote = -1; flowed.append(p) }
+                for id in order { for var p in endnoteParagraphs[id] ?? [] { p.flowedEndnote = id; flowed.append(p) } }
+                document.paragraphs.append(contentsOf: flowed)
+                document.endnotes = [:]
+            }
+        }
         document.tableColumns = tableColumns
         document.tableStyles = tableStyles
         document.styles = sheet
@@ -7701,7 +7718,9 @@ enum DocxFormat {
 
     // MARK: Writing
 
-    static func write(_ doc: RichDocument, pageSetup: PageSetup) throws -> Data {
+    static func write(_ source: RichDocument, pageSetup: PageSetup) throws -> Data {
+        var doc = source
+        doc.paragraphs.removeAll { $0.flowedEndnote != nil }
         var rels: [(id: String, target: String)] = []
         var media: [ZipEntry] = []
         var mediaRels: [(id: String, target: String)] = []
