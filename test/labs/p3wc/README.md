@@ -1,0 +1,2 @@
+Lab p3wc (amd-2 for windows): the textCurveDown / textCurveUp curve of a flat WordArt (no 3-D), to refit its top and foot curves. Same shape as lo-tdf140865Wordart3D (340 x 170 pt, Arial Black 18, yellow), text "HHHHHHH", adj 56338, 20000, 100000, 0 (curve down), 56338, 20000 (curve up), see cells-C.tsv.
+Please print test/labs/p3wc/C.pptx (6 slides) to PDF AND export each slide as a PNG at 2400px wide named C-NNN.png; commit PNGs under test/labs/p3wc/prints/, branch wip/lab-p3wc-prints.
