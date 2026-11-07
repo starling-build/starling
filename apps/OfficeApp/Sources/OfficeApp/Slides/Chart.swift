@@ -360,6 +360,8 @@ struct Chart: Equatable {
     /// A pie's slices in their own colours (`c:dPt`), by index.
     var pointColors: [Int: Color] = [:]
     /// The slices a pattern fills (`c:dPt` with `a:pattFill`), hatched; `pointColors` holds the colour it comes to.
+    /// A pie that says `c:varyColors` 0: every slice in the series' colour (chart-piechart_legend, Excel's print).
+    var sameColour = false
     var pointPatterns: [Int: PatternInk] = [:]
     /// A pie of pie or bar of pie (`c:ofPieChart`): which points leave the
     /// main pie for the second plot, which stands beside it.
@@ -786,6 +788,7 @@ struct Chart: Equatable {
     /// Slice `i`'s colour: its own, else its style's or the cycle's.
     func pointColor(_ i: Int, accents: [Color]) -> Color {
         if let c = pointColors[i] { return c }
+        if sameColour { return color(series: 0, accents: accents) }
         if let k = monochromeAccent { return Self.monochrome(i, of: categories.count, accents[k - 1]) }
         return Self.cycle(i, accents)
     }
@@ -1952,6 +1955,7 @@ enum ChartXML {
         if el.name == "c:ofPieChart", let values = c.series.first?.values {
             c.ofPie = Self._ofPie(el, values: values)
         }
+        c.sameColour = type == .pie && el.name != "c:ofPieChart" && el.first("c:varyColors")?["val"] == "0" && c.series.count == 1
         c.variedPoints = (type == .bar || type == .column) && c.series.count == 1 && c.lineSeries.isEmpty
             && ["1", "true"].contains(el.first("c:varyColors")?["val"] ?? "")
         let styleNode = space.first("c:style") ?? space.first("mc:AlternateContent")?.first("mc:Fallback")?.first("c:style")
