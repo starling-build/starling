@@ -40,7 +40,10 @@ extension RichLayout {
     /// Several inline pictures, each wide enough for a line of its own, in a paragraph on the line grid
     /// (Word for Windows): every picture's line is whole pitches (see `_span`).
     /// The ascent and descent, in ems, of the faces Word sets Devanagari in (their hhea, from the fonts Word's prints embed).
-    static let _devanagariLines: [String: (Double, Double)] = ["mangal": (2542.0 / 2048, 898.0 / 2048), "kokila": (1504.0 / 2048, 857.0 / 2048)]
+    static let _indicLines: [String: (Double, Double)] = ["mangal": (2542.0 / 2048, 898.0 / 2048), "kokila": (1504.0 / 2048, 857.0 / 2048),
+                                                          "nirmala ui": (2210.0 / 2048, 514.0 / 2048)]
+    /// Devanagari and Bengali.
+    static let _indic: ClosedRange<UInt32> = 0x0900 ... 0x09FF
 
     func _picturesTakeLines(_ p: RichParagraph, textWidth: Double) -> Bool {
         theme.wordRules && RichTextTheme.wordWindowsPages && p.image == nil && p.inlineImages.count >= 2
@@ -699,6 +702,31 @@ extension RichLayout {
                 fitPitch = pitch
                 return pitch
             }
+            // (Devanagari and Bengali, in Word for Windows: the face Word draws a run in, which sets its line (the joiner below) and its
+            // width, as the face's own letters are wider or narrower than the Noto stand-in's — the ratio of the advances in the fonts Word's
+            // prints embed, weighted by the letters the pages use: Mangal 1.096, Nirmala UI 1.086 (Bold 1.076, Bengali 1.062), Kokila 0.73.
+            // A run mostly of such letters takes it whole. Which face: the complex-script one (Mangal, Kokila), but Kalpurush, which Windows
+            // lacks, Word draws in Nirmala UI (ben-z17281487). hin-z18479909's Kokila runs print in Nirmala UI too, where mar-z19707447's and
+            // hin-z20740649's, the same markup, print in Kokila: not explained (a print machine without Kokila regular?), the majority taken.)
+            let indic: (face: String, scale: Double)? = {
+                guard theme.wordRules, RichTextTheme.wordWindowsPages else { return nil }
+                var deva = 0, beng = 0, letters = 0
+                for u in text.unicodeScalars where u.properties.isAlphabetic {
+                    letters += 1
+                    if (0x0900 ... 0x097F).contains(u.value) { deva += 1 } else if (0x0980 ... 0x09FF).contains(u.value) { beng += 1 }
+                }
+                guard deva + beng > 0 else { return nil }
+                let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
+                let italic = run.italic || ((named?.char.italic ?? false) && !run.off.contains(.italic))
+                let bold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
+                var face: String? = nil
+                if cs == "mangal" { face = "mangal" }
+                else if cs == "kokila" { face = "kokila" }
+                else if cs == "kalpurush" { face = "nirmala ui" }
+                guard let face else { return nil }
+                let scale: Double = face == "mangal" ? 1.096 : face == "kokila" ? 0.73 : beng > deva ? 1.062 : bold ? 1.076 : 1.086
+                return (face, (deva + beng) * 2 >= letters ? scale : 1)
+            }()
             func style(_ kind: Int) -> TextStyle {
                 if !fitBusy, let s = styles[kind] { return s }
                 var styled = run
@@ -723,6 +751,7 @@ extension RichLayout {
                 // (Set to the original's widths, the stand-in's own
                 // kerning is no part of them: Arial's pair of ones.)
                 if kind >= 0, latinFace?.advances != nil { s = s.copyWith(fontFeatures: [FontFeature("kern", 0)]) }
+                if kind >= 0, let indic, indic.scale != 1 { s = s.copyWith(scaleX: indic.scale) }
                 if let grown, s.fontSize ?? 0 > 0.5 { s = s.copyWith(height: grown.height) }
                 // (A run with ruby over it makes its line room for the ruby.)
                 if theme.wordRules, run.ruby != nil, s.fontSize ?? 0 > 0.5,
@@ -1242,17 +1271,19 @@ extension RichLayout {
                         inserts.append(offset)
                     }
                 }
-                // (A word of Devanagari, set in the face Word draws it in (the run's complex-script face: Mangal, Kokila),
-                // gives its line that face's height, not the Latin face's: a joiner in its ascent and descent before the
-                // word. hin-z19439612's 12pt Mangal lines step 23.2 in Word's print (1.680 em at 1.15 lines), ours 15.9.)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, (0x0900 ... 0x097F).contains(u),
-                   !(before?.unicodeScalars.first.map { (0x0900 ... 0x097F).contains($0.value) || $0.value == 0x200D || $0.value == 0x200C } ?? false) {
-                    let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
-                    if let metrics = Self._devanagariLines[cs] {
-                        if devanagariStyles[cs] == nil {
-                            devanagariStyles[cs] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: metrics.0, descent: metrics.1)
+                // (A word of Devanagari or Bengali, set in the face Word draws it in, gives its line that face's height, not
+                // the Latin face's: a joiner in its ascent and descent before the word. hin-z19439612's 12pt Mangal lines
+                // step 23.2 in Word's print (1.680 em at 1.15 lines), ours 15.9. Which face: the run's complex-script one where
+                // Windows has it (Mangal; Kokila only in italic); the rest, Kokila regular and bold and Kalpurush, Word draws in
+                // Nirmala UI — hin-z18479909's 9942 regular Devanagari and ben-z17281487's Bengali are Nirmala in its prints.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, Self._indic.contains(u),
+                   !(before?.unicodeScalars.first.map { Self._indic.contains($0.value) || $0.value == 0x200D || $0.value == 0x200C } ?? false) {
+                    let face = indic?.face
+                    if let face, let metrics = Self._indicLines[face] {
+                        if devanagariStyles[face] == nil {
+                            devanagariStyles[face] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: metrics.0, descent: metrics.1)
                         }
-                        if let joiner = devanagariStyles[cs] ?? nil {
+                        if let joiner = devanagariStyles[face] ?? nil {
                             flush(i)
                             // (A zero-width space before it gives the break the joiner would forbid back: after a space the word
                             // would not part from the line, and the engine cut words inside.)

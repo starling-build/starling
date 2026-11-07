@@ -116,7 +116,7 @@ up by half a point).
 
 ## Noto CJK and script faces (2026-11-01)
 
-The faces a document's East Asian, Arabic, Hebrew, Thai and Devanagari text is drawn
+The faces a document's East Asian, Arabic, Hebrew, Thai, Devanagari and Bengali text is drawn
 with, and that any glyph the named face lacks falls back to, so that a render does not
 depend on the fonts a machine happens to have installed. All SIL OFL 1.1
 (Noto-OFL-LICENSE.txt). `fonts.tsv` is the table (file, face index in a collection,
@@ -133,7 +133,7 @@ Sources, unchanged from the release named:
 | NotoSansCJK-Regular.ttc, -Bold.ttc | github.com/notofonts/noto-cjk, tag Sans2.004, 03_NotoSansCJK-OTC.zip |
 | NotoSerifCJK-Regular.ttc, -Bold.ttc | github.com/notofonts/noto-cjk, tag Serif2.003, 04_NotoSerifCJKOTC.zip |
 | the CJK files above | byte-identical to Ubuntu's `fonts-noto-cjk` 1:20240730 |
-| NotoSansArabic, NotoNaskhArabic, NotoSansHebrew, NotoSerifHebrew, NotoSansThai, NotoSansDevanagari (Regular, Bold) | Ubuntu `fonts-noto-core` 20201225 (the 2020-12 Noto snapshot) |
+| NotoSansArabic, NotoNaskhArabic, NotoSansHebrew, NotoSerifHebrew, NotoSansThai, NotoSansDevanagari, NotoSansBengali (Regular, Bold) | Ubuntu `fonts-noto-core` 20201225 (the 2020-12 Noto snapshot) |
 | NotoColorEmoji-Pictographs.ttf | Ubuntu `fonts-noto-color-emoji` (NotoColorEmoji.ttf, sha256 9fd0a3d0ce84d77e3185dfbae77bd1abf3926aa49a032e354d076c4f17151f10) cut down by `build/tools/subset-emoji.py` (fonttools, throwaway venv) to the characters whose Unicode Emoji_Presentation is Yes, plus ZWJ, space and CR (less the plain shapes used as bullets, U+26AB and kin): a modified version of the Noto font under a new name (OFL). It goes AHEAD of DejaVu Sans in the glyph fallback so emoji draw in colour, while text-style symbols (U+263A, U+2714, U+2764 ...) stay on the outline faces. Desktop and web both use only this file |
 | NotoColorEmoji-Variation.ttf | The same source cut by `build/tools/subset-emoji.py ... --text-bases` to the Emoji=Yes characters that are NOT Emoji_Presentation (U+2764, U+263A, U+2714, U+2600, U+00A9 ...; 210 code points, no ASCII), family "Noto Color Emoji Variation", fallback_order 0 (never in the glyph fallback): the layout draws a character in it only when U+FE0F follows (`RichLayout+Emoji.swift`, tables from `build/tools/emoji-ranges.py`). |
 
@@ -171,6 +171,8 @@ sha256:
     97bbc8ea98328325285f2f552228c7aac1db39d8f38f0096a61ba7df1f1f780e  NotoSansThai-Bold.ttf
     79a470365ccb210fa3c7d8d8ff2e005ef9d983cfd067f735a0caf7e15070ca9f  NotoSansDevanagari-Regular.ttf
     77ad688cfe1dc55185bf4edb4db3c614202c65dd23a1463ad0e23fc52bcc9a5c  NotoSansDevanagari-Bold.ttf
+    9bb35b3547829ecc42041b6017e87fd4c5f1da1edcd00f59171777050f346018  NotoSansBengali-Regular.ttf
+    22c9ff99baca4d31c531ce450a1369beed889467e1ad964f4b8a6f810aa46955  NotoSansBengali-Bold.ttf
     2babe375f708225a6cfc6fe870bba15cdfbadc260d4bb96040413310608b64a2  NotoColorEmoji-Pictographs.ttf
     8ccdc7cca6515eaa4e9e15573a95dc28d508088a6bba05ca30bbdcea07fb2d5f  NotoColorEmoji-Variation.ttf
 

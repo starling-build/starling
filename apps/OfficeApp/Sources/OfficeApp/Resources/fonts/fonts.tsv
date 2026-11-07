@@ -29,6 +29,8 @@ NotoSerifHebrew-Regular.ttf	-1	Noto Serif Hebrew	Regular	hebrew	fallback	5	31172
 NotoSerifHebrew-Bold.ttf	-1	Noto Serif Hebrew	Bold	hebrew	fallback	5	31888	95150a28d438cba6c79393ef18ad06f39a8b53a7d457e61d8c9d585176ef36da
 NotoSansThai-Regular.ttf	-1	Noto Sans Thai	Regular	thai	fallback	9	37744	dfbd5ed0f1e68c3cbc51aa08f646d1ab0e68e7c4ceab70a69e465225ff701f93
 NotoSansThai-Bold.ttf	-1	Noto Sans Thai	Bold	thai	fallback	9	37788	97bbc8ea98328325285f2f552228c7aac1db39d8f38f0096a61ba7df1f1f780e
+NotoSansBengali-Regular.ttf	-1	Noto Sans Bengali	Regular	bengali	fallback	6	201964	9bb35b3547829ecc42041b6017e87fd4c5f1da1edcd00f59171777050f346018
+NotoSansBengali-Bold.ttf	-1	Noto Sans Bengali	Bold	bengali	fallback	6	210996	22c9ff99baca4d31c531ce450a1369beed889467e1ad964f4b8a6f810aa46955
 NotoSansDevanagari-Regular.ttf	-1	Noto Sans Devanagari	Regular	devanagari	fallback	7	229336	79a470365ccb210fa3c7d8d8ff2e005ef9d983cfd067f735a0caf7e15070ca9f
 NotoSansDevanagari-Bold.ttf	-1	Noto Sans Devanagari	Bold	devanagari	fallback	7	237660	77ad688cfe1dc55185bf4edb4db3c614202c65dd23a1463ad0e23fc52bcc9a5c
 NotoColorEmoji-Pictographs.ttf	-1	Noto Color Emoji Pictographs	Regular	emoji	fallback	8	6871860	2babe375f708225a6cfc6fe870bba15cdfbadc260d4bb96040413310608b64a2
