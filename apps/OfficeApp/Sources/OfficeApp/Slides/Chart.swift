@@ -308,6 +308,8 @@ struct Chart: Equatable {
     var surface = false
     /// Its value axis on the right (`c:axPos` "r"): the steps' labels stand beside the right edge.
     var surfaceValuesRight = false
+    /// A horizontal bar chart whose category axis runs maxMin: category 1 at the top, the value axis along the top.
+    var categoryReversed = false
     /// Whether the 3-D chart's series axis (`c:serAx`) is deleted: its names are not drawn.
     var seriesAxisDeleted = false
     /// A 3-D chart's series axis (`c:serAx`) is in the file and not deleted: its series names stand along the floor's right edge.
@@ -2076,6 +2078,7 @@ enum ChartXML {
             if hy.first("c:majorGridlines") != nil { c.valueGrid = true }
         }
         c.surfaceValuesRight = valueAxis?.first("c:axPos")?["val"] == "r"
+        c.categoryReversed = categoryAxis?.first("c:scaling")?.first("c:orientation")?["val"] == "maxMin"
         c.seriesAxisDeleted = ["1", "true"].contains(plot.children.first { $0.name == "c:serAx" }?.first("c:delete")?["val"] ?? "")
         c.seriesAxisShown = plot.children.contains { $0.name == "c:serAx" } && !c.seriesAxisDeleted
         c.categoryLine = categoryAxis?.first("c:spPr")?.first("a:ln")?.first("a:noFill") == nil
@@ -4467,6 +4470,7 @@ enum ChartPainter {
         let legendFootRise = wordLegendFoot ? 1.5 * k : 0
         let wordFoot = word && !(c.legend && c.legendPosition == "b") && c.categoryAxisTitle == nil && c.categoryAxisTitleAt == nil
         let besideOut = ticksPush && (horizontal ? c.categoryTicksOut : c.valueTicksOut) ? (horizontal ? 8.8 : 5.6) * k : 0
+        let revCat = horizontal && c.categoryReversed
         let belowOut = ticksPush && (horizontal ? c.valueTicksOut : c.categoryTicksOut) ? 3.7 * k : 0
         var valueLabelsBack = 0.0
         let widenedPlain = plainUntitledWord && c.valueTicksOut && c.type == .column
@@ -4486,9 +4490,16 @@ enum ChartPainter {
             // baseline in Word's print, as its column chart's is. A
             // 2007-style one's starts 7 pt down: bar-chart's, at 156.4
             // in PowerPoint's print.)
+            if revCat {
+                // Value labels along the top (category axis reversed).
+                plot = Rect.fromLTRB(area.left + left, area.top + lineH + (old2007 ? 7.8 : 4) * k + belowOut,
+                                     area.right - (valueLabels.last?.width ?? 0) / 2,
+                                     area.bottom - (c.styled2013 ? lineH / 2 : (old2007 ? 7 : 2) * k))
+            } else {
             plot = Rect.fromLTRB(area.left + left, area.top + (c.styled2013 ? lineH / 2 : (old2007 ? 7 : 2) * k),
                                  area.right - (valueLabels.last?.width ?? 0) / 2,
                                  area.bottom - lineH - (old2007 ? 7.8 : 4) * k - belowOut)
+            }
         } else {
             // (A 2007-style chart's plot starts 2.6 pt further off its
             // value labels — line- and scatter-chart's at 152.3, the
@@ -4982,7 +4993,7 @@ enum ChartPainter {
                 // foot — bar-chart's at 401.4 in PowerPoint's print, where
                 // ours had risen with the plot to 397.8.)
                 let under = (c.plainText && !c.styled2013 && c.officeStyled ? 7.8 : 4) * k
-                tp.paint(canvas, Offset(p - tp.width / 2, plot.bottom + under + belowOut))
+                tp.paint(canvas, Offset(p - tp.width / 2, revCat ? plot.top - under - belowOut - tp.height : plot.bottom + under + belowOut))
             } else {
                 if c.valueGrid {
                     if box != .zero {
@@ -5052,13 +5063,14 @@ enum ChartPainter {
                 let m = Double(max(1, n))
                 for i in 0 ... max(1, n) {
                     let t = Double(i) / m
-                    cats.append(horizontal ? plot.bottom - t * plot.height : plot.left + t * plot.width)
+                    cats.append(horizontal ? (revCat ? plot.top + t * plot.height : plot.bottom - t * plot.height) : plot.left + t * plot.width)
                 }
             }
             if horizontal {
                 if c.valueLine, !c.valueAxisDeleted {
-                    canvas.drawLine(Offset(plot.left, plot.bottom), Offset(plot.right, plot.bottom), axisPaint)
-                    if c.valueTicksOut { for v in ticks { canvas.drawLine(Offset(vpos(v), plot.bottom), Offset(vpos(v), plot.bottom + tick), axisPaint) } }
+                    let ay = revCat ? plot.top : plot.bottom
+                    canvas.drawLine(Offset(plot.left, ay), Offset(plot.right, ay), axisPaint)
+                    if c.valueTicksOut { for v in ticks { canvas.drawLine(Offset(vpos(v), ay), Offset(vpos(v), revCat ? ay - tick : ay + tick), axisPaint) } }
                 }
                 if c.categoryLine, !c.categoryAxisDeleted, c.categoryTicksOut {
                     for y in cats { canvas.drawLine(Offset(zero - tick, y), Offset(zero, y), axisPaint) }
@@ -5105,7 +5117,7 @@ enum ChartPainter {
                 // Category 1 at the bottom, as PowerPoint draws a bar chart.
                 // (A 2007-style chart's stand 1.45 pt above their bands'
                 // middles, as its value labels above their lines.)
-                let cy = plot.bottom - (Double(i) + 0.5) * slot - (c.plainText && !c.styled2013 && c.officeStyled ? 1.45 * k : 0)
+                let cy = (revCat ? plot.top + (Double(i) + 0.5) * slot : plot.bottom - (Double(i) + 0.5) * slot) - (c.plainText && !c.styled2013 && c.officeStyled ? 1.45 * k : 0)
                 // (In a Word document a bar chart's names stand beside the axis, at its
                 // zero where the bars run both ways: lo tdf128996's end 8.5 pt before it.)
                 let side = word && sc.lo < 0 && !c.categoryLabelsLow && !c.categoryAxisDeleted ? zero : plot.left
@@ -5121,14 +5133,14 @@ enum ChartPainter {
                     for (gi, group) in level.enumerated() {
                         let end = gi + 1 < level.count ? level[gi + 1].from : n
                         let tp = text(group.text, catSize, .infinity)
-                        let cy = plot.bottom - (Double(group.from) + Double(end)) / 2 * slot
+                        let cy = revCat ? plot.top + (Double(group.from) + Double(end)) / 2 * slot : plot.bottom - (Double(group.from) + Double(end)) / 2 * slot
                         canvas.save()
                         canvas.translate(right - band / 2 - tp.height / 2 - 3.5 * k, cy + tp.width / 2)
                         canvas.rotate(-.pi / 2)
                         tp.paint(canvas, .zero)
                         canvas.restore()
                         tp.dispose()
-                        let edge = plot.bottom - Double(end) * slot
+                        let edge = revCat ? plot.top + Double(end) * slot : plot.bottom - Double(end) * slot
                         canvas.drawLine(Offset(right - band, edge), Offset(right, edge), gridPaint)
                     }
                 }
@@ -5354,7 +5366,7 @@ enum ChartPainter {
                 var pos = 0.0, neg = 0.0
                 // Series 1 nearest the origin: leftmost in a column group,
                 // lowest in a bar group.
-                let centre = horizontal ? plot.bottom - (Double(i) + 0.5) * slot : plot.left + (Double(i) + 0.5) * slot
+                let centre = horizontal ? (revCat ? plot.top + (Double(i) + 0.5) * slot : plot.bottom - (Double(i) + 0.5) * slot) : plot.left + (Double(i) + 0.5) * slot
                 for j in (rowsDeep ? Array((0 ..< s).reversed()) : Array(0 ..< s)) {
                     guard let raw = c.series[j].values[safe: i] ?? nil else { continue }
                     let v = scaled(raw, i)
