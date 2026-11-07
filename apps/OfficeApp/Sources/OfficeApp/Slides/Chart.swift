@@ -7258,6 +7258,8 @@ extension ChartPainter {
                 }).map { on(s.mid, $0) }
             }()
             let fitsInside = insideAt != nil
+            // (Set where Word's flat best-fit rule below placed the box: its leader is drawn only from 9 pt away.)
+            var hugsRim = false
             if l.outside && !fitsInside { anyOutside = true }
             if probe { tp.dispose(); continue }
             if let p = insideAt {
@@ -7311,6 +7313,52 @@ extension ChartPainter {
                     : abs(dy) > (dy < 0 ? 0.3 : 0.4) ? (dy < 0 ? -1 : 1) * reach : 0
                                                 let halfW = tuneFlat ? min(1, abs(dx) / 0.5) * w / 2 : (abs(dx) < 0.15 ? 0 : w / 2)
                 at = Offset(edge.dx + dx * gapX + (dx >= 0 ? halfW : -halfW), edge.dy + down)
+                if tuneFlat {
+                    // (Word's own placing, lab pie1 (Word for Windows, 2026-11-07: lo-f9b9a8fc's pie with one label alone at 159
+                    // angles, all 28 pairs, 21 frame widths) and the 104 prints before it: the box is the text's advance box and its
+                    // line, no insets, on a 96-dpi raster from the frame's top left. By the slice middle's angle from the vertical
+                    // axis: within 30° the box is centred over or under the rim point, 30-60° its corner is on the point, 60-90°
+                    // its inner edge's middle is on the point; then the box is pushed out along the slice's middle a pixel at a
+                    // time until the pie pokes no more than 1.5 px into it. Within 13-30° of vertical Word's own result wanders
+                    // along the pie's top or bottom tangent between "centred" and "corner on the point" (lone labels 0.22-0.99 of
+                    // the way, other labels in the chart move it further, 10-36 px, even far ones); 0.75 of the way is the
+                    // measured middle. Labels under the pie stand 1.5 px lower. Within 3 pt of Word: 229 of pie1's 373 labels and
+                    // 378 of the earlier 740, from 148 and 279 with the rule above. What is still missing is Word's joint search
+                    // (docs/plans/pie-labels.md round 3): lo-f9b9a8fc's label 5, 27 pt left with a leader, is not reproduced.)
+                    RuleTrace.hit("word-flat-pie-best-fit-label-corner-or-edge-on-the-rim-pixel-snapped")
+                    let px = 0.75 * k, c0 = on(s.mid, 0), R = rx, tw = tp.width, th = tp.height
+                    var theta = atan2(dx, -dy) * 180 / .pi
+                    if theta < 0 { theta += 360 }
+                    let right = theta <= 180, upper = theta < 90 || theta > 270
+                    let a = theta <= 90 ? theta : theta <= 180 ? 180 - theta : theta <= 270 ? theta - 180 : 360 - theta
+                    let P = Offset(R * sin(theta * .pi / 180), -R * cos(theta * .pi / 180))
+                    let below = 1.5 * px
+                    var L: Double, T: Double
+                    if a >= 13, a < 30 {
+                        let inner = abs(P.dx) - tw / 2 + 0.75 * tw / 2
+                        L = right ? inner : -(inner + tw); T = upper ? -R - th : R + below
+                    } else if a < 30 {
+                        L = P.dx - tw / 2; T = upper ? P.dy - th : P.dy + below
+                    } else if a < 60 {
+                        L = right ? P.dx : P.dx - tw; T = upper ? P.dy - th : P.dy + below
+                    } else {
+                        L = right ? P.dx : P.dx - tw; T = P.dy - th / 2
+                    }
+                    // (Whole pixels of the raster, as Word's.)
+                    L = frame.left + ((c0.dx + L - frame.left) / px).rounded() * px - c0.dx
+                    T = frame.top + ((c0.dy + T - frame.top) / px).rounded() * px - c0.dy
+                    func poke(_ L: Double, _ T: Double) -> Double {
+                        let nx = L <= 0 && 0 <= L + tw ? 0 : (L > 0 ? L : L + tw), ny = T <= 0 && 0 <= T + th ? 0 : (T > 0 ? T : T + th)
+                        return R - hypot(nx, ny)
+                    }
+                    var n = 0
+                    while poke(L, T) > 1.5 * px, n < 60 {
+                        if abs(dx) >= abs(dy) { L += dx > 0 ? px : -px } else { T += dy > 0 ? px : -px }
+                        n += 1
+                    }
+                    at = Offset(c0.dx + L + tw / 2, c0.dy + T + th / 2)
+                    hugsRim = true
+                }
             } else {
                 // (A 3-D pie's 0.9 of the way out: the survey's. Where the file
                 // says "ctr", half way out along the slice's middle, seen
@@ -7430,7 +7478,9 @@ extension ChartPainter {
                 // (None where the label already touches the ring: tdf161607's "Category 4".)
                 let touches = c.type == .doughnut && point == nil
                     && hypot(min(max(centre.dx, box.left), box.right) - centre.dx, min(max(centre.dy, box.top), box.bottom) - centre.dy) <= rx
-                if !touches, hypot(to.dx - from.dx, to.dy - from.dy) > 2 * k {
+                // (Word draws a flat best-fit label's leader only where its own search moved the box, never nearer than
+                // 7.8 pt to the rim point in 312 prints; labels its rule places are not moved.)
+                if !touches, hypot(to.dx - from.dx, to.dy - from.dy) > (hugsRim ? 9 : 2) * k {
                     let p = Paint()
                     p.style = .stroke
                     p.isAntiAlias = true
