@@ -2375,8 +2375,16 @@ extension RichLayout {
                     for k in row.first ..< row.end {
                         let column = _cells[k]!.column, top = at[column].map { $0 - shared(k) } ?? 0
                         let p = document.paragraphs[k]
+                        // (Not in a cell merged down: lab `mc` on Word for Windows, zh-31d580df's
+                        // "系統測試" in a centred two-row cell with a 68pt box anchored 38pt into
+                        // it, stands at 264.17 on p27 whatever the box's size, height 5 to 68,
+                        // top 0 or 38, text across or down: the box never counts there.)
+                        // Only text boxes: zh-b24b396a's small line drawings in a
+                        // centred two-row cell do count (Word agrees with the old rule).
+                        let mergedDown = RichTextTheme.wordWindowsPages && _cells[k]!.rowSpan > 1
                         for image in p.inlineImages.inOrder + (p.image.map { [$0] } ?? []) {
                             guard let f = image.float, !f.takesRoom, !f.wraps, f.verticalFrom == "paragraph", f.verticalAlign == nil else { continue }
+                            if mergedDown, image.textBox != nil { continue }
                             let foot = top + _spaceBefore[k] + _px(f.y + image.height + f.effectBottom)
                             content[column] = max(content[column] ?? 0, foot)
                         }
