@@ -32,6 +32,37 @@ scans at the sector edges), all 28 label pairs at ang 0 (index order = placement
 It gives the anchor function and circle clearance, the pairwise interaction with its direction and order, and the layout bands.
 Until it is printed no rule is written; lo-f9b9a8fc stays 87.5.
 
+
+### Round 3, after lab pie1 (159 lone labels, 28 pairs, 21 widths; TSVs on wip/lab-pie1-prints) and the Opus advisor
+
+Lone labels: exact (0.2 pt) corner/edge-middle-on-the-rim placement by a 30/60-degree table measured from the vertical axis
+(centred within 30 of vertical... in detail: bottom-centre to 12.5 deg, corner 25-60, side 61-116 with the inner edge at x = +-R,
+corner 119-150, top-centre 167-193, mirrored), the pie allowed to poke up to ~1.5 px into the box. Within 13-30 deg of the vertical
+axis (22.5, 157.5, 202.5, 337.5 +-7) even a LONE label is erratic: the box rests on the pie's top/bottom tangent line and its position
+along that line between "centred on the rim point" and "corner on the rim point" jumps from one degree to the next (fractions 0.44,
+0.56, 0.62, 0.61, 0.26, 0.99, 0.98, 0.22, 0.53, 0.27 for 15.5..24.5); at 207.5 a lone label gets a leader line 13 pt clear of the pie.
+Pairs: side labels (2,3,6,7 at 67.5/112.5/247.5/292.5) never move each other (0 px in all six pairs); diagonal labels move 10-36 px
+whenever any other label exists, even one across the pie, always along their tangent line: label 1 (22.5) moves +27 px (to its corner)
+with partner 2, 4, 6 or 8, +16 with 3 or 7, +1 with 5 (which then gets a leader); label 5 (202.5) moves toward 6 o'clock by 13 (with 4),
+17 (6), 20 (8), 24 (7), 27 (2, 3). The amount depends on the partner's index parity / angle mod 90, not on distance. Lone and pair
+positions do not change with the frame width (only5, p45 at w350/w360 identical to the px phase); the 8-label layout does (bands
+A <= 479 px, B 480-488, C 489-497, E ~498-503, D 504-573 stable to w430; one legend row from w434).
+Leader lines: every leader stands >= 7.8 pt from its rim point, but narrow-frame side labels stand 8-13 pt away without one.
+R depends only on firstSliceAng (0: 53.76, 5: 54.80, 10: 55.42, 15: 55.62, 20: 55.39, 22.5: 55.19, period 45, symmetric) - for amd-1.
+
+Opus advisor (scratchpad advisor/, 2026-11-07): no exact algorithm recovered. Best explanation: an iterative whole-pixel search over
+all labels together that also accepts equal-score moves, so labels drift along their equal-cost tangent line for as long as the loop
+runs, and any other label that keeps the loop running lengthens the drift (explains exact anchors elsewhere, erratic lone labels,
+long-range coupling, whole px); the drift lengths could not be reproduced (112-116 of 159 lone labels at best). Fallback rule
+(30/60 table, px snap, push out until overlap <= 1.5 px, 0.75 of the way centre->corner within 13-30 deg of vertical, bottom labels
+1.5 px lower): pie1 242/373 and earlier 366/740 within 3 pt, against 148/279 for today's rule; it still misses label 5 of lo-f9b9a8fc.
+Not implemented (user: no tuned rules).
+
+Lab pie2 (wip/lab-pie2, 116 docs, sent to windows): the 8-label chart at widths 356-376 with NO legend / legend right / no title (do
+the width bands come from the legend or title?), three identical charts per page (does state carry over?), triples and quads (do the
+pair moves add?), the lone 22.5 label across widths 350-370 and with names of 2-20 characters (px or box-fraction drift?), pairs 1-2
+and 1-5 at firstSliceAng 5/10/15.
+
 # Round 2 (after pielabel5 and pielabel6): verdict
 
 **Neither candidate reproduces Word, and nothing should be built for label 5.** Both the iterative
