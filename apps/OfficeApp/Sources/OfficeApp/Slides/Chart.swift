@@ -5768,7 +5768,11 @@ enum ChartPainter {
         // across a plot 107 high, where 0.97 made 103.7.)
         let fills = !c.onSlide && !c.onSheet && !c.chartex && c.plotLayout != nil
         var radius = min(area.width, area.height) / 2 * (libre ? 0.823 : fills ? 1.0 : 0.97)
-        let insideLabelled = c.pieLabels != nil && !c.pieLabelsAround && ["ctr", "inEnd"].contains(c.pieLabels?.position ?? "") && c.plotLayout == nil && !c.onSlide && !c.onSheet && !c.chartex
+        // (A Word pie with no labels at all is sized by the same room as one with centred labels: lab pie3, Word for Windows, 5 and 8
+        // equal slices, labels off, legend at the foot: R 70.65 and 62.96 (arcs measured by their on-curve points) where ours took
+        // 74.18 and 68.85 — the centred labels' 70.64 and 62.95 of lab piesize round 2.)
+        let unlabelled = !c.dataLabels && c.pieLabels?.series != true && c.pieLabels?.category != true && c.pieLabels?.percent != true && c.plotLayout == nil && !c.onSlide && !c.onSheet && !c.chartex && !libre
+        let insideLabelled = unlabelled || c.pieLabels != nil && !c.pieLabelsAround && ["ctr", "inEnd"].contains(c.pieLabels?.position ?? "") && c.plotLayout == nil && !c.onSlide && !c.onSheet && !c.chartex
         // On a sheet, a line of the labels' less each side where they
         // stand round the pie: Excel's prints of five labelled pies are
         // 8.5 to 17 pt smaller a side than ours were, the unlabelled
