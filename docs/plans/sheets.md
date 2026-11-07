@@ -1474,3 +1474,8 @@ under the file's own `<styleSheet>` root, whose prefixes they use).
   2147483649 in PptxTemplates.swift, and `.atomic` writes in
   SlidesShell.swift. None is in Sheets/, so the Sheets code type-checks
   for wasm; it cannot be run there until those are fixed.
+
+## Segoe UI 8 row fit (amd-3, 2026-11-07, fd1b2c353)
+- Excel fits Segoe UI 8 in a Calibri 11 book at 14.88 pt (Windows lab mx-cal11-SegoeUI8); sizes 9 to 12 do not follow it (hinted pixel rows), so it is a `hinted` table entry, not a formula. A sheet that sets its own default row height (56274, row ~12.4) does not use it.
+- lo-tdf76115 4.45 to 2.45. Approved drift: lo-tdf167019 3.50 to 3.53 and lo-tdf41722 0.06 to 0.08. Neither workbook has Segoe UI in its styles (fonts: Arial, Calibri / Arial, Arial Unicode MS), so these are not Segoe 8 rows; the change is from the base moving, not the table.
+- Still open: Segoe 8 in a Verdana 10 book prints 14.52 (ours 13.32); size-12 one-dot misses (Arial, Verdana, Calibri, Malgun 10); bug66675 wrapped header rows (15.24); 47813 parked (reference 13.20 vs reprint 12.60).
