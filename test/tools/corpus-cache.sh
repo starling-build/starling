@@ -13,6 +13,7 @@
 #                                             every manifest row has its .docx, its SHA-256
 #                                             matches, nothing extra sits in docs/. Exit 1 on any
 #                                             problem. (word-win PDFs: counted, not hashed.)
+#   (HOST "local" copies to another directory on this box, STARLING_CORPUS_REMOTE=<dir>: no ssh)
 #   corpus-cache.sh sync HOST SET [SET...]    copy the cache for those sets to HOST (rsync over
 #                                             ssh, same path unless STARLING_CORPUS_REMOTE is set),
 #                                             then run `check` on HOST. Needs this repo's script on
@@ -80,8 +81,9 @@ case "$cmd" in
     for s in "$@"; do
       cs=${CACHE_SET:-$s}
       [ -d "$CACHE/$cs/docs" ] || { echo "$s: not in the local cache ($CACHE/$cs)"; rc=1; continue; }
-      ssh "$host" "mkdir -p '$remote/$cs'" || { rc=1; continue; }
-      rsync -a --delete "$CACHE/$cs/" "$host:$remote/$cs/" || { echo "$s: rsync failed"; rc=1; continue; }
+      if [ "$host" = local ]; then run() { sh -c "$1"; }; dest="$remote/$cs/"; else run() { ssh "$host" "$1"; }; dest="$host:$remote/$cs/"; fi
+      run "mkdir -p '$remote/$cs'" || { rc=1; continue; }
+      rsync -a --delete "$CACHE/$cs/" "$dest" || { echo "$s: rsync failed"; rc=1; continue; }
       # verify on the far side from the manifest: one hash list over ssh, compared here
       python3 - "$MAN/$s/manifest.tsv" "$s" > "/tmp/corpus-sums.$$" <<'PY'
 import csv, sys
@@ -90,7 +92,7 @@ for r in csv.DictReader(open(sys.argv[1]), delimiter='\t'):
     n = n[:-5] if n.endswith('.docx') else n
     print(f"{r['sha256']}  docs/{n}.docx")
 PY
-      if ssh "$host" "cd '$remote/$cs' && sha256sum -c --quiet -" < "/tmp/corpus-sums.$$"; then
+      if run "cd '$remote/$cs' && sha256sum -c --quiet -" < "/tmp/corpus-sums.$$"; then
         echo "$s: $host verified ($(wc -l < /tmp/corpus-sums.$$) documents)"
       else
         echo "$s: $host FAILED verification"; rc=1
