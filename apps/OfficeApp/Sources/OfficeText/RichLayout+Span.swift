@@ -1245,6 +1245,12 @@ extension RichLayout {
                         }
                         if let joiner = devanagariStyles[cs] ?? nil {
                             flush(i)
+                            // (A zero-width space before it gives the break the joiner would forbid back: after a space the word
+                            // would not part from the line, and the engine cut words inside.)
+                            if before != nil {
+                                spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                                inserts.append(offset)
+                            }
                             spans.append(TextSpan(text: "\u{2060}", style: joiner))
                             inserts.append(offset)
                         }
