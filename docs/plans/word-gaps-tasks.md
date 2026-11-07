@@ -15185,3 +15185,5 @@ TIP WATCH amd-8, round 236 (6c5370ae3): Word no drops (six sections up 0 down 0)
 TIP WATCH amd-8, round 237 (50307649c): Word no drops (six sections up 0 down 0); unit tests 634, 0 failures; WEB build OK, layout exit 0.
 
 ACCEPTED GAP (relayed by starling-bd, 2026-11-07): lo-f9b9a8fc stays at 87.5% (7/8 lines). Accepted by the user 2026-11-07: Word's pie label placement in the diagonal zone, not reproducible without fitting one document (label 5 is Word's chaotic pie-label placement, unexplained after the pie1/pie2/piezone/pinsweep labs, docs/plans/pie-labels.md). No session chases it again.
+
+TIP WATCH amd-8, round 238 (ed32ca27a): Word no drops (six sections up 0 down 0); unit tests 634, 0 failures; WEB build OK, layout exit 0. SLIDES 0.7354 unchanged (0 worse, 0 better, matched-win 98/98 exact). SHEETS 0.627 unchanged (0 worse, 0 better). All gates green.
