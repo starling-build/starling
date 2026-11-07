@@ -1,6 +1,6 @@
 # Word flat-pie best-fit labels: the lo-f9b9a8fc label-5 jump (amd-opus, 2026-11-06)
 
-### STATE OF PLAY (lenovo-2, 2026-11-07 ~11:30, checkpoint before a context clear; sections below hold the detail)
+### STATE OF PLAY (lenovo-2, 2026-11-07 ~10:20 UTC, after lab pinsweep; sections below hold the detail)
 
 Landed on office: cf784c4c0 (30/60-degree anchor table on Word's px raster, 0.75 centre-to-corner in the 13-30 deg zone,
 push-out until the pie pokes <= 1.5 px, leaders only from 9 pt off the rim), 0dc344f55 (per-point c:dLbl/c:delete honoured),
@@ -18,17 +18,67 @@ budget, angular-gap rule or slot search (pulls get LONGER with partners, so no o
 not mirror-consistent (-29..+19 px between a label at m and at 360-m, random sign), so the unknown is the SINGLE-label process.
 No overlap resolution exists at all (zh-37b6536f stacks five labels on top of each other).
 
-NEXT: lab pinsweep (wip/lab-pinsweep, 164 docs, sent to windows 11:25; prints will be on wip/lab-pinsweep-prints,
-test/lab/pinsweep/prints/PINSWEEP-WORD.tsv): one labelled 45-degree slice with its middle at 12..31 deg by 0.5, auto AND pinned
-(= Word's default), plus mirrors and pinned defaults at 35-135 deg and spans 30/60. Read it with the advisor's criterion: if the
-pinned defaults are smooth in angle but the auto places jump between half-degree steps and differ from their mirrors, the pull is a
-chaotic step search - keep the landed rule and release label 5 (the user's call); if the auto place is a smooth, mirror-consistent
-function of the default (e.g. stops at the slice's start edge or on touching the circle), write the lone-label pull rule first, then
-return to pairs. The default law itself (ring R + 5 pt, the clockwise offset, its dependence on span and R) comes from the same lab.
-Tools: test/lab/pie-fit/{load,configs,sim,compare}.py (configs.load() = every print; sim.score() = hits within 4 px; note sim.snap
-assumes the pie centre 133.33 px below the frame top - piezone2's is 143.73); advisor scripts in the scratchpad advisor/..advisor4/
-(gone after a clear; the plan doc holds their conclusions). Lab data: scratchpad lab/<lab>/test/lab/<lab>/*-WORD.tsv, re-extractable
-with git archive origin/wip/lab-<lab>-prints test/lab/<lab>.
+DECIDED by lab pinsweep (2026-11-07 ~10:15 UTC, section "Lab pinsweep read" below): Word's pinned DEFAULTS are smooth and mirror-exact; its
+AUTO places jump 3-39 px between half-degree steps and differ from their mirrors by 9 px median / 20 max (32 of 39 angles). The pull is a chaotic
+step search, so no lone-label pull rule is written: the landed rule stays and lo-f9b9a8fc label 5 is released as unexplained (87.5), the
+release decision with the user via starling-bd. Tools: test/lab/pie-fit/{load,configs,sim,compare,pinsweep}.py (now committed with this
+note; configs.load() = every print; sim.score() = hits within 4 px; sim.snap assumes the pie centre 133.33 px below the frame top -
+piezone2's is 143.73). Lab data: wip/lab-<lab>-prints branches, test/lab/<lab>/prints/*-WORD.tsv.
+
+### Lab pinsweep read (wip/lab-pinsweep-prints f5535727, 164 of 164 docs; test/lab/pie-fit/pinsweep.py; 2026-11-07 ~10:15 UTC) - VERDICT: chaotic
+One labelled 45-degree slice (R 60.43), its middle m at 12..31 by 0.5, auto and pinned (c:manualLayout 0/0 = Word DEFAULT), and the mirror (360-m).
+Columns: text-left / top of the label box in px from the pie centre (mirror x negated so equal rows mean mirror-consistent); pull = auto - default; L = leader.
+```
+m      | default(l,t)  auto(l,t)      pull(dx,dy) ld | mirror: default    auto           pull       ld | auto-mirauto
+12.0 |   +7.0  -96.3   -22.1  -94.3  -29.0  +2.0   |   +7.1  -96.3   -19.3  -93.3  -26.3  +3.0   |  -2.8  -1.0
+12.5 |   +8.9  -96.1   -19.1  -95.3  -28.0  +0.8   |   +9.0  -96.1   -19.3  -93.3  -28.3  +2.8   |  +0.2  -2.0
+13.0 |  +10.8  -95.9   -20.1  -95.3  -30.8  +0.6   |  +10.9  -95.9   -14.3  -95.3  -25.2  +0.6   |  -5.8  +0.0
+13.5 |  +12.6  -95.8   -19.1  -95.3  -31.7  +0.5   |  +12.8  -95.8   -15.3  -95.3  -28.1  +0.5   |  -3.8  +0.0
+14.0 |  +14.5  -95.6   -19.1  -95.3  -33.6  +0.3   |  +14.7  -95.6   -14.3  -95.3  -29.0  +0.3   |  -4.8  +0.0
+14.5 |  +16.5  -95.4   -19.1  -95.3  -35.6  +0.1   |  +16.5  -95.4   -15.3  -96.3  -31.8  -0.9   |  -3.8  +1.0
+15.0 |  +18.4  -95.2   +19.9  -92.3   +1.6  +2.9   |  +18.5  -95.2    +3.7  -93.3  -14.8  +1.9   | +16.2  +1.0
+15.5 |  +20.3  -95.0   +22.0  -94.3   +1.7  +0.8   |  +20.4  -95.0    +6.7  -92.3  -13.7  +2.8   | +15.2  -2.0
+16.0 |  +22.2  -94.8   -14.1  -95.3  -36.2  -0.5   |  +22.3  -94.8    -5.4  -93.3  -27.6  +1.6   |  -8.7  -2.0
+16.5 |  +24.1  -94.7   -14.1  -95.3  -38.2  -0.6   |  +24.2  -94.7    +5.7  -92.3  -18.5  +2.4   | -19.8  -3.0
+17.0 |  +26.0  -94.4    -9.1  -95.3  -35.1  -0.9   |  +26.1  -94.4    +1.7  -92.3  -24.4  +2.1   | -10.8  -3.0
+17.5 |  +27.9  -94.2    +2.9  -93.3  -25.0  +0.9   |  +28.1  -94.2   +20.7  -91.3   -7.5  +2.9   | -17.7  -2.0
+18.0 |  +29.9  -94.0    +2.9  -92.3  -26.9  +1.7   |  +30.0  -94.0    +7.7  -92.3  -22.3  +1.7   |  -4.8  +0.0
+18.5 |  +31.7  -93.8   +16.9  -94.3  -14.8  -0.5   |  +31.8  -93.8   +17.7  -92.3  -14.1  +1.5   |  -0.8  -2.0
+19.0 |  +32.4  -93.5   +16.9  -94.3  -15.5  -0.7   |  +32.4  -93.5   +18.7  -92.3  -13.7  +1.3   |  -1.8  -2.0
+19.5 |  +33.1  -93.3   +18.0  -93.3  -15.1  +0.0   |  +33.1  -93.3   +18.7  -91.3  -14.4  +2.0   |  -0.8  -2.0
+20.0 |  +33.7  -93.1   +18.9  -93.3  -14.7  -0.2   |  +33.9  -93.1   +31.7  -88.3   -2.2  +4.8   | -12.8  -5.0
+20.5 |  +34.4  -92.8   +19.9  -92.3  -14.5  +0.5   |  +34.6  -92.8   +32.7  -87.3   -1.9  +5.5   | -12.7  -5.0
+21.0 |  +35.1  -92.5   +19.9  -92.3  -15.2  +0.3   |  +35.2  -92.5   +33.6  -86.3   -1.6  +6.3   | -13.7  -6.0
+21.5 |  +35.8  -92.3   +20.9  -91.3  -14.9  +1.0   |  +36.0  -92.3   +33.6  -86.3   -2.3  +6.0   | -12.7  -5.0
+22.0 |  +36.5  -92.0   +22.0  -91.3  -14.6  +0.7   |  +36.6  -92.0   +18.7  -91.3  -17.9  +0.7   |  +3.2  +0.0
+22.5 |  +37.2  -91.7   +10.0  -92.3  -27.2  -0.6   |  +37.4  -91.7   +18.7  -91.3  -18.6  +0.4   |  -8.8  -1.0
+23.0 |  +37.9  -91.4   +16.9  -93.3  -21.0  -1.9   |  +38.0  -91.4   +19.7  -90.3  -18.3  +1.2   |  -2.8  -3.0
+23.5 |  +38.5  -91.1   +18.0  -93.3  -20.5  -2.1   |  +38.7  -91.1   +20.7  -90.3  -18.0  +0.9   |  -2.7  -3.0
+24.0 |  +39.2  -90.8   +30.9  -92.3   -8.3  -1.4   |  +39.3  -90.8   +22.7  -90.3  -16.6  +0.6   |  +8.2  -2.0
+24.5 |  +39.9  -90.6   +30.9  -91.3   -9.0  -0.7   |  +40.1  -90.6   +22.7  -90.3  -17.3  +0.3   |  +8.2  -1.0
+25.0 |  +40.6  -90.2   +19.9  -91.3  -20.7  -1.1   |  +40.7  -90.2   +23.7  -89.3  -16.9  +1.0   |  -3.8  -2.0
+25.5 |  +41.3  -89.9   +36.9  -91.3   -4.4  -1.4   |  +41.4  -89.9   +24.7  -89.3  -16.7  +0.6   | +12.2  -2.0
+26.0 |  +41.9  -89.6   +38.0  -91.3   -3.9  -1.7   |  +42.1  -89.6   +27.7  -90.3  -14.3  -0.7   | +10.2  -1.0
+26.5 |  +42.6  -89.3   +38.9  -90.3   -3.6  -1.0   |  +42.7  -89.3   +22.7  -91.3  -20.0  -2.0   | +16.2  +1.0
+27.0 |  +43.2  -89.0   +38.9  -89.3   -4.3  -0.3   |  +43.3  -89.0   +23.7  -90.3  -19.6  -1.3   | +15.2  +1.0
+27.5 |  +43.9  -88.6   +40.0  -89.3   -3.9  -0.6   |  +44.1  -88.6   +24.7  -90.3  -19.4  -1.6   | +15.3  +1.0
+28.0 |  +44.5  -88.3   +41.0  -88.3   -3.6  +0.0   |  +44.7  -88.3   +24.7  -89.3  -20.0  -1.0   | +16.3  +1.0
+28.5 |  +45.2  -87.9   +41.0  -87.3   -4.2  +0.6   |  +45.4  -87.9   +25.7  -89.3  -19.6  -1.3   | +15.2  +2.0
+29.0 |  +45.8  -87.6   +42.0  -87.3   -3.8  +0.3   |  +46.0  -87.6   +26.7  -88.3  -19.3  -0.7   | +15.2  +1.0
+29.5 |  +46.4  -87.2   +53.0  -89.3   +6.5  -2.1 L |  +46.6  -87.2   +42.7  -87.3   -3.9  -0.1   | +10.2  -2.0
+30.0 |  +47.1  -86.9   +53.0  -88.3   +5.9  -1.4 L |  +47.3  -86.9   +42.7  -84.3   -4.5  +2.6   | +10.2  -4.0
+30.5 |  +47.7  -86.5   +42.0  -84.3   -5.7  +2.2   |  +47.9  -86.5   +42.7  -84.3   -5.2  +2.2   |  -0.8  +0.0
+31.0 |  +48.3  -86.1   +42.9  -83.3   -5.4  +2.8   |  +48.6  -86.1   +43.7  -83.3   -4.8  +2.8   |  -0.8  +0.0
+```
+- DEFAULTS are smooth and mirror-exact: 0.7 px median step in x, 0.3 in y, max 2.0 px, no jump > 3 px in 38 steps; default vs mirror default within 0.2 px everywhere.
+- AUTO places are NOT: 13 of 38 half-degree steps jump > 3 px (max 39 px, e.g. 14.5 -> 15.0: -19 -> +20 px, 15.5 -> 16.0: +22 -> -14), the mirror
+  auto jumps at 15 of 38 steps at DIFFERENT angles, and auto vs mirrored auto differs by 8.9 px median, 20 px max, > 3 px in 32 of 39 angles.
+  The pull takes a handful of discrete values (about -36, -27, -20, -15, -9, -4, +2, +6 px) with no monotone or periodic law in m; two auto labels
+  (29.5, 30.0, not their mirrors) get a leader at 1.3 px pull. No stop at the slice start edge, no circle-contact stop, no smooth function of the default.
+- By the agreed criterion (advisor round 4): the pull is a chaotic step search inside Word; a lone zone label cannot be predicted from the geometry, so
+  the landed 30/60 rule with its 0.75 zone fraction STAYS and no lone-label pull rule is written. lo-f9b9a8fc label 5 released as unexplained (87.5),
+  pending the user. The pinned-only extras give the default law in general (nearest box corner at 1.09-1.13 R, 1.4-4.1 deg clockwise of the middle above
+  the horizontal and 0.5-2.7 anticlockwise below it; the same for spans 30 and 60 at 22.5); nothing to build from it until a doc pins labels with 0/0.
 
 # Round 3 (lenovo-2, 2026-11-07, in progress): the raster, Word's box, and lab pie1
 
