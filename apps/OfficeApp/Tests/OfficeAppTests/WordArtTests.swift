@@ -103,13 +103,13 @@ final class WordArtTests: XCTestCase {
         let wave = try XCTUnwrap(WordArt.envelope(TextWarp(preset: "textWave1", adjust: [], xml: "")))
         for u in [0.0, 0.25, 0.6, 1.0] { XCTAssertEqual(wave(u).bottom - wave(u).top, 0.75, accuracy: 1e-9) }
         XCTAssertEqual(wave(0).top, wave(1).top, accuracy: 1e-9)
-        // A curve tapers over a level foot; a cascade climbs from its full height.
+        // A curve tapers over a bowed foot; a cascade climbs from its full height.
         let curve = try XCTUnwrap(WordArt.envelope(TextWarp(preset: "textCurveDown", adjust: [50000], xml: "")))
         XCTAssertEqual(curve(0).top, 0, accuracy: 1e-9)
-        XCTAssertEqual(curve(1).top, 0.5, accuracy: 1e-9)
-        // The foot bows with the top (lab p3w cell 7: its ends 0.21 up at adj 56338): 1 - 0.41 * 0.5 * (0.4)^2.
-        XCTAssertEqual(curve(0.3).bottom, 1 - 0.41 * 0.5 * 0.16, accuracy: 1e-9)
-        XCTAssertEqual(curve(0).bottom, 1 - 0.41 * 0.5, accuracy: 1e-9)
+        XCTAssertEqual(curve(1).top, 1.05 * 0.5 * 0.9092974268256817, accuracy: 1e-9)   // lab p3wc: sin(2), the top peaks three quarters across
+        // The foot bows 0.376 a at the ends (lab p3wc): 1 - 0.376 * 0.5 * (0.4)^2.
+        XCTAssertEqual(curve(0.3).bottom, 1 - 0.376 * 0.5 * 0.16, accuracy: 1e-9)
+        XCTAssertEqual(curve(0).bottom, 1 - 0.376 * 0.5, accuracy: 1e-9)
         // Every bend PowerPoint offers is drawn, by one of the three ways.
         for name in ["Plain", "Stop", "Triangle", "TriangleInverted", "Chevron", "ChevronInverted", "RingInside", "RingOutside",
                      "ArchUp", "ArchDown", "Circle", "Button", "ArchUpPour", "ArchDownPour", "CirclePour", "ButtonPour",
