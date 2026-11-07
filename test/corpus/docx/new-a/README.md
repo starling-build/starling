@@ -18,3 +18,6 @@ Sources and licences (each file keeps its owner's copyright):
 Rejected automatically: byte duplicates of the current corpus, our render over 40 pages or failed, DATE/TIME
 fields, an e-mail address or phone number in the text, under 300 bytes of text, names that suggest corrupt or
 fuzz files. Not checked: that Word for Windows opens each without a repair prompt (needs a Word print).
+
+## Render sweep (2026-11-07, office c116adb52, Windows mode)
+All 170 documents convert: no crash, no timeout (each under 60 s). Six have one or two blank pages, most explained by explicit page breaks or an odd-page section break (gv-48dbbfebfb p2, lo-f5a68fc90b p2, th-044e3e71f7 p4 and p8); lo-9b628b6d46 p3, oxsdk-1c09b12993 p20 and th-8202f4ed00 p2 were not checked against Word. No US federal documents were added: the only DOCX found (NASA NTRS test reports) name individuals, are 8 MB each and near-identical.
