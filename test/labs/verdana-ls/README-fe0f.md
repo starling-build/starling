@@ -1,0 +1,2 @@
+Lab fe0f (amd-7): in/FE0F.pptx (1 slide, 4 lines, Calibri 28 pt) and in/FE0F.docx (4 paragraphs, 20 pt). Lines: text-style emoji with and without U+FE0F (heart, smiley, tick, sun, copyright, tm, !!), and colour emoji (watch, star) bare, with U+FE0E and with U+FE0F.
+Please print each to PDF and say, per character, whether Office draws colour or outline (and the face, from the PDF fonts); push to wip/lab-fe0f-prints.
