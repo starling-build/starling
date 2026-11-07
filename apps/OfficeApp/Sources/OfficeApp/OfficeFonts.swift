@@ -1825,7 +1825,7 @@ enum OfficeFonts {
     /// Arial Black's widths for U+0020 to U+007E, in ems (Word's
     /// DFonts ariblk.ttf).
     /// Faces Word sets Thai in, narrow ones all: see `cordiaNewAdvances`.
-    static let thaiWordFaces: Set<String> = ["th sarabun new", "th sarabunpsk", "browallia new", "browalliaupc", "cordia new", "cordiaupc",
+    static let thaiWordFaces: Set<String> = ["th sarabun new", "th sarabunpsk", "browallia new", "browalliaupc", "cordia new", "cordiaupc", "th sarabunit๙",
                                              "angsana new", "angsanaupc"]
     /// Cordia New's widths for U+0020 to U+007E, in ems, and its bold's
     /// (the face Word for Mac carries, DFonts cordia.ttc).
@@ -1838,6 +1838,14 @@ enum OfficeFonts {
         0.3276, 0.1455, 0.5457, 0.3645, 0.3645, 0.4001, 0.4001, 0.2183, 0.3276, 0.1821, 0.3645, 0.3276, 0.4731, 0.3276, 0.3276,
         0.3276, 0.2183, 0.1455, 0.2183, 0.4326,
     ]
+    /// TH SarabunPSK's own advances in ems, regular and bold, Latin and
+    /// Thai, read from the hmtx of the subsets Word for Windows embeds in
+    /// its prints (the face is not Browallia: Thai about 7% narrower).
+    static let thSarabunPSKLatin: [UInt32: Double] = [0x20: 0.216, 0x21: 0.147, 0x22: 0.208, 0x25: 0.585, 0x26: 0.423, 0x27: 0.12, 0x28: 0.19, 0x29: 0.19, 0x2A: 0.285, 0x2B: 0.411, 0x2C: 0.162, 0x2D: 0.216, 0x2E: 0.162, 0x2F: 0.27, 0x30: 0.362, 0x31: 0.362, 0x32: 0.362, 0x33: 0.362, 0x34: 0.362, 0x35: 0.362, 0x36: 0.362, 0x37: 0.362, 0x38: 0.362, 0x39: 0.362, 0x3A: 0.162, 0x3B: 0.162, 0x3C: 0.411, 0x3D: 0.411, 0x3E: 0.411, 0x3F: 0.283, 0x40: 0.536, 0x41: 0.4, 0x42: 0.378, 0x43: 0.406, 0x44: 0.431, 0x45: 0.351, 0x46: 0.351, 0x47: 0.425, 0x48: 0.441, 0x49: 0.147, 0x4A: 0.264, 0x4B: 0.376, 0x4C: 0.353, 0x4D: 0.548, 0x4E: 0.441, 0x4F: 0.486, 0x50: 0.378, 0x51: 0.487, 0x52: 0.379, 0x53: 0.352, 0x54: 0.379, 0x55: 0.466, 0x56: 0.39, 0x57: 0.588, 0x58: 0.418, 0x59: 0.366, 0x5A: 0.424, 0x5B: 0.196, 0x5D: 0.196, 0x5F: 0.352, 0x61: 0.344, 0x62: 0.401, 0x63: 0.331, 0x64: 0.401, 0x65: 0.374, 0x66: 0.206, 0x67: 0.311, 0x68: 0.39, 0x69: 0.143, 0x6A: 0.155, 0x6B: 0.316, 0x6C: 0.2, 0x6D: 0.601, 0x6E: 0.39, 0x6F: 0.398, 0x70: 0.401, 0x71: 0.401, 0x72: 0.217, 0x73: 0.282, 0x74: 0.238, 0x75: 0.39, 0x76: 0.341, 0x77: 0.507, 0x78: 0.318, 0x79: 0.337, 0x7A: 0.321, 0x7C: 0.153]
+    static let thSarabunPSKBoldLatin: [UInt32: Double] = [0x20: 0.226, 0x21: 0.168, 0x22: 0.291, 0x25: 0.688, 0x28: 0.244, 0x29: 0.244, 0x2A: 0.343, 0x2C: 0.172, 0x2D: 0.226, 0x2E: 0.172, 0x2F: 0.276, 0x30: 0.378, 0x31: 0.378, 0x32: 0.378, 0x33: 0.378, 0x34: 0.378, 0x35: 0.378, 0x36: 0.378, 0x37: 0.378, 0x38: 0.378, 0x39: 0.378, 0x3A: 0.172, 0x3E: 0.417, 0x41: 0.451, 0x42: 0.396, 0x43: 0.432, 0x44: 0.459, 0x45: 0.358, 0x46: 0.358, 0x47: 0.454, 0x48: 0.472, 0x49: 0.163, 0x4A: 0.282, 0x4B: 0.411, 0x4C: 0.359, 0x4D: 0.574, 0x4E: 0.472, 0x4F: 0.518, 0x50: 0.39, 0x51: 0.518, 0x52: 0.395, 0x53: 0.365, 0x54: 0.421, 0x55: 0.482, 0x56: 0.422, 0x57: 0.612, 0x59: 0.396, 0x61: 0.367, 0x62: 0.435, 0x63: 0.347, 0x64: 0.435, 0x65: 0.391, 0x66: 0.254, 0x67: 0.332, 0x68: 0.423, 0x69: 0.163, 0x6A: 0.171, 0x6B: 0.34, 0x6C: 0.213, 0x6D: 0.636, 0x6E: 0.423, 0x6F: 0.412, 0x70: 0.431, 0x71: 0.431, 0x72: 0.246, 0x73: 0.296, 0x74: 0.258, 0x75: 0.418, 0x76: 0.358, 0x77: 0.48, 0x78: 0.349, 0x79: 0.361, 0x7A: 0.358]
+    static let thSarabunPSKThai: [UInt32: Double] = [0x0E01: 0.386, 0x0E02: 0.378, 0x0E04: 0.393, 0x0E06: 0.408, 0x0E07: 0.294, 0x0E08: 0.367, 0x0E09: 0.377, 0x0E0A: 0.38, 0x0E0B: 0.384, 0x0E0D: 0.519, 0x0E0E: 0.425, 0x0E0F: 0.425, 0x0E10: 0.343, 0x0E11: 0.461, 0x0E12: 0.532, 0x0E13: 0.543, 0x0E14: 0.391, 0x0E15: 0.391, 0x0E16: 0.378, 0x0E17: 0.43, 0x0E18: 0.335, 0x0E19: 0.42, 0x0E1A: 0.428, 0x0E1B: 0.428, 0x0E1C: 0.381, 0x0E1D: 0.381, 0x0E1E: 0.447, 0x0E1F: 0.447, 0x0E20: 0.425, 0x0E21: 0.4, 0x0E22: 0.375, 0x0E23: 0.322, 0x0E24: 0.378, 0x0E25: 0.381, 0x0E27: 0.335, 0x0E28: 0.393, 0x0E29: 0.438, 0x0E2A: 0.381, 0x0E2B: 0.427, 0x0E2C: 0.454, 0x0E2D: 0.387, 0x0E2E: 0.372, 0x0E2F: 0.391, 0x0E30: 0.357, 0x0E31: 0.0, 0x0E32: 0.316, 0x0E33: 0.316, 0x0E34: 0.0, 0x0E35: 0.0, 0x0E36: 0.0, 0x0E37: 0.0, 0x0E38: 0.0, 0x0E39: 0.0, 0x0E3A: 0.0, 0x0E40: 0.203, 0x0E41: 0.377, 0x0E42: 0.237, 0x0E43: 0.242, 0x0E44: 0.244, 0x0E45: 0.205, 0x0E46: 0.399, 0x0E47: 0.0, 0x0E48: 0.0, 0x0E49: 0.0, 0x0E4A: 0.0, 0x0E4B: 0.0, 0x0E4C: 0.0, 0x0E4D: 0.0, 0x0E50: 0.449, 0x0E51: 0.449, 0x0E52: 0.449, 0x0E53: 0.449, 0x0E54: 0.449, 0x0E55: 0.449, 0x0E56: 0.449, 0x0E57: 0.449, 0x0E58: 0.449, 0x0E59: 0.449]
+    static let thSarabunPSKBoldThai: [UInt32: Double] = [0x0E01: 0.391, 0x0E02: 0.415, 0x0E04: 0.403, 0x0E07: 0.318, 0x0E08: 0.39, 0x0E09: 0.405, 0x0E0A: 0.415, 0x0E0B: 0.431, 0x0E0D: 0.565, 0x0E0E: 0.425, 0x0E0F: 0.425, 0x0E10: 0.372, 0x0E11: 0.492, 0x0E12: 0.551, 0x0E13: 0.576, 0x0E14: 0.405, 0x0E15: 0.405, 0x0E16: 0.391, 0x0E17: 0.438, 0x0E18: 0.358, 0x0E19: 0.433, 0x0E1A: 0.445, 0x0E1B: 0.445, 0x0E1C: 0.414, 0x0E1D: 0.414, 0x0E1E: 0.482, 0x0E1F: 0.482, 0x0E20: 0.425, 0x0E21: 0.417, 0x0E22: 0.386, 0x0E23: 0.329, 0x0E24: 0.391, 0x0E25: 0.399, 0x0E27: 0.379, 0x0E28: 0.403, 0x0E29: 0.461, 0x0E2A: 0.399, 0x0E2B: 0.438, 0x0E2C: 0.468, 0x0E2D: 0.394, 0x0E2E: 0.385, 0x0E2F: 0.38, 0x0E30: 0.34, 0x0E31: 0.0, 0x0E32: 0.336, 0x0E33: 0.336, 0x0E34: 0.0, 0x0E35: 0.0, 0x0E36: 0.0, 0x0E37: 0.0, 0x0E38: 0.0, 0x0E39: 0.0, 0x0E3A: 0.0, 0x0E40: 0.208, 0x0E41: 0.395, 0x0E42: 0.252, 0x0E43: 0.269, 0x0E44: 0.252, 0x0E45: 0.209, 0x0E46: 0.437, 0x0E47: 0.0, 0x0E48: 0.0, 0x0E49: 0.0, 0x0E4A: 0.0, 0x0E4C: 0.0, 0x0E4D: 0.0, 0x0E50: 0.456, 0x0E51: 0.456, 0x0E52: 0.456, 0x0E53: 0.456, 0x0E54: 0.456, 0x0E55: 0.456, 0x0E56: 0.456, 0x0E57: 0.456, 0x0E58: 0.456, 0x0E59: 0.456]
+
     /// Browallia New regular's widths for U+0021 to U+007E, in ems, from Word
     /// for Windows' print of lab fitedge2/d00 (30 copies of each; means). They are
     /// the bold Cordia table's, not the regular one's (P 0.435 not 0.400, "!" 0.181 not 0.218).
@@ -3301,7 +3309,7 @@ enum OfficeFonts {
                 // took 0.7pt a space too much and its line one fewer word.)
                 var regular = cordiaNewAdvances, bold = cordiaNewBoldAdvances
                 regular[0] = 0.222
-                if ["browallia new", "th sarabun new", "th sarabunpsk"].contains(family.trimmingWhitespace().lowercased()) {
+                if ["browallia new", "th sarabun new", "th sarabunpsk", "th sarabunit๙"].contains(family.trimmingWhitespace().lowercased()) {
                     for (j, w) in Self.browalliaLatinAdvances.enumerated() { regular[j + 1] = w }
                 }
                 bold[0] = 0.181
@@ -3337,6 +3345,27 @@ enum OfficeFonts {
                 face.otherAdvances = (face.otherAdvances ?? [:]).merging(browalliaAdvances) { $1 }
                 face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(browalliaBoldAdvances) { $1 }
                 #endif
+            }
+            if wordOnWindows, ["browallia new", "th sarabun new", "th sarabunit๙"].contains(family.trimmingWhitespace().lowercased()) {
+            // Word for Windows prints these in Browallia New: hhea 1770/789 of 2048 (1.249 em).
+            face.naturalHeight = 1.249
+            face.baseline = 0.864
+            RuleTrace.hit("th-browallia-own-line")
+        }
+        if wordOnWindows, family.trimmingWhitespace().lowercased() == "th sarabunpsk" {
+                // (Word for Windows has the real TH SarabunPSK, not
+                // Browallia: its own widths from the print's subsets.)
+                for (cp, w) in Self.thSarabunPSKLatin where cp >= 0x21 { face.advances?[Int(cp) - 0x20] = w }
+                if let w = Self.thSarabunPSKLatin[0x20] { face.advances?[0] = w }
+                for (cp, w) in Self.thSarabunPSKBoldLatin where cp >= 0x21 { face.boldAdvances?[Int(cp) - 0x20] = w }
+                if let w = Self.thSarabunPSKBoldLatin[0x20] { face.boldAdvances?[0] = w }
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging(Self.thSarabunPSKThai) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(Self.thSarabunPSKBoldThai) { $1 }
+                // (Its own line: ascent 0.85 + descent 0.46 em in the print's
+                // subsets, a 20.95 pt pitch at 16 pt; ours ran 18.4 pt.)
+                face.naturalHeight = 1.31
+                face.baseline = 0.85
+                RuleTrace.hit("th-sarabunpsk-own-widths")
             }
             // (An embedded face whose font-table entry names an East Asian
             // charset keeps Word for Windows' East Asian line though its
