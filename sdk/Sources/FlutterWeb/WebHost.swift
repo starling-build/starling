@@ -356,7 +356,9 @@ func starlingFontFallback(_ family: UnsafePointer<UInt8>?, _ familyLength: Int32
     guard let family, familyLength > 0 else { return }
     let name = String(
         decoding: UnsafeBufferPointer(start: family, count: Int(familyLength)), as: UTF8.self)
-    if !WebFonts.fallbackFamilies.contains(name) { WebFonts.fallbackFamilies.append(name) }
+    if WebFonts.fallbackFamilies.contains(name) { return }
+    // (The colour pictographs go first: DejaVu Sans draws some emoji as black outlines.)
+    if name == "Noto Color Emoji Pictographs" { WebFonts.fallbackFamilies.insert(name, at: 0) } else { WebFonts.fallbackFamilies.append(name) }
 }
 
 /// The page's answer to starling_host_open_file. `bytes` came from

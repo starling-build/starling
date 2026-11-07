@@ -31,5 +31,6 @@ NotoSansThai-Regular.ttf	-1	Noto Sans Thai	Regular	thai	fallback	9	37744	dfbd5ed
 NotoSansThai-Bold.ttf	-1	Noto Sans Thai	Bold	thai	fallback	9	37788	97bbc8ea98328325285f2f552228c7aac1db39d8f38f0096a61ba7df1f1f780e
 NotoSansDevanagari-Regular.ttf	-1	Noto Sans Devanagari	Regular	devanagari	fallback	7	229336	79a470365ccb210fa3c7d8d8ff2e005ef9d983cfd067f735a0caf7e15070ca9f
 NotoSansDevanagari-Bold.ttf	-1	Noto Sans Devanagari	Bold	devanagari	fallback	7	237660	77ad688cfe1dc55185bf4edb4db3c614202c65dd23a1463ad0e23fc52bcc9a5c
-NotoColorEmoji.ttf	-1	Noto Color Emoji	Regular	emoji	fallback	8	11020136	9fd0a3d0ce84d77e3185dfbae77bd1abf3926aa49a032e354d076c4f17151f10
+NotoColorEmoji.ttf	-1	Noto Color Emoji	Regular	emoji-bmp	fallback	8	11020136	9fd0a3d0ce84d77e3185dfbae77bd1abf3926aa49a032e354d076c4f17151f10
+NotoColorEmoji-Pictographs.ttf	-1	Noto Color Emoji Pictographs	Regular	emoji	fallback	8	7752928	eb047f763bb85b0331fd19541381bcf455eb8571aaec157d213d094b1b31257c
 DejaVuMathTeXGyre.ttf	-1	DejaVu Math TeX Gyre	Regular	math	fallback	9	577192	f98d7f2ad03cdceffb8bcee71eed84055d15b0098b4b1f5a22653ba5931d3da5

@@ -43,6 +43,8 @@ enum OfficeFonts {
     /// hundredth of its widths word for word, where Liberation Sans set
     /// Verdana's lines an eighth short.
     static let verdana = "DejaVu Sans"
+    /// The colour-emoji face (U+1F000 and up), first in the glyph fallback; web hosts use the same name.
+    static let emojiPictographs = "Noto Color Emoji Pictographs"
     /// Liberation Sans and Serif as a Word document's lines take them:
     /// the same faces with their line gap moved over the ascent (see
     /// `_gapAbove`), registered under these names beside the plain ones.
@@ -3972,6 +3974,13 @@ enum OfficeFonts {
             #endif
             for (_, family) in chain.sorted(by: { $0.order < $1.order }) where !RichTextTheme.glyphFallback.contains(family) {
                 RichTextTheme.glyphFallback.append(family)
+            }
+            // (The colour pictographs go AHEAD of DejaVu Sans, which draws some of the same emoji as black
+            // outlines: Word and PowerPoint draw a plain-run emoji in colour. The subset holds only
+            // U+1F000 and up, so the BMP symbols — a black U+263A — stay on the faces that have them.)
+            if let i = RichTextTheme.glyphFallback.firstIndex(of: OfficeFonts.emojiPictographs), i > 0 {
+                RichTextTheme.glyphFallback.remove(at: i)
+                RichTextTheme.glyphFallback.insert(OfficeFonts.emojiPictographs, at: 0)
             }
         }
         if let table = try? String(contentsOf: resources.appendingPathComponent("fonts/fonts-aliases.tsv"), encoding: .utf8) {
