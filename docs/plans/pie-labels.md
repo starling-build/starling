@@ -64,6 +64,22 @@ the width bands come from the legend or title?), three identical charts per page
 pair moves add?), the lone 22.5 label across widths 350-370 and with names of 2-20 characters (px or box-fraction drift?), pairs 1-2
 and 1-5 at firstSliceAng 5/10/15.
 
+
+### Lab pie2 read (wip/lab-pie2-prints, 113 of 116 docs; the three 3-chart docs would not open in Word)
+- The interaction between labels exists ONLY in the 13-30 deg flat zone: pairs 1-2 and 1-5 at firstSliceAng 5/10/15 (label 1 at
+  27.5/32.5/37.5, outside the zone) put both labels exactly where they stand alone (0-1 px), and the lone leader at 207.5 goes away
+  with label 1 present. Outside the zone a label's place is its own; inside it, other labels move it.
+- Triples do not add or take the max of the pair moves: label 1's move (px) alone 0; with 2: +27, 3: +16, 4: +27, 5: +1, 8: +27;
+  with 2+3: +15, 2+4: +18, 2+5: +23, 4+5: +9, 5+8: +2, 2+4+5: +13, 4+5+8: +14. Label 5's: with 4: +13, 6: +17, 2: +27; with 4+6: +17,
+  2+4: +27, 1+4: +21, 1+2: +24, 1+8: +26, 1+2+4: +16, 1+4+8: +6. A deterministic but tangled function of the set.
+- A lone label in the zone does not depend on the frame width at all (label 1 at 22.5 deg, widths 350-370: dx +25.9..+26.5 pt, the px
+  phase only). Width bands exist only for the full 8-label chart.
+- Without the legend (R 70.49) or with it at the right (70.47) or without the title (65.17) the pie grows, four labels go inside, and
+  the remaining outside labels are the same at every width 356-376: no bands. Not decisive about the legend's role (the geometry changed).
+- A lone label's place depends on its own width as expected (names of 2-12 characters; the 2- and 4-character labels fit inside).
+Conclusion for lo-f9b9a8fc's label 5: it is a zone label in an 8-label set; its place is set by Word's joint search, which these
+labs still do not expose. The fallback rule is implemented (wip/pie-bestfit) per starling-bd's decision; label 5 stays open.
+
 # Round 2 (after pielabel5 and pielabel6): verdict
 
 **Neither candidate reproduces Word, and nothing should be built for label 5.** Both the iterative
