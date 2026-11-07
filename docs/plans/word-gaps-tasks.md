@@ -15236,3 +15236,8 @@ TIP WATCH amd-8, round 244 (2f4b983be): Word no drops (six sections up 0 down 0)
   - zh-cec9d337 p10: a 20 pt vertical order difference in a table (Word puts 17離島… at y -109 after 0911-; ours before). Not a 4-character item; not started.
   - zh-31d580df p27: row "系統測試" sits 12 pt higher in ours (-255 vs Word -267). Not started.
   - zh-cd8987db p10: 4 pt higher heading, plus one extra line before it on p9 (ours 釋放天敵… line is not in Word's page). Not started.
+- amd-3 (2026-11-07) CORRECTION and lab results: zh-e0ca7252 p46 is NOT released (open). Labs, Word for Windows, 12 pt 標楷體 jc=both compressPunctuation, the real paragraph with the right indent stepped (test/labs/comma-hang{,2,3}, prints on wip/lab-comma-hang{2,3}-prints):
+  - Normal setting (variants "，" "。" "、" alike): Word keeps 備+mark while the room left after 備 (at the line's maximum squeeze) is >= ~5.8 pt, carries 備 at 5.3 pt. The kept mark is 9.1 pt wide and sits 3.4 pt past the margin. Ours keeps the pair until room 0 (half an em too generous). With overflowPunct off (D) ours already matches Word (carry at room ~6.8).
+  - comma-hang (first lab) only narrowed the line and never reached this case; a hang lab must also widen the line (negative right indent).
+  - zh-92373179 p11 dot run (lab test/labs/dot-run): Word breaks a run of periods between any two dots and fills greedily; even one orphan dot goes to the next line (n7 at 6/line -> 6+1). Rule not yet in the code.
+  - zh-31d580df p27: the first column has no rules between the three merged groups: the layout paint ignores the last continuation cell's bottom edge (RichCell.continuationEdges). Fix written, in test. The row text is also 11 pt high (Word 264.2, ours 252.9), a second cause not yet found.
