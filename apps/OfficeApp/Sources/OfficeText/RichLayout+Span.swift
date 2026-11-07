@@ -1072,6 +1072,15 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == ".", ch == "." {
+                    // (A run of stops parts between any two of them, and fills each
+                    // line to capacity: zh-92373179 p11's dot leader row, where the
+                    // engine held the run whole and Word sets 4 + 1. Lab dot-run:
+                    // even one stop alone goes down to the next line.)
+                    RuleTrace.hit("92373179-dot-run-parts-between-dots")
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == " ", ch == "." {
                     // (A line may part at a space before a stop: the engine keeps
                     // " ." together — a stop may not start a line, even after a
