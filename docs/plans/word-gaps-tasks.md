@@ -15241,3 +15241,5 @@ TIP WATCH amd-8, round 244 (2f4b983be): Word no drops (six sections up 0 down 0)
   - comma-hang (first lab) only narrowed the line and never reached this case; a hang lab must also widen the line (negative right indent).
   - zh-92373179 p11 dot run (lab test/labs/dot-run): Word breaks a run of periods between any two dots and fills greedily; even one orphan dot goes to the next line (n7 at 6/line -> 6+1). Rule not yet in the code.
   - zh-31d580df p27: the first column has no rules between the three merged groups: the layout paint ignores the last continuation cell's bottom edge (RichCell.continuationEdges). Fix written, in test. The row text is also 11 pt high (Word 264.2, ours 252.9), a second cause not yet found.
+
+TIP WATCH amd-8, round 245 (12cd167da): Word no drops (six sections up 0 down 0); unit tests 642, 0 failures; WEB build OK, layout exit 0.
