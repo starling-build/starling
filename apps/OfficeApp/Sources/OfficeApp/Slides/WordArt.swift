@@ -635,8 +635,8 @@ enum WordArt {
                     // taking the odd one (lab wordart-banded: 3 lines stand
                     // 2 + 1, 4 stand 2 + 2, 5 stand 3 + 2).
                     let top = (lines.count + 1) / 2
-                    bands = [(Array(lines[..<top]), { u in (0, mid(u) - 0.03) }, false, nil),
-                             (Array(lines[top...]), { u in (mid(u) + 0.03, 1) }, false, nil)]
+                    bands = [(Array(lines[..<top]), { u in (0, mid(u) - 0.045) }, false, nil),
+                             (Array(lines[top...]), { u in (mid(u) + 0.06, 1) }, false, nil)]
                     centreShortBands()
                 }
             case "textDeflateInflateDeflate":
