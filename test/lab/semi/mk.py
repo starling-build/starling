@@ -43,4 +43,26 @@ for nm, ch in (('plain', '市'), ('quote', '」'), ('period', '。'), ('semi', '
 # the mark before E (；) -> others
 for nm, ch in (('comma', '，'), ('plain', '市'), ('period', '。')):
     mk(f'm-mark-{nm}', sw('交通課；動物', f'交通課{ch}動物'))
+
+# round 3: spaces vs marks. De-space the first k dashes of line 12 ("警察服務 – 資料課" ...) and double each dash
+# ("––", 6.24 = the two spaces removed) so the natural width is unchanged; sweep the right indent around the flip.
+def despace(k):
+    def f(e):
+        i = e.find('報案中心'); j = e.find('交通課；動物')
+        seg = e[i:j]
+        sp = '<w:t xml:space="preserve"> </w:t>'
+        parts = seg.split(sp)
+        assert len(parts) == 7, len(parts)
+        out = parts[0]
+        for n in range(6):
+            out += ('<w:t></w:t>' if n // 2 < k else sp) + parts[n + 1]
+        out = out.replace('<w:t>–</w:t>', '<w:t>––</w:t>', 1) if k >= 1 else out
+        return e[:i] + out + e[j:]
+    return f
+for k in (1, 2, 3):
+    for r in (-10, -5, 0, 5, 10):
+        def g(e, k=k, r=r):
+            e = despace(k)(e)
+            return e.replace('<w:ind w:left="1800" w:hanging="1080"/>', f'<w:ind w:left="1800" w:right="{r}" w:hanging="1080"/>') if r else e
+        mk(f'd{k}-right{r}', g)
 print(sorted(os.listdir(out)))
