@@ -1239,7 +1239,15 @@ extension RichLayout {
                          Offset(d.colLeft, rowTop), Offset(cellRight, rowTop), inward: Offset(0, 1), side: c.row == 0 && d.row == 0 ? "top" : "insideH", cell: ref, cellSide: "top")
                 }
                 if bottomHere, !bandBelow {
-                    line(d.borders.bottom, on(d.edges?.bottom, lastRow ? te?.bottom : te?.insideH),
+                    // (A merged cell whose own sides state no bottom but whose
+                    // last continuation cell does: Word draws that line.
+                    // zh-31d580df p27's three merged groups had no rule between.)
+                    var said = d.edges?.bottom
+                    if said == nil, d.rowSpan > 1, theme.wordRules, let last = ref?.continuationEdges.last, last?.bottom == true {
+                        said = true
+                        RuleTrace.hit("zh-31d580df-merged-cell-bottom-from-last-continuation")
+                    }
+                    line(d.borders.bottom, on(said, lastRow ? te?.bottom : te?.insideH),
                          Offset(d.colLeft, rowBottom), Offset(cellRight, rowBottom), inward: Offset(0, -1), side: lastRow ? "bottom" : "insideH", cell: ref, cellSide: "bottom")
                 }
                 if cellRight >= right - 0.5 {
