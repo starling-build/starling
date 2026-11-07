@@ -1,0 +1,115 @@
+doc	page	baseline	x0	x1	y0	y1	font	size	text
+c00-compat15-cell+60	1	89.78	99.38	329.65	77.72	91.76	FangSong	14.04	抄送：市委办，市人大办、政协办。 
+c00-compat15-cell+60	1	120.14	99.62	245.75	108.08	122.12	FangSong	14.04	嵊州市人民政府办公室 
+c00-compat15-cell+60	1	120.14	386.11	522.40	107.63	123.17	TimesNewRomanPSMT+FangSong	14.04	2024 年 9 月 3  日印发 
+c00-compat15-cell+60	1	765.34	91.10	123.08	752.63	768.28	ArialMT	14.04	- 8 - 
+c01-no-run-spacing-cell+60	1	89.78	93.98	324.97	77.72	91.76	FangSong	14.04	抄送：市委办，市人大办、政协办。 
+c01-no-run-spacing-cell+60	1	120.14	94.22	241.19	108.08	122.12	FangSong	14.04	嵊州市人民政府办公室 
+c01-no-run-spacing-cell+60	1	120.26	380.71	506.74	107.75	123.29	TimesNewRomanPSMT+FangSong	14.04	2024 年 9 月 3  日印
+c01-no-run-spacing-cell+60	1	136.46	380.71	401.77	124.40	138.44	FangSong	14.04	发 
+c01-no-run-spacing-cell+60	1	765.34	91.10	123.08	752.63	768.28	ArialMT	14.04	- 8 - 
+c02-all-runs-spacing-9	1	89.78	93.98	317.75	77.72	91.76	FangSong	14.04	抄送：市委办，市人大办、政协办。 
+c02-all-runs-spacing-9	1	120.14	94.22	236.75	108.08	122.12	FangSong	14.04	嵊州市人民政府办公室 
+c02-all-runs-spacing-9	1	120.26	380.71	500.02	107.75	123.29	TimesNewRomanPSMT+FangSong	14.04	2024 年 9 月 3  日印
+c02-all-runs-spacing-9	1	136.46	380.71	401.29	124.40	138.44	FangSong	14.04	发 
+c02-all-runs-spacing-9	1	765.34	91.10	123.08	752.63	768.28	ArialMT	14.04	- 8 - 
+d00-browallia-ascii	1	93.86	63.86	153.57	80.07	98.47	Browallia New+Calibri	15.96+12	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+d00-browallia-ascii	1	129.86	63.86	177.93	116.07	134.47	Browallia New+Calibri	15.96+12	"""""""""""""""""""""""""""""" 
+d00-browallia-ascii	1	165.86	63.86	240.96	152.07	170.47	Browallia New+Calibri	15.96+12	############################## 
+d00-browallia-ascii	1	201.86	63.86	240.96	188.07	206.47	Browallia New+Calibri	15.96+12	$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ 
+d00-browallia-ascii	1	237.86	63.86	345.26	224.07	242.47	Browallia New+Calibri	15.96+12	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+d00-browallia-ascii	1	273.89	63.86	275.64	260.10	278.50	Browallia New+Calibri	15.96+12	&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& 
+d00-browallia-ascii	1	309.89	63.86	126.33	296.10	314.50	Browallia New+Calibri	15.96+12	'''''''''''''''''''''''''''''' 
+d00-browallia-ascii	1	345.89	63.86	170.85	332.10	350.50	Browallia New+Calibri	15.96+12	(((((((((((((((((((((((((((((( 
+d00-browallia-ascii	1	381.89	63.86	170.85	368.10	386.50	Browallia New+Calibri	15.96+12	)))))))))))))))))))))))))))))) 
+d00-browallia-ascii	1	417.89	63.86	188.52	404.10	422.50	Browallia New+Calibri	15.96+12	****************************** 
+d00-browallia-ascii	1	453.91	63.86	249.72	440.12	458.52	Browallia New+Calibri	15.96+12	++++++++++++++++++++++++++++++ 
+d00-browallia-ascii	1	489.91	63.86	153.57	476.12	494.52	Browallia New+Calibri	15.96+12	,,,,,,,,,,,,,,,,,,,,,,,,,,,,,, 
+d00-browallia-ascii	1	525.91	63.86	170.85	512.12	530.52	Browallia New+Calibri	15.96+12	------------------------------ 
+d00-browallia-ascii	1	561.91	63.86	153.57	548.12	566.52	Browallia New+Calibri	15.96+12	.............................. 
+d00-browallia-ascii	1	597.91	63.86	153.57	584.12	602.52	Browallia New+Calibri	15.96+12	////////////////////////////// 
+d00-browallia-ascii	1	633.94	63.86	240.96	620.15	638.55	Browallia New+Calibri	15.96+12	000000000000000000000000000000 
+d00-browallia-ascii	1	669.94	63.86	240.96	656.15	674.55	Browallia New+Calibri	15.96+12	111111111111111111111111111111 
+d00-browallia-ascii	1	705.94	63.86	240.96	692.15	710.55	Browallia New+Calibri	15.96+12	222222222222222222222222222222 
+d00-browallia-ascii	1	741.94	63.86	240.96	728.15	746.55	Browallia New+Calibri	15.96+12	333333333333333333333333333333 
+d00-browallia-ascii	1	777.58	295.25	302.54	770.11	780.07	Calibri	9.96	1 
+d00-browallia-ascii	2	93.86	63.86	240.96	80.07	98.47	Browallia New+Calibri	15.96+12	444444444444444444444444444444 
+d00-browallia-ascii	2	129.86	63.86	240.96	116.07	134.47	Browallia New+Calibri	15.96+12	555555555555555555555555555555 
+d00-browallia-ascii	2	165.86	63.86	240.96	152.07	170.47	Browallia New+Calibri	15.96+12	666666666666666666666666666666 
+d00-browallia-ascii	2	201.86	63.86	240.96	188.07	206.47	Browallia New+Calibri	15.96+12	777777777777777777777777777777 
+d00-browallia-ascii	2	237.86	63.86	240.96	224.07	242.47	Browallia New+Calibri	15.96+12	888888888888888888888888888888 
+d00-browallia-ascii	2	273.89	63.86	240.96	260.10	278.50	Browallia New+Calibri	15.96+12	999999999999999999999999999999 
+d00-browallia-ascii	2	309.89	63.86	153.57	296.10	314.50	Browallia New+Calibri	15.96+12	:::::::::::::::::::::::::::::: 
+d00-browallia-ascii	2	345.89	63.86	153.57	332.10	350.50	Browallia New+Calibri	15.96+12	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+d00-browallia-ascii	2	381.89	63.86	249.72	368.10	386.50	Browallia New+Calibri	15.96+12	<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< 
+d00-browallia-ascii	2	417.89	63.86	249.72	404.10	422.50	Browallia New+Calibri	15.96+12	============================== 
+d00-browallia-ascii	2	453.91	63.86	249.72	440.12	458.52	Browallia New+Calibri	15.96+12	>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> 
+d00-browallia-ascii	2	489.91	63.86	240.96	476.12	494.52	Browallia New+Calibri	15.96+12	?????????????????????????????? 
+d00-browallia-ascii	2	525.91	63.86	384.74	512.12	530.52	Browallia New+Calibri	15.96+12	@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ 
+d00-browallia-ascii	2	561.91	63.86	275.64	548.12	566.52	Browallia New+Calibri	15.96+12	AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 
+d00-browallia-ascii	2	597.91	63.86	275.64	584.12	602.52	Browallia New+Calibri	15.96+12	BBBBBBBBBBBBBBBBBBBBBBBBBBBBBB 
+d00-browallia-ascii	2	633.94	63.86	292.80	620.15	638.55	Browallia New+Calibri	15.96+12	CCCCCCCCCCCCCCCCCCCCCCCCCCCCCC 
+d00-browallia-ascii	2	669.94	63.86	292.80	656.15	674.55	Browallia New+Calibri	15.96+12	DDDDDDDDDDDDDDDDDDDDDDDDDDDDDD 
+d00-browallia-ascii	2	705.94	63.86	275.64	692.15	710.55	Browallia New+Calibri	15.96+12	EEEEEEEEEEEEEEEEEEEEEEEEEEEEEE 
+d00-browallia-ascii	2	741.94	63.86	258.12	728.15	746.55	Browallia New+Calibri	15.96+12	FFFFFFFFFFFFFFFFFFFFFFFFFFFFFF 
+d00-browallia-ascii	2	777.58	295.25	302.54	770.11	780.07	Calibri	9.96	2 
+d00-browallia-ascii	3	93.86	63.86	310.44	80.07	98.47	Browallia New+Calibri	15.96+12	GGGGGGGGGGGGGGGGGGGGGGGGGGGGGG 
+d00-browallia-ascii	3	129.86	63.86	292.80	116.07	134.47	Browallia New+Calibri	15.96+12	HHHHHHHHHHHHHHHHHHHHHHHHHHHHHH 
+d00-browallia-ascii	3	165.86	63.86	153.57	152.07	170.47	Browallia New+Calibri	15.96+12	IIIIIIIIIIIIIIIIIIIIIIIIIIIIII 
+d00-browallia-ascii	3	201.86	63.86	223.08	188.07	206.47	Browallia New+Calibri	15.96+12	JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ 
+d00-browallia-ascii	3	237.86	63.86	275.64	224.07	242.47	Browallia New+Calibri	15.96+12	KKKKKKKKKKKKKKKKKKKKKKKKKKKKKK 
+d00-browallia-ascii	3	273.89	63.86	240.96	260.10	278.50	Browallia New+Calibri	15.96+12	LLLLLLLLLLLLLLLLLLLLLLLLLLLLLL 
+d00-browallia-ascii	3	309.89	63.86	327.62	296.10	314.50	Browallia New+Calibri	15.96+12	MMMMMMMMMMMMMMMMMMMMMMMMMMMMMM 
+d00-browallia-ascii	3	345.89	63.86	292.80	332.10	350.50	Browallia New+Calibri	15.96+12	NNNNNNNNNNNNNNNNNNNNNNNNNNNNNN 
+d00-browallia-ascii	3	381.89	63.86	310.44	368.10	386.50	Browallia New+Calibri	15.96+12	OOOOOOOOOOOOOOOOOOOOOOOOOOOOOO 
+d00-browallia-ascii	3	417.89	63.86	275.64	404.10	422.50	Browallia New+Calibri	15.96+12	PPPPPPPPPPPPPPPPPPPPPPPPPPPPPP 
+d00-browallia-ascii	3	453.91	63.86	310.44	440.12	458.52	Browallia New+Calibri	15.96+12	QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ 
+d00-browallia-ascii	3	489.91	63.86	292.80	476.12	494.52	Browallia New+Calibri	15.96+12	RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR 
+d00-browallia-ascii	3	525.91	63.86	275.64	512.12	530.52	Browallia New+Calibri	15.96+12	SSSSSSSSSSSSSSSSSSSSSSSSSSSSSS 
+d00-browallia-ascii	3	561.91	63.86	258.12	548.12	566.52	Browallia New+Calibri	15.96+12	TTTTTTTTTTTTTTTTTTTTTTTTTTTTTT 
+d00-browallia-ascii	3	597.91	63.86	292.80	584.12	602.52	Browallia New+Calibri	15.96+12	UUUUUUUUUUUUUUUUUUUUUUUUUUUUUU 
+d00-browallia-ascii	3	633.94	63.86	275.64	620.15	638.55	Browallia New+Calibri	15.96+12	VVVVVVVVVVVVVVVVVVVVVVVVVVVVVV 
+d00-browallia-ascii	3	669.94	63.86	362.42	656.15	674.55	Browallia New+Calibri	15.96+12	WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW 
+d00-browallia-ascii	3	705.94	63.86	275.64	692.15	710.55	Browallia New+Calibri	15.96+12	XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX 
+d00-browallia-ascii	3	741.94	63.86	275.64	728.15	746.55	Browallia New+Calibri	15.96+12	YYYYYYYYYYYYYYYYYYYYYYYYYYYYYY 
+d00-browallia-ascii	3	777.58	295.25	302.54	770.11	780.07	Calibri	9.96	3 
+d00-browallia-ascii	4	93.86	63.86	258.12	80.07	98.47	Browallia New+Calibri	15.96+12	ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ 
+d00-browallia-ascii	4	129.86	63.86	153.57	116.07	134.47	Browallia New+Calibri	15.96+12	[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[ 
+d00-browallia-ascii	4	165.86	63.86	153.57	152.07	170.47	Browallia New+Calibri	15.96+12	\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ 
+d00-browallia-ascii	4	201.86	63.86	153.57	188.07	206.47	Browallia New+Calibri	15.96+12	]]]]]]]]]]]]]]]]]]]]]]]]]]]]]] 
+d00-browallia-ascii	4	237.86	63.86	213.60	224.07	242.47	Browallia New+Calibri	15.96+12	^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ 
+d00-browallia-ascii	4	273.89	63.86	240.96	260.10	278.50	Browallia New+Calibri	15.96+12	______________________________ 
+d00-browallia-ascii	4	309.89	63.86	170.85	296.10	314.50	Browallia New+Calibri	15.96+12	`````````````````````````````` 
+d00-browallia-ascii	4	345.89	63.86	240.96	332.10	350.50	Browallia New+Calibri	15.96+12	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 
+d00-browallia-ascii	4	381.89	63.86	240.96	368.10	386.50	Browallia New+Calibri	15.96+12	bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb 
+d00-browallia-ascii	4	417.89	63.86	223.08	404.10	422.50	Browallia New+Calibri	15.96+12	cccccccccccccccccccccccccccccc 
+d00-browallia-ascii	4	453.91	63.86	240.96	440.12	458.52	Browallia New+Calibri	15.96+12	dddddddddddddddddddddddddddddd 
+d00-browallia-ascii	4	489.91	63.86	240.96	476.12	494.52	Browallia New+Calibri	15.96+12	eeeeeeeeeeeeeeeeeeeeeeeeeeeeee 
+d00-browallia-ascii	4	525.91	63.86	153.57	512.12	530.52	Browallia New+Calibri	15.96+12	ffffffffffffffffffffffffffffff 
+d00-browallia-ascii	4	561.91	63.86	240.96	548.12	566.52	Browallia New+Calibri	15.96+12	gggggggggggggggggggggggggggggg 
+d00-browallia-ascii	4	597.91	63.86	240.96	584.12	602.52	Browallia New+Calibri	15.96+12	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhh 
+d00-browallia-ascii	4	633.94	63.86	136.17	620.15	638.55	Browallia New+Calibri	15.96+12	iiiiiiiiiiiiiiiiiiiiiiiiiiiiii 
+d00-browallia-ascii	4	669.94	63.86	136.17	656.15	674.55	Browallia New+Calibri	15.96+12	jjjjjjjjjjjjjjjjjjjjjjjjjjjjjj 
+d00-browallia-ascii	4	705.94	63.86	223.08	692.15	710.55	Browallia New+Calibri	15.96+12	kkkkkkkkkkkkkkkkkkkkkkkkkkkkkk 
+d00-browallia-ascii	4	741.94	63.86	136.17	728.15	746.55	Browallia New+Calibri	15.96+12	llllllllllllllllllllllllllllll 
+d00-browallia-ascii	4	777.58	295.25	302.54	770.11	780.07	Calibri	9.96	4 
+d00-browallia-ascii	5	93.86	63.86	327.62	80.07	98.47	Browallia New+Calibri	15.96+12	mmmmmmmmmmmmmmmmmmmmmmmmmmmmmm 
+d00-browallia-ascii	5	129.86	63.86	240.96	116.07	134.47	Browallia New+Calibri	15.96+12	nnnnnnnnnnnnnnnnnnnnnnnnnnnnnn 
+d00-browallia-ascii	5	165.86	63.86	240.96	152.07	170.47	Browallia New+Calibri	15.96+12	oooooooooooooooooooooooooooooo 
+d00-browallia-ascii	5	201.86	63.86	240.96	188.07	206.47	Browallia New+Calibri	15.96+12	pppppppppppppppppppppppppppppp 
+d00-browallia-ascii	5	237.86	63.86	240.96	224.07	242.47	Browallia New+Calibri	15.96+12	qqqqqqqqqqqqqqqqqqqqqqqqqqqqqq 
+d00-browallia-ascii	5	273.89	63.86	170.85	260.10	278.50	Browallia New+Calibri	15.96+12	rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr 
+d00-browallia-ascii	5	309.89	63.86	223.08	296.10	314.50	Browallia New+Calibri	15.96+12	ssssssssssssssssssssssssssssss 
+d00-browallia-ascii	5	345.89	63.86	153.57	332.10	350.50	Browallia New+Calibri	15.96+12	tttttttttttttttttttttttttttttt 
+d00-browallia-ascii	5	381.89	63.86	240.96	368.10	386.50	Browallia New+Calibri	15.96+12	uuuuuuuuuuuuuuuuuuuuuuuuuuuuuu 
+d00-browallia-ascii	5	417.89	63.86	223.08	404.10	422.50	Browallia New+Calibri	15.96+12	vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv 
+d00-browallia-ascii	5	453.91	63.86	292.80	440.12	458.52	Browallia New+Calibri	15.96+12	wwwwwwwwwwwwwwwwwwwwwwwwwwwwww 
+d00-browallia-ascii	5	489.91	63.86	223.08	476.12	494.52	Browallia New+Calibri	15.96+12	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx 
+d00-browallia-ascii	5	525.91	63.86	223.08	512.12	530.52	Browallia New+Calibri	15.96+12	yyyyyyyyyyyyyyyyyyyyyyyyyyyyyy 
+d00-browallia-ascii	5	561.91	63.86	223.08	548.12	566.52	Browallia New+Calibri	15.96+12	zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz 
+d00-browallia-ascii	5	597.91	63.86	171.33	584.12	602.52	Browallia New+Calibri	15.96+12	{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{ 
+d00-browallia-ascii	5	633.94	63.86	147.93	620.15	638.55	Browallia New+Calibri	15.96+12	|||||||||||||||||||||||||||||| 
+d00-browallia-ascii	5	669.94	63.86	171.33	656.15	674.55	Browallia New+Calibri	15.96+12	}}}}}}}}}}}}}}}}}}}}}}}}}}}}}} 
+d00-browallia-ascii	5	705.94	63.86	249.72	692.15	710.55	Browallia New+Calibri	15.96+12	~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+d00-browallia-ascii	5	741.94	63.86	312.12	728.15	746.55	Browallia New+Calibri	15.96+12	|                              | 
+d00-browallia-ascii	5	777.58	295.25	302.54	770.11	780.07	Calibri	9.96	5 
