@@ -2250,6 +2250,32 @@ enum DocxFormat {
                         }
                     }
                 }
+                // (A fixed table of a stated share whose cells all state widths, each row the
+                // same, a little under its grid: Word rules the cells' widths, not the grid.
+                // zh-4a90bb2f's table, 6306 pct of a 442pt column over a grid of 11267 twips,
+                // cells 1914 5515 939 1336 1464 = 11168: rules at 95.8 and 371.8pt from the left
+                // edge in Word's print, the cells' 95.7 and 371.5, the grid's 96.6 and 372.7.)
+                if let cols = tableColumns[id], node.first("w:tblPr")?.first("w:tblLayout")?["w:type"] == "fixed",
+                   node.first("w:tblPr")?.first("w:tblW")?["w:type"] == "pct" {
+                    var widths: [Double]? = nil
+                    var same = true
+                    for tr in unwrapped(node, "w:tr") {
+                        var row: [Double] = []
+                        // (Rows with merged cells are left out: the whole-width rows state their own.)
+                        if tr.first("w:trPr")?.first("w:gridBefore") != nil || unwrapped(tr, "w:tc").contains(where: { $0.first("w:tcPr")?.first("w:gridSpan") != nil }) { continue }
+                        for tc in unwrapped(tr, "w:tc") {
+                            let w = tc.first("w:tcPr")?.first("w:tcW")
+                            guard w?["w:type"] == "dxa", let v = Double(w?["w:w"] ?? ""), v > 0 else { same = false; break }
+                            row.append(v / 20)
+                        }
+                        if !same || row.count != cols.count { same = false; break }
+                        if let first = widths { if first != row { same = false; break } } else { widths = row }
+                    }
+                    if same, let w = widths {
+                        let total = w.reduce(0, +), gridTotal = cols.reduce(0, +)
+                        if total < gridTotal - 1, total > gridTotal * 0.95 { tableColumns[id] = w }
+                    }
+                }
                 // (A table with no grid at all has its first row's cells for one:
                 // LibreOffice's floattable-nested-3tables, tables of 2000-twip
                 // cells, wraps "before the middle table:" in them in Word's print.)
