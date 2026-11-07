@@ -6533,9 +6533,11 @@ enum DocxFormat {
             if let rPr = r.first("w:rPr") {
                 // The run's character style first, then its own properties.
                 let runText = r.children.filter { $0.name == "w:t" }.map(\.text).joined()
+                // (A run flagged w:rtl whose text is digits and marks, no letters, is complex
+                // script too: Word sets heb-z5059159's "1" in the szCs 12, not the sz 11.)
                 let complex = runText.unicodeScalars.contains {
                     (0x0590...0x08FF).contains($0.value) || (0xFB1D...0xFDFF).contains($0.value) || (0xFE70...0xFEFF).contains($0.value)
-                }
+                } || (rPr.first("w:rtl") != nil && !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A })
                 // (Not the Hyperlink character style inside a table of contents:
                 // Word prints its entries in the TOC paragraph's own look, black
                 // and plain, whatever the runs name.)
