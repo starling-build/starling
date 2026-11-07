@@ -26,6 +26,9 @@ final class XNode {
     var attrs: [String: String]
     var children: [XNode] = []
     var text = ""
+    /// A table laid out right to left (`w:bidiVisual`) is walked as this mirrored copy
+    /// (its columns in reverse order); the original is what a save keeps.
+    var mirroredFrom: XNode? = nil
 
     init(name: String, attrs: [String: String]) {
         self.name = name
@@ -1765,7 +1768,11 @@ enum DocxFormat {
             // set at zero height it still made the row 14pt taller, and the final line went to a page of its own.)
             if Self.wordOnWindows, paragraphs.count - 1 > first, paragraphs[last].cell != nil, paragraphs[last - 1].cell == paragraphs[last].cell { paragraphs.removeLast() }
         }
-        func walkBlock(_ node: XNode, indent: Double, depth: Int = 0) {
+        func walkBlock(_ source: XNode, indent: Double, depth: Int = 0) {
+            // (A table with w:bidiVisual runs its first column at the right edge: Word's
+            // ara-z8215570 header has the Urdu title cell right, the date left; walked
+            // in file order ours drew them the other way round.)
+            let node = Self._mirroredTable(source)
             switch node.name {
             case "w:p":
                 let first = paragraphs.count
@@ -7288,7 +7295,28 @@ enum DocxFormat {
         return nests
     }
 
-    static func _keptFragment(_ node: XNode, _ notes: _Shared) -> (xml: String, rels: [KeptRel])? {
+    /// `node` with its columns in reverse order when it is a `w:bidiVisual` table; else `node`.
+    static func _mirroredTable(_ node: XNode) -> XNode {
+        guard node.name == "w:tbl", node.mirroredFrom == nil, let v = node.first("w:tblPr")?.first("w:bidiVisual"),
+              !["0", "false", "off"].contains((v["w:val"] ?? "1").lowercased()) else { return node }
+        let copy = XNode(name: node.name, attrs: node.attrs)
+        copy.mirroredFrom = node
+        for child in node.children {
+            if child.name == "w:tblGrid" {
+                let g = XNode(name: child.name, attrs: child.attrs)
+                g.children = child.children.filter { $0.name != "w:gridCol" } + child.children.filter { $0.name == "w:gridCol" }.reversed()
+                copy.children.append(g)
+            } else if child.name == "w:tr", child.children.allSatisfy({ ["w:tc", "w:trPr", "w:tblPrEx"].contains($0.name) }) {
+                let r = XNode(name: child.name, attrs: child.attrs)
+                r.children = child.children.filter { $0.name != "w:tc" } + child.children.filter { $0.name == "w:tc" }.reversed()
+                copy.children.append(r)
+            } else { copy.children.append(child) }
+        }
+        return copy
+    }
+
+    static func _keptFragment(_ given: XNode, _ notes: _Shared) -> (xml: String, rels: [KeptRel])? {
+        let node = given.mirroredFrom ?? given
         var found: [KeptRel] = []
         var prefixes = Set<String>()
         var stack = [node]
