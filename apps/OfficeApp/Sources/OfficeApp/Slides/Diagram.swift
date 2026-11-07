@@ -302,7 +302,7 @@ struct DiagramLayout {
                         let stated = n.presOf.compactMap { $0.text }.flatMap { $0.all("a:p") }.flatMap { $0.all("a:r") }
                             .compactMap { $0.first("a:rPr")?["sz"].flatMap(Double.init) }.max().map { $0 / 100 }
                         let size = stated ?? prim
-                        let need = Double(lines) * 1.2 * size + (n.value("tMarg") ?? 0.56 * prim) + (n.value("bMarg") ?? 0.56 * prim)
+                        let need = Double(lines) * 1.15 * size + (n.value("tMarg") ?? 0.56 * prim) + (n.value("bMarg") ?? 0.56 * prim)
                         if need > n.rect.height + 0.5 { return true }
                     }
                 }
