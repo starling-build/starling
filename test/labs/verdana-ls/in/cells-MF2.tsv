@@ -1,0 +1,13 @@
+cell	slide	row(0 top,1 bottom)	words (face)	end mark	spacing %
+1	1	0	Hamburg:Verdana | Hamburg:Verdana | Hamburg:Verdana	Verdana	100
+2	1	1	Hamburg:Verdana | Hamburg:Verdana | Hamburg:Calibri	Verdana	100
+3	2	0	Hamburg:Calibri | Hamburg:Verdana | Hamburg:Verdana	Verdana	100
+4	2	1	Hamburg:Verdana | Hamburg:Verdana | Hamburg:Verdana	Calibri	100
+5	3	0	Hamburg:Verdana | Hamburg:Verdana | Hamburg:Calibri	Calibri	100
+6	3	1	Hamburg:Verdana | Hamburg:Verdana | Hamburg:Verdana	Verdana	100
+7	4	0	Ham:Verdana | burg:Calibri	Calibri	90
+8	4	1	Ham:Verdana | burg:Verdana	Verdana	90
+9	5	0	Ham:Verdana | burg:Calibri	Calibri	110
+10	5	1	Ham:Verdana | burg:Verdana	Verdana	110
+11	6	0	Ham:Verdana | burg:Verdana	Calibri	90
+12	6	1	Ham:Verdana | burg:Verdana	Calibri	110

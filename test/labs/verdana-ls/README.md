@@ -11,3 +11,5 @@ Lab verdana-em (genem.py -> in/E.pptx, 8 slides, rows in in/cells-E.tsv: face, r
 Print E.pptx to PDF as before; the line table as E-WORD.tsv. Question: does the end-paragraph mark's size change a line that has text (its height, its baseline)?
 
 Lab verdana-mf (genmf.py -> in/MF.pptx, 13 slides, rows in in/cells-MF.tsv): the word "Hamburg" in 1-3 runs of different faces/sizes, end mark in the last run's face or another face. Each cell is two boxes: left column centred, right column top-anchored; cell 2k+1 in the top row of slide k+1, cell 2k+2 in the bottom row. Print to PDF; line table as MF-WORD.tsv.
+
+Lab verdana-mf2 (genmf2.py -> in/MF2.pptx, 6 slides, in/cells-MF2.tsv): Verdana 24 paragraphs in a 252 pt box that wrap to two lines (Calibri on line 2 only, line 1 only, mark only) and Verdana+Calibri single lines at 90/110%. Two cells per slide, centred (left) and top (right). Print as MF2-WORD.tsv.
