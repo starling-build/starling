@@ -1,0 +1,1 @@
+The 1 pt is in the tdf paragraph XML. Base = tdf box anchor top, top inset 0 (prints 43.34; plain-lab paragraph prints 44.42). Z1 = end mark cut to lang+sz only; Z3 = end mark removed (valid this time); Z4 = plain-lab pPr with tdf runs and end mark; Z5 = tdf pPr with plain-lab runs and end mark. Give the baseline of the one line each (44.4 = fixed, 43.3 = not).
