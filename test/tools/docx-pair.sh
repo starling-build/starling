@@ -51,6 +51,10 @@ esac
 # xb: the admitted batch-B documents that have a Windows print (interim set before the corpus swap; lives in the cache,
 # not in git: $STARLING_CORPUS/staging/xb/{docs,word-win}, stems listed in test/corpus/docx/xb/manifest.tsv)
 corpus() { case $1 in 756) echo "$ROOT/test/corpus/docx";; lo) echo "$ROOT/test/corpus/docx/lo";; xb) echo "${STARLING_CORPUS:-/data/corpus-cache}/staging/xb";; esac; }
+# base_ok SET FILE — stored/cached base scores usable for the set? xb's membership has changed (a base with another
+# number of rows than the set has prints would show every new document as missing), so its row count must match.
+base_ok() { [ "$1" = xb ] || return 0; local C n; C=$(corpus xb); n=$(ls "$C"/word-win/*-orig.pdf 2>/dev/null | wc -l)
+  [ "$(grep -c '%  lines ' "$2" 2>/dev/null)" = "$n" ]; }
 # sweep BIN WORK SET → WORK/match-v2.txt, match-v1.txt
 sweep() {
   local BIN=$1 WORK=$2 SET=$3 C; C=$(corpus "$SET"); mkdir -p "$WORK/pdf" "$WORK/err"; : > "$WORK/fail.txt"
@@ -105,10 +109,10 @@ have=$(git show "$BASE_REV:$STORED/STAMP" 2>/dev/null || true)
 if [ $SEED = 0 ] && [ -n "${BASE_SCORES:-}" ]; then
   # BASE_SCORES: a directory holding <set>.{v2,v1} of the base — the shared base cache (test/tools/base-cache.sh)
   echo "base: scores from $BASE_SCORES (shared cache) — base sweep skipped"
-  for S in $SETS; do if [ -s "$BASE_SCORES/$S.v2" ]; then for v in v2 v1; do cp "$BASE_SCORES/$S.$v" "$BASE/$S.$v" || exit 2; done; else NEEDBASE="$NEEDBASE $S"; fi; done
+  for S in $SETS; do if [ -s "$BASE_SCORES/$S.v2" ] && base_ok $S "$BASE_SCORES/$S.v2"; then for v in v2 v1; do cp "$BASE_SCORES/$S.$v" "$BASE/$S.$v" || exit 2; done; else NEEDBASE="$NEEDBASE $S"; fi; done
 elif [ $SEED = 0 ] && [ "$want" = "$have" ]; then
   echo "base: stored scores of $HOST match $BASE_REV's stamp — base sweep skipped"
-  for S in $SETS; do if git cat-file -e "$BASE_REV:$STORED/$S.v2" 2>/dev/null; then for v in v2 v1; do git show "$BASE_REV:$STORED/$S.$v" > "$BASE/$S.$v"; done; else NEEDBASE="$NEEDBASE $S"; fi; done
+  for S in $SETS; do if git cat-file -e "$BASE_REV:$STORED/$S.v2" 2>/dev/null && { git show "$BASE_REV:$STORED/$S.v2" > "$BASE/$S.v2"; base_ok $S "$BASE/$S.v2"; }; then git show "$BASE_REV:$STORED/$S.v1" > "$BASE/$S.v1"; else NEEDBASE="$NEEDBASE $S"; fi; done
 elif [ $SEED = 0 ]; then
   echo "base: no stored scores for $HOST at $BASE_REV's stamp (stored: $( [ -n "$have" ] && echo different || echo none )) — sweeping BASEBIN"
   # (swept beside the fix below, not before it: both are waited for together)
