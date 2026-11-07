@@ -7302,7 +7302,11 @@ extension ChartPainter {
                 // box stood inside the frame's foot (ours 14pt low, the
                 // default past the frame). Other chart hosts retain their
                 // separately measured paths.
-                if l.fitted, c.type == .pie, c.ofPie == nil, !c.onSlide, !c.onSheet {
+                // (A bar of pie's label that says bestFit itself, under a group that says outEnd: zh-b8de3ae2's
+                // "捐贈及贈與收入, 32.13%" default stands 50pt further in, as fitted, in Word's print.)
+                if (l.fitted || (c.ofPie != nil && l.pointPositions[s.index] == "bestFit")), c.type == .pie, !c.onSlide, !c.onSheet {
+                    // (Its box as wide as its widest line and 3pt: the layout's width is the room it was given.)
+                    let w = c.ofPie != nil && !l.fitted ? (tp.computeLineMetrics().map(\.width).max() ?? tp.width) + pad : w
                     at = Offset(min(max(at.dx, frame.left + w / 2), frame.right - w / 2),
                                 min(max(at.dy, frame.top + h / 2), frame.bottom - h / 2))
                 }
