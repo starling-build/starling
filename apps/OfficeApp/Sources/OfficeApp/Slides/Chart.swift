@@ -622,6 +622,8 @@ struct Chart: Equatable {
         var boxWidths: [Int: Double] = [:]
         /// A point's own `c:dLblPos`.
         var pointPositions: [Int: String] = [:]
+        /// The points whose own label the file deletes (`c:dLbl/c:delete`): Word draws none for them.
+        var deleted: Set<Int> = []
         /// A point's own text size, from its label's own rich text.
         var sizes: [Int: Double] = [:]
         /// A point's label as the file writes it (`c:dLbl/c:tx/c:rich`),
@@ -1788,6 +1790,8 @@ enum ChartXML {
             var ends = pos == "outEnd"
             for one in d.all("c:dLbl") {
                 guard let i = one.first("c:idx")?["val"].flatMap(Int.init) else { continue }
+                // (A point's deleted label: lab pie1's lone-label documents delete seven of eight, Word prints one; ours printed all eight.)
+                if ["1", "true"].contains(one.first("c:delete")?["val"] ?? "") { l.deleted.insert(i); continue }
                 if let p = one.first("c:dLblPos")?["val"] { l.pointPositions[i] = p }
                 if let p = one.first("c:dLblPos")?["val"], ["outEnd", "bestFit"].contains(p) {
                     l.outside = true
@@ -6973,6 +6977,7 @@ extension ChartPainter {
         var taken: [Rect] = []
         for s in slices {
             lift = pulled?(s.index) ?? .zero
+            if l.deleted.contains(s.index) { continue }
             // (A Word pie's label that says where it stands inside — centre, inside end, inside base — is
             // placed so whatever the other labels do: lab pielabel's prints.)
             var l = l
