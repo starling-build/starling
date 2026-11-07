@@ -1,0 +1,1 @@
+dx2: stratified docxcorp.us sample (<=30 per language, 10 types, <=40 pages, no e-mail/phone/CV). Docs NOT in git: /data/corpus-cache/staging/dx2/docs/<doc_id>.docx; re-fetch from source_url (sha256 in manifest). render column: ok|blank|timeout|crash (our Windows-mode render, 120 s limit). Sampler: test/tools/dx2-sample.py.
