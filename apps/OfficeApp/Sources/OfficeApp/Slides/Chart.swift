@@ -2709,8 +2709,14 @@ enum ChartPainter {
             // square, the names 6.9 from the key's edge and the entries 1.3 pt closer, the row 1.2 pt lower,
             // in PowerPoint's print of LIBRE_OFFICE-100610-0's pie and bar charts, ours 5.5 and 8.8 away.)
             let bareLegend = c.onSlide && !beside && c.legendSize == nil && !c.legendSized && c.textSize == nil && !c.styled2013 && !c.officeStyled
-            let key = wideKeys ? 19.2 * k : libreLegend ? 6.12 * k * m : bareLegend ? 3.7 * k * m : (c.onSlide ? 6.57 : 7) * k * m, gap = libreLegend ? 2.64 * k * m : bareLegend ? 4.5 * k * m : (c.onSlide ? 2.92 : 4) * k * m
+            // (A row of keys under or over a Word chart, 2007 style: keys 4.9 square and 2.2 before the names at 9 pt, 5.8 and 2.6 at
+            // 10.5 — 0.653 and 0.293 of the legend's size over 9: zh-b8de3ae2 p9/12/15/18, zh-547fc43c, chartex, 61745.)
+            let wordRowKeys = !c.onSlide && !c.onSheet && !c.chartex && !beside && !wideKeys && !libreLegend && !bareLegend
+                && !(c.type == .line || c.type == .radar || c.type == .scatter)
+            let key = wideKeys ? 19.2 * k : libreLegend ? 6.12 * k * m : bareLegend ? 3.7 * k * m : wordRowKeys ? 6.53 * k * m : (c.onSlide ? 6.57 : 7) * k * m, gap = libreLegend ? 2.64 * k * m : bareLegend ? 4.5 * k * m : wordRowKeys ? 2.93 * k * m : (c.onSlide ? 2.92 : 4) * k * m
             var spacing = (printed ? (c.styled2013 ? 11.2 : bareLegend ? 11.8 : 13.9) : c.styled2013 ? 9.5 : 12) * k * m + (wideKeys ? 1.3 * k : 0)
+            // (Names in Latin letters only stand 1.4 pt further apart at 9 pt than CJK ones do: chartex's and 61745's "Series 1" pitch 44.05 against 42.65.)
+            if wordRowKeys, names.allSatisfy({ $0.unicodeScalars.allSatisfy { $0.isASCII } }) { spacing += 1.87 * k * m }
             let keyDrop = printed && c.styled2013 ? 1.3 * k * m : 0
             // A line's key is a stroke 19.2 pt long whatever the text's
             // size, ending 2 pt before its name; in a row, 3.6 more before
@@ -2947,7 +2953,8 @@ enum ChartPainter {
             }
             // (The plot keeps the room it had; only the rows are drawn further apart, the first 5.9 higher.)
             if wordPieRows { lineHs = lineHs.map { $0 + 5.9 * k }; y -= 5.9 * k * Double(lines.count - 1) }
-            let middle = printed ? r.center.dx + 2.28 * k * m : area.center.dx
+            // (Word's row of 2007-style keys stands 1.9 pt right of the middle at 9 pt, as a slide's does 2.28 m: zh-b8de3ae2 p9/12/15/18, chartex, 61745.)
+            let middle = printed ? r.center.dx + 2.28 * k * m : wordRowKeys ? area.center.dx + 2.5 * k * m : area.center.dx
             // (A column of entries in a box of the legend's own on a slide stands left-aligned, the widest entry's width centred on
             // the box's middle and 0.19 of the size to its right: 5864 slide 16's five 16 pt entries in PowerPoint's print, all
             // text at 282.6 pt where ours centred each entry on its own.)
@@ -4757,6 +4764,30 @@ enum ChartPainter {
                     let w = frame.width / k
                     func fitted() -> (left: Double, right: Double) {
                         let h = (whole.bottom - whole.top) / k
+                        // (Where the chart has a value-axis title, Word's wall by the frame's shape and the value labels' width: lab bar3dleft, 15 prints of
+                        // zh-b8de3ae2's chart 3 in 400-560 pt by 260-400 pt frames, number formats and value sizes. Both insets are one curve of the
+                        // frame's width over its height (a 400 pt tall frame and a 480 pt wide one print alike): the labels start t in from the frame's
+                        // left, the wall ends r in from its right, each a little less per point of label width, the axis 7.4 pt (and the format's ")"
+                        // gap) right of the labels, and the wall's left edge one depth beyond the axis: within 0.3 pt on the lab, p9/p12/p18 within 0.8.)
+                        if c.valueAxisTitle != nil {
+                            RuleTrace.hit("word-3d-columns-wall-by-the-frames-shape-and-the-value-labels")
+                            let rho = min(max(frame.width / max(frame.height, 1), 1.0), 2.3)
+                            let lw = (valueLabels.map(\.width).max() ?? 0) / k
+                            var pad = 0.0
+                            if let code = c.valueFormat, code.containsSubstring("_)") {
+                                let t = valueText(")", labelSize, .infinity)
+                                pad = t.width / k
+                                t.dispose()
+                            }
+                            let t = 4.2779 * rho * rho + 1.2012 * rho + 23.3635 - 0.0443 * (lw - 29.7)
+                            let r = 4.4255 * rho * rho + 0.8359 * rho + 7.2183 - 0.045 * (lw - 29.7)
+                            let front = (t + lw + pad + 7.4) * k + frame.left
+                            let right = frame.right - r * k
+                            let a = box.dx / max(plot.width, 1)
+                            // (The labels' right edge stands 7.4 pt and the ")" gap left of the axis, not 8.5.)
+                            valueLabelsBack = (8.5 - 7.4 - pad) * k
+                            return ((front + a * right) / (1 + a), right)
+                        }
                         let dL = 26.1085 - 0.0627 * h + 0.0449 * (w - 540)
                         let dR = -25.1969 + 0.0684 * h - 0.0505 * (w - 540)
                         return (plot.left + box.dx + dL * k, plot.right + box.dx + dR * k)
