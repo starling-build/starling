@@ -15141,3 +15141,5 @@ TIP WATCH amd-8, round 226 (fe5e9b277): Word no drops (six sections up 0 down 0)
 
 TIP WATCH amd-8, round 227 (cf19f7778): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0.
 - lenovo-2 2026-11-07 lo-f9b9a8fc label 5 DECIDED by lab pinsweep (164/164 docs printed): Word's pinned defaults are smooth and mirror-exact (max step 2 px), its AUTO best-fit places jump 3-39 px between half-degree steps and differ from their own mirrors by 9 px median / 20 px max (32 of 39 angles) - a chaotic step search inside Word, not a function of the geometry. By the agreed rule no lone-label pull rule is written; the landed 30/60 rule stays, lo-f9b9a8fc stays 87.5 (7/8) and label 5 is released as unexplained, the release call with the user. Read + table: docs/plans/pie-labels.md 'Lab pinsweep read'; reader test/lab/pie-fit/pinsweep.py (pie-fit tools committed with this push).
+
+TIP WATCH amd-8, round 228 (f3ea2f467): Word no drops (six sections up 0 down 0); unit tests 633, 0 failures; WEB build OK, layout exit 0.
