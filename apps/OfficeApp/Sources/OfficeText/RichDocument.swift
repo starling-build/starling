@@ -582,6 +582,8 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// shrink-to-fit's reduction treats otherwise (`RichTextTheme
     /// .baselineShift`). False — Word's — for every paragraph.
     public var lineSpacingUnstated = false
+    /// Slides: the face the paragraph's end mark names when it is not the last run's. PowerPoint counts it in the depth of the line that ends the paragraph.
+    public var endMarkFace: String? = nil
     /// Exact line height in points ("exactly 20 pt"), which then wins over
     /// `lineSpacing`; nil for a multiple.
     public var lineHeightPoints: Double? = nil

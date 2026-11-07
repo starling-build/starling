@@ -3554,6 +3554,9 @@ private struct SlideContext {
                 // list indent to the right and nothing else (GeomLec1's body:
                 // PowerPoint's print keeps the text's order and its alignment).
                 else if own == nil, level.rtl == "1", style.list != nil { style.bulletAtEnd = true }
+                if let e = p.first("a:endParaRPr").map({ LevelStyle.run($0, colors).filled(from: level) }), _font(e.font) != runs.last?.style.fontFamily {
+                    style.endMarkFace = _font(e.font)
+                }
                 paragraphs.append(RichParagraph(text: text, runs: runs, style: style))
             }
             runLooks.append(looks)

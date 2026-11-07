@@ -733,6 +733,7 @@ extension RichLayout {
         guard theme.singleLineHeight != nil else { return 0 }
         let p = document.paragraphs[i]
         guard let run = p.runs.first else { return 0 }
+        if _mixedFace[i] == true { return 0 }
         if let points = p.style.lineHeightPoints, !p.style.lineHeightIsMinimum, let share = theme.exactLineDescentShare {
             // A line of so many points has its baseline a fixed share of
             // it down, whatever the face: the engine's own sets it by the

@@ -1438,6 +1438,7 @@ extension RichLayout {
         // (A larger number's height over the first line, where the
         // paragraph keeps its strut: see `laidOut`.)
         var numberLift = 0.0
+        func lines1(_ t: TextPainter) -> Bool { t.computeLineMetrics().count == 1 }
         func laidOut(_ span: TextSpan) -> TextPainter {
             let rises = Self._risesForNumber(inline)
             numberLift = 0
@@ -1742,6 +1743,11 @@ extension RichLayout {
         _floats[i] = p.image?.float
         _floatImages[i] = p.image?.float != nil ? p.image : nil
         var painter = laidOut(span)
+        _mixedFace[i] = nil
+        if lines1(painter), let mixed = _mixedFaceSpan(span, p) {
+            let again = laidOut(mixed)
+            if lines1(again) { painter.dispose(); painter = again; _mixedFace[i] = true } else { again.dispose() }
+        }
         // East Asian line ends, as Word sets them: a closing mark that
         // would start a line hangs past the margin instead, and a line
         // half an em too long for its last character takes it anyway,
