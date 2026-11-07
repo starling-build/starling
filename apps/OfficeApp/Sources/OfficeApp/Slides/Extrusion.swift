@@ -270,6 +270,7 @@ enum Extrusion {
             s.bevelH = (b["h"].flatMap(Double.init) ?? 76200) / Pptx.emu
             s.bevelPreset = b["prst"] ?? "circle"
         }
+        s.bevelBH = (sp3d?.first("a:bevelB")?["h"].flatMap(Double.init) ?? 0) / Pptx.emu
         s.contourColor = sp3d?.first("a:contourClr").flatMap(colors.color(in:))
         s.contourW = (sp3d?["contourW"].flatMap(Double.init) ?? 0) / Pptx.emu
         s.wireframe = sp3d?["prstMaterial"] == "legacyWireframe"
@@ -337,8 +338,10 @@ enum Extrusion {
         guard !rings.isEmpty else { return false }
         let c = r.center
         // Bevelled text under a rig other than morning prints deeper than its extrusionH: about the
-        // bevel's width more (amd-4's lab p3u: 9 pt, bounding boxes and cell scores, 9x3 and 9x9 alike).
-        let depth = (scene.depth + (rim && scene.rig != "morning" && scene.depth > 0 && scene.bevelW > 0 && scene.bevelH > 0 ? scene.bevelW : 0)) * px
+        // bevel's height more, or three quarters of the bottom bevel's if that is more: amd-4's lab p3u (a 9x3 or 9x9 top bevel
+        // and a 12 pt bottom one: 9 pt more, bounding boxes and cell scores) and lab p3pv (a 9x3 top bevel and no bottom one:
+        // 3.2 pt more at depths 36 and 72, left edges of the solids).
+        let depth = (scene.depth + (rim && scene.rig != "morning" && scene.depth > 0 && scene.bevelW > 0 && scene.bevelH > 0 ? max(scene.bevelH, 0.75 * scene.bevelBH) : 0)) * px
         // The camera turns one way; what is seen turns the other.
         let lat = -scene.lat * .pi / 180, lon = -scene.lon * .pi / 180, rev = -scene.rev * .pi / 180
         func turn(_ p: P3) -> P3 {
