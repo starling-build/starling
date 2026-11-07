@@ -1,6 +1,28 @@
 # Word flat-pie best-fit labels: the lo-f9b9a8fc label-5 jump (amd-opus, 2026-11-06)
 
-## Round 3 (lenovo-2, 2026-11-07, in progress): the raster, Word's box, and lab pie1
+### STATE OF PLAY (lenovo-2, 2026-11-07 ~10:00, for whoever continues; sections below hold the detail)
+
+Landed on office: cf784c4c0 (30/60-degree anchor table on Word's px raster, 0.75 centre-to-corner in the 13-30 deg zone,
+push-out until the pie pokes <= 1.5 px, leaders only from 9 pt off the rim), 0dc344f55 (per-point c:dLbl/c:delete honoured),
+and (landing now, wip/pie-bound in /data/s/lenovo-2/starling) the pie's CONTROL-POINT BOUND in place of R: each slice's arc as
+90-degree cubic segments from the slice start, the bound = the furthest any anchor/control point reaches along an axis
+(1.0346 R for 45-degree slices turned 15, 1.118 R for zh-37b6536f's 343-degree slice; zh-37b6536f 99.3 -> 100).
+lo-f9b9a8fc is 87.5 (7/8): label 5 (202.5 deg, layout B at frame 480-488 px) is the one miss.
+
+What is known about the miss (the "zone" interaction): only labels whose slice middle is 13-30 deg from vertical interact;
+the result is deterministic per chart (3 copies identical), independent of px phase and of the other slices' angles when
+alone, ORDER-dependent (zone label first: corner end; second: near its lone spot), piecewise constant in the partner's anchor
+sector (corner partner: zone label +15 px toward its corner, partner untouched; side partner: zone label -2/-2 px and the
+PARTNER moves to a 10 px grid 30/40/50 px under the zone label's bottom; inside/absent partner: nothing), and triples neither
+add nor max the pair moves. No overlap resolution exists (zh-37b6536f draws five labels on top of each other).
+Ruled out: loop-length drift, one shared counter, last-label, add/max, pure geometry (order matters), chaos from outside state.
+
+Open labs: piepin (wip/lab-piepin, 33 docs: one label pinned by a manualLayout at a time) on windows; advisor round 3 scoring a
+10 px candidate-slot search in the simulator (test/lab/pie-fit/sim.py + configs.py over all 535 prints, baseline 703/1489).
+Data: scratchpad lab TSVs (branches wip/lab-pie1/pie2/pieanchor/piezone(-2)-prints); loaders test/lab/pie-fit/{load,configs,sim,compare}.py.
+Next if the slot search fits: implement it as a joint pass in _pieLabels (probe pass to collect sizes, then place); gates as before.
+
+# Round 3 (lenovo-2, 2026-11-07, in progress): the raster, Word's box, and lab pie1
 
 Scripts: `test/lab/pie-fit/` (load.py reads every lab's TSVs; draw.py draws a print's boxes; pie1.py reads lab pie1).
 
