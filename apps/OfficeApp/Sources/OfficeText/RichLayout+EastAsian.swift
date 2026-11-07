@@ -1936,8 +1936,16 @@ extension RichLayout {
                     // space for an automatic one 5.4 and not 5.9.)
                     let latinPulled = RichTextTheme.wordWindowsPages && !inCell && !legacy && !onCharacterGrid && hang == 0
                         && !pageBox && units[a] < 0x2E80 && !circled(units[a]) && !autos.isEmpty
+                    // (Word for Windows, a line of Latin words between ideographs: past a quarter of each space
+                    // the marks and ideographs AFTER the last word space give too, a sixty-fourth em each, the
+                    // head before the Latin none. Lab `squeeze` (zh-25381d22, 12pt, "（Proof of Concept, PoC），…市約"):
+                    // takes "約" with 3.74 of need at right indent +0.5, not 4.24 at +1.0, the spaces' quarters
+                    // 2.34; its print has the tail's glyphs 0.12 short and the head's whole.)
+                    let tailSqueezers: [Int] = windowsAfterMarks && !latinPulled && !wordSpaces.isEmpty && !givers.isEmpty
+                        ? ((wordSpaces.last!.k + 1) ..< a).filter { units[$0] >= 0x2E80 && eastAsianAt($0) } : []
+                    let tailRoom: Double = Double(tailSqueezers.count) * em / 64
                     let roomSpaces = latinPulled ? em / 4 + autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * 0.3
-                        : givers.reduce(0.0) { $0 + $1.w * (windowsAfterMarks ? 0.25 : spaceGive($1.k)) } + roomAutos
+                        : givers.reduce(0.0) { $0 + $1.w * (windowsAfterMarks ? 0.25 : spaceGive($1.k)) } + roomAutos + tailRoom
                     // (And only where each space gives at most half of
                     // what each would stretch were the word left for the
                     // next line: lab `jg` (Word for Windows, Times New
@@ -1993,14 +2001,14 @@ extension RichLayout {
                     // five automatic spaces and a word space giving.)
                     let oldStretch: Double = spaceEms + autoRoom + allSpaces * (cellWindows ? 0.5 : 1)
                     let oldGive: Double = autoRoom * shareGive + allSpaces / 4
-                    let budgetGive: Double = autoRoom * shareGive + giverRoom
+                    let budgetGive: Double = autoRoom * shareGive + giverRoom + tailRoom
                     let sharesStretch: Bool = onCharacterGrid || (units[a] < 0x2E80 && !circled(units[a])) || (autos.isEmpty && !windowsAfterMarks)
                         || (windowsAfterMarks
                             ? need * budgetStretch <= budgetGive * (width - x + spaceTrail + hair)
                             : need * oldStretch <= oldGive * (width - x + hair))
                     if Self.debugFitLog {
                         let pt = theme.pixelsPerPoint * scale
-                        FileHandle.standardError.write(Data("FITS\t\(i)\t\(a)\t\(need / pt)\t\(roomSpaces / pt)\t\(autoRoom / pt)\t\(autos.count)\t\(wordSpaces.count)\t\(wordSpaces.reduce(0.0) { $0 + $1.w } / pt)\t\((width - x) / pt)\t\(halfStretch ? 1 : 0)\t\(sharesStretch ? 1 : 0)\t\(spaceEms / pt)\t\(inCell ? 1 : 0)\t\(windowsAfterMarks ? 1 : 0)\t\(quarterEach / pt)\t\(lineFrom)\t\(piece.b)\t\(String(String.UnicodeScalarView(units[a ..< min(a + 7, units.count)].compactMap { Unicode.Scalar(UInt32($0)) })))\n".utf8))
+                        FileHandle.standardError.write(Data("FITS\t\(i)\t\(a)\t\(need / pt)\t\(roomSpaces / pt)\t\(autoRoom / pt)\t\(autos.count)\t\(wordSpaces.count)\t\(wordSpaces.reduce(0.0) { $0 + $1.w } / pt)\t\((width - x) / pt)\t\(halfStretch ? 1 : 0)\t\(sharesStretch ? 1 : 0)\t\(spaceEms / pt)\t\(inCell ? 1 : 0)\t\(windowsAfterMarks ? 1 : 0)\t\(quarterEach / pt)\t\(lineFrom)\t\(piece.b)\t\(budgetGive / pt)\t\(budgetStretch / pt)\t\(spaceTrail / pt)\t\(String(String.UnicodeScalarView(units[a ..< min(a + 7, units.count)].compactMap { Unicode.Scalar(UInt32($0)) })))\n".utf8))
                     }
                     if need <= roomSpaces + hair, halfStretch, sharesStretch {
                         // (Each gives the same share of what it can.)
@@ -2008,6 +2016,7 @@ extension RichLayout {
                         if !latinPulled { for space in givers { adjust[space.k, default: 0] -= space.w * (windowsAfterMarks ? 0.25 : spaceGive(space.k)) * share } }
                         let autoShare = (latinPulled ? roomSpaces : roomAutos) / max(0.001, autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) })
                         for k in autos { adjust[k, default: 0] -= (gaps[k] ?? 0) * autoShare * share }
+                        for k in tailSqueezers { adjust[k, default: 0] -= em / 64 * share }
                         if after > 0 { adjust[last - 1, default: 0] -= after }
                         if hang > 0 { adjust[tail, default: 0] -= hang }
                         fits = true
