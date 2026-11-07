@@ -597,7 +597,8 @@ enum SheetFunctions {
         // In a dynamic formula a range's rows (columns) are an array: an
         // array formula's ROW(A1:A2000) is the bins 1 to 2000.
         t["ROW"] = { a, c in
-            if let f = a.first, case .range(let si, let r) = c.engine.evaluate(f, c) {
+            // A one-cell structured reference is a value to the evaluator; ROW needs its address.
+            if let f = a.first, case .range(let si, let r) = c.engine.refValue(f, c) {
                 if c.dynamic, r.rows > 1 {
                     let bottom = r.rows > 100_000 ? min(r.bottom, max(r.top, c.engine.usedExtent(si).row)) : r.bottom
                     return .array((r.top ... bottom).map { [.number(Double($0 + 1))] })
@@ -608,7 +609,7 @@ enum SheetFunctions {
             return .number(Double(c.cell.row + 1))
         }
         t["COLUMN"] = { a, c in
-            if let f = a.first, case .range(_, let r) = c.engine.evaluate(f, c) {
+            if let f = a.first, case .range(_, let r) = c.engine.refValue(f, c) {
                 if c.dynamic, r.cols > 1 { return .array([(r.left ... r.right).map { .number(Double($0 + 1)) }]) }
                 return .number(Double(r.left + 1))
             }

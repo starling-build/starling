@@ -194,6 +194,9 @@ extension SheetsTableTests {
         XCTAssertEqual(n(v("=COUNT(Table1[[gcc 4.4.0 (32)]:[Intel 11.1 (32)]])", at: "L1")), 21)
         XCTAssertEqual(n(v("=COUNTA(Table1[[#Headers],[gcc 4.4.0 (32)]:[VC++ 10 (32)]])", at: "L1")), 2)
         XCTAssertEqual(n(v("=ROWS(Table1[#All])", at: "L1")), 8)
+        // ROW/COLUMN of a one-cell structured reference give its address, not the formula's.
+        XCTAssertEqual(n(v("=ROW(Table1[[#This Row],[VC++ 10 (32)]])-ROW(Table1[[#Headers],[gcc 4.4.0 (32)]])", at: "L5")), 2)
+        XCTAssertEqual(n(v("=COLUMN(Table1[[#Headers],[VC++ 10 (32)]])", at: "A1")), 6)
         XCTAssertEqual(n(v("=ROWS(Table1)", at: "L1")), 7)                              // a bare name: its data rows
         XCTAssertEqual(v("=SUM(Table1[Nope])", at: "L1"), .error(.ref))
         XCTAssertEqual(v("=SUM(Nope[x])", at: "L1"), .error(.ref))

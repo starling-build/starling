@@ -22,6 +22,9 @@ enum SheetsCheck {
     static func run(_ paths: [String], maxDiffs: Int = Int(ProcessInfo.processInfo.environment["XLSX_CHECK_MAX"] ?? "") ?? 12) -> Int32 {
         var failed: Int32 = 0
         var total = Counts()
+        // XLSX_CHECK_VOLATILE=1: compare volatile cells too (a diff there
+        // is printed with "volatile" but not counted as a DIFF).
+        let includeVolatile = ProcessInfo.processInfo.environment["XLSX_CHECK_VOLATILE"] != nil
         for path in paths {
             let name = path.lastPathComponent
             guard let data = FileManager.default.contents(atPath: path) else {
@@ -45,12 +48,13 @@ enum SheetsCheck {
                     }
                     let f = cell.formula!
                     if Formula.usesUnknownFunction(f) { counts.kept += 1; continue }
-                    if volatile(f, c.book, sheet: si, seen: &volatileSeen) { counts.volatile += 1; continue }
+                    let isVol = volatile(f, c.book, sheet: si, seen: &volatileSeen)
+                    if isVol && !includeVolatile { counts.volatile += 1; continue }
                     let ours = c.engine.value(si, addr)
                     if same(ours, cached) { counts.ok += 1; continue }
-                    counts.diff += 1
+                    if isVol { counts.volatile += 1 } else { counts.diff += 1 }
                     if diffs.count < maxDiffs {
-                        diffs.append("  \(ws.name)!\(addr.a1)  \(cell.input)  \(show(ours)) | \(show(cached))")
+                        diffs.append("  \(isVol ? "volatile " : "")\(ws.name)!\(addr.a1)  \(cell.input)  \(show(ours)) | \(show(cached))")
                     }
                 }
             }
