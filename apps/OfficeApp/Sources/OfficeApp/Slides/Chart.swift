@@ -107,6 +107,8 @@ struct ChartSeries: Equatable {
     var pattern: PatternInk? = nil
     /// A gradient fill (`a:gradFill`) a sheet's column is painted with; `color` holds its mean.
     var gradient: SlideFill? = nil
+    /// A shadow cast on the ground under a sheet's column (`a:effectLst/a:outerShdw` with `sy`, `kx`...).
+    var shadow: CharShadow? = nil
     /// A combination's line with its values by its points (`c:dLbls`
     /// showVal, above them), and where single ones are moved
     /// (`c:dLbl/c:layout`, fractions of the chart's frame): zh-547fc43c's
@@ -1435,7 +1437,19 @@ enum ChartXML {
                 } else {
                     s.color = color(fill)
                 }
-            } else if type != .line, type != .scatter, let g = pr?.first("a:gradFill") {
+            }
+            if type != .line, type != .scatter, let sh = pr?.first("a:effectLst")?.first("a:outerShdw"), let sc = color(sh) {
+                var shadow = CharShadow(color: sc, dx: 0, dy: 0, blur: (sh["blurRad"].flatMap(Double.init) ?? 0) / 12700)
+                let sx = (sh["sx"].flatMap(Double.init) ?? 100000) / 100000, sy = (sh["sy"].flatMap(Double.init) ?? 100000) / 100000
+                func tn(_ k: String) -> Double { tan((sh[k].flatMap(Double.init) ?? 0) / 60000 * .pi / 180) }
+                let dist = (sh["dist"].flatMap(Double.init) ?? 0) / 12700, dir = (sh["dir"].flatMap(Double.init) ?? 0) / 60000 * .pi / 180
+                shadow.dx = dist * cos(dir); shadow.dy = dist * sin(dir)
+                let algn = sh["algn"] ?? "b"
+                shadow.anchor = Offset(algn.hasSuffix("l") ? 0 : algn.hasSuffix("r") ? 1 : 0.5, algn.hasPrefix("t") ? 0 : algn.hasPrefix("b") ? 1 : 0.5)
+                shadow.ground = [sx, sy, tn("kx"), tn("ky")]
+                s.shadow = shadow
+            }
+            if type != .line, type != .scatter, let g = pr?.first("a:gradFill") {
                 s.color = _meanColor(g, color)
                 let stops = (g.first("a:gsLst")?.all("a:gs") ?? []).compactMap { gs -> SlideFill.GradientStop? in
                     // (Excel prints the stops opaque, their alpha unread: chart-tdf128732's black / blue at 70 / 80%.)
@@ -5441,6 +5455,24 @@ enum ChartPainter {
                     if shaded18 {
                         let (head, foot) = Self._style18Shade(fill.color)
                         fill.shader = Gradient(linear: Offset(0, rect.top), to: Offset(0, rect.bottom), colors: [head, foot], colorStops: [0, 1])
+                    }
+                    if c.onSheet, c.barView == nil, let sh = c.series[j].shadow, let mm = sh.ground {
+                        // (A shadow cast on the ground: the bar scaled and skewed about the corner its alignment names, blurred,
+                        // under it — chart-external_str_ref's sy 23%, kx -20 degrees from the bottom left.)
+                        RuleTrace.hit("sheet-column-ground-shadow-is-the-bar-skewed")
+                        let sp = Paint()
+                        sp.style = .fill
+                        sp.isAntiAlias = true
+                        sp.color = sh.color
+                        if sh.blur > 0 { sp.maskFilter = MaskFilter(blur: .normal, sh.blur * k / 2) }
+                        let at = Offset(rect.left + rect.width * sh.anchor.dx, rect.top + rect.height * sh.anchor.dy)
+                        canvas.save()
+                        canvas.translate(sh.dx * k, sh.dy * k)
+                        canvas.translate(at.dx, at.dy)
+                        canvas.transform([mm[0], mm[3], 0, 0, mm[2], mm[1], 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
+                        canvas.translate(-at.dx, -at.dy)
+                        canvas.drawRect(rect, sp)
+                        canvas.restore()
                     }
                     if c.onSheet, c.barView == nil, c.pointColors[i] == nil, !shaded18, let g = c.series[j].gradient,
                        let shader = SlidePainter.gradientShader(g, rect) { fill.shader = shader }

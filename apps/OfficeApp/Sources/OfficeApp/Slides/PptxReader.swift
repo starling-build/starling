@@ -578,12 +578,11 @@ private struct LevelStyle {
         guard let sh = effects?.first("a:outerShdw"), let c = colors.color(in: sh) else { return nil }
         let flat = ["kx", "ky"].allSatisfy({ k in sh[k].flatMap(Double.init).map { $0 == 0 } ?? true })
             && (sh["sx"].flatMap(Double.init) ?? 100000) == (sh["sy"].flatMap(Double.init) ?? 100000)
-        guard flat || text else { return nil }
         let dist = (sh["dist"].flatMap(Double.init) ?? 0) / Pptx.emu
         let dir = (sh["dir"].flatMap(Double.init) ?? 0) / 60000 * .pi / 180
         var shadow = CharShadow(color: c, dx: dist * cos(dir), dy: dist * sin(dir),
                                 blur: (sh["blurRad"].flatMap(Double.init) ?? 0) / Pptx.emu)
-        shadow.scale = (sh["sx"].flatMap(Double.init) ?? 100000) / 100000
+        shadow.scale = flat ? (sh["sx"].flatMap(Double.init) ?? 100000) / 100000 : 1
         let algn = sh["algn"] ?? "b"
         shadow.anchor = Offset(algn.hasSuffix("l") ? 0 : algn.hasSuffix("r") ? 1 : 0.5,
                                algn.hasPrefix("t") ? 0 : algn.hasPrefix("b") ? 1 : 0.5)

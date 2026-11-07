@@ -695,6 +695,12 @@ final class SlidePainter: CustomPainter {
                 canvas.translate(at.dx, at.dy)
                 canvas.scale(sh.scale, sh.scale)
                 canvas.translate(-at.dx, -at.dy)
+            } else if let mm = sh.ground {
+                // A shadow cast on the ground (sx != sy, or kx / ky): the outline scaled and skewed about that point.
+                let at = Offset(r.left + r.width * sh.anchor.dx, r.top + r.height * sh.anchor.dy)
+                canvas.translate(at.dx, at.dy)
+                canvas.transform([mm[0], mm[3], 0, 0, mm[2], mm[1], 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
+                canvas.translate(-at.dx, -at.dy)
             }
             if shape.picture == nil, shape.flipH || shape.flipV {
                 // A mirrored shape's shadow falls from the mirrored outline (cycleMatrix's third wedge).
