@@ -4711,21 +4711,34 @@ enum ChartPainter {
             // plot at x 0.02, plots 243 to 347 pt wide: axis + Z = 340.8, 340.1, 339.5, 337.8, 339.3 pt for 1 to 5 series, and the
             // axis keeps a tick to every 37.5 pt (13 runs to 14 by twos at 279 pt and to 15 by fives at 207 and 258). Not
             // modelled, so left on the old way: one series (Word's depth is 0.79 of ours, 134.6 pt against 170), rotX 0 or 30, rotY 30 (14 pt short), a plot narrower than 240 pt; h40 is 20 px out.)
-            if c.onSlide, v.rightAngles, horizontal, c.plotLayoutInner, v.x >= 0, v.x <= 30, v.y <= 20, c.series.count >= 2, let raw = placed, raw.width >= 240 * k, zThick > 0 {
+            if c.onSlide, v.rightAngles, horizontal, c.plotLayoutInner, v.x >= 0, v.x <= 30, v.y <= 20, c.series.count >= 2, let raw = placed, raw.width >= 150 * k, zThick > 0 {
                 RuleTrace.hit("slide-3d-bars-share-the-laid-plot-between-axis-and-depth-and-centre-the-box")
                 // (A bar's own depth, a 1 + gapDepth share of the box's.)
                 let own = 1 / (1 + v.gapDepth)
                 // (Lab bar3dbox, rotX 0 / 15 / 30: the front axis 267.7 / 259.1 / 207.3 pt, a quadratic through the share of our room; the room
                 // for the depth's rise stays that of rotX 15 below it, the front 61.2 / 59.0 / 51.1 pt high.)
                 let tilt = 1.089 - 0.0037 * v.x - 0.000149 * v.x * v.x
-                let axis = (raw.width - 7 * k - zThick * own) * tilt
+                // (What the rule leaves of the lab's plot widths (lab bar3dbox w40 / w60 / orig / w95, plots 161.9 / 242.8 / 346.7 / 384.5 pt wide): PowerPoint's
+                // front is 13 / 12.8 / 1.5 / -4.9 pt longer than it gives, joined by straight lines.)
+                let wide = raw.width / k
+                let knots: [(Double, Double)] = [(161.9, 13), (242.8, 12.8), (346.7, 1.5), (384.5, -4.9), (404.7, -10.7)]
+                var trim = wide <= knots[0].0 ? knots[0].1 : knots[knots.count - 1].1
+                for q in 1 ..< knots.count where wide > knots[q - 1].0 && wide <= knots[q].0 {
+                    trim = knots[q - 1].1 + (knots[q].1 - knots[q - 1].1) * (wide - knots[q - 1].0) / (knots[q].0 - knots[q - 1].0)
+                }
+                let axis = (raw.width - 7 * k - zThick * own) * tilt + trim * k
                 if v.x < 15 {
                     let rise = zThick * (sin(15 * .pi / 180) - sin(abs(v.x) * .pi / 180))
                     let up = (15 - v.x) * 1.247 * k   // the front's foot stands 18.7 pt higher at rotX 0 (467 to 462)
                     plot = Rect.fromLTRB(plot.left, plot.top + rise - up, plot.right, plot.bottom - up)
                 }
                 // (Our box is drawn with its first bar half the unused depth in from its left: centre the whole box.)
-                let left = raw.center.dx - (axis + box.dx) / 2
+                var left = raw.center.dx - (axis + box.dx) / 2
+                // (Past a plot 347 pt wide the box's right edge stops 17.4 pt short of our frame's (865.9 where the chart frame is 901.4), less 0.14 of the plot's width short of
+                // the lab's 404.7, and it grows leftward: lab p3bx w90 / w95 / w100 ends 854.2 / 851.3 / 848.5 where centring ends 865.7 / 883 / 901;
+                // the data labels take no part, their print is the same.)
+                let stop = frame.right - (17.4 - 0.14 * (404.7 - raw.width / k)) * k
+                if left + axis + box.dx > stop { left = stop - axis - box.dx }
                 plot = Rect.fromLTRB(left, plot.top, left + axis, plot.bottom)
                 if c.valueMax == nil, c.valueStep == nil, !c.percent, c.valueAxisDeleted, !c.valueGrid {
                     sc = Self.scale(lo, max(hi, c.valueMax ?? hi), intervals: max(2, Int(axis / (37.5 * k))), headroom: 0)
