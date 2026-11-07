@@ -134,7 +134,7 @@ Sources, unchanged from the release named:
 | NotoSerifCJK-Regular.ttc, -Bold.ttc | github.com/notofonts/noto-cjk, tag Serif2.003, 04_NotoSerifCJKOTC.zip |
 | the CJK files above | byte-identical to Ubuntu's `fonts-noto-cjk` 1:20240730 |
 | NotoSansArabic, NotoNaskhArabic, NotoSansHebrew, NotoSerifHebrew, NotoSansThai, NotoSansDevanagari (Regular, Bold) | Ubuntu `fonts-noto-core` 20201225 (the 2020-12 Noto snapshot) |
-| NotoColorEmoji-Pictographs.ttf | Ubuntu `fonts-noto-color-emoji` (NotoColorEmoji.ttf, sha256 9fd0a3d0ce84d77e3185dfbae77bd1abf3926aa49a032e354d076c4f17151f10) cut down by `build/tools/subset-emoji.py` (fonttools, throwaway venv) to the characters whose Unicode Emoji_Presentation is Yes, plus ZWJ, space and CR: a modified version of the Noto font under a new name (OFL). It goes AHEAD of DejaVu Sans in the glyph fallback so emoji draw in colour, while text-style symbols (U+263A, U+2714, U+2764 ...) stay on the outline faces. Desktop and web both use only this file |
+| NotoColorEmoji-Pictographs.ttf | Ubuntu `fonts-noto-color-emoji` (NotoColorEmoji.ttf, sha256 9fd0a3d0ce84d77e3185dfbae77bd1abf3926aa49a032e354d076c4f17151f10) cut down by `build/tools/subset-emoji.py` (fonttools, throwaway venv) to the characters whose Unicode Emoji_Presentation is Yes, plus ZWJ, space and CR (less the plain shapes used as bullets, U+26AB and kin): a modified version of the Noto font under a new name (OFL). It goes AHEAD of DejaVu Sans in the glyph fallback so emoji draw in colour, while text-style symbols (U+263A, U+2714, U+2764 ...) stay on the outline faces. Desktop and web both use only this file |
 
 The script faces are the 2020 snapshot, not the newest notofonts releases, on purpose:
 those are what a Linux machine's glyph fallback drew until now, and the 2021-2026
@@ -170,7 +170,7 @@ sha256:
     97bbc8ea98328325285f2f552228c7aac1db39d8f38f0096a61ba7df1f1f780e  NotoSansThai-Bold.ttf
     79a470365ccb210fa3c7d8d8ff2e005ef9d983cfd067f735a0caf7e15070ca9f  NotoSansDevanagari-Regular.ttf
     77ad688cfe1dc55185bf4edb4db3c614202c65dd23a1463ad0e23fc52bcc9a5c  NotoSansDevanagari-Bold.ttf
-    1187e7883c4dc8072ba85f66547143a1bccceea031c9e6a9f0ee80a77b802c3a  NotoColorEmoji-Pictographs.ttf
+    2babe375f708225a6cfc6fe870bba15cdfbadc260d4bb96040413310608b64a2  NotoColorEmoji-Pictographs.ttf
 
 ## DejaVu Math TeX Gyre
 

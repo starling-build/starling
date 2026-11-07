@@ -5,7 +5,7 @@ The subset keeps the characters whose Unicode Emoji_Presentation property is
 Yes (emoji-data.txt: faces, hands, flags' regional indicators, skin tones,
 and the BMP ones such as U+2705, U+2B50, U+231A), plus ZWJ (U+200D), space and
 CR (a font missing those traps the unit-test run: a layout asks the fallback
-for a space). It drops the text-style symbols (U+263A, U+2714, U+2605, U+2764 ...)
+for a space). It drops the text-style symbols (U+263A, U+2714, U+2605, U+2764 ...) and the plain geometric shapes used as bullets (U+26AB ...)
 that Word and PowerPoint draw as plain outlines unless a U+FE0F follows (not
 handled: Noto's cmap has no U+FE0F). The result goes AHEAD of DejaVu in the
 glyph fallback. It is a modified version under a new name, as the OFL asks.
@@ -40,7 +40,11 @@ opts.name_languages = ["*"]
 opts.drop_tables = []
 font = TTFont(src)
 cmap = font.getBestCmap()
-keep = sorted(c for c in cmap if c in presentation) + [0x200D, 0x20, 0x0D]
+# Plain geometric shapes (U+25FD/25FE, U+26AA/26AB, U+2B1B/2B1C) are Emoji_Presentation too,
+# but documents use them as bullets and Word draws them as text glyphs of the text face:
+# in the colour face they change widths (zh-06c46ba9, zh-bdae17c0 dropped).
+shapes = {0x25FD, 0x25FE, 0x26AA, 0x26AB, 0x2B1B, 0x2B1C}
+keep = sorted(c for c in cmap if c in presentation and c not in shapes) + [0x200D, 0x20, 0x0D]
 sub = subset.Subsetter(opts)
 sub.populate(unicodes=keep)
 sub.subset(font)
