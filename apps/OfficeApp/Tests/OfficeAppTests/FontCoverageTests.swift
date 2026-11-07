@@ -26,6 +26,7 @@ final class EmojiVariationTests: XCTestCase {
         XCTAssertEqual(pieces.map(\.text), ["a", "\u{2764}\u{FE0F}", "b\u{2764}", "\u{231A}\u{FE0E}", "c"])
         XCTAssertNil(RichLayout._variationPieces("a\u{2764}b"), "no selector, no cut")
         XCTAssertNil(RichLayout._variationPieces("a\u{FE0F}"), "a letter takes no colour")
+        XCTAssertNil(RichLayout._variationPieces("a\u{A9}\u{FE0F} \u{2122}\u{FE0F} \u{203C}\u{FE0F}"), "(c) (tm) !! stay text in Word and PowerPoint")
         XCTAssertNil(RichLayout._variationPieces("\u{231A}\u{FE0F}"), "a colour emoji needs nothing from FE0F")
     }
 }

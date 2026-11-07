@@ -13,6 +13,10 @@ extension RichLayout {
     /// The family the colour pictographs go by (it leads the glyph fallback: a U+FE0E takes it out for one character).
     nonisolated(unsafe) public static var emojiPictographFamily = "Noto Color Emoji Pictographs"
 
+    /// Emoji=Yes characters that Word and PowerPoint for Windows keep as plain text even before U+FE0F (lab fe0f, both
+    /// apps' prints: (c) (tm) and !! with and without it, all text in the line's own face). (R) and ?! by their kin: not printed.
+    static let emojiStaysText: Set<UInt32> = [0xA9, 0xAE, 0x203C, 0x2049, 0x2122]
+
     static func _inRanges(_ v: UInt32, _ table: [ClosedRange<UInt32>]) -> Bool {
         var lo = 0, hi = table.count - 1
         while lo <= hi {
@@ -36,7 +40,7 @@ extension RichLayout {
             let v = scalars[i].value
             if i + 1 < scalars.count {
                 let n = scalars[i + 1].value
-                let kind = (n == 0xFE0F && _inRanges(v, emojiTextBases)) ? 1 : ((n == 0xFE0E && _inRanges(v, emojiPresentation)) ? 2 : 0)
+                let kind = (n == 0xFE0F && _inRanges(v, emojiTextBases) && !emojiStaysText.contains(v)) ? 1 : ((n == 0xFE0E && _inRanges(v, emojiPresentation)) ? 2 : 0)
                 if kind != 0 {
                     if !plain.isEmpty { pieces.append((String(plain), 0)); plain = String.UnicodeScalarView() }
                     var piece = String.UnicodeScalarView()
