@@ -317,9 +317,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // Calibri 10 print at 13.32 pt in a Calibri 11 book, whatever
             // the sheet's defaultRowHeight says.
             var lines: [Int: Double] = [:]   // by style
+            let calibri11 = (book.defaultFontName ?? "Calibri").lowercased() == "calibri" && (book.defaultFontSize ?? 11) == 11
             func line(_ style: Int) -> Double {
                 if let known = lines[style] { return known }
-                let l = style == 0 ? m.defaultRow : Self._fittedLine(book.style(style), m, book, hinted: !ws.customDefaultRowHeight && (book.defaultFontName ?? "Calibri").lowercased() == "calibri" && (book.defaultFontSize ?? 11) == 11)
+                let l = style == 0 ? m.defaultRow : Self._fittedLine(book.style(style), m, book, hinted: !ws.customDefaultRowHeight && calibri11, otherBook: !ws.customDefaultRowHeight && !calibri11)
                 lines[style] = l
                 return l
             }
@@ -2839,9 +2840,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// (Bold counts where the face's bold has a line of its own, though the
     /// style names neither face nor size: FormulaSheetRange's bold Arial 10
     /// labels fit its rows at 35 screen pixels, 12.72 pt, not Arial's 12.36.)
-    static func _fittedLine(_ st: CellStyle, _ m: SheetPrintMetrics, _ book: Workbook, hinted: Bool = false) -> Double {
+    static func _fittedLine(_ st: CellStyle, _ m: SheetPrintMetrics, _ book: Workbook, hinted: Bool = false, otherBook: Bool = false) -> Double {
         st.fontName == nil && st.fontSize == nil && st.bold == book.defaultFontBold ? m.defaultRow
-            : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold, hinted: hinted))
+            : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold, hinted: hinted, otherBook: otherBook))
     }
 
     /// On paper, where a line of text set at a cell's foot has its top:
