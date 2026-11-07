@@ -2154,7 +2154,7 @@ enum DocxFormat {
                             var moved = Set<String>()
                             for k in first ..< lead {
                                 if let c = paragraphs[k].cell, var st = tableStyles[c.table], st.floatsOverText, !st.pageAnchored, moved.insert(c.table).inserted {
-                                    st.floatOffsetY = (st.floatOffsetY ?? 0) + 2 * (m.top ?? 0)
+                                    st.floatOffsetY = (st.floatOffsetY ?? 0) + (Self.wordOnWindows ? 1 : 2) * (m.top ?? 0)
                                     tableStyles[c.table] = st
                                 }
                             }
@@ -2415,7 +2415,7 @@ enum DocxFormat {
                 }
                 // (A table read out of a frame's wrapper is a nested table
                 // all the same: Word sets it out by nothing — lab nestmargin.)
-                if inWrapperBody, Self.wordOnWindows { style.textOutdent = 0; style.textOutdentRight = 0 }
+                if inWrapperBody, Self.wordOnWindows { style.textOutdent = 0; style.textOutdentRight = 0; style.inWrapperCell = true }
                 // The table's own margins, for the save: the cells keep
                 // their w:tcMar, and the cells that state none take these
                 // (drawing.docx zeroes its banner row's and leaves 5.25pt

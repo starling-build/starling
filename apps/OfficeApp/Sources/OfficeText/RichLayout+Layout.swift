@@ -922,7 +922,7 @@ extension RichLayout {
             // (The table's section's column.)
             let width = _flowWidth(i)
             _tableFlowWidth[c.table] = width
-            if let ts = document.tableStyles[c.table], let sp = ts.cellSpacing, sp > 0 {
+            if let ts = document.tableStyles[c.table], let sp = ts.cellSpacing, sp > 0, !(RichTextTheme.wordWindowsPages && ts.inWrapperCell) {
                 _tableSpacedOutdent[c.table] = (c.padding?.left ?? ts.cellMarginLeft ?? ts.textOutdent ?? 5.4) + 2 * sp
                     + (ts.borders ? (ts.borderWidth ?? 0.5) / 2 : 0)
             }

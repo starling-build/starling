@@ -1393,6 +1393,9 @@ public struct TableStyle: Hashable, Sendable {
     /// right-aligned table stands past the right margin.
     public var textOutdent: Double = 0
     public var textOutdentRight: Double = 0
+    /// A table read from a page-frame wrapper's cell: Word for Windows sets it
+    /// in from the cell with no cell-spacing outdent (lab float-015dbec5).
+    public var inWrapperCell = false
     /// The header row's fill (nil: a faint tint of the text colour).
     public var headerFill: Color? = nil
     /// Banded rows: every other body row filled with this, the rest with
