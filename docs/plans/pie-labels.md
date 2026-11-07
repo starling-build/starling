@@ -145,6 +145,23 @@ labs still do not expose. The fallback rule is implemented (wip/pie-bestfit) per
   piezone's width test with the 8-slice pie).
 - Still no mechanism: deterministic, order-dependent, piecewise constant in the partner's sector, with px-grid destinations.
 
+
+### Lab piepin read (33 docs: one label at a time given a c:manualLayout offset) and advisor round 3
+- A pinned label still takes part: pinning ANY label with a zero offset changes the other seven (label 5 moves 13-25 px right and
+  9 px down from layout B, its leader gone in half the cases); the pinned label's drawn position does not matter (offsets 0 / right
+  / up / far give the same others, except where the far box lands on another label). Pinned is not deleted (no1 differs from k1).
+- The zero-offset positions are Word's internal DEFAULTS, and they are perfectly mirror-symmetric (text-left, top px from the
+  centre): 1 (33.5, -85.5), 2 (74.2, -39.7), 3 (74.2, 25.0), 4 (33.5, 70.8), 5 (-96.8, 70.8), 6 (-137.5, 25.0), 7 (-137.5, -39.7),
+  8 (-96.8, -85.5): side labels' inner edge at R + 1.9 pt and their middle 3.7 pt beyond the rim point's y; top/bottom labels' near
+  edge 1 px inside the tangent and their box corner 4.8 pt beyond the circle. The AUTO result is default + an inward adjustment that
+  depends on the context: lone label 1 -30.5 px (to the axis: its box with insets ends at x = 0), lone 4 -8.5, lone 5 0, lone 8 +7.7,
+  side labels 4-6 px inward and 3-4 px toward the horizontal axis; in layout B: 1 -7.6, 4 -13.6, 5 (-7.3, -9.2) with the leader, 8 +10.7.
+  So the "drift" is the size of this pull, largest when alone.
+- Advisor round 3: no candidate-slot / clearance search fits (26,880 variants; the best never triggers). The zone label's outcome is a
+  function of the partner's anchor CLASS (absent/inside: lone; corner: +15 px; side: -2/-2), not of its box; corner partners are
+  frozen; re-placed side labels sit ~1.6-2.6 px further out and slide 2-9 degrees along the rim. Its reading: a sequential process whose
+  state changes with the work each label causes. Notes: sim.snap's 133.33 px centre is wrong for piezone2 (143.73); score zone cases at 1.5 px.
+
 # Round 2 (after pielabel5 and pielabel6): verdict
 
 **Neither candidate reproduces Word, and nothing should be built for label 5.** Both the iterative
