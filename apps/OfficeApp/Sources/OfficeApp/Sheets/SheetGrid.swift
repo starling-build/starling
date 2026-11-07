@@ -450,6 +450,19 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     let tall = (lines / one).rounded() * Self._fittedLine(st, m, book)
                     if tall > heights[a.row] ?? m.defaultRow { heights[a.row] = tall }
                 }
+                // A wrapped, bottom-aligned text of a font smaller than the default's in a
+                // merged cell makes its row
+                // two screen pixels taller than the default font's line, though
+                // the merge is left out of the fit: bug66675's row 12 prints
+                // 15.24 for 14.52 (windows lab xl66675: centred or unwrapped
+                // it stays 14.52).
+                for (a, cell) in ws.cells where cell.style != 0 && refits(a.row) && cell.value.isText {
+                    guard ws.fittedRows.contains(a.row) || ws.customDefaultRowHeight || ws.fittedRows.isEmpty else { continue }
+                    let st = book.style(cell.style)
+                    guard st.wrap, st.vAlign == .bottom, Self._fittedLine(st, m, book) < m.defaultRow - 0.01, (st.fontSize ?? 11) < (book.defaultFontSize ?? 11), ws.merges.contains(where: { $0.contains(a) && $0.top == a.row && $0.left == a.col }) else { continue }
+                    let up = m.defaultRow + 2 * 72 / 192 * m.rowScale
+                    if (heights[a.row] ?? m.defaultRow) < up { heights[a.row] = up }
+                }
             }
             // (A default height the sheet sets is a set height: cut down to
             // whole printer dots as any other. picture.xlsx's 14 pt rows are
