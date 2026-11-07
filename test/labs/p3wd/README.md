@@ -1,0 +1,2 @@
+Lab p3wd (amd-2 for windows): which part of lo-tdf140865Wordart3D's 3-D WordArt (textCurveDown adj 56338, lat 20 lon 330, 27 pt deep, softRound bevel + bottom bevel, morning light) puts our letters up to 12 pt off PowerPoint's.
+Please print test/labs/p3wd/W.pptx (6 slides, each the deck's one shape with one thing changed, see cells-W.tsv) to PDF AND export each slide as a PNG at 2400x1350 named W-NNN.png; commit PNGs under test/labs/p3wd/prints/, branch wip/lab-p3wd-prints.
