@@ -293,6 +293,8 @@ struct Chart: Equatable {
     var areaView: BarView? = nil
     /// A `c:line3DChart`: its axis takes no headroom over the data (LIBRE_OFFICE-128382: 9579.5 stops at $10,000, not $12,000).
     var line3D = false
+    /// A pivot chart's field buttons: the value field's name (top left) and the category field's (bottom left).
+    var pivotButtons: [String] = []
     /// A 3-D column's shape (`c:shape`): box, cylinder, cone, coneToMax, pyramid, pyramidToMax.
     var barShape = "box"
     /// A surface chart (`c:surface3DChart`, `c:surfaceChart`): its series'
@@ -3014,6 +3016,12 @@ enum ChartPainter {
             area = Rect.fromLTWH(r.left + l.left * r.width, r.top + l.top * r.height, l.width * r.width, l.height * r.height)
         }
         if titleDrop > 0 { area = area.shift(Offset(0, -titleDrop / 2)) }
+        // A pivot chart's field buttons take a row above the plot and one under it
+        // (lo-forum-mso-de-104083: plot 99.7-525.4 and left 472.0 in a frame from 68.9 and 419.4,
+        // ours 79.9-545.0 and 463.8 without).
+        if c.pivotButtons.count == 2 {
+            area = Rect.fromLTRB(area.left + 10.9 * k, area.top + 26.4 * k, area.right, area.bottom - 26.1 * k)
+        }
         if c.surface {
             _surface(c, canvas, area, k: k, theme: theme, grid: c.gridColor ?? grid,
                      text: { styled($0, $1, $2, bold: false, color: c.valueLabelColor) })
@@ -3058,6 +3066,25 @@ enum ChartPainter {
                    titleText: { styled($0, $1, $2, bold: false, color: c.onSlide || c.onSheet ? nil : c.axisTitleColor) },
                   categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor, windowsLines: true, mixedLine: 1.494) },
                   valueText: { styled($0, $1, $2, bold: c.valueLabelBold, color: c.valueLabelColor) })
+        }
+        if c.pivotButtons.count == 2 {
+            // (White, ruled in the grid's grey, 13.8 pt high: the value field's over the plot's
+            // top left, the category field's under it.)
+            for (i, name) in c.pivotButtons.enumerated() {
+                let tp = text(name, 13.3)
+                let box = Rect.fromLTWH(r.left + 10.7 * k, i == 0 ? r.top + 8.0 * k : r.bottom - 26.4 * k, max(tp.width + 3.1 * k, 38 * k), 18.4 * k)
+                let fill = Paint()
+                fill.style = .fill
+                fill.color = Color(0xFFFFFFFF)
+                canvas.drawRect(box, fill)
+                let line = Paint()
+                line.style = .stroke
+                line.strokeWidth = 0.75 * k
+                line.color = Color(0xFFD9D9D9)
+                canvas.drawRect(box, line)
+                tp.paint(canvas, Offset(box.left + 1.5 * k, box.top + (18.4 * k - tp.height) / 2 + 0.7 * k))
+                tp.dispose()
+            }
         }
         if let (tp, at) = placed {
             Self._titleBox(c, canvas, around: Rect.fromLTWH(at.dx, at.dy, tp.width, tp.height), k: k)

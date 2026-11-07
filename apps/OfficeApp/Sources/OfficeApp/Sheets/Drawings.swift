@@ -60,6 +60,8 @@ struct SheetChart: Equatable {
     /// weeks read live as 54 bars, the last the year's total, and every
     /// week stood a sliver under an axis twenty times too tall.
     var pivot = false
+    /// A pivot chart's field buttons (`c14:dropZonesVisible`): Excel prints them in the chart.
+    var pivotButtons = false
 
     static func == (a: SheetChart, b: SheetChart) -> Bool {
         a.chart == b.chart && a.path == b.path && a.formulas == b.formulas && a.refs.count == b.refs.count
@@ -157,6 +159,7 @@ enum SheetDrawingsXML {
                 var sc = SheetChart(chart: chart, refs: space.name.hasPrefix("cx:") ? _chartexRefs(space) : _refs(space), path: path)
                 let axis = space.descendant("c:catAx")?.first("c:numFmt") ?? space.descendant("c:dateAx")?.first("c:numFmt")
                 sc.pivot = space.descendant("c:pivotSource") != nil
+                sc.pivotButtons = sc.pivot && space.descendant("c14:dropZonesVisible")?["val"] == "1"
                 sc.categoryFormat = axis.flatMap { ["0", "false"].contains($0["sourceLinked"] ?? "1") ? $0["formatCode"] : nil }
                 for f in _formulas(space) { sc.formulas[f] = f }
                 d.kind = .chart(sc)
@@ -330,7 +333,27 @@ extension SheetChart {
     /// the cells they reference, where those resolve.
     func live(book: Workbook, engine: CalcEngine) -> Chart {
         var c = chart
-        if pivot { return c }
+        if pivot {
+            // The field buttons name the pivot's value field (the cell above-left of the
+            // series names) and its category field (the cell over the categories).
+            if pivotButtons, let ref = refs.first, let cf = ref.cat, let nf = ref.name {
+                func cell(_ formula: String) -> (Int, CellRange)? {
+                    guard let expr = try? Formula.parse("=" + formula), case .ref(let r) = expr, let name = r.sheet,
+                          let si = book.sheet(named: name) else { return nil }
+                    return (si, r.range)
+                }
+                func text(_ si: Int, _ row: Int, _ col: Int) -> String? {
+                    guard row >= 0, col >= 0 else { return nil }
+                    let a = CellRange(top: row, left: col, bottom: row, right: col)
+                    return engine.values(si, a, includeEmpty: true).first.map { NumberFormat.display($0, "General", width: 255).text.trimmingWhitespace() }
+                }
+                if let (si, cr) = cell(cf), let (_, nr) = cell(nf),
+                   let top = text(si, nr.top, cr.left), let bottom = text(si, cr.top - 1, cr.left), !top.isEmpty, !bottom.isEmpty {
+                    c.pivotButtons = [top, bottom]
+                }
+            }
+            return c
+        }
         func resolve(_ formula: String) -> (sheet: Int, range: CellRange)? {
             // (Or a defined name for one: a `cx:` chart's _xlchart.v1.0.)
             let formula = book.names[formula.uppercased()] ?? formula
