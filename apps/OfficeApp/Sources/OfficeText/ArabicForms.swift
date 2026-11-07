@@ -106,7 +106,7 @@ extension ArabicForms {
     /// form, lam and an alef as one, marks of no width — by `advances`
     /// (ems by code point, presentation forms among them). Nil where a
     /// character has no width there.
-    static func width(_ units: [UInt32], _ advances: [UInt32: Double], before: UInt32? = nil, after: UInt32? = nil) -> Double? {
+    static func width(_ units: [UInt32], _ advances: [UInt32: Double], before: UInt32? = nil, after: UInt32? = nil, clusters: [String: Double]? = nil) -> Double? {
         // (Marks are transparent to joining: the characters of no width.)
         let shown = units.filter { advances[$0] != 0 }
         func joinsBoth(_ u: UInt32) -> Bool { u == 0x0640 || (letters[u]?[2] ?? 0) != 0 }
@@ -120,6 +120,29 @@ extension ArabicForms {
             let u = shown[k]
             let next = k + 1 < shown.count ? shown[k + 1] : (after.map { (0x0600 ... 0x06FF).contains($0) ? $0 : nil } ?? nil)
             let joinsPrev = prevJoinsLeft && joinsRight(u)
+            // (A group the face sets as one glyph — Traditional Arabic's lam-meem, lam-jeem —
+            // is one advance, as Word's print measures it.)
+            if let clusters, joinsBoth(u) {
+                var len = min(4, shown.count - k)
+                var hit = false
+                while len >= 2 {
+                    let last = shown[k + len - 1]
+                    let inner = shown[k ..< k + len - 1].allSatisfy { joinsBoth($0) }
+                    let nxt: UInt32? = k + len < shown.count ? shown[k + len] : after.flatMap { (0x0600 ... 0x06FF).contains($0) ? $0 : nil }
+                    let joinsAfter = inner && nxt.map { joinsBoth(last) && joinsRight($0) } ?? false
+                    var key = ""
+                    for c in shown[k ..< k + len] { key.unicodeScalars.append(Unicode.Scalar(c)!) }
+                    if inner || len == 2, let w = clusters["\(key)|\(joinsPrev ? 1 : 0)|\(joinsAfter ? 1 : 0)"] {
+                        total += w
+                        prevJoinsLeft = joinsBoth(last)
+                        k += len
+                        hit = true
+                        break
+                    }
+                    len -= 1
+                }
+                if hit { continue }
+            }
             // (Lam and an alef are one glyph, which joins to the right only.)
             if u == 0x0644, k + 1 < shown.count, let next, let pair = lamAlef[next] {
                 guard let w = advances[pair[joinsPrev ? 1 : 0]] else { return nil }
