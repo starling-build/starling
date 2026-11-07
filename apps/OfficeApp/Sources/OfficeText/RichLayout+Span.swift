@@ -1566,6 +1566,12 @@ extension RichLayout {
                                             eastAsian: false, gridPitch: pitch, characterClass: nil, characterGrid: grid, scriptHidden: true)
                     extra += _glyphWidth(s, ch) - _glyphWidth(style(kind), ch)
                 }
+                // (A dash set in the hAnsi face's Times is half an em, as Word prints it: lab `semi` round 3 (Word for
+                // Windows, zh-ea70c30e's 12.5pt PMingLiU run over a Times hAnsi): every "–" is 6.24, ours 5.88, and the
+                // three of a line made it 1.1pt too short — it took "動" Word sends down.)
+                if !ea, latinDash, RichTextTheme.wordWindowsPages, ch == "\u{2013}", highFace == nil || highFace.map({ !$0.isEastAsian }) == true {
+                    extra += em / 2 - _glyphWidth(style(kind), ch)
+                }
                 // (An em space is an em and an en space half one, whatever face
                 // sets them: zh-8415d258's paragraphs open with two U+2003 in
                 // a 仿宋_GB2312 run, 15pt apiece at 15pt in Word for Windows'
