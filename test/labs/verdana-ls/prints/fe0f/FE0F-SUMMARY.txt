@@ -1,0 +1,13 @@
+FE0F lab, Windows 01QbbApP: Word (docx) and PowerPoint (pptx) for Windows, PDF read with pymupdf. Source order per README/docx.
+WORD: colour emoji appear as SegoeUIEmoji colour-layer glyphs (a U+0020 char per layer, fill colour in text_color); outline = a normal glyph in the face named.
+ Hearts : 2764+FE0F colour (SegoeUIEmoji f8312f) | 2764 bare outline SegoeUISymbol | 263A+FE0F colour (ffb02e) | 263A bare outline SegoeUISymbol
+ Ticks  : 2714+FE0F colour (785dc8) | 2714 bare outline SegoeUISymbol | 2600+FE0F colour (ff822d) | 2600 bare outline SegoeUISymbol
+ Watch  : 231A bare colour (SegoeUIEmoji 3f5fff) | 231A+FE0E outline, face CambriaMath | 231A+FE0F colour (3f5fff)
+ Star   : 2B50 bare colour (fcd53f) | 2B50+FE0E outline SegoeUISymbol
+ Marks  : 00A9, 2122, 203C with and without FE0F: all text in Aptos, no colour; FE0F itself is an Aptos glyph
+POWERPOINT: colour emoji are page images (bitmaps, no text char); outline = Calibri text char.
+ Hearts : 4 images (2764+FE0F, 2764, 263A+FE0F, 263A all bitmaps, bare ones too)
+ Ticks  : 4 images (2714+FE0F, 2714, 2600+FE0F, 2600 all bitmaps)
+ Watch/star: 5 images (231A, 231A+FE0E, 231A+FE0F, 2B50, 2B50+FE0E all bitmaps: FE0E does NOT make PowerPoint draw outline)
+ Marks  : 00A9+FE0F and 00A9 stay Calibri text (no image, FE0F is a Calibri glyph); 2122+FE0F, 2122, 203C+FE0F, 203C are 4 images
+Mapping of items to layers/images is by position along each line; check against FE0F-WORD.tsv and the PNGs.
