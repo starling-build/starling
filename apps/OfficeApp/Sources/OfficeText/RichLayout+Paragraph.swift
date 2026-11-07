@@ -2264,6 +2264,76 @@ extension RichLayout {
                 _lineLift[i] = lift
             }
         }
+        // A line whose every character Word sets in a shorter face of the fallback chain
+        // (zh-5450d509's last line "引》）。": MS Gothic, no JhengHei ideograph on it) stands
+        // on that face's baseline under the line's top, not the paragraph's: Word's lab
+        // (gothic-last, 1.5 lines on a grid) has it 4.6pt higher, the line as tall as the others.
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.image == nil, p.inlineImages.isEmpty, p.cell == nil,
+           style.lineHeightPoints == nil, style.lineSpacing > 1.05, !p.text.isEmpty, painter.strutStyle != nil,
+           p.runs.allSatisfy({ $0.style.script == .normal }), _lineLift[i].isEmpty {
+            let pitch = _offGrid(i, document) ? nil : _grid(i, document).pitch
+            let named = _named(p, document)
+            let units = Array(p.text.utf16)
+            // Each UTF-16 unit's chain face (nil: covered by the subset, or no ideograph).
+            var faceAt = [String?](repeating: nil, count: units.count)
+            var freshAt = [String?](repeating: nil, count: units.count)  // the face with no carry-over from the character before
+            var start = 0
+            var chained = false
+            for run in p.runs where run.length > 0 {
+                defer { start += run.length }
+                guard let face = theme.faceResolver?(run.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily
+                                                     ?? _normalChar(document)?.eastAsiaFontFamily ?? run.style.fontFamily
+                                                     ?? named?.char.fontFamily ?? theme.fontFamily, true),
+                      let covers = face.covers, let chain = face.uncoveredChain else { continue }
+                var k = start
+                var sticky: Int? = nil
+                for ch in String(decoding: units[start ..< min(start + run.length, units.count)], as: UTF16.self) {
+                    let n = String(ch).utf16.count
+                    if let u = ch.unicodeScalars.first?.value, u >= 0x2E80, u != 0xFFFC {
+                        if covers.contains(u) { sticky = nil } else {
+                            // (As the first line's scan: a run keeps its face while that face holds the next character.)
+                            if let at = sticky, chain[at].covers?.contains(u) ?? true {} else { sticky = chain.firstIndex { $0.covers?.contains(u) ?? true } ?? chain.count - 1 }
+                            for j in k ..< min(k + n, units.count) { faceAt[j] = chain[sticky!].family }
+                            let fresh = chain.firstIndex { $0.covers?.contains(u) ?? true } ?? chain.count - 1
+                            for j in k ..< min(k + n, units.count) { freshAt[j] = chain[fresh].family }
+                            chained = true
+                        }
+                    }
+                    k += n
+                }
+            }
+            if chained {
+                var tops: [Double] = []
+                var shortLast = false
+                var from = 0
+                var run0 = p.runs[0].style
+                while from < units.count {
+                    let end = max(from + 1, painter.getLineBoundary(TextPosition(offset: from + _lead(i))).end - _lead(i))
+                    var best = -Double.infinity
+                    var seen = Set<String>()
+                    for j in from ..< min(end, units.count) {
+                        guard let fam = (end >= units.count ? freshAt[j] : faceAt[j]), seen.insert(fam).inserted else { continue }
+                        var r = run0
+                        r.eastAsiaFontFamily = fam
+                        if let b = theme.baseline(for: r, in: style, named: named, eastAsian: true, gridPitch: pitch, centresInLine: document.spacesForUnderline) { best = max(best, b) }
+                    }
+                    // (A character the subset holds sets none: Word's "）" there stood with the rest.)
+                    // (Only a short last line — the lab's four characters: a longer line of
+                    // characters our cmap says MS Gothic holds is JhengHei's in Word's print.)
+                    tops.append(best)
+                    shortLast = end >= units.count && end - from <= 5
+                    from = end
+                    run0 = p.runs[0].style
+                }
+                        if tops.count > 1, let first = tops.first, first.isFinite {
+                    let lift = tops.enumerated().map { k, t in shortLast && k == tops.count - 1 && t.isFinite && t < first - 0.05 ? t - first : 0 }
+                    if lift.contains(where: { $0 != 0 }) {
+                        RuleTrace.hit("zh-5450d509-a-line-of-the-shorter-chain-face-stands-on-its-baseline")
+                        _lineLift[i] = lift.map { _px($0) }
+                    }
+                }
+            }
+        }
         // (The number's lift sets the first baseline no higher than the
         // layout without the strut does, over whatever baseline the text
         // was given above — not on top of it: zh-76700e5f's "5.3 制棒"
