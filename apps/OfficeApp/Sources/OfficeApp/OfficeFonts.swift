@@ -86,6 +86,10 @@ enum OfficeFonts {
             // (Windows has no Liberation Serif: Word takes the font table's
             // alternate, else its signature's face — `windowsSigFace`.)
             if wordOnWindows, n == "liberation serif", let by = windowsSigFace(family) { return substitute(by) }
+            // (An entry whose alternate is Cambria: ukr-z4769265's body is
+            // Cambria in Word's print. Times New Roman alternates print Times.)
+            if wordOnWindows, n == "liberation serif", let alt = fontEntry(family)?.alt,
+               alt.trimmingWhitespace().lowercased() == "cambria" { return cambria }
             return serif
         case "liberation mono", "courier new", "courier", "consolas", "menlo", "monaco",
              "lucida console", "cousine":
@@ -116,7 +120,7 @@ enum OfficeFonts {
             // zh-c399c91a's "LinTimes", PANOSE Times's and no alternate,
             // is Calibri in Word's print, its "/" 4.06pt at 10.5, where
             // ours took Times and a cell's "门" stayed on the line.)
-            let byTable = !wordMacFamilies.contains(n) && !family.unicodeScalars.contains { $0.value >= 0x2E80 } && fontEntry(family) != nil
+            let byTable = !wordMacFamilies.contains(n) && !family.unicodeScalars.contains { $0.value >= 0x2E80 && !(0xFB00 ... 0xFB06).contains($0.value) } && fontEntry(family) != nil
             if !byTable, faceHas(n, "serif") && !faceHas(n, "sans") { return serif }
             if !byTable, faceHas(n, "times") || faceHas(n, "roman") || faceHas(n, "garamond")
                 || faceHas(n, "baskerville") || faceHas(n, "didot") {
@@ -143,7 +147,9 @@ enum OfficeFonts {
             // above and below, as does an East Asian name set for Latin
             // characters, whose face Word has too: zh-6d1afa56's "√" in
             // 仿宋 is FangSong's in the print.)
-            let eastAsianName = family.unicodeScalars.contains { $0.value >= 0x2E80 }
+            // (A mangled Latin name, "pNﬂ∑˛" for Calibri — its ligature U+FB02 — is not East Asian:
+            // ita-z13342017's body, alternate Calibri, is Calibri in Word's print.)
+            let eastAsianName = family.unicodeScalars.contains { $0.value >= 0x2E80 && !(0xFB00 ... 0xFB06).contains($0.value) }
             // (Word for Windows takes the table's alternate whatever the
             // PANOSE: bug59058's MinionPro-Regular and drawing's
             // PragmaticaC-Bold, alternate Times New Roman and PANOSE all
@@ -1571,6 +1577,20 @@ enum OfficeFonts {
         0x3BB: 0.5776, 0x3BC: 0.6509, 0x3BD: 0.5786, 0x3BE: 0.5127, 0x3BF: 0.6172, 0x3C0: 0.6465,
         0x3C1: 0.6294, 0x3C2: 0.5039, 0x3C3: 0.6562, 0x3C4: 0.5205, 0x3C5: 0.6348, 0x3C6: 0.8364,
         0x3C7: 0.563, 0x3C8: 0.8545, 0x3C9: 0.8096, 0x3CC: 0.6172, 0x3CD: 0.6348, 0x3CE: 0.8096,
+    ]
+    // Cambria's Cyrillic advances in ems, from the hmtx of the subsets Word's
+    // Windows prints embed. Caladea has no Cyrillic, so Ukrainian/Russian text
+    // in Cambria was set at DejaVu Sans widths, far too wide (ukr-z4769265).
+    static let cambriaCyrillicAdvances: [UInt32: Double] = [
+        0x404: 0.5698, 0x406: 0.3242, 0x407: 0.3242, 0x410: 0.623, 0x411: 0.5991, 0x412: 0.6113, 0x413: 0.5342,
+        0x414: 0.6548, 0x417: 0.543, 0x418: 0.6919, 0x419: 0.6919, 0x41A: 0.6499, 0x41B: 0.6777, 0x41C: 0.8154,
+        0x41D: 0.6865, 0x41E: 0.6533, 0x41F: 0.6743, 0x420: 0.5679, 0x421: 0.5625, 0x422: 0.5928, 0x423: 0.6001,
+        0x424: 0.7788, 0x425: 0.5713, 0x426: 0.6719, 0x427: 0.626, 0x429: 0.9268, 0x42E: 0.9209, 0x42F: 0.6309,
+        0x430: 0.4883, 0x431: 0.541, 0x432: 0.5229, 0x433: 0.4468, 0x434: 0.5581, 0x435: 0.4878, 0x436: 0.7139,
+        0x437: 0.458, 0x438: 0.5898, 0x439: 0.5898, 0x43A: 0.54, 0x43B: 0.5591, 0x43C: 0.6729, 0x43D: 0.5889,
+        0x43E: 0.5308, 0x43F: 0.5669, 0x440: 0.5562, 0x441: 0.4409, 0x442: 0.5112, 0x443: 0.5039, 0x444: 0.6851,
+        0x445: 0.4834, 0x446: 0.5698, 0x447: 0.5308, 0x448: 0.8008, 0x449: 0.8008, 0x44B: 0.748, 0x44C: 0.5142,
+        0x44E: 0.7671, 0x44F: 0.5308, 0x454: 0.4702, 0x456: 0.2778, 0x457: 0.2778, 0x491: 0.417,
     ]
     static let tahomaBoldAdvances: [Double] = [
         0.2930, 0.3428, 0.4893, 0.6255, 0.6255, 1.0001, 0.7812, 0.2754, 0.4541, 0.4541, 0.4377, 0.6569, 0.3125, 0.4312, 0.3125,
@@ -3185,6 +3205,14 @@ enum OfficeFonts {
                 face.baseline = 1.0005
                 RuleTrace.hit("tahoma-own-widths")
             }
+            // (Impact's own line, 1.2197 ems by its hhea (ascent 2066, descent
+            // 432 over 2048); the stand-in's 1.149 left every Impact line
+            // 0.07 em short: ukr-z4769265's 13pt and 30pt headings.)
+            if wordOnWindows, family.trimmingWhitespace().lowercased() == "impact" {
+                face.naturalHeight = 1.2197
+                face.baseline = 1.0088
+                RuleTrace.hit("impact-own-line")
+            }
             // (Arial Black, which Word has and the stand-in is far
             // narrower than — its letters 15% wider than Liberation Sans
             // Bold's on average: its own widths and line, 1.41 ems by
@@ -3207,6 +3235,10 @@ enum OfficeFonts {
             if clone == cambria, !["cambria", "caladea", "carlito"].contains(family.trimmingWhitespace().lowercased()),
                !(wordOnWindows && family.trimmingWhitespace().lowercased() == "liberation serif") {
                 face.naturalHeight = 0.95 + 0.2163
+            }
+            if wordOnWindows, clone == cambria {
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging(cambriaCyrillicAdvances) { $1 }
+                RuleTrace.hit("cambria-cyrillic-widths")
             }
             if clone == serif {
                 face.otherAdvances?.merge(timesNumerals) { $1 }
