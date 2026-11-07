@@ -1,0 +1,91 @@
+# combo	hint	run	face	size	advances_em(per digit, last digit uses next char)	mean_em	text
+Calibri / 仿宋_GB2312	eastAsia	1	Calibri	15.96	0.503 0.509 0.503 0.509 0.509 0.503 0.509 0.503 0.509 0.503	0.5057	0123456789
+Calibri / 仿宋_GB2312	eastAsia	2	Calibri	15.96	0.503 0.509 0.503 0.506	0.5050	2012
+Calibri / 仿宋_GB2312	eastAsia	3	Calibri	15.96	0.509 0.503 0.506	0.5057	145
+Calibri / 仿宋_GB2312	eastAsia	4	Calibri	15.96	0.509 0.503 0.509 0.505	0.5062	2012
+Calibri / 仿宋_GB2312	eastAsia	5	Calibri	15.96	0.503 0.509 0.506	0.5057	145
+Calibri / 仿宋_GB2312	none	1	Calibri	15.96	0.503 0.509 0.503 0.509 0.509 0.503 0.509 0.503 0.509 0.503	0.5057	0123456789
+Calibri / 仿宋_GB2312	none	2	Calibri	15.96	0.503 0.509 0.503 0.506	0.5050	2012
+Calibri / 仿宋_GB2312	none	3	Calibri	15.96	0.509 0.503 0.506	0.5057	145
+Calibri / 仿宋_GB2312	none	4	Calibri	15.96	0.509 0.503 0.509 0.505	0.5062	2012
+Calibri / 仿宋_GB2312	none	5	Calibri	15.96	0.503 0.509 0.506	0.5057	145
+Calibri / 仿宋	eastAsia	1	Calibri	15.96	0.503 0.509 0.503 0.509 0.509 0.503 0.509 0.503 0.509 0.503	0.5057	0123456789
+Calibri / 仿宋	eastAsia	2	Calibri	15.96	0.503 0.509 0.503 0.506	0.5050	2012
+Calibri / 仿宋	eastAsia	3	Calibri	15.96	0.509 0.503 0.506	0.5057	145
+Calibri / 仿宋	eastAsia	4	Calibri	15.96	0.509 0.503 0.509 0.505	0.5062	2012
+Calibri / 仿宋	eastAsia	5	Calibri	15.96	0.503 0.509 0.506	0.5057	145
+Calibri / 仿宋	none	1	Calibri	15.96	0.503 0.509 0.503 0.509 0.509 0.503 0.509 0.503 0.509 0.503	0.5057	0123456789
+Calibri / 仿宋	none	2	Calibri	15.96	0.503 0.509 0.503 0.506	0.5050	2012
+Calibri / 仿宋	none	3	Calibri	15.96	0.509 0.503 0.506	0.5057	145
+Calibri / 仿宋	none	4	Calibri	15.96	0.509 0.503 0.509 0.505	0.5062	2012
+Calibri / 仿宋	none	5	Calibri	15.96	0.503 0.509 0.506	0.5057	145
+Calibri / SimSun	eastAsia	1	Calibri	15.96	0.503 0.509 0.503 0.509 0.509 0.503 0.509 0.503 0.509 0.503	0.5057	0123456789
+Calibri / SimSun	eastAsia	2	Calibri	15.96	0.503 0.509 0.503 0.506	0.5050	2012
+Calibri / SimSun	eastAsia	3	Calibri	15.96	0.509 0.503 0.506	0.5057	145
+Calibri / SimSun	eastAsia	4	Calibri	15.96	0.509 0.503 0.509 0.505	0.5062	2012
+Calibri / SimSun	eastAsia	5	Calibri	15.96	0.503 0.509 0.506	0.5057	145
+Calibri / SimSun	none	1	Calibri	15.96	0.503 0.509 0.503 0.509 0.509 0.503 0.509 0.503 0.509 0.503	0.5057	0123456789
+Calibri / SimSun	none	2	Calibri	15.96	0.503 0.509 0.503 0.506	0.5050	2012
+Calibri / SimSun	none	3	Calibri	15.96	0.509 0.503 0.506	0.5057	145
+Calibri / SimSun	none	4	Calibri	15.96	0.509 0.503 0.509 0.505	0.5062	2012
+Calibri / SimSun	none	5	Calibri	15.96	0.503 0.509 0.506	0.5057	145
+Times New Roman / 仿宋_GB2312	eastAsia	1	TimesNewRomanPSMT	15.96	0.502 0.502 0.502 0.495 0.502 0.502 0.495 0.502 0.502 0.502	0.5003	0123456789
+Times New Roman / 仿宋_GB2312	eastAsia	2	TimesNewRomanPSMT	15.96	0.493 0.502 0.495 0.499	0.4970	2012
+Times New Roman / 仿宋_GB2312	eastAsia	3	TimesNewRomanPSMT	15.96	0.502 0.502 0.499	0.5012	145
+Times New Roman / 仿宋_GB2312	eastAsia	4	TimesNewRomanPSMT	15.96	0.503 0.503 0.503 0.502	0.5025	2012
+Times New Roman / 仿宋_GB2312	eastAsia	5	TimesNewRomanPSMT	15.96	0.502 0.495 0.499	0.4984	145
+Times New Roman / 仿宋_GB2312	none	1	TimesNewRomanPSMT	15.96	0.502 0.502 0.502 0.495 0.502 0.502 0.495 0.502 0.502 0.502	0.5003	0123456789
+Times New Roman / 仿宋_GB2312	none	2	TimesNewRomanPSMT	15.96	0.493 0.502 0.495 0.499	0.4970	2012
+Times New Roman / 仿宋_GB2312	none	3	TimesNewRomanPSMT	15.96	0.502 0.502 0.499	0.5012	145
+Times New Roman / 仿宋_GB2312	none	4	TimesNewRomanPSMT	15.96	0.503 0.503 0.503 0.502	0.5025	2012
+Times New Roman / 仿宋_GB2312	none	5	TimesNewRomanPSMT	15.96	0.502 0.495 0.499	0.4984	145
+Times New Roman / 仿宋	eastAsia	1	TimesNewRomanPSMT	15.96	0.502 0.502 0.502 0.495 0.502 0.502 0.495 0.502 0.502 0.502	0.5003	0123456789
+Times New Roman / 仿宋	eastAsia	2	TimesNewRomanPSMT	15.96	0.493 0.502 0.495 0.499	0.4970	2012
+Times New Roman / 仿宋	eastAsia	3	TimesNewRomanPSMT	15.96	0.502 0.502 0.499	0.5012	145
+Times New Roman / 仿宋	eastAsia	4	TimesNewRomanPSMT	15.96	0.503 0.503 0.503 0.502	0.5025	2012
+Times New Roman / 仿宋	eastAsia	5	TimesNewRomanPSMT	15.96	0.502 0.495 0.499	0.4984	145
+Times New Roman / 仿宋	none	1	TimesNewRomanPSMT	15.96	0.502 0.502 0.502 0.495 0.502 0.502 0.495 0.502 0.502 0.502	0.5003	0123456789
+Times New Roman / 仿宋	none	2	TimesNewRomanPSMT	15.96	0.493 0.502 0.495 0.499	0.4970	2012
+Times New Roman / 仿宋	none	3	TimesNewRomanPSMT	15.96	0.502 0.502 0.499	0.5012	145
+Times New Roman / 仿宋	none	4	TimesNewRomanPSMT	15.96	0.503 0.503 0.503 0.502	0.5025	2012
+Times New Roman / 仿宋	none	5	TimesNewRomanPSMT	15.96	0.502 0.495 0.499	0.4984	145
+Times New Roman / SimSun	eastAsia	1	TimesNewRomanPSMT	15.96	0.502 0.502 0.502 0.495 0.502 0.502 0.495 0.502 0.502 0.502	0.5003	0123456789
+Times New Roman / SimSun	eastAsia	2	TimesNewRomanPSMT	15.96	0.493 0.502 0.495 0.499	0.4970	2012
+Times New Roman / SimSun	eastAsia	3	TimesNewRomanPSMT	15.96	0.502 0.502 0.499	0.5012	145
+Times New Roman / SimSun	eastAsia	4	TimesNewRomanPSMT	15.96	0.503 0.503 0.503 0.502	0.5025	2012
+Times New Roman / SimSun	eastAsia	5	TimesNewRomanPSMT	15.96	0.502 0.495 0.499	0.4984	145
+Times New Roman / SimSun	none	1	TimesNewRomanPSMT	15.96	0.502 0.502 0.502 0.495 0.502 0.502 0.495 0.502 0.502 0.502	0.5003	0123456789
+Times New Roman / SimSun	none	2	TimesNewRomanPSMT	15.96	0.493 0.502 0.495 0.499	0.4970	2012
+Times New Roman / SimSun	none	3	TimesNewRomanPSMT	15.96	0.502 0.502 0.499	0.5012	145
+Times New Roman / SimSun	none	4	TimesNewRomanPSMT	15.96	0.503 0.503 0.503 0.502	0.5025	2012
+Times New Roman / SimSun	none	5	TimesNewRomanPSMT	15.96	0.502 0.495 0.499	0.4984	145
+仿宋_GB2312 / 仿宋_GB2312	eastAsia	1	FangSong	15.96	0.502 0.502 0.502 0.495 0.502 0.502 0.495 0.502 0.502 0.495	0.4996	0123456789
+仿宋_GB2312 / 仿宋_GB2312	eastAsia	2	FangSong	15.96	0.502 0.495 0.495 0.499	0.4975	2012
+仿宋_GB2312 / 仿宋_GB2312	eastAsia	3	FangSong	15.96	0.502 0.502 0.499	0.5012	145
+仿宋_GB2312 / 仿宋_GB2312	eastAsia	4	FangSong	15.96	0.503 0.503 0.503 0.502	0.5025	2012
+仿宋_GB2312 / 仿宋_GB2312	eastAsia	5	FangSong	15.96	0.502 0.495 0.499	0.4984	145
+仿宋_GB2312 / 仿宋_GB2312	none	1	FangSong	15.96	0.502 0.502 0.502 0.495 0.502 0.502 0.495 0.502 0.502 0.495	0.4996	0123456789
+仿宋_GB2312 / 仿宋_GB2312	none	2	FangSong	15.96	0.502 0.495 0.495 0.499	0.4975	2012
+仿宋_GB2312 / 仿宋_GB2312	none	3	FangSong	15.96	0.502 0.502 0.499	0.5012	145
+仿宋_GB2312 / 仿宋_GB2312	none	4	FangSong	15.96	0.503 0.503 0.503 0.502	0.5025	2012
+仿宋_GB2312 / 仿宋_GB2312	none	5	FangSong	15.96	0.502 0.495 0.499	0.4984	145
+仿宋_GB2312 / 仿宋	eastAsia	1	FangSong	15.96	0.502 0.502 0.502 0.495 0.502 0.502 0.495 0.502 0.502 0.495	0.4996	0123456789
+仿宋_GB2312 / 仿宋	eastAsia	2	FangSong	15.96	0.502 0.495 0.495 0.499	0.4975	2012
+仿宋_GB2312 / 仿宋	eastAsia	3	FangSong	15.96	0.502 0.502 0.499	0.5012	145
+仿宋_GB2312 / 仿宋	eastAsia	4	FangSong	15.96	0.503 0.503 0.503 0.502	0.5025	2012
+仿宋_GB2312 / 仿宋	eastAsia	5	FangSong	15.96	0.502 0.495 0.499	0.4984	145
+仿宋_GB2312 / 仿宋	none	1	FangSong	15.96	0.502 0.502 0.502 0.495 0.502 0.502 0.495 0.502 0.502 0.495	0.4996	0123456789
+仿宋_GB2312 / 仿宋	none	2	FangSong	15.96	0.502 0.495 0.495 0.499	0.4975	2012
+仿宋_GB2312 / 仿宋	none	3	FangSong	15.96	0.502 0.502 0.499	0.5012	145
+仿宋_GB2312 / 仿宋	none	4	FangSong	15.96	0.503 0.503 0.503 0.502	0.5025	2012
+仿宋_GB2312 / 仿宋	none	5	FangSong	15.96	0.502 0.495 0.499	0.4984	145
+仿宋_GB2312 / SimSun	eastAsia	1	FangSong	15.96	0.502 0.502 0.502 0.495 0.502 0.502 0.495 0.502 0.502 0.495	0.4996	0123456789
+仿宋_GB2312 / SimSun	eastAsia	2	FangSong	15.96	0.502 0.495 0.495 0.499	0.4975	2012
+仿宋_GB2312 / SimSun	eastAsia	3	FangSong	15.96	0.502 0.502 0.499	0.5012	145
+仿宋_GB2312 / SimSun	eastAsia	4	FangSong	15.96	0.503 0.503 0.503 0.502	0.5025	2012
+仿宋_GB2312 / SimSun	eastAsia	5	FangSong	15.96	0.502 0.495 0.499	0.4984	145
+仿宋_GB2312 / SimSun	none	1	FangSong	15.96	0.502 0.502 0.502 0.495 0.502 0.502 0.495 0.502 0.502 0.495	0.4996	0123456789
+仿宋_GB2312 / SimSun	none	2	FangSong	15.96	0.502 0.495 0.495 0.499	0.4975	2012
+仿宋_GB2312 / SimSun	none	3	FangSong	15.96	0.502 0.502 0.499	0.5012	145
+仿宋_GB2312 / SimSun	none	4	FangSong	15.96	0.503 0.503 0.503 0.502	0.5025	2012
+仿宋_GB2312 / SimSun	none	5	FangSong	15.96	0.502 0.495 0.499	0.4984	145
