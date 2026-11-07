@@ -1579,7 +1579,7 @@ enum ChartXML {
             titleOverlay = ["1", "true"].contains(t.first("c:overlay")?["val"] ?? "0")
             // Line by line: a paragraph, or a break inside one, starts a new line.
             let paragraphs = t.first("c:tx")?.first("c:rich")?.all("a:p") ?? []
-            let text = paragraphs.isEmpty ? _texts(t, "a:t").joined() : paragraphs.map { p in
+            let text = paragraphs.isEmpty ? _titleTexts(t).joined() : paragraphs.map { p in
                 p.children.map { $0.name == "a:br" ? "\n" : $0.name == "a:r" ? ($0.first("a:t")?.text ?? "") : "" }.joined()
             }.joined(separator: "\n")
             // (A lone series titles its chart by its name — and one with
@@ -1638,7 +1638,7 @@ enum ChartXML {
         if let axis = secondAxis {
             var second = SecondValueAxis()
             second.deleted = ["1", "true"].contains(axis.first("c:delete")?["val"] ?? "")
-            if let t = axis.first("c:title") { let text = _texts(t, "a:t").joined(); if !text.isEmpty { second.title = text } }
+            if let t = axis.first("c:title") { let text = _titleTexts(t).joined(); if !text.isEmpty { second.title = text } }
             if let fmt = axis.first("c:numFmt") {
                 let linked = ["1", "true"].contains(fmt["sourceLinked"] ?? "")
                 let source = overlay?.descendant("c:val")?.descendant("c:formatCode")?.text
@@ -1912,7 +1912,7 @@ enum ChartXML {
         }
         func axisTitle(_ ax: XNode?) -> String? {
             guard let t = ax?.first("c:title") else { return nil }
-            let s = _texts(t, "a:t").joined()
+            let s = _titleTexts(t).joined()
             // (A title of its own text that is empty prints nothing, but
             // keeps its room beside the plot: 64450's two axes, where ours
             // said "Axis Title" — and with no title at all its plot stood
@@ -1952,7 +1952,7 @@ enum ChartXML {
             c.categories = labels
             yearsAxis = true
             c.categoryLabelsSparse = true
-            if let t = hx.first("c:title") { let text = _texts(t, "a:t").joined(); if !text.isEmpty { c.categoryAxisTitle = text } }
+            if let t = hx.first("c:title") { let text = _titleTexts(t).joined(); if !text.isEmpty { c.categoryAxisTitle = text } }
         }
         c.dateAxis = axes.contains { $0.name == "c:dateAx" }
         c.valueAxisTitle = axisTitle(titledValue)
@@ -2211,6 +2211,13 @@ enum ChartXML {
         return n.children.contains { _traditional($0) }
     }
     static let _fieldMarks = ["CATEGORYNAME": "\u{E000}c", "VALUE": "\u{E000}v", "SERIESNAME": "\u{E000}s", "PERCENTAGE": "\u{E000}p"]
+
+    /// A title's text: its rich text, or where it is given by a cell (`c:tx/c:strRef`) the text that cell held when the file was saved.
+    private static func _titleTexts(_ t: XNode) -> [String] {
+        let rich = _texts(t, "a:t")
+        if !rich.isEmpty { return rich }
+        return t.first("c:tx")?.first("c:strRef").map { _texts($0, "c:v") } ?? []
+    }
 
     private static func _texts(_ node: XNode, _ name: String) -> [String] {
         if node.name == name { return [node.text] }
