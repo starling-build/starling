@@ -1674,6 +1674,48 @@ extension RichLayout {
                     if !inline.isEmpty { each.setPlaceholderDimensions(inline.map { $0.dimensions }) }
                     each.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
                     if each.computeLineMetrics().count == lines { return each }
+                    } else if !_offGrid(i, document), style.lineHeightPoints == nil || style.lineHeightIsMinimum, _grid(i, document).pitch != nil,
+                              lines > 1, let ref = _strut(span, near: spacedOver),
+                              inline.filter({ $0.image?.float == nil }).count == 1,
+                              inline.allSatisfy({ $0.image.map { $0.float.map { !$0.takesRoom } == true || ($0.float == nil && $0.textBox == nil && $0.name != "hr") } ?? false }),
+                              case let metrics = painter.computeLineMetrics(), metrics.count == lines, metrics[0].height >= held.key * 0.97,
+                              let box = painter.inlinePlaceholderBoxes?.last,
+                              box.top >= metrics.dropLast().reduce(0, { $0 + $1.height }) - 0.5, metrics.last!.height > _px(_grid(i, document).pitch ?? 0) * 2 {
+                        // (A title on the line grid with a picture after it on a
+                        // line of its own: the title's line keeps its height but
+                        // Word sets the baseline where the paragraph's strut puts
+                        // it, the rest of the line under it. zh-e49d7943 p14: baseline
+                        // 104.2 in Word's print, 109.6 with the stand-in's split.)
+                        let flat = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr, strutStyle: ref)
+                        flat.fractionalLineHeights = painter.fractionalLineHeights
+                        flat.lineIndents = painter.lineIndents
+                        flat.setPlaceholderDimensions(inline.map {
+                            PlaceholderDimensions(size: Size($0.dimensions.size.width, 0), alignment: .baseline, baseline: .alphabetic, baselineOffset: 0)
+                        })
+                        flat.layout(minWidth: lineWidth + slack, maxWidth: lineWidth + slack)
+                        let strutLine = flat.computeLineMetrics().first
+                        // (The line's extra over the strut's is shared evenly above and below: 38.6 against
+                        // 36 puts the baseline 1.3 lower than the strut's own, as Word's print does.)
+                        let above = (strutLine?.baseline ?? 0) + max(0, metrics[0].height - (strutLine?.height ?? metrics[0].height)) / 2
+                        flat.dispose()
+                        let total = metrics[0].height
+                        if above > 1, above < metrics[0].baseline - 0.5, above < total {
+                            RuleTrace.hit("word-grid-title-before-its-picture-keeps-the-strut-baseline")
+                            func split(_ s: InlineSpan) -> InlineSpan {
+                                guard let t = s as? TextSpan else { return s }
+                                var st = t.style
+                                if let text = t.text, !text.isEmpty, let x = st, let size = x.fontSize, let h = x.height, size > 0.5, size * h >= top * 0.97 {
+                                    st = x.copyWith(ascentOverride: above, descentOverride: total - above, height: total / size)
+                                }
+                                return TextSpan(text: t.text, children: t.children?.map { split($0) }, style: st, recognizer: t.recognizer, locale: t.locale)
+                            }
+                            let each = TextPainter(text: split(span), textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr)
+                            each.fractionalLineHeights = painter.fractionalLineHeights
+                            each.lineIndents = painter.lineIndents
+                            each.setPlaceholderDimensions(inline.map { $0.dimensions })
+                            each.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
+                            if each.computeLineMetrics().count == lines { return each }
+                        }
                     }
                 }
             }
