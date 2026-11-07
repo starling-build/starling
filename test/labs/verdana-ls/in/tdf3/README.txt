@@ -1,0 +1,1 @@
+tdf129686 box, filled yellow so the print shows where PowerPoint puts it. F1 as is; F2 box moved down 2000000 EMU (157.5 pt); F3 as F1 with top/bottom insets 0. Give per deck: the text baseline AND the filled rectangle's top and bottom y. Also please print the ORIGINAL unmodified lo-tdf129686.pptx (test/corpus/pptx/decks) and give its baseline.
