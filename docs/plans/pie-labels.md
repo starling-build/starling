@@ -79,6 +79,24 @@ and 1-5 at firstSliceAng 5/10/15.
 Conclusion for lo-f9b9a8fc's label 5: it is a zone label in an 8-label set; its place is set by Word's joint search, which these
 labs still do not expose. The fallback rule is implemented (wip/pie-bestfit) per starling-bd's decision; label 5 stays open.
 
+
+### Lab pieanchor read (wip/lab-pieanchor-prints, 66 docs, true R from the on-curve circle fit) and advisor round 2
+- Word's corner and edge anchors sit on a ring about 2 px OUTSIDE the drawn circle, not on it: 12-slice pie (R 53.71) corners at
+  1.023-1.034 R, 6-slice (R 60.44) 1.023-1.035, and pie1's side labels' inner edge at 1.027-1.039 x P.x (R_true 53.71). The pie1
+  "exact on R_meas" was this ring seen through the control-point artefact. The landed rule anchors on R (2 px short) - cheap fix pending.
+  Zone labels (13-30 deg) keep their box on the TRUE tangent (bottom at -R, pokes <= 1 pt).
+- Narrow slices: a lone label of a 30-degree slice at 24-42 deg has its corner on the ring at the slice START + 22.5 deg, not at the
+  middle (7 docs); 60-degree slices at the middle. So the anchor angle looks like start + max(span/2, 22.5). A lone 30-degree slice
+  label at the BOTTOM (165-192 deg) is not drawn there at all: Word stands it beside the pie on the left (box top-right corner at
+  247-280 deg, about theta + 82), no leader line. 3- and 5-slice pies (R 60.44) put every lone label inside; nothing to read.
+- Advisor round 2 (scratchpad advisor2/): the pair/triple numbers rule out plain "drift as long as the loop runs" (triples never
+  reach the larger pair drift: 2+3 -> 15, 2+4 -> 18, 4+5 -> 9 against 27) and every one-counter / last-label / add / max scheme; and
+  they show a MODE SWITCH: with any zone label present every label of the chart is placed again, side labels moving 2-11 px to
+  WORSE spots (further from their rim point) - without a zone label the per-label rule is exact. What survives: a search with
+  richer carried state, or a chaotic/seeded trial-move search. Its ranking of labs: the partner sweep WITH controls (each partner
+  alone and label 1 alone at every step, sweep to 190 deg), then the three-copies test, then partner width.
+- Lab piezone2 (wip/lab-piezone, test/lab/piezone2, 171 docs) sent: both / one / two at s = 5..145 by 2.5 (partner middle 50-190).
+
 # Round 2 (after pielabel5 and pielabel6): verdict
 
 **Neither candidate reproduces Word, and nothing should be built for label 5.** Both the iterative
