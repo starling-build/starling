@@ -704,7 +704,15 @@ final class RunCapsAndBulletTests: XCTestCase {
         XCTAssertEqual(sh.dy, 3, accuracy: 1e-9, "three points straight down")
         XCTAssertEqual(sh.blur, 4, accuracy: 1e-9)
         let ground = try read("<a:outerShdw blurRad=\"50800\" dist=\"38100\" dir=\"5400000\" sy=\"23000\" kx=\"-1200000\"><a:prstClr val=\"black\"/></a:outerShdw>")
-        XCTAssertTrue(ground.allSatisfy { $0.shadow == nil })
+        // (A shadow cast on the ground, scaled and skewed, is read too and drawn as the outline so transformed:
+        // sx 100%, sy 23%, kx -20 degrees, ky none.)
+        let gs = try XCTUnwrap(ground.lazy.compactMap(\.shadow).first)
+        let mm = try XCTUnwrap(gs.ground)
+        XCTAssertEqual(mm[0], 1, accuracy: 1e-9)
+        XCTAssertEqual(mm[1], 0.23, accuracy: 1e-9)
+        XCTAssertEqual(mm[2], tan(-20 * Double.pi / 180), accuracy: 1e-9)
+        XCTAssertEqual(mm[3], 0, accuracy: 1e-9)
+        XCTAssertEqual(gs.scale, 1, accuracy: 1e-9)
     }
 
     func testAnEmptyListParagraphShowsNoMarkerInSlides() {
