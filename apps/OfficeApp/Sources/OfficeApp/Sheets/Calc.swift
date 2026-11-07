@@ -487,7 +487,7 @@ final class CalcEngine {
         case .name(let n):
             if let local = ctx.locals[n.uppercased()] { return local }
             if let target = book.nameText(n, sheet: ctx.sheet), target.containsSubstring("#REF!") { return .error(.ref) }
-            if let target = book.nameText(n, sheet: ctx.sheet), let v = externalName(target) { return v }
+            if let v = externalNameCase(n, ctx) { return v }
             guard let target = book.nameText(n, sheet: ctx.sheet),
                   let parsed = try? Formula.parse(target) else {
                 // A table's own name is its data rows (Table1 = Table1[]).
@@ -590,6 +590,9 @@ final class CalcEngine {
     func externalValue(_ bi: Int, _ si: Int, _ r: FormulaRef) -> EvalValue {
         let cells = book.externals[bi].cells[si] ?? [:]
         let rng = r.range
+        // A whole column or row asks Excel's own implicit intersection and
+        // the whole sheet: only the cell's saved value tells (#REF! here).
+        if rng.top == 0 && rng.bottom == CellAddress.maxRows - 1 || rng.left == 0 && rng.right == CellAddress.maxCols - 1 { return .error(.ref) }
         if r.isCell { return .scalar(cells[rng.topLeft] ?? .empty) }
         let maxRow = cells.keys.map { $0.row }.max() ?? 0, maxCol = cells.keys.map { $0.col }.max() ?? 0
         let bottom = min(rng.bottom, max(maxRow, rng.top)), right = min(rng.right, max(maxCol, rng.left))
@@ -600,13 +603,25 @@ final class CalcEngine {
         return .array(rows)
     }
 
+    /// The `.name` case's external-link lookups, kept out of `evaluate` so its stack frame stays small
+    /// (a runaway LAMBDA recursion must reach its depth limit before the stack ends).
+    @inline(never)
+    func externalNameCase(_ n: String, _ ctx: EvalContext) -> EvalValue? {
+        if n.hasPrefix("[") || n.hasPrefix("'["), let v = externalName(n) { return v }
+        if let target = book.nameText(n, sheet: ctx.sheet), let v = externalName(target) { return v }
+        return nil
+    }
+
     /// A defined name written `[1]!Name`: the linked book's own name.
     func externalName(_ target: String) -> EvalValue? {
+        var target = target
+        if target.hasPrefix("'[") { target.removeFirst() }
         guard target.hasPrefix("["), let close = target.firstIndex(of: "]"),
               let n = Int(target[target.index(after: target.startIndex) ..< close]),
               n >= 1, n <= book.externals.count else { return nil }
         var rest = String(target[target.index(after: close)...])
-        if rest.hasPrefix("!") { rest.removeFirst() }
+        // [1]!Name, or a sheet's own name: [1]Defines!Name.
+        if let bang = rest.lastIndex(of: "!") { rest = String(rest[rest.index(after: bang)...]) }
         guard var to = book.externals[n - 1].names[rest.uppercased()] else { return nil }
         if to.hasPrefix("=") { to.removeFirst() }
         guard let parsed = try? Formula.parse(to), case .ref(var r) = parsed, let sn = r.sheet,

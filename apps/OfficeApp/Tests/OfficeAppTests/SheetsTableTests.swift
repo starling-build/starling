@@ -201,6 +201,8 @@ extension SheetsTableTests {
         XCTAssertEqual(v("='[2]Munka1'!A3"), .error(.ref))
         c.book.names["LINKED"] = "[1]!MONTHS"
         XCTAssertEqual(v("=ROWS(LINKED)").number, 2)
+        XCTAssertEqual(v("=ROWS([1]Munka1!MONTHS)").number, 2)          // a name written with its sheet
+        XCTAssertEqual(v("=SUM('[1]Munka1'!A:A)"), .error(.ref))        // a whole column: the cell's own saved value decides
     }
 
     func testStructuredReferenceForms() throws {
