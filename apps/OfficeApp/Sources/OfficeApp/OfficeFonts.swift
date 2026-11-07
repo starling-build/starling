@@ -3236,7 +3236,11 @@ enum OfficeFonts {
                !(wordOnWindows && family.trimmingWhitespace().lowercased() == "liberation serif") {
                 face.naturalHeight = 0.95 + 0.2163
             }
-            if wordOnWindows, clone == cambria {
+            // (Only faces that really are Cambria here: any other face drawn as the
+            // Cambria clone would gain otherAdvances and switch off the
+            // "otherAdvances == nil" Indic rules, as Kokila's Hindi did.)
+            if wordOnWindows, clone == cambria,
+               ["cambria", "caladea", "liberation serif"].contains(family.trimmingWhitespace().lowercased()) {
                 face.otherAdvances = (face.otherAdvances ?? [:]).merging(cambriaCyrillicAdvances) { $1 }
                 RuleTrace.hit("cambria-cyrillic-widths")
             }
