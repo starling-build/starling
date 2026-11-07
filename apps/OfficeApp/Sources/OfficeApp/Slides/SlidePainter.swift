@@ -95,17 +95,31 @@ final class SlideTextCache {
         if let source = imageSource { await source.decodeNow(attachment); return }
         let id = attachment.id
         guard _images[id] == nil, !_undecodable.contains(id), !Metafile.isMetafile(attachment.data) else { return }
-        var decoded: Image? = nil
         var bytes = [UInt8](attachment.data)
         if Tiff.isTiff(bytes), let bmp = Tiff.bmp(bytes) { bytes = bmp }
-        if let codec = try? await instantiateImageCodec(bytes) {
-            decoded = (try? await codec.getNextFrame())?.image
-            codec.dispose()
+        // A decode that fails is tried once more (memory or time under load can fail it for a
+        // moment) and, if it still fails, said on stderr: it used to be marked undecodable silently.
+        var decoded: Image? = nil
+        var failure = "no codec"
+        for attempt in 0 ..< 2 {
+            do {
+                let codec = try await instantiateImageCodec(bytes)
+                decoded = try await codec.getNextFrame().image
+                codec.dispose()
+            } catch { failure = "\(error)" }
+            if decoded == nil, let fixed = Png.repaired(bytes), let codec = try? await instantiateImageCodec(fixed) {
+                decoded = (try? await codec.getNextFrame())?.image
+                codec.dispose()
+            }
+            if decoded != nil { break }
+            if attempt == 0 { try? await Task.sleep(nanoseconds: 200_000_000) }
         }
-        if decoded == nil, let fixed = Png.repaired(bytes), let codec = try? await instantiateImageCodec(fixed) {
-            decoded = (try? await codec.getNextFrame())?.image
-            codec.dispose()
+        #if !os(WASI)
+        if decoded == nil {
+            let head = bytes.prefix(8).map { String($0, radix: 16) }.joined(separator: " ")
+            fputs("[slides] picture decode failed: attachment #\(attachment.seq), \(bytes.count) bytes, head \(head): \(failure)\n", stderr)
         }
+        #endif
         if let decoded {
             Self.noteJpeg(bytes, decoded)
             if _images[id] == nil { _images[id] = decoded; onImageDecoded?() } else { decoded.dispose() }
