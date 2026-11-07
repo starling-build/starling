@@ -111,6 +111,18 @@ labs still do not expose. The fallback rule is implemented (wip/pie-bestfit) per
   its angle: partner at 50-60 deg (corner-anchored) -> +24.9 px; 62.5-75 (side-anchored) -> +7.9; from 77.5 on (the partner's row is
   missing from the TSV, probably inside) -> +10.0; constant within each plateau. Controls (each label alone) are in piezone2.
 
+
+### Lab piezone2 read (171 docs; 3 slices, R 60.5, labels 56.5 pt; wip/lab-piezone-prints)
+- A lone zone label (22.5 deg) is the same, (text left +10.0, top -94.7 px of the centre), whatever the other slices' angles: the
+  lone position depends on the pie and the label only.
+- Partner corner-anchored (50-60 deg): the zone label moves +15 px toward its corner and 2 px down (265, 51 from 250, 49 in
+  frame px); the partner stays exactly where it stands alone. Partner side-anchored (62.5-75): the zone label moves 2 px LEFT and 2
+  up (248, 47), and it is the PARTNER that moves, to a box top of 92, 102 or 112 px from the frame top (101 once), 30/40/50 px
+  under the zone label's bottom, from lone tops 98-115 that follow its angle: a 10 px grid relative to the zone label. Partner
+  inside the pie (from 77.5 deg) or absent: the zone label is at its lone place; an inside partner has no effect here (it did in
+  piezone's width test with the 8-slice pie).
+- Still no mechanism: deterministic, order-dependent, piecewise constant in the partner's sector, with px-grid destinations.
+
 # Round 2 (after pielabel5 and pielabel6): verdict
 
 **Neither candidate reproduces Word, and nothing should be built for label 5.** Both the iterative
