@@ -125,7 +125,10 @@ final class OfficeSession {
     var autoSave = false
     /// Format Painter: the character style picked up, applied to the next
     /// selection and then dropped.
-    var paintedStyle: CharStyle? = nil
+    var paintedStyle: FormatSample? = nil
+    /// Double-clicked on: stays on for several applications until Esc.
+    var paintSticky = false
+    var lastPainterPress = 0.0
     var pageInfo = (page: 1, count: 1)
 
     var path: String? = nil

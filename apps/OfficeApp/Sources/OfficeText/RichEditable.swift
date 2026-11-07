@@ -45,8 +45,8 @@ public final class RichEditable: StatefulWidget {
     public let onLinkHover: ((String?) -> Void)?
     /// ⌘-click on a link. Nil opens it through the host.
     public let onLinkActivate: ((String) -> Void)?
-    /// A pointer selection gesture ended (drag, double or triple click)
-    /// with a non-empty selection — when Word's Format Painter applies.
+    /// A pointer selection gesture ended (click, drag, double or triple click)
+    /// — when Word's Format Painter applies (a bare click may leave no selection).
     public let onSelectionGestureEnd: (() -> Void)?
     /// Checks paragraphs as they are shown and underlines misspellings.
     public let spellChecker: RichSpellChecker?
@@ -827,7 +827,7 @@ public final class RichEditableState: State<StatefulWidget> {
         let wasDragging = _dragging
         _dragging = false
         _unitDrag = nil
-        if wasDragging, _controller.hasSelection { _w.onSelectionGestureEnd?() }
+        if wasDragging { _w.onSelectionGestureEnd?() }   // a bare click too: the painter paints its word
         if let drag = _columnDrag {
             _columnDrag = nil
             let final = _columnDragWidths

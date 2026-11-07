@@ -1001,3 +1001,58 @@ final class KeyChordTests: XCTestCase {
         XCTAssertEqual(KeyChordTracker.letter(0x43), "c")
     }
 }
+
+final class FormatPainterTests: XCTestCase {
+    private func make() -> RichDocumentController {
+        let c = RichDocumentController(plainText: "source\nplain target")
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 6), extend: true)
+        c.applyCharStyle { $0.bold = true; $0.fontSize = 20; $0.fontFamily = "Arial"; $0.color = Color(0xFFFF0000) }
+        c.setAlignment(.center)
+        return c
+    }
+
+    func testPaintCharAndParagraph() {
+        let c = make()
+        let sample = c.copyFormat()
+        XCTAssertTrue(sample.char.bold)
+        c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 1, offset: 5), extend: true)
+        c.pasteFormat(sample)
+        let st = c.document.paragraphs[1].style(at: 2)
+        XCTAssertTrue(st.bold)
+        XCTAssertEqual(st.fontSize, 20)
+        XCTAssertEqual(st.fontFamily, "Arial")
+        XCTAssertEqual(st.color, Color(0xFFFF0000))
+        XCTAssertFalse(c.document.paragraphs[1].style(at: 8).bold)       // outside the selection
+        XCTAssertNotEqual(c.document.paragraphs[1].style.alignment, .center)  // mark not reached
+        c.undo()
+        XCTAssertFalse(c.document.paragraphs[1].style(at: 2).bold)
+    }
+
+    func testPaintWholeParagraphTakesAlignment() {
+        let c = make()
+        let sample = c.copyFormat()
+        c.moveTo(RichPosition(paragraph: 1, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 1, offset: 12), extend: true)
+        c.pasteFormat(sample)
+        XCTAssertEqual(c.document.paragraphs[1].style.alignment, .center)
+        c.undo()
+        XCTAssertNotEqual(c.document.paragraphs[1].style.alignment, .center)
+    }
+
+    func testBareClickPaintsWordAndKeepsLink() {
+        let c = make()
+        let sample = c.copyFormat()
+        c.moveTo(RichPosition(paragraph: 1, offset: 8), extend: false)   // inside "target"
+        c.selectWordForPainting()
+        c.pasteFormat(sample)
+        XCTAssertTrue(c.document.paragraphs[1].style(at: 8).bold)
+        XCTAssertFalse(c.document.paragraphs[1].style(at: 1).bold)
+        // sample can be applied repeatedly (double-click mode)
+        c.moveTo(RichPosition(paragraph: 1, offset: 1), extend: false)
+        c.selectWordForPainting()
+        c.pasteFormat(sample)
+        XCTAssertTrue(c.document.paragraphs[1].style(at: 1).bold)
+    }
+}
