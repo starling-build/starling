@@ -1,0 +1,1 @@
+tdf129686 box, all anchor top. T0 top inset 0; T9 top inset 7.2 pt (default is 3.6); TH box 3x taller (1491393 EMU); TS run 18 pt instead of 24 (both run and end mark). Box top is at 20.53 pt. Give the text baseline per deck.
