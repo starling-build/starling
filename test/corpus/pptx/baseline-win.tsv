@@ -140,7 +140,7 @@ lo-lineStyle.pptx	summary pages=1 worst=0.13% mean=0.13%
 lo-loopNoPause.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-master-and-eleven-layouts.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-master-bg-color.pptx	summary pages=2 worst=0.00% mean=0.00%
-lo-master-slides.pptx	summary pages=1 worst=5.17% mean=5.17%
+lo-master-slides.pptx	summary pages=1 worst=2.04% mean=2.04%
 lo-media-placeholder.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-mirrored-graphic.pptx	summary pages=1 worst=0.00% mean=0.00%
 lo-multicol.pptx	summary pages=1 worst=0.25% mean=0.25%
@@ -405,7 +405,7 @@ lo-tdf157216.pptx	summary pages=1 worst=0.09% mean=0.09%
 lo-tdf157285.pptx	summary pages=1 worst=0.22% mean=0.22%
 lo-tdf157529.pptx	summary pages=1 worst=0.58% mean=0.58%
 lo-tdf157635.pptx	summary pages=1 worst=0.00% mean=0.00%
-lo-tdf157740.pptx	summary pages=1 worst=0.23% mean=0.23%
+lo-tdf157740.pptx	summary pages=1 worst=0.16% mean=0.16%
 lo-tdf157793.pptx	summary pages=1 worst=0.35% mean=0.35%
 lo-tdf158512.pptx	summary pages=2 worst=0.81% mean=0.69%
 lo-tdf160487.pptx	summary pages=1 worst=0.88% mean=0.88%
