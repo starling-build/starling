@@ -1745,8 +1745,13 @@ extension RichLayout {
         var painter = laidOut(span)
         _mixedFace[i] = nil
         if lines1(painter), let mixed = _mixedFaceSpan(span, p) {
-            let again = laidOut(mixed)
-            if lines1(again) { painter.dispose(); painter = again; _mixedFace[i] = true } else { again.dispose() }
+            let again = laidOut(mixed.span)
+            if lines1(again) { painter.dispose(); painter = again; _mixedFace[i] = (mixed.depth, mixed.size / _px(1)) } else { again.dispose() }
+        } else if !lines1(painter), inline.isEmpty, let split = _mixedFaceLinesSpan(span, p, painter) {
+            let again = laidOut(split)
+            if again.computeLineMetrics().count == painter.computeLineMetrics().count {
+                painter.dispose(); painter = again; _mixedFace[i] = (0, 0)
+            } else { again.dispose() }
         }
         // East Asian line ends, as Word sets them: a closing mark that
         // would start a line hangs past the margin instead, and a line

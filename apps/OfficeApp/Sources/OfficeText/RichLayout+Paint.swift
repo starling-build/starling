@@ -733,7 +733,6 @@ extension RichLayout {
         guard theme.singleLineHeight != nil else { return 0 }
         let p = document.paragraphs[i]
         guard let run = p.runs.first else { return 0 }
-        if _mixedFace[i] == true { return 0 }
         if let points = p.style.lineHeightPoints, !p.style.lineHeightIsMinimum, let share = theme.exactLineDescentShare {
             // A line of so many points has its baseline a fixed share of
             // it down, whatever the face: the engine's own sets it by the
@@ -764,8 +763,9 @@ extension RichLayout {
             }
             return _px(points * (drawn - below))
         }
-        let k = theme.baselineShift(for: run.style, in: p.style)
+        let k = theme.baselineShift(for: run.style, in: p.style, depth: _mixedFace[i]?.depth)
         guard k != 0 else { return 0 }
+        if let mixed = _mixedFace[i] { return k * _px(mixed.size) }
         var size = run.style.fontSize ?? document.styles.resolve(p.style)?.char.fontSize
             ?? document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize
         if fontScale != 1 { size = max(1, (size * fontScale).rounded()) }
@@ -786,13 +786,14 @@ extension RichLayout {
         let name = run.style.fontFamily ?? theme.fontFamily
         let family = name.map { theme.fontFamilyResolver?($0) ?? $0 }
         let drawn = theme.descentShare(family: family, bold: run.style.bold, italic: run.style.italic)
-        let depth = name.flatMap { theme.ownDescentShare?($0) } ?? drawn
+        let depth = _mixedFace[i]?.depth ?? name.flatMap { theme.ownDescentShare?($0) } ?? drawn
         let natural = single * depth
         let foot = 0.25 * (multiple * single) + max(0.013 - 0.07 * depth, natural - 0.25 * single)
         guard foot > natural else { return 0 }
         var size = run.style.fontSize ?? document.styles.resolve(p.style)?.char.fontSize
             ?? document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize
         if fontScale != 1 { size = max(1, (size * fontScale).rounded()) }
+        if let mixed = _mixedFace[i], mixed.size > 0 { size = mixed.size }
         return (foot - natural) * _px(size)
     }
 

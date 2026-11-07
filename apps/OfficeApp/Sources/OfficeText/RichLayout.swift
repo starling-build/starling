@@ -175,7 +175,7 @@ public final class RichTextTheme {
     /// ABOVE the line and adds one over single there, the letters keeping
     /// their depth below — where the engine shares the change out above
     /// and below. Zero for Word, and for a spacing given in points.
-    public func baselineShift(for style: CharStyle, in paragraph: RichParagraphStyle) -> Double {
+    public func baselineShift(for style: CharStyle, in paragraph: RichParagraphStyle, depth forced: Double? = nil) -> Double {
         guard let single = singleLineHeight, paragraph.lineHeightPoints == nil else { return 0 }
         let multiple = max(0.1, paragraph.lineSpacing - lineSpacingReduction)
         // (Over single, PowerPoint shares the extra out above and below
@@ -184,7 +184,7 @@ public final class RichTextTheme {
         // engine's own share 0.75; all of it above had them 7.3 and 1.9
         // pt low.)
         let name = style.fontFamily ?? fontFamily
-        let own = name.flatMap { ownDescentShare?($0) }
+        let own = forced ?? name.flatMap { ownDescentShare?($0) }
         if exactLinesAsPowerPoint, multiple != 1 {
             // PowerPoint for Windows, labs p3lp and p3lu (Arial, Calibri, Courier
             // New, Times New Roman, Cambria, Segoe UI, MS Gothic at 18 and 32 pt,
@@ -196,7 +196,7 @@ public final class RichTextTheme {
             // (the face's depth of its 1.2 size) — Arial's has no lift, Calibri's
             // is under 90%, Courier New's at every spacing.
             let family = name.map { fontFamilyResolver?($0) ?? $0 }
-            let drawn = descentShare(family: family, bold: style.bold, italic: style.italic)
+            let drawn = forced ?? descentShare(family: family, bold: style.bold, italic: style.italic)
             let depth = own ?? drawn
             let line = multiple * single
             let natural = single * depth
@@ -217,12 +217,12 @@ public final class RichTextTheme {
             // New's and Poppins' lines kept to it, TextFittingStored's
             // 150% and master-slides' 110% went +0.40 and +0.27.)
             let family = name.map { fontFamilyResolver?($0) ?? $0 }
-            let drawn = descentShare(family: family, bold: style.bold, italic: style.italic)
+            let drawn = forced ?? descentShare(family: family, bold: style.bold, italic: style.italic)
             return single * (multiple - 1) * (share - (1 - drawn))
         }
         guard multiple < 1 || own != nil else { return 0 }
         let family = name.map { fontFamilyResolver?($0) ?? $0 }
-        let drawn = descentShare(family: family, bold: style.bold, italic: style.italic)
+        let drawn = forced ?? descentShare(family: family, bold: style.bold, italic: style.italic)
         // (The face the text asks for, where its stand-in is not its
         // clone, keeps its own depth below the baseline: `ownDescentShare`.)
         let below = own ?? drawn
@@ -1242,7 +1242,7 @@ public final class RichLayout {
     /// Per paragraph, its inline pictures in placeholder order.
     var _inline: [[ImageAttachment]] = []
     /// Paragraphs laid out on `_mixedFaceSpan`'s line, which sets their baseline itself.
-    var _mixedFace: [Int: Bool] = [:]
+    var _mixedFace: [Int: (depth: Double, size: Double)] = [:]
     var _inlineBoxes: [[Int]] = []
     /// An inline object's own height where its box is a page tall (`_span`), by id.
     var _pageFill: [String: Double] = [:]
