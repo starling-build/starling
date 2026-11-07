@@ -889,7 +889,15 @@ extension RichLayout {
                 // (The mark is a grapheme extender: it is one Character with the
                 // letter before it, so the word is cut by its scalars.)
                 for part in word.unicodeScalars.split(separator: "\u{200C}", omittingEmptySubsequences: true) {
-                    guard let e = ArabicForms.width(part.map { $0.value }, table) else { return s }
+                    // (A piece at the start or end of the run joins the letter beyond it.)
+                    let atStart = part.startIndex == word.unicodeScalars.startIndex, atEnd = part.endIndex == word.unicodeScalars.endIndex
+                    var before: UInt32? = nil
+                    if atStart, word.startIndex == text.startIndex, base > 0, base - 1 < p.text.utf16.count {
+                        let i = p.text.utf16.index(p.text.utf16.startIndex, offsetBy: base - 1)
+                        before = p.text.unicodeScalars[i].value
+                    }
+                    let after: UInt32? = atEnd && word.endIndex == text.endIndex ? next?.unicodeScalars.first?.value : nil
+                    guard let e = ArabicForms.width(part.map { $0.value }, table, before: before, after: after) else { return s }
                     ems += e
                     shaped += _wordWidth(s, String(String.UnicodeScalarView(part)))
                 }

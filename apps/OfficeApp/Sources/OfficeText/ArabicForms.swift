@@ -106,20 +106,22 @@ extension ArabicForms {
     /// form, lam and an alef as one, marks of no width — by `advances`
     /// (ems by code point, presentation forms among them). Nil where a
     /// character has no width there.
-    static func width(_ units: [UInt32], _ advances: [UInt32: Double]) -> Double? {
+    static func width(_ units: [UInt32], _ advances: [UInt32: Double], before: UInt32? = nil, after: UInt32? = nil) -> Double? {
         // (Marks are transparent to joining: the characters of no width.)
         let shown = units.filter { advances[$0] != 0 }
         func joinsBoth(_ u: UInt32) -> Bool { u == 0x0640 || (letters[u]?[2] ?? 0) != 0 }
         func joinsRight(_ u: UInt32) -> Bool { joinsBoth(u) || (letters[u]?[1] ?? 0) != 0 }
         var total = 0.0
-        var prevJoinsLeft = false
+        // (The letters either side in the paragraph — a word cut into runs, as the Urdu
+        // title in ara-z8215570's header, one letter a run, still joins across the cuts.)
+        var prevJoinsLeft = before.map { joinsBoth($0) } ?? false
         var k = 0
         while k < shown.count {
             let u = shown[k]
-            let next = k + 1 < shown.count ? shown[k + 1] : nil
+            let next = k + 1 < shown.count ? shown[k + 1] : (after.map { (0x0600 ... 0x06FF).contains($0) ? $0 : nil } ?? nil)
             let joinsPrev = prevJoinsLeft && joinsRight(u)
             // (Lam and an alef are one glyph, which joins to the right only.)
-            if u == 0x0644, let next, let pair = lamAlef[next] {
+            if u == 0x0644, k + 1 < shown.count, let next, let pair = lamAlef[next] {
                 guard let w = advances[pair[joinsPrev ? 1 : 0]] else { return nil }
                 total += w
                 prevJoinsLeft = false
