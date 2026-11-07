@@ -2044,7 +2044,7 @@ struct DiagramLayout {
         // when nothing says otherwise: PowerPoint's 51 under 65
         // (lo-smartart-bullet-list) and 33 under 42 (lo-smartart-missing-
         // bullet).
-        let sec = min(n.value("secFontSz") ?? prim * 0.78, fontCap)
+        let sec = min(n.value("secFontSz") ?? (prim * 0.78).rounded(), fontCap)
         var paragraphs: [XNode] = []
         var listed = false
         var generatedHang = false
