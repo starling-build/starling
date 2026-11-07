@@ -2269,7 +2269,7 @@ extension RichLayout {
         // on that face's baseline under the line's top, not the paragraph's: Word's lab
         // (gothic-last, 1.5 lines on a grid) has it 4.6pt higher, the line as tall as the others.
         if theme.wordRules, RichTextTheme.wordWindowsPages, p.image == nil, p.inlineImages.isEmpty, p.cell == nil,
-           style.lineHeightPoints == nil, style.lineSpacing > 1.05, !p.text.isEmpty, painter.strutStyle != nil,
+           !p.text.isEmpty, painter.strutStyle != nil,
            p.runs.allSatisfy({ $0.style.script == .normal }), _lineLift[i].isEmpty {
             let pitch = _offGrid(i, document) ? nil : _grid(i, document).pitch
             let named = _named(p, document)
