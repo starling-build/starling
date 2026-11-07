@@ -3384,7 +3384,8 @@ enum ChartPainter {
     /// the autoscale behind it is unsolved), and so are the room's centre and the scale 221.45:
     /// all fitted to view B.
     private static func _columns3DCamera(_ c: Chart, _ canvas: any Canvas, _ area: Rect, frame: Rect, k: Double,
-                                         scale sc: (lo: Double, hi: Double, step: Double), theme: DeckTheme,
+                                         scale sc0: (lo: Double, hi: Double, step: Double), theme: DeckTheme,
+                                         refit: ((Double) -> (lo: Double, hi: Double, step: Double))? = nil,
                                          valueText: (String, Double, Double) -> TextPainter,
                                          categoryText: (String, Double, Double) -> TextPainter) {
         guard let v = c.barView ?? c.areaView else { return }
@@ -3402,7 +3403,11 @@ enum ChartPainter {
         let depth = isArea ? min(2, slot * (1 + v.gapDepth) * v.depth * Double(s)) : min(2, bar * (1 + v.gapDepth) * v.depth)
         // A stated height percentage (c:hPercent) makes the box that fraction of its width, times 1.05 (Word for Windows'
         // lab persp2: hPercent 50 and 100 both within 1 pt of the print's width); automatic keeps the fitted 0.595.
-        let height = v.heightPercent.map { $0 / 100 * 1.05 } ?? (isArea ? 0.3 : 0.595)
+        // (Excel's sheet charts, lab xl-3d at 240 pt of frame height: the front edge is 173.5 / 163.0 / 153.8 / 142.9 pt long in frames
+        // 180 / 270 / 360 / 480 pt wide, so the box is taller the narrower the frame: its height 1.29 - 0.00072 of the width in pt
+        // times the 0.595 (1.0 at Word's 432 pt); and the box and its value labels keep 13.5 pt from the frame's sides.)
+        let narrow = c.onSheet && !isArea && v.heightPercent == nil
+        let height = v.heightPercent.map { $0 / 100 * 1.05 } ?? (isArea ? 0.3 : (narrow ? 1.131 * (frame.height - 27 * k) / (frame.width - 27 * k) : 0.595))
         // Camera space (right, up, toward the viewer) of a box point, and its place on the page.
         func cam(_ x: Double, _ y: Double, _ z: Double) -> (Double, Double, Double) {
             let x1 = x * cos(th) + z * sin(th), z1 = -x * sin(th) + z * cos(th)
@@ -3458,15 +3463,33 @@ enum ChartPainter {
             }
             return bottom - roomTop
         }
+        func reachWide(_ a: Double) -> Double {
+            if persp > 0, boxCorners.contains(where: { kc - a * cam($0.0, $0.1, $0.2).2 <= 0.05 * kc }) { return .infinity }
+            let xs = boxCorners.map { flatA(cam($0.0, $0.1, $0.2), a).dx }
+            var w = xs.max()! - xs.min()!
+            if !c.valueAxisDeleted {
+                let tp = valueText(tickLabel(sc0.hi), c.valueLabelSize ?? c.baseTextSize, .infinity)
+                w += tp.width + 9.75 * k
+                tp.dispose()
+            }
+            return w
+        }
         if !titled {
             var lo = 20 * u, hi = 1200 * u
             for _ in 0 ..< 18 {
                 let mid = (lo + hi) / 2
-                if reach(mid) < roomHeight { lo = mid } else { hi = mid }
+                if reach(mid) < roomHeight, !narrow || reachWide(mid) <= frame.width - 27 * k { lo = mid } else { hi = mid }
             }
             scaleA = (lo + hi) / 2
         }
         let raw = boxCorners.map { flatK(cam($0.0, $0.1, $0.2)) }
+        // (Excel's sheet charts: the value axis takes a tick to every 14 pt of the front edge's length and more; lab xl-3d, the
+        // front edge 173.5 to 142.9 pt long took 1000 by tens, 133.4 to 108.1 pt took 2000 by fives: 14.3 pt was taken, 13.3 not.)
+        var sc = sc0
+        if let refit {
+            let a = flatK(cam(-0.5, -height / 2, depth / 2)), b = flatK(cam(-0.5, height / 2, depth / 2))
+            sc = refit(hypot(a.dx - b.dx, a.dy - b.dy) / k)
+        }
         let room = Offset(frame.left + 189.416 / 432.5 * frame.width, frame.top + 111.853 / 251 * frame.height)
         let rawX: [Double] = raw.map { $0.dx }, rawY: [Double] = raw.map { $0.dy }
         let midX: Double = (rawX.min()! + rawX.max()!) / 2
@@ -3478,7 +3501,13 @@ enum ChartPainter {
         let turn = sin(v.y * .pi / 180)
         let lean = persp > 0 && !c.legend ? 17.5 * turn * abs(turn) * persp / 30 * frame.width / (432.5 * k) : 0
         let legendBias = c.legend ? 0.8 : 0.0
-        let midTarget = titled ? room.dx : (area.left + area.right) / 2 + (1.6 - lean + legendBias * frame.width / (432.5 * k)) * k
+        var midTarget = titled ? room.dx : (area.left + area.right) / 2 + (1.6 - lean + legendBias * frame.width / (432.5 * k)) * k
+        if narrow, !titled, !c.valueAxisDeleted {
+            // (Excel's sheet charts: the box and the value names stand together in the middle of the frame, lab xl-3d.)
+            let tp = valueText(tickLabel(sc.hi), c.valueLabelSize ?? c.baseTextSize, .infinity)
+            midTarget = (frame.left + frame.right) / 2 + (tp.width + 9.75 * k) / 2
+            tp.dispose()
+        }
         let shift = Offset(midTarget - midX, titled ? room.dy - midY : roomTop - rawY.min()!)
         func at(_ x: Double, _ y: Double, _ z: Double) -> Offset { let o = flatK(cam(x, y, z)); return Offset(o.dx + shift.dx, o.dy + shift.dy) }
         func yAt(_ value: Double) -> Double { -height / 2 + height * (value - sc.lo) / max(1e-9, sc.hi - sc.lo) }
@@ -4054,7 +4083,18 @@ enum ChartPainter {
             // (The box's face is about 198 pt high at the lab's 251 pt frame, and takes a tick a 36 pt.)
             var camScale = c.percent ? sc : scale(lo, max(hi, c.valueMax ?? hi), intervals: max(2, min(10, Int(198 * frame.height / (251 * k) / 36))), headroom: 0)
             if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil { camScale = fixedScale(auto: camScale, min: c.valueMin, max: c.valueMax, step: c.valueStep) }
-            _columns3DCamera(c, canvas, area0, frame: frame, k: k, scale: camScale, theme: theme, valueText: valueText, categoryText: categoryText)
+            // (An Excel sheet chart's own step: see the front edge's length in the camera.)
+            let free = c.onSheet && c.valueMin == nil && c.valueMax == nil && c.valueStep == nil
+            let refit: ((Double) -> (lo: Double, hi: Double, step: Double))? = free ? { span in
+                var best = camScale
+                for n in 2 ... 40 {
+                    let t = scale(lo, max(hi, c.valueMax ?? hi), intervals: n, headroom: 0)
+                    let count = (t.hi - t.lo) / t.step
+                    if span * 0.75 / count >= 14 { best = t }
+                }
+                return best
+            } : nil
+            _columns3DCamera(c, canvas, area0, frame: frame, k: k, scale: camScale, theme: theme, refit: refit, valueText: valueText, categoryText: categoryText)
             return
         }
         // Category labels by an axis that crosses above the plot's foot.
