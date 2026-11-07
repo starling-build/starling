@@ -105,6 +105,8 @@ struct ChartSeries: Equatable {
     var lineTail = 0.0
     /// A pattern fill (`a:pattFill`): its preset and two colours, hatched over the area it fills.
     var pattern: PatternInk? = nil
+    /// A gradient fill (`a:gradFill`) a sheet's column is painted with; `color` holds its mean.
+    var gradient: SlideFill? = nil
     /// A combination's line with its values by its points (`c:dLbls`
     /// showVal, above them), and where single ones are moved
     /// (`c:dLbl/c:layout`, fractions of the chart's frame): zh-547fc43c's
@@ -1435,6 +1437,25 @@ enum ChartXML {
                 }
             } else if type != .line, type != .scatter, let g = pr?.first("a:gradFill") {
                 s.color = _meanColor(g, color)
+                let stops = (g.first("a:gsLst")?.all("a:gs") ?? []).compactMap { gs -> SlideFill.GradientStop? in
+                    // (Excel prints the stops opaque, their alpha unread: chart-tdf128732's black / blue at 70 / 80%.)
+                    color(gs).map { SlideFill.GradientStop(position: (gs["pos"].flatMap(Double.init) ?? 0) / 100000, color: $0.withAlpha(255)) }
+                }.sorted { $0.position < $1.position }
+                if stops.count > 1 {
+                    var f = SlideFill(color: stops[0].color, stops: stops, angle: (g.first("a:lin")?["ang"].flatMap(Double.init) ?? 5_400_000) / 60000)
+                    f.scaled = ["1", "true"].contains(g.first("a:lin")?["scaled"] ?? "")
+                    f.undirected = g.first("a:lin") == nil && g.first("a:path") == nil
+                    if let path = g.first("a:path") {
+                        f.path = path["path"].flatMap(SlideFill.GradientPath.init(rawValue:)) ?? .shape
+                        if let to = path.first("a:fillToRect") {
+                            func v(_ k: String) -> Double { (to[k].flatMap(Double.init) ?? 0) / 100000 }
+                            // (A focus outside the bar (t 130%, b -30%) is printed at its centre: chart-external_str_ref.)
+                            f.fillTo = ["l", "t", "r", "b"].contains(where: { v($0) < 0 || v($0) > 1 }) ? Rect.fromLTRB(0.5, 0.5, 0.5, 0.5)
+                                : Rect.fromLTRB(v("l"), v("t"), 1 - v("r"), 1 - v("b"))
+                        } else { f.fillTo = Rect.fromLTRB(0, 0, 1, 1) }
+                    }
+                    s.gradient = f
+                }
             }
             // (A pattern fill as the colour it comes to for what stands in for the hatch, and the hatch itself.)
             if fill == nil, type != .line, type != .scatter, let pf = pr?.first("a:pattFill"), let (ink, mean) = ChartPainter._patternInk(pf, color) {
@@ -5421,6 +5442,8 @@ enum ChartPainter {
                         let (head, foot) = Self._style18Shade(fill.color)
                         fill.shader = Gradient(linear: Offset(0, rect.top), to: Offset(0, rect.bottom), colors: [head, foot], colorStops: [0, 1])
                     }
+                    if c.onSheet, c.barView == nil, c.pointColors[i] == nil, !shaded18, let g = c.series[j].gradient,
+                       let shader = SlidePainter.gradientShader(g, rect) { fill.shader = shader }
                     if c.barView == nil, let ink = c.series[j].pattern, c.pointColors[i] == nil,
                        Self._hatch({ let q = Path(); q.addRect(rect); return q }(), ink, k: c.onSheet ? 1 : k, canvas) {
                         // (A pattern-filled column, hatched: its marks over its background.)
