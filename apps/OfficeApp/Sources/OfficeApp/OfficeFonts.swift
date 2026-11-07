@@ -2683,7 +2683,7 @@ enum OfficeFonts {
         if missing, wordHasIt { missing = false }
         if missing { name = "Times New Roman" }
         var face = RichResolvedFace(family: missing ? cambria : embeddedFamily(name) ?? name)
-        face.fallback = [cambria, "Times New Roman", "Noto Naskh Arabic", "DejaVu Sans"]
+        face.fallback = [emojiPictographs, cambria, "Times New Roman", "Noto Naskh Arabic", "DejaVu Sans"]
         // (Hebrew in Times New Roman or Arial: the Liberation clones have
         // the letters at Times' and Arial's widths — alef 0.600 em, 0.628
         // — where the chain's first face with Hebrew was DejaVu Sans at
@@ -2704,7 +2704,7 @@ enum OfficeFonts {
             switch name.trimmingWhitespace().lowercased() {
             case "arial":
                 // (In the sans Arabic, nearer Arial's than the Naskh is.)
-                face.fallback = [cambria, "Times New Roman", "Liberation Sans", "Noto Sans Arabic", "Noto Naskh Arabic", "DejaVu Sans"]
+                face.fallback = [emojiPictographs, cambria, "Times New Roman", "Liberation Sans", "Noto Sans Arabic", "Noto Naskh Arabic", "DejaVu Sans"]
                 face.joinedAdvances = WindowsArabicAdvances.arial
                 face.boldJoinedAdvances = WindowsArabicAdvances.arialBold
             case "times new roman":

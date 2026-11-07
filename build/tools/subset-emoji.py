@@ -1,24 +1,35 @@
 #!/usr/bin/env python3
 """Make NotoColorEmoji-Pictographs.ttf from NotoColorEmoji.ttf (SIL OFL 1.1).
 
-The subset keeps the pictographs at U+1F000 and above (faces, hands, flags'
-regional indicators, skin tones, ...) plus ZWJ (U+200D), space and CR (a font missing them traps the unit-test run: a layout asks the fallback for a space), with the GSUB
-sequences among them, and drops the BMP symbols (U+2xxx) that the document
-faces and DejaVu Sans draw as plain outlines (a smiley U+263A is black in
-Word and PowerPoint). The result goes AHEAD of DejaVu in the glyph fallback.
-It is a modified version under a new name, as the OFL asks.
+The subset keeps the characters whose Unicode Emoji_Presentation property is
+Yes (emoji-data.txt: faces, hands, flags' regional indicators, skin tones,
+and the BMP ones such as U+2705, U+2B50, U+231A), plus ZWJ (U+200D), space and
+CR (a font missing those traps the unit-test run: a layout asks the fallback
+for a space). It drops the text-style symbols (U+263A, U+2714, U+2605, U+2764 ...)
+that Word and PowerPoint draw as plain outlines unless a U+FE0F follows (not
+handled: Noto's cmap has no U+FE0F). The result goes AHEAD of DejaVu in the
+glyph fallback. It is a modified version under a new name, as the OFL asks.
 
+Source: Ubuntu's fonts-noto-color-emoji (/usr/share/fonts/truetype/noto/
+NotoColorEmoji.ttf, sha256 9fd0a3d0...f10, in fonts/README.md);
+emoji-data.txt: https://www.unicode.org/Public/16.0.0/ucd/emoji/emoji-data.txt
 fonttools is NOT a repo dependency; use a throwaway venv:
     python3 -m venv /tmp/ftv && /tmp/ftv/bin/pip install fonttools
-    /tmp/ftv/bin/python build/tools/subset-emoji.py \
-        apps/OfficeApp/Sources/OfficeApp/Resources/fonts/NotoColorEmoji.ttf \
-        apps/OfficeApp/Sources/OfficeApp/Resources/fonts/NotoColorEmoji-Pictographs.ttf
+    /tmp/ftv/bin/python build/tools/subset-emoji.py NotoColorEmoji.ttf \
+        apps/OfficeApp/Sources/OfficeApp/Resources/fonts/NotoColorEmoji-Pictographs.ttf emoji-data.txt
 """
 import sys
 from fontTools import subset
 from fontTools.ttLib import TTFont
 
-src, dst = sys.argv[1], sys.argv[2]
+src, dst, data = sys.argv[1], sys.argv[2], sys.argv[3]
+presentation = set()
+for line in open(data, encoding="utf-8"):
+    line = line.split("#")[0].strip()
+    if not line or line.split(";")[1].strip() != "Emoji_Presentation":
+        continue
+    span = line.split(";")[0].strip().split("..")
+    presentation.update(range(int(span[0], 16), int(span[-1], 16) + 1))
 FAMILY = "Noto Color Emoji Pictographs"
 opts = subset.Options()
 opts.layout_features = ["*"]
@@ -29,7 +40,7 @@ opts.name_languages = ["*"]
 opts.drop_tables = []
 font = TTFont(src)
 cmap = font.getBestCmap()
-keep = sorted(c for c in cmap if c >= 0x1F000) + [0x200D, 0x20, 0x0D]
+keep = sorted(c for c in cmap if c in presentation) + [0x200D, 0x20, 0x0D]
 sub = subset.Subsetter(opts)
 sub.populate(unicodes=keep)
 sub.subset(font)
