@@ -673,7 +673,8 @@ extension SheetGridState {
                 return TextSpan(text: r.text, style: st.flutter)
             }, style: base.flutter)
         }
-        let innerW = size.width - setup.left - setup.right
+        let inL = hf.alignWithMargins ? setup.left : 54.9, inR = hf.alignWithMargins ? setup.right : 54.9
+        let innerW = size.width - inL - inR
         func paint(_ text: String, top: Double?, bottom: Double?) {
             guard !text.isEmpty else { return }
             let sections = HeaderFooterText.parse(text)
@@ -681,7 +682,7 @@ extension SheetGridState {
                 let tp = TextPainter(text: span(HeaderFooterText.runs(items, fields: fields)),
                                      textAlign: i == 0 ? .left : i == 1 ? .center : .right, textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
-                let x = i == 0 ? setup.left : i == 1 ? setup.left + (innerW - tp.width) / 2 : size.width - setup.right - tp.width
+                let x = i == 0 ? inL : i == 1 ? inL + (innerW - tp.width) / 2 : size.width - inR - tp.width
                 // Excel's header stands 1.2 pt below its margin's line, its
                 // footer 1.75 above: on the first pages of the corpus a header
                 // at Times 12 is 12.18 under the header margin (ours 11.0),
