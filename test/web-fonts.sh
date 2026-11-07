@@ -56,7 +56,7 @@ drive "$WORK/zh.docx" zh.docx
 check "Chinese" "NotoSansCJK-Regular.ttc:1 "
 sleep 2; rm -rf "$CHROME_PROFILE" 2>/dev/null || true; : > "$WORK/serve.log"
 drive "$WORK/mixed.docx" mixed.docx
-check "Arabic, Thai, emoji" "NotoColorEmoji.ttf:1 NotoNaskhArabic-Regular.ttf:1 NotoSansArabic-Regular.ttf:1 NotoSansThai-Regular.ttf:1 "
+check "Arabic, Thai, emoji" "NotoColorEmoji-Pictographs.ttf:1 NotoNaskhArabic-Regular.ttf:1 NotoSansArabic-Regular.ttf:1 NotoSansThai-Regular.ttf:1 "
 
 # (Ink = dark pixels on the canvas: mid-load it must match the screen before
 # the open — the document not drawn, no boxes — and differ once text is up.)
