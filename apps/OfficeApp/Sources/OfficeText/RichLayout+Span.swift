@@ -2113,18 +2113,6 @@ extension RichLayout {
                             spacing /= Double(_glyphCount(s, ch))
                         }
                         spans.append(contentsOf: capped(text[i ..< after], run, s.copyWith(letterSpacing: spacing)))
-                        // (A space straight after a no-break space, in a run of
-                        // the two, counts in the line's fit in Word and is not
-                        // hung: zh-8415d258's right-aligned "NSNS…" before
-                        // 水利部办公厅, where the engine hung the space that
-                        // ends a line and started the next one a character
-                        // late. A word joiner after it keeps it in the line.)
-                        if theme.wordRules, RichTextTheme.wordWindowsPages, ch == " ", wideSpaces.contains(offset),
-                           i > text.startIndex, text[text.index(before: i)] == "\u{00A0}" {
-                            RuleTrace.hit("word-space-after-nbsp-counts-in-the-fit")
-                            spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(kind)))
-                            inserts.append(offset + 1)
-                        }
                     }
                     start = after
                 }
