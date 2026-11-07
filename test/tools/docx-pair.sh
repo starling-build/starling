@@ -21,7 +21,7 @@
 # Dictionary order, fixed), so a document that moves with the inputs unchanged is a
 # BUG and is named loudly (SWIFT_DETERMINISTIC_HASHING=1 would hide such a bug, not fix it; not set): every mover is converted once more by
 # FIXBIN and kept as a mover only if the second print scores the same.
-#   SETS (default "756 lo"; "lo" alone for a LibreOffice-only check — then do not commit the scores)
+#   SETS (default "756 lo xb"; "lo" alone for a LibreOffice-only check — then do not commit the scores)
 #   PYTHON (needs PyMuPDF; default python3)   BASE_REV (default origin/office)   STAGE
 #   BASEBIN and FIXBIN must sit BESIDE their build's libFlutterShared.so and *.resources
 #   bundles (the release dir): a binary copied away on its own cannot load and fails every
@@ -30,13 +30,13 @@
 #   ENGINE_OUT   the engine out dir the binaries were built against (default: the
 #                first of engine/src/out/host_release_arm64, host_release)
 set -u
-BASE_SWEPT=0
+BASE_SWEPT=0; NEEDBASE=""; BASE_SWEPT_SETS=""
 SEED=0; [ "${1:-}" = "--seed" ] && { SEED=1; shift; }
 BASEBIN=$(cd "$(dirname "$1")" && pwd)/$(basename "$1"); FIXBIN=$(cd "$(dirname "$2")" && pwd)/$(basename "$2"); JOBS=${3:-4}
 HERE=$(cd "$(dirname "$0")" && pwd); ROOT=$(cd "$HERE/../.." && pwd); cd "$ROOT" || exit 2
 case $(uname) in Darwin) HOST=mac;; Linux) HOST=linux;; *) HOST=windows;; esac
 PY=${PYTHON:-python3}; BASE_REV=${BASE_REV:-origin/office}; STAGE=${STAGE:-/tmp/docx-pair-$HOST}
-SETS=${SETS:-756 lo}
+SETS=${SETS:-756 lo xb}
 INPUTS="apps/OfficeApp sdk test/docx-line-match.py"
 for d in ${ENGINE_OUT:-} engine/src/out/host_release_arm64 engine/src/out/host_release; do [ -d "$d" ] && { EO=$(cd "$d" && pwd -P); break; }; done
 [ -n "${EO:-}" ] || { echo "no engine out dir (ENGINE_OUT)" >&2; exit 2; }
@@ -48,7 +48,9 @@ case $HOST in
   *) export PATH="$EO:$PATH";;   # Windows looks for DLLs on PATH, not LD_LIBRARY_PATH
 esac
 
-corpus() { case $1 in 756) echo "$ROOT/test/corpus/docx";; lo) echo "$ROOT/test/corpus/docx/lo";; esac; }
+# xb: the admitted batch-B documents that have a Windows print (interim set before the corpus swap; lives in the cache,
+# not in git: $STARLING_CORPUS/staging/xb/{docs,word-win}, stems listed in test/corpus/docx/xb/manifest.tsv)
+corpus() { case $1 in 756) echo "$ROOT/test/corpus/docx";; lo) echo "$ROOT/test/corpus/docx/lo";; xb) echo "${STARLING_CORPUS:-/data/corpus-cache}/staging/xb";; esac; }
 # sweep BIN WORK SET → WORK/match-v2.txt, match-v1.txt
 sweep() {
   local BIN=$1 WORK=$2 SET=$3 C; C=$(corpus "$SET"); mkdir -p "$WORK/pdf" "$WORK/err"; : > "$WORK/fail.txt"
@@ -103,21 +105,28 @@ have=$(git show "$BASE_REV:$STORED/STAMP" 2>/dev/null || true)
 if [ $SEED = 0 ] && [ -n "${BASE_SCORES:-}" ]; then
   # BASE_SCORES: a directory holding <set>.{v2,v1} of the base — the shared base cache (test/tools/base-cache.sh)
   echo "base: scores from $BASE_SCORES (shared cache) — base sweep skipped"
-  for S in $SETS; do for v in v2 v1; do cp "$BASE_SCORES/$S.$v" "$BASE/$S.$v" || exit 2; done; done
+  for S in $SETS; do if [ -s "$BASE_SCORES/$S.v2" ]; then for v in v2 v1; do cp "$BASE_SCORES/$S.$v" "$BASE/$S.$v" || exit 2; done; else NEEDBASE="$NEEDBASE $S"; fi; done
 elif [ $SEED = 0 ] && [ "$want" = "$have" ]; then
   echo "base: stored scores of $HOST match $BASE_REV's stamp — base sweep skipped"
-  for S in $SETS; do for v in v2 v1; do git show "$BASE_REV:$STORED/$S.$v" > "$BASE/$S.$v"; done; done
+  for S in $SETS; do if git cat-file -e "$BASE_REV:$STORED/$S.v2" 2>/dev/null; then for v in v2 v1; do git show "$BASE_REV:$STORED/$S.$v" > "$BASE/$S.$v"; done; else NEEDBASE="$NEEDBASE $S"; fi; done
 elif [ $SEED = 0 ]; then
   echo "base: no stored scores for $HOST at $BASE_REV's stamp (stored: $( [ -n "$have" ] && echo different || echo none )) — sweeping BASEBIN"
   # (swept beside the fix below, not before it: both are waited for together)
   for S in $SETS; do ( sweep "$BASEBIN" "$STAGE/work/base-$S" $S >/dev/null ) & done
   BASE_SWEPT=1
 fi
+# a set with no stored/cached base scores yet (a new set, xb) gets its base swept here
+if [ $SEED = 0 ] && [ -n "$NEEDBASE" ]; then
+  echo "base: no stored scores for set(s)$NEEDBASE — sweeping BASEBIN for them"
+  for S in $NEEDBASE; do ( sweep "$BASEBIN" "$STAGE/work/base-$S" $S >/dev/null ) & done
+  BASE_SWEPT_SETS="$NEEDBASE"
+fi
 # the fix
 FIX=$STAGE/fix; mkdir -p "$FIX"
 for S in $SETS; do ( T0=$(date +%s); sweep "$FIXBIN" "$STAGE/work/fix-$S" $S && echo "$(( $(date +%s)-T0 )) s" > "$STAGE/work/fix-$S.time" ) & done
 wait_sets fix
 [ "${BASE_SWEPT:-0}" = 1 ] && for S in $SETS; do for v in v2 v1; do cp "$STAGE/work/base-$S/match-$v.txt" "$BASE/$S.$v"; done; done
+[ -n "${BASE_SWEPT_SETS:-}" ] && for S in $BASE_SWEPT_SETS; do for v in v2 v1; do cp "$STAGE/work/base-$S/match-$v.txt" "$BASE/$S.$v"; done; done
 for S in $SETS; do
   echo "fix $S: $(cat "$STAGE/work/fix-$S.time"), failures $(wc -l < "$STAGE/work/fix-$S/fail.txt")"
   for v in v2 v1; do cp "$STAGE/work/fix-$S/match-$v.txt" "$FIX/$S.$v"; done
@@ -138,7 +147,7 @@ done
 # re-print every mover with FIXBIN once more; a different score the second time is noise
 echo "== nondeterminism check"
 for S in $SETS; do
-  C=$(corpus "$S"); names=$(grep -E '^\s+(UP|DOWN|CHANGED)' "$STAGE/cmp-$S-v2.txt" "$STAGE/cmp-$S-v1.txt" | sed -E 's/.* ((zh|lo)-[0-9a-f]+).*/\1/;s/.*CHANGED\(same ratio\) ((zh|lo)-[0-9a-f]+):.*/\1/' | sort -u)
+  C=$(corpus "$S"); names=$(grep -hE '^\s+(UP|DOWN|CHANGED)' "$STAGE/cmp-$S-v2.txt" "$STAGE/cmp-$S-v1.txt" | awk '{ if ($0 ~ /CHANGED\(same ratio\)/) { match($0, /CHANGED\(same ratio\) [^: ]+/); split(substr($0,RSTART,RLENGTH),a," "); print a[2] } else print $NF }' | sort -u)
   [ -n "$names" ] || continue
   W=$STAGE/work/again-$S; mkdir -p "$W/pdf"
   printf '%s\n' $names | xargs -P "$JOBS" -I{} sh -c 'f=$(ls "$1/docs/$2"*.docx 2>/dev/null | head -1); [ -n "$f" ] && perl -e "alarm 300; exec @ARGV" "$3" --convert "$f" "$4/pdf/$(basename "${f%.docx}").pdf" >/dev/null 2>&1' _ "$C" {} "$FIXBIN" "$W"
