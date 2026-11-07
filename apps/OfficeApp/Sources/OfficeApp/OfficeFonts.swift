@@ -2122,7 +2122,10 @@ enum OfficeFonts {
         // 田 in a fresh print step exactly 15.6pt, not YaHei's 20.58.
         // Treating the explicit name as a missing face made the first
         // two mixed-font lines of zh-8d72961c too tall.
-        if wordOnWindows || wordOnMac, has("ms gothic", "ｍｓ ゴシック") {
+        // Gulim and GulimChe (Word for Windows prints 12pt Korean text in them
+        // on a 15.6pt step, 1.3 em, MS Gothic's line; ours drew YaHei's
+        // 1.715 em: kor-z19176375-004d7a, 35 pages in Word, 40 here).
+        if wordOnWindows || wordOnMac, has("ms gothic", "ｍｓ ゴシック", "gulim", "굴림") {
             return EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
         }
         // (MS PGothic, MS Mincho and MS PMincho are Word for Windows' own faces,
