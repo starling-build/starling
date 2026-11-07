@@ -2765,7 +2765,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 .split(separator: "\n", omittingEmptySubsequences: false)
             if lines.count > 1 {
                 let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
-                let pitch = Self._fittedLine(st, m, book) * scale
+                // The face's own printed line in dots (57523's Calibri Bold 10 header: 109 dots, 13.08 pt, where the screen
+                // pixels scaled by the book's default font made 13.37).
+                let pitch = (st.fontName == nil && st.fontSize == nil && st.bold == book.defaultFontBold ? m.defaultRow
+                    : SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold).defaultRow) * scale
                 let one = texts.painter("X", style).height, n = Double(lines.count - 1)
                 let y0: Double
                 switch st.vAlign {
