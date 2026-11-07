@@ -224,7 +224,7 @@ TablesWithDifferentHeaders.xlsx	summary pages=3 worst=0.11% mean=0.08%
 TestShiftRowSharedFormula.xlsx	summary pages=1 worst=0.06% mean=0.06%
 TextFormatTests.xlsx	summary pages=2 worst=3.56% mean=2.28%
 Themes.xlsx	summary pages=1 worst=0.03% mean=0.03%
-Themes2.xlsx	summary pages=1 worst=0.31% mean=0.31%
+Themes2.xlsx	summary pages=1 worst=0.30% mean=0.30%
 TwoSheetsNoneHidden.xlsx	summary pages=2 worst=0.01% mean=0.01%
 TwoSheetsOneHidden.xlsx	summary pages=1 worst=0.01% mean=0.01%
 VLookupFullColumn.xlsx	summary pages=7 worst=1.46% mean=1.37%
@@ -423,7 +423,7 @@ conditional_formatting_multiple_ranges.xlsx	summary pages=2 worst=0.23% mean=0.1
 conditional_formatting_with_formula_on_second_sheet.xlsx	summary pages=1 worst=0.02% mean=0.02%
 craftonhills.edu_programreview_report.aspx_goalpriorityreport_0011d159-1eeb-4b63-8833-867b0926e5f3.xlsx	summary pages=3 worst=0.91% mean=0.85%
 customIndexedColors.xlsx	summary pages=1 worst=0.50% mean=0.50%
-dataValidationTableRange.xlsx	summary pages=20 worst=7.66% mean=1.86%
+dataValidationTableRange.xlsx	summary pages=20 worst=7.62% mean=1.86%
 decimal-format.xlsx	summary pages=1 worst=0.01% mean=0.01%
 evaluate_formula_with_structured_table_references.xlsx	summary pages=1 worst=0.04% mean=0.04%
 formula-eval.xlsx	summary pages=1 worst=0.02% mean=0.02%
@@ -630,7 +630,7 @@ lo-tdf142881.xlsx	summary pages=2 worst=0.15% mean=0.15%
 lo-tdf142905.xlsx	summary pages=1 worst=0.07% mean=0.07%
 lo-tdf142929.xlsx	summary pages=1 worst=0.01% mean=0.01%
 lo-tdf143068_top10filter.xlsx	summary pages=1 worst=0.02% mean=0.02%
-lo-tdf144397.xlsx	summary pages=1 worst=0.42% mean=0.42%
+lo-tdf144397.xlsx	summary pages=1 worst=0.26% mean=0.26%
 lo-tdf144642_RowHeight_10mm_SavedByCalc.xlsx	summary pages=2 worst=0.28% mean=0.15%
 lo-tdf144642_RowHeight_28.35pt_SavedByExcel.xlsx	summary pages=2 worst=0.32% mean=0.17%
 lo-tdf145054.xlsx	summary pages=1 worst=0.14% mean=0.14%
@@ -681,7 +681,7 @@ lo-tdf60673.xlsx	summary pages=1 worst=0.00% mean=0.00%
 lo-tdf66668.xlsx	summary pages=4 worst=1.14% mean=0.43%
 lo-tdf70455.xlsx	summary pages=1 worst=1.22% mean=1.22%
 lo-tdf73063.xlsx	summary pages=1 worst=0.07% mean=0.07%
-lo-tdf76047_externalLink.xlsx	summary pages=1 worst=0.72% mean=0.72%
+lo-tdf76047_externalLink.xlsx	summary pages=1 worst=0.67% mean=0.67%
 lo-tdf76115.xlsx	summary pages=20 worst=7.38% mean=2.45%
 lo-tdf79972.xlsx	summary pages=1 worst=0.02% mean=0.02%
 lo-tdf81939.xlsx	summary pages=1 worst=0.16% mean=0.16%
@@ -689,7 +689,7 @@ lo-tdf82984_zip64XLSXImport.xlsx	summary pages=1 worst=2.59% mean=2.59%
 lo-tdf83671_SmartArt_import.xlsx	summary pages=1 worst=1.15% mean=1.15%
 lo-tdf83672.xlsx	summary pages=3 worst=0.00% mean=0.00%
 lo-tdf83779.xlsx	summary pages=1 worst=0.01% mean=0.01%
-lo-tdf85617.xlsx	summary pages=1 worst=0.24% mean=0.24%
+lo-tdf85617.xlsx	summary pages=1 worst=0.22% mean=0.22%
 lo-tdf89139_pivot_table.xlsx	summary pages=2 worst=1.34% mean=0.92%
 lo-tdf90104.xlsx	summary pages=0 worst=0.00% mean=0.00%
 lo-tdf91251_missingOverflowRoundtrip.xlsx	summary pages=2 worst=0.29% mean=0.15%
