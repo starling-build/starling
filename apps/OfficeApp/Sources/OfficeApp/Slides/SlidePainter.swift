@@ -297,7 +297,9 @@ final class SlideTextCache {
         // In columns the text is as tall as its tallest column.
         let height = layout.isPaged
             ? layout.pieces.map { $0.reduce(0) { $0 + $1.height } }.max() ?? 0 : layout.totalHeight
-        let spare = room - height
+        // (A last line over single does not count its extra foot: see `trailingExtra`.)
+        let dropped = layout.isPaged || shape.anchor == .top ? 0 : shape.text.map { layout.trailingExtra($0.document) } ?? 0
+        let spare = room - (height - dropped)
         switch shape.anchor {
         case .top: return top
         case .middle: return top + spare / 2

@@ -771,6 +771,30 @@ extension RichLayout {
         return k * _px(size)
     }
 
+    /// Slides: how much of the last line's foot, over single's, does not count toward the text's height. PowerPoint
+    /// (lab verdana-ls, Verdana and Calibri at 18-40 pt, 110%): a line over single has its extra above it, and the
+    /// text of a centred or bottom-anchored box stands as if the last line's foot were the single line's own, so
+    /// the foot `baselineShift` models is dropped back to the natural depth. In pixels; 0 elsewhere.
+    public func trailingExtra(_ document: RichDocument) -> Double {
+        guard theme.exactLinesAsPowerPoint, let single = theme.singleLineHeight else { return 0 }
+        guard let i = document.paragraphs.lastIndex(where: { !$0.runs.isEmpty }) else { return 0 }
+        let p = document.paragraphs[i]
+        guard p.style.lineHeightPoints == nil, let run = p.runs.last else { return 0 }
+        let multiple = max(0.1, p.style.lineSpacing - theme.lineSpacingReduction)
+        guard multiple > 1 else { return 0 }
+        let name = run.style.fontFamily ?? theme.fontFamily
+        let family = name.map { theme.fontFamilyResolver?($0) ?? $0 }
+        let drawn = theme.descentShare(family: family, bold: run.style.bold, italic: run.style.italic)
+        let depth = name.flatMap { theme.ownDescentShare?($0) } ?? drawn
+        let natural = single * depth
+        let foot = 0.25 * (multiple * single) + max(0.013 - 0.07 * depth, natural - 0.25 * single)
+        guard foot > natural else { return 0 }
+        var size = run.style.fontSize ?? document.styles.resolve(p.style)?.char.fontSize
+            ?? document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize
+        if fontScale != 1 { size = max(1, (size * fontScale).rounded()) }
+        return (foot - natural) * _px(size)
+    }
+
     /// The lines of paragraph `piece.paragraph` that `piece` holds, as a
     /// painter of their own, where they stand below the paragraph's first
     /// line, and whether they begin it — or nil when the piece is the
