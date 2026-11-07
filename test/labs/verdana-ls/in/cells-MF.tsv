@@ -1,0 +1,28 @@
+cell	slide	row(0 top,1 bottom)	runs (face pt, ...)	end mark
+1	1	0	Verdana 24	Verdana 24
+2	1	1	Calibri 24	Calibri 24
+3	2	0	Arial 24	Arial 24
+4	2	1	Times New Roman 24	Times New Roman 24
+5	3	0	Tahoma 24	Tahoma 24
+6	3	1	Verdana 24, Calibri 24	Calibri 24
+7	4	0	Calibri 24, Verdana 24	Verdana 24
+8	4	1	Verdana 24, Arial 24	Arial 24
+9	5	0	Arial 24, Verdana 24	Verdana 24
+10	5	1	Calibri 24, Arial 24	Arial 24
+11	6	0	Calibri 24, Times New Roman 24	Times New Roman 24
+12	6	1	Times New Roman 24, Verdana 24	Verdana 24
+13	7	0	Verdana 24, Calibri 12	Calibri 12
+14	7	1	Verdana 12, Calibri 24	Calibri 24
+15	8	0	Calibri 24, Arial 36	Arial 36
+16	8	1	Verdana 24, Calibri 24, Arial 24	Arial 24
+17	9	0	Verdana 24, Calibri 24	Verdana 24
+18	9	1	Verdana 24	Calibri 24
+19	10	0	Verdana 24	Arial 24
+20	10	1	Verdana 24	Times New Roman 24
+21	11	0	Verdana 24	Tahoma 24
+22	11	1	Calibri 24	Arial 24
+23	12	0	Calibri 24	Times New Roman 24
+24	12	1	Calibri 24	Verdana 24
+25	13	0	Arial 24	Verdana 24
+26	13	1	Arial 24	Calibri 24
+27	14	0	Times New Roman 24	Verdana 24

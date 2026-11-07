@@ -9,3 +9,5 @@ Question: for text over single, where PowerPoint puts the lines of a centred and
 
 Lab verdana-em (genem.py -> in/E.pptx, 8 slides, rows in in/cells-E.tsv: face, run size 24, spacing 100, END-PARAGRAPH MARK size 12/24/32/44): four boxes per slide: centred 1 line, top-anchored 1 line, bottom-anchored 1 line, centred 2 paragraphs (only the last carries the mark's size... both do).
 Print E.pptx to PDF as before; the line table as E-WORD.tsv. Question: does the end-paragraph mark's size change a line that has text (its height, its baseline)?
+
+Lab verdana-mf (genmf.py -> in/MF.pptx, 13 slides, rows in in/cells-MF.tsv): the word "Hamburg" in 1-3 runs of different faces/sizes, end mark in the last run's face or another face. Each cell is two boxes: left column centred, right column top-anchored; cell 2k+1 in the top row of slide k+1, cell 2k+2 in the bottom row. Print to PDF; line table as MF-WORD.tsv.
