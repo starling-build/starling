@@ -897,7 +897,8 @@ extension RichLayout {
                         before = p.text.unicodeScalars[i].value
                     }
                     let after: UInt32? = atEnd && word.endIndex == text.endIndex ? next?.unicodeScalars.first?.value : nil
-                    guard let e = ArabicForms.width(part.map { $0.value }, table, before: before, after: after) else { return s }
+                    let clusters = s.fontWeight == .bold ? joinedFace.boldJoinedClusters : joinedFace.joinedClusters
+                    guard let e = ArabicForms.width(part.map { $0.value }, table, before: before, after: after, clusters: clusters) else { return s }
                     ems += e
                     shaped += _wordWidth(s, String(String.UnicodeScalarView(part)))
                 }
