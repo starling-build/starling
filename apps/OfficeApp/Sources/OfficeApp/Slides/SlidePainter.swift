@@ -389,7 +389,7 @@ final class SlideTextCache {
         guard shape.noWrap || shape.anchorCentred, shape.kind != .table, let layout = layout(shape, pxPerPt: pxPerPt),
               let doc = shape.text?.document else { return left }
         let room = (shape.frame.width - shape.drawInsets.left - shape.drawInsets.right) * pxPerPt
-        let over = layout.width - room
+        let flowOver = layout.width - room
         // Centred as a block (`anchorCtr`): the widest line's span in the
         // middle of the room, the others aligned within it — hanging out
         // both sides alike when it is wider.
@@ -403,7 +403,19 @@ final class SlideTextCache {
             }
             return hi > lo ? left + room / 2 - (lo + hi) / 2 : left
         }
-        guard shape.noWrap, over > 0 else { return left }
+        guard shape.noWrap else { return left }
+        // (A single line comes back from the layout as wide as the room, so
+        // its overhang is measured on the line itself: how-we-refactor's "R"
+        // in an 18 pt square, centred in PowerPoint's print, 3.6 in; ours 7.2.)
+        var over = flowOver
+        if over <= 0 {
+            var widest = 0.0
+            for i in 0 ..< layout.count {
+                for m in layout.geometry(i).painter.computeLineMetrics() { widest = max(widest, m.width) }
+            }
+            over = widest - room
+        }
+        guard over > 0 else { return left }
         switch doc.paragraphs.first?.style.alignment {
         case .center?: return left - over / 2
         case .right?: return left - over
