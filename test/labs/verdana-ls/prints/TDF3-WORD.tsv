@@ -1,0 +1,5 @@
+deck	baseline	text_y0	text_y1	box_top	box_bottom	box_height
+F1	48.50	24.38	53.47	20.53	59.67	39.14
+F2	206.02	181.90	210.99	178.01	217.15	39.14
+F3	48.50	24.38	53.47	20.53	59.67	39.14
+orig-real	48.50	24.38	53.47	none	none	none
