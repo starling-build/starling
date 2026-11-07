@@ -3407,7 +3407,7 @@ enum ChartPainter {
         // 180 / 270 / 360 / 480 pt wide, so the box is taller the narrower the frame: its height 1.29 - 0.00072 of the width in pt
         // times the 0.595 (1.0 at Word's 432 pt); and the box and its value labels keep 13.5 pt from the frame's sides.)
         let narrow = c.onSheet && !isArea && v.heightPercent == nil
-        let height = v.heightPercent.map { $0 / 100 * 1.05 } ?? (isArea ? 0.3 : (narrow ? 1.131 * (frame.height - 27 * k) / (frame.width - 27 * k) : 0.595))
+        let height = v.heightPercent.map { $0 / 100 * 1.05 } ?? (isArea ? 0.3 : (narrow ? 1.131 * (frame.height - 27 * k) / (frame.width - 27 * k) * exp(-0.0007 * (frame.width / k * 0.75 - 220)) : 0.595))
         // Camera space (right, up, toward the viewer) of a box point, and its place on the page.
         func cam(_ x: Double, _ y: Double, _ z: Double) -> (Double, Double, Double) {
             let x1 = x * cos(th) + z * sin(th), z1 = -x * sin(th) + z * cos(th)
@@ -3505,10 +3505,10 @@ enum ChartPainter {
         if narrow, !titled, !c.valueAxisDeleted {
             // (Excel's sheet charts: the box and the value names stand together in the middle of the frame, lab xl-3d.)
             let tp = valueText(tickLabel(sc.hi), c.valueLabelSize ?? c.baseTextSize, .infinity)
-            // (The lab's value names stood 3.9 / 11.3 / 17.7 / 25.4 pt left of the centred group's at frames 180 / 270 / 360 / 480 pt wide:
-            // Excel keeps the group nearer the left side as the frame widens.)
+            // (With the box height fitted, the lab's value names stood 4.4 / 6.4 / 3.8 / -6.6 pt left of the centred group's at frames
+            // 180 / 270 / 360 / 480 pt wide.)
             let widthPt = frame.width / k * 0.75
-            midTarget = (frame.left + frame.right) / 2 + (tp.width + 9.75 * k) / 2 - (3.9 + 0.071 * (widthPt - 180)) * k / 0.75
+            midTarget = (frame.left + frame.right) / 2 + (tp.width + 9.75 * k) / 2 - (widthPt <= 270 ? 5.0 : 4.0 - 0.0875 * max(0, widthPt - 360)) * k / 0.75
             tp.dispose()
         }
         let shift = Offset(midTarget - midX, titled ? room.dy - midY : roomTop - rawY.min()!)
