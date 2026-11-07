@@ -1500,3 +1500,6 @@ its series in lanes, each stacking on the last), tdf111824 6.25 (3-D series rows
 - Compound border (cmpd thickThin 3 pt): Excel prints two hairlines (0.31 pt at the frame edge, 0.56 pt at +0.9), not a 3 pt black line; ours draws it solid black.
 - 57362: secondary value axis title not drawn.
 - tdf119138: plot top 3.2 pt lower than Excel's, gridlines 0xD9 vs Excel's 0x86 (style 10); 3-D (tdf111824, 128382): amd-5's.
+
+**Hatch tile origin, 2026-11-07 (amd-1) — closed, no change.** windows' prints (test/lab/hatchorigin/prints on wip/amd1-hatchorigin-prints): tile phase is fixed per page (3.36 mod 6 in x and y on page 1 for every chart whatever its frame position), x phase 5.52 on page 2. Zoomed on chart-hatch-fill p1 the lgGrid lines of our current drawing (phase 0) are already within 0.1 pt of Excel's mod 6; adding the 3.36 phase moved them 2.8 pt off and left the score at 4.16, so reverted. Only page 2's x (2.16 further) is unexplained; it is hatch dither, well under 0.1% of a page. The gap in chart-hatch-fill is the pie: Excel's pie is bigger, and the page-1 green slice's grid differs by position.
+Gradient bars landed (ebee3b1a5): path gradient focus outside the bar = its centre, stops opaque; the outer shadow (skewed grey block right of each bar, outerShdw sy 23 kx -1.2e6) is still not drawn in external_str_ref.
