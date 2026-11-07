@@ -1055,6 +1055,16 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if theme.wordRules, document.usesEastAsianLayout, before == "-", let bb = beforeBefore,
+                          (document.compatibilityMode ?? 12) < 15, document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false,
+                          let v = ch.unicodeScalars.first?.value, v > 0x20, v < 0x7F, let w = bb.unicodeScalars.first?.value, w > 0x20, w < 0x7F {
+                    // (Before 2013's layout, with punctuation compressed, Word
+                    // parts no Latin word after its hyphen either: zh-bfe04e2f
+                    // carries "S19-S17" down whole, where the engine ended a line
+                    // "…南槽航道S19-". `_fittingWordHyphens` has the same gate.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 } else if theme.wordRules || theme.officeLatinBreaks, let b = before,
                           Self.joinsLatin(b, ch, eastAsian: document.usesEastAsianLayout) {
                     flush(i)
