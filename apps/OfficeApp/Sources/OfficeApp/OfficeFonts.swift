@@ -2192,8 +2192,11 @@ enum OfficeFonts {
             // (Its space as its own: 3.12 at 12pt, where the stand-in's was
             // 2.82 — zh-1d3d66d3's "（資本門預算數） ×100％" ends at "100％" in
             // Word's print of a 7-em cell and opens the next line "（以".)
+            // (Its bold is the regular drawn heavier, so the same widths: zh-b8de3ae2's 34 bold 22pt spaces
+            // before "貳、本區預算分析" are 5.74 each in Word's print, 0.26 em, where ours took Times Bold's
+            // 0.235 and stood the heading 18.6pt left.)
             return EastAsianFace(height: 1332.0 / 1024.0, latin: serif, latinScale: 0.94, latinAdvances: pMingLiUAdvances,
-                                 fakeBold: true, baseline: 974.0 / 1024.0, squareSymbols: true)
+                                 latinBoldAdvances: pMingLiUAdvances, fakeBold: true, baseline: 974.0 / 1024.0, squareSymbols: true)
         }
         if has("stzhongsong", "华文中宋") {
             // (hhea 1.007 + .318, OS/2 win .912 + .225: 105.3pt a line at
