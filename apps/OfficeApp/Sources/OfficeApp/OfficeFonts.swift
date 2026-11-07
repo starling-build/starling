@@ -2857,7 +2857,7 @@ enum OfficeFonts {
         // stand-in's 1.15 ran those documents two pages short in three.)
         if wordOnWindows, missing, embeddedFamily(asked) == nil, let tall = Self.windowsArabicLines[asked] {
             RuleTrace.hit("windows-arabic-face-own-line")
-            face.naturalHeight = tall
+            face.naturalHeight = tall; face.boldHeight = tall
         }
         // (… and its clone first in the chain, so the spaces and marks are set
         // in the clone and not the Cambria stand-in that comes before it.)
