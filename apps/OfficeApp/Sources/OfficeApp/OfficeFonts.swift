@@ -2341,7 +2341,10 @@ enum OfficeFonts {
         let windowsLacks = !windowsHas.contains(where: { faceHas(n, $0) }) || has("_gb2312", "方正", "小标宋", "標楷")
         if wordOnWindows, windowsLacks, ignoringEmbedding || !isEmbedded(family), let alt = altName(family) {
             let a = alt.trimmingWhitespace().lowercased()
-            if a != n, windowsHas.contains(where: { faceHas(a, $0) }),
+            // (An alternate that is itself a CESI face, absent from Windows:
+            // zh-ac627439's 方正小标宋简体, alternate CESI仿宋-GB13000, is YaHei's
+            // in Word's print, its "2012" digits 0.59 em, not FangSong's half.)
+            if a != n, windowsHas.contains(where: { faceHas(a, $0) }), !a.hasPrefix("cesi"),
                !["_gb2312", "方正", "小标宋", "標楷"].contains(where: { faceHas(a, $0) }) {
                 return eastAsianFace(alt, ignoringEmbedding: ignoringEmbedding)
             }
