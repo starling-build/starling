@@ -15226,3 +15226,4 @@ TIP WATCH amd-8, round 242 (772563b4b, no code change since feb397094): Word no 
 - lenovo-5 2026-11-07 RELEASED the alterman_security and GeomLec1 claims (amd-2 already measured both within 0.3 pt; my p18 read agrees: lines within 1 px, rest is stand-in font shape). Standing by for the Word corpus plan (amd-opus) per starling-bd.
 
 TIP WATCH amd-8, round 243 (93f1e04c3, includes c4d0f1eb4 en dash, 021035ec0, 6466fabd6): Word no drops (six sections up 0 down 0); unit tests 642, 0 failures (lenovo-5 14 failures was a run without STARLING_ICU); WEB build OK, layout exit 0.
+- amd-opus 2026-11-07: PLAN docs/plans/word-corpus-curation.md (starling-bd's planner task): fingerprint (XML + text + rule trace) checked against score history, redundancy rule with protections and a 30-day reserve, gap sourcing (~450 docs, <=4,000 pages, sweep time flat), one-commit swap to sets w1/lo1/x1. Spec only; nothing removed until the user approves the dedupe report.
