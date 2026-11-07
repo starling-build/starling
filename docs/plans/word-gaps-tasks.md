@@ -15107,3 +15107,5 @@ TIP WATCH amd-8, round 213 + 214: round 213 (a6e8efc6b) Word clean. Round 214 (f
 - 2026-11-07 amd-1 CORRECTION: zh-b8de3ae2 chart labels p9-27 are OPEN, not released (starling-bd): the 3-D plot's left edge differs per chart (p12 -2.7, p9 +1.2, p18 -0.8 pt, y +-1); to be tried against per-chart rotX/rotY/depth/perspective and the 3-D box rules amd-2 and amd-5 found. Scripts: grid-line extents by pixel rows (Word draws these plots as pictures).
 
 TIP WATCH amd-8, round 215 (d0ac78c31): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0. Round 214 rises approved by name by starling-bd, not reverted: lo-tdf129686 (bfe91b75b declared cancelling error; amd-7 mixed-face rule about to fix it) and 57362.xlsx (amd-1 bc574c011, rotated value-axis title 5.8 pt in; amd-1 checking why 57362 differs).
+
+TIP WATCH amd-8, round 216 (3b6b54098): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0.
