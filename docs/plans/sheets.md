@@ -1486,3 +1486,7 @@ chart-hatch-fill 4.17 (pattern tile, not position), tdf140489 3.87 (now drawn; t
 testDataseriesOverlapStackedChart 5.17 -> 3.42 (fixed: a stacked group with overlap under 100 keeps
 its series in lanes, each stacking on the last), tdf111824 6.25 (3-D series rows). 47813, 45544 and
 45540_* are cell-caused, not charts.
+
+## Non-Calibri-11 book row fit, landed (amd-3, 2026-11-07, bc4f55949)
+- In a book whose default font is not Calibri 11, rows use a book-independent screen-px table (`Face.plainBook`, applied when the sheet sets no default row height of its own): Segoe UI 8 = 37 px, 9 = 36; Calibri 9 = 34; Verdana 12 = 38.85 (labs bk-* on wip/lab-xlbooks, Windows prints on wip/lab-xlbooks-prints). 29 of 30 bk labs match Excel; Verdana10-Segoe9 is one printer dot off (14.16 v 14.04). Calibri 9 in a Verdana book (34 v table 31) rests on one book. Corpus: no drop; 48962 2.39 to 2.32, lo-forum-mso-de-104083 4.75 to 4.68. 632 tests, 0 failures.
+- Status of the rest: bug66675 row 12 (15.24) waits on Windows prints of lab xl66675 h-l. 47813 parked. lo-tdf58243 (5.25): cells match Excel to 0.2 pt; only the header/footer differs: with fit-to-page + horizontalCentered + alignWithMargins=0 Excel's header runs 55.0 to 540.5 pt (ours 17.0 to 575.4 = the margins); rule unknown, one document, not worth a lab yet. LIBRE_OFFICE-116306-0, lo-tdf131575, AverageTaxRates, Tables, lo-tdf100034: positions within 1 pt (font floor); no row rule left to fit.
