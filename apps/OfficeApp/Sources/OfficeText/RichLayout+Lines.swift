@@ -1598,7 +1598,9 @@ extension RichLayout {
             }
             // (Not Japanese: jpn-z23845932 (Pandoc, mode none, theme face), "(a) 出版頻度の制約。 Amazon
             // KDPをはじめ…" in Word's print breaks inside the kana-bearing stretch, every line full.)
-            if han, !kana { for o in (start + 1) ..< max(start + 1, end) { joins.insert(o) } }
+            // (A kana-bearing stretch that fits a line stays one word, as jpn-z17607492's
+            // "典型的な距離:畑から…マイル" does in Word's print: the line breaks before it, not inside.)
+            if han, !kana || end - start <= 36 { for o in (start + 1) ..< max(start + 1, end) { joins.insert(o) } }
             k = max(end, start)
         }
         return joins
