@@ -1941,8 +1941,13 @@ extension RichLayout {
                     // head before the Latin none. Lab `squeeze` (zh-25381d22, 12pt, "（Proof of Concept, PoC），…市約"):
                     // takes "約" with 3.74 of need at right indent +0.5, not 4.24 at +1.0, the spaces' quarters
                     // 2.34; its print has the tail's glyphs 0.12 short and the head's whole.)
-                    let tailSqueezers: [Int] = windowsAfterMarks && !latinPulled && !wordSpaces.isEmpty && !givers.isEmpty
-                        ? ((wordSpaces.last!.k + 1) ..< a).filter { units[$0] >= 0x2E80 && eastAsianAt($0) } : []
+                    // Only when the last space has ASCII letters/digits/commas on both sides (a real Latin word
+                    // run); a space after a curly quote beside ideographs (zh-cd48112c) gave 9 pt of false room.
+                    let latinLastSpace: Bool = !wordSpaces.isEmpty && wordSpaces.last!.k >= 1 && wordSpaces.last!.k + 1 < units.count
+                        && units[wordSpaces.last!.k - 1] < 0x80 && units[wordSpaces.last!.k - 1] > 0x20
+                        && units[wordSpaces.last!.k + 1] < 0x80 && units[wordSpaces.last!.k + 1] > 0x20
+                    let tailSqueezers: [Int] = windowsAfterMarks && !latinPulled && latinLastSpace && !givers.isEmpty
+                        ?((wordSpaces.last!.k + 1) ..< a).filter { units[$0] >= 0x2E80 && eastAsianAt($0) } : []
                     let tailRoom: Double = Double(tailSqueezers.count) * em / 64
                     let roomSpaces = latinPulled ? em / 4 + autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * 0.3
                         : givers.reduce(0.0) { $0 + $1.w * (windowsAfterMarks ? 0.25 : spaceGive($1.k)) } + roomAutos + tailRoom
