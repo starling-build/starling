@@ -15060,3 +15060,5 @@ TIP WATCH amd-8, round 202 (ff96173cd): Word no drops (six sections up 0 down 0)
   3. p10 form row: Word underlines the 8 trailing spaces after "联系方式" (cell, 337-379 pt); ours draws none.
 
 TIP WATCH amd-8, round 203 (1e78d3963): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0. SLIDES mean 0.7448 -> 0.7444 (0 worse, 1 better, matched-win 98/98 exact). SHEETS 0.647 unchanged (0 worse). All gates green.
+
+TIP WATCH amd-8, round 204 (c742c753f): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0.
