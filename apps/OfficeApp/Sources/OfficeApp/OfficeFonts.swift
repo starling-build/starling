@@ -2279,7 +2279,11 @@ enum OfficeFonts {
             return EastAsianFace(height: wordOnWindows ? 1.456 : 1.7, latin: serif, latinScale: 1.04, fakeBold: true, baseline: wordOnWindows ? 1.028 : nil)
         }
         if has("stsong", "华文宋体") { return EastAsianFace(height: 1.31, latin: serif, latinScale: 1.0, fakeBold: true) }
-        if has("arial unicode") { return arialUnicode }
+        // (Word for Windows has no Arial Unicode MS: its Japanese text prints
+        // in MS Mincho on that face's 1.3 em line, Latin in Arial —
+        // jpn-z17544993-4a21de, 11pt lines 16.4 apart at 1.15 spacing, where
+        // Arial Unicode's 1.742 em gave 22.0; 40 pages here against 32.)
+        if has("arial unicode") { return wordOnWindows ? windowsMincho : arialUnicode }
         // (Noto Sans SC, which Word's fallback takes for some CJK
         // compatibility ideographs — `RichLayout._notoCompatibility`: its
         // hhea 1.16 + 0.288 ems with Word's 30% more, the baseline 1.377
