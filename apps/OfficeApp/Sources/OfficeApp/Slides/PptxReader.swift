@@ -2971,6 +2971,7 @@ private struct SlideContext {
                 }
             }
             if let m = sp3d?["prstMaterial"] { b.material = m }
+            b.diagram = sp3d?["starlingDiagram"] != nil
             return b
         }
         if let spPr, spPr.first("a:sp3d") != nil || spPr.first("a:scene3d") != nil {

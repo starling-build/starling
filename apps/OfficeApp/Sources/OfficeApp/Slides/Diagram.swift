@@ -1691,6 +1691,7 @@ struct DiagramLayout {
         var fillRef = 1
         var lineRef = 2
         var effectRef = 0
+        var sp3d: XNode?
     }
 
     /// The colours and style references for a style label, by its index
@@ -1720,6 +1721,7 @@ struct DiagramLayout {
             l.fillRef = s.first("a:fillRef")?["idx"].flatMap(Int.init) ?? 1
             l.lineRef = s.first("a:lnRef")?["idx"].flatMap(Int.init) ?? 2
             l.effectRef = s.first("a:effectRef")?["idx"].flatMap(Int.init) ?? 0
+            if let sp = st?.first("dgm:sp3d"), sp["prstMaterial"] == "metal", sp.first("a:bevelT") != nil { l.sp3d = clone(sp) }
             if l.text == nil, let f = s.first("a:fontRef")?.children.first { l.text = clone(f) }
         }
         l.lineWidth = [0: 0, 1: 9525, 2: 25400, 3: 38100][l.lineRef] ?? 12700
@@ -1906,6 +1908,8 @@ struct DiagramLayout {
             // The point's own effects (fill-color-list's shadow under
             // each heading).
             if let e = own?.first("a:effectLst") { spPr.children.append(clone(e)) }
+            // The quick style's metal bevel (3d3): drawn as a thin rim, see SlidePainter.
+            if let sp = look.sp3d, !n.hideGeom { var at = sp.attrs; at["starlingDiagram"] = "1"; let q = XNode(name: "a:sp3d", attrs: at); q.children = sp.children; spPr.children.append(q) }
         }
         // The style: references with the scheme's colours, the text's colour.
         let style = XNode(name: "p:style", attrs: [:])

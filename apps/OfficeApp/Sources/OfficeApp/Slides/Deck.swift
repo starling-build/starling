@@ -951,4 +951,6 @@ struct ShapeBevel: Hashable {
     var preset = "circle"
     var turn = 0.0
     var rot: [Double] = [0, 0, 0]
+    /// Laid out by the diagram engine from the quick style, not authored.
+    var diagram = false
 }

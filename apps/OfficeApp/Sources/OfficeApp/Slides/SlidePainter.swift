@@ -1072,7 +1072,30 @@ final class SlidePainter: CustomPainter {
             rim.color = Color(0x66000000)
             canvas.drawPath(outline, rim)
         }
-        if let bevel = shape.bevel, bevel.material != "dkEdge", let fill = shape.fill, shape.fillStyle == nil,
+        // (A SmartArt metal bevel (quick style 3d3, 7 x 16 pt): PowerPoint's print is a grey
+        // outline pixel, then a light band about 4 px deep fading into the fill.)
+        if let bevel = shape.bevel, bevel.diagram, shape.fill != nil, shape.fillStyle == nil, shape.picture == nil,
+           shape.preset?.isOpenPath != true {
+            let outline = path ?? { let q = Path(); q.addRect(area); return q }()
+            RuleTrace.hit("slide-diagram-metal-bevel-is-a-thin-rim")
+            canvas.save()
+            canvas.clipPath(outline)
+            for depth in [2.0, 1.5, 1.0, 0.5] {
+                let band = Paint()
+                band.style = .stroke
+                band.isAntiAlias = true
+                band.strokeWidth = px * depth * 2
+                band.color = Color(0x1AFFFFFF)
+                canvas.drawPath(outline, band)
+            }
+            canvas.restore()
+            let edge = Paint()
+            edge.style = .stroke
+            edge.isAntiAlias = true
+            edge.strokeWidth = px * 0.5
+            edge.color = Color(0x99606060)
+            canvas.drawPath(outline, edge)
+        } else if let bevel = shape.bevel, bevel.material != "dkEdge", let fill = shape.fill, shape.fillStyle == nil,
            shape.picture == nil, shape.preset?.isOpenPath != true {
             let outline = path ?? { let q = Path(); q.addRect(area); return q }()
             if bevel.material == "translucentPowder" || !Extrusion.paintBevel(bevel, outline, area, canvas, pxPerPt: px, fill: fill) {
