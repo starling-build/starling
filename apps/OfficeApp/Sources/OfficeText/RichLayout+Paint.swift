@@ -915,6 +915,44 @@ extension RichLayout {
         }
     }
 
+    /// Word for Windows draws the rule under a table cell's closing underlined
+    /// spaces, up to the cell's right edge (zh-e61c3dff's form row, "联系方式"
+    /// and eight of them: 337-379 in its print; zh-77bd4900's "□其他" and
+    /// twelve: 661-709, the rest hanging past the edge unseen). The engine
+    /// hangs spaces that end a line and drops their decoration, and making them
+    /// take room moved lines in a dozen documents, so the rule is drawn here
+    /// over the spaces the line leaves where they are: whole spaces that fit.
+    func _paintClosingUnderline(_ i: Int, _ g: ParagraphGeometry, at textAt: Offset, _ canvas: any Canvas, _ document: RichDocument) {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, i < document.paragraphs.count else { return }
+        let p = document.paragraphs[i]
+        guard p.cell != nil, p.style.alignment == .left, p.text.hasSuffix(" "), p.runs.last?.style.underline == true else { return }
+        let units = Array(p.text.utf16)
+        var closing = units.count
+        while closing > 0, units[closing - 1] == 0x20 { closing -= 1 }
+        guard closing > 0 else { return }
+        func leafStyle(_ span: InlineSpan, _ inherited: TextStyle?) -> TextStyle? {
+            guard let text = span as? TextSpan else { return inherited }
+            let own = text.style ?? inherited
+            if let children = text.children, let last = children.last { return leafStyle(last, own) }
+            return own
+        }
+        guard let root = g.painter.text, let style = leafStyle(root, nil), style.decoration?.contains(.underline) == true else { return }
+        let before = _map(i).painter(closing - 1)
+        guard let box = g.painter.getBoxesForSelection(TextSelection(baseOffset: before, extentOffset: before + 1), boxHeightStyle: .max).last else { return }
+        let one = TextPainter(text: TextSpan(text: " ", style: style), textDirection: .ltr)
+        one.layout(minWidth: 0, maxWidth: 10_000)
+        let spaceWidth = one.width
+        one.dispose()
+        guard spaceWidth > 0.1 else { return }
+        let n = min(units.count - closing, Int(((g.textWidth - box.right) / spaceWidth).rounded(.down)))
+        guard n > 0 else { return }
+        let rule = TextPainter(text: TextSpan(text: String(repeating: " ", count: n) + "\u{2060}", style: style),
+                               textDirection: .ltr, strutStyle: g.painter.strutStyle)
+        rule.layout(minWidth: 0, maxWidth: 10_000_000)
+        rule.paint(canvas, Offset(textAt.dx + box.right, textAt.dy + box.top))
+        rule.dispose()
+    }
+
     func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument, part: PagePiece.Part = .all,
                                  lines: (painter: TextPainter, top: Double, first: Bool, paragraph: RichParagraph)? = nil) {
         let g = geometry(i)
@@ -1530,6 +1568,7 @@ extension RichLayout {
                       map: lines == nil ? _map(i) : nil, leading: false)
         _paintRuby(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
                    map: lines == nil ? _map(i) : nil)
+        if lines == nil { _paintClosingUnderline(i, g, at: textAt, canvas, document) }
         if !leadersPainted, i < _leaders.count, !_leaders[i].isEmpty {
             // A leader fills its tab: the character over and over, up to
             // the text the tab leads to.
