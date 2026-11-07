@@ -45,6 +45,14 @@ enum SlideFonts {
     /// Arial Black is drawn in Archivo Black, which is heavy without a bold.
     static let hasHeavyStandIn = true
 
+    /// PowerPoint for Windows has no DejaVu Sans and prints it as Verdana
+    /// (Matrix's theme face, tdf134862's runs: the print's face is Verdana);
+    /// its metrics and widths are Verdana's.
+    static func windowsName(_ family: String) -> String {
+        let n = family.trimmingWhitespace().lowercased()
+        return n == "dejavu sans" && OfficeFonts.installed(family) == nil ? "verdana" : n
+    }
+
     static func resolve(_ family: String) -> String {
         // (The machine's own face, where it has it and the user takes it:
         // `OfficeFonts.installed`.)
@@ -64,7 +72,7 @@ enum SlideFonts {
     static func face(_ family: String?, _ eastAsian: Bool) -> RichResolvedFace? {
         // (None of a stand-in's widths for the machine's own face.)
         guard !eastAsian, let family, OfficeFonts.installed(family) == nil else { return nil }
-        switch family.trimmingWhitespace().lowercased() {
+        switch windowsName(family) {
         case "lucida sans unicode":
             var face = RichResolvedFace(family: resolve(family))
             face.advances = OfficeFonts.lucidaSansUnicodeAdvances
@@ -145,7 +153,7 @@ enum SlideFonts {
     /// own is the face's (Calibri in Carlito, the free faces themselves).
     static func ownNaturalHeight(_ family: String) -> Double? {
         guard OfficeFonts.installed(family) == nil else { return nil }
-        switch family.trimmingWhitespace().lowercased() {
+        switch windowsName(family) {
         case "courier new", "courier": return 2320.0 / 2048
         case "segoe ui", "segoe ui light", "segoe ui semilight", "segoe ui semibold": return 2724.0 / 2048
         case "franklin gothic book", "franklin gothic medium": return 2322.0 / 2048
@@ -176,7 +184,7 @@ enum SlideFonts {
 
     static func ownDescentShare(_ family: String) -> Double? {
         guard OfficeFonts.installed(family) == nil else { return nil }
-        let n = family.trimmingWhitespace().lowercased()
+        let n = windowsName(family)
         if n == "verdana" { return 430.0 / 2489 }
         if n.hasPrefix("tahoma") { return 423.0 / 2472 }
         if n.hasPrefix("segoe ui") { return 514.0 / 2724 }
