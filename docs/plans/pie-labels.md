@@ -1,26 +1,34 @@
 # Word flat-pie best-fit labels: the lo-f9b9a8fc label-5 jump (amd-opus, 2026-11-06)
 
-### STATE OF PLAY (lenovo-2, 2026-11-07 ~10:00, for whoever continues; sections below hold the detail)
+### STATE OF PLAY (lenovo-2, 2026-11-07 ~11:30, checkpoint before a context clear; sections below hold the detail)
 
 Landed on office: cf784c4c0 (30/60-degree anchor table on Word's px raster, 0.75 centre-to-corner in the 13-30 deg zone,
 push-out until the pie pokes <= 1.5 px, leaders only from 9 pt off the rim), 0dc344f55 (per-point c:dLbl/c:delete honoured),
-and (landing now, wip/pie-bound in /data/s/lenovo-2/starling) the pie's CONTROL-POINT BOUND in place of R: each slice's arc as
-90-degree cubic segments from the slice start, the bound = the furthest any anchor/control point reaches along an axis
-(1.0346 R for 45-degree slices turned 15, 1.118 R for zh-37b6536f's 343-degree slice; zh-37b6536f 99.3 -> 100).
-lo-f9b9a8fc is 87.5 (7/8): label 5 (202.5 deg, layout B at frame 480-488 px) is the one miss.
+8b264ffdf (the pie's CONTROL-POINT BOUND in place of R: each slice's arc as 90-degree cubic segments from the slice start, the
+bound = the furthest any anchor/control point reaches along an axis; zh-37b6536f 99.3 -> 100). All paired clean (one accepted
+drop, since recovered). lo-f9b9a8fc is 87.5 (7/8): label 5 (202.5 deg, layout B at frame 480-488 px) is the one miss.
 
-What is known about the miss (the "zone" interaction): only labels whose slice middle is 13-30 deg from vertical interact;
-the result is deterministic per chart (3 copies identical), independent of px phase and of the other slices' angles when
-alone, ORDER-dependent (zone label first: corner end; second: near its lone spot), piecewise constant in the partner's anchor
-sector (corner partner: zone label +15 px toward its corner, partner untouched; side partner: zone label -2/-2 px and the
-PARTNER moves to a 10 px grid 30/40/50 px under the zone label's bottom; inside/absent partner: nothing), and triples neither
-add nor max the pair moves. No overlap resolution exists (zh-37b6536f draws five labels on top of each other).
-Ruled out: loop-length drift, one shared counter, last-label, add/max, pure geometry (order matters), chaos from outside state.
+What is known about the miss: see the sections below. In one paragraph: Word's auto place = an internal DEFAULT (mirror-symmetric;
+the box corner nearest the centre on a ring R + 5.0 pt, 2.8-3.9 deg clockwise of the slice middle; found by pinning labels with a
+zero manualLayout, lab piepin) plus a PULL toward the rim point / nearer axis whose size depends on the whole label set: lone zone
+label 1 is pulled 31 px to the vertical axis, with other labels 4-30 px; label 5 alone 0, with others +13..+36. Only labels whose
+slice middle is 13-30 deg from vertical interact; the result is deterministic per chart, order-dependent, independent of px phase,
+piecewise constant in a partner's anchor class, not additive, and (advisor round 4) NOT explained by any contact/corridor stop,
+budget, angular-gap rule or slot search (pulls get LONGER with partners, so no obstacle rule can work). Worse: a lone zone label is
+not mirror-consistent (-29..+19 px between a label at m and at 360-m, random sign), so the unknown is the SINGLE-label process.
+No overlap resolution exists at all (zh-37b6536f stacks five labels on top of each other).
 
-Open labs: piepin (wip/lab-piepin, 33 docs: one label pinned by a manualLayout at a time) on windows; advisor round 3 scoring a
-10 px candidate-slot search in the simulator (test/lab/pie-fit/sim.py + configs.py over all 535 prints, baseline 703/1489).
-Data: scratchpad lab TSVs (branches wip/lab-pie1/pie2/pieanchor/piezone(-2)-prints); loaders test/lab/pie-fit/{load,configs,sim,compare}.py.
-Next if the slot search fits: implement it as a joint pass in _pieLabels (probe pass to collect sizes, then place); gates as before.
+NEXT: lab pinsweep (wip/lab-pinsweep, 164 docs, sent to windows 11:25; prints will be on wip/lab-pinsweep-prints,
+test/lab/pinsweep/prints/PINSWEEP-WORD.tsv): one labelled 45-degree slice with its middle at 12..31 deg by 0.5, auto AND pinned
+(= Word's default), plus mirrors and pinned defaults at 35-135 deg and spans 30/60. Read it with the advisor's criterion: if the
+pinned defaults are smooth in angle but the auto places jump between half-degree steps and differ from their mirrors, the pull is a
+chaotic step search - keep the landed rule and release label 5 (the user's call); if the auto place is a smooth, mirror-consistent
+function of the default (e.g. stops at the slice's start edge or on touching the circle), write the lone-label pull rule first, then
+return to pairs. The default law itself (ring R + 5 pt, the clockwise offset, its dependence on span and R) comes from the same lab.
+Tools: test/lab/pie-fit/{load,configs,sim,compare}.py (configs.load() = every print; sim.score() = hits within 4 px; note sim.snap
+assumes the pie centre 133.33 px below the frame top - piezone2's is 143.73); advisor scripts in the scratchpad advisor/..advisor4/
+(gone after a clear; the plan doc holds their conclusions). Lab data: scratchpad lab/<lab>/test/lab/<lab>/*-WORD.tsv, re-extractable
+with git archive origin/wip/lab-<lab>-prints test/lab/<lab>.
 
 # Round 3 (lenovo-2, 2026-11-07, in progress): the raster, Word's box, and lab pie1
 
