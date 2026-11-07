@@ -1252,6 +1252,14 @@ public final class RichDocumentController: ChangeNotifier {
 
     /// Word's Clear All Formatting: plain runs and a body paragraph.
     public func clearFormatting() {
+        // Plain, but the hyperlink, a footnote mark, an inline picture and
+        // tracked-change marks are content, not formatting: they stay.
+        let keep: (inout CharStyle) -> Void = { s in
+            var p = CharStyle.plain
+            p.link = s.link; p.note = s.note; p.inlineImage = s.inlineImage
+            p.revision = s.revision; p.formatChange = s.formatChange
+            s = p
+        }
         edit {
             let a = document.clamped(selection.start)
             let b = document.clamped(selection.end)
@@ -1261,14 +1269,14 @@ public final class RichDocumentController: ChangeNotifier {
                 if selection.block == nil, selection.isCollapsed || (a.paragraph == b.paragraph) {
                     let lo = a.paragraph == b.paragraph ? a.offset : 0
                     let hi = a.paragraph == b.paragraph ? b.offset : para.length
-                    para.applyStyle(lo ..< hi) { $0 = .plain }
+                    para.applyStyle(lo ..< hi, keep)
                 } else {
-                    para.applyStyle(0 ..< para.length) { $0 = .plain }
+                    para.applyStyle(0 ..< para.length, keep)
                 }
                 if para.runs != old.runs { perform(.setRuns(i, old: old.runs, new: para.runs)) }
                 if old.style != .body { perform(.setParagraphStyle(i, old: old.style, new: .body)) }
             }
-            typingStyle = nil
+            typingStyle = selection.isCollapsed ? .plain : nil
         }
     }
 

@@ -121,6 +121,8 @@ public final class RichEditableState: State<StatefulWidget> {
 
     // Mouse.
     private var _dragging = false
+    /// Shift-arrow style selection in progress (ends when Shift is released).
+    private var _kbSelecting = false
     /// A picture-handle drag: which handle (0–7, clockwise from top-left),
     /// where it started, the picture's size then, and the live size.
     private var _handleDrag: (index: Int, handle: Int, start: Offset, size: Size)? = nil
@@ -351,7 +353,14 @@ public final class RichEditableState: State<StatefulWidget> {
     // MARK: Keyboard
 
     private func _handleKey(_ keyData: KeyData) -> Bool {
+        let shiftWas = _chords.shift
         if _chords.track(keyData) {
+            // Shift let go after a keyboard selection: that selection has
+            // ended, which is when the Format Painter applies.
+            if shiftWas, !_chords.shift, _kbSelecting {
+                _kbSelecting = false
+                if _controller.hasSelection { _w.onSelectionGestureEnd?() }
+            }
             // A modifier alone: the pointer over a link changes shape with ⌘.
             if _hoverLink != nil || _textDrag?.active == true { setState {} }
             return false
@@ -365,6 +374,7 @@ public final class RichEditableState: State<StatefulWidget> {
         if _textInput?.isAttached == true, c.composingRange != nil { return false }
         let shift = _chords.shift
         let key = KeyChordTracker.named(keyData.logical)
+        if shift, key != nil, key != .escape { _kbSelecting = true }
         if let onShortcut = _w.onShortcut, _chords.primary || key == .escape,
            onShortcut(keyData, _chords.modifiers) {
             return true

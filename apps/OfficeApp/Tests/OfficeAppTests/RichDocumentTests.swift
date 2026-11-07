@@ -1056,3 +1056,73 @@ final class FormatPainterTests: XCTestCase {
         XCTAssertTrue(c.document.paragraphs[1].style(at: 1).bold)
     }
 }
+
+final class ClearFormattingAndStyleTests: XCTestCase {
+    private func styled() -> RichDocumentController {
+        let c = RichDocumentController(plainText: "one two three\nsecond")
+        c.moveTo(RichPosition(paragraph: 0, offset: 4), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 7), extend: true)
+        c.applyCharStyle { $0.bold = true; $0.fontSize = 22; $0.color = Color(0xFFFF0000); $0.link = "https://x.test" }
+        return c
+    }
+
+    func testClearFormattingOverWordKeepsLinkAndUndoes() {
+        let c = styled()
+        c.clearFormatting()
+        let st = c.document.paragraphs[0].style(at: 5)
+        XCTAssertFalse(st.bold)
+        XCTAssertNil(st.fontSize)
+        XCTAssertNil(st.color)
+        XCTAssertEqual(st.link, "https://x.test")   // the hyperlink stays
+        c.undo()
+        XCTAssertTrue(c.document.paragraphs[0].style(at: 5).bold)
+    }
+
+    func testClearFormattingAtCaretDropsTypingStyle() {
+        let c = styled()
+        c.moveTo(RichPosition(paragraph: 0, offset: 5), extend: false)
+        c.applyCharStyle { $0.italic = true }
+        XCTAssertNotNil(c.typingStyle)
+        c.clearFormatting()
+        c.insertText("x")
+        // The typed "x" sits alone in its run, plain.
+        let x = c.document.paragraphs[0].runs.first { $0.length == 1 && !$0.style.bold && !$0.style.italic && $0.style.link == nil }
+        XCTAssertNotNil(x)
+        XCTAssertEqual(c.document.plainText(), "one txwo three\nsecond")
+    }
+
+    func testClearFormattingResetsParagraph() {
+        let c = styled()
+        c.setAlignment(.right)
+        c.setHeading(1)
+        c.clearFormatting()
+        XCTAssertEqual(c.document.paragraphs[0].style.alignment, .left)
+        XCTAssertNil(c.document.paragraphs[0].style.heading)
+    }
+
+    func testClearFormattingKeepsInlinePicture() {
+        let c = RichDocumentController(plainText: "ab")
+        c.moveTo(RichPosition(paragraph: 0, offset: 0), extend: false)
+        c.moveTo(RichPosition(paragraph: 0, offset: 2), extend: true)
+        c.applyCharStyle { $0.inlineImage = "img1"; $0.bold = true }
+        c.clearFormatting()
+        XCTAssertEqual(c.document.paragraphs[0].style(at: 0).inlineImage, "img1")
+        XCTAssertFalse(c.document.paragraphs[0].style(at: 0).bold)
+    }
+
+    func testNamedStyleAppliesAndUndoes() {
+        let c = styled()
+        c.moveTo(RichPosition(paragraph: 1, offset: 2), extend: false)
+        c.setNamedStyle(RichNamedStyle.headingId(1))
+        XCTAssertEqual(c.document.paragraphs[1].style.heading, 1)
+        XCTAssertEqual(c.currentNamedStyleId, RichNamedStyle.headingId(1))
+        XCTAssertNil(c.document.paragraphs[0].style.heading)
+        c.setNamedStyle("Quote")
+        XCTAssertEqual(c.document.paragraphs[1].style.named, "Quote")
+        XCTAssertNil(c.document.paragraphs[1].style.heading)
+        c.setNamedStyle(RichNamedStyle.normalId)
+        XCTAssertEqual(c.currentNamedStyleId, RichNamedStyle.normalId)
+        c.undo(); c.undo(); c.undo()
+        XCTAssertNil(c.document.paragraphs[1].style.heading)
+    }
+}
