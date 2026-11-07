@@ -1590,12 +1590,15 @@ extension RichLayout {
             guard units[k] == 0x20 || units[k] == 0x3000 else { k += 1; continue }
             var start = k + 1
             while start < units.count, units[start] == 0x20 || units[start] == 0x3000 { start += 1 }
-            var end = start, han = false
+            var end = start, han = false, kana = false
             while end < units.count, !blank(units[end]) {
                 if (0x3400 ... 0x9FFF).contains(units[end]) || (0xF900 ... 0xFAFF).contains(units[end]) { han = true }
+                if (0x3040 ... 0x30FF).contains(units[end]) { kana = true }
                 end += 1
             }
-            if han { for o in (start + 1) ..< max(start + 1, end) { joins.insert(o) } }
+            // (Not Japanese: jpn-z23845932 (Pandoc, mode none, theme face), "(a) 出版頻度の制約。 Amazon
+            // KDPをはじめ…" in Word's print breaks inside the kana-bearing stretch, every line full.)
+            if han, !kana { for o in (start + 1) ..< max(start + 1, end) { joins.insert(o) } }
             k = max(end, start)
         }
         return joins

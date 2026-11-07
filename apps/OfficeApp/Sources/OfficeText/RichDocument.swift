@@ -2369,6 +2369,14 @@ public struct RichDocument: Hashable, Sendable {
         return ["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
     }
     public var themeFontLangXML: String? = nil
+    /// Word sets no automatic space between an ideograph and a digit or Latin
+    /// letter in a file that names no compatibility (hangsLatinStops) and whose
+    /// default East Asian language is not zh/ja/ko (Pandoc's en-US: z23845932's
+    /// "24 言語" is the digit's own width in Word's print).
+    public var skipsAutoSpace: Bool {
+        guard hangsLatinStops, let xml = defaultLangXML, let r = xml.rangeOfSubstring("w:eastAsia=\"") else { return false }
+        return !["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
+    }
     /// The settings' `w:doNotUseEastAsianBreakRules`: Word's East Asian
     /// line rules hold only for text in an East Asian language (see
     /// `eastAsianLineRules`).
