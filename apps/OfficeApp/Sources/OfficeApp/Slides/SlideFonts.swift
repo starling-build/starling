@@ -178,6 +178,7 @@ enum SlideFonts {
         case "TeX Gyre Adventor": return 2440.0 / 2048
         case "TeX Gyre Pagella": return 2763.0 / 2048
         case OfficeFonts.verdana: return 2489.0 / 2048
+        case "Starling Lucida Sans": return 3147.0 / 2048   // (GeomLec1's diagram: 33.3 pt apart at 24 pt, 90%)
         default: return nil
         }
     }
