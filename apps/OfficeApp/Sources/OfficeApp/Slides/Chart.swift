@@ -3970,7 +3970,18 @@ enum ChartPainter {
             // Word's print, where 15 made it nine and ones.)
             return max(2, min(10, Int(room / (14.5 * k))))
         }()
-        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? acrossSteps ?? writerSteps ?? 10,
+        // (Excel's major unit follows the plot's height: a step takes at least 13pt, as many steps as the plot has room for.
+        // Lab xl-unit, Excel's prints of one column or line chart at five heights, 2-D and 3-D: spacing 13.8pt and up
+        // stands, 12.3pt and under does not; a 51pt plot goes 0 to 15000 by 5000 and 0 to 60 by 20, a 94pt one 0 to 12000
+        // by 2000 and 0 to 50 by tens, a 138pt one 0 to 50 by fives.)
+        let sheetSteps: Int? = {
+            guard c.onSheet, !c.chartex, !horizontal, c.type != .scatter, !c.type.isPie else { return nil }
+            // (The axis spans 0.968 of the chart's height less 36pt flat, 0.455 of it less 21pt in a 3-D chart: the labels' own rows.)
+            let h = area0.height / k
+            let span = c.barView != nil || c.line3D ? 0.455 * h - 20.8 : 0.968 * h - 36.1
+            return max(2, min(10, Int(span / 13)))
+        }()
+        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? acrossSteps ?? writerSteps ?? sheetSteps ?? 10,
                                                                           headroom: c.barView != nil || c.line3D ? 0 : c.secondValueAxis?.sameScale == true ? 0.10 : 0.05)
         // (Excel's axis for a hidden scatter's visible $ axis with the area and line on the group left without one runs a tenth past
         // its data, not a twentieth: chart-tdf140489's 75,887 reaches $90,000, where the 5% rule stops at 80,000; the same file
