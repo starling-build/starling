@@ -2,7 +2,7 @@
 """Make NotoColorEmoji-Pictographs.ttf from NotoColorEmoji.ttf (SIL OFL 1.1).
 
 The subset keeps the pictographs at U+1F000 and above (faces, hands, flags'
-regional indicators, skin tones, ...) plus ZWJ (U+200D), with the GSUB
+regional indicators, skin tones, ...) plus ZWJ (U+200D), space and CR (a font missing them traps the unit-test run: a layout asks the fallback for a space), with the GSUB
 sequences among them, and drops the BMP symbols (U+2xxx) that the document
 faces and DejaVu Sans draw as plain outlines (a smiley U+263A is black in
 Word and PowerPoint). The result goes AHEAD of DejaVu in the glyph fallback.
@@ -29,7 +29,7 @@ opts.name_languages = ["*"]
 opts.drop_tables = []
 font = TTFont(src)
 cmap = font.getBestCmap()
-keep = sorted(c for c in cmap if c >= 0x1F000) + [0x200D]
+keep = sorted(c for c in cmap if c >= 0x1F000) + [0x200D, 0x20, 0x0D]
 sub = subset.Subsetter(opts)
 sub.populate(unicodes=keep)
 sub.subset(font)
