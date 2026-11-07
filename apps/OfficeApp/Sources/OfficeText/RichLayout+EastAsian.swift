@@ -1947,7 +1947,7 @@ extension RichLayout {
                         && units[wordSpaces.last!.k - 1] < 0x80 && units[wordSpaces.last!.k - 1] > 0x20
                         && units[wordSpaces.last!.k + 1] < 0x80 && units[wordSpaces.last!.k + 1] > 0x20
                     let tailSqueezers: [Int] = windowsAfterMarks && !latinPulled && latinLastSpace && !givers.isEmpty
-                        ?((wordSpaces.last!.k + 1) ..< a).filter { units[$0] >= 0x2E80 && eastAsianAt($0) } : []
+                        ? Array(((wordSpaces.last!.k + 1) ..< a).filter { units[$0] >= 0x2E80 && eastAsianAt($0) }.prefix(8)) : []  // at most 8 (lab: 8 gave 1.5; zh-79d08edd, 12 after one space, refused at 0.78+2.25)
                     let tailRoom: Double = Double(tailSqueezers.count) * em / 64
                     let roomSpaces = latinPulled ? em / 4 + autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * 0.3
                         : givers.reduce(0.0) { $0 + $1.w * (windowsAfterMarks ? 0.25 : spaceGive($1.k)) } + roomAutos + tailRoom
