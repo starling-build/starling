@@ -15220,3 +15220,5 @@ The cause was not the squeeze rule. Our en dash was 5.88 pt; Word sets every en 
 Note: when Word and our lab disagree by a fixed amount per character, compare the plain advance of each character kind (dash, space) on an unsqueezed line before inventing a rule.
 
 TIP WATCH amd-8, round 242 (772563b4b, no code change since feb397094): Word no drops (six sections up 0 down 0); unit tests 642, 0 failures; WEB build OK, layout exit 0.
+
+- amd-3 (2026-11-07): landed 6466fabd6 (gothic-last rule for single/at-least spacing) and 910b5bdd8 (a space straight after a no-break space in a mixed run counts in the line fit, no hang; fixes zh-8415d258 p1: L3 = 46 whitespace + 水利部办, matcher 99.8, 553/553 lines). Space-run lab fit: context-width model (N→N 15, N→S/S→N/S→S 7.5, break after nbsp) explains 128/132 lab cases; 4 odd cases (altN/altS 106/108) and pure-nbsp lines unexplained. Open: e0ca7252 p46 ("備，" hang vs wrap), 92373179 p11, small 4-char items cec9d337 p10, 31d580df p27, cd8987db p10; dx-only docs wait on lenovo-5's fit-edge lab.
