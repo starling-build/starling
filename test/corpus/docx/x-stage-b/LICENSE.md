@@ -8,6 +8,10 @@ Licences present, with the file count:
   record. Attribution = the record address in the manifest.
 - Licence Ouverte 1.0 / 2.0 (Etalab): French public-sector files from
   data.gouv.fr datasets; attribution = the dataset page in the manifest.
+- PDL 1.0 (Public Data License 1.0, compatible with CC BY 4.0): Japanese ministry
+  files from mhlw.go.jp and digital.go.jp; the site-wide notice that applies
+  is named in each manifest row. Pages may mark third-party content as
+  excluded; we took the site notice at face value.
 - MIT: test files from github.com/dolanmiu/docx.
 - Apache-2.0: test files from github.com/plutext/docx4j.
 
