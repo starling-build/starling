@@ -15138,3 +15138,5 @@ TIP WATCH amd-8, round 225 (5ee564483): Word no drops (six sections up 0 down 0)
 - lenovo-2 2026-11-07 lo-f9b9a8fc label 5 CHECKPOINT (context clear): landed 8b264ffdf (control-point bound, zh-37b6536f 100). Label 5 still open: Word's auto place = a symmetric DEFAULT (lab piepin) + a context pull no contact/budget/gap/slot rule reproduces (advisor rounds 3-4); even a lone zone label is not mirror-consistent. Deciding lab pinsweep (164 docs) is with windows; reading rule and all facts in docs/plans/pie-labels.md STATE OF PLAY.
 
 TIP WATCH amd-8, round 226 (fe5e9b277): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0. SLIDES 0.7375 -> 0.7352 (0 worse, 2 better, matched-win 98/98 exact). SHEETS 0.632 -> 0.627 (6 better, 1 worse: dataValidationTableRange 7.52 -> 7.66, approved). Slides and Sheets baselines reseeded and landed as ce1d884b1. Round 224/225 Word clean.
+
+TIP WATCH amd-8, round 227 (cf19f7778): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0.
