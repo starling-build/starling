@@ -15051,3 +15051,9 @@ TIP WATCH amd-8, round 200 (6d0232726): Word no drops (six sections up 0 down 0)
 TIP WATCH amd-8, round 201 (050818b8e): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0.
 
 TIP WATCH amd-8, round 202 (ff96173cd): Word no drops (six sections up 0 down 0); unit tests 632, 0 failures; WEB build OK, layout exit 0.
+
+### lenovo-2 (2026-11-07): zh-e61c3dff (99.6) read, nothing landed
+- 250/250 lines match; the 0.4% is sub-line. Three causes found:
+  1. p9 title "“揭榜挂帅”" (方正公文小标宋, Word sets it in YaHei): Word's “ is an em (21.9 at 22pt), ours 7.3 (YaHei stand-in's table has no curly quotes). An em quote for 小标宋 fixed it, but zh-1e7e7cb3's centred 22pt title "…事项“一张申请表单”" then wrapped "单”" (100 to 44): Word SQUEEZES the opening “ there (4.7 pt) on a centred line; ours does not squeeze centred lines. Parked as wip/lenovo2-yahei-quote; it needs a squeeze for centred titles first. The wider version (all 方正 faces) dropped 7 docs.
+  2. p1 line "…基础，依托“科技特派团”、“科技副总”" (mode 14, useAltKinsoku, compressPunctuation, justified): the break is the same; Word squeezes ， the first “ ” and 、 5.3-5.4 each (22 in all) and keeps the last ” inside the margin (that run has hint=default). Ours hangs the last ” 8 pt and shares 14 (3.5 each). Not changed: needs a scan of line-final closing quotes by hint.
+  3. p10 form row: Word underlines the 8 trailing spaces after "联系方式" (cell, 337-379 pt); ours draws none.
