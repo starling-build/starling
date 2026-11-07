@@ -4726,7 +4726,9 @@ enum ChartPainter {
                 for q in 1 ..< knots.count where wide > knots[q - 1].0 && wide <= knots[q].0 {
                     trim = knots[q - 1].1 + (knots[q].1 - knots[q - 1].1) * (wide - knots[q - 1].0) / (knots[q].0 - knots[q - 1].0)
                 }
-                let axis = (raw.width - 7 * k - zThick * own) * tilt + trim * k
+                // (The depth does not shrink with the plot's height: lab bar3dbox h40, a plot 0.4 high, its front 254.8 pt long against 259.1 at 0.748.)
+                let depthShare = zThick * own * 222.1 * k / max(raw.height, 1)
+                let axis = (raw.width - 7 * k - depthShare) * tilt + trim * k
                 if v.x < 15 {
                     let rise = zThick * (sin(15 * .pi / 180) - sin(abs(v.x) * .pi / 180))
                     let up = (15 - v.x) * 1.247 * k   // the front's foot stands 18.7 pt higher at rotX 0 (467 to 462)
