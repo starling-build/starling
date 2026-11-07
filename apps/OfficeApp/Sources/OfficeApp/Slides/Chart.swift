@@ -7342,7 +7342,25 @@ extension ChartPainter {
                     // 378 of the earlier 740, from 148 and 279 with the rule above. What is still missing is Word's joint search
                     // (docs/plans/pie-labels.md round 3): lo-f9b9a8fc's label 5, 27 pt left with a leader, is not reproduced.)
                     RuleTrace.hit("word-flat-pie-best-fit-label-corner-or-edge-on-the-rim-pixel-snapped")
-                    let px = 0.75 * k, c0 = on(s.mid, 0), R = rx, tw = tp.width, th = tp.height
+                    // (Word measures the pie by its path, control points included: each slice's arc is cubic Bezier segments of
+                    // 90° from the slice's start (the rest last), and the labels' circle is the furthest any anchor or control
+                    // point reaches along an axis. Eight 45° slices from twelve o'clock: the drawn radius; turned 15°: 1.0346 of
+                    // it (lab pie1's corners sit there, 1.9 pt out); six 60° slices turned 14°: 1.035 (lab pieanchor); a 343°
+                    // slice from 17°: 1.118 — zh-37b6536f p3's five tiny labels stand with their box bottom 44.75 pt over a
+                    // 41.1 pt pie in Word's print, 1.25 pt inside that bound, where the drawn radius put ours 4.8 pt lower.)
+                    var bound = 1.0
+                    for q in slices {
+                        let span = q.value / sum * 2 * .pi
+                        var a0 = q.mid - span / 2, left = span
+                        while left > 1e-9 {
+                            let sw = min(left, .pi / 2), kk = 4.0 / 3.0 * tan(sw / 4), d = (1 + kk * kk).squareRoot(), f = atan(kk)
+                            for (ang, r) in [(a0, 1.0), (a0 + sw, 1.0), (a0 + f, d), (a0 + sw - f, d)] {
+                                bound = max(bound, r * abs(cos(ang)), r * abs(sin(ang)))
+                            }
+                            a0 += sw; left -= sw
+                        }
+                    }
+                    let px = 0.75 * k, c0 = on(s.mid, 0), R = rx * bound, tw = tp.width, th = tp.height
                     var theta = atan2(dx, -dy) * 180 / .pi
                     if theta < 0 { theta += 360 }
                     let right = theta <= 180, upper = theta < 90 || theta > 270
