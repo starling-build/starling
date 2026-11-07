@@ -20,6 +20,17 @@ enum WordArt {
     /// The top and bottom of the band the text is stretched into, as
     /// fractions of the area's height at `u` across it — or nil for a
     /// preset this does not draw (the text is then laid out as usual).
+    /// How far right (as a fraction of the area's width) a letter's foot sits from its
+    /// top, `u` across: the curve presets lean their stems (lab p3wc).
+    static func lean(_ warp: TextWarp) -> ((Double) -> Double)? {
+        let a = min(0.56338, (warp.adjust.first ?? 45977) / 100_000)
+        switch warp.preset {
+        case "textCurveDown": return { 0.045 * a * sin($0 * .pi) }
+        case "textCurveUp": return { -0.045 * a * sin($0 * .pi) }
+        default: return nil
+        }
+    }
+
     static func envelope(_ warp: TextWarp) -> ((Double) -> (top: Double, bottom: Double))? {
         func adj(_ d: Double) -> Double { (warp.adjust.first ?? d) / 100_000 }
         func bow(_ u: Double) -> Double { (2 * u - 1) * (2 * u - 1) }       // 1 at the ends, 0 in the middle
@@ -49,8 +60,11 @@ enum WordArt {
         case "textSlantDown": let a = max(0.28569, min(1, adj(44445))); return { ((1 - a) * $0, a + (1 - a) * $0) }
         // Curve: the text shrinks (or grows) along a quarter turn over a
         // level foot.
-        case "textCurveDown": let a = adj(45977); return { (a * sin($0 * .pi / 2), 1 - 0.41 * a * bow($0)) }   // the foot bows too (lab p3w cell 7: ends 0.21 up at adj 56338)
-        case "textCurveUp": let a = adj(45977); return { (a * sin((1 - $0) * .pi / 2), 1) }
+        // (lab p3wc: PowerPoint pins the adjustment at 56338; the top peaks at 1.05 a h a
+        // little past three quarters across and the foot bows 0.376 a up at both ends;
+        // textCurveUp is the mirror image.)
+        case "textCurveDown": let a = min(0.56338, adj(45977)); return { (1.05 * a * sin(2 * $0), 1 - 0.376 * a * bow($0)) }
+        case "textCurveUp": let a = min(0.56338, adj(45977)); return { (1.05 * a * sin(2 * (1 - $0)), 1 - 0.376 * a * bow($0)) }
         // Stop: the corners cut, as a stop sign's.
         case "textStop":
             let a = adj(25000)
@@ -528,6 +542,7 @@ enum WordArt {
             // rectangle. Advance bearings and a font's line leading are
             // not part of that rectangle (especially CJK parentheses).
             if fitsInk, let envelope = envelope(warp) {
+                let leaning = Self.lean(warp)
                 let width = lines.map(\.width).max() ?? 0
                 let height = lines.map(\.height).max() ?? 0
                 var placed: [(glyph: Glyph, origin: Offset)] = []
@@ -549,7 +564,7 @@ enum WordArt {
                     func point(_ x: Double, _ y: Double) -> Offset {
                         let u = (x - ink.left) / ink.width, v = (y - ink.top) / ink.height
                         let edge = envelope(u)
-                        return Offset(area.left + u * area.width, area.top + (edge.top + (edge.bottom - edge.top) * v) * area.height)
+                        return Offset(area.left + (u + (leaning?(u) ?? 0) * v) * area.width, area.top + (edge.top + (edge.bottom - edge.top) * v) * area.height)
                     }
                     for (glyph, origin) in placed where glyph.width > 0 && glyph.painter.height > 0 {
                         let p00 = point(origin.dx, origin.dy)
