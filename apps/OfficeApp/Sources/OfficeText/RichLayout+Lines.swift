@@ -1203,6 +1203,13 @@ extension RichLayout {
     /// Noto Sans SC, a face that has the joiner (as `_notoJoiner`'s).
     func _segoeJoiner(_ run: CharStyle, _ named: RichNamedStyle?, _ own: TextStyle, _ paragraph: RichParagraphStyle,
                               _ pitch: Double?, _ scale: Double) -> TextStyle? {
+        _lineJoiner(run, named, own, paragraph, pitch, scale, ascent: 2210.0 / 2048, descent: 514.0 / 2048, spacing: false)
+    }
+
+    /// The same joiner for a face of the given ascent and descent in ems (its hhea): the line a Devanagari word
+    /// gives Word's line, Mangal's 1.241 + 0.438 (`_span`).
+    func _lineJoiner(_ run: CharStyle, _ named: RichNamedStyle?, _ own: TextStyle, _ paragraph: RichParagraphStyle,
+                     _ pitch: Double?, _ scale: Double, ascent ems: Double, descent emsDown: Double, spacing: Bool = true) -> TextStyle? {
         guard paragraph.lineHeightPoints == nil || paragraph.lineHeightIsMinimum, let px = own.fontSize, px > 0.5 else { return nil }
         var noto = run
         noto.eastAsiaFontFamily = "Noto Sans SC"
@@ -1214,7 +1221,9 @@ extension RichLayout {
         defer { t.dispose() }
         guard let line = t.computeLineMetrics().first else { return nil }
         let split = (line.ascent - line.descent) / 100
-        let ascent = px * 2210 / 2048, descent = px * 514 / 2048
+        // (A multiple of lines (Word's 1.15) takes this line too, as it does any other.)
+        let multiple = spacing && paragraph.lineHeightPoints == nil && paragraph.lineSpacing > 1 ? paragraph.lineSpacing : 1
+        let ascent = px * ems * multiple, descent = px * emsDown * multiple
         guard split > 0.05 else { return nil }
         let size = (ascent - descent) / split
         return joinerStyle.copyWith(fontSize: size, letterSpacing: 0, height: (ascent + descent) / size, leadingDistribution: .even)

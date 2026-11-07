@@ -39,6 +39,9 @@ extension RichLayout {
 
     /// Several inline pictures, each wide enough for a line of its own, in a paragraph on the line grid
     /// (Word for Windows): every picture's line is whole pitches (see `_span`).
+    /// The ascent and descent, in ems, of the faces Word sets Devanagari in (their hhea, from the fonts Word's prints embed).
+    static let _devanagariLines: [String: (Double, Double)] = ["mangal": (2542.0 / 2048, 898.0 / 2048), "kokila": (1504.0 / 2048, 857.0 / 2048)]
+
     func _picturesTakeLines(_ p: RichParagraph, textWidth: Double) -> Bool {
         theme.wordRules && RichTextTheme.wordWindowsPages && p.image == nil && p.inlineImages.count >= 2
             && p.style.lineHeightPoints == nil && p.style.eastAsian["w:snapToGrid"] != "0"
@@ -865,6 +868,7 @@ extension RichLayout {
             }
             var notoStyle: TextStyle? = nil
             var segoeStyle: TextStyle? = nil
+            var devanagariStyles: [String: TextStyle?] = [:]
             var spans: [TextSpan] = []
             var start = text.startIndex
             var current: Int? = nil
@@ -1227,6 +1231,23 @@ extension RichLayout {
                         }
                         spans.append(TextSpan(text: "\u{2060}", style: joiner))
                         inserts.append(offset)
+                    }
+                }
+                // (A word of Devanagari, set in the face Word draws it in (the run's complex-script face: Mangal, Kokila),
+                // gives its line that face's height, not the Latin face's: a joiner in its ascent and descent before the
+                // word. hin-z19439612's 12pt Mangal lines step 23.2 in Word's print (1.680 em at 1.15 lines), ours 15.9.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, (0x0900 ... 0x097F).contains(u),
+                   !(before?.unicodeScalars.first.map { (0x0900 ... 0x097F).contains($0.value) || $0.value == 0x200D || $0.value == 0x200C } ?? false) {
+                    let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
+                    if let metrics = Self._devanagariLines[cs] {
+                        if devanagariStyles[cs] == nil {
+                            devanagariStyles[cs] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: metrics.0, descent: metrics.1)
+                        }
+                        if let joiner = devanagariStyles[cs] ?? nil {
+                            flush(i)
+                            spans.append(TextSpan(text: "\u{2060}", style: joiner))
+                            inserts.append(offset)
+                        }
                     }
                 }
                 // (Not where the face gives the quote a width of its own
