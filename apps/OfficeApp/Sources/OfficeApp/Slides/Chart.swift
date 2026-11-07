@@ -2752,7 +2752,7 @@ enum ChartPainter {
             // 5.3 pt closer than a row's of one: lo-f9b9a8fc's "datalabel1…8", four to a row.)
             var wordPieRows = pie && !beside && box == nil && !c.onSlide && !c.onSheet && lines.count > 1
             if wordPieRows { RuleTrace.hit("word-pie-foot-legend-rows-of-two-are-spaced-wider-apart-than-the-line"); spacing -= 5.3 * k }
-            let lineH = beside ? (c.onSheet && box == nil ? 1.2213 * size * k + 5.88 : textH + 6 * k) : textH
+            let lineH = beside ? (c.onSheet && box == nil ? 1.2213 * size * k + 5.88 : textH + (libreLegend && !pie && box == nil ? 5.57 : 6) * k) : textH
             // (Each line as tall as its tallest name, a wrapped one too.)
             var droppedLegend: [(i: Int, tp: TextPainter)] = []
             // (A column too tall for the chart drops its last entries: the lab legend's 12 and 20 entries
@@ -2830,6 +2830,9 @@ enum ChartPainter {
                     RuleTrace.hit("word-legend-beside-a-placed-plot-stands-4pt-lower-under-a-title")
                     y += 4.1 * k
                 }
+                // (A LibreOffice column chart's legend at the right, in a Word document: the rows 17.07 pt apart at 10 pt,
+                // not 17.5, and the block's middle 1.35 pt higher — lo-ccd9da4b's two legends, 3 and 4 rows, Arial.)
+                if libreLegend, !pie, box == nil { y -= 1.35 * k }
                 if c.legendPosition == "l" {
                     columnX = area.left
                     let leftTaken = c.type == .pie && box == nil && !c.onSlide && !c.onSheet ? min(columnW + 12 * k, r.width / 3 + 9 * k) : columnW + 12 * k
@@ -4443,7 +4446,7 @@ enum ChartPainter {
             let bare2007 = c.onSlide && c.plainText && !c.styled2013 && c.officeStyled && c.title == nil
             let lower = c.onSlide ? (c.styled2013 ? 1.5 : c.title != nil ? 1.0 : bare2007 ? -4.0 : 0) * k
                 : c.onSheet ? (titled ? (c.chartex ? 0.45 : c.styled2013 ? 2.57 : 2.05) : (c.styled2013 ? -1.25 : -1.62)) * pt
-                : (word && c.barView == nil && (c.title ?? "").isEmpty && c.titleAt == nil ? untitledWordRise * k : plainUntitledWord ? (c.valueAxisDeleted ? 1.5 : -3) * k
+                : (word && c.barView == nil && (c.title ?? "").isEmpty && c.titleAt == nil ? untitledWordRise * k : plainUntitledWord ? (c.valueAxisDeleted ? 1.5 : libre ? -3.75 : -3) * k
                    // (A titled 3-D column chart: its front plane starts 5.4 pt lower than ours at any title size —
                    // lab ch4 (Word for Windows, rotX 15 / rotY 20, legend below): the top value label's baseline
                    // 60.58 / 55.73 / 50.88 under the frame's top for a title of 18 / 14 / 10pt, ours 55.2 / 50.4 /
@@ -4452,7 +4455,9 @@ enum ChartPainter {
             // (An untitled 2007-style chart in a Word document, ticks out: its plot is 7.4 pt wider
             // at the left and 5.4 at the right than ours stood — lo-79680f48's axis from 97.9 to 305.3
             // in Word for Windows' print, ours 105.3 to 299.9, its value labels where ours are.)
-            if widenedPlain { left -= 7.4 * k; right -= 5.4 * k; valueLabelsBack = 7.4 * k }
+            // (A LibreOffice chart's plot already stands there: lo-ccd9da4b's axis from 134.36 to 367.96 in Word's print,
+            // 7.3 pt in at the left and 5.1 at the right of where the widening put it; its labels as before.)
+            if widenedPlain { if !libre { left -= 7.4 * k; right -= 5.4 * k }; valueLabelsBack = 7.4 * k }
             plot = Rect.fromLTRB(area.left + left, area.top + lineH / 2 + lower, area.right - right, area.bottom - bottom)
         }
         // A data table takes the foot of the frame, a row for the
