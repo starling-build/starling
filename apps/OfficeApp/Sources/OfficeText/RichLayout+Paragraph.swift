@@ -1694,9 +1694,7 @@ extension RichLayout {
                         })
                         flat.layout(minWidth: lineWidth + slack, maxWidth: lineWidth + slack)
                         let strutLine = flat.computeLineMetrics().first
-                        // (The line's extra over the strut's is shared evenly above and below: 38.6 against
-                        // 36 puts the baseline 1.3 lower than the strut's own, as Word's print does.)
-                        let above = (strutLine?.baseline ?? 0) + max(0, metrics[0].height - (strutLine?.height ?? metrics[0].height)) / 2
+                        let above = strutLine?.baseline ?? 0
                         flat.dispose()
                         let total = metrics[0].height
                         if above > 1, above < metrics[0].baseline - 0.5, above < total {
@@ -2037,6 +2035,18 @@ extension RichLayout {
             // where Word's print has it at the 31's baseline whatever the
             // later lines' runs are.)
             if !mixedSizes, onFirst.count > 1, !onFirst.contains(-1), let lo = onFirst.min(), let hi = onFirst.max(), hi - lo <= 5.0 { mixedSizes = true }
+            // (… and one of a single size whose faces differ, so that its lines
+            // differ in height: zh-51af781b's 方正楷体_GBK (a YaHei stand-in) among
+            // 仿宋 text. Word puts the extra of 1.5 lines under each line's tallest
+            // face, as it does under the tallest size.)
+            if !mixedSizes, onFirst.count == 1, later.isSubset(of: onFirst), theme.wordRules, RichTextTheme.wordWindowsPages {
+                let metrics = painter.computeLineMetrics()
+                if metrics.count > 1, metrics.contains(where: { abs($0.ascent - metrics[0].ascent) > _px(0.05) }),
+                   Set(p.runs.filter { $0.length > 0 }.map { $0.style.fontFamily ?? "" }).count > 1 {
+                    RuleTrace.hit("zh-51af781b-faces-of-one-size-put-the-extra-under-the-tallest-face")
+                    mixedSizes = true
+                }
+            }
         }
         if theme.wordRules, p.image == nil, !p.text.isEmpty, painter.strutStyle != nil || scriptsOnly || mixedSizes,
            let line = painter.computeLineMetrics().first {
