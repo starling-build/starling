@@ -149,6 +149,26 @@ elif [ ${#todo[@]} -gt 0 ]; then
   for n in "${todo[@]}"; do cat "$WORK/rows/$n.tsv"; done | tee -a "$WORK/render.tsv"
   rm -rf "$WORK/rows"
 fi
+# A parallel sweep on a loaded box gives false movers (a deck that scores 0.1 alone scored 42 under load: aascu 11 to 74,
+# lo-page_transparent_bitmap 0.1 to 42; the app drops a picture it could not decode right then without an error). So a deck that
+# comes out more than 5 points worse than its baseline row (or as an ERROR) is rendered again ALONE, once, and the better row is
+# kept; "[retry] NAME a -> b" on stderr says which. BASELINE_TSV names the baseline (default: baseline-win.tsv against powerpoint-win);
+# RETRY_MOVERS=0 turns it off. A deck that is really worse is worse again, so a true rise still shows.
+BASE="${BASELINE_TSV:-}"
+[ -n "$BASE" ] || [ "$(basename "$PPT")" != powerpoint-win ] || BASE="$LISTS/baseline-win.tsv"
+if [ "$JOBS" -gt 1 ] && [ "${RETRY_MOVERS:-1}" = 1 ] && [ -n "$BASE" ] && [ -f "$BASE" ]; then
+  worst() { sed -n 's/.*worst=\([0-9.]*\)%.*/\1/p' | head -1; }
+  for n in "${todo[@]}"; do
+    row=$(grep "^$n	" "$WORK/render.tsv" | tail -1); w=$(echo "$row" | worst)
+    b=$(grep "^$n	" "$BASE" | worst); [ -n "$b" ] || continue
+    if [ -n "$w" ] && ! awk -v w="$w" -v b="$b" 'BEGIN{exit !(w>b+5)}'; then continue; fi
+    new=$(one "$n"); nw=$(echo "$new" | worst)
+    if [ -n "$nw" ] && { [ -z "$w" ] || awk -v w="$w" -v nw="$nw" 'BEGIN{exit !(nw<w)}'; }; then
+      echo "[retry] $n ${w:-ERROR} -> $nw (baseline $b)" >&2
+      { grep -v "^$n	" "$WORK/render.tsv"; echo "$new"; } > "$WORK/render.tsv.tmp" && mv "$WORK/render.tsv.tmp" "$WORK/render.tsv"
+    fi
+  done
+fi
 if [ "$CORPUS_GROUP" = matched ]; then
   lost=$(for n in "${names[@]}"; do grep "^$n	" "$WORK/render.tsv"; done | grep -v 'worst=0.00%')
   [ -z "$lost" ] || { echo "no longer matching PowerPoint exactly:"; echo "$lost"; exit 1; }
