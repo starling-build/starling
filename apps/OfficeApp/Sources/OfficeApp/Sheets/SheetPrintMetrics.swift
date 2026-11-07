@@ -100,11 +100,11 @@ struct SheetPrintMetrics {
     private static let sizes: [Double] = [8, 9, 10, 10.5, 11, 12, 14, 16, 18]
     private static let faces: [String: Face] = [
         "calibri": Face(digit: [34, 38, 42, 45, 47, 51, 59, 67, 76], row: [90, 99, 109, 116, 121, 130, 150, 171, 191], screenRow: [28, 31, 35, 37, 38, 42, 48, 56, 62],
-            screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
+            screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24], hinted: [12: 41.75]),
         "arial": Face(digit: [37, 42, 46, 49, 51, 56, 65, 74, 83], row: [85, 93, 103, 110, 114, 123, 143, 161, 181], screenRow: [27, 31, 34, 35, 36, 40, 46, 54, 59],
-            screenDigit: [12, 13, 15, 16, 16, 18, 21, 24, 27]),
+            screenDigit: [12, 13, 15, 16, 16, 18, 21, 24, 27], hinted: [12: 40.85]),
         "verdana": Face(digit: [43, 48, 53, 56, 58, 64, 74, 85, 95], row: [88, 100, 108, 114, 122, 129, 150, 169, 189], screenRow: [26, 30, 33, 35, 36, 39, 47, 53, 61],
-            screenDigit: [13, 15, 17, 18, 18, 20, 24, 27, 31]),
+            screenDigit: [13, 15, 17, 18, 18, 20, 24, 27, 31], hinted: [12: 40.85]),
         "times new roman": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [87, 96, 106, 112, 116, 126, 145, 165, 184], screenRow: [27, 31, 35, 36, 37, 41, 47, 54, 61],
             screenDigit: [11, 12, 14, 14, 14, 16, 19, 22, 24], offTable: [20: 67]),
         "courier new": Face(digit: [40, 45, 50, 53, 55, 60, 70, 80, 90], row: [79, 88, 96, 103, 107, 115, 133, 151, 167], screenRow: [28, 32, 35, 37, 38, 42, 48, 56, 62],
@@ -118,7 +118,7 @@ struct SheetPrintMetrics {
         "cambria": Face(digit: [37, 42, 46, 49, 51, 55, 65, 74, 83], row: [87, 96, 105, 112, 115, 125, 145, 164, 184], screenRow: [27, 30, 34, 35, 36, 40, 46, 54, 60],
             screenDigit: [12, 13, 15, 16, 16, 18, 20, 24, 27]),
         "segoe ui": Face(digit: [36, 40, 45, 47, 50, 54, 63, 72, 81], row: [102, 114, 124, 130, 138, 148, 171, 192, 218], screenRow: [34, 35, 41, 42, 44, 50, 54, 64, 70],
-            screenDigit: [11, 13, 15, 15, 16, 17, 20, 23, 26], hinted: [8: 39]),
+            screenDigit: [11, 13, 15, 15, 16, 17, 20, 23, 26], hinted: [8: 39, 10: 40.85]),
         "aptos narrow": Face(digit: [34, 38, 42, 45, 47, 51, 59, 67, 76], row: [95, 106, 116, 122, 127, 137, 159, 180, 201], screenRow: [28, 32, 35, 37, 38, 42, 48, 56, 62],
             screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
         "aptos": Face(digit: [36, 40, 44, 47, 49, 53, 62, 71, 80], row: [95, 106, 116, 122, 127, 137, 159, 180, 201], screenRow: [28, 32, 35, 37, 38, 42, 48, 56, 62],
@@ -130,7 +130,7 @@ struct SheetPrintMetrics {
         "century gothic": Face(digit: [37, 42, 46, 49, 51, 55, 65, 74, 83], row: [91, 99, 108, 116, 119, 128, 151, 169, 193], screenRow: [26, 32, 35, 36, 38, 41, 46, 54, 61],
             screenDigit: [12, 13, 15, 16, 16, 18, 21, 24, 27]),
         "malgun gothic": Face(digit: [37, 41, 46, 48, 51, 55, 64, 73, 83], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
-            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23]),
+            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
         "yu gothic": Face(digit: [37, 42, 46, 49, 51, 56, 65, 74, 83], row: [113, 128, 140, 149, 154, 164, 192, 219, 245], screenRow: [34, 40, 44, 45, 47, 53, 59, 69, 78],
             screenDigit: [12, 13, 15, 16, 16, 18, 21, 24, 27]),
         "microsoft yahei": Face(digit: [39, 44, 49, 52, 54, 59, 69, 78, 88], row: [99, 109, 121, 125, 130, 144, 163, 185, 208], screenRow: [30, 33, 37, 38, 40, 43, 51, 61, 65],
@@ -281,7 +281,7 @@ struct SheetPrintMetrics {
         // its set 15 pt rows 124 dots in Excel's print where 86 made 122.)
         let between = size > sizes[0] && size < sizes[sizes.count - 1]
         let digit = at(f.digit, size).rounded(), row = at(f.row, size).rounded(between ? .up : .toNearestOrAwayFromZero)
-        let screenRow = max(1, (f.offTable[size] ?? (hinted ? f.hinted[size] : nil) ?? at(f.screenRow, size)).rounded())
+        let screenRow = max(1, f.offTable[size] ?? (hinted ? f.hinted[size] : nil) ?? at(f.screenRow, size).rounded())
         // The default column, as that Excel's screen made it: the digit there
         // in whole pixels, its padding, and the sum up to a multiple of 8.
         let screenDigit = max(1, at(f.screenDigit, size).rounded())

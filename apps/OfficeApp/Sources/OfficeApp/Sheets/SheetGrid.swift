@@ -319,7 +319,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             var lines: [Int: Double] = [:]   // by style
             func line(_ style: Int) -> Double {
                 if let known = lines[style] { return known }
-                let l = style == 0 ? m.defaultRow : Self._fittedLine(book.style(style), m, book, hinted: !ws.customDefaultRowHeight)
+                let l = style == 0 ? m.defaultRow : Self._fittedLine(book.style(style), m, book, hinted: !ws.customDefaultRowHeight && (book.defaultFontName ?? "Calibri").lowercased() == "calibri" && (book.defaultFontSize ?? 11) == 11)
                 lines[style] = l
                 return l
             }
