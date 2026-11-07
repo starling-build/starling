@@ -4684,11 +4684,19 @@ enum ChartPainter {
             // plot at x 0.02, plots 243 to 347 pt wide: axis + Z = 340.8, 340.1, 339.5, 337.8, 339.3 pt for 1 to 5 series, and the
             // axis keeps a tick to every 37.5 pt (13 runs to 14 by twos at 279 pt and to 15 by fives at 207 and 258). Not
             // modelled, so left on the old way: one series (Word's depth is 0.79 of ours, 134.6 pt against 170), rotX 0 or 30, rotY 30 (14 pt short), a plot narrower than 240 pt; h40 is 20 px out.)
-            if c.onSlide, v.rightAngles, horizontal, c.plotLayoutInner, v.x == 15, v.y <= 20, c.series.count >= 2, let raw = placed, raw.width >= 240 * k, zThick > 0 {
+            if c.onSlide, v.rightAngles, horizontal, c.plotLayoutInner, v.x >= 0, v.x <= 30, v.y <= 20, c.series.count >= 2, let raw = placed, raw.width >= 240 * k, zThick > 0 {
                 RuleTrace.hit("slide-3d-bars-share-the-laid-plot-between-axis-and-depth-and-centre-the-box")
                 // (A bar's own depth, a 1 + gapDepth share of the box's.)
                 let own = 1 / (1 + v.gapDepth)
-                let axis = raw.width - 7 * k - zThick * own
+                // (Lab bar3dbox, rotX 0 / 15 / 30: the front axis 267.7 / 259.1 / 207.3 pt, a quadratic through the share of our room; the room
+                // for the depth's rise stays that of rotX 15 below it, the front 61.2 / 59.0 / 51.1 pt high.)
+                let tilt = 1.089 - 0.0037 * v.x - 0.000149 * v.x * v.x
+                let axis = (raw.width - 7 * k - zThick * own) * tilt
+                if v.x < 15 {
+                    let rise = zThick * (sin(15 * .pi / 180) - sin(abs(v.x) * .pi / 180))
+                    let up = (15 - v.x) * 1.247 * k   // the front's foot stands 18.7 pt higher at rotX 0 (467 to 462)
+                    plot = Rect.fromLTRB(plot.left, plot.top + rise - up, plot.right, plot.bottom - up)
+                }
                 // (Our box is drawn with its first bar half the unused depth in from its left: centre the whole box.)
                 let left = raw.center.dx - (axis + box.dx) / 2
                 plot = Rect.fromLTRB(left, plot.top, left + axis, plot.bottom)
