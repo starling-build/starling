@@ -4214,12 +4214,15 @@ enum ChartPainter {
                     below?.dispose()
                     lift = (names + titleRoom - 0.61 * labelSize * k) / 2
                 }
+                // (On a sheet it stands 5.8 pt further in, and the plot with it: Excel's turned titles' baselines
+                // 5.5, 6.2 and 5.1 pt right of ours in tdf119138, 57362 and tdf100084, their plots' left 5.3.)
+                let inset = c.onSheet ? 5.8 * k : 0
                 canvas.save()
-                canvas.translate(area.left, area.center.dy - lift + tp.width / 2)
+                canvas.translate(area.left + inset, area.center.dy - lift + tp.width / 2)
                 canvas.rotate(-.pi / 2)
                 tp.paint(canvas, .zero)
                 canvas.restore()
-                area = Rect.fromLTRB(area.left + tp.height + 4 * k, area.top, area.right, area.bottom)
+                area = Rect.fromLTRB(area.left + inset + tp.height + 4 * k, area.top, area.right, area.bottom)
             }
             if deferredValueTitle !== tp { tp.dispose() }
         }
