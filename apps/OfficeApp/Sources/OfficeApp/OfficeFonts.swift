@@ -1544,6 +1544,34 @@ enum OfficeFonts {
         0.4980, 0.2285, 0.8398, 0.5576, 0.5430, 0.5527, 0.5539, 0.3604, 0.4463, 0.3345, 0.5576, 0.4980, 0.7193, 0.4951, 0.4980,
         0.4980, 0.3777, 0.2937, 0.3777, 0.6603,
     ]
+    // Tahoma's Greek (U+0370-U+03FF) advances in ems, from the hmtx of the
+    // subsets Word's Windows prints embed (ell-z10407270-89615d and its
+    // pair). Without them Greek was set at the sans stand-in's Arial
+    // widths, 5-10% narrower, and Greek lines took a word too many.
+    static let tahomaGreekAdvances: [UInt32: Double] = [
+        0x384: 0.5459, 0x386: 0.5996, 0x388: 0.6782, 0x38A: 0.4854, 0x38C: 0.8003, 0x391: 0.5996,
+        0x392: 0.5894, 0x393: 0.5073, 0x394: 0.6191, 0x395: 0.561, 0x396: 0.5591, 0x397: 0.6753,
+        0x398: 0.7075, 0x399: 0.373, 0x39A: 0.5879, 0x39B: 0.5967, 0x39C: 0.7705, 0x39D: 0.6675,
+        0x39E: 0.5664, 0x39F: 0.7075, 0x3A0: 0.6753, 0x3A1: 0.5513, 0x3A3: 0.5562, 0x3A4: 0.584,
+        0x3A5: 0.5762, 0x3A6: 0.7485, 0x3A7: 0.5806, 0x3A8: 0.7935, 0x3A9: 0.7021, 0x3AC: 0.5547,
+        0x3AD: 0.4551, 0x3AE: 0.5576, 0x3AF: 0.2285, 0x3B1: 0.5547, 0x3B2: 0.5552, 0x3B3: 0.498,
+        0x3B4: 0.543, 0x3B5: 0.4551, 0x3B6: 0.3911, 0x3B7: 0.5576, 0x3B8: 0.5547, 0x3B9: 0.2285,
+        0x3BA: 0.498, 0x3BB: 0.498, 0x3BC: 0.5679, 0x3BD: 0.498, 0x3BE: 0.4331, 0x3BF: 0.543,
+        0x3C0: 0.5635, 0x3C1: 0.5518, 0x3C2: 0.4302, 0x3C3: 0.5815, 0x3C4: 0.4668, 0x3C5: 0.5566,
+        0x3C6: 0.7061, 0x3C7: 0.4971, 0x3C8: 0.7144, 0x3C9: 0.7246, 0x3CA: 0.2285, 0x3CB: 0.5566,
+        0x3CC: 0.543, 0x3CD: 0.5566, 0x3CE: 0.7246,
+    ]
+    static let tahomaGreekBoldAdvances: [UInt32: Double] = [
+        0x384: 0.5459, 0x388: 0.7866, 0x391: 0.6846, 0x392: 0.686, 0x393: 0.5654, 0x394: 0.7041,
+        0x395: 0.6152, 0x397: 0.7642, 0x398: 0.77, 0x399: 0.4834, 0x39A: 0.6963, 0x39B: 0.6748,
+        0x39C: 0.8931, 0x39D: 0.7705, 0x39F: 0.77, 0x3A0: 0.7642, 0x3A1: 0.6572, 0x3A3: 0.6113,
+        0x3A4: 0.6123, 0x3A5: 0.6704, 0x3A7: 0.6846, 0x3A8: 0.9019, 0x3A9: 0.7695, 0x3AC: 0.6294,
+        0x3AD: 0.5234, 0x3AE: 0.6392, 0x3AF: 0.3018, 0x3B1: 0.6294, 0x3B2: 0.6411, 0x3B3: 0.5786,
+        0x3B4: 0.6172, 0x3B5: 0.5234, 0x3B7: 0.6392, 0x3B8: 0.6309, 0x3B9: 0.3018, 0x3BA: 0.5996,
+        0x3BB: 0.5776, 0x3BC: 0.6509, 0x3BD: 0.5786, 0x3BE: 0.5127, 0x3BF: 0.6172, 0x3C0: 0.6465,
+        0x3C1: 0.6294, 0x3C2: 0.5039, 0x3C3: 0.6562, 0x3C4: 0.5205, 0x3C5: 0.6348, 0x3C6: 0.8364,
+        0x3C7: 0.563, 0x3C8: 0.8545, 0x3C9: 0.8096, 0x3CC: 0.6172, 0x3CD: 0.6348, 0x3CE: 0.8096,
+    ]
     static let tahomaBoldAdvances: [Double] = [
         0.2930, 0.3428, 0.4893, 0.6255, 0.6255, 1.0001, 0.7812, 0.2754, 0.4541, 0.4541, 0.4377, 0.6569, 0.3125, 0.4312, 0.3125,
         0.5771, 0.6367, 0.6367, 0.6367, 0.6367, 0.6367, 0.6367, 0.6367, 0.6367, 0.6367, 0.6367, 0.3633, 0.3633, 0.6569, 0.6569,
@@ -3107,6 +3135,8 @@ enum OfficeFonts {
             if family.trimmingWhitespace().lowercased() == "tahoma" {
                 face.advances = tahomaAdvances
                 face.boldAdvances = tahomaBoldAdvances
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging(tahomaGreekAdvances) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(tahomaGreekBoldAdvances) { $1 }
                 face.naturalHeight = 1.2070
                 face.baseline = 1.0005
                 RuleTrace.hit("tahoma-own-widths")

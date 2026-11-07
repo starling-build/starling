@@ -664,6 +664,13 @@ public final class RichTextTheme {
         var bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
         let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
         var color = style.color ?? (wordRules && style.off.contains(.autoColor) ? textColor : named?.char.color ?? normal?.color ?? textColor)
+        // Word prints automatic text colour white over a black shaded paragraph
+        // (ell-z20423699-8d41bb's title bar, fill 000000: ours drew it dark grey).
+        if wordRules, style.color == nil, let fill = paragraph.fill, fill.alpha == 255,
+           style.off.contains(.autoColor) || (named?.char.color == nil && normal?.color == nil),
+           0.299 * Double(fill.red) + 0.587 * Double(fill.green) + 0.114 * Double(fill.blue) < 0.2 * 255 {
+            color = Color(0xFFFFFFFF)
+        }
         let latinName = style.fontFamily ?? named?.char.fontFamily ?? normal?.fontFamily ?? fontFamily
         let complex = style.rightToLeft && !eastAsian
         let familyName = complex ? (style.complexFontFamily ?? named?.char.complexFontFamily ?? normal?.complexFontFamily ?? latinName)
