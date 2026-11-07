@@ -765,6 +765,10 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// Right-to-left paragraph direction (Word's w:bidi): the lines run
     /// from the right and "left" alignment means the start edge.
     public var rightToLeft = false
+    /// A slide paragraph whose master level says rtl="1": its list indent and
+    /// bullet stand at the RIGHT, but the text keeps its left-to-right order
+    /// and its physical alignment (GeomLec1's body, as PowerPoint prints it).
+    public var bulletAtEnd = false
     /// Custom tab stops (Word's w:tabs), kept through a save; the layout
     /// still uses the default tab width.
     public var tabStops: [TabStop] = []

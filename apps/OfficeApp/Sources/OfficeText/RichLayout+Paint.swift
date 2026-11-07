@@ -1493,7 +1493,12 @@ extension RichLayout {
                 // lead, above).
                 marker.layout(minWidth: 0, maxWidth: max(1, slot * 4))
                 let hang = g.textLeft - slot + _px(p.style.firstLineIndent)
-                if hang >= g.textLeft - 0.01, !p.text.isEmpty {
+                if p.style.bulletAtEnd {
+                    // Mirrored: the text's right edge, the hang's distance out.
+                    marker.textAlign = .left
+                    marker.layout(minWidth: 0, maxWidth: max(1, slot * 4))
+                    marker.paint(canvas, Offset(g.textLeft + g.textWidth + (g.textLeft - hang) - marker.width, top()))
+                } else if hang >= g.textLeft - 0.01, !p.text.isEmpty {
                     marker.textAlign = .left
                     marker.layout(minWidth: 0, maxWidth: max(1, slot * 4))
                     marker.paint(canvas, Offset(hang, top()))

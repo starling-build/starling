@@ -331,6 +331,7 @@ private enum Bullet: Equatable { case none, char, number }
 /// inheritance chain says; `filled(from:)` completes it from a lower layer.
 private struct LevelStyle {
     var algn: String?
+    var rtl: String?
     var marL: Double?
     var indent: Double?
     var lineMultiple: Double?
@@ -388,6 +389,7 @@ private struct LevelStyle {
     func filled(from lower: LevelStyle) -> LevelStyle {
         var s = self
         s.algn = s.algn ?? lower.algn
+        s.rtl = s.rtl ?? lower.rtl
         s.marL = s.marL ?? lower.marL
         s.indent = s.indent ?? lower.indent
         if s.lineMultiple == nil && s.linePoints == nil { s.lineMultiple = lower.lineMultiple; s.linePoints = lower.linePoints }
@@ -424,6 +426,7 @@ private struct LevelStyle {
         var s = LevelStyle()
         guard let p else { return s }
         s.algn = p["algn"]
+        s.rtl = p["rtl"]
         s.marL = p["marL"].flatMap(Double.init).map { $0 / Pptx.emu }
         s.indent = p["indent"].flatMap(Double.init).map { $0 / Pptx.emu }
         if let ln = p.first("a:lnSpc") {
@@ -3547,6 +3550,10 @@ private struct SlideContext {
                 // in PowerPoint's print.
                 let own = p.first("a:pPr")?["rtl"]
                 if own == "1" || (own == nil && Self._startsRightToLeft(text)) { style.rightToLeft = true }
+                // A master level that says rtl="1" moves the bullet and the
+                // list indent to the right and nothing else (GeomLec1's body:
+                // PowerPoint's print keeps the text's order and its alignment).
+                else if own == nil, level.rtl == "1", style.list != nil { style.bulletAtEnd = true }
                 paragraphs.append(RichParagraph(text: text, runs: runs, style: style))
             }
             runLooks.append(looks)

@@ -58,6 +58,7 @@ extension RichLayout {
         if theme.wordRules, RichTextTheme.wordWindowsPages, style.rightToLeft, p.cell == nil, !_mirrored.contains(i) {
             swap(&left, &right)
         }
+        if style.bulletAtEnd, style.list != nil { swap(&left, &right) }
         var width = _flowWidth(i)
         // On a grid of characters a body line holds whole characters of
         // Normal's size: as wide as the most of them the column takes,
