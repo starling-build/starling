@@ -291,6 +291,8 @@ struct Chart: Equatable {
     var barView: BarView? = nil
     /// A 3-D area chart's view (`c:area3DChart`): its series one behind another in rows of depth.
     var areaView: BarView? = nil
+    /// A `c:line3DChart`: its axis takes no headroom over the data (LIBRE_OFFICE-128382: 9579.5 stops at $10,000, not $12,000).
+    var line3D = false
     /// A 3-D column's shape (`c:shape`): box, cylinder, cone, coneToMax, pyramid, pyramidToMax.
     var barShape = "box"
     /// A surface chart (`c:surface3DChart`, `c:surfaceChart`): its series'
@@ -1804,6 +1806,7 @@ enum ChartXML {
             c.surfaceView = el.name == "c:surfaceChart" ? Offset(90, 0)
                 : Offset(v?.first("c:rotX")?["val"].flatMap(Double.init) ?? 15, v?.first("c:rotY")?["val"].flatMap(Double.init) ?? 20)
         }
+        if el.name == "c:line3DChart" { c.line3D = true }
         if el.name == "c:bar3DChart" {
             let v = chart.first("c:view3D")
             c.barView = Chart.BarView(x: v?.first("c:rotX")?["val"].flatMap(Double.init) ?? 15,
@@ -3965,7 +3968,7 @@ enum ChartPainter {
             return max(2, min(10, Int(room / (14.5 * k))))
         }()
         var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? acrossSteps ?? writerSteps ?? 10,
-                                                                          headroom: c.barView != nil ? 0 : c.secondValueAxis?.sameScale == true ? 0.10 : 0.05)
+                                                                          headroom: c.barView != nil || c.line3D ? 0 : c.secondValueAxis?.sameScale == true ? 0.10 : 0.05)
         // (Excel's axis for a hidden scatter's visible $ axis with the area and line on the group left without one runs a tenth past
         // its data, not a twentieth: chart-tdf140489's 75,887 reaches $90,000, where the 5% rule stops at 80,000; the same file
         // without the scatter, or with it on the other group, stops at 80,000 too — the Windows lab wip/lab-tdf140489.
