@@ -5012,9 +5012,10 @@ extension RichLayout {
                 return false
             }
             // (A List Paragraph with a number, then a table whose first cell holds a List Paragraph without one: Word's contextual
-            // spacing goes by the style alone, so the 10 pt after is gone before the table; dx2 254ca33b: ours 9.9 pt low from there.)
+            // spacing goes by the style alone, so the 10 pt after is gone before the table; dx2 254ca33b: ours 9.9 pt low from there. Only into the table, and not in right-to-left script: 7d58f74e's Persian table keeps its gap, and the edge after a table (zh-bdae17c0) was never measured.)
             if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, o.named != nil, o.named == style.named, o.heading == style.heading,
-               (o.list == nil) != (style.list == nil), (document.paragraphs[j].cell == nil) != (p.cell == nil) {
+               j > i, style.list != nil, o.list == nil, p.cell == nil, document.paragraphs[j].cell != nil,
+               !document.paragraphs[j].text.unicodeScalars.contains(where: { $0.value >= 0x0590 && $0.value <= 0x08FF }) {
                 RuleTrace.hit("word-contextual-spacing-across-list-and-table-edge")
                 return true
             }
