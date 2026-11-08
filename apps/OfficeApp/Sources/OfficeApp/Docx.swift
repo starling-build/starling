@@ -6625,14 +6625,16 @@ enum DocxFormat {
                 // (Tamil takes bCs/iCs but not szCs: da732dfb's sz 14 / szCs 20 subtitle prints at 14 in Word. Only a run with no Latin letters.)
                 let tamilOnly = !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A } && runText.unicodeScalars.contains { (0x0B80...0x0BFF).contains($0.value) }
                 let complex = complexSize || tamilOnly
+                let indicOnly = !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A }
+                    && runText.unicodeScalars.contains { (0x0900...0x0B7F).contains($0.value) }
                 // (Not the Hyperlink character style inside a table of contents:
                 // Word prints its entries in the TOC paragraph's own look, black
                 // and plain, whatever the runs name.)
                 let inContents = notes.fields.contains { $0.instr.uppercased().trimmingWhitespace(newlines: true).hasPrefix("TOC") }
                 if let id = rPr.first("w:rStyle")?["w:val"], let chain = notes.charStyleChains[id], !(inContents && id.lowercased() == "hyperlink") {
-                    for styled in chain { cs = _charStyle(styled, base: cs, complexText: complex, complexSize: complexSize) }
+                    for styled in chain { cs = _charStyle(styled, base: cs, complexText: complex, complexSize: complexSize, indicOnly: indicOnly) }
                 }
-                cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize)
+                cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize, indicOnly: indicOnly)
             }
             // (A page number kept in its result's look with \* MERGEFORMAT keeps its weight and
             // loses the rest of it: lab pgf (Word for Windows, 2026-11-02) — an Arial Bold 15.5pt
@@ -7663,7 +7665,7 @@ enum DocxFormat {
         if took.contains("color"), named.color != nil || named.off.contains(.autoColor) { cell.color = nil }
     }
 
-    private static func _charStyle(_ rPr: XNode, base: CharStyle, complexText: Bool? = nil, complexSize: Bool? = nil) -> CharStyle {
+    private static func _charStyle(_ rPr: XNode, base: CharStyle, complexText: Bool? = nil, complexSize: Bool? = nil, indicOnly: Bool = false) -> CharStyle {
         var cs = base
         // Complex-script bold, italic and size (w:bCs, w:iCs, w:szCs) are
         // what a right-to-left run is set in; rtl.docx's Arabic headings
@@ -7793,6 +7795,9 @@ enum DocxFormat {
         if complexText ?? cs.rightToLeft {
             // (A complex run's weight is its bCs even when the run also states b: af19d946's Heading3 run, b 0 / bCs, prints Devanagari in Nirmala UI Bold.)
             if let b = bCs { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }
+            // (A run of Devanagari, Bengali, Gurmukhi or Gujarati letters only that states b and no bCs keeps the weight it inherited: Word
+            // prints dx2-class xd 745490897f9f's bold-marked Kokila words in regular Kokila.)
+            else if indicOnly, sawB, cs.bold, !base.bold { cs.bold = false; if base.off.contains(.bold) { cs.off.insert(.bold) } else { cs.off.remove(.bold) } }
             if !sawI, let i = iCs { cs.italic = i; if i { cs.off.remove(.italic) } else { cs.off.insert(.italic) } }
             if !(complexSize ?? true) {}
             else if !sawSz, let z = szCs ?? cs.complexFontSize { cs.fontSize = z }
