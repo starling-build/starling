@@ -406,6 +406,7 @@ enum WindowsArabicAdvances {
     // subsets embedded in the batch B Arabic prints; forms never seen are Arial's scaled by
     // the face's median ratio to Arial.
     static let tradArabic: [UInt32: Double] = [
+        0x0020: 0.2441,
         0x0600: 0.7654, 0x0601: 1.0629, 0x0602: 0.3590, 0x0603: 1.0409, 0x0604: 1.0629, 0x0605: 0.0000,
         0x0606: 0.5035, 0x0607: 0.5035, 0x0608: 0.6177, 0x0609: 0.4939, 0x060A: 0.6017, 0x060B: 0.2148,
         0x060C: 0.2780, 0x060D: 0.1953, 0x060E: 0.5370, 0x060F: 0.4447, 0x0610: 0.0000, 0x0611: 0.0000,
@@ -505,6 +506,7 @@ enum WindowsArabicAdvances {
     ]
 
     static let tradArabicBold: [UInt32: Double] = [
+        0x0020: 0.2441,
         0x0600: 0.7987, 0x0601: 1.1300, 0x0602: 0.2829, 0x0603: 1.1167, 0x0604: 1.1091, 0x0605: 0.0000,
         0x0606: 0.5254, 0x0607: 0.5254, 0x0608: 0.7046, 0x0609: 0.5154, 0x060A: 0.6279, 0x060B: 0.2766,
         0x060C: 0.2780, 0x060D: 0.2038, 0x060E: 0.5604, 0x060F: 0.4616, 0x0610: 0.0000, 0x0611: 0.0000,

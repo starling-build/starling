@@ -3146,6 +3146,13 @@ enum OfficeFonts {
                 face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(segoeUIBoldOtherAdvances) { $1 }
                 RuleTrace.hit("segoe-ui-own-widths")
             }
+            // Book Antiqua's own line in Word for Windows' print: hhea 1891 over and 578 under of 2048 (1.2056 em; ara-z4399437's
+            // 8pt lines step 9.65 where the Times stand-in's 1.15 stepped 9.2, and its empty 12pt paragraphs stood 20pt short in all).
+            if wordOnWindows, family.trimmingWhitespace().lowercased() == "book antiqua" {
+                face.naturalHeight = 2469.0 / 2048
+                face.baseline = 1891.0 / 2048
+                RuleTrace.hit("book-antiqua-own-line")
+            }
             // (Its weights Light, Semilight, Semibold and Black have the same line as Regular: 2210 over and
             // 514 under of 2048 by their hhea. lo-cc084a84's 20pt "Segoe UI Light" title stands 2.6pt
             // under Word's print's in the stand-in's 0.95 ascent.)

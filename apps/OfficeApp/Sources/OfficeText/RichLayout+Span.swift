@@ -938,6 +938,18 @@ extension RichLayout {
                     start = end
                     return
                 }
+                if joinedFace != nil, text[start ..< end].allSatisfy({ $0 == " " }) {
+                    // (The face's own space between Arabic words: Traditional Arabic's is 0.244 em, 3.9 pt at 16, in Word's print;
+                    // the Naskh stand-in's is narrower.)
+                    let base = style(kind)
+                    if let table = base.fontWeight == .bold ? joinedFace?.boldJoinedAdvances : joinedFace?.joinedAdvances, let w = table[0x20], let px = base.fontSize, px > 0.5 {
+                        let count = Double(text[start ..< end].count)
+                        let own = _wordWidth(base, String(text[start ..< end])) / count
+                        spans.append(TextSpan(text: String(text[start ..< end]), style: base.copyWith(letterSpacing: (base.letterSpacing ?? 0) + w * px - own)))
+                        start = end
+                        return
+                    }
+                }
                 spans.append(contentsOf: capped(text[start ..< end], run, joinedScaled(text[start ..< end], style(kind))))
                 start = end
             }
