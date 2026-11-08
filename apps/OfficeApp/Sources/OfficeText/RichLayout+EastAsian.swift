@@ -271,7 +271,7 @@ extension RichLayout {
             }
             return w
         }
-        func wideDot(_ k: Int) -> Bool { (units[k] == 0xB7 || units[k] == 0x30FB) && k < ems.count && boxes(k, k + 1) >= ems[k] * 0.9 }
+        func wideDot(_ k: Int) -> Bool { (units[k] == 0xB7 || units[k] == 0x30FB && !squeezesPauseRule) && k < ems.count && boxes(k, k + 1) >= ems[k] * 0.9 }
         // (What `_span` put in before a character and the engine set
         // on a line of its own: a word joiner as wide as an opening
         // quote's blank. Its width goes with what follows it.)
