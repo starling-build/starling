@@ -2733,3 +2733,28 @@ extension RichLayout {
         return nil
     }
 }
+
+extension RichLayout {
+    func _hasVisibleText(_ p: RichParagraph) -> Bool {
+        p.text.unicodeScalars.contains { $0.value != 0xFFFC && $0.value != 0x20 }
+    }
+
+    /// Lab picline2 (Word for Windows, 11pt Malgun beside a 80pt picture, line 240/216/192/360): with `w:textAlignment`
+    /// "bottom" the whole line stands 2.0 higher than without (baseline 171.3 against 173.4), and the next line is
+    /// 1.1 lower than ours without it. A multiple under 1 shrinks the text's line (1.9 a tenth, the baseline taking
+    /// 0.8 of it). Not for a picture alone: its mark's line follows `bodyHeight += (multiple - 1) * single`.
+    @inline(never) func _pictureTextLineAdjust(_ i: Int, _ p: RichParagraph, multiple: Double, single: Double, bodyHeight: inout Double) {
+        guard _hasVisibleText(p) else { return }
+        RuleTrace.hit("picture-text-line-lab-picline2")
+        bodyHeight += _px(1.1)
+        if p.style.eastAsian["w:textAlignment"] == "bottom" {
+            _inkShift[i] -= _px(2.0)
+            bodyHeight -= _px(2.0)
+        }
+        if multiple < 0.999 {
+            let cut = (1 - multiple) * single  // (single is in pixels already)
+            _inkShift[i] -= 0.8 * cut
+            bodyHeight -= cut
+        }
+    }
+}

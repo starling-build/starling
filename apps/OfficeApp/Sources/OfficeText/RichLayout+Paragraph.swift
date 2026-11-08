@@ -3087,7 +3087,8 @@ extension RichLayout {
             let snapped = (last.height / px - 0.002).rounded(.up) * px
             if snapped > last.height + 0.01 { bodyHeight += snapped - last.height }
         } else if theme.wordRules, inLine, style.lineHeightPoints == nil, _grid(i, document).pitch == nil || _offGrid(i, document),
-                  case let multiple = style.lineSpacing - theme.lineSpacingReduction, multiple > 1.001 {
+                  case let multiple = style.lineSpacing - theme.lineSpacingReduction,
+                  multiple > 1.001 || (multiple < 0.999 && multiple > 0.1) || (p.image == nil && _hasVisibleText(p)) {
             // Off the grid, a multiple on a picture's line adds what it
             // adds to its mark's single line, under the line — not a
             // multiple of the picture, and not lost under it, as the
@@ -3115,6 +3116,7 @@ extension RichLayout {
                 // and nothing else: Word keeps its single descent.)
                 let target = (box.bottom - box.top) + lines[0].descent / multiple + (multiple - 1) * single
                 bodyHeight += max(0, target - lines[0].height)
+                _pictureTextLineAdjust(i, p, multiple: multiple, single: single, bodyHeight: &bodyHeight)
                 // (Word keeps the baseline where single spacing puts it, the extra all under it; the engine put its share above the picture: lab picline1, 146be6fb.)
                 if box.top > 0.05, !p.text.isEmpty { RuleTrace.hit("picture-line-extra-all-below"); _inkShift[i] -= box.top; bodyHeight -= box.top }
             }
