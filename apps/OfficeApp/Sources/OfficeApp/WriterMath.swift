@@ -42,7 +42,7 @@ enum WriterMath {
     /// Lays out the equation `node` (`m:oMath` or `m:oMathPara`) for the
     /// object attachment `id`, its text `size` points where its runs say
     /// none; its size and baseline (from its top), in points.
-    static func register(_ node: XNode, for id: String, size: Double) -> (width: Double, height: Double, baseline: Double)? {
+    static func register(_ node: XNode, for id: String, size: Double, natural: ((Double, Double)) -> Void = { _ in }) -> (width: Double, height: Double, baseline: Double)? {
         let display = node.name == "m:oMathPara"
         var box = Layout(display: display).row(node, size: size, level: 0)
         guard box.width > 0 else { return nil }
@@ -51,6 +51,7 @@ enum WriterMath {
         // zh-c2c92639's "式中：C_dm ——…" lines are one 16.65pt pitch of its
         // grid in Word's print, where the subscript's depth took ours two.
         // It is drawn whole all the same.)
+        natural((box.ascent, box.descent))
         if !display {
             let s = Layout(display: false).runSize(node, size)
             box.ascent = min(box.ascent, s * 0.85)
@@ -389,8 +390,11 @@ enum WriterMath {
                 // (Its parts in the inline style: zh-c2c92639's ∑ over A has
                 // its limits beside it in Word's print, the sign unenlarged.)
                 let inner = Layout(display: false)
-                let num = inner.row(n.first("m:num"), size: size, level: level)
-                let den = inner.row(n.first("m:den"), size: size, level: level)
+                // (And in a line of text — no display equation — at script size: 20d9968b's
+                // n over k stands 7.6pt in a 10.6pt line in Word's print, 0.72 of it.)
+                let part = display ? level : level + 1
+                let num = inner.row(n.first("m:num"), size: size, level: part)
+                let den = inner.row(n.first("m:den"), size: size, level: part)
                 let s = runSize(n.first("m:num"), size, level)
                 if n.first("m:fPr")?.first("m:type")?["m:val"] == "lin" {
                     return hbox([num, text("/", size: s, italic: false), den])

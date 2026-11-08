@@ -7006,7 +7006,9 @@ enum DocxFormat {
                         if let named = style.named, let n = sheet[named]?.char.fontSize { mathSize = n }
                         if let n = cellChar.fontSize { mathSize = n }
                         if let n = markStyle?.fontSize { mathSize = n }
-                        if let m = WriterMath.register(child, for: att.id, size: mathSize) {
+                        var whole: (Double, Double)? = nil
+                        if let m = WriterMath.register(child, for: att.id, size: mathSize, natural: { whole = $0 }) {
+                            if child.name == "m:oMath", let w = whole { att.naturalExtent = (w.0, w.1) }
                             att.width = m.width
                             att.height = m.height
                             att.baseline = m.baseline

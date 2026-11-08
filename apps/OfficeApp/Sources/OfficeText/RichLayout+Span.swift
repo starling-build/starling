@@ -2847,9 +2847,18 @@ extension RichLayout {
                     }
                     probe.dispose()
                 }
+                var eqOffset: Double? = nil
+                if hung == nil, theme.wordRules, image.name == "m:oMath", image.float == nil, let grid = pitch, grid > 0, alignment == .baseline,
+                   let fit = _equationGridLine(image, size: size, style: style, pitch: _px(grid)) {
+                    RuleTrace.hit("equation-whole-pitches")
+                    _pageFill[image.id] = fit.full
+                    _lineCentre[image.id] = fit.down
+                    eqOffset = fit.offset
+                    size = Size(size.width, fit.height)
+                }
                 children.append(RichImageSpan(alignment: alignment, baseline: TextBaseline.alphabetic, style: style))
                 inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic,
-                                                             baselineOffset: (hung ?? middle.map { size.height / 2 + _px($0) }
+                                                             baselineOffset: (hung ?? eqOffset ?? middle.map { size.height / 2 + _px($0) }
                                                                 ?? (fittedBaseline ?? image.baseline).map { min(size.height, _px($0)) } ?? size.height)
                                                                 // (Raised or lowered as its run's `w:position` says: Word
                                                                 // sets a MathType object that far under the baseline
@@ -3269,5 +3278,27 @@ extension RichLayout {
         }
         if let c = cur { out.append((t[a ..< t.endIndex], c)) }
         return out
+
+    /// A line grid and an inline equation taller than one pitch: Word makes the
+    /// line as many whole pitches as the line (the equation's ascent and
+    /// descent, the text's where they are larger) needs, with the text's
+    /// strut centred in it (20d9968b: a sum 21pt tall on an 18pt grid steps
+    /// the line 27pt, two pitches with the text centred).
+    @inline(never)
+    func _equationGridLine(_ image: ImageAttachment, size: Size, style: TextStyle, pitch: Double) -> (height: Double, offset: Double, down: Double, full: Double)? {
+        guard let whole = image.naturalExtent else { return nil }
+        let base = _px(whole.ascent), full = _px(whole.ascent + whole.descent)
+        let probe = TextPainter(text: TextSpan(text: "\u{200B}", style: style), textDirection: .ltr)
+        probe.layout(minWidth: 0, maxWidth: .infinity)
+        let textAscent = probe.computeDistanceToActualBaseline(TextBaseline.alphabetic)
+        probe.dispose()
+        let ascent = max(textAscent, base)
+        let descent = max(pitch - textAscent, full - base)
+        let n = (full / pitch - 0.002).rounded(.up)
+        _ = (ascent, descent)
+        guard n >= 2 else { return nil }
+        let extra = (n - 1) * pitch / 2
+        let offset = textAscent + extra
+        return (n * pitch, offset, offset - base, full)
     }
 }
