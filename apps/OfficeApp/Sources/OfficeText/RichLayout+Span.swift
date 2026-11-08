@@ -52,6 +52,8 @@ extension RichLayout {
         "raavi": ["P": 1.084], "shruti": ["G": 1.153], "gautami": ["T": 0.964], "vrinda": ["B": 0.907], "shonar bangla": ["B": 0.716]]
     /// Devanagari, Bengali, Gurmukhi, Gujarati and Telugu.
     static let _indic = IndicScripts()
+    /// Word's space advance (em) where it differs much from the stand-in's: Mangal. (Kokila 0.193 and Shonar Bangla 0.207 at their real width made dx2 hi/bn worse: their scales were fitted with the gap.)
+    static let _indicSpace: [String: Double] = ["mangal": 0.5]
     struct IndicScripts {
         func contains(_ u: UInt32) -> Bool { (0x0900 ... 0x0AFF).contains(u) || (0x0C00 ... 0x0C7F).contains(u) }
     }
@@ -1009,6 +1011,35 @@ extension RichLayout {
                         if text[k] == " " || text[k] == "\u{00A0}" {
                             putWord(wordStart, k)
                             spans.append(contentsOf: capped(text[k ..< text.index(after: k)], run, base))
+                            wordStart = text.index(after: k)
+                        }
+                        k = text.index(after: k)
+                    }
+                    putWord(wordStart, end)
+                    start = end
+                    return
+                }
+                if kind >= 0, let face = indic?.face, let spaceEm = Self._indicSpace[face], let px = style(kind).fontSize, px > 0.5,
+                   text[start ..< end].contains(" ") || text[start ..< end].contains("\u{00A0}") {
+                    // (Word's space is the face's own: Mangal 0.5 em against the stand-in's 0.26; the prints' gap between words, 5.5 pt against our 3.5 at 11 pt.)
+                    let base = style(kind)
+                    var spaceStyle: TextStyle? = nil
+                    var wordStart = start, k = start
+                    func putWord(_ a: Substring.Index, _ b: Substring.Index) {
+                        guard a < b else { return }
+                        spans.append(contentsOf: capped(text[a ..< b], run, joinedScaled(text[a ..< b], base)))
+                    }
+                    while k < end {
+                        if text[k] == " " || text[k] == "\u{00A0}" {
+                            putWord(wordStart, k)
+                            if spaceStyle == nil {
+                                let t = TextPainter(text: TextSpan(text: " ", style: base.copyWith(letterSpacing: 0)), textDirection: .ltr)
+                                t.layout(minWidth: 0, maxWidth: 100_000)
+                                let w0 = t.width
+                                t.dispose()
+                                spaceStyle = base.copyWith(letterSpacing: (base.letterSpacing ?? 0) + spaceEm * px - w0)
+                            }
+                            spans.append(contentsOf: capped(text[k ..< text.index(after: k)], run, spaceStyle ?? base))
                             wordStart = text.index(after: k)
                         }
                         k = text.index(after: k)

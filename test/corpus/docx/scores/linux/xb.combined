@@ -1,4 +1,4 @@
-188 documents: COMBINED mean 55.42% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 55.42% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
+188 documents: COMBINED mean 55.45% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 55.45% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
   11.9%  lines 370/368  pages 13/13  ara-z10840115-a1e854
    2.1%  lines 664/802  pages 27/26  ara-z11030406-663296
   13.5%  lines 111/112  pages 8/8  ara-z15699863-842f1e
@@ -84,11 +84,11 @@
    3.2%  lines 278/332  pages 9/10  heb-z24027390-bae91d
   32.0%  lines 97/98  pages 4/4  heb-z5059159-4ac884
  100.0%  lines 97/97  pages 3/3  heb-z5059159-95e6b1
-  63.9%  lines 144/145  pages 5/5  hin-z10093577-3af7d4
+  65.3%  lines 144/146  pages 5/5  hin-z10093577-3af7d4
  100.0%  lines 132/137  pages 5/5  hin-z14202734-427945
    7.9%  lines 241/249  pages 7/8  hin-z18479909-61195a
   37.7%  lines 106/106  pages 5/5  hin-z19363961-952d8a
-   0.0%  lines 217/212  pages 9/8  hin-z19439612-b05873
+   4.1%  lines 217/226  pages 9/9  hin-z19439612-b05873
   53.5%  lines 157/157  pages 8/8  hin-z19449382-045439
   46.1%  lines 345/346  pages 11/11  hin-z19974540-2e43e8
   78.6%  lines 392/394  pages 12/12  hin-z20049040-f01e57
