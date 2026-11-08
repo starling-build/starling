@@ -107,6 +107,7 @@ extension RichLayout {
         -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) {
         let named = _named(p, document)
         let pitch = (index.map { _offGrid($0, document) } ?? (p.style.eastAsian["w:snapToGrid"] == "0")) ? nil : _grid(index, document).pitch
+        let mixedRubyRaise = _mixedRubyRaise(p, named: named, textWidth: textWidth, pitch: pitch)
         // (`thaiBreaksAtSpaces`: the offsets inside a stretch of Thai with
         // no space in it that a line can hold — one longer than a line is
         // broken where the line fills, as in Word's print: zh-6a4fc013's
@@ -843,6 +844,9 @@ extension RichLayout {
                     if h.raise != 0, NativeParagraphBuilder.supportsBaselineShift {
                         s = s.copyWith(baselineShift: (s.baselineShift ?? 0) - h.raise * theme.pixelsPerPoint * scale)
                     }
+                } else if mixedRubyRaise != 0, run.ruby == nil, s.fontSize ?? 0 > 0.5 {
+                    // (The rest of a one-line paragraph moves with its ruby's base.)
+                    s = s.copyWith(baselineShift: (s.baselineShift ?? 0) - mixedRubyRaise * theme.pixelsPerPoint * scale)
                 }
                 // (A run of tabs alone takes no line of its own in a paragraph of
                 // other text: windows-1's lab `ttab`, zh-147bdae0's "四、承諾事項"
@@ -3022,6 +3026,21 @@ extension RichLayout {
             else { out.append((at, at + run.length, ruby, run.style)) }
         }
         return out
+    }
+
+    /// On a line grid a ruby's base is moved down with its line (`rubyLine`); where
+    /// the paragraph is one line of that base and other text (f42177d2's
+    /// "…組み合わせてみたり、参考にしたりして…" with 参考 over ruby), the text
+    /// beside it moves by the same, as Word sets the whole line lower. Zero
+    /// where the paragraph is all ruby, or may run to several lines.
+    @inline(never)
+    func _mixedRubyRaise(_ p: RichParagraph, named: RichNamedStyle?, textWidth: Double, pitch: Double?) -> Double {
+        guard theme.wordRules, pitch != nil, NativeParagraphBuilder.supportsBaselineShift,
+              let first = p.runs.first(where: { $0.style.ruby != nil && $0.length > 0 }),
+              p.runs.contains(where: { $0.style.ruby == nil && $0.length > 0 && $0.style.inlineImage == nil }) else { return 0 }
+        let size = first.style.fontSize ?? named?.char.fontSize ?? theme.fontSize
+        guard size > 0.5, Double(p.text.utf16.count) * _px(size) <= textWidth else { return 0 }
+        return theme.rubyLine(for: first.style, in: p.style, named: named, eastAsian: true, gridPitch: pitch)?.raise ?? 0
     }
 
     /// A ruby's own look: the base's face at the ruby's size.
