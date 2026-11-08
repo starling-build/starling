@@ -50,6 +50,19 @@ extension RichLayout {
         "mangal": ["D": 1.096], "kokila": ["D": 0.725], "aparajita": ["D": 0.942],
         "nirmala ui": ["D": 1.082, "B": 1.075, "T": 1.187, "P": 1.097, "G": 1.147],
         "raavi": ["P": 1.084], "shruti": ["G": 1.153], "gautami": ["T": 0.964], "vrinda": ["B": 0.907], "shonar bangla": ["B": 0.716]]
+    /// An empty paragraph whose mark is a complex-script one (`w:cs`) in Mangal (Kalimati, which Windows lacks, is drawn in it) is a Mangal line,
+    /// 1.68 em: dx2 54d1d1d1's blank cell paragraphs, 11 pt marks, step 18.5 in Word's print against 15.9 in the stand-in's.
+    @inline(never)
+    func _mangalMarkLine(_ look: TextStyle, mark: CharStyle, named: RichNamedStyle?, document: RichDocument, lineSpacing: Double) -> TextStyle? {
+        guard let kept = mark.keptXML, kept.containsSubstring("<w:cs/>") || kept.containsSubstring("<w:cs "),
+              let m = Self._indicLines["mangal"], let px = look.fontSize, px > 0.5 else { return nil }
+        let cs = (mark.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
+        guard cs == "kalimati" || cs == "mangal" else { return nil }
+        var size = px
+        if let z = mark.complexFontSize, let f = mark.fontSize, f > 0.5 { size = px * z / f }
+        let multiple = lineSpacing > 1 ? lineSpacing : 1
+        return look.copyWith(ascentOverride: m.0 * multiple * size, descentOverride: m.1 * multiple * size, height: (m.0 + m.1) * multiple * size / px, leadingDistribution: .even)
+    }
     /// Devanagari, Bengali, Gurmukhi, Gujarati and Telugu.
     static let _indic = IndicScripts()
     /// Word's space advance (em) where it differs much from the stand-in's: Mangal. (Kokila 0.193 and Shonar Bangla 0.207 at their real width made dx2 hi/bn worse: their scales were fitted with the gap.)
@@ -120,7 +133,11 @@ extension RichLayout {
             // A paragraph mark can turn off its style's hiding. Resolving
             // body runs also needs their hidden-mark joining semantics.
             if theme.wordRules, mark.off.contains(.hidden) { markNamed?.char.hidden = false }
-            let look = theme.textStyle(for: mark, in: p.style, named: markNamed, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+            var look = theme.textStyle(for: mark, in: p.style, named: markNamed, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil, p.style.list == nil,
+               let mangal = _mangalMarkLine(look, mark: mark, named: markNamed, document: document, lineSpacing: p.style.lineSpacing) {
+                look = mangal
+            }
             if theme.wordRules, p.style.list != nil, lead > 0 {
                 // An empty list still has a number and its suffix. Reserve
                 // their width so centered/right numbers move with the line.
