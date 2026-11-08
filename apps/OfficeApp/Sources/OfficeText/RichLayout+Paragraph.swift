@@ -2270,6 +2270,11 @@ extension RichLayout {
                    let raised = _indicFirstLineAscent(p, painter: painter, lead: _lead(i), named: named, document: document, target: target) {
                     target = raised
                 }
+                // (A first line holding a Malgun-drawn symbol of a missing Korean face: see `_koreanSymbolFirstLineRaise`.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil,
+                   let raise = _koreanSymbolFirstLineRaise(p, painter: painter, lead: _lead(i), named: named, document: document) {
+                    target += raise
+                }
                 _inkShift[i] = _px(target) - line.baseline
             }
         }
@@ -3293,6 +3298,41 @@ extension RichLayout {
         case .right: return .right
         case .justify: return .justify
         }
+    }
+}
+
+extension RichLayout {
+    /// The baseline rise of a first line that holds a Malgun-drawn symbol (①, ○, △, ·, ※, →, curly quotes) of a missing
+    /// Korean face Word sets in Batang: the line's ascent is Malgun's 1.175 em against Batang's 1.009, times the spacing
+    /// (c466d30a: the ① lines stood 3.4 pt high at 12 pt, 1.7 lines). The joiner of `_span` raises the line; the
+    /// correction above had pulled the baseline back.
+    @inline(never)
+    func _koreanSymbolFirstLineRaise(_ p: RichParagraph, painter: TextPainter, lead: Int, named: RichNamedStyle?, document: RichDocument) -> Double? {
+        let firstEnd = painter.getLineBoundary(TextPosition(offset: 0)).end - lead
+        let units = Array(p.text.utf16)
+        var start = 0
+        var best: Double?
+        for run in p.runs where run.length > 0 {
+            defer { start += run.length }
+            guard start < firstEnd else { break }
+            let end = min(start + run.length, firstEnd, units.count)
+            guard start < end, run.style.inlineImage == nil else { continue }
+            let text = String(decoding: units[start ..< end], as: UTF16.self)
+            let hit = text.unicodeScalars.contains { u in
+                let v = u.value
+                return v == 0x25CB || v == 0x25B3 || v == 0xB7 || (v >= 0x2460 && v <= 0x2469) || v == 0x203B || v == 0x2192
+                    || v == 0x2018 || v == 0x2019 || v == 0x201C || v == 0x201D
+            }
+            guard hit, theme.faceResolver?(run.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                           ?? run.style.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.malgunSymbols == true else { continue }
+            let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+            let rise = size * (1.175 - 1.009) * max(1, p.style.lineSpacing - theme.lineSpacingReduction)
+            if rise > (best ?? 0) {
+                RuleTrace.hit("word-korean-symbol-first-line-stands-on-malgun-ascent")
+                best = rise
+            }
+        }
+        return best
     }
 }
 
