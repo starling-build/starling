@@ -17,6 +17,8 @@ printf '#ifndef _GLIBCXX_MATH_H\n#define _GLIBCXX_MATH_H 1\n#endif\n#include "/u
 export CPLUS_INCLUDE_PATH=$shim${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}
 swift build --build-tests --package-path "$root/apps/OfficeApp" --scratch-path "$scratch"
 log=$(mktemp)
+# Debug-build layout frames are huge: the main thread's default 8 MB stack overflows (DocxTests crash, 12 tests ran). Raise it.
+ulimit -s 262144 2>/dev/null || ulimit -s unlimited 2>/dev/null || true
 set +e
 swift test --skip-build --package-path "$root/apps/OfficeApp" --scratch-path "$scratch" "$@" 2>&1 | tee "$log"
 rc=${PIPESTATUS[0]}
