@@ -1160,6 +1160,8 @@ enum OfficeFonts {
     // zh-884c6e3e's bold 16pt steps 16.645 where YaHei's step 16.325.)
     private static let arialUnicode = EastAsianFace(height: 1.742, latin: sans, latinScale: 1.0, fakeBold: true, boldWiden: 1.0 / 50,
                                                     baseline: 1.270)
+    private static let malgunHeight = 1.727
+    private static func isYaHeiLike(_ h: Double) -> Bool { h == yaHei.height || h == malgunHeight }
     private static let yaHei = EastAsianFace(height: 1.715, latin: sans, latinScale: 1.07, latinClasses: [0.985, 0.92, 1.027, 0.96],
                                              latinAdvances: yaHeiAdvances, latinBoldAdvances: yaHeiBoldAdvances,
                                              latinKerns: yaHeiKerns, latinBoldKerns: yaHeiBoldKerns, fakeBold: false, baseline: 1.26,
@@ -2221,6 +2223,12 @@ enum OfficeFonts {
         if wordOnWindows, has("malgun", "맑은 고딕") {
             RuleTrace.hit("malgun-gothic-own-latin-widths")
             var malgun = yaHei
+            malgun.height = malgunHeight
+            malgun.baseline = 1.288
+            // (Word sets Malgun's curly quotes at their own narrow widths, with no blank beside them:
+            // kor-z17264683-7d8a4b's "‘필수 재료’로" steps 0.228 em at each single quote and 0.38 at a double one.)
+            let malgunQuotes: [UInt32: Double] = [0x2018: 0.228, 0x2019: 0.228, 0x201C: 0.38, 0x201D: 0.38]
+            malgun.otherAdvances = malgunQuotes
             malgun.latinScale = 1.0
             malgun.latinClasses = nil
             malgun.latinAdvances = malgunAdvances
@@ -3424,7 +3432,7 @@ enum OfficeFonts {
             // (YaHei has none of the compatibility ideographs Word sets in
             // Noto Sans SC; PMingLiU and the others it has draw their own —
             // zh-db93607e's in PMingLiU are as any character in Word's print.)
-            face.lacksCompatibilityIdeographs = ea.height == yaHei.height
+            face.lacksCompatibilityIdeographs = isYaHeiLike(ea.height)
             // (What an embedded subset lacks, Word sets in the face the
             // name has unembedded — YaHei, for the names it stands in
             // for — and the line takes that face's height: zh-92373179's
@@ -3448,7 +3456,7 @@ enum OfficeFonts {
                 face.uncoveredFamily = "Microsoft YaHei"
             }
             if own, let registered = embeddedFamily(family), let covered = embeddedCovers(registered),
-               eastAsianFace(family, ignoringEmbedding: true).height == yaHei.height {
+               isYaHeiLike(eastAsianFace(family, ignoringEmbedding: true).height) {
                 face.covers = covered
                 face.uncoveredFamily = "Microsoft YaHei"
                 face.drawnFromSubset = true
@@ -3499,7 +3507,7 @@ enum OfficeFonts {
             // the grid, as a symbol of its own width takes — where the
             // stand-in fell back to Liberation Sans's glyph and the whole
             // addition, 10.67.)
-            if ea.height == yaHei.height {
+            if isYaHeiLike(ea.height) {
                 // (YaHei's geometric shapes and arrows, measured in Word's
                 // msyh.ttc and msyhbd.ttc: both use these advances /2048.
                 // In particular □ is wider than ■; zh-e0ca7252's form
@@ -3634,7 +3642,7 @@ enum OfficeFonts {
         // the stand-in, which has none, drew DejaVu's at 0.9 — "⑤有应急…"
         // then took "承" on its first line by a squeeze Word's does not
         // make, and every page from p11 ran early.)
-        if ea.height == yaHei.height {
+        if isYaHeiLike(ea.height) {
             face.otherAdvances = [0xB7: 0.2407].merging(circled(1.0)) { $1 }
             face.boldOtherAdvances = [0xB7: 0.4395].merging(circled(1.0)) { $1 }
         }
@@ -3807,7 +3815,7 @@ enum OfficeFonts {
     /// The Word face that draws a name's ideographs (`registerWordMacFaces`);
     /// nil for YaHei's stand-ins, which the glyph fallback draws.
     private static func wordMacIdeographs(_ family: String, _ ea: EastAsianFace) -> String? {
-        guard _wordMacFacesLoaded, ea.height != yaHei.height else { return nil }
+        guard _wordMacFacesLoaded, !isYaHeiLike(ea.height) else { return nil }
         if isUndeclaredMacGBName(family) { return "SimSun" }
         let n = family.trimmingWhitespace().lowercased()
         func has(_ keys: String...) -> Bool { keys.contains { faceHas(n, $0) } }
