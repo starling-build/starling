@@ -2254,8 +2254,11 @@ enum OfficeFonts {
             RuleTrace.hit("ms-japanese-face-square-line")
             return EastAsianFace(height: 1.3, latin: has("mincho", "明朝") ? serif : sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
         }
-        // Meiryo UI sets single lines 1.3 em apart in Word's print (jpn-g11-40dd71: 10 pt lines step
-        // 12.9 to 13.0 pt where the generic CJK line gave 17).
+        // HG Maru Gothic M-PRO sets single lines 1.3 em apart in Word's print (jpn-g5-b79900: 11 pt
+        // lines step 14.3 where the generic CJK line gave 18.9, and the 2-page document ran to 1).
+        if wordOnWindows, has("hg丸", "hgmarugothic") {
+            return EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
+        }
         // Yu Mincho shares Yu Gothic's line (jpn-z23845932-12d9fb: 10.5pt Body
         // Text at 1.5 lines steps 26.4pt in Word's print = 1.676 em natural,
         // where YaHei's 1.715 em gave 27.0).
