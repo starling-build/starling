@@ -2348,7 +2348,9 @@ extension RichLayout {
     static let _eastAsianSigns: Set<UInt16> = [0xD7, 0xB0, 0x2032, 0x2033, 0x2264, 0x2265]
     static func _isLatinWordUnit(_ u: UInt16) -> Bool { (u >= 0x30 && u <= 0x39) || (u >= 0x41 && u <= 0x5A) || (u >= 0x61 && u <= 0x7A) }
     static let _noStart = _hangingUnits.subtracting("”’".utf16)
-        .union(",.:;!?%)]}-/‰℃°…～·・ー々〃ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ".utf16)
+        .union(",.:;!?%)]}-/‰℃°…～·・ー々〃".utf16)
+        // (Small kana may open a line: Word's standard Japanese level does not list them, as 20 of 77 ja-JP prints show
+        // — efbb06c2 parts "活動しなくな" from "った研一"; only strictFirstAndLastChars adds them.)
         // (And the vertical two-dot leader "︰", Taiwan's colon: no line of Word's prints opens with it,
         // 13 inside lines; zh-e51c31a7's "…以為共同遵守︰" sends "守︰" down where ours opened a line with it.)
         .union("\u{FE30}".utf16)
