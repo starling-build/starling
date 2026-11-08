@@ -1988,9 +1988,12 @@ extension RichLayout {
                 if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value,
                    u >= 0xAC00 && u <= 0xD7A3 {
                     let g = _glyphWidth(style(kind), ch)
-                    if g > 0.5, g < em - 0.01 {
+                    // (A face may carry its own Hangul em under U+AC00 of otherAdvances: NanumGothic 0.94.)
+                    let hEm = (theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                                   ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.otherAdvances?[0xAC00]).map { $0 * em } ?? em
+                    if g > 0.5, hEm < em ? abs(g - hEm) > 0.01 : g < hEm - 0.01 {
                         RuleTrace.hit("hangul-syllable-is-an-em")
-                        extra += em - g
+                        extra += hEm - g
                     }
                 }
                 if ea, let u = ch.unicodeScalars.first?.value, u < 0x2E80 || (u >= 0x3000 && u < 0x3100) || (u >= 0xFF00 && u < 0xFF60),

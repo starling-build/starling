@@ -1148,6 +1148,8 @@ enum OfficeFonts {
         guard !n.isEmpty else { return nil }
         // (BatangChe and DotumChe are Word for Windows' own faces, drawn at their own widths further on.)
         if ["batangche", "dotumche", "바탕체", "돋움체"].contains(n) { return nil }
+        // (NanumGothic is a face Word for Windows prints as itself (7416edcd), drawn at its own widths further on.)
+        if ["nanumgothic", "나눔고딕"].contains(n) { return nil }
         // (맑은 고딕 is Word for Windows' face too: a document that names
         // 맑은 고딕 was set in MS Mincho's widths, its spaces 0.22 em where Word's Malgun
         // Gothic sets 0.35 — kor-z19176375-30dbe1, kor-z21348848-7369b1.)
@@ -1183,9 +1185,6 @@ enum OfficeFonts {
             let cs = e.charset.uppercased()
             guard cs == "81" || cs == "129" || hangul else { return "mincho" }
             if faceHas(n, "헤드라인") { return "mincho" }
-            // (Word has these: it prints 나눔고딕 in NanumGothic and 바탕체/돋움체 in BatangChe/DotumChe,
-            // not in a substitute. Their widths are still open, so they stay as before.)
-            if ["나눔고딕"].contains(n) { return "mincho" }
             if (cs == "81" || cs == "129") && e.family == "roman" && !e.panoseZero { return "batang" }
             return "malgun"
         default: return "mincho"
@@ -2005,6 +2004,9 @@ enum OfficeFonts {
     ]
     /// GulimChe is fixed-pitch: every Latin character is half an em.
     private static let gulimCheAdvances: [Double] = Array(repeating: 0.5, count: 95)
+    /// NanumGothic's Latin, U+0020 to U+007E, read from the subsets in Word's prints (unread glyphs: Liberation Sans x 1.09).
+    private static let nanumGothicAdvances: [Double] = [0.28, 0.424, 0.43, 0.606, 0.606, 0.969, 0.727, 0.208, 0.363, 0.363, 0.424, 0.637, 0.303, 0.363, 0.303, 0.303, 0.606, 0.606, 0.606, 0.606, 0.606, 0.606, 0.606, 0.606, 0.606, 0.606, 0.303, 0.303, 0.637, 0.637, 0.637, 0.606, 1.107, 0.727, 0.727, 0.787, 0.787, 0.727, 0.666, 0.848, 0.787, 0.303, 0.545, 0.727, 0.606, 0.969, 0.787, 0.848, 0.727, 0.848, 0.787, 0.727, 0.666, 0.787, 0.727, 1.029, 0.727, 0.727, 0.666, 0.303, 0.303, 0.303, 0.512, 0.606, 0.363, 0.606, 0.606, 0.545, 0.606, 0.606, 0.303, 0.606, 0.606, 0.242, 0.242, 0.545, 0.242, 0.908, 0.606, 0.606, 0.606, 0.606, 0.363, 0.545, 0.303, 0.606, 0.545, 0.787, 0.545, 0.545, 0.545, 0.364, 0.283, 0.364, 0.637]
+    private static let nanumGothicBoldAdvances: [Double] = [0.28, 0.424, 0.43, 0.606, 0.606, 0.969, 0.727, 0.208, 0.363, 0.363, 0.424, 0.636, 0.303, 0.363, 0.303, 0.375, 0.606, 0.606, 0.606, 0.606, 0.606, 0.606, 0.606, 0.606, 0.606, 0.606, 0.303, 0.303, 0.636, 0.636, 0.636, 0.606, 1.106, 0.727, 0.727, 0.672, 0.787, 0.576, 0.666, 0.848, 0.787, 0.303, 0.545, 0.727, 0.606, 0.969, 0.727, 0.848, 0.577, 0.848, 0.787, 0.545, 0.545, 0.787, 0.727, 1.029, 0.727, 0.727, 0.666, 0.303, 0.303, 0.303, 0.511, 0.606, 0.363, 0.545, 0.606, 0.545, 0.606, 0.545, 0.303, 0.606, 0.606, 0.242, 0.242, 0.545, 0.242, 0.908, 0.606, 0.606, 0.606, 0.606, 0.363, 0.545, 0.363, 0.606, 0.545, 0.787, 0.545, 0.545, 0.545, 0.364, 0.283, 0.364, 0.636]
 
     private static let malgunAdvances: [Double] = [
         0.3516, 0.2891, 0.3950, 0.6064, 0.5508, 0.8364, 0.8179, 0.2319, 0.3047, 0.3047, 0.4248, 0.7007, 0.2188, 0.4102, 0.2188,
@@ -2328,6 +2330,16 @@ enum OfficeFonts {
             face.latinBoldAdvances = face.latinAdvances
             // (Curly quotes print in Malgun Gothic at its narrow widths: 6a68f6ca's "(이하 ‘작가’)" steps 0.228 em at each quote.)
             face.otherAdvances = [0x2018: 0.228, 0x2019: 0.228, 0x201C: 0.38, 0x201D: 0.38]
+            return face
+        }
+        // (NanumGothic: Latin its own, Hangul 0.94 em (key U+AC00 of otherAdvances carries it for the Hangul rule),
+        // line 1.3 x (885+198)/1000 from its OS/2 metrics; 7416edcd's 8 pt lines pitch 12.95 pt in Word's print.)
+        if wordOnWindows, has("nanumgothic", "나눔고딕") {
+            RuleTrace.hit("nanum-gothic-own-widths")
+            var face = EastAsianFace(height: 1.408, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.1625 + 0.885)
+            face.latinAdvances = nanumGothicAdvances
+            face.latinBoldAdvances = nanumGothicBoldAdvances
+            face.otherAdvances = [0xAC00: 0.94]
             return face
         }
         // (BatangChe and DotumChe: the same square line as GulimChe (hhea 879/145 of 1024, Word's 1.3) and Latin
