@@ -777,6 +777,12 @@ enum OfficeFonts {
         return !isEastAsianFace(name) && !wordMacFamilies.contains(n)
             && !["tahoma", "century gothic", "arial narrow", "calibri light", "cordia new", "angsana new", "times", "th sarabunpsk"].contains(n)
     }
+    /// Whether a face maps all of A-Z and a-z. An Arabic or symbol face a file embeds (DecoType Naskh) must
+    /// not stand in as a "Latin" face: text in it then shapes with no glyphs and Skia's cluster() traps.
+    static func coversLatinLetters(_ data: Data) -> Bool {
+        guard let covered = coverage(data) else { return false }
+        return (0x41 ... 0x5A).allSatisfy { covered.contains($0) } && (0x61 ... 0x7A).allSatisfy { covered.contains($0) }
+    }
     /// A Latin embedded face's line (ascent, descent in ems).
     static func embeddedLatinLine(_ registered: String) -> (ascent: Double, descent: Double)? {
         declaredLock.lock()

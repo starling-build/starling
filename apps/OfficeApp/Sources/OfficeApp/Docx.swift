@@ -3515,6 +3515,7 @@ enum DocxFormat {
                         guard let embed = font.first(tag), let rid = embed["r:id"], let key = embed["w:fontKey"], let target = faceTargets[rid] else { continue }
                         let path = target.hasPrefix("/") ? String(target.dropFirst()) : "word/" + target
                         guard let raw = part(path), let data = OfficeFonts.deobfuscate(raw, key: key),
+                              OfficeFonts.coversLatinLetters(data),
                               let f = OfficeFonts.loadEmbedded(data, sharedFamily: "Starling Embedded Latin " + name) else { continue }
                         family = f
                     }
