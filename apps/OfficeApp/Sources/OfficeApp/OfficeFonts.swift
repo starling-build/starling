@@ -1149,6 +1149,16 @@ enum OfficeFonts {
         switch e.charset.uppercased() {
         case "86", "80", "": return nil
         case "88": return "jhenghei"
+        case "81", "129", "01", "1":
+            // A Korean face Word lacks: charset 81 with a roman (serif) panose prints in Batang
+            // (HY신명조, 하나 L), any other Hangul-named or charset 81 face in Malgun Gothic
+            // (나눔명조 at charset 01, 나눔바른고딕, 나눔고딕 Light); 헤드라인 faces print mixed, left alone.
+            let hangul = n.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 })
+            let cs = e.charset.uppercased()
+            guard cs == "81" || cs == "129" || hangul else { return "mincho" }
+            if faceHas(n, "헤드라인") { return "mincho" }
+            if (cs == "81" || cs == "129") && e.family == "roman" && !e.panoseZero { return "batang" }
+            return "malgun"
         default: return "mincho"
         }
     }
@@ -2222,7 +2232,12 @@ enum OfficeFonts {
     private static func eastAsianFaceAsNamed(_ family: String, ignoringEmbedding: Bool = false) -> EastAsianFace {
         let n = family.trimmingWhitespace().lowercased()
         func has(_ keys: String...) -> Bool { keys.contains { faceHas(n, $0) } }
-        if wordOnWindows, !isEmbedded(family), let fallback = windowsMissingFallback(family) { return fallback == "mincho" ? windowsMincho : eastAsianFace("Microsoft JhengHei") }
+        if wordOnWindows, !isEmbedded(family), let fallback = windowsMissingFallback(family) { switch fallback {
+            case "mincho": return windowsMincho
+            case "batang": return eastAsianFace("Batang")
+            case "malgun": return eastAsianFace("맑은 고딕")
+            default: return eastAsianFace("Microsoft JhengHei")
+            } }
         // (The faces Word for Windows takes an embedded 仿宋_GB2312's missing
         // characters from (`windowsSubsetFallback`), each on its own line,
         // its win ascent and descent at Word's 1.3, the extra split evenly
