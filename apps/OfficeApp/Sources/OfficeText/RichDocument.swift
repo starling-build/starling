@@ -2367,7 +2367,9 @@ public struct RichDocument: Hashable, Sendable {
     /// state a language score 99.9 and those that do not 98.8.)
     public var eastAsianLineRules: Bool {
         guard let xml = defaultLangXML, let r = xml.rangeOfSubstring("w:eastAsia=\"") else {
-            return !(RichTextTheme.wordWindowsPages && breakRulesOnlyForEastAsian)
+            // (Nor where nothing states a language and the East Asian default face is
+            // a Latin one, e.g. Arial: jpn-z18981562 opens lines with "）" and "。".)
+            return !(RichTextTheme.wordWindowsPages && (breakRulesOnlyForEastAsian || eastAsianDefaultFaceIsLatin))
         }
         return ["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
     }
