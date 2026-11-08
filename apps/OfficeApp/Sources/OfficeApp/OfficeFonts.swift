@@ -1046,6 +1046,8 @@ enum OfficeFonts {
         /// East Asian (hinted, `RichLayout.isEastAsian`): the stand-in draws
         /// them at these (`RichResolvedFace.otherAdvances`).
         var otherAdvances: [UInt32: Double]? = nil
+        /// Word draws a missing Korean face's quotes, circles and circled digits in Malgun Gothic, whose taller line they give (`malgunSymbolLines`).
+        var malgunSymbols = false
         /// Word emboldens a face that has no bold of its own, and sets
         /// each character wider: by `boldWiden` of an em, 1/48 where
         /// that is not said. (Word for Mac only: Word for Windows keeps
@@ -2270,7 +2272,7 @@ enum OfficeFonts {
         func has(_ keys: String...) -> Bool { keys.contains { faceHas(n, $0) } }
         if wordOnWindows, !isEmbedded(family), let fallback = windowsMissingFallback(family) { switch fallback {
             case "mincho": return windowsMincho
-            case "batang": return eastAsianFace("Batang")
+            case "batang": var face = eastAsianFace("Batang"); face.malgunSymbols = true; return face
             case "malgun": return eastAsianFace("맑은 고딕")
             default: return eastAsianFace("Microsoft JhengHei")
             } }
@@ -2292,6 +2294,8 @@ enum OfficeFonts {
             RuleTrace.hit("batang-dotum-own-latin-widths")
             face.latinAdvances = (n == "batang" || n == "바탕") ? batangAdvances : dotumAdvances
             face.latinBoldAdvances = face.latinAdvances
+            // (Curly quotes print in Malgun Gothic at its narrow widths: 6a68f6ca's "(이하 ‘작가’)" steps 0.228 em at each quote.)
+            face.otherAdvances = [0x2018: 0.228, 0x2019: 0.228, 0x201C: 0.38, 0x201D: 0.38]
             return face
         }
         if wordOnWindows || wordOnMac, has("ms gothic", "ｍｓ ゴシック", "gulim", "굴림") {
@@ -3089,6 +3093,7 @@ enum OfficeFonts {
         // ours, and zh-ae2dd08d's bold cell "材料費編列" lost its "列".)
         if face.boldSpread > 0 { face.boldSpread -= 5.0 / 256 }
         #endif
+        face.malgunSymbols = standIn.malgunSymbols
         face.otherAdvances = standIn.otherAdvances
         face.boldOtherAdvances = standIn.boldOtherAdvances
         face.fullWidthSymbols = standIn.fullWidthSymbols
@@ -3573,6 +3578,7 @@ enum OfficeFonts {
             // (A square face's symbols are an em; YaHei's, JhengHei's and
             // DengXian's — the faces with Latin widths of their own — are not.)
             face.fullWidthSymbols = ea.squareSymbols ?? (ea.latinAdvances == nil)
+            face.malgunSymbols = ea.malgunSymbols
             // (Ideographs in a serif where the name is a Song, Ming or
             // Mincho face: `serifIdeographs`.)
             if !own || embeddedFamily(family) == nil, let serif = serifIdeographs(family, ea) { face.fallback = [serif] }

@@ -1422,6 +1422,23 @@ extension RichLayout {
                         inserts.append(offset)
                     }
                 }
+                // (A missing Korean face Word sets in Batang takes its quotes, circles, circled digits and middle dot from Malgun
+                // Gothic, and a line holding one is Malgun's height: 6a68f6ca's lines step 29.9 into one, 31.9 out of one and 35.3
+                // between two at 1.7 lines, 26.6 between plain ones. The split is Malgun's 1.175 + 0.557 against Batang's 1.009 + 0.291.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, ch.unicodeScalars.count == 1,
+                   u == 0x25CB || u == 0x25B3 || u == 0xB7 || (u >= 0x2460 && u <= 0x2469) || u == 0x203B || u == 0x2192
+                    || u == 0x2018 || u == 0x2019 || u == 0x201C || u == 0x201D,
+                   theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                       ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.malgunSymbols == true {
+                    if devanagariStyles["malgunKo"] == nil {
+                        devanagariStyles["malgunKo"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: 1.175, descent: 0.557)
+                    }
+                    if let joiner = devanagariStyles["malgunKo"] ?? nil {
+                        flush(i)
+                        spans.append(TextSpan(text: "\u{2060}", style: joiner))
+                        inserts.append(offset)
+                    }
+                }
                 if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, Self._isIndic(u),
                    !(before?.unicodeScalars.first.map { Self._isIndic($0.value) || $0.value == 0x200D || $0.value == 0x200C } ?? false) {
                     let face = indic?.face

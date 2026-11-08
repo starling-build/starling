@@ -940,6 +940,8 @@ public struct RichResolvedFace: Sendable {
     /// draws them, and the line is set by the original's widths (Times
     /// New Roman's Roman numerals, Ⅳ wider than an em).
     public var otherAdvances: [UInt32: Double]? = nil
+    /// A missing Korean face Word draws in Batang: its quotes, circles and circled digits come from Malgun Gothic, and a line holding one is Malgun's height.
+    public var malgunSymbols = false
     public var boldOtherAdvances: [UInt32: Double]? = nil
     /// The original's Arabic advances by code point, presentation forms
     /// among them (`ArabicForms.width`): each word of it is set to the

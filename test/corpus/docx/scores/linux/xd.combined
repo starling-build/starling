@@ -1,4 +1,4 @@
-119 documents: COMBINED mean 42.07% (119 scored by Word's text lines, 0 by the visual comparison); pure line mean 42.07% over the 119 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
+119 documents: COMBINED mean 42.34% (119 scored by Word's text lines, 0 by the visual comparison); pure line mean 42.34% over the 119 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
    8.8%  lines 806/820  pages 26/25  01943b11be4cc6582bda5866d85302f5c149fd43a95b4109aacee1f7886e10b1
   86.0%  lines 258/259  pages 9/9  03cd29dc2f67a29e0fb011b58e6c07ab377c3b677a38fa29710e735a3bb43575
   57.5%  lines 113/114  pages 5/5  0539b975737d0acd36b0fcb444482bd2b632afd71897fa02ae908a0ec28efa4b
@@ -8,7 +8,7 @@
   87.2%  lines 1230/1232  pages 34/34  0810551fd9bc15266a5da93a015195dfe6e15aad9f1bcae893544046eee0ccc7
   18.0%  lines 622/625  pages 18/17  0815aa59ccc6dbbdb908c5f6bd8acecf629fdaf9239178309471469e4e50f399
   99.7%  lines 577/578  pages 20/20  0980009925a9e60577725ba1aca7cc2cac32313ee51db27edfedb03b9bc6448c
-   0.9%  lines 220/220  pages 11/10  107500a82f345ab815c38a54a47ea7a22901d26390168bfbd469d29da4d41a2b
+  27.7%  lines 220/220  pages 11/11  107500a82f345ab815c38a54a47ea7a22901d26390168bfbd469d29da4d41a2b
   86.3%  lines 73/74  pages 4/4  1116b68df72593874a86d272f0441b8790ad2db200736a4b0bd86979b1113912
   69.8%  lines 86/88  pages 4/4  1527abbfb9238bf43a5752d16537f1cbca9a4dbdf48c557ea7c97feca5bc9aba
   81.5%  lines 888/890  pages 25/25  1d944f7b254e29ff7a8ec50e43f60147920cb263cd04e8d697a6c6a152971b86
@@ -32,7 +32,7 @@
    0.8%  lines 133/135  pages 5/6  47480880a8a34a9d23298450db7c9d339036a809d6beb64812085fbaa4cfbc4e
   41.6%  lines 125/116  pages 3/3  4bc34886d3201912a9d9e6b2a4388a382860dd894592f01a0a9cfd95607e6497
    4.2%  lines 572/814  pages 19/24  4d02d27f56475dd42de804c8b721cda6387d5fe82b94bdad1f3f46480af25c56
-  17.2%  lines 261/268  pages 13/13  4fabe1f276d3965955ad74c15ef1849103f1443727c504999cdc76672c0b7cdf
+  23.0%  lines 261/268  pages 13/13  4fabe1f276d3965955ad74c15ef1849103f1443727c504999cdc76672c0b7cdf
   22.2%  lines 36/36  pages 1/1  5388cc246e9471bf5be02b3a148a6f118015ddb29afeef21f1a2046c2be6b5ac
    7.2%  lines 871/868  pages 27/26  53eca83ab5f815de144fe2b03cedf7d8f97a14f3d5a76875f3aa1f19e608c17c
    2.5%  lines 607/588  pages 18/18  540fe10e4c35f3cfabb0c046f23cd76cfe0ea99d944f16300c1d139c85a500ad
