@@ -2234,6 +2234,11 @@ enum OfficeFonts {
         // Gulim and GulimChe (Word for Windows prints 12pt Korean text in them
         // on a 15.6pt step, 1.3 em, MS Gothic's line; ours drew YaHei's
         // 1.715 em: kor-z19176375-004d7a, 35 pages in Word, 40 here).
+        // (Dotum and Batang too, whole names: the 11pt single lines of dx2's ko docs step 1.304 em in Dotum
+        // and 1.30 in Batang in Word's print where ours drew 1.72, and their pages doubled.)
+        if wordOnWindows, n == "dotum" || n == "돋움" || n == "batang" || n == "바탕" {
+            return EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
+        }
         if wordOnWindows || wordOnMac, has("ms gothic", "ｍｓ ゴシック", "gulim", "굴림") {
             var face = EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
             if wordOnWindows, has("gulim", "굴림") {
