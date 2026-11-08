@@ -1701,7 +1701,7 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
-                } else if (kinsokuOff || (RichTextTheme.wordWindowsPages && theme.wordRules && document.defaultLangXML == nil && document.eastAsianDefaultFaceIsLatin)) && !breaksAtQuotes, let b = before,
+                } else if (kinsokuOff || (RichTextTheme.wordWindowsPages && theme.wordRules && document.defaultLangXML == nil && document.eastAsianDefaultFaceIsLatin && !document.bodyStatesLang)) && !breaksAtQuotes, let b = before,
                           Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)
                             || (ch != " " && (Self._openingMarks.contains(b) || Self._latinOpener(b, ch))
                                 && Self._eastAsianLineRules(run, document, named: named)) {

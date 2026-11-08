@@ -2369,7 +2369,7 @@ public struct RichDocument: Hashable, Sendable {
         guard let xml = defaultLangXML, let r = xml.rangeOfSubstring("w:eastAsia=\"") else {
             // (Nor where nothing states a language and the East Asian default face is
             // a Latin one, e.g. Arial: jpn-z18981562 opens lines with "）" and "。".)
-            return !(RichTextTheme.wordWindowsPages && (breakRulesOnlyForEastAsian || eastAsianDefaultFaceIsLatin))
+            return !(RichTextTheme.wordWindowsPages && (breakRulesOnlyForEastAsian || (eastAsianDefaultFaceIsLatin && !bodyStatesLang)))
         }
         return ["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
     }
@@ -2424,6 +2424,8 @@ public struct RichDocument: Hashable, Sendable {
     /// Word for Windows then compresses no punctuation, whatever the
     /// languages and `w:characterSpacingControl` say.
     public var eastAsianDefaultFaceIsLatin = false
+    /// A run of the body states a language (w:lang).
+    public var bodyStatesLang = false
     /// The embedded faces Word for Windows compresses no punctuation in:
     /// those whose "「" is a glyph of no advance — lab tfz (windows-1,
     /// zh-57f1de0d's 方正仿宋_GBK, which Word's subset embedding left with

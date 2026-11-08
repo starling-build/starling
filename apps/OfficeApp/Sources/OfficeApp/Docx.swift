@@ -3625,6 +3625,11 @@ enum DocxFormat {
                ["times new roman", "times", "arial", "calibri", "cambria", "ms serif", "verdana", "tahoma", "helvetica", "courier new", "segoe ui", "georgia"]
                 .contains(ea.trimmingWhitespace().lowercased()) {
                 document.eastAsianDefaultFaceIsLatin = true
+                // (Not where the body itself names an East Asian language on a run:
+                // docx-79737edb's runs say ja-JP/ko-KR/zh-CN and Word keeps its line-start ban.)
+                if let d = part("word/document.xml"), String(decoding: d, as: UTF8.self).containsSubstring("<w:lang ") {
+                    document.bodyStatesLang = true
+                }
             }
             let normal = styles.all("w:style").first { $0["w:type"] == "paragraph" && ($0["w:default"] == "1" || $0["w:styleId"] == "Normal") }
             let own = normal?.first("w:rPr")?.first("w:lang")
