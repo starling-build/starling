@@ -720,7 +720,11 @@ extension RichLayout {
                 }
                 guard deva + beng > 0 else {
                     // (Tamil: the line of Nirmala UI, 1.079 + 0.251 em, in the prints of tam-* and four of the xd Tamil documents.)
-                    if text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) { return ("nirmala ui", 0.9) }
+                    // (Width: set per word in flush() from TamilAdvances, a per-codepoint regression fit of Word's word widths
+                    // (2864 words, four documents); our PDF embeds no Tamil face, so it cannot be read from glyph hmtx. No scale here.)
+                    if text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) {
+                        return ("nirmala ui", 1)
+                    }
                     return nil
                 }
                 let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
@@ -942,6 +946,49 @@ extension RichLayout {
                         } else { part.append(u) }
                     }
                     put()
+                    start = end
+                    return
+                }
+                if kind >= 0, indic?.face == "nirmala ui", text[start ..< end].unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) {
+                    // (Tamil, word by word, at the widths of Nirmala UI's code points: `TamilAdvances`.)
+                    let base = style(kind)
+                    var wordStart = start
+                    func putWord(_ a: Substring.Index, _ b: Substring.Index) {
+                        guard a < b else { return }
+                        let w = text[a ..< b]
+                        var st = base
+                        if let px = base.fontSize, px > 0.5, let split = TamilAdvances.split(w, bold: base.fontWeight == .bold) {
+                            // (As spacing, not a scale: the line breaking measures it. Spread over the glyphs the engine draws.)
+                            func measure(_ ls: Double) -> Double {
+                                let t = TextPainter(text: TextSpan(text: String(w), style: base.copyWith(letterSpacing: ls)), textDirection: .ltr)
+                                t.layout(minWidth: 0, maxWidth: 100_000)
+                                defer { t.dispose() }
+                                return t.width
+                            }
+                            let w0 = measure(0)
+                            let n = max(1, Int((measure(10) - w0) / 10 + 0.5))
+                            // (A character the table lacks keeps the stand-in's own width.)
+                            var other = 0.0
+                            if split.rest {
+                                let t = TextPainter(text: TextSpan(text: split.known, style: base.copyWith(letterSpacing: 0)), textDirection: .ltr)
+                                t.layout(minWidth: 0, maxWidth: 100_000)
+                                other = w0 - t.width
+                                t.dispose()
+                            }
+                            if w0 > 0.01 { st = base.copyWith(letterSpacing: (base.letterSpacing ?? 0) + (split.ems * px + other - w0) / Double(n)) }
+                        }
+                        spans.append(contentsOf: capped(w, run, st))
+                    }
+                    var k = start
+                    while k < end {
+                        if text[k] == " " || text[k] == "\u{00A0}" {
+                            putWord(wordStart, k)
+                            spans.append(contentsOf: capped(text[k ..< text.index(after: k)], run, base))
+                            wordStart = text.index(after: k)
+                        }
+                        k = text.index(after: k)
+                    }
+                    putWord(wordStart, end)
                     start = end
                     return
                 }
