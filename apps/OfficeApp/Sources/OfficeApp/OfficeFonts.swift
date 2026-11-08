@@ -3754,6 +3754,12 @@ enum OfficeFonts {
             face.otherAdvances = [0xA0: nbsp, 0x2032: 1, 0x2033: 1]
             face.boldOtherAdvances = [0xA0: nbsp, 0x2032: 1, 0x2033: 1]
         }
+        // Korean Batang and Dotum: a no-break space is half an em (b8f72871's
+        // Batang 10 pt "\u{A0}한글을" steps 5.0; ours 2.8 wrapped a word early).
+        if wordOnWindows, ["dotum", "돋움", "batang", "바탕"].contains(family.lowercased()) {
+            face.otherAdvances = (face.otherAdvances ?? [:]).merging([0xA0: 0.5]) { $1 }
+            face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging([0xA0: 0.5]) { $1 }
+        }
         // (Word for Windows sets the letters and digits an embedded subset
         // lacks in Calibri, at Calibri's widths, and those it holds in the
         // subset: zh-92373179's 仿宋_GB2312 holds four digits — its 155
