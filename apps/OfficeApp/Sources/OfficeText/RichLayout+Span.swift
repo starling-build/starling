@@ -50,6 +50,23 @@ extension RichLayout {
         "mangal": ["D": 1.096], "utsaah": ["D": 0.80], "kokila": ["D": 0.725], "aparajita": ["D": 0.942],
         "nirmala ui": ["D": 1.082, "B": 1.075, "T": 1.16, "P": 1.097, "G": 1.147],
         "raavi": ["P": 1.084], "shruti": ["G": 1.153], "gautami": ["T": 0.964], "vrinda": ["B": 0.907], "shonar bangla": ["B": 0.716]]
+    /// A Telugu word's style with the letter spacing that lands its width on Nirmala UI's cluster advances (`TeluguAdvances`); a cluster the
+    /// table lacks keeps the stand-in's own scaled width.
+    @inline(never)
+    func _teluguWordStyle(_ w: Substring, _ base: TextStyle) -> TextStyle {
+        guard let px = base.fontSize, px > 0.5, let split = TeluguAdvances.split(w) else { return base }
+        func measure(_ s: String, _ ls: Double) -> Double {
+            let t = TextPainter(text: TextSpan(text: s, style: base.copyWith(letterSpacing: ls)), textDirection: .ltr)
+            t.layout(minWidth: 0, maxWidth: 100_000)
+            defer { t.dispose() }
+            return t.width
+        }
+        let w0 = measure(String(w), 0)
+        guard w0 > 0.01 else { return base }
+        let n = max(1, Int((measure(String(w), 10) - w0) / 10 + 0.5))
+        let other = split.rest ? w0 - measure(split.known, 0) : 0
+        return base.copyWith(letterSpacing: (base.letterSpacing ?? 0) + (split.ems * px + other - w0) / Double(n))
+    }
     /// An empty paragraph whose mark is a complex-script one (`w:cs`) in Mangal (Kalimati, which Windows lacks, is drawn in it) is a Mangal line,
     /// 1.68 em: dx2 54d1d1d1's blank cell paragraphs, 11 pt marks, step 18.5 in Word's print against 15.9 in the stand-in's.
     @inline(never)
@@ -1052,6 +1069,23 @@ extension RichLayout {
                 }
                 // (A Tamil run whose complex face Windows lacks (Arial Unicode MS): its Latin, digits and punctuation Word draws in Leelawadee UI.)
                 let leelawadeeLatin = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
+                if kind >= 0, indic?.face == "nirmala ui", run.bold == false, !((named?.char.bold ?? false) && !run.off.contains(.bold)),
+                   text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0xC15 && $0.value <= 0xC39 }), !text[start ..< end].unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) {
+                    // (Telugu, word by word, at Nirmala UI's cluster advances: `TeluguAdvances`.)
+                    let base = style(kind)
+                    var wordStart = start, k = start
+                    while k < end {
+                        if text[k] == " " || text[k] == "\u{00A0}" {
+                            if wordStart < k { spans.append(contentsOf: capped(text[wordStart ..< k], run, _teluguWordStyle(text[wordStart ..< k], base))) }
+                            spans.append(contentsOf: capped(text[k ..< text.index(after: k)], run, base))
+                            wordStart = text.index(after: k)
+                        }
+                        k = text.index(after: k)
+                    }
+                    if wordStart < end { spans.append(contentsOf: capped(text[wordStart ..< end], run, _teluguWordStyle(text[wordStart ..< end], base))) }
+                    start = end
+                    return
+                }
                 if kind >= 0, indic?.face == "nirmala ui" || indic?.face == "vijaya", text[start ..< end].unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) {
                     // (Tamil, word by word, at the widths of Nirmala UI's code points: `TamilAdvances`.)
                     let base = style(kind)
