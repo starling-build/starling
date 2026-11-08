@@ -878,7 +878,14 @@ public final class RichTextTheme {
                 // up; the engine kerns every pair. Bug59058's caption in
                 // Times New Roman bold, kerned, fitted "State," on a line
                 // Word's unkerned "Women by" filled ("Wo" alone 0.67pt).
-                if wordRules, !((style.kerningFrom ?? named?.char.kerningFrom ?? normal?.kerningFrom).map { $0 > 0 && size >= $0 } ?? false) {
+                // (MS Mincho, Gothic and their P faces carry no kern pairs: the Noto stand-in's kana pairs
+                // (ア before イ, 0.81 pt at 9 pt) shortened cab6d785's cell line, which then held a character
+                // more than Word's.)
+                let msJapanese = wordRules && RichTextTheme.wordWindowsPages && (familyName.map { n in
+                    let l = n.lowercased()
+                    return ["ms mincho", "ms pmincho", "ms gothic", "ms pgothic", "ｍｓ 明朝", "ｍｓ ｐ明朝", "ｍｓ ゴシック", "ｍｓ ｐゴシック"].contains { l.containsSubstring($0) }
+                } ?? false)
+                if wordRules, msJapanese || !((style.kerningFrom ?? named?.char.kerningFrom ?? normal?.kerningFrom).map { $0 > 0 && size >= $0 } ?? false) {
                     features.append(FontFeature("kern", 0))
                 } else if kernsByRun, let from = style.kerningFrom ?? named?.char.kerningFrom ?? normal?.kerningFrom,
                           !(from > 0 && size >= from) {
