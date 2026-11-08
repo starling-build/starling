@@ -1612,7 +1612,9 @@ extension RichLayout {
     /// text — kept together, the engine breaking one longer than a line
     /// where it fills. Empty where the document does not say so.
     static func _hanJoins(_ p: RichParagraph, _ document: RichDocument, fitChars: Int = Int.max) -> Set<Int> {
-        guard RichTextTheme.wordWindowsPages, document.joinsHanAfterSpace else { return [] }
+        guard RichTextTheme.wordWindowsPages else { return [] }
+        let fitJoined = _fitTextJoins(p)
+        guard document.joinsHanAfterSpace else { return fitJoined }
         let units = Array(p.text.utf16)
         func blank(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || u == 0x0A || u == 0x09 }
         var joins: Set<Int> = []
@@ -1634,6 +1636,25 @@ extension RichLayout {
             // breaks before it, not inside.)
             if han, !kana || end - start <= fitChars { for o in (start + 1) ..< max(start + 1, end) { joins.insert(o) } }
             k = max(end, start)
+        }
+        return joins.union(fitJoined)
+    }
+
+    /// The offsets inside a `w:fitText` group (consecutive runs of one id): Word
+    /// does not part a fitted group (9ba34429's "1学年" cell, 17.95pt of room for
+    /// a group fitted to 18pt, stays one line in Word's print; ours wrapped the 年).
+    @inline(never) static func _fitTextJoins(_ p: RichParagraph) -> Set<Int> {
+        var joins: Set<Int> = []
+        var at = 0
+        var previousId: String? = nil
+        for r in p.runs {
+            let id = _fitText(r.style.keptXML)?.id
+            if let id, r.length > 0 {
+                let from = id == previousId ? at : at + 1
+                if from < at + r.length { for o in from ..< (at + r.length) { joins.insert(o) } }
+            }
+            if r.length > 0 { previousId = id }
+            at += r.length
         }
         return joins
     }

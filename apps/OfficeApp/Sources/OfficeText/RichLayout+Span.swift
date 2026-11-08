@@ -2299,7 +2299,7 @@ extension RichLayout {
                             // lab asp's line took its character a step late.)
                             ? (em + _px(grid ?? 0) + spacing) / 4
                             : RichTextTheme.wordWindowsPages && ch.isNumber && ch.isASCII && following.isASCII == false
-                            ? (2 * (theme.averageCharWidth?(latin) ?? 0.5) * (em + _px(grid ?? 0)) + spacing) / 4
+                            ? (2 * (theme.averageCharWidth?(latin) ?? 0.5) * (em + _px(grid ?? 0)) + spacing) / 4 * wScale
                             : ((0.5 + (theme.averageCharWidth?(latin) ?? 0.5)) * (em + _px(grid ?? 0)) + spacing) / 4
                         // (Twice inside text ruled round where the widths are
                         // balanced: labs `ap1`–`ap4`, zh-06c46ba9's boxed

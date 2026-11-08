@@ -549,6 +549,12 @@ extension RichLayout {
             if theme.wordRules, c.span == 1, document.tableStyles[c.table]?.noWrapColumns.contains(c.column) == true {
                 textWidth = max(textWidth, _maxContent(i, p, document) + 1)
             }
+            // (A cell whose text is one fitted group (`w:fitText`) keeps it on its line when the group is a hair wider than the cell:
+            // 9ba34429's "1学年", 18pt in 17.95pt, one line in Word's print.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, let fit = Self._fitTextOverflow(p), fit.groupPoints > 0 {
+                let want = _px(fit.groupPoints)
+                if want > textWidth, want - textWidth < _px(1.5) { textWidth = want }
+            }
             if c.textDirection != .horizontal {
                 // Turned text runs along the row's height, which the row's
                 // other cells decide: laid out provisionally at the rows'
@@ -3281,6 +3287,17 @@ extension RichLayout {
             }
         }
         _topsValid = false
+    }
+
+    /// The width (points) of a paragraph that is a single `w:fitText` group, nil otherwise.
+    @inline(never) static func _fitTextOverflow(_ p: RichParagraph) -> (groupPoints: Double, id: String)? {
+        var found: (points: Double, id: String)? = nil
+        for r in p.runs where r.length > 0 {
+            guard let f = _fitText(r.style.keptXML), found == nil || found?.id == f.id else { return nil }
+            found = f
+        }
+        guard let f = found else { return nil }
+        return (f.points, f.id)
     }
 
     static func _picturesAndTabs(_ p: RichParagraph) -> Bool {
