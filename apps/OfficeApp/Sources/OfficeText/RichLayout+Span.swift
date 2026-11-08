@@ -53,7 +53,7 @@ extension RichLayout {
     /// Devanagari, Bengali, Gurmukhi, Gujarati and Telugu.
     static let _indic = IndicScripts()
     /// Word's space advance (em) where it differs much from the stand-in's: Mangal. (Kokila 0.193 and Shonar Bangla 0.207 at their real width made dx2 hi/bn worse: their scales were fitted with the gap.)
-    static let _indicSpace: [String: Double] = ["mangal": 0.5]
+    static let _indicSpace: [String: Double] = ["mangal": 0.5, "vrinda": 0.598]
     struct IndicScripts {
         func contains(_ u: UInt32) -> Bool { (0x0900 ... 0x0AFF).contains(u) || (0x0C00 ... 0x0C7F).contains(u) }
     }
@@ -1069,7 +1069,7 @@ extension RichLayout {
                     start = end
                     return
                 }
-                if kind >= 0, let face = indic?.face, let spaceEm = Self._indicSpace[face], let px = style(kind).fontSize, px > 0.5,
+                if kind >= 0, let face = indic?.face, let spaceEm = (face == "vrinda" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? 0.3125 : Self._indicSpace[face], let px = style(kind).fontSize, px > 0.5,
                    text[start ..< end].contains(Character(" ")) || text[start ..< end].contains(Character("\u{00A0}")) {
                     // (Word's space is the face's own: Mangal 0.5 em against the stand-in's 0.26; the prints' gap between words, 5.5 pt against our 3.5 at 11 pt.)
                     let base = style(kind)
