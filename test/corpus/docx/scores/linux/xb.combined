@@ -1,4 +1,4 @@
-188 documents: COMBINED mean 56.13% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 56.13% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
+188 documents: COMBINED mean 57.00% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 57.00% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
   11.9%  lines 370/368  pages 13/13  ara-z10840115-a1e854
    2.1%  lines 664/802  pages 27/26  ara-z11030406-663296
   13.5%  lines 111/112  pages 8/8  ara-z15699863-842f1e
@@ -21,28 +21,28 @@
  100.0%  lines 125/125  pages 4/4  bul-z14225469-9d8b52
  100.0%  lines 139/139  pages 4/4  bul-z22116004-d3c1d3
  100.0%  lines 72/72  pages 2/2  deu-z4548799-c5d058
-  88.9%  lines 226/220  pages 13/13  docx-33355364
-  88.9%  lines 226/220  pages 13/13  docx-35fcd124
-  89.1%  lines 229/223  pages 14/14  docx-3e5af46a
-  77.4%  lines 226/220  pages 13/13  docx-46bc4851
-  89.1%  lines 229/223  pages 14/14  docx-5c013902
-  41.8%  lines 1045/1047  pages 22/22  docx-5dc87fc7
-  89.1%  lines 229/223  pages 14/14  docx-69a87cfd
+  91.6%  lines 226/221  pages 13/13  docx-33355364
+  91.6%  lines 226/221  pages 13/13  docx-35fcd124
+  91.7%  lines 229/224  pages 14/14  docx-3e5af46a
+  80.1%  lines 226/221  pages 13/13  docx-46bc4851
+  91.7%  lines 229/224  pages 14/14  docx-5c013902
+  41.9%  lines 1045/1047  pages 22/22  docx-5dc87fc7
+  91.7%  lines 229/224  pages 14/14  docx-69a87cfd
   82.5%  lines 361/361  pages 13/13  docx-6f1caa1e
   30.3%  lines 33/35  pages 1/1  docx-79737edb
   92.0%  lines 226/221  pages 13/13  docx-7e68ac6f
   51.7%  lines 29/27  pages 6/6  docx-837e72c4
-  60.2%  lines 226/220  pages 13/13  docx-8f1703b9
-  88.9%  lines 226/228  pages 13/13  docx-9776508d
+  62.8%  lines 226/221  pages 13/13  docx-8f1703b9
+  91.6%  lines 226/229  pages 13/13  docx-9776508d
   63.3%  lines 229/232  pages 14/14  docx-a3f77cda
   75.2%  lines 125/121  pages 16/16  docx-a567c5c2
-  88.9%  lines 226/220  pages 13/13  docx-aab66635
-  88.9%  lines 226/220  pages 13/13  docx-b5656ae8
-  89.1%  lines 229/223  pages 14/14  docx-bcd80994
+  91.6%  lines 226/221  pages 13/13  docx-aab66635
+  91.6%  lines 226/221  pages 13/13  docx-b5656ae8
+  91.7%  lines 229/224  pages 14/14  docx-bcd80994
   60.6%  lines 485/466  pages 19/19  docx-bff1c672
-  89.1%  lines 229/223  pages 14/14  docx-d350f8c0
+  91.7%  lines 229/224  pages 14/14  docx-d350f8c0
   78.4%  lines 51/51  pages 8/8  docx-e925ae95
-  89.1%  lines 229/223  pages 14/14  docx-f32aa559
+  91.7%  lines 229/224  pages 14/14  docx-f32aa559
   10.0%  lines 20/20  pages 1/1  docx-f3550c7b
   94.1%  lines 17/17  pages 1/1  docx4j-198f9895
   68.1%  lines 119/114  pages 4/4  docx4j-1e349e20
@@ -148,20 +148,20 @@
   14.2%  lines 332/313  pages 13/13  jpn-z23845932-12d9fb
   92.1%  lines 38/38  pages 2/2  kor-z15281292-55c83c
   98.2%  lines 110/110  pages 8/8  kor-z15852510-4e5851
-  61.5%  lines 91/91  pages 7/7  kor-z15852510-c9baf7
+  91.2%  lines 91/91  pages 7/7  kor-z15852510-c9baf7
   99.0%  lines 519/519  pages 21/21  kor-z17264683-7d8a4b
   98.9%  lines 755/755  pages 37/37  kor-z17491512-222f3f
-  61.7%  lines 1062/1065  pages 35/35  kor-z19176375-004d7a
-  76.9%  lines 667/664  pages 34/34  kor-z19176375-30dbe1
+  34.5%  lines 1062/1061  pages 35/34  kor-z19176375-004d7a
+  77.1%  lines 667/664  pages 34/34  kor-z19176375-30dbe1
    2.2%  lines 180/185  pages 7/7  kor-z19581051-22de7d
-  71.1%  lines 478/478  pages 13/13  kor-z20746312-59e77f
+  96.0%  lines 478/479  pages 13/13  kor-z20746312-59e77f
   97.1%  lines 242/242  pages 9/9  kor-z21348848-7369b1
   16.9%  lines 59/60  pages 3/3  kor-z21348848-b4a883
  100.0%  lines 286/286  pages 8/8  kor-z21941126-2a59fd
-   0.0%  lines 245/238  pages 8/10  kor-z21941126-9b36b8
-  23.3%  lines 408/400  pages 14/14  kor-z22076349-aa9a7f
-  91.7%  lines 303/301  pages 13/13  kor-z22157092-bb30b1
-  73.3%  lines 794/792  pages 35/35  kor-z23132029-ff493b
+   0.0%  lines 245/245  pages 8/10  kor-z21941126-9b36b8
+  98.5%  lines 408/408  pages 14/14  kor-z22076349-aa9a7f
+  96.7%  lines 303/303  pages 13/13  kor-z22157092-bb30b1
+  93.2%  lines 794/794  pages 35/35  kor-z23132029-ff493b
  100.0%  lines 122/122  pages 5/5  kor-z5039621-e62ab8
   14.1%  lines 149/147  pages 5/5  mar-z19707447-f8dac9
   64.1%  lines 181/187  pages 9/9  nld-z22251521-8c1881

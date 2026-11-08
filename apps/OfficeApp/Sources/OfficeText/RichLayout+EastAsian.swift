@@ -166,6 +166,7 @@ extension RichLayout {
             let hint = style.fontHint ?? lineStyle?.char.fontHint
             return hint == "eastAsia" || (face?.isEastAsian ?? false) && (hint != "default" || (high?.isEastAsian ?? true))
         }
+        let hangulJoins = Self._hangulJoins(p, inserts: inserts, units: units, wordRules: wordRules)
         let breakBefore = Set(inserts.filter { o in
             guard o > 0, o < units.count, !hanJoins.contains(o), let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
             // (But not an opening mark at a line's end, either way: Word
@@ -357,7 +358,7 @@ extension RichLayout {
                last == a || (g.last == g.b && Self._glued(units[g.b - 1], units[a])) || (opens && last > a) || (closesAfterSpaces && last > a)
                 || (wordRules && g.b >= 2 && units[g.b - 1] == 0x2014 && units[a] >= 0x30 && units[a] <= 0x39 && Self._closingUnits.contains(units[g.b - 2]))
                 || (RichTextTheme.wordWindowsPages && p.style.rightToLeft && g.last == g.b && a > 0 && units[a - 1] >= 0x0620 && units[a - 1] <= 0x06FF && units[a] >= 0x0620 && units[a] <= 0x06FF)
-                || hanJoins.contains(a) || (thaiJoins.contains(a) && a > 0 && thaiLetter(units[a - 1]) && thaiLetter(units[a])) {
+                || hanJoins.contains(a) || hangulJoins.contains(a) || (thaiJoins.contains(a) && a > 0 && thaiLetter(units[a - 1]) && thaiLetter(units[a])) {
                 if (opens || closesAfterSpaces) && last > a { g.w += g.trail; g.trail = 0 }
                 g.w += lineWidth
                 g.b = b
@@ -752,6 +753,8 @@ extension RichLayout {
                     || units[tail] == 0x2C && RichTextTheme.wordWindowsPages && tail > 0 && units[tail - 1] >= 0x2E80
                     || macThai || macComma
                     || document.hangsLatinStops && RichTextTheme.wordWindowsPages && legacy && (units[tail] == 0x2E || units[tail] == 0x2C)
+                    // (A Korean word's own stop hangs: ecc32adb's "…포함된다." ends past the margin, the word whole.)
+                    || RichTextTheme.wordWindowsPages && wordRules && (units[tail] == 0x2E || units[tail] == 0x2C) && tail > 0 && units[tail - 1] >= 0xAC00 && units[tail - 1] <= 0xD7A3
                 // (Before Word 2013's layout, in a document that compresses
                 // punctuation, Taiwan's centred marks give nothing at a
                 // line's end to be taken, and the paragraph's own last one
@@ -2938,6 +2941,16 @@ extension RichLayout {
 
     /// Word's Korean word, whole between spaces: two Hangul syllables, or a syllable beside an ASCII mark, a quote or
     /// a middle dot with no space between (004d7a's "영역(박스)을" went to the next line whole).
+    /// Boundaries where `_span` holds a Korean word whole (the zero-width joiner it inserts): the fitter's
+    /// pieces must not part there either, or it models breaks the painter never makes.
+    @inline(never)
+    static func _hangulJoins(_ p: RichParagraph, inserts: [Int], units: [UInt16], wordRules: Bool) -> Set<Int> {
+        guard wordRules, RichTextTheme.wordWindowsPages, p.style.eastAsian["w:wordWrap"] != "0" else { return [] }
+        var out = Set<Int>()
+        for o in inserts where o > 0 && o < units.count && _hangulHeldPair(UInt32(units[o - 1]), UInt32(units[o])) { out.insert(o) }
+        return out
+    }
+
     static func _hangulHeldPair(_ a: UInt32, _ b: UInt32) -> Bool {
         func hangul(_ v: UInt32) -> Bool { v >= 0xAC00 && v <= 0xD7A3 }
         func mark(_ v: UInt32) -> Bool { (v > 0x20 && v < 0x30) || (v >= 0x3A && v < 0x41) || v == 0x5B || v == 0x5D || v == 0x7B || v == 0x7D || (v >= 0x2018 && v <= 0x201D) || v == 0xB7 }
