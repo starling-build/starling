@@ -355,7 +355,7 @@ extension RichLayout {
             let closesAfterSpaces = wordRules && document.usesEastAsianLayout && !kinsokuOff && !runRulesOff(a) && a < units.count
                 && Self._closingMarks.contains(Character(Unicode.Scalar(units[a])!)) && pieces.last.map { $0.last < $0.b && $0.last > $0.a && units[$0.b - 1] == 0x20 } == true
             if var g = pieces.last, !g.hard, g.b == a, g.b > g.a, !breakBefore.contains(a),
-               last == a || (g.last == g.b && Self._glued(units[g.b - 1], units[a])) || (opens && last > a) || (closesAfterSpaces && last > a)
+               last == a || (g.last == g.b && Self._glued(units[g.b - 1], units[a]) && !(squeezesPauseRule && (units[a] == 0x3001 || units[a] == 0x3002) && !Self._closingUnits.contains(units[g.b - 1]))) || (opens && last > a) || (closesAfterSpaces && last > a)
                 || (wordRules && g.b >= 2 && units[g.b - 1] == 0x2014 && units[a] >= 0x30 && units[a] <= 0x39 && Self._closingUnits.contains(units[g.b - 2]))
                 || (RichTextTheme.wordWindowsPages && p.style.rightToLeft && g.last == g.b && a > 0 && units[a - 1] >= 0x0620 && units[a - 1] <= 0x06FF && units[a] >= 0x0620 && units[a] <= 0x06FF)
                 || hanJoins.contains(a) || hangulJoins.contains(a) || (thaiJoins.contains(a) && a > 0 && thaiLetter(units[a - 1]) && thaiLetter(units[a])) {
@@ -850,6 +850,10 @@ extension RichLayout {
                          && !Self._pauseMarks.contains(units[tail]) && units[tail] != 0xFF0E)
                     && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf || macComma || halfStop)
                     && !runRulesOff(tail) && !afterLatin
+                    // (Nor a 、 or 。 with text after it where the pause rule holds: lab `sqreal`
+                    // (jpn-z19433747's abstract, 65 right indents in 0.25pt steps) opens the next
+                    // line with it at every indent, where it would hang 4.7 to 7.7 pt over.)
+                    && !(squeezesPauseRule && !paragraphEnd && (units[tail] == 0x3001 || units[tail] == 0x3002))
                     // (Nor a full-width percent sign in Taiwan's Chinese, whose own list leaves it out
                     // of what may not start a line: it is no closing mark there, and does not hang.
                     // zh-ab9cbe66's "…分署25％(不含)－55％(含)" sends "％(含)" down in Word's print

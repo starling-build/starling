@@ -195,6 +195,7 @@ extension RichLayout {
         // carries it over: zh-799c91cd's "各執1份為憑" and the "。" alone
         // under it, whose page 2 then ran a line long.)
         let kinsokuOff = theme.wordRules && p.style.eastAsian["w:kinsoku"] == "0"
+        let pausesOpenLines = RichTextTheme.wordWindowsPages && theme.wordRules && (document.compatibilityMode ?? 12) >= 15 && document.lineGridPitch != nil && document.marksSitLeft && p.text.unicodeScalars.contains(where: { $0.value >= 0x3040 && $0.value <= 0x30FF })
         // (Not only under `w:useFELayout`: zh-202582e2's settings lack it,
         // and its “综合验一次” in YaHei for FangSong_GB2312 is an em a
         // quote in Word's print, where ours set YaHei's own 0.38 em and its
@@ -1748,6 +1749,12 @@ extension RichLayout {
                     // two characters behind.)
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if pausesOpenLines, ch == "\u{3001}" || ch == "\u{3002}", let b = before, !Self._closingMarks.contains(b) {
+                    // (Where the pause rule holds Word opens a line with 、 or 。 rather than
+                    // hang it or carry the character before it down: lab `sqreal`.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
                     inserts.append(offset)
                 } else if (kinsokuOff || (RichTextTheme.wordWindowsPages && theme.wordRules && document.defaultLangXML == nil && document.eastAsianDefaultFaceIsLatin && !document.bodyStatesLang)) && !breaksAtQuotes, let b = before,
                           Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)
