@@ -51,9 +51,15 @@ esac
 # xb: the admitted batch-B documents that have a Windows print (interim set before the corpus swap; lives in the cache,
 # not in git: $STARLING_CORPUS/staging/xb/{docs,word-win}, stems listed in test/corpus/docx/xb/manifest.tsv)
 corpus() { case $1 in 756) echo "$ROOT/test/corpus/docx";; lo) echo "$ROOT/test/corpus/docx/lo";; xb|xa|xd|xs|dx2) echo "${STARLING_CORPUS:-/data/corpus-cache}/staging/$1";; esac; }
-# base_ok SET FILE — stored/cached base scores usable for the set? xb's membership has changed (a base with another
-# number of rows than the set has prints would show every new document as missing), so its row count must match.
-base_ok() { case "$1" in xb|xa|xd|xs|dx2) ;; *) return 0;; esac; local C n; C=$(corpus "$1"); n=$(ls "$C"/word-win/*-orig.pdf 2>/dev/null | wc -l)
+# refhash SET — one hash of the set's Word reference PDFs (names + contents): the code STAMP does not cover them, so
+# a print swap would leave stored scores that look valid. Stored beside the scores as REFS ("<set> <hash>" lines).
+refhash() { local C; C=$(corpus "$1"); ( cd "$C/word-win" 2>/dev/null && ls *.pdf 2>/dev/null | LC_ALL=C sort | while IFS= read -r f; do printf '%s ' "$f"; sha256sum < "$f" | cut -c1-64; done | sha256sum | cut -c1-32 ); }
+# base_ok SET FILE REFSFILE — stored/cached base scores usable for the set? (1) the references they were scored against
+# are the ones on disk now (REFSFILE has a line for the set with the current refhash), and (2) for the cache-resident sets
+# (xb xa xd xs dx2) the row count matches the number of prints (membership can change).
+base_ok() { local want have; want=$(refhash "$1"); have=$(awk -v s="$1" '$1==s{print $2}' "$3" 2>/dev/null)
+  [ -n "$want" ] && [ "$want" = "$have" ] || return 1
+  case "$1" in xb|xa|xd|xs|dx2) ;; *) return 0;; esac; local C n; C=$(corpus "$1"); n=$(ls "$C"/word-win/*-orig.pdf 2>/dev/null | wc -l)
   [ "$(grep -c '%  lines ' "$2" 2>/dev/null)" = "$n" ]; }
 # sweep BIN WORK SET → WORK/match-v2.txt, match-v1.txt
 sweep() {
@@ -109,10 +115,10 @@ have=$(git show "$BASE_REV:$STORED/STAMP" 2>/dev/null || true)
 if [ $SEED = 0 ] && [ -n "${BASE_SCORES:-}" ]; then
   # BASE_SCORES: a directory holding <set>.{v2,v1} of the base — the shared base cache (test/tools/base-cache.sh)
   echo "base: scores from $BASE_SCORES (shared cache) — base sweep skipped"
-  for S in $SETS; do if [ -s "$BASE_SCORES/$S.v2" ] && base_ok $S "$BASE_SCORES/$S.v2"; then for v in v2 v1; do cp "$BASE_SCORES/$S.$v" "$BASE/$S.$v" || exit 2; done; else NEEDBASE="$NEEDBASE $S"; fi; done
+  for S in $SETS; do if [ -s "$BASE_SCORES/$S.v2" ] && base_ok $S "$BASE_SCORES/$S.v2" "$BASE_SCORES/REFS"; then for v in v2 v1; do cp "$BASE_SCORES/$S.$v" "$BASE/$S.$v" || exit 2; done; else NEEDBASE="$NEEDBASE $S"; fi; done
 elif [ $SEED = 0 ] && [ "$want" = "$have" ]; then
   echo "base: stored scores of $HOST match $BASE_REV's stamp — base sweep skipped"
-  for S in $SETS; do if git cat-file -e "$BASE_REV:$STORED/$S.v2" 2>/dev/null && { git show "$BASE_REV:$STORED/$S.v2" > "$BASE/$S.v2"; base_ok $S "$BASE/$S.v2"; }; then git show "$BASE_REV:$STORED/$S.v1" > "$BASE/$S.v1"; else NEEDBASE="$NEEDBASE $S"; fi; done
+  for S in $SETS; do if git cat-file -e "$BASE_REV:$STORED/$S.v2" 2>/dev/null && { git show "$BASE_REV:$STORED/$S.v2" > "$BASE/$S.v2"; git show "$BASE_REV:$STORED/REFS" > "$BASE/REFS.stored" 2>/dev/null; base_ok $S "$BASE/$S.v2" "$BASE/REFS.stored"; }; then git show "$BASE_REV:$STORED/$S.v1" > "$BASE/$S.v1"; else NEEDBASE="$NEEDBASE $S"; fi; done
 elif [ $SEED = 0 ]; then
   echo "base: no stored scores for $HOST at $BASE_REV's stamp (stored: $( [ -n "$have" ] && echo different || echo none )) — sweeping BASEBIN"
   # (swept beside the fix below, not before it: both are waited for together)
@@ -137,6 +143,7 @@ for S in $SETS; do
 done
 for S in $SETS; do vis_side $S "$STAGE/work/fix-$S" "$FIX/$S.v2" "$FIX" fix || { echo "ABORT: visual scoring (fix, $S)" >&2; exit 1; }; done
 test/tools/stamp.sh $INPUTS > "$FIX/STAMP"
+for S in $SETS; do echo "$S $(refhash $S)"; done > "$FIX/REFS"
 if [ $SEED = 1 ]; then echo "seed written to $FIX (cp $FIX/* $STORED/)"; exit 0; fi
 # movers (and the nondeterministic ones)
 for S in $SETS; do for v in v2 v1; do

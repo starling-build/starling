@@ -19,7 +19,7 @@ case ${1:-} in
   get) [ -f "$C/$2/DONE" ] && { touch "$C/$2"; echo "$C/$2"; } || exit 1;;
   put) [ -f "$C/$2/DONE" ] && exit 0
        T=$(mktemp -d "$C/.tmp.XXXXXX") || exit 1
-       mkdir "$T/bin" "$T/scores" && cp -a "$3"/. "$T/bin/" && cp "$4"/756.v2 "$4"/756.v1 "$4"/lo.v2 "$4"/lo.v1 "$T/scores/" && { for f in "$4"/xb.v2 "$4"/xb.v1 "$4"/xa.v2 "$4"/xa.v1 "$4"/xd.v2 "$4"/xd.v1 "$4"/xs.v2 "$4"/xs.v1; do [ -s "$f" ] && cp "$f" "$T/scores/"; done; true; } || { rm -rf "$T"; exit 1; }
+       mkdir "$T/bin" "$T/scores" && cp -a "$3"/. "$T/bin/" && cp "$4"/756.v2 "$4"/756.v1 "$4"/lo.v2 "$4"/lo.v1 "$T/scores/" && { for f in "$4"/xb.v2 "$4"/xb.v1 "$4"/xa.v2 "$4"/xa.v1 "$4"/xd.v2 "$4"/xd.v1 "$4"/xs.v2 "$4"/xs.v1 "$4"/REFS; do [ -s "$f" ] && cp "$f" "$T/scores/"; done; true; } || { rm -rf "$T"; exit 1; }
        : > "$T/DONE"; chmod -R a+rX "$T"
        mv -T "$T" "$C/$2" 2>/dev/null || rm -rf "$T";;
   prune) N=${2:-12}; ls -dt "$C"/*/ 2>/dev/null | tail -n +$((N+1)) | while read -r d; do rm -rf "$d"; done;;
