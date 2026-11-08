@@ -3863,8 +3863,14 @@ enum DocxFormat {
         guard compact.lowercased().hasPrefix("eq\\o\\ac("), compact.hasSuffix(")") else { return nil }
         let inner = compact.dropFirst("eq\\o\\ac(".count).dropLast()
         let parts = inner.split(separator: ",", omittingEmptySubsequences: false)
-        guard parts.count == 2, ["○", "◯"].contains(String(parts[0])), let n = Int(parts[1]), (1 ... 20).contains(n),
-              let u = Unicode.Scalar(0x2460 + n - 1) else { return nil }
+        guard parts.count == 2, ["○", "◯"].contains(String(parts[0])) else { return nil }
+        // (Not a number to ring, `eq \o\ac(○,예)`: Word still sets the ring an em wide and
+        // overlays the other character at 8 pt on it. We keep the ring, so the line takes its
+        // width; 6a68f6ca's four fields had been dropped and its pages ran 9.5 against 86.9.)
+        guard let n = Int(parts[1]), (1 ... 20).contains(n), let u = Unicode.Scalar(0x2460 + n - 1) else {
+            RuleTrace.hit("eq-overstrike-keeps-its-ring")
+            return String(parts[0])
+        }
         return String(Character(u))
     }
 
@@ -6726,7 +6732,9 @@ enum DocxFormat {
                             if !shownText.isEmpty { addText(shownText, shown) }
                         }
                         if let f = notes.fields.last, !f.result, let ringed = DocxFormat._ringedNumber(f.instr) {
-                            var shown = cs
+                            // (The kept ring of an overstrike takes the code's own run style, 12 pt here,
+                            // not the closing marker's bare one.)
+                            var shown = ringed.unicodeScalars.first.map { (0x2460 ... 0x2473).contains($0.value) } == true ? cs : (notes.fieldCodeStyle[f.id] ?? cs)
                             shown.field = f.instr.trimmingWhitespace(newlines: true)
                             addText(ringed, shown)
                         }
