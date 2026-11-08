@@ -759,6 +759,11 @@ extension RichLayout {
             // (Kokila as the run's Latin face too: only then are its Latin, digits and space, and its line, Kokila's; with another Latin face
             // (cbb7ae39: Times New Roman beside a Kokila complex face) the Latin keeps that face.)
             let kokilaLatin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "kokila"
+            // (Nikosh, which Windows lacks and its font table gives no alternate: Word draws its Latin, digits and marks in Mangal, and a line
+            // holding any such visible character takes Mangal's 1.68 em, 18.5 pt at 11 on the lab nikosh1 (cases C-J), where Bengali with
+            // spaces alone sets Nirmala UI's 14.6; bede0fbc and 2263e221.)
+            let nikoshLatin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "nikosh"
+            func nikoshVisible(_ t: Substring) -> Bool { t.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 }) }
             let utsaahLatin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "utsaah"
             let indic: (face: String, scale: Double)? = {
                 guard theme.wordRules, RichTextTheme.wordWindowsPages else { return nil }
@@ -783,6 +788,10 @@ extension RichLayout {
                     if kokilaLatin,
                        (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "kokila" {
                         return ("kokila", 1)
+                    }
+                    if nikoshLatin, nikoshVisible(text[...]) {
+                        RuleTrace.hit("word-nikosh-latin-run-is-mangal")
+                        return ("mangal", 1)
                     }
                     if utsaahLatin,
                        (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "utsaah" {
@@ -833,7 +842,7 @@ extension RichLayout {
                 if kind >= 0, let indic, indic.scale != 1 { s = s.copyWith(scaleX: indic.scale) }
                 // (The run's own line is the face's, not the stand-in's, where the face's is the shorter: Aparajita's 1.18 em (a516bfe9: 2.7 to 92.9) where Noto
                 // Sans Devanagari's is taller; the joiner above only raises a line.)
-                if kind >= 0, let indic, (indic.face == "kokila" && kokilaLatin) || (indic.face == "utsaah" && utsaahLatin) || indic.face == "vijaya" || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
+                if kind >= 0, let indic, (indic.face == "kokila" && kokilaLatin) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "mangal" && nikoshLatin) || indic.face == "vijaya" || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
                     // (Kokila's line: its own ascent and descent, above and below the baseline, for every run on the line: the stand-ins'
                     // (Carlito's, Noto's) are taller above and set the line 2-3 pt low and 1.4 pt per line too far apart.)
                     let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
@@ -1174,8 +1183,13 @@ extension RichLayout {
                     // and marks between Nirmala UI's words are Arial's and carry no Nirmala line of their own.)
                     for (piece, isIndic) in Self._splitIndicLatin(text[start ..< end]) {
                         plainPiece = !isIndic
-                        let st = style(kind)
+                        var st = style(kind)
                         plainPiece = false
+                        if !isIndic, nikoshLatin, nikoshVisible(piece), let m = Self._indicLines["mangal"], let size = st.fontSize, size > 0.5 {
+                            RuleTrace.hit("word-nikosh-latin-piece-takes-mangal-line")
+                            let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
+                            st = st.copyWith(ascentOverride: m.0 * multiple * size, descentOverride: m.1 * multiple * size, height: (m.0 + m.1) * multiple, leadingDistribution: .even)
+                        }
                         spans.append(contentsOf: capped(piece, run, joinedScaled(piece, st)))
                     }
                     start = end
