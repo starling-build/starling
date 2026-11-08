@@ -1719,7 +1719,7 @@ extension RichLayout {
                 // grid stands.)
                 else if theme.wordRules, (a >= 0x3000 && Self._isLatinWordUnit(b)) || (Self._isLatinWordUnit(a) && b >= 0x3000),
                         Self._openingUnits.contains(a) || Self._openingUnits.contains(b) || Self._closingUnits.contains(a) { parts = true }
-                else { parts = !Self._glued(a, b) }
+                else { parts = !Self._glued(a, b, strict: Self._strictKinsoku(document)) }
                 if parts {
                     if start == 0 { first = piece(start, k) } else { m = max(m, piece(start, k)) }
                     start = k

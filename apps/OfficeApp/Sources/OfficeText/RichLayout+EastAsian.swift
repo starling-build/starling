@@ -355,7 +355,7 @@ extension RichLayout {
             let closesAfterSpaces = wordRules && document.usesEastAsianLayout && !kinsokuOff && !runRulesOff(a) && a < units.count
                 && Self._closingMarks.contains(Character(Unicode.Scalar(units[a])!)) && pieces.last.map { $0.last < $0.b && $0.last > $0.a && units[$0.b - 1] == 0x20 } == true
             if var g = pieces.last, !g.hard, g.b == a, g.b > g.a, !breakBefore.contains(a),
-               last == a || (g.last == g.b && Self._glued(units[g.b - 1], units[a]) && !(squeezesPauseRule && (units[a] == 0x3001 || units[a] == 0x3002) && !Self._closingUnits.contains(units[g.b - 1]))) || (opens && last > a) || (closesAfterSpaces && last > a)
+               last == a || (g.last == g.b && Self._glued(units[g.b - 1], units[a], strict: Self._strictKinsoku(document)) && !(squeezesPauseRule && (units[a] == 0x3001 || units[a] == 0x3002) && !Self._closingUnits.contains(units[g.b - 1]))) || (opens && last > a) || (closesAfterSpaces && last > a)
                 || (wordRules && g.b >= 2 && units[g.b - 1] == 0x2014 && units[a] >= 0x30 && units[a] <= 0x39 && Self._closingUnits.contains(units[g.b - 2]))
                 || (RichTextTheme.wordWindowsPages && p.style.rightToLeft && g.last == g.b && a > 0 && units[a - 1] >= 0x0620 && units[a - 1] <= 0x06FF && units[a] >= 0x0620 && units[a] <= 0x06FF)
                 || hanJoins.contains(a) || hangulJoins.contains(a) || (thaiJoins.contains(a) && a > 0 && thaiLetter(units[a - 1]) && thaiLetter(units[a])) {
@@ -2319,8 +2319,8 @@ extension RichLayout {
     /// meets): nothing parts a mark that may not start a line from what
     /// is before it, or one that may not end a line from what follows; a
     /// quotation mark from either side; the letters and digits of a word.
-    static func _glued(_ a: UInt16, _ b: UInt16) -> Bool {
-        if _noStart.contains(b) || _noEnd.contains(a) || _quotes.contains(a) || _quotes.contains(b) { return true }
+    static func _glued(_ a: UInt16, _ b: UInt16, strict: Bool = false) -> Bool {
+        if _noStart.contains(b) || strict && _smallKana.contains(b) || _noEnd.contains(a) || _quotes.contains(a) || _quotes.contains(b) { return true }
         if a == 0xA0 || b == 0xA0 { return true }
         // (Nor after a guillemet that opens, or before one that closes.)
         if a == 0xAB || b == 0xBB { return true }
@@ -2347,6 +2347,13 @@ extension RichLayout {
     /// (`_breaksBetween`): "×", "°" and the primes.
     static let _eastAsianSigns: Set<UInt16> = [0xD7, 0xB0, 0x2032, 0x2033, 0x2264, 0x2265]
     static func _isLatinWordUnit(_ u: UInt16) -> Bool { (u >= 0x30 && u <= 0x39) || (u >= 0x41 && u <= 0x5A) || (u >= 0x61 && u <= 0x7A) }
+    /// Small kana: barred from a line start only under strict kinsoku (`w:strictFirstAndLastChars`).
+    static let _smallKana = Set("ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ".utf16)
+    /// Whether the document asks for strict kinsoku.
+    @inline(never) static func _strictKinsoku(_ document: RichDocument) -> Bool {
+        guard let kept = document.keptSettings["w:strictFirstAndLastChars"] else { return false }
+        return !kept.containsSubstring("w:val=\"0\"") && !kept.containsSubstring("w:val=\"false\"")
+    }
     static let _noStart = _hangingUnits.subtracting("”’".utf16)
         .union(",.:;!?%)]}-/‰℃°…～·・ー々〃".utf16)
         // (Small kana may open a line: Word's standard Japanese level does not list them, as 20 of 77 ja-JP prints show
