@@ -2953,7 +2953,7 @@ extension RichLayout {
     }
 
     /// Word's Korean word, whole between spaces: two Hangul syllables, or a syllable beside an ASCII mark, a quote or
-    /// a middle dot with no space between (004d7a's "영역(박스)을" went to the next line whole).
+    /// a middle dot or a digit with no space between (dx2 20bb671d's "제1저자" and "10평점" went down whole; 004d7a's "영역(박스)을" went to the next line whole).
     /// Boundaries where `_span` holds a Korean word whole (the zero-width joiner it inserts): the fitter's
     /// pieces must not part there either, or it models breaks the painter never makes.
     @inline(never)
@@ -2989,7 +2989,7 @@ extension RichLayout {
 
     static func _hangulHeldPair(_ a: UInt32, _ b: UInt32) -> Bool {
         func hangul(_ v: UInt32) -> Bool { v >= 0xAC00 && v <= 0xD7A3 }
-        func mark(_ v: UInt32) -> Bool { (v > 0x20 && v < 0x30) || (v >= 0x3A && v < 0x41) || v == 0x5B || v == 0x5D || v == 0x7B || v == 0x7D || (v >= 0x2018 && v <= 0x201D) || v == 0xB7 }
+        func mark(_ v: UInt32) -> Bool { (v > 0x20 && v < 0x3A) || (v >= 0x3A && v < 0x41) || v == 0x5B || v == 0x5D || v == 0x7B || v == 0x7D || (v >= 0x2018 && v <= 0x201D) || v == 0xB7 }
         return (hangul(a) && (hangul(b) || mark(b))) || (mark(a) && hangul(b))
     }
 
