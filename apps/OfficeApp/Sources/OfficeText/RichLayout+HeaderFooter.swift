@@ -279,13 +279,12 @@ extension RichLayout {
     /// rightwards; reading down from the top-right, stacking leftwards.
     func _paintTextBox(_ inside: _HeaderFooter, _ text: RichTextBox, _ rect: Rect, _ canvas: any Canvas, clips: Bool = false) {
         canvas.save()
-        // (A box with all four insets zero (pleading-paper line numbers) keeps its clipped text in Word's PDF text layer: 4b49a5ee/60aa1e5d score higher uncut.)
         // (Text past a box that keeps its size and bands its page is not
         // shown: zh-6d402586's box of revision dates, 158pt tall, holds ten
         // of its fifteen dates in Word's print, the rest hidden under its
         // foot; ours ran them down over "一、前言". Not a box wrapped none:
         // zh-01071d55's header box shows its second line under its foot.)
-        if clips, !text.overflowVisible, text.insetTop + text.insetLeft + text.insetBottom + text.insetRight > 0, theme.wordRules, text.textDirection == .horizontal, !text.fitsText, !text.fitsHeight, !text.growsToFit, text.parts.isEmpty {
+        if clips, !text.overflowVisible, theme.wordRules, text.textDirection == .horizontal, !text.fitsText, !text.fitsHeight, !text.growsToFit, text.parts.isEmpty {
             canvas.clipRect(Rect.fromLTRB(rect.left - 1_000_000, rect.top - 1_000_000, rect.right + 1_000_000, rect.bottom),
                             clipOp: .intersect, doAntiAlias: false)
         }
