@@ -553,7 +553,7 @@ extension RichLayout {
             // 9ba34429's "1学年", 18pt in 17.95pt, one line in Word's print.)
             if theme.wordRules, RichTextTheme.wordWindowsPages, let fit = Self._fitTextOverflow(p), fit.groupPoints > 0 {
                 let want = _px(fit.groupPoints)
-                if want > textWidth, want - textWidth < _px(1.5) { textWidth = want }
+                if want > textWidth, want - textWidth < _px(8) { textWidth = want + _px(2.5) }
             }
             if c.textDirection != .horizontal {
                 // Turned text runs along the row's height, which the row's
