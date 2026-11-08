@@ -2358,9 +2358,12 @@ enum OfficeFonts {
         // each MS Gothic's square line, hhea .859 + .141 at Word's 1.3: jpn-z22855378's
         // 11pt 1.5-spaced lines on an 18pt line grid are 27.0 apart in word-win's print,
         // one pitch and a half, where YaHei's 1.715 em made them two pitches, 36.)
-        if wordOnWindows, has("ms pgothic", "ｍｓ ｐゴシック", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝") {
+        if wordOnWindows, has("ms pgothic", "ｍｓ ｐゴシック", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝", "hgskyokashotai", "hgpkyokashotai", "hgkyokashotai") {
             RuleTrace.hit("ms-japanese-face-square-line")
-            var ms = EastAsianFace(height: 1.3, latin: has("mincho", "明朝") ? serif : sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
+            // (HG Kyokasho-tai is not on Word's machine: a91d8fed's runs print in MS Mincho, the document's East Asian default.)
+            var ms = EastAsianFace(height: 1.3, latin: has("mincho", "明朝", "kyokashotai") ? serif : sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
+            // (Its Latin is MS Mincho's, fixed at half an em: a91d8fed's "ex." steps 5.3 pt a letter at 10.5 pt.)
+            if has("kyokashotai") { ms.latinAdvances = gulimCheAdvances; ms.latinBoldAdvances = gulimCheAdvances }
             // (MS PGothic is proportional: its kana, brackets and digits step narrower than an em, read from
             // the hmtx of the subsets embedded in Word's prints; cab6d785's 9 pt cell holds "「教科書を使っ" on a
             // line, where full-width ones broke it a character sooner and the document ran a page long.)
