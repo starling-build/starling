@@ -692,6 +692,10 @@ extension RichLayout {
             let own = ruleUnder(c, parted: true)
             guard theme.wordRules, (document.compatibilityMode ?? 12) >= 14 else { return own }
             if c.ruleBelow > 0 { return max(own, c.ruleBelow) }
+            // (A cell's own heavy bottom line closes the part too, by its upper half: 9ba34429's row of a tall
+            // cell and three one-line ones, 2.25pt bottoms, has 11.34pt at page 2's foot, and its first line,
+            // 10.5, goes over with the row in Word, as 10.5 + 1.125 > 11.34.)
+            if RichTextTheme.wordWindowsPages, c.edges?.bottom != nil || c.borders.bottom != nil, c.ruleNext > _px(1) { return max(own, c.ruleNext / 2) }
             // (Only a bottom line heavier than the table's inside ones, and
             // only under a cell that states no bottom of its own:
             // zh-cec9d337's cells, half-point lines of their own inside a
