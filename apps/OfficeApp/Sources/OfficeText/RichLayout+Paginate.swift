@@ -5011,6 +5011,13 @@ extension RichLayout {
                document.paragraphs[j].cell != p.cell {
                 return false
             }
+            // (A List Paragraph with a number, then a table whose first cell holds a List Paragraph without one: Word's contextual
+            // spacing goes by the style alone, so the 10 pt after is gone before the table; dx2 254ca33b: ours 9.9 pt low from there.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, o.named != nil, o.named == style.named, o.heading == style.heading,
+               (o.list == nil) != (style.list == nil), (document.paragraphs[j].cell == nil) != (p.cell == nil) {
+                RuleTrace.hit("word-contextual-spacing-across-list-and-table-edge")
+                return true
+            }
             return o.named == style.named && o.heading == style.heading
                 && (o.list == style.list || (theme.wordRules && style.named != nil && o.list != nil && style.list != nil
                     && document.paragraphs[j].cell == p.cell))
