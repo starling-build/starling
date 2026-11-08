@@ -630,6 +630,9 @@ extension RichLayout {
             // kind: -1 East Asian, else the kind (0 where there is one
             // scale for all).
             let classed = latinFace?.classScales != nil
+            // (A right-to-left run whose Latin face is Arial Narrow: its spaces, digits and marks are the Arabic text's, in Arial, not at the
+            // narrow face's widths: the Urdu forms 8963bef7, f98daa05 and 0de57755.)
+            let narrowLatinInRTL = theme.wordRules && run.rightToLeft && (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily)?.trimmingWhitespace().lowercased() == "arial narrow"
             var styles: [Int: TextStyle] = [:]
             // (The grid's addition to each character, unless the run opts
             // out — or its paragraph: zh-268f8d15's footer, "- 1 -" in a
@@ -957,7 +960,10 @@ extension RichLayout {
                 let normal = _normalChar(document)
                 let latin: String? = run.fontFamily ?? named?.char.fontFamily ?? normal?.fontFamily ?? theme.fontFamily
                 let complex: String? = run.complexFontFamily ?? named?.char.complexFontFamily ?? normal?.complexFontFamily
-                return theme.complexFaceResolver?(complex ?? latin)
+                // (No complex-script face named, and Arial Narrow for Latin: Word sets the Arabic in Arial, not in the narrow face.)
+                var name = complex ?? latin
+                if complex == nil, name?.trimmingWhitespace().lowercased() == "arial narrow" { name = "Arial" }
+                return theme.complexFaceResolver?(name)
             }()
             // (A zero-width non-joiner stays inside the word: Word sets the
             // two parts as two joined words and the mark at no width, where
@@ -2091,7 +2097,7 @@ extension RichLayout {
                     // 16pt in Word's print, ours 7.6, and every line took a
                     // character Word wraps.)
                     if let grid, grid != 0 { extra -= 1.5 * _px(grid) }
-                } else if !ea, let face = latinFace, face.advances != nil, ch.unicodeScalars.count == 1,
+                } else if !ea, let face = (narrowLatinInRTL ? nil : latinFace), face.advances != nil, ch.unicodeScalars.count == 1,
                           let u = ch.unicodeScalars.first?.value, u >= 0x20, u <= 0x7E {
                     // The width the original face gives this character
                     // (`RichResolvedFace.advances`), at the size the

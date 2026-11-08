@@ -676,7 +676,11 @@ public final class RichTextTheme {
         }
         let latinName = style.fontFamily ?? named?.char.fontFamily ?? normal?.fontFamily ?? fontFamily
         let complex = style.rightToLeft && !eastAsian
-        let familyName = complex ? (style.complexFontFamily ?? named?.char.complexFontFamily ?? normal?.complexFontFamily ?? latinName)
+        var complexName = style.complexFontFamily ?? named?.char.complexFontFamily ?? normal?.complexFontFamily ?? latinName
+        // (A right-to-left run that names no complex-script face but Arial Narrow for Latin: Word's prints of the Urdu
+        // forms 8963bef7, f98daa05 and 0de57755 draw it in plain Arial, not at Arial Narrow's widths.)
+        if complex, wordRules, complexName?.trimmingWhitespace().lowercased() == "arial narrow" { complexName = "Arial" }
+        let familyName = complex ? complexName
             : eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
         let face = complex ? complexFaceResolver?(familyName) : faceResolver?(familyName, eastAsian)
         let family = face?.family ?? familyName.map { complex ? $0 : (fontFamilyResolver?($0) ?? $0) }
