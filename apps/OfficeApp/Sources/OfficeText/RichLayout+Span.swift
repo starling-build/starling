@@ -44,6 +44,9 @@ extension RichLayout {
                                                           "nirmala ui": (2210.0 / 2048, 514.0 / 2048)]
     /// Devanagari and Bengali.
     static let _indic: ClosedRange<UInt32> = 0x0900 ... 0x09FF
+    /// Tamil (Word for Windows draws it in Nirmala UI, where the document's complex-script face is not Windows' own).
+    static let _tamil: ClosedRange<UInt32> = 0x0B80 ... 0x0BFF
+    static func _isIndic(_ u: UInt32) -> Bool { _indic.contains(u) || _tamil.contains(u) }
 
     func _picturesTakeLines(_ p: RichParagraph, textWidth: Double) -> Bool {
         theme.wordRules && RichTextTheme.wordWindowsPages && p.image == nil && p.inlineImages.count >= 2
@@ -715,7 +718,11 @@ extension RichLayout {
                     letters += 1
                     if (0x0900 ... 0x097F).contains(u.value) { deva += 1 } else if (0x0980 ... 0x09FF).contains(u.value) { beng += 1 }
                 }
-                guard deva + beng > 0 else { return nil }
+                guard deva + beng > 0 else {
+                    // (Tamil: the line of Nirmala UI, 1.079 + 0.251 em, in the prints of tam-* and four of the xd Tamil documents.)
+                    if text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) { return ("nirmala ui", 0.9) }
+                    return nil
+                }
                 let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
                 let italic = run.italic || ((named?.char.italic ?? false) && !run.off.contains(.italic))
                 let bold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
@@ -1294,8 +1301,8 @@ extension RichLayout {
                 // step 23.2 in Word's print (1.680 em at 1.15 lines), ours 15.9. Which face: the run's complex-script one where
                 // Windows has it (Mangal; Kokila only in italic); the rest, Kokila regular and bold and Kalpurush, Word draws in
                 // Nirmala UI — hin-z18479909's 9942 regular Devanagari and ben-z17281487's Bengali are Nirmala in its prints.)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, Self._indic.contains(u),
-                   !(before?.unicodeScalars.first.map { Self._indic.contains($0.value) || $0.value == 0x200D || $0.value == 0x200C } ?? false) {
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, Self._isIndic(u),
+                   !(before?.unicodeScalars.first.map { Self._isIndic($0.value) || $0.value == 0x200D || $0.value == 0x200C } ?? false) {
                     let face = indic?.face
                     if let face, let metrics = Self._indicLines[face] {
                         if devanagariStyles[face] == nil {
