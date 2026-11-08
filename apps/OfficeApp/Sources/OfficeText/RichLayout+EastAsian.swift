@@ -89,6 +89,7 @@ extension RichLayout {
             && units.allSatisfy { $0 == 0x20 || $0 == 0x2014 || $0 == 0x2D || ($0 >= 0x30 && $0 <= 0x39) }
         // (Where nothing else is compressed, `w:topLinePunct` still lets a
         // line's opening mark give: see `leadOpeners` below.)
+        let squeezesPauseRule = RichTextTheme.wordWindowsPages && theme.wordRules && (document.compatibilityMode ?? 12) >= 15 && document.lineGridPitch != nil && document.marksSitLeft && units.contains(where: { $0 >= 0x3040 && $0 <= 0x30FF })
         let topLinePunct = fitted && !turned && p.style.eastAsian["w:topLinePunct"] == "1"
         let topOnly = topLinePunct && !squeezes && units.contains(where: { Self._openingUnits.contains($0) })
         // (Marks to hang or squeeze, or a letter or digit an automatic
@@ -476,6 +477,9 @@ extension RichLayout {
             let own = (a ..< last).filter {
                 (Self._closingUnits.contains(units[$0]) || Self._openingUnits.contains(units[$0]) || wideQuote($0) || wideDot($0)) && !closesUp($0)
                     && !(RichTextTheme.wordWindowsPages && units[$0] == 0xFF01)
+                    // (Japanese text, kana in the paragraph: a full stop or comma inside a line, beside no bracket,
+                    // gives nothing. jpn-z19433747's Word print holds 34 characters on every line; the zh set squeezes them.)
+                    && !(squeezesPauseRule && $0 + 1 < units.count && (units[$0] == 0x3002 || units[$0] == 0x3001) && !Self._openingUnits.contains(units[$0 + 1]) && !Self._closingUnits.contains(units[$0 + 1]))
             }
             let em = a < ems.count ? ems[a] : 0
             // (Less than nothing on a line whose room Word's sum puts a hair
