@@ -2264,6 +2264,16 @@ enum OfficeFonts {
         if wordOnWindows, has("hg丸", "hgmarugothic") {
             return EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
         }
+        // Meiryo UI sets its lines 1.64 em apart in Word's print (jpn-g11-40dd71: 10 pt lines step 16.4,
+        // 9 pt 14.9) where YaHei's 1.715 em gave 17.2.
+        if wordOnWindows, has("meiryo ui") {
+            var meiryo = yaHei
+            meiryo.height = 1.64
+            meiryo.baseline = 1.26 * 1.64 / 1.715 + 0.08
+            meiryo.boldHeight = 1.64
+            meiryo.boldBaseline = 1.2675 * 1.64 / 1.715 + 0.08
+            return meiryo
+        }
         // Yu Mincho shares Yu Gothic's line (jpn-z23845932-12d9fb: 10.5pt Body
         // Text at 1.5 lines steps 26.4pt in Word's print = 1.676 em natural,
         // where YaHei's 1.715 em gave 27.0).
