@@ -897,7 +897,8 @@ extension RichLayout {
                 if kind >= 0, let indic, (indic.face == "kokila" && kokilaLatin) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "malgun gothic" && malgunLatin) || (indic.face == "yu gothic" && aumsLatin) || indic.face == "vijaya" || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
                     // (Kokila's line: its own ascent and descent, above and below the baseline, for every run on the line: the stand-ins'
                     // (Carlito's, Noto's) are taller above and set the line 2-3 pt low and 1.4 pt per line too far apart.)
-                    let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
+                    // (A multiple under single too: dx2 hin-z20740649's 0.9 lines are 13.5 pt apart in Word's print, Kokila's 15.0 x 0.9.)
+                    let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
                     s = s.copyWith(ascentOverride: m.0 * multiple * size, descentOverride: m.1 * multiple * size, height: (m.0 + m.1) * multiple, leadingDistribution: .even)
                 }
                 if kind >= 0, let indic, indic.face == "aparajita" || indic.face == "vijaya", let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {

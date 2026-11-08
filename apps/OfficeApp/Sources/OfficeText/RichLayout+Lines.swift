@@ -1247,7 +1247,7 @@ extension RichLayout {
         guard let line = t.computeLineMetrics().first else { return nil }
         let split = (line.ascent - line.descent) / 100
         // (A multiple of lines (Word's 1.15) takes this line too, as it does any other.)
-        let multiple = spacing && paragraph.lineHeightPoints == nil && paragraph.lineSpacing > 1 ? paragraph.lineSpacing : 1
+        let multiple = spacing && paragraph.lineHeightPoints == nil && paragraph.lineSpacing > 0.5 ? paragraph.lineSpacing : 1
         let ascent = px * ems * multiple, descent = px * emsDown * multiple
         guard split > 0.05 else { return nil }
         let size = (ascent - descent) / split
