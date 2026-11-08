@@ -146,6 +146,9 @@ extension RichLayout {
                                                        baseline: .alphabetic, baselineOffset: 0.01)
                 return (TextSpan(children: [box, TextSpan(text: "\u{200B}", style: look)]), [(nil, dimensions)], [])
             }
+            if let joiner = _tamilEmptyMarkJoiner(mark, named: markNamed, p, document, look: look, pitch: pitch, scale: scale) {
+                return (TextSpan(children: [TextSpan(text: " ", style: look), TextSpan(text: "\u{2060}", style: joiner)]), [], [])
+            }
             return (TextSpan(text: " ", style: look), [], [])
         }
         // Ruby wider than its base spreads the base across it, as Word's
@@ -3095,4 +3098,20 @@ extension RichLayout {
 
 extension RichLayout {
     static func shadeShows(_ c: Color?) -> Bool { c.map { $0 != Color(0xFFFFFFFF) } ?? false }
+}
+
+extension RichLayout {
+    /// An empty paragraph of a Tamil document whose mark asks for Arial Unicode MS (a face Windows lacks) is a line of Mangal,
+    /// 1.680 em, in Word's print: a347c3b3's empty marks step 18.5 pt at 11 pt, against the 12.65 of the Latin stand-in. A bold
+    /// mark stays on Nirmala UI's line (14.6).
+    @inline(never)
+    func _tamilEmptyMarkJoiner(_ mark: CharStyle, named: RichNamedStyle?, _ p: RichParagraph, _ document: RichDocument,
+                               look: TextStyle, pitch: Double?, scale: Double) -> TextStyle? {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages,
+              document.defaultLangXML?.containsSubstring("ta-IN") == true,
+              (mark.complexFontFamily ?? named?.char.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms",
+              let metrics = Self._indicLines[(mark.bold || (named?.char.bold ?? false)) ? "nirmala ui" : "mangal"] else { return nil }
+        RuleTrace.hit("word-tamil-empty-mark-is-a-line-of-mangal")
+        return _lineJoiner(mark, named, look, p.style, pitch, scale, ascent: metrics.0, descent: metrics.1)
+    }
 }
