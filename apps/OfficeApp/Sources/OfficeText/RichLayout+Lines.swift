@@ -73,6 +73,9 @@ extension RichLayout {
             // Only a paragraph that has Arabic or Hebrew in it, and only where it had no strut.
             marksToo = true; uniform = true; first = nil; count = 0; share = [:]; near = false
             visit(span)
+            // (Held to Arial's own line only: fas-z15800253's B Zar, a face Word has not got, is 1.22 em
+            // in its print — the Latin theme face's — and the strut of our stand-in made it 17.4 for 18.4.)
+            if first?.fontFamily != "Arial" { uniform = false }
         }
         if count == 0, uniform { blanksToo = true; visit(span) }
         if count == 0, uniform { shiftedToo = true; visit(span) }
