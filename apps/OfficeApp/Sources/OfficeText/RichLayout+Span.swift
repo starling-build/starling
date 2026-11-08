@@ -938,7 +938,7 @@ extension RichLayout {
                     start = end
                     return
                 }
-                if joinedFace != nil, text[start ..< end].allSatisfy({ $0 == " " }) {
+                if joinedFace != nil, ProcessInfo.processInfo.environment["ARC_NOSPACE"] == nil, text[start ..< end].allSatisfy({ $0 == " " }) {
                     // (The face's own space between Arabic words: Traditional Arabic's is 0.244 em, 3.9 pt at 16, in Word's print;
                     // the Naskh stand-in's is narrower.)
                     let base = style(kind)

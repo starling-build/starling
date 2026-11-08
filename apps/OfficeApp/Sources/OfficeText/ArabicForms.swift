@@ -1,5 +1,6 @@
 // Copyright the Starling authors
 // SPDX-License-Identifier: Apache-2.0
+import Foundation
 
 // Generated from Unicode's compatibility decompositions of the Arabic
 // presentation forms (U+FB50-FDFF, U+FE70-FEFF): each letter's isolated,
@@ -106,6 +107,8 @@ extension ArabicForms {
     /// form, lam and an alef as one, marks of no width — by `advances`
     /// (ems by code point, presentation forms among them). Nil where a
     /// character has no width there.
+    static let _only: Set<String>? = ProcessInfo.processInfo.environment["ARC_CL_ONLY"].map { Set($0.split(separator: ",").map(String.init)) }
+    static func clusterEnabled(_ key: String) -> Bool { _only.map { $0.contains(key) } ?? true }
     static func width(_ units: [UInt32], _ advances: [UInt32: Double], before: UInt32? = nil, after: UInt32? = nil, clusters: [String: Double]? = nil) -> Double? {
         // (Marks are transparent to joining: the characters of no width.)
         let shown = units.filter { advances[$0] != 0 }
@@ -132,7 +135,7 @@ extension ArabicForms {
                     let joinsAfter = inner && nxt.map { joinsBoth(last) && joinsRight($0) } ?? false
                     var key = ""
                     for c in shown[k ..< k + len] { key.unicodeScalars.append(Unicode.Scalar(c)!) }
-                    if inner || len == 2, let w = clusters["\(key)|\(joinsPrev ? 1 : 0)|\(joinsAfter ? 1 : 0)"] {
+                    if inner || len == 2, let w = clusters["\(key)|\(joinsPrev ? 1 : 0)|\(joinsAfter ? 1 : 0)"], ArabicForms.clusterEnabled("\(key)|\(joinsPrev ? 1 : 0)|\(joinsAfter ? 1 : 0)") {
                         total += w
                         prevJoinsLeft = joinsBoth(last)
                         k += len
