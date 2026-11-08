@@ -6609,6 +6609,9 @@ enum DocxFormat {
                 let rtlRun = rPr.first("w:rtl") != nil && !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A }
                 let complexSize = runText.unicodeScalars.contains {
                     (0x0590...0x08FF).contains($0.value) || (0xFB1D...0xFDFF).contains($0.value) || (0xFE70...0xFEFF).contains($0.value)
+                        // (Devanagari, Bengali, Gurmukhi and Gujarati: 375919ba's sz 16 / szCs 14 prints at 14, Word's Mangal. Tamil and Telugu do not:
+                        // cef2f7bd's Telugu title, sz 14 / szCs 10, prints at 14.)
+                        || (0x0900...0x0B7F).contains($0.value)
                 } || rtlRun
                 // (Tamil takes bCs/iCs but not szCs: da732dfb's sz 14 / szCs 20 subtitle prints at 14 in Word. Only a run with no Latin letters.)
                 let tamilOnly = !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A } && runText.unicodeScalars.contains { (0x0B80...0x0BFF).contains($0.value) }
