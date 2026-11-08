@@ -3323,7 +3323,8 @@ extension RichLayout {
                 return v == 0x25CB || v == 0x25B3 || v == 0xB7 || (v >= 0x2460 && v <= 0x2469) || v == 0x203B || v == 0x2192
                     || v == 0x2018 || v == 0x2019 || v == 0x201C || v == 0x201D
             }
-            guard hit, theme.faceResolver?(run.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+            guard hit, !(run.style.eastAsiaFontFamily != nil && (run.style.fontHint ?? named?.char.fontHint) == "eastAsia"),
+                  theme.faceResolver?(run.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                            ?? run.style.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.malgunSymbols == true else { continue }
             let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
             let rise = size * (1.175 - 1.009) * max(1, p.style.lineSpacing - theme.lineSpacingReduction)

@@ -1574,7 +1574,9 @@ extension RichLayout {
                 // (A missing Korean face Word sets in Batang takes its quotes, circles, circled digits and middle dot from Malgun
                 // Gothic, and a line holding one is Malgun's height: 6a68f6ca's lines step 29.9 into one, 31.9 out of one and 35.3
                 // between two at 1.7 lines, 26.6 between plain ones. The split is Malgun's 1.175 + 0.557 against Batang's 1.009 + 0.291.)
+                // (A run that names the East Asian face and hints East Asian draws its symbols in Batang, no Malgun: 218dff52's "7. ... △△△" lines step 31.2 as plain ones.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, ch.unicodeScalars.count == 1,
+                   !(run.eastAsiaFontFamily != nil && (run.fontHint ?? named?.char.fontHint) == "eastAsia"),
                    u == 0x25CB || u == 0x25B3 || u == 0xB7 || (u >= 0x2460 && u <= 0x2469) || u == 0x203B || u == 0x2192
                     || u == 0x2018 || u == 0x2019 || u == 0x201C || u == 0x201D,
                    theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
