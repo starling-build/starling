@@ -2744,10 +2744,12 @@ extension RichLayout {
     /// 1.1 lower than ours without it. A multiple under 1 shrinks the text's line (1.9 a tenth, the baseline taking
     /// 0.8 of it). Not for a picture alone: its mark's line follows `bodyHeight += (multiple - 1) * single`.
     @inline(never) func _pictureTextLineAdjust(_ i: Int, _ p: RichParagraph, multiple: Double, single: Double, bodyHeight: inout Double) {
-        guard _hasVisibleText(p) else { return }
+        let bottom = p.style.eastAsian["w:textAlignment"] == "bottom"
+        // (Only the cases the lab proved: with a multiple above 1 and no bottom alignment the 1.1 dropped zh-264d7516 and a8f4dfcd.)
+        guard _hasVisibleText(p), bottom || multiple < 0.999 else { return }
         RuleTrace.hit("picture-text-line-lab-picline2")
         bodyHeight += _px(1.1)
-        if p.style.eastAsian["w:textAlignment"] == "bottom" {
+        if bottom {
             _inkShift[i] -= _px(2.0)
             bodyHeight -= _px(2.0)
         }
