@@ -1556,8 +1556,8 @@ extension RichLayout {
                     || u == 0x2018 || u == 0x2019 || u == 0x201C || u == 0x201D,
                    theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                        ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.malgunSymbols == true
-                    // (A run that names only the ascii face, the missing Korean one, still draws these marks in it: 218dff52's △△△.)
-                    || (run.eastAsiaFontFamily == nil && run.fontFamily.map { theme.faceResolver?($0, true)?.malgunSymbols == true } == true) {
+                    // (A run that names only the ascii face, the missing Korean one, still draws △ and ○ in it (they have no ascii form; quotes in such a run stay Latin: 218dff52 page 2): 218dff52's △△△.)
+                    || (u == 0x25B3 || u == 0x25CB) && (run.eastAsiaFontFamily == nil && run.fontFamily.map { theme.faceResolver?($0, true)?.malgunSymbols == true } == true) {
                     if devanagariStyles["malgunKo"] == nil {
                         devanagariStyles["malgunKo"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: 1.175, descent: 0.557)
                     }
