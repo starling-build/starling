@@ -786,6 +786,12 @@ extension RichLayout {
                 if kind >= 0, let indic, indic.scale != 1 { s = s.copyWith(scaleX: indic.scale) }
                 // (The run's own line is the face's, not the stand-in's, where the face's is the shorter: Aparajita's 1.18 em (a516bfe9: 2.7 to 92.9) where Noto
                 // Sans Devanagari's is taller; the joiner above only raises a line.)
+                if kind >= 0, let indic, indic.face == "kokila", let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
+                    // (Kokila's line: its own ascent and descent, above and below the baseline, for every run on the line: the stand-ins'
+                    // (Carlito's, Noto's) are taller above and set the line 2-3 pt low and 1.4 pt per line too far apart.)
+                    let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
+                    s = s.copyWith(ascentOverride: m.0 * multiple * size, descentOverride: m.1 * multiple * size, height: (m.0 + m.1) * multiple, leadingDistribution: .even)
+                }
                 if kind >= 0, let indic, indic.face == "aparajita", let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
                     let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
                     s = s.copyWith(height: (m.0 + m.1) * multiple, leadingDistribution: .even)
@@ -1032,10 +1038,6 @@ extension RichLayout {
                         let seg = text[i ..< j]
                         if latin {
                             var st = base.copyWith(scaleX: 1)
-                            if p.style.lineHeightPoints == nil {
-                                let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
-                                st = st.copyWith(height: (m.0 + m.1) * multiple, leadingDistribution: .even)
-                            }
                             let split = KokilaLatin.split(seg)
                             if split.any {
                                 func measure(_ s: String, _ ls: Double) -> Double {
