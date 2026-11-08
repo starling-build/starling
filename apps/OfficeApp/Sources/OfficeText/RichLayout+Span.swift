@@ -1020,7 +1020,7 @@ extension RichLayout {
                     return
                 }
                 if kind >= 0, let face = indic?.face, let spaceEm = Self._indicSpace[face], let px = style(kind).fontSize, px > 0.5,
-                   text[start ..< end].contains(" ") || text[start ..< end].contains("\u{00A0}") {
+                   text[start ..< end].contains(Character(" ")) || text[start ..< end].contains(Character("\u{00A0}")) {
                     // (Word's space is the face's own: Mangal 0.5 em against the stand-in's 0.26; the prints' gap between words, 5.5 pt against our 3.5 at 11 pt.)
                     let base = style(kind)
                     var spaceStyle: TextStyle? = nil
