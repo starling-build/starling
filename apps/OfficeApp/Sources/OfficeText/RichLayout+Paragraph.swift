@@ -85,6 +85,7 @@ extension RichLayout {
         // spaced otherwise than Normal is held to the same cells: 29
         // characters of 16, unspaced, need 2pt of the margin given back in
         // a 465pt column of 30.)
+        var gridCut = 0.0   // what the cells' floor took off the width
         @inline(never) func _q0() {
         if theme.wordRules, p.cell == nil, _grid(i, document).pitch != nil, let add = _grid(i, document).chars, add < 0.0001 {
             let spacing = (_normalChar(document)?.letterSpacing ?? 0) * (document.balancesSpaceWidth ? 2 : 1)
@@ -100,7 +101,7 @@ extension RichLayout {
             // cut to 435.0 of 436.5, hold the 27th character, 0.09pt over its 405.3 after the
             // indent, in Word's print.)
             let offGrid = RichTextTheme.wordWindowsPages && p.style.eastAsian["w:snapToGrid"] == "0" && own >= cell + _px(0.9)
-            if cell > 0, own >= cell - _px(0.01), !offGrid { width = min(width, ((width + _px(0.01)) / cell).rounded(.down) * cell) }
+            if cell > 0, own >= cell - _px(0.01), !offGrid { let cut = min(width, ((width + _px(0.01)) / cell).rounded(.down) * cell); gridCut = width - cut; width = cut }
         }
         }
         _q0()
@@ -1401,7 +1402,10 @@ extension RichLayout {
                         if let textLine { top = max(top, bottoms[k] - textLine) }
                         let beside = (bottoms[k] > band.top + 0.01 && top < band.bottom - 0.01)
                             || (_besideMoreBands[i] ?? []).contains { bottoms[k] > $0.top + _px(3) && top < $0.bottom - _px(3) }
-                        next.append(besideRight ? LineIndent(left: 0, right: beside ? besideIndent : 0) : LineIndent(left: beside ? besideIndent + (k == 0 ? firstExtra : 0) : 0, right: 0))
+                        // (The beside-box indent counts from the column's edge, not from the width cut to whole
+                        // cells: efbb06c2's lines beside a picture hold 22 characters of 11 in Word's print,
+                        // 246.2 of room, where the cut column less the indent held 21.)
+                        next.append(besideRight ? LineIndent(left: 0, right: beside ? max(besideIndent - gridCut, 0) : 0) : LineIndent(left: beside ? besideIndent + (k == 0 ? firstExtra : 0) : 0, right: 0))
                     }
                 }
                 while let last = next.last, last.left == 0, last.right == 0, next.count > 1, next[next.count - 2].left == 0, next[next.count - 2].right == 0 { next.removeLast() }
