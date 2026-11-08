@@ -515,7 +515,8 @@ enum MangalAdvances {
     /// The width in em of the word's clusters that the table has, and the characters of those clusters (`known`), `rest` where some are not.
     /// An unlisted conjunct (C + virama + the rest): Mangal draws a half form and then the rest, about 0.85 of the parts' sum
     /// (median over the 180 listed conjuncts whose parts are listed too; the Noto stand-in ligates and comes out far narrower).
-    static func conjunct(_ k: ArraySlice<Unicode.Scalar>) -> Double? {
+    static func conjunct(_ k: ArraySlice<Unicode.Scalar>, table: [String: Double]? = nil) -> Double? {
+        let advance = table ?? Self.advance
         guard k.count > 2, isConsonant(k[k.startIndex].value) else { return nil }
         var v = k.startIndex + 1
         if k[v].value == 0x93C { v += 1 }
@@ -526,11 +527,12 @@ enum MangalAdvances {
         // Ligature forms (reph, rakar, kssa, jna, tra, shra) are one glyph in Mangal too: the stand-in's own width fits them.
         if k[k.startIndex].value == 0x930 || tail[tail.startIndex].value == 0x930 { return nil }
         if (k[k.startIndex].value == 0x915 && tail[tail.startIndex].value == 0x937) || (k[k.startIndex].value == 0x91C && tail[tail.startIndex].value == 0x91E) { return nil }
-        guard let a = advance[String(head)], let b = advance[String(String.UnicodeScalarView(tail))] ?? conjunct(tail) else { return nil }
+        guard let a = advance[String(head)], let b = advance[String(String.UnicodeScalarView(tail))] ?? conjunct(tail, table: table) else { return nil }
         return 0.85 * (a + b)
     }
 
-    static func split(_ word: Substring, bold: Bool = false) -> (ems: Double, known: String, rest: Bool)? {
+    static func split(_ word: Substring, bold: Bool = false, table: [String: Double]? = nil) -> (ems: Double, known: String, rest: Bool)? {
+        let advance = table ?? Self.advance
         let u = Array(word.unicodeScalars)
         var sum = 0.0, known = String.UnicodeScalarView(), rest = false, any = false
         var i = 0
@@ -548,7 +550,7 @@ enum MangalAdvances {
             }
             var key = String.UnicodeScalarView()
             key.append(contentsOf: u[i ..< j])
-            if let w = advance[String(key)] ?? ascii[String(key)] ?? conjunct(u[i ..< j]) { sum += w; known.append(contentsOf: u[i ..< j]); any = true } else { rest = true }
+            if let w = advance[String(key)] ?? ascii[String(key)] ?? conjunct(u[i ..< j], table: table) { sum += w; known.append(contentsOf: u[i ..< j]); any = true } else { rest = true }
             i = j
         }
         return any ? (sum, String(known), rest) : nil

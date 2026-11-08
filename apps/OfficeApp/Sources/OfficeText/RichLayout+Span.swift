@@ -1173,7 +1173,15 @@ extension RichLayout {
                             }
                             spans.append(contentsOf: capped(seg, run, st))
                         } else {
-                            spans.append(contentsOf: capped(seg, run, joinedScaled(seg, base)))
+                            // (Kokila's own cluster widths where the table has the word: `KokilaAdvances`.)
+                            let kBold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
+                            let kItalic = run.italic || ((named?.char.italic ?? false) && !run.off.contains(.italic))
+                            let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+                            if authored > 0.5, let fitted = _clusterFitted(seg, base: base, authored: authored, table: KokilaAdvances.table(bold: kBold, italic: kItalic), flatScale: Self._indicScale["kokila"]?["D"] ?? 1) {
+                                spans.append(contentsOf: capped(seg, run, fitted.style))
+                            } else {
+                                spans.append(contentsOf: capped(seg, run, joinedScaled(seg, base)))
+                            }
                         }
                         i = j
                     }
@@ -3391,5 +3399,26 @@ extension RichLayout {
     func _documentHasIndic(_ document: RichDocument) -> Bool {
         for q in document.paragraphs.prefix(300) where q.text.unicodeScalars.contains(where: { Self._isIndic($0.value) }) { return true }
         return false
+    }
+}
+
+extension RichLayout {
+    /// The word set so its width is the sum of the face's per-cluster advances (`MangalAdvances.split`, any table), by letter spacing on the
+    /// stand-in; clusters the table lacks keep the stand-in's width times `flatScale`. Nil where the table knows none of the word.
+    @inline(never)
+    func _clusterFitted(_ w: Substring, base: TextStyle, authored: Double, table: [String: Double], flatScale: Double) -> (style: TextStyle, flat: TextStyle)? {
+        guard let split = MangalAdvances.split(w, table: table) else { return nil }
+        let flat = base.copyWith(scaleX: 1)
+        func measure(_ s: String, _ ls: Double) -> Double {
+            let t = TextPainter(text: TextSpan(text: s, style: flat.copyWith(letterSpacing: ls)), textDirection: .ltr)
+            t.layout(minWidth: 0, maxWidth: 100_000)
+            defer { t.dispose() }
+            return t.width
+        }
+        let w0 = measure(String(w), 0)
+        guard w0 > 0.01 else { return nil }
+        let n = max(1, Int((measure(String(w), 10) - w0) / 10 + 0.5))
+        let other = split.rest ? (w0 - measure(split.known, 0)) * flatScale : 0
+        return (flat.copyWith(letterSpacing: (flat.letterSpacing ?? 0) + (split.ems * authored + other - w0) / Double(n)), flat)
     }
 }
