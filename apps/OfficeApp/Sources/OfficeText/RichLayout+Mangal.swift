@@ -499,6 +499,12 @@ enum MangalAdvances {
         "\u{96F}": 0.5188,
     ]
 
+    /// Mangal's ASCII punctuation and digits (hmtx of the subsets in Word's print, 7756e774): a run flagged `w:cs` draws them in Mangal too.
+    static let ascii: [String: Double] = [
+        ".": 0.288, ",": 0.288, "!": 0.288, "/": 0.288, "-": 0.345,
+        "0": 0.576, "1": 0.576, "2": 0.576, "3": 0.576, "4": 0.576, "5": 0.576, "6": 0.576, "7": 0.576, "8": 0.576, "9": 0.576,
+    ]
+
     /// Mangal Bold, the same fit on 1,729 words (rms 0.015 em; 97.8% of the clusters).
 
     static func isConsonant(_ v: UInt32) -> Bool { (0x915 ... 0x939).contains(v) || (0x958 ... 0x95F).contains(v) }
@@ -542,7 +548,7 @@ enum MangalAdvances {
             }
             var key = String.UnicodeScalarView()
             key.append(contentsOf: u[i ..< j])
-            if let w = advance[String(key)] ?? conjunct(u[i ..< j]) { sum += w; known.append(contentsOf: u[i ..< j]); any = true } else { rest = true }
+            if let w = advance[String(key)] ?? ascii[String(key)] ?? conjunct(u[i ..< j]) { sum += w; known.append(contentsOf: u[i ..< j]); any = true } else { rest = true }
             i = j
         }
         return any ? (sum, String(known), rest) : nil
