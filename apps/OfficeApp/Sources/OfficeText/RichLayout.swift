@@ -658,6 +658,9 @@ public final class RichTextTheme {
         // (Complex-script text is set at the size the file gives it, `w:szCs`:
         // lo tdf163575's Persian is 12pt in a style whose `w:sz` is 10.)
         if wordRules, style.rightToLeft, !eastAsian, style.fontSize == nil, let z = named?.char.complexFontSize ?? normal?.complexFontSize { size = z }
+        // (No w:szCs anywhere in the chain: Word does not follow w:sz for complex script, it sets it at 10pt —
+        // ara-z4399437's keyword lines, style sz 18, print at 10.)
+        else if wordRules, style.rightToLeft, !eastAsian, style.fontSize == nil, named?.char.fontSize != nil, named?.char.complexFontSize == nil, normal?.complexFontSize == nil { size = 10 }
         // A fitted size is a whole number of points: PowerPoint sets 32 pt
         // at 85% in 27, not 27.2.
         if fontScale != 1 { size = max(1, (size * fontScale).rounded()) }
