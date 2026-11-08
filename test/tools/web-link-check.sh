@@ -15,7 +15,11 @@
 #   2. the same `swift build` build/web-app.sh runs for apps/OfficeApp, compile AND link, with its
 #      own scratch (.build-web-OfficeApp, incremental after the first run, ~12 min cold) and nothing
 #      staged. It needs the wasm Swift SDK (build/web-app.sh says how to install it).
-# Exit 0 = both clean. Exit 1 = a lint hit or a build/link error (the log is printed, tailed).
+# Exit 0 = both clean. Exit 1 = a lint hit or a NEW build/link error (the log is printed, tailed).
+#   A build failure that BASE_REF itself has too (same error lines) is only warned about (exit 0), so a
+#   broken tip does not block every landing for an error that is not theirs. The base's result is cached per
+#   sha in $WEB_BASE_CACHE (default /data/landlock/webbase), so the base is built once; it is built in a
+#   worktree at $WEB_BASE_DIR (default $ROOT/.webbase).
 # LINT_ONLY=1 stops after step 1.
 set -u
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd); cd "$ROOT"
@@ -43,12 +47,37 @@ if [ "$(uname -s)" = Linux ]; then
   TL="$(dirname "$(readlink -f "$(command -v swift)")")/../lib/swift/linux"
   [ -e "$TL/libxml2.so.2" ] && ! ldconfig -p | grep -q 'libxml2\.so\.2 ' && export LD_LIBRARY_PATH="$TL${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 fi
-[ -f apps/OfficeApp/Sources/CZlib/shim.h ] && build/tools/fetch-zlib.sh apps/OfficeApp/Vendor/zlib >/dev/null 2>&1
+build_in() {   # build_in DIR LOG: wasm build+link of DIR's OfficeApp; prints the error signature on failure
+  local d=$1 log=$2
+  [ -f "$d/apps/OfficeApp/Sources/CZlib/shim.h" ] && (cd "$d" && build/tools/fetch-zlib.sh apps/OfficeApp/Vendor/zlib >/dev/null 2>&1)
+  (cd "$d" && STARLING_WASM=1 STARLING_WASM_RICHTEXT=1 swift build --package-path apps/OfficeApp --scratch-path "$d/.build-web-OfficeApp" \
+     --swift-sdk "${STARLING_WASM_SDK:-${SDKTAG}_wasm}" -c release --product OfficeApp) > "$log" 2>&1
+}
+sig_of() { grep -aE "error:|undefined symbol" "$1" | sed -E 's#/[^ ]*\.build-web-OfficeApp/##; s#^[^ ]*/(apps|sdk)/#\1/#' | cut -c1-200 | sort -u; }
 LOG=${WEB_LINK_LOG:-$ROOT/.build-web-OfficeApp.log}
-if STARLING_WASM=1 STARLING_WASM_RICHTEXT=1 swift build --package-path apps/OfficeApp --scratch-path "$ROOT/.build-web-OfficeApp" \
-     --swift-sdk "${STARLING_WASM_SDK:-${SDKTAG}_wasm}" -c release --product OfficeApp > "$LOG" 2>&1; then
-  echo "[web-link-check] wasm build and link OK"
+if build_in "$ROOT" "$LOG"; then
+  echo "[web-link-check] wasm build and link OK"; exit $rc
+fi
+echo "[web-link-check] WASM BUILD/LINK FAILED ($LOG):"; grep -aE "error:|undefined symbol" "$LOG" | head -8 | cut -c1-220
+# is the failure the base's own? (cached per base sha; built once, in a worktree)
+CACHE=${WEB_BASE_CACHE:-/data/landlock/webbase}; mkdir -p "$CACHE" 2>/dev/null
+BSHA=$(git rev-parse "$BASE" 2>/dev/null) || { rc=1; exit $rc; }
+(
+  flock 9
+  if [ ! -f "$CACHE/$BSHA.sig" ]; then
+    BD=${WEB_BASE_DIR:-$ROOT/.webbase}
+    if [ -d "$BD" ]; then git -C "$BD" checkout -q -f --detach "$BSHA"; else git worktree add -q -f --detach "$BD" "$BSHA"; fi
+    echo "[web-link-check] building the base $BSHA once, to see whether this failure is its own (cached)..." >&2
+    if build_in "$BD" "$LOG.base"; then : > "$CACHE/$BSHA.sig.tmp"; else sig_of "$LOG.base" > "$CACHE/$BSHA.sig.tmp"; [ -s "$CACHE/$BSHA.sig.tmp" ] || echo "unreadable-failure" > "$CACHE/$BSHA.sig.tmp"; fi
+    mv "$CACHE/$BSHA.sig.tmp" "$CACHE/$BSHA.sig"
+  fi
+) 9> "$CACHE/$BSHA.lock"
+NEW=$(sig_of "$LOG" | grep -vxFf "$CACHE/$BSHA.sig" 2>/dev/null)
+if [ ! -s "$CACHE/$BSHA.sig" ]; then
+  echo "[web-link-check] the base $BSHA builds and links: this failure is NEW"; rc=1
+elif [ -n "$NEW" ]; then
+  echo "[web-link-check] the base also fails, but these errors are NEW:"; echo "$NEW" | head -6 | cut -c1-220; rc=1
 else
-  echo "[web-link-check] WASM BUILD/LINK FAILED ($LOG):"; grep -aE "error:|undefined symbol" "$LOG" | head -8 | cut -c1-220; rc=1
+  echo "[web-link-check] WARNING: the base $BSHA fails the wasm link with the same error(s); not this landing's. Not blocking."
 fi
 exit $rc
