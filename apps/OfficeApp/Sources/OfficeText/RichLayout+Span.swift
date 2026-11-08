@@ -1102,14 +1102,36 @@ extension RichLayout {
                     return
                 }
                 if kind >= 0, let face = indic?.face, let spaceEm = (face == "vrinda" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? 0.3125 : Self._indicSpace[face], let px = style(kind).fontSize, px > 0.5,
-                   text[start ..< end].contains(Character(" ")) || text[start ..< end].contains(Character("\u{00A0}")) {
+                   face == "mangal" || text[start ..< end].contains(Character(" ")) || text[start ..< end].contains(Character("\u{00A0}")) {
                     // (Word's space is the face's own: Mangal 0.5 em against the stand-in's 0.26; the prints' gap between words, 5.5 pt against our 3.5 at 11 pt.)
                     let base = style(kind)
                     var spaceStyle: TextStyle? = nil
                     var wordStart = start, k = start
+                    // (Mangal's own widths, Word's print: the space half an em and each cluster at its fitted advance, `MangalAdvances`, on the
+                    // authored size, not the stand-in's enlarged one.)
+                    let mangalBold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
+                    let mangalRegular = face == "mangal"
+                    let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
                     func putWord(_ a: Substring.Index, _ b: Substring.Index) {
                         guard a < b else { return }
-                        spans.append(contentsOf: capped(text[a ..< b], run, joinedScaled(text[a ..< b], base)))
+                        let w = text[a ..< b]
+                        if mangalRegular, authored > 0.5, let split = MangalAdvances.split(w, bold: mangalBold) {
+                            let flat = base.copyWith(scaleX: 1)
+                            func measure(_ s: String, _ ls: Double) -> Double {
+                                let t = TextPainter(text: TextSpan(text: s, style: flat.copyWith(letterSpacing: ls)), textDirection: .ltr)
+                                t.layout(minWidth: 0, maxWidth: 100_000)
+                                defer { t.dispose() }
+                                return t.width
+                            }
+                            let w0 = measure(String(w), 0)
+                            if w0 > 0.01 {
+                                let n = max(1, Int((measure(String(w), 10) - w0) / 10 + 0.5))
+                                let other = split.rest ? (w0 - measure(split.known, 0)) * (Self._indicScale["mangal"]?["D"] ?? 1) : 0
+                                spans.append(contentsOf: capped(w, run, flat.copyWith(letterSpacing: (flat.letterSpacing ?? 0) + (split.ems * authored + other - w0) / Double(n))))
+                                return
+                            }
+                        }
+                        spans.append(contentsOf: capped(w, run, joinedScaled(w, base)))
                     }
                     while k < end {
                         if text[k] == " " || text[k] == "\u{00A0}" {
@@ -1119,7 +1141,7 @@ extension RichLayout {
                                 t.layout(minWidth: 0, maxWidth: 100_000)
                                 let w0 = t.width
                                 t.dispose()
-                                spaceStyle = base.copyWith(letterSpacing: (base.letterSpacing ?? 0) + spaceEm * px - w0)
+                                spaceStyle = base.copyWith(letterSpacing: (base.letterSpacing ?? 0) + spaceEm * (mangalRegular ? authored : px) - w0)
                             }
                             spans.append(contentsOf: capped(text[k ..< text.index(after: k)], run, spaceStyle ?? base))
                             wordStart = text.index(after: k)
