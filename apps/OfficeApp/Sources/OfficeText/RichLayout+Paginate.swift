@@ -3384,7 +3384,7 @@ extension RichLayout {
                 let oneColumnTables = Set(seq.compactMap { _cells[$0.paragraph]?.table }).subtracting(wide)
                 let tail = Array(_allPieces.suffix(seq.count))
                 if seq.count > head.count, tail == seq || Set(tail.map(\.paragraph)) == Set(seq.map(\.paragraph)),
-                   seq.allSatisfy({ (_cells[$0.paragraph].map { document.tableStyles[$0.table]?.floatsOverText == true || oneColumnTables.contains($0.table) } ?? true) && !$0.repeated && $0.part == .all }) {
+                   seq.allSatisfy({ head.contains($0) || ((_cells[$0.paragraph].map { document.tableStyles[$0.table]?.floatsOverText == true || oneColumnTables.contains($0.table) } ?? true) && !$0.repeated && $0.part == .all) }) {
                     // (A floating table in the block stands where it is, a band the
                     // columns run around: lo-a998edda's A1–A4 in two columns are 2
                     // and 2 in Word's print, the table across both, the fourth
