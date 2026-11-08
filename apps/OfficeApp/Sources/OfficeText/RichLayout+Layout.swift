@@ -462,7 +462,7 @@ extension RichLayout {
                             for (j, hp) in hf.document.paragraphs.enumerated() {
                                 guard let box = Self._hfBox(hp) else { continue }
                                 let float = box.float, image = box.image
-                                let w = _px(image.width), whole = _px(image.height) + _px(float.effectBottom)
+                                let w = _px(image.width), whole = hf.layout._fittedBoxHeight(image, hf.document) + _px(float.effectBottom)
                                 var onPage: Double
                                 switch float.verticalFrom {
                                 case "page", "margin", "topMargin":

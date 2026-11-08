@@ -6242,6 +6242,7 @@ enum DocxFormat {
                         if body["upright"] != "1", let rot = node.descendant("wps:spPr")?.first("a:xfrm")?["rot"].flatMap({ Double($0) }) { box.shapeRotation = rot / 60000 }
                         box.fitsText = body["wrap"] == "none" && body.first("a:spAutoFit") != nil
                         box.fitsOnce = box.fitsText
+                        box.autoHeight = body["wrap"] != "none" && body.first("a:spAutoFit") != nil
                         box.fitsAsDrawing = box.fitsText
                         if let v = Double(body["lIns"] ?? "") { box.insetLeft = v / 12700 }
                         if let v = Double(body["tIns"] ?? "") { box.insetTop = v / 12700 }

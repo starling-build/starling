@@ -172,6 +172,19 @@ extension RichLayout {
         return nil
     }
 
+    /// A header box's height (pixels) as the body's wrap sees it: the stated one, or, for a
+    /// wrapping `spAutoFit` box, its text's (Word shrinks it; the extent in the file is stale).
+    @inline(never)
+    func _fittedBoxHeight(_ image: ImageAttachment, _ document: RichDocument) -> Double {
+        let stated = _px(image.height)
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, let box = image.textBox, box.autoHeight,
+              let inside = _textBox(image, document) else { return stated }
+        let fitted = inside.height + _px(box.insetTop + box.insetBottom)
+        guard fitted > 0, fitted < stated else { return stated }
+        RuleTrace.hit("word-header-autofit-box-wraps-the-body-at-its-text-height")
+        return fitted
+    }
+
     static func _onThePage(_ style: RichParagraphStyle) -> Bool {
         guard let frame = style.frame else { return false }
         return frame.verticalAnchor == "page" || frame.verticalAnchor == "margin" || !(style.frameXML ?? "").containsSubstring("w:vAnchor=")

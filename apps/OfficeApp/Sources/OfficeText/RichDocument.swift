@@ -417,6 +417,9 @@ public struct RichTextBox: Hashable, Sendable {
     /// The box is as tall as what is in it lays out (a nested table),
     /// not as `ImageAttachment.height` says.
     public var growsToFit = false
+    /// A header's or footer's wrapping box with `spAutoFit` (width kept): Word makes it
+    /// as tall as its text, whatever extent the file states.
+    public var autoHeight = false
     /// The boxes after the first in a group of them (`wpg:wgp`): where
     /// each one's paragraphs start in `paragraphs`, and its place in the
     /// group in points — its top, its height, and whether its text
