@@ -1614,6 +1614,26 @@ enum OfficeFonts {
         0.4561, 0.2280, 0.7290, 0.5010, 0.5010, 0.5010, 0.5010, 0.3188, 0.4561, 0.2729, 0.5010, 0.4561, 0.6382, 0.4561, 0.4561,
         0.4102, 0.3191, 0.2300, 0.3191, 0.4790,
     ]
+    // Source Sans Pro (Word's Windows prints embed it; no stand-in is bundled): advances in ems from the hmtx of the subsets in 12 dx2 prints, 25 and 42 glyphs
+    // estimated (test/tools/print-font-metrics.py with PRINTS_GLOB). Line 0.984 + 0.273. Space 0.200, where the sans stand-in's was 0.226 (dx2 c5311ac7's 24 pt title).
+    static let sourceSansProAdvances: [Double] = [
+        0.2000, 0.2890, 0.4250, 0.5110, 0.5110, 0.8170, 0.6128, 0.2490, 0.3030, 0.3030, 0.3576, 0.5366, 0.2490, 0.3060, 0.2490,
+        0.3500, 0.4970, 0.4970, 0.4970, 0.4970, 0.4970, 0.4970, 0.4970, 0.4970, 0.4970, 0.4970, 0.2490, 0.2553, 0.5366, 0.5366,
+        0.5366, 0.5110, 0.9327, 0.5440, 0.5880, 0.5710, 0.6150, 0.5270, 0.4940, 0.6170, 0.6520, 0.2630, 0.4800, 0.5790, 0.4860,
+        0.7270, 0.6470, 0.6640, 0.5660, 0.6640, 0.6165, 0.5340, 0.5360, 0.6450, 0.5150, 0.7860, 0.5694, 0.4760, 0.5390, 0.3030,
+        0.2553, 0.3030, 0.4311, 0.5000, 0.3060, 0.5040, 0.5530, 0.4560, 0.5550, 0.4960, 0.2920, 0.5040, 0.5440, 0.2460, 0.2470,
+        0.4950, 0.2550, 0.8290, 0.5470, 0.5420, 0.5550, 0.5488, 0.3470, 0.4190, 0.3380, 0.5440, 0.4670, 0.7180, 0.4934, 0.4670,
+        0.4250, 0.3069, 0.2410, 0.3069, 0.5366,
+    ]
+    static let sourceSansProBoldAdvances: [Double] = [
+        0.2000, 0.3400, 0.5360, 0.5745, 0.5745, 0.9185, 0.7460, 0.3000, 0.3440, 0.3440, 0.4020, 0.6033, 0.3000, 0.3200, 0.3000,
+        0.3390, 0.5171, 0.5171, 0.5171, 0.5171, 0.5171, 0.5171, 0.5171, 0.5171, 0.5171, 0.5171, 0.3000, 0.3440, 0.6033, 0.6033,
+        0.6033, 0.6310, 1.0073, 0.5730, 0.6180, 0.6180, 0.6350, 0.5310, 0.5000, 0.6657, 0.6180, 0.2910, 0.5090, 0.6140, 0.5000,
+        0.7620, 0.6180, 0.6600, 0.5800, 0.6657, 0.6000, 0.5560, 0.5560, 0.6650, 0.5708, 0.8130, 0.5708, 0.5708, 0.5228, 0.3440,
+        0.2870, 0.3440, 0.6033, 0.5000, 0.3440, 0.5270, 0.5730, 0.4670, 0.5730, 0.5180, 0.3410, 0.5340, 0.5710, 0.2760, 0.2780,
+        0.5480, 0.2860, 0.8570, 0.5720, 0.5550, 0.5530, 0.5722, 0.3980, 0.4430, 0.3830, 0.5680, 0.4990, 0.7760, 0.4900, 0.5210,
+        0.4600, 0.4020, 0.2890, 0.4020, 0.6033,
+    ]
     static let tahomaAdvances: [Double] = [
         0.3125, 0.3320, 0.4014, 0.6289, 0.6289, 1.0054, 0.7542, 0.2159, 0.3828, 0.3828, 0.4400, 0.6603, 0.3027, 0.3633, 0.3027,
         0.3823, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.3535, 0.3142, 0.6603, 0.6603,
@@ -3479,6 +3499,15 @@ enum OfficeFonts {
                 face.naturalHeight = 1.1475
                 face.baseline = 0.9355
                 RuleTrace.hit("arial-narrow-own-widths")
+            }
+            // (Source Sans Pro, drawn as the sans clone, at its own widths.)
+            if wordOnWindows, family.trimmingWhitespace().lowercased() == "source sans pro" {
+                face.advances = sourceSansProAdvances
+                face.italicAdvances = sourceSansProAdvances
+                face.boldAdvances = sourceSansProBoldAdvances
+                face.boldItalicAdvances = sourceSansProBoldAdvances
+                // (Widths only: the sans stand-in's line stays; hhea's 1.257 put dx2 17a0d0c7's lines 1 pt low.)
+                RuleTrace.hit("source-sans-pro-own-widths")
             }
             // (Tahoma, drawn as the sans clone, at its own widths and line.)
             if family.trimmingWhitespace().lowercased() == "tahoma" {

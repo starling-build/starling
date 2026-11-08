@@ -21,6 +21,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 LIB = os.path.join(ROOT, 'apps/OfficeApp/Sources/OfficeApp/Resources/fonts/LiberationSans-%s.ttf')
 
 def prints():
+    if os.environ.get('PRINTS_GLOB'):
+        return sorted(glob.glob(os.environ['PRINTS_GLOB'], recursive=True))
     return sorted(glob.glob(ROOT + '/test/corpus/pptx/powerpoint-win/*.pdf') +
                   glob.glob(ROOT + '/test/corpus/docx/**/word-win/*.pdf', recursive=True))
 
