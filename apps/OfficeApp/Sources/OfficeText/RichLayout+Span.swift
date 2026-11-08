@@ -825,7 +825,7 @@ extension RichLayout {
                 if kind >= 0, let indic, indic.scale != 1 { s = s.copyWith(scaleX: indic.scale) }
                 // (The run's own line is the face's, not the stand-in's, where the face's is the shorter: Aparajita's 1.18 em (a516bfe9: 2.7 to 92.9) where Noto
                 // Sans Devanagari's is taller; the joiner above only raises a line.)
-                if kind >= 0, let indic, (indic.face == "kokila" && kokilaLatin) || (indic.face == "utsaah" && utsaahLatin) || indic.face == "vijaya", let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
+                if kind >= 0, let indic, (indic.face == "kokila" && kokilaLatin) || (indic.face == "utsaah" && utsaahLatin) || indic.face == "vijaya" || (indic.face == "nirmala ui" && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
                     // (Kokila's line: its own ascent and descent, above and below the baseline, for every run on the line: the stand-ins'
                     // (Carlito's, Noto's) are taller above and set the line 2-3 pt low and 1.4 pt per line too far apart.)
                     let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
