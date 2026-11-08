@@ -1576,11 +1576,17 @@ extension RichLayout {
         return thaiJoins
     }
 
+    /// How many full-width characters of the paragraph's first run fit one line.
+    func _hanFitChars(_ p: RichParagraph, named: RichNamedStyle?, textWidth: Double) -> Int {
+        let em = (p.runs.first?.style.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+        return em > 0 ? Int(textWidth / em) : Int.max
+    }
+
     /// `RichDocument.joinsHanAfterSpace`: the offsets (UTF-16) inside each
     /// stretch after a space, to the next space or tab, that holds Han
     /// text — kept together, the engine breaking one longer than a line
     /// where it fills. Empty where the document does not say so.
-    static func _hanJoins(_ p: RichParagraph, _ document: RichDocument) -> Set<Int> {
+    static func _hanJoins(_ p: RichParagraph, _ document: RichDocument, fitChars: Int = Int.max) -> Set<Int> {
         guard RichTextTheme.wordWindowsPages, document.joinsHanAfterSpace else { return [] }
         let units = Array(p.text.utf16)
         func blank(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || u == 0x0A || u == 0x09 }
@@ -1598,9 +1604,10 @@ extension RichLayout {
             }
             // (Not Japanese: jpn-z23845932 (Pandoc, mode none, theme face), "(a) 出版頻度の制約。 Amazon
             // KDPをはじめ…" in Word's print breaks inside the kana-bearing stretch, every line full.)
-            // (A kana-bearing stretch that fits a line stays one word, as jpn-z17607492's
-            // "典型的な距離:畑から…マイル" does in Word's print: the line breaks before it, not inside.)
-            if han, !kana || end - start <= 36 { for o in (start + 1) ..< max(start + 1, end) { joins.insert(o) } }
+            // (A kana-bearing stretch that fits a line (fitChars full-width characters) stays one
+            // word, as jpn-z17607492's "典型的な距離:畑から…マイル" does in Word's print: the line
+            // breaks before it, not inside.)
+            if han, !kana || end - start <= fitChars { for o in (start + 1) ..< max(start + 1, end) { joins.insert(o) } }
             k = max(end, start)
         }
         return joins

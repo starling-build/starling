@@ -89,7 +89,7 @@ extension RichLayout {
         // "ตอบ : 1." alone and the overlong stretch after it from the
         // next line's start. 61.2 -> 67.9 against word-win.)
         let thaiJoins = _thaiJoins(p, document, named: named, textWidth: textWidth, lead: lead)
-        let hanJoins = theme.wordRules ? Self._hanJoins(p, document) : []
+        let hanJoins = theme.wordRules ? Self._hanJoins(p, document, fitChars: _hanFitChars(p, named: named, textWidth: textWidth)) : []
         if p.text.isEmpty {
             // (The mark under a nested table at half a point:
             // `RichParagraphStyle.markUnderNestedTable`.)
