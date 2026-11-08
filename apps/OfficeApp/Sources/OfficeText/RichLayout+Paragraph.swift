@@ -3111,6 +3111,8 @@ extension RichLayout {
                 // and nothing else: Word keeps its single descent.)
                 let target = (box.bottom - box.top) + lines[0].descent / multiple + (multiple - 1) * single
                 bodyHeight += max(0, target - lines[0].height)
+                // (Word keeps the baseline where single spacing puts it, the extra all under it; the engine put its share above the picture: lab picline1, 146be6fb.)
+                if box.top > 0.05, !p.text.isEmpty { RuleTrace.hit("picture-line-extra-all-below"); _inkShift[i] -= box.top; bodyHeight -= box.top }
             }
         } else if theme.wordRules, p.image == nil, p.inlineImages.count == 1, p.inlineImages.values.allSatisfy({ $0.float == nil }),
                   style.lineHeightPoints == nil || style.lineHeightIsMinimum,
