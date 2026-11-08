@@ -48,7 +48,7 @@ extension RichLayout {
     /// the median ratio of Word's word widths to ours over the dx2 Indic documents that print in that face (spread under 0.03 per face).
     static let _indicScale: [String: [Character: Double]] = [
         "mangal": ["D": 1.096], "utsaah": ["D": 0.80], "kokila": ["D": 0.725], "aparajita": ["D": 0.942],
-        "nirmala ui": ["D": 1.082, "B": 1.075, "T": 1.187, "P": 1.097, "G": 1.147],
+        "nirmala ui": ["D": 1.082, "B": 1.075, "T": 1.16, "P": 1.097, "G": 1.147],
         "raavi": ["P": 1.084], "shruti": ["G": 1.153], "gautami": ["T": 0.964], "vrinda": ["B": 0.907], "shonar bangla": ["B": 0.716]]
     /// An empty paragraph whose mark is a complex-script one (`w:cs`) in Mangal (Kalimati, which Windows lacks, is drawn in it) is a Mangal line,
     /// 1.68 em: dx2 54d1d1d1's blank cell paragraphs, 11 pt marks, step 18.5 in Word's print against 15.9 in the stand-in's.
