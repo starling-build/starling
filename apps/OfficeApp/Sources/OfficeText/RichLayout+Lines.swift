@@ -481,7 +481,7 @@ extension RichLayout {
     /// apart from the first, two of them at x 537 beside the table; ours took the table's offset on top.
     func _markBesideOffsetFloat(_ table: String, _ i: Int, _ document: RichDocument) -> Bool {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, i > 0, document.paragraphs[i].text.isEmpty,
-              let ts = document.tableStyles[table], ts.floatOffsetY != nil, ts.floatsOverText, !ts.pageAnchored, let kept = ts.keptPosition,
+              let ts = document.tableStyles[table], ts.floatOffsetY != nil || ts.floatRaiseY != nil, ts.floatsOverText, !ts.pageAnchored, let kept = ts.keptPosition,
               kept.containsSubstring("w:vertAnchor=\"text\""), !kept.containsSubstring("w:horzAnchor=\"page\""),
               !kept.containsSubstring("w:tblpXSpec"), let widths = _columnWidths[table] else { return false }
         func twips(_ name: String) -> Double {

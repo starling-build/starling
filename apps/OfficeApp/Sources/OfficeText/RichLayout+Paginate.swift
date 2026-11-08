@@ -1888,7 +1888,7 @@ extension RichLayout {
             }
             if theme.wordRules, besideTable == nil, i > 0, _cells[i] == nil, let prev = _cells[i - 1]?.table,
                blank(document.paragraphs[i]) || (i < _besideLead.count && _besideLead[i] > 0) || _splitMarginFloatBeside(prev, i, page, document),
-               let ts = document.tableStyles[prev], ts.floatOffsetY != nil || (i < _besideLead.count && _besideLead[i] > 0) || _anchorBesideLeftTable(prev, i, document) || _splitMarginFloatBeside(prev, i, page, document), !ts.pageAnchored, ts.keptPosition != nil,
+               let ts = document.tableStyles[prev], ts.floatOffsetY != nil || (ts.floatRaiseY != nil && _markBesideOffsetFloat(prev, i, document)) || (i < _besideLead.count && _besideLead[i] > 0) || _anchorBesideLeftTable(prev, i, document) || _splitMarginFloatBeside(prev, i, page, document), !ts.pageAnchored, ts.keptPosition != nil,
                (i < _besideLead.count && _besideLead[i] > 0) || _splitMarginFloatBeside(prev, i, page, document) || _tableLeft(prev, document) - _px(9) - _px(_setup(ofParagraph: i).headerWrapLeft) >= _px(18) || _stripBesideLeftTable(prev, i, document) || _anchorBesideLeftTable(prev, i, document) || _markBesideOffsetFloat(prev, i, document),
                case let firstPage = _beside_firstPage(of: prev, upTo: page, text: i < _besideLead.count && _besideLead[i] > 0 && !blank(document.paragraphs[i])),
                // (… but only where the text does not fit whole beside those rows and goes on
