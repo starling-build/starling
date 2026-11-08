@@ -1,12 +1,10 @@
-130 documents: mean 72.3% of Word's lines matched, median 98.0%; 72 at 95% or more, 93 at half or more; 116 with Word's page count
+130 documents: mean 72.6% of Word's lines matched, median 98.0%; 72 at 95% or more, 93 at half or more; 117 with Word's page count
     0.4%  lines 465/396  pages 22/15  72d5ef87c9ea92db2121dffcb4ffb048d60b51640795b1b3ef56640000bf850b
     1.7%  lines 353/406  pages 10/11  5ed52035e59d3e8e77a37e3ecb50dc2f9442eaf34eb6e78455f2384faa35a367
     2.0%  lines 150/144  pages 6/6  8d372494c351829de4a464ecb781c7e6529c4d616ba9f702cbf4a33305178158
     2.8%  lines 218/214  pages 10/8  2263e22151b5ac66aee9de904aaa56982bb3af7c311070dc3839053bb83d8a81
     2.8%  lines 36/50  pages 2/2  0977ae703ae7d3828d55d13541c6b692c751b66d5d64c3cce304cdc7eccabd66
     3.6%  lines 474/474  pages 13/12  1a285b3249ef6583285cc5b7d11449b69cd53e89e88f51f622cc5de44fd6bc6d
-    5.9%  lines 17/12  pages 1/1  c30a7a6158d90de1bd980737e8b4207b7a488ec6b759d63e8c891cf92b5be966
-    6.0%  lines 83/66  pages 3/2  8c80b1f91e6d47dbd485ba3465f33dff21b7becfa9961fe04284053f5a553e1d
     7.2%  lines 111/111  pages 5/6  0aca9a91b3bb95c681af40c8c2c42ab940c39dd3b475bbbe04e029b8e0c9d2f3
     7.7%  lines 13/13  pages 1/1  54469b1dc3de147dbc9e0ea84c1d52ae9fb66ccf752f5f8a85cfebed0885d198
     8.3%  lines 72/83  pages 3/3  17a0d0c76d69c44b66704a650462fc93b198cfa5e812a3f3b4da7d7ec4602a3f
@@ -25,7 +23,9 @@
    16.7%  lines 36/36  pages 1/1  06b47879c762e746d7ed177b191ed66167e31cb4bbea8a65885f1b0931158984
    16.7%  lines 42/51  pages 1/2  afc3468460d56327ff5583431ba8d7a34724125b0adcdac2213285d3e9000a13
    16.7%  lines 30/30  pages 1/1  d5a4662f3cbc4a9864ce3fca81e5c359994dc5bdbb99ceea47bd66dcdda0c9af
+   18.1%  lines 83/78  pages 3/3  8c80b1f91e6d47dbd485ba3465f33dff21b7becfa9961fe04284053f5a553e1d
    23.4%  lines 499/865  pages 14/22  d631aa7d8edd40f7fabf8b4a945f4379ffc7e8bb7197a5a219ee5e3db02d3236
+   23.5%  lines 17/17  pages 1/1  c30a7a6158d90de1bd980737e8b4207b7a488ec6b759d63e8c891cf92b5be966
    24.6%  lines 191/191  pages 5/5  19be02d95305b10358a769cb58053e86621350a0afb9ea52ca95f86a34c84f43
    26.7%  lines 135/135  pages 6/6  cfe3097b888dd7a710e70dbde722486541f5dce98e2707cbc0f6f8696d4a4421
    27.0%  lines 341/342  pages 17/17  cfbf78234a1573603c138ac9f6dc5edba6258d04094e0ccf60b71f91609e943e
