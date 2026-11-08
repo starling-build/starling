@@ -288,15 +288,20 @@ extension RichLayout {
         // print squeezes it to hold "เป็นอย่างไร?". Each piece there is the
         // advance from its start to the next piece's.)
         let shownUnits = Array(span.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
-        let thaiText = wordRules && shownUnits.count == total && shownUnits.contains { ($0 >= 0x0E01 && $0 <= 0x0E5B) || ($0 >= 0x0A01 && $0 <= 0x0A76) }
-        let flat: TextPainter? = thaiText ? {
-            let t = TextPainter(text: span, textAlign: .left, textDirection: .ltr)
-            if !inline.isEmpty { t.setPlaceholderDimensions(inline.map { $0.dimensions }) }
-            t.layout(minWidth: 0, maxWidth: 10_000_000)
-            return t
-        }() : nil
+        // (The probe parts a cluster it cannot set on one line, so a script it
+        // cannot measure per character reads as zero: any step the probe sums
+        // to nothing takes the width from one unbroken line instead. That is
+        // built on first need, so Latin and ideographs never pay for it.)
+        var flat: TextPainter?
+        let flatUsable = wordRules && shownUnits.count == total
         defer { flat?.dispose() }
         func flatX(_ o: Int) -> Double {
+            if flat == nil {
+                let t = TextPainter(text: span, textAlign: .left, textDirection: .ltr)
+                if !inline.isEmpty { t.setPlaceholderDimensions(inline.map { $0.dimensions }) }
+                t.layout(minWidth: 0, maxWidth: 10_000_000)
+                flat = t
+            }
             guard let flat else { return 0 }
             if o >= total { return flat.width }
             return flat.getOffsetForCaret(TextPosition(offset: o), Rect.zero).dx
@@ -330,12 +335,15 @@ extension RichLayout {
             let trail = boxes(last, b)
             // (From the line's own start: one may sit on this line too.)
             var lineWidth = pending
-            if last > a, flat != nil, (a ..< last).contains(where: { (units[$0] >= 0x0E01 && units[$0] <= 0x0E5B) || (units[$0] >= 0x0A01 && units[$0] <= 0x0A76) }) {
-                lineWidth += max(0, flatX(map.painter(last - 1) + 1) - flatX(from))
-            } else if last > a {
+            if last > a {
+                var probed = 0.0
                 for box in probe.getBoxesForSelection(TextSelection(baseOffset: from, extentOffset: map.painter(last - 1) + 1)) {
-                    lineWidth += box.right - box.left
+                    probed += box.right - box.left
                 }
+                if flatUsable, Self._probeCannotMeasure(probed, units[a ..< last]) {
+                    probed = max(0, flatX(map.painter(last - 1) + 1) - flatX(from))
+                }
+                lineWidth += probed
             }
             pending = 0
             let hard = units[b - 1] == 0x0A || units[b - 1] == 0x2028 || units[b - 1] == 0x0B || end >= total
@@ -3230,4 +3238,26 @@ extension RichLayout {
             return false
         }
     }
+
+    /// True when a step of the squeeze walk measured nothing although it holds
+    /// something drawn: the probe could not part its clusters, so the step
+    /// takes its width from one unbroken line. (Spaces, controls and the
+    /// zero-width joiners draw nothing and may read zero.)
+    @inline(never)
+    static func _probeCannotMeasure(_ width: Double, _ units: ArraySlice<UInt16>) -> Bool {
+        // A step holding a letter of a script whose clusters the probe parts
+        // (Indic, Thai, Lao, Tibetan, Myanmar, Khmer) is read whole, even when
+        // part of it measured (a Thai word beside Latin sums to a fraction).
+        if units.contains(where: { ($0 >= 0x0900 && $0 <= 0x0DFF) || ($0 >= 0x0E00 && $0 <= 0x109F) || ($0 >= 0x1780 && $0 <= 0x17FF) }) { return true }
+        return _probeReadsZero(width, units)
+    }
+
+    @inline(never)
+    static func _probeReadsZero(_ width: Double, _ units: ArraySlice<UInt16>) -> Bool {
+        guard width < 0.01 else { return false }
+        return units.contains { u in
+            u > 0x20 && u != 0xA0 && u != 0x200B && u != 0x200C && u != 0x200D && u != 0x2060 && u != 0xFEFF && !(u >= 0x7F && u <= 0x9F)
+        }
+    }
+
 }
