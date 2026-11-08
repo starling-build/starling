@@ -1084,7 +1084,7 @@ enum DocxFormat {
         // its parent's), and what the Normal style states of its own: the
         // table's stand under the paragraph's style, over the defaults.
         var tableChars: [String: CharStyle] = [:]
-        var normalChar = CharStyle()
+        var normalStatedChar = CharStyle()
         // Table styles (and the default one) that fix the layout: a table
         // that says nothing itself is then not autofitted.
         var fixedTableStyles = Set<String>()
@@ -1239,7 +1239,7 @@ enum DocxFormat {
             if let normal = styles.all("w:style").first(where: { style in
                 style["w:type"] == "paragraph" && (style["w:default"] == "1" || style["w:styleId"] == "Normal") }),
                let rPr = normal.first("w:rPr") {
-                normalChar = _charStyle(rPr, base: CharStyle())
+                normalStatedChar = _charStyle(rPr, base: CharStyle())
             }
             for id in tableNodes.keys {
                 var chain: [XNode] = [], seen = Set<String>(), cur: String? = id
@@ -2940,7 +2940,7 @@ enum DocxFormat {
                             : (column == 0 && firstColOn ? (cond.firstColChar ?? CharStyle()) : CharStyle())
                         notes.cellSizeFromTable = false
                         if cellChar.fontSize == nil, !normalStatesSize, let size = tableStyleSize { cellChar.fontSize = size; notes.cellSizeFromTable = true }
-                        notes.cellCharFromTable = tableStyleChar.map { _takeTableChar(&cellChar, $0, normal: normalChar) } ?? []
+                        notes.cellCharFromTable = tableStyleChar.map { _takeTableChar(&cellChar, $0, normal: normalStatedChar) } ?? []
                         let before = paragraphs.count
                         for child in tc.children { walkBlock(child, indent: indent, depth: depth + 1) }
                         if paragraphs.count == before { emit(RichParagraph(style: cellBase)) }
@@ -7639,6 +7639,10 @@ enum DocxFormat {
     private static func _takeTableChar(_ cell: inout CharStyle, _ table: CharStyle, normal: CharStyle) -> Set<String> {
         var took = Set<String>()
         for (name, k) in _tableCharKeys where cell[keyPath: k] == nil && normal[keyPath: k] == nil {
+            // Normal naming one face for ascii and hAnsi stores hAnsi as nil: that is
+            // a statement, not a gap, so the table style's hAnsi must not stand in
+            // (dx2 d611e23b: Normal Arial, TableGrid Calibri; Word prints Arial).
+            if name == "hAnsi", normal.fontFamily != nil { continue }
             if let v = table[keyPath: k] { cell[keyPath: k] = v; took.insert(name) }
         }
         for (name, k) in _tableCharNumbers where cell[keyPath: k] == nil && normal[keyPath: k] == nil {
