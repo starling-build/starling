@@ -1019,6 +1019,45 @@ extension RichLayout {
                     start = end
                     return
                 }
+                if kind >= 0, indic?.face == "kokila", let px = style(kind).fontSize, px > 0.5, let m = Self._indicLines["kokila"],
+                   text[start ..< end].unicodeScalars.contains(where: { $0.value < 0x250 || $0.value == 0x2026 || $0.value == 0x201C || $0.value == 0x201D }) {
+                    // (Kokila's own Latin, digits and space: `KokilaLatin`; Devanagari stays on the flat scale.)
+                    let base = style(kind)
+                    var i = start
+                    func isLatin(_ c: Character) -> Bool { c.unicodeScalars.allSatisfy { $0.value < 0x250 || $0.value == 0x2026 || $0.value == 0x201C || $0.value == 0x201D } }
+                    while i < end {
+                        var j = i
+                        let latin = isLatin(text[i])
+                        while j < end, isLatin(text[j]) == latin { j = text.index(after: j) }
+                        let seg = text[i ..< j]
+                        if latin {
+                            var st = base.copyWith(scaleX: 1)
+                            if p.style.lineHeightPoints == nil {
+                                let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
+                                st = st.copyWith(height: (m.0 + m.1) * multiple, leadingDistribution: .even)
+                            }
+                            let split = KokilaLatin.split(seg)
+                            if split.any {
+                                func measure(_ s: String, _ ls: Double) -> Double {
+                                    let t = TextPainter(text: TextSpan(text: s, style: st.copyWith(letterSpacing: ls)), textDirection: .ltr)
+                                    t.layout(minWidth: 0, maxWidth: 100_000)
+                                    defer { t.dispose() }
+                                    return t.width
+                                }
+                                let w0 = measure(String(seg), 0)
+                                let n = max(1, Int((measure(String(seg), 10) - w0) / 10 + 0.5))
+                                let other = split.rest ? w0 - measure(split.known, 0) : 0
+                                if w0 > 0.01 { st = st.copyWith(letterSpacing: (st.letterSpacing ?? 0) + (split.ems * px + other - w0) / Double(n)) }
+                            }
+                            spans.append(contentsOf: capped(seg, run, st))
+                        } else {
+                            spans.append(contentsOf: capped(seg, run, joinedScaled(seg, base)))
+                        }
+                        i = j
+                    }
+                    start = end
+                    return
+                }
                 if kind >= 0, let face = indic?.face, let spaceEm = Self._indicSpace[face], let px = style(kind).fontSize, px > 0.5,
                    text[start ..< end].contains(" ") || text[start ..< end].contains("\u{00A0}") {
                     // (Word's space is the face's own: Mangal 0.5 em against the stand-in's 0.26; the prints' gap between words, 5.5 pt against our 3.5 at 11 pt.)
