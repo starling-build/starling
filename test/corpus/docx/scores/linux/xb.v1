@@ -1,4 +1,4 @@
-188 documents: mean 52.2% of Word's lines matched, median 57.1%; 34 at 95% or more, 99 at half or more; 152 with Word's page count
+188 documents: mean 52.8% of Word's lines matched, median 57.9%; 35 at 95% or more, 100 at half or more; 153 with Word's page count
     0.0%  lines 217/211  pages 9/8  hin-z19439612-b05873
     0.0%  lines 245/238  pages 8/10  kor-z21941126-9b36b8
     0.4%  lines 794/762  pages 35/32  kor-z23132029-ff493b
@@ -20,9 +20,6 @@
     4.0%  lines 430/468  pages 16/17  fas-z22867828-b604ea
     4.1%  lines 242/255  pages 9/8  kor-z21348848-7369b1
     4.2%  lines 240/295  pages 8/9  ara-z23060052-a6e54c
-    4.2%  lines 24/24  pages 1/1  fas-z4476777-7bfbf3
-    4.6%  lines 658/776  pages 27/27  ara-z11030406-663296
-    4.6%  lines 328/296  pages 10/9  urd-z7538882-13b0bc
     4.8%  lines 210/209  pages 11/10  ell-z20423699-49fb5c
     4.9%  lines 206/206  pages 10/10  ell-z20423699-263d3d
     4.9%  lines 205/205  pages 10/10  ell-z20423699-d32504
@@ -30,6 +27,7 @@
     4.9%  lines 548/557  pages 13/13  urd-z17694289-27ac54
     5.1%  lines 217/217  pages 11/11  ell-z20423699-f43340
     5.1%  lines 214/214  pages 11/11  ell-z20423699-8d41bb
+    5.2%  lines 658/776  pages 27/27  ara-z11030406-663296
     5.5%  lines 218/218  pages 12/12  ell-z20423699-e882cd
     5.5%  lines 272/284  pages 8/8  ara-z8215570-1aa55d
     6.2%  lines 241/241  pages 7/8  fas-z20703874-baff6e
@@ -57,13 +55,14 @@
    12.8%  lines 149/148  pages 5/5  mar-z19707447-f8dac9
    13.3%  lines 452/443  pages 17/17  jpn-z19433747-8787f4
    13.5%  lines 111/111  pages 8/8  ara-z15699863-842f1e
-   13.8%  lines 578/586  pages 19/20  fas-z8123021-fd38aa
+   13.7%  lines 578/586  pages 19/20  fas-z8123021-fd38aa
    14.3%  lines 329/313  pages 13/13  jpn-z23845932-12d9fb
    14.7%  lines 897/951  pages 26/27  urd-z10575633-e54653
-   15.1%  lines 463/473  pages 16/16  ara-z4399437-5bde25
    15.3%  lines 504/519  pages 16/16  ara-z6757469-27b88d
    15.4%  lines 130/128  pages 6/6  ara-z21298544-b514c2
+   16.8%  lines 463/473  pages 16/16  ara-z4399437-5bde25
    16.9%  lines 59/60  pages 3/3  kor-z21348848-b4a883
+   17.4%  lines 328/323  pages 10/10  urd-z7538882-13b0bc
    21.0%  lines 143/145  pages 6/6  fas-z21853138-0c740e
    22.9%  lines 240/244  pages 7/7  jpn-z18981562-5ff3d0
    23.3%  lines 408/400  pages 14/14  kor-z22076349-aa9a7f
@@ -81,7 +80,7 @@
    37.7%  lines 106/106  pages 5/5  hin-z19363961-952d8a
    39.6%  lines 265/268  pages 14/14  ara-z19427756-0dd311
    41.1%  lines 207/204  pages 4/4  jpn-z19546822-fd00b5
-   42.0%  lines 1045/1047  pages 22/22  docx-5dc87fc7
+   42.1%  lines 1045/1047  pages 22/22  docx-5dc87fc7
    42.2%  lines 976/984  pages 21/22  fra-g111-8b0e29
    43.7%  lines 231/232  pages 7/7  hin-z21320572-6df882
    44.1%  lines 34/35  pages 1/1  docx-79737edb
@@ -165,6 +164,7 @@
   100.0%  lines 139/139  pages 4/4  bul-z22116004-d3c1d3
   100.0%  lines 72/72  pages 2/2  deu-z4548799-c5d058
   100.0%  lines 76/76  pages 3/3  ell-z18377521-5297a3
+  100.0%  lines 24/24  pages 1/1  fas-z4476777-7bfbf3
   100.0%  lines 282/283  pages 8/8  fra-g188-120f4b
   100.0%  lines 104/104  pages 4/4  fra-g27-306125
   100.0%  lines 66/66  pages 2/2  heb-z21095281-f3f545
