@@ -41,7 +41,7 @@ extension RichLayout {
     /// (Word for Windows): every picture's line is whole pitches (see `_span`).
     /// The ascent and descent, in ems, of the faces Word sets Devanagari in (their hhea, from the fonts Word's prints embed).
     static let _indicLines: [String: (Double, Double)] = [
-        "mangal": (2542.0 / 2048, 898.0 / 2048), "kokila": (1504.0 / 2048, 857.0 / 2048), "nirmala ui": (2210.0 / 2048, 514.0 / 2048),
+        "mangal": (2542.0 / 2048, 898.0 / 2048), "kokila": (1504.0 / 2048, 857.0 / 2048), "nirmala ui": (2210.0 / 2048, 514.0 / 2048), "vijaya": (1462.0 / 2048, 600.0 / 2048),
         "aparajita": (1550.0 / 2048, 870.0 / 2048), "raavi": (2048.0 / 2048, 1352.0 / 2048), "shruti": (2091.0 / 2048, 1352.0 / 2048),
         "gautami": (1892.0 / 2048, 1664.0 / 2048), "vrinda": (2017.0 / 2048, 778.0 / 2048), "shonar bangla": (1655.0 / 2048, 996.0 / 2048)]
     /// Width of each face's letters against the Noto stand-in's, per script (D Devanagari, B Bengali, T Telugu, P Gurmukhi, G Gujarati):
@@ -762,7 +762,8 @@ extension RichLayout {
                     // (Width: set per word in flush() from TamilAdvances, a per-codepoint regression fit of Word's word widths
                     // (2864 words, four documents); our PDF embeds no Tamil face, so it cannot be read from glyph hmtx. No scale here.)
                     if text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) {
-                        return ("nirmala ui", 1)
+                        // (Vijaya, when the run's complex face is that: Windows has it, and Word draws it as itself; dx2 c30a7a61.)
+                        return (_tamilVijaya(run.complexFontFamily, named, document) ? "vijaya" : "nirmala ui", 1)
                     }
                     // (A run with no Indic letter in a Kokila paragraph — dotted leaders, a comma, digits — is Kokila's too, in Word's print: its Latin
                     // face is Kokila as well. Left to the stand-in it set the line by Carlito's split, and stacked with the Kokila runs on the line.)
@@ -821,7 +822,7 @@ extension RichLayout {
                     let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
                     s = s.copyWith(ascentOverride: m.0 * multiple * size, descentOverride: m.1 * multiple * size, height: (m.0 + m.1) * multiple, leadingDistribution: .even)
                 }
-                if kind >= 0, let indic, indic.face == "aparajita", let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
+                if kind >= 0, let indic, indic.face == "aparajita" || indic.face == "vijaya", let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
                     let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
                     s = s.copyWith(height: (m.0 + m.1) * multiple, leadingDistribution: .even)
                 }
@@ -1014,7 +1015,7 @@ extension RichLayout {
                     start = end
                     return
                 }
-                if kind >= 0, indic?.face == "nirmala ui", text[start ..< end].unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) {
+                if kind >= 0, indic?.face == "nirmala ui" || indic?.face == "vijaya", text[start ..< end].unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) {
                     // (Tamil, word by word, at the widths of Nirmala UI's code points: `TamilAdvances`.)
                     let base = style(kind)
                     var wordStart = start
@@ -1022,7 +1023,7 @@ extension RichLayout {
                         guard a < b else { return }
                         let w = text[a ..< b]
                         var st = base
-                        if let px = base.fontSize, px > 0.5, let split = TamilAdvances.split(w, bold: base.fontWeight == .bold) {
+                        if let px = base.fontSize, px > 0.5, let split = TamilAdvances.split(w, bold: base.fontWeight == .bold, vijaya: indic?.face == "vijaya") {
                             // (As spacing, not a scale: the line breaking measures it. Spread over the glyphs the engine draws.)
                             func measure(_ ls: Double) -> Double {
                                 let t = TextPainter(text: TextSpan(text: String(w), style: base.copyWith(letterSpacing: ls)), textDirection: .ltr)
@@ -3113,5 +3114,13 @@ extension RichLayout {
               let metrics = Self._indicLines[(mark.bold || (named?.char.bold ?? false)) ? "nirmala ui" : "mangal"] else { return nil }
         RuleTrace.hit("word-tamil-empty-mark-is-a-line-of-mangal")
         return _lineJoiner(mark, named, look, p.style, pitch, scale, ascent: metrics.0, descent: metrics.1)
+    }
+}
+
+extension RichLayout {
+    /// A Tamil run whose complex-script face is Vijaya (Word for Windows draws it as Vijaya, a narrower, shorter-lined face than Nirmala UI).
+    @inline(never)
+    func _tamilVijaya(_ cs: String?, _ named: RichNamedStyle?, _ document: RichDocument) -> Bool {
+        (cs ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "vijaya"
     }
 }

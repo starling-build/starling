@@ -26,13 +26,13 @@ enum TamilAdvances {
     ]
     /// The width in em of a word's characters that the table has, and the others
     /// (punctuation, digits, joiners) as the characters not in it.
-    static func split(_ word: Substring, bold isBold: Bool) -> (ems: Double, known: String, rest: Bool)? {
+    static func split(_ word: Substring, bold isBold: Bool, vijaya: Bool = false) -> (ems: Double, known: String, rest: Bool)? {
         var sum = 0.0, known = String.UnicodeScalarView(), rest = false, any = false
         for u in word.unicodeScalars {
             if isBold, let w = bold[u.value] { sum += w; known.append(u); any = true }
             else if let w = regular[u.value] { sum += isBold ? w * 1.06 : w; known.append(u); any = true }
             else { rest = true }
         }
-        return any ? (sum, String(known), rest) : nil
+        return any ? (vijaya ? sum * 0.793 : sum, String(known), rest) : nil
     }
 }
