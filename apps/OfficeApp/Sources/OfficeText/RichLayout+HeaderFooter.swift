@@ -164,6 +164,7 @@ extension RichLayout {
         }
         for image in p.inlineImages.values.sorted(by: { (place[$0.id] ?? Int.max, $0.seq) < (place[$1.id] ?? Int.max, $1.seq) }) + (p.image.map { [$0] } ?? []) {
             guard let float = image.float, float.wraps, !float.takesRoom, !float.bandsPage,
+                  float.horizontalFrom != "rightMargin",
                   float.horizontalAlign != "inside", float.horizontalAlign != "outside",
                   float.heightShare == nil, image.textBox?.fitsText != true, image.width > 0, image.height > 0 else { continue }
             return (image, float)
@@ -975,6 +976,15 @@ extension RichLayout {
             // (Aligned within the left margin: the strip from the page's edge to the text.
             // zh-147bdae0's "附件4" box, right in it, stands by the left edge in Word's print.)
             if float.horizontalFrom == "leftMargin" { bandWidth = _px(margins.0) }
+        }
+        // (From the right margin: the strip between the text area and the page's right edge. f896e232's "Tamil" box, aligned
+        // left in it, stands at 524 in Word's print; ours set it from the column's left edge, 78.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, float.horizontalFrom == "rightMargin", i >= _cells.count || _cells[i] == nil {
+            RuleTrace.hit("float-from-right-margin-stands-in-that-strip")
+            let setup = _setup(ofParagraph: i)
+            let margins = floatsFrames ? frameMargins : (setup.marginLeft + setup.gutter, setup.marginRight)
+            bandLeft += bandWidth
+            bandWidth = _px(margins.1)
         }
         // (The margin is the text area across all its columns, not the
         // column the anchor stands in: lo-7afc5602's box, aligned right to
