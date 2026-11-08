@@ -3709,6 +3709,11 @@ extension RichLayout {
                     // "二、適用範圍" run, thirteen kept paragraphs, ends in
                     // "(九)其他應變處理…", 27pt with its 9 after, and Word
                     // sets it at page 41's foot with 1.1pt short of that.)
+                    // (A paragraph that opens with its own page break asks the page it follows for the
+                    // break's line only, down to the baseline: the text after the break is on the next
+                    // page. Word fits dx2 43e0fe21's empty heading and the break line that follows it
+                    // 4.2pt past page 3's foot, and ours sent both on, a blank page 4.)
+                    if let reach = _breakLineReach(st, g) { return reach }
                     if whole(k) {
                         // (A member the run's last one asks for, a line set on
                         // its own, may reach past the foot by the same
@@ -5334,5 +5339,16 @@ extension RichLayout {
             _hyphenShown[i] = want
             _layoutParagraphOnce(i, p, document)
         }
+    }
+}
+
+extension RichLayout {
+    /// What a paragraph that opens with a page break (not a column break) asks of the page before it,
+    /// for a keep chain: its first line down to the baseline. Nil elsewhere.
+    @inline(never)
+    func _breakLineReach(_ st: RichParagraphStyle, _ g: ParagraphGeometry) -> Double? {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, st.pageBreakInline, !st.columnBreak,
+              let base = g.painter.computeLineMetrics().first?.baseline else { return nil }
+        return (g.textTop - g.top) + base
     }
 }
