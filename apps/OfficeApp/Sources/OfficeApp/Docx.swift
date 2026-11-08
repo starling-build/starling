@@ -2183,6 +2183,11 @@ enum DocxFormat {
                             paragraphs[lead].style.spaceBeforeAuto = false
                             paragraphs[lead].style.spaceBefore = 0
                         }
+                        if Self.wordOnWindows, let tw = node.first("w:tblPr")?.first("w:tblW"), (tw["w:type"] ?? "") == "dxa",
+                           let dxa = Double(tw["w:w"] ?? ""), tc.first("w:tcPr")?.first("w:tcW").map({ ($0["w:type"] ?? "auto") == "auto" }) ?? true {
+                            let room = dxa / 20 - (tableMargins.left ?? 0) - (tableMargins.right ?? 0)
+                            for k in first ..< paragraphs.count where paragraphs[k].cell == nil && paragraphs[k].image == nil { paragraphs[k].style.wrapperRoom = room }
+                        }
                         paragraphs[lead].style.spaceBefore += (m.top ?? 0) + spacing * (r == 0 ? 2 : 1)
                         // (Its automatic space after is the cell's foot, none, as in any
                         // cell: floattable-del-empty's last "NormalWeb" paragraph of a

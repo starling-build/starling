@@ -540,6 +540,9 @@ public struct RichParagraphStyle: Hashable, Sendable {
     public var alignment: ParagraphAlignment = .left
     public var indentLeft: Double = 0
     public var indentRight: Double = 0
+    /// Points. A paragraph read from an invisible wrapper table whose stated width passes the column: the room its text has
+    /// (Word lays the wrapper at that width, past the margin: ebb4a037's 521pt table in a 451pt column).
+    public var wrapperRoom: Double?
     /// Points. For a paragraph in a table nested in a table cell (flattened
     /// into the cell): the top margins and top lines of the nested cells it
     /// stands in, outer ones too, which began on an earlier paragraph. Where

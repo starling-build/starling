@@ -178,6 +178,7 @@ extension RichLayout {
             width -= _px(10.0)
         }
         var textWidth = max(1, width - left - right + (frameLeft ?? 0))
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, let room = style.wrapperRoom, _px(room) > width { textWidth += _px(room) - width }
         // (Centred or set right, a numbered line is set across its
         // hanging indent too: zh-3c055c9b's caption "表1　古佳川不實核銷表
         // (…財物)", 表標題 centred on a 24pt hang, is one line in Word's
