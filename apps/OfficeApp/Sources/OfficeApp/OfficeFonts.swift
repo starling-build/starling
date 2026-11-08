@@ -1165,6 +1165,9 @@ enum OfficeFonts {
         let koreanOwn: Set<String> = ["맑은 고딕", "굴림", "굴림체", "돋움", "바탕"]
         guard listed || !(has.contains(where: { faceHas(n, $0) }) || koreanOwn.contains(n)) else { return nil }
         guard let e = fontEntry(family) else { return n.unicodeScalars.allSatisfy({ $0.isASCII }) ? "mincho" : nil }
+        // (A Korean face Word lacks whose font table names 바탕 as its alternate prints in Batang: 한양신명조 at
+        // charset 81 steps 1.31 em in Word's print where ours drew Malgun's 1.73, b6f6c7d4 / 07eecf7a.)
+        if e.alt?.trimmingWhitespace() == "바탕", n != "바탕", e.charset == "81" || e.charset == "129" { return "batang" }
         if let alt = e.alt?.trimmingWhitespace().lowercased(), !alt.isEmpty, alt != n,
            has.contains(where: { faceHas(alt, $0) }) || alt.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return nil }
         switch e.charset.uppercased() {
