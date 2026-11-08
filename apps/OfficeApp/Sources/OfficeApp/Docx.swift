@@ -5309,9 +5309,22 @@ enum DocxFormat {
             let f = font.all("a:font").first { $0["script"] == script }?["typeface"] ?? ""
             return f.isEmpty ? nil : f
         }
+        // (A document whose complex-script language (`w:themeFontLang w:bidi`) is an Indic one takes the theme's face for that
+        // script — Shruti for gu-IN, Mangal for hi-IN, Raavi, Gautami, Vrinda — where ar-SA and the rest take the Arabic one:
+        // dx2's gu-IN table cells print in Shruti, where the same markup with bidi ar-SA prints in Nirmala UI.)
+        let bidiScript: String? = switch entries.first(where: { $0.name == "word/settings.xml" }).flatMap({ XNode.parse($0.data) })?
+            .first("w:themeFontLang")?["w:bidi"]?.lowercased().split(separator: "-").first.map(String.init) {
+        case "hi", "mr", "sa", "ne", "kok": "Deva"
+        case "gu": "Gujr"
+        case "pa": "Guru"
+        case "te": "Telu"
+        case "bn": "Beng"
+        default: nil
+        }
         func complex(_ name: String) -> String? {
             guard let font = scheme.first(name) else { return nil }
             if let f = font.first("a:cs")?["typeface"], !f.isEmpty { return f }
+            if let bidiScript, let f = font.all("a:font").first(where: { $0["script"] == bidiScript })?["typeface"], !f.isEmpty { return f }
             let f = font.all("a:font").first { $0["script"] == "Arab" }?["typeface"] ?? ""
             return f.isEmpty ? nil : f
         }

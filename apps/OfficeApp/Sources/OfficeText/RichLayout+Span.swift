@@ -40,10 +40,21 @@ extension RichLayout {
     /// Several inline pictures, each wide enough for a line of its own, in a paragraph on the line grid
     /// (Word for Windows): every picture's line is whole pitches (see `_span`).
     /// The ascent and descent, in ems, of the faces Word sets Devanagari in (their hhea, from the fonts Word's prints embed).
-    static let _indicLines: [String: (Double, Double)] = ["mangal": (2542.0 / 2048, 898.0 / 2048), "kokila": (1504.0 / 2048, 857.0 / 2048),
-                                                          "nirmala ui": (2210.0 / 2048, 514.0 / 2048)]
-    /// Devanagari and Bengali.
-    static let _indic: ClosedRange<UInt32> = 0x0900 ... 0x09FF
+    static let _indicLines: [String: (Double, Double)] = [
+        "mangal": (2542.0 / 2048, 898.0 / 2048), "kokila": (1504.0 / 2048, 857.0 / 2048), "nirmala ui": (2210.0 / 2048, 514.0 / 2048),
+        "aparajita": (1550.0 / 2048, 870.0 / 2048), "raavi": (2048.0 / 2048, 1352.0 / 2048), "shruti": (2091.0 / 2048, 1352.0 / 2048),
+        "gautami": (1892.0 / 2048, 1664.0 / 2048), "vrinda": (2017.0 / 2048, 778.0 / 2048), "shonar bangla": (1655.0 / 2048, 996.0 / 2048)]
+    /// Width of each face's letters against the Noto stand-in's, per script (D Devanagari, B Bengali, T Telugu, P Gurmukhi, G Gujarati):
+    /// the median ratio of Word's word widths to ours over the dx2 Indic documents that print in that face (spread under 0.03 per face).
+    static let _indicScale: [String: [Character: Double]] = [
+        "mangal": ["D": 1.096], "kokila": ["D": 0.725], "aparajita": ["D": 0.942],
+        "nirmala ui": ["D": 1.082, "B": 1.075, "T": 1.187, "P": 1.097, "G": 1.147],
+        "raavi": ["P": 1.084], "shruti": ["G": 1.153], "gautami": ["T": 0.964], "vrinda": ["B": 0.907], "shonar bangla": ["B": 0.716]]
+    /// Devanagari, Bengali, Gurmukhi, Gujarati and Telugu.
+    static let _indic = IndicScripts()
+    struct IndicScripts {
+        func contains(_ u: UInt32) -> Bool { (0x0900 ... 0x0AFF).contains(u) || (0x0C00 ... 0x0C7F).contains(u) }
+    }
     /// Tamil (Word for Windows draws it in Nirmala UI, where the document's complex-script face is not Windows' own).
     static let _tamil: ClosedRange<UInt32> = 0x0B80 ... 0x0BFF
     static func _isIndic(_ u: UInt32) -> Bool { _indic.contains(u) || _tamil.contains(u) }
@@ -713,12 +724,15 @@ extension RichLayout {
             // hin-z20740649's, the same markup, print in Kokila: not explained (a print machine without Kokila regular?), the majority taken.)
             let indic: (face: String, scale: Double)? = {
                 guard theme.wordRules, RichTextTheme.wordWindowsPages else { return nil }
-                var deva = 0, beng = 0, letters = 0
+                var count: [Character: Int] = [:], letters = 0
                 for u in text.unicodeScalars where u.properties.isAlphabetic {
                     letters += 1
-                    if (0x0900 ... 0x097F).contains(u.value) { deva += 1 } else if (0x0980 ... 0x09FF).contains(u.value) { beng += 1 }
+                    let v = u.value
+                    if (0x0900 ... 0x097F).contains(v) { count["D", default: 0] += 1 } else if (0x0980 ... 0x09FF).contains(v) { count["B", default: 0] += 1 }
+                    else if (0x0A00 ... 0x0A7F).contains(v) { count["P", default: 0] += 1 } else if (0x0A80 ... 0x0AFF).contains(v) { count["G", default: 0] += 1 }
+                    else if (0x0C00 ... 0x0C7F).contains(v) { count["T", default: 0] += 1 }
                 }
-                guard deva + beng > 0 else {
+                guard let top = count.max(by: { $0.value < $1.value }) else {
                     // (Tamil: the line of Nirmala UI, 1.079 + 0.251 em, in the prints of tam-* and four of the xd Tamil documents.)
                     // (Width: set per word in flush() from TamilAdvances, a per-codepoint regression fit of Word's word widths
                     // (2864 words, four documents); our PDF embeds no Tamil face, so it cannot be read from glyph hmtx. No scale here.)
@@ -727,16 +741,21 @@ extension RichLayout {
                     }
                     return nil
                 }
+                let all = count.values.reduce(0, +)
                 let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
-                let italic = run.italic || ((named?.char.italic ?? false) && !run.off.contains(.italic))
                 let bold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
-                var face: String? = nil
-                if cs == "mangal" { face = "mangal" }
-                else if cs == "kokila" { face = "kokila" }
-                else if cs == "kalpurush" { face = "nirmala ui" }
-                guard let face else { return nil }
-                let scale: Double = face == "mangal" ? 1.096 : face == "kokila" ? 0.73 : beng > deva ? 1.062 : bold ? 1.076 : 1.086
-                return (face, (deva + beng) * 2 >= letters ? scale : 1)
+                // Which face: the complex-script one where Windows has it; a face it lacks (Arial, Times, Kalpurush, Nikosh, Arial Unicode MS...)
+                // Word draws in Nirmala UI, but Kalimati (Devanagari) in Mangal and Kohinoor Bangla in Shonar Bangla (dx2 prints).
+                var face = cs
+                switch cs {
+                case "kalimati": face = "mangal"
+                case "kohinoor bangla": face = "shonar bangla"
+                case "mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "shonar bangla": break
+                default: face = "nirmala ui"
+                }
+                guard var scale = Self._indicScale[face]?[top.key] else { return nil }
+                if face == "nirmala ui", bold { scale *= 1.076 / 1.086 }
+                return (face, all * 2 >= letters ? scale : 1)
             }()
             func style(_ kind: Int) -> TextStyle {
                 if !fitBusy, let s = styles[kind] { return s }

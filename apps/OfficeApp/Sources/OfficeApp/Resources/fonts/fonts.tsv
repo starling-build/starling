@@ -36,3 +36,9 @@ NotoSansDevanagari-Bold.ttf	-1	Noto Sans Devanagari	Bold	devanagari	fallback	7	2
 NotoColorEmoji-Pictographs.ttf	-1	Noto Color Emoji Pictographs	Regular	emoji	fallback	8	6871860	2babe375f708225a6cfc6fe870bba15cdfbadc260d4bb96040413310608b64a2
 DejaVuMathTeXGyre.ttf	-1	DejaVu Math TeX Gyre	Regular	math	fallback	9	577192	f98d7f2ad03cdceffb8bcee71eed84055d15b0098b4b1f5a22653ba5931d3da5
 NotoColorEmoji-Variation.ttf	-1	Noto Color Emoji Variation	Regular	emoji	variation	0	373624	8ccdc7cca6515eaa4e9e15573a95dc28d508088a6bba05ca30bbdcea07fb2d5f
+NotoSansTelugu-Regular.ttf	-1	Noto Sans Telugu	Regular	telugu	fallback	10	194732	cb3165071121b1e80c55a041d0c1f79b3bbc68e4b0eab37b0d881958dfc3ed7a
+NotoSansTelugu-Bold.ttf	-1	Noto Sans Telugu	Bold	telugu	fallback	10	202444	34e3a81c02ea8474f00b1046cbb183461648fd253a56475140d6b025db828b5b
+NotoSansGurmukhi-Regular.ttf	-1	Noto Sans Gurmukhi	Regular	gurmukhi	fallback	11	52852	1db960ff6f506a98f5b3ece78f54618388c6187e7edf8ceee5ab63389c0db3ab
+NotoSansGurmukhi-Bold.ttf	-1	Noto Sans Gurmukhi	Bold	gurmukhi	fallback	11	52856	ded9c1f56a7ed0b835cfef5dd642f26cfc0f41a16fbc08008d376ddcc91d606e
+NotoSansGujarati-Regular.ttf	-1	Noto Sans Gujarati	Regular	gujarati	fallback	12	205124	4468a3a24516831874fb4a867b760a22257944584e478d32a97e3c4d4bfc6400
+NotoSansGujarati-Bold.ttf	-1	Noto Sans Gujarati	Bold	gujarati	fallback	12	202944	db2b642c28b021da8cb0f3463bf41376549c850aa718ca863ec3ff5d5df0f2f7

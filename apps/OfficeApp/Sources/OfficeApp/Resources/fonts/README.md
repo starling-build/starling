@@ -133,7 +133,7 @@ Sources, unchanged from the release named:
 | NotoSansCJK-Regular.ttc, -Bold.ttc | github.com/notofonts/noto-cjk, tag Sans2.004, 03_NotoSansCJK-OTC.zip |
 | NotoSerifCJK-Regular.ttc, -Bold.ttc | github.com/notofonts/noto-cjk, tag Serif2.003, 04_NotoSerifCJKOTC.zip |
 | the CJK files above | byte-identical to Ubuntu's `fonts-noto-cjk` 1:20240730 |
-| NotoSansArabic, NotoNaskhArabic, NotoSansHebrew, NotoSerifHebrew, NotoSansThai, NotoSansDevanagari, NotoSansBengali (Regular, Bold) | Ubuntu `fonts-noto-core` 20201225 (the 2020-12 Noto snapshot) |
+| NotoSansArabic, NotoNaskhArabic, NotoSansHebrew, NotoSerifHebrew, NotoSansThai, NotoSansDevanagari, NotoSansBengali, NotoSansTelugu, NotoSansGurmukhi, NotoSansGujarati (Regular, Bold) | Ubuntu `fonts-noto-core` 20201225 (the 2020-12 Noto snapshot) |
 | NotoColorEmoji-Pictographs.ttf | Ubuntu `fonts-noto-color-emoji` (NotoColorEmoji.ttf, sha256 9fd0a3d0ce84d77e3185dfbae77bd1abf3926aa49a032e354d076c4f17151f10) cut down by `build/tools/subset-emoji.py` (fonttools, throwaway venv) to the characters whose Unicode Emoji_Presentation is Yes, plus ZWJ, space and CR (less the plain shapes used as bullets, U+26AB and kin): a modified version of the Noto font under a new name (OFL). It goes AHEAD of DejaVu Sans in the glyph fallback so emoji draw in colour, while text-style symbols (U+263A, U+2714, U+2764 ...) stay on the outline faces. Desktop and web both use only this file |
 | NotoColorEmoji-Variation.ttf | The same source cut by `build/tools/subset-emoji.py ... --text-bases` to the Emoji=Yes characters that are NOT Emoji_Presentation (U+2764, U+263A, U+2714, U+2600, U+00A9 ...; 210 code points, no ASCII), family "Noto Color Emoji Variation", fallback_order 0 (never in the glyph fallback): the layout draws a character in it only when U+FE0F follows (`RichLayout+Emoji.swift`, tables from `build/tools/emoji-ranges.py`). |
 
@@ -173,6 +173,12 @@ sha256:
     77ad688cfe1dc55185bf4edb4db3c614202c65dd23a1463ad0e23fc52bcc9a5c  NotoSansDevanagari-Bold.ttf
     9bb35b3547829ecc42041b6017e87fd4c5f1da1edcd00f59171777050f346018  NotoSansBengali-Regular.ttf
     22c9ff99baca4d31c531ce450a1369beed889467e1ad964f4b8a6f810aa46955  NotoSansBengali-Bold.ttf
+    cb3165071121b1e80c55a041d0c1f79b3bbc68e4b0eab37b0d881958dfc3ed7a  NotoSansTelugu-Regular.ttf
+    34e3a81c02ea8474f00b1046cbb183461648fd253a56475140d6b025db828b5b  NotoSansTelugu-Bold.ttf
+    1db960ff6f506a98f5b3ece78f54618388c6187e7edf8ceee5ab63389c0db3ab  NotoSansGurmukhi-Regular.ttf
+    ded9c1f56a7ed0b835cfef5dd642f26cfc0f41a16fbc08008d376ddcc91d606e  NotoSansGurmukhi-Bold.ttf
+    4468a3a24516831874fb4a867b760a22257944584e478d32a97e3c4d4bfc6400  NotoSansGujarati-Regular.ttf
+    db2b642c28b021da8cb0f3463bf41376549c850aa718ca863ec3ff5d5df0f2f7  NotoSansGujarati-Bold.ttf
     2babe375f708225a6cfc6fe870bba15cdfbadc260d4bb96040413310608b64a2  NotoColorEmoji-Pictographs.ttf
     8ccdc7cca6515eaa4e9e15573a95dc28d508088a6bba05ca30bbdcea07fb2d5f  NotoColorEmoji-Variation.ttf
 
