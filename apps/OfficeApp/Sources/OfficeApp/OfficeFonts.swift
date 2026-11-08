@@ -1157,6 +1157,9 @@ enum OfficeFonts {
             let cs = e.charset.uppercased()
             guard cs == "81" || cs == "129" || hangul else { return "mincho" }
             if faceHas(n, "헤드라인") { return "mincho" }
+            // (Word has these: it prints 나눔고딕 in NanumGothic and 바탕체/돋움체 in BatangChe/DotumChe,
+            // not in a substitute. Their widths are still open, so they stay as before.)
+            if ["나눔고딕", "바탕체", "돋움체"].contains(n) { return "mincho" }
             if (cs == "81" || cs == "129") && e.family == "roman" && !e.panoseZero { return "batang" }
             return "malgun"
         default: return "mincho"
