@@ -1978,7 +1978,12 @@ extension RichLayout {
                     // not from its last piece (kash2 lab, docs/plans/kashida.md). And lowKashida
                     // stretches at kashida too: each joined pair on the line counts 3.1 spaces.)
                     let arabicLine = RichTextTheme.wordWindowsPages && p.style.rightToLeft && !legacy
-                    let stretch = width - (arabicLine && !wordSpaces.isEmpty ? spaceBaseX : x - (wordSpaces.last?.w ?? 0))
+                    // (A Hangul word kept whole (hangul-word-held-whole) is placed in pieces too: the stretch is
+                    // measured from where the word starts, as for Arabic; 59e77f's "'구조적" is taken by Word
+                    // with its spaces at 1.8 pt of 2.49.)
+                    let hangulPiece = RichTextTheme.wordWindowsPages && !legacy && p.style.eastAsian["w:wordWrap"] != "0"
+                        && units[a] >= 0xAC00 && units[a] <= 0xD7A3
+                    let stretch = width - ((arabicLine || hangulPiece) && !wordSpaces.isEmpty ? spaceBaseX : x - (wordSpaces.last?.w ?? 0))
                     let lowJoins = arabicLine && p.style.eastAsian["w:jc"] == "lowKashida" && !wordSpaces.isEmpty
                         ? 3.1 * Double(ArabicForms.joins(units[lineFrom ..< max(piece.b, wordSpaces.last?.k ?? lineFrom)].map { UInt32($0) }[...])) : 0
                     let halfStretch = wordSpaces.count < 2
@@ -2021,7 +2026,7 @@ extension RichLayout {
                     let oldStretch: Double = spaceEms + autoRoom + allSpaces * (cellWindows ? 0.5 : 1)
                     let oldGive: Double = autoRoom * shareGive + allSpaces / 4
                     let budgetGive: Double = autoRoom * shareGive + giverRoom + tailRoom
-                    let sharesStretch: Bool = onCharacterGrid || (units[a] < 0x2E80 && !circled(units[a])) || (autos.isEmpty && !windowsAfterMarks)
+                    let sharesStretch: Bool = onCharacterGrid || hangulPiece || (units[a] < 0x2E80 && !circled(units[a])) || (autos.isEmpty && !windowsAfterMarks)
                         || (windowsAfterMarks
                             ? need * budgetStretch <= budgetGive * (width - x + spaceTrail + hair)
                             : need * oldStretch <= oldGive * (width - x + hair))
@@ -2929,6 +2934,14 @@ extension RichLayout {
         // 3pt top line; lo-cbb7657e drew none of its boxes' lines.)
         if y.style.pageBreakBefore, !y.style.columnBreak, RichTextTheme.wordWindowsPages, y.cell == nil, !oneBox { return false }
         return true
+    }
+
+    /// Word's Korean word, whole between spaces: two Hangul syllables, or a syllable beside an ASCII mark, a quote or
+    /// a middle dot with no space between (004d7a's "영역(박스)을" went to the next line whole).
+    static func _hangulHeldPair(_ a: UInt32, _ b: UInt32) -> Bool {
+        func hangul(_ v: UInt32) -> Bool { v >= 0xAC00 && v <= 0xD7A3 }
+        func mark(_ v: UInt32) -> Bool { (v > 0x20 && v < 0x30) || (v >= 0x3A && v < 0x41) || v == 0x5B || v == 0x5D || v == 0x7B || v == 0x7D || (v >= 0x2018 && v <= 0x201D) || v == 0xB7 }
+        return (hangul(a) && (hangul(b) || mark(b))) || (mark(a) && hangul(b))
     }
 
     public static func joinsLatin(_ a: Character, _ b: Character, eastAsian: Bool = false) -> Bool {

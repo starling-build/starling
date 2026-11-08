@@ -2313,6 +2313,9 @@ enum OfficeFonts {
                 let che = has("gulimche", "굴림체")
                 face.latinAdvances = che ? gulimCheAdvances : gulimAdvances
                 face.latinBoldAdvances = face.latinAdvances
+                // (Curly quotes: Word's print of kor-z19176375-004d7a steps 6 pt at each double and 4 pt at each single
+                // quote in 12 pt Gulim, 0.5 and 1/3 em; they were drawn a full em or a third of it.)
+                if !che { face.otherAdvances = [0x2018: 1.0 / 3, 0x2019: 1.0 / 3, 0x201C: 0.5, 0x201D: 0.5] }
             }
             return face
         }
