@@ -4,5 +4,6 @@ test/docx-line-match.py d0690195bf3647ba74e9073486cff06f6bb35697
 engine 6a17a9ffe9c8639fca435b80ccdeae6b17a52eda
 enginesyms 20cfa0ba3b35ab77
 enginepatches 73b933124444bc40
+engineapplied 47f3ba3dce1601d0
 fonts bundled/windows
 hostfonts dd5c5ba9d823d4a2

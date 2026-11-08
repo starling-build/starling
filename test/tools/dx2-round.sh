@@ -18,10 +18,21 @@ for d in ${ENGINE_OUT:-} engine/src/out/host_release; do [ -d "$d" ] && { EO=$(c
 [ -n "${EO:-}" ] || { echo "no engine out dir (ENGINE_OUT)" >&2; exit 2; }
 export OFFICE_NOW_TABLE=$ROOT/test/corpus/docx/clock.tsv OFFICE_FONT_SOURCE=bundled OFFICE_WORD_FONTS=windows
 export STARLING_ICU=$EO/icudtl.dat STARLING_ENGINE_OUT=$EO FLUTTER_SWIFT_ENGINE_OUT=$EO LD_LIBRARY_PATH=$EO
+# A render that hit the 300 s alarm (exit 142) or exited non-zero is retried ONCE, then reported as TIMEOUT / RENDER-FAIL,
+# never scored from a partial PDF (a loaded box can move a score only this way; 2026-11-08).
+retry_failed() {  # retry_failed BIN WORKDIR DOCSDIR FAILFILE
+  local bin=$1 work=$2 docs=$3 ff=$4 n rc
+  [ -s "$ff" ] || return 0
+  sed 's/^FAIL //' "$ff" | tr '\n' '\0' | ( cd "$docs" && xargs -0 -P "${RETRY_JOBS:-8}" -I{} sh -c 'n="$1"; rm -f "$3/pdf/${n%.docx}.pdf"; perl -e "alarm 300; exec @ARGV" "$2" --convert "$n" "$3/pdf/${n%.docx}.pdf" >/dev/null 2>"$3/err/${n%.docx}.txt" && rm -f "$3/err/${n%.docx}.rc" || { echo $? > "$3/err/${n%.docx}.rc"; rm -f "$3/pdf/${n%.docx}.pdf"; echo "$n"; }' _ {} "$bin" "$work" ) > "$work/fail-after-retry.txt"
+  echo "renders that failed at first: $(wc -l < "$ff"); still failing after one retry: $(wc -l < "$work/fail-after-retry.txt")"
+  while IFS= read -r n; do rc=$(cat "$work/err/${n%.docx}.rc" 2>/dev/null); if [ "$rc" = 142 ]; then echo "TIMEOUT $n (not scored)"; else echo "RENDER-FAIL $n exit $rc (not scored)"; fi; done < "$work/fail-after-retry.txt"
+  sed 's/^/FAIL /' "$work/fail-after-retry.txt" > "$ff"
+}
 W=$STAGE/work; mkdir -p "$W/pdf" "$W/err"; : > "$W/fail.txt"
 ( cd "$C/docs" && ls *.docx | while IFS= read -r n; do
     [ -f "$C/word-win/${n%.docx}-orig.pdf" ] && [ ! -s "$W/pdf/${n%.docx}.pdf" ] && printf '%s\0' "$n"; done |
-  xargs -0 -P "$JOBS" -I{} sh -c 'n="$1"; perl -e "alarm 300; exec @ARGV" "$2" --convert "$n" "$3/pdf/${n%.docx}.pdf" >/dev/null 2>"$3/err/${n%.docx}.txt" || echo "FAIL $n"' _ {} "$BIN" "$W" >> "$W/fail.txt" )
+  xargs -0 -P "$JOBS" -I{} sh -c 'n="$1"; perl -e "alarm 300; exec @ARGV" "$2" --convert "$n" "$3/pdf/${n%.docx}.pdf" >/dev/null 2>"$3/err/${n%.docx}.txt" || { echo $? > "$3/err/${n%.docx}.rc"; rm -f "$3/pdf/${n%.docx}.pdf"; echo "FAIL $n"; }' _ {} "$BIN" "$W" >> "$W/fail.txt" )
+retry_failed "$BIN" "$W" "$C/docs" "$W/fail.txt"
 nf=$(wc -l < "$W/fail.txt"); nd=$(ls "$C/docs"/*.docx | wc -l)
 echo "dx2: $nd documents, $nf conversion failures"
 [ $(( nf * 100 )) -gt $(( nd * 3 )) ] && { echo "ABORT: too many conversion failures with $BIN" >&2; exit 1; }

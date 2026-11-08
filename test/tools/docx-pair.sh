@@ -62,11 +62,22 @@ base_ok() { local want have; want=$(refhash "$1"); have=$(awk -v s="$1" '$1==s{p
   case "$1" in xb|xa|xd|xs|dx2) ;; *) return 0;; esac; local C n; C=$(corpus "$1"); n=$(ls "$C"/word-win/*-orig.pdf 2>/dev/null | wc -l)
   [ "$(grep -c '%  lines ' "$2" 2>/dev/null)" = "$n" ]; }
 # sweep BIN WORK SET → WORK/match-v2.txt, match-v1.txt
+# A render that hit the 300 s alarm (exit 142) or exited non-zero is retried ONCE, then reported as TIMEOUT / RENDER-FAIL,
+# never scored from a partial PDF (a loaded box can move a score only this way; 2026-11-08).
+retry_failed() {  # retry_failed BIN WORKDIR DOCSDIR FAILFILE
+  local bin=$1 work=$2 docs=$3 ff=$4 n rc
+  [ -s "$ff" ] || return 0
+  sed 's/^FAIL //' "$ff" | tr '\n' '\0' | ( cd "$docs" && xargs -0 -P "${RETRY_JOBS:-8}" -I{} sh -c 'n="$1"; rm -f "$3/pdf/${n%.docx}.pdf"; perl -e "alarm 300; exec @ARGV" "$2" --convert "$n" "$3/pdf/${n%.docx}.pdf" >/dev/null 2>"$3/err/${n%.docx}.txt" && rm -f "$3/err/${n%.docx}.rc" || { echo $? > "$3/err/${n%.docx}.rc"; rm -f "$3/pdf/${n%.docx}.pdf"; echo "$n"; }' _ {} "$bin" "$work" ) > "$work/fail-after-retry.txt"
+  echo "renders that failed at first: $(wc -l < "$ff"); still failing after one retry: $(wc -l < "$work/fail-after-retry.txt")"
+  while IFS= read -r n; do rc=$(cat "$work/err/${n%.docx}.rc" 2>/dev/null); if [ "$rc" = 142 ]; then echo "TIMEOUT $n (not scored)"; else echo "RENDER-FAIL $n exit $rc (not scored)"; fi; done < "$work/fail-after-retry.txt"
+  sed 's/^/FAIL /' "$work/fail-after-retry.txt" > "$ff"
+}
 sweep() {
   local BIN=$1 WORK=$2 SET=$3 C; C=$(corpus "$SET"); mkdir -p "$WORK/pdf" "$WORK/err"; : > "$WORK/fail.txt"
   ( cd "$C/docs" && ls *.docx | while IFS= read -r n; do
       [ -f "$C/word-win/${n%.docx}-orig.pdf" ] && [ ! -s "$WORK/pdf/${n%.docx}.pdf" ] && printf '%s\0' "$n"; done |
-    xargs -0 -P "$JOBS" -I{} sh -c 'n="$1"; perl -e "alarm 300; exec @ARGV" "$2" --convert "$n" "$3/pdf/${n%.docx}.pdf" >/dev/null 2>"$3/err/${n%.docx}.txt" || echo "FAIL $n"' _ {} "$BIN" "$WORK" >> "$WORK/fail.txt" )
+    xargs -0 -P "$JOBS" -I{} sh -c 'n="$1"; perl -e "alarm 300; exec @ARGV" "$2" --convert "$n" "$3/pdf/${n%.docx}.pdf" >/dev/null 2>"$3/err/${n%.docx}.txt" || { echo $? > "$3/err/${n%.docx}.rc"; rm -f "$3/pdf/${n%.docx}.pdf"; echo "FAIL $n"; }' _ {} "$BIN" "$WORK" >> "$WORK/fail.txt" )
+  retry_failed "$BIN" "$WORK" "$C/docs" "$WORK/fail.txt"
   local nf nd; nf=$(wc -l < "$WORK/fail.txt"); nd=$(ls "$C/docs"/*.docx | wc -l)
   if [ $(( nf * 100 )) -gt $(( nd * ${MAXFAIL:-3} )) ]; then
     f=$(head -1 "$WORK/fail.txt" | sed 's/^FAIL //'); echo "ABORT: $nf of $nd conversions failed in set $SET with $BIN — nothing written to $STAGE/fix" >&2

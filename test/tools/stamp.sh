@@ -30,6 +30,10 @@ if [ "$(uname)" = Linux ] && [ -n "$LIB" ] && command -v nm >/dev/null 2>&1; the
   ENGINE_TOP=$(git -C "${ENGINE_REPO:-engine}" rev-parse --show-toplevel 2>/dev/null)
   printf 'enginesyms %s\n' "$(nm -D --defined-only "$LIB" | awk '{print $NF}' | LC_ALL=C sort | sha256sum | cut -c1-16)"
   printf 'enginepatches %s\n' "$( [ -d "$ENGINE_TOP/patches" ] && (cd "$ENGINE_TOP" && find patches -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -c1-16) || echo none)"
+  # The patch FILES say what a session could have applied; sessions apply the series locally, so also hash the
+  # files the patches touch AS THEY ARE in the engine tree (a patch reverted or half-applied there moves scores
+  # while patches/ is unchanged; 7f8824612b, 2026-11-08, left stored scores computed on a bad engine).
+  printf 'engineapplied %s\n' "$( [ -d "$ENGINE_TOP/patches" ] && (cd "$ENGINE_TOP" && for f in $(sed -n 's/^+++ b\///p' patches/*.patch | LC_ALL=C sort -u); do sha256sum "engine/src/$f" 2>/dev/null || echo "missing $f"; done | sha256sum | cut -c1-16) || echo none)"
 else
   printf 'enginelib %s\n' "$( [ -n "$LIB" ] && { shasum -a 256 "$LIB" 2>/dev/null || sha256sum "$LIB"; } | cut -c1-16 || echo unknown)"
 fi
