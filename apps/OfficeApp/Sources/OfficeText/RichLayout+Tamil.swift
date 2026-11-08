@@ -24,6 +24,17 @@ enum TamilAdvances {
         0xBC0: 0, 0xBC1: 0.189, 0xBC2: 0.308, 0xBC6: 0.873, 0xBC7: 0.744, 0xBC8: 1.244, 0xBCA: 0.681,
         0xBCB: 0.710, 0xBCD: 0.031,
     ]
+    // Leelawadee UI, the face Word for Windows draws Tamil documents' Latin letters, digits and punctuation in: advances (em) read from
+    // the hmtx of the subsets embedded in the Tamil prints (dx2). Letters the prints never used keep the stand-in's width.
+    static let leela: [UInt32: Double] = [
+        0x21: 0.284, 0x22: 0.392, 0x28: 0.302, 0x29: 0.302, 0x2C: 0.217, 0x2D: 0.4, 0x2E: 0.217, 0x2F: 0.39, 0x30: 0.539, 0x31: 0.539,
+        0x32: 0.539, 0x33: 0.539, 0x34: 0.539, 0x35: 0.539, 0x36: 0.539, 0x3A: 0.217, 0x3C: 0.684, 0x3E: 0.684, 0x41: 0.645, 0x42: 0.573,
+        0x43: 0.619, 0x44: 0.701, 0x45: 0.506, 0x46: 0.488, 0x48: 0.71, 0x4C: 0.471, 0x4D: 0.898, 0x4E: 0.748, 0x4F: 0.754, 0x50: 0.56,
+        0x51: 0.754, 0x52: 0.598, 0x53: 0.531, 0x54: 0.524, 0x57: 0.934, 0x58: 0.59, 0x5B: 0.302, 0x5D: 0.302, 0x61: 0.509, 0x63: 0.462,
+        0x64: 0.589, 0x65: 0.523, 0x66: 0.313, 0x67: 0.589, 0x68: 0.566, 0x69: 0.242, 0x6A: 0.242, 0x6B: 0.497, 0x6C: 0.242, 0x6D: 0.861,
+        0x6E: 0.566, 0x6F: 0.586, 0x70: 0.588, 0x72: 0.348, 0x73: 0.424, 0x74: 0.339, 0x75: 0.566, 0x76: 0.479, 0x77: 0.723, 0x79: 0.484,
+        0x7C: 0.239,
+    ]
     /// The width in em of a word's characters that the table has, and the others
     /// (punctuation, digits, joiners) as the characters not in it.
     static func split(_ word: Substring, bold isBold: Bool, vijaya: Bool = false) -> (ems: Double, known: String, rest: Bool)? {
@@ -31,6 +42,7 @@ enum TamilAdvances {
         for u in word.unicodeScalars {
             if isBold, let w = bold[u.value] { sum += w; known.append(u); any = true }
             else if let w = regular[u.value] { sum += isBold ? w * 1.06 : w; known.append(u); any = true }
+            else if let w = leela[u.value] { sum += isBold ? w * 1.07 : w; known.append(u); any = true }
             else { rest = true }
         }
         return any ? (vijaya ? sum * 0.793 : sum, String(known), rest) : nil
