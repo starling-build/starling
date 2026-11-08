@@ -1141,7 +1141,7 @@ enum OfficeFonts {
         let listed = faceHas(n, ",")
         // (The Korean names are matched whole: 바탕체 and 돋움체 are the fixed-pitch Che faces,
         // not 바탕 and 돋움, and Word for Windows prints them differently.)
-        let koreanOwn: Set<String> = ["맑은 고딕", "굴림", "돋움", "바탕"]
+        let koreanOwn: Set<String> = ["맑은 고딕", "굴림", "굴림체", "돋움", "바탕"]
         guard listed || !(has.contains(where: { faceHas(n, $0) }) || koreanOwn.contains(n)) else { return nil }
         guard let e = fontEntry(family) else { return n.unicodeScalars.allSatisfy({ $0.isASCII }) ? "mincho" : nil }
         if let alt = e.alt?.trimmingWhitespace().lowercased(), !alt.isEmpty, alt != n,
@@ -1912,6 +1912,20 @@ enum OfficeFonts {
     ]
     // Malgun Gothic's own Latin widths, U+0020 to U+007E in ems: the hmtx of the subsets Word for Windows
     // embeds in word-win prints (majority of ~170 prints; ^ ` and a few bold glyphs no print used are estimates).
+    /// Gulim's Latin advances, space to ~, read from the hmtx of the Gulim subsets embedded in Word for Windows' prints
+    /// (kor-z19176375, -z20746312, -z23132029). # $ & ' @ \ ^ ` { | } were not in any subset: Arial's widths stand in.
+    private static let gulimAdvances: [Double] = [
+        0.333, 0.333, 0.375, 0.556, 0.556, 0.875, 0.667, 0.191, 0.375, 0.375, 0.500, 0.625, 0.334, 0.625, 0.334,
+        0.417, 0.574, 0.574, 0.574, 0.574, 0.574, 0.574, 0.574, 0.574, 0.574, 0.574, 0.334, 0.334, 0.625, 0.625,
+        0.625, 0.542, 1.015, 0.646, 0.677, 0.718, 0.722, 0.625, 0.596, 0.770, 0.730, 0.270, 0.500, 0.635, 0.543,
+        0.812, 0.699, 0.770, 0.637, 0.773, 0.666, 0.633, 0.582, 0.711, 0.600, 0.895, 0.625, 0.625, 0.625, 0.500,
+        0.278, 0.500, 0.469, 0.500, 0.333, 0.562, 0.605, 0.572, 0.605, 0.567, 0.342, 0.605, 0.571, 0.241, 0.241,
+        0.500, 0.231, 0.861, 0.580, 0.605, 0.605, 0.605, 0.333, 0.525, 0.313, 0.570, 0.500, 0.750, 0.500, 0.500,
+        0.500, 0.334, 0.260, 0.334, 0.792,
+    ]
+    /// GulimChe is fixed-pitch: every Latin character is half an em.
+    private static let gulimCheAdvances: [Double] = Array(repeating: 0.5, count: 95)
+
     private static let malgunAdvances: [Double] = [
         0.3516, 0.2891, 0.3950, 0.6064, 0.5508, 0.8364, 0.8179, 0.2319, 0.3047, 0.3047, 0.4248, 0.7007, 0.2188, 0.4102, 0.2188,
         0.3960, 0.5508, 0.5508, 0.5508, 0.5508, 0.5508, 0.5508, 0.5508, 0.5508, 0.5508, 0.5508, 0.2188, 0.2188, 0.7007, 0.7007,
@@ -2221,7 +2235,16 @@ enum OfficeFonts {
         // on a 15.6pt step, 1.3 em, MS Gothic's line; ours drew YaHei's
         // 1.715 em: kor-z19176375-004d7a, 35 pages in Word, 40 here).
         if wordOnWindows || wordOnMac, has("ms gothic", "ｍｓ ゴシック", "gulim", "굴림") {
-            return EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
+            var face = EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
+            if wordOnWindows, has("gulim", "굴림") {
+                // (Gulim's Latin is its own proportional design, GulimChe's fixed at half an em; Arial's widths were
+                // used for both. Word for Windows' prints of kor-z19176375 and two more give each its table.)
+                RuleTrace.hit("gulim-own-latin-widths")
+                let che = has("gulimche", "굴림체")
+                face.latinAdvances = che ? gulimCheAdvances : gulimAdvances
+                face.latinBoldAdvances = face.latinAdvances
+            }
+            return face
         }
         // (MS PGothic, MS Mincho and MS PMincho are Word for Windows' own faces,
         // each MS Gothic's square line, hhea .859 + .141 at Word's 1.3: jpn-z22855378's
