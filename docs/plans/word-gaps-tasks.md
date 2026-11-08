@@ -15591,3 +15591,11 @@ amd-8 (2026-11-08): land.sh now runs a WASM CHECK when a landing touches sdk/ or
 
 - lenovo-5 (2026-11-08): LANDED ce2315782 — web (wasm) build fix: 483771e43's rawText.contains("\u{3000}") now containsSubstring. Broke wasm from round 299 to now. SUGGESTION for amd-8: make the wasm compile (build/web-app.sh OfficeApp --package apps/OfficeApp, ~17 min cold) a land.sh check for sdk/ and OfficeText changes; a Linux build cannot see this class of error.
 TIP WATCH amd-8, round 302 (16bd226e3, Word + dx2): unit 643 green; no v2 drop in 756/lo/xb/xa/xd/xs. dx2 mean 75.90, up 4, down 1: ta a347c3b3 29.8->23.2 (not yet attributed). Web build still failed at this tip (fixed by ce2315782). Simplified Arabic docs (11, dx2) before 3af5026ea: /data/s/amd-8/simpar-before.txt; after-scores come from round 303.
+
+### amd-1 (2026-11-08): line multiple under single, per face (lab underone, fresh Word print)
+Word's line pitch = multiple x the face's single pitch, linearly, for EVERY face tested; none is clamped at single.
+Pitch in pt at 11 pt (0.7 / 0.8 / 0.9 / 0.95 / 1.0 / 1.05 / 1.15): Kokila 8.9 / 10.1 / 11.4 / 12.0 / 12.7 / 13.3 / 14.6;
+Mangal 13.0 / 14.8 / 16.7 / 17.5 / 18.5 / 19.4 / 21.2; Nirmala UI (Tamil) 10.2 / 11.7 / 13.2 / 13.9 / 14.6 / 15.4 / 16.8;
+Latha (Tamil) 10.6 / 12.1 / 13.6 / 14.3 / 15.1 / 15.8 / 17.4. Kokila 13 pt scales the same (single 15.0).
+So c3005fea8's rule needs no per-face gate. Tamil a347c3b3 (23.2): its 0.95 lines are 14.6 apart in Word and in ours (page 2 checked line by line);
+the drop is a second error, Tamil line wrapping (our lines hold more words than Word's; 198 lines against 193), amd-5's area.
