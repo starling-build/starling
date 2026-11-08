@@ -615,7 +615,7 @@ extension RichLayout {
             }()
             // (A closing run of ideographic spaces Word lets hang is set with no width: _cutTrailingSpaces.)
             let hung: String? = {
-                guard let idx = index, let cut = _trailCut[idx], base + rawText.utf16.count > cut, rawText.contains("\u{3000}") else { return nil }
+                guard let idx = index, let cut = _trailCut[idx], base + rawText.utf16.count > cut, rawText.containsSubstring("\u{3000}") else { return nil }
                 var at = base, out = ""
                 for c in (moved ?? String(rawText)) { out.append(c == "\u{3000}" && at >= cut ? "\u{200B}" : c); at += c.utf16.count }
                 return out
