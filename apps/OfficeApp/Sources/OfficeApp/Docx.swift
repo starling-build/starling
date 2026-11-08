@@ -7379,7 +7379,17 @@ enum DocxFormat {
                 copy.children.append(g)
             } else if child.name == "w:tr", child.children.allSatisfy({ ["w:tc", "w:trPr", "w:tblPrEx"].contains($0.name) }) {
                 let r = XNode(name: child.name, attrs: child.attrs)
-                r.children = child.children.filter { $0.name != "w:tc" } + child.children.filter { $0.name == "w:tc" }.reversed()
+                r.children = child.children.filter { $0.name != "w:tc" && $0.name != "w:trPr" } + child.children.filter { $0.name == "w:tc" }.reversed()
+                // The cells run the other way, so the unused grid columns before and after them trade places.
+                if let pr = child.first("w:trPr") {
+                    let swapped = XNode(name: pr.name, attrs: pr.attrs)
+                    let rename = ["w:gridBefore": "w:gridAfter", "w:gridAfter": "w:gridBefore", "w:wBefore": "w:wAfter", "w:wAfter": "w:wBefore"]
+                    swapped.children = pr.children.map { k in
+                        guard let to = rename[k.name] else { return k }
+                        let n = XNode(name: to, attrs: k.attrs); n.children = k.children; return n
+                    }
+                    r.children.insert(swapped, at: 0)
+                }
                 copy.children.append(r)
             } else { copy.children.append(child) }
         }
