@@ -771,6 +771,18 @@ enum OfficeFonts {
         defer { declaredLock.unlock() }
         embeddedFaces = Dictionary(faces.map { ($0.key.trimmingWhitespace().lowercased(), $0.value) }, uniquingKeysWith: { a, _ in a })
     }
+    /// Latin faces Word for Windows does not ship (nor fetch), which a file embeds.
+    static func embeddedLatinWanted(_ name: String) -> Bool {
+        let n = name.trimmingWhitespace().lowercased()
+        return !isEastAsianFace(name) && !wordMacFamilies.contains(n)
+            && !["tahoma", "century gothic", "arial narrow", "calibri light", "cordia new", "angsana new", "times", "th sarabunpsk"].contains(n)
+    }
+    /// A Latin embedded face's line (ascent, descent in ems).
+    static func embeddedLatinLine(_ registered: String) -> (ascent: Double, descent: Double)? {
+        declaredLock.lock()
+        defer { declaredLock.unlock() }
+        return embeddedLines[registered]
+    }
     private static func embeddedFamily(_ family: String) -> String? {
         declaredLock.lock()
         defer { declaredLock.unlock() }
@@ -788,15 +800,16 @@ enum OfficeFonts {
     /// face (zh-e37f8d40's 仿宋_GB2312 holds 656 characters, its
     /// 楷体_GB2312 22), and two files' subsets under one name would be
     /// one family whose glyphs come from either. Loaded once per process.
-    static func loadEmbedded(_ data: Data) -> String? {
+    static func loadEmbedded(_ data: Data, sharedFamily: String? = nil) -> String? {
         guard data.count > 12 else { return nil }
         var hash: UInt64 = 0xcbf2_9ce4_8422_2325
         for byte in data {
             hash = (hash ^ UInt64(byte)) &* 0x100_0000_01b3
         }
-        let family = "Starling Embedded " + String(hash, radix: 16)
+        let family = sharedFamily ?? "Starling Embedded " + String(hash, radix: 16)
+        let key = sharedFamily == nil ? family : family + " " + String(hash, radix: 16)
         declaredLock.lock()
-        let loaded = loadedEmbedded.contains(family)
+        let loaded = loadedEmbedded.contains(key)
         declaredLock.unlock()
         if loaded { return family }
         let ok = data.withUnsafeBytes { raw -> Bool in
@@ -806,8 +819,8 @@ enum OfficeFonts {
         guard ok else { return nil }
         let covered = coverage(data)
         declaredLock.lock()
-        loadedEmbedded.insert(family)
-        if let covered { embeddedCoverage[family] = covered }
+        loadedEmbedded.insert(key)
+        if let covered { embeddedCoverage[family] = (embeddedCoverage[family] ?? []).union(covered) }
         if let line = lineMetrics(data) { embeddedLines[family] = line }
         if let alnum = alnumAdvances(data) { embeddedAlnum[family] = alnum }
         if let own = familyName(data) { embeddedNames[family] = own }
@@ -3193,6 +3206,13 @@ enum OfficeFonts {
             // of the face it is the clone of — its ascent under its line
             // gap (Arial .905 + .033, Times .891 + .042, Calibri .75 +
             // .22, Cambria .95, Courier .833).
+            if wordOnWindows, let registered = embeddedFamily(family), registered.hasPrefix("Starling Embedded Latin "),
+               let line = embeddedLatinLine(registered) {
+                var face = RichResolvedFace(family: registered, baseline: line.ascent)
+                face.naturalHeight = line.ascent + line.descent
+                face.fallback = ["Times New Roman", "Liberation Serif", "DejaVu Sans"]
+                return face
+            }
             let clone = substitute(family)
             let baseline: Double
             switch clone {

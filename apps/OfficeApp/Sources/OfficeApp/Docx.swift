@@ -3500,6 +3500,22 @@ enum DocxFormat {
                 faces[name] = family
                 if OfficeFonts.mapsToZeroAdvance(data, 0x300C) { document.uncompressedFaces.insert(name) }
             }
+            // (The Latin faces a file embeds that Word for Windows lacks: all four styles under one family.
+            // jpn-z22306877's Libre Baskerville and Crimson Text, which Word prints.)
+            if Self.wordOnWindows {
+                for font in table.all("w:font") {
+                    guard let name = font["w:name"], OfficeFonts.embeddedLatinWanted(name), faces[name] == nil else { continue }
+                    var family: String? = nil
+                    for tag in ["w:embedRegular", "w:embedBold", "w:embedItalic", "w:embedBoldItalic"] {
+                        guard let embed = font.first(tag), let rid = embed["r:id"], let key = embed["w:fontKey"], let target = faceTargets[rid] else { continue }
+                        let path = target.hasPrefix("/") ? String(target.dropFirst()) : "word/" + target
+                        guard let raw = part(path), let data = OfficeFonts.deobfuscate(raw, key: key),
+                              let f = OfficeFonts.loadEmbedded(data, sharedFamily: "Starling Embedded Latin " + name) else { continue }
+                        family = f
+                    }
+                    if let family { faces[name] = family }
+                }
+            }
             OfficeFonts.noteEmbeddedFaces(faces)
             var alts: [String: String] = [:]
             var entries: [String: OfficeFonts.FontEntry] = [:]
