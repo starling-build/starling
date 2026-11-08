@@ -3088,7 +3088,7 @@ extension RichLayout {
             if snapped > last.height + 0.01 { bodyHeight += snapped - last.height }
         } else if theme.wordRules, inLine, style.lineHeightPoints == nil, _grid(i, document).pitch == nil || _offGrid(i, document),
                   case let multiple = style.lineSpacing - theme.lineSpacingReduction,
-                  multiple > 1.001 || (multiple < 0.999 && multiple > 0.1) || (p.image == nil && _hasVisibleText(p)) {
+                  multiple > 1.001 || (multiple < 0.999 && multiple > 0.1) || (p.image == nil && p.style.eastAsian["w:textAlignment"] == "bottom" && _hasVisibleText(p)) {
             // Off the grid, a multiple on a picture's line adds what it
             // adds to its mark's single line, under the line — not a
             // multiple of the picture, and not lost under it, as the
