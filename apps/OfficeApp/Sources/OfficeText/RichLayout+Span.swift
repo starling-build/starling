@@ -1348,6 +1348,24 @@ extension RichLayout {
                 // step 23.2 in Word's print (1.680 em at 1.15 lines), ours 15.9. Which face: the run's complex-script one where
                 // Windows has it (Mangal; Kokila only in italic); the rest, Kokila regular and bold and Kalpurush, Word draws in
                 // Nirmala UI — hin-z18479909's 9942 regular Devanagari and ben-z17281487's Bengali are Nirmala in its prints.)
+                // (Tamil set in Noto Sans Tamil, a face Windows lacks: Word draws the letters in Nirmala UI but every digit, mark and Latin
+                // letter in Mangal, so a line holding one is Mangal's 1.680 em tall; a line of Tamil letters and spaces stays Nirmala's 1.33.
+                // xd c016493b: pitches 20.2 with a mark, 17.9 and 18.2 beside such a line, 16.0 without.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, !Self._isIndic(u), !ch.isWhitespace,
+                   u != 0x200B, u != 0x200C, u != 0x200D, u != 0x2060, u != 0xFFFC,
+                   !(before.map { !$0.isWhitespace && !($0.unicodeScalars.first.map { Self._isIndic($0.value) } ?? false) } ?? false),
+                   (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "")
+                       .trimmingWhitespace().lowercased() == "noto sans tamil",
+                   text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) }), let metrics = Self._indicLines["mangal"] {
+                    if devanagariStyles["mangal"] == nil {
+                        devanagariStyles["mangal"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: metrics.0, descent: metrics.1)
+                    }
+                    if let joiner = devanagariStyles["mangal"] ?? nil {
+                        flush(i)
+                        spans.append(TextSpan(text: "\u{2060}", style: joiner))
+                        inserts.append(offset)
+                    }
+                }
                 if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, Self._isIndic(u),
                    !(before?.unicodeScalars.first.map { Self._isIndic($0.value) || $0.value == 0x200D || $0.value == 0x200C } ?? false) {
                     let face = indic?.face
