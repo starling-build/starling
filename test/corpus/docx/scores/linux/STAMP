@@ -1,7 +1,7 @@
-apps/OfficeApp d2017a89cfe97e6ea2df00ba88fdb4c54767da9e
+apps/OfficeApp 440e44abfd14dfd24f1ee28b3a95a3b19c989589
 sdk 984c3feb5357692aa629cde6eea5eaa4c0c6b27c
 test/docx-line-match.py 49c803400e49ba72638a811360c6e20e8676325a
-engine 5a5531e78f170e36c79d5544e8cbf875656d8637
+engine 6a17a9ffe9c8639fca435b80ccdeae6b17a52eda
 enginesyms 20cfa0ba3b35ab77
 enginepatches 73b933124444bc40
 engineapplied 47f3ba3dce1601d0
