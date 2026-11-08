@@ -724,6 +724,9 @@ extension RichLayout {
             // A run mostly of such letters takes it whole. Which face: the complex-script one (Mangal, Kokila), but Kalpurush, which Windows
             // lacks, Word draws in Nirmala UI (ben-z17281487). hin-z18479909's Kokila runs print in Nirmala UI too, where mar-z19707447's and
             // hin-z20740649's, the same markup, print in Kokila: not explained (a print machine without Kokila regular?), the majority taken.)
+            // (Kokila as the run's Latin face too: only then are its Latin, digits and space, and its line, Kokila's; with another Latin face
+            // (cbb7ae39: Times New Roman beside a Kokila complex face) the Latin keeps that face.)
+            let kokilaLatin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "kokila"
             let indic: (face: String, scale: Double)? = {
                 guard theme.wordRules, RichTextTheme.wordWindowsPages else { return nil }
                 var count: [Character: Int] = [:], letters = 0
@@ -740,6 +743,12 @@ extension RichLayout {
                     // (2864 words, four documents); our PDF embeds no Tamil face, so it cannot be read from glyph hmtx. No scale here.)
                     if text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) {
                         return ("nirmala ui", 1)
+                    }
+                    // (A run with no Indic letter in a Kokila paragraph — dotted leaders, a comma, digits — is Kokila's too, in Word's print: its Latin
+                    // face is Kokila as well. Left to the stand-in it set the line by Carlito's split, and stacked with the Kokila runs on the line.)
+                    if kokilaLatin,
+                       (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "kokila" {
+                        return ("kokila", 1)
                     }
                     return nil
                 }
@@ -786,7 +795,7 @@ extension RichLayout {
                 if kind >= 0, let indic, indic.scale != 1 { s = s.copyWith(scaleX: indic.scale) }
                 // (The run's own line is the face's, not the stand-in's, where the face's is the shorter: Aparajita's 1.18 em (a516bfe9: 2.7 to 92.9) where Noto
                 // Sans Devanagari's is taller; the joiner above only raises a line.)
-                if kind >= 0, let indic, indic.face == "kokila", let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
+                if kind >= 0, let indic, indic.face == "kokila", kokilaLatin, let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
                     // (Kokila's line: its own ascent and descent, above and below the baseline, for every run on the line: the stand-ins'
                     // (Carlito's, Noto's) are taller above and set the line 2-3 pt low and 1.4 pt per line too far apart.)
                     let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
@@ -1025,7 +1034,7 @@ extension RichLayout {
                     start = end
                     return
                 }
-                if kind >= 0, indic?.face == "kokila", let px = style(kind).fontSize, px > 0.5, let m = Self._indicLines["kokila"],
+                if kind >= 0, indic?.face == "kokila", kokilaLatin, let px = style(kind).fontSize, px > 0.5, let m = Self._indicLines["kokila"],
                    text[start ..< end].unicodeScalars.contains(where: { $0.value < 0x250 || $0.value == 0x2026 || $0.value == 0x201C || $0.value == 0x201D }) {
                     // (Kokila's own Latin, digits and space: `KokilaLatin`; Devanagari stays on the flat scale.)
                     let base = style(kind)
