@@ -6542,19 +6542,21 @@ enum DocxFormat {
                 let runText = r.children.filter { $0.name == "w:t" }.map(\.text).joined()
                 // (A run flagged w:rtl whose text is digits and marks, no letters, is complex
                 // script too: Word sets heb-z5059159's "1" in the szCs 12, not the sz 11.)
-                let complex = runText.unicodeScalars.contains {
+                let rtlRun = rPr.first("w:rtl") != nil && !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A }
+                let complexSize = runText.unicodeScalars.contains {
                     (0x0590...0x08FF).contains($0.value) || (0xFB1D...0xFDFF).contains($0.value) || (0xFE70...0xFEFF).contains($0.value)
-                // (Tamil too, but only a run with no Latin letters: a run of both takes its Latin size here, as Word's mixed footer "D24/0265614 <Tamil>" (sz 9, szCs 7) does.)
-                } || (!runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A } && runText.unicodeScalars.contains { (0x0B80...0x0BFF).contains($0.value) })
-                || (rPr.first("w:rtl") != nil && !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A })
+                } || rtlRun
+                // (Tamil takes bCs/iCs but not szCs: da732dfb's sz 14 / szCs 20 subtitle prints at 14 in Word. Only a run with no Latin letters.)
+                let tamilOnly = !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A } && runText.unicodeScalars.contains { (0x0B80...0x0BFF).contains($0.value) }
+                let complex = complexSize || tamilOnly
                 // (Not the Hyperlink character style inside a table of contents:
                 // Word prints its entries in the TOC paragraph's own look, black
                 // and plain, whatever the runs name.)
                 let inContents = notes.fields.contains { $0.instr.uppercased().trimmingWhitespace(newlines: true).hasPrefix("TOC") }
                 if let id = rPr.first("w:rStyle")?["w:val"], let chain = notes.charStyleChains[id], !(inContents && id.lowercased() == "hyperlink") {
-                    for styled in chain { cs = _charStyle(styled, base: cs, complexText: complex) }
+                    for styled in chain { cs = _charStyle(styled, base: cs, complexText: complex, complexSize: complexSize) }
                 }
-                cs = _charStyle(rPr, base: cs, complexText: complex)
+                cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize)
             }
             // (A page number kept in its result's look with \* MERGEFORMAT keeps its weight and
             // loses the rest of it: lab pgf (Word for Windows, 2026-11-02) — an Arial Bold 15.5pt
@@ -7567,7 +7569,7 @@ enum DocxFormat {
         if took.contains("color"), named.color != nil || named.off.contains(.autoColor) { cell.color = nil }
     }
 
-    private static func _charStyle(_ rPr: XNode, base: CharStyle, complexText: Bool? = nil) -> CharStyle {
+    private static func _charStyle(_ rPr: XNode, base: CharStyle, complexText: Bool? = nil, complexSize: Bool? = nil) -> CharStyle {
         var cs = base
         // Complex-script bold, italic and size (w:bCs, w:iCs, w:szCs) are
         // what a right-to-left run is set in; rtl.docx's Arabic headings
@@ -7697,7 +7699,8 @@ enum DocxFormat {
         if complexText ?? cs.rightToLeft {
             if !sawB, let b = bCs { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }
             if !sawI, let i = iCs { cs.italic = i; if i { cs.off.remove(.italic) } else { cs.off.insert(.italic) } }
-            if !sawSz, let z = szCs ?? cs.complexFontSize { cs.fontSize = z }
+            if !(complexSize ?? true) {}
+            else if !sawSz, let z = szCs ?? cs.complexFontSize { cs.fontSize = z }
             // (A complex run that gives both sizes is set at szCs: the Arabic of ara-z4399437's even-page header, sz 9 / szCs 11, prints at 11.)
             else if sawSz, let z = szCs { cs.fontSize = z }
         }
