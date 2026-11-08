@@ -1143,6 +1143,9 @@ enum OfficeFonts {
     /// any other charset Mincho with JhengHei; with no entry a Latin
     /// name is Mincho with JhengHei (FZShuTi, FZXiaoBiaoSong-B05S) and a
     /// Chinese one Yu Gothic, left to YaHei.
+    private static func koreanOnly(_ n: String) -> Bool {
+        n.unicodeScalars.allSatisfy { $0.isASCII || ($0.value >= 0xAC00 && $0.value <= 0xD7A3) }
+    }
     private static func windowsMissingFallback(_ family: String) -> String? {
         let n = family.trimmingWhitespace().lowercased()
         guard !n.isEmpty else { return nil }
@@ -1173,7 +1176,10 @@ enum OfficeFonts {
         // charset 81 steps 1.31 em in Word's print where ours drew Malgun's 1.73, b6f6c7d4 / 07eecf7a.)
         if e.alt?.trimmingWhitespace() == "바탕", n != "바탕", e.charset == "81" || e.charset == "129" { return "batang" }
         if let alt = e.alt?.trimmingWhitespace().lowercased(), !alt.isEmpty, alt != n,
-           has.contains(where: { faceHas(alt, $0) }) || alt.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return nil }
+           has.contains(where: { faceHas(alt, $0) })
+            || (alt.unicodeScalars.contains(where: { $0.value >= 0x2E80 })
+                // (An alternate that is itself a Korean face Word lacks, 하나 L's 가는안상수체, names nothing Word has: the face goes by its own charset and panose below.)
+                && !((e.charset == "81" || e.charset == "129") && e.family == "roman" && !e.panoseZero && koreanOnly(alt))) { return nil }
         switch e.charset.uppercased() {
         case "86", "80", "": return nil
         case "88": return "jhenghei"
