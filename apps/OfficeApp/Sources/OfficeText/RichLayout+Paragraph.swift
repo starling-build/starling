@@ -2261,6 +2261,15 @@ extension RichLayout {
                         }
                     }
                 }
+                // (A first line of Devanagari-to-Telugu letters stands on the ascent of the face Word
+                // draws them in: Nirmala UI's 1.079 em, Mangal's 1.241. The line joiner of `_span`
+                // raises the engine's line, but the correction above pulled the baseline back to the
+                // Latin face's. dx2 b785c95e's Gujarati title: baseline 25.9 pt under the margin in
+                // Word's print, ours 22.5.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil || style.lineHeightIsMinimum,
+                   let raised = _indicFirstLineAscent(p, painter: painter, lead: _lead(i), named: named, document: document, target: target) {
+                    target = raised
+                }
                 _inkShift[i] = _px(target) - line.baseline
             }
         }
@@ -3283,5 +3292,40 @@ extension RichLayout {
         case .right: return .right
         case .justify: return .justify
         }
+    }
+}
+
+extension RichLayout {
+    /// The baseline a first line of Indic letters stands at when its face's ascent is above `target`.
+    @inline(never)
+    func _indicFirstLineAscent(_ p: RichParagraph, painter: TextPainter, lead: Int, named: RichNamedStyle?, document: RichDocument, target: Double) -> Double? {
+        var target = target
+        var raisedTo: Double?
+                    let firstEnd = painter.getLineBoundary(TextPosition(offset: 0)).end - lead
+                    let units = Array(p.text.utf16)
+                    var start = 0
+                    for run in p.runs where run.length > 0 {
+                        defer { start += run.length }
+                        guard start < firstEnd else { break }
+                        let end = min(start + run.length, firstEnd, units.count)
+                        guard start < end, run.style.inlineImage == nil else { continue }
+                        let text = String(decoding: units[start ..< end], as: UTF16.self)
+                        guard text.unicodeScalars.contains(where: { Self._indic.contains($0.value) }) else { continue }
+                        var cs = (run.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
+                        switch cs {
+                        case "kalimati": cs = "mangal"
+                        case "kohinoor bangla": cs = "shonar bangla"
+                        case "mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "shonar bangla": break
+                        default: cs = "nirmala ui"
+                        }
+                        guard let metrics = Self._indicLines[cs] else { continue }
+                        let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                        if size * metrics.0 > target + 0.01 {
+                            RuleTrace.hit("word-indic-first-line-stands-on-its-face-ascent")
+                            target = size * metrics.0
+                            raisedTo = target
+                        }
+                    }
+                        return raisedTo
     }
 }

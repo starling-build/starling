@@ -1871,6 +1871,11 @@ extension RichLayout {
         if exactTop || exactBottom { RuleTrace.hit("negative-margin-is-exact") }
         if !exactTop, let header = _headerFooter(.header, page: p, document, pageCount: 1) {
             top = max(top, (header.pageAnchoredTop.map { min(_px($0), _px(setup.headerDistance)) } ?? _px(setup.headerDistance)) + header.height)
+            // (A header of one paragraph whose picture, with the text above and below it, is set against the PAGE's top: Word
+            // puts the picture there and the paragraph's one line under its foot, so the body starts at the foot plus that
+            // line, not at the header distance plus the picture's height as our flow has it. dx2 b785c95e and 4bc34886: a
+            // 120.5pt picture at the page's top, an 11pt empty line under it at 130.8; the body from 133.2, ours 156.1.)
+            if let lowered = _headerPictureBodyTop(header, top: top, marginTop: _px(setup.marginTop)) { top = lowered }
         }
         if !exactBottom, let footer = _headerFooter(.footer, page: p, document, pageCount: 1) {
             // (Its frames too, where they stand above it — a page number
@@ -2677,5 +2682,26 @@ extension RichLayout {
                 if shading { _paintShading(i, canvas, document) } else { _paintParagraph(i, canvas, document) }
             }
         }
+    }
+}
+
+extension RichLayout {
+    /// Where the body starts under a header whose picture is set against the page's top (nil: unchanged).
+    /// Kept out of `_bodyInsets`, which is on the stack while the header is laid out.
+    @inline(never)
+    func _headerPictureBodyTop(_ header: _HeaderFooter, top: Double, marginTop: Double) -> Double? {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, let hp = header.document.paragraphs.first, hp.cell == nil,
+              let natural = header.layout.theme.naturalLine(for: hp.runs.first?.style ?? CharStyle(), named: header.layout._named(hp, header.document), eastAsian: false) else { return nil }
+        for image in hp.inlineImages.values {
+            guard let float = image.float, float.takesRoom || float.bandsPage, !float.wraps, float.verticalFrom == "page",
+                  (float.verticalAlign == nil || float.verticalAlign == "top"), float.y >= 0, float.y < 1, image.height > 0 else { continue }
+            let foot = _px(float.y + image.height + float.distanceBottom + natural)
+            if foot < top - 0.5 {
+                RuleTrace.hit("word-header-picture-at-the-page-top-stands-from-the-page")
+                return max(marginTop, foot)
+            }
+            return nil
+        }
+        return nil
     }
 }
