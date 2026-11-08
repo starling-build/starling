@@ -7791,7 +7791,8 @@ enum DocxFormat {
         }
         if let z = szCs { cs.complexFontSize = z }
         if complexText ?? cs.rightToLeft {
-            if !sawB, let b = bCs { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }
+            // (A complex run's weight is its bCs even when the run also states b: af19d946's Heading3 run, b 0 / bCs, prints Devanagari in Nirmala UI Bold.)
+            if let b = bCs { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }
             if !sawI, let i = iCs { cs.italic = i; if i { cs.off.remove(.italic) } else { cs.off.insert(.italic) } }
             if !(complexSize ?? true) {}
             else if !sawSz, let z = szCs ?? cs.complexFontSize { cs.fontSize = z }
