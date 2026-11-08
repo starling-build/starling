@@ -35,16 +35,29 @@ enum TamilAdvances {
         0x6E: 0.566, 0x6F: 0.586, 0x70: 0.588, 0x72: 0.348, 0x73: 0.424, 0x74: 0.339, 0x75: 0.566, 0x76: 0.479, 0x77: 0.723, 0x79: 0.484,
         0x7C: 0.239,
     ]
+    // Vijaya, per code point (em), from the hmtx of the Vijaya subsets embedded in the print of dx2 c30a7a61.
+    // Only the code points that print used; others take the Nirmala UI width x 0.793 (PROVISIONAL scale).
+    static let vijayaRegular: [UInt32: Double] = [
+        0xB85: 0.887, 0xB87: 0.913, 0xB89: 0.75, 0xB8E: 0.663, 0xB8F: 0.663, 0xB95: 0.572, 0xB99: 0.744, 0xB9A: 0.49, 0xB9F: 0.772,
+        0xBA3: 1.122, 0xBA4: 0.577, 0xBA8: 0.554, 0xBA9: 0.864, 0xBAA: 0.672, 0xBAE: 0.735, 0xBAF: 0.708, 0xBB0: 0.454, 0xBB1: 0.62,
+        0xBB2: 0.771, 0xBB3: 0.784, 0xBB5: 0.824, 0xBBE: 0.452, 0xBC6: 0.716, 0xBC7: 0.638, 0xBC8: 0.865, 0xBCD: 0,
+    ]
+    static let vijayaBold: [UInt32: Double] = [
+        0xB95: 0.599, 0xB99: 0.713, 0xB9A: 0.514, 0xB9F: 0.724, 0xBA4: 0.589, 0xBAA: 0.645, 0xBAE: 0.67, 0xBAF: 0.668, 0xBB1: 0.622,
+        0xBB2: 0.715, 0xBB3: 0.8, 0xBB5: 0.806, 0xBBE: 0.452, 0xBC6: 0.753, 0xBC7: 0.603, 0xBC8: 0.809, 0xBCD: 0,
+    ]
     /// The width in em of a word's characters that the table has, and the others
     /// (punctuation, digits, joiners) as the characters not in it.
     static func split(_ word: Substring, bold isBold: Bool, vijaya: Bool = false, leelawadee: Bool = false) -> (ems: Double, known: String, rest: Bool)? {
         var sum = 0.0, known = String.UnicodeScalarView(), rest = false, any = false
         for u in word.unicodeScalars {
-            if isBold, let w = bold[u.value] { sum += w; known.append(u); any = true }
-            else if let w = regular[u.value] { sum += isBold ? w * 1.06 : w; known.append(u); any = true }
+            if vijaya, let w = (isBold ? vijayaBold : vijayaRegular)[u.value] { sum += w; known.append(u); any = true; continue }
+            let k = vijaya ? 0.793 : 1.0
+            if isBold, let w = bold[u.value] { sum += w * k; known.append(u); any = true }
+            else if let w = regular[u.value] { sum += (isBold ? w * 1.06 : w) * k; known.append(u); any = true }
             else if leelawadee, let w = leela[u.value] { sum += isBold ? w * 1.07 : w; known.append(u); any = true }
             else { rest = true }
         }
-        return any ? (vijaya ? sum * 0.793 : sum, String(known), rest) : nil
+        return any ? (sum, String(known), rest) : nil
     }
 }
