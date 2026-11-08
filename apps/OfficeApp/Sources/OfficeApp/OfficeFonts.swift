@@ -1899,6 +1899,17 @@ enum OfficeFonts {
         0.470, 0.261, 0.731, 0.470, 0.470, 0.470, 0.470, 0.313, 0.365, 0.261, 0.470, 0.470, 0.678, 0.470, 0.470,
         0.417, 0.451, 0.188, 0.451, 0.508,
     ]
+    // Yu Mincho's Latin widths, U+0020 to U+007E in ems: medians of the glyph steps in the word-win prints that use it
+    // (20 batch B documents; ! # $ * ; < > @ J Q X Y Z \ ` { } ~ no print used are estimates).
+    private static let yuMinchoAdvances: [Double] = [
+        0.260, 0.270, 0.395, 0.540, 0.540, 0.907, 0.739, 0.226, 0.431, 0.431, 0.500, 0.706, 0.273, 0.398, 0.273,
+        0.466, 0.542, 0.542, 0.543, 0.544, 0.542, 0.544, 0.542, 0.542, 0.544, 0.542, 0.283, 0.283, 0.705, 0.705,
+        0.705, 0.522, 0.900, 0.707, 0.692, 0.730, 0.830, 0.636, 0.603, 0.807, 0.819, 0.354, 0.500, 0.716, 0.639,
+        0.957, 0.806, 0.851, 0.602, 0.850, 0.682, 0.559, 0.726, 0.773, 0.648, 0.949, 0.700, 0.700, 0.650, 0.431,
+        0.466, 0.430, 0.535, 0.500, 0.300, 0.479, 0.557, 0.463, 0.557, 0.490, 0.330, 0.524, 0.566, 0.287, 0.287,
+        0.510, 0.272, 0.851, 0.581, 0.535, 0.568, 0.558, 0.388, 0.409, 0.341, 0.567, 0.488, 0.716, 0.476, 0.487,
+        0.464, 0.430, 0.388, 0.430, 0.705,
+    ]
     // Malgun Gothic's own Latin widths, U+0020 to U+007E in ems: the hmtx of the subsets Word for Windows
     // embeds in word-win prints (majority of ~170 prints; ^ ` and a few bold glyphs no print used are estimates).
     private static let malgunAdvances: [Double] = [
@@ -2220,9 +2231,25 @@ enum OfficeFonts {
             RuleTrace.hit("ms-japanese-face-square-line")
             return EastAsianFace(height: 1.3, latin: has("mincho", "明朝") ? serif : sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
         }
+        // Meiryo UI sets single lines 1.3 em apart in Word's print (jpn-g11-40dd71: 10 pt lines step
+        // 12.9 to 13.0 pt where the generic CJK line gave 17).
         // Yu Mincho shares Yu Gothic's line (jpn-z23845932-12d9fb: 10.5pt Body
         // Text at 1.5 lines steps 26.4pt in Word's print = 1.676 em natural,
         // where YaHei's 1.715 em gave 27.0).
+        if wordOnWindows, has("yu mincho", "游明朝") {
+            // (Its Latin text is set in its own narrower widths: jpn-z19171856's English body, 207 lines
+            // here against Word's 169.)
+            var yu = EastAsianFace(height: 1.2871 * 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 1.2871 * 0.15 + 0.98486)
+            yu.latinAdvances = yuMinchoAdvances
+            // (Greek and symbols stay full width: own Latin widths would otherwise switch that off,
+            // jpn-z19410533-d8cc8f's nu.)
+            yu.squareSymbols = true
+            // (Word sets its Greek letters an em: jpn-z19410533-d8cc8f's nu steps 10.6 pt at 10.5 pt.)
+            var yuGreek: [UInt32: Double] = [:]
+            for u in UInt32(0x391)...UInt32(0x3C9) where u != 0x3A2 { yuGreek[u] = 1.0 }
+            yu.otherAdvances = yuGreek
+            return yu
+        }
         if wordOnWindows, has("yu gothic", "游ゴシック", "yu mincho", "游明朝") {
             return EastAsianFace(height: 1.2871 * 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 1.2871 * 0.15 + 0.98486)
         }
