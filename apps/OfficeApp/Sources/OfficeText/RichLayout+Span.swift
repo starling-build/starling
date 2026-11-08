@@ -782,6 +782,12 @@ extension RichLayout {
                 // kerning is no part of them: Arial's pair of ones.)
                 if kind >= 0, latinFace?.advances != nil { s = s.copyWith(fontFeatures: [FontFeature("kern", 0)]) }
                 if kind >= 0, let indic, indic.scale != 1 { s = s.copyWith(scaleX: indic.scale) }
+                // (The run's own line is the face's, not the stand-in's, where the face's is the shorter: Aparajita's 1.18 em (a516bfe9: 2.7 to 92.9) where Noto
+                // Sans Devanagari's is taller; the joiner above only raises a line.)
+                if kind >= 0, let indic, indic.face == "aparajita", let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
+                    let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
+                    s = s.copyWith(height: (m.0 + m.1) * multiple, leadingDistribution: .even)
+                }
                 if let grown, s.fontSize ?? 0 > 0.5 { s = s.copyWith(height: grown.height) }
                 // (A run with ruby over it makes its line room for the ruby.)
                 if theme.wordRules, run.ruby != nil, s.fontSize ?? 0 > 0.5,
