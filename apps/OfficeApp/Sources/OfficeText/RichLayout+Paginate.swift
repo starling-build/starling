@@ -2223,11 +2223,7 @@ extension RichLayout {
                    let second = document.tableStyles[c.table], second.floatsOverText, !second.pageAnchored {
                     let firstAt: Double = (first.floatOffsetY ?? 0) - (first.floatRaiseY ?? 0)
                     let secondAt: Double = (second.floatOffsetY ?? 0) - (second.floatRaiseY ?? 0)
-                    // (Not two tables both set above their anchor: jpn-g11's tables 10 and 11, tblpY -55 and
-                    // -53 twips, stand 32.0pt apart in Word's print, text to text; with the 21.5pt, 53.4.)
-                    if secondAt >= firstAt, !(first.floatRaiseY != nil && second.floatRaiseY != nil) {
-                        y += _px(21.5)
-                    }
+                    if secondAt >= firstAt { y += _px(21.5) }
                 }
                 // A floating table anchored to the text stands its offset
                 // below the text's place (zh-64044a1d's equipment list,
