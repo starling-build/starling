@@ -54,8 +54,14 @@ extension RichLayout {
     /// 1.68 em: dx2 54d1d1d1's blank cell paragraphs, 11 pt marks, step 18.5 in Word's print against 15.9 in the stand-in's.
     @inline(never)
     func _mangalMarkLine(_ look: TextStyle, mark: CharStyle, named: RichNamedStyle?, document: RichDocument, lineSpacing: Double) -> TextStyle? {
+        guard let px = look.fontSize, px > 0.5 else { return nil }
+        // (A mark set in Raavi: Word draws the empty line in Raavi's own 1.66 em, 230be2f4's NoSpacing paragraphs between tables.)
+        if (mark.fontFamily ?? "").trimmingWhitespace().lowercased() == "raavi", let r = Self._indicLines["raavi"] {
+            let multiple = lineSpacing > 1 ? lineSpacing : 1
+            return look.copyWith(ascentOverride: r.0 * multiple * px, descentOverride: r.1 * multiple * px, height: (r.0 + r.1) * multiple, leadingDistribution: .even)
+        }
         guard let kept = mark.keptXML, kept.containsSubstring("<w:cs/>") || kept.containsSubstring("<w:cs "),
-              let m = Self._indicLines["mangal"], let px = look.fontSize, px > 0.5 else { return nil }
+              let m = Self._indicLines["mangal"] else { return nil }
         let cs = (mark.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
         guard cs == "kalimati" || cs == "mangal" else { return nil }
         var size = px

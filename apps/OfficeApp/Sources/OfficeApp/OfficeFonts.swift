@@ -72,7 +72,7 @@ enum OfficeFonts {
         let n = family.trimmingWhitespace().lowercased()
         if let alt = macTableAlternate(family) { return substitute(alt) }
         switch n {
-        case "liberation sans", "arial", "helvetica", "helvetica neue", "tahoma",
+        case "liberation sans", "arial", "helvetica", "helvetica neue", "tahoma", "raavi",
              "segoe ui", "aptos", "arimo", "arial black":
             return sans
         case "verdana", "dejavu sans", "bitstream vera sans":
