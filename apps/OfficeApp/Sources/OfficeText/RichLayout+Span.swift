@@ -67,7 +67,9 @@ extension RichLayout {
         if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile {
             let latin = (mark.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
             let face = latin == "nikosh" || latin == "mangal" ? "mangal" : (latin == "nirmala ui" ? "nirmala ui" : (latin == "kokila" ? "kokila" : ""))
-            if let r = Self._indicLines[face] {
+            // (Kokila only where the mark has one size: hin-z20740649 sets sz 6 and szCs 13 and was 0.6 worse.)
+            let kokilaOK = face != "kokila" || mark.complexFontSize == nil || abs((mark.complexFontSize ?? px) - px) < 0.01
+            if kokilaOK, let r = Self._indicLines[face] {
                 RuleTrace.hit("word-empty-mark-in-nikosh-mangal-nirmala-is-that-faces-line")
                 let multiple = lineSpacing > 1 ? lineSpacing : 1
                 return look.copyWith(ascentOverride: r.0 * multiple * px, descentOverride: r.1 * multiple * px, height: (r.0 + r.1) * multiple, leadingDistribution: .even)
