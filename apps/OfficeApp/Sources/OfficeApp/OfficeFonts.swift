@@ -1925,6 +1925,26 @@ enum OfficeFonts {
     ]
     // Malgun Gothic's own Latin widths, U+0020 to U+007E in ems: the hmtx of the subsets Word for Windows
     // embeds in word-win prints (majority of ~170 prints; ^ ` and a few bold glyphs no print used are estimates).
+    /// Batang's and Dotum's Latin advances, space to ~, read from the hmtx of the subsets embedded in Word for Windows' prints
+    /// (dx2 and new-b ko docs). Letters no subset held take Arial's width.
+    private static let batangAdvances: [Double] = [
+        0.333, 0.312, 0.417, 0.556, 0.556, 0.855, 0.667, 0.250, 0.377, 0.377, 0.500, 0.833, 0.292, 0.625, 0.292,
+        0.375, 0.596, 0.596, 0.596, 0.596, 0.596, 0.596, 0.596, 0.596, 0.596, 0.596, 0.333, 0.278, 0.625, 0.625,
+        0.625, 0.500, 1.000, 0.736, 0.708, 0.708, 0.734, 0.672, 0.645, 0.740, 0.766, 0.326, 0.500, 0.746, 0.639,
+        0.895, 0.722, 0.736, 0.654, 0.738, 0.672, 0.625, 0.750, 0.775, 0.750, 0.944, 0.667, 0.667, 0.611, 0.500,
+        0.278, 0.500, 0.469, 0.500, 0.333, 0.542, 0.576, 0.542, 0.576, 0.576, 0.365, 0.583, 0.574, 0.289, 0.222,
+        0.500, 0.292, 0.846, 0.570, 0.583, 0.574, 0.556, 0.439, 0.520, 0.359, 0.566, 0.572, 0.809, 0.605, 0.588,
+        0.500, 0.334, 0.260, 0.334, 0.750,
+    ]
+    private static let dotumAdvances: [Double] = [
+        0.334, 0.334, 0.417, 0.556, 0.556, 0.889, 0.667, 0.291, 0.375, 0.375, 0.389, 0.584, 0.375, 0.590, 0.375,
+        0.417, 0.583, 0.583, 0.583, 0.583, 0.583, 0.583, 0.556, 0.583, 0.556, 0.583, 0.340, 0.278, 0.625, 0.584,
+        0.625, 0.583, 1.000, 0.667, 0.667, 0.721, 0.725, 0.629, 0.611, 0.778, 0.722, 0.278, 0.500, 0.667, 0.556,
+        0.809, 0.722, 0.778, 0.667, 0.778, 0.722, 0.639, 0.611, 0.722, 0.667, 0.944, 0.667, 0.667, 0.611, 0.278,
+        0.278, 0.278, 0.469, 0.556, 0.333, 0.583, 0.600, 0.559, 0.604, 0.559, 0.344, 0.598, 0.561, 0.229, 0.222,
+        0.500, 0.230, 0.917, 0.568, 0.600, 0.602, 0.556, 0.320, 0.516, 0.312, 0.555, 0.475, 0.725, 0.500, 0.480,
+        0.482, 0.334, 0.260, 0.334, 0.584,
+    ]
     /// Gulim's Latin advances, space to ~, read from the hmtx of the Gulim subsets embedded in Word for Windows' prints
     /// (kor-z19176375, -z20746312, -z23132029). # $ & ' @ \ ^ ` { | } were not in any subset: Arial's widths stand in.
     private static let gulimAdvances: [Double] = [
@@ -2255,7 +2275,11 @@ enum OfficeFonts {
         // (Dotum and Batang too, whole names: the 11pt single lines of dx2's ko docs step 1.304 em in Dotum
         // and 1.30 in Batang in Word's print where ours drew 1.72, and their pages doubled.)
         if wordOnWindows, n == "dotum" || n == "돋움" || n == "batang" || n == "바탕" {
-            return EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
+            var face = EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
+            RuleTrace.hit("batang-dotum-own-latin-widths")
+            face.latinAdvances = (n == "batang" || n == "바탕") ? batangAdvances : dotumAdvances
+            face.latinBoldAdvances = face.latinAdvances
+            return face
         }
         if wordOnWindows || wordOnMac, has("ms gothic", "ｍｓ ゴシック", "gulim", "굴림") {
             var face = EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
