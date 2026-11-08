@@ -1583,6 +1583,27 @@ enum OfficeFonts {
     // the 95 glyphs from the subsets' hmtx; the rest estimated from Liberation
     // Sans by the median ratio of their kind). Tahoma has no metric-compatible
     // free clone; the sans stand-in's lines held a word too many.
+    // Arial Narrow, which has no free clone (Liberation Sans Narrow is GPL, not bundled): the sans stand-in
+    // driven by Arial Narrow's own advances in ems, from the hmtx of the subsets Word's Windows prints embed
+    // (86 of 95 regular, 81 of 95 bold read; the rest estimated from Liberation Sans). Line 1916+434 of 2048.
+    static let arialNarrowAdvances: [Double] = [
+        0.2280, 0.2280, 0.2910, 0.4561, 0.4561, 0.7290, 0.5469, 0.1566, 0.2729, 0.2729, 0.3188, 0.4790, 0.2280, 0.2729, 0.2280,
+        0.2280, 0.4561, 0.4561, 0.4561, 0.4561, 0.4561, 0.4561, 0.4561, 0.4561, 0.4561, 0.4561, 0.2280, 0.2280, 0.4790, 0.4790,
+        0.4789, 0.4561, 0.8320, 0.5469, 0.5469, 0.5918, 0.5918, 0.5469, 0.5010, 0.6382, 0.5918, 0.2280, 0.4102, 0.5469, 0.4561,
+        0.6831, 0.5918, 0.6382, 0.5469, 0.6382, 0.5918, 0.5469, 0.5010, 0.5918, 0.5469, 0.7739, 0.5469, 0.5469, 0.5010, 0.2278,
+        0.2278, 0.2278, 0.3848, 0.4561, 0.2729, 0.4561, 0.4561, 0.4102, 0.4561, 0.4561, 0.2280, 0.4561, 0.4561, 0.1821, 0.1821,
+        0.4102, 0.1821, 0.6831, 0.4561, 0.4561, 0.4561, 0.4561, 0.2729, 0.4102, 0.2280, 0.4561, 0.4102, 0.5918, 0.4102, 0.4102,
+        0.4102, 0.2739, 0.2129, 0.2739, 0.4790,
+    ]
+    static let arialNarrowBoldAdvances: [Double] = [
+        0.2280, 0.2729, 0.3892, 0.4561, 0.4561, 0.7290, 0.5922, 0.1950, 0.2729, 0.2729, 0.3191, 0.4789, 0.2280, 0.2729, 0.2280,
+        0.2280, 0.4561, 0.4561, 0.4561, 0.4561, 0.4561, 0.4561, 0.4561, 0.4561, 0.4561, 0.4561, 0.2729, 0.2731, 0.4789, 0.4790,
+        0.4789, 0.5010, 0.7997, 0.5918, 0.5918, 0.5918, 0.5918, 0.5469, 0.5010, 0.6382, 0.5918, 0.2280, 0.4561, 0.5918, 0.5010,
+        0.6831, 0.5918, 0.6382, 0.5469, 0.6382, 0.5918, 0.5469, 0.5010, 0.5918, 0.5469, 0.7739, 0.5469, 0.5469, 0.5010, 0.2729,
+        0.2278, 0.2729, 0.4789, 0.4561, 0.2729, 0.4561, 0.5010, 0.4561, 0.5010, 0.4561, 0.2729, 0.5010, 0.5010, 0.2280, 0.2280,
+        0.4561, 0.2280, 0.7290, 0.5010, 0.5010, 0.5010, 0.5010, 0.3188, 0.4561, 0.2729, 0.5010, 0.4561, 0.6382, 0.4561, 0.4561,
+        0.4102, 0.3191, 0.2300, 0.3191, 0.4790,
+    ]
     static let tahomaAdvances: [Double] = [
         0.3125, 0.3320, 0.4014, 0.6289, 0.6289, 1.0054, 0.7542, 0.2159, 0.3828, 0.3828, 0.4400, 0.6603, 0.3027, 0.3633, 0.3027,
         0.3823, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.3535, 0.3142, 0.6603, 0.6603,
@@ -3403,6 +3424,16 @@ enum OfficeFonts {
                 RuleTrace.hit("century-own-widths")
             }
             if wordOnWindows { Self.applyTabled(family, to: &face) }
+            // (Arial Narrow, drawn as the sans clone, at its own widths and line.)
+            if family.trimmingWhitespace().lowercased() == "arial narrow" {
+                face.advances = arialNarrowAdvances
+                face.italicAdvances = arialNarrowAdvances
+                face.boldAdvances = arialNarrowBoldAdvances
+                face.boldItalicAdvances = arialNarrowBoldAdvances
+                face.naturalHeight = 1.1475
+                face.baseline = 0.9355
+                RuleTrace.hit("arial-narrow-own-widths")
+            }
             // (Tahoma, drawn as the sans clone, at its own widths and line.)
             if family.trimmingWhitespace().lowercased() == "tahoma" {
                 face.advances = tahomaAdvances
