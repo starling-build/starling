@@ -3148,3 +3148,33 @@ extension RichLayout {
         (cs ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "vijaya"
     }
 }
+
+extension RichLayout {
+    /// A Tamil paragraph whose complex face is Arial Unicode MS (missing on Windows): every line that holds a non-space Latin letter,
+    /// digit or punctuation mark (Word draws those in Leelawadee UI) takes Leelawadee's taller line, yet the lines keep Nirmala UI's
+    /// pitch and the surplus lands after the paragraph's last line (Word lab a347gap/J-chars: marks on 3 of 8 lines, 3 x 3.8 pt at 11 pt,
+    /// for every mark kind; two marks on one line count once; spaces alone nothing). 0.345 em per line (18.4 - 14.6 at 11 pt).
+    @inline(never)
+    func _tamilMarkedLinesExtra(_ i: Int, _ p: RichParagraph, _ document: RichDocument, _ painter: TextPainter) -> Double {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.isEmpty,
+              document.defaultLangXML?.containsSubstring("ta-IN") == true,
+              p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) else { return 0 }
+        let named = _named(p, document)
+        let cs = (p.style.mark?.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "")
+        guard cs.trimmingWhitespace().lowercased() == "arial unicode ms" else { return 0 }
+        let size = _px(named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize)
+        let lead = _lead(i)
+        var starts = Set<Int>()
+        var offset = 0
+        for u in p.text.unicodeScalars {
+            let n = u.value > 0xFFFF ? 2 : 1
+            if u.value > 0x20, u.value < 0x250 {
+                starts.insert(painter.getLineBoundary(TextPosition(offset: offset + lead)).start)
+            }
+            offset += n
+        }
+        if starts.isEmpty { return 0 }
+        RuleTrace.hit("word-tamil-leelawadee-marked-lines-add-to-the-paragraph")
+        return Double(starts.count) * 0.345 * size
+    }
+}
