@@ -15416,3 +15416,8 @@ TIP WATCH amd-8, round 271 (1b4870805, S+S): Word sets clean and UP (xb 55.85->5
   BENGALI NEXT (amd-1): Nikosh docs 2263e221, bede0fbc (Word draws Latin/space in Mangal) and Siyam Rupali e86e26f7 (Latin/space in Malgun); Kohinoor 80152175 (Arial runs).
 
 - lenovo-5 (2026-11-08): rebasing RichLayout: _layoutParagraphOnce + _span frame shrink (behaviour-neutral @inline(never) wraps; biggest dx2 doc release stack 1576 -> 1352 KB; one piece because paragraph alone pushed _span 341K -> 473K). Landing now via land.sh.
+- amd-1 (2026-11-08) Bengali/Hindi low docs, measured, NOT fixed (all are "missing face" cases where Word draws each script in a different substitute):
+  * Nikosh (bede0fbc 3.7, 2263e221 3.7): Word draws Bengali in Nirmala UI, Latin/digits/spaces in Mangal (Mangal line 1.68 em: space-only lines pitch 18.5 at 11 pt; lines with Bengali letters pitch 1.33-1.43 em). Tried: letterless runs take Mangal's line and 0.5 em space: bede0fbc 3.7 to 7.4, 2263e221 3.7 to 9.1 only, so not landed. Word's first lines are space-only paragraphs (1-char rows at y 112, 130) that we do not match; look there first.
+  * Siyam Rupali (e86e26f7 0.0): Bengali in Nirmala UI, Latin/space in Malgun Gothic 14 pt title (Word's title baseline 165.5, ours 160.5; next line +4 more).
+  * Arial Unicode MS Devanagari (31a0a560 0.0, Nepali): Word draws Devanagari in Nirmala UI and the Latin text in Leelawadee UI (404 chars), Japanese in Yu Gothic; body pitch 14.4 (ours 14.3) is fine, but the first two paragraphs end 4.8 pt too high and 8.8 by the fourth (spacing after an empty first paragraph and the <Date>+tab line). Not yet traced.
+  * 375919ba (0.7): Mangal 14 pt, 19 pages in Word, 22 in ours: pitch problem, not yet traced.
