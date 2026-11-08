@@ -613,7 +613,14 @@ extension RichLayout {
                 else { return nil }
                 return String(last) + rawText.dropLast()
             }()
-            let text: Substring = moved.map { Substring($0) } ?? rawText
+            // (A closing run of ideographic spaces Word lets hang is set with no width: _cutTrailingSpaces.)
+            let hung: String? = {
+                guard let idx = index, let cut = _trailCut[idx], base + rawText.utf16.count > cut, rawText.contains("\u{3000}") else { return nil }
+                var at = base, out = ""
+                for c in (moved ?? String(rawText)) { out.append(c == "\u{3000}" && at >= cut ? "\u{200B}" : c); at += c.utf16.count }
+                return out
+            }()
+            let text: Substring = hung.map { Substring($0) } ?? moved.map { Substring($0) } ?? rawText
             // (A soft hyphen the line ends at is a hyphen to the line breaking
             // too — see `_layoutParagraph`.)
             if let idx = index, let shownSet = _hyphenShown[idx], !shownSet.isEmpty, text.containsSubstring("\u{00AD}") {
@@ -1295,7 +1302,7 @@ extension RichLayout {
                 inserts.append(offset)
             }
             while i < text.endIndex {
-                let ch = shown(text[i])
+                let ch: Character = shown(text[i])
                 let after = text.index(after: i)
                 let following = (after < text.endIndex ? text[after] : next).map(shown)
                 // (An ideographic space on a line of spaces alone is set

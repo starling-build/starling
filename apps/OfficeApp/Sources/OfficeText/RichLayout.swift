@@ -1547,6 +1547,8 @@ public final class RichLayout {
     /// hyphen (U+2010) so the line breaking measures it: Word shows the
     /// hyphen only where the line breaks there.
     var _hyphenShown: [Int: Set<Int>] = [:]
+    /// Paragraph -> the offset from which its closing run of ideographic spaces is set with no width (Word lets that run hang past the line, so it never starts a line of its own: 8b283c4d's "政治家" paragraph).
+    var _trailCut: [Int: Int] = [:]
     /// Where each paragraph may be parted by automatic hyphenation
     /// (`w:autoHyphenation`): the text offsets the next line may begin at.
     var _hyphenPoints: [Int: Set<Int>] = [:]

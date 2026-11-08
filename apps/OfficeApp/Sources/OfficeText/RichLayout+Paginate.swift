@@ -5303,10 +5303,30 @@ extension RichLayout {
         return out
     }
 
+    /// Word lets a closing run of ideographic spaces hang past the line: lines that would hold nothing
+    /// else are not made (8b283c4d's "政治家" + 59 U+3000 is one line in Word's print, ours two, the
+    /// first stretched). Where a paragraph's last lines start inside that run, it is set again with
+    /// the run from the first such line on at no width.
+    @inline(never) func _cutTrailingSpaces(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, let painter = _painters[i], i < _inserts.count else { return }
+        let units = Array(p.text.utf16)
+        var run = units.count
+        while run > 0, units[run - 1] == 0xFFFC { run -= 1 }
+        guard run > 0, units[run - 1] == 0x3000 else { return }
+        while run > 0, units[run - 1] == 0x3000 { run -= 1 }
+        guard run > 0, units[..<run].contains(where: { $0 != 0x20 && $0 != 0x09 && $0 != 0x0A }) else { return }
+        let starts = _lineStarts(painter, _OffsetMap(lead: _lead(i), inserts: _inserts[i]), count: units.count)
+        guard starts.contains(where: { $0 > run }) else { return }
+        _trailCut[i] = run
+        _layoutParagraphOnce(i, p, document)
+    }
+
     func _layoutParagraph(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
         let automatic = _autoHyphenPoints(p, document)
         _hyphenPoints[i] = automatic.isEmpty ? nil : automatic
+        _trailCut[i] = nil
         _layoutParagraphOnce(i, p, document)
+        _cutTrailingSpaces(i, p, document)
         // Soft hyphens (and the points automatic hyphenation may use): the
         // lines that end at one show a hyphen, which takes
         // room, so the paragraph is set again with those drawn until the set
