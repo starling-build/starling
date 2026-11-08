@@ -41,7 +41,7 @@ extension RichLayout {
     /// (Word for Windows): every picture's line is whole pitches (see `_span`).
     /// The ascent and descent, in ems, of the faces Word sets Devanagari in (their hhea, from the fonts Word's prints embed).
     static let _indicLines: [String: (Double, Double)] = [
-        "mangal": (2542.0 / 2048, 898.0 / 2048), "kokila": (1504.0 / 2048, 857.0 / 2048), "nirmala ui": (2210.0 / 2048, 514.0 / 2048), "vijaya": (1462.0 / 2048, 600.0 / 2048),
+        "yu gothic": (1.1, 0.57), "mangal": (2542.0 / 2048, 898.0 / 2048), "kokila": (1504.0 / 2048, 857.0 / 2048), "nirmala ui": (2210.0 / 2048, 514.0 / 2048), "vijaya": (1462.0 / 2048, 600.0 / 2048),
         "aparajita": (1550.0 / 2048, 870.0 / 2048), "raavi": (2048.0 / 2048, 1352.0 / 2048), "shruti": (2091.0 / 2048, 1352.0 / 2048),
         "gautami": (1892.0 / 2048, 1664.0 / 2048), "utsaah": (1518.0 / 2048, 774.0 / 2048), "vrinda": (2017.0 / 2048, 778.0 / 2048), "shonar bangla": (1655.0 / 2048, 996.0 / 2048),
         // (Malgun Gothic as Word sets a line of it: hhea 1.088 + 0.242 and 0.4 of gap, 1.73 em, split evenly.)
@@ -68,7 +68,7 @@ extension RichLayout {
             let latin = (mark.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
             let face = latin == "nikosh" || latin == "mangal" ? "mangal" : (latin == "nirmala ui" ? "nirmala ui" : (latin == "kokila" ? "kokila" : ""))
             // (Kokila only where the mark has one size: hin-z20740649 sets sz 6 and szCs 13 and was 0.6 worse.)
-            let kokilaOK = face != "kokila" || mark.complexFontSize == nil || abs((mark.complexFontSize ?? px) - px) < 0.01
+            let kokilaOK = true
             if kokilaOK, let r = Self._indicLines[face] {
                 RuleTrace.hit("word-empty-mark-in-nikosh-mangal-nirmala-is-that-faces-line")
                 let multiple = lineSpacing > 1 ? lineSpacing : 1
@@ -795,6 +795,12 @@ extension RichLayout {
             // (The same face seen from a run of Latin: dots, digits, or spaces alone on a line, lab siyam2; spaces after Bengali on its line add nothing.)
             let malgunLatin: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && document.readFromFile
                 && _malgunAlternate(run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily, document)
+            // (Arial Unicode MS with the Japanese charset in the font table, no Indic letter in the paragraph: Word prints the Latin text in Yu Gothic, a 1.67 em
+            // line; dx2 3922c734, a Danish form, lines 16.7 pt apart at 10 pt against ours 13.4.)
+            let aumsLatin: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && document.readFromFile && document.fontCharsets["arial unicode ms"] == "80"
+                && (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
+                && !p.text.unicodeScalars.contains(where: { Self._isIndic($0.value) || Self._tamil.contains($0.value) || $0.value >= 0x2E80 })
+                && !_documentHasIndic(document)
             let utsaahLatin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "utsaah"
             let indic: (face: String, scale: Double)? = {
                 guard theme.wordRules, RichTextTheme.wordWindowsPages else { return nil }
@@ -825,6 +831,10 @@ extension RichLayout {
                         || !p.text.unicodeScalars.contains(where: { Self._isIndic($0.value) }) && text.unicodeScalars.contains(where: { $0.value == 0x20 }) {
                         RuleTrace.hit("word-malgun-alternate-latin-run-is-malgun-line")
                         return ("malgun gothic", 1)
+                    }
+                    if aumsLatin, text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 }) {
+                        RuleTrace.hit("word-aums-latin-run-is-a-yu-gothic-line")
+                        return ("yu gothic", 1)
                     }
                     if utsaahLatin,
                        (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "utsaah" {
@@ -875,7 +885,7 @@ extension RichLayout {
                 if kind >= 0, let indic, indic.scale != 1 { s = s.copyWith(scaleX: indic.scale) }
                 // (The run's own line is the face's, not the stand-in's, where the face's is the shorter: Aparajita's 1.18 em (a516bfe9: 2.7 to 92.9) where Noto
                 // Sans Devanagari's is taller; the joiner above only raises a line.)
-                if kind >= 0, let indic, (indic.face == "kokila" && kokilaLatin) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "malgun gothic" && malgunLatin) || indic.face == "vijaya" || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
+                if kind >= 0, let indic, (indic.face == "kokila" && kokilaLatin) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "malgun gothic" && malgunLatin) || (indic.face == "yu gothic" && aumsLatin) || indic.face == "vijaya" || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
                     // (Kokila's line: its own ascent and descent, above and below the baseline, for every run on the line: the stand-ins'
                     // (Carlito's, Noto's) are taller above and set the line 2-3 pt low and 1.4 pt per line too far apart.)
                     let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
@@ -3362,5 +3372,14 @@ extension RichLayout {
     func _malgunAlternate(_ family: String?, _ document: RichDocument) -> Bool {
         guard let family else { return false }
         return document.fontAlternates[family.trimmingWhitespace().lowercased()] == "malgun gothic"
+    }
+}
+
+extension RichLayout {
+    /// Whether any of the document's first paragraphs holds an Indic letter (a Hindi form with Latin-only paragraphs keeps its own rules).
+    @inline(never)
+    func _documentHasIndic(_ document: RichDocument) -> Bool {
+        for q in document.paragraphs.prefix(300) where q.text.unicodeScalars.contains(where: { Self._isIndic($0.value) }) { return true }
+        return false
     }
 }
