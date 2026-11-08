@@ -1125,9 +1125,12 @@ enum OfficeFonts {
     private static func windowsMissingFallback(_ family: String) -> String? {
         let n = family.trimmingWhitespace().lowercased()
         guard !n.isEmpty else { return nil }
+        // (맑은 고딕 is Word for Windows' face too: a document that names
+        // 맑은 고딕 was set in MS Mincho's widths, its spaces 0.22 em where Word's Malgun
+        // Gothic sets 0.35 — kor-z19176375-30dbe1, kor-z21348848-7369b1.)
         let has = ["simsun", "宋体", "新宋体", "nsimsun", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "microsoft yahei", "微软雅黑",
                    "mingliu", "細明體", "新細明體", "microsoft jhenghei", "微軟正黑", "dengxian", "等线", "dfkai", "標楷",
-                   "mincho", "明朝", "gothic", "ゴシック", "meiryo", "malgun", "batang", "gulim", "dotum", "_gb2312", "华文", "stsong", "stkaiti",
+                   "mincho", "明朝", "gothic", "ゴシック", "meiryo", "malgun", "batang", "gulim", "dotum", "맑은 고딕", "_gb2312", "华文", "stsong", "stkaiti",
                    "stfangsong", "stzhongsong", "stxihei", "stxinwei"]
         // (A name that lists faces, as LibreOffice writes them — "新細明體,
         // PMingLiU" — is no face Word for Windows has, whatever it lists:
