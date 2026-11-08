@@ -702,6 +702,7 @@ extension RichLayout {
             let fitGroup = theme.wordRules && RichTextTheme.wordWindowsPages ? Self._fitText(run.keptXML) : nil
             var fitPitch: Double? = nil
             var fitBusy = false
+            var plainPiece = false
             var fitNone = false
             var fitLastSingle = false
             func fitSpacing() -> Double? {
@@ -800,7 +801,7 @@ extension RichLayout {
                 return (face, all * 2 >= letters ? scale : 1)
             }()
             func style(_ kind: Int) -> TextStyle {
-                if !fitBusy, let s = styles[kind] { return s }
+                if !fitBusy, !plainPiece, let s = styles[kind] { return s }
                 var styled = run
                 let grown = wholeRaised ? theme.raisedLineHeight(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) : nil
                 if let grown { styled.raised = grown.raise }
@@ -826,7 +827,7 @@ extension RichLayout {
                 if kind >= 0, let indic, indic.scale != 1 { s = s.copyWith(scaleX: indic.scale) }
                 // (The run's own line is the face's, not the stand-in's, where the face's is the shorter: Aparajita's 1.18 em (a516bfe9: 2.7 to 92.9) where Noto
                 // Sans Devanagari's is taller; the joiner above only raises a line.)
-                if kind >= 0, let indic, (indic.face == "kokila" && kokilaLatin) || (indic.face == "utsaah" && utsaahLatin) || indic.face == "vijaya" || (indic.face == "nirmala ui" && (s.fontSize ?? 0) <= 320 && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
+                if kind >= 0, let indic, (indic.face == "kokila" && kokilaLatin) || (indic.face == "utsaah" && utsaahLatin) || indic.face == "vijaya" || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
                     // (Kokila's line: its own ascent and descent, above and below the baseline, for every run on the line: the stand-ins'
                     // (Carlito's, Noto's) are taller above and set the line 2-3 pt low and 1.4 pt per line too far apart.)
                     let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
@@ -924,7 +925,7 @@ extension RichLayout {
                     let own = text.count == 1 && fitLastSingle ? 0 : f
                     s = s.copyWith(letterSpacing: kind == -2 ? (s.letterSpacing ?? 0) + own : own)
                 }
-                if !fitBusy { styles[kind] = s }
+                if !fitBusy, !plainPiece { styles[kind] = s }
                 return s
             }
             // (A zero-width character the layout puts in — a break the
@@ -1159,6 +1160,18 @@ extension RichLayout {
                         k = text.index(after: k)
                     }
                     putWord(wordStart, end)
+                    start = end
+                    return
+                }
+                if kind >= 0, indic?.face == "nirmala ui", Self._splitIndicLatin(text[start ..< end]).count > 1 {
+                    // (Word builds each line from the tallest ascent and the deepest descent of the faces on it: the Latin, digits, spaces
+                    // and marks between Nirmala UI's words are Arial's and carry no Nirmala line of their own.)
+                    for (piece, isIndic) in Self._splitIndicLatin(text[start ..< end]) {
+                        plainPiece = !isIndic
+                        let st = style(kind)
+                        plainPiece = false
+                        spans.append(contentsOf: capped(piece, run, joinedScaled(piece, st)))
+                    }
                     start = end
                     return
                 }
@@ -3228,5 +3241,25 @@ extension RichLayout {
         if starts.isEmpty { return 0 }
         RuleTrace.hit("word-tamil-leelawadee-marked-lines-add-to-the-paragraph")
         return Double(starts.count) * 0.345 * size
+    }
+}
+
+extension RichLayout {
+    /// A run cut into maximal pieces of Indic letters (with their joiners) and of everything else.
+    @inline(never)
+    static func _splitIndicLatin(_ t: Substring) -> [(Substring, Bool)] {
+        var out: [(Substring, Bool)] = []
+        var a = t.startIndex, cur: Bool? = nil
+        var i = t.startIndex
+        while i < t.endIndex {
+            let ch = t[i]
+            let v = ch.unicodeScalars.first!.value
+            let ind = (v >= 0x0900 && v < 0x0E00) || v == 0x200C || v == 0x200D
+            if let c = cur, c != ind { out.append((t[a ..< i], c)); a = i }
+            cur = ind
+            i = t.index(after: i)
+        }
+        if let c = cur { out.append((t[a ..< t.endIndex], c)) }
+        return out
     }
 }
