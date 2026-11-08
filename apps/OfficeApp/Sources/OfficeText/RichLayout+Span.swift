@@ -73,6 +73,15 @@ extension RichLayout {
                 return look.copyWith(ascentOverride: r.0 * multiple * px, descentOverride: r.1 * multiple * px, height: (r.0 + r.1) * multiple, leadingDistribution: .even)
             }
         }
+        // (Arial Unicode MS with the Japanese charset in the font table: Word draws an empty mark in Yu Gothic, 1.67 em; lab aums2 F, 30.0 pt
+        // a paragraph at 10 pt on line 259 with 12 pt after.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, document.fontCharsets["arial unicode ms"] == "80",
+           (mark.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms",
+           document.defaultLangXML?.containsSubstring("ta-IN") != true {
+            RuleTrace.hit("word-empty-mark-in-arial-unicode-ms-is-a-yu-gothic-line")
+            let multiple = lineSpacing > 1 ? lineSpacing : 1
+            return look.copyWith(ascentOverride: 1.1 * multiple * px, descentOverride: 0.57 * multiple * px, height: 1.67 * multiple, leadingDistribution: .even)
+        }
         // (A Bengali face Windows lacks whose font table names Malgun Gothic as the alternate: its empty mark is a line of Malgun, 1.73 em, lab siyam2.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile,
            _malgunAlternate(mark.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily, document),
@@ -3269,12 +3278,16 @@ extension RichLayout {
     /// for every mark kind; two marks on one line count once; spaces alone nothing). 0.345 em per line (18.4 - 14.6 at 11 pt).
     @inline(never)
     func _tamilMarkedLinesExtra(_ i: Int, _ p: RichParagraph, _ document: RichDocument, _ painter: TextPainter) -> Double {
-        guard theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.isEmpty,
-              document.defaultLangXML?.containsSubstring("ta-IN") == true,
-              p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) else { return 0 }
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.isEmpty else { return 0 }
+        // (Devanagari in Arial Unicode MS, whose font-table entry is the Japanese charset: the same, 0.36 em with the 1.079 of line 259;
+        // lab aums2 B and H: 30.0 and 30.2 pt against 26.4, once per paragraph however many lines hold marks.)
+        let tamil = document.defaultLangXML?.containsSubstring("ta-IN") == true && p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })
+        let devanagari = !tamil && document.fontCharsets["arial unicode ms"] == "80" && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0x980 })
+        guard tamil || devanagari else { return 0 }
         let named = _named(p, document)
         let cs = (p.style.mark?.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "")
-        guard cs.trimmingWhitespace().lowercased() == "arial unicode ms" else { return 0 }
+        guard cs.trimmingWhitespace().lowercased() == "arial unicode ms"
+                || devanagari && p.runs.contains(where: { ($0.style.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms" }) else { return 0 }
         let size = _px(named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize)
         let lead = _lead(i)
         var starts = Set<Int>()
@@ -3287,6 +3300,10 @@ extension RichLayout {
             offset += n
         }
         if starts.isEmpty { return 0 }
+        if devanagari {
+            RuleTrace.hit("word-devanagari-aums-marked-lines-add-to-the-paragraph")
+            return 0.36 * size
+        }
         RuleTrace.hit("word-tamil-leelawadee-marked-lines-add-to-the-paragraph")
         return Double(starts.count) * 0.345 * size
     }
