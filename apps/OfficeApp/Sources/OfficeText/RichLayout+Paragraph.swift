@@ -3381,7 +3381,7 @@ extension RichLayout {
                         let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
                         // (Utsaah with Utsaah as its Latin face too: the first line stands on Utsaah's 0.741 em, LOWER than the Latin
                         // stand-in's 0.95; lab utsaah1, Word's baseline 11.9 pt under the margin at 16 pt, ours 15.4.)
-                        if cs == "utsaah", (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "utsaah",
+                        if cs == "utsaah" || cs == "kokila", (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == cs,
                            abs(size * metrics.0 - target) > 0.01 {
                             RuleTrace.hit("word-utsaah-first-line-stands-on-utsaah-ascent")
                             target = size * metrics.0
