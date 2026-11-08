@@ -176,6 +176,7 @@ extension RichLayout {
         // Where a zero-width space goes in, and what was before the
         // character at hand (across runs).
         var inserts: [Int] = []
+        let koreanTokenJoins = theme.wordRules && RichTextTheme.wordWindowsPages ? Self._koreanTokenJoins(Array(p.text.utf16)) : []
         var before: Character? = nil
         var beforeBefore: Character? = nil
         // (Whether the plain spaces just before the character at hand
@@ -1393,7 +1394,7 @@ extension RichLayout {
                 } else if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.eastAsian["w:wordWrap"] != "0",
                           let b = before, let bv = b.unicodeScalars.first?.value,
                           let v = ch.unicodeScalars.first?.value,
-                          Self._hangulHeldPair(bv, v) {
+                          Self._hangulHeldPair(bv, v) || koreanTokenJoins.contains(offset) {
                     // (Word keeps a Hangul word whole at the line end unless the paragraph's word wrap is off
                     // (census of dx2 ko: 20bb671d's "학회에서", "제1저자,"); with it off it parts mid-word.)
                     RuleTrace.hit("hangul-word-held-whole")

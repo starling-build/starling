@@ -2951,7 +2951,30 @@ extension RichLayout {
     static func _hangulJoins(_ p: RichParagraph, inserts: [Int], units: [UInt16], wordRules: Bool) -> Set<Int> {
         guard wordRules, RichTextTheme.wordWindowsPages, p.style.eastAsian["w:wordWrap"] != "0" else { return [] }
         var out = Set<Int>()
-        for o in inserts where o > 0 && o < units.count && _hangulHeldPair(UInt32(units[o - 1]), UInt32(units[o])) { out.insert(o) }
+        let tokens = _koreanTokenJoins(units)
+        for o in inserts where o > 0 && o < units.count && (_hangulHeldPair(UInt32(units[o - 1]), UInt32(units[o])) || tokens.contains(o)) { out.insert(o) }
+        return out
+    }
+
+    /// Word keeps a space-free word that holds Hangul whole at the line end, Hanja and marks inside it too
+    /// (dx2 b8f72871: '"初聲二字三字合用竝書(초성이자삼자합용병서),' went down whole, where the engine parted it
+    /// after 書). The offsets inside such a word that also holds a Hanja, where it must not part.
+    @inline(never)
+    static func _koreanTokenJoins(_ units: [UInt16]) -> Set<Int> {
+        func hangul(_ v: UInt16) -> Bool { v >= 0xAC00 && v <= 0xD7A3 }
+        func hanja(_ v: UInt16) -> Bool { (v >= 0x3400 && v <= 0x9FFF) || (v >= 0xF900 && v <= 0xFAFF) }
+        func part(_ v: UInt16) -> Bool { hangul(v) || hanja(v) || (v > 0x20 && v < 0x7F) || (v >= 0x2018 && v <= 0x201D) || v == 0xB7 }
+        guard units.contains(where: hanja), units.contains(where: hangul) else { return [] }
+        var out = Set<Int>()
+        var start = 0
+        func close(_ end: Int) {
+            guard end - start > 1, units[start..<end].contains(where: hangul), units[start..<end].contains(where: hanja) else { return }
+            for o in (start + 1)..<end where part(units[o - 1]) && part(units[o]) { out.insert(o) }
+        }
+        for i in 0..<units.count where units[i] == 0x20 || units[i] == 0x09 || units[i] == 0x0A || units[i] == 0xA0 || units[i] == 0x2028 {
+            close(i); start = i + 1
+        }
+        close(units.count)
         return out
     }
 
