@@ -7795,9 +7795,9 @@ enum DocxFormat {
         if complexText ?? cs.rightToLeft {
             // (A complex run's weight is its bCs even when the run also states b: af19d946's Heading3 run, b 0 / bCs, prints Devanagari in Nirmala UI Bold.)
             if let b = bCs { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }
-            // (A run of Devanagari, Bengali, Gurmukhi or Gujarati letters only that states b and no bCs keeps the weight it inherited: Word
+            // (A run of Devanagari, Bengali, Gurmukhi or Gujarati letters only that carries the w:cs flag and states b with no bCs keeps the weight it inherited (a run without the flag, as in xd 77d6ca49's Nirmala UI, is bold): Word
             // prints dx2-class xd 745490897f9f's bold-marked Kokila words in regular Kokila.)
-            else if indicOnly, sawB, cs.bold, !base.bold { cs.bold = false; if base.off.contains(.bold) { cs.off.insert(.bold) } else { cs.off.remove(.bold) } }
+            else if indicOnly, sawB, cs.bold, !base.bold, rPr.first("w:cs") != nil { cs.bold = false; if base.off.contains(.bold) { cs.off.insert(.bold) } else { cs.off.remove(.bold) } }
             if !sawI, let i = iCs { cs.italic = i; if i { cs.off.remove(.italic) } else { cs.off.insert(.italic) } }
             if !(complexSize ?? true) {}
             else if !sawSz, let z = szCs ?? cs.complexFontSize { cs.fontSize = z }
