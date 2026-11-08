@@ -3278,7 +3278,10 @@ extension RichLayout {
         }
         if let c = cur { out.append((t[a ..< t.endIndex], c)) }
         return out
+    }
+}
 
+extension RichLayout {
     /// A line grid and an inline equation taller than one pitch: Word makes the
     /// line as many whole pitches as the line (the equation's ascent and
     /// descent, the text's where they are larger) needs, with the text's
