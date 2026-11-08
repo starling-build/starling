@@ -1020,6 +1020,8 @@ extension RichLayout {
                     start = end
                     return
                 }
+                // (A Tamil run whose complex face Windows lacks (Arial Unicode MS): its Latin, digits and punctuation Word draws in Leelawadee UI.)
+                let leelawadeeLatin = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
                 if kind >= 0, indic?.face == "nirmala ui" || indic?.face == "vijaya", text[start ..< end].unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) {
                     // (Tamil, word by word, at the widths of Nirmala UI's code points: `TamilAdvances`.)
                     let base = style(kind)
@@ -1028,7 +1030,7 @@ extension RichLayout {
                         guard a < b else { return }
                         let w = text[a ..< b]
                         var st = base
-                        if let px = base.fontSize, px > 0.5, let split = TamilAdvances.split(w, bold: base.fontWeight == .bold, vijaya: indic?.face == "vijaya") {
+                        if let px = base.fontSize, px > 0.5, let split = TamilAdvances.split(w, bold: base.fontWeight == .bold, vijaya: indic?.face == "vijaya", leelawadee: leelawadeeLatin) {
                             // (As spacing, not a scale: the line breaking measures it. Spread over the glyphs the engine draws.)
                             func measure(_ ls: Double) -> Double {
                                 let t = TextPainter(text: TextSpan(text: String(w), style: base.copyWith(letterSpacing: ls)), textDirection: .ltr)
