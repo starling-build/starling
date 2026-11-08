@@ -819,14 +819,31 @@ public struct RichParagraphStyle: Hashable, Sendable {
 
 // MARK: - Named styles
 
+/// An immutable heap cell: keeps a big value out of its owner's inline size.
+final class _StyleBox<T: Sendable>: @unchecked Sendable {
+    let value: T
+    init(_ v: T) { value = v }
+}
+
 /// One entry of a document's style sheet: Word's Title, Heading 1, Quote…
 /// `paragraph` is copied onto a paragraph when the style is applied;
 /// `char` supplies the defaults a run's own formatting does not set.
 public struct RichNamedStyle: Hashable, Sendable {
     public var id: String
     public var name: String
-    public var paragraph: RichParagraphStyle
-    public var char: CharStyle
+    // paragraph (about 3 KB) and char (about 0.7 KB) live in immutable boxes:
+    // the layout code copies a RichNamedStyle many times per frame, and each
+    // copy was its own 3.7 KB stack slot (the layout chain needed over 1 MB).
+    private var _paragraph: _StyleBox<RichParagraphStyle>
+    private var _char: _StyleBox<CharStyle>
+    public var paragraph: RichParagraphStyle {
+        get { _paragraph.value }
+        set { _paragraph = _StyleBox(newValue) }
+    }
+    public var char: CharStyle {
+        get { _char.value }
+        set { _char = _StyleBox(newValue) }
+    }
     /// The style Enter at the end of the paragraph moves to; nil keeps it.
     public var next: String?
 
@@ -834,9 +851,19 @@ public struct RichNamedStyle: Hashable, Sendable {
                 char: CharStyle = CharStyle(), next: String? = nil) {
         self.id = id
         self.name = name
-        self.paragraph = paragraph
-        self.char = char
+        self._paragraph = _StyleBox(paragraph)
+        self._char = _StyleBox(char)
         self.next = next
+    }
+
+    public static func == (a: RichNamedStyle, b: RichNamedStyle) -> Bool {
+        a.id == b.id && a.name == b.name && a.next == b.next
+            && (a._paragraph === b._paragraph || a._paragraph.value == b._paragraph.value)
+            && (a._char === b._char || a._char.value == b._char.value)
+    }
+
+    public func hash(into h: inout Hasher) {
+        h.combine(id); h.combine(name); h.combine(_paragraph.value); h.combine(_char.value); h.combine(next)
     }
 
     public static let normalId = "Normal"
