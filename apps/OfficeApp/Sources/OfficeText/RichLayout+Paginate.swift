@@ -1890,7 +1890,10 @@ extension RichLayout {
                 besideTable = (y, page)
                 y = top
             }
+            // (A table as wide as the text leaves no strip: what follows goes under
+            // it, not up at its anchor — 6e6d8e9e's blank lines after its sections.)
             if theme.wordRules, besideTable == nil, i > 0, _cells[i] == nil, let prev = _cells[i - 1]?.table,
+               !(_floatLeavesNoStrip(prev, i, document) && _floatFollowsFloat(prev, document)),
                blank(document.paragraphs[i]) || (i < _besideLead.count && _besideLead[i] > 0) || _splitMarginFloatBeside(prev, i, page, document),
                let ts = document.tableStyles[prev], ts.floatOffsetY != nil || (ts.floatRaiseY != nil && _markBesideOffsetFloat(prev, i, document)) || (i < _besideLead.count && _besideLead[i] > 0) || _anchorBesideLeftTable(prev, i, document) || _splitMarginFloatBeside(prev, i, page, document), !ts.pageAnchored, ts.keptPosition != nil,
                (i < _besideLead.count && _besideLead[i] > 0) || _splitMarginFloatBeside(prev, i, page, document) || _tableLeft(prev, document) - _px(9) - _px(_setup(ofParagraph: i).headerWrapLeft) >= _px(18) || _stripBesideLeftTable(prev, i, document) || _anchorBesideLeftTable(prev, i, document) || _markBesideOffsetFloat(prev, i, document),
@@ -4317,7 +4320,7 @@ extension RichLayout {
                 let alongside = i > 0 && (tf.chained || _cells[i - 1]?.table == tf.table) && (besideChainEnd.map { tf.y + 0.01 < $0 } ?? false)
                     && _cells[i] == nil && _besideIndent(i, document.paragraphs[i], document)?.right == true
                 if theme.wordRules, i > 0, tf.chained || _cells[i - 1]?.table == tf.table, _cells[i] == nil, tf.page == page,
-                   frameReturn == nil, !_pageBreak[i], bottom - top <= tf.down + 0.01 || alongside {
+                   !(_floatLeavesNoStrip(tf.table, i, document) && _floatFollowsFloat(tf.table, document)), frameReturn == nil, !_pageBreak[i], bottom - top <= tf.down + 0.01 || alongside {
                     frameReturn = (y, page)
                     y = tf.y
                     textFloatTop = (tf.table, page, tf.y + (bottom - top), tf.down - (bottom - top), true)
@@ -5376,5 +5379,29 @@ extension RichLayout {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, st.pageBreakInline, !st.columnBreak,
               let base = g.painter.computeLineMetrics().first?.baseline else { return nil }
         return (g.textTop - g.top) + base
+    }
+}
+
+extension RichLayout {
+    /// True when a floating table spans the text's whole width and the next
+    /// element is a plain paragraph or a table that does not float.
+    @inline(never)
+    func _floatLeavesNoStrip(_ table: String, _ i: Int, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, _cells[i] == nil else { return false }
+        let left = _tableLeft(table, document)
+        let flow = _tableFlowWidth[table] ?? width
+        let sum = (_columnWidths[table] ?? []).reduce(0, +)
+        return max(left, flow - (left + sum)) < _px(12)
+    }
+}
+
+extension RichLayout {
+    /// True when the floating table directly follows another floating table
+    /// (two stacked floats: their anchor paragraph stands under both).
+    @inline(never)
+    func _floatFollowsFloat(_ table: String, _ document: RichDocument) -> Bool {
+        guard let j = _cells.firstIndex(where: { $0?.table == table }), j > 0,
+              let pt = _cells[j - 1]?.table, pt != table else { return false }
+        return document.tableStyles[pt]?.floatOffsetY != nil
     }
 }
