@@ -2381,6 +2381,12 @@ enum OfficeFonts {
         }
         if wordOnWindows || wordOnMac, has("ms gothic", "ｍｓ ゴシック", "gulim", "굴림") {
             var face = EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
+            if wordOnWindows, has("ms gothic", "ｍｓ ゴシック") {
+                // (MS Gothic is monospaced: its Latin is fixed at half an em, as MS Mincho's.)
+                face.latinAdvances = gulimCheAdvances
+                face.latinBoldAdvances = gulimCheAdvances
+                face.squareSymbols = true  // (※ and the like stay a full em: jpn-g1-5d7ee6's superscript ※１)
+            }
             if wordOnWindows, has("gulim", "굴림") {
                 // (Gulim's Latin is its own proportional design, GulimChe's fixed at half an em; Arial's widths were
                 // used for both. Word for Windows' prints of kor-z19176375 and two more give each its table.)
@@ -2403,7 +2409,7 @@ enum OfficeFonts {
             // (HG Kyokasho-tai is not on Word's machine: a91d8fed's runs print in MS Mincho, the document's East Asian default.)
             var ms = EastAsianFace(height: 1.3, latin: has("mincho", "明朝", "kyokashotai") ? serif : sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
             // (Its Latin is MS Mincho's, fixed at half an em: a91d8fed's "ex." steps 5.3 pt a letter at 10.5 pt.)
-            if has("kyokashotai") { ms.latinAdvances = gulimCheAdvances; ms.latinBoldAdvances = gulimCheAdvances }
+            if has("kyokashotai") || (has("ms mincho", "ｍｓ 明朝") && !has("ms pmincho", "ｍｓ ｐ明朝")) { ms.latinAdvances = gulimCheAdvances; ms.latinBoldAdvances = gulimCheAdvances; ms.squareSymbols = true }
             // (MS PGothic is proportional: its kana, brackets and digits step narrower than an em, read from
             // the hmtx of the subsets embedded in Word's prints; cab6d785's 9 pt cell holds "「教科書を使っ" on a
             // line, where full-width ones broke it a character sooner and the document ran a page long.)
