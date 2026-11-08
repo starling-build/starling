@@ -863,6 +863,8 @@ extension RichLayout {
                 }
                 guard var scale = Self._indicScale[face]?[top.key] else { return nil }
                 if face == "nirmala ui", bold { scale *= 1.076 / 1.086 }
+                // Shruti Bold runs 4% narrower than Shruti: dx2 16200736's heading, word starts 111.0 pt apart in Word, 115.9 in ours.
+                if face == "shruti", bold { scale *= 0.958 }
                 return (face, all * 2 >= letters ? scale : 1)
             }()
             func style(_ kind: Int) -> TextStyle {
