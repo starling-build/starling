@@ -95,7 +95,7 @@ extension RichLayout {
         // (Marks to hang or squeeze, or a letter or digit an automatic
         // space may stand beside.)
         let marked = topOnly || (hangs || squeezes) && units.contains(where: { Self._hangingUnits.contains($0) || Self._openingUnits.contains($0) })
-            || squeezes && units.contains(0xB7)   // (a middle dot set an em gives too: `wideDot`)
+            || squeezes && (units.contains(0xB7) || units.contains(0x30FB))   // (a middle dot set an em gives too: `wideDot`)
         // (Or a closing mark before an opening one, which a line may part
         // and so end on the closing one whole — `parted` below — where
         // marks are not compressed: zh-147bdae0's cell paragraph "…管理系
@@ -271,7 +271,7 @@ extension RichLayout {
             }
             return w
         }
-        func wideDot(_ k: Int) -> Bool { units[k] == 0xB7 && k < ems.count && boxes(k, k + 1) >= ems[k] * 0.9 }
+        func wideDot(_ k: Int) -> Bool { (units[k] == 0xB7 || units[k] == 0x30FB) && k < ems.count && boxes(k, k + 1) >= ems[k] * 0.9 }
         // (What `_span` put in before a character and the engine set
         // on a line of its own: a word joiner as wide as an opening
         // quote's blank. Its width goes with what follows it.)
