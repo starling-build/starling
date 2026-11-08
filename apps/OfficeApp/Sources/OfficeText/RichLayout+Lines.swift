@@ -37,8 +37,19 @@ extension RichLayout {
         // line is held at the height most of its text has.)
         var share: [Double: (TextStyle, Int, Int)] = [:]
         var near = false
+        // (Nor marks beside Arabic or Hebrew letters, the second time round: a
+        // non-breaking hyphen or a middle dot set in the Latin theme face
+        // (Aptos) among Arial's Arabic held a strut back, and the line ran
+        // on the fallback's height, 18.4pt to Word's 16.0 in fas-z22973278.)
+        var marksToo = false
+        var bidi = false
         func visit(_ s: InlineSpan) {
             guard uniform, let t = s as? TextSpan else { return }
+            if let text = t.text, text.unicodeScalars.contains(where: { ($0.value >= 0x0590 && $0.value <= 0x08FF) || ($0.value >= 0xFB1D && $0.value <= 0xFEFF) }) { bidi = true }
+            if let text = t.text, marksToo, !text.contains(where: { $0.isLetter || $0.isNumber }) {
+                for c in t.children ?? [] { visit(c) }
+                return
+            }
             if let text = t.text, blanksToo || text.contains(where: { !Self._setsNoLine($0) }),
                joiners || text.contains(where: { $0 != "\u{2060}" }),
                let style = t.style, style.baselineShift == nil || shiftedToo, let size = style.fontSize, let h = style.height, h > 0.05, size > 0.5 {
@@ -58,6 +69,11 @@ extension RichLayout {
             for c in t.children ?? [] { visit(c) }
         }
         visit(span)
+        if !uniform, bidi, theme.wordRules, RichTextTheme.wordWindowsPages {
+            // Only a paragraph that has Arabic or Hebrew in it, and only where it had no strut.
+            marksToo = true; uniform = true; first = nil; count = 0; share = [:]; near = false
+            visit(span)
+        }
         if count == 0, uniform { blanksToo = true; visit(span) }
         if count == 0, uniform { shiftedToo = true; visit(span) }
         // (The tallest stretch too, where others are within a hair of it:
