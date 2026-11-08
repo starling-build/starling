@@ -1139,7 +1139,10 @@ enum OfficeFonts {
         // word-win, their lines topped by Mincho's ascent (macos-ios'
         // measurement).)
         let listed = faceHas(n, ",")
-        guard listed || !has.contains(where: { faceHas(n, $0) }) else { return nil }
+        // (The Korean names are matched whole: 바탕체 and 돋움체 are the fixed-pitch Che faces,
+        // not 바탕 and 돋움, and Word for Windows prints them differently.)
+        let koreanOwn: Set<String> = ["맑은 고딕", "굴림", "돋움", "바탕"]
+        guard listed || !(has.contains(where: { faceHas(n, $0) }) || koreanOwn.contains(n)) else { return nil }
         guard let e = fontEntry(family) else { return n.unicodeScalars.allSatisfy({ $0.isASCII }) ? "mincho" : nil }
         if let alt = e.alt?.trimmingWhitespace().lowercased(), !alt.isEmpty, alt != n,
            has.contains(where: { faceHas(alt, $0) }) || alt.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return nil }
