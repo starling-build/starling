@@ -2370,6 +2370,8 @@ public struct RichDocument: Hashable, Sendable {
     /// settings' `w:themeFontLang`. Word chooses the East Asian face and
     /// its line-breaking rules by them.
     public var defaultLangXML: String? = nil
+    /// The font table's alternate for each face name (both lower-cased), as Word for Windows reads it for a face it lacks.
+    public var fontAlternates: [String: String] = [:]
     /// Whether that language's East Asian one is mainland Chinese, whose
     /// marks sit in the left half of their em: a closing mark at a
     /// line's end in a table's cell then gives its empty half in every
