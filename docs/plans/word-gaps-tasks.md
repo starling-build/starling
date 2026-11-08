@@ -15599,3 +15599,5 @@ Mangal 13.0 / 14.8 / 16.7 / 17.5 / 18.5 / 19.4 / 21.2; Nirmala UI (Tamil) 10.2 /
 Latha (Tamil) 10.6 / 12.1 / 13.6 / 14.3 / 15.1 / 15.8 / 17.4. Kokila 13 pt scales the same (single 15.0).
 So c3005fea8's rule needs no per-face gate. Tamil a347c3b3 (23.2): its 0.95 lines are 14.6 apart in Word and in ours (page 2 checked line by line);
 the drop is a second error, Tamil line wrapping (our lines hold more words than Word's; 198 lines against 193), amd-5's area.
+
+- lenovo-5 (2026-11-08): LANDED ee06de33a — the 21.5 pt step between two floating tables now applies only to auto-width tables (no tblW). Lab flt2: auto-width second table within 1.1 pt of Word; jpn-g11 back to 58.6, lo-22a53e2b / lo-c490d65b stay 100. OPEN: with an explicit width Word overlaps table 2 on table 1 (y about 108 vs ours 198 in flt2 *_fix labs); ours still places it below. Labs: lab/flt2 (mk.py, word-win). Next: flt1 (page-anchored floats), f42177d2 page-0 text-box clip.
