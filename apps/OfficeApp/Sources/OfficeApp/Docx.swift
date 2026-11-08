@@ -2136,6 +2136,19 @@ enum DocxFormat {
                         // was given as that line's least: 60329's 9pt
                         // spacer row holds a 1pt empty mark, and Word's
                         // print has the 9pt between its tables.)
+                        // (An empty cell whose end mark the file hides (`w:hideMark`)
+                        // asks nothing of its row, as in a table's own rows: the row is
+                        // its stated height, or none. Lab ebb4 (Word, 2026-11-08): the
+                        // two 150-twip rows of ebb4a037's wrapper are 7.5 each with the
+                        // height and 0 without, where a 9.65 pt mark line held them.)
+                        if paragraphs.count == first + 1, !children.contains(where: { $0.name == "w:tbl" }),
+                           paragraphs[first].text.isEmpty, paragraphs[first].image == nil, paragraphs[first].inlineImages.isEmpty,
+                           tc.first("w:tcPr")?.first("w:hideMark") != nil,
+                           tr.first("w:trPr")?.first("w:trHeight")?["w:hRule"] != "exact" {
+                            let v = (tr.first("w:trPr")?.first("w:trHeight")).flatMap { Double($0["w:val"] ?? "") } ?? 0
+                            paragraphs[first].style.lineHeightPoints = max(v / 20, 0.05)
+                            paragraphs[first].style.lineHeightIsMinimum = false
+                        } else
                         if paragraphs.count == first + 1, !children.contains(where: { $0.name == "w:tbl" }),
                            let h = tr.first("w:trPr")?.first("w:trHeight"), h["w:hRule"] != "exact",
                            let v = Double(h["w:val"] ?? ""), v > 0,
