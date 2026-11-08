@@ -3315,7 +3315,7 @@ extension RichLayout {
                         switch cs {
                         case "kalimati": cs = "mangal"
                         case "kohinoor bangla": cs = "shonar bangla"
-                        case "mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "shonar bangla": break
+                        case "mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "utsaah", "shonar bangla": break
                         default: cs = "nirmala ui"
                         }
                         guard let metrics = Self._indicLines[cs] else { continue }

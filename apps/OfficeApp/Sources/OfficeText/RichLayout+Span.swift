@@ -43,11 +43,11 @@ extension RichLayout {
     static let _indicLines: [String: (Double, Double)] = [
         "mangal": (2542.0 / 2048, 898.0 / 2048), "kokila": (1504.0 / 2048, 857.0 / 2048), "nirmala ui": (2210.0 / 2048, 514.0 / 2048), "vijaya": (1462.0 / 2048, 600.0 / 2048),
         "aparajita": (1550.0 / 2048, 870.0 / 2048), "raavi": (2048.0 / 2048, 1352.0 / 2048), "shruti": (2091.0 / 2048, 1352.0 / 2048),
-        "gautami": (1892.0 / 2048, 1664.0 / 2048), "vrinda": (2017.0 / 2048, 778.0 / 2048), "shonar bangla": (1655.0 / 2048, 996.0 / 2048)]
+        "gautami": (1892.0 / 2048, 1664.0 / 2048), "utsaah": (1518.0 / 2048, 774.0 / 2048), "vrinda": (2017.0 / 2048, 778.0 / 2048), "shonar bangla": (1655.0 / 2048, 996.0 / 2048)]
     /// Width of each face's letters against the Noto stand-in's, per script (D Devanagari, B Bengali, T Telugu, P Gurmukhi, G Gujarati):
     /// the median ratio of Word's word widths to ours over the dx2 Indic documents that print in that face (spread under 0.03 per face).
     static let _indicScale: [String: [Character: Double]] = [
-        "mangal": ["D": 1.096], "kokila": ["D": 0.725], "aparajita": ["D": 0.942],
+        "mangal": ["D": 1.096], "utsaah": ["D": 0.80], "kokila": ["D": 0.725], "aparajita": ["D": 0.942],
         "nirmala ui": ["D": 1.082, "B": 1.075, "T": 1.187, "P": 1.097, "G": 1.147],
         "raavi": ["P": 1.084], "shruti": ["G": 1.153], "gautami": ["T": 0.964], "vrinda": ["B": 0.907], "shonar bangla": ["B": 0.716]]
     /// An empty paragraph whose mark is a complex-script one (`w:cs`) in Mangal (Kalimati, which Windows lacks, is drawn in it) is a Mangal line,
@@ -66,7 +66,7 @@ extension RichLayout {
     /// Devanagari, Bengali, Gurmukhi, Gujarati and Telugu.
     static let _indic = IndicScripts()
     /// Word's space advance (em) where it differs much from the stand-in's: Mangal. (Kokila 0.193 and Shonar Bangla 0.207 at their real width made dx2 hi/bn worse: their scales were fitted with the gap.)
-    static let _indicSpace: [String: Double] = ["mangal": 0.5, "vrinda": 0.598]
+    static let _indicSpace: [String: Double] = ["mangal": 0.5, "vrinda": 0.598, "utsaah": 0.199]
     struct IndicScripts {
         func contains(_ u: UInt32) -> Bool { (0x0900 ... 0x0AFF).contains(u) || (0x0C00 ... 0x0C7F).contains(u) }
     }
@@ -747,6 +747,7 @@ extension RichLayout {
             // (Kokila as the run's Latin face too: only then are its Latin, digits and space, and its line, Kokila's; with another Latin face
             // (cbb7ae39: Times New Roman beside a Kokila complex face) the Latin keeps that face.)
             let kokilaLatin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "kokila"
+            let utsaahLatin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "utsaah"
             let indic: (face: String, scale: Double)? = {
                 guard theme.wordRules, RichTextTheme.wordWindowsPages else { return nil }
                 var count: [Character: Int] = [:], letters = 0
@@ -771,6 +772,10 @@ extension RichLayout {
                        (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "kokila" {
                         return ("kokila", 1)
                     }
+                    if utsaahLatin,
+                       (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "utsaah" {
+                        return ("utsaah", 1)
+                    }
                     return nil
                 }
                 let all = count.values.reduce(0, +)
@@ -782,7 +787,7 @@ extension RichLayout {
                 switch cs {
                 case "kalimati": face = "mangal"
                 case "kohinoor bangla": face = "shonar bangla"
-                case "mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "shonar bangla": break
+                case "mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "utsaah", "shonar bangla": break
                 default: face = "nirmala ui"
                 }
                 guard var scale = Self._indicScale[face]?[top.key] else { return nil }
@@ -816,7 +821,7 @@ extension RichLayout {
                 if kind >= 0, let indic, indic.scale != 1 { s = s.copyWith(scaleX: indic.scale) }
                 // (The run's own line is the face's, not the stand-in's, where the face's is the shorter: Aparajita's 1.18 em (a516bfe9: 2.7 to 92.9) where Noto
                 // Sans Devanagari's is taller; the joiner above only raises a line.)
-                if kind >= 0, let indic, indic.face == "kokila", kokilaLatin, let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
+                if kind >= 0, let indic, (indic.face == "kokila" && kokilaLatin) || (indic.face == "utsaah" && utsaahLatin), let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
                     // (Kokila's line: its own ascent and descent, above and below the baseline, for every run on the line: the stand-ins'
                     // (Carlito's, Noto's) are taller above and set the line 2-3 pt low and 1.4 pt per line too far apart.)
                     let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
