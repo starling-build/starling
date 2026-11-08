@@ -1146,6 +1146,8 @@ enum OfficeFonts {
     private static func windowsMissingFallback(_ family: String) -> String? {
         let n = family.trimmingWhitespace().lowercased()
         guard !n.isEmpty else { return nil }
+        // (BatangChe and DotumChe are Word for Windows' own faces, drawn at their own widths further on.)
+        if ["batangche", "dotumche", "바탕체", "돋움체"].contains(n) { return nil }
         // (맑은 고딕 is Word for Windows' face too: a document that names
         // 맑은 고딕 was set in MS Mincho's widths, its spaces 0.22 em where Word's Malgun
         // Gothic sets 0.35 — kor-z19176375-30dbe1, kor-z21348848-7369b1.)
@@ -1183,7 +1185,7 @@ enum OfficeFonts {
             if faceHas(n, "헤드라인") { return "mincho" }
             // (Word has these: it prints 나눔고딕 in NanumGothic and 바탕체/돋움체 in BatangChe/DotumChe,
             // not in a substitute. Their widths are still open, so they stay as before.)
-            if ["나눔고딕", "바탕체", "돋움체"].contains(n) { return "mincho" }
+            if ["나눔고딕"].contains(n) { return "mincho" }
             if (cs == "81" || cs == "129") && e.family == "roman" && !e.panoseZero { return "batang" }
             return "malgun"
         default: return "mincho"
@@ -2326,6 +2328,15 @@ enum OfficeFonts {
             face.latinBoldAdvances = face.latinAdvances
             // (Curly quotes print in Malgun Gothic at its narrow widths: 6a68f6ca's "(이하 ‘작가’)" steps 0.228 em at each quote.)
             face.otherAdvances = [0x2018: 0.228, 0x2019: 0.228, 0x201C: 0.38, 0x201D: 0.38]
+            return face
+        }
+        // (BatangChe and DotumChe: the same square line as GulimChe (hhea 879/145 of 1024, Word's 1.3) and Latin
+        // fixed at half an em, read from the subsets in Word's prints of 7416edcd, 07eecf7a and dx4j-7acb626022.)
+        if wordOnWindows, has("batangche", "바탕체", "dotumche", "돋움체") {
+            RuleTrace.hit("che-own-latin-widths")
+            var face = EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
+            face.latinAdvances = gulimCheAdvances
+            face.latinBoldAdvances = gulimCheAdvances
             return face
         }
         if wordOnWindows || wordOnMac, has("ms gothic", "ｍｓ ゴシック", "gulim", "굴림") {
