@@ -1384,9 +1384,9 @@ extension RichLayout {
 
     /// The height of one line of paragraph `i` in its mark's look, as if
     /// it held nothing else (px).
-    func _markLineHeight(_ i: Int, _ document: RichDocument, single: Bool = false) -> Double {
+    func _markLineHeight(_ i: Int, _ document: RichDocument, single: Bool = false, using run: CharStyle? = nil) -> Double {
         let p = document.paragraphs[i]
-        var mark = p.style.mark ?? p.runs.first?.style ?? CharStyle()
+        var mark = run ?? p.style.mark ?? p.runs.first?.style ?? CharStyle()
         mark.inlineImage = nil
         var style = p.style
         style.lineCollapsed = false
@@ -1406,6 +1406,21 @@ extension RichLayout {
         probe.layout(minWidth: 0, maxWidth: width)
         defer { probe.dispose() }
         return probe.height
+    }
+
+    /// The single line of the tallest text run in paragraph `i` (no picture runs), or nil with no text.
+    @inline(never)
+    func _tallestTextLine(_ i: Int, _ document: RichDocument) -> Double? {
+        let p = document.paragraphs[i]
+        var best: Double?
+        var seen: [CharStyle] = []
+        for r in p.runs where r.style.inlineImage == nil && r.length > 0 {
+            if seen.count >= 4 { break }
+            if seen.contains(where: { $0 == r.style }) { continue }
+            seen.append(r.style)
+            best = max(best ?? 0, _markLineHeight(i, document, single: true, using: r.style))
+        }
+        return best
     }
 
     /// Whether paragraph `i` holds nothing but floating objects: its

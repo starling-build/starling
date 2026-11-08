@@ -3096,7 +3096,12 @@ extension RichLayout {
             // 1.1 lines, snapToGrid 0, under a 9pt 黑体 mark — the note
             // after it 1.20 lower than at single, 0.1 of the mark's line,
             // whatever the picture run's size; ours added nothing there.)
-            let single = _markLineHeight(i, document) / multiple
+            var single = _markLineHeight(i, document) / multiple
+            if p.image == nil, let t = _tallestTextLine(i, document), t > single {
+                // (Picture plus text on the line: the multiple scales the tallest text's line — lab picline1, 11pt Malgun, 19.0 a unit against the mark's 11.5.)
+                RuleTrace.hit("picture-line-multiple-of-text")
+                single = t
+            }
             if p.image != nil {
                 bodyHeight += (multiple - 1) * single
             } else if case let lines = painter.computeLineMetrics(), lines.count == 1,
