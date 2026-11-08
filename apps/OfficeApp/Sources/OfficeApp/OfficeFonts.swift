@@ -3024,7 +3024,7 @@ enum OfficeFonts {
     ]
 
     private static let windowsArabicWidthsOn = true
-    private static let windowsArabicLines: [String: Double] = ["traditional arabic": 1.495, "sakkal majalla": 1.40]
+    private static let windowsArabicLines: [String: Double] = ["traditional arabic": 1.495, "sakkal majalla": 1.40, "simplified arabic": 3395.0 / 2048]
 
     static func complexFace(_ family: String?) -> RichResolvedFace? {
         // (A face neither embedded nor on the machine is the one Word sets
@@ -3116,7 +3116,8 @@ enum OfficeFonts {
         // stand-in's 1.15 ran those documents two pages short in three.)
         if wordOnWindows, missing, embeddedFamily(asked) == nil, let tall = Self.windowsArabicLines[asked] {
             RuleTrace.hit("windows-arabic-face-own-line")
-            face.naturalHeight = tall; face.boldHeight = tall
+            face.naturalHeight = tall; face.boldHeight = asked == "simplified arabic" ? 3405.0 / 2048 : tall
+            // (Simplified Arabic: hhea 2416 + 979 over 2048, bold 989, from Word's print; a4945c74's 14pt lines under a 0.7 multiple step 16.3.)
         }
         // (… and its clone first in the chain, so the spaces and marks are set
         // in the clone and not the Cambria stand-in that comes before it.)
