@@ -60,6 +60,17 @@ extension RichLayout {
             let multiple = lineSpacing > 1 ? lineSpacing : 1
             return look.copyWith(ascentOverride: r.0 * multiple * px, descentOverride: r.1 * multiple * px, height: (r.0 + r.1) * multiple, leadingDistribution: .even)
         }
+        // (An empty line whose mark is set in Nikosh (Windows lacks it) or Mangal is a line of Mangal, 1.68 em, and in Nirmala UI one of 1.33 em:
+        // Word's print of lab siyam1, 3 empty paragraphs after each label, 16.8 / 13.3 pt apart at 10 pt against ours 12.2.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile {
+            let latin = (mark.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
+            let face = latin == "nikosh" || latin == "mangal" ? "mangal" : (latin == "nirmala ui" ? "nirmala ui" : "")
+            if let r = Self._indicLines[face] {
+                RuleTrace.hit("word-empty-mark-in-nikosh-mangal-nirmala-is-that-faces-line")
+                let multiple = lineSpacing > 1 ? lineSpacing : 1
+                return look.copyWith(ascentOverride: r.0 * multiple * px, descentOverride: r.1 * multiple * px, height: (r.0 + r.1) * multiple, leadingDistribution: .even)
+            }
+        }
         guard let kept = mark.keptXML, kept.containsSubstring("<w:cs/>") || kept.containsSubstring("<w:cs "),
               let m = Self._indicLines["mangal"] else { return nil }
         let cs = (mark.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
