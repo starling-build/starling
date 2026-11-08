@@ -85,6 +85,7 @@ extension RichLayout {
         // spaced otherwise than Normal is held to the same cells: 29
         // characters of 16, unspaced, need 2pt of the margin given back in
         // a 465pt column of 30.)
+        @inline(never) func _q0() {
         if theme.wordRules, p.cell == nil, _grid(i, document).pitch != nil, let add = _grid(i, document).chars, add < 0.0001 {
             let spacing = (_normalChar(document)?.letterSpacing ?? 0) * (document.balancesSpaceWidth ? 2 : 1)
             let cell = _px((_normalChar(document)?.fontSize ?? theme.fontSize) + add + spacing)
@@ -101,8 +102,11 @@ extension RichLayout {
             let offGrid = RichTextTheme.wordWindowsPages && p.style.eastAsian["w:snapToGrid"] == "0" && own >= cell + _px(0.9)
             if cell > 0, own >= cell - _px(0.01), !offGrid { width = min(width, ((width + _px(0.01)) / cell).rounded(.down) * cell) }
         }
+        }
+        _q0()
         // A floating frame: as wide as it says, from where it says.
         var frameLeft: Double? = nil
+        @inline(never) func _q1() {
         if floatsFrames, theme.wordRules, p.cell == nil, let frame = style.frame {
             let marginLeft = _px(frameMargins.left), marginRight = _px(frameMargins.right)
             // The band the frame is placed in, from the text's left edge.
@@ -124,6 +128,8 @@ extension RichLayout {
             width = own
             left += frameLeft!
         }
+        }
+        _q1()
         // (A frame on the page in the body is as wide as it says: the
         // 482pt title frame of zh-90e0cea8's cover holds its 18-character
         // title on one line, where the 420pt column parted it.)
@@ -190,6 +196,7 @@ extension RichLayout {
             left += _px(wl.first)
             textWidth -= _px(wl.first)
         }
+        @inline(never) func _blk0() {
         if let c = p.cell {
             let widths = _columnWidths[c.table] ?? []
             let colWidth = c.column < widths.count
@@ -554,6 +561,8 @@ extension RichLayout {
         } else {
             _cells[i] = nil
         }
+        }
+        _blk0()
         // The box before the text: the first line's indent, or — for a
         // list as Word sets it — from the number at the first line's
         // offset to where the text starts: at the number's end, a space
@@ -605,6 +614,8 @@ extension RichLayout {
         // off the page, and the rest on the next. The engine would keep the
         // box alone on the first, so it stops an em short of the margin:
         // the character is on its line, if not as far over as Word's.)
+        @inline(never) func _blk1() {
+        @inline(never) func _q2() {
         if theme.wordRules, lead > textWidth, !p.text.isEmpty {
             // (In a cell, a first line indented to the cell's
             // whole width or past it — its margins and the paragraph's side
@@ -666,6 +677,10 @@ extension RichLayout {
             // (The clear copy of a score kept for the print stands where Word's does, past the cell.)
             if p.runs.contains(where: { $0.style.unseen }) { _unseenShift[i] = past - lead }
         }
+        }
+        _q2()
+        }
+        _blk1()
         // PowerPoint's bullet with no hanging indent (indent ≥ 0): the
         // bullet stands at the first line's start and the text follows it
         // on that line — ececapstone's "•Down Syndrome…", where the text
@@ -687,6 +702,7 @@ extension RichLayout {
             if marker.width > hang + 0.01 { lead = marker.width - hang }
             marker.dispose()
         }
+        @inline(never) func _blk2() {
         if let wl = wordList, let label = listLabel(i, document) {
             let marker = _marker(i, p, document, label: label, strut: nil)
             // (A number set right — `w:lvlJc` right — ends where the first
@@ -791,6 +807,8 @@ extension RichLayout {
             // text is all of the number and its gap.)
             if style.alignment == .center || style.alignment == .right { lead = max(0.01, end - _px(wl.first)) }
         }
+        }
+        _blk2()
         _leadWidth[i] = lead
         // Tabs, as Word sets them: each takes the text to the next stop —
         // the paragraph's own, the hanging indent, then the document's
@@ -817,6 +835,7 @@ extension RichLayout {
         // hanging indent first, then `defTabSz` apart — HowWeRefactor's
         // quotes, their first line at the indent and "– Martin Fowler" at
         // the seventh inch, PowerPoint's print to a tenth of a point.)
+        @inline(never) func _blk3() {
         if theme.wordRules || theme.markersAtHang, !style.rightToLeft || theme.wordRules, p.text.utf16.contains(0x09) {
             let (probeSpan, probeInline, probeInserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead)
             let probe = TextPainter(text: probeSpan, textAlign: .left, textDirection: .ltr)
@@ -1115,6 +1134,8 @@ extension RichLayout {
             }
             probe.dispose()
         }
+        }
+        _blk3()
         // (In a justified paragraph each such tab is set as a held
         // space — a no-break one, the break after it a zero-width space:
         // the engine's justifying sets every space of a line, tabs
@@ -1211,6 +1232,7 @@ extension RichLayout {
         // take such a line.
         var tieSlack = 0.001
         var tieShort = (first: false, rest: false)
+        @inline(never) func _q3() {
         if theme.wordRules, wordList == nil, style.list == nil, !style.rightToLeft {
             let tw = { (px: Double) -> Int in Int((px / self._px(1) * 20).rounded()) }
             let w = tw(textWidth + ownLeft + right), l = tw(ownLeft), r = tw(right), h = -tw(lead)
@@ -1255,6 +1277,8 @@ extension RichLayout {
                 _leadWidth[i] = lead
             }
         }
+        }
+        _q3()
         // (Beside a float: the lines that stand level with it are held in too.
         // Laid out once as they fall, the lines the float reaches get an
         // indent each, and laid again until they settle.)
@@ -1270,6 +1294,7 @@ extension RichLayout {
         else if besideIndent == 0, let own = _besideOwn(i, p, document) { besideIndent = own.indent; besideBand = own.band; besideRight = own.right; besideLeftRoom = own.leftRoom }
         else if besideIndent == 0, let own = _stripUse[i] { besideIndent = own.indent; besideBand = own.band; besideRight = own.right }
         if let cap = _bandCap[i], besideIndent > 0, besideLeftRoom == nil, let b = besideBand, b.bottom > cap { besideBand = (b.top, cap) }
+        @inline(never) func _blk4() {
         if besideIndent > 0, let band = besideBand {
             // (The painter's own per-line indents hold the lines in: no boxes
             // at line starts, and no offsets to map.)
@@ -1388,6 +1413,8 @@ extension RichLayout {
             else { lead = max(lead - besideIndent - firstExtra, 0); _leadWidth[i] = lead }
             if firstExtra > 0, firstBeside, let f = indents.first, f.left > 0 { _besideLabelShift[i] = f.left }
         }
+        }
+        _blk4()
         let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
                                             adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
         _inserts[i] = inserts
@@ -1818,6 +1845,7 @@ extension RichLayout {
         // where it did: a no-break space at a line's end would count
         // against the line, and a plain one takes no room there.
         var held = tabsHeld
+        @inline(never) func _q4() {
         if theme.wordRules, document.usesEastAsianLayout, style.alignment == .justify, p.text.utf16.contains(0x20) {
             let starts = _lineStarts(painter, _map(i), count: p.text.utf16.count)
             let hold = starts.count > 1 ? _spacesToHold(p, lineStarts: Set(starts)) : []
@@ -1834,6 +1862,8 @@ extension RichLayout {
                 }
             }
         }
+        }
+        _q4()
         // (A justified line's automatic spaces — between an ideograph and a
         // Latin letter or digit — take its spare room first, each the same,
         // up to a quarter em more, and only what is left after them is
@@ -2049,6 +2079,7 @@ extension RichLayout {
                 }
             }
         }
+        @inline(never) func _blk5() {
         if theme.wordRules, p.image == nil, !p.text.isEmpty, painter.strutStyle != nil || scriptsOnly || mixedSizes,
            let line = painter.computeLineMetrics().first {
             let named = _named(p, document)
@@ -2233,6 +2264,8 @@ extension RichLayout {
                 _inkShift[i] = _px(target) - line.baseline
             }
         }
+        }
+        _blk5()
         // An empty numbered paragraph in a cell, on an exact line: its number stands where
         // the same line's text would, which is lower than the strut sets it
         // (zh-c97500b6's 1, 2, 3, 4: 6pt high).
@@ -2269,6 +2302,7 @@ extension RichLayout {
         // (zh-5450d509's last line "引》）。": MS Gothic, no JhengHei ideograph on it) stands
         // on that face's baseline under the line's top, not the paragraph's: Word's lab
         // (gothic-last, 1.5 lines on a grid) has it 4.6pt higher, the line as tall as the others.
+        @inline(never) func _blk6() {
         if theme.wordRules, RichTextTheme.wordWindowsPages, p.image == nil, p.inlineImages.isEmpty, p.cell == nil,
            !p.text.isEmpty, painter.strutStyle != nil,
            p.runs.allSatisfy({ $0.style.script == .normal }), _lineLift[i].isEmpty {
@@ -2335,6 +2369,8 @@ extension RichLayout {
                 }
             }
         }
+        }
+        _blk6()
         // (The number's lift sets the first baseline no higher than the
         // layout without the strut does, over whatever baseline the text
         // was given above — not on top of it: zh-76700e5f's "5.3 制棒"
@@ -2366,6 +2402,7 @@ extension RichLayout {
             _inkShift[i] += extra
             segoeLift += extra / _px(1)
         }
+        @inline(never) func _blk7() {
         if i < _overhang.count {
             _overhang[i] = 0
             if i < _lineOverhang.count { _lineOverhang[i] = [] }
@@ -2458,6 +2495,8 @@ extension RichLayout {
                 _overhang[i] = height * (1 - 1 / multiple)
             }
         }
+        }
+        _blk7()
         // (A box the text keeps above and below, standing part way down the paragraph that
         // holds its anchor: the lines that would meet it go under it — Word's print of
         // LibreOffice's tdf133924, "notBeside" 273pt down a paragraph of text.)
@@ -2763,6 +2802,7 @@ extension RichLayout {
            !_markUnderNestedTable(i, document) {
             bodyHeight = max(bodyHeight, _px(exact))
         }
+        @inline(never) func _blk8() {
         if let image = p.image {
             // Shown at its own size, shrunk to the column when wider —
             // except under Word's rules, where a picture keeps the size
@@ -2869,6 +2909,8 @@ extension RichLayout {
             _imageShift[i] = 0
             _imageDrop[i] = 0
         }
+        }
+        _blk8()
         // A line holding a picture keeps to the line grid too: as many
         // whole pitches as it needs, the rest above the picture. (The
         // engine sets no strut on such a line, so nothing snapped it:
@@ -2893,6 +2935,7 @@ extension RichLayout {
         // on an 18pt grid, takes four pitches in Word's print, 7.5pt of
         // them over the sign — ours had set it flush and its captions
         // 14pt high. Only an exact height leaves the grid.)
+        @inline(never) func _blk9() {
         if theme.wordRules, inLine, style.lineHeightPoints == nil || style.lineHeightIsMinimum,
            !_offGrid(i, document), let pitch = _grid(i, document).pitch, pitch > 0 {
             let px = _px(pitch)
@@ -3059,6 +3102,8 @@ extension RichLayout {
             // baseline — ours 15.10 alone and 19.19 with the space.)
             bodyHeight = (box.bottom - box.top).rounded()
         }
+        }
+        _blk9()
         // (A paragraph that ends in a line break ends with a line of its
         // mark alone, as tall as the mark's own line: zh-17749c13's
         // paragraph of one bold 仿宋_GB2312 break (YaHei to Word, two

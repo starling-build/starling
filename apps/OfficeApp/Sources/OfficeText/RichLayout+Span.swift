@@ -839,6 +839,7 @@ extension RichLayout {
                     $0 == " " || $0 == "\t" || $0 == "\u{3000}"
                         || (widerSpaces && $0.unicodeScalars.count == 1 && [0x2002, 0x2003, 0x2005].contains($0.unicodeScalars.first!.value))
                 }
+                @inline(never) func _r0() {
                 if let lineSize, !text.isEmpty, text.allSatisfy(spaceLike), let px = s.fontSize, px > 0.5 {
                     let own = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
                     if !lineSize.blank, kind != -2, !text.containsSubstring("\t"), !text.containsSubstring("\u{3000}") {
@@ -883,6 +884,8 @@ extension RichLayout {
                         }
                     }
                 }
+                }
+                _r0()
                 if !fitBusy, fitGroup != nil, s.fontSize ?? 0 > 0.5, let f = fitSpacing() {
                     let own = text.count == 1 && fitLastSingle ? 0 : f
                     s = s.copyWith(letterSpacing: kind == -2 ? (s.letterSpacing ?? 0) + own : own)
@@ -1231,6 +1234,7 @@ extension RichLayout {
                 // (One too long for any line Word parts wherever the
                 // line ends, starting where it stands: a zero-width
                 // space before each of its characters.)
+                @inline(never) func _sblk0() {
                 if wideStarts.contains(offset) {
                     // (A word wider than the line opens a line of its own,
                     // and is parted there: see `_wideWordStarts`.)
@@ -1367,6 +1371,8 @@ extension RichLayout {
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
                 }
+                }
+                _sblk0()
                 // (A distributed line's room before this character: a word
                 // joiner that wide. Spacing on the character itself would
                 // be set half before it, and move the line's first.)
@@ -1435,6 +1441,7 @@ extension RichLayout {
                 // glyph; "◇◆★☆" as "◎", "●□▲○■※" (Times has them) and
                 // "①△" (Cambria Math) nothing. Ours drew them in YaHei, its
                 // line as any, and p7's third note line stayed on the page.
+                @inline(never) func _r1() {
                 if latinShapes, let u = ch.unicodeScalars.first?.value, RichTextTheme.segoeSymbolShapes.contains(u) {
                     flush(i)
                     if segoeStyle == nil { segoeStyle = _segoeJoiner(run, named, style(-1), p.style, pitch, scale) }
@@ -1449,6 +1456,8 @@ extension RichLayout {
                         inserts.append(offset)
                     }
                 }
+                }
+                _r1()
                 // (A word of Devanagari or Bengali, set in the face Word draws it in, gives its line that face's height, not
                 // the Latin face's: a joiner in its ascent and descent before the word. hin-z19439612's 12pt Mangal lines
                 // step 23.2 in Word's print (1.680 em at 1.15 lines), ours 15.9. Which face: the run's complex-script one where
@@ -1586,6 +1595,7 @@ extension RichLayout {
                 // ones (`heldSpaces`), and before an opening curly
                 // quote or after a closing one, as at any bracket —
                 // the engine breaks on neither side of a quote.
+                @inline(never) func _sblk1() {
                 if afterHeld, ch != " ", !(breaksAtQuotes && !lineRulesOff && Self._closingMarks.contains(ch)) {
                     flush(i)
                     // (In the held spaces' own style, not the East Asian
@@ -1739,6 +1749,8 @@ extension RichLayout {
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
                 }
+                }
+                _sblk1()
                 // (The opening quote's blank: a word joiner as wide as
                 // the blank, which no line parts from the quote — at a
                 // line's start the blank leads the mark, as in Word,
@@ -1951,6 +1963,7 @@ extension RichLayout {
                     let g = _glyphWidth(style(kind), ch)
                     if g > 0.5, g < em - 0.01 { extra += em - g }
                 }
+                @inline(never) func _sblk2() {
                 if wideSpaces.contains(offset) {
                     // (Half an em and the run's own spacing once more,
                     // as Word measures it: 8.31pt at 16pt spaced 0.15.
@@ -2094,6 +2107,10 @@ extension RichLayout {
                         extra += target - _glyphWidth(s, ch)
                     }
                 }
+                }
+                _sblk2()
+                @inline(never) func _sblk3() {
+                @inline(never) func _r2() {
                 if let following {
                     // (Not beside a note's number: zh-499adba6's — "（SDGs）⁷作
                     // 為", "權能⁸，" (mode 14, 12pt) — have none either side in
@@ -2210,6 +2227,11 @@ extension RichLayout {
                         extra -= (em + _px((kind < 0 ? ideographGrid : grid) ?? 0) + quoteAdd + condensed) / 2
                     }
                 }
+                }
+                _r2()
+                }
+                _sblk3()
+                @inline(never) func _sblk4() {
                 if heldSpaces.contains(offset) {
                     flush(i)
                     let s = style(kind)
@@ -2412,6 +2434,8 @@ extension RichLayout {
                     }
                     start = after
                 }
+                }
+                _sblk4()
                 offset += ch.utf16.count
                 i = after
             }
@@ -2449,6 +2473,7 @@ extension RichLayout {
         var children: [InlineSpan] = []
         var inline: [(image: ImageAttachment?, dimensions: PlaceholderDimensions)] = []
         children.reserveCapacity(p.runs.count + 1)
+        @inline(never) func _sblk5() {
         if lead != 0 {
             // The first line's indent is a box of that width before the
             // text — of less than no width for a hanging one, which sets
@@ -2550,6 +2575,8 @@ extension RichLayout {
                 inserts.append(0)
             }
         }
+        }
+        _sblk5()
         var pos = 0
         let utf16 = p.text.utf16
         // On a line of pictures, tabs are horizontal gaps, not text with
@@ -2567,6 +2594,7 @@ extension RichLayout {
         // round each such stretch does that.)
         let embeds = theme.wordRules && RichTextTheme.wordWindowsPages && p.style.rightToLeft
         var isolated = false
+        @inline(never) func _sblk6() {
         for run in p.runs where run.length > 0 {
             let a = utf16.index(utf16.startIndex, offsetBy: pos)
             let b = utf16.index(a, offsetBy: run.length)
@@ -2834,6 +2862,8 @@ extension RichLayout {
                 inserts.append(pos)
             }
         }
+        }
+        _sblk6()
         if isolated, let last = p.runs.last {
             let look = theme.textStyle(for: last.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
                                        gridPitch: pitch, scriptHidden: true)
