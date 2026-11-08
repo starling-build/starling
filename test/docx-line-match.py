@@ -111,7 +111,67 @@ def _inkless(c):
     return c != "\x00" and (c.isspace() or unicodedata.category(c) in ("Cf", "Cc"))
 
 
-def mupdf_glyphs(pdf):
+def _key(c):
+    return (round(c["origin"][0], 1), round(c["origin"][1], 1), c["c"])
+
+
+def _glyph_ink(pdf, dpi=150):
+    """(all, hidden) per page for v2's hidden-glyph rule. Word's PDFs keep the text a CLIP hides (a header's
+    line-number box clips its 24th number: the glyph stays in the text layer, nothing is inked). HIDDEN = a glyph
+    the reader's own clip test drops (rawdict with TEXT_CLIP) whose box holds no ink in the page as drawn (a
+    rendered page, no pixel under 250). Only such glyphs are judged: other glyph boxes (Tamil, Thai, Arabic marks)
+    can sit where the page has no ink of its own. ALL = every inked glyph's (x, y, char)."""
+    import pymupdf
+    import numpy as np
+    allg, hidden = {}, {}
+    k = dpi / 72.0
+    with pymupdf.open(pdf) as d:
+        for i, page in enumerate(d):
+            full = [c for b in page.get_text("rawdict", flags=pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_CLIP)["blocks"]
+                    for l in b.get("lines", []) for sp in l["spans"] for c in sp["chars"] if not _inkless(c["c"])]
+            seen = {_key(c) for b in page.get_text("rawdict", flags=pymupdf.TEXTFLAGS_RAWDICT)["blocks"]
+                    for l in b.get("lines", []) for sp in l["spans"] for c in sp["chars"]}
+            allg[i], hid = set(), set()
+            pm = None
+            for c in full:
+                key = _key(c)
+                allg[i].add(key)
+                if key in seen:
+                    continue
+                if pm is None:
+                    pix = page.get_pixmap(dpi=dpi, colorspace=pymupdf.csGRAY, annots=False)
+                    pm = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width)
+                x0, y0, x1, y1 = c["bbox"]
+                ix0, iy0 = max(int(x0 * k), 0), max(int(y0 * k), 0)
+                ix1, iy1 = min(int(x1 * k) + 1, pm.shape[1]), min(int(y1 * k) + 1, pm.shape[0])
+                if ix1 > ix0 and iy1 > iy0 and pm[iy0:iy1, ix0:ix1].min() >= 250:
+                    hid.add(key)
+            hidden[i] = hid
+    return allg, hidden
+
+
+def _unseen_pairs(ref_pdf, our_pdf):
+    """The glyphs v2 leaves out of each side: those hidden on one side and not drawn on the other. A glyph that
+    Word hides and we draw (a page number's second digit, which Word's footer box clips) is a real difference and
+    stays; one hidden on one side and absent, or hidden, on the other is nothing either print shows."""
+    try:
+        wa, wh = _glyph_ink(ref_pdf)
+        oa, oh = _glyph_ink(our_pdf)
+    except Exception:
+        return {}, {}
+    def near(pool, key):
+        return any(c == key[2] and abs(x - key[0]) < 3 and abs(y - key[1]) < 3 for x, y, c in pool)
+    dw, do = {}, {}
+    for i, hs in wh.items():
+        vis = oa.get(i, set()) - oh.get(i, set())
+        dw[i] = {g for g in hs if not near(vis, g)}
+    for i, hs in oh.items():
+        vis = wa.get(i, set()) - wh.get(i, set())
+        do[i] = {g for g in hs if not near(vis, g)}
+    return dw, do
+
+
+def mupdf_glyphs(pdf, drop=None):
     """v2's rows, from the page's glyphs rather than the reader's lines.
     Each line of text set across is the inked glyphs on one baseline:
     grouped by their origins (the baseline itself — a fifth of the size
@@ -139,7 +199,14 @@ def mupdf_glyphs(pdf):
             # glyph the clip does not wholly hold, and Word's footer boxes
             # clip their page numbers — zh-f47b8a74's "10" read "1", and our
             # Thai, drawn inside a clip, read as nothing.)
-            for b in page.get_text("rawdict", flags=pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_CLIP)["blocks"]:
+            blocks = page.get_text("rawdict", flags=pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_CLIP)["blocks"]
+            gone = drop.get(i) if drop else None
+            if gone:
+                for b in blocks:
+                    for l in b.get("lines", []):
+                        for sp in l["spans"]:
+                            sp["chars"] = [c for c in sp["chars"] if _key(c) not in gone]
+            for b in blocks:
                 for l in b.get("lines", []):
                     line_no += 1
                     across = tuple(round(v, 3) for v in l["dir"]) == (1, 0)
@@ -235,9 +302,9 @@ def mupdf_glyphs(pdf):
     return out
 
 
-def lines(tool, pdf):
+def lines(tool, pdf, drop=None):
     if V2:
-        out = mupdf_glyphs(pdf)
+        out = mupdf_glyphs(pdf, drop)
     elif tool:
         out = subprocess.run([tool, pdf], capture_output=True, text=True).stdout.splitlines()
     else:
@@ -410,7 +477,9 @@ def score_document(tool, work, key, count, f):
     ref = os.path.join(WORD, f[:-4] + "-orig.pdf")
     if not os.path.exists(ref):
         return None
-    a, b = lines(tool, ref), lines(tool, os.path.join(work, "pdf", f))
+    ours_pdf = os.path.join(work, "pdf", f)
+    dw, do = _unseen_pairs(ref, ours_pdf) if V2 else ({}, {})
+    a, b = lines(tool, ref, dw), lines(tool, ours_pdf, do)
     by_page = {}
     for r in b:
         by_page.setdefault(r[0], []).append(r)
