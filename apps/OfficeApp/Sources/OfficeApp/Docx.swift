@@ -5281,12 +5281,22 @@ enum DocxFormat {
               let root = XNode.parse(e.data), let scheme = root.descendant("a:fontScheme") else { return ThemeFonts() }
         let lang = entries.first(where: { $0.name == "word/settings.xml" }).flatMap { XNode.parse($0.data) }?
             .first("w:themeFontLang")?["w:eastAsia"]?.lowercased()
-        let script: String? = switch lang {
+        var script: String? = switch lang {
         case "zh-cn", "zh-sg": "Hans"
         case "zh-tw", "zh-hk", "zh-mo": "Hant"
         case "ja-jp": "Jpan"
         case "ko-kr": "Hang"
         default: nil
+        }
+        // (A theme face for "ja-JP" is taken for the text's own script where the text is Korean: dx2's
+        // ed5bf93a (themeFontLang ja-JP, Hangul only, 585 East Asian theme references) prints its Hangul
+        // in 맑은 고딕, the theme's Hang face, where we set it in the Jpan one's name's stand-in.)
+        if script == "Jpan", let body = entries.first(where: { $0.name == "word/document.xml" }) {
+            var hangul = 0, kana = 0
+            for u in String(decoding: body.data, as: UTF8.self).unicodeScalars {
+                if u.value >= 0xAC00 && u.value <= 0xD7A3 { hangul += 1 } else if u.value >= 0x3040 && u.value <= 0x30FF { kana += 1 }
+            }
+            if hangul > 0, kana == 0 { script = "Hang" }
         }
         func latin(_ name: String) -> String? {
             let f = scheme.first(name)?.first("a:latin")?["typeface"] ?? ""
