@@ -288,7 +288,7 @@ extension RichLayout {
         // print squeezes it to hold "เป็นอย่างไร?". Each piece there is the
         // advance from its start to the next piece's.)
         let shownUnits = Array(span.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
-        let thaiText = wordRules && shownUnits.count == total && shownUnits.contains { $0 >= 0x0E01 && $0 <= 0x0E5B }
+        let thaiText = wordRules && shownUnits.count == total && shownUnits.contains { ($0 >= 0x0E01 && $0 <= 0x0E5B) || ($0 >= 0x0A01 && $0 <= 0x0A76) }
         let flat: TextPainter? = thaiText ? {
             let t = TextPainter(text: span, textAlign: .left, textDirection: .ltr)
             if !inline.isEmpty { t.setPlaceholderDimensions(inline.map { $0.dimensions }) }
@@ -330,7 +330,7 @@ extension RichLayout {
             let trail = boxes(last, b)
             // (From the line's own start: one may sit on this line too.)
             var lineWidth = pending
-            if last > a, flat != nil, (a ..< last).contains(where: { units[$0] >= 0x0E01 && units[$0] <= 0x0E5B }) {
+            if last > a, flat != nil, (a ..< last).contains(where: { (units[$0] >= 0x0E01 && units[$0] <= 0x0E5B) || (units[$0] >= 0x0A01 && units[$0] <= 0x0A76) }) {
                 lineWidth += max(0, flatX(map.painter(last - 1) + 1) - flatX(from))
             } else if last > a {
                 for box in probe.getBoxesForSelection(TextSelection(baseOffset: from, extentOffset: map.painter(last - 1) + 1)) {
