@@ -6238,6 +6238,7 @@ enum DocxFormat {
                         // (Its own insets, not the first shape's of the group: zh-bdae17c0 p69's outline box is
                         // a text box of none after a border line of the default 3.6pt, and its text stood 3.9 low.)
                         box.hasFixedFrame = body.first("a:noAutofit") != nil
+                        box.overflowVisible = body["vertOverflow"] == "overflow"
                         if let anchor = body["anchor"], anchor == "ctr" || anchor == "b" { box.anchor = anchor }
                         // (Not where the body says `upright`: its text stays level in the turned shape, as
                         // zh-b24b396a's "（文件正面）" does in Word's print.)
