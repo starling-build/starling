@@ -3221,7 +3221,6 @@ extension RichLayout {
                 total = before + down + bodyHeight + after
             }
         }
-        total += _tamilMarkedLinesExtra(i, p, document, painter)
         _heights[i] = painter.fractionalLineHeights ? total : total.rounded(.up)
         // An empty paragraph that only ends a section stands for the
         // break and takes no room, as Word sets it.
