@@ -1,4 +1,4 @@
-188 documents: mean 57.7% of Word's lines matched, median 65.3%; 45 at 95% or more, 111 at half or more; 161 with Word's page count
+188 documents: mean 57.8% of Word's lines matched, median 67.2%; 45 at 95% or more, 111 at half or more; 161 with Word's page count
     0.0%  lines 245/245  pages 8/10  kor-z21941126-9b36b8
     1.1%  lines 472/547  pages 14/15  heb-z17544993-944544
     1.1%  lines 88/104  pages 10/9  fas-z14957015-3a9879
@@ -38,9 +38,9 @@
     9.0%  lines 178/208  pages 10/10  ben-z17281487-bfc234
    10.0%  lines 20/20  pages 1/1  docx-f3550c7b
    10.5%  lines 296/314  pages 8/8  ara-z8215570-1aa55d
-   11.6%  lines 241/246  pages 7/7  hin-z18479909-61195a
    11.8%  lines 136/144  pages 4/4  jpn-z20806500-dacd38
    11.9%  lines 370/368  pages 13/13  ara-z10840115-a1e854
+   12.0%  lines 241/282  pages 7/7  hin-z18479909-61195a
    12.9%  lines 681/690  pages 12/12  urd-z8387389-553f88
    13.5%  lines 111/112  pages 8/8  ara-z15699863-842f1e
    13.8%  lines 574/580  pages 19/20  fas-z8123021-fd38aa
@@ -56,9 +56,9 @@
    22.2%  lines 144/145  pages 5/5  hin-z10093577-3af7d4
    24.5%  lines 433/494  pages 16/16  ara-z8157766-171cca
    24.6%  lines 240/244  pages 7/7  jpn-z18981562-5ff3d0
-   27.5%  lines 149/152  pages 5/5  mar-z19707447-f8dac9
    27.7%  lines 173/170  pages 11/11  ara-z3803947-de4a70
    28.4%  lines 208/213  pages 12/13  jpn-z22855378-6fca0f
+   30.9%  lines 149/163  pages 5/5  mar-z19707447-f8dac9
    31.0%  lines 1282/1329  pages 31/34  ita-z13342017-784e0d
    31.6%  lines 282/319  pages 11/11  jpn-z22667840-bc5fb7
    31.9%  lines 135/135  pages 9/10  fas-z22958620-bf2323
@@ -85,7 +85,6 @@
    57.5%  lines 268/269  pages 7/8  jpn-z20806225-930d98
    57.5%  lines 452/450  pages 17/17  jpn-z19433747-8787f4
    58.6%  lines 1024/1025  pages 22/22  fas-z19537379-034075
-   58.6%  lines 186/186  pages 6/6  jpn-g11-40dd71
    59.6%  lines 94/94  pages 3/3  jpn-z20018134-2cadcb
    60.6%  lines 485/466  pages 19/19  docx-bff1c672
    62.8%  lines 226/221  pages 13/13  docx-8f1703b9
@@ -96,6 +95,7 @@
    66.4%  lines 822/821  pages 18/18  ell-z10407270-89615d
    68.1%  lines 119/114  pages 4/4  docx4j-1e349e20
    69.8%  lines 53/54  pages 3/3  jpn-z21971263-c098ef
+   70.4%  lines 186/186  pages 6/6  jpn-g11-40dd71
    71.8%  lines 181/183  pages 6/6  hin-z20395056-4ee329
    72.8%  lines 912/910  pages 21/22  fra-g255-612f49
    74.9%  lines 960/961  pages 19/20  fra-g156-5d636a
