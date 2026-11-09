@@ -2270,7 +2270,7 @@ extension RichLayout {
                     let own = kind == -2 ? (classed ? RichResolvedFace.characterClass(" ") : 0) : kind
                     let s = style(own)
                     let k = Int(u) - 0x20
-                    if let table = face.advanceTable(bold: s.fontWeight == .bold, italic: s.fontStyle == .italic), k < table.count, let px = s.fontSize, px > 0.5 {
+                    if let table = face.advanceTable(bold: s.fontWeight == .bold, italic: s.fontStyle == .italic), k < table.count, table[k] > 0, let px = s.fontSize, px > 0.5 {
                         let classScale = classed ? face.classScales.flatMap { own >= 0 && own < $0.count ? $0[own] : nil } ?? 1 : 1
                         var target = table[k] * px / (face.sizeScale * classScale)
                         // (Kerned with the next of the run by the original's

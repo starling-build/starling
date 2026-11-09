@@ -1642,6 +1642,9 @@ enum OfficeFonts {
         0.5480, 0.2860, 0.8570, 0.5720, 0.5550, 0.5530, 0.5722, 0.3980, 0.4430, 0.3830, 0.5680, 0.4990, 0.7760, 0.4900, 0.5210,
         0.4600, 0.4020, 0.2890, 0.4020, 0.6033,
     ]
+    /// Mangal's ASCII advances (em), 0 where no print's subset holds the glyph yet: Word draws the Latin of a Nikosh run (Windows lacks Nikosh)
+    /// in Mangal, whose dot is 0.2876 against Carlito's 0.2524 (bede0fbc: every dotted leader line ran short). hmtx of the subsets in dx2's prints.
+    static let nikoshAdvances: [Double] = [0.5, 0.2876, 0.3672, 0, 0, 0, 0, 0, 0.3447, 0.3447, 0, 0.6045, 0.2876, 0.3447, 0.2876, 0.2876, 0.5757, 0.5757, 0.5757, 0.5757, 0.5757, 0.5757, 0.5757, 0.5757, 0.5757, 0.5757, 0.2876, 0.2876, 0, 0.6045, 0, 0.5757, 0, 0, 0.6914, 0, 0, 0, 0, 0, 0, 0.2881, 0, 0, 0, 0.8638, 0.748, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.2876, 0, 0.2876, 0, 0.5713, 0, 0, 0, 0, 0.5762, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.3447, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     static let tahomaAdvances: [Double] = [
         0.3125, 0.3320, 0.4014, 0.6289, 0.6289, 1.0054, 0.7542, 0.2159, 0.3828, 0.3828, 0.4400, 0.6603, 0.3027, 0.3633, 0.3027,
         0.3823, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.3535, 0.3142, 0.6603, 0.6603,
@@ -3534,6 +3537,12 @@ enum OfficeFonts {
                 face.baseline = 0.984
                 // (The line is the face's own hhea 984+273 over 1000, read from Word's subsets: lab c53, Word's Source Sans lines are 0.43 pt taller than the stand-in's at 12 pt; the 1 pt that 17a0d0c7 once showed is its line-break-first paragraph, see the board.)
                 RuleTrace.hit("source-sans-pro-own-widths")
+            }
+            // (Nikosh, which Windows lacks, is drawn in Mangal: its ASCII punctuation and digits at Mangal's advances.)
+            if wordOnWindows, family.trimmingWhitespace().lowercased() == "nikosh" {
+                face.advances = nikoshAdvances
+                face.boldAdvances = nikoshAdvances
+                RuleTrace.hit("nikosh-latin-in-mangal-widths")
             }
             // (Tahoma, drawn as the sans clone, at its own widths and line.)
             if family.trimmingWhitespace().lowercased() == "tahoma" {
