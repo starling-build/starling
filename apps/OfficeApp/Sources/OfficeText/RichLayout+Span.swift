@@ -1698,21 +1698,6 @@ extension RichLayout {
                 // step 23.2 in Word's print (1.680 em at 1.15 lines), ours 15.9. Which face: the run's complex-script one where
                 // Windows has it (Mangal; Kokila only in italic); the rest, Kokila regular and bold and Kalpurush, Word draws in
                 // Nirmala UI — hin-z18479909's 9942 regular Devanagari and ben-z17281487's Bengali are Nirmala in its prints.)
-                // (Devanagari in Arial Unicode MS, a face Word's box lacks: it draws the letters in Nirmala UI and each Latin letter, digit or
-                // mark in Yu Gothic, so a line holding one is Yu Gothic's line: 1.3 x its win height (0.985 + 0.302) = 1.673 em, split as its hhea
-                // with the line gap halved (1.13 + 0.472) scaled by 1.042: 1.177 above, 0.492 below. Lab aumsmech, 9/11/14 pt: +0.34 em in all.)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, u > 0x20, u < 0x250, ch.unicodeScalars.count == 1,
-                   !(before.map { !$0.isWhitespace && !($0.unicodeScalars.first.map { Self._isIndic($0.value) } ?? false) } ?? false),
-                   _aumsDevanagariMark(run, named, p, document) {
-                    if devanagariStyles["aumsYuGothic"] == nil {
-                        devanagariStyles["aumsYuGothic"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: Self._yuGothicWordLine.above, descent: Self._yuGothicWordLine.below)
-                    }
-                    if let joiner = devanagariStyles["aumsYuGothic"] ?? nil {
-                        flush(i)
-                        spans.append(TextSpan(text: "\u{2060}", style: joiner))
-                        inserts.append(offset)
-                    }
-                }
                 // (Tamil set in Noto Sans Tamil, a face Windows lacks: Word draws the letters in Nirmala UI but every digit, mark and Latin
                 // letter in Mangal, so a line holding one is Mangal's 1.680 em tall; a line of Tamil letters and spaces stays Nirmala's 1.33.
                 // xd c016493b: pitches 20.2 with a mark, 17.9 and 18.2 beside such a line, 16.0 without.)
@@ -3392,27 +3377,41 @@ extension RichLayout {
 }
 
 extension RichLayout {
-    /// A run of a Devanagari paragraph whose complex face is Arial Unicode MS (charset 80 in the font table: absent on Word's box).
-    /// Word's line for an East Asian face drawn as a fallback: 1.3 x its win ascent+descent, split as the face's hhea ascent and descent with
-    /// half the hhea line gap added to each side, the two scaled so they sum to that line (em). Yu Gothic Regular: win 0.985 + 0.302, hhea
-    /// 0.880 + 0.222, gap 0.500: lab aumsmech, a Latin mark in Arial Unicode MS (missing; drawn in Yu Gothic) at 9, 11 and 14 pt.
-    static func _eastAsianWordLine(win: (Double, Double), hhea: (Double, Double, Double)) -> (above: Double, below: Double) {
-        let a = hhea.0 + hhea.2 / 2, d = hhea.1 + hhea.2 / 2, k = 1.3 * (win.0 + win.1) / (a + d)
-        return (a * k, d * k)
-    }
-    static let _yuGothicWordLine = _eastAsianWordLine(win: (0.985, 0.302), hhea: (0.880, 0.222, 0.500))
-
+    /// A Tamil paragraph whose complex face is Arial Unicode MS (missing on Windows): every line that holds a non-space Latin letter,
+    /// digit or punctuation mark (Word draws those in Leelawadee UI) takes Leelawadee's taller line, yet the lines keep Nirmala UI's
+    /// pitch and the surplus lands after the paragraph's last line (Word lab a347gap/J-chars: marks on 3 of 8 lines, 3 x 3.8 pt at 11 pt,
+    /// for every mark kind; two marks on one line count once; spaces alone nothing). 0.345 em per line (18.4 - 14.6 at 11 pt).
     @inline(never)
-    func _aumsDevanagariMark(_ run: CharStyle, _ named: RichNamedStyle?, _ p: RichParagraph, _ document: RichDocument) -> Bool {
+    func _tamilMarkedLinesExtra(_ i: Int, _ p: RichParagraph, _ document: RichDocument, _ painter: TextPainter) -> Double {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.isEmpty else { return 0 }
+        // (Devanagari in Arial Unicode MS, whose font-table entry is the Japanese charset: the same, 0.36 em with the 1.079 of line 259;
+        // lab aums2 B and H: 30.0 and 30.2 pt against 26.4, once per paragraph however many lines hold marks.)
         let tamil = document.defaultLangXML?.containsSubstring("ta-IN") == true && p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })
-        guard tamil || document.fontCharsets["arial unicode ms"] == "80",
-              (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
-        else { return false }
-        // The mark itself is drawn in Yu Gothic only when its own Latin face is the missing Arial Unicode MS or Yu Gothic (lab aumsmech a-*:
-        // Arial, Times, Calibri, Leelawadee, Nirmala marks add nothing).
-        let latin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
-        guard latin == "arial unicode ms" || latin.hasPrefix("yu gothic") else { return false }
-        return tamil || p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0x980 })
+        let devanagari = !tamil && document.fontCharsets["arial unicode ms"] == "80" && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0x980 })
+        guard tamil || devanagari else { return 0 }
+        let named = _named(p, document)
+        let cs = (p.style.mark?.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "")
+        guard cs.trimmingWhitespace().lowercased() == "arial unicode ms"
+                || devanagari && p.runs.contains(where: { ($0.style.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms" }) else { return 0 }
+        let size = _px(named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize)
+        let lead = _lead(i)
+        var starts = Set<Int>()
+        var offset = 0
+        for u in p.text.unicodeScalars {
+            let n = u.value > 0xFFFF ? 2 : 1
+            if u.value > 0x20, u.value < 0x250 {
+                starts.insert(painter.getLineBoundary(TextPosition(offset: offset + lead)).start)
+            }
+            offset += n
+        }
+        if starts.isEmpty { return 0 }
+        if devanagari {
+            RuleTrace.hit("word-devanagari-aums-marked-lines-add-to-the-paragraph")
+            // (Real paragraph, dx2 31a0a560: 3 marked lines gave Word +11.1 pt after the paragraph, 1 marked line +3.6: per line, like Tamil.)
+            return 0.36 * size * Double(starts.count)
+        }
+        RuleTrace.hit("word-tamil-leelawadee-marked-lines-add-to-the-paragraph")
+        return Double(starts.count) * 0.345 * size
     }
 }
 
