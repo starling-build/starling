@@ -1102,9 +1102,9 @@ enum OfficeFonts {
     /// line's extra: zh-8e8d4c40's "N、" labels lift their 標楷體 lines
     /// 0.72pt in Word for Windows, 0.66 at the 1.005 it had, and page 2
     /// took one line too many.)
-    private static let windowsMincho = EastAsianFace(height: 1.3, latin: cambria, latinScale: 1.0, fakeBold: true, baseline: 0.859375 + 0.15)
+    private static let windowsMincho = EastAsianFace(height: 332.0 / 256, latin: cambria, latinScale: 1.0, fakeBold: true, baseline: 0.859375 + 0.15 - (1.3 - 332.0 / 256) / 2)
     /// The same face for Arial Unicode MS, whose Latin Word for Windows draws in Arial (4a21de: ArialMT in the print), not Cambria.
-    private static let windowsMinchoArialLatin = EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.859375 + 0.15)
+    private static let windowsMinchoArialLatin = EastAsianFace(height: 332.0 / 256, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.859375 + 0.15 - (1.3 - 332.0 / 256) / 2)
     /// What MS Mincho holds, as far as Shift_JIS (JIS X 0208) reaches —
     /// all of it Mincho's, though Mincho holds more (JIS X 0212): enough
     /// to tell 单, 总, 监 from 年, 月, 日. Nil where the encoding is not
@@ -2434,7 +2434,7 @@ enum OfficeFonts {
         if wordOnWindows, has("ms pgothic", "ｍｓ ｐゴシック", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝", "hgskyokashotai", "hgpkyokashotai", "hgkyokashotai") {
             RuleTrace.hit("ms-japanese-face-square-line")
             // (HG Kyokasho-tai is not on Word's machine: a91d8fed's runs print in MS Mincho, the document's East Asian default.)
-            var ms = EastAsianFace(height: 1.3, latin: has("mincho", "明朝", "kyokashotai") ? serif : sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
+            var ms = EastAsianFace(height: 332.0 / 256, latin: has("mincho", "明朝", "kyokashotai") ? serif : sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375 - (1.3 - 332.0 / 256) / 2)
             // (Its Latin is MS Mincho's, fixed at half an em: a91d8fed's "ex." steps 5.3 pt a letter at 10.5 pt.)
             if has("kyokashotai") || (has("ms mincho", "ｍｓ 明朝") && !has("ms pmincho", "ｍｓ ｐ明朝")) { ms.latinAdvances = gulimCheAdvances; ms.latinBoldAdvances = gulimCheAdvances; ms.squareSymbols = true }
             // (MS PGothic is proportional: its kana, brackets and digits step narrower than an em, read from
