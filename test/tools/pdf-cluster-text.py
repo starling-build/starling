@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Text-layer test: each cluster's text must appear exactly once in our PDF, in two readers.
+Requirements: the venv python ($HOME/venv-word/bin/python) with pymupdf and pypdf (pip install pypdf; no root, no poppler).
 
 usage: python3 test/tools/pdf-cluster-text.py [OFFICEAPP]   (source ~/bin/office-env.sh first; env as the sweeps use)
 Makes one small docx per case (pre-base vowel, reph, reph + pre-base vowel, Arabic lam-alef, Bengali o-vowel,
 Bengali conjunct, Arabic shadda, Devanagari conjunct), renders it with OfficeApp, and compares the text that
-pymupdf and poppler's pdftotext extract with the source, letter by letter (spaces and line ends ignored).
+pymupdf and pypdf extract with the source, letter by letter (spaces and line ends ignored).
 Exit 1 if any case differs in either reader."""
-import os, subprocess, sys, tempfile, zipfile, collections
+import os, unicodedata, subprocess, sys, tempfile, zipfile, collections
 from xml.sax.saxutils import escape
 import pymupdf
+import pypdf
 
 APP = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../apps/OfficeApp/.build/release/OfficeApp')
 CASES = {
@@ -32,7 +34,7 @@ def docx(text, font, path):
     }
     with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as z:
         for n, b in parts.items(): z.writestr(n, b.encode())
-def letters(t): return collections.Counter(c for c in t if not c.isspace() and c not in '‌‍')
+def letters(t): return collections.Counter(c for c in unicodedata.normalize('NFKC', t) if not c.isspace() and c not in '‌‍')
 bad = 0
 tmp = tempfile.mkdtemp(prefix='clustertext-')
 for i, (name, (text, font)) in enumerate(CASES.items()):
@@ -40,9 +42,7 @@ for i, (name, (text, font)) in enumerate(CASES.items()):
     r = subprocess.run([APP, '--convert', d, p], capture_output=True)
     if not os.path.exists(p): print('FAIL  %-34s no PDF (exit %d)' % (name, r.returncode)); bad += 1; continue
     got = {'mupdf': ''.join(pg.get_text() for pg in pymupdf.open(p))}
-    try: got['poppler'] = subprocess.run(['pdftotext', '-enc', 'UTF-8', p, '-'], capture_output=True, text=True).stdout
-    except FileNotFoundError:
-        if i == 0: print('SKIP  poppler: pdftotext not installed (apt install poppler-utils); only MuPDF checked')
+    got['pypdf'] = ''.join(pg.extract_text() or '' for pg in pypdf.PdfReader(p).pages)
     want = letters(text)
     for rd, t in got.items():
         have = letters(t); diff = {c: have[c] - want[c] for c in set(have) | set(want) if have[c] != want[c]}
