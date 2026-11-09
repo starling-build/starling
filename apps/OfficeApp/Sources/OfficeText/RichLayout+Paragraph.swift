@@ -3391,6 +3391,17 @@ extension RichLayout {
                     let firstEnd = painter.getLineBoundary(TextPosition(offset: 0)).end - lead
                     let units = Array(p.text.utf16)
                     var start = 0
+                    // (A list's marker in a Latin face of its own (Symbol, a bullet) stands the first line on that face's ascent as a Latin run does:
+                    // xd d760f1e5's "•" headings, Symbol 14 pt bold in a Kokila paragraph at 1.5 lines, 3.8 pt lower in Word's print.)
+                    if p.style.list != nil, let face = _levelNumberFonts(p, document).latin?.trimmingWhitespace().lowercased(), face != "kokila",
+                       var marker = p.runs.first(where: { $0.length > 0 })?.style {
+                        marker.fontFamily = _levelNumberFonts(p, document).latin
+                        if let size = _levelNumberSize(p, document) { marker.fontSize = size }
+                        if let b = theme.baseline(for: marker, in: style, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) {
+                            RuleTrace.hit("word-list-marker-face-raises-the-first-line")
+                            latinFloor = max(latinFloor, b)
+                        }
+                    }
                     for run in p.runs where run.length > 0 {
                         defer { start += run.length }
                         guard start < firstEnd else { break }
