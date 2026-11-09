@@ -43,8 +43,13 @@ extension RichLayout {
         // on the fallback's height, 18.4pt to Word's 16.0 in fas-z22973278.)
         var marksToo = false
         var bidi = false
+        // (A run moved off the baseline whose line is taller than the held one: a ruby's base on a line
+        // grid, which asks its line for two pitches. A strut would hold the line at one: flt1-1-asis's
+        // wrapped "かえてくれる" paragraph came out 18 pt short.)
+        var tallShifted = 0.0
         func visit(_ s: InlineSpan) {
             guard uniform, let t = s as? TextSpan else { return }
+            if !shiftedToo, let st = t.style, st.baselineShift != nil, let sz = st.fontSize, let hh = st.height, sz > 0.5 { tallShifted = max(tallShifted, sz * hh) }
             if let text = t.text, text.unicodeScalars.contains(where: { ($0.value >= 0x0590 && $0.value <= 0x08FF) || ($0.value >= 0xFB1D && $0.value <= 0xFEFF) }) { bidi = true }
             if let text = t.text, marksToo, !text.contains(where: { $0.isLetter || $0.isNumber }) {
                 for c in t.children ?? [] { visit(c) }
@@ -93,6 +98,7 @@ extension RichLayout {
             if alike.count > 1 { held = alike.values.max { $0.1 != $1.1 ? $0.1 < $1.1 : $0.2 > $1.2 }?.0 ?? top }
         }
         guard uniform, count > 0, let base = held, let size = base.fontSize, let h = base.height else { return nil }
+        if !shiftedToo, tallShifted >= size * h * 1.6 { return nil }
         // (Even leading: the engine's proportional strut scales the
         // face's ascent and descent by a height that counts its line gap
         // too, and comes out that much short — 15.15 for 15.6 in
