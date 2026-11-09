@@ -2257,6 +2257,13 @@ extension RichLayout {
                     }
                     if y > 0.01, y + _px(down) > contentH - 0.01 {
                         if anchorFits { keptPastFoot = c.table } else { newPage() }
+                    } else if theme.wordRules, RichTextTheme.wordWindowsPages, y > 0.01, anchorFits, c.ownRowHeight > contentH - y - _px(down) + 0.01,
+                              y + _px(down) >= _floatFootLimit(i, page: page, document) {
+                        // (Word for Windows sets a floating table's top no lower than the footer's place, the footer
+                        // distance and one empty line up from the page's foot: lab ovl2 autow's T34, tblpY 37 twips under
+                        // a line ending at 794.7, 17.7pt past that limit, goes whole to the next page in Word's print;
+                        // ours parted its first row at the foot.)
+                        newPage()
                     } else if theme.wordRules, RichTextTheme.wordWindowsPages, _columns > 1, y > 0.01, i < _sectionOf.count,
                               _columnsOf(paragraph: i) > 1 {
                         // (In a section of columns Word keeps a floating table whole: where
@@ -5411,5 +5418,16 @@ extension RichLayout {
         guard let j = _cells.firstIndex(where: { $0?.table == table }), j > 0,
               let pt = _cells[j - 1]?.table, pt != table else { return false }
         return document.tableStyles[pt]?.floatOffsetY != nil
+    }
+}
+
+extension RichLayout {
+    /// Where, in body coordinates, Word for Windows lets a floating table's top stand at the lowest: the footer
+    /// distance and the line of an empty footer paragraph up from the page's foot (lab ovl2 autow: 777pt of 841.9
+    /// with footer 992 twips and a 10.5pt line).
+    @inline(never)
+    func _floatFootLimit(_ i: Int, page: Int, _ document: RichDocument) -> Double {
+        let setup = pageSetup(forPage: page / _columns)
+        return _px(setup.height - setup.footerDistance) - _markLineHeight(i, document, single: true) - _bodyInsets(page: page / _columns, document).top
     }
 }
