@@ -1266,6 +1266,12 @@ extension RichLayout {
                                 let seg = piece[ws ..< we]
                                 if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: NirmalaAdvances.table(bold: false), flatScale: 1, conjunctRatio: nil) {
                                     spans.append(contentsOf: capped(seg, run, fitted.style))
+                                } else if sp {
+                                    // (Word draws the spaces between Nirmala UI's words in the run's Latin face, not in Nirmala UI.)
+                                    plainPiece = true
+                                    let st = style(kind)
+                                    plainPiece = false
+                                    spans.append(contentsOf: capped(seg, run, joinedScaled(seg, st)))
                                 } else {
                                     spans.append(contentsOf: capped(seg, run, joinedScaled(seg, style(kind))))
                                 }

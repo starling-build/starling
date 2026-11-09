@@ -3,7 +3,7 @@
 
 // Word for Windows' Nirmala UI Devanagari: the advance in em of each grapheme cluster, fitted by ridge regression to the word widths
 // (first glyph origin to the following space's origin) in the Nirmala-UI-embedding prints of dx2, xb and xd, by
-// test/tools/indic-cluster-fit.py (regular 982 words, 244 clusters, rms 0.004 em). Bold is NOT tabled: its 297 words did not pin the clusters down (ratios to regular scattered 0.3 to 1.7), so bold runs keep the flat scale.
+// test/tools/indic-cluster-fit.py (regular 10,907 words found across spans, 826 clusters met, the 534 seen 3+ times written, rms 0.004 em). Bold is NOT tabled: its 297 words did not pin the clusters down (ratios to regular scattered 0.3 to 1.7), so bold runs keep the flat scale.
 // Clusters the table lacks keep the stand-in's width times the flat scale (`_indicScale["nirmala ui"]`), as Kokila's do.
 
 enum NirmalaAdvances {
