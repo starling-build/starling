@@ -156,6 +156,21 @@ public final class RichTextTheme {
     /// 0.22), measured once.
     private var _descentShares: [String: Double] = [:]
 
+    /// Word raises a superscript by the face's own OS/2 offset when that is
+    /// small (lab sup1: Cambria 0.246, Georgia 0.265, Palatino 0.273 ...), and
+    /// by 0.355 em otherwise (Times, Calibri, Arial, Verdana, Tahoma, Malgun).
+    @inline(never)
+    static func superscriptRaise(_ family: String?) -> Double {
+        switch family?.lowercased() ?? "" {
+        case "cambria": return 0.246
+        case "book antiqua": return 0.242
+        case "georgia": return 0.265
+        case "sylfaen": return 0.283
+        case "palatino linotype": return 0.273
+        default: return 0.355
+        }
+    }
+
     public func descentShare(family: String?, bold: Bool, italic: Bool) -> Double {
         let key = "\(family ?? "")|\(bold)|\(italic)"
         if let d = _descentShares[key] { return d }
@@ -766,7 +781,7 @@ public final class RichTextTheme {
                 // (Of the run's own size: not a stand-in's drawn one.)
                 let script = !shifted ? 0
                     : scriptRatio < 0.6 && style.script == .superscript ? -(1 - scriptRatio) * size * pixelsPerPoint * scale
-                    : (style.script == .superscript ? -0.355 : 0.2) * px
+                    : (style.script == .superscript ? -Self.superscriptRaise(familyName) : 0.2) * px
                 let raised = wordRules && NativeParagraphBuilder.supportsBaselineShift ? (style.raised ?? named?.char.raised ?? 0) : 0
                 let shift = script - raised * pixelsPerPoint * scale
                 return shift != 0 ? shift : nil
