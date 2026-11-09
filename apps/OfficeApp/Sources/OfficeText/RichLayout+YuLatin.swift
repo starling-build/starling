@@ -52,7 +52,7 @@ extension RichLayout {
 extension RichLayout {
     /// Latin text in a Devanagari run that names Arial Unicode MS: Yu Gothic's advances where Word draws it in Yu Gothic, else Leelawadee UI's.
     @inline(never)
-    static func _arialUnicodeLatin(_ w: Substring, base: TextStyle) -> TextStyle {
-        _yuLatinStyle(w, base: base) ?? _leelaLatinStyle(w, base: base)
+    static func _arialUnicodeLatin(_ w: Substring, base: TextStyle, unit: Double = 1) -> TextStyle {
+        _yuLatinStyle(w, base: base) ?? _leelaLatinStyle(w, base: base, unit: unit)
     }
 }

@@ -1350,7 +1350,7 @@ extension RichLayout {
                                 if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: NirmalaAdvances.table(bold: false), flatScale: 1, conjunctRatio: nil, block: seg.unicodeScalars.first(where: { $0.value >= 0x900 && $0.value < 0xB00 }).map { $0.value & ~0x7F } ?? 0x900) {
                                     spans.append(contentsOf: capped(seg, run, fitted.style))
                                 } else {
-                                    spans.append(contentsOf: capped(seg, run, leelawadeeLatin ? Self._arialUnicodeLatin(seg, base: joinedScaled(seg, style(kind))) : joinedScaled(seg, style(kind))))
+                                    spans.append(contentsOf: capped(seg, run, leelawadeeLatin ? Self._arialUnicodeLatin(seg, base: joinedScaled(seg, style(kind)), unit: theme.pixelsPerPoint * scale) : joinedScaled(seg, style(kind))))
                                 }
                                 ws = we
                             }
@@ -1358,7 +1358,7 @@ extension RichLayout {
                             plainPiece = !isIndic
                             let st = style(kind)
                             plainPiece = false
-                            spans.append(contentsOf: capped(piece, run, leelawadeeLatin ? Self._arialUnicodeLatin(piece, base: joinedScaled(piece, st)) : joinedScaled(piece, st)))
+                            spans.append(contentsOf: capped(piece, run, leelawadeeLatin ? Self._arialUnicodeLatin(piece, base: joinedScaled(piece, st), unit: theme.pixelsPerPoint * scale) : joinedScaled(piece, st)))
                         }
                     }
                     start = end
@@ -1378,7 +1378,7 @@ extension RichLayout {
                 }
                 // (Spaces between Devanagari words, in a run of its own: Word draws them in Leelawadee UI, 0.274 em, where our stand-in's are 0.22; dx2 fb94294e.)
                 if kind >= 0, aumsSpaces, text[start ..< end].allSatisfy({ $0 == " " }) {
-                    spans.append(contentsOf: capped(text[start ..< end], run, Self._leelaLatinStyle(text[start ..< end], base: joinedScaled(text[start ..< end], style(kind)))))
+                    spans.append(contentsOf: capped(text[start ..< end], run, Self._leelaLatinStyle(text[start ..< end], base: joinedScaled(text[start ..< end], style(kind)), unit: theme.pixelsPerPoint * scale)))
                     start = end
                     return
                 }
@@ -3542,11 +3542,12 @@ extension RichLayout {
     /// The style `base` with letter spacing that gives the piece Leelawadee UI's advances (`TamilAdvances.leela`, read from Word's prints; a
     /// character it lacks keeps the stand-in's width).
     @inline(never)
-    static func _leelaLatinStyle(_ w: Substring, base: TextStyle) -> TextStyle {
+    static func _leelaLatinStyle(_ w: Substring, base: TextStyle, unit: Double = 1) -> TextStyle {
         guard let px = base.fontSize, px > 0.5, base.fontWeight != .bold else { return base }
         var sum = 0.0, known = "", rest = false
         for u in w.unicodeScalars {
-            if u.value == 0x20 { sum += 0.274; known.unicodeScalars.append(u) }
+            // (Word sets Leelawadee UI's space, 561/2048 em, on the 600-dpi grid: 20.54 units at 9 pt print 21, 22.73 at 9.96 print 23, 25.2 at 11 print 25.)
+            if u.value == 0x20 { sum += (561.0 / 2048 * (px / unit) * 600 / 72).rounded() * 72 / 600 * unit / px; known.unicodeScalars.append(u) }
             else if let a = TamilAdvances.leela[u.value] { sum += a; known.unicodeScalars.append(u) }
             else { rest = true }
         }
