@@ -3446,6 +3446,14 @@ extension RichLayout {
                             RuleTrace.hit("word-indic-first-line-stands-on-its-face-ascent")
                             target = size * metrics.0
                             raisedTo = target
+                        } else if cs == "nirmala ui", size * metrics.0 < target - 0.01, _nikoshLettersOnlyLine(units, firstEnd, run, named, document) {
+                            // (A line of Bengali letters and spaces in Nikosh, a face Windows lacks: Word draws the letters in Nirmala UI
+                            // and stands the line on Nirmala's ascent, 1.079 em, not on Mangal's 1.241 that the paragraph's Latin face
+                            // gives the strut. dx2 bede0fbc's header lines and its "রিটার্ন রেজিস্টারের" rows: 2 pt (12 pt text) and
+                            // 1.6 pt (11 pt) higher in Word's print, a line with a bracket (Mangal) where ours was right.)
+                            RuleTrace.hit("word-nikosh-letters-line-stands-on-nirmala-ascent")
+                            target = size * metrics.0
+                            raisedTo = target
                         }
                     }
                     if kokilaOwn > 0, latinFloor > kokilaOwn + 0.01 {
@@ -3468,6 +3476,21 @@ extension RichLayout {
     func _atPageTopNegativeOffset(_ i: Int, _ image: ImageAttachment) -> Bool {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, let f = image.float, f.bandsPage, !f.wraps, f.verticalAlign == nil,
               f.verticalFrom == "paragraph", f.y < -2, i == 0, !floatsFrames, regionTopOnPage == nil else { return false }
+        return true
+    }
+}
+
+extension RichLayout {
+    /// The first line holds only Indic letters, spaces and joiners, and the run's Latin face is Nikosh.
+    @inline(never)
+    func _nikoshLettersOnlyLine(_ units: [UInt16], _ firstEnd: Int, _ run: Run, _ named: RichNamedStyle?, _ document: RichDocument) -> Bool {
+        let latin = (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
+        guard latin == "nikosh" else { return false }
+        for u in units[0 ..< min(firstEnd, units.count)] {
+            if u == 0x20 || u == 0x200B || u == 0x200C || u == 0x200D || u == 0x2060 || u == 0xA0 { continue }
+            if Self._isIndic(UInt32(u)), u != 0x964, u != 0x965 { continue }
+            return false
+        }
         return true
     }
 }
