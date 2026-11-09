@@ -5,6 +5,7 @@ usage: python3 test/tools/indic-cluster-direct-bn.py FACE [OUT]   FACE as embedd
 OUT (default /tmp/direct_bn_<FACE>.txt) gets Swift dictionary lines; also prints spread."""
 import pymupdf, glob, collections, statistics, sys
 FACE = sys.argv[1]
+AUTH = bool(__import__('os').environ.get('DIRECT_AUTHORED'))  # divide by the AUTHORED size (half points), not the PDF's rounded one (11 pt prints as 11.04)
 OUT = sys.argv[2] if len(sys.argv) > 2 else '/tmp/direct_bn_%s.txt' % FACE.replace(',', '_')
 res = collections.defaultdict(list)
 cons = lambda c: 0x995 <= ord(c) <= 0x9B9 or 0x9DC <= ord(c) <= 0x9DF or 0x985 <= ord(c) <= 0x994 or ord(c) == 0x9CE  # consonants, independent vowels, khanda ta
@@ -38,7 +39,7 @@ for f in glob.glob('/data/corpus-cache/staging/*/word-win/*-orig.pdf'):
                         while e < n and ch[e][1] and e not in starts: e += 1
                         x1 = min(c['origin'][0] for c, f, _ in ch[j:e])
                     else: x1 = ch[j][0]['origin'][0]
-                    res[txt].append((x1 - x0) / ch[i][2])
+                    res[txt].append((x1 - x0) / (round(ch[i][2] * 2) / 2 if AUTH else ch[i][2]))
 import unicodedata
 with open(OUT, 'w') as o:
     k = 0; seen = set()  # Swift String keys compare canonically: a duplicate traps the dictionary literal
