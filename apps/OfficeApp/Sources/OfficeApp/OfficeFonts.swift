@@ -2466,7 +2466,9 @@ enum OfficeFonts {
             malgun.baseline = 1.288
             // (Word sets Malgun's curly quotes at their own narrow widths, with no blank beside them:
             // kor-z17264683-7d8a4b's "‘필수 재료’로" steps 0.228 em at each single quote and 0.38 at a double one.)
-            let malgunQuotes: [UInt32: Double] = [0x2018: 0.228, 0x2019: 0.228, 0x201C: 0.38, 0x201D: 0.38]
+            let malgunQuotes: [UInt32: Double] = [0x2018: 0.228, 0x2019: 0.228, 0x201C: 0.38, 0x201D: 0.38,
+                                                  // (Malgun's corner brackets are proportional, read from f457e50c's print: 「 0.566, 」 0.577, 『 』 0.517 em.)
+                                                  0x300C: 0.566, 0x300D: 0.577, 0x300E: 0.517, 0x300F: 0.517]
             malgun.otherAdvances = malgunQuotes
             malgun.latinScale = 1.0
             malgun.latinClasses = nil
