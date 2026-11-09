@@ -1515,7 +1515,7 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
-                } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == ".", ch == ".", document.usesEastAsianLayout || !dotsAttached {
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, (before == "." && ch == ".") || (!document.usesEastAsianLayout && ((before == "." && ch == "…") || (before == "…" && (ch == "." || ch == "…")))), document.usesEastAsianLayout || !dotsAttached {
                     // (Not stops that follow a word's letters, in a file that sets no East Asian
                     // layout: bede0fbc's "নাম:" + 154 stops is one word, which Word sends down
                     // whole when it fits a line of its own, and parts only if it cannot.)
