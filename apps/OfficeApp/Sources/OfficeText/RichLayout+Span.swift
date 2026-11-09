@@ -2817,7 +2817,9 @@ extension RichLayout {
                 // 20 points — the first character's place is read by
                 // more than the offset map.)
                 if ["symbol", "wingdings", "wingdings 2", "wingdings 3"].contains(family.lowercased()) {
-                    leadChar.fontFamily = family
+                    // (Indic text keeps its own face in the box: Symbol's line stacks 1.6pt on
+                    // Kokila's, 24.8 against Word's 23.2 — hin-z18479909-61195a.)
+                    if !p.text.unicodeScalars.contains(where: { Self._isIndic($0.value) }) { leadChar.fontFamily = family }
                     // (At the level's own size where it says one: delins's
                     // 10pt Symbol bullets under 12pt Times make a 12.25pt
                     // line of the face, under the text's 13.8 — Word's line
