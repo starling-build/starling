@@ -1299,6 +1299,39 @@ extension RichLayout {
                     start = end
                     return
                 }
+                if kind >= 0, indic?.face == "shonar bangla", !(run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))), text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF }) {
+                    // (Shonar Bangla's own Bengali cluster widths, word by word: `ShonarAdvances`.)
+                    let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+                    let base = style(kind)
+                    for (piece, isIndic) in Self._splitIndicLatin(text[start ..< end]) {
+                        if isIndic, authored > 0.5 {
+                            var ws = piece.startIndex
+                            while ws < piece.endIndex {
+                                var we = ws
+                                let sp = piece[ws] == " "
+                                while we < piece.endIndex, (piece[we] == " ") == sp { we = piece.index(after: we) }
+                                let seg = piece[ws ..< we]
+                                if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: ShonarAdvances.regular, flatScale: Self._indicScale["shonar bangla"]?["B"] ?? 1, conjunctRatio: nil, block: 0x980) {
+                                    spans.append(contentsOf: capped(seg, run, fitted.style))
+                                } else if sp, let spaced = _shonarSpaced(seg, base: base, authored: authored) {
+                                    // (Word's own space, 0.2065 em from the print's subset, at the authored size: the old flat scale also shrank it to 2.27 pt of 2.88.)
+                                    spans.append(contentsOf: capped(seg, run, spaced))
+                                } else {
+                                    spans.append(contentsOf: capped(seg, run, joinedScaled(seg, style(kind))))
+                                }
+                                ws = we
+                            }
+                        } else if authored > 0.5, piece.allSatisfy({ $0 == " " }), let spaced = _shonarSpaced(piece, base: base, authored: authored) {
+                            spans.append(contentsOf: capped(piece, run, spaced))
+                        } else if authored > 0.5, piece.unicodeScalars.allSatisfy({ ShonarAdvances.regular[String($0)] != nil && $0.value < 0x980 }), let fitted = _clusterFitted(piece, base: base, authored: authored, table: ShonarAdvances.regular, flatScale: 1, conjunctRatio: nil, block: 0x980) {
+                            spans.append(contentsOf: capped(piece, run, fitted.style))
+                        } else {
+                            spans.append(contentsOf: capped(piece, run, joinedScaled(piece, style(kind))))
+                        }
+                    }
+                    start = end
+                    return
+                }
                 if kind >= 0, indic?.face == "nirmala ui", !(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased().hasPrefix("nirmala ui "), text[start ..< end].unicodeScalars.contains(where: { ($0.value >= 0x900 && $0.value <= 0x9FF) || ($0.value >= 0xA00 && $0.value <= 0xAFF) }),
                    !text[start ..< end].unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) {
                     // (Nirmala UI's own Devanagari cluster widths, word by word: `NirmalaAdvances`.)
@@ -2704,6 +2737,10 @@ extension RichLayout {
                     // the stand-in's, narrower, and the engine would find room the fit loop never counted. f0001d05 line 3.)
                     if ch == " ", kind >= 0, indic?.face == "kokila", kokilaLatin, let px = s.fontSize, px > 0.5, Self._indicLines["kokila"] != nil {
                         s = _kokilaLatinStyle(" ", base: s, px: px)
+                    } else if ch == " ", kind >= 0, indic?.face == "shonar bangla", !(run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))), let px = s.fontSize, px > 0.5 {
+                        // (Shonar Bangla's own space, 0.2065 em, for a space the fit cut out of its run.)
+                        let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+                        s = _indicSpaceStyle(base: s, spaceEm: 0.2065, unit: authored)
                     } else if ch == " ", kind >= 0, let face = indic?.face, face != "kokila",
                               let spaceEm = (face == "vrinda" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? 0.3125 : Self._indicSpace[face],
                               let px = s.fontSize, px > 0.5 {
@@ -3586,6 +3623,14 @@ extension RichLayout {
 }
 
 extension RichLayout {
+    @inline(never) func _shonarSpaced(_ w: Substring, base: TextStyle, authored: Double) -> TextStyle? {
+        let flat = base.copyWith(scaleX: 1)
+        let t = TextPainter(text: TextSpan(text: String(w), style: flat), textDirection: .ltr)
+        t.layout(minWidth: 0, maxWidth: 100_000)
+        defer { t.dispose() }
+        guard t.width > 0.01, !w.isEmpty else { return nil }
+        return flat.copyWith(letterSpacing: (flat.letterSpacing ?? 0) + (0.2065 * authored * Double(w.count) - t.width) / Double(w.count))
+    }
     /// The word set so its width is the sum of the face's per-cluster advances (`MangalAdvances.split`, any table), by letter spacing on the
     /// stand-in; clusters the table lacks keep the stand-in's width times `flatScale`. Nil where the table knows none of the word.
     @inline(never)
