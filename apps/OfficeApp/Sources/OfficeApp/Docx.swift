@@ -275,6 +275,34 @@ enum DocxFormat {
         }
     }
 
+    /// Ids of the footnotes that open a section whose footnotePr says
+    /// numRestart eachSect: Word numbers that section's notes from 1 again
+    /// (471e57de: the second section's note prints "1", ours "2").
+    @inline(never)
+    static func _footnoteRestartIDs(_ body: XNode) -> Set<Int> {
+        var out: Set<Int> = []
+        var first: Int? = nil
+        func close(_ sect: XNode?) {
+            guard sect != nil else { return }
+            if let f = first, sect?.first("w:footnotePr")?.first("w:numRestart")?["w:val"] == "eachSect" { out.insert(f) }
+            first = nil
+        }
+        func walk(_ n: XNode) {
+            if n.name == "w:footnoteReference", first == nil, let id = Int(n["w:id"] ?? "") { first = id }
+            if n.name == "w:p" {
+                for c in n.children where c.name != "w:pPr" { walk(c) }
+                close(n.first("w:pPr")?.first("w:sectPr"))
+                return
+            }
+            for c in n.children { walk(c) }
+        }
+        for c in body.children {
+            if c.name == "w:sectPr" { close(c); continue }
+            walk(c)
+        }
+        return out
+    }
+
     /// The share widths of `anchors`, on `sect`'s page. A header's or footer's
     /// are on the last section's (lo-9c6cc479's footer rule, 100% of the margins:
     /// 446.6pt in Word's print, the 468pt extent here).
@@ -932,6 +960,7 @@ enum DocxFormat {
         _reuseInlinePlaceholders(body)
         _bindCoreProperties(body, part: part)
         let notes = _Shared(kept: kept, rels: relInfo, rootNS: rootNS, part: part, contentType: contentType)
+        notes.footnoteRestarts = Self._footnoteRestartIDs(body)
         notes.bookmarkNames = Set(body.descendants("w:bookmarkStart").compactMap { $0["w:name"]?.lowercased() })
         // (Those of the other parts too, by their text: a reference into a
         // note or a header finds its name there.)
@@ -4949,6 +4978,8 @@ enum DocxFormat {
         /// The lists' levels as the file defines them, by `w:numId`.
         var listFormats: [String: [Int: ListLevelFormat]] = [:]
         fileprivate var seenFootnotes = 0, seenEndnotes = 0
+        /// Footnote ids that open a section whose footnotePr restarts the numbering (numRestart eachSect).
+        var footnoteRestarts: Set<Int> = []
         /// The number each footnote's mark was given in the body, by id;
         /// and, while a note's own text is read, its number for its
         /// `w:footnoteRef`.
@@ -5058,8 +5089,8 @@ enum DocxFormat {
             self.rels = rels; self.rootNS = rootNS; self.part = part; self.contentType = contentType
             for name in kept.keys { if let t = contentType(name) { keptTypes[name] = t } }
         }
-        func next(footnote: Bool) -> Int {
-            if footnote { seenFootnotes += 1; return seenFootnotes }
+        func next(footnote: Bool, id: Int = -1) -> Int {
+            if footnote { if footnoteRestarts.contains(id) { seenFootnotes = 0 }; seenFootnotes += 1; return seenFootnotes }
             seenEndnotes += 1; return seenEndnotes
         }
         /// Keeps the part at `path` and, through its rels, every part it reaches.
@@ -6933,7 +6964,7 @@ enum DocxFormat {
                         addText("\u{200B}", mark)
                         if !notes.inTextBox { if footnote { notes.customFootnotes.insert(id) } else { notes.customEndnotes.insert(id) } }
                     } else {
-                        let n = notes.next(footnote: footnote)
+                        let n = notes.next(footnote: footnote, id: id)
                         if footnote, !notes.inTextBox, notes.footnoteNumbers[id] == nil { notes.footnoteNumbers[id] = n }
                         if !footnote, !notes.inTextBox, notes.endnoteNumbers[id] == nil { notes.endnoteNumbers[id] = n }
                         addText(notes.label(n, footnote: footnote), mark)
