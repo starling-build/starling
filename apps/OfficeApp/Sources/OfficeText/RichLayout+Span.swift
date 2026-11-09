@@ -1287,7 +1287,7 @@ extension RichLayout {
                                 if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: NirmalaAdvances.table(bold: false), flatScale: 1, conjunctRatio: nil, block: seg.unicodeScalars.first(where: { $0.value >= 0x900 && $0.value < 0xB00 }).map { $0.value & ~0x7F } ?? 0x900) {
                                     spans.append(contentsOf: capped(seg, run, fitted.style))
                                 } else {
-                                    spans.append(contentsOf: capped(seg, run, joinedScaled(seg, style(kind))))
+                                    spans.append(contentsOf: capped(seg, run, leelawadeeLatin ? Self._leelaLatinStyle(seg, base: joinedScaled(seg, style(kind))) : joinedScaled(seg, style(kind))))
                                 }
                                 ws = we
                             }
@@ -1295,7 +1295,7 @@ extension RichLayout {
                             plainPiece = !isIndic
                             let st = style(kind)
                             plainPiece = false
-                            spans.append(contentsOf: capped(piece, run, joinedScaled(piece, st)))
+                            spans.append(contentsOf: capped(piece, run, leelawadeeLatin ? Self._leelaLatinStyle(piece, base: joinedScaled(piece, st)) : joinedScaled(piece, st)))
                         }
                     }
                     start = end
@@ -3394,7 +3394,8 @@ extension RichLayout {
         if starts.isEmpty { return 0 }
         if devanagari {
             RuleTrace.hit("word-devanagari-aums-marked-lines-add-to-the-paragraph")
-            return 0.36 * size
+            // (Real paragraph, dx2 31a0a560: 3 marked lines gave Word +11.1 pt after the paragraph, 1 marked line +3.6: per line, like Tamil.)
+            return 0.36 * size * Double(starts.count)
         }
         RuleTrace.hit("word-tamil-leelawadee-marked-lines-add-to-the-paragraph")
         return Double(starts.count) * 0.345 * size
@@ -3402,6 +3403,31 @@ extension RichLayout {
 }
 
 extension RichLayout {
+    /// A run whose complex face Windows lacks (Arial Unicode MS): Word draws its Latin letters, digits, punctuation and spaces in Leelawadee UI.
+    /// The style `base` with letter spacing that gives the piece Leelawadee UI's advances (`TamilAdvances.leela`, read from Word's prints; a
+    /// character it lacks keeps the stand-in's width).
+    @inline(never)
+    static func _leelaLatinStyle(_ w: Substring, base: TextStyle) -> TextStyle {
+        guard let px = base.fontSize, px > 0.5, base.fontWeight != .bold else { return base }
+        var sum = 0.0, known = "", rest = false
+        for u in w.unicodeScalars {
+            if u.value == 0x20 { sum += 0.274; known.unicodeScalars.append(u) }
+            else if let a = TamilAdvances.leela[u.value] { sum += a; known.unicodeScalars.append(u) }
+            else { rest = true }
+        }
+        if known.isEmpty { return base }
+        func measure(_ text: Substring, _ ls: Double) -> Double {
+            let t = TextPainter(text: TextSpan(text: String(text), style: base.copyWith(letterSpacing: ls)), textDirection: .ltr)
+            t.layout(minWidth: 0, maxWidth: 100_000)
+            defer { t.dispose() }
+            return t.width
+        }
+        let w0 = measure(w, 0)
+        guard w0 > 0.01 else { return base }
+        let n = max(1, Int((measure(w, 10) - w0) / 10 + 0.5))
+        let other = rest ? w0 - measure(Substring(known), 0) : 0
+        return base.copyWith(letterSpacing: (base.letterSpacing ?? 0) + (sum * px + other - w0) / Double(n))
+    }
     /// A run cut into maximal pieces of Indic letters (with their joiners) and of everything else.
     @inline(never)
     static func _splitIndicLatin(_ t: Substring) -> [(Substring, Bool)] {
