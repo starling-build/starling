@@ -468,6 +468,15 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(saved.contains("<w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:left w:w=\"108\" w:type=\"dxa\"/>"), saved)
     }
 
+    /// On/off elements (w:b, w:titlePg, w:rtl ...): present is on unless w:val
+    /// is false, 0 or off.
+    func testOnOffElementsHonourVal() {
+        XCTAssertFalse(DocxFormat._on(nil))
+        XCTAssertTrue(DocxFormat._on(XNode(name: "w:titlePg", attrs: [:])))
+        for v in ["true", "1", "on"] { XCTAssertTrue(DocxFormat._on(XNode(name: "w:b", attrs: ["w:val": v])), v) }
+        for v in ["false", "0", "off"] { XCTAssertFalse(DocxFormat._on(XNode(name: "w:b", attrs: ["w:val": v])), v) }
+    }
+
     func testHeaderFooterTabsAreThirds() throws {
         // A footer "name <right tab> Page N": the positional tab reads as
         // two tabs (left, centre, right thirds), and the thirds write back

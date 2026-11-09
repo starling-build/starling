@@ -1023,7 +1023,7 @@ enum DocxFormat {
             // kept whole and written back unless the text was edited; the
             // first-page and even-page ones, which the editor has no
             // field for, are kept always.
-            titlePage = sect.first("w:titlePg") != nil
+            titlePage = _on(sect.first("w:titlePg"))
             // The file's compatibility block, as it stands — including an
             // EMPTY one, which is Word's legacy (2003) layout mode and lays
             // text out measurably differently: drawing.docx wrapped tighter
@@ -2207,7 +2207,7 @@ enum DocxFormat {
                         // height and 0 without, where a 9.65 pt mark line held them.)
                         if paragraphs.count == first + 1, !children.contains(where: { $0.name == "w:tbl" }),
                            paragraphs[first].text.isEmpty, paragraphs[first].image == nil, paragraphs[first].inlineImages.isEmpty,
-                           tc.first("w:tcPr")?.first("w:hideMark") != nil,
+                           _on(tc.first("w:tcPr")?.first("w:hideMark")),
                            tr.first("w:trPr")?.first("w:trHeight")?["w:hRule"] != "exact" {
                             let v = (tr.first("w:trPr")?.first("w:trHeight")).flatMap { Double($0["w:val"] ?? "") } ?? 0
                             paragraphs[first].style.lineHeightPoints = max(v / 20, 0.05)
@@ -2475,7 +2475,7 @@ enum DocxFormat {
                     if !e.isEmpty { style.edges = e }
                 }
                 // Leading rows that repeat on every page: all of them.
-                var repeating = unwrapped(node, "w:tr").prefix { $0.first("w:trPr")?.first("w:tblHeader") != nil }.count
+                var repeating = unwrapped(node, "w:tr").prefix { _on($0.first("w:trPr")?.first("w:tblHeader")) }.count
                 // The style's conditional parts, as w:tblLook switches them
                 // on (attributes in 2010 files, bits of w:val in 2007's).
                 let cond = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableConds[$0] } ?? _Cond()
@@ -2742,7 +2742,7 @@ enum DocxFormat {
                                 let share = (w?["w:w"] ?? "").hasSuffix("%") ? v : v / 50
                                 if let had = shares[col], abs(had - share) > 0.01 { mixed = true }
                                 shares[col] = share
-                                if tc.first("w:tcPr")?.first("w:noWrap") != nil { noWrap.insert(col) }
+                                if _on(tc.first("w:tcPr")?.first("w:noWrap")) { noWrap.insert(col) }
                             } else if span > 1, w?["w:type"] == "pct", (style.cellSpacing ?? 0) == 0 {
                                 // (A cell across columns says nothing of any one.)
                             } else if w != nil, w?["w:type"] != "auto" { mixed = true }
@@ -5712,7 +5712,7 @@ enum DocxFormat {
                 markStyle = _charStyle(rPr, base: mark)
             }
             if markStyle?.hidden == true { style.markHidden = true }
-            if style.markHidden, pPr.first("w:rPr")?.first("w:specVanish") != nil { style.markSpecVanish = true }
+            if style.markHidden, _on(pPr.first("w:rPr")?.first("w:specVanish")) { style.markSpecVanish = true }
             style.mark = markStyle
             // The paragraph's own numbering, else its style's (a numbered
             // heading style: 65099's "1.1.1 Acronyms").
@@ -6694,7 +6694,7 @@ enum DocxFormat {
                 let runText = r.children.filter { $0.name == "w:t" }.map(\.text).joined()
                 // (A run flagged w:rtl whose text is digits and marks, no letters, is complex
                 // script too: Word sets heb-z5059159's "1" in the szCs 12, not the sz 11.)
-                let rtlRun = rPr.first("w:rtl") != nil && !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A }
+                let rtlRun = _on(rPr.first("w:rtl")) && !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A }
                 let complexSize = runText.unicodeScalars.contains {
                     (0x0590...0x08FF).contains($0.value) || (0xFB1D...0xFDFF).contains($0.value) || (0xFE70...0xFEFF).contains($0.value)
                         // (Devanagari, Bengali, Gurmukhi and Gujarati: 375919ba's sz 16 / szCs 14 prints at 14, Word's Mangal. Tamil and Telugu do not:
@@ -6715,7 +6715,7 @@ enum DocxFormat {
                 }
                 cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize, indicOnly: indicOnly)
                 // (The same where the weight comes from the PARAGRAPH style: dx2 f0001d05's Title (b, no bCs), a Kokila run with w:cs and no weight of its own, prints regular.)
-                if indicOnly, rPr.first("w:cs") != nil, rPr.first("w:b") == nil, rPr.first("w:bCs") == nil, !cs.bold,
+                if indicOnly, _on(rPr.first("w:cs")), rPr.first("w:b") == nil, rPr.first("w:bCs") == nil, !cs.bold,
                    let n = style.named, sheet[n]?.char.boldWithoutBCs == true { cs.off.insert(.bold) }
             }
             // (A page number kept in its result's look with \* MERGEFORMAT keeps its weight and
@@ -7608,6 +7608,12 @@ enum DocxFormat {
         return String(text)
     }
 
+    /// An on/off element: present counts as on unless w:val is false, 0 or off.
+    static func _on(_ node: XNode?) -> Bool {
+        guard let node = node else { return false }
+        return !_isOff(node)
+    }
+
     private static func _isOff(_ node: XNode) -> Bool {
         switch node["w:val"] {
         case "0", "false", "off": return true
@@ -7880,10 +7886,10 @@ enum DocxFormat {
             if let b = bCs { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }
             // (A run of Devanagari, Bengali, Gurmukhi or Gujarati letters only that carries the w:cs flag and states b with no bCs keeps the weight it inherited (a run without the flag, as in xd 77d6ca49's Nirmala UI, is bold): Word
             // prints dx2-class xd 745490897f9f's bold-marked Kokila words in regular Kokila.)
-            else if indicOnly, cs.bold, sawB ? !base.bold : cs.boldWithoutBCs, rPr.first("w:cs") != nil { cs.bold = false; if base.off.contains(.bold) { cs.off.insert(.bold) } else { cs.off.remove(.bold) } }
+            else if indicOnly, cs.bold, sawB ? !base.bold : cs.boldWithoutBCs, _on(rPr.first("w:cs")) { cs.bold = false; if base.off.contains(.bold) { cs.off.insert(.bold) } else { cs.off.remove(.bold) } }
             if !sawI, let i = iCs { cs.italic = i; if i { cs.off.remove(.italic) } else { cs.off.insert(.italic) } }
             // (The same for the slant: dx2 f0001d05's w:i + w:cs Kokila words (no iCs) print in upright Kokila, the face's regular widths.)
-            else if indicOnly, sawI, iCs == nil, cs.italic, !base.italic, rPr.first("w:cs") != nil { cs.italic = false; if base.off.contains(.italic) { cs.off.insert(.italic) } else { cs.off.remove(.italic) } }
+            else if indicOnly, sawI, iCs == nil, cs.italic, !base.italic, _on(rPr.first("w:cs")) { cs.italic = false; if base.off.contains(.italic) { cs.off.insert(.italic) } else { cs.off.remove(.italic) } }
             if !(complexSize ?? true) {}
             else if !sawSz, let z = szCs ?? cs.complexFontSize { cs.fontSize = z }
             // (A complex run that gives both sizes is set at szCs: the Arabic of ara-z4399437's even-page header, sz 9 / szCs 11, prints at 11.)
