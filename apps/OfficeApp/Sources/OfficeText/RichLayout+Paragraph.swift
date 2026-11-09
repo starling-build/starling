@@ -3155,9 +3155,11 @@ extension RichLayout {
         // 15.6pt pitches) under a 12pt 宋体 mark is three pitches in
         // Word's print — the break's two and the mark's one — where the
         // grid's strut set both lines two, and its page ran a pitch long.)
-        if theme.wordRules, style.mark != nil, p.text.unicodeScalars.last == "\n" || p.text.unicodeScalars.last == "\u{2028}",
+        if theme.wordRules, p.text.unicodeScalars.last == "\n" || p.text.unicodeScalars.last == "\u{2028}",
+           style.mark != nil || (RichTextTheme.wordWindowsPages && p.image == nil),
            style.lineHeightPoints == nil, case let lines = painter.computeLineMetrics(), lines.count >= 2, let last = lines.last {
-            let own = _markLineHeight(i, document)
+            // (A paragraph whose mark states nothing: its last line is the style's own, not the first run's.)
+            let own = style.mark != nil ? _markLineHeight(i, document) : _markLineHeight(i, document, using: CharStyle())
             if last.height - own > 0.5 { bodyHeight -= last.height - own }
         }
         _leadingBreakCut(i, p, painter, document, bodyHeight: &bodyHeight)
