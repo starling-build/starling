@@ -1253,7 +1253,7 @@ extension RichLayout {
                     return
                 }
                 if kind >= 0, let face = indic?.face, let spaceEm = (face == "vrinda" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? 0.3125 : Self._indicSpace[face], let px = style(kind).fontSize, px > 0.5,
-                   face == "mangal" || text[start ..< end].contains(Character(" ")) || text[start ..< end].contains(Character("\u{00A0}")) {
+                   face == "mangal" || (adjust.isEmpty ? text[start ..< end] : text[...]).contains(Character(" ")) || text[start ..< end].contains(Character("\u{00A0}")) {
                     // (Word's space is the face's own: Mangal 0.5 em against the stand-in's 0.26; the prints' gap between words, 5.5 pt against our 3.5 at 11 pt.)
                     let base = style(kind)
                     var spaceStyle: TextStyle? = nil
@@ -1288,11 +1288,7 @@ extension RichLayout {
                         if text[k] == " " || text[k] == "\u{00A0}" {
                             putWord(wordStart, k)
                             if spaceStyle == nil {
-                                let t = TextPainter(text: TextSpan(text: " ", style: base.copyWith(letterSpacing: 0)), textDirection: .ltr)
-                                t.layout(minWidth: 0, maxWidth: 100_000)
-                                let w0 = t.width
-                                t.dispose()
-                                spaceStyle = base.copyWith(letterSpacing: (base.letterSpacing ?? 0) + spaceEm * (mangalRegular ? authored : px) - w0)
+                                spaceStyle = _indicSpaceStyle(base: base, spaceEm: spaceEm, unit: mangalRegular ? authored : px)
                             }
                             spans.append(contentsOf: capped(text[k ..< text.index(after: k)], run, spaceStyle ?? base))
                             wordStart = text.index(after: k)
@@ -2708,6 +2704,12 @@ extension RichLayout {
                     // the stand-in's, narrower, and the engine would find room the fit loop never counted. f0001d05 line 3.)
                     if ch == " ", kind >= 0, indic?.face == "kokila", kokilaLatin, let px = s.fontSize, px > 0.5, Self._indicLines["kokila"] != nil {
                         s = _kokilaLatinStyle(" ", base: s, px: px)
+                    } else if ch == " ", kind >= 0, let face = indic?.face, face != "kokila",
+                              let spaceEm = (face == "vrinda" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? 0.3125 : Self._indicSpace[face],
+                              let px = s.fontSize, px > 0.5 {
+                        // (The same for the faces whose space is their own, Mangal, Vrinda, Utsaah: one path, `_indicSpaceStyle`.)
+                        let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+                        s = _indicSpaceStyle(base: s, spaceEm: spaceEm, unit: face == "mangal" ? authored : px)
                     }
                     if theme.wordRules, ch == "\u{00A0}" {
                         // (A no-break space's width on a word joiner after
@@ -3639,6 +3641,16 @@ extension RichLayout {
 }
 
 extension RichLayout {
+    /// A space at the face's own width (`spaceEm` of `unit`), as one letter spacing on the stand-in's space.
+    @inline(never)
+    func _indicSpaceStyle(base: TextStyle, spaceEm: Double, unit: Double) -> TextStyle {
+        let t = TextPainter(text: TextSpan(text: " ", style: base.copyWith(letterSpacing: 0)), textDirection: .ltr)
+        t.layout(minWidth: 0, maxWidth: 100_000)
+        let w0 = t.width
+        t.dispose()
+        return base.copyWith(letterSpacing: (base.letterSpacing ?? 0) + spaceEm * unit - w0)
+    }
+
     /// Kokila's own Latin, digits and space at their widths (`KokilaLatin`), as one letter spacing on the segment.
     @inline(never)
     func _kokilaLatinStyle(_ seg: Substring, base: TextStyle, px: Double) -> TextStyle {
