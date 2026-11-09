@@ -3549,13 +3549,16 @@ extension RichLayout {
 }
 
 extension RichLayout {
+    /// Hangul spellings of the Korean faces Windows itself ships (Word finds these: Malgun Gothic, Batang, Dotum, Gulim, Gungsuh and their variants).
+    static let _windowsHangulNamedFaces: Set<String> = ["맑은 고딕", "바탕", "바탕체", "돋움", "돋움체", "굴림", "굴림체", "궁서", "궁서체", "새굴림", "새돋움", "새바탕", "새궁서"]
     /// Whether the run's Latin face is a Hangul-named one the document's font table does not list (so Word's box has no alternate for it and draws its Latin in Yu Gothic).
     @inline(never)
     func _yuLatinOfMissingHangulFace(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument) -> Bool {
         guard document.readFromFile,
               let f = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)?.trimmingWhitespace().lowercased(), !f.isEmpty,
               f.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 }),
-              document.fontAlternates[f] == nil, document.fontCharsets[f] == nil else { return false }
+              document.fontAlternates[f] == nil, document.fontCharsets[f] == nil,
+              !Self._windowsHangulNamedFaces.contains(f) else { return false }
         return true
     }
 }
