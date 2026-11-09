@@ -2659,7 +2659,11 @@ enum DocxFormat {
                     return w == nil || w?["w:type"] == "auto"
                 }.count
                 if !cells.isEmpty, widthless * 2 > cells.count, !style.fixedLayout { style.autoCellWidths = true }
-                if !cells.isEmpty, widthless == cells.count, style.width == nil, !style.fixedLayout { style.contentFit = true }
+                // (A percentage-width table keeps the grid Word saved, which is Word's own fit; only an
+                // equal-split grid, as Pandoc writes, says nothing: zh-6d402586 and lo-2c85bb1477d36796 hold theirs.)
+                let gridCols = node.first("w:tblGrid")?.all("w:gridCol").compactMap { Double($0["w:w"] ?? "") } ?? []
+                let equalGrid = gridCols.count > 1 && (gridCols.max() ?? 0) - (gridCols.min() ?? 0) <= 2
+                if !cells.isEmpty, widthless == cells.count, style.width == nil, !style.fixedLayout, style.widthPercent == nil || equalGrid { style.contentFit = true }
                 // (… and one whose stated cells are whole columns of one
                 // width in twips, the rest auto: those columns keep their
                 // width and the others are fitted — zh-72da925e's rain
