@@ -3977,6 +3977,7 @@ extension RichLayout {
                 // off it, not only the line's top: zh-10eab555's contents
                 // line 17, which would reach into the issuing table, goes
                 // under it — and so to page 3 — in Word's print.)
+                var pushedByTableBand = false
                 if !tableBands.isEmpty {
                     // The lower half of grid leading is outside the text's
                     // collision extent. In 291f's page-anchored table controls,
@@ -4014,7 +4015,9 @@ extension RichLayout {
                             break
                         }
                         y = band.bottom; guardSteps += 1
+                        if band.owner < 0 { pushedByTableBand = true }
                     }
+                    if pushedByTableBand { y -= _tableBandSharedSpace(i, document) }
                 }
                 // (Not for an empty paragraph that only ends a section: it
                 // takes no room, and stays on the full page, as in Word's
@@ -5236,6 +5239,19 @@ extension RichLayout {
            document.paragraphs[above].style.sectionXML != nil { return 0 }
         let shared = min(_spacing(above, document).after, _spacing(i, document).before)
         return theme.wordRules ? shared : shared.rounded(.down)
+    }
+
+    /// A paragraph a page-anchored table's band pushes down stands its space
+    /// before less the space after of the paragraph above it (lab dbfl, Word
+    /// for Windows, dbd695fe: before 0/6/24 pt under an after of 6 stand
+    /// 0/0/18 pt below the table's foot; before 12 under after 0 and 12 stand
+    /// 12 and 0). Ours laid the whole before over the band.
+    @inline(never)
+    func _tableBandSharedSpace(_ i: Int, _ document: RichDocument) -> Double {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, i > 0, i < document.paragraphs.count,
+              document.paragraphs[i].cell == nil, document.paragraphs[i - 1].cell == nil,
+              !document.paragraphs[i].style.pageBreakBefore, i < _spaceBefore.count else { return 0 }
+        return max(0, min(_spaceBefore[i], _spacing(i - 1, document).after))
     }
 
     /// `_sharedSpace` in a cell: how much of cell paragraph `k`'s space
