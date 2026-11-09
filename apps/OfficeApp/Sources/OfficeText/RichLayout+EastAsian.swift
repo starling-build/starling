@@ -261,26 +261,6 @@ extension RichLayout {
         var pieces: [Piece] = []
         var start = 0           // painter offset
         let total = units.count + inserts.count
-        // (Walked by the lines' boundaries, and measured by the boxes
-        // of what is between them: the engine's count of lines is not
-        // the count of those where a space is set wider than it is.)
-        func boxes(_ from: Int, _ to: Int) -> Double {
-            guard to > from else { return 0 }
-            var w = 0.0
-            for box in probe.getBoxesForSelection(TextSelection(baseOffset: map.painter(from), extentOffset: map.painter(to - 1) + 1)) {
-                w += box.right - box.left
-            }
-            return w
-        }
-        func wideDot(_ k: Int) -> Bool { (units[k] == 0xB7 || units[k] == 0x30FB && !squeezesPauseRule) && k < ems.count && boxes(k, k + 1) >= ems[k] * 0.9 }
-        // (What `_span` put in before a character and the engine set
-        // on a line of its own: a word joiner as wide as an opening
-        // quote's blank. Its width goes with what follows it.)
-        var pending = 0.0
-        func endsOpening(_ g: Piece?) -> Bool {
-            guard let g, g.last > g.a, g.last < g.b else { return false }
-            return Self._openingUnits.contains(units[g.last - 1])
-        }
         // (Thai measured on the text laid out as one line: the probe at no
         // width parts "จั" after the consonant, whose box then measures
         // nothing — zh-6a4fc013's "คำถามที่ 9 ：การจัดสรร…" came to 77pt
@@ -305,6 +285,52 @@ extension RichLayout {
             guard let flat else { return 0 }
             if o >= total { return flat.width }
             return flat.getOffsetForCaret(TextPosition(offset: o), Rect.zero).dx
+        }
+        // (An Indic range measured on the one-line layout, between cluster boundaries: a boundary inside a cluster reads as the
+        // cluster's end, so the piece that opens a cluster takes its whole width and the pieces after it nothing.)
+        func indicBound(_ k: Int) -> Int {
+            var k = k
+            while k < units.count, let u = Unicode.Scalar(UInt32(units[k])), k > 0 {
+                let cont = u.properties.generalCategory == .nonspacingMark || u.properties.generalCategory == .spacingMark
+                    || u.value == 0x200C || u.value == 0x200D
+                    || (Unicode.Scalar(UInt32(units[k - 1])).map { $0.properties.canonicalCombiningClass.rawValue == 9 } ?? false)
+                if !cont { break }
+                k += 1
+            }
+            return k
+        }
+        func indicWidth(_ from: Int, _ to: Int) -> Double {
+            let a = indicBound(from), b = indicBound(to)
+            guard b > a else { return 0 }
+            return max(0, flatX(b >= units.count ? total : map.painter(b)) - flatX(map.painter(a)))
+        }
+        // (Walked by the lines' boundaries, and measured by the boxes
+        // of what is between them: the engine's count of lines is not
+        // the count of those where a space is set wider than it is.)
+        func boxes(_ from: Int, _ to: Int) -> Double {
+            guard to > from else { return 0 }
+            var w = 0.0
+            // (At no width the probe may part a cluster over several lines — "मैं" is a consonant on one and its signs on the next — and
+            // reports the whole cluster's width for each part, so the boxes summed read twice the cluster: "मैं" 8.45 pt where the engine
+            // sets it 4.225, "समझता" 24.92 against 20.05. An Indic range is therefore measured by the boxes of its cluster-opening
+            // characters only, each once.)
+            if flatUsable, units[from ..< to].contains(where: { $0 >= 0x0900 && $0 <= 0x0DFF })
+                || (flatUsable && from > 0 && units[from - 1] >= 0x0900 && units[from - 1] <= 0x0DFF && units[from ..< to].allSatisfy({ $0 == 0x20 })) {
+                return indicWidth(from, to)
+            }
+            for box in probe.getBoxesForSelection(TextSelection(baseOffset: map.painter(from), extentOffset: map.painter(to - 1) + 1)) {
+                w += box.right - box.left
+            }
+            return w
+        }
+        func wideDot(_ k: Int) -> Bool { (units[k] == 0xB7 || units[k] == 0x30FB && !squeezesPauseRule) && k < ems.count && boxes(k, k + 1) >= ems[k] * 0.9 }
+        // (What `_span` put in before a character and the engine set
+        // on a line of its own: a word joiner as wide as an opening
+        // quote's blank. Its width goes with what follows it.)
+        var pending = 0.0
+        func endsOpening(_ g: Piece?) -> Bool {
+            guard let g, g.last > g.a, g.last < g.b else { return false }
+            return Self._openingUnits.contains(units[g.last - 1])
         }
         while start < total {
             let r = probe.getLineBoundary(TextPosition(offset: start))
@@ -340,7 +366,12 @@ extension RichLayout {
                 for box in probe.getBoxesForSelection(TextSelection(baseOffset: from, extentOffset: map.painter(last - 1) + 1)) {
                     probed += box.right - box.left
                 }
-                if flatUsable, Self._probeCannotMeasure(probed, units[a ..< last]) {
+                // (At no width the probe parts an Indic cluster over lines and gives each part the whole cluster's box, so a piece
+                // reads more than the engine sets it — "लेन-" 11.94 pt against 7.12 — and a line is called full a word early: the
+                // piece is measured on the one-line layout, between cluster boundaries, as `boxes` does.)
+                if flatUsable, units[a ..< last].contains(where: { $0 >= 0x0900 && $0 <= 0x0DFF }) {
+                    probed = indicWidth(a, last)
+                } else if flatUsable, Self._probeCannotMeasure(probed, units[a ..< last]) {
                     probed = max(0, flatX(map.painter(last - 1) + 1) - flatX(from))
                 }
                 lineWidth += probed
@@ -2286,6 +2317,30 @@ extension RichLayout {
             for c in alike { adjust[c, default: 0] += given / Double(alike.count) }
         }
         // (With the tabs' widths, which the paragraph is laid out by.)
+        if Self.debugWidthCheck {
+            // (STARLING_FIT_WIDTH_CHECK=1: where the fit loop's measure (the probe's cluster boxes, summed) and the engine's own line
+            // (the same text set on one line) part by more than half a point between two spaces: the first such word of the paragraph.)
+            let flat = TextPainter(text: span, textAlign: .left, textDirection: .ltr)
+            if !inline.isEmpty { flat.setPlaceholderDimensions(inline.map { $0.dimensions }) }
+            flat.layout(minWidth: 0, maxWidth: 1_000_000)
+            let pt = theme.pixelsPerPoint * scale
+            var reported = 0
+            var from = 0
+            for k in 1 ... units.count where k == units.count || units[k] == 0x20 {
+                defer { from = k + 1 }
+                guard k > from, reported < 40 else { continue }
+                let probed = boxes(from, k)
+                let bs = flat.getBoxesForSelection(TextSelection(baseOffset: map.painter(from), extentOffset: map.painter(k - 1) + 1))
+                guard let lo = bs.map({ $0.left }).min(), let hi = bs.map({ $0.right }).max() else { continue }
+                let gap = (probed - (hi - lo)) / pt
+                if abs(gap) > 0.5 {
+                    let word = String(String.UnicodeScalarView(units[from ..< k].compactMap { Unicode.Scalar(UInt32($0)) }))
+                    FileHandle.standardError.write(Data("FITW\t\(i)\t\(from)\t\(probed / pt)\t\((hi - lo) / pt)\t\(gap)\t\(word)\n".utf8))
+                    reported += 1
+                }
+            }
+            flat.dispose()
+        }
         guard !adjust.isEmpty else { return [:] }
         for (k, v) in tabs { adjust[k, default: 0] += v }
         return adjust

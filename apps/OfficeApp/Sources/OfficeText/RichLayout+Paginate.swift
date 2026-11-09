@@ -4797,6 +4797,7 @@ extension RichLayout {
     static let debugFit = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_FIT"]
     /// A machine-readable record of each over-the-margin decision in `_fitEastAsianLines`, to stderr: test/tools/fit-decisions.py joins them with Word's lines.
     static let debugFitLog = ProcessInfo.processInfo.environment["STARLING_FIT_LOG"] != nil
+    static let debugWidthCheck = ProcessInfo.processInfo.environment["STARLING_FIT_WIDTH_CHECK"] != nil
     /// `STARLING_RICHTEXT_ROWS=<page>`: each table row set on that page,
     /// to stderr (see `_paginate`).
     static let debugRows = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_ROWS"].flatMap { Int($0) }
