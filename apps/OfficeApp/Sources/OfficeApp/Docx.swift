@@ -7799,6 +7799,8 @@ enum DocxFormat {
             // prints dx2-class xd 745490897f9f's bold-marked Kokila words in regular Kokila.)
             else if indicOnly, sawB, cs.bold, !base.bold, rPr.first("w:cs") != nil { cs.bold = false; if base.off.contains(.bold) { cs.off.insert(.bold) } else { cs.off.remove(.bold) } }
             if !sawI, let i = iCs { cs.italic = i; if i { cs.off.remove(.italic) } else { cs.off.insert(.italic) } }
+            // (The same for the slant: dx2 f0001d05's w:i + w:cs Kokila words (no iCs) print in upright Kokila, the face's regular widths.)
+            else if indicOnly, sawI, iCs == nil, cs.italic, !base.italic, rPr.first("w:cs") != nil { cs.italic = false; if base.off.contains(.italic) { cs.off.insert(.italic) } else { cs.off.remove(.italic) } }
             if !(complexSize ?? true) {}
             else if !sawSz, let z = szCs ?? cs.complexFontSize { cs.fontSize = z }
             // (A complex run that gives both sizes is set at szCs: the Arabic of ara-z4399437's even-page header, sz 9 / szCs 11, prints at 11.)
