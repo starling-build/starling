@@ -3157,6 +3157,7 @@ extension RichLayout {
             let own = _markLineHeight(i, document)
             if last.height - own > 0.5 { bodyHeight -= last.height - own }
         }
+        _leadingBreakCut(i, p, painter, document, bodyHeight: &bodyHeight)
         // (Its own fraction too where its lines keep theirs: Word adds
         // its paragraphs' heights unrounded, and a page of one-line
         // paragraphs each rounded up stood a unit a paragraph long.)

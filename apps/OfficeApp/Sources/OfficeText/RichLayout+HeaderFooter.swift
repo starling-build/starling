@@ -1409,6 +1409,24 @@ extension RichLayout {
         return probe.height
     }
 
+    /// A paragraph that opens on a line break: the break's line is the height of the runs on it (the
+    /// break's own, as an empty mark's would be), not the paragraph-wide minimum the text under it
+    /// holds. dx2 17a0d0c7's Telugu paragraphs open on a `w:br` set in Arial: Word's line is 15.0 pt, ours
+    /// was Telugu's 17.3. The lines after it are painted that much higher, the box that much shorter.
+    @inline(never)
+    func _leadingBreakCut(_ i: Int, _ p: RichParagraph, _ painter: TextPainter, _ document: RichDocument, bodyHeight: inout Double) {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil, p.image == nil,
+              p.text.unicodeScalars.first == "\n", let run = p.runs.first?.style else { return }
+        let lines = painter.computeLineMetrics()
+        guard lines.count >= 2, let first = lines.first else { return }
+        let own = _markLineHeight(i, document, using: run)
+        let cut = first.height - own
+        guard own > 1, cut > 0.5 else { return }
+        RuleTrace.hit("leading-break-own-line")
+        bodyHeight -= cut
+        _inkShift[i] -= cut
+    }
+
     /// The single line of the tallest text run in paragraph `i` (no picture runs), or nil with no text.
     @inline(never)
     func _tallestTextLine(_ i: Int, _ document: RichDocument) -> Double? {
