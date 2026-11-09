@@ -6635,6 +6635,9 @@ enum DocxFormat {
                     for styled in chain { cs = _charStyle(styled, base: cs, complexText: complex, complexSize: complexSize, indicOnly: indicOnly) }
                 }
                 cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize, indicOnly: indicOnly)
+                // (The same where the weight comes from the PARAGRAPH style: dx2 f0001d05's Title (b, no bCs), a Kokila run with w:cs and no weight of its own, prints regular.)
+                if indicOnly, rPr.first("w:cs") != nil, rPr.first("w:b") == nil, rPr.first("w:bCs") == nil, !cs.bold,
+                   let n = style.named, sheet[n]?.char.boldWithoutBCs == true { cs.off.insert(.bold) }
             }
             // (A page number kept in its result's look with \* MERGEFORMAT keeps its weight and
             // loses the rest of it: lab pgf (Word for Windows, 2026-11-02) — an Arial Bold 15.5pt
@@ -7792,12 +7795,13 @@ enum DocxFormat {
             cs.keptXML = ["w:bdr", "w:w", "w:position", "w:fitText", "w:cs", "w:em", "w:lang", "w:eastAsianLayout", "w:snapToGrid"].compactMap { all[$0] }.joined()
         }
         if let z = szCs { cs.complexFontSize = z }
+        if bCs != nil { cs.boldWithoutBCs = false } else if sawB { cs.boldWithoutBCs = cs.bold }
         if complexText ?? cs.rightToLeft {
             // (A complex run's weight is its bCs even when the run also states b: af19d946's Heading3 run, b 0 / bCs, prints Devanagari in Nirmala UI Bold.)
             if let b = bCs { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }
             // (A run of Devanagari, Bengali, Gurmukhi or Gujarati letters only that carries the w:cs flag and states b with no bCs keeps the weight it inherited (a run without the flag, as in xd 77d6ca49's Nirmala UI, is bold): Word
             // prints dx2-class xd 745490897f9f's bold-marked Kokila words in regular Kokila.)
-            else if indicOnly, sawB, cs.bold, !base.bold, rPr.first("w:cs") != nil { cs.bold = false; if base.off.contains(.bold) { cs.off.insert(.bold) } else { cs.off.remove(.bold) } }
+            else if indicOnly, cs.bold, sawB ? !base.bold : cs.boldWithoutBCs, rPr.first("w:cs") != nil { cs.bold = false; if base.off.contains(.bold) { cs.off.insert(.bold) } else { cs.off.remove(.bold) } }
             if !sawI, let i = iCs { cs.italic = i; if i { cs.off.remove(.italic) } else { cs.off.insert(.italic) } }
             // (The same for the slant: dx2 f0001d05's w:i + w:cs Kokila words (no iCs) print in upright Kokila, the face's regular widths.)
             else if indicOnly, sawI, iCs == nil, cs.italic, !base.italic, rPr.first("w:cs") != nil { cs.italic = false; if base.off.contains(.italic) { cs.off.insert(.italic) } else { cs.off.remove(.italic) } }

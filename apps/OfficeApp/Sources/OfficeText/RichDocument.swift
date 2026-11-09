@@ -120,6 +120,8 @@ public struct CharOutline: Hashable, Sendable {
 
 public struct CharStyle: Hashable, Sendable {
     public var bold = false
+    /// Bold that came from w:b with no w:bCs on the style or run that set it (a complex-script run does not take it).
+    public var boldWithoutBCs = false
     public var italic = false
     public var underline = false
     public var strikethrough = false
