@@ -3387,7 +3387,9 @@ extension RichLayout {
         var target = target
         var raisedTo: Double?
         var latinFloor = 0.0
+        var markerFloor = false
         var kokilaOwn = 0.0
+        var kokilaLine = 0.0
                     let firstEnd = painter.getLineBoundary(TextPosition(offset: 0)).end - lead
                     let units = Array(p.text.utf16)
                     var start = 0
@@ -3399,7 +3401,7 @@ extension RichLayout {
                         if let size = _levelNumberSize(p, document) { marker.fontSize = size }
                         if let b = theme.baseline(for: marker, in: style, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) {
                             RuleTrace.hit("word-list-marker-face-raises-the-first-line")
-                            latinFloor = max(latinFloor, b)
+                            latinFloor = max(latinFloor, b); markerFloor = true
                         }
                     }
                     for run in p.runs where run.length > 0 {
@@ -3438,6 +3440,7 @@ extension RichLayout {
                             target = size * metrics.0
                             raisedTo = target
                             kokilaOwn = target
+                            kokilaLine = size * (metrics.0 + metrics.1)
                         } else if size * metrics.0 > target + 0.01 {
                             RuleTrace.hit("word-indic-first-line-stands-on-its-face-ascent")
                             target = size * metrics.0
@@ -3447,7 +3450,9 @@ extension RichLayout {
                     if kokilaOwn > 0, latinFloor > kokilaOwn + 0.01 {
                         // (Less what the engine's own first line already stands above Kokila's ascent: a paragraph whose strut is not forced grows the line itself.)
                         let given = max(0, (painter.computeLineMetrics().first.map { $0.baseline / max(0.0001, _px(1)) } ?? kokilaOwn) - kokilaOwn)
-                        let more = latinFloor - kokilaOwn - given
+                        // (A marker face of its own: the engine's own taller strut already grows the line by its multiple of the difference; only the rest is lifted.)
+                        let engineGrowth = markerFloor ? max(0, painter.height / max(0.0001, _px(1)) - Double(max(1, painter.computeLineMetrics().count)) * kokilaLine * max(1, style.lineSpacing)) : given
+                        let more = latinFloor - kokilaOwn - engineGrowth
                         if more > 0.01 { lift = max(lift, more) }
                         raisedTo = latinFloor
                     }
