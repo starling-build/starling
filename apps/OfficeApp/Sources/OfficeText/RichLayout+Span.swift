@@ -216,6 +216,7 @@ extension RichLayout {
         let koreanTokenJoins = theme.wordRules && RichTextTheme.wordWindowsPages ? Self._koreanTokenJoins(Array(p.text.utf16)) : []
         var before: Character? = nil
         var beforeBefore: Character? = nil
+        var dotsAttached = false   // the run of stops in hand follows a word's letter, with no space between
         // (Whether the plain spaces just before the character at hand
         // follow a no-break space: see the branch that joins them.)
         var spacesAfterNbsp = false
@@ -1459,6 +1460,11 @@ extension RichLayout {
                 // (One too long for any line Word parts wherever the
                 // line ends, starting where it stands: a zero-width
                 // space before each of its characters.)
+                if ch != "." { dotsAttached = false } else if before != "." { dotsAttached = before.map { b in
+                    // (Thai, Lao, Myanmar and Khmer are broken by dictionary, not by the letters' class: xd's Thai forms part their stops.)
+                    let v = b.unicodeScalars.first?.value ?? 0
+                    return (b.isLetter || b.isNumber || (b.unicodeScalars.first?.properties.generalCategory).map({ [.nonspacingMark, .spacingMark].contains($0) }) == true || b == ":") && !(v >= 0xE00 && v <= 0xEFF) && !(v >= 0x1000 && v <= 0x109F) && !(v >= 0x1780 && v <= 0x17FF)
+                } ?? false }
                 @inline(never) func _sblk0() {
                 if wideStarts.contains(offset) {
                     // (A word wider than the line opens a line of its own,
@@ -1499,7 +1505,10 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
-                } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == ".", ch == "." {
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == ".", ch == ".", document.usesEastAsianLayout || !dotsAttached {
+                    // (Not stops that follow a word's letters, in a file that sets no East Asian
+                    // layout: bede0fbc's "নাম:" + 154 stops is one word, which Word sends down
+                    // whole when it fits a line of its own, and parts only if it cannot.)
                     // (A run of stops parts between any two of them, and fills each
                     // line to capacity: zh-92373179 p11's dot leader row, where the
                     // engine held the run whole and Word sets 4 + 1. Lab dot-run:
