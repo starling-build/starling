@@ -2214,6 +2214,11 @@ extension RichLayout {
                         newPage()
                     }
                 }
+                // A table floating by the text and raised a little over its anchor, whose foot passes the footer's
+                // place, goes over with its anchor (lab ovl4: tblpY -53 twips, one row of 80pt at 699.4, foot 779.4
+                // against 777, goes to page 2 in Word's print; 76pt, foot 775.4, stays).
+                if theme.wordRules, RichTextTheme.wordWindowsPages, c.row == 0, c.firstInRow, y > 0.01, i == 0 || _cells[i - 1]?.table != c.table,
+                   _floatRaisedPastFoot(i, y: y, page: page, document) { newPage() }
                 // A table floating by the text straight after another that does,
                 // at an offset no higher than the first's, avoids it: it stands
                 // 21.5pt lower than the first's foot puts it — lab fs1 (Word for
@@ -5429,5 +5434,17 @@ extension RichLayout {
     func _floatFootLimit(_ i: Int, page: Int, _ document: RichDocument) -> Double {
         let setup = pageSetup(forPage: page / _columns)
         return _px(setup.height - setup.footerDistance) - _markLineHeight(i, document, single: true) - _bodyInsets(page: page / _columns, document).top
+    }
+}
+
+extension RichLayout {
+    @inline(never)
+    func _floatRaisedPastFoot(_ i: Int, y: Double, page: Int, _ document: RichDocument) -> Bool {
+        guard let c = _cells[i], let ts = document.tableStyles[c.table], ts.floatsOverText, ts.floatOffsetY == nil, !ts.pageAnchored,
+              let up = ts.floatRaiseY, _px(up) < _px(10) else { return false }
+        var height = 0.0, k = i
+        while k < count, let d = _cells[k], d.table == c.table { if d.firstInRow { height += d.ownRowHeight }; k += 1 }
+        let top = y - _px(up)
+        return top + height > _floatFootLimit(i, page: page, document) + 0.01
     }
 }
