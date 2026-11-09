@@ -2331,8 +2331,11 @@ extension RichLayout {
                 defer { from = k + 1 }
                 guard k > from, reported < 40 else { continue }
                 let probed = boxes(from, k)
-                let bs = flat.getBoxesForSelection(TextSelection(baseOffset: map.painter(from), extentOffset: map.painter(k - 1) + 1))
-                guard let lo = bs.map({ $0.left }).min(), let hi = bs.map({ $0.right }).max() else { continue }
+                // (The word's own width: the caret at its start to the caret at the space after it (or the line's end). Boxes of the word's
+                // last character left a trailing comma out and showed it as a 5.4 pt gap.)
+                let startX = flat.getOffsetForCaret(TextPosition(offset: map.painter(from)), Rect.zero).dx
+                let endX = k >= units.count ? flat.width : flat.getOffsetForCaret(TextPosition(offset: map.painter(k)), Rect.zero).dx
+                let hi = endX, lo = startX
                 let gap = (probed - (hi - lo)) / pt
                 if abs(gap) > 0.5 {
                     let word = String(String.UnicodeScalarView(units[from ..< k].compactMap { Unicode.Scalar(UInt32($0)) }))

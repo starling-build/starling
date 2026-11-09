@@ -1219,8 +1219,11 @@ extension RichLayout {
                     start = end
                     return
                 }
+                // (A word the fit's cut on a neighbouring space splits out of its run is still the run's: the cut makes a run of every space and
+                // word, and a word alone has no Latin to open this branch, so it fell to the flat scale and the engine found room the fit never
+                // counted. Only where there is a cut: a run of one word that is its own run, as Word has it, is as it was. f0001d05.)
                 if kind >= 0, indic?.face == "kokila", kokilaLatin, let px = style(kind).fontSize, px > 0.5, let m = Self._indicLines["kokila"],
-                   text[start ..< end].unicodeScalars.contains(where: { $0.value < 0x250 || $0.value == 0x2026 || $0.value == 0x201C || $0.value == 0x201D }) {
+                   (adjust.isEmpty ? text[start ..< end] : text[...]).unicodeScalars.contains(where: { $0.value < 0x250 || $0.value == 0x2026 || $0.value == 0x201C || $0.value == 0x201D }) {
                     // (Kokila's own Latin, digits and space: `KokilaLatin`; Devanagari stays on the flat scale.)
                     let base = style(kind)
                     var i = start
@@ -1231,20 +1234,7 @@ extension RichLayout {
                         while j < end, isLatin(text[j]) == latin { j = text.index(after: j) }
                         let seg = text[i ..< j]
                         if latin {
-                            var st = base.copyWith(scaleX: 1)
-                            let split = KokilaLatin.split(seg)
-                            if split.any {
-                                func measure(_ s: String, _ ls: Double) -> Double {
-                                    let t = TextPainter(text: TextSpan(text: s, style: st.copyWith(letterSpacing: ls)), textDirection: .ltr)
-                                    t.layout(minWidth: 0, maxWidth: 100_000)
-                                    defer { t.dispose() }
-                                    return t.width
-                                }
-                                let w0 = measure(String(seg), 0)
-                                let n = max(1, Int((measure(String(seg), 10) - w0) / 10 + 0.5))
-                                let other = split.rest ? w0 - measure(split.known, 0) : 0
-                                if w0 > 0.01 { st = st.copyWith(letterSpacing: (st.letterSpacing ?? 0) + (split.ems * px + other - w0) / Double(n)) }
-                            }
+                            let st = _kokilaLatinStyle(seg, base: base, px: px)
                             spans.append(contentsOf: capped(seg, run, st))
                         } else {
                             // (Kokila's own cluster widths where the table has the word: `KokilaAdvances`.)
@@ -2707,7 +2697,12 @@ extension RichLayout {
                     start = after
                 } else if extra != 0 {
                     flush(i)
-                    let s = style(kind)
+                    var s = style(kind)
+                    // (A space the fit gives to is set at Kokila's own width as every other space of the run is: split out of its run it would take
+                    // the stand-in's, narrower, and the engine would find room the fit loop never counted. f0001d05 line 3.)
+                    if ch == " ", kind >= 0, indic?.face == "kokila", kokilaLatin, let px = s.fontSize, px > 0.5, Self._indicLines["kokila"] != nil {
+                        s = _kokilaLatinStyle(" ", base: s, px: px)
+                    }
                     if theme.wordRules, ch == "\u{00A0}" {
                         // (A no-break space's width on a word joiner after
                         // it: the engine sets no spacing on the space
@@ -3634,5 +3629,27 @@ extension RichLayout {
         if a > 0, units[a - 1] == 0x20 || units[a - 1] == 0xA0 { return 0 }
         while b < units.count, adv(units[b]) != nil { b += 1 }
         return units[a ..< b].reduce(0.0) { $0 + (adv($1) ?? 0) } * size
+    }
+}
+
+extension RichLayout {
+    /// Kokila's own Latin, digits and space at their widths (`KokilaLatin`), as one letter spacing on the segment.
+    @inline(never)
+    func _kokilaLatinStyle(_ seg: Substring, base: TextStyle, px: Double) -> TextStyle {
+        var st = base.copyWith(scaleX: 1)
+        let split = KokilaLatin.split(seg)
+        if split.any {
+            func measure(_ s: String, _ ls: Double) -> Double {
+                let t = TextPainter(text: TextSpan(text: s, style: st.copyWith(letterSpacing: ls)), textDirection: .ltr)
+                t.layout(minWidth: 0, maxWidth: 100_000)
+                defer { t.dispose() }
+                return t.width
+            }
+            let w0 = measure(String(seg), 0)
+            let n = max(1, Int((measure(String(seg), 10) - w0) / 10 + 0.5))
+            let other = split.rest ? w0 - measure(split.known, 0) : 0
+            if w0 > 0.01 { st = st.copyWith(letterSpacing: (st.letterSpacing ?? 0) + (split.ems * px + other - w0) / Double(n)) }
+        }
+        return st
     }
 }
