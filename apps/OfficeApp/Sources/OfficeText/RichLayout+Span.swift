@@ -1262,7 +1262,9 @@ extension RichLayout {
                     // authored size, not the stand-in's enlarged one.)
                     let mangalBold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
                     let mangalRegular = face == "mangal"
-                    let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+                    // (Mangal's table is em of the size Word WRITES, on its 0.12 pt grid (11 pt is 11.04): at 600 dpi it sets the face at a whole ppem, so a 11 pt line
+                    // is 0.36% wider than exact. 9baed400's "…सम्पन्न भएको।" needs 7.6 pt of squeeze at 11.04, 6.75 at 11.0, and Word refused it.)
+                    let authored = Self._wordGridSize(run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize, snap: mangalRegular && theme.wordRules && RichTextTheme.wordWindowsPages) * theme.pixelsPerPoint * scale
                     func putWord(_ a: Substring.Index, _ b: Substring.Index) {
                         guard a < b else { return }
                         let w = text[a ..< b]
@@ -2746,7 +2748,7 @@ extension RichLayout {
                               let spaceEm = (face == "vrinda" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? 0.3125 : Self._indicSpace[face],
                               let px = s.fontSize, px > 0.5 {
                         // (The same for the faces whose space is their own, Mangal, Vrinda, Utsaah: one path, `_indicSpaceStyle`.)
-                        let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+                        let authored = Self._wordGridSize(run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize, snap: face == "mangal" && theme.wordRules && RichTextTheme.wordWindowsPages) * theme.pixelsPerPoint * scale
                         s = _indicSpaceStyle(base: s, spaceEm: spaceEm, unit: face == "mangal" ? authored : px)
                     }
                     if theme.wordRules, ch == "\u{00A0}" {
@@ -3718,4 +3720,12 @@ extension RichLayout {
         }
         return st
     }
+}
+
+extension RichLayout {
+    /// A point size on Word's 0.12 pt (600 dpi) grid, which is the size its PDF names and the one a hinted face's advances follow. Only upward:
+    /// at 10 pt (9.96) the shorter size let "कहा" onto hin-z10093577's first line where Word ends it at "प्रकृति": its advances round per glyph to the 0.12 pt
+    /// pixel, not by a flat scale, so a size below the exact one is left alone until a lab says how they round.
+    @inline(never)
+    static func _wordGridSize(_ pt: Double, snap: Bool) -> Double { snap && pt > 0 ? max(pt, (pt / 0.12).rounded() * 0.12) : pt }
 }

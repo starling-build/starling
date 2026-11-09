@@ -8,6 +8,7 @@
 
 enum MangalAdvances {
     static let advance: [String: Double] = [
+        "\u{930}\u{94D}\u{907}": 0.543,
         "\u{901}": 0.001,
         "\u{902}": 0.0058,
         "\u{903}": 0.302,
@@ -553,7 +554,11 @@ enum MangalAdvances {
         var i = 0
         while i < u.count {
             var j = i
-            if isConsonant(u[i].value, block: block) {
+            if block == 0x900, u[i].value == 0x930, i + 2 < u.count, u[i + 1].value == 0x94D, (0x905 ... 0x914).contains(u[i + 2].value) {
+                // (Reph over an independent vowel, "र्इ" as Nepali spells "ई": one cluster in Word's print, 0.543 em direct from 38 samples,
+                // where र, virama and इ apart give 1.009: 9baed400's "कार्यालयलार्इ" is 54.3 pt in Word, 59.3 split.)
+                j = i + 3
+            } else if isConsonant(u[i].value, block: block) {
                 while j < u.count, isConsonant(u[j].value, block: block) {
                     j += 1
                     if j < u.count, u[j].value == block + 0x3C { j += 1 }
