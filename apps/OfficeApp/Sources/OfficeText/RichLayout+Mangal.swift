@@ -532,20 +532,25 @@ enum MangalAdvances {
         return ratio * (a + b)
     }
 
-    static func split(_ word: Substring, bold: Bool = false, table: [String: Double]? = nil, conjunctRatio: Double? = 0.85) -> (ems: Double, known: String, rest: Bool)? {
+    /// Block-aware cluster tests (consonants +0x15...+0x39, nukta +0x3C, matras +0x3E...+0x4C and +0x01...+0x03, +0x62/+0x63, virama +0x4D);
+    /// for the Devanagari block they equal `isConsonant`/`isMatra` above.
+    static func isConsonant(_ v: UInt32, block b: UInt32) -> Bool { (b + 0x15 ... b + 0x39).contains(v) || (b == 0x900 && (0x958 ... 0x95F).contains(v)) }
+    static func isMatra(_ v: UInt32, block b: UInt32) -> Bool { (b + 0x3E ... b + 0x4C).contains(v) || (b + 0x01 ... b + 0x03).contains(v) || v == b + 0x62 || v == b + 0x63 }
+
+    static func split(_ word: Substring, bold: Bool = false, table: [String: Double]? = nil, conjunctRatio: Double? = 0.85, block: UInt32 = 0x900) -> (ems: Double, known: String, rest: Bool)? {
         let advance = table ?? Self.advance
         let u = Array(word.unicodeScalars)
         var sum = 0.0, known = String.UnicodeScalarView(), rest = false, any = false
         var i = 0
         while i < u.count {
             var j = i
-            if isConsonant(u[i].value) {
-                while j < u.count, isConsonant(u[j].value) {
+            if isConsonant(u[i].value, block: block) {
+                while j < u.count, isConsonant(u[j].value, block: block) {
                     j += 1
-                    if j < u.count, u[j].value == 0x93C { j += 1 }
-                    if j + 1 < u.count, u[j].value == 0x94D, isConsonant(u[j + 1].value) { j += 1 } else { break }
+                    if j < u.count, u[j].value == block + 0x3C { j += 1 }
+                    if j + 1 < u.count, u[j].value == block + 0x4D, isConsonant(u[j + 1].value, block: block) { j += 1 } else { break }
                 }
-                while j < u.count, isMatra(u[j].value) { j += 1 }
+                while j < u.count, isMatra(u[j].value, block: block) { j += 1 }
             } else {
                 j = i + 1
             }

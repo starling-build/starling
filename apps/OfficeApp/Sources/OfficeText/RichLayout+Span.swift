@@ -1249,7 +1249,7 @@ extension RichLayout {
                     start = end
                     return
                 }
-                if kind >= 0, indic?.face == "nirmala ui", text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value <= 0x97F }),
+                if kind >= 0, indic?.face == "nirmala ui", !(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased().hasPrefix("nirmala ui "), text[start ..< end].unicodeScalars.contains(where: { ($0.value >= 0x900 && $0.value <= 0x9FF) || ($0.value >= 0xA00 && $0.value <= 0xAFF) }),
                    !text[start ..< end].unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) {
                     // (Nirmala UI's own Devanagari cluster widths, word by word: `NirmalaAdvances`.)
                     let nBold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
@@ -1264,7 +1264,7 @@ extension RichLayout {
                                 let sp = piece[ws] == " "
                                 while we < piece.endIndex, (piece[we] == " ") == sp { we = piece.index(after: we) }
                                 let seg = piece[ws ..< we]
-                                if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: NirmalaAdvances.table(bold: false), flatScale: 1, conjunctRatio: nil) {
+                                if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: NirmalaAdvances.table(bold: false), flatScale: 1, conjunctRatio: nil, block: seg.unicodeScalars.first(where: { $0.value >= 0x900 && $0.value < 0xB00 }).map { $0.value & ~0x7F } ?? 0x900) {
                                     spans.append(contentsOf: capped(seg, run, fitted.style))
                                 } else {
                                     spans.append(contentsOf: capped(seg, run, joinedScaled(seg, style(kind))))
@@ -3448,8 +3448,8 @@ extension RichLayout {
     /// The word set so its width is the sum of the face's per-cluster advances (`MangalAdvances.split`, any table), by letter spacing on the
     /// stand-in; clusters the table lacks keep the stand-in's width times `flatScale`. Nil where the table knows none of the word.
     @inline(never)
-    func _clusterFitted(_ w: Substring, base: TextStyle, authored: Double, table: [String: Double], flatScale: Double, conjunctRatio: Double? = 0.85) -> (style: TextStyle, flat: TextStyle)? {
-        guard let split = MangalAdvances.split(w, table: table, conjunctRatio: conjunctRatio) else { return nil }
+    func _clusterFitted(_ w: Substring, base: TextStyle, authored: Double, table: [String: Double], flatScale: Double, conjunctRatio: Double? = 0.85, block: UInt32 = 0x900) -> (style: TextStyle, flat: TextStyle)? {
+        guard let split = MangalAdvances.split(w, table: table, conjunctRatio: conjunctRatio, block: block) else { return nil }
         let flat = base.copyWith(scaleX: 1)
         func measure(_ s: String, _ ls: Double) -> Double {
             let t = TextPainter(text: TextSpan(text: s, style: flat.copyWith(letterSpacing: ls)), textDirection: .ltr)
