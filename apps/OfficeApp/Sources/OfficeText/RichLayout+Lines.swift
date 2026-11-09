@@ -1437,6 +1437,21 @@ extension RichLayout {
             let size = _px(markerChar.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * fontScale
             markerStyle = markerStyle.copyWith(letterSpacing: (markerStyle.letterSpacing ?? 0) + em * size - _glyphWidth(markerStyle, ch))
         }
+        // A Symbol bullet, drawn as "•" by a stand-in, is Symbol's dot:
+        // 0.46 em wide with a dot 0.36 em across in Word's prints (dx2
+        // 037d73e3, 01f0eb3c: ink 4.0 and 4.2 pt at 11 and 12 pt, where
+        // Liberation Sans' bullet, 0.35 em wide, gives 3.0 and 3.2); the
+        // stand-in's glyph at 1.3 times the size has both.
+        var symbolDot = false
+        var markerStrut = strut
+        if theme.wordRules, label == "\u{2022}", _levelNumberFonts(p, document).latin?.lowercased() == "symbol", let fs = markerStyle.fontSize {
+            RuleTrace.hit("word-symbol-bullet-at-symbols-dot-size")
+            markerStyle = markerStyle.copyWith(fontSize: fs * 1.3)
+            symbolDot = true
+            // (The dot is set bigger on the same baseline: the strut at the
+            // level's own size keeps the line where it stood.)
+            if strut == nil { markerStrut = StrutStyle(fontFamily: markerStyle.fontFamily, fontSize: fs, forceStrutHeight: true) }
+        }
         // Its Latin characters in the Latin face all the same — the
         // number's own (its level's `w:rFonts`, else the paragraph
         // mark's), whatever the hint: the "1" of zh-06c46ba9's "（1）" is
@@ -1457,10 +1472,11 @@ extension RichLayout {
         // and 0.241 a stop in Word's print, ending under the 96pt default
         // stop, where the stand-in's own widths ran it 3.7pt past and the
         // text went on to the indent, a character a line fewer.)
-        let latinStyle = theme.wordRules && label.contains(where: latinChar)
+        var latinStyle = theme.wordRules && label.contains(where: latinChar)
             ? (ea ? theme.textStyle(for: markerChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: false, gridPitch: pitch)
                 : markerStyle)
             : nil
+        if symbolDot, ea, let ls = latinStyle, let fs = ls.fontSize { latinStyle = ls.copyWith(fontSize: fs * 1.3) }
         // (At the face's own advances, as the text's spans are set: the
         // stand-in's glyph widened or narrowed to the width the face
         // gives the character.)
@@ -1546,7 +1562,7 @@ extension RichLayout {
             }
             span = clamped(span, nil) as? TextSpan ?? span
         }
-        let marker = TextPainter(text: span, textAlign: .left, textDirection: .ltr, strutStyle: strut)
+        let marker = TextPainter(text: span, textAlign: .left, textDirection: .ltr, strutStyle: markerStrut)
         marker.layout(minWidth: 0, maxWidth: 100_000)
         return marker
     }
