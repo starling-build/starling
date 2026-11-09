@@ -15677,3 +15677,5 @@ TIP WATCH amd-8, round 312 (d56090b26, S+S; code 35319c2f1 Devanagari italic, c4
   - Outliers: Batang (supY .477, raise ~.45), TH SarabunPSK (supY .477, raise .30-.32).
   - Reading: raise ~ min(supY, ~0.355). Size ratio follows ySuperscriptYSize (0.65; Sylfaen/Palatino 0.60), as noted before.
   - Not yet coded. Needs a per-face supY table (we have no Word font files; values come from Word's embedded subsets). Garamond at 20 pt, Batang and SarabunPSK do not fit the min rule.
+
+- amd-1 (2026-11-09) LANDED 27150fcc1: a Devanagari-class run with w:cs and no weight of its own no longer takes bold from its PARAGRAPH style's b when that style has no bCs (f0001d05's Title: regular Kokila in Word, ours bold and 25% wider, so "लिए:" wrapped and 5 lines followed). f0001d05 29.8 to 100.0; dx2 Indic mean 71.8 to 72.7; no doc down; land.sh clean, no waivers. (CharStyle.boldWithoutBCs, Docx.swift run builder.)
