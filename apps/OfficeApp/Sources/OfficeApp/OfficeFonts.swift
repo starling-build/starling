@@ -1102,9 +1102,9 @@ enum OfficeFonts {
     /// line's extra: zh-8e8d4c40's "N、" labels lift their 標楷體 lines
     /// 0.72pt in Word for Windows, 0.66 at the 1.005 it had, and page 2
     /// took one line too many.)
-    private static let windowsMincho = EastAsianFace(height: 332.0 / 256, latin: cambria, latinScale: 1.0, fakeBold: true, baseline: 0.859375 + 0.15 - (1.3 - 332.0 / 256) / 2)
+    private static let windowsMincho = EastAsianFace(height: wordEastAsianLine(units: 256, upem: 256), latin: cambria, latinScale: 1.0, fakeBold: true, baseline: 0.859375 + 0.15 - (1.3 - wordEastAsianLine(units: 256, upem: 256)) / 2)
     /// The same face for Arial Unicode MS, whose Latin Word for Windows draws in Arial (4a21de: ArialMT in the print), not Cambria.
-    private static let windowsMinchoArialLatin = EastAsianFace(height: 332.0 / 256, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.859375 + 0.15 - (1.3 - 332.0 / 256) / 2)
+    private static let windowsMinchoArialLatin = EastAsianFace(height: wordEastAsianLine(units: 256, upem: 256), latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.859375 + 0.15 - (1.3 - wordEastAsianLine(units: 256, upem: 256)) / 2)
     /// What MS Mincho holds, as far as Shift_JIS (JIS X 0208) reaches —
     /// all of it Mincho's, though Mincho holds more (JIS X 0212): enough
     /// to tell 单, 总, 监 from 年, 月, 日. Nil where the encoding is not
@@ -1225,7 +1225,10 @@ enum OfficeFonts {
     // zh-884c6e3e's bold 16pt steps 16.645 where YaHei's step 16.325.)
     private static let arialUnicode = EastAsianFace(height: 1.742, latin: sans, latinScale: 1.0, fakeBold: true, boldWiden: 1.0 / 50,
                                                     baseline: 1.270)
-    private static let malgunHeight = 1.729
+    /// Word's single line for an East Asian face: 1.3 x (ascent + descent), counted in the face's own font units and floored,
+    /// over units-per-em (MS Mincho 220+36 of 256 gives 332/256; Malgun 2724 of 2048 gives 3541/2048 = 1.729; Meiryo UI 2601 gives 3381/2048 = 1.651).
+    private static func wordEastAsianLine(units: Double, upem: Double) -> Double { (1.3 * units).rounded(.down) / upem }
+    private static let malgunHeight = wordEastAsianLine(units: 2724, upem: 2048)
     private static func isYaHeiLike(_ h: Double) -> Bool { h == yaHei.height || h == malgunHeight }
     private static let yaHei = EastAsianFace(height: 1.715, latin: sans, latinScale: 1.07, latinClasses: [0.985, 0.92, 1.027, 0.96],
                                              latinAdvances: yaHeiAdvances, latinBoldAdvances: yaHeiBoldAdvances,
@@ -2434,7 +2437,7 @@ enum OfficeFonts {
         if wordOnWindows, has("ms pgothic", "ｍｓ ｐゴシック", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝", "hgskyokashotai", "hgpkyokashotai", "hgkyokashotai") {
             RuleTrace.hit("ms-japanese-face-square-line")
             // (HG Kyokasho-tai is not on Word's machine: a91d8fed's runs print in MS Mincho, the document's East Asian default.)
-            var ms = EastAsianFace(height: 332.0 / 256, latin: has("mincho", "明朝", "kyokashotai") ? serif : sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375 - (1.3 - 332.0 / 256) / 2)
+            var ms = EastAsianFace(height: wordEastAsianLine(units: 256, upem: 256), latin: has("mincho", "明朝", "kyokashotai") ? serif : sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375 - (1.3 - wordEastAsianLine(units: 256, upem: 256)) / 2)
             // (Its Latin is MS Mincho's, fixed at half an em: a91d8fed's "ex." steps 5.3 pt a letter at 10.5 pt.)
             if has("kyokashotai") || (has("ms mincho", "ｍｓ 明朝") && !has("ms pmincho", "ｍｓ ｐ明朝")) { ms.latinAdvances = gulimCheAdvances; ms.latinBoldAdvances = gulimCheAdvances; ms.squareSymbols = true }
             // (MS PGothic is proportional: its kana, brackets and digits step narrower than an em, read from
@@ -2454,10 +2457,10 @@ enum OfficeFonts {
         // 10 pt 16.44, 10.5 pt 17.28/17.4, 11 pt 18.12/18.24; 1.64 left a 2 pt gap over 7 lines) where YaHei's 1.715 em gave 17.2.
         if wordOnWindows, has("meiryo ui") {
             var meiryo = yaHei
-            meiryo.height = 1.65
-            meiryo.baseline = 1.26 * 1.65 / 1.715 + 0.08
-            meiryo.boldHeight = 1.65
-            meiryo.boldBaseline = 1.2675 * 1.65 / 1.715 + 0.08
+            meiryo.height = wordEastAsianLine(units: 2601, upem: 2048)
+            meiryo.baseline = 1.26 * meiryo.height / 1.715 + 0.08
+            meiryo.boldHeight = meiryo.height
+            meiryo.boldBaseline = 1.2675 * meiryo.height / 1.715 + 0.08
             // (Its kana and marks are proportional: advances from the font itself, lab/metrics/Meiryo_UI.tsv;
             // f42177d2's "・・・" run steps half an em in Word.)
             meiryo.otherAdvances = [0x3000: 0.6641, 0x3001: 0.6641, 0x3002: 0.6641, 0x3008: 0.5000, 0x3009: 0.5000, 0x300A: 0.5000, 0x300B: 0.5000, 0x300C: 0.5000, 0x300D: 0.5000, 0x300E: 0.5000, 0x300F: 0.5000, 0x3010: 0.5000, 0x3011: 0.5000, 0x3014: 0.5000, 0x3015: 0.5000, 0x3041: 0.6367, 0x3042: 0.8164, 0x3043: 0.6602, 0x3044: 0.8164, 0x3045: 0.4727, 0x3046: 0.6392, 0x3047: 0.6289, 0x3048: 0.7852, 0x3049: 0.6602, 0x304A: 0.8164, 0x304B: 0.8164, 0x304C: 0.8164, 0x304D: 0.7539, 0x304E: 0.8008, 0x304F: 0.5039, 0x3050: 0.6289, 0x3051: 0.8164, 0x3052: 0.8164, 0x3053: 0.6914, 0x3054: 0.7695, 0x3055: 0.6914, 0x3056: 0.7695, 0x3057: 0.7227, 0x3058: 0.7227, 0x3059: 0.8477, 0x305A: 0.8477, 0x305B: 0.8477, 0x305C: 0.8477, 0x305D: 0.7461, 0x305E: 0.7969, 0x305F: 0.7852, 0x3060: 0.7852, 0x3061: 0.7617, 0x3062: 0.7852, 0x3063: 0.6289, 0x3064: 0.7852, 0x3065: 0.8164, 0x3066: 0.7852, 0x3067: 0.8164, 0x3068: 0.6289, 0x3069: 0.6289, 0x306A: 0.8555, 0x306B: 0.7852, 0x306C: 0.8477, 0x306D: 0.8867, 0x306E: 0.8164, 0x306F: 0.8555, 0x3070: 0.8555, 0x3071: 0.8555, 0x3072: 0.8164, 0x3073: 0.8320, 0x3074: 0.8320, 0x3075: 0.8164, 0x3076: 0.8164, 0x3077: 0.8164, 0x3078: 0.8164, 0x3079: 0.8164, 0x307A: 0.8164, 0x307B: 0.8555, 0x307C: 0.8555, 0x307D: 0.8555, 0x307E: 0.7539, 0x307F: 0.8867, 0x3080: 0.8164, 0x3081: 0.8164, 0x3082: 0.7617, 0x3083: 0.6914, 0x3084: 0.8477, 0x3085: 0.6602, 0x3086: 0.8555, 0x3087: 0.5977, 0x3088: 0.7539, 0x3089: 0.6914, 0x308A: 0.6289, 0x308B: 0.7617, 0x308C: 0.8867, 0x308D: 0.7617, 0x308E: 0.6914, 0x308F: 0.8477, 0x3090: 0.8555, 0x3091: 0.8555, 0x3092: 0.7539, 0x3093: 0.8164, 0x3094: 0.7666, 0x3095: 0.6719, 0x3096: 0.6758, 0x309B: 0.5000, 0x309C: 0.5000, 0x309D: 0.7344, 0x309E: 0.7344, 0x30A1: 0.5859, 0x30A2: 0.7539, 0x30A3: 0.5664, 0x30A4: 0.7227, 0x30A5: 0.5859, 0x30A6: 0.7422, 0x30A7: 0.5977, 0x30A8: 0.7539, 0x30A9: 0.6602, 0x30AA: 0.7656, 0x30AB: 0.7148, 0x30AC: 0.8008, 0x30AD: 0.8164, 0x30AE: 0.8320, 0x30AF: 0.6914, 0x30B0: 0.7695, 0x30B1: 0.7852, 0x30B2: 0.8164, 0x30B3: 0.6914, 0x30B4: 0.7695, 0x30B5: 0.8164, 0x30B6: 0.8320, 0x30B7: 0.8164, 0x30B8: 0.8320, 0x30B9: 0.7656, 0x30BA: 0.8164, 0x30BB: 0.8164, 0x30BC: 0.8320, 0x30BD: 0.7539, 0x30BE: 0.8008, 0x30BF: 0.6914, 0x30C0: 0.7227, 0x30C1: 0.7852, 0x30C2: 0.7852, 0x30C3: 0.5781, 0x30C4: 0.7344, 0x30C5: 0.8008, 0x30C6: 0.7656, 0x30C7: 0.8164, 0x30C8: 0.7070, 0x30C9: 0.7070, 0x30CA: 0.8008, 0x30CB: 0.7461, 0x30CC: 0.7227, 0x30CD: 0.8164, 0x30CE: 0.6602, 0x30CF: 0.8086, 0x30D0: 0.8477, 0x30D1: 0.8477, 0x30D2: 0.6523, 0x30D3: 0.7070, 0x30D4: 0.7383, 0x30D5: 0.6758, 0x30D6: 0.7539, 0x30D7: 0.7539, 0x30D8: 0.8164, 0x30D9: 0.8164, 0x30DA: 0.8164, 0x30DB: 0.8164, 0x30DC: 0.8164, 0x30DD: 0.8164, 0x30DE: 0.7539, 0x30DF: 0.5977, 0x30E0: 0.8164, 0x30E1: 0.6914, 0x30E2: 0.7539, 0x30E3: 0.6602, 0x30E4: 0.8164, 0x30E5: 0.6602, 0x30E6: 0.8164, 0x30E7: 0.5039, 0x30E8: 0.6289, 0x30E9: 0.6914, 0x30EA: 0.5859, 0x30EB: 0.8164, 0x30EC: 0.7539, 0x30ED: 0.7227, 0x30EE: 0.5820, 0x30EF: 0.7539, 0x30F0: 0.8164, 0x30F1: 0.8164, 0x30F2: 0.7070, 0x30F3: 0.7461, 0x30F4: 0.7852, 0x30F5: 0.5781, 0x30F6: 0.6602, 0x30F7: 0.7539, 0x30F8: 0.8838, 0x30F9: 0.9648, 0x30FA: 0.7070, 0x30FB: 0.5000, 0x30FC: 0.8164, 0x30FD: 0.7461, 0x30FE: 0.7461, 0xFF61: 0.5000, 0xFF62: 0.5000, 0xFF63: 0.5000, 0xFF64: 0.5000, 0xFF65: 0.5000, 0xFF66: 0.5000, 0xFF67: 0.5000, 0xFF68: 0.5000, 0xFF69: 0.5000, 0xFF6A: 0.5000, 0xFF6B: 0.5000, 0xFF6C: 0.5000, 0xFF6D: 0.5000, 0xFF6E: 0.5000, 0xFF6F: 0.5000, 0xFF70: 0.5000, 0xFF71: 0.5000, 0xFF72: 0.5000, 0xFF73: 0.5000, 0xFF74: 0.5000, 0xFF75: 0.5000, 0xFF76: 0.5000, 0xFF77: 0.5000, 0xFF78: 0.5000, 0xFF79: 0.5000, 0xFF7A: 0.5000, 0xFF7B: 0.5000, 0xFF7C: 0.5000, 0xFF7D: 0.5000, 0xFF7E: 0.5000, 0xFF7F: 0.5000, 0xFF80: 0.5000, 0xFF81: 0.5000, 0xFF82: 0.5000, 0xFF83: 0.5000, 0xFF84: 0.5000, 0xFF85: 0.5000, 0xFF86: 0.5000, 0xFF87: 0.5000, 0xFF88: 0.5000, 0xFF89: 0.5000, 0xFF8A: 0.5000, 0xFF8B: 0.5000, 0xFF8C: 0.5000, 0xFF8D: 0.5000, 0xFF8E: 0.5000, 0xFF8F: 0.5000, 0xFF90: 0.5000, 0xFF91: 0.5000, 0xFF92: 0.5000, 0xFF93: 0.5000, 0xFF94: 0.5000, 0xFF95: 0.5000, 0xFF96: 0.5000, 0xFF97: 0.5000, 0xFF98: 0.5000, 0xFF99: 0.5000, 0xFF9A: 0.5000, 0xFF9B: 0.5000, 0xFF9C: 0.5000, 0xFF9D: 0.5000, 0xFF9E: 0.5000, 0xFF9F: 0.5000]
@@ -2812,7 +2815,7 @@ enum OfficeFonts {
         // Keep its own Latin advances and the Windows metrics.)
         if wordOnMac, has("simhei", "黑体") {
             var face = square
-            face.height = 332.0 / 256
+            face.height = wordEastAsianLine(units: 256, upem: 256)
             face.baseline = 1.005 - (1.3 - face.height) / 2
             return face
         }
