@@ -3438,7 +3438,8 @@ extension RichLayout {
                         // (Less what the engine's own first line already stands above Kokila's ascent: a paragraph whose strut is not forced grows the line itself.)
                         let given = max(0, (painter.computeLineMetrics().first.map { $0.baseline / max(0.0001, _px(1)) } ?? kokilaOwn) - kokilaOwn)
                         let more = latinFloor - kokilaOwn - given
-                        if more > 0.01 { lift = max(lift, more); raisedTo = latinFloor }
+                        if more > 0.01 { lift = max(lift, more) }
+                        raisedTo = latinFloor
                     }
                         return raisedTo
     }
