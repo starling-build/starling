@@ -3402,6 +3402,7 @@ extension RichLayout {
                             // (A run of Latin letters on a Kokila line stands the line on its own face's baseline where that is the taller: dx2 cbb7ae39's
                             // "IRB" and "SS", Times New Roman 10 pt beside 10 pt Kokila, lab cb7: 9.3 pt above the baseline in Word's print, Kokila's 7.3.)
                             if text.unicodeScalars.contains(where: { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A }),
+                               (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() != "kokila",
                                let b = theme.baseline(for: run.style, in: style, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) { latinFloor = max(latinFloor, b) }
                             continue
                         }
