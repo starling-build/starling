@@ -1038,7 +1038,15 @@ enum DocxFormat {
                     keptCompat = PptxXML.serialize(compat)
                 }
             }
-            evenAndOddHeaders = part("word/settings.xml").map { String(decoding: $0, as: UTF8.self).containsSubstring("<w:evenAndOddHeaders") } ?? false
+            // (An on/off element: w:val="false" or "0" or "off" is off; 5ff3d0's
+            // settings say so, and every even page lost its header.)
+            evenAndOddHeaders = part("word/settings.xml").map { data -> Bool in
+                let xml = String(decoding: data, as: UTF8.self)
+                guard let at = xml.rangeOfSubstring("<w:evenAndOddHeaders") else { return false }
+                let rest = xml[at.upperBound...]
+                let tag = rest[..<(rest.firstIndex(of: ">") ?? rest.endIndex)]
+                return !["w:val=\"false\"", "w:val=\"0\"", "w:val=\"off\""].contains(where: { String(tag).containsSubstring($0) })
+            } ?? false
             for ref in sect.children where ref.name == "w:headerReference" || ref.name == "w:footerReference" {
                 // ("odd", which the format does not have, is the default
                 // to Word: 60293's "ODD_PAGE_HEADER" on its page 3.)
