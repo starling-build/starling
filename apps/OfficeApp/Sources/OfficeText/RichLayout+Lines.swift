@@ -138,7 +138,7 @@ extension RichLayout {
                 if let st = t.style, let fs = st.fontSize, let h = st.height, n > 0 {
                     let blank = text.unicodeScalars.allSatisfy { $0.properties.isWhitespace }
                     leaves.append(Leaf(range: at ..< at + n, size: fs, box: fs * h, family: st.fontFamily,
-                                       ascii: text.utf16.allSatisfy { $0 < 0x2E80 }, ideo: !blank && text.utf16.contains { $0 >= 0x2E80 }))
+                                       ascii: st.debugLabel != "yu-joiner" && text.utf16.allSatisfy { $0 < 0x2E80 }, ideo: !blank && text.utf16.contains { $0 >= 0x2E80 }))
                 } else { simple = false }
                 at += n
             }

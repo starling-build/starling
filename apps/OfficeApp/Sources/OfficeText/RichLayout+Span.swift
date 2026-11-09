@@ -1707,6 +1707,21 @@ extension RichLayout {
                 // step 23.2 in Word's print (1.680 em at 1.15 lines), ours 15.9. Which face: the run's complex-script one where
                 // Windows has it (Mangal; Kokila only in italic); the rest, Kokila regular and bold and Kalpurush, Word draws in
                 // Nirmala UI — hin-z18479909's 9942 regular Devanagari and ben-z17281487's Bengali are Nirmala in its prints.)
+                // (A Hangul-named Latin face Word's box lacks, with no font-table entry (22de7d's theme face 함초롬돋움): Word draws the Latin letters
+                // and digits in Yu Gothic and the Hangul in Malgun Gothic, so a line holding one takes Yu Gothic's deeper descent: 19.2 pt steps at 10 pt
+                // against 18.5. Each face drawn on a line feeds its own ascent and descent into the line's max.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, u >= 0x20, u < 0x250, ch.unicodeScalars.count == 1,
+                   !(before.map { ($0.unicodeScalars.first?.value ?? 0x3000) < 0x250 } ?? false), _yuLatinOfMissingHangulFace(run, named, document) {
+                    if devanagariStyles["missingHangulYu"] == nil {
+                        devanagariStyles["missingHangulYu"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: Self._indicLines["malgun gothic"]!.0, descent: 0.492)?.copyWith(debugLabel: "yu-joiner")
+                    }
+                    if let joiner = devanagariStyles["missingHangulYu"] ?? nil {
+                        RuleTrace.hit("word-missing-hangul-face-latin-is-yu-gothic-descent")
+                        flush(i)
+                        spans.append(TextSpan(text: "\u{2060}", style: joiner))
+                        inserts.append(offset)
+                    }
+                }
                 // (Tamil set in Noto Sans Tamil, a face Windows lacks: Word draws the letters in Nirmala UI but every digit, mark and Latin
                 // letter in Mangal, so a line holding one is Mangal's 1.680 em tall; a line of Tamil letters and spaces stays Nirmala's 1.33.
                 // xd c016493b: pitches 20.2 with a mark, 17.9 and 18.2 beside such a line, 16.0 without.)
@@ -3530,5 +3545,17 @@ extension RichLayout {
         let n = max(1, Int((measure(String(w), 10) - w0) / 10 + 0.5))
         let other = split.rest ? (w0 - measure(split.known, 0)) * flatScale : 0
         return (flat.copyWith(letterSpacing: (flat.letterSpacing ?? 0) + (split.ems * authored + other - w0) / Double(n)), flat)
+    }
+}
+
+extension RichLayout {
+    /// Whether the run's Latin face is a Hangul-named one the document's font table does not list (so Word's box has no alternate for it and draws its Latin in Yu Gothic).
+    @inline(never)
+    func _yuLatinOfMissingHangulFace(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument) -> Bool {
+        guard document.readFromFile,
+              let f = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)?.trimmingWhitespace().lowercased(), !f.isEmpty,
+              f.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 }),
+              document.fontAlternates[f] == nil, document.fontCharsets[f] == nil else { return false }
+        return true
     }
 }
