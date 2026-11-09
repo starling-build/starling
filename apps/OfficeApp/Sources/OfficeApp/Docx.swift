@@ -247,6 +247,26 @@ final class XNode {
 
 // MARK: - Docx
 
+/// The column widths (pt) every row of a table states in twips, when each row is whole
+/// single-span dxa cells of one width list; nil otherwise.
+@inline(never)
+func _statedCellColumns(_ node: XNode, count: Int) -> [Double]? {
+    var widths: [Double]? = nil
+    for tr in node.all("w:tr") {
+        var row: [Double] = []
+        for tc in tr.all("w:tc") {
+            let w = tc.first("w:tcPr")?.first("w:tcW")
+            guard w?["w:type"] == "dxa", let v = Double(w?["w:w"] ?? ""), v > 0, tc.first("w:tcPr")?.first("w:gridSpan") == nil,
+                  tr.first("w:trPr")?.first("w:gridBefore") == nil else { return nil }
+            row.append(v / 20)
+        }
+        if row.count != count { return nil }
+        if let f = widths { if f != row { return nil } } else { widths = row }
+    }
+    return widths
+}
+
+
 struct DocxDocument {
     var document: RichDocument
     var pageSetup: PageSetup?
@@ -2310,6 +2330,16 @@ enum DocxFormat {
                             tableColumns[id] = widths.map { $0 / total * gridTotal }
                         }
                     }
+                }
+                // (An auto-width table whose grid is an equal split, a converter's stand-in, while
+                // every row's cells state the same widths in twips: Word lays the columns out by those
+                // cells, not by the grid. jpn-z20806500-dacd38: a grid of 3427 x 3 under cells of
+                // 1728 / 6048 / 2304, its columns at 59.4 / 145.8 / 448.3 pt in Word's print.)
+                if let cols = tableColumns[id], cols.count > 1, (cols.max() ?? 0) - (cols.min() ?? 0) <= 0.1,
+                   node.first("w:tblPr")?.first("w:tblLayout")?["w:type"] != "fixed",
+                   (node.first("w:tblPr")?.first("w:tblW")?["w:type"] ?? "auto") == "auto",
+                   let cw = _statedCellColumns(node, count: cols.count) {
+                    tableColumns[id] = cw
                 }
                 // (A fixed table of a stated share whose cells all state widths, each row the
                 // same, a little under its grid: Word rules the cells' widths, not the grid.
