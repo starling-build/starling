@@ -3716,9 +3716,9 @@ enum DocxFormat {
             let own = normal?.first("w:rPr")?.first("w:lang")
             let defaults = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:lang")
             // (`RichDocument.joinsHanAfterSpace`.)
-            let defaultEastAsia = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:rFonts")?["w:eastAsiaTheme"]
-            document.joinsHanAfterSpace = document.compatibilityMode == nil
-                && ["minorHAnsi", "majorHAnsi", "minorAscii", "majorAscii"].contains(defaultEastAsia ?? "")
+            // (Not a file of East Asian layout (useFELayout): WPS and Word's
+            // Chinese files, 60 zh documents of the 756 set, keep a Han run whole.)
+            document.joinsHanAfterSpace = document.compatibilityMode == nil && document.usesEastAsianLayout != true
             if let own, let defaults {
                 document.defaultLangXML = PptxXML.serialize(XNode(name: own.name, attrs: defaults.attrs.merging(own.attrs) { _, mine in mine }))
             } else if let lang = own ?? defaults {
