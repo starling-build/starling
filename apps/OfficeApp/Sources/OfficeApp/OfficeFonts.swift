@@ -3316,6 +3316,13 @@ enum OfficeFonts {
         guard let family else { return nil }
         if let alt = macTableAlternate(family) { return standInFace(alt, eastAsian: eastAsian) }
         let own = isEastAsianFace(family)
+        // (A face Windows lacks whose font table names Malgun Gothic as the alternate: Word draws its Latin letters, digits and
+        // spaces in Malgun Gothic, a 0.35 em space where Liberation Sans' is 0.28. dx2 e86e26f7, Siyam Rupali: 71.7 to 78.3.)
+        if wordOnWindows, !own, !eastAsian, !isEmbedded(family), family.trimmingWhitespace().lowercased() != "malgun gothic",
+           fontEntry(family)?.alt?.trimmingWhitespace().lowercased() == "malgun gothic" {
+            RuleTrace.hit("missing-face-with-malgun-alternate-latin-is-malgun")
+            return standInFace("Malgun Gothic", eastAsian: false)
+        }
         guard own || eastAsian else {
             // (A Latin-named face Word for Windows lacks, whose font-table
             // entry says charset 80 (Shift-JIS) and alternate Times New
