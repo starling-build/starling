@@ -1113,6 +1113,11 @@ enum OfficeFonts {
             guard let scalar = Unicode.Scalar(u) else { continue }
             if encodesInShiftJIS(scalar) { out.insert(u) }
         }
+        // The wave dash 〜 (JIS X 0208 row 1) is MS Mincho's, but Foundation's .shiftJIS
+        // table (code page 932's) has only the full-width tilde for it, so it was taken for
+        // a character Mincho lacks and put the line on JhengHei's 1.73 em
+        // (jpn-z17607492-12a6ce: 20.7 pt lines where Word's are 15.6).
+        out.insert(0x301C)
         return out.isEmpty ? nil : out
     }()
     /// Whether code page 932 holds the character — the table Foundation's

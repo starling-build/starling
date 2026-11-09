@@ -1,4 +1,4 @@
-188 documents: COMBINED mean 60.61% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 60.61% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
+188 documents: COMBINED mean 61.69% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 61.69% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
   11.9%  lines 370/368  pages 13/13  ara-z10840115-a1e854
    2.1%  lines 664/802  pages 27/26  ara-z11030406-663296
   13.5%  lines 111/112  pages 8/8  ara-z15699863-842f1e
@@ -111,9 +111,9 @@
   96.4%  lines 84/81  pages 3/3  jpn-g6-2212a2
   82.3%  lines 147/148  pages 7/8  jpn-z17350624-9bde52
    8.6%  lines 853/850  pages 32/32  jpn-z17544993-4a21de
-   5.7%  lines 404/404  pages 14/14  jpn-z17607492-12a6ce
+ 100.0%  lines 404/404  pages 14/14  jpn-z17607492-12a6ce
   98.1%  lines 106/106  pages 5/5  jpn-z18767990-11142e
-  24.6%  lines 240/244  pages 7/7  jpn-z18981562-5ff3d0
+  77.9%  lines 240/247  pages 7/7  jpn-z18981562-5ff3d0
   79.7%  lines 374/374  pages 12/12  jpn-z19126474-754366
   91.0%  lines 774/778  pages 38/38  jpn-z19135939-3f592b
    1.9%  lines 207/168  pages 8/8  jpn-z19171856-2c8799
@@ -131,9 +131,9 @@
   11.8%  lines 136/144  pages 4/4  jpn-z20806500-dacd38
  100.0%  lines 122/122  pages 4/4  jpn-z21095281-ed642d
   35.2%  lines 250/263  pages 11/11  jpn-z21461406-0d8cbc
-  50.0%  lines 966/973  pages 30/30  jpn-z21601833-463426
-  45.7%  lines 1084/1089  pages 33/33  jpn-z21601833-4e6465
-  53.3%  lines 1196/1194  pages 37/37  jpn-z21601833-acd729
+  75.5%  lines 966/965  pages 30/30  jpn-z21601833-463426
+  71.7%  lines 1084/1085  pages 33/33  jpn-z21601833-4e6465
+  57.4%  lines 1196/1192  pages 37/37  jpn-z21601833-acd729
   42.2%  lines 713/708  pages 22/22  jpn-z21601833-c2301a
   69.8%  lines 53/54  pages 3/3  jpn-z21971263-c098ef
   37.3%  lines 110/108  pages 5/5  jpn-z22306877-1047a4
