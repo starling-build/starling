@@ -1198,7 +1198,7 @@ enum OfficeFonts {
             let hangul = n.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 })
             let cs = e.charset.uppercased()
             guard cs == "81" || cs == "129" || hangul else { return "mincho" }
-            if faceHas(n, "헤드라인") { return "mincho" }
+            if faceHas(n, "헤드라인") { return "batang" }   // (lab tcfit1: Word prints HY헤드라인M in Batang)
             if (cs == "81" || cs == "129") && e.family == "roman" && !e.panoseZero { return "batang" }
             return "malgun"
         default: return "mincho"
@@ -2345,7 +2345,8 @@ enum OfficeFonts {
             case "mincho": return windowsMincho
             case "batang":
                 var face = eastAsianFace("Batang"); face.malgunSymbols = true
-                face.otherAdvances = [0x2018: 0.228, 0x2019: 0.228, 0x201C: 0.38, 0x201D: 0.38]
+                // (Its "·" is Batang's own, 0.333 em, read from lab tcfit1's print of HY헤드라인M.)
+                face.otherAdvances = [0x2018: 0.228, 0x2019: 0.228, 0x201C: 0.38, 0x201D: 0.38, 0xB7: 0.333]
                 return face
             case "malgun": return eastAsianFace("맑은 고딕")
             default: return eastAsianFace("Microsoft JhengHei")

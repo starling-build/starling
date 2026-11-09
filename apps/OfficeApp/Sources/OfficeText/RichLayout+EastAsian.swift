@@ -150,7 +150,7 @@ extension RichLayout {
         }
         let percentStarts = _percentStarts(document)
         // (Nor inside Han text `_span` joins: `_hanJoins`.)
-        let hanJoins = wordRules ? Self._hanJoins(p, document, fitChars: _hanFitChars(p, named: _named(p, document), textWidth: width)) : []
+        let hanJoins = wordRules ? Self._hanJoins(p, document, index: i, fitChars: _hanFitChars(p, named: _named(p, document), textWidth: width)) : []
         // (And Thai `_span` keeps together, one piece as the engine has it:
         // set apart, each letter was judged a word of its own — Word for
         // Mac's p17 heading of zh-6a4fc013, "…ใช้วิธีคำนวณ…ใช่หรือไม่?", is

@@ -162,7 +162,7 @@ extension RichLayout {
         // "ตอบ : 1." alone and the overlong stretch after it from the
         // next line's start. 61.2 -> 67.9 against word-win.)
         let thaiJoins = _thaiJoins(p, document, named: named, textWidth: textWidth, lead: lead)
-        let hanJoins = theme.wordRules ? Self._hanJoins(p, document, fitChars: _hanFitChars(p, named: named, textWidth: textWidth)) : []
+        let hanJoins = theme.wordRules ? Self._hanJoins(p, document, index: index, fitChars: _hanFitChars(p, named: named, textWidth: textWidth)) : []
         if p.text.isEmpty {
             // (The mark under a nested table at half a point:
             // `RichParagraphStyle.markUnderNestedTable`.)
@@ -750,7 +750,14 @@ extension RichLayout {
             // 110.5pt from the start; the run's own spacing and the grid's
             // addition are gone. Spaced to it here, through the style, so the
             // line fitter sees what is drawn.)
-            let fitGroup = theme.wordRules && RichTextTheme.wordWindowsPages ? Self._fitText(run.keptXML) : nil
+            // (A cell's `w:tcFitText`, Word for Windows, dx2 28dd0ac0 and lab
+            // tcfit1: a cell's line wider than the cell is kept on one line and
+            // spaced so it ends at the cell's edge (27.72 for 28.2 at 24pt in a
+            // 13684-twip cell); a line that fits is left as it is, not stretched.)
+            let tcFit = theme.wordRules && RichTextTheme.wordWindowsPages && textWidth > 1
+                && Self._tcFitParagraph(p, index, document)
+            let fitGroup = theme.wordRules && RichTextTheme.wordWindowsPages
+                ? (Self._fitText(run.keptXML) ?? (tcFit ? (textWidth / (theme.pixelsPerPoint * scale), "tc") : nil)) : nil
             var fitPitch: Double? = nil
             var fitBusy = false
             var plainPiece = false
@@ -766,15 +773,18 @@ extension RichLayout {
                 let units = Array(p.text.utf16)
                 for r in p.runs {
                     defer { at += r.length }
-                    guard Self._fitText(r.style.keptXML)?.id == g.id, at + r.length <= units.count else { continue }
+                    guard tcFit ? at + r.length <= units.count : (Self._fitText(r.style.keptXML)?.id == g.id && at + r.length <= units.count) else { continue }
                     let piece = String(decoding: units[at ..< at + r.length], as: UTF16.self)
                     lastLength = piece.count
                     for (k, ch) in piece.enumerated() {
                         // (A space the paragraph sets half an em wide
                         // (`wideSpaces`) is measured so, as it is painted:
                         // 6 pt at 12, not the stand-in's 3.3.)
-                        if ch == " ", wideSpaces.contains(at + k) {
+                        if ch == " ", tcFit || wideSpaces.contains(at + k) {
                             total += _glyphWidth(style(-1), "\u{5355}") / 2
+                        } else if tcFit, let u = ch.unicodeScalars.first?.value, u >= 0xAC00, u <= 0xD7A3 {
+                            // (A Hangul syllable is an em in Word's Korean faces, as it is drawn below.)
+                            total += _glyphWidth(style(-1), "\u{5355}")
                         } else {
                             total += _glyphWidth(style(RichLayout.isEastAsian(ch, hinted: hinted) ? -1 : 0), ch)
                         }
@@ -784,7 +794,8 @@ extension RichLayout {
                 let target = g.points * theme.pixelsPerPoint * scale
                 fitLastSingle = lastLength == 1
                 let gaps = lastLength == 1 ? count - 1 : count
-                var pitch = gaps > 0 ? (target - total) / Double(gaps) : 0
+                // (Word's line is 0.22 em short of the cell's width for tcFitText: lab tcfit1's four widths fit to 0.01pt.)
+                var pitch = gaps > 0 ? (target - total - (tcFit ? 0.22 * _glyphWidth(style(-1), "\u{5355}") : 0)) / Double(gaps) : 0
                 // (Word keeps the spacing in twips, rounding a spread up: zh-a4b0f6ea's
                 // 单位(盖章)：…年   月   日 wants 0.073pt and Word sets 0.10, so 日 ends
                 // 1.6pt past the group's width as Word's print does.)
@@ -792,6 +803,8 @@ extension RichLayout {
                     let unit = 0.05 * theme.pixelsPerPoint * scale
                     pitch = (pitch / unit - 1e-6).rounded(.up) * unit
                 }
+                if tcFit, pitch >= spacing * (doubles ? 2 : 1) - 1e-6 { fitNone = true; return nil }
+                // (Where the run spacing is taken twice (`doubles`), so is the pitch: Word's step is one pitch more than the glyph's.)
                 fitPitch = pitch
                 return pitch
             }

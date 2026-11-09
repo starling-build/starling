@@ -1626,9 +1626,9 @@ extension RichLayout {
     /// stretch after a space, to the next space or tab, that holds Han
     /// text — kept together, the engine breaking one longer than a line
     /// where it fills. Empty where the document does not say so.
-    static func _hanJoins(_ p: RichParagraph, _ document: RichDocument, fitChars: Int = Int.max) -> Set<Int> {
+    static func _hanJoins(_ p: RichParagraph, _ document: RichDocument, index: Int? = nil, fitChars: Int = Int.max) -> Set<Int> {
         guard RichTextTheme.wordWindowsPages else { return [] }
-        let fitJoined = _fitTextJoins(p)
+        let fitJoined = _fitTextJoins(p, index, document)
         guard document.joinsHanAfterSpace else { return fitJoined }
         let units = Array(p.text.utf16)
         func blank(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || u == 0x0A || u == 0x09 }
@@ -1658,8 +1658,24 @@ extension RichLayout {
     /// The offsets inside a `w:fitText` group (consecutive runs of one id): Word
     /// does not part a fitted group (9ba34429's "1学年" cell, 17.95pt of room for
     /// a group fitted to 18pt, stays one line in Word's print; ours wrapped the 年).
-    @inline(never) static func _fitTextJoins(_ p: RichParagraph) -> Set<Int> {
+    /// A cell with `w:tcFitText` fits its LAST paragraph only (lab tcfit1's two-paragraph cell and dx2 28dd0ac0: the paragraphs above
+    /// wrap as they are written, spaced and all).
+    static let _tcFitEnabled = false
+    @inline(never) static func _tcFitParagraph(_ p: RichParagraph, _ index: Int?, _ document: RichDocument) -> Bool {
+        // (OFF until the rule is settled: lab tcfit2 showed the title is not always the last paragraph, and three regimes.)
+        guard Self._tcFitEnabled, let cell = p.cell, cell.keptPropertiesXML?.containsSubstring("w:tcFitText") == true else { return false }
+        guard let i = index, i + 1 < document.paragraphs.count else { return true }
+        return document.paragraphs[i + 1].cell != cell
+    }
+
+    @inline(never) static func _fitTextJoins(_ p: RichParagraph, _ index: Int?, _ document: RichDocument) -> Set<Int> {
         var joins: Set<Int> = []
+        // (A cell with `w:tcFitText` fits its whole paragraph to the cell: one line, never parted; lab tcfit1, dx2 28dd0ac0.)
+        if _tcFitParagraph(p, index, document) {
+            let n = p.text.utf16.count
+            if n > 1 { for o in 1 ..< n { joins.insert(o) } }
+            return joins
+        }
         var at = 0
         var previousId: String? = nil
         for r in p.runs {
