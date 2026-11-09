@@ -1631,7 +1631,7 @@ extension RichLayout {
         let fitJoined = _fitTextJoins(p, index, document)
         guard document.joinsHanAfterSpace else { return fitJoined }
         let units = Array(p.text.utf16)
-        func blank(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || u == 0x0A || u == 0x09 }
+        func blank(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 }
         var joins: Set<Int> = []
         var k = 0
         while k < units.count {
@@ -1702,5 +1702,48 @@ extension RichLayout {
             if (0x0600 ... 0x06FF).contains(u.value) { arabic = true }
         }
         return arabic
+    }
+}
+
+extension RichLayout {
+    /// Word (a file naming no compatibility mode; lab jwrap) starts a long space- or "——"-delimited
+    /// piece on a fresh line when it does not fit the rest of the current one, then breaks inside it
+    /// as usual (kinsoku). Found from the first layout, with its real widths and indents: a piece that
+    /// starts mid-line and is cut by a line start inside it gets its first line's worth (the length
+    /// of the line that starts at the cut) joined, so the engine moves that chunk whole.
+    @inline(never)
+    func _hanPieceMoves(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, document.joinsHanAfterSpace, !p.text.isEmpty else { return }
+        for _ in 0 ..< 40 {
+            guard let painter = _painters[i], i < _inserts.count else { return }
+            let units = Array(p.text.utf16)
+            let starts = _lineStarts(painter, _OffsetMap(lead: _lead(i), inserts: _inserts[i]), count: units.count)
+            guard starts.count > 1 else { return }
+            let startSet = Set(starts)
+            func blank(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || u == 0x0A || u == 0x09 }
+            func dash(_ k: Int) -> Bool { k >= 1 && units[k] == 0x2014 && units[k - 1] == 0x2014 }
+            var add = Set<Int>()
+            var k = 1
+            while k < units.count {
+                // a piece starts after blanks or after a doubled dash
+                guard blank(units[k - 1]) || dash(k - 1) else { k += 1; continue }
+                var a = k
+                while a < units.count, blank(units[a]) { a += 1 }
+                var end = a, han = false
+                while end < units.count, !blank(units[end]) {
+                    if end > a, dash(end) { end += 1; break }
+                    if (0x3040 ... 0x30FF).contains(units[end]) || (0x3400 ... 0x9FFF).contains(units[end]) { han = true }
+                    end += 1
+                }
+                if han, a > 0, !startSet.contains(a), starts.contains(where: { $0 > a && $0 < end }) {
+                    if !(_hanChunks[i] ?? []).contains(a) { add.insert(a); break }
+                }
+                k = max(end, k + 1)
+            }
+            let have = _hanChunks[i] ?? []
+            if add.isSubset(of: have) { return }
+            _hanChunks[i] = have.union(add)
+            _layoutParagraphOnce(i, p, document)
+        }
     }
 }

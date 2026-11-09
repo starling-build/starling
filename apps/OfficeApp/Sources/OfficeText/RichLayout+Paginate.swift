@@ -5361,7 +5361,9 @@ extension RichLayout {
         let automatic = _autoHyphenPoints(p, document)
         _hyphenPoints[i] = automatic.isEmpty ? nil : automatic
         _trailCut[i] = nil
+        _hanChunks[i] = nil
         _layoutParagraphOnce(i, p, document)
+        _hanPieceMoves(i, p, document)
         _cutTrailingSpaces(i, p, document)
         // Soft hyphens (and the points automatic hyphenation may use): the
         // lines that end at one show a hyphen, which takes

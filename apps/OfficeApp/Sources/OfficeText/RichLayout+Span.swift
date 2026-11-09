@@ -1852,6 +1852,13 @@ extension RichLayout {
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
                 }
+                else if let breaks = index.flatMap({ _hanChunks[$0] }), breaks.contains(offset) {
+                    // (Word starts a long piece that does not fit the line's rest on a fresh line:
+                    // `_hanPieceMoves`.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\n", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                }
                 else if hanJoins.contains(offset) {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
