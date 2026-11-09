@@ -115,6 +115,16 @@ extension RichLayout {
     }
     /// Tamil (Word for Windows draws it in Nirmala UI, where the document's complex-script face is not Windows' own).
     static let _tamil: ClosedRange<UInt32> = 0x0B80 ... 0x0BFF
+    /// Word draws a missing complex-script face's letters in Nirmala UI but every mark, digit and Latin letter in Mangal (a line holding one is
+    /// Mangal's 1.680 em tall): Noto Sans Tamil in Tamil text; SolaimanLipi and Nikosh in Bengali text (xd 73caaeda: every line with a danda or comma
+    /// steps 20.2 pt, ours 16.0).
+    @inline(never) static func _markInMangal(_ face: String, _ text: Substring) -> Bool {
+        switch face.trimmingWhitespace().lowercased() {
+        case "noto sans tamil": return text.unicodeScalars.contains(where: { _tamil.contains($0.value) })
+        case "solaimanlipi", "nikosh": return text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF })
+        default: return false
+        }
+    }
     static func _isIndic(_ u: UInt32) -> Bool { _indic.contains(u) || _tamil.contains(u) }
 
     func _picturesTakeLines(_ p: RichParagraph, textWidth: Double) -> Bool {
@@ -1725,12 +1735,11 @@ extension RichLayout {
                 // (Tamil set in Noto Sans Tamil, a face Windows lacks: Word draws the letters in Nirmala UI but every digit, mark and Latin
                 // letter in Mangal, so a line holding one is Mangal's 1.680 em tall; a line of Tamil letters and spaces stays Nirmala's 1.33.
                 // xd c016493b: pitches 20.2 with a mark, 17.9 and 18.2 beside such a line, 16.0 without.)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, !Self._isIndic(u), !ch.isWhitespace,
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, !Self._isIndic(u) || u == 0x964 || u == 0x965, !ch.isWhitespace,
                    u != 0x200B, u != 0x200C, u != 0x200D, u != 0x2060, u != 0xFFFC,
                    !(before.map { !$0.isWhitespace && !($0.unicodeScalars.first.map { Self._isIndic($0.value) } ?? false) } ?? false),
-                   (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "")
-                       .trimmingWhitespace().lowercased() == "noto sans tamil",
-                   text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) }), let metrics = Self._indicLines["mangal"] {
+                   Self._markInMangal(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "", text),
+                   let metrics = Self._indicLines["mangal"] {
                     if devanagariStyles["mangal"] == nil {
                         devanagariStyles["mangal"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: metrics.0, descent: metrics.1)
                     }
