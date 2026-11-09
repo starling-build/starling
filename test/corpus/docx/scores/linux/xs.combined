@@ -1,4 +1,4 @@
-130 documents: COMBINED mean 80.93% (130 scored by Word's text lines, 0 by the visual comparison); pure line mean 80.93% over the 130 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
+130 documents: COMBINED mean 80.85% (130 scored by Word's text lines, 0 by the visual comparison); pure line mean 80.85% over the 130 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
   93.4%  lines 213/211  pages 5/5  00b709dd8a565101c9b6af40040e0d53f56e4d69fbb176f970c6d5f334050e0d
  100.0%  lines 158/158  pages 6/6  0228c619681895398de534ecf511809a6634c16532a536a06cf36c5901e2796f
  100.0%  lines 166/166  pages 4/4  02de04c8176a8de56fb76cb5e9d971ea77bd745779bea3c1f0a2b2f8dc3ac9de
@@ -51,7 +51,7 @@
  100.0%  lines 14/14  pages 2/2  5d7a3a56c3505ea8a930a1bf4bb7d5cff2079a93c83d0d0e74d9be2171ca73ae
   14.2%  lines 127/126  pages 3/3  5de0db4cc9e7ba011f65720f478d07cfcf523e669ed9542cc50423ac6dc63475
   55.3%  lines 152/152  pages 5/5  5e2af39727552910c274288a5721ebcf96f0192dcbe886a6cd64fc820ff1419d
-   2.5%  lines 353/438  pages 10/11  5ed52035e59d3e8e77a37e3ecb50dc2f9442eaf34eb6e78455f2384faa35a367
+   2.5%  lines 353/406  pages 10/11  5ed52035e59d3e8e77a37e3ecb50dc2f9442eaf34eb6e78455f2384faa35a367
  100.0%  lines 18/18  pages 1/1  5f1404e7d5e33fb23ceda3df2d0173e76d0082a29fc6bc7ff297cff97ad50679
  100.0%  lines 51/51  pages 1/1  5fa8b1b007748506e2a288d4b73436598a25365831b89d849ec94b21d6ecba97
  100.0%  lines 13/13  pages 1/1  61a0c87bb7c11261eb93757f8ca16b4575219e57fd61cd8da68ed32cc96e9109
@@ -72,7 +72,7 @@
  100.0%  lines 16/16  pages 1/1  734fc902d3b40cccd2c9e023afac75eaecdc53ad901ca7bb6e1870cdafc4c942
  100.0%  lines 7/7  pages 1/1  76cf778adb00f2095d393b112be436c8cee620096a8a579a4cb9f077b5d29682
  100.0%  lines 32/32  pages 1/1  772ccdd2632be50733283202bdeaf5d17095eaabdffad2e08553f8fa44a9e0c6
-  92.9%  lines 112/135  pages 4/4  7cd40e701081e9b2602bc792ebd947f3c6930afa8b2fed49944b810e55ae66de
+  92.0%  lines 112/128  pages 4/4  7cd40e701081e9b2602bc792ebd947f3c6930afa8b2fed49944b810e55ae66de
  100.0%  lines 179/179  pages 5/5  8808cafaab4e871d5c20f6dc123cbd47cb704cbde2e7027ff0e5106dc480a687
  100.0%  lines 39/39  pages 2/2  8823fc3cd7973acc4c99d9626c812afca2cc043d981d7f2167ffce5c0e1922d4
   98.7%  lines 159/159  pages 4/4  896290fbdf434b9bd9bce4282347a729eb0dc0584bd5ee5a68664eb3e039774e
@@ -127,5 +127,5 @@
  100.0%  lines 39/39  pages 2/2  f15379d78a491d22e143088a9429215602b9d9e3263e4a6d45f2bad33c00e49c
  100.0%  lines 16/16  pages 1/1  f2fa899e7d5b31c4c8f038172ceeff39b744bcc6ed690c13dfc91844f7cbde93
   96.6%  lines 59/59  pages 2/2  f342a81e8ac37ebc8d511e33c1fdda42bd02d40442d86ba8f852b6f077584dfc
-  83.3%  lines 42/42  pages 1/1  f4abc45d986cbda3759e166c853c57357a1761a41c6a6c468601ab9937cc78b4
+  73.8%  lines 42/42  pages 1/1  f4abc45d986cbda3759e166c853c57357a1761a41c6a6c468601ab9937cc78b4
  100.0%  lines 104/104  pages 3/3  fd706adc89b3093fa820a04f83b937b3f92281ac5379dfb08ca64903a2bea76b
