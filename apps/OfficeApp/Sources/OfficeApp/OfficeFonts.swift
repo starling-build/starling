@@ -1103,6 +1103,8 @@ enum OfficeFonts {
     /// 0.72pt in Word for Windows, 0.66 at the 1.005 it had, and page 2
     /// took one line too many.)
     private static let windowsMincho = EastAsianFace(height: 1.3, latin: cambria, latinScale: 1.0, fakeBold: true, baseline: 0.859375 + 0.15)
+    /// The same face for Arial Unicode MS, whose Latin Word for Windows draws in Arial (4a21de: ArialMT in the print), not Cambria.
+    private static let windowsMinchoArialLatin = EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.859375 + 0.15)
     /// What MS Mincho holds, as far as Shift_JIS (JIS X 0208) reaches —
     /// all of it Mincho's, though Mincho holds more (JIS X 0212): enough
     /// to tell 单, 总, 监 from 年, 月, 日. Nil where the encoding is not
@@ -2619,7 +2621,7 @@ enum OfficeFonts {
         // in MS Mincho on that face's 1.3 em line, Latin in Arial —
         // jpn-z17544993-4a21de, 11pt lines 16.4 apart at 1.15 spacing, where
         // Arial Unicode's 1.742 em gave 22.0; 40 pages here against 32.)
-        if has("arial unicode") { return wordOnWindows ? windowsMincho : arialUnicode }
+        if has("arial unicode") { return wordOnWindows ? windowsMinchoArialLatin : arialUnicode }
         // (Noto Sans SC, which Word's fallback takes for some CJK
         // compatibility ideographs — `RichLayout._notoCompatibility`: its
         // hhea 1.16 + 0.288 ems with Word's 30% more, the baseline 1.377
