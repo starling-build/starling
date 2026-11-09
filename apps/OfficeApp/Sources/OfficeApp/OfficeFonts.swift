@@ -2334,7 +2334,10 @@ enum OfficeFonts {
         func has(_ keys: String...) -> Bool { keys.contains { faceHas(n, $0) } }
         if wordOnWindows, !isEmbedded(family), let fallback = windowsMissingFallback(family) { switch fallback {
             case "mincho": return windowsMincho
-            case "batang": var face = eastAsianFace("Batang"); face.malgunSymbols = true; return face
+            case "batang":
+                var face = eastAsianFace("Batang"); face.malgunSymbols = true
+                face.otherAdvances = [0x2018: 0.228, 0x2019: 0.228, 0x201C: 0.38, 0x201D: 0.38]
+                return face
             case "malgun": return eastAsianFace("맑은 고딕")
             default: return eastAsianFace("Microsoft JhengHei")
             } }
@@ -2356,8 +2359,10 @@ enum OfficeFonts {
             RuleTrace.hit("batang-dotum-own-latin-widths")
             face.latinAdvances = (n == "batang" || n == "바탕") ? batangAdvances : dotumAdvances
             face.latinBoldAdvances = face.latinAdvances
-            // (Curly quotes print in Malgun Gothic at its narrow widths: 6a68f6ca's "(이하 ‘작가’)" steps 0.228 em at each quote.)
-            face.otherAdvances = [0x2018: 0.228, 0x2019: 0.228, 0x201C: 0.38, 0x201D: 0.38]
+            // (Word's own Dotum and Batang set ‘ ’ at 0.292 em, and Batang's “ ” at 0.5, read from the hmtx of the subsets embedded in
+            // its prints; dbd695fe's Dotum "(이하 ‘표준’)" stood 0.6 pt narrow at each quote at Malgun's 0.228. A Korean face Word lacks
+            // is drawn in Batang with its quotes in Malgun Gothic, at 0.228 and 0.38: 6a68f6ca's "(이하 ‘작가’)" -- the `case "batang"` fallback.)
+            face.otherAdvances = [0x2018: 0.292, 0x2019: 0.292, 0x201C: 0.5, 0x201D: 0.5]
             return face
         }
         // (NanumGothic: Latin its own, Hangul 0.94 em (key U+AC00 of otherAdvances carries it for the Hangul rule),
