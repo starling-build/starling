@@ -3524,6 +3524,8 @@ extension RichLayout {
             }
             offset += n
         }
+        // (Word lab a347gap A: a one-line marked paragraph followed by an empty one adds nothing, 18.4 pt line to line; the paragraph's last line is not counted.)
+        if tamil, !p.text.isEmpty { starts.remove(painter.getLineBoundary(TextPosition(offset: max(0, p.text.utf16.count - 1) + lead)).start) }
         if starts.isEmpty { return 0 }
         if devanagari {
             RuleTrace.hit("word-devanagari-aums-marked-lines-add-to-the-paragraph")
