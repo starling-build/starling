@@ -2276,9 +2276,12 @@ extension RichLayout {
                 // raises the engine's line, but the correction above pulled the baseline back to the
                 // Latin face's. dx2 b785c95e's Gujarati title: baseline 25.9 pt under the margin in
                 // Word's print, ours 22.5.)
+                var indicLift = 0.0
                 if theme.wordRules, RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil || style.lineHeightIsMinimum,
-                   let raised = _indicFirstLineAscent(p, painter: painter, lead: _lead(i), named: named, document: document, target: target) {
+                   let raised = _indicFirstLineAscent(p, painter: painter, lead: _lead(i), named: named, document: document, target: target,
+                                                      style: style, pitch: pitch, lift: &indicLift) {
                     target = raised
+                    segoeLift = max(segoeLift, indicLift)
                 }
                 // (A first line holding a Malgun-drawn symbol of a missing Korean face: see `_koreanSymbolFirstLineRaise`.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil,
@@ -3380,9 +3383,12 @@ extension RichLayout {
 extension RichLayout {
     /// The baseline a first line of Indic letters stands at when its face's ascent is above `target`.
     @inline(never)
-    func _indicFirstLineAscent(_ p: RichParagraph, painter: TextPainter, lead: Int, named: RichNamedStyle?, document: RichDocument, target: Double) -> Double? {
+    func _indicFirstLineAscent(_ p: RichParagraph, painter: TextPainter, lead: Int, named: RichNamedStyle?, document: RichDocument, target: Double,
+                                style: RichParagraphStyle, pitch: Double?, lift: inout Double) -> Double? {
         var target = target
         var raisedTo: Double?
+        var latinFloor = 0.0
+        var kokilaOwn = 0.0
                     let firstEnd = painter.getLineBoundary(TextPosition(offset: 0)).end - lead
                     let units = Array(p.text.utf16)
                     var start = 0
@@ -3392,7 +3398,13 @@ extension RichLayout {
                         let end = min(start + run.length, firstEnd, units.count)
                         guard start < end, run.style.inlineImage == nil else { continue }
                         let text = String(decoding: units[start ..< end], as: UTF16.self)
-                        guard text.unicodeScalars.contains(where: { Self._indic.contains($0.value) }) else { continue }
+                        guard text.unicodeScalars.contains(where: { Self._indic.contains($0.value) }) else {
+                            // (A run of Latin letters on a Kokila line stands the line on its own face's baseline where that is the taller: dx2 cbb7ae39's
+                            // "IRB" and "SS", Times New Roman 10 pt beside 10 pt Kokila, lab cb7: 9.3 pt above the baseline in Word's print, Kokila's 7.3.)
+                            if text.unicodeScalars.contains(where: { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A }),
+                               let b = theme.baseline(for: run.style, in: style, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) { latinFloor = max(latinFloor, b) }
+                            continue
+                        }
                         var cs = (run.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
                         switch cs {
                         case "kalimati": cs = "mangal"
@@ -3411,12 +3423,14 @@ extension RichLayout {
                             RuleTrace.hit("word-utsaah-first-line-stands-on-utsaah-ascent")
                             target = size * metrics.0
                             raisedTo = target
+                            kokilaOwn = target
                         } else if size * metrics.0 > target + 0.01 {
                             RuleTrace.hit("word-indic-first-line-stands-on-its-face-ascent")
                             target = size * metrics.0
                             raisedTo = target
                         }
                     }
+                    if kokilaOwn > 0, latinFloor > kokilaOwn + 0.01 { lift = max(lift, latinFloor - kokilaOwn); raisedTo = latinFloor }
                         return raisedTo
     }
 }
