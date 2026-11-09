@@ -979,6 +979,24 @@ extension RichLayout {
         rule.dispose()
     }
 
+    /// A Symbol-font bullet drawn as "•" by a stand-in: the glyph itself, scaled and moved at paint time (nothing of the
+    /// advance or the line changes) so its dot is Symbol's. Word's prints (dx2, 600 bullets at 9 to 14 pt): a round dot
+    /// 0.355 em across, its foot 0.099 em above the baseline, its left edge 0.052 em in. The stand-ins': Liberation Sans
+    /// 0.271 across, foot 0.188, left 0.042; Liberation Serif 0.240, 0.204, 0.062; Carlito's (Calibri's) is already Word's.
+    @inline(never)
+    func _paintMarker(_ marker: TextPainter, _ at: Offset, _ p: RichParagraph, _ document: RichDocument, label: String, _ canvas: any Canvas) {
+        guard theme.wordRules, label == "\u{2022}" || label == "\u{F0B7}", _levelNumberFonts(p, document).latin?.lowercased() == "symbol",
+              let top = marker.text as? TextSpan, let style = top.style ?? (top.children?.first as? TextSpan)?.style, let fs = style.fontSize, fs > 0, let family = style.fontFamily?.lowercased() else {
+            marker.paint(canvas, at); return
+        }
+        guard family.containsSubstring("liberation") else { marker.paint(canvas, at); return }
+        RuleTrace.hit("word-symbol-bullet-dot-drawn-in-calibri-shape")
+        let dot = TextPainter(text: TextSpan(text: top.text ?? label, style: style.copyWith(fontFamily: "Carlito")), textAlign: .left, textDirection: .ltr, strutStyle: marker.strutStyle)
+        dot.layout()
+        let down = marker.computeDistanceToActualBaseline(.alphabetic) - dot.computeDistanceToActualBaseline(.alphabetic)
+        dot.paint(canvas, Offset(at.dx, at.dy + down))
+    }
+
     func _paintParagraph(_ i: Int, _ canvas: any Canvas, _ document: RichDocument, part: PagePiece.Part = .all,
                                  lines: (painter: TextPainter, top: Double, first: Bool, paragraph: RichParagraph)? = nil) {
         let g = geometry(i)
@@ -1467,7 +1485,7 @@ extension RichLayout {
                     marker.paint(canvas, Offset(at, g.inkTop))
                     marker.dispose()
                 } else {
-                marker.paint(canvas, Offset(wl.format?.justification == "right" ? at - marker.width : at, g.inkTop))
+                _paintMarker(marker, Offset(wl.format?.justification == "right" ? at - marker.width : at, g.inkTop), p, document, label: label, canvas)
                 marker.dispose()
                 }
             } else {
