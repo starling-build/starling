@@ -1219,8 +1219,11 @@ extension RichLayout {
                     start = end
                     return
                 }
+                // (A word the fit's cut on a neighbouring space splits out of its run is still the run's: the cut makes a run of every space and
+                // word, and a word alone has no Latin to open this branch, so it fell to the flat scale and the engine found room the fit never
+                // counted. Only where there is a cut: a run of one word that is its own run, as Word has it, is as it was. f0001d05.)
                 if kind >= 0, indic?.face == "kokila", kokilaLatin, let px = style(kind).fontSize, px > 0.5, let m = Self._indicLines["kokila"],
-                   text[start ..< end].unicodeScalars.contains(where: { $0.value < 0x250 || $0.value == 0x2026 || $0.value == 0x201C || $0.value == 0x201D || Self._isIndic($0.value) }) {
+                   (adjust.isEmpty ? text[start ..< end] : text[...]).unicodeScalars.contains(where: { $0.value < 0x250 || $0.value == 0x2026 || $0.value == 0x201C || $0.value == 0x201D }) {
                     // (Kokila's own Latin, digits and space: `KokilaLatin`; Devanagari stays on the flat scale.)
                     let base = style(kind)
                     var i = start
