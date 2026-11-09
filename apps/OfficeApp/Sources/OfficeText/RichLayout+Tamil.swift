@@ -14,15 +14,15 @@ enum TamilAdvances {
         0xBA9: 1.241, 0xBAA: 0.820, 0xBAE: 0.954, 0xBAF: 0.984, 0xBB0: 0.739, 0xBB1: 0.902, 0xBB2: 1.010,
         0xBB3: 1.060, 0xBB4: 0.974, 0xBB5: 0.985, 0xBB7: 1.303, 0xBB8: 1.243, 0xBB9: 1.574, 0xBBE: 0.680,
         0xBBF: 0.227, 0xBC0: 0.005, 0xBC1: 0.203, 0xBC2: 0.273, 0xBC6: 0.909, 0xBC7: 0.739, 0xBC8: 1.211,
-        0xBCA: 0.647, 0xBCB: 0.664, 0xBCD: 0.007,
+        0xBCA: 1.589, 0xBCB: 1.419, 0xBCD: 0.007,
     ]
     static let bold: [UInt32: Double] = [
         0xB85: 1.158, 0xB86: 1.289, 0xB87: 1.169, 0xB8A: 1.317, 0xB8E: 0.822, 0xB92: 1.086, 0xB95: 0.932,
         0xB99: 1.110, 0xB9A: 0.847, 0xB9C: 0.993, 0xB9E: 1.253, 0xB9F: 0.812, 0xBA3: 1.722, 0xBA4: 0.925,
         0xBA8: 0.868, 0xBA9: 1.307, 0xBAA: 0.873, 0xBAE: 1.016, 0xBAF: 1.065, 0xBB0: 0.786, 0xBB1: 0.948,
         0xBB2: 1.053, 0xBB3: 1.122, 0xBB4: 0.945, 0xBB5: 1.064, 0xBB8: 1.443, 0xBBE: 0.780, 0xBBF: 0.289,
-        0xBC0: 0, 0xBC1: 0.189, 0xBC2: 0.308, 0xBC6: 0.873, 0xBC7: 0.744, 0xBC8: 1.244, 0xBCA: 0.681,
-        0xBCB: 0.710, 0xBCD: 0.031,
+        0xBC0: 0, 0xBC1: 0.189, 0xBC2: 0.308, 0xBC6: 0.873, 0xBC7: 0.744, 0xBC8: 1.244, 0xBCA: 1.653,
+        0xBCB: 1.524, 0xBCD: 0.031,
     ]
     // Leelawadee UI, the face Word for Windows draws Tamil documents' Latin letters, digits and punctuation in: advances (em) read from
     // the hmtx of the subsets embedded in the Tamil prints (dx2). Letters the prints never used keep the stand-in's width.
