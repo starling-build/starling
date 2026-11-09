@@ -2471,6 +2471,9 @@ enum OfficeFonts {
             // here against Word's 169.)
             var yu = EastAsianFace(height: 1.2871 * 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 1.2871 * 0.15 + 0.98486)
             yu.latinAdvances = yuMinchoAdvances
+            // (Yu Mincho's bold is Word's synthetic bold, drawn in the one Yu Mincho face with the regular widths:
+            // jpn-z19171856-2c8799's bold "Hypothesis: " ends the line in Word's print where Liberation Bold's widths wrapped it.)
+            yu.latinBoldAdvances = yuMinchoAdvances
             // (Greek and symbols stay full width: own Latin widths would otherwise switch that off,
             // jpn-z19410533-d8cc8f's nu.)
             yu.squareSymbols = true
