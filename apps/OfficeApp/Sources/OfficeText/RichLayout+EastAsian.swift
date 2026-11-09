@@ -2317,6 +2317,7 @@ extension RichLayout {
             for c in alike { adjust[c, default: 0] += given / Double(alike.count) }
         }
         // (With the tabs' widths, which the paragraph is laid out by.)
+        #if os(Linux)
         if Self.debugWidthCheck {
             // (STARLING_FIT_WIDTH_CHECK=1: where the fit loop's measure (the probe's cluster boxes, summed) and the engine's own line
             // (the same text set on one line) part by more than half a point between two spaces: the first such word of the paragraph.)
@@ -2335,12 +2336,13 @@ extension RichLayout {
                 let gap = (probed - (hi - lo)) / pt
                 if abs(gap) > 0.5 {
                     let word = String(String.UnicodeScalarView(units[from ..< k].compactMap { Unicode.Scalar(UInt32($0)) }))
-                    FileHandle.standardError.write(Data("FITW\t\(i)\t\(from)\t\(probed / pt)\t\((hi - lo) / pt)\t\(gap)\t\(word)\n".utf8))
+                    fputs("FITW\t\(i)\t\(from)\t\(probed / pt)\t\((hi - lo) / pt)\t\(gap)\t\(word)\n", stderr)
                     reported += 1
                 }
             }
             flat.dispose()
         }
+        #endif
         guard !adjust.isEmpty else { return [:] }
         for (k, v) in tabs { adjust[k, default: 0] += v }
         return adjust
