@@ -1212,7 +1212,7 @@ enum OfficeFonts {
     // zh-884c6e3e's bold 16pt steps 16.645 where YaHei's step 16.325.)
     private static let arialUnicode = EastAsianFace(height: 1.742, latin: sans, latinScale: 1.0, fakeBold: true, boldWiden: 1.0 / 50,
                                                     baseline: 1.270)
-    private static let malgunHeight = 1.727
+    private static let malgunHeight = 1.728
     private static func isYaHeiLike(_ h: Double) -> Bool { h == yaHei.height || h == malgunHeight }
     private static let yaHei = EastAsianFace(height: 1.715, latin: sans, latinScale: 1.07, latinClasses: [0.985, 0.92, 1.027, 0.96],
                                              latinAdvances: yaHeiAdvances, latinBoldAdvances: yaHeiBoldAdvances,
