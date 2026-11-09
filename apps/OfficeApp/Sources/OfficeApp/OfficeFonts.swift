@@ -1148,6 +1148,9 @@ enum OfficeFonts {
     private static func koreanOnly(_ n: String) -> Bool {
         n.unicodeScalars.allSatisfy { $0.isASCII || ($0.value >= 0xAC00 && $0.value <= 0xD7A3) }
     }
+    private static func koreanSuffix(_ n: String) -> Bool {
+        n.hasSuffix(" kr") || n.hasSuffix(" kr bold") || n.hasSuffix(" korean")
+    }
     private static func windowsMissingFallback(_ family: String) -> String? {
         let n = family.trimmingWhitespace().lowercased()
         guard !n.isEmpty else { return nil }
@@ -1177,6 +1180,9 @@ enum OfficeFonts {
         // (A Korean face Word lacks whose font table names 바탕 as its alternate prints in Batang: 한양신명조 at
         // charset 81 steps 1.31 em in Word's print where ours drew Malgun's 1.73, b6f6c7d4 / 07eecf7a.)
         if e.alt?.trimmingWhitespace() == "바탕", n != "바탕", e.charset == "81" || e.charset == "129" { return "batang" }
+        // (A Korean-named face Word lacks whose alternate is Yu Gothic, which has no Hangul: Word draws
+        // the Hangul in Malgun Gothic, 5101ed6e's "Noto Serif CJK KR", 31 lines 4 pt short in ours.)
+        if e.charset.uppercased() == "80", e.alt?.trimmingWhitespace().lowercased() == "yu gothic", koreanSuffix(n) { return "malgun" }
         if let alt = e.alt?.trimmingWhitespace().lowercased(), !alt.isEmpty, alt != n,
            has.contains(where: { faceHas(alt, $0) })
             || (alt.unicodeScalars.contains(where: { $0.value >= 0x2E80 })
@@ -1212,7 +1218,7 @@ enum OfficeFonts {
     // zh-884c6e3e's bold 16pt steps 16.645 where YaHei's step 16.325.)
     private static let arialUnicode = EastAsianFace(height: 1.742, latin: sans, latinScale: 1.0, fakeBold: true, boldWiden: 1.0 / 50,
                                                     baseline: 1.270)
-    private static let malgunHeight = 1.728
+    private static let malgunHeight = 1.729
     private static func isYaHeiLike(_ h: Double) -> Bool { h == yaHei.height || h == malgunHeight }
     private static let yaHei = EastAsianFace(height: 1.715, latin: sans, latinScale: 1.07, latinClasses: [0.985, 0.92, 1.027, 0.96],
                                              latinAdvances: yaHeiAdvances, latinBoldAdvances: yaHeiBoldAdvances,
