@@ -1630,6 +1630,7 @@ extension RichLayout {
     /// (Not the engine's minimum intrinsic width: a paragraph of one
     /// run that fits its line is never parted for it, and a line of
     /// ideographs came out as wide as all of them.)
+    static func _isIndicUnit(_ u: UInt16) -> Bool { (u >= 0x900 && u <= 0xDFF) || u == 0x200C || u == 0x200D }
     func _minContent(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> Double {
         if let m = _cellMins[i] { return m.min }
         var m = 0.0, first = 0.0   // the pieces after the first; the first
@@ -1643,6 +1644,7 @@ extension RichLayout {
             probe.layout(minWidth: 0, maxWidth: 100_000)
             let map = _OffsetMap(lead: 0, inserts: inserts)
             let percentStarts = _percentStarts(document)
+            let pctWidthTable = p.cell.map { document.tableStyles[$0.table]?.widthPercent != nil } ?? false
             // (And where `w:wordWrap` off parts a Latin word: zh-f2441f00's
             // 42.2pt column holds "平台(iC" / "ulture)" in Word's print,
             // its grid kept; ours measured "(iCulture)" whole and widened
@@ -1719,6 +1721,10 @@ extension RichLayout {
                 // grid stands.)
                 else if theme.wordRules, (a >= 0x3000 && Self._isLatinWordUnit(b)) || (Self._isLatinWordUnit(a) && b >= 0x3000),
                         Self._openingUnits.contains(a) || Self._openingUnits.contains(b) || Self._closingUnits.contains(a) { parts = true }
+                // (An Indic word is one piece to autofit, not a stretch per letter, in a table of a stated width in twips; a table a share of the
+                // page wide is held at it and Word parts the word inside its cell — xd 6e011101's Tamil columns stay at the grid: bede0fbc's "নাম:" + 154 dots, 508.7pt in
+                // Word's print, which widens its table to 519.6, ours measured "ম:" + the dots, 497.8, and parted the dots.)
+                else if theme.wordRules, Self._isIndicUnit(a), Self._isIndicUnit(b), !pctWidthTable { parts = false }
                 else { parts = !Self._glued(a, b, strict: Self._strictKinsoku(document)) }
                 if parts {
                     if start == 0 { first = piece(start, k) } else { m = max(m, piece(start, k)) }
