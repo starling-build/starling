@@ -1,4 +1,4 @@
-188 documents: mean 58.4% of Word's lines matched, median 68.9%; 47 at 95% or more, 112 at half or more; 161 with Word's page count
+188 documents: mean 58.2% of Word's lines matched, median 70.8%; 47 at 95% or more, 111 at half or more; 161 with Word's page count
     0.0%  lines 245/245  pages 8/10  kor-z21941126-9b36b8
     1.1%  lines 472/547  pages 14/15  heb-z17544993-944544
     1.1%  lines 88/104  pages 10/9  fas-z14957015-3a9879
@@ -51,6 +51,8 @@
    16.9%  lines 59/60  pages 3/3  kor-z21348848-b4a883
    17.9%  lines 329/325  pages 10/10  urd-z7538882-13b0bc
    18.2%  lines 181/211  pages 7/7  ara-z18938499-0b6a0d
+   19.3%  lines 150/149  pages 4/4  hin-z20740649-94bde9
+   19.3%  lines 150/149  pages 4/4  hin-z20747431-a0ee17
    21.7%  lines 143/145  pages 6/6  fas-z21853138-0c740e
    22.2%  lines 144/145  pages 5/5  hin-z10093577-3af7d4
    24.5%  lines 433/494  pages 16/16  ara-z8157766-171cca
@@ -61,7 +63,6 @@
    31.6%  lines 282/319  pages 11/11  jpn-z22667840-bc5fb7
    31.9%  lines 135/135  pages 9/10  fas-z22958620-bf2323
    32.0%  lines 97/98  pages 4/4  heb-z5059159-4ac884
-   32.4%  lines 241/279  pages 7/7  hin-z18479909-61195a
    34.5%  lines 1062/1061  pages 35/34  kor-z19176375-004d7a
    35.2%  lines 250/263  pages 11/11  jpn-z21461406-0d8cbc
    36.4%  lines 33/34  pages 1/1  docx-79737edb
@@ -88,8 +89,6 @@
    60.6%  lines 485/466  pages 19/19  docx-bff1c672
    62.8%  lines 226/221  pages 13/13  docx-8f1703b9
    63.3%  lines 229/232  pages 14/14  docx-a3f77cda
-   64.0%  lines 150/150  pages 4/4  hin-z20740649-94bde9
-   64.0%  lines 150/150  pages 4/4  hin-z20747431-a0ee17
    64.1%  lines 181/187  pages 9/9  nld-z22251521-8c1881
    66.4%  lines 822/821  pages 18/18  ell-z10407270-89615d
    68.1%  lines 119/114  pages 4/4  docx4j-1e349e20
@@ -116,6 +115,7 @@
    86.9%  lines 130/130  pages 7/7  jpn-z19410533-d8cc8f
    87.2%  lines 1135/1143  pages 35/35  fra-z5579827-3c5db0
    88.4%  lines 776/780  pages 28/28  por-z1326468-80d0e5
+   90.0%  lines 241/292  pages 7/7  hin-z18479909-61195a
    90.1%  lines 202/203  pages 5/5  ell-z10161459-ec79d6
    91.0%  lines 774/778  pages 38/38  jpn-z19135939-3f592b
    91.2%  lines 91/91  pages 7/7  kor-z15852510-c9baf7
