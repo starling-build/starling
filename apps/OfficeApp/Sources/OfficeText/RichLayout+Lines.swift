@@ -99,6 +99,9 @@ extension RichLayout {
         }
         guard uniform, count > 0, let base = held, let size = base.fontSize, let h = base.height else { return nil }
         if !shiftedToo, tallShifted >= size * h * 1.6 { return nil }
+        // (A run that carries its own ascent and descent (Kokila's, split at a line multiple by `_multipleSplit`) sets its line itself: a strut in the
+        // stand-in's face put the baseline 4.1 pt low at 18 pt on every line above single. lab mmatrix2.)
+        if base.ascentOverride != nil, base.debugLabel?.lowercased().containsSubstring("kokila") == true { return nil }
         // (Even leading: the engine's proportional strut scales the
         // face's ascent and descent by a height that counts its line gap
         // too, and comes out that much short — 15.15 for 15.6 in
@@ -1240,7 +1243,7 @@ extension RichLayout {
     /// The same joiner for a face of the given ascent and descent in ems (its hhea): the line a Devanagari word
     /// gives Word's line, Mangal's 1.241 + 0.438 (`_span`).
     func _lineJoiner(_ run: CharStyle, _ named: RichNamedStyle?, _ own: TextStyle, _ paragraph: RichParagraphStyle,
-                     _ pitch: Double?, _ scale: Double, ascent ems: Double, descent emsDown: Double, spacing: Bool = true) -> TextStyle? {
+                     _ pitch: Double?, _ scale: Double, ascent ems: Double, descent emsDown: Double, spacing: Bool = true, belowOnly: Bool = false) -> TextStyle? {
         guard paragraph.lineHeightPoints == nil || paragraph.lineHeightIsMinimum, let px = own.fontSize, px > 0.5 else { return nil }
         var noto = run
         noto.eastAsiaFontFamily = "Noto Sans SC"
@@ -1254,7 +1257,8 @@ extension RichLayout {
         let split = (line.ascent - line.descent) / 100
         // (A multiple of lines (Word's 1.15) takes this line too, as it does any other.)
         let multiple = spacing && paragraph.lineHeightPoints == nil && paragraph.lineSpacing > 0.5 ? paragraph.lineSpacing : 1
-        let ascent = px * ems * multiple, descent = px * emsDown * multiple
+        let cut = belowOnly ? Self._multipleSplit(ascent: ems, descent: emsDown, multiple: multiple) : (ems * multiple, emsDown * multiple)
+        let ascent = px * cut.0, descent = px * cut.1
         guard split > 0.05 else { return nil }
         let size = (ascent - descent) / split
         return joinerStyle.copyWith(fontSize: size, letterSpacing: 0, height: (ascent + descent) / size, leadingDistribution: .even)

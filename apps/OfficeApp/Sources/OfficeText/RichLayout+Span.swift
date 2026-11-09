@@ -40,6 +40,11 @@ extension RichLayout {
     /// Several inline pictures, each wide enough for a line of its own, in a paragraph on the line grid
     /// (Word for Windows): every picture's line is whole pitches (see `_span`).
     /// The ascent and descent, in ems, of the faces Word sets Devanagari in (their hhea, from the fonts Word's prints embed).
+    /// The ascent and descent (ems) of a line at a line multiple: single spacing's baseline with the extra below it, or, under single, the line cut from the top.
+    static func _multipleSplit(ascent: Double, descent: Double, multiple: Double) -> (Double, Double) {
+        let line = (ascent + descent) * multiple
+        return multiple >= 1 ? (ascent, line - ascent) : (line - descent, descent)
+    }
     static let _indicLines: [String: (Double, Double)] = [
         "yu gothic": (1.1, 0.57), "mangal": (2542.0 / 2048, 898.0 / 2048), "kokila": (1504.0 / 2048, 857.0 / 2048), "nirmala ui": (2210.0 / 2048, 514.0 / 2048), "vijaya": (1462.0 / 2048, 600.0 / 2048),
         "aparajita": (1550.0 / 2048, 870.0 / 2048), "raavi": (2048.0 / 2048, 1352.0 / 2048), "shruti": (2091.0 / 2048, 1352.0 / 2048),
@@ -899,7 +904,12 @@ extension RichLayout {
                     // (Carlito's, Noto's) are taller above and set the line 2-3 pt low and 1.4 pt per line too far apart.)
                     // (A multiple under single too: dx2 hin-z20740649's 0.9 lines are 13.5 pt apart in Word's print, Kokila's 15.0 x 0.9.)
                     let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
-                    s = s.copyWith(ascentOverride: m.0 * multiple * size, descentOverride: m.1 * multiple * size, height: (m.0 + m.1) * multiple, leadingDistribution: .even)
+                    // (Word keeps the baseline where single spacing puts it and gives the multiple's extra below it; a multiple under single is cut from
+                    // the top. lab mmatrix2 (2026-11-09): Kokila 18's gap to the next line is 40.8 / 43.9 / 47.0 / 51.1 for a previous 1.0 / 1.15 / 1.3 / 1.5
+                    // whatever the next multiple is; `Self._multipleSplit`.)
+                    // (Kokila only so far: the other faces' lines were fitted with the extra spread over both sides; each gets the shared split when its own dx2 documents agree.)
+                    let split = indic.face == "kokila" ? Self._multipleSplit(ascent: m.0, descent: m.1, multiple: multiple) : (m.0 * multiple, m.1 * multiple)
+                    s = s.copyWith(ascentOverride: split.0 * size, descentOverride: split.1 * size, height: (m.0 + m.1) * multiple, leadingDistribution: .even)
                 }
                 if kind >= 0, let indic, indic.face == "aparajita" || indic.face == "vijaya", let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
                     let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
@@ -1667,7 +1677,7 @@ extension RichLayout {
                     let face = indic?.face
                     if let face, let metrics = Self._indicLines[face] {
                         if devanagariStyles[face] == nil {
-                            devanagariStyles[face] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: metrics.0, descent: metrics.1)
+                            devanagariStyles[face] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: metrics.0, descent: metrics.1, belowOnly: face == "kokila")
                         }
                         if let joiner = devanagariStyles[face] ?? nil {
                             flush(i)

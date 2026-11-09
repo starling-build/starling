@@ -3405,8 +3405,8 @@ extension RichLayout {
                         // stand-in's 0.95; lab utsaah1, Word's baseline 11.9 pt under the margin at 16 pt, ours 15.4.)
                         if cs == "utsaah" || cs == "kokila", (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == cs,
                            abs(size * metrics.0 - target) > 0.01,
-                           // (An at-least line taller than the face keeps its old place: 6c7504e9 heading, 24 pt at least over a 16 pt face; and over single spacing the box stays tall, d760f1e5's 1.5-line title.)
-                           !(cs == "kokila" && ((p.style.lineHeightPoints ?? 0) > size * (metrics.0 + metrics.1) + 0.01 || p.style.lineSpacing > 1.01)) {
+                           // (An at-least line taller than the face keeps its old place: 6c7504e9 heading, 24 pt at least over a 16 pt face. A multiple puts its extra under the line, so the baseline stays on the face's ascent: lab mmatrix2.)
+                           !(cs == "kokila" && ((p.style.lineHeightPoints ?? 0) > size * (metrics.0 + metrics.1) + 0.01)) {
                             RuleTrace.hit("word-utsaah-first-line-stands-on-utsaah-ascent")
                             target = size * metrics.0
                             raisedTo = target
