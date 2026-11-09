@@ -3697,6 +3697,9 @@ enum OfficeFonts {
             // Word for Windows prints these in Browallia New: hhea 1770/789 of 2048 (1.249 em).
             face.naturalHeight = 1.249
             face.baseline = 0.864
+            // (Its bold has its own line: hhea 1786 + 885 of 2048 = 1.3042 em, ascent 0.872; Word steps 16pt bold lines 20.7 apart, ours 20.0.)
+            face.boldHeight = 1.3042
+            face.boldBaseline = 0.872
             RuleTrace.hit("th-browallia-own-line")
         }
         if wordOnWindows, family.trimmingWhitespace().lowercased() == "th sarabunpsk" {
@@ -3724,6 +3727,8 @@ enum OfficeFonts {
                 face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(Self.angsanaNewBoldThai) { $1 }
                 face.naturalHeight = 1.351
                 face.baseline = 0.941
+                face.boldHeight = 5673.0 / 4096
+                face.boldBaseline = 3949.0 / 4096
                 RuleTrace.hit("th-angsana-own-widths")
             }
             // (An embedded face whose font-table entry names an East Asian
