@@ -2850,7 +2850,9 @@ extension RichLayout {
                 if keptPastFoot == c.table, c.row == 0 {
                     let setup = pageSetup(forPage: page / _columns)
                     let edge = pageEdgeClamp?.table == c.table ? pageEdgeClamp!.edge : _px(setup.height - setup.footerDistance) - _bodyInsets(page: page / _columns, document).top
-                    pastFoot = y + shown + ruleUnder(c) <= edge + 0.01
+                    // (A row taller than the body cannot be kept whole past the foot: it parts, as Word does with
+                    // dx2 bede0fbc's 694pt wrapper row, whose remainder went missing when kept.)
+                    pastFoot = y + shown + ruleUnder(c) <= edge + 0.01 && shown <= contentH + 0.01
                 } else if keptPastFoot == c.table {
                     keptPastFoot = nil
                 }
