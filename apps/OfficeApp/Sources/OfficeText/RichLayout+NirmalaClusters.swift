@@ -777,6 +777,8 @@ enum NirmalaAdvances {
         "\u{92B}\u{94B}": 1.1519,
         "\u{92B}\u{94D}\u{91F}": 1.1470,
         "\u{92C}": 0.6226,
+        "\u{92C}\u{94D}\u{92F}\u{93E}": 1.2800, // ब्या: direct read, fb94294e print, one sample (origin to next cluster)
+        "\u{92C}\u{94D}\u{92F}\u{942}": 1.0290, // ब्यू: two samples, same print family
         "\u{92C}\u{902}": 0.6194,
         "\u{92C}\u{93E}": 0.8802,
         "\u{92C}\u{93F}": 0.8888,
