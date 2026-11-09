@@ -3524,7 +3524,9 @@ enum OfficeFonts {
                 face.italicAdvances = sourceSansProAdvances
                 face.boldAdvances = sourceSansProBoldAdvances
                 face.boldItalicAdvances = sourceSansProBoldAdvances
-                // (Widths only: the sans stand-in's line stays; hhea's 1.257 put dx2 17a0d0c7's lines 1 pt low.)
+                face.naturalHeight = 1.257
+                face.baseline = 0.984
+                // (The line is the face's own hhea 984+273 over 1000, read from Word's subsets: lab c53, Word's Source Sans lines are 0.43 pt taller than the stand-in's at 12 pt; the 1 pt that 17a0d0c7 once showed is its line-break-first paragraph, see the board.)
                 RuleTrace.hit("source-sans-pro-own-widths")
             }
             // (Tahoma, drawn as the sans clone, at its own widths and line.)
