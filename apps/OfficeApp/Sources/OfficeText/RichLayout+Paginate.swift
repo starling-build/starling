@@ -2524,6 +2524,10 @@ extension RichLayout {
                         let myRight = myLeft + (_columnWidths[c.table] ?? []).reduce(0, +)
                         let rowsInTheWay = _pages[page].contains {
                             guard $0.paragraph < i, let other = _cells[$0.paragraph], !$0.repeated, other.table != c.table,
+                                  // (Not a table that floats itself: two floating tables lay over each other in Word's print,
+                                  // lab ovl13, where a raised table's rows reach 150pt down and the page-anchored one at 84pt
+                                  // stays on the page.)
+                                  !(theme.wordRules && document.tableStyles[other.table]?.floatsOverText == true),
                                   $0.pageY + ($0.flowBottom - $0.flowTop) > target + 0.01 else { return false }
                             let l = _tableLeft(other.table, document)
                             return l < myRight - 0.01 && myLeft < l + (_columnWidths[other.table] ?? []).reduce(0, +) - 0.01
