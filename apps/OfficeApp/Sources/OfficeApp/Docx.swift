@@ -1477,6 +1477,13 @@ enum DocxFormat {
                    !styles.all("w:style").contains(where: { $0.first("w:rPr")?.first("w:rFonts") != nil }) {
                     cs.fontFamily = "Times New Roman"
                     RuleTrace.hit("no-fonts-named-times")
+                    // Its Hangul is Batang in Word for Windows, line 1.31 em (batch B 9b36b8: 8 pages,
+                    // ours 10 with Malgun's 1.73 em); a file with no Hangul keeps the default.
+                    if cs.eastAsiaFontFamily == nil, let d = part("word/document.xml"),
+                       String(decoding: d, as: UTF8.self).unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 }) {
+                        cs.eastAsiaFontFamily = "Batang"
+                        RuleTrace.hit("no-fonts-named-batang")
+                    }
                 }
                 if cs.fontSize == nil {
                     if styles.first("w:docDefaults")?.first("w:rPrDefault") == nil {
