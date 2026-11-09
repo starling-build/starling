@@ -2866,7 +2866,17 @@ extension RichLayout {
             // `zh-TW`, parts "權重為70" from "%。2.活動…" in Word's print,
             // and "權重為30" from "%。"; ours took "0%。" over together.)
             let traditional = Self._traditionalChinese(document)
-            for k in units.indices.dropFirst() where units[k] > 0x20 && units[k] < 0x7F && units[k - 1] > 0x20 && units[k - 1] < 0x7F {
+            // (Korean is not so: kor-z19581051-22de7d, wordWrap off, ko-KR,
+            // keeps "(Zero-Gravity" whole in Word's print, parting from
+            // the Hangul before it; all 40 of its line ends in Latin text
+            // are at spaces. Ours parted "(Zer|o-" and ran a Hangul word short.)
+            let korean = document.defaultLangXML?.containsSubstring("w:eastAsia=\"ko") == true
+            // (A Hangul syllable and a Latin opening bracket part, though ICU
+            // glues "력(": Word sets "무중력" and sends "(Zero-Gravity" down.)
+            if korean {
+                for k in units.indices.dropFirst() where units[k] == 0x28 && units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 { out.insert(k) }
+            }
+            for k in units.indices.dropFirst() where !korean && units[k] > 0x20 && units[k] < 0x7F && units[k - 1] > 0x20 && units[k - 1] < 0x7F {
                 let mayStart = !Self._noStart.contains(units[k]) || traditional && (units[k] == 0x25 || units[k] == 0x27 || units[k] == 0x3E)
                 if mayStart, !Self._noEnd.contains(units[k - 1]) { out.insert(k) }
             }
