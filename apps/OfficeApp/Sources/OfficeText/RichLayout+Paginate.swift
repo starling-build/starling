@@ -4534,7 +4534,11 @@ extension RichLayout {
                 // control kept that from happening; zh-547fc43c's Normal turns
                 // it off, and its 234pt chart hung 113pt past page 2's foot
                 // where Word starts page 3 with it.)
-                if theme.wordRules, y > 0.01, document.paragraphs[i].image != nil, cursor <= top + 0.01,
+                // (An inline picture alone in its paragraph likewise: a flowchart
+                // canvas on a lines grid is whole pitches tall, and its painter's
+                // one line is a pitch, so the cut above took it at the foot as a
+                // sliver: jpn-z19171856-2c8799's pages 4 and 8 came out empty.)
+                if theme.wordRules, y > 0.01, document.paragraphs[i].image != nil || _inlinePictureOnly(i, document), cursor <= top + 0.01,
                    bottom - _spacing(i, document).after - cursor > available + slack + overhang { cut = nil }
                 // (So does a paragraph of floating objects alone: its
                 // painter's line is its anchors', under a point tall, where
@@ -4613,6 +4617,16 @@ extension RichLayout {
                         cut = all[first + keep - 1]
                     }
                 }
+                // (A picture's line taller than the page, at a page's top: its
+                // cut is the grid's pitch under the picture's top, and the page
+                // took that sliver; Word keeps the picture whole, over the foot.)
+                if theme.wordRules, cut != nil, y <= 0.01, cursor <= top + 0.01, (document.paragraphs[i].image != nil || _inlinePictureOnly(i, document)),
+                   bottom - _spacing(i, document).after - cursor > available + slack + overhang {
+                    add(PagePiece(paragraph: i, flowTop: cursor, flowBottom: bottom, page: page, pageY: y))
+                    cursor = bottom
+                    y = contentH
+                    break
+                }
                 if let cut {
                     if cut - cursor > available + 0.01 { overfull = true }
                     add(PagePiece(paragraph: i, flowTop: cursor, flowBottom: cut,
@@ -4657,8 +4671,7 @@ extension RichLayout {
                     // break with it, and "參考資料2" page 27; ours carried the
                     // 9pt under the picture to a page 27 of its own, and the
                     // next section went to 28.)
-                    let pictureOnly = document.paragraphs[i].image != nil || (!document.paragraphs[i].inlineImages.isEmpty
-                        && document.paragraphs[i].text.unicodeScalars.allSatisfy { $0.value == 0xFFFC || $0 == " " })
+                    let pictureOnly = document.paragraphs[i].image != nil || _inlinePictureOnly(i, document)
                     let next = theme.wordRules && pictureOnly ? bottom
                         : cuts!.first(where: { $0 > cursor + 0.01 }) ?? bottom
                     add(PagePiece(paragraph: i, flowTop: cursor, flowBottom: next,
@@ -5451,5 +5464,14 @@ extension RichLayout {
     func _floatFootLimit(_ i: Int, page: Int, _ document: RichDocument) -> Double {
         let setup = pageSetup(forPage: page / _columns)
         return _px(setup.height - setup.footerDistance) - _markLineHeight(i, document, single: true) - _bodyInsets(page: page / _columns, document).top
+    }
+}
+
+extension RichLayout {
+    /// A paragraph whose only content is inline pictures (and spaces).
+    @inline(never)
+    func _inlinePictureOnly(_ i: Int, _ document: RichDocument) -> Bool {
+        let p = document.paragraphs[i]
+        return !p.inlineImages.isEmpty && p.text.unicodeScalars.allSatisfy { $0.value == 0xFFFC || $0 == " " }
     }
 }

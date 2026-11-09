@@ -2637,7 +2637,7 @@ extension RichLayout {
                                 window.addRect(_floatRect(float, image, g, i).shift(Offset(left, top - piece.flowTop)))
                             }
                             canvas.clipPath(window, doAntiAlias: false)
-                        } else if lines != nil || floats {
+                        } else if lines != nil || floats || (theme.wordRules && !shading && whole && piece.part == .all && (document.paragraphs[i].image != nil || _inlinePictureOnly(i, document))) {
                             // Its own lines and no others: nothing to cut off above or below.
                             canvas.clipRect(Rect.fromLTRB(clipL, top - 1_000_000, clipR, bottom + 1_000_000))
                         } else if overflowsExactRow {
