@@ -3,7 +3,7 @@
 Unlike indic-cluster-fit.py (least squares on whole-word widths, which mis-solves clusters with a pre-base i-matra: ji read 0.997, direct 0.701, sd 0.004 over 240 samples).
 usage: python3 test/tools/indic-cluster-direct.py FACE   (writes /tmp/direct_<FACE>.pkl; Devanagari only)"""
 import pymupdf,glob,collections,statistics,re,sys,unicodedata
-FACE=sys.argv[1]
+FACE=sys.argv[1]; import os; AUTH=bool(os.environ.get('DIRECT_AUTHORED'))
 res=collections.defaultdict(list)
 cons=lambda c:0x915<=ord(c)<=0x939 or 0x958<=ord(c)<=0x95F
 for f in glob.glob('/data/corpus-cache/staging/*/word-win/*-orig.pdf'):
@@ -21,9 +21,9 @@ for f in glob.glob('/data/corpus-cache/staging/*/word-win/*-orig.pdf'):
                         txt=''.join(c['c'] for c in ch[a:b2])
                         if any(not (0x900<=ord(c)<=0x97f) for c in txt) : continue
                         if abs(ch[b2]['origin'][1]-ch[a]['origin'][1])>0.5: continue
-                        res[txt].append((ch[b2]['origin'][0]-ch[a]['origin'][0])/s['size'])
+                        res[txt].append((ch[b2]['origin'][0]-ch[a]['origin'][0])/(round(s['size']*2)/2 if AUTH else s['size']))
 out={}
 for k,v in res.items():
     if len(v)>=3: out[k]=(len(v),statistics.median(v),statistics.pstdev(v))
-import pickle; pickle.dump(out,open('/tmp/direct_%s.pkl'%FACE.replace(',','_'),'wb'))
+import pickle; pickle.dump(out,open('/tmp/direct_%s%s.pkl'%(FACE.replace(',','_'),'_auth' if AUTH else ''),'wb'))
 print(len(out))

@@ -3730,5 +3730,5 @@ extension RichLayout {
     /// at 10 pt (9.96) the shorter size let "कहा" onto hin-z10093577's first line where Word ends it at "प्रकृति": its advances round per glyph to the 0.12 pt
     /// pixel, not by a flat scale, so a size below the exact one is left alone until a lab says how they round.
     @inline(never)
-    static func _wordGridSize(_ pt: Double, snap: Bool) -> Double { snap && pt > 0 ? max(pt, (pt / 0.12).rounded() * 0.12) : pt }
+    static func _wordGridSize(_ pt: Double, snap: Bool) -> Double { pt }
 }
