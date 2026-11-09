@@ -45,8 +45,14 @@ extension RichLayout {
         let line = (ascent + descent) * multiple
         return multiple >= 1 ? (ascent, line - ascent) : (line - descent, descent)
     }
+    /// Yu Gothic's line as Word sets it: 1.3 x the face's win ascent + descent (0.985 + 0.302 em), split as hhea does with half the line gap on each side
+    /// (hhea 0.880 / 0.222, gap 0.5): about 1.18 above and 0.49 below (lab aumsy2: 10.5 and 4.5 pt at 9 pt).
+    static let _yuGothicLine: (Double, Double) = {
+        let total = 1.3 * (0.985 + 0.302), above = 0.880 + 0.25, below = 0.222 + 0.25
+        return (total * above / (above + below), total * below / (above + below))
+    }()
     static let _indicLines: [String: (Double, Double)] = [
-        "yu gothic": (1.1, 0.57), "mangal": (2542.0 / 2048, 898.0 / 2048), "kokila": (1504.0 / 2048, 857.0 / 2048), "nirmala ui": (2210.0 / 2048, 514.0 / 2048), "vijaya": (1462.0 / 2048, 600.0 / 2048),
+        "yu gothic": _yuGothicLine, "mangal": (2542.0 / 2048, 898.0 / 2048), "kokila": (1504.0 / 2048, 857.0 / 2048), "nirmala ui": (2210.0 / 2048, 514.0 / 2048), "vijaya": (1462.0 / 2048, 600.0 / 2048),
         "aparajita": (1550.0 / 2048, 870.0 / 2048), "raavi": (2048.0 / 2048, 1352.0 / 2048), "shruti": (2091.0 / 2048, 1352.0 / 2048),
         "gautami": (1892.0 / 2048, 1664.0 / 2048), "utsaah": (1518.0 / 2048, 774.0 / 2048), "vrinda": (2017.0 / 2048, 778.0 / 2048), "shonar bangla": (1655.0 / 2048, 996.0 / 2048),
         // (Malgun Gothic as Word sets a line of it: hhea 1.088 + 0.242 and 0.4 of gap, 1.73 em, split evenly.)
@@ -837,6 +843,13 @@ extension RichLayout {
                 && (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
                 && !p.text.unicodeScalars.contains(where: { Self._isIndic($0.value) || Self._tamil.contains($0.value) || $0.value >= 0x2E80 })
                 && !_documentHasIndic(document)
+            // (Arial Unicode MS in an Indic paragraph, a run with no w:cs: its Latin, digits and marks take the ascii slot, which Word lacks and draws
+            // in Yu Gothic, whose line every such run sets whatever it holds; lab aumsy2 (2026-11-09): at 9 pt the steps are 12.8 into and 14.2 out of
+            // a Nirmala line, for GST, commas, brackets, dots, digits, "**", regular and bold. fb94294e.)
+            let aumsYuInIndic: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && document.readFromFile && document.fontCharsets["arial unicode ms"] == "80"
+                && (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
+                && !(run.keptXML?.containsSubstring("<w:cs/>") ?? false) && !(run.keptXML?.containsSubstring("<w:cs ") ?? false)
+                && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xB00 })
             let aumsSpaces: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && document.readFromFile
                 && (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
                 && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xB00 })
@@ -873,6 +886,10 @@ extension RichLayout {
                     }
                     if aumsLatin, text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 }) {
                         RuleTrace.hit("word-aums-latin-run-is-a-yu-gothic-line")
+                        return ("yu gothic", 1)
+                    }
+                    if aumsYuInIndic, text.unicodeScalars.contains(where: { (($0.value >= 0x30 && $0.value <= 0x39) || ($0.value >= 0x41 && $0.value <= 0x5A) || ($0.value >= 0x61 && $0.value <= 0x7A)) }) {
+                        RuleTrace.hit("word-aums-latin-run-in-indic-paragraph-is-a-yu-gothic-line")
                         return ("yu gothic", 1)
                     }
                     if utsaahLatin,
@@ -926,7 +943,7 @@ extension RichLayout {
                 if kind >= 0, let indic, indic.scale != 1 { s = s.copyWith(scaleX: indic.scale) }
                 // (The run's own line is the face's, not the stand-in's, where the face's is the shorter: Aparajita's 1.18 em (a516bfe9: 2.7 to 92.9) where Noto
                 // Sans Devanagari's is taller; the joiner above only raises a line.)
-                if kind >= 0, let indic, (indic.face == "kokila" && (kokilaLatin || text.unicodeScalars.contains(where: { Self._isIndic($0.value) }))) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "malgun gothic" && malgunLatin) || (indic.face == "yu gothic" && aumsLatin) || indic.face == "vijaya" || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
+                if kind >= 0, let indic, (indic.face == "kokila" && (kokilaLatin || text.unicodeScalars.contains(where: { Self._isIndic($0.value) }))) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "malgun gothic" && malgunLatin) || (indic.face == "yu gothic" && (aumsLatin || aumsYuInIndic)) || indic.face == "vijaya" || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
                     // (Kokila's line: its own ascent and descent, above and below the baseline, for every run on the line: the stand-ins'
                     // (Carlito's, Noto's) are taller above and set the line 2-3 pt low and 1.4 pt per line too far apart.)
                     // (A multiple under single too: dx2 hin-z20740649's 0.9 lines are 13.5 pt apart in Word's print, Kokila's 15.0 x 0.9.)
@@ -3446,9 +3463,20 @@ extension RichLayout {
         let lead = _lead(i)
         var starts = Set<Int>()
         var offset = 0
+        // (Marks in a run with no w:cs flag are Yu Gothic's, not Leelawadee's: their line is the run's own (word-aums-latin-run-in-indic-paragraph-is-a-yu-gothic-line),
+        // so they add nothing after the paragraph; lab aumsy2, fb94294e.)
+        var runEnd = 0, runIndex = -1
+        var yu = false
         for u in p.text.unicodeScalars {
+            while offset >= runEnd, runIndex + 1 < p.runs.count {
+                runIndex += 1
+                let r = p.runs[runIndex]
+                runEnd += r.length
+                yu = devanagari && !(r.style.keptXML?.containsSubstring("<w:cs/>") ?? false) && !(r.style.keptXML?.containsSubstring("<w:cs ") ?? false)
+                    && (r.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
+            }
             let n = u.value > 0xFFFF ? 2 : 1
-            if u.value > 0x20, u.value < 0x250 {
+            if !yu, u.value > 0x20, u.value < 0x250 {
                 starts.insert(painter.getLineBoundary(TextPosition(offset: offset + lead)).start)
             }
             offset += n

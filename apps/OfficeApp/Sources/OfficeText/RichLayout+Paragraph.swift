@@ -3412,6 +3412,20 @@ extension RichLayout {
                         guard start < end, run.style.inlineImage == nil else { continue }
                         let text = String(decoding: units[start ..< end], as: UTF16.self)
                         guard text.unicodeScalars.contains(where: { Self._indic.contains($0.value) }) else {
+                            // (A Latin run of Arial Unicode MS with no w:cs flag in a Devanagari paragraph is drawn in Yu Gothic, which stands the first line on its own
+                            // 1.18 em ascent: lab aumsy2, Word's step into such a line 12.8 pt against 12.0 for a Nirmala one; fb94294e.)
+                            if document.readFromFile, document.fontCharsets["arial unicode ms"] == "80",
+                               text.unicodeScalars.contains(where: { (($0.value >= 0x30 && $0.value <= 0x39) || ($0.value >= 0x41 && $0.value <= 0x5A) || ($0.value >= 0x61 && $0.value <= 0x7A)) }),
+                               (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms",
+                               !(run.style.keptXML?.containsSubstring("<w:cs/>") ?? false), !(run.style.keptXML?.containsSubstring("<w:cs ") ?? false),
+                               p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xB00 }) {
+                                let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                                if size * Self._yuGothicLine.0 > target + 0.01 {
+                                    RuleTrace.hit("word-yu-gothic-latin-run-stands-the-first-line-on-its-ascent")
+                                    target = size * Self._yuGothicLine.0
+                                    raisedTo = target
+                                }
+                            }
                             // (A run of Latin letters on a Kokila line stands the line on its own face's baseline where that is the taller: dx2 cbb7ae39's
                             // "IRB" and "SS", Times New Roman 10 pt beside 10 pt Kokila, lab cb7: 9.3 pt above the baseline in Word's print, Kokila's 7.3.)
                             if text.unicodeScalars.contains(where: { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A }),
