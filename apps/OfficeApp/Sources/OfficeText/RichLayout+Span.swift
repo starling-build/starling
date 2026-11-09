@@ -1321,7 +1321,7 @@ extension RichLayout {
                                 if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: NirmalaAdvances.table(bold: false), flatScale: 1, conjunctRatio: nil, block: seg.unicodeScalars.first(where: { $0.value >= 0x900 && $0.value < 0xB00 }).map { $0.value & ~0x7F } ?? 0x900) {
                                     spans.append(contentsOf: capped(seg, run, fitted.style))
                                 } else {
-                                    spans.append(contentsOf: capped(seg, run, leelawadeeLatin ? Self._leelaLatinStyle(seg, base: joinedScaled(seg, style(kind))) : joinedScaled(seg, style(kind))))
+                                    spans.append(contentsOf: capped(seg, run, leelawadeeLatin ? Self._arialUnicodeLatin(seg, base: joinedScaled(seg, style(kind))) : joinedScaled(seg, style(kind))))
                                 }
                                 ws = we
                             }
@@ -1329,7 +1329,7 @@ extension RichLayout {
                             plainPiece = !isIndic
                             let st = style(kind)
                             plainPiece = false
-                            spans.append(contentsOf: capped(piece, run, leelawadeeLatin ? Self._leelaLatinStyle(piece, base: joinedScaled(piece, st)) : joinedScaled(piece, st)))
+                            spans.append(contentsOf: capped(piece, run, leelawadeeLatin ? Self._arialUnicodeLatin(piece, base: joinedScaled(piece, st)) : joinedScaled(piece, st)))
                         }
                     }
                     start = end
@@ -1350,6 +1350,12 @@ extension RichLayout {
                 // (Spaces between Devanagari words, in a run of its own: Word draws them in Leelawadee UI, 0.274 em, where our stand-in's are 0.22; dx2 fb94294e.)
                 if kind >= 0, aumsSpaces, text[start ..< end].allSatisfy({ $0 == " " }) {
                     spans.append(contentsOf: capped(text[start ..< end], run, Self._leelaLatinStyle(text[start ..< end], base: joinedScaled(text[start ..< end], style(kind)))))
+                    start = end
+                    return
+                }
+                // (A run with no w:cs in an Indic paragraph, Arial Unicode MS in the ascii slot: Word draws its Latin, digits and marks in Yu Gothic; dx2 fb94294e.)
+                if kind >= 0, aumsYuInIndic, let y = Self._yuLatinStyle(text[start ..< end], base: joinedScaled(text[start ..< end], style(kind))) {
+                    spans.append(contentsOf: capped(text[start ..< end], run, y))
                     start = end
                     return
                 }
