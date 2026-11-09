@@ -1882,7 +1882,8 @@ extension RichLayout {
                     // (Right to left, an Arabic word is placed in pieces; the squeeze weighs the whole
                     // word, and takes its other pieces with it: kash2 lab, docs/plans/kashida.md.)
                     var restPieces = 0
-                    if RichTextTheme.wordWindowsPages, p.style.rightToLeft, !legacy, !piece.hard, piece.last == piece.b {
+                    let indicPiece = RichTextTheme.wordWindowsPages && !legacy && a > 0 && !isSpace(units[a - 1]) && Self._isIndic(UInt32(units[a]))
+                    if RichTextTheme.wordWindowsPages, p.style.rightToLeft || indicPiece, !legacy, !piece.hard, piece.last == piece.b {
                         var q = pieceIndex
                         while q + 1 < pieces.count, pieces[q].last == pieces[q].b, !pieces[q].hard, pieces[q + 1].a == pieces[q].b, !pieces[q + 1].hard {
                             q += 1; need += pieces[q].w; restPieces += 1
@@ -1998,7 +1999,9 @@ extension RichLayout {
                     // with its spaces at 1.8 pt of 2.49.)
                     let hangulPiece = RichTextTheme.wordWindowsPages && !legacy && p.style.eastAsian["w:wordWrap"] != "0"
                         && units[a] >= 0xAC00 && units[a] <= 0xD7A3
-                    let stretch = width - ((arabicLine || hangulPiece) && !wordSpaces.isEmpty ? spaceBaseX : x - (wordSpaces.last?.w ?? 0))
+                    // (An Indic word is placed in pieces too, so a piece inside a word measures from where the word starts: kok15/kok14 lab, a justified Kokila line
+                    // takes its 18th word 10 pt over with 17 spaces; measured from the piece, the stretch looked 6 pt and the test refused it.)
+                    let stretch = width - ((arabicLine || hangulPiece || indicPiece) && !wordSpaces.isEmpty ? spaceBaseX : x - (wordSpaces.last?.w ?? 0))
                     let lowJoins = arabicLine && p.style.eastAsian["w:jc"] == "lowKashida" && !wordSpaces.isEmpty
                         ? 3.1 * Double(ArabicForms.joins(units[lineFrom ..< max(piece.b, wordSpaces.last?.k ?? lineFrom)].map { UInt32($0) }[...])) : 0
                     let halfStretch = wordSpaces.count < 2
