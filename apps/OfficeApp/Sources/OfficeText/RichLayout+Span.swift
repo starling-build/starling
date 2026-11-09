@@ -2800,12 +2800,12 @@ extension RichLayout {
                 // 20 points — the first character's place is read by
                 // more than the offset map.)
                 if ["symbol", "wingdings", "wingdings 2", "wingdings 3"].contains(family.lowercased()) {
-                    leadChar.fontFamily = family
+                    if !_indicTextOutgrowsSymbolMarker(p, document, firstLook) { leadChar.fontFamily = family }
                     // (At the level's own size where it says one: delins's
                     // 10pt Symbol bullets under 12pt Times make a 12.25pt
                     // line of the face, under the text's 13.8 — Word's line
                     // is the text's; at the text's size it was 14.7.)
-                    if let size = _levelNumberSize(p, document) { leadChar.fontSize = size }
+                    if let size = _levelNumberSize(p, document), !_indicTextOutgrowsSymbolMarker(p, document, firstLook) { leadChar.fontSize = size }
                     symbolLevel = true
                 }
             }
@@ -3604,5 +3604,18 @@ extension RichLayout {
         if a > 0, units[a - 1] == 0x20 || units[a - 1] == 0xA0 { return 0 }
         while b < units.count, adv(units[b]) != nil { b += 1 }
         return units[a ..< b].reduce(0.0) { $0 + (adv($1) ?? 0) } * size
+    }
+}
+
+extension RichLayout {
+    /// A Symbol/Wingdings bullet whose line (1.225 em of its own size) cannot be taller than the Indic text beside it sets nothing in Word's
+    /// print: hin-z18479909's 10 pt Symbol bullets over 15.5 pt Kokila at 1.3 lines are 23.2 pt apart like the other lines, where the
+    /// box's zero-width space in the stand-in face stacked 1.6 pt more on each. Latin text keeps the older rule (delins, form_footnotes).
+    @inline(never)
+    func _indicTextOutgrowsSymbolMarker(_ p: RichParagraph, _ document: RichDocument, _ firstLook: CharStyle) -> Bool {
+        guard RichTextTheme.wordWindowsPages, let size = _levelNumberSize(p, document) else { return false }
+        let text = firstLook.fontSize ?? _named(p, document)?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+        guard size * 1.225 <= text else { return false }
+        return p.text.utf16.contains(where: { Self._isIndicUnit($0) })
     }
 }
