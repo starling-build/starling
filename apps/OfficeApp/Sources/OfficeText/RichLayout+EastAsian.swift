@@ -2866,7 +2866,11 @@ extension RichLayout {
             // `zh-TW`, parts "權重為70" from "%。2.活動…" in Word's print,
             // and "權重為30" from "%。"; ours took "0%。" over together.)
             let traditional = Self._traditionalChinese(document)
-            for k in units.indices.dropFirst() where units[k] > 0x20 && units[k] < 0x7F && units[k - 1] > 0x20 && units[k - 1] < 0x7F {
+            // (Not in a Korean document: kor-22de7d's English words keep whole at
+            // the line end in Word's print, as every Korean word does; zh
+            // documents' Latin runs part, URLs and names among them.)
+            let korean = Self._koreanDocument(document)
+            for k in units.indices.dropFirst() where !korean && units[k] > 0x20 && units[k] < 0x7F && units[k - 1] > 0x20 && units[k - 1] < 0x7F {
                 let mayStart = !Self._noStart.contains(units[k]) || traditional && (units[k] == 0x25 || units[k] == 0x27 || units[k] == 0x3E)
                 if mayStart, !Self._noEnd.contains(units[k - 1]) { out.insert(k) }
             }
@@ -2984,6 +2988,16 @@ extension RichLayout {
         return out
     }
 
+    /// Whether the document's East Asian language is Korean (settings'
+    /// theme font language, else the defaults' `w:lang`).
+    static func _koreanDocument(_ document: RichDocument) -> Bool {
+        func korean(_ xml: String?) -> Bool? {
+            guard let xml, let r = xml.rangeOfSubstring("w:eastAsia=\"") else { return nil }
+            return xml[r.upperBound...].hasPrefix("ko")
+        }
+        return korean(document.themeFontLangXML) ?? korean(document.defaultLangXML) ?? false
+    }
+
     /// Whether the document's East Asian text is Traditional Chinese,
     /// so that Word's `zh-TW` line-breaking lists hold: by the kept
     /// `w:noLineBreaksBefore`'s language, else the settings' theme
@@ -3055,6 +3069,20 @@ extension RichLayout {
         var out = Set<Int>()
         let tokens = _koreanTokenJoins(units)
         for o in inserts where o > 0 && o < units.count && (_hangulHeldPair(UInt32(units[o - 1]), UInt32(units[o])) || tokens.contains(o)) { out.insert(o) }
+        for o in _hangulOpenLatinParts(units) { out.remove(o) }
+        return out
+    }
+
+    /// Offsets of a Hangul syllable followed by an opening bracket and a Latin letter ("무중력(Zero-Gravity"):
+    /// Word parts there, the bracket going down with the Latin word (kor-22de7d's line 3 starts "(Zero-Gravity").
+    @inline(never)
+    static func _hangulOpenLatinParts(_ units: [UInt16]) -> Set<Int> {
+        var out = Set<Int>()
+        guard units.count > 2 else { return out }
+        for o in 1..<(units.count - 1) where units[o] == 0x28 || units[o] == 0x5B {
+            let n = units[o + 1], h = units[o - 1]
+            if h >= 0xAC00 && h <= 0xD7A3 && ((n >= 0x41 && n <= 0x5A) || (n >= 0x61 && n <= 0x7A)) { out.insert(o) }
+        }
         return out
     }
 
