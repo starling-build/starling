@@ -3550,6 +3550,8 @@ enum OfficeFonts {
             if wordOnWindows, family.trimmingWhitespace().lowercased() == "nikosh" {
                 face.advances = nikoshAdvances
                 face.boldAdvances = nikoshAdvances
+                face.naturalHeight = 1.679
+                face.baseline = 1.241
                 RuleTrace.hit("nikosh-latin-in-mangal-widths")
             }
             // (Tahoma, drawn as the sans clone, at its own widths and line.)
