@@ -1524,7 +1524,7 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
-                } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == ".", ch == ".", document.usesEastAsianLayout || !dotsAttached {
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, (before == "." && ch == ".") || (!document.usesEastAsianLayout && (before == "…" || ch == "…") && (before == "." || before == "…") && (ch == "." || ch == "…") && Self._stopRunWidth(Array(p.text.utf16), at: offset, size: style(kind).fontSize ?? 12) > textWidth), document.usesEastAsianLayout || !dotsAttached {
                     // (Not stops that follow a word's letters, in a file that sets no East Asian
                     // layout: bede0fbc's "নাম:" + 154 stops is one word, which Word sends down
                     // whole when it fits a line of its own, and parts only if it cannot.)
@@ -3585,5 +3585,24 @@ extension RichLayout {
               document.fontAlternates[f] == nil, document.fontCharsets[f] == nil,
               !Self._windowsHangulNamedFaces.contains(f) else { return false }
         return true
+    }
+}
+
+
+extension RichLayout {
+    /// The width, in the font's own size, of the unbroken run of stops and ellipses that holds `offset`
+    /// (Arial's 0.278 em stop and 1 em ellipsis): Word parts such a run between any two of its characters
+    /// only when no line could hold it whole (dx2 ms 6926161f's 99 stops and 19 ellipses in a 446 pt line).
+    @inline(never)
+    static func _stopRunWidth(_ units: [UInt16], at offset: Int, size: Double) -> Double {
+        func adv(_ u: UInt16) -> Double? { u == 0x2E ? 0.278 : u == 0x2026 ? 1.0 : nil }
+        guard offset > 0, offset < units.count else { return 0 }
+        var a = offset, b = offset
+        while a > 0, adv(units[a - 1]) != nil { a -= 1 }
+        // (A run that follows a space goes to a line of its own whole first, and is parted only there: dx2 eu ecd418ea's
+        // "Nik, ……(50)" sets "Nik, " alone on its line in Word's print.)
+        if a > 0, units[a - 1] == 0x20 || units[a - 1] == 0xA0 { return 0 }
+        while b < units.count, adv(units[b]) != nil { b += 1 }
+        return units[a ..< b].reduce(0.0) { $0 + (adv($1) ?? 0) } * size
     }
 }
