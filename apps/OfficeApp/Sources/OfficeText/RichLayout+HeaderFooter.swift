@@ -284,7 +284,9 @@ extension RichLayout {
         // of its fifteen dates in Word's print, the rest hidden under its
         // foot; ours ran them down over "一、前言". Not a box wrapped none:
         // zh-01071d55's header box shows its second line under its foot.)
-        if clips, !text.overflowVisible, theme.wordRules, text.textDirection == .horizontal, !text.fitsText, !text.fitsHeight, !text.growsToFit, text.parts.isEmpty {
+        var cutsAtFoot = false
+        if clips, theme.wordRules, text.textDirection == .horizontal, !text.fitsText, !text.fitsHeight, !text.growsToFit, text.parts.isEmpty {
+            cutsAtFoot = true
             canvas.clipRect(Rect.fromLTRB(rect.left - 1_000_000, rect.top - 1_000_000, rect.right + 1_000_000, rect.bottom),
                             clipOp: .intersect, doAntiAlias: false)
         }
@@ -330,6 +332,24 @@ extension RichLayout {
             return
         }
         _paintBoxText(inside, canvas)
+        canvas.restore()
+        if cutsAtFoot { _paintTextPastFoot(inside, text, rect, canvas) }
+    }
+
+    /// What the foot clip hides stays in the page's text layer, as in Word's
+    /// print (hin-z14202734's clipped "Print-ISSN No" line is in Word's text
+    /// layer on all five pages): drawn again, only under the foot, at 1/255.
+    @inline(never)
+    func _paintTextPastFoot(_ inside: _HeaderFooter, _ text: RichTextBox, _ rect: Rect, _ canvas: any Canvas) {
+        canvas.save()
+        canvas.clipRect(Rect.fromLTRB(rect.left - 1_000_000, rect.bottom, rect.right + 1_000_000, rect.bottom + 1_000_000),
+                        clipOp: .intersect, doAntiAlias: false)
+        canvas.translate(rect.left + _px(text.insetLeft), rect.top + _px(text.insetTop))
+        let ghost = Paint()
+        ghost.color = Color(0x01000000)
+        canvas.saveLayer(nil, ghost)
+        _paintBoxText(inside, canvas)
+        canvas.restore()
         canvas.restore()
     }
 

@@ -411,8 +411,6 @@ public struct RichTextBox: Hashable, Sendable {
     /// Used to retain an overflowing first-line indent at its stated
     /// position and clip that corrected line to the frame.
     public var hasFixedFrame = false
-    /// bodyPr vertOverflow="overflow": text past the foot is drawn, not cut (dx2 hin-z14202734's header box).
-    public var overflowVisible = false
     /// The tables among `paragraphs` (their cells' `CellRef.table`), with
     /// their looks and grids: a table nested in a cell is read as a box
     /// of its own, laid out as a document is.
