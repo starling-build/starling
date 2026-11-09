@@ -537,6 +537,15 @@ enum MangalAdvances {
     static func isConsonant(_ v: UInt32, block b: UInt32) -> Bool { (b + 0x15 ... b + 0x39).contains(v) || (b == 0x900 && (0x958 ... 0x95F).contains(v)) }
     static func isMatra(_ v: UInt32, block b: UInt32) -> Bool { (b + 0x3E ... b + 0x4C).contains(v) || (b + 0x01 ... b + 0x03).contains(v) || v == b + 0x62 || v == b + 0x63 }
 
+    /// Bengali: Word draws a reph cluster (র্ + base) at the base cluster's own advance (the reph is a zero-advance mark): 40 clusters read
+    /// directly from Word's prints agree with their base within 0.01 em (test/tools/indic-cluster-direct-bn.py).
+    @inline(never)
+    static func _bengaliReph(_ c: ArraySlice<Unicode.Scalar>, _ table: [String: Double], _ block: UInt32) -> Double? {
+        guard block == 0x980, c.count > 2, c[c.startIndex].value == 0x9B0, c[c.startIndex + 1].value == 0x9CD else { return nil }
+        var key = String.UnicodeScalarView()
+        key.append(contentsOf: c.dropFirst(2))
+        return table[String(key)]
+    }
     static func split(_ word: Substring, bold: Bool = false, table: [String: Double]? = nil, conjunctRatio: Double? = 0.85, block: UInt32 = 0x900) -> (ems: Double, known: String, rest: Bool)? {
         let advance = table ?? Self.advance
         let u = Array(word.unicodeScalars)
@@ -556,7 +565,7 @@ enum MangalAdvances {
             }
             var key = String.UnicodeScalarView()
             key.append(contentsOf: u[i ..< j])
-            if let w = advance[String(key)] ?? ascii[String(key)] ?? conjunct(u[i ..< j], table: table, ratio: conjunctRatio) { sum += w; known.append(contentsOf: u[i ..< j]); any = true } else { rest = true }
+            if let w = advance[String(key)] ?? ascii[String(key)] ?? Self._bengaliReph(u[i ..< j], advance, block) ?? conjunct(u[i ..< j], table: table, ratio: conjunctRatio) { sum += w; known.append(contentsOf: u[i ..< j]); any = true } else { rest = true }
             i = j
         }
         return any ? (sum, String(known), rest) : nil
