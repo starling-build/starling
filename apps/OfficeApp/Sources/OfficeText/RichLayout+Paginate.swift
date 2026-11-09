@@ -2226,9 +2226,11 @@ extension RichLayout {
                    let second = document.tableStyles[c.table], second.floatsOverText, !second.pageAnchored {
                     let firstAt: Double = (first.floatOffsetY ?? 0) - (first.floatRaiseY ?? 0)
                     let secondAt: Double = (second.floatOffsetY ?? 0) - (second.floatRaiseY ?? 0)
-                    // (Lab flt2: tables that state their own width (tblW dxa/pct) sit
-                    // level with the first in Word; only auto-width ones step down.)
-                    if secondAt >= firstAt, second.width == nil, second.widthPercent == nil { y += _px(21.5) }
+                    // (Labs flt2 and ovl2 autow: the step is taken only when BOTH tables
+                    // are auto-width. Two tables that state a width sit level (flt2), and
+                    // so does an auto-width second one after a first that states its width:
+                    // T10 to T11 is 172pt in Word's print, ours 192 with the step.)
+                    if secondAt >= firstAt, second.width == nil, second.widthPercent == nil, first.width == nil, first.widthPercent == nil { y += _px(21.5) }
                 }
                 // A floating table anchored to the text stands its offset
                 // below the text's place (zh-64044a1d's equipment list,
