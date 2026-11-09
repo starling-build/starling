@@ -1471,7 +1471,7 @@ extension RichLayout {
             // (Not where a column holds nothing measured: turned cells only.)
             if !low.contains(0) {
                 high = zip(low, high).map { max($0, $1) }
-                let room = (_tableFlowWidth[table] ?? width) + ins.left + ins.right
+                let room = document.tableStyles[table]?.widthPercent != nil ? base.reduce(0, +) : (_tableFlowWidth[table] ?? width) + ins.left + ins.right
                 let narrowest = low.reduce(0, +), widest = high.reduce(0, +)
                 let k = widest <= room ? 1 : narrowest >= room ? 0 : (room - narrowest) / (widest - narrowest)
                 // (Whole pixels: up where each is its widest, so that it
