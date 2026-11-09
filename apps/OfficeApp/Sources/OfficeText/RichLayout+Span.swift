@@ -837,6 +837,9 @@ extension RichLayout {
                 && (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
                 && !p.text.unicodeScalars.contains(where: { Self._isIndic($0.value) || Self._tamil.contains($0.value) || $0.value >= 0x2E80 })
                 && !_documentHasIndic(document)
+            let aumsSpaces: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && document.readFromFile
+                && (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
+                && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xB00 })
             let utsaahLatin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "utsaah"
             let indic: (face: String, scale: Double)? = {
                 guard theme.wordRules, RichTextTheme.wordWindowsPages else { return nil }
@@ -1334,6 +1337,12 @@ extension RichLayout {
                         plainPiece = false
                         spans.append(contentsOf: capped(piece, run, joinedScaled(piece, st)))
                     }
+                    start = end
+                    return
+                }
+                // (Spaces between Devanagari words, in a run of its own: Word draws them in Leelawadee UI, 0.274 em, where our stand-in's are 0.22; dx2 fb94294e.)
+                if kind >= 0, aumsSpaces, text[start ..< end].allSatisfy({ $0 == " " }) {
+                    spans.append(contentsOf: capped(text[start ..< end], run, Self._leelaLatinStyle(text[start ..< end], base: joinedScaled(text[start ..< end], style(kind)))))
                     start = end
                     return
                 }
