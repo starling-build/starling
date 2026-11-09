@@ -1249,6 +1249,38 @@ extension RichLayout {
                     start = end
                     return
                 }
+                if kind >= 0, indic?.face == "nirmala ui", text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value <= 0x97F }),
+                   !text[start ..< end].unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) {
+                    // (Nirmala UI's own Devanagari cluster widths, word by word: `NirmalaAdvances`.)
+                    let nBold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
+                    let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+                    let base = style(kind)
+                    for (piece, isIndic) in Self._splitIndicLatin(text[start ..< end]) {
+                        if isIndic, !nBold, authored > 0.5 {
+                            // (Each word on its own, so the fitted letter spacing never reaches the spaces between words.)
+                            var ws = piece.startIndex
+                            while ws < piece.endIndex {
+                                var we = ws
+                                let sp = piece[ws] == " "
+                                while we < piece.endIndex, (piece[we] == " ") == sp { we = piece.index(after: we) }
+                                let seg = piece[ws ..< we]
+                                if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: NirmalaAdvances.table(bold: false), flatScale: 1, conjunctRatio: nil) {
+                                    spans.append(contentsOf: capped(seg, run, fitted.style))
+                                } else {
+                                    spans.append(contentsOf: capped(seg, run, joinedScaled(seg, style(kind))))
+                                }
+                                ws = we
+                            }
+                        } else {
+                            plainPiece = !isIndic
+                            let st = style(kind)
+                            plainPiece = false
+                            spans.append(contentsOf: capped(piece, run, joinedScaled(piece, st)))
+                        }
+                    }
+                    start = end
+                    return
+                }
                 if kind >= 0, indic?.face == "nirmala ui", Self._splitIndicLatin(text[start ..< end]).count > 1 {
                     // (Word builds each line from the tallest ascent and the deepest descent of the faces on it: the Latin, digits, spaces
                     // and marks between Nirmala UI's words are Arial's and carry no Nirmala line of their own.)
@@ -3416,8 +3448,8 @@ extension RichLayout {
     /// The word set so its width is the sum of the face's per-cluster advances (`MangalAdvances.split`, any table), by letter spacing on the
     /// stand-in; clusters the table lacks keep the stand-in's width times `flatScale`. Nil where the table knows none of the word.
     @inline(never)
-    func _clusterFitted(_ w: Substring, base: TextStyle, authored: Double, table: [String: Double], flatScale: Double) -> (style: TextStyle, flat: TextStyle)? {
-        guard let split = MangalAdvances.split(w, table: table) else { return nil }
+    func _clusterFitted(_ w: Substring, base: TextStyle, authored: Double, table: [String: Double], flatScale: Double, conjunctRatio: Double? = 0.85) -> (style: TextStyle, flat: TextStyle)? {
+        guard let split = MangalAdvances.split(w, table: table, conjunctRatio: conjunctRatio) else { return nil }
         let flat = base.copyWith(scaleX: 1)
         func measure(_ s: String, _ ls: Double) -> Double {
             let t = TextPainter(text: TextSpan(text: s, style: flat.copyWith(letterSpacing: ls)), textDirection: .ltr)

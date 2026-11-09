@@ -15,7 +15,7 @@ tenth of the words dropped and refitted. Only clusters met 3+ times are written.
 on the print box (cloud fonts) use a substitute: check the face is really the named one (the span font is).
 Words: a few hundred per cluster of data is enough for rms 0.005 em (Kokila: 12,944 words, 749 clusters).
 """
-import glob, os, sys
+import glob, os, sys, unicodedata
 import numpy as np, pymupdf
 
 FACE = sys.argv[1]
@@ -67,17 +67,22 @@ for pat in pats(PATTERN):
         for pg in d:
             for b in pg.get_text('rawdict')['blocks']:
                 for ln in b.get('lines', []):
-                    for s in ln['spans']:
-                        if s['font'].split('+')[-1] != FACE: continue
-                        cur = []; x0 = None
-                        for c in s['chars']:
-                            if c['c'] in ' \xa0':
-                                if cur and all(inblock(q) for q in cur):
-                                    X.append(norm(''.join(cur))); Y.append((c['origin'][0] - x0) / s['size'])
-                                cur = []; x0 = None
-                            else:
-                                if x0 is None: x0 = c['origin'][0]
-                                cur.append(c['c'])
+                    # words run across spans: Word often draws the spaces in another face (Arial), so the word
+                    # ends at the next space of any span, not at a space inside the face's own span
+                    cs = [(c, s['font'].split('+')[-1] == FACE, s['size']) for s in ln['spans'] for c in s['chars']]
+                    cur = []; x0 = None; sz = 0
+                    for k, (c, face, size) in enumerate(cs):
+                        if c['c'] in ' \xa0':
+                            # a stray space before a combining mark (Word's text layer splits words there) is not a word end
+                            if cur and k + 1 < len(cs) and cs[k + 1][1] and (matra(ord(cs[k + 1][0]['c'])) or ord(cs[k + 1][0]['c']) in (nukta, virama)): continue
+                            if cur and all(inblock(q) for q in cur):
+                                X.append(norm(''.join(cur))); Y.append((c['origin'][0] - x0) / sz)
+                            cur = []; x0 = None
+                        elif face:
+                            if x0 is None: x0 = c['origin'][0]; sz = size
+                            cur.append(c['c'])
+                        else:
+                            cur = []; x0 = None
 if not X: sys.exit('no words found: check FACE and PRINTS_GLOB')
 keys = sorted({c for t in X for c in clusters(t)}); idx = {k: i for i, k in enumerate(keys)}
 y = np.array(Y); ix = list(range(len(X)))
@@ -95,6 +100,10 @@ for rnd in range(2):
 cnt = A.sum(0)
 print('%s: %d words, %d clusters, rms %.4f em' % (FACE, len(X), len(keys), np.sqrt((err ** 2).mean())))
 with open(OUT, 'w') as f:
-    for k, i in sorted(idx.items()):
+    seen = set()  # Swift String keys compare canonically (U+95B == U+91C U+93C): a duplicate traps the dictionary literal
+    for k, i in sorted(idx.items(), key=lambda t: -cnt[t[1]]):
+        n = unicodedata.normalize('NFC', k)
+        if n in seen: continue
+        seen.add(n)
         if cnt[i] >= 3: f.write('        "%s": %.4f,\n' % (''.join('\\u{%X}' % ord(q) for q in k), sol[i]))
 print('wrote', OUT)
