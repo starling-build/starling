@@ -498,6 +498,14 @@ extension RichLayout {
             guard lineWide > 0 else { return 0 }
             return lineEms * Double(lineWide - 1) / Double(lineWide) / 64
         }
+        // (The pieces of the word a piece is in: from its first piece to the one that ends it, none before the line's first.)
+        func indicWordPieces(_ index: Int) -> (start: Int, end: Int) {
+            var st = index
+            while st > 0, pieces[st - 1].b == pieces[st].a, pieces[st - 1].last == pieces[st - 1].b, pieces[st - 1].trail == 0, !pieces[st - 1].hard, pieces[st - 1].a >= lineFrom { st -= 1 }
+            var en = index
+            while en + 1 < pieces.count, pieces[en].trail == 0, pieces[en].last == pieces[en].b, !pieces[en].hard, pieces[en + 1].a == pieces[en].b { en += 1 }
+            return (st, en)
+        }
         var pastFrom: (x: Double, tab: Int)? = nil   // where a tab to a right stop at the margin starts, the piece before ending with it
         var wordRest = 0   // pieces of an Arabic word a squeeze took whole, already on the line
         for (pieceIndex, piece) in pieces.enumerated() {
@@ -2138,14 +2146,28 @@ extension RichLayout {
                 if theme.wordRules, last > a, after > 0, w > width, w - after <= width + hair {
                     adjust[last - 1, default: 0] -= min(after, w - width + 0.02)
                 }
-                x = 0
+                // (An Indic word is not parted by the engine unless it is wider than a line: when its first clusters fit and a later one does
+                // not, the whole word opens the next line, and its clusters before this one count in that line's width. 9baed400's cell line
+                // "…पर्वतीय वनस्पति": the loop ended the line after "व" and left the next 7.2pt short, so the engine could not set what the
+                // loop had squeezed to fit.)
+                var carry = 0.0, carryFrom = a
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !legacy, !piece.hard, a > 0, !isSpace(units[a - 1]), Self._isIndic(UInt32(units[a])),
+                   piece.last == piece.b, let wordPieces = Optional(indicWordPieces(pieceIndex)), wordPieces.start < pieceIndex {
+                    var whole = 0.0
+                    for q in wordPieces.start ... wordPieces.end { whole += pieces[q].w }
+                    if whole <= room(lineNumber + 1) + _px(0.01) {
+                        for q in wordPieces.start ..< pieceIndex { carry += pieces[q].w }
+                        carryFrom = pieces[wordPieces.start].a
+                    }
+                }
+                x = carry
                 lineNumber += 1; width = room(lineNumber)
                 onFirstLine = false
                 marks = []
                 spaces = []
                 wordSpaces = []
                 lineWide = 0
-                lineFrom = a
+                lineFrom = carryFrom
                 lineEms = 0
                 lineLatin = false
                 lineLetters = false

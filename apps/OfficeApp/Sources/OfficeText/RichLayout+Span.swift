@@ -1832,7 +1832,8 @@ extension RichLayout {
                             flush(i)
                             // (A zero-width space before it gives the break the joiner would forbid back: after a space the word
                             // would not part from the line, and the engine cut words inside.)
-                            if before != nil {
+                            // (Not after an opening bracket or quote: Word keeps "(श्रमदिन)" whole, and the space let the line end on the "(": 9baed400's header cell.)
+                            if let before, !"([{\u{2018}\u{201C}\u{FF08}".contains(before) {
                                 spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                                 inserts.append(offset)
                             }
