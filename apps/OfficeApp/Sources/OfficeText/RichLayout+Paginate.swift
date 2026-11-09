@@ -46,7 +46,6 @@ extension RichLayout {
         var floatHold: (limit: Double, back: Double)? = nil
         // The text place the last text-anchored floating table hung from.
         var floatRunBase: (table: String, page: Int, y: Double)? = nil
-        var raiseRunAnchor: (table: String, page: Int, y: Double)? = nil
         // A table held at its `_floatPin` above where the text before it now ends: that end.
         var pinnedFrom: (table: String, page: Int, y: Double)? = nil
         // (A floating table kept with its anchor whose offset takes it past
@@ -2346,21 +2345,6 @@ extension RichLayout {
                 // tblpY -733 under frames that take no room, has "ICS
                 // 67.080.20" at 34.5 in Word's print, 36.65pt over the
                 // margin; ours stood it at the margin — and 177pt down.)
-                // (Tables floating above their anchor in a run, the later one stating its width:
-                // it hangs from the run's anchor like the first, overlapping it, instead of
-                // stacking under it. Lab flt2, Word for Windows.)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, c.row == 0, c.firstInRow,
-                   let ts = document.tableStyles[c.table], ts.floatsOverText, !ts.pageAnchored, ts.floatOffsetY == nil, ts.floatRaiseY != nil {
-                    if i > 0, let prevT = _cells[i - 1]?.table, prevT != c.table, let ra = raiseRunAnchor, ra.table == prevT, ra.page == page,
-                       let was = document.tableStyles[prevT], was.floatsOverText, !was.pageAnchored, was.floatOffsetY == nil, was.floatRaiseY != nil,
-                       ts.width != nil || ts.widthPercent != nil {
-                        RuleTrace.hit("word-raised-float-with-stated-width-hangs-from-the-run-anchor")
-                        y = ra.y
-                        raiseRunAnchor = (c.table, page, ra.y)
-                    } else {
-                        raiseRunAnchor = (c.table, page, y)
-                    }
-                }
                 raiseAtHead(c)
                 liftToFoot(c)
                 // (A table placed above the anchor's line, after one placed below it
