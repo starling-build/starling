@@ -11,6 +11,11 @@ enum NirmalaAdvances {
     static func table(bold: Bool) -> [String: Double] { regular }
 
     static let regular: [String: Double] = [
+        // ङ्क ङ्ग ङ्घ: Word's nga1 lab print (origin to origin; अङ्क 1.641 - अ 0.8185, सङ्ग, रङ्ग and ङ्घ alone agree within 0.003)
+        "\u{919}\u{94D}\u{915}": 0.8225,
+        "\u{919}\u{94D}\u{917}": 0.8215,
+        "\u{919}\u{94D}\u{918}": 0.8230,
+        "\u{919}\u{94D}\u{917}\u{93E}": 1.0800,
         "\u{9B6}\u{9C1}": 0.9390,
         "\u{9A5}\u{9BF}": 0.9010,
         "\u{9AC}\u{9C0}": 0.8600,
