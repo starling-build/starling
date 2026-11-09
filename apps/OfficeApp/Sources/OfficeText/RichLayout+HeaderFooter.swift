@@ -1099,6 +1099,7 @@ extension RichLayout {
                 }
             }
             y = top + _px(float.y)
+            if _atPageTopNegativeOffset(i, image) { y = top }
             // (Mid-page, from the text under the space before it: zh-4e5fe46f p6's
             // table, in a box anchored in a paragraph 3.5pt before, stands 3.5pt
             // lower in Word's print than from the paragraph's top.)

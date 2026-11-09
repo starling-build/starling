@@ -2711,10 +2711,19 @@ extension RichLayout {
                 // (A hair above the line, -0.9pt as in lo-eb12e7d4's 137pt picture, in an empty
                 // paragraph: Word sets the line under it all the same — its p12 has the picture
                 // where the paragraph stood and the next paragraph at its foot, not over it.)
+                // (A picture banded top and bottom, 30pt above the empty first paragraph that holds it: Word stands it
+                // at the margin and the line goes under it — 3cce370f's picture 72 to 134.2 where ours stood at 42,
+                // every line after it 42.5pt high. One document's evidence, so only the document's first paragraph.)
+                let atTop = _atPageTopNegativeOffset(i, image)
                 guard let f = image.float, f.bandsPage, f.verticalFrom == "paragraph", f.verticalAlign == nil,
-                      f.y > 0 || (RichTextTheme.wordWindowsPages && bareText && f.y < -0.3 && f.y > -2),
+                      f.y > 0 || atTop || (RichTextTheme.wordWindowsPages && bareText && f.y < -0.3 && f.y > -2),
                       image.height + f.effectBottom > 0, before + max(painter.height, _markLineHeight(i, document)) >= _px(f.y) - 0.01 else { continue }
                 // (… and one more line than the picture's height: Word's p12 has two lines under it before the next paragraph.)
+                if atTop {
+                    RuleTrace.hit("word-top-and-bottom-picture-above-the-margin-stands-at-it-and-the-line-goes-under")
+                    push = max(push, _px(image.height + f.effectBottom + f.distanceBottom))
+                    continue
+                }
                 push = max(push, _px(f.y + image.height + f.effectBottom + f.distanceBottom) + (f.y < 0 ? max(painter.height, _markLineHeight(i, document)) : 0))
             }
         }
@@ -3408,5 +3417,16 @@ extension RichLayout {
                         }
                     }
                         return raisedTo
+    }
+}
+
+
+extension RichLayout {
+    /// A top-and-bottom picture more than 2pt above the empty first paragraph of the document that holds it.
+    @inline(never)
+    func _atPageTopNegativeOffset(_ i: Int, _ image: ImageAttachment) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, let f = image.float, f.bandsPage, !f.wraps, f.verticalAlign == nil,
+              f.verticalFrom == "paragraph", f.y < -2, i == 0, !floatsFrames, regionTopOnPage == nil else { return false }
+        return true
     }
 }
