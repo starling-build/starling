@@ -2013,10 +2013,12 @@ extension RichLayout {
         // last letter, to the line's full width.)
         @inline(never) func _thaiDistribute() -> Bool {
             // (A paragraph with a box in it, a first-line indent's among them, is left as it is: its second layout loses the box.)
-            guard inline.isEmpty else { return false }
             let units = Array(p.text.utf16)
             let map = _OffsetMap(lead: _lead(i), inserts: _inserts[i])
             let starts = _lineStarts(painter, map, count: units.count)
+            // (A first-line indent's box that no longer fits beside the first word stands alone on a line of its own: the line starts
+            // read the same then, so the painter's line count is held as well.)
+            let lineCount = painter.computeLineMetrics().count
             guard starts.count > 1 else { return false }
             // (Per line: its cluster heads and the room left after the last one.)
             var lines: [(heads: [Int], spare: Double, bare: Double)] = []
@@ -2068,7 +2070,7 @@ extension RichLayout {
                                                held: held, spread: spread)
                 let again = laidOut(span)
                 let st = _lineStarts(again, _OffsetMap(lead: _lead(i), inserts: inserts), count: units.count)
-                guard st == starts else { again.dispose(); return nil }
+                guard st == starts, again.computeLineMetrics().count == lineCount else { again.dispose(); return nil }
                 return (again, spread, inserts, st)
             }
             // (Word fills the line to the margin and hangs the space: where the full room breaks a line early, the largest share
