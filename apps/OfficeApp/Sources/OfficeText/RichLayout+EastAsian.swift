@@ -1007,12 +1007,12 @@ extension RichLayout {
                 // (A line-end comma, full stop or enumeration comma on a line whose marks squeeze, Word for
                 // Windows: lab `comma-hang3` (zh-e0ca7252's "…備，", w:right stepped) keeps the pair while
                 // 5.76pt is left after "備" and carries it at 5.26: the mark squeezed to 0.76 em and hung
-                // 0.28 em past the margin, so it may stand about half an em over, not the whole em.)
+                // 0.28 em past the margin, so it may stand about half an em over, not the whole em. Lab `comma-hang4` (16 pt, 0.25 pt steps) keeps it at 7.95 pt left (8.05 over) and carries it at 7.75 (8.25): the limit is half an em plus 0.24 pt, a fraction of the size, not a fixed 3.5 pt; two sizes tested.)
                 let commaHalfHang = theme.wordRules && RichTextTheme.wordWindowsPages && squeezes && !inCell && !paragraphEnd
                     && (document.compatibilityMode ?? 12) >= 15 && document.lineGridPitch == nil
                     && p.style.eastAsian["w:overflowPunct"] != "0" && last == a + 2 && tail == a + 1
                     && (units[tail] == 0xFF0C || units[tail] == 0x3002 || units[tail] == 0x3001)
-                    && over > em * 0.50 && hang > 0 && over <= hang + 0.0001
+                    && over > em * 0.50 + 0.24 && hang > 0 && over <= hang + 0.0001
                 if commaHalfHang { RuleTrace.hit("e0ca7252-comma-hangs-by-half-em-only") }
                 if hang > 0, over <= hang + 0.0001, !commaHalfHang {
                     // (All of it, the hair too: the engine has none.)
