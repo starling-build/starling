@@ -6,7 +6,8 @@
 // Clusters the table lacks keep the stand-in's width times the flat scale (`_indicScale["shonar bangla"]`).
 
 enum ShonarAdvances {
-    static let regular: [String: Double] = [
+    static let regular: [String: Double] = regularClusters.merging(latinRegular) { _, n in n }
+    static let regularClusters: [String: Double] = [
         // Punctuation Word draws in Shonar Bangla (hmtx of the print's subset): right single quote, danda.
         "\u{2019}": 0.2754, "\u{964}": 0.1982,
         "\u{2018}": 0.2754, ":": 0.23, "(": 0.2754, ")": 0.2754, "-": 0.2754, ",": 0.2065, ".": 0.2065,
@@ -342,8 +343,9 @@ extension ShonarAdvances {
     /// Shonar Bangla BOLD, read from Word's own print (lab shonarbold1, 12 and 18 pt, authored sizes, spaced clusters, median of n>=2).
     /// Bold/regular is 1.127 on the median; clusters the lab did not print are the regular width times that.
     static let bold: [String: Double] = {
-        var t = regular.mapValues { $0 * 1.127 }
+        var t = regularClusters.mapValues { $0 * 1.127 }
         for (k, v) in measuredBold { t[k] = v }
+        for (k, v) in latinBold { t[k] = v }
         return t
     }()
     static let measuredBold: [String: Double] = [
