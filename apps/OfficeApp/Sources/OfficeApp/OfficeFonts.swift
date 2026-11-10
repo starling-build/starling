@@ -2458,7 +2458,8 @@ enum OfficeFonts {
         }
         // HG Maru Gothic M-PRO sets single lines 1.3 em apart in Word's print (jpn-g5-b79900: 11 pt
         // lines step 14.3 where the generic CJK line gave 18.9, and the 2-page document ran to 1).
-        if wordOnWindows, has("hg丸", "hgmarugothic") {
+        // (HG Soei Kakugothic UB, S and P: hhea 1760+288 of 2048 in the subsets of 4fbb6e32's print, the same 1.3 em single line; ours ran 1.71 em and pushed the page's stacked empty paragraphs down.)
+        if wordOnWindows, has("hg丸", "hgmarugothic", "創英角ｺﾞｼｯｸ", "創英角ゴシック", "soeikakugothic") {
             return EastAsianFace(height: 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.15 + 0.859375)
         }
         // Meiryo UI sets its lines 1.65 em apart in Word's print (jpn-g11-40dd71 and lab ovl2: 9 pt lines step 14.88,
