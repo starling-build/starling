@@ -2430,6 +2430,9 @@ enum OfficeFonts {
                 // used for both. Word for Windows' prints of kor-z19176375 and two more give each its table.)
                 RuleTrace.hit("gulim-own-latin-widths")
                 let che = has("gulimche", "굴림체")
+                // (Gulim's single line is 1332/1024 em, not 1.3: 43 lines in Word's print of 004d7a step 15.6105 pt, 24 in 16de187a
+                // 1.3006 em, so a page drifts 0.4 pt per 40 lines against 15.6.)
+                face.height = 1332.0 / 1024
                 face.latinAdvances = che ? gulimCheAdvances : gulimAdvances
                 face.latinBoldAdvances = face.latinAdvances
                 // (Curly quotes: Word's print of kor-z19176375-004d7a steps 6 pt at each double and 4 pt at each single

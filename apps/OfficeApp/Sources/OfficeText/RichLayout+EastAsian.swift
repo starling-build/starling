@@ -115,7 +115,12 @@ extension RichLayout {
             && zip(units, units.dropFirst()).contains { Self._closingUnits.contains($0.0) && Self._openingUnits.contains($0.1)
                 && (!squeezes || !Self._pauseMarks.contains($0.0)) }
         let hangulParen = RichTextTheme.wordWindowsPages && hangs && !units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) }) && zip(units, units.dropFirst()).contains { $0.1 == 0x29 && $0.0 >= 0xAC00 && $0.0 <= 0xD7A3 }
-        guard marked || partable || hangulParen || units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) })
+        // (A Korean line's final "." or "," after a Hangul syllable stays while its origin is inside the margin, in the
+        // body below 2013's layout: lab ko-stop, Gulim 12pt left, all-Hangul line, kept from 316.0 against a natural
+        // 320.1 at compat 14; at compat 15 and in a cell it needs the whole 320.0, as before.)
+        let hangulStop = RichTextTheme.wordWindowsPages && legacy && hangs
+            && zip(units, units.dropFirst()).contains { ($0.1 == 0x2E || $0.1 == 0x2C) && $0.0 >= 0xAC00 && $0.0 <= 0xD7A3 }
+        guard marked || partable || hangulParen || hangulStop || units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) })
                 || (squeezesSpaces && units.contains(0x20)),
               first.computeLineMetrics().count > 1 else { return [:] }
         // What each character's automatic space after it is.
@@ -126,7 +131,7 @@ extension RichLayout {
         let stops = (document.hangsLatinStops && RichTextTheme.wordWindowsPages && legacy && hangs
             && units.contains(where: { $0 == 0x2E || $0 == 0x2C }))
             || latinStops && units.contains(where: { Self._latinStopUnits.contains($0) })
-            || hangulParen
+            || hangulParen || hangulStop
         guard marked || stops || partable || !gaps.isEmpty || ((squeezesSpaces || pageBox) && units.contains(0x20)) else { return [:] }
         let map = _OffsetMap(lead: 0, inserts: inserts)
         // Where a zero-width space lets the line break (a word joiner,
