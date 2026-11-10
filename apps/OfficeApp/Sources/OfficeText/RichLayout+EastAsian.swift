@@ -2302,14 +2302,18 @@ extension RichLayout {
             // "能" 7.3pt over rather than squeeze its three marks.)
             let spacesBefore = wordSpaces.count
             if squeezesSpaces, !flanked, RichTextTheme.wordWindowsPages, last > a {
-                for k in a ..< last where units[k] == 0x20 && (a ..< k).contains(where: { !isSpace(units[$0]) }) {
+                for k in a ..< last where units[k] == 0x20 && (a ..< k).contains(where: { !isSpace(units[$0]) })
+                    && !(((k + 1) ..< units.count).first(where: { units[$0] != 0x20 }).map { units[$0] == 0x09 } ?? false) {
                     wordSpaces.append((k, boxes(k, k + 1)))
                 }
             }
             if squeezesSpaces || pageBox, piece.trail > 0, last < piece.b, !flanked {
-                let trailing = (last ..< piece.b).filter { units[$0] == 0x20 }
+                // (A space before a tab is held: its box holds the tab's stretch, and the justified line neither stretches nor squeezes it.)
+                let trailing = (last ..< piece.b).filter { units[$0] == 0x20 && !(((($0 + 1) ..< piece.b).first(where: { units[$0] != 0x20 })).map { units[$0] == 0x09 } ?? false) }
                 for k in trailing { wordSpaces.append((k, piece.trail / Double(max(1, trailing.count)))) }
             }
+            // (What a tab follows is set where the tab stop puts it: the spaces before the line's last tab give nothing.)
+            if let tab = (a ..< piece.b).last(where: { units[$0] == 0x09 }) { wordSpaces.removeAll { $0.k < tab } }
             if wordSpaces.count != spacesBefore, let lastSpace = wordSpaces.last { spaceBaseX = x - lastSpace.w }
             if topLinePunct, let k = lineOpener, k > (lastTab ?? -1), own.contains(k), Self._openingUnits.contains(units[k]),
                !(onFirstLine && firstGiven) {
