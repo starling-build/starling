@@ -670,6 +670,10 @@ extension RichLayout {
             let q = document.paragraphs[k]
             if k < i {
                 guard q.cell == p.cell, k < _heights.count else { break }
+                // (A picture on an earlier page does not narrow this one: the paragraph that opens
+                // a page, or a section, stands clear of what is anchored before it.)
+                if k + 1 < _pageBreak.count, _pageBreak[k + 1] { break }
+                if k + 1 < _sectionOf.count, _sectionOf[k + 1] != _sectionOf[k] { break }
             }
             // (One anchored in a paragraph above is wrapped round too, for a paragraph that is no
             // list item: a list item's label asks its own room beside a tight picture, see
