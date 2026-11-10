@@ -446,6 +446,7 @@ extension RichLayout {
         sub.listRestarts = document.listRestarts
         sub.usesEastAsianLayout = document.usesEastAsianLayout
         sub.hangsLatinStops = document.hangsLatinStops
+        sub.hangsStopsZhCN = document.hangsStopsZhCN
         sub.indentNotNumberingTabStop = document.indentNotNumberingTabStop
         sub.characterSpacingControl = document.characterSpacingControl
         sub.kernsPunctuation = document.kernsPunctuation
@@ -661,6 +662,7 @@ extension RichLayout {
         sub.listRestarts = document.listRestarts
         sub.usesEastAsianLayout = document.usesEastAsianLayout
         sub.hangsLatinStops = document.hangsLatinStops
+        sub.hangsStopsZhCN = document.hangsStopsZhCN
         sub.indentNotNumberingTabStop = document.indentNotNumberingTabStop
         sub.characterSpacingControl = document.characterSpacingControl
         sub.kernsPunctuation = document.kernsPunctuation
@@ -1814,6 +1816,7 @@ extension RichLayout {
         sub.characterGridSpace = section.last ? document.characterGridSpace : setup.characterGridSpace
         sub.usesEastAsianLayout = document.usesEastAsianLayout
         sub.hangsLatinStops = document.hangsLatinStops
+        sub.hangsStopsZhCN = document.hangsStopsZhCN
         sub.indentNotNumberingTabStop = document.indentNotNumberingTabStop
         sub.characterSpacingControl = document.characterSpacingControl
         sub.kernsPunctuation = document.kernsPunctuation

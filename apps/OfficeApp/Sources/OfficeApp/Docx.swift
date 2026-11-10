@@ -3749,6 +3749,9 @@ enum DocxFormat {
             } else if let lang = own ?? defaults {
                 document.defaultLangXML = PptxXML.serialize(lang)
             }
+            // (Lab hang3, compat 14: Word hangs a Latin line-end , . ; ) } only with eastAsia zh-CN AND the minorEastAsia theme face;
+            // either one removed, or both, and the stop wraps.)
+            document.hangsStopsZhCN = defaultEastAsia == "minorEastAsia" && document.marksSitLeft
         }
         // Header/footer: the section's default references, text with the
         // PAGE/NUMPAGES fields kept as placeholders.

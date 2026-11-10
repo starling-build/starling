@@ -2493,6 +2493,9 @@ public struct RichDocument: Hashable, Sendable {
     /// export): Word for Windows hangs a line's last "." or "," past the
     /// margin there, in Latin text and set left — fdo63164-1's print.
     public var hangsLatinStops = false
+    /// East Asian language zh-CN together with the minorEastAsia theme face: the pair under which Word (compat 14 and
+    /// earlier) lets a Latin line-end stop hang past the margin (lab hang3).
+    public var hangsStopsZhCN = false
     /// The settings' `w:doNotUseIndentAsNumberingTabStop`: a list
     /// label's tab goes to the next tab stop, not to the hanging indent.
     public var indentNotNumberingTabStop = false
