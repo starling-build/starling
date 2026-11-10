@@ -3577,7 +3577,7 @@ extension RichLayout {
                         // stand-in's 0.95; lab utsaah1, Word's baseline 11.9 pt under the margin at 16 pt, ours 15.4.)
                         // (A Kokila line with no Latin letter on it stands on Kokila's ascent whatever the paragraph's Latin face: dx2 cbb7ae39's
                         // header and heading, Calibri as the Latin face, 10 and 12 pt Hindi alone on the line, 2 pt higher in Word's print.)
-                        let asciiLow: UInt16 = cs == "shonar bangla" ? 0x21 : 0x30  // (Shonar: ": ____" in an Arial run is drawn in Arial and stands the line on Arial's ascent: 80152175)
+                        let asciiLow: UInt16 = 0x30  // digits, ":" and "_" count as Latin but "," and other low marks do not: a comma in a Shonar bullet paragraph is drawn in Shonar (3f7da49c); ": ____" in an Arial run stands on Arial (80152175)
                         let noLatin = (cs == "kokila" || cs == "shonar bangla") && !units[0 ..< min(firstEnd, units.count)].contains(where: { cs == "shonar bangla" ? ($0 >= asciiLow && $0 <= 0x7E) : (($0 >= 0x30 && $0 <= 0x39) || ($0 >= 0x41 && $0 <= 0x5A) || ($0 >= 0x61 && $0 <= 0x7A)) })
                         if cs == "utsaah" || cs == "kokila" || (cs == "shonar bangla" && noLatin), noLatin || (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == cs,
                            abs(size * metrics.0 - target) > 0.01,
