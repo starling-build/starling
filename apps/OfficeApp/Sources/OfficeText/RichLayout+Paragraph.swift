@@ -2046,6 +2046,8 @@ extension RichLayout {
                         || (units[o] >= 0xDC00 && units[o] <= 0xDFFF)
                     if mark && !heads.isEmpty { continue }
                     if afterLeading { afterLeading = false; continue }
+                    // (Only Thai letters take room before them: Word's "3." label and its digits stay whole, 66cda9e3.)
+                    guard (0x0E01 ... 0x0E5B).contains(units[o]) else { continue }
                     heads.append(o)
                     if (0x0E40 ... 0x0E44).contains(units[o]) { afterLeading = true }
                 }
