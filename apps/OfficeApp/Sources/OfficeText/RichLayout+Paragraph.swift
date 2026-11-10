@@ -1324,7 +1324,7 @@ extension RichLayout {
             _besideLabelShift[i] = nil
             var indents: [LineIndent] = []
             var firstBeside = true
-            for _ in 0 ..< 8 {
+            for _ in 0 ..< (besideLeftRoom != nil ? 24 : 8) {
                 let (trialSpan, _, _) = _span(for: p, at: i, document, textWidth: textWidth, lead: firstBeside && !besideRight && besideLeftRoom == nil ? max(original - besideIndent, 0) : original,
                                               adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
                 let trialInline = _span(for: p, at: i, document, textWidth: textWidth, lead: original, adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld).1
@@ -1333,6 +1333,10 @@ extension RichLayout {
                 trial.lineIndents = indents
                 trial.layout(minWidth: 0, maxWidth: textWidth)
                 var bottoms = Self._lineBottoms(trial)
+                // (Both sides of a box: a row takes a left piece only when the next word fits the room at the box's left, as Word's
+                // print of lab wg1 does, a left strip first holding text at 21pt, where "[30]" (19.6pt) fits, and not at 18pt.)
+                let leftFits: [Bool] = besideLeftRoom != nil && (_besideBoxes[i]?.count ?? 0) < 2 && (colWrapBoxes?.isEmpty ?? true)
+                    ? Self._nextWordFits(trial, trialSpan, room: besideLeftRoom ?? 0) : []
                 trial.dispose()
                 // (Lines of Arabic-script text are tested at the height they are set at: lo tdf163575's 12pt
                 // lines come out 15.9pt of the fallback face here and are set 13.8, and the third line above a
@@ -1383,7 +1387,11 @@ extension RichLayout {
                     var saved = 0.0, k = 0
                     while k < bottoms.count {
                         let before = k == 0 ? 0 : bottoms[k - 1]
-                        if bottoms[k] - saved > band.top + 0.01, before - saved < band.bottom - 0.01 {
+                        if bottoms[k] - saved > band.top + 0.01, before - saved < band.bottom - 0.01, k < leftFits.count, !leftFits[k] {
+                            // (No word fits the strip: the row is the right piece alone. Its 0.001 right inset keeps `_registerPairs`
+                            // from taking it for the right piece of a pair.)
+                            next.append(LineIndent(left: besideIndent, right: 0.001)); k += 1
+                        } else if bottoms[k] - saved > band.top + 0.01, before - saved < band.bottom - 0.01 {
                             next.append(LineIndent(left: 0, right: max(textWidth - leftRoom, 0)))
                             if k + 1 < bottoms.count {
                                 next.append(LineIndent(left: besideIndent, right: 0))
@@ -3677,4 +3685,28 @@ extension RichLayout {
         }
         return true
     }
+    /// For each line of `painter`, whether the word that starts it is no wider than `room`: the test for a left piece beside a box (a
+    /// word of ideographs is one character).
+    @inline(never)
+    static func _nextWordFits(_ painter: TextPainter, _ span: InlineSpan, room: Double) -> [Bool] {
+        let units = Array(span.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
+        var out: [Bool] = []
+        var at = 0
+        while at < units.count {
+            let r = painter.getLineBoundary(TextPosition(offset: at))
+            let s = max(r.start, at)
+            var e = s
+            if e < units.count, units[e] >= 0x2E80 { e += 1 } else {
+                while e < units.count, units[e] != 0x20, units[e] != 0x0A, units[e] != 0x200B, units[e] != 0x2D, !(units[e] >= 0x2E80) { e += 1 }
+                if e < units.count, units[e] == 0x2D { e += 1 }
+            }
+            var w = 0.0
+            if e > s { for b in painter.getBoxesForSelection(TextSelection(baseOffset: s, extentOffset: e)) { w += b.right - b.left } }
+            out.append(w <= room + 0.01)
+            guard r.end > at || r.end > r.start else { break }
+            at = max(r.end, at + 1)
+        }
+        return out
+    }
+
 }

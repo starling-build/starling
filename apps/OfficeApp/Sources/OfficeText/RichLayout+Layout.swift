@@ -2714,7 +2714,7 @@ extension RichLayout {
         var pushed = false
         for k in 0 ..< bottoms.count {
             let before = k == 0 ? 0 : bottoms[k - 1]
-            if k > 0, k < indents.count, indents[k].left > 0, indents[k].right == 0 || indents[k - 1].right > 0 {
+            if k > 0, k < indents.count, indents[k].left > 0, indents[k].right == 0 || indents[k - 1].right > 0.5 {
                 let previous = before - (k >= 2 ? bottoms[k - 2] : 0), own = bottoms[k] - before
                 shifts[k] = acc - previous
                 acc -= min(own, previous)
