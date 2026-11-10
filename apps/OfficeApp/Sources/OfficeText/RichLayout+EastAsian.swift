@@ -1019,7 +1019,7 @@ extension RichLayout {
                 // 5.76pt is left after "備" and carries it at 5.26: the mark squeezed to 0.76 em and hung
                 // 0.28 em past the margin, so it may stand about half an em over, not the whole em. Lab `comma-hang4` (16 pt, 0.25 pt steps) keeps it at 7.95 pt left (8.05 over) and carries it at 7.75 (8.25): the limit is half an em plus 0.24 pt, a fraction of the size, not a fixed 3.5 pt; two sizes tested.)
                 let commaHalfHang = theme.wordRules && RichTextTheme.wordWindowsPages && squeezes && !inCell && !paragraphEnd
-                    && ((document.compatibilityMode ?? 12) >= 15 || ((document.compatibilityMode ?? 12) == 14 && document.markSqueezeEm >= 0)) && document.lineGridPitch == nil
+                    && ((document.compatibilityMode ?? 12) >= 15 || ((document.compatibilityMode ?? 12) == 14 && document.markSqueezeEm >= 0)) && p.style.pBdrElement && document.lineGridPitch == nil
                     && p.style.eastAsian["w:overflowPunct"] != "0" && last == a + 2 && tail == a + 1
                     && (units[tail] == 0xFF0C || units[tail] == 0x3002 || units[tail] == 0x3001)
                     && over > ((document.compatibilityMode ?? 12) >= 15 ? em * 0.50 + 0.24 : ((marks.isEmpty && document.marksCentred ? -1 : em * document.markSqueezeEm * Double(marks.count + 1) + 0.24))) && hang > 0 && over <= hang + 0.0001

@@ -4914,6 +4914,7 @@ enum DocxFormat {
             func line(_ name: String) -> BorderLine? { bdr.first(name).flatMap(_borderLine) }
             let b = ParagraphBorders(top: line("w:top"), bottom: line("w:bottom"), left: line("w:left"), right: line("w:right"))
             style.borders = b.isEmpty ? nil : b
+            style.pBdrElement = true
         }
         if let sp = pPr.first("w:spacing") {
             if let v = Double(sp["w:before"] ?? "") { style.spaceBefore = v / 20 }

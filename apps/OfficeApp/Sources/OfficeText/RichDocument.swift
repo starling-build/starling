@@ -746,6 +746,9 @@ public struct RichParagraphStyle: Hashable, Sendable {
     public var widowControl = true
     /// Lines around the paragraph (Word's paragraph borders); nil for none.
     public var borders: ParagraphBorders? = nil
+    /// The paragraph (or its style) carries a `w:pBdr` element, even one whose sides are all "none": Word's
+    /// compat-14 line-end comma carry follows it (labs comma-hang10/11).
+    public var pBdrElement = false
     /// A fill behind the whole paragraph (Word's paragraph shading).
     public var fill: Color? = nil
     /// Word's frame (w:framePr: a paragraph positioned on the page), kept
