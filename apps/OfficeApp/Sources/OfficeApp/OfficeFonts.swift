@@ -4307,6 +4307,7 @@ enum OfficeFonts {
         // (Word's gap beside East Asian text is half this face's OS/2 xAvgCharWidth: read from the real
         // faces, lab/metrics/latin_avg_all.tsv, 567 faces; a face not in it takes its stand-in's value.)
         if let w = osAverageWidth[family.lowercased()] { return w }
+        if let w = standInAverageWidth(substitute(family)) { return w }
         switch substitute(family) {
         case serif: return 0.401
         case mono: return 0.6
@@ -4314,6 +4315,47 @@ enum OfficeFonts {
         case cambria: return 0.55
         default: return 0.441
         }
+    }
+
+    nonisolated(unsafe) private static var _standInAvg: [String: Double?] = [:]
+    /// OS/2 xAvgCharWidth over unitsPerEm of the bundled stand-in we actually draw (Regular), for a
+    /// face the Word-machine table lacks; nil where the file or table cannot be read.
+    static func standInAverageWidth(_ family: String) -> Double? {
+        #if os(WASI)
+        return nil
+        #else
+        declaredLock.lock()
+        defer { declaredLock.unlock() }
+        if let known = _standInAvg[family] { return known }
+        var result: Double? = nil
+        let files = [sans: "LiberationSans", serif: "LiberationSerif", mono: "LiberationMono",
+                     calibri: "Carlito", cambria: "Caladea", verdana: "DejaVuSans"]
+        if let file = files[family], let bundle = _bundle("OfficeApp_OfficeApp") {
+            let resources = bundle.resourceURL ?? bundle.bundleURL
+            let path = resources.appendingPathComponent("fonts/\(file)-Regular.ttf").path
+            if let data = FileManager.default.contents(atPath: path) { result = sfntAverageWidth(data) }
+        }
+        _standInAvg[family] = result
+        return result
+        #endif
+    }
+
+    /// xAvgCharWidth / unitsPerEm from an sfnt's OS/2 and head tables.
+    static func sfntAverageWidth(_ data: Data) -> Double? {
+        let b = [UInt8](data)
+        func u16(_ o: Int) -> Int { o + 1 < b.count ? Int(b[o]) << 8 | Int(b[o + 1]) : 0 }
+        func u32(_ o: Int) -> Int { u16(o) << 16 | u16(o + 2) }
+        guard b.count > 12 else { return nil }
+        var head = -1, os2 = -1
+        for t in 0 ..< u16(4) where 12 + 16 * t + 16 <= b.count {
+            let at = 12 + 16 * t
+            let tag = String(decoding: b[at ..< at + 4], as: UTF8.self)
+            if tag == "head" { head = u32(at + 8) } else if tag == "OS/2" { os2 = u32(at + 8) }
+        }
+        guard head >= 0, os2 >= 0, head + 20 <= b.count, os2 + 4 <= b.count, case let em = u16(head + 18), em > 0 else { return nil }
+        let w = u16(os2 + 2)
+        let signed = w >= 0x8000 ? w - 0x10000 : w
+        return signed > 0 ? Double(signed) / Double(em) : nil
     }
 
     /// Families the font menu offers. On macOS CoreText resolves any
