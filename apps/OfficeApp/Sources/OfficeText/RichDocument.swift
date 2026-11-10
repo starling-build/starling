@@ -2486,6 +2486,9 @@ public struct RichDocument: Hashable, Sendable {
     /// where `characterSpacingControl` compresses it, and two marks that
     /// stand together close up where the text kerns.
     public var usesEastAsianLayout = false
+    /// `w:doNotExpandShiftReturn`: a line that ends at a manual break is not stretched
+    /// (Word stretches it under Thai distributed alignment otherwise; lab thd2 and thd3).
+    public var doesNotExpandShiftReturn = false
     /// Settings that name no compatibility at all (an older LibreOffice
     /// export): Word for Windows hangs a line's last "." or "," past the
     /// margin there, in Latin text and set left — fdo63164-1's print.

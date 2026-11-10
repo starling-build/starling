@@ -1431,6 +1431,16 @@ extension RichLayout {
         // A right-to-left paragraph runs from the right, and its "left"
         // (Word's start) is the right edge.
         var align = Self._textAlign(style.alignment)
+        // (jc thaiDistribute, Word's print of lab thd1: a line broken at a space is set out to the full width by room between its
+        // letters, the spaces taking the same share as a letter and none of their own; the engine's justify, which widens only
+        // the spaces, is off for it — `_thaiDistribute` below spreads the lines.)
+        // (Compatibility 15 files print it as plain justify: 10ffb69f, a3710694, c929c653, 75eee205 fell when spread, and the
+        // files below 15, or naming none, rose: 46490205 50 to 55, e93587db 82 to 86, 93962bba 96 to 100.)
+        let thaiDistributed = theme.wordRules && RichTextTheme.wordWindowsPages && style.alignment == .justify
+            && (document.compatibilityMode ?? 0) < 15
+            && style.eastAsian["w:jc"] == "thaiDistribute" && !style.rightToLeft
+            && p.text.unicodeScalars.contains(where: { (0x0E01 ... 0x0E5B).contains($0.value) })
+        if thaiDistributed { align = .left }
         if style.rightToLeft {
             switch style.alignment {
             case .left: align = .right
@@ -1999,6 +2009,99 @@ extension RichLayout {
                 }
             }
         }
+        // (Thai distributed: every line but the last that ends at a space is spread over the clusters between its first and its
+        // last letter, to the line's full width.)
+        @inline(never) func _thaiDistribute() -> Bool {
+            // (A paragraph with a box in it, a first-line indent's among them, is left as it is: its second layout loses the box.)
+            guard inline.isEmpty else { return false }
+            let units = Array(p.text.utf16)
+            let map = _OffsetMap(lead: _lead(i), inserts: _inserts[i])
+            let starts = _lineStarts(painter, map, count: units.count)
+            guard starts.count > 1 else { return false }
+            // (Per line: its cluster heads and the room left after the last one.)
+            var lines: [(heads: [Int], spare: Double, bare: Double)] = []
+            for k in 0 ..< starts.count - 1 {
+                let from = starts[k], to = starts[k + 1]
+                guard to > from else { continue }
+                // (A line that ends at a manual break is spread as well.)
+                // (The break itself stands at the start of the next line, or ends this one.)
+                func isBreak(_ u: UInt16) -> Bool { u == 0x0A || u == 0x0B || u == 0x2028 }
+                let before = isBreak(units[to - 1]), after = to < units.count && isBreak(units[to])
+                let broken = (before && to - 1 > from) || after
+                guard units[to - 1] == 0x20 || (broken && !document.doesNotExpandShiftReturn) else { continue }
+                let tail = before ? to - 2 : to - 1
+                var last = tail
+                while last > from, units[last] == 0x20 { last -= 1 }
+                // (Clusters: a mark belongs to the letter before it, a leading vowel to the letter after it.)
+                var heads: [Int] = []
+                var afterLeading = false
+                // (A line's blank lead, spaces or a tab that indent it, is not spread.)
+                var first = from
+                while first < last, units[first] == 0x20 || units[first] == 0x09 || units[first] == 0x3000 { first += 1 }
+                for o in first ... last {
+                    guard let u = Unicode.Scalar(UInt32(units[o])) else { continue }
+                    let mark = u.properties.generalCategory == .nonspacingMark || u.properties.generalCategory == .spacingMark
+                        || (units[o] >= 0xDC00 && units[o] <= 0xDFFF)
+                    if mark && !heads.isEmpty { continue }
+                    if afterLeading { afterLeading = false; continue }
+                    heads.append(o)
+                    if (0x0E40 ... 0x0E44).contains(units[o]) { afterLeading = true }
+                }
+                guard heads.count > 1,
+                      let box = painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(heads[heads.count - 1]), extentOffset: map.painter(tail) + 1)).last else { continue }
+                let spare = textWidth - box.right - _px(0.05)
+                guard spare > 0 else { continue }
+                let letters = painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(heads[heads.count - 1]), extentOffset: map.painter(last) + 1)).last
+                lines.append((heads, spare, letters.map { textWidth - $0.right - _px(0.05) } ?? spare))
+            }
+            guard !lines.isEmpty else { return false }
+            // (A line's room is what is left after its last letter; `bare` leaves out the space that follows.)
+            func attempt(_ t: Double) -> (TextPainter, [Int: Double], [Int], [Int])? {
+                var spread: [Int: Double] = [:]
+                for line in lines {
+                    // (t is 1 for the whole room, 0 for the room left after the space.)
+                    let room = line.spare + t * (line.bare - line.spare)
+                    for h in line.heads.dropFirst() { spread[h] = room / Double(line.heads.count - 1) }
+                }
+                let (span, _, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
+                                               adjust: fit.isEmpty ? (hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }) : fit,
+                                               held: held, spread: spread)
+                let again = laidOut(span)
+                let st = _lineStarts(again, _OffsetMap(lead: _lead(i), inserts: inserts), count: units.count)
+                guard st == starts else { again.dispose(); return nil }
+                return (again, spread, inserts, st)
+            }
+            // (Word fills the line to the margin and hangs the space: where the full room breaks a line early, the largest share
+            // of it that keeps every line break is found by halving between the whole room and the room left after the space.)
+            var best = attempt(1)
+            if best == nil {
+                var lo = 0.0, hi = 1.0
+                guard var kept = attempt(0) else { return false }
+                for _ in 0 ..< 6 {
+                    let mid = (lo + hi) / 2
+                    if let t = attempt(mid) { kept.0.dispose(); kept = t; lo = mid } else { hi = mid }
+                }
+                best = kept
+            }
+            guard let (again, _, inserts, _) = best else { return false }
+            painter.dispose()
+            painter = again
+            _inserts[i] = inserts
+            RuleTrace.hit("word-thai-distribute-spreads-lines-over-their-clusters")
+            return true
+        }
+        // (Where no spread is made the lines stay as the engine's justify sets them: the left-aligned layout read their room.)
+        @inline(never) func _thaiJustified() {
+            align = Self._textAlign(style.alignment)
+            let (span, _, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
+                                           adjust: fit.isEmpty ? (hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }) : fit, held: held)
+            let again = laidOut(span)
+            align = .left
+            painter.dispose()
+            painter = again
+            _inserts[i] = inserts
+        }
+        if thaiDistributed, (p.cell?.textDirection ?? .horizontal) == .horizontal, textWidth < 50_000, !_thaiDistribute() { _thaiJustified() }
         // Whole pixels: a page break clips between two lines, and a
         // fractional line box leaves the previous line's descenders peeking
         // into the next page (and its ascenders shaved off the previous).
