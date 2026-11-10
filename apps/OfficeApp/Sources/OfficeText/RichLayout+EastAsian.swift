@@ -3257,6 +3257,9 @@ extension RichLayout {
         // (After a full-width colon too: zh-40fe33a3's cell "…103年：-8.4%"
         // ends a line "…年：" in Word's print and opens the next "-8.4%".)
         if b == "-" || b == "/" {
+            // (Not before a slash after a Hangul syllable: kor-z19176375-004d7a's "주변부(대륙붕/연안)성격을"
+            // stays whole in Word's print, where ours broke before the "/".)
+            if b == "/", let u = a.unicodeScalars.first?.value, u >= 0xAC00 && u <= 0xD7A3 { return false }
             // (And before a slash after a full-width closing bracket, Word for Windows: zh-6e7ff836's
             // cell "…平均值）/ 前3年…" ends a line "…平均值）" and opens the next "/ 前"; see `_span`.)
             return wide(a) && !_openingMarks.contains(a) && (!_closingMarks.contains(a) || b == "-" && a == "："
