@@ -1948,6 +1948,8 @@ extension RichLayout {
                 // lab `jg`'s rule: zh-4b8e0abc's Indonesian, balanced, mode 15.)
                 if !fits, !opening, squeezesSpaces || pageBox,
                    !(document.balancesSpaceWidth && eastAsianAt(a) && a > 0 && isSpace(units[a - 1])),
+                   // (Korean, balanceSingleByteDoubleByteWidth: Word never squeezes a space to take a Hangul syllable: 0 of 8,000 spaces in 13 prints are under 0.487 em.)
+                   !(RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && units[a] >= 0xAC00 && units[a] <= 0xD7A3),
                    !wordSpaces.isEmpty || (!(spaces + ownSpaces).isEmpty && units[a] != 0xFFFC && !isSpace(units[a])) {
                     // (Less what its last mark hangs.)
                     var need = x + w - after - width - hang
