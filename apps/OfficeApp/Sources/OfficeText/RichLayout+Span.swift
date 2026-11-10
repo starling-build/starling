@@ -980,7 +980,7 @@ extension RichLayout {
                 // (Set to the original's widths, the stand-in's own
                 // kerning is no part of them: Arial's pair of ones.)
                 if kind >= 0, latinFace?.advances != nil { s = s.copyWith(fontFeatures: [FontFeature("kern", 0)]) }
-                if kind >= 0, let indic, indic.scale != 1 { s = s.copyWith(scaleX: indic.scale) }
+                if kind >= 0, let indic, indic.scale != 1, !plainPiece { s = s.copyWith(scaleX: indic.scale) }
                 // (The run's own line is the face's, not the stand-in's, where the face's is the shorter: Aparajita's 1.18 em (a516bfe9: 2.7 to 92.9) where Noto
                 // Sans Devanagari's is taller; the joiner above only raises a line.)
                 if kind >= 0, let indic, (indic.face == "kokila" && (kokilaLatin || text.unicodeScalars.contains(where: { Self._isIndic($0.value) }))) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "malgun gothic" && malgunLatin) || (indic.face == "yu gothic" && (aumsLatin || aumsYuInIndic)) || indic.face == "vijaya" || indic.face == "latha" || indic.face == "shonar bangla" || (namedFace != nil && namedFace != "mangal") || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[(indic.face == "shonar bangla" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? "shonar bangla bold" : indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
@@ -1498,7 +1498,12 @@ extension RichLayout {
                     start = end
                     return
                 }
-                spans.append(contentsOf: capped(text[start ..< end], run, joinedScaled(text[start ..< end], style(kind))))
+                // (A stretch with no Indic letter in it, in a run that has some: its digits, marks and spaces are the Latin face's, at the
+                // Latin face's widths; the Indic width scale is for the Indic letters. dx2 d912c25b's "(COVID-19)": Word 54.7, ours 59.2.)
+                plainPiece = kind >= 0 && indic != nil && !text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0x0900 && $0.value < 0x0E00 })
+                let st = style(kind)
+                plainPiece = false
+                spans.append(contentsOf: capped(text[start ..< end], run, joinedScaled(text[start ..< end], st)))
                 start = end
             }
             var offset = base
