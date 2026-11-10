@@ -1400,6 +1400,19 @@ extension RichLayout {
         return out
     }
 
+    /// Word for Windows (compat 15): each side of a column's least width is the larger of the cell
+    /// margin and half the rule on that side (lab tfit: 0.5/1/2 pt rules and no margin grow the
+    /// column 0.5/1/2 pt; with 5.4 pt margins nothing is added).
+    @inline(never)
+    func _autofitRuleRoom(_ table: String, _ document: RichDocument, _ padL: Double, _ padR: Double) -> Double {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 0) >= 15,
+              let ts = document.tableStyles[table], ts.cellSpacing == nil, ts.contentFit != true, ts.widthPercent == nil,
+              ts.edges?.left ?? (ts.borders && !ts.bordersFromCells) else { return 0 }
+        let l = ts.edgeWidths["left"] ?? ts.borderWidth ?? 0.5
+        let r = ts.edgeWidths["right"] ?? ts.borderWidth ?? 0.5
+        return max(0, _px(l / 2) - padL) + max(0, _px(r / 2) - padR)
+    }
+
     func _autofit(_ table: String, _ base: [Double], _ document: RichDocument) -> [Double] {
         struct Cell { var column: Int; var span: Int; var min: Double; var max: Double; var picture: Bool }
         var cells: [Cell] = []
@@ -1414,7 +1427,8 @@ extension RichLayout {
             guard c.column + c.span <= base.count else { return base }
             // (Turned text runs along the row, not across the column.)
             guard c.textDirection == .horizontal else { continue }
-            let sides = c.padding.map { _px($0.left) + _px($0.right) } ?? ins.left + ins.right
+            let padL = c.padding.map { _px($0.left) } ?? ins.left, padR = c.padding.map { _px($0.right) } ?? ins.right
+            let sides = padL + padR + _autofitRuleRoom(table, document, padL, padR)
             let w = sides + _minContent(i, p, document)
             let widest = sides + _maxContent(i, p, document)
             if theme.wordRules, !RichTextTheme.wordWindowsPages, c.span == 1, widest > w + 0.01, pctTable,
