@@ -885,6 +885,9 @@ extension RichLayout {
             let aumsSpaces: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && document.readFromFile
                 && (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
                 && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xB00 })
+            let mangalLatinSpace: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && document.readFromFile
+                && (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "mangal"
+                && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0x980 })
             let utsaahLatin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "utsaah"
             let namedFace: String? = text.unicodeScalars.contains(where: { $0.properties.isAlphabetic && Self._isIndic($0.value) }) ? nil : _namedMetricFace(run, named, document, text)
             let indic: (face: String, scale: Double)? = {
@@ -1458,6 +1461,16 @@ extension RichLayout {
                 // (Spaces between Devanagari words, in a run of its own: Word draws them in Leelawadee UI, 0.274 em, where our stand-in's are 0.22; dx2 fb94294e.)
                 if kind >= 0, aumsSpaces, text[start ..< end].allSatisfy({ $0 == " " }) {
                     spans.append(contentsOf: capped(text[start ..< end], run, Self._leelaLatinStyle(text[start ..< end], base: joinedScaled(text[start ..< end], style(kind)))))
+                    start = end
+                    return
+                }
+                // (A space in a run of its own whose Latin face is Mangal, in a Devanagari paragraph: Word draws it in Mangal, 0.5 em, 5.52 pt
+                // at 11 pt, where the stand-in's Latin space is 3.1; dx2 2db27e2d's "है; उदाहरण", the space after the ";".)
+                if kind >= 0, mangalLatinSpace, text[start ..< end].allSatisfy({ $0 == " " }) {
+                    RuleTrace.hit("word-mangal-latin-run-space-is-half-em")
+                    let base = style(kind)
+                    let authored = Self._wordGridSize(run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize, snap: true) * theme.pixelsPerPoint * scale
+                    spans.append(contentsOf: capped(text[start ..< end], run, _indicSpaceStyle(base: base, spaceEm: 0.5, unit: authored)))
                     start = end
                     return
                 }
