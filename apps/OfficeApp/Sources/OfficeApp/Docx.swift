@@ -267,6 +267,17 @@ func _statedCellColumns(_ node: XNode, count: Int) -> [Double]? {
 }
 
 
+/// An auto-width table, or one whose stated width (dxa) is the cells' own total: the cells rule.
+/// (jpn-z21461406-0d8cbc: tblW 10000 over cells of 2000 / 3500 / 2000 / 2500 and a grid of 100 x 4.)
+@inline(never)
+func _cellsAgreeWithTableWidth(_ node: XNode, cells: Double) -> Bool {
+    let w = node.first("w:tblPr")?.first("w:tblW")
+    let type = w?["w:type"] ?? "auto"
+    if type == "auto" { return true }
+    guard type == "dxa", let v = Double(w?["w:w"] ?? "") else { return false }
+    return abs(v / 20 - cells) <= 0.5
+}
+
 struct DocxDocument {
     var document: RichDocument
     var pageSetup: PageSetup?
@@ -2346,8 +2357,8 @@ enum DocxFormat {
                 // (Fixed layout too: jpn-z22667840-bc5fb7's python-docx table, grid 3293 x 3 under cells
                 // of 3168 / 2016 / 4464 and tblLayout fixed, has its edges by the cells in Word's print.)
                 if let cols = tableColumns[id], cols.count > 1, (cols.max() ?? 0) - (cols.min() ?? 0) <= 0.1,
-                   (node.first("w:tblPr")?.first("w:tblW")?["w:type"] ?? "auto") == "auto",
-                   let cw = _statedCellColumns(node, count: cols.count) {
+                   let cw = _statedCellColumns(node, count: cols.count),
+                   _cellsAgreeWithTableWidth(node, cells: cw.reduce(0, +)) {
                     tableColumns[id] = cw
                 }
                 // (A fixed table of a stated share whose cells all state widths, each row the
