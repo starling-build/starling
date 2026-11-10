@@ -101,7 +101,11 @@ extension RichLayout {
             // cut to 435.0 of 436.5, hold the 27th character, 0.09pt over its 405.3 after the
             // indent, in Word's print.)
             let offGrid = RichTextTheme.wordWindowsPages && p.style.eastAsian["w:snapToGrid"] == "0" && own >= cell + _px(0.9)
-            if cell > 0, own >= cell - _px(0.01), !offGrid { let cut = min(width, ((width + _px(0.01)) / cell).rounded(.down) * cell); gridCut = width - cut; width = cut }
+            // (A paragraph with half-width forms (U+FF61-FF9F) counts its line in half cells:
+            // cfbf7823's line of 23 cells and a half-width ｢ holds 423pt of a 425.2pt column
+            // in Word's print, where whole cells give 414.)
+            let step = RichTextTheme.wordWindowsPages && p.text.unicodeScalars.contains(where: { $0.value >= 0xFF61 && $0.value <= 0xFF9F }) ? cell / 2 : cell
+            if cell > 0, own >= cell - _px(0.01), !offGrid { let cut = min(width, ((width + _px(0.01)) / step).rounded(.down) * step); gridCut = width - cut; width = cut }
         }
         }
         _q0()
