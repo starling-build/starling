@@ -15931,3 +15931,4 @@ TIP WATCH amd-8, round 320 (971a9aa57, Word + dx2; 7781378f3 Malgun altName, ef8
 - lenovo-5 (2026-11-10): 2179cebe pages 12/14/15 OPEN (English doc, off my lane per starling-bd). Findings: ours has 12-21 fewer words than Word on those pages (unchecked why); cover page +1.2 pt y, Word font 8.2 vs ours 8.1. Pages 20-25 now match. Back to Japanese.
 
 - lenovo-5 (2026-11-10): CLAIM ja docs in dx2, lowest first: 4fbb6e32 (0%, 56/65 lines), ee0b468e (0%), 934bd3e5 (3%), 4427518d (3.8%), cfbf7823, 3ebc3ec5, 28abf02c. Starting on 4fbb6e32.
+- TIP WATCH amd-8, round 364 (81f6f7c2a; Latin trailing stop 0b7744236, autoSpaceDN squeeze 026f4e7c3): CLEAN. No drops in any Word set (xd 58.16, others unchanged), dx2 0 up 0 down, unit tests 647, Sheets same two workbooks. 11e672327 (table style firstRow) and 7193cdd03 (Devanagari cs marks) landed after: round 365.
