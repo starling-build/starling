@@ -1651,7 +1651,7 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
-                } else if theme.wordRules, RichTextTheme.wordWindowsPages, let b = before, b.isASCII, b.isLetter || b.isNumber, !runHinted(atOffset: offset - 1),
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.eastAsian["w:wordWrap"] != "0", let b = before, b.isASCII, b.isLetter || b.isNumber,
                           let v = ch.unicodeScalars.first?.value, v >= 0xAC00, v <= 0xD7A3 {
                     // (A Latin letter or digit holds the Hangul that follows it, no space between: Word carries
                     // kor-z20746312-59e77f's "26.1퍼센트였다" down whole, where the engine ended the
