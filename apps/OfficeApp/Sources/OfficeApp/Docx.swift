@@ -1265,6 +1265,7 @@ enum DocxFormat {
                 var cond = _Cond(), seen = Set<String>(), cur: String? = id
                 while let c = cur, !seen.contains(c), let node = tableNodes[c] {
                     seen.insert(c)
+                    if cond.cellVAlign == nil, let v = node.first("w:tcPr")?.first("w:vAlign")?["w:val"], v == "center" || v == "bottom" { cond.cellVAlign = v }
                     for part in node.all("w:tblStylePr") {
                         let fill = part.first("w:tcPr")?.first("w:shd")?["w:fill"].flatMap { hex -> Color? in
                             guard hex.count == 6, let v = Int64(hex, radix: 16) else { return nil }
@@ -2929,7 +2930,8 @@ enum DocxFormat {
                             if !own.isEmpty { ownEdges = own }
                             }
                         }
-                        let vAlign = tcPr?.first("w:vAlign")?["w:val"].flatMap { ["center", "bottom"].contains($0) ? $0 : nil }
+                        // (A cell with no vAlign of its own takes its table style's: jpn-z22306877-1047a4's Table1.)
+                        let vAlign = tcPr?.first("w:vAlign")?["w:val"].flatMap { ["center", "bottom"].contains($0) ? $0 : nil } ?? (tcPr?.first("w:vAlign") == nil ? cond.cellVAlign : nil)
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
                         rowExcepted = tr.first("w:tblPrEx")?.first("w:tblCellMar") != nil
                         if let rev = tcPr?.first("w:cellDel") ?? tcPr?.first("w:cellIns") {
@@ -5193,6 +5195,8 @@ enum DocxFormat {
     /// A table style's conditional formatting, the parts the editor shows.
     struct _Cond {
         var headerFill: Color? = nil
+        /// The style's own cell vertical alignment (`w:tcPr/w:vAlign`, centre or bottom).
+        var cellVAlign: String? = nil
         var headerChar: CharStyle? = nil
         var firstColChar: CharStyle? = nil
         var band1: Color? = nil

@@ -3133,7 +3133,10 @@ extension RichLayout {
                 RuleTrace.hit("picture-line-multiple-of-text")
                 single = t
             }
-            if p.image != nil {
+            if p.image?.name == "hr" {
+                // (A horizontal rule's line is the mark's line, set above at the paragraph's multiple already:
+                // jpn-z22306877-1047a4's rule at 1.25 stood 3.9pt, a quarter of the line, low in ours.)
+            } else if p.image != nil {
                 bodyHeight += (multiple - 1) * single
             } else if case let lines = painter.computeLineMetrics(), lines.count == 1,
                       let box = painter.inlinePlaceholderBoxes?.max(by: { $0.bottom - $0.top < $1.bottom - $1.top }),
