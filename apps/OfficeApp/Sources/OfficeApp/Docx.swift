@@ -3718,7 +3718,10 @@ enum DocxFormat {
             // (`RichDocument.joinsHanAfterSpace`.)
             // (hangsLatinStops is set only for a file with no compatibility mode and
             // no useFELayout: WPS and Chinese Word files carry useFELayout and keep a Han run whole.)
-            document.joinsHanAfterSpace = document.compatibilityMode == nil && document.hangsLatinStops
+            // (A theme East Asian font keeps the rule for a file that does carry useFELayout: zh-7773163d.)
+            let defaultEastAsia = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:rFonts")?["w:eastAsiaTheme"]
+            document.joinsHanAfterSpace = document.compatibilityMode == nil
+                && (document.hangsLatinStops || ["minorHAnsi", "majorHAnsi", "minorAscii", "majorAscii"].contains(defaultEastAsia ?? ""))
             if let own, let defaults {
                 document.defaultLangXML = PptxXML.serialize(XNode(name: own.name, attrs: defaults.attrs.merging(own.attrs) { _, mine in mine }))
             } else if let lang = own ?? defaults {
