@@ -2505,6 +2505,20 @@ extension RichLayout {
         return table
     }
 
+    /// The numbers' own character style: the file's "line number" style
+    /// (its size), and never the paragraph's bold: jpn-fd00b5's numbers are
+    /// 8 pt regular in Word, ours were 11 pt, bold in bold paragraphs.
+    @inline(never) func _lineNumberChar(_ document: RichDocument) -> CharStyle {
+        var c = CharStyle()
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile else { return c }
+        c.bold = false; c.off.insert(.bold)
+        guard let id = document.keptCharacterStyleIds["line number"], let xml = document.keptCharacterStyles[id],
+              let r = xml.rangeOfSubstring("<w:sz w:val=\"") else { return c }
+        let rest = xml[r.upperBound...]
+        if let q = rest.firstIndex(of: "\""), let half = Double(rest[..<q]) { c.fontSize = half / 2 }
+        return c
+    }
+
     func _paintLineNumbers(_ piece: PagePiece, ordinal: Int, origin: Offset, _ canvas: any Canvas, _ document: RichDocument) {
         let i = piece.paragraph
         guard let numbering = _setup(ofParagraph: i).lineNumbers else { return }
@@ -2513,7 +2527,7 @@ extension RichLayout {
         let p = document.paragraphs[i]
         // (In the paragraph's style, not its runs': Word's "Line Number"
         // is a character style on the paragraph's own.)
-        let style = theme.textStyle(for: CharStyle(), in: p.style, named: _named(p, document), normal: _normalChar(document),
+        let style = theme.textStyle(for: _lineNumberChar(document), in: p.style, named: _named(p, document), normal: _normalChar(document),
                                     scale: scale, fontScale: fontScale, gridPitch: nil)
         let g = geometry(i)
         let distance = _px(numbering.distance ?? 18)

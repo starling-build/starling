@@ -1,4 +1,4 @@
-188 documents: COMBINED mean 65.31% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 65.31% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
+188 documents: COMBINED mean 66.04% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 66.04% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
   11.9%  lines 370/368  pages 13/13  ara-z10840115-a1e854
    2.4%  lines 664/778  pages 27/26  ara-z11030406-663296
   13.5%  lines 111/111  pages 8/8  ara-z15699863-842f1e
@@ -87,7 +87,7 @@
   24.3%  lines 144/145  pages 5/5  hin-z10093577-3af7d4
  100.0%  lines 132/137  pages 5/5  hin-z14202734-427945
   93.4%  lines 241/289  pages 7/7  hin-z18479909-61195a
-  39.6%  lines 106/106  pages 5/5  hin-z19363961-952d8a
+ 100.0%  lines 106/106  pages 5/5  hin-z19363961-952d8a
    4.1%  lines 217/227  pages 9/9  hin-z19439612-b05873
   98.1%  lines 157/157  pages 8/8  hin-z19449382-045439
   46.1%  lines 345/346  pages 11/11  hin-z19974540-2e43e8
@@ -117,13 +117,13 @@
   79.7%  lines 374/374  pages 12/12  jpn-z19126474-754366
   93.4%  lines 774/778  pages 38/38  jpn-z19135939-3f592b
  100.0%  lines 207/209  pages 8/8  jpn-z19171856-2c8799
-  81.1%  lines 122/123  pages 10/10  jpn-z19306349-158454
-  76.4%  lines 144/144  pages 11/11  jpn-z19363276-7f0539
+  86.1%  lines 122/123  pages 10/10  jpn-z19306349-158454
+  81.9%  lines 144/144  pages 11/11  jpn-z19363276-7f0539
  100.0%  lines 135/135  pages 7/7  jpn-z19363276-f9df5b
-  86.4%  lines 110/110  pages 7/7  jpn-z19372928-8e85ed
-  86.9%  lines 130/130  pages 7/7  jpn-z19410533-d8cc8f
+ 100.0%  lines 110/110  pages 7/7  jpn-z19372928-8e85ed
+ 100.0%  lines 130/130  pages 7/7  jpn-z19410533-d8cc8f
   57.5%  lines 452/450  pages 17/17  jpn-z19433747-8787f4
-  48.3%  lines 207/204  pages 4/4  jpn-z19546822-fd00b5
+  85.5%  lines 207/208  pages 4/4  jpn-z19546822-fd00b5
   98.9%  lines 94/94  pages 3/3  jpn-z20018134-2cadcb
   94.3%  lines 53/53  pages 2/2  jpn-z20019250-7084b9
   98.0%  lines 461/461  pages 16/16  jpn-z20502518-8d25de
@@ -161,7 +161,7 @@
  100.0%  lines 245/245  pages 8/8  kor-z21941126-9b36b8
   98.5%  lines 408/408  pages 14/14  kor-z22076349-aa9a7f
   96.7%  lines 303/303  pages 13/13  kor-z22157092-bb30b1
-  93.2%  lines 794/794  pages 35/35  kor-z23132029-ff493b
+  94.6%  lines 794/794  pages 35/35  kor-z23132029-ff493b
  100.0%  lines 122/122  pages 5/5  kor-z5039621-e62ab8
   98.7%  lines 149/158  pages 5/5  mar-z19707447-f8dac9
   64.1%  lines 181/186  pages 9/9  nld-z22251521-8c1881

@@ -7111,6 +7111,10 @@ enum DocxFormat {
                     // wraps nothing in Word's print.)
                     if child.name == "w:pict", child.descendant("v:polyline") != nil,
                        child.descendant("v:textbox") == nil, child.descendant("v:imagedata") == nil { break }
+                    // (A horizontal rule is a block: after text in the same paragraph Word sets it on a line of its own,
+                    // numbered and a line tall. fd00b5's four, 47.8 to 79.2 by a break before each, no rebuild.)
+                    if DocxFormat.wordOnWindows, child.name == "w:pict", child.descendant("v:rect")?["o:hr"] == "t",
+                       !(text.isEmpty && inlineImages.isEmpty && built.isEmpty), !text.hasSuffix("\n") { addText("\n", cs) }
                     addImage(child)
                 case "w:object":
                     addObject(child)
