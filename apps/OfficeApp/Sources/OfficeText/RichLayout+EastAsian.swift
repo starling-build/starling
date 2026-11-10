@@ -809,7 +809,8 @@ extension RichLayout {
                     || units[tail] == 0x2C && RichTextTheme.wordWindowsPages && tail > 0 && units[tail - 1] >= 0x2E80
                     || macThai || macComma
                     || document.hangsLatinStops && RichTextTheme.wordWindowsPages && legacy && (units[tail] == 0x2E || units[tail] == 0x2C)
-                    || latinStops && Self._latinStopUnits.contains(units[tail])
+                    || latinStops && Self._latinStopUnits.contains(units[tail]) && !_afterHyphenPiece(units, tail) && !_beforeHardEnd(units, tail)
+                    // (Lab hang1 tested words that start after a space; Word moves a hyphen's second piece "ig." whole: 7b3ae3a6 "2021-ig.".)
                     // (A Korean word's own stop hangs: ecc32adb's "…포함된다." ends past the margin, the word whole.)
                     || RichTextTheme.wordWindowsPages && wordRules && (units[tail] == 0x2E || units[tail] == 0x2C) && tail > 0 && units[tail - 1] >= 0xAC00 && units[tail - 1] <= 0xD7A3
                 // (Before Word 2013's layout, in a document that compresses
@@ -2483,6 +2484,23 @@ extension RichLayout {
     // zh-ab1ea005's "…（劳部发﹝1994﹞" ends its line with the "﹞" set at
     // the margin in Word for Windows' print, where ours took "﹝1994﹞"
     // down whole.)
+    @inline(never)
+    func _beforeHardEnd(_ units: [UInt16], _ tail: Int) -> Bool {
+        // (Hang1's stops sit before more words or end their paragraph, never before a line break; 7b3ae3a6's "tárgyaljanak." before a line break wraps in Word although its origin is 0.5 pt inside.)
+        guard let n = units[(tail + 1)...].first(where: { $0 != 0x20 }) else { return false }
+        return n == 0x0A || n == 0x2028 || n == 0x0B
+    }
+    @inline(never)
+    func _afterHyphenPiece(_ units: [UInt16], _ tail: Int) -> Bool {
+        var i = tail - 1
+        while i >= 0 {
+            let u = units[i]
+            if u == 0x20 { return false }
+            if u == 0x2D { return true }
+            i -= 1
+        }
+        return false
+    }
     static let _latinStopUnits: Set<UInt16> = [0x2C, 0x2E, 0x3B, 0x29, 0x7D]
 
     /// Windows, a stated mode before 2013, plain Latin text (no East Asian layout), outside cells and
@@ -2490,7 +2508,9 @@ extension RichLayout {
     @inline(never)
     func _latinStopsRule(latinOnly: Bool, _ document: RichDocument, _ p: RichParagraph) -> Bool {
         guard latinOnly, theme.wordRules, RichTextTheme.wordWindowsPages, let mode = document.compatibilityMode, mode < 15,
-              p.cell == nil, !p.style.rightToLeft, !document.hangsLatinStops else { return false }
+              p.cell == nil, !p.style.rightToLeft, !document.hangsLatinStops,
+              p.style.alignment != .justify, !p.text.utf16.contains(where: { $0 >= 0x2E80 || $0 == 0x0A || $0 == 0x0B || $0 == 0x2028 }) else { return false }
+        // (Lab hang1 has no line breaks; in 7b3ae3a6's paragraphs, all with <w:br/>, Word keeps no stop past the edge: 522.68 wraps, kept ones end inside.)
         return true
     }
 
