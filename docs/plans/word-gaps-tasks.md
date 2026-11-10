@@ -15841,3 +15841,10 @@ TIP WATCH amd-8, round 320 (971a9aa57, Word + dx2; 7781378f3 Malgun altName, ef8
 - lenovo-5 2026-11-10 LANDED f5f93e386 (6fca0f, jpn-z22855378-6fca0f): a multi-line paragraph whose inline equations ALL stand after the first line keeps its line-grid strut (the paragraph-wide picturesInLine flag used to drop it for every line, so the first line sat 4.1 pt low and the doc ran 13 pages against Word's 12). Rule "word-equations-after-the-first-line-keep-the-paragraphs-strut"; helper _equationsAfterFirstLine probes the layout without a strut. First line 288.7 (Word 288.8), 12 pages. Pair: no up/down, Latin sample clean, unit tests 646 green. Gated by where the equation sits, not by spacing, so lo-98ae9de23e and dx2 20d9968b (equation on a single-line paragraph) keep the old path.
 - OPEN lenovo-5 (small, not chased): on the fraction (equation) line of a multi-line paragraph ours puts about 9 pt of extra above the baseline and almost none below; Word puts about 5.3 above and 3.7 below (net gap 0.4 pt). Later lines on 6fca0f page 2 still differ from Word (ours 361.4, 368.9, 369.7, 396.7 against Word 368.1, 375.2, 381.2, 405.9). Start there (doc 6fca0f).
 - OPEN lenovo-5 keep-chain item: also dx2 4f44d857 (98.9 to 97.7, round 340, from my Mincho line 07442aa4c), beside 463426 and 5dc87fc7 (both accepted).
+
+### amd-3 2026-11-10: fb94294e bullet leftovers (finding, nothing landed)
+- Bullet width now matches Word (bullet x=90, text x=108).
+- Debug print in _paintMarker: Carlito dot vs marker baseline is equal for regular bullets (down 0) and only 0.5 pt for bold (Carlito-Bold). So the dot placement is NOT the cause of the ~2 pt bullet-above-text gap.
+- Cause is therefore the text line being shifted (first-line correction) while the marker keeps the unshifted baseline. Word: bullet and text level. Ours: bullet row 148, text 150 (regular p4 too).
+- Also open: 4 pt extra gap after p5 (ours 164 to 190, Word 161 to 183), lone danda line (lab/danda1), ~1 pt/paragraph drift.
+- Next approach: print the text's first-line shift in _layoutParagraphOnce for p4/p5 and apply the same shift to the marker.
