@@ -1955,6 +1955,8 @@ extension RichLayout {
                    !(document.balancesSpaceWidth && eastAsianAt(a) && a > 0 && isSpace(units[a - 1])),
                    // (Korean, balanceSingleByteDoubleByteWidth, in a table cell: Word stretches, never squeezes, a space to take a Hangul syllable (15093019); in body text it squeezes, 107500a8 takes '기' at 0.46 em spaces.)
                    !(RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && inCell && units[a] >= 0xAC00 && units[a] <= 0xD7A3 && !(legacy == false && a + 2 >= units.count && p.style.eastAsian["w:wordWrap"] == "0")),
+                   // (And with wordWrap ON in a compat-15 cell Word never squeezes to take a last word that holds Hangul, even one that opens on a digit: lab ko-stop3 ww and leftww, tcW 7760-7960, 101 cases, never taken; 6건입니다.)
+                   !(RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && inCell && !legacy && p.style.eastAsian["w:wordWrap"] != "0" && Self._koreanLastWord(units, a)),
                    !wordSpaces.isEmpty || (!(spaces + ownSpaces).isEmpty && units[a] != 0xFFFC && !isSpace(units[a])) {
                     // (Less what its last mark hangs.)
                     var need = x + w - after - width - hang
@@ -3447,4 +3449,18 @@ extension RichLayout {
         }
     }
 
+}
+
+extension RichLayout {
+    /// A text's last word (no space from `a` on) that holds a Hangul syllable.
+    @inline(never)
+    static func _koreanLastWord(_ units: [UInt16], _ a: Int) -> Bool {
+        var hangul = false
+        for k in a..<units.count {
+            let u = units[k]
+            if u == 0x20 || u == 0xA0 || u == 0x3000 { return false }
+            if u >= 0xAC00 && u <= 0xD7A3 { hangul = true }
+        }
+        return hangul
+    }
 }
