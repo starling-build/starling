@@ -3510,6 +3510,30 @@ extension RichLayout {
 }
 
 extension RichLayout {
+    /// Does a Shonar Bangla first line hold a Latin-drawn character? Letters and digits are Latin. A neutral ASCII mark (punctuation, space, underscore) takes the
+    /// script of the strong characters in its OWN run: inside a run with Bengali it is drawn in Shonar (a comma in 3f7da49c's bullets), and a run of neutrals alone
+    /// uses its ascii face (": ____" in an Arial run, 80152175). The rule is Word's; it replaced a code-point cutoff.
+    @inline(never)
+    func _shonarFirstLineHasLatin(_ p: RichParagraph, units: [UInt16], firstEnd: Int, named: RichNamedStyle?, document: RichDocument) -> Bool {
+        var start = 0
+        for run in p.runs where run.length > 0 {
+            defer { start += run.length }
+            guard start < firstEnd else { break }
+            let end = min(start + run.length, firstEnd, units.count)
+            guard start < end, run.style.inlineImage == nil else { continue }
+            let slice = units[start ..< end]
+            if slice.contains(where: { ($0 >= 0x30 && $0 <= 0x39) || ($0 >= 0x41 && $0 <= 0x5A) || ($0 >= 0x61 && $0 <= 0x7A) }) { return true }
+            // (A space between Bengali words takes their script whatever its run's face: 80152175's Arial space run does not lift line 1.)
+            guard slice.contains(where: { $0 > 0x20 && $0 <= 0x7E }) else { continue }
+            if String(decoding: slice, as: UTF16.self).unicodeScalars.contains(where: { Self._indic.contains($0.value) }) { continue }
+            let face = (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
+            if face != "shonar bangla" && face != "kohinoor bangla" { return true }
+        }
+        return false
+    }
+}
+
+extension RichLayout {
     /// The baseline a first line of Indic letters stands at when its face's ascent is above `target`.
     @inline(never)
     func _indicFirstLineAscent(_ p: RichParagraph, painter: TextPainter, lead: Int, named: RichNamedStyle?, document: RichDocument, target: Double,
@@ -3577,8 +3601,9 @@ extension RichLayout {
                         // stand-in's 0.95; lab utsaah1, Word's baseline 11.9 pt under the margin at 16 pt, ours 15.4.)
                         // (A Kokila line with no Latin letter on it stands on Kokila's ascent whatever the paragraph's Latin face: dx2 cbb7ae39's
                         // header and heading, Calibri as the Latin face, 10 and 12 pt Hindi alone on the line, 2 pt higher in Word's print.)
-                        let asciiLow: UInt16 = 0x30  // digits, ":" and "_" count as Latin but "," and other low marks do not: a comma in a Shonar bullet paragraph is drawn in Shonar (3f7da49c); ": ____" in an Arial run stands on Arial (80152175)
-                        let noLatin = (cs == "kokila" || cs == "shonar bangla") && !units[0 ..< min(firstEnd, units.count)].contains(where: { cs == "shonar bangla" ? ($0 >= asciiLow && $0 <= 0x7E) : (($0 >= 0x30 && $0 <= 0x39) || ($0 >= 0x41 && $0 <= 0x5A) || ($0 >= 0x61 && $0 <= 0x7A)) })
+                        let noLatin = (cs == "kokila" || cs == "shonar bangla") && !(cs == "shonar bangla"
+                            ? _shonarFirstLineHasLatin(p, units: units, firstEnd: firstEnd, named: named, document: document)
+                            : units[0 ..< min(firstEnd, units.count)].contains(where: { ($0 >= 0x30 && $0 <= 0x39) || ($0 >= 0x41 && $0 <= 0x5A) || ($0 >= 0x61 && $0 <= 0x7A) }))
                         if cs == "utsaah" || cs == "kokila" || (cs == "shonar bangla" && noLatin), noLatin || (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == cs,
                            abs(size * metrics.0 - target) > 0.01,
                            // (An at-least line taller than the face keeps its old place: 6c7504e9 heading, 24 pt at least over a 16 pt face. A multiple puts its extra under the line, so the baseline stays on the face's ascent: lab mmatrix2.)
