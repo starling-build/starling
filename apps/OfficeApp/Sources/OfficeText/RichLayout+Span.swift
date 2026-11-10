@@ -143,6 +143,16 @@ extension RichLayout {
         default: return false
         }
     }
+    /// A run flagged `w:cs` that holds only marks (leaders, commas, brackets) is drawn wholly from its complex-script face: Mangal, or Kalimati
+    /// (which Windows lacks) in Mangal (dx2 375919ba: 96 leader runs, and Word's print holds Mangal marks there, not Calibri).
+    @inline(never) func _csMarksInMangal(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument, _ text: Substring) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile,
+              let kept = run.keptXML, kept.containsSubstring("<w:cs/>") || kept.containsSubstring("<w:cs "),
+              !text.isEmpty, !text.unicodeScalars.contains(where: { $0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39) || $0.value > 0x7E })
+        else { return false }
+        let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
+        return cs == "mangal" || cs == "kalimati"
+    }
     static func _isIndic(_ u: UInt32) -> Bool { _indic.contains(u) || _tamil.contains(u) }
 
     func _picturesTakeLines(_ p: RichParagraph, textWidth: Double) -> Bool {
@@ -892,6 +902,10 @@ extension RichLayout {
                     if kokilaLatin,
                        (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "kokila" {
                         return ("kokila", 1)
+                    }
+                    if _csMarksInMangal(run, named, document, text) {
+                        RuleTrace.hit("word-cs-run-of-marks-is-drawn-in-the-complex-face")
+                        return ("mangal", 1)
                     }
                     if malgunLatin,
                        text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 })
