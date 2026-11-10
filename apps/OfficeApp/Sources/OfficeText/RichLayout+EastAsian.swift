@@ -114,7 +114,7 @@ extension RichLayout {
         let partable = RichTextTheme.wordWindowsPages && !latinOnly && !turned
             && zip(units, units.dropFirst()).contains { Self._closingUnits.contains($0.0) && Self._openingUnits.contains($0.1)
                 && (!squeezes || !Self._pauseMarks.contains($0.0)) }
-        let hangulParen = RichTextTheme.wordWindowsPages && hangs && !units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) }) && zip(units, units.dropFirst()).contains { $0.1 == 0x29 && $0.0 >= 0xAC00 && $0.0 <= 0xD7A3 }
+        let hangulParen = RichTextTheme.wordWindowsPages && hangs && !units.contains(where: { $0 < 0x250 && ($0 >= 0xC0 && $0 != 0xD7 && $0 != 0xF7 || $0 >= 0x41 && $0 < 0xA0 || ($0 >= 0x30 && $0 <= 0x39)) }) && zip(units, units.dropFirst()).contains { $0.1 == 0x29 && $0.0 >= 0xAC00 && $0.0 <= 0xD7A3 }
         // (A Korean line's final "." or "," after a Hangul syllable stays while its origin is inside the margin, in the
         // body below 2013's layout: lab ko-stop, Gulim 12pt left, all-Hangul line, kept from 316.0 against a natural
         // 320.1 at compat 14; at compat 15 and in a cell it needs the whole 320.0, as before.)
