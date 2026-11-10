@@ -1129,6 +1129,9 @@ enum DocxFormat {
         // The same over the document defaults alone, for a cell paragraph
         // whose style chain does not reach Normal.
         var tableRootBases: [String: RichParagraphStyle] = [:]
+        // The same with the style's first-row paragraph look on top.
+        var headerBases: [String: RichParagraphStyle] = [:]
+        var headerRootBases: [String: RichParagraphStyle] = [:]
         var docBase = base
         // Cell margins by table style, each side from the style's chain
         // down to the default table style, then Word's own (0, 5.4pt).
@@ -1236,6 +1239,13 @@ enum DocxFormat {
                 }
                 tableBases[id] = ps
                 tableRootBases[id] = rootPs
+                var hps = ps, hroot = rootPs, hasHeaderPPr = false
+                for n in chain {
+                    for part in n.all("w:tblStylePr") where part["w:type"] == "firstRow" {
+                        if let pPr = part.first("w:pPr") { _paragraphProps(pPr, into: &hps); _paragraphProps(pPr, into: &hroot); hasHeaderPPr = true }
+                    }
+                }
+                if hasHeaderPPr { headerBases[id] = hps; headerRootBases[id] = hroot }
                 tableNodes[id] = style
                 tableEdges[id] = _edges(style.first("w:tblPr"), "w:tblBorders")
                 tableSides[id] = style.first("w:tblPr")?.first("w:tblBorders")
@@ -3046,6 +3056,10 @@ enum DocxFormat {
                         if direction != nil, currentCell?.textDirection != .horizontal || direction == "lrTbV" { currentCell?.textDirectionValue = direction }
                         cellChar = r == 0 && firstRowOn ? (cond.headerChar ?? CharStyle())
                             : (column == 0 && firstColOn ? (cond.firstColChar ?? CharStyle()) : CharStyle())
+                        if let sid = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"] {
+                            if r == 0, firstRowOn, let hb = headerBases[sid], let hr = headerRootBases[sid] { cellBase = hb; cellRootBase = hr }
+                            else if let tb = tableBases[sid], let tr = tableRootBases[sid] { cellBase = tb; cellRootBase = tr }
+                        }
                         notes.cellSizeFromTable = false
                         if cellChar.fontSize == nil, !normalStatesSize, let size = tableStyleSize { cellChar.fontSize = size; notes.cellSizeFromTable = true }
                         notes.cellCharFromTable = tableStyleChar.map { _takeTableChar(&cellChar, $0, normal: normalStatedChar) } ?? []
