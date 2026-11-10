@@ -4912,7 +4912,11 @@ enum DocxFormat {
         }
         if let bdr = pPr.first("w:pBdr") {
             func line(_ name: String) -> BorderLine? { bdr.first(name).flatMap(_borderLine) }
-            let b = ParagraphBorders(top: line("w:top"), bottom: line("w:bottom"), left: line("w:left"), right: line("w:right"))
+            // (Per side: a pBdr naming only the top keeps the style's bottom;
+            // 3ebc3ec5's "Intense Quote" lost its group's bottom rule.)
+            let old = style.borders
+            func side(_ name: String, _ prev: BorderLine?) -> BorderLine? { bdr.first(name) == nil ? prev : line(name) }
+            let b = ParagraphBorders(top: side("w:top", old?.top), bottom: side("w:bottom", old?.bottom), left: side("w:left", old?.left), right: side("w:right", old?.right))
             style.borders = b.isEmpty ? nil : b
             style.pBdrElement = true
         }
