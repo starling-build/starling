@@ -2619,6 +2619,11 @@ extension RichLayout {
     /// "草案)…" opening the next (lab tend, windows-1: the piece is the
     /// "(" alone, 7.98pt), where ours kept "(草" together and squeezed the
     /// line's marks for both.
+    /// Line-end openers are allowed by `w:kinsoku` 0 in East Asian text, or by a plain no-compat file whose language is not East Asian.
+    @inline(never) static func _plainOrKinsoku(_ plain: Bool, _ kinsokuOff: Bool, _ ea: Bool) -> Bool { (kinsokuOff && ea) || (plain && !ea) }
+    /// A plain no-rules file opens a break after an opener only before East Asian text: Word keeps "（rev40）" whole.
+    @inline(never) static func _plainOpenerBreak(_ plain: Bool, _ after: Character) -> Bool { !plain || (after.unicodeScalars.first?.value ?? 0) >= 0x2E80 }
+
     static func _latinOpener(_ ch: Character, _ after: Character) -> Bool {
         RichTextTheme.wordWindowsPages && "([{".contains(ch) && (after.unicodeScalars.first?.value ?? 0) >= 0x2E80
     }

@@ -287,6 +287,10 @@ extension RichLayout {
         // carries it over: zh-799c91cd's "各執1份為憑" and the "。" alone
         // under it, whose page 2 then ran a line long.)
         let kinsokuOff = theme.wordRules && p.style.eastAsian["w:kinsoku"] == "0"
+        // (A file that names no compatibility mode and whose East Asian language is not Chinese, Japanese or
+        // Korean (Pandoc's en-US): Word applies no line-start or line-end prohibitions. jpn-z21601833-4e6465's
+        // print ends lines on "（" and "「", and opens them on "）".)
+        let plainNoLineRules = RichTextTheme.wordWindowsPages && theme.wordRules && document.hangsLatinStops && !document.eastAsianLineRules
         let pausesOpenLines = RichTextTheme.wordWindowsPages && theme.wordRules && (document.compatibilityMode ?? 12) >= 15 && document.lineGridPitch != nil && document.marksSitLeft && p.text.unicodeScalars.contains(where: { $0.value >= 0x3040 && $0.value <= 0x30FF })
         // (Not only under `w:useFELayout`: zh-202582e2's settings lack it,
         // and its “综合验一次” in YaHei for FangSong_GB2312 is an em a
@@ -2192,10 +2196,10 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
                     inserts.append(offset)
-                } else if (kinsokuOff || (RichTextTheme.wordWindowsPages && theme.wordRules && document.defaultLangXML == nil && document.eastAsianDefaultFaceIsLatin && !document.bodyStatesLang)) && !breaksAtQuotes, let b = before,
+                } else if (kinsokuOff || plainNoLineRules || (RichTextTheme.wordWindowsPages && theme.wordRules && document.defaultLangXML == nil && document.eastAsianDefaultFaceIsLatin && !document.bodyStatesLang)) && !breaksAtQuotes, let b = before,
                           Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)
                             || (ch != " " && (Self._openingMarks.contains(b) || Self._latinOpener(b, ch))
-                                && Self._eastAsianLineRules(run, document, named: named)) {
+                                && Self._plainOrKinsoku(plainNoLineRules, kinsokuOff, Self._eastAsianLineRules(run, document, named: named)) && Self._plainOpenerBreak(plainNoLineRules && !kinsokuOff, ch)) {
                     // The paragraph's explicit kinsoku=0 works without
                     // useFELayout too: fresh Word's comma/parenthesis controls
                     // have identical breaks with that switch on and off.
@@ -2215,7 +2219,7 @@ extension RichLayout {
                             // a line "…（下稱「" in Word's print, "中" opening
                             // the next. Not where the language is not one —
                             // zh-c5b5087b's en-US carries "（" over.)
-                            || (kinsokuOff && ch != " " && (Self._openingMarks.contains(b) || Self._latinOpener(b, ch)) && Self._eastAsianLineRules(run, document, named: named))
+                            || ((kinsokuOff || plainNoLineRules) && ch != " " && (Self._openingMarks.contains(b) || Self._latinOpener(b, ch)) && Self._plainOrKinsoku(plainNoLineRules, kinsokuOff, Self._eastAsianLineRules(run, document, named: named)) && Self._plainOpenerBreak(plainNoLineRules && !kinsokuOff, ch))
                             // (A full-width opening quote the same: zh-b00fef0d's "…其中" sends "“1" down whole,
                             // the quote unable to stay alone at the line's end 12pt over.)
                             || (kinsokuOff && RichTextTheme.wordWindowsPages && ch != " " && (b == "\u{201C}" || b == "\u{2018}") && runHinted(atOffset: offset - 1) && Self._eastAsianLineRules(run, document, named: named))
