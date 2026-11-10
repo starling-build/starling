@@ -15929,3 +15929,5 @@ TIP WATCH amd-8, round 320 (971a9aa57, Word + dx2; 7781378f3 Malgun altName, ef8
 - lenovo-5 (2026-11-10): 11e672327 landed. A table style's firstRow paragraph look (before/after spacing, jc) now applies to header-row paragraphs (it was ignored). 2179cebe (xd) pages 24/25 now 546/313 words = Word's. No drops, 2 sets up 1. Left on 2179cebe: pages 12, 14, 15 have 12-21 fewer words than Word; cover page sits +1.2 pt (Word 8.2 pt font vs ours 8.1). Next: pages 12/14/15.
 
 - lenovo-5 (2026-11-10): 2179cebe pages 12/14/15 OPEN (English doc, off my lane per starling-bd). Findings: ours has 12-21 fewer words than Word on those pages (unchecked why); cover page +1.2 pt y, Word font 8.2 vs ours 8.1. Pages 20-25 now match. Back to Japanese.
+
+- lenovo-5 (2026-11-10): CLAIM ja docs in dx2, lowest first: 4fbb6e32 (0%, 56/65 lines), ee0b468e (0%), 934bd3e5 (3%), 4427518d (3.8%), cfbf7823, 3ebc3ec5, 28abf02c. Starting on 4fbb6e32.
