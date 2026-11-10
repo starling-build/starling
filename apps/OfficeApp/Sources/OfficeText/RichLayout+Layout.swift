@@ -1413,6 +1413,20 @@ extension RichLayout {
         return max(0, _px(l / 2) - padL) + max(0, _px(r / 2) - padR)
     }
 
+    /// The room a content-fitted table shares out (lab atcol1, Word for Windows): a share of the
+    /// column is that share of the column plus both cell margins (50% of a 468pt column: 239.4 for
+    /// 25%); a width in twips is that width; otherwise the column plus margins.
+    @inline(never)
+    func _contentFitRoom(_ table: String, _ base: [Double], _ document: RichDocument, _ margins: Double) -> Double {
+        let flow = (_tableFlowWidth[table] ?? width) + margins
+        guard let ts = document.tableStyles[table] else { return flow }
+        if theme.wordRules, RichTextTheme.wordWindowsPages {
+            if let pct = ts.widthPercent, pct > 0 { return flow * pct / 100 }
+            if let w = ts.width, w > 0 { return _px(w) }
+        }
+        return ts.widthPercent != nil ? base.reduce(0, +) : flow
+    }
+
     func _autofit(_ table: String, _ base: [Double], _ document: RichDocument) -> [Double] {
         struct Cell { var column: Int; var span: Int; var min: Double; var max: Double; var picture: Bool }
         var cells: [Cell] = []
@@ -1485,7 +1499,7 @@ extension RichLayout {
             // (Not where a column holds nothing measured: turned cells only.)
             if !low.contains(0) {
                 high = zip(low, high).map { max($0, $1) }
-                let room = document.tableStyles[table]?.widthPercent != nil ? base.reduce(0, +) : (_tableFlowWidth[table] ?? width) + ins.left + ins.right
+                let room = _contentFitRoom(table, base, document, ins.left + ins.right)
                 let narrowest = low.reduce(0, +), widest = high.reduce(0, +)
                 let k = widest <= room ? 1 : narrowest >= room ? 0 : (room - narrowest) / (widest - narrowest)
                 // (Whole pixels: up where each is its widest, so that it
@@ -1494,6 +1508,7 @@ extension RichLayout {
                 if Self.debugAutofit {
                     let pt = theme.pixelsPerPoint * scale
                     FileHandle.standardError.write(Data("autofit \(table): content fit \(fitted.map { ($0 / pt * 10).rounded() / 10 })\n".utf8))
+                    FileHandle.standardError.write(Data("  low \(low.map { ($0 / pt * 10).rounded() / 10 }) high \(high.map { ($0 / pt * 10).rounded() / 10 }) room \((room / pt * 10).rounded() / 10)\n".utf8))
                 }
                 // (A grid within a point of it in every column is the
                 // saving program's own fit, and ours is Word's to within a

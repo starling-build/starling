@@ -2741,6 +2741,8 @@ enum DocxFormat {
                 let gridCols = node.first("w:tblGrid")?.all("w:gridCol").compactMap { Double($0["w:w"] ?? "") } ?? []
                 let equalGrid = gridCols.count > 1 && (gridCols.max() ?? 0) - (gridCols.min() ?? 0) <= 2
                 if !cells.isEmpty, widthless == cells.count, style.width == nil, !style.fixedLayout, style.widthPercent == nil || equalGrid { style.contentFit = true }
+                // (A table of a width in twips over an equal-split grid is content-fitted too, to that width: lab atcol1.)
+                if !cells.isEmpty, widthless == cells.count, style.width != nil, style.widthPercent == nil, equalGrid, !style.fixedLayout { style.contentFit = true }
                 // (… and one whose stated cells are whole columns of one
                 // width in twips, the rest auto: those columns keep their
                 // width and the others are fitted — zh-72da925e's rain
