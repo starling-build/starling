@@ -2619,7 +2619,9 @@ extension RichLayout {
                             // a quarter of the shrunk one (2.20) makes three times. In the body it does shrink it: zh-d68ac84a
                             // (grid -1.35), zh-eb54d3b0 and zh-8d6f702e lose lines with the full em.)
                             ? (em + _px(p.cell != nil ? max(0, grid ?? 0) : (grid ?? 0)) + 2 * spacing) / 4
-                            : RichTextTheme.wordWindowsPages && ch.isASCII == false && following.isNumber && following.isASCII
+                            : RichTextTheme.wordWindowsPages && ch.isASCII == false && (following.isNumber || following.isLetter) && following.isASCII
+                            // (Letters the same as digits: lab jsp2, 9 prints, 7 faces, 14 and 10.5 pt: ideograph then letter a quarter em in
+                            // every face, letter then ideograph half the face's OS/2 xAvgCharWidth.)
                             // (Each side its own, in Word for Windows: lab asz (zh-147bdae0's package, left-aligned,
                             // sizes varied) sets an ideograph then a digit a quarter of the ideograph's em apart —
                             // 3.00 at 12pt, 3.96-4.08 at 16, 2.28 at 9, whatever the digit's size — and a digit then
@@ -2627,7 +2629,7 @@ extension RichLayout {
                             // 3.30 at 16, 標楷體 3.00 — whatever the ideograph's. Ours set both 2.70 beside Times, and
                             // lab asp's line took its character a step late.)
                             ? (em + _px(grid ?? 0) + spacing) / 4
-                            : RichTextTheme.wordWindowsPages && ch.isNumber && ch.isASCII && following.isASCII == false
+                            : RichTextTheme.wordWindowsPages && (ch.isNumber || ch.isLetter) && ch.isASCII && following.isASCII == false
                             ? (2 * (theme.averageCharWidth?(latin) ?? 0.5) * (em + _px(grid ?? 0)) + spacing) / 4 * wScale
                             : ((0.5 + (theme.averageCharWidth?(latin) ?? 0.5)) * (em + _px(grid ?? 0)) + spacing) / 4
                         // (Twice inside text ruled round where the widths are
