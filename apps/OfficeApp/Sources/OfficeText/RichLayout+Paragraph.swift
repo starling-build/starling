@@ -3466,14 +3466,16 @@ extension RichLayout {
                         case "mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "utsaah", "shonar bangla": break
                         default: cs = "nirmala ui"
                         }
-                        guard let metrics = Self._indicLines[cs] else { continue }
+                        // (Shonar Bangla Bold is its own face: 1721+978 of 2048; a first line of Bengali alone stands on its ascent, 15.1 pt at 18 pt, not on the stand-in's 0.96 em: dx2 3f7da49c's title, Word's baseline 60.1.)
+                        let shonarBold = cs == "shonar bangla" && (run.style.bold || ((named?.char.bold ?? false) && !run.style.off.contains(.bold)))
+                        guard let metrics = Self._indicLines[shonarBold ? "shonar bangla bold" : cs] else { continue }
                         let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
                         // (Utsaah with Utsaah as its Latin face too: the first line stands on Utsaah's 0.741 em, LOWER than the Latin
                         // stand-in's 0.95; lab utsaah1, Word's baseline 11.9 pt under the margin at 16 pt, ours 15.4.)
                         // (A Kokila line with no Latin letter on it stands on Kokila's ascent whatever the paragraph's Latin face: dx2 cbb7ae39's
                         // header and heading, Calibri as the Latin face, 10 and 12 pt Hindi alone on the line, 2 pt higher in Word's print.)
-                        let noLatin = cs == "kokila" && !units[0 ..< min(firstEnd, units.count)].contains(where: { ($0 >= 0x30 && $0 <= 0x39) || ($0 >= 0x41 && $0 <= 0x5A) || ($0 >= 0x61 && $0 <= 0x7A) })
-                        if cs == "utsaah" || cs == "kokila", noLatin || (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == cs,
+                        let noLatin = (cs == "kokila" || cs == "shonar bangla") && !units[0 ..< min(firstEnd, units.count)].contains(where: { ($0 >= 0x30 && $0 <= 0x39) || ($0 >= 0x41 && $0 <= 0x5A) || ($0 >= 0x61 && $0 <= 0x7A) })
+                        if cs == "utsaah" || cs == "kokila" || (cs == "shonar bangla" && noLatin), noLatin || (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == cs,
                            abs(size * metrics.0 - target) > 0.01,
                            // (An at-least line taller than the face keeps its old place: 6c7504e9 heading, 24 pt at least over a 16 pt face. A multiple puts its extra under the line, so the baseline stays on the face's ascent: lab mmatrix2.)
                            !(cs == "kokila" && ((p.style.lineHeightPoints ?? 0) > size * (metrics.0 + metrics.1) + 0.01)) {

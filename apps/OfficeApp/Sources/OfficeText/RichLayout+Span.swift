@@ -958,7 +958,7 @@ extension RichLayout {
                 if kind >= 0, let indic, indic.scale != 1 { s = s.copyWith(scaleX: indic.scale) }
                 // (The run's own line is the face's, not the stand-in's, where the face's is the shorter: Aparajita's 1.18 em (a516bfe9: 2.7 to 92.9) where Noto
                 // Sans Devanagari's is taller; the joiner above only raises a line.)
-                if kind >= 0, let indic, (indic.face == "kokila" && (kokilaLatin || text.unicodeScalars.contains(where: { Self._isIndic($0.value) }))) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "malgun gothic" && malgunLatin) || (indic.face == "yu gothic" && (aumsLatin || aumsYuInIndic)) || indic.face == "vijaya" || indic.face == "shonar bangla" || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
+                if kind >= 0, let indic, (indic.face == "kokila" && (kokilaLatin || text.unicodeScalars.contains(where: { Self._isIndic($0.value) }))) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "malgun gothic" && malgunLatin) || (indic.face == "yu gothic" && (aumsLatin || aumsYuInIndic)) || indic.face == "vijaya" || indic.face == "shonar bangla" || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[(indic.face == "shonar bangla" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? "shonar bangla bold" : indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
                     // (Kokila's line: its own ascent and descent, above and below the baseline, for every run on the line: the stand-ins'
                     // (Carlito's, Noto's) are taller above and set the line 2-3 pt low and 1.4 pt per line too far apart.)
                     // (A multiple under single too: dx2 hin-z20740649's 0.9 lines are 13.5 pt apart in Word's print, Kokila's 15.0 x 0.9.)
@@ -968,7 +968,11 @@ extension RichLayout {
                     // whatever the next multiple is; `Self._multipleSplit`.)
                     // (Kokila only so far: the other faces' lines were fitted with the extra spread over both sides; each gets the shared split when its own dx2 documents agree.)
                     let split = indic.face == "kokila" ? Self._multipleSplit(ascent: m.0, descent: m.1, multiple: multiple) : (m.0 * multiple, m.1 * multiple)
-                    s = s.copyWith(ascentOverride: split.0 * size, descentOverride: split.1 * size, height: (m.0 + m.1) * multiple, leadingDistribution: .even)
+                    // (A character scale (w:w) is laid out as a larger size; the line's height follows the authored size: dx2 3f7da49c's 105% title, 23.7 pt in Word, 24.9 here.)
+                    let wScale = RichTextTheme.wordWidthScale(run.horizontalScale ?? named?.char.horizontalScale ?? 1, wordRules: theme.wordRules,
+                        eastAsiaFamily: run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily)
+                    let lineSize = wScale > 0.01 ? size / wScale : size
+                    s = s.copyWith(ascentOverride: split.0 * lineSize, descentOverride: split.1 * lineSize, height: (m.0 + m.1) * multiple * lineSize / size, leadingDistribution: .even)
                 }
                 // (A run of Latin in a face other than Kokila inside a Kokila paragraph: Word stands its line on that face's ascent (above Kokila's) and keeps the
                 // Kokila split below it, at a line multiple too (dx2 cbb7ae39's Times New Roman "IRB", lab cb7; its 1.57-line paragraphs: the line is 2.0 pt taller, the
