@@ -2021,7 +2021,7 @@ extension RichLayout {
             let lineCount = painter.computeLineMetrics().count
             guard starts.count > 1 else { return false }
             // (Per line: its cluster heads and the room left after the last one.)
-            var lines: [(heads: [Int], spare: Double, bare: Double)] = []
+            var lines: [(heads: [Int], spare: Double, bare: Double, space: (offset: Int, width: Double)?)] = []
             for k in 0 ..< starts.count - 1 {
                 let from = starts[k], to = starts[k + 1]
                 guard to > from else { continue }
@@ -2054,7 +2054,11 @@ extension RichLayout {
                 let spare = textWidth - box.right - _px(0.05)
                 guard spare > 0 else { continue }
                 let letters = painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(heads[heads.count - 1]), extentOffset: map.painter(last) + 1)).last
-                lines.append((heads, spare, letters.map { textWidth - $0.right - _px(0.05) } ?? spare))
+                // (The space that ends the line hangs in Word; here it takes no width of its own, so the whole room can be spread.)
+                var space: (offset: Int, width: Double)?
+                if units[to - 1] == 0x20, last < to - 1, let gap = painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(to - 1), extentOffset: map.painter(to - 1) + 1)).last,
+                   gap.right - gap.left > 0 { space = (to - 1, gap.right - gap.left) }
+                lines.append((heads, spare, letters.map { textWidth - $0.right - _px(0.05) } ?? spare, space))
             }
             guard !lines.isEmpty else { return false }
             // (A line's room is what is left after its last letter; `bare` leaves out the space that follows.)
@@ -2064,6 +2068,7 @@ extension RichLayout {
                     // (t is 1 for the whole room, 0 for the room left after the space.)
                     let room = line.spare + t * (line.bare - line.spare)
                     for h in line.heads.dropFirst() { spread[h] = room / Double(line.heads.count - 1) }
+                    if let space = line.space, t >= 1 { spread[space.offset] = -space.width }
                 }
                 let (span, _, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
                                                adjust: fit.isEmpty ? (hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }) : fit,
