@@ -983,16 +983,18 @@ extension RichLayout {
                     ? "shonar bangla" : nil)
                 if kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, !kokilaLatin || (run.keptXML?.containsSubstring("<w:cs") ?? false), p.style.lineHeightPoints == nil,
                    let latinOwner, let m = Self._indicLines[latinOwner], let size = s.fontSize, size > 0.5,
-                   !text.unicodeScalars.contains(where: { Self._isIndic($0.value) }), p.text.unicodeScalars.contains(where: { Self._indic.contains($0.value) }),
-                   // (The Latin letters stack only when drawn in a face other than the line's Indic face: a run whose ascii face IS its complex face, such as Shonar Bangla on both, adds nothing; dx2 3f7da49c.)
-                   (latinOwner != "shonar bangla" || (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() != (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()) {
+                   !text.unicodeScalars.contains(where: { Self._isIndic($0.value) }), p.text.unicodeScalars.contains(where: { Self._indic.contains($0.value) }) {
+                    // (Latin letters stack only when drawn in a face other than the line's Indic face: a run whose ascii face IS its complex face, such as Shonar Bangla on both, takes that face's own line and adds no Latin ascent; dx2 3f7da49c.)
+                    let ownAscii: String = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
+                    let ownComplex: String = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
+                    let ownFace: Bool = latinOwner == "shonar bangla" && ownAscii == ownComplex
                     let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
                     let split = Self._multipleSplit(ascent: m.0, descent: m.1, multiple: multiple)
                     var above = split.0 * size
                     // (A run with the w:cs flag is drawn wholly from its complex-script face: Kokila's "(" in dx2 cbb7ae39's first lines, Times New Roman's where cs is the major bidi face.)
                     let csFlag = (run.keptXML?.containsSubstring("<w:cs") ?? false)
                     let csFace = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
-                    if text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 && (latinOwner != "shonar bangla" || $0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39)) }), !(csFlag && csFace == "kokila"),
+                    if !ownFace, text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 && (latinOwner != "shonar bangla" || $0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39)) }), !(csFlag && csFace == "kokila"),
                        let b = theme.baseline(for: run, in: { var single = p.style; single.lineSpacing = 1; return single }(), named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline),
                        let pt = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize, pt > 0.5 {
                         above = max(above, b / pt * size)
