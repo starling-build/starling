@@ -1666,6 +1666,13 @@ extension RichLayout {
             // (A kana-bearing stretch that fits a line (fitChars full-width characters) stays one
             // word, as jpn-z17607492's "典型的な距離:畑から…マイル" does in Word's print: the line
             // breaks before it, not inside.)
+            // (Compat 12, lab compat12 and dx2 f8ff8a48: Word keeps a stretch whole only when it is wider than a line;
+            // "图表同屏https://…/download" (about 19 em, fits) breaks at the Han/Latin edge, Han 1 em, other 0.5 em.)
+            if document.compatibilityMode == 12, han {
+                var em2 = 0
+                for o in start ..< end { em2 += (0x2E80 ... 0xFFEF).contains(units[o]) ? 2 : 1 }
+                if em2 <= 2 * fitChars { k = max(end, start); continue }
+            }
             if han, !kana || end - start <= fitChars { for o in (start + 1) ..< max(start + 1, end) { joins.insert(o) } }
             k = max(end, start)
         }
@@ -1752,7 +1759,15 @@ extension RichLayout {
                     if (0x3040 ... 0x30FF).contains(units[end]) || (0x3400 ... 0x9FFF).contains(units[end]) { han = true }
                     end += 1
                 }
-                if han, a > 0, !startSet.contains(a), starts.contains(where: { $0 > a && $0 < end }) {
+                // (Compat 12, dx2 f8ff8a48: a piece that fits one of the paragraph's lines stays as laid out; see `_hanJoins`.)
+                var fitsALine = false
+                if han, document.compatibilityMode == 12 {
+                    func em2(_ x: Int, _ y: Int) -> Int { units[x ..< y].reduce(0) { $0 + ((0x2E80 ... 0xFFEF).contains($1) ? 2 : 1) } }
+                    var room = 0
+                    for (n, st) in starts.enumerated() where n + 1 < starts.count { room = max(room, em2(st, starts[n + 1])) }
+                    fitsALine = em2(a, end) <= room
+                }
+                if han, !fitsALine, a > 0, !startSet.contains(a), starts.contains(where: { $0 > a && $0 < end }) {
                     if !(_hanChunks[i] ?? []).contains(a) { add.insert(a); break }
                 }
                 k = max(end, k + 1)
