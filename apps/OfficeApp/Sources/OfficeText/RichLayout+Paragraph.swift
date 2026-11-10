@@ -104,8 +104,14 @@ extension RichLayout {
             // (A paragraph with half-width forms (U+FF61-FF9F) counts its line in half cells:
             // cfbf7823's line of 23 cells and a half-width ｢ holds 423pt of a 425.2pt column
             // in Word's print, where whole cells give 414.)
-            let step = RichTextTheme.wordWindowsPages && p.text.unicodeScalars.contains(where: { $0.value >= 0xFF61 && $0.value <= 0xFF9F }) ? cell / 2 : cell
-            if cell > 0, own >= cell - _px(0.01), !offGrid { let cut = min(width, ((width + _px(0.01)) / step).rounded(.down) * step); gridCut = width - cut; width = cut }
+            let step = RichTextTheme.wordWindowsPages && p.text.unicodeScalars.contains(where: { $0.value >= 0xFF61 && $0.value <= 0xFF9F }) || !p.text.unicodeScalars.contains(where: { $0.value >= 0x2E80 && $0.value < 0xFF00 }) ? cell / 2 : cell
+            // (The cells are counted in what the indents leave: gc-p105's 453.6pt column holds 43 cells of
+            // 10.5 (451.5) up to 2pt of right indent and 42 from 2.5pt, in Word's print.)
+            if cell > 0, own >= cell - _px(0.01), !offGrid {
+                let room = width - left - right
+                let cut = min(room, ((room + _px(0.01)) / step).rounded(.down) * step)
+                gridCut = room - cut; width -= gridCut
+            }
         }
         }
         _q0()
