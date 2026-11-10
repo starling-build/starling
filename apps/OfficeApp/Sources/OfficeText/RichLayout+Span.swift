@@ -993,7 +993,7 @@ extension RichLayout {
                     // the top. lab mmatrix2 (2026-11-09): Kokila 18's gap to the next line is 40.8 / 43.9 / 47.0 / 51.1 for a previous 1.0 / 1.15 / 1.3 / 1.5
                     // whatever the next multiple is; `Self._multipleSplit`.)
                     // (Kokila only so far: the other faces' lines were fitted with the extra spread over both sides; each gets the shared split when its own dx2 documents agree.)
-                    let split = indic.face == "kokila" ? Self._multipleSplit(ascent: m.0, descent: m.1, multiple: multiple) : (m.0 * multiple, m.1 * multiple)
+                    let split = indic.face == "kokila" || indic.face == "latha" || indic.face.hasPrefix("shonar bangla") ? Self._multipleSplit(ascent: m.0, descent: m.1, multiple: multiple) : (m.0 * multiple, m.1 * multiple)
                     // (A character scale (w:w) is laid out as a larger size; the line's height follows the authored size: dx2 3f7da49c's 105% title, 23.7 pt in Word, 24.9 here.)
                     let wScale = RichTextTheme.wordWidthScale(run.horizontalScale ?? named?.char.horizontalScale ?? 1, wordRules: theme.wordRules,
                         eastAsiaFamily: run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily)
