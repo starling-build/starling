@@ -2104,7 +2104,7 @@ extension RichLayout {
             }
         }
         @inline(never) func _blk5() {
-        if theme.wordRules, p.image == nil, !p.text.isEmpty, painter.strutStyle != nil || scriptsOnly || mixedSizes || _koreanSymbolFirstLineRaise(p, painter: painter, lead: _lead(i), named: _named(p, document), document: document) != nil,
+        if theme.wordRules, p.image == nil, !p.text.isEmpty, painter.strutStyle != nil || scriptsOnly || mixedSizes || Self._startsWithEmoji(p.text) || _koreanSymbolFirstLineRaise(p, painter: painter, lead: _lead(i), named: _named(p, document), document: document) != nil,
            let line = painter.computeLineMetrics().first {
             let named = _named(p, document)
             let pitch = _offGrid(i, document) ? nil : _grid(i, document).pitch
@@ -2237,18 +2237,23 @@ extension RichLayout {
                               let b = theme.baseline(for: r, in: style, named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) else { continue }
                         target = max(target, b)
                     }
+                }
+                if style.lineHeightPoints == nil || style.lineHeightIsMinimum {
+                    let firstEnd = painter.getLineBoundary(TextPosition(offset: 0)).end - _lead(i)
+                    let units = Array(p.text.utf16)
+                    var start = 0
                     // (… and Segoe UI Symbol's, where the line holds a shape
                     // Word sets in it — see `RichTextTheme.segoeSymbolShapes`: its
-                    // ascent, 2210 of 2048, over the baseline.)
-                    if style.lineHeightPoints == nil || style.lineHeightIsMinimum {
-                        start = 0
+                    // ascent, 2210 of 2048, over the baseline; a colour emoji is Segoe UI Emoji's, whose
+                    // ascent is the same: lab emo1, a line starting 🔬 stands 1.5-1.7pt lower.)
+                    do {
                         for run in p.runs where run.length > 0 {
                             defer { start += run.length }
                             guard start < firstEnd else { break }
                             let end = min(start + run.length, firstEnd, units.count)
                             guard start < end, run.style.fontHint != "eastAsia",
                                   theme.faceResolver?(run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false)?.isEastAsian != true,
-                                  units[start ..< end].contains(where: { RichTextTheme.segoeSymbolShapes.contains(UInt32($0)) }) else { continue }
+                                  Self._holdsSegoeGlyph(units, start, end, emojiOnly: !lead.1) else { continue }
                             let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
                             // (The line as much taller: what stands under it
                             // goes as much lower — p7's third note line to
@@ -2257,6 +2262,8 @@ extension RichLayout {
                             target = max(target, size * 2210 / 2048)
                         }
                     }
+                }
+                if lead.1 {
                     // (… and its list label's, in Word for Windows, where the
                     // label stands lower under the line's top than the text:
                     // the line as much taller, as for a Segoe UI Symbol shape.

@@ -17,6 +17,21 @@ extension RichLayout {
     /// apps' prints: (c) (tm) and !! with and without it, all text in the line's own face). (R) and ?! by their kin: not printed.
     static let emojiStaysText: Set<UInt32> = [0xA9, 0xAE, 0x203C, 0x2049, 0x2122]
 
+    /// Whether `units[start ..< end]` holds a character Word sets in Segoe UI Symbol (a shape) or Segoe UI Emoji (a
+    /// colour emoji): both stand on an ascent of 2210/2048 em.
+    @inline(never)
+    static func _holdsSegoeGlyph(_ units: [UInt16], _ start: Int, _ end: Int, emojiOnly: Bool = false) -> Bool {
+        if !emojiOnly, units[start ..< end].contains(where: { RichTextTheme.segoeSymbolShapes.contains(UInt32($0)) }) { return true }
+        return String(decoding: units[start ..< end], as: UTF16.self).unicodeScalars.contains { $0.value >= 0x231A && _inRanges($0.value, emojiPresentation) }
+    }
+
+    /// Whether the text opens with a colour emoji (the first scalar, past nothing).
+    @inline(never)
+    static func _startsWithEmoji(_ text: String) -> Bool {
+        guard let v = text.unicodeScalars.first?.value, v >= 0x231A else { return false }
+        return _inRanges(v, emojiPresentation)
+    }
+
     static func _inRanges(_ v: UInt32, _ table: [ClosedRange<UInt32>]) -> Bool {
         var lo = 0, hi = table.count - 1
         while lo <= hi {
