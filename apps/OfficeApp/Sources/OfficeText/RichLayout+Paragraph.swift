@@ -1471,8 +1471,10 @@ extension RichLayout {
         // own way, and the line it shares grew a point — zh-ae2dd08d's
         // "(一) 一般對象（補助80%…" first line, beside a bold YaHei run
         // lower down, stood 21.5pt where Word's is 20.4.)
+        // (A Thai paragraph too: its stand-in is drawn at 0.82 of the size and the line's bold beside the regular is a hair taller, so with
+        // no strut the faces stacked, 2.5 pt over: dx2 3f86ce1b's "ข้อ 1." lines, 24.6 apart for Word's 22.0.)
         let spacedOver = theme.wordRules && style.lineHeightPoints == nil
-            && (style.lineSpacing > 1.2 || document.usesEastAsianLayout)
+            && (style.lineSpacing > 1.2 || document.usesEastAsianLayout || p.text.unicodeScalars.contains(where: { (0x0E01 ... 0x0E5B).contains($0.value) }))
         // (A larger number's height over the first line, where the
         // paragraph keeps its strut: see `laidOut`.)
         var numberLift = 0.0
