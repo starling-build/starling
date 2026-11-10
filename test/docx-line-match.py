@@ -171,6 +171,43 @@ def _unseen_pairs(ref_pdf, our_pdf):
     return dw, do
 
 
+def _columns(singles, total):
+    """Rows for the columns of a page of vertical writing, or [] where the page
+    is not one. A glyph set upright in a column reads as a line of one glyph in
+    the print, so the page is vertical where most of its glyphs are such lines
+    and stack: another such glyph within 0.3 em across and one or two ems along
+    (a horizontal page's rows of numbers or bullets step by other amounts).
+    Its columns are grouped by their glyphs' em centres across (within 0.3 em
+    of the column's first) and each is a row: its height is the centre
+    across, its start and end the glyphs' along it."""
+    if len(singles) < 8 or len(singles) < 0.5 * total:
+        return []
+    def stacked(g):
+        return any(h is not g and abs(h[1] - g[1]) <= 0.3 * g[3] and (0.9 <= abs(h[2] - g[2]) / g[3] <= 1.1 or 1.9 <= abs(h[2] - g[2]) / g[3] <= 2.1)
+                   for h in singles)
+    if sum(1 for g in singles if stacked(g)) < 0.7 * len(singles):
+        return []
+    cols = []
+    for g in sorted(singles, key=lambda g: g[1]):
+        if cols and g[1] - cols[-1][0][1] <= 0.3 * g[3]:
+            cols[-1].append(g)
+        else:
+            cols.append([g])
+    rows = []
+    for col in sorted(cols, key=lambda c: -c[0][1]):
+        col.sort(key=lambda g: g[2])
+        pieces = [[col[0]]]
+        for prev, g in zip(col, col[1:]):
+            if g[2] - prev[2] > 1.8 * max(prev[3], g[3]):
+                pieces.append([])
+            pieces[-1].append(g)
+        cx = statistics.median(g[1] for g in col)
+        parts = "\x1e".join(f"{round(q[0][2])}\x1f{round(q[-1][2] + q[-1][3])}\x1f{''.join(g[4] for g in q)}"
+                            for q in pieces) if len(pieces) > 1 else ""
+        rows.append(f"{round(-cx)}\t{round(col[0][2])}\t{''.join(g[4] for g in col)}\t{parts}\t{round(col[-1][2] + col[-1][3])}")
+    return rows
+
+
 def mupdf_glyphs(pdf, drop=None):
     """v2's rows, from the page's glyphs rather than the reader's lines.
     Each line of text set across is the inked glyphs on one baseline:
@@ -194,6 +231,7 @@ def mupdf_glyphs(pdf, drop=None):
         for i, page in enumerate(d):
             glyphs = []
             turned = []
+            singles = []
             line_no = 0
             # (Clipped glyphs too, as v1 reads them: the reader drops a
             # glyph the clip does not wholly hold, and Word's footer boxes
@@ -251,10 +289,21 @@ def mupdf_glyphs(pdf, drop=None):
                             for k, (c, size) in enumerate(q):
                                 ch = "\x00" if unicodedata.category(c["c"]) == "Co" else c["c"]
                                 glyphs.append((at, c["origin"][1] + 0.2 * size, c["origin"][0], ch, c["bbox"][2], size, line_no, k))
+                            if len(q) == 1:
+                                c, size = q[0]
+                                singles.append((line_no, (c["bbox"][0] + c["bbox"][2]) / 2, c["origin"][1], size,
+                                                "\x00" if unicodedata.category(c["c"]) == "Co" else c["c"]))
                     else:
                         d = tuple(round(v, 2) for v in l["dir"])
                         for c, size in inked:
                             turned.append((d, c["origin"][0], c["origin"][1], c["bbox"], c["c"], size))
+            # (A page of vertical writing: its upright glyphs are a line each
+            # in the print, one per column cell. See `_columns`.)
+            cols = _columns(singles, len(glyphs))
+            if cols:
+                gone = {n for n, *_ in singles}
+                glyphs = [g for g in glyphs if g[6] not in gone]
+                out += [f"p{i + 1}\t{r}" for r in cols]
             glyphs.sort()
             row = []
             for g in glyphs + [None]:
