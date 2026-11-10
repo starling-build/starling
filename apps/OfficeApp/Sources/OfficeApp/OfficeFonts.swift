@@ -2395,6 +2395,7 @@ enum OfficeFonts {
             // its prints; dbd695fe's Dotum "(이하 ‘표준’)" stood 0.6 pt narrow at each quote at Malgun's 0.228. A Korean face Word lacks
             // is drawn in Batang with its quotes in Malgun Gothic, at 0.228 and 0.38: 6a68f6ca's "(이하 ‘작가’)" -- the `case "batang"` fallback.)
             face.otherAdvances = [0x2018: 0.292, 0x2019: 0.292, 0x201C: 0.5, 0x201D: 0.5]
+            if n == "batang" || n == "바탕" { face.otherAdvances?[0x2027] = 1.0 }   // (U+2027 from PMingLiU, lab u2027)
             return face
         }
         // (NanumGothic: Latin its own, Hangul 0.94 em (key U+AC00 of otherAdvances carries it for the Hangul rule),
@@ -2433,7 +2434,7 @@ enum OfficeFonts {
                 face.latinBoldAdvances = face.latinAdvances
                 // (Curly quotes: Word's print of kor-z19176375-004d7a steps 6 pt at each double and 4 pt at each single
                 // quote in 12 pt Gulim, 0.5 and 1/3 em; they were drawn a full em or a third of it.)
-                if !che { face.otherAdvances = [0x2018: 1.0 / 3, 0x2019: 1.0 / 3, 0x201C: 0.5, 0x201D: 0.5] }
+                if !che { face.otherAdvances = [0x2018: 1.0 / 3, 0x2019: 1.0 / 3, 0x201C: 0.5, 0x201D: 0.5, 0x2027: 0.5] }   // (U+2027 from MS Gothic, lab u2027)
             }
             return face
         }
@@ -2510,7 +2511,9 @@ enum OfficeFonts {
                                                   // (Malgun's corner brackets are proportional, read from f457e50c's print: 「 0.566, 」 0.577, 『 』 0.517 em.)
                                                   0x300C: 0.566, 0x300D: 0.577, 0x300E: 0.517, 0x300F: 0.517,
                                                   // (Malgun's middle dot, from the face's own hmtx (lab/metrics/Malgun_Gothic.tsv): 448/2048 = 0.2188 em; ours drew the Latin stand-in's.)
-                                                  0x00B7: 0.2188, 0x2022: 0.4175]
+                                                  0x00B7: 0.2188, 0x2022: 0.4175,
+                                                  // (U+2027: Malgun has none; Word draws it in MS Gothic, half an em, regular and bold (lab u2027, 20-dot runs).)
+                                                  0x2027: 0.5]
             malgun.otherAdvances = malgunQuotes
             // (Bold cut: U+00B7 is 0.2617 em, from lab/metrics/Malgun_Gothic_Bold.tsv.)
             var malgunBoldQuotes = malgunQuotes
