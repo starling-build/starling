@@ -1508,7 +1508,6 @@ extension RichLayout {
                 if Self.debugAutofit {
                     let pt = theme.pixelsPerPoint * scale
                     FileHandle.standardError.write(Data("autofit \(table): content fit \(fitted.map { ($0 / pt * 10).rounded() / 10 })\n".utf8))
-                    FileHandle.standardError.write(Data("  low \(low.map { ($0 / pt * 10).rounded() / 10 }) high \(high.map { ($0 / pt * 10).rounded() / 10 }) room \((room / pt * 10).rounded() / 10)\n".utf8))
                 }
                 // (A grid within a point of it in every column is the
                 // saving program's own fit, and ours is Word's to within a
