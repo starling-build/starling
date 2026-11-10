@@ -153,11 +153,10 @@ extension RichLayout {
         let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
         return cs == "mangal" || cs == "kalimati"
     }
-    /// A run of only marks (a danda) whose face is Latha: Word draws them in Latha, a line of 1.372 em (dx2 80152175).
+    /// A run (no Indic letters in it: marks, Latin) whose face is Latha: Word draws it in Latha, a line of 1.372 em (dx2 80152175).
     @inline(never) func _runOfMarksInLatha(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument, _ text: Substring) -> Bool {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile,
-              !text.isEmpty, !text.unicodeScalars.contains(where: { $0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39) }),
-              text.unicodeScalars.contains(where: { $0.value == 0x964 || $0.value == 0x965 })
+              !text.isEmpty
         else { return false }
         let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
         let ascii = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
