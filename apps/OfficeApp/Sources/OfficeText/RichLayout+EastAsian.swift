@@ -1954,7 +1954,7 @@ extension RichLayout {
                 if !fits, !opening, squeezesSpaces || pageBox,
                    !(document.balancesSpaceWidth && eastAsianAt(a) && a > 0 && isSpace(units[a - 1])),
                    // (Korean, balanceSingleByteDoubleByteWidth, in a table cell: Word stretches, never squeezes, a space to take a Hangul syllable (15093019); in body text it squeezes, 107500a8 takes '기' at 0.46 em spaces.)
-                   !(RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && inCell && units[a] >= 0xAC00 && units[a] <= 0xD7A3),
+                   !(RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && inCell && units[a] >= 0xAC00 && units[a] <= 0xD7A3 && !(legacy == false && a + 2 >= units.count && p.style.eastAsian["w:wordWrap"] == "0")),
                    !wordSpaces.isEmpty || (!(spaces + ownSpaces).isEmpty && units[a] != 0xFFFC && !isSpace(units[a])) {
                     // (Less what its last mark hangs.)
                     var need = x + w - after - width - hang
@@ -2131,7 +2131,9 @@ extension RichLayout {
                         let pt = theme.pixelsPerPoint * scale
                         FileHandle.standardError.write(Data("FITS\t\(i)\t\(a)\t\(need / pt)\t\(roomSpaces / pt)\t\(autoRoom / pt)\t\(autos.count)\t\(wordSpaces.count)\t\(wordSpaces.reduce(0.0) { $0 + $1.w } / pt)\t\((width - x) / pt)\t\(halfStretch ? 1 : 0)\t\(sharesStretch ? 1 : 0)\t\(spaceEms / pt)\t\(inCell ? 1 : 0)\t\(windowsAfterMarks ? 1 : 0)\t\(quarterEach / pt)\t\(lineFrom)\t\(piece.b)\t\(budgetGive / pt)\t\(budgetStretch / pt)\t\(spaceTrail / pt)\t\(String(String.UnicodeScalarView(units[a ..< min(a + 7, units.count)].compactMap { Unicode.Scalar(UInt32($0)) })))\n".utf8))
                     }
-                    if need <= roomSpaces + hair, halfStretch, sharesStretch {
+                    // (A cell's final Hangul word with its stop, Word for Windows, mode 15, Gulim 12, justified (lab ko-stop3): the line gives a quarter of Gulim's 4.0 pt space (em/12), however many spaces it has; flip need 0.92 pass, 1.02 refuse; 6d273a8f.)
+                    let koCellFinal = RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && inCell && !legacy && p.style.eastAsian["w:wordWrap"] == "0" && units[a] >= 0xAC00 && units[a] <= 0xD7A3 && a + 2 >= units.count
+                    if need <= (koCellFinal ? min(roomSpaces, em / 12) : roomSpaces) + hair, halfStretch, sharesStretch {
                         // (Each gives the same share of what it can.)
                         let share = min(1, (need + 0.02) / max(0.001, roomSpaces))
                         if !latinPulled { for space in givers { adjust[space.k, default: 0] -= space.w * (windowsAfterMarks ? 0.25 : spaceGive(space.k)) * share } }
