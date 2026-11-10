@@ -725,6 +725,15 @@ extension RichLayout {
                         if band.bottom > 0.01, best == nil || rightEdge - own > best!.indent { best = (rightEdge - own, band, false, leftEdge - own) }
                         continue
                     }
+                    // (A thin box standing at the line start, in a paragraph with several boxes (the other one mid-column, so only one wins best):
+                    // the lines step past it at the start as well, so its blocked stretch is kept in boxes.
+                    // Word's print of dx2 28abf02c, its bracket groups: the wrapped lines start at 74.8, the group's right
+                    // edge and gap past the margin, not at the indent.)
+                    if w > 0, leftEdge - own <= 0.5, rightEdge - own > 0.5, candidates.count > 1 {
+                        let band = (top: _px(float.y) - _px(float.distanceTop) - offset,
+                                    bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
+                        if band.bottom > 0.01 { boxes.append((band.top, band.bottom, 0, rightEdge - own)) }
+                    }
                 }
                 guard let float = image.float, float.wraps, !float.takesRoom, float.verticalAlign == nil, float.verticalFrom == "paragraph",
                       float.horizontalAlign == nil || float.horizontalAlign == "left" || float.horizontalAlign == "right" else { continue }
