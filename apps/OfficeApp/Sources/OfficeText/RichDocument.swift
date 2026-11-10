@@ -1631,18 +1631,22 @@ public struct ListLevelFormat: Hashable, Sendable {
         case "decimalFullWidth", "decimalFullWidth2":
             return String(String(n).unicodeScalars.map { Character(UnicodeScalar($0.value - 0x30 + 0xFF10)!) })
         case "decimalZero": return n < 10 ? "0\(n)" : String(n)
-        // Thai digits (46490205's page numbers, ๑๔๔), Arabic letters in
-        // Word's order (da213509's pages 2 and 3 print ب and ت), Hebrew
-        // letters as numerals.
-        case "thaiNumbers", "thaiCounting":
-            return String(String(n).unicodeScalars.map { Character(UnicodeScalar(0x0E50 + $0.value - 0x30)!) })
-        case "arabicAlpha":
-            let g = Array("أبتثجحخدذرزسشصضطظعغفقكلمنهوي")
-            return String(g[(n - 1) % g.count])
+        // Word's own sequences, read from its print of lab numfmt1 (lists 1-30 and page numbers 1-12): a letter format repeats
+        // its letter ("أأ", "بب") past the last; Word's hindiConsonants and hindiVowels are named the wrong way round (its
+        // "consonants" are the vowels अ आ इ…).
+        case "thaiNumbers", "thaiCounting": return Self.digits(n, 0x0E50)
+        case "hindiNumbers": return Self.digits(n, 0x0966)
+        case "arabicAlpha": return Self.repeating(n, "أبتثجحخدذرزسشصضطظعغفقكلمنهوي")
+        case "arabicAbjad": return Self.repeating(n, "أبجدهوزحطيكلمنسعفصقرشتثخذضظغ")
+        case "hindiConsonants": return Self.repeating(n, ["अ", "आ", "इ", "ई", "उ", "ऊ", "ऋ", "ऌ", "ऍ", "ऎ", "ए", "ऐ", "ऑ", "ऒ", "ओ", "औ", "अं", "अः"])
+        case "hindiVowels": return Self.repeating(n, "कखगघङचछजझञटठडढणतथदधनऩपफबभमयरऱलळऴवशषसह")
+        case "thaiLetters": return Self.repeating(n, "กขคงจฉชซฌญฎฏฐฑฒณดตถทธนบปผฝพฟภมยรลวศษสหฬอฮ")
+        case "hindiCounting":
+            let w = ["एक", "दो", "तीन", "चार", "पाँच", "छः", "सात", "आठ", "नौ", "दस", "ग्यारह", "बारह", "तेरह", "चौदह", "पंद्रह", "सोलह", "सत्रह",
+                     "अठ्ठारह", "उन्नीस", "बीस", "इक्कीस", "बाईस", "तेईस", "चौबीस", "पच्चीस", "छब्बीस", "सत्ताईस", "अठ्ठाईस", "उन्तीस", "तीस"]
+            return n <= w.count ? w[n - 1] : String(n)
         case "hebrew1":
             guard n < 1000 else { return String(n) }
-            if n == 15 { return "טו" }
-            if n == 16 { return "טז" }
             var out = ""
             var v = n
             for (value, glyph) in [(400, "ת"), (300, "ש"), (200, "ר"), (100, "ק"), (90, "צ"), (80, "פ"), (70, "ע"), (60, "ס"), (50, "נ"),
@@ -1652,6 +1656,23 @@ public struct ListLevelFormat: Hashable, Sendable {
                 if v == 15 { out += "טו"; v = 0 } else if v == 16 { out += "טז"; v = 0 }
             }
             return out
+        case "hebrew2":
+            let g = Array("אבגדהוזחטיכלמנסעפצקרשת")
+            return String(repeating: "ת", count: (n - 1) / g.count) + String(g[(n - 1) % g.count])
+        case "koreanCounting":
+            guard n < 100 else { return String(n) }
+            let d = Array("일이삼사오육칠팔구")
+            var out = ""
+            if n / 10 >= 1 { out += (n / 10 > 1 ? String(d[n / 10 - 1]) : "") + "십" }
+            if n % 10 > 0 { out += String(d[n % 10 - 1]) }
+            return out
+        case "koreanDigital", "koreanDigital2":
+            return String(String(n).map { Array("영일이삼사오육칠팔구")[Int(String($0)) ?? 0] })
+        case "koreanLegal":
+            guard n < 100 else { return String(n) }
+            let tens = ["", "열", "스물", "서른", "마흔", "쉰", "예순", "일흔", "여든", "아흔"]
+            let ones = ["", "하나", "둘", "셋", "넷", "다섯", "여섯", "일곱", "여덟", "아홉"]
+            return tens[n / 10] + ones[n % 10]
         // (A level that shows no number: zh-90e0cea8's chapters are
         // "%1%2　" over a level 0 of "none" — "6　", not "16　".)
         case "none": return ""
@@ -1659,6 +1680,17 @@ public struct ListLevelFormat: Hashable, Sendable {
             return Self.customNumber(String(r.dropFirst(7)), n) ?? format.string(n)
         default: return format.string(n)
         }
+    }
+
+    static func digits(_ n: Int, _ zero: UInt32) -> String {
+        String(String(n).unicodeScalars.map { Character(UnicodeScalar(zero + $0.value - 0x30) ?? $0) })
+    }
+
+    /// The n-th item of a letter sequence that repeats the letter past its end ("أ", "ب" … "أأ", "بب").
+    static func repeating(_ n: Int, _ letters: String) -> String { repeating(n, letters.map { String($0) }) }
+    static func repeating(_ n: Int, _ letters: [String]) -> String {
+        guard n >= 1, !letters.isEmpty else { return String(n) }
+        return String(repeating: letters[(n - 1) % letters.count], count: (n - 1) / letters.count + 1)
     }
 
     /// A number in a Word 2010 custom format, given as samples of its
