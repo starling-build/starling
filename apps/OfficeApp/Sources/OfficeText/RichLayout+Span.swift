@@ -976,15 +976,7 @@ extension RichLayout {
                 // (Shonar Bangla beside Arial: the same line, the Latin face's ascent (with its line gap) over the Bengali face's descent; lab stk1.)
                 let latinOwner: String? = p.runs.contains(where: { ($0.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "kokila" }) ? "kokila"
                     : (p.runs.contains(where: { ["shonar bangla", "kohinoor bangla"].contains(($0.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()) })
-                        && !{ () -> Bool in
-                            var off = 0; let u = Array(p.text.utf16)
-                            for r in p.runs {
-                                let seg = u[min(off, u.count)..<min(off + r.length, u.count)]
-                                off += r.length
-                                if seg.contains(where: { $0 >= 0x980 && $0 < 0xA00 }),
-                                   !["shonar bangla", "kohinoor bangla"].contains((r.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()) { return true }
-                            }
-                            return false }() ? "shonar bangla" : nil)
+                    ? "shonar bangla" : nil)
                 if kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, !kokilaLatin || (run.keptXML?.containsSubstring("<w:cs") ?? false), p.style.lineHeightPoints == nil,
                    let latinOwner, let m = Self._indicLines[latinOwner], let size = s.fontSize, size > 0.5,
                    !text.unicodeScalars.contains(where: { Self._isIndic($0.value) }), p.text.unicodeScalars.contains(where: { Self._indic.contains($0.value) }) {
