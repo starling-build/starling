@@ -107,6 +107,7 @@ extension RichLayout {
         // (A run that carries its own ascent and descent (Kokila's, split at a line multiple by `_multipleSplit`) sets its line itself: a strut in the
         // stand-in's face put the baseline 4.1 pt low at 18 pt on every line above single. lab mmatrix2.)
         if base.ascentOverride != nil, base.debugLabel?.lowercased().containsSubstring("kokila") == true { return nil }
+        if wide, base.ascentOverride != nil, Self._thaiLineSplit(base.debugLabel, bold: false) != nil { return nil }
         // (Even leading: the engine's proportional strut scales the
         // face's ascent and descent by a height that counts its line gap
         // too, and comes out that much short — 15.15 for 15.6 in

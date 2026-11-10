@@ -51,6 +51,18 @@ extension RichLayout {
         let total = 1.3 * (0.985 + 0.302), above = 0.880 + 0.25, below = 0.222 + 0.25
         return (total * above / (above + below), total * below / (above + below))
     }()
+    /// The share of a Thai line above the baseline in Word's own faces (hhea ascent over ascent + descent): Browallia New (and the TH Sarabun
+    /// faces Word prints in it) 1770 / (1770 + 789), bold 1786 / (1786 + 885); Angsana New 0.941 / 1.351, bold 3949 / 5673. Nil for other faces.
+    static func _thaiLineSplit(_ label: String?, bold: Bool) -> Double? {
+        guard var name = label?.trimmingWhitespace().lowercased() else { return nil }
+        while name.hasSuffix(".copywith") { name = String(name.dropLast(9)) }
+        if name.hasPrefix("(") && name.hasSuffix(")") { name = String(name.dropFirst().dropLast()) }
+        switch name {
+        case "browallia new", "th sarabun new", "th sarabunit๙": return bold ? 1786.0 / 2671 : 1770.0 / 2559
+        case "angsana new": return bold ? 3949.0 / 5673 : 0.941 / 1.351
+        default: return nil
+        }
+    }
     static let _indicLines: [String: (Double, Double)] = [
         "yu gothic": _yuGothicLine, "mangal": (2542.0 / 2048, 898.0 / 2048), "kokila": (1504.0 / 2048, 857.0 / 2048), "nirmala ui": (2210.0 / 2048, 514.0 / 2048), "vijaya": (1462.0 / 2048, 600.0 / 2048),
         "aparajita": (1550.0 / 2048, 870.0 / 2048), "raavi": (2048.0 / 2048, 1352.0 / 2048), "shruti": (2091.0 / 2048, 1352.0 / 2048),
@@ -177,6 +189,7 @@ extension RichLayout {
         // 01QbbApP lab th, 2026-10-23) and Word for Mac's alike set
         // "ตอบ : 1." alone and the overlong stretch after it from the
         // next line's start. 61.2 -> 67.9 against word-win.)
+        let thaiParagraph = p.text.unicodeScalars.contains(where: { (0x0E01 ... 0x0E5B).contains($0.value) })
         let thaiJoins = _thaiJoins(p, document, named: named, textWidth: textWidth, lead: lead)
         let hanJoins = theme.wordRules ? Self._hanJoins(p, document, index: index, fitChars: _hanFitChars(p, named: named, textWidth: textWidth)) : []
         if p.text.isEmpty {
@@ -982,6 +995,13 @@ extension RichLayout {
                     s = s.copyWith(height: (m.0 + m.1) * multiple, leadingDistribution: .even)
                 }
                 if let grown, s.fontSize ?? 0 > 0.5 { s = s.copyWith(height: grown.height) }
+                // (Thai in Browallia New or Angsana New: every run, Latin and Thai, carries its face's own split of the line (hhea ascent and
+                // descent, by weight), so a line is its tallest ascent over its deepest descent, as Word's: a bold run raises only the lines it is
+                // on (xd b96afb37 20.8 pt, e93587db 19.0 beside 20.6), with no stacking of the 0.82-size Thai stand-in on the Latin one.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil, s.ascentOverride == nil,
+                   let size = s.fontSize, size > 0.5, let h = s.height, let split = Self._thaiLineSplit(s.debugLabel, bold: s.fontWeight == .bold), thaiParagraph {
+                    s = s.copyWith(ascentOverride: size * h * split, descentOverride: size * h * (1 - split), leadingDistribution: .even)
+                }
                 // (A run with ruby over it makes its line room for the ruby.)
                 if theme.wordRules, run.ruby != nil, s.fontSize ?? 0 > 0.5,
                    let h = theme.rubyLine(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) {
