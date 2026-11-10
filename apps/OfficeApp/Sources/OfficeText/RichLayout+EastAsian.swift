@@ -114,7 +114,8 @@ extension RichLayout {
         let partable = RichTextTheme.wordWindowsPages && !latinOnly && !turned
             && zip(units, units.dropFirst()).contains { Self._closingUnits.contains($0.0) && Self._openingUnits.contains($0.1)
                 && (!squeezes || !Self._pauseMarks.contains($0.0)) }
-        guard marked || partable || units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) })
+        let hangulParen = RichTextTheme.wordWindowsPages && hangs && zip(units, units.dropFirst()).contains { $0.1 == 0x29 && $0.0 >= 0xAC00 && $0.0 <= 0xD7A3 }
+        guard marked || partable || hangulParen || units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) })
                 || (squeezesSpaces && units.contains(0x20)),
               first.computeLineMetrics().count > 1 else { return [:] }
         // What each character's automatic space after it is.
@@ -125,6 +126,7 @@ extension RichLayout {
         let stops = (document.hangsLatinStops && RichTextTheme.wordWindowsPages && legacy && hangs
             && units.contains(where: { $0 == 0x2E || $0 == 0x2C }))
             || latinStops && units.contains(where: { Self._latinStopUnits.contains($0) })
+            || hangulParen
         guard marked || stops || partable || !gaps.isEmpty || ((squeezesSpaces || pageBox) && units.contains(0x20)) else { return [:] }
         let map = _OffsetMap(lead: 0, inserts: inserts)
         // Where a zero-width space lets the line break (a word joiner,
