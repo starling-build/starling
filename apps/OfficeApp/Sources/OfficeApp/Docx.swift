@@ -3664,7 +3664,9 @@ enum DocxFormat {
             }
             if let divs = web.first("w:divs") { walk(divs) }
         }
+        var legacyNoFE = false
         if let settings = part("word/settings.xml").flatMap(XNode.parse) {
+            legacyNoFE = settings.first("w:compat")?.first("w:useFELayout") == nil
             document.themeFontLangXML = settings.first("w:themeFontLang").map { PptxXML.serialize($0) }
             document.characterSpacingControl = settings.first("w:characterSpacingControl")?["w:val"]
             document.kernsPunctuation = settings.first("w:noPunctuationKerning").map { _isOff($0) } ?? true
@@ -3734,7 +3736,12 @@ enum DocxFormat {
             // no useFELayout: WPS and Chinese Word files carry useFELayout and keep a Han run whole.)
             // (A theme East Asian font keeps the rule for a file that does carry useFELayout: zh-7773163d.)
             let defaultEastAsia = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:rFonts")?["w:eastAsiaTheme"]
-            document.joinsHanAfterSpace = document.compatibilityMode == nil
+            // (Word-win prints of dx2 6ddc0960, 236cd3ae, f8ff8a48, 2a9d6c3a: a compat 12 file without
+            // useFELayout also breaks after "3. " when the Han text after it overflows.)
+            // (Mode 12 only: the four dx2 files with this behaviour are all compat 12; zh-202582e2, compat 14 with the same
+            // en-US languages, breaks inside the Han stretch.)
+            let legacyCompat = document.compatibilityMode == 12 && legacyNoFE
+            document.joinsHanAfterSpace = legacyCompat || document.compatibilityMode == nil
                 && (document.hangsLatinStops || ["minorHAnsi", "majorHAnsi", "minorAscii", "majorAscii"].contains(defaultEastAsia ?? ""))
             if let own, let defaults {
                 document.defaultLangXML = PptxXML.serialize(XNode(name: own.name, attrs: defaults.attrs.merging(own.attrs) { _, mine in mine }))
