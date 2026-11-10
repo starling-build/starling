@@ -47,9 +47,10 @@ extension RichLayout {
         // grid, which asks its line for two pitches. A strut would hold the line at one: flt1-1-asis's
         // wrapped "かえてくれる" paragraph came out 18 pt short.)
         var tallShifted = 0.0
-        var kokilaOwn = false, latinOwn = false, latinStacked = false, bengaliSeen = false
+        var kokilaOwn = false, latinOwn = false, latinStacked = false, bengaliSeen = false, nirmalaSeen = false
         func visit(_ s: InlineSpan) {
             guard uniform, let t = s as? TextSpan else { return }
+            if let st = t.style, t.text != nil, st.ascentOverride != nil, st.debugLabel?.lowercased().containsSubstring("nirmala ui") == true { nirmalaSeen = true }
             if let st = t.style, let tx = t.text {
                 if st.ascentOverride != nil, st.debugLabel?.lowercased().containsSubstring("kokila") == true { kokilaOwn = true }
                 else if st.ascentOverride == nil, tx.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 }), !tx.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xD80 }) { latinOwn = true }
@@ -118,7 +119,9 @@ extension RichLayout {
         // Liberation Sans.)
         return StrutStyle(fontFamily: base.fontFamily, fontFamilyFallback: base.fontFamilyFallback,
                           fontSize: size, height: h, leadingDistribution: .even, fontWeight: base.fontWeight,
-                          forceStrutHeight: !((kokilaOwn && latinOwn) || (latinStacked && bengaliSeen)))
+                          forceStrutHeight: !((kokilaOwn && latinOwn) || (latinStacked && bengaliSeen)
+                                              // (A Nirmala UI line is its tallest ascent over its deepest descent, so a deeper Latin face (Calibri's 0.269 against 0.247 em) lengthens the lines it is on: lab nirpitch2, 14.88 against 14.64 at 11 pt.)
+                                              || (theme.wordRules && RichTextTheme.wordWindowsPages && nirmalaSeen)))
     }
 
     /// The span with the Latin stretches that share a line with ideographs set no taller than the
