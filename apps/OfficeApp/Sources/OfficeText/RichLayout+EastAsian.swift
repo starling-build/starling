@@ -24,10 +24,14 @@ extension RichLayout {
         // elsewhere, every paragraph's are.)
         // (Outside East Asian layout only the spaces give, below.)
         let latinOnly = !document.usesEastAsianLayout
-        guard theme.wordRules, !latinOnly || ((document.compatibilityMode ?? 12) >= 15 && p.style.alignment == .justify),
+        // (Word for Windows lets a Latin paragraph's last "," "." ";" ")" or "}" stay on a line while its
+        // origin is inside the margin, in a file that states a mode before 2013: lab `hang1`, mode 14,
+        // Calibri 10pt, left; a letter never does. fas-z19537379 p5.)
+        let latinStops = _latinStopsRule(latinOnly: latinOnly, document, p)
+        guard theme.wordRules, !latinOnly || latinStops || ((document.compatibilityMode ?? 12) >= 15 && p.style.alignment == .justify),
               !p.style.rightToLeft || (latinOnly && RichTextTheme.wordWindowsPages && Self._squeezesRightToLeft(p.text)), p.text.utf16.count > 2 else { return [:] }
         let legacy = (document.compatibilityMode ?? 12) < 15
-        let fitted = !latinOnly && (p.style.alignment == .justify || legacy)
+        let fitted = (!latinOnly || latinStops) && (p.style.alignment == .justify || legacy)
         // (The probe is the text alone: the box before it — the first
         // line's indent — is where the first line starts from instead.)
         let lead = 0
@@ -111,8 +115,9 @@ extension RichLayout {
         let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: width, lead: 0, adjust: tabs, autoSpaces: { gaps[$0] = $1 })
         // (Marks to hang, or full stops and commas an older file's line may
         // end on past the margin: `RichDocument.hangsLatinStops`.)
-        let stops = document.hangsLatinStops && RichTextTheme.wordWindowsPages && legacy && hangs
-            && units.contains(where: { $0 == 0x2E || $0 == 0x2C })
+        let stops = (document.hangsLatinStops && RichTextTheme.wordWindowsPages && legacy && hangs
+            && units.contains(where: { $0 == 0x2E || $0 == 0x2C }))
+            || latinStops && units.contains(where: { Self._latinStopUnits.contains($0) })
         guard marked || stops || partable || !gaps.isEmpty || ((squeezesSpaces || pageBox) && units.contains(0x20)) else { return [:] }
         let map = _OffsetMap(lead: 0, inserts: inserts)
         // Where a zero-width space lets the line break (a word joiner,
@@ -804,6 +809,7 @@ extension RichLayout {
                     || units[tail] == 0x2C && RichTextTheme.wordWindowsPages && tail > 0 && units[tail - 1] >= 0x2E80
                     || macThai || macComma
                     || document.hangsLatinStops && RichTextTheme.wordWindowsPages && legacy && (units[tail] == 0x2E || units[tail] == 0x2C)
+                    || latinStops && Self._latinStopUnits.contains(units[tail])
                     // (A Korean word's own stop hangs: ecc32adb's "…포함된다." ends past the margin, the word whole.)
                     || RichTextTheme.wordWindowsPages && wordRules && (units[tail] == 0x2E || units[tail] == 0x2C) && tail > 0 && units[tail - 1] >= 0xAC00 && units[tail - 1] <= 0xD7A3
                 // (Before Word 2013's layout, in a document that compresses
@@ -896,7 +902,7 @@ extension RichLayout {
                     && x < width - _px(0.01) && units[a] >= 0x2000 && p.style.eastAsian["w:overflowPunct"] != "0"
                 // (Nor a bracket parted from the opening mark after it: lab `prt`'s
                 // body lines take "積」" before "（" only where the line holds it whole.)
-                let hung = (hangs || kinsokuHang) && !partedWhole && !holdsFinal && !spacedEnd && !(centredEnd && (paragraphEnd || document.hangsHalf)) && !(squeezes && paragraphEnd && units[tail] == 0xFF1F)
+                let hung = (hangs || latinStops || kinsokuHang) && !partedWhole && !holdsFinal && !spacedEnd && !(centredEnd && (paragraphEnd || document.hangsHalf)) && !(squeezes && paragraphEnd && units[tail] == 0xFF1F)
                     && !(squeezes && paragraphEnd && !legacy && units[tail] >= 0x2E80
                          && !Self._pauseMarks.contains(units[tail]) && units[tail] != 0xFF0E)
                     && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf || macComma || halfStop)
@@ -2477,6 +2483,17 @@ extension RichLayout {
     // zh-ab1ea005's "…（劳部发﹝1994﹞" ends its line with the "﹞" set at
     // the margin in Word for Windows' print, where ours took "﹝1994﹞"
     // down whole.)
+    static let _latinStopUnits: Set<UInt16> = [0x2C, 0x2E, 0x3B, 0x29, 0x7D]
+
+    /// Windows, a stated mode before 2013, plain Latin text (no East Asian layout), outside cells and
+    /// boxes, and the paragraph not turned or right to left.
+    @inline(never)
+    func _latinStopsRule(latinOnly: Bool, _ document: RichDocument, _ p: RichParagraph) -> Bool {
+        guard latinOnly, theme.wordRules, RichTextTheme.wordWindowsPages, let mode = document.compatibilityMode, mode < 15,
+              p.cell == nil, !p.style.rightToLeft, !document.hangsLatinStops else { return false }
+        return true
+    }
+
     static let _hangingUnits = _closingUnits.union("？”’％′″﹚﹜﹞".utf16)
 
     /// Punctuation whose ink keeps to the left half of its em, and to
