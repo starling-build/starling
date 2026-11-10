@@ -314,8 +314,10 @@ extension RichLayout {
             // reports the whole cluster's width for each part, so the boxes summed read twice the cluster: "मैं" 8.45 pt where the engine
             // sets it 4.225, "समझता" 24.92 against 20.05. An Indic range is therefore measured by the boxes of its cluster-opening
             // characters only, each once.)
-            if flatUsable, units[from ..< to].contains(where: { $0 >= 0x0900 && $0 <= 0x0DFF })
-                || (flatUsable && from > 0 && units[from - 1] >= 0x0900 && units[from - 1] <= 0x0DFF && units[from ..< to].allSatisfy({ $0 == 0x20 })) {
+            // (Thai the same: a mark's box at no width carries its consonant's whole width, so a word summed 5-20% over the engine's line
+            // — 28fa7f69's FITW: 286 against 232 pt.)
+            if flatUsable, units[from ..< to].contains(where: { ($0 >= 0x0900 && $0 <= 0x0DFF) || ($0 >= 0x0E01 && $0 <= 0x0E5B) })
+                || (flatUsable && from > 0 && ((units[from - 1] >= 0x0900 && units[from - 1] <= 0x0DFF) || (units[from - 1] >= 0x0E01 && units[from - 1] <= 0x0E5B)) && units[from ..< to].allSatisfy({ $0 == 0x20 })) {
                 return indicWidth(from, to)
             }
             for box in probe.getBoxesForSelection(TextSelection(baseOffset: map.painter(from), extentOffset: map.painter(to - 1) + 1)) {
