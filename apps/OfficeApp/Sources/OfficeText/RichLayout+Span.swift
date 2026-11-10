@@ -1459,6 +1459,12 @@ extension RichLayout {
                             plainPiece = !isIndic
                             let st = style(kind)
                             plainPiece = false
+                            if !isIndic, authored > 0.5, theme.wordRules, RichTextTheme.wordWindowsPages, piece.allSatisfy({ $0 == " " }), (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased().hasPrefix("nirmala ui"), Self._splitIndicLatin(text[start ..< end]).contains(where: { $0.1 }) {
+                                // (Spaces between the Devanagari words of a Nirmala UI run are Nirmala's own when the run's Latin (ascii) face is Nirmala too, 0.2739 em (bold 0.2759; in a run whose ascii face is Arial Word draws the space in Arial, 0.28 em: dx2 b785c95e, xd 1116b68d; lab/metrics/Nirmala_UI*.tsv, lab nirpitch3: Word 3.02 pt at 11 pt, the stand-in's 2.62).)
+                                RuleTrace.hit("word-nirmala-space-own-advance")
+                                spans.append(contentsOf: capped(piece, run, _indicSpaceStyle(base: st, spaceEm: nBold ? 0.2759 : 0.2739, unit: authored)))
+                                continue
+                            }
                             spans.append(contentsOf: capped(piece, run, leelawadeeLatin ? Self._arialUnicodeLatin(piece, base: joinedScaled(piece, st)) : joinedScaled(piece, st)))
                         }
                     }
