@@ -10,7 +10,7 @@ OUT = sys.argv[2] if len(sys.argv) > 2 else '/tmp/direct_bn_%s.txt' % FACE.repla
 res = collections.defaultdict(list)
 cons = lambda c: 0x995 <= ord(c) <= 0x9B9 or 0x9DC <= ord(c) <= 0x9DF or 0x985 <= ord(c) <= 0x994 or ord(c) == 0x9CE  # consonants, independent vowels, khanda ta
 V = '্'
-for f in glob.glob('/data/corpus-cache/staging/*/word-win/*-orig.pdf'):
+for f in glob.glob(__import__('os').environ.get('PRINTS_GLOB', '/data/corpus-cache/staging/*/word-win/*-orig.pdf')):
     try: d = pymupdf.open(f)
     except Exception: continue
     for p in d:
@@ -26,7 +26,7 @@ for f in glob.glob('/data/corpus-cache/staging/*/word-win/*-orig.pdf'):
                     k = starts[si + 1] if si + 1 < len(starts) else None
                     # the cluster must be followed directly (no non-face char) by the next start, or by a space
                     j = i + 1
-                    while j < n and ch[j][1] and j not in starts: j += 1
+                    while j < n and ch[j][1] and j not in starts and ch[j][0]['c'] not in ' \xa0': j += 1
                     if j >= n or not (ch[j][0]['c'] in ' \xa0' or j in starts): continue
                     txt = ''.join(c['c'] for c, f, _ in ch[i:j])
                     if any(not (0x980 <= ord(c) <= 0x9FF) for c in txt): continue

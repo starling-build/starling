@@ -54,7 +54,7 @@ extension RichLayout {
     static let _indicLines: [String: (Double, Double)] = [
         "yu gothic": _yuGothicLine, "mangal": (2542.0 / 2048, 898.0 / 2048), "kokila": (1504.0 / 2048, 857.0 / 2048), "nirmala ui": (2210.0 / 2048, 514.0 / 2048), "vijaya": (1462.0 / 2048, 600.0 / 2048),
         "aparajita": (1550.0 / 2048, 870.0 / 2048), "raavi": (2048.0 / 2048, 1352.0 / 2048), "shruti": (2091.0 / 2048, 1352.0 / 2048),
-        "gautami": (1892.0 / 2048, 1664.0 / 2048), "utsaah": (1518.0 / 2048, 774.0 / 2048), "vrinda": (2017.0 / 2048, 778.0 / 2048), "shonar bangla": (1655.0 / 2048, 996.0 / 2048),
+        "gautami": (1892.0 / 2048, 1664.0 / 2048), "utsaah": (1518.0 / 2048, 774.0 / 2048), "vrinda": (2017.0 / 2048, 778.0 / 2048), "shonar bangla": (1655.0 / 2048, 996.0 / 2048), "shonar bangla bold": (1721.0 / 2048, 978.0 / 2048),
         // (Malgun Gothic as Word sets a line of it: hhea 1.088 + 0.242 and 0.4 of gap, 1.73 em, split evenly.)
         "malgun gothic": (1.088 + 0.2, 0.242 + 0.2)]
     /// Width of each face's letters against the Noto stand-in's, per script (D Devanagari, B Bengali, T Telugu, P Gurmukhi, G Gujarati):
@@ -1301,7 +1301,9 @@ extension RichLayout {
                     start = end
                     return
                 }
-                if kind >= 0, indic?.face == "shonar bangla", !(run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))), text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF }) {
+                if kind >= 0, indic?.face == "shonar bangla", text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF }) {
+                    let shBold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
+                    let shTable = shBold ? ShonarAdvances.bold : ShonarAdvances.regular
                     // (Shonar Bangla's own Bengali cluster widths, word by word: `ShonarAdvances`.)
                     let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
                     let base = style(kind)
@@ -1313,7 +1315,7 @@ extension RichLayout {
                                 let sp = piece[ws] == " "
                                 while we < piece.endIndex, (piece[we] == " ") == sp { we = piece.index(after: we) }
                                 let seg = piece[ws ..< we]
-                                if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: ShonarAdvances.regular, flatScale: Self._indicScale["shonar bangla"]?["B"] ?? 1, conjunctRatio: nil, block: 0x980) {
+                                if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: shTable, flatScale: Self._indicScale["shonar bangla"]?["B"] ?? 1, conjunctRatio: nil, block: 0x980) {
                                     spans.append(contentsOf: capped(seg, run, fitted.style))
                                 } else if sp, let spaced = _shonarSpaced(seg, base: base, authored: authored) {
                                     // (Word's own space, 0.2065 em from the print's subset, at the authored size: the old flat scale also shrank it to 2.27 pt of 2.88.)
@@ -1325,7 +1327,7 @@ extension RichLayout {
                             }
                         } else if authored > 0.5, piece.allSatisfy({ $0 == " " }), let spaced = _shonarSpaced(piece, base: base, authored: authored) {
                             spans.append(contentsOf: capped(piece, run, spaced))
-                        } else if authored > 0.5, piece.unicodeScalars.allSatisfy({ ShonarAdvances.regular[String($0)] != nil && $0.value < 0x980 }), let fitted = _clusterFitted(piece, base: base, authored: authored, table: ShonarAdvances.regular, flatScale: 1, conjunctRatio: nil, block: 0x980) {
+                        } else if authored > 0.5, piece.unicodeScalars.allSatisfy({ shTable[String($0)] != nil && $0.value < 0x980 }), let fitted = _clusterFitted(piece, base: base, authored: authored, table: shTable, flatScale: 1, conjunctRatio: nil, block: 0x980) {
                             spans.append(contentsOf: capped(piece, run, fitted.style))
                         } else {
                             spans.append(contentsOf: capped(piece, run, joinedScaled(piece, style(kind))))
@@ -1351,6 +1353,10 @@ extension RichLayout {
                                 let seg = piece[ws ..< we]
                                 if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: NirmalaAdvances.table(bold: false), flatScale: 1, conjunctRatio: nil, block: seg.unicodeScalars.first(where: { $0.value >= 0x900 && $0.value < 0xB00 }).map { $0.value & ~0x7F } ?? 0x900) {
                                     spans.append(contentsOf: capped(seg, run, fitted.style))
+                                } else if sp, authored > 0.5, let em = Self._missingBengaliSpaceEm(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "") {
+                                    // (A Bengali face Windows lacks: Word draws the space in Mangal, half an em, not the stand-in's 0.26: xd 73caaeda, 6.0 pt at 12 pt.)
+                                    RuleTrace.hit("word-missing-bengali-face-space-is-mangal-half-em")
+                                    spans.append(contentsOf: capped(seg, run, _indicSpaceStyle(base: base, spaceEm: em, unit: authored)))
                                 } else {
                                     spans.append(contentsOf: capped(seg, run, leelawadeeLatin ? Self._arialUnicodeLatin(seg, base: joinedScaled(seg, style(kind))) : joinedScaled(seg, style(kind))))
                                 }
@@ -1825,7 +1831,9 @@ extension RichLayout {
                 }
                 if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, Self._isIndic(u),
                    !(before?.unicodeScalars.first.map { Self._isIndic($0.value) || $0.value == 0x200D || $0.value == 0x200C } ?? false) {
-                    let face = indic?.face
+                    let face0 = indic?.face
+                    // (Shonar Bangla Bold is its own face in Word: 1721+978 of 2048 against the regular's 1655+996.)
+                    let face = (face0 == "shonar bangla" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? "shonar bangla bold" : face0
                     if let face, let metrics = Self._indicLines[face] {
                         if devanagariStyles[face] == nil {
                             devanagariStyles[face] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: metrics.0, descent: metrics.1, belowOnly: face == "kokila")
@@ -2740,7 +2748,7 @@ extension RichLayout {
                     // the stand-in's, narrower, and the engine would find room the fit loop never counted. f0001d05 line 3.)
                     if ch == " ", kind >= 0, indic?.face == "kokila", kokilaLatin, let px = s.fontSize, px > 0.5, Self._indicLines["kokila"] != nil {
                         s = _kokilaLatinStyle(" ", base: s, px: px)
-                    } else if ch == " ", kind >= 0, indic?.face == "shonar bangla", !(run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))), let px = s.fontSize, px > 0.5 {
+                    } else if ch == " ", kind >= 0, indic?.face == "shonar bangla", let px = s.fontSize, px > 0.5 {
                         // (Shonar Bangla's own space, 0.2065 em, for a space the fit cut out of its run.)
                         let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
                         s = _indicSpaceStyle(base: s, spaceEm: 0.2065, unit: authored)
@@ -3694,6 +3702,11 @@ extension RichLayout {
 }
 
 extension RichLayout {
+    /// A missing Bengali face (SolaimanLipi, Nikosh): Word draws its spaces in Mangal, 0.5 em.
+    @inline(never) static func _missingBengaliSpaceEm(_ face: String) -> Double? {
+        let f = face.trimmingWhitespace().lowercased()
+        return f == "solaimanlipi" || f == "nikosh" ? 0.5 : nil
+    }
     /// A space at the face's own width (`spaceEm` of `unit`), as one letter spacing on the stand-in's space.
     @inline(never)
     func _indicSpaceStyle(base: TextStyle, spaceEm: Double, unit: Double) -> TextStyle {

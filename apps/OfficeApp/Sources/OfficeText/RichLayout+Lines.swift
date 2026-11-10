@@ -1263,7 +1263,11 @@ extension RichLayout {
         // (A multiple of lines (Word's 1.15) takes this line too, as it does any other.)
         let multiple = spacing && paragraph.lineHeightPoints == nil && paragraph.lineSpacing > 0.5 ? paragraph.lineSpacing : 1
         let cut = belowOnly ? Self._multipleSplit(ascent: ems, descent: emsDown, multiple: multiple) : (ems * multiple, emsDown * multiple)
-        let ascent = px * cut.0, descent = px * cut.1
+        // (A character scale (w:w) is laid out as a larger size; the line's height follows the authored size.)
+        let own1 = RichTextTheme.wordWidthScale(run.horizontalScale ?? named?.char.horizontalScale ?? 1, wordRules: theme.wordRules,
+            eastAsiaFamily: run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily)
+        let pxLine = own1 > 0.01 ? px / own1 : px
+        let ascent = pxLine * cut.0, descent = pxLine * cut.1
         guard split > 0.05 else { return nil }
         let size = (ascent - descent) / split
         return joinerStyle.copyWith(fontSize: size, letterSpacing: 0, height: (ascent + descent) / size, leadingDistribution: .even)
