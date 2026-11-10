@@ -1945,6 +1945,11 @@ extension RichLayout {
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
                 }
+                else if offset > 0, thaiJoins.contains(-offset), RichTextTheme.wordWindowsPages {
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                }
                 else if thaiJoins.contains(offset), let b = before,
                         let pb = b.unicodeScalars.first?.value, let pc = ch.unicodeScalars.first?.value,
                         (0x0E01 ... 0x0E5B).contains(pb), (0x0E01 ... 0x0E5B).contains(pc) {

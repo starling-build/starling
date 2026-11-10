@@ -1615,6 +1615,14 @@ extension RichLayout {
                 // its indent and number: that one is where it would stand.)
                 let room = k == 0 ? textWidth - max(0, lead) : textWidth
                 if thai, width <= room || k > 0 { for o in (k + 1) ..< max(k + 1, end) { thaiJoins.insert(o) } }
+                // (A stretch wider than a whole line is broken where the line fills, at any letter's start, as Word's print of
+                // xd 0815aa59 ends "…ปั" and starts "ตตานี…" — no dictionary word edge there. Break chances are marked as -offset.)
+                else if thai, width > textWidth {
+                    for o in (k + 1) ..< max(k + 1, end) {
+                        let c = units[o], b = units[o - 1]
+                        if ((0x0E01 ... 0x0E2E).contains(c) || (0x0E40 ... 0x0E44).contains(c)), !(0x0E40 ... 0x0E44).contains(b) { thaiJoins.insert(-o) }
+                    }
+                }
                 k = end
             }
         }
