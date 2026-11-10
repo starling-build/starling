@@ -1034,6 +1034,14 @@ extension RichLayout {
                    p.text.contains(where: { !$0.isWhitespace && $0 != "\u{FFFC}" }), s.fontSize ?? 0 > 0.5 {
                     s = s.copyWith(height: 0.01)
                 }
+                // (A floating drawing's anchor mark, in a paragraph that has other characters, gives its line no height of its
+                // own: ba75c926's first paragraph holds two anchors, a 24pt bold run and a 16pt one, and a 20pt bold space; Word sets
+                // the line by the space (baseline 56.2 for the next paragraph), ours by the 24pt anchor run (60.4).)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !text.isEmpty, text.allSatisfy({ $0 == "\u{FFFC}" }),
+                   let key = run.inlineImage, let image = p.inlineImages[key], image.float != nil || image.textBox != nil,
+                   p.text.contains(where: { $0 != "\u{FFFC}" }), s.fontSize ?? 0 > 0.5 {
+                    s = s.copyWith(height: 0.01)
+                }
                 // (A run of spaces alone takes the line's height, not its own.)
                 // (An en, an em and a four-per-em space are spaces to Word for
                 // Windows as the plain one is, and give a line no height of
