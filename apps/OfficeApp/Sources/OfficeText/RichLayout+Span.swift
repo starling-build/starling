@@ -2130,6 +2130,14 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
                     inserts.append(offset)
+                } else if RichTextTheme.wordWindowsPages, theme.wordRules, (document.compatibilityMode ?? 12) == 14, document.characterSpacingControl == "compressPunctuation",
+                          document.markSqueezeEm == 0, ch == "\u{FF0C}" || ch == "\u{3001}" || ch == "\u{3002}", let b = before, !Self._closingMarks.contains(b) {
+                    // (Under compressPunctuation at compat 14 with no language or ko-KR, whose marks Word never
+                    // squeezes (glyph advances 12.0 of 12.0 and 16.0 of 16.0, lab comma-hang7 v6/v8), Word opens
+                    // a line with the mark rather than hang it or carry the character before it down.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
+                    inserts.append(offset)
                 } else if (kinsokuOff || (RichTextTheme.wordWindowsPages && theme.wordRules && document.defaultLangXML == nil && document.eastAsianDefaultFaceIsLatin && !document.bodyStatesLang)) && !breaksAtQuotes, let b = before,
                           Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)
                             || (ch != " " && (Self._openingMarks.contains(b) || Self._latinOpener(b, ch))

@@ -2441,6 +2441,29 @@ public struct RichDocument: Hashable, Sendable {
     public var marksCentred: Bool {
         ["zh-TW", "zh-HK", "zh-MO"].contains { defaultLangXML?.containsSubstring("w:eastAsia=\"\($0)\"") ?? false }
     }
+    /// The East Asian language the document's defaults state (for example
+    /// "zh-TW"), read from the defaults' w:lang once per call site.
+    public var eastAsiaLanguage: String? {
+        guard let xml = defaultLangXML, let r = xml.rangeOfSubstring("w:eastAsia=\"") else { return nil }
+        let rest = xml[r.upperBound...]
+        guard let q = rest.firstIndex(of: "\"") else { return nil }
+        return String(rest[rest.startIndex..<q])
+    }
+    /// How much of its em one compressible mark ("，。、" ...) gives at a
+    /// line under compat 14 with compressPunctuation, MEASURED from the glyph
+    /// advances of Word's prints (lab comma-hang7, 12 pt and 16 pt alike):
+    /// zh-TW marks are centred and shrink by a quarter em (9.0 of 12.0,
+    /// 12.0 of 16.0); zh-CN and ja-JP marks sit left and shrink by half an
+    /// em (6.0 of 12.0, 7.9 of 16.0); with no language or ko-KR they never
+    /// shrink (12.0 / 16.0). Any other language is -1: not measured.
+    public var markSqueezeEm: Double {
+        switch eastAsiaLanguage ?? "" {
+        case "zh-TW", "zh-HK", "zh-MO": return 0.25
+        case "zh-CN", "ja-JP": return 0.5
+        case "", "ko-KR": return 0
+        default: return -1  // another language (e.g. en-US): not measured, the older rules stand
+        }
+    }
     /// Whether Word's East Asian line-breaking rules hold — no closing
     /// mark to start a line nor opening one to end it, and a mark that
     /// may hang past the margin: only where that language is Chinese,

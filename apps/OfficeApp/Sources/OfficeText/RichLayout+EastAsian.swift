@@ -63,10 +63,17 @@ extension RichLayout {
         // ours hung the "，".)
         let hangs = fitted && (!inCell || turned) && !(_inTextBox && legacy) && p.style.eastAsian["w:overflowPunct"] != "0" && p.style.eastAsian["w:kinsoku"] != "0"
             && !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin)
+            && !(RichTextTheme.wordWindowsPages && theme.wordRules && (document.compatibilityMode ?? 12) == 14 && document.markSqueezeEm == 0
+                 && document.characterSpacingControl == "compressPunctuation")
+        // (Nor at compat 14 under compressPunctuation without a Chinese or Japanese language: lab comma-hang7 v6/v8, a
+        // line-end mark opens the next line, none hangs.)
         // (Nor where the defaults name a Latin face for East Asian text, in
         // Word for Windows: `RichDocument.eastAsianDefaultFaceIsLatin`.)
         let squeezes = fitted && !turned && (document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false)
             && !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin)
+            && !(RichTextTheme.wordWindowsPages && theme.wordRules && (document.compatibilityMode ?? 12) == 14 && document.markSqueezeEm == 0)
+        // (Compat 14, compressPunctuation, but no Chinese or Japanese eastAsia language, or ko-KR: lab comma-hang7
+        // v6/v8 measure every mark's advance at the full 12.0 of 12 pt and 16.0 of 16 pt, so Word squeezes none.)
         // (From 2013's layout on a justified line's spaces give a quarter
         // of themselves for a word that is over: Cambria at 14pt takes
         // it 0.5pt over with one space and not 1.0, 1.5 with two and not
@@ -763,7 +770,10 @@ extension RichLayout {
                 // "…你花最多的。" gives nothing as it is and its half with
                 // the switch set; ours sent "館)。" down at 1.39.)
                 let altFinal = theme.wordRules && document.hangsHalf && squeezes
+                // (Nor at compat 14 where the eastAsia language is zh-CN or ja-JP, whatever list the file keeps: lab comma-hang7 v4/v7,
+                // a zh-TW list under those languages hangs the paragraph's last 。 as the mainland's does.)
                 let holdsFinal = (listed && !inCell || centredFinal) && p.style.eastAsian["w:overflowPunct"] != "0" && !altFinal
+                    && !(RichTextTheme.wordWindowsPages && theme.wordRules && (document.compatibilityMode ?? 12) == 14 && document.markSqueezeEm >= 0.5)
                     && (document.compatibilityMode ?? 12) < 15
                     && tail == (units.lastIndex(where: { !isSpace($0) }) ?? -1)
                 // (From 2013's layout on a Latin comma hangs too, whole:
@@ -1009,16 +1019,16 @@ extension RichLayout {
                 // 5.76pt is left after "備" and carries it at 5.26: the mark squeezed to 0.76 em and hung
                 // 0.28 em past the margin, so it may stand about half an em over, not the whole em. Lab `comma-hang4` (16 pt, 0.25 pt steps) keeps it at 7.95 pt left (8.05 over) and carries it at 7.75 (8.25): the limit is half an em plus 0.24 pt, a fraction of the size, not a fixed 3.5 pt; two sizes tested.)
                 let commaHalfHang = theme.wordRules && RichTextTheme.wordWindowsPages && squeezes && !inCell && !paragraphEnd
-                    && (document.compatibilityMode ?? 12) >= 15 && document.lineGridPitch == nil
+                    && ((document.compatibilityMode ?? 12) >= 15 || ((document.compatibilityMode ?? 12) == 14 && document.markSqueezeEm >= 0)) && document.lineGridPitch == nil
                     && p.style.eastAsian["w:overflowPunct"] != "0" && last == a + 2 && tail == a + 1
                     && (units[tail] == 0xFF0C || units[tail] == 0x3002 || units[tail] == 0x3001)
-                    && over > em * 0.50 + 0.24 && hang > 0 && over <= hang + 0.0001
+                    && over > ((document.compatibilityMode ?? 12) >= 15 ? em * 0.50 + 0.24 : ((marks.isEmpty && document.marksCentred ? -1 : em * document.markSqueezeEm * Double(marks.count + 1) + 0.24))) && hang > 0 && over <= hang + 0.0001
                 if commaHalfHang { RuleTrace.hit("e0ca7252-comma-hangs-by-half-em-only") }
                 if hang > 0, over <= hang + 0.0001, !commaHalfHang {
                     // (All of it, the hair too: the engine has none.)
                     adjust[tail, default: 0] -= (!squeezes && !turned && wordRules && RichTextTheme.wordWindowsPages && !document.hangsHalf ? hang : over + 0.02)
                     fits = true
-                } else if squeezes || topOnly {
+                } else if (squeezes || topOnly) && !(commaHalfHang && (document.compatibilityMode ?? 12) == 14) {
                     // (Its own marks give too: the same form's "       ），"
                     // after a 344pt first-line indent, 4.25pt over, is
                     // one line in Word's print, the "）" set 4.3pt close.)
