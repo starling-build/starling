@@ -1784,7 +1784,7 @@ extension RichLayout {
                 // (A distributed line's room before this character: a word
                 // joiner that wide. Spacing on the character itself would
                 // be set half before it, and move the line's first.)
-                if let g = spread[offset], g != 0 {
+                if let g = spread[offset], g > 0 || (g < 0 && ch == " ") {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: style(kind).copyWith(letterSpacing: g)))
                     inserts.append(offset)
