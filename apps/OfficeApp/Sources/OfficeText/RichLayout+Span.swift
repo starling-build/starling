@@ -3460,13 +3460,13 @@ extension RichLayout {
         ch == " " || ch == "\u{3000}" || ch.unicodeScalars.allSatisfy { $0.value == 0x200E || $0.value == 0x200F || ($0.value >= 0x202A && $0.value <= 0x202E) || ($0.value >= 0x2066 && $0.value <= 0x2069) }
     }
 
-    /// Whether two stretches set the same line: heights (size times height) within 3% (a face's bold beside its
-    /// regular — see `_strut`). (Not only at one size: a Thai stand-in is drawn at 0.82 of the size named, with
-    /// its height raised to match, so Angsana New's bold Thai at 13.1 stands beside its bold Latin at 16 and the
-    /// regular Thai at 13.1. Without that the bold line was left with no strut and stacked 2.5 pt tall: dx2
-    /// 3f86ce1b's "ข้อ 1." lines, 24.6 apart in ours and 22.0 in Word's print.)
-    static func _sameLine(_ s1: Double, _ h1: Double, _ s2: Double, _ h2: Double) -> Bool {
-        abs(s1 * h1 - s2 * h2) < 0.01 || abs(s1 * h1 - s2 * h2) <= 0.03 * max(s1 * h1, s2 * h2)
+    /// Whether two stretches set the same line: the same size, and heights within 1.5% (a face's bold beside its regular — see
+    /// `_strut`). `wide` (Thai): any sizes, heights within 3%: a Thai stand-in is drawn at 0.82 of the size named with its height
+    /// raised to match, and Angsana New's bold is 2.5% over its regular.
+    static func _sameLine(_ s1: Double, _ h1: Double, _ s2: Double, _ h2: Double, wide: Bool = false) -> Bool {
+        let d = abs(s1 * h1 - s2 * h2), m = max(s1 * h1, s2 * h2)
+        if d < 0.01 { return true }
+        return wide ? d <= 0.03 * m : (abs(s1 - s2) < 0.01 && d <= 0.015 * m)
     }
 }
 

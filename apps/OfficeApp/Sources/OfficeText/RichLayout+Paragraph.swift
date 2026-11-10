@@ -1471,10 +1471,11 @@ extension RichLayout {
         // own way, and the line it shares grew a point — zh-ae2dd08d's
         // "(一) 一般對象（補助80%…" first line, beside a bold YaHei run
         // lower down, stood 21.5pt where Word's is 20.4.)
-        // (A Thai paragraph too: its stand-in is drawn at 0.82 of the size and the line's bold beside the regular is a hair taller, so with
-        // no strut the faces stacked, 2.5 pt over: dx2 3f86ce1b's "ข้อ 1." lines, 24.6 apart for Word's 22.0.)
         let spacedOver = theme.wordRules && style.lineHeightPoints == nil
-            && (style.lineSpacing > 1.2 || document.usesEastAsianLayout || p.text.unicodeScalars.contains(where: { (0x0E01 ... 0x0E5B).contains($0.value) }))
+            && (style.lineSpacing > 1.2 || document.usesEastAsianLayout)
+        // (A Thai paragraph too, its bold's hair-taller line held with the regular (`_sameLine` wide): its stand-in is drawn at 0.82 of the
+        // size and, with no strut, the faces stacked 2.5 pt over: dx2 3f86ce1b's "ข้อ 1." lines, 24.6 apart for Word's 22.0.)
+        let thaiNear = theme.wordRules && style.lineHeightPoints == nil && p.text.unicodeScalars.contains(where: { (0x0E01 ... 0x0E5B).contains($0.value) })
         // (A larger number's height over the first line, where the
         // paragraph keeps its strut: see `laidOut`.)
         var numberLift = 0.0
@@ -1497,7 +1498,7 @@ extension RichLayout {
             // as the picture's height takes it — see below. lo-7ec36a70's rows of Persian, 13.8pt
             // in Word's print, were 16.2 in the fallback face's own height, a 43pt picture
             // opening one of them.)
-            let strut = picturesInLine ? nil : _strut(span, near: spacedOver)
+            let strut = picturesInLine ? nil : _strut(span, near: spacedOver || thaiNear, wide: thaiNear)
             let painter = TextPainter(
                 text: span,
                 textAlign: align,
@@ -1581,7 +1582,7 @@ extension RichLayout {
                style.lineHeightPoints == nil,
                !p.text.isEmpty, p.text.unicodeScalars.contains(where: { $0.value != 0xFFFC && $0.value != 0x20 }),
                inline.allSatisfy({ $0.image.map { $0.textBox == nil && $0.name != "hr" && ($0.float == nil || $0.float.map { !$0.takesRoom } == true) } ?? true }),
-               let first = painter.computeLineMetrics().first, let ref = _strut(span, near: spacedOver) {
+               let first = painter.computeLineMetrics().first, let ref = _strut(span, near: spacedOver || thaiNear, wide: thaiNear) {
                 let flat = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr, strutStyle: ref)
                 flat.fractionalLineHeights = painter.fractionalLineHeights
                 flat.lineIndents = painter.lineIndents
@@ -1715,7 +1716,7 @@ extension RichLayout {
                     each.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
                     if each.computeLineMetrics().count == lines { return each }
                     } else if !_offGrid(i, document), style.lineHeightPoints == nil || style.lineHeightIsMinimum, _grid(i, document).pitch != nil,
-                              lines > 1, let ref = _strut(span, near: spacedOver),
+                              lines > 1, let ref = _strut(span, near: spacedOver || thaiNear, wide: thaiNear),
                               inline.filter({ $0.image?.float == nil }).count == 1,
                               inline.allSatisfy({ $0.image.map { $0.float.map { !$0.takesRoom } == true || ($0.float == nil && $0.textBox == nil && $0.name != "hr") } ?? false }),
                               case let metrics = painter.computeLineMetrics(), metrics.count == lines, metrics[0].height >= held.key * 0.97,
@@ -1765,7 +1766,7 @@ extension RichLayout {
                // "年" U+F98E on its first line, stood 46.2pt apart, where
                // Word's print keeps two pitches, 45.7, on every line, the
                // ones holding Noto's characters within 0.4 of it.)
-               let strut = _strut(span, tallest: true, near: spacedOver, joiners: !(gridded && lines > 1)),
+               let strut = _strut(span, tallest: true, near: spacedOver || thaiNear, wide: thaiNear, joiners: !(gridded && lines > 1)),
                lines == 1 || gridded || Self._tallestOnEveryLine(span, strut, painter, lines: lines, near: spacedOver) {
                 let held = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr, strutStyle: strut)
                 held.fractionalLineHeights = painter.fractionalLineHeights
@@ -3017,7 +3018,7 @@ extension RichLayout {
                p.inlineImages.values.allSatisfy({ $0.textBox == nil && $0.float == nil && $0.baseline == nil }),
                p.runs.allSatisfy({ $0.style.script == .normal && ($0.style.raised ?? named?.char.raised ?? 0) == 0 }),
                !p.text.contains(where: { $0 != "\u{FFFC}" && Self.isEastAsian($0, hinted: true) }),
-               let textStrut = _strut(span, tallest: true, near: spacedOver),
+               let textStrut = _strut(span, tallest: true, near: spacedOver || thaiNear, wide: thaiNear),
                let size = textStrut.fontSize, let height = textStrut.height,
                let line = painter.computeLineMetrics().first {
                 var naturalStyle = style

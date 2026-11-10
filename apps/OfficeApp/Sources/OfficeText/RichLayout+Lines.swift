@@ -10,7 +10,7 @@ import Foundation
 
 extension RichLayout {
 
-    func _strut(_ span: TextSpan, tallest: Bool = false, near nearCounts: Bool = false, joiners: Bool = true) -> StrutStyle? {
+    func _strut(_ span: TextSpan, tallest: Bool = false, near nearCounts: Bool = false, wide: Bool = false, joiners: Bool = true) -> StrutStyle? {
         guard theme.wordRules else { return nil }
         var first: TextStyle? = nil
         var uniform = true
@@ -70,7 +70,7 @@ extension RichLayout {
                     if tallest {
                         if size * h > fs * fh + 0.01 { first = style }
                     } else if abs(fs * fh - size * h) > 0.01 {
-                        if nearCounts && Self._sameLine(size, h, fs, fh) { near = true } else { uniform = false }
+                        if nearCounts && Self._sameLine(size, h, fs, fh, wide: wide) { near = true } else { uniform = false }
                     }
                 } else {
                     first = style
@@ -97,7 +97,7 @@ extension RichLayout {
         // low.)
         var held = first
         if let top = first, let ts = top.fontSize, let th = top.height, near || (tallest && nearCounts) {
-            let alike = share.filter { Self._sameLine($0.value.0.fontSize ?? 0, $0.key / max(0.01, $0.value.0.fontSize ?? 1), ts, th) }
+            let alike = share.filter { Self._sameLine($0.value.0.fontSize ?? 0, $0.key / max(0.01, $0.value.0.fontSize ?? 1), ts, th, wide: wide) }
             // (A tie in text goes to the stretch met first: the dictionary's
             // own order is not the same from one run to the next.)
             if alike.count > 1 { held = alike.values.max { $0.1 != $1.1 ? $0.1 < $1.1 : $0.2 > $1.2 }?.0 ?? top }
@@ -195,7 +195,7 @@ extension RichLayout {
             guard let t = s as? TextSpan else { at += 1; return }
             if let text = t.text {
                 let n = text.utf16.count
-                if let style = t.style, let fs = style.fontSize, let fh = style.height, near ? Self._sameLine(fs, fh, size, h) : abs(fs * fh - size * h) < 0.01,
+                if let style = t.style, let fs = style.fontSize, let fh = style.height, near ? Self._sameLine(fs, fh, size, h, wide: wide) : abs(fs * fh - size * h) < 0.01,
                    text.unicodeScalars.contains(where: { !$0.properties.isWhitespace }) {
                     ranges.append(at ..< at + n)
                 }
