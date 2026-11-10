@@ -100,14 +100,15 @@ extension RichLayout {
             // larger than the cell: zh-a78d52e7's 16pt lines on Normal's 15pt cell, the column
             // cut to 435.0 of 436.5, hold the 27th character, 0.09pt over its 405.3 after the
             // indent, in Word's print.)
-            let offGrid = RichTextTheme.wordWindowsPages && p.style.eastAsian["w:snapToGrid"] == "0" && own >= cell + _px(0.9)
+            let size = add > 0.0001 ? cell - _px(add) : cell
+            let offGrid = RichTextTheme.wordWindowsPages && p.style.eastAsian["w:snapToGrid"] == "0" && own >= size + _px(0.9)
             // (A paragraph with half-width forms (U+FF61-FF9F) counts its line in half cells:
             // cfbf7823's line of 23 cells and a half-width ｢ holds 423pt of a 425.2pt column
             // in Word's print, where whole cells give 414.)
-            let step = RichTextTheme.wordWindowsPages && p.text.unicodeScalars.contains(where: { $0.value >= 0xFF61 && $0.value <= 0xFF9F }) || !p.text.unicodeScalars.contains(where: { $0.value >= 0x2E80 && $0.value < 0xFF00 }) ? cell / 2 : cell
+            let step = RichTextTheme.wordWindowsPages && p.text.unicodeScalars.contains(where: { $0.value >= 0xFF61 && $0.value <= 0xFF9F }) || !p.text.unicodeScalars.contains(where: { $0.value >= 0x2E80 && $0.value < 0xFF00 }) || (p.text.unicodeScalars.contains(where: { ($0.value | 0x20 >= 0x61 && $0.value | 0x20 <= 0x7A) })) ? cell / 2 : cell
             // (The cells are counted in what the indents leave: gc-p105's 453.6pt column holds 43 cells of
             // 10.5 (451.5) up to 2pt of right indent and 42 from 2.5pt, in Word's print.)
-            if cell > 0, own >= cell - _px(0.01), !offGrid {
+            if cell > 0, own >= size - _px(0.01), !offGrid {
                 let room = width - left - right
                 let cut = min(room, ((room + _px(0.01)) / step).rounded(.down) * step)
                 gridCut = room - cut; width -= gridCut
