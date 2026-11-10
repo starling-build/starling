@@ -1452,7 +1452,7 @@ extension RichLayout {
                     // and marks between Nirmala UI's words are Arial's and carry no Nirmala line of their own.)
                     for (piece, isIndic) in Self._splitIndicLatin(text[start ..< end]) {
                         plainPiece = !isIndic
-                        latinNoScale = !isIndic && run.fontFamily != nil && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.contains("\u{A0}")
+                        latinNoScale = !isIndic && run.fontFamily != nil && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
                         let st = style(kind)
                         plainPiece = false
                         latinNoScale = false
@@ -1503,7 +1503,7 @@ extension RichLayout {
                 }
                 // (A stretch with no Indic letter in it, in a run that has some: its digits, marks and spaces are the Latin face's, at the
                 // Latin face's widths; the Indic width scale is for the Indic letters. dx2 d912c25b's "(COVID-19)": Word 54.7, ours 59.2.)
-                latinNoScale = kind >= 0 && indic != nil && run.fontFamily != nil && text[start ..< end].contains(where: { $0.isLetter || $0.isNumber }) && !text[start ..< end].contains("\u{A0}") && !text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0x0900 && $0.value < 0x0E00 })
+                latinNoScale = kind >= 0 && indic != nil && run.fontFamily != nil && text[start ..< end].contains(where: { $0.isLetter || $0.isNumber }) && !text[start ..< end].unicodeScalars.contains(where: { $0.value == 0xA0 }) && !text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0x0900 && $0.value < 0x0E00 })
                 let st = style(kind)
                 latinNoScale = false
                 spans.append(contentsOf: capped(text[start ..< end], run, joinedScaled(text[start ..< end], st)))
