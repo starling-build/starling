@@ -812,7 +812,6 @@ extension RichLayout {
             var fitPitch: Double? = nil
             var fitBusy = false
             var plainPiece = false
-            var pieceSandwiched = false
             var latinNoScale = false
             var fitNone = false
             var fitLastSingle = false
@@ -1009,12 +1008,15 @@ extension RichLayout {
                 // stand-in's: dx2 426d1cc2's "l:f" in a Punjabi paragraph went 21.1 to 23.1 pt once the line was no longer held to one pitch.)
                 if kind >= 0, plainPiece || indic == nil, indic == nil || indic?.face == "nirmala ui", theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5,
                    { let f = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased(); // (Spaces and marks in a run of their own (no letters, Latin or Indic) are not Nirmala's line: af19d946 ", " runs, Calibri in Word'"'"'s print; Arial'"'"'s marks are.)
-                       return (f.hasPrefix("nirmala ui") && text.unicodeScalars.contains(where: { ($0.value < 0x250 && ($0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39))) || (Self._isIndic($0.value) && !(run.keptXML?.containsSubstring("<w:cs") ?? false)) }))  || (f == "arial" && ((indic == nil && text.unicodeScalars.contains(where: { $0.value < 0x250 && $0.properties.isAlphabetic })) || (plainPiece && pieceSandwiched))) }(),
+                       return (f.hasPrefix("nirmala ui") && text.unicodeScalars.contains(where: { ($0.value < 0x250 && ($0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39))) || (Self._isIndic($0.value) && !(run.keptXML?.containsSubstring("<w:cs") ?? false)) }))  || f == "arial" }(),
                    !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) }),
-                   indic != nil || (!text.unicodeScalars.contains(where: { Self._isIndic($0.value) }) && text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 }) && Self._indicBesideRun(p.text, at: base, length: rawText.utf16.count)),
+                   indic != nil || (!text.unicodeScalars.contains(where: { Self._isIndic($0.value) }) && text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 }) && p.text.unicodeScalars.contains(where: { Self._indic.contains($0.value) })),
                    let m = Self._indicLines["nirmala ui"] {
                     let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
-                    s = s.copyWith(ascentOverride: m.0 * multiple * size, descentOverride: m.1 * multiple * size, height: (m.0 + m.1) * multiple, leadingDistribution: .even)
+                    // (A Nirmala-named run's pieces carry the line's height too; an Arial piece only the ascent/descent split: a line height on its stand-in raised the
+                    // line 0.6 pt (dx2 f96948dd 16.57 against Word's 15.96, 1ca6c218's Arial-only title line 32 against 28.6), where the split alone stacks correctly.)
+                    let nirmalaNamedRun = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased().hasPrefix("nirmala ui")
+                    s = s.copyWith(ascentOverride: m.0 * multiple * size, descentOverride: m.1 * multiple * size, height: nirmalaNamedRun ? (m.0 + m.1) * multiple : nil, leadingDistribution: nirmalaNamedRun ? .even : nil)
                 }
                 // (A run of Latin in a face other than Kokila inside a Kokila paragraph: Word stands its line on that face's ascent (above Kokila's) and keeps the
                 // Kokila split below it, at a line multiple too (dx2 cbb7ae39's Times New Roman "IRB", lab cb7; its 1.57-line paragraphs: the line is 2.0 pt taller, the
@@ -1455,10 +1457,8 @@ extension RichLayout {
                             }
                         } else {
                             plainPiece = !isIndic
-                            pieceSandwiched = !isIndic && Self._sandwichedByIndic(text, piece)
                             let st = style(kind)
                             plainPiece = false
-                            pieceSandwiched = false
                             spans.append(contentsOf: capped(piece, run, leelawadeeLatin ? Self._arialUnicodeLatin(piece, base: joinedScaled(piece, st)) : joinedScaled(piece, st)))
                         }
                     }
@@ -1470,11 +1470,9 @@ extension RichLayout {
                     // and marks between Nirmala UI's words are Arial's and carry no Nirmala line of their own.)
                     for (piece, isIndic) in Self._splitIndicLatin(text[start ..< end]) {
                         plainPiece = !isIndic
-                        pieceSandwiched = !isIndic && Self._sandwichedByIndic(text, piece)
                         latinNoScale = !isIndic && run.fontFamily != nil && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
                         let st = style(kind)
                         plainPiece = false
-                        pieceSandwiched = false
                         latinNoScale = false
                         spans.append(contentsOf: capped(piece, run, joinedScaled(piece, st)))
                     }
@@ -3909,39 +3907,3 @@ extension RichLayout {
     static func _wordGridSize(_ pt: Double, snap: Bool) -> Double { pt }
 }
 
-extension RichLayout {
-    /// Whether the nearest letter before or after the run (UTF-16 `at`, `length`), on the same line-break-delimited part of `paragraph`, is Indic: Word's line is as
-    /// tall as the faces on THAT line, so a Latin run at the end of a line of Latin (dx2 1ca6c218's ")" after "(Unique Student Identifier") keeps its own face's
-    /// line, while marks between Indic words take Nirmala's.
-    @inline(never)
-    static func _indicBesideRun(_ paragraph: String, at base: Int, length: Int) -> Bool {
-        let u = Array(paragraph.utf16)
-        func letterIsIndic(_ i: Int) -> Bool? {
-            let c = u[i]
-            if c == 0x0A || c == 0x2028 { return false }
-            guard let sc = Unicode.Scalar(c) else { return nil }
-            if Self._isIndic(sc.value) { return true }
-            return sc.properties.isAlphabetic ? false : nil
-        }
-        var i = min(base, u.count) - 1
-        while i >= 0 { if let r = letterIsIndic(i) { if r { return true }; break }; i -= 1 }
-        var j = min(base + length, u.count)
-        while j < u.count { if let r = letterIsIndic(j) { if r { return true }; break }; j += 1 }
-        return false
-    }
-}
-
-extension RichLayout {
-    /// Whether the nearest non-space character on each side of `piece` in `text` is Indic: a Latin piece between Indic words sits on their line, while one that
-    /// only follows them may begin a line of its own (dx2 1ca6c218), where Word's line is the Latin face's.
-    @inline(never)
-    static func _sandwichedByIndic(_ text: Substring, _ piece: Substring) -> Bool {
-        var a = piece.startIndex
-        while a > text.startIndex { let b = text.index(before: a); a = b; if text[b] != " " { break } }
-        guard a < piece.startIndex, let before = text[a].unicodeScalars.first, Self._isIndic(before.value) else { return false }
-        var e = piece.endIndex
-        while e < text.endIndex, text[e] == " " { e = text.index(after: e) }
-        guard e < text.endIndex, let after = text[e].unicodeScalars.first else { return false }
-        return Self._isIndic(after.value)
-    }
-}
