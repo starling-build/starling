@@ -114,7 +114,7 @@ extension RichLayout {
         let partable = RichTextTheme.wordWindowsPages && !latinOnly && !turned
             && zip(units, units.dropFirst()).contains { Self._closingUnits.contains($0.0) && Self._openingUnits.contains($0.1)
                 && (!squeezes || !Self._pauseMarks.contains($0.0)) }
-        let hangulParen = RichTextTheme.wordWindowsPages && hangs && zip(units, units.dropFirst()).contains { $0.1 == 0x29 && $0.0 >= 0xAC00 && $0.0 <= 0xD7A3 }
+        let hangulParen = RichTextTheme.wordWindowsPages && hangs && !units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) }) && zip(units, units.dropFirst()).contains { $0.1 == 0x29 && $0.0 >= 0xAC00 && $0.0 <= 0xD7A3 }
         guard marked || partable || hangulParen || units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) })
                 || (squeezesSpaces && units.contains(0x20)),
               first.computeLineMetrics().count > 1 else { return [:] }
