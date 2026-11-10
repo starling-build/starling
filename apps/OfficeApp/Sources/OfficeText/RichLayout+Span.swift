@@ -2719,7 +2719,10 @@ extension RichLayout {
                 @inline(never) func _sblk4() {
                 if heldSpaces.contains(offset) {
                     flush(i)
+                    // (A held space of a run that names its own Latin face is that face's, not stretched by the Indic scale: the probe sets it so.)
+                    latinNoScale = kind >= 0 && indic != nil && run.fontFamily != nil
                     let s = style(kind)
+                    latinNoScale = false
                     if theme.wordRules, RichTextTheme.wordWindowsPages, !document.underlinesTrailingSpaces, windowsCounted.contains(offset) {
                         // (Counted under Word for Windows' rule for a paragraph's
                         // closing spaces that open underlined
