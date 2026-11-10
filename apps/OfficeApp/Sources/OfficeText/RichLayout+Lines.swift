@@ -891,7 +891,7 @@ extension RichLayout {
                 // line's stretch, down to nothing, and set "9" at 80.4.)
                 // (A Hangul word kept whole at the line end (hangul-word-held-whole) has no stretch points inside
                 // it, so the spaces between Hangul words stay plain and take the line's stretch, as Word's do.)
-                let hangulGap = theme.wordRules && RichTextTheme.wordWindowsPages && p.style.eastAsian["w:wordWrap"] != "0" && run.first != 0
+                let hangulGap = theme.wordRules && RichTextTheme.wordWindowsPages && run.first != 0
                     && (left?.unicodeScalars.first).map({ $0.value >= 0xAC00 && $0.value <= 0xD7A3 }) == true
                     && (ch.unicodeScalars.first).map({ $0.value >= 0xAC00 && $0.value <= 0xD7A3 }) == true
                 if let end = run.last, ch != "\n", ch != "\u{2028}", wide(left) || wide(ch) || run.first == 0, !hangulGap, !lineStarts.contains(end + 1) { out.formUnion(run) }

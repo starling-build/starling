@@ -846,6 +846,8 @@ extension RichLayout {
             // (Arial Unicode MS in an Indic paragraph, a run with no w:cs: its Latin, digits and marks take the ascii slot, which Word lacks and draws
             // in Yu Gothic, whose line every such run sets whatever it holds; lab aumsy2 (2026-11-09): at 9 pt the steps are 12.8 into and 14.2 out of
             // a Nirmala line, for GST, commas, brackets, dots, digits, "**", regular and bold. fb94294e.)
+            // (A Hangul-named face Word's box lacks: its Latin letters, digits and spaces are Yu Gothic's, so they take Yu Gothic's advances; 22de7d.)
+            let yuOfMissingHangul: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && _yuLatinOfMissingHangulFace(run, named, document)
             let aumsYuInIndic: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && document.readFromFile && document.fontCharsets["arial unicode ms"] == "80"
                 && (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
                 && !(run.keptXML?.containsSubstring("<w:cs/>") ?? false) && !(run.keptXML?.containsSubstring("<w:cs ") ?? false)
@@ -1148,6 +1150,13 @@ extension RichLayout {
             var current: Int? = nil
             func flush(_ end: Substring.Index) {
                 guard let kind = current, start < end else { return }
+                if yuOfMissingHangul, text[start ..< end].unicodeScalars.allSatisfy({ $0.value >= 0x20 && $0.value < 0x250 }),
+                   let y = Self._yuLatinStyle(text[start ..< end], base: joinedScaled(text[start ..< end], style(kind))) {
+                    RuleTrace.hit("word-missing-hangul-face-latin-takes-yu-gothic-advances")
+                    spans.append(contentsOf: capped(text[start ..< end], run, y))
+                    start = end
+                    return
+                }
                 if joinedFace != nil, text[start ..< end].unicodeScalars.contains(where: { $0.value == 0x200C }) {
                     // (The mark at no width, between two words each at its
                     // own: Word's print has it so, the stand-in 3pt.)
@@ -1393,6 +1402,24 @@ extension RichLayout {
                 // (A run with no w:cs in an Indic paragraph, Arial Unicode MS in the ascii slot: Word draws its Latin, digits and marks in Yu Gothic; dx2 fb94294e.)
                 if kind >= 0, aumsYuInIndic, let y = Self._yuLatinStyle(text[start ..< end], base: joinedScaled(text[start ..< end], style(kind))) {
                     spans.append(contentsOf: capped(text[start ..< end], run, y))
+                    start = end
+                    return
+                }
+                if yuOfMissingHangul, text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0x20 && $0.value < 0x250 }) {
+                    // (Piece by piece: the Latin runs at Yu Gothic's advances, the Hangul between them as it was.)
+                    var k = start
+                    while k < end {
+                        let lat = (text[k].unicodeScalars.first?.value ?? 0x3000) < 0x250
+                        var m = k
+                        while m < end, ((text[m].unicodeScalars.first?.value ?? 0x3000) < 0x250) == lat { m = text.index(after: m) }
+                        let piece = text[k ..< m]
+                        let st = joinedScaled(piece, style(kind))
+                        if lat, let y = Self._yuLatinStyle(piece, base: st) {
+                            RuleTrace.hit("word-missing-hangul-face-latin-takes-yu-gothic-advances")
+                            spans.append(contentsOf: capped(piece, run, y))
+                        } else { spans.append(contentsOf: capped(piece, run, st)) }
+                        k = m
+                    }
                     start = end
                     return
                 }
@@ -2579,6 +2606,17 @@ extension RichLayout {
                 }
                 }
                 _r2()
+                }
+                if yuOfMissingHangul, kind >= 0, let u0 = ch.unicodeScalars.first?.value, ch.unicodeScalars.count == 1, u0 >= 0x20, u0 < 0x7F {
+                    // (Word's Yu Gothic Latin in a paragraph whose Hangul-named face it lacks: 22de7d.)
+                    let s = style(kind)
+                    let bold = s.fontWeight == .bold
+                    let a: Double? = u0 == 0x20 ? 0.5 : (u0 == 0x28 ? Optional(791.0 / 2048) : (bold ? Self.yuGothicBold : Self.yuGothicRegular)[u0].map { Double($0) / 2048 })
+                    // (The size-compensated stand-in grows lowercase letters' style size; the advance is the nominal size's, the capitals' kind.)
+                    if let a, let px = style(classed ? RichResolvedFace.characterClass("H") : 0).fontSize, px > 0.5 {
+                        RuleTrace.hit("word-missing-hangul-face-latin-takes-yu-gothic-advances")
+                        extra = a * px - _glyphWidth(s, ch)
+                    }
                 }
                 _sblk3()
                 @inline(never) func _sblk4() {
