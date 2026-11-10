@@ -47,13 +47,16 @@ extension RichLayout {
         // grid, which asks its line for two pitches. A strut would hold the line at one: flt1-1-asis's
         // wrapped "かえてくれる" paragraph came out 18 pt short.)
         var tallShifted = 0.0
-        var kokilaOwn = false, latinOwn = false
+        var kokilaOwn = false, latinOwn = false, latinStacked = false, bengaliSeen = false
         func visit(_ s: InlineSpan) {
             guard uniform, let t = s as? TextSpan else { return }
             if let st = t.style, let tx = t.text {
                 if st.ascentOverride != nil, st.debugLabel?.lowercased().containsSubstring("kokila") == true { kokilaOwn = true }
                 else if st.ascentOverride == nil, tx.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 }), !tx.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xD80 }) { latinOwn = true }
+                // (A Latin run that carries its own ascent and descent (beside Shonar Bangla, lab stk1) stacks on the Indic joiner per line: the strut is a minimum, not the height.)
+                else if st.ascentOverride != nil, tx.unicodeScalars.contains(where: { $0.value >= 0x20 && $0.value < 0x250 }), !tx.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xD80 }) { latinStacked = true }
             }
+            if let text = t.text, text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value < 0xA00 }) { bengaliSeen = true }
             if !shiftedToo, let st = t.style, st.baselineShift != nil, let sz = st.fontSize, let hh = st.height, sz > 0.5 { tallShifted = max(tallShifted, sz * hh) }
             if let text = t.text, text.unicodeScalars.contains(where: { ($0.value >= 0x0590 && $0.value <= 0x08FF) || ($0.value >= 0xFB1D && $0.value <= 0xFEFF) }) { bidi = true }
             if let text = t.text, marksToo, !text.contains(where: { $0.isLetter || $0.isNumber }) {
@@ -107,6 +110,7 @@ extension RichLayout {
         // (A run that carries its own ascent and descent (Kokila's, split at a line multiple by `_multipleSplit`) sets its line itself: a strut in the
         // stand-in's face put the baseline 4.1 pt low at 18 pt on every line above single. lab mmatrix2.)
         if base.ascentOverride != nil, base.debugLabel?.lowercased().containsSubstring("kokila") == true { return nil }
+        if latinStacked && bengaliSeen { return nil }
         if wide, base.ascentOverride != nil, Self._thaiLineSplit(base.debugLabel, bold: false) != nil { return nil }
         // (Even leading: the engine's proportional strut scales the
         // face's ascent and descent by a height that counts its line gap
@@ -114,7 +118,7 @@ extension RichLayout {
         // Liberation Sans.)
         return StrutStyle(fontFamily: base.fontFamily, fontFamilyFallback: base.fontFamilyFallback,
                           fontSize: size, height: h, leadingDistribution: .even, fontWeight: base.fontWeight,
-                          forceStrutHeight: !(kokilaOwn && latinOwn))
+                          forceStrutHeight: !((kokilaOwn && latinOwn) || (latinStacked && bengaliSeen)))
     }
 
     /// The span with the Latin stretches that share a line with ideographs set no taller than the
