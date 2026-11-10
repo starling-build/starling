@@ -3108,7 +3108,7 @@ enum OfficeFonts {
         // has them on Word's machine, whatever this one holds: lo tdf129659's
         // Hebrew body sets its spaces and marks in Times New Roman, not the
         // Cambria of a face Word lacks.)
-        let wordHasIt = wordOnWindows && ["times new roman", "arial"].contains(name.trimmingWhitespace().lowercased())
+        let wordHasIt = wordOnWindows && ["times new roman", "arial", "tahoma"].contains(name.trimmingWhitespace().lowercased())
         if missing, wordHasIt { missing = false }
         let asked = name.trimmingWhitespace().lowercased()
         if missing { name = "Times New Roman" }
@@ -3140,6 +3140,10 @@ enum OfficeFonts {
             case "times new roman":
                 face.joinedAdvances = WindowsArabicAdvances.times
                 face.boldJoinedAdvances = WindowsArabicAdvances.timesBold
+            case "tahoma":
+                // (Tahoma's own Arabic, read from its hmtx: the Urdu docs name it throughout.)
+                face.joinedAdvances = WindowsArabicAdvances.tahoma
+                face.boldJoinedAdvances = WindowsArabicAdvances.tahomaBold
             default: break
             }
             if missing, Self.windowsArabicWidthsOn {
@@ -3170,12 +3174,18 @@ enum OfficeFonts {
         // (… and its clone first in the chain, so the spaces and marks are set
         // in the clone and not the Cambria stand-in that comes before it.)
         if wordHasIt, embeddedFamily(name) == nil, installedFamilies[name.trimmingWhitespace().lowercased()] == nil {
-            let clone = name.trimmingWhitespace().lowercased() == "arial" ? "Liberation Sans" : "Liberation Serif"
+            let clone = ["arial", "tahoma"].contains(name.trimmingWhitespace().lowercased()) ? "Liberation Sans" : "Liberation Serif"
             face.fallback.removeAll { $0 == clone }
             face.fallback.insert(clone, at: 0)
             // (Arial's own line: 1.1499 em, 13.8pt at 12 — the Cambria stand-in's
             // 14.0 put lo tdf163575's page 19pt low.)
             if clone == "Liberation Sans" { face.naturalHeight = 1.1499; face.baseline = 0.9053 }
+            // (Tahoma's complex face: its own line, 2049 + 423 over 2048, and the sans Arabic after the clone.)
+            if asked == "tahoma" {
+                face.naturalHeight = 1.2070; face.baseline = 1.0005; face.boldHeight = 1.2070
+                face.fallback = ["Liberation Sans", cambria, "Times New Roman", "Liberation Sans", "Noto Sans Arabic", "Noto Naskh Arabic", emojiPictographs, "DejaVu Sans"]
+                RuleTrace.hit("tahoma-complex-face")
+            }
         }
         return face
     }
