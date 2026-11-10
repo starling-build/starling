@@ -143,24 +143,22 @@ extension RichLayout {
         default: return false
         }
     }
-    /// A run flagged `w:cs` that holds only marks (leaders, commas, brackets) is drawn wholly from its complex-script face: Mangal, or Kalimati
-    /// (which Windows lacks) in Mangal (dx2 375919ba: 96 leader runs, and Word's print holds Mangal marks there, not Calibri).
-    @inline(never) func _csMarksInMangal(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument, _ text: Substring) -> Bool {
-        guard theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile,
-              let kept = run.keptXML, kept.containsSubstring("<w:cs/>") || kept.containsSubstring("<w:cs "),
-              !text.isEmpty, !text.unicodeScalars.contains(where: { $0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39) || $0.value > 0x7E })
-        else { return false }
-        let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
-        return cs == "mangal" || cs == "kalimati"
-    }
-    /// A run (no Indic letters in it: marks, Latin) whose face is Latha: Word draws it in Latha, a line of 1.372 em (dx2 80152175).
-    @inline(never) func _runOfMarksInLatha(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument, _ text: Substring) -> Bool {
-        guard theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile,
-              !text.isEmpty
-        else { return false }
+    /// A run with no Indic letters in it (marks, Latin, digits) is drawn in the face it NAMES: its complex-script face when it carries `w:cs`, otherwise
+    /// its ascii face. When that face is one we hold line metrics for, the run takes that face's line (Latha 1.372 em, dx2 80152175; Mangal, and Kalimati
+    /// which Windows lacks, in dx2 375919ba's leader runs). The script path picks a face only when the run names none we know.
+    @inline(never) func _namedMetricFace(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument, _ text: Substring) -> String? {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, !text.isEmpty else { return nil }
+        let csFlag = run.keptXML.map { $0.containsSubstring("<w:cs/>") || $0.containsSubstring("<w:cs ") } ?? false
         let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
         let ascii = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
-        return cs == "latha" || ascii == "latha"
+        var face = csFlag ? cs : ascii
+        if face == "kalimati" { face = "mangal" }
+        // Only Latha is measured for letters and digits too; the other faces only for runs of marks (Kalimati/Preeti Nepali docs drop otherwise).
+        if face != "latha", text.unicodeScalars.contains(where: { $0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39) || $0.value > 0x7E }) { return nil }
+        switch face {
+        case "latha", "mangal", "vrinda", "aparajita", "raavi", "shruti", "gautami", "shonar bangla": return face
+        default: return nil
+        }
     }
     static func _isIndic(_ u: UInt32) -> Bool { _indic.contains(u) || _tamil.contains(u) }
 
@@ -888,6 +886,7 @@ extension RichLayout {
                 && (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
                 && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xB00 })
             let utsaahLatin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "utsaah"
+            let namedFace: String? = text.unicodeScalars.contains(where: { $0.properties.isAlphabetic && Self._isIndic($0.value) }) ? nil : _namedMetricFace(run, named, document, text)
             let indic: (face: String, scale: Double)? = {
                 guard theme.wordRules, RichTextTheme.wordWindowsPages else { return nil }
                 var count: [Character: Int] = [:], letters = 0
@@ -912,13 +911,9 @@ extension RichLayout {
                        (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "kokila" {
                         return ("kokila", 1)
                     }
-                    if _runOfMarksInLatha(run, named, document, text) {
-                        RuleTrace.hit("word-latha-run-of-marks-is-a-latha-line")
-                        return ("latha", 1)
-                    }
-                    if _csMarksInMangal(run, named, document, text) {
-                        RuleTrace.hit("word-cs-run-of-marks-is-drawn-in-the-complex-face")
-                        return ("mangal", 1)
+                    if let named = _namedMetricFace(run, named, document, text) {
+                        RuleTrace.hit("word-run-with-no-indic-letters-takes-the-line-of-the-face-it-names")
+                        return (named, 1)
                     }
                     if malgunLatin,
                        text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 })
@@ -985,7 +980,7 @@ extension RichLayout {
                 if kind >= 0, let indic, indic.scale != 1 { s = s.copyWith(scaleX: indic.scale) }
                 // (The run's own line is the face's, not the stand-in's, where the face's is the shorter: Aparajita's 1.18 em (a516bfe9: 2.7 to 92.9) where Noto
                 // Sans Devanagari's is taller; the joiner above only raises a line.)
-                if kind >= 0, let indic, (indic.face == "kokila" && (kokilaLatin || text.unicodeScalars.contains(where: { Self._isIndic($0.value) }))) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "malgun gothic" && malgunLatin) || (indic.face == "yu gothic" && (aumsLatin || aumsYuInIndic)) || indic.face == "vijaya" || indic.face == "latha" || indic.face == "shonar bangla" || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[(indic.face == "shonar bangla" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? "shonar bangla bold" : indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
+                if kind >= 0, let indic, (indic.face == "kokila" && (kokilaLatin || text.unicodeScalars.contains(where: { Self._isIndic($0.value) }))) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "malgun gothic" && malgunLatin) || (indic.face == "yu gothic" && (aumsLatin || aumsYuInIndic)) || indic.face == "vijaya" || indic.face == "latha" || indic.face == "shonar bangla" || (namedFace != nil && namedFace != "mangal") || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[(indic.face == "shonar bangla" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? "shonar bangla bold" : indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
                     // (Kokila's line: its own ascent and descent, above and below the baseline, for every run on the line: the stand-ins'
                     // (Carlito's, Noto's) are taller above and set the line 2-3 pt low and 1.4 pt per line too far apart.)
                     // (A multiple under single too: dx2 hin-z20740649's 0.9 lines are 13.5 pt apart in Word's print, Kokila's 15.0 x 0.9.)
