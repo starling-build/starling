@@ -1024,7 +1024,17 @@ extension RichLayout {
                     && (units[tail] == 0xFF0C || units[tail] == 0x3002 || units[tail] == 0x3001)
                     && over > ((document.compatibilityMode ?? 12) >= 15 ? em * 0.50 + 0.24 : ((marks.isEmpty && document.marksCentred ? -1 : em * document.markSqueezeEm * Double(marks.count + 1) + 0.24))) && hang > 0 && over <= hang + 0.0001
                 if commaHalfHang { RuleTrace.hit("e0ca7252-comma-hangs-by-half-em-only") }
-                if hang > 0, over <= hang + 0.0001, !commaHalfHang {
+                // (Compat 14, zh-CN: a pair past the half-em limit is kept where the line's automatic spaces give the
+                // difference — zh-16e0a12a's "…补贴，" is 11.5 over, the limit 8.24, and Word sets the two gaps beside
+                // its "1" 2.3 each, not 4: just the 3.3 it needs. Measured per gap in that print, p4 and p30.)
+                let digitGapSqueeze: Double = commaHalfHang ? Self._digitGapSqueeze(document, over: over, em: em, marks: marks.count, gapOf: { gaps[$0] ?? 0 }, spaces: spaces + ownSpaces, hair: hair) : 0
+                if digitGapSqueeze > 0 {
+                    let all = spaces + ownSpaces
+                    let total = all.reduce(0.0) { $0 + (gaps[$1] ?? 0) }
+                    for k in all { adjust[k, default: 0] -= (gaps[k] ?? 0) / max(0.001, total) * digitGapSqueeze }
+                    adjust[tail, default: 0] -= over - digitGapSqueeze + 0.02
+                    fits = true
+                } else if hang > 0, over <= hang + 0.0001, !commaHalfHang {
                     // (All of it, the hair too: the engine has none.)
                     adjust[tail, default: 0] -= (!squeezes && !turned && wordRules && RichTextTheme.wordWindowsPages && !document.hangsHalf ? hang : over + 0.02)
                     fits = true
@@ -3330,6 +3340,17 @@ extension RichLayout {
         guard a == "-", b.asciiValue.map({ $0 >= 0x30 && $0 <= 0x39 }) ?? false else { return false }
         if let bb = before, bb.isLetter || bb.isNumber { return letters }
         return before == nil || before == " "
+    }
+
+    /// How much of its automatic spaces a compat-14 zh-CN line gives for a line-end comma pair the half-em limit would
+    /// carry down (0 when it does not apply): what the pair is over the limit, if the spaces can give that, half each.
+    @inline(never)
+    static func _digitGapSqueeze(_ document: RichDocument, over: Double, em: Double, marks: Int, gapOf: (Int) -> Double, spaces: [Int], hair: Double) -> Double {
+        guard (document.compatibilityMode ?? 12) == 14, document.markSqueezeEm == 0.5, !spaces.isEmpty else { return 0 }
+        let limit = em * document.markSqueezeEm * Double(marks + 1) + 0.24
+        let need = over - limit
+        let room = spaces.reduce(0.0) { $0 + gapOf($1) } / 2
+        return need > 0 && need <= room + hair ? need : 0
     }
 
     /// Whether Word's automatic spacing falls between `a` and `b`: one
