@@ -979,7 +979,9 @@ extension RichLayout {
                     ? "shonar bangla" : nil)
                 if kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, !kokilaLatin || (run.keptXML?.containsSubstring("<w:cs") ?? false), p.style.lineHeightPoints == nil,
                    let latinOwner, let m = Self._indicLines[latinOwner], let size = s.fontSize, size > 0.5,
-                   !text.unicodeScalars.contains(where: { Self._isIndic($0.value) }), p.text.unicodeScalars.contains(where: { Self._indic.contains($0.value) }) {
+                   !text.unicodeScalars.contains(where: { Self._isIndic($0.value) }), p.text.unicodeScalars.contains(where: { Self._indic.contains($0.value) }),
+                   // (The Latin letters stack only when drawn in a face other than the line's Indic face: a run whose ascii face IS its complex face, such as Shonar Bangla on both, adds nothing; dx2 3f7da49c.)
+                   (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() != (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() {
                     let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
                     let split = Self._multipleSplit(ascent: m.0, descent: m.1, multiple: multiple)
                     var above = split.0 * size
@@ -1333,7 +1335,7 @@ extension RichLayout {
                     start = end
                     return
                 }
-                if kind >= 0, indic?.face == "shonar bangla", text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF }) {
+                if kind >= 0, indic?.face == "shonar bangla", text[start ..< end].unicodeScalars.contains(where: { ($0.value >= 0x980 && $0.value <= 0x9FF) || (!(run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))) && ShonarAdvances.regular[String($0)] != nil && $0.value < 0x980 && $0 != " ") }) {
                     let shBold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
                     let shTable = shBold ? ShonarAdvances.bold : ShonarAdvances.regular
                     // (Shonar Bangla's own Bengali cluster widths, word by word: `ShonarAdvances`.)

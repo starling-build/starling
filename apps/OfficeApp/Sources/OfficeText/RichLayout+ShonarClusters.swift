@@ -9,6 +9,7 @@ enum ShonarAdvances {
     static let regular: [String: Double] = [
         // Punctuation Word draws in Shonar Bangla (hmtx of the print's subset): right single quote, danda.
         "\u{2019}": 0.2754, "\u{964}": 0.1982,
+        "\u{2018}": 0.2754, ":": 0.23, "(": 0.2754, ")": 0.2754, "-": 0.2754, ",": 0.2065, ".": 0.2065,
         "\u{9B0}": 0.3790,
         "\u{995}": 0.5576,
         "\u{98F}": 0.4971,
