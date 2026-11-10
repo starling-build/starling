@@ -187,7 +187,7 @@ extension RichLayout {
 
     /// Whether each of `painter`'s lines holds some text of the span's
     /// tallest stretch (the height `strut` was made from).
-    static func _tallestOnEveryLine(_ span: TextSpan, _ strut: StrutStyle, _ painter: TextPainter, lines: Int, near: Bool = false) -> Bool {
+    static func _tallestOnEveryLine(_ span: TextSpan, _ strut: StrutStyle, _ painter: TextPainter, lines: Int, near: Bool = false, wide: Bool = false) -> Bool {
         guard let size = strut.fontSize, let h = strut.height else { return false }
         var ranges: [Range<Int>] = []
         var at = 0
