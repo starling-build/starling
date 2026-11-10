@@ -1631,6 +1631,27 @@ public struct ListLevelFormat: Hashable, Sendable {
         case "decimalFullWidth", "decimalFullWidth2":
             return String(String(n).unicodeScalars.map { Character(UnicodeScalar($0.value - 0x30 + 0xFF10)!) })
         case "decimalZero": return n < 10 ? "0\(n)" : String(n)
+        // Thai digits (46490205's page numbers, ๑๔๔), Arabic letters in
+        // Word's order (da213509's pages 2 and 3 print ب and ت), Hebrew
+        // letters as numerals.
+        case "thaiNumbers", "thaiCounting":
+            return String(String(n).unicodeScalars.map { Character(UnicodeScalar(0x0E50 + $0.value - 0x30)!) })
+        case "arabicAlpha":
+            let g = Array("أبتثجحخدذرزسشصضطظعغفقكلمنهوي")
+            return String(g[(n - 1) % g.count])
+        case "hebrew1":
+            guard n < 1000 else { return String(n) }
+            if n == 15 { return "טו" }
+            if n == 16 { return "טז" }
+            var out = ""
+            var v = n
+            for (value, glyph) in [(400, "ת"), (300, "ש"), (200, "ר"), (100, "ק"), (90, "צ"), (80, "פ"), (70, "ע"), (60, "ס"), (50, "נ"),
+                                   (40, "מ"), (30, "ל"), (20, "כ"), (10, "י"), (9, "ט"), (8, "ח"), (7, "ז"), (6, "ו"), (5, "ה"),
+                                   (4, "ד"), (3, "ג"), (2, "ב"), (1, "א")] {
+                while v >= value { out += glyph; v -= value }
+                if v == 15 { out += "טו"; v = 0 } else if v == 16 { out += "טז"; v = 0 }
+            }
+            return out
         // (A level that shows no number: zh-90e0cea8's chapters are
         // "%1%2　" over a level 0 of "none" — "6　", not "16　".)
         case "none": return ""

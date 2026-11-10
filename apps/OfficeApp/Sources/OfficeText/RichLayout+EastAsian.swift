@@ -316,8 +316,10 @@ extension RichLayout {
             // characters only, each once.)
             // (Thai the same: a mark's box at no width carries its consonant's whole width, so a word summed 5-20% over the engine's line
             // — 28fa7f69's FITW: 286 against 232 pt.)
-            if flatUsable, units[from ..< to].contains(where: { ($0 >= 0x0900 && $0 <= 0x0DFF) || ($0 >= 0x0E01 && $0 <= 0x0E5B) })
-                || (flatUsable && from > 0 && ((units[from - 1] >= 0x0900 && units[from - 1] <= 0x0DFF) || (units[from - 1] >= 0x0E01 && units[from - 1] <= 0x0E5B)) && units[from ..< to].allSatisfy({ $0 == 0x20 })) {
+            // (Myanmar too: 80bde9af's FITW read words 2x the engine's, 323 against 145 pt.)
+            func clustered(_ u: UInt16) -> Bool { (u >= 0x0900 && u <= 0x0DFF) || (u >= 0x0E01 && u <= 0x0E5B) || (u >= 0x1000 && u <= 0x109F) }
+            if flatUsable, units[from ..< to].contains(where: clustered)
+                || (flatUsable && from > 0 && clustered(units[from - 1]) && units[from ..< to].allSatisfy({ $0 == 0x20 })) {
                 return indicWidth(from, to)
             }
             for box in probe.getBoxesForSelection(TextSelection(baseOffset: map.painter(from), extentOffset: map.painter(to - 1) + 1)) {
@@ -2360,10 +2362,10 @@ extension RichLayout {
                 let startX = flat.getOffsetForCaret(TextPosition(offset: map.painter(from)), Rect.zero).dx
                 let endX = k >= units.count ? flat.width : flat.getOffsetForCaret(TextPosition(offset: map.painter(k)), Rect.zero).dx
                 let hi = endX, lo = startX
-                let gap = (probed - (hi - lo)) / pt
+                let gap = (probed - abs(hi - lo)) / pt   // (abs: the one-line painter is .ltr, so an RTL word's carets run backwards)
                 if abs(gap) > 0.5 {
                     let word = String(String.UnicodeScalarView(units[from ..< k].compactMap { Unicode.Scalar(UInt32($0)) }))
-                    fputs("FITW\t\(i)\t\(from)\t\(probed / pt)\t\((hi - lo) / pt)\t\(gap)\t\(word)\n", stderr)
+                    fputs("FITW\t\(i)\t\(from)\t\(probed / pt)\t\(abs(hi - lo) / pt)\t\(gap)\t\(word)\n", stderr)
                     reported += 1
                 }
             }

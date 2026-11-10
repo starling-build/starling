@@ -1534,13 +1534,11 @@ extension RichLayout {
         case "lowerLetter": return ListNumberFormat.lowerLetter.string(n)
         case "upperLetter": return ListNumberFormat.upperLetter.string(n)
         case "numberInDash": return "- \(n) -"
-        // Thai digits (46490205: pgNumType thaiNumbers prints ๑๔๔, not 144).
-        case "thaiNumbers":
-            var out = ""
-            for c in String(n).unicodeScalars {
-                out.unicodeScalars.append(Unicode.Scalar(0x0E50 + c.value - 0x30) ?? c)
-            }
-            return out
+        // (The East Asian, Thai, Arabic and Hebrew ones: the list formats' own.)
+        case let f? where !["decimal", "none", "bullet"].contains(f):
+            var level = ListLevelFormat(text: "%1", format: .decimal)
+            level.rawFormat = f
+            return level.number(n)
         default: return String(n)
         }
     }
