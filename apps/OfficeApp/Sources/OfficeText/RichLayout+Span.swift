@@ -808,6 +808,7 @@ extension RichLayout {
             var fitPitch: Double? = nil
             var fitBusy = false
             var plainPiece = false
+            var latinNoScale = false
             var fitNone = false
             var fitLastSingle = false
             func fitSpacing() -> Double? {
@@ -957,7 +958,7 @@ extension RichLayout {
                 return (face, all * 2 >= letters ? scale : 1)
             }()
             func style(_ kind: Int) -> TextStyle {
-                if !fitBusy, !plainPiece, let s = styles[kind] { return s }
+                if !fitBusy, !plainPiece, !latinNoScale, let s = styles[kind] { return s }
                 var styled = run
                 let grown = wholeRaised ? theme.raisedLineHeight(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) : nil
                 if let grown { styled.raised = grown.raise }
@@ -980,7 +981,7 @@ extension RichLayout {
                 // (Set to the original's widths, the stand-in's own
                 // kerning is no part of them: Arial's pair of ones.)
                 if kind >= 0, latinFace?.advances != nil { s = s.copyWith(fontFeatures: [FontFeature("kern", 0)]) }
-                if kind >= 0, let indic, indic.scale != 1, !plainPiece { s = s.copyWith(scaleX: indic.scale) }
+                if kind >= 0, let indic, indic.scale != 1, !latinNoScale { s = s.copyWith(scaleX: indic.scale) }
                 // (The run's own line is the face's, not the stand-in's, where the face's is the shorter: Aparajita's 1.18 em (a516bfe9: 2.7 to 92.9) where Noto
                 // Sans Devanagari's is taller; the joiner above only raises a line.)
                 if kind >= 0, let indic, (indic.face == "kokila" && (kokilaLatin || text.unicodeScalars.contains(where: { Self._isIndic($0.value) }))) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "malgun gothic" && malgunLatin) || (indic.face == "yu gothic" && (aumsLatin || aumsYuInIndic)) || indic.face == "vijaya" || indic.face == "latha" || indic.face == "shonar bangla" || (namedFace != nil && namedFace != "mangal") || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[(indic.face == "shonar bangla" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? "shonar bangla bold" : indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
@@ -1134,7 +1135,7 @@ extension RichLayout {
                     let own = text.count == 1 && fitLastSingle ? 0 : f
                     s = s.copyWith(letterSpacing: kind == -2 ? (s.letterSpacing ?? 0) + own : own)
                 }
-                if !fitBusy, !plainPiece { styles[kind] = s }
+                if !fitBusy, !plainPiece, !latinNoScale { styles[kind] = s }
                 return s
             }
             // (A zero-width character the layout puts in — a break the
@@ -1451,8 +1452,10 @@ extension RichLayout {
                     // and marks between Nirmala UI's words are Arial's and carry no Nirmala line of their own.)
                     for (piece, isIndic) in Self._splitIndicLatin(text[start ..< end]) {
                         plainPiece = !isIndic
+                        latinNoScale = !isIndic && run.fontFamily != nil && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.contains("\u{A0}")
                         let st = style(kind)
                         plainPiece = false
+                        latinNoScale = false
                         spans.append(contentsOf: capped(piece, run, joinedScaled(piece, st)))
                     }
                     start = end
@@ -1500,9 +1503,9 @@ extension RichLayout {
                 }
                 // (A stretch with no Indic letter in it, in a run that has some: its digits, marks and spaces are the Latin face's, at the
                 // Latin face's widths; the Indic width scale is for the Indic letters. dx2 d912c25b's "(COVID-19)": Word 54.7, ours 59.2.)
-                plainPiece = kind >= 0 && indic != nil && !text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0x0900 && $0.value < 0x0E00 })
+                latinNoScale = kind >= 0 && indic != nil && run.fontFamily != nil && text[start ..< end].contains(where: { $0.isLetter || $0.isNumber }) && !text[start ..< end].contains("\u{A0}") && !text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0x0900 && $0.value < 0x0E00 })
                 let st = style(kind)
-                plainPiece = false
+                latinNoScale = false
                 spans.append(contentsOf: capped(text[start ..< end], run, joinedScaled(text[start ..< end], st)))
                 start = end
             }
