@@ -1534,6 +1534,13 @@ extension RichLayout {
         case "lowerLetter": return ListNumberFormat.lowerLetter.string(n)
         case "upperLetter": return ListNumberFormat.upperLetter.string(n)
         case "numberInDash": return "- \(n) -"
+        // Thai digits (46490205: pgNumType thaiNumbers prints ๑๔๔, not 144).
+        case "thaiNumbers":
+            var out = ""
+            for c in String(n).unicodeScalars {
+                out.unicodeScalars.append(Unicode.Scalar(0x0E50 + c.value - 0x30) ?? c)
+            }
+            return out
         default: return String(n)
         }
     }
