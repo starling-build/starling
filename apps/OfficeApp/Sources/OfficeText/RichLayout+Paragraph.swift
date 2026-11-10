@@ -1498,7 +1498,18 @@ extension RichLayout {
             // as the picture's height takes it — see below. lo-7ec36a70's rows of Persian, 13.8pt
             // in Word's print, were 16.2 in the fallback face's own height, a 43pt picture
             // opening one of them.)
-            let strut = picturesInLine ? nil : _strut(span, near: spacedOver || thaiNear, wide: thaiNear)
+            // (An equation that stands after the first line leaves that line the paragraph's own: Word's
+            // print of jpn-z22855378-6fca0f puts a 1.5-line paragraph's first line 41.1pt under the last,
+            // as without the equation; with the strut dropped for the equation's box, 45.2. A paragraph
+            // with an equation in its first line, or of one line, is as before.)
+            var pil = picturesInLine
+            if pil, theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft,
+               inline.allSatisfy({ $0.image.map { $0.name == "m:oMath" && $0.float == nil } ?? true }),
+               _equationsAfterFirstLine(span, inline.map { $0.dimensions }, align: align, rtl: style.rightToLeft, width: textWidth + _px(tieSlack), indents: besideLineIndents) {
+                RuleTrace.hit("word-equations-after-the-first-line-keep-the-paragraphs-strut")
+                pil = false
+            }
+            let strut = pil ? nil : _strut(span, near: spacedOver || thaiNear, wide: thaiNear)
             let painter = TextPainter(
                 text: span,
                 textAlign: align,
@@ -1578,7 +1589,7 @@ extension RichLayout {
             // 宋体 on a 15.6pt grid): the line below the baseline is 24.5pt to the
             // next line's baseline, as the text alone's, where ours was 22.4, the
             // page's text 2.2pt high of Word's print.)
-            if picturesInLine, strut == nil, theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft,
+            if pil, strut == nil, theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft,
                style.lineHeightPoints == nil,
                !p.text.isEmpty, p.text.unicodeScalars.contains(where: { $0.value != 0xFFFC && $0.value != 0x20 }),
                inline.allSatisfy({ $0.image.map { $0.textBox == nil && $0.name != "hr" && ($0.float == nil || $0.float.map { !$0.takesRoom } == true) } ?? true }),
@@ -1606,7 +1617,7 @@ extension RichLayout {
                 }
                 flat.dispose()
             }
-            if picturesInLine, strut != nil, let first = painter.computeLineMetrics().first {
+            if pil, strut != nil, let first = painter.computeLineMetrics().first {
                 let free = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr)
                 free.fractionalLineHeights = painter.fractionalLineHeights
                 free.lineIndents = painter.lineIndents
@@ -1671,7 +1682,7 @@ extension RichLayout {
             // and takes only the SPLIT above and below the baseline from an override, so every run
             // of the tallest stretch gets one height and one split — the share of Arial's line under
             // its baseline, by the face the run is drawn in, not the stand-in a font name resolves to.)
-            if picturesInLine, theme.wordRules, RichTextTheme.wordWindowsPages, !Self._risesForNumber(inline) {
+            if pil, theme.wordRules, RichTextTheme.wordWindowsPages, !Self._risesForNumber(inline) {
                 var top = 0.0
                 var counts: [Double: (Int, String?, Bool)] = [:]
                 func tallest(_ s: InlineSpan) {
@@ -1758,7 +1769,7 @@ extension RichLayout {
                     }
                 }
             }
-            if painter.strutStyle == nil, theme.wordRules, !picturesInLine, !Self._risesForNumber(inline),
+            if painter.strutStyle == nil, theme.wordRules, !pil, !Self._risesForNumber(inline),
                // (On a grid, every line is held to the tallest, so not to
                // a word joiner's: the one before a compatibility ideograph
                // set in Noto Sans SC is Noto's line, and it held all of
