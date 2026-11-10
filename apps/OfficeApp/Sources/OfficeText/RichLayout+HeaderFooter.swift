@@ -1340,6 +1340,17 @@ extension RichLayout {
                                       box.right + right + out, box.bottom + _px(image.effectBottom) + out), paint)
     }
 
+    /// A table set wider than the column it hangs from is not cut at the
+    /// column's edge: Word's print of lo-ed539d0e226f93bf draws a 425pt
+    /// floating table, in the 263pt first column of a two-column section,
+    /// out to its own right edge (469.8), its text included.
+    @inline(never)
+    func _tableOverflowsColumn(_ paragraph: Int, _ columnW: Double) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, paragraph < _cells.count, let d = _cells[paragraph],
+              let widths = _columnWidths[d.table] else { return false }
+        return widths.reduce(0, +) > columnW + 1
+    }
+
     /// A picture in the line wider than the table cell it stands in is
     /// cut at the cell's sides, as Word prints one (drawing.docx p9: a
     /// 303.75pt banner in a 296pt cell ends at the cell's 381.12, and a
@@ -2588,6 +2599,7 @@ extension RichLayout {
                         let across = acrossTable || _fullWidthCover.contains(piece.paragraph)
                             || (_perSection && manyColumns && _marginFloat(piece.paragraph))
                             || (manyColumns && RichTextTheme.wordWindowsPages && _pageFloat(piece.paragraph) && _cells[piece.paragraph] == nil)
+                            || (manyColumns && _tableOverflowsColumn(piece.paragraph, columnW))
                         let clipL = across ? 0 : columnClipL
                         let clipR = across ? _pxPageW(p) : columnClipR
                         let top = pageTop + piece.pageY + (verticalShifts?[slot * 1_000_000 + pieceIndex] ?? 0)

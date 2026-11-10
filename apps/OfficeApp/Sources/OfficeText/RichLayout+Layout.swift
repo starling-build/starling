@@ -2799,11 +2799,9 @@ extension RichLayout {
                 if let own = p.style.sectionPage { counts.append(tableMakesColumns(i) ? 1 : max(1, own.columns)) }
             }
             counts.append(document.paragraphs.last.map { $0.cell.map { document.tableStyles[$0.table]?.sectionColumns == true } == true } == true ? 1 : max(1, last.columns))
-            // (Not yet where a section's columns are unequal: they would be set
-            // equal.)
-            func unequal(_ xml: String?) -> Bool { xml.map { $0.containsSubstring("w:equalWidth=\"0\"") || $0.containsSubstring("w:equalWidth=\"false\"") } ?? false }
-            let anyUnequal = unequal(document.columnsXML) || document.paragraphs.contains { $0.cell == nil && unequal($0.style.sectionXML) }
-            if Set(counts).count > 1, counts.contains(where: { $0 > 1 }), !anyUnequal {
+            // Unequal-width sections run per section too (columns set equal for now):
+            // without it a 2-column section is never balanced at a continuous break (28abf02c).
+            if Set(counts).count > 1, counts.contains(where: { $0 > 1 }) {
                 _perSection = true
                 _sectionColumnCounts = counts
                 _maxSectionColumns = counts.max() ?? 1

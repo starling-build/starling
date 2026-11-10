@@ -3482,7 +3482,8 @@ extension RichLayout {
                             cy = 0
                         }
                     }
-                    out[0] += bands
+                    // (A band already in `head`, a table of the section above, stays there: set again it was drawn once per balance.)
+                    out[0] += head.isEmpty ? bands : bands.filter { b in !head.contains(where: { $0 == b }) }
                     let blockBottom = out.map { $0.map { $0.pageY + $0.height }.max() ?? 0 }.max() ?? 0
                     if blockBottom <= contentH + 0.01 {
                         _allPieces.removeLast(seq.count)
