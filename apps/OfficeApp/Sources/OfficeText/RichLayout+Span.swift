@@ -2370,8 +2370,9 @@ extension RichLayout {
                     let g = _glyphWidth(style(kind), ch)
                     // (A face may carry its own Hangul em under U+AC00 of otherAdvances: NanumGothic 0.94.)
                     let hEm = (theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
-                                                   ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.otherAdvances?[0xAC00]).map { $0 * em } ?? em
-                    if g > 0.5, hEm < em ? abs(g - hEm) > 0.01 : g < hEm - 0.01 {
+                                                   ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.otherAdvances?[0xAC00]).map { $0 * em * wScale } ?? em * wScale
+                    // (A character scale, w:w, narrows the syllable too: dx2 211f43df's 95% Gulim 11 pt is 10.44 in Word's print, 11.04 here.)
+                    if g > 0.5, hEm < em * wScale ? abs(g - hEm) > 0.01 : g < hEm - 0.01 {
                         RuleTrace.hit("hangul-syllable-is-an-em")
                         extra += hEm - g
                     }
