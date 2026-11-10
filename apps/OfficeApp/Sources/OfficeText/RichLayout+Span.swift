@@ -975,7 +975,16 @@ extension RichLayout {
                 // extra under the baseline unchanged). White space and the invisible marks beside Kokila text set no line of their own.)
                 // (Shonar Bangla beside Arial: the same line, the Latin face's ascent (with its line gap) over the Bengali face's descent; lab stk1.)
                 let latinOwner: String? = p.runs.contains(where: { ($0.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "kokila" }) ? "kokila"
-                    : (p.runs.contains(where: { ["shonar bangla", "kohinoor bangla"].contains(($0.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()) }) ? "shonar bangla" : nil)
+                    : (p.runs.contains(where: { ["shonar bangla", "kohinoor bangla"].contains(($0.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()) })
+                        && !{ () -> Bool in
+                            var off = 0; let u = Array(p.text.utf16)
+                            for r in p.runs {
+                                let seg = u[min(off, u.count)..<min(off + r.length, u.count)]
+                                off += r.length
+                                if seg.contains(where: { $0 >= 0x980 && $0 < 0xA00 }),
+                                   !["shonar bangla", "kohinoor bangla"].contains((r.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()) { return true }
+                            }
+                            return false }() ? "shonar bangla" : nil)
                 if kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, !kokilaLatin || (run.keptXML?.containsSubstring("<w:cs") ?? false), p.style.lineHeightPoints == nil,
                    let latinOwner, let m = Self._indicLines[latinOwner], let size = s.fontSize, size > 0.5,
                    !text.unicodeScalars.contains(where: { Self._isIndic($0.value) }), p.text.unicodeScalars.contains(where: { Self._indic.contains($0.value) }) {
@@ -985,7 +994,7 @@ extension RichLayout {
                     // (A run with the w:cs flag is drawn wholly from its complex-script face: Kokila's "(" in dx2 cbb7ae39's first lines, Times New Roman's where cs is the major bidi face.)
                     let csFlag = (run.keptXML?.containsSubstring("<w:cs") ?? false)
                     let csFace = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
-                    if text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 }), !(csFlag && csFace == "kokila"),
+                    if text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 && (latinOwner != "shonar bangla" || $0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39)) }), !(csFlag && csFace == "kokila"),
                        let b = theme.baseline(for: run, in: { var single = p.style; single.lineSpacing = 1; return single }(), named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline),
                        let pt = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize, pt > 0.5 {
                         above = max(above, b / pt * size)

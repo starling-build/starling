@@ -54,7 +54,7 @@ extension RichLayout {
                 if st.ascentOverride != nil, st.debugLabel?.lowercased().containsSubstring("kokila") == true { kokilaOwn = true }
                 else if st.ascentOverride == nil, tx.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 }), !tx.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xD80 }) { latinOwn = true }
                 // (A Latin run that carries its own ascent and descent (beside Shonar Bangla, lab stk1) stacks on the Indic joiner per line: the strut is a minimum, not the height.)
-                else if st.ascentOverride != nil, tx.unicodeScalars.contains(where: { $0.value >= 0x20 && $0.value < 0x250 }), !tx.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xD80 }) { latinStacked = true }
+                else if st.ascentOverride != nil, tx.unicodeScalars.contains(where: { $0.value >= 0x20 && $0.value < 0x250 && ($0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39)) }), !tx.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xD80 }) { latinStacked = true }
             }
             if let text = t.text, text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value < 0xA00 }) { bengaliSeen = true }
             if !shiftedToo, let st = t.style, st.baselineShift != nil, let sz = st.fontSize, let hh = st.height, sz > 0.5 { tallShifted = max(tallShifted, sz * hh) }
