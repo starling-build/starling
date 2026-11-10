@@ -1003,7 +1003,7 @@ extension RichLayout {
                 // (Latin letters in a run whose ascii face is Nirmala UI itself (Semilight too) beside Indic text are drawn in Nirmala, so they take its line and add no Latin
                 // stand-in's: dx2 426d1cc2's "l:f" in a Punjabi paragraph went 21.1 to 23.1 pt once the line was no longer held to one pitch.)
                 if kind >= 0, plainPiece || indic == nil, indic == nil || indic?.face == "nirmala ui", theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5,
-                   { let f = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased(); return f.hasPrefix("nirmala ui") || f == "arial" }(),
+                   { let f = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased(); return f.hasPrefix("nirmala ui semilight") || f == "arial" }(),
                    !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) }),
                    indic != nil || (!text.unicodeScalars.contains(where: { Self._isIndic($0.value) }) && text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 }) && p.text.unicodeScalars.contains(where: { Self._indic.contains($0.value) })),
                    let m = Self._indicLines["nirmala ui"] {
