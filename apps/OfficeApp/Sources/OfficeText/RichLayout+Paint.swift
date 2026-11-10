@@ -1485,7 +1485,12 @@ extension RichLayout {
                     marker.paint(canvas, Offset(at, g.inkTop))
                     marker.dispose()
                 } else {
+                // (A bullet that would hang wholly left of its table cell is not drawn by Word (a part outside is cut off by the cell): lab bulind, left=0 with the level's hanging in a cell, no bullet in the print; 28c56054.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell != nil, label == "\u{2022}" || label == "\u{F0B7}", at + marker.width <= g.textLeft - _px(wl.left) + _px(0.01) {
+                    RuleTrace.hit("word-cell-bullet-hanging-out-of-the-cell-is-not-drawn")
+                } else {
                 _paintMarker(marker, Offset(wl.format?.justification == "right" ? at - marker.width : at, g.inkTop), p, document, label: label, canvas)
+                }
                 marker.dispose()
                 }
             } else {
