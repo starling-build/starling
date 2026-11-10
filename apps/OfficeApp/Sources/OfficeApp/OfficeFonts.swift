@@ -2510,7 +2510,7 @@ enum OfficeFonts {
                                                   // (Malgun's corner brackets are proportional, read from f457e50c's print: 「 0.566, 」 0.577, 『 』 0.517 em.)
                                                   0x300C: 0.566, 0x300D: 0.577, 0x300E: 0.517, 0x300F: 0.517,
                                                   // (Malgun's middle dot, from the face's own hmtx (lab/metrics/Malgun_Gothic.tsv): 448/2048 = 0.2188 em; ours drew the Latin stand-in's.)
-                                                  0x00B7: 0.2188]
+                                                  0x00B7: 0.2188, 0x2022: 0.4175]
             malgun.otherAdvances = malgunQuotes
             // (Bold cut: U+00B7 is 0.2617 em, from lab/metrics/Malgun_Gothic_Bold.tsv.)
             var malgunBoldQuotes = malgunQuotes
