@@ -892,6 +892,7 @@ enum DocxFormat {
         _dropSectionBreaksInsideFields(root)
         _hideEmptyIfFields(root)
         _renumberSequences(root)
+        _refreshReferences(root)
         let kept = _keptParts(entries, part)
         // Relationships: hyperlink targets and media parts.
         var rels: [String: String] = [:]
@@ -1212,13 +1213,28 @@ enum DocxFormat {
                 if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &base) }
             }
             var tableNodes: [String: XNode] = [:]
+            var allTableStyles: [String: XNode] = [:]
+            for style in styles.all("w:style") where style["w:type"] == "table" {
+                if let id = style["w:styleId"] { allTableStyles[id] = style }
+            }
             for style in styles.all("w:style") where style["w:type"] == "table" {
                 guard let id = style["w:styleId"] else { continue }
+                // (A table style says its paragraph look over the style it is
+                // based on: ECC Table - red header has none of its own and
+                // takes "before 3 pt" from ECC Table - clean. Word's rows in
+                // 2179cebe stand 2.3 pt apart, ours 8.9 with the defaults.)
+                var chain: [XNode] = [], seenT = Set<String>(), curT: String? = id
+                while let c = curT, !seenT.contains(c), let n = allTableStyles[c] {
+                    seenT.insert(c)
+                    chain.insert(n, at: 0)
+                    curT = n.first("w:basedOn")?["w:val"]
+                }
                 var ps = base
-                if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &ps) }
-                tableBases[id] = ps
                 var rootPs = docBase
-                if let pPr = style.first("w:pPr") { _paragraphProps(pPr, into: &rootPs) }
+                for n in chain {
+                    if let pPr = n.first("w:pPr") { _paragraphProps(pPr, into: &ps); _paragraphProps(pPr, into: &rootPs) }
+                }
+                tableBases[id] = ps
                 tableRootBases[id] = rootPs
                 tableNodes[id] = style
                 tableEdges[id] = _edges(style.first("w:tblPr"), "w:tblBorders")
@@ -5555,6 +5571,76 @@ enum DocxFormat {
                 case "w:fldSimple":
                     if let shown = number(child["w:instr"] ?? "", fallback: fallback), let t = child.descendant("w:t") { t.text = shown }
                     walk(child, fallback: fallback)
+                default:
+                    walk(child, fallback: fallback || child.name == "mc:Fallback")
+                }
+            }
+        }
+        walk(root, fallback: false)
+    }
+
+    /// Word refreshes a plain `REF bookmark` field with the bookmark's text when it
+    /// prints, so a reference to a caption whose SEQ number was counted again shows
+    /// the new number (2179cebe: the caption prints "Table 1", the cached REF says
+    /// "Table 2" and Word prints "Table 1" there too). Only a bookmark that opens
+    /// and closes in one paragraph, and a REF with no switch but \h and \*, count.
+    private static func _refreshReferences(_ root: XNode) {
+        var texts: [String: String] = [:]
+        func bookmarks(_ p: XNode) {
+            var active: [String: (name: String, text: String)] = [:]
+            func walk(_ node: XNode) {
+                for c in node.children {
+                    switch c.name {
+                    case "w:bookmarkStart": if let id = c["w:id"], let n = c["w:name"] { active[id] = (n, "") }
+                    case "w:bookmarkEnd":
+                        if let id = c["w:id"], let a = active.removeValue(forKey: id), !a.text.isEmpty { texts[a.name] = a.text }
+                    case "w:t": for k in Array(active.keys) { active[k]?.text += c.text }
+                    case "mc:Fallback": break
+                    default: walk(c)
+                    }
+                }
+            }
+            walk(p)
+        }
+        var stack = [root]
+        while let node = stack.popLast() {
+            if node.name == "w:p" { bookmarks(node) }
+            stack.append(contentsOf: node.children)
+        }
+        if texts.isEmpty { return }
+        var open: [(instr: String, result: Bool, shown: String?, placed: Bool)] = []
+        func target(_ instr: String) -> String? {
+            let t = instr.split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "\n" }).map(String.init)
+            guard t.count >= 2, t[0].uppercased() == "REF", !t[1].hasPrefix("\\") else { return nil }
+            var i = 2
+            while i < t.count {
+                let k = t[i].lowercased()
+                if k == "\\*" { i += 1 } else if k != "\\h" { return nil }
+                i += 1
+            }
+            return texts[t[1]]
+        }
+        func walk(_ node: XNode, fallback: Bool) {
+            for child in node.children {
+                switch child.name {
+                case "w:fldChar":
+                    switch child["w:fldCharType"] {
+                    case "begin": open.append((instr: "", result: false, shown: nil, placed: false))
+                    case "separate":
+                        if !open.isEmpty {
+                            open[open.count - 1].result = true
+                            open[open.count - 1].shown = fallback ? nil : target(open[open.count - 1].instr)
+                        }
+                    case "end": if !open.isEmpty { open.removeLast() }
+                    default: break
+                    }
+                case "w:instrText":
+                    if !open.isEmpty, !open[open.count - 1].result { open[open.count - 1].instr += child.text }
+                case "w:t":
+                    if let f = open.last, f.result, let shown = f.shown {
+                        child.text = f.placed ? "" : shown
+                        open[open.count - 1].placed = true
+                    }
                 default:
                     walk(child, fallback: fallback || child.name == "mc:Fallback")
                 }
