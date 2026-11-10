@@ -922,6 +922,33 @@ extension RichLayout {
         }
     }
 
+    /// The order a paragraph's anchored objects are painted in: Word stacks them by
+    /// wp:anchor relativeHeight, not by where they stand in the text (2263e221: a group
+    /// written after a white box, but with the higher relativeHeight, stands over it).
+    /// Inline items and objects without a height keep their places.
+    @inline(never)
+    func _floatPaintOrder(_ i: Int) -> [Int] {
+        let items = _inline[i]
+        let all = Array(items.indices)
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, items.count > 1 else { return all }
+        var slots: [Int] = [], heights: [Int: Int64] = [:]
+        for k in all {
+            guard items[k].float != nil, let xml = items[k].sourceXML,
+                  let r = xml.rangeOfSubstring("relativeHeight=\"") else { continue }
+            var n: Int64 = 0, any = false
+            for c in xml[r.upperBound...] {
+                guard let d = c.wholeNumberValue, c.isASCII else { break }
+                n = n * 10 + Int64(d); any = true
+            }
+            if any { slots.append(k); heights[k] = n }
+        }
+        guard slots.count > 1 else { return all }
+        let sorted = slots.sorted { (heights[$0] ?? 0, $0) < (heights[$1] ?? 0, $1) }
+        var out = all
+        for (slot, k) in zip(slots, sorted) { out[slot] = k }
+        return out
+    }
+
     /// A paragraph's drop caps alone, painted in the pass after the page's body.
     func _paintDropCaps(_ i: Int, _ canvas: any Canvas, _ document: RichDocument) {
         guard i < _inline.count, !_inline[i].isEmpty, let all = geometry(i).painter.inlinePlaceholderBoxes else { return }
@@ -1637,7 +1664,7 @@ extension RichLayout {
             for leader in _leaders[i] { drawLeader(leader) }
         }
         if i < _inline.count, !_inline[i].isEmpty, let all = g.painter.inlinePlaceholderBoxes {
-            for k in _inline[i].indices {
+            for k in _floatPaintOrder(i) {
                 let slot = _inlineBoxes[i][k]
                 guard slot < all.count else { continue }
                 let box = all[slot]
