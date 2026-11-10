@@ -2343,8 +2343,9 @@ enum DocxFormat {
                 // every row's cells state the same widths in twips: Word lays the columns out by those
                 // cells, not by the grid. jpn-z20806500-dacd38: a grid of 3427 x 3 under cells of
                 // 1728 / 6048 / 2304, its columns at 59.4 / 145.8 / 448.3 pt in Word's print.)
+                // (Fixed layout too: jpn-z22667840-bc5fb7's python-docx table, grid 3293 x 3 under cells
+                // of 3168 / 2016 / 4464 and tblLayout fixed, has its edges by the cells in Word's print.)
                 if let cols = tableColumns[id], cols.count > 1, (cols.max() ?? 0) - (cols.min() ?? 0) <= 0.1,
-                   node.first("w:tblPr")?.first("w:tblLayout")?["w:type"] != "fixed",
                    (node.first("w:tblPr")?.first("w:tblW")?["w:type"] ?? "auto") == "auto",
                    let cw = _statedCellColumns(node, count: cols.count) {
                     tableColumns[id] = cw

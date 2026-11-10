@@ -1,4 +1,4 @@
-188 documents: COMBINED mean 63.26% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 63.26% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
+188 documents: COMBINED mean 63.63% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 63.63% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
   11.9%  lines 370/368  pages 13/13  ara-z10840115-a1e854
    2.1%  lines 664/802  pages 27/26  ara-z11030406-663296
   13.5%  lines 111/112  pages 8/8  ara-z15699863-842f1e
@@ -137,7 +137,7 @@
   49.5%  lines 713/708  pages 22/22  jpn-z21601833-c2301a
   69.8%  lines 53/54  pages 3/3  jpn-z21971263-c098ef
   95.5%  lines 110/109  pages 5/5  jpn-z22306877-1047a4
-  31.6%  lines 282/319  pages 11/11  jpn-z22667840-bc5fb7
+ 100.0%  lines 282/282  pages 11/11  jpn-z22667840-bc5fb7
   36.5%  lines 208/213  pages 12/12  jpn-z22855378-6fca0f
   95.1%  lines 427/419  pages 12/12  jpn-z23002680-1e9281
   94.4%  lines 498/499  pages 16/16  jpn-z23002680-771abc

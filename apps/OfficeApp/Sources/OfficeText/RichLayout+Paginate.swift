@@ -3703,6 +3703,12 @@ extension RichLayout {
                         // "附件五" heading at page 88's foot with the
                         // first two lines of its form's five-line title
                         // row, and parts the row there.)
+                        // (A header row never parts, so a kept heading asks for all of it: jpn-z22667840-bc5fb7's
+                        // "5 国際基準との照合結果", 31pt of room under it and a 33pt header row, opens page 5 in Word's print.)
+                        if theme.wordRules, let ts = document.tableStyles[c.table], ts.headerRow, c.row < ts.headerRowCount, c.ownRowHeight <= contentH + 0.01 {
+                            RuleTrace.hit("word-kept-heading-asks-the-whole-header-row")
+                            return c.ownRowHeight
+                        }
                         guard theme.wordRules, document.tableStyles[c.table]?.rowsCantSplit.contains(c.row) != true,
                               !(document.tableStyles[c.table]?.rowsExactHeight.contains(c.row) == true && c.ownRowHeight <= contentH + 0.01) else { return c.ownRowHeight }
                         var need = 0.0
