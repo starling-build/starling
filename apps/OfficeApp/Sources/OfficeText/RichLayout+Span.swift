@@ -1436,7 +1436,7 @@ extension RichLayout {
                     let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
                     let base = style(kind)
                     for (piece, isIndic) in Self._splitIndicLatin(text[start ..< end]) {
-                        if isIndic, !nBold, authored > 0.5 {
+                        if isIndic, authored > 0.5 {
                             // (Each word on its own, so the fitted letter spacing never reaches the spaces between words.)
                             var ws = piece.startIndex
                             while ws < piece.endIndex {
@@ -1444,7 +1444,7 @@ extension RichLayout {
                                 let sp = piece[ws] == " "
                                 while we < piece.endIndex, (piece[we] == " ") == sp { we = piece.index(after: we) }
                                 let seg = piece[ws ..< we]
-                                if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: NirmalaAdvances.table(bold: false), flatScale: 1, conjunctRatio: nil, block: seg.unicodeScalars.first(where: { $0.value >= 0x900 && $0.value < 0xB00 }).map { $0.value & ~0x7F } ?? 0x900) {
+                                if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: NirmalaAdvances.table(bold: nBold), flatScale: 1, conjunctRatio: nil, block: seg.unicodeScalars.first(where: { $0.value >= 0x900 && $0.value < 0xB00 }).map { $0.value & ~0x7F } ?? 0x900) {
                                     spans.append(contentsOf: capped(seg, run, fitted.style))
                                 } else if sp, authored > 0.5, let em = Self._missingBengaliSpaceEm(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "") {
                                     // (A Bengali face Windows lacks: Word draws the space in Mangal, half an em, not the stand-in's 0.26: xd 73caaeda, 6.0 pt at 12 pt.)
