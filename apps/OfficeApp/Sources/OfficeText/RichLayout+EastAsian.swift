@@ -2512,7 +2512,7 @@ extension RichLayout {
     @inline(never)
     func _latinStopsRule(latinOnly: Bool, _ document: RichDocument, _ p: RichParagraph) -> Bool {
         guard latinOnly, theme.wordRules, RichTextTheme.wordWindowsPages, let mode = document.compatibilityMode, mode < 15,
-              p.cell == nil, !p.style.rightToLeft, !document.hangsLatinStops, document.hangsStopsZhCN,
+              p.cell == nil, !p.style.rightToLeft, !document.hangsLatinStops, document.hangsStopsMinorEA, document.eastAsiaLanguage == "zh-CN",
               p.style.alignment != .justify, !p.text.utf16.contains(where: { $0 >= 0x2E80 }) else { return false }
         // (Lab hang2/hang3: with zh-CN + minorEastAsia the stop hangs in paragraphs with <w:br/> too; 7b3ae3a6, which wraps, has no zh language.)
         return true
