@@ -1297,6 +1297,13 @@ enum NirmalaAdvances {
         "\u{9B8}\u{9CD}\u{9A4}": 0.8717,
         "\u{9B9}\u{9CB}": 1.3078,
         "\u{9E6}": 0.6426,
+        // (Bengali digits four to nine, read directly from Word's Nirmala UI glyph origins, median of 6-19 samples each; the table had no entry,
+        // so they took the stand-in's width: dx2 2263e221's "\u{9EE}" was 6.5 pt where Word has 8.35 and its line took one word too many.)
+        "\u{9EA}": 0.639,
+        "\u{9EB}": 0.720,
+        "\u{9EC}": 0.830,
+        "\u{9EE}": 0.755,
+        "\u{9EF}": 0.688,
         "\u{995}\u{9CD}\u{9B0}": 1.0948,
         "\u{9A1}": 0.8463,
         "\u{9A3}\u{9C0}": 0.8816,
