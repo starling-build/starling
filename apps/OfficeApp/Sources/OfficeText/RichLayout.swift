@@ -1700,6 +1700,11 @@ public final class RichLayout {
     var _sectionSetups: [PageSetup] = []
     /// Each paragraph's section.
     var _sectionOf: [Int] = []
+    /// Paragraph `i` stands in a vertical (tbRl) section.
+    @inline(never) func _verticalBody(_ i: Int) -> Bool {
+        let s = i < _sectionOf.count ? _sectionOf[i] : _sectionSetups.count
+        return (s < _sectionSetups.count ? _sectionSetups[s] : pageSetup)?.vertical ?? false
+    }
     /// Each page's section, and each page's top on the canvas.
     var _pageSection: [Int] = []
     /// Pages whose header and footer come from a later section than the one that sets the page up.
