@@ -16009,3 +16009,9 @@ TIP WATCH amd-8, round 320 (971a9aa57, Word + dx2; 7781378f3 Malgun altName, ef8
 - Evidence: fit loop decides right (FITR says word taken, ")" hung); no FITW difference; in the second layout pass the engine receives -76 px (the ")" advance) at the ")" key, yet the PDF is unchanged. A loose-break rule skipping "(...)" only moved the break inside the word. So the hung-")" squeeze reaches _span but the engine's break decision ignores it.
 - Next approach: check how Skia treats negative letter-spacing on a glyph followed by more text in the break-width (wip diff /tmp/amd-3/22de7d-wip.diff). Re-score 004d7a ("영역(박스)을" must stay whole) with any loose-rule change.
 - amd-3 switches to 5101ed6e meanwhile.
+
+### amd-1, 2026-11-11: 2db27e2d (hi, 27.2) Mangal widths (OPEN, owner amd-1)
+- LANDED 61b73fba0: en dash 0.3043, ellipsis 0.585, right quote 0.2283 em for Mangal-named runs (Word dash 3.36 pt at 11 pt, ours was 6.12). No score change (2db27e2d 27.2, xd 55850db1 17.6).
+- Tried and dropped: a full ASCII table (digits 0.576, '-' 0.342, '.' 0.285, ',' 0.288, ':' 0.2826, '(' 0.345, ')' 0.342, '+' 0.604, '=' 0.6087). Through the size-compensated stand-in it printed digits at 6.92 pt (Word 6.36) and dropped 55850db1. Needs a hook that knows the stand-in scale before it can land.
+- Remaining gap: Word fits one more word on lines such as "छात्र–केंद्रित,"; first divergence page 2 line 3; positions elsewhere agree to 0.3 pt.
+- Next: measure our width of that line against Word's, glyph by glyph.
