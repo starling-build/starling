@@ -2,6 +2,12 @@
 // print box (C:\Windows\Fonts, the user fonts and the cloud fonts). Names only; a face not here is missing there,
 // and Word falls back by the font table's charset (OfficeFonts.missingFaceFallback).
 public enum WordWindowsFaces {
+    /// Latin faces whose full Windows metrics we hold (/data/corpus-cache/metrics/latin/): a run naming one draws its Latin text at the
+    /// face's real size and advances; any other face keeps the stand-in's.
+    public static let metricsHeld: Set<String> = [
+        "calibri", "cambria", "arial", "times new roman", "aptos", "georgia", "verdana", "tahoma",
+        "courier new", "segoe ui", "century", "segoe ui symbol", "symbol", "wingdings",
+    ]
     public static let names: Set<String> = [
         "agency fb", "aharoni", "algerian", "amasis mt pro",
         "angsana new", "angsanaupc", "aparajita", "aptos",
