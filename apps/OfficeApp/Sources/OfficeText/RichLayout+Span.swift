@@ -2941,9 +2941,9 @@ extension RichLayout {
                     #endif
                     spans.append(TextSpan(text: String(ch), style: numeral))
                     start = after
-                } else if !ea, theme.wordRules, RichTextTheme.wordWindowsPages, ch == "\u{203B}", latinFace?.isEastAsian != true,
-                          // (PROVISIONAL, one character: faces whose cmap holds ※ keep it — Times New Roman, Tahoma, Segoe UI Symbol; the general rule is "not in the Latin face's cmap".)
-                          !["times new roman", "tahoma", "segoe ui symbol"].contains((run.fontFamily ?? named?.char.fontFamily ?? "").lowercased()),
+                } else if !ea, theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, (0x2010 ... 0x2BFF).contains(u), latinFace?.isEastAsian != true,
+                          // (A symbol the run's Latin face lacks, by that face's cmap (Self._latinSymbolCmap, from the Windows Word box); a face not in the table keeps only ※.)
+                          Self._latinFaceLacks(run.fontFamily ?? named?.char.fontFamily ?? "", u) ?? (u == 0x203B),
                           let cjk = Self._cjkFaceFamily {
                     // (The reference mark ※ in a run whose Latin face lacks it is the East Asian
                     // face's in Word's print, a full cell: jpn-z21601833-463426's Cambria italic
