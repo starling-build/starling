@@ -679,7 +679,12 @@ extension RichLayout {
                 for c in (moved ?? String(rawText)) { out.append(c == "\u{3000}" && at >= cut ? "\u{200B}" : c); at += c.utf16.count }
                 return out
             }()
-            let text: Substring = hung.map { Substring($0) } ?? moved.map { Substring($0) } ?? rawText
+            // (A space right before a danda does not hang in Word: the danda may not start a line, so the space is counted in the fit
+            // and the line parts after it; lab dnd2, 33 right indents: "जाएगी " stays on a line only while the word and its space fit, the
+            // danda alone below. The engine hangs a trailing space, so it is set as a no-break space with a break after it.)
+            let spaceBeforeDanda: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && rawText.last == " " && (next == "\u{0964}" || next == "\u{0965}")
+                && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value <= 0x97F })
+            let text: Substring = spaceBeforeDanda ? Substring(String((hung ?? moved ?? String(rawText)).dropLast()) + "\u{00A0}") : hung.map { Substring($0) } ?? moved.map { Substring($0) } ?? rawText
             // (A soft hyphen the line ends at is a hyphen to the line breaking
             // too — see `_layoutParagraph`.)
             if let idx = index, let shownSet = _hyphenShown[idx], !shownSet.isEmpty, text.containsSubstring("\u{00AD}") {
@@ -2997,6 +3002,7 @@ extension RichLayout {
                 i = after
             }
             flush(text.endIndex)
+            if spaceBeforeDanda, let k = current ?? Optional(0) { spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(k))); inserts.append(base + text.utf16.count) }
             return spans
         }
         // (A right-aligned paragraph's trailing spaces take room, as
