@@ -3375,6 +3375,16 @@ enum OfficeFonts {
             RuleTrace.hit("missing-face-with-malgun-alternate-latin-is-malgun")
             return standInFace("Malgun Gothic", eastAsian: false)
         }
+        // (A Hangul-named face Word for Windows lacks, with no font-table entry (so no altName, which Word follows first):
+        // Word draws its Latin letters, digits and spaces in Yu Gothic Regular whatever the language (labs kor-yu c, d, e;
+        // Hangul stays Malgun). Without it a theme face such as 함초롬돋움 gave pure-English lines Malgun's 1.729 em
+        // where Word's Yu Gothic is 1.673 (kor-z19581051-22de7d pages 3-7: 18.5 pt pitch against 18.0).)
+        if wordOnWindows, !eastAsian, !isEmbedded(family), fontEntry(family) == nil,
+           family.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 }),
+           !["맑은 고딕", "바탕", "바탕체", "돋움", "돋움체", "굴림", "굴림체", "궁서", "궁서체", "새굴림", "새돋움", "새바탕", "새궁서", "나눔고딕"].contains(family.trimmingWhitespace()) {
+            RuleTrace.hit("missing-hangul-face-no-entry-latin-is-yu-gothic")
+            return standInFace("Yu Gothic", eastAsian: false)
+        }
         guard own || eastAsian else {
             // (A Latin-named face Word for Windows lacks, whose font-table
             // entry says charset 80 (Shift-JIS) and alternate Times New
