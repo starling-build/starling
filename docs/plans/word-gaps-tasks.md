@@ -16032,3 +16032,9 @@ TIP WATCH amd-8, round 320 (971a9aa57, Word + dx2; 7781378f3 Malgun altName, ef8
 - amd-8 (round 388, coordinator decisions): 5a369d15d is amd-1's box clip. xs 2263e221 (bn) 23.9 to 23.4 is APPROVED for 5a369d15d (lab-verified rule ovf22; amd-1's later 8bdaf43ff takes the doc to 25.8, to be shown in round 389). dx2 nn 704a41b4 99.3 to 99.1 and ka 4b53bd2f 5.0 to 4.9 are accepted (tiny, out of focus, same commit). All three recorded in the baseline.
 
 - lenovo-5 (2026-11-11): PROVISIONAL: the left-aligned Latin space squeeze in _fitEastAsianLines (1914ecd8d) is gated on zh eastAsia + no compat mode and is evidenced by ONE doc (oxsdk-1c09b12993). Lab lab/sqz1 (12 files: zh-CN/en-US/ja-JP x no compat/12/14/15, right-indent sweep) sent to starling-bd for a Word print; the gate is to be re-fitted from it.
+
+### amd-3, 2026-11-11 (update): kor-z19581051-22de7d (OPEN, owner amd-3)
+- The 2026-11-11 entry above is stale for the line-break part: "에너지(E_{act})" is kept whole since 4309816c0 and d578ed834 (body squeeze refusal only when the piece opens a new word).
+- LANDED 272afd0ec: a Hangul-named face Word lacks, with no font-table entry, draws Latin letters, digits and spaces in Yu Gothic (Hangul stays Malgun), whatever the language (labs kor-yu c/d/e; altName comes first, lab b). Pages 3-7 now step 18.0/18.1 as Word; 22de7d 35.0 to 36.1, no drops.
+- Left: pages 1-2. Pitch matches (19.2) but Word fits one more line on page 2 (last baseline 764.3 against our 745.9) and line breaks differ there; Word's 27.2 gaps are 3-4 per page, ours 6-8. Next: compare page 1-2 lines by text and find where ours first adds a line.
+- Separate later landing: Cambria case (missing Latin-named face, lab kor-yu a prints Malgun + Cambria).
