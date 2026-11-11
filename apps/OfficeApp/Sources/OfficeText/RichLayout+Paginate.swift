@@ -4014,6 +4014,7 @@ extension RichLayout {
                     // a text box's band, went to the next page.)
                     let ownsBand = tableBands.contains { $0.owner == i }
                     let line = (lineBottoms.first.map { $0 + (ownsBand ? 0 : geometry(i).textTop - geometry(i).top) } ?? _heights[i]) - gridHalf
+                    let yBeforeBands = y
                     while let band = tableBands.first(where: { $0.owner != i && $0.top < y + line - 0.01 && $0.bottom > y + 0.01 }), guardSteps < 40 {
                         // (In a column that is not the last, what meets a picture wrapped top and
                         // bottom that an earlier paragraph of text anchors in the column goes on in the
@@ -4031,6 +4032,16 @@ extension RichLayout {
                         if band.owner < 0 { pushedByTableBand = true }
                     }
                     if pushedByTableBand { y -= _tableBandSharedSpace(i, document) }
+                    // (A paragraph, with text or not, that sets a box top and bottom from itself and goes under an earlier
+                    // box's band keeps its box at the place it stood before: Word's lab ttb 1-4 print the second
+                    // box at 97 + 300, the line at 344 under the first; ours drew it at 344 + 300.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, ownsBand, y > yBeforeBands + 0.01, _cells[i] == nil {
+                        for image in (i < _floatImages.count ? _floatImages[i].map { [$0] } ?? [] : []) + (i < _inline.count ? _inline[i] : []) {
+                            guard let f = image.float, f.bandsPage, f.verticalFrom == "paragraph", f.verticalAlign == nil else { continue }
+                            RuleTrace.hit("word-empty-paragraph-under-a-band-keeps-its-own-box-at-the-unpushed-anchor")
+                            _floatShiftY[image.id] = -(y - yBeforeBands)
+                        }
+                    }
                 }
                 // (Not for an empty paragraph that only ends a section: it
                 // takes no room, and stays on the full page, as in Word's
