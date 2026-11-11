@@ -1425,16 +1425,16 @@ extension RichLayout {
         // (Compat 15 lines the cell TEXT up with the margin, so a share is of the column alone: atcol3c15 100% is 468.1, not 478.9.)
         let flow = (_tableFlowWidth[table] ?? width) + ((document.compatibilityMode ?? 0) >= 15 && RichTextTheme.wordWindowsPages ? 0 : margins)
         guard let ts = document.tableStyles[table] else { return flow }
-        // (No compat mode: the share is not measured yet (lab atcol4 pending); the older room stands.)
-        if theme.wordRules, RichTextTheme.wordWindowsPages, document.compatibilityMode != nil {
+        // No compat mode (lab atcol4): a percentage share is of the column plus margins too (478.9 for 100% of 468), as at compat 14.
+        if theme.wordRules, RichTextTheme.wordWindowsPages {
             if let pct = ts.widthPercent, pct > 0 { return flow * pct / 100 }
-            if let w = ts.width, w > 0 { return _px(w) }
+            if document.compatibilityMode != nil, let w = ts.width, w > 0 { return _px(w) }
         }
         return ts.widthPercent != nil ? base.reduce(0, +) : flow
     }
 
     func _autofit(_ table: String, _ base: [Double], _ document: RichDocument) -> [Double] {
-        struct Cell { var column: Int; var span: Int; var min: Double; var max: Double; var picture: Bool }
+        struct Cell { var column: Int; var span: Int; var min: Double; var whole: Double; var max: Double; var picture: Bool }
         var cells: [Cell] = []
         var at: [Int: Int] = [:]   // (row, column) → its cell in `cells`
         var wholeNeed: [Int: Double] = [:]   // a noWrap column's whole text (Mac Word): see below
@@ -1450,6 +1450,7 @@ extension RichLayout {
             let padL = c.padding.map { _px($0.left) } ?? ins.left, padR = c.padding.map { _px($0.right) } ?? ins.right
             let sides = padL + padR + _autofitRuleRoom(table, document, padL, padR)
             let w = sides + _minContent(i, p, document)
+            let wWhole = document.compatibilityMode == nil ? sides + _minContent(i, p, document, contentFit: true) : w
             let widest = sides + _maxContent(i, p, document)
             if theme.wordRules, !RichTextTheme.wordWindowsPages, c.span == 1, widest > w + 0.01, pctTable,
                let kept = c.keptPropertiesXML, kept.containsSubstring("<w:noWrap"),
@@ -1461,10 +1462,11 @@ extension RichLayout {
             if let k = at[key] {
                 if w > cells[k].min { cells[k].picture = picture }
                 cells[k].min = max(cells[k].min, w)
+                cells[k].whole = max(cells[k].whole, wWhole)
                 cells[k].max = max(cells[k].max, widest)
             } else {
                 at[key] = cells.count
-                cells.append(Cell(column: c.column, span: c.span, min: w, max: widest, picture: picture))
+                cells.append(Cell(column: c.column, span: c.span, min: w, whole: wWhole, max: widest, picture: picture))
             }
         }
         // A table that states no width, nor any of its cells, is fitted
@@ -1485,7 +1487,7 @@ extension RichLayout {
             let cap = _px(1580)
             var low = Array(repeating: 0.0, count: base.count), high = low
             for c in cells where c.span == 1 {
-                low[c.column] = max(low[c.column], c.min)
+                low[c.column] = max(low[c.column], c.whole)
                 high[c.column] = max(high[c.column], min(c.max, cap))
             }
             for c in cells.filter({ $0.span > 1 }).sorted(by: { $0.span < $1.span }) {
@@ -1495,7 +1497,7 @@ extension RichLayout {
                     guard need > has else { return }
                     for k in cols { widths[k] = has > 0 ? widths[k] * need / has : need / Double(c.span) }
                 }
-                share(&low, c.min)
+                share(&low, c.whole)
                 share(&high, min(c.max, cap))
             }
             for (column, points) in document.tableStyles[table]?.contentFitFixed ?? [:] where column < low.count {
@@ -1506,6 +1508,15 @@ extension RichLayout {
             if !low.contains(0) {
                 high = zip(low, high).map { max($0, $1) }
                 let room = _contentFitRoom(table, base, document, ins.left + ins.right)
+                // (No compat mode, lab atcol4: an over-full table has no column minimum; each column is its margins plus a share of the
+                // room in proportion to its widest content: 24.5 / 429.8 / 24.6 for 2 / 60 / 2 ideographs.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, document.compatibilityMode == nil, pctTable, high.reduce(0, +) > room {
+                    let m = ins.left + ins.right
+                    // (Shares follow the narrowest each column can be, its longest whole run: jpn-z21601833-acd729's table of 4 / 32
+                    // ideographs and a Latin-and-ideograph column, Word 33.7 / 269.4 / 143.4 inside.)
+                    if low.reduce(0, +) > room { high = low }
+                    low = high.map { min($0, m) }
+                }
                 let narrowest = low.reduce(0, +), widest = high.reduce(0, +)
                 let k = widest <= room ? 1 : narrowest >= room ? 0 : (room - narrowest) / (widest - narrowest)
                 // (Whole pixels: up where each is its widest, so that it
@@ -1513,7 +1524,8 @@ extension RichLayout {
                 // (A table that states its width and whose content fits is stretched to it, each column in
                 // proportion to its widest: lab atcol3 v5, three short cells, 159.6 each in every compat mode.)
                 let stated = document.tableStyles[table]?.widthPercent != nil || document.tableStyles[table]?.width != nil
-                let stretch = widest < room && widest > 0 && stated && RichTextTheme.wordWindowsPages && document.compatibilityMode != nil
+                // (No compat mode: a percentage-width table stretches too, to its room of 478.9: jpn-z21601833-acd729's 3-column 100% tables, Word 230.2 / 151.5 / 97.2.)
+                let stretch = widest < room && widest > 0 && stated && RichTextTheme.wordWindowsPages && (document.compatibilityMode != nil || document.tableStyles[table]?.widthPercent != nil)
                 let fitted = stretch ? high.map { ($0 * room / widest + 0.001).rounded(.down) }
                     : zip(low, high).map { k >= 1 ? ($1 - 0.001).rounded(.up) : ($0 + ($1 - $0) * k + 0.001).rounded(.down) }
                 if Self.debugAutofit {
@@ -1670,8 +1682,8 @@ extension RichLayout {
     /// run that fits its line is never parted for it, and a line of
     /// ideographs came out as wide as all of them.)
     static func _isIndicUnit(_ u: UInt16) -> Bool { (u >= 0x900 && u <= 0xDFF) || u == 0x200C || u == 0x200D }
-    func _minContent(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> Double {
-        if let m = _cellMins[i] { return m.min }
+    func _minContent(_ i: Int, _ p: RichParagraph, _ document: RichDocument, contentFit: Bool = false) -> Double {
+        if !contentFit, let m = _cellMins[i] { return m.min }
         var m = 0.0, first = 0.0   // the pieces after the first; the first
         var widest = 0.0, opening = 0.0   // its lines unparted after the first; the first
         let units = Array(p.text.utf16)
@@ -1736,6 +1748,8 @@ extension RichLayout {
                     while j >= 0, units[j] == 0x20 { j -= 1 }
                     parts = !(j >= 0 && j < k - 1 && units[j] == 0xA0)
                 }
+                // (No compat mode on Word for Windows, labs atcol: a column's narrowest is its longest run between spaces, ideograph runs kept whole; Latin and Thai text keeps its own breaks.)
+                else if theme.wordRules, RichTextTheme.wordWindowsPages, document.compatibilityMode == nil, p.cell != nil, pctWidthTable, contentFit, a >= 0x2E80 || b >= 0x2E80 { parts = false }
                 else if breakBefore.contains(k) { parts = true }
                 // (After a hyphen before a digit in a time of day, where a
                 // word wider than its cell must part: zh-b3e887f7's schedule keeps its
@@ -1852,7 +1866,7 @@ extension RichLayout {
             m = max(m, first) + (_wordList(p, document).map { _px($0.left) } ?? _px(sides.left)) + _px(sides.right)
             unparted = max(widest, opening) + (_wordList(p, document).map { _px($0.left) } ?? _px(sides.left)) + _px(sides.right)
         }
-        _cellMins[i] = (m, max(m, unparted))
+        if !contentFit { _cellMins[i] = (m, max(m, unparted)) }
         return m
     }
 
