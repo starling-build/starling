@@ -4476,6 +4476,8 @@ enum DocxFormat {
             }
             Self._bandPage(&f)
             if let b = Double(anchor.first("wp:effectExtent")?["b"] ?? "") { f.effectBottom = b / 12700 }
+            if let l = Double(anchor.first("wp:effectExtent")?["l"] ?? "") { f.effectLeft = l / 12700 }
+            if let r = Double(anchor.first("wp:effectExtent")?["r"] ?? "") { f.effectRight = r / 12700 }
             // (A height that is a share of the page's or margins': 60316's
             // header divider, 105% of the margins, 718.2pt where its
             // extent says 99. Not a box that fits its text, which keeps

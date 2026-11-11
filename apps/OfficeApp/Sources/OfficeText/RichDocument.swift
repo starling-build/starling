@@ -361,6 +361,11 @@ public struct ImageFloat: Hashable, Sendable {
     /// `b`, points): its outline's and shadow's share of the room Word
     /// gives it.
     public var effectBottom = 0.0
+    /// What `wp:effectExtent` adds on the left and right (points): Word centres a box aligned "center" with these counted, so its box stands
+    /// (left - right) / 2 from the middle (lab tbx1: r 2.25 pt moves a 504.8 pt box 1.1 pt left; l = r does not move it).
+    public var effectLeft = 0.0
+    public var effectRight = 0.0
+    var effectCentreShift: Double { (effectLeft - effectRight) / 2 }
     /// A tight wrap's polygon that starts narrow at the top and reaches its full width within the
     /// first few points (points): the lines over that stretch keep the full width.
     public var wrapTopSkip = 0.0

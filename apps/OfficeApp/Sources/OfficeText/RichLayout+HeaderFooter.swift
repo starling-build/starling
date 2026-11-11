@@ -1080,7 +1080,7 @@ extension RichLayout {
         let outside = leftHandFloat ? "left" : "right", inside = leftHandFloat ? "right" : "left"
         let align = float.horizontalAlign == "outside" ? outside : float.horizontalAlign == "inside" ? inside : float.horizontalAlign
         switch align {
-        case "center": x = bandLeft + (bandWidth - w) / 2
+        case "center": x = bandLeft + (bandWidth - w) / 2 + (theme.wordRules ? _px(float.effectCentreShift) : 0)
         case "right": x = bandLeft + bandWidth - w
         case "left": x = bandLeft
         default: x = bandLeft + _px(float.x)
