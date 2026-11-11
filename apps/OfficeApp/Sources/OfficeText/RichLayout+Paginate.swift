@@ -3502,7 +3502,8 @@ extension RichLayout {
             // next page's first column, never in a later column slot, where
             // it would paint a column to the right.)
             if _perSection, theme.wordRules, !balancedHere, i > 0, i < _sectionOf.count, _sectionOf[i] != _sectionOf[i - 1],
-               resumeCursor == nil, _columnsOf(paragraph: i) < _columns, page % _columns >= _columnsOf(paragraph: i) {
+               resumeCursor == nil, _columnsOf(paragraph: i) < _columns, page % _columns >= _columnsOf(paragraph: i),
+     _setup(ofParagraph: i - 1).columnSpec != nil {   // unequal columns only: a later slot there paints off the page; equal ones continue in the slot
                 repeat { newPage() } while page % _columns >= _columnsOf(paragraph: i)
             }
             // (A section of columns that starts partway down a page: its
