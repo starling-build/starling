@@ -728,6 +728,12 @@ extension RichLayout {
                 : (named?.char.hAnsiFontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily).flatMap { theme.faceResolver?($0, false) })
             let latinDash = theme.wordRules && (run.fontHint ?? named?.char.fontHint) != "eastAsia" && (latinFace?.isEastAsian ?? false)
                 && hAnsiFace.map { !$0.isEastAsian } == true
+            // (An em dash, unhinted, is its hAnsi face's where that is an East
+            // Asian one over a Latin ascii face: ff493b's "—" in Aptos Bold
+            // over a Malgun Gothic hAnsi is Malgun Bold in Word's print, and
+            // makes its line 1.73 em tall; ours set it in Aptos.)
+            let eastDash = theme.wordRules && RichTextTheme.wordWindowsPages && hint == nil && latinFace?.isEastAsian != true
+                && (run.hAnsiFontFamily ?? named?.char.hAnsiFontFamily).flatMap { theme.faceResolver?($0, false) }?.isEastAsian == true
             let em = (run.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
             // (The run's character scale, Word's `w:w`.)
             let wScale = RichTextTheme.wordWidthScale(run.horizontalScale ?? named?.char.horizontalScale ?? 1, wordRules: theme.wordRules,
@@ -996,6 +1002,7 @@ extension RichLayout {
                 let grown = wholeRaised ? theme.raisedLineHeight(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) : nil
                 if let grown { styled.raised = grown.raise }
                 if kind == -3, let (alt, _) = uncovered { styled.eastAsiaFontFamily = alt }
+                if kind == -5, let h = run.hAnsiFontFamily ?? named?.char.hAnsiFontFamily { styled.eastAsiaFontFamily = h }
                 if kind <= -10, let chain, -10 - kind < chain.count { styled.eastAsiaFontFamily = chain[-10 - kind].family }
                 var s = theme.textStyle(for: styled, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: kind < 0, gridPitch: pitch,
                                         characterClass: classed && kind >= 0 ? kind : nil, characterGrid: kind < 0 ? ideographGrid : grid, scriptHidden: true)
@@ -1630,7 +1637,7 @@ extension RichLayout {
                 let following = (after < text.endIndex ? text[after] : next).map(shown)
                 // (An ideographic space on a line of spaces alone is set
                 // as the mark is, in the run's Latin face: see `lineSize`.)
-                let ea = theme.wordRules && RichLayout.isEastAsian(ch, hinted: hinted) && !(ch == "\u{3000}" && lineSize?.blank == true)
+                let ea = theme.wordRules && RichLayout.isEastAsian(ch, hinted: hinted || (eastDash && ch == "\u{2014}")) && !(ch == "\u{3000}" && lineSize?.blank == true)
                     && !(latinDash && ch == "\u{2013}")
                     // (Nor a "×" or "÷", Latin-1's signs, which Word sets in the hAnsi
                     // face as it does the dash: zh-7a16a243's unhinted "×" in a run of
@@ -1642,6 +1649,7 @@ extension RichLayout {
                 var kind = ea ? -1 : (classed ? RichResolvedFace.characterClass(ch) : 0)
                 // (Circles, squares and stars in an East Asian run are the East Asian face's glyph
                 // — an em wide, 0.86 across — not the Latin stand-in's small one: kind -4.)
+                if ea, eastDash, ch == "\u{2014}" { kind = -5; RuleTrace.hit("word-em-dash-drawn-in-east-asian-hansi-face") }
                 if ea, theme.wordRules, RichTextTheme.wordWindowsPages, Self._cjkFaceFamily != nil, let u = ch.unicodeScalars.first?.value,
                    (0x25A0 ... 0x25EF).contains(u) || u == 0x2605 || u == 0x2606 { kind = -4 }
                 // (A curly quote an embedded subset lacks is Word's fallback face's too, full width:

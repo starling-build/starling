@@ -2255,6 +2255,12 @@ extension RichLayout {
                     lead = (run.style, true)
                     break search
                 }
+                // (An unhinted em dash over an East Asian hAnsi face stands the line on that face: see `_eastDashLeadStyle`.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !hinted, run.style.inlineImage == nil, p.text[a ..< b].contains(Self._emDash),
+                   let dashStyle = _eastDashLeadStyle(run.style, named: named) {
+                    lead = (dashStyle, true)
+                    break search
+                }
             }
             if var target = theme.baseline(for: lead.0, in: style, named: named, eastAsian: lead.1, gridPitch: pitch, centresInLine: document.spacesForUnderline) {
                 // (The line's baseline is its tallest run's, where the
@@ -3502,6 +3508,21 @@ extension RichLayout {
 }
 
 extension RichLayout {
+    /// The style a first line stands on when it holds an unhinted em dash whose hAnsi face is East Asian over a Latin ascii face (ff493b's
+    /// "Introduction \u{2014} ..." in Aptos Bold over a Malgun Gothic hAnsi): Word draws the dash in the hAnsi face, so the line takes that face's
+    /// split ascent (Malgun Bold 1.088 em plus half the East Asian line's extra). The run's East Asian slot is set to the hAnsi family.
+    static let _emDash: Character = "\u{2014}"
+    @inline(never)
+    func _eastDashLeadStyle(_ style: CharStyle, named: RichNamedStyle?) -> CharStyle? {
+        guard let h = style.hAnsiFontFamily ?? named?.char.hAnsiFontFamily,
+              theme.faceResolver?(h, false)?.isEastAsian == true else { return nil }
+        if let latin = style.fontFamily ?? named?.char.fontFamily, theme.faceResolver?(latin, false)?.isEastAsian == true { return nil }
+        var out = style
+        out.eastAsiaFontFamily = h
+        RuleTrace.hit("word-em-dash-in-east-asian-hansi-face-stands-the-first-line-on-it")
+        return out
+    }
+
     /// The baseline rise of a first line that holds a Malgun-drawn symbol (①, ○, △, ·, ※, →, curly quotes) of a missing
     /// Korean face Word sets in Batang: the line's ascent is Malgun's 1.175 em against Batang's 1.009, times the spacing
     /// (c466d30a: the ① lines stood 3.4 pt high at 12 pt, 1.7 lines). The joiner of `_span` raises the line; the
