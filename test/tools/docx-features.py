@@ -247,6 +247,7 @@ def features(path):
     f["rtl"] = any(on(t) for t in re.findall(r"<w:(?:bidi|rtl)\b[^>]*>", everything))
     f["ruby"] = "<w:ruby>" in body
     f["vertical_text"] = bool(re.search(r"<w:textDirection\b|<w:vert\b|w:eastAsianLayout[^>]*w:vert", everything))
+    f["section_vertical"] = bool(re.search(r"<w:textDirection\s+w:val=\"tbRlV?\"", everything))
 
     # --- fonts
     named = set()
