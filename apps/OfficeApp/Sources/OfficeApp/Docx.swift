@@ -1539,8 +1539,13 @@ enum DocxFormat {
                 // Normal, as with no styles part: 12pt.
                 // A file that names no face anywhere, and carries no theme, is set in Times New Roman:
                 // lo tdf109308_dropCapNumbered's print is TimesNewRomanPSMT.
-                if cs.fontFamily == nil, part("word/theme/theme1.xml") == nil, styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:rFonts") == nil,
-                   !styles.all("w:style").contains(where: { $0.first("w:rPr")?.first("w:rFonts") != nil }) {
+                if cs.fontFamily == nil, styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:rFonts") == nil,
+                   !styles.all("w:style").contains(where: { $0.first("w:rPr")?.first("w:rFonts") != nil
+                       && (part("word/theme/theme1.xml") == nil || $0["w:default"] == "1") }),
+                   // With a theme, Word keeps the theme face unless the file states (empty) run
+                   // defaults itself (Google Docs, kor c9baf7); LibreOffice files with no
+                   // w:docDefaults at all draw the theme's Calibri (lo-8882730a, lo-029954d7).
+                   part("word/theme/theme1.xml") == nil || styles.first("w:docDefaults") != nil {
                     cs.fontFamily = "Times New Roman"
                     RuleTrace.hit("no-fonts-named-times")
                     // Its Hangul is Batang in Word for Windows, line 1.31 em (batch B 9b36b8: 8 pages,
