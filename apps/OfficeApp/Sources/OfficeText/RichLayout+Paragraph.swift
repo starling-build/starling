@@ -3596,7 +3596,7 @@ extension RichLayout {
                             // (A Latin run of Arial Unicode MS with no w:cs flag in a Devanagari paragraph is drawn in Yu Gothic, which stands the first line on its own
                             // 1.18 em ascent: lab aumsy2, Word's step into such a line 12.8 pt against 12.0 for a Nirmala one; fb94294e.)
                             if document.readFromFile, document.fontCharsets["arial unicode ms"] == "80",
-                               text.unicodeScalars.contains(where: { (($0.value >= 0x30 && $0.value <= 0x39) || ($0.value >= 0x41 && $0.value <= 0x5A) || ($0.value >= 0x61 && $0.value <= 0x7A)) }),
+                               text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x7F }),
                                (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms",
                                !(run.style.keptXML?.containsSubstring("<w:cs/>") ?? false), !(run.style.keptXML?.containsSubstring("<w:cs ") ?? false),
                                p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xB00 }) {

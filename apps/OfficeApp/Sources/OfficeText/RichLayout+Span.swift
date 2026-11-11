@@ -3698,7 +3698,7 @@ extension RichLayout {
                 || devanagari && p.runs.contains(where: { ($0.style.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms" }) else { return 0 }
         let size = _px(named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize)
         let lead = _lead(i)
-        var starts = Set<Int>()
+        var starts = Set<Int>(), yuLines = Set<Int>()
         var offset = 0
         // (Marks in a run with no w:cs flag are Yu Gothic's, not Leelawadee's: their line is the run's own (word-aums-latin-run-in-indic-paragraph-is-a-yu-gothic-line),
         // so they add nothing after the paragraph; lab aumsy2, fb94294e.)
@@ -3715,9 +3715,14 @@ extension RichLayout {
             let n = u.value > 0xFFFF ? 2 : 1
             if !yu, u.value > 0x20, u.value < 0x250 {
                 starts.insert(painter.getLineBoundary(TextPosition(offset: offset + lead)).start)
+            } else if yu, u.value > 0x20 {
+                yuLines.insert(painter.getLineBoundary(TextPosition(offset: offset + lead)).start)
             }
             offset += n
         }
+        // (A line that already holds a Yu Gothic run is Yu's line, and the Leelawadee marks beside it add nothing after the paragraph: fb94294e's first line,
+        // " (" in Leelawadee next to "Sample) " in Yu Gothic Bold, Word 22.0 pt to the next paragraph where ours gave 25.9.)
+        if devanagari, !yuLines.isEmpty { starts.subtract(yuLines) }
         // (Word lab a347gap A: a one-line marked paragraph followed by an empty one adds nothing, 18.4 pt line to line; the paragraph's last line is not counted.)
         if tamil, !p.text.isEmpty {
             let lastStart = painter.getLineBoundary(TextPosition(offset: max(0, p.text.utf16.count - 1) + lead)).start
