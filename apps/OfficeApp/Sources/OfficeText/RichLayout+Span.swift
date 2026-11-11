@@ -152,9 +152,12 @@ extension RichLayout {
         let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
         let ascii = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
         var face = csFlag ? cs : ascii
-        if face == "kalimati" { face = "mangal" }
+        let isKalimati = face == "kalimati"
+        if isKalimati { face = "mangal" }
         // Only Latha is measured for letters and digits too; the other faces only for runs of marks (Kalimati/Preeti Nepali docs drop otherwise).
-        if face != "latha", text.unicodeScalars.contains(where: { $0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39) || $0.value > 0x7E }) { return nil }
+        // (And Mangal itself, the face the run names: 2db27e2d's "24 × 13 = (20 + 4) × ..." line, digits and signs in Mangal runs, is Mangal's
+        // 18.5 pt in Word's print where ours stood 15.1 on the Latin stand-in.)
+        if face != "latha", !(face == "mangal" && !isKalimati), text.unicodeScalars.contains(where: { $0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39) || $0.value > 0x7E }) { return nil }
         switch face {
         case "latha", "mangal", "vrinda", "aparajita", "raavi", "shruti", "gautami", "shonar bangla": return face
         default: return nil
