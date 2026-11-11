@@ -3882,10 +3882,12 @@ extension RichLayout {
     func _yuLatinOfMissingHangulFace(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument) -> Bool {
         guard document.readFromFile,
               let f = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)?.trimmingWhitespace().lowercased(), !f.isEmpty,
-              f.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 }),
-              document.fontAlternates[f] == nil, document.fontCharsets[f] == nil,
-              !Self._windowsHangulNamedFaces.contains(f) else { return false }
-        return true
+              document.fontAlternates[f] == nil else { return false }
+        if f.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 }) {
+            return document.fontCharsets[f] == nil && !Self._windowsHangulNamedFaces.contains(f)
+        }
+        // (A Latin-named face Word's box lacks, with charset 80 and no alternate in the font table: Yu Gothic too, lab fallback-ft 1.)
+        return document.fontCharsets[f]?.uppercased() == "80" && !WordWindowsFaces.names.contains(f) && !f.unicodeScalars.contains(where: { $0.value > 0x24F })
     }
 }
 

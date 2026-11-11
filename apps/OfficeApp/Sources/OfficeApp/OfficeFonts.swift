@@ -3385,6 +3385,16 @@ enum OfficeFonts {
             RuleTrace.hit("missing-hangul-face-no-entry-latin-is-yu-gothic")
             return standInFace("Yu Gothic", eastAsian: false)
         }
+        // (A Latin-named face Word for Windows lacks, whose font-table entry has charset 80 (Shift-JIS) and no alternate name:
+        // Word draws it in Yu Gothic Regular, line 1.67 em (lab fallback-ft 1, against charset 00 which gives Calibri). The
+        // same fallback as the Hangul-named case above and amd-1's Arial Unicode MS (charset 80).)
+        if wordOnWindows, !eastAsian, !isEmbedded(family), let e = fontEntry(family), e.charset.uppercased() == "80",
+           (e.alt ?? "").trimmingWhitespace().isEmpty,
+           !WordWindowsFaces.names.contains(family.trimmingWhitespace().lowercased()),
+           !family.unicodeScalars.contains(where: { $0.value > 0x24F }) {
+            RuleTrace.hit("missing-latin-face-charset-80-is-yu-gothic")
+            return standInFace("Yu Gothic", eastAsian: false)
+        }
         guard own || eastAsian else {
             // (A Latin-named face Word for Windows lacks, whose font-table
             // entry says charset 80 (Shift-JIS) and alternate Times New
