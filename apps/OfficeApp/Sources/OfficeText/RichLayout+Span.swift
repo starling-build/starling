@@ -1468,7 +1468,7 @@ extension RichLayout {
                             plainPiece = !isIndic
                             // (Latin letters and digits of a run that names its own Latin face are that face's, not stretched by the Indic scale:
                             // d912c25b's "(COVID-19)", Calibri 12, 54.7 pt in Word, 57.9 here.)
-                            latinNoScale = !isIndic && run.fontFamily != nil && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
+                            latinNoScale = !isIndic && run.fontFamily != nil && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0x980 }) && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
                             let st = style(kind)
                             latinNoScale = false
                             plainPiece = false
@@ -1489,7 +1489,7 @@ extension RichLayout {
                     // and marks between Nirmala UI's words are Arial's and carry no Nirmala line of their own.)
                     for (piece, isIndic) in Self._splitIndicLatin(text[start ..< end]) {
                                                 plainPiece = !isIndic
-                        latinNoScale = !isIndic && run.fontFamily != nil && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
+                        latinNoScale = !isIndic && run.fontFamily != nil && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0x980 }) && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
                         let st = style(kind)
                         plainPiece = false
                         latinNoScale = false
