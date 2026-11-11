@@ -250,7 +250,9 @@ extension RichLayout {
         // under "とうきょう", 2.75pt between and 1.38 at either end).
         var spread = spread
         var rubyTails: [Int: Double] = [:]
-        if theme.wordRules {
+        // (A vertical section does not spread: Word lets the ruby overhang the neighbours, 934bd3e5's
+        // "局" under "つぼね" keeps the 10.6 pt step.)
+        if theme.wordRules, !(index.map { _verticalBody($0) } ?? false) {
             for g in _rubyGroups(p) where g.to > g.from {
                 let (ruby, base) = _rubyWidths(g, p, named: named, document, pitch: pitch)
                 guard ruby > base + 0.01 else { continue }
