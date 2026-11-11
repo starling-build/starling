@@ -945,7 +945,7 @@ extension RichLayout {
                         RuleTrace.hit("word-aums-latin-run-is-a-yu-gothic-line")
                         return ("yu gothic", 1)
                     }
-                    if aumsYuInIndic, text.unicodeScalars.contains(where: { (($0.value >= 0x30 && $0.value <= 0x39) || ($0.value >= 0x41 && $0.value <= 0x5A) || ($0.value >= 0x61 && $0.value <= 0x7A)) }) {
+                    if aumsYuInIndic, text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x7F }) {
                         RuleTrace.hit("word-aums-latin-run-in-indic-paragraph-is-a-yu-gothic-line")
                         return ("yu gothic", 1)
                     }
