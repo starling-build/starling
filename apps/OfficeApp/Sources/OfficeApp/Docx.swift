@@ -3559,7 +3559,8 @@ enum DocxFormat {
         if let sect = body.first("w:sectPr") {
             if let grid = sect.first("w:docGrid") {
                 document.docGridXML = PptxXML.serialize(grid)
-                if let type = grid["w:type"], type == "lines" || type == "linesAndChars", let pitch = Double(grid["w:linePitch"] ?? ""), pitch > 0 {
+                let verticalDoc = ["tbRl", "tbRlV"].contains(sect.first("w:textDirection")?["w:val"] ?? "")
+                if let type = grid["w:type"], type == "lines" || type == "linesAndChars" || (type == "snapToChars" && verticalDoc), let pitch = Double(grid["w:linePitch"] ?? ""), pitch > 0 {
                     document.lineGridPitch = pitch / 20
                 }
                 // (A grid of characters that adds nothing to them is a grid
@@ -5035,7 +5036,9 @@ enum DocxFormat {
         // column is the rightmost, lo-998868b6's "RTL 1".)
         if let bidi = sect.first("w:bidi"), bidi["w:val"] != "0", bidi["w:val"] != "false", setup.columns > 1 { setup.rtlColumns = true }
         if let grid = sect.first("w:docGrid") {
-            if let type = grid["w:type"], type == "lines" || type == "linesAndChars", let pitch = Double(grid["w:linePitch"] ?? ""), pitch > 0 {
+            // (A top-to-bottom section's snapToChars grid also holds its columns to linePitch: dx2 4427518d's print steps 33.7 pt, 671 twips.)
+            let verticalSection = ["tbRl", "tbRlV"].contains(sect.first("w:textDirection")?["w:val"] ?? "")
+            if let type = grid["w:type"], type == "lines" || type == "linesAndChars" || (type == "snapToChars" && verticalSection), let pitch = Double(grid["w:linePitch"] ?? ""), pitch > 0 {
                 setup.lineGridPitch = pitch / 20
             }
             if grid["w:type"] == "linesAndChars" || (grid["w:type"] == "snapToChars" && ["tbRl", "tbRlV"].contains(sect.first("w:textDirection")?["w:val"] ?? "")) {
