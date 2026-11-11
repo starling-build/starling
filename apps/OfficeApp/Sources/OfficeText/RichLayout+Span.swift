@@ -250,15 +250,14 @@ extension RichLayout {
         // under "とうきょう", 2.75pt between and 1.38 at either end).
         var spread = spread
         var rubyTails: [Int: Double] = [:]
-        // (A vertical section does not spread: Word lets the ruby overhang the neighbours, 934bd3e5's
-        // "局" under "つぼね" keeps the 10.6 pt step.)
-        // (Vertical sections spread too: Word steps 歌合 and 局 wider after a longer ruby, 934bd3e5 p2/p9;
-        // 01c658dae's blanket no-spread cut 934bd3e5 from 40.8 to 8.6 and was removed.)
+        // (A vertical section spreads by HALF the excess: Word steps 歌合 (うたあわせ, 25 vs 21 pt) +2.1 and
+        // 局 (つぼね, 15 vs 10.5 pt) +2.3, 934bd3e5 p2/p9; the ruby overhangs the neighbours for the rest.)
+        let rubyKeep = (index.map { _verticalBody($0) } ?? false) ? 0.5 : 1.0
         if theme.wordRules {
             for g in _rubyGroups(p) where g.to > g.from {
                 let (ruby, base) = _rubyWidths(g, p, named: named, document, pitch: pitch)
                 guard ruby > base + 0.01 else { continue }
-                let share = (ruby - base) / Double(g.to - g.from)
+                let share = (ruby - base) * rubyKeep / Double(g.to - g.from)
                 for k in g.from ..< g.to { spread[k, default: 0] += k == g.from ? share / 2 : share }
                 rubyTails[g.to, default: 0] += share / 2
             }
