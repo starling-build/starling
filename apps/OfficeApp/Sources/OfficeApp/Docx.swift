@@ -8020,7 +8020,7 @@ enum DocxFormat {
                 if let f = _family(child["w:ascii"] ?? "") { cs.fontFamily = f }
                 if let f = _family(child["w:cs"] ?? "") { cs.complexFontFamily = f }
                 if _family(child["w:ascii"] ?? "") != nil, child["w:hAnsi"] == nil { cs.hAnsiNamedAsAscii = false }
-                if let h = _family(child["w:hAnsi"] ?? "") { cs.hAnsiFontFamily = h == cs.fontFamily ? nil : h; cs.hAnsiNamedAsAscii = h == cs.fontFamily }
+                if let h = _family(child["w:hAnsi"] ?? "") { cs.hAnsiFontFamily = (h == cs.fontFamily && child["w:ascii"] != nil) ? nil : h; cs.hAnsiNamedAsAscii = h == cs.fontFamily }
                 else if child["w:ascii"] != nil, child["w:hAnsi"] == nil, base.hAnsiFontFamily == nil, base.fontFamily != nil, base.fontFamily != cs.fontFamily {
                     cs.hAnsiFontFamily = base.fontFamily   // ascii alone: hAnsi stays the inherited face
                 }

@@ -732,7 +732,8 @@ extension RichLayout {
             // Asian one over a Latin ascii face: ff493b's "—" in Aptos Bold
             // over a Malgun Gothic hAnsi is Malgun Bold in Word's print, and
             // makes its line 1.73 em tall; ours set it in Aptos.)
-            let eastDash = theme.wordRules && RichTextTheme.wordWindowsPages && hint == nil && latinFace?.isEastAsian != true
+            let eastDash = theme.wordRules && RichTextTheme.wordWindowsPages && hint == nil
+                && (latinFace?.isEastAsian != true || (run.hAnsiFontFamily != nil && run.hAnsiFontFamily != (run.fontFamily ?? named?.char.fontFamily)))
                 && (run.hAnsiFontFamily ?? named?.char.hAnsiFontFamily).flatMap { theme.faceResolver?($0, false) }?.isEastAsian == true
             let em = (run.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
             // (The run's character scale, Word's `w:w`.)

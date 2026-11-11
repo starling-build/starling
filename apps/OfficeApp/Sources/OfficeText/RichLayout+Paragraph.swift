@@ -2252,7 +2252,9 @@ extension RichLayout {
                 at += run.length
                 // (Not white space: a U+3000 sets no line — see `_strut`.)
                 for ch in p.text[a ..< b] where !Self._setsNoLine(ch) && Self.isEastAsian(ch, hinted: hinted) {
-                    lead = (run.style, true)
+                    if !lead.1 { lead = (run.style, true) }
+                    // (An em dash further on may stand the line taller: keep looking for it.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, p.text.contains(Self._emDash) { continue }
                     break search
                 }
                 // (An unhinted em dash over an East Asian hAnsi face stands the line on that face: see `_eastDashLeadStyle`.)
@@ -3516,7 +3518,7 @@ extension RichLayout {
     func _eastDashLeadStyle(_ style: CharStyle, named: RichNamedStyle?) -> CharStyle? {
         guard let h = style.hAnsiFontFamily ?? named?.char.hAnsiFontFamily,
               theme.faceResolver?(h, false)?.isEastAsian == true else { return nil }
-        if let latin = style.fontFamily ?? named?.char.fontFamily, theme.faceResolver?(latin, false)?.isEastAsian == true { return nil }
+        if let latin = style.fontFamily ?? named?.char.fontFamily, latin == h, theme.faceResolver?(latin, false)?.isEastAsian == true { return nil }
         var out = style
         out.eastAsiaFontFamily = h
         RuleTrace.hit("word-em-dash-in-east-asian-hansi-face-stands-the-first-line-on-it")
