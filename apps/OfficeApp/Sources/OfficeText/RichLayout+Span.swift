@@ -892,7 +892,7 @@ extension RichLayout {
                 && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xB00 })
             let mangalLatinSpace: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && document.readFromFile
                 && (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "mangal"
-                && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0x980 })
+                && p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 })
             let utsaahLatin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "utsaah"
             let namedFace: String? = text.unicodeScalars.contains(where: { $0.properties.isAlphabetic && Self._isIndic($0.value) }) ? nil : _namedMetricFace(run, named, document, text)
             let indic: (face: String, scale: Double)? = {
@@ -1468,7 +1468,7 @@ extension RichLayout {
                             plainPiece = !isIndic
                             // (Latin letters and digits of a run that names its own Latin face are that face's, not stretched by the Indic scale:
                             // d912c25b's "(COVID-19)", Calibri 12, 54.7 pt in Word, 57.9 here.)
-                            latinNoScale = !isIndic && run.fontFamily != nil && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0x980 }) && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
+                            latinNoScale = !isIndic && run.fontFamily != nil && p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 }) && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
                             let st = style(kind)
                             latinNoScale = false
                             plainPiece = false
@@ -1489,7 +1489,7 @@ extension RichLayout {
                     // and marks between Nirmala UI's words are Arial's and carry no Nirmala line of their own.)
                     for (piece, isIndic) in Self._splitIndicLatin(text[start ..< end]) {
                                                 plainPiece = !isIndic
-                        latinNoScale = !isIndic && run.fontFamily != nil && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0x980 }) && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
+                        latinNoScale = !isIndic && run.fontFamily != nil && p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 }) && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
                         let st = style(kind)
                         plainPiece = false
                         latinNoScale = false
@@ -1991,7 +1991,7 @@ extension RichLayout {
                             // would not part from the line, and the engine cut words inside.)
                             // (Not after an opening bracket or quote: Word keeps "(श्रमदिन)" whole, and the space let the line end on the "(": 9baed400's header cell.)
                             // (Nor after a Latin letter or digit with no space: Word keeps "…डीiseaseमल्टी…" whole, d912c25b; Devanagari only, Bengali ben-z17281487 drops with it.)
-                            if let before, !"([{\u{2018}\u{201C}\u{FF08}".contains(before), !(before.isASCII && (before.isLetter || before.isNumber) && u >= 0x900 && u < 0x980) {
+                            if let before, !"([{\u{2018}\u{201C}\u{FF08}".contains(before), !(before.isASCII && (before.isLetter || before.isNumber) && u >= 0x905 && u <= 0x97F) {
                                 spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                                 inserts.append(offset)
                             }
@@ -3687,7 +3687,7 @@ extension RichLayout {
         // (Devanagari in Arial Unicode MS, whose font-table entry is the Japanese charset: the same, 0.36 em with the 1.079 of line 259;
         // lab aums2 B and H: 30.0 and 30.2 pt against 26.4, once per paragraph however many lines hold marks.)
         let tamil = document.defaultLangXML?.containsSubstring("ta-IN") == true && p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })
-        let devanagari = !tamil && document.fontCharsets["arial unicode ms"] == "80" && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0x980 })
+        let devanagari = !tamil && document.fontCharsets["arial unicode ms"] == "80" && p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 })
         guard tamil || devanagari else { return 0 }
         let named = _named(p, document)
         let cs = (p.style.mark?.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "")
