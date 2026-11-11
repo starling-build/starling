@@ -3420,10 +3420,13 @@ extension RichLayout {
     /// (`w:autoSpaceDN`). Punctuation of either script takes none —
     /// and nor does anything in a document not set by the East Asian
     /// rules, which the caller checks.
-    static func _autoSpaced(_ a: Character, _ b: Character, _ style: RichParagraphStyle) -> Bool {
+    static func _autoSpaced(_ a: Character, _ b: Character, _ style: RichParagraphStyle, compat: Int = 12) -> Bool {
         func ideograph(_ c: Character) -> Bool {
             guard let u = c.unicodeScalars.first?.value else { return false }
             switch u {
+            // (The katakana middle dot is no ideograph for the automatic space in Word for Windows at compat 15:
+            // jpn-z19433747-8787f4's "AI・自動運転・SDV" has no gap beside either dot; compat 14 (930d98) is unmeasured.)
+            case 0x30FB: return !(RichTextTheme.wordWindowsPages && compat >= 15)
             case 0x1100 ... 0x11FF, 0x3040 ... 0x30FF, 0x3400 ... 0x9FFF, 0xAC00 ... 0xD7FF, 0xF900 ... 0xFAFF, 0x20000 ... 0x3FFFF: return true
             // (The square units too, in Word for Windows: zh-0060058e's "≤13000㎡，" has its automatic space before
             // the "㎡", and "…三级绿地人" leaves "均" 0.7pt over; without it ours took "均".)
