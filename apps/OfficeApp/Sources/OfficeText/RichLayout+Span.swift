@@ -3704,6 +3704,7 @@ extension RichLayout {
         // so they add nothing after the paragraph; lab aumsy2, fb94294e.)
         var runEnd = 0, runIndex = -1
         var yu = false
+        let realStarts = devanagari ? _lineStarts(painter, _map(i), count: p.text.utf16.count) : []
         for u in p.text.unicodeScalars {
             while offset >= runEnd, runIndex + 1 < p.runs.count {
                 runIndex += 1
@@ -3713,10 +3714,16 @@ extension RichLayout {
                     && (r.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
             }
             let n = u.value > 0xFFFF ? 2 : 1
+            // (Devanagari: a line the engine ends on a zero-width space is reported joined to the next, so the lines are
+            // counted by their real starts; dx2 31a0a560's paragraph with 3 marked lines was counted as 2, 7.2 pt after it, not Word's 10.8.)
+            func lineStart() -> Int {
+                if devanagari, let at = realStarts.last(where: { $0 <= offset }) { return at + lead }
+                return painter.getLineBoundary(TextPosition(offset: offset + lead)).start
+            }
             if !yu, u.value > 0x20, u.value < 0x250 {
-                starts.insert(painter.getLineBoundary(TextPosition(offset: offset + lead)).start)
+                starts.insert(lineStart())
             } else if yu, u.value > 0x20 {
-                yuLines.insert(painter.getLineBoundary(TextPosition(offset: offset + lead)).start)
+                yuLines.insert(lineStart())
             }
             offset += n
         }
