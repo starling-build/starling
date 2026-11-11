@@ -555,7 +555,7 @@ extension RichLayout {
                     && !(RichTextTheme.wordWindowsPages && units[$0] == 0xFF01)
                     // (Japanese text, kana in the paragraph: a full stop or comma inside a line, beside no bracket,
                     // gives nothing. jpn-z19433747's Word print holds 34 characters on every line; the zh set squeezes them.)
-                    && !(squeezesPauseRule && $0 + 1 < units.count && (units[$0] == 0x3002 || units[$0] == 0x3001) && !Self._openingUnits.contains(units[$0 + 1]) && !Self._closingUnits.contains(units[$0 + 1]))
+                    && !(squeezesPauseRule && $0 + 1 < units.count && (units[$0] == 0x3002 || units[$0] == 0x3001 || units[$0] == 0xFF1B) && !Self._openingUnits.contains(units[$0 + 1]) && !Self._closingUnits.contains(units[$0 + 1]))
             }
             let em = a < ems.count ? ems[a] : 0
             // (Less than nothing on a line whose room Word's sum puts a hair
