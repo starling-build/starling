@@ -3638,6 +3638,11 @@ enum OfficeFonts {
                 face.boldItalicAdvances = sourceSansProBoldAdvances
                 face.naturalHeight = 1.257
                 face.baseline = 0.984
+                // (The no-break space is the face's space: our danda rule sets the space before a danda as one, and the stand-in's own 0.226 em made c5311ac7's line 0.3 pt too wide.)
+                if let sp = sourceSansProAdvances.first, let spb = sourceSansProBoldAdvances.first {
+                    face.otherAdvances = (face.otherAdvances ?? [:]).merging([0xA0: sp]) { $1 }
+                    face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging([0xA0: spb]) { $1 }
+                }
                 // (The line is the face's own hhea 984+273 over 1000, read from Word's subsets: lab c53, Word's Source Sans lines are 0.43 pt taller than the stand-in's at 12 pt; the 1 pt that 17a0d0c7 once showed is its line-break-first paragraph, see the board.)
                 RuleTrace.hit("source-sans-pro-own-widths")
             }

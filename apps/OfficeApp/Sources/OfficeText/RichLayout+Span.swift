@@ -934,6 +934,13 @@ extension RichLayout {
                        (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "kokila" {
                         return ("kokila", 1)
                     }
+                    // (A run with no Indic letter whose ascii and complex faces are both Vrinda, in a Bengali paragraph, is drawn in Vrinda: its Latin takes
+                    // Vrinda's advances and its space is Vrinda's 0.598 em; 06800107's "(NAME OF PLACE)": Word 46.7 pt for "(NAME ", ours 41.8.)
+                    if (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "vrinda",
+                       (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "vrinda",
+                       p.text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF }) {
+                        return ("vrinda", 1)
+                    }
                     // (A run of Bengali characters with no letter (digits, signs, marks), in a face Windows lacks (Nikosh, Kalpurush...): Word draws it in Nirmala UI, so the digits take
                     // Nirmala's own advances from the table; 2263e221's "\u{9EE}" is 8.35 pt in Word, 6.5 in the stand-in.)
                     if text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF }),
@@ -1413,6 +1420,17 @@ extension RichLayout {
                                 return
                             }
                         }
+                        // (A run whose ascii face is Vrinda too draws its Latin in Vrinda: its own advances, `VrindaAdvances`, at the authored size.)
+                        if face == "vrinda", theme.wordRules, RichTextTheme.wordWindowsPages, authored > 0.5,
+                           (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "vrinda",
+                           w.unicodeScalars.allSatisfy({ $0.value > 0x20 && $0.value < 0x7F }) {
+                            let vTable = (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))) ? VrindaAdvances.bold : VrindaAdvances.regular
+                            if let fitted = _clusterFitted(w, base: base, authored: authored, table: vTable, flatScale: 1, conjunctRatio: nil, block: 0x980) {
+                                RuleTrace.hit("word-vrinda-latin-own-advances")
+                                spans.append(contentsOf: capped(w, run, fitted.style))
+                                return
+                            }
+                        }
                         spans.append(contentsOf: capped(w, run, joinedScaled(w, base)))
                     }
                     while k < end {
@@ -1526,14 +1544,14 @@ extension RichLayout {
                     return
                 }
                 // (Spaces between Devanagari words, in a run of its own: Word draws them in Leelawadee UI, 0.274 em, where our stand-in's are 0.22; dx2 fb94294e.)
-                if kind >= 0, aumsSpaces, text[start ..< end].allSatisfy({ $0 == " " }) {
+                if kind >= 0, aumsSpaces, text[start ..< end].allSatisfy({ $0 == " " || ($0 == "\u{00A0}" && spaceBeforeDanda) }) {
                     spans.append(contentsOf: capped(text[start ..< end], run, Self._leelaLatinStyle(text[start ..< end], base: joinedScaled(text[start ..< end], style(kind)))))
                     start = end
                     return
                 }
                 // (A space in a run of its own whose Latin face is Mangal, in a Devanagari paragraph: Word draws it in Mangal, 0.5 em, 5.52 pt
                 // at 11 pt, where the stand-in's Latin space is 3.1; dx2 2db27e2d's "है; उदाहरण", the space after the ";".)
-                if kind >= 0, mangalLatinSpace, text[start ..< end].allSatisfy({ $0 == " " }) {
+                if kind >= 0, mangalLatinSpace, text[start ..< end].allSatisfy({ $0 == " " || ($0 == "\u{00A0}" && spaceBeforeDanda) }) {
                     RuleTrace.hit("word-mangal-latin-run-space-is-half-em")
                     let base = style(kind)
                     let authored = Self._wordGridSize(run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize, snap: true) * theme.pixelsPerPoint * scale
