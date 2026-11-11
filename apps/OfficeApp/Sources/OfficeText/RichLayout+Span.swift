@@ -2941,8 +2941,8 @@ extension RichLayout {
                     #endif
                     spans.append(TextSpan(text: String(ch), style: numeral))
                     start = after
-                } else if !ea, theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, (0x2010 ... 0x2BFF).contains(u), latinFace?.isEastAsian != true,
-                          // (A symbol the run's Latin face lacks, by that face's cmap (Self._latinSymbolCmap, from the Windows Word box); a face not in the table keeps only ※.)
+                } else if !ea, theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, ((0x2010 ... 0x2027).contains(u) || (0x2030 ... 0x205E).contains(u)), u != 0x2011, latinFace?.isEastAsian != true, !run.formBox,
+                          // (General Punctuation only, not the invisible format marks U+2028-202F and U+205F-206F (the engine's own word joiner U+2060 is one): Word's prints draw math and enclosed symbols (⌈ ① in 0d8cbc, 27083953) in Cambria Math, and U+2011 as a plain hyphen, not in the East Asian face; a form check box is a drawn box. A mark the run's Latin face lacks, by that face's cmap (Self._latinSymbolCmap, from the Windows Word box); a face not in the table keeps only ※.)
                           Self._latinFaceLacks(run.fontFamily ?? named?.char.fontFamily ?? "", u) ?? (u == 0x203B),
                           let cjk = Self._cjkFaceFamily {
                     // (The reference mark ※ in a run whose Latin face lacks it is the East Asian
