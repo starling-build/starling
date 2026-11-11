@@ -1,4 +1,4 @@
-119 documents: mean 60.5% of Word's lines matched, median 74.8%; 30 at 95% or more, 72 at half or more; 91 with Word's page count
+119 documents: mean 60.6% of Word's lines matched, median 74.8%; 31 at 95% or more, 72 at half or more; 91 with Word's page count
     0.8%  lines 133/135  pages 5/6  47480880a8a34a9d23298450db7c9d339036a809d6beb64812085fbaa4cfbc4e
     1.0%  lines 196/200  pages 8/10  72ea457ab4ff0e4110acff2b525d3984b09e06bf0f104ffb858abb6a4eb5574c
     1.3%  lines 75/75  pages 4/3  658a33bb1e725fff4ec96b3cde57bb77c7f845c4e733410ff07ed1ff7548d641
@@ -80,7 +80,6 @@
    89.6%  lines 913/913  pages 26/26  67f1ba7586e87486e0468adbc26bb25fbe0a86f1c99fc43d598e5d32bba5a5c4
    89.7%  lines 624/627  pages 18/18  0815aa59ccc6dbbdb908c5f6bd8acecf629fdaf9239178309471469e4e50f399
    90.3%  lines 258/258  pages 9/9  03cd29dc2f67a29e0fb011b58e6c07ab377c3b677a38fa29710e735a3bb43575
-   90.4%  lines 73/74  pages 4/4  1116b68df72593874a86d272f0441b8790ad2db200736a4b0bd86979b1113912
    90.6%  lines 1210/1209  pages 34/34  9ee94bf7a31f4aebe0e34f57f03f3321bcf2abb8d80322bff4c647a3d2afa57a
    91.5%  lines 967/970  pages 24/24  54998088f8959e284979aff71250c8184edee4cc952f41cd6f30e96f65c73809
    91.8%  lines 584/593  pages 22/22  66cda9e38c24673843300b81bc60056dfa88f9619b78766ceb41aa3ae1fb2182
@@ -111,6 +110,7 @@
    99.7%  lines 577/578  pages 20/20  0980009925a9e60577725ba1aca7cc2cac32313ee51db27edfedb03b9bc6448c
    99.8%  lines 497/497  pages 25/25  b7fe476aa1f548809e8b4b8f64feb2cedcbf0827f832c58a00bf35918aa8b153
    99.8%  lines 615/615  pages 23/23  ecc32adb5aa1535ea4443cd8de6902a1c70d096dc13a7098f0641628242de7ea
+  100.0%  lines 73/73  pages 4/4  1116b68df72593874a86d272f0441b8790ad2db200736a4b0bd86979b1113912
   100.0%  lines 86/86  pages 4/4  1527abbfb9238bf43a5752d16537f1cbca9a4dbdf48c557ea7c97feca5bc9aba
   100.0%  lines 80/80  pages 2/2  2dabcb0480eae34d5068b360a9cb48c3c6361b324f51c8acf22c31dc9ea12f46
   100.0%  lines 36/36  pages 1/1  5388cc246e9471bf5be02b3a148a6f118015ddb29afeef21f1a2046c2be6b5ac
