@@ -252,7 +252,9 @@ extension RichLayout {
         var rubyTails: [Int: Double] = [:]
         // (A vertical section does not spread: Word lets the ruby overhang the neighbours, 934bd3e5's
         // "局" under "つぼね" keeps the 10.6 pt step.)
-        if theme.wordRules, !(index.map { _verticalBody($0) } ?? false) {
+        // (Vertical sections spread too: Word steps 歌合 and 局 wider after a longer ruby, 934bd3e5 p2/p9;
+        // 01c658dae's blanket no-spread cut 934bd3e5 from 40.8 to 8.6 and was removed.)
+        if theme.wordRules {
             for g in _rubyGroups(p) where g.to > g.from {
                 let (ruby, base) = _rubyWidths(g, p, named: named, document, pitch: pitch)
                 guard ruby > base + 0.01 else { continue }
