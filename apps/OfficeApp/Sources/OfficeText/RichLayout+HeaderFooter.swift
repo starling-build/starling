@@ -260,7 +260,7 @@ extension RichLayout {
     /// — a shape turned 90° with its text read upward (`vert270`) reads across the
     /// page, in the middle of the shape (LibreOffice's tdf87924, an arrow turned
     /// to point down with "hello" level in it).
-    func _paintTurnedTextBox(_ inside: _HeaderFooter, _ text: RichTextBox, _ image: ImageAttachment, _ rect: Rect, _ canvas: any Canvas, clips: Bool = false) {
+    func _paintTurnedTextBox(_ inside: _HeaderFooter, _ text: RichTextBox, _ image: ImageAttachment, _ rect: Rect, _ canvas: any Canvas, clips: Bool = true) {
         guard theme.wordRules, abs(text.shapeRotation) > 0.01 else {
             _paintTextBox(inside, text, rect, canvas, clips: clips)
             return
@@ -277,7 +277,7 @@ extension RichLayout {
     /// quarter about the corner it reads from (`RichTextBox.textDirection`)
     /// — reading up from the bottom-left inset corner, its lines stacking
     /// rightwards; reading down from the top-right, stacking leftwards.
-    func _paintTextBox(_ inside: _HeaderFooter, _ text: RichTextBox, _ rect: Rect, _ canvas: any Canvas, clips: Bool = false) {
+    func _paintTextBox(_ inside: _HeaderFooter, _ text: RichTextBox, _ rect: Rect, _ canvas: any Canvas, clips: Bool = true) {
         canvas.save()
         // (Text past a box that keeps its size and bands its page is not
         // shown: zh-6d402586's box of revision dates, 158pt tall, holds ten
@@ -287,7 +287,7 @@ extension RichLayout {
         var cutsAtFoot = false
         if clips, theme.wordRules, text.textDirection == .horizontal, !text.fitsText, !text.fitsHeight, !text.growsToFit, text.parts.isEmpty {
             cutsAtFoot = true
-            canvas.clipRect(Rect.fromLTRB(rect.left - 1_000_000, rect.top - 1_000_000, rect.right + 1_000_000, rect.bottom),
+            canvas.clipRect(Rect.fromLTRB(rect.left - 1_000_000, rect.top - 1_000_000, rect.right + 1_000_000, rect.bottom - _px(text.insetBottom)),
                             clipOp: .intersect, doAntiAlias: false)
         }
         // (A turned box that keeps its size, its first line indented past the line's length, cuts its text at its
@@ -342,7 +342,22 @@ extension RichLayout {
     @inline(never)
     func _paintTextPastFoot(_ inside: _HeaderFooter, _ text: RichTextBox, _ rect: Rect, _ canvas: any Canvas) {
         canvas.save()
-        canvas.clipRect(Rect.fromLTRB(rect.left - 1_000_000, rect.bottom, rect.right + 1_000_000, rect.bottom + 1_000_000),
+        // (A line the foot clip cuts through is drawn once, by the visible pass; the ghost starts under it.)
+        let edge = rect.bottom - _px(text.insetBottom)
+        var ghostTop = edge
+        let originY = rect.top + _px(text.insetTop)
+        let n = inside.document.paragraphs.count
+        if inside.layout._painters.count >= n {
+            for i in 0 ..< n {
+                let g = inside.layout.geometry(i)
+                for line in g.painter.computeLineMetrics() {
+                    let top = originY + g.textTop + line.baseline - line.ascent
+                    let bottom = originY + g.textTop + line.baseline + line.descent
+                    if line.baseline + g.textTop + originY - line.ascent * 0.5 < edge, bottom > edge + 0.01, top < edge { ghostTop = max(ghostTop, bottom) }
+                }
+            }
+        }
+        canvas.clipRect(Rect.fromLTRB(rect.left - 1_000_000, ghostTop, rect.right + 1_000_000, rect.bottom + 1_000_000),
                         clipOp: .intersect, doAntiAlias: false)
         canvas.translate(rect.left + _px(text.insetLeft), rect.top + _px(text.insetTop))
         let ghost = Paint()
