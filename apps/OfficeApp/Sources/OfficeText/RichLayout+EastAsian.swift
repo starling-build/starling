@@ -1954,7 +1954,7 @@ extension RichLayout {
                 if !fits, !opening, squeezesSpaces || pageBox,
                    !(document.balancesSpaceWidth && eastAsianAt(a) && a > 0 && isSpace(units[a - 1])),
                    // (Korean, balanceSingleByteDoubleByteWidth, in a table cell: Word stretches, never squeezes, a space to take a Hangul syllable (15093019); in body text it squeezes, 107500a8 takes '기' at 0.46 em spaces.)
-                   !(RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && inCell && units[a] >= 0xAC00 && units[a] <= 0xD7A3 && !(legacy == false && a + 2 >= units.count && p.style.eastAsian["w:wordWrap"] == "0")),
+                   !(RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && (inCell || !legacy && p.style.eastAsian["w:wordWrap"] == "0") && units[a ..< last].first(where: { !isSpace($0) }).map({ $0 >= 0xAC00 && $0 <= 0xD7A3 }) == true && !(legacy == false && a + 2 >= units.count && p.style.eastAsian["w:wordWrap"] == "0")),
                    // (And with wordWrap ON in a compat-15 cell Word never squeezes to take a last word that holds Hangul, even one that opens on a digit: lab ko-stop3 ww and leftww, tcW 7760-7960, 101 cases, never taken; 6건입니다.)
                    !(RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && inCell && !legacy && p.style.eastAsian["w:wordWrap"] != "0" && Self._koreanLastWord(units, a)),
                    !wordSpaces.isEmpty || (!(spaces + ownSpaces).isEmpty && units[a] != 0xFFFC && !isSpace(units[a])) {
@@ -2951,7 +2951,15 @@ extension RichLayout {
             // (A Hangul syllable and a Latin opening bracket part, though ICU
             // glues "력(": Word sets "무중력" and sends "(Zero-Gravity" down.)
             if korean {
-                for k in units.indices.dropFirst() where units[k] == 0x28 && units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 { out.insert(k) }
+                for k in units.indices.dropFirst() where units[k] == 0x28 && units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 {
+                    // (A bracket that closes before the next space stays with the
+                    // word before it: Word sets "에너지(E_{act})" on one line,
+                    // the ")" hung, and parts after it. 22de7d.)
+                    var j = k + 1
+                    while j < units.count, units[j] != 0x20, units[j] != 0x29 { j += 1 }
+                    if j < units.count, units[j] == 0x29 { continue }
+                    out.insert(k)
+                }
                 // (And after a hyphen before a letter, as Latin words part: 222f3f's
                 // "캐나다-한국-" / "EU)" in Word's print.)
                 for k in units.indices.dropFirst() where units[k - 1] == 0x2D && ((units[k] | 0x20) >= 0x61 && (units[k] | 0x20) <= 0x7A) { out.insert(k) }

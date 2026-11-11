@@ -2738,7 +2738,7 @@ extension RichLayout {
                     // (The size-compensated stand-in grows lowercase letters' style size; the advance is the nominal size's, the capitals' kind.)
                     if let a, let px = style(classed ? RichResolvedFace.characterClass("H") : 0).fontSize, px > 0.5 {
                         RuleTrace.hit("word-missing-hangul-face-latin-takes-yu-gothic-advances")
-                        extra = a * px - _glyphWidth(s, ch)
+                        extra = a * px - _glyphWidth(s, ch) + (adjust[offset] ?? 0)
                     }
                 }
                 _sblk3()
