@@ -2938,6 +2938,25 @@ extension RichLayout {
         guard theme.wordRules else { return [] }
         let units = Array(p.text.utf16)
         var out: Set<Int> = []
+        // (A Latin word touching a Japanese character, in a file that names no compatibility mode and no
+        // East Asian layout: Word parts it where the line fills, at any letter (lab latbrk, jpn-z21601833-acd729's
+        // "ho|wfar" and "Q|CD"); the engine keeps it whole.)
+        if RichTextTheme.wordWindowsPages, document.compatibilityMode == nil, document.hangsLatinStops,
+           p.style.eastAsian["w:wordWrap"] != "0" {
+            func latin(_ u: UInt16) -> Bool { (u | 0x20) >= 0x61 && (u | 0x20) <= 0x7A }
+            // (Japanese text only: punctuation, kana, ideographs and full-width forms; not Hangul.)
+            func ja(_ u: UInt16) -> Bool { (u >= 0x3000 && u <= 0x9FFF) || (u >= 0xFF00 && u <= 0xFFEF) }
+            var k = 0
+            while k < units.count {
+                guard latin(units[k]) else { k += 1; continue }
+                var e = k
+                while e < units.count, latin(units[e]) { e += 1 }
+                if e - k >= 2, (k > 0 && ja(units[k - 1])) || (e < units.count && ja(units[e])) {
+                    for j in k + 1 ..< e { out.insert(j) }
+                }
+                k = e
+            }
+        }
         // (`w:wordWrap` off, as many Chinese documents say: every Latin
         // word parts at any character — but not so as to begin a line
         // with what may not begin one, or end it with what may not end.)
