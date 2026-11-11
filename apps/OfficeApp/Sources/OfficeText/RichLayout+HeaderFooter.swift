@@ -1765,7 +1765,7 @@ extension RichLayout {
         let setup = pageSetup(forPage: p)
         let shown = _chapterPrefix(p, document) + _pageNumber(number, document, format: _pageNumberFormat(p, document))
         let count = String(pageCount ?? self.pageCount)
-        let key = "\(kind.rawValue)|\(type)|\(section.index)|\(shown)|\(number % 2)|\(p % 2)|\(count)|\(setup.contentWidth)|\(setup.lineGridPitch ?? 0)|\(scale)"
+        let key = "\(kind.rawValue)|\(type)|\(section.index)|\(shown)|\(number % 2)|\(p % 2)|\(count)|\(setup.contentWidth)|\(setup.vertical)|\(setup.lineGridPitch ?? 0)|\(scale)"
         if let hit = _headerFooterCache[key] { return hit }
         // The paragraphs with this page's number and the count in their
         // fields — and those of the text boxes among them, where a page
@@ -1869,7 +1869,9 @@ extension RichLayout {
         // keeps the number's: see `leftHandPage`.)
         let firstNumber = (_sectionSetups.count > 1 ? _sectionNumberStart(0, document) : document.pageNumberStart) ?? 1
         layout.leftHandFloat = theme.wordRules ? (p + firstNumber) % 2 == 0 : number % 2 == 0
-        layout.width = _px(setup.contentWidth)
+        // (A vertical section's running header and footer stay horizontal on the paper: as wide as the
+        // paper's text width, which is the transposed page's height less its margins.)
+        layout.width = _px(setup.vertical ? setup.contentHeight : setup.contentWidth)
         // (Its fit-to-text boxes as wide as on the first page this one is
         // on: see `inheritedFitWidths`.)
         // (In Word for Windows, the first page the same part is on, in any
@@ -2033,7 +2035,15 @@ extension RichLayout {
             hf.layout.regionMarginBottom = _px(setup.marginBottom)
             hf.layout.regionPageHeight = _px(setup.height)
             canvas.save()
-            canvas.translate(rect.left + _pxMarginLeft(p), top)
+            if setup.vertical {
+                // (The page canvas is turned a quarter for the section: stand the running text back up
+                // at its place on the paper, left margin = the transposed bottom margin.)
+                let physTop = kind == .header ? _px(setup.headerDistance) : _px(setup.width) - _px(setup.footerDistance) - hf.height
+                canvas.translate(rect.left + physTop, rect.top + _px(setup.height) - _px(setup.marginBottom))
+                canvas.rotate(-Double.pi / 2)
+            } else {
+                canvas.translate(rect.left + _pxMarginLeft(p), top)
+            }
             hf.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: hf.document,
                             selection: nil, caret: nil)
             canvas.restore()
