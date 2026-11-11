@@ -1106,7 +1106,7 @@ extension RichLayout {
                 if theme.wordRules, run.ruby != nil, s.fontSize ?? 0 > 0.5,
                    let h = theme.rubyLine(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) {
                     s = s.copyWith(height: h.height)
-                    if h.raise != 0, NativeParagraphBuilder.supportsBaselineShift {
+                    if h.raise != 0, NativeParagraphBuilder.supportsBaselineShift, !(index.map { _verticalBody($0) } ?? false) {
                         s = s.copyWith(baselineShift: (s.baselineShift ?? 0) - h.raise * theme.pixelsPerPoint * scale)
                     }
                 } else if mixedRubyRaise != 0, run.ruby == nil, s.fontSize ?? 0 > 0.5 {
