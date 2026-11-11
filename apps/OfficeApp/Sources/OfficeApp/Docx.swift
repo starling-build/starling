@@ -3678,11 +3678,14 @@ enum DocxFormat {
             document.fontAlternates = Dictionary(alts.map { ($0.key.trimmingWhitespace().lowercased(), $0.value.trimmingWhitespace().lowercased()) }, uniquingKeysWith: { a, _ in a })
             OfficeFonts.noteAltNames(alts)
             OfficeFonts.noteFontEntries(entries)
+            document.hasIndicText = Self._hasIndicBytes(docData)
+            OfficeFonts.noteIndicText(document.hasIndicText)
         } else {
             OfficeFonts.noteEmbedded([])
             OfficeFonts.noteEmbeddedFaces([:])
             OfficeFonts.noteAltNames([:])
             OfficeFonts.noteFontEntries([:])
+            OfficeFonts.noteIndicText(false)
         }
         // The HTML blocks' margins, by the id a paragraph names (only a
         // block's own: drawing.docx's banner block, 0.75pt over and 3.75
@@ -8081,6 +8084,13 @@ enum DocxFormat {
     /// draws with is `OfficeFonts.substitute`'s choice at render time, and
     /// the name goes back out unchanged on save.
     /// Every family a part names in a `w:rFonts` (ascii and hAnsi).
+    /// Whether the document part holds Devanagari to Malayalam text (UTF-8 lead bytes E0 A4 to E0 B5).
+    private static func _hasIndicBytes(_ data: Data) -> Bool {
+        let bytes = [UInt8](data)
+        var i = 0
+        while i + 1 < bytes.count { if bytes[i] == 0xE0, bytes[i + 1] >= 0xA4, bytes[i + 1] <= 0xB5 { return true }; i += 1 }
+        return false
+    }
     private static func _declaredFonts(_ data: Data?) -> Set<String> {
         guard let data, let text = String(data: data, encoding: .utf8) else { return [] }
         var out = Set<String>()

@@ -891,6 +891,7 @@ extension RichLayout {
             // a Nirmala line, for GST, commas, brackets, dots, digits, "**", regular and bold. fb94294e.)
             // (A Hangul-named face Word's box lacks: its Latin letters, digits and spaces are Yu Gothic's, so they take Yu Gothic's advances; 22de7d.)
             let yuOfMissingHangul: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && _yuLatinOfMissingHangulFace(run, named, document)
+                && !document.hasIndicText
             let aumsYuInIndic: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && document.readFromFile && document.fontCharsets["arial unicode ms"] == "80"
                 && (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
                 && !(run.keptXML?.containsSubstring("<w:cs/>") ?? false) && !(run.keptXML?.containsSubstring("<w:cs ") ?? false)
@@ -1946,7 +1947,7 @@ extension RichLayout {
                 // and digits in Yu Gothic and the Hangul in Malgun Gothic, so a line holding one takes Yu Gothic's deeper descent: 19.2 pt steps at 10 pt
                 // against 18.5. Each face drawn on a line feeds its own ascent and descent into the line's max.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, u >= 0x20, u < 0x250, ch.unicodeScalars.count == 1,
-                   !(before.map { ($0.unicodeScalars.first?.value ?? 0x3000) < 0x250 } ?? false), _yuLatinOfMissingHangulFace(run, named, document) {
+                   !(before.map { ($0.unicodeScalars.first?.value ?? 0x3000) < 0x250 } ?? false), _yuLatinOfMissingHangulFace(run, named, document), !document.hasIndicText {
                     if devanagariStyles["missingHangulYu"] == nil {
                         devanagariStyles["missingHangulYu"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: Self._indicLines["malgun gothic"]!.0, descent: 0.492)?.copyWith(debugLabel: "yu-joiner")
                     }

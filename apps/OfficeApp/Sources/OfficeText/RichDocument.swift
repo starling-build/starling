@@ -2435,6 +2435,8 @@ public struct RichDocument: Hashable, Sendable {
     public var defaultLangXML: String? = nil
     /// The font table's alternate for each face name (both lower-cased), as Word for Windows reads it for a face it lacks.
     public var fontAlternates: [String: String] = [:]
+    /// Whether the file's body text holds Devanagari to Malayalam letters (read from the document part's bytes by the importer).
+    public var hasIndicText = false
     /// The font table's charset code for each face name (lower-cased): "80" is the Japanese one, which decides Word's fallback for Arial Unicode MS.
     public var fontCharsets: [String: String] = [:]
     /// Whether that language's East Asian one is mainland Chinese, whose

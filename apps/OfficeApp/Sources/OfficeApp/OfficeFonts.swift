@@ -285,6 +285,11 @@ enum OfficeFonts {
         var lastFamily: String? = nil
     }
     nonisolated(unsafe) private static var fontEntries: [String: FontEntry] = [:]
+    /// Whether the document's text holds Devanagari to Malayalam letters: Arial Unicode MS there is the Word layout's own path (Yu Gothic or Leelawadee
+    /// UI by run), not the shared missing-face stand-in (which took dx2 31a0a560 from 100 to 3.8).
+    nonisolated(unsafe) private static var indicText = false
+    static func noteIndicText(_ on: Bool) { declaredLock.lock(); defer { declaredLock.unlock() }; indicText = on }
+    static var documentHasIndicText: Bool { declaredLock.lock(); defer { declaredLock.unlock() }; return indicText }
     static func noteFontEntries(_ entries: [String: FontEntry]) {
         declaredLock.lock()
         defer { declaredLock.unlock() }
@@ -3406,6 +3411,7 @@ enum OfficeFonts {
         if wordOnWindows, !eastAsian, !isEmbedded(family), let e = fontEntry(family), e.charset.uppercased() == "80",
            (e.alt ?? "").trimmingWhitespace().isEmpty,
            !WordWindowsFaces.names.contains(family.trimmingWhitespace().lowercased()),
+           !(family.trimmingWhitespace().lowercased() == "arial unicode ms" && documentHasIndicText),
            !family.unicodeScalars.contains(where: { $0.value > 0x24F }) {
             RuleTrace.hit("missing-latin-face-charset-80-is-yu-gothic")
             return standInFace("Yu Gothic", eastAsian: false)
