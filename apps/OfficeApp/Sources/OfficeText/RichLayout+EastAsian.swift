@@ -3477,11 +3477,15 @@ extension RichLayout {
         return hangul
     }
 
-    /// Where Word squeezes the spaces of a left-aligned Latin line (PROVISIONAL): left alignment only,
-    /// a file with useFELayout and a zh East Asian language, below compat 15 (none counts as below).
+    /// Where Word squeezes the spaces of a left-aligned Latin line: left alignment, below compat 15 (none counts as below), and the
+    /// paragraph's text set in a SimSun-class system face (SimSun, NSimSun, FangSong, KaiTi, SimHei). Lab sqz3: SimSun squeezes at
+    /// compat 14 with or without useFELayout and with a non-zh eastAsia language; Malgun Gothic does not at 14 or 15 (5 pages
+    /// against 4). Keyed on the face, not the language or useFELayout. Centred zh-90e0cea8, Korean ecc32adb and Latin-face
+    /// gv-f711169b, fra-g188 stay unsqueezed.
     @inline(never)
     func _leftLatinSqueezeScope(_ document: RichDocument, _ p: RichParagraph) -> Bool {
-        p.style.alignment == .left && document.usesEastAsianLayout == true
-            && document.eastAsiaLanguage?.hasPrefix("zh") == true && (document.compatibilityMode ?? 11) < 15
+        guard p.style.alignment == .left, (document.compatibilityMode ?? 11) < 15 else { return false }
+        let face = p.runs.first?.style.fontFamily ?? _named(p, document)?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily
+        return RichTextTheme._wordGBSystemFace((face ?? "").lowercased())
     }
 }
