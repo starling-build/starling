@@ -897,8 +897,8 @@ extension RichLayout {
             // in Yu Gothic, whose line every such run sets whatever it holds; lab aumsy2 (2026-11-09): at 9 pt the steps are 12.8 into and 14.2 out of
             // a Nirmala line, for GST, commas, brackets, dots, digits, "**", regular and bold. fb94294e.)
             // (A Hangul-named face Word's box lacks: its Latin letters, digits and spaces are Yu Gothic's, so they take Yu Gothic's advances; 22de7d.)
-            let yuOfMissingHangul: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && _yuLatinOfMissingHangulFace(run, named, document)
-                && !document.hasIndicText
+            let yuOfMissingHangul: Bool = aumsLatin || (theme.wordRules && RichTextTheme.wordWindowsPages && _yuLatinOfMissingHangulFace(run, named, document)
+                && !document.hasIndicText)
             let aumsYuInIndic: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && document.readFromFile && document.fontCharsets["arial unicode ms"] == "80"
                 && (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
                 && !(run.keptXML?.containsSubstring("<w:cs/>") ?? false) && !(run.keptXML?.containsSubstring("<w:cs ") ?? false)
@@ -2799,7 +2799,7 @@ extension RichLayout {
                     // (Word's Yu Gothic Latin in a paragraph whose Hangul-named face it lacks: 22de7d.)
                     let s = style(kind)
                     let bold = s.fontWeight == .bold
-                    let a: Double? = u0 == 0x20 ? 0.5 : (u0 == 0x28 ? Optional(791.0 / 2048) : (bold ? Self.yuGothicBold : Self.yuGothicRegular)[u0].map { Double($0) / 2048 })
+                    let a: Double? = u0 == 0x20 ? (aumsLatin ? 584.0 / 2048 : 0.5) : (u0 == 0x28 ? Optional(791.0 / 2048) : (bold ? Self.yuGothicBold : Self.yuGothicRegular)[u0].map { Double($0) / 2048 })
                     // (The size-compensated stand-in grows lowercase letters' style size; the advance is the nominal size's, the capitals' kind.)
                     if let a, let px = style(classed ? RichResolvedFace.characterClass("H") : 0).fontSize, px > 0.5 {
                         RuleTrace.hit("word-missing-hangul-face-latin-takes-yu-gothic-advances")

@@ -1663,6 +1663,9 @@ enum DocxFormat {
                         if !kept.children.isEmpty, !formats[ilvl]!.pictureBullet { formats[ilvl]!.numberRPrXML = PptxXML.serialize(kept) }
                     }
                     if let suff = lvl.first("w:suff")?["w:val"] { formats[ilvl]!.suffix = suff }
+                    // No label, no tab after it: 3922c734's empty-label items start at the
+                    // margin in Word; a tab there ran to the next default stop (65 pt in).
+                    else if lvl.first("w:lvlText")?["w:val"] == "" { formats[ilvl]!.suffix = "nothing" }
                 }
                 if let ind = lvl.first("w:pPr")?.first("w:ind"), formats[ilvl] != nil {
                     if let v = Double(ind["w:left"] ?? ind["w:start"] ?? "") { formats[ilvl]!.indentLeft = v / 20 }
