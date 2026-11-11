@@ -1954,7 +1954,7 @@ extension RichLayout {
                 if !fits, !opening, squeezesSpaces || pageBox,
                    !(document.balancesSpaceWidth && eastAsianAt(a) && a > 0 && isSpace(units[a - 1])),
                    // (Korean, balanceSingleByteDoubleByteWidth, in a table cell: Word stretches, never squeezes, a space to take a Hangul syllable (15093019); in body text it squeezes, 107500a8 takes '기' at 0.46 em spaces.)
-                   !(RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && (inCell || !legacy && p.style.eastAsian["w:wordWrap"] == "0") && units[a ..< last].first(where: { !isSpace($0) }).map({ $0 >= 0xAC00 && $0 <= 0xD7A3 }) == true && !(legacy == false && a + 2 >= units.count && p.style.eastAsian["w:wordWrap"] == "0")),
+                   !(RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && (inCell || !legacy && p.style.eastAsian["w:wordWrap"] == "0" && isSpace(units[a])) && units[a ..< last].first(where: { !isSpace($0) }).map({ $0 >= 0xAC00 && $0 <= 0xD7A3 }) == true && !(legacy == false && a + 2 >= units.count && p.style.eastAsian["w:wordWrap"] == "0")),
                    // (And with wordWrap ON in a compat-15 cell Word never squeezes to take a last word that holds Hangul, even one that opens on a digit: lab ko-stop3 ww and leftww, tcW 7760-7960, 101 cases, never taken; 6건입니다.)
                    !(RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && inCell && !legacy && p.style.eastAsian["w:wordWrap"] != "0" && Self._koreanLastWord(units, a)),
                    !wordSpaces.isEmpty || (!(spaces + ownSpaces).isEmpty && units[a] != 0xFFFC && !isSpace(units[a])) {
