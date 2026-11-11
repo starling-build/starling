@@ -3596,6 +3596,16 @@ enum DocxFormat {
         // (A file with no settings at all, or no styles, is set by the
         // East Asian rules: Word reads it as one of its older documents.)
         if part("word/settings.xml") == nil { document.usesEastAsianLayout = true }
+        // (Kana in the body text, UTF-8 E3 81..83 xx: a Japanese document whatever its language tag says.)
+        do {
+            var kana = false
+            var prev: UInt8 = 0
+            for byte in docData {
+                if prev == 0xE3, byte >= 0x81, byte <= 0x83 { kana = true; break }
+                prev = byte
+            }
+            document.hasKana = kana
+        }
         if let table = part("word/fontTable.xml").flatMap(XNode.parse) {
             var charsets: [String: String] = [:]
             for font in table.all("w:font") {

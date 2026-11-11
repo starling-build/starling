@@ -1813,7 +1813,7 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
-                } else if theme.wordRules, RichTextTheme.wordWindowsPages, document.usesEastAsianLayout, !(document.eastAsiaLanguage.map { $0.hasPrefix("zh") || $0.hasPrefix("ko") } ?? false), p.style.eastAsian["w:wordWrap"] != "0",
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, document.usesEastAsianLayout, (document.hasKana || document.eastAsiaLanguage?.hasPrefix("ja") == true), p.style.eastAsian["w:wordWrap"] != "0",
                           let b = before, let bv = b.unicodeScalars.first?.value, let v = ch.unicodeScalars.first?.value,
                           Self._fullwidthOperatorHeld(bv, v) {
                     // (Word does not part a full-width ＝ or ＋ from the ASCII "(" or digit after it: jpn-z21601833-463426's

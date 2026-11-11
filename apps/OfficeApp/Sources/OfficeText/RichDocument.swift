@@ -2519,6 +2519,9 @@ public struct RichDocument: Hashable, Sendable {
     /// where `characterSpacingControl` compresses it, and two marks that
     /// stand together close up where the text kerns.
     public var usesEastAsianLayout = false
+    /// Whether the body text holds kana (hiragana or katakana): the text says the
+    /// document is Japanese when its language tag does not (en-US on Japanese text).
+    public var hasKana = false
     /// `w:doNotExpandShiftReturn`: a line that ends at a manual break is not stretched
     /// (Word stretches it under Thai distributed alignment otherwise; lab thd2 and thd3).
     public var doesNotExpandShiftReturn = false
