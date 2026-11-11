@@ -43,7 +43,7 @@ try { $app.Options.PrintComments = $true } catch {}
 if ($Warm) {
     try {
         [string]$w = [System.IO.Path]::GetFullPath($Warm)
-        [string]$wp = Join-Path $Out "__warm.part.pdf"
+        [string]$wp = Join-Path $Out "__warm.$PID.part.pdf"
         $d = $app.Documents.Open($w, $false, $true, $false, '', '', $true, '', '', 0, 0, $false)
         try { $d.ExportAsFixedFormat($wp, $wdExportFormatPDF) } finally { $d.Close(0) }
         Remove-Item -LiteralPath $wp -Force -ErrorAction SilentlyContinue
