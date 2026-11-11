@@ -1050,7 +1050,15 @@ extension RichLayout {
                     let wScale = RichTextTheme.wordWidthScale(run.horizontalScale ?? named?.char.horizontalScale ?? 1, wordRules: theme.wordRules,
                         eastAsiaFamily: run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily)
                     let lineSize = wScale > 0.01 ? size / wScale : size
-                    s = s.copyWith(ascentOverride: split.0 * lineSize, descentOverride: split.1 * lineSize, height: (m.0 + m.1) * multiple * lineSize / size, leadingDistribution: .even)
+                    // (A run that names Calibri takes Calibri's deeper descent (win 550/2048 = 0.2686 em) under the Nirmala line even where the line holds no Latin
+                    // letter: lab dpitch (Word, 12 pt): Calibri-named Devanagari lines are 16.2 pt, Arial- and Times-named 15.96. d912c25b p2.)
+                    var below = split.1
+                    if indic.face == "nirmala ui", theme.wordRules, RichTextTheme.wordWindowsPages,
+                       (run.fontFamily ?? named?.char.fontFamily ?? "").trimmingWhitespace().lowercased() == "calibri",
+                       (run.complexFontFamily ?? named?.char.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "calibri" {
+                        below = max(below, 550.0 / 2048 * multiple)
+                    }
+                    s = s.copyWith(ascentOverride: split.0 * lineSize, descentOverride: below * lineSize, height: (m.0 * multiple + (below == split.1 ? m.1 * multiple : below)) * lineSize / size, leadingDistribution: .even)
                 }
                 // (Latin letters in a run whose ascii face is Nirmala UI itself (Semilight too) beside Indic text are drawn in Nirmala, so they take its line and add no Latin
                 // stand-in's: dx2 426d1cc2's "l:f" in a Punjabi paragraph went 21.1 to 23.1 pt once the line was no longer held to one pitch.)
