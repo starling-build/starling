@@ -2036,6 +2036,20 @@ enum OfficeFonts {
     // embeds in word-win prints (majority of ~170 prints; ^ ` and a few bold glyphs no print used are estimates).
     /// Batang's and Dotum's Latin advances, space to ~, read from the hmtx of the subsets embedded in Word for Windows' prints
     /// (dx2 and new-b ko docs). Letters no subset held take Arial's width.
+    private static let batangSymbolAdvances: [UInt32: Double] = [
+        0x2013: 0.5000, 0x2015: 0.6875, 0x2017: 0.5000, 0x201A: 0.2920, 0x201B: 0.2920, 0x201E: 0.5000, 0x2020:
+        0.5938, 0x2021: 0.5869, 0x2022: 0.3750, 0x2032: 0.2646, 0x2033: 0.3916, 0x2039: 0.3311, 0x203A: 0.3311,
+        0x203C: 0.6250, 0x203E: 0.5000, 0x2044: 0.5000, 0x207F: 0.4326, 0x20A3: 0.6250, 0x20A4: 0.5488, 0x20A7:
+        0.6582, 0x20AC: 0.6738, 0x2105: 0.8877, 0x2113: 0.4189, 0x2126: 0.7188, 0x212E: 0.6729, 0x215B: 0.5625,
+        0x215C: 0.5625, 0x215D: 0.5303, 0x215E: 0.5625, 0x2191: 0.7500, 0x2193: 0.7500, 0x2195: 0.7500, 0x21A8:
+        0.7500, 0x2202: 0.5000, 0x2206: 0.6133, 0x220F: 0.7002, 0x2211: 0.8125, 0x2212: 0.8125, 0x2215: 0.3330,
+        0x2219: 0.2646, 0x221A: 0.5488, 0x221E: 0.9111, 0x221F: 0.9512, 0x2229: 0.6680, 0x222B: 0.4854, 0x2248:
+        0.7676, 0x2260: 0.8125, 0x2261: 0.8125, 0x2264: 0.8125, 0x2265: 0.8125, 0x2302: 0.5996, 0x2310: 0.8076,
+        0x2320: 0.6250, 0x2321: 0.5996, 0x2590: 0.5000, 0x25A0: 0.8896, 0x25A1: 0.8896, 0x25AA: 0.3750, 0x25AB:
+        0.3750, 0x25B2: 0.9141, 0x25BA: 0.7500, 0x25BC: 0.9141, 0x25C4: 0.7500, 0x25CA: 0.7744, 0x25E6: 0.3750,
+        0x263C: 0.9160, 0x2640: 0.7295, 0x2642: 0.6240, 0x2660: 0.7500, 0x2663: 0.8438, 0x2665: 0.7930, 0x2666:
+        0.7744, 0x266A: 0.6875, 0x266B: 0.7627
+    ]
     private static let batangAdvances: [Double] = [
         0.333, 0.312, 0.417, 0.556, 0.556, 0.855, 0.667, 0.250, 0.377, 0.377, 0.500, 0.833, 0.292, 0.625, 0.292,
         0.375, 0.596, 0.596, 0.596, 0.596, 0.596, 0.596, 0.596, 0.596, 0.596, 0.596, 0.333, 0.278, 0.625, 0.625,
@@ -2399,7 +2413,8 @@ enum OfficeFonts {
             // its prints; dbd695fe's Dotum "(이하 ‘표준’)" stood 0.6 pt narrow at each quote at Malgun's 0.228. A Korean face Word lacks
             // is drawn in Batang with its quotes in Malgun Gothic, at 0.228 and 0.38: 6a68f6ca's "(이하 ‘작가’)" -- the `case "batang"` fallback.)
             face.otherAdvances = [0x2018: 0.292, 0x2019: 0.292, 0x201C: 0.5, 0x201D: 0.5]
-            if n == "batang" || n == "바탕" { face.otherAdvances?[0x2027] = 1.0 }   // (U+2027 from PMingLiU, lab u2027)
+            if n == "batang" || n == "바탕" { face.otherAdvances?[0x2027] = 1.0 }
+            if n == "batang" || n == "바탕" { face.otherAdvances = batangSymbolAdvances.merging(face.otherAdvances ?? [:]) { $1 } }   // (Batang's own symbol advances, /data/corpus-cache/metrics/ko/Batang_Regular.tsv: ♣ 0.8438)   // (U+2027 from PMingLiU, lab u2027)
             return face
         }
         // (NanumGothic: Latin its own, Hangul 0.94 em (key U+AC00 of otherAdvances carries it for the Hangul rule),
