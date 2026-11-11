@@ -28,7 +28,7 @@ extension RichLayout {
         // origin is inside the margin, in a file that states a mode before 2013: lab `hang1`, mode 14,
         // Calibri 10pt, left; a letter never does. fas-z19537379 p5.)
         let latinStops = _latinStopsRule(latinOnly: latinOnly, document, p)
-        let balancedLatinPre = RichTextTheme.wordWindowsPages && theme.wordRules && document.balancesSpaceWidth && document.eastAsiaLanguage?.hasPrefix("zh") == true && p.cell == nil && p.style.alignment != .justify && document.compatibilityMode == nil
+        let balancedLatinPre = RichTextTheme.wordWindowsPages && theme.wordRules && document.balancesSpaceWidth && p.cell == nil && _leftLatinSqueezeScope(document, p)
         guard theme.wordRules, !latinOnly || latinStops || balancedLatinPre || ((document.compatibilityMode ?? 12) >= 15 && p.style.alignment == .justify),
               !p.style.rightToLeft || (latinOnly && RichTextTheme.wordWindowsPages && Self._squeezesRightToLeft(p.text)), p.text.utf16.count > 2 else { return [:] }
         let legacy = (document.compatibilityMode ?? 12) < 15
@@ -89,10 +89,9 @@ extension RichLayout {
         // paragraph without ideographs giving them costs bug57031 and
         // zh-d62da4dd lines.)
         let units = Array(p.text.utf16)
-        // (A left-aligned paragraph under the balance gives its Latin word spaces too, down to half, when that takes one more word:
+        // (A left-aligned paragraph under the balance gives its Latin word spaces too, down to half, when that takes one more word, below compat 15 (lab sqz2, SimSun: 16 words a line at none, 12 and 14, 15 at compat 15, same in en, ja and zh). PROVISIONAL scope: left-aligned, useFELayout, zh; centred zh-90e0cea8, Korean Malgun ecc32adb and plain Latin gv-f711169b, fra-g188 must NOT squeeze:
         // oxsdk-1c09b12993's notes, no jc, SimSun 10.5, spaces 5.28 on lines that end short and 2.52-4.7 on lines that end on the margin.)
-        let balancedLatinSqueeze = legacy && RichTextTheme.wordWindowsPages && theme.wordRules && document.balancesSpaceWidth && document.eastAsiaLanguage?.hasPrefix("zh") == true && !inCell && p.style.alignment != .justify
-            && document.compatibilityMode == nil
+        let balancedLatinSqueeze = legacy && RichTextTheme.wordWindowsPages && theme.wordRules && document.balancesSpaceWidth && !inCell && _leftLatinSqueezeScope(document, p)
         let squeezesSpaces = !legacy && p.style.alignment == .justify
             || legacy && fitted && units.contains(0x2060)
                 && !units.contains(where: { $0 >= 0x2E80 })
@@ -3476,5 +3475,13 @@ extension RichLayout {
             if u >= 0xAC00 && u <= 0xD7A3 { hangul = true }
         }
         return hangul
+    }
+
+    /// Where Word squeezes the spaces of a left-aligned Latin line (PROVISIONAL): left alignment only,
+    /// a file with useFELayout and a zh East Asian language, below compat 15 (none counts as below).
+    @inline(never)
+    func _leftLatinSqueezeScope(_ document: RichDocument, _ p: RichParagraph) -> Bool {
+        p.style.alignment == .left && document.usesEastAsianLayout == true
+            && document.eastAsiaLanguage?.hasPrefix("zh") == true && (document.compatibilityMode ?? 11) < 15
     }
 }
