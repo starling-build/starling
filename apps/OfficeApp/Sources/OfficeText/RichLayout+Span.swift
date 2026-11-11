@@ -1513,6 +1513,10 @@ extension RichLayout {
                             // (Latin letters and digits of a run that names its own Latin face are that face's, not stretched by the Indic scale:
                             // d912c25b's "(COVID-19)", Calibri 12, 54.7 pt in Word, 57.9 here.)
                             latinNoScale = !isIndic && run.fontFamily != nil && p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 }) && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
+                            // (A space between Devanagari words in a run whose ascii face is a Windows Latin face (Calibri, Arial): Word draws it in that face (Hindi only: the Gujarati table is not re-measured and b785c95e's lines were level only by luck) at the
+                            // run's size, 0.2256 em in Calibri; the Indic stretch (scaleX) belongs to the Devanagari glyphs only. d912c25b: 2.94 pt here, 2.76 in Word.)
+                            let asciiFace = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
+                            latinNoScale = !isIndic && theme.wordRules && RichTextTheme.wordWindowsPages && !piece.isEmpty && piece.allSatisfy({ $0 == " " }) && p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 }) && !asciiFace.isEmpty && !asciiFace.hasPrefix("nirmala ui") && WordWindowsFaces.names.contains(asciiFace)
                             let st = style(kind)
                             latinNoScale = false
                             plainPiece = false
