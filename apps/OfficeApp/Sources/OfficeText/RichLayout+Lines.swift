@@ -1762,16 +1762,19 @@ extension RichLayout {
             let startSet = Set(starts)
             func blank(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || u == 0x0A || u == 0x09 }
             func dash(_ k: Int) -> Bool { k >= 1 && units[k] == 0x2014 && units[k - 1] == 0x2014 }
+            // A Latin hyphen between two ASCII letters ("knife-edge") is a break of its own: Word breaks there and treats what follows as a new piece.
+            func hyph(_ k: Int) -> Bool { k >= 1 && k + 1 < units.count && units[k] == 0x2D && units[k - 1] < 0x80 && units[k - 1] != 0x20 && units[k + 1] < 0x80 && units[k + 1] != 0x20 }
             var add = Set<Int>()
             var k = 1
             while k < units.count {
                 // a piece starts after blanks or after a doubled dash
-                guard blank(units[k - 1]) || dash(k - 1) else { k += 1; continue }
+                guard blank(units[k - 1]) || dash(k - 1) || hyph(k - 1) else { k += 1; continue }
                 var a = k
                 while a < units.count, blank(units[a]) { a += 1 }
                 var end = a, han = false
                 while end < units.count, !blank(units[end]) {
                     if end > a, dash(end) { end += 1; break }
+                    if end > a, hyph(end) { end += 1; break }
                     if (0x3040 ... 0x30FF).contains(units[end]) || (0x3400 ... 0x9FFF).contains(units[end]) { han = true }
                     end += 1
                 }
@@ -1783,11 +1786,7 @@ extension RichLayout {
                     for (n, st) in starts.enumerated() where n + 1 < starts.count { room = max(room, em2(st, starts[n + 1])) }
                     fitsALine = em2(a, end) <= room
                 }
-                // (A piece holding a Latin hyphen ("knife-edge") has a break of its own: Word fills the line and breaks at the hyphen,
-                // not on a fresh line; jpn-z21601833-acd729 page 18, "※ 供給梯子…これはknife-|edgeの段…".)
-                var hyphenBreak = false
-                if end - a > 2 { for q in (a + 1) ..< (end - 1) where units[q] == 0x2D && units[q - 1] < 0x80 && units[q + 1] < 0x80 && units[q - 1] != 0x20 { hyphenBreak = true; break } }
-                if han, !fitsALine, !hyphenBreak, a > 0, !startSet.contains(a), starts.contains(where: { $0 > a && $0 < end }) {
+                if han, !fitsALine, a > 0, !startSet.contains(a), starts.contains(where: { $0 > a && $0 < end }) {
                     if !(_hanChunks[i] ?? []).contains(a) { add.insert(a); break }
                 }
                 k = max(end, k + 1)
