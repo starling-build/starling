@@ -1410,7 +1410,7 @@ extension RichLayout {
                     let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
                     let base = style(kind)
                     for (piece, isIndic) in Self._splitIndicLatin(text[start ..< end]) {
-                        if isIndic, authored > 0.5 {
+                                                if isIndic, authored > 0.5 {
                             var ws = piece.startIndex
                             while ws < piece.endIndex {
                                 var we = ws
@@ -1445,7 +1445,7 @@ extension RichLayout {
                     let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
                     let base = style(kind)
                     for (piece, isIndic) in Self._splitIndicLatin(text[start ..< end]) {
-                        if isIndic, authored > 0.5 {
+                                                if isIndic, authored > 0.5 {
                             // (Each word on its own, so the fitted letter spacing never reaches the spaces between words.)
                             var ws = piece.startIndex
                             while ws < piece.endIndex {
@@ -1466,7 +1466,11 @@ extension RichLayout {
                             }
                         } else {
                             plainPiece = !isIndic
+                            // (Latin letters and digits of a run that names its own Latin face are that face's, not stretched by the Indic scale:
+                            // d912c25b's "(COVID-19)", Calibri 12, 54.7 pt in Word, 57.9 here.)
+                            latinNoScale = !isIndic && run.fontFamily != nil && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
                             let st = style(kind)
+                            latinNoScale = false
                             plainPiece = false
                             if !isIndic, authored > 0.5, theme.wordRules, RichTextTheme.wordWindowsPages, piece.allSatisfy({ $0 == " " }), (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased().hasPrefix("nirmala ui"), Self._splitIndicLatin(text[start ..< end]).contains(where: { $0.1 }) {
                                 // (Spaces between the Devanagari words of a Nirmala UI run are Nirmala's own when the run's Latin (ascii) face is Nirmala too, 0.2739 em (bold 0.2759; in a run whose ascii face is Arial Word draws the space in Arial, 0.28 em: dx2 b785c95e, xd 1116b68d; lab/metrics/Nirmala_UI*.tsv, lab nirpitch3: Word 3.02 pt at 11 pt, the stand-in's 2.62).)
@@ -1484,7 +1488,7 @@ extension RichLayout {
                     // (Word builds each line from the tallest ascent and the deepest descent of the faces on it: the Latin, digits, spaces
                     // and marks between Nirmala UI's words are Arial's and carry no Nirmala line of their own.)
                     for (piece, isIndic) in Self._splitIndicLatin(text[start ..< end]) {
-                        plainPiece = !isIndic
+                                                plainPiece = !isIndic
                         latinNoScale = !isIndic && run.fontFamily != nil && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
                         let st = style(kind)
                         plainPiece = false
@@ -1986,7 +1990,8 @@ extension RichLayout {
                             // (A zero-width space before it gives the break the joiner would forbid back: after a space the word
                             // would not part from the line, and the engine cut words inside.)
                             // (Not after an opening bracket or quote: Word keeps "(श्रमदिन)" whole, and the space let the line end on the "(": 9baed400's header cell.)
-                            if let before, !"([{\u{2018}\u{201C}\u{FF08}".contains(before) {
+                            // (Nor after a Latin letter or digit with no space: Word keeps "…डीiseaseमल्टी…" whole, d912c25b.)
+                            if let before, !"([{\u{2018}\u{201C}\u{FF08}".contains(before), !(before.isASCII && (before.isLetter || before.isNumber)) {
                                 spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                                 inserts.append(offset)
                             }
