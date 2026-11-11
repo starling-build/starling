@@ -1783,7 +1783,11 @@ extension RichLayout {
                     for (n, st) in starts.enumerated() where n + 1 < starts.count { room = max(room, em2(st, starts[n + 1])) }
                     fitsALine = em2(a, end) <= room
                 }
-                if han, !fitsALine, a > 0, !startSet.contains(a), starts.contains(where: { $0 > a && $0 < end }) {
+                // (A piece holding a Latin hyphen ("knife-edge") has a break of its own: Word fills the line and breaks at the hyphen,
+                // not on a fresh line; jpn-z21601833-acd729 page 18, "※ 供給梯子…これはknife-|edgeの段…".)
+                var hyphenBreak = false
+                if end - a > 2 { for q in (a + 1) ..< (end - 1) where units[q] == 0x2D && units[q - 1] < 0x80 && units[q + 1] < 0x80 && units[q - 1] != 0x20 { hyphenBreak = true; break } }
+                if han, !fitsALine, !hyphenBreak, a > 0, !startSet.contains(a), starts.contains(where: { $0 > a && $0 < end }) {
                     if !(_hanChunks[i] ?? []).contains(a) { add.insert(a); break }
                 }
                 k = max(end, k + 1)
