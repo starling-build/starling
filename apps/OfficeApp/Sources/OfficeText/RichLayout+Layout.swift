@@ -1477,7 +1477,7 @@ extension RichLayout {
         // `ae`: a cell of 1720, 1985 or 2975pt of words sets its table as
         // one of 1580 does; zh-12f87285's descriptions, 4400pt unparted,
         // leave its 194 rows at the grid WPS saved, Word's own fit.)
-        if theme.wordRules, document.tableStyles[table]?.contentFit == true, document.compatibilityMode != nil || document.tableStyles[table]?.widthPercent != nil, _nestedCap == nil, !cells.isEmpty {
+        if theme.wordRules, document.tableStyles[table]?.contentFit == true, (document.compatibilityMode != nil || document.tableStyles[table]?.width == nil), _nestedCap == nil, !cells.isEmpty {
             let cap = _px(1580)
             var low = Array(repeating: 0.0, count: base.count), high = low
             for c in cells where c.span == 1 {
