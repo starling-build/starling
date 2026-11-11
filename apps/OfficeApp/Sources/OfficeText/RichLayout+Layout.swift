@@ -1501,18 +1501,7 @@ extension RichLayout {
                 high = zip(low, high).map { max($0, $1) }
                 let room = _contentFitRoom(table, base, document, ins.left + ins.right)
                 let narrowest = low.reduce(0, +), widest = high.reduce(0, +)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, document.compatibilityMode == nil, narrowest > room {
-                    // (Over-full: Word scales the whole-run minimums down together, each column keeping its own margins; lab atcol2.)
-                    let m = ins.left + ins.right
-                    let n = Double(low.count)
-                    if narrowest - m * n > 0, room - m * n > 0 {
-                        let f = (room - m * n) / (narrowest - m * n)
-                        low = low.map { m + ($0 - m) * f }
-                        high = zip(low, high).map { max($0, $1) }
-                    }
-                }
-                let narrowest2 = low.reduce(0, +)
-                let k = widest <= room ? 1 : narrowest2 >= room - 0.001 ? 0 : (room - narrowest2) / (widest - narrowest2)
+                let k = widest <= room ? 1 : narrowest >= room ? 0 : (room - narrowest) / (widest - narrowest)
                 // (Whole pixels: up where each is its widest, so that it
                 // still fits.)
                 let fitted = zip(low, high).map { k >= 1 ? ($1 - 0.001).rounded(.up) : ($0 + ($1 - $0) * k + 0.001).rounded(.down) }
@@ -1684,8 +1673,6 @@ extension RichLayout {
             let map = _OffsetMap(lead: 0, inserts: inserts)
             let percentStarts = _percentStarts(document)
             let pctWidthTable = p.cell.map { document.tableStyles[$0.table]?.widthPercent != nil } ?? false
-            let wholeRuns = theme.wordRules && RichTextTheme.wordWindowsPages && document.compatibilityMode == nil
-                && (p.cell.map { document.tableStyles[$0.table]?.contentFit == true } ?? false)
             // (And where `w:wordWrap` off parts a Latin word: zh-f2441f00's
             // 42.2pt column holds "平台(iC" / "ulture)" in Word's print,
             // its grid kept; ours measured "(iCulture)" whole and widened
@@ -1766,9 +1753,6 @@ extension RichLayout {
                 // page wide is held at it and Word parts the word inside its cell — xd 6e011101's Tamil columns stay at the grid: bede0fbc's "নাম:" + 154 dots, 508.7pt in
                 // Word's print, which widens its table to 519.6, ours measured "ম:" + the dots, 497.8, and parted the dots.)
                 else if theme.wordRules, Self._isIndicUnit(a), Self._isIndicUnit(b), !pctWidthTable { parts = false }
-                // (No compat mode, Word for Windows: a column's least width is its longest run between spaces, kept whole, ideographs and
-                // Latin alike: lab atcol2.)
-                else if wholeRuns { parts = false }
                 else { parts = !Self._glued(a, b, strict: Self._strictKinsoku(document)) }
                 if parts {
                     if start == 0 { first = piece(start, k) } else { m = max(m, piece(start, k)) }
