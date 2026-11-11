@@ -1418,7 +1418,8 @@ extension RichLayout {
     /// 25%); a width in twips is that width; otherwise the column plus margins.
     @inline(never)
     func _contentFitRoom(_ table: String, _ base: [Double], _ document: RichDocument, _ margins: Double) -> Double {
-        let flow = (_tableFlowWidth[table] ?? width) + margins
+        // (Compat 15 lines the cell TEXT up with the margin, so a share is of the column alone: atcol3c15 100% is 468.1, not 478.9.)
+        let flow = (_tableFlowWidth[table] ?? width) + ((document.compatibilityMode ?? 0) >= 15 && RichTextTheme.wordWindowsPages ? 0 : margins)
         guard let ts = document.tableStyles[table] else { return flow }
         if theme.wordRules, RichTextTheme.wordWindowsPages {
             if let pct = ts.widthPercent, pct > 0 { return flow * pct / 100 }
@@ -1504,7 +1505,12 @@ extension RichLayout {
                 let k = widest <= room ? 1 : narrowest >= room ? 0 : (room - narrowest) / (widest - narrowest)
                 // (Whole pixels: up where each is its widest, so that it
                 // still fits.)
-                let fitted = zip(low, high).map { k >= 1 ? ($1 - 0.001).rounded(.up) : ($0 + ($1 - $0) * k + 0.001).rounded(.down) }
+                // (A table that states its width and whose content fits is stretched to it, each column in
+                // proportion to its widest: lab atcol3 v5, three short cells, 159.6 each in every compat mode.)
+                let stated = document.tableStyles[table]?.widthPercent != nil || document.tableStyles[table]?.width != nil
+                let stretch = widest < room && widest > 0 && stated && RichTextTheme.wordWindowsPages
+                let fitted = stretch ? high.map { ($0 * room / widest + 0.001).rounded(.down) }
+                    : zip(low, high).map { k >= 1 ? ($1 - 0.001).rounded(.up) : ($0 + ($1 - $0) * k + 0.001).rounded(.down) }
                 if Self.debugAutofit {
                     let pt = theme.pixelsPerPoint * scale
                     FileHandle.standardError.write(Data("autofit \(table): content fit \(fitted.map { ($0 / pt * 10).rounded() / 10 })\n".utf8))
