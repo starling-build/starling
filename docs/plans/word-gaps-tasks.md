@@ -16015,3 +16015,4 @@ TIP WATCH amd-8, round 320 (971a9aa57, Word + dx2; 7781378f3 Malgun altName, ef8
 - Tried and dropped: a full ASCII table (digits 0.576, '-' 0.342, '.' 0.285, ',' 0.288, ':' 0.2826, '(' 0.345, ')' 0.342, '+' 0.604, '=' 0.6087). Through the size-compensated stand-in it printed digits at 6.92 pt (Word 6.36) and dropped 55850db1. Needs a hook that knows the stand-in scale before it can land.
 - Remaining gap: Word fits one more word on lines such as "छात्र–केंद्रित,"; first divergence page 2 line 3; positions elsewhere agree to 0.3 pt.
 - Next: measure our width of that line against Word's, glyph by glyph.
+- TIP WATCH amd-8, round 386 (a01f79cf4: 61b73fba0): Word sets no drops, unit 647 ok, web ok. dx2 up 0 down 0. Focus means: ko 96.1, ja 85.4, hi 86.0, bn 80.3.
