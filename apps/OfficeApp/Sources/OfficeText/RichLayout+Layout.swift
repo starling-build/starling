@@ -1421,7 +1421,8 @@ extension RichLayout {
         // (Compat 15 lines the cell TEXT up with the margin, so a share is of the column alone: atcol3c15 100% is 468.1, not 478.9.)
         let flow = (_tableFlowWidth[table] ?? width) + ((document.compatibilityMode ?? 0) >= 15 && RichTextTheme.wordWindowsPages ? 0 : margins)
         guard let ts = document.tableStyles[table] else { return flow }
-        if theme.wordRules, RichTextTheme.wordWindowsPages {
+        // (No compat mode: the share is not measured yet (lab atcol4 pending); the older room stands.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, document.compatibilityMode != nil {
             if let pct = ts.widthPercent, pct > 0 { return flow * pct / 100 }
             if let w = ts.width, w > 0 { return _px(w) }
         }
@@ -1476,7 +1477,7 @@ extension RichLayout {
         // `ae`: a cell of 1720, 1985 or 2975pt of words sets its table as
         // one of 1580 does; zh-12f87285's descriptions, 4400pt unparted,
         // leave its 194 rows at the grid WPS saved, Word's own fit.)
-        if theme.wordRules, document.tableStyles[table]?.contentFit == true, _nestedCap == nil, !cells.isEmpty {
+        if theme.wordRules, document.tableStyles[table]?.contentFit == true, document.compatibilityMode != nil || document.tableStyles[table]?.widthPercent != nil, _nestedCap == nil, !cells.isEmpty {
             let cap = _px(1580)
             var low = Array(repeating: 0.0, count: base.count), high = low
             for c in cells where c.span == 1 {
@@ -1508,7 +1509,7 @@ extension RichLayout {
                 // (A table that states its width and whose content fits is stretched to it, each column in
                 // proportion to its widest: lab atcol3 v5, three short cells, 159.6 each in every compat mode.)
                 let stated = document.tableStyles[table]?.widthPercent != nil || document.tableStyles[table]?.width != nil
-                let stretch = widest < room && widest > 0 && stated && RichTextTheme.wordWindowsPages
+                let stretch = widest < room && widest > 0 && stated && RichTextTheme.wordWindowsPages && document.compatibilityMode != nil
                 let fitted = stretch ? high.map { ($0 * room / widest + 0.001).rounded(.down) }
                     : zip(low, high).map { k >= 1 ? ($1 - 0.001).rounded(.up) : ($0 + ($1 - $0) * k + 0.001).rounded(.down) }
                 if Self.debugAutofit {
