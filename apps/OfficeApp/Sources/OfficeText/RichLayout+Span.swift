@@ -1802,6 +1802,15 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, document.usesEastAsianLayout, document.eastAsiaLanguage?.hasPrefix("ja") == true, p.style.eastAsian["w:wordWrap"] != "0",
+                          let b = before, let bv = b.unicodeScalars.first?.value, let v = ch.unicodeScalars.first?.value,
+                          Self._fullwidthOperatorHeld(bv, v) {
+                    // (Word does not part a full-width ＝ or ＋ from the ASCII "(" or digit after it: jpn-z21601833-463426's
+                    // "＝(" and lab eqparen; the engine breaks there as it does between ideograph and opening bracket.)
+                    RuleTrace.hit("fullwidth-operator-held")
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 } else if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.eastAsian["w:wordWrap"] != "0", let b = before, b.isASCII, b.isLetter || b.isNumber,
                           let v = ch.unicodeScalars.first?.value, v >= 0xAC00, v <= 0xD7A3 {
                     // (A Latin letter or digit holds the Hangul that follows it, no space between: Word carries

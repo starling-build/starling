@@ -3157,7 +3157,7 @@ extension RichLayout {
         guard wordRules, RichTextTheme.wordWindowsPages, p.style.eastAsian["w:wordWrap"] != "0" else { return [] }
         var out = Set<Int>()
         let tokens = _koreanTokenJoins(units)
-        for o in inserts where o > 0 && o < units.count && (_hangulHeldPair(UInt32(units[o - 1]), UInt32(units[o])) || tokens.contains(o)) { out.insert(o) }
+        for o in inserts where o > 0 && o < units.count && (_hangulHeldPair(UInt32(units[o - 1]), UInt32(units[o])) || _fullwidthOperatorHeld(UInt32(units[o - 1]), UInt32(units[o])) || tokens.contains(o)) { out.insert(o) }
         return out
     }
 
@@ -3181,6 +3181,10 @@ extension RichLayout {
         }
         close(units.count)
         return out
+    }
+
+    static func _fullwidthOperatorHeld(_ a: UInt32, _ b: UInt32) -> Bool {
+        (a == 0xFF1D || a == 0xFF0B) && (b == 0x28 || (b >= 0x30 && b <= 0x39))
     }
 
     static func _hangulHeldPair(_ a: UInt32, _ b: UInt32) -> Bool {
