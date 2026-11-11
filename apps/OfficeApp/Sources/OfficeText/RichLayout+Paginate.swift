@@ -3497,6 +3497,14 @@ extension RichLayout {
                     }
                 }
             }
+            // (A section of fewer columns than the slot it would continue in,
+            // when the columns above were not balanced: it starts on the
+            // next page's first column, never in a later column slot, where
+            // it would paint a column to the right.)
+            if _perSection, theme.wordRules, !balancedHere, i > 0, i < _sectionOf.count, _sectionOf[i] != _sectionOf[i - 1],
+               resumeCursor == nil, _columnsOf(paragraph: i) < _columns, page % _columns >= _columnsOf(paragraph: i) {
+                repeat { newPage() } while page % _columns >= _columnsOf(paragraph: i)
+            }
             // (A section of columns that starts partway down a page: its
             // columns start there, the second under the first's top, not
             // at the page's.)
