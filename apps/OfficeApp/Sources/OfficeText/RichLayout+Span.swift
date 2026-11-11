@@ -919,10 +919,10 @@ extension RichLayout {
                        (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "kokila" {
                         return ("kokila", 1)
                     }
-                    // (A run of Bengali digits and marks only, in a face Windows lacks (Nikosh, Kalpurush...): Word draws it in Nirmala UI, so the digits take
+                    // (A run of Bengali characters with no letter (digits, signs, marks), in a face Windows lacks (Nikosh, Kalpurush...): Word draws it in Nirmala UI, so the digits take
                     // Nirmala's own advances from the table; 2263e221's "\u{9EE}" is 8.35 pt in Word, 6.5 in the stand-in.)
-                    if text.unicodeScalars.contains(where: { $0.value >= 0x9E6 && $0.value <= 0x9EF }),
-                       !text.unicodeScalars.contains(where: { $0.value < 0x9E6 && $0.value >= 0x900 && $0.value != 0x964 && $0.value != 0x965 }),
+                    if text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF }),
+                       !text.unicodeScalars.contains(where: { ($0.value < 0x980 && $0.value >= 0x900 && $0.value != 0x964 && $0.value != 0x965) || $0.value >= 0xA00 && Self._isIndic($0.value) }),
                        !["mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "utsaah", "shonar bangla", "kohinoor bangla", "kalimati", "latha", "vijaya"].contains(
                         (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()) {
                         RuleTrace.hit("word-bengali-digits-only-run-in-a-missing-face-is-nirmala")
