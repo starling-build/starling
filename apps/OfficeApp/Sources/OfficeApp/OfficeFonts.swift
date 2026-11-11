@@ -1660,6 +1660,10 @@ enum OfficeFonts {
     /// Mangal's ASCII advances (em), 0 where no print's subset holds the glyph yet: Word draws the Latin of a Nikosh run (Windows lacks Nikosh)
     /// in Mangal, whose dot is 0.2876 against Carlito's 0.2524 (bede0fbc: every dotted leader line ran short). hmtx of the subsets in dx2's prints.
     static let nikoshAdvances: [Double] = [0.5, 0.2876, 0.3672, 0, 0, 0, 0, 0, 0.3447, 0.3447, 0, 0.6045, 0.2876, 0.3447, 0.2876, 0.2876, 0.5757, 0.5757, 0.5757, 0.5757, 0.5757, 0.5757, 0.5757, 0.5757, 0.5757, 0.5757, 0.2876, 0.2876, 0, 0.6045, 0, 0.5757, 0, 0, 0.6914, 0, 0, 0, 0, 0, 0, 0.2881, 0, 0, 0, 0.8638, 0.748, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.2876, 0, 0.2876, 0, 0.5713, 0, 0, 0, 0, 0.5762, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.3447, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    /// Mangal's own ASCII advances (em), U+0020-007E: the median over every Mangal-embedding Word print (n >= 5, sd < 0.012; the rest as nikoshAdvances,
+    /// 0 where no print holds the glyph). Word draws the digits, marks and space of a run whose Latin face is Mangal in it: digit 0.576 against the
+    /// stand-in's 0.556, hyphen 0.342, full stop 0.285 (the space stays with mangalLatinSpace).
+    static let mangalAdvances: [Double] = [0.0000, 0.2876, 0.3720, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.3450, 0.3420, 0.0000, 0.6040, 0.2880, 0.3420, 0.2850, 0.2830, 0.5761, 0.5760, 0.5760, 0.5760, 0.5760, 0.5760, 0.5760, 0.5760, 0.5760, 0.5761, 0.2826, 0.2900, 0.0000, 0.6087, 0.0000, 0.5761, 0.0000, 0.0000, 0.6914, 0.7480, 0.7480, 0.0000, 0.0000, 0.0000, 0.0000, 0.2881, 0.0000, 0.0000, 0.0000, 0.8640, 0.7480, 0.0000, 0.6910, 0.0000, 0.0000, 0.6910, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.2876, 0.0000, 0.2876, 0.0000, 0.5713, 0.0000, 0.5760, 0.0000, 0.5180, 0.5683, 0.5790, 0.0000, 0.0000, 0.5760, 0.2360, 0.0000, 0.5217, 0.2390, 0.8600, 0.5760, 0.5755, 0.5790, 0.0000, 0.3490, 0.5180, 0.2880, 0.0000, 0.5227, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000]
     static let tahomaAdvances: [Double] = [
         0.3125, 0.3320, 0.4014, 0.6289, 0.6289, 1.0054, 0.7542, 0.2159, 0.3828, 0.3828, 0.4400, 0.6603, 0.3027, 0.3633, 0.3027,
         0.3823, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.5459, 0.3535, 0.3142, 0.6603, 0.6603,
@@ -3595,6 +3599,13 @@ enum OfficeFonts {
                 face.baseline = 0.984
                 // (The line is the face's own hhea 984+273 over 1000, read from Word's subsets: lab c53, Word's Source Sans lines are 0.43 pt taller than the stand-in's at 12 pt; the 1 pt that 17a0d0c7 once showed is its line-break-first paragraph, see the board.)
                 RuleTrace.hit("source-sans-pro-own-widths")
+            }
+            // (Mangal itself: its ASCII digits and marks, and the en dash, ellipsis and right quote, at its own advances; 2db27e2d's en dash is
+            // 3.36 pt at 11 pt in Word's print, the stand-in's 6.12.)
+            if wordOnWindows, family.trimmingWhitespace().lowercased() == "mangal" {
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging([0x2013: 0.3043, 0x2019: 0.2283, 0x2026: 0.585]) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging([0x2013: 0.3043, 0x2019: 0.2283, 0x2026: 0.585]) { $1 }
+                RuleTrace.hit("mangal-ascii-own-widths")
             }
             // (Nikosh, which Windows lacks, is drawn in Mangal: its ASCII punctuation and digits at Mangal's advances.)
             if wordOnWindows, family.trimmingWhitespace().lowercased() == "nikosh" {
