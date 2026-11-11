@@ -891,7 +891,6 @@ extension RichLayout {
             let aumsLatin: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && document.readFromFile && document.fontCharsets["arial unicode ms"] == "80"
                 && (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
                 && !p.text.unicodeScalars.contains(where: { Self._isIndic($0.value) || Self._tamil.contains($0.value) || $0.value >= 0x2E80 })
-                && !_documentHasIndic(document)
             // (Arial Unicode MS in an Indic paragraph, a run with no w:cs: its Latin, digits and marks take the ascii slot, which Word lacks and draws
             // in Yu Gothic, whose line every such run sets whatever it holds; lab aumsy2 (2026-11-09): at 9 pt the steps are 12.8 into and 14.2 out of
             // a Nirmala line, for GST, commas, brackets, dots, digits, "**", regular and bold. fb94294e.)
@@ -1973,7 +1972,7 @@ extension RichLayout {
                 // and digits in Yu Gothic and the Hangul in Malgun Gothic, so a line holding one takes Yu Gothic's deeper descent: 19.2 pt steps at 10 pt
                 // against 18.5. Each face drawn on a line feeds its own ascent and descent into the line's max.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, u >= 0x20, u < 0x250, ch.unicodeScalars.count == 1,
-                   !(before.map { ($0.unicodeScalars.first?.value ?? 0x3000) < 0x250 } ?? false), _yuLatinOfMissingHangulFace(run, named, document), !document.hasIndicText {
+                   !(before.map { ($0.unicodeScalars.first?.value ?? 0x3000) < 0x250 } ?? false), _yuLatinOfMissingHangulFace(run, named, document), !document.hasIndicText, !aumsLatin {
                     if devanagariStyles["missingHangulYu"] == nil {
                         devanagariStyles["missingHangulYu"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: Self._indicLines["malgun gothic"]!.0, descent: 0.492)?.copyWith(debugLabel: "yu-joiner")
                     }
