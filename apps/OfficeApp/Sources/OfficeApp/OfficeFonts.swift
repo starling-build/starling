@@ -3426,6 +3426,14 @@ enum OfficeFonts {
             RuleTrace.hit("missing-latin-face-charset-80-is-yu-gothic")
             return standInFace("Yu Gothic", eastAsian: false)
         }
+        // (A Latin-named East Asian face Word for Windows lacks, with no font-table entry ("Noto Sans CJK JP"): Word draws
+        // its Latin-only lines in Cambria, line 1.172 em, while its ideographs stay MS Mincho's. Taken for Mincho throughout,
+        // jpn-z20806225-930d98's Latin lines stepped 15.0 where Word's print steps 13.5, and the document ran a page long.)
+        if wordOnWindows, own, !eastAsian, !isEmbedded(family), fontEntry(family) == nil,
+           family.unicodeScalars.allSatisfy({ $0.isASCII }), windowsMissingFallback(family) == "mincho" {
+            RuleTrace.hit("missing-latin-named-ea-face-latin-lines-are-cambria")
+            return standInFace("Cambria", eastAsian: false)
+        }
         guard own || eastAsian else {
             // (A Latin-named face Word for Windows lacks, whose font-table
             // entry says charset 80 (Shift-JIS) and alternate Times New

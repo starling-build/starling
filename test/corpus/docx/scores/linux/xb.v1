@@ -1,4 +1,4 @@
-188 documents: mean 66.7% of Word's lines matched, median 88.0%; 67 at 95% or more, 127 at half or more; 163 with Word's page count
+188 documents: mean 67.0% of Word's lines matched, median 90.7%; 69 at 95% or more, 127 at half or more; 164 with Word's page count
     1.1%  lines 472/547  pages 14/15  heb-z17544993-944544
     1.1%  lines 90/72  pages 4/3  fas-z22832287-ac7399
     1.1%  lines 88/104  pages 10/9  fas-z14957015-3a9879
@@ -65,7 +65,6 @@
    51.7%  lines 29/27  pages 6/6  docx-837e72c4
    56.8%  lines 227/228  pages 7/7  hin-z20459061-8ec51c
    57.7%  lines 452/450  pages 17/17  jpn-z19433747-8787f4
-   58.2%  lines 268/269  pages 7/8  jpn-z20806225-930d98
    60.9%  lines 483/466  pages 19/19  docx-bff1c672
    61.2%  lines 1198/1201  pages 37/37  jpn-z21601833-acd729
    64.1%  lines 181/186  pages 9/9  nld-z22251521-8c1881
@@ -73,7 +72,6 @@
    64.7%  lines 224/232  pages 14/14  docx-a3f77cda
    66.4%  lines 822/821  pages 18/18  ell-z10407270-89615d
    68.1%  lines 119/114  pages 4/4  docx4j-1e349e20
-   69.9%  lines 136/136  pages 4/4  jpn-z20806500-dacd38
    72.9%  lines 181/183  pages 6/6  hin-z20395056-4ee329
    74.9%  lines 959/959  pages 19/20  fra-g156-5d636a
    75.6%  lines 123/121  pages 16/16  docx-a567c5c2
@@ -96,6 +94,7 @@
    88.4%  lines 776/780  pages 28/28  por-z1326468-80d0e5
    90.1%  lines 202/203  pages 5/5  ell-z10161459-ec79d6
    91.2%  lines 91/91  pages 7/7  kor-z15852510-c9baf7
+   91.4%  lines 268/268  pages 7/7  jpn-z20806225-930d98
    92.0%  lines 1089/1087  pages 33/33  jpn-z21601833-4e6465
    92.7%  lines 329/329  pages 13/13  jpn-z23845932-12d9fb
    93.4%  lines 774/778  pages 38/38  jpn-z19135939-3f592b
@@ -114,7 +113,6 @@
    93.8%  lines 224/224  pages 14/14  docx-f32aa559
    94.1%  lines 221/221  pages 13/13  docx-7e68ac6f
    94.1%  lines 17/17  pages 1/1  docx4j-198f9895
-   94.3%  lines 53/53  pages 2/2  jpn-z20019250-7084b9
    94.6%  lines 428/419  pages 12/12  jpn-z23002680-1e9281
    94.6%  lines 428/419  pages 12/12  jpn-z23002680-ec6c96
    94.7%  lines 767/767  pages 20/20  ell-z10407038-6c5718
@@ -165,6 +163,8 @@
   100.0%  lines 135/135  pages 7/7  jpn-z19363276-f9df5b
   100.0%  lines 110/110  pages 7/7  jpn-z19372928-8e85ed
   100.0%  lines 130/130  pages 7/7  jpn-z19410533-d8cc8f
+  100.0%  lines 53/53  pages 2/2  jpn-z20019250-7084b9
+  100.0%  lines 136/136  pages 4/4  jpn-z20806500-dacd38
   100.0%  lines 122/122  pages 4/4  jpn-z21095281-ed642d
   100.0%  lines 250/250  pages 11/11  jpn-z21461406-0d8cbc
   100.0%  lines 282/282  pages 11/11  jpn-z22667840-bc5fb7
