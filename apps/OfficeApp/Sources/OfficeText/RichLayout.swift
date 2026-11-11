@@ -741,7 +741,9 @@ public final class RichTextTheme {
         // 標楷體, is 6.5pt in its print and raised 6.5, where ours set 8.45
         // and 4.6: see `baselineShift`.)
         let scriptRatio = wordRules && RichTextTheme.wordWindowsPages && style.script != .normal
-            && (eastAsian || face?.isEastAsian == true) ? 0.5 : 0.65
+            && (eastAsian || face?.isEastAsian == true)
+            // (Meiryo says 65% like a Latin face: 934bd3e5's "３" in 10.5pt Meiryo Bold is 7.0pt in its print.)
+            && !(familyName.map { $0.lowercased().containsSubstring("meiryo") || $0.containsSubstring("メイリオ") } ?? false) ? 0.5 : 0.65
         if style.unseen { color = color.withOpacity(1.0 / 255) }
         if style.hidden || ((named?.char.hidden ?? false) && !style.hidden) {
             // Hidden text takes no room and shows nothing, as Word prints it;
