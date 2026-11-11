@@ -931,6 +931,17 @@ extension RichLayout {
                         RuleTrace.hit("word-bengali-digits-only-run-in-a-missing-face-is-nirmala")
                         return ("nirmala ui", 1)
                     }
+                    // (A run of only a danda in a missing face, in a paragraph of Devanagari or Bengali: Word draws it in Nirmala UI, 3.89 pt at 9 pt, where the
+                    // stand-in's Bengali danda is 3.41; lab dnd1: the lone "।" stays on line 2 in ours at indent 0 where Word's wraps it.)
+                    if text.unicodeScalars.contains(where: { $0.value == 0x964 || $0.value == 0x965 }),
+                       !text.unicodeScalars.contains(where: { $0.value != 0x964 && $0.value != 0x965 && $0.value != 0x20 }),
+                       p.text.unicodeScalars.contains(where: { $0.properties.isAlphabetic && ($0.value >= 0x900 && $0.value <= 0x97F) }),
+                       !p.text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF }),
+                       !["mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "utsaah", "shonar bangla", "kohinoor bangla", "kalimati", "latha", "vijaya"].contains(
+                        (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()) {
+                        RuleTrace.hit("word-danda-only-run-in-a-missing-face-is-nirmala")
+                        return ("nirmala ui", 1)
+                    }
                     if let named = _namedMetricFace(run, named, document, text) {
                         RuleTrace.hit("word-run-with-no-indic-letters-takes-the-line-of-the-face-it-names")
                         return (named, 1)
