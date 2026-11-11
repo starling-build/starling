@@ -2958,6 +2958,14 @@ extension RichLayout {
                     let s = style(kind)
                     var mark = (extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s).copyWith(fontFamily: cjk)
                     mark = mark.copyWith(letterSpacing: (mark.letterSpacing ?? 0) + max(0, em - _glyphWidth(mark, ch)))
+                    // (A line holding it is MS Mincho's: 1.2969 em, split 0.859 / 0.141 as the face's own ascent and descent, in the 463426 print.)
+                    if devanagariStyles["eaMark"] == nil {
+                        devanagariStyles["eaMark"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: 0.859 * 1.2969, descent: 0.141 * 1.2969)
+                    }
+                    if let joiner = devanagariStyles["eaMark"] ?? nil {
+                        spans.append(TextSpan(text: "\u{2060}", style: joiner))
+                        inserts.append(offset)
+                    }
                     spans.append(TextSpan(text: String(ch), style: mark))
                     start = after
                 } else if ea, theme.wordRules, ch == "\u{02D9}" {
