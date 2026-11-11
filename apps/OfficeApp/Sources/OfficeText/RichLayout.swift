@@ -1198,6 +1198,27 @@ public struct PageSetup: Hashable, Sendable {
     public var contentHeight: Double { height - marginTop - marginBottom }
     public var isLandscape: Bool { width > height }
 
+    /// The section writes its text top to bottom, columns from the right
+    /// (`w:textDirection` tbRl/tbRlV). Everything in this setup is then the
+    /// TRANSPOSED page the layout works in (a line runs along the physical
+    /// height, the lines stack across the physical width); `transposed()`
+    /// gives the paper back.
+    public var vertical = false
+
+    /// The page turned a quarter: width and height swap, and the margins go
+    /// round with it (physical top becomes the line's start, physical right
+    /// the first column's edge). Its own inverse.
+    public func transposed() -> PageSetup {
+        var p = self
+        p.width = height
+        p.height = width
+        p.marginLeft = marginTop
+        p.marginRight = marginBottom
+        p.marginTop = marginRight
+        p.marginBottom = marginLeft
+        return p
+    }
+
     public func rotated() -> PageSetup {
         var p = self
         swap(&p.width, &p.height)

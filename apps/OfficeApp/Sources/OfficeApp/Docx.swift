@@ -3567,7 +3567,7 @@ enum DocxFormat {
                 // linesAndChars with no charSpace, sets 27 of 16pt in a
                 // 442pt column in Word's print, where ours squeezed three
                 // marks for a 28th. A hair stands for none.)
-                if grid["w:type"] == "linesAndChars" {
+                if grid["w:type"] == "linesAndChars" || (grid["w:type"] == "snapToChars" && ["tbRl", "tbRlV"].contains(sect.first("w:textDirection")?["w:val"] ?? "")) {
                     let space = Double(grid["w:charSpace"] ?? "") ?? 0
                     document.characterGridSpace = space != 0 ? space / 4096 : 1e-6
                 }
@@ -5038,12 +5038,17 @@ enum DocxFormat {
             if let type = grid["w:type"], type == "lines" || type == "linesAndChars", let pitch = Double(grid["w:linePitch"] ?? ""), pitch > 0 {
                 setup.lineGridPitch = pitch / 20
             }
-            if grid["w:type"] == "linesAndChars" {
+            if grid["w:type"] == "linesAndChars" || (grid["w:type"] == "snapToChars" && ["tbRl", "tbRlV"].contains(sect.first("w:textDirection")?["w:val"] ?? "")) {
                 let space = Double(grid["w:charSpace"] ?? "") ?? 0
                 setup.characterGridSpace = space != 0 ? space / 4096 : 1e-6
             }
         }
         if let notes { setup.headerWrapLeft = _headerWrapLeft(sect, setup, notes) }
+        // (Text top to bottom: laid out in the turned page; see `PageSetup.vertical`.)
+        if let d = sect.first("w:textDirection")?["w:val"], d == "tbRl" || d == "tbRlV" {
+            setup = setup.transposed()
+            setup.vertical = true
+        }
         return setup
     }
 
@@ -8798,6 +8803,7 @@ enum DocxFormat {
         }
         // WordprocessingML wants a paragraph between a table and the section end.
         if doc.paragraphs.last?.cell != nil { body += "<w:p/>" }
+        let pageSetup = pageSetup.vertical ? pageSetup.transposed() : pageSetup
         let pw = Int(pageSetup.width * 20), ph = Int(pageSetup.height * 20)
         body += "<w:sectPr>"
         // Kept header/footer parts: the default ones only while their text

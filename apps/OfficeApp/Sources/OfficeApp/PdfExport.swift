@@ -70,10 +70,18 @@ enum PdfExport {
         for p in 0 ..< layout.pageCount {
             let rect = layout.pageRect(p)
             // (Each page at its own section's size.)
-            let pageSetup = layout.pageSetup(forPage: p)
+            var pageSetup = layout.pageSetup(forPage: p)
+            // (A vertical section is laid out in the turned page; the paper
+            // is the other way round and the page is turned back onto it.)
+            let vertical = pageSetup.vertical
+            if vertical { pageSetup = pageSetup.transposed() }
             let recorder = NativePictureRecorder()
             let canvas = NativeCanvas(recorder: recorder,
                                       cullRect: Rect.fromLTWH(0, 0, pageSetup.width, pageSetup.height))
+            if vertical {
+                canvas.translate(pageSetup.width, 0)
+                canvas.rotate(Double.pi / 2)
+            }
             if let markup {
                 let frame = MarkupFrame(pageSetup)
                 let pane = Paint()
