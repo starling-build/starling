@@ -4063,6 +4063,9 @@ enum OfficeFonts {
             face.advances = [Double](repeating: 0.5, count: 95)
             face.boldAdvances = [Double](repeating: 0.5, count: 95)
         }
+        // (Fixed half-em Latin: a table of 0.5s, or FangSong's drawn-width stand-in above; lab sqz4 squeezes spaces only in these.)
+        face.fixedHalfLatin = (face.advances.map { !$0.isEmpty && $0.allSatisfy { abs($0 - 0.5) < 1e-6 } } ?? false)
+            || (fangsong && ["仿宋", "fangsong"].contains(where: { family.lowercased().containsSubstring($0) }) && ea.latin == mono && ea.latinAdvances == nil)
         face.kerns = ea.latinKerns
         face.boldKerns = ea.latinBoldKerns
         face.symbolFamily = ea.symbols

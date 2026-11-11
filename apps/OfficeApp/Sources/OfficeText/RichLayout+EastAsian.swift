@@ -3485,7 +3485,8 @@ extension RichLayout {
     @inline(never)
     func _leftLatinSqueezeScope(_ document: RichDocument, _ p: RichParagraph) -> Bool {
         guard p.style.alignment == .left, (document.compatibilityMode ?? 11) < 15 else { return false }
-        let face = p.runs.first?.style.fontFamily ?? _named(p, document)?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily
-        return RichTextTheme._wordGBSystemFace((face ?? "").lowercased())
+        guard let face = p.runs.first?.style.fontFamily ?? _named(p, document)?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily else { return false }
+        // (A face property, not a name: Word squeezes where the Latin is fixed at half an em, lab sqz4.)
+        return theme.faceResolver?(face, false)?.fixedHalfLatin == true
     }
 }

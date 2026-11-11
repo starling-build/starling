@@ -943,6 +943,8 @@ public struct RichResolvedFace: Sendable {
     /// a scaled sans's .711.
     public var advances: [Double]? = nil
     public var boldAdvances: [Double]? = nil
+    /// The face's Latin is fixed at half an em a character (SimSun, FangSong, KaiTi, MS Mincho and Gothic, the -Che faces), not proportional.
+    public var fixedHalfLatin = false
     /// Its italic's and bold italic's, where the face has them and they
     /// differ from the regular's and bold's (nil: those are used).
     public var italicAdvances: [Double]? = nil
