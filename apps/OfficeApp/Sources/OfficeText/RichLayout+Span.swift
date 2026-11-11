@@ -1990,8 +1990,8 @@ extension RichLayout {
                             // (A zero-width space before it gives the break the joiner would forbid back: after a space the word
                             // would not part from the line, and the engine cut words inside.)
                             // (Not after an opening bracket or quote: Word keeps "(श्रमदिन)" whole, and the space let the line end on the "(": 9baed400's header cell.)
-                            // (Nor after a Latin letter or digit with no space: Word keeps "…डीiseaseमल्टी…" whole, d912c25b.)
-                            if let before, !"([{\u{2018}\u{201C}\u{FF08}".contains(before), !(before.isASCII && (before.isLetter || before.isNumber)) {
+                            // (Nor after a Latin letter or digit with no space: Word keeps "…डीiseaseमल्टी…" whole, d912c25b; Devanagari only, Bengali ben-z17281487 drops with it.)
+                            if let before, !"([{\u{2018}\u{201C}\u{FF08}".contains(before), !(before.isASCII && (before.isLetter || before.isNumber) && u >= 0x900 && u < 0x980) {
                                 spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                                 inserts.append(offset)
                             }
