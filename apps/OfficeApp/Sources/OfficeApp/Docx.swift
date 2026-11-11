@@ -5009,6 +5009,14 @@ enum DocxFormat {
             // 21.25pt apart — Word's 36pt default made each 7.4pt narrower
             // and its questions wrap a line early.)
             if let space = Double(cols["w:space"] ?? cols.first("w:col")?["w:space"] ?? "") { setup.columnGap = space / 20 }
+            // (Unequal columns keep each one's own width and gap: Word sets
+            // 28abf02c's two at 288 and 225pt, from the section's own margin.)
+            if setup.columns > 1, ["0", "false", "off"].contains(cols["w:equalWidth"] ?? "") {
+                let own = cols.all("w:col")
+                if own.count == setup.columns {
+                    setup.columnSpec = own.map { ColumnSpan(width: (Double($0["w:w"] ?? "") ?? 0) / 20, gap: (Double($0["w:space"] ?? "") ?? 0) / 20) }
+                }
+            }
         }
         // (A right-to-left section sets its columns from the right: its first
         // column is the rightmost, lo-998868b6's "RTL 1".)

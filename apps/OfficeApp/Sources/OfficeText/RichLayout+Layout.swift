@@ -684,6 +684,10 @@ extension RichLayout {
                             }
                         }
                     }
+                    if _setup(ofParagraph: k).columnSpec != nil {
+                        let end = k + 1 < _pieceStart.count ? _pieceStart[k + 1] : _allPieces.count
+                        want += _specInsetBoxes(k, _allPieces[_pieceStart[k] ..< min(end, _allPieces.count)])
+                    }
                     if want.isEmpty, _colWrap[k] == nil { continue }
                     if let old = _colWrap[k], old.count == want.count, zip(old, want).allSatisfy({ abs($0.top - $1.top) < 0.5 && abs($0.bottom - $1.bottom) < 0.5 && abs($0.left - $1.left) < 0.5 && abs($0.right - $1.right) < 0.5 }) { continue }
                     _colWrap[k] = want.isEmpty ? nil : want
@@ -2593,9 +2597,9 @@ extension RichLayout {
         // lo-ff3b52d1's second section, 87.9pt after a first of 90.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, !_mirrorsMargins, s.marginLeft != pageSetup(forPage: page).marginLeft {
             RuleTrace.hit("continuous-section-columns-from-its-own-margin")
-            return _px(s.marginLeft + s.gutter) + Double(column) * _px(s.columnWidth + s.columnGap)
+            return _px(s.marginLeft + s.gutter) + _px(s.columnOffset(column))
         }
-        return _pxMarginLeft(page) + Double(column) * _px(s.columnWidth + s.columnGap)
+        return _pxMarginLeft(page) + _px(s.columnOffset(column))
     }
     func _pxColumnW(_ page: Int) -> Double { _px(pageSetup(forPage: page).columnWidth) }
     func _pxColumnStride(_ page: Int) -> Double {
@@ -2629,6 +2633,24 @@ extension RichLayout {
     func _setup(ofParagraph i: Int) -> PageSetup {
         guard i >= 0, i < _sectionOf.count, _sectionOf[i] < _sectionSetups.count else { return pageSetup ?? .letter }
         return _sectionSetups[_sectionOf[i]]
+    }
+
+    /// Unequal-width columns (`w:equalWidth` 0): text wraps at the widest column's width
+    /// and each piece that falls in a narrower column is held in from the right by the
+    /// difference, from its own flow stretch (Word wraps every column at its own width).
+    @inline(never)
+    func _specInsetBoxes(_ k: Int, _ pieces: ArraySlice<PagePiece>) -> [ColWrapBox] {
+        let setup = _setup(ofParagraph: k)
+        guard let spec = setup.columnSpec, spec.count == setup.columns, _columns > 0 else { return [] }
+        let base = setup.columnWidth
+        var out: [ColWrapBox] = []
+        for piece in pieces where !piece.repeated {
+            let c = piece.page % _columns
+            guard c < spec.count, spec[c].width < base - 0.01 else { continue }
+            let fromTop = piece.flowTop - (k < _tops.count ? _tops[k] : 0)
+            out.append(ColWrapBox(top: fromTop, bottom: fromTop + (piece.flowBottom - piece.flowTop), left: 0, right: _px(base - spec[c].width), byStart: true))
+        }
+        return out
     }
 
     /// The width paragraph `i` wraps at: the layout's, in the measure of
@@ -2865,9 +2887,10 @@ extension RichLayout {
             guard var setup = p.style.sectionPage, i < document.paragraphs.count - 1 else { continue }
             if !_perSection {
                 setup.columns = _oneColumn ? 1 : _bodyColumns ?? last.columns
+                setup.columnSpec = nil
                 setup.columnGap = bodyGap ?? last.columnGap
             }
-            if _perSection, i > 0, document.paragraphs[i - 1].cell.map({ document.tableStyles[$0.table]?.sectionColumns == true }) == true { setup.columns = 1 }
+            if _perSection, i > 0, document.paragraphs[i - 1].cell.map({ document.tableStyles[$0.table]?.sectionColumns == true }) == true { setup.columns = 1; setup.columnSpec = nil }
             setup.gap = last.gap
             for k in start ... i { of[k] = setups.count }
             setups.append(setup)
@@ -2875,9 +2898,9 @@ extension RichLayout {
         }
         if start < of.count { for k in start ..< of.count { of[k] = setups.count } }
         var final = last
-        if _oneColumn { final.columns = 1 }
-        if _perSection, let tail = document.paragraphs.last, tail.cell.map({ document.tableStyles[$0.table]?.sectionColumns == true }) == true { final.columns = 1 }
-        if let body = _bodyColumns { final.columns = body; final.columnGap = bodyGap ?? final.columnGap }
+        if _oneColumn { final.columns = 1; final.columnSpec = nil }
+        if _perSection, let tail = document.paragraphs.last, tail.cell.map({ document.tableStyles[$0.table]?.sectionColumns == true }) == true { final.columns = 1; final.columnSpec = nil }
+        if let body = _bodyColumns { final.columns = body; final.columnSpec = nil; final.columnGap = bodyGap ?? final.columnGap }
         // (One column of its own width, `w:equalWidth` 0 and a single `w:col`:
         // the text wraps at that, not at the page's. lo-eae9bbb1's last
         // section, a 100pt column under a first section of the page's width.)

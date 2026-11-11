@@ -1357,7 +1357,7 @@ extension RichLayout {
                 if let boxes = colWrapBoxes, !boxes.isEmpty, besideLeftRoom == nil, _besideLead[i] == 0 {
                     for k in 0 ..< bottoms.count {
                         let top = k == 0 ? 0 : bottoms[k - 1]
-                        if let b = boxes.first(where: { bottoms[k] > $0.top + 0.01 && top < $0.bottom - 0.01 }) { next.append(LineIndent(left: b.left, right: b.right)) } else { next.append(LineIndent()) }
+                        if let b = boxes.first(where: { $0.byStart ? (top >= $0.top - 0.01 && top < $0.bottom - 0.01) : (bottoms[k] > $0.top + 0.01 && top < $0.bottom - 0.01) }) { next.append(LineIndent(left: b.left, right: b.right)) } else { next.append(LineIndent()) }
                     }
                 } else if besideLeftRoom != nil, let boxes = _besideBoxes[i], boxes.count >= 2 {
                     // (Round two boxes or more: a row of the page is the room
@@ -1438,7 +1438,7 @@ extension RichLayout {
                 // (A list item beside a box at the right no longer keeps its label's box: that rule, fit
                 // to lo-717ff943's earlier print, left each bullet 1.5pt under the label-less line in
                 // the Windows print, which has bullet and text on one baseline.)
-                if !firstBeside || besideRight || besideLeftRoom != nil { lead = original; _leadWidth[i] = lead }
+                if !firstBeside || besideRight || besideLeftRoom != nil || (!(colWrapBoxes?.isEmpty ?? true) && (indents.first?.left ?? 0) == 0) { lead = original; _leadWidth[i] = lead }
             else { lead = max(lead - besideIndent - firstExtra, 0); _leadWidth[i] = lead }
             if firstExtra > 0, firstBeside, let f = indents.first, f.left > 0 { _besideLabelShift[i] = f.left }
         }
@@ -1884,7 +1884,7 @@ extension RichLayout {
         // as wide as they came out: a contents line typed with its own
         // dots takes its page number by what its commas give.)
         var fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs, leftTabs: leftTabs, runsPast: runsPast, beyond: beyond, tieShort: tieShort,
-                                     lineIndents: besideLeftRoom != nil || _setup(ofParagraph: i).headerWrapLeft > 0 ? besideLineIndents : [])
+                                     lineIndents: besideLeftRoom != nil || _setup(ofParagraph: i).headerWrapLeft > 0 || !(colWrapBoxes?.isEmpty ?? true) ? besideLineIndents : [])
         if !fit.isEmpty {
             painter.dispose()
             painter = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit, held: tabsHeld).0)

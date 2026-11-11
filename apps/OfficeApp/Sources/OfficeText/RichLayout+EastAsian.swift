@@ -28,7 +28,8 @@ extension RichLayout {
         // origin is inside the margin, in a file that states a mode before 2013: lab `hang1`, mode 14,
         // Calibri 10pt, left; a letter never does. fas-z19537379 p5.)
         let latinStops = _latinStopsRule(latinOnly: latinOnly, document, p)
-        guard theme.wordRules, !latinOnly || latinStops || ((document.compatibilityMode ?? 12) >= 15 && p.style.alignment == .justify),
+        let balancedLatinPre = RichTextTheme.wordWindowsPages && theme.wordRules && document.balancesSpaceWidth && document.eastAsiaLanguage?.hasPrefix("zh") == true && p.cell == nil && p.style.alignment != .justify && document.compatibilityMode == nil
+        guard theme.wordRules, !latinOnly || latinStops || balancedLatinPre || ((document.compatibilityMode ?? 12) >= 15 && p.style.alignment == .justify),
               !p.style.rightToLeft || (latinOnly && RichTextTheme.wordWindowsPages && Self._squeezesRightToLeft(p.text)), p.text.utf16.count > 2 else { return [:] }
         let legacy = (document.compatibilityMode ?? 12) < 15
         let fitted = (!latinOnly || latinStops) && (p.style.alignment == .justify || legacy)
@@ -88,9 +89,14 @@ extension RichLayout {
         // paragraph without ideographs giving them costs bug57031 and
         // zh-d62da4dd lines.)
         let units = Array(p.text.utf16)
+        // (A left-aligned paragraph under the balance gives its Latin word spaces too, down to half, when that takes one more word:
+        // oxsdk-1c09b12993's notes, no jc, SimSun 10.5, spaces 5.28 on lines that end short and 2.52-4.7 on lines that end on the margin.)
+        let balancedLatinSqueeze = legacy && RichTextTheme.wordWindowsPages && theme.wordRules && document.balancesSpaceWidth && document.eastAsiaLanguage?.hasPrefix("zh") == true && !inCell && p.style.alignment != .justify
+            && document.compatibilityMode == nil
         let squeezesSpaces = !legacy && p.style.alignment == .justify
             || legacy && fitted && units.contains(0x2060)
                 && !units.contains(where: { $0 >= 0x2E80 })
+            || balancedLatinSqueeze
         // (A page number set apart by dashes in a text box, its field result
         // unmarked, gives them too, up to two fifths: zh-4e5fe46f's "— 10 —", 14pt
         // SimSun in 51.1pt, is one line in Word's print, the space after its
@@ -2036,7 +2042,7 @@ extension RichLayout {
                     // "① 計畫內容…" (a space in the text, not the label's
                     // suffix) keeps 之 on its line in Word's print.)
                     func spaceGive(_ k: Int) -> Double {
-                        pageBox ? 0.4 : RichTextTheme.wordWindowsPages && !(k > 0 && (0x2460...0x24FF).contains(units[k - 1])) && ((k > 0 && eastAsianAt(k - 1)) || (k + 1 < units.count && eastAsianAt(k + 1))) ? 0.2 : 0.25
+                        pageBox ? 0.4 : balancedLatinSqueeze ? 0.5 : RichTextTheme.wordWindowsPages && !(k > 0 && (0x2460...0x24FF).contains(units[k - 1])) && ((k > 0 && eastAsianAt(k - 1)) || (k + 1 < units.count && eastAsianAt(k + 1))) ? 0.2 : 0.25
                     }
                     let windowsAfterMarks = RichTextTheme.wordWindowsPages && eastAsianAt(a) && !inCell
                     let givers = windowsAfterMarks ? wordSpaces.filter { spaceGives($0.k) } : wordSpaces
@@ -2085,7 +2091,7 @@ extension RichLayout {
                     let stretch = width - ((arabicLine || hangulPiece || indicPiece) && !wordSpaces.isEmpty ? spaceBaseX : x - (wordSpaces.last?.w ?? 0))
                     let lowJoins = arabicLine && p.style.eastAsian["w:jc"] == "lowKashida" && !wordSpaces.isEmpty
                         ? 3.1 * Double(ArabicForms.joins(units[lineFrom ..< max(piece.b, wordSpaces.last?.k ?? lineFrom)].map { UInt32($0) }[...])) : 0
-                    let halfStretch = wordSpaces.count < 2
+                    let halfStretch = wordSpaces.count < 2 || balancedLatinSqueeze  // (a left-aligned line has no stretch to weigh: oxsdk-1c09b12993's notes)
                         || need / Double(wordSpaces.count) <= stretch / (Double(wordSpaces.count - 1) + lowJoins) / 2 + hair
                     // (Where automatic spaces give, off a character grid,
                     // they give as marks do from 2013's layout: what the

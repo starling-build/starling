@@ -2149,7 +2149,7 @@ extension RichLayout {
             }
             guard !notes.isEmpty else { continue }
             var top = bottom - notes.reduce(0.0) { $0 + $1.to - $1.from } - separator.height
-            let left = rect.left + _pxMarginLeft(p) + Double(c) * _px(setup.columnWidth + setup.columnGap)
+            let left = rect.left + _pxMarginLeft(p) + _px(setup.columnOffset(c))
             let line = Paint()
             line.color = theme.textColor
             let long = _noteCarryIn[slot] != nil

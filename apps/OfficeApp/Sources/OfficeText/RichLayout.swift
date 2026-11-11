@@ -1085,6 +1085,12 @@ public struct LineNumbering: Hashable, Sendable {
 /// Paper size and margins, in points. `nil` on the layout means a continuous
 /// column (a note, a text field); set, the flow is cut into pages at line
 /// boundaries and every geometry query has a canvas-space twin.
+public struct ColumnSpan: Hashable, Sendable {
+    public var width: Double
+    public var gap: Double
+    public init(width: Double, gap: Double) { self.width = width; self.gap = gap }
+}
+
 public struct PageSetup: Hashable, Sendable {
     public var width: Double
     public var height: Double
@@ -1162,9 +1168,21 @@ public struct PageSetup: Hashable, Sendable {
     public var columnGap: Double = 36
     /// A right-to-left section (`w:bidi`): its first column is the rightmost.
     public var rtlColumns = false
+    /// Unequal columns (`w:equalWidth` 0): each one's width and the gap
+    /// after it, as the file states them. Nil for equal columns.
+    public var columnSpec: [ColumnSpan]?
+
+    /// The left edge of column `k` from the text's left edge.
+    public func columnOffset(_ k: Int) -> Double {
+        guard let spec = columnSpec, spec.count == columns, k > 0 else { return Double(k) * (columnWidth + columnGap) }
+        return spec[..<min(k, spec.count)].reduce(0) { $0 + $1.width + $1.gap }
+    }
 
     /// The width text wraps at: the content width shared by the columns.
+    /// Where they are unequal it is the widest; a narrower column's lines
+    /// are held in by the layout's per-column pass (`_specInsetBoxes`).
     public var columnWidth: Double {
+        if let spec = columnSpec, spec.count == columns, let m = spec.map(\.width).max(), m > 0 { return m }
         let n = Double(max(1, columns))
         return (contentWidth - columnGap * (n - 1)) / n
     }
@@ -1499,7 +1517,7 @@ public final class RichLayout {
     /// paragraph's top) it covers there. Set by the pass after pagination.
     var _colWrap: [Int: [ColWrapBox]] = [:]
     var _colWrapPassing = false
-    struct ColWrapBox: Equatable { var top: Double; var bottom: Double; var left: Double; var right: Double }
+    struct ColWrapBox: Equatable { var top: Double; var bottom: Double; var left: Double; var right: Double; var byStart = false }
     var _stripPassing = false
     /// A table floating by the text whose room above it (`w:topFromText`) reaches the text
     /// before it: the place in the flow it is held at, by table, once that text wraps beside it.
