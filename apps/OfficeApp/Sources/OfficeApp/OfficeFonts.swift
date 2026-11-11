@@ -2491,6 +2491,16 @@ enum OfficeFonts {
         }
         // Meiryo UI sets its lines 1.65 em apart in Word's print (jpn-g11-40dd71 and lab ovl2: 9 pt lines step 14.88,
         // 10 pt 16.44, 10.5 pt 17.28/17.4, 11 pt 18.12/18.24; 1.64 left a 2 pt gap over 7 lines) where YaHei's 1.715 em gave 17.2.
+        // Meiryo (not UI): hhea 2171+901 = 3072 units of 2048, so Word's single line is floor(1.3 x 3072)/2048 = 1.95 em
+        // (dx2 934bd3e5's vertical print: plain columns step two 18 pt grid pitches at 10.5 pt).
+        if wordOnWindows, has("meiryo", "メイリオ"), !has("meiryo ui") {
+            var meiryo = yaHei
+            meiryo.height = wordEastAsianLine(units: 3072, upem: 2048)
+            meiryo.baseline = 1.26 * meiryo.height / 1.715 + 0.08
+            meiryo.boldHeight = meiryo.height
+            meiryo.boldBaseline = 1.2675 * meiryo.height / 1.715 + 0.08
+            return meiryo
+        }
         if wordOnWindows, has("meiryo ui") {
             var meiryo = yaHei
             meiryo.height = wordEastAsianLine(units: 2601, upem: 2048)
