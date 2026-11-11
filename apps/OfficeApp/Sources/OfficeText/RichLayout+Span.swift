@@ -2914,6 +2914,20 @@ extension RichLayout {
                     #endif
                     spans.append(TextSpan(text: String(ch), style: numeral))
                     start = after
+                } else if !ea, theme.wordRules, RichTextTheme.wordWindowsPages, ch == "\u{203B}", latinFace?.isEastAsian != true,
+                          // (PROVISIONAL, one character: faces whose cmap holds ※ keep it — Times New Roman, Tahoma, Segoe UI Symbol; the general rule is "not in the Latin face's cmap".)
+                          !["times new roman", "tahoma", "segoe ui symbol"].contains((run.fontFamily ?? named?.char.fontFamily ?? "").lowercased()),
+                          let cjk = Self._cjkFaceFamily {
+                    // (The reference mark ※ in a run whose Latin face lacks it is the East Asian
+                    // face's in Word's print, a full cell: jpn-z21601833-463426's Cambria italic
+                    // "※ ..." paragraphs draw it in MS Mincho, 12pt, where our fallback gave
+                    // 10.1 and its line stood about 1pt short.)
+                    flush(i)
+                    let s = style(kind)
+                    var mark = (extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s).copyWith(fontFamily: cjk)
+                    mark = mark.copyWith(letterSpacing: (mark.letterSpacing ?? 0) + max(0, em - _glyphWidth(mark, ch)))
+                    spans.append(TextSpan(text: String(ch), style: mark))
+                    start = after
                 } else if ea, theme.wordRules, ch == "\u{02D9}" {
                     // (A dot above in East Asian text is a full cell: the
                     // Bopomofo tone mark of Taiwan's faces, 標楷體's among
