@@ -4376,6 +4376,10 @@ enum OfficeFonts {
     static func averageCharWidth(_ family: String?) -> Double {
         // (An East Asian face counts half an em whatever its own
         // average: 4.0pt at 16pt beside YaHei's digits as beside 宋体's.)
+        // (A Noto CJK name Word for Windows lacks: it draws the Latin in Cambria, so the gap beside
+        // ideographs is half Cambria's average, 0.615 em, not 0.5: jpn 930d98, 2.72-2.77 pt at 9 pt.)
+        if let family, wordOnWindows, family.lowercased().hasPrefix("noto sans cjk") || family.lowercased().hasPrefix("noto serif cjk"),
+           let w = osAverageWidth["cambria"] { return w }
         guard let family, !isEastAsianFace(family), !family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) else { return 0.5 }
         // (Word's gap beside East Asian text is half this face's OS/2 xAvgCharWidth: read from the real
         // faces, lab/metrics/latin_avg_all.tsv, 567 faces; a face not in it takes its stand-in's value.)
