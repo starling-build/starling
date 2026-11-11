@@ -3743,6 +3743,11 @@ enum DocxFormat {
             for name in _keptSettingNames.flatMap({ $0 }) {
                 if let n = settings.first(name) { document.keptSettings[name] = PptxXML.serialize(n) }
             }
+        } else if part("word/settings.xml") == nil, part("word/styles.xml") != nil {
+            // (A file with no settings part names no compatibility mode either; a copy of
+            // jpn-z23823926-b2a8e5 with an empty w:compat added went from 55.4 to 99.0.)
+            document.hangsLatinStops = true
+            document.usesEastAsianLayout = true
         }
         if let styles = part("word/styles.xml").flatMap(XNode.parse) {
             // The defaults' language, or Normal's over it — each of its
