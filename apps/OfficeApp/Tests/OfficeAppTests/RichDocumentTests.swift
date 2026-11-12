@@ -586,6 +586,27 @@ final class RichDocumentControllerTests: XCTestCase {
         XCTAssertEqual(ListLevelFormat.numberingLibrary[4].sample(4), "iv.")
     }
 
+    func testWordNumberFormatsReadFromWordPrints() {
+        func f(_ raw: String, _ n: Int) -> String {
+            var l = ListLevelFormat(text: "%1.")
+            l.rawFormat = raw
+            return l.number(n)
+        }
+        XCTAssertEqual(f("ganada", 15), "가")
+        XCTAssertEqual(f("chosung", 15), "ㄱ")
+        XCTAssertEqual(f("koreanDigital2", 10), "一零")
+        XCTAssertEqual(f("aiueoFullWidth", 46), "ン")
+        XCTAssertEqual(f("aiueoFullWidth", 47), "ア")
+        XCTAssertEqual(f("irohaFullWidth", 48), "ン")
+        XCTAssertEqual(f("irohaFullWidth", 49), "イ")
+        XCTAssertEqual(f("ordinal", 11), "11th")
+        XCTAssertEqual(f("ordinal", 22), "22nd")
+        XCTAssertEqual(f("cardinalText", 21), "Twenty-one")
+        XCTAssertEqual(f("ordinalText", 30), "Thirtieth")
+        XCTAssertEqual(f("chicago", 5), "**")
+        XCTAssertEqual(f("chicago", 4), "§")
+    }
+
     func testCellBlockClosesOverMergedCellsAndRangesNeverCrossWalls() {
         let c = controller("")
         c.insertTable(rows: 3, columns: 3)

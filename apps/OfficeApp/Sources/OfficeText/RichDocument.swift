@@ -1668,8 +1668,17 @@ public struct ListLevelFormat: Hashable, Sendable {
             let g = Array("אבגדהוזחטיכלמנסעפצקרשת")
             return String(repeating: "ת", count: (n - 1) / g.count) + String(g[(n - 1) % g.count])
         // Korean letter lists (lab-free: Word's ganada and chosung runs through its 14 syllables / consonants, then repeats).
-        case "ganada": return Self.repeating(n, "가나다라마바사아자차카타파하")
-        case "chosung": return Self.repeating(n, "ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎ")
+        case "aiueoFullWidth": return Self.cycling(n, "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン")
+        case "irohaFullWidth": return Self.cycling(n, "イロハニホヘトチリヌルヲワカヨタレソツネナラムウヰノオクヤマケフコエテアサキユメミシヱヒモセスン")
+        case "chicago": return Self.repeating(n, "*†‡§")
+        case "ordinal":
+            let m = n % 100
+            let suf = (m >= 11 && m <= 13) ? "th" : (n % 10 == 1 ? "st" : n % 10 == 2 ? "nd" : n % 10 == 3 ? "rd" : "th")
+            return "\(n)\(suf)"
+        case "cardinalText": return Self.englishWords(n, ordinal: false)
+        case "ordinalText": return Self.englishWords(n, ordinal: true)
+        case "ganada": return Self.cycling(n, "가나다라마바사아자차카타파하")
+        case "chosung": return Self.cycling(n, "ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎ")
         case "koreanCounting":
             guard n < 100 else { return String(n) }
             let d = Array("일이삼사오육칠팔구")
@@ -1677,8 +1686,10 @@ public struct ListLevelFormat: Hashable, Sendable {
             if n / 10 >= 1 { out += (n / 10 > 1 ? String(d[n / 10 - 1]) : "") + "십" }
             if n % 10 > 0 { out += String(d[n % 10 - 1]) }
             return out
-        case "koreanDigital", "koreanDigital2":
+        case "koreanDigital":
             return String(String(n).map { Array("영일이삼사오육칠팔구")[Int(String($0)) ?? 0] })
+        case "koreanDigital2":
+            return String(String(n).map { Array("零一二三四五六七八九")[Int(String($0)) ?? 0] })
         case "koreanLegal":
             guard n < 100 else { return String(n) }
             let tens = ["", "열", "스물", "서른", "마흔", "쉰", "예순", "일흔", "여든", "아흔"]
@@ -1697,6 +1708,27 @@ public struct ListLevelFormat: Hashable, Sendable {
         String(String(n).unicodeScalars.map { Character(UnicodeScalar(zero + $0.value - 0x30) ?? $0) })
     }
 
+    /// Plain cycle (Word's ganada/chosung/aiueo/iroha, lab kolist and numfmt7): the letter after the last is the first again.
+    /// English number words for 1...99, "Twenty-one"; ordinal gives "Twenty-first" (lab numfmt7).
+    static func englishWords(_ n: Int, ordinal: Bool) -> String {
+        guard n >= 1, n < 100 else { return String(n) }
+        let ones = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen",
+                    "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
+        let onesOrd = ["", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth", "eleventh",
+                       "twelfth", "thirteenth", "fourteenth", "fifteenth", "sixteenth", "seventeenth", "eighteenth", "nineteenth"]
+        let tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
+        let tensOrd = ["", "", "twentieth", "thirtieth", "fortieth", "fiftieth", "sixtieth", "seventieth", "eightieth", "ninetieth"]
+        var w: String
+        if n < 20 { w = ordinal ? onesOrd[n] : ones[n] }
+        else if n % 10 == 0 { w = ordinal ? tensOrd[n / 10] : tens[n / 10] }
+        else { w = tens[n / 10] + "-" + (ordinal ? onesOrd[n % 10] : ones[n % 10]) }
+        return w.prefix(1).uppercased() + w.dropFirst()
+    }
+    static func cycling(_ n: Int, _ letters: String) -> String {
+        let l = Array(letters)
+        guard n >= 1, !l.isEmpty else { return String(n) }
+        return String(l[(n - 1) % l.count])
+    }
     /// The n-th item of a letter sequence that repeats the letter past its end ("أ", "ب" … "أأ", "بب").
     static func repeating(_ n: Int, _ letters: String) -> String { repeating(n, letters.map { String($0) }) }
     static func repeating(_ n: Int, _ letters: [String]) -> String {
