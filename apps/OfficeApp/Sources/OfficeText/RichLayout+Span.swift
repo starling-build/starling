@@ -1207,7 +1207,12 @@ extension RichLayout {
                         // Times' 12pt line; in the run's 仿宋 (YaHei to
                         // Word on a Mac) ours were two, and p11's row they
                         // stand in went over whole where Word parts it.)
-                        if theme.wordRules, lineSize.blank, let face = p.style.mark?.fontFamily { sized.fontFamily = face }
+                        if theme.wordRules, lineSize.blank {
+                            // (A mark with no face of its own is drawn in the
+                            // document default: kor-z22157092's Consolas
+                            // " " line is the empty line's, not Consolas 10.)
+                            sized.fontFamily = p.style.mark?.fontFamily
+                        }
                         let r = theme.textStyle(for: sized, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
                                                 eastAsian: kind < 0, gridPitch: pitch, characterClass: classed && kind >= 0 ? kind : nil,
                                                 characterGrid: kind < 0 ? ideographGrid : grid, scriptHidden: true)
