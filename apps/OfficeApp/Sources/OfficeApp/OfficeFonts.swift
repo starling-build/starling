@@ -2534,8 +2534,9 @@ enum OfficeFonts {
             yu.otherAdvances = yuGreek
             return yu
         }
-        // (AR P Maru Gothic E, not on Word's machine, prints as Yu Gothic: f42177d2.)
-        if wordOnWindows, has("yu gothic", "游ゴシック", "yu mincho", "游明朝", "ar p丸ゴシック", "ar丸ゴシック") {
+        // (AR P Maru Gothic E, not on Word's machine, prints as Yu Gothic: f42177d2. BIZ UDPゴシック, also missing there,
+        // prints as Yu Gothic too: lab opn3 D against B, identical prints.)
+        if wordOnWindows, has("yu gothic", "游ゴシック", "yu mincho", "游明朝", "ar p丸ゴシック", "ar丸ゴシック", "biz udpゴシック") {
             return EastAsianFace(height: 1.2871 * 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 1.2871 * 0.15 + 0.98486)
         }
         if wordOnWindows, has("malgun", "맑은 고딕") {
