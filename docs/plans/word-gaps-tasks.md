@@ -16125,3 +16125,4 @@ TIP WATCH amd-8, round 320 (971a9aa57, Word + dx2; 7781378f3 Malgun altName, ef8
 - Needs compressPunctuation: opn1-G (no-compress lab) scores 32.2 and the rule is off there. Left-aligned paragraphs still carry the mark (445cb33f stays 100).
 - Lesson: fitted on ja labs, the rule broke 20 zh-TW docs in 756 (Word does not end lines on 「 in zh-TW). Gated by Japanese text (kana present or ja language), since 8787f4 is tagged zh-CN but has kana. The 4-language dx2 A/B did not see it; the 756 zh docs did.
 - amd-5 OPEN, next: (c) BIZ UDP gothic fallback (Word draws it as Yu Gothic): test opn3-D, and opn5 X files. (d) theme with empty eastAsia slot. Then the next lowest ja docs in dx2, xb, xd.
+- amd-2 landed af7063331 (2026-11-12): Korean first-line symbol raise (△ ○ ※) now also fires for runs naming only a missing ascii face under a Batang style; dx2 fe41a48c member rows 3.5 pt high -> 0.4-0.7 pt. No drops. Next: 15093019, xb c9baf7, 59e77f, bb30b1 (with amd-3).
