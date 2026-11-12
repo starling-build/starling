@@ -16126,3 +16126,5 @@ TIP WATCH amd-8, round 320 (971a9aa57, Word + dx2; 7781378f3 Malgun altName, ef8
 - Lesson: fitted on ja labs, the rule broke 20 zh-TW docs in 756 (Word does not end lines on 「 in zh-TW). Gated by Japanese text (kana present or ja language), since 8787f4 is tagged zh-CN but has kana. The 4-language dx2 A/B did not see it; the 756 zh docs did.
 - amd-5 OPEN, next: (c) BIZ UDP gothic fallback (Word draws it as Yu Gothic): test opn3-D, and opn5 X files. (d) theme with empty eastAsia slot. Then the next lowest ja docs in dx2, xb, xd.
 - amd-2 landed af7063331 (2026-11-12): Korean first-line symbol raise (△ ○ ※) now also fires for runs naming only a missing ascii face under a Batang style; dx2 fe41a48c member rows 3.5 pt high -> 0.4-0.7 pt. No drops. Next: 15093019, xb c9baf7, 59e77f, bb30b1 (with amd-3).
+
+TIP WATCH amd-8, round 418 (230426f23, covers de02cbeb9 amd-7 Bengali missing face, 70356b771 amd-2 list formats): CLEAN. Word sets up 0 down 0 (v1, v2, vis) on 756/lo/xa/xb/xd/xs; dx2 mean 78.45, up 0 down 0; 648 unit tests, 0 failures; web build and layout OK; Slides/Sheets only the known lo-numfmt and 45540 Footer/Header noise.
