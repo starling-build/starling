@@ -160,6 +160,9 @@ public struct CharStyle: Hashable, Sendable {
     /// Word prints as a drawn square; a "☐" typed, or a content control's,
     /// is a character there (LibreOffice's sdt-run-checkbox).
     public var formBox = false
+    /// A run holding only a middle dot (U+00B7). Word draws such a run in the
+    /// ascii face, so it must stay a run of its own (normalize() would merge it).
+    public var loneDot = false
     /// Extra space between characters in points (Word's w:spacing on a
     /// run); negative condenses.
     public var letterSpacing: Double? = nil

@@ -1695,27 +1695,33 @@ extension RichLayout {
         return joins.union(fitJoined)
     }
 
+    /// A paragraph in a cell with `w:tcFitText`: Word spreads its letters over the cell's room (spacing in whole 96-dpi pixels,
+    /// see `_tcFitMarginSlack`; labs fit1, mar1, mar2, tcfit*). Lab fit1 matches Word on 4 of 6 margins; margin 28 at 12 pt and
+    /// margin 150 at 20 pt are one pixel step off (open).
+    static let _tcFitEnabled = true
+    @inline(never) static func _tcFitParagraph(_ p: RichParagraph, _ index: Int?, _ document: RichDocument) -> Bool {
+        guard Self._tcFitEnabled, let cell = p.cell, cell.keptPropertiesXML?.containsSubstring("w:tcFitText") == true else { return false }
+        return true
+    }
+
+    /// Word's fit text in a cell works in 96-dpi screen pixels: each side's cell margin (tcMar, else tblCellMar, else 5.4 pt) is
+    /// rounded UP to a whole pixel (labs fit1, mar1, mar2). Returns, in points, how much the room GROWS (negative: shrinks) against
+    /// the cell's text width, which already has the exact margins taken off.
+    @inline(never) static func _tcFitMarginSlack(_ p: RichParagraph, _ document: RichDocument) -> Double {
+        let ts = p.cell.flatMap { document.tableStyles[$0.table] }
+        let l = p.cell?.padding?.left ?? ts?.cellMarginLeft ?? 5.4, r = p.cell?.padding?.right ?? ts?.cellMarginRight ?? 5.4
+        func up(_ v: Double) -> Double { (v / 0.75 - 1e-6).rounded(.up) * 0.75 }
+        return (l + r) - up(l) - up(r)
+    }
+
     /// The offsets inside a `w:fitText` group (consecutive runs of one id): Word
     /// does not part a fitted group (9ba34429's "1学年" cell, 17.95pt of room for
     /// a group fitted to 18pt, stays one line in Word's print; ours wrapped the 年).
-    /// A cell with `w:tcFitText` fits its LAST paragraph only (lab tcfit1's two-paragraph cell and dx2 28dd0ac0: the paragraphs above
-    /// wrap as they are written, spaced and all).
-    static let _tcFitEnabled = false
-    @inline(never) static func _tcFitParagraph(_ p: RichParagraph, _ index: Int?, _ document: RichDocument) -> Bool {
-        // (OFF until the rule is settled: lab tcfit2 showed the title is not always the last paragraph, and three regimes.)
-        guard Self._tcFitEnabled, let cell = p.cell, cell.keptPropertiesXML?.containsSubstring("w:tcFitText") == true else { return false }
-        guard let i = index, i + 1 < document.paragraphs.count else { return true }
-        return document.paragraphs[i + 1].cell != cell
-    }
-
     @inline(never) static func _fitTextJoins(_ p: RichParagraph, _ index: Int?, _ document: RichDocument) -> Set<Int> {
         var joins: Set<Int> = []
         // (A cell with `w:tcFitText` fits its whole paragraph to the cell: one line, never parted; lab tcfit1, dx2 28dd0ac0.)
-        if _tcFitParagraph(p, index, document) {
-            let n = p.text.utf16.count
-            if n > 1 { for o in 1 ..< n { joins.insert(o) } }
-            return joins
-        }
+        // (Word DOES part a first fit cell's line: lab tcfit11/12 wrap 대비 alone at every width, so no join there.)
+        if _tcFitParagraph(p, index, document) { return joins }
         var at = 0
         var previousId: String? = nil
         for r in p.runs {

@@ -6815,6 +6815,8 @@ enum DocxFormat {
             guard !s.isEmpty else { return }
             text += s
             for id in cs.comments { notes.carriedComments.insert(id) }
+            var cs = cs
+            if s == "\u{B7}" { cs.loneDot = true }
             runs.append(Run(length: s.utf16.count, style: cs))
         }
         var pendingCheckbox: Bool? = nil   // a FORMCHECKBOX field's state, from its begin

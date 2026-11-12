@@ -696,7 +696,7 @@ extension RichLayout {
             // danda alone below. The engine hangs a trailing space, so it is set as a no-break space with a break after it.)
             let spaceBeforeDanda: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && rawText.last == " " && (next == "\u{0964}" || next == "\u{0965}")
                 && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value <= 0x97F })
-            let text: Substring = spaceBeforeDanda ? Substring(String((hung ?? moved ?? String(rawText)).dropLast()) + "\u{00A0}") : hung.map { Substring($0) } ?? moved.map { Substring($0) } ?? rawText
+            let text: Substring = (spaceBeforeDanda ? Substring(String((hung ?? moved ?? String(rawText)).dropLast()) + "\u{00A0}") : hung.map { Substring($0) } ?? moved.map { Substring($0) } ?? rawText)
             // (A soft hyphen the line ends at is a hyphen to the line breaking
             // too — see `_layoutParagraph`.)
             if let idx = index, let shownSet = _hyphenShown[idx], !shownSet.isEmpty, text.containsSubstring("\u{00AD}") {
@@ -871,18 +871,30 @@ extension RichLayout {
                     }
                 }
                 let target = g.points * theme.pixelsPerPoint * scale
-                fitLastSingle = lastLength == 1
-                let gaps = lastLength == 1 ? count - 1 : count
-                // (Word's line is 0.22 em short of the cell's width for tcFitText: lab tcfit1's four widths fit to 0.01pt.)
-                var pitch = gaps > 0 ? (target - total - (tcFit ? 0.22 * _glyphWidth(style(-1), "\u{5355}") : 0)) / Double(gaps) : 0
-                // (Word keeps the spacing in twips, rounding a spread up: zh-a4b0f6ea's
-                // 单位(盖章)：…年   月   日 wants 0.073pt and Word sets 0.10, so 日 ends
-                // 1.6pt past the group's width as Word's print does.)
-                if pitch > 0, theme.wordRules, RichTextTheme.wordWindowsPages {
-                    let unit = 0.05 * theme.pixelsPerPoint * scale
-                    pitch = (pitch / unit - 1e-6).rounded(.up) * unit
+                var pitch: Double
+                if tcFit {
+                    // (Word's fit text in a cell, Word for Windows, labs fit1 and mar1/mar2: Word works in 96-dpi screen pixels. Each side's
+                    // cell margin is rounded UP to a whole pixel, the room is the cell's width less those, and the spacing is a whole number
+                    // of pixels, rounded DOWN, over the gaps (the last letter is drawn apart). 23 of fit1's 24 rows match; the 0.76 px
+                    // the room is short of the cell, and which rows wrap their last letter, are OPEN.)
+                    fitLastSingle = false
+                    let pixel = 0.75 * theme.pixelsPerPoint * scale
+                    let slack = Self._tcFitMarginSlack(p, document) * theme.pixelsPerPoint * scale
+                    let room = target + slack - 0.76 * pixel
+                    let gaps = max(count - 1, 0)
+                    pitch = gaps > 0 ? ((room - total) / Double(gaps) / pixel).rounded(.down) * pixel : 0
+                } else {
+                    fitLastSingle = lastLength == 1
+                    let gaps = lastLength == 1 ? count - 1 : count
+                    pitch = gaps > 0 ? (target - total) / Double(gaps) : 0
+                    // (Word keeps the spacing in twips, rounding a spread up: zh-a4b0f6ea's
+                    // 单位(盖章)：…年   月   日 wants 0.073pt and Word sets 0.10, so 日 ends
+                    // 1.6pt past the group's width as Word's print does.)
+                    if pitch > 0, theme.wordRules, RichTextTheme.wordWindowsPages {
+                        let unit = 0.05 * theme.pixelsPerPoint * scale
+                        pitch = (pitch / unit - 1e-6).rounded(.up) * unit
+                    }
                 }
-                if tcFit, pitch >= spacing * (doubles ? 2 : 1) - 1e-6 { fitNone = true; return nil }
                 // (Where the run spacing is taken twice (`doubles`), so is the pitch: Word's step is one pitch more than the glyph's.)
                 fitPitch = pitch
                 return pitch
@@ -2520,11 +2532,18 @@ extension RichLayout {
                         extra += hEm - g
                     }
                 }
-                if ea, let u = ch.unicodeScalars.first?.value, u < 0x2E80 || (u >= 0x3000 && u < 0x3100) || (u >= 0xFF00 && u < 0xFF60),
+                if ea || (ch == "\u{B7}" && run.loneDot && theme.wordRules), let u = ch.unicodeScalars.first?.value, u < 0x2E80 || (u >= 0x3000 && u < 0x3100) || (u >= 0xFF00 && u < 0xFF60),
                    let eaFace = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                                     ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true),
-                   let w = (style(kind).fontWeight == .bold ? eaFace.boldOtherAdvances : eaFace.otherAdvances)?[u] {
-                    extra += w * em - _glyphWidth(style(kind), ch)
+                   ea || eaFace.malgunSymbols,
+                   var w = (style(kind).fontWeight == .bold ? eaFace.boldOtherAdvances : eaFace.otherAdvances)?[u] {
+                    // (A run holding ONLY the middle dot has no Hangul to take Batang from, so Word draws it in Malgun
+                    // Gothic: 0.2188 em (bold 0.2617), where a dot inside a Hangul run is Batang's 0.333. 28dd0ac0's title.)
+                    if u == 0xB7, eaFace.malgunSymbols, theme.wordRules, RichTextTheme.wordWindowsPages, run.loneDot {
+                        RuleTrace.hit("lone-middle-dot-run-is-malgun")
+                        w = style(kind).fontWeight == .bold ? 0.2617 : 0.2188
+                    }
+                    extra += (w ?? 0) * em - _glyphWidth(style(kind), ch)
                     if document.balancesSpaceWidth, let g = grid, g != 0 { extra -= _px(g) / 2 }
                 }
                 // (A CJK compatibility ideograph YaHei lacks and Word for
@@ -3121,7 +3140,7 @@ extension RichLayout {
         // signature line.)
                 let roomyTrail = theme.wordRules && p.text.hasSuffix(" ") && (p.style.alignment == .right || Self.shadeShows(p.runs.last?.style.highlight))
             && p.text.last(where: { $0 != " " }).map({ Self.isEastAsian($0, hinted: false) }) == true
-        let checkboxes = theme.wordRules && p.runs.contains { $0.style.formBox }
+        let checkboxes = theme.wordRules && p.runs.contains { $0.style.formBox || $0.style.loneDot }
         if lead == 0, p.runs.count == 1, p.runs[0].style.inlineImage == nil, !roomyTrail, !checkboxes {
             var spans = styled(p.text[...], p.runs[0].style)
             // (A right-to-left paragraph of one plain run is the
