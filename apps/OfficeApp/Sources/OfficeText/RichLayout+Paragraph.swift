@@ -3546,9 +3546,14 @@ extension RichLayout {
                 return v == 0x25CB || v == 0x25B3 || v == 0xB7 || (v >= 0x2460 && v <= 0x2469) || v == 0x203B || v == 0x2192
                     || v == 0x2018 || v == 0x2019 || v == 0x201C || v == 0x201D
             }
+            let viaEastAsia = theme.faceResolver?(run.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                           ?? run.style.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.malgunSymbols == true
+            // (A run that names only a missing ascii face, with no eastAsia slot of its own, is judged by that face as in `_span`'s
+            // joiner, though the style's eastAsia face is Batang itself: fe41a48c's 한양신명조 △△△ in 바탕글.)
+            let viaAscii = run.style.eastAsiaFontFamily == nil && run.style.fontFamily != nil
+                && theme.faceResolver?(run.style.fontFamily ?? "", true)?.malgunSymbols == true
             guard hit, !(run.style.eastAsiaFontFamily != nil && (run.style.fontHint ?? named?.char.fontHint) == "eastAsia"),
-                  theme.faceResolver?(run.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
-                                           ?? run.style.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.malgunSymbols == true else { continue }
+                  viaEastAsia || viaAscii else { continue }
             let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
             let rise = size * (1.175 - 1.009) * max(1, p.style.lineSpacing - theme.lineSpacingReduction)
             if rise > (best ?? 0) {
