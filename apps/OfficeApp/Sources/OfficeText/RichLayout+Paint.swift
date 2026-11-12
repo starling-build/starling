@@ -1348,7 +1348,8 @@ extension RichLayout {
         if theme.wordRules, i < document.paragraphs.count, document.paragraphs[i].style.lineCollapsed, document.paragraphs[i].image == nil { return }
         if _markUnderNestedTable(i, document) { return }
         if let image = document.paragraphs[i].image, let box = imageRect(i) {
-            let drawn = _decoded[image.id] == nil && _paintOutline(image, box, canvas)
+            let turnedBox = _decoded[image.id] == nil && image.textBox != nil && _horizontalBoxOnVerticalPage(i, image)
+            let drawn = _decoded[image.id] == nil && !turnedBox && _paintOutline(image, box, canvas)
             if let decoded = _decoded[image.id] {
                 let clipped = _clipToCell(i, image, box, canvas)
                 _drawPicture(decoded, image, box, canvas)
@@ -1356,7 +1357,9 @@ extension RichLayout {
                 if clipped { canvas.restore() }
             } else if let inside = _textBox(image, document), let text = image.textBox {
                 // A text box: its text, set inside it.
-                _paintTurnedTextBox(inside, text, image, box, canvas)
+                if !_paintHorizontalBoxOnVerticalPage(i, inside, text, image, box, canvas) {
+                    _paintTurnedTextBox(inside, text, image, box, canvas)
+                }
             } else if !drawn, !(theme.wordRules && image.float.map({ !$0.takesRoom }) == true) {
                 // (No stand-in for a floating object the editor cannot
                 // draw: it would lie over the text it floats beside.)
@@ -1747,5 +1750,49 @@ extension RichLayout {
             mark.paint(canvas, Offset(end.left + 1, end.top + (end.height - mark.height) / 2))
             mark.dispose()
         }
+    }
+}
+
+extension RichLayout {
+    /// A horizontal text box anchored in a vertical section: the page is laid out turned a quarter, so the box is
+    /// stood back up on the paper (`_verticalBody`).
+    @inline(never)
+    func _horizontalBoxOnVerticalPage(_ i: Int, _ image: ImageAttachment) -> Bool {
+        guard theme.wordRules, _verticalBody(i) else { return false }
+        guard let f = image.float, !f.takesRoom, f.horizontalFrom == "column", f.horizontalAlign == nil,
+              f.verticalFrom == "margin" || f.verticalFrom == "paragraph",
+              i < _pieceStart.count, _pieceStart[i] < _allPieces.count else { return false }
+        return true
+    }
+
+    func _paintHorizontalBoxOnVerticalPage(_ i: Int, _ inside: _HeaderFooter, _ text: RichTextBox, _ image: ImageAttachment, _ box: Rect, _ canvas: any Canvas) -> Bool {
+        guard _horizontalBoxOnVerticalPage(i, image), text.textDirection == .horizontal, let f = image.float else { return false }
+        let pc = _allPieces[_pieceStart[i]]
+        let setup = _setup(ofParagraph: i)
+        let page = pageRect(pc.page)
+        let ppx = theme.pixelsPerPoint * scale
+        // (Paper points: x runs from the left edge, y from the top; the layout's y is the paper's x turned.)
+        let w = box.width / ppx, h = box.height / ppx
+        let lineRight = setup.height - (setup.marginTop + pc.pageY / ppx)
+        let px0 = lineRight + f.x
+        let top = setup.marginLeft
+        var py0 = top + f.y
+        if f.verticalFrom == "margin" {
+            switch f.verticalAlign {
+            case "center": py0 = top + (setup.contentWidth - h) / 2 + f.y
+            case "bottom": py0 = top + setup.contentWidth - h + f.y
+            default: break
+            }
+        }
+        // (The canvas here is cut to the page, in layout orientation: its clip's corner is the page's origin.)
+        let base = canvas.getLocalClipBounds()
+        guard abs(base.width - setup.width * ppx) < 2, abs(base.height - setup.height * ppx) < 2 else { return false }
+        canvas.save()
+        canvas.translate(py0 * ppx + base.left, (setup.height - px0) * ppx + base.top)
+        canvas.rotate(-Double.pi / 2)
+        _ = _paintOutline(image, Rect.fromLTWH(0, 0, w * ppx, h * ppx), canvas)
+        _paintTurnedTextBox(inside, text, image, Rect.fromLTWH(0, 0, w * ppx, h * ppx), canvas, clips: false)
+        canvas.restore()
+        return true
     }
 }

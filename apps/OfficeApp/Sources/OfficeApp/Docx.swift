@@ -6245,6 +6245,8 @@ enum DocxFormat {
                         return Color((Int64((max(0, min(1, a / 100_000)) * Double(c.alpha)).rounded()) << 24) | Int64(c.value & 0xFFFFFF))
                     }
                     if let clr = fill.first("a:srgbClr"), let hex = clr["val"], let v = Int64(hex, radix: 16) { return shown(Color(0xFF00_0000 | v), clr) }
+                    // (A system colour, e.g. window = white: its lastClr.)
+                    if let clr = fill.first("a:sysClr"), let hex = clr["lastClr"], let v = Int64(hex, radix: 16) { return shown(Color(0xFF00_0000 | v), clr) }
                     return fill.first("a:schemeClr") != nil ? colors.color(in: fill).map { shown($0, fill.first("a:schemeClr")) } : nil
                 }
                 let ln = sp.first("a:ln")
