@@ -2216,10 +2216,10 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
-                } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == " ", ch == "/",
-                          p.text.unicodeScalars.contains(where: { (0xAC00 ... 0xD7A3).contains($0.value) }) {
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == " ", ch == "/" {
                     // (Unicode forbids a break before "/" even after a space,
-                    // so the engine backed up a word; Word breaks there.
+                    // so the engine backed up a word; Word breaks there, in
+                    // Korean, Latin and Chinese alike (lab slash, 4 prints).
                     // kor-z15852510-c9baf7's `가짐." />` keeps `가짐."` and
                     // sends "/>" down.)
                     flush(i)
