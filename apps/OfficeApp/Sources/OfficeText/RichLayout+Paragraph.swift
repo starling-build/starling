@@ -3225,7 +3225,7 @@ extension RichLayout {
                   style.lineHeightPoints == nil, !_offGrid(i, document),
                   let pitch = _grid(i, document).pitch, pitch > 0,
                   case let lines = painter.computeLineMetrics(), lines.count > 1,
-                  let box = painter.inlinePlaceholderBoxes?.first, box.bottom <= lines[0].height + 0.5 {
+                  let box = painter.inlinePlaceholderBoxes?.first(where: { $0.bottom - $0.top > 0.01 }), box.bottom <= lines[0].height + 0.5 {
             // (… and a picture on the first line of several, the extra
             // above it as well: zh-9c5d0c3f's fifth column holds its sign,
             // a break and its caption in one paragraph, and Word stands
@@ -3245,7 +3245,7 @@ extension RichLayout {
                   style.lineHeightPoints == nil || style.lineHeightIsMinimum, !_offGrid(i, document),
                   let pitch = _grid(i, document).pitch, pitch > 0,
                   case let lines = painter.computeLineMetrics(), lines.count > 1, let last = lines.last,
-                  let box = painter.inlinePlaceholderBoxes?.last, box.top >= lines.dropLast().reduce(0, { $0 + $1.height }) - 0.5,
+                  let box = painter.inlinePlaceholderBoxes?.last(where: { $0.bottom - $0.top > 0.01 }), box.top >= lines.dropLast().reduce(0, { $0 + $1.height }) - 0.5,
                   last.height > _px(pitch) * 2 {
             // (… and a picture on the last line of several, below the text
             // before it: its line too is as many pitches as it takes, the
@@ -3301,7 +3301,7 @@ extension RichLayout {
                   style.lineSpacing - theme.lineSpacingReduction <= 1.001,
                   p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0.value == 0x20 }),
                   case let lines = painter.computeLineMetrics(), lines.count == 1,
-                  let box = painter.inlinePlaceholderBoxes?.first, box.bottom - box.top >= lines[0].ascent - 0.5 {
+                  let box = painter.inlinePlaceholderBoxes?.first(where: { $0.bottom - $0.top > 0.01 }), box.bottom - box.top >= lines[0].ascent - 0.5 {
             // (A picture with only spaces after it is the picture's
             // paragraph still: the spaces add no descent under it. Lab
             // `ps` (Word 16, mode 15, zh-9c5d0c3f's 75pt road sign and its
