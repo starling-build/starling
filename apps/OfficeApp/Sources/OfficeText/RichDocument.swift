@@ -1667,6 +1667,9 @@ public struct ListLevelFormat: Hashable, Sendable {
         case "hebrew2":
             let g = Array("אבגדהוזחטיכלמנסעפצקרשת")
             return String(repeating: "ת", count: (n - 1) / g.count) + String(g[(n - 1) % g.count])
+        // Korean letter lists (lab-free: Word's ganada and chosung runs through its 14 syllables / consonants, then repeats).
+        case "ganada": return Self.repeating(n, "가나다라마바사아자차카타파하")
+        case "chosung": return Self.repeating(n, "ㄱㄴㄷㄹㅁㅂㅅㅇㅈㅊㅋㅌㅍㅎ")
         case "koreanCounting":
             guard n < 100 else { return String(n) }
             let d = Array("일이삼사오육칠팔구")
