@@ -2541,20 +2541,23 @@ extension RichLayout {
                         extra += hEm - g
                     }
                 }
-                if ea || (ch == "\u{B7}" && run.loneDot && theme.wordRules), let u = ch.unicodeScalars.first?.value, u < 0x2E80 || (u >= 0x3000 && u < 0x3100) || (u >= 0xFF00 && u < 0xFF60),
+                if ea || (ch == "\u{B7}" && (run.loneDot || tcFit) && theme.wordRules), let u = ch.unicodeScalars.first?.value, u < 0x2E80 || (u >= 0x3000 && u < 0x3100) || (u >= 0xFF00 && u < 0xFF60),
                    let eaFace = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                                     ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true),
                    ea || eaFace.malgunSymbols,
                    var w = (style(kind).fontWeight == .bold ? eaFace.boldOtherAdvances : eaFace.otherAdvances)?[u] {
                     // (A run holding ONLY the middle dot has no Hangul to take Batang from, so Word draws it in Malgun
                     // Gothic: 0.2188 em (bold 0.2617), where a dot inside a Hangul run is Batang's 0.333. 28dd0ac0's title.)
-                    if u == 0xB7, eaFace.malgunSymbols, theme.wordRules, RichTextTheme.wordWindowsPages, run.loneDot {
+                    if u == 0xB7, eaFace.malgunSymbols, theme.wordRules, RichTextTheme.wordWindowsPages, run.loneDot || tcFit {
                         RuleTrace.hit("lone-middle-dot-run-is-malgun")
                         w = style(kind).fontWeight == .bold ? 0.2617 : 0.2188
                     }
                     extra += (w ?? 0) * em - _glyphWidth(style(kind), ch)
                     if document.balancesSpaceWidth, let g = grid, g != 0 { extra -= _px(g) / 2 }
                 }
+                // (Fit text: Word gives the middle dot only HALF a gap after it, labs dot1 and mar2: 7.2 pt after a Malgun dot
+                // at 24 pt where a full gap is 11.7; the gap before it is the full one, from the letter ahead.)
+                if ch == "\u{B7}", tcFit, fitGroup != nil, let f = fitSpacing() { extra -= f / 2 }
                 // (A CJK compatibility ideograph YaHei lacks and Word for
                 // Mac's Noto Sans SC does not give it is YaHei's own
                 // missing-glyph box, 0.697 em, in the line's breaking as
