@@ -2314,6 +2314,15 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
                     inserts.append(offset)
+                } else if RichTextTheme.wordWindowsPages, theme.wordRules, (document.compatibilityMode ?? 12) >= 15, p.style.alignment == .justify, !kinsokuOff, ch != " ", let b = before,
+                          document.hasKana || document.eastAsiaLanguage?.hasPrefix("ja") == true, Self._openingMarks.contains(b), document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false,
+                          (ch.unicodeScalars.first?.value ?? 0) >= 0x2E80, adjust[-(offset + 1)] == nil {
+                    // (Under compressPunctuation Word may end a line on an opening
+                    // mark, squeezed by up to half its em: labs opn1 and opn11, 8787f4.
+                    // The fit decides, and a mark it would carry gets the key -(offset+1).)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
+                    inserts.append(offset)
                 } else if breaksAtQuotes, let b = before,
                           Self._breaksBetween(b, ch, percentStarts: percentStarts, timesEastAsian: hinted, shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages, latinQuotes: theme.wordRules && !hinted) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
                             || (theme.wordRules && Self._closingQuote(ch) && (kinsokuOff && hinted && RichTextTheme.wordWindowsPages || !Self._eastAsianLineRules(run, document, named: named)))

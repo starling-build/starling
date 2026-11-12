@@ -125,7 +125,10 @@ extension RichLayout {
         // 320.1 at compat 14; at compat 15 and in a cell it needs the whole 320.0, as before.)
         let hangulStop = RichTextTheme.wordWindowsPages && legacy && hangs
             && zip(units, units.dropFirst()).contains { ($0.1 == 0x2E || $0.1 == 0x2C) && $0.0 >= 0xAC00 && $0.0 <= 0xD7A3 }
-        guard marked || partable || hangulParen || hangulStop || units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) })
+        // (Under compressPunctuation a line may end on an opening mark: see `squeezeOpen` below.)
+        let openerLine = squeezes && (document.hasKana || document.eastAsiaLanguage?.hasPrefix("ja") == true) && RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) >= 15 && p.style.eastAsian["w:kinsoku"] != "0"
+            && units.contains(where: { Self._openingUnits.contains($0) })
+        guard marked || partable || hangulParen || hangulStop || openerLine || units.contains(where: { $0 < 0x250 && ($0 >= 0x41 || ($0 >= 0x30 && $0 <= 0x39)) })
                 || (squeezesSpaces && units.contains(0x20)),
               first.computeLineMetrics().count > 1 else { return [:] }
         // What each character's automatic space after it is.
@@ -137,7 +140,7 @@ extension RichLayout {
             && units.contains(where: { $0 == 0x2E || $0 == 0x2C }))
             || latinStops && units.contains(where: { Self._latinStopUnits.contains($0) })
             || hangulParen || hangulStop
-        guard marked || stops || partable || !gaps.isEmpty || ((squeezesSpaces || pageBox) && units.contains(0x20)) else { return [:] }
+        guard marked || stops || partable || openerLine || !gaps.isEmpty || ((squeezesSpaces || pageBox) && units.contains(0x20)) else { return [:] }
         let map = _OffsetMap(lead: 0, inserts: inserts)
         // Where a zero-width space lets the line break (a word joiner,
         // the other thing `_span` puts in, does the opposite).
@@ -148,6 +151,8 @@ extension RichLayout {
         // "目" before it; glued as "目，" the line ran a piece behind and
         // the "。" went down alone.)
         let kinsokuOff = p.style.eastAsian["w:kinsoku"] == "0"
+        // (Under compressPunctuation, kinsoku on, Word for Windows may end a line on an opening mark squeezed: `_span`.)
+        let squeezeOpen = !kinsokuOff && squeezes && (document.hasKana || document.eastAsiaLanguage?.hasPrefix("ja") == true) && RichTextTheme.wordWindowsPages && theme.wordRules && (document.compatibilityMode ?? 12) >= 15
         // (Or where the mark's run has no East Asian line rules.)
         var runOf: [Int] = []
         for (k, r) in p.runs.enumerated() { runOf.append(contentsOf: repeatElement(k, count: r.length)) }
@@ -203,6 +208,7 @@ extension RichLayout {
             // (… and an opening one end it, under `w:kinsoku` 0 in text of
             // an East Asian language — zh-72da925e's "…（下稱「": see `_span`.)
             if kinsokuOff, !runRulesOff(o - 1), Self._openingMarks.contains(Character(a)) || Self._latinOpener(Character(a), Character(b)) { return true }
+            if squeezeOpen, Self._openingMarks.contains(Character(a)), b.value != 0x20 { return true }
             if kinsokuOff, RichTextTheme.wordWindowsPages, !runRulesOff(o - 1), a.value == 0x201C || a.value == 0x2018, eastAsianRunAt(o - 1) { return true }
             // (In a line too narrow for one character, at every one: see `_span`.)
             if wordRules, width < _px(p.runs.first?.style.fontSize ?? lineStyle?.char.fontSize ?? theme.fontSize) { return true }
@@ -670,7 +676,7 @@ extension RichLayout {
             // Word's print. Nothing gives for it: zh-c8eb6e92's cell
             // "定标监督小组人员（签名）" carries the "（", 1.15pt over, to the
             // next line.)
-            let openingAlone = kinsokuOff && last - a == 1 && (Self._openingUnits.contains(units[a])
+            let openingAlone = (kinsokuOff || squeezeOpen) && last - a == 1 && (Self._openingUnits.contains(units[a])
                 || (RichTextTheme.wordWindowsPages && wideQuote(a) && (units[a] == 0x201C || units[a] == 0x2018)))
             if openingAlone, !fits, x + w - width <= _px(0.05) { fits = true }
             // (Fitting by that hair is fitting: the engine allows none,
@@ -700,6 +706,16 @@ extension RichLayout {
             // the alternative kinsoku rules: zh-c8eb6e92's cell carries "（签名）"'s
             // "（" over at 1.15pt.)
             // (Not a full-width quote before 2013's layout: zh-b00fef0d's "…其中" (mode 12) sends its "“" down 4.05 over with two marks to give.)
+            // (Under compressPunctuation Word ends a line on an opening mark squeezed by its own blank half at most: lab opn11, zh 8787f4.
+            // Less than half an em of room carries it, as it stands.)
+            var openerOwn = false
+            if squeezeOpen, openingAlone, !fits, last == a + 1 {
+                openerOwn = true
+                if (width - x) * 2 >= w { adjust[a, default: 0] -= x + w - width + 0.02; fits = true }
+            } else if squeezeOpen, openingAlone, fits, last == a + 1 {
+                // Room for the whole opener: the next ideograph overflows and kinsoku carries it (zh 7f0539, 2c8799).
+                adjust[-(a + 2)] = 1
+            }
             let macBodyOpener = openingAlone && (RichTextTheme.wordWindowsPages ? !document.hangsHalf && !(legacy && wideQuote(a)) : !inCell)
             let overAtStart = !fits
             if Self.debugFitLog, overAtStart {
@@ -712,7 +728,7 @@ extension RichLayout {
                 }
                 FileHandle.standardError.write(Data("FITO\t\(i)\t\(lineNumber)\t\(a)\t\(last)\t\(x / pt)\t\(w / pt)\t\(width / pt)\t\(after / pt)\t\(marks.count)\t\(own.count)\t\(lineWide)\t\(lineEms / pt)\t\(lineOther ? 1 : 0)\n".utf8))
             }
-            if !fits, last > a, (!openingAlone || macBodyOpener), !joinedWord {
+            if !fits, last > a, (!openingAlone || macBodyOpener), !joinedWord, !openerOwn {
                 // (A parted bracket's whole width, as `fits` weighed it, and no
                 // hang for it — in Taiwan's convention, where marks are compressed:
                 // lab `prt` (zh-7a16a243's package) and that document's p26. Not

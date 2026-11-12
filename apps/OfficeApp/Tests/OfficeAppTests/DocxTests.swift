@@ -2949,6 +2949,25 @@ final class DocxTests: XCTestCase {
                 painter.getLineBoundary(TextPosition(offset: 0)).end)
     }
 
+    func testAnOpeningMarkMayEndALineSqueezedUnderCompressPunctuation() throws {
+        // Word for Windows, compat 15, compressPunctuation, kinsoku on (labs
+        // opn1/opn11, zh 8787f4): with room for half an em or more the opener
+        // ends the line squeezed to fit; with less than half it is carried.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        let head = String(repeating: "一", count: 20)
+        let text = head + "「" + String(repeating: "二", count: 10)
+        let squeezed = try firstLine(text, width: 20 * 12 + 9, hangs: false, mode: 15, justified: true, documentLanguage: "ja-JP")
+        XCTAssertEqual(squeezed.length, 22, "room of 0.75 em: the opener (and its zero-width break mark) ends the line")
+        XCTAssertEqual(squeezed.width, 20 * 12 + 9, accuracy: 0.5, "squeezed to the room")
+        let carried = try firstLine(text, width: 20 * 12 + 4, hangs: false, mode: 15, justified: true, documentLanguage: "ja-JP")
+        XCTAssertEqual(carried.length, 20, "room of a third of an em: the opener goes down")
+        let whole = try firstLine(text, width: 21 * 12 + 2, hangs: false, mode: 15, justified: true, documentLanguage: "ja-JP")
+        XCTAssertEqual(whole.length, 20, "room for the whole opener: kinsoku carries it")
+        let tw = try firstLine(text, width: 20 * 12 + 9, hangs: false, mode: 15, justified: true, documentLanguage: "zh-TW")
+        XCTAssertEqual(tw.length, 20, "not Japanese: Word does not end a zh-TW line on an opener")
+    }
+
     func testAFullWidthPercentMayOpenATraditionalChineseLine() throws {
         // zh-499adba6's "…占比為38.54" ends page 25's first line in Word's
         // print and "％，女性理事…" opens the next: Word's Traditional
