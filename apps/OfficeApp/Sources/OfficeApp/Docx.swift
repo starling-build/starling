@@ -2924,6 +2924,9 @@ enum DocxFormat {
                             let made = rowSides ?? XNode(name: "w:tcBorders", attrs: [:])
                             for side in ["top", "left", "bottom", "right"] where !(side == "bottom" && mergesOn) {
                                 guard said?.first("w:" + side) == nil, made.first("w:" + side) == nil, let e = hb.first("w:" + side) else { continue }
+                                // A rule with no w:sz: Word prints a hairline
+                                // and the row does not grow (463426 page 8).
+                                if e["w:sz"] == nil, e["w:val"] != "nil", e["w:val"] != "none" { continue }
                                 made.children.append(XNode(name: "w:" + side, attrs: e.attrs))
                             }
                             if !made.children.isEmpty { rowSides = made }
