@@ -143,6 +143,15 @@ extension RichLayout {
         default: return false
         }
     }
+    /// The Windows face Word draws Bengali in for a face it lacks (labs bnfield, 15 prints): Shonar Bangla when the font-table signature's usb0 has the
+    /// Bengali bit (0x10000) and no other Indic bit (Devanagari 0x8000, Gurmukhi to Malayalam 0x20000-0x800000; those further bits are an extension of the
+    /// lab, not proved), i.e. a face whose coverage is Bengali only; otherwise (no entry, no signature, a shared Indic signature such as Nikosh's) Nirmala UI.
+    @inline(never) static func _bengaliMissingFace(_ cs: String, _ document: RichDocument) -> String {
+        if ["mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "utsaah", "shonar bangla", "kalimati", "latha", "vijaya", "nirmala ui"].contains(cs) { return cs == "kalimati" ? "nirmala ui" : cs }
+        guard let usb0 = document.fontUsb0[cs] else { return "nirmala ui" }
+        return usb0 & 0x10000 != 0 && usb0 & 0x00FE_8000 == 0 ? "shonar bangla" : "nirmala ui"
+    }
+
     /// A run with no Indic letters in it (marks, Latin, digits) is drawn in the face it NAMES: its complex-script face when it carries `w:cs`, otherwise
     /// its ascii face. When that face is one we hold line metrics for, the run takes that face's line (Latha 1.372 em, dx2 80152175; Mangal, and Kalimati
     /// which Windows lacks, in dx2 375919ba's leader runs). The script path picks a face only when the run names none we know.
@@ -949,8 +958,9 @@ extension RichLayout {
                     // Nirmala's own advances from the table; 2263e221's "\u{9EE}" is 8.35 pt in Word, 6.5 in the stand-in.)
                     if text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF }),
                        !text.unicodeScalars.contains(where: { ($0.value < 0x980 && $0.value >= 0x900 && $0.value != 0x964 && $0.value != 0x965) || $0.value >= 0xA00 && Self._isIndic($0.value) }),
-                       !["mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "utsaah", "shonar bangla", "kohinoor bangla", "kalimati", "latha", "vijaya"].contains(
-                        (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()) {
+                       !["mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "utsaah", "shonar bangla", "kalimati", "latha", "vijaya"].contains(
+                        (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()),
+                       Self._bengaliMissingFace((run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased(), document) != "shonar bangla" {
                         RuleTrace.hit("word-bengali-digits-only-run-in-a-missing-face-is-nirmala")
                         return ("nirmala ui", 1)
                     }
@@ -993,13 +1003,13 @@ extension RichLayout {
                 let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
                 let bold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
                 // Which face: the complex-script one where Windows has it; a face it lacks (Arial, Times, Kalpurush, Nikosh, Arial Unicode MS...)
-                // Word draws in Nirmala UI, but Kalimati (Devanagari) in Mangal and Kohinoor Bangla in Shonar Bangla (dx2 prints).
+                // Word draws in Nirmala UI, but Kalimati (Devanagari) in Mangal, and a Bengali face whose font-table signature is Bengali-only in Shonar Bangla
+                // (labs bnfield: the signature decides, not name, panose, charset or alternate; dx2 prints).
                 var face = cs
                 switch cs {
                 case "kalimati": face = "mangal"
-                case "kohinoor bangla": face = "shonar bangla"
                 case "mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "utsaah", "shonar bangla": break
-                default: face = "nirmala ui"
+                default: face = top.key == "B" ? Self._bengaliMissingFace(cs, document) : "nirmala ui"
                 }
                 guard var scale = Self._indicScale[face]?[top.key] else { return nil }
                 if face == "nirmala ui", bold { scale *= 1.076 / 1.086 }
@@ -1078,7 +1088,7 @@ extension RichLayout {
                 // extra under the baseline unchanged). White space and the invisible marks beside Kokila text set no line of their own.)
                 // (Shonar Bangla beside Arial: the same line, the Latin face's ascent (with its line gap) over the Bengali face's descent; lab stk1.)
                 let latinOwner: String? = p.runs.contains(where: { ($0.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "kokila" }) ? "kokila"
-                    : (p.runs.contains(where: { ["shonar bangla", "kohinoor bangla"].contains(($0.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()) })
+                    : (p.runs.contains(where: { Self._bengaliMissingFace(($0.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased(), document) == "shonar bangla" })
                     ? "shonar bangla" : nil)
                 if kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, !kokilaLatin || (run.keptXML?.containsSubstring("<w:cs") ?? false), p.style.lineHeightPoints == nil,
                    let latinOwner, let m = Self._indicLines[latinOwner], let size = s.fontSize, size > 0.5,
@@ -1086,7 +1096,7 @@ extension RichLayout {
                     // (Latin letters stack only when drawn in a face other than the line's Indic face: a run whose ascii face IS its complex face, such as Shonar Bangla on both, takes that face's own line and adds no Latin ascent; dx2 3f7da49c.)
                     let ownAscii: String = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
                     let ownComplex: String = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
-                    let ownIndic: Bool = ownAscii == "shonar bangla" || ownAscii == "kohinoor bangla"
+                    let ownIndic: Bool = Self._bengaliMissingFace(ownAscii, document) == "shonar bangla"
                     let ownFace: Bool = latinOwner == "shonar bangla" && ownAscii == ownComplex && ownIndic
                     let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
                     let split = Self._multipleSplit(ascent: m.0, descent: m.1, multiple: multiple)

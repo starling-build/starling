@@ -2474,6 +2474,8 @@ public struct RichDocument: Hashable, Sendable {
     public var hasIndicText = false
     /// The font table's charset code for each face name (lower-cased): "80" is the Japanese one, which decides Word's fallback for Arial Unicode MS.
     public var fontCharsets: [String: String] = [:]
+    /// The font table's Unicode signature (usb0) for each face name (lower-cased); it decides which Windows face draws Bengali for a face Word lacks.
+    public var fontUsb0: [String: UInt32] = [:]
     /// Whether that language's East Asian one is mainland Chinese, whose
     /// marks sit in the left half of their em: a closing mark at a
     /// line's end in a table's cell then gives its empty half in every

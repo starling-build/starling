@@ -3692,6 +3692,7 @@ enum DocxFormat {
                                                       usb1: sig?["w:usb1"].flatMap { UInt32($0, radix: 16) })
             }
             document.fontCharsets = Dictionary(entryCharsets.map { ($0.key.trimmingWhitespace().lowercased(), $0.value) }, uniquingKeysWith: { a, _ in a })
+            document.fontUsb0 = Dictionary(entries.compactMap { e in e.value.usb0.map { (e.key.trimmingWhitespace().lowercased(), $0) } }, uniquingKeysWith: { a, _ in a })
             document.fontAlternates = Dictionary(alts.map { ($0.key.trimmingWhitespace().lowercased(), $0.value.trimmingWhitespace().lowercased()) }, uniquingKeysWith: { a, _ in a })
             OfficeFonts.noteAltNames(alts)
             OfficeFonts.noteFontEntries(entries)

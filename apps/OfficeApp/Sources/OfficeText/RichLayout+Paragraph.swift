@@ -3578,7 +3578,7 @@ extension RichLayout {
             guard slice.contains(where: { $0 > 0x20 && $0 <= 0x7E }) else { continue }
             if String(decoding: slice, as: UTF16.self).unicodeScalars.contains(where: { Self._indic.contains($0.value) }) { continue }
             let face = (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
-            if face != "shonar bangla" && face != "kohinoor bangla" { return true }
+            if Self._bengaliMissingFace(face, document) != "shonar bangla" { return true }
         }
         return false
     }
@@ -3640,9 +3640,8 @@ extension RichLayout {
                         var cs = (run.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
                         switch cs {
                         case "kalimati": cs = "mangal"
-                        case "kohinoor bangla": cs = "shonar bangla"
                         case "mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "utsaah", "shonar bangla": break
-                        default: cs = "nirmala ui"
+                        default: cs = text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value < 0xA00 }) ? Self._bengaliMissingFace(cs, document) : "nirmala ui"
                         }
                         // (Shonar Bangla Bold is its own face: 1721+978 of 2048; a first line of Bengali alone stands on its ascent, 15.1 pt at 18 pt, not on the stand-in's 0.96 em: dx2 3f7da49c's title, Word's baseline 60.1.)
                         let shonarBold = cs == "shonar bangla" && (run.style.bold || ((named?.char.bold ?? false) && !run.style.off.contains(.bold)))

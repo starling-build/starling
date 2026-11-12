@@ -435,6 +435,7 @@ extension RichLayout {
     func _subLayout(_ paragraphs: [RichParagraph], _ document: RichDocument, width: Double, onGrid: Bool = false) -> _HeaderFooter {
         var sub = RichDocument(paragraphs: paragraphs.isEmpty ? [RichParagraph()] : paragraphs)
         sub.styles = document.styles
+        sub.fontUsb0 = document.fontUsb0
         // (A page break inside a note starts nothing new — the note is one
         // paragraph to Word, its line following at a line's pitch, none of
         // the paragraph's space between: lo-ccca8bf3's second endnote sets
@@ -673,6 +674,7 @@ extension RichLayout {
         if let hit = _textBoxCache[key] { return hit }
         var sub = RichDocument(paragraphs: box.paragraphs)
         sub.styles = document.styles
+        sub.fontUsb0 = document.fontUsb0
         sub.listFormats = document.listFormats
         sub.listCounterOf = document.listCounterOf
         sub.listRestarts = document.listRestarts
@@ -1831,6 +1833,7 @@ extension RichLayout {
         let paragraphs = filled(source.paragraphs)
         var sub = RichDocument(paragraphs: paragraphs)
         sub.styles = document.styles
+        sub.fontUsb0 = document.fontUsb0
         sub.listFormats = document.listFormats
         sub.listCounterOf = document.listCounterOf
         sub.listRestarts = document.listRestarts
