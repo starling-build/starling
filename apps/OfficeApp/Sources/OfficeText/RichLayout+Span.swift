@@ -2216,6 +2216,15 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == " ", ch == "/",
+                          p.text.unicodeScalars.contains(where: { (0xAC00 ... 0xD7A3).contains($0.value) }) {
+                    // (Unicode forbids a break before "/" even after a space,
+                    // so the engine backed up a word; Word breaks there.
+                    // kor-z15852510-c9baf7's `가짐." />` keeps `가짐."` and
+                    // sends "/>" down.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 } else if theme.wordRules, breaksAtQuotes, !lineRulesOff, before == " ", Self._closingMarks.contains(ch) {
                     // (Nor before a closing mark after spaces, which may no
                     // more start a line there than anywhere: zh-f47b8a74's
