@@ -3128,6 +3128,8 @@ enum OfficeFonts {
         "calibri", "cambria", "cambria math", "courier new", "dubai", "myriad arabic", "arial unicode ms", "gadugi", "nirmala ui", "leelawadee ui",
     ]
 
+    static let davidOtherAdvances: [UInt32: Double] = [0x0: 0.0000, 0xD: 0.2212, 0x20: 0.2212, 0x21: 0.3042, 0x22: 0.4429, 0x25: 0.7749, 0x27: 0.2212, 0x28: 0.2490, 0x29: 0.2490, 0x2A: 0.3599, 0x2B: 0.6108, 0x2C: 0.2490, 0x2D: 0.3320, 0x2E: 0.2490, 0x2F: 0.3320, 0x30: 0.4429, 0x31: 0.4429, 0x32: 0.4429, 0x33: 0.4429, 0x34: 0.4429, 0x35: 0.4429, 0x36: 0.4429, 0x37: 0.4429, 0x38: 0.4429, 0x39: 0.4429, 0x3A: 0.3872, 0x3B: 0.3872, 0x3F: 0.3599, 0x40: 0.9209, 0x41: 0.7222, 0x45: 0.6108, 0x46: 0.5562, 0x49: 0.3330, 0x4C: 0.6108, 0x4D: 0.8892, 0x52: 0.6670, 0x53: 0.5562, 0x54: 0.6108, 0x55: 0.7222, 0x5B: 0.2490, 0x5D: 0.2490, 0x5F: 0.5039, 0x61: 0.4438, 0x63: 0.4438, 0x64: 0.5000, 0x65: 0.4438, 0x66: 0.3330, 0x67: 0.5000, 0x68: 0.5000, 0x69: 0.2778, 0x6A: 0.2778, 0x6B: 0.5000, 0x6C: 0.2778, 0x6D: 0.7778, 0x6E: 0.5000, 0x6F: 0.5000, 0x70: 0.5000, 0x72: 0.3330, 0x73: 0.3892, 0x74: 0.2778, 0x75: 0.5000, 0x76: 0.5000, 0x77: 0.7222, 0x78: 0.5000, 0xBD: 0.6641, 0x5D0: 0.5811, 0x5D1: 0.4702, 0x5D2: 0.3320, 0x5D3: 0.4702, 0x5D4: 0.5532, 0x5D5: 0.3042, 0x5D6: 0.3599, 0x5D7: 0.5532, 0x5D8: 0.5811, 0x5D9: 0.3042, 0x5DA: 0.4702, 0x5DB: 0.4702, 0x5DC: 0.4429, 0x5DD: 0.6089, 0x5DE: 0.5811, 0x5DF: 0.3042, 0x5E0: 0.3042, 0x5E1: 0.5811, 0x5E2: 0.4429, 0x5E3: 0.4702, 0x5E4: 0.4429, 0x5E5: 0.4429, 0x5E6: 0.4980, 0x5E7: 0.5811, 0x5E8: 0.4702, 0x5E9: 0.6089, 0x5EA: 0.5811, 0x2009: 0.0977, 0x2013: 0.5000, 0x2022: 0.3501, 0x20AA: 0.7280, 0x25CC: 0.5942, 0xF8FF: 0.3042, 0xFB2A: 0.6089, 0xFB2B: 0.6089, 0xFB35: 0.3042, 0xFB4B: 0.3042, 0xFB4F: 0.5811]
+    static let davidBoldOtherAdvances: [UInt32: Double] = [0x0: 0.0000, 0xD: 0.2212, 0x20: 0.2212, 0x21: 0.3872, 0x22: 0.4980, 0x25: 0.7749, 0x27: 0.2769, 0x28: 0.3042, 0x29: 0.3042, 0x2A: 0.3599, 0x2B: 0.6108, 0x2C: 0.2769, 0x2D: 0.4429, 0x2E: 0.2769, 0x2F: 0.3599, 0x30: 0.4429, 0x31: 0.4429, 0x32: 0.4429, 0x33: 0.4429, 0x34: 0.4429, 0x35: 0.4429, 0x36: 0.4429, 0x37: 0.4429, 0x38: 0.4429, 0x39: 0.4429, 0x3A: 0.3872, 0x3B: 0.3872, 0x3D: 0.6108, 0x3F: 0.4429, 0x42: 0.6670, 0x45: 0.6670, 0x4C: 0.6670, 0x4D: 0.9438, 0x52: 0.7222, 0x58: 0.7222, 0x5B: 0.3042, 0x5D: 0.3042, 0x5F: 0.5039, 0x63: 0.4438, 0x64: 0.5562, 0x65: 0.4438, 0x66: 0.3330, 0x6E: 0.5562, 0x6F: 0.5000, 0x72: 0.4438, 0x73: 0.3892, 0x74: 0.3330, 0x75: 0.5562, 0x5D0: 0.5532, 0x5D1: 0.4702, 0x5D2: 0.3599, 0x5D3: 0.4702, 0x5D4: 0.5811, 0x5D5: 0.2769, 0x5D6: 0.3320, 0x5D7: 0.5532, 0x5D8: 0.6089, 0x5D9: 0.3320, 0x5DA: 0.4702, 0x5DB: 0.4702, 0x5DC: 0.4429, 0x5DD: 0.6089, 0x5DE: 0.5811, 0x5DF: 0.2769, 0x5E0: 0.3320, 0x5E1: 0.6089, 0x5E2: 0.4702, 0x5E3: 0.4702, 0x5E4: 0.4980, 0x5E5: 0.4702, 0x5E6: 0.4702, 0x5E7: 0.5811, 0x5E8: 0.4702, 0x5E9: 0.6919, 0x5EA: 0.5811, 0x2009: 0.0977, 0x2013: 0.5000, 0x20AA: 0.7280, 0x25CC: 0.5942, 0xF8FF: 0.3320, 0xFB4F: 0.5532]
     private static let windowsArabicWidthsOn = true
     // (Arabic and Hebrew faces Windows has and we do not: their own line heights.)
     private static let windowsArabicLines: [String: Double] = ["traditional arabic": 1.495, "sakkal majalla": 1.40, "simplified arabic": 3395.0 / 2048, "david": 2015.0 / 2048]
@@ -3227,7 +3229,11 @@ enum OfficeFonts {
         if wordOnWindows, missing, embeddedFamily(asked) == nil, let tall = Self.windowsArabicLines[asked] {
             RuleTrace.hit("windows-arabic-face-own-line")
             // (David: hhea 1505 + 510 over 2048, bold the same, read from Word's prints; 12pt lines at 1.5 step 17.7.)
-            if asked == "david" { face.baseline = 1505.0 / 2048 }
+            if asked == "david" {
+                face.baseline = 1505.0 / 2048
+                // (Its Hebrew letters' own advances, read from Word's prints: set word by word, `joinedScaled`.)
+                face.otherAdvances = davidOtherAdvances; face.boldOtherAdvances = davidBoldOtherAdvances
+            }
             face.naturalHeight = tall; face.boldHeight = asked == "simplified arabic" ? 3405.0 / 2048 : tall
             // (Simplified Arabic: hhea 2416 + 979 over 2048, bold 989, from Word's print; a4945c74's 14pt lines under a 0.7 multiple step 16.3.)
         }

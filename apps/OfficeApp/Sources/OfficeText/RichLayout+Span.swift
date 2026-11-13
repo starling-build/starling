@@ -1323,6 +1323,15 @@ extension RichLayout {
             // tdf163575's "می‌توان" 37pt to Word's 27.)
             func isArabic(_ c: Character) -> Bool { c.unicodeScalars.first.map { ArabicForms.isArabic($0.value) || $0.value == 0x200C } ?? false }
             func joinedScaled(_ word: Substring, _ s: TextStyle) -> TextStyle {
+                // (Hebrew, word by word, at the advances the face carries per letter: David's, from Word's prints.)
+                if let joinedFace, let first = word.unicodeScalars.first, first.value >= 0x5D0, first.value <= 0x5EA, let px = s.fontSize, px > 0.5,
+                   let table = s.fontWeight == .bold ? joinedFace.boldOtherAdvances : joinedFace.otherAdvances,
+                   word.unicodeScalars.allSatisfy({ table[$0.value] != nil }) {
+                    let ems = word.unicodeScalars.reduce(0.0) { $0 + (table[$1.value] ?? 0) }
+                    let shaped = _wordWidth(s, String(word))
+                    RuleTrace.hit("word-hebrew-face-own-advances")
+                    return shaped > 0.01 ? s.copyWith(scaleX: ems * px / shaped) : s
+                }
                 guard let joinedFace, let first = word.first, isArabic(first), first != "\u{200C}", word.allSatisfy(isArabic),
                       let table = s.fontWeight == .bold ? joinedFace.boldJoinedAdvances : joinedFace.joinedAdvances, let px = s.fontSize, px > 0.5
                 else { return s }
