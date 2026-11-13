@@ -354,7 +354,22 @@ extension RichLayout {
                 let foot = rect.top + _px(part.top + part.height - text.insetBottom)
                 canvas.clipRect(Rect.fromLTRB(rect.left - 1_000_000, top, rect.right + 1_000_000, foot), clipOp: .intersect, doAntiAlias: false)
                 canvas.translate(rect.left + _px(text.insetLeft), rect.top + _px(text.insetTop))
-                _paintBoxText(inside, canvas)
+                // (Each box shows its own paragraphs: the line one's text runs
+                // down into the next box's band is that box's, not its own.)
+                var band: (top: Double, bottom: Double)? = nil
+                let tops = inside.layout._tops
+                if part.first < tops.count {
+                    let nextFirst = n + 1 < text.parts.count ? text.parts[n + 1].first : Int.max
+                    band = (n == 0 ? -100_000 : tops[part.first] - 0.5, nextFirst < tops.count ? tops[nextFirst] - 0.5 : 100_000)
+                }
+                // (A shape before it whose text runs past its foot, that Word
+                // clips there, does not push this one down: it stands where
+                // its own box does.)
+                if n > 0, part.first < tops.count {
+                    let shift = _px(part.top - text.insetTop) - tops[part.first]
+                    if shift < -0.01 { canvas.translate(0, shift) }
+                }
+                _paintBoxText(inside, canvas, band: band)
                 canvas.restore()
             }
             return
@@ -417,9 +432,9 @@ extension RichLayout {
 
     /// A text box's text, at the canvas's origin: its flow, and any
     /// boxes of its group laid out beside it.
-    func _paintBoxText(_ inside: _HeaderFooter, _ canvas: any Canvas) {
+    func _paintBoxText(_ inside: _HeaderFooter, _ canvas: any Canvas, band: (top: Double, bottom: Double)? = nil) {
         let all = Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000)
-        inside.layout.paint(canvas, visible: all, document: inside.document, selection: nil, caret: nil)
+        inside.layout.paint(canvas, visible: band.map { Rect.fromLTRB(-100_000, $0.top, 100_000, $0.bottom) } ?? all, document: inside.document, selection: nil, caret: nil)
         for other in inside.beside {
             canvas.save()
             // (A box turned in its group, about its middle: zh-b24b396a's
@@ -771,6 +786,15 @@ extension RichLayout {
             }
             sub.paragraphs = parts[0].rotation != 0 ? [] : Array(all[0 ..< min(all.count, parts[1].first)])
             parts = [parts[0]]
+        }
+        // (Each shape of a group is its own box in Word's print: the space
+        // after the last paragraph of one does not push the next shape down.
+        // dx2 2263e221's three stacked boxes, each with the default 8pt
+        // after, stood 3.8pt low in ours.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, parts.count > 1 {
+            for n in 1 ..< parts.count where parts[n].first > 0 && parts[n].first <= sub.paragraphs.count {
+                sub.paragraphs[parts[n].first - 1].style.spaceAfter = 0
+            }
         }
         var layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
         layout.scale = scale
