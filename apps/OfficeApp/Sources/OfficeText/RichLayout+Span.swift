@@ -718,7 +718,30 @@ extension RichLayout {
             // danda alone below. The engine hangs a trailing space, so it is set as a no-break space with a break after it.)
             let spaceBeforeDanda: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && rawText.last == " " && (next == "\u{0964}" || next == "\u{0965}")
                 && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value <= 0x97F })
-            let text: Substring = (spaceBeforeDanda ? Substring(String((hung ?? moved ?? String(rawText)).dropLast()) + "\u{00A0}") : hung.map { Substring($0) } ?? moved.map { Substring($0) } ?? rawText)
+            let text0: Substring = (spaceBeforeDanda ? Substring(String((hung ?? moved ?? String(rawText)).dropLast()) + "\u{00A0}") : hung.map { Substring($0) } ?? moved.map { Substring($0) } ?? rawText)
+            // (A space + U+00A0 gap after an Indic letter is not a place to part the line: Word moves the word before it down with
+            // the gap and the word after, one unit. Lab nbsp4 (dx2 6dcc4527 p2): "ਵਿਚ" + SP + NBSP + "ਭਾਰਤ" returns to the line only when
+            // the edge holds the whole unit (+31 pt), never when just "ਵਿਚ" + SP would fit; NBSP alone parts at +28, SP+NBSP+NBSP at
+            // +34, plain spaces never block. The space is set as a no-break space (same width). Cyrillic, Georgian and Armenian gaps
+            // (3200cbc7, a6d5c830, c423753e) do part, so only an Indic letter before the gap counts.)
+            let text: Substring = {
+                guard theme.wordRules, RichTextTheme.wordWindowsPages, !document.usesEastAsianLayout, text0.containsSubstring(" \u{00A0}") else { return text0 }
+                var out = String.UnicodeScalarView()
+                var prev: UInt32? = nil
+                if base > 0, base - 1 < p.text.utf16.count {
+                    prev = p.text.unicodeScalars[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: base - 1)].value
+                }
+                var changed = false
+                let sc = Array(text0.unicodeScalars)
+                for (k, u) in sc.enumerated() {
+                    if u == " ", k + 1 < sc.count, sc[k + 1].value == 0xA0, let pv = prev, pv >= 0x0900, pv <= 0x0DFF {
+                        out.append(Unicode.Scalar(0xA0)!); changed = true
+                    } else { out.append(u) }
+                    prev = u.value
+                }
+                if changed { RuleTrace.hit("6dcc4527-indic-space-nbsp-gap-is-one-unit") }
+                return changed ? Substring(String(out)) : text0
+            }()
             // (A soft hyphen the line ends at is a hyphen to the line breaking
             // too — see `_layoutParagraph`.)
             if let idx = index, let shownSet = _hyphenShown[idx], !shownSet.isEmpty, text.containsSubstring("\u{00AD}") {
