@@ -3002,7 +3002,7 @@ extension RichLayout {
                                             eastAsian: true, gridPitch: pitch)
                     spans.append(TextSpan(text: String(ch), style: extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s))
                     start = after
-                } else if ea, theme.wordRules, let cjk = Self._cjkFaceFamily, let u = ch.unicodeScalars.first?.value, (0x2160 ... 0x217F).contains(u) || u == 0x25C8 {
+                } else if ea, theme.wordRules, (style(kind).fontWeight == .bold || theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.otherAdvances?[0x2160] == nil), let cjk = Self._cjkFaceFamily, let u = ch.unicodeScalars.first?.value, (0x2160 ... 0x217F).contains(u) || u == 0x25C8 {
                     // (A Roman numeral in East Asian text is the CJK face's,
                     // an em wide: zh-78729cf9's "（Ⅰ级）、重大（Ⅱ级）" in a
                     // hinted 仿宋_GB2312 run is YaHei's in Word's print, each

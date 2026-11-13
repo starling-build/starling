@@ -3005,6 +3005,9 @@ extension RichLayout {
                 // (And after a hyphen before a letter, as Latin words part: 222f3f's
                 // "캐나다-한국-" / "EU)" in Word's print.)
                 for k in units.indices.dropFirst() where units[k - 1] == 0x2D && ((units[k] | 0x20) >= 0x61 && (units[k] | 0x20) <= 0x7A) { out.insert(k) }
+                // (And between a Hangul syllable and a Roman numeral (U+2160-217F):
+                // 30dbe1 wordWrap off, Word parts "…), 제" from "Ⅴ~Ⅵ부(…" mid-word.)
+                for k in units.indices.dropFirst() where units[k] >= 0x2160 && units[k] <= 0x217F && units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 { out.insert(k) }
             }
             for k in units.indices.dropFirst() where !korean && units[k] > 0x20 && units[k] < 0x7F && units[k - 1] > 0x20 && units[k - 1] < 0x7F {
                 let mayStart = !Self._noStart.contains(units[k]) || traditional && (units[k] == 0x25 || units[k] == 0x27 || units[k] == 0x3E)

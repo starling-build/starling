@@ -2546,16 +2546,19 @@ enum OfficeFonts {
             malgun.baseline = 1.288
             // (Word sets Malgun's curly quotes at their own narrow widths, with no blank beside them:
             // kor-z17264683-7d8a4b's "‘필수 재료’로" steps 0.228 em at each single quote and 0.38 at a double one.)
-            let malgunQuotes: [UInt32: Double] = [0x2018: 0.228, 0x2019: 0.228, 0x201C: 0.38, 0x201D: 0.38,
+            var malgunQuotes: [UInt32: Double] = [0x2018: 0.228, 0x2019: 0.228, 0x201C: 0.38, 0x201D: 0.38,
                                                   // (Malgun's corner brackets are proportional, read from f457e50c's print: 「 0.566, 」 0.577, 『 』 0.517 em.)
                                                   0x300C: 0.566, 0x300D: 0.577, 0x300E: 0.517, 0x300F: 0.517,
                                                   // (Malgun's middle dot, from the face's own hmtx (lab/metrics/Malgun_Gothic.tsv): 448/2048 = 0.2188 em; ours drew the Latin stand-in's.)
                                                   0x00B7: 0.2188, 0x2022: 0.4175,
                                                   // (U+2027: Malgun has none; Word draws it in MS Gothic, half an em, regular and bold (lab u2027, 20-dot runs).)
                                                   0x2027: 0.5]
+            // (Roman numerals U+2160-2179: Malgun Gothic Regular sets them 0.9502 em (Malgun_Gothic_Regular.tsv), Bold a full em;
+            // kor-z19176375-30dbe1's "제Ⅹ부" lines ran ~4 pt wide at our em. The bold table below stays at the em default.)
+            var malgunBoldQuotes = malgunQuotes
+            for u in UInt32(0x2160)...UInt32(0x2179) { malgunQuotes[u] = 0.9502 }
             malgun.otherAdvances = malgunQuotes
             // (Bold cut: U+00B7 is 0.2617 em, from lab/metrics/Malgun_Gothic_Bold.tsv.)
-            var malgunBoldQuotes = malgunQuotes
             malgunBoldQuotes[0x00B7] = 0.2617
             malgun.boldOtherAdvances = malgunBoldQuotes
             malgun.latinScale = 1.0
