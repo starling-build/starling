@@ -297,6 +297,8 @@ extension RichLayout {
         let koreanTokenJoins = theme.wordRules && RichTextTheme.wordWindowsPages ? Self._koreanTokenJoins(Array(p.text.utf16)) : []
         var before: Character? = nil
         var beforeBefore: Character? = nil
+        var latinRunBracket = false
+        var latinAfterEastAsian = false   // the ASCII run in hand opened right after East Asian text
         var dotsAttached = false   // the run of stops in hand follows a word's letter, with no space between
         // (Whether the plain spaces just before the character at hand
         // follow a no-break space: see the branch that joins them.)
@@ -327,7 +329,7 @@ extension RichLayout {
         // print ends lines on "（" and "「", and opens them on "）".)
         let plainNoLineRules = RichTextTheme.wordWindowsPages && theme.wordRules && (document.hangsLatinStops || document.eastAsianDefaultFaceIsLatin && !document.bodyStatesLang && document.defaultLangXML == nil) && !document.eastAsianLineRules
         // (A file that names a compatibility mode, with Arial for East Asian text and no language (jpn-z18981562-5ff3d0): its print ends a line on "（" before a Latin word that does not fit.)
-        let openerBeforeLatin = plainNoLineRules && document.compatibilityMode != nil
+        let openerBeforeLatin = plainNoLineRules
         let pausesOpenLines = RichTextTheme.wordWindowsPages && theme.wordRules && (document.compatibilityMode ?? 12) >= 15 && document.lineGridPitch != nil && document.marksSitLeft && p.text.unicodeScalars.contains(where: { $0.value >= 0x3040 && $0.value <= 0x30FF })
         // (Not only under `w:useFELayout`: zh-202582e2's settings lack it,
         // and its “综合验一次” in YaHei for FangSong_GB2312 is an em a
@@ -2455,6 +2457,19 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
                     inserts.append(offset)
+                } else if plainNoLineRules, document.hangsLatinStops, latinAfterEastAsian, let b = before, b.isASCII, !latinRunBracket || ch == "/", b.isLetter || b.isNumber || b == ".", (ch.isASCII && (ch.isLetter || ch.isNumber || ch == "/") || ch == "\u{2192}") {
+                    // (The same file breaks a Latin run that follows East Asian text with no space anywhere
+                    // inside it: jpn-z21601833-4e6465 ends lines "…DA|G」", "…（rev|27", "…三角形数＝2E|/3。"
+                    // and starts "/450）"; a run opened by a space stays whole: "…厳密に E/3。".)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
+                    inserts.append(offset)
+                } else if plainNoLineRules, ch == "\u{30FB}", let b = before, (b.unicodeScalars.first?.value ?? 0) >= 0x3040, !Self._openingMarks.contains(b) {
+                    // (A plain file with no line rules (Pandoc's en-US) opens a line with the middle dot too:
+                    // jpn-z21601833-4e6465 p6 ends "…完全な終了" and starts "・完全な静止を取らない".)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
+                    inserts.append(offset)
                 } else if pausesOpenLines, ch == "\u{3001}" || ch == "\u{3002}" || ch == "\u{FF09}", let b = before, !Self._closingMarks.contains(b) {
                     // (A full-width ")" too: 8787f4 p8 ends "…（ドーシ, 1982" and opens the next line with "）。".)
                     // (Where the pause rule holds Word opens a line with 、 or 。 rather than
@@ -2534,6 +2549,8 @@ extension RichLayout {
                     led = true
                 }
                 beforeBefore = before
+                if ch == "(" || ch == ")" || ch == "-" { latinRunBracket = true } else if !ch.isASCII || ch == " " { latinRunBracket = false }
+                if ch.isASCII, ch != " " { latinAfterEastAsian = latinAfterEastAsian || (before.map { c in let v = c.unicodeScalars.first?.value ?? 0; return !c.isASCII && v >= 0x2E80 } ?? false) } else { latinAfterEastAsian = false }
                 before = ch
                 if ch == "\u{00A0}" { spacesAfterNbsp = true } else if ch != " " { spacesAfterNbsp = false }
                 wordHasLetter = ch.isASCII && (ch.isLetter || ch.isNumber || ch == "-") ? wordHasLetter || ch.isLetter : false
@@ -2675,6 +2692,19 @@ extension RichLayout {
                 if theme.wordRules, RichTextTheme.wordWindowsPages, ch == "\u{2611}", !(symbolsShown && theme.symbolAdvance?(run.fontFamily ?? named?.char.fontFamily, ch) != nil) {
                     RuleTrace.hit("ballot-box-with-check-is-segoe-ui-symbols")
                     extra += (1758.0 / 2048.0) * em - _glyphWidth(style(kind), ch)
+                }
+                // (The long double arrow ⟺, U+27FA, is Cambria Math's in Word for Windows' print, 1.183 em
+                // (14.2 pt at 12 pt, jpn-z21601833-4e6465 p12), where the fallback face here sets it 1.43.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, ch == "\u{27FA}" {
+                    RuleTrace.hit("long-double-arrow-is-cambria-math")
+                    extra += 1.1836 * em - _glyphWidth(style(kind), ch)
+                }
+                // (The rightwards arrow → in a Cambria run is 10.05 pt at 12 pt in Word for Windows' print
+                // (jpn-z21601833-4e6465 p16: 301.3 to 311.3, 388.1 to 398.2), 0.8374 em, where the fallback sets it 0.8.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, ch == "\u{2192}",
+                   (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily ?? "").lowercased() == "cambria" {
+                    RuleTrace.hit("rightwards-arrow-in-cambria")
+                    extra += (1715.0 / 2048.0) * em - _glyphWidth(style(kind), ch)
                 }
                 // (A Hangul syllable is an em wide in every Korean face
                 // Word for Windows sets it in — Malgun Gothic, Gulim, Batang:
