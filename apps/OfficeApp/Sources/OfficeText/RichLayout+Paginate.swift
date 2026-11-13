@@ -3949,7 +3949,13 @@ extension RichLayout {
                 // The half is the face of its first characters', not the
                 // smallest on the line. Not with a push of its own. Word
                 // for Windows' lines only: see `pushUnder`.)
-                if theme.wordRules, i < _floatPush.count, _floatPush[i] < 0.01, noRoom(at: y, []) != nil,
+                // (An empty anchor line of a multiple above one, whose own picture is wrapped square from the
+                // paragraph, is sent under an earlier picture by the anchor run below, its own picture kept where
+                // the paragraph stood: 9bde52's second chart, 437 in Word's print, stood on the next page.)
+                let keepsOwnPicture = theme.wordRules && RichTextTheme.wordWindowsPages && _anchorsOnly(i, document)
+                    && document.paragraphs[i].style.lineSpacing > 1.001 && document.paragraphs[i].style.lineHeightPoints == nil
+                    && document.paragraphs[i].image?.float.map { $0.wraps && !$0.takesRoom && !$0.bandsPage && $0.verticalFrom == "paragraph" } == true
+                if theme.wordRules, !keepsOwnPicture, i < _floatPush.count, _floatPush[i] < 0.01, noRoom(at: y, []) != nil,
                    let line = Self._lineBottoms(geometry(i).painter).first,
                    case let step = lead + line - _firstLineGridHalf(i, document), step > 1 {
                     var t = y + lead - headSkip
@@ -3979,7 +3985,7 @@ extension RichLayout {
                             y += max(1, ((below - y - lead) / step - 0.001).rounded(.up)) * step
                             guardSteps += 1
                         }
-                    } else {
+                    } else if !keepsOwnPicture {
                         let stoodAt = y
                         while let below = noRoom(at: y, height: reach, []), guardSteps < 20 { y = below; guardSteps += 1 }
                         // (What meets the box is the paragraph, its space before
@@ -4199,7 +4205,15 @@ extension RichLayout {
                     // paragraph, whose band stands from its text's top:
                     // zh-f47b8a74's "第  页共  页" box goes over its line.)
                     func meets(_ k: Int) -> Double {
-                        theme.wordRules && document.paragraphs[k].image == nil
+                        // (A line of a multiple above one, beside its own picture wrapped square from the paragraph:
+                        // the text's line alone meets it, not the multiple's extra — 9bde52's empty anchor, an
+                        // 18pt grid line at 1.15, 20.7pt, over a chart 19.3 down, stays in Word's print.)
+                        if theme.wordRules, RichTextTheme.wordWindowsPages, case let m = document.paragraphs[k].style.lineSpacing, m > 1.001,
+                           document.paragraphs[k].style.lineHeightPoints == nil,
+                           let f = document.paragraphs[k].image?.float, f.wraps, !f.takesRoom, !f.bandsPage, f.verticalFrom == "paragraph" {
+                            return max(0.02, (lineHeight(k) - _spacing(k, document).after) / m)
+                        }
+                        return theme.wordRules && document.paragraphs[k].image == nil
                             ? max(0.02, lineHeight(k) - _spacing(k, document).after) : lineHeight(k)
                     }
                     if let first = anchorRun.firstIndex(where: { k in lineTop(k).map { noRoom(at: $0, height: meets(k), []) != nil } ?? false }),
