@@ -2072,6 +2072,17 @@ extension RichLayout {
                         pageBox ? 0.4 : balancedLatinSqueeze ? 0.5 : RichTextTheme.wordWindowsPages && !(k > 0 && (0x2460...0x24FF).contains(units[k - 1])) && ((k > 0 && zhNeighbour(k - 1)) || (k + 1 < units.count && zhNeighbour(k + 1))) ? 0.2 : 0.25
                     }
                     let windowsAfterMarks = RichTextTheme.wordWindowsPages && eastAsianAt(a) && !inCell
+                    // (A space of a missing Hangul-named face is Yu Gothic's: 0.5 em wide beside Hangul, but only Yu's own advance
+                    // (584/2048 em) gives a quarter when the line is squeezed; xb kor 22de7d, whose "1. 초록" line Word breaks
+                    // before "(Zero-" where the full 5 pt per space gave 16 pt of room.)
+                    func giveBase(_ s: (k: Int, w: Double)) -> Double {
+                        guard document.balancesSpaceWidth, theme.wordRules, RichTextTheme.wordWindowsPages, !document.hasIndicText,
+                              s.k < runOf.count, s.k > 0, s.k + 1 < units.count,
+                              (0xAC00...0xD7A3).contains(units[s.k - 1]) || (0xAC00...0xD7A3).contains(units[s.k + 1]),
+                              _yuLatinOfMissingHangulFace(p.runs[runOf[s.k]].style, lineStyle, document) else { return s.w }
+                        RuleTrace.hit("word-missing-hangul-face-space-gives-yu-advance")
+                        return min(s.w, em * 584.0 / 2048)
+                    }
                     let givers = windowsAfterMarks ? wordSpaces.filter { spaceGives($0.k) } : wordSpaces
                     // (A number or Latin word brought onto a body line, Word for Windows, no grid: the automatic
                     // spaces give a quarter em and 0.3 of themselves, and a word space nothing. Lab `ds`
@@ -2094,7 +2105,7 @@ extension RichLayout {
                         ? Array(((wordSpaces.last!.k + 1) ..< a).filter { units[$0] >= 0x2E80 && eastAsianAt($0) }.prefix(8)) : []  // at most 8 (lab: 8 gave 1.5; zh-79d08edd, 12 after one space, refused at 0.78+2.25)
                     let tailRoom: Double = Double(tailSqueezers.count) * em / 64
                     let roomSpaces = latinPulled ? em / 4 + autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * 0.3
-                        : givers.reduce(0.0) { $0 + $1.w * (windowsAfterMarks ? 0.25 : spaceGive($1.k)) } + roomAutos + tailRoom
+                        : givers.reduce(0.0) { $0 + giveBase($1) * (windowsAfterMarks ? 0.25 : spaceGive($1.k)) } + roomAutos + tailRoom
                     // (And only where each space gives at most half of
                     // what each would stretch were the word left for the
                     // next line: lab `jg` (Word for Windows, Times New
