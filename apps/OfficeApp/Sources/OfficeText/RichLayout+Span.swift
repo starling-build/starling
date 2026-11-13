@@ -1007,8 +1007,10 @@ extension RichLayout {
                         RuleTrace.hit("word-run-with-no-indic-letters-takes-the-line-of-the-face-it-names")
                         return (named, 1)
                     }
+                    // (Word's print of dx2 e86e26f7: spaces, commas, brackets and digits that fall back to Malgun inside a Bengali line do not raise it, a
+                    // Bengali-only line stays at Nirmala's 13.3 pt; a run holding Latin letters still does.)
                     if malgunLatin,
-                       text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 })
+                       text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 && !($0.value < 0x80 && !(($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A)) })
                         || !p.text.unicodeScalars.contains(where: { Self._isIndic($0.value) }) && text.unicodeScalars.contains(where: { $0.value == 0x20 }) {
                         RuleTrace.hit("word-malgun-alternate-latin-run-is-malgun-line")
                         return ("malgun gothic", 1)
