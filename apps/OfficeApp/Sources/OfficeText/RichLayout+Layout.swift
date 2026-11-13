@@ -1164,7 +1164,10 @@ extension RichLayout {
     func _paintUpright(_ painter: TextPainter, at origin: Offset, _ canvas: Canvas, distribute: Bool = false, justify: Bool = false, mixed: Bool = false, centred: Bool = false) -> Bool {
         guard let root = painter.text else { return false }
         let text = Array(root.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
-        func wide(_ u: UInt16) -> Bool { u >= 0x2E80 && !(u >= 0xD800 && u <= 0xDFFF) && u != 0xFFFC }
+        // (※ ☆ ★ stand upright in a Japanese face's column — dx2 934bd3e5's Meiryo — and lie on their side in
+        // a Chinese one: zh-6e7ff836's 新細明體 "※".)
+        var japaneseMarks = false
+        func wide(_ u: UInt16) -> Bool { (u >= 0x2E80 && !(u >= 0xD800 && u <= 0xDFFF) && u != 0xFFFC) || japaneseMarks && (u == 0x203B || u == 0x2605 || u == 0x2606) }
         func blank(_ u: UInt16) -> Bool { u == 0x20 || u == 0x200B || u == 0x2060 || u == 0xFEFF || u == 0x3000 }
         guard text.contains(where: wide), mixed || text.allSatisfy({ wide($0) || blank($0) }) else { return false }
         // The style each offset is set in, the spans' own over those
@@ -1181,6 +1184,10 @@ extension RichLayout {
         }
         walk(root, nil)
         guard styles.count == text.count else { return false }
+        japaneseMarks = styles.contains { s in
+            let f = (s?.debugLabel ?? s?.fontFamily ?? "").lowercased()
+            return ["meiryo", "メイリオ", "ms mincho", "ms gothic", "ＭＳ", "yu mincho", "yu gothic", "游"].contains { f.containsSubstring($0) }
+        }
         let shown = text.indices.filter { wide(text[$0]) }
         if mixed {
             // The rest on its side, where the line set it, on its baseline.
@@ -1290,7 +1297,10 @@ extension RichLayout {
             // "東引鄉活動中心2樓" 1.8pt: windows' measurement.)
             let higher = centred && abs((styles[k]?.height ?? 0) - 1.3) < 0.001 ? 0.11 * em : 0
             let along = box.left + min(box.right - box.left, glyph.width) / 2 + lead(k) - higher
-            canvas.translate(origin.dx + along + (Self._verticalFormDrop[form] ?? 0) * em, origin.dy + across(box) + (plain ? 0.085 * em : 0))
+            // (Meiryo and the other Japanese faces carry their own vertical marks in place: Word's print of
+            // dx2 934bd3e5 sets "、" right after its character, where the YaHei drop stood it 5.7pt low.)
+            let japanese = ["meiryo", "メイリオ", "ms mincho", "ms gothic", "ＭＳ", "yu mincho", "yu gothic", "游"].contains { family.lowercased().containsSubstring($0) }
+            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em, origin.dy + across(box) + (plain ? 0.085 * em : 0))
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
             canvas.restore()
