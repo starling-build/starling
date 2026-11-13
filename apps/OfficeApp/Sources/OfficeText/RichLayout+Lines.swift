@@ -748,7 +748,10 @@ extension RichLayout {
                 let w = laid.map { $0.width }
                     ?? min(_px(image.width), image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] } ?? .infinity)
                 let h = laid.map { $0.height } ?? _px(image.height)
-                let x = float.horizontalAlign == "right" ? column - w : float.horizontalAlign == "left" ? 0 : _px(float.x)
+                var x = float.horizontalAlign == "right" ? column - w : float.horizontalAlign == "left" ? 0 : _px(float.x)
+                // (A column-relative box left of its cell is set at the cell's edge, as the painter does, so
+                // the text stands beside it: e86e26f7's picture, 108 pt left of its cell.)
+                if theme.wordRules, cell != nil, float.horizontalFrom == "column", float.horizontalAlign == nil, x < _px(image.effectLeft) - (cell?.pad.left ?? 0) { x = _px(image.effectLeft) - (cell?.pad.left ?? 0) }
                 // (A list item's text starts at its numbering's left: the lines beside the
                 // box start at its edge, not at that and the edge's whole.)
                 let listLeft = k == i ? _listIndents(p, document).map { _px($0.left) } ?? 0 : 0
