@@ -2905,4 +2905,16 @@ extension RichLayout {
         guard lines.count > 1, let first = lines.first, let boxes = probe.inlinePlaceholderBoxes, !boxes.isEmpty else { return false }
         return boxes.allSatisfy { $0.toRect().top >= first.height - 1 }
     }
+
+    @inline(never) func _picturesOnFirstLineOnly(_ span: TextSpan, _ dims: [PlaceholderDimensions], align: TextAlign, rtl: Bool, width: Double, indents: [LineIndent]) -> Bool {
+        let probe = TextPainter(text: span, textAlign: align, textDirection: rtl ? .rtl : .ltr)
+        defer { probe.dispose() }
+        probe.fractionalLineHeights = theme.wordRules
+        probe.lineIndents = indents
+        probe.setPlaceholderDimensions(dims)
+        probe.layout(minWidth: width, maxWidth: width)
+        let lines = probe.computeLineMetrics()
+        guard lines.count > 1, let first = lines.first, let boxes = probe.inlinePlaceholderBoxes, !boxes.isEmpty else { return false }
+        return boxes.allSatisfy { $0.toRect().bottom <= first.height + 0.5 }
+    }
 }

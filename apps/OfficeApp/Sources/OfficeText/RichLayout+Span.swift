@@ -193,7 +193,8 @@ extension RichLayout {
     static func _isIndic(_ u: UInt32) -> Bool { _indic.contains(u) || _tamil.contains(u) }
 
     func _picturesTakeLines(_ p: RichParagraph, textWidth: Double) -> Bool {
-        theme.wordRules && RichTextTheme.wordWindowsPages && p.image == nil && p.inlineImages.count >= 2
+        theme.wordRules && RichTextTheme.wordWindowsPages && p.image == nil
+            && (p.inlineImages.count >= 2 || (p.inlineImages.count == 1 && p.text.unicodeScalars.contains { $0.value > 0x20 && $0.value != 0xFFFC }))
             && p.style.lineHeightPoints == nil && p.style.eastAsian["w:snapToGrid"] != "0"
             && p.inlineImages.values.allSatisfy { $0.float == nil && $0.textBox == nil && $0.baseline == nil && _px($0.width) * 2 > textWidth }
     }

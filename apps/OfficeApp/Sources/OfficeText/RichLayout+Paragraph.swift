@@ -3401,7 +3401,10 @@ extension RichLayout {
             // has none, and the sign then stood 4pt below its row's.)
             let px = _px(pitch)
             let first = lines[0].height, descent = max(lines[0].descent, lines[1].descent)
-            let snapped = ((first + descent) / px - 0.002).rounded(.up) * px
+            // (The picture's own line is counted alone, not with the text's
+            // descent: xb jpn 7f0539's Figure 4, 324.0pt on an 18pt grid, is
+            // 18 pitches in Word's print, not 19.)
+            let snapped = (first / px - 0.002).rounded(.up) * px
             if snapped > first + 0.01 {
                 _inkShift[i] += max(0, snapped - first - descent)
                 bodyHeight += snapped - first
