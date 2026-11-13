@@ -3959,8 +3959,9 @@ extension RichLayout {
             && p.text.unicodeScalars.allSatisfy({ $0.value == 0x20 })
             && p.runs.contains(where: { r in
                 guard let x = r.style.keptXML else { return false }
-                return ["hi", "ne", "mr", "sa"].contains(where: { x.containsSubstring("w:bidi=\"\($0)") })
+                return x.containsSubstring("w:bidi=\"") || x.containsSubstring("<w:cs/>")
             })
+            && document.paragraphs.contains(where: { $0.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 }) })
         guard tamil || devanagari || devanagariSpaces else { return 0 }
         if devanagariSpaces {
             RuleTrace.hit("word-devanagari-aums-space-only-paragraph-is-a-marked-line")
