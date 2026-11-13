@@ -185,6 +185,8 @@ public struct CharStyle: Hashable, Sendable {
     /// when a style or the run says: Persian text in lo tdf163575 is 12pt
     /// where its style's `w:sz` is 10.
     public var complexFontSize: Double? = nil
+    /// A complex-script run that gave `w:sz` and no `w:szCs`: its size is the szCs its style or the defaults give.
+    public var sizeFromStyleSzCs: Bool = false
     public var complexFontFamily: String? = nil
     public var eastAsiaFontFamily: String? = nil
     /// The face for the rest of the Latin range (`w:hAnsi`) when the file

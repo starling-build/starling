@@ -8146,6 +8146,7 @@ enum DocxFormat {
             else if !sawSz, let z = szCs ?? cs.complexFontSize { cs.fontSize = z }
             // (A complex run that gives both sizes is set at szCs: the Arabic of ara-z4399437's even-page header, sz 9 / szCs 11, prints at 11.)
             else if sawSz, let z = szCs { cs.fontSize = z }
+            else if sawSz, complexSize == true, cs.rightToLeft { cs.sizeFromStyleSzCs = true }
         }
         return cs
     }
