@@ -6819,8 +6819,13 @@ enum DocxFormat {
             if Metafile.isMetafile(data) { WriterMetafiles.register(data, for: att.id) }
             addInline(att)
         }
+        var ruleOpen = false   // a horizontal rule was just set: the text after it starts a line
         func addText(_ s: String, _ cs: CharStyle) {
             guard !s.isEmpty else { return }
+            if ruleOpen {
+                ruleOpen = false
+                if !s.hasPrefix("\n") { addText("\n", cs) }
+            }
             text += s
             for id in cs.comments { notes.carriedComments.insert(id) }
             var cs = cs
@@ -7176,6 +7181,9 @@ enum DocxFormat {
                     if DocxFormat.wordOnWindows, child.name == "w:pict", child.descendant("v:rect")?["o:hr"] == "t",
                        !(text.isEmpty && inlineImages.isEmpty && built.isEmpty), !text.hasSuffix("\n") { addText("\n", cs) }
                     addImage(child)
+                    // (And the text after it, in the same paragraph, on the next: 7f0539's
+                    // "1. Introduction" stands a line below its rule in Word's print.)
+                    if DocxFormat.wordOnWindows, child.name == "w:pict", child.descendant("v:rect")?["o:hr"] == "t" { ruleOpen = true }
                 case "w:object":
                     addObject(child)
                 case "mc:AlternateContent":

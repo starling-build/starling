@@ -52,6 +52,13 @@ enum WriterMath {
         // grid in Word's print, where the subscript's depth took ours two.
         // It is drawn whole all the same.)
         natural((box.ascent, box.descent))
+        // (A display equation ending on a manual break, `<w:br/>` in its last
+        // run, is one empty line longer: Word sets that line under it, 7f0539's
+        // equations stand a line apart from the text after them; 158454's
+        // taller ones the same single line, not their own height again.)
+        if display, node.all("m:oMath").last?.children.last(where: { $0.name == "m:r" })?.first("w:br") != nil {
+            box.descent += size * 1.172   // a plain line of the equation font, as Word sets the empty one
+        }
         if !display {
             let s = Layout(display: false).runSize(node, size)
             box.ascent = min(box.ascent, s * 0.85)

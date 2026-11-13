@@ -1,4 +1,4 @@
-188 documents: mean 68.7% of Word's lines matched, median 93.7%; 75 at 95% or more, 130 at half or more; 165 with Word's page count
+188 documents: mean 68.8% of Word's lines matched, median 93.7%; 77 at 95% or more, 130 at half or more; 165 with Word's page count
     1.1%  lines 472/547  pages 14/15  heb-z17544993-944544
     1.1%  lines 90/72  pages 4/3  fas-z22832287-ac7399
     1.1%  lines 88/104  pages 10/9  fas-z14957015-3a9879
@@ -77,13 +77,11 @@
    79.3%  lines 594/576  pages 16/16  jpn-z23002680-ee9f8f
    80.6%  lines 392/399  pages 12/12  hin-z20049040-f01e57
    81.9%  lines 221/221  pages 13/13  docx-46bc4851
-   81.9%  lines 144/144  pages 11/11  jpn-z19363276-7f0539
    82.3%  lines 147/147  pages 7/8  jpn-z17350624-9bde52
    82.5%  lines 361/361  pages 13/13  docx-6f1caa1e
    82.8%  lines 29/28  pages 2/2  ara-z15770216-60b9da
    83.1%  lines 207/208  pages 4/4  jpn-z19546822-fd00b5
    84.1%  lines 905/912  pages 24/24  fra-g70-0ecec1
-   86.0%  lines 121/121  pages 10/10  jpn-z19306349-158454
    87.6%  lines 1133/1142  pages 35/35  fra-z5579827-3c5db0
    88.4%  lines 776/780  pages 28/28  por-z1326468-80d0e5
    90.1%  lines 202/203  pages 5/5  ell-z10161459-ec79d6
@@ -121,6 +119,7 @@
    97.3%  lines 110/110  pages 5/5  jpn-z22306877-1047a4
    97.3%  lines 149/157  pages 5/5  mar-z19707447-f8dac9
    97.3%  lines 452/451  pages 17/17  jpn-z19433747-8787f4
+   97.9%  lines 144/144  pages 11/11  jpn-z19363276-7f0539
    98.1%  lines 157/157  pages 8/8  hin-z19449382-045439
    98.1%  lines 106/106  pages 5/5  jpn-z18767990-11142e
    98.3%  lines 59/59  pages 3/3  kor-z21348848-b4a883
@@ -131,6 +130,7 @@
    98.9%  lines 853/853  pages 32/32  jpn-z17544993-4a21de
    99.1%  lines 755/755  pages 37/37  kor-z17491512-222f3f
    99.2%  lines 239/242  pages 7/7  hin-z21336921-9c7c87
+   99.2%  lines 121/121  pages 10/10  jpn-z19306349-158454
    99.3%  lines 715/716  pages 22/22  jpn-z21601833-c2301a
    99.3%  lines 461/461  pages 16/16  jpn-z20502518-8d25de
    99.5%  lines 391/391  pages 12/12  jpn-z23002680-bb5c68
