@@ -16278,3 +16278,4 @@ HANDOFF amd-5 2026-11-13 (Japanese no-hang gate + c15 line-end 、 give): (1) LA
 - Parked: line-end 、 give, branch wip-c15-tail-give (made xd cab6d785, c11e840d worse).
 - Trap: a rule gated on compat only must also check snapToGrid 0.
 - lenovo-5 HANDOFF 2026-11-13 (acd729): LANDED af9fa36c9. Word parts a doubled em dash between its dashes at a line end; acd729 755 to 1157 of 1198 lines (96.7%), 0 drops, 4 up. LEFT: acd729 first departure now page 15 (a 3-line tail 'の逆説できないから強い' / 説 breaks one char differently; a line ending '…の導|出は未導出' where Word breaks '導出|は'). Reconciled ruby: word-rules entry for f06901640 now says SUPERSEDED, vertical ruby does not widen the base.
+- lenovo-5 CLAIM (2026-11-13): xb jpn-z19126474-754366 (79.7, 374/374 lines, 12/12 pages): first departing page, fixing by property.
