@@ -16217,3 +16217,4 @@ TIP WATCH amd-8, round 432 (tip 996510168, code e9a78b69c amd-2 Korean Roman num
 - 1/600-inch-advance idea (coordinator): refuted as stated. Advances rounded to 0.12 would average 11.04, not 11.004.
 - Still open: ours line ends sit 0.7-1.0 pt left of Word's on the same lines. p15 y=172.3: ours 39 chars, Word 38; our extra "의" would end at 523.29 (edge 523.3); with Word's origins (+0.3) it would end at ~523.66. Word's own lines end up to 523.42 (origin + 11.04), so the refusal limit is unknown within 0.1-0.4 pt. p15 also splits "1." from the 28-char text at y283 where Word keeps one line (second difference).
 - Next: a lab with a Hangul-only paragraph stepping the right indent in 0.25 pt steps (see test/lab/sp2) to find Word's accept/refuse limit for the last glyph, then compare with origin+advance vs origin+11.04.
+- amd-2 2026-11-13 CLAIM (Korean): dx2 ko 1f6d638c (stored 40.5, 37 lines, 3 pages). Not touching amd-3's 22de7d, 5101ed6e, 28dd0ac0.
