@@ -3749,6 +3749,8 @@ enum OfficeFonts {
             }
             if clone == serif {
                 face.otherAdvances?.merge(timesNumerals) { $1 }
+                // (Times' superscript minus, 0.345 em in Word's print; Liberation Serif has none and the DejaVu Sans that draws it is 0.53 — fd00b5's "MJ m⁻² day⁻¹" cell wrapped by it.)
+                face.otherAdvances?[0x207B] = 0.3447
                 face.boldOtherAdvances?.merge(timesBoldNumerals) { $1 }
             }
             // (Word's Thai faces set to Cordia New's widths: Word for Mac
