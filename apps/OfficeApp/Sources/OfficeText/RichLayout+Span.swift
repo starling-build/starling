@@ -549,6 +549,28 @@ extension RichLayout {
                 at += ch.utf16.count
             }
             close(nil)
+            // (A space in a run whose Latin face is a Korean one Windows lacks, set under no East Asian hint: Word draws and measures
+            // it in Batang, half an em, like the spaces of runs that also name the face for East Asian text. xd ko 4fabe1f2 p1:
+            // ".␣␣␣␣." in 12pt HY신명조 (ascii slot only) are 5.7 each in Word's print, where ours took the Latin stand-in's 3.8 and
+            // fitted "한" on line 3 that Word wraps.)
+            // (A neutral character takes the script of the one before it: only spaces that follow a character of such a run, or
+            // another such space, count. xd ko 107500a8's "의무)" in a bold East Asian run, then a lone ascii-only " " before "①",
+            // is a Latin-width 3.9 in Word's print.)
+            if RichTextTheme.wordWindowsPages, document.balancesSpaceWidth {
+                var st = 0
+                let units = Array(p.text.utf16)
+                var korean: Set<Int> = []
+                for r in p.runs {
+                    defer { st += r.length }
+                    guard r.style.eastAsiaFontFamily == nil, r.style.fontHint != "eastAsia",
+                          theme.faceResolver?(r.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, true)?.malgunSymbols == true else { continue }
+                    korean.formUnion(st ..< min(st + r.length, units.count))
+                }
+                var taken: Set<Int> = []
+                for k in korean.sorted() where units[k] == 0x20 && k > 0 && korean.contains(k - 1) && (units[k - 1] != 0x20 || taken.contains(k - 1)) && !complexSpaces.contains(k) {
+                    taken.insert(k); wideSpaces.insert(k)
+                }
+            }
         }
         /// A run's text as shown: capitals for Word's All caps and Small
         /// caps (the latter with the lowercase letters' capitals at 80%),
