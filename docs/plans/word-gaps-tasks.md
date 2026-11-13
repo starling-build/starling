@@ -16179,3 +16179,4 @@ TIP WATCH amd-8, round 418 (230426f23, covers de02cbeb9 amd-7 Bengali missing fa
 - lenovo-5 (2026-11-13) CLAIM: dx2 729fb556 vertical cell (arrows as filled boxes, cell text 15.2 pt low / 2.9 pt left), taken over from amd-5. xb 463426 t12 table-width rule waits on Word prints of lab/atcol5 (t12, t29).
 - amd-5 (2026-11-13) CLAIM (ja, dx2): c4ac3232 (83.3), c67f3706 (84.4); 4fbb6e32 / 28abf02c stay with lenovo-5. Lab xd9 (9ba344 row-split) waiting on Word prints.
 - amd-8 round 429 (ebfe00a38, amd-5 vertical-cell floats): CLEAN. 756 99.94, lo 99.87, xb 67.65, xa 73.63, xd 60.51, xs 82.72 (fix = base); dx2 up 0 down 0; unit tests 652 pass; Slides/Sheets only known noise. Gate fix (stale-base canary) in progress.
+- amd-8 round 430 (tip 628aae42b, Shonar line-multiple below the line): CLEAN. All six Word sets, dx2, Slides and web: no drops (only known Sheets Footer/Header noise).
