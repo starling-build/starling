@@ -269,9 +269,10 @@ extension RichLayout {
         // under "とうきょう", 2.75pt between and 1.38 at either end).
         var spread = spread
         var rubyTails: [Int: Double] = [:]
-        // (A vertical section spreads by HALF the excess: Word steps 歌合 (うたあわせ, 25 vs 21 pt) +2.1 and
-        // 局 (つぼね, 15 vs 10.5 pt) +2.3, 934bd3e5 p2/p9; the ruby overhangs the neighbours for the rest.)
-        let rubyKeep = (index.map { _verticalBody($0) } ?? false) ? 0.5 : 1.0
+        // (A vertical section does not widen the base for its ruby: the ruby overhangs the neighbours, and the
+        // ※/☆ marks and the compressed 、 carry the width Word shows. 934bd3e5 p9: 0.5 broke 'わづか|に直衣' one
+        // word early; 0 gives Word's break, 237 to 283 of 336 lines.)
+        let rubyKeep = (index.map { _verticalBody($0) } ?? false) ? 0.0 : 1.0
         if theme.wordRules {
             for g in _rubyGroups(p) where g.to > g.from {
                 let (ruby, base) = _rubyWidths(g, p, named: named, document, pitch: pitch)
