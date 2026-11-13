@@ -3084,6 +3084,9 @@ enum OfficeFonts {
     /// text layer are the stand-in's own. An engine without the prefix draws the face unmoved.
     static let pmingliuInkFamily = "Ink+0.07 Noto Serif CJK TC"
 
+    /// The face a margin balloon sets a Mincho, Song or Ming name's ideographs and kana in, a full em each.
+    static func balloonIdeographFace(_ family: String) -> String? { serifIdeographs(family, eastAsianFace(family)) }
+
     /// The face a Song, Ming or Mincho name's ideographs are drawn in
     /// where the platform has none of those faces: Noto Serif CJK, in
     /// the variant of the name's script. Left to the theme's fallback

@@ -446,6 +446,13 @@ struct PdfMarkup {
 
     /// What a paragraph's alignment and side indents are now that they were
     /// not, in Word's words (inches, two places: `Right: 0"`).
+    static func balloonEastAsian(_ ch: Character) -> Bool {
+        switch ch.unicodeScalars.first?.value ?? 0 {
+        case 0x2E80 ... 0x9FFF, 0xAC00 ... 0xD7FF, 0xF900 ... 0xFAFF, 0xFF00 ... 0xFFEF, 0x20000 ... 0x3FFFF: return true
+        default: return false
+        }
+    }
+
     static func _describe(paragraph style: RichParagraphStyle, was old: String) -> String {
         func attribute(_ element: String, _ name: String) -> String? {
             guard let r = old.rangeOfSubstring("<\(element) ") ?? old.rangeOfSubstring("<\(element)/") else { return nil }
@@ -760,6 +767,38 @@ struct PdfMarkup {
                 }
             } else {
                 spans.append(contentsOf: exactSpans(note.paragraphs.joined(separator: "\n"), plain))
+            }
+            // (Word for Windows sets a balloon's Han, kana and full-width marks in the document's East Asian
+            // face, a full em each: ee9f8f's balloons, "Commented [TT1]: 「サラセン人」以外の呼称の実例" ends at
+            // 585 where the Latin face's stand-in, a 0.75 em a character, took five more.)
+            let anchorPara = note.anchor.paragraph < document.paragraphs.count ? document.paragraphs[note.anchor.paragraph] : nil
+            let eaName: String? = anchorPara.flatMap { ap in ap.runs.first { $0.style.eastAsiaFontFamily != nil }?.style.eastAsiaFontFamily ?? document.styles.resolve(ap.style)?.char.eastAsiaFontFamily }
+                ?? document.styles[RichNamedStyle.normalId]?.char.eastAsiaFontFamily
+            // Measured on a Japanese Word print only (xb jpn ee9f8f); a Chinese face
+            // (宋体, 仿宋 ...) keeps the old balloon until a Chinese print is measured.
+            let japaneseFace = eaName.map { n in ["游", "ＭＳ", "MS ", "MS-", "Yu ", "Meiryo", "メイリオ", "HG", "ＨＧ"].contains { n.hasPrefix($0) } } ?? false
+            if windows, japaneseFace, let ea = eaName, !ea.isEmpty {
+                let eaFace = OfficeFonts.balloonIdeographFace(ea) ?? "Noto Serif CJK JP"
+                var split: [InlineSpan] = []
+                for s in spans {
+                    guard let t = s as? TextSpan, let text = t.text, let st = t.style, text.contains(where: Self.balloonEastAsian) else { split.append(s); continue }
+                    // (Word's auto-spacing puts a quarter em between a kana or Han character and a Latin letter or
+                    // digit: ee9f8f's "Rotterの研究は735年ベーダ" takes two, which is why "を" starts the next line.)
+                    func ideo(_ c: Character) -> Bool { c.unicodeScalars.first.map { (0x3040...0x30FF).contains($0.value) || (0x3400...0x9FFF).contains($0.value) } ?? false }
+                    func latin(_ c: Character) -> Bool { c.isASCII && (c.isLetter || c.isNumber) }
+                    let chars = Array(text)
+                    var cur = "", curEA = false, curGap = false
+                    func flush() { if !cur.isEmpty { split.append(TextSpan(text: cur, style: (curEA ? st.copyWith(height: 13.8 / 6.888, fontFamily: eaFace) : st).copyWith(letterSpacing: curGap ? (st.fontSize ?? 0) * 0.25 : 0))); cur = "" } }
+                    for (i, ch) in chars.enumerated() {
+                        let isEA = Self.balloonEastAsian(ch)
+                        let gap = i + 1 < chars.count && ((ideo(ch) && latin(chars[i + 1])) || (latin(ch) && ideo(chars[i + 1])))
+                        if isEA != curEA || gap != curGap || curGap { flush(); curEA = isEA; curGap = gap }
+                        cur.append(ch)
+                    }
+                    flush()
+                }
+                spans = split
+                RuleTrace.hit("balloon-east-asian-text-in-the-east-asian-face")
             }
             let tp = TextPainter(text: TextSpan(children: spans), textDirection: .ltr)
             tp.fractionalLineHeights = true
