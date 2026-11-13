@@ -2540,6 +2540,8 @@ extension RichLayout {
         if word(a) && word(b) { return true }
         // (A Latin word is whole but after its hyphens: see `joinsLatin`.)
         if a > 0x20, a < 0x7F, b > 0x20, b < 0x7F, a != 0x2D { return true }
+        // (A run of hyphens is kept together: dx2 zh 4cac8c37's "大都会----东方" ends its line with all four; ours parted it "--" | "--东方".)
+        if a == 0x2D, b == 0x2D { return true }
         // (1.5, 1,000, 10:30, 2024-10, -5)
         if digit(b), a == 0x2E || a == 0x2C || a == 0x3A || a == 0x2D || a == 0x2F { return true }
         return false

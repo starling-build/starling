@@ -186,6 +186,9 @@ enum MiniXML {
                     if selfClosing { each?(node) }
                 } else if let parent = top?.node {
                     parent.children.append(node)
+                    // (A line break typed INSIDE w:t is a break to Word all the same: dx2 zh 4cac8c37's "...上...<w:br/>抵达后" starts a line at
+                    // it, and a break closing a heading gives a blank line. Its place in the text is kept as a private mark; the run reader sets it as "\n".)
+                    if parent.name == "w:t", node.name == "w:br" { parent.text += "\u{F8FF}" }
                 } else if root == nil, top == nil || !itemsOnly {
                     root = node
                 }

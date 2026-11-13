@@ -3813,7 +3813,9 @@ enum DocxFormat {
             // useFELayout also breaks after "3. " when the Han text after it overflows.)
             // (Mode 12 only: the four dx2 files with this behaviour are all compat 12; zh-202582e2, compat 14 with the same
             // en-US languages, breaks inside the Han stretch.)
-            let legacyCompat = document.compatibilityMode == 12 && legacyNoFE
+            // (And only where the East Asian default face is a Latin one, as in those four: dx2 4cac8c37, compat 12 with YaHei
+            // for every script, fills its line through the Han stretch after a blank, in Word's print.)
+            let legacyCompat = document.compatibilityMode == 12 && legacyNoFE && document.eastAsianDefaultFaceIsLatin
             document.joinsHanAfterSpace = legacyCompat || document.compatibilityMode == nil
                 && (document.hangsLatinStops || ["minorHAnsi", "majorHAnsi", "minorAscii", "majorAscii"].contains(defaultEastAsia ?? ""))
             if let own, let defaults {
@@ -6985,10 +6987,10 @@ enum DocxFormat {
                     } else if notes.fieldCodeChanged, notes.fields.last?.result == true {
                         var first = cs
                         first.fieldCodeChanged = true
-                        addText(_runText(child), first)
+                        addText(_runText(child).replacingAll("\u{F8FF}", with: "\n"), first)
                         notes.fieldCodeChanged = false
                     } else {
-                        addText(_runText(child), cs)
+                        addText(_runText(child).replacingAll("\u{F8FF}", with: "\n"), cs)
                     }
                 case "w:fldChar":
                     if cs.formatChange != nil, child["w:fldCharType"] != "end", notes.fields.last.map({ !$0.result }) ?? true {
