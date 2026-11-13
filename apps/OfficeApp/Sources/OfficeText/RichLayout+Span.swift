@@ -1003,6 +1003,15 @@ extension RichLayout {
                         RuleTrace.hit("word-danda-only-run-in-a-missing-face-is-nirmala")
                         return ("nirmala ui", 1)
                     }
+                    // (A run of spaces and tabs in a missing Bengali face (Nikosh, SolaimanLipi) inside a paragraph of Bengali letters: Word draws the spaces in Mangal
+                    // but they do not raise the line, which stays Nirmala UI's 1.33 em: dx2 2263e221's bold heading, 14.6 pt apart in Word, 18.5 in ours.)
+                    if !text.isEmpty, !text.unicodeScalars.contains(where: { $0.value != 0x20 && $0.value != 0x09 }),
+                       Self._missingBengaliSpaceEm(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "") != nil,
+                       p.text.unicodeScalars.contains(where: { $0.properties.isAlphabetic && $0.value >= 0x980 && $0.value <= 0x9FF }),
+                       !p.text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF && !$0.properties.isAlphabetic && $0.properties.generalCategory != .nonspacingMark && $0.properties.generalCategory != .spacingMark }) {
+                        RuleTrace.hit("word-spaces-in-a-missing-bengali-face-keep-the-nirmala-line")
+                        return ("nirmala ui", 1)
+                    }
                     if let named = _namedMetricFace(run, named, document, text) {
                         RuleTrace.hit("word-run-with-no-indic-letters-takes-the-line-of-the-face-it-names")
                         return (named, 1)
