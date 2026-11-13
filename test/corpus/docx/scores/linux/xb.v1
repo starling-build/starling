@@ -1,4 +1,4 @@
-188 documents: mean 68.1% of Word's lines matched, median 92.9%; 72 at 95% or more, 130 at half or more; 165 with Word's page count
+188 documents: mean 68.3% of Word's lines matched, median 93.3%; 73 at 95% or more, 130 at half or more; 165 with Word's page count
     1.1%  lines 472/547  pages 14/15  heb-z17544993-944544
     1.1%  lines 90/72  pages 4/3  fas-z22832287-ac7399
     1.1%  lines 88/104  pages 10/9  fas-z14957015-3a9879
@@ -61,7 +61,6 @@
    50.6%  lines 233/234  pages 11/12  tam-z20567949-e398e6
    51.7%  lines 29/27  pages 6/6  docx-837e72c4
    56.8%  lines 227/228  pages 7/7  hin-z20459061-8ec51c
-   58.8%  lines 452/450  pages 17/17  jpn-z19433747-8787f4
    60.9%  lines 483/466  pages 19/19  docx-bff1c672
    63.0%  lines 1198/1201  pages 37/37  jpn-z21601833-acd729
    64.1%  lines 181/186  pages 9/9  nld-z22251521-8c1881
@@ -123,13 +122,14 @@
    97.0%  lines 667/667  pages 34/34  kor-z19176375-30dbe1
    97.3%  lines 110/110  pages 5/5  jpn-z22306877-1047a4
    97.3%  lines 149/157  pages 5/5  mar-z19707447-f8dac9
-   98.0%  lines 461/461  pages 16/16  jpn-z20502518-8d25de
+   97.3%  lines 452/451  pages 17/17  jpn-z19433747-8787f4
    98.1%  lines 157/157  pages 8/8  hin-z19449382-045439
    98.1%  lines 106/106  pages 5/5  jpn-z18767990-11142e
    98.3%  lines 59/59  pages 3/3  kor-z21348848-b4a883
    98.5%  lines 408/408  pages 14/14  kor-z22076349-aa9a7f
    98.6%  lines 1024/1024  pages 22/22  fas-z19537379-034075
    98.6%  lines 148/148  pages 4/4  hin-z20759993-04d538
+   98.9%  lines 461/461  pages 16/16  jpn-z20502518-8d25de
    98.9%  lines 94/94  pages 3/3  jpn-z20018134-2cadcb
    98.9%  lines 853/853  pages 32/32  jpn-z17544993-4a21de
    99.1%  lines 755/755  pages 37/37  kor-z17491512-222f3f

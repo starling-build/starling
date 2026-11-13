@@ -2340,7 +2340,15 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
-                } else if pausesOpenLines, ch == "\u{3001}" || ch == "\u{3002}", let b = before, !Self._closingMarks.contains(b) {
+                } else if RichTextTheme.wordWindowsPages, theme.wordRules, (document.compatibilityMode ?? 12) >= 15, ch == "\u{30FB}", document.hasKana,
+                          document.eastAsiaLanguage?.hasPrefix("ja") != true, let b = before, (b.unicodeScalars.first?.value ?? 0) >= 0x3040, !Self._openingMarks.contains(b) {
+                    // (Word for Windows opens a line with the katakana middle dot at compat 15 in kana text tagged
+                    // zh-CN: 8787f4 p8 ends "…リスクテイク" and starts "・高速な…", 4 lines so; the engine keeps it with the character before.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
+                    inserts.append(offset)
+                } else if pausesOpenLines, ch == "\u{3001}" || ch == "\u{3002}" || ch == "\u{FF09}", let b = before, !Self._closingMarks.contains(b) {
+                    // (A full-width ")" too: 8787f4 p8 ends "…（ドーシ, 1982" and opens the next line with "）。".)
                     // (Where the pause rule holds Word opens a line with 、 or 。 rather than
                     // hang it or carry the character before it down: lab `sqreal`.)
                     flush(i)

@@ -831,6 +831,10 @@ extension RichLayout {
             // "第一章 总则" is centred whole — so the box before the
             // text is all of the number and its gap.)
             if style.alignment == .center || style.alignment == .right { lead = max(0.01, end - _px(wl.first)) }
+            // (A centred line with a first-line indent — a positive `wl.first` — is centred in what the indent leaves:
+            // jpn-8787f4's "四、パラダイム転換…" heading, firstLine 480, centred over 114 to 505 in Word's print, held 32
+            // characters where ours, centred over the whole width, held 33.)
+            if style.alignment == .center, theme.wordRules, RichTextTheme.wordWindowsPages, _px(wl.first) > 0.01 { lead = max(0.01, end) }
         }
         }
         _blk2()
