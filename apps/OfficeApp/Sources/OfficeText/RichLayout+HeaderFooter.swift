@@ -333,6 +333,24 @@ extension RichLayout {
             canvas.restore()
             return
         }
+        // (The boxes of a group stacked in one flow are each cut at their own foot: dx2 2263e221's
+        // 18pt "রিটার্ন রেজিস্টারের ক্রমিক নম্বর" box shows its first line only in Word's print and the
+        // wrapped line, which our flow set under it, is neither drawn nor in Word's text layer.)
+        if clips, theme.wordRules, RichTextTheme.wordWindowsPages, text.textDirection == .horizontal, text.parts.count > 1,
+           !text.fitsText, !text.fitsHeight, !text.growsToFit, inside.beside.isEmpty {
+            RuleTrace.hit("group-box-stacked-in-one-flow-cut-at-its-foot")
+            canvas.restore()
+            for (n, part) in text.parts.enumerated() {
+                canvas.save()
+                let top = n == 0 ? rect.top - 1_000_000 : rect.top + _px(part.top)
+                let foot = rect.top + _px(part.top + part.height - text.insetBottom)
+                canvas.clipRect(Rect.fromLTRB(rect.left - 1_000_000, top, rect.right + 1_000_000, foot), clipOp: .intersect, doAntiAlias: false)
+                canvas.translate(rect.left + _px(text.insetLeft), rect.top + _px(text.insetTop))
+                _paintBoxText(inside, canvas)
+                canvas.restore()
+            }
+            return
+        }
         _paintBoxText(inside, canvas)
         canvas.restore()
         if cutsAtFoot { _paintTextPastFoot(inside, text, rect, canvas) }
