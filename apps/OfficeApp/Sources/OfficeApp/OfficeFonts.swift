@@ -2792,6 +2792,12 @@ enum OfficeFonts {
             // (An alternate that is itself a CESI face, absent from Windows:
             // zh-ac627439's 方正小标宋简体, alternate CESI仿宋-GB13000, is YaHei's
             // in Word's print, its "2012" digits 0.59 em, not FangSong's half.)
+            // (The Japanese MS faces are on Windows too: dx2 c4ac3232's "Mincho", alternate ＭＳ 明朝, is MS Mincho's,
+            // its ○ a full em as in the face's cmap, where the YaHei default drew 0.604.)
+            let jaAlt = ["ms mincho", "ｍｓ 明朝", "ms gothic", "ｍｓ ゴシック", "ms pmincho", "ｍｓ ｐ明朝", "ms pgothic", "ｍｓ ｐゴシック"]
+            if a != n, jaAlt.contains(where: { faceHas(a, $0) }) {
+                return eastAsianFace(alt, ignoringEmbedding: ignoringEmbedding)
+            }
             if a != n, windowsHas.contains(where: { faceHas(a, $0) }), !a.hasPrefix("cesi"),
                !["_gb2312", "方正", "小标宋", "標楷"].contains(where: { faceHas(a, $0) }) {
                 return eastAsianFace(alt, ignoringEmbedding: ignoringEmbedding)
