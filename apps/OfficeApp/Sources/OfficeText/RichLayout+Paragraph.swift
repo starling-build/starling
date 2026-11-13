@@ -1912,7 +1912,7 @@ extension RichLayout {
             if !hold.isEmpty {
                 let (span, _, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit.isEmpty ? tabs : fit, held: hold.union(tabsHeld))
                 let again = laidOut(span)
-                if _lineStarts(again, _OffsetMap(lead: _lead(i), inserts: inserts), count: p.text.utf16.count) == starts {
+                if _lineStarts(again, _OffsetMap(lead: _lead(i), inserts: inserts), count: p.text.utf16.count) == starts || Self._holdsBreakOpening(p, hold, theme) {
                     painter.dispose()
                     painter = again
                     _inserts[i] = inserts

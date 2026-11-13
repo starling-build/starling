@@ -28,8 +28,14 @@ extension RichLayout {
         let bold = base.fontWeight == .bold
         let table = bold ? yuGothicBold : yuGothicRegular
         var sum = 0.0, known = "", rest = false, yu = false
-        for u in w.unicodeScalars {
-            if u.value == 0x20 { sum += bold ? 0.274 * 1.07 : 0.274; known.unicodeScalars.append(u) }
+        let scalars = Array(w.unicodeScalars)
+        for (i, u) in scalars.enumerated() {
+            if u.value == 0x20 {
+                // (A space between two printable non-space neighbours is Leelawadee UI's; one beside a space or at the piece's edge keeps half an em, as Word draws an indent after a line break.)
+                let between = i > 0 && i + 1 < scalars.count && scalars[i - 1].value > 0x20 && scalars[i + 1].value > 0x20
+                sum += between ? (bold ? 0.274 * 1.07 : 0.274) : 0.5
+                known.unicodeScalars.append(u)
+            }
             else if u.value == 0x28, let a = TamilAdvances.leela[u.value] { sum += bold ? a * 1.07 : a; known.unicodeScalars.append(u) }
             else if let a = table[u.value] { sum += Double(a) / 2048; known.unicodeScalars.append(u); yu = true }
             else { rest = true }

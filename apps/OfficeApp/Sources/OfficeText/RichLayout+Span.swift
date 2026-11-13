@@ -2902,9 +2902,10 @@ extension RichLayout {
                     let s = style(kind)
                     let bold = s.fontWeight == .bold
                     // (Word's print of 22de7d: a space between Latin neighbours is Yu Gothic's 0.2852 em, 2.87 pt at 10 pt; one beside a Hangul syllable stays 0.5 em, 5.04 pt.)
-                    let hangulBeside = [i > text.startIndex ? Optional(text[text.index(before: i)]) : nil, following].contains { c in
+                    // (A leading space, or one beside another space, keeps 0.5 em too: Word's 3-space indent after a line break is 15.1 pt.)
+                    let hangulBeside = ![i > text.startIndex ? Optional(text[text.index(before: i)]) : nil, following].allSatisfy { c in
                         guard let v = c?.unicodeScalars.first?.value else { return false }
-                        return (v >= 0xAC00 && v <= 0xD7A3) || (v >= 0x1100 && v <= 0x11FF) || (v >= 0x3130 && v <= 0x318F)
+                        return v > 0x20 && !((v >= 0xAC00 && v <= 0xD7A3) || (v >= 0x1100 && v <= 0x11FF) || (v >= 0x3130 && v <= 0x318F))
                     }
                     let a: Double? = u0 == 0x20 ? (aumsLatin || !hangulBeside ? 584.0 / 2048 : 0.5) : (u0 == 0x28 ? Optional(791.0 / 2048) : (bold ? Self.yuGothicBold : Self.yuGothicRegular)[u0].map { Double($0) / 2048 })
                     // (The size-compensated stand-in grows lowercase letters' style size; the advance is the nominal size's, the capitals' kind.)
@@ -2952,6 +2953,9 @@ extension RichLayout {
                         // no-break spaces past the margin as it does plain ones,
                         // where Word wraps it.)
                         spans.append(TextSpan(text: "\u{2007}", style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + _glyphWidth(s, " ") - _glyphWidth(s, "\u{2007}"))))
+                    } else if theme.wordRules, RichTextTheme.wordWindowsPages, Self._afterBreakRun(Array(p.text.utf16), offset) {
+                        // (A space run that opens a line after a manual break: a figure space of the space's width, which the engine keeps at a line start where a no-break space collapses.)
+                        spans.append(TextSpan(text: "\u{00A0}", style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + _glyphWidth(s, " ") - _glyphWidth(s, "\u{00A0}"))))
                     } else {
                         spans.append(TextSpan(text: "\u{00A0}", style: extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s))
                     }
@@ -4164,3 +4168,10 @@ extension RichLayout {
     static func _wordGridSize(_ pt: Double, snap: Bool) -> Double { pt }
 }
 
+extension RichLayout {
+    @inline(never) static func _afterBreakRun(_ u: [UInt16], _ offset: Int) -> Bool {
+        var k = offset - 1
+        while k >= 0, u[k] == 0x20 { k -= 1 }
+        return k >= 0 && (u[k] == 0x0A || u[k] == 0x2028)
+    }
+}

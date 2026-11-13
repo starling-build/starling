@@ -918,13 +918,35 @@ extension RichLayout {
                 let hangulGap = theme.wordRules && RichTextTheme.wordWindowsPages && run.first != 0
                     && (left?.unicodeScalars.first).map({ $0.value >= 0xAC00 && $0.value <= 0xD7A3 }) == true
                     && (ch.unicodeScalars.first).map({ $0.value >= 0xAC00 && $0.value <= 0xD7A3 }) == true
-                if let end = run.last, ch != "\n", ch != "\u{2028}", wide(left) || wide(ch) || run.first == 0, !hangulGap, !lineStarts.contains(end + 1) { out.formUnion(run) }
+                if let end = run.last, ch != "\n", ch != "\u{2028}", wide(left) || wide(ch) || run.first == 0 || Self._opensAfterBreak(left, theme), !hangulGap, !lineStarts.contains(end + 1) { out.formUnion(run) }
                 run = []
                 left = ch
             }
             at += ch.utf16.count
         }
         return out
+    }
+
+    /// A run of spaces that opens a line after a manual break: Word draws each at its width.
+    @inline(never)
+    static func _opensAfterBreak(_ left: Character?, _ theme: RichTextTheme) -> Bool {
+        theme.wordRules && RichTextTheme.wordWindowsPages && (left == "\n" || left == "\u{2028}")
+    }
+
+    /// Whether the held spaces include a run opening a line after a manual break. Those take
+    /// room in Word, so the lines may then break differently from the plain layout, and the
+    /// held layout stands even when its line starts differ.
+    @inline(never)
+    static func _holdsBreakOpening(_ p: RichParagraph, _ hold: Set<Int>, _ theme: RichTextTheme) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages else { return false }
+        let u = Array(p.text.utf16)
+        for k in hold where k < u.count {
+            var j = k
+            while j > 0, u[j - 1] == 0x20 { j -= 1 }
+            if j == 0 { continue }
+            if j < k, u[j - 1] == 0x0A || u[j - 1] == 0x2028 { return true }
+        }
+        return false
     }
 
     /// How wide a face sets a space, in pixels, at a style's size.
