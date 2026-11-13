@@ -3312,6 +3312,9 @@ extension RichLayout {
         // keeps its "□" on the line in Word's print, lab sqz8, the
         // underscores starting the next; ours glued them as one word and
         // took the "□" down with them.)
+        // (Between the two dashes of a doubled em dash, Word for Windows: jpn-z21601833-acd729's "…自然な顔——だが" ends a line
+        // "…顔—" and opens the next "—だが"; the engine keeps the pair together.)
+        if shapesPart, a == "\u{2014}", b == "\u{2014}" { return true }
         if b == "_", a.unicodeScalars.first.map({ $0.value >= 0x25A0 && $0.value <= 0x25EF }) == true { return true }
         if percentStarts, b == "%", wide(a), !_openingMarks.contains(a) { return true }
         if percentStarts, b == "％", wide(a) && !_openingMarks.contains(a) || a.isASCII && a.isNumber { return true }

@@ -1817,7 +1817,7 @@ extension RichLayout {
                     for (n, st) in starts.enumerated() where n + 1 < starts.count { room = max(room, em2(st, starts[n + 1])) }
                     fitsALine = em2(a, end) <= room
                 }
-                if han, !fitsALine, a > 0, !startSet.contains(a), starts.contains(where: { $0 > a && $0 < end }) {
+                if han, !fitsALine, a > 0, !startSet.contains(a), starts.contains(where: { $0 > a && $0 < end && !dash($0) }) {
                     if !(_hanChunks[i] ?? []).contains(a) { add.insert(a); break }
                 }
                 k = max(end, k + 1)
