@@ -7809,7 +7809,12 @@ enum DocxFormat {
         // 6pt each in Word's print. The layout's own breaks are U+2028, so
         // it is set as the en space, which is that wide.)
         let raw = t.text.containsSubstring("\u{2028}") ? t.text.replacingAll("\u{2028}", with: "\u{2002}") : t.text
-        if t["xml:space"] == "preserve" { return raw }
+        // (A raw line feed or carriage return typed inside w:t is no break to Word
+        // either: it prints as a blank and the line runs on, as in xb jpn 5ff3d0's
+        // cells "...の定義(LF)→ 1072nm", kept on one line in the print.)
+        if t["xml:space"] == "preserve" {
+            return raw.contains(where: { $0 == "\n" || $0 == "\r" || $0 == "\r\n" }) ? String(raw.map { $0 == "\n" || $0 == "\r" || $0 == "\r\n" ? " " : $0 }) : raw
+        }
         let ws: Set<Character> = [" ", "\t", "\n", "\r", "\r\n"]
         var text = Substring(raw)
         while let f = text.first, ws.contains(f) { text.removeFirst() }
