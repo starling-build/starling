@@ -1302,6 +1302,7 @@ enum DocxFormat {
                             if cond.headerFill == nil { cond.headerFill = fill }
                             if cond.headerChar == nil, let rPr = part.first("w:rPr") { cond.headerChar = _charStyle(rPr, base: CharStyle()) }
                             if cond.headerBorders == nil { cond.headerBorders = part.first("w:tcPr")?.first("w:tcBorders") }
+                            if cond.headerVAlign == nil, let v = part.first("w:tcPr")?.first("w:vAlign")?["w:val"], v == "center" || v == "bottom" { cond.headerVAlign = v }
                             if let h = part.first("w:trPr")?.first("w:tblHeader"), !_isOff(h) { cond.headerRepeats = true }
                         case "firstCol":
                             if cond.firstColChar == nil, let rPr = part.first("w:rPr") { cond.firstColChar = _charStyle(rPr, base: CharStyle()) }
@@ -2970,7 +2971,7 @@ enum DocxFormat {
                             }
                         }
                         // (A cell with no vAlign of its own takes its table style's: jpn-z22306877-1047a4's Table1.)
-                        let vAlign = tcPr?.first("w:vAlign")?["w:val"].flatMap { ["center", "bottom"].contains($0) ? $0 : nil } ?? (tcPr?.first("w:vAlign") == nil ? cond.cellVAlign : nil)
+                        let vAlign = tcPr?.first("w:vAlign")?["w:val"].flatMap { ["center", "bottom"].contains($0) ? $0 : nil } ?? (tcPr?.first("w:vAlign") == nil ? ((r == 0 && firstRowOn ? cond.headerVAlign : nil) ?? cond.cellVAlign) : nil)
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
                         rowExcepted = tr.first("w:tblPrEx")?.first("w:tblCellMar") != nil
                         if let rev = tcPr?.first("w:cellDel") ?? tcPr?.first("w:cellIns") {
@@ -5293,6 +5294,8 @@ enum DocxFormat {
         var headerFill: Color? = nil
         /// The style's own cell vertical alignment (`w:tcPr/w:vAlign`, centre or bottom).
         var cellVAlign: String? = nil
+        /// The firstRow part's own cell vertical alignment (acd729's pandoc "Table").
+        var headerVAlign: String? = nil
         var headerChar: CharStyle? = nil
         var firstColChar: CharStyle? = nil
         var band1: Color? = nil
