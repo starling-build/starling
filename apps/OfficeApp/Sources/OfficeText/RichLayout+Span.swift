@@ -3881,6 +3881,7 @@ extension RichLayout {
         let size = _px(named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize)
         let lead = _lead(i)
         var starts = Set<Int>(), yuLines = Set<Int>()
+        var lineSize = [Int: Double]()
         var offset = 0
         // (Marks in a run with no w:cs flag are Yu Gothic's, not Leelawadee's: their line is the run's own (word-aums-latin-run-in-indic-paragraph-is-a-yu-gothic-line),
         // so they add nothing after the paragraph; lab aumsy2, fb94294e.)
@@ -3903,7 +3904,11 @@ extension RichLayout {
                 return painter.getLineBoundary(TextPosition(offset: offset + lead)).start
             }
             if !yu, u.value > 0x20, u.value < 0x250 {
-                starts.insert(lineStart())
+                let at = lineStart()
+                starts.insert(at)
+                // (Devanagari: the extra follows the size of the run that holds the mark, not the Normal style's: fb94294e's 9 pt runs in an 11 pt
+                // Normal gave 3.9 pt after the paragraph where Word's print has 2.9 to 3.1.)
+                if devanagari, runIndex >= 0, let rs = p.runs[runIndex].style.fontSize { lineSize[at] = max(lineSize[at] ?? 0, _px(rs)) }
             } else if yu, u.value > 0x20 {
                 yuLines.insert(lineStart())
             }
@@ -3921,7 +3926,7 @@ extension RichLayout {
         if devanagari {
             RuleTrace.hit("word-devanagari-aums-marked-lines-add-to-the-paragraph")
             // (Real paragraph, dx2 31a0a560: 3 marked lines gave Word +11.1 pt after the paragraph, 1 marked line +3.6: per line, like Tamil.)
-            return 0.36 * size * Double(starts.count)
+            return starts.reduce(0.0) { $0 + 0.36 * (lineSize[$1] ?? size) }
         }
         RuleTrace.hit("word-tamil-leelawadee-marked-lines-add-to-the-paragraph")
         return Double(starts.count) * 0.345 * size
