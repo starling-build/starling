@@ -1,4 +1,4 @@
-188 documents: COMBINED mean 69.22% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 69.22% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
+188 documents: COMBINED mean 69.41% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 69.41% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
   11.9%  lines 370/368  pages 13/13  ara-z10840115-a1e854
    2.4%  lines 664/778  pages 27/26  ara-z11030406-663296
   13.5%  lines 111/111  pages 8/8  ara-z15699863-842f1e
@@ -172,7 +172,7 @@
   96.2%  lines 159/159  pages 6/6  rus-z15764990-244a14
  100.0%  lines 121/121  pages 4/4  rus-z18752500-4ec7ea
  100.0%  lines 131/131  pages 4/4  rus-z23849405-f5dafb
-   4.0%  lines 852/653  pages 11/11  rus-z8098805-98bc10
+  40.0%  lines 852/867  pages 11/11  rus-z8098805-98bc10
  100.0%  lines 257/257  pages 7/7  rus-z8416341-265d01
   50.6%  lines 233/234  pages 11/12  tam-z20567949-e398e6
  100.0%  lines 127/127  pages 4/4  ukr-z14922811-098d74

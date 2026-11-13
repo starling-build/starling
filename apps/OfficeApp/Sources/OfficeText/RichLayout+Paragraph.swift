@@ -1729,7 +1729,19 @@ extension RichLayout {
                 // `baseln`, and zh-7773163d's "●案例" headings, whose Wingdings
                 // bullet raised it 2.4pt and stood every line after it 3pt
                 // under Word's print.)
-                if !(RichTextTheme.wordWindowsPages && p.style.list == .bullet), let own = free.computeLineMetrics().first { numberLift = max(0, own.baseline - first.baseline) }
+                // (A bullet too, in Word for Windows: a 16pt Arial bullet over 11pt text stands the first line on the BULLET's ascent
+                // and line gap, 15.0pt, and leaves the descent the text's; items 17.4pt apart in the print of xb rus-z8098805 (4.0 to 40.0),
+                // fra-g210 36.7 to 67.6. It once skipped bullets for zh-7773163d's Wingdings, whose East Asian text is the taller face.)
+                // (Still not for a symbol-font bullet: zh-7773163d's Wingdings, lab `baseln`.)
+                // (Nor for one set in an East Asian face, latin and East Asian alike: zh-7773163d's 20pt "●" in 細明體_HKSCS over 宋 text.)
+                let bulletFonts = _levelNumberFonts(p, document)
+                // (Only a bullet that sets its own size: a Thai doc's Angsana bullet with none stands where the text does in Word's print,
+                // 2pt under ours when lifted; xd 53eca83a.)
+                let symbolBullet = p.style.list == .bullet
+                    && (_levelNumberSize(p, document) == nil
+                        || ["symbol", "wingdings", "wingdings 2", "wingdings 3", "webdings"].contains(bulletFonts.latin?.lowercased() ?? "")
+                        || (bulletFonts.eastAsian != nil && bulletFonts.latin == bulletFonts.eastAsian))
+                if !(RichTextTheme.wordWindowsPages && symbolBullet), let own = free.computeLineMetrics().first { numberLift = max(0, own.baseline - first.baseline) }
                 free.dispose()
             }
             if let key = Self.debugFit, !key.isEmpty, p.text.containsSubstring(key) {
