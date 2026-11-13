@@ -1707,7 +1707,7 @@ extension RichLayout {
                     if _decoded[image.id] == nil {
                         _paintOutline(image, rect, canvas)
                         if let inside = _textBox(image, document), let text = image.textBox {
-                            self._paintTurnedTextBox(inside, text, image, rect, canvas, clips: float.bandsPage || float.wraps || floatsFrames)
+                            self._paintTurnedTextBox(inside, text, image, rect, canvas, clips: true)
                         }
                         continue
                     }

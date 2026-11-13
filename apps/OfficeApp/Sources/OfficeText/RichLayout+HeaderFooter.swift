@@ -282,8 +282,10 @@ extension RichLayout {
         // (Text past a box that keeps its size and bands its page is not
         // shown: zh-6d402586's box of revision dates, 158pt tall, holds ten
         // of its fifteen dates in Word's print, the rest hidden under its
-        // foot; ours ran them down over "一、前言". Not a box wrapped none:
-        // zh-01071d55's header box shows its second line under its foot.)
+        // foot; ours ran them down over "一、前言". A box wrapped none is cut
+        // the same way: dx2 c67f3706's "（様式６）" box shows only "（様式" and
+        // Word drops the wrapped "６）", with or without vertOverflow
+        // (labs box6).)
         var cutsAtFoot = false
         if clips, theme.wordRules, text.textDirection == .horizontal, !text.fitsText, !text.fitsHeight, !text.growsToFit, text.parts.isEmpty {
             cutsAtFoot = true
