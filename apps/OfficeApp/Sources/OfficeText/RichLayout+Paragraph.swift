@@ -857,6 +857,7 @@ extension RichLayout {
         // follows one that starts inside it may run past the margin, and
         // the line fitting is told so.
         var runsPast: Set<Int> = []
+        var clampedStops: Set<Double> = []
         // A right stop honoured past the margin: how far past (tab offset -> points in px).
         var beyond: [Int: Double] = [:]
         let pictureTabs = Self._picturesAndTabs(p)
@@ -934,6 +935,7 @@ extension RichLayout {
             tabs = [:]
             hangs = [:]
             runsPast = []
+            clampedStops = []
             beyond = [:]
             atMargin = []
             leftTabs = []
@@ -998,7 +1000,7 @@ extension RichLayout {
                 let x = base.map { ownLeft + at - $0 + shift } ?? ownLeft + at - origin + shift
                 let own = after - at
                 var stop: (x: Double, alignment: TabStop.Alignment, leader: String?)? = nil
-                if let s = stops.first(where: { _px($0.position) > x + 0.5 }) { stop = (_px(s.position), s.alignment, s.leader) }
+                if let s = stops.first(where: { _px($0.position) > x + 0.5 && !clampedStops.contains(_px($0.position)) }) { stop = (_px(s.position), s.alignment, s.leader) }
                 var toIndent = false
                 if lead < 0, ownLeft > x + 0.5, stop.map({ ownLeft < $0.x }) ?? true { stop = (ownLeft, .left, nil); toIndent = true }
                 if stop == nil, step > 0 { stop = (((x + 0.5) / step).rounded(.down) * step + step, .left, nil) }
@@ -1020,6 +1022,7 @@ extension RichLayout {
                 // the number went to a line of its own.)
                 if theme.wordRules, var s = stop, s.alignment == .right || s.alignment == .center,
                    s.x > ownLeft + textWidth + 0.5 + ((s.leader.map { $0 != "none" && !$0.isEmpty } ?? false) && s.alignment == .right ? _px(Self._tabPastMargin) : 0) {
+                    clampedStops.insert(s.x)
                     s.x = ownLeft + textWidth
                     s.alignment = .right
                     stop = s
@@ -1123,6 +1126,26 @@ extension RichLayout {
                         for k in t + 1 ... last where units[k] != 0x20 { hangs[k] = -over * max(0, edge(k + 1) - edge(k)) / span }
                     }
                     RuleTrace.hit("word-right-tab-past-the-margin-is-honoured")
+                }
+                // (A tab that starts at the margin and has only a default stop past it
+                // goes to that stop, and what follows stands there on the line, over the
+                // margin: xa gv-0de3e9bcf1's footer "title<tab>ESAD 2012<tab>2", the
+                // right stop 3 twips past the margin, the page number 4.8 pt on at the
+                // next default stop of 720 twips; Word's print keeps it on the line,
+                // ours sent it to a line of its own and the footer grew a line.)
+                if theme.wordRules, !style.rightToLeft, stop.alignment == .left, stop.leader == nil, !toIndent,
+                   !stops.contains(where: { _px($0.position) > x + 0.5 && !clampedStops.contains(_px($0.position)) }),
+                   x >= ownLeft + textWidth - _px(1), t > 0, hangs[t + 1] == nil, !clampedStops.isEmpty,
+                   !(t + 1 ..< end).contains(where: { units[$0] == 0x20 }),
+                   let last = (t + 1 ..< end).last(where: { units[$0] != 0x20 }), hangs[last] == nil,
+                   case let over = x + own + extra + following - (ownLeft + textWidth), over > 0.01 {
+                    let span = max(0.01, edge(last + 1) - after)
+                    if over < edge(last + 1) - edge(last) - 0.5 {
+                        hangs[last] = -over
+                    } else {
+                        for k in t + 1 ... last where units[k] != 0x20 { hangs[k] = -over * max(0, edge(k + 1) - edge(k)) / span }
+                    }
+                    RuleTrace.hit("word-default-tab-at-the-margin-keeps-the-line")
                 }
                 tabs[t] = extra
                 if toIndent { leftTabs.insert(t) }
