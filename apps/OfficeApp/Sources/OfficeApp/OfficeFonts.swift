@@ -161,15 +161,18 @@ enum OfficeFonts {
                 for suffix in [" cyr", " ce", " baltic", " greek", " tur"] where n.hasSuffix(suffix) {
                     return substitute(String(family.trimmingWhitespace().dropLast(suffix.count)))
                 }
+                // (An alternate "Courier": Windows has only Courier New, so Word does not follow it. xa gv-0de3e9bcf1's
+                // Sabon (roman) and Frutiger 55 (swiss), alternate Courier, PANOSE zeros, print as Cambria and Calibri.)
                 if !wordMacFamilies.contains(n), let e = fontEntry(family), let alt = e.alt, !alt.isEmpty,
-                   alt.trimmingWhitespace().lowercased() != n {
+                   alt.trimmingWhitespace().lowercased() != n, alt.trimmingWhitespace().lowercased() != "courier" {
                     return substitute(alt)
                 }
                 if !wordMacFamilies.contains(n), let by = windowsSigFace(family) { return by == "ebrima" ? sans : substitute(by) }
             }
             if !eastAsianName, !wordMacFamilies.contains(n) {
                 if let e = fontEntry(family) {
-                    if let alt = e.alt, !alt.isEmpty, !e.panoseZero, alt.trimmingWhitespace().lowercased() != n { return substitute(alt) }
+                    if let alt = e.alt, !alt.isEmpty, !e.panoseZero, alt.trimmingWhitespace().lowercased() != n,
+                       !(wordOnWindows && alt.trimmingWhitespace().lowercased() == "courier") { return substitute(alt) }
                     if e.panoseZero { return e.family == "roman" ? cambria : calibri }
                     return calibri
                 }
