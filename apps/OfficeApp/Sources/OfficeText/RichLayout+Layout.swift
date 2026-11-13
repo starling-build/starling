@@ -2444,6 +2444,8 @@ extension RichLayout {
                         for image in p.inlineImages.inOrder + (p.image.map { [$0] } ?? []) {
                             guard let f = image.float, !f.takesRoom, !f.wraps, f.verticalFrom == "paragraph", f.verticalAlign == nil else { continue }
                             if mergedDown, image.textBox != nil { continue }
+                            // (A float in a vertical cell is placed along the line, not across: its foot is no part of the width Word centres.)
+                            if _cells[k]!.vertical { continue }
                             let foot = top + _spaceBefore[k] + _px(f.y + image.height + f.effectBottom)
                             content[column] = max(content[column] ?? 0, foot)
                         }

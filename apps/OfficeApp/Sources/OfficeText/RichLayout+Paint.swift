@@ -44,6 +44,35 @@ extension RichLayout {
         return paint(image, canvas, rect, theme.pixelsPerPoint * scale)
     }
 
+    /// Inline pictures in a turned (vertical) cell: Word draws them upright, centred on where the turned line holds them.
+    @inline(never)
+    func _paintVerticalCellPictures(_ i: Int, _ g: ParagraphGeometry, _ canvas: any Canvas, _ c: _CellGeo, _ origin: Offset, _ document: RichDocument) {
+        guard theme.wordRules, i < _inline.count, !_inline[i].isEmpty, let all = g.painter.inlinePlaceholderBoxes else { return }
+        for k in 0..<_inline[i].count {
+            let image = _inline[i][k]
+            guard image.float == nil, let decoded = _decoded[image.id], k < _inlineBoxes[i].count else { continue }
+            let slot = _inlineBoxes[i][k]
+            guard slot < all.count else { continue }
+            let b = all[slot].toRect().shift(origin)
+            let cx: Double, cy: Double
+            // Word centres the picture on the text's own column (em box), not on the taller placeholder box.
+            let doc = document.paragraphs[i]
+            let em = _px(doc.runs.last(where: { $0.length > 0 })?.style.fontSize ?? _named(doc, document)?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize)
+            // The placeholder adds nothing across the line (its box sits on the baseline), so the em column's centre is half an em from it.
+            let lift = em / 2
+            if c.direction == .up {
+                cx = c.colLeft + (b.top + b.bottom) / 2 + lift
+                cy = c.rowTop + (c.rowSpan > 1 ? c.turnedPart ?? c.rowHeight : c.ownRowHeight) - (b.left + b.right) / 2
+            } else {
+                cx = c.colLeft + c.colWidth - (b.top + b.bottom) / 2 + lift
+                cy = c.rowTop + (b.left + b.right) / 2
+            }
+            let w = _px(image.width), h = b.right - b.left
+            let rect = Rect.fromLTRB(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+            _drawPicture(decoded, image, rect, canvas)
+        }
+    }
+
     /// Floating drawings anchored in a vertical-text cell. The turned block returns before the paragraph's
     /// object loop, so these (dx2 729fb556's arrow groups) were never drawn; they sit in page coordinates.
     @inline(never)
@@ -1436,11 +1465,13 @@ extension RichLayout {
             if c.direction == .down, document.paragraphs[i].cell?.uprightIdeographs == true,
                _paintUpright(g.painter, at: origin, canvas, distribute: document.paragraphs[i].style.eastAsian["w:jc"] == "distribute", justify: theme.wordRules && aligned == .justify && document.paragraphs[i].style.eastAsian["w:jc"] == nil, mixed: true, centred: aligned == .center) {
                 canvas.restore()
+                _paintVerticalCellPictures(i, g, canvas, c, origin, document)
                 _paintVerticalCellFloats(i, g, canvas)
                 return
             }
             g.painter.paint(canvas, origin)
             canvas.restore()
+            _paintVerticalCellPictures(i, g, canvas, c, origin, document)
             _paintVerticalCellFloats(i, g, canvas)
             return
         }

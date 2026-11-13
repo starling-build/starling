@@ -3472,6 +3472,12 @@ extension RichLayout {
                     eqOffset = fit.offset
                     size = Size(size.width, fit.height)
                 }
+                if theme.wordRules, image.float == nil, image.name != "m:oMath", let cd = p.cell?.textDirection, cd != .horizontal {
+                    // A turned cell lays text out as a rotated block: the picture stays upright, so along the line it takes its height.
+                    // Word centres it on the text's em column, so across the line it adds nothing.
+                    size = Size(size.height, 0)
+                    eqOffset = 0
+                }
                 children.append(RichImageSpan(alignment: alignment, baseline: TextBaseline.alphabetic, style: style))
                 inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic,
                                                              baselineOffset: (hung ?? eqOffset ?? middle.map { size.height / 2 + _px($0) }
