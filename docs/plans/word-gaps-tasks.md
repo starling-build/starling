@@ -16225,3 +16225,5 @@ TIP WATCH amd-8, round 432 (tip 996510168, code e9a78b69c amd-2 Korean Roman num
 - amd-8 round 436 UPDATE: kor-z19581051-22de7d 36.1 -> 28.3 is the APPROVED drop for 9757162b1 (starling-bd; zero-width space after a line break, amd-3 fixing next). Slides vs base c5e02cbe4: 555 decks, 0 movers, 0 page changes. round.sh now passes BASE_REV=PREV.
 
 - lenovo-5 HANDOFF (2026-11-13): table autofit, no-compat + pct width landed 023ad2439. xb jpn-z21601833-463426 55.5 to 99.4, no doc down; em dash breaks the narrowest piece, empty cell +0.25 px is lab-derived PROVISIONAL. 729fb556 arrow shapes still OPEN (about 5 pt left; see WriterCharts map(xfrm,outer:), _floatRect in RichLayout+HeaderFooter).
+
+- amd-8 round 437 (base c3e2aefa1, tip 5698a3587; code 1e75b6177, 023ad2439): CLEAN. Six sets 0 down; xb up 5 (jpn-463426 55.5 to 99.4, c2301a, 4e6465, acd729, kor-30dbe1); xb mean 67.63 to 67.89. Unit tests 654, 0 failures. Slides 559 decks vs c3e2aefa1: 0 movers. Round 436 web build OK (759 s), web layout exit 0. (amd-8)
