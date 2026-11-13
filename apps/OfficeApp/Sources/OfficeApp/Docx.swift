@@ -1006,7 +1006,9 @@ enum DocxFormat {
         // How note marks are numbered: Word's endnotes count "i, ii, iii"
         // unless the settings say otherwise, its footnotes "1, 2, 3"
         // (endnotes.docx and Bug54849 show "i" in Word's print).
+        _mathDefaultJc = nil
         if let settings = part("word/settings.xml").flatMap(XNode.parse) {
+            _mathDefaultJc = settings.first("m:mathPr")?.first("m:defJc")?["m:val"]
             if let f = settings.first("w:endnotePr")?.first("w:numFmt")?["w:val"] { notes.endnoteFormat = f }
             if let f = settings.first("w:footnotePr")?.first("w:numFmt")?["w:val"] { notes.footnoteFormat = f }
         }
@@ -7342,7 +7344,7 @@ enum DocxFormat {
         // (A display equation stands centred — Word's `m:jc` centerGroup,
         // its default — whatever its paragraph's own alignment.)
         if let display = p.first("m:oMathPara") {
-            switch display.first("m:oMathParaPr")?.first("m:jc")?["m:val"] {
+            switch display.first("m:oMathParaPr")?.first("m:jc")?["m:val"] ?? _mathDefaultJc {
             case "left": style.alignment = .left
             case "right": style.alignment = .right
             default: style.alignment = .center
@@ -7820,6 +7822,9 @@ enum DocxFormat {
     }
 
     /// The theme's colours by scheme name ("accent2", "dk1", ...), set when a document is read.
+    // (The settings' `m:defJc`: how a display equation without its own
+    // `m:jc` stands; Word's default is centred.)
+    nonisolated(unsafe) private static var _mathDefaultJc: String? = nil
     nonisolated(unsafe) private static var _themeColors: [String: (Int, Int, Int)] = [:]
 
     private static func _themePalette(_ entries: [ZipEntry]) -> [String: (Int, Int, Int)] {
