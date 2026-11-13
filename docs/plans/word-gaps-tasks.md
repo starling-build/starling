@@ -16367,3 +16367,10 @@ HANDOFF lenovo-5 (2026-11-13): xb jpn 930d98 landed as 8ab395fd9, 91.4 to 99.6 (
 ### amd-10 HANDOFF 2026-11-13 (xs 8d372494)
 - LANDED 9f15f8de5: 8d372494 2.0 to 100 (150/150 lines). Cause: Palatino Linotype had no own line height (used 1.15 stand-in; Word 1.349) and no own widths. Added both, widths from print-font-metrics.py. Rule added to ~/word-rules.md.
 - Next in lane: 5ed52035 (2.5), 1a285b32 (3.6), 0aca9a91 (7.2), c7ebae82 (9.4). Trap: land.sh lost the push race 3 times in a row; just rerun. python needs PYTHONPATH=/data/s/amd-10/pylib for fontTools.
+
+### amd-2 4fabe1f2 (xd ko) PARKED 2026-11-13, first difference page 1 line 3
+- Word ends the line "...제작 등에 관" and wraps "한 계약을 체결한다."; ours takes "관한". Every space on that line is 0.64 pt narrower in ours (5.0 against Word's 5.7, natural 5.6), 11.6 pt in all, so ours squeezes the spaces to take 한. Word's 관 already ends on the margin (538.9 against 538.6) with all spaces natural.
+- Not the space width itself: a short last line sets spaces at 5.6 like Word. Style a3 has wordWrap=0, compat 15, balanceSingleByteDoubleByteWidth, doNotCompress, justified, 12pt HY신명조 (batang metrics).
+- Tried: the Korean no-squeeze exception (RichLayout+EastAsian.swift near line 2003, wordWrap=0 and isSpace(units[a])) widened to a piece that starts on a Hangul syllable. No change in the render, and STARLING_FIT_LOG prints no FITS line for this line, so the take happens in another branch (the windowsSpaced stretch test near line 1497/1649, not the squeeze block). Reverted, nothing landed.
+- Word itself does squeeze in this doc (spaces 4.4 to 4.9 on 9 lines that end mid-word, down to 2.8 near circled digits), so it is not a blanket "never squeeze". Open question: why Word refuses 0.64 per space here. One difference: this line holds a run of 12 typed spaces ("20   .    .    .").
+- Cheap next test: stop run spaces (a space beside another space) counting as squeezable in the 1497/1649 branch, then check page 1 and 8 Korean docs.
