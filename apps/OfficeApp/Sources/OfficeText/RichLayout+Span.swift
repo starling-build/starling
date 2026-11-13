@@ -1251,6 +1251,20 @@ extension RichLayout {
                    let size = s.fontSize, size > 0.5, let h = s.height, let split = Self._thaiLineSplit(s.debugLabel, bold: s.fontWeight == .bold), thaiParagraph {
                     s = s.copyWith(ascentOverride: size * h * split, descentOverride: size * h * (1 - split), leadingDistribution: .even)
                 }
+                // (Yu Gothic and Yu Mincho ideographs stand a line on the face's own split, 1.18 em above the baseline and 0.5 below
+                // (`EastAsianFace.baseline`), whatever else is in the paragraph: the stand-in's own split, 0.8 above, lifted the title lines of
+                // xb jpn 12d9fb 2.6pt (a Latin-only line among them kept a paragraph strut off), Word's first baseline 18.8 at 16pt, ours 21.4.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, kind < 0, pitch == nil, p.style.lineHeightPoints == nil, s.ascentOverride == nil,
+                   p.style.lineSpacing > 0, let size = s.fontSize, size > 0.5,
+                   let fam = (run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily)?.trimmingWhitespace().lowercased(),
+                   ["游ゴシック", "yu gothic", "游明朝", "yu mincho"].contains(fam), let face = theme.faceResolver?(fam, true) {
+                    let bold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
+                    if let t = (bold ? face.boldBaseline : nil) ?? face.baseline, let nat = (bold ? face.boldHeight : nil) ?? face.naturalHeight {
+                        RuleTrace.hit("word-yu-ideograph-line-stands-on-its-own-ascent")
+                        let sp = Self._multipleSplit(ascent: t, descent: nat - t, multiple: p.style.lineSpacing)
+                        s = s.copyWith(ascentOverride: size * sp.0, descentOverride: size * sp.1, height: nat * max(1, p.style.lineSpacing), leadingDistribution: .even)
+                    }
+                }
                 // (A run with ruby over it makes its line room for the ruby.)
                 if theme.wordRules, run.ruby != nil, s.fontSize ?? 0 > 0.5,
                    let h = theme.rubyLine(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) {
