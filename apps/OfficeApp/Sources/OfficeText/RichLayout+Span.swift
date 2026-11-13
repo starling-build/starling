@@ -853,6 +853,7 @@ extension RichLayout {
             var latinNoScale = false
             var fitNone = false
             var fitLastSingle = false
+            var fitLastEnd = 0
             func fitSpacing() -> Double? {
                 guard let g = fitGroup, !fitNone else { return nil }
                 if let f = fitPitch { return f }
@@ -866,6 +867,7 @@ extension RichLayout {
                     guard tcFit ? at + r.length <= units.count : (Self._fitText(r.style.keptXML)?.id == g.id && at + r.length <= units.count) else { continue }
                     let piece = String(decoding: units[at ..< at + r.length], as: UTF16.self)
                     lastLength = piece.count
+                    fitLastEnd = at + r.length
                     for (k, ch) in piece.enumerated() {
                         // (A space the paragraph sets half an em wide
                         // (`wideSpaces`) is measured so, as it is painted:
@@ -1260,7 +1262,7 @@ extension RichLayout {
                 }
                 _r0()
                 if !fitBusy, fitGroup != nil, s.fontSize ?? 0 > 0.5, let f = fitSpacing() {
-                    let own = text.count == 1 && fitLastSingle ? 0 : f
+                    let own = text.count == 1 && fitLastSingle && base + rawText.utf16.count >= fitLastEnd ? 0 : f
                     s = s.copyWith(letterSpacing: kind == -2 ? (s.letterSpacing ?? 0) + own : own)
                 }
                 if !fitBusy, !plainPiece, !latinNoScale { styles[kind] = s }
