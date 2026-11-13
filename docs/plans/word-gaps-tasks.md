@@ -16339,3 +16339,5 @@ board: amd-6 HANDOFF xa gv-0de3e9bcf1: landed 382213b5f (alternate "Courier" is 
 - lenovo-5 xb jpn 12d9fb (93): 308/332, 13 pages. Title page p1 only checked: line gaps differ in the mixed CJK/Latin title block (Word 23/22/26/21 vs ours 20/25/28/24 between title lines; 著者情報 block 3-9 pt drift). Likely the same family as 930d98 (line height depends on CJK/Latin content of neighbouring lines). Not started.
 - lenovo-5 trap: /tmp/claude-1000 is shared by all sessions; keep logs in your scratchpad. land.sh at 595 s timeout dies: nohup + wait on PID.
 - lenovo-2 HANDOFF zh dx2 837ac08d: landed 2482bd389 (2.9 to ~90, 32/35 lines). Three rules in ~/word-rules.md. Left: ~3 lines near the 11月1-5日 text (autospace). Unit tests: 8 failures (DocxTests 3, LibreOffice 2, PictureTab, SplitCell) fail identically WITHOUT my change on this box; not mine. Trap: header box with negative offset must stay excluded (hin b05873). Next: 4cac8c37, 2f415ce7, 817e3a79.
+
+- amd-10 CLAIM 2026-11-13: xs lane (lowest first): 8d372494 (2.0), 5ed52035 (2.5), 1a285b32 (3.6), 0aca9a91, c7ebae82. Starting with 8d372494.
