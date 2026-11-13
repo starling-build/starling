@@ -108,7 +108,14 @@ extension RichLayout {
             let step = RichTextTheme.wordWindowsPages && p.text.unicodeScalars.contains(where: { $0.value >= 0xFF61 && $0.value <= 0xFF9F }) || !p.text.unicodeScalars.contains(where: { $0.value >= 0x2E80 && $0.value < 0xFF00 }) || ((document.compatibilityMode ?? 0) >= 14 && p.text.unicodeScalars.contains(where: { ($0.value | 0x20 >= 0x61 && $0.value | 0x20 <= 0x7A) })) ? cell / 2 : cell
             // (The cells are counted in what the indents leave: gc-p105's 453.6pt column holds 43 cells of
             // 10.5 (451.5) up to 2pt of right indent and 42 from 2.5pt, in Word's print.)
-            if cell > 0, own >= size - _px(0.01), !offGrid {
+            // (Not a paragraph of larger characters than Normal's: dx2 c67f3706's 11pt lines on
+            // Normal's 10.5 hold 42 characters of its 453.6pt column in Word's print, ending at
+            // the margin, where 43 cells of 10.5 leave 451.5 and a character goes down.)
+            // (Compat 15 only: dx2 c67f3706's 11pt lines on Normal's 10.5 cell, no
+            // charSpace, end at the margin in Word's print. The cut documents
+            // above are compat 12, 14 or none. PROVISIONAL: one compat-15 doc.)
+            let largerThanNormal = (document.compatibilityMode ?? 0) >= 15 && own > _px(_normalChar(document)?.fontSize ?? theme.fontSize) + _px(0.01)
+            if cell > 0, own >= size - _px(0.01), !offGrid, !largerThanNormal {
                 let room = width - left - right
                 let cut = min(room, ((room + _px(0.01)) / step).rounded(.down) * step)
                 gridCut = room - cut; width -= gridCut
