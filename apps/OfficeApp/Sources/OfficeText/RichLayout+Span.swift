@@ -1271,6 +1271,25 @@ extension RichLayout {
                         s = s.copyWith(ascentOverride: size * sp.0, descentOverride: size * sp.1, height: nat * max(1, p.style.lineSpacing), leadingDistribution: .even)
                     }
                 }
+                // (A Latin stretch in a paragraph that stands its ideographs on Yu's own split keeps its face's baseline too, the line multiple's
+                // extra below it as in a Latin-only paragraph, not shared out above: xb jpn 12d9fb's subtitle, "―Amazon" 5 pt low, the next line 6 high.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, kind >= 0, pitch == nil, p.style.lineHeightPoints == nil, s.ascentOverride == nil,
+                   p.style.lineSpacing > 1, let size = s.fontSize, size > 0.5, run.ruby == nil,
+                   let fam = (run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily)?.trimmingWhitespace().lowercased(),
+                   ["游ゴシック", "yu gothic", "游明朝", "yu mincho"].contains(fam),
+                   p.text.unicodeScalars.contains(where: { $0.value >= 0x3040 && $0.value < 0xA000 }),
+                   let latin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)?.trimmingWhitespace(),
+                   let face = theme.faceResolver?(latin, false) {
+                    let bold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
+                    var single = p.style; single.lineSpacing = 1
+                    let nat0 = (bold ? face.boldHeight : nil) ?? face.naturalHeight ?? theme.naturalLineHeight(family: face.family, bold: bold, italic: run.italic)
+                    if let b = theme.baseline(for: run, in: single, named: named, eastAsian: false, gridPitch: pitch), let pt = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize, pt > 0.5,
+                       case let t = b / pt, case let nat = nat0 {
+                        RuleTrace.hit("word-latin-beside-yu-keeps-baseline-extra-below")
+                        let sp = Self._multipleSplit(ascent: t, descent: nat - t, multiple: p.style.lineSpacing)
+                        s = s.copyWith(ascentOverride: size * sp.0, descentOverride: size * sp.1, height: nat * p.style.lineSpacing, leadingDistribution: .even)
+                    }
+                }
                 // (A run with ruby over it makes its line room for the ruby.)
                 if theme.wordRules, run.ruby != nil, s.fontSize ?? 0 > 0.5,
                    let h = theme.rubyLine(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) {
