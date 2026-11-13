@@ -5853,7 +5853,8 @@ enum DocxFormat {
                 // (`apply` keeps the paragraph's break, as an edit that
                 // restyles one must; read from the file, the style's is
                 // the paragraph's too — see `_paragraphProps`.)
-                if sheet[ours]?.paragraph.pageBreakBefore == true, !style.pageBreakBefore { style.pageBreakBefore = true; styleBreak = true }
+                // (A paragraph's own explicit "off" wins over the style's break: xd 47480880's title says w:pageBreakBefore w:val="0" over a style that breaks, and Word's print keeps it on page 2.)
+                if sheet[ours]?.paragraph.pageBreakBefore == true, !style.pageBreakBefore, pPr.first("w:pageBreakBefore") == nil { style.pageBreakBefore = true; styleBreak = true }
                 if let inCell = cellResolve?(id) {
                     let named = style.named, heading = style.heading
                     style = inCell
@@ -5966,8 +5967,8 @@ enum DocxFormat {
                     }
                 }
             }
-            if pPr.first("w:pageBreakBefore") != nil, !_isOff(pPr.first("w:pageBreakBefore")!) {
-                style.pageBreakBefore = true
+            if let pb = pPr.first("w:pageBreakBefore") {
+                style.pageBreakBefore = !_isOff(pb)
             }
             // (Not a break before a paragraph that is only a section's end,
             // with no run in it: zh-499adba6's contents section ends in an
@@ -6926,6 +6927,10 @@ enum DocxFormat {
                 // (The same where the weight comes from the PARAGRAPH style: dx2 f0001d05's Title (b, no bCs), a Kokila run with w:cs and no weight of its own, prints regular.)
                 if indicOnly, _on(rPr.first("w:cs")), rPr.first("w:b") == nil, rPr.first("w:bCs") == nil, !cs.bold,
                    let n = style.named, sheet[n]?.char.boldWithoutBCs == true { cs.off.insert(.bold) }
+                // (A right-to-left run with no bCs of its own takes the PARAGRAPH style's: xd 47480880's TOC 1 states bCs alone, and Word prints its Hebrew entries in David Bold.)
+                if complexSize, !indicOnly, cs.complexBold == nil, let n = style.named, let b = sheet[n]?.char.complexBold, b != cs.bold {
+                    cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) }
+                }
             }
             // (A page number kept in its result's look with \* MERGEFORMAT keeps its weight and
             // loses the rest of it: lab pgf (Word for Windows, 2026-11-02) — an Arial Bold 15.5pt
@@ -8113,10 +8118,11 @@ enum DocxFormat {
             cs.keptXML = ["w:bdr", "w:w", "w:position", "w:fitText", "w:cs", "w:em", "w:lang", "w:eastAsianLayout", "w:snapToGrid"].compactMap { all[$0] }.joined()
         }
         if let z = szCs { cs.complexFontSize = z }
+        if let b = bCs { cs.complexBold = b }
         if bCs != nil { cs.boldWithoutBCs = false } else if sawB { cs.boldWithoutBCs = cs.bold }
         if complexText ?? cs.rightToLeft {
             // (A complex run's weight is its bCs even when the run also states b: af19d946's Heading3 run, b 0 / bCs, prints Devanagari in Nirmala UI Bold.)
-            if let b = bCs { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }
+            if let b = bCs ?? base.complexBold { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }
             // (A run of Devanagari, Bengali, Gurmukhi or Gujarati letters only that carries the w:cs flag and states b with no bCs keeps the weight it inherited (a run without the flag, as in xd 77d6ca49's Nirmala UI, is bold): Word
             // prints dx2-class xd 745490897f9f's bold-marked Kokila words in regular Kokila.)
             else if indicOnly, cs.bold, sawB ? !base.bold : cs.boldWithoutBCs, _on(rPr.first("w:cs")) { cs.bold = false; if base.off.contains(.bold) { cs.off.insert(.bold) } else { cs.off.remove(.bold) } }
