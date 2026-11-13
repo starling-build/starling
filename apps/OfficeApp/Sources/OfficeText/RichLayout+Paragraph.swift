@@ -111,11 +111,11 @@ extension RichLayout {
             // (Not a paragraph of larger characters than Normal's: dx2 c67f3706's 11pt lines on
             // Normal's 10.5 hold 42 characters of its 453.6pt column in Word's print, ending at
             // the margin, where 43 cells of 10.5 leave 451.5 and a character goes down.)
-            // (Compat 15 only: dx2 c67f3706's 11pt lines on Normal's 10.5 cell, no
-            // charSpace, end at the margin in Word's print. The cut documents
-            // above are compat 12, 14 or none. PROVISIONAL: one compat-15 doc.)
-            let largerThanNormal = (document.compatibilityMode ?? 0) >= 15 && own > _px(_normalChar(document)?.fontSize ?? theme.fontSize) + _px(0.01)
-            if cell > 0, own >= size - _px(0.01), !offGrid, !largerThanNormal {
+            // (Compat 15 and later: no cut, at any size. Labs c67lab (dx2 c67f3706's text, 11 and 16pt) and c67lab10 (10pt, below
+            // Normal's 10.5), compat 14 against 15 with no charSpace, 0 and -849: the compat-14 lines stop at 43 cells of the cut
+            // column, the compat-15 ones run to the margin, at all three sizes. The cut documents above are compat 12, 14 or none.)
+            let fullWidth = (document.compatibilityMode ?? 0) >= 15
+            if cell > 0, own >= size - _px(0.01), !offGrid, !fullWidth {
                 let room = width - left - right
                 let cut = min(room, ((room + _px(0.01)) / step).rounded(.down) * step)
                 gridCut = room - cut; width -= gridCut
