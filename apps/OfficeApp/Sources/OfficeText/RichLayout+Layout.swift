@@ -1433,6 +1433,10 @@ extension RichLayout {
         return ts.widthPercent != nil ? base.reduce(0, +) : flow
     }
 
+    static func _autofitDictionaryScript(_ u: UInt16) -> Bool {
+        (u >= 0x0E00 && u <= 0x0EFF) || (u >= 0x1780 && u <= 0x17FF) || (u >= 0x1000 && u <= 0x109F)
+    }
+
     func _autofit(_ table: String, _ base: [Double], _ document: RichDocument) -> [Double] {
         struct Cell { var column: Int; var span: Int; var min: Double; var whole: Double; var max: Double; var picture: Bool }
         var cells: [Cell] = []
@@ -1450,8 +1454,14 @@ extension RichLayout {
             let padL = c.padding.map { _px($0.left) } ?? ins.left, padR = c.padding.map { _px($0.right) } ?? ins.right
             let sides = padL + padR + _autofitRuleRoom(table, document, padL, padR)
             let w = sides + _minContent(i, p, document)
-            let wWhole = document.compatibilityMode == nil ? sides + _minContent(i, p, document, contentFit: true) : w
-            let widest = sides + _maxContent(i, p, document)
+            var wWhole = document.compatibilityMode == nil ? sides + _minContent(i, p, document, contentFit: true) : w
+            var widest = sides + _maxContent(i, p, document)
+            // (PROVISIONAL, labs atcol5-8 t12-c1only, t29-c1only, t29-no3, t12-c12, t29-c12: an
+            // empty cell paragraph in a no-compat percentage table adds a quarter pixel
+            // to its whole and widest settings, not to its narrowest.)
+            if document.compatibilityMode == nil, pctTable, RichTextTheme.wordWindowsPages, p.text.isEmpty, p.image == nil {
+                wWhole += _px(0.25); widest += _px(0.25)
+            }
             if theme.wordRules, !RichTextTheme.wordWindowsPages, c.span == 1, widest > w + 0.01, pctTable,
                let kept = c.keptPropertiesXML, kept.containsSubstring("<w:noWrap"),
                !kept.containsSubstring("<w:noWrap w:val=\"0\"") && !kept.containsSubstring("<w:noWrap w:val=\"false\"") {
@@ -1748,8 +1758,10 @@ extension RichLayout {
                     while j >= 0, units[j] == 0x20 { j -= 1 }
                     parts = !(j >= 0 && j < k - 1 && units[j] == 0xA0)
                 }
-                // (No compat mode on Word for Windows, labs atcol: a column's narrowest is its longest run between spaces, ideograph runs kept whole; Latin and Thai text keeps its own breaks.)
-                else if theme.wordRules, RichTextTheme.wordWindowsPages, document.compatibilityMode == nil, p.cell != nil, pctWidthTable, contentFit, a >= 0x2E80 || b >= 0x2E80 { parts = false }
+                // (No compat mode on Word for Windows, labs atcol5-8, docs/plans/word-table-autofit.md: a column's narrowest is its longest run between spaces; it parts only just after an em dash, at a hyphen or en dash (unmeasured, left to the chain below) and in Thai, Lao, Khmer and Myanmar text (dictionary breaks).)
+                else if theme.wordRules, RichTextTheme.wordWindowsPages, document.compatibilityMode == nil, p.cell != nil, pctWidthTable, contentFit, a == 0x2014 { parts = true }
+                else if theme.wordRules, RichTextTheme.wordWindowsPages, document.compatibilityMode == nil, p.cell != nil, pctWidthTable, contentFit,
+                        !(a == 0x2D || a == 0x2010 || a == 0x2013), !Self._autofitDictionaryScript(a), !Self._autofitDictionaryScript(b) { parts = false }
                 else if breakBefore.contains(k) { parts = true }
                 // (After a hyphen before a digit in a time of day, where a
                 // word wider than its cell must part: zh-b3e887f7's schedule keeps its

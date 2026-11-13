@@ -3113,6 +3113,45 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(l.geometry(0).painter.computeLineMetrics().count, 6)
     }
 
+    func testAutofitNoCompatPercentTableBreaksAtEmDash() throws {
+        try requireFitterWidths()
+        // Word, no compat mode, a percentage-width table (labs atcol5-8):
+        // a cell's narrowest piece ends at an em dash,
+        // where unpunctuated text of the same length stays whole. The first column is the dashed text.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        func firstColumn(_ word: String, compat: Int? = nil) -> Double {
+            var style = CharStyle()
+            style.fontFamily = "Arial"
+            style.fontSize = 12
+            let body = "ab"
+            var a = RichParagraph(text: word, runs: [Run(length: word.utf16.count, style: style)])
+            var b = RichParagraph(text: body, runs: [Run(length: body.utf16.count, style: style)])
+            a.cell = CellRef(table: "T", row: 0, column: 0)
+            b.cell = CellRef(table: "T", row: 0, column: 1)
+            var doc = RichDocument(paragraphs: [a, b, RichParagraph(text: "")])
+            doc.compatibilityMode = compat
+            doc.tableColumns["T"] = [100, 300]
+            var ts = TableStyle()
+            ts.widthPercent = 15
+            ts.contentFit = true
+            doc.tableStyles["T"] = ts
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.faceResolver = OfficeFonts.face
+            theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            l.width = 500 * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            return l.columnWidths(of: "T")?.first ?? -1
+        }
+        let dash = firstColumn("\u{6F22}\u{5B57}\u{6F22}\u{5B57}\u{6F22}\u{5B57}\u{2014}\u{6F22}\u{5B57}\u{6F22}\u{5B57}\u{6F22}\u{5B57}")
+        let whole = firstColumn("\u{6F22}\u{5B57}\u{6F22}\u{5B57}\u{6F22}\u{5B57}\u{5B57}\u{6F22}\u{5B57}\u{6F22}\u{5B57}\u{6F22}\u{5B57}")
+        let dash15 = firstColumn("\u{6F22}\u{5B57}\u{6F22}\u{5B57}\u{6F22}\u{5B57}\u{2014}\u{6F22}\u{5B57}\u{6F22}\u{5B57}\u{6F22}\u{5B57}", compat: 15)
+        XCTAssertLessThan(dash, whole - 2, "dash \(dash) whole \(whole) dash15 \(dash15)")
+    }
+
     func testARunOffTheGridWeighsItsCharactersAtTheirOwnEms() throws {
         try requireFitterWidths()
         // zh-c15af02e (mode 15, a grid adding 1pt) sets its runs off the grid,
