@@ -3083,6 +3083,12 @@ extension RichLayout {
                     // the stand-in's, narrower, and the engine would find room the fit loop never counted. f0001d05 line 3.)
                     if ch == " ", kind >= 0, indic?.face == "kokila", kokilaLatin, let px = s.fontSize, px > 0.5, Self._indicLines["kokila"] != nil {
                         s = _kokilaLatinStyle(" ", base: s, px: px)
+                    } else if ch == " ", kind >= 0, indic == nil, (run.keptXML?.containsSubstring("<w:cs") ?? false), theme.wordRules, RichTextTheme.wordWindowsPages, let px = s.fontSize, px > 0.5,
+                              let em = Self._missingBengaliSpaceEm(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? ""),
+                              p.text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF }) {
+                        // (A missing Bengali face's space, drawn by Word in Mangal at half an em.)
+                        let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+                        s = _indicSpaceStyle(base: s, spaceEm: em, unit: authored)
                     } else if ch == " ", kind >= 0, indic?.face == "shonar bangla", let px = s.fontSize, px > 0.5 {
                         // (Shonar Bangla's own space, 0.2065 em, for a space the fit cut out of its run.)
                         let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
