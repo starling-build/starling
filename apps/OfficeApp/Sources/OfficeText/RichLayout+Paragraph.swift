@@ -115,7 +115,11 @@ extension RichLayout {
             // Normal's 10.5), compat 14 against 15 with no charSpace, 0 and -849: the compat-14 lines stop at 43 cells of the cut
             // column, the compat-15 ones run to the margin, at all three sizes. The cut documents above are compat 12, 14 or none.)
             let fullWidth = (document.compatibilityMode ?? 0) >= 15
-            if cell > 0, own >= size - _px(0.01), !offGrid, !fullWidth {
+            // (Compat 14 also cuts smaller characters: c67lab10's 10pt lines on Normal's 10.5 cell, no charSpace, hold 45 or 46
+            // characters in Word's print, 45 cells of 10pt less than the margin's 45.4; compat 15 holds 46 or 47.)
+            // (Not a paragraph that says `w:snapToGrid` 0: zh-e68a2f57's 10.5pt note lines on a 16pt Normal cell, compat 14, run to the margin in Word's print.)
+            let smallerCut = (document.compatibilityMode ?? 0) == 14 && p.style.eastAsian["w:snapToGrid"] != "0"
+            if cell > 0, own >= size - _px(0.01) || smallerCut, !offGrid, !fullWidth {
                 let room = width - left - right
                 let cut = min(room, ((room + _px(0.01)) / step).rounded(.down) * step)
                 gridCut = room - cut; width -= gridCut
