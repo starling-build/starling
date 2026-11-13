@@ -842,8 +842,8 @@ extension RichLayout {
                 let halfStop = theme.wordRules && RichTextTheme.wordWindowsPages && document.hangsHalf && !squeezes
                     && (units[tail] == 0x2C || units[tail] == 0x2E)
                 let latinComma = halfStop || !legacy && (units[tail] == 0x2C || units[tail] == 0x29)
-                    // (Compat 15: a final "." after a Latin letter stays while its origin is inside the margin: kor 59e77f "shows.", ff493b "electricity.".)
-                    || !legacy && units[tail] == 0x2E && tail > 0 && ((units[tail - 1] | 0x20) >= 0x61 && (units[tail - 1] | 0x20) <= 0x7A)
+                    // (Compat 15: a final "." after a Latin letter in a JUSTIFIED paragraph stays while its origin is inside the margin (left-aligned labs period/period-*: Word never hangs it): kor 59e77f "shows.", ff493b "electricity.".)
+                    || !legacy && p.style.alignment == .justify && units[tail] == 0x2E && tail > 0 && ((units[tail - 1] | 0x20) >= 0x61 && (units[tail - 1] | 0x20) <= 0x7A)
                     || units[tail] == 0x29 && tail > 0 && units[tail - 1] >= 0x2E80 && (!hangulStop || hangulParen)   // (b6f6c7d4: a Korean line with digits and only stops to hang keeps ")" whole, as Word)
                     // (… a "," too: zh-9bcea239's "…少于6个月的," (mode 12, Times) is one line in Word for Windows' print, its "," 3.99 past the margin.)
                     || units[tail] == 0x2C && RichTextTheme.wordWindowsPages && tail > 0 && units[tail - 1] >= 0x2E80
