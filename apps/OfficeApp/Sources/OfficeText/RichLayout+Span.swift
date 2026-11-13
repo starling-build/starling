@@ -1230,7 +1230,11 @@ extension RichLayout {
                         // (Shaded, they paint the shade: zh-1078e06f's grey blanks
                         // after a signature line; a 0.01 box paints none.)
                         if !Self.shadeShows(run.highlight) || own > lineSize.size + 0.01 { s = s.copyWith(height: 0.01) }
-                    } else if own > lineSize.size + 0.01 || (lineSize.blank && own < lineSize.size - 0.01) {
+                    } else if own > lineSize.size + 0.01 || (lineSize.blank && own < lineSize.size - 0.01)
+                                || (lineSize.blank && p.style.mark?.fontFamily != nil && p.style.mark?.fontFamily != run.fontFamily) {
+                        // (Same size, other face: a line of spaces alone is the mark's face's
+                        // in Word whatever the size — lab picm2: Malgun 11pt spaces under a
+                        // BatangChe 11pt mark are 10.4pt under the line above, not Malgun's 15.4.)
                         var sized = run
                         sized.fontSize = lineSize.size
                         // (The mark's line in the mark's Latin face, where
