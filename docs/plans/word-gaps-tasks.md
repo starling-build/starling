@@ -16380,3 +16380,8 @@ HANDOFF lenovo-5 (2026-11-13): xb jpn 930d98 landed as 8ab395fd9, 91.4 to 99.6 (
 Landed e79ae0af6 (page 7 Figure 4 picture 14pt high -> 117.2 as Word; page 6 139.0 exact) and 8fb7b06be (page 8 Figure 5 caption centred -> 85.1 as Word). Land gate clean both.
 Left: captions under the pictures sit 1.5-3pt off Word (p6 473.7/492.0/511.2 vs 472/490/508; p7 455.9 vs 454) because the stand-in face's line is 18.4 not 18 on a grid; page 8 picture 1pt high and Word's extra empty lines after the equation not drawn. Rule-line list numbers 2.3-3.7pt high remain.
 Trap: forcing the strut on a first-line picture put line 2 at P+18 not S+12.6 (strut line 0 is 18 high, picture overflows).
+
+### HANDOFF amd-5 xb jpn 7f0539 (2026-11-13)
+Landed e79ae0af6 (page 7 Figure 4 picture 14pt high -> 117.2 as Word; page 6 139.0 exact) and 8fb7b06be (page 8 Figure 5 caption centred -> 85.1 as Word). Land gate clean both.
+Left: captions under the pictures sit 1.5-3pt off Word (p6 473.7/492.0/511.2 vs 472/490/508; p7 455.9 vs 454) because the stand-in face's line is 18.4 not 18 on a grid; page 8 picture 1pt high and Word's extra empty lines after the equation not drawn. Rule-line list numbers 2.3-3.7pt high remain.
+Trap: forcing the strut on a first-line picture put line 2 at P+18 not S+12.6 (strut line 0 is 18 high, picture overflows).
