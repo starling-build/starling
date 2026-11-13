@@ -1,4 +1,4 @@
-188 documents: COMBINED mean 69.55% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 69.55% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
+188 documents: COMBINED mean 69.58% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 69.58% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
   11.9%  lines 370/368  pages 13/13  ara-z10840115-a1e854
    2.4%  lines 664/778  pages 27/26  ara-z11030406-663296
   13.5%  lines 111/111  pages 8/8  ara-z15699863-842f1e
@@ -48,7 +48,7 @@
   68.1%  lines 119/114  pages 4/4  docx4j-1e349e20
   90.1%  lines 202/203  pages 5/5  ell-z10161459-ec79d6
   94.7%  lines 767/767  pages 20/20  ell-z10407038-6c5718
-  74.6%  lines 822/821  pages 18/18  ell-z10407270-89615d
+  74.7%  lines 822/821  pages 18/18  ell-z10407270-89615d
  100.0%  lines 76/76  pages 3/3  ell-z18377521-5297a3
    4.9%  lines 204/204  pages 10/10  ell-z20423699-05c22a
    4.9%  lines 206/206  pages 10/10  ell-z20423699-263d3d
@@ -69,7 +69,7 @@
    1.3%  lines 149/149  pages 8/8  fas-z22973278-768d17
  100.0%  lines 24/24  pages 1/1  fas-z4476777-7bfbf3
   13.8%  lines 574/580  pages 19/20  fas-z8123021-fd38aa
-  42.1%  lines 974/979  pages 21/22  fra-g111-8b0e29
+  42.4%  lines 974/979  pages 21/22  fra-g111-8b0e29
   74.9%  lines 960/961  pages 19/20  fra-g156-5d636a
  100.0%  lines 283/284  pages 8/8  fra-g188-120f4b
   36.7%  lines 877/876  pages 20/20  fra-g210-1a6d33
@@ -92,9 +92,9 @@
   98.1%  lines 157/157  pages 8/8  hin-z19449382-045439
   94.5%  lines 345/345  pages 11/11  hin-z19974540-2e43e8
   81.4%  lines 392/394  pages 12/12  hin-z20049040-f01e57
-  72.4%  lines 181/183  pages 6/6  hin-z20395056-4ee329
+  72.9%  lines 181/183  pages 6/6  hin-z20395056-4ee329
   37.4%  lines 243/245  pages 8/8  hin-z20395192-2886e1
-  55.5%  lines 227/228  pages 7/7  hin-z20459061-8ec51c
+  59.9%  lines 227/228  pages 7/7  hin-z20459061-8ec51c
   21.3%  lines 150/149  pages 4/4  hin-z20740649-94bde9
   21.3%  lines 150/149  pages 4/4  hin-z20747431-a0ee17
   98.0%  lines 148/148  pages 4/4  hin-z20759993-04d538
