@@ -2705,6 +2705,41 @@ extension RichLayout {
             }
         }
         if theme.wordRules, RichTextTheme.wordWindowsPages, _columns > 1, p.cell == nil, let band = _clearBand[i] { keepClear = band }
+        // (An equation taller than the text in a 1.5-line paragraph: Word applies the multiple to the line's
+        // tallest content, so the line is 1.5 times the equation's own height where the strut holds it to 1.5
+        // times the text's. Word's print of jpn-z22855378-6fca0f: a line with a 17.0 over 7.9pt fraction is 36pt,
+        // the others 27. The lines are held to the strut here and the taller one is drawn lower, with those
+        // after it: the extra above the baseline is what the equation stands higher than the text's own.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, !style.rightToLeft, _columns <= 1,
+           style.lineSpacing > 1.001, style.lineHeightPoints == nil, painter.strutStyle?.forceStrutHeight == true,
+           besideLineIndents.isEmpty, keepClear == nil, Self._paired(painter) == nil,
+           let boxes = painter.inlinePlaceholderBoxes, boxes.count == inline.count, !boxes.isEmpty {
+            let bottoms = Self._rawLineBottoms(painter)
+            let metrics = painter.computeLineMetrics()
+            var extra = [Double](repeating: 0, count: bottoms.count), above = extra
+            for (k, box) in boxes.enumerated() {
+                guard let whole = inline[k].image?.naturalExtent, inline[k].image?.name == "m:oMath" else { continue }
+                let mid = box.toRect().top + box.toRect().height / 2
+                guard let line = bottoms.firstIndex(where: { mid < $0 }), line < metrics.count else { continue }
+                let before = line == 0 ? 0 : bottoms[line - 1], advance = bottoms[line] - before
+                let target = style.lineSpacing * _px(whole.ascent + whole.descent)
+                guard target > advance + 0.01 else { continue }
+                let own = advance - advance / style.lineSpacing
+                let reach = max(0, _px(whole.ascent) - (metrics[line].baseline - before - own))
+                extra[line] = max(extra[line], target - advance)
+                above[line] = max(above[line], min(reach, extra[line]))
+            }
+            if extra.contains(where: { $0 > 0 }) {
+                RuleTrace.hit("word-an-equation-line-of-multiple-spacing-is-the-multiple-of-the-equation")
+                var shifts = [Double](repeating: 0, count: bottoms.count)
+                var acc = 0.0
+                for k in 0 ..< bottoms.count {
+                    shifts[k] = acc + above[k]
+                    acc += extra[k]
+                }
+                Self._pairedLines[ObjectIdentifier(painter)] = _PairedLines(painter: painter, shifts: shifts, saving: -acc)
+            }
+        }
         if (besideLeftRoom != nil && !besideLineIndents.isEmpty) || keepClear != nil {
             Self._registerPairs(painter, besideLeftRoom != nil ? besideLineIndents : [], push: keepClear)
         }
