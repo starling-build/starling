@@ -2491,7 +2491,10 @@ extension RichLayout {
                             guard start < firstEnd else { break }
                             let end = min(start + run.length, firstEnd, units.count)
                             guard start < end, run.style.fontHint != "eastAsia",
-                                  theme.faceResolver?(run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false)?.isEastAsian != true,
+                                  theme.faceResolver?(run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false)?.isEastAsian != true
+                                    // (❏ is in no Korean face: a run naming only 한양신명조 for its
+                                    // ascii still draws it in Segoe UI Symbol, xd 07eecf7a p2.)
+                                    || units[start ..< end].contains(0x274F),
                                   Self._holdsSegoeGlyph(units, start, end, emojiOnly: !lead.1) else { continue }
                             let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
                             // (The line as much taller: what stands under it
@@ -3692,7 +3695,11 @@ extension RichLayout {
             guard hit, !(run.style.eastAsiaFontFamily != nil && (run.style.fontHint ?? named?.char.fontHint) == "eastAsia"),
                   viaEastAsia || viaAscii else { continue }
             let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
-            let rise = size * (1.175 - 1.009) * max(1, p.style.lineSpacing - theme.lineSpacingReduction)
+            // (Word's shift is a constant 0.2833 em once the spacing is over single:
+            // the same 3.4pt at 12pt for 1.7x (lab c466d30a) and 3x (xd 07eecf7a);
+            // at single it stays 0.166 em.)
+            let spacingNow = p.style.lineSpacing - theme.lineSpacingReduction
+            let rise = size * (spacingNow > 1 ? 0.2833 : 0.166 * max(1, spacingNow))
             if rise > (best ?? 0) {
                 RuleTrace.hit("word-korean-symbol-first-line-stands-on-malgun-ascent")
                 best = rise
