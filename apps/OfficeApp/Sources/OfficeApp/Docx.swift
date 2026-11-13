@@ -6822,7 +6822,9 @@ enum DocxFormat {
         var ruleOpen = false   // a horizontal rule was just set: the text after it starts a line
         func addText(_ s: String, _ cs: CharStyle) {
             guard !s.isEmpty else { return }
-            if ruleOpen {
+            // (Not a floating drawing's anchor mark, nor spaces: 401cd750's rules carry a line-shaped anchor after them
+            // and Word keeps it on the rule's line.)
+            if ruleOpen, s.unicodeScalars.contains(where: { $0 != "\u{FFFC}" && $0 != " " && $0 != "\t" }) {
                 ruleOpen = false
                 if !s.hasPrefix("\n") { addText("\n", cs) }
             }
