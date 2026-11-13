@@ -107,6 +107,14 @@ extension RichLayout {
             let multiple = lineSpacing > 1 ? lineSpacing : 1
             return look.copyWith(ascentOverride: 1.1 * multiple * px, descentOverride: 0.57 * multiple * px, height: 1.67 * multiple, leadingDistribution: .even)
         }
+        // (Arial Unicode MS with the Simplified Chinese charset (86) as the East Asian face: Word draws an empty mark in YaHei, 1.715 em;
+        // dx2 837ac08d's spacers, 10 pt on line 108, step 7.75 pt in Word's print = 0.45 x 17.2, where Arial's 1.15 em gave 5.2.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, document.fontCharsets["arial unicode ms"] == "86",
+           (mark.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms" {
+            RuleTrace.hit("word-empty-mark-in-arial-unicode-ms-gb2312-is-a-yahei-line")
+            let multiple = lineSpacing > 0 ? lineSpacing : 1
+            return look.copyWith(ascentOverride: 1.115 * multiple * px, descentOverride: 0.6 * multiple * px, height: 1.715 * multiple, leadingDistribution: .even)
+        }
         // (A Bengali face Windows lacks whose font table names Malgun Gothic as the alternate: its empty mark is a line of Malgun, 1.73 em, lab siyam2.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile,
            _malgunAlternate(mark.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily, document),

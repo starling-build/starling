@@ -2685,6 +2685,9 @@ enum OfficeFonts {
         // in MS Mincho on that face's 1.3 em line, Latin in Arial —
         // jpn-z17544993-4a21de, 11pt lines 16.4 apart at 1.15 spacing, where
         // Arial Unicode's 1.742 em gave 22.0; 40 pages here against 32.)
+        // (A GB2312 (charset 86) Arial Unicode MS is Chinese text: Word for Windows prints it in Microsoft YaHei, its line 1.715 em,
+        // not in MS Mincho; 837ac08d's 10pt body steps 20.2 at 283 auto where Mincho's 1.3 em gave 15.3.)
+        if has("arial unicode"), wordOnWindows, fontEntry(family)?.charset == "86" { return yaHei }
         if has("arial unicode") { return wordOnWindows ? windowsMinchoArialLatin : arialUnicode }
         // (Noto Sans SC, which Word's fallback takes for some CJK
         // compatibility ideographs — `RichLayout._notoCompatibility`: its

@@ -93,7 +93,7 @@ extension RichLayout {
             + (p.image.map { [$0] } ?? [])
         return images.compactMap { image in
             guard let float = image.float, float.verticalAlign == nil,
-                  float.verticalFrom == "page" || float.verticalFrom == "margin",
+                  float.verticalFrom == "page" || float.verticalFrom == "margin" || (float.verticalFrom == "paragraph" && float.y >= 0),
                   image.width > 0, image.height > 0 else { return nil }
             return (image, float)
         }
@@ -111,13 +111,18 @@ extension RichLayout {
     /// at the margin (134.9) — that one is behind the text.
     func _headerBoxFloor(_ hf: _HeaderFooter, _ setup: PageSetup) -> Double? {
         var boxes: [(top: Double, bottom: Double, x0: Double, x1: Double, front: Bool, solid: Bool, gap: Double)] = []
+        var underOwnLine = false
         let marginTop = _px(setup.marginTop)
         let left = _px(setup.marginLeft + setup.gutter), across = _px(setup.contentWidth)
         for p in hf.document.paragraphs {
             for (image, float) in Self._hfWrapBoxes(p) {
                 let xml = image.sourceXML ?? ""
                 let w = _px(image.width), h = _px(image.height)
-                let top = (float.verticalFrom == "page" ? 0 : marginTop) + _px(float.y)
+                // (Placed down from a header's paragraph, which stands at the header distance: zh 837ac08d's
+                // 96pt picture, header distance 0, holds the text under it; from the margin it would not reach.)
+                let origin = float.verticalFrom == "page" ? 0 : (float.verticalFrom == "paragraph" && float.verticalAlign == nil ? _px(setup.headerDistance) : marginTop)
+                let top = origin + _px(float.y)
+                if float.verticalFrom == "paragraph" && float.verticalAlign == nil { underOwnLine = true }
                 let base = float.horizontalFrom == "page" ? 0 : left
                 let span = float.horizontalFrom == "page" ? _px(setup.width) : across
                 let x0: Double
@@ -149,6 +154,9 @@ extension RichLayout {
                   b.x0 - left < room, left + across - b.x1 < room else { continue }
             floor = max(floor ?? 0, b.bottom + b.gap)
         }
+        // (A box the header's own paragraph stands against: that paragraph's line is set under it, and the
+        // body starts below that line, not at the box: zh 837ac08d, Word's body 14pt lower than the box's foot.)
+        if underOwnLine, let f = floor { floor = f + hf.height }
         if floor != nil { RuleTrace.hit("word-header-box-with-no-room-beside-it-holds-the-text-under-it") }
         return floor
     }
