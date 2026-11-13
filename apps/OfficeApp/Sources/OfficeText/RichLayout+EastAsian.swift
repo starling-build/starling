@@ -281,7 +281,10 @@ extension RichLayout {
         func isSpace(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || u == 0x09 }
         func closesUp(_ k: Int) -> Bool {
             guard closing[k], k + 1 < units.count, let a = Unicode.Scalar(units[k]), let b = Unicode.Scalar(units[k + 1]) else { return false }
+            // (JIS X 4051's pair table: a closing mark before a middle dot closes up to its half, as before a full
+            // stop. Lab `jis4051`: Word keeps "…」・国" as far as "…」。国", to 9.75 pt over; ours refused from 6.5.)
             return Self.closesUp(Character(a), Character(b), centred: document.marksCentred)
+                || (noHangJa && units[k + 1] == 0x30FB && Self._closingBracketMarks.contains(Character(a)))
                 || (Self._closingMarks.contains(Character(a)) && (units[k + 1] == 0x201C || units[k + 1] == 0x2018) && wideQuote(k + 1))
                 || ((units[k] == 0x201D || units[k] == 0x2019) && wideQuote(k)
                     && (Self._closingMarks.contains(Character(b)) || Self._openingMarks.contains(Character(b))
@@ -1312,6 +1315,13 @@ extension RichLayout {
                     // 12.95 in Word's print, and zh-72da925e p8 sends "大" down 8.5pt over where the opening "，" is the only
                     // mark, its quarter em not enough. That replaces the older rule that such a mark gave nothing alone.)
                     func half(_ k: Int) -> Double {
+                        // (JIS X 4051's pair table, closing then opening: the closing mark closes up to its half and the
+                        // opener after it gives 0.3 em, not its own half. Lab `jis4051` (Word for Windows, compat 15, grid,
+                        // 10.5 pt BIZ UDMincho and MS Mincho): "…」「国" and "…）（国" are kept to 8.25 pt over, refused
+                        // from 8.5 — the 」 5.25 and the opener about 3.)
+                        if noHangJa, k > 0, !legacy, Self._openingUnits.contains(units[k]), Self._closingBracketUnits.contains(units[k - 1]), closesUp(k - 1) {
+                            return em * 0.29
+                        }
                         let h = wideQuote(k) ? (ems[k] + quoteSpacing(k)) / 2 : (boxes(k, k + 1) - (gaps[k] ?? 0)) / 2
                         return RichTextTheme.wordWindowsPages && !legacy && closingOpeners.contains(k) ? h / 2 : h
                     }
@@ -2553,6 +2563,9 @@ extension RichLayout {
     static let _noEnd = _openingUnits.union("([{$#￥＄£".utf16)
     static let _quotes = Set("\"'“”‘’".utf16)
 
+    /// The closing brackets alone (the pair table of JIS X 4051 treats 。、 and the like as their own class).
+    static let _closingBracketMarks: Set<Character> = ["）", "》", "」", "』", "】", "〕", "〉", "｝", "］"]
+    static let _closingBracketUnits = Set(_closingBracketMarks.flatMap { String($0).utf16 })
     static let _closingUnits = Set(_closingMarks.flatMap { String($0).utf16 })
     /// The marks Taiwan's faces set in the middle of their em, with no
     /// blank half to give (`_fitEastAsianLines`).

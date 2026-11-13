@@ -2903,7 +2903,8 @@ final class DocxTests: XCTestCase {
                            mode: Int = 14, letterSpacing: Double? = nil, compresses: Bool = true,
                            hanging: Double = 0, justified: Bool = false,
                            documentLanguage: String? = nil, characterGrid: Double? = nil,
-                           runXML: String = "", kerns: Bool = false) throws -> (width: Double, length: Int) {
+                           runXML: String = "", kerns: Bool = false,
+                           linePitch: Double? = nil) throws -> (width: Double, length: Int) {
         // (The fitter measures each character as the engine shapes it,
         // which wants ICU's data in the bridge: without it every one is
         // zero wide and nothing is ever over.)
@@ -2935,6 +2936,7 @@ final class DocxTests: XCTestCase {
         doc.characterSpacingControl = compresses ? "compressPunctuation" : "doNotCompress"
         doc.usesEastAsianLayout = true
         if let characterGrid { doc.characterGridSpace = characterGrid }
+        doc.lineGridPitch = linePitch
         if let documentLanguage { doc.defaultLangXML = "<w:lang w:eastAsia=\"\(documentLanguage)\"/>" }
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
         theme.fontFamilyResolver = OfficeFonts.substitute
@@ -2966,6 +2968,27 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(whole.length, 20, "room for the whole opener: kinsoku carries it")
         let tw = try firstLine(text, width: 20 * 12 + 9, hangs: false, mode: 15, justified: true, documentLanguage: "zh-TW")
         XCTAssertEqual(tw.length, 20, "not Japanese: Word does not end a zh-TW line on an opener")
+    }
+
+    func testAClosingMarkBeforeAnOpenerOrMiddleDotClosesUpToItsHalfOnAGrid() throws {
+        // Word for Windows, compat 15, line grid, kana text (lab jis4051, JIS
+        // X 4051's pair table): "…」「国" and "…」・国" keep the 」 and the opener
+        // on the line while the line is over by up to 0.75 em (the 」 at its
+        // half, the opener giving 0.29 em, the shared limit binding at this
+        // size), and carry them from a hair more. 。（ is not in the lab's
+        // pair table and keeps its old limit (cab6d785: Word keeps "。（発）（ノ）"
+        // at 9 pt). The lab's own 10.5 pt rows are held by the jis4051 labs.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        for (mark, head, tail) in [("」「", "一", "二"), ("）（", "あ", "い"), ("」・", "あ", "い"), ("。（", "あ", "い")] {
+            let text = String(repeating: head, count: 19) + mark + String(repeating: tail, count: 10)
+            let kept = try firstLine(text, width: 19 * 12 + 27, hangs: false, mode: 15, justified: true,
+                                     documentLanguage: "ja-JP", linePitch: 18)
+            XCTAssertEqual(kept.length, 22, "\(mark): 9 pt over (0.75 em) keeps the pair and the character after")
+            let carried = try firstLine(text, width: 19 * 12 + 26.75, hangs: false, mode: 15, justified: true,
+                                        documentLanguage: "ja-JP", linePitch: 18)
+            XCTAssertLessThan(carried.length, 22, "\(mark): a quarter point less carries them")
+        }
     }
 
     func testASpaceBesideHangulSqueezesAQuarterNotAFifth() throws {

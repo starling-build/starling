@@ -2850,6 +2850,11 @@ extension RichLayout {
                         extra += gap
                         autoSpaces?(offset, gap)
                     } else if ea, closes, Self.closesUp(ch, following, centred: document.marksCentred)
+                                // (A middle dot after a closing mark closes it up too, in kana text at compat 15 on a grid: lab
+                                // `jis4051`, Word for Windows, sets "」・" with the 」 at its half like "」。".)
+                                || (following == "\u{30FB}" && Self._closingBracketMarks.contains(ch) && RichTextTheme.wordWindowsPages && theme.wordRules
+                                    && (document.compatibilityMode ?? 12) >= 15 && document.lineGridPitch != nil
+                                    && (document.hasKana || document.eastAsiaLanguage?.hasPrefix("ja") == true))
                                 // (The quote's own run says whether it is full-width, where the mark
                                 // ends its run: zh-3ab8a2fb's "，" unhinted before a "“" hinted East
                                 // Asian closes up, 7.13 in Word's print, and its line takes "机".)
