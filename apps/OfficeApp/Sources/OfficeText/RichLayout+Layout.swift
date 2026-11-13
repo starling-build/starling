@@ -2374,7 +2374,11 @@ extension RichLayout {
                 // grow: zh-64044a1d's "離所方式", a 5.5pt line and a 12pt one
                 // merged over two 18.5pt rows, is cut off in Word's print,
                 // where ours stood the form's last rows 5pt low.)
+                // (Nor when the LAST row it covers is exact: Word puts the growth on that row and an exact one
+                // does not give. 79a15231's header, a seal and six paragraphs merged down four rows, the last
+                // exact at 20.9pt, ends there in Word's print; ours ran 75pt past it.)
                 let exact = theme.wordRules && (cell.first ... cell.last).allSatisfy { ts?.rowsExactHeight.contains($0) ?? false }
+                    || (theme.wordRules && RichTextTheme.wordWindowsPages && ts?.rowsExactHeight.contains(cell.last) == true)
                 if cell.need > have + 0.01, !exact {
                     let extra = cell.need - have
                     rows[cell.last].height += extra
