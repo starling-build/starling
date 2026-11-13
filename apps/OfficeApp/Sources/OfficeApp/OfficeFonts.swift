@@ -1735,6 +1735,18 @@ static let sylfaenAdvances: [Double] = [
         0.5480, 0.2860, 0.8570, 0.5720, 0.5550, 0.5530, 0.5722, 0.3980, 0.4430, 0.3830, 0.5680, 0.4990, 0.7760, 0.4900, 0.5210,
         0.4600, 0.4020, 0.2890, 0.4020, 0.6033,
     ]
+    // (Source Sans Pro Bold Italic: no table of its own was kept, but Word's prints embed its subsets with the real advances of every
+    // glyph they draw: the 43 ASCII glyphs the dx2 prints use are read from them (4b3e599b p2's "(insert school year), (insert adjusted,
+    // four-year graduation rate)" is 303.3 pt in Word, 312.1 in the bold table); the others stay the bold table's.)
+    static let sourceSansProBoldItalicAdvances: [Double] = [
+        0.1980, 0.3310, 0.5100, 0.5745, 0.5745, 0.9185, 0.7460, 0.2910, 0.3290, 0.3310, 0.4020, 0.6033, 0.2910, 0.3200, 0.2910,
+        0.3390, 0.5171, 0.5171, 0.5171, 0.5171, 0.5171, 0.5171, 0.5171, 0.5171, 0.5171, 0.5171, 0.2910, 0.3440, 0.6033, 0.6033,
+        0.6033, 0.6310, 1.0073, 0.5480, 0.6180, 0.6180, 0.6350, 0.5270, 0.5040, 0.6657, 0.6180, 0.2940, 0.5090, 0.6140, 0.5000,
+        0.7400, 0.6180, 0.6600, 0.5830, 0.6657, 0.5960, 0.5290, 0.5560, 0.6650, 0.5708, 0.8130, 0.5708, 0.5708, 0.5228, 0.3440,
+        0.2870, 0.3440, 0.6033, 0.5000, 0.3440, 0.5520, 0.5530, 0.4430, 0.5460, 0.4960, 0.3270, 0.5460, 0.5460, 0.2650, 0.2670,
+        0.5480, 0.2750, 0.8270, 0.5520, 0.5330, 0.5530, 0.5722, 0.3840, 0.4240, 0.3670, 0.5450, 0.4990, 0.7480, 0.4900, 0.4990,
+        0.4600, 0.4020, 0.2890, 0.4020, 0.6033,
+    ]
     /// Mangal's ASCII advances (em), 0 where no print's subset holds the glyph yet: Word draws the Latin of a Nikosh run (Windows lacks Nikosh)
     /// in Mangal, whose dot is 0.2876 against Carlito's 0.2524 (bede0fbc: every dotted leader line ran short). hmtx of the subsets in dx2's prints.
     static let nikoshAdvances: [Double] = [0.5, 0.2876, 0.3672, 0, 0, 0, 0, 0, 0.3447, 0.3447, 0, 0.6045, 0.2876, 0.3447, 0.2876, 0.2876, 0.5757, 0.5757, 0.5757, 0.5757, 0.5757, 0.5757, 0.5757, 0.5757, 0.5757, 0.5757, 0.2876, 0.2876, 0, 0.6045, 0, 0.5757, 0, 0, 0.6914, 0, 0, 0, 0, 0, 0, 0.2881, 0, 0, 0, 0.8638, 0.748, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.2876, 0, 0.2876, 0, 0.5713, 0, 0, 0, 0, 0.5762, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.3447, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
@@ -3766,7 +3778,7 @@ static let sylfaenAdvances: [Double] = [
                 face.advances = sourceSansProAdvances
                 face.italicAdvances = sourceSansProAdvances
                 face.boldAdvances = sourceSansProBoldAdvances
-                face.boldItalicAdvances = sourceSansProBoldAdvances
+                face.boldItalicAdvances = sourceSansProBoldItalicAdvances
                 face.naturalHeight = 1.257
                 face.baseline = 0.984
                 // (The no-break space is the face's space: our danda rule sets the space before a danda as one, and the stand-in's own 0.226 em made c5311ac7's line 0.3 pt too wide.)
