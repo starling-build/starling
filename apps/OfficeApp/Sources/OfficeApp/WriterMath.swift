@@ -196,7 +196,9 @@ enum WriterMath {
         }
     }
 
+    private final class LeadRuns { var ids = Set<ObjectIdentifier>() }
     private struct Layout {
+        let leadRuns = LeadRuns()
         let display: Bool
         /// Set in a line of text (not a display equation): where Word's print sets fractions and scripts its own way.
         var inlineText = false
@@ -277,6 +279,8 @@ enum WriterMath {
 
         /// A run's text: letters italic unless the run is plain
         /// (`m:sty p`, `m:nor`), operators spaced as Word sets them.
+        // (A run that begins its row: a sign at its start has nothing on its left to stand off from —
+        // Word's print of jpn-z22855378-6fca0f's exp[−(Δx+d0)²/4σ²] sets the minus against its bracket.)
         func run(_ r: XNode, size: Double, level: Int) -> Box {
             var own = scriptSize(size, level)
             if let sz = r.first("w:rPr")?.first("w:sz")?["w:val"].flatMap(Double.init), sz > 0 { own = scriptSize(sz / 2, level) }
@@ -290,13 +294,16 @@ enum WriterMath {
                 if !piece.isEmpty { parts.append(text(piece, size: own, italic: pieceItalic, family: wide(piece) ? ea : nil)) }
                 piece = ""
             }
+            var firstChar = true
             for ch in s {
+                let leads = firstChar && leadRuns.ids.contains(ObjectIdentifier(r)) && inlineText && RichTextTheme.wordWindowsPages && "+−-±∓".contains(ch)
+                firstChar = false
                 if "=+−-±×÷<>≤≥≈≠∓→←⇒∈∉⊂⊃∪∩".contains(ch) {
                     flush()
                     // (A relation or a binary operator stands a fifth of
                     // an em off what is beside it, in scripts less.)
                     let gap = level == 0 ? own * 0.22 : own * 0.1
-                    parts.append(space(gap))
+                    if !leads { parts.append(space(gap)) }
                     parts.append(text(String(ch == "-" ? "−" : ch), size: own, italic: false))
                     parts.append(space(gap))
                     continue
@@ -373,6 +380,7 @@ enum WriterMath {
         /// What `node` holds, in a row: its children, as each one sets.
         func row(_ node: XNode?, size: Double, level: Int) -> Box {
             guard let node else { return .empty }
+            if let head = node.children.first(where: { !$0.name.hasSuffix("Pr") }), head.name == "m:r" { leadRuns.ids.insert(ObjectIdentifier(head)) }
             return hbox(node.children.map { element($0, size: size, level: level) })
         }
 

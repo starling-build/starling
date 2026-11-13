@@ -2783,8 +2783,10 @@ extension RichLayout {
                 let before = line == 0 ? 0 : bottoms[line - 1], advance = bottoms[line] - before
                 let target = style.lineSpacing * _px(whole.ascent + whole.descent)
                 guard target > advance + 0.01 else { continue }
-                let own = advance - advance / style.lineSpacing
-                let reach = max(0, _px(whole.ascent) - (metrics[line].baseline - before - own))
+                // Word sets the equation centred in its taller line: the gap above and below it is equal.
+                let eqHeight = _px(whole.ascent + whole.descent)
+                let newBase = (target - eqHeight) / 2 + _px(whole.ascent)
+                let reach = max(0, newBase - (metrics[line].baseline - before))
                 extra[line] = max(extra[line], target - advance)
                 above[line] = max(above[line], min(reach, extra[line]))
             }
