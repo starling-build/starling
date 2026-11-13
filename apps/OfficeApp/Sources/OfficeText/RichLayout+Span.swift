@@ -2105,6 +2105,22 @@ extension RichLayout {
                         inserts.append(offset)
                     }
                 }
+                // (The won sign in a run whose Latin face is a Korean one with no ₩ of its own, set under no East Asian hint: Word for Windows
+                // draws it in Malgun Gothic, so its line takes Malgun's height, 1.730 em. xd b6f6c7d4 p3: "(₩58,125,000,000)" in 12pt 한양신명조
+                // at 1.75 lines, its line stands 3.4pt deeper than a Batang one, as ❏'s in Segoe UI Symbol.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, ch == "\u{20A9}", run.fontHint != "eastAsia",
+                   theme.faceResolver?(run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false)?.isEastAsian == true,
+                   let metrics = Self._indicLines["malgun gothic"] {
+                    if devanagariStyles["wonMalgun"] == nil {
+                        devanagariStyles["wonMalgun"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: metrics.0, descent: metrics.1)
+                    }
+                    if let joiner = devanagariStyles["wonMalgun"] ?? nil {
+                        RuleTrace.hit("word-won-sign-in-korean-latin-face-is-malgun-height")
+                        flush(i)
+                        spans.append(TextSpan(text: "\u{2060}", style: joiner))
+                        inserts.append(offset)
+                    }
+                }
                 // (Tamil set in Noto Sans Tamil, a face Windows lacks: Word draws the letters in Nirmala UI but every digit, mark and Latin
                 // letter in Mangal, so a line holding one is Mangal's 1.680 em tall; a line of Tamil letters and spaces stays Nirmala's 1.33.
                 // xd c016493b: pitches 20.2 with a mark, 17.9 and 18.2 beside such a line, 16.0 without.)
