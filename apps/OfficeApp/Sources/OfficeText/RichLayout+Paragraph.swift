@@ -3133,7 +3133,13 @@ extension RichLayout {
         // Picture-only tab rows do not take that extra line: Word's
         // issue_51265_3 header ends at its pictures' baseline, with or
         // without its final tab.
-        if theme.wordRules, !pictureTabs, p.image == nil, p.text.utf16.count > 1, p.text.utf16.last == 0x09,
+        // (The same for a row of pictures and tabs, the line the tab opens being a
+        // text line of the paragraph mark's own, not the pictures': dx2 es
+        // 335fbcf8's header, a picture as wide as the text and a tab, its left
+        // stop behind it, the next default one past the margin, stands 13pt deeper
+        // in Word's print. issue_51265_3's trailing tab, whose right stop is the
+        // margin, takes no line.)
+        if theme.wordRules, p.image == nil, p.text.utf16.count > 1, p.text.utf16.last == 0x09,
            let lastLine = painter.computeLineMetrics().last {
             let units = Array(p.text.utf16)
             var k = units.count - 1
@@ -3142,9 +3148,23 @@ extension RichLayout {
             if let box = painter.getBoxesForSelection(TextSelection(baseOffset: at, extentOffset: at + 1)).last {
                 let x = ownLeft + box.right
                 let step = _px(document.defaultTabStop ?? 36)
-                let stop = style.tabStops.map { _px($0.position) }.sorted().first(where: { $0 > x + 0.5 })
-                    ?? (step > 0 ? ((x + 0.5) / step).rounded(.down) * step + step : x)
-                if stop > ownLeft + textWidth + 0.5 { bodyHeight += lastLine.height }
+                // (A stop the pictures end on is reached: float equality, not a tolerance.)
+                let reach = pictureTabs ? -0.01 : 0.5
+                let stop = style.tabStops.map { _px($0.position) }.sorted().first(where: { $0 > x + reach })
+                    ?? (step > 0 ? ((x + reach) / step).rounded(.down) * step + step : x)
+                if stop > ownLeft + textWidth + 0.5 {
+                    if pictureTabs {
+                        var mark = p.style.mark ?? p.runs.first?.style ?? CharStyle()
+                        mark.inlineImage = nil
+                        let line = RichParagraph(text: " ", runs: [Run(length: 1, style: mark)], style: p.style)
+                        let (span, _, _) = _span(for: line, at: nil, document, textWidth: textWidth)
+                        let probe = TextPainter(text: span, textAlign: .left, textDirection: .ltr, strutStyle: _strut(span))
+                        probe.fractionalLineHeights = theme.wordRules
+                        probe.layout(minWidth: 0, maxWidth: max(1, textWidth))
+                        bodyHeight += probe.height
+                        probe.dispose()
+                    } else { bodyHeight += lastLine.height }
+                }
             }
         }
         // (No lines at all: `RichParagraphStyle.lineCollapsed`.)

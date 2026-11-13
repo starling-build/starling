@@ -1183,6 +1183,14 @@ enum DocxFormat {
             }
             if let defaults = styles.first("w:docDefaults")?.first("w:pPrDefault")?.first("w:pPr") {
                 _paragraphProps(defaults, into: &base)
+                // (A frame in the document defaults of no width and no height, as
+                // a Pages export writes: Word sets no frame from it. Inherited here
+                // it took a header's or footer's picture paragraph out of the flow,
+                // and the body stood 56pt above Word's: dx2 es 335fbcf8.)
+                if let fp = defaults.first("w:framePr"), (Double(fp["w:w"] ?? "") ?? 0) == 0, (Double(fp["w:h"] ?? "") ?? 0) == 0 {
+                    base.frame = nil
+                    base.frameXML = nil
+                }
             }
             // What a style with no w:basedOn starts from: the document
             // defaults alone. Only a style based on Normal takes Normal's
