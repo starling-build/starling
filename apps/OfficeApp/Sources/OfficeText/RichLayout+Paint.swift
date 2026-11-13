@@ -626,7 +626,7 @@ extension RichLayout {
             // or a band's.
             let header = c.row == 0 && ts.headerRow
             let bodyRow = c.row - (ts.headerRow ? 1 : 0)
-            let color: Color? = header ? (ts.headerFill ?? theme.textColor.withOpacity(0.06))
+            let color: Color? = header ? (ts.headerFill ?? (theme.wordRules ? nil : theme.textColor.withOpacity(0.06)))
                 : (bodyRow % 2 == 0 ? ts.bandFill : ts.bandAltFill)
             if let color {
                 let fill = Paint()

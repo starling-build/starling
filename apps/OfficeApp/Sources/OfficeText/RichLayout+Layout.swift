@@ -1524,8 +1524,7 @@ extension RichLayout {
                     let m = ins.left + ins.right
                     // (Shares follow the narrowest each column can be, its longest whole run: jpn-z21601833-acd729's table of 4 / 32
                     // ideographs and a Latin-and-ideograph column, Word 33.7 / 269.4 / 143.4 inside.)
-                    if low.reduce(0, +) > room { high = low }
-                    low = high.map { min($0, m) }
+                    if low.reduce(0, +) > room { high = low; low = high.map { min($0, m) } }
                 }
                 let narrowest = low.reduce(0, +), widest = high.reduce(0, +)
                 let k = widest <= room ? 1 : narrowest >= room ? 0 : (room - narrowest) / (widest - narrowest)
@@ -1537,7 +1536,7 @@ extension RichLayout {
                 // (No compat mode: a percentage-width table stretches too, to its room of 478.9: jpn-z21601833-acd729's 3-column 100% tables, Word 230.2 / 151.5 / 97.2.)
                 let stretch = widest < room && widest > 0 && stated && RichTextTheme.wordWindowsPages && (document.compatibilityMode != nil || document.tableStyles[table]?.widthPercent != nil)
                 let fitted = stretch ? high.map { ($0 * room / widest + 0.001).rounded(.down) }
-                    : zip(low, high).map { k >= 1 ? ($1 - 0.001).rounded(.up) : ($0 + ($1 - $0) * k + 0.001).rounded(.down) }
+                    : zip(low, high).map { k >= 1 || $0 == $1 ? ($1 - 0.001).rounded(.up) : ($0 + ($1 - $0) * k + 0.001).rounded(.down) }
                 if Self.debugAutofit {
                     let pt = theme.pixelsPerPoint * scale
                     FileHandle.standardError.write(Data("autofit \(table): content fit \(fitted.map { ($0 / pt * 10).rounded() / 10 })\n".utf8))
