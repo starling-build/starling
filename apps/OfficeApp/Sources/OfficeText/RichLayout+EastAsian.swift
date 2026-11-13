@@ -10,6 +10,11 @@ import Foundation
 
 extension RichLayout {
 
+    /// An ASCII letter, digit or comma: what a real Latin word run has beside its last space (a "=" or "-" does not: xb jpn 5ff3d0's "n = -5〜+5）…" took "上" with the tail's room, and Word's print leaves it for the next line).
+    static func _asciiWordUnit(_ u: UInt16) -> Bool {
+        (u >= 0x30 && u <= 0x39) || (u >= 0x41 && u <= 0x5A) || (u >= 0x61 && u <= 0x7A) || u == 0x2C
+    }
+
     func _fitEastAsianLines(_ p: RichParagraph, at i: Int, _ document: RichDocument, textWidth baseWidth: Double,
                                     first: TextPainter, leadWidth: Double, tabs: [Int: Double] = [:], leftTabs: Set<Int> = [],
                                     runsPast: Set<Int> = [], beyond: [Int: Double] = [:], tieShort: (first: Bool, rest: Bool) = (false, false),
@@ -2113,8 +2118,7 @@ extension RichLayout {
                     // Only when the last space has ASCII letters/digits/commas on both sides (a real Latin word
                     // run); a space after a curly quote beside ideographs (zh-cd48112c) gave 9 pt of false room.
                     let latinLastSpace: Bool = !wordSpaces.isEmpty && wordSpaces.last!.k >= 1 && wordSpaces.last!.k + 1 < units.count
-                        && units[wordSpaces.last!.k - 1] < 0x80 && units[wordSpaces.last!.k - 1] > 0x20
-                        && units[wordSpaces.last!.k + 1] < 0x80 && units[wordSpaces.last!.k + 1] > 0x20
+                        && Self._asciiWordUnit(units[wordSpaces.last!.k - 1]) && Self._asciiWordUnit(units[wordSpaces.last!.k + 1])
                     let tailSqueezers: [Int] = windowsAfterMarks && !latinPulled && latinLastSpace && wordSpaces.count >= 3 && !givers.isEmpty  // 3+ spaces: lab had 3 (took need 3.74); zh-15f60bac (2 spaces, need 4.45) and zh-604e21e5 (1 space, need 1.89) refuse
                         ? Array(((wordSpaces.last!.k + 1) ..< a).filter { units[$0] >= 0x2E80 && eastAsianAt($0) }.prefix(8)) : []  // at most 8 (lab: 8 gave 1.5; zh-79d08edd, 12 after one space, refused at 0.78+2.25)
                     let tailRoom: Double = Double(tailSqueezers.count) * em / 64
