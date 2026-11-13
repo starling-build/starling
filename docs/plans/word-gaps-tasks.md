@@ -16208,3 +16208,4 @@ TIP WATCH amd-8, round 432 (tip 996510168, code e9a78b69c amd-2 Korean Roman num
 - c67f3706's 17.04/16.92 pitch is exact line spacing (340 twips), so it is not a height datum either.
 - Open side check: 18.0 = 9ba344's grid pitch (360 tw); our footer might snap to the grid despite snapToGrid 0. One trace of footer height per page on 9ba344 would settle it.
 - Next (amd-5): c67f3706 line ending at や on page 1; then zh-e0ca7252 box clipping 稅.
+- amd-8 round 435 (tip c5e02cbe4, incl. amd-5 231de92de xd 9ba344): clean. Six Word sets 0 up/0 down (756 99.94, lo 99.87, xb 67.68, xa 73.96, xd 60.94, xs 82.72); 652 unit tests, 0 failures; Slides mean 0.9385 -> 0.7292; dx2 mean 78.67, 1 up, 0 down. BOUNDARY handoff: rounds 431-435 all clean; run dx2-round.sh with BASELINE=/data/s/amd-8/dx2-prev.v2 and ENGINE_OUT from env.sh.
