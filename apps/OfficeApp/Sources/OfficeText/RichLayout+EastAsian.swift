@@ -3336,6 +3336,10 @@ extension RichLayout {
         // (Between the two dashes of a doubled em dash, Word for Windows: jpn-z21601833-acd729's "…自然な顔——だが" ends a line
         // "…顔—" and opens the next "—だが"; the engine keeps the pair together.)
         if shapesPart, a == "\u{2014}", b == "\u{2014}" { return true }
+        // (After a minus sign before an ideograph, Word for Windows: jpn-z21601833-c2301a's "…（＋頂点数−−頂点数）" ends a line
+        // "…頂点数−−" and opens the next "頂点数）"; the engine reads the minus as a prefix of what follows and carried
+        // "−−" down, a line behind.)
+        if shapesPart, a == "\u{2212}", let v = b.unicodeScalars.first?.value, v >= 0x3400, v <= 0x9FFF { return true }
         if b == "_", a.unicodeScalars.first.map({ $0.value >= 0x25A0 && $0.value <= 0x25EF }) == true { return true }
         if percentStarts, b == "%", wide(a), !_openingMarks.contains(a) { return true }
         if percentStarts, b == "％", wide(a) && !_openingMarks.contains(a) || a.isASCII && a.isNumber { return true }

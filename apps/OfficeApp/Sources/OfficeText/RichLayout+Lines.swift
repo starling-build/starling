@@ -1396,6 +1396,9 @@ extension RichLayout {
         return out
     }()
 
+    /// Cambria Math's advances (ems) for the relations Cambria lacks (`_span`).
+    static let _cambriaMathOpeners2: [UInt32: Double] = [0x2266: 0.7471, 0x2267: 0.7471]
+
     /// A list paragraph's marker, laid out at its own width.
     /// The character style a list label is set in (`_marker`).
     func _markerChar(_ p: RichParagraph, _ document: RichDocument) -> CharStyle {
