@@ -1741,7 +1741,20 @@ extension RichLayout {
                     && (_levelNumberSize(p, document) == nil
                         || ["symbol", "wingdings", "wingdings 2", "wingdings 3", "webdings"].contains(bulletFonts.latin?.lowercased() ?? "")
                         || (bulletFonts.eastAsian != nil && bulletFonts.latin == bulletFonts.eastAsian))
-                if !(RichTextTheme.wordWindowsPages && symbolBullet), let own = free.computeLineMetrics().first { numberLift = max(0, own.baseline - first.baseline) }
+                if !(RichTextTheme.wordWindowsPages && symbolBullet), let own = free.computeLineMetrics().first {
+                    // (Over single spacing Word puts a line's extra under its text, so the number's
+                    // baseline stands its own ascent under the line's top; the layout without the
+                    // strut puts the multiple's extra above it. Measured from that baseline, a 10pt
+                    // number over 9.5pt lines at 1.15 lifted the first line 1.2pt and made the
+                    // paragraph as much taller, where Word's labels stand 15.4 apart:
+                    // jpn-z20806225-930d98 p7's items of two Latin lines, 17.0 under the line above.)
+                    var ownBaseline = own.baseline
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil, style.lineSpacing > 1.001 {
+                        RuleTrace.hit("word-list-number-lift-measured-with-the-extra-under-its-text")
+                        ownBaseline -= (1 - 1 / style.lineSpacing) * own.ascent
+                    }
+                    numberLift = max(0, ownBaseline - first.baseline)
+                }
                 free.dispose()
             }
             if let key = Self.debugFit, !key.isEmpty, p.text.containsSubstring(key) {
