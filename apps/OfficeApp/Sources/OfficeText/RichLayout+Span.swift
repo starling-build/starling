@@ -2040,7 +2040,7 @@ extension RichLayout {
                 // (A Hangul-named Latin face Word's box lacks, with no font-table entry (22de7d's theme face 함초롬돋움): Word draws the Latin letters
                 // and digits in Yu Gothic and the Hangul in Malgun Gothic, so a line holding one takes Yu Gothic's deeper descent: 19.2 pt steps at 10 pt
                 // against 18.5. Each face drawn on a line feeds its own ascent and descent into the line's max.)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, u >= 0x20, u < 0x250, ch.unicodeScalars.count == 1,
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, u >= 0x20, u < 0x250, ch.unicodeScalars.count == 1, ch.isLetter || ch.isNumber,
                    !(before.map { ($0.unicodeScalars.first?.value ?? 0x3000) < 0x250 } ?? false), _yuLatinOfMissingHangulFace(run, named, document), !document.hasIndicText, !aumsLatin {
                     if devanagariStyles["missingHangulYu"] == nil {
                         devanagariStyles["missingHangulYu"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: Self._indicLines["malgun gothic"]!.0, descent: 0.492)?.copyWith(debugLabel: "yu-joiner")
@@ -2890,7 +2890,12 @@ extension RichLayout {
                     // (Word's Yu Gothic Latin in a paragraph whose Hangul-named face it lacks: 22de7d.)
                     let s = style(kind)
                     let bold = s.fontWeight == .bold
-                    let a: Double? = u0 == 0x20 ? (aumsLatin ? 584.0 / 2048 : 0.5) : (u0 == 0x28 ? Optional(791.0 / 2048) : (bold ? Self.yuGothicBold : Self.yuGothicRegular)[u0].map { Double($0) / 2048 })
+                    // (Word's print of 22de7d: a space between Latin neighbours is Yu Gothic's 0.2852 em, 2.87 pt at 10 pt; one beside a Hangul syllable stays 0.5 em, 5.04 pt.)
+                    let hangulBeside = [i > text.startIndex ? Optional(text[text.index(before: i)]) : nil, following].contains { c in
+                        guard let v = c?.unicodeScalars.first?.value else { return false }
+                        return (v >= 0xAC00 && v <= 0xD7A3) || (v >= 0x1100 && v <= 0x11FF) || (v >= 0x3130 && v <= 0x318F)
+                    }
+                    let a: Double? = u0 == 0x20 ? (aumsLatin || !hangulBeside ? 584.0 / 2048 : 0.5) : (u0 == 0x28 ? Optional(791.0 / 2048) : (bold ? Self.yuGothicBold : Self.yuGothicRegular)[u0].map { Double($0) / 2048 })
                     // (The size-compensated stand-in grows lowercase letters' style size; the advance is the nominal size's, the capitals' kind.)
                     if let a, let px = style(classed ? RichResolvedFace.characterClass("H") : 0).fontSize, px > 0.5 {
                         RuleTrace.hit("word-missing-hangul-face-latin-takes-yu-gothic-advances")
