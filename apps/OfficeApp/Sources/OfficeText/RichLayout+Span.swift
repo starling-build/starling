@@ -3079,6 +3079,17 @@ extension RichLayout {
                     }
                     spans.append(TextSpan(text: String(ch), style: mark))
                     start = after
+                } else if ea, theme.wordRules, RichTextTheme.wordWindowsPages, ch == "\u{203B}", let cjk = Self._cjkFaceFamily,
+                          (run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? "").lowercased().containsSubstring("meiryo")
+                              || (run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? "").containsSubstring("メイリオ") {
+                    // (The reference mark ※ in a Meiryo run is Meiryo's own, an em wide, as the ☆ and the fullwidth digit beside it:
+                    // dx2 934bd3e5's superscript "※１" is 7.0pt apiece in Word's print, where our DejaVu fallback gave 7.9
+                    // for the mark and its lines broke a character early.)
+                    flush(i)
+                    let s = style(kind)
+                    let mark = (extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s).copyWith(fontFamily: cjk)
+                    spans.append(TextSpan(text: String(ch), style: mark.copyWith(letterSpacing: (mark.letterSpacing ?? 0) + max(0, (mark.fontSize ?? em) - _glyphWidth(mark, ch)))))
+                    start = after
                 } else if ea, theme.wordRules, ch == "\u{02D9}" {
                     // (A dot above in East Asian text is a full cell: the
                     // Bopomofo tone mark of Taiwan's faces, 標楷體's among

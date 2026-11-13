@@ -740,10 +740,13 @@ public final class RichTextTheme {
         // in Times or Calibri. zh-e51c31a7's "*註1", superscript in 13pt
         // 標楷體, is 6.5pt in its print and raised 6.5, where ours set 8.45
         // and 4.6: see `baselineShift`.)
+        // (Meiryo's superscript is 65% rounded up to the half point: 10.5pt gives 6.825, and 7.0 in 934bd3e5's print.)
+        let meiryoScript = wordRules && RichTextTheme.wordWindowsPages && style.script != .normal
+            && (familyName.map { $0.lowercased().containsSubstring("meiryo") || $0.containsSubstring("メイリオ") } ?? false)
         let scriptRatio = wordRules && RichTextTheme.wordWindowsPages && style.script != .normal
             && (eastAsian || face?.isEastAsian == true)
             // (Meiryo says 65% like a Latin face: 934bd3e5's "３" in 10.5pt Meiryo Bold is 7.0pt in its print.)
-            && !(familyName.map { $0.lowercased().containsSubstring("meiryo") || $0.containsSubstring("メイリオ") } ?? false) ? 0.5 : 0.65
+            && !meiryoScript ? 0.5 : 0.65
         if style.unseen { color = color.withOpacity(1.0 / 255) }
         if style.hidden || ((named?.char.hidden ?? false) && !style.hidden) {
             // Hidden text takes no room and shows nothing, as Word prints it;
@@ -756,7 +759,8 @@ public final class RichTextTheme {
             // Commented text carries Word's balloon tint.
             backgroundColor: style.highlight ?? (style.comments.isEmpty ? nil : Color(0x40FFD966)),
             fontSize: style.script == .normal ? px
-                : scriptSizeWholeUp ? (size * 0.65 - 1e-6).rounded(.up) * widen * pixelsPerPoint * scale : px * scriptRatio,
+                : scriptSizeWholeUp ? (size * 0.65 - 1e-6).rounded(.up) * widen * pixelsPerPoint * scale
+                : meiryoScript ? (size * 0.65 * 2 - 1e-6).rounded(.up) / 2 * widen * pixelsPerPoint * scale : px * scriptRatio,
             fontWeight: bold ? .bold : .normal,
             fontStyle: italic ? .italic : .normal,
             letterSpacing: {
