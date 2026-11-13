@@ -2559,6 +2559,10 @@ public struct RichDocument: Hashable, Sendable {
     /// where `characterSpacingControl` compresses it, and two marks that
     /// stand together close up where the text kerns.
     public var usesEastAsianLayout = false
+    /// A file that names a compatibility mode but no `w:useFELayout` (python-docx style; the defaults state an East Asian language
+    /// ja/zh/ko — 0d8cbc, which states none, has no such space): Word still sets the automatic space between ideograph and Latin letter or digit there
+    /// (xb jpn-z19126474-754366: "AI エージェント", "2026 年3 月" in its print).
+    public var autoSpacesWithoutFELayout = false
     /// Whether the body text holds kana (hiragana or katakana): the text says the
     /// document is Japanese when its language tag does not (en-US on Japanese text).
     public var hasKana = false

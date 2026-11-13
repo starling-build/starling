@@ -2803,7 +2803,7 @@ extension RichLayout {
                     // 宋体 ideographs with no space at all, whatever the digit run says — none, Times, Times with
                     // hint eastAsia, all Times, 宋体 with the hint; with 宋体 there, a quarter em in all five.
                     // zh-a0e932c2's gaps of 5.3 are its typed spaces.)
-                    if theme.wordRules, document.usesEastAsianLayout, !besideRaised, !(RichTextTheme.wordWindowsPages && document.skipsAutoSpace), Self._autoSpaced(ch, following, p.style, compat: document.compatibilityMode ?? 12),
+                    if theme.wordRules, document.usesEastAsianLayout || (document.autoSpacesWithoutFELayout && document.eastAsianLineRules && document.defaultLangXML?.containsSubstring("w:eastAsia=\"") == true && RichTextTheme.wordWindowsPages), !besideRaised, !(RichTextTheme.wordWindowsPages && document.skipsAutoSpace), Self._autoSpaced(ch, following, p.style, compat: document.compatibilityMode ?? 12),
                        !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin),
                        !(RichTextTheme.wordWindowsPages && eastAsianFaceIsLatin(atOffset: (ch.unicodeScalars.first?.value ?? 0) >= 0x2E80 ? nextAt : offset)) {
                         let latin = run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily

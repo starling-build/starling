@@ -3752,6 +3752,7 @@ enum DocxFormat {
             // with none and with an empty one — hangs a line's last full stop
             // or comma past the margin, and is set by the East Asian rules
             // where its settings do not say.)
+            document.autoSpacesWithoutFELayout = document.compatibilityMode != nil && settings.first("w:compat")?.first("w:useFELayout") == nil
             if document.compatibilityMode == nil, settings.first("w:compat")?.first("w:useFELayout") == nil {
                 document.hangsLatinStops = part("word/styles.xml") != nil
                 document.usesEastAsianLayout = document.usesEastAsianLayout || document.hangsLatinStops
