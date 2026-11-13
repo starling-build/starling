@@ -1189,6 +1189,11 @@ enum DocxFormat {
             // look (Bug54771b's No Spacing names no parent, and came back
             // with Normal's 10pt after and 1.15 lines in every cell).
             docBase = base
+            _latinLangKorean = {
+                let own = styles.all("w:style").first { $0["w:type"] == "paragraph" && ($0["w:default"] == "1" || $0["w:styleId"] == "Normal") }?.first("w:rPr")?.first("w:lang")?["w:val"]
+                let def = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:lang")?["w:val"]
+                return (own ?? def ?? "").lowercased().hasPrefix("ko")
+            }()
             var docChar = CharStyle()
             if let rPr = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr") { docChar = _charStyle(rPr, base: docChar) }
             var normalChar = docChar
@@ -7841,6 +7846,10 @@ enum DocxFormat {
     // (The settings' `m:defJc`: how a display equation without its own
     // `m:jc` stands; Word's default is centred.)
     nonisolated(unsafe) private static var _mathDefaultJc: String? = nil
+    /// Set while a package is read whose styles' default Latin language is Korean (`w:lang w:val="ko…"`): Word for Windows then draws every
+    /// Latin letter, digit and space in the run's East Asian face (Malgun Gothic where it names none, MS Mincho where it names a Latin-only one).
+    /// Lab langko (2026-11-13, Word for Windows, xd f1b5cc8b): a run's own w:lang and w:noProof change nothing; only the style default does.
+    nonisolated(unsafe) private static var _latinLangKorean = false
     nonisolated(unsafe) private static var _themeColors: [String: (Int, Int, Int)] = [:]
 
     private static func _themePalette(_ entries: [ZipEntry]) -> [String: (Int, Int, Int)] {
@@ -8084,6 +8093,11 @@ enum DocxFormat {
                 }
                 if let h = child["w:hint"] { cs.fontHint = h }
                 if let f = _family(child["w:eastAsia"] ?? "") { cs.eastAsiaFontFamily = f }
+                if _latinLangKorean, child["w:ascii"] != nil || child["w:hAnsi"] != nil || child["w:eastAsia"] != nil || child["w:eastAsiaTheme"] != nil {
+                    let ea = cs.eastAsiaFontFamily
+                    cs.fontFamily = ea.map { OfficeFonts.isEastAsianFace($0) ? $0 : "MS Mincho" } ?? "Malgun Gothic"
+                    cs.hAnsiFontFamily = nil
+                }
             case "w:vertAlign":
                 switch child["w:val"] {
                 case "superscript": cs.script = .superscript
