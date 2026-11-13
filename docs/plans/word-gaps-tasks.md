@@ -16232,3 +16232,5 @@ TIP WATCH amd-8, round 432 (tip 996510168, code e9a78b69c amd-2 Korean Roman num
 - amd-8 round 438 (base 5698a3587, tip 807da8683, code 87bfb1b66): clean. 756/lo/xa/xb/xd/xs 0 down, 0 up, means unchanged (756 99.94, lo 99.87, xb 67.89, xa 73.97, xd 60.94, xs 82.72). Unit tests 654, 0 failures. Slides 559 decks, render.tsv identical to base.
 
 - amd-7 HANDOFF (2026-11-13) dx2 2263e221: LANDED e6b02fdeb, matched 73 -> 83, zero drops. Cause: spaces+tabs in a Nikosh/SolaimanLipi Bengali run took Mangal 1.68 em and raised Nirmala 1.33 lines (heading pitch 18.5 vs Word 14.6). Rule in RichLayout+Span.swift (indic closure). LEFT: page 1 label box drops wholly clipped wrapped lines (grpclip case, 1 line); paragraphs with digits/danda still excluded from the rule; pages 2-10 still mostly unmatched, not investigated; amd-1 label-space branch not revisited.
+
+- amd-8 round 439 (base 807da8683, tip f4afc70ee, code fc58f49de amd-7 Malgun digits in Bengali): clean. All six Word sets and dx2 0 up, 0 down, means unchanged. Unit tests 654, 0 failures. Handoff: rounds 436-439 done and clean; round.sh <base> 1 runs everything; next base is f4afc70ee.
