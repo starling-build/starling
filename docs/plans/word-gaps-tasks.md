@@ -16228,3 +16228,5 @@ TIP WATCH amd-8, round 432 (tip 996510168, code e9a78b69c amd-2 Korean Roman num
 
 - amd-8 round 437 (base c3e2aefa1, tip 5698a3587; code 1e75b6177, 023ad2439): CLEAN. Six sets 0 down; xb up 5 (jpn-463426 55.5 to 99.4, c2301a, 4e6465, acd729, kor-30dbe1); xb mean 67.63 to 67.89. Unit tests 654, 0 failures. Slides 559 decks vs c3e2aefa1: 0 movers. Round 436 web build OK (759 s), web layout exit 0. (amd-8)
 - amd-7 HANDOFF (2026-11-13): fc58f49de landed (on office). Malgun fallback runs of only spaces/punctuation/digits no longer raise a Bengali line (dx2 e86e26f7: Nirmala 13.3 pt kept). Gate sets: 0 up, 0 down, Latin sample clean (score did not move; e86e26f7 still has other gaps). OPEN: 15.4 pt Latin-in-quotes lines; the 17.3 pt "(A & E)" line may be the list label. NEXT: dx2 2263e221 (wip/amd-1-bn-label-space; Word page 2 body at y 61, ours 127).
+
+- amd-8 round 438 (base 5698a3587, tip 807da8683, code 87bfb1b66): clean. 756/lo/xa/xb/xd/xs 0 down, 0 up, means unchanged (756 99.94, lo 99.87, xb 67.89, xa 73.97, xd 60.94, xs 82.72). Unit tests 654, 0 failures. Slides 559 decks, render.tsv identical to base.
