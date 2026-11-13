@@ -105,6 +105,10 @@ extension RichLayout {
             && units.allSatisfy { $0 == 0x20 || $0 == 0x2014 || $0 == 0x2D || ($0 >= 0x30 && $0 <= 0x39) }
         // (Where nothing else is compressed, `w:topLinePunct` still lets a
         // line's opening mark give: see `leadOpeners` below.)
+        // (A Japanese document, by its kana or its language: no 、 or 。 with text after it hangs at c15 with a grid, where the
+        // zh-CN rule above holds it too; labs c67lab c15 16 pt, Word keeps a mid-line 、 inside the margin.)
+        let noHangJa = RichTextTheme.wordWindowsPages && theme.wordRules && (document.compatibilityMode ?? 12) >= 15 && document.lineGridPitch != nil
+            && (document.hasKana || document.eastAsiaLanguage?.hasPrefix("ja") == true) && units.contains(where: { $0 >= 0x3040 && $0 <= 0x30FF })
         let squeezesPauseRule = RichTextTheme.wordWindowsPages && theme.wordRules && (document.compatibilityMode ?? 12) >= 15 && document.lineGridPitch != nil && document.marksSitLeft && units.contains(where: { $0 >= 0x3040 && $0 <= 0x30FF })
         let topLinePunct = fitted && !turned && p.style.eastAsian["w:topLinePunct"] == "1"
         let topOnly = topLinePunct && !squeezes && units.contains(where: { Self._openingUnits.contains($0) })
@@ -951,7 +955,7 @@ extension RichLayout {
                     // (Nor a 、 or 。 with text after it where the pause rule holds: lab `sqreal`
                     // (jpn-z19433747's abstract, 65 right indents in 0.25pt steps) opens the next
                     // line with it at every indent, where it would hang 4.7 to 7.7 pt over.)
-                    && !(squeezesPauseRule && !paragraphEnd && (units[tail] == 0x3001 || units[tail] == 0x3002))
+                    && !((squeezesPauseRule || noHangJa) && !paragraphEnd && (units[tail] == 0x3001 || units[tail] == 0x3002))
                     // (Nor a full-width percent sign in Taiwan's Chinese, whose own list leaves it out
                     // of what may not start a line: it is no closing mark there, and does not hang.
                     // zh-ab9cbe66's "…分署25％(不含)－55％(含)" sends "％(含)" down in Word's print
