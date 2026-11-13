@@ -1066,6 +1066,17 @@ extension RichLayout {
                 if theme.wordRules, pictureTabs, units[(t + 1)...].allSatisfy({ $0 == 0x09 }) {
                     extra = min(extra, max(0, ownLeft + textWidth - x) - own)
                 }
+                // (A left stop past the right indent but inside the margin is a stop Word
+                // honours — the indent does not bound the stops — so a tab run that ends the
+                // paragraph stays on the line: dx2 cbb7ae39's "…हस्ताक्षरित<tab><tab>", stops to
+                // 10769 twips in a 10765-twip indent edge, the page's margin at 11640; ours sent the
+                // tab to a line of its own and the form stood 17pt low from there.)
+                if theme.wordRules, !pictureTabs, !style.rightToLeft, stop.alignment == .left, right > 0,
+                   stop.x > ownLeft + textWidth + 0.01, stop.x <= ownLeft + textWidth + right,
+                   units[(t + 1)...].allSatisfy({ $0 == 0x09 }) {
+                    extra = min(extra, max(0, ownLeft + textWidth - x) - own)
+                    RuleTrace.hit("word-trailing-left-tab-inside-the-margin-stays-on-its-line")
+                }
                 // (A stop set at the margin that the text before it has
                 // nearly reached: what follows the tab stands on past the
                 // margin, the line's marks unsqueezed, as Word's print sets
