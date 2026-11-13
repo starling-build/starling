@@ -95,6 +95,7 @@ extension RichLayout {
         _turnedFull = [:]
         _spaceBefore = Array(repeating: 0, count: n)
         _inkShift = Array(repeating: 0, count: n)
+        _numberLiftShift = Array(repeating: 0, count: n)
         _lineLift = Array(repeating: [], count: n)
         _overhang = Array(repeating: 0, count: n)
         _firstLineLift = Array(repeating: 0, count: n)
@@ -175,6 +176,7 @@ extension RichLayout {
                 _textWidth.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _spaceBefore.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _inkShift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
+                _numberLiftShift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _lineLift.insert(contentsOf: Array(repeating: [], count: n), at: at)
                 _overhang.insert(contentsOf: Array(repeating: 0, count: n), at: at)
                 _firstLineLift.insert(contentsOf: Array(repeating: 0, count: n), at: at)
@@ -219,6 +221,7 @@ extension RichLayout {
                 _textWidth.removeSubrange(at ..< end)
                 _spaceBefore.removeSubrange(at ..< end)
                 _inkShift.removeSubrange(at ..< end)
+                _numberLiftShift.removeSubrange(at ..< end)
                 _lineLift.removeSubrange(at ..< end)
                 _overhang.removeSubrange(at ..< end)
                 _firstLineLift.removeSubrange(at ..< end)

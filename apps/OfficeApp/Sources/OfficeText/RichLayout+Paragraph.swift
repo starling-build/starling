@@ -2311,6 +2311,7 @@ extension RichLayout {
         // Where the engine put the baseline (a strut's even leading) is
         // not where Word has it: the text is drawn from as much lower.
         _inkShift[i] = 0
+        _numberLiftShift[i] = 0
         var segoeLift = 0.0   // what a Segoe UI Symbol shape adds over the first line (`RichTextTheme.segoeSymbolShapes`)
         // (A paragraph whose runs differ only by a raised or lowered one
         // has no strut, and its lines are each as tall as one of its own
@@ -2715,6 +2716,7 @@ extension RichLayout {
         if numberLift > 0.001 {
             let extra = max(0, numberLift - _inkShift[i])
             _inkShift[i] += extra
+            _numberLiftShift[i] = extra
             segoeLift += extra / _px(1)
         }
         @inline(never) func _blk7() {

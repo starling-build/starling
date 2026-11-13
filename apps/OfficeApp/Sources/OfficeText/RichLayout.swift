@@ -1515,6 +1515,8 @@ public final class RichLayout {
     /// What each paragraph's text is drawn lower by than the engine set
     /// it, so that its baselines are Word's (see `RichTextTheme.lineBox`).
     var _inkShift: [Double] = []
+    /// The part of `_inkShift` that a bullet larger than its text adds to the first line's height (it stands over the cut points of a table cell).
+    var _numberLiftShift: [Double] = []
     /// Per line, how far a paragraph's lines are drawn from where the engine set them (px, down).
     var _lineLift: [[Double]] = []
     /// How far each paragraph's last line on a page may reach past the

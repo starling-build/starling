@@ -751,7 +751,11 @@ extension RichLayout {
                 }
                 return Array(rows.sorted().dropLast()) + [_tops[k] + _heights[k]]
             }
-            var lines = Self._lineBottoms(g.painter).map { g.textTop + $0 }
+            // (The shift a lifted first line carries — a bullet larger than its text — stands over every line the part
+            // can end on, as it does in `_heights`: xb rus-z8098805's p3 row cut a bullet paragraph's lines 4.7pt
+            // short, drew its second line half under the foot and again on page 4.)
+            let lift = theme.wordRules && RichTextTheme.wordWindowsPages && k < _numberLiftShift.count ? _numberLiftShift[k] : 0
+            var lines = Self._lineBottoms(g.painter).map { g.textTop + lift + $0 }
             // (Whatever a raised footer frame does to the body's widows
             // — `widowControlSuspended` — a cell keeps its own: zh-7654804a,
             // whose footer frame stands 47.75pt up, parts its p16 row
