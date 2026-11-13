@@ -44,7 +44,7 @@ enum WriterMath {
     /// none; its size and baseline (from its top), in points.
     static func register(_ node: XNode, for id: String, size: Double, natural: ((Double, Double)) -> Void = { _ in }) -> (width: Double, height: Double, baseline: Double)? {
         let display = node.name == "m:oMathPara"
-        var box = Layout(display: display).row(node, size: size, level: 0)
+        var box = Layout(display: display, inlineText: !display).row(node, size: size, level: 0)
         guard box.width > 0 else { return nil }
         // (An equation in a line takes no more of it than its text would:
         // its scripts reach into the line's leading, as Word sets them —
@@ -122,7 +122,7 @@ enum WriterMath {
     /// where they say none: for a sheet's text box, which draws it where
     /// its paragraph stands. nil for one with nothing in it.
     static func box(_ node: XNode, size: Double) -> Box? {
-        let box = Layout(display: node.name == "m:oMathPara").row(node, size: size, level: 0)
+        let box = Layout(display: node.name == "m:oMathPara", inlineText: node.name != "m:oMathPara").row(node, size: size, level: 0)
         return box.width > 0 ? box : nil
     }
 
@@ -191,10 +191,16 @@ enum WriterMath {
 
     private struct Layout {
         let display: Bool
+        /// Set in a line of text (not a display equation): where Word's print sets fractions and scripts its own way.
+        var inlineText = false
         let ink = Color(0xFF000000)
 
         /// The size at a script level: 0.73 of the one above, to half.
-        func scriptSize(_ size: Double, _ level: Int) -> Double { max(size * 0.5, size * pow(0.73, Double(min(level, 2)))) }
+        func scriptSize(_ size: Double, _ level: Int) -> Double {
+            // (Word's print of a 12pt equation: a fraction's parts 8.5pt, a script in them 7.0 — half points.)
+            if inlineText, RichTextTheme.wordWindowsPages, level >= 1 { return (size * (level == 1 ? 0.7 : 0.6) * 2).rounded() / 2 }
+            return max(size * 0.5, size * pow(0.73, Double(min(level, 2))))
+        }
 
         /// A string set as one piece, its baseline at the box's.
         func text(_ s: String, size: Double, italic: Bool, family: RichResolvedFace? = nil) -> Box {
@@ -389,7 +395,7 @@ enum WriterMath {
             case "m:f":
                 // (Its parts in the inline style: zh-c2c92639's ∑ over A has
                 // its limits beside it in Word's print, the sign unenlarged.)
-                let inner = Layout(display: false)
+                let inner = Layout(display: false, inlineText: inlineText)
                 // (And in a line of text — no display equation — at script size: 20d9968b's
                 // n over k stands 7.6pt in a 10.6pt line in Word's print, 0.72 of it.)
                 let part = display ? level : level + 1
@@ -561,12 +567,19 @@ enum WriterMath {
             // Word's print.)
             let axis = size * 0.27, rule = max(0.4, size * 0.05), gap = size * 0.06, pad = size * 0.08
             let w = max(num.width, den.width) + 2 * pad
-            let ascent = axis + rule / 2 + gap + num.descent + num.ascent
-            let descent = max(0, gap + rule / 2 - axis + den.ascent + den.descent)
+            // (A fraction in a line of text — no display equation: Word's print of jpn-z22855378-6fca0f's
+            // exp[-(Δx+d0)²/4σ²] at 12pt has the rule 3.45pt over the baseline, the numerator's
+            // baseline 7.1 over it and the denominator's 6.0 under it, so the equation is 21.5pt tall
+            // and the 18pt-grid line takes two pitches.)
+            let text = inlineText && RichTextTheme.wordWindowsPages
+            let numUp = text ? size * 0.592 : 0, denDown = text ? size * 0.5 : 0
+            let ascent = text ? numUp + num.ascent : axis + rule / 2 + gap + num.descent + num.ascent
+            let descent = text ? denDown + den.descent : max(0, gap + rule / 2 - axis + den.ascent + den.descent)
+            let ruleUp = text ? size * 0.2875 : axis
             return Box(width: w, ascent: ascent, descent: descent) { canvas, at in
-                let line = at.dy - axis
-                num.draw(canvas, Offset(at.dx + (w - num.width) / 2, line - rule / 2 - gap - num.descent))
-                den.draw(canvas, Offset(at.dx + (w - den.width) / 2, line + rule / 2 + gap + den.ascent))
+                let line = at.dy - ruleUp
+                num.draw(canvas, Offset(at.dx + (w - num.width) / 2, text ? at.dy - numUp : line - rule / 2 - gap - num.descent))
+                den.draw(canvas, Offset(at.dx + (w - den.width) / 2, text ? at.dy + denDown : line + rule / 2 + gap + den.ascent))
                 let p = Paint()
                 p.style = .stroke
                 p.strokeWidth = rule
@@ -588,7 +601,8 @@ enum WriterMath {
                 inner.append(row(e, size: size, level: level))
             }
             let body = hbox(inner)
-            let tall = max(s, (body.ascent + body.descent) * 0.95)
+            // (In a line of text Word's print leaves the brackets round a fraction at the text's size: jpn-z22855378-6fca0f's exp[…].)
+            let tall = inlineText && RichTextTheme.wordWindowsPages ? s : max(s, (body.ascent + body.descent) * 0.95)
             func fence(_ c: String) -> Box {
                 guard !c.isEmpty else { return .empty }
                 let f = text(c, size: tall, italic: false)

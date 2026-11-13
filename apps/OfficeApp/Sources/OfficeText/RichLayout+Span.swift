@@ -3485,6 +3485,8 @@ extension RichLayout {
                 }
                 var eqOffset: Double? = nil
                 if hung == nil, theme.wordRules, image.name == "m:oMath", image.float == nil, let grid = pitch, grid > 0, alignment == .baseline,
+                   // (Not in a paragraph of more than single spacing: its strut holds every line to the one height there.)
+                   !(RichTextTheme.wordWindowsPages && p.style.lineSpacing > 1.001),
                    let fit = _equationGridLine(image, size: size, style: style, pitch: _px(grid)) {
                     RuleTrace.hit("equation-whole-pitches")
                     _pageFill[image.id] = fit.full
