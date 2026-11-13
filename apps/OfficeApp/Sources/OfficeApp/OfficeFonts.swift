@@ -1249,6 +1249,26 @@ enum OfficeFonts {
     // windows 2026-11-02; lab test/labs/segoe on wip/lab-segoe). They replace the widths read from
     // Word's prints' subsets, whose glyphs no print used were estimated. fdo78885's 9pt Segoe UI body,
     // 12.0pt lines in Word's print, ours 10.4 in the sans stand-in.
+    // Palatino Linotype's own widths, U+0020 to U+007E, read from the hmtx of the subsets Word for Windows' prints embed
+    // (test/tools/print-font-metrics.py, 23 prints; Regular 79 of 95 read, Bold 58, the rest estimated from the stand-in's).
+    static let palatinoLinotypeAdvances: [Double] = [
+        0.2500, 0.2778, 0.3711, 0.5004, 0.5004, 0.8001, 0.6002, 0.2080, 0.3330, 0.3330, 0.3502, 0.5000, 0.2500, 0.3330, 0.2500,
+        0.3203, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.2500, 0.2500, 0.5000, 0.5255,
+        0.5000, 0.4438, 0.6831, 0.7778, 0.6108, 0.7090, 0.7739, 0.6108, 0.5562, 0.7632, 0.8320, 0.3369, 0.5297, 0.7261, 0.6108,
+        0.9458, 0.8311, 0.7861, 0.6040, 0.8241, 0.6680, 0.5249, 0.6128, 0.7778, 0.7222, 1.0000, 0.6670, 0.7067, 0.6670, 0.3330,
+        0.2500, 0.3330, 0.4222, 0.5000, 0.3330, 0.5000, 0.5532, 0.4438, 0.6108, 0.4790, 0.3330, 0.5562, 0.5820, 0.2910, 0.2339,
+        0.5562, 0.2910, 0.8828, 0.5820, 0.5459, 0.6011, 0.5894, 0.3950, 0.4238, 0.3262, 0.6030, 0.5649, 0.8340, 0.5161, 0.5562,
+        0.5000, 0.3005, 0.2337, 0.3005, 0.5255,
+    ]
+    static let palatinoLinotypeBoldAdvances: [Double] = [
+        0.2500, 0.2778, 0.3853, 0.4822, 0.4822, 0.7709, 0.6261, 0.2062, 0.2887, 0.2887, 0.3374, 0.5063, 0.2500, 0.2887, 0.2500,
+        0.2409, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.2500, 0.2887, 0.5063, 0.5063,
+        0.5063, 0.5296, 0.8454, 0.7778, 0.6606, 0.7222, 0.8311, 0.6060, 0.5576, 0.8330, 0.8330, 0.3892, 0.3892, 0.7695, 0.6060,
+        1.0000, 0.8330, 0.8330, 0.6104, 0.8330, 0.7139, 0.6108, 0.6670, 0.7778, 0.7778, 1.0000, 0.6670, 0.6670, 0.6670, 0.2887,
+        0.2409, 0.2887, 0.5063, 0.4822, 0.2887, 0.5000, 0.6108, 0.4438, 0.6108, 0.5000, 0.3330, 0.5557, 0.6108, 0.3330, 0.3330,
+        0.6108, 0.3330, 0.8892, 0.6108, 0.5562, 0.6108, 0.6108, 0.3892, 0.4438, 0.3330, 0.6108, 0.5557, 0.8330, 0.5561, 0.5562,
+        0.5000, 0.3374, 0.2426, 0.3374, 0.5063,
+    ]
     static let segoeUIAdvances: [Double] = [
         0.2739, 0.2842, 0.3921, 0.5908, 0.5391, 0.8184, 0.8003, 0.2300, 0.3018, 0.3018, 0.4170, 0.6841, 0.2168, 0.3999, 0.2168,
         0.3896, 0.5391, 0.5391, 0.5391, 0.5391, 0.5391, 0.5391, 0.5391, 0.5391, 0.5391, 0.5391, 0.2168, 0.2168, 0.6841, 0.6841,
@@ -3557,6 +3577,15 @@ enum OfficeFonts {
                 face.naturalHeight = 2469.0 / 2048
                 face.baseline = 1891.0 / 2048
                 RuleTrace.hit("book-antiqua-own-line")
+            }
+            // Palatino Linotype's own line in Word for Windows' print: win/hhea 2150 over and 613 under of 2048 (1.3491 em).
+            // xs 8d372494's 14pt lines step 19.0 and its 24pt headings 32.4 in Word, where the Times stand-in's 1.15 stepped 16.1 and 27.6.
+            if wordOnWindows, family.trimmingWhitespace().lowercased() == "palatino linotype" {
+                face.naturalHeight = 2763.0 / 2048
+                face.baseline = 2150.0 / 2048
+                face.advances = palatinoLinotypeAdvances
+                face.boldAdvances = palatinoLinotypeBoldAdvances
+                RuleTrace.hit("palatino-linotype-own-line")
             }
             // (Its weights Light, Semilight, Semibold and Black have the same line as Regular: 2210 over and
             // 514 under of 2048 by their hhea. lo-cc084a84's 20pt "Segoe UI Light" title stands 2.6pt
