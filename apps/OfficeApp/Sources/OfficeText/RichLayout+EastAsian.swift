@@ -2058,8 +2058,14 @@ extension RichLayout {
                     // does it after a circled number: zh-1d2a7c35's
                     // "① 計畫內容…" (a space in the text, not the label's
                     // suffix) keeps 之 on its line in Word's print.)
+                    // (A space beside HANGUL gives the full quarter in a body paragraph: lab kofit-mix-malgun,
+                    // Malgun 11pt, 13 right-indent steps, Word keeps "Korea" at the line end through step 6
+                    // where a fifth refused it at step 2. Hanja/kana neighbours keep the fifth.)
+                    func zhNeighbour(_ i: Int) -> Bool {
+                        eastAsianAt(i) && !(!inCell && (0xAC00...0xD7A3).contains(units[i]))
+                    }
                     func spaceGive(_ k: Int) -> Double {
-                        pageBox ? 0.4 : balancedLatinSqueeze ? 0.5 : RichTextTheme.wordWindowsPages && !(k > 0 && (0x2460...0x24FF).contains(units[k - 1])) && ((k > 0 && eastAsianAt(k - 1)) || (k + 1 < units.count && eastAsianAt(k + 1))) ? 0.2 : 0.25
+                        pageBox ? 0.4 : balancedLatinSqueeze ? 0.5 : RichTextTheme.wordWindowsPages && !(k > 0 && (0x2460...0x24FF).contains(units[k - 1])) && ((k > 0 && zhNeighbour(k - 1)) || (k + 1 < units.count && zhNeighbour(k + 1))) ? 0.2 : 0.25
                     }
                     let windowsAfterMarks = RichTextTheme.wordWindowsPages && eastAsianAt(a) && !inCell
                     let givers = windowsAfterMarks ? wordSpaces.filter { spaceGives($0.k) } : wordSpaces

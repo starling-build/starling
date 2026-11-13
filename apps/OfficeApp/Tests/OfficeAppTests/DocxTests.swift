@@ -2968,6 +2968,28 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(tw.length, 20, "not Japanese: Word does not end a zh-TW line on an opener")
     }
 
+    func testASpaceBesideHangulSqueezesAQuarterNotAFifth() throws {
+        // Word for Windows, compat 15, justified (lab kofit-mix-malgun): a
+        // Latin word after a Hangul one stays on the line while the squeeze
+        // needed is within a quarter of the space (we gave a fifth), and is
+        // carried once it needs more.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        let head = String(repeating: "한", count: 12)
+        let tail = " " + String(repeating: "한", count: 6)
+        func line(_ fewer: Double, _ space: Double, _ spaced: Double) throws -> Int {
+            try firstLine(head + " Korea" + tail, width: spaced - fewer * space, hangs: false, mode: 15,
+                          justified: true, documentLanguage: "ko-KR").length
+        }
+        let joined = try firstLine(head + "Korea", width: 1000, hangs: false, mode: 15, documentLanguage: "ko-KR").width
+        let spaced = try firstLine(head + " Korea", width: 1000, hangs: false, mode: 15, documentLanguage: "ko-KR").width
+        let space = spaced - joined
+        // (The engine counts joiners in a line's length, so measure the kept line in the same units.)
+        let whole = try firstLine(head + " Korea", width: 1000, hangs: false, mode: 15, documentLanguage: "ko-KR").length
+        XCTAssertGreaterThanOrEqual(try line(0.225, space, spaced), whole, "0.225 space short: within the quarter, kept")
+        XCTAssertLessThan(try line(0.6, space, spaced), whole, "0.6 space short: more than the quarter, carried")
+    }
+
     func testAFullWidthPercentMayOpenATraditionalChineseLine() throws {
         // zh-499adba6's "…占比為38.54" ends page 25's first line in Word's
         // print and "％，女性理事…" opens the next: Word's Traditional
