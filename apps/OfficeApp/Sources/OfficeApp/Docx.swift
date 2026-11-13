@@ -7359,7 +7359,16 @@ enum DocxFormat {
         }
         // (A display equation stands centred — Word's `m:jc` centerGroup,
         // its default — whatever its paragraph's own alignment.)
-        if let display = p.first("m:oMathPara") {
+        // (An equation that is a line break alone, the paragraph's picture and
+        // caption after it: only its own line is centred, and the rest keeps the
+        // paragraph's alignment. xb jpn 7f0539's Figure 5 caption stands at the
+        // left margin in Word's print, 85.1, and stood centred at 232.3 in ours.)
+        let breakOnlyMath = RichTextTheme.wordWindowsPages && p.first("m:oMathPara").map { d in
+            d.descendants("m:t").isEmpty && !d.descendants("w:br").isEmpty
+                && p.children.contains { $0.name == "w:r" }
+        } ?? false
+        if breakOnlyMath { RuleTrace.hit("break-only-equation-leaves-its-paragraphs-alignment") }
+        if let display = p.first("m:oMathPara"), !breakOnlyMath {
             switch display.first("m:oMathParaPr")?.first("m:jc")?["m:val"] ?? _mathDefaultJc {
             case "left": style.alignment = .left
             case "right": style.alignment = .right
