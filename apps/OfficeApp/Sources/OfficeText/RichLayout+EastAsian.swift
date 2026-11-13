@@ -2964,14 +2964,18 @@ extension RichLayout {
             // opportunity short enough, set the run's start beside the hyphen.
             // The last hyphen only: what lies between two is kept on the line.)
             if RichTextTheme.wordWindowsPages, end - k > 8 {
+                // (A hyphen that is not the last counts when what lies up to the next one is wider than the
+                // line: dx2 2f415ce7's URL "…/zh-" / "tw/%E9…%99-" / "/%E9…", each piece after a hyphen opening
+                // its own line in Word's print and parted there.)
                 for o in (k + 2 ..< end) where units[o - 1] == 0x2D && o + 8 < end
-                    && Self._isLatinWordUnit(units[o]) && Self._isLatinWordUnit(units[o - 2]) && units[o] < 0x80
-                    && !units[o ..< end].contains(0x2D) {
+                    && (Self._isLatinWordUnit(units[o]) || units[o] == 0x2F || units[o] == 0x25) && Self._isLatinWordUnit(units[o - 2]) && units[o] < 0x80 {
+                    let segEnd: Int = (o ..< end).first(where: { units[$0] == 0x2D }).map { $0 + 1 } ?? end
+                    if segEnd < end, segEnd - o < 8 { continue }
                     var at = 0
                     var run = p.runs[0].style
                     for r in p.runs { if o < at + r.length { run = r.style; break }; at += r.length }
                     let style = theme.textStyle(for: run, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
-                    let painter = TextPainter(text: TextSpan(text: String(decoding: units[o ..< end], as: UTF16.self), style: style), textDirection: .ltr)
+                    let painter = TextPainter(text: TextSpan(text: String(decoding: units[o ..< segEnd], as: UTF16.self), style: style), textDirection: .ltr)
                     painter.layout(minWidth: 0, maxWidth: 1_000_000)
                     if painter.width > textWidth { out.insert(o) }
                     painter.dispose()

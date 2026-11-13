@@ -1,4 +1,4 @@
-130 documents: mean 84.8% of Word's lines matched, median 100.0%; 88 at 95% or more, 111 at half or more; 124 with Word's page count
+130 documents: mean 85.4% of Word's lines matched, median 100.0%; 89 at 95% or more, 112 at half or more; 124 with Word's page count
     7.2%  lines 111/111  pages 5/6  0aca9a91b3bb95c681af40c8c2c42ab940c39dd3b475bbbe04e029b8e0c9d2f3
     9.4%  lines 32/29  pages 1/1  c7ebae82f6be635fe0d031630f93d01b0627d7b4e34a46f17d5d8bca42e38948
    10.0%  lines 10/7  pages 1/1  3b1f5cc1a9c33ed7396e8393c81176d07565fe08f445adb26bd281dcb4cfe166
@@ -13,7 +13,6 @@
    24.6%  lines 191/191  pages 5/5  19be02d95305b10358a769cb58053e86621350a0afb9ea52ca95f86a34c84f43
    27.6%  lines 29/28  pages 1/1  2dd064d744933826207716bcbfd627060fbb61a27b7862316644b27d22aa667b
    28.1%  lines 135/135  pages 6/6  cfe3097b888dd7a710e70dbde722486541f5dce98e2707cbc0f6f8696d4a4421
-   31.5%  lines 73/72  pages 2/2  2f415ce773b72b31ccea88b6612d2a1051c43b78116af6443c1283704d985b4b
    36.1%  lines 36/36  pages 2/2  0977ae703ae7d3828d55d13541c6b692c751b66d5d64c3cce304cdc7eccabd66
    40.0%  lines 5/4  pages 1/1  b4efd8852ef31909d27485da795c4ef1af11455a6da512e78a0ee4e713e200e3
    47.2%  lines 218/220  pages 10/10  2263e22151b5ac66aee9de904aaa56982bb3af7c311070dc3839053bb83d8a81
@@ -29,7 +28,7 @@
    73.8%  lines 42/42  pages 1/1  f4abc45d986cbda3759e166c853c57357a1761a41c6a6c468601ab9937cc78b4
    80.5%  lines 174/174  pages 5/5  6d8d842ebd8f95d476ebf2bd9ec8b5f8e74423d78a85c81422b9517c86af29ea
    81.9%  lines 72/72  pages 3/3  17a0d0c76d69c44b66704a650462fc93b198cfa5e812a3f3b4da7d7ec4602a3f
-   83.3%  lines 66/66  pages 2/2  32bb811e45d9a2e4eba8cff5aa1df3dd34b0b3accb5500fbaada317994be7e04
+   84.8%  lines 66/66  pages 2/2  32bb811e45d9a2e4eba8cff5aa1df3dd34b0b3accb5500fbaada317994be7e04
    86.4%  lines 22/21  pages 1/1  d91478e3857bd14e4ec79dc0b0aaf66e4b5294126215f818b6bbe4450b10b5b6
    90.5%  lines 21/23  pages 1/1  c30a7a6158d90de1bd980737e8b4207b7a488ec6b759d63e8c891cf92b5be966
    91.2%  lines 113/129  pages 4/4  7cd40e701081e9b2602bc792ebd947f3c6930afa8b2fed49944b810e55ae66de
@@ -69,6 +68,7 @@
   100.0%  lines 41/41  pages 1/1  231eda39af8c64ba8c6155a5e1497d1bb7cef47456c4466d10bef1600f0f46f4
   100.0%  lines 138/138  pages 4/4  29ac5629d754e9326b338cf5c9bed59d42a842b41430df0f6f1aadf4907815b0
   100.0%  lines 99/99  pages 4/4  2b3eb38bc63d1cb10dfb38556e4f211f6c303453a1c0103a72bb8e3a62a452b1
+  100.0%  lines 73/73  pages 2/2  2f415ce773b72b31ccea88b6612d2a1051c43b78116af6443c1283704d985b4b
   100.0%  lines 79/79  pages 3/3  313479ba38640ccee63a2a44d16fd8c271ee8e066d33a645cb3fec25c4c5a020
   100.0%  lines 53/55  pages 2/3  35c868e397ed07aaeb9c7cfbbdcaccdfc382c52251b8deae669ba0fa5d0ee9ac
   100.0%  lines 52/52  pages 2/2  3cce370fbbb7f76c0798a44b0dda525cf09af39eb2618c9d503f1637761c80dc
