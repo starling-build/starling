@@ -2081,7 +2081,7 @@ extension RichLayout {
                     let face = (face0 == "shonar bangla" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? "shonar bangla bold" : face0
                     if let face, let metrics = Self._indicLines[face] {
                         if devanagariStyles[face] == nil {
-                            devanagariStyles[face] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: metrics.0, descent: metrics.1, belowOnly: face == "kokila")
+                            devanagariStyles[face] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: metrics.0, descent: metrics.1, belowOnly: face == "kokila" || face.hasPrefix("shonar bangla"))
                         }
                         if let joiner = devanagariStyles[face] ?? nil {
                             flush(i)
