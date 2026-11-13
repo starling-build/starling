@@ -16209,3 +16209,11 @@ TIP WATCH amd-8, round 432 (tip 996510168, code e9a78b69c amd-2 Korean Roman num
 - Open side check: 18.0 = 9ba344's grid pitch (360 tw); our footer might snap to the grid despite snapToGrid 0. One trace of footer height per page on 9ba344 would settle it.
 - Next (amd-5): c67f3706 line ending at や on page 1; then zh-e0ca7252 box clipping 稅.
 - amd-8 round 435 (tip c5e02cbe4, incl. amd-5 231de92de xd 9ba344): clean. Six Word sets 0 up/0 down (756 99.94, lo 99.87, xb 67.68, xa 73.96, xd 60.94, xs 82.72); 652 unit tests, 0 failures; Slides mean 0.9385 -> 0.7292; dx2 mean 78.67, 1 up, 0 down. BOUNDARY handoff: rounds 431-435 all clean; run dx2-round.sh with BASELINE=/data/s/amd-8/dx2-prev.v2 and ENGINE_OUT from env.sh.
+
+### amd-2 handoff 2026-11-13: kor-z17264683-7d8a4b "one extra Hangul" lines (p3, p11, p15)
+- LANDED 1e75b6177: a space beside Hangul squeezes 0.25 of its width (was 0.2); lab kofit-mix-malgun 5 -> 0 of 156 line starts differ.
+- Bold-Latin premise false: p3 is one regular Malgun span with literal "**".
+- Width test: 7,500 Hangul steps over 21 Word pages, mean 11.004 at 11.04 span size (11.04 / 10.92 mix = 0.12 pt position snapping). Ours is exactly 11.00. Not a width rule; fitting the +0.004 would be tuning.
+- 1/600-inch-advance idea (coordinator): refuted as stated. Advances rounded to 0.12 would average 11.04, not 11.004.
+- Still open: ours line ends sit 0.7-1.0 pt left of Word's on the same lines. p15 y=172.3: ours 39 chars, Word 38; our extra "의" would end at 523.29 (edge 523.3); with Word's origins (+0.3) it would end at ~523.66. Word's own lines end up to 523.42 (origin + 11.04), so the refusal limit is unknown within 0.1-0.4 pt. p15 also splits "1." from the 28-char text at y283 where Word keeps one line (second difference).
+- Next: a lab with a Hangul-only paragraph stepping the right indent in 0.25 pt steps (see test/lab/sp2) to find Word's accept/refuse limit for the last glyph, then compare with origin+advance vs origin+11.04.
