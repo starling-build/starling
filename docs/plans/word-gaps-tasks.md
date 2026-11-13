@@ -16385,3 +16385,8 @@ Trap: forcing the strut on a first-line picture put line 2 at P+18 not S+12.6 (s
 Landed e79ae0af6 (page 7 Figure 4 picture 14pt high -> 117.2 as Word; page 6 139.0 exact) and 8fb7b06be (page 8 Figure 5 caption centred -> 85.1 as Word). Land gate clean both.
 Left: captions under the pictures sit 1.5-3pt off Word (p6 473.7/492.0/511.2 vs 472/490/508; p7 455.9 vs 454) because the stand-in face's line is 18.4 not 18 on a grid; page 8 picture 1pt high and Word's extra empty lines after the equation not drawn. Rule-line list numbers 2.3-3.7pt high remain.
 Trap: forcing the strut on a first-line picture put line 2 at P+18 not S+12.6 (strut line 0 is 18 high, picture overflows).
+
+## amd-2 HANDOFF 2026-11-13 (xd ko: 07eecf7a, 4fabe1f2, b6f6c7d4)
+- 07eecf7a: landed b42b4445b (symbol-line shift, ❏ in Segoe). Open: page 4, Word holds 27 body lines, ours fits a 28th.
+- 4fabe1f2: PARKED. Page 1 line 3, Word breaks before "한" (spaces 5.7pt), ours squeezes spaces to 5.0 and takes it. Line has a run of 12 typed spaces. Next test: stop a space beside another space counting as squeezable in the stretch branch (RichLayout+EastAsian ~1497/1649). Build 8-20 min.
+- b6f6c7d4: landed 790119643: ₩ in Korean-named Latin face is drawn in Malgun, line 3.4pt taller. Pages 3-7 line counts now match (4-7 were 21/20, 15/18 before). Left: pages 3-7 have 0.5-3pt x drifts (❏ advance ~0.1-0.2pt wide, a -3.0 on page 3 line 8); pages 9-13 line counts differ (14 vs 10, 46 vs 30, 47 vs 31) — probably tables, not looked at.
