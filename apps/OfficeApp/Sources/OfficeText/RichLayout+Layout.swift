@@ -1799,6 +1799,10 @@ extension RichLayout {
                 // page wide is held at it and Word parts the word inside its cell — xd 6e011101's Tamil columns stay at the grid: bede0fbc's "নাম:" + 154 dots, 508.7pt in
                 // Word's print, which widens its table to 519.6, ours measured "ম:" + the dots, 497.8, and parted the dots.)
                 else if theme.wordRules, Self._isIndicUnit(a), Self._isIndicUnit(b), !pctWidthTable { parts = false }
+                // (A full stop between Indic letters keeps them as one piece too, as the line breaking rule that a
+                // full stop does not part from a letter after it: dx2 2263e221's header "এস.আর.ও." fits its cell
+                // in Word's print, which widens the column to the whole word, where ours parted it at "র." / "ও.".)
+                else if theme.wordRules, a == 0x2E, k > 1, Self._isIndicUnit(units[k - 2]), Self._isIndicUnit(b), !pctWidthTable { parts = false }
                 else { parts = !Self._glued(a, b, strict: Self._strictKinsoku(document)) }
                 if parts {
                     if start == 0 { first = piece(start, k) } else { m = max(m, piece(start, k)) }
