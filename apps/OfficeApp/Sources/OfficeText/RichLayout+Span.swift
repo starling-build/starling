@@ -152,6 +152,16 @@ extension RichLayout {
         return usb0 & 0x10000 != 0 && usb0 & 0x00FE_8000 == 0 ? "shonar bangla" : "nirmala ui"
     }
 
+    /// A Latin-only run whose ascii and complex faces are one and the same face that Word's machine lacks and that it replaces with Shonar Bangla
+    /// (the usb0 rule): Word draws that run's Latin in Shonar Bangla as well (lab bnmix2 latK). A run naming a face Windows has (Arial) keeps it.
+    @inline(never) func _shonarLatinRunFace(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument, _ paragraphText: String) -> String? {
+        let asc = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
+        let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
+        guard !asc.isEmpty, asc == cs, document.fontUsb0[cs] != nil,
+              Self._bengaliMissingFace(cs, document) == "shonar bangla", cs != "shonar bangla" else { return nil }
+        return "shonar bangla"
+    }
+
     /// A run with no Indic letters in it (marks, Latin, digits) is drawn in the face it NAMES: its complex-script face when it carries `w:cs`, otherwise
     /// its ascii face. When that face is one we hold line metrics for, the run takes that face's line (Latha 1.372 em, dx2 80152175; Mangal, and Kalimati
     /// which Windows lacks, in dx2 375919ba's leader runs). The script path picks a face only when the run names none we know.
@@ -966,6 +976,12 @@ extension RichLayout {
                        p.text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF }) {
                         return ("vrinda", 1)
                     }
+                    // (A Latin-only run whose ascii and complex faces are the SAME face Windows lacks, and which Word draws in Shonar Bangla (the
+                    // usb0 rule), in a Bengali paragraph: Word draws the Latin in Shonar Bangla too, at the authored size; lab bnmix2 latK, bfc234.)
+                    if let f = _shonarLatinRunFace(run, named, document, p.text) {
+                        RuleTrace.hit("word-latin-in-a-missing-bengali-face-run-is-shonar-bangla")
+                        return (f, 1)
+                    }
                     // (A run of Bengali characters with no letter (digits, signs, marks), in a face Windows lacks (Nikosh, Kalpurush...): Word draws it in Nirmala UI, so the digits take
                     // Nirmala's own advances from the table; 2263e221's "\u{9EE}" is 8.35 pt in Word, 6.5 in the stand-in.)
                     if text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF }),
@@ -1487,7 +1503,7 @@ extension RichLayout {
                     start = end
                     return
                 }
-                if kind >= 0, indic?.face == "shonar bangla", text[start ..< end].unicodeScalars.contains(where: { ($0.value >= 0x980 && $0.value <= 0x9FF) || ((run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "shonar bangla" && $0.value < 0x980 && $0 != " " && ShonarAdvances.regular[String($0)] != nil) || (!(run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))) && ShonarAdvances.regular[String($0)] != nil && $0.value < 0x980 && $0 != " ") }) {
+                if kind >= 0, indic?.face == "shonar bangla", text[start ..< end].unicodeScalars.contains(where: { ($0.value >= 0x980 && $0.value <= 0x9FF) || ((run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "shonar bangla" && $0.value < 0x980 && $0 != " " && ShonarAdvances.regular[String($0)] != nil) || (_shonarLatinRunFace(run, named, document, p.text) != nil && $0.value < 0x980 && $0 != " " && ShonarAdvances.regular[String($0)] != nil) || (!(run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))) && ShonarAdvances.regular[String($0)] != nil && $0.value < 0x980 && $0 != " ") }) {
                     let shBold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
                     let shTable = shBold ? ShonarAdvances.bold : ShonarAdvances.regular
                     // (Shonar Bangla's own Bengali cluster widths, word by word: `ShonarAdvances`.)
