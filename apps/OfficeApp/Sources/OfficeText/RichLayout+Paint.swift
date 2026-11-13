@@ -44,6 +44,19 @@ extension RichLayout {
         return paint(image, canvas, rect, theme.pixelsPerPoint * scale)
     }
 
+    /// Floating drawings anchored in a vertical-text cell. The turned block returns before the paragraph's
+    /// object loop, so these (dx2 729fb556's arrow groups) were never drawn; they sit in page coordinates.
+    @inline(never)
+    func _paintVerticalCellFloats(_ i: Int, _ g: ParagraphGeometry, _ canvas: any Canvas) {
+        guard theme.wordRules, i < _inline.count, !_inline[i].isEmpty else { return }
+        for image in _inline[i] {
+            let key = "\(image.id)"
+            guard let float = image.float, !float.takesRoom, _decoded[image.id] == nil, image.textBox == nil,
+                  !_behindDrawn.contains(key) else { continue }
+            _paintOutline(image, _floatRect(float, image, g, i), canvas)
+        }
+    }
+
     /// A kept shape's line or box (`ImageAttachment.outline`), in `rect`
     /// — or what `objectPainter` draws for it, and then true.
     @discardableResult
@@ -1423,10 +1436,12 @@ extension RichLayout {
             if c.direction == .down, document.paragraphs[i].cell?.uprightIdeographs == true,
                _paintUpright(g.painter, at: origin, canvas, distribute: document.paragraphs[i].style.eastAsian["w:jc"] == "distribute", justify: theme.wordRules && aligned == .justify && document.paragraphs[i].style.eastAsian["w:jc"] == nil, mixed: true, centred: aligned == .center) {
                 canvas.restore()
+                _paintVerticalCellFloats(i, g, canvas)
                 return
             }
             g.painter.paint(canvas, origin)
             canvas.restore()
+            _paintVerticalCellFloats(i, g, canvas)
             return
         }
         if let b = document.paragraphs[i].style.borders, !_vanishes(document.paragraphs[i], document), !_emptyBreakFragment(i, document) {
