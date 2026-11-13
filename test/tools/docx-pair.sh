@@ -54,11 +54,16 @@ corpus() { case $1 in 756) echo "$ROOT/test/corpus/docx";; lo) echo "$ROOT/test/
 # refhash SET — one hash of the set's Word reference PDFs (names + contents): the code STAMP does not cover them, so
 # a print swap would leave stored scores that look valid. Stored beside the scores as REFS ("<set> <hash>" lines).
 refhash() { local C; C=$(corpus "$1"); ( cd "$C/word-win" 2>/dev/null && ls *.pdf 2>/dev/null | LC_ALL=C sort | while IFS= read -r f; do printf '%s ' "$f"; sha256sum < "$f" | cut -c1-64; done | sha256sum | cut -c1-32 ); }
+# dochash SET — hash of the set's input .docx files (names + contents): a changed input doc makes stored scores stale
+# even when the references and the code stamp are unchanged (xs, 2026-11-13). REFS lines are "<set> <refhash> <dochash>";
+# an old two-field line is accepted (no doc check) until the next seed rewrites it.
+dochash() { local C; C=$(corpus "$1"); ( cd "$C/docs" 2>/dev/null && ls *.docx 2>/dev/null | LC_ALL=C sort | while IFS= read -r f; do printf '%s ' "$f"; sha256sum < "$f" | cut -c1-64; done | sha256sum | cut -c1-32 ); }
 # base_ok SET FILE REFSFILE — stored/cached base scores usable for the set? (1) the references they were scored against
 # are the ones on disk now (REFSFILE has a line for the set with the current refhash), and (2) for the cache-resident sets
 # (xb xa xd xs dx2) the row count matches the number of prints (membership can change).
 base_ok() { local want have; want=$(refhash "$1"); have=$(awk -v s="$1" '$1==s{print $2}' "$3" 2>/dev/null)
   [ -n "$want" ] && [ "$want" = "$have" ] || return 1
+  local dh; dh=$(awk -v s="$1" '$1==s{print $3}' "$3" 2>/dev/null); [ -z "$dh" ] || [ "$dh" = "$(dochash "$1")" ] || return 1
   case "$1" in xb|xa|xd|xs|dx2) ;; *) return 0;; esac; local C n; C=$(corpus "$1"); n=$(ls "$C"/word-win/*-orig.pdf 2>/dev/null | wc -l)
   [ "$(grep -c '%  lines ' "$2" 2>/dev/null)" = "$n" ]; }
 # sweep BIN WORK SET → WORK/match-v2.txt, match-v1.txt
@@ -75,7 +80,7 @@ retry_failed() {  # retry_failed BIN WORKDIR DOCSDIR FAILFILE
 sweep() {
   local BIN=$1 WORK=$2 SET=$3 C; C=$(corpus "$SET"); mkdir -p "$WORK/pdf" "$WORK/err"; : > "$WORK/fail.txt"
   ( cd "$C/docs" && ls *.docx | while IFS= read -r n; do
-      [ -f "$C/word-win/${n%.docx}-orig.pdf" ] && [ ! -s "$WORK/pdf/${n%.docx}.pdf" ] && printf '%s\0' "$n"; done |
+      [ -f "$C/word-win/${n%.docx}-orig.pdf" ] && [ ! -s "$WORK/pdf/${n%.docx}.pdf" ] && { [ -z "${SWEEP_ONLY:-}" ] || grep -qxF "${n%.docx}" "$SWEEP_ONLY"; } && printf '%s\0' "$n"; done |
     xargs -0 -P "$JOBS" -I{} sh -c 'n="$1"; perl -e "alarm 300; exec @ARGV" "$2" --convert "$n" "$3/pdf/${n%.docx}.pdf" >/dev/null 2>"$3/err/${n%.docx}.txt" || { echo $? > "$3/err/${n%.docx}.rc"; rm -f "$3/pdf/${n%.docx}.pdf"; echo "FAIL $n"; }' _ {} "$BIN" "$WORK" >> "$WORK/fail.txt" )
   retry_failed "$BIN" "$WORK" "$C/docs" "$WORK/fail.txt"
   local nf nd; nf=$(wc -l < "$WORK/fail.txt"); nd=$(ls "$C/docs"/*.docx | wc -l)
@@ -117,6 +122,25 @@ vis_side() {  # SET WORKDIR(with pdf/) V2FILE OUTDIR LABEL [BIN]
 wait_sets() { local bad=0 j; for j in $(jobs -p); do wait "$j" || bad=1; done
   [ $bad = 0 ] || { echo "ABORT: a $1 sweep failed (see above) — nothing written to $STAGE/fix" >&2; rm -rf "$STAGE/fix"; exit 1; }; }
 
+# canary SET BASEFILE — the base scores about to be reused (stored or cached) must still be what BASEBIN gives: re-render up to
+# CANARY_N (8) documents of the set, spread evenly over the base's rows, and compare each v2 percentage with the stored row.
+# A difference over CANARY_TOL (0.5) means the base is stale (a binary, a document or a library that moved without the stamp
+# noticing: 59e77f 67.65 stored against 99.6 real, 2026-11-13); the set is then swept afresh. Returns 1 when stale.
+canary() {
+  local S=$1 F=$2 W=$STAGE/work/canary-$S n; n=${CANARY_N:-8}; mkdir -p "$W"
+  grep '%  lines ' "$F" | awk '{print $NF}' | LC_ALL=C sort > "$W/ids.all"
+  awk -v n="$n" '{a[NR]=$0} END{if(NR<=n){for(i=1;i<=NR;i++)print a[i]}else for(i=0;i<n;i++)print a[int(i*(NR-1)/(n-1))+1]}' "$W/ids.all" > "$W/ids"
+  [ -s "$W/ids" ] || return 0
+  ( SWEEP_ONLY=$W/ids MAXFAIL=100 sweep "$BASEBIN" "$W/run" $S >/dev/null 2>&1 ) || return 1
+  local bad=0 id old new
+  while IFS= read -r id; do
+    old=$(awk -v i="$id" '$NF==i && /%  lines /{print $1+0; exit}' "$F")
+    new=$(awk -v i="$id" '$NF==i && /%  lines /{print $1+0; exit}' "$W/run/match-v2.txt")
+    if [ -z "$new" ] || awk -v a="$old" -v b="$new" -v t="${CANARY_TOL:-0.5}" 'BEGIN{d=a-b; if(d<0)d=-d; exit !(d>t)}'; then echo "canary $S: $id stored ${old}% now ${new:-none}%" >&2; bad=1; fi
+  done < "$W/ids"
+  return $bad
+}
+
 rm -rf "$STAGE"; mkdir -p "$STAGE/work"
 # the base: stored scores, if their stamp is the base revision's
 BASE=$STAGE/base; mkdir -p "$BASE"
@@ -136,7 +160,12 @@ elif [ $SEED = 0 ]; then
   for S in $SETS; do ( sweep "$BASEBIN" "$STAGE/work/base-$S" $S >/dev/null ) & done
   BASE_SWEPT=1
 fi
-# a set with no stored/cached base scores yet (a new set, xb) gets its base swept here
+# the reused base must still be what BASEBIN renders (canary above); a stale set joins NEEDBASE and is swept afresh
+if [ $SEED = 0 ] && [ "${BASE_SWEPT:-0}" != 1 ] && [ "${CANARY:-1}" = 1 ]; then
+  for S in $SETS; do case " $NEEDBASE " in *" $S "*) continue;; esac; ( canary $S "$BASE/$S.v2" && echo ok > "$STAGE/work/canary-$S.res" || echo stale > "$STAGE/work/canary-$S.res" ) & done; wait
+  for S in $SETS; do [ "$(cat "$STAGE/work/canary-$S.res" 2>/dev/null)" = stale ] && { echo "base: canary found the stored/cached base of $S stale — sweeping BASEBIN for it"; NEEDBASE="$NEEDBASE $S"; }; done
+fi
+# base_ok SET FILE REFSFILE
 if [ $SEED = 0 ] && [ -n "$NEEDBASE" ]; then
   echo "base: no stored scores for set(s)$NEEDBASE — sweeping BASEBIN for them"
   for S in $NEEDBASE; do ( sweep "$BASEBIN" "$STAGE/work/base-$S" $S >/dev/null ) & done
@@ -154,7 +183,7 @@ for S in $SETS; do
 done
 for S in $SETS; do vis_side $S "$STAGE/work/fix-$S" "$FIX/$S.v2" "$FIX" fix || { echo "ABORT: visual scoring (fix, $S)" >&2; exit 1; }; done
 test/tools/stamp.sh $INPUTS > "$FIX/STAMP"
-for S in $SETS; do echo "$S $(refhash $S)"; done > "$FIX/REFS"
+for S in $SETS; do echo "$S $(refhash $S) $(dochash $S)"; done > "$FIX/REFS"
 if [ $SEED = 1 ]; then echo "seed written to $FIX (cp $FIX/* $STORED/)"; exit 0; fi
 # movers (and the nondeterministic ones)
 for S in $SETS; do for v in v2 v1; do
