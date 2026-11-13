@@ -16283,3 +16283,8 @@ HANDOFF amd-5 2026-11-13 (Japanese no-hang gate + c15 line-end 、 give): (1) LA
 - lenovo-5 HANDOFF 2026-11-13: LANDED ee1750f7b: Word's automatic ideograph/Latin space also holds in a compat-15 file without useFELayout when the defaults state an East Asian language (xb jpn 754366: 78.9 to 94.1 v1; 0d8cbc, which states no language, stays 100; latin sample clean, 0 drops). Left: 754366 still 374/377 lines (next: first differing page after p1); 5ff3d0 (77.9) unchanged and still open. Rule in ~/word-rules.md.
 
 - amd-3 (2026-11-13): xb jpn 496912 DONE, e9015c7ca: fit-text group line takes no stretch (justified), lone opener in a cell carried not squeezed. 496912 75.9 to 100.0 (145/145); ko/ja dx2, xa, xd, zh, Latin zero drops. Lab: lab/fit496/ (amd-3 checkout). Trap: gate only the squeeze result at EastAsian ~716; gating line 215 kills the carry and drops xd c11e840d.
+
+## HANDOFF amd-5 2026-11-13 — JIS X 4051 pair (landed da9bf3fc7)
+- Landed: closing bracket + opener (」「 ）（) gives 0.29 em; 」・ closes up (compat 15, grid). jis4051 biz+msm: 0 of 235 rows differ (was 26/32). c67lab unchanged; cab6d785 identical to base; Latin sample clean; DocxTests 221 ok.
+- Caveats: only 10.5 pt measured; unit test can't isolate the 0.29; rule limited to closing brackets (。（ broke cab6d785); 0.52 em squeeze not supported by lab.
+- Next: measure 9 and 12 pt in a lab if em-vs-points matters.
