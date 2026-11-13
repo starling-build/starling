@@ -3745,6 +3745,27 @@ extension RichLayout {
     /// across it where the base is the wider, as Word's distributeSpace
     /// sets it. `painter` is the paragraph's (or its lines'), painted at
     /// `origin`; `map` as for `_paintScripts`.
+    /// Ruby in a vertical column: Word draws each ruby character upright
+    /// (its own glyph, one per place), not rotated with the line.
+    @inline(never)
+    func _paintUprightRuby(_ text: String, _ style: TextStyle, x: Double, step: Double, centre: Double,
+                           origin: Offset, _ canvas: any Canvas) {
+        var at = x
+        let em = style.fontSize ?? 5
+        for ch in text {
+            let glyph = TextPainter(text: TextSpan(text: String(ch), style: style.copyWith(letterSpacing: 0)), textDirection: .ltr)
+            glyph.layout()
+            let middle = glyph.computeDistanceToActualBaseline(.alphabetic) - 0.38 * em
+            canvas.save()
+            canvas.translate(origin.dx + at + glyph.width / 2, origin.dy + centre)
+            canvas.rotate(-Double.pi / 2)
+            glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
+            canvas.restore()
+            at += glyph.width + step
+            glyph.dispose()
+        }
+    }
+
     func _paintRuby(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
                             _ canvas: any Canvas, _ document: RichDocument, map: _OffsetMap? = nil, index: Int? = nil) {
         guard theme.wordRules, p.runs.contains(where: { $0.style.ruby != nil }) else { return }
@@ -3773,6 +3794,12 @@ extension RichLayout {
             // (On a line grid the base text was moved with the ruby line: `rubyLine`.)
             let moved = NativeParagraphBuilder.supportsBaselineShift
                 ? theme.rubyLine(for: g.style, in: p.style, named: named, eastAsian: true, gridPitch: _grid(index, document).pitch)?.raise ?? 0 : 0
+            if let index, _verticalBody(index) {
+                _paintUprightRuby(g.ruby.text, style, x: x, step: baseWidth > rubyWidth ? (baseWidth - rubyWidth) / count : 0,
+                                  centre: (first.top + first.bottom) / 2 - raise - moved * _px(1), origin: origin, canvas)
+                tp.dispose()
+                continue
+            }
             tp.paint(canvas, Offset(origin.dx + x, origin.dy + line.baseline - raise - moved * _px(1) - tp.computeDistanceToActualBaseline(.alphabetic)))
             tp.dispose()
         }
