@@ -1939,6 +1939,57 @@ extension RichLayout {
         // mode 14, 12pt) has every ideograph step 12.00 and its automatic
         // spaces 3 to 6pt, from 0.3 on a line with room to spare to 3.0 more
         // on one with plenty, where ours spread it all over the ideographs.)
+        // (A fitted group is not justified: a line that holds nothing but one stands as the left-aligned line, Word's print of lab
+        // fit496b / xb jpn 496912's "金額" before "（年度ごとに記載）": 額 stays at the fitted pitch at every width, while a control
+        // of the same two characters spaced by ideographic spaces is stretched. The stretch the engine gives such a line is taken back.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, style.alignment == .justify, style.eastAsian["w:jc"] != "distribute",
+           textWidth < 50_000, !style.rightToLeft, besideLineIndents.allSatisfy({ $0.left == 0 && $0.right == 0 }),
+           p.runs.contains(where: { Self._fitText($0.style.keptXML) != nil }), painter.computeLineMetrics().count > 1 {
+            var grouped = Set<Int>()
+            var at = 0
+            for r in p.runs {
+                if r.length > 0, Self._fitText(r.style.keptXML) != nil { for o in at ..< (at + r.length) { grouped.insert(o) } }
+                at += r.length
+            }
+            let units = p.text.utf16.count
+            let map = _OffsetMap(lead: _lead(i), inserts: _inserts[i])
+            let starts = _lineStarts(painter, map, count: units)
+            var only: [(Int, Int)] = []
+            for (k, start) in starts.enumerated() where k + 1 < starts.count {
+                let end = starts[k + 1]
+                if end - start > 1, (start ..< end).allSatisfy({ grouped.contains($0) }) { only.append((start, end)) }
+            }
+            if !only.isEmpty {
+                let (span, _, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit.isEmpty ? tabs : fit, held: held)
+                let kept = align, keptLift = numberLift
+                align = .left
+                let flat = laidOut(span)
+                align = kept
+                numberLift = keptLift
+                var indents = Array(repeating: LineIndent(), count: starts.count)
+                var any = false
+                for (start, end) in only {
+                    let range = TextSelection(baseOffset: map.painter(start), extentOffset: map.painter(end))
+                    guard let was = painter.getBoxesForSelection(range).map({ $0.right }).max(),
+                          let flatRight = flat.getBoxesForSelection(range).map({ $0.right }).max(), was - flatRight > _px(0.05),
+                          let line = starts.firstIndex(of: start) else { continue }
+                    indents[line] = LineIndent(left: 0, right: was - flatRight)
+                    any = true
+                }
+                flat.dispose()
+                if any {
+                    let keptIndents = painter.lineIndents
+                    painter.lineIndents = indents
+                    painter.layout(minWidth: textWidth + _px(tieSlack), maxWidth: textWidth + _px(tieSlack))
+                    if _lineStarts(painter, map, count: units) == starts {
+                        RuleTrace.hit("word-fitted-group-line-is-not-justified")
+                    } else {
+                        painter.lineIndents = keptIndents
+                        painter.layout(minWidth: textWidth + _px(tieSlack), maxWidth: textWidth + _px(tieSlack))
+                    }
+                }
+            }
+        }
         if theme.wordRules, RichTextTheme.wordWindowsPages, document.usesEastAsianLayout, style.alignment == .justify,
            style.eastAsian["w:jc"] != "distribute", textWidth < 50_000, !style.rightToLeft,
            besideLineIndents.allSatisfy({ $0.left == 0 && $0.right == 0 }), painter.computeLineMetrics().count > 1 {

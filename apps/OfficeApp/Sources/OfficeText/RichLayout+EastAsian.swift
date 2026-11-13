@@ -713,7 +713,11 @@ extension RichLayout {
             // (Under compressPunctuation Word ends a line on an opening mark squeezed by its own blank half at most: lab opn11, zh 8787f4.
             // Less than half an em of room carries it, as it stands.)
             var openerOwn = false
-            if squeezeOpen, openingAlone, !fits, last == a + 1 {
+            if squeezeOpen, inCell, openingAlone, last == a + 1 {
+                // (In a cell Word does not squeeze or compress for a lone opener: it carries it, fits or not. Lab fit496b, xb jpn 496912 "金額（".)
+                openerOwn = true
+                adjust[-(a + 2)] = 1
+            } else if squeezeOpen, openingAlone, !fits, last == a + 1 {
                 openerOwn = true
                 if (width - x) * 2 >= w { adjust[a, default: 0] -= x + w - width + 0.02; fits = true }
             } else if squeezeOpen, openingAlone, fits, last == a + 1 {
