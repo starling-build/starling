@@ -1583,7 +1583,11 @@ extension RichLayout {
             var pil = picturesInLine
             if pil, theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft,
                inline.allSatisfy({ $0.image.map { $0.name == "m:oMath" && $0.float == nil } ?? true }),
-               _equationsAfterFirstLine(span, inline.map { $0.dimensions }, align: align, rtl: style.rightToLeft, width: textWidth + _px(tieSlack), indents: besideLineIndents) {
+               (_equationsAfterFirstLine(span, inline.map { $0.dimensions }, align: align, rtl: style.rightToLeft, width: textWidth + _px(tieSlack), indents: besideLineIndents)
+                // (Equations in the first line too, none of them taller than the strut's own line: Word's print of the same
+                // paragraph puts its first line 41.0 under the heading above, as without the equations (a and l_p in the first
+                // line, 45.2 with the strut dropped for their boxes).)
+                || _equationsWithinStrut(span, inline.map { $0.dimensions }, whole: inline.map { _px(($0.image?.naturalExtent?.ascent ?? 0) + ($0.image?.naturalExtent?.descent ?? 0)) }, near: spacedOver || thaiNear, wide: thaiNear, multiple: style.lineSpacing)) {
                 RuleTrace.hit("word-equations-after-the-first-line-keep-the-paragraphs-strut")
                 pil = false
             }

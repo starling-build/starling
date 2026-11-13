@@ -2941,4 +2941,10 @@ extension RichLayout {
         guard lines.count > 1, let first = lines.first, let boxes = probe.inlinePlaceholderBoxes, !boxes.isEmpty else { return false }
         return boxes.allSatisfy { $0.toRect().bottom <= first.height + 0.5 }
     }
+
+    /// Whether every box of the paragraph is an equation no taller than the line its strut holds once the multiple is taken off it (a taller one makes its line a multiple of its own height).
+    @inline(never) func _equationsWithinStrut(_ span: TextSpan, _ dims: [PlaceholderDimensions], whole: [Double], near: Bool, wide: Bool, multiple: Double) -> Bool {
+        guard !dims.isEmpty, let ref = _strut(span, near: near, wide: wide), let size = ref.fontSize, let h = ref.height else { return false }
+        return dims.enumerated().allSatisfy { max($1.size.height, $0 < whole.count ? whole[$0] : 0) * multiple <= size * h + 0.01 }
+    }
 }

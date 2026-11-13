@@ -36,6 +36,42 @@ enum WriterMath {
         var fits: [Box] = []
     }
 
+    /// An inline equation cut after each relation of its top level (Word breaks one there, and nowhere
+    /// else: jpn-z22855378-6fca0f's "重心座標 X=" ends a line, its fraction begins the next). The pieces
+    /// are drawn side by side as the whole was; every piece after the first carries `cont`, so a sign
+    /// that opens it keeps its gaps as after a relation.
+    static func splitAtRelations(_ node: XNode) -> [XNode] {
+        let relations: Set<Character> = ["=", "<", ">", "≤", "≥", "≈", "≠"]
+        var pieces: [[XNode]] = [[]]
+        for (i, c) in node.children.enumerated() {
+            guard c.name == "m:r", c.all("m:t").count == 1, let t = c.first("m:t") else { pieces[pieces.count - 1].append(c); continue }
+            var cur = ""
+            var parts: [String] = []
+            for ch in t.text { cur.append(ch); if relations.contains(ch) { parts.append(cur); cur = "" } }
+            if !cur.isEmpty { parts.append(cur) }
+            func part(_ text: String) -> XNode {
+                let r = XNode(name: c.name, attrs: c.attrs)
+                for k in c.children {
+                    if k === t { let n = XNode(name: k.name, attrs: k.attrs); n.text = text; r.children.append(n) } else { r.children.append(k) }
+                }
+                return r
+            }
+            for (k, text) in parts.enumerated() {
+                pieces[pieces.count - 1].append(parts.count == 1 ? c : part(text))
+                let endsRelation = text.last.map { relations.contains($0) } ?? false
+                let more = k < parts.count - 1 || node.children[(i + 1)...].contains { !$0.name.hasSuffix("Pr") }
+                if endsRelation, more { pieces.append([]) }
+            }
+        }
+        guard pieces.count > 1 else { return [node] }
+        return pieces.enumerated().map { k, kids in
+            let n = XNode(name: node.name, attrs: node.attrs)
+            if k > 0 { n.attrs["cont"] = "1" }
+            n.children = kids
+            return n
+        }
+    }
+
     private nonisolated(unsafe) static var entries: [String: Entry] = [:]
     private static let lock = RegistryLock()
 
@@ -302,10 +338,32 @@ enum WriterMath {
                     flush()
                     // (A relation or a binary operator stands a fifth of
                     // an em off what is beside it, in scripts less.)
-                    let gap = level == 0 ? own * 0.22 : own * 0.1
+                    var gap = level == 0 ? own * 0.22 : own * 0.1
+                    var glyph = text(String(ch == "-" ? "−" : ch), size: own, italic: false)
+                    if RichTextTheme.wordWindowsPages && inlineText {
+                        // Cambria Math (Word's print of jpn-z22855378-6fca0f): =, + and − advance
+                        // 0.75 em (the fallback face's 0.56), a relation stands 5/18 em and a binary
+                        // operator 4/18 em off its neighbours, and in a script none at all.
+                        let relation = "=<>≤≥≈≠→←⇒∈∉⊂⊃".contains(ch)
+                        gap = level == 0 ? own * (relation ? 5.0 / 18 : 4.0 / 18) : 0
+                        if "=+−-".contains(ch) {
+                            let w = own * 0.75, inner = glyph
+                            glyph = Box(width: w, ascent: inner.ascent, descent: inner.descent) { canvas, at in
+                                inner.draw(canvas, Offset(at.dx + (w - inner.width) / 2, at.dy))
+                            }
+                        }
+                    }
                     if !leads { parts.append(space(gap)) }
-                    parts.append(text(String(ch == "-" ? "−" : ch), size: own, italic: false))
-                    parts.append(space(gap))
+                    parts.append(glyph)
+                    // (A sign leading its row, Word's exp[−(Δx+d0)²/4σ²]: ink to ink 2.0 pt of 12 to the bracket; our bracket carries 1.0 pt of side space, so 1/12 em, after it.)
+                    parts.append(space(leads ? own / 12 : gap))
+                    continue
+                }
+                if ch == ",", level == 0, inlineText, RichTextTheme.wordWindowsPages {
+                    // (Word sets a thin space, 1/6 em, after a comma.)
+                    flush()
+                    parts.append(text(",", size: own, italic: false))
+                    parts.append(space(own / 6))
                     continue
                 }
                 let italic = !plain && ch.isLetter && ch.unicodeScalars.allSatisfy { $0.value < 0x2E80 }
@@ -380,7 +438,7 @@ enum WriterMath {
         /// What `node` holds, in a row: its children, as each one sets.
         func row(_ node: XNode?, size: Double, level: Int) -> Box {
             guard let node else { return .empty }
-            if let head = node.children.first(where: { !$0.name.hasSuffix("Pr") }), head.name == "m:r" { leadRuns.ids.insert(ObjectIdentifier(head)) }
+            if node.attrs["cont"] == nil, let head = node.children.first(where: { !$0.name.hasSuffix("Pr") }), head.name == "m:r" { leadRuns.ids.insert(ObjectIdentifier(head)) }
             return hbox(node.children.map { element($0, size: size, level: level) })
         }
 

@@ -7314,27 +7314,30 @@ enum DocxFormat {
                     }
                     // An equation: kept as the file wrote it, and drawn by
                     // `WriterMath` at the size it lays out to.
-                    if let frag = _keptFragment(child, notes) {
-                        var att = ImageAttachment(data: Data(), width: 1, height: 1, name: child.name)
-                        att.sourceXML = frag.xml
-                        att.sourceRels = frag.rels
-                        // (Its runs' size where they say none: the paragraph's —
-                        // its mark's, its style's, Normal's. zh-db07d44e's
-                        // cell equation is 12pt in Word's print, Normal's, and
-                        // breaks where 11 would hold a piece more.)
-                        var mathSize: Double = 11
-                        if let n = sheet["Normal"]?.char.fontSize { mathSize = n }
-                        if let named = style.named, let n = sheet[named]?.char.fontSize { mathSize = n }
-                        if let n = cellChar.fontSize { mathSize = n }
-                        if let n = markStyle?.fontSize { mathSize = n }
-                        var whole: (Double, Double)? = nil
-                        if let m = WriterMath.register(child, for: att.id, size: mathSize, natural: { whole = $0 }) {
-                            if child.name == "m:oMath", let w = whole { att.naturalExtent = (w.0, w.1) }
-                            att.width = m.width
-                            att.height = m.height
-                            att.baseline = m.baseline
+                    // (Word breaks an inline equation after a relation: its pieces are objects of their own.)
+                    for piece in (child.name == "m:oMath" && RichTextTheme.wordWindowsPages ? WriterMath.splitAtRelations(child) : [child]) {
+                        if let frag = _keptFragment(piece, notes) {
+                            var att = ImageAttachment(data: Data(), width: 1, height: 1, name: piece.name)
+                            att.sourceXML = frag.xml
+                            att.sourceRels = frag.rels
+                            // (Its runs' size where they say none: the paragraph's —
+                            // its mark's, its style's, Normal's. zh-db07d44e's
+                            // cell equation is 12pt in Word's print, Normal's, and
+                            // breaks where 11 would hold a piece more.)
+                            var mathSize: Double = 11
+                            if let n = sheet["Normal"]?.char.fontSize { mathSize = n }
+                            if let named = style.named, let n = sheet[named]?.char.fontSize { mathSize = n }
+                            if let n = cellChar.fontSize { mathSize = n }
+                            if let n = markStyle?.fontSize { mathSize = n }
+                            var whole: (Double, Double)? = nil
+                            if let m = WriterMath.register(piece, for: att.id, size: mathSize, natural: { whole = $0 }) {
+                                if piece.name == "m:oMath", let w = whole { att.naturalExtent = (w.0, w.1) }
+                                att.width = m.width
+                                att.height = m.height
+                                att.baseline = m.baseline
+                            }
+                            addInline(att)
                         }
-                        addInline(att)
                     }
                 case "w:commentRangeStart":
                     if notes.kept["word/comments.xml"] != nil, let id = child["w:id"] { notes.openComments.append(id); notes.seenComments.insert(id) }
