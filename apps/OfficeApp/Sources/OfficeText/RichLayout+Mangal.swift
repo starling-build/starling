@@ -738,6 +738,19 @@ enum MangalAdvances {
         if r != nil { RuleTrace.hit("word-nirmala-bengali-low-vowel-adds-no-advance") }
         return r
     }
+    /// Bengali: the two-part vowel signs o (U+09CB) and au (U+09CC) are drawn as the left part (the e sign, U+09C7) before the consonant and the right part
+    /// (aa, U+09BE; the length mark U+09D7 for au) after it, so an unlisted cluster is its stem's advance plus the two parts' (dx2 3f7da49c, Shonar Bangla:
+    /// "দো" 13.1 pt at 14.04, stem 6.0 + 4.6 + 2.5; the 5 listed o-clusters agree with stem + e + aa within 0.02 em).
+    @inline(never)
+    static func _bengaliSplitO(_ c: ArraySlice<Unicode.Scalar>, _ table: [String: Double], _ block: UInt32) -> Double? {
+        guard block == 0x980, c.count > 1, let last = c.last, last.value == 0x9CB || last.value == 0x9CC,
+              let e = table["\u{9C7}"], let right = table[last.value == 0x9CB ? "\u{9BE}" : "\u{9D7}"] else { return nil }
+        var key = String.UnicodeScalarView()
+        key.append(contentsOf: c.dropLast())
+        guard let stem = table[String(key)] ?? _bengaliReph(c.dropLast(), table, block) else { return nil }
+        RuleTrace.hit("word-bengali-split-o-vowel-is-stem-plus-e-plus-aa")
+        return stem + e + right
+    }
     static func split(_ word: Substring, bold: Bool = false, table: [String: Double]? = nil, conjunctRatio: Double? = 0.85, block: UInt32 = 0x900, lowVowelsZero: Bool = false) -> (ems: Double, known: String, rest: Bool)? {
         let advance = table ?? Self.advance
         let u = Array(word.unicodeScalars)
@@ -761,7 +774,7 @@ enum MangalAdvances {
             }
             var key = String.UnicodeScalarView()
             key.append(contentsOf: u[i ..< j])
-            if let w = advance[String(key)] ?? ascii[String(key)] ?? Self._bengaliReph(u[i ..< j], advance, block, mangal: table == nil) ?? Self._nasalOn(u[i ..< j], advance, block, mangal: table == nil) ?? (lowVowelsZero ? _bengaliLowVowel(u[i ..< j], advance, block) : nil) ?? conjunct(u[i ..< j], table: table, ratio: conjunctRatio) { sum += w; known.append(contentsOf: u[i ..< j]); any = true } else { rest = true }
+            if let w = advance[String(key)] ?? ascii[String(key)] ?? Self._bengaliReph(u[i ..< j], advance, block, mangal: table == nil) ?? Self._nasalOn(u[i ..< j], advance, block, mangal: table == nil) ?? (lowVowelsZero ? _bengaliLowVowel(u[i ..< j], advance, block) : nil) ?? _bengaliSplitO(u[i ..< j], advance, block) ?? conjunct(u[i ..< j], table: table, ratio: conjunctRatio) { sum += w; known.append(contentsOf: u[i ..< j]); any = true } else { rest = true }
             i = j
         }
         return any ? (sum, String(known), rest) : nil

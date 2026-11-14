@@ -1736,7 +1736,7 @@ extension RichLayout {
                             }
                         } else if authored > 0.5, piece.allSatisfy({ $0 == " " }), let spaced = _shonarSpaced(piece, base: base, authored: authored) {
                             spans.append(contentsOf: capped(piece, run, spaced))
-                        } else if authored > 0.5, piece.contains(" "), piece.unicodeScalars.allSatisfy({ $0 == " " || (shTable[String($0)] != nil && $0.value < 0x980) }) {
+                        } else if authored > 0.5, piece.firstIndex(of: " ") != nil, piece.unicodeScalars.allSatisfy({ $0 == " " || (shTable[String($0)] != nil && $0.value < 0x980) }) {
                             // (Latin words and the spaces between them, each in Shonar's own advances: the Latin of a run in Shonar Bangla, dx2 3f7da49c ": [Insert Project Name]".)
                             var ws = piece.startIndex
                             while ws < piece.endIndex {
