@@ -3735,6 +3735,15 @@ extension RichLayout {
             bodyHeight = (box.bottom - box.top).rounded()
         }
         }
+        // (An "at least" line height is a floor under a line holding only an inline picture too: Word's print of jpn-g5-b79900
+        // sets a 2 pt inline drawing group under 12 pt "at least" as a 12 pt line, 28.1 pt baseline to baseline across it; ours set it 2 pt.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, let img = p.image, img.float == nil,
+           style.lineHeightIsMinimum, let least = style.lineHeightPoints, least > 0, bodyHeight < _px(least) {
+            RuleTrace.hit("word-atleast-floor-under-inline-picture-line")
+            // (The picture stays on the line's foot: Word's print has the group's rule 9.2 pt lower than the top of the line.)
+            _inkShift[i] += _px(least) - bodyHeight
+            bodyHeight = _px(least)
+        }
         _blk9()
         // (A paragraph that ends in a line break ends with a line of its
         // mark alone, as tall as the mark's own line: zh-17749c13's
