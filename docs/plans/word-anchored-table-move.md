@@ -19,7 +19,15 @@ overflow pushes one extra page.
 - **No formula fits the prints we have.** They all reuse one complex 8-row
   table from f42177d2, so nothing separates "the table's rows decide C" from
   "the page and grid alone decide C". Lab **atmove** (12 docs, below) separates
-  them. Do not change the landing before it is read.
+  them.
+- **atmove read (2026-11-14; see "atmove results" and "IMPLEMENTATION ORDER").**
+  1. Word moves the table ONLY when it cannot fit whole below its place. Text
+     reaching into the place is not enough. A table that fits stays at `tblpY`,
+     and the text wraps beside it. We move those today: 4 of the 5 short
+     variants, wrongly.
+  2. Rows of exact height land at `tblpY`. Other rows land at C (51.84 at
+     pitch 18), with or without row 1 (52.32 without). The anchor paragraph
+     changes nothing. C still has no model. Leave the landing at `tblpY`.
 
 ## Measurements (Word for Windows, compat 15; landscape A4 595.3 high, bottom margin 14.2)
 
@@ -97,7 +105,82 @@ What to conclude:
   the anchor paragraph sets it.
 - m05 and m06 isolate row 1 and the grid growth.
 
-## Code to change, once C is known
+## atmove results (Word for Windows, compat 15, 2026-11-14)
+
+Prints: lab/atmove/word-win/ (windows' readings are in WINDOWS-NOTES.txt).
+Columns: table top / table bottom on the page it is on.
+
+| doc | Word | ours, tip 2963038e1 |
+|---|---|---|
+| m02-rows12 | **stays p1**, 60.02-205.49 | moved to p2 at 60.5 |
+| m03-rows1to5 | **stays p1**, 60.02-531.10 | moved to p2 |
+| m10-p24-rows12 | **stays p1**, 60.02-211.49 | moved to p2 |
+| m11-p12-rows12 | **stays p1**, 60.02-211.49 | stays p1 |
+| m12-nogrid-rows12 | **stays p1**, 60.02-205.01 | moved to p2 |
+| m01-ctrl | p2 at **51.84** (rows 1-5), p3 at 21.36 | p2 at 60.5 |
+| m04-rows1to6 | p2 at 51.84 | p2 at 60.5 |
+| m05-norow1 | p2 at **52.32** | **stays p1** (our rule needs text past row 1, which is 126.5 here) |
+| m06-exact | p2 at **60.02** (= `tblpY`), same rows on p2 | p2 at 60.5 |
+| m07-anchor20, m08-anchortext, m09-twoafter | p2 at 51.84 | p2 at 60.5 |
+
+What the prints settle:
+1. **The move condition is that the table does not fit whole below its place.**
+   m03 (ends at 531.1 from 60) stays, and m04 (would end near 639) moves. Each
+   has the same title reaching 33 pt past the place. Where a table that stays
+   meets the text, Word wraps the title's second line to the right of the
+   table at its own baseline: m02 line 2 sits at x 553.8, baseline 81.86, with
+   the table spanning x 36-546. Not decided: whether "fits" is measured to the
+   bottom margin (581.1) or the page edge (595.3). No variant ends between the two.
+2. **The landing.** Exact rows land at `tblpY` (m06). Rows with an at-least
+   height land at C whatever the table holds: rows 1-5 and rows 1-6 give the
+   same 51.84, and no row 1 gives 52.32. The anchor paragraph doesn't affect
+   it (m07-m09: its size, its text, a second paragraph).
+   C is therefore a property of the page and grid, applied only when the rows
+   can grow. It is not grid phase: top margins 21.3 and 30 give the same C.
+   It is not set by row heights or by `tblpY`. No formula over the 13
+   pitch/margin points above fits, so do NOT hard-code a value per pitch.
+
+## IMPLEMENTATION ORDER (for lenovo-5)
+
+All of it is in RichLayout+Paginate.swift, in the move test just above
+`RuleTrace.hit("page-anchored-table-whole-goes-to-the-next-page-where-the-text-before-it-reaches-its-place")`.
+Find it with `grep -n 'whole-goes-to-the-next-page' apps/OfficeApp/Sources/OfficeText/RichLayout+Paginate.swift`.
+
+1. **Move only a table that does not fit whole below its place.** `whole` (the
+   bottom of the table's last row, computed just above the test) is already
+   there. Add `target + (whole - c.rowTop) > contentH + 0.01` to the `if`. Keep
+   `target + c.ownRowHeight + line <= contentH + 0.01`.
+2. **Then try dropping the first-row conditions.** Replace `under > c.ownRowHeight + 0.01`
+   and `reach > c.ownRowHeight + 0.01` with `reach > 0.01`. Word moves m05,
+   whose text reaches only 33 pt past the place, under its 126.5 pt first row.
+   Re-check the four docs those conditions protect: zh-3ab8a2fb, lo-6a5857f2,
+   lo-0dd5bc0a and dx2 9baed400. If all four keep their place (they should,
+   when their tables fit whole below the place), keep the simpler test. If any
+   one moves, put the two conditions back, AND-ed with step 1, and note m05 as
+   a known miss.
+3. **Render lab/atmove** (12 docx in amd-opus's checkout,
+   /data/s/amd-opus/starling/lab/atmove), with the full pair env, each into a fresh
+   folder. Read the first horizontal rule of each page with
+   /data/s/amd-opus/fltrules.py.
+   - m02, m03, m10, m11 and m12: 1 page, table at 60.5 (ours prints rules 0.48
+     below Word's).
+   - m01 and m04-m09: table on p2 (m05 too, if step 2 stuck).
+4. **Look at m02's page 1.** Word sets the title's second line beside the
+   table, at x 553.8 and baseline 81.86. If ours puts it under the table,
+   leave that alone: it is a separate wrapping gap, so note it on the board.
+   Do not fix it in this change.
+5. **Leave the landing alone.** The `newPage()` branch keeps `target`
+   (`tblpY`). That is right for exact rows (m06). For at-least rows Word lands
+   at C, which has no model yet. f42177d2's page-9 table (64.9 against Word's
+   51.84) and its extra page stay open. Do not write a per-pitch table of C.
+6. **Movers.** Today's rule moves any table whose place the text reaches into.
+   The new test keeps every table that fits whole. List the docs where the
+   trace fires today (`OFFICE_RULE_TRACE=<file>`, on every set) and A/B those.
+   Each table that stops moving should come back to Word's page. Submit with
+   `DOCS=` set to those doc ids, plus f42177d2 (which must not change: its
+   table is 724 pt tall at pitch 18 and still moves).
+
+## Code to change, once C is known (later)
 
 One place: the `newPage()` branch right after the trace
 `page-anchored-table-whole-goes-to-the-next-page-where-the-text-before-it-reaches-its-place`
