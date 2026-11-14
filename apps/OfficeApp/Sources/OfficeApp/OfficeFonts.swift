@@ -3501,6 +3501,13 @@ static let sylfaenAdvances: [Double] = [
     static func standInFace(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
         guard let family else { return nil }
         if let alt = macTableAlternate(family) { return standInFace(alt, eastAsian: eastAsian) }
+        // (Word's Korean faces are one family under two names: a run naming 맑은 고딕 for its Latin text is Malgun Gothic, line and all.
+        // xd 658a33bb: ascii 맑은 고딕 gave the empty 20pt marks Carlito's 28 pt line where Word's print steps Malgun's 39.8.)
+        if wordOnWindows, !eastAsian, family.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 }),
+           family.trimmingWhitespace() == "맑은 고딕" {
+            RuleTrace.hit("hangul-named-malgun-latin-is-malgun-gothic")
+            return standInFace("Malgun Gothic", eastAsian: false)
+        }
         let own = isEastAsianFace(family)
         // (A face Windows lacks whose font table names Malgun Gothic as the alternate: Word draws its Latin letters, digits and
         // spaces in Malgun Gothic, a 0.35 em space where Liberation Sans' is 0.28. dx2 e86e26f7, Siyam Rupali: 71.7 to 78.3.)

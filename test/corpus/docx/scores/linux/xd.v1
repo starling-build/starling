@@ -1,5 +1,4 @@
-119 documents: mean 62.6% of Word's lines matched, median 76.1%; 32 at 95% or more, 75 at half or more; 94 with Word's page count
-    1.3%  lines 75/75  pages 4/3  658a33bb1e725fff4ec96b3cde57bb77c7f845c4e733410ff07ed1ff7548d641
+119 documents: mean 62.9% of Word's lines matched, median 76.1%; 32 at 95% or more, 75 at half or more; 94 with Word's page count
     2.9%  lines 209/199  pages 8/7  73caaeda0412eac713af2263a8d29bd498748f681642c3187bc3461be3288c26
     4.0%  lines 979/986  pages 38/37  e91c88252330082c0e875b2e9c523ba44bd5d8563a573c561718108cd2557b58
     4.0%  lines 572/813  pages 19/24  4d02d27f56475dd42de804c8b721cda6387d5fe82b94bdad1f3f46480af25c56
@@ -36,6 +35,7 @@
    29.2%  lines 260/269  pages 11/13  fcd0d58cc640be2d21560e55fb83c55f4646084a24b27d2dcf951afc4704d432
    36.2%  lines 287/287  pages 9/9  ce4069f154e322bf029d4c02b942cadbc332535ea8c85487fe96fdfe6baa8bf8
    37.9%  lines 261/268  pages 13/13  4fabe1f276d3965955ad74c15ef1849103f1443727c504999cdc76672c0b7cdf
+   41.3%  lines 75/74  pages 4/3  658a33bb1e725fff4ec96b3cde57bb77c7f845c4e733410ff07ed1ff7548d641
    41.9%  lines 62/64  pages 3/3  896ba13b04436a0773eb7b0f916010ea3fdc4913011c81075217ae7e2f8b7c3e
    42.1%  lines 871/880  pages 27/26  53eca83ab5f815de144fe2b03cedf7d8f97a14f3d5a76875f3aa1f19e608c17c
    43.0%  lines 676/709  pages 21/22  a1263627d715578ee2fadeac1da5ecf857156c976c6e51979171d2ee13eececf
