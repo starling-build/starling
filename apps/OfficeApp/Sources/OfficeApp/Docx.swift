@@ -5321,6 +5321,8 @@ enum DocxFormat {
         /// Every comment id whose range has been opened (a reference run
         /// for one of these ends a range; any other is a point comment).
         var seenComments = Set<String>()
+        /// Counts the comment references met: two deletions with one between them are two balloons in Word's print.
+        var commentReferences = 0
         /// Comments some text of the body carries: a range that covers an
         /// anchored picture alone carries none, and is anchored at its end.
         var carriedComments = Set<String>()
@@ -5988,7 +5990,8 @@ enum DocxFormat {
                let rev = rPr.first("w:del") ?? rPr.first("w:moveFrom") ?? rPr.first("w:ins") ?? rPr.first("w:moveTo") {
                 let to = rev.name == "w:ins" || rev.name == "w:moveTo"
                 style.markRevision = RevisionMark(kind: to ? .inserted : .deleted, author: rev["w:author"] ?? "", date: rev["w:date"] ?? "",
-                                                  moved: rev.name.hasPrefix("w:move"))
+                                                  moved: rev.name.hasPrefix("w:move"),
+                                                  segment: rev.name == "w:del" ? notes.commentReferences + p.descendants("w:commentReference").count : 0)
             }
             if let change = pPr.first("w:pPrChange") {
                 style.propertyChange = FormatChange(author: change["w:author"] ?? "", date: change["w:date"] ?? "",
@@ -7212,6 +7215,7 @@ enum DocxFormat {
                         pendingDropdown = nil
                     }
                 case "w:commentReference":
+                    notes.commentReferences += 1
                     // A comment with no range (comment.docx's LibreOffice
                     // comment) anchors at a point: a zero-width run carries
                     // it, so the balloon survives the save.
@@ -7422,7 +7426,8 @@ enum DocxFormat {
                     }
                     let mark = RevisionMark(kind: child.name == "w:ins" ? .inserted : .deleted,
                                             author: child["w:author"] ?? "", date: child["w:date"] ?? "",
-                                            nested: child.name == "w:del" && revision?.moved == true && revision?.kind == .inserted)
+                                            nested: child.name == "w:del" && revision?.moved == true && revision?.kind == .inserted,
+                                            segment: child.name == "w:del" ? notes.commentReferences : 0)
                     walkInline(child, link: link, revision: mark)
                 case "w:moveTo", "w:moveFrom":
                     // Moved text: at its new place an insertion, at its old

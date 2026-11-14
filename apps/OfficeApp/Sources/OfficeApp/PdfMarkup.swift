@@ -49,6 +49,7 @@ struct PdfMarkup {
         var formatsDeleted: [String: String] = [:]
         // A deletion still open: its text so far, and where it stands.
         var open: Note? = nil
+        var openSegment = 0
         func close() {
             if var note = open {
                 // (A deleted mark ends its line in the balloon; nothing after it.)
@@ -154,6 +155,12 @@ struct PdfMarkup {
                         if runsOn { RuleTrace.hit("deletion-after-deleted-marks-runs-on-in-its-balloon") }
                         // (A run of no length, left by a head whose text all went to its balloon, opens none.)
                         if !runsOn, run.length == 0, piece.isEmpty, open == nil { continue }
+                        let segment = run.style.revision?.segment ?? 0
+                        if !runsOn, open != nil, open!.anchor == anchor, open!.label == label, DocxFormat.wordOnWindows, openSegment != segment {
+                            RuleTrace.hit("deletions-parted-by-a-comment-reference-are-two-balloons")
+                            close()
+                        }
+                        openSegment = segment
                         if !runsOn, open == nil || open!.anchor != anchor || open!.label != label {
                             close()
                             open = Note(anchor: anchor, label: label, paragraphs: [""], author: run.style.revision?.author ?? "",
@@ -206,16 +213,20 @@ struct PdfMarkup {
                     }
                 }
                 else if open != nil, open!.label == "Deleted:", p.style.markRevision?.moved != true, DocxFormat.wordOnWindows, !p.runs.isEmpty, !open!.paragraphs.allSatisfy({ $0.isEmpty }),
-                        srcIndex + 1 < source.paragraphs.count, source.paragraphs[srcIndex + 1].style.markRevision?.kind != .deleted, p.style.list == nil, srcIndex == 0 || source.paragraphs[srcIndex - 1].style.list == nil,
-                        source.paragraphs[srcIndex + 1].runs.contains(where: { $0.length > 0 && $0.style.revision?.kind != .deleted }), p.style.sectionXML == nil {
-                    // (The last paragraph of a deleted run, whose mark runs into a kept paragraph
-                    // with text: the balloon ends at its text, and the mark is a "Deleted: ¶" of
-                    // its own below it. From the print alone, xb jpn ee9f8f's page 13. A list item's mark does not: delins's tika
-                    // items keep it in the one box, nor does the mark that follows a list item: gv-9febdcb8f3 page 16.)
+                        (p.style.markRevision?.segment ?? 0) != openSegment {
+                    // (A deleted paragraph's mark after a comment reference that follows its text is a balloon of its own,
+                    // "Deleted: ¶" below the text's: xb jpn ee9f8f's page 13 and 1e9281's page 10. With no comment
+                    // reference between them the mark is in the text's balloon: 1e9281's "・本報告…残る¶".)
                     RuleTrace.hit("deleted-run-end-mark-own-balloon")
                     let at = open!.anchor
+                    let parted = (p.style.markRevision?.segment ?? 0) != openSegment
                     close()
-                    deletions.append(Note(anchor: at, label: "Deleted:", paragraphs: ["¶"], author: p.style.markRevision?.author ?? ""))
+                    if parted {
+                        // (The deleted text that follows runs on in that balloon, unlabelled: 1e9281's "(3) …" heading.)
+                        open = Note(anchor: at, label: "Deleted:", paragraphs: ["¶", ""], author: p.style.markRevision?.author ?? "")
+                    } else {
+                        deletions.append(Note(anchor: at, label: "Deleted:", paragraphs: ["¶"], author: p.style.markRevision?.author ?? ""))
+                    }
                 }
                 else if open != nil {
                     open!.paragraphs[open!.paragraphs.count - 1] += "¶"; open!.paragraphs.append("")

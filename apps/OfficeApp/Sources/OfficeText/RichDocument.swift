@@ -68,8 +68,10 @@ public struct RevisionMark: Hashable, Sendable {
     /// place (the place still printed "Moved (insertion)"), or moved-away
     /// text that was itself an insertion (gone from a print, unremarked).
     public var nested = false
-    public init(kind: Kind, author: String = "", date: String = "", moved: Bool = false, nested: Bool = false) {
-        self.kind = kind; self.author = author; self.date = date; self.moved = moved; self.nested = nested
+    /// Which stretch of a paragraph a deletion is in, the stretches parted by comment references.
+    public var segment = 0
+    public init(kind: Kind, author: String = "", date: String = "", moved: Bool = false, nested: Bool = false, segment: Int = 0) {
+        self.kind = kind; self.author = author; self.date = date; self.moved = moved; self.nested = nested; self.segment = segment
     }
 }
 
