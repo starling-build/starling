@@ -2932,6 +2932,17 @@ extension RichLayout {
                 let k = max(0, ((foot - first.top) / step - 0.001).rounded(.up))
                 return max(0, first.top + k * step - before)
             }
+            // (A line of spaces at a multiple above one steps by the single line, not the multiple; labs hinhdr2 (empty lines) did not fit this, so spaces only: hin b05873's
+            // header, 18 spaces of Calibri 11 at 1.15 under a picture 72pt down, is set 6 steps of 13.43 from its
+            // top, 80.6, in Word's print, and in labs hinhdr2 A, D, E, F, the picture's foot moving 5pt up and down;
+            // ours set it at the foot.)
+            if RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil, style.lineSpacing > 1.001, style.besideFloat == false,
+               p.text.unicodeScalars.contains(where: { $0 == " " }), p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " }),
+               case let step = first.line / style.lineSpacing + before, step > 1 {
+                let k = max(0, ((foot - first.top) / step - 0.001).rounded(.up))
+                RuleTrace.hit("word-line-of-spaces-steps-clear-of-its-float-by-the-single-line")
+                return max(0, first.top + k * step - before)
+            }
             guard RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil, case let half = _firstLineGridHalf(i, document), half > 0.01,
                   case let step = first.line - half + before, step > 1 else { return foot }
             let k = max(0, ((foot - half - first.top) / step - 0.001).rounded(.up))
