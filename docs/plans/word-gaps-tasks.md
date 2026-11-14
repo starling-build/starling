@@ -16709,3 +16709,5 @@ lenovo-5 HANDOFF (2026-11-14, 3rd look at dx2 ja 934bd3e5, PARKED, nothing lande
 - Nothing landed. rubyKeep=1.0 in vertical made 934bd3e5 worse (298 to 251 of 336 lines matched); reverted. Vertical pages (p13 checked) already match Word within 1 pt, so ruby is NOT 934bd3e5's gap.
 - Real gap of 934bd3e5: first mismatch is page 1 (horizontal): Word has a line "左ざ" (x646, y-223) we lack, and every line below sits 1-2 pt higher in ours (36 pt pitch in Word).
 - Left: implement rubyAlign + group growth if a doc ever needs it (our ruby y is also ~0.85 pt above Word's in the lab). f42177d2 (xd, vertical cells) lab proposal unanswered.
+
+- amd-8 round 465 (PREV 96cb4e97d, tip 738f2b08b, 8 commits): NO drops. Means: 756 99.94, lo 99.93, xb 77.05->77.42, xa 76.81, xd 65.38->65.43, xs 89.28. Ups: zh-37b6536f 96.3->100, hin-z10093577 31.2->100, jpn-z23002680 +0.3. amd-8 also capped gate scoring (land.sh MATCH_JOBS 48). NEXT: round 466 PREV=738f2b08b.
