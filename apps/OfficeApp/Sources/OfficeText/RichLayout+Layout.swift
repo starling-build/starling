@@ -1244,6 +1244,16 @@ extension RichLayout {
                }), line.width < painter.width - 0.01 { return 0 }
             return (styles.indices.contains(start) ? styles[start]?.letterSpacing ?? 0 : 0) / 2
         }
+        // (A ruby's base stands level with the text raised beside it: only that text carries the line's baseline
+        // shift, and a run without one in such a line takes it across the column, not along it: dx2 ee0b468e.)
+        func sharedShift(_ k: Int) -> Double {
+            guard styles.indices.contains(k), (styles[k]?.baselineShift ?? 0) == 0 else { return 0 }
+            let line = painter.getLineBoundary(TextPosition(offset: k))
+            for j in line.start ..< min(line.end, styles.count) where j != k {
+                if let b = styles[j]?.baselineShift, b != 0, wide(text[j]) { return b }
+            }
+            return 0
+        }
         for (n, k) in shown.enumerated() {
             guard var box = ownBoxes[n],
                   let ch = Unicode.Scalar(text[k]) else { continue }
@@ -1274,7 +1284,9 @@ extension RichLayout {
             let form = plain ? ch : (Self._verticalForms[ch] ?? ch)
             // (Its own advance, without the run's letter spacing: that
             // follows it — below.)
-            let glyph = TextPainter(text: TextSpan(text: String(Character(form)), style: styles[k]?.copyWith(letterSpacing: 0)), textDirection: .ltr)
+            // (A baseline shift moves the line's box across the column, which `across` has; the glyph stood
+            // upright takes none of it along the column, so its own is dropped: dx2 ee0b468e's ruby paragraph.)
+            let glyph = TextPainter(text: TextSpan(text: String(Character(form)), style: styles[k]?.copyWith(letterSpacing: 0, baselineShift: 0)), textDirection: .ltr)
             glyph.layout()
             // (Its em square centred in its box — the square stands 0.88
             // em over the baseline and 0.12 under it — not its line, which
@@ -1303,7 +1315,7 @@ extension RichLayout {
             // (Meiryo and the other Japanese faces carry their own vertical marks in place: Word's print of
             // dx2 934bd3e5 sets "、" right after its character, where the YaHei drop stood it 5.7pt low.)
             let japanese = ["meiryo", "メイリオ", "ms mincho", "ms gothic", "ＭＳ", "yu mincho", "yu gothic", "游"].contains { family.lowercased().containsSubstring($0) }
-            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em, origin.dy + across(box) + (plain ? 0.085 * em : 0))
+            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em, origin.dy + across(box) + (plain ? 0.085 * em : 0) + sharedShift(k))
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
             canvas.restore()
