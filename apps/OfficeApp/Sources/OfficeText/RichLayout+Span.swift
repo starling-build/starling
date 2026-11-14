@@ -1646,7 +1646,9 @@ extension RichLayout {
                             // (Kokila's own cluster widths where the table has the word: `KokilaAdvances`.)
                             let kBold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
                             let kItalic = run.italic || ((named?.char.italic ?? false) && !run.off.contains(.italic))
-                            let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+                            let aSize: Double = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                            let aW: Double = wScale > 0.01 ? wScale : 1
+                            let authored: Double = aSize * theme.pixelsPerPoint * scale * aW
                             if authored > 0.5, let fitted = _clusterFitted(seg, base: base, authored: authored, table: KokilaAdvances.table(bold: kBold, italic: kItalic), flatScale: Self._indicScale["kokila"]?["D"] ?? 1) {
                                 spans.append(contentsOf: capped(seg, run, fitted.style))
                             } else {
@@ -1670,7 +1672,9 @@ extension RichLayout {
                     let mangalRegular = face == "mangal"
                     // (Mangal's table is em of the size Word WRITES, on its 0.12 pt grid (11 pt is 11.04): at 600 dpi it sets the face at a whole ppem, so a 11 pt line
                     // is 0.36% wider than exact. 9baed400's "…सम्पन्न भएको।" needs 7.6 pt of squeeze at 11.04, 6.75 at 11.0, and Word refused it.)
-                    let authored = Self._wordGridSize(run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize, snap: mangalRegular && theme.wordRules && RichTextTheme.wordWindowsPages) * theme.pixelsPerPoint * scale
+                    let mSize: Double = Self._wordGridSize(run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize, snap: mangalRegular && theme.wordRules && RichTextTheme.wordWindowsPages) 
+                    let mW: Double = wScale > 0.01 ? wScale : 1
+                    let authored: Double = mSize * theme.pixelsPerPoint * scale * mW
                     func putWord(_ a: Substring.Index, _ b: Substring.Index) {
                         guard a < b else { return }
                         let w = text[a ..< b]
@@ -1791,7 +1795,9 @@ extension RichLayout {
                    !text[start ..< end].unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) {
                     // (Nirmala UI's own Devanagari cluster widths, word by word: `NirmalaAdvances`.)
                     let nBold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
-                    let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+                    let aSize: Double = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                    let aW: Double = wScale > 0.01 ? wScale : 1
+                    let authored: Double = aSize * theme.pixelsPerPoint * scale * aW
                     let base = style(kind)
                     for (piece, isIndic) in Self._splitIndicLatin(text[start ..< end]) {
                                                 if isIndic, authored > 0.5 {
