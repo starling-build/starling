@@ -3713,6 +3713,7 @@ enum DocxFormat {
             OfficeFonts.noteAltNames(alts)
             OfficeFonts.noteFontEntries(entries)
             document.hasIndicText = Self._hasIndicBytes(docData)
+            document.devanagariFirstRunMangal = Self._firstDevanagariRunNamesMangal(docData)
             OfficeFonts.noteIndicText(document.hasIndicText)
         } else {
             OfficeFonts.noteEmbedded([])
@@ -8180,6 +8181,25 @@ enum DocxFormat {
     /// the name goes back out unchanged on save.
     /// Every family a part names in a `w:rFonts` (ascii and hAnsi).
     /// Whether the document part holds Devanagari to Malayalam text (UTF-8 lead bytes E0 A4 to E0 B5).
+    /// Whether the first run holding Devanagari names Mangal itself (ascii, hAnsi or cs): Word then draws every Devanagari run of the document in Mangal,
+    /// even runs whose complex face is one Windows lacks (Arial), which would otherwise fall to Nirmala UI (dx2 88e26672; labs dpitch5-9).
+    private static func _firstDevanagariRunNamesMangal(_ data: Data) -> Bool {
+        let bytes = [UInt8](data)
+        var i = 0
+        while i + 1 < bytes.count { if bytes[i] == 0xE0, bytes[i + 1] == 0xA4 || bytes[i + 1] == 0xA5 { break }; i += 1 }
+        guard i + 1 < bytes.count else { return false }
+        // The run's opening tag: the last "<w:r>" or "<w:r " before the first Devanagari byte; its properties run to the first "<w:t".
+        var start = i
+        while start > 0 {
+            start -= 1
+            if bytes[start] == 0x3C, start + 4 < bytes.count, bytes[start + 1] == 0x77, bytes[start + 2] == 0x3A, bytes[start + 3] == 0x72,
+               bytes[start + 4] == 0x3E || bytes[start + 4] == 0x20 { break }
+        }
+        var stop = start
+        while stop + 4 < i, !(bytes[stop] == 0x3C && bytes[stop + 1] == 0x77 && bytes[stop + 2] == 0x3A && bytes[stop + 3] == 0x74) { stop += 1 }
+        let props = String(decoding: bytes[start ..< stop], as: UTF8.self).lowercased()
+        return props.containsSubstring("\"mangal\"")
+    }
     private static func _hasIndicBytes(_ data: Data) -> Bool {
         let bytes = [UInt8](data)
         var i = 0

@@ -2477,6 +2477,8 @@ public struct RichDocument: Hashable, Sendable {
     public var fontAlternates: [String: String] = [:]
     /// Whether the file's body text holds Devanagari to Malayalam letters (read from the document part's bytes by the importer).
     public var hasIndicText = false
+    /// Whether the first run holding Devanagari names Mangal; Word then draws all Devanagari in Mangal (see the importer).
+    public var devanagariFirstRunMangal = false
     /// The font table's charset code for each face name (lower-cased): "80" is the Japanese one, which decides Word's fallback for Arial Unicode MS.
     public var fontCharsets: [String: String] = [:]
     /// The font table's Unicode signature (usb0) for each face name (lower-cased); it decides which Windows face draws Bengali for a face Word lacks.

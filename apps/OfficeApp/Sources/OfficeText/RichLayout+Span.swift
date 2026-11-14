@@ -1108,7 +1108,7 @@ extension RichLayout {
                 switch cs {
                 case "kalimati": face = "mangal"
                 case "mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "utsaah", "shonar bangla": break
-                default: face = top.key == "B" ? Self._bengaliMissingFace(cs, document) : "nirmala ui"
+                default: face = top.key == "B" ? Self._bengaliMissingFace(cs, document) : (document.devanagariFirstRunMangal ? "mangal" : "nirmala ui")
                 }
                 guard var scale = Self._indicScale[face]?[top.key] else { return nil }
                 if face == "nirmala ui", bold { scale *= 1.076 / 1.086 }
@@ -1561,13 +1561,27 @@ extension RichLayout {
                                 return
                             }
                         }
+                        // (A Latin word of a run that names its own Latin face is that face's, not stretched by the Indic scale, as in the Nirmala path above:
+                        // dx2 88e26672's "(Police Department)", Arial 10 pt, 30.5 pt in Word.)
+                        if mangalRegular, run.fontFamily != nil, !w.unicodeScalars.contains(where: { $0.value >= 0x0900 && $0.value < 0x0E00 || $0.value == 0xA0 }),
+                           w.contains(where: { $0.isLetter || $0.isNumber }) {
+                            latinNoScale = true
+                            let plain = style(kind)
+                            latinNoScale = false
+                            spans.append(contentsOf: capped(w, run, joinedScaled(w, plain)))
+                            return
+                        }
                         spans.append(contentsOf: capped(w, run, joinedScaled(w, base)))
                     }
                     while k < end {
                         if text[k] == " " || text[k] == "\u{00A0}" {
                             putWord(wordStart, k)
                             if spaceStyle == nil {
-                                spaceStyle = _indicSpaceStyle(base: base, spaceEm: spaceEm, unit: mangalRegular ? authored : px)
+                                // (A run whose own Latin face is Arial, drawn in Mangal only because the document's first Devanagari run names Mangal: Word's space
+                                // is still Arial's, 0.278 em (2.8 pt at 10 pt), not Mangal's half em: dx2 88e26672, the gap between words 2.9 pt.)
+                                let ownFace = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
+                                let sp = mangalRegular && document.devanagariFirstRunMangal && ownFace == "arial" && (run.fontFamily ?? "").trimmingWhitespace().lowercased() == "arial" ? 0.2778 : spaceEm
+                                spaceStyle = _indicSpaceStyle(base: base, spaceEm: sp, unit: mangalRegular ? authored : px)
                             }
                             spans.append(contentsOf: capped(text[k ..< text.index(after: k)], run, spaceStyle ?? base))
                             wordStart = text.index(after: k)
@@ -3241,7 +3255,9 @@ extension RichLayout {
                               let px = s.fontSize, px > 0.5 {
                         // (The same for the faces whose space is their own, Mangal, Vrinda, Utsaah: one path, `_indicSpaceStyle`.)
                         let authored = Self._wordGridSize(run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize, snap: face == "mangal" && theme.wordRules && RichTextTheme.wordWindowsPages) * theme.pixelsPerPoint * scale
-                        s = _indicSpaceStyle(base: s, spaceEm: spaceEm, unit: face == "mangal" ? authored : px)
+                        // (A space a justified line cut out of an Arial run drawn in Mangal only because the document's first Devanagari run names it keeps Arial's 0.278 em.)
+                        let arialSpace = face == "mangal" && document.devanagariFirstRunMangal && (run.fontFamily ?? "").trimmingWhitespace().lowercased() == "arial"
+                        s = _indicSpaceStyle(base: s, spaceEm: arialSpace ? 0.2778 : spaceEm, unit: face == "mangal" ? authored : px)
                     }
                     if theme.wordRules, ch == "\u{00A0}" {
                         // (A no-break space's width on a word joiner after
