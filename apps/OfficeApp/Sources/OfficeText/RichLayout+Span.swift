@@ -1760,6 +1760,20 @@ extension RichLayout {
                                 spans.append(contentsOf: capped(piece, run, _indicSpaceStyle(base: st, spaceEm: nBold ? 0.2759 : 0.2739, unit: authored)))
                                 continue
                             }
+                            // (Spaces between the Bengali words of a run in a face Windows lacks (SolaimanLipi, Nikosh): Word draws them in Mangal, half an em, not the
+                            // stand-in's quarter: xd 73caaeda, 6.0 pt at 12 pt, so Word's first line breaks 10 characters earlier than ours did.)
+                            if !isIndic, authored > 0.5, theme.wordRules, RichTextTheme.wordWindowsPages, !piece.isEmpty, piece.allSatisfy({ $0 == " " }),
+                               let em = Self._missingBengaliSpaceEm(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? ""),
+                               p.text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF && $0.properties.isAlphabetic }) {
+                                RuleTrace.hit("word-missing-bengali-face-space-between-words-is-mangal-half-em")
+                                // (And it lifts the line to Mangal's 1.241 + 0.438 em as a mark does: the line of letters and spaces alone steps 20.2 in Word, 16 in ours.)
+                                if devanagariStyles["mangal"] == nil, let m = Self._indicLines["mangal"] {
+                                    devanagariStyles["mangal"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: m.0, descent: m.1)
+                                }
+                                let spaceBase = devanagariStyles["mangal"].flatMap { $0 } ?? st
+                                spans.append(contentsOf: capped(piece, run, _indicSpaceStyle(base: spaceBase, spaceEm: em, unit: authored)))
+                                continue
+                            }
                             spans.append(contentsOf: capped(piece, run, leelawadeeLatin ? Self._arialUnicodeLatin(piece, base: joinedScaled(piece, st)) : joinedScaled(piece, st)))
                         }
                     }
@@ -2267,7 +2281,8 @@ extension RichLayout {
                 // (Tamil set in Noto Sans Tamil, a face Windows lacks: Word draws the letters in Nirmala UI but every digit, mark and Latin
                 // letter in Mangal, so a line holding one is Mangal's 1.680 em tall; a line of Tamil letters and spaces stays Nirmala's 1.33.
                 // xd c016493b: pitches 20.2 with a mark, 17.9 and 18.2 beside such a line, 16.0 without.)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, !Self._isIndic(u) || u == 0x964 || u == 0x965, !ch.isWhitespace,
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, !Self._isIndic(u) || u == 0x964 || u == 0x965,
+                   !ch.isWhitespace,
                    u != 0x200B, u != 0x200C, u != 0x200D, u != 0x2060, u != 0xFFFC,
                    !(before.map { !$0.isWhitespace && !($0.unicodeScalars.first.map { Self._isIndic($0.value) } ?? false) } ?? false),
                    Self._markInMangal(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "", text),
