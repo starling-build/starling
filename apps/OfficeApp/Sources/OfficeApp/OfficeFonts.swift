@@ -1609,6 +1609,46 @@ static let sylfaenAdvances: [Double] = [
         0.6318, 0.3442, 1.0156, 0.6899, 0.6357, 0.6577, 0.6484, 0.5200, 0.5127, 0.3975, 0.6768, 0.5669, 0.8633, 0.5879, 0.5620,
         0.5254, 0.5000, 0.3877, 0.5000, 0.7031,
     ]
+    // Candara's widths (U+0020-U+007E, ems) from the hmtx of the subsets Word's and PowerPoint's prints embed (the
+    // same widths as the Slides table); its line is hhea 1484/564/452 over 2048, which Word steps 1.2207 em, baseline
+    // at the win ascent (xd 07356df9: 18 pt bold italic steps 22.0, the Liberation Sans stand-in 20.7). Italic and
+    // bold italic: the glyphs the prints used, the rest the regular's by the median ratio of the known of their kind.
+    static let candaraAdvances: [Double] = [
+        0.2168, 0.2520, 0.4521, 0.5044, 0.4438, 0.5044, 0.6816, 0.2544, 0.3530, 0.3530, 0.5044, 0.5044, 0.2520, 0.2520, 0.2520,
+        0.2671, 0.5493, 0.3496, 0.4619, 0.4858, 0.5332, 0.4912, 0.5518, 0.4727, 0.5503, 0.5483, 0.2520, 0.2520, 0.5044, 0.5044,
+        0.5044, 0.3530, 1.0088, 0.6162, 0.5859, 0.5493, 0.6426, 0.5205, 0.4893, 0.6206, 0.6519, 0.2764, 0.4155, 0.5918, 0.4897,
+        0.8535, 0.6738, 0.6938, 0.5527, 0.6938, 0.6055, 0.5112, 0.5093, 0.6826, 0.5537, 0.8862, 0.5581, 0.5503, 0.5186, 0.3530,
+        0.2671, 0.3530, 0.5044, 0.5044, 0.2744, 0.4907, 0.5557, 0.4517, 0.5503, 0.5132, 0.3389, 0.5396, 0.5415, 0.2178, 0.2178,
+        0.4883, 0.2290, 0.8188, 0.5415, 0.5586, 0.5557, 0.5562, 0.3545, 0.4189, 0.3589, 0.5356, 0.4805, 0.7661, 0.5039, 0.4648,
+        0.4556, 0.3530, 0.2520, 0.3530, 0.5044,
+    ]
+    static let candaraBoldAdvances: [Double] = [
+        0.2168, 0.2520, 0.4570, 0.5044, 0.4438, 0.5044, 0.6816, 0.2520, 0.3530, 0.3530, 0.5044, 0.5044, 0.2520, 0.2520, 0.2520,
+        0.2671, 0.5342, 0.3345, 0.4795, 0.4707, 0.5366, 0.4731, 0.5288, 0.4648, 0.5361, 0.5278, 0.2520, 0.2520, 0.5044, 0.5044,
+        0.5044, 0.3530, 1.0088, 0.6299, 0.5977, 0.5522, 0.6450, 0.5273, 0.4907, 0.6216, 0.6533, 0.2788, 0.3994, 0.5894, 0.4854,
+        0.8638, 0.6646, 0.6968, 0.5557, 0.6968, 0.5957, 0.5229, 0.5259, 0.6577, 0.5737, 0.9165, 0.5874, 0.5518, 0.5146, 0.3530,
+        0.2671, 0.3530, 0.5044, 0.5044, 0.2744, 0.4912, 0.5547, 0.4453, 0.5503, 0.5122, 0.3618, 0.5508, 0.5498, 0.2490, 0.2490,
+        0.5103, 0.2578, 0.8320, 0.5498, 0.5586, 0.5596, 0.5547, 0.3853, 0.4194, 0.3628, 0.5405, 0.4893, 0.7876, 0.5151, 0.4893,
+        0.4346, 0.3530, 0.2520, 0.3530, 0.5044,
+    ]
+    static let candaraItalicAdvances: [Double] = [
+        0.2061, 0.2520, 0.4355, 0.5044, 0.4438, 0.5044, 0.6816, 0.2393, 0.3530, 0.3530, 0.5044, 0.5044, 0.2520, 0.2520, 0.2520,
+        0.2671, 0.5347, 0.3408, 0.4321, 0.4639, 0.4985, 0.4585, 0.5216, 0.4468, 0.5201, 0.5183, 0.2520, 0.2520, 0.5044, 0.5044,
+        0.5044, 0.3530, 1.0088, 0.5699, 0.5419, 0.4932, 0.5913, 0.4814, 0.4546, 0.5679, 0.6029, 0.2412, 0.3843, 0.5473, 0.4529,
+        0.7783, 0.6232, 0.6436, 0.5112, 0.6417, 0.5600, 0.4873, 0.5044, 0.6313, 0.5121, 0.8999, 0.5162, 0.5090, 0.4796, 0.3530,
+        0.2671, 0.3530, 0.5044, 0.5044, 0.2744, 0.4785, 0.5400, 0.4219, 0.5381, 0.4756, 0.3325, 0.5078, 0.5249, 0.2271, 0.2271,
+        0.4868, 0.2295, 0.8027, 0.5229, 0.5298, 0.5366, 0.5424, 0.3638, 0.3921, 0.3716, 0.5229, 0.4688, 0.7397, 0.4946, 0.4531,
+        0.4194, 0.3530, 0.2520, 0.3530, 0.5044,
+    ]
+    static let candaraBoldItalicAdvances: [Double] = [
+        0.2114, 0.2520, 0.4526, 0.5044, 0.4438, 0.5044, 0.6816, 0.2456, 0.3530, 0.3530, 0.5044, 0.5044, 0.2520, 0.2520, 0.2520,
+        0.2671, 0.5498, 0.3633, 0.4512, 0.4668, 0.5103, 0.4702, 0.5269, 0.4673, 0.5335, 0.5252, 0.2520, 0.2520, 0.5044, 0.5044,
+        0.5044, 0.3530, 1.0088, 0.5938, 0.5742, 0.5122, 0.6157, 0.5034, 0.4790, 0.5884, 0.6343, 0.2803, 0.3989, 0.5662, 0.4663,
+        0.8096, 0.6384, 0.6509, 0.5532, 0.6509, 0.5830, 0.5054, 0.5181, 0.6318, 0.5511, 0.9092, 0.5643, 0.5200, 0.4943, 0.3530,
+        0.2671, 0.3530, 0.5044, 0.5044, 0.2744, 0.5034, 0.5444, 0.4229, 0.5430, 0.4814, 0.3384, 0.5259, 0.5347, 0.2383, 0.2383,
+        0.4966, 0.2534, 0.8149, 0.5337, 0.5347, 0.5405, 0.5382, 0.3696, 0.3965, 0.3643, 0.5303, 0.4790, 0.7637, 0.5005, 0.4712,
+        0.4216, 0.3530, 0.2520, 0.3530, 0.5044,
+    ]
     static let corbelAdvances: [Double] = [
         0.2002, 0.2642, 0.3623, 0.6548, 0.5127, 0.8047, 0.6694, 0.1958, 0.2998, 0.2998, 0.5376, 0.5127, 0.2637, 0.3325, 0.2642,
         0.2749, 0.5137, 0.4482, 0.5107, 0.4531, 0.5166, 0.4800, 0.5244, 0.4277, 0.5146, 0.5244, 0.2642, 0.2666, 0.5127, 0.5127,
@@ -3367,6 +3407,7 @@ static let sylfaenAdvances: [Double] = [
                 case "comic sans ms": face.advances = comicSansAdvances; face.boldAdvances = comicSansBoldAdvances; face.naturalHeight = 1.3936; face.baseline = 1.1021
                 case "garamond": face.advances = garamondAdvances; face.boldAdvances = garamondBoldAdvances; face.italicAdvances = garamondItalicAdvances; face.naturalHeight = 1.1250; face.baseline = 0.8618
                 case "georgia": face.advances = georgiaAdvances; face.boldAdvances = georgiaBoldAdvances; face.italicAdvances = georgiaItalicAdvances; face.boldItalicAdvances = georgiaBoldItalicAdvances; face.otherAdvances = georgiaOtherAdvances; face.boldOtherAdvances = georgiaBoldOtherAdvances; face.naturalHeight = 1.1362; face.baseline = 0.9170
+                case "candara": face.advances = candaraAdvances; face.boldAdvances = candaraBoldAdvances; face.italicAdvances = candaraItalicAdvances; face.boldItalicAdvances = candaraBoldItalicAdvances; face.naturalHeight = 1.2207; face.baseline = 0.9521
                 case "corbel": face.advances = corbelAdvances; face.boldAdvances = corbelBoldAdvances; face.italicAdvances = corbelItalicAdvances; face.boldItalicAdvances = corbelBoldItalicAdvances; face.naturalHeight = 1.2207; face.baseline = 0.9521
                 case "consolas": face.advances = consolasAdvances; face.boldAdvances = consolasBoldAdvances; face.italicAdvances = consolasItalicAdvances; face.boldItalicAdvances = consolasBoldItalicAdvances; face.naturalHeight = 1.1709; face.baseline = 0.9199
                 case "century gothic": face.advances = centuryGothicAdvances; face.boldAdvances = centuryGothicBoldAdvances; face.italicAdvances = centuryGothicItalicAdvances; face.boldItalicAdvances = centuryGothicBoldItalicAdvances; face.naturalHeight = 1.2261; face.baseline = 1.0059
