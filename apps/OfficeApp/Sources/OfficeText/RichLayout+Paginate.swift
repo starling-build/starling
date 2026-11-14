@@ -61,6 +61,7 @@ extension RichLayout {
         // (A table placed against the page that was set up to the page's edge: its table and the edge, in pixels.)
         var pageEdgeClamp: (table: String, edge: Double)? = nil
         var tableBands: [(top: Double, bottom: Double, owner: Int)] = []
+        var narrowBands: [(top: Double, bottom: Double, owner: Int, left: Double, right: Double)] = []
         // A page whose columns were balanced at a continuous section break:
         // its physical page and where the next section's columns start.
         var columnFloor: (physical: Int, y: Double)? = nil
@@ -256,6 +257,7 @@ extension RichLayout {
         func newPage() {
             bands.removeAll()
             tableBands.removeAll()
+            narrowBands.removeAll()
             anchorRun.removeAll()
             markOnPage = false
             overfull = false
@@ -3597,6 +3599,20 @@ extension RichLayout {
             if theme.wordRules, resumeCursor == nil, _cells[i] == nil, deferredUnder.isEmpty {
                 let images = (i < _floatImages.count ? _floatImages[i].map { [$0] } ?? [] : []) + (i < _inline.count ? _inline[i] : [])
                 for image in images {
+                    // (A picture centred in its column, wrapped on both sides, with room at each side for less than
+                    // three ems: the text of a later paragraph whose first unit does not fit at either side stands
+                    // under it. Word's lab capwrap: a caption opening with a bracket sets nothing beside the picture
+                    // at any gap, one opening with an ideograph sets one ideograph a row on each side only while it
+                    // fits, and a line starts at the left piece: where its first unit does not fit there it goes under, as in 817e3a79's caption (room 32.2 each side, first line indented 32); the first line clear of the picture is the next row of the page's own pitch.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, let f = image.float, f.wraps, !f.takesRoom, f.wrapSide == nil,
+                       f.verticalFrom == "paragraph", f.verticalAlign == nil, f.horizontalAlign == "center", f.horizontalFrom == "column",
+                       _cells[i] == nil, image.width > 0, image.height > 0 {
+                        let inner = _flowWidth(i), w = _px(image.width), x = (inner - w) / 2
+                        let l = x - _px(f.distanceLeft ?? 9), r = inner - (x + w) - _px(f.distanceRight ?? 9)
+                        let top = y + _px(f.y) - _px(f.distanceTop), bottom = y + _px(f.y) + _px(image.height + f.effectBottom + f.distanceBottom)
+                        narrowBands.removeAll(where: { $0.owner >= i })
+                        if bottom > top, bottom > 0.01 { narrowBands.append((top, bottom, i, l, r)) }
+                    }
                     guard let f = image.float, f.bandsPage else { continue }
                     let physical = page / _columns
                     let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
@@ -4021,6 +4037,22 @@ extension RichLayout {
                 // off it, not only the line's top: zh-10eab555's contents
                 // line 17, which would reach into the issuing table, goes
                 // under it — and so to page 3 — in Word's print.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !narrowBands.isEmpty, _cells[i] == nil, !document.paragraphs[i].text.isEmpty {
+                    let q = document.paragraphs[i]
+                    let size = _px(q.runs.first?.style.fontSize ?? theme.fontSize)
+                    let opens = q.text.first.map { "（(【《「『〈［｛".contains($0) } ?? false
+                    let unit = size * (opens ? 2 : 1)
+                    let first = q.style.indentLeft + max(0, firstLineIndent(q, document))
+                    let lineBottoms = Self._lineBottoms(geometry(i).painter)
+                    let step = (lineBottoms.first ?? _heights[i]) + (geometry(i).textTop - geometry(i).top)
+                    var guardNarrow = 0
+                    while step > 0.5, guardNarrow < 40,
+                          let band = narrowBands.first(where: { $0.owner < i && $0.top < y + step - 0.01 && $0.bottom > y + 0.01 && $0.left - _px(first) < unit }) {
+                        RuleTrace.hit("word-line-with-no-room-beside-a-centred-picture-stands-under-it")
+                        y += max(1, ((band.bottom - y) / step - 0.001).rounded(.up)) * step
+                        guardNarrow += 1
+                    }
+                }
                 var pushedByTableBand = false
                 if !tableBands.isEmpty {
                     // The lower half of grid leading is outside the text's
