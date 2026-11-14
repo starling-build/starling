@@ -3529,7 +3529,21 @@ extension RichLayout {
             // reaches the line through a zero-width space in it, one
             // more character before the text.)
             if symbolLevel {
-                children.append(TextSpan(text: "\u{200B}", style: style))
+                var markStyle = style
+                // (A Shonar Bangla paragraph's bullet stacks as Latin text does there, the Latin face's ascent over Shonar's split below the baseline,
+                // not the face's whole line at the multiple: bfc234's Symbol bullets stand 30pt apart in Word's print, ours 35.9.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil,
+                   p.runs.contains(where: { Self._bengaliMissingFace(($0.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased(), document) == "shonar bangla" }),
+                   p.text.unicodeScalars.contains(where: { Self._indic.contains($0.value) }),
+                   let m = Self._indicLines["shonar bangla"], let size = style.fontSize, size > 0.5,
+                   let pt = leadChar.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize, pt > 0.5,
+                   let base = theme.baseline(for: leadChar, in: { var single = p.style; single.lineSpacing = 1; return single }(), named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) {
+                    let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+                    let split = Self._multipleSplit(ascent: m.0, descent: m.1, multiple: multiple)
+                    let above = max(split.0 * size, base / pt * size)
+                    markStyle = style.copyWith(ascentOverride: above, descentOverride: split.1 * size, height: (above + split.1 * size) / size, leadingDistribution: .even)
+                }
+                children.append(TextSpan(text: "\u{200B}", style: markStyle))
                 inserts.append(0)
             } else if let rise {
                 // (The number's height above the line, as a box on the
