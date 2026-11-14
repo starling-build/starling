@@ -1166,6 +1166,10 @@ enum OfficeFonts {
     private static func koreanSuffix(_ n: String) -> Bool {
         n.hasSuffix(" kr") || n.hasSuffix(" kr bold") || n.hasSuffix(" korean")
     }
+    private static let wordKnownEastAsianKeys: [String] = ["simsun", "宋体", "新宋体", "nsimsun", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "microsoft yahei", "微软雅黑",
+                   "mingliu", "細明體", "新細明體", "microsoft jhenghei", "微軟正黑", "dengxian", "等线", "dfkai", "標楷",
+                   "mincho", "明朝", "gothic", "ゴシック", "meiryo", "malgun", "batang", "gulim", "dotum", "맑은 고딕", "_gb2312", "华文", "stsong", "stkaiti",
+                   "stfangsong", "stzhongsong", "stxihei", "stxinwei"]
     private static func windowsMissingFallback(_ family: String) -> String? {
         let n = family.trimmingWhitespace().lowercased()
         guard !n.isEmpty else { return nil }
@@ -1176,10 +1180,7 @@ enum OfficeFonts {
         // (맑은 고딕 is Word for Windows' face too: a document that names
         // 맑은 고딕 was set in MS Mincho's widths, its spaces 0.22 em where Word's Malgun
         // Gothic sets 0.35 — kor-z19176375-30dbe1, kor-z21348848-7369b1.)
-        let has = ["simsun", "宋体", "新宋体", "nsimsun", "simhei", "黑体", "kaiti", "楷体", "fangsong", "仿宋", "microsoft yahei", "微软雅黑",
-                   "mingliu", "細明體", "新細明體", "microsoft jhenghei", "微軟正黑", "dengxian", "等线", "dfkai", "標楷",
-                   "mincho", "明朝", "gothic", "ゴシック", "meiryo", "malgun", "batang", "gulim", "dotum", "맑은 고딕", "_gb2312", "华文", "stsong", "stkaiti",
-                   "stfangsong", "stzhongsong", "stxihei", "stxinwei"]
+        let has = wordKnownEastAsianKeys
         // (A name that lists faces, as LibreOffice writes them — "新細明體,
         // PMingLiU" — is no face Word for Windows has, whatever it lists:
         // it goes by its own entry, zh-8e8d4c40's alternate Times New Roman
@@ -2907,9 +2908,7 @@ static let sylfaenAdvances: [Double] = [
         }
         // (AR P Maru Gothic E, not on Word's machine, prints as Yu Gothic: f42177d2. BIZ UDPゴシック, also missing there,
         // prints as Yu Gothic too: lab opn3 D against B, identical prints.)
-        // (HG Soei Pop-tai, HG創英角ﾎﾟｯﾌﾟ体, is not on Word's machine either: lab hgpop prints it exactly as a made-up
-        // missing face, Yu Gothic's line even on an empty paragraph, 40.1 pt at 24 pt where MS Gothic's is 31.1.)
-        if wordOnWindows, has("yu gothic", "游ゴシック", "yu mincho", "游明朝", "ar p丸ゴシック", "ar丸ゴシック", "biz udpゴシック", "創英角ﾎﾟｯﾌﾟ", "創英角ポップ", "soeikakupop") {
+        if wordOnWindows, has("yu gothic", "游ゴシック", "yu mincho", "游明朝", "ar p丸ゴシック", "ar丸ゴシック", "biz udpゴシック") {
             return EastAsianFace(height: 1.2871 * 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 1.2871 * 0.15 + 0.98486)
         }
         if wordOnWindows, has("malgun", "맑은 고딕") {
@@ -3181,6 +3180,14 @@ static let sylfaenAdvances: [Double] = [
                !["_gb2312", "方正", "小标宋", "標楷"].contains(where: { faceHas(a, $0) }) {
                 return eastAsianFace(alt, ignoringEmbedding: ignoringEmbedding)
             }
+        }
+        // (A Japanese face (charset 80) that Word's machine lacks, one no rule above holds metrics or a stand-in for, prints as Yu Gothic:
+        // lab hgpop's HG創英角ﾎﾟｯﾌﾟ体 and a made-up name alike, Yu Gothic's line even on an empty paragraph, 40.1 pt at 24 pt where
+        // MS Gothic's is 31.1; the same as AR P Maru Gothic E (f42177d2) and BIZ UDPゴシック (lab opn3) above.)
+        if wordOnWindows, !isEmbedded(family), !wordKnownEastAsianKeys.contains(where: { faceHas(n, $0) }),
+           fontEntry(family)?.charset.uppercased() == "80" {
+            RuleTrace.hit("missing-japanese-face-yu-gothic")
+            return EastAsianFace(height: 1.2871 * 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 1.2871 * 0.15 + 0.98486)
         }
         if wordOnWindows, windowsLacks, ignoringEmbedding || !isEmbedded(family) {
             var standIn = yaHei
