@@ -1300,7 +1300,9 @@ extension RichLayout {
                     ? "shonar bangla" : nil)
                 if kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, !kokilaLatin || (run.keptXML?.containsSubstring("<w:cs") ?? false), p.style.lineHeightPoints == nil,
                    let latinOwner, let m = Self._indicLines[latinOwner], let size = s.fontSize, size > 0.5,
-                   !text.unicodeScalars.contains(where: { Self._isIndic($0.value) }), p.text.unicodeScalars.contains(where: { Self._indic.contains($0.value) }) {
+                   !text.unicodeScalars.contains(where: { Self._isIndic($0.value) }),
+                   p.text.unicodeScalars.contains(where: { Self._indic.contains($0.value) }) || (latinOwner == "shonar bangla" && text.unicodeScalars.contains(where: { $0.value == 0xA0 }) && Self._bengaliMissingFace((p.style.mark?.fontFamily ?? "").trimmingWhitespace().lowercased(), document) == "shonar bangla") {
+                    // (A real no-break space counts in its own Latin face even in a paragraph with no Bengali letter, where the paragraph's mark is in the missing Bengali face (a line the Shonar one sets): lab cambsp3, Cambria or Calibri 35.2 to 37.2; Cambria-marked lines stay at Cambria's.)
                     // (Latin letters stack only when drawn in a face other than the line's Indic face: a run whose ascii face IS its complex face, such as Shonar Bangla on both, takes that face's own line and adds no Latin ascent; dx2 3f7da49c.)
                     let ownAscii: String = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
                     let ownComplex: String = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
@@ -1312,7 +1314,7 @@ extension RichLayout {
                     // (A run with the w:cs flag is drawn wholly from its complex-script face: Kokila's "(" in dx2 cbb7ae39's first lines, Times New Roman's where cs is the major bidi face.)
                     let csFlag = (run.keptXML?.containsSubstring("<w:cs") ?? false)
                     let csFace = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
-                    if !ownFace, text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 && (latinOwner != "shonar bangla" || !ownIndic || $0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39)) }), !(csFlag && csFace == "kokila"),
+                    if !ownFace, text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 && (latinOwner != "shonar bangla" || !ownIndic || $0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39) || $0.value == 0xA0) }), !(csFlag && csFace == "kokila"),
                        let b = theme.baseline(for: run, in: { var single = p.style; single.lineSpacing = 1; return single }(), named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline),
                        let pt = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize, pt > 0.5 {
                         above = max(above, b / pt * size)
