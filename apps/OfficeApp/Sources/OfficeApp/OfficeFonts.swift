@@ -4175,6 +4175,14 @@ static let sylfaenAdvances: [Double] = [
             if clone == cambria, !["cambria", "caladea", "carlito"].contains(family.trimmingWhitespace().lowercased()),
                !(wordOnWindows && family.trimmingWhitespace().lowercased() == "liberation serif") {
                 face.naturalHeight = 0.95 + 0.2163
+                // (A face whose font-table alternate is "Courier", which Word does not follow on Windows, is drawn as the
+                // real Cambria, with Cambria's own line, 2401 of 2048: xa gv-690391482c's Sabon at 1.15 steps 14.82 in
+                // Word's print, 14.75 with the line above, and a page of them ran 2 to 4pt short, so a paragraph and its
+                // footnote fitted on page 8 that Word split.)
+                if wordOnWindows, fontEntry(family)?.alt?.trimmingWhitespace().lowercased() == "courier" {
+                    face.naturalHeight = 2401.0 / 2048
+                    RuleTrace.hit("courier-alternate-face-is-cambria-with-its-own-line")
+                }
             }
             // (Only faces that really are Cambria here: any other face drawn as the
             // Cambria clone would gain otherAdvances and switch off the
