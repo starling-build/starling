@@ -5665,10 +5665,17 @@ enum DocxFormat {
         case "bn": "Beng"
         default: nil
         }
+        let themeLang = entries.first(where: { $0.name == "word/settings.xml" }).flatMap { XNode.parse($0.data) }?.first("w:themeFontLang")
+        let themeLangPresent = themeLang != nil
+        let themeLangHasBidi = !(themeLang?["w:bidi"] ?? "").isEmpty
         func complex(_ name: String) -> String? {
             guard let font = scheme.first(name) else { return nil }
             if let f = font.first("a:cs")?["typeface"], !f.isEmpty { return f }
             if let bidiScript, let f = font.all("a:font").first(where: { $0["script"] == bidiScript })?["typeface"], !f.isEmpty { return f }
+            // (A theme whose complex-script face is empty, in a file whose w:themeFontLang names no w:bidi language,
+            // prints Hebrew and Arabic in Times New Roman, not the theme's Arabic Arial: xb heb-944544, heb-bae91d and
+            // ara-a6e54c, all with themeFontLang val/eastAsia only; the same theme with bidi ar-SA or he-IL prints Arial.)
+            if themeLangPresent && !themeLangHasBidi { return "Times New Roman" }
             let f = font.all("a:font").first { $0["script"] == "Arab" }?["typeface"] ?? ""
             return f.isEmpty ? nil : f
         }
@@ -6929,12 +6936,12 @@ enum DocxFormat {
             for id in cs.comments { notes.carriedComments.insert(id) }
             var cs = cs
             if s == "\u{B7}" { cs.loneDot = true }
-            // (Word picks the face by character: Arabic letters in a run with no w:rtl still take the complex-script face,
+            // (Word picks the face by character: Arabic and Hebrew letters in a run with no w:rtl still take the complex-script face,
             // as xb ara-z23060052's print sets them (the face is resolved elsewhere). Each Arabic stretch becomes its own
             // right-to-left run; the rest keeps the Latin face.)
-            if DocxFormat.wordOnWindows, !cs.rightToLeft, s.unicodeScalars.contains(where: { (0x0600 ... 0x06FF).contains($0.value) }) {
+            if DocxFormat.wordOnWindows, !cs.rightToLeft, s.unicodeScalars.contains(where: { (0x0600 ... 0x06FF).contains($0.value) || (0x0590 ... 0x05FF).contains($0.value) }) {
                 var piece = "", pieceArabic = false
-                func isAr(_ u: Unicode.Scalar) -> Bool { (0x0600 ... 0x06FF).contains(u.value) && !(0x0660 ... 0x0669).contains(u.value) && u.value != 0x060C && u.value != 0x061B && u.value != 0x061F || u.value == 0x200C }
+                func isAr(_ u: Unicode.Scalar) -> Bool { (0x0600 ... 0x06FF).contains(u.value) && !(0x0660 ... 0x0669).contains(u.value) && u.value != 0x060C && u.value != 0x061B && u.value != 0x061F || u.value == 0x200C || (0x0590 ... 0x05FF).contains(u.value) }
                 func flush() {
                     guard !piece.isEmpty else { return }
                     var c = cs
