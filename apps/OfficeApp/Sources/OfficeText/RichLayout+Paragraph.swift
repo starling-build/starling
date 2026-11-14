@@ -3882,13 +3882,22 @@ extension RichLayout {
             // (A mark in Mangal (or Nikosh, which Windows lacks) is Mangal's tall line, 1.68 em, as an empty paragraph's is, not the Latin line the
             // probe holds: hin-z10093577's abstract ends in an Arial break over a bold Mangal mark, and Word's print has the keyword line 33 pt under
             // the last text line, a 16.8 pt empty line and the 16.8 pt line, where ours cut the empty one to 11.5 and stood 5 pt high.)
+            var raisedToMangal = false
             if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, let mark = style.mark,
                case let face = (mark.fontFamily ?? _named(p, document)?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased(),
-               face == "mangal" || face == "nikosh", let m = Self._indicLines["mangal"],
+               face == "mangal" || face == "nikosh"
+                   // (SolaimanLipi, missing on Windows, in a Bengali paragraph: the empty line after a trailing break is Mangal's 1.68 em where the paragraph holds an ASCII
+                   // mark (its lines are lifted to Mangal's), else 1.49 em, as the Nirmala UI line before it: xd 73caaeda's headings, Word's print 20.2 pt after "...?", 17.9 pt after the
+                   // two without a mark.)
+                   || (face == "solaimanlipi" && p.text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF && $0.properties.isAlphabetic })),
+               let m = Self._indicLines["mangal"],
                let pt = mark.fontSize ?? _named(p, document)?.char.fontSize ?? _normalChar(document)?.fontSize {
-                own = max(own, _px((m.0 + m.1) * pt))
+                let asciiMark = p.text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x7F })
+                own = max(own, _px(face == "solaimanlipi" && !asciiMark ? 1.492 * pt : (m.0 + m.1) * pt))
+                raisedToMangal = face == "solaimanlipi"
             }
             if last.height - own > 0.5 { bodyHeight -= last.height - own }
+            else if raisedToMangal, own - last.height > 0.5 { bodyHeight += own - last.height }
         }
         _leadingBreakCut(i, p, painter, document, bodyHeight: &bodyHeight)
         // (Its own fraction too where its lines keep theirs: Word adds
