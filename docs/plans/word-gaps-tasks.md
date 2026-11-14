@@ -16630,3 +16630,8 @@ HANDOFF amd-2 (2026-11-14) Korean lowest docs: c466d30a wordWrap-0 Hangul stop r
 - Next for me: 30775350, 8676db65, 236cd3ae.
 - HANDOFF amd-1 2026-11-14: hin-z10093577 keyword line fixed (xb matched 35 to 45, queue amd-1-81, no lab needed). hin-z18479909 list numbers on text baseline (matched 216 to 218, queue amd-1-85); remaining gap there on page 4 (text lines, not labels). Kokila refit queue -78 approved earlier.
 - HANDOFF amd-1 2026-11-14: hin-z10093577 keyword line fixed (xb matched 35 to 45, queue amd-1-81, no lab needed). hin-z18479909 list numbers on text baseline (matched 216 to 218, queue amd-1-85); remaining gap there is page 4 text lines, not labels.
+
+## lenovo-3 HANDOFF (2026-11-14): break change A/B and hin-z21320572
+- Entry -77 (c8e1bb3aa, break before : ; , ) ] } ! ? and after ¡ ¿): same-tree A/B, dx2 8 docs moved (7 up, mean +0.056), xb hin docs up large (hin-z20395192 37.4 to 86.8, hin-z20459061 59.9 to 98.2). APPROVED drops (starling-bd): fr 5e72f769e212e92e4daeb7ba9c9258e1867d7ec99aba46ffcc8a93ed622a9037 (91.8 to 89.8, same lines, one block 1.9 pt lower, closer to Word), fas-z21853138-0c740e (-0.7), urd-z8387389-553f88 (-0.3).
+- hin-z21320572 (entry -86): not the header. w:hint eastAsia on "ç" over Normal's Times New Roman EA face made us draw it in Times, line ~1 pt taller per paragraph start. Word keeps the run's own face. Fix: Span.swift eaFaceIsLatin. xb hin-z21320572 58.0 to 100.0, fas-z22958620 31.9 to 47.4, heb-z5059159 39.2 to 43.3; xb no drops; dx2 up 2 down 0; unit tests 655/0.
+- Trap: measure by baseline (origin y), not bbox top; bbox tops differ by font and faked a 2.5 pt header offset.
