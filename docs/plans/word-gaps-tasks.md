@@ -16872,3 +16872,8 @@ amd-6 HANDOFF (2026-11-14, parked on starling-bd's cost order; NOTHING landed, n
 - Separate gap to log (from the queue brief): a multiple-spaced line near the footnote separator, where Word accepts a hang of 0.6-1.3 pt and refuses 3.8 pt.
 - amd-11 (2026-11-14) entry 160 LANDED c6e65a826 (misplaced rPr rule, dx2 +101 across 18 docs; 5 approved drops are the list-beside-tight-float gap, logged). Entry 167 (inline object own-baseline fix, 6b79459b 77.3 to 87.8; 1d944f7b 81.6 to 80.5 from an old 9 pt page-7 gap) is queued. Open gaps: list beside a wrapTight float starts at float right edge + indent, Wingdings arrow glyph, ~4.5 pt extra gap (kla.tv docs a4bf2c03, c88ca385); first-line +0.6 shift of rule 167.
 - amd-11 CLAIM (2026-11-14, after clear): kla.tv list beside wrapTight logo: a4bf2c03, c88ca385, 72f1cde8, 6a9f3080, 73357ebf (Word list x=175.5, Wingdings arrow, first line ~4.5pt lower).
+
+### lenovo-2 HANDOFF 2026-11-14 (dx2 8676db65)
+- 8676db65 84.1 to 100 (69/69 lines, 6/6 pages). A text-anchored floating table after a page-break-only paragraph lost its offset; now the offset is re-applied after the new page starts, so the anchor paragraph stands at the page top above the table. Queued as queue/lenovo-2-168 (DOCS=8676db65,a34fe400), still pending at this note. Rule trace: word-text-floating-table-after-page-break-keeps-its-offset.
+- Trace over all 1807 dx2 docs: only 8676db65 and a34fe400 fire it; a34fe400 unchanged at 67.8. Unit tests 655/0. Rule in ~/word-rules.md.
+- Next (mine): 236cd3ae (Word lets the comma start a line, no kinsoku, no eastAsia lang), then 30775350.
