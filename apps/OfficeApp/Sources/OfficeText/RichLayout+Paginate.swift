@@ -2625,6 +2625,19 @@ extension RichLayout {
                             y = target
                         }
                     }
+                    // (A table floating by the text, its offset lost with the page it
+                    // was set on, stands that offset down the page the break opened,
+                    // and the paragraph it hangs from, the one after it, stands at
+                    // that page's top over it: dx2 8676db65, tblpY 918 twips after a
+                    // page-break paragraph; Word's print has the anchor empty line at
+                    // the margin, the table 45.9pt under it, and the next empty lines
+                    // under the table.)
+                    if floatDrop > 0.01, RichTextTheme.wordWindowsPages, y < 0.01 {
+                        RuleTrace.hit("word-text-floating-table-after-page-break-keeps-its-offset")
+                        floatRunBase = (c.table, page, y)
+                        textFloatTop = (c.table, page, y, floatDrop, false)
+                        y = floatDrop
+                    }
                     // (And one placed above the text's place stands up in the
                     // margin on the page the break opened: LibreOffice's
                     // floating-table-section-break, a table 9.85pt up under
