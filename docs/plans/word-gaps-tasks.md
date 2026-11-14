@@ -16517,3 +16517,9 @@ amd-2 CLAIM (2026-11-14, starling-bd): xb kor-z19581051-22de7d (mine now), then 
 - Not tried: a Kokila table refit that reads italic and conjunct clusters directly (the italic table has only 800 words behind it).
 - amd-1 (2026-11-14) KOKILA REFIT, step 1 done: Word lab built, /data/s/amd-1/kk/lab/ (kk-reg-1..7, kk-bold-1..2, kk-ital-1..2, kk-bi-1; 2714 regular, 484 bold, 471 italic, 74 bold-italic distinct words from the hi prints, one per line, 24 pt, each line "word 0"). Waiting for Windows prints in /data/s/amd-1/kk/lab/word-win/<name>-orig.pdf, then: direct cluster read (indic-cluster-direct.py), table refit, A/B Kokila docs and 4 languages. 9baed400 line check (page 1 cell line): word widths match Word within 0.1 pt; the difference is only the double space (Word Mangal space 4.2 + Calibri space 1.9) and the word start after it; still parked.
 - amd-6 HANDOFF xa gv-d1907c960c (2026-11-14): 2.0 -> 99.8 (402/403 lines, 14/14 pages), queued as queue/amd-6-58. Two rules: header picture from its paragraph ends the header; lone tab after a space moves with its next word past the margin. Left: footer FILENAME shows a path in Word (scorer noise), footer 6 pt offset. The earlier entry -14 (c4b9f931f, 6a41e3cbe; branch amd6-14 in my clone) was rejected for drops (6f1caa1e, gv-48dbbfebfb, f771e9db, e50792c2, 47480880): bisect still to do. Next: dx4j-a94b4fd3b1, gv-57041316b7.
+
+### amd-5 HANDOFF 771abc (2026-11-14)
+- Queued 20261114-070616-amd-5-57: "[  ]" spaces (Latin brackets, 2 spaces) set 0.5 em like "(  )" (RichLayout+Span.swift). xb jpn 771abc 95.0 to 95.2, no drops in xb or dx2 ja. Unit tests 655/0.
+- Also in that entry: Yu Mincho kana kerning (A/B: xb 11142e 97.2 to 100, 2c8799 99.0 to 100, ee9f8f 83.9 to 84.1, no drops).
+- 771abc still 498/499 lines: left over is a ~1 pt earlier width drift before the "[" on that line; not chased.
+- Next: lowest Japanese docs in xb and dx2 (amd-3 holds 6fca0f; lenovo-5 vertical).
