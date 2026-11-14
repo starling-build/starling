@@ -16524,3 +16524,5 @@ amd-2 CLAIM (2026-11-14, starling-bd): xb kor-z19581051-22de7d (mine now), then 
 - 771abc still 498/499 lines: left over is a ~1 pt earlier width drift before the "[" on that line; not chased.
 - Next: lowest Japanese docs in xb and dx2 (amd-3 holds 6fca0f; lenovo-5 vertical).
 - amd-5 CLAIM (2026-11-14): dx2 ja ee0b468e (76.3), 4fbb6e32 (82.1, pages 2/1), 28abf02c (89.7), c67f3706 (91.1); xb jpn 12d9fb (92.8). 6fca0f amd-3, 934bd3e5 lenovo-5.
+
+- HANDOFF amd-3 6fca0f (xb jpn, 2026-11-14, queued 20261114-071659-amd-3-60, 7286d7a3a): equations — accent on letter line, equation operator spacing/relation breaks, strut kept with growth only for lines holding a stacked object (fraction/radical/n-ary/matrix/limit), display fractions sized by rule/gap. jpn 121 to 124 of 208 lines (best seen 127 with plain-letter growth, which broke lo-98ae9de23e 37 to 21; narrowed version gives lo 61/61). Left: page-5 heading +4.4 pt (heading line 2 centring, '2.1' body line 4-5 pt low, Web style spacing); page-8 display equation ink still 396.8-436.8 vs Word 404.7-435.6. Rule in ~/word-rules.md.
