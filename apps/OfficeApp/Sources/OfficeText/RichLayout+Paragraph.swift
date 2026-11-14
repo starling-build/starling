@@ -863,6 +863,7 @@ extension RichLayout {
         let pictureTabs = Self._picturesAndTabs(p)
         var atMargin: Set<Int> = []
         var leftTabs: Set<Int> = []    // tabs that take a first line's label to its hanging indent
+        var lonePastTabs: Set<Int> = []  // a lone tab whose default stop is past the margin: held, goes down
         var beforeTabs: Set<Int> = []  // spaces a justified line does not stretch: before its last tab
         _leaders[i] = []
         // (PowerPoint's the same way: its stops from the text's left, the
@@ -925,11 +926,33 @@ extension RichLayout {
                 for (k, w) in wraps.enumerated() where w > 1 && w <= units.count && units[w - 1] == 0x09 {
                     var t0 = w - 1
                     while t0 > 0, units[t0 - 1] == 0x09 { t0 -= 1 }
-                    guard w - t0 >= 2, t0 > 0, units[t0 - 1] != 0x20, units[t0 - 1] != 0x0A, units[t0 - 1] != 0x2028,
+                    // (A lone tab after a space, on a paragraph with no stops of its own, goes down too: its default
+                    // stop is past the margin, and Word's line starts with the tab, text at the next stop.)
+                    let loneAfterSpace = w - t0 == 1 && t0 > 0 && units[t0 - 1] == 0x20 && stops.isEmpty
+                    // (And the word after it must fit past the tab too: Word keeps the tab with the word, so
+                    // "Grant <tab>Contract" whose "Contract" would cross the margin sets the tab on the next line.)
+                    var wordEnd = w
+                    while wordEnd < units.count, units[wordEnd] != 0x20, units[wordEnd] != 0x09, units[wordEnd] != 0x0A, units[wordEnd] != 0x2028 { wordEnd += 1 }
+                    let wordAfter = loneAfterSpace && wordEnd > w ? edge(wordEnd) - edge(w) : 0
+                    guard w - t0 >= 2 || loneAfterSpace, t0 > 0, loneAfterSpace || units[t0 - 1] != 0x20, units[t0 - 1] != 0x0A, units[t0 - 1] != 0x2028,
                           k == 0 || wraps[k - 1] < t0,
-                          edge(t0 + 1) + (tabs[t0] ?? 0) > textWidth + _px(0.5) else { continue }
+                          edge(t0 + 1) + (tabs[t0] ?? 0) + (loneAfterSpace ? wordAfter : 0) > textWidth + _px(0.5) else { continue }
                     wraps[k] = t0
+                    if loneAfterSpace { lonePastTabs.insert(t0) }
                     RuleTrace.hit("word-tab-run-past-the-margin-restarts-its-stops-on-the-next-line")
+                }
+            }
+            // (The same lone tab after a space, with words after it on the line before the break: its default
+            // stop past the margin, it opens the next line with them. Word's gv-d1907c960c "of this <tab>Grant".)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, stops.isEmpty {
+                for (k, w) in wraps.enumerated() where w > 2 && w <= units.count {
+                    let lineStart = k == 0 ? 0 : wraps[k - 1]
+                    guard w - 1 >= lineStart, let t = (lineStart ..< w - 1).last(where: { units[$0] == 0x09 }), t > lineStart + 1, units[t - 1] == 0x20,
+                          units[t + 1] != 0x09, units[t - 2] != 0x09, (t + 1 ..< w).contains(where: { units[$0] != 0x20 }),
+                          edge(t + 1) - (lineStart > 0 ? edge(lineStart) : 0) + (tabs[t] ?? 0) > textWidth + _px(0.5) else { continue }
+                    wraps[k] = t
+                    lonePastTabs.insert(t)
+                    RuleTrace.hit("word-tab-with-words-after-it-past-the-margin-opens-the-next-line")
                 }
             }
             tabs = [:]
@@ -1278,7 +1301,7 @@ extension RichLayout {
             ? Set(tabs.keys.filter { t in (t > 0 && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t - 1)] == 0x09) || (t + 1 < p.text.utf16.count && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t + 1)] == 0x09) }).subtracting(atMargin)
             : []
         if !tabRuns.isEmpty { RuleTrace.hit("tab-runs-do-not-hang-past-the-margin") }
-        let tabsHeld: Set<Int> = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(underHeld).union(beforeTabs).union(tabRuns)
+        let tabsHeld: Set<Int> = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(underHeld).union(beforeTabs).union(tabRuns).union(lonePastTabs)
             .union(theme.wordRules && RichTextTheme.wordWindowsPages ? Self._underlinedClosingCounted(p) : [])
         // A line exactly as wide as its room fits or not as Word's sum of
         // the room comes out: each measure in twips goes to the sixteenth

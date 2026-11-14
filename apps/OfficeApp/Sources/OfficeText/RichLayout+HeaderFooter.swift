@@ -1981,6 +1981,21 @@ extension RichLayout {
         return made
     }
 
+    /// How far below the paper's top a header's picture that the text goes over and under, set from its paragraph, ends
+    /// (pixels), if it has one.
+    func _headerParagraphPictureEnd(_ header: _HeaderFooter, _ setup: PageSetup) -> Double? {
+        var end: Double? = nil
+        for (j, hp) in header.document.paragraphs.enumerated() where hp.cell == nil && j < header.layout._tops.count {
+            for image in hp.inlineImages.inOrder + (hp.image.map { [$0] } ?? []) {
+                guard let f = image.float, f.takesRoom || f.bandsPage, !f.wraps, f.verticalFrom == "paragraph", f.verticalAlign == nil,
+                      f.y >= 0, image.height > 0 else { continue }
+                RuleTrace.hit("header-picture-from-its-paragraph-ends-the-header")
+                end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + _px(f.y) + _px(image.height) + _px(f.distanceBottom))
+            }
+        }
+        return end
+    }
+
     /// How far from the page's foot a footer's picture that the text goes over and under, set up from its paragraph,
     /// reaches (pixels), if it has one: Word stands it wholly above that paragraph (or as far up as it says, if
     /// that is more).
@@ -2039,6 +2054,10 @@ extension RichLayout {
             // line, not at the header distance plus the picture's height as our flow has it. dx2 b785c95e and 4bc34886: a
             // 120.5pt picture at the page's top, an 11pt empty line under it at 130.8; the body from 133.2, ours 156.1.)
             if let lowered = _headerPictureBodyTop(header, top: top, marginTop: _px(setup.marginTop)) { top = lowered }
+            // (A picture set from its paragraph in the header with the text above and below it: Word ends the header at
+            // the picture's foot, and the body starts there, not at the header's line height. xa gv-d1907c960c: a 103.5pt
+            // logo on the header's second paragraph, 41.3 to 144.8 on the paper, the body from 144.8; ours from the margin.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, let end = _headerParagraphPictureEnd(header, setup) { top = max(top, end) }
         }
         if !exactBottom, let footer = _headerFooter(.footer, page: p, document, pageCount: 1) {
             // (Its frames too, where they stand above it — a page number
