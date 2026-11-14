@@ -1084,6 +1084,14 @@ extension RichLayout {
                        (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "kokila" {
                         return ("kokila", 1)
                     }
+                    // (A run with no Indic letter whose ascii and complex faces are both Shonar Bangla, in a Bengali paragraph: Word draws the Latin in Shonar's own
+                    // advances too, "[Insert Project Name]" 53.4 pt at 14 pt where the stand-in's Latin gave 74; dx2 3f7da49c.)
+                    if (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "shonar bangla",
+                       (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "shonar bangla",
+                       p.text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF }) {
+                        RuleTrace.hit("word-latin-in-a-shonar-bangla-run-is-shonar-bangla")
+                        return ("shonar bangla", 1)
+                    }
                     // (A run with no Indic letter whose ascii and complex faces are both Vrinda, in a Bengali paragraph, is drawn in Vrinda: its Latin takes
                     // Vrinda's advances and its space is Vrinda's 0.598 em; 06800107's "(NAME OF PLACE)": Word 46.7 pt for "(NAME ", ours 41.8.)
                     if (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "vrinda",
@@ -1728,6 +1736,23 @@ extension RichLayout {
                             }
                         } else if authored > 0.5, piece.allSatisfy({ $0 == " " }), let spaced = _shonarSpaced(piece, base: base, authored: authored) {
                             spans.append(contentsOf: capped(piece, run, spaced))
+                        } else if authored > 0.5, piece.contains(" "), piece.unicodeScalars.allSatisfy({ $0 == " " || (shTable[String($0)] != nil && $0.value < 0x980) }) {
+                            // (Latin words and the spaces between them, each in Shonar's own advances: the Latin of a run in Shonar Bangla, dx2 3f7da49c ": [Insert Project Name]".)
+                            var ws = piece.startIndex
+                            while ws < piece.endIndex {
+                                var we = ws
+                                let sp = piece[ws] == " "
+                                while we < piece.endIndex, (piece[we] == " ") == sp { we = piece.index(after: we) }
+                                let seg = piece[ws ..< we]
+                                if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: shTable, flatScale: 1, conjunctRatio: nil, block: 0x980) {
+                                    spans.append(contentsOf: capped(seg, run, fitted.style))
+                                } else if sp, let spaced = _shonarSpaced(seg, base: base, authored: authored) {
+                                    spans.append(contentsOf: capped(seg, run, spaced))
+                                } else {
+                                    spans.append(contentsOf: capped(seg, run, joinedScaled(seg, style(kind))))
+                                }
+                                ws = we
+                            }
                         } else if authored > 0.5, piece.unicodeScalars.allSatisfy({ shTable[String($0)] != nil && $0.value < 0x980 }), let fitted = _clusterFitted(piece, base: base, authored: authored, table: shTable, flatScale: 1, conjunctRatio: nil, block: 0x980) {
                             spans.append(contentsOf: capped(piece, run, fitted.style))
                         } else {
