@@ -16749,3 +16749,4 @@ lenovo-5 HANDOFF (2026-11-14, 3rd look at dx2 ja 934bd3e5, PARKED, nothing lande
 - Left: line multiples other than 1 (bff1c672 RF22), grid case (837e72c4 pitch 20.0 vs 18.0), vertical text. Word draws the dot as a text glyph.
 - xd 4fabe1f2 drop (40.2 to 39.5): the latest gate work folders show base and fix PDFs identical; not caused by these commits on the current tip. Older runs only.
 - Next: Task 2, lowest unclaimed xb ko/ja/bn docs.
+amd-7 HANDOFF 2026-11-14: Task 1 (3f7da49c bold title) queued as queue/amd-7-131: w:w now scales Shonar cluster text, bold Shonar advances from bold glyph sums; title 76.1-539.8 vs Word 76.3-540.2; 8 bn docs unchanged in match counts; units 655/0. Left: URL break after "credit-and-" in 3f7da49c, bea98273 form-row pitch 23 vs 18 (Wingdings 2 metrics in corpus-cache/metrics/latin), Task 2 bede0fbc bold -> Nirmala UI Bold, Task 3 after -124.
