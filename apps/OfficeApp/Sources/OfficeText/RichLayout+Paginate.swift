@@ -3458,6 +3458,19 @@ extension RichLayout {
                             let g = geometry(piece.paragraph)
                             let bottoms = Self._lineBottoms(g.painter).map { g.textTop + $0 }
                             let cuts = bottoms.filter { $0 > rest.from + 0.5 && $0 < rest.to - 0.5 }
+                            // (Only the paragraph's last line reaches the even length:
+                            // the column ends after the whole paragraph, as Word sets
+                            // it, not with its last line alone at the next column's
+                            // top: cab6d785's 3-line, 4-line and 5-line paragraphs in
+                            // two columns are 7 and 6 lines in Word's print, ours 6
+                            // and 7.)
+                            if theme.wordRules, c < nb - 1, top > 0.01, !cuts.contains(where: { top + ($0 - rest.from) >= target - 0.5 }),
+                               base + top + (rest.to - rest.from) <= contentH + 0.01 {
+                                RuleTrace.hit("column-balance-ends-after-the-whole-paragraph")
+                                out[c].append(PagePiece(paragraph: piece.paragraph, flowTop: rest.from, flowBottom: rest.to, page: first + c, pageY: base + top))
+                                c += 1; cy = 0
+                                break
+                            }
                             if let cut = cuts.first(where: { top + ($0 - rest.from) >= target - 0.5 }) ?? cuts.last,
                                base + top + (cut - rest.from) <= contentH + 0.01 {
                                 // (At its last line the paragraph ends here, the
