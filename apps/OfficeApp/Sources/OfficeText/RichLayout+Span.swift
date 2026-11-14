@@ -3749,7 +3749,17 @@ extension RichLayout {
                    let base = theme.baseline(for: leadChar, in: { var single = p.style; single.lineSpacing = 1; return single }(), named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) {
                     let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
                     let split = Self._multipleSplit(ascent: m.0, descent: m.1, multiple: multiple)
-                    let above = max(split.0 * size, base / pt * size)
+                    var above = max(split.0 * size, base / pt * size)
+                    // (Shonar Bangla: Word stands the row on the level's symbol face, drawn at the box's size: Symbol's 1.004 em over the usual split below, 29.9 pt
+                    // for the 14pt rows of xb bfc234 where the text face's ascent gave 29.3; the wrapped line below the row stays Shonar's 27.2.)
+                    if leadFace == "shonar bangla", multiple > 1,
+                       let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
+                       let r = xml.rangeOfSubstring("w:ascii=\"") ?? xml.rangeOfSubstring("w:hAnsi=\""),
+                       case let symFace = String(xml[r.upperBound...].prefix { $0 != "\"" }).lowercased(), symFace == "symbol",
+                       let symBase = theme.faceResolver?(symFace, false)?.baseline, symBase * size > above + 0.001 {
+                        RuleTrace.hit("word-shonar-symbol-bullet-row-stands-on-the-symbol-ascent")
+                        above = symBase * size
+                    }
                     markStyle = style.copyWith(ascentOverride: above, descentOverride: split.1 * size, height: (above + split.1 * size) / size, leadingDistribution: .even)
                 }
                 // (A Wingdings bullet over Latin text at a line multiple: Word's print stands the first line on the BULLET's ascent
