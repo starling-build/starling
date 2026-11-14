@@ -752,6 +752,7 @@ extension RichLayout {
             // the digits in the run's Latin face, not the complex-script face the letters take: dx2 79a15231's date cells in
             // Calibri, 5b919053, d5a4662f, f7d88376 and others likewise, where the cs name is a face Windows lacks (B Nazanin) or none; a Hebrew face (font table charset B1) is drawn in Arial, heb xb 95e6b1.)
             var run = run
+            var hyphenFace: String? = nil
             // (Word reorders "-", "/" and "%" splits only where the run's complex-script language is not Persian: lab bidi-digits2, with
             // w:lang w:bidi="fa-IR" Word draws 15-13 as written, in any table, face or alignment; without it, 13-15.)
             let bidiLanguage = [run.keptXML, named?.char.keptXML].compactMap({ Self._attribute($0, "w:bidi") }).first ?? Self._attribute(document.defaultLangXML, "w:bidi") ?? ""
@@ -763,6 +764,16 @@ extension RichLayout {
                !(theme.complexFaceKeepsDigits?(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "") ?? false) {
                 _ = latin
                 run.rightToLeft = false
+                // (The hyphen of such a number is drawn in neither the digits' face: lab hyphen-face (Word, 2026-11-14): where the complex-script face is
+                // missing from the box it is Arial when the font table has an entry for that face (real or made up) and Cambria when it has none; an
+                // installed face (Tahoma) draws it itself. The entry decides, not the name.)
+                if rawText.contains("-") {
+                    let csName = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace()
+                    let cs = csName.lowercased()
+                    let installed = (theme.complexFaceKeepsDigits?(csName) ?? false) || ["arial", "times new roman", "tahoma", "segoe ui", "microsoft sans serif"].contains(cs)
+                    hyphenFace = installed ? csName : (cs.isEmpty || document.fontCharsets[cs] != nil ? "Arial" : "Cambria")
+                    RuleTrace.hit("word-rtl-number-hyphen-takes-the-font-table-fallback-face")
+                }
             }
             // (A run marked right-to-left in a left-to-right paragraph is an
             // embedding of its own: the one neutral mark that ends its Latin
@@ -1187,6 +1198,13 @@ extension RichLayout {
                 return (face, all * 2 >= letters ? scale : 1)
             }()
             func style(_ kind: Int) -> TextStyle {
+                if kind == -1000, let face = hyphenFace {
+                    var hyphen = run
+                    hyphen.fontFamily = face
+                    hyphen.hAnsiFontFamily = nil
+                    return theme.textStyle(for: hyphen, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: false, gridPitch: pitch,
+                                           characterClass: nil, characterGrid: grid, scriptHidden: true)
+                }
                 if !fitBusy, !plainPiece, !latinNoScale, let s = styles[kind] { return s }
                 var styled = run
                 let grown = wholeRaised ? theme.raisedLineHeight(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) : nil
@@ -1964,6 +1982,7 @@ extension RichLayout {
                 var kind = ea ? -1 : (classed ? RichResolvedFace.characterClass(ch) : 0)
                 // (Circles, squares and stars in an East Asian run are the East Asian face's glyph
                 // — an em wide, 0.86 across — not the Latin stand-in's small one: kind -4.)
+                if hyphenFace != nil, ch == "-" { kind = -1000 }
                 if ea, eastDash, ch == "\u{2014}" { kind = -5; RuleTrace.hit("word-em-dash-drawn-in-east-asian-hansi-face") }
                 if ea, theme.wordRules, RichTextTheme.wordWindowsPages, Self._cjkFaceFamily != nil, let u = ch.unicodeScalars.first?.value,
                    (0x25A0 ... 0x25EF).contains(u) || u == 0x2605 || u == 0x2606 { kind = -4 }
