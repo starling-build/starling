@@ -1199,6 +1199,18 @@ extension RichLayout {
             if RichTextTheme.wordWindowsPages, image.textBox != nil, let piece = _allPieces.first(where: { $0.paragraph == i && !$0.repeated }),
                piece.pageY > _pxMarginTop(piece.page) + 1, g.textTop > top, g.textTop - top < _px(40) { y = g.textTop + _px(float.y) }
         }
+        // (From the line: the top of the line the anchor stands in, not the paragraph's first line — dx2 es 335fbcf8's crest, 28.4pt
+        // under a line, anchored in the title's second line, stands 14.3pt lower in Word's print than from the title's top.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, float.verticalAlign == nil, float.verticalFrom == "line", float.wraps == false, pushed == 0,
+           i < _cells.count, _cells[i] == nil, i < _inline.count, let k = _inline[i].firstIndex(where: { $0.id == image.id }),
+           k < _inlineBoxes[i].count, let all = g.painter.inlinePlaceholderBoxes, _inlineBoxes[i][k] < all.count {
+            let box = all[_inlineBoxes[i][k]]
+            let mid = (box.top + box.bottom) / 2
+            if let line = g.painter.computeLineMetrics().last(where: { $0.baseline - $0.ascent <= mid + 0.01 }), line.lineNumber > 0 {
+                RuleTrace.hit("word-float-from-a-line-is-set-from-the-line-its-anchor-is-in")
+                y += line.baseline - line.ascent
+            }
+        }
         // (… where the paragraph's own line went under a float of its that
         // left it no room, one in front of the text goes with the line
         // (lab anch, Word for Windows: when the float is wrapped tight or through; under a
