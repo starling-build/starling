@@ -1313,8 +1313,8 @@ extension RichLayout {
                    let h = theme.rubyLine(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) {
                     s = s.copyWith(height: h.height)
                     // (Off a grid the room for the ruby is all over the baseline, not shared with the line's foot:
-                    // xb jpn 231fe1 p1 "申請者" under ﾌﾘｶﾞﾅ stands 7pt lower, the next paragraph where it was.)
-                    if gridPitchIsNil(pitch), p.style.lineHeightPoints == nil, h.descent > 0, s.ascentOverride == nil, let size = s.fontSize,
+                    // xb jpn 231fe1 p1 "申請者" under ﾌﾘｶﾞﾅ stands 7pt lower, the next paragraph where it was. Single spacing only: at 1.15 Word's ruby line is shorter, lo-181b561b0a.)
+                    if gridPitchIsNil(pitch), p.style.lineHeightPoints == nil, abs(p.style.lineSpacing - 1) < 0.005, h.descent > 0, s.ascentOverride == nil, let size = s.fontSize,
                        !(index.map { _verticalBody($0) } ?? false) {
                         s = s.copyWith(ascentOverride: size * (h.height - h.descent), descentOverride: size * h.descent, leadingDistribution: .even, debugLabel: (s.debugLabel ?? "") + " ruby-line")
                     }
