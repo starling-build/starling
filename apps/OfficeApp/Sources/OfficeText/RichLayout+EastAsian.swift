@@ -100,6 +100,9 @@ extension RichLayout {
         let squeezesSpaces = !legacy && p.style.alignment == .justify
             || legacy && fitted && units.contains(0x2060)
                 && !units.contains(where: { $0 >= 0x2E80 })
+            || legacy && fitted && p.style.alignment == .justify && document.usesEastAsianLayout && !inCell && RichTextTheme.wordWindowsPages
+                && document.characterSpacingControl == "compressPunctuation" && !units.contains(where: { $0 >= 0x2E80 })
+                && document.eastAsiaLanguage != nil && !["zh", "ja", "ko"].contains(where: { document.eastAsiaLanguage?.hasPrefix($0) == true })
             || balancedLatinSqueeze
         // (A page number set apart by dashes in a text box, its field result
         // unmarked, gives them too, up to two fifths: zh-4e5fe46f's "— 10 —", 14pt
