@@ -3657,6 +3657,29 @@ extension RichLayout {
                     let above = max(split.0 * size, base / pt * size)
                     markStyle = style.copyWith(ascentOverride: above, descentOverride: split.1 * size, height: (above + split.1 * size) / size, leadingDistribution: .even)
                 }
+                // (A Wingdings bullet over Latin text at a line multiple: Word's print stands the first line on the BULLET's ascent
+                // and leaves under it what the text's own line has under ITS baseline, the multiple's extra included. 11pt Calibri at
+                // 1.15 under a 16pt bold Wingdings bullet: items 19.35pt apart, where the bullet's whole line at the multiple was 20.4
+                // (dx2 it df984aa4).)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil,
+                   p.style.lineSpacing > 1.001, leadChar.fontFamily?.lowercased() == "wingdings", let px = style.fontSize, px > 0.5,
+                   !p.style.rightToLeft, !p.text.unicodeScalars.contains(where: { $0.value >= 0x590 }) {
+                    let probe = TextPainter(text: TextSpan(text: "x", style: theme.textStyle(for: firstLook, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)), textDirection: .ltr)
+                    probe.layout(minWidth: 0, maxWidth: 100000)
+                    let m = probe.computeLineMetrics().first
+                    probe.dispose()
+                    if let m {
+                        let multiple = p.style.lineSpacing
+                        let single = m.height / multiple
+                        let own = m.baseline / multiple
+                        let up = px * 1841.0 / 2048
+                        if up > own + 0.01 {
+                            let down = single - own + m.height - single
+                            RuleTrace.hit("word-wingdings-bullet-stands-the-first-line-on-its-ascent")
+                            markStyle = style.copyWith(ascentOverride: up, descentOverride: down, height: (up + down) / px)
+                        }
+                    }
+                }
                 children.append(TextSpan(text: "\u{200B}", style: markStyle))
                 inserts.append(0)
             } else if let rise {
