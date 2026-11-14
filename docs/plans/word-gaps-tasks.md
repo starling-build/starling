@@ -16711,3 +16711,10 @@ lenovo-5 HANDOFF (2026-11-14, 3rd look at dx2 ja 934bd3e5, PARKED, nothing lande
 - Left: implement rubyAlign + group growth if a doc ever needs it (our ruby y is also ~0.85 pt above Word's in the lab). f42177d2 (xd, vertical cells) lab proposal unanswered.
 
 - amd-8 round 465 (PREV 96cb4e97d, tip 738f2b08b, 8 commits): NO drops. Means: 756 99.94, lo 99.93, xb 77.05->77.42, xa 76.81, xd 65.38->65.43, xs 89.28. Ups: zh-37b6536f 96.3->100, hin-z10093577 31.2->100, jpn-z23002680 +0.3. amd-8 also capped gate scoring (land.sh MATCH_JOBS 48). NEXT: round 466 PREV=738f2b08b.
+
+### HANDOFF amd-5 (2026-11-14): xb jpn-z19126474-754366 Task 1
+- Doc went 355 to 372 matched of 374 (queued as amd-5-117 and amd-5-122): East Asian rules for a compat-15 file with no useFELayout; the fitter lets ー start a line; an autofit dxa table with an unequal grid follows its cells' widths (grid 600/2900/2900/2626, cells 600/2500/2500/3426).
+- A/B on all 44 xb jpn docs: only 754366 moved. dx2 not run; the queue gate covers it.
+- Left: 2 unmatched lines in the page 9 table (not looked at). Open: ee9f8f page 6 and 14 balloon counts.
+- Rules are in ~/word-rules.md.
+- Trap: the unequal-grid rule is broad (any tblW dxa autofit table); watch the gate for drops.
