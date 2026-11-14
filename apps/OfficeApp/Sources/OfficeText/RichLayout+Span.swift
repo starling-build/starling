@@ -3195,6 +3195,14 @@ extension RichLayout {
                 }
                 _r2()
                 }
+                if theme.wordRules, RichTextTheme.wordWindowsPages, kind == -1, let following, ch.unicodeScalars.count == 1, following.unicodeScalars.count == 1,
+                   let u = ch.unicodeScalars.first?.value, let v = following.unicodeScalars.first?.value, u >= 0x3040, u < 0x3100, v >= 0x3000, v < 0x3100,
+                   let pair = Self.yuMinchoKerns[u << 16 | v],
+                   (style(kind).debugLabel?.lowercased()).map({ $0.containsSubstring("yu mincho") || $0.containsSubstring("游明朝") }) == true,
+                   let from = run.kerningFrom ?? named?.char.kerningFrom ?? _normalChar(document)?.kerningFrom, from > 0,
+                   (run.fontSize ?? named?.char.fontSize ?? theme.fontSize) >= from {
+                    extra += pair * em
+                }
                 if yuOfMissingHangul, kind >= 0, let u0 = ch.unicodeScalars.first?.value, ch.unicodeScalars.count == 1, u0 >= 0x20, u0 < 0x7F {
                     // (Word's Yu Gothic Latin in a paragraph whose Hangul-named face it lacks: 22de7d.)
                     let s = style(kind)

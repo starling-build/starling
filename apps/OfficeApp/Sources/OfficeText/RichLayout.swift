@@ -913,7 +913,13 @@ public final class RichTextTheme {
                     let l = n.lowercased()
                     return ["ms mincho", "ms pmincho", "ms gothic", "ms pgothic", "ｍｓ 明朝", "ｍｓ ｐ明朝", "ｍｓ ゴシック", "ｍｓ ｐゴシック"].contains { l.containsSubstring($0) }
                 } ?? false)
-                if wordRules, msJapanese || !((style.kerningFrom ?? named?.char.kerningFrom ?? normal?.kerningFrom).map { $0 > 0 && size >= $0 } ?? false) {
+                // (Yu Mincho kerns its own kana pairs, set from `yuMinchoKerns` where the run kerns at its size; the
+                // stand-in's pairs are not its.)
+                let yuMincho = wordRules && RichTextTheme.wordWindowsPages && (familyName.map { n in
+                    let l = n.lowercased()
+                    return l.containsSubstring("yu mincho") || l.containsSubstring("游明朝")
+                } ?? false)
+                if wordRules, msJapanese || yuMincho || !((style.kerningFrom ?? named?.char.kerningFrom ?? normal?.kerningFrom).map { $0 > 0 && size >= $0 } ?? false) {
                     features.append(FontFeature("kern", 0))
                 } else if kernsByRun, let from = style.kerningFrom ?? named?.char.kerningFrom ?? normal?.kerningFrom,
                           !(from > 0 && size >= from) {
