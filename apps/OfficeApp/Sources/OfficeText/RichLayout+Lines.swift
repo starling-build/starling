@@ -669,6 +669,7 @@ extension RichLayout {
         _besideStartLeft[i] = nil
         var startLeft: (indent: Double, band: (top: Double, bottom: Double))?
         defer { if best?.right == true, best?.leftRoom == nil, let sl = startLeft, theme.wordRules, RichTextTheme.wordWindowsPages { _besideStartLeft[i] = sl } }
+        _besideIndentOnTop.remove(i)
         defer { if boxes.count >= 2, best?.leftRoom != nil { _besideBoxes[i] = boxes } }
         var offset = 0.0
         var k = i
@@ -741,6 +742,22 @@ extension RichLayout {
                         if band.bottom > 0.01 { boxes.append((band.top, band.bottom, 0, rightEdge - own)) }
                         if band.bottom > 0.01, startLeft == nil || rightEdge - own > startLeft!.indent { startLeft = (rightEdge - own, band) }
                     }
+                }
+                // (A picture at the top margin, hanging out past the left margin and wrapped square, anchored in
+                // the paragraph that opens its page: the first lines start past the picture's edge and gap,
+                // not at the margin. Word's print of xd 658a33bb's title, whose first line starts 47 pt in.)
+                if k == i, p.cell == nil, let float = image.float, float.wraps, !float.takesRoom,
+                   float.wrapSide == nil, float.verticalAlign == nil, float.verticalFrom == "margin", float.horizontalFrom == "margin",
+                   float.horizontalAlign == nil, !_perSection, float.x < 0, float.y <= 0, float.y + image.height + float.distanceBottom <= 12 {
+                    let w = laid.map { $0.width } ?? _px(image.width)
+                    let h = laid.map { $0.height } ?? _px(image.height)
+                    let own = _px(p.style.indentLeft)
+                    let edge = _px(float.x) + w + _px(float.distanceRight ?? 9)
+                    let band = (top: _px(float.y) - _px(float.distanceTop), bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom))
+                    if w > 0, edge > own, inner - edge - _px(p.style.indentRight) >= size * 3, band.bottom > 0.01 {
+                        if best == nil || edge - own > best!.indent { best = (edge - own, band, false, nil); _besideIndentOnTop.insert(i); RuleTrace.hit("word-first-line-indent-from-top-margin-float-edge") }
+                    }
+                    continue
                 }
                 guard let float = image.float, float.wraps, !float.takesRoom, float.verticalAlign == nil, float.verticalFrom == "paragraph",
                       float.horizontalAlign == nil || float.horizontalAlign == "left" || float.horizontalAlign == "right" else { continue }

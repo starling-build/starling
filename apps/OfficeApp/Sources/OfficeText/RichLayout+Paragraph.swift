@@ -1396,6 +1396,10 @@ extension RichLayout {
             // tdf109308_dropCapNumbered, "1." at 139.3 and the text at 157.3 in Word's
             // print, the two lines under it at 121.3 and the last at 108.)
             var firstExtra = 0.0
+            // (The first-line indent counts from the picture's edge when the picture stands at the top margin
+            // and out past the left one: Word's print of xd 658a33bb, "참가신청서" 60pt in from the edge.)
+            if _besideIndentOnTop.contains(i), !besideRight, besideLeftRoom == nil, original > 0 { firstExtra = original }
+            else
             if theme.wordRules, RichTextTheme.wordWindowsPages, !besideRight, _besideLead[i] == 0, p.cell == nil,
                p.style.listId != nil, let own = _listIndents(p, document), own.left > 0 {
                 firstExtra = _px(own.left)
