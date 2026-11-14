@@ -2451,8 +2451,9 @@ extension RichLayout {
                             // (A zero-width space before it gives the break the joiner would forbid back: after a space the word
                             // would not part from the line, and the engine cut words inside.)
                             // (Not after an opening bracket or quote: Word keeps "(श्रमदिन)" whole, and the space let the line end on the "(": 9baed400's header cell.)
+                            // (Nor after a slash: Word keeps a chunk like "hau/poli" whole when it fits, and parts at the slash only a chunk wider than the line; dx2 ne 9baed400's cell.)
                             // (Nor after a Latin letter or digit with no space: Word keeps "…डीiseaseमल्टी…" whole, d912c25b; Devanagari only, Bengali ben-z17281487 drops with it.)
-                            if let before, !"([{\u{2018}\u{201C}\u{FF08}".contains(before), !(before.isASCII && (before.isLetter || before.isNumber) && u >= 0x905 && u <= 0x97F) {
+                            if let before, !"([{\u{2018}\u{201C}\u{FF08}".contains(before), before != "/", !(before.isASCII && (before.isLetter || before.isNumber) && u >= 0x905 && u <= 0x97F) {
                                 spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                                 inserts.append(offset)
                             }
