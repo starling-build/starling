@@ -1132,6 +1132,27 @@ extension RichLayout {
                     extra = min(extra, max(0, ownLeft + textWidth - x) - own)
                     RuleTrace.hit("word-trailing-left-tab-inside-the-margin-stays-on-its-line")
                 }
+                // (A left stop at or past the right indent but inside the margin, text after its tab that ends
+                // inside the margin too: the text stands at the stop on the line, over the indent, as in
+                // Word's print of xd 94baf8b9bd's contents, "NDCO program aims and outcomes<tab>5" in a
+                // style with the stop at 8647 twips and a right indent edge at 8647 less its 686; ours sent the number to
+                // a second line and the list ran a page long. Digits only (a page number): a footer's
+                // words after such a stop (dx2-class xd 708e2879's "Appendices", set at the stop in Word's print) are
+                // squeezed by this and vanish or break inside the word; they keep the old placing.)
+                if theme.wordRules, !pictureTabs, !style.rightToLeft, stop.alignment == .left, right > 0, following > 0.01,
+                   stop.x >= ownLeft + textWidth - 0.01, stop.x + following <= ownLeft + textWidth + right + 0.01,
+                   x + own < stop.x - 0.01, hangs[t + 1] == nil, (t + 1 ..< end).allSatisfy({ units[$0] >= 0x30 && units[$0] <= 0x39 }),
+                   let last = (t + 1 ..< end).last(where: { units[$0] != 0x20 }), hangs[last] == nil {
+                    let over = stop.x + following - (ownLeft + textWidth) + 0.05
+                    let span = max(0.01, edge(last + 1) - after)
+                    if over < edge(last + 1) - edge(last) - 0.5 {
+                        hangs[last] = -over
+                    } else {
+                        for k in t + 1 ... last where units[k] != 0x20 { hangs[k] = -over * max(0, edge(k + 1) - edge(k)) / span }
+                    }
+                    atMargin.insert(t)
+                    RuleTrace.hit("word-left-tab-text-past-the-right-indent-stays-on-its-line")
+                }
                 // (A stop set at the margin that the text before it has
                 // nearly reached: what follows the tab stands on past the
                 // margin, the line's marks unsqueezed, as Word's print sets

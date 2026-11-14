@@ -3942,6 +3942,10 @@ extension RichLayout {
                 var violated = false
                 var ended = false   // the run ends with a section: nothing is kept across its break
                 while k < count, _cells[k] == nil, document.paragraphs[k].style.keepNext {
+                    // (A member that opens its own page ends the run: nothing before it is kept
+                    // with it. dx2 4df3282e's "Service scenarios" stays at page 7's foot in Word's
+                    // print, with "Technology assessment" (page break before) after it.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, k > i, document.paragraphs[k].style.pageBreakBefore || _pageBreak[k] { break }
                     if cum + _heights[k] <= room + 0.01 {
                         cum += _heights[k]
                         // (A member that ends a section ends the run: Word
@@ -3968,7 +3972,20 @@ extension RichLayout {
                     // line and 9 after under 25.9pt of room, opens page 29
                     // in Word's print with the five kept headings after
                     // it; ours kept it at page 28's foot alone.)
+                    // (A later member that must stand whole and fits by its lines but not with its space
+                    // after leaves the next member no room either: the run goes over. dx2 5c72dd63's
+                    // "Hold dig opdateret" under the list beside the logo, 0.2pt short, with the
+                    // paragraph after it, opens page 5 in Word's print with the chain.)
+                    // (The run is measured as the flow places it, the space two neighbours share
+                    // counted once: zh-64044a1d's thirteen kept members of style 3 (180 before and after)
+                    // overlap by 18pt, and Word keeps them on page 44 where their plain sum overran.)
+                    // (Only when no earlier member can split: Word breaks inside the latest one that can, keeping
+                    // each member's last line with the next one's first. dx2 8714e66e's "High Intensity" run,
+                    // 9pt over by its flow, splits "ECC Report 272" across pages 3 and 4 and keeps the heading with it.)
                     violated = k > i ? cum + start(k) > room + 0.01
+                        || (theme.wordRules && RichTextTheme.wordWindowsPages && _cells[k] == nil && k + 1 < count && whole(k) && document.paragraphs[k].style.sectionXML == nil
+                            && _tops[k] + _heights[k] - _tops[i] > room + 0.01
+                            && (i..<k).allSatisfy { whole($0) })
                         : _cells[i] == nil && whole(i) && _heights[i] <= contentH + 0.01
                             && (start(i) > room + 0.01 || (i + 1 < count && document.paragraphs[i].style.sectionXML == nil))
                     break
