@@ -2833,7 +2833,10 @@ static let sylfaenAdvances: [Double] = [
         // line 1.3 x (885+198)/1000 from its OS/2 metrics; 7416edcd's 8 pt lines pitch 12.95 pt in Word's print.)
         if wordOnWindows, has("nanumgothic", "나눔고딕") {
             RuleTrace.hit("nanum-gothic-own-widths")
-            var face = EastAsianFace(height: 1.408, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.1625 + 0.885)
+            // (Regular is taller than bold in Word's print: 7416edcd's empty 9 pt lines pitch 16.85 pt at 1.15, 1.628 em.)
+            var face = EastAsianFace(height: 1.628, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 0.1625 + 0.885 + 0.11)
+            face.boldHeight = 1.408
+            face.boldBaseline = 0.1625 + 0.885
             face.latinAdvances = nanumGothicAdvances
             face.latinBoldAdvances = nanumGothicBoldAdvances
             face.otherAdvances = [0xAC00: 0.94]
