@@ -16894,3 +16894,10 @@ amd-6 HANDOFF (2026-11-14, parked on starling-bd's cost order; NOTHING landed, n
 - amd-5 2026-11-14 CLAIM TASK 2: xb jpn ee9f8f (90.8%, 598/580 lines, 16 pages) first; then 771abc. 6fca0f is amd-3's. TASK 1 parked: group 1 on 1e9281/ec6c96 p10 (whole deleted paras 127-129 before heading 7) sits 5.4 pt ABOVE Word on all 10 lines; body matches; no space-before on the paragraphs, so cause unfound (Word top looks like heading text top, ours 6 pt higher); group 2 is 1.5 pt low. Not worth more until a debug build of the anchor top vs the line before.
 - lenovo-2 HANDOFF 2026-11-14: 30775350 fixed (w16se:symEx arrow was drawn as a grey object box; now text): 87 to 117 of 120 lines, 8 to 7 pages; a4355502 45 to 54, c97c34b6 6 to 131 (all lines). Queued lenovo-2-175. Left: Word hangs a line-end comma back to the next line there (dc827b921 rejected: 4 main zh docs fell); 236cd3ae parked (Word opens only one line with a mark; not a plain no-kinsoku rule). 8676db65 landed earlier.
 - lenovo-2 CLAIM (2026-11-14, after clear): Task 1 236cd3ae Word lab cm236 sent to starling-bd (lab/cm236 in my clone, awaiting word-win PDFs). Task 2: dx2 zh 2a9d6c3a (79.1), then e802f47d (71.4).
+
+### amd-1 HANDOFF 2026-11-14 (dx2 ne 9baed400, Tasks 1-2)
+- Landed 79e692c9b: Devanagari closing danda joins the squeeze need; character spacing falls on letters, not combining marks (9baed400 73.9 to 85.3; hi 0c80b3a3 stays 100; bn bea98273 90.3 to 89.8, approved).
+- Queued 20261114-200153-amd-1-177: Kalimati cs-flagged digit/dot-only paragraphs take Mangal's line (9baed400 85.3 to 88.4, matched 565/639). No Kalimati doc elsewhere in dx2 moved.
+- Task 1 (Mangal Bold space/danda drawn in Carlito/Noto): drawing-only. Word's advance for space is 0.502 em, danda 0.415/0.406; code already matches. No width gap, parked.
+- Left in 9baed400: still 665 lines/39 pages vs 639/38. Next divergence p32 (Devanagari-digit rows "१०." "११.", Mangal line again), then p28-onward drift.
+- Trap: _namedMetricFace returns nil for any digit in a Kalimati run unless csFlag; guards below it never ran.
