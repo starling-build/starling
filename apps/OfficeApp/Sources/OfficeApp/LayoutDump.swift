@@ -16,6 +16,7 @@ enum OfficeLayoutDump {
         theme.fontFamilyResolver = OfficeFonts.drawn
         theme.faceResolver = OfficeFonts.face
         theme.complexFaceResolver = OfficeFonts.complexFace
+        theme.complexFaceKeepsDigits = OfficeFonts.complexFaceKeepsDigits
         theme.averageCharWidth = OfficeFonts.averageCharWidth
         theme.symbolGlyphs = { face, text in face.map { Metafile.symbols(text, face: $0) } ?? text }
         theme.symbolAdvance = Metafile.symbolAdvance

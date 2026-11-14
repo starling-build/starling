@@ -733,6 +733,18 @@ extension RichLayout {
                 return styled(rawText[rawText.startIndex ..< cut], run, at: base, next: rawText[cut], symbolsShown: symbolsShown)
                     + styled(rawText[cut...], run, at: base + n, next: next, symbolsShown: symbolsShown)
             }
+            // (A right-to-left run of figures alone, in a document whose complex-script face is not the Latin one: Word's print draws
+            // the digits in the run's Latin face, not the complex-script face the letters take: dx2 79a15231's date cells in
+            // Calibri, 5b919053, d5a4662f, f7d88376 and others likewise, where the cs name is a face Windows lacks (B Nazanin) or none; a Hebrew face (font table charset B1) is drawn in Arial, heb xb 95e6b1.)
+            var run = run
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, run.rightToLeft, !splittingVariation,
+               rawText.contains(where: { $0.isASCII && $0.isNumber }), rawText.allSatisfy({ ($0.isASCII && $0.isNumber) || "/-:.,% ".contains($0) }),
+               let latin = run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily, !latin.isEmpty,
+               document.fontCharsets[(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()] != "B1",
+               !(theme.complexFaceKeepsDigits?(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "") ?? false) {
+                _ = latin
+                run.rightToLeft = false
+            }
             // (A run marked right-to-left in a left-to-right paragraph is an
             // embedding of its own: the one neutral mark that ends its Latin
             // text stands at its start. lo-bbc52bda's "after here:" is

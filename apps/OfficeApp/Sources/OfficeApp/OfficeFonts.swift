@@ -3217,6 +3217,14 @@ static let sylfaenAdvances: [Double] = [
     // (Arabic and Hebrew faces Windows has and we do not: their own line heights.)
     private static let windowsArabicLines: [String: Double] = ["traditional arabic": 1.495, "sakkal majalla": 1.40, "simplified arabic": 3395.0 / 2048, "david": 2015.0 / 2048]
 
+    /// An installed complex-script face of its own (David, Simplified Arabic, Urdu Typesetting...): Word's prints draw a
+    /// right-to-left run of digits in it. Arial, Times New Roman and Tahoma are the Latin faces too, and a name Windows
+    /// lacks (B Nazanin) is not here: their digits take the run's Latin face (dx2 79a15231; xd David docs keep David).
+    static func complexFaceKeepsDigits(_ name: String) -> Bool {
+        let n = name.trimmingWhitespace().lowercased()
+        return windowsComplexFaces.contains(n) && !["arial", "times new roman", "tahoma", "segoe ui", "microsoft sans serif"].contains(n)
+    }
+
     static func complexFace(_ family: String?) -> RichResolvedFace? {
         // (A face neither embedded nor on the machine is the one Word sets
         // the text in, Times New Roman, and not a name nothing answers to:

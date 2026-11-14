@@ -54,6 +54,8 @@ public final class RichTextTheme {
     /// may need different fallbacks from a Latin metric clone. nil keeps
     /// that face's name and metrics instead of applying the Latin resolver.
     public var complexFaceResolver: ((String?) -> RichResolvedFace?)? = nil
+    /// A complex-script face Word draws its digits in (an installed Arabic or Hebrew face), not the run's Latin one.
+    public var complexFaceKeepsDigits: ((String) -> Bool)? = nil
     /// A Latin family's average character width in ems, by the name
     /// the document uses (nil: half an em). Word's automatic space
     /// between an ideograph and a Latin letter or digit is a quarter of
