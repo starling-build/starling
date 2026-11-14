@@ -24,6 +24,7 @@ extension RichLayout {
         // top (`_pinnedFloats`).)
         var pinnedAnew = false
         var pushedAnew = false
+        var bandPushLast = -1, bandPushDelta = 0.0, bandPushPage = -1, bandPushTop = 0.0
         if !pinPass { _columnPushed = _columnPushed.filter { $0 < start } }
         defer {
             if theme.wordRules, !pinPass, pinnedAnew || pushedAnew { _paginate(document, from: start, settled: settled, pinPass: true) }
@@ -3600,7 +3601,18 @@ extension RichLayout {
                     let physical = page / _columns
                     let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
                     let mine = f.verticalFrom == "paragraph"
-                    let onPage = mine ? y + _px(f.y) : _px(f.y) - (f.verticalFrom == "margin" ? 0 : insetTop)
+                    // (The paragraph after one that an earlier float's band pushed down stands under the band
+                    // too, and its own box, set top and bottom from it, is measured from where the pushed
+                    // paragraph would have stood: Word's print of dx2 87097d3e puts the third chart, 364.5pt
+                    // from its paragraph, at 471 under the second chart's band, not 364.5pt below the pushed line.)
+                    var carried = 0.0
+                    if RichTextTheme.wordWindowsPages, mine, f.verticalAlign == nil, bandPushLast == i - 1, bandPushPage == page, bandPushDelta > 0.01, _cells[i] == nil {
+                        carried = max(bandPushDelta, y - bandPushTop)
+                        RuleTrace.hit("word-paragraph-after-a-pushed-one-keeps-its-box-at-the-unpushed-anchor")
+                        _floatShiftY[image.id] = -carried
+                        bandPushLast = i
+                    }
+                    let onPage = mine ? y - carried + _px(f.y) : _px(f.y) - (f.verticalFrom == "margin" ? 0 : insetTop)
                     let top = onPage - _px(f.distanceTop), bottom = onPage + _px(image.height + f.distanceBottom)
                     guard bottom > 0.01, top < contentH - 0.01, !(mine && image.height <= 0) else { continue }
                     // (Its own paragraph keeps its place: the band is under
@@ -4051,6 +4063,7 @@ extension RichLayout {
                         if band.owner < 0 { pushedByTableBand = true }
                     }
                     if pushedByTableBand { y -= _tableBandSharedSpace(i, document) }
+                    if theme.wordRules, y > yBeforeBands + 0.01, _cells[i] == nil { bandPushLast = i; bandPushDelta = y - yBeforeBands; bandPushPage = page; bandPushTop = yBeforeBands - lead }
                     // (A paragraph, with text or not, that sets a box top and bottom from itself and goes under an earlier
                     // box's band keeps its box at the place it stood before: Word's lab ttb 1-4 print the second
                     // box at 97 + 300, the line at 344 under the first; ours drew it at 344 + 300.)
