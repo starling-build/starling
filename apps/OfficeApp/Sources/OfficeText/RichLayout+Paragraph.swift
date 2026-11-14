@@ -3057,7 +3057,7 @@ extension RichLayout {
             // header, 18 spaces of Calibri 11 at 1.15 under a picture 72pt down, is set 6 steps of 13.43 from its
             // top, 80.6, in Word's print, and in labs hinhdr2 A, D, E, F, the picture's foot moving 5pt up and down;
             // ours set it at the foot.)
-            if RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil, style.lineSpacing > 1.001 || !p.text.unicodeScalars.contains(where: { $0 == " " }), style.besideFloat == false,
+            if RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil, style.lineSpacing > 1.001 || (headerTopOnPage != nil && !p.text.unicodeScalars.contains(where: { $0 == " " })), style.besideFloat == false,
                p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " }),
                case let step = (!p.text.unicodeScalars.contains(where: { $0 == " " }) ? _markLineHeight(i, document, single: true) : first.line / style.lineSpacing) + before, step > 1 {
                 let k = max(0, ((foot - first.top) / step - 0.001).rounded(.up))
