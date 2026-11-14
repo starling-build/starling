@@ -720,7 +720,7 @@ extension RichLayout {
                     }
                     let own = _px(p.style.indentLeft)
                     let rightGap = _px(p.style.indentRight)
-                    let leftEdge = x - _px(float.distanceLeft ?? 9), rightEdge = x + w + _px(float.distanceRight ?? 9)
+                    let leftEdge = x - _px(float.distanceLeft ?? 9) - _px(float.effectLeft), rightEdge = x + w + _px(float.distanceRight ?? 9) + _px(float.effectRight)
                     // (Room at its left for a character and a half is enough: lab `anc` D (Word for Windows, 12pt,
                     // a 40pt square at x 20 from the column's edge, no gap) sets "D-" in the 20pt strip and "p3"
                     // after the picture, on each of the three lines it spans; the room was three ems.)
@@ -782,7 +782,7 @@ extension RichLayout {
                 // (Not with room at its left for text: that stands round it on
                 // both sides, which the engine does not set.)
                 guard float.wrapSide != "left", float.wrapSide == "largest" || x - _px(float.distanceLeft ?? 9) - own < size else { continue }
-                let edge = x + w + _px(float.distanceRight ?? 9)
+                let edge = x + w + _px(float.distanceRight ?? 9) + _px(float.effectRight)
                 // (And room at its right for text: across the column it leaves
                 // none, and the paragraph goes under it as before.)
                 guard edge > own, column - edge - rightGap >= size * 3 else { continue }
