@@ -737,6 +737,7 @@ extension RichLayout {
             // the digits in the run's Latin face, not the complex-script face the letters take: dx2 79a15231's date cells in
             // Calibri, 5b919053, d5a4662f, f7d88376 and others likewise, where the cs name is a face Windows lacks (B Nazanin) or none; a Hebrew face (font table charset B1) is drawn in Arial, heb xb 95e6b1.)
             var run = run
+            let wasRightToLeft = run.rightToLeft
             if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, run.rightToLeft, !splittingVariation,
                rawText.contains(where: { $0.isASCII && $0.isNumber }), rawText.allSatisfy({ ($0.isASCII && $0.isNumber) || "/-:.,% ".contains($0) }),
                let latin = run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily, !latin.isEmpty,
@@ -2065,6 +2066,23 @@ extension RichLayout {
                 }
                 }
                 _sblk0()
+                // (Right-to-left digits: Word for Windows keeps "-", "/" and "%"
+                // from joining the numbers round them, as the Unicode rules
+                // would for "10-18/11" and "50%": each number stands whole and
+                // the whole reads right to left, "11/18-10" and "%50" on the
+                // page, while ":", "," and "." join as written. Lab bidi-digits,
+                // Latin and Arabic-Indic digits, a bidi paragraph or not, in a
+                // table or not. A right-to-left mark before the sign and before
+                // what follows it gives that.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, wasRightToLeft, offset > 0 {
+                    func digit(_ c: Character) -> Bool { c.unicodeScalars.first.map { (0x30 ... 0x39).contains($0.value) || (0x660 ... 0x669).contains($0.value) || (0x6F0 ... 0x6F9).contains($0.value) } ?? false }
+                    func sign(_ c: Character) -> Bool { c == "-" || c == "/" || c == "%" }
+                    if (sign(ch) && before.map(digit) == true) || (digit(ch) && before.map(sign) == true) {
+                        flush(i)
+                        spans.append(TextSpan(text: "\u{200F}", style: zeroWidth(current ?? kind)))
+                        inserts.append(offset)
+                    }
+                }
                 // (A distributed line's room before this character: a word
                 // joiner that wide. Spacing on the character itself would
                 // be set half before it, and move the line's first.)
