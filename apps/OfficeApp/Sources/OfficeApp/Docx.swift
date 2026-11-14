@@ -6716,7 +6716,9 @@ enum DocxFormat {
             // An embedded object's picture, a WMF or EMF its VML names
             // (`WriterMetafiles`): the icon and caption of an attached
             // file, or the first page of a document.
-            if att.textBox == nil, let rid = node.descendant("v:imagedata")?["r:id"], let rel = notes.rels[rid], !rel.external,
+            // (A drawing group's VML twin, in the Fallback, holds its arrows' pictures: not the group's own picture, or one arrow is
+            // stretched over the whole group: dx2 87097d3e's grey blob.)
+            if att.textBox == nil, node.descendant("wpg:wgp") == nil, let rid = node.descendant("v:imagedata")?["r:id"], let rel = notes.rels[rid], !rel.external,
                let data = notes.part(_resolvePath("word", rel.target)) {
                 // (A VML picture of pixels — `w:pict`'s `v:imagedata`, a
                 // PNG or JPEG — is that picture: zh-64044a1d's nine charts
