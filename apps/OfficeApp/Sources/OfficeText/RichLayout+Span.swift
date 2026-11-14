@@ -4233,6 +4233,15 @@ extension RichLayout {
         return ea && latin
     }
 
+    /// The size of the largest run of only spaces in a span.
+    static func _spaceSize(_ s: InlineSpan) -> Double? {
+        guard let t = s as? TextSpan else { return nil }
+        var m: Double? = nil
+        if let text = t.text, !text.isEmpty, text.allSatisfy({ $0 == " " }), let size = t.style?.fontSize { m = size }
+        for c in t.children ?? [] { if let v = _spaceSize(c) { m = max(m ?? 0, v) } }
+        return m
+    }
+
     static func _setsNoLine(_ ch: Character) -> Bool {
         // (The bidirectional controls a right-to-left run is wrapped in set none either: lo tdf163575's
         // headings end in a 20pt right-to-left space, and Word sets their lines by the 15pt text.)

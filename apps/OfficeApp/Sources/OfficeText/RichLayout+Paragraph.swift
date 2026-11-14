@@ -1834,6 +1834,37 @@ extension RichLayout {
                 let line = "width \(i): column \(textWidth / _px(1))pt, text \(painter.maxIntrinsicWidth / _px(1))pt, \(painter.computeLineMetrics().count) lines\n"
                 FileHandle.standardError.write(Data(line.utf8))
             }
+            // (A line of pictures, spaces and the mark alone: Word's print sets NO text descent
+            // under the pictures, whatever the size of the mark or of the spaces. A 54pt picture,
+            // fifty 15pt spaces and a second picture stand with the next baseline 9.36 under their
+            // bottoms, as the picture alone does; the engine gave the spaces their 15pt line
+            // and the next baseline 3.2 too low (dx2 es 1c5a1268's header). Real glyphs
+            // on the line keep theirs. Lab picdescent.)
+            if pil, theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, _inlinePictureOnly(i, document),
+               document.paragraphs[i].text.containsSubstring(" "),
+               // (Pictures, not equations, all on one line: a first line of spaces that the picture then wraps from keeps
+               // its own text line — dx2 pl fa1371a3.)
+               inline.allSatisfy({ $0.image.map { $0.name != "m:oMath" && $0.float == nil } ?? false }),
+               painter.computeLineMetrics().count == 1 {
+                func bare(_ s: InlineSpan) -> InlineSpan {
+                    guard let t = s as? TextSpan else { return s }
+                    var st = t.style
+                    if let text = t.text, !text.isEmpty, text.allSatisfy({ $0 == " " }), let x = st, let size = x.fontSize, size > 0.5 {
+                        st = x.copyWith(ascentOverride: 0, descentOverride: 0, height: 0.001)
+                    }
+                    return TextSpan(text: t.text, children: t.children?.map { bare($0) }, style: st, recognizer: t.recognizer, locale: t.locale)
+                }
+                let bareSpan = bare(span)
+                let each = TextPainter(text: bareSpan, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr)
+                each.fractionalLineHeights = painter.fractionalLineHeights
+                each.lineIndents = painter.lineIndents
+                each.setPlaceholderDimensions(inline.map { $0.dimensions })
+                each.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
+                if each.computeLineMetrics().count == 1 {
+                    RuleTrace.hit("word-picture-and-spaces-line-has-no-text-descent")
+                    return each
+                }
+            }
             // One line of stretches of several heights is as tall as
             // its tallest and no more (a 14pt dash either side of a 9pt
             // page number): each face splits its height its own way,
