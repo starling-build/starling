@@ -12,7 +12,7 @@ set -u
 HERE=$(cd "$(dirname "$0")" && pwd); ROOT=$(cd "$HERE/../.." && pwd)
 BASEBIN=$(cd "$(dirname "$1")" && pwd)/$(basename "$1"); FIXBIN=$(cd "$(dirname "$2")" && pwd)/$(basename "$2"); JOBS=${3:-24}
 PY=${PYTHON:-python3}; STAGE=${STAGE:-/tmp/latin-sample-$$}
-C=${STARLING_CORPUS:-/data/corpus-cache}/staging/dx2; LIST=$ROOT/test/corpus/docx/dx2/latin-sample.txt
+C=${STARLING_CORPUS:-/data/corpus-cache}/staging/dx2; LIST=${LATIN_LIST:-$ROOT/test/corpus/docx/dx2/latin-sample.txt}
 for d in ${ENGINE_OUT:-} engine/src/out/host_release; do [ -d "$d" ] && { EO=$(cd "$d" && pwd -P); break; }; done
 [ -n "${EO:-}" ] || { echo "latin-sample: no engine out dir (ENGINE_OUT)" >&2; exit 2; }
 [ -d "$C/docs" ] || { echo "latin-sample: no dx2 corpus at $C" >&2; exit 2; }

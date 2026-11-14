@@ -1,7 +1,7 @@
-109 documents: mean 74.6% of Word's lines matched, median 90.0%; 49 at 95% or more, 88 at half or more; 94 with Word's page count
+109 documents: mean 75.0% of Word's lines matched, median 91.4%; 50 at 95% or more, 88 at half or more; 95 with Word's page count
     1.7%  lines 403/402  pages 14/13  gv-d1907c960c
     2.1%  lines 383/232  pages 6/5  dx4j-a94b4fd3b1
-    7.2%  lines 335/304  pages 15/14  gv-57041316b7
+    4.8%  lines 335/335  pages 15/15  gv-57041316b7
     7.5%  lines 829/935  pages 24/27  gv-cd79f1fa6b
     8.5%  lines 740/708  pages 21/18  gv-989ecc4fa6
    10.1%  lines 149/366  pages 6/16  dx4j-d5b6ee0cfa
@@ -18,11 +18,11 @@
    33.3%  lines 3/4  pages 1/1  lo-d0fc1bd5c5
    33.7%  lines 609/603  pages 32/30  gv-9fba5bc3b0
    37.3%  lines 1152/1152  pages 32/32  gv-690391482c
-   39.7%  lines 1607/1600  pages 37/37  gv-3db26a1d34
+   39.8%  lines 1607/1600  pages 37/37  gv-3db26a1d34
    45.1%  lines 304/306  pages 24/23  gv-802a85a40c
    50.0%  lines 8/8  pages 1/1  lo-3657739f63
-   51.8%  lines 299/326  pages 10/11  gv-8ddf4f0650
    51.8%  lines 284/285  pages 11/11  gv-c63b496e93
+   51.8%  lines 299/326  pages 10/11  gv-8ddf4f0650
    54.0%  lines 487/487  pages 20/20  gv-5f403944ae
    54.2%  lines 1439/1438  pages 40/40  gv-30930cbf0f
    55.6%  lines 9/8  pages 1/1  lo-a5a3668a69
@@ -30,7 +30,6 @@
    58.1%  lines 1324/1310  pages 39/38  gv-48dbbfebfb
    59.1%  lines 591/582  pages 16/16  gv-0ab5adb3c5
    60.0%  lines 5/5  pages 1/1  lo-feae325324
-   60.7%  lines 61/61  pages 2/2  lo-98ae9de23e
    63.9%  lines 36/34  pages 2/2  lo-ae4f3e8e64
    64.3%  lines 28/28  pages 1/1  lo-181b561b0a
    65.0%  lines 1103/1101  pages 33/33  gv-d4270b921d
@@ -69,8 +68,8 @@
    98.5%  lines 779/779  pages 19/19  oxsdk-1c09b12993
    99.4%  lines 1071/1071  pages 36/36  gv-e7920f5c77
    99.6%  lines 689/690  pages 37/37  gv-2eba1286c8
-   99.7%  lines 364/364  pages 14/14  gv-47bc2010eb
    99.7%  lines 327/327  pages 19/19  gv-c9368dd9d4
+   99.7%  lines 364/364  pages 14/14  gv-47bc2010eb
    99.9%  lines 740/741  pages 21/21  gv-7b608a7d61
   100.0%  lines 16/16  pages 1/1  dx4j-bacc7e5885
   100.0%  lines 64/64  pages 3/3  dx4j-d1847304db
@@ -101,6 +100,7 @@
   100.0%  lines 7/7  pages 1/1  lo-76ff18790c
   100.0%  lines 14/15  pages 1/1  lo-79216f499c
   100.0%  lines 20/20  pages 1/1  lo-8f2f7e1a1b
+  100.0%  lines 61/61  pages 2/2  lo-98ae9de23e
   100.0%  lines 7/7  pages 1/1  lo-af4c2d4632
   100.0%  lines 8/8  pages 1/1  lo-b252ca5786
   100.0%  lines 709/709  pages 23/23  lo-b9c4651087
