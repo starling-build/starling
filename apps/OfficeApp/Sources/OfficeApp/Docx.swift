@@ -4062,6 +4062,33 @@ enum DocxFormat {
         return holds ? rest[3].text : (rest.count == 5 ? rest[4].text : "")
     }
 
+    /// The ruby an `EQ \o(\s\up N(ruby),base)` field sets (Word's Phonetic Guide before w:ruby): its
+    /// ruby text, base, size (`\* hpsN`, half points) and raise (points), or nil for any other field.
+    static func _eqRuby(_ instr: String) -> (ruby: String, base: String, size: Double, raise: Double, align: String?)? {
+        let t = instr.trimmingWhitespace(newlines: true)
+        guard t.uppercased().hasPrefix("EQ"), let o = t.rangeOfSubstring("\\o"), let up = t.rangeOfSubstring("\\s\\up") else { return nil }
+        let head = String(t[t.startIndex ..< o.lowerBound])
+        let tail = t[up.upperBound...]
+        guard let open = tail.firstIndex(of: "(") else { return nil }
+        let raise = Double(String(tail[tail.startIndex ..< open]).trimmingWhitespace(newlines: true)) ?? 0
+        let afterOpen = tail.index(after: open)
+        guard let close = tail[afterOpen...].firstIndex(of: ")") else { return nil }
+        let ruby = String(tail[afterOpen ..< close])
+        var rest = tail[tail.index(after: close)...]
+        guard rest.hasPrefix(",") else { return nil }
+        rest = rest.dropFirst()
+        guard rest.hasSuffix(")") else { return nil }
+        let base = String(rest.dropLast())
+        guard !ruby.isEmpty, !base.isEmpty, !base.containsSubstring("(") else { return nil }
+        var size = 0.0, align: String? = nil
+        for tok in head.split(whereSeparator: { $0.isWhitespace }) {
+            let lower = tok.lowercased()
+            if lower.hasPrefix("hps"), let v = Double(lower.dropFirst(3)) { size = v / 2 }
+            if lower == "jc0" { align = "center" } else if lower == "jc1" { align = "left" } else if lower == "jc2" { align = "right" }
+        }
+        return (ruby, base, size, raise, align)
+    }
+
     /// The circled number an `eq \o\ac(○,N)` field draws (N from 1 to
     /// 20), or nil for any other field.
     static func _ringedNumber(_ instr: String) -> String? {
@@ -7051,6 +7078,14 @@ enum DocxFormat {
                             var shown = cs
                             shown.field = f.instr.trimmingWhitespace(newlines: true)
                             if !shownText.isEmpty { addText(shownText, shown) }
+                        }
+                        // (An EQ field Word's Phonetic Guide wrote before w:ruby: `EQ \* jc0 \* "Font:.." \* hps16 \o(\s\up 19(にがつ),二月)`.
+                        // The base is the text, the ruby rides over it like w:ruby's. lo-181b561b0a dropped both.)
+                        if let f = notes.fields.last, !f.result, let eq = DocxFormat._eqRuby(f.instr) {
+                            RuleTrace.hit("eq-ruby-like-w-ruby")
+                            var look = notes.fieldCodeStyle[f.id] ?? cs
+                            look.ruby = RubyText(text: eq.ruby, size: eq.size, raise: eq.raise, align: eq.align, group: text.utf16.count, xml: "")
+                            addText(eq.base, look)
                         }
                         if let f = notes.fields.last, !f.result, let ringed = DocxFormat._ringedNumber(f.instr) {
                             // (The kept ring of an overstrike takes the code's own run style, 12 pt here,
