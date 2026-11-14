@@ -16681,3 +16681,5 @@ lenovo-3 CLAIM (2026-11-14): xb docx-f3550c7b (10%). bfc234 released, it is amd-
 - 9baed400 (71.5, pages 38/39, lines 639/669) not yet looked at.
 - starling-c1 claims my 150d8a3ac dropped xd 1f977536/564a33e9/b9164bf3; the rule trace shows it never fires on them (only on 87097d3e). Asked c1 to re-bisect.
 - Open from before: hin-z10093577 paragraph 2 pt low, the ि placement.
+
+- lenovo-5 HANDOFF 2026-11-14: queued entry -112 (3 commits): HG pop name rule, zh-37b6536f picture-only paragraph fix (136/136 lines), by-property missing-Japanese-face Yu Gothic rule (4fbb6e32 51 lines; ko/ja/hi/bn dx2 A/B no doc moves; unit tests 655/0). PARKED: 05f6e2a87 + d26c4a23a (hanging paragraph beside 2+ shapes): 05f6e2a87 drops dx2 28abf02c 89.7 to 76.5 (138 lines vs 139): choice row "...いるから" must wrap inside its piece to a new line at x=240 instead of overflowing; the rule gets row starts right but breaks flow. Next: vertical ja docs ee0b468e, 1e0c044f, 3ebc3ec5, 934bd3e5.
