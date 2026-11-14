@@ -28,7 +28,11 @@ extension RichLayout {
         // nor gives. Before it, and that is most documents written
         // elsewhere, every paragraph's are.)
         // (Outside East Asian layout only the spaces give, below.)
-        let latinOnly = !document.usesEastAsianLayout
+        // (A file that names compat mode 15 and no w:useFELayout, its defaults naming a Japanese East Asian language, is set
+        // by the East Asian rules all the same: xb jpn-z19126474-754366's "…基礎として、" hangs its "、" in Word's print.)
+        let latinOnly = !(document.usesEastAsianLayout || (document.autoSpacesWithoutFELayout && (document.compatibilityMode ?? 0) >= 15
+            && document.eastAsiaLanguage?.hasPrefix("ja") == true && document.defaultLangXML?.containsSubstring("w:eastAsia=\"") == true
+            && RichTextTheme.wordWindowsPages && p.text.unicodeScalars.contains { $0.value >= 0x3040 && $0.value <= 0x30FF || $0.value >= 0x4E00 && $0.value <= 0x9FFF }))
         // (Word for Windows lets a Latin paragraph's last "," "." ";" ")" or "}" stay on a line while its
         // origin is inside the margin, in a file that states a mode before 2013: lab `hang1`, mode 14,
         // Calibri 10pt, left; a letter never does. fas-z19537379 p5.)
