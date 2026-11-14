@@ -725,8 +725,8 @@ enum WriterMath {
 
         /// A radical: the sign grown to its body, a rule over it, its
         /// degree small at the left.
-        // (Windows Word: the sign's ink ends at the rule, so a line holding a square root is no taller than the rule
-        // over its body: lo-98ae9de23e's roots stand in 15.6pt lines of a 13.8pt text, the sign's font line gave 19.)
+        // (Windows Word, a root in a line of text: the sign's ink ends at the rule, so the line is no taller than the rule
+        // over its body; a display equation's root keeps the sign's height, xs 5e2af397: lo-98ae9de23e's roots stand in 15.6pt lines of a 13.8pt text, the sign's font line gave 19.)
         func radical(_ n: XNode, size: Double, level: Int) -> Box {
             let body = row(n.first("m:e"), size: size, level: level)
             let s = runSize(n.first("m:e"), size, level)
@@ -738,7 +738,7 @@ enum WriterMath {
             // (In a line of text the gap over the body is Cambria Math's text-style 0.05 em, not the display 0.12.)
             let top = body.ascent + s * (RichTextTheme.wordWindowsPages && inlineText ? 0.05 : 0.12)
             let lead = (degree?.width ?? 0) * 0.6
-            return Box(width: lead + sign.width + body.width + s * 0.05, ascent: max(top + rule, RichTextTheme.wordWindowsPages ? 0 : sign.ascent, (degree?.ascent ?? 0) + top * 0.5),
+            return Box(width: lead + sign.width + body.width + s * 0.05, ascent: max(top + rule, RichTextTheme.wordWindowsPages && inlineText ? 0 : sign.ascent, (degree?.ascent ?? 0) + top * 0.5),
                        descent: max(body.descent, sign.descent)) { canvas, at in
                 degree?.draw(canvas, Offset(at.dx, at.dy - top * 0.5))
                 sign.draw(canvas, Offset(at.dx + lead, at.dy + body.descent - sign.descent))
