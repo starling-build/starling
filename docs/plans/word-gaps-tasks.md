@@ -16770,3 +16770,10 @@ HANDOFF amd-1 (2026-11-14) dx2 hi 87097d3e (-132, queue/amd-1-132, commit a69b0f
 - DROPPED the 1.15 "hang" past the separator: it costs gv-48dbbfebfb page 8 (extra body line fits, Word moves it), f771e9db -58, 6f1caa1e -1.
 - Left: 690 reaches 810 only with a 2-lines-each-side cut set for 4+ line notes, but that drops e50792c2 (page 13: note 7, 4 lines, parts 2+2, then the line with ref 8 stays on page 13 and note 8 goes to page 14; Word puts that line on page 14). Needed second rule: once an earlier note on the page is continued, a later ref's note cannot start there, so push the ref line over (Paginate ~2026 and ~345 use `pageCut == nil`).
 - Next: xa dx4j-a94b4fd3b1, gv-57041316b7.
+
+### HANDOFF lenovo-3 (2026-11-14): xb jpn-g5-b79900 (b79900)
+- Landed earlier: snapToChars grid, hint rule, footnote flag. Resubmitted as entry -142: emphasis marks (w:em), after -129 conflicted (the rest of -129 had already landed).
+- NOT landed: floor for an inline-picture-only line under "at least" height (rule line sat 9 pt high). Saved on branch wip-lenovo3-b79900. Lines 95.3 to 97.7, rule within 0.8 pt of Word. But the page count goes 1 to 2: last line spills.
+- Cause of the spill, measured: the circled-digit label (numbering abstractNum 7, HG Maru, sz 23 = 11.5 pt) makes the first line of each numbered item 0.4 pt lower than the HG Maru rule predicts (heading to label gap: Word 14.9, ours 15.2). Label sizes 11 / 11.5 / 12 / 13 give gaps 14.3 / 15.2 / 15.7 / 16.74 (11 pt, same as body, is exact; any larger label adds about 0.4 over 3.2 + 1.0094 x size). With the label at 11 pt the doc is 1 page, 97.7. Our drawn label is a Type3 fallback face; Word embeds HGMaruGothicMPRO.
+- Next step: find where a label bigger than the body takes its ascent (about 1.04 em, not the rule's 1.0094); check whether the circled digit is routed to the Latin slot. Then land the floor with the fix.
+- jpn-g6-2212a2 (96.4) did not move with the floor: a separate gap.
