@@ -1381,10 +1381,11 @@ extension RichLayout {
             _besideLabelShift[i] = nil
             var indents: [LineIndent] = []
             var firstBeside = true
+            var firstLead: Double? = nil
             for _ in 0 ..< (besideLeftRoom != nil ? 24 : 8) {
-                let (trialSpan, _, _) = _span(for: p, at: i, document, textWidth: textWidth, lead: firstBeside && !besideRight && besideLeftRoom == nil ? max(original - besideIndent, 0) : original,
+                let (trialSpan, _, _) = _span(for: p, at: i, document, textWidth: textWidth, lead: firstBeside && !besideRight && besideLeftRoom == nil ? max(original - besideIndent, 0) : firstLead ?? original,
                                               adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
-                let trialInline = _span(for: p, at: i, document, textWidth: textWidth, lead: original, adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld).1
+                let trialInline = _span(for: p, at: i, document, textWidth: textWidth, lead: firstLead ?? original, adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld).1
                 let trial = TextPainter(text: trialSpan, textAlign: .left, textDirection: .ltr)
                 if !trialInline.isEmpty { trial.setPlaceholderDimensions(trialInline.map { $0.dimensions }) }
                 trial.lineIndents = indents
@@ -1422,7 +1423,9 @@ extension RichLayout {
                         let top = before - saved, bottom = bottoms[k] - saved
                         let active = boxes.filter { bottom > $0.top + 0.01 && top < $0.bottom - 0.01 }.sorted { $0.left < $1.left }
                         var segments: [(from: Double, to: Double)] = []
-                        var x0 = 0.0
+                        // (The first line of a hanging paragraph starts in the hanging area, and its first piece with it.)
+                        let hang = k == 0 ? max(0, -original) : 0
+                        var x0 = -hang
                         for b in active {
                             if b.left - x0 >= minRoom { segments.append((x0, b.left)) }
                             x0 = max(x0, b.right)
@@ -1430,7 +1433,14 @@ extension RichLayout {
                         if !active.isEmpty, textWidth - x0 >= minRoom { segments.append((x0, textWidth)) }
                         if active.isEmpty || segments.isEmpty { next.append(LineIndent()); k += 1; continue }
                         for (j, seg) in segments.enumerated() where k + j < bottoms.count {
-                            next.append(LineIndent(left: seg.from, right: max(textWidth - seg.to, 0)))
+                            if k == 0, j == 0, hang > 0, seg.from < 0 {
+                                // (The first piece starts in the hanging area: the line is laid from the margin to its end, the lead
+                                // taking it back to the piece's start, so the painter's width stays positive.)
+                                firstLead = seg.from
+                                next.append(LineIndent(left: 0, right: max(textWidth - seg.to - hang, 0)))
+                            } else {
+                                next.append(LineIndent(left: max(seg.from, 0), right: max(textWidth - seg.to, 0)))
+                            }
                             if j > 0 { saved += min(bottoms[k + j] - bottoms[k + j - 1], bottoms[k] - before) }
                         }
                         k += segments.count
@@ -1490,7 +1500,7 @@ extension RichLayout {
                 // (A list item beside a box at the right no longer keeps its label's box: that rule, fit
                 // to lo-717ff943's earlier print, left each bullet 1.5pt under the label-less line in
                 // the Windows print, which has bullet and text on one baseline.)
-                if !firstBeside || besideRight || besideLeftRoom != nil || (!(colWrapBoxes?.isEmpty ?? true) && (indents.first?.left ?? 0) == 0) { lead = original; _leadWidth[i] = lead }
+                if !firstBeside || besideRight || besideLeftRoom != nil || (!(colWrapBoxes?.isEmpty ?? true) && (indents.first?.left ?? 0) == 0) { lead = firstLead ?? original; _leadWidth[i] = lead }
             else { lead = max(lead - besideIndent - firstExtra, 0); _leadWidth[i] = lead }
             if firstExtra > 0, firstBeside, let f = indents.first, f.left > 0 { _besideLabelShift[i] = f.left }
         }
