@@ -16785,3 +16785,9 @@ HANDOFF amd-1 (2026-11-14) dx2 hi 87097d3e (-132, queue/amd-1-132, commit a69b0f
 - lenovo-3 CLAIM (2026-11-14): xb heb-z17544993-944544 (1.1, lines 472/547, pages 14/15), then heb-z24027390-bae91d (3.2). -142 emphasis dots landed (12787292d). Others in the low list (fas/ara/urd) are amd-2's parked RTL or unclaimed; I take heb first.
 
 - amd-5 HANDOFF (2026-11-14, queued 20261114-162337-amd-5-146): "…" (U+2026) may start a line in Japanese text (ja East Asian language, Windows, no strict kinsoku, no own w:noLineBreaksBefore list). New break point before "…" plus the fitter no longer glues it (RichLayout+EastAsian: _ellipsisMayStart). Word sets a paragraph-final "…" alone when the line before is full. xb jpn 1e9281/ec6c96 407 to 408, 771abc 474 to 475, bb5c68 390 to 391; 32 docs holding "…" A/B'd (base vs new binary), no drops. Left: 1e9281/ec6c96 still miss 14 lines of 427, next gap is a hanging-indent paragraph on p7 where Word wraps a character earlier (width, not kinsoku).
+
+### amd-2 HANDOFF (2026-11-14)
+- Queued: Candara real metrics (07356df9 xd 104 to 629 of 1587 lines; dx2 b3b6b12d 54 to 56; gv-d4270b921d, dx4j-7acb626022 unchanged; unit tests 655/0). Queue entries 147 and 149 (149 also carries the Korean baseline commit, xb 22de7d 168/180).
+- Parked: dx2 ed5bf93a (95.6): wordWrap 0 Word starts the next line with a justified line's trailing space; needs an engine change, NBSP lab failed (lab/ww0-space-ed5bf93a.diff).
+- Open: xd 8948a622 (en-AU, Word 1299 lines/37 pages, ours 1301/38, 120 matched), xd 38d880e8 (Hebrew RTL, Word 352/11 pages, ours 382/12, 33 matched). Not investigated.
+- 07356df9 now 1582 lines on 35 pages vs Word 1587 on 36: next gap there.
