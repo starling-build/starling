@@ -4095,7 +4095,9 @@ extension RichLayout {
     @inline(never)
     func _nikoshLettersOnlyLine(_ units: [UInt16], _ firstEnd: Int, _ run: Run, _ named: RichNamedStyle?, _ document: RichDocument) -> Bool {
         let latin = (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
-        guard latin == "nikosh" else { return false }
+        // (Siyam Rupali, Windows lacks it too and Word draws its Bengali letters in Nirmala UI: lab e86-pitch, every Bengali-only page's first
+        // baseline 2.1 pt higher in Word's print than ours, which stood it on Malgun Gothic's ascent, the face its Latin falls to.)
+        guard latin == "nikosh" || latin == "siyam rupali" else { return false }
         for u in units[0 ..< min(firstEnd, units.count)] {
             if u == 0x20 || u == 0x200B || u == 0x200C || u == 0x200D || u == 0x2060 || u == 0xA0 { continue }
             if Self._isIndic(UInt32(u)), u != 0x964, u != 0x965 { continue }
