@@ -1467,8 +1467,7 @@ extension RichLayout {
                 guard let t = span as? TextSpan, !japaneseFace else { return }
                 let own = inherited.map { $0.merge(t.style) } ?? t.style
                 if let x = t.text, !x.isEmpty {
-                    let f = (own?.debugLabel ?? own?.fontFamily ?? "").lowercased()
-                    if ["meiryo", "メイリオ", "ms mincho", "ms gothic", "ＭＳ", "yu mincho", "yu gothic", "游"].contains(where: { f.containsSubstring($0) }) { japaneseFace = true }
+                    if Self.isJapaneseFaceName(own?.debugLabel ?? own?.fontFamily ?? "") { japaneseFace = true }
                 }
                 for child in t.children ?? [] { faces(child, own) }
             }
@@ -1874,5 +1873,23 @@ extension RichLayout {
         _paintTurnedTextBox(inside, text, image, Rect.fromLTWH(0, 0, w * ppx, h * ppx), canvas, clips: false)
         canvas.restore()
         return true
+    }
+}
+
+
+extension RichLayout {
+    /// A Windows Japanese face, by name: the MS, Yu, Meiryo and HG families, in Latin or Japanese spelling. The name is folded
+    /// first (full-width Latin to ASCII, lower case), so "ＭＳ 明朝" and "MS Mincho" are one face.
+    static func isJapaneseFaceName(_ name: String) -> Bool {
+        var f = ""
+        for u in name.unicodeScalars {
+            if u.value >= 0xFF01 && u.value <= 0xFF5E, let h = Unicode.Scalar(u.value - 0xFEE0) { f.unicodeScalars.append(h) }
+            else if u.value == 0x3000 { f += " " }
+            else { f.unicodeScalars.append(u) }
+        }
+        f = f.lowercased()
+        if f.hasPrefix("hg") { return true }
+        if f.hasPrefix("ms ") { return ["mincho", "gothic", "明朝", "ゴシック", "ui"].contains { f.containsSubstring($0) } }
+        return ["meiryo", "メイリオ", "yu mincho", "yu gothic", "游"].contains { f.containsSubstring($0) }
     }
 }
