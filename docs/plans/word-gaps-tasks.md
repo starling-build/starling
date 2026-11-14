@@ -16883,3 +16883,9 @@ amd-6 HANDOFF (2026-11-14, parked on starling-bd's cost order; NOTHING landed, n
 - lenovo-3 2026-11-14 HANDOFF: -172 queued (Hebrew-only docs follow the theme minor Latin face when it has Hebrew glyphs; Cambria still TNR; e040af 145 to 146 of 156). Arabic docs unchanged (Calibri has no Arabic). Persian fas 768d17/3a9879/174812 width measurement NOT done yet (claimed).
 
 - lenovo-2 2026-11-14 PARKED dx2 236cd3ae (78.1, 64 lines, 50 matched). Tried: treat a default language with no eastAsia (only w:val="en-US") as "no language" so Word's no-line-rules path runs (Docx bodyStatesLang narrowed, plainNoLineRules/Span 2728 gate defaultLangNamesNoEastAsian). Result: 67 lines, matched 35 (worse): ours then opens 12 lines with a mark, Word opens only ONE (p1 "、分布" after a line that is exactly 37 em wide, 516.1). Elsewhere Word packs mark+next char onto the line ("相关问题，如", "提供具体的"), so it is not a plain no-kinsoku rule; the single line-start 、 is the exception to explain. Reverted, nothing landed. Task 1 (8676db65) landed as 40a17f345.
+
+### amd-7 HANDOFF 2026-11-14 (xb ben-bfc234)
+- Queued (queue/amd-7-174): an empty paragraph mark in a missing Bengali face takes Shonar Bangla's 1.294 em line (page 1 last baseline 704.7 to 706.3, Word 706.5). Unit tests 655, 0 failures. Score stays 60.7% (178/186 lines, 9 pages vs Word 10).
+- Parked: Latin bullet rows with a one-space Cambria run are 37.3 apart in Word, ours 35.7 (Kalpurush-only bullets match at 35.7). A try that gave a Cambria-space run Cambria's .95 ascent over Shonar's split gave 10 pages but score fell to 18.5%, so reverted. Needs the real per-line ascent/descent of Shonar (metrics: corpus-cache/metrics/indic/Shonar_Bangla_Regular.tsv) combined with Cambria's .95/.222.
+- Side: ours prints "© akash ahmed" on pages 1, 3, 10 that Word's text layer lacks; unchecked.
+- Next: dx2 9ddfc84d, 80152175.
