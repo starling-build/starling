@@ -7374,7 +7374,13 @@ enum DocxFormat {
                     // draws it, its text text (chartex's: 8 lines of Word's
                     // print, and the sunburst's 16).
                     let requires = (child.first("mc:Choice")?["Requires"] ?? "").split(separator: " ")
-                    if requires.contains(where: { $0 == "cx" }), let drawing = child.first("mc:Choice")?.first("w:drawing"),
+                    if child.first("mc:Choice")?.first("w16se:symEx") != nil, let fb = child.first("mc:Fallback") {
+                        // (A symbol Word 2016 saves as w16se:symEx is a character, not an
+                        // object: its Fallback holds the same character as text. Read as an
+                        // object it stood a grey box 250 pt wide in the middle of 30775350's
+                        // route line and pushed the rest of it down the page.)
+                        for t in fb.children where t.name == "w:t" { addText(t.text, cs) }
+                    } else if requires.contains(where: { $0 == "cx" }), let drawing = child.first("mc:Choice")?.first("w:drawing"),
                        boxWhisker(drawing) != nil {
                         addObject(drawing)
                     } else if requires.contains(where: { $0 == "cx" }), let drawing = child.first("mc:Fallback")?.first("w:drawing"),
