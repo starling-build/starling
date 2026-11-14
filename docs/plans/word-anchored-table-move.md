@@ -109,7 +109,7 @@ same move condition, and leave the move rule itself alone.
 
 f42177d2 (xd) should go up: one page fewer, and the page-9 table 13 pt higher.
 The move rule fires on few documents. Before submitting, list them with the
-rule trace (`STARLING_RULE_TRACE`, every set) and A/B those documents. Score
+rule trace (`OFFICE_RULE_TRACE=<file>`, every set) and A/B those documents. Score
 only those; the landing changes nothing else.
 
 ## Traps
