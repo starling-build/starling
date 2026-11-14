@@ -4108,7 +4108,7 @@ extension RichLayout {
             let text = String(decoding: units[start ..< end], as: UTF16.self)
             let hit = text.unicodeScalars.contains { u in
                 let v = u.value
-                return v == 0x25CB || v == 0x25B3 || v == 0xB7 || (v >= 0x2460 && v <= 0x2469) || v == 0x203B || v == 0x2192
+                return v == 0x25CB || v == 0x25B3 || v == 0x25A1 || v == 0xB7 || (v >= 0x2460 && v <= 0x2469) || v == 0x203B || v == 0x2192
                     || v == 0x2018 || v == 0x2019 || v == 0x201C || v == 0x201D
             }
             let viaEastAsia = theme.faceResolver?(run.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
