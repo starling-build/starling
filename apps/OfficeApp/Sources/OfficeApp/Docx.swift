@@ -4790,6 +4790,13 @@ enum DocxFormat {
         return out
     }
 
+    /// The left indent the list level a paragraph is in states, where the
+    /// paragraph carries none of its own (a text box moves it with the box's).
+    static func _levelLeft(_ style: RichParagraphStyle, _ notes: _Shared) -> Double? {
+        guard style.list != nil, let id = style.listId else { return nil }
+        return notes.listFormats[id]?[style.listLevel]?.indentLeft
+    }
+
     /// Half a shape's outline width (points), which Word adds to its
     /// text's insets whether or not the outline is drawn (see the text
     /// box reader); none where the outline states no width.
@@ -6521,7 +6528,7 @@ enum DocxFormat {
                             for q in first ..< inside.count {
                                 inside[q].style.indentLeft += x + l
                                 // (A list's number and text stand at its own left: moved with the box's.)
-                                if let own = inside[q].style.listIndentLeft { inside[q].style.listIndentLeft = own + x + l }
+                                if let own = inside[q].style.listIndentLeft ?? Self._levelLeft(inside[q].style, notes) { inside[q].style.listIndentLeft = own + x + l }
                                 inside[q].style.indentRight += max(0, groupWidth - (x + w) + r)
                                 inside[q].style.boxInsetRight = r
                             }
@@ -6552,7 +6559,7 @@ enum DocxFormat {
                         if n > 0 { read(b.content) }
                         for q in first ..< inside.count {
                             inside[q].style.indentLeft += b.place.left
-                            if let own = inside[q].style.listIndentLeft { inside[q].style.listIndentLeft = own + b.place.left }
+                            if let own = inside[q].style.listIndentLeft ?? Self._levelLeft(inside[q].style, notes) { inside[q].style.listIndentLeft = own + b.place.left }
                             inside[q].style.indentRight += max(0, att.width - b.place.right)
                         }
                         parts.append(RichTextBox.Part(first: first, top: b.place.top, height: max(0, b.place.height), atFoot: b.atFoot))
