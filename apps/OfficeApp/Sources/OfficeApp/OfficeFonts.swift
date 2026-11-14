@@ -1273,6 +1273,16 @@ enum OfficeFonts {
     // with PRINTS_GLOB over the corpus-cache word-win folders): U+0020-U+007E (9 of 95 estimated) and every other code point a print used,
     // Armenian U+0531-U+0587 among them. xs 5ed52035 sets GHEA Grapalat (absent, so Word draws Sylfaen).
     // Line: win 2062 over and 635 under of 2048 (1.317 em).
+    // Franklin Gothic Medium Cond's own widths from the hmtx of the subsets Word for Windows' prints embed (7 prints; only the
+    // code points they used, so a missing ASCII letter keeps Sylfaen's width).
+    static let franklinMediumCondAdvances: [UInt32: Double] = [
+        0x20: 0.1865, 0x21: 0.3408, 0x22: 0.5112, 0x25: 0.6812, 0x28: 0.2554, 0x29: 0.2554, 0x2C: 0.2388, 0x2D: 0.2896,
+        0x2E: 0.2388, 0x2F: 0.4771, 0x30: 0.5107, 0x31: 0.5107, 0x32: 0.5107, 0x33: 0.5107, 0x34: 0.5107, 0x35: 0.5107,
+        0x36: 0.5107, 0x37: 0.5107, 0x38: 0.5107, 0x39: 0.5107, 0x3A: 0.2383, 0x41: 0.4941, 0x43: 0.5278, 0x45: 0.4600,
+        0x48: 0.5449, 0x4B: 0.5112, 0x4D: 0.7153, 0x4E: 0.5620, 0x4F: 0.5625, 0x50: 0.4941, 0x54: 0.3750, 0x5F: 0.5000,
+        0x60: 0.5000, 0x61: 0.4600, 0x63: 0.4087, 0x64: 0.4771, 0x65: 0.4429, 0x6F: 0.4600, 0x70: 0.4771, 0x72: 0.2725,
+        0x78: 0.3579,
+    ]
 static let sylfaenAdvances: [Double] = [
         0.2500, 0.2651, 0.3481, 0.5000, 0.5004, 0.8398, 0.6002, 0.1718, 0.3271, 0.3271, 0.3120, 0.5000, 0.2500, 0.3789, 0.2500,
         0.3101, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.2500, 0.2500, 0.5000, 0.5000,
@@ -3666,6 +3676,18 @@ static let sylfaenAdvances: [Double] = [
                 face.boldAdvances = sylfaenAdvances
                 face.boldOtherAdvances = face.otherAdvances
                 RuleTrace.hit("sylfaen-own-line")
+                // GHEA Grapalat whose font table gives Franklin Gothic Medium Cond as its alternate: Word draws the Armenian
+                // letters in Sylfaen but the space, digits and Latin in the alternate (dx2 hy 05a96a87: space 0.1865 em, not Sylfaen's 0.25).
+                if family.trimmingWhitespace().lowercased() == "ghea grapalat",
+                   altName(family)?.trimmingWhitespace().lowercased() == "franklin gothic medium cond" {
+                    var adv = sylfaenAdvances
+                    for (cp, w) in franklinMediumCondAdvances where cp >= 0x20 && Int(cp) < 0x20 + adv.count { adv[Int(cp) - 0x20] = w }
+                    face.advances = adv
+                    face.boldAdvances = adv
+                    face.sizeScale = 1   // (the table's widths are true em; the Franklin stand-in's scale would narrow them)
+                    face.classScales = nil
+                    RuleTrace.hit("ghea-franklin-latin")
+                }
             }
             // Palatino Linotype's own line in Word for Windows' print: win/hhea 2150 over and 613 under of 2048 (1.3491 em).
             // xs 8d372494's 14pt lines step 19.0 and its 24pt headings 32.4 in Word, where the Times stand-in's 1.15 stepped 16.1 and 27.6.
@@ -3727,7 +3749,8 @@ static let sylfaenAdvances: [Double] = [
                 face.naturalHeight = own.height
                 face.baseline = own.baseline
             }
-            if clone != calibri {
+            // (Not Sylfaen, nor GHEA Grapalat drawn as it: their own tables, set above, are not the circled digits'.)
+            if clone != calibri, !(wordOnWindows && ["sylfaen", "ghea grapalat"].contains(family.trimmingWhitespace().lowercased())) {
                 face.otherAdvances = circled(1.2007)
                 face.boldOtherAdvances = circled(1.2207)
             }
