@@ -2191,6 +2191,22 @@ extension RichLayout {
                 RuleTrace.hit("floating-table-lifted-to-end-at-the-foot")
                 y = contentH - run - ruleUnder(c)
             }
+            // (An ordinary table, set under a paragraph, that has no room beside a box wrapped square
+            // which the paragraphs above anchor, is set under the box's foot, its bottom distance and all:
+            // Word's print of xa gv-d4270b921d, a 468pt table under a 186pt logo box, the table's top
+            // border at the box's foot plus 3.6pt; ours set it at the blank line, under the box's body.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, resumeCursor == nil, i > 0, !bands.isEmpty, let c = _cells[i], _cells[i - 1] == nil,
+               _tableFirstParagraph[c.table] == i, document.tableStyles[c.table]?.floatsOverText != true,
+               case let tableWidth = (_columnWidths[c.table] ?? []).reduce(0, +), tableWidth > 0 {
+                var steps = 0
+                while steps < 8, let band = bands.filter({ $0.top < y + 0.5 && $0.bottom > y + 0.5 }).min(by: { $0.bottom < $1.bottom }) {
+                    let column = _flowWidth(i)
+                    let room = band.left < -1000 ? column - band.right : (band.right > 1000 ? band.left : max(band.left, column - band.right))
+                    guard tableWidth > room + 0.01 else { break }
+                    RuleTrace.hit("word-table-with-no-room-beside-a-square-box-stands-under-it")
+                    y = band.bottom; steps += 1
+                }
+            }
             if let c = _cells[i] {
                 // (Where the row opens the page, a break it states is no
                 // break, whatever offset the table is then set down by:
@@ -4994,6 +5010,8 @@ extension RichLayout {
         switch style {
         case "double": return width * 3
         case "thinThickSmallGap", "thickThinSmallGap": return width + 1.5
+        // (Word's print of xa gv-d4270b921d's 3pt table top: a 0.69 line, 0.83 gap, 2.9 line, 0.83 gap, 0.69 line, 5.9pt in all.)
+        case "thinThickThinSmallGap": return width + 3
         case "thinThickMediumGap", "thickThinMediumGap": return width * 2
         case "thinThickLargeGap", "thickThinLargeGap": return width + 2.25
         default: return width
@@ -5011,6 +5029,7 @@ extension RichLayout {
         let thin = 0.75, gap = max(0, _ruleRoom(style, width) - width - thin)
         switch style {
         case "double": return [(0, width), (2 * width, width)]
+        case "thinThickThinSmallGap": return [(0, thin), (thin + 0.75, width), (thin + 0.75 + width + 0.75, thin)]
         case "thinThickSmallGap", "thinThickMediumGap", "thinThickLargeGap": return [(0, width), (width + gap, thin)]
         case "thickThinSmallGap", "thickThinMediumGap", "thickThinLargeGap": return [(0, thin), (thin + gap, width)]
         default: return [(0, width)]
