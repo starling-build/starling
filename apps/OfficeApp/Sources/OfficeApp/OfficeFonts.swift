@@ -3941,6 +3941,13 @@ static let sylfaenAdvances: [Double] = [
                 face.baseline = 1891.0 / 2048
                 RuleTrace.hit("book-antiqua-own-line")
             }
+            // Franklin Gothic Medium Cond's own line (hhea 1886 over, 436 under of 2048: 1.134 em): the line Word gives an
+            // empty paragraph mark set in GHEA Grapalat (dx2 05a96a87: marks step 15.7 at 12 pt, 1.15 multiple).
+            if wordOnWindows, family.trimmingWhitespace().lowercased() == "franklin gothic medium cond" {
+                face.naturalHeight = 2322.0 / 2048
+                face.baseline = 1886.0 / 2048
+                RuleTrace.hit("franklin-cond-own-line")
+            }
             // Sylfaen's own line in Word for Windows' print: win 2062 over and 635 under of 2048 (1.317 em). xs 5ed52035's 11pt
             // Armenian lines (set in GHEA Grapalat, which Word for Windows lacks and draws as Sylfaen) at 1.0667 step 15.5 in Word, where the DejaVu stand-in stepped 14.0; and its own widths.
             if wordOnWindows, ["sylfaen", "ghea grapalat"].contains(family.trimmingWhitespace().lowercased()) {
