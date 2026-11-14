@@ -16579,3 +16579,4 @@ HANDOFF amd-2 (2026-11-14) Korean lowest docs: c466d30a wordWrap-0 Hangul stop r
   - 8fc562f95 (amd-10, Montserrat): gv-57041316b7 7.2 to 4.8 ACCEPTED as an exposure (widths now from Word's own Montserrat; doc is broken anyway). amd-10 parked.
   - zh-db07d44e 99.9 to 99.2: with lenovo-2 to confirm (probably 66662e646).
   - 4fabe1f2 37.9 to 37.5 (caa27b8a2) and cab6d785 76.2 to 76.1 (amd-2-28): approved by starling-bd.
+- amd-1 2026-11-14 Kokila refit (queue -74, 735ffe065): tables refit from a Word lab (/data/s/amd-1/kk/lab, 12 files). xb hin-z20740649 and z20747431 21.3 to 100. dx2 net 0. EXPOSURES (approved by starling-bd): 06b47879 100 to 97.2 (one word early, line 439), d760f1e5 92.1 to 91.3, hin-z18479909 93.4 to 89.6. Open: for hin-z18479909 find the first differing line and decide 0.12 pt grid noise (Word rounds to 600 dpi) vs a real width in the table. Lab note: Word origins sit on a 0.12 pt grid.
