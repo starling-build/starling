@@ -560,7 +560,7 @@ public final class RichTextTheme {
     /// 11pt MS Mincho line is 36pt with its baseline 24.3 down, the text
     /// alone's 12.9 by the engine.
     public func rubyLine(for style: CharStyle, in paragraph: RichParagraphStyle, named: RichNamedStyle?,
-                         eastAsian: Bool, gridPitch: Double?) -> (height: Double, raise: Double)? {
+                         eastAsian: Bool, gridPitch: Double?) -> (height: Double, raise: Double, descent: Double)? {
         guard let ruby = style.ruby else { return nil }
         let size = style.fontSize ?? named?.char.fontSize ?? fontSize
         let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
@@ -574,10 +574,10 @@ public final class RichTextTheme {
         let raise = ruby.raise > 0 ? ruby.raise : size / 2
         let above = max(0, raise + ascent * rubySize - ascent * size)
         let line = lineBox(size: size, natural: natural + above / size, baseline: nil, in: paragraph, gridPitch: gridPitch).height
-        guard gridPitch != nil, paragraph.lineHeightPoints == nil else { return (line / size, 0) }
+        guard gridPitch != nil, paragraph.lineHeightPoints == nil else { return (line / size, 0, natural - ascent) }
         let n = natural * size
         let one = lineBox(size: size, natural: natural, baseline: nil, in: paragraph, gridPitch: gridPitch).height
-        return (line / size, ((one - n) - (line - n - above)) / 2 - above)
+        return (line / size, ((one - n) - (line - n - above)) / 2 - above, natural - ascent)
     }
 
     /// The height of an auto line whose text is all raised by its

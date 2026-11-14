@@ -1243,6 +1243,12 @@ extension RichLayout {
                 if theme.wordRules, run.ruby != nil, s.fontSize ?? 0 > 0.5,
                    let h = theme.rubyLine(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) {
                     s = s.copyWith(height: h.height)
+                    // (Off a grid the room for the ruby is all over the baseline, not shared with the line's foot:
+                    // xb jpn 231fe1 p1 "申請者" under ﾌﾘｶﾞﾅ stands 7pt lower, the next paragraph where it was.)
+                    if gridPitchIsNil(pitch), p.style.lineHeightPoints == nil, h.descent > 0, s.ascentOverride == nil, let size = s.fontSize,
+                       !(index.map { _verticalBody($0) } ?? false) {
+                        s = s.copyWith(ascentOverride: size * (h.height - h.descent), descentOverride: size * h.descent, leadingDistribution: .even, debugLabel: (s.debugLabel ?? "") + " ruby-line")
+                    }
                     if h.raise != 0, NativeParagraphBuilder.supportsBaselineShift, !(index.map { _verticalBody($0) } ?? false) {
                         s = s.copyWith(baselineShift: (s.baselineShift ?? 0) - h.raise * theme.pixelsPerPoint * scale)
                     }
@@ -3365,8 +3371,12 @@ extension RichLayout {
         // (Shaded spaces end a paragraph too: Word paints them, the engine drops
         // the shade of spaces that end a line — zh-1078e06f's blanks after a
         // signature line.)
-                let roomyTrail = theme.wordRules && p.text.hasSuffix(" ") && (p.style.alignment == .right || Self.shadeShows(p.runs.last?.style.highlight))
-            && p.text.last(where: { $0 != " " }).map({ Self.isEastAsian($0, hinted: false) }) == true
+                let roomyTrail = theme.wordRules && ((p.text.hasSuffix(" ") && (p.style.alignment == .right || Self.shadeShows(p.runs.last?.style.highlight))
+            && p.text.last(where: { $0 != " " }).map({ Self.isEastAsian($0, hinted: false) }) == true)
+            // (A right-aligned line's closing ideographic spaces are full-width glyphs, not blanks
+            // that hang: they stand inside the margin. xb jpn 231fe1 p1 "申請者" + 14 of them
+            // starts 170pt left of where the margin put it, as in Word's print.)
+            || (p.style.alignment == .right && p.text.hasSuffix("\u{3000}") && p.text.contains(where: { $0 != "\u{3000}" && $0 != " " })))
         let checkboxes = theme.wordRules && p.runs.contains { $0.style.formBox || $0.style.loneDot }
         if lead == 0, p.runs.count == 1, p.runs[0].style.inlineImage == nil, !roomyTrail, !checkboxes {
             var spans = styled(p.text[...], p.runs[0].style)
@@ -3864,6 +3874,8 @@ extension RichLayout {
 
     /// The stretches of paragraph `p` that carry one ruby (UTF-16
     /// offsets), with the first run's look.
+    @inline(__always) func gridPitchIsNil(_ pitch: Double?) -> Bool { pitch == nil }
+
     func _rubyGroups(_ p: RichParagraph) -> [(from: Int, to: Int, ruby: RubyText, style: CharStyle)] {
         var out: [(from: Int, to: Int, ruby: RubyText, style: CharStyle)] = []
         var at = 0
