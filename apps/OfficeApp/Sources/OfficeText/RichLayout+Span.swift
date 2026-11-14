@@ -3647,9 +3647,11 @@ extension RichLayout {
                 // (A Shonar Bangla paragraph's bullet stacks as Latin text does there, the Latin face's ascent over Shonar's split below the baseline,
                 // not the face's whole line at the multiple: bfc234's Symbol bullets stand 30pt apart in Word's print, ours 35.9.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil,
-                   p.runs.contains(where: { Self._bengaliMissingFace(($0.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased(), document) == "shonar bangla" }),
+                   let leadFace = p.runs.lazy.compactMap({ r -> String? in
+                       let cs = (r.style.complexFontFamily ?? named?.char.complexFontFamily ?? self._normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
+                       return cs == "kokila" ? "kokila" : (Self._bengaliMissingFace(cs, document) == "shonar bangla" ? "shonar bangla" : nil) }).first,
                    p.text.unicodeScalars.contains(where: { Self._indic.contains($0.value) }),
-                   let m = Self._indicLines["shonar bangla"], let size = style.fontSize, size > 0.5,
+                   let m = Self._indicLines[leadFace], let size = style.fontSize, size > 0.5,
                    let pt = leadChar.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize, pt > 0.5,
                    let base = theme.baseline(for: leadChar, in: { var single = p.style; single.lineSpacing = 1; return single }(), named: named, eastAsian: false, gridPitch: pitch, centresInLine: document.spacesForUnderline) {
                     let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
