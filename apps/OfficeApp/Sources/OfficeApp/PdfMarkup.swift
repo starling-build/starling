@@ -652,9 +652,22 @@ struct PdfMarkup {
             ?? document.styles[RichNamedStyle.normalId]?.char.fontFamily).map(OfficeFonts.drawn)
         var out: [Note] = []
         let silent = silentComments(document)
+        // (Word for Windows numbers every comment of the file, the ones whose whole range is deleted text
+        // among them, which have no balloon: xb jpn ee9f8f's pages 5 and 15, "Commented [TT8]" where
+        // the balloons alone count 7. Counted only when the file lists the printed ones in the order
+        // their ranges start.)
+        let fileOrder = root.all("w:comment").compactMap { $0["w:id"] }
+        let printed = order.filter { !silent.contains($0) }
+        let filePrinted = fileOrder.filter { printed.contains($0) }
+        let byFile = DocxFormat.wordOnWindows && filePrinted == printed
         for id in order where !silent.contains(id) {
             guard let body = bodies[id], let end = ends[id] else { continue }
-            out.append(Note(anchor: end, label: "Commented [\(body.initials)\(out.count + 1)]:", paragraphs: body.paragraphs, author: body.author,
+            var number = out.count + 1
+            if byFile, let at = fileOrder.firstIndex(of: id) {
+                number = fileOrder[..<at].filter { !silent.contains($0) }.count + 1
+                if number != out.count + 1 { RuleTrace.hit("comment-numbers-count-the-comments-whose-range-is-all-deleted-text") }
+            }
+            out.append(Note(anchor: end, label: "Commented [\(body.initials)\(number)]:", paragraphs: body.paragraphs, author: body.author,
                             family: face))
         }
         return out
