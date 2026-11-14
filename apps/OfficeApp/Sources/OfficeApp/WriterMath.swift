@@ -490,6 +490,23 @@ enum WriterMath {
                 let base = row(n.first("m:e"), size: size, level: level)
                 let chr = n.first("m:accPr")?.first("m:chr")?["m:val"] ?? "\u{0302}"
                 let mark = text(Self.spacingAccent(chr), size: runSize(n.first("m:e"), size, level), italic: false)
+                // (An accent over a letter is a mark of the letter's own line box, not a box stacked on it:
+                // Word sets the bar on the letter's baseline, as one glyph with a combining mark, so the
+                // equation is no taller for it. Over something taller than the line's own ascent, stacked.)
+                if base.ascent <= mark.ascent + 0.01 {
+                    let w = max(base.width, mark.width)
+                    // The mark clears the letter's ink: its own glyph sits at a fixed height above the baseline
+                    // (a macron high, a tilde low), so it is lifted by what the letter's top (x-height, or cap/ascender height) lacks.
+                    let letters = (n.first("m:e")?.all("m:t").map(\.text).joined() ?? "")
+                    let tall = letters.first.map { $0.isUppercase || $0.isNumber || "bdfhklt\u{3C8}\u{3C6}\u{2113}\u{3B4}\u{3B8}\u{3BB}\u{3B2}\u{3B6}\u{3BE}".contains($0) } ?? false
+                    let markBottom: Double = (chr == "\u{0303}" || chr == "~") ? 0.28 : (chr == "\u{0302}" || chr == "^") ? 0.45 : 0.50
+                    let gap: Double = markBottom < 0.5 ? 0.15 : 0.03
+                    let lift = max(0, (tall ? 0.70 : 0.46) + gap - markBottom) * size
+                    return Box(width: w, ascent: mark.ascent + lift, descent: base.descent) { canvas, at in
+                        base.draw(canvas, Offset(at.dx + (w - base.width) / 2, at.dy))
+                        mark.draw(canvas, Offset(at.dx + (w - mark.width) / 2, at.dy - lift))
+                    }
+                }
                 return over(base, mark, gap: 0)
             case "m:bar":
                 let base = row(n.first("m:e"), size: size, level: level)
