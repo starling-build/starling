@@ -2561,11 +2561,17 @@ extension RichLayout {
                         // (Nor where the whole table stands on this page at its place and only the text before it reaches
                         // down over that place: the table goes whole to the next page and the text stays. Word for Windows'
                         // lab fltpage5, a 26pt title wrapping to a second line down to 93pt before a table at 60pt:
-                        // title alone on page 1, table on page 2. A 24pt title that ends above the place leaves it.
+                        // title alone on page 1, table on page 2. A 24pt title that ends above the place leaves it, and so does
+                        // text that fits within the first row's own height (a line that overlaps the place by a little: zh-3ab8a2fb,
+                        // lo-6a5857f2, lo-0dd5bc0a stay where they were).
                         // Where the table would part, the text goes under its first row, as above.)
                         var whole = c.rowTop + c.ownRowHeight, k = i
                         while k < count, let d = _cells[k], d.table == c.table { whole = max(whole, d.rowTop + d.ownRowHeight); k += 1 }
-                        if RichTextTheme.wordWindowsPages, under > 0, target + c.ownRowHeight + line <= contentH + 0.01 {
+                        // (How far the text reaches past the place, not the sum of the lines that do: dx2 9baed400's text
+                        // reaches 82pt past a place, less than its table's first row of 84pt, and Word keeps the table with it.)
+                        let reach = (_pages[page].filter { $0.paragraph < i && _cells[$0.paragraph] == nil && !$0.repeated }
+                            .map { $0.pageY + ($0.flowBottom - $0.flowTop) }.max() ?? target) - target
+                        if RichTextTheme.wordWindowsPages, under > c.ownRowHeight + 0.01, reach > c.ownRowHeight + 0.01, target + c.ownRowHeight + line <= contentH + 0.01 {
                             RuleTrace.hit("page-anchored-table-whole-goes-to-the-next-page-where-the-text-before-it-reaches-its-place")
                             return true
                         }
