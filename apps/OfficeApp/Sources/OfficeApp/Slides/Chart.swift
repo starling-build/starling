@@ -142,6 +142,7 @@ struct Chart: Equatable {
     /// gives them (its first run's, else the title's default run
     /// properties); nil is PowerPoint's default for a chart title.
     var titleSize: Double? = nil
+    var titleSpacing: Double? = nil
     /// A size of a title's later paragraph where it differs from the
     /// first's, by line of `title` (aascu 5864's 14 pt titles with a 12 pt
     /// line under them).
@@ -660,6 +661,7 @@ struct Chart: Equatable {
     func statedTextScaled(by f: Double) -> Chart {
         var c = self
         c.titleSize = titleSize.map { $0 * f }
+        c.titleSpacing = titleSpacing.map { $0 * f }
         c.titleLineSizes = titleLineSizes.mapValues { $0 * f }
         c.legendSize = legendSize.map { $0 * f }
         c.valueLabelSize = valueLabelSize.map { $0 * f }
@@ -1573,6 +1575,7 @@ enum ChartXML {
 
         var title: String? = nil
         let deleted = chart.first("c:autoTitleDeleted")?["val"] == "1"
+        var titleSpacing: Double? = nil
         var titleSize: Double? = nil, titleBold = false, titleColor: Color? = nil, titleFace: String? = nil
         var titleLineSizes: [Int: Double] = [:]
         var titleAt: Offset? = nil
@@ -1601,6 +1604,9 @@ enum ChartXML {
             let layers = ([run] + defaults).compactMap { $0 }
             // (18.62 pt is the default, PowerPoint's and what this app writes.)
             titleSize = layers.lazy.compactMap { $0["sz"].flatMap(Double.init) }.first.flatMap { $0 == 1862 ? nil : $0 / 100 }
+            // (Letter spacing, in 1/100 pt, from the same layers: a Word chart title
+            // with spc=150 is 1.5 pt wider per character.)
+            titleSpacing = layers.lazy.compactMap { $0["spc"].flatMap(Double.init) }.first.flatMap { $0 != 0 ? $0 / 100 : nil }
             // (Bold where nothing says: the five decks of an 18 pt chart
             // whose title says nothing show it bold at 22.)
             titleBold = (layers + [space.first("c:txPr")?.descendant("a:defRPr")].compactMap { $0 }).lazy.compactMap { $0["b"] }.first.map { $0 == "1" || $0 == "true" } ?? true
@@ -1691,6 +1697,7 @@ enum ChartXML {
             c.plainText = true
         }
         c.titleSize = titleSize
+        c.titleSpacing = titleSpacing
         c.titleLineSizes = titleLineSizes
         c.titleAt = titleAt
         c.titleOverlay = titleOverlay
@@ -2552,7 +2559,7 @@ enum ChartPainter {
             // Word's print of fdo78474's "Sales" and the rest of its text.)
             let titleStyle = Flutter.TextStyle(
                 color: c.titleColor ?? ink, fontSize: max(3, (c.titleSize ?? c.textSize.map { ($0 * 1.2).rounded() } ?? (!c.onSlide && !c.onSheet && !c.chartex ? 10 : 18.6)) * k),
-                fontWeight: c.titleBold ? .bold : .normal, fontFeatures: plain,
+                fontWeight: c.titleBold ? .bold : .normal, letterSpacing: c.titleSpacing.map { $0 * k }, fontFeatures: plain,
                 fontFamily: OfficeFonts.substitute(c.titleFont ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c, traditional: c.titleTraditional))
             // (A line in a size of its own, as its own span.)
             let span: TextSpan
