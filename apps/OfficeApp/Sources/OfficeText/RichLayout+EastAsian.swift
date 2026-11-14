@@ -2532,7 +2532,7 @@ extension RichLayout {
     /// is before it, or one that may not end a line from what follows; a
     /// quotation mark from either side; the letters and digits of a word.
     static func _glued(_ a: UInt16, _ b: UInt16, strict: Bool = false) -> Bool {
-        if _noStart.contains(b) || strict && _smallKana.contains(b) || _noEnd.contains(a) || _quotes.contains(a) || _quotes.contains(b) { return true }
+        if _noStart.contains(b) && (b != 0x30FC || strict) || strict && _smallKana.contains(b) || _noEnd.contains(a) || _quotes.contains(a) || _quotes.contains(b) { return true }
         if a == 0xA0 || b == 0xA0 { return true }
         // (Nor after a guillemet that opens, or before one that closes.)
         if a == 0xAB || b == 0xBB { return true }
