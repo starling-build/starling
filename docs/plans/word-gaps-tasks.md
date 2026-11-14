@@ -16644,3 +16644,8 @@ HANDOFF amd-2 (2026-11-14) Korean lowest docs: c466d30a wordWrap-0 Hangul stop r
 - Left in 73caaeda: constant ~2.1 pt offset from line 3 (line 3 pitch 23.5 vs Word 21.3; line 5 16.5 vs 20.8); dashes-only line is Carlito but Word uses Mangal 13.6 (paragraph has no Bengali letter); pages 3-4 gaps.
 - Traps: render without OFFICE_APP=<binary> uses a stale binary; docx-app-render.sh reuses folders; joiner on for all faces dropped 2263e221 209 to 182 (Nikosh differs from SolaimanLipi).
 - amd-3 (2026-11-14) 6fca0f bracket step: Word picks stretched display brackets from Cambria Math size variants (em: 0.909 1.208 1.641 1.99 2.524 2.966 3.668 4.275) at >= 0.9 of the body's ink about the axis (matches p8: 27.5, 30.5, 35.5 pt). Prototype in /data/s/amd-3/bracket-variants.patch gave 3/6 right, 3 one step too tall (needs ink for every box kind), and no line gain (148/208 unchanged), so NOT landed. Rule noted in ~/word-rules.md. Next: 158454 line loss.
+
+### amd-2 HANDOFF 22de7d (2026-11-14)
+- Queued 20261114-093248-amd-2-88: the Yu line joiner now counts toward the held strut (Korean paragraphs with Yu-drawn Latin step 19.2 pt). xb kor-z19581051-22de7d 123 to 142 of 180 matched lines. dx2 A/B (fresh base binary): 0 documents changed. Unit tests 655/0.
+- Left: 38 lines still off in 22de7d (page 1: one paragraph 39 vs 41 lines; page 3 drift ~1.2 pt per line); Word steps 18.6 once on page 2 (unexplained). Not general yet: amd-7 wants any face counted only when it draws a non-space glyph; joiner still letters/digits only.
+- Next: ed5bf93a, then xd 07356df9, 8948a622, 38d880e8.
