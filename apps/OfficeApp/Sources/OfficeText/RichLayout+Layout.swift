@@ -1807,10 +1807,10 @@ extension RichLayout {
                     while j >= 0, units[j] == 0x20 { j -= 1 }
                     parts = !(j >= 0 && j < k - 1 && units[j] == 0xA0)
                 }
-                // (No compat mode on Word for Windows, labs atcol5-8, docs/plans/word-table-autofit.md: a column's narrowest is its longest run between spaces; it parts only just after an em dash, at a hyphen or en dash (unmeasured, left to the chain below) and in Thai, Lao, Khmer and Myanmar text (dictionary breaks).)
+                // (No compat mode on Word for Windows, labs atcol5-8, docs/plans/word-table-autofit.md: a column's narrowest is its longest run between spaces; it parts only just after an em dash, at a hyphen U+002D or en dash U+2013 (lab atcol9: never after U+2010 or a slash) and in Thai, Lao, Khmer and Myanmar text (dictionary breaks).)
                 else if theme.wordRules, RichTextTheme.wordWindowsPages, document.compatibilityMode == nil, p.cell != nil, pctWidthTable, contentFit, a == 0x2014 { parts = true }
                 else if theme.wordRules, RichTextTheme.wordWindowsPages, document.compatibilityMode == nil, p.cell != nil, pctWidthTable, contentFit,
-                        !(a == 0x2D || a == 0x2010 || a == 0x2013), !Self._autofitDictionaryScript(a), !Self._autofitDictionaryScript(b) { parts = false }
+                        !(a == 0x2D || a == 0x2013), !Self._autofitDictionaryScript(a), !Self._autofitDictionaryScript(b) { parts = false }
                 else if breakBefore.contains(k) { parts = true }
                 // (After a hyphen before a digit in a time of day, where a
                 // word wider than its cell must part: zh-b3e887f7's schedule keeps its
