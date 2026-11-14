@@ -2913,6 +2913,47 @@ extension RichLayout {
                 Self._pairedLines[ObjectIdentifier(painter)] = _PairedLines(painter: painter, shifts: shifts, saving: -acc)
             }
         }
+        // (A line of Latin letters alone in a paragraph on a line grid at a multiple: Word's box is the multiple of the
+        // pitch it fits in, 27 pt for 14 pt Times in an 18 pt grid at 1.5 lines, where the line holding any East Asian
+        // letter is the strut's two pitches (36). The text stays centred in its box, as in the strut's. Lab head2line
+        // (Word for Windows, xb jpn 6fca0f's heading): the Latin-only second line is 27.00 at 14 and 11 pt, bold or not,
+        // with the baseline 18.60 / 17.52 down it; with two kana added it is 36.02.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, !style.rightToLeft, _columns <= 1, inline.isEmpty,
+           style.lineSpacing > 1.001, style.lineHeightPoints == nil, !_offGrid(i, document), let pitch = _grid(i, document).pitch,
+           let strut = painter.strutStyle, strut.forceStrutHeight == true, let strutSize = strut.fontSize,
+           keepClear == nil, besideLineIndents.isEmpty, Self._paired(painter) == nil {
+            let bottoms = Self._rawLineBottoms(painter)
+            let units = Array(p.text.utf16)
+            let pitchPx = _px(pitch)
+            var ranges: [(Int, Int)] = []
+            var at = 0
+            while at < units.count, ranges.count < 200 {
+                let r = painter.getLineBoundary(TextPosition(offset: at))
+                guard r.end > at else { break }
+                ranges.append((at, r.end)); at = r.end
+            }
+            if ranges.count > 1, ranges.count == bottoms.count, at == units.count, strutSize * 1.15 <= pitchPx {
+                let target = style.lineSpacing * pitchPx
+                var shrink = [Double](repeating: 0, count: bottoms.count)
+                for line in 1 ..< bottoms.count {
+                    let text = String(decoding: units[ranges[line].0 ..< ranges[line].1], as: UTF16.self)
+                    let letters = text.unicodeScalars.filter { $0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39) }
+                    guard !letters.isEmpty, !text.unicodeScalars.contains(where: { $0.value >= 0x2E80 && $0.value != 0x3000 }) else { continue }
+                    let advance = bottoms[line] - bottoms[line - 1]
+                    if advance > target + 0.01 { shrink[line] = advance - target }
+                }
+                if shrink.contains(where: { $0 > 0 }) {
+                    RuleTrace.hit("word-a-latin-only-line-on-a-grid-at-a-multiple-is-the-multiple-of-its-pitches")
+                    var shifts = [Double](repeating: 0, count: bottoms.count)
+                    var acc = 0.0
+                    for k in 0 ..< bottoms.count {
+                        shifts[k] = -acc - shrink[k] / 2
+                        acc += shrink[k]
+                    }
+                    Self._pairedLines[ObjectIdentifier(painter)] = _PairedLines(painter: painter, shifts: shifts, saving: acc)
+                }
+            }
+        }
         if (besideLeftRoom != nil && !besideLineIndents.isEmpty) || keepClear != nil {
             Self._registerPairs(painter, besideLeftRoom != nil ? besideLineIndents : [], push: keepClear)
         }
