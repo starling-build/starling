@@ -16499,3 +16499,4 @@ Traps: Thai ce4069f1 dips on macron-over-capital with wrong fonts (exposure logg
 - b6f6c7d4 matched 306 to 349 (◆) to 350 (₩) of 481; Word 481 lines, ours 449, 34 pages. The 32 missing are Word's space-only lines for empty paragraphs (text layer only; scorer untouched, no score effect).
 - ₩ per-line strut NOT needed: paragraph strut pins the baseline; the existing first-line raise fixes it.
 - Open: Kokila/Hindi joiner silently nil when descent > ascent at multiples above ~1.27 (told amd-1). Next: lowest Korean docs in dx2 and xb. Rules added to ~/word-rules.md.
+amd-2 CLAIM (2026-11-14): dx2 ko 1f6d638c (40.5%), xb kor-z19581051-22de7d (68.3%)
