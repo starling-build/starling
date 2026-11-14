@@ -248,6 +248,13 @@ enum WriterMath {
         }
 
         /// A string set as one piece, its baseline at the box's.
+        /// (A display equation's letters reserve Cambria Math's 0.95 em above and 0.22 em under the baseline,
+        /// not the fallback face's own, taller lines: jpn-z22855378-6fca0f p8's equation is 20.5 over / 10.7 under
+        /// at 12pt in Word's print, 25.3 / 14.0 in ours.)
+        func cam(_ v: Double, _ size: Double, _ em: Double) -> Double {
+            RichTextTheme.wordWindowsPages && !inlineText ? min(v, size * em) : v
+        }
+
         func text(_ s: String, size: Double, italic: Bool, family: RichResolvedFace? = nil) -> Box {
             guard !s.isEmpty else { return .empty }
             // Word's formula letters are the mathematical italic ones (U+1D44E on): OMML letters
@@ -271,13 +278,13 @@ enum WriterMath {
                     var xs: [Double] = [], x = 0.0
                     for u in s.unicodeScalars { xs.append(x); x += adv[u.value]! * size }
                     let total = x
-                    return Box(width: total, ascent: ps.map(\.ascent).max() ?? 0, descent: ps.map(\.descent).max() ?? 0) { canvas, at in
+                    return Box(width: total, ascent: cam(ps.map(\.ascent).max() ?? 0, size, 0.95), descent: cam(ps.map(\.descent).max() ?? 0, size, 0.22)) { canvas, at in
                         for (i, q) in ps.enumerated() { q.tp.paint(canvas, Offset(at.dx + xs[i], at.dy - q.baseline)) }
                     }
                 }
             }
             let p = Painter(s, size: size, italic: italic, color: ink, family: family?.family, height: family?.naturalHeight)
-            return Box(width: p.tp.width, ascent: p.ascent, descent: p.descent) { canvas, at in
+            return Box(width: p.tp.width, ascent: cam(p.ascent, size, 0.95), descent: cam(p.descent, size, 0.22)) { canvas, at in
                 p.tp.paint(canvas, Offset(at.dx, at.dy - p.baseline))
             }
         }
@@ -474,7 +481,9 @@ enum WriterMath {
                 let part = display ? level : level + 1
                 let num = inner.row(n.first("m:num"), size: size, level: part)
                 let den = inner.row(n.first("m:den"), size: size, level: part)
-                let s = runSize(n.first("m:num"), size, level)
+                // (Word sets a display fraction's rule and stacking at the equation's size, whatever one run
+                // inside it is: jpn-z22855378-6fca0f p8's x-bar at 14pt in a 12pt fraction.)
+                let s = RichTextTheme.wordWindowsPages && !inlineText ? scriptSize(size, level) : runSize(n.first("m:num"), size, level)
                 if n.first("m:fPr")?.first("m:type")?["m:val"] == "lin" {
                     return hbox([num, text("/", size: s, italic: false), den])
                 }
@@ -663,13 +672,20 @@ enum WriterMath {
             // and the 18pt-grid line takes two pitches.)
             let text = inlineText && RichTextTheme.wordWindowsPages
             let numUp = text ? size * 0.592 : 0, denDown = text ? size * 0.5 : 0
-            let ascent = text ? numUp + num.ascent : axis + rule / 2 + gap + num.descent + num.ascent
-            let descent = text ? denDown + den.descent : max(0, gap + rule / 2 - axis + den.ascent + den.descent)
-            let ruleUp = text ? size * 0.2875 : axis
+            // (A display fraction in Word's print, jpn-z22855378-6fca0f p8 at 12pt: the rule 3.8pt over the
+            // baseline, the numerator's baseline 9.1 over it and the denominator's 8.1 under it, whatever
+            // they hold; a taller numerator or denominator is pushed clear of the rule.)
+            let wd = RichTextTheme.wordWindowsPages && !inlineText
+            let dRule = size * 0.317
+            let dNum = max(size * 0.758, dRule + rule / 2 + gap + min(num.descent, size * 0.3))
+            let dDen = max(size * 0.675, rule / 2 + gap + min(den.ascent, size * 0.75) - dRule)
+            let ascent = wd ? dNum + num.ascent : text ? numUp + num.ascent : axis + rule / 2 + gap + num.descent + num.ascent
+            let descent = wd ? dDen + den.descent : text ? denDown + den.descent : max(0, gap + rule / 2 - axis + den.ascent + den.descent)
+            let ruleUp = wd ? dRule : text ? size * 0.2875 : axis
             return Box(width: w, ascent: ascent, descent: descent) { canvas, at in
                 let line = at.dy - ruleUp
-                num.draw(canvas, Offset(at.dx + (w - num.width) / 2, text ? at.dy - numUp : line - rule / 2 - gap - num.descent))
-                den.draw(canvas, Offset(at.dx + (w - den.width) / 2, text ? at.dy + denDown : line + rule / 2 + gap + den.ascent))
+                num.draw(canvas, Offset(at.dx + (w - num.width) / 2, wd ? at.dy - dNum : text ? at.dy - numUp : line - rule / 2 - gap - num.descent))
+                den.draw(canvas, Offset(at.dx + (w - den.width) / 2, wd ? at.dy + dDen : text ? at.dy + denDown : line + rule / 2 + gap + den.ascent))
                 let p = Paint()
                 p.style = .stroke
                 p.strokeWidth = rule
@@ -698,13 +714,19 @@ enum WriterMath {
                 let f = text(c, size: tall, italic: false)
                 // (Centred on the body, not set on its baseline.)
                 let middle = (body.ascent - body.descent) / 2
-                return raised(f, middle - (f.ascent - f.descent) / 2)
+                let r = raised(f, middle - (f.ascent - f.descent) / 2)
+                // (A stretched bracket reserves its ink, not its whole font line: the line under a display
+                // equation was 11-15 pt too tall in jpn-z22855378-6fca0f p8.)
+                guard RichTextTheme.wordWindowsPages, !inlineText else { return r }
+                return Box(width: r.width, ascent: min(r.ascent, body.ascent + s * 0.1), descent: min(r.descent, body.descent + s * 0.1), draw: r.draw)
             }
             return hbox([fence(beg), body, fence(end)])
         }
 
         /// A radical: the sign grown to its body, a rule over it, its
         /// degree small at the left.
+        // (Windows Word: the sign's ink ends at the rule, so a line holding a square root is no taller than the rule
+        // over its body: lo-98ae9de23e's roots stand in 15.6pt lines of a 13.8pt text, the sign's font line gave 19.)
         func radical(_ n: XNode, size: Double, level: Int) -> Box {
             let body = row(n.first("m:e"), size: size, level: level)
             let s = runSize(n.first("m:e"), size, level)
@@ -713,9 +735,10 @@ enum WriterMath {
             let height = body.ascent + body.descent + s * 0.15
             let sign = text("\u{221A}", size: max(s, height * 0.95), italic: false)
             let rule = max(0.4, s * 0.05)
-            let top = body.ascent + s * 0.12
+            // (In a line of text the gap over the body is Cambria Math's text-style 0.05 em, not the display 0.12.)
+            let top = body.ascent + s * (RichTextTheme.wordWindowsPages && inlineText ? 0.05 : 0.12)
             let lead = (degree?.width ?? 0) * 0.6
-            return Box(width: lead + sign.width + body.width + s * 0.05, ascent: max(top + rule, sign.ascent, (degree?.ascent ?? 0) + top * 0.5),
+            return Box(width: lead + sign.width + body.width + s * 0.05, ascent: max(top + rule, RichTextTheme.wordWindowsPages ? 0 : sign.ascent, (degree?.ascent ?? 0) + top * 0.5),
                        descent: max(body.descent, sign.descent)) { canvas, at in
                 degree?.draw(canvas, Offset(at.dx, at.dy - top * 0.5))
                 sign.draw(canvas, Offset(at.dx + lead, at.dy + body.descent - sign.descent))

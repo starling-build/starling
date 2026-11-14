@@ -2855,7 +2855,7 @@ extension RichLayout {
             let metrics = painter.computeLineMetrics()
             var extra = [Double](repeating: 0, count: bottoms.count), above = extra
             for (k, box) in boxes.enumerated() {
-                guard let whole = inline[k].image?.naturalExtent, inline[k].image?.name == "m:oMath" else { continue }
+                guard let whole = inline[k].image?.naturalExtent, inline[k].image?.name == "m:oMath", inline[k].image?.stackedEquation == true else { continue }
                 let mid = box.toRect().top + box.toRect().height / 2
                 guard let line = bottoms.firstIndex(where: { mid < $0 }), line < metrics.count else { continue }
                 let before = line == 0 ? 0 : bottoms[line - 1], advance = bottoms[line] - before

@@ -1084,6 +1084,8 @@ public struct ImageAttachment: Hashable, Sendable {
     public var baseline: Double? = nil
     /// An inline equation's whole height above and below its baseline, points, before the line-box cap (`WriterMath.register`).
     public var naturalExtent: (ascent: Double, descent: Double)? = nil
+    /// An inline equation holding a stacked object (fraction, radical, n-ary, matrix, limit): the kind whose line Word grows.
+    public var stackedEquation = false
     public var effectBottom = 0.0
     /// For an object anchored to its paragraph rather than standing in
     /// the line (Word's `wp:anchor`): where it floats. The text makes no
