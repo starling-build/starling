@@ -450,7 +450,7 @@ struct PdfMarkup {
                     last = nil
                 }
                 guard let change = run.style.formatChange, run.style.revision?.kind != .deleted else { last = nil; continue }
-                let text = _describe(run.style, was: change.oldRPrXML)
+                let text = _describe(run.style, was: change.oldRPrXML, defaultLang: document.defaultLangXML)
                 guard !text.isEmpty else { last = nil; continue }
                 let field = run.style.fieldResult
                 // (Word says one "Formatted" for a stretch of runs that look alike now: xb ee9f8f's
@@ -535,7 +535,7 @@ struct PdfMarkup {
     }
 
     /// What a run's look is now that it was not, in Word's words.
-    static func _describe(_ style: CharStyle, was old: String) -> String {
+    static func _describe(_ style: CharStyle, was old: String, defaultLang: String? = nil) -> String {
         func attribute(_ xml: String, _ element: String, _ name: String = "w:val") -> String? {
             guard let r = xml.rangeOfSubstring("<\(element) ") ?? xml.rangeOfSubstring("<\(element)/") else { return nil }
             let tail = xml[r.upperBound...]
@@ -560,8 +560,11 @@ struct PdfMarkup {
         }
         if style.highlight != nil, attribute(old, "w:highlight") == nil { font.append("Highlight") }
         if let was = attribute(old, "w:color"), !was.isEmpty, style.color == nil { rest.append("Font color: Auto") }
-        let now = attribute(style.keptXML ?? "", "w:lang")
+        var now = attribute(style.keptXML ?? "", "w:lang")
         let then = attribute(old, "w:lang")
+        // (A run that had its own language and has none now is in the document's: xb ee9f8f p14's
+        // "Formatted: English (United States)" for a run that was German.)
+        if now == nil, let then, !then.isEmpty, let d = defaultLang.flatMap({ attribute($0, "w:lang") }) { now = d; RuleTrace.hit("run-back-to-default-language-is-formatted") }
         // (Both an Asian and a Latin language changed: Word names each, as
         // ins-then-format-self's "(Asian) Chinese (Simplified, Mainland
         // China), (Other) French (France)"; one alone stands bare.)
