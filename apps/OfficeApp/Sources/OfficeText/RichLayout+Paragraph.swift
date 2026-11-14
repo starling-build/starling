@@ -1985,7 +1985,7 @@ extension RichLayout {
                // Word's print keeps two pitches, 45.7, on every line, the
                // ones holding Noto's characters within 0.4 of it.)
                let strut = _strut(span, tallest: true, near: spacedOver || thaiNear, wide: thaiNear, joiners: !(gridded && lines > 1)),
-               lines == 1 || gridded || Self._tallestOnEveryLine(span, strut, painter, lines: lines, near: spacedOver || thaiNear, wide: thaiNear) {
+               lines == 1 || gridded || Self._holdsYuJoiner(span) || Self._tallestOnEveryLine(span, strut, painter, lines: lines, near: spacedOver || thaiNear, wide: thaiNear) {
                 let held = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr, strutStyle: strut)
                 held.fractionalLineHeights = painter.fractionalLineHeights
                 held.lineIndents = painter.lineIndents

@@ -64,7 +64,7 @@ extension RichLayout {
                 for c in t.children ?? [] { visit(c) }
                 return
             }
-            if let text = t.text, blanksToo || text.contains(where: { !Self._setsNoLine($0) }),
+            if let text = t.text, blanksToo || t.style?.debugLabel == "yu-joiner" || text.contains(where: { !Self._setsNoLine($0) }),
                joiners || text.contains(where: { $0 != "\u{2060}" }),
                let style = t.style, style.baselineShift == nil || shiftedToo, let size = style.fontSize, let h = style.height, h > 0.05, size > 0.5 {
                 count += 1
@@ -193,6 +193,19 @@ extension RichLayout {
             return TextSpan(text: t.text, children: t.children?.map { rebuild($0) }, style: style, recognizer: t.recognizer, locale: t.locale)
         }
         return rebuild(span) as? TextSpan
+    }
+
+    /// Whether the span carries the Yu Gothic line joiner of a Korean paragraph (see `_lineJoiner`): its lines are all that joiner's height.
+    /// A paragraph with no Hangul in it (a Japanese ruby paragraph in a charset-80 face) keeps its own line heights.
+    static func _holdsYuJoiner(_ span: TextSpan) -> Bool {
+        func walk(_ s: TextSpan, _ joiner: inout Bool, _ hangul: inout Bool) {
+            if s.style?.debugLabel == "yu-joiner" { joiner = true }
+            if let t = s.text, t.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 }) { hangul = true }
+            for c in s.children ?? [] { if let c = c as? TextSpan { walk(c, &joiner, &hangul) } }
+        }
+        var j = false, h = false
+        walk(span, &j, &h)
+        return j && h
     }
 
     /// Whether each of `painter`'s lines holds some text of the span's

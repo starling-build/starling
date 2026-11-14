@@ -1,4 +1,4 @@
-188 documents: mean 77.3% of Word's lines matched, median 98.0%; 103 at 95% or more, 145 at half or more; 171 with Word's page count
+188 documents: mean 77.4% of Word's lines matched, median 98.0%; 103 at 95% or more, 145 at half or more; 171 with Word's page count
     1.1%  lines 472/547  pages 14/15  heb-z17544993-944544
     1.1%  lines 90/72  pages 4/3  fas-z22832287-ac7399
     1.1%  lines 88/104  pages 10/9  fas-z14957015-3a9879
@@ -49,11 +49,11 @@
    64.3%  lines 221/221  pages 13/13  docx-8f1703b9
    64.7%  lines 224/232  pages 14/14  docx-a3f77cda
    68.1%  lines 119/114  pages 4/4  docx4j-1e349e20
-   68.3%  lines 180/180  pages 7/7  kor-z19581051-22de7d
    70.7%  lines 205/200  pages 12/12  jpn-z22855378-6fca0f
    74.7%  lines 822/821  pages 18/18  ell-z10407270-89615d
    74.9%  lines 959/959  pages 19/20  fra-g156-5d636a
    78.4%  lines 51/51  pages 8/8  docx-e925ae95
+   78.9%  lines 180/180  pages 7/7  kor-z19581051-22de7d
    79.0%  lines 1583/1588  pages 32/32  fra-g274-cccee1
    81.9%  lines 221/221  pages 13/13  docx-46bc4851
    82.5%  lines 361/361  pages 13/13  docx-6f1caa1e
