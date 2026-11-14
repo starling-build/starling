@@ -16543,3 +16543,4 @@ amd-2 CLAIM (2026-11-14, starling-bd): xb kor-z19581051-22de7d (mine now), then 
 - Submitted A alone: queue/amd-6-65 (DOCS=gv-0de3e9bcf1,gv-690391482c, accept gv-690391482c as approved).
 - NOT resubmitted: 6a41e3cbe (branch amd6-14-both holds it). It needs work: the footnote separator hang/split rule hurts gv-48dbbfebfb (39 vs 38 pages) and the xd docs. Binaries: /data/s/amd-6/bins/{base,A,B}.
 - Task 2 (dx4j-a94b4fd3b1) not started (parked by coordinator).
+- lenovo-2 CLAIM (2026-11-14): dx2 zh 6ddc0960 (26.2), then f8ff8a48 (57.4), e802f47d (71.4), 30775350 (72.5), 236cd3ae (78.1), 8676db65 (84.1). gridSpan clamp un-parked and submitted (queue lenovo-2-66): clean, 4cac8c37 95.2 to 96.3; only 3 dx2 docs have a row wider than the grid.
