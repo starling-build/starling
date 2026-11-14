@@ -95,7 +95,13 @@ extension RichLayout {
             if kokilaOK, let r = Self._indicLines[face] {
                 RuleTrace.hit("word-empty-mark-in-nikosh-mangal-nirmala-is-that-faces-line")
                 let multiple = lineSpacing > 1 ? lineSpacing : 1
-                return look.copyWith(ascentOverride: r.0 * multiple * px, descentOverride: r.1 * multiple * px, height: (r.0 + r.1) * multiple, leadingDistribution: .even)
+                // (A complex-script mark (`w:cs`) takes its size from szCs, the document default's when it has none: dx2 2263e221's 7 pt (sz 14) mark with cs is an 11 pt Mangal line in Word's print.)
+                var size = px
+                if face == "mangal", let kept = mark.keptXML, kept.containsSubstring("<w:cs/>") || kept.containsSubstring("<w:cs "),
+                   let f = mark.fontSize, f > 0.5, let z = mark.complexFontSize ?? named?.char.complexFontSize ?? _normalChar(document)?.complexFontSize, z > 0.5 {
+                    size = px * z / f
+                }
+                return look.copyWith(ascentOverride: r.0 * multiple * size, descentOverride: r.1 * multiple * size, height: (r.0 + r.1) * multiple * size / px, leadingDistribution: .even)
             }
         }
         // (Arial Unicode MS with the Japanese charset in the font table: Word draws an empty mark in Yu Gothic, 1.67 em; lab aums2 F, 30.0 pt
