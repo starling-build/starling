@@ -4191,7 +4191,12 @@ extension RichLayout {
                 // still that section's: zh-7488a70f's page 2.)
                 let ender = theme.wordRules && _heights[i] == 0 && document.paragraphs[i].style.sectionXML != nil
                     && document.paragraphs[i].cell == nil && document.paragraphs[i].text.isEmpty
-                if y > contentH - 0.01, !ender { newPage() }
+                // (A paragraph of a page-anchored frame that began on this page stands where
+                // the frame puts it, past the foot or not: the 4th line of OGC's cover block,
+                // frame y 693pt, text foot 720pt, stays on page 1 in Word's print; xd 8948a622.)
+                let inPlacedFrame = theme.wordRules && document.paragraphs[i].style.frameXML != nil && frameReturn?.page == page
+                if inPlacedFrame, y > contentH - 0.01 { RuleTrace.hit("word-frame-continuation-stays-on-its-page-past-the-foot") }
+                if y > contentH - 0.01, !ender, !inPlacedFrame { newPage() }
                 // (An empty paragraph at a column's foot, the paragraph after it too long for what
                 // is left, and a table next whose cell holds a picture wrapped top and bottom: Word's
                 // print carries the empty paragraph to the top of the next column with them — lab
@@ -4674,7 +4679,7 @@ extension RichLayout {
                             && !(st.eastAsian["w:snapToGrid"] != "0" && _grid(i, document).pitch != nil)
                         let extra = theme.wordRules && offGrid && st.lineHeightPoints == nil
                             && st.lineSpacing - theme.lineSpacingReduction > 1.001 && i < _overhang.count ? _overhang[i] : 0
-                        if g.textTop + line - extra - cursor > available + 0.01 { overfull = true } else { spacing = extra > 0 }
+                        if g.textTop + line - extra - cursor > available + 0.01, !placedFrame { overfull = true } else if g.textTop + line - extra - cursor > available + 0.01 {} else { spacing = extra > 0 }
                     }
                     add(PagePiece(paragraph: i, flowTop: cursor, flowBottom: bottom,
                                                   page: page, pageY: y))
@@ -4802,7 +4807,7 @@ extension RichLayout {
                     break
                 }
                 if let cut {
-                    if cut - cursor > available + 0.01 { overfull = true }
+                    if cut - cursor > available + 0.01, !placedFrame { overfull = true }
                     add(PagePiece(paragraph: i, flowTop: cursor, flowBottom: cut,
                                                   page: page, pageY: y))
                     cursor = cut
