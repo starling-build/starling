@@ -2010,6 +2010,8 @@ extension RichLayout {
                     // word, and takes its other pieces with it: kash2 lab, docs/plans/kashida.md.)
                     var restPieces = 0
                     let indicPiece = RichTextTheme.wordWindowsPages && !legacy && a > 0 && !isSpace(units[a - 1]) && Self._isIndic(UInt32(units[a]))
+                    let georgianPiece = RichTextTheme.wordWindowsPages && !legacy && a > 0 && !isSpace(units[a - 1]) && units[a] >= 0x10A0 && units[a] <= 0x10FF
+                    // (A Georgian word is placed in pieces too (only the stretch is measured from the word's start; the piece totals stay as they were): xs 1a285b32's justified Sylfaen line takes "მგრძნობელობა" 2.7 pt over with nine spaces in Word; measured from its last letter the stretch looked 2 pt and the test refused it.)
                     if RichTextTheme.wordWindowsPages, p.style.rightToLeft || indicPiece, !legacy, !piece.hard, piece.last == piece.b {
                         var q = pieceIndex
                         while q + 1 < pieces.count, pieces[q].last == pieces[q].b, !pieces[q].hard, pieces[q + 1].a == pieces[q].b, !pieces[q + 1].hard {
@@ -2144,7 +2146,7 @@ extension RichLayout {
                         && units[a] >= 0xAC00 && units[a] <= 0xD7A3
                     // (An Indic word is placed in pieces too, so a piece inside a word measures from where the word starts: kok15/kok14 lab, a justified Kokila line
                     // takes its 18th word 10 pt over with 17 spaces; measured from the piece, the stretch looked 6 pt and the test refused it.)
-                    let stretch = width - ((arabicLine || hangulPiece || indicPiece) && !wordSpaces.isEmpty ? spaceBaseX : x - (wordSpaces.last?.w ?? 0))
+                    let stretch = width - ((arabicLine || hangulPiece || indicPiece || georgianPiece) && !wordSpaces.isEmpty ? spaceBaseX : x - (wordSpaces.last?.w ?? 0))
                     let lowJoins = arabicLine && p.style.eastAsian["w:jc"] == "lowKashida" && !wordSpaces.isEmpty
                         ? 3.1 * Double(ArabicForms.joins(units[lineFrom ..< max(piece.b, wordSpaces.last?.k ?? lineFrom)].map { UInt32($0) }[...])) : 0
                     let halfStretch = wordSpaces.count < 2 || balancedLatinSqueeze  // (a left-aligned line has no stretch to weigh: oxsdk-1c09b12993's notes)
