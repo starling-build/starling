@@ -1777,7 +1777,7 @@ extension RichLayout {
                                 let sp = piece[ws] == " "
                                 while we < piece.endIndex, (piece[we] == " ") == sp { we = piece.index(after: we) }
                                 let seg = piece[ws ..< we]
-                                if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: NirmalaAdvances.table(bold: nBold), flatScale: 1, conjunctRatio: nil, block: seg.unicodeScalars.first(where: { $0.value >= 0x900 && $0.value < 0xB00 }).map { $0.value & ~0x7F } ?? 0x900) {
+                                if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: NirmalaAdvances.table(bold: nBold), flatScale: 1, conjunctRatio: nil, block: seg.unicodeScalars.first(where: { $0.value >= 0x900 && $0.value < 0xB00 }).map { $0.value & ~0x7F } ?? 0x900, lowVowelsZero: !nBold) {
                                     spans.append(contentsOf: capped(seg, run, fitted.style))
                                 } else if sp, authored > 0.5, let em = Self._missingBengaliSpaceEm(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "") {
                                     // (A Bengali face Windows lacks: Word draws the space in Mangal, half an em, not the stand-in's 0.26: xd 73caaeda, 6.0 pt at 12 pt.)
@@ -4536,8 +4536,8 @@ extension RichLayout {
     /// The word set so its width is the sum of the face's per-cluster advances (`MangalAdvances.split`, any table), by letter spacing on the
     /// stand-in; clusters the table lacks keep the stand-in's width times `flatScale`. Nil where the table knows none of the word.
     @inline(never)
-    func _clusterFitted(_ w: Substring, base: TextStyle, authored: Double, table: [String: Double], flatScale: Double, conjunctRatio: Double? = 0.85, block: UInt32 = 0x900) -> (style: TextStyle, flat: TextStyle)? {
-        guard let split = MangalAdvances.split(w, table: table, conjunctRatio: conjunctRatio, block: block) else { return nil }
+    func _clusterFitted(_ w: Substring, base: TextStyle, authored: Double, table: [String: Double], flatScale: Double, conjunctRatio: Double? = 0.85, block: UInt32 = 0x900, lowVowelsZero: Bool = false) -> (style: TextStyle, flat: TextStyle)? {
+        guard let split = MangalAdvances.split(w, table: table, conjunctRatio: conjunctRatio, block: block, lowVowelsZero: lowVowelsZero) else { return nil }
         let flat = base.copyWith(scaleX: 1)
         func measure(_ s: String, _ ls: Double) -> Double {
             let t = TextPainter(text: TextSpan(text: s, style: flat.copyWith(letterSpacing: ls)), textDirection: .ltr)
