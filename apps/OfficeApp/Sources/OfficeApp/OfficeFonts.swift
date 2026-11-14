@@ -3074,7 +3074,7 @@ static let sylfaenAdvances: [Double] = [
                 case "georgia": face.advances = georgiaAdvances; face.boldAdvances = georgiaBoldAdvances; face.italicAdvances = georgiaItalicAdvances; face.boldItalicAdvances = georgiaBoldItalicAdvances; face.naturalHeight = 1.1362; face.baseline = 0.9170
                 case "corbel": face.advances = corbelAdvances; face.boldAdvances = corbelBoldAdvances; face.italicAdvances = corbelItalicAdvances; face.boldItalicAdvances = corbelBoldItalicAdvances; face.naturalHeight = 1.2207; face.baseline = 0.9521
                 case "consolas": face.advances = consolasAdvances; face.boldAdvances = consolasBoldAdvances; face.italicAdvances = consolasItalicAdvances; face.boldItalicAdvances = consolasBoldItalicAdvances; face.naturalHeight = 1.1709; face.baseline = 0.9199
-                case "century gothic": face.advances = centuryGothicAdvances; face.boldAdvances = centuryGothicBoldAdvances; face.italicAdvances = centuryGothicItalicAdvances; face.boldItalicAdvances = centuryGothicBoldItalicAdvances; face.naturalHeight = 1.1914; face.baseline = 0.9712
+                case "century gothic": face.advances = centuryGothicAdvances; face.boldAdvances = centuryGothicBoldAdvances; face.italicAdvances = centuryGothicItalicAdvances; face.boldItalicAdvances = centuryGothicBoldItalicAdvances; face.naturalHeight = 1.2261; face.baseline = 1.0059
         default: break
         }
     }
