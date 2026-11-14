@@ -1459,9 +1459,23 @@ extension RichLayout {
             // Word's print, where ours stood 2.1 and 2.4 above it.)
             let indent = _px(document.paragraphs[i].style.indentLeft)
             let fromStart = document.paragraphs[i].style.eastAsian["w:jc"] == nil && (aligned == .left || aligned == .justify)
+            // (Not in a Japanese face: dx2 1e0c044f's Yu Mincho "評価規準" and 3ebc3ec5's "保護者の状況…" (ind 113,
+            // left) start at the full indent in Word's print, 2.4 and 2.5pt below where this put them; the
+            // Chinese labs it was measured on set theirs short.)
+            var japaneseFace = false
+            func faces(_ span: InlineSpan?, _ inherited: TextStyle?) {
+                guard let t = span as? TextSpan, !japaneseFace else { return }
+                let own = inherited.map { $0.merge(t.style) } ?? t.style
+                if let x = t.text, !x.isEmpty {
+                    let f = (own?.debugLabel ?? own?.fontFamily ?? "").lowercased()
+                    if ["meiryo", "メイリオ", "ms mincho", "ms gothic", "ＭＳ", "yu mincho", "yu gothic", "游"].contains(where: { f.containsSubstring($0) }) { japaneseFace = true }
+                }
+                for child in t.children ?? [] { faces(child, own) }
+            }
+            faces(g.painter.text, nil)
             let along = c.alongStart + indent
                 - short * (aligned == .center ? 0.5 : aligned == .right ? 1 : 0)
-                - (theme.wordRules && fromStart && c.direction == .down && indent > 0.01 && !c.wrapsPart && !(_spaceBefore[i] > 0.01) ? min(indent, _px(2.25)) : 0)
+                - (theme.wordRules && fromStart && c.direction == .down && indent > 0.01 && !c.wrapsPart && !japaneseFace && !(_spaceBefore[i] > 0.01) ? min(indent, _px(2.25)) : 0)
             let origin = Offset(along, c.across + _spaceBefore[i] + _turnedInkShift(i, document))
             if c.direction == .down, document.paragraphs[i].cell?.uprightIdeographs == true,
                _paintUpright(g.painter, at: origin, canvas, distribute: document.paragraphs[i].style.eastAsian["w:jc"] == "distribute", justify: theme.wordRules && aligned == .justify && document.paragraphs[i].style.eastAsian["w:jc"] == nil, mixed: true, centred: aligned == .center) {
