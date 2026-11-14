@@ -2946,9 +2946,9 @@ extension RichLayout {
             // header, 18 spaces of Calibri 11 at 1.15 under a picture 72pt down, is set 6 steps of 13.43 from its
             // top, 80.6, in Word's print, and in labs hinhdr2 A, D, E, F, the picture's foot moving 5pt up and down;
             // ours set it at the foot.)
-            if RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil, style.lineSpacing > 1.001, style.besideFloat == false,
-               p.text.unicodeScalars.contains(where: { $0 == " " }), p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " }),
-               case let step = first.line / style.lineSpacing + before, step > 1 {
+            if RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil, style.lineSpacing > 1.001 || !p.text.unicodeScalars.contains(where: { $0 == " " }), style.besideFloat == false,
+               p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " }),
+               case let step = (!p.text.unicodeScalars.contains(where: { $0 == " " }) ? _markLineHeight(i, document, single: true) : first.line / style.lineSpacing) + before, step > 1 {
                 let k = max(0, ((foot - first.top) / step - 0.001).rounded(.up))
                 RuleTrace.hit("word-line-of-spaces-steps-clear-of-its-float-by-the-single-line")
                 return max(0, first.top + k * step - before)
@@ -2958,7 +2958,52 @@ extension RichLayout {
             let k = max(0, ((foot - half - first.top) / step - 0.001).rounded(.up))
             return max(0, first.top + k * step - before)
         }
-        if theme.wordRules, p.cell == nil {
+        // (A header's empty line steps down from the header's top by the single line, and stops at the first step where the pictures
+        // wrapping around it, page-relative ones too, leave a gap as wide as its font size: dx2 cy 096a80c1's header, three tight pictures,
+        // Word's line at step 3 where the right one clears and 125pt opens beside the middle one, not under the lowest foot.)
+        var headerStepped = false
+        if theme.wordRules, p.cell == nil, RichTextTheme.wordWindowsPages, let hTop = headerTopOnPage, style.lineHeightPoints == nil,
+           p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " }), _firstLineGridHalf(i, document) <= 0.01, let first = firstLine() {
+            let column = _flowWidth(i)
+            let lo = max(0, lead) + (left - (frameLeft ?? 0))
+            let hi = column - right
+            let em0 = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
+            var boxes: [(Double, Double, Double, Double)] = []
+            for image in p.inlineImages.inOrder {
+                guard let float = image.float, float.wraps, float.verticalAlign == nil, ["paragraph", "line", "page"].contains(float.verticalFrom) else { continue }
+                let w = min(_px(image.width), column)
+                let x: Double
+                switch float.horizontalAlign {
+                case "center": x = (column - w) / 2
+                case "right", "outside": x = column - w
+                case "left", "inside": x = 0
+                default: x = _px(float.x) - (float.horizontalFrom == "page" ? _px(frameMargins.left) : 0)
+                }
+                let y = _px(float.y) - (float.verticalFrom == "page" ? hTop : 0)
+                boxes.append((x - _px(float.distanceLeft ?? 9), x + w + _px(float.distanceRight ?? 9),
+                              y - _px(float.distanceTop), y + _px(image.height + float.effectBottom + float.distanceBottom)))
+            }
+            if !boxes.isEmpty {
+                let step = _markLineHeight(i, document, single: true) + before
+                if step > 1 {
+                    let lineH = step - before
+                    var k = 0.0
+                    while k < 60 {
+                        let t = first.top + k * step
+                        let hit = boxes.filter { $0.2 < t + lineH - 0.01 && $0.3 > t + 0.01 }.sorted { $0.0 < $1.0 }
+                        var widest = 0.0, edge = lo
+                        for b in hit { widest = max(widest, b.0 - edge); edge = max(edge, b.1) }
+                        widest = max(widest, hi - edge)
+                        if widest >= em0 { break }
+                        k += 1
+                    }
+                    if k > 0 { RuleTrace.hit("word-header-empty-line-steps-to-the-first-gap-beside-its-pictures") }
+                    push = max(push, max(0, first.top + k * step - before))
+                    headerStepped = true
+                }
+            }
+        }
+        if theme.wordRules, p.cell == nil, !headerStepped {
             let column = _flowWidth(i)
             let firstLine = max(0, lead) + (left - (frameLeft ?? 0))
             // (Together, too: two photos side by side that fill the

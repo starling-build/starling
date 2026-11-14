@@ -1823,6 +1823,8 @@ public final class RichLayout {
     /// measured from the text's left, the margins `frameMargins` wide
     /// (points) on either side of it.
     public var floatsFrames = false
+    /// A running header's layout: the page's distance of its top (its paragraph's own top), else nil.
+    public var headerTopOnPage: Double? = nil
     /// Where a header's or footer's own top stands below the paper's top
     /// (pixels), set as it is painted: what its objects placed from the
     /// page or its margins measure from (`_floatRect`).

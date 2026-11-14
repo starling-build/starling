@@ -1917,6 +1917,7 @@ extension RichLayout {
         layout.floatsFrames = true
         layout.frameMargins = (setup.marginLeft + setup.gutter, setup.marginRight)
         layout.leftHandPage = number % 2 == 0
+        layout.headerTopOnPage = kind == .header ? _px(setup.headerDistance) : nil
         // (A floating shape aligned outside goes by the sheet, counted from
         // the document's first number — a later section's restart counts
         // for nothing: in Word for Windows' prints zh-ab1ea005's footer box
