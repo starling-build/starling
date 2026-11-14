@@ -2223,6 +2223,26 @@ extension RichLayout {
                         inserts.append(offset)
                     }
                 }
+                // (A run that names Mangal and holds no Devanagari letter, digits and signs, still sets the line at Mangal's tall 18.5 pt (11 pt) in
+                // Word's print, in a paragraph with no Indic letter at all (one with Devanagari already has the joiner; adding it there broke dx2 254ca33b, 375919ba): dx2 2db27e2d's "• 4(99)" bullets step 26.5 pt (8 before + 18.5), ours 20.7 on the Times line.)
+                if namedFace == "mangal", theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.unicodeScalars.contains(where: { Self._isIndic($0.value) }), let u = ch.unicodeScalars.first?.value, !Self._isIndic(u), !ch.isWhitespace,
+                   u != 0x200B, u != 0x200C, u != 0x200D, u != 0x2060, u != 0xFFFC,
+                   !(before.map { !$0.isWhitespace } ?? false),
+                   let metrics = Self._indicLines["mangal"] {
+                    if devanagariStyles["mangal"] == nil {
+                        devanagariStyles["mangal"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: metrics.0, descent: metrics.1)
+                    }
+                    if let joiner = devanagariStyles["mangal"] ?? nil {
+                        RuleTrace.hit("word-mangal-named-digit-run-sets-the-mangal-line-without-devanagari")
+                        flush(i)
+                        if let before, before.isWhitespace {
+                            spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                            inserts.append(offset)
+                        }
+                        spans.append(TextSpan(text: "\u{2060}", style: joiner))
+                        inserts.append(offset)
+                    }
+                }
                 // (A missing Korean face Word sets in Batang takes its quotes, circles, circled digits and middle dot from Malgun
                 // Gothic, and a line holding one is Malgun's height: 6a68f6ca's lines step 29.9 into one, 31.9 out of one and 35.3
                 // between two at 1.7 lines, 26.6 between plain ones. The split is Malgun's 1.175 + 0.557 against Batang's 1.009 + 0.291.)
