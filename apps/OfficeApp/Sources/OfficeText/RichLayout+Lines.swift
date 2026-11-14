@@ -666,6 +666,9 @@ extension RichLayout {
         var best: (indent: Double, band: (top: Double, bottom: Double), right: Bool, leftRoom: Double?)?
         var boxes: [(top: Double, bottom: Double, left: Double, right: Double)] = []
         _besideBoxes[i] = nil
+        _besideStartLeft[i] = nil
+        var startLeft: (indent: Double, band: (top: Double, bottom: Double))?
+        defer { if best?.right == true, best?.leftRoom == nil, let sl = startLeft, theme.wordRules, RichTextTheme.wordWindowsPages { _besideStartLeft[i] = sl } }
         defer { if boxes.count >= 2, best?.leftRoom != nil { _besideBoxes[i] = boxes } }
         var offset = 0.0
         var k = i
@@ -736,6 +739,7 @@ extension RichLayout {
                         let band = (top: _px(float.y) - _px(float.distanceTop) - offset,
                                     bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
                         if band.bottom > 0.01 { boxes.append((band.top, band.bottom, 0, rightEdge - own)) }
+                        if band.bottom > 0.01, startLeft == nil || rightEdge - own > startLeft!.indent { startLeft = (rightEdge - own, band) }
                     }
                 }
                 guard let float = image.float, float.wraps, !float.takesRoom, float.verticalAlign == nil, float.verticalFrom == "paragraph",

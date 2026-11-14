@@ -1473,7 +1473,9 @@ extension RichLayout {
                         // (The beside-box indent counts from the column's edge, not from the width cut to whole
                         // cells: efbb06c2's lines beside a picture hold 22 characters of 11 in Word's print,
                         // 246.2 of room, where the cut column less the indent held 21.)
-                        next.append(besideRight ? LineIndent(left: 0, right: beside ? max(besideIndent - gridCut, 0) : 0) : LineIndent(left: beside ? besideIndent + (k == 0 ? firstExtra : 0) : 0, right: 0))
+                        // (A box at the line's start as well as the one at the right: the lines level with each stand in the window between them, as Word's print of lab ellhdr, a 2pt tab line between two header boxes.)
+                        let startLeft: Double = besideRight ? (_besideStartLeft[i].flatMap { sl in bottoms[k] > sl.band.top + 0.01 && top < sl.band.bottom - 0.01 ? sl.indent : nil } ?? 0) : 0
+                        next.append(besideRight ? LineIndent(left: startLeft, right: beside ? max(besideIndent - gridCut, 0) : 0) : LineIndent(left: beside ? besideIndent + (k == 0 ? firstExtra : 0) : 0, right: 0))
                     }
                 }
                 while let last = next.last, last.left == 0, last.right == 0, next.count > 1, next[next.count - 2].left == 0, next[next.count - 2].right == 0 { next.removeLast() }
