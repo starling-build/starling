@@ -1625,6 +1625,9 @@ enum DocxFormat {
                         // (Wingdings' own shapes where the level names that face — Word's prints
                         // draw them: "n" a black square, "u" a diamond, the box at 0xA8, "o" a white
                         // square, 0x9E a small dot. Symbol's 0xA8 is a diamond suit, not this.)
+                        // (Wingdings 2's "*" (0x2A) is its empty box ☐ in Word's print: dx2 bea98273's checkbox bullets, which
+                        // drew as an asterisk and made every row of the cell 5 pt too tall.)
+                        case 0x2A, 0xF02A where face == "wingdings 2": glyph = "\u{2610}"
                         case 0xF06E where wingdings: glyph = "\u{25FC}"
                         case 0xF075 where wingdings: glyph = "\u{25C6}"
                         case 0xF0A8 where wingdings: glyph = "\u{25FB}"

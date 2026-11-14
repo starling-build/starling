@@ -450,7 +450,7 @@ private struct Player {
         if name == "wingdings 2" {
             // (Wingdings 2's boxes, ticks and crosses: forms tick "£" and "R"
             // — zh-d0a207ac's 双龙杯 / 钱江杯 / 鲁班杯 boxes.)
-            map = ["£": "☐", "R": "☑", "S": "☒", "T": "☒", "P": "✓", "O": "✗", "Q": "☒"]
+            map = ["*": "☐", "£": "☐", "R": "☑", "S": "☒", "T": "☒", "P": "✓", "O": "✗", "Q": "☒"]
         } else if name == "wingdings 3" {
             return text
         } else if name.hasPrefix("wingdings") {
