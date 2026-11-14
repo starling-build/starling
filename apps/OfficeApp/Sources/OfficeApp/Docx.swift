@@ -6961,6 +6961,26 @@ enum DocxFormat {
         var pendingCheckbox: Bool? = nil   // a FORMCHECKBOX field's state, from its begin
         var pendingDropdown: String? = nil // a FORMDROPDOWN field's chosen entry, from its begin
         func walkRun(_ r: XNode, link: String?, revision: RevisionMark? = nil) {
+            // (Misplaced run properties, Word's own print of lab rprorder: a w:rPr applies to what
+            // FOLLOWS it in the run, the last of several in a row wins, and one after the run's
+            // last content is ignored. 5b9c7c3f's runs hold w:rPr after w:t, Word prints them at
+            // the default size.)
+            let rPrAt = r.children.indices.filter { r.children[$0].name == "w:rPr" }
+            if rPrAt.count > 1 || (rPrAt.count == 1 && rPrAt[0] != 0) {
+                var segments: [(rPr: XNode?, content: [XNode])] = [(nil, [])]
+                for child in r.children {
+                    if child.name == "w:rPr" {
+                        if segments[segments.count - 1].content.isEmpty { segments[segments.count - 1].rPr = child }
+                        else { segments.append((child, [])) }
+                    } else { segments[segments.count - 1].content.append(child) }
+                }
+                for seg in segments where !seg.content.isEmpty {
+                    let piece = XNode(name: r.name, attrs: r.attrs)
+                    piece.children = (seg.rPr.map { [$0] } ?? []) + seg.content
+                    walkRun(piece, link: link, revision: revision)
+                }
+                return
+            }
             var cs = cellChar
             cs.link = link
             cs.revision = revision
