@@ -715,18 +715,25 @@ enum WriterMath {
             // (In a line of text Word's print leaves the brackets round a fraction at the text's size: jpn-z22855378-6fca0f's exp[…].)
             var tall = inlineText && RichTextTheme.wordWindowsPages ? s : max(s, (body.ascent + body.descent) * 0.95)
             // (Cambria Math's DelimitedSubFormulaMinHeight is 3000/2048 em: a display equation's body whose ink is shorter
-            // than that keeps its brackets at the text size. xb jpn-z19306349-158454: arg(h_obs(f)h*_GR(f)) is one line in
-            // Word's print, ours had stretched brackets and the superscript broke the line in two. A taller body grows
-            // them as before.)
+            // than that keeps its brackets at the text size. xb jpn-z22855378-158454: arg(h_obs(f)h*_GR(f)) is one line in
+            // Word's print, ours had stretched brackets and the superscript broke the line in two. A taller body takes
+            // the next size variant of the parenthesis that is at least 0.9 of the body's ink on both sides of the axis;
+            // the variant heights are the font's MATH table advanceMeasurements /2048 (lab cambria-math), jpn-z22855378-6fca0f
+            // p8: 1.976 em round fractions at 14pt, 2.55 and 2.956 em at 12pt.)
             if RichTextTheme.wordWindowsPages, !inlineText {
                 let axis = s * 0.286
-                if 2 * max(body.iu - axis, body.idn + axis) < 3000.0 / 2048 * s { tall = s }
+                let ink = 2 * max(body.iu - axis, body.idn + axis)
+                if ink < 3000.0 / 2048 * s { tall = s } else {
+                    let steps = [1898.0, 2475, 3379, 4047, 5223, 6053, 7613, 8881].map { $0 / 2048 }
+                    let h = (steps.first { $0 * s >= 0.9 * ink } ?? steps.last!) * s
+                    tall = h / 0.853
+                }
             }
             func fence(_ c: String) -> Box {
                 guard !c.isEmpty else { return .empty }
                 let f = text(c, size: tall, italic: false)
                 // (Centred on the body, not set on its baseline.)
-                let middle = (body.ascent - body.descent) / 2
+                let middle = RichTextTheme.wordWindowsPages && !inlineText ? s * 0.286 : (body.ascent - body.descent) / 2
                 let r = raised(f, middle - (f.ascent - f.descent) / 2)
                 // (A stretched bracket reserves its ink, not its whole font line: the line under a display
                 // equation was 11-15 pt too tall in jpn-z22855378-6fca0f p8.)
