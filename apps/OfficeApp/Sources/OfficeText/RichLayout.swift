@@ -1646,6 +1646,8 @@ public final class RichLayout {
     /// not: the paragraph offsets a zero-width space stands before (see
     /// `_OffsetMap`).
     var _inserts: [[Int]] = []
+    /// Korean wordWrap-off spaces that open a line (paragraph index to offsets), set by the fit.
+    var _wwSpaceStarts: [Int: Set<Int>] = [:]
     /// Soft hyphens (U+00AD) a paragraph's lines end at, drawn as a visible
     /// hyphen (U+2010) so the line breaking measures it: Word shows the
     /// hyphen only where the line breaks there.

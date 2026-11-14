@@ -483,7 +483,9 @@ extension RichLayout {
         // The spaces to set as no-break ones (`held`, by the layout: see
         // `_spacesToHold`), with a zero-width space after each run of
         // them for the break a space allows.
-        let heldSpaces = held.union(_closingSpaceHeld(p).map { [$0] } ?? [])
+        // (Korean under wordWrap off, a line that fills to the margin: the space after its last word does not fit, and Word sets it at the START of the next line; _layoutParagraph records those, `_wwSpaceStarts`.)
+        let koreanSpaces: Set<Int> = index.map { _wwSpaceStarts[$0] ?? [] } ?? []
+        let heldSpaces = held.union(_closingSpaceHeld(p).map { [$0] } ?? []).union(koreanSpaces)
         // (Word for Windows' counted closing spaces, and the share of its
         // width each keeps — the run less half the line, at no less than
         // nothing — taken at the first of them.)
@@ -3328,6 +3330,10 @@ extension RichLayout {
                 @inline(never) func _sblk4() {
                 if heldSpaces.contains(offset) {
                     flush(i)
+                    if koreanSpaces.contains(offset) {
+                        spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                        inserts.append(offset)
+                    }
                     // (A held space of a run that names its own Latin face is that face's, not stretched by the Indic scale: the probe sets it so.)
                     latinNoScale = kind >= 0 && indic != nil && run.fontFamily != nil
                     let s = style(kind)
@@ -3370,7 +3376,7 @@ extension RichLayout {
                         spans.append(TextSpan(text: "\u{00A0}", style: extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s))
                     }
                     start = after
-                    afterHeld = true
+                    afterHeld = !koreanSpaces.contains(offset)
                     heldKind = kind
                 } else if theme.wordRules, let u = ch.unicodeScalars.first?.value,
                           [0x2000, 0x2001, 0x2004, 0x2006, 0x2008, 0x2009, 0x200A, 0x205F].contains(u) {

@@ -2101,6 +2101,48 @@ extension RichLayout {
             painter.dispose()
             painter = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit, held: tabsHeld).0)
         }
+        // (Korean under `w:wordWrap` off: a line whose words fill it to the margin and whose one space after them does not fit has
+        // that space set at the START of the next line in Word's print, as a character; the engine hangs it at the end, so the
+        // next line takes one character more. Each such space is held (`_wwSpaceStarts`) and the paragraph laid out again until none
+        // is left. dx2 ed5bf93a.)
+        _wwSpaceStarts[i] = nil
+        // (Only where the East Asian fit above does not run, a file without `w:useFELayout`: where it does, it sets the line ends and this pass broke 14 of 83 wordWrap-off files.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, !document.usesEastAsianLayout, p.style.eastAsian["w:wordWrap"] == "0", style.alignment != .right, style.alignment != .center,
+           p.text.utf16.contains(0x20), p.text.utf16.contains(where: { $0 >= 0xAC00 && $0 <= 0xD7A3 }) {
+            let units = Array(p.text.utf16)
+            var moved = Set<Int>()
+            for _ in 0 ..< 12 {
+                let map = _map(i)
+                let starts = _lineStarts(painter, map, count: units.count)
+                var found: Int? = nil
+                if starts.count > 1 {
+                    for k in 0 ..< starts.count - 1 {
+                        let s0 = starts[k], e = starts[k + 1]
+                        guard e - s0 >= 2, e <= units.count, units[e - 1] == 0x20, units[e - 2] != 0x20, units[e - 2] != 0x0A, !moved.contains(e - 1) else { continue }
+                        let textBoxes = painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(s0), extentOffset: map.painter(e - 1)))
+                        let spaceBox = painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(e - 1), extentOffset: map.painter(e - 1) + 1))
+                        guard let first = textBoxes.first, let last = textBoxes.last, let sp = spaceBox.first else { continue }
+                        let spaceWidth = sp.right - sp.left
+                        var stretch = 0.0
+                        for o in s0 ..< e - 1 where units[o] == 0x20 {
+                            for b in painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(o), extentOffset: map.painter(o) + 1)) { stretch += max(0, (b.right - b.left) - spaceWidth) }
+                        }
+                        let natural = last.right - first.left - stretch
+                        if first.left + natural + spaceWidth > textWidth + 0.01, first.left + natural <= textWidth + 0.5 {
+                            found = e - 1
+                            break
+                        }
+                    }
+                }
+                guard let at = found else { break }
+                moved.insert(at)
+                _wwSpaceStarts[i] = moved
+                painter.dispose()
+                let refit = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit, held: tabsHeld)
+                painter = laidOut(refit.0)
+                _inserts[i] = refit.2
+            }
+        }
         // The engine's justifying sets every space of a line to the one
         // step it puts between ideographs, and the two spaces after
         // "第一条" are gone. In a justified paragraph the spaces beside
