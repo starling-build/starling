@@ -3499,9 +3499,12 @@ extension RichLayout {
             // Ours was the picture's height alone, and drawing's page 9
             // opened 5.8pt high. Off the line grid, which sets a
             // picture's line its own way.)
-            else if theme.wordRules, image.float == nil, image.textBox == nil, style.lineHeightPoints == nil,
+            else if theme.wordRules, image.float == nil, image.textBox == nil, style.lineHeightPoints == nil || style.lineHeightIsMinimum,
                     _grid(i, document).pitch == nil || _offGrid(i, document) {
-                let line = _markLineHeight(i, document, single: true)
+                // (Under an "at least" height the picture's line is that height, not the mark's line of text:
+                // jpn-g5-b79900's 2pt rule alone in a paragraph of at least 12pt is a 12pt line in Word's
+                // print, a 14.4pt mark's line would put the next paragraph 2.6pt low.)
+                let line = style.lineHeightIsMinimum ? _px(style.lineHeightPoints ?? 0) : _markLineHeight(i, document, single: true)
                 let own = h + room.top + room.bottom
                 if line > own + 0.5 {
                     _imageDrop[i] += line - own
