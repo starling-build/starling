@@ -3657,7 +3657,16 @@ extension RichLayout {
            style.mark != nil || (RichTextTheme.wordWindowsPages && p.image == nil),
            style.lineHeightPoints == nil, case let lines = painter.computeLineMetrics(), lines.count >= 2, let last = lines.last {
             // (A paragraph whose mark states nothing: its last line is the style's own, not the first run's.)
-            let own = style.mark != nil ? _markLineHeight(i, document) : _markLineHeight(i, document, using: CharStyle())
+            var own = style.mark != nil ? _markLineHeight(i, document) : _markLineHeight(i, document, using: CharStyle())
+            // (A mark in Mangal (or Nikosh, which Windows lacks) is Mangal's tall line, 1.68 em, as an empty paragraph's is, not the Latin line the
+            // probe holds: hin-z10093577's abstract ends in an Arial break over a bold Mangal mark, and Word's print has the keyword line 33 pt under
+            // the last text line, a 16.8 pt empty line and the 16.8 pt line, where ours cut the empty one to 11.5 and stood 5 pt high.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, let mark = style.mark,
+               case let face = (mark.fontFamily ?? _named(p, document)?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased(),
+               face == "mangal" || face == "nikosh", let m = Self._indicLines["mangal"],
+               let pt = mark.fontSize ?? _named(p, document)?.char.fontSize ?? _normalChar(document)?.fontSize {
+                own = max(own, _px((m.0 + m.1) * pt))
+            }
             if last.height - own > 0.5 { bodyHeight -= last.height - own }
         }
         _leadingBreakCut(i, p, painter, document, bodyHeight: &bodyHeight)
