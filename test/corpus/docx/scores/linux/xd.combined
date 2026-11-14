@@ -1,4 +1,4 @@
-119 documents: COMBINED mean 66.11% (119 scored by Word's text lines, 0 by the visual comparison); pure line mean 66.11% over the 119 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
+119 documents: COMBINED mean 66.13% (119 scored by Word's text lines, 0 by the visual comparison); pure line mean 66.13% over the 119 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
   64.1%  lines 806/821  pages 26/26  01943b11be4cc6582bda5866d85302f5c149fd43a95b4109aacee1f7886e10b1
   89.5%  lines 258/258  pages 9/9  03cd29dc2f67a29e0fb011b58e6c07ab377c3b677a38fa29710e735a3bb43575
   65.5%  lines 113/114  pages 5/5  0539b975737d0acd36b0fcb444482bd2b632afd71897fa02ae908a0ec28efa4b
@@ -20,7 +20,7 @@
   80.3%  lines 598/575  pages 16/16  2bd470cdc8e6f0c804c12f327f06d67136c5888eaf80985204c0ad3e5510707a
  100.0%  lines 80/80  pages 2/2  2dabcb0480eae34d5068b360a9cb48c3c6361b324f51c8acf22c31dc9ea12f46
   92.6%  lines 788/788  pages 35/34  366c740f67d17954ca2ac144b9ef90b67439de1c3748c7f0e4299a9c7194bddc
-   9.4%  lines 352/384  pages 11/12  38d880e89fc4ddb0838ac90c3a3b1853fd3de66b8ca65ee56fbd813dbd7b4f05
+  12.5%  lines 352/372  pages 11/12  38d880e89fc4ddb0838ac90c3a3b1853fd3de66b8ca65ee56fbd813dbd7b4f05
   85.5%  lines 62/62  pages 4/4  397da2bb023fe8bc0083bfaf7d461be469791b753ef9d6e43d5c1630ff997de4
   12.9%  lines 542/563  pages 18/18  3a493613ff875218da5822f054a00539017eb9b8df286c2f4f399868a29617ce
   64.0%  lines 1276/1501  pages 31/32  3bcf7e6184726a108beaa796047205ff03e1d76ef6a60de29323221e6791d99c

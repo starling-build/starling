@@ -3549,6 +3549,8 @@ static let sylfaenAdvances: [Double] = [
         "calibri", "cambria", "cambria math", "courier new", "dubai", "myriad arabic", "arial unicode ms", "gadugi", "nirmala ui", "leelawadee ui",
     ]
 
+    /// FrankRuehl's own advances (em), read from the face embedded in Word's prints (7 prints, no conflicts): its Hebrew letters, digits and marks.
+    static let frankRuehlOtherAdvances: [UInt32: Double] = [0x20: 0.2070, 0x21: 0.4429, 0x22: 0.3872, 0x27: 0.2212, 0x28: 0.2769, 0x29: 0.2769, 0x2C: 0.2212, 0x2D: 0.3320, 0x2E: 0.2212, 0x2F: 0.3599, 0x30: 0.4150, 0x31: 0.4150, 0x32: 0.4150, 0x33: 0.4150, 0x34: 0.4150, 0x35: 0.4150, 0x36: 0.4150, 0x37: 0.4150, 0x38: 0.4150, 0x39: 0.4150, 0x3A: 0.3320, 0x3B: 0.3320, 0x5B: 0.2769, 0x5D: 0.2769, 0x5D0: 0.4702, 0x5D1: 0.4429, 0x5D2: 0.3320, 0x5D3: 0.4150, 0x5D4: 0.4702, 0x5D5: 0.2769, 0x5D6: 0.2769, 0x5D7: 0.4980, 0x5D8: 0.4980, 0x5D9: 0.2490, 0x5DA: 0.4150, 0x5DB: 0.4150, 0x5DC: 0.4150, 0x5DD: 0.4702, 0x5DE: 0.4980, 0x5DF: 0.2769, 0x5E0: 0.2769, 0x5E1: 0.4429, 0x5E2: 0.4429, 0x5E3: 0.4429, 0x5E4: 0.4429, 0x5E5: 0.4429, 0x5E6: 0.4429, 0x5E7: 0.4429, 0x5E8: 0.3872, 0x5E9: 0.5811, 0x5EA: 0.4702, 0x2013: 0.5000]
     static let davidOtherAdvances: [UInt32: Double] = [0x0: 0.0000, 0xD: 0.2212, 0x20: 0.2212, 0x21: 0.3042, 0x22: 0.4429, 0x25: 0.7749, 0x27: 0.2212, 0x28: 0.2490, 0x29: 0.2490, 0x2A: 0.3599, 0x2B: 0.6108, 0x2C: 0.2490, 0x2D: 0.3320, 0x2E: 0.2490, 0x2F: 0.3320, 0x30: 0.4429, 0x31: 0.4429, 0x32: 0.4429, 0x33: 0.4429, 0x34: 0.4429, 0x35: 0.4429, 0x36: 0.4429, 0x37: 0.4429, 0x38: 0.4429, 0x39: 0.4429, 0x3A: 0.3872, 0x3B: 0.3872, 0x3F: 0.3599, 0x40: 0.9209, 0x41: 0.7222, 0x45: 0.6108, 0x46: 0.5562, 0x49: 0.3330, 0x4C: 0.6108, 0x4D: 0.8892, 0x52: 0.6670, 0x53: 0.5562, 0x54: 0.6108, 0x55: 0.7222, 0x5B: 0.2490, 0x5D: 0.2490, 0x5F: 0.5039, 0x61: 0.4438, 0x63: 0.4438, 0x64: 0.5000, 0x65: 0.4438, 0x66: 0.3330, 0x67: 0.5000, 0x68: 0.5000, 0x69: 0.2778, 0x6A: 0.2778, 0x6B: 0.5000, 0x6C: 0.2778, 0x6D: 0.7778, 0x6E: 0.5000, 0x6F: 0.5000, 0x70: 0.5000, 0x72: 0.3330, 0x73: 0.3892, 0x74: 0.2778, 0x75: 0.5000, 0x76: 0.5000, 0x77: 0.7222, 0x78: 0.5000, 0xBD: 0.6641, 0x5D0: 0.5811, 0x5D1: 0.4702, 0x5D2: 0.3320, 0x5D3: 0.4702, 0x5D4: 0.5532, 0x5D5: 0.3042, 0x5D6: 0.3599, 0x5D7: 0.5532, 0x5D8: 0.5811, 0x5D9: 0.3042, 0x5DA: 0.4702, 0x5DB: 0.4702, 0x5DC: 0.4429, 0x5DD: 0.6089, 0x5DE: 0.5811, 0x5DF: 0.3042, 0x5E0: 0.3042, 0x5E1: 0.5811, 0x5E2: 0.4429, 0x5E3: 0.4702, 0x5E4: 0.4429, 0x5E5: 0.4429, 0x5E6: 0.4980, 0x5E7: 0.5811, 0x5E8: 0.4702, 0x5E9: 0.6089, 0x5EA: 0.5811, 0x2009: 0.0977, 0x2013: 0.5000, 0x2022: 0.3501, 0x20AA: 0.7280, 0x25CC: 0.5942, 0xF8FF: 0.3042, 0xFB2A: 0.6089, 0xFB2B: 0.6089, 0xFB35: 0.3042, 0xFB4B: 0.3042, 0xFB4F: 0.5811]
     static let davidBoldOtherAdvances: [UInt32: Double] = [0x0: 0.0000, 0xD: 0.2212, 0x20: 0.2212, 0x21: 0.3872, 0x22: 0.4980, 0x25: 0.7749, 0x27: 0.2769, 0x28: 0.3042, 0x29: 0.3042, 0x2A: 0.3599, 0x2B: 0.6108, 0x2C: 0.2769, 0x2D: 0.4429, 0x2E: 0.2769, 0x2F: 0.3599, 0x30: 0.4429, 0x31: 0.4429, 0x32: 0.4429, 0x33: 0.4429, 0x34: 0.4429, 0x35: 0.4429, 0x36: 0.4429, 0x37: 0.4429, 0x38: 0.4429, 0x39: 0.4429, 0x3A: 0.3872, 0x3B: 0.3872, 0x3D: 0.6108, 0x3F: 0.4429, 0x42: 0.6670, 0x45: 0.6670, 0x4C: 0.6670, 0x4D: 0.9438, 0x52: 0.7222, 0x58: 0.7222, 0x5B: 0.3042, 0x5D: 0.3042, 0x5F: 0.5039, 0x63: 0.4438, 0x64: 0.5562, 0x65: 0.4438, 0x66: 0.3330, 0x6E: 0.5562, 0x6F: 0.5000, 0x72: 0.4438, 0x73: 0.3892, 0x74: 0.3330, 0x75: 0.5562, 0x5D0: 0.5532, 0x5D1: 0.4702, 0x5D2: 0.3599, 0x5D3: 0.4702, 0x5D4: 0.5811, 0x5D5: 0.2769, 0x5D6: 0.3320, 0x5D7: 0.5532, 0x5D8: 0.6089, 0x5D9: 0.3320, 0x5DA: 0.4702, 0x5DB: 0.4702, 0x5DC: 0.4429, 0x5DD: 0.6089, 0x5DE: 0.5811, 0x5DF: 0.2769, 0x5E0: 0.3320, 0x5E1: 0.6089, 0x5E2: 0.4702, 0x5E3: 0.4702, 0x5E4: 0.4980, 0x5E5: 0.4702, 0x5E6: 0.4702, 0x5E7: 0.5811, 0x5E8: 0.4702, 0x5E9: 0.6919, 0x5EA: 0.5811, 0x2009: 0.0977, 0x2013: 0.5000, 0x20AA: 0.7280, 0x25CC: 0.5942, 0xF8FF: 0.3320, 0xFB4F: 0.5532]
     // (Times New Roman's Hebrew letters, read from Word's prints of the Hebrew docs in xb: the Liberation Serif stand-in's are 14% wider.)
@@ -3556,7 +3558,7 @@ static let sylfaenAdvances: [Double] = [
     static let timesHebrewBoldAdvances: [UInt32: Double] = [0x5BE: 0.363, 0x5D0: 0.527, 0x5D1: 0.459, 0x5D2: 0.367, 0x5D3: 0.464, 0x5D4: 0.512, 0x5D5: 0.298, 0x5D6: 0.317, 0x5D7: 0.504, 0x5D8: 0.529, 0x5D9: 0.311, 0x5DA: 0.458, 0x5DB: 0.446, 0x5DC: 0.435, 0x5DD: 0.511, 0x5DE: 0.533, 0x5DF: 0.326, 0x5E0: 0.316, 0x5E1: 0.478, 0x5E2: 0.507, 0x5E3: 0.493, 0x5E4: 0.457, 0x5E5: 0.564, 0x5E6: 0.515, 0x5E7: 0.483, 0x5E8: 0.464, 0x5E9: 0.688, 0x5EA: 0.518, 0x5F3: 0.255, 0x5F4: 0.460]
     private static let windowsArabicWidthsOn = true
     // (Arabic and Hebrew faces Windows has and we do not: their own line heights.)
-    private static let windowsArabicLines: [String: Double] = ["traditional arabic": 1.495, "sakkal majalla": 1.40, "simplified arabic": 3395.0 / 2048, "david": 2015.0 / 2048]
+    private static let windowsArabicLines: [String: Double] = ["traditional arabic": 1.495, "sakkal majalla": 1.40, "simplified arabic": 3395.0 / 2048, "david": 2015.0 / 2048, "frankruehl": 1904.0 / 2048]
 
     /// An installed complex-script face of its own (David, Simplified Arabic, Urdu Typesetting...): Word's prints draw a
     /// right-to-left run of digits in it. Arial, Times New Roman and Tahoma are the Latin faces too, and a name Windows
@@ -3659,9 +3661,17 @@ static let sylfaenAdvances: [Double] = [
         // do not: Word's prints step single-spaced 14pt lines 20.93 and 19.6 apart,
         // 1.495 and 1.40 em — ara-z8157766 and ara-z18174368 — where the Times
         // stand-in's 1.15 ran those documents two pages short in three.)
+        // (FrankRuehl, which Windows has and we do not: the headers of the Israeli court files set it at 14pt, 0.415 em a digit
+        // where the stand-in's digits are wider, and the line of case number and parties wrapped one word early. xd 38d880e8.)
+        if wordOnWindows, missing, embeddedFamily(asked) == nil, asked == "frankruehl" {
+            RuleTrace.hit("windows-frankruehl-own-advances")
+            face.otherAdvances = frankRuehlOtherAdvances; face.boldOtherAdvances = frankRuehlOtherAdvances
+        }
         if wordOnWindows, missing, embeddedFamily(asked) == nil, let tall = Self.windowsArabicLines[asked] {
             RuleTrace.hit("windows-arabic-face-own-line")
             // (David: hhea 1505 + 510 over 2048, bold the same, read from Word's prints; 12pt lines at 1.5 step 17.7.)
+            // (FrankRuehl: hhea 1462 + 442 over 2048, from the face embedded in Word's prints.)
+            if asked == "frankruehl" { face.baseline = 1462.0 / 2048 }
             if asked == "david" {
                 face.baseline = 1505.0 / 2048
                 // (Its Hebrew letters' own advances, read from Word's prints: set word by word, `joinedScaled`.)
