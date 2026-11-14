@@ -843,7 +843,12 @@ extension RichLayout {
             // hAnsi, and their "“" is full-width in Word's print: the
             // hAnsi face decides.)
             let hint = run.fontHint ?? named?.char.fontHint
-            let hinted = hint == "eastAsia" || (latinFace?.isEastAsian ?? false) && (hint != "default" || (highFace?.isEastAsian ?? true))
+            // (A hint over an East Asian face that is itself a Latin one changes nothing: hin-z21320572's "ç", hinted over
+            // Normal's Times New Roman, is drawn in the run's own face in Word's print, its line not the Times line's height.)
+            let eaFaceIsLatin = theme.wordRules && hint == "eastAsia"
+                && (run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily)
+                    .flatMap { theme.faceResolver?($0, false) }.map { !$0.isEastAsian } == true
+            let hinted = (hint == "eastAsia" && !eaFaceIsLatin) || (latinFace?.isEastAsian ?? false) && (hint != "default" || (highFace?.isEastAsian ?? true))
             // (… but an en dash, unhinted, is its hAnsi face's where that is
             // a Latin one: zh-ea70c30e's "辦公室 – 投訴", `w:ascii` PMingLiU
             // over an inherited Times hAnsi, sets its "–" in Times in Word's
