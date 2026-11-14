@@ -49,7 +49,12 @@ if [ "$(uname)" = Darwin ]; then
 elif [ "$(uname)" = Linux ]; then
   unset LD_LIBRARY_PATH
   DIFF=("${PYTHON:-python3}" "$HERE/pdf-diff.py")
-  [ -n "$OFFICE_APP" ] || [ -x "$APP" ] || APP="$ROOT/.build-shared/x86_64-unknown-linux-gnu/release/OfficeApp"
+  if [ -z "$OFFICE_APP" ]; then
+    SH="$ROOT/.build-shared/x86_64-unknown-linux-gnu/release/OfficeApp"
+    # workers build into .build-shared: take the NEWER of it and the package-local binary
+    if [ -x "$SH" ] && { [ ! -x "$APP" ] || [ "$SH" -nt "$APP" ]; }; then APP="$SH"; fi
+  fi
+  echo "[docx-app-render] using $APP" >&2
 else
   DIFF=(python "$HERE/pdf-diff.py")
   [ -n "$OFFICE_APP" ] || [ -x "$APP" ] || APP="$ROOT/apps/OfficeApp/.build/x86_64-unknown-windows-msvc/release/OfficeApp.exe"
