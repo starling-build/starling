@@ -1258,6 +1258,23 @@ extension RichLayout {
             }
             return 0
         }
+        // (A Japanese face's column stands on the middle of Word's own line for it, set in the grid slot: that
+        // middle is the face's baseline less half its line, the way `lineMiddle` has it for a picture. dx2 934bd3e5's
+        // Meiryo columns stood 1.1pt to the side of Word's, MS Mincho's in 4427518d and ee0b468e 0.8pt: the stand-in's
+        // own box has its own ascent and descent.)
+        func acrossC(_ box: TextBox, _ em: Double, _ k: Int) -> Double {
+            guard let st = styles[k] else { return across(box) }
+            let fam = st.debugLabel ?? st.fontFamily ?? ""
+            let low = fam.lowercased()
+            guard ["meiryo", "メイリオ", "ms mincho", "ms gothic", "ＭＳ", "明朝", "yu mincho", "yu gothic", "游"].contains(where: { low.containsSubstring($0) }),
+                  let face = theme.faceResolver?(fam, true) else { return across(box) }
+            let bold = st.fontWeight.map { $0.value >= 600 } ?? false
+            guard let t = (bold ? face.boldBaseline : nil) ?? face.baseline,
+                  let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight else { return across(box) }
+            let mid = (box.top + box.bottom) / 2
+            guard let line = lineMetrics.first(where: { mid >= $0.baseline - $0.ascent - 0.5 && mid <= $0.baseline + $0.descent + 0.5 }) else { return across(box) }
+            return line.baseline - (t - natural / 2) * em
+        }
         for (n, k) in shown.enumerated() {
             guard var box = ownBoxes[n],
                   let ch = Unicode.Scalar(text[k]) else { continue }
@@ -1319,7 +1336,7 @@ extension RichLayout {
             // (Meiryo and the other Japanese faces carry their own vertical marks in place: Word's print of
             // dx2 934bd3e5 sets "、" right after its character, where the YaHei drop stood it 5.7pt low.)
             let japanese = ["meiryo", "メイリオ", "ms mincho", "ms gothic", "ＭＳ", "yu mincho", "yu gothic", "游"].contains { family.lowercased().containsSubstring($0) }
-            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em, origin.dy + across(box) + (plain ? 0.085 * em : 0) + sharedShift(k))
+            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em, origin.dy + acrossC(box, em, k) + (plain ? 0.085 * em : 0) + sharedShift(k))
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
             canvas.restore()
