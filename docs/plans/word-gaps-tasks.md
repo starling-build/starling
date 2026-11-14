@@ -16664,3 +16664,4 @@ amd-2 TASK1 STOP (2026-11-14): general "only non-space ink counts" rule NOT land
 
 - HANDOFF lenovo-5 2026-11-14 (4fbb6e32 pop face): Word lab hgpop shows Word lacks HG創英角ﾎﾟｯﾌﾟ体 and uses Yu Gothic line height. Fix queued as lenovo-5-97 (name-based, OfficeFonts Yu Gothic branch). dx2 4fbb6e32 89.3 to 91.1, a2b411ad 100 and xb jpn b2a8e5 100 unchanged; unit tests 655/0. Left on 4fbb6e32: two map captions on p2, title 4 pt low, bottom strip, we give 2 pages vs Word 1. Not done: by-property rule for any missing charset-80 face.
 lenovo-3 CLAIM (2026-11-14, starling-bd): xb ben-z17281487-bfc234 (40.4), then ben-z17448889-bd74bc if low. Resubmitted entry -99 (queue rejected -77 on drops that also hit other workers: zh-37b6536f, hin-61195a, fas-bf2323).
+lenovo-3 CLAIM (2026-11-14): xb docx-f3550c7b (10%). bfc234 released, it is amd-7's.
