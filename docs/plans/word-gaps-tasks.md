@@ -16719,3 +16719,10 @@ lenovo-5 HANDOFF (2026-11-14, 3rd look at dx2 ja 934bd3e5, PARKED, nothing lande
 - Rules are in ~/word-rules.md.
 - Trap: the unequal-grid rule is broad (any tblW dxa autofit table); watch the gate for drops.
 - lenovo-3 HANDOFF xb docx-837e72c4 (2026-11-14): grid rows landed via queue (63c77ba1a, 2820d4039: f3550c7b 100, 837e72c4 86.2). PARKED at 86.2 (25 of 29 lines match). Rule measured: on a snapToChars grid (charSpace 210, cell 11.28 pt) each maximal non-ideograph stretch (spaces included) takes n=ceil(width/cell) whole cells, centred (pad=(n*cell-w)/2 each side). Checks: "GR16a " 30.4 pt in 3 cells (offset 1.7), "GR16a above" 59.1 in 6 (4.3), "lighthouse to the river mouth" 125.8 in 12 (4.8). Tried: widen each stretch to whole cells via letterSpacing, no grid addition on Latin (patch /data/s/lenovo-3/w1/cells-try.patch): no score gain (page 2 breaks still differ, centred x not reproduced), f3550c7b stayed 100. Trap: setting grid nil for the whole paragraph triggers the "off the grid" half-addition branch (Span.swift ~2769). Also open: Word draws w:em dot emphasis as dot lines (3 extra lines on GR16d); we draw none.
+
+### amd-2 HANDOFF 2026-11-14 (Korean per-line strut)
+- Queued via submit.sh (queue/amd-2-124), DOCS=22de7d,e86e26f7. Commit 5b737702f.
+- xb kor-z19581051-22de7d: 142 to 168 of 180 matched lines (held strut was 75). Same line and page counts as Word (180 / 7).
+- Hangul A/B: 273 corpus docs with Hangul, new vs old binary, only 22de7d differs. Unit tests 655, 0 failures.
+- Rule in ~/word-rules.md: per-line kinds (Korean+Yu 19.2, Hangul-only Malgun descent, no-Hangul lines joiner split). Blank lines must default to kind 0.
+- Left: first baseline at page tops about 0.9-1.1 pt lower than Word (older, not from this). Lab yusp2 pages 4-7 line counts differ from Word (29/22/17/10 vs 38/38/38/19), not investigated.
