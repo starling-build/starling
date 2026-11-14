@@ -23,7 +23,12 @@ enum WriterMath {
         var width: Double
         var ascent: Double
         var descent: Double
+        /// How far its ink reaches (nil: as far as its line extents), to size a stretched delimiter.
+        var inkUp: Double? = nil
+        var inkDown: Double? = nil
         var draw: (any Canvas, Offset) -> Void
+        var iu: Double { inkUp ?? ascent }
+        var idn: Double { inkDown ?? descent }
         static let empty = Box(width: 0, ascent: 0, descent: 0) { _, _ in }
     }
 
@@ -278,13 +283,13 @@ enum WriterMath {
                     var xs: [Double] = [], x = 0.0
                     for u in s.unicodeScalars { xs.append(x); x += adv[u.value]! * size }
                     let total = x
-                    return Box(width: total, ascent: cam(ps.map(\.ascent).max() ?? 0, size, 0.95), descent: cam(ps.map(\.descent).max() ?? 0, size, 0.22)) { canvas, at in
+                    return Box(width: total, ascent: cam(ps.map(\.ascent).max() ?? 0, size, 0.95), descent: cam(ps.map(\.descent).max() ?? 0, size, 0.22), inkUp: size * 0.7, inkDown: size * 0.2) { canvas, at in
                         for (i, q) in ps.enumerated() { q.tp.paint(canvas, Offset(at.dx + xs[i], at.dy - q.baseline)) }
                     }
                 }
             }
             let p = Painter(s, size: size, italic: italic, color: ink, family: family?.family, height: family?.naturalHeight)
-            return Box(width: p.tp.width, ascent: cam(p.ascent, size, 0.95), descent: cam(p.descent, size, 0.22)) { canvas, at in
+            return Box(width: p.tp.width, ascent: cam(p.ascent, size, 0.95), descent: cam(p.descent, size, 0.22), inkUp: size * 0.7, inkDown: size * 0.2) { canvas, at in
                 p.tp.paint(canvas, Offset(at.dx, at.dy - p.baseline))
             }
         }
@@ -296,7 +301,7 @@ enum WriterMath {
             var xs: [Double] = []
             var x = 0.0
             for b in parts { xs.append(x); x += b.width }
-            return Box(width: x, ascent: parts.map(\.ascent).max() ?? 0, descent: parts.map(\.descent).max() ?? 0) { canvas, at in
+            return Box(width: x, ascent: parts.map(\.ascent).max() ?? 0, descent: parts.map(\.descent).max() ?? 0, inkUp: parts.map(\.iu).max() ?? 0, inkDown: parts.map(\.idn).max() ?? 0) { canvas, at in
                 for (b, dx) in zip(parts, xs) { b.draw(canvas, Offset(at.dx + dx, at.dy)) }
             }
         }
@@ -306,7 +311,7 @@ enum WriterMath {
 
         /// A box moved up (negative: down) by `dy` points.
         func raised(_ b: Box, _ dy: Double) -> Box {
-            Box(width: b.width, ascent: max(0, b.ascent + dy), descent: max(0, b.descent - dy)) { canvas, at in
+            Box(width: b.width, ascent: max(0, b.ascent + dy), descent: max(0, b.descent - dy), inkUp: max(0, b.iu + dy), inkDown: max(0, b.idn - dy)) { canvas, at in
                 b.draw(canvas, Offset(at.dx, at.dy - dy))
             }
         }
@@ -563,12 +568,12 @@ enum WriterMath {
             // baseline in Word's print, 7.6 in the face's own ascent; a superscript with no subscript is not capped (lo-6e71a4d5's "A=πr2" stands where it did); the row stood 2pt
             // taller than Word's.)
             let cap = size * 0.73 * 0.85
-            func capped(_ b: Box) -> Box { Box(width: b.width, ascent: min(b.ascent, cap), descent: b.descent, draw: b.draw) }
+            func capped(_ b: Box) -> Box { Box(width: b.width, ascent: min(b.ascent, cap), descent: b.descent, inkUp: min(b.iu, cap), inkDown: b.idn, draw: b.draw) }
             if let sub { parts.append(raised(capped(sub), -down)) }
             if let sup { parts.append(raised(sub != nil ? capped(sup) : sup, up)) }
             guard !parts.isEmpty else { return .empty }
             let w = parts.map(\.width).max() ?? 0
-            return Box(width: w + size * 0.05, ascent: parts.map(\.ascent).max() ?? 0, descent: parts.map(\.descent).max() ?? 0) { canvas, at in
+            return Box(width: w + size * 0.05, ascent: parts.map(\.ascent).max() ?? 0, descent: parts.map(\.descent).max() ?? 0, inkUp: parts.map(\.iu).max() ?? 0, inkDown: parts.map(\.idn).max() ?? 0) { canvas, at in
                 for p in parts { p.draw(canvas, at) }
             }
         }
@@ -576,7 +581,7 @@ enum WriterMath {
         /// `top` centred over `base`, `gap` points between.
         func over(_ base: Box, _ top: Box, gap: Double) -> Box {
             let w = max(base.width, top.width)
-            return Box(width: w, ascent: base.ascent + gap + top.ascent + top.descent, descent: base.descent) { canvas, at in
+            return Box(width: w, ascent: base.ascent + gap + top.ascent + top.descent, descent: base.descent, inkUp: base.ascent + gap + top.iu + top.idn, inkDown: base.idn) { canvas, at in
                 base.draw(canvas, Offset(at.dx + (w - base.width) / 2, at.dy))
                 top.draw(canvas, Offset(at.dx + (w - top.width) / 2, at.dy - base.ascent - gap - top.descent))
             }
@@ -585,7 +590,7 @@ enum WriterMath {
         /// `low` centred under `base`.
         func under(_ base: Box, _ low: Box, gap: Double) -> Box {
             let w = max(base.width, low.width)
-            return Box(width: w, ascent: base.ascent, descent: base.descent + gap + low.ascent + low.descent) { canvas, at in
+            return Box(width: w, ascent: base.ascent, descent: base.descent + gap + low.ascent + low.descent, inkUp: base.iu, inkDown: base.descent + gap + low.iu + low.idn) { canvas, at in
                 base.draw(canvas, Offset(at.dx + (w - base.width) / 2, at.dy))
                 low.draw(canvas, Offset(at.dx + (w - low.width) / 2, at.dy + base.descent + gap + low.ascent))
             }
@@ -625,7 +630,7 @@ enum WriterMath {
             var op: Box
             if big {
                 let glyph = text(chr, size: s * 2.864, italic: false)
-                op = Box(width: s * 1.326, ascent: s * 1.240, descent: s * 0.669) { canvas, at in
+                op = Box(width: s * 1.326, ascent: s * 1.240, descent: s * 0.669, inkUp: s * 1.240, inkDown: s * 0.669) { canvas, at in
                     glyph.draw(canvas, Offset(at.dx - s * 0.374, at.dy + s * 0.669))
                 }
             } else {
@@ -682,7 +687,7 @@ enum WriterMath {
             let ascent = wd ? dNum + num.ascent : text ? numUp + num.ascent : axis + rule / 2 + gap + num.descent + num.ascent
             let descent = wd ? dDen + den.descent : text ? denDown + den.descent : max(0, gap + rule / 2 - axis + den.ascent + den.descent)
             let ruleUp = wd ? dRule : text ? size * 0.2875 : axis
-            return Box(width: w, ascent: ascent, descent: descent) { canvas, at in
+            return Box(width: w, ascent: ascent, descent: descent, inkUp: wd ? dNum + num.iu : nil, inkDown: wd ? dDen + den.idn : nil) { canvas, at in
                 let line = at.dy - ruleUp
                 num.draw(canvas, Offset(at.dx + (w - num.width) / 2, wd ? at.dy - dNum : text ? at.dy - numUp : line - rule / 2 - gap - num.descent))
                 den.draw(canvas, Offset(at.dx + (w - den.width) / 2, wd ? at.dy + dDen : text ? at.dy + denDown : line + rule / 2 + gap + den.ascent))
@@ -708,7 +713,15 @@ enum WriterMath {
             }
             let body = hbox(inner)
             // (In a line of text Word's print leaves the brackets round a fraction at the text's size: jpn-z22855378-6fca0f's exp[…].)
-            let tall = inlineText && RichTextTheme.wordWindowsPages ? s : max(s, (body.ascent + body.descent) * 0.95)
+            var tall = inlineText && RichTextTheme.wordWindowsPages ? s : max(s, (body.ascent + body.descent) * 0.95)
+            // (Cambria Math's DelimitedSubFormulaMinHeight is 3000/2048 em: a display equation's body whose ink is shorter
+            // than that keeps its brackets at the text size. xb jpn-z19306349-158454: arg(h_obs(f)h*_GR(f)) is one line in
+            // Word's print, ours had stretched brackets and the superscript broke the line in two. A taller body grows
+            // them as before.)
+            if RichTextTheme.wordWindowsPages, !inlineText {
+                let axis = s * 0.286
+                if 2 * max(body.iu - axis, body.idn + axis) < 3000.0 / 2048 * s { tall = s }
+            }
             func fence(_ c: String) -> Box {
                 guard !c.isEmpty else { return .empty }
                 let f = text(c, size: tall, italic: false)
