@@ -225,7 +225,7 @@ extension RichLayout {
     /// set to the joiner's own ascent and descent (every span on it overridden, so Yu's taller natural box cannot lift it), and a line
     /// holding none keeps the height its own faces give it. `strut` (the paragraph's tallest stretch) must be the joiner's height, or
     /// the paragraph is held whole as before. nil: nothing to rewrite.
-    static func _heldWhereJoined(_ span: TextSpan, _ painter: TextPainter, strut: StrutStyle) -> TextSpan? {
+    static func _heldWhereJoined(_ span: TextSpan, _ painter: TextPainter, strut: StrutStyle, lineMultiple: Double = 1) -> TextSpan? {
         var joiner: TextStyle? = nil
         func find(_ s: InlineSpan) {
             guard joiner == nil, let t = s as? TextSpan else { return }
@@ -264,6 +264,11 @@ extension RichLayout {
         }
         guard held.contains(where: { $0.1 == 1 }) else { return nil }
         let asc = jl.ascent, desc = jl.descent
+        // (The probe's line carries the paragraph's line multiple shared above and below its baseline, but Word puts all of a multiple's
+        // extra under the text: the baseline stands on the single-spacing ascent, 12.88 at 10 pt, not 13.9. xb kor-z19581051-22de7d: every
+        // first line of a page stood 0.9 pt low.)
+        let multiple = max(1, lineMultiple)
+        let singleAsc = asc / multiple, singleDesc = desc / multiple
         // (A line with no Yu-drawn ink keeps Malgun's own descent, 0.442 em against the joiner's 0.492: Word's steps after such a line are 18.6 at 10 pt, not 19.2.)
         let bareDesc = desc * ((Self._indicLines["malgun gothic"]?.1 ?? 0.492) / 0.492)
         var at = 0
@@ -288,13 +293,14 @@ extension RichLayout {
                             let pr = TextPainter(text: TextSpan(text: "x", style: x), textDirection: .ltr)
                             pr.layout(minWidth: 0, maxWidth: 100_000)
                             if let m = pr.computeLineMetrics().first, m.height > 1 {
-                                st = x.copyWith(ascentOverride: m.height - desc, descentOverride: desc, height: m.height / fs)
+                                let a = m.height / multiple - singleDesc
+                                st = x.copyWith(ascentOverride: a, descentOverride: m.height - a, height: m.height / fs)
                             }
                             pr.dispose()
                         }
                     } else if let x = st, let fs = x.fontSize, fs > 0.5 {
                         let d = kind == 1 ? desc : bareDesc
-                        st = x.copyWith(ascentOverride: asc, descentOverride: d, height: (asc + d) / fs)
+                        st = x.copyWith(ascentOverride: singleAsc, descentOverride: asc + d - singleAsc, height: (asc + d) / fs)
                     }
                     pieces.append(TextSpan(text: String(decoding: u[a ..< b], as: UTF16.self), style: st, recognizer: t.recognizer, locale: t.locale))
                 }

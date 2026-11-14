@@ -2342,7 +2342,7 @@ extension RichLayout {
                 // and digits in Yu Gothic and the Hangul in Malgun Gothic, so a line holding one takes Yu Gothic's deeper descent: 19.2 pt steps at 10 pt
                 // against 18.5. Each face drawn on a line feeds its own ascent and descent into the line's max.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, u >= 0x20, u < 0x250, ch.unicodeScalars.count == 1, !Self._setsNoLine(ch), ch != " ", ch != "\u{A0}",
-                   !(before.map { ($0.unicodeScalars.first?.value ?? 0x3000) < 0x250 } ?? false), _yuLatinOfMissingHangulFace(run, named, document), !document.hasIndicText, !aumsLatin {
+                   !(before.map { ($0.unicodeScalars.first?.value ?? 0x3000) < 0x250 && !($0 == " " && beforeBefore == nil) } ?? false), _yuLatinOfMissingHangulFace(run, named, document), !document.hasIndicText, !aumsLatin {
                     if devanagariStyles["missingHangulYu"] == nil {
                         devanagariStyles["missingHangulYu"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: Self._indicLines["malgun gothic"]!.0, descent: 0.492)?.copyWith(debugLabel: "yu-joiner")
                     }

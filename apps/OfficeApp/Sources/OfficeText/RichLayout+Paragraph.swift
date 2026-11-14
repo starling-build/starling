@@ -2008,7 +2008,7 @@ extension RichLayout {
                // ones holding Noto's characters within 0.4 of it.)
                let strut = _strut(span, tallest: true, near: spacedOver || thaiNear, wide: thaiNear, joiners: !(gridded && lines > 1)),
                lines == 1 || gridded || Self._holdsYuJoiner(span) || Self._tallestOnEveryLine(span, strut, painter, lines: lines, near: spacedOver || thaiNear, wide: thaiNear) {
-                if Self._holdsYuJoiner(span), !gridded, let per = Self._heldWhereJoined(span, painter, strut: strut) {
+                if Self._holdsYuJoiner(span), !gridded, let per = Self._heldWhereJoined(span, painter, strut: strut, lineMultiple: style.lineSpacing) {
                     let lined = TextPainter(text: per, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr)
                     lined.fractionalLineHeights = painter.fractionalLineHeights
                     lined.lineIndents = painter.lineIndents
