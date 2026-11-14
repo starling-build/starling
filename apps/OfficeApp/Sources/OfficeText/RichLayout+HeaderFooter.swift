@@ -2104,6 +2104,14 @@ extension RichLayout {
         return (top, bottom)
     }
 
+    /// Where the body of page `p` stands, in points down the paper: its top and its foot once a tall header or
+    /// footer has pushed the margins out (what the balloon column of a marked-up print packs against).
+    public func bodyBandPoints(page p: Int, _ document: RichDocument) -> (top: Double, bottom: Double) {
+        let setup = pageSetup(forPage: p), k = theme.pixelsPerPoint * scale
+        let ins = _bodyInsets(page: p, document)
+        return (ins.top / k, setup.height - ins.bottom / k)
+    }
+
     /// Running header (left) and footer (centred), fields filled per
     /// page, in Normal's face: the header's top and the footer's bottom
     /// at the page setup's distances from the paper's edges, as Word

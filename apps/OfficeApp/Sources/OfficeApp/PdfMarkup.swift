@@ -152,6 +152,8 @@ struct PdfMarkup {
                             && ((open!.paragraphs.last?.isEmpty == true && open!.paragraphs.count > 1) || ranOnHere)
                         if runsOn { ranOnHere = true }
                         if runsOn { RuleTrace.hit("deletion-after-deleted-marks-runs-on-in-its-balloon") }
+                        // (A run of no length, left by a head whose text all went to its balloon, opens none.)
+                        if !runsOn, run.length == 0, piece.isEmpty, open == nil { continue }
                         if !runsOn, open == nil || open!.anchor != anchor || open!.label != label {
                             close()
                             open = Note(anchor: anchor, label: label, paragraphs: [""], author: run.style.revision?.author ?? "",
@@ -202,6 +204,18 @@ struct PdfMarkup {
                         else { open!.paragraphs.append(said) }
                         open!.paragraphs.append("")
                     }
+                }
+                else if open != nil, open!.label == "Deleted:", p.style.markRevision?.moved != true, DocxFormat.wordOnWindows, !p.runs.isEmpty, !open!.paragraphs.allSatisfy({ $0.isEmpty }),
+                        srcIndex + 1 < source.paragraphs.count, source.paragraphs[srcIndex + 1].style.markRevision?.kind != .deleted, p.style.list == nil, srcIndex == 0 || source.paragraphs[srcIndex - 1].style.list == nil,
+                        source.paragraphs[srcIndex + 1].runs.contains(where: { $0.length > 0 && $0.style.revision?.kind != .deleted }), p.style.sectionXML == nil {
+                    // (The last paragraph of a deleted run, whose mark runs into a kept paragraph
+                    // with text: the balloon ends at its text, and the mark is a "Deleted: ¶" of
+                    // its own below it. From the print alone, xb jpn ee9f8f's page 13. A list item's mark does not: delins's tika
+                    // items keep it in the one box, nor does the mark that follows a list item: gv-9febdcb8f3 page 16.)
+                    RuleTrace.hit("deleted-run-end-mark-own-balloon")
+                    let at = open!.anchor
+                    close()
+                    deletions.append(Note(anchor: at, label: "Deleted:", paragraphs: ["¶"], author: p.style.markRevision?.author ?? ""))
                 }
                 else if open != nil {
                     open!.paragraphs[open!.paragraphs.count - 1] += "¶"; open!.paragraphs.append("")
@@ -909,7 +923,46 @@ struct PdfMarkup {
         }
         var shown = entries.count
         var cut: Int? = nil
-        if let lt = tops.last, lt + heights[heights.count - 1] > limit {
+        // (A column that runs past the foot of the BODY (where a tall footer ends it, not the margin) rides up instead, each
+        // box no lower than its line and the last ending at the body's foot, edge to edge from there up, while the first
+        // still stands inside the body: xb jpn ee9f8f pages 5, 11 and 13, whose columns end level with the last body line in
+        // Word's print, and whose first box stands where the body begins when the column is as long as the body.)
+        var rode = false
+        if windows, let lt = tops.last {
+            let band = layout.bodyBandPoints(page: p, document)
+            // (Only where a tall footer ends the body above the margin: a column past the plain margin keeps the rule below, delins.)
+            if band.bottom < setup.height - setup.marginBottom - 1, lt + heights[heights.count - 1] > band.bottom {
+                var up = tops, next = band.bottom
+                for i in stride(from: entries.count - 1, through: 0, by: -1) {
+                    up[i] = min(tops[i], next - heights[i])
+                    next = up[i] - gap
+                }
+                if up[0] >= band.top {
+                    RuleTrace.hit("balloon-column-past-the-bodys-foot-rides-up-to-it")
+                    tops = up
+                    rode = true
+                } else if band.top + heights.reduce(0, +) + gap * Double(entries.count - 1) <= limit,
+                          let k = (1 ..< entries.count).last(where: { heights[$0] > 40 }) {
+                    // (A column that overflows the whole page keeps Word's other rule below: lo-9f27ef40.)
+                    // (Longer than the body: the first box stands at the body's top, the rest edge to edge below it, and the last
+                    // box above the one-line ones is cut short with "..." so the column ends at the body's foot: xb jpn ee9f8f
+                    // page 13, whose "・残された課題" box loses a line.)
+                    var g = band.top
+                    for i in 0 ..< entries.count { up[i] = g; g += heights[i] + gap }
+                    let over = g - gap - band.bottom
+                    if heights[k] - over > 24 {
+                        RuleTrace.hit("balloon-column-longer-than-the-body-cuts-its-last-long-box-to-end-at-the-foot")
+                        heights[k] -= over
+                        g = band.top
+                        for i in 0 ..< entries.count { up[i] = g; g += heights[i] + gap }
+                        tops = up
+                        cut = k
+                        rode = true
+                    }
+                }
+            }
+        }
+        if !rode, let lt = tops.last, lt + heights[heights.count - 1] > limit {
             // Packed from the first box down, edge to edge; the one that runs
             // past the page's foot is cut short and the rest are not shown.
             // (Cut where the one that is tallest stands, and the boxes after it stay, packed below it: lo-9f27ef40's
