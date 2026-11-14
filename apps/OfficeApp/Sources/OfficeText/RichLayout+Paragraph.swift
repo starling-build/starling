@@ -1350,6 +1350,7 @@ extension RichLayout {
         // Laid out once as they fall, the lines the float reaches get an
         // indent each, and laid again until they settle.)
         var besideLineIndents: [LineIndent] = []
+        var equationLinesGrowAfterLayout = false
         var besideIndent = _besideLead[i]
         var besideRight = besideIndent > 0 && _besideRightSide[i]
         var besideLeftRoom: Double?
@@ -1583,9 +1584,12 @@ extension RichLayout {
             // as without the equation; with the strut dropped for the equation's box, 45.2. A paragraph
             // with an equation in its first line, or of one line, is as before.)
             var pil = picturesInLine
+            // (Where the line-growing step after layout runs, the paragraph keeps its strut and that step sizes the taller equation lines.)
+            equationLinesGrowAfterLayout = theme.wordRules && RichTextTheme.wordWindowsPages && p.cell == nil && !style.rightToLeft && _columns <= 1
+                && style.lineSpacing > 1.001 && style.lineHeightPoints == nil && besideLineIndents.isEmpty
             if pil, theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft,
                inline.allSatisfy({ $0.image.map { $0.name == "m:oMath" && $0.float == nil } ?? true }),
-               (_equationsAfterFirstLine(span, inline.map { $0.dimensions }, align: align, rtl: style.rightToLeft, width: textWidth + _px(tieSlack), indents: besideLineIndents)
+               (equationLinesGrowAfterLayout || _equationsAfterFirstLine(span, inline.map { $0.dimensions }, align: align, rtl: style.rightToLeft, width: textWidth + _px(tieSlack), indents: besideLineIndents)
                 // (Equations in the first line too, none of them taller than the strut's own line: Word's print of the same
                 // paragraph puts its first line 41.0 under the heading above, as without the equations (a and l_p in the first
                 // line, 45.2 with the strut dropped for their boxes).)
@@ -2845,9 +2849,7 @@ extension RichLayout {
         // times the text's. Word's print of jpn-z22855378-6fca0f: a line with a 17.0 over 7.9pt fraction is 36pt,
         // the others 27. The lines are held to the strut here and the taller one is drawn lower, with those
         // after it: the extra above the baseline is what the equation stands higher than the text's own.)
-        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, !style.rightToLeft, _columns <= 1,
-           style.lineSpacing > 1.001, style.lineHeightPoints == nil, painter.strutStyle?.forceStrutHeight == true,
-           besideLineIndents.isEmpty, keepClear == nil, Self._paired(painter) == nil,
+        if equationLinesGrowAfterLayout, painter.strutStyle?.forceStrutHeight == true, keepClear == nil, Self._paired(painter) == nil,
            let boxes = painter.inlinePlaceholderBoxes, boxes.count == inline.count, !boxes.isEmpty {
             let bottoms = Self._rawLineBottoms(painter)
             let metrics = painter.computeLineMetrics()
