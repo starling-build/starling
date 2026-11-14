@@ -88,6 +88,9 @@ public final class RichTextTheme {
     /// nothing (lab e6p, zh-e68a2f57's package): an app printing as
     /// Windows takes it out.
     public nonisolated(unsafe) static var segoeSymbolShapes: Set<UInt32> = [0x25C7, 0x25C6, 0x25CE, 0x2605, 0x2606, 0x274F]
+    /// Shapes Word for Windows sets in Cambria Math where the run's Latin face has none
+    /// (see `_holdsSegoeGlyph`'s caller): they stand the line at Cambria Math's height.
+    public nonisolated(unsafe) static var cambriaMathShapes: Set<UInt32> = [0x25B8]
     /// Pages break as Word for Windows breaks them where it differs from
     /// Word for Mac (OFFICE_WORD_FONTS=windows): an "at least" line that
     /// stands at its minimum ties on the foot as an exact line does.
