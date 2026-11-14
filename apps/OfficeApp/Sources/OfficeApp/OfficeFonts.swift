@@ -1018,7 +1018,7 @@ enum OfficeFonts {
         let n = family.trimmingWhitespace().lowercased()
         for key in ["simsun", "simhei", "kaiti", "fangsong", "yahei", "dengxian", "mingliu", "dfkai", "jhenghei",
                     "stsong", "stkaiti", "stfangsong", "stzhongsong", "stxihei", "stxinwei", "stheiti", "songti", "heiti",
-                    "pingfang", "hiragino", "mincho", "ms gothic", "yu gothic", "meiryo", "malgun", "batang", "gulim", "dotum",
+                    "pingfang", "hiragino", "mincho", "kyokashotai", "ms gothic", "yu gothic", "meiryo", "malgun", "batang", "gulim", "dotum",
                     "cjk", "source han", "noto sans sc", "noto serif sc", "wenquanyi", "arial unicode", "fzs", "fzf", "fzk", "fzh", "fzx"] where faceHas(n, key) {
             return true
         }
