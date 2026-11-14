@@ -2042,11 +2042,18 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
-                } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == " ", ch == "." {
-                    // (A line may part at a space before a stop: the engine keeps
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == " ", ch == "." || ch == ":" || ch == ";" || ch == "," || ch == "}" || ch == ")" || ch == "]" || ch == "!" || ch == "?" {
+                    // (A line may part at a space before a stop, colon, semicolon, comma, closing bracket, "!" or "?" (xb hin-z20395192 opens lines ":<+" and "}kjk"): the engine keeps
                     // " ." together — a stop may not start a line, even after a
                     // space — and Word does not. lo-0349db3a's "Word / .doc" in a
                     // 116pt frame ends a line "…in Word /" in Word's print.)
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == " ", ch != " ", let bb = beforeBefore, bb == "\u{A1}" || bb == "\u{BF}" {
+                    // (A line may part at the space after "¡" or "¿": the break table reads them as openers
+                    // and keeps what follows the space with them; Word breaks at any space. xb hin-z20395192,
+                    // a Kruti Dev text whose "¡" is a letter, ends a line "…'kCn l¡" and opens the next with "cuy…".)
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
