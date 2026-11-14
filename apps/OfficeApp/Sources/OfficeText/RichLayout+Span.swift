@@ -1075,6 +1075,17 @@ extension RichLayout {
                 && p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 })
             let utsaahLatin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "utsaah"
             let namedFace: String? = text.unicodeScalars.contains(where: { $0.properties.isAlphabetic && Self._isIndic($0.value) }) ? nil : _namedMetricFace(run, named, document, text)
+            // (Kalimati is a face Windows lacks, drawn in Mangal: a space-only paragraph whose MARK is a complex-script one (`w:cs`) takes Mangal's line,
+            // as the stand-in cannot; dx2 9baed400's cell paragraph, 31.3 pt in Word's print where ours stood 25.8. A mark with no `w:cs` keeps the
+            // Calibri line however the run is flagged: 72d5ef87's two space-only paragraphs, 56.7 pt.)
+            var namedKalimati = false
+            if namedFace == "mangal", !p.text.isEmpty, p.text.unicodeScalars.allSatisfy({ $0.value == 0x20 || $0.value == 0x09 }),
+               let kept = p.style.mark?.keptXML, kept.containsSubstring("<w:cs/>") || kept.containsSubstring("<w:cs ") {
+                let csK: String = run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? ""
+                let asciiK: String = run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? ""
+                let csFlagK: Bool = run.keptXML.map { $0.containsSubstring("<w:cs/>") || $0.containsSubstring("<w:cs ") } ?? false
+                namedKalimati = (csFlagK ? csK : asciiK).trimmingWhitespace().lowercased() == "kalimati"
+            }
             let indic: (face: String, scale: Double)? = {
                 guard theme.wordRules, RichTextTheme.wordWindowsPages else { return nil }
                 var count: [Character: Int] = [:], letters = 0
@@ -1236,7 +1247,7 @@ extension RichLayout {
                 if kind >= 0, let indic, indic.scale != 1, !latinNoScale { s = s.copyWith(scaleX: indic.scale) }
                 // (The run's own line is the face's, not the stand-in's, where the face's is the shorter: Aparajita's 1.18 em (a516bfe9: 2.7 to 92.9) where Noto
                 // Sans Devanagari's is taller; the joiner above only raises a line.)
-                if kind >= 0, let indic, (indic.face == "kokila" && (kokilaLatin || text.unicodeScalars.contains(where: { Self._isIndic($0.value) }))) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "malgun gothic" && malgunLatin) || (indic.face == "yu gothic" && (aumsLatin || aumsYuInIndic)) || indic.face == "vijaya" || indic.face == "latha" || indic.face == "shonar bangla" || (namedFace != nil && namedFace != "mangal") || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[(indic.face == "shonar bangla" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? "shonar bangla bold" : indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
+                if kind >= 0, let indic, (indic.face == "kokila" && (kokilaLatin || text.unicodeScalars.contains(where: { Self._isIndic($0.value) }))) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "malgun gothic" && malgunLatin) || (indic.face == "yu gothic" && (aumsLatin || aumsYuInIndic)) || indic.face == "vijaya" || indic.face == "latha" || indic.face == "shonar bangla" || (namedFace != nil && (namedFace != "mangal" || namedKalimati)) || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[(indic.face == "shonar bangla" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? "shonar bangla bold" : indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
                     // (Kokila's line: its own ascent and descent, above and below the baseline, for every run on the line: the stand-ins'
                     // (Carlito's, Noto's) are taller above and set the line 2-3 pt low and 1.4 pt per line too far apart.)
                     // (A multiple under single too: dx2 hin-z20740649's 0.9 lines are 13.5 pt apart in Word's print, Kokila's 15.0 x 0.9.)
