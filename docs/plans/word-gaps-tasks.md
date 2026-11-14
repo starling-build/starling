@@ -16445,3 +16445,4 @@ HANDOFF lenovo-5 (2026-11-14): Yu fix (xb jpn 12d9fb 92.8 to 96.1, 332/329 lines
 HANDOFF amd-3 (2026-11-14) xb jpn 6fca0f: 42.8 -> 58.2 over three commits (equation operator spacing; accent on the letter's own line; strut gate). Submitted as queue entries 20261114-033457-amd-3-13 (accent, with approved drop of ce4069f1 Thai macron doc) and 20261114-041312-amd-3-19 (accent + strut gate, no drops asked). Unit tests 655/0.
 Left: page 8 display equation under the paragraph is about 15 pt low (Word main row 424.8, ours 432.1; next paragraph 469.9 vs 484.9). Cause is likely the stretched delimiters round a fraction in m:d (ours 31.5/34.2 pt, Word's largest glyph 14 pt). Do not touch the centred above/below split of the post-step. Page 5: heading steps +4.4 pt; the centring test height < size*h - pitch/2 evaluates 540 < 540 (false); needs a content-keyed test, not <=.
 Traps: Thai ce4069f1 dips on macron-over-capital with wrong fonts (exposure logged).
+
