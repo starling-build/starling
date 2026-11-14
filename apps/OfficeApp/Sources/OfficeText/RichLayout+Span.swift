@@ -4351,6 +4351,11 @@ extension RichLayout {
                 let share = (baseWidth - rubyWidth) / count
                 style = style.copyWith(letterSpacing: share)
                 x = left + share / 2
+            } else if baseWidth > rubyWidth, g.ruby.align == "left" || g.ruby.align == "right",
+                      !(index.map { _verticalBody($0) } ?? false) {
+                // (rubyAlign left: the ruby starts at its base's left edge, dx2 3ebc3ec5's "３月振替" over "１０，０００円" at x 196.0 in Word's print, not centred
+                // at 220.2. Right is the mirror, unmeasured.)
+                x = g.ruby.align == "left" ? left : left + wide - rubyWidth
             }
             let tp = TextPainter(text: TextSpan(text: g.ruby.text, style: style), textDirection: .ltr)
             tp.layout(minWidth: 0, maxWidth: Double.infinity)
