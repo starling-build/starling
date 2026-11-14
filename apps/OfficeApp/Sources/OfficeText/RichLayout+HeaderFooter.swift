@@ -464,9 +464,23 @@ extension RichLayout {
         var out: [Double] = []
         for k in note.document.paragraphs.indices {
             let g = note.layout.geometry(k)
-            out += Self._lineBottoms(g.painter).map { g.textTop + $0 }
+            var bs = Self._lineBottoms(g.painter).map { g.textTop + $0 }
+            // (A note of two or three lines under widow control does not part
+            // at all, two lines at least on each side being impossible:
+            // xa gv-690391482c's footnote 13, two lines, goes whole to page 9
+            // in Word's print where its mark's line ends page 8. Longer notes
+            // keep every parting: xd e50792c2's footnote 7, four lines, parts
+            // two and two.)
+            if theme.wordRules, note.document.paragraphs[k].style.widowControl, !document.widowControlSuspended, bs.count > 1, bs.count < 4 {
+                bs = []
+            }
+            out += bs
         }
-        let cuts = out.sorted().filter { $0 > 0.5 && $0 < note.height - 0.5 }
+        // (Not at its last line's bottom: that leaves nothing for the next
+        // page, so it is no parting, and the note's space after counts as
+        // part of it.)
+        let lastBottom = out.max() ?? 0
+        let cuts = out.sorted().filter { $0 > 0.5 && $0 < note.height - 0.5 && $0 < lastBottom - 0.5 }
         // (A note of a page of columns parts with two lines at least on each
         // side: Word's lab fn-cols-sweep, a mark's note that would keep one
         // line goes over with the mark's line whole.)
