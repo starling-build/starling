@@ -2559,7 +2559,10 @@ extension RichLayout {
                                     // ascii still draws it in Segoe UI Symbol, xd 07eecf7a p2.)
                                     || units[start ..< end].contains(0x274F),
                                   Self._holdsSegoeGlyph(units, start, end, emojiOnly: !lead.1)
-                                    || (RichTextTheme.wordWindowsPages && units[start ..< end].contains(where: { RichTextTheme.cambriaMathShapes.contains(UInt32($0)) })) else { continue }
+                                    || (RichTextTheme.wordWindowsPages && units[start ..< end].contains(where: { u in
+                                        // (Only where the run's Latin face has no such glyph, by its cmap (Georgia's holds no ▸); a face that holds it draws it itself.)
+                                        RichTextTheme.cambriaMathShapes.contains(UInt32(u))
+                                            && Self._latinFaceLacks(run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily ?? "", UInt32(u)) != false })) else { continue }
                             // (Word for Windows sets "▸" in Cambria Math, whose line is 1.172 em:
                             // 2400 units, its descent Cambria's 449, so 1951 above the baseline.
                             // xb jpn 3f592b p23: Georgia 12pt lines 24.7pt apart, ours 24.2.)
