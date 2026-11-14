@@ -938,12 +938,13 @@ public final class RichTextTheme {
                 // up; the engine kerns every pair. Bug59058's caption in
                 // Times New Roman bold, kerned, fitted "State," on a line
                 // Word's unkerned "Women by" filled ("Wo" alone 0.67pt).
+                // (HG Kyokasho-tai, missing on Word's machine, prints as MS Mincho: a91d8fed's ん で step 10.0 against Word's 10.5.)
                 // (MS Mincho, Gothic and their P faces carry no kern pairs: the Noto stand-in's kana pairs
                 // (ア before イ, 0.81 pt at 9 pt) shortened cab6d785's cell line, which then held a character
                 // more than Word's.)
                 let msJapanese = wordRules && RichTextTheme.wordWindowsPages && (familyName.map { n in
                     let l = n.lowercased()
-                    return ["ms mincho", "ms pmincho", "ms gothic", "ms pgothic", "ｍｓ 明朝", "ｍｓ ｐ明朝", "ｍｓ ゴシック", "ｍｓ ｐゴシック"].contains { l.containsSubstring($0) }
+                    return ["ms mincho", "ms pmincho", "ms gothic", "ms pgothic", "ｍｓ 明朝", "ｍｓ ｐ明朝", "ｍｓ ゴシック", "ｍｓ ｐゴシック", "kyokashotai"].contains { l.containsSubstring($0) }
                 } ?? false)
                 // (Yu Mincho kerns its own kana pairs, set from `yuMinchoKerns` where the run kerns at its size; the
                 // stand-in's pairs are not its.)
