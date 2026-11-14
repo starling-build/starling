@@ -1565,7 +1565,15 @@ extension RichLayout {
                 if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell != nil, label == "\u{2022}" || label == "\u{F0B7}", at + marker.width <= g.textLeft - _px(wl.left) + _px(0.01) {
                     RuleTrace.hit("word-cell-bullet-hanging-out-of-the-cell-is-not-drawn")
                 } else {
-                _paintMarker(marker, Offset(wl.format?.justification == "right" ? at - marker.width : at, g.inkTop), p, document, label: label, canvas)
+                // (A number stands on its line's baseline, as the text does: hin-z18479909's "1." in Kokila's
+                // tall line (Latin digits, no Indic letter) stood 7.8pt below its text, whose line is the
+                // Indic face's; the marker's own line has no such depth.)
+                var markerDown = 0.0
+                if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil {
+                    let d = g.painter.computeDistanceToActualBaseline(.alphabetic) - marker.computeDistanceToActualBaseline(.alphabetic)
+                    if d < -_px(0.5) { markerDown = d; RuleTrace.hit("word-list-number-on-its-lines-baseline") }
+                }
+                _paintMarker(marker, Offset(wl.format?.justification == "right" ? at - marker.width : at, g.inkTop + markerDown), p, document, label: label, canvas)
                 }
                 marker.dispose()
                 }

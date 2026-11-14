@@ -37,16 +37,16 @@
    16.0%  lines 463/458  pages 16/15  ara-z4399437-5bde25
    17.4%  lines 328/323  pages 10/10  urd-z7538882-13b0bc
    20.3%  lines 143/145  pages 6/6  fas-z21853138-0c740e
-   25.0%  lines 144/145  pages 5/5  hin-z10093577-3af7d4
    27.2%  lines 173/170  pages 11/11  ara-z3803947-de4a70
    27.8%  lines 97/98  pages 4/4  heb-z5059159-4ac884
    28.0%  lines 432/460  pages 16/16  ara-z8157766-171cca
    31.0%  lines 1282/1329  pages 31/34  ita-z13342017-784e0d
+   31.2%  lines 144/145  pages 5/5  hin-z10093577-3af7d4
    32.6%  lines 135/135  pages 9/10  fas-z22958620-bf2323
    36.4%  lines 33/34  pages 1/1  docx-79737edb
    36.5%  lines 890/890  pages 20/20  fra-g210-1a6d33
    37.0%  lines 243/245  pages 8/8  hin-z20395192-2886e1
-   39.3%  lines 178/194  pages 10/10  ben-z17281487-bfc234
+   41.0%  lines 178/192  pages 10/10  ben-z17281487-bfc234
    41.9%  lines 1045/1047  pages 22/22  docx-5dc87fc7
    42.5%  lines 976/983  pages 21/22  fra-g111-8b0e29
    43.7%  lines 231/232  pages 7/7  hin-z21320572-6df882
@@ -71,13 +71,13 @@
    81.9%  lines 221/221  pages 13/13  docx-46bc4851
    82.5%  lines 361/361  pages 13/13  docx-6f1caa1e
    82.8%  lines 29/28  pages 2/2  ara-z15770216-60b9da
-   83.3%  lines 594/591  pages 16/16  jpn-z23002680-ee9f8f
+   83.3%  lines 594/590  pages 16/16  jpn-z23002680-ee9f8f
    83.7%  lines 123/121  pages 16/16  docx-a567c5c2
    84.1%  lines 905/912  pages 24/24  fra-g70-0ecec1
    87.6%  lines 1133/1142  pages 35/35  fra-z5579827-3c5db0
    88.4%  lines 776/780  pages 28/28  por-z1326468-80d0e5
    90.1%  lines 202/203  pages 5/5  ell-z10161459-ec79d6
-   90.8%  lines 240/281  pages 7/7  hin-z18479909-61195a
+   92.1%  lines 240/275  pages 7/7  hin-z18479909-61195a
    93.6%  lines 156/157  pages 5/5  heb-z23212898-e040af
    93.7%  lines 221/221  pages 13/13  docx-33355364
    93.7%  lines 221/221  pages 13/13  docx-35fcd124
@@ -97,7 +97,7 @@
    94.6%  lines 428/419  pages 12/12  jpn-z23002680-1e9281
    94.6%  lines 428/419  pages 12/12  jpn-z23002680-ec6c96
    94.7%  lines 767/767  pages 20/20  ell-z10407038-6c5718
-   95.2%  lines 498/499  pages 16/16  jpn-z23002680-771abc
+   95.2%  lines 498/498  pages 16/16  jpn-z23002680-771abc
    95.3%  lines 43/43  pages 1/1  jpn-g5-b79900
    95.6%  lines 159/159  pages 6/6  rus-z15764990-244a14
    96.6%  lines 87/82  pages 3/3  jpn-g6-2212a2
@@ -106,13 +106,13 @@
    97.3%  lines 110/110  pages 5/5  jpn-z22306877-1047a4
    97.3%  lines 452/451  pages 17/17  jpn-z19433747-8787f4
    98.0%  lines 147/147  pages 7/7  jpn-z17350624-9bde52
-   98.0%  lines 149/157  pages 5/5  mar-z19707447-f8dac9
    98.1%  lines 157/157  pages 8/8  hin-z19449382-045439
-   98.2%  lines 329/330  pages 13/13  jpn-z23845932-12d9fb
+   98.2%  lines 329/329  pages 13/13  jpn-z23845932-12d9fb
    98.3%  lines 59/59  pages 3/3  kor-z21348848-b4a883
    98.5%  lines 408/408  pages 14/14  kor-z22076349-aa9a7f
    98.6%  lines 1024/1024  pages 22/22  fas-z19537379-034075
    98.6%  lines 148/148  pages 4/4  hin-z20759993-04d538
+   98.7%  lines 149/151  pages 5/5  mar-z19707447-f8dac9
    98.8%  lines 1198/1199  pages 37/37  jpn-z21601833-acd729
    98.9%  lines 94/94  pages 3/3  jpn-z20018134-2cadcb
    98.9%  lines 853/853  pages 32/32  jpn-z17544993-4a21de
