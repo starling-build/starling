@@ -212,6 +212,7 @@ extension RichLayout {
             return hint == "eastAsia" || (face?.isEastAsian ?? false) && (hint != "default" || (high?.isEastAsian ?? true))
         }
         let hangulJoins = Self._hangulJoins(p, inserts: inserts, units: units, wordRules: wordRules)
+        let ellipsisStarts = Self._ellipsisMayStart(document)
         let breakBefore = Set(inserts.filter { o in
             guard o > 0, o < units.count, !hanJoins.contains(o), let a = Unicode.Scalar(units[o - 1]), let b = Unicode.Scalar(units[o]) else { return false }
             // (But not an opening mark at a line's end, either way: Word
@@ -447,7 +448,7 @@ extension RichLayout {
             let closesAfterSpaces = wordRules && document.usesEastAsianLayout && !kinsokuOff && !runRulesOff(a) && a < units.count
                 && Self._closingMarks.contains(Character(Unicode.Scalar(units[a])!)) && pieces.last.map { $0.last < $0.b && $0.last > $0.a && units[$0.b - 1] == 0x20 } == true
             if var g = pieces.last, !g.hard, g.b == a, g.b > g.a, !breakBefore.contains(a),
-               last == a || (g.last == g.b && Self._glued(units[g.b - 1], units[a], strict: Self._strictKinsoku(document)) && !(squeezesPauseRule && (units[a] == 0x3001 || units[a] == 0x3002) && !Self._closingUnits.contains(units[g.b - 1]))) || (opens && last > a) || (closesAfterSpaces && last > a)
+               last == a || (g.last == g.b && Self._glued(units[g.b - 1], units[a], strict: Self._strictKinsoku(document)) && !(units[a] == 0x2026 && ellipsisStarts) && !(squeezesPauseRule && (units[a] == 0x3001 || units[a] == 0x3002) && !Self._closingUnits.contains(units[g.b - 1]))) || (opens && last > a) || (closesAfterSpaces && last > a)
                 || (wordRules && g.b >= 2 && units[g.b - 1] == 0x2014 && units[a] >= 0x30 && units[a] <= 0x39 && Self._closingUnits.contains(units[g.b - 2]))
                 || (RichTextTheme.wordWindowsPages && p.style.rightToLeft && g.last == g.b && a > 0 && units[a - 1] >= 0x0620 && units[a - 1] <= 0x06FF && units[a] >= 0x0620 && units[a] <= 0x06FF)
                 || hanJoins.contains(a) || hangulJoins.contains(a) || (thaiJoins.contains(a) && a > 0 && thaiLetter(units[a - 1]) && thaiLetter(units[a])) {
@@ -2568,6 +2569,12 @@ extension RichLayout {
         guard let kept = document.keptSettings["w:strictFirstAndLastChars"] else { return false }
         return !kept.containsSubstring("w:val=\"0\"") && !kept.containsSubstring("w:val=\"false\"")
     }
+    /// Whether "…" may begin a line: Word's Japanese list of what may not start one omits it (Chinese lists hold it), and
+    /// strict kinsoku or a list of the document's own (`w:noLineBreaksBefore`) is not in play.
+    static func _ellipsisMayStart(_ document: RichDocument) -> Bool {
+        RichTextTheme.wordWindowsPages && document.eastAsiaLanguage?.hasPrefix("ja") == true && !_strictKinsoku(document)
+            && document.keptSettings["w:noLineBreaksBefore"] == nil
+    }
     static let _noStart = _hangingUnits.subtracting("”’".utf16)
         .union(",.:;!?%)]}-/‰℃°…～·・ー々〃".utf16)
         // (Small kana may open a line: Word's standard Japanese level does not list them, as 20 of 77 ja-JP prints show
@@ -3059,6 +3066,13 @@ extension RichLayout {
                 }
                 k = e
             }
+        }
+        // (An ellipsis "…" may begin a line in Japanese text: Word's Japanese no-start list does not hold it, as the
+        // Chinese lists do — xb jpn 1e9281/ec6c96 set a paragraph's last "…" alone on a line of its own when the
+        // "使節であった" before it fills the line; the engine, like our `_noStart`, carried "た…" down together.)
+        if Self._ellipsisMayStart(document) {
+            for k in units.indices.dropFirst() where units[k] == 0x2026 && units[k - 1] != 0x2026 && units[k - 1] != 0x2025 && units[k - 1] > 0x20
+                && !Self._openingUnits.contains(units[k - 1]) { out.insert(k) }
         }
         // (`w:wordWrap` off, as many Chinese documents say: every Latin
         // word parts at any character — but not so as to begin a line
