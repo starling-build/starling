@@ -16500,3 +16500,4 @@ Traps: Thai ce4069f1 dips on macron-over-capital with wrong fonts (exposure logg
 - ₩ per-line strut NOT needed: paragraph strut pins the baseline; the existing first-line raise fixes it.
 - Open: Kokila/Hindi joiner silently nil when descent > ascent at multiples above ~1.27 (told amd-1). Next: lowest Korean docs in dx2 and xb. Rules added to ~/word-rules.md.
 amd-2 CLAIM (2026-11-14): dx2 ko 1f6d638c (40.5%), xb kor-z19581051-22de7d (68.3%)
+amd-2 CLAIM (2026-11-14, starling-bd): xb kor-z19581051-22de7d (mine now), then dx2 ko 6a68f6ca, c466d30a, ed5bf93a, then xd 07356df9, 8948a622, 38d880e8
