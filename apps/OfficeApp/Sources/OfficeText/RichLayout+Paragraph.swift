@@ -870,6 +870,10 @@ extension RichLayout {
         // hanging indent first, then `defTabSz` apart — HowWeRefactor's
         // quotes, their first line at the indent and "– Martin Fowler" at
         // the seventh inch, PowerPoint's print to a tenth of a point.)
+        // (The lines' own insets beside a float, once they are known: a tab is measured from the margin, so a line the float
+        // holds in starts its tabs that far along, and a stop past the window's far edge is Word's, not the column's.)
+        var tabWindows: [LineIndent] = []
+        var forcedWraps: Set<Int> = []
         @inline(never) func _blk3() {
         if theme.wordRules || theme.markersAtHang, !style.rightToLeft || theme.wordRules, p.text.utf16.contains(0x09) {
             let (probeSpan, probeInline, probeInserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead)
@@ -905,6 +909,7 @@ extension RichLayout {
             // and measured its tab from the end of the line before, a negative
             // distance, so every page number went to a line of its own.)
             var wraps = found.map { w in w < units.count && (units[w] == 0x0A || units[w] == 0x2028) ? w + 1 : w }
+            if tabWindows.isEmpty { forcedWraps = [] } else if !forcedWraps.isEmpty { wraps = Array(Set(wraps).union(forcedWraps)).sorted() }
             // (A word that ends in a tab, the line it would end short by a hair of the room — the
             // engine's strict fit sends it down, and the line fitting takes it back up: the tab
             // then stands where the line breaks before it, at the line's start, as Word's does.)
@@ -1020,7 +1025,9 @@ extension RichLayout {
                 // <tab>4", the "1" spaced -0.5, came out 0.25 past its stop
                 // — 0.05 past the column, the "4" on a line of its own. A
                 // spacing that pushes the line on keeps the stop drawn.)
-                let x = base.map { ownLeft + at - $0 + shift } ?? ownLeft + at - origin + shift
+                let windowLine = wraps.filter { $0 <= t }.count
+                let window = windowLine < tabWindows.count ? tabWindows[windowLine] : LineIndent()
+                let x = (base.map { ownLeft + at - $0 + shift } ?? ownLeft + at - origin + shift) + window.left
                 let own = after - at
                 var stop: (x: Double, alignment: TabStop.Alignment, leader: String?)? = nil
                 if let s = stops.first(where: { _px($0.position) > x + 0.5 && !clampedStops.contains(_px($0.position)) }) { stop = (_px(s.position), s.alignment, s.leader) }
@@ -1050,6 +1057,26 @@ extension RichLayout {
                     s.alignment = .right
                     stop = s
                     atMargin.insert(t)
+                }
+                // (A right or centred stop past the edge of the window a float leaves, a tab following: that tab goes
+                // down to the next line, its stops measured again there; the paragraph's last one is set against the
+                // window's edge. Word's print of lab ellhdr, five tabs between two boxes in a 4pt line: one tab on each
+                // of three lines, the last two on a fourth, a sixth tab making five lines.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, window.right > 0, var s = stop, s.alignment == .right || s.alignment == .center,
+                   s.x > ownLeft + textWidth - window.right + 0.5 {
+                    s.x = ownLeft + textWidth - window.right
+                    if units[(t + 1)...].contains(0x09) {
+                        // this tab fills its line; the next starts a new one
+                        s.alignment = .left
+                        let lineFrom = wraps.last(where: { $0 <= t }) ?? 0
+                        if units[lineFrom ..< t].contains(0x09), !forcedWraps.contains(t) {
+                            forcedWraps.insert(t)
+                            measure(wraps)
+                            return
+                        }
+                    } else { s.alignment = .right }
+                    stop = s
+                    RuleTrace.hit("word-last-tab-beside-a-float-stops-at-its-window-edge")
                 }
                 // (No stop to go to — no stops of its own and no default
                 // distance, `w:defaultTabStop` 0 — and the tab takes no
@@ -1197,6 +1224,7 @@ extension RichLayout {
                                                 adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 })
                     let trial = TextPainter(text: s1, textAlign: .left, textDirection: style.rightToLeft ? .rtl : .ltr)
                     if !in1.isEmpty { trial.setPlaceholderDimensions(in1.map { $0.dimensions }) }
+                    if !tabWindows.isEmpty { trial.lineIndents = tabWindows }
                     trial.layout(minWidth: textWidth, maxWidth: textWidth)
                     let found = Array(_lineStarts(trial, _OffsetMap(lead: lead != 0 ? 1 : 0, inserts: ins1), count: units.count).dropFirst())
                     trial.dispose()
@@ -1522,8 +1550,16 @@ extension RichLayout {
             if firstExtra > 0, firstBeside, let f = indents.first, f.left > 0 { _besideLabelShift[i] = f.left }
         }
         }
+
         _blk4()
+        if theme.wordRules, RichTextTheme.wordWindowsPages, !tabs.isEmpty, tabWindows.isEmpty, besideRight, besideLeftRoom == nil,
+           besideLineIndents.contains(where: { $0.left > 0 }), besideLineIndents.contains(where: { $0.right > 0 }) {
+            tabWindows = besideLineIndents
+            _blk3()
+            _blk4()
+        }
         let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead,
+
                                             adjust: hangs.isEmpty ? tabs : tabs.merging(hangs) { $0 + $1 }, held: tabsHeld)
         _inserts[i] = inserts
         // A right-to-left paragraph runs from the right, and its "left"
