@@ -171,6 +171,15 @@ if [ $SEED = 0 ] && [ -n "$NEEDBASE" ]; then
   for S in $NEEDBASE; do ( sweep "$BASEBIN" "$STAGE/work/base-$S" $S >/dev/null ) & done
   BASE_SWEPT_SETS="$NEEDBASE"
 fi
+# SUBSET_IDS=<file of document stems> (land.sh, a re-pair after a lost code race, amd-8 2026-11-14): sweep only those documents with
+# the fix (plus the visually-scored ones of each set) and take every other row from the base, so the pair stays a full score
+# file; only when the base was reused (not swept here) and the file is non-empty. The rest is covered by the rounds.
+SUBSET=""
+if [ $SEED = 0 ] && [ -n "${SUBSET_IDS:-}" ] && [ -s "$SUBSET_IDS" ] && [ "${BASE_SWEPT:-0}" != 1 ] && [ -z "${BASE_SWEPT_SETS:-}" ]; then
+  SUBSET=$STAGE/work/subset.ids; cp "$SUBSET_IDS" "$SUBSET"
+  for S in $SETS; do $PY "$HERE/docx-combine.py" select "$BASE/$S.v2" 2>/dev/null | tr " " "\n" >> "$SUBSET"; done
+  export SWEEP_ONLY=$SUBSET; echo "subset re-pair: $(sort -u "$SUBSET" | wc -l) document(s) swept with the fix, the other rows come from the base"
+fi
 # the fix
 FIX=$STAGE/fix; mkdir -p "$FIX"
 for S in $SETS; do ( T0=$(date +%s); sweep "$FIXBIN" "$STAGE/work/fix-$S" $S && echo "$(( $(date +%s)-T0 )) s" > "$STAGE/work/fix-$S.time" ) & done
@@ -179,7 +188,8 @@ wait_sets fix
 [ -n "${BASE_SWEPT_SETS:-}" ] && for S in $BASE_SWEPT_SETS; do for v in v2 v1; do cp "$STAGE/work/base-$S/match-$v.txt" "$BASE/$S.$v"; done; done
 for S in $SETS; do
   echo "fix $S: $(cat "$STAGE/work/fix-$S.time"), failures $(wc -l < "$STAGE/work/fix-$S/fail.txt")"
-  for v in v2 v1; do cp "$STAGE/work/fix-$S/match-$v.txt" "$FIX/$S.$v"; done
+  if [ -n "$SUBSET" ]; then for v in v2 v1; do $PY "$HERE/docx-merge.py" "$BASE/$S.$v" "$STAGE/work/fix-$S/match-$v.txt" "$SUBSET" "$FIX/$S.$v" || exit 2; done
+  else for v in v2 v1; do cp "$STAGE/work/fix-$S/match-$v.txt" "$FIX/$S.$v"; done; fi
 done
 for S in $SETS; do vis_side $S "$STAGE/work/fix-$S" "$FIX/$S.v2" "$FIX" fix || { echo "ABORT: visual scoring (fix, $S)" >&2; exit 1; }; done
 test/tools/stamp.sh $INPUTS > "$FIX/STAMP"
