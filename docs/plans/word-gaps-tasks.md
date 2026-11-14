@@ -16469,3 +16469,4 @@ Traps: Thai ce4069f1 dips on macron-over-capital with wrong fonts (exposure logg
 ### HANDOFF amd-10, 2026-11-14 (xs c7ebae82)
 - c7ebae82 9.4 -> 100 (lines 32/32): Montserrat metrics-only tables (from lab/montserrat) on the sans clone, line 1.219 em. Queue entry 20261114-050319-amd-10-33. Unit tests 655/0. Only the name "montserrat" is affected; 3 dx2 docs name it, none lower (ba162f65 lines 50/45 to 50/49, still 0). xs 0aca9a91 100, 5ed52035 97.5, 1a285b32 99.2 unchanged.
 - Trap: an OfficeApp release build took 14 min; unit tests 6.5 min (nohup + tail --pid).
+- amd-10 2026-11-14 CLAIM xs 55c1bba8 (11.8, lines 314/317 pages 8/9)
