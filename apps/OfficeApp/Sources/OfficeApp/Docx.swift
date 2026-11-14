@@ -2793,6 +2793,23 @@ enum DocxFormat {
                         style.contentFitFixed = fixed
                     }
                 }
+                // (… and one whose only stated widths are in its first row, every other cell auto: Word fits the
+                // columns to their content and sets the header's widths aside — dx2 zh-4cac8c37's shop table, a grid of
+                // 115/210/100/100pt, is 72/325/67/62pt in Word's print.)
+                if !cells.isEmpty, !style.contentFit, widthless * 2 > cells.count, style.width == nil, style.widthPercent == nil, !style.fixedLayout {
+                    let rows = unwrapped(node, "w:tr")
+                    func stated(_ tr: XNode) -> Bool { unwrapped(tr, "w:tc").contains { let w = $0.first("w:tcPr")?.first("w:tcW"); return !(w == nil || w?["w:type"] == "auto") } }
+                    if rows.count > 2, stated(rows[0]), !rows.dropFirst().contains(where: stated) {
+                        style.contentFit = true
+                        var col = Int(rows[0].first("w:trPr")?.first("w:gridBefore")?["w:val"] ?? "") ?? 0
+                        for tc in unwrapped(rows[0], "w:tc") {
+                            let span = max(1, Int(tc.first("w:tcPr")?.first("w:gridSpan")?["w:val"] ?? "") ?? 1)
+                            let w = tc.first("w:tcPr")?.first("w:tcW")
+                            if span == 1, w?["w:type"] == "dxa", let v = Double(w?["w:w"] ?? ""), v > 0 { style.contentFitFloor[col] = v / 20 }
+                            col += span
+                        }
+                    }
+                }
                 // (A spaced table of a stated share whose cells state shares
                 // of it, column by column: zh-045c5a75's article table,
                 // 85% with cells of 12% and 2% and one auto.)

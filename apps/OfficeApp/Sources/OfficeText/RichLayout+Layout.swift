@@ -1527,6 +1527,9 @@ extension RichLayout {
                 low[column] = max(low[column], _px(points))
                 high[column] = low[column]
             }
+            // (A column's widest is at least what its first row states, when no other row does: zh-4cac8c37's shop table, Word
+            // 72.0 / 325.0 / 66.8 / 61.9 over cells stating 115 / 210 / 100 / 100 in the header only.)
+            for (column, points) in document.tableStyles[table]?.contentFitFloor ?? [:] where column < high.count { high[column] = max(high[column], _px(points)) }
             // (Not where a column holds nothing measured: turned cells only.)
             if !low.contains(0) {
                 high = zip(low, high).map { max($0, $1) }

@@ -1430,6 +1430,9 @@ public struct TableStyle: Hashable, Sendable {
     /// … but for these columns, by grid index, which keep the width their
     /// cells state (points).
     public var contentFitFixed: [Int: Double] = [:]
+    /// … and these columns (by grid index, points) are each at least as wide at their widest as the width the
+    /// first row states for them; the other rows state none.
+    public var contentFitFloor: [Int: Double] = [:]
     /// Columns whose cells state a share of the table's width (`w:tcW`
     /// in pct; 12 = 12%), and those whose cells do not wrap (`w:noWrap`):
     /// a spaced table of a stated share sizes them so (`_pctColumns`).
