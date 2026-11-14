@@ -6865,6 +6865,26 @@ enum DocxFormat {
             for id in cs.comments { notes.carriedComments.insert(id) }
             var cs = cs
             if s == "\u{B7}" { cs.loneDot = true }
+            // (Word picks the face by character: Arabic letters in a run with no w:rtl still take the complex-script face,
+            // as xb ara-z23060052's print sets them (the face is resolved elsewhere). Each Arabic stretch becomes its own
+            // right-to-left run; the rest keeps the Latin face.)
+            if DocxFormat.wordOnWindows, !cs.rightToLeft, s.unicodeScalars.contains(where: { (0x0600 ... 0x06FF).contains($0.value) }) {
+                var piece = "", pieceArabic = false
+                func isAr(_ u: Unicode.Scalar) -> Bool { (0x0600 ... 0x06FF).contains(u.value) && !(0x0660 ... 0x0669).contains(u.value) && u.value != 0x060C && u.value != 0x061B && u.value != 0x061F || u.value == 0x200C }
+                func flush() {
+                    guard !piece.isEmpty else { return }
+                    var c = cs
+                    if pieceArabic { c.rightToLeft = true }
+                    runs.append(Run(length: piece.utf16.count, style: c)); piece = ""
+                }
+                for u in s.unicodeScalars {
+                    let a = isAr(u)
+                    if a != pieceArabic { flush(); pieceArabic = a }
+                    piece.unicodeScalars.append(u)
+                }
+                flush()
+                return
+            }
             runs.append(Run(length: s.utf16.count, style: cs))
         }
         var pendingCheckbox: Bool? = nil   // a FORMCHECKBOX field's state, from its begin
