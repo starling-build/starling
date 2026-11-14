@@ -1161,7 +1161,7 @@ extension RichLayout {
                 switch cs {
                 case "kalimati": face = "mangal"
                 case "mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "utsaah", "shonar bangla": break
-                default: face = top.key == "B" ? Self._bengaliMissingFace(cs, document) : (document.devanagariFirstRunMangal ? "mangal" : "nirmala ui")
+                default: face = top.key == "B" ? Self._bengaliMissingFace(cs, document) : (document.devanagariFirstRunMangal && cs != "times new roman" ? "mangal" : "nirmala ui")
                 }
                 guard var scale = Self._indicScale[face]?[top.key] else { return nil }
                 if face == "nirmala ui", bold { scale *= 1.076 / 1.086 }
