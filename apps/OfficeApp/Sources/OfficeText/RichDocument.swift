@@ -143,6 +143,10 @@ public struct CharStyle: Hashable, Sendable {
     public var revision: RevisionMark? = nil
     /// A tracked change to this run's formatting, with what it was.
     public var formatChange: FormatChange? = nil
+    /// Set on the first run after a comment reference whose own look was changed (a tracked change on
+    /// the reference mark): what Word's balloon for it says, and who changed it.
+    public var commentRefSaid: String? = nil
+    public var commentRefAuthor: String = ""
     /// Switches this run turns OFF under a style that turns them on
     /// (Word's `w:b w:val="0"`): a false `bold` alone means "inherit".
     public var off: CharSwitches = []

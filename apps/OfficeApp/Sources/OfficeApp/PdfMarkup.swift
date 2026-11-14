@@ -379,6 +379,7 @@ struct PdfMarkup {
         var out: [Note] = []
         // The stretch still open: what it says, and the field it is in.
         var last: (text: String, field: Int)? = nil
+        var lastLook: (text: String, look: CharStyle)? = nil
         // (A field whose code was reformatted: "Field Code Changed" where
         // its result ends, after the result's own "Formatted" and the next
         // words' — delins's link items in Word for Windows' print stack
@@ -443,13 +444,28 @@ struct PdfMarkup {
                     codeChanged = (run.style.fieldResult, run.style.formatChange?.author ?? "")
                     last = nil
                 }
+                if let said = run.style.commentRefSaid, run.style.revision?.kind != .deleted {
+                    RuleTrace.hit("changed-comment-reference-has-its-own-formatted-balloon")
+                    out.append(Note(anchor: RichPosition(paragraph: i, offset: at), label: "Formatted:", paragraphs: [said], author: run.style.commentRefAuthor))
+                    last = nil
+                }
                 guard let change = run.style.formatChange, run.style.revision?.kind != .deleted else { last = nil; continue }
                 let text = _describe(run.style, was: change.oldRPrXML)
                 guard !text.isEmpty else { last = nil; continue }
                 let field = run.style.fieldResult
-                if let l = last, l.text == text, l.field == field { continue }
+                // (Word says one "Formatted" for a stretch of runs that look alike now: xb ee9f8f's
+                // bibliography entry, where one run was italic before, is one balloon with the first
+                // run's words; runs that look different now, "(Default) Arial, 9 pt" then "9 pt",
+                // are two — lo-9f27ef40 in Word for Windows' print.)
+                var look = run.style
+                look.revision = nil; look.formatChange = nil; look.commentRefSaid = nil; look.commentRefAuthor = ""
+                if let l = last, l.field == field, l.text == text || (lastLook?.text == l.text && lastLook?.look == look) {
+                    if l.text != text { RuleTrace.hit("formatted-stretch-of-runs-alike-keeps-its-first-description") }
+                    continue
+                }
                 out.append(Note(anchor: RichPosition(paragraph: i, offset: at), label: "Formatted:", paragraphs: [text], author: change.author))
                 last = (text, field)
+                lastLook = (text, look)
             }
             guard let mark = p.style.mark, let change = mark.formatChange, p.style.markRevision?.kind != .deleted || finalDeleted else { last = nil; continue }
             let text = _describe(mark, was: change.oldRPrXML)

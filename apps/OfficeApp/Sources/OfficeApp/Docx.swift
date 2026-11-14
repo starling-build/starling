@@ -6943,6 +6943,7 @@ enum DocxFormat {
             addInline(att)
         }
         var ruleOpen = false   // a horizontal rule was just set: the text after it starts a line
+        var pendingRefChange: (said: String, author: String)? = nil   // a comment reference whose own look was changed
         func addText(_ s: String, _ cs: CharStyle) {
             guard !s.isEmpty else { return }
             // (Not a floating drawing's anchor mark, nor spaces: 401cd750's rules carry a line-shaped anchor after them
@@ -6954,6 +6955,7 @@ enum DocxFormat {
             text += s
             for id in cs.comments { notes.carriedComments.insert(id) }
             var cs = cs
+            if let r = pendingRefChange { cs.commentRefSaid = r.said; cs.commentRefAuthor = r.author; pendingRefChange = nil }
             if s == "\u{B7}" { cs.loneDot = true }
             // (Word picks the face by character: Arabic and Hebrew letters in a run with no w:rtl still take the complex-script face,
             // as xb ara-z23060052's print sets them (the face is resolved elsewhere). Each Arabic stretch becomes its own
@@ -7232,6 +7234,13 @@ enum DocxFormat {
                     }
                 case "w:commentReference":
                     notes.commentReferences += 1
+                    // (A reference mark whose look was changed has a Formatted balloon of its own, and it parts the
+                    // stretch before it from the one after: xb jpn ee9f8f's print, three balloons where the runs
+                    // around the reference made one.)
+                    if DocxFormat.wordOnWindows, let change = cs.formatChange, cs.revision?.kind != .deleted {
+                        let said = PdfMarkup._describe(cs, was: change.oldRPrXML)
+                        if !said.isEmpty { pendingRefChange = (said, change.author) }
+                    }
                     // A comment with no range (comment.docx's LibreOffice
                     // comment) anchors at a point: a zero-width run carries
                     // it, so the balloon survives the save.
