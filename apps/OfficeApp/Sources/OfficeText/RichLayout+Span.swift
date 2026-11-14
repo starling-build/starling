@@ -548,8 +548,8 @@ extension RichLayout {
                 if nbsp.isEmpty {
                     // (Between a Latin pair of brackets they are half an em too, in Word for Windows: zh-7b125a21's
                     // fill-in "(  )" sets its two 5.25 each at 10.5pt, where 2.6 took a character more a line. Not
-                    // two spaces between words, nor a page number's "—  10  —".)
-                    if !(latin(left) && latin(right)) || (RichTextTheme.wordWindowsPages && left == "(" && right == ")") || eaRunEnds.contains((run.last ?? 0) + 1) || numberedHead(run) {
+                    // two spaces between words, nor a page number's "—  10  —". "[  ]" likewise: xb jpn 771abc's "[  ]は訳注" in 11pt Yu Mincho, 5.5 each.)
+                    if !(latin(left) && latin(right)) || (RichTextTheme.wordWindowsPages && ((left == "(" && right == ")") || (left == "[" && right == "]"))) || eaRunEnds.contains((run.last ?? 0) + 1) || numberedHead(run) {
                         let balanced = run.filter { !complexSpaces.contains($0) }
                         wideSpaces.formUnion(balanced)
                         ordinaryBalancedSpaces.formUnion(balanced)
