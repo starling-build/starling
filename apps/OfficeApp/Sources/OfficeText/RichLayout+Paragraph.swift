@@ -2525,13 +2525,19 @@ extension RichLayout {
                                     // (❏ is in no Korean face: a run naming only 한양신명조 for its
                                     // ascii still draws it in Segoe UI Symbol, xd 07eecf7a p2.)
                                     || units[start ..< end].contains(0x274F),
-                                  Self._holdsSegoeGlyph(units, start, end, emojiOnly: !lead.1) else { continue }
+                                  Self._holdsSegoeGlyph(units, start, end, emojiOnly: !lead.1)
+                                    || (RichTextTheme.wordWindowsPages && units[start ..< end].contains(where: { RichTextTheme.cambriaMathShapes.contains(UInt32($0)) })) else { continue }
+                            // (Word for Windows sets "▸" in Cambria Math, whose line is 1.172 em:
+                            // 2400 units, its descent Cambria's 449, so 1951 above the baseline.
+                            // xb jpn 3f592b p23: Georgia 12pt lines 24.7pt apart, ours 24.2.)
+                            let cambriaMath = !Self._holdsSegoeGlyph(units, start, end, emojiOnly: !lead.1)
                             let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
                             // (The line as much taller: what stands under it
                             // goes as much lower — p7's third note line to
                             // p8, as in Word's print.)
-                            segoeLift = max(segoeLift, size * 2210 / 2048 - target)
-                            target = max(target, size * 2210 / 2048)
+                            let shapeAscent = size * (cambriaMath ? 1951.0 : 2210.0) / 2048
+                            segoeLift = max(segoeLift, shapeAscent - target)
+                            target = max(target, shapeAscent)
                         }
                     }
                 }
