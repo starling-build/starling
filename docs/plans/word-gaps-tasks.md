@@ -16778,3 +16778,4 @@ HANDOFF amd-1 (2026-11-14) dx2 hi 87097d3e (-132, queue/amd-1-132, commit a69b0f
 - Next step: find where a label bigger than the body takes its ascent (about 1.04 em, not the rule's 1.0094); check whether the circled digit is routed to the Latin slot. Then land the floor with the fix.
 - jpn-g6-2212a2 (96.4) did not move with the floor: a separate gap.
 - 2026-11-14 15:53 amd-8 round 467 (tip 60baefcc9, prev 8dcb6c08a): Word pairs no drops, unit tests 655 / 0 failures, visual 756 1.24%, lo 0.34% (unchanged). Landings since 14:55: 8.
+- amd-3 CLAIM (2026-11-14, dx2 ja ranking, tip render of all 30): below 95 are ee0b468e 78.9, 934bd3e5 88.7, 28abf02c 90.4, c67f3706 91.1, 4fbb6e32 91.1 (pages 2/1) - all already claimed (amd-5, lenovo-5); rest of ja 98+ (mean 97.9). amd-3 takes the lowest unclaimed: 1e0c044f (98.1, 53/52 lines) then 3ebc3ec5 (99.3, 290/291), 4f44d857.
