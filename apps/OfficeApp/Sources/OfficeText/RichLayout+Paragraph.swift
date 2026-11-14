@@ -1836,6 +1836,18 @@ extension RichLayout {
                         RuleTrace.hit("word-list-number-lift-measured-with-the-extra-under-its-text")
                         ownBaseline -= (1 - 1 / style.lineSpacing) * own.ascent
                     }
+                    // (A number in the text's own East Asian face, a little larger: its baseline stands higher by the face's
+                    // own ratio, not by the ascent of whatever stand-in drew a glyph the substitute lacks. xb jpn-g5-b79900's
+                    // 11.5pt HG Maru circled digits over 11pt HG Maru text: ours measured them on a 1.04 em stand-in and lifted
+                    // each item 1.0pt, Word's print 0.5; the last line spilled onto page 2.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, let size = _levelNumberSize(p, document), let text = _markSize(p, document),
+                       text > 0, size > text, let face = bulletFonts.eastAsian?.lowercased(), face == p.style.mark?.eastAsiaFontFamily?.lowercased() {
+                        let scaled = first.baseline * size / text
+                        if scaled < ownBaseline {
+                            RuleTrace.hit("word-list-number-lift-in-the-texts-own-east-asian-face")
+                            ownBaseline = scaled
+                        }
+                    }
                     numberLift = max(0, ownBaseline - first.baseline)
                 }
                 free.dispose()
