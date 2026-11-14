@@ -16819,3 +16819,8 @@ lenovo-3 HANDOFF (2026-11-14): queued -153 (DOCS 944544,bae91d,a6e54c,e040af). R
 - Task 2: a4bf2c03, 5b9c7c3f, 5e72f769, 1a1ea534, 4ec4a27b, c88ca385 are one template (kla.tv). Their shared "Licenco:" line (CC picture at position -6, top border, after 120, 1.15) already matches Word on a4bf2c03 (baseline 198.0 vs 198.02, picture same y). Not the cause of the misses.
 - Real shared trait: malformed runs. rPr placed AFTER w:t (1 to 9 per doc), and TWO rPr in one run (rStyle Hyperlink then sz18). In 5b9c7c3f Word's first line is 15.3 pt pitch (11 pt), ours 12.3 (9 pt): Word seems to ignore the late rPr, we apply it. Unproven: that is what the lab tests.
 - Lab: lab/rprorder/rprorder.docx (make.py beside it): 13 rows of late/double rPr with sz28 probes, plus 6 Licenco variants. Waiting for Word's print in lab/rprorder/word-win/.
+
+### amd-5 HANDOFF (2026-11-14): xb jpn 1e9281 / ec6c96
+- Queued as amd-5-155: a Yu Mincho kana pair across a line end is no kern in the fit test (Word ends "…名称と" where ours took the kerned "し"). Both docs 408 to 409 matched of 427 (ours 422 lines, 12 pages each). 44 jpn xb docs A/B'd against amd-8's 588f85987 binary: only these two move up; b79900 and 6fca0f differ from that binary for other reasons (math fonts, vertical y), not line breaks from this change.
+- Left: ~18 lines in each doc still differ after page 7; next first gap not yet read. 771abc still waits on its heading spacing issue.
+- Trap: _yuEndKern is keyed by paragraph index; a sub-document sharing an index could collide (not seen).
