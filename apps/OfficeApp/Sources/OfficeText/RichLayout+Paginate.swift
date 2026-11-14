@@ -4543,7 +4543,14 @@ extension RichLayout {
                 // print; ours took it, and a line a page after it, over.)
                 let slack = theme.wordRules && overhang > 0 && overhang.isFinite ? _px(0.05)
                     : theme.wordRules && !tieFits ? -_px(0.025) : 0.01
-                if rest <= available + slack + reach(lineOverhangs.count - 1) + emptyTail {
+                // (A picture's line, not its space after: Word for Windows keeps
+                // 0aca9a91's second 281.25pt picture, list paragraph, 1.5pt
+                // after, on page 1 where the picture's line ends 0.4pt above
+                // the foot and its space after stands past it; ours took it
+                // to page 2 and every later picture one page off.)
+                let pictureAfter: Double = theme.wordRules && RichTextTheme.wordWindowsPages && document.paragraphs[i].cell == nil
+                    && (document.paragraphs[i].image != nil || _inlinePictureOnly(i, document)) ? _spacing(i, document).after : 0
+                if rest - pictureAfter <= available + slack + reach(lineOverhangs.count - 1) + emptyTail {
                     // (The line, not its space after: that may stand past the foot.)
                     // (Nor, off the grid, a multiple's extra under its
                     // text, which Word stands past the foot as it does
@@ -4565,7 +4572,7 @@ extension RichLayout {
                     add(PagePiece(paragraph: i, flowTop: cursor, flowBottom: bottom,
                                                   page: page, pageY: y))
                     y += rest
-                    if spacing { spacedPast = y }
+                    if spacing || (pictureAfter > 0 && rest > available + 0.01) { spacedPast = y }
                     cursor = bottom
                     break
                 }
