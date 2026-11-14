@@ -2263,7 +2263,7 @@ extension RichLayout {
                 // loop had squeezed to fit.)
                 var carry = 0.0, carryFrom = a
                 if theme.wordRules, RichTextTheme.wordWindowsPages, !legacy, !piece.hard, a > 0, !isSpace(units[a - 1]), Self._isIndic(UInt32(units[a])),
-                   piece.last == piece.b, let wordPieces = Optional(indicWordPieces(pieceIndex)), wordPieces.start < pieceIndex {
+                   let wordPieces = Optional(indicWordPieces(pieceIndex)), wordPieces.start < pieceIndex {
                     var whole = 0.0
                     for q in wordPieces.start ... wordPieces.end { whole += pieces[q].w }
                     if whole <= room(lineNumber + 1) + _px(0.01) {
