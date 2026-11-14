@@ -1511,8 +1511,8 @@ extension RichLayout {
             // not drawn right to left — zh-d97c5474's lines broke as Word's
             // and stood 47pt past the margin — and on the spaces it ran the
             // words together, Noto Naskh being 11% wider than Arial.)
-            let joinedFace: RichResolvedFace? = {
-                guard theme.wordRules, run.rightToLeft else { return nil }
+            let complexFaceOfRun: RichResolvedFace? = {
+                guard theme.wordRules else { return nil }
                 let normal = _normalChar(document)
                 let latin: String? = run.fontFamily ?? named?.char.fontFamily ?? normal?.fontFamily ?? theme.fontFamily
                 let complex: String? = run.complexFontFamily ?? named?.char.complexFontFamily ?? normal?.complexFontFamily
@@ -1521,6 +1521,7 @@ extension RichLayout {
                 if complex == nil, name?.trimmingWhitespace().lowercased() == "arial narrow" { name = "Arial" }
                 return theme.complexFaceResolver?(name)
             }()
+            let joinedFace: RichResolvedFace? = run.rightToLeft ? complexFaceOfRun : nil
             // (A zero-width non-joiner stays inside the word: Word sets the
             // two parts as two joined words and the mark at no width, where
             // the stand-in gave it 3pt and the parts no scale — lo
@@ -1528,8 +1529,8 @@ extension RichLayout {
             func isArabic(_ c: Character) -> Bool { c.unicodeScalars.first.map { ArabicForms.isArabic($0.value) || $0.value == 0x200C } ?? false }
             func joinedScaled(_ word: Substring, _ s: TextStyle) -> TextStyle {
                 // (Hebrew, word by word, at the advances the face carries per letter: David's, from Word's prints.)
-                if let joinedFace, word.unicodeScalars.contains(where: { $0.value >= 0x5D0 && $0.value <= 0x5EA }), let px = s.fontSize, px > 0.5,
-                   let table = s.fontWeight == .bold ? joinedFace.boldOtherAdvances : joinedFace.otherAdvances,
+                if let hebrewFace = joinedFace ?? complexFaceOfRun, word.unicodeScalars.contains(where: { $0.value >= 0x5D0 && $0.value <= 0x5EA }), let px = s.fontSize, px > 0.5,
+                   let table = s.fontWeight == .bold ? hebrewFace.boldOtherAdvances : hebrewFace.otherAdvances,
                    word.unicodeScalars.allSatisfy({ table[$0.value] != nil }) {
                     let ems = word.unicodeScalars.reduce(0.0) { $0 + (table[$1.value] ?? 0) }
                     let shaped = _wordWidth(s, String(word))

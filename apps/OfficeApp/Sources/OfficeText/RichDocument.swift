@@ -187,6 +187,8 @@ public struct CharStyle: Hashable, Sendable {
     public var complexFontSize: Double? = nil
     /// A complex-script run that gave `w:sz` and no `w:szCs`: its size is the szCs its style or the defaults give.
     public var sizeFromStyleSzCs: Bool = false
+    /// Hebrew letters split out of a run with neither `w:rtl` nor `w:cs`: Word sets them at `w:sz`, not `w:szCs`.
+    public var plainSize: Bool = false
     public var complexFontFamily: String? = nil
     public var eastAsiaFontFamily: String? = nil
     /// The face for the rest of the Latin range (`w:hAnsi`) when the file
