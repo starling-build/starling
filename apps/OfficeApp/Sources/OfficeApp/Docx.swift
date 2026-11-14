@@ -6124,6 +6124,17 @@ enum DocxFormat {
                     return notes.part(_resolvePath("word", rel.target)) == nil
                 }
                 style.sectionPage = _pageSetup(sect)
+                // (A paragraph's section of one column of its own width, `w:equalWidth` 0 and a single
+                // `w:col`, wraps at that width, not the margins': gv-d4270b921d's title block, 9230 twips
+                // under a 9357 text width, ends 6.35 pt short of the margin in Word's print.)
+                if RichTextTheme.wordWindowsPages, var setup = style.sectionPage, setup.columns == 1,
+                   let cols = sect.first("w:cols"), ["0", "false", "off"].contains(cols["w:equalWidth"] ?? ""),
+                   cols.all("w:col").count == 1, let tw = Double(cols.first("w:col")?["w:w"] ?? ""),
+                   tw / 20 > 20, tw / 20 < setup.contentWidth - 1 {
+                    setup.columnTrim += setup.contentWidth - tw / 20
+                    setup.marginRight += setup.contentWidth - tw / 20
+                    style.sectionPage = setup
+                }
                 let named = sect.children.contains { $0.name == "w:headerReference" || $0.name == "w:footerReference" }
                 if named, let frag = _keptFragment(sect, notes) {
                     style.sectionXML = frag.xml
