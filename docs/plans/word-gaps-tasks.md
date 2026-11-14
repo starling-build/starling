@@ -16890,3 +16890,4 @@ amd-6 HANDOFF (2026-11-14, parked on starling-bd's cost order; NOTHING landed, n
 - Side: ours prints "© akash ahmed" on pages 1, 3, 10 that Word's text layer lacks; unchecked.
 - Next: dx2 9ddfc84d, 80152175.
 - amd-8 round 470 (tip 3ff0e0484, prev e25dafa34, 2026-11-14 19:38 UTC): unit tests 655/0; visual 756 1.24%, lo 0.34%. One drop: poi-51272c8358 84.7 to 82.5 (lines 1177/1177). Likely cause: amd-6 entry 164 (footnote commits 1a6e812c1, 3ff0e0484, landed 18:57); amd-6 entry 157 was rejected for the same drop at 17:52. Not bisected to one commit (no intermediate binary). amd-6 told 19:45 UTC, 1 hour to fix or revert. Since 18:40: 7 landings, 1 reject, 0 conflict rejects.
+- amd-8 2026-11-14 19:50 UTC: poi-51272c8358 84.7 to 82.5 ACCEPTED (starling-bd approved it for amd-6 entry 164; one page-29 body line, gv-690391482c 38 to 70). No revert; amd-6's 1-hour deadline cancelled. Base advances to 3ff0e0484.
