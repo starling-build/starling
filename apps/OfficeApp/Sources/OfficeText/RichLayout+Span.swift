@@ -3769,6 +3769,31 @@ extension RichLayout {
                         }
                     }
                 }
+                // (A lowered Wingdings 2 bullet, the empty box: Word's print stands the line on the box's ascent less its lowering, over the
+                // lowering as its depth, so the line is as tall as the unlowered box. dx2 bea98273: 22pt boxes lowered 3pt over 10.5pt Nirmala rows
+                // 18.3pt apart, where the box's whole line made them 26.9.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil,
+                   _levelNumberFonts(p, document).latin?.lowercased() == "wingdings 2", let px = style.fontSize, px > 0.5,
+                   let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
+                   let pr = xml.rangeOfSubstring("<w:position w:val=\""),
+                   let half = Double(xml[pr.upperBound...].prefix { $0 != "\"" }), half < 0 {
+                    let ownStyle = theme.textStyle(for: firstLook, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                    let probe = TextPainter(text: TextSpan(text: String(p.text.first(where: { $0 != " " }) ?? "x"), style: ownStyle), textDirection: .ltr)
+                    probe.layout(minWidth: 0, maxWidth: 100000)
+                    let m = probe.computeLineMetrics().first
+                    probe.dispose()
+                    if let m {
+                        let lowering = -half / 2 * theme.pixelsPerPoint * scale
+                        let up = px * 1727.0 / 2048 - lowering
+                        let own = m.baseline
+                        if up > own + 0.01 {
+                            // The depth under the line is what the lowering takes off the box, so the line is as tall as the unlowered box (Word: rows 18.4pt apart).
+                            let down = lowering
+                            RuleTrace.hit("word-wingdings2-lowered-bullet-stands-the-line-on-its-ascent-less-the-lowering")
+                            markStyle = style.copyWith(ascentOverride: up, descentOverride: down, height: (up + down) / px)
+                        }
+                    }
+                }
                 children.append(TextSpan(text: "\u{200B}", style: markStyle))
                 inserts.append(0)
             } else if let rise {
