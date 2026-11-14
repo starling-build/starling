@@ -16563,3 +16563,8 @@ HANDOFF amd-2 (2026-11-14) Korean lowest docs: c466d30a wordWrap-0 Hangul stop r
 - Open gap 2: Word's text layer holds clipped second lines it does not draw ("কি?" y 222, "হওয়ার তারিখ:" y 381): scorer issue for starling-bd.
 - Open gap 3: 5 chars of Word's SymbolMT come out as Carlito in ours (fallback miss).
 - Open gap 4 (page 3 italic cell): Word line 4 keeps "বিভাগের" after "(A & E)"; ours wraps it down and adds a line. Lines with Latin letters 15.4/17.3 pt (word-rules lines 396, 423 left open).
+
+### amd-9 HANDOFF (2026-11-14, parked by starling-bd)
+- ur b02602d2 (picture gap): lab built, Word's print back (lab/picgap, word-win/picgap-orig.pdf in amd-9 clone /data/s/amd-9/starling/lab/picgap). Findings: both sides room 20 only first label word beside, room 30 label lines only, room 40+ text beside; one side room 20/30 only the label fills the strip with mid-word breaks; case text goes under. Rule not yet fitted or coded. Nothing landed.
+- fa 174df379 (matched 10 of 295) and 6e7a3d11 (21 of 822): TOC paragraphs are NOT paragraph-bidi (no w:bidi in pPr), right dot-leader tab at 10206 twips vs text width 10205 (0.05 pt past). Word keeps page number on the line; ours wraps it above. Tab at 10205 or less keeps it in ours. Tried and reverted, both no effect on score: (a) allowing runsPast for RTL paragraphs, (b) lowering the 0.5 pt threshold of the "right-tab-past-the-margin-is-honoured" rule (RichLayout+Paragraph ~1117) to 0.01. The wrap is decided elsewhere (non-East-Asian path); next step: trace where the tab number is moved down. Also Word draws these faces as Arial; ours looks bold (separate face issue).
+- ur 02272031 (Urdu Typesetting) waits for that face's metrics.
