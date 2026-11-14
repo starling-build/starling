@@ -767,7 +767,7 @@ extension RichLayout {
                 // (The hyphen of such a number is drawn in neither the digits' face: lab hyphen-face (Word, 2026-11-14): where the complex-script face is
                 // missing from the box it is Arial when the font table has an entry for that face (real or made up) and Cambria when it has none; an
                 // installed face (Tahoma) draws it itself. The entry decides, not the name.)
-                if rawText.contains("-") {
+                if rawText.containsSubstring("-") {
                     let csName = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace()
                     let cs = csName.lowercased()
                     let installed = (theme.complexFaceKeepsDigits?(csName) ?? false) || ["arial", "times new roman", "tahoma", "segoe ui", "microsoft sans serif"].contains(cs)
