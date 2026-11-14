@@ -1076,6 +1076,7 @@ extension RichLayout {
             lines.painter.paint(canvas, at)
             _paintScripts(lines.paragraph, lines.painter, at: at, canvas, document, leading: false)
             _paintRuby(lines.paragraph, lines.painter, at: at, canvas, document, index: i)
+            _paintEmphasis(lines.paragraph, lines.painter, at: at, canvas, document, index: i)
             return
         }
         if part != .text, let c = _cells[i], c.firstInRow {
@@ -1716,6 +1717,8 @@ extension RichLayout {
                       map: lines == nil ? _map(i) : nil, leading: false)
         _paintRuby(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
                    map: lines == nil ? _map(i) : nil, index: i)
+        _paintEmphasis(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
+                       map: lines == nil ? _map(i) : nil, index: i)
         if lines == nil { _paintClosingUnderline(i, g, at: textAt, canvas, document) }
         if !leadersPainted, i < _leaders.count, !_leaders[i].isEmpty {
             // A leader fills its tab: the character over and over, up to
