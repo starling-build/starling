@@ -1082,6 +1082,12 @@ extension RichLayout {
                        p.text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF }) {
                         return ("vrinda", 1)
                     }
+                    // (A run of only ASCII letters, digits and marks, in a face Windows lacks (SolaimanLipi, Nikosh), inside a Bengali paragraph: Word draws it in Mangal,
+                    // at Mangal's advances; xd 73caaeda's "Sterile" 35.5 pt at 12 pt, the comma 3.45, where the stand-in gave 31.1 and 3.0.)
+                    if _asciiRunInMissingBengaliFace(run, named, document, text, p.text) {
+                        RuleTrace.hit("word-missing-bengali-face-latin-is-mangal-advances")
+                        return ("mangal", 1)
+                    }
                     // (A Latin-only run whose ascii and complex faces are the SAME face Windows lacks, and which Word draws in Shonar Bangla (the
                     // usb0 rule), in a Bengali paragraph: Word draws the Latin in Shonar Bangla too, at the authored size; lab bnmix2 latK, bfc234.)
                     if let f = _shonarLatinRunFace(run, named, document, p.text) {
@@ -4465,6 +4471,19 @@ extension RichLayout {
 
 extension RichLayout {
     /// A missing Bengali face (SolaimanLipi, Nikosh): Word draws its spaces in Mangal, 0.5 em.
+    /// A run of only ASCII (letters, digits, marks, spaces with at least one other) whose ascii and complex faces are one missing Bengali face, in a Bengali paragraph.
+    @inline(never) func _asciiRunInMissingBengaliFace(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument, _ text: Substring, _ paragraphText: String) -> Bool {
+        let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
+        let asc = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
+        guard Self._missingBengaliSpaceEm(cs) != nil, asc == cs else { return false }
+        var other = false
+        for u in text.unicodeScalars {
+            if u.value < 0x20 || u.value >= 0x7F { return false }
+            if u.value > 0x20 { other = true }
+        }
+        guard other else { return false }
+        return paragraphText.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF && $0.properties.isAlphabetic })
+    }
     @inline(never) static func _missingBengaliSpaceEm(_ face: String) -> Double? {
         let f = face.trimmingWhitespace().lowercased()
         return f == "solaimanlipi" || f == "nikosh" ? 0.5 : nil
