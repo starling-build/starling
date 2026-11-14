@@ -1343,6 +1343,12 @@ extension RichLayout {
                         s = s.copyWith(ascentOverride: size * sp.0, descentOverride: size * sp.1, height: nat * p.style.lineSpacing, leadingDistribution: .even)
                     }
                 }
+                // (A run with emphasis marks makes its line 0.31 em taller on their side: off a grid, single spacing, horizontal.)
+                if theme.wordRules, run.emphasis != nil, run.ruby == nil, s.fontSize ?? 0 > 0.5, gridPitchIsNil(pitch), p.style.lineHeightPoints == nil,
+                   abs(p.style.lineSpacing - 1) < 0.005, s.ascentOverride == nil, !(index.map { _verticalBody($0) } ?? false),
+                   let h = theme.emphasisLine(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch), let size = s.fontSize {
+                    s = s.copyWith(ascentOverride: size * (h.height - h.descent), descentOverride: size * h.descent, height: h.height, leadingDistribution: .even)
+                }
                 // (A run with ruby over it makes its line room for the ruby.)
                 if theme.wordRules, run.ruby != nil, s.fontSize ?? 0 > 0.5,
                    let h = theme.rubyLine(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) {
@@ -4202,6 +4208,40 @@ extension RichLayout {
             canvas.restore()
             at += glyph.width + step
             glyph.dispose()
+        }
+    }
+
+    /// Emphasis marks (`w:em`): one round dot per character that is not a
+    /// space, centred on it, over its baseline (under it for underDot).
+    /// Word sets them as a "．" glyph; measured at 11 pt: centre 1.08 em
+    /// over / 0.29 em under the baseline, 0.12 / 0.13 em across.
+    func _paintEmphasis(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
+                        _ canvas: any Canvas, _ document: RichDocument, map: _OffsetMap? = nil, index: Int? = nil) {
+        guard theme.wordRules, p.runs.contains(where: { $0.style.emphasis != nil }) else { return }
+        if let index, _verticalBody(index) { return }
+        let named = _named(p, document)
+        let lines = painter.computeLineMetrics()
+        let units = Array(p.text.utf16)
+        var at = 0
+        for run in p.runs {
+            defer { at += run.length }
+            guard let em = run.style.emphasis, run.length > 0 else { continue }
+            let s = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: true)
+            let size = s.fontSize ?? 10
+            let under = em == "underDot"
+            let paint = Paint()
+            paint.style = .fill
+            paint.color = s.color ?? Color(0xFF000000)
+            for u in at ..< min(at + run.length, units.count) {
+                let c = units[u]
+                if c == 0x20 || c == 0x09 || c == 0x3000 || c == 0xA0 || c == 0x0A || c == 0x0D { continue }
+                let a = map?.painter(u) ?? u
+                guard let box = painter.getBoxesForSelection(TextSelection(baseOffset: a, extentOffset: a + 1)).first?.toRect(), box.width > 0,
+                      let line = lines.min(by: { abs($0.baseline - box.bottom) < abs($1.baseline - box.bottom) }) else { continue }
+                let cx = origin.dx + (box.left + box.right) / 2 - 0.1 * _px(1)
+                let cy = origin.dy + line.baseline + (under ? 0.29 : -1.08) * size
+                canvas.drawCircle(Offset(cx, cy), (under ? 0.065 : 0.06) * size, paint)
+            }
         }
     }
 

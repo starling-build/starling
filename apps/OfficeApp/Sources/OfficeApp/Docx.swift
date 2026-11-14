@@ -7658,6 +7658,7 @@ enum DocxFormat {
     if s.smallCaps { rPr += "<w:smallCaps/>" } else { rPr += off("smallCaps", .smallCaps) }
     if s.underline { rPr += "<w:u w:val=\"single\"/>" } else if s.off.contains(.underline) { rPr += "<w:u w:val=\"none\"/>" }
     if s.strikethrough { rPr += "<w:strike/>" } else { rPr += off("strike", .strikethrough) }
+    if let em = s.emphasis { rPr += "<w:em w:val=\"\(em)\"/>" }
     if let color = s.color { rPr += "<w:color w:val=\"\(_hex(color))\"/>" }
     if let ls = s.letterSpacing, ls != 0 { rPr += "<w:spacing w:val=\"\(Int((ls * 20).rounded()))\"/>" }
     if let k = s.kerningFrom { rPr += "<w:kern w:val=\"\(Int((k * 2).rounded()))\"/>" }
@@ -8139,6 +8140,7 @@ enum DocxFormat {
             case "w:b": sawB = true; cs.bold = !_isOff(child); if cs.bold { cs.off.remove(.bold) } else { cs.off.insert(.bold) }
             case "w:i": sawI = true; cs.italic = !_isOff(child); if cs.italic { cs.off.remove(.italic) } else { cs.off.insert(.italic) }
             case "w:u": cs.underline = child["w:val"] != "none"; if cs.underline { cs.off.remove(.underline) } else { cs.off.insert(.underline) }
+            case "w:em": cs.emphasis = ["dot", "comma", "circle", "underDot"].contains(child["w:val"] ?? "") ? child["w:val"] : nil
             case "w:strike", "w:dstrike": cs.strikethrough = !_isOff(child); if cs.strikethrough { cs.off.remove(.strikethrough) } else { cs.off.insert(.strikethrough) }
             case "w:caps": cs.caps = !_isOff(child); if cs.caps { cs.off.remove(.caps) } else { cs.off.insert(.caps) }
             case "w:vanish": cs.hidden = !_isOff(child); if cs.hidden { cs.off.remove(.hidden) } else { cs.off.insert(.hidden) }
@@ -9393,6 +9395,7 @@ enum DocxFormat {
             if entry.char.hidden { out += "<w:vanish/>" }
             if entry.char.underline { out += "<w:u w:val=\"single\"/>" }
             if entry.char.strikethrough { out += "<w:strike/>" }
+            if let em = entry.char.emphasis { out += "<w:em w:val=\"\(em)\"/>" }
             if let c = entry.char.color { out += "<w:color w:val=\"\(_hex(c))\"/>" }
             // The rest of a style's look that its runs lean on: a title
             // style's letter spacing (a Taiwanese impeachment text's

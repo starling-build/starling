@@ -221,6 +221,9 @@ public struct CharStyle: Hashable, Sendable {
     /// Ruby set over this run's text (Word's `w:ruby`: furigana over
     /// kanji); nil for none.
     public var ruby: RubyText? = nil
+    /// Word's `w:em` (emphasis marks): "dot", "comma", "circle" (over the
+    /// text) or "underDot" (under it); nil for none.
+    public var emphasis: String? = nil
     /// Set on the first run of a field's result whose field code was
     /// reformatted under change tracking: Word's markup shows "Field Code
     /// Changed" there. Read, not written back.

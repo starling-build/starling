@@ -554,6 +554,27 @@ public final class RichTextTheme {
         rubyLine(for: style, in: paragraph, named: named, eastAsian: eastAsian, gridPitch: gridPitch)?.height
     }
 
+    /// The height of a line whose text carries emphasis marks (`w:em`), as a
+    /// multiple of the text's size, and the descent part of it: Word makes
+    /// the line 0.31 em taller on the side the marks stand (xb bff1c672,
+    /// Calibri 11: 13.4 pt lines are 16.9 with dots over, the next line
+    /// 3.4 lower with dots under). Nil where the face is not known.
+    public func emphasisLine(for style: CharStyle, in paragraph: RichParagraphStyle, named: RichNamedStyle?,
+                             eastAsian: Bool, gridPitch: Double?) -> (height: Double, descent: Double)? {
+        guard let em = style.emphasis else { return nil }
+        let size = style.fontSize ?? named?.char.fontSize ?? fontSize
+        let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
+        let familyName = eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
+        let bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
+        let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
+        guard size > 0, let face = faceResolver?(familyName, eastAsian) else { return nil }
+        let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight ?? naturalLineHeight(family: face.family, bold: bold, italic: italic)
+        let ascent = (bold ? face.boldBaseline : nil) ?? face.baseline ?? 0.8
+        let extra = 0.31
+        let line = lineBox(size: size, natural: natural + extra, baseline: nil, in: paragraph, gridPitch: gridPitch).height
+        return (line / size, natural - ascent + (em == "underDot" ? extra : 0))
+    }
+
     /// The ruby line's height as a multiple of the text's size, and on a
     /// line grid how far the text stands above where the engine puts it
     /// (negative: below). The engine keeps the baseline where the line of
