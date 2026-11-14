@@ -650,7 +650,11 @@ extension RichLayout {
             // lab `sp`, see below.)
             let wider = theme.wordRules && RichTextTheme.wordWindowsPages
             func spaceUnit(_ u: UInt16) -> Bool { u == 0x20 || u == 0x3000 || (wider && (u == 0x2002 || u == 0x2003 || u == 0x2005)) }
-            guard theme.wordRules, p.text.utf16.contains(where: spaceUnit) else { return nil }
+            // (A paragraph of tabs alone is the mark's line too, whatever its run's size: dx2 hi 87097d3e's 8pt-mark
+            // paragraph holding one 11pt tab is 9.2pt in Word's print, where ours took the run's 12.65 or, with the
+            // size inherited, nothing at all, and its page's boxes stood 10pt high.)
+            let tabsAlone = !p.text.isEmpty && p.text.utf16.allSatisfy { $0 == 0x09 }
+            guard theme.wordRules, tabsAlone || p.text.utf16.contains(where: spaceUnit) else { return nil }
             let normal = _normalChar(document)
             func size(_ c: CharStyle?) -> Double { c?.fontSize ?? named?.char.fontSize ?? normal?.fontSize ?? theme.fontSize }
             var best: Double? = nil

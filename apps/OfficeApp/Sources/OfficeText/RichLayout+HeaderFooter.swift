@@ -1200,11 +1200,13 @@ extension RichLayout {
             }
             y = top + _px(float.y)
             if _atPageTopNegativeOffset(i, image) { y = top }
+            // (Not for a float that takes its band of the flow: dx2 hi 87097d3e's group, top-and-bottom, 11pt
+            // of space before its paragraph, stands 45.4pt under the paragraph's top, space and all, as Word.)
             // (Mid-page, from the text under the space before it: zh-4e5fe46f p6's
             // table, in a box anchored in a paragraph 3.5pt before, stands 3.5pt
             // lower in Word's print than from the paragraph's top.)
             if RichTextTheme.wordWindowsPages, image.textBox != nil, let piece = _allPieces.first(where: { $0.paragraph == i && !$0.repeated }),
-               piece.pageY > _pxMarginTop(piece.page) + 1, g.textTop > top, g.textTop - top < _px(40) { y = g.textTop + _px(float.y) }
+               piece.pageY > _pxMarginTop(piece.page) + 1, g.textTop > top, g.textTop - top < _px(40), !(float.takesRoom || float.bandsPage) { y = g.textTop + _px(float.y) }
         }
         // (From the line: the top of the line the anchor stands in, not the paragraph's first line — dx2 es 335fbcf8's crest, 28.4pt
         // under a line, anchored in the title's second line, stands 14.3pt lower in Word's print than from the title's top.)
