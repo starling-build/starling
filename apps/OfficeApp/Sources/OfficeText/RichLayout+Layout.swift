@@ -925,7 +925,11 @@ extension RichLayout {
         _tableSpacedOutdent = [:]
         for (i, p) in document.paragraphs.enumerated() {
             guard let c = p.cell, widths[c.table] == nil else { continue }
-            let cols = columns[c.table] ?? 1
+            var cols = columns[c.table] ?? 1
+            // (A cell that spans past the grid's last column stops at it: Word's print of dx2 zh
+            // 4cac8c37's 2-column cost table, whose second cell says gridSpan 3, keeps the grid's
+            // 115 + 410, where ours counted 4 columns, lost the grid and set the first at 131.)
+            if theme.wordRules, _columnPreview[c.table] == nil, let grid = document.tableColumns[c.table], !grid.isEmpty, grid.count < cols { cols = grid.count }
             // (The table's section's column.)
             let width = _flowWidth(i)
             _tableFlowWidth[c.table] = width
