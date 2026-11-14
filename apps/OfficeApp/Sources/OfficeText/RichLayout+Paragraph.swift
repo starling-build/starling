@@ -1996,6 +1996,18 @@ extension RichLayout {
                // ones holding Noto's characters within 0.4 of it.)
                let strut = _strut(span, tallest: true, near: spacedOver || thaiNear, wide: thaiNear, joiners: !(gridded && lines > 1)),
                lines == 1 || gridded || Self._holdsYuJoiner(span) || Self._tallestOnEveryLine(span, strut, painter, lines: lines, near: spacedOver || thaiNear, wide: thaiNear) {
+                if Self._holdsYuJoiner(span), !gridded, let per = Self._heldWhereJoined(span, painter, strut: strut) {
+                    let lined = TextPainter(text: per, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr)
+                    lined.fractionalLineHeights = painter.fractionalLineHeights
+                    lined.lineIndents = painter.lineIndents
+                    if !inline.isEmpty { lined.setPlaceholderDimensions(inline.map { $0.dimensions }) }
+                    lined.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
+                    if lined.computeLineMetrics().count == lines {
+                        RuleTrace.hit("word-yu-joiner-holds-only-its-own-lines")
+                        return lined
+                    }
+                    lined.dispose()
+                }
                 let held = TextPainter(text: span, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr, strutStyle: strut)
                 held.fractionalLineHeights = painter.fractionalLineHeights
                 held.lineIndents = painter.lineIndents

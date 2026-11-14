@@ -208,6 +208,92 @@ extension RichLayout {
         return j && h
     }
 
+    /// The per-line strut of a Korean paragraph whose Latin Word draws in Yu Gothic (see `_lineJoiner`): a line holding the Yu joiner is
+    /// set to the joiner's own ascent and descent (every span on it overridden, so Yu's taller natural box cannot lift it), and a line
+    /// holding none keeps the height its own faces give it. `strut` (the paragraph's tallest stretch) must be the joiner's height, or
+    /// the paragraph is held whole as before. nil: nothing to rewrite.
+    static func _heldWhereJoined(_ span: TextSpan, _ painter: TextPainter, strut: StrutStyle) -> TextSpan? {
+        var joiner: TextStyle? = nil
+        func find(_ s: InlineSpan) {
+            guard joiner == nil, let t = s as? TextSpan else { return }
+            if t.style?.debugLabel == "yu-joiner" { joiner = t.style; return }
+            for c in t.children ?? [] { find(c) }
+        }
+        find(span)
+        guard let joiner else { return nil }
+        let probe = TextPainter(text: TextSpan(text: "\u{2060}", style: joiner), textDirection: .ltr)
+        probe.layout(minWidth: 0, maxWidth: 100_000)
+        defer { probe.dispose() }
+        guard let jl = probe.computeLineMetrics().first, jl.height > 1 else { return nil }
+        var plain: [UInt16] = []
+        func visit(_ s: InlineSpan) {
+            guard let t = s as? TextSpan else { plain.append(0xFFFC); return }
+            if let text = t.text {
+                plain.append(contentsOf: text.utf16)
+            }
+            for c in t.children ?? [] { visit(c) }
+        }
+        visit(span)
+        let total = plain.count
+        // Per line: 0 = no Hangul (Word draws it in Yu alone: the lines' natural height), 1 = Hangul and non-space Yu ink (Latin, digits, stops),
+        // 2 = Hangul only (Malgun's own descent).
+        func isHangul(_ u: UInt16) -> Bool { (0xAC00 ... 0xD7AF).contains(u) || (0x1100 ... 0x11FF).contains(u) || (0x3130 ... 0x318F).contains(u) }
+        var held: [(Range<Int>, Int)] = []
+        var o = 0
+        while o < total {
+            let r = painter.getLineBoundary(TextPosition(offset: o))
+            guard r.end > o else { o += 1; continue }
+            let seg = plain[o ..< min(r.end, total)]
+            let hangul = seg.contains(where: isHangul)
+            let yu = seg.contains { $0 < 0x250 && $0 > 0x20 && $0 != 0xA0 }
+            held.append((o ..< r.end, !hangul ? 0 : yu ? 1 : 2))
+            o = r.end
+        }
+        guard held.contains(where: { $0.1 == 1 }) else { return nil }
+        let asc = jl.ascent, desc = jl.descent
+        // (A line with no Yu-drawn ink keeps Malgun's own descent, 0.442 em against the joiner's 0.492: Word's steps after such a line are 18.6 at 10 pt, not 19.2.)
+        let bareDesc = desc * ((Self._indicLines["malgun gothic"]?.1 ?? 0.492) / 0.492)
+        var at = 0
+        func rewrite(_ s: InlineSpan) -> InlineSpan {
+            guard let t = s as? TextSpan else { at += 1; return s }
+            var pieces: [TextSpan] = []
+            let start = at
+            if let whole = t.text {
+                let u = Array(whole.utf16)
+                var cuts: Set<Int> = [0, u.count]
+                for (r, _) in held { for c in [r.lowerBound - start, r.upperBound - start] where c > 0 && c < u.count { cuts.insert(c) } }
+                let sorted = cuts.sorted()
+                for k in 0 ..< sorted.count - 1 {
+                    let a = sorted[k], b = sorted[k + 1]
+                    let kind = held.first { $0.0.lowerBound <= start + a && start + a < $0.0.upperBound }?.1 ?? 0
+                    var st = t.style
+                    if kind == 0 {
+                        if let x = st, t.style?.debugLabel == "yu-joiner" { st = x.copyWith(ascentOverride: 0, descentOverride: 0, height: 0.0001) }
+                        else if let x = st, let fs = x.fontSize, fs > 0.5 {
+                            // (A line of Yu alone keeps its own height, but Word splits it with the joiner's descent: 12.6 above the
+                            // baseline and 5.4 below at 10 pt, where Yu's own box is 14.5 and 3.6.)
+                            let pr = TextPainter(text: TextSpan(text: "x", style: x), textDirection: .ltr)
+                            pr.layout(minWidth: 0, maxWidth: 100_000)
+                            if let m = pr.computeLineMetrics().first, m.height > 1 {
+                                st = x.copyWith(ascentOverride: m.height - desc, descentOverride: desc, height: m.height / fs)
+                            }
+                            pr.dispose()
+                        }
+                    } else if let x = st, let fs = x.fontSize, fs > 0.5 {
+                        let d = kind == 1 ? desc : bareDesc
+                        st = x.copyWith(ascentOverride: asc, descentOverride: d, height: (asc + d) / fs)
+                    }
+                    pieces.append(TextSpan(text: String(decoding: u[a ..< b], as: UTF16.self), style: st, recognizer: t.recognizer, locale: t.locale))
+                }
+                at += u.count
+            }
+            let kids = (t.children ?? []).map { rewrite($0) }
+            if pieces.count == 1, kids.isEmpty { return pieces[0] }
+            return TextSpan(text: nil, children: pieces + kids, style: t.style, recognizer: t.recognizer, locale: t.locale)
+        }
+        return rewrite(span) as? TextSpan
+    }
+
     /// Whether each of `painter`'s lines holds some text of the span's
     /// tallest stretch (the height `strut` was made from).
     static func _tallestOnEveryLine(_ span: TextSpan, _ strut: StrutStyle, _ painter: TextPainter, lines: Int, near: Bool = false, wide: Bool = false) -> Bool {
