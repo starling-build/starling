@@ -659,7 +659,7 @@ extension RichLayout {
                 k < runOf.count && (p.runs[runOf[k]].style.letterSpacing ?? lineStyle?.char.letterSpacing ?? _normalChar(document)?.letterSpacing ?? 0) != 0
             }
             let latinSlack = (lineLatin || pieceLatin) && spacedPiece && !onCharacterGrid && !(onFirstLine ? tieShort.first : tieShort.rest) ? max(hair, _px(0.01)) : hair
-            var fits = x + w - after + (parted ? ems[last - 1] / 2 : 0) <= width + pastRoom + latinSlack
+            var fits = x + w - after - (_yuEndKern[i]?[last - 1] ?? 0) + (parted ? ems[last - 1] / 2 : 0) <= width + pastRoom + latinSlack
             // (What follows a tab to a right stop at the margin that
             // starts inside it runs on past the margin — `runsPast`, T127:
             // zh-ab1ea005's "123.…救济途径？<tab>52" is one line in Word's

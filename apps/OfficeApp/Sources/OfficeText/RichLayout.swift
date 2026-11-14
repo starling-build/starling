@@ -1546,6 +1546,7 @@ public final class RichLayout {
     var _textWidth: [Double] = []
     /// A turned merged cell's length before it was wrapped to a page's part.
     var _turnedFull: [Int: Double] = [:]
+    var _yuEndKern: [Int: [Int: Double]] = [:]
     var _spaceBefore: [Double] = []
     /// What each paragraph's text is drawn lower by than the engine set
     /// it, so that its baselines are Word's (see `RichTextTheme.lineBox`).

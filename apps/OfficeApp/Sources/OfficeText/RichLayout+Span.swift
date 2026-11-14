@@ -3302,6 +3302,10 @@ extension RichLayout {
                    let from = run.kerningFrom ?? named?.char.kerningFrom ?? _normalChar(document)?.kerningFrom, from > 0,
                    (run.fontSize ?? named?.char.fontSize ?? theme.fontSize) >= from {
                     extra += pair * em
+                    // (A pair across a line's end is no kern in Word: its fit counts the last character at its own
+                    // advance. xb jpn 1e9281, ec6c96: "…名称として" with the "し" kerned 0.52 into 0.05 pt of room ends
+                    // the line at "と" in Word's print.)
+                    if let ix = index { _yuEndKern[ix, default: [:]][offset] = pair * em }
                 }
                 if yuOfMissingHangul, kind >= 0, let u0 = ch.unicodeScalars.first?.value, ch.unicodeScalars.count == 1, u0 >= 0x20, u0 < 0x7F {
                     // (Word's Yu Gothic Latin in a paragraph whose Hangul-named face it lacks: 22de7d.)

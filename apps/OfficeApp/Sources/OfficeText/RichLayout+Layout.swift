@@ -93,6 +93,7 @@ extension RichLayout {
         _textLeft = Array(repeating: 0, count: n)
         _textWidth = Array(repeating: 0, count: n)
         _turnedFull = [:]
+        _yuEndKern = [:]
         _spaceBefore = Array(repeating: 0, count: n)
         _inkShift = Array(repeating: 0, count: n)
         _numberLiftShift = Array(repeating: 0, count: n)
