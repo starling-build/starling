@@ -1615,6 +1615,8 @@ public final class RichLayout {
     /// there are two or more (the text then stands in the room between and
     /// outside them): top, bottom, left edge and right edge, from the text's start.
     var _besideIndentOnTop = Set<Int>()
+    var _besideListEarlier = Set<Int>()
+    var _besideTightTop: [Int: Double] = [:]
     var _besideBoxes: [Int: [(top: Double, bottom: Double, left: Double, right: Double)]] = [:]
     /// A box standing at the line start of a paragraph whose other box is at its right: how far its lines start in, and its band.
     var _besideStartLeft: [Int: (indent: Double, band: (top: Double, bottom: Double))] = [:]

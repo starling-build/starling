@@ -4573,6 +4573,8 @@ enum DocxFormat {
                     let skip = (first.1 - minY) / 21600 * cy / 12700
                     if skip > 0, skip <= 12, skip <= cy / 12700 * 0.12 { f.wrapTopSkip = skip }
                 }
+                // (The polygon's right reach: Word's wrap edge is the polygon's, not the picture box's: kla.tv's logo, 21185 of 21600.)
+                if let maxX = pts.map(\.0).max(), maxX >= 10800, maxX < 21600 { f.wrapReach = maxX / 21600 }
             }
             Self._bandPage(&f)
             if let b = Double(anchor.first("wp:effectExtent")?["b"] ?? "") { f.effectBottom = b / 12700 }

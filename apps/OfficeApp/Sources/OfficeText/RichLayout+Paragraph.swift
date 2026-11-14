@@ -1428,7 +1428,7 @@ extension RichLayout {
             // and out past the left one: Word's print of xd 658a33bb, "참가신청서" 60pt in from the edge.)
             if _besideIndentOnTop.contains(i), !besideRight, besideLeftRoom == nil, original > 0 { firstExtra = original }
             else
-            if theme.wordRules, RichTextTheme.wordWindowsPages, !besideRight, _besideLead[i] == 0, p.cell == nil,
+            if theme.wordRules, RichTextTheme.wordWindowsPages, !besideRight, _besideLead[i] == 0, p.cell == nil, !_besideListEarlier.contains(i),
                p.style.listId != nil, let own = _listIndents(p, document), own.left > 0 {
                 firstExtra = _px(own.left)
                 RuleTrace.hit("word-list-first-line-beside-box-is-past-the-edge")
@@ -1558,6 +1558,7 @@ extension RichLayout {
                 if !firstBeside || besideRight || besideLeftRoom != nil || (!(colWrapBoxes?.isEmpty ?? true) && (indents.first?.left ?? 0) == 0) { lead = firstLead ?? original; _leadWidth[i] = lead }
             else { lead = max(lead - besideIndent - firstExtra, 0); _leadWidth[i] = lead }
             if firstExtra > 0, firstBeside, let f = indents.first, f.left > 0 { _besideLabelShift[i] = f.left }
+            else if _besideListEarlier.contains(i), firstBeside, let f = indents.first, f.left > 0 { _besideLabelShift[i] = f.left }
         }
         }
 
@@ -3434,6 +3435,11 @@ extension RichLayout {
         }
         // (Under a header's box that leaves the text no room: `_headerBoxFloor`.)
         if let under = _headPushUse[i], under > push { push = under }
+        // (Text beside a tight-wrapped picture anchored in an earlier paragraph, whose first line would start above the
+        // picture's band: Word's print sets that line at the band's top. c88ca385, a4bf2c03: the list and the line under
+        // the logo stand 4.4pt lower than ours.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, _besideListEarlier.contains(i) || _besideIndentOnTop.contains(i),
+           let band = besideBand, (_besideTightTop[i] ?? band.top) > 0.01, band.top < painter.height { push = max(push, _besideTightTop[i] ?? band.top); RuleTrace.hit("word-first-line-beside-earlier-tight-float-starts-at-its-band") }
         if i < _floatPush.count { _floatPush[i] = push }
         if i < _floatTight.count { _floatTight[i] = p.inlineImages.inOrder.contains { $0.float?.wraps == true && $0.float?.wrapsTight == true } }
         _spaceBefore[i] = before + push

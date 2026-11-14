@@ -387,6 +387,8 @@ public struct ImageFloat: Hashable, Sendable {
     public var wrapTopSkip = 0.0
     /// The wrap is tight or through (not square): lab anch.
     public var wrapsTight = false
+    /// A tight wrap's polygon reaches this share of the picture's width at its right (1 when it fills the box).
+    public var wrapReach = 1.0
     /// How far text keeps from its top and its foot where it wraps round
     /// it (`wp:anchor`'s `distT`/`distB`, VML's `mso-wrap-distance-top`
     /// and `-bottom`), in points.

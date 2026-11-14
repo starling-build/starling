@@ -806,6 +806,7 @@ extension RichLayout {
         var startLeft: (indent: Double, band: (top: Double, bottom: Double))?
         defer { if best?.right == true, best?.leftRoom == nil, let sl = startLeft, theme.wordRules, RichTextTheme.wordWindowsPages { _besideStartLeft[i] = sl } }
         _besideIndentOnTop.remove(i)
+        _besideListEarlier.remove(i); _besideTightTop[i] = nil
         defer { if boxes.count >= 2, best?.leftRoom != nil { _besideBoxes[i] = boxes } }
         let hang = max(0, -_px(firstLineIndent(p, at: i, document)))
         var offset = 0.0
@@ -822,7 +823,7 @@ extension RichLayout {
             // (One anchored in a paragraph above is wrapped round too, for a paragraph that is no
             // list item: a list item's label asks its own room beside a tight picture, see
             // zh-f2ca3070.)
-            var candidates: [(image: ImageAttachment, size: Size?)] = k == i || p.style.list == nil ? q.inlineImages.inOrder.map { ($0, nil) } : []
+            var candidates: [(image: ImageAttachment, size: Size?)] = k == i || p.style.list == nil || (theme.wordRules && RichTextTheme.wordWindowsPages) ? q.inlineImages.inOrder.map { ($0, nil) } : []
             // (A table floating in the cell, in a paragraph of its own above: the
             // text that follows stands beside it. A picture anchored in an earlier
             // paragraph is left to the paragraph-by-paragraph push, as before:
@@ -926,6 +927,8 @@ extension RichLayout {
                 let own = max(_px(p.style.indentLeft), listLeft) + (inCell ? (cell?.pad.left ?? 0) : 0)
                 let rightGap = _px(p.style.indentRight) + (inCell ? (cell?.pad.right ?? 0) : 0)
                 guard w > 0 else { continue }
+                let tightList = k < i && p.style.list != nil
+                if tightList, !(float.wrapsTight && float.horizontalAlign == nil && x + w / 2 < column / 2) { continue }
                 if x + w / 2 >= column / 2 {
                     // (At the right, with room at its left for three ems and none
                     // at its right: the lines end short of it, by a right indent.
@@ -945,7 +948,8 @@ extension RichLayout {
                 // (Not with room at its left for text: that stands round it on
                 // both sides, which the engine does not set.)
                 guard float.wrapSide != "left", float.wrapSide == "largest" || x - _px(float.distanceLeft ?? 9) - own < size else { continue }
-                let edge = x + w + _px(float.distanceRight ?? 9)
+                let reach = theme.wordRules && RichTextTheme.wordWindowsPages && float.wrapsTight ? float.wrapReach : 1
+                let edge = x + w * reach + _px(float.distanceRight ?? 9)
                 // (And room at its right for text: across the column it leaves
                 // none, and the paragraph goes under it as before.)
                 guard edge > own, column - edge - rightGap >= size * 3 else { continue }
@@ -953,7 +957,12 @@ extension RichLayout {
                             bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
                 // (One that ends above this paragraph's top has nothing to do with it.)
                 guard band.bottom > 0.01 else { continue }
-                if best == nil || edge - own > best!.indent { best = (edge - own, band, false, nil) }
+                if k < i, !tightList, theme.wordRules, RichTextTheme.wordWindowsPages, float.wrapsTight, float.horizontalAlign == nil, p.cell == nil,
+                   edge > own, hang == 0, best == nil || edge - own > best!.indent {
+                    best = (edge - own, band, false, nil); _besideIndentOnTop.insert(i); _besideTightTop[i] = band.top - _px(float.wrapTopSkip); RuleTrace.hit("word-first-line-indent-beside-earlier-tight-float")
+                    continue
+                }
+                if best == nil || edge - own > best!.indent { best = (tightList ? edge : edge - own, band, false, nil); if tightList { _besideListEarlier.insert(i); _besideTightTop[i] = band.top - _px(float.wrapTopSkip); RuleTrace.hit("word-list-beside-earlier-tight-float-counts-its-indent") } }
             }
             if k > 0 { offset += _heights[k - 1] }
             k -= 1
