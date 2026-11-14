@@ -1736,7 +1736,10 @@ extension RichLayout {
                     let shBold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
                     let shTable = shBold ? ShonarAdvances.bold : ShonarAdvances.regular
                     // (Shonar Bangla's own Bengali cluster widths, word by word: `ShonarAdvances`.)
-                    let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+                    let shSize: Double = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                    let shW: Double = wScale > 0.01 ? wScale : 1
+                    // (A character scale w:w widens every cluster by it: dx2 3f7da49c's 105% title, word 1 is 85.8 pt in Word, 81.8 unscaled.)
+                    let authored: Double = shSize * theme.pixelsPerPoint * scale * shW
                     let base = style(kind)
                     for (piece, isIndic) in Self._splitIndicLatin(text[start ..< end]) {
                                                 if isIndic, authored > 0.5 {

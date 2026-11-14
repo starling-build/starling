@@ -344,10 +344,20 @@ extension ShonarAdvances {
     /// Bold/regular is 1.127 on the median; clusters the lab did not print are the regular width times that.
     static let bold: [String: Double] = {
         var t = regularClusters.mapValues { $0 * 1.127 }
+        // (Shonar Bold's own glyph advances: a single glyph, or a consonant with a vowel sign that follows it (া ি ী ু ূ ে ৈ), is the sum of its glyphs, which
+        // Word's print agrees with to 0.01 em (কা 0.8659 measured, 0.8647 summed; the first word of dx2 3f7da49c's title, 4.543 em summed, 4.540 in Word).)
+        for (cp, v) in hmtxBold { t[String(UnicodeScalar(cp)!)] = v }
+        for c in 0x995 ... 0x9B9 {
+            guard let a = hmtxBold[UInt32(c)] else { continue }
+            for m in [0x9BE, 0x9BF, 0x9C0, 0x9C1, 0x9C2, 0x9C7, 0x9C8] {
+                if let b = hmtxBold[UInt32(m)] { t[String(UnicodeScalar(UInt32(c))!) + String(UnicodeScalar(UInt32(m))!)] = a + b }
+            }
+        }
         for (k, v) in measuredBold { t[k] = v }
         for (k, v) in latinBold { t[k] = v }
         return t
     }()
+    static let hmtxBold: [UInt32: Double] = [0x981: 0.0000, 0x982: 0.3979, 0x983: 0.3979, 0x985: 0.6621, 0x986: 0.9028, 0x987: 0.4502, 0x988: 0.5142, 0x989: 0.5581, 0x98A: 0.6460, 0x98B: 0.6499, 0x98C: 0.5918, 0x98F: 0.5469, 0x990: 0.6509, 0x993: 0.5601, 0x994: 0.6299, 0x995: 0.6240, 0x996: 0.5244, 0x997: 0.5156, 0x998: 0.4951, 0x999: 0.5342, 0x99A: 0.4673, 0x99B: 0.5005, 0x99C: 0.6299, 0x99D: 0.6035, 0x99E: 0.7939, 0x99F: 0.4570, 0x9A0: 0.4668, 0x9A1: 0.5581, 0x9A2: 0.4570, 0x9A3: 0.4551, 0x9A4: 0.5757, 0x9A5: 0.5049, 0x9A6: 0.4863, 0x9A7: 0.4287, 0x9A8: 0.4653, 0x9AA: 0.5513, 0x9AB: 0.6904, 0x9AC: 0.4287, 0x9AD: 0.5942, 0x9AE: 0.4961, 0x9AF: 0.4951, 0x9B0: 0.4287, 0x9B2: 0.5601, 0x9B6: 0.5410, 0x9B7: 0.4951, 0x9B8: 0.5186, 0x9B9: 0.4502, 0x9BC: 0.0000, 0x9BD: 0.4502, 0x9BE: 0.2407, 0x9BF: 0.2041, 0x9C0: 0.2041, 0x9C1: 0.0000, 0x9C2: 0.0000, 0x9C3: 0.0000, 0x9C4: 0.0000, 0x9C7: 0.3340, 0x9C8: 0.3340, 0x9CB: 0.7354, 0x9CC: 0.7354, 0x9CD: 0.0000, 0x9CE: 0.3940, 0x9D7: 0.2041, 0x9DC: 0.5581, 0x9DD: 0.4570, 0x9DF: 0.4951, 0x9E0: 0.6499, 0x9E1: 0.5835, 0x9E2: 0.0000, 0x9E3: 0.0000, 0x9E6: 0.4595, 0x9E7: 0.4111, 0x9E8: 0.4194, 0x9E9: 0.5537, 0x9EA: 0.4390, 0x9EB: 0.4531, 0x9EC: 0.5581, 0x9ED: 0.4307, 0x9EE: 0.4902, 0x9EF: 0.4810, 0x9F0: 0.4287, 0x9F1: 0.4287, 0x9F2: 0.6123, 0x9F3: 0.4521, 0x9F4: 0.6123, 0x9F5: 0.7202, 0x9F6: 0.6675, 0x9F7: 0.3140, 0x9F8: 0.5435, 0x9F9: 0.4170, 0x9FA: 0.5332, 0x9FB: 0.4883]
     static let measuredBold: [String: Double] = [
         "\u{985}": 0.6631,
         "\u{986}": 0.9033,
