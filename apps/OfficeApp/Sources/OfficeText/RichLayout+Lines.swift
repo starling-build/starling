@@ -1147,6 +1147,10 @@ extension RichLayout {
     func _glyphWidth(_ style: TextStyle, _ ch: Character) -> Double {
         let key = "\(ch)|\(style.fontFamily ?? "")|\(style.fontSize ?? 0)|\(style.fontWeight == .bold)|\(style.fontStyle == .italic)"
             + (style.fontFeatures?.isEmpty ?? true ? "" : "|f")
+            // (The width is the style's own, scale included: a cached width of a
+            // stretched "a" served an unstretched one, xd 77d6ca49's Aptos Bold
+            // letters set 7% narrow.)
+            + (style.scaleX.map { $0 == 1 ? "" : "|x\($0)" } ?? "")
         if let w = _spaceWidths[key] { return w }
         func width(_ text: String) -> Double {
             let t = TextPainter(text: TextSpan(text: text, style: style.copyWith(letterSpacing: 0)), textDirection: .ltr)
@@ -1177,7 +1181,7 @@ extension RichLayout {
 
     /// A word as the stand-in shapes it, right to left, unspaced.
     func _wordWidth(_ style: TextStyle, _ word: String) -> Double {
-        let key = "\(word)|\(style.fontFamily ?? "")|\(style.fontSize ?? 0)|\(style.fontWeight == .bold)|\(style.fontStyle == .italic)"
+        let key = "\(word)|\(style.fontFamily ?? "")|\(style.fontSize ?? 0)|\(style.fontWeight == .bold)|\(style.fontStyle == .italic)|\(style.scaleX ?? 1)"
         if let w = _wordWidths[key] { return w }
         let t = TextPainter(text: TextSpan(text: word, style: style.copyWith(letterSpacing: 0)), textDirection: .rtl)
         t.layout(minWidth: 0, maxWidth: 100_000)
