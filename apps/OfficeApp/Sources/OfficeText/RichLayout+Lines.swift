@@ -112,6 +112,8 @@ extension RichLayout {
         // stand-in's face put the baseline 4.1 pt low at 18 pt on every line above single. lab mmatrix2.)
         if base.ascentOverride != nil, base.debugLabel?.lowercased().containsSubstring("kokila") == true { return nil }
         if latinStacked && bengaliSeen { return nil }
+        // (A ruby's line off a grid is its own ascent over its own descent, the room for the ruby all over the baseline: a strut splits it evenly about the face.)
+        if base.ascentOverride != nil, base.debugLabel?.containsSubstring(" ruby-line") == true { return nil }
         if wide, base.ascentOverride != nil, Self._thaiLineSplit(base.debugLabel, bold: false) != nil { return nil }
         // (Even leading: the engine's proportional strut scales the
         // face's ascent and descent by a height that counts its line gap
