@@ -16493,3 +16493,9 @@ Traps: Thai ce4069f1 dips on macron-over-capital with wrong fonts (exposure logg
 ### amd-9 HANDOFF 2026-11-14 (hyphen face)
 - Queued (amd-9-45): a "-" inside an RTL number takes Arial if the cs font is missing but has a fontTable entry, Cambria if no entry, the cs font itself if installed (lab hyphen-face: Word 543.82, ours 543.79). dx2 ar/fa/ur A/B (90 docs): no score changes. Unit tests 655/0.
 - Left: lowest ar/fa/ur docs. fa fc332781 (2.3, lines/pages match): Word draws ALL text in ArialMT (B Nazanin missing, in fontTable, charset B2), pitch 24 pt; ours NotoSansArabic, uneven pitch. Overlaps lenovo-3's pending Arabic-letter face change: coordinate first.
+
+### HANDOFF amd-2 xd ko b6f6c7d4 (2026-11-14)
+- Landing: queue entry 20261114-060410-amd-2-47 (row-split narrowing, ◆ in 굴림-only run, ₩ first-line raise). Accepted drops 4fabe1f2 (99 to 98), cab6d785 (1277 to 1275): exposures from the row-split narrowing.
+- b6f6c7d4 matched 306 to 349 (◆) to 350 (₩) of 481; Word 481 lines, ours 449, 34 pages. The 32 missing are Word's space-only lines for empty paragraphs (text layer only; scorer untouched, no score effect).
+- ₩ per-line strut NOT needed: paragraph strut pins the baseline; the existing first-line raise fixes it.
+- Open: Kokila/Hindi joiner silently nil when descent > ascent at multiples above ~1.27 (told amd-1). Next: lowest Korean docs in dx2 and xb. Rules added to ~/word-rules.md.
