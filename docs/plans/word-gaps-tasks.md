@@ -16573,3 +16573,9 @@ HANDOFF amd-2 (2026-11-14) Korean lowest docs: c466d30a wordWrap-0 Hangul stop r
 - ur b02602d2 (picture gap): lab built, Word's print back (amd-9 clone lab/picgap, word-win/picgap-orig.pdf). Both sides: room 20 only first label word beside, room 30 label lines only, room 40+ text beside. One side room 20/30: only the label fills the strip, mid-word breaks; case text goes under. Rule not fitted or coded. Nothing landed.
 - fa 174df379 (matched 10/295) and 6e7a3d11 (21/822): TOC paragraphs are NOT paragraph-bidi (no w:bidi in pPr); right dot-leader tab at 10206 twips vs text width 10205 (0.05 pt past). Word keeps the page number on the line; ours wraps it above. A tab at 10205 or less keeps it in ours. Tried and reverted, no score change: (a) runsPast for RTL paragraphs, (b) lowering the 0.5 pt threshold of "word-right-tab-past-the-margin-is-honoured" (RichLayout+Paragraph ~1117) to 0.01. Next: trace where the tab number is moved down (non-East-Asian path). Word also draws these faces as Arial; ours looks bold (separate).
 - ur 02272031 (Urdu Typesetting) waits for that face's metrics.
+
+- amd-8 2026-11-14 07:50 FULL ROUND on tip 898d6b71b (vs 5e23a7c03), decisions by starling-bd:
+  - bd44dde2b (amd-3, equation sizing) lowers 5e2af397 (xs/dx2) 55.9 to 30.3, xb jpn-z19306349-158454 98.4 to 97.5, xb fra-g255-612f49 50.8 to 50.5, xd 0810551f 87.4 to 87.3. amd-3 has until 09:00 UTC to submit a fix, else amd-8 reverts it. 9f35b485f (strut) is clean alone. Gains: lo-98ae9de23e 60.7 to 100, jpn 6fca0f 54.3 to 59.6.
+  - 8fc562f95 (amd-10, Montserrat): gv-57041316b7 7.2 to 4.8 ACCEPTED as an exposure (widths now from Word's own Montserrat; doc is broken anyway). amd-10 parked.
+  - zh-db07d44e 99.9 to 99.2: with lenovo-2 to confirm (probably 66662e646).
+  - 4fabe1f2 37.9 to 37.5 (caa27b8a2) and cab6d785 76.2 to 76.1 (amd-2-28): approved by starling-bd.
