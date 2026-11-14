@@ -1902,6 +1902,7 @@ enum DocxFormat {
             switch node.name {
             case "w:p":
                 let first = paragraphs.count
+                notes.cellBoxBase = currentCell != nil ? base : nil
                 for p in _paragraphs(node, currentCell != nil ? cellNormal() : base, styleByDocx, styleNums, sheet, kindByNum, rels, media, indent, notes, cellChar,
                                      currentCell != nil ? { id in chainOver(id, cellBase, cellRootBase) } : nil) {
                     // (A page break that ends the paragraph holding a
@@ -5258,6 +5259,10 @@ enum DocxFormat {
         var inHeaderFooter = false
         /// Reading a text box's paragraphs (a box inside a box is not read).
         var inTextBox = false
+        /// The document's own paragraph base while a paragraph inside a table
+        /// cell is read: a text box anchored there takes the document's
+        /// defaults, not the cell's.
+        var cellBoxBase: RichParagraphStyle? = nil
         /// The cell's run base takes its size from the table's style
         /// (`tableSizes`): a paragraph whose own style states one keeps that.
         var cellSizeFromTable = false
@@ -6454,7 +6459,7 @@ enum DocxFormat {
                             // flow-chart boxes, anchored in cells of a table
                             // styled at 10pt, print at the defaults' 12pt —
                             // lab `ts`, Word for Mac.)
-                            for b in _paragraphs(n, base, styleIds, styleNums, sheet, nums, rels, media, 0, notes, CharStyle(), nil) { inside.append(b.paragraph) }
+                            for b in _paragraphs(n, notes.cellBoxBase ?? base, styleIds, styleNums, sheet, nums, rels, media, 0, notes, CharStyle(), nil) { inside.append(b.paragraph) }
                         } else if n.name != "w:tbl" {
                             stack.append(contentsOf: n.children.reversed())
                         } else {
