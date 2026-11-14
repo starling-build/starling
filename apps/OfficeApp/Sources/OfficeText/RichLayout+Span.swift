@@ -1315,7 +1315,8 @@ extension RichLayout {
                 }
                 // (A run with ruby over it makes its line room for the ruby.)
                 if theme.wordRules, run.ruby != nil, s.fontSize ?? 0 > 0.5,
-                   let h = theme.rubyLine(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) {
+                   var h = theme.rubyLine(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) {
+                    if h.raise != 0, !_rubyShiftApplies(p, named: named, ruby: run, pitch: pitch) { h.raise = 0 }
                     s = s.copyWith(height: h.height)
                     // (Off a grid the room for the ruby is all over the baseline, not shared with the line's foot:
                     // xb jpn 231fe1 p1 "申請者" under ﾌﾘｶﾞﾅ stands 7pt lower, the next paragraph where it was. Single spacing only: at 1.15 Word's ruby line is shorter, lo-181b561b0a.)
@@ -4083,6 +4084,23 @@ extension RichLayout {
         return out
     }
 
+    /// Whether a ruby run's line is taller, in grid pitches, than the plain text beside it. Where
+    /// it is not, the plain text sets the line and the ruby base stands on its baseline with the
+    /// ruby the same raise over it: fltpage4 lab, a 24pt MS Mincho title with a 11pt ruby base in
+    /// it, both lines two pitches, base 48.00 and ruby 38.04 in Word's print (ours moved the 11pt
+    /// base 11pt down and the title 2.15 with it).
+    func _rubyShiftApplies(_ p: RichParagraph, named: RichNamedStyle?, ruby: CharStyle, pitch: Double?) -> Bool {
+        guard let pitch, pitch > 0 else { return true }
+        let size = ruby.fontSize ?? named?.char.fontSize ?? theme.fontSize
+        guard size > 0.5, let line = theme.rubyLine(for: ruby, in: p.style, named: named, eastAsian: true, gridPitch: pitch) else { return true }
+        var plain = 0.0
+        for r in p.runs where r.style.ruby == nil && r.length > 0 && r.style.inlineImage == nil {
+            guard let n = theme.naturalLine(for: r.style, named: named, eastAsian: true) else { continue }
+            plain = max(plain, (n / pitch - 0.002).rounded(.up) * pitch)
+        }
+        return line.height * size > plain + 0.01
+    }
+
     /// On a line grid a ruby's base is moved down with its line (`rubyLine`); where
     /// the paragraph is one line of that base and other text (f42177d2's
     /// "…組み合わせてみたり、参考にしたりして…" with 参考 over ruby), the text
@@ -4095,6 +4113,7 @@ extension RichLayout {
               p.runs.contains(where: { $0.style.ruby == nil && $0.length > 0 && $0.style.inlineImage == nil }) else { return 0 }
         let size = first.style.fontSize ?? named?.char.fontSize ?? theme.fontSize
         guard size > 0.5, Double(p.text.utf16.count) * _px(size) <= textWidth else { return 0 }
+        guard _rubyShiftApplies(p, named: named, ruby: first.style, pitch: pitch) else { return 0 }
         return theme.rubyLine(for: first.style, in: p.style, named: named, eastAsian: true, gridPitch: pitch)?.raise ?? 0
     }
 
@@ -4179,7 +4198,7 @@ extension RichLayout {
             tp.layout(minWidth: 0, maxWidth: Double.infinity)
             let raise = _px(g.ruby.raise > 0 ? g.ruby.raise : (g.style.fontSize ?? named?.char.fontSize ?? theme.fontSize) / 2)
             // (On a line grid the base text was moved with the ruby line: `rubyLine`.)
-            let moved = NativeParagraphBuilder.supportsBaselineShift
+            let moved = NativeParagraphBuilder.supportsBaselineShift && _rubyShiftApplies(p, named: named, ruby: g.style, pitch: _grid(index, document).pitch)
                 ? theme.rubyLine(for: g.style, in: p.style, named: named, eastAsian: true, gridPitch: _grid(index, document).pitch)?.raise ?? 0 : 0
             if let index, _verticalBody(index) {
                 _paintUprightRuby(g.ruby.text, style, x: x, step: baseWidth > rubyWidth ? (baseWidth - rubyWidth) / count : 0,
