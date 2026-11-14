@@ -6,6 +6,7 @@
 // after the worst tenth is dropped; 98.7% of the clusters in those words). Mangal draws a conjunct as half-form + letter
 // where the Noto stand-in ligates, so a flat scale cannot match it (375919ba's N-NA: Mangal 1.20 em).
 
+// (2026-11-14, amd-1: the independent vowels U+0905-0914 are re-read directly (cluster start to the next consonant or space, authored size, median; n >= 8, sd <= 0.005 em); the median correction had left them up to 0.005 em wide, which cost dx2 9baed400 a line.)
 // (2026-11-09, amd-1: widths are linear in the AUTHORED size, not the PDF size (Word writes 11 pt as 11.04); the table was
 // fitted per PDF size, so it ran about 0.4% low. 361 clusters were re-read directly at authored sizes
 // (test/tools/indic-cluster-direct.py with DIRECT_AUTHORED=1; n >= 8, sd <= 0.01 em); every other entry is CORRECTED BY MEDIAN
@@ -17,18 +18,18 @@ enum MangalAdvances {
         "\u{901}": 0.0010,
         "\u{902}": 0.0058,
         "\u{903}": 0.3033,
-        "\u{905}": 0.7892,
-        "\u{906}": 1.0521,
-        "\u{907}": 0.5440,
-        "\u{908}": 0.5490,
-        "\u{909}": 0.5788,
-        "\u{90A}": 0.7320,
+        "\u{905}": 0.7848,
+        "\u{906}": 1.0473,
+        "\u{907}": 0.5455,
+        "\u{908}": 0.5455,
+        "\u{909}": 0.5771,
+        "\u{90A}": 0.7300,
         "\u{90B}": 0.8676,
         "\u{90F}": 0.6000,
-        "\u{910}": 0.5996,
-        "\u{911}": 1.0279,
-        "\u{913}": 1.0423,
-        "\u{914}": 1.0522,
+        "\u{910}": 0.6000,
+        "\u{911}": 1.0458,
+        "\u{913}": 1.0473,
+        "\u{914}": 1.0490,
         "\u{915}": 0.7848,
         "\u{915}\u{93E}": 1.0468,
         "\u{915}\u{93F}": 1.0990,
