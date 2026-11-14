@@ -16997,3 +16997,4 @@ HANDOFF amd-5 (2026-11-14, balloons):
 - A/B over 977 keepNext docs (dx2, xa, xb, xd, xs; not 756 or lo): wins 5c72dd63, 93548565 84.3 to 100, 72f1cde8 81.4 to 95.3, 966e48f5 35.5 to 87, 817e3a79 66.7 to 69.4, xd 8714e66e 77.9 to 82.3. One drop: xd 94baf8b9bd 63.0 to 4.0 (40 to 41 pages). Word also keeps the Figure 1 caption with its picture at the next page's top; ours was already a page off, old 63 was luck. Needs approval by full id 94baf8b9bd02bcef079fa101f025f3ecc4293e1032014fe0ae15eccb1a975f15.
 - Unit tests 655/0.
 - Next: task 2, doc 73357ebf (12.2).
+- UNCOVERED by amd-11 -204 (approved by starling-bd): xd 94baf8b9bd 63.0 to 4.0, 40 to 41 pages; Word keeps Figure 1 with its picture on p9-10, ours runs a page long from earlier. amd-11 is now winning it back (next, before 73357ebf).
