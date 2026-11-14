@@ -686,6 +686,7 @@ extension RichLayout {
         defer { if best?.right == true, best?.leftRoom == nil, let sl = startLeft, theme.wordRules, RichTextTheme.wordWindowsPages { _besideStartLeft[i] = sl } }
         _besideIndentOnTop.remove(i)
         defer { if boxes.count >= 2, best?.leftRoom != nil { _besideBoxes[i] = boxes } }
+        let hang = max(0, -_px(firstLineIndent(p, at: i, document)))
         var offset = 0.0
         var k = i
         while k >= 0, k >= i - 6 {
@@ -754,8 +755,17 @@ extension RichLayout {
                     if w > 0, leftEdge - own <= 0.5, rightEdge - own > 0.5, candidates.count > 1 {
                         let band = (top: _px(float.y) - _px(float.distanceTop) - offset,
                                     bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
-                        if band.bottom > 0.01 { boxes.append((band.top, band.bottom, 0, rightEdge - own)) }
+                        // (A hanging paragraph's first line starts out in the hanging area, at the own-minus-hanging, so a box
+                        // there keeps its true left: Word's print of dx2 28abf02c, whose first row runs from 76.8 across
+                        // three boxes while the lines under it start at the indent.)
+                        if band.bottom > 0.01 { boxes.append((band.top, band.bottom, hang > 0 ? leftEdge - own : 0, rightEdge - own)) }
                         if band.bottom > 0.01, startLeft == nil || rightEdge - own > startLeft!.indent { startLeft = (rightEdge - own, band) }
+                    }
+                    // (A box standing wholly in the hanging area, left of the paragraph's indent: only the first line meets it.)
+                    if w > 0, hang > 0, candidates.count > 1, rightEdge - own <= 0.5, rightEdge - own > -hang + 0.5 {
+                        let band = (top: _px(float.y) - _px(float.distanceTop) - offset,
+                                    bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
+                        if band.bottom > 0.01 { boxes.append((band.top, band.bottom, leftEdge - own, rightEdge - own)) }
                     }
                 }
                 // (A picture at the top margin, hanging out past the left margin and wrapped square, anchored in
