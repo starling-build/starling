@@ -743,6 +743,10 @@ extension RichLayout {
             // the digits in the run's Latin face, not the complex-script face the letters take: dx2 79a15231's date cells in
             // Calibri, 5b919053, d5a4662f, f7d88376 and others likewise, where the cs name is a face Windows lacks (B Nazanin) or none; a Hebrew face (font table charset B1) is drawn in Arial, heb xb 95e6b1.)
             var run = run
+            // (Word reorders "-", "/" and "%" splits only where the run's complex-script language is not Persian: lab bidi-digits2, with
+            // w:lang w:bidi="fa-IR" Word draws 15-13 as written, in any table, face or alignment; without it, 13-15.)
+            let bidiLanguage = [run.keptXML, named?.char.keptXML].compactMap({ Self._attribute($0, "w:bidi") }).first ?? Self._attribute(document.defaultLangXML, "w:bidi") ?? ""
+            let wasRightToLeft = run.rightToLeft && !bidiLanguage.hasPrefix("fa")
             if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, run.rightToLeft, !splittingVariation,
                rawText.contains(where: { $0.isASCII && $0.isNumber }), rawText.allSatisfy({ ($0.isASCII && $0.isNumber) || "/-:.,% ".contains($0) }),
                let latin = run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily, !latin.isEmpty,
@@ -2104,6 +2108,24 @@ extension RichLayout {
                 }
                 }
                 _sblk0()
+                // (Right-to-left digits: Word for Windows keeps "-", "/" and "%"
+                // from joining the numbers round them, as the Unicode rules
+                // would for "10-18/11" and "50%": each number stands whole and
+                // the whole reads right to left, "11/18-10" and "%50" on the
+                // page, while ":", "," and "." join as written. Lab bidi-digits,
+                // Latin digits (Arabic-Indic ones the engine's own order already splits, and an
+                // extra mark there only cost dx2 ur 968500c3 a point), a bidi paragraph or not, in a
+                // table or not; not where the run's complex-script language is Persian. A right-to-left mark before the sign and before
+                // what follows it gives that.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, wasRightToLeft, offset > 0 {
+                    func digit(_ c: Character) -> Bool { c.isASCII && c.isNumber }
+                    func sign(_ c: Character) -> Bool { c == "-" || c == "/" || c == "%" }
+                    if (sign(ch) && before.map(digit) == true) || (digit(ch) && before.map(sign) == true) {
+                        flush(i)
+                        spans.append(TextSpan(text: "\u{200F}", style: zeroWidth(current ?? kind)))
+                        inserts.append(offset)
+                    }
+                }
                 // (A distributed line's room before this character: a word
                 // joiner that wide. Spacing on the character itself would
                 // be set half before it, and move the line's first.)
@@ -4170,6 +4192,13 @@ extension RichLayout {
     /// pitch and the surplus lands after the paragraph's last line (Word lab a347gap/J-chars: marks on 3 of 8 lines, 3 x 3.8 pt at 11 pt,
     /// for every mark kind; two marks on one line count once; spaces alone nothing). 0.345 em per line (18.4 - 14.6 at 11 pt).
     @inline(never)
+    /// The value of `attribute="..."` in a kept-XML fragment, or nil.
+    static func _attribute(_ xml: String?, _ attribute: String) -> String? {
+        guard let xml, let r = xml.rangeOfSubstring(attribute + "=\"") else { return nil }
+        let rest = xml[r.upperBound...]
+        guard let q = rest.firstIndex(of: "\"") else { return nil }
+        return String(rest[rest.startIndex..<q])
+    }
     func _tamilMarkedLinesExtra(_ i: Int, _ p: RichParagraph, _ document: RichDocument, _ painter: TextPainter) -> Double {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.isEmpty else { return 0 }
         // (Devanagari in Arial Unicode MS, whose font-table entry is the Japanese charset: the same, 0.36 em with the 1.079 of line 259;
