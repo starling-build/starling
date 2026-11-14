@@ -5667,6 +5667,14 @@ enum DocxFormat {
         case "bn": "Beng"
         default: nil
         }
+        var hebrewOnly = false   // Hebrew letters in the body and no Arabic ones (the Hebrew-glyph coverage below only helps Hebrew)
+        if let body = entries.first(where: { $0.name == "word/document.xml" }) {
+            var heb = 0, arab = 0
+            for u in String(decoding: body.data, as: UTF8.self).unicodeScalars {
+                if u.value >= 0x5D0 && u.value <= 0x5EA { heb += 1 } else if u.value >= 0x600 && u.value <= 0x6FF { arab += 1 }
+            }
+            hebrewOnly = heb > 0 && arab == 0
+        }
         let themeLang = entries.first(where: { $0.name == "word/settings.xml" }).flatMap { XNode.parse($0.data) }?.first("w:themeFontLang")
         let themeLangPresent = themeLang != nil
         let themeLangHasBidi = !(themeLang?["w:bidi"] ?? "").isEmpty
@@ -5677,7 +5685,12 @@ enum DocxFormat {
             // (A theme whose complex-script face is empty, in a file whose w:themeFontLang names no w:bidi language,
             // prints Hebrew and Arabic in Times New Roman, not the theme's Arabic Arial: xb heb-944544, heb-bae91d and
             // ara-a6e54c, all with themeFontLang val/eastAsia only; the same theme with bidi ar-SA or he-IL prints Arial.)
-            if themeLangPresent && !themeLangHasBidi { return "Times New Roman" }
+            // (Narrowed by the theme's minor Latin face, not the language: a face with Hebrew glyphs (Calibri) is drawn for
+            // Hebrew itself, one without (Cambria) falls to Times New Roman. Lab e040af-face: en-US with minor Calibri
+            // draws Calibri, de-DE with the minor changed to Cambria draws Times New Roman.)
+            let hebrewFaces: Set<String> = ["calibri", "arial", "times new roman", "tahoma", "segoe ui", "verdana", "consolas", "courier new", "trebuchet ms", "cambria math", "calibri light"]
+            let minorHasHebrew = hebrewOnly && hebrewFaces.contains((latin("a:minorFont") ?? "").lowercased())
+            if themeLangPresent && !themeLangHasBidi && !minorHasHebrew { return "Times New Roman" }
             let f = font.all("a:font").first { $0["script"] == "Arab" }?["typeface"] ?? ""
             return f.isEmpty ? nil : f
         }
