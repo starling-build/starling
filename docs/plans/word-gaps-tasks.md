@@ -16593,3 +16593,12 @@ HANDOFF amd-2 (2026-11-14) Korean lowest docs: c466d30a wordWrap-0 Hangul stop r
 - Landed/queued: gridSpan clamp (4cac8c37 95.2 to 96.3); bare w:br in paragraph = line break (6ddc0960 26.2 to 84.6, five docs 3-8 to 100); Han+Latin one-face paragraph first-line baseline (queue lenovo-2-75; f8ff8a48 57.4 to ~59 by lines, title y as Word).
 - Left: f8ff8a48 URL line 1pt high; e802f47d 71.4, 30775350 72.5, 8676db65 84.1, 236cd3ae 78.1 not yet looked at.
 - Trap: scorer prints no percent here; use "matched N of Word lines". Build binaries into /data/s/lenovo-2/w1/bins/{base,fix} for an all-dx2 byte compare (13 of 1807 differed).
+
+## HANDOFF amd-5 (2026-11-14, Japanese docs)
+- Fixed: ruby-line rule only at single spacing (queue -68, lo-181b561b0a back to 64.3). EQ-field ruby drawn like w:ruby (queue -73; text shows, scores unchanged 64.3 / 63.9).
+- Unexplained: lo-181b561b0a first ruby line is 6.5 pt off; later ruby groups missing.
+- No gain: BIZ UDP Mincho mapping on dx2 c67f3706 (stays 91.1; real gap is lines wrapping one char early). 12d9fb, 4fbb6e32, 28abf02c belong to lenovo-5.
+- xb jpn ee9f8f (84.3): 94 unmatched lines = 68 balloon-only, 24 body, 2 both. Pages 11 (38), 13 (21), 5 (16) dominate.
+  Word balloons: label Segoe UI Bold 6.9 pt, body (Latin too) one Yu Mincho run, Latin about 0.5 pt/letter narrower than ours. The Yu Mincho Latin width table is not reachable from the balloon text path (tried, no score change, reverted).
+  Page 11: Word holds balloons level with their anchor lines (330, 386, 566...); ours stacks from 328 about 40 pt higher. Page 3: "Deleted: ->" balloons are 15.8 apart in ours vs 18.1 in Word. Placement code: PdfMarkup.swift, tops loop (want = anchor.top, max with previous bottom).
+  Next step: find why anchor.top is earlier than Word's line for those balloons.
