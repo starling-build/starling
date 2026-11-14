@@ -4679,7 +4679,11 @@ extension RichLayout {
         guard w0 > 0.01 else { return nil }
         let n = max(1, Int((measure(String(w), 10) - w0) / 10 + 0.5))
         let other = split.rest ? (w0 - measure(split.known, 0)) * flatScale : 0
-        return (flat.copyWith(letterSpacing: (flat.letterSpacing ?? 0) + (split.ems * authored + other - w0) / Double(n)), flat)
+        // (Word's character spacing falls on a word's letters and not on its combining marks: its Kokila words run wider
+        // than ours by about the spacing per mark, dx2 hi 0c80b3a3 at -0.1 pt. The fit spreads it over the glyphs.)
+        let marks = w.unicodeScalars.filter { $0.properties.generalCategory == .nonspacingMark || $0.properties.generalCategory == .spacingMark }.count
+        let spaced = Double(max(0, n - marks))
+        return (flat.copyWith(letterSpacing: ((flat.letterSpacing ?? 0) * spaced + split.ems * authored + other - w0) / Double(n)), flat)
     }
 }
 

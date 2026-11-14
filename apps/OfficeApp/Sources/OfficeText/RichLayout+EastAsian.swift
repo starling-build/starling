@@ -2022,7 +2022,9 @@ extension RichLayout {
                     // (A Georgian word is placed in pieces too (only the stretch is measured from the word's start; the piece totals stay as they were): xs 1a285b32's justified Sylfaen line takes "მგრძნობელობა" 2.7 pt over with nine spaces in Word; measured from its last letter the stretch looked 2 pt and the test refused it.)
                     if RichTextTheme.wordWindowsPages, p.style.rightToLeft || indicPiece, !legacy, !piece.hard, piece.last == piece.b {
                         var q = pieceIndex
-                        while q + 1 < pieces.count, pieces[q].last == pieces[q].b, !pieces[q].hard, pieces[q + 1].a == pieces[q].b, !pieces[q + 1].hard {
+                        // (An Indic word's closing danda is the paragraph's last piece, and the squeeze takes it with the word: dx2 ne 9baed400's "भएको।" is one line in Word's print, its spaces at the quarter cap, ours left "भएको।" for the next.)
+                        while q + 1 < pieces.count, pieces[q].last == pieces[q].b, !pieces[q].hard, pieces[q + 1].a == pieces[q].b,
+                              !pieces[q + 1].hard || (indicPiece && units[pieces[q + 1].a] >= 0x964 && units[pieces[q + 1].a] <= 0x965) {
                             q += 1; need += pieces[q].w; restPieces += 1
                         }
                     }
@@ -2243,7 +2245,8 @@ extension RichLayout {
                     marks = []
                     spaces = []
                     wordSpaces = []
-                    if piece.hard { x = 0; lineNumber += 1; width = room(lineNumber); opening = true; lineWide = 0; lineFrom = piece.b; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false; lineLetters = false; lineBlank = false; lineRaised = false; lineTabbed = false }
+                    let endPiece = pieces[min(pieces.count - 1, pieceIndex + wordRest)]
+                    if endPiece.hard { x = 0; lineNumber += 1; width = room(lineNumber); opening = true; lineWide = 0; lineFrom = endPiece.b; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false; lineLetters = false; lineBlank = false; lineRaised = false; lineTabbed = false }
                     continue
                 }
             }
