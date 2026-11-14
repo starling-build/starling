@@ -255,7 +255,21 @@ extension RichLayout {
     /// paragraph's first run and outrank the measure beside them. A
     /// list's marker has its own slot, and an empty paragraph no line
     /// to indent.
+    /// On a horizontal snapToChars grid Word sets every indent in whole cells, rounded up (its print of
+    /// f3550c7b/837e72c4: leftChars 120, 170 and w:left 300 twips all at two 11.28pt cells; firstLineChars
+    /// 50 at one cell; leftChars 200 under a 0.5 hanging at three, its first line at two).
+    func _wholeCells(_ v: Double, _ index: Int?, _ document: RichDocument) -> Double {
+        guard theme.wordRules, v != 0, let base = _gridCellBase(index, document) else { return v }
+        let cell = base + (_grid(index, document).chars ?? 0)
+        guard cell > 1 else { return v }
+        return (v < 0 ? -1 : 1) * (abs(v) / cell - 1e-6).rounded(.up) * cell
+    }
+
     public func firstLineIndent(_ p: RichParagraph, at index: Int? = nil, _ document: RichDocument) -> Double {
+        _wholeCells(_firstLineIndentRaw(p, at: index, document), index, document)
+    }
+
+    func _firstLineIndentRaw(_ p: RichParagraph, at index: Int? = nil, _ document: RichDocument) -> Double {
         // PowerPoint's unbulleted paragraph starts its first line where its
         // own indent puts it — out to the left of the rest for a negative
         // one, as a master's body hangs every level (ecodesign's quotes) —
@@ -885,7 +899,7 @@ extension RichLayout {
 
     func _sideIndents(_ p: RichParagraph, at index: Int? = nil, _ document: RichDocument) -> (left: Double, right: Double) {
         var left = p.style.indentLeft, right = p.style.indentRight
-        guard theme.wordRules, !p.style.eastAsian.isEmpty else { return (left, right) }
+        guard theme.wordRules, !p.style.eastAsian.isEmpty || _gridCellBase(index, document) != nil else { return (left, right) }
         let unit = ((document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize) + (_grid(index, document).chars ?? 0)) / 100
         // (With a hanging indent the count is from where the first line
         // hangs: the left indent is the count and the hanging one
@@ -908,7 +922,7 @@ extension RichLayout {
         // margin in Word's print and runs on 21pt in; ours had no room
         // for it, and the notes after it went to a page of their own.)
         if let index, _px(left) >= _flowWidth(index) { left = max(0, -firstLineIndent(p, document)) }
-        return (left, right)
+        return (_wholeCells(left, index, document), _wholeCells(right, index, document))
     }
 
     /// 1 when paragraph `i`'s painter has the indent's box before the

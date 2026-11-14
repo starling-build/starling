@@ -2748,6 +2748,14 @@ extension RichLayout {
         return (setup.lineGridPitch, setup.characterGridSpace)
     }
 
+    /// The Normal size a snapToChars cell counts from (nil off such a grid).
+    func _gridCellBase(_ i: Int?, _ document: RichDocument) -> Double? {
+        guard let i, _sectionSetups.count > 1, i >= 0, i < _sectionOf.count, _sectionOf[i] < _sectionSetups.count - 1 else {
+            return document.characterGridCellBase
+        }
+        return _sectionSetups[_sectionOf[i]].characterGridCellBase
+    }
+
     /// The height of a paragraph that is not in the flow — one a
     /// vertically merged cell's continuation holds — with its spacing.
     func _detachedHeight(_ p: RichParagraph, _ document: RichDocument, pair: Bool = false) -> Double {

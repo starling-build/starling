@@ -906,6 +906,8 @@ extension RichLayout {
             // their Times digits 7.9 apart, half the grid's addition off
             // 8.0, as on it — ours set them 8.0, and a line of "120" and
             // "48" left a character Word takes.)
+            // (On a snapToChars grid the cell is whole: an ideograph takes it, not its own size plus the addition; Latin text keeps its own width.)
+            let cellFix = _gridCellBase(index, document).map { $0 - em / (theme.pixelsPerPoint * scale) } ?? 0
             let grid = theme.wordRules && !runOffGrid && (p.style.eastAsian["w:snapToGrid"] != "0" || p.style.ownGridOff)
                 ? _grid(index, document).chars : nil
             // (Ideographs keep the grid's addition in a paragraph off the
@@ -919,7 +921,7 @@ extension RichLayout {
             // style's spacing then set its 47.8pt header cell "支出傳票"
             // where Word's print has "支出傳". Latin text keeps off it, as
             // zh-268f8d15's footer above.)
-            let ideographGrid = grid ?? (theme.wordRules && !runOffGrid ? _grid(index, document).chars : nil)
+            let ideographGrid = (grid ?? (theme.wordRules && !runOffGrid ? _grid(index, document).chars : nil)).map { $0 + cellFix }
             // (Where single and double byte widths are balanced, a
             // full-width character takes the run's spacing twice: 16pt
             // text spaced -0.3 is set 15.4 apart.)

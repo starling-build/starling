@@ -1,4 +1,4 @@
-188 documents: mean 77.4% of Word's lines matched, median 98.0%; 103 at 95% or more, 145 at half or more; 171 with Word's page count
+188 documents: mean 78.1% of Word's lines matched, median 98.2%; 105 at 95% or more, 146 at half or more; 171 with Word's page count
     1.1%  lines 472/547  pages 14/15  heb-z17544993-944544
     1.1%  lines 90/72  pages 4/3  fas-z22832287-ac7399
     1.1%  lines 88/104  pages 10/9  fas-z14957015-3a9879
@@ -16,7 +16,6 @@
     7.5%  lines 694/663  pages 17/18  urd-z17694236-c03d57
     8.3%  lines 564/557  pages 13/13  urd-z7294462-73d948
     8.8%  lines 874/875  pages 34/33  ara-z20648189-8e6ca0
-   10.0%  lines 20/20  pages 1/1  docx-f3550c7b
    11.6%  lines 370/368  pages 13/13  ara-z10840115-a1e854
    12.2%  lines 682/686  pages 12/12  urd-z8387389-553f88
    12.6%  lines 578/583  pages 19/20  fas-z8123021-fd38aa
@@ -43,7 +42,6 @@
    46.1%  lines 180/179  pages 7/7  ara-z18938499-0b6a0d
    48.1%  lines 135/135  pages 9/10  fas-z22958620-bf2323
    50.7%  lines 914/909  pages 21/21  fra-g255-612f49
-   51.7%  lines 29/27  pages 6/6  docx-837e72c4
    60.9%  lines 483/466  pages 19/19  docx-bff1c672
    64.1%  lines 181/186  pages 9/9  nld-z22251521-8c1881
    64.3%  lines 221/221  pages 13/13  docx-8f1703b9
@@ -61,7 +59,7 @@
    83.7%  lines 123/121  pages 16/16  docx-a567c5c2
    83.8%  lines 594/594  pages 16/16  jpn-z23002680-ee9f8f
    84.1%  lines 905/912  pages 24/24  fra-g70-0ecec1
-   86.8%  lines 243/243  pages 8/8  hin-z20395192-2886e1
+   86.2%  lines 29/27  pages 6/6  docx-837e72c4
    87.6%  lines 1133/1142  pages 35/35  fra-z5579827-3c5db0
    88.4%  lines 776/780  pages 28/28  por-z1326468-80d0e5
    90.1%  lines 202/203  pages 5/5  ell-z10161459-ec79d6
@@ -119,6 +117,7 @@
   100.0%  lines 125/125  pages 4/4  bul-z14225469-9d8b52
   100.0%  lines 139/139  pages 4/4  bul-z22116004-d3c1d3
   100.0%  lines 72/72  pages 2/2  deu-z4548799-c5d058
+  100.0%  lines 20/20  pages 1/1  docx-f3550c7b
   100.0%  lines 76/76  pages 3/3  ell-z18377521-5297a3
   100.0%  lines 204/204  pages 10/10  ell-z20423699-05c22a
   100.0%  lines 206/206  pages 10/10  ell-z20423699-263d3d
@@ -138,6 +137,7 @@
   100.0%  lines 217/226  pages 9/9  hin-z19439612-b05873
   100.0%  lines 345/350  pages 11/11  hin-z19974540-2e43e8
   100.0%  lines 181/181  pages 6/6  hin-z20395056-4ee329
+  100.0%  lines 243/243  pages 8/8  hin-z20395192-2886e1
   100.0%  lines 150/150  pages 4/4  hin-z20740649-94bde9
   100.0%  lines 150/150  pages 4/4  hin-z20747431-a0ee17
   100.0%  lines 148/148  pages 4/4  hin-z20759993-04d538

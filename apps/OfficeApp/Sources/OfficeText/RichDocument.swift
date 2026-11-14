@@ -2449,6 +2449,8 @@ public struct RichDocument: Hashable, Sendable {
     /// `w:charSpace` in 4096ths of a point — negative to fit more to a
     /// line). A run that says `w:snapToGrid` off keeps its own widths.
     public var characterGridSpace: Double? = nil
+    /// On a horizontal `snapToChars` grid, the Normal size the cell was counted at: a character is then set on the whole cell, whatever its own size.
+    public var characterGridCellBase: Double? = nil
     /// More of the last section kept as written, in schema order: what
     /// stands before the columns (`w:lnNumType`, `w:pgNumType`) and
     /// after them (`w:vAlign`, `w:textDirection`, `w:bidi`,

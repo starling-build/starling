@@ -504,6 +504,7 @@ extension RichLayout {
         if onGrid {
             sub.lineGridPitch = document.lineGridPitch
             sub.characterGridSpace = document.characterGridSpace
+            sub.characterGridCellBase = document.characterGridCellBase
         }
         sub.listFormats = document.listFormats
         sub.listCounterOf = document.listCounterOf
@@ -1915,6 +1916,7 @@ extension RichLayout {
         // and every page's text then that much lower.)
         sub.lineGridPitch = nil
         sub.characterGridSpace = section.last ? document.characterGridSpace : setup.characterGridSpace
+        sub.characterGridCellBase = section.last ? document.characterGridCellBase : setup.characterGridCellBase
         sub.usesEastAsianLayout = document.usesEastAsianLayout
         sub.hasKana = document.hasKana
         sub.hangsLatinStops = document.hangsLatinStops
