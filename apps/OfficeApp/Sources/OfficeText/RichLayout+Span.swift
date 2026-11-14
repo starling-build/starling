@@ -1784,10 +1784,10 @@ extension RichLayout {
                                p.text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF && $0.properties.isAlphabetic }) {
                                 RuleTrace.hit("word-missing-bengali-face-space-between-words-is-mangal-half-em")
                                 // (And it lifts the line to Mangal's 1.241 + 0.438 em as a mark does: the line of letters and spaces alone steps 20.2 in Word, 16 in ours.)
-                                if devanagariStyles["mangal"] == nil, let m = Self._indicLines["mangal"] {
+                                if !_isSolaimanLipi(run, named, document), devanagariStyles["mangal"] == nil, let m = Self._indicLines["mangal"] {
                                     devanagariStyles["mangal"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: m.0, descent: m.1)
                                 }
-                                let spaceBase = devanagariStyles["mangal"].flatMap { $0 } ?? st
+                                let spaceBase = !_isSolaimanLipi(run, named, document) ? (devanagariStyles["mangal"].flatMap { $0 } ?? st) : st
                                 spans.append(contentsOf: capped(piece, run, _indicSpaceStyle(base: spaceBase, spaceEm: em, unit: authored)))
                                 continue
                             }
@@ -2309,13 +2309,18 @@ extension RichLayout {
                    !ch.isWhitespace,
                    u != 0x200B, u != 0x200C, u != 0x200D, u != 0x2060, u != 0xFFFC,
                    !(before.map { !$0.isWhitespace && !($0.unicodeScalars.first.map { Self._isIndic($0.value) } ?? false) } ?? false),
-                   Self._markInMangal(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "", text),
+                   Self._markInMangal(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "", text) || (_isSolaimanLipi(run, named, document) && _asciiRunInMissingBengaliFace(run, named, document, text, p.text)),
                    let metrics = Self._indicLines["mangal"] {
                     if devanagariStyles["mangal"] == nil {
                         devanagariStyles["mangal"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: metrics.0, descent: metrics.1)
                     }
                     if let joiner = devanagariStyles["mangal"] ?? nil {
                         flush(i)
+                        // (After a space the joiner would glue the mark to it and lose the break there: a break opportunity, as the digit rule below keeps.)
+                        if before?.isWhitespace == true, _asciiRunInMissingBengaliFace(run, named, document, text, p.text) {
+                            spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                            inserts.append(offset)
+                        }
                         spans.append(TextSpan(text: "\u{2060}", style: joiner))
                         inserts.append(offset)
                     }
@@ -4520,6 +4525,10 @@ extension RichLayout {
 extension RichLayout {
     /// A missing Bengali face (SolaimanLipi, Nikosh): Word draws its spaces in Mangal, 0.5 em.
     /// A run of only ASCII (letters, digits, marks, spaces with at least one other) whose ascii and complex faces are one missing Bengali face, in a Bengali paragraph.
+    /// SolaimanLipi (missing on Windows): its lines lift to Mangal only through marks, while Nikosh's lift through its spaces too.
+    @inline(never) func _isSolaimanLipi(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument) -> Bool {
+        (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "solaimanlipi"
+    }
     @inline(never) func _asciiRunInMissingBengaliFace(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument, _ text: Substring, _ paragraphText: String) -> Bool {
         let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
         let asc = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
