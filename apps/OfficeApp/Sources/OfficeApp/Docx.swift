@@ -7275,6 +7275,13 @@ enum DocxFormat {
             for child in node.children {
                 switch child.name {
                 case "w:r": walkRun(child, link: link, revision: revision)
+                case "w:br" where DocxFormat.wordOnWindows:
+                    // A break set straight in the paragraph, outside any run,
+                    // still breaks the line in Word's print (dx2 zh 6ddc0960:
+                    // the URL under the title); read as a run holding it.
+                    let run = XNode(name: "w:r", attrs: [:])
+                    run.children = [child]
+                    walkRun(run, link: link, revision: revision)
                 case "w:hyperlink":
                     // Word appends the bookmark to an external Target URL
                     // (MS-OI29500 2.1.521), even with r:id present.
