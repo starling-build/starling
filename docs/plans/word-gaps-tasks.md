@@ -16636,3 +16636,10 @@ HANDOFF amd-2 (2026-11-14) Korean lowest docs: c466d30a wordWrap-0 Hangul stop r
 - hin-z21320572 (entry -86): not the header. w:hint eastAsia on "ç" over Normal's Times New Roman EA face made us draw it in Times, line ~1 pt taller per paragraph start. Word keeps the run's own face. Fix: Span.swift eaFaceIsLatin. xb hin-z21320572 58.0 to 100.0, fas-z22958620 31.9 to 47.4, heb-z5059159 39.2 to 43.3; xb no drops; dx2 up 2 down 0; unit tests 655/0.
 - Trap: measure by baseline (origin y), not bbox top; bbox tops differ by font and faked a 2.5 pt header offset.
 - lenovo-3 CLAIM (2026-11-14): xb hin-z20395056-4ee329 (72.9), then hin-z20049040-f01e57 (81.4). z20740649/z20747431 are amd-1's (parked).
+
+### HANDOFF amd-4 (2026-11-14): xd 73caaeda Bengali line pitch
+- Queued (queue/amd-4-87, 5 commits; the 4 older ones were rejected before on a conflict, now rebased). Fix: in a Bengali paragraph whose complex face is SolaimanLipi (not installed), lines lift to Mangal's height through ASCII marks (not spaces); Nikosh keeps its old lift through spaces.
+- Numbers: 73caaeda matched 19 to 34 (Word 209 lines/8 pages, ours 207/7). dx2 2263e221 209 and bede0fbc 25 unchanged. Unit tests 655/0 failures.
+- Not done: dx2 ko/ja/hi A/B, and a grep of 756/lo sets for SolaimanLipi|Nikosh.
+- Left in 73caaeda: constant ~2.1 pt offset from line 3 (line 3 pitch 23.5 vs Word 21.3; line 5 16.5 vs 20.8); dashes-only line is Carlito but Word uses Mangal 13.6 (paragraph has no Bengali letter); pages 3-4 gaps.
+- Traps: render without OFFICE_APP=<binary> uses a stale binary; docx-app-render.sh reuses folders; joiner on for all faces dropped 2263e221 209 to 182 (Nikosh differs from SolaimanLipi).
