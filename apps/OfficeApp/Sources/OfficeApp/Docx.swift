@@ -8263,7 +8263,7 @@ enum DocxFormat {
             // (`w:cs`, the run's text taken as complex script, kept for
             // the layout too: see `RichLayout`'s wide spaces.)
             case "w:w", "w:position", "w:bdr", "w:lang", "w:em", "w:fitText", "w:snapToGrid", "w:eastAsianLayout", "w:cs":
-                if child.name == "w:position", let v = Double(child["w:val"] ?? "") { cs.raised = v / 2 }
+                if child.name == "w:position", let v = Self.halfPointsOrMeasure(child["w:val"] ?? "") { cs.raised = v }
                 // (The character scale, for the layout too.)
                 if child.name == "w:w", let v = Double((child["w:val"] ?? "").replacingAll("%", with: "")), v > 0 {
                     // (100 is a scale too: it undoes the style's. zh-90e0cea8's
@@ -9590,5 +9590,20 @@ enum DocxFormat {
             extraNums += "<w:num w:numId=\"\(numId)\"><w:abstractNumId w:val=\"\(leader + 1)\"/>\(overrides)</w:num>"
         }
         return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:numbering xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" xmlns:w14=\"http://schemas.microsoft.com/office/word/2010/wordml\" xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\" mc:Ignorable=\"w14 w15\"><w:abstractNum w:abstractNumId=\"0\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(bulletLevels)</w:abstractNum><w:abstractNum w:abstractNumId=\"1\"><w:multiLevelType w:val=\"hybridMultilevel\"/>\(decimalLevels)</w:abstractNum>\(extraAbstract)<w:num w:numId=\"\(bulletId)\"><w:abstractNumId w:val=\"0\"/></w:num><w:num w:numId=\"\(decimalId)\"><w:abstractNumId w:val=\"1\"/></w:num>\(extraNums)</w:numbering>"
+    }
+}
+
+
+extension DocxFormat {
+    /// A signed half-point count (`w:position`, `w:spacing` of a run), or a number with a
+    /// unit (`6pt`, `-0.5mm`, `1in`; ST_SignedHpsMeasure), in points. Word honours the unit
+    /// form: xb docx-8f1703b9 writes `w:position w:val="6pt"` and its raised word stands 6 pt up.
+    static func halfPointsOrMeasure(_ text: String) -> Double? {
+        if let v = Double(text) { return v / 2 }
+        let units: [(String, Double)] = [("pt", 1), ("mm", 72 / 25.4), ("cm", 72 / 2.54), ("in", 72), ("pc", 12), ("pi", 12)]
+        for (u, k) in units where text.hasSuffix(u) {
+            if let v = Double(String(text.dropLast(u.count))) { return v * k }
+        }
+        return nil
     }
 }
