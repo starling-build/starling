@@ -219,6 +219,7 @@ extension RichLayout {
             // carries "（" over with what it opens — zh-c5b5087b, its
             // defaults' East Asian language en-US and kinsoku off, has
             // "…负责承储" / "（以下简称…" where ours ended the line on it.)
+            if wordRules, b.value == 0x3001, o < runOf.count, Self._dunhaoMayStart(p.runs[runOf[o]].style, document, named: lineStyle) { return true }
             if kinsokuOff || runRulesOff(o), Self._closingMarks.contains(Character(b)) || Self._latinCloser(Character(a), Character(b)) { return true }
             // (… and under `w:kinsoku` 0: zh-b00fef0d's "…调度困难" opens its next line with "”".)
             if runRulesOff(o) || (kinsokuOff && RichTextTheme.wordWindowsPages && eastAsianRunAt(o)), Self._closingQuote(Character(b)) { return true }
@@ -2733,6 +2734,22 @@ extension RichLayout {
             }
         }
         return document.eastAsianLineRules
+    }
+
+    /// Whether "、" may start a line in `run`: Word's no-line-start rule for it holds only at
+    /// compatibility 14 or higher AND an East Asian language of zh or ja (the run's own, its
+    /// style's, else the defaults'); below that, or with no such tag, it opens a line whenever
+    /// the character before it fits (lab cm236, Word prints c12/c14/c15, face and brackets
+    /// irrelevant). 2026-11-14, lenovo-2.
+    static func _dunhaoMayStart(_ run: CharStyle, _ document: RichDocument, named: RichNamedStyle? = nil) -> Bool {
+        guard RichTextTheme.wordWindowsPages else { return false }
+        if (document.compatibilityMode ?? 12) < 14 { return true }
+        for xml in [run.keptXML, named?.char.keptXML, document.defaultLangXML].compactMap({ $0 }) {
+            if let r = xml.rangeOfSubstring("w:eastAsia=\"") {
+                return !["zh", "ja"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
+            }
+        }
+        return true
     }
 
     /// Whether `run`'s East Asian language is stated as none (`x-none`),
