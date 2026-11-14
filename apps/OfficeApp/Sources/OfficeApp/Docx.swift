@@ -7374,10 +7374,10 @@ enum DocxFormat {
                     // draws it, its text text (chartex's: 8 lines of Word's
                     // print, and the sunburst's 16).
                     let requires = (child.first("mc:Choice")?["Requires"] ?? "").split(separator: " ")
-                    if requires.contains("cx"), let drawing = child.first("mc:Choice")?.first("w:drawing"),
+                    if requires.contains(where: { $0 == "cx" }), let drawing = child.first("mc:Choice")?.first("w:drawing"),
                        boxWhisker(drawing) != nil {
                         addObject(drawing)
-                    } else if requires.contains("cx"), let drawing = child.first("mc:Fallback")?.first("w:drawing"),
+                    } else if requires.contains(where: { $0 == "cx" }), let drawing = child.first("mc:Fallback")?.first("w:drawing"),
                        drawing.descendant("a:blip") != nil {
                         addImage(drawing)
                     } else {
