@@ -22,6 +22,53 @@ xb jpn-z21601833-463426 (55.5, best 75.5), lenovo-5's handoff on the board.
      ("引力—|—閉じ込め").
   Glue everything except after an em dash, and both fit.
 
+## Status (2026-11-14): landed; atcol9 read; one optional line left
+
+- **The change in this spec has already landed**: 023ad2439 (lenovo-5,
+  2026-11-13): the em-dash break, the glue, and the 0.25 pt for an empty cell.
+  xb 463426 went from 55.5 to 99.4, and round 437 found no doc down. On today's
+  tip (2963038e1), t12 comes out 15.4 / 80.9 / 382.5, the same as Word's print.
+- **Regime 3 has also landed**: ec0c6f11f (2026-11-13) keeps each column's
+  kept-whole width as its minimum and fills from there toward `max`.
+- **atcol9 (Word prints, compat 12) against today's tip.** Widths are columns
+  1 / 2 in pt; "rule" is the reading the print confirms.
+
+| table | Word | tip 2963038e1 | rule |
+|---|---|---|---|
+| a, em dash | 209.7 / 269.1 | 209.6 / 269.2 | breaks just AFTER the em dash (before: 214.0; glued: 190.1) |
+| b, hyphen U+002D | 241.4 / 237.4 | 241.4 / 237.4 | breaks after the hyphen |
+| c, en dash U+2013 | 240.4 / 238.4 | 240.4 / 238.4 | breaks after the en dash |
+| d, slash | 214.6 / 264.2 | 214.7 / 264.1 | glued |
+| e, U+2010 | 215.5 / 263.3 | **241.2 / 237.6** | **glued**: Word does NOT break after U+2010 |
+| f, regime 3 | 217.7 / 261.1 | 217.6 / 261.2 | width = *m* + `whole` + (`max` − `whole`) · *k*, *k* = (*R* − Σ`whole`) / (Σ`max` − Σ`whole`) (by max: 173.2; by whole: 391.8) |
+
+  Corpus check of the regime-3 rule: xb jpn-z21601833-c2301a, table 14:
+  Word's column 1 is 239.0 and the tip gives 238.9.
+- **Only table e is still wrong**, and it moves no corpus document. Nine docs
+  across the sets contain U+2010. The one with no compat mode
+  (xb docx-5dc87fc7) has no table, so the gate never fires on any of them.
+
+## IMPLEMENTATION ORDER (for the implementer; one optional step)
+
+There is nothing left to build for xb 463426. The one remaining step is a
+correctness fix with no expected movers; land it only if the coordinator wants it.
+
+1. Open `apps/OfficeApp/Sources/OfficeText/RichLayout+Layout.swift` and find
+   the contentFit glue branch: `grep -n 'a == 0x2014 { parts = true }'`. The
+   `else if` right after it lists the characters that still fall through:
+   `!(a == 0x2D || a == 0x2010 || a == 0x2013)`.
+2. Remove `a == 0x2010` from that list, so it reads `!(a == 0x2D || a == 0x2013)`.
+   In the comment above, replace "hyphen or en dash (unmeasured ...)" with:
+   "lab atcol9: it parts after a hyphen U+002D or en dash U+2013, never after
+   U+2010 or a slash".
+3. Build. Render `lab/atcol9/e-u2010.docx` from amd-opus's checkout
+   (/data/s/amd-opus/starling/lab/atcol9) with the full pair env plus
+   `STARLING_RICHTEXT_AUTOFIT=1`. The trace must print
+   `content fit [215.5, 263.3]`, within 0.2. Then render a-d and f: each must
+   still match the table above within 0.2.
+4. Check t12 (lenovo-5's lab/atcol5/t12.docx) still gives 15.4 / 80.9 / 382.5.
+5. Submit with `DOCS=-`. Expected movers: none, in any set.
+
 ## The model (no compat mode, Word for Windows, pct-width table, contentFit)
 
 Write *m* for the cell's left plus right margins (10.8 pt here). The room *T* is
@@ -43,8 +90,9 @@ Then, by regime:
    Σ(`max` + *m*). That is today's `stretch` path.
 2. Sum of `max` > *R* and sum of `whole` > *R*: width = *m* + `whole` · *R* /
    Σ`whole`. That is today's `high = low` branch.
-3. Sum of `whole` ≤ *R* < sum of `max`: today's code shares by `max`. **No
-   lab covers this regime.** See atcol9 below. Leave it unchanged.
+3. Sum of `whole` ≤ *R* < sum of `max`: width = *m* + `whole` + (`max` −
+   `whole`) · *k*, with *k* = (*R* − Σ`whole`) / (Σ`max` − Σ`whole`). Measured
+   by atcol9 f; landed in ec0c6f11f.
 
 Regimes 1 and 2 are exactly the code at RichLayout+Layout.swift
 `_autofit`, from about line 1505 ("No compat mode, lab atcol4"). Only the
@@ -183,7 +231,7 @@ over-full.
   runs the Latin sample. Do the usual 4-language dx2 A/B (ko, ja, hi, bn); the
   census expects no movement there.
 
-## atcol9: the follow-up lab for what the 14 tables don't decide
+## atcol9: the follow-up lab (printed 2026-11-14; results under Status above)
 
 No lab is needed for the first landing. This one would decide the three gaps
 the change leaves alone. It is one docx built from atcol5's t12.docx package,
