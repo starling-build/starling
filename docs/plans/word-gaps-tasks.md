@@ -16471,3 +16471,8 @@ Traps: Thai ce4069f1 dips on macron-over-capital with wrong fonts (exposure logg
 - Trap: an OfficeApp release build took 14 min; unit tests 6.5 min (nohup + tail --pid).
 - amd-10 2026-11-14 CLAIM xs 55c1bba8 (11.8, lines 314/317 pages 8/9)
 - HANDOFF lenovo-2 (2026-11-14): 817e3a79 chart title spc submitted (queue lenovo-2-24); caption beside chart still 490.0 vs Word 520.8, needs lab (gap 16/24/32/48/64pt, centered vs left, '（' start). 4cac8c37 62.8 to 70.7 by autospace in compat<15 w/o eastAsia lang (queue 20261114-050732-lenovo-2-34); 4 extra lines remain on pages 3-6 (Word keeps ， at line start when line full; ours hangs it). Rules in ~/word-rules.md.
+
+### HANDOFF amd-7 (2026-11-14)
+- bfc234 (xb Bengali flowchart): bullet pitch fixed (4fdf401ee, queued amd-7-38): 14.0 to 40.4, bullets 29.9 pt apart like Word. Cause: label's zero-width span got a full multiplied Latin line. Left: some bullet lines wrap differently from Word (shaping/width); later pages drift not re-checked.
+- e86e26f7 PARKED: Word text edge 131.9 vs ours ~30; pitch model already at Span.swift:71; clamp ruled out by 0befaba11; Latin drawn Liberation Sans Italic not Malgun (malgunLatin gate ~Span.swift 1100; would be a font-fallback change needing 4-language A/B); open: does Word treat the picture as an obstacle.
+- hy 05a96a87: not yet started (szCs fix d5afa3df8 may cover it).
