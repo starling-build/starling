@@ -1,13 +1,13 @@
-188 documents: COMBINED mean 79.62% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 79.62% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
+188 documents: COMBINED mean 79.61% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 79.61% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
   11.9%  lines 370/368  pages 13/13  ara-z10840115-a1e854
    2.4%  lines 664/778  pages 27/26  ara-z11030406-663296
   13.5%  lines 111/111  pages 8/8  ara-z15699863-842f1e
-  93.3%  lines 30/30  pages 2/2  ara-z15770216-60b9da
+  63.3%  lines 30/30  pages 2/2  ara-z15770216-60b9da
   62.4%  lines 181/182  pages 7/7  ara-z18938499-0b6a0d
   50.2%  lines 265/267  pages 14/14  ara-z19427756-0dd311
    9.0%  lines 874/877  pages 34/33  ara-z20648189-8e6ca0
    8.2%  lines 624/637  pages 32/32  ara-z20756589-698264
-  15.4%  lines 130/128  pages 6/6  ara-z21298544-b514c2
+   2.3%  lines 130/128  pages 6/6  ara-z21298544-b514c2
    6.0%  lines 515/572  pages 16/17  ara-z21988051-184d63
   41.1%  lines 246/239  pages 8/8  ara-z23060052-a6e54c
   27.7%  lines 173/170  pages 11/11  ara-z3803947-de4a70
@@ -64,9 +64,9 @@
   20.3%  lines 143/144  pages 6/6  fas-z21853138-0c740e
    5.6%  lines 90/71  pages 4/3  fas-z22832287-ac7399
   16.4%  lines 433/424  pages 16/16  fas-z22867828-b604ea
-   2.4%  lines 127/127  pages 6/6  fas-z22910553-174812
-  46.7%  lines 135/135  pages 9/10  fas-z22958620-bf2323
-   2.0%  lines 149/149  pages 8/8  fas-z22973278-768d17
+  54.3%  lines 127/127  pages 6/6  fas-z22910553-174812
+  24.4%  lines 135/135  pages 9/9  fas-z22958620-bf2323
+  14.1%  lines 149/149  pages 8/8  fas-z22973278-768d17
  100.0%  lines 24/24  pages 1/1  fas-z4476777-7bfbf3
   12.9%  lines 574/577  pages 19/20  fas-z8123021-fd38aa
   42.4%  lines 974/979  pages 21/22  fra-g111-8b0e29
@@ -183,7 +183,7 @@
   18.0%  lines 922/950  pages 26/27  urd-z10575633-e54653
    7.6%  lines 695/686  pages 17/18  urd-z17694236-c03d57
    7.6%  lines 550/556  pages 13/13  urd-z17694289-27ac54
-   9.4%  lines 566/572  pages 13/13  urd-z7294462-73d948
+   9.7%  lines 566/573  pages 13/13  urd-z7294462-73d948
    7.6%  lines 930/935  pages 24/24  urd-z7427432-7738e5
   17.9%  lines 329/323  pages 10/10  urd-z7538882-13b0bc
   35.8%  lines 681/686  pages 12/12  urd-z8387389-553f88

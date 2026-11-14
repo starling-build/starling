@@ -63,11 +63,11 @@ extension RichLayout {
             if let text = t.text, text.unicodeScalars.contains(where: { ($0.value >= 0x0590 && $0.value <= 0x08FF) || ($0.value >= 0xFB1D && $0.value <= 0xFEFF) }) { bidi = true }
             // (Spaces and letters name the face; a lone mark such as « or » in the Latin theme face does not.)
             if let text = t.text, text.contains(where: { $0.isLetter || $0.isNumber || $0.isWhitespace }) {
-                var l = t.style?.debugLabel?.trimmingWhitespace().lowercased() ?? ""
+                var l = String((t.style?.debugLabel?.trimmingWhitespace().lowercased() ?? "").filter { $0 != "(" && $0 != ")" })
                 while l.hasSuffix(".copywith") { l = String(l.dropLast(9)) }
-                labelsSeen.insert(String(l.filter { $0 != "(" && $0 != ")" }))
+                labelsSeen.insert(l)
             }
-            if let text = t.text, marksToo, !text.contains(where: { $0.isLetter || $0.isNumber }) {
+            if let text = t.text, marksToo, !text.contains(where: { $0.isLetter || $0.isNumber || $0.isSymbol }) {
                 for c in t.children ?? [] { visit(c) }
                 return
             }
@@ -102,7 +102,9 @@ extension RichLayout {
             // at 14pt x 1.5 = 24.15, where the Noto fallback's glyphs ran the lines 28 high) when every run of the
             // paragraph, spaces too, is that one name: no Latin theme face beside it to set the line. A run set in
             // Arial itself (xb ara-z15770216's bullets, Aptos beside them) keeps the old way: Word's lines there are 25.0, not 24.)
-            if first?.debugLabel?.trimmingWhitespace().lowercased() != "arial",
+            var firstLabel = String((first?.debugLabel?.trimmingWhitespace().lowercased() ?? "").filter { $0 != "(" && $0 != ")" })
+            while firstLabel.hasSuffix(".copywith") { firstLabel = String(firstLabel.dropLast(9)) }
+            if firstLabel != "arial",
                !(first?.fontFamily?.lowercased() == "arial" && labelsSeen.count == 1 && labelsSeen.first?.containsSubstring("arial") != true) { uniform = false }
         }
         if count == 0, uniform { blanksToo = true; visit(span) }
