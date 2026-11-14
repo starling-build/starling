@@ -597,6 +597,15 @@ public final class RichTextTheme {
         let raise = ruby.raise > 0 ? ruby.raise : size / 2
         let above = max(0, raise + ascent * rubySize - ascent * size)
         let line = lineBox(size: size, natural: natural + above / size, baseline: nil, in: paragraph, gridPitch: gridPitch).height
+        // (Off a grid at single spacing the line keeps the plain line's foot and its baseline, the ruby's em standing on its raise over it:
+        // lab ruby-hl14r, MS Mincho 20 with 8pt ruby, single: ascent max(20.15, raise + 8), descent 5.77 as plain.)
+        if wordRules, gridPitch == nil, paragraph.lineHeightPoints == nil, abs(paragraph.lineSpacing - 1) < 0.005,
+           let b = baseline(for: style, in: paragraph, named: named, eastAsian: eastAsian, gridPitch: nil), b > 0, case let plainH = natural * size, plainH > b {
+            let top = max(b, raise + rubySize)
+            // (A ruby inside the plain ascent leaves the line a plain one: lab ruby-hl14r raise 10, first baseline 76.8.)
+            if top <= b { return (natural, 0, 0) }
+            return ((top + plainH - b) / size, 0, (plainH - b) / size)
+        }
         guard gridPitch != nil, paragraph.lineHeightPoints == nil else { return (line / size, 0, natural - ascent) }
         let n = natural * size
         let one = lineBox(size: size, natural: natural, baseline: nil, in: paragraph, gridPitch: gridPitch).height
