@@ -16523,3 +16523,4 @@ amd-2 CLAIM (2026-11-14, starling-bd): xb kor-z19581051-22de7d (mine now), then 
 - Also in that entry: Yu Mincho kana kerning (A/B: xb 11142e 97.2 to 100, 2c8799 99.0 to 100, ee9f8f 83.9 to 84.1, no drops).
 - 771abc still 498/499 lines: left over is a ~1 pt earlier width drift before the "[" on that line; not chased.
 - Next: lowest Japanese docs in xb and dx2 (amd-3 holds 6fca0f; lenovo-5 vertical).
+- amd-5 CLAIM (2026-11-14): dx2 ja ee0b468e (76.3), 4fbb6e32 (82.1, pages 2/1), 28abf02c (89.7), c67f3706 (91.1); xb jpn 12d9fb (92.8). 6fca0f amd-3, 934bd3e5 lenovo-5.
