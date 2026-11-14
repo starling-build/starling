@@ -479,6 +479,11 @@ extension RichLayout {
         var sub = RichDocument(paragraphs: paragraphs.isEmpty ? [RichParagraph()] : paragraphs)
         sub.styles = document.styles
         sub.fontUsb0 = document.fontUsb0
+        // (The font table too: a note whose face the table names must not read as a face Word lacks, now that the file flag reaches it; dx2-class xd 4fabe1f2's Hamchorom footnotes.)
+        sub.fontCharsets = document.fontCharsets
+        sub.fontAlternates = document.fontAlternates
+        sub.hasIndicText = document.hasIndicText
+        sub.devanagariFirstRunMangal = document.devanagariFirstRunMangal
         // (A page break inside a note starts nothing new — the note is one
         // paragraph to Word, its line following at a line's pitch, none of
         // the paragraph's space between: lo-ccca8bf3's second endnote sets
@@ -518,6 +523,7 @@ extension RichLayout {
         sub.defaultLangXML = document.defaultLangXML
         sub.htmlAutoSpacing = document.htmlAutoSpacing
         sub.defaultTabStop = document.defaultTabStop
+        sub.readFromFile = document.readFromFile
         let layout = RichLayout(theme: theme, paragraphCount: sub.paragraphs.count)
         layout.scale = scale
         layout.width = max(1, width)
