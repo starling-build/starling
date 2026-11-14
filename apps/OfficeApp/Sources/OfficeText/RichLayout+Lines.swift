@@ -43,6 +43,7 @@ extension RichLayout {
         // on the fallback's height, 18.4pt to Word's 16.0 in fas-z22973278.)
         var marksToo = false
         var bidi = false
+        var labelsSeen = Set<String>()
         // (A run moved off the baseline whose line is taller than the held one: a ruby's base on a line
         // grid, which asks its line for two pitches. A strut would hold the line at one: flt1-1-asis's
         // wrapped "かえてくれる" paragraph came out 18 pt short.)
@@ -60,6 +61,12 @@ extension RichLayout {
             if let text = t.text, text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value < 0xA00 }) { bengaliSeen = true }
             if !shiftedToo, let st = t.style, st.baselineShift != nil, let sz = st.fontSize, let hh = st.height, sz > 0.5 { tallShifted = max(tallShifted, sz * hh) }
             if let text = t.text, text.unicodeScalars.contains(where: { ($0.value >= 0x0590 && $0.value <= 0x08FF) || ($0.value >= 0xFB1D && $0.value <= 0xFEFF) }) { bidi = true }
+            // (Spaces and letters name the face; a lone mark such as « or » in the Latin theme face does not.)
+            if let text = t.text, text.contains(where: { $0.isLetter || $0.isNumber || $0.isWhitespace }) {
+                var l = t.style?.debugLabel?.trimmingWhitespace().lowercased() ?? ""
+                while l.hasSuffix(".copywith") { l = String(l.dropLast(9)) }
+                labelsSeen.insert(String(l.filter { $0 != "(" && $0 != ")" }))
+            }
             if let text = t.text, marksToo, !text.contains(where: { $0.isLetter || $0.isNumber }) {
                 for c in t.children ?? [] { visit(c) }
                 return
@@ -86,11 +93,16 @@ extension RichLayout {
         if !uniform, bidi, theme.wordRules, RichTextTheme.wordWindowsPages {
             // Only a paragraph that has Arabic or Hebrew in it, and only where it had no strut.
             marksToo = true; uniform = true; first = nil; count = 0; share = [:]; near = false
+            labelsSeen = []
             visit(span)
             // (Held to a face named Arial only: fas-z15800253's B Zar, a face Word has not got, is 1.22 em
             // in its print — the Latin theme face's — and Arial's 1.15 made it 17.4 for 18.4. The name is the
             // authored one, debugLabel; the family is the stand-in's, Arial for B Zar too.)
-            if first?.debugLabel?.trimmingWhitespace().lowercased() != "arial" { uniform = false }
+            // (Or a name Word has not got that it sets in Arial (B Nazanin: fc332781, Arial's text and its 1.15 line
+            // at 14pt x 1.5 = 24.15, where the Noto fallback's glyphs ran the lines 28 high) when every run of the
+            // paragraph, spaces too, is that one name: no Latin theme face beside it to set the line.)
+            if first?.debugLabel?.trimmingWhitespace().lowercased() != "arial",
+               !(first?.fontFamily?.lowercased() == "arial" && labelsSeen.count == 1) { uniform = false }
         }
         if count == 0, uniform { blanksToo = true; visit(span) }
         if count == 0, uniform { shiftedToo = true; visit(span) }
