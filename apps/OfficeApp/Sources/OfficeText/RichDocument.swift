@@ -724,6 +724,10 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// The paragraph opens with a line break that clears the floats (`w:br w:clear`), right after
     /// a table floating over the text: the text stands under the table, not in the room beside it.
     public var clearsFloat = false
+    /// The paragraph's first line holds only anchored objects and ends in a line break that clears
+    /// (`w:br w:clear="all"`): the text after it stands under the objects. (Word's print of xd 07356df9:
+    /// "Source" under its figure, not in the room beside it.)
+    public var clearsFirstLine = false
     /// A page break character opened this paragraph in a table cell, where
     /// Word sets no break (the reader drops it) but, from 2013's layout,
     /// takes the paragraph's space before off: zh-ab9cbe66.

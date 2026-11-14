@@ -3873,8 +3873,18 @@ extension RichLayout {
                 if theme.wordRules, image.float == nil, let box = image.textBox, box.fitsHeight, let inside = _textBox(image, document) {
                     h = inside.layout.totalHeight + _px(box.insetTop + box.insetBottom)
                 }
+                var clearLift = false
                 // (A floating object takes no room in the line.)
-                if theme.wordRules, let float = image.float, !float.takesRoom { w = 0; h = 0 }
+                if theme.wordRules, let float = image.float, !float.takesRoom { w = 0; h = 0
+                    // (The first line, which ends in a line break that clears, is as tall as the floats reach: Word's
+                    // print of xd 07356df9, "Source" at the foot of its figure, 0 pt of distance under it.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.clearsFirstLine, float.wraps, float.verticalFrom == "paragraph",
+                       float.verticalAlign == "top" || float.verticalAlign == nil {
+                        h = (float.verticalAlign == nil ? _px(float.y) : 0) + _px(image.height + float.effectBottom + float.distanceBottom)
+                        clearLift = true
+                        RuleTrace.hit("word-line-after-a-clearing-break-stands-under-the-floats")
+                    }
+                }
                 // (With its character border and effects round it.)
                 if theme.wordRules, image.float == nil {
                     let room = _pictureRoom(image)
@@ -3936,7 +3946,7 @@ extension RichLayout {
                 let middle: Double? = centred ? p.runs.first(where: { $0.length > 0 && $0.style.inlineImage == nil }).flatMap { r in
                     theme.lineMiddle(for: r.style, named: named, eastAsian: p.text.contains { Self.isEastAsian($0, hinted: false) })
                 } : nil
-                let alignment = centred && middle == nil ? PlaceholderAlignment.middle : PlaceholderAlignment.baseline
+                let alignment = clearLift ? PlaceholderAlignment.top : centred && middle == nil ? PlaceholderAlignment.middle : PlaceholderAlignment.baseline
                 // (And its line as tall as its run's text: Word's line that
                 // holds a picture alone is a line of that text at least —
                 // drawing.docx's mastheads, tiny pictures between line

@@ -6135,6 +6135,7 @@ enum DocxFormat {
 
         var built: [_Built] = []
         var text = ""
+        var clearsFirstLine = false
         var bookmarkMarkers: [RichBookmarkMarker] = []
         var runs: [Run] = []
         var positionalTabs: [Int: TabStop.Alignment] = [:]
@@ -6172,6 +6173,8 @@ enum DocxFormat {
                 para.inlineImages = inlineImages
             }
             para.style.positionalTabs = positionalTabs
+            para.style.clearsFirstLine = clearsFirstLine
+            clearsFirstLine = false
             para.style.continuesParagraph = splitBefore
             splitBefore = false
             para.normalize()
@@ -7296,7 +7299,13 @@ enum DocxFormat {
                         built[built.count - 1].breakCharacter = true; built[built.count - 1].breakRPr = runPropertiesXML
                         built[built.count - 1].breakColumn = true
                         splitBefore = true
-                    } else { addText("\n", cs) }
+                    } else {
+                        // (A clearing break right after the objects that open the paragraph: see `clearsFirstLine`.)
+                        if Self.wordOnWindows, child["w:clear"] == "all", (child["w:type"] ?? "textWrapping") == "textWrapping",
+                           !text.isEmpty, text.allSatisfy({ String($0) == RichParagraph.inlineImageCharacter }),
+                           inlineImages.values.allSatisfy({ $0.float != nil }) { clearsFirstLine = true }
+                        addText("\n", cs)
+                    }
                 case "w:noBreakHyphen": addText("\u{2011}", cs)
                 case "w:softHyphen": addText("\u{00AD}", cs)
                 case "w:ruby":
