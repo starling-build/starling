@@ -248,11 +248,11 @@ enum WriterMath {
         }
 
         /// A string set as one piece, its baseline at the box's.
-        /// (A display equation's letters reserve Cambria Math's 0.95 em above and 0.22 em under the baseline,
-        /// not the fallback face's own, taller lines: jpn-z22855378-6fca0f p8's equation is 20.5 over / 10.7 under
+        /// (Not clamped to Cambria Math's 0.95 em / 0.22 em: that made xb fra-g255-612f49, xd 0810551f and zh-db07d44e
+        /// lower and gained nothing; was tried for jpn-z22855378-6fca0f p8's equation is 20.5 over / 10.7 under
         /// at 12pt in Word's print, 25.3 / 14.0 in ours.)
         func cam(_ v: Double, _ size: Double, _ em: Double) -> Double {
-            RichTextTheme.wordWindowsPages && !inlineText ? min(v, size * em) : v
+            v
         }
 
         func text(_ s: String, size: Double, italic: Bool, family: RichResolvedFace? = nil) -> Box {
