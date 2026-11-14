@@ -698,6 +698,7 @@ extension RichLayout {
             return false
         }
         var splittingVariation = false
+        var splittingSpaces = false
         func styled(_ rawText: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil, symbolsShown: Bool = false) -> [TextSpan] {
             // (U+FE0F after a text-style emoji draws it in colour, U+FE0E after a colour one as an outline: each such
             // pair is a piece of its own, in its own face.)
@@ -715,6 +716,20 @@ extension RichLayout {
                     at += piece.text.utf16.count
                 }
                 return out
+            }
+            // (Spaces that lead a run of brackets or marks, in a missing Bengali face (Nikosh, SolaimanLipi) inside a Bengali paragraph, are a piece of their own: Word
+            // draws them in Mangal without raising the line, while the bracket after them does; dx2 2263e221's " (" wrapped after its space, 16.4 pt line pitch in Word, 18.4 in ours.)
+            if !splittingSpaces, rawText.count > 1, rawText.first == " ", let cut = rawText.firstIndex(where: { $0 != " " }),
+               !rawText[cut...].unicodeScalars.contains(where: { $0.value >= 0x80 || $0.properties.isAlphabetic || $0.properties.numericType != nil }),
+               theme.wordRules, RichTextTheme.wordWindowsPages,
+               Self._missingBengaliSpaceEm(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "") != nil,
+               p.text.unicodeScalars.contains(where: { $0.properties.isAlphabetic && $0.value >= 0x980 && $0.value <= 0x9FF }) {
+                splittingSpaces = true
+                defer { splittingSpaces = false }
+                let n = rawText.distance(from: rawText.startIndex, to: cut)
+                RuleTrace.hit("word-spaces-before-a-bracket-in-a-missing-bengali-face-are-their-own-piece")
+                return styled(rawText[rawText.startIndex ..< cut], run, at: base, next: rawText[cut], symbolsShown: symbolsShown)
+                    + styled(rawText[cut...], run, at: base + n, next: next, symbolsShown: symbolsShown)
             }
             // (A run marked right-to-left in a left-to-right paragraph is an
             // embedding of its own: the one neutral mark that ends its Latin

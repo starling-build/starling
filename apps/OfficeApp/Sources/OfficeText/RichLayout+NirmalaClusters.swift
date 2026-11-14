@@ -9,7 +9,8 @@
 // Clusters the table lacks keep the stand-in's width times the flat scale (`_indicScale["nirmala ui"]`), as Kokila's do.
 
 enum NirmalaAdvances {
-    static func table(bold: Bool) -> [String: Double] { bold ? Self.boldTable : regular }
+    static func table(bold: Bool) -> [String: Double] { bold ? Self.boldAll : regular }
+    static let boldAll: [String: Double] = Self.boldTable.merging(Self.boldBengali) { a, _ in a }
 
     // (Bold, read directly from Word's NirmalaUI-Bold glyph origins in the dx2/xb/xd prints, test/tools/indic-cluster-direct.py NirmalaUI-Bold: cluster origin to next cluster origin, median of 3+ samples, sd <= 0.02 em. Bold runs ran 1-15% wider than regular per cluster, not a flat ratio.)
     static let boldTable: [String: Double] = [
