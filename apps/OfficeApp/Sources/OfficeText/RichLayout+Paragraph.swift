@@ -2918,7 +2918,7 @@ extension RichLayout {
         // letter is the strut's two pitches (36). The text stays centred in its box, as in the strut's. Lab head2line
         // (Word for Windows, xb jpn 6fca0f's heading): the Latin-only second line is 27.00 at 14 and 11 pt, bold or not,
         // with the baseline 18.60 / 17.52 down it; with two kana added it is 36.02.)
-        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, !style.rightToLeft, _columns <= 1, inline.isEmpty,
+        if theme.wordRules, RichTextTheme.wordWindowsPages, document.usesEastAsianLayout, p.cell == nil, !style.rightToLeft, _columns <= 1, inline.isEmpty,
            style.lineSpacing > 1.001, style.lineHeightPoints == nil, !_offGrid(i, document), let pitch = _grid(i, document).pitch,
            let strut = painter.strutStyle, strut.forceStrutHeight == true, let strutSize = strut.fontSize,
            keepClear == nil, besideLineIndents.isEmpty, Self._paired(painter) == nil {
