@@ -1752,8 +1752,8 @@ extension RichLayout {
                 if _behindDrawn.contains("\(image.id)") { continue }
                 // (An equation on a line the 1.5-spacing rule moved down goes down with the line's text:
                 // jpn-z22855378-6fca0f's 'Δx≫σ' stood 9.6pt above its text's baseline.)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, image.float == nil, image.name == "m:oMath",
-                   let pair = Self._paired(g.painter) {
+                if theme.wordRules, RichTextTheme.wordWindowsPages, image.float == nil,
+                   let pair = Self._paired(g.painter), image.name == "m:oMath" || pair.objects {
                     let raw = Self._rawLineBottoms(g.painter), mid = box.toRect().top + box.toRect().height / 2
                     if pair.shifts.count == raw.count, let line = raw.firstIndex(where: { mid < $0 }) {
                         rect = rect.shift(Offset(0, pair.shifts[line]))

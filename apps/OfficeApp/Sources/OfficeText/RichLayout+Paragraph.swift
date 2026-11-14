@@ -3097,6 +3097,75 @@ extension RichLayout {
                 }
             }
         }
+        // (A line with an inline picture or object in a paragraph spaced over single, in Word for Windows: the line is the tallest
+        // thing above the baseline (the text's ascent or the object's top) plus the deepest below it (the text's descent or the
+        // object's foot), plus the multiple's extra, (multiple - 1) times the TEXT's single line, all of it below. Lab `lowered`
+        // (Word print, 26 variants of position -12 to +6 half-points, heights 9 to 30, Times and Arial 8 to 14, lines 240 to 360,
+        // objects and drawings alike): pitches 19.9 / 21.2 / 22.3 / 25.3 for an 18pt object 6 down to 3 up in 11pt Times at 276,
+        // 18.2 for a 9pt one, 24.3 at 360, 18.0 at 240; to 0.1pt. Not tied to the object being lowered.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, _columns <= 1,
+           style.lineHeightPoints == nil, case let multiple = style.lineSpacing - theme.lineSpacingReduction, multiple > 1.001,
+           besideLineIndents.isEmpty, keepClear == nil, Self._paired(painter) == nil,
+           p.text.contains(where: { !$0.isWhitespace && $0 != "\u{FFFC}" }),
+           let boxes = painter.inlinePlaceholderBoxes, boxes.count == inline.count, !boxes.isEmpty,
+           let root = painter.text as? TextSpan {
+            func firstTextStyle(_ span: TextSpan, _ inherited: Flutter.TextStyle) -> Flutter.TextStyle? {
+                let own = inherited.merge(span.style)
+                if let tx = span.text, tx.contains(where: { !$0.isWhitespace && $0 != "\u{FFFC}" }) { return own }
+                for c in span.children ?? [] {
+                    if let t = c as? TextSpan, let found = firstTextStyle(t, own) { return found }
+                }
+                return nil
+            }
+            let textStyle = firstTextStyle(root, Flutter.TextStyle())
+            let bottoms = Self._rawLineBottoms(painter)
+            let metrics = painter.computeLineMetrics()
+            if let textStyle, metrics.count == bottoms.count {
+                let probe = TextPainter(text: TextSpan(text: "x", style: textStyle), textDirection: .ltr)
+                probe.layout(minWidth: 0, maxWidth: 10000)
+                let own = probe.computeLineMetrics().first
+                probe.dispose()
+                if let own, own.height > 0.5 {
+                    // (the probe carries the paragraph's own multiple in its style: undo it)
+                    let single = own.height / multiple, desc = own.descent / multiple
+                    var above = [Double](repeating: -1, count: bottoms.count), below = above
+                    var shiftsOwn = [Double](repeating: 0, count: bottoms.count)
+                    for (k, box) in boxes.enumerated() {
+                        guard inline[k].image != nil, inline[k].image?.float == nil, inline[k].image?.textBox == nil,
+                              inline[k].image?.name != "m:oMath", let img = inline[k].image else { continue }
+                        // (Only an object the run raises or lowers: a plain picture at position 0 keeps the multiple on the text,
+                        // a8f4dfcd's 20pt icons in 1.5 Tahoma 12 pitch as text lines in Word's print.)
+                        let pos = p.runs.first(where: { $0.style.inlineImage == img.id }).flatMap { $0.style.raised } ?? Self._runPosition(img.sourceRunPropertiesXML) ?? 0
+                        guard abs(pos) > 0.01 else { continue }
+                        let r = box.toRect()
+                        let mid = r.top + r.height / 2
+                        guard let line = bottoms.firstIndex(where: { mid < $0 }) else { continue }
+                        above[line] = max(above[line], metrics[line].baseline - r.top)
+                        below[line] = max(below[line], r.bottom - metrics[line].baseline)
+                    }
+                    var extra = [Double](repeating: 0, count: bottoms.count)
+                    for line in 0 ..< bottoms.count where above[line] >= 0 {
+                        let before = line == 0 ? 0 : bottoms[line - 1], advance = bottoms[line] - before
+                        let target = max(single - desc, above[line]) + max(desc, below[line]) + (multiple - 1) * single
+                        extra[line] = target - advance
+                        // (Where the growth sits: the object's top pushes THIS line's own baseline down, its foot adds below it. Word's
+                        // print of 1d944f7b: pitches 24.0 into the object's line and 23.1 out of it, 2.6 + 6.9 + 14.4 and 5 + 6.9 + 11.2.)
+                        let want = own.baseline + max(0, above[line] - (single - desc))
+                        shiftsOwn[line] = min(max(0, want - (metrics[line].baseline - before)), max(0, extra[line]))
+                    }
+                    if extra.contains(where: { abs($0) > 0.05 }) {
+                        RuleTrace.hit("word-a-line-with-an-object-is-its-tallest-and-deepest-plus-the-multiples-extra-below")
+                        var shifts = [Double](repeating: 0, count: bottoms.count)
+                        var acc = 0.0
+                        for k in 0 ..< bottoms.count {
+                            shifts[k] = acc + shiftsOwn[k]
+                            acc += extra[k]
+                        }
+                        Self._pairedLines[ObjectIdentifier(painter)] = _PairedLines(painter: painter, shifts: shifts, saving: -acc, objects: true)
+                    }
+                }
+            }
+        }
         if (besideLeftRoom != nil && !besideLineIndents.isEmpty) || keepClear != nil {
             Self._registerPairs(painter, besideLeftRoom != nil ? besideLineIndents : [], push: keepClear)
         }

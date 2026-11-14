@@ -1775,7 +1775,7 @@ public final class RichLayout {
     /// is moved up (a right piece stands level with the left piece before
     /// it, and the lines after the pair stand as if it took no room) and the
     /// height all the right pieces give back.
-    struct _PairedLines { weak var painter: TextPainter?; var shifts: [Double]; var saving: Double }
+    struct _PairedLines { weak var painter: TextPainter?; var shifts: [Double]; var saving: Double; var objects = false }
 
     /// Between a paragraph's offsets and its painter's. The painter's
     /// text is the paragraph's with, at most, a box before it (the first
