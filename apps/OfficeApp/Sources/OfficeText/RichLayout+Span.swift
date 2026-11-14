@@ -3186,6 +3186,8 @@ extension RichLayout {
                     // lowered text keeps them: zh-27083953's "PM₂.₅为", "O₃为".)
                     let nextAt = offset + ch.utf16.count
                     let besideRaised = theme.wordRules && ((offset < raised.count && raised[offset]) || (nextAt < raised.count && raised[nextAt]))
+                    // (That holds for DIGITS only: a run of Latin LETTERS with eastAsia "Times New Roman" keeps its space beside
+                    // Hangul or kana in Word's print: dx2 ko 43e0fe21 "저희는ACECQA와", xd 03cd29dc "K 리그", xb jpn-z17350624 "AI と".)
                     // (Not where the Latin character's run names a Latin face for East Asian text, in Word for
                     // Windows: zh-cd48112c's digit runs say eastAsia "Times New Roman", and its print has no space
                     // either side of 138 digits; zh-a0e932c2's say 宋体, and it has its 5.3 at 39.)
@@ -3196,7 +3198,7 @@ extension RichLayout {
                     // zh-a0e932c2's gaps of 5.3 are its typed spaces.)
                     if theme.wordRules, document.usesEastAsianLayout || (document.autoSpacesWithoutFELayout && document.eastAsianLineRules && (document.defaultLangXML?.containsSubstring("w:eastAsia=\"") == true || ((document.compatibilityMode ?? 15) < 15)) && RichTextTheme.wordWindowsPages), !besideRaised, !(RichTextTheme.wordWindowsPages && document.skipsAutoSpace), Self._autoSpaced(ch, following, p.style, compat: document.compatibilityMode ?? 12),
                        !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin),
-                       !(RichTextTheme.wordWindowsPages && eastAsianFaceIsLatin(atOffset: (ch.unicodeScalars.first?.value ?? 0) >= 0x2E80 ? nextAt : offset)) {
+                       !(RichTextTheme.wordWindowsPages && ((ch.unicodeScalars.first?.value ?? 0) >= 0x2E80 ? following : ch).isNumber && eastAsianFaceIsLatin(atOffset: (ch.unicodeScalars.first?.value ?? 0) >= 0x2E80 ? nextAt : offset)) {
                         let latin = run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily
                         // (Of the grid's character, where there is a grid
                         // of them, and of the run's spacing with it; a
