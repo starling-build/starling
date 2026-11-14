@@ -2391,7 +2391,11 @@ extension RichLayout {
             if !mixedSizes, onFirst.count == 1, later.isSubset(of: onFirst), theme.wordRules, RichTextTheme.wordWindowsPages {
                 let metrics = painter.computeLineMetrics()
                 if metrics.count > 1, metrics.contains(where: { abs($0.ascent - metrics[0].ascent) > _px(0.05) }),
-                   Set(p.runs.filter { $0.length > 0 }.map { $0.style.fontFamily ?? "" }).count > 1 {
+                   Set(p.runs.filter { $0.length > 0 }.map { $0.style.fontFamily ?? "" }).count > 1
+                    // (… or runs of one face of which some hold East Asian text and some none, whose
+                    // lines the engine sets by different heights: f8ff8a48's Han title over a Latin
+                    // address after a line break stood 3.7pt low.)
+                    || _holdsEastAsianAndLatinRuns(p, document: document) {
                     RuleTrace.hit("zh-51af781b-faces-of-one-size-put-the-extra-under-the-tallest-face")
                     mixedSizes = true
                 }

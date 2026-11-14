@@ -4200,6 +4200,22 @@ extension RichLayout {
         _setsNoLine(ch) || ch == "\t" || (RichTextTheme.wordWindowsPages && (ch.unicodeScalars.count == 1 && [0x2002, 0x2003, 0x2005].contains(ch.unicodeScalars.first!.value)))
     }
 
+    /// Whether some runs of `p` hold East Asian text and others only Latin (white space aside).
+    func _holdsEastAsianAndLatinRuns(_ p: RichParagraph, document: RichDocument) -> Bool {
+        var ea = false, latin = false, at = 0
+        let named = _named(p, document)
+        for run in p.runs where run.length > 0 {
+            let a = p.text.utf16.index(p.text.utf16.startIndex, offsetBy: min(at, p.text.utf16.count))
+            let b = p.text.utf16.index(a, offsetBy: min(run.length, p.text.utf16.count - min(at, p.text.utf16.count)))
+            at += run.length
+            let hinted = (run.style.fontHint ?? named?.char.fontHint) == "eastAsia"
+            let chars = p.text[a ..< b].filter { !Self._setsNoLine($0) }
+            if chars.isEmpty { continue }
+            if chars.contains(where: { Self.isEastAsian($0, hinted: hinted) }) { ea = true } else { latin = true }
+        }
+        return ea && latin
+    }
+
     static func _setsNoLine(_ ch: Character) -> Bool {
         // (The bidirectional controls a right-to-left run is wrapped in set none either: lo tdf163575's
         // headings end in a 20pt right-to-left space, and Word sets their lines by the 15pt text.)
