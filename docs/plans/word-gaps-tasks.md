@@ -16857,3 +16857,8 @@ lenovo-3 HANDOFF (2026-11-14): queued -153 (DOCS 944544,bae91d,a6e54c,e040af). R
   - Tried: re-add the offset after that newPage (y = floatDrop). Table is then right (126), but the anchor paragraph lands under the table at the page foot and the other two empties spill (31pt each), so pages 4-6 shift and the doc goes 6 to 7 pages, matched 58 to 29. So the offset alone is wrong; the anchor paragraph must go to the page top BEFORE the table (table at its top + offset, later empties after the table end). Not tried: placing the anchor paragraph (blank, jc=both, first non-cell paragraph after the table) at y=0 on the new page, then the table at its offset, then continue after the table.
   - Debug: OFFICE_RULE_TRACE; per-paragraph pageY printout at table starts (DBGE) showed para 34 at page 3 y 8378, 35 at page 4 y 0, 36 at 624 (each empty line is 624 twips).
 - Traps: each release build 5-6.5 min; `{ ...; newPage() }()` closures compile fine for debug.
+
+### HANDOFF amd-5 (2026-11-14): comment-reference balloon split
+- Submitted amd-5-166: deletions split by a comment reference are separate balloons; deleted mark after a comment ref is its own balloon. 1e9281 and ec6c96 409→418/427, ee9f8f 526→543/598, gv-d4270b921d +2, gv-ccf7f258bf 169→168 (doc already a page off). Unit tests 655/0.
+- Left: balloon baselines on 1e9281/ec6c96 p10 sit 4-15 pt above Word's; Word keeps a space in "p.39 にも". dx4j-0c0fa3f688/9d80c52789 differ in bytes, not scored.
+- Next: next-lowest jpn xb docs (771abc waits on heading spacing).
