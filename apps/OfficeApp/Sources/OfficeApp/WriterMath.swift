@@ -224,13 +224,31 @@ enum WriterMath {
             // Caladea's run took DejaVu's taller ascent and descent, and lo-4aa628bd's row
             // was 2pt taller than Word's, its σ 1.7pt low.)
             var fa = m?.ascent ?? size * 0.8, fd = m?.descent ?? size * 0.2
-            if text.unicodeScalars.contains(where: { $0.value > 0x24F }) {
-                let ref = TextPainter(text: TextSpan(text: "x", style: TextStyle(color: color, fontSize: size, fontStyle: italic ? .italic : .normal,
+            // A mathematical-bold letter or digit (m:sty b/bi) is the same letter set bold: Word's print of
+            // lab bold-math-lab puts its fraction, scripts and baseline exactly where the regular letters'
+            // are. Its box takes the height of the plain ASCII text, not of the fallback face holding the glyph.
+            func plain(_ sc: Unicode.Scalar) -> Unicode.Scalar? {
+                let v = sc.value
+                switch v {
+                case 0x1D400 ... 0x1D433: let o = v - 0x1D400; return Unicode.Scalar(o < 26 ? 0x41 + o : 0x61 + o - 26)
+                case 0x1D468 ... 0x1D49B: let o = v - 0x1D468; return Unicode.Scalar(o < 26 ? 0x41 + o : 0x61 + o - 26)
+                case 0x1D7CE ... 0x1D7FF: return Unicode.Scalar(0x30 + (v - 0x1D7CE) % 10)
+                default: return nil
+                }
+            }
+            let hasBoldAlnum = text.unicodeScalars.contains { plain($0) != nil }
+            let onlyBoldAlnum = !text.unicodeScalars.contains { $0.value > 0x24F && plain($0) == nil }
+            if hasBoldAlnum || text.unicodeScalars.contains(where: { $0.value > 0x24F }) {
+                var u = String.UnicodeScalarView()
+                for sc in text.unicodeScalars { u.append(plain(sc) ?? (sc.value > 0x24F ? "x" : sc)) }
+                let ref = TextPainter(text: TextSpan(text: String(u), style: TextStyle(color: color, fontSize: size, fontStyle: italic ? .italic : .normal,
                                                                                  height: height, fontFamily: family ?? WriterMath.family,
                                                                                  fontFamilyFallback: WriterMath.fallback + RichTextTheme.glyphFallback)),
                                       textDirection: .ltr)
                 ref.layout(minWidth: 0, maxWidth: .infinity)
-                if let r = ref.computeLineMetrics().first { fa = min(fa, r.ascent); fd = min(fd, r.descent) }
+                if let r = ref.computeLineMetrics().first {
+                    if onlyBoldAlnum && hasBoldAlnum { fa = r.ascent; fd = r.descent } else { fa = min(fa, r.ascent); fd = min(fd, r.descent) }
+                }
             }
             ascent = fa
             descent = fd
@@ -275,10 +293,13 @@ enum WriterMath {
                     }
                 }))
                 italic = false
-                // Each letter stands at Cambria Math's advance, not the fallback face's own.
+            }
+            // Each math-alphanumeric letter stands at Cambria Math's advance, not the fallback face's own
+            // (the bold ones too: Word's bold-italic ψ(x) is 10.9pt, DejaVu's 14).
+            if RichTextTheme.wordWindowsPages, !italic, s.unicodeScalars.allSatisfy({ !$0.isASCII && $0.value >= 0x1D400 }) {
                 let adv = OfficeFonts.cambriaMathAdvances
                 let glyphs = s.unicodeScalars.map { String($0) }
-                if !s.unicodeScalars.contains(where: { $0.isASCII }), s.unicodeScalars.allSatisfy({ adv[$0.value] != nil }) {
+                if s.unicodeScalars.allSatisfy({ adv[$0.value] != nil }) {
                     let ps = glyphs.map { Painter($0, size: size, italic: false, color: ink, family: family?.family, height: family?.naturalHeight) }
                     var xs: [Double] = [], x = 0.0
                     for u in s.unicodeScalars { xs.append(x); x += adv[u.value]! * size }
@@ -324,6 +345,26 @@ enum WriterMath {
             r.first("w:rPr")?.first("w:rFonts")?["w:eastAsia"].flatMap { OfficeFonts.face($0, eastAsian: true) }
         }
         func wide(_ s: String) -> Bool { s.unicodeScalars.contains { $0.value >= 0x2E80 } }
+        /// A bold run's letters and digits as Word prints them: the mathematical bold
+        /// code points (m:sty "b" upright, "bi" italic; Word's print of jpn-z22855378-6fca0f
+        /// page 5 shows 𝑾(𝒙), 𝐞𝐱𝐩, 𝟏, 𝝈). Only on Windows pages, where the table has them.
+        func boldText(_ s: String, _ r: XNode) -> String {
+            guard RichTextTheme.wordWindowsPages, let sty = r.first("m:rPr")?.first("m:sty")?["m:val"], sty == "b" || sty == "bi" else { return s }
+            let it = sty == "bi"
+            return String(String.UnicodeScalarView(s.unicodeScalars.map { u -> Unicode.Scalar in
+                let v = u.value
+                let m: UInt32
+                switch v {
+                case 0x41 ... 0x5A: m = (it ? 0x1D468 : 0x1D400) + v - 0x41
+                case 0x61 ... 0x7A: m = (it ? 0x1D482 : 0x1D41A) + v - 0x61
+                case 0x30 ... 0x39: m = 0x1D7CE + v - 0x30
+                case 0x391 ... 0x3A9 where v != 0x3A2: m = (it ? 0x1D71C : 0x1D6A8) + v - 0x391
+                case 0x3B1 ... 0x3C9: m = (it ? 0x1D736 : 0x1D6C2) + v - 0x3B1
+                default: return u
+                }
+                return Unicode.Scalar(m) ?? u
+            }))
+        }
 
         /// A run's text: letters italic unless the run is plain
         /// (`m:sty p`, `m:nor`), operators spaced as Word sets them.
@@ -339,7 +380,7 @@ enum WriterMath {
             var pieceItalic = false
             let ea = eastAsianFamily(r)
             func flush() {
-                if !piece.isEmpty { parts.append(text(piece, size: own, italic: pieceItalic, family: wide(piece) ? ea : nil)) }
+                if !piece.isEmpty { parts.append(text(boldText(piece, r), size: own, italic: pieceItalic && boldText(piece, r) == piece, family: wide(piece) ? ea : nil)) }
                 piece = ""
             }
             var firstChar = true
@@ -427,7 +468,7 @@ enum WriterMath {
             var pieceItalic = false
             var opens = false
             let ea = eastAsianFamily(r)
-            func flush() { if !piece.isEmpty { parts.append(text(piece, size: own, italic: pieceItalic, family: wide(piece) ? ea : nil)) }; piece = "" }
+            func flush() { if !piece.isEmpty { parts.append(text(boldText(piece, r), size: own, italic: pieceItalic && boldText(piece, r) == piece, family: wide(piece) ? ea : nil)) }; piece = "" }
             func close() { flush(); if !parts.isEmpty { out.append((hbox(parts), opens)) }; parts = []; opens = false }
             for ch in s {
                 if "=+−-±×÷<>≤≥≈≠∓→←⇒∈∉⊂⊃∪∩".contains(ch) {
@@ -720,6 +761,7 @@ enum WriterMath {
             // the next size variant of the parenthesis that is at least 0.9 of the body's ink on both sides of the axis;
             // the variant heights are the font's MATH table advanceMeasurements /2048 (lab cambria-math), jpn-z22855378-6fca0f
             // p8: 1.976 em round fractions at 14pt, 2.55 and 2.956 em at 12pt.)
+            var fenceAdvance: Double? = nil
             if RichTextTheme.wordWindowsPages, !inlineText {
                 let axis = s * 0.286
                 let ink = 2 * max(body.iu - axis, body.idn + axis)
@@ -727,6 +769,11 @@ enum WriterMath {
                     let steps = [1898.0, 2475, 3379, 4047, 5223, 6053, 7613, 8881].map { $0 / 2048 }
                     let h = (steps.first { $0 * s >= 0.9 * ink } ?? steps.last!) * s
                     tall = h / 0.853
+                    // (The variant's own advance, from the font's hmtx: 850, 1012 and 1175 /2048 em for the first, fourth and fifth;
+                    // the others read 0 in the file we have, so they take the nearest known one.)
+                    let adv = [850.0, 850, 1012, 1012, 1175, 1175, 1175, 1175]
+                    let k = steps.firstIndex { $0 * s >= 0.9 * ink } ?? steps.count - 1
+                    fenceAdvance = adv[k] / 2048 * s
                 }
             }
             func fence(_ c: String) -> Box {
@@ -738,7 +785,7 @@ enum WriterMath {
                 // (A stretched bracket reserves its ink, not its whole font line: the line under a display
                 // equation was 11-15 pt too tall in jpn-z22855378-6fca0f p8.)
                 guard RichTextTheme.wordWindowsPages, !inlineText else { return r }
-                return Box(width: r.width, ascent: min(r.ascent, body.ascent + s * 0.1), descent: min(r.descent, body.descent + s * 0.1), draw: r.draw)
+                return Box(width: fenceAdvance ?? r.width, ascent: min(r.ascent, body.ascent + s * 0.1), descent: min(r.descent, body.descent + s * 0.1), draw: r.draw)
             }
             return hbox([fence(beg), body, fence(end)])
         }
