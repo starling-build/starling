@@ -4389,7 +4389,7 @@ enum DocxFormat {
     /// its text in that: zh-6e6b9821's flowchart "preparation" hexagon
     /// (`_x0000_t117`, 4353 to 17214 of 21600 across) has its text at
     /// 217pt in Word's print, 50pt in from the box's edge.
-    static func _vmlTextPlaces(_ group: XNode, types: [XNode] = []) -> [(content: XNode, place: Rect, atFoot: Bool)] {
+    static func _vmlTextPlaces(_ group: XNode, types: [XNode] = []) -> [(content: XNode, place: Rect, atFoot: Bool, inMiddle: Bool)] {
         func style(_ n: XNode) -> [String: String] {
             var out: [String: String] = [:]
             for pair in (n["style"] ?? "").split(separator: ";") {
@@ -4404,7 +4404,7 @@ enum DocxFormat {
         }
         let g = style(group)
         guard let gw = g["width"].flatMap(_length), let gh = g["height"].flatMap(_length), gw > 0, gh > 0 else { return [] }
-        var out: [(content: XNode, place: Rect, atFoot: Bool)] = []
+        var out: [(content: XNode, place: Rect, atFoot: Bool, inMiddle: Bool)] = []
         // A group's children in its own coordinates → points in the outermost.
         let topGroup = group
         func walk(_ group: XNode, _ map: @escaping (Rect) -> Rect) {
@@ -4443,7 +4443,7 @@ enum DocxFormat {
                         }
                     }
                     out.append((content, Rect.fromLTRB(r.left + at(0, 7.2), r.top + at(1, 3.6), r.right - at(2, 7.2), r.bottom - at(3, 3.6)),
-                                sh["v-text-anchor"]?.hasPrefix("bottom") == true))
+                                sh["v-text-anchor"]?.hasPrefix("bottom") == true, sh["v-text-anchor"]?.hasPrefix("middle") == true))
                 }
             }
         }
@@ -6582,7 +6582,7 @@ enum DocxFormat {
                             if let own = inside[q].style.listIndentLeft ?? Self._levelLeft(inside[q].style, notes) { inside[q].style.listIndentLeft = own + b.place.left }
                             inside[q].style.indentRight += max(0, att.width - b.place.right)
                         }
-                        parts.append(RichTextBox.Part(first: first, top: b.place.top, height: max(0, b.place.height), atFoot: b.atFoot))
+                        parts.append(RichTextBox.Part(first: first, top: b.place.top, height: max(0, b.place.height), atFoot: b.atFoot, inMiddle: b.inMiddle))
                     }
                 }
                 notes.inTextBox = false
