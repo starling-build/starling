@@ -531,6 +531,13 @@ struct PdfMarkup {
         let oldLeft = twips(["w:left", "w:start"]), oldRight = twips(["w:right", "w:end"])
         if abs(style.indentLeft - oldLeft) > 0.01 { said.append("Left: " + inches(style.indentLeft)) }
         if abs(style.indentRight - oldRight) > 0.01 { said.append("Right: " + inches(style.indentRight)) }
+        // (A change that took the numbering away: Word names the indent as it now is and then "No bullets or
+        // numbering", even when the left indent did not move. xa gv-d4270b921d p2, gv-9febdcb8f3 p2.)
+        if old.rangeOfSubstring("<w:numPr>") != nil, style.list == nil {
+            said.removeAll { $0.hasPrefix("Left: ") }
+            said.insert("Indent: Left: " + inches(style.indentLeft), at: 0)
+            said.append("No bullets or numbering")
+        }
         return said.joined(separator: ", ")
     }
 
