@@ -194,7 +194,7 @@ extension RichLayout {
         // Only Latha is measured for letters and digits too; the other faces only for runs of marks (Kalimati/Preeti Nepali docs drop otherwise).
         // (And Mangal itself, the face the run names: 2db27e2d's "24 × 13 = (20 + 4) × ..." line, digits and signs in Mangal runs, is Mangal's
         // 18.5 pt in Word's print where ours stood 15.1 on the Latin stand-in.)
-        if face != "latha", !(face == "mangal" && !isKalimati), text.unicodeScalars.contains(where: { $0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39) || $0.value > 0x7E }) { return nil }
+        if face != "latha", !(face == "mangal" && !isKalimati), text.unicodeScalars.contains(where: { $0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39 && !(isKalimati && csFlag)) || $0.value > 0x7E }) { return nil }
         switch face {
         case "latha", "mangal", "vrinda", "aparajita", "raavi", "shruti", "gautami", "shonar bangla": return face
         default: return nil
@@ -1085,7 +1085,7 @@ extension RichLayout {
             // as the stand-in cannot; dx2 9baed400's cell paragraph, 31.3 pt in Word's print where ours stood 25.8. A mark with no `w:cs` keeps the
             // Calibri line however the run is flagged: 72d5ef87's two space-only paragraphs, 56.7 pt.)
             var namedKalimati = false
-            if namedFace == "mangal", !p.text.isEmpty, p.text.unicodeScalars.allSatisfy({ $0.value == 0x20 || $0.value == 0x09 }),
+            if namedFace == "mangal", !p.text.isEmpty, p.text.unicodeScalars.allSatisfy({ $0.value == 0x20 || $0.value == 0x09 || $0.value == 0x2E || ($0.value >= 0x30 && $0.value <= 0x39) }),
                let kept = p.style.mark?.keptXML, kept.containsSubstring("<w:cs/>") || kept.containsSubstring("<w:cs ") {
                 let csK: String = run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? ""
                 let asciiK: String = run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? ""
