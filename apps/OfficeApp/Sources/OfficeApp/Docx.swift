@@ -3153,7 +3153,7 @@ enum DocxFormat {
             case "w:commentRangeEnd":
                 if let id = node["w:id"] { notes.openComments.removeAll { $0 == id } }
             case "w:sectPr":
-                pageSetup = _pageSetup(node, notes)
+                pageSetup = _pageSetup(node, notes, normalSize: sheet[RichNamedStyle.normalId]?.char.fontSize ?? 11)
             case "w:altChunk":
                 // An HTML chunk, as Word imports it: paragraphs of the markup's
                 // text in Times New Roman 12, 14pt of auto spacing either side
@@ -3206,7 +3206,7 @@ enum DocxFormat {
                 guard sect.first("w:type")?["w:val"] == "continuous" else { return nil }
                 return PptxXML.serialize(sect)
             }
-            let finalPage = finalSect.flatMap { _pageSetup($0) }
+            let finalPage = finalSect.flatMap { _pageSetup($0, normalSize: sheet[RichNamedStyle.normalId]?.char.fontSize ?? 11) }
             for (i, para) in paragraphs.enumerated() {
                 out.append(para)
                 let final = para.style.sectionXML == nil && i == paragraphs.count - 1 && start > 0 && finalColumns != nil
@@ -3611,6 +3611,7 @@ enum DocxFormat {
                     let space = Double(grid["w:charSpace"] ?? "") ?? 0
                     document.characterGridSpace = space != 0 ? space / 4096 : 1e-6
                 }
+                if let cell = _snapCellSpace(sect, normalSize: sheet[RichNamedStyle.normalId]?.char.fontSize ?? 11) { document.characterGridSpace = cell; document.characterGridCellBase = sheet[RichNamedStyle.normalId]?.char.fontSize ?? 11 }
             }
             document.sectionTypeXML = sect.first("w:type").map { PptxXML.serialize($0) }
             if let cols = sect.first("w:cols") {
@@ -5024,7 +5025,25 @@ enum DocxFormat {
         }
     }
 
-    private static func _pageSetup(_ sect: XNode, _ notes: _Shared? = nil) -> PageSetup? {
+    /// A horizontal `snapToChars` grid sets whole cells to a line: as many as the Normal size plus the
+    /// grid's addition (`charSpace`) goes into the text width, spread evenly over it, so the cell is the
+    /// width over that count. Word's print of f3550c7b/837e72c4 (451.3pt wide, Normal 11pt, charSpace 210)
+    /// sets 40 cells of 11.28 for 10.5pt text; the addition that gives that cell is returned.
+    static func _snapCellSpace(_ sect: XNode, normalSize: Double?) -> Double? {
+        guard let grid = sect.first("w:docGrid"), grid["w:type"] == "snapToChars",
+              !["tbRl", "tbRlV"].contains(sect.first("w:textDirection")?["w:val"] ?? ""),
+              (Int(sect.first("w:cols")?["w:num"] ?? "") ?? 1) <= 1,
+              let size = normalSize, size > 0, let sz = sect.first("w:pgSz"), let w = Double(sz["w:w"] ?? "") else { return nil }
+        let mar = sect.first("w:pgMar")
+        let left = Double(mar?["w:left"] ?? "1440") ?? 1440, right = Double(mar?["w:right"] ?? "1440") ?? 1440
+        let gutter = max(0, Double(mar?["w:gutter"] ?? "0") ?? 0)
+        let width = (w - left - right - gutter) / 20
+        let n = ((width / (size + (Double(grid["w:charSpace"] ?? "") ?? 0) / 4096)).rounded(.down))
+        guard n >= 1, width > 0 else { return nil }
+        return width / n - size
+    }
+
+    private static func _pageSetup(_ sect: XNode, _ notes: _Shared? = nil, normalSize: Double? = nil) -> PageSetup? {
         guard let sz = sect.first("w:pgSz"), let w = Double(sz["w:w"] ?? ""), let h = Double(sz["w:h"] ?? "") else {
             return nil
         }
@@ -5099,6 +5118,7 @@ enum DocxFormat {
                 let space = Double(grid["w:charSpace"] ?? "") ?? 0
                 setup.characterGridSpace = space != 0 ? space / 4096 : 1e-6
             }
+            if let cell = _snapCellSpace(sect, normalSize: normalSize ?? 11) { setup.characterGridSpace = cell; setup.characterGridCellBase = normalSize ?? 11 }
         }
         if let notes { setup.headerWrapLeft = _headerWrapLeft(sect, setup, notes) }
         // (Text top to bottom: laid out in the turned page; see `PageSetup.vertical`.)

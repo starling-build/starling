@@ -1141,6 +1141,7 @@ public struct PageSetup: Hashable, Sendable {
     /// `RichDocument.lineGridPitch`, which is the last section's.
     public var lineGridPitch: Double? = nil
     public var characterGridSpace: Double? = nil
+    public var characterGridCellBase: Double? = nil
     /// Whether the section's first page has a header and footer of its
     /// own (`w:titlePg`). The last section's is `RichDocument.titlePage`.
     public var titlePage = false
