@@ -58,6 +58,10 @@ extension RichLayout {
         // A table placed against the page further down than the text has
         // come: where the text stood, to go on from there round it.
         var tableReturn: (table: String, y: Double, page: Int, top: Double)? = nil
+        // The room left over a page-anchored table on its first page, when the table ran on to
+        // later pages: the empty paragraphs after it take it, as Word flows them from where the
+        // table's anchor stood (they are blank, so only their room counts).
+        var roomOverTable: Double? = nil
         // (A table placed against the page that was set up to the page's edge: its table and the edge, in pixels.)
         var pageEdgeClamp: (table: String, edge: Double)? = nil
         var tableBands: [(top: Double, bottom: Double, owner: Int)] = []
@@ -1826,6 +1830,10 @@ extension RichLayout {
             // to 677; ours set them under it, on page 3.)
             if let back = tableReturn, _cells[i]?.table != back.table {
                 tableReturn = nil
+                if back.page != page, theme.wordRules, RichTextTheme.wordWindowsPages, back.top - back.y > 0.01,
+                   document.tableStyles[back.table]?.pageOffsetY != nil {
+                    roomOverTable = back.top - back.y
+                }
                 if back.page == page, y > back.top {
                     // (No band for a table wholly outside the text's width — in
                     // the margin beside it: tdf92157's address block, 467.9pt
@@ -3303,6 +3311,19 @@ extension RichLayout {
                !document.paragraphs[i + 1].style.pageBreakInline,
                contentH - y < _markLineHeight(i, document) - 0.01 {
                 newPage()
+            }
+            // (Empty paragraphs after a page-anchored table that ran over to a later page stand over it, in
+            // the room above its place on its first page, while their lines fit (the space after the last may run on): dx2 9baed400 p31, the table at
+            // 165pt, three of the four empties over it, the heading 43pt under its end on p32.)
+            if let room = roomOverTable {
+                let pp = document.paragraphs[i]
+                if _cells[i] == nil, resumeCursor == nil, pp.text.isEmpty, pp.image == nil, pp.inlineImages.isEmpty, pp.style.frameXML == nil,
+                   !_pageBreak[i], pp.style.sectionXML == nil, _heights[i] - _px(pp.style.spaceAfter) <= room + 0.01 {
+                    RuleTrace.hit("word-empties-after-a-page-anchored-table-stand-over-it-on-its-first-page")
+                    roomOverTable = max(0, room - _heights[i])
+                    continue
+                }
+                roomOverTable = nil
             }
             // (In a compat 15 file the empties after the first, which stand past the foot, go with it: lab
             // compat1415b, 11pt lines with 10 after and 16pt left, put the first on the page and the
