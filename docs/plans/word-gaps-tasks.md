@@ -16552,3 +16552,4 @@ HANDOFF amd-2 (2026-11-14) Korean lowest docs: c466d30a wordWrap-0 Hangul stop r
 - amd-10 HANDOFF (2026-11-14): 55c1bba8 11.8 to 77.4 resubmitted as queue/amd-10-69 (rule: legacy compressPunctuation + explicit non-zh/ja/ko eastAsia tag; first try without 'explicit tag' dropped dx2 525f8c6a 65.7 to 14.2, withdrawn). 126-doc dx2 A/B: no drop, b17aed4b 85 to 100. Property split: bug57031 = doNotCompress, zh-d62da4dd = zh-TW. Next: xs dc363b28 (12.1), not started.
 
 - lenovo-3 (2026-11-14): ell-z20423699 d32504 + 49fb5c done, queue -70: tabs beside floats wrap per line (n tabs = n-1 lines; last pinned at window edge). Both docs match every line, 49fb5c page count 11 fixed. dx2 no change, unit 655/0. Left: first line 6.5pt low, 1.5pt left-edge effectExtent (separate). Next: lowest xb docs.
+- lenovo-3 CLAIM (2026-11-14): xb hin-z20395192-2886e1 (37.4), then z21320572, z20459061 if time.
