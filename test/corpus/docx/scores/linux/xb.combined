@@ -1,4 +1,4 @@
-188 documents: COMBINED mean 78.78% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 78.78% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
+188 documents: COMBINED mean 78.92% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 78.92% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
   11.9%  lines 370/368  pages 13/13  ara-z10840115-a1e854
    2.4%  lines 664/778  pages 27/26  ara-z11030406-663296
   13.5%  lines 111/111  pages 8/8  ara-z15699863-842f1e
@@ -47,8 +47,8 @@
   94.1%  lines 17/17  pages 1/1  docx4j-198f9895
   68.1%  lines 119/114  pages 4/4  docx4j-1e349e20
   90.1%  lines 202/203  pages 5/5  ell-z10161459-ec79d6
-  94.7%  lines 767/767  pages 20/20  ell-z10407038-6c5718
-  74.7%  lines 822/821  pages 18/18  ell-z10407270-89615d
+  99.7%  lines 767/767  pages 20/20  ell-z10407038-6c5718
+  96.4%  lines 822/821  pages 18/18  ell-z10407270-89615d
  100.0%  lines 76/76  pages 3/3  ell-z18377521-5297a3
  100.0%  lines 204/204  pages 10/10  ell-z20423699-05c22a
  100.0%  lines 206/206  pages 10/10  ell-z20423699-263d3d
@@ -73,7 +73,7 @@
   74.9%  lines 960/961  pages 19/20  fra-g156-5d636a
  100.0%  lines 283/284  pages 8/8  fra-g188-120f4b
   36.7%  lines 877/878  pages 20/20  fra-g210-1a6d33
-  50.8%  lines 912/908  pages 21/21  fra-g255-612f49
+  50.8%  lines 912/910  pages 21/21  fra-g255-612f49
  100.0%  lines 104/104  pages 4/4  fra-g27-306125
   79.0%  lines 1578/1580  pages 32/32  fra-g274-cccee1
   84.1%  lines 905/912  pages 24/24  fra-g70-0ecec1

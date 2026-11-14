@@ -2027,6 +2027,17 @@ extension RichLayout {
                                     pageCut = (id, keep)
                                     here.append(id)
                                     if slotNotes { cutEnds = y + (mark.bottom - _tops[i]) }
+                                    // (A note that parts leaves the foot of the next page to its rest, and a later note
+                                    // cannot begin there: the line marking the next one,
+                                    // when it stands below this mark's, goes over with
+                                    // it. xd e50792c2's footnote 7 parts pages 13/14 in
+                                    // Word's print and the lines marking 8 open page 14;
+                                    // ours kept them and set 8 first on page 14, a page
+                                    // short in all.)
+                                    if theme.wordRules, !slotNotes, let next = placing.first(where: { !here.contains($0) && !pageNotes.contains($0) }),
+                                       let m2 = _footnoteMarkLine(i, next, document), m2.top > mark.top + 0.5 {
+                                        contentH = max(1, min(contentH, y + (m2.bottom - _tops[i]) + room - note.height + keep))
+                                    }
                                 } else if mark.top > _tops[i] + 0.5 || y > 0.01 {
                                     // (With no line of it there, the mark's line
                                     // goes over with it: the page ends over that

@@ -1,4 +1,4 @@
-109 documents: COMBINED mean 76.82% (109 scored by Word's text lines, 0 by the visual comparison); pure line mean 76.82% over the 109 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
+109 documents: COMBINED mean 77.15% (109 scored by Word's text lines, 0 by the visual comparison); pure line mean 77.15% over the 109 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
   25.9%  lines 139/139  pages 6/6  dx4j-7acb626022
   61.8%  lines 374/232  pages 6/5  dx4j-a94b4fd3b1
  100.0%  lines 16/16  pages 1/1  dx4j-bacc7e5885
@@ -23,7 +23,7 @@
   78.6%  lines 886/886  pages 25/25  gv-5cba2cd528
   55.7%  lines 506/506  pages 20/20  gv-5f403944ae
  100.0%  lines 319/319  pages 13/13  gv-6785438d30
-  32.2%  lines 1152/1152  pages 32/32  gv-690391482c
+  70.3%  lines 1152/1152  pages 32/32  gv-690391482c
  100.0%  lines 386/458  pages 9/9  gv-6ce91f7085
   91.5%  lines 940/937  pages 22/22  gv-6ed2720360
  100.0%  lines 164/164  pages 9/9  gv-755b0e8699
@@ -104,7 +104,7 @@
   98.5%  lines 779/779  pages 19/19  oxsdk-1c09b12993
   67.5%  lines 366/365  pages 6/6  oxsdk-6209c6d5a7
   90.3%  lines 442/442  pages 11/11  oxsdk-b790e6bc89
-  84.7%  lines 1177/1177  pages 37/37  poi-51272c8358
+  82.5%  lines 1177/1177  pages 37/37  poi-51272c8358
   23.0%  lines 1003/902  pages 27/27  poi-59fdcfe90b
  100.0%  lines 6/6  pages 1/1  pydocx-a5de256a9c
   98.4%  lines 365/364  pages 22/22  th-044e3e71f7

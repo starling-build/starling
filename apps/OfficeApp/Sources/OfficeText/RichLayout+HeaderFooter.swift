@@ -465,14 +465,16 @@ extension RichLayout {
         for k in note.document.paragraphs.indices {
             let g = note.layout.geometry(k)
             var bs = Self._lineBottoms(g.painter).map { g.textTop + $0 }
-            // (A note of two or three lines under widow control does not part
-            // at all, two lines at least on each side being impossible:
-            // xa gv-690391482c's footnote 13, two lines, goes whole to page 9
-            // in Word's print where its mark's line ends page 8. Longer notes
-            // keep every parting: xd e50792c2's footnote 7, four lines, parts
-            // two and two.)
-            if theme.wordRules, note.document.paragraphs[k].style.widowControl, !document.widowControlSuspended, bs.count > 1, bs.count < 4 {
-                bs = []
+            // (A note under widow control parts with two lines at least on
+            // each side, or at the end of a paragraph: xa gv-690391482c's
+            // footnote 13, two lines, goes whole to page 9 in Word's print
+            // where its mark's line ends page 8, and its footnote 24, five
+            // lines, does not keep a first line alone on page 13 (its mark's
+            // paragraph goes to page 14). Four lines part two and two: xd
+            // e50792c2's footnote 7.)
+            if theme.wordRules, note.document.paragraphs[k].style.widowControl, !document.widowControlSuspended, bs.count > 1 {
+                let n = bs.count
+                bs = bs.enumerated().filter { $0.offset != 0 && $0.offset != n - 2 }.map { $0.element }
             }
             out += bs
         }
