@@ -2856,6 +2856,34 @@ extension RichLayout {
         return out
     }
 
+    /// The Devanagari words (UTF-16 ranges) of a paragraph wider than the column, which Word cuts where each line fills.
+    func _wideIndicWords(_ p: RichParagraph, _ document: RichDocument, textWidth: Double,
+                         named: RichNamedStyle?, pitch: Double?) -> [Range<Int>] {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, textWidth > 1, !p.runs.isEmpty,
+              p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 }) else { return [] }
+        let units = Array(p.text.utf16)
+        func parts(_ u: UInt16) -> Bool { u == 0x09 || u == 0x20 || u == 0x0A || u == 0x2028 || u == 0xA0 }
+        var out: [Range<Int>] = []
+        var k = 0
+        while k < units.count {
+            guard !parts(units[k]) else { k += 1; continue }
+            var end = k
+            while end < units.count, !parts(units[end]) { end += 1 }
+            if end - k >= 6, units[k ..< end].contains(where: { $0 >= 0x905 && $0 <= 0x939 }) {
+                var at = 0
+                var run = p.runs[0].style
+                for r in p.runs { if k < at + r.length { run = r.style; break }; at += r.length }
+                let style = theme.textStyle(for: run, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                let painter = TextPainter(text: TextSpan(text: String(decoding: units[k ..< end], as: UTF16.self), style: style), textDirection: .ltr)
+                painter.layout(minWidth: 0, maxWidth: 1_000_000)
+                if painter.width > textWidth { out.append(k ..< end) }
+                painter.dispose()
+            }
+            k = end
+        }
+        return out
+    }
+
     func _wideWordStarts(_ p: RichParagraph, _ document: RichDocument, textWidth: Double,
                                  named: RichNamedStyle?, pitch: Double?) -> Set<Int> {
         guard theme.wordRules, textWidth > 1, !p.runs.isEmpty else { return [] }

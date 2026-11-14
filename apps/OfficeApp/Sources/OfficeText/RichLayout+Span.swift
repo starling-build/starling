@@ -354,6 +354,7 @@ extension RichLayout {
             .union(_wideWordHyphens(p, document, textWidth: textWidth, named: named, pitch: pitch))
             .union(_fittingWordHyphens(p, document, textWidth: textWidth, named: named, pitch: pitch))
         var wideStarts = _wideWordStarts(p, document, textWidth: textWidth, named: named, pitch: pitch)
+        let wideIndicWords = _wideIndicWords(p, document, textWidth: textWidth, named: named, pitch: pitch)
         // (A numbered paragraph's first word, wider than the line, is
         // parted where the line ends, beside its number: Word sets
         // LibreOffice's tdf134606 "a)" and "XXXXXXXXXX" in a 68pt text
@@ -2366,8 +2367,12 @@ extension RichLayout {
                         inserts.append(offset)
                     }
                 }
+                // (A Devanagari word wider than its column is cut where each line fills, and every line of it is a line of Mangal: the joiner
+                // that sets that line stands inside the word too, at each letter that opens a cluster. dx2 9baed400's 40 pt Kalimati cell, 21.2 pt
+                // pitch in Word on every line, 17.6 on the lines ours began mid-word.)
+                let insideWide = !wideIndicWords.isEmpty && wideIndicWords.contains { offset > $0.lowerBound && offset < $0.upperBound }
                 if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, Self._isIndic(u),
-                   !(before?.unicodeScalars.first.map { Self._isIndic($0.value) || $0.value == 0x200D || $0.value == 0x200C } ?? false) {
+                   insideWide || !(before?.unicodeScalars.first.map { Self._isIndic($0.value) || $0.value == 0x200D || $0.value == 0x200C } ?? false) {
                     let face0 = indic?.face
                     // (Shonar Bangla Bold is its own face in Word: 1721+978 of 2048 against the regular's 1655+996.)
                     let face = (face0 == "shonar bangla" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? "shonar bangla bold" : face0
