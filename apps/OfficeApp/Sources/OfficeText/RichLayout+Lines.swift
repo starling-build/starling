@@ -100,9 +100,10 @@ extension RichLayout {
             // authored one, debugLabel; the family is the stand-in's, Arial for B Zar too.)
             // (Or a name Word has not got that it sets in Arial (B Nazanin: fc332781, Arial's text and its 1.15 line
             // at 14pt x 1.5 = 24.15, where the Noto fallback's glyphs ran the lines 28 high) when every run of the
-            // paragraph, spaces too, is that one name: no Latin theme face beside it to set the line.)
+            // paragraph, spaces too, is that one name: no Latin theme face beside it to set the line. A run set in
+            // Arial itself (xb ara-z15770216's bullets, Aptos beside them) keeps the old way: Word's lines there are 25.0, not 24.)
             if first?.debugLabel?.trimmingWhitespace().lowercased() != "arial",
-               !(first?.fontFamily?.lowercased() == "arial" && labelsSeen.count == 1) { uniform = false }
+               !(first?.fontFamily?.lowercased() == "arial" && labelsSeen.count == 1 && labelsSeen.first?.containsSubstring("arial") != true) { uniform = false }
         }
         if count == 0, uniform { blanksToo = true; visit(span) }
         if count == 0, uniform { shiftedToo = true; visit(span) }
