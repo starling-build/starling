@@ -3734,6 +3734,11 @@ extension RichLayout {
                     if RichTextTheme.wordWindowsPages, mine, f.verticalAlign == nil, bandPushLast == i - 1, bandPushPage == page, bandPushDelta > 0.01, _cells[i] == nil {
                         carried = max(bandPushDelta, y - bandPushTop)
                         RuleTrace.hit("word-paragraph-after-a-pushed-one-keeps-its-box-at-the-unpushed-anchor")
+                        // (A box so carried that its drawn frame would end past the text foot is raised until it ends
+                        // at the foot: Word's print of dx2 87097d3e ends the third chart at 778.1, the page's bottom
+                        // margin, where ours ended 6.5pt past it.)
+                        let overFoot = y - carried + _px(f.y) + _px(image.height) - contentH
+                        if overFoot > 0.01 { carried += overFoot; RuleTrace.hit("word-carried-box-ends-at-the-foot") }
                         _floatShiftY[image.id] = -carried
                         bandPushLast = i
                     }
