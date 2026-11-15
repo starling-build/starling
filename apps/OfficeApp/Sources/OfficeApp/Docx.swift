@@ -8198,7 +8198,7 @@ enum DocxFormat {
 
     /// Word's built-in definitions, which a styles part takes when its template is gone.
     /// Normal.dotm's Normal resolved through its defaults: +Body 12 pt, 0 before, 8 after, 1.16 lines (lab linkstyles NOTES). Only Normal is replaced; the file's Heading styles and defaults stay.
-    private static let _builtinNormal = "<w:style xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:qFormat/><w:pPr><w:spacing w:before=\"0\" w:after=\"160\" w:line=\"278\" w:lineRule=\"auto\"/></w:pPr><w:rPr><w:rFonts w:asciiTheme=\"minorHAnsi\" w:hAnsiTheme=\"minorHAnsi\" w:eastAsiaTheme=\"minorEastAsia\" w:cstheme=\"minorBidi\"/><w:sz w:val=\"24\"/><w:szCs w:val=\"24\"/></w:rPr></w:style>"
+    private static let _builtinNormal = "<w:style xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:qFormat/><w:pPr><w:spacing w:after=\"160\" w:line=\"278\" w:lineRule=\"auto\"/></w:pPr><w:rPr><w:rFonts w:asciiTheme=\"minorHAnsi\" w:hAnsiTheme=\"minorHAnsi\" w:eastAsiaTheme=\"minorEastAsia\" w:cstheme=\"minorBidi\"/><w:sz w:val=\"24\"/><w:szCs w:val=\"24\"/></w:rPr></w:style>"
 
     private static func _applyBuiltinStyles(_ styles: XNode) {
         guard let builtin = XNode.parse(Data(_builtinNormal.utf8)),
