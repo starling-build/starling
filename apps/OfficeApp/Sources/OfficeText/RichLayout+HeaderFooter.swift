@@ -2092,7 +2092,12 @@ extension RichLayout {
         let exactBottom = theme.wordRules && RichTextTheme.wordWindowsPages && setup.marginBottomExact
         if exactTop || exactBottom { RuleTrace.hit("negative-margin-is-exact") }
         if !exactTop, let header = _headerFooter(.header, page: p, document, pageCount: 1) {
-            top = max(top, (header.pageAnchoredTop.map { min(_px($0), _px(setup.headerDistance)) } ?? _px(setup.headerDistance)) + header.height)
+            // (A header whose page-anchored table is taller than the page's whole text area cannot be meant to push the body
+            // down: Word leaves the body at the margin. dx2 f22ada3a: a 765pt rotated side tab in the header, body at the margin.)
+            let tallSideTable = theme.wordRules && RichTextTheme.wordWindowsPages && header.pageAnchoredTableDeclared != nil
+                && _px(header.pageAnchoredTableDeclared ?? 0) > _px(setup.height) - _px(setup.marginTop) - _px(setup.marginBottom)
+            if tallSideTable { RuleTrace.hit("word-header-table-taller-than-text-area-does-not-push-body") }
+            else { top = max(top, (header.pageAnchoredTop.map { min(_px($0), _px(setup.headerDistance)) } ?? _px(setup.headerDistance)) + header.height) }
             // (A header of one paragraph whose picture, with the text above and below it, is set against the PAGE's top: Word
             // puts the picture there and the paragraph's one line under its foot, so the body starts at the foot plus that
             // line, not at the header distance plus the picture's height as our flow has it. dx2 b785c95e and 4bc34886: a

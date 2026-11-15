@@ -1875,6 +1875,15 @@ public final class RichLayout {
                   let ts = document.tableStyles[cell.table], ts.pageAnchored, let off = ts.pageOffsetY else { return nil }
             return off
         }
+        /// What the page-anchored table at its head says its rows add up to (points), before any cut at the page.
+        var pageAnchoredTableDeclared: Double? {
+            var tallest: Double? = nil
+            for (_, ts) in document.tableStyles where ts.pageAnchored {
+                let h = ts.rowHeights.values.reduce(0, +)
+                tallest = max(tallest ?? 0, h)
+            }
+            return tallest
+        }
         /// How far its floating frames stand above its first line
         /// (pixels, 0 where none does): they take no room in its flow.
         var frameRise: Double {
