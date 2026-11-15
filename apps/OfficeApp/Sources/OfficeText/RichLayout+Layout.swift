@@ -3003,6 +3003,7 @@ extension RichLayout {
            let end = xml[r.upperBound...].firstIndex(of: "\""), let twips = Double(xml[r.upperBound ..< end]),
            twips / 20 > 20, twips / 20 < final.contentWidth - 1, xml.components(separatedBy: "<w:col ").count == 2 {
             RuleTrace.hit("single-unequal-column-sets-the-measure")
+            final.columnTrim += final.contentWidth - twips / 20
             final.marginRight += final.contentWidth - twips / 20
         }
         setups.append(final)

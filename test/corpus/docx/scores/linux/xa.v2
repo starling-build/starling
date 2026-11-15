@@ -1,10 +1,9 @@
-109 documents: mean 77.6% of Word's lines matched, median 93.5%; 53 at 95% or more, 91 at half or more; 96 with Word's page count
+109 documents: mean 78.7% of Word's lines matched, median 94.5%; 54 at 95% or more, 92 at half or more; 96 with Word's page count
     4.8%  lines 335/335  pages 15/15  gv-57041316b7
     7.5%  lines 832/942  pages 24/27  gv-cd79f1fa6b
     8.7%  lines 739/721  pages 21/18  gv-989ecc4fa6
    10.1%  lines 149/598  pages 6/16  dx4j-d5b6ee0cfa
    13.3%  lines 113/113  pages 11/15  gv-50df6a582d
-   13.5%  lines 1242/1276  pages 32/33  gv-ccf7f258bf
    13.7%  lines 452/420  pages 16/16  gv-dbc3c03efc
    14.3%  lines 7/69  pages 2/3  lo-f5a68fc90b
    18.5%  lines 27/7  pages 1/1  lo-aeacc79b45
@@ -23,18 +22,17 @@
    54.1%  lines 1439/1438  pages 40/40  gv-30930cbf0f
    55.6%  lines 9/8  pages 1/1  lo-a5a3668a69
    55.7%  lines 506/506  pages 20/20  gv-5f403944ae
-   56.3%  lines 469/526  pages 12/12  gv-d79af1faf9
    58.1%  lines 1324/1310  pages 39/38  gv-48dbbfebfb
    59.1%  lines 592/583  pages 16/16  gv-0ab5adb3c5
+   59.7%  lines 1242/1269  pages 32/33  gv-ccf7f258bf
    60.0%  lines 5/5  pages 1/1  lo-feae325324
    61.8%  lines 374/232  pages 6/5  dx4j-a94b4fd3b1
-   65.4%  lines 1112/1110  pages 33/33  gv-d4270b921d
    67.5%  lines 366/365  pages 6/6  oxsdk-6209c6d5a7
-   69.1%  lines 1116/1115  pages 32/32  gv-9febdcb8f3
    69.2%  lines 26/26  pages 1/1  lo-756cb72964
    69.4%  lines 219/219  pages 11/11  lo-197f202205
    70.3%  lines 1152/1152  pages 32/32  gv-690391482c
    70.6%  lines 211/211  pages 12/12  gv-b1e764c5ad
+   71.6%  lines 469/529  pages 12/12  gv-d79af1faf9
    75.3%  lines 819/819  pages 23/23  gv-95df15ab58
    76.4%  lines 216/214  pages 13/13  gv-02852086d1
    77.8%  lines 36/34  pages 2/2  lo-ae4f3e8e64
@@ -49,6 +47,7 @@
    87.0%  lines 1471/1469  pages 37/37  gv-c71d651659
    87.1%  lines 373/439  pages 7/8  gv-eea94e2b32
    87.8%  lines 777/777  pages 29/29  gv-fbcf1434e7
+   89.2%  lines 1116/1115  pages 32/32  gv-9febdcb8f3
    90.3%  lines 442/442  pages 11/11  oxsdk-b790e6bc89
    90.7%  lines 1016/1015  pages 35/35  gv-1bfba88742
    91.5%  lines 940/937  pages 22/22  gv-6ed2720360
@@ -70,6 +69,7 @@
    99.8%  lines 403/403  pages 14/14  gv-d1907c960c
    99.9%  lines 740/740  pages 21/21  gv-7b608a7d61
    99.9%  lines 1039/1037  pages 28/28  gv-ab534ed145
+   99.9%  lines 1112/1111  pages 33/33  gv-d4270b921d
   100.0%  lines 16/16  pages 1/1  dx4j-bacc7e5885
   100.0%  lines 64/64  pages 3/3  dx4j-d1847304db
   100.0%  lines 47/47  pages 2/2  dx4j-eb96d4f2fc

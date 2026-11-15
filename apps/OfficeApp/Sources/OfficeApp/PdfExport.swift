@@ -203,7 +203,7 @@ extension PdfExport {
         let top: Double
         let pane: Rect
         init(_ setup: PageSetup) {
-            let textRight = setup.width - setup.marginRight
+            let textRight = setup.width - setup.marginRight + setup.columnTrim
             if DocxFormat.wordOnWindows {
                 scale = setup.width / (textRight + 266.4)
                 left = 0

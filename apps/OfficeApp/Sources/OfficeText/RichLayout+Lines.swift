@@ -934,7 +934,11 @@ extension RichLayout {
                 let rightGap = _px(p.style.indentRight) + (inCell ? (cell?.pad.right ?? 0) : 0)
                 guard w > 0 else { continue }
                 let tightList = k < i && p.style.list != nil
-                if tightList, !(float.wrapsTight && float.horizontalAlign == nil && x + w / 2 < column / 2) { continue }
+                // (A list item in a table cell, under a box of the cell wrapped square at its right, ends short of it as any
+                // cell paragraph does: Word's print of xa gv-d4270b921d wraps the bullet "www.gov.scot/marine-and-fisheries/",
+                // a hyperlink 127pt wide, before its "fisheries/", the box's left 197pt; ours set it across the box's edge.)
+                let rightOfCell = cell != nil && theme.wordRules && RichTextTheme.wordWindowsPages && x + w / 2 >= column / 2
+                if tightList, !rightOfCell, !(float.wrapsTight && float.horizontalAlign == nil && x + w / 2 < column / 2) { continue }
                 if x + w / 2 >= column / 2 {
                     // (At the right, with room at its left for three ems and none
                     // at its right: the lines end short of it, by a right indent.
