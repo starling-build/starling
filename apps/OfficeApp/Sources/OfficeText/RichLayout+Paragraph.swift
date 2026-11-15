@@ -3651,7 +3651,10 @@ extension RichLayout {
             probe.fractionalLineHeights = theme.wordRules
             if !held.isEmpty { probe.setPlaceholderDimensions(held.map { $0.dimensions }) }
             probe.layout(minWidth: 0, maxWidth: max(1, textWidth))
-            bodyHeight = spacesOnly ? probe.height : max(bodyHeight, probe.height)
+            // (Floating boxes that take no room set no height: the mark's line is the whole of it, not the larger
+            // of that and the line the boxes' places made — xd 6be5dbc9's stamp box, one 11pt Times mark, Word's
+            // 12.65 where ours kept 13.8 and every later line stood 1.1pt low.)
+            bodyHeight = spacesOnly || p.image == nil || p.image?.textBox != nil ? probe.height : max(bodyHeight, probe.height)
             probe.dispose()
         }
         // A tab at the paragraph's end whose stop lies past the right
