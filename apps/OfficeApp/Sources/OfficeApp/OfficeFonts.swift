@@ -174,6 +174,10 @@ enum OfficeFonts {
                     if let alt = e.alt, !alt.isEmpty, !e.panoseZero, alt.trimmingWhitespace().lowercased() != n,
                        !(wordOnWindows && alt.trimmingWhitespace().lowercased() == "courier") { return substitute(alt) }
                     if e.panoseZero { return e.family == "roman" ? cambria : calibri }
+                    // (A face Word's machine lacks whose PANOSE is Times New Roman's own is matched to it by
+                    // PANOSE: dx2 ce134f43's "TimesLT" and 087dda6f's "Macedonian Tms" print in Times New
+                    // Roman, their lines 13.8pt, where Calibri's 14.65 stood the page 6 to 8pt low.)
+                    if wordOnWindows, e.panose == "02020603050405020304", e.charset != "00", !e.charset.isEmpty { return substitute("times new roman") }
                     return calibri
                 }
                 return cambria
@@ -282,7 +286,7 @@ enum OfficeFonts {
     }
 
     struct FontEntry {
-        var alt: String?; var family: String; var panoseZero: Bool; var charset: String = ""; var usb0: UInt32? = nil; var usb1: UInt32? = nil
+        var alt: String?; var family: String; var panoseZero: Bool; var panose: String = ""; var charset: String = ""; var usb0: UInt32? = nil; var usb1: UInt32? = nil
         /// The family of the table's last entry for the name, where it repeats
         /// one — the entry Word for Mac reads (lab tsim2, see `eastAsianFace`).
         var lastFamily: String? = nil

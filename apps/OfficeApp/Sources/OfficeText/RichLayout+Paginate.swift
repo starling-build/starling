@@ -5473,8 +5473,15 @@ extension RichLayout {
             if style.spaceBeforeAuto, i == 0 || document.paragraphs[i - 1].cell != c { spaceBefore = 0 }
             if style.spaceAfterAuto, style.list == nil, i + 1 >= document.paragraphs.count || document.paragraphs[i + 1].cell != c { dropAfter = true }
         }
+        // (A paragraph that follows only paragraphs Word shows nothing of is the
+        // document's first: dx2 813a5d38's hidden first paragraph, then a heading of auto
+        // space before, stood 14pt low in ours, 88.9 in Word's print.)
+        var firstShown = i == 0
+        if !firstShown, theme.wordRules, web, p.cell == nil {
+            firstShown = (0..<i).allSatisfy { _vanishes(document.paragraphs[$0], document) }
+        }
         if theme.wordRules, web {
-            if i == 0 {
+            if firstShown {
                 if style.spaceBeforeAuto { spaceBefore = 0 }
             } else if i - 1 < document.paragraphs.count {
                 // (In a cell, where the layout shares no space between
