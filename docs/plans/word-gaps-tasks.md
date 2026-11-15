@@ -17567,3 +17567,4 @@ amd-1 CLAIM (2026-11-15): xd 77d6ca49 (Hindi 95.0), then dx2 6dcc4527 (95.7). Re
 - Other 17 Kokila docs unchanged by the blanket fix. Binaries: /data/s/amd-5/binN (fixed), binB (base); renders /data/s/amd-5/d760/abN, abB.
 
 amd-5 CLAIM (2026-11-15): dx2 6dcc4527 (Hindi 95.7), moved from amd-1 by starling-bd. d760f1e5 parked (see note above).
+- amd-6 HANDOFF 2026-11-15 (dx2 bea98273, Bengali Wingdings 2 checkbox rows): queued as entry 386. Box width 0.70 em (Word print: box 75.6, text 93.6) plus Nirmala UI row height; matched 171 to 178 (Word 186 lines, ours 190), other 6 dx2 docs with Wingdings 2 unchanged, unit tests 655/0. LEFT: page 5 row pitch still +1 pt for upper row 1-2 and all lower rows (Word 18.2, ours 19.2), and a lower-list line wraps early (Word one line, ours two). Perf item (host-line memo) LANDED 3a94de8ac. ebe-strip lab prints not back yet; picture-x fix 5fd360c7b unsubmitted.
