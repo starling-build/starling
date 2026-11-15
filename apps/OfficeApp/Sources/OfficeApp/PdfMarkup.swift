@@ -613,7 +613,15 @@ struct PdfMarkup {
         if let size = style.fontSize, attribute(old, "w:sz").flatMap({ Double($0) }).map({ $0 / 2 != size }) ?? true {
             font.append((size == size.rounded() ? String(Int(size)) : String(size)) + " pt")
         }
-        if style.highlight != nil, attribute(old, "w:highlight") == nil { font.append("Highlight") }
+        // (Highlight stands bare when it is the only change, "Formatted: Highlight", and joins the font words
+        // otherwise, "Font: 9 pt, Highlight"; taking it away reads "Not Highlight". Underline gone reads "No
+        // underline" and a new red font color "Font color: Red". xa gv-d4270b921d p16, p5, p4; gv-9febdcb8f3 p13.)
+        var highlightWord: String? = nil
+        if style.highlight != nil, attribute(old, "w:highlight") == nil { highlightWord = "Highlight" }
+        else if style.highlight == nil, let h = attribute(old, "w:highlight"), !h.isEmpty, h != "none" { highlightWord = "Not Highlight" }
+        if let w = highlightWord { if w == "Highlight" && !font.isEmpty { font.append(w) } else { rest.append(w) } }
+        if !style.underline, let u = attribute(old, "w:u"), !u.isEmpty, u != "none" { rest.append("No underline") }
+        if let c = style.color, attribute(old, "w:color") != "FF0000", c.value & 0xFFFFFF == 0xFF0000 { rest.append("Font color: Red") }
         if let was = attribute(old, "w:color"), !was.isEmpty, style.color == nil { rest.append("Font color: Auto") }
         var now = attribute(style.keptXML ?? "", "w:lang")
         let then = attribute(old, "w:lang")
