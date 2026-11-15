@@ -493,6 +493,14 @@ extension RichLayout {
                                 case "left": x0 = left
                                 default: x0 = left + _px(float.x)
                                 }
+                                // (A footer's box that starts at or under the text's foot wraps none of the body: a line that
+                                // ends there, its 1.5-times leading under the text, is set across the page. xd d760f1e5's
+                                // two wrapTight pictures at 761.3, the foot 758.9: Word's print keeps "10." on page 8,
+                                // its text ending at 755; ours wrapped the line round them and took it to page 9.)
+                                if theme.wordRules, RichTextTheme.wordWindowsPages, kind == .footer, onPage >= pageH - _bodyInsets(page: page, document).bottom - 0.01 {
+                                    RuleTrace.hit("word-footer-box-under-the-text-foot-does-not-wrap-the-body")
+                                    continue
+                                }
                                 blocks.append((page, nil, onPage - insetTop, whole, x0, w, _px(float.distanceLeft ?? 9), _px(float.distanceRight ?? 9), float.wrapSide))
                             }
                         }
