@@ -308,19 +308,25 @@ extension RichLayout {
         // under "とうきょう", 2.75pt between and 1.38 at either end).
         var spread = spread
         var rubyTails: [Int: Double] = [:]
-        // (A vertical section does not widen the base for its ruby: the ruby overhangs the neighbours, and the
-        // ※/☆ marks and the compressed 、 carry the width Word shows. 934bd3e5 p9: 0.5 broke 'わづか|に直衣' one
-        // word early; 0 gives Word's break, 237 to 283 of 336 lines.)
-        let rubyKeep = (index.map { _verticalBody($0) } ?? false) ? 0.0 : 1.0
+        // (A vertical section's base is widened under a ruby longer than it, as a horizontal one's is — Word's gaps under
+        // 入道 over にゅうどう are 11.4, 12.6, 11.4 — but the line is FITTED with the unwidened base: 934bd3e5 p9's column
+        // holds 37 characters and ends past the foot. The first layout therefore sets the base unwidened and records the
+        // width each character would carry (`_rubyWiden`); `_layoutParagraph` then fixes the line ends from it, sets the
+        // base widened, and takes each line's overshoot off its last character, so the line ends stand.)
+        let vertical = index.map { _verticalBody($0) } ?? false
+        let rubyKeep = vertical ? (index.map { _rubyApply.contains($0) } ?? false ? 1.0 : 0.0) : 1.0
+        var widen: [Int: Double] = [:]
         if theme.wordRules {
             for g in _rubyGroups(p) where g.to > g.from {
                 let (ruby, base) = _rubyWidths(g, p, named: named, document, pitch: pitch)
                 guard ruby > base + 0.01 else { continue }
+                if vertical { widen[g.to - 1, default: 0] += ruby - base }
                 let share = (ruby - base) * rubyKeep / Double(g.to - g.from)
                 for k in g.from ..< g.to { spread[k, default: 0] += k == g.from ? share / 2 : share }
                 rubyTails[g.to, default: 0] += share / 2
             }
         }
+        if vertical, let ix = index, rubyKeep == 0 { _rubyWiden[ix] = widen.isEmpty ? nil : widen }
         // Where a zero-width space goes in, and what was before the
         // character at hand (across runs).
         var inserts: [Int] = []

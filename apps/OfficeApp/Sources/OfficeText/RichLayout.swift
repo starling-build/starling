@@ -1593,6 +1593,10 @@ public final class RichLayout {
     /// A turned merged cell's length before it was wrapped to a page's part.
     var _turnedFull: [Int: Double] = [:]
     var _yuEndKern: [Int: [Int: Double]] = [:]
+    /// A vertical section's ruby wider than its base: the width it adds after each character (paragraph offset), and the
+    /// paragraphs whose layout sets it (see `_span`'s `rubyKeep`).
+    var _rubyWiden: [Int: [Int: Double]] = [:]
+    var _rubyApply: Set<Int> = []
     var _spaceBefore: [Double] = []
     /// What each paragraph's text is drawn lower by than the engine set
     /// it, so that its baselines are Word's (see `RichTextTheme.lineBox`).

@@ -2138,6 +2138,40 @@ extension RichLayout {
             painter.dispose()
             painter = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit, held: tabsHeld).0)
         }
+        // (A vertical section's ruby wider than its base: the line ends stand as the unwidened layout set them; the base is set
+        // widened, and what that adds to a line past its room comes off the line's last character — see `_span`'s rubyKeep.)
+        _rubyApply.remove(i)
+        if theme.wordRules, let widen = _rubyWiden[i], !widen.isEmpty, !p.style.rightToLeft {
+            let map = _map(i)
+            let count = p.text.utf16.count
+            let before = _lineStarts(painter, map, count: count)
+            var adj = fit
+            for k in 0 ..< before.count {
+                let s0 = before[k], e = k + 1 < before.count ? before[k + 1] : count
+                guard e > s0 else { continue }
+                var added = 0.0
+                for o in s0 ..< e { added += widen[o] ?? 0 }
+                guard added > 0 else { continue }
+                let boxes = painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(s0), extentOffset: map.painter(e - 1) + 1))
+                guard let right = boxes.map({ $0.right }).max(), let lastBox = boxes.last else { continue }
+                let over = right + added - textWidth
+                if over > 0 { adj[e - 1, default: 0] -= min(over, added, max(0, lastBox.right - lastBox.left - _px(0.5))) }
+            }
+            _rubyApply.insert(i)
+            let widened = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: adj, held: tabsHeld)
+            let trial = laidOut(widened.0)
+            let saved = _inserts[i]
+            _inserts[i] = widened.2
+            if _lineStarts(trial, _map(i), count: count) == before {
+                painter.dispose()
+                painter = trial
+                fit = adj
+            } else {
+                trial.dispose()
+                _inserts[i] = saved
+                _rubyApply.remove(i)
+            }
+        }
         // (Korean under `w:wordWrap` off: a line whose words fill it to the margin and whose one space after them does not fit has
         // that space set at the START of the next line in Word's print, as a character; the engine hangs it at the end, so the
         // next line takes one character more. Each such space is held (`_wwSpaceStarts`) and the paragraph laid out again until none

@@ -94,6 +94,8 @@ extension RichLayout {
         _textWidth = Array(repeating: 0, count: n)
         _turnedFull = [:]
         _yuEndKern = [:]
+        _rubyWiden = [:]
+        _rubyApply = []
         _spaceBefore = Array(repeating: 0, count: n)
         _inkShift = Array(repeating: 0, count: n)
         _numberLiftShift = Array(repeating: 0, count: n)
