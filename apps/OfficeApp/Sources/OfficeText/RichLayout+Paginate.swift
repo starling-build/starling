@@ -171,6 +171,7 @@ extension RichLayout {
         // The floating pictures on this page that text wraps round: page
         // y, and x from the column's edge.
         var bands: [(top: Double, bottom: Double, left: Double, right: Double)] = []
+        var tightBandBottoms: [Double] = []   // feet of the wrapTight/Through boxes' bands
         // The pinned floats' bands on this page (in `bands` too), which a
         // table's rows keep clear of as well.
         var pinBands: [(top: Double, bottom: Double, left: Double, right: Double)] = []
@@ -260,6 +261,7 @@ extension RichLayout {
         }
         func newPage() {
             bands.removeAll()
+            tightBandBottoms.removeAll()
             tableBands.removeAll()
             narrowBands.removeAll()
             anchorRun.removeAll()
@@ -4108,7 +4110,17 @@ extension RichLayout {
                         }
                     } else if !keepsOwnPicture {
                         let stoodAt = y
-                        while let below = noRoom(at: y, height: reach, []), guardSteps < 20 { y = below; guardSteps += 1 }
+                        // (A line that meets a tight or through box's band goes down a whole line at a time from where
+                        // it stood, to the first try whose top is clear of the band's foot, as in the first branch:
+                        // Word's print of lab b80-step stands a 12pt title 15.84pt lower each time the box's foot
+                        // passes the line's grid, not 3.6pt under the foot.)
+                        let lineStep = (Self._lineBottoms(geometry(i).painter).first ?? 0) / max(1, document.paragraphs[i].style.lineSpacing)
+                        while let below = noRoom(at: y, height: reach, []), guardSteps < 20 {
+                            if RichTextTheme.wordWindowsPages, lineStep > 1, tightBandBottoms.contains(where: { abs($0 - below) < 0.02 }) {
+                                y += max(1, ((below - y) / lineStep - 0.001).rounded(.up)) * lineStep
+                            } else { y = below }
+                            guardSteps += 1
+                        }
                         // (What meets the box is the paragraph, its space before
                         // and all, and what stands clear of it is the LINE: Word's
                         // print of lo-61f8f967 (para-upper-margin-fly-intersect,
@@ -4326,6 +4338,12 @@ extension RichLayout {
                         placed.append(r)
                     }
                     bands += placed
+                    if RichTextTheme.wordWindowsPages {
+                        for (n, box) in mine.enumerated() where n < placed.count {
+                            let own = ((i < _floatImages.count ? [_floatImages[i]].compactMap { $0 } : []) + (i < _inline.count ? _inline[i] : []))
+                            if own.contains(where: { $0.id == box.id && $0.float?.wrapsTight == true }) { tightBandBottoms.append(placed[n].bottom) }
+                        }
+                    }
                 }
                 // Lines of picture-only paragraphs that the pictures now
                 // leave no room — this one's and those just above it —

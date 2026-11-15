@@ -1630,7 +1630,11 @@ extension RichLayout {
             // text clears: zh-8e8d4c40's 【附件五】 box, wrapped square
             // with b 11430 EMU, has the title under it 0.9pt lower in Word
             // for Windows than its frame's foot — lab t8e.)
-            out.append((image.id, r, _px(float.distanceTop), _px(float.distanceBottom + (theme.wordRules ? float.effectBottom : 0))))
+            // (A tight or through box keeps only its drawn effects' reach under it: Word's
+            // print of lab b80-step stands the title 1.8..3.5pt under the box's foot,
+            // not 3.6pt (its distance below) further.)
+            let tightBelow = float.wrapsTight && RichTextTheme.wordWindowsPages
+            out.append((image.id, r, _px(tightBelow ? 0 : float.distanceTop), _px((tightBelow ? 0 : float.distanceBottom) + (theme.wordRules ? float.effectBottom : 0))))
         }
         return out
     }
