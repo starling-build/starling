@@ -1,4 +1,4 @@
-751 documents: COMBINED mean 99.94% (741 scored by Word's text lines, 10 by the visual comparison); pure line mean 99.94% over the 741 documents with text; visual-scored mean 100.00% (worst page differs by 0.01% of pixels on average, 10 at or under 1%)
+756 documents: COMBINED mean 99.94% (746 scored by Word's text lines, 10 by the visual comparison); pure line mean 99.94% over the 746 documents with text; visual-scored mean 100.00% (worst page differs by 0.01% of pixels on average, 10 at or under 1%)
  100.0%  lines 0/0  pages 0/0  51921-Word-Crash067
  100.0%  lines 2/2  pages 1/1  52288
  100.0%  lines 10/10  pages 1/1  52449
@@ -296,6 +296,8 @@
  100.0%  lines 205/205  pages 6/6  zh-46f527f8ddeef7a23620247fa619dd1c75da1921dc8fb848f7ced9ae10efbd25
  100.0%  lines 182/181  pages 4/4  zh-489ac2530ea10cf38f46397d8fd93dbaf6c107a995f1f602d5aeafdfc681e14f
  100.0%  lines 191/191  pages 5/5  zh-493e0fab24c91c04dd52f31619ff4460981963aba0365d7fad196fdf9b838b88
+ 100.0%  lines 2408/2408  pages 88/88  zh-499adba6a562a562339c3a2fb06319711978add8b5301b8d59b6a72ce58cc975
+  99.9%  lines 1447/1447  pages 70/70  zh-4a2ab598a76028c3292c304da6def50037704742055656f2ae654b01bf53f354
  100.0%  lines 258/258  pages 11/11  zh-4a90bb2fd874831c7f400c19662fa123d489a7ca723d6dd807db1abc98466f6f
  100.0%  lines 173/173  pages 4/4  zh-4adfcce2234ebaa00fb8a8dcb38c10627590d749c384b9ffd5cf096e6ded78be
   99.9%  lines 765/765  pages 30/30  zh-4b8e0abceafae463c951aa20f491e9e5aa8e5c77b0485e7d2bb7daa27620b0c7
@@ -482,6 +484,7 @@
   99.9%  lines 1764/1764  pages 71/71  zh-95d4dde0debe55c91759e54c50243837933cf9cfb6601133b547ce73f52e6057
  100.0%  lines 401/401  pages 10/10  zh-9636a1d5f50a20e5a6600573c080fde2c65120d1331da2571dbe71bcd457af18
  100.0%  lines 388/388  pages 19/19  zh-984846dca735a06ee3b66f9aad9ed5b8912c4caa699489b97c9ba14b774184a7
+ 100.0%  lines 2408/2408  pages 88/88  zh-9932bd830a56b9a57806cbb65840f823b53aa37146834e057d19a919e0097429
  100.0%  lines 129/129  pages 6/6  zh-998727dfba202c286267712f048d31d40194b7c90d6192559fdad3e224b761ca
  100.0%  lines 230/230  pages 8/8  zh-99a5f8802d681f1bb44b0afff5bea5d57231c64eb9d25551781cfd147abcde33
  100.0%  lines 626/626  pages 15/15  zh-99d98d091bd92d52448512cf13c219f3d14fa58509663248a5bacaea879d94e0
@@ -686,7 +689,9 @@
   99.6%  lines 250/250  pages 11/11  zh-e61c3dff448b0349b79d34fcb3180631fa5e3dcb907098f88fbc165bc8498f0b
  100.0%  lines 512/512  pages 12/12  zh-e64d4997fd2c373e1d45e30d3828f019ada3c6c32757be128aeb1079944ff3fe
  100.0%  lines 255/255  pages 12/12  zh-e653f5834fcc1f6dbdb12771ec0e84e7706f3964539483a3ff9444937d2285f6
+  99.8%  lines 1194/1194  pages 60/60  zh-e68a2f5783aae1a10fc4dead3d8f1e77ca547a3f4bda45df013b3e7075352fb7
  100.0%  lines 373/371  pages 7/7  zh-e6d54ae4dfac488825b0c5b28bbf2d5964d765657252eabe1da15688fab7e54b
+  99.9%  lines 3327/3327  pages 134/134  zh-e74dd0a1b86f15485ad0d4f5d033df68ca0ce96b0d8629164bd0c133d9becc75
  100.0%  lines 43/43  pages 2/2  zh-e7bdb5432b9e5ef65aea625c02f74a2518414b30441c91e53a21599da6cde6e6
  100.0%  lines 397/397  pages 23/23  zh-e8bf8b4282e6f62851fb8e0e0a496196c84bfb87fdb943be8eb478c89558b8f0
  100.0%  lines 37/36  pages 1/1  zh-e8d4c046b973cc68287c501e39e3cb2eeb4d84bcdf22302a035cb5e9d7bebd18

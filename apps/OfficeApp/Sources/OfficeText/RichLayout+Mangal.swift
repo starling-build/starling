@@ -696,7 +696,11 @@ enum MangalAdvances {
         if k[k.startIndex].value == 0x930 || tail[tail.startIndex].value == 0x930 { return nil }
         if (k[k.startIndex].value == 0x915 && tail[tail.startIndex].value == 0x937) || (k[k.startIndex].value == 0x91C && tail[tail.startIndex].value == 0x91E) { return nil }
         guard let a = advance[String(head)], let b = advance[String(String.UnicodeScalarView(tail))] ?? conjunct(tail, table: table, ratio: ratio) else { return nil }
-        return ratio * (a + b)
+        // द, ठ and ह have no half form in Mangal: the virama stays visible and the head keeps its full advance, so the conjunct is the plain sum
+        // (the listed conjuncts of these heads read 0.999 x (a + b) over 11 द, 0.99 over 2 ह, 1.00 for ठ; the others 0.83-0.91). 55850db1 'परिषद्ले' was 2 pt short.
+        let h = k[k.startIndex].value
+        let full = h == 0x926 || h == 0x920 || h == 0x939
+        return (full ? 1.0 : ratio) * (a + b)
     }
 
     /// Block-aware cluster tests (consonants +0x15...+0x39, nukta +0x3C, matras +0x3E...+0x4C and +0x01...+0x03, +0x62/+0x63, virama +0x4D);
