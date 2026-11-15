@@ -1362,7 +1362,9 @@ extension RichLayout {
                    { let f = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased(); // (Spaces and marks in a run of their own (no letters, Latin or Indic) are not Nirmala's line: af19d946 ", " runs, Calibri in Word'"'"'s print; Arial'"'"'s marks are.)
                        return (f.hasPrefix("nirmala ui") && text.unicodeScalars.contains(where: { ($0.value < 0x250 && ($0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39))) || (Self._isIndic($0.value) && !(run.keptXML?.containsSubstring("<w:cs") ?? false)) }))  || f == "arial" }(),
                    !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) }),
-                   indic != nil || (!text.unicodeScalars.contains(where: { Self._isIndic($0.value) }) && text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 }) && p.text.unicodeScalars.contains(where: { Self._indic.contains($0.value) })),
+                   indic != nil || (!text.unicodeScalars.contains(where: { Self._isIndic($0.value) }) && text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 }) && p.text.unicodeScalars.contains(where: { Self._indic.contains($0.value) }))
+                       // (A run of only dandas (। ॥) in a Nirmala UI face has no letter, so no Indic face is chosen for it, and its stand-in's taller line deepened the line 1.2 pt: dx2 bea98273 p5, 15.28 pt against Word's 14.04. The danda is Nirmala's.)
+                       || (!text.isEmpty && text.unicodeScalars.allSatisfy({ $0.value == 0x964 || $0.value == 0x965 }) && p.text.unicodeScalars.contains(where: { Self._indic.contains($0.value) && $0.properties.isAlphabetic })),
                    let m = Self._indicLines["nirmala ui"] {
                     let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
                     // (A Nirmala-named run's pieces carry the line's height too; an Arial piece only the ascent/descent split: a line height on its stand-in raised the
