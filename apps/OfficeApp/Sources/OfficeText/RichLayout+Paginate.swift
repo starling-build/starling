@@ -1852,7 +1852,7 @@ extension RichLayout {
                     if !beside {
                         tableBands.append((top: back.top, bottom: y, owner: -1))
                         if RichTextTheme.wordWindowsPages, document.tableStyles[back.table]?.pageAnchored == true,
-                           left >= _px(12) || (_tableFlowWidth[back.table] ?? width) - (left + (_columnWidths[back.table] ?? []).reduce(0, +)) >= _px(12) {
+                           _tableLeftRoom(back.table, document) >= _px(18) || (_tableFlowWidth[back.table] ?? width) - (left + (_columnWidths[back.table] ?? []).reduce(0, +)) >= _px(12) {
                             // (A strip at the table's right, or the room at its left: blank lines stand beside it, dx2 f22ada3a's
                             // date table at x 417 with eight blanks at the left margin.)
                             stripBandTops.insert(back.top)
@@ -2498,7 +2498,7 @@ extension RichLayout {
                     let physical = page / _columns
                     let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
                     let target = ts0?.pageOffsetY.map { _px($0) - insetTop } ?? bottomAlignedOffset(c, i).map { _px($0) - insetTop } ?? _px(ts0?.marginOffsetY ?? 0)
-                                        if target > y + 0.01, target < contentH - 0.01 {
+                    if target > y + 0.01, target < contentH - 0.01 {
                         tableReturn = (c.table, y, page, target)
                         y = target
                         // (A table placed against the page whose first row, or
@@ -2544,7 +2544,7 @@ extension RichLayout {
                         y = target
                     } else if theme.wordRules, RichTextTheme.wordWindowsPages, target < -0.01, target > -insetTop, y > 0.01, deferredUnder.isEmpty,
                               document.tableStyles[c.table]?.pageAnchored == true,
-                              _tableLeft(c.table, document) >= _px(12),
+                              _tableLeftRoom(c.table, document) >= _px(18),
                               let last = _pages[page].last, last.paragraph < i, _cells[last.paragraph] == nil, !last.repeated,
                               document.paragraphs[last.paragraph].image == nil, !document.paragraphs[last.paragraph].text.contains(where: { $0 != " " }) {
                         // (A table placed a fraction above the body's top, after a blank line: it keeps its place and the blank
@@ -5812,5 +5812,22 @@ extension RichLayout {
     func _inlinePictureOnly(_ i: Int, _ document: RichDocument) -> Bool {
         let p = document.paragraphs[i]
         return !p.inlineImages.isEmpty && p.text.unicodeScalars.allSatisfy { $0.value == 0xFFFC || $0 == " " }
+    }
+}
+
+extension RichLayout {
+    /// The room at a floating table's left that a line can stand in: its left edge less the
+    /// distance it asks (`w:leftFromText`). Word's print of lab tblroom: a line stands beside the
+    /// table only where its own content fits in that room (MARK, 39.5pt wide, at 51pt free and
+    /// not at 31; an empty paragraph at 21pt free and not at 11; the 18 used is the middle of what gv's 16.15pt
+    /// free, where Word keeps its blanks below, and the lab's 21 leave open), so gv-fbcf1434e7's table at
+    /// 96pt (text from 71, distance 9) has 16pt free and keeps the blank lines below it, where
+    /// dx2 f22ada3a's has 346.
+    func _tableLeftRoom(_ table: String, _ document: RichDocument) -> Double {
+        var dist = 0.0
+        if let kept = document.tableStyles[table]?.keptPosition, let r = kept.rangeOfSubstring("w:leftFromText=\"") {
+            dist = Double(kept[r.upperBound...].prefix { $0 == "-" || $0.isNumber }) ?? 0
+        }
+        return _tableLeft(table, document) - _px(dist / 20)
     }
 }
