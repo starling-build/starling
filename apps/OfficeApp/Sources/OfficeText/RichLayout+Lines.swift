@@ -944,6 +944,14 @@ extension RichLayout {
             // paragraph is left to the paragraph-by-paragraph push, as before:
             // zh-37b6536f's photographs.)
             if k < i, p.cell != nil, let image = q.image, image.name == "table", k < _imageSize.count { candidates.append((image, _imageSize[k])) }
+            // (A square float standing at the page top by Word's clamp of its negative offset, anchored in the page's first
+            // paragraph: the text under it stands beside it, 61ec937a's logo. Not a right-to-left paragraph, whose lines
+            // start at the right: 7ef158e4's date box at the left kept its lines where they stood.)
+            if k < i, k == 0, p.cell == nil, !p.style.rightToLeft, let image = q.image, _atPageTopNegativeOffset(k, image), image.float?.wraps == true,
+               !candidates.contains(where: { $0.image.id == image.id }) {
+                candidates.append((image, k < _imageSize.count ? _imageSize[k] : nil))
+                RuleTrace.hit("word-text-beside-square-float-clamped-to-page-top")
+            }
             for (image, laid) in candidates {
                 // (A box in the middle of the column with room on both sides, text
                 // wrapped round it on both: the lines alternate between the room
@@ -1078,8 +1086,10 @@ extension RichLayout {
                 // (And room at its right for text: across the column it leaves
                 // none, and the paragraph goes under it as before.)
                 guard edge > own, column - edge - rightGap >= size * 3 else { continue }
-                let band = (top: _px(float.y) - _px(float.distanceTop) + _px(float.wrapTopSkip) - offset,
-                            bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
+                // (A square float whose negative offset Word clamps to the page top stands there: its band too.)
+                let floatY = _atPageTopNegativeOffset(k, image) ? 0 : float.y
+                let band = (top: _px(floatY) - _px(float.distanceTop) + _px(float.wrapTopSkip) - offset,
+                            bottom: _px(floatY) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
                 // (One that ends above this paragraph's top has nothing to do with it.)
                 guard band.bottom > 0.01 else { continue }
                 if k < i, !tightList, theme.wordRules, RichTextTheme.wordWindowsPages, float.wrapsTight, float.horizontalAlign == nil, p.cell == nil,

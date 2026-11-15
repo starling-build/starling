@@ -4334,7 +4334,10 @@ enum DocxFormat {
         if let shadow = shape.first("v:shadow"), !off.contains(shadow["on"] ?? "f") {
             let parts = (shadow["offset"] ?? "").split(separator: ",", omittingEmptySubsequences: false)
             if parts.count >= 2, let y = _length(String(parts[1].filter { $0 != " " })) {
-                shadowDrop = max(0, y)
+                // (A shadow thrown up grows the line by its offset the same
+                // way: dx2 e9eab5f8's -36pt shadow put Word's body 35.3pt
+                // below ours.)
+                shadowDrop = abs(y)
             } else {
                 shadowDrop = 2.28
             }
