@@ -1043,6 +1043,20 @@ struct PdfMarkup {
         // of room even so, its tallest box is cut short with a "..." at its foot.
         let limit = setup.height - setup.marginBottom + 6
         var heights = entries.map { $0.tp.height + padTop + padBottom }
+        // (Word for Windows prints a deletion that opens with a lone deleted paragraph mark and goes on into another
+        // paragraph as one line, "Deleted: ¶", with "..." at its foot, 0.4pt taller than a plain one-line box: xa
+        // gv-d4270b921d pages 12 and 14, gv-ccf7f258bf and gv-9febdcb8f3, ten boxes in all and no such balloon in any
+        // Word print shows more than that line; a deletion that does not open with the mark prints whole.)
+        var shortened = Set<Int>()
+        if windows {
+            for (i, e) in entries.enumerated() where e.note.label == "Deleted:" && e.note.paragraphs.count > 1 && e.note.paragraphs[0] == "¶" {
+                if let first = e.tp.computeLineMetrics().first {
+                    RuleTrace.hit("balloon-deletion-led-by-a-lone-mark-is-cut-to-one-line-with-ellipsis")
+                    heights[i] = first.height + padTop + padBottom + 0.4
+                    shortened.insert(i)
+                }
+            }
+        }
         var tops: [Double] = []
         var f = -Double.infinity
         for (i, e) in entries.enumerated() {
@@ -1182,7 +1196,7 @@ struct PdfMarkup {
             let under = anchor.bottom
             canvas.drawLine(Offset(anchor.left, under), Offset(turn, under), line)
             canvas.drawLine(Offset(turn, under), Offset(boxLeft, top + meet), line)
-            if cut == i {
+            if cut == i || shortened.contains(i) {
                 canvas.save()
                 canvas.clipRect(box)
                 tp.paint(canvas, Offset(boxLeft + inset + indent, top + padTop))
