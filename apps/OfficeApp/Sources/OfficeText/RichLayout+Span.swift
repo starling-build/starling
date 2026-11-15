@@ -301,8 +301,10 @@ extension RichLayout {
             if theme.wordRules, p.style.list != nil, lead > 0 {
                 // An empty list still has a number and its suffix. Reserve
                 // their width so centered/right numbers move with the line.
+                // (Capped at the line: nothing follows the tab, so Word does not wrap it to a second line; xs 5de0db4c's
+                // empty "2." row in an 846-twip cell is one line in Word's print, 16.5 pt, ours two.)
                 let box = RichImageSpan(alignment: .baseline, baseline: .alphabetic, style: look)
-                let dimensions = PlaceholderDimensions(size: Size(lead, 0.01), alignment: .baseline,
+                let dimensions = PlaceholderDimensions(size: Size(textWidth > 1 ? min(lead, textWidth - 0.5) : lead, 0.01), alignment: .baseline,
                                                        baseline: .alphabetic, baselineOffset: 0.01)
                 return (TextSpan(children: [box, TextSpan(text: "\u{200B}", style: look)]), [(nil, dimensions)], [])
             }
