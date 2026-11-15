@@ -529,15 +529,63 @@ struct PdfMarkup {
             return 0
         }
         let oldLeft = twips(["w:left", "w:start"]), oldRight = twips(["w:right", "w:end"])
-        if abs(style.indentLeft - oldLeft) > 0.01 { said.append("Left: " + inches(style.indentLeft)) }
-        if abs(style.indentRight - oldRight) > 0.01 { said.append("Right: " + inches(style.indentRight)) }
+        let oldHang = twips(["w:hanging"]), oldFirst = twips(["w:firstLine"])
+        let newHang = max(0, -style.firstLineIndent), newFirst = max(0, style.firstLineIndent)
+        // (Word names a hanging indent by where the first line starts: "Left" is the left indent less the
+        // hanging, so left 0.39" hanging 0.39" reads "Indent: Left: 0", Hanging: 0.39"". Taking the hanging
+        // away reads "First line: 0"". xa gv-9febdcb8f3 p14, gv-ccf7f258bf p12 and p17.)
+        let leftMoved = abs(style.indentLeft - oldLeft) > 0.01
+        let hangMoved = abs(newHang - oldHang) > 0.01 || abs(newFirst - oldFirst) > 0.01
+        let numberingGone = old.rangeOfSubstring("<w:numPr>") != nil && style.list == nil
+        var indent: [String] = []
+        // (A negative Left means the list supplies the indent: Word words that as a numbering change, not done here.)
+        let listIndent = style.indentLeft - newHang < -0.01
+        if (leftMoved || hangMoved || numberingGone) && !listIndent { indent.append("Left: " + inches(style.indentLeft - newHang)) }
+        if abs(style.indentRight - oldRight) > 0.01 { indent.append("Right: " + inches(style.indentRight)) }
+        if (leftMoved || hangMoved || numberingGone) && !listIndent {
+            if newHang > 0 { indent.append("Hanging: " + inches(newHang)) }
+            else if (oldHang > 0 && !numberingGone) || newFirst > 0 { indent.append("First line: " + inches(newFirst)) }
+        }
+        if indent.contains(where: { $0.hasPrefix("Left: ") }) {
+            indent[0] = "Indent: " + indent[0]
+            if numberingGone { said.insert(contentsOf: indent, at: 0) } else { said.append(contentsOf: indent) }
+        } else { said.append(contentsOf: indent) }
         // (A change that took the numbering away: Word names the indent as it now is and then "No bullets or
         // numbering", even when the left indent did not move. xa gv-d4270b921d p2, gv-9febdcb8f3 p2.)
-        if old.rangeOfSubstring("<w:numPr>") != nil, style.list == nil {
-            said.removeAll { $0.hasPrefix("Left: ") }
-            said.insert("Indent: Left: " + inches(style.indentLeft), at: 0)
-            said.append("No bullets or numbering")
+        if numberingGone { said.append("No bullets or numbering") }
+        // (Tab stops now there that were not, "0.69", Left", then those gone, "Not at 0.75"". A hanging indent
+        // is a tab stop at its left indent; a list's own "num" tab at or before the indent is the list's.
+        // xa gv-9febdcb8f3 p12 and p14, gv-ccf7f258bf p12 and p17.)
+        var oldTabs: [Double] = []
+        var rest = old
+        while let r = rest.rangeOfSubstring("<w:tab ") {
+            let tail = rest[r.upperBound...]
+            guard let end = tail.firstIndex(of: ">") else { break }
+            let tag = String(tail[..<end])
+            rest = String(tail[end...])
+            func att(_ n: String) -> String? {
+                guard let a = tag.rangeOfSubstring(n + "=\"") else { return nil }
+                return String(tag[a.upperBound...].prefix { $0 != "\"" })
+            }
+            guard let kind = att("w:val"), kind != "clear", let pos = att("w:pos").flatMap({ Double($0) }) else { continue }
+            if kind == "num" && pos / 20 <= oldLeft + 0.01 { continue }
+            oldTabs.append(pos / 20)
         }
+        if oldHang > 0 && old.rangeOfSubstring("<w:numPr>") == nil { oldTabs.append(oldLeft) }
+        let newTabs = style.tabStops.filter { $0.rawKind != "num" && $0.rawKind != "bar" }
+        var tabSaid: [String] = []
+        for t in newTabs where !oldTabs.contains(where: { abs($0 - t.position) < 0.6 }) {
+            let kind: String
+            switch t.alignment { case .center: kind = "Centered"; case .right: kind = "Right"; case .decimal: kind = "Decimal"; default: kind = "Left" }
+            tabSaid.append(inches(t.position) + ", " + kind)
+        }
+        var gone: [String] = []
+        for v in oldTabs where !newTabs.contains(where: { abs($0.position - v) < 0.6 }) && !(newHang > 0 && abs(style.indentLeft - v) < 0.6) {
+            let s = inches(v)
+            if !gone.contains(s) { gone.append(s) }
+        }
+        if !gone.isEmpty { tabSaid.append("Not at " + gone.joined(separator: ", ")) }
+        if !tabSaid.isEmpty { said.append("Tab stops: " + tabSaid.joined(separator: " + ")) }
         return said.joined(separator: ", ")
     }
 
