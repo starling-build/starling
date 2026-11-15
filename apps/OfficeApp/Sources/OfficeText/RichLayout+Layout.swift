@@ -2469,7 +2469,11 @@ extension RichLayout {
                         // only once it has wrapped: after an unconstrained
                         // layout it reports nothing.)
                         let word = painter.minIntrinsicWidth.rounded(.up)
-                        if word > length + 0.01 {
+                        // (Word breaks the word in a turned cell and keeps the row, as
+                        // it does across: dx2 79ea8977's Mongolian table rows stay
+                        // at 62.9pt in Word's print; ours grew them to 148.)
+                        let keepsRow = theme.wordRules && RichTextTheme.wordWindowsPages
+                        if word > length + 0.01, !keepsRow {
                             length = word
                             painter.layout(minWidth: length, maxWidth: length)
                         }
