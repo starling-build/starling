@@ -1816,6 +1816,13 @@ extension RichLayout {
             let size = _px(markerChar.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * fontScale
             markerStyle = markerStyle.copyWith(letterSpacing: (markerStyle.letterSpacing ?? 0) + em * size - _glyphWidth(markerStyle, ch))
         }
+        if theme.wordRules, RichTextTheme.wordWindowsPages, label.count == 1, let ch = label.first, _levelNumberFonts(p, document).latin?.lowercased() == "wingdings 2",
+           ch == "\u{2610}", p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.rawText }) == "*" {
+            // (Wingdings 2's "*" (the empty box) is 0.70 em wide: dx2 bea98273's Word print, box at 75.6 and its text at 93.6 on one line, the level's 18pt hanging holding both.)
+            RuleTrace.hit("wingdings-2-star-box-is-0.70-em")
+            let size = _px(markerChar.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * fontScale
+            markerStyle = markerStyle.copyWith(letterSpacing: (markerStyle.letterSpacing ?? 0) + 0.70 * size - _glyphWidth(markerStyle, ch))
+        }
         // Its Latin characters in the Latin face all the same — the
         // number's own (its level's `w:rFonts`, else the paragraph
         // mark's), whatever the hint: the "1" of zh-06c46ba9's "（1）" is
@@ -1865,6 +1872,10 @@ extension RichLayout {
         // `<w:snapToGrid/>` over runs off a grid of 1pt, and Word sets
         // "〈2〉" 17.0, 9.9 and 17.0 at 16pt, the line a character short of
         // ours.)
+        // (Wingdings 2's box is the one marker style whatever face the Latin path would pick: its 0.70 em advance above.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, label == "\u{2610}", _levelNumberFonts(p, document).latin?.lowercased() == "wingdings 2" {
+            span = TextSpan(text: label, style: markerStyle)
+        }
         let levelGrid = p.style.listId.flatMap { document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }
             .flatMap { xml -> Bool? in
                 guard let r = xml.rangeOfSubstring("<w:snapToGrid") else { return nil }

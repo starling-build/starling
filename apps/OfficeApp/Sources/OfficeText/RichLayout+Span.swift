@@ -4117,8 +4117,15 @@ extension RichLayout {
                     probe.dispose()
                     if half <= 0, let m {
                         let lowering = -half / 2 * theme.pixelsPerPoint * scale
-                        let up = max(px * 1727.0 / 2048 - lowering, m.baseline)
-                        let down = m.height - m.baseline
+                        var textUp = m.baseline, textDown = m.height - m.baseline
+                        // (The probe is the stand-in face's line; a row in Nirmala UI is Nirmala UI's, 2210 over 514 of 2048: dx2 bea98273's Bengali rows pitched 21.2 and 19.5
+                        // on the stand-in's 3.95pt depth, Word 18.2 and 18.4.)
+                        if let own = ownStyle.fontSize, (firstLook.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased().hasPrefix("nirmala ui"),
+                           p.text.unicodeScalars.first(where: { $0.value != 0x20 }).map({ Self._isIndic($0.value) }) == true, let nl = Self._indicLines["nirmala ui"] {
+                            textUp = nl.0 * own; textDown = nl.1 * own
+                        }
+                        let up = max(px * 1727.0 / 2048 - lowering, textUp)
+                        let down = textDown
                         RuleTrace.hit("word-wingdings2-lowered-bullet-stands-the-line-on-its-ascent-less-the-lowering")
                         markStyle = style.copyWith(ascentOverride: up, descentOverride: down, height: (up + down) / px)
                     }
