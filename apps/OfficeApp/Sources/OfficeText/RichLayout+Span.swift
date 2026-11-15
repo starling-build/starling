@@ -3841,6 +3841,8 @@ extension RichLayout {
                         let authored = (run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
                         s = _indicSpaceStyle(base: s, spaceEm: 0.2065, unit: authored)
                     } else if ch == " ", kind >= 0, let face = indic?.face, face != "kokila",
+                              // (A space the fit cut out of a danda-and-space run in a missing Bengali face: the fit's extra IS its pad up to Mangal's half em (lab left0, 60.3 units), so the pad is not added a second time: the space was 8.5 pt, 5.5 in Word.)
+                              !(extra != 0 && Self._missingBengaliSpaceEm(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "") != nil),
                               let spaceEm = (face == "vrinda" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? 0.3125 : Self._indicSpace[face],
                               let px = s.fontSize, px > 0.5 {
                         // (The same for the faces whose space is their own, Mangal, Vrinda, Utsaah: one path, `_indicSpaceStyle`.)
