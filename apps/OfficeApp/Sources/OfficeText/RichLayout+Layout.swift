@@ -1314,12 +1314,19 @@ extension RichLayout {
             // drop below stood ours 9pt low.)
             let family = styles[k]?.debugLabel ?? styles[k]?.fontFamily ?? ""
             let plain = family.containsSubstring("楷") || family.lowercased().containsSubstring("dfkai") || family.lowercased().containsSubstring("kaiti")
-            let form = plain ? ch : (Self._verticalForms[ch] ?? ch)
+            // (Meiryo and the other Japanese faces carry their own vertical marks in place: Word's print of
+            // dx2 934bd3e5 sets "、" right after its character, where the YaHei drop stood it 5.7pt low. Its text
+            // layer holds the plain "、" "「" "。", the face's vert feature drawing the vertical shape, where
+            // the Chinese faces' prints hold U+FE10..FE44 themselves: so a Japanese face draws the plain
+            // mark with vert, and the PDF's text is the plain mark too.)
+            let japanese = ["meiryo", "メイリオ", "ms mincho", "ms gothic", "ＭＳ", "yu mincho", "yu gothic", "游"].contains { family.lowercased().containsSubstring($0) }
+            let form = plain || japanese ? ch : (Self._verticalForms[ch] ?? ch)
+            let vertMark = japanese && !plain && Self._verticalForms[ch] != nil
             // (Its own advance, without the run's letter spacing: that
             // follows it — below.)
             // (A baseline shift moves the line's box across the column, which `across` has; the glyph stood
             // upright takes none of it along the column, so its own is dropped: dx2 ee0b468e's ruby paragraph.)
-            let glyph = TextPainter(text: TextSpan(text: String(Character(form)), style: styles[k]?.copyWith(letterSpacing: 0, baselineShift: 0)), textDirection: .ltr)
+            let glyph = TextPainter(text: TextSpan(text: String(Character(form)), style: styles[k]?.copyWith(letterSpacing: 0, baselineShift: 0, fontFeatures: vertMark ? (styles[k]?.fontFeatures ?? []) + [FontFeature("vert")] : nil)), textDirection: .ltr)
             glyph.layout()
             // (Its em square centred in its box — the square stands 0.88
             // em over the baseline and 0.12 under it — not its line, which
@@ -1345,9 +1352,6 @@ extension RichLayout {
             // "東引鄉活動中心2樓" 1.8pt: windows' measurement.)
             let higher = centred && abs((styles[k]?.height ?? 0) - 1.3) < 0.001 ? 0.11 * em : 0
             let along = box.left + min(box.right - box.left, glyph.width) / 2 + lead(k) - higher
-            // (Meiryo and the other Japanese faces carry their own vertical marks in place: Word's print of
-            // dx2 934bd3e5 sets "、" right after its character, where the YaHei drop stood it 5.7pt low.)
-            let japanese = ["meiryo", "メイリオ", "ms mincho", "ms gothic", "ＭＳ", "yu mincho", "yu gothic", "游"].contains { family.lowercased().containsSubstring($0) }
             canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em, origin.dy + acrossC(box, em, k) + (plain ? 0.085 * em : 0) + sharedShift(k))
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
