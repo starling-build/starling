@@ -4540,9 +4540,14 @@ extension RichLayout {
             // (On a line grid the base text was moved with the ruby line: `rubyLine`.)
             let moved = NativeParagraphBuilder.supportsBaselineShift && _rubyShiftApplies(p, named: named, ruby: g.style, pitch: _grid(index, document).pitch)
                 ? theme.rubyLine(for: g.style, in: p.style, named: named, eastAsian: true, gridPitch: _grid(index, document).pitch)?.raise ?? 0 : 0
+            // (The plain text beside a ruby is moved with the ruby line only where the paragraph is all ruby or one line
+            // (`_mixedRubyRaise`); in a mixed paragraph that wraps it stays, and so must the ruby's share of that move: ee0b468e's
+            // 薇 over ぜんまい stood 5.4pt from its base, Word's print 13.9, the lab's one-line 14.9 with the move.)
+            let plainBeside = p.runs.contains { $0.style.ruby == nil && $0.length > 0 && $0.style.inlineImage == nil }
+            let movedHere = plainBeside && lines.count > 1 && (index.map { _verticalBody($0) } ?? false) ? 0 : moved
             if let index, _verticalBody(index) {
                 _paintUprightRuby(g.ruby.text, style, x: x, step: baseWidth > rubyWidth ? (baseWidth - rubyWidth) / count : 0,
-                                  centre: (first.top + first.bottom) / 2 - raise - moved * _px(1), origin: origin, canvas)
+                                  centre: (first.top + first.bottom) / 2 - raise - movedHere * _px(1), origin: origin, canvas)
                 tp.dispose()
                 continue
             }
