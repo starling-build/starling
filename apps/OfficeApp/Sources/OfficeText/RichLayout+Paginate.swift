@@ -2976,6 +2976,17 @@ extension RichLayout {
                 } else if keptPastFoot == c.table {
                     keptPastFoot = nil
                 }
+                // (A row of a table placed from the margin (a float naming no w:vertAnchor) stays where it ends within the
+                // page's footer edge, the one a table placed against the page is set up to: dx2 a6254f44's and 54d1d1d1's
+                // last row, 460 twips at least, ends 2.3pt under the foot on page 21 in Word's print; ours took it to a
+                // 22nd page. A floating table by the text is not so kept: 9fc782eb's row 26 goes over in Word's print.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !pastFoot, !atTop, c.firstInRow, document.tableStyles[c.table]?.marginOffsetY != nil,
+                   document.tableStyles[c.table]?.keptPosition != nil, shown + ruleUnder(c) > contentH - y + 0.01,
+                   case let setup = pageSetup(forPage: page / _columns),
+                   y + shown + ruleUnder(c) <= _px(setup.height - setup.footerDistance) - _bodyInsets(page: page / _columns, document).top + 0.01 {
+                    RuleTrace.hit("margin-placed-floating-table-row-ending-within-the-footer-edge-stays-at-the-foot")
+                    pastFoot = true
+                }
                 if theme.wordRules, !pastFoot, shown + ruleUnder(c) > contentH - y + 0.01, splitRow(i, j, c, atTop: atTop) {
                     // (A row that ends at the margin leaves the next of a page-anchored table in compat 12 to part by lines to the
                     // page's own foot, where it is the table's own and begun here: lo-c9b8c5ab's A4 ends 468.1 of 468 and A5
