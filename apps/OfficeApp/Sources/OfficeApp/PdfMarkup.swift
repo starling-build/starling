@@ -696,6 +696,21 @@ struct PdfMarkup {
     private static func _comments(_ document: RichDocument) -> [Note] {
         guard let data = document.keptParts["word/comments.xml"], let root = XNode.parse(data) else { return [] }
         var bodies: [String: (author: String, initials: String, paragraphs: [String])] = [:]
+        // (A reply: commentsExtended names its parent by the paragraph id of the parent's last paragraph; Word
+        // for Windows prints "Commented [PL2R1]:", the reply's own number, then "R" and its parent's. xa gv-d4270b921d p4.)
+        var paraOf: [String: String] = [:]
+        var parentPara: [String: String] = [:]
+        if DocxFormat.wordOnWindows, let ext = document.keptParts["word/commentsExtended.xml"], let ex = XNode.parse(ext) {
+            for e in ex.all("w15:commentEx") { if let id = e["w15:paraId"], let par = e["w15:paraIdParent"] { parentPara[id] = par } }
+        }
+        for c in root.all("w:comment") {
+            if let id = c["w:id"], !parentPara.isEmpty {
+                var last: String?
+                var st: [XNode] = [c]
+                while let n = st.popLast() { if n.name == "w:p", let pid = n["w14:paraId"] { last = pid }; st.append(contentsOf: n.children.reversed()) }
+                if let last { paraOf[id] = last }
+            }
+        }
         for c in root.all("w:comment") {
             guard let id = c["w:id"] else { continue }
             var paragraphs: [String] = []
@@ -742,6 +757,7 @@ struct PdfMarkup {
         let printed = order.filter { !silent.contains($0) }
         let filePrinted = fileOrder.filter { printed.contains($0) }
         let byFile = DocxFormat.wordOnWindows && filePrinted == printed
+        var numbers: [String: Int] = [:]
         for id in order where !silent.contains(id) {
             guard let body = bodies[id], let end = ends[id] else { continue }
             var number = out.count + 1
@@ -749,7 +765,14 @@ struct PdfMarkup {
                 number = fileOrder[..<at].filter { !silent.contains($0) }.count + 1
                 if number != out.count + 1 { RuleTrace.hit("comment-numbers-count-the-comments-whose-range-is-all-deleted-text") }
             }
-            out.append(Note(anchor: end, label: "Commented [\(body.initials)\(number)]:", paragraphs: body.paragraphs, author: body.author,
+            var reply = ""
+            if let mine = paraOf[id], let par = parentPara[mine], let pid = paraOf.first(where: { $0.value == par })?.key,
+               let pnum = numbers[pid] {
+                reply = "R\(pnum)"
+                RuleTrace.hit("comment-reply-label-names-its-parent-number")
+            }
+            numbers[id] = number
+            out.append(Note(anchor: end, label: "Commented [\(body.initials)\(number)\(reply)]:", paragraphs: body.paragraphs, author: body.author,
                             family: face))
         }
         return out
