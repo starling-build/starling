@@ -4495,7 +4495,7 @@ extension RichLayout {
     /// (dx2 en 61ec937a: a square-wrapped logo 40pt above stands at the margin, 72.0 in Word's print, and the text wraps beside it).
     @inline(never)
     func _atPageTopNegativeOffset(_ i: Int, _ image: ImageAttachment) -> Bool {
-        guard theme.wordRules, RichTextTheme.wordWindowsPages, let f = image.float, (f.bandsPage || (f.wraps && !f.wrapsTight && image.textBox == nil)), f.verticalAlign == nil,
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, let f = image.float, (f.bandsPage || (f.wraps && !f.wrapsTight && image.textBox == nil && image.sourceXML?.containsSubstring("txbxContent") != true)), f.verticalAlign == nil,
               f.verticalFrom == "paragraph", f.y < -2, i == 0, !floatsFrames, regionTopOnPage == nil else { return false }
         return true
     }
