@@ -751,7 +751,24 @@ enum MangalAdvances {
         RuleTrace.hit("word-bengali-split-o-vowel-is-stem-plus-e-plus-aa")
         return stem + e + right
     }
-    static func split(_ word: Substring, bold: Bool = false, table: [String: Double]? = nil, conjunctRatio: Double? = 0.85, block: UInt32 = 0x900, lowVowelsZero: Bool = false) -> (ems: Double, known: String, rest: Bool)? {
+    /// A run tagged w:lang w:bidi="sa-IN" is drawn by Word with the stacked (Sanskrit) forms of क्त प्त ष्ट ष्ठ द्द द्ध ट्ट, a single narrow glyph; the
+    /// other languages draw the horizontal ligature in `advance`. em of the authored size, read directly from the print of xd 6be5dbc9
+    /// (every cluster below at least 3 samples but द्ध with 2; the ne-NP क्त of d91478e3 stays 1.298, its sa-IN द्दे is 0.57). A cluster not
+    /// listed whose conjunct IS listed (ष्टि) takes the base's stacked width plus its own matra's advance.
+    static let sanskritStacked: [String: Double] = [
+        "\u{915}\u{94D}\u{924}": 0.807, "\u{92A}\u{94D}\u{924}": 0.653, "\u{937}\u{94D}\u{91F}": 0.600, "\u{937}\u{94D}\u{920}": 0.600,
+        "\u{926}\u{94D}\u{926}": 0.576, "\u{91F}\u{94D}\u{91F}": 0.578, "\u{926}\u{94D}\u{927}": 0.982,
+        "\u{915}\u{94D}\u{924}\u{93F}": 1.124, "\u{937}\u{94D}\u{91F}\u{93E}": 0.860, "\u{926}\u{94D}\u{935}\u{93E}": 0.839,
+    ]
+    static func stackedAdvance(_ key: String, _ advance: [String: Double]) -> Double? {
+        if let w = sanskritStacked[key] { return w }
+        let u = Array(key.unicodeScalars)
+        guard u.count > 3, isConsonant(u[0].value), u[1].value == 0x94D, isConsonant(u[2].value) else { return nil }
+        let base = String(String.UnicodeScalarView(u[0 ..< 3]))
+        guard let s = sanskritStacked[base], let a = advance[base], let b = advance[key], b >= a else { return nil }
+        return s + (b - a)
+    }
+    static func split(_ word: Substring, bold: Bool = false, table: [String: Double]? = nil, conjunctRatio: Double? = 0.85, block: UInt32 = 0x900, lowVowelsZero: Bool = false, stacked: Bool = false) -> (ems: Double, known: String, rest: Bool)? {
         let advance = table ?? Self.advance
         let u = Array(word.unicodeScalars)
         var sum = 0.0, known = String.UnicodeScalarView(), rest = false, any = false
@@ -774,6 +791,9 @@ enum MangalAdvances {
             }
             var key = String.UnicodeScalarView()
             key.append(contentsOf: u[i ..< j])
+            if stacked, block == 0x900, let sw = stackedAdvance(String(key), advance) {
+                sum += sw; known.append(contentsOf: u[i ..< j]); any = true; i = j; continue
+            }
             if let w = advance[String(key)] ?? ascii[String(key)] ?? Self._bengaliReph(u[i ..< j], advance, block, mangal: table == nil) ?? Self._nasalOn(u[i ..< j], advance, block, mangal: table == nil) ?? (lowVowelsZero ? _bengaliLowVowel(u[i ..< j], advance, block) : nil) ?? _bengaliSplitO(u[i ..< j], advance, block) ?? conjunct(u[i ..< j], table: table, ratio: conjunctRatio) { sum += w; known.append(contentsOf: u[i ..< j]); any = true } else { rest = true }
             i = j
         }

@@ -1728,6 +1728,7 @@ extension RichLayout {
                 if kind >= 0, let face = indic?.face, let spaceEm = (face == "vrinda" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? 0.3125 : Self._indicSpace[face], let px = style(kind).fontSize, px > 0.5,
                    face == "mangal" || (adjust.isEmpty ? text[start ..< end] : text[...]).contains(Character(" ")) || text[start ..< end].contains(Character("\u{00A0}")) {
                     // (Word's space is the face's own: Mangal 0.5 em against the stand-in's 0.26; the prints' gap between words, 5.5 pt against our 3.5 at 11 pt.)
+                    let runOffset = base
                     let base = style(kind)
                     var spaceStyle: TextStyle? = nil
                     var wordStart = start, k = start
@@ -1743,7 +1744,7 @@ extension RichLayout {
                     func putWord(_ a: Substring.Index, _ b: Substring.Index) {
                         guard a < b else { return }
                         let w = text[a ..< b]
-                        if mangalRegular, authored > 0.5, let split = MangalAdvances.split(w, bold: mangalBold) {
+                        if mangalRegular, authored > 0.5, let split = MangalAdvances.split(w, bold: mangalBold, stacked: bidiLanguage == "sa-IN") {
                             let flat = base.copyWith(scaleX: 1)
                             func measure(_ s: String, _ ls: Double) -> Double {
                                 let t = TextPainter(text: TextSpan(text: s, style: flat.copyWith(letterSpacing: ls)), textDirection: .ltr)
@@ -1783,7 +1784,18 @@ extension RichLayout {
                         spans.append(contentsOf: capped(w, run, joinedScaled(w, base)))
                     }
                     while k < end {
-                        if text[k] == " " || text[k] == "\u{00A0}" {
+                        if text[k] == "\t", theme.wordRules {
+                            // (A tab is no part of a word: inside one, its stop was lost to the word's fitted spacing and the text after it stood
+                            // at the tab's own few points, not at the hanging indent: xd 6be5dbc9's "३.<tab>संस्थाको".)
+                            putWord(wordStart, k)
+                            let tabAdjust = adjust[runOffset + text.utf16.distance(from: text.startIndex, to: k)] ?? 0
+                            if tabAdjust == 0 {
+                                spans.append(TextSpan(text: "\t", style: base))
+                            } else {
+                                spans.append(TextSpan(text: "\u{00A0}", style: base.copyWith(letterSpacing: (base.letterSpacing ?? 0) + tabAdjust)))
+                            }
+                            wordStart = text.index(after: k)
+                        } else if text[k] == " " || text[k] == "\u{00A0}" {
                             putWord(wordStart, k)
                             if spaceStyle == nil {
                                 // (A run whose own Latin face is Arial, drawn in Mangal only because the document's first Devanagari run names Mangal: Word's space
