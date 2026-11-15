@@ -1878,7 +1878,10 @@ public final class RichLayout {
         /// What the page-anchored table at its head says its rows add up to (points), before any cut at the page.
         var pageAnchoredTableDeclared: Double? {
             var tallest: Double? = nil
-            for (_, ts) in document.tableStyles where ts.pageAnchored {
+            // (Only the tables this header's own paragraphs stand in: the styles dictionary can carry the body's.)
+            let own = Set(document.paragraphs.compactMap { $0.cell?.table })
+            for t in own {
+                guard let ts = document.tableStyles[t], ts.pageAnchored else { continue }
                 let h = ts.rowHeights.values.reduce(0, +)
                 tallest = max(tallest ?? 0, h)
             }
