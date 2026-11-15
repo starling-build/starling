@@ -17531,3 +17531,9 @@ amd-1 CLAIM (2026-11-15): xd 77d6ca49 (Hindi 95.0), then dx2 6dcc4527 (95.7). Re
 - RULED OUT: image.baseline vs naturalExtent.ascent (equal for these equations; using the picture's own baseline changed nothing and raised our line count 221 to 229, reverted); snapToGrid=0 (not on these paragraphs).
 - NEXT IDEA: give radical fractions an ink-based height like the plain fraction (naturalInk is gated off for <m:rad), then check the step against 27.4/27.9.
 - Left (6fca0f): sum sign 2.5 pt low; display equation heights ±18 pt p6/p11; p8 inline-fraction lines 0.6–1.4 pt short; p10 about -1.9.
+
+### amd-7 HANDOFF (2026-11-15): dx2 2263e221 and xd 73caaeda
+- Queued (not yet landed): Bengali space after a danda in a missing face (Nikosh/SolaimanLipi) took Mangal's half-em pad twice (8.5 pt, Word 5.5). Lab left0.docx confirms. Score-neutral: 2263e221 209/218, bede0fbc 27/27, 73caaeda 110/209 before and after. Unit tests 655/0.
+- 2263e221 first unmatched line is NOT Bengali spacing: Word draws a third line "তারিখ" (x 67, y -151) in the page-1 header text box after "রিটার্ন দাখিলের..."; ours draws no such word at all (text-box overflow clipped or dropped, box has vertOverflow=overflow, anchor ctr). Also our page-1 lines sit 1 pt lower from "১।" on (y -175 vs -174). Centered header lines match visually; the x offsets are glyph-origin differences (Noto vs Nirmala).
+- 73caaeda (110/209, 7 pages vs 8): Word moves "মুসলিম gap ফ্রন্টিয়ার" down whole; ours ends the line with SP NBSP hanging ~1.1 pt past the margin (the earlier note "ours cuts inside ফ্রন্টিয়ার" was wrong). Dropping the !usesEastAsianLayout gate changed nothing. Still to find: the fitter path that lets trailing SP+NBSP hang. Existing rule near RichLayout+Span 1966-1980 (missingBn NBSP gap).
+- Face answer: Word uses Nirmala UI letters and Mangal spaces; we draw letters in Noto Sans Bengali (nirmala ui profile) and spaces in Carlito padded to Mangal's 0.5 em.
