@@ -108,12 +108,12 @@ final class PainterFixTests: XCTestCase {
         let advances = try XCTUnwrap(face.advances)
         XCTAssertEqual(advances.count, 95, "U+0020 to U+007E")
         func width(_ c: Character) -> Double { advances[Int(c.asciiValue!) - 0x20] }
-        XCTAssertEqual(width("0"), 0.632)
-        XCTAssertEqual(width("7"), 0.632, "every digit alike")
-        XCTAssertEqual(width(" "), 0.316)
-        XCTAssertEqual(width("-"), 0.579)
-        XCTAssertEqual(width("t"), 0.374)
-        XCTAssertEqual(width("M"), 0.861)
+        XCTAssertEqual(width("0"), 0.632, accuracy: 0.001)
+        XCTAssertEqual(width("7"), 0.632, accuracy: 0.001, "every digit alike")
+        XCTAssertEqual(width(" "), 0.316, accuracy: 0.001)
+        XCTAssertEqual(width("-"), 0.579, accuracy: 0.001)
+        XCTAssertEqual(width("t"), 0.374, accuracy: 0.001)
+        XCTAssertEqual(width("M"), 0.861, accuracy: 0.001)
         XCTAssertNil(OfficeFonts.face("Arial", eastAsian: false)?.advances, "Arial is its stand-in's own width")
     }
 
