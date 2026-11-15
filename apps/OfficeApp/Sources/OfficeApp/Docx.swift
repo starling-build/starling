@@ -7300,6 +7300,11 @@ enum DocxFormat {
                     // sets it on the cell's first line, under the page's
                     // empty paragraphs, where ours split an empty line off.
                     if text.isEmpty, inlineImages.isEmpty, built.isEmpty { cellBreakOpens = true }
+                case "w:br" where Self.wordOnWindows && revision?.kind == .deleted && !(revision?.moved ?? false) && (child["w:type"] == "page" || child["w:type"] == "column"):
+                    // A page or column break inside a tracked deletion breaks
+                    // nothing: Word's print of gv-ccf7f258bf holds the
+                    // heading after one on the page before it.
+                    break
                 case "w:br":
                     // A page break ends the paragraph; a line break stays
                     // inside it, as Shift+Return's does — splitting it added a
