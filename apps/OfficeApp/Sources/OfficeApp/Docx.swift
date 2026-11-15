@@ -22,7 +22,7 @@ import FoundationXML
 // MARK: - A small DOM
 
 final class XNode {
-    let name: String
+    var name: String
     var attrs: [String: String]
     var children: [XNode] = []
     var text = ""
@@ -77,7 +77,24 @@ final class XNode {
     /// The system's parser, with prefixes kept ("w:p") — which is what the
     /// OOXML parts use consistently and saves resolving namespaces. What
     /// `parse` falls back on.
+    /// An element written without a prefix under `xmlns="…/wordprocessingml/2006/main"`
+    /// is a WordprocessingML element all the same (a generator that wrote
+    /// `<drawing xmlns="…main">` inside its `w:r`): the reader looks for the
+    /// `w:` spelling, so give it that name.
+    private static func _prefixDefaultMain(_ n: XNode, _ inMain: Bool) {
+        var inMain = inMain
+        if let d = n.attrs["xmlns"] { inMain = d == "http://schemas.openxmlformats.org/wordprocessingml/2006/main" }
+        if inMain, n.name.firstIndex(of: ":") == nil { n.name = "w:" + n.name }
+        for c in n.children { _prefixDefaultMain(c, inMain) }
+    }
+
     static func parseSystem(_ data: Data) -> XNode? {
+        let root = _parseSystemRaw(data)
+        if let root { _prefixDefaultMain(root, false) }
+        return root
+    }
+
+    private static func _parseSystemRaw(_ data: Data) -> XNode? {
         #if os(WASI)
         // FoundationXML's parser is libxml2 and an NSObject delegate, neither
         // of which the web build has; WordprocessingML is plain, well-formed
@@ -111,7 +128,7 @@ final class XNode {
         #else
         if _systemOnly { return parseSystem(data) }
         let bytes = [UInt8](data)
-        if _plainUTF8(bytes), let root = MiniXML.parse(bytes) { return _strictMeasures(root, data) }
+        if _plainUTF8(bytes), let root = MiniXML.parse(bytes) { _prefixDefaultMain(root, false); return _strictMeasures(root, data) }
         return parseSystem(data).map { _strictMeasures($0, data) }
         #endif
     }
