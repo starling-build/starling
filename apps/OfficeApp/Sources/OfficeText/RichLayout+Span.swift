@@ -2474,7 +2474,11 @@ extension RichLayout {
                    theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                        ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.malgunSymbols == true
                     // (A run that names only the ascii face, the missing Korean one, still draws △ and ○ in it (they have no ascii form; quotes in such a run stay Latin: 218dff52 page 2): 218dff52's △△△.)
-                    || (u == 0x25B3 || u == 0x25CB) && (run.eastAsiaFontFamily == nil && run.fontFamily.map { theme.faceResolver?($0, true)?.malgunSymbols == true } == true) {
+                    || (u == 0x25B3 || u == 0x25CB) && (run.eastAsiaFontFamily == nil && run.fontFamily.map { theme.faceResolver?($0, true)?.malgunSymbols == true } == true)
+                    // (A run holding only a middle dot, set in Gulim, is drawn in Malgun Gothic too: xd ac5ff286's "유치·운영" line, whose dot run Word's print names
+                    // MalgunGothic, stands 29 and 30 pt from its neighbours where plain Gulim lines are 25.)
+                    || u == 0xB7 && run.loneDot && ["굴림", "gulim"].contains((run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? run.fontFamily ?? "").lowercased()) {
+                    RuleTrace.hit("lone-middle-dot-in-gulim-is-malgun-line")
                     if devanagariStyles["malgunKo"] == nil {
                         devanagariStyles["malgunKo"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: 1.175, descent: 0.557)
                     }
