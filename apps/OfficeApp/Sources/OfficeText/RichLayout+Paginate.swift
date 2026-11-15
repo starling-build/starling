@@ -3291,6 +3291,20 @@ extension RichLayout {
                 // 2.1pt and the normal table under it 2.3pt lower than ours, which ignored the distance.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, j >= count || _cells[j]?.table != c.table,
                    let gap = document.tableStyles[c.table]?.floatBottomGap { y += _px(gap) }
+                // (A table floating by the text with no offset (tblpYSpec top), after an empty paragraph: that
+                // empty paragraph's line stands under the table as well, Word's print of lab fltafter
+                // (A: no empty paragraph after the table still has its 9pt line under it at x 50.4; the same
+                // table inline has none): 10.9pt under a 9pt empty before it.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) >= 15, j >= count || _cells[j]?.table != c.table,
+                   let ts = document.tableStyles[c.table], ts.floatsTopByText, !ts.pageAnchored {
+                    var k0 = i
+                    while k0 > 0, _cells[k0 - 1]?.table == c.table { k0 -= 1 }
+                    if k0 > 0, _cells[k0 - 1] == nil, document.paragraphs[k0 - 1].text.isEmpty, document.paragraphs[k0 - 1].image == nil,
+                       document.paragraphs[k0 - 1].style.frameXML == nil {
+                        RuleTrace.hit("word-floating-table-by-text-repeats-the-empty-before-it-under-it")
+                        y += _heights[k0 - 1]
+                    }
+                }
                 if y > contentH - 0.01, !tableEndsOverAnchor(c, j) { newPage() }
                 i = j
                 continue

@@ -1409,6 +1409,8 @@ public struct TableStyle: Hashable, Sendable {
     /// header or footer it takes no room, and stands over the paragraph
     /// after it (`RichLayout.floatsFrames`).
     public var floatsOverText = false
+    /// Floats by the text with `w:tblpYSpec="top"` (vertAnchor text stated): Word sets the empty paragraph before it under it too.
+    public var floatsTopByText = false
     /// The table holds a drawing anchored with `layoutInCell="0"`.
     public var shapesLeaveCell = false
     /// The table's own `w:tblCellMar` when the editor's margins were
