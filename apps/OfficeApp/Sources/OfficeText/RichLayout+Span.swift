@@ -2186,6 +2186,14 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, ch == "\u{00A0}", before == "\u{0964}" || before == "\u{0965}" {
+                    // (A danda may part from a no-break space after it in the break table (it allows a break after the mark), and Word does
+                    // not: xd 73caaeda's "…ক্রুসেড।" + U+00A0 + "Toledo" + U+00A0 + "(১০৮৫)," goes down to the next line as one piece, the
+                    // danda with it, where ours left it at the end of the line above.)
+                    RuleTrace.hit("word-no-break-space-after-a-danda-holds-it")
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 } else if theme.wordRules, RichTextTheme.wordWindowsPages, (before == "." && ch == "." && !(Self._stopRunFitsAfterSpace(Array(p.text.utf16), at: offset, measure: { run in let t = TextPainter(text: TextSpan(text: run, style: style(kind)), textDirection: .ltr); t.layout(minWidth: 0, maxWidth: 100_000); defer { t.dispose() }; return t.width }, width: _px(textWidth)))) || (!document.usesEastAsianLayout && (before == "…" || ch == "…") && (before == "." || before == "…") && (ch == "." || ch == "…") && Self._stopRunWidth(Array(p.text.utf16), at: offset, size: style(kind).fontSize ?? 12) > textWidth), document.usesEastAsianLayout || !dotsAttached {
                     // (Not stops that follow a word's letters, in a file that sets no East Asian
                     // layout: bede0fbc's "নাম:" + 154 stops is one word, which Word sends down
