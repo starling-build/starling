@@ -1306,9 +1306,9 @@ enum DocxFormat {
                 tableSides[id] = style.first("w:tblPr")?.first("w:tblBorders")
                 if style.first("w:tblPr")?.first("w:tblLayout")?["w:type"] == "fixed" {
                     fixedTableStyles.insert(id)
-                    if style["w:default"] == "1" { defaultTableFixed = true }
+                    if Self._isDefaultTableStyle(style) { defaultTableFixed = true }
                 }
-                if style["w:default"] == "1" {
+                if Self._isDefaultTableStyle(style) {
                     defaultMargins = _defaultStyleMargins(style)
                     defaultBorders = _borders(style.first("w:tblPr"), "w:tblBorders")
                 }
@@ -1319,7 +1319,7 @@ enum DocxFormat {
             // for Windows): with no table style at all the letters stand
             // 0.5pt from the rule and the left rule on the margin, in every
             // mode — a table is set out by its left cell margin, here 0.)
-            if !tableNodes.values.contains(where: { $0["w:default"] == "1" }) {
+            if !tableNodes.values.contains(where: { Self._isDefaultTableStyle($0) }) {
                 RuleTrace.hit("no-default-table-style-no-margin")
                 defaultMargins = _Margins(top: 0, left: 0, bottom: 0, right: 0)
             }
@@ -1419,7 +1419,7 @@ enum DocxFormat {
                 var m = _Margins(), seen = Set<String>(), cur: String? = id
                 while let c = cur, !seen.contains(c), let node = tableNodes[c] {
                     seen.insert(c)
-                    m = m.under(node["w:default"] == "1" ? _defaultStyleMargins(node) : _cellMargins(node.first("w:tblPr")))
+                    m = m.under(Self._isDefaultTableStyle(node) ? _defaultStyleMargins(node) : _cellMargins(node.first("w:tblPr")))
                     cur = node.first("w:basedOn")?["w:val"]
                 }
                 tableMargins[id] = m
@@ -5619,6 +5619,13 @@ enum DocxFormat {
     /// style is the default one with margins 0 is set out by 5.4 pt all the
     /// same, in compat 14 and 15, schema order or not); a non-default style's
     /// zero is honoured (zh-dc9cfa34, zh-147bdae0).
+    /// A table style is the default one when `w:default` is on: "1" or "true" (an exporter's spelling; 8f1703b9
+    /// stated "true", lost Normal Table's 5.4pt margins, and its tables overflowed the page).
+    static func _isDefaultTableStyle(_ style: XNode) -> Bool {
+        let v = style["w:default"]
+        return v == "1" || v == "true" || v == "on"
+    }
+
     private static func _defaultStyleMargins(_ style: XNode) -> _Margins {
         let m = _cellMargins(style.first("w:tblPr"))
         if m.left == 0 && m.right == 0 {

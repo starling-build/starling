@@ -1592,6 +1592,14 @@ extension RichLayout {
                     // ideographs and a Latin-and-ideograph column, Word 33.7 / 269.4 / 143.4 inside.)
                     if low.reduce(0, +) > room { high = low; low = high.map { min($0, m) } }
                 }
+                // (A compat-mode table of automatic width whose columns' longest whole words overflow the room: the same shares, each
+                // column its margins plus its longest word in proportion; xb 8f1703b9 table CP17a, Word 347.5 / 52 / 52 for words of
+                // 383.3 / 46.8 / 46.8 inside a room of 451.4, long words broken.)
+                else if theme.wordRules, RichTextTheme.wordWindowsPages, document.compatibilityMode != nil, !pctTable,
+                        document.tableStyles[table]?.width == nil, low.reduce(0, +) > room {
+                    let m = ins.left + ins.right
+                    high = low; low = high.map { min($0, m) }
+                }
                 let narrowest = low.reduce(0, +), widest = high.reduce(0, +)
                 let k = widest <= room ? 1 : narrowest >= room ? 0 : (room - narrowest) / (widest - narrowest)
                 // (Whole pixels: up where each is its widest, so that it
