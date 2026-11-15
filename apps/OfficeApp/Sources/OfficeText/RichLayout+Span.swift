@@ -5047,4 +5047,18 @@ extension RichLayout {
         while k >= 0, u[k] == 0x20 { k -= 1 }
         return k >= 0 && (u[k] == 0x0A || u[k] == 0x2028)
     }
+
+    /// Whether the face a run's Hangul is set in (its East Asian face, else its own) is absent from Word's Windows box, so Word prints a stand-in.
+    @inline(never)
+    func _hangulFaceMissingOnWord(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument) -> Bool {
+        guard document.readFromFile else { return false }
+        let own: String? = run.eastAsiaFontFamily ?? run.fontFamily
+        let styled: String? = named?.char.eastAsiaFontFamily ?? named?.char.fontFamily
+        let normal: String? = _normalChar(document)?.eastAsiaFontFamily ?? _normalChar(document)?.fontFamily
+        let raw: String = own ?? styled ?? normal ?? ""
+        let f: String = raw.trimmingWhitespace().lowercased()
+        if f.isEmpty { return false }
+        if f.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 }) { return !Self._windowsHangulNamedFaces.contains(f) }
+        return !WordWindowsFaces.names.contains(f)
+    }
 }

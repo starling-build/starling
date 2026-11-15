@@ -2204,6 +2204,7 @@ extension RichLayout {
                     // space: xb kor-z19176375-30dbe1's 27 decisions split at squeeze/stretch 0.48 taken, 0.515 refused,
                     // i.e. half the stretch, where the budget below reads 0.34.)
                     let hangulBodyHalf = windowsAfterMarks && autos.isEmpty && units[a] >= 0xAC00 && units[a] <= 0xD7A3
+                        && a < runOf.count && !_hangulFaceMissingOnWord(p.runs[runOf[a]].style, lineStyle, document)   // (xd 107500a8 names 함초롬바탕, which Word's box lacks: it prints Batang and refuses the syllable)
                         && givers.allSatisfy { giveBase($0) == $0.w }   // (not the Yu Gothic spaces of a missing Hangul-named face: 22de7d refuses a 1.3 pt need, 0.15 of its stretch)
                     let sharesStretch: Bool = onCharacterGrid || hangulPiece || (units[a] < 0x2E80 && !circled(units[a])) || (autos.isEmpty && !windowsAfterMarks)
                         || (windowsAfterMarks
