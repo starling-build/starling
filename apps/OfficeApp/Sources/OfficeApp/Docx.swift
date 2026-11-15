@@ -1242,6 +1242,12 @@ enum DocxFormat {
                 let def = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:lang")?["w:val"]
                 return (own ?? def ?? "").lowercased().hasPrefix("ko")
             }()
+            // (The document's complex-script language, w:bidi: Hebrew gates the rtl-digit-run rules below. An Arabic doc's header and footer page numbers, a run with only w:rtl, stay complex script.)
+            _bidiLangHebrew = {
+                let own = styles.all("w:style").first { $0["w:type"] == "paragraph" && ($0["w:default"] == "1" || $0["w:styleId"] == "Normal") }?.first("w:rPr")?.first("w:lang")?["w:bidi"]
+                let def = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:lang")?["w:bidi"]
+                return (own ?? def ?? "").lowercased().hasPrefix("he")
+            }()
             var docChar = CharStyle()
             if let rPr = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr") { docChar = _charStyle(rPr, base: docChar) }
             var normalChar = docChar
@@ -7191,7 +7197,7 @@ enum DocxFormat {
                 // script too: Word sets heb-z5059159's "1" in the szCs 12, not the sz 11.)
                 let rtlRun = _on(rPr.first("w:rtl")) && !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A }
                     // (Only when the run itself names a complex-script size: a PAGEREF result with just webHidden and rtl, 47480880's contents list, prints in the ascii face at sz, Calibri 11 / David 12.)
-                    && (rPr.first("w:szCs") != nil || rPr.first("w:rFonts")?["w:cs"] != nil || rPr.first("w:rFonts")?["w:hint"] == "cs")
+                    && (!DocxFormat._bidiLangHebrew || rPr.first("w:szCs") != nil || rPr.first("w:rFonts")?["w:cs"] != nil || rPr.first("w:rFonts")?["w:cstheme"] != nil || rPr.first("w:rFonts")?["w:hint"] == "cs" || rPr.first("w:webHidden") == nil)
                 let csFlag = _on(rPr.first("w:cs"))
                 let complexSize = runText.unicodeScalars.contains {
                     (0x0590...0x08FF).contains($0.value) || (0xFB1D...0xFDFF).contains($0.value) || (0xFE70...0xFEFF).contains($0.value)
@@ -7213,8 +7219,9 @@ enum DocxFormat {
                     for styled in chain { cs = _charStyle(styled, base: cs, complexText: complex, complexSize: complexSize, indicOnly: indicOnly) }
                 }
                 cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize, indicOnly: indicOnly)
+                // (Only a webHidden run, as in a contents list: the PAGE results of the footers of 7d58f74e, b9164bf3 and fcd0d58c, with just rtl, stay complex and print in Arial.)
                 // (A run of ASCII digits flagged w:rtl with no szCs or cs font of its own is a plain Latin run to Word: 47480880's PAGEREF results.)
-                if cs.rightToLeft, _on(rPr.first("w:rtl")), rPr.first("w:szCs") == nil, rPr.first("w:rFonts")?["w:cs"] == nil, rPr.first("w:rFonts")?["w:hint"] != "cs",
+                if DocxFormat._bidiLangHebrew, cs.rightToLeft, _on(rPr.first("w:rtl")), rPr.first("w:szCs") == nil, rPr.first("w:rFonts")?["w:cs"] == nil, rPr.first("w:rFonts")?["w:cstheme"] == nil, rPr.first("w:webHidden") != nil, rPr.first("w:rFonts")?["w:hint"] != "cs",
                    !runText.isEmpty, runText.unicodeScalars.allSatisfy({ (0x30...0x39).contains($0.value) }) {
                     cs.rightToLeft = false; RuleTrace.hit("rtl-digits-no-cs-props")
                 }
@@ -8239,6 +8246,7 @@ enum DocxFormat {
     /// Latin letter, digit and space in the run's East Asian face (Malgun Gothic where it names none, MS Mincho where it names a Latin-only one).
     /// Lab langko (2026-11-13, Word for Windows, xd f1b5cc8b): a run's own w:lang and w:noProof change nothing; only the style default does.
     nonisolated(unsafe) private static var _latinLangKorean = false
+    nonisolated(unsafe) private static var _bidiLangHebrew = false
     nonisolated(unsafe) private static var _themeColors: [String: (Int, Int, Int)] = [:]
 
     private static func _themePalette(_ entries: [ZipEntry]) -> [String: (Int, Int, Int)] {
