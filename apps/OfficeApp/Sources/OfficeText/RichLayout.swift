@@ -1067,6 +1067,8 @@ public struct RichResolvedFace: Sendable {
     /// gives another.
     public var joinedAdvances: [UInt32: Double]? = nil
     public var boldJoinedAdvances: [UInt32: Double]? = nil
+    /// The face's own space, in em, for a space in a right-to-left run (Sakkal Majalla 0.151 in both weights, Word's print).
+    public var joinedSpaceEm: Double? = nil
     /// Letter groups the face sets as one glyph, `"letters|1or0 joins before|1or0 joins after"` to ems.
     public var joinedClusters: [String: Double]? = nil
     public var boldJoinedClusters: [String: Double]? = nil

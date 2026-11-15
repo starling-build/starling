@@ -1,26 +1,26 @@
-188 documents: mean 80.9% of Word's lines matched, median 98.4%; 126 at 95% or more, 151 at half or more; 174 with Word's page count
+188 documents: mean 81.0% of Word's lines matched, median 98.4%; 126 at 95% or more, 151 at half or more; 174 with Word's page count
     0.8%  lines 130/128  pages 6/6  ara-z21298544-b514c2
-    2.3%  lines 88/97  pages 10/9  fas-z14957015-3a9879
+    2.3%  lines 88/95  pages 10/9  fas-z14957015-3a9879
     2.4%  lines 664/778  pages 27/26  ara-z11030406-663296
     5.2%  lines 420/411  pages 13/13  ara-z8199393-075ed2
     5.4%  lines 241/241  pages 7/8  fas-z20703874-baff6e
     5.6%  lines 90/71  pages 4/3  fas-z22832287-ac7399
-    6.0%  lines 515/572  pages 16/17  ara-z21988051-184d63
+    6.0%  lines 515/564  pages 16/17  ara-z21988051-184d63
     7.6%  lines 695/686  pages 17/18  urd-z17694236-c03d57
     7.6%  lines 930/935  pages 24/24  urd-z7427432-7738e5
-    7.6%  lines 550/556  pages 13/13  urd-z17694289-27ac54
+    8.0%  lines 550/552  pages 13/13  urd-z17694289-27ac54
     8.2%  lines 624/637  pages 32/32  ara-z20756589-698264
     9.0%  lines 874/877  pages 34/33  ara-z20648189-8e6ca0
     9.9%  lines 566/572  pages 13/13  urd-z7294462-73d948
-   10.5%  lines 296/282  pages 8/8  ara-z8215570-1aa55d
+   10.8%  lines 296/282  pages 8/8  ara-z8215570-1aa55d
    11.7%  lines 111/111  pages 8/8  ara-z15699863-842f1e
-   11.9%  lines 370/368  pages 13/13  ara-z10840115-a1e854
    14.6%  lines 506/512  pages 16/15  ara-z6757469-27b88d
    15.4%  lines 149/149  pages 8/8  fas-z22973278-768d17
    16.4%  lines 433/424  pages 16/16  fas-z22867828-b604ea
-   17.4%  lines 922/950  pages 26/27  urd-z10575633-e54653
+   17.6%  lines 922/949  pages 26/27  urd-z10575633-e54653
    17.7%  lines 469/459  pages 16/15  ara-z4399437-5bde25
    17.9%  lines 329/323  pages 10/10  urd-z7538882-13b0bc
+   18.1%  lines 370/364  pages 13/13  ara-z10840115-a1e854
    19.3%  lines 574/581  pages 19/20  fas-z8123021-fd38aa
    20.3%  lines 143/144  pages 6/6  fas-z21853138-0c740e
    24.5%  lines 433/477  pages 16/16  ara-z8157766-171cca

@@ -1993,6 +1993,14 @@ extension RichLayout {
                     start = end
                     return
                 }
+                // (A space in a right-to-left run whose face is Sakkal Majalla: Word's print draws it at the face's own 0.151 em, where
+                // the stand-in's Latin space is 0.22; xb fas-3a9879's title, 7 spaces, 18 pt too wide.)
+                if let em = joinedFace?.joinedSpaceEm, text[start ..< end].allSatisfy({ $0 == " " }), let px = style(kind).fontSize, px > 0.5 {
+                    RuleTrace.hit("word-rtl-sakkal-space-is-own-width")
+                    spans.append(contentsOf: capped(text[start ..< end], run, _indicSpaceStyle(base: style(kind), spaceEm: em, unit: px)))
+                    start = end
+                    return
+                }
                 // (Spaces between Devanagari words, in a run of its own: Word draws them in Leelawadee UI, 0.274 em, where our stand-in's are 0.22; dx2 fb94294e.)
                 if kind >= 0, aumsSpaces, text[start ..< end].allSatisfy({ $0 == " " || ($0 == "\u{00A0}" && spaceBeforeDanda) }) {
                     spans.append(contentsOf: capped(text[start ..< end], run, Self._leelaLatinStyle(text[start ..< end], base: joinedScaled(text[start ..< end], style(kind)))))

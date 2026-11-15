@@ -1,26 +1,26 @@
 188 documents: mean 80.7% of Word's lines matched, median 98.6%; 126 at 95% or more, 149 at half or more; 174 with Word's page count
     0.8%  lines 130/128  pages 6/6  ara-z21298544-b514c2
     1.1%  lines 90/72  pages 4/3  fas-z22832287-ac7399
-    2.3%  lines 88/97  pages 10/9  fas-z14957015-3a9879
+    2.3%  lines 88/95  pages 10/9  fas-z14957015-3a9879
     2.4%  lines 658/766  pages 27/26  ara-z11030406-663296
     4.1%  lines 418/380  pages 13/13  ara-z8199393-075ed2
-    5.1%  lines 548/557  pages 13/13  urd-z17694289-27ac54
     5.4%  lines 624/637  pages 32/32  ara-z20756589-698264
+    5.5%  lines 548/553  pages 13/13  urd-z17694289-27ac54
     5.5%  lines 272/280  pages 8/8  ara-z8215570-1aa55d
-    6.2%  lines 503/572  pages 16/17  ara-z21988051-184d63
+    6.2%  lines 503/564  pages 16/17  ara-z21988051-184d63
     6.2%  lines 241/241  pages 7/8  fas-z20703874-baff6e
     7.3%  lines 927/910  pages 24/24  urd-z7427432-7738e5
     7.6%  lines 694/663  pages 17/18  urd-z17694236-c03d57
     8.8%  lines 874/875  pages 34/33  ara-z20648189-8e6ca0
     9.2%  lines 564/558  pages 13/13  urd-z7294462-73d948
-   11.6%  lines 370/368  pages 13/13  ara-z10840115-a1e854
    11.7%  lines 111/111  pages 8/8  ara-z15699863-842f1e
    14.2%  lines 430/424  pages 16/16  fas-z22867828-b604ea
    14.3%  lines 504/510  pages 16/15  ara-z6757469-27b88d
    15.4%  lines 149/149  pages 8/8  fas-z22973278-768d17
    16.0%  lines 463/458  pages 16/15  ara-z4399437-5bde25
+   16.8%  lines 370/364  pages 13/13  ara-z10840115-a1e854
    17.4%  lines 328/323  pages 10/10  urd-z7538882-13b0bc
-   17.4%  lines 897/978  pages 26/27  urd-z10575633-e54653
+   17.5%  lines 897/977  pages 26/27  urd-z10575633-e54653
    19.0%  lines 578/590  pages 19/20  fas-z8123021-fd38aa
    19.6%  lines 143/144  pages 6/6  fas-z21853138-0c740e
    27.2%  lines 173/170  pages 11/11  ara-z3803947-de4a70
