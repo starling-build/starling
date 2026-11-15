@@ -37,6 +37,9 @@ enum OfficeFonts {
     static let calibri = "Carlito"
     /// Noto Sans, the face a document names when it names it (bundled; v1.04, Apache 2.0).
     static let notoSans = "Noto Sans"
+    static let lato = "Lato"
+    static let latoBlack = "Lato Black"
+    static let latoLight = "Lato Light"
     static let cambria = "Caladea"
     /// DejaVu Sans, for Verdana: not a metric clone, but of the same
     /// family (both grew out of Bitstream Vera's design) and within a
@@ -103,6 +106,9 @@ enum OfficeFonts {
             return calibri
         case "caladea", "cambria":
             return cambria
+        case "lato", "lato black", "lato light":
+            // (Lato, bundled, is its own face: Word's print of gv-dbc3c03efc sets it in the real one.)
+            return n == "lato black" ? latoBlack : n == "lato light" ? latoLight : lato
         case "noto sans":
             // (Noto Sans itself, bundled: a document that names it — LibreOffice's
             // fdo77887, fdo48718-1 — was set in Carlito, and every line stood
@@ -4198,6 +4204,8 @@ static let sylfaenAdvances: [Double] = [
             // (Noto Sans, bundled, is its own face: its baseline is its ascent, 2189 of 2048, no gap. The default's .938 stood
             // every line 0.13 em high: lo-27918bf0's 14pt lines 1.9pt, its 12pt 1.6, in Word's print.)
             case notoSans: baseline = 1.0688
+            // (Lato: ascent 1974 of 2000, descent 426, no line gap.)
+            case lato, latoBlack, latoLight: baseline = 0.987
             default: baseline = 0.938
             }
             // (Times and Arial as a Word line holds them, where they are
@@ -5316,6 +5324,8 @@ static let sylfaenAdvances: [Double] = [
         faces += [("LibreFranklin-Medium.ttf", "Libre Franklin Medium"), ("LibreFranklin-MediumItalic.ttf", "Libre Franklin Medium")]
         faces += [("ArchivoBlack-Regular.ttf", "Archivo Black")]
         faces += ["Regular", "Bold", "Italic", "BoldItalic"].map { ("NotoSans-\($0).ttf", "Noto Sans") }
+        faces += ["Regular", "Bold", "Italic", "BoldItalic"].map { ("Lato-\($0).ttf", "Lato") }
+        faces += [("Lato-Black.ttf", "Lato Black"), ("Lato-Light.ttf", "Lato Light")]
         // (Lucida Sans Unicode's stand-in, Liberation Sans's regular and
         // bold with no italic: the face has none, and PowerPoint's print
         // slants its regular — the engine does the same for a family with

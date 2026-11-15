@@ -190,6 +190,9 @@ if [ -d "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts" ]; then
                 LiberationMono-*) family="Liberation Mono?" ;;
                 DejaVuSans-*) family="DejaVu Sans?" ;;
                 NotoSans-*) family="Noto Sans?" ;;
+                Lato-Black*) family="Lato Black?" ;;
+                Lato-Light*) family="Lato Light?" ;;
+                Lato-*) family="Lato?" ;;
                 # Slides' free faces (OfficeFonts.slideFaces), by weight.
                 Poppins-Regular*|Poppins-Bold*|Poppins-Italic*) family="Poppins?" ;;
                 Poppins-Light*) family="Poppins Light?" ;;

@@ -58,6 +58,11 @@ Copyright 2015 The Libre Franklin Project Authors. SIL Open Font License 1.1.
 Slides' stand-in for Franklin Gothic (fixed weights cut from the variable font).
 Full text: fonts/LibreFranklin-LICENSE.txt.
 
+## Lato
+Copyright 2010-2011 Łukasz Dziedzic. SIL Open Font License 1.1.
+Word documents that name Lato are drawn in it (Regular, Bold, Italic, Bold Italic, Black, Light).
+Full text: fonts/Lato-LICENSE.txt.
+
 ## Archivo Black
 Copyright 2017 The Archivo Black Project Authors (https://github.com/Omnibus-Type/ArchivoBlack). SIL Open Font License 1.1.
 Slides' stand-in for Arial Black.

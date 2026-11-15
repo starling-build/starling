@@ -51,6 +51,13 @@ does not carry 1.04: its earliest copy, android-6.0.0_r1 other/NotoSans-Regular.
 Replaces the OFL 2.x release (NotoSans-LICENSE.txt is kept for that release; it no longer covers these files).
 Loaded with the extra faces below under the family "Noto Sans"; `OfficeFonts.substitute` maps the name.
 
+## Lato (2026-11-15)
+
+A document that names "Lato", "Lato Black" or "Lato Light" is drawn with Lato itself (Word's print has the
+real face). Regular, Bold, Italic, Bold Italic; Black and Light as their own families. Debian fonts-lato 2.0
+(2000 upem, ascent 1974, descent 426, no line gap). Licence: OFL 1.1 (Lato-LICENSE.txt). Loaded with the
+extra faces; `OfficeFonts.substitute` maps the names.
+
 ## Slides' free faces (2026-10-17)
 
 Families PowerPoint decks name that none of the six clones draws well,
