@@ -17389,12 +17389,6 @@ HANDOFF amd-10 (2026-11-15): (1) Korean fix landed d4d0fd9c0 (107500a8 212 to 21
 - lenovo-5 2026-11-15: survey: xd 20d9968b first diverges at an OMML formula (not a table), xd 564a33e9 is Hebrew: both left. CLAIM xd e91c882523 (18 tables, 4.5), then xd eb52ce9bb9, xd 4d02d27f56.
 
 ### amd-3 HANDOFF 2026-11-15 (dx2 ja 4fbb6e32, Task 1)
-- QUEUED 20261115-162147-amd-3-332: a column-relative text box or square-wrapped picture is set from where its host line starts (the wrapped pictures beside it push the line right). Pictures set this way may lie over the earlier ones, so the Paginate overlap push skips them (_hostLineSet). 4fbb6e32 51 -> 54 matched lines; all box and picture x match Word. A/B of all 17 docs the rule hits (corpus-wide RuleTrace over 3,736 docs, 15 hits + 61ec937a, e9eab5f8): others equal. First try broke xb jpn-z17350624 charts (144 -> 122): pictures as wide as the column leave no room, now the rule is off then.
-- NOT DONE (Task 2): 4fbb6e32 still 1 page, Word 2. The two map-caption boxes in the 3rd-from-last paragraph go to page 2 in Word.
-- Trap: office-env.sh sourced outside the clone silently half-sets the env; my first A/B scored 1-in-20 for it. Always cd into the clone first.
-- The Devanagari follow-up (299) is separate and still queued; not in this branch.
-
-### amd-3 HANDOFF 2026-11-15 (dx2 ja 4fbb6e32, Task 1)
 - QUEUED 20261115-162147-amd-3-332: a column-relative text box or square-wrapped picture is set from where its host line starts (the wrapped pictures beside it push the line right). Pictures set this way may lie over the earlier ones, so the Paginate overlap push skips them (_hostLineSet). 4fbb6e32 51 -> 54 matched lines; box and picture x match Word. A/B of the 17 docs the rule hits (RuleTrace over 3,736 docs, plus 61ec937a, e9eab5f8): the rest equal. First try broke xb jpn-z17350624 charts (144 -> 122): pictures as wide as the column leave no room, so the rule is now off then.
 - NOT DONE (Task 2): 4fbb6e32 still 1 page, Word 2. The two map-caption boxes in the 3rd-from-last paragraph go to page 2 in Word.
 - Trap: office-env.sh sourced outside the clone silently half-sets the env; my first A/B scored wrongly for it. Always cd into the clone first.
