@@ -3528,6 +3528,12 @@ extension RichLayout {
                                 || (following == "\u{30FB}" && Self._closingBracketMarks.contains(ch) && RichTextTheme.wordWindowsPages && theme.wordRules
                                     && (document.compatibilityMode ?? 12) >= 15 && document.lineGridPitch != nil
                                     && (document.hasKana || document.eastAsiaLanguage?.hasPrefix("ja") == true))
+                                // (And a middle dot before an OPENING mark sits at its half, in a Japanese document on a line grid:
+                                // xb jpn-z23002680-771abc's "・『フランク" sets ・ 5.3 pt at 10.56 (『 at +0.5 em), so its line holds
+                                // "年代" where ours broke after "年"; xd a91d8fed (compat 14), f42177d2 and jpn 1e9281 agree; a
+                                // Pandoc file with no grid (4e6465) keeps the whole em.)
+                                || (ch == "\u{30FB}" && Self._openingMarks.contains(following) && RichTextTheme.wordWindowsPages && theme.wordRules
+                                    && document.lineGridPitch != nil && (document.hasKana || document.eastAsiaLanguage?.hasPrefix("ja") == true))
                                 // (The quote's own run says whether it is full-width, where the mark
                                 // ends its run: zh-3ab8a2fb's "，" unhinted before a "“" hinted East
                                 // Asian closes up, 7.13 in Word's print, and its line takes "机".)
