@@ -63,6 +63,10 @@ extension RichLayout {
         default: return nil
         }
     }
+    /// Ascent and descent in ems of the faces a Word fallback chain sets text in, from Word's pitches in lab cm236c (12 pt, single and 1.5).
+    static let _chainFaceLines: [String: (Double, Double)] = [
+        "Yu Gothic": (1.2, 0.473), "Microsoft JhengHei": (1.30, 0.4308),
+    ]
     static let _indicLines: [String: (Double, Double)] = [
         "yu gothic": _yuGothicLine, "mangal": (2542.0 / 2048, 898.0 / 2048), "kokila": (1504.0 / 2048, 857.0 / 2048), "nirmala ui": (2210.0 / 2048, 514.0 / 2048), "vijaya": (1462.0 / 2048, 600.0 / 2048), "latha": (2048.0 / 2048, 762.0 / 2048),
         "aparajita": (1550.0 / 2048, 870.0 / 2048), "raavi": (2048.0 / 2048, 1352.0 / 2048), "shruti": (2091.0 / 2048, 1352.0 / 2048),
@@ -1315,6 +1319,14 @@ extension RichLayout {
                 var s = theme.textStyle(for: styled, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: kind < 0, gridPitch: pitch,
                                         characterClass: classed && kind >= 0 ? kind : nil, characterGrid: kind < 0 ? ideographGrid : grid, scriptHidden: true)
                 if doubles, kind < 0 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + spacing) }
+                // (A run set in a chain face (Yu Gothic, JhengHei) has that face's own ascent and descent: Word's line takes the larger above and
+                // below the baseline over the faces on it, so a Mincho line with one fallen-back character is 1.7 pt shorter above the next line
+                // than the 0.8/0.2 split of the face's height says. lab cm236c (2026-11-15), fbL1 18.12 / fbL2 17.64 / fbBoth 20.04 at 12 pt.)
+                if kind <= -10, theme.wordRules, RichTextTheme.wordWindowsPages, let chain, -10 - kind < chain.count, let size = s.fontSize, size > 0.5,
+                   let m = Self._chainFaceLines[chain[-10 - kind].family] {
+                    let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+                    s = s.copyWith(ascentOverride: m.0 * multiple * size, descentOverride: m.1 * multiple * size, height: (m.0 + m.1) * multiple, leadingDistribution: .even)
+                }
                 if kind == -4, let cjk = Self._cjkFaceFamily {
                     RuleTrace.hit("word-east-asian-shape-is-the-cjk-faces-glyph")
                     s = s.copyWith(fontFamily: cjk)

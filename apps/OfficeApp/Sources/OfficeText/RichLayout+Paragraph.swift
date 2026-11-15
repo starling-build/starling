@@ -2583,6 +2583,32 @@ extension RichLayout {
         // text: its baseline wants the same correction — endnotes' "A
         // pendant worn…", its "i" mark among 11pt Calibri, stood 1.6pt
         // under Word's.)
+        // (A paragraph with no strut whose first line holds a character the
+        // face's chain sends to Yu Gothic or JhengHei has those faces' own
+        // line height, and its text wants the same first-line correction:
+        // lab cm236d's JP paragraph with 书/东 stood 1.85pt low.)
+        let chainFaceLine: Bool = {
+            guard theme.wordRules, painter.strutStyle == nil, p.image == nil, !p.text.isEmpty else { return false }
+            let firstEnd = painter.getLineBoundary(TextPosition(offset: 0)).end - _lead(i)
+            let units = Array(p.text.utf16)
+            var start = 0
+            for run in p.runs where run.length > 0 {
+                defer { start += run.length }
+                guard start < firstEnd else { break }
+                guard let face = theme.faceResolver?(run.style.eastAsiaFontFamily ?? _named(p, document)?.char.eastAsiaFontFamily
+                                                     ?? _normalChar(document)?.eastAsiaFontFamily ?? run.style.fontFamily
+                                                     ?? _named(p, document)?.char.fontFamily ?? theme.fontFamily, true),
+                      let covers = face.covers, let chain = face.uncoveredChain else { continue }
+                let end = min(start + run.length, firstEnd, units.count)
+                guard start < end else { continue }
+                for ch in String(decoding: units[start ..< end], as: UTF16.self) {
+                    guard let u = ch.unicodeScalars.first?.value, u >= 0x2E80, u != 0xFFFC, !covers.contains(u) else { continue }
+                    let k = chain.firstIndex { $0.covers?.contains(u) ?? true } ?? chain.count - 1
+                    if Self._chainFaceLines[chain[k].family] != nil { return true }
+                }
+            }
+            return false
+        }()
         let scriptsOnly = painter.strutStyle == nil && p.inlineImages.isEmpty && p.runs.contains { $0.style.script != .normal }
             && Set(painter.computeLineMetrics().map { ($0.height * 100).rounded() }).count == 1
         // (… nor does one whose runs differ in size, which has no strut
@@ -2642,7 +2668,7 @@ extension RichLayout {
             return half <= 0 ? half : nil
         }
         @inline(never) func _blk5() {
-        if theme.wordRules, p.image == nil, !p.text.isEmpty, painter.strutStyle != nil || _heldTallerLatin.contains(i) || scriptsOnly || mixedSizes || Self._startsWithEmoji(p.text) || _koreanSymbolFirstLineRaise(p, painter: painter, lead: _lead(i), named: _named(p, document), document: document) != nil,
+        if theme.wordRules, p.image == nil, !p.text.isEmpty, painter.strutStyle != nil || _heldTallerLatin.contains(i) || chainFaceLine || scriptsOnly || mixedSizes || Self._startsWithEmoji(p.text) || _koreanSymbolFirstLineRaise(p, painter: painter, lead: _lead(i), named: _named(p, document), document: document) != nil,
            let line = painter.computeLineMetrics().first {
             let named = _named(p, document)
             let pitch = _offGrid(i, document) ? nil : _grid(i, document).pitch
