@@ -17397,3 +17397,4 @@ HANDOFF amd-10 (2026-11-15): (1) Korean fix landed d4d0fd9c0 (107500a8 212 to 21
 
 - amd-10 (2026-11-15) OPEN ITEM, approved drops in metrics entry (queue 334, Book Antiqua/Narkisim/Urdu Typesetting/Dubai etc. tables, David left to amd-2): ara-z4399437-5bde25 83 to 60 matched lines (15 pages, Word 16) and e183873a 3 to 2. Page 1 Book Antiqua words now within 0.1 pt of Word's print (Makaleni 39.5 vs 40.0, was 36.9); page-1 line positions identical before/after, so the drop is a later-page shift that the old narrow widths hid. Not yet found. Myanmar Text left out (1.8 em win line broke page counts of 419f883f, 9663ec5c, cbab58a7).
 - amd-11 CLAIM (2026-11-15): dx2 0fd592a1 (sq 54.2, 190/190 lines), then 3667057e (ro). tblpy3 prints pending from starling-bd.
+- amd-7 CLAIM (2026-11-15, after clear): Bengali owner. Task 1 xd 73caaeda (probe build for SP+NBSP split), Task 2 dx2 2263e221 re-render at tip.
