@@ -1339,7 +1339,8 @@ extension RichLayout {
                 if theme.wordRules, RichTextTheme.wordWindowsPages, kind < 0, pitch == nil, p.style.lineHeightPoints == nil, s.ascentOverride == nil,
                    p.style.lineSpacing > 0, let size = s.fontSize, size > 0.5,
                    let fam = (run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily)?.trimmingWhitespace().lowercased(),
-                   ["游ゴシック", "yu gothic", "游明朝", "yu mincho"].contains(fam), let face = theme.faceResolver?(fam, true) {
+                   let face = theme.faceResolver?(fam, true),
+                   ["游ゴシック", "yu gothic", "游明朝", "yu mincho"].contains(fam) || face.standsAsYuGothic && run.ruby == nil {
                     let bold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
                     if let t = (bold ? face.boldBaseline : nil) ?? face.baseline, let nat = (bold ? face.boldHeight : nil) ?? face.naturalHeight {
                         RuleTrace.hit("word-yu-ideograph-line-stands-on-its-own-ascent")
@@ -1352,7 +1353,7 @@ extension RichLayout {
                 if theme.wordRules, RichTextTheme.wordWindowsPages, kind >= 0, pitch == nil, p.style.lineHeightPoints == nil, s.ascentOverride == nil,
                    p.style.lineSpacing > 1, let size = s.fontSize, size > 0.5, run.ruby == nil,
                    let fam = (run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily)?.trimmingWhitespace().lowercased(),
-                   ["游ゴシック", "yu gothic", "游明朝", "yu mincho"].contains(fam),
+                   ["游ゴシック", "yu gothic", "游明朝", "yu mincho"].contains(fam) || theme.faceResolver?(fam, true)?.standsAsYuGothic == true,
                    p.text.unicodeScalars.contains(where: { $0.value >= 0x3040 && $0.value < 0xA000 }),
                    let latin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)?.trimmingWhitespace(),
                    let face = theme.faceResolver?(latin, false) {
@@ -1379,7 +1380,7 @@ extension RichLayout {
                     s = s.copyWith(height: h.height)
                     // (Off a grid the room for the ruby is all over the baseline, not shared with the line's foot:
                     // xb jpn 231fe1 p1 "申請者" under ﾌﾘｶﾞﾅ stands 7pt lower, the next paragraph where it was. Single spacing only: at 1.15 Word's ruby line is shorter, lo-181b561b0a.)
-                    if gridPitchIsNil(pitch), p.style.lineHeightPoints == nil, abs(p.style.lineSpacing - 1) < 0.005, h.descent > 0, s.ascentOverride == nil, let size = s.fontSize,
+                    if gridPitchIsNil(pitch), p.style.lineHeightPoints == nil, p.style.lineSpacing > 0.995, h.descent > 0, s.ascentOverride == nil, let size = s.fontSize,
                        !(index.map { _verticalBody($0) } ?? false) {
                         s = s.copyWith(ascentOverride: size * (h.height - h.descent), descentOverride: size * h.descent, leadingDistribution: .even, debugLabel: (s.debugLabel ?? "") + " ruby-line")
                     }

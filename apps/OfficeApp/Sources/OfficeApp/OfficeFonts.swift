@@ -1191,6 +1191,11 @@ enum OfficeFonts {
         // (The Korean names are matched whole: 바탕체 and 돋움체 are the fixed-pitch Che faces,
         // not 바탕 and 돋움, and Word for Windows prints them differently.)
         let koreanOwn: Set<String> = ["맑은 고딕", "굴림", "굴림체", "돋움", "바탕"]
+        // (A Japanese Mincho Word for Windows lacks, one font-table entry at charset 80 with no alternate and no panose, Kozuka Mincho Pro R:
+        // Word prints it in Yu Gothic, base and ruby alike (lab ruby-181, YuGothic-Regular in the print). The faces its Japanese Office ships,
+        // MS, Yu and HG Mincho, are its own, and an alternate names the face to use.)
+        if !listed, n.containsSubstring("mincho"), !(n.hasPrefix("ms") || n.hasPrefix("ｍｓ") || n.hasPrefix("yu") || n.hasPrefix("hg")),
+           let ke = fontEntry(family), ke.charset.uppercased() == "80", ke.panoseZero, (ke.alt?.trimmingWhitespace() ?? "").isEmpty { return "yugothic" }
         guard listed || !(has.contains(where: { faceHas(n, $0) }) || koreanOwn.contains(n)) else { return nil }
         guard let e = fontEntry(family) else { return n.unicodeScalars.allSatisfy({ $0.isASCII }) ? "mincho" : nil }
         // (A Korean face Word lacks whose font table names 바탕 as its alternate prints in Batang: 한양신명조 at
@@ -2801,6 +2806,7 @@ static let sylfaenAdvances: [Double] = [
                 face.otherAdvances = [0x2018: 0.228, 0x2019: 0.228, 0x201C: 0.38, 0x201D: 0.38, 0xB7: 0.333]
                 return face
             case "malgun": return eastAsianFace("맑은 고딕")
+            case "yugothic": return eastAsianFace("Yu Gothic")
             default: return eastAsianFace("Microsoft JhengHei")
             } }
         // (The faces Word for Windows takes an embedded 仿宋_GB2312's missing
@@ -4420,6 +4426,7 @@ static let sylfaenAdvances: [Double] = [
             // DengXian's — the faces with Latin widths of their own — are not.)
             face.fullWidthSymbols = ea.squareSymbols ?? (ea.latinAdvances == nil)
             face.malgunSymbols = ea.malgunSymbols
+            if wordOnWindows, !isEmbedded(family), windowsMissingFallback(family) == "yugothic" { face.standsAsYuGothic = true }
             // (Ideographs in a serif where the name is a Song, Ming or
             // Mincho face: `serifIdeographs`.)
             if !own || embeddedFamily(family) == nil, let serif = serifIdeographs(family, ea) { face.fallback = [serif] }

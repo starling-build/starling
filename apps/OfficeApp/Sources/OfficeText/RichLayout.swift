@@ -609,12 +609,15 @@ public final class RichTextTheme {
         let line = lineBox(size: size, natural: natural + above / size, baseline: nil, in: paragraph, gridPitch: gridPitch).height
         // (Off a grid at single spacing the line keeps the plain line's foot and its baseline, the ruby's em standing on its raise over it:
         // lab ruby-hl14r, MS Mincho 20 with 8pt ruby, single: ascent max(20.15, raise + 8), descent 5.77 as plain.)
-        if wordRules, gridPitch == nil, paragraph.lineHeightPoints == nil, abs(paragraph.lineSpacing - 1) < 0.005,
+        if wordRules, gridPitch == nil, paragraph.lineHeightPoints == nil, paragraph.lineSpacing > 0.995, paragraph.lineSpacing < 3,
            let b = baseline(for: style, in: paragraph, named: named, eastAsian: eastAsian, gridPitch: nil), b > 0, case let plainH = natural * size, plainH > b {
-            let top = max(b, raise + rubySize)
+            // (The ruby's own line ascent, not its bare em, tops the line: Yu Gothic's 1.178 em puts 8pt ruby 1.45pt higher than MS Mincho's 1.009, lab ruby-181.)
+            let top = max(b, raise + b / size * rubySize)
             // (A ruby inside the plain ascent leaves the line a plain one: lab ruby-hl14r raise 10, first baseline 76.8.)
             if top <= b { return (natural, 0, 0) }
-            return ((top + plainH - b) / size, 0, (plainH - b) / size)
+            // (At 1.15 the baseline stays where single spacing has it and the extra 0.15 of the line goes below: lab ruby-181, MS Mincho and Yu Gothic.)
+            let one = (top + plainH - b) / size, m = max(1, paragraph.lineSpacing)
+            return (one * m, 0, (plainH - b) / size + one * (m - 1))
         }
         guard gridPitch != nil, paragraph.lineHeightPoints == nil else { return (line / size, 0, natural - ascent) }
         let n = natural * size
@@ -994,6 +997,8 @@ public struct RichResolvedFace: Sendable {
     /// A face whose own line baseline was read from Word's prints (FrankRuehl, David): a right-to-left run stands on it.
     public var ownLineBaseline = false
     public var boldSpread: Double
+    /// A face Word's machine lacks, printed in Yu Gothic (charset-80 Mincho name with no alternate): lines stand on Yu's own split.
+    public var standsAsYuGothic = false
     /// Further scales by kind of character — digits, capitals, small
     /// letters, the rest — where the stand-in's proportions are not the
     /// original's (nil: one scale for all).
