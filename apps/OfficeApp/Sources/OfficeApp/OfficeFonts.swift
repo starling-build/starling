@@ -3674,9 +3674,9 @@ static let sylfaenAdvances: [Double] = [
             RuleTrace.hit("windows-arabic-face-own-line")
             // (David: hhea 1505 + 510 over 2048, bold the same, read from Word's prints; 12pt lines at 1.5 step 17.7.)
             // (FrankRuehl: hhea 1462 + 442 over 2048, from the face embedded in Word's prints.)
-            if asked == "frankruehl" { face.baseline = 1462.0 / 2048 }
+            if asked == "frankruehl" { face.baseline = 1462.0 / 2048; face.ownLineBaseline = true }
             if asked == "david" {
-                face.baseline = 1505.0 / 2048
+                face.baseline = 1505.0 / 2048; face.ownLineBaseline = true
                 // (Its Hebrew letters' own advances, read from Word's prints: set word by word, `joinedScaled`.)
                 face.otherAdvances = davidOtherAdvances; face.boldOtherAdvances = davidBoldOtherAdvances
             }

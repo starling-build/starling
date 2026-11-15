@@ -486,8 +486,18 @@ public final class RichTextTheme {
             }
             return lineBox(size: size, natural: 1, baseline: 0, in: paragraph, gridPitch: gridPitch).baseline
         }
-        guard size > 0, let face = faceResolver?(familyName, eastAsian),
+        // (A right-to-left run names its own complex-script face, and its line stands on that face's baseline when the face
+        // keeps one: FrankRuehl's 1462 of 2048, where the Latin name the run falls back on gave 0.93 em, xd 38d880e8's header
+        // title line 3pt low.)
+        var complexFace: RichResolvedFace? = nil
+        if wordRules, RichTextTheme.wordWindowsPages, style.rightToLeft, !eastAsian,
+           let cs = style.complexFontFamily ?? named?.char.complexFontFamily,
+           let f = complexFaceResolver?(cs), f.ownLineBaseline, f.baseline != nil {
+            complexFace = f
+        }
+        guard size > 0, let face = complexFace ?? faceResolver?(familyName, eastAsian),
               let t = (scaled ? face.scaledBaseline : nil) ?? (bold ? face.boldBaseline : nil) ?? face.baseline else { return nil }
+        if complexFace != nil { RuleTrace.hit("word-complex-face-line-baseline") }
         let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
         let natural = (scaled ? face.scaledHeight : nil) ?? (bold ? face.boldHeight : nil) ?? face.naturalHeight
             ?? naturalLineHeight(family: face.family, bold: bold, italic: italic)
@@ -981,6 +991,8 @@ public struct RichResolvedFace: Sendable {
     public var family: String
     public var sizeScale: Double
     public var naturalHeight: Double?
+    /// A face whose own line baseline was read from Word's prints (FrankRuehl, David): a right-to-left run stands on it.
+    public var ownLineBaseline = false
     public var boldSpread: Double
     /// Further scales by kind of character — digits, capitals, small
     /// letters, the rest — where the stand-in's proportions are not the
