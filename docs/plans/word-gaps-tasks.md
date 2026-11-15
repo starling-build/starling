@@ -17275,3 +17275,4 @@ TIP WATCH amd-8, round 479 (tip f2d7f0328): Word drops only accepted ones (urd-z
 - Trap: 22de7d spaces are Yu Gothic (give only 584/2048 em); the half rule there broke it (100 -> 98.9), hence the giveBase gate.
 - Left: b4a883 98.3 (1 line, mixed-script table cell); aa9a7f 98.5 (p6: Word breaks before "가능성이" 4 pt short, we squeeze 8 spaces and take it; opposite direction, needs a lab). Uneven stretch (standalone-space runs 7.3 pt vs in-run 3.7) in 30dbe1 lines, not fixed.
 - dx2 ko re-render NOT done.
+- lenovo-5 CLAIM (2026-11-15): dx2 70b475ea (1.7, 4 tables; lowest free table doc in my area). Also lab/tblroom (blank lines beside a floating table, left room) is waiting for Word prints.
