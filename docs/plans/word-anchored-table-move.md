@@ -203,3 +203,23 @@ only those; the landing changes nothing else.
   place), from the line's width. Compare like with like.
 - docx-app-render.sh reuses an old output folder: render with --convert into
   a fresh folder.
+
+## Step 4 plan: text beside a staying page-anchored table (lenovo-5, 2026-11-15)
+
+Evidence: dx2 606199f1 (Word 10 lines on 2 pages; ours 11 on 3). Four page-anchored tables
+(tblpY 2476/4469/6499/8475 twips, 447pt wide, landscape) separated by empty paragraphs. Word sets
+all 11 blank lines in the strip right of the tables (x about 520, every 25pt); ours stacks them
+under table 2 and the move rule then pushes table 3 to page 3 (a symptom).
+
+Gap: page-anchored tables are not wrap areas. The beside gate (Paginate ~1913) needs
+`!ts.pageAnchored`, `keptPosition` and a `floatOffsetY`/`floatRaiseY`, none of which a page-anchored table has.
+
+Change (one clause, Windows Word rules only): in that gate, accept a page-anchored table that
+`floatsOverText` and leaves a strip (`!_floatLeavesNoStrip`) as `prev`, taking its top from
+`pageOffsetY` and the strip from its width, and let the blank lines after it chain beside the next
+page-anchored table (continuous wrap). Of the ~15 other `pageAnchored` exclusions, the ones that
+stay: 1028, 2178, 2269, 2334, 2413-2433, 2788, 2961, 2983, 3319 (they concern offset/raised
+floats, not page anchoring). The ones to re-read for the new case: 1043, 2716, 2940 (these already
+handle page-anchored rows) and the move rule at ~2595 (should then not fire for 606199f1).
+Check after: 606199f1; the 13 movers of the move rule; protected zh-3ab8a2fb, lo-6a5857f2,
+lo-0dd5bc0a, dx2 9baed400; the lo 15 at 100; m03.
