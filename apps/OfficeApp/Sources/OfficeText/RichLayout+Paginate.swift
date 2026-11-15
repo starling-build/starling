@@ -1037,6 +1037,19 @@ extension RichLayout {
                    whole > contentH + 0.01, c.ownRowHeight > avail + 0.01, _columnWidths[c.table]?.count == 1 {
                     avail -= min(_px(up), -top)
                 }
+                // (A table placed against the page and raised over the margin, taller than
+                // the page, in 2013's layout: Word gives it the body's height from the
+                // place it stands, not from the margin, so its first page ends as much
+                // sooner as the raise: 3667057e's 23-row floating table, tblpY 17.35pt
+                // on a 595pt page with the margin at 85, cuts its second row after
+                // 4 lines at 478 in Word for Windows' print; ours went to the foot, 550.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, first, (document.compatibilityMode ?? 12) >= 15,
+                   let ts = document.tableStyles[c.table], ts.pageAnchored, ts.pageOffsetY != nil, ts.rowsExactHeight.isEmpty,
+                   let top = _pages[page].filter({ !$0.repeated && _cells[$0.paragraph]?.table == c.table }).map(\.pageY).min(), top < -0.01,
+                   case let whole = (0 ..< count).compactMap({ k in _cells[k].flatMap { $0.table == c.table ? $0.rowTop + $0.ownRowHeight : nil } }).max() ?? 0,
+                   whole > contentH + 0.01, c.ownRowHeight > avail + 0.01 {
+                    avail -= -top
+                }
                 // (A table placed against the page whose rows from here on
                 // end above the footer's place sets them on this page, past
                 // the margin: zh-0b87285b's 13-row list ends 524.9pt down a
