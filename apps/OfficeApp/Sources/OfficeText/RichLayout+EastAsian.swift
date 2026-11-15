@@ -866,18 +866,21 @@ extension RichLayout {
                 // Word's print, which hangs no full-width mark there; ours hung nothing and sent the last word down.)
                 let halfStop = theme.wordRules && RichTextTheme.wordWindowsPages && document.hangsHalf && !squeezes
                     && (units[tail] == 0x2C || units[tail] == 0x2E)
-                let latinComma = halfStop || !legacy && (units[tail] == 0x2C || units[tail] == 0x29)
+                // (Not a "," after a Hangul syllable under `w:wordWrap` off: Word breaks between characters there and wraps the comma with its syllable when the comma's end passes the margin, 4fabe1f2 "…하는 경우," (0.8 past), and kor-z17264, 17491 and 19581 end lines so; none of those print a Hangul "," past the margin.)
+                let koreanCommaWraps = !RichTextTheme.wordWindowsPages ? false : units[tail] == 0x2C && tail > 0 && units[tail - 1] >= 0xAC00 && units[tail - 1] <= 0xD7A3 && p.style.eastAsian["w:wordWrap"] == "0"
+                let latinComma = halfStop || !legacy && !koreanCommaWraps && (units[tail] == 0x2C || units[tail] == 0x29)
                     // (Compat 15: a final "." after a Latin letter stays while its origin is inside the margin: kor 59e77f "shows.", ff493b "electricity.".)
                     || !legacy && units[tail] == 0x2E && tail > 0 && ((units[tail - 1] | 0x20) >= 0x61 && (units[tail - 1] | 0x20) <= 0x7A)
                     || units[tail] == 0x29 && tail > 0 && units[tail - 1] >= 0x2E80 && (!hangulStop || hangulParen)   // (b6f6c7d4: a Korean line with digits and only stops to hang keeps ")" whole, as Word)
                     // (… a "," too: zh-9bcea239's "…少于6个月的," (mode 12, Times) is one line in Word for Windows' print, its "," 3.99 past the margin.)
-                    || units[tail] == 0x2C && RichTextTheme.wordWindowsPages && tail > 0 && units[tail - 1] >= 0x2E80
+                    || units[tail] == 0x2C && !koreanCommaWraps && RichTextTheme.wordWindowsPages && tail > 0 && units[tail - 1] >= 0x2E80
                     || macThai || macComma
                     || document.hangsLatinStops && RichTextTheme.wordWindowsPages && legacy && (units[tail] == 0x2E || units[tail] == 0x2C)
                     || latinStops && Self._latinStopUnits.contains(units[tail]) && !_afterHyphenPiece(units, tail)
                     // (Lab hang1 tested words that start after a space; Word moves a hyphen's second piece "ig." whole: 7b3ae3a6 "2021-ig.".)
                     // (A Korean word's own stop hangs: ecc32adb's "…포함된다." ends past the margin, the word whole.)
-                    || RichTextTheme.wordWindowsPages && wordRules && (units[tail] == 0x2E || units[tail] == 0x2C) && tail > 0 && units[tail - 1] >= 0xAC00 && units[tail - 1] <= 0xD7A3
+                    // (Only with `w:wordWrap` on: under wordWrap off Word breaks between characters, and 4fabe1f2's "…하는 경우," leaves the comma 0.8 past the margin, so 우 goes down with it; kor-z17264, 17491 and 19581 end lines the same way.)
+                    || RichTextTheme.wordWindowsPages && wordRules && p.style.eastAsian["w:wordWrap"] != "0" && (units[tail] == 0x2E || units[tail] == 0x2C) && tail > 0 && units[tail - 1] >= 0xAC00 && units[tail - 1] <= 0xD7A3
                 // (Before Word 2013's layout, in a document that compresses
                 // punctuation, Taiwan's centred marks give nothing at a
                 // line's end to be taken, and the paragraph's own last one
