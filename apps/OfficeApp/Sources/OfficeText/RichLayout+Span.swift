@@ -1658,9 +1658,12 @@ extension RichLayout {
             func isArabic(_ c: Character) -> Bool { c.unicodeScalars.first.map { ArabicForms.isArabic($0.value) || $0.value == 0x200C } ?? false }
             func joinedScaled(_ word: Substring, _ s: TextStyle) -> TextStyle {
                 // (Hebrew, word by word, at the advances the face carries per letter: David's, from Word's prints.)
-                if let hebrewFace = joinedFace ?? complexFaceOfRun, word.unicodeScalars.contains(where: { $0.value >= 0x5D0 && $0.value <= 0x5EA }), let px = s.fontSize, px > 0.5,
+                // (A number of a right-to-left run, digits and its separators, in a face that carries those advances too: FrankRuehl's 0.415 em digit in
+                // xd 38d880e8's case number, where the Latin stand-in's 0.553 ran the line wider. Direction marks have no width.)
+                let numberInComplexFace = joinedFace != nil && word.unicodeScalars.contains(where: { (0x30...0x39).contains($0.value) })
+                if let hebrewFace = joinedFace ?? complexFaceOfRun, numberInComplexFace || word.unicodeScalars.contains(where: { $0.value >= 0x5D0 && $0.value <= 0x5EA }), let px = s.fontSize, px > 0.5,
                    let table = s.fontWeight == .bold ? hebrewFace.boldOtherAdvances : hebrewFace.otherAdvances,
-                   word.unicodeScalars.allSatisfy({ table[$0.value] != nil }) {
+                   word.unicodeScalars.allSatisfy({ table[$0.value] != nil || $0.value == 0x200E || $0.value == 0x200F }) {
                     let ems = word.unicodeScalars.reduce(0.0) { $0 + (table[$1.value] ?? 0) }
                     let shaped = _wordWidth(s, String(word))
                     RuleTrace.hit("word-hebrew-face-own-advances")

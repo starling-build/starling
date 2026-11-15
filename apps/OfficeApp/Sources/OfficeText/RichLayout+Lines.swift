@@ -2098,8 +2098,7 @@ extension RichLayout {
     static func _squeezesRightToLeft(_ text: String) -> Bool {
         var arabic = false
         for u in text.unicodeScalars {
-            if (0x0590 ... 0x05FF).contains(u.value) { return false }
-            if (0x0600 ... 0x06FF).contains(u.value) { arabic = true }
+            if (0x0590 ... 0x05FF).contains(u.value) || (0x0600 ... 0x06FF).contains(u.value) { arabic = true }
         }
         return arabic
     }
