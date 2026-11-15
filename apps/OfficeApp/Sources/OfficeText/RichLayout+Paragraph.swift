@@ -3846,6 +3846,17 @@ extension RichLayout {
                     _imageDrop[i] += line - own
                     bodyHeight = (bodyHeight + line - own).rounded()
                 }
+                // (An underlined picture taller than its mark's line, under Word for Windows: the line keeps the
+                // mark's descent under the picture's foot. b66c721a's 72.9pt picture over a 14pt
+                // mark puts the next line 3.65pt (0.26 em) lower in Word's print, 7.36 at 28pt; lab: underline off moves the title up 3.84, bold off changes nothing.)
+                else if RichTextTheme.wordWindowsPages, p.image != nil,
+                        (p.runs.first(where: { $0.style.inlineImage == image.id })?.style.underline ?? false) || (p.style.mark?.underline ?? false) {
+                    let drop = _markLineHeight(i, document, single: true, descentOnly: true)
+                    if drop > 0 {
+                        RuleTrace.hit("picture-line-mark-descent")
+                        bodyHeight = (bodyHeight + drop).rounded()
+                    }
+                }
             }
             // (A picture as wide as the line leaves its paragraph mark no
             // room, and the mark opens a line of its own under it: lab

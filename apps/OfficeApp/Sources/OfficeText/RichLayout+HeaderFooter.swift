@@ -1539,7 +1539,7 @@ extension RichLayout {
 
     /// The height of one line of paragraph `i` in its mark's look, as if
     /// it held nothing else (px).
-    func _markLineHeight(_ i: Int, _ document: RichDocument, single: Bool = false, using run: CharStyle? = nil) -> Double {
+    func _markLineHeight(_ i: Int, _ document: RichDocument, single: Bool = false, using run: CharStyle? = nil, descentOnly: Bool = false) -> Double {
         let p = document.paragraphs[i]
         var mark = run ?? p.style.mark ?? p.runs.first?.style ?? CharStyle()
         mark.inlineImage = nil
@@ -1560,6 +1560,7 @@ extension RichLayout {
         if !held.isEmpty { probe.setPlaceholderDimensions(held.map { $0.dimensions }) }
         probe.layout(minWidth: 0, maxWidth: width)
         defer { probe.dispose() }
+        if descentOnly { return probe.computeLineMetrics().first?.descent ?? 0 }
         return probe.height
     }
 
