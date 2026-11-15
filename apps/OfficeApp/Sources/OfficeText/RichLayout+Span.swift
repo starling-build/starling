@@ -194,7 +194,7 @@ extension RichLayout {
         // Only Latha is measured for letters and digits too; the other faces only for runs of marks (Kalimati/Preeti Nepali docs drop otherwise).
         // (And Mangal itself, the face the run names: 2db27e2d's "24 × 13 = (20 + 4) × ..." line, digits and signs in Mangal runs, is Mangal's
         // 18.5 pt in Word's print where ours stood 15.1 on the Latin stand-in.)
-        if face != "latha", !(face == "mangal" && !isKalimati), text.unicodeScalars.contains(where: { $0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39 && !(isKalimati && csFlag)) || $0.value > 0x7E }) { return nil }
+        if face != "latha", !(face == "mangal" && !isKalimati), text.unicodeScalars.contains(where: { $0.properties.isAlphabetic || (($0.value >= 0x30 && $0.value <= 0x39) || ($0.value >= 0x966 && $0.value <= 0x96F)) && !(isKalimati && csFlag) || $0.value > 0x7E && !($0.value >= 0x966 && $0.value <= 0x96F && isKalimati && csFlag) }) { return nil }
         switch face {
         case "latha", "mangal", "vrinda", "aparajita", "raavi", "shruti", "gautami", "shonar bangla": return face
         default: return nil
@@ -3518,8 +3518,11 @@ extension RichLayout {
                     }
                     spans.append(TextSpan(text: String(ch), style: mark))
                     start = after
-                } else if ea, theme.wordRules, RichTextTheme.wordWindowsPages, ch == "\u{203B}", let cjk = Self._cjkFaceFamily {
-                    // (The reference mark ※ in an East Asian run is the East Asian face's own (Meiryo, MS Gothic: 5d7ee6's prints show MS-Gothic), an em wide, as the ☆ and the fullwidth digit beside it:
+                } else if ea, theme.wordRules, RichTextTheme.wordWindowsPages, ch == "\u{203B}", let cjk = Self._cjkFaceFamily,
+                          { let n = (run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? ""); let l = n.lowercased()
+                              return l.containsSubstring("meiryo") || l.containsSubstring("ms gothic") || l.containsSubstring("ms mincho") || l.containsSubstring("ms pgothic") || l.containsSubstring("ms pmincho")
+                                  || l.containsSubstring("yu gothic") || l.containsSubstring("yu mincho") || n.containsSubstring("メイリオ") || n.containsSubstring("ＭＳ") || n.containsSubstring("游") }() {
+                    // (The reference mark ※ in a Japanese East Asian run (not a Chinese face: dx2 zh-ae2dd08d's DFKai-SB ※ went down) is the East Asian face's own (Meiryo, MS Gothic: 5d7ee6's prints show MS-Gothic), an em wide, as the ☆ and the fullwidth digit beside it:
                     // dx2 934bd3e5's superscript "※１" is 7.0pt apiece in Word's print, where our DejaVu fallback gave 7.9
                     // for the mark and its lines broke a character early.)
                     flush(i)
