@@ -2685,12 +2685,12 @@ extension RichLayout {
                 // (A run that names the East Asian face and hints East Asian draws its symbols in Batang, no Malgun: 218dff52's "7. ... △△△" lines step 31.2 as plain ones.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, ch.unicodeScalars.count == 1,
                    !(run.eastAsiaFontFamily != nil && (run.fontHint ?? named?.char.fontHint) == "eastAsia"),
-                   u == 0x25CB || u == 0x25B3 || u == 0xB7 || (u >= 0x2460 && u <= 0x2469) || u == 0x203B || u == 0x2192
+                   u == 0x25CB || u == 0x25C6 || u == 0x25B3 || u == 0xB7 || (u >= 0x2460 && u <= 0x2469) || u == 0x203B || u == 0x2192
                     || u == 0x2018 || u == 0x2019 || u == 0x201C || u == 0x201D,
                    theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                        ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.malgunSymbols == true
                     // (A run that names only the ascii face, the missing Korean one, still draws △ and ○ in it (they have no ascii form; quotes in such a run stay Latin: 218dff52 page 2): 218dff52's △△△.)
-                    || (u == 0x25B3 || u == 0x25CB) && (run.eastAsiaFontFamily == nil && run.fontFamily.map { theme.faceResolver?($0, true)?.malgunSymbols == true } == true)
+                    || (u == 0x25B3 || u == 0x25CB || u == 0x25C6) && (run.eastAsiaFontFamily == nil && run.fontFamily.map { theme.faceResolver?($0, true)?.malgunSymbols == true || ($0.trimmingWhitespace() == "굴림" && u == 0x25C6) } == true)
                     // (A run holding only a middle dot, set in Gulim, is drawn in Malgun Gothic too: xd ac5ff286's "유치·운영" line, whose dot run Word's print names
                     // MalgunGothic, stands 29 and 30 pt from its neighbours where plain Gulim lines are 25.)
                     || u == 0xB7 && run.loneDot && ["굴림", "gulim"].contains((run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? run.fontFamily ?? "").lowercased()) {
