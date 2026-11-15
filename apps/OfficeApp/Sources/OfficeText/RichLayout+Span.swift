@@ -3966,6 +3966,22 @@ extension RichLayout {
                     }
                     markStyle = style.copyWith(ascentOverride: above, descentOverride: split.1 * size, height: (above + split.1 * size) / size, leadingDistribution: .even)
                 }
+                // (A Symbol bullet in a TH SarabunPSK Thai paragraph, single spacing: Word stands the row on Symbol's ascent (1.004 em at the bullet's size)
+                // over the face's own 0.463 em below the baseline, so bullet rows are 1.467 em apart (20.5 pt at 14 pt, 23.4 at 16 pt) where the wrapped
+                // line under one stays 1.314 em; ours were 18.4 and 20.9 (xd eb52ce9bb9, bullets in a table and in the body).)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil, p.style.lineSpacing <= 1.001,
+                   p.text.unicodeScalars.contains(where: { $0.value >= 0x0E00 && $0.value <= 0x0E7F }), let thaiRun = p.runs.first?.style,
+                   (thaiRun.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "th sarabunpsk",
+                   let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
+                   let r = xml.rangeOfSubstring("w:ascii=\"") ?? xml.rangeOfSubstring("w:hAnsi=\""),
+                   String(xml[r.upperBound...].prefix { $0 != "\"" }).lowercased() == "symbol",
+                   let symBase = theme.faceResolver?("symbol", false)?.baseline, let bulletSize = style.fontSize, bulletSize > 0.5,
+                   let textPt = thaiRun.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize, textPt > 0.5 {
+                    let textSize = _px(textPt) * fontScale
+                    let above = symBase * bulletSize, below = 0.463 * textSize
+                    RuleTrace.hit("word-symbol-bullet-row-in-th-sarabunpsk-stands-on-the-symbol-ascent")
+                    markStyle = style.copyWith(ascentOverride: above, descentOverride: below, height: (above + below) / bulletSize, leadingDistribution: .even)
+                }
                 // (A Wingdings bullet over Latin text at a line multiple: Word's print stands the first line on the BULLET's ascent
                 // and leaves under it what the text's own line has under ITS baseline, the multiple's extra included. 11pt Calibri at
                 // 1.15 under a 16pt bold Wingdings bullet: items 19.35pt apart, where the bullet's whole line at the multiple was 20.4
