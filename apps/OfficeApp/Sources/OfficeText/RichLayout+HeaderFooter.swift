@@ -1103,6 +1103,14 @@ extension RichLayout {
         // The band it is placed in, from the paragraph's column edge.
         let column = _flowWidth(i)
         var bandLeft = g.textLeft - _textLeftInColumn(i), bandWidth = column
+        // (A box set from the "column" in a table cell is set from the cell's text edge, not from the host paragraph's left
+        // indent: dx2/xd efbb06c2's callout, posOffset 19.2 in a cell whose paragraph is indented 11pt (hanging 11), starts its text at
+        // 140 in Word's print, ours at 151.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, float.horizontalFrom == "column", float.horizontalAlign == nil,
+           i < _cells.count, let d = _cells[i], d.colWidth > 0 {
+            RuleTrace.hit("word-column-box-in-a-cell-ignores-the-hosts-indent")
+            bandLeft = d.colLeft + d.pad.left
+        }
         if float.horizontalFrom == "page" || float.horizontalFrom == "leftMargin" {
             let setup = _setup(ofParagraph: i)
             let margins = floatsFrames ? frameMargins : (setup.marginLeft + setup.gutter, setup.marginRight)
