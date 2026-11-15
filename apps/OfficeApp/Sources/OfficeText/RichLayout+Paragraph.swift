@@ -4454,10 +4454,11 @@ extension RichLayout {
 
 
 extension RichLayout {
-    /// A top-and-bottom picture more than 2pt above the empty first paragraph of the document that holds it.
+    /// A top-and-bottom or square/tight-wrapped picture more than 2pt above the empty first paragraph of the document that holds it
+    /// (dx2 en 61ec937a: a square-wrapped logo 40pt above stands at the margin, 72.0 in Word's print, and the text wraps beside it).
     @inline(never)
     func _atPageTopNegativeOffset(_ i: Int, _ image: ImageAttachment) -> Bool {
-        guard theme.wordRules, RichTextTheme.wordWindowsPages, let f = image.float, f.bandsPage, !f.wraps, f.verticalAlign == nil,
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, let f = image.float, (f.bandsPage || f.wraps), f.verticalAlign == nil,
               f.verticalFrom == "paragraph", f.y < -2, i == 0, !floatsFrames, regionTopOnPage == nil else { return false }
         return true
     }
