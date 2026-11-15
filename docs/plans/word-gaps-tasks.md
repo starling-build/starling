@@ -17366,3 +17366,9 @@ amd-6 HANDOFF (2026-11-15) dx2 61ec937a: queued (queue/amd-6-312). Square-wrappe
 - Added: WordArt inline line grows by an UPWARD shadow offset as by a downward one (dx2 e9eab5f8 1.5 to 100; Word's body was 35.3 pt lower; only its copy poi-1609d3eed7 has such a shadow).
 - Left, free: dx2 ebe45609 es 2.5 (two wrapSquare pictures, ~12 empty paragraphs at pitch 27.8; Word's "{Símbolos" at 711.7 on p1, ours 554.9), 0fd592a1 sq (54.2 at 190/190 lines, unlooked), ro 3667057e, uk c23888cb.
 - lenovo-2 2026-11-15 CLAIM: xa oxsdk-6209c6d5a7 (zh, 67.5, 366/365 lines, 6/6 pages; next lowest zh outside dx2 chart cases).
+
+### HANDOFF amd-1, 2026-11-15: xd d760f1e5 (Hindi journal article, was 90.5)
+- Cause: page-count gap (Word 8 pages, ours 9). The last list item was pushed to page 9 because the footer's two paragraph-relative wrap pictures (top about 761.3 pt) were treated as boxes the body wraps round. The body's real foot is about 758.9 pt (the footer is taller than the 72 pt margin), so the old guard against the bottom margin (769.9) never fired.
+- Fix: queued as queue/amd-1-324 (DOCS=d760f1e5). A footer box at or under pageH minus the body's bottom inset wraps no body line. Rule trace: word-footer-box-under-the-text-foot-does-not-wrap-the-body. d760f1e5 now 8 pages. A/B over 54 docs with header/footer wrap pictures: only d760f1e5 changed. Unit tests 655/0. Rule is in ~/word-rules.md.
+- Left (not caused by the pictures, not fixed): stray clipped combining-mark lines on pages 1-3 (page 1 at y 744.1); baseline drift on pages 4-7; a beside-box indent survives after a paragraph moves to a new page (the want[k] == nil guard in RichLayout+Layout never re-tests it).
+- Next: re-score d760f1e5 after landing to see the new number; the drift on pages 4-7 is the next gap.
