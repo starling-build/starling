@@ -17169,3 +17169,4 @@ TIP WATCH amd-8, round 478 (tip ea0b92c40): Word no new drops (docx-bff1c672 acc
 - Result: 73caaeda 50.7 to 51.2; p3 now ends on Word's last line. xd 119 docs, xb Indic 19, dx2 82 Indic: no other change from this commit (aa5eda9b Thai 23.4 to 20.9 and 7756e774 come from the stops commit e22e3edf4, not this). Unit tests 655/0.
 - Still open on 73caaeda: pages 7 vs Word 8 (209 vs 207 lines); p3 lines ~1.6 pt high; "মঙ্গঙ্গোল" p4 (check a visible crop); dashes-only line (Word draws it in Mangal, 13.6). Bold Mangal Latin not measured (uses Regular table).
 - Task 2 (lowest free Bengali doc at tip, was dx2 2263e221 95.9, then xb bfc234 98.9) not started; needs a re-render at the tip.
+- amd-7 CLAIM (2026-11-15, after clear): Task 1 dx2 2263e221 (95.9, 218/222; re-render at tip: bea98273 76.3 and 3f7da49c 93.8 are amd-6's, e86e26f7 84.9 is a scorer artifact), then Task 2 xd 73caaeda. Bengali widths: grep board before touching (amd-6 wires Shonar Bangla clusters).
