@@ -64,6 +64,11 @@ extension RichLayout {
         }
     }
     /// Ascent and descent in ems of the faces a Word fallback chain sets text in, from Word's pitches in lab cm236c (12 pt, single and 1.5).
+    /// Characters Word treats as East Asian text (CJK, kana, hangul, CJK punctuation and fullwidth forms, plane 2): not Arabic presentation forms nor math alphanumerics.
+    static func _isEastAsianScalar(_ u: UInt32) -> Bool {
+        (0x2E80 ... 0xA4CF).contains(u) || (0xAC00 ... 0xD7FF).contains(u) || (0xF900 ... 0xFAFF).contains(u) || (0xFE30 ... 0xFE4F).contains(u)
+            || (0xFF00 ... 0xFFEF).contains(u) || (0x20000 ... 0x3FFFF).contains(u)
+    }
     static let _chainFaceLines: [String: (Double, Double)] = [
         "Yu Gothic": (1.2, 0.473), "Microsoft JhengHei": (1.30, 0.4308),
     ]

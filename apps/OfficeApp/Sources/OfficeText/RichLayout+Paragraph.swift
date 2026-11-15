@@ -2602,7 +2602,7 @@ extension RichLayout {
                 let end = min(start + run.length, firstEnd, units.count)
                 guard start < end else { continue }
                 for ch in String(decoding: units[start ..< end], as: UTF16.self) {
-                    guard let u = ch.unicodeScalars.first?.value, u >= 0x2E80, u != 0xFFFC, !covers.contains(u) else { continue }
+                    guard let u = ch.unicodeScalars.first?.value, Self._isEastAsianScalar(u), !covers.contains(u) else { continue }
                     let k = chain.firstIndex { $0.covers?.contains(u) ?? true } ?? chain.count - 1
                     if Self._chainFaceLines[chain[k].family] != nil { return true }
                 }
