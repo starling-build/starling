@@ -17290,3 +17290,4 @@ TIP WATCH amd-8, round 479 (tip f2d7f0328): Word drops only accepted ones (urd-z
 - Stale: 335fbcf8, b84eb58b, bbe99404 first baselines already match Word; stored dx2.v2 is stale.
 - The steady offsets have DIFFERENT causes, no shared property.
 - OPEN: 087dda6f (+8.3 pt; floating table sits 7.4 pt lower than Word's; header not the cause; needs a lab with tblpY 0/600/1185), a4aad00b (+9.6, same Macedonian template, framePr in cell), 1202c9de (first line 8.1 pt HIGH, Mystical Woods Smooth Script 24 pt, auto spacing + borders), ac5b5750, f7d88376 (0.3).
+- (2026-11-15 amd-8) TEST ISOLATION BUG: TableCellTests.testATurnedCellWrapsAtTheRowHeight (PainterFixTests.swift:484) fails when run alone (--filter TableCellTests) but passes in the full 655 run. Owner of TableCellTests: please make it independent of earlier tests. land.sh now reruns the FULL suite when a filtered run fails and rejects only on that.
