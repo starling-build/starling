@@ -1852,7 +1852,9 @@ extension RichLayout {
                     if !beside {
                         tableBands.append((top: back.top, bottom: y, owner: -1))
                         if RichTextTheme.wordWindowsPages, document.tableStyles[back.table]?.pageAnchored == true,
-                           (_tableFlowWidth[back.table] ?? width) - (left + (_columnWidths[back.table] ?? []).reduce(0, +)) >= _px(12) {
+                           left >= _px(12) || (_tableFlowWidth[back.table] ?? width) - (left + (_columnWidths[back.table] ?? []).reduce(0, +)) >= _px(12) {
+                            // (A strip at the table's right, or the room at its left: blank lines stand beside it, dx2 f22ada3a's
+                            // date table at x 417 with eight blanks at the left margin.)
                             stripBandTops.insert(back.top)
                         }
                     }
@@ -2496,7 +2498,7 @@ extension RichLayout {
                     let physical = page / _columns
                     let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
                     let target = ts0?.pageOffsetY.map { _px($0) - insetTop } ?? bottomAlignedOffset(c, i).map { _px($0) - insetTop } ?? _px(ts0?.marginOffsetY ?? 0)
-                    if target > y + 0.01, target < contentH - 0.01 {
+                                        if target > y + 0.01, target < contentH - 0.01 {
                         tableReturn = (c.table, y, page, target)
                         y = target
                         // (A table placed against the page whose first row, or
@@ -2542,7 +2544,7 @@ extension RichLayout {
                         y = target
                     } else if theme.wordRules, RichTextTheme.wordWindowsPages, target < -0.01, target > -insetTop, y > 0.01, deferredUnder.isEmpty,
                               document.tableStyles[c.table]?.pageAnchored == true,
-                              _tableLeft(c.table, document) >= _px(12) && (_tableFlowWidth[c.table] ?? width) - (_tableLeft(c.table, document) + (_columnWidths[c.table] ?? []).reduce(0, +)) >= _px(12),
+                              _tableLeft(c.table, document) >= _px(12),
                               let last = _pages[page].last, last.paragraph < i, _cells[last.paragraph] == nil, !last.repeated,
                               document.paragraphs[last.paragraph].image == nil, !document.paragraphs[last.paragraph].text.contains(where: { $0 != " " }) {
                         // (A table placed a fraction above the body's top, after a blank line: it keeps its place and the blank
