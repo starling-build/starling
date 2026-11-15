@@ -1572,6 +1572,8 @@ public final class RichLayout {
     var _nestedInFixedTable = false
     /// A table nested in a cell, set as a block: Word's nested table is not set out by its cell margin, as a body's is.
     var _nestedBlock = false
+    /// A nested table block whose outer table stands in a real text box's text (not in the body or a cell of it).
+    var _nestedInRealBox = false
     /// Bands, from this nested block's top, that floating tables of its cell stand in: a row of the
     /// block that its natural height would put in one steps down to the band's foot (Word, lab
     /// `frcell` on lo-5c5eb1f7 row 25: a table row is not wrapped round a floating table, it

@@ -835,6 +835,7 @@ extension RichLayout {
         layout.scale = scale
         layout._nestedInFixedTable = fixedParent
         layout._nestedBlock = box.growsToFit && holding.flatMap { document.paragraphs[$0].cell } != nil
+        layout._nestedInRealBox = layout._nestedBlock && (_nestedBlock ? _nestedInRealBox : _inTextBox)
         if theme.wordRules, RichTextTheme.wordWindowsPages, box.growsToFit, image.float == nil, let k = holding, let cell = document.paragraphs[k].cell {
             var above = 0.0
             var m = k - 1

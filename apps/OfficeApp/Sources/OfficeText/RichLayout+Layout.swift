@@ -879,7 +879,11 @@ extension RichLayout {
         switch style?.alignment ?? .left {
         case .center: return theme.wordRules ? (width - sum) / 2 : max(0, ((width - sum) / 2).rounded(.down))
         case .right: return theme.wordRules ? width - sum + right : max(0, (width - sum).rounded(.down))
-        default: return theme.wordRules ? _px(style?.indent ?? 0) - left + _edgeShift(table, document) + (_besideWideFloatShift(table, document) ?? 0) : _px(style?.indent ?? 0).rounded()
+        default:
+            // (A table nested in a cell of a table that is itself in a text box's text stands its left cell margin left of the cell's text, its edge at the cell's: dx2 2263e221's box rows, edge 131.9 in Word's print for text at 137.3, ours 137.0. The same document's nested tables outside boxes, and lo-5c5eb1f7's, stand at the text.)
+            let boxNested = theme.wordRules && RichTextTheme.wordWindowsPages && _nestedInRealBox && (document.compatibilityMode ?? 0) >= 15 && (style?.indent ?? 0) == 0
+            if boxNested { RuleTrace.hit("nested-table-in-a-text-box-stands-its-cell-margin-left") }
+            return theme.wordRules ? _px(style?.indent ?? 0) - left - (boxNested ? _px(style?.textOutdent ?? 5.4) : 0) + _edgeShift(table, document) + (_besideWideFloatShift(table, document) ?? 0) : _px(style?.indent ?? 0).rounded()
         }
     }
 
