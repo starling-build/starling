@@ -926,7 +926,9 @@ struct PdfMarkup {
                 // (Word sets the balloon's Latin letters in the same Mincho face too, every line at the 13.8pt step: ee9f8f's
                 // "tumultuantes…" line stands 13.8 under the one above where Liberation Sans gave 12.3.)
                 let latinFace = theme.faceResolver?("Yu Mincho", false)
-                let anyEA = spans.contains { ($0 as? TextSpan)?.text?.contains(where: Self.balloonEastAsian) ?? false }
+                // (A deleted run of Latin letters alone stands in the same box: ee9f8f's "Deleted: a rege Persarum" is
+                // 17.2 pt tall in Word's print, as the ones with kana, where the Latin face gave 15.0.)
+                let anyEA = note.label == "Deleted:" || spans.contains { ($0 as? TextSpan)?.text?.contains(where: Self.balloonEastAsian) ?? false }
                 func latinSpans(_ text: String, _ st: Flutter.TextStyle, _ extra: Double = 0) -> [InlineSpan] {
                     guard anyEA, st.fontWeight != .bold, let f = latinFace, let table = f.advances else { return [TextSpan(text: text, style: st.copyWith(letterSpacing: extra))] }
                     let ls = st.copyWith(height: 13.8 / 6.888, fontFamily: f.family)
@@ -941,9 +943,24 @@ struct PdfMarkup {
                     }
                     return out
                 }
-                for s in spans {
+                // (A deletion's text arrives a character to a span (exactSpans): the quarter em between a Han or kana
+                // character and a digit or Latin letter is judged across the span edge, with the next span's first
+                // character: ee9f8f's "Deleted: ...オ3世..." and "（820年代半ば）" stand 1.7 pt apart in Word's print.)
+                func edgeIdeo(_ c: Character) -> Bool { c.unicodeScalars.first.map { (0x3040...0x30FF).contains($0.value) || (0x3400...0x9FFF).contains($0.value) } ?? false }
+                func edgeLatin(_ c: Character) -> Bool { c.isASCII && (c.isLetter || c.isNumber) }
+                for (si, s) in spans.enumerated() {
                     guard let t = s as? TextSpan, let text = t.text, let st = t.style else { split.append(s); continue }
-                    guard text.contains(where: Self.balloonEastAsian) else { split.append(contentsOf: latinSpans(text, st)); continue }
+                    let nextFirst: Character? = si + 1 < spans.count ? (spans[si + 1] as? TextSpan)?.text?.first : nil
+                    let edgeGap: Bool = {
+                        guard let last = text.last, let nf = nextFirst else { return false }
+                        return (edgeIdeo(last) && edgeLatin(nf)) || (edgeLatin(last) && edgeIdeo(nf))
+                    }()
+                    guard text.contains(where: Self.balloonEastAsian) else {
+                        if edgeGap, let last = text.last {
+                            split.append(contentsOf: latinSpans(String(text.dropLast()), st) + latinSpans(String(last), st, (st.fontSize ?? 0) * 0.25))
+                        } else { split.append(contentsOf: latinSpans(text, st)) }
+                        continue
+                    }
                     // (Word's auto-spacing puts a quarter em between a kana or Han character and a Latin letter or
                     // digit: ee9f8f's "Rotterの研究は735年ベーダ" takes two, which is why "を" starts the next line.)
                     func ideo(_ c: Character) -> Bool { c.unicodeScalars.first.map { (0x3040...0x30FF).contains($0.value) || (0x3400...0x9FFF).contains($0.value) } ?? false }
@@ -953,7 +970,7 @@ struct PdfMarkup {
                     func flush() { if !cur.isEmpty { if curEA { split.append(TextSpan(text: cur, style: st.copyWith(height: 13.8 / 6.888, fontFamily: eaFace).copyWith(letterSpacing: curGap ? (st.fontSize ?? 0) * 0.25 : 0))) } else { split.append(contentsOf: latinSpans(cur, st, curGap ? (st.fontSize ?? 0) * 0.25 : 0)) }; cur = "" } }
                     for (i, ch) in chars.enumerated() {
                         let isEA = Self.balloonEastAsian(ch)
-                        let gap = i + 1 < chars.count && ((ideo(ch) && latin(chars[i + 1])) || (latin(ch) && ideo(chars[i + 1])))
+                        let gap = i + 1 < chars.count ? ((ideo(ch) && latin(chars[i + 1])) || (latin(ch) && ideo(chars[i + 1]))) : edgeGap
                         if isEA != curEA || gap != curGap || curGap { flush(); curEA = isEA; curGap = gap }
                         cur.append(ch)
                     }
