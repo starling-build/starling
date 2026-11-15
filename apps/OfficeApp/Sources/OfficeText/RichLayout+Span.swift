@@ -3558,7 +3558,7 @@ extension RichLayout {
                     flush(i)
                     // (A space the fit cut out of its run is set at the size the run's other spaces take: a Windows Latin face's own, not the Indic stand-in's, 4% wider. The fit loop counts 3.33 pt and the engine set 3.6, so a squeeze of 0.59 pt delivered 0.31 and 1116b68d's last word never fitted.)
                     var s: TextStyle
-                    if ch == " ", kind >= 0, indic != nil, run.fontFamily != nil, theme.wordRules, RichTextTheme.wordWindowsPages,
+                    if ch == " ", kind >= 0, indic != nil, run.fontFamily != nil || indic?.face == "nirmala ui", theme.wordRules, RichTextTheme.wordWindowsPages,
                        p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 }) {
                         latinNoScale = true
                         s = style(kind)
