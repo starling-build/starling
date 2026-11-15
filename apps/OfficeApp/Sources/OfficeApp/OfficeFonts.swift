@@ -3507,6 +3507,10 @@ static let sylfaenAdvances: [Double] = [
             if ["kaiti", "楷体", "fangsong", "仿宋", "simhei", "黑体", "simsun", "宋体", "mincho", "明朝"].contains(where: { faceHas(n, $0) }) { return 256 }
             return nil
         }
+        // (Word draws a bold Batang, Dotum or Gulim, or a Korean face it lacks and prints in Batang, at the REGULAR advance:
+        // bold Hangul steps 11.6 pt like regular at 12 pt spaced -0.2 in xd 107500a8's print, ours 11.65 with the 1/256 em spread.)
+        let kn = family.trimmingWhitespace().lowercased()
+        if ["batang", "바탕", "dotum", "돋움", "gulim", "굴림"].contains(kn) || windowsMissingFallback(family) == "batang" { RuleTrace.hit("korean-bold-keeps-regular-advance"); return 0 }
         return 1 / (units(family) ?? altName(family).flatMap(units) ?? 256)
     }
 

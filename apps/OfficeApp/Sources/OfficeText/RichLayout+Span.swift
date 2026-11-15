@@ -3160,16 +3160,25 @@ extension RichLayout {
                 // leader beside it, whichever kind the layout counts
                 // them: PMingLiU sets each an em, and zh-190d730c's
                 // line of it at 6.2pt took a character Word wraps.)
+                // (A circled digit 1-10 in a run whose face is a Korean one Word lacks and prints in Batang (a Malgun-symbols face) is
+                // Malgun Gothic's, an em: 11.8 pt at 12 pt spaced -0.2 in xd 107500a8's print, ours 11.6.)
+                let malgunDigit: Bool = {
+                    guard theme.wordRules, RichTextTheme.wordWindowsPages, ch.unicodeScalars.count == 1,
+                          let d = ch.unicodeScalars.first?.value, d >= 0x2460, d <= 0x2469 else { return false }
+                    return theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                               ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.malgunSymbols == true
+                }()
+                if malgunDigit { RuleTrace.hit("malgun-circled-digit-em") }
                 if let u = ch.unicodeScalars.first?.value,
                    !(symbolsShown && theme.symbolAdvance?(run.fontFamily ?? named?.char.fontFamily, ch) != nil),
                    !(theme.wordRules && RichTextTheme.wordWindowsPages && u == 0x2611),
-                   (ea && u >= 0x2190 && u <= 0x266F) || u == 0x2027 || u == 0x2025 || (ea && u == 0x2022)
+                   (ea && u >= 0x2190 && u <= 0x266F) || malgunDigit || u == 0x2027 || u == 0x2025 || (ea && u == 0x2022)
                     // (And the reference mark ※ where the run's Latin face is a square face too: zh-ae2dd08d's
                     // 標楷體 "※依照財政部…" sets it 14pt at 14 in Word's print, where DejaVu's 11.8 took "就"
                     // onto the line.)
                     || (u == 0x203B && (ea || latinFace?.isEastAsian == true)),
                    theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
-                                       ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.fullWidthSymbols == true {
+                                       ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.fullWidthSymbols == true || malgunDigit {
                     let g = _glyphWidth(style(kind), ch)
                     if g > 0.5, g < em - 0.01 { extra += em - g }
                 }
