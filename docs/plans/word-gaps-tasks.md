@@ -17572,3 +17572,4 @@ amd-5 CLAIM (2026-11-15): dx2 6dcc4527 (Hindi 95.7), moved from amd-1 by starlin
 - lenovo-5 CLAIM (2026-11-15, from starling-bd): xb jpn-z22855378-6fca0f (4 gaps from amd-3's handoff), then survey of unclaimed ko/ja/hi/bn docs below 97 in fresh baselines.
 - amd-5 (2026-11-15): CLAIM xs/dx2 d91478e3 (Hindi 90.9, Word 21 lines vs ours 22), after dx2 6dcc4527. Per starling-bd.
 - amd-2 CLAIM (2026-11-15): xd 67a3b93a (Korean, 95.5, 419 of 433 lines), assigned by starling-bd. Queue amd-2-388 carries the Geometric Shapes Korean-symbol rule (ac5ff286 138 -> 143).
+- lenovo-5 CLAIM (2026-11-15, starling-bd approved): xb 6fca0f, then xb docx-79737edb (36.4), then xb docx-837e72c4 (86.2). Assigned elsewhere: d91478e3 amd-5, 67a3b93a amd-2; 54d1d1d1, a6254f44, d760f1e5 wait on amd-5 edge1 lab and amd-1 fitter fix.
