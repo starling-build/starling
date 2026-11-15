@@ -1007,8 +1007,10 @@ enum DocxFormat {
         // unless the settings say otherwise, its footnotes "1, 2, 3"
         // (endnotes.docx and Bug54849 show "i" in Word's print).
         _mathDefaultJc = nil
+        _exactAtAscent = false
         if let settings = part("word/settings.xml").flatMap(XNode.parse) {
             _mathDefaultJc = settings.first("m:mathPr")?.first("m:defJc")?["m:val"]
+            _exactAtAscent = settings.first("w:compat")?.first("w:noExtraLineSpacing").map { !_isOff($0) } ?? false
             if let f = settings.first("w:endnotePr")?.first("w:numFmt")?["w:val"] { notes.endnoteFormat = f }
             if let f = settings.first("w:footnotePr")?.first("w:numFmt")?["w:val"] { notes.footnoteFormat = f }
         }
@@ -5053,6 +5055,7 @@ enum DocxFormat {
                 case "exact":
                     style.lineHeightPoints = v / 20
                     style.lineHeightIsMinimum = false
+                    style.exactBaselineAtAscent = Self._exactAtAscent
                 case "atLeast":
                     // A minimum, however small: Word lays "at least 1pt"
                     // (Bug51170's atLeast 23 twips) out tighter than
@@ -8092,6 +8095,8 @@ enum DocxFormat {
     // (The settings' `m:defJc`: how a display equation without its own
     // `m:jc` stands; Word's default is centred.)
     nonisolated(unsafe) private static var _mathDefaultJc: String? = nil
+    /// `w:noExtraLineSpacing` of the document being read.
+    nonisolated(unsafe) private static var _exactAtAscent = false
     /// Set while a package is read whose styles' default Latin language is Korean (`w:lang w:val="ko…"`): Word for Windows then draws every
     /// Latin letter, digit and space in the run's East Asian face (Malgun Gothic where it names none, MS Mincho where it names a Latin-only one).
     /// Lab langko (2026-11-13, Word for Windows, xd f1b5cc8b): a run's own w:lang and w:noProof change nothing; only the style default does.

@@ -621,6 +621,10 @@ public struct RichParagraphStyle: Hashable, Sendable {
     /// With `lineHeightPoints`: a minimum ("at least 20 pt") rather than
     /// an exact height — a taller font still gets its own line.
     public var lineHeightIsMinimum = false
+    /// Word's `w:noExtraLineSpacing`: the text of an exact line stands at
+    /// its face's own ascent (never below the line's foot), not at four
+    /// fifths of the line.
+    public var exactBaselineAtAscent = false
     /// Word's line spacing of no lines (`w:line="0"`, a multiple): the
     /// paragraph takes its spacing before and after and no line, and
     /// what text it has is not shown — a footer's last empty paragraph,

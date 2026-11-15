@@ -1,4 +1,4 @@
-188 documents: mean 79.8% of Word's lines matched, median 98.6%; 112 at 95% or more, 149 at half or more; 174 with Word's page count
+188 documents: mean 80.1% of Word's lines matched, median 98.6%; 112 at 95% or more, 149 at half or more; 174 with Word's page count
     0.8%  lines 130/128  pages 6/6  ara-z21298544-b514c2
     1.1%  lines 90/72  pages 4/3  fas-z22832287-ac7399
     2.3%  lines 88/97  pages 10/9  fas-z14957015-3a9879
@@ -42,8 +42,6 @@
    58.6%  lines 29/28  pages 2/2  ara-z15770216-60b9da
    60.9%  lines 483/466  pages 19/19  docx-bff1c672
    64.1%  lines 181/186  pages 9/9  nld-z22251521-8c1881
-   64.3%  lines 221/221  pages 13/13  docx-8f1703b9
-   64.7%  lines 224/232  pages 14/14  docx-a3f77cda
    68.1%  lines 119/114  pages 4/4  docx4j-1e349e20
    68.8%  lines 205/211  pages 12/12  jpn-z22855378-6fca0f
    69.3%  lines 127/127  pages 6/6  fas-z22910553-174812
@@ -64,12 +62,14 @@
    93.6%  lines 156/157  pages 5/5  heb-z23212898-e040af
    93.7%  lines 221/221  pages 13/13  docx-33355364
    93.7%  lines 221/221  pages 13/13  docx-35fcd124
+   93.7%  lines 221/221  pages 13/13  docx-8f1703b9
    93.7%  lines 221/229  pages 13/13  docx-9776508d
    93.7%  lines 221/221  pages 13/13  docx-aab66635
    93.7%  lines 221/221  pages 13/13  docx-b5656ae8
    93.8%  lines 224/224  pages 14/14  docx-3e5af46a
    93.8%  lines 224/224  pages 14/14  docx-5c013902
    93.8%  lines 224/224  pages 14/14  docx-69a87cfd
+   93.8%  lines 224/232  pages 14/14  docx-a3f77cda
    93.8%  lines 224/224  pages 14/14  docx-bcd80994
    93.8%  lines 224/224  pages 14/14  docx-d350f8c0
    93.8%  lines 224/224  pages 14/14  docx-f32aa559

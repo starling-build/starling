@@ -484,6 +484,15 @@ public final class RichTextTheme {
                let under = lineUnder(for: style, named: named, eastAsian: eastAsian) {
                 return points - under
             }
+            // (Under `w:noExtraLineSpacing` the text stands at its face's
+            // own ascent, not four fifths down: lab compat-exact ce-03,
+            // Calibri 11pt in 20pt exact lines 5.5pt higher, in 9pt lines
+            // 1.8pt lower; capped at the line's foot.)
+            if wordRules, paragraph.exactBaselineAtAscent, let face = faceResolver?(familyName, eastAsian),
+               let t = (scaled ? face.scaledBaseline : nil) ?? (bold ? face.boldBaseline : nil) ?? face.baseline {
+                RuleTrace.hit("word-noextralinespacing-puts-an-exact-lines-text-at-its-faces-ascent")
+                return min(points, t * size)
+            }
             return lineBox(size: size, natural: 1, baseline: 0, in: paragraph, gridPitch: gridPitch).baseline
         }
         // (A right-to-left run names its own complex-script face, and its line stands on that face's baseline when the face
