@@ -93,7 +93,7 @@ extension RichLayout {
             // empty ListParagraph lines, 27.2 pt at 14 pt on 1.5, where the Calibri stand-in gave 25.6.)
             let shonarMark = _shonarLatinRunFace(mark, named, document, "") != nil
             if shonarMark { RuleTrace.hit("word-empty-mark-in-a-missing-bengali-face-is-shonar-bangla") }
-            let face = shonarMark ? "shonar bangla" : (latin == "nikosh" || latin == "mangal" ? "mangal" : (latin == "nirmala ui" ? "nirmala ui" : (latin == "kokila" ? "kokila" : "")))
+            let face = shonarMark ? "shonar bangla" : (latin == "nikosh" || latin == "mangal" ? "mangal" : (latin == "nirmala ui" ? "nirmala ui" : (latin == "kokila" ? "kokila" : (latin == "utsaah" ? "utsaah" : ""))))
             // (Kokila only where the mark has one size: hin-z20740649 sets sz 6 and szCs 13 and was 0.6 worse.)
             let kokilaOK = true
             if kokilaOK, let r = Self._indicLines[face] {
