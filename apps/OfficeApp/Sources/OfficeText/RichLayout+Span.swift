@@ -3864,11 +3864,42 @@ extension RichLayout {
         // round each such stretch does that.)
         let embeds = theme.wordRules && RichTextTheme.wordWindowsPages && p.style.rightToLeft
         var isolated = false
+        // (In a left-to-right paragraph two or more adjacent runs marked `w:rtl` are one right-to-left embedding, reversed as a
+        // unit: dx2 9baed400 p32, "१०" + "," + "०००" with the last two marked prints "१००००," in Word's print, not "१०,०००".)
+        let rtlStretch = theme.wordRules && RichTextTheme.wordWindowsPages && document.readFromFile && !p.style.rightToLeft
+        let flatRuns = p.runs.filter { $0.length > 0 }
+        func _isRtlRun(_ r: Run) -> Bool { r.style.inlineImage == nil && (r.style.rightToLeft || (named?.char.rightToLeft ?? false)) }
+        var runNumber = -1
+        var inStretch = false
         @inline(never) func _sblk6() {
         for run in p.runs where run.length > 0 {
             let a = utf16.index(utf16.startIndex, offsetBy: pos)
             let b = utf16.index(a, offsetBy: run.length)
             pos += run.length
+            runNumber += 1
+            if rtlStretch {
+                let here = _isRtlRun(run)
+                var opens = here && !inStretch && runNumber + 1 < flatRuns.count && _isRtlRun(flatRuns[runNumber + 1])
+                // (Not where the stretch holds Hebrew or Arabic-script letters: those are set by their own direction already, and
+                // dx2 80c27832's Urdu lines lose their match when embedded.)
+                if opens {
+                    var k = runNumber, from = pos - run.length
+                    while k < flatRuns.count, _isRtlRun(flatRuns[k]) {
+                        let lo = utf16.index(utf16.startIndex, offsetBy: from)
+                        let hi = utf16.index(lo, offsetBy: flatRuns[k].length)
+                        if p.text[lo..<hi].unicodeScalars.contains(where: { (0x590...0x8FF).contains($0.value) || (0xFB1D...0xFEFF).contains($0.value) }) { opens = false; break }
+                        from += flatRuns[k].length; k += 1
+                    }
+                }
+                if opens || (inStretch && !here) {
+                    let look = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                               gridPitch: pitch, scriptHidden: true)
+                    children.append(TextSpan(text: opens ? "\u{202B}" : "\u{202C}", style: look))
+                    inserts.append(pos - run.length)
+                    inStretch = opens
+                    if opens { RuleTrace.hit("word-adjacent-rtl-runs-in-a-ltr-paragraph-are-one-embedding") }
+                }
+            }
             if embeds, run.style.inlineImage == nil {
                 let plain = !(run.style.rightToLeft || (named?.char.rightToLeft ?? false))
                 if plain != isolated {
@@ -4161,6 +4192,12 @@ extension RichLayout {
         }
         }
         _sblk6()
+        if inStretch, let last = p.runs.last {
+            let look = theme.textStyle(for: last.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                       gridPitch: pitch, scriptHidden: true)
+            children.append(TextSpan(text: "\u{202C}", style: look))
+            inserts.append(p.text.utf16.count)
+        }
         if isolated, let last = p.runs.last {
             let look = theme.textStyle(for: last.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
                                        gridPitch: pitch, scriptHidden: true)

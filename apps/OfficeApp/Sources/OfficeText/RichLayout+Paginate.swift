@@ -3747,7 +3747,7 @@ extension RichLayout {
                     // (The paragraph after one that an earlier float's band pushed down stands under the band
                     // too, and its own box, set top and bottom from it, is measured from where the pushed
                     // paragraph would have stood: Word's print of dx2 87097d3e puts the third chart, 364.5pt
-                    // from its paragraph, at 471 under the second chart's band, not 364.5pt below the pushed line.)
+                    // from its paragraph, at the frame top under the second chart's band (Word 480.5 for the third chart), not 364.5pt below the pushed line.)
                     var carried = 0.0
                     if RichTextTheme.wordWindowsPages, mine, f.verticalAlign == nil, bandPushLast == i - 1, bandPushPage == page, bandPushDelta > 0.01, _cells[i] == nil {
                         carried = max(bandPushDelta, y - bandPushTop)
