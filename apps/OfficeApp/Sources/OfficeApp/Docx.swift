@@ -1155,6 +1155,7 @@ enum DocxFormat {
         // A table style's own text size, by its chain, where the Normal style
         // says none of its own (`tableSizes`).
         var tableSizes: [String: Double] = [:]
+        var tableSpacings: [String: Double] = [:]
         var normalStatesSize = false
         // A table style's other run properties, by its chain (its own over
         // its parent's), and what the Normal style states of its own: the
@@ -1340,6 +1341,18 @@ enum DocxFormat {
             normalStatesSize = styles.all("w:style").contains { style in
                 style["w:type"] == "paragraph" && (style["w:default"] == "1" || style["w:styleId"] == "Normal")
                     && style.first("w:rPr")?.first("w:sz") != nil
+            }
+            // (A table style's own cell spacing, by its chain: the Forestry Commission style of gv-9fba5bc3b0
+            // says 1pt between cells and its rows step 16.8pt in Word's print, 14.6 + 2.2, not the 14.6 of
+            // rows with none.)
+            for id in tableNodes.keys {
+                var seen = Set<String>(), cur: String? = id
+                while let c = cur, !seen.contains(c), let node = tableNodes[c] {
+                    seen.insert(c)
+                    if let sp = node.first("w:tblPr")?.first("w:tblCellSpacing"), (sp["w:type"] ?? "dxa") == "dxa",
+                       let w = Double(sp["w:w"] ?? ""), w > 0 { tableSpacings[id] = w / 20; break }
+                    cur = node.first("w:basedOn")?["w:val"]
+                }
             }
             for id in tableNodes.keys {
                 var seen = Set<String>(), cur: String? = id
@@ -2728,6 +2741,8 @@ enum DocxFormat {
                 if let sp = node.first("w:tblPr")?.first("w:tblCellSpacing"), (sp["w:type"] ?? "dxa") == "dxa",
                    let w = Double(sp["w:w"] ?? ""), w >= 0 {
                     style.cellSpacing = w / 20
+                } else if let sp = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap({ tableSpacings[$0] }) {
+                    style.cellSpacing = sp
                 }
                 // The preferred width: HTML-converted tables say 100% and
                 // their grid says less (bug65649's came back narrower).
