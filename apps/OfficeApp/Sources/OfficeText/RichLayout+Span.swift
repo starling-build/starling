@@ -3231,6 +3231,14 @@ extension RichLayout {
                         RuleTrace.hit("hangul-syllable-is-an-em")
                         extra += hEm - g
                     }
+                    // (Where single and double byte widths are balanced, a spaced syllable in Malgun Gothic is set apart by the spacing ONCE
+                    // (12 pt spaced -0.5 is 11.5 apart in xd 89a3482a's print); Gulim, Batang and HY Shinmyeongjo take it twice, as an ideograph does.)
+                    if doubles, kind < 0, let fam = run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                                      ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily,
+                       fam == "맑은 고딕" || fam.lowercased() == "malgun gothic" {
+                        RuleTrace.hit("malgun-hangul-takes-spacing-once")
+                        extra -= spacing
+                    }
                 }
                 if ea || (ch == "\u{B7}" && (run.loneDot || tcFit) && theme.wordRules), let u = ch.unicodeScalars.first?.value, u < 0x2E80 || (u >= 0x3000 && u < 0x3100) || (u >= 0xFF00 && u < 0xFF60),
                    let eaFace = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
