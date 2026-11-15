@@ -4419,7 +4419,11 @@ extension RichLayout {
               let first = p.runs.first(where: { $0.style.ruby != nil && $0.length > 0 }),
               p.runs.contains(where: { $0.style.ruby == nil && $0.length > 0 && $0.style.inlineImage == nil }) else { return 0 }
         let size = first.style.fontSize ?? named?.char.fontSize ?? theme.fontSize
-        guard size > 0.5, Double(p.text.utf16.count) * _px(size) <= textWidth else { return 0 }
+        // (Trailing blanks hang past the margin and never wrap a line: ee0b468e's 木下闇 line, "…野﨑一雄" and 22 blanks,
+        // is one column in Word's print and its text is moved with the ruby like the lab's short lines.)
+        var counted = Array(p.text.utf16)
+        while let l = counted.last, l == 0x20 || l == 0x3000 { counted.removeLast() }
+        guard size > 0.5, Double(counted.count) * _px(size) <= textWidth else { return 0 }
         guard _rubyShiftApplies(p, named: named, ruby: first.style, pitch: pitch) else { return 0 }
         return theme.rubyLine(for: first.style, in: p.style, named: named, eastAsian: true, gridPitch: pitch)?.raise ?? 0
     }
