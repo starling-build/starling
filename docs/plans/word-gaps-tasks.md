@@ -17133,3 +17133,4 @@ HANDOFF amd-5 (2026-11-14, balloons):
 - Landed: 44d18d33f (Japanese superscript 60%, ※ face, Kalimati cs digits take Mangal 18.5 pt line, 6be5dbc9 heading baseline 135.3 to 141.1). Queued: sa-IN stacked conjuncts + tab-in-Indic-word (461c3f2dd), dx2 A/B no Indic drop, unit tests 655/0.
 - Left: xd 6be5dbc9 still 145 of 436 matched (ours 428 lines vs 436, 15/15 pages). Text after the list number is now at x=108 as Word, so the rest is elsewhere; page 2 has 30 lines vs Word 31, 1.5 pt baseline drift from about y 316 (not yet traced).
 - Trap: in the tab measure, extra=0 can be right (the probe tab already runs to the stop); do not turn such a tab into NBSP.
+- amd-1 CLAIM (2026-11-15): TASK 1 queued as amd-1-258 (Latin in Devanagari paragraph with style-derived Calibri/Arial: 77d6ca49 188 to 190; d611e23b is Telugu, gate is Devanagari-only). TASK 2: dx2 hi 54d1d1d1 (64.4) then a6254f44 (63.5); 54378c49/7756e774 are amd-11's.
