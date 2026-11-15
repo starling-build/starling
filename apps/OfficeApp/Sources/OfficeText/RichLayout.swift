@@ -1072,6 +1072,9 @@ public struct RichResolvedFace: Sendable {
     /// Letter groups the face sets as one glyph, `"letters|1or0 joins before|1or0 joins after"` to ems.
     public var joinedClusters: [String: Double]? = nil
     public var boldJoinedClusters: [String: Double]? = nil
+    /// Whole words at the face's own shaped advance (em), where a table of them exists (Sakkal Majalla).
+    public var joinedWords: [String: Double]? = nil
+    public var boldJoinedWords: [String: Double]? = nil
     /// How far below the top of its single line the face's baseline
     /// sits, in ems, as Word sets it (a Latin face's line gap goes above
     /// the ascent; an East Asian face's extra three tenths go half

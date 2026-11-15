@@ -1630,6 +1630,12 @@ extension RichLayout {
                 guard let joinedFace, let first = word.first, isArabic(first), first != "\u{200C}", word.allSatisfy(isArabic),
                       let table = s.fontWeight == .bold ? joinedFace.boldJoinedAdvances : joinedFace.joinedAdvances, let px = s.fontSize, px > 0.5
                 else { return s }
+                // (A word the face's shaped table holds: its own advance, not the sum over letters; xb fas-3a9879's title.)
+                if let words = s.fontWeight == .bold ? joinedFace.boldJoinedWords : joinedFace.joinedWords, let e = words[String(word)] {
+                    let shaped = _wordWidth(s, String(word))
+                    RuleTrace.hit("word-rtl-sakkal-shaped-word-advance")
+                    return shaped > 0.01 ? s.copyWith(scaleX: e * px / shaped) : s
+                }
                 var ems = 0.0, shaped = 0.0
                 // (The mark is a grapheme extender: it is one Character with the
                 // letter before it, so the word is cut by its scalars.)

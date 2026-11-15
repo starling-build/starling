@@ -3687,6 +3687,8 @@ static let sylfaenAdvances: [Double] = [
                     face.joinedAdvances = WindowsArabicAdvances.sakkal
                     face.boldJoinedAdvances = WindowsArabicAdvances.sakkalBold
                     face.joinedSpaceEm = 0.151
+                    face.joinedWords = SakkalShapedWords.regular
+                    face.boldJoinedWords = SakkalShapedWords.bold
                     face.joinedClusters = WindowsArabicAdvances.sakkalClusters
                     face.boldJoinedClusters = WindowsArabicAdvances.sakkalBoldClusters
                 default: break
