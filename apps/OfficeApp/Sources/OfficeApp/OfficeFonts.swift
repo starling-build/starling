@@ -1511,6 +1511,19 @@ static let sylfaenAdvances: [Double] = [
         0.5400, 0.2739, 0.7769, 0.5234, 0.5259, 0.5347, 0.5200, 0.4805, 0.4868, 0.4712, 0.5200, 0.4863, 0.6841, 0.5903, 0.5527,
         0.5381, 0.3662, 0.4214, 0.3662, 0.6104,
     ]
+    /// Mystical Woods Smooth Script: widths read from Word's embedded subset (dx2 1202c9de); glyphs it never drew are estimates.
+    static let mysticalWoodsAdvances: [Double] = [
+        0.3500, 0.3180, 0.3810, 0.3300, 0.3300, 0.3300, 0.3300, 0.3300, 0.3300, 0.3300, 0.3300, 0.3300, 0.2550, 0.3300, 0.2830,
+        0.3300, 0.5380, 0.5400, 0.5360, 0.5420, 0.5400, 0.5480, 0.5400, 0.5400, 0.5400, 0.5400, 0.3300, 0.3300, 0.3300, 0.3300,
+        0.3300, 0.3300, 0.3300, 0.6500, 0.6500, 0.6500, 0.7040, 0.6500, 0.6500, 0.6500, 0.6500, 0.6500, 0.6500, 0.6500, 0.6500,
+        0.9610, 0.6500, 0.6500, 0.6500, 0.6500, 0.5910, 0.6500, 0.6500, 0.6500, 0.4810, 0.6500, 0.6500, 0.6500, 0.6500, 0.3300,
+        0.3300, 0.3300, 0.3300, 0.3300, 0.3300, 0.6260, 0.5990, 0.5430, 0.6860, 0.5270, 0.6000, 0.6670, 0.6460, 0.4220, 0.3540,
+        0.5840, 0.4070, 1.1010, 0.7030, 0.6130, 0.7290, 0.6000, 0.5380, 0.5140, 0.4470, 0.7320, 0.4780, 0.6000, 0.6000, 0.7140,
+        0.6670, 0.3300, 0.3300, 0.3300, 0.3300,
+    ]
+    static let mysticalWoodsOtherAdvances: [UInt32: Double] = [
+        0xE1: 0.6260, 0xE9: 0.5270, 0xED: 0.4220, 0xFD: 0.7140, 0x10D: 0.5430, 0x11B: 0.5270, 0x159: 0.5380, 0x161: 0.5140, 0x16F: 0.7320,
+    ]
     static let garamondAdvances: [Double] = [
         0.2500, 0.2188, 0.4062, 0.6665, 0.4478, 0.8228, 0.7290, 0.1772, 0.2915, 0.2915, 0.4272, 0.6665, 0.2188, 0.3125, 0.2188,
         0.5000, 0.4688, 0.4688, 0.4688, 0.4688, 0.4688, 0.4688, 0.4688, 0.4688, 0.4688, 0.4688, 0.2188, 0.2188, 0.6665, 0.6665,
@@ -3420,6 +3433,7 @@ static let sylfaenAdvances: [Double] = [
     static func applyTabled(_ family: String, to face: inout RichResolvedFace) {
         switch family.trimmingWhitespace().lowercased() {
                 case "comic sans ms": face.advances = comicSansAdvances; face.boldAdvances = comicSansBoldAdvances; face.naturalHeight = 1.3936; face.baseline = 1.1021
+                case "mystical woods smooth script": face.advances = mysticalWoodsAdvances; face.otherAdvances = mysticalWoodsOtherAdvances; face.naturalHeight = 1.7; face.baseline = 1.3
                 case "garamond": face.advances = garamondAdvances; face.boldAdvances = garamondBoldAdvances; face.italicAdvances = garamondItalicAdvances; face.naturalHeight = 1.1250; face.baseline = 0.8618
                 case "georgia": face.advances = georgiaAdvances; face.boldAdvances = georgiaBoldAdvances; face.italicAdvances = georgiaItalicAdvances; face.boldItalicAdvances = georgiaBoldItalicAdvances; face.otherAdvances = georgiaOtherAdvances; face.boldOtherAdvances = georgiaBoldOtherAdvances; face.naturalHeight = 1.1362; face.baseline = 0.9170
                 case "candara": face.advances = candaraAdvances; face.boldAdvances = candaraBoldAdvances; face.italicAdvances = candaraItalicAdvances; face.boldItalicAdvances = candaraBoldItalicAdvances; face.naturalHeight = 1.2207; face.baseline = 0.9521
