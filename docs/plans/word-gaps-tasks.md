@@ -17435,3 +17435,9 @@ HANDOFF amd-10 (2026-11-15): (1) Korean fix landed d4d0fd9c0 (107500a8 212 to 21
 - amd-2 CLAIM 2026-11-15: Korean dx2 1f6d638c, xd 4fabe1f2, xd b6f6c7d4.
 - amd-5 (2026-11-15) 55850db1: split found, queued amd-5-348: no-compat-mode Devanagari paragraphs take the 0.12 tie in the East Asian fitter (330 to 333; 12 other no-mode Devanagari docs unchanged; unit tests 655/0). Mode-15 0c80b3a3 untouched. Remaining gap p5 y-507: Word wraps 'गलत' down where ours keeps it 1.0 pt inside the edge (opposite direction, justified, so the same family as 00bbc8b8). Now on 00bbc8b8.
 - lenovo-2 CLAIM (2026-11-15): dx2 ed5bf93a, then xd 6be5dbc9 (अनधिकृत p3).
+
+- amd-11 (2026-11-15) OPEN from floating-table scan (16 docs with tblpY >= 8000 tw; 9 match Word on pages and first/last lines):
+  * 6572dba4 (Persian RTL): p1 Word 118 lines (last 742.3), ours 101 (621.3); first baseline Word 85.2 vs ours 86.0. Arabic-script wrapping/line height, not a table. -> lenovo-3.
+  * a78fce20 (Persian-like): Word 14 pages, ours 15; p1 Word 151 lines (759.7), ours 132 (756.7). Same cause likely. -> lenovo-3.
+  * 79ea8977 (Mongolian): Word 8 pages, ours 10. Page 4 matches to heading "3.2." (y 409); then Word keeps a table of vertical Mongolian cells on p4 (first row 422.4), ours pushes it to p5. Table-fit gap. -> amd-11, after the header rule A/B.
+  * 9daff823, lo-5be8ca31: no Word print, skipped (starling-bd).
