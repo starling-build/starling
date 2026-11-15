@@ -7023,6 +7023,7 @@ enum DocxFormat {
             cs.comments = notes.openComments
             notes.anchoredComments.formUnion(notes.openComments)
             var missingReference: Int? = nil
+            var pageResultInCodeLook = false
             // Text that is a page reference's result stays one: Word
             // brings these up to date when it prints, and a contents page
             // of plain numbers kept the ones the file was saved with (a
@@ -7058,6 +7059,7 @@ enum DocxFormat {
                     if !instr.uppercased().containsSubstring("MERGEFORMAT"), let code = notes.fieldCodeStyle[f.id] {
                         let id = cs.fieldResult, link = cs.link, revision = cs.revision, comments = cs.comments
                         cs = code
+                        pageResultInCodeLook = true
                         cs.fieldResult = id
                         cs.link = link
                         cs.revision = revision
@@ -7071,7 +7073,9 @@ enum DocxFormat {
             runFrame = r.first("w:rPr")?.first("w:bdr").flatMap(_borderLine).flatMap { $0.width > 0 ? $0 : nil }
             runRevision = revision?.kind == .deleted ? revision : nil
             defer { runPropertiesXML = nil; runFrame = nil; runRaised = nil; runRevision = nil }
-            if let rPr = r.first("w:rPr") {
+            // (The result run's own properties go too: bea98273's header folio, a PAGE code run with
+            // no properties and a result run at sz 24, prints at the code's 10pt, baseline 45.4.)
+            if let rPr = r.first("w:rPr"), !pageResultInCodeLook {
                 // The run's character style first, then its own properties.
                 let runText = r.children.filter { $0.name == "w:t" }.map(\.text).joined()
                 // (A run flagged w:rtl whose text is digits and marks, no letters, is complex
