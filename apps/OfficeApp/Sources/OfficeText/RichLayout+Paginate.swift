@@ -4611,6 +4611,15 @@ extension RichLayout {
                 // it as long as the table lasts: lo-717ff943's bullets, tdf97090.)
                 let alongside = i > 0 && (tf.chained || _cells[i - 1]?.table == tf.table) && (besideChainEnd.map { tf.y + 0.01 < $0 } ?? false)
                     && _cells[i] == nil && _besideIndent(i, document.paragraphs[i], document)?.right == true
+                    // (A blank line, or one of spaces only, keeps its own height and moves the flow on:
+                    // dx2 9dc455a3's two lines of spaces and the empty mark after "Tarikh Proses", beside
+                    // a table at the right with tblpY, stand 12.8pt apart in Word's print.)
+                    && document.paragraphs[i].text.contains(where: { $0 != " " && $0 != "\t" })
+                // (The lines stacked beside the table before a blank one have moved the flow on.)
+                if theme.wordRules, tf.chained, tf.page == page, frameReturn == nil, _cells[i] == nil, tf.y > y + 0.01,
+                   !document.paragraphs[i].text.contains(where: { $0 != " " && $0 != "\t" }) {
+                    y = tf.y
+                }
                 if theme.wordRules, i > 0, tf.chained || _cells[i - 1]?.table == tf.table, _cells[i] == nil, tf.page == page,
                    !(_floatLeavesNoStrip(tf.table, i, document) && _floatFollowsFloat(tf.table, document)), frameReturn == nil, !_pageBreak[i], bottom - top <= tf.down + 0.01 || alongside {
                     frameReturn = (y, page)
