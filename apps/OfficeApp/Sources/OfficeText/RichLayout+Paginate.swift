@@ -62,6 +62,8 @@ extension RichLayout {
         // later pages: the empty paragraphs after it take it, as Word flows them from where the
         // table's anchor stood (they are blank, so only their room counts).
         var roomOverTable: Double? = nil
+        var roomOverTableName: String? = nil
+        var besideEmpties: (top: Double, sum: Double)? = nil
         // (A table placed against the page that was set up to the page's edge: its table and the edge, in pixels.)
         var pageEdgeClamp: (table: String, edge: Double)? = nil
         var tableBands: [(top: Double, bottom: Double, owner: Int)] = []
@@ -1837,6 +1839,7 @@ extension RichLayout {
                 if back.page != page, theme.wordRules, RichTextTheme.wordWindowsPages, back.top - back.y > 0.01,
                    document.tableStyles[back.table]?.pageOffsetY != nil {
                     roomOverTable = back.top - back.y
+                    roomOverTableName = back.table
                 }
                 if back.page == page, y > back.top {
                     // (No band for a table wholly outside the text's width — in
@@ -3381,18 +3384,26 @@ extension RichLayout {
                contentH - y < _markLineHeight(i, document) - 0.01 {
                 newPage()
             }
-            // (Empty paragraphs after a page-anchored table that ran over to a later page stand over it, in
-            // the room above its place on its first page, while their lines fit (the space after the last may run on): dx2 9baed400 p31, the table at
-            // 165pt, three of the four empties over it, the heading 43pt under its end on p32.)
-            if let room = roomOverTable {
+            // (Empty paragraphs after a page-anchored table that ran over to a later page, with room
+            // beside it, stand beside its part on its LAST page from the page's top, and what follows goes
+            // under both: Word's prints of labs ftempty (empties at the p2 top beside the table, heading
+            // under them) and ftfull (a full-width table: they stand under it as usual); dx2 9baed400 p32,
+            // the heading at 72 + the four empties + its own drop = 210.5 as in Word.)
+            if roomOverTable != nil, let tn = roomOverTableName {
                 let pp = document.paragraphs[i]
                 if _cells[i] == nil, resumeCursor == nil, pp.text.isEmpty, pp.image == nil, pp.inlineImages.isEmpty, pp.style.frameXML == nil,
-                   !_pageBreak[i], pp.style.sectionXML == nil, _heights[i] - _px(pp.style.spaceAfter) <= room + 0.01 {
-                    RuleTrace.hit("word-empties-after-a-page-anchored-table-stand-over-it-on-its-first-page")
-                    roomOverTable = max(0, room - _heights[i])
+                   !_pageBreak[i], pp.style.sectionXML == nil, !_floatLeavesNoStrip(tn, i, document),
+                   let top = _pages[page].filter({ _cells[$0.paragraph]?.table == tn && !$0.repeated }).map(\.pageY).min() {
+                    RuleTrace.hit("word-empties-after-a-page-anchored-table-stand-beside-its-last-page")
+                    besideEmpties = (top, (besideEmpties?.sum ?? 0) + _heights[i])
                     continue
                 }
                 roomOverTable = nil
+                roomOverTableName = nil
+            }
+            if let b = besideEmpties {
+                besideEmpties = nil
+                y = max(y, b.top + b.sum)
             }
             // (In a compat 15 file the empties after the first, which stand past the foot, go with it: lab
             // compat1415b, 11pt lines with 10 after and 16pt left, put the first on the page and the
