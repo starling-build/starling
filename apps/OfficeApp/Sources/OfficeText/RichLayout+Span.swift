@@ -77,7 +77,7 @@ extension RichLayout {
         "aparajita": (1550.0 / 2048, 870.0 / 2048), "raavi": (2048.0 / 2048, 1352.0 / 2048), "shruti": (2091.0 / 2048, 1352.0 / 2048),
         "gautami": (1892.0 / 2048, 1664.0 / 2048), "utsaah": (1518.0 / 2048, 774.0 / 2048), "vrinda": (2017.0 / 2048, 778.0 / 2048), "shonar bangla": (1655.0 / 2048, 996.0 / 2048), "shonar bangla bold": (1721.0 / 2048, 978.0 / 2048),
         // (Malgun Gothic as Word sets a line of it: hhea 1.088 + 0.242 and 0.4 of gap, 1.73 em, split evenly.)
-        "malgun gothic": (1.088 + 0.2, 0.242 + 0.2)]
+        "malgun gothic": (1.088 + 0.2, 0.242 + 0.2), "leelawadee ui": (1.08, 0.28)]
     /// Width of each face's letters against the Noto stand-in's, per script (D Devanagari, B Bengali, T Telugu, P Gurmukhi, G Gujarati):
     /// the median ratio of Word's word widths to ours over the dx2 Indic documents that print in that face (spread under 0.03 per face).
     static let _indicScale: [String: [Character: Double]] = [
@@ -1184,6 +1184,13 @@ extension RichLayout {
                     else if (0x0C00 ... 0x0C7F).contains(v) { count["T", default: 0] += 1 }
                 }
                 guard let top = count.max(by: { $0.value < $1.value }) else {
+                    // (Thai letters in a run with no w:cs: Word's print draws them in Leelawadee UI, not the run's complex face, and sets the line at its
+                    // 1.36 em (16.3 pt at 12 pt). Width: the median of Word's glyph advances over ours is 0.93. Real prints: dx2 fac01c51, aa59e402, 9f1bd17e.)
+                    if text.unicodeScalars.contains(where: { $0.value >= 0x0E01 && $0.value <= 0x0E5B }),
+                       !(run.keptXML.map { $0.containsSubstring("<w:cs/>") || $0.containsSubstring("<w:cs ") } ?? false) {
+                        RuleTrace.hit("word-thai-without-cs-is-leelawadee-ui")
+                        return ("leelawadee ui", 0.93)
+                    }
                     // (Tamil: the line of Nirmala UI, 1.079 + 0.251 em, in the prints of tam-* and four of the xd Tamil documents.)
                     // (Width: set per word in flush() from TamilAdvances, a per-codepoint regression fit of Word's word widths
                     // (2864 words, four documents); our PDF embeds no Tamil face, so it cannot be read from glyph hmtx. No scale here.)
@@ -1353,7 +1360,7 @@ extension RichLayout {
                 if kind >= 0, let indic, indic.scale != 1, !latinNoScale { s = s.copyWith(scaleX: indic.scale) }
                 // (The run's own line is the face's, not the stand-in's, where the face's is the shorter: Aparajita's 1.18 em (a516bfe9: 2.7 to 92.9) where Noto
                 // Sans Devanagari's is taller; the joiner above only raises a line.)
-                if kind >= 0, let indic, (indic.face == "kokila" && (kokilaLatin || text.unicodeScalars.contains(where: { Self._isIndic($0.value) }))) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "malgun gothic" && malgunLatin) || (indic.face == "yu gothic" && (aumsLatin || aumsYuInIndic)) || indic.face == "vijaya" || indic.face == "latha" || indic.face == "shonar bangla" || (namedFace != nil && (namedFace != "mangal" || namedKalimati)) || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[(indic.face == "shonar bangla" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? "shonar bangla bold" : indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
+                if kind >= 0, let indic, (indic.face == "kokila" && (kokilaLatin || text.unicodeScalars.contains(where: { Self._isIndic($0.value) }))) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "malgun gothic" && malgunLatin) || (indic.face == "yu gothic" && (aumsLatin || aumsYuInIndic)) || indic.face == "vijaya" || indic.face == "latha" || indic.face == "shonar bangla" || indic.face == "leelawadee ui" || (namedFace != nil && (namedFace != "mangal" || namedKalimati)) || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })), let m = Self._indicLines[(indic.face == "shonar bangla" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? "shonar bangla bold" : indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
                     // (Kokila's line: its own ascent and descent, above and below the baseline, for every run on the line: the stand-ins'
                     // (Carlito's, Noto's) are taller above and set the line 2-3 pt low and 1.4 pt per line too far apart.)
                     // (A multiple under single too: dx2 hin-z20740649's 0.9 lines are 13.5 pt apart in Word's print, Kokila's 15.0 x 0.9.)

@@ -1,4 +1,4 @@
-119 documents: COMBINED mean 71.64% (119 scored by Word's text lines, 0 by the visual comparison); pure line mean 71.64% over the 119 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
+119 documents: COMBINED mean 71.70% (119 scored by Word's text lines, 0 by the visual comparison); pure line mean 71.70% over the 119 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
   64.3%  lines 806/821  pages 26/26  01943b11be4cc6582bda5866d85302f5c149fd43a95b4109aacee1f7886e10b1
   89.5%  lines 258/258  pages 9/9  03cd29dc2f67a29e0fb011b58e6c07ab377c3b677a38fa29710e735a3bb43575
  100.0%  lines 113/114  pages 5/5  0539b975737d0acd36b0fcb444482bd2b632afd71897fa02ae908a0ec28efa4b
@@ -107,7 +107,7 @@
   69.6%  lines 934/936  pages 33/32  e50792c2ee52b44abece2cffc71eb35115dc195df632bee5619101bf12a2e935
   68.6%  lines 1043/1063  pages 25/25  e54d1fb0b49084e25b4cf2829907e3875c829ba235a241d4df149c3901b0ad17
    4.5%  lines 978/980  pages 38/37  e91c88252330082c0e875b2e9c523ba44bd5d8563a573c561718108cd2557b58
-  10.5%  lines 678/816  pages 24/28  eb52ce9bb9a24df73240c52f7f1e9a2e213c8e4c69767bdea3af25449a087b9c
+  17.4%  lines 678/840  pages 24/28  eb52ce9bb9a24df73240c52f7f1e9a2e213c8e4c69767bdea3af25449a087b9c
   99.8%  lines 615/615  pages 23/23  ecc32adb5aa1535ea4443cd8de6902a1c70d096dc13a7098f0641628242de7ea
   75.5%  lines 188/180  pages 5/5  efbb06c2116635495132f0a6bfd6788f24299b23be00258dac4369342d5e9716
   47.0%  lines 541/543  pages 18/18  f0818647b949d3dd8ebc1788b88d4955fff52e3f11b0de82486b398eedb23589
@@ -117,4 +117,4 @@
   80.5%  lines 892/895  pages 31/31  f771e9db5b1e3a3715a453605cbf713204bbc372ee2be8268785b5f43d241b37
   59.3%  lines 454/453  pages 15/15  f7888b70f2f14dbacf50c8a2641818105bdf303f27438791a556158ad1e8edc1
   29.2%  lines 260/269  pages 11/13  fcd0d58cc640be2d21560e55fb83c55f4646084a24b27d2dcf951afc4704d432
-  84.0%  lines 930/930  pages 24/24  fd72fac2018cb6ebcb38d3b89f64297c286c185d94791bd77813f170f7d70ff2
+  83.9%  lines 930/930  pages 24/24  fd72fac2018cb6ebcb38d3b89f64297c286c185d94791bd77813f170f7d70ff2
