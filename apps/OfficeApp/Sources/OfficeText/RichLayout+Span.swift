@@ -1025,6 +1025,36 @@ extension RichLayout {
             var fitNone = false
             var fitLastSingle = false
             var fitLastEnd = 0
+            // (What the painting below sets a character of a fit-text group wider than the stand-in's glyph, so the group's
+            // spread is worked out from the widths Word's faces give: Hangul an em, the full-width symbols an em, and the
+            // original face's own advance for the ASCII and the punctuation. dx2/xd 89a3482a's 12 pt w:w 87 group is 372 pt
+            // and Word's step is 10.44 a letter, spread 0; measuring the stand-in's 9.6 gave 0.7 and the line wrapped.)
+            func fitPaintedExtra(_ ch: Character, _ eaCh: Bool, _ g: Double, _ rs: CharStyle) -> Double {
+                let em = (rs.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+                let wScale = RichTextTheme.wordWidthScale(rs.horizontalScale ?? named?.char.horizontalScale ?? 1, wordRules: theme.wordRules,
+                    eastAsiaFamily: rs.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? rs.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily)
+                let latinFace = theme.faceResolver?(rs.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false)
+                guard theme.wordRules, RichTextTheme.wordWindowsPages, ch.unicodeScalars.count == 1, g > 0.5,
+                      let u = ch.unicodeScalars.first?.value else { return 0 }
+                if eaCh {
+                    let eaFace = theme.faceResolver?(rs.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                                     ?? rs.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)
+                    if u >= 0xAC00 && u <= 0xD7A3 {
+                        let hEm = eaFace?.otherAdvances?[0xAC00].map { $0 * em * wScale } ?? em * wScale
+                        return (hEm < em * wScale ? abs(g - hEm) > 0.01 : g < hEm - 0.01) ? hEm - g : 0
+                    }
+                    // (A symbol of a Korean face is an em wide in Word, stretched by w:w like the Hangul: 10.44 at 12 pt w:w 87.)
+                    if u >= 0x2190 && u <= 0x266F, u != 0x2611 { let sEm = em * wScale; return g < sEm - 0.01 ? sEm - g : 0 }
+                    if u < 0x2E80 || (u >= 0x3000 && u < 0x3100) || (u >= 0xFF00 && u < 0xFF60),
+                       let w = (style(-1).fontWeight == .bold ? eaFace?.boldOtherAdvances : eaFace?.otherAdvances)?[u] { return w * em * wScale - g }
+                    return 0
+                }
+                if u >= 0x20, u <= 0x7E, let face = latinFace, let table = face.advanceTable(bold: style(0).fontWeight == .bold, italic: style(0).fontStyle == .italic),
+                   Int(u) - 0x20 < table.count, table[Int(u) - 0x20] > 0, let px = style(0).fontSize, px > 0.5 {
+                    return table[Int(u) - 0x20] * px / face.sizeScale - g
+                }
+                return 0
+            }
             func fitSpacing() -> Double? {
                 guard let g = fitGroup, !fitNone else { return nil }
                 if let f = fitPitch { return f }
@@ -1049,7 +1079,9 @@ extension RichLayout {
                             // (A Hangul syllable is an em in Word's Korean faces, as it is drawn below.)
                             total += _glyphWidth(style(-1), "\u{5355}")
                         } else {
-                            total += _glyphWidth(style(RichLayout.isEastAsian(ch, hinted: hinted) ? -1 : 0), ch)
+                            let eaCh = RichLayout.isEastAsian(ch, hinted: hinted)
+                            let g = _glyphWidth(style(eaCh ? -1 : 0), ch)
+                            total += tcFit ? g : g + fitPaintedExtra(ch, eaCh, g, r.style)
                         }
                         count += 1
                     }
