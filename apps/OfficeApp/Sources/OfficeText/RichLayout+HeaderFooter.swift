@@ -2036,6 +2036,17 @@ extension RichLayout {
                 RuleTrace.hit("header-picture-from-its-paragraph-ends-the-header")
                 end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + _px(f.y) + _px(image.height) + _px(f.distanceBottom))
             }
+            // (A picture set against the PAGE's top that the text goes over and under ends the header at its foot plus its
+            // bottom distance: xa gv-57041316b7, a 49.9pt logo at 49.1pt with 226.8pt below it, the title at 325.7 in Word's
+            // print; ours under the margin, over the logo.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages {
+                for image in hp.inlineImages.inOrder + (hp.image.map { [$0] } ?? []) {
+                    guard let f = image.float, f.takesRoom || f.bandsPage, !f.wraps, f.verticalFrom == "page", f.verticalAlign == nil,
+                          f.y >= 0, image.height > 0 else { continue }
+                    RuleTrace.hit("header-picture-from-the-page-with-room-below-ends-the-header")
+                    end = max(end ?? 0, _px(f.y + image.height + f.distanceBottom))
+                }
+            }
         }
         return end
     }
