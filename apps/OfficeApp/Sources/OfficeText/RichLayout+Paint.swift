@@ -1590,6 +1590,15 @@ extension RichLayout {
                     // stood 3.2pt above its line's baseline; Word's print has label and text on one baseline.)
                     else if d > _px(0.5) { markerDown = d; RuleTrace.hit("word-list-number-down-to-its-lines-baseline") }
                 }
+                // (A Wingdings 2 bullet's box stands as far under its text's baseline as its numbering run's `w:position` lowers it:
+                // lab bea-lab, Word's box 3.0pt under the text at -6 half-points.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, p.style.list != nil,
+                   _levelNumberFonts(p, document).latin?.lowercased() == "wingdings 2",
+                   let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
+                   let pr = xml.rangeOfSubstring("<w:position w:val=\""),
+                   let half = Double(xml[pr.upperBound...].prefix { $0 != "\"" }), half < 0 {
+                    markerDown += -half / 2 * theme.pixelsPerPoint * scale
+                }
                 _paintMarker(marker, Offset(wl.format?.justification == "right" ? at - marker.width : at, g.inkTop + markerDown), p, document, label: label, canvas)
                 }
                 marker.dispose()

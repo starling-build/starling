@@ -2873,7 +2873,7 @@ extension RichLayout {
                     let lowering = -half / 2 * theme.pixelsPerPoint * scale
                     let up = max(_px(boxPt) * 1727.0 / 2048 - lowering, _px(target))
                     RuleTrace.hit("word-wingdings2-bullet-row-ink-stands-lowered-under-its-line")
-                    _inkShift[i] = up + lowering - line.baseline
+                    _inkShift[i] = up - line.baseline
                     w2Done = true
                 }
             }
@@ -2883,7 +2883,7 @@ extension RichLayout {
         // (… and a paragraph `_blk5` leaves alone stands on the mark's ascent already: its ink goes as much lower.)
         if !w2Done, let half = _w2Half(), half < 0, !p.text.isEmpty {
             RuleTrace.hit("word-wingdings2-bullet-row-ink-stands-lowered-under-its-line")
-            _inkShift[i] += -half / 2 * theme.pixelsPerPoint * scale
+            // (The box alone stands lowered, in `_paintMarker`'s caller; the text keeps its baseline.)
         }
         // An empty numbered paragraph in a cell, on an exact line: its number stands where
         // the same line's text would, which is lower than the strut sets it
