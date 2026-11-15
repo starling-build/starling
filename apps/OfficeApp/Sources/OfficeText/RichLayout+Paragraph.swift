@@ -2619,6 +2619,7 @@ extension RichLayout {
         // a title whose first line mixes sizes — zh-454e2e29's 18pt, 14pt
         // and 24pt "（機關名稱機關代號）" — keeps its own.)
         var mixedSizes = false
+        var latinFirstLine = false
         if painter.strutStyle == nil, p.inlineImages.isEmpty, !p.text.isEmpty {
             let firstEnd = painter.getLineBoundary(TextPosition(offset: 0)).end - _lead(i)
             var start = 0
@@ -2654,6 +2655,29 @@ extension RichLayout {
                     mixedSizes = true
                 }
             }
+            // A first line with no East Asian character over a later line that has one, in one run (a line break inside it):
+            // Word stands the first line on its Latin face, as a paragraph of Latin lines does (lab cm2a, cases 14-18: "3." over a
+            // Chinese line stands 24.96 under the line above, where the Mincho height gave 26.65), but the engine sets it by the
+            // taller line's face (no strut, as `_strut` finds the lines of unequal heights).
+            if !mixedSizes, theme.wordRules, RichTextTheme.wordWindowsPages, painter.computeLineMetrics().count > 1 {
+                var off = 0, firstHas = false, laterHas = false, firstAny = false
+                for run in p.runs where run.length > 0 {
+                    let hinted = (run.style.fontHint ?? _named(p, document)?.char.fontHint) == "eastAsia"
+                    let a = p.text.utf16.index(p.text.utf16.startIndex, offsetBy: min(off, p.text.utf16.count))
+                    let b = p.text.utf16.index(a, offsetBy: min(run.length, p.text.utf16.count - min(off, p.text.utf16.count)))
+                    for ch in p.text[a ..< b] {
+                        defer { off += ch.utf16.count }
+                        if Self._setsNoLine(ch) { continue }
+                        let ea = Self.isEastAsian(ch, hinted: hinted)
+                        if off < firstEnd { if ea { firstHas = true } else { firstAny = true } } else if ea { laterHas = true }
+                    }
+                }
+                if firstAny, !firstHas, laterHas {
+                    RuleTrace.hit("word-latin-first-line-keeps-its-face-over-a-later-east-asian-line")
+                    latinFirstLine = true
+                    mixedSizes = true
+                }
+            }
         }
         // (The "position" of a Wingdings 2 bullet's numbering run, where the box is lowered or stands: see `_span`.)
         var w2Done = false
@@ -2685,6 +2709,7 @@ extension RichLayout {
                 at += run.length
                 // (Not white space: a U+3000 sets no line — see `_strut`.)
                 for ch in p.text[a ..< b] where !Self._setsNoLine(ch) && Self.isEastAsian(ch, hinted: hinted) {
+                    if latinFirstLine { break search }
                     if !lead.1 { lead = (run.style, true) }
                     // (An em dash further on may stand the line taller: keep looking for it.)
                     if theme.wordRules, RichTextTheme.wordWindowsPages, p.text.contains(Self._emDash) { continue }
