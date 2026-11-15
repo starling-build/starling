@@ -1492,7 +1492,8 @@ extension RichLayout {
     }
 
     static func _autofitDictionaryScript(_ u: UInt16) -> Bool {
-        (u >= 0x0E00 && u <= 0x0EFF) || (u >= 0x1780 && u <= 0x17FF) || (u >= 0x1000 && u <= 0x109F)
+        // (Thai is not one: in Word's autofit a Thai string with no space is ONE unbreakable piece, its minimum width the whole string; lab autofitth, 2026-11-15.)
+        (u >= 0x0E80 && u <= 0x0EFF) || (u >= 0x1780 && u <= 0x17FF) || (u >= 0x1000 && u <= 0x109F)
     }
 
     func _autofit(_ table: String, _ base: [Double], _ document: RichDocument) -> [Double] {
