@@ -1585,6 +1585,8 @@ public final class RichLayout {
     /// What each paragraph's text is drawn lower by than the engine set
     /// it, so that its baselines are Word's (see `RichTextTheme.lineBox`).
     var _inkShift: [Double] = []
+    /// Paragraphs whose taller Latin run takes its extra below the line (see `_heldWhereTaller`): their first baseline stays the lead face's.
+    var _heldTallerLatin = Set<Int>()
     /// The part of `_inkShift` that a bullet larger than its text adds to the first line's height (it stands over the cut points of a table cell).
     var _numberLiftShift: [Double] = []
     /// Per line, how far a paragraph's lines are drawn from where the engine set them (px, down).

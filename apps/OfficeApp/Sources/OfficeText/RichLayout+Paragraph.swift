@@ -11,6 +11,7 @@ import Foundation
 extension RichLayout {
 
     func _layoutParagraphOnce(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
+        _heldTallerLatin.remove(i)
         var p = p
         // A paragraph of hidden text alone, its mark not hidden, is one empty
         // line in its mark's look: lab hiddenline (Word for Windows) gives it
@@ -2000,6 +2001,19 @@ extension RichLayout {
                     }
                 }
             }
+            if theme.wordRules, RichTextTheme.wordWindowsPages, !pil, !gridded, inline.isEmpty,
+               let per = Self._heldWhereTaller(span, painter) {
+                let lined = TextPainter(text: per, textAlign: align, textDirection: style.rightToLeft ? .rtl : .ltr)
+                lined.fractionalLineHeights = painter.fractionalLineHeights
+                lined.lineIndents = painter.lineIndents
+                lined.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
+                if lined.computeLineMetrics().count == lines {
+                    RuleTrace.hit("word-arabic-line-holds-taller-latin-below")
+                    _heldTallerLatin.insert(i)
+                    return lined
+                }
+                lined.dispose()
+            }
             if painter.strutStyle == nil, theme.wordRules, !pil, !Self._risesForNumber(inline),
                // (On a grid, every line is held to the tallest, so not to
                // a word joiner's: the one before a compatibility ideograph
@@ -2547,7 +2561,7 @@ extension RichLayout {
             }
         }
         @inline(never) func _blk5() {
-        if theme.wordRules, p.image == nil, !p.text.isEmpty, painter.strutStyle != nil || scriptsOnly || mixedSizes || Self._startsWithEmoji(p.text) || _koreanSymbolFirstLineRaise(p, painter: painter, lead: _lead(i), named: _named(p, document), document: document) != nil,
+        if theme.wordRules, p.image == nil, !p.text.isEmpty, painter.strutStyle != nil || _heldTallerLatin.contains(i) || scriptsOnly || mixedSizes || Self._startsWithEmoji(p.text) || _koreanSymbolFirstLineRaise(p, painter: painter, lead: _lead(i), named: _named(p, document), document: document) != nil,
            let line = painter.computeLineMetrics().first {
             let named = _named(p, document)
             let pitch = _offGrid(i, document) ? nil : _grid(i, document).pitch
@@ -2606,7 +2620,8 @@ extension RichLayout {
                                     naturalBaseline = own
                                     minimumTarget = b
                                 }
-                            } else {
+                            } else if !_heldTallerLatin.contains(i) {
+                                // (Not where a taller Latin run takes its extra below the line, see `_heldWhereTaller`: Word keeps the first baseline on the lead face's.)
                                 target = max(target, b)
                             }
                         }

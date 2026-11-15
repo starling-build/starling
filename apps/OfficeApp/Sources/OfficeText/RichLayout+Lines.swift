@@ -315,6 +315,105 @@ extension RichLayout {
         return rewrite(span) as? TextSpan
     }
 
+    /// The span of an Arabic or Hebrew paragraph set in Arial with runs in another, taller face (Calibri, Aptos: a Latin name, a
+    /// non-breaking hyphen), each line held to Arial's own height plus what the taller face adds BELOW the baseline, or nil where
+    /// there is nothing to hold. Word measures a line as its runs' tallest face, per line: lab arlat-face, Arial 12 pt at 1.158,
+    /// lines 16.0 apart, and a line with a Calibri run lengthens by 0.8-0.9 under the baseline (Aptos 1.0), the line above it and the
+    /// line's own top unchanged, the other lines of the paragraph not at all. The engine stacked the stand-in's Arabic face on both.
+    static func _heldWhereTaller(_ span: TextSpan, _ painter: TextPainter) -> TextSpan? {
+        struct Leaf { var style: TextStyle; var arial: Bool; var blank: Bool; var arabic: Bool }
+        var leaves: [Leaf] = []
+        var plain: [UInt16] = []
+        var ok = true
+        func visit(_ s: InlineSpan) {
+            guard let t = s as? TextSpan else { plain.append(0xFFFC); ok = false; return }
+            if let text = t.text {
+                var l = String((t.style?.debugLabel?.trimmingWhitespace().lowercased() ?? "").filter { $0 != "(" && $0 != ")" })
+                while l.hasSuffix(".copywith") { l = String(l.dropLast(9)) }
+                if let st = t.style, st.fontSize != nil, st.height != nil, st.baselineShift == nil {
+                    leaves.append(Leaf(style: st, arial: l == "arial",
+                                       blank: !text.unicodeScalars.contains { !$0.properties.isWhitespace },
+                                       arabic: text.unicodeScalars.contains { ($0.value >= 0x0590 && $0.value <= 0x08FF) || ($0.value >= 0xFB1D && $0.value <= 0xFEFF) }))
+                } else if !text.isEmpty { ok = false }
+                plain.append(contentsOf: text.utf16)
+            }
+            for c in t.children ?? [] { visit(c) }
+        }
+        visit(span)
+        guard ok, leaves.contains(where: { $0.arial && $0.arabic }), let base = leaves.first(where: { $0.arial && $0.arabic })?.style,
+              let size = base.fontSize, let h = base.height, size > 0.5 else { return nil }
+        guard leaves.allSatisfy({ $0.blank || $0.style.fontSize == base.fontSize }) else { return nil }
+        func box(_ st: TextStyle) -> (Double, Double)? {
+            let pr = TextPainter(text: TextSpan(text: "x", style: st), textDirection: .ltr,
+                                 strutStyle: StrutStyle(fontFamily: st.fontFamily, fontFamilyFallback: st.fontFamilyFallback, fontSize: size, height: st.height,
+                                                        leadingDistribution: .even, fontWeight: st.fontWeight, forceStrutHeight: true))
+            pr.layout(minWidth: 0, maxWidth: 100_000)
+            defer { pr.dispose() }
+            guard let m = pr.computeLineMetrics().first, m.height > 1 else { return nil }
+            return (m.ascent, m.descent)
+        }
+        guard let (asc, desc) = box(base) else { return nil }
+        var extra: [Double] = []
+        var any = false
+        for lf in leaves {
+            var e = 0.0
+            if !lf.arial, !lf.blank, let (a, d) = box(lf.style) { e = max(0, (a + d) - (asc + desc)); if e > 0.3 { any = true } }
+            extra.append(e)
+        }
+        guard any else { return nil }
+        let total = plain.count
+        var lineOf: [(Range<Int>, Double)] = []
+        var leafAt: [(Range<Int>, Double)] = []
+        var o = 0
+        for (k, lf) in leaves.enumerated() { _ = k; _ = lf }
+        // The extra each leaf asks, by its text range.
+        var pos = 0, idx = 0
+        func ranges(_ s: InlineSpan) {
+            guard let t = s as? TextSpan else { pos += 1; return }
+            if let text = t.text {
+                let n = text.utf16.count
+                if let st = t.style, st.fontSize != nil, st.height != nil, st.baselineShift == nil { leafAt.append((pos ..< pos + n, extra[idx])); idx += 1 }
+                pos += n
+            }
+            for c in t.children ?? [] { ranges(c) }
+        }
+        ranges(span)
+        while o < total {
+            let r = painter.getLineBoundary(TextPosition(offset: o))
+            guard r.end > o else { o += 1; continue }
+            let hi = min(r.end, total)
+            let e = leafAt.filter { $0.0.lowerBound < hi && $0.0.upperBound > o && !$0.0.isEmpty }.map { $0.1 }.max() ?? 0
+            lineOf.append((o ..< hi, e))
+            o = hi
+        }
+        var at = 0
+        func rewrite(_ s: InlineSpan) -> InlineSpan {
+            guard let t = s as? TextSpan else { at += 1; return s }
+            var pieces: [TextSpan] = []
+            let start = at
+            if let whole = t.text {
+                let u = Array(whole.utf16)
+                var cuts: Set<Int> = [0, u.count]
+                for (r, _) in lineOf { for c in [r.lowerBound - start, r.upperBound - start] where c > 0 && c < u.count { cuts.insert(c) } }
+                let sorted = cuts.sorted()
+                for k in 0 ..< sorted.count - 1 {
+                    let a = sorted[k], b = sorted[k + 1]
+                    let e = lineOf.first { $0.0.lowerBound <= start + a && start + a < $0.0.upperBound }?.1 ?? 0
+                    var st = t.style
+                    if let x = st, x.fontSize != nil, x.height != nil, x.baselineShift == nil {
+                        st = x.copyWith(ascentOverride: asc, descentOverride: desc + e, height: (asc + desc + e) / size)
+                    }
+                    pieces.append(TextSpan(text: String(decoding: u[a ..< b], as: UTF16.self), style: st, recognizer: t.recognizer, locale: t.locale))
+                }
+                at += u.count
+            }
+            let kids = (t.children ?? []).map { rewrite($0) }
+            if pieces.count == 1, kids.isEmpty { return pieces[0] }
+            return TextSpan(text: nil, children: pieces + kids, style: t.style, recognizer: t.recognizer, locale: t.locale)
+        }
+        return rewrite(span) as? TextSpan
+    }
+
     /// Whether each of `painter`'s lines holds some text of the span's
     /// tallest stretch (the height `strut` was made from).
     static func _tallestOnEveryLine(_ span: TextSpan, _ strut: StrutStyle, _ painter: TextPainter, lines: Int, near: Bool = false, wide: Bool = false) -> Bool {
