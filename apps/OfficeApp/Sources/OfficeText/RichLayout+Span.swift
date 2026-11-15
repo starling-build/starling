@@ -236,7 +236,8 @@ extension RichLayout {
         -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) {
         let named = _named(p, document)
         let pitch = (index.map { _offGrid($0, document) } ?? (p.style.eastAsian["w:snapToGrid"] == "0")) ? nil : _grid(index, document).pitch
-        let mixedRubyRaise = _mixedRubyRaise(p, named: named, textWidth: textWidth, pitch: pitch)
+        // (A hanging indent's first line starts out past the rest: the room it has for the paragraph to stay one line.)
+        let mixedRubyRaise = _mixedRubyRaise(p, named: named, textWidth: textWidth + max(0, -_px(firstLineIndent(p, at: index, document))), pitch: pitch)
         // (`thaiBreaksAtSpaces`: the offsets inside a stretch of Thai with
         // no space in it that a line can hold — one longer than a line is
         // broken where the line fills, as in Word's print: zh-6a4fc013's

@@ -1274,7 +1274,8 @@ extension RichLayout {
                   let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight else { return across(box) }
             let mid = (box.top + box.bottom) / 2
             guard let line = lineMetrics.first(where: { mid >= $0.baseline - $0.ascent - 0.5 && mid <= $0.baseline + $0.descent + 0.5 }) else { return across(box) }
-            return line.baseline - (t - natural / 2) * em
+            // (The run's own baseline shift moves its box across the line, which `across` has; this took the line's own place without it.)
+            return line.baseline - (t - natural / 2) * em + (st.baselineShift ?? 0)
         }
         for (n, k) in shown.enumerated() {
             guard var box = ownBoxes[n],
