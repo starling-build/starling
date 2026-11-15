@@ -1424,7 +1424,10 @@ extension RichLayout {
             if lead != 0 {
                 let first = column - sixteenth(l) + outdent(h) - outdent(r)
                 tieShort.first = first < Double(w - l + h - r) / unit - eps || latinTie
-                let firstSlack = tieShort.first ? -0.0005 : 0.001
+                // (A Devanagari paragraph's 0.12 pt grid step is the first line's too: the box was set 0.119 pt in,
+                // which drew its origin there (xd 6be5dbc9 p3 "ज." at 108.12 where Word prints 108.02) and left the
+                // line no step past the edge, so "अनधिकृत" ending 0.05 past it went to the next line.)
+                let firstSlack = tieShort.first ? -0.0005 : (tieSlack > 0.1 ? tieSlack : 0.001)
                 // (The first line's room is the painter's width less its
                 // indent box: the box takes what the other lines' slack
                 // gives the first line beyond its own.)
