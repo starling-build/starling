@@ -17365,3 +17365,4 @@ amd-6 HANDOFF (2026-11-15) dx2 61ec937a: queued (queue/amd-6-312). Square-wrappe
 - Queued 312 was REJECTED: the page-top clamp for wrapped floats also caught a text frame (lo-932b76a1, 100 to 0). Fixed: clamp only for pictures (textBox == nil). 61ec937a 100, lo-932b76a1 100, 7ef158e4 stays 47.1.
 - Added: WordArt inline line grows by an UPWARD shadow offset as by a downward one (dx2 e9eab5f8 1.5 to 100; Word's body was 35.3 pt lower; only its copy poi-1609d3eed7 has such a shadow).
 - Left, free: dx2 ebe45609 es 2.5 (two wrapSquare pictures, ~12 empty paragraphs at pitch 27.8; Word's "{Símbolos" at 711.7 on p1, ours 554.9), 0fd592a1 sq (54.2 at 190/190 lines, unlooked), ro 3667057e, uk c23888cb.
+- lenovo-2 2026-11-15 CLAIM: xa oxsdk-6209c6d5a7 (zh, 67.5, 366/365 lines, 6/6 pages; next lowest zh outside dx2 chart cases).
