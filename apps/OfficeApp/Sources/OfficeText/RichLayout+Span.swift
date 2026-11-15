@@ -2183,7 +2183,7 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
-                } else if theme.wordRules, RichTextTheme.wordWindowsPages, (before == "." && ch == ".") || (!document.usesEastAsianLayout && (before == "…" || ch == "…") && (before == "." || before == "…") && (ch == "." || ch == "…") && Self._stopRunWidth(Array(p.text.utf16), at: offset, size: style(kind).fontSize ?? 12) > textWidth), document.usesEastAsianLayout || !dotsAttached {
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, (before == "." && ch == "." && !(Self._stopRunFitsAfterSpace(Array(p.text.utf16), at: offset, measure: { run in let t = TextPainter(text: TextSpan(text: run, style: style(kind)), textDirection: .ltr); t.layout(minWidth: 0, maxWidth: 100_000); defer { t.dispose() }; return t.width }, width: _px(textWidth)))) || (!document.usesEastAsianLayout && (before == "…" || ch == "…") && (before == "." || before == "…") && (ch == "." || ch == "…") && Self._stopRunWidth(Array(p.text.utf16), at: offset, size: style(kind).fontSize ?? 12) > textWidth), document.usesEastAsianLayout || !dotsAttached {
                     // (Not stops that follow a word's letters, in a file that sets no East Asian
                     // layout: bede0fbc's "নাম:" + 154 stops is one word, which Word sends down
                     // whole when it fits a line of its own, and parts only if it cannot.)
@@ -4854,6 +4854,17 @@ extension RichLayout {
     /// (Arial's 0.278 em stop and 1 em ellipsis): Word parts such a run between any two of its characters
     /// only when no line could hold it whole (dx2 ms 6926161f's 99 stops and 19 ellipses in a 446 pt line).
     @inline(never)
+    /// A run of stops that follows a space and is no wider than a line goes down to a line of its own whole, and is not parted
+    /// between its stops (dx2 54378c49's "बस्ने " + 75 dots, 324 pt of a 455 pt line: Word's print opens the next line with the whole run).
+    static func _stopRunFitsAfterSpace(_ units: [UInt16], at offset: Int, measure: (String) -> Double, width: Double) -> Bool {
+        func adv(_ u: UInt16) -> Double? { u == 0x2E ? 0.278 : u == 0x2026 ? 1.0 : nil }
+        guard offset > 0, offset < units.count else { return false }
+        var a = offset, b = offset
+        while a > 0, adv(units[a - 1]) != nil { a -= 1 }
+        guard a > 0, units[a - 1] == 0x20 || units[a - 1] == 0xA0 else { return false }
+        while b < units.count, adv(units[b]) != nil { b += 1 }
+        return measure(String(decoding: units[a ..< b], as: UTF16.self)) <= width
+    }
     static func _stopRunWidth(_ units: [UInt16], at offset: Int, size: Double) -> Double {
         func adv(_ u: UInt16) -> Double? { u == 0x2E ? 0.278 : u == 0x2026 ? 1.0 : nil }
         guard offset > 0, offset < units.count else { return 0 }
