@@ -17448,3 +17448,4 @@ HANDOFF amd-10 (2026-11-15): (1) Korean fix landed d4d0fd9c0 (107500a8 212 to 21
 - dx2 ed5bf93a: already 100.0 (fixed by amd-2's landing); nothing to do.
 - oxsdk-6209c6d5a7 (xa) 67.5 to 99.5 (STSong to YaHei): queued earlier as 349.
 - xd 6be5dbc9 (50.0): first-line origin fix queued as 354 (dx2 4fbb6e32 91.1 to 96.4, no drops, unit tests 655/0). The doc itself is NOT fixed: line 1 breaks before अनधिकृत, ours ends 0.1 pt past the limit. Word's advances for the same word vary 0.12 pt with grid phase, so no table error to fix; parked, not tuned.
+- lenovo-2 CLAIM 2026-11-15: dx2 ko 1f6d638c (from amd-2; was 100 on 11-13, 40.5 now: regression hunt)
