@@ -145,15 +145,20 @@ rm -rf "$STAGE"; mkdir -p "$STAGE/work"
 # the base: stored scores, if their stamp is the base revision's
 BASE=$STAGE/base; mkdir -p "$BASE"
 STORED=test/corpus/docx/scores/$HOST
+# SCORES_BASE: the stored scores live OUTSIDE git (user rule: no score files in git). Default /data/landq/base/<host> when it
+# holds a STAMP; otherwise (other hosts) fall back to the tracked folder at $BASE_REV.
+SB=${SCORES_BASE:-/data/landq/base/$HOST}; SBDIR=0; [ -s "$SB/STAMP" ] && SBDIR=1
+stored(){ if [ $SBDIR = 1 ]; then cat "$SB/$1"; else git show "$BASE_REV:$STORED/$1"; fi; }
+stored_has(){ if [ $SBDIR = 1 ]; then [ -s "$SB/$1" ]; else git cat-file -e "$BASE_REV:$STORED/$1" 2>/dev/null; fi; }
 want=$(test/tools/stamp.sh -r "$BASE_REV" $INPUTS)
-have=$(git show "$BASE_REV:$STORED/STAMP" 2>/dev/null || true)
+have=$(stored STAMP 2>/dev/null || true)
 if [ $SEED = 0 ] && [ -n "${BASE_SCORES:-}" ]; then
   # BASE_SCORES: a directory holding <set>.{v2,v1} of the base — the shared base cache (test/tools/base-cache.sh)
   echo "base: scores from $BASE_SCORES (shared cache) — base sweep skipped"
   for S in $SETS; do if [ -s "$BASE_SCORES/$S.v2" ] && base_ok $S "$BASE_SCORES/$S.v2" "$BASE_SCORES/REFS"; then for v in v2 v1; do cp "$BASE_SCORES/$S.$v" "$BASE/$S.$v" || exit 2; done; else NEEDBASE="$NEEDBASE $S"; fi; done
 elif [ $SEED = 0 ] && [ "$want" = "$have" ]; then
   echo "base: stored scores of $HOST match $BASE_REV's stamp — base sweep skipped"
-  for S in $SETS; do if git cat-file -e "$BASE_REV:$STORED/$S.v2" 2>/dev/null && { git show "$BASE_REV:$STORED/$S.v2" > "$BASE/$S.v2"; git show "$BASE_REV:$STORED/REFS" > "$BASE/REFS.stored" 2>/dev/null; base_ok $S "$BASE/$S.v2" "$BASE/REFS.stored"; }; then git show "$BASE_REV:$STORED/$S.v1" > "$BASE/$S.v1"; else NEEDBASE="$NEEDBASE $S"; fi; done
+  for S in $SETS; do if stored_has "$S.v2" && { stored "$S.v2" > "$BASE/$S.v2"; stored "REFS" > "$BASE/REFS.stored" 2>/dev/null; base_ok $S "$BASE/$S.v2" "$BASE/REFS.stored"; }; then stored "$S.v1" > "$BASE/$S.v1"; else NEEDBASE="$NEEDBASE $S"; fi; done
 elif [ $SEED = 0 ]; then
   echo "base: no stored scores for $HOST at $BASE_REV's stamp (stored: $( [ -n "$have" ] && echo different || echo none )) — sweeping BASEBIN"
   # (swept beside the fix below, not before it: both are waited for together)

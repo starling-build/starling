@@ -63,3 +63,5 @@ ui/openoffice/apps/
 /test/corpus/**/*.pptm
 /test/corpus/**/*.pdf
 !/test/corpus/docx/pdf-text/*
+# stored scores live OUTSIDE git (user rule): /data/landq/base/<host>, see SCORES_BASE in test/tools/docx-pair.sh
+/test/corpus/docx/scores/linux/

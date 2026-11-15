@@ -12,7 +12,7 @@
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd); ROOT=$(cd "$HERE/../.." && pwd); cd "$ROOT" || exit 2
 BIN=$(cd "$(dirname "$1")" && pwd)/$(basename "$1"); TIP=${2:?tip}; PREV=${3:?prev}; JOBS=${4:-16}
-PY=${PYTHON:-python3}; STAGE=${STAGE:-/tmp/dx2-round}; BASELINE=${BASELINE:-$ROOT/test/corpus/docx/scores/linux/dx2.v2}
+PY=${PYTHON:-python3}; STAGE=${STAGE:-/tmp/dx2-round}; BASELINE=${BASELINE:-$([ -s ${SCORES_BASE:-/data/landq/base/linux}/dx2.v2 ] && echo ${SCORES_BASE:-/data/landq/base/linux}/dx2.v2 || echo $ROOT/test/corpus/docx/scores/linux/dx2.v2)}
 C=${STARLING_CORPUS:-/data/corpus-cache}/staging/dx2
 for d in ${ENGINE_OUT:-} engine/src/out/host_release; do [ -d "$d" ] && { EO=$(cd "$d" && pwd -P); break; }; done
 [ -n "${EO:-}" ] || { echo "no engine out dir (ENGINE_OUT)" >&2; exit 2; }
