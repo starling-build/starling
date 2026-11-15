@@ -7265,7 +7265,16 @@ enum DocxFormat {
                         pendingCheckbox = on
                     }
                 case "w:instrText":
-                    if let f = notes.fields.last, !f.result {
+                    // MACROBUTTON <macro> <display text>: Word draws the display
+                    // text even though the field has no result part (the IA
+                    // template's checklist link, where the text sits in a
+                    // hyperlink's instrText run after the macro name).
+                    if let f = notes.fields.last, !f.result,
+                       f.instr.trimmingWhitespace(newlines: true).uppercased().hasPrefix("MACROBUTTON "),
+                       f.instr.trimmingWhitespace(newlines: true).split(separator: " ").count >= 2,
+                       !child.text.trimmingWhitespace(newlines: true).isEmpty {
+                        addText(child.text, cs)
+                    } else if let f = notes.fields.last, !f.result {
                         notes.fields[notes.fields.count - 1].instr += child.text
                         if notes.fieldCodeStyle[f.id] == nil, !child.text.trimmingWhitespace(newlines: true).isEmpty { notes.fieldCodeStyle[f.id] = cs }
                     }
