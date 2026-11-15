@@ -8343,6 +8343,13 @@ enum DocxFormat {
                                            dx: dist * cos(dir), dy: dist * sin(dir), blur: (Double(child["w14:blurRad"] ?? "") ?? 0) / 12700)
                 }
             case "w14:textFill":
+                // (A solid fill with an alpha: Word draws the text at the OPPOSITE opacity, `w14:alpha` being a transparency there.
+                // dx2 f22ada3a's NOTAT, 383838 at 87000, prints as pixel 230 grey, 13% ink, not 87%.)
+                if let c = child.first("w14:solidFill")?.children.first(where: { $0.name == "w14:srgbClr" || $0.name == "w14:schemeClr" }),
+                   let a = c.first("w14:alpha").flatMap({ Double($0["w14:val"] ?? "") }), let rgb = _w14Color(c) {
+                    cs.color = Color(argb: Int(((1 - a / 100000) * 255).rounded()), rgb.0, rgb.1, rgb.2)
+                    cs.off.remove(.autoColor)
+                }
                 // (A gradient fill drawn as the solid colour a quarter of the way along it: the text takes no shader yet. Word's print
                 // of bib-chernigovka's title, accent2 tinted and shaded, is a bright orange; a solid fill keeps the run's own colour.)
                 if let g = child.first("w14:gradFill"), let list = g.first("w14:gsLst") {
