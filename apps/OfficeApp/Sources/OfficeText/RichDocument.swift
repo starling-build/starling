@@ -2671,6 +2671,9 @@ public struct RichDocument: Hashable, Sendable {
     /// 15 a line's punctuation hangs and gives in a paragraph set any
     /// way; from 15 on only in a justified one.
     public var compatibilityMode: Int? = nil
+    /// `w:suppressBottomSpacing` (compat): the page's last line may hang past the
+    /// foot by the height it holds under its text (lab ce-s14).
+    public var suppressBottomSpacing = false
     /// `w:doNotBreakWrappedTables`: a table the text wraps round (a floating
     /// one) is not parted over pages, whatever its height.
     public var doNotBreakWrappedTables = false

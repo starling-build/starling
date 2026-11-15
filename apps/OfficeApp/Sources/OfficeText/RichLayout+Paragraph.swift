@@ -3059,6 +3059,17 @@ extension RichLayout {
                     _overhang[i] = _px(least)
                     if i < _lineOverhang.count, perLine.count > 1 { _lineOverhang[i] = perLine.map { _px($0.isFinite ? $0 : least) } }
                 }
+            } else if theme.wordRules, document.suppressBottomSpacing, p.image == nil, p.cell == nil,
+                      let exact = style.lineHeightPoints, !style.lineHeightIsMinimum,
+                      let natural = theme.naturalLine(for: p.text.isEmpty ? (style.mark ?? p.runs.first?.style ?? CharStyle()) : p.runs[0].style, named: _named(p, document), eastAsian: false), exact > natural {
+                // (Under `w:suppressBottomSpacing` an exact line stays at the
+                // page's foot while its face's own height fits: what the
+                // exact height holds under the text may hang past it. Lab
+                // sbs, Arial 10 in 30, 20 and 30-plus-after exact lines:
+                // kept at 11.9pt of room, sent on at 10.9; without the
+                // flag they need the whole 30.9 / 20.9.)
+                RuleTrace.hit("word-suppressbottomspacing-lets-an-exact-line-hang-past-the-foot")
+                _overhang[i] = _px(exact - natural)
             } else if theme.wordRules, p.image == nil, p.cell == nil, style.lineHeightPoints == nil,
                       case let multiple = style.lineSpacing - theme.lineSpacingReduction, multiple > 1.001,
                       let last = painter.computeLineMetrics().last {

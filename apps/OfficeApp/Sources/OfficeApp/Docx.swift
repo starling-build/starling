@@ -3788,6 +3788,7 @@ enum DocxFormat {
             document.hangsHalf = settings.first("w:compat")?.first("w:useAltKinsokuLineBreakRules").map { !_isOff($0) } ?? false
             document.breakRulesOnlyForEastAsian = settings.first("w:compat")?.first("w:doNotUseEastAsianBreakRules").map { !_isOff($0) } ?? false
             document.doNotBreakWrappedTables = settings.first("w:compat")?.first("w:doNotBreakWrappedTables").map { !_isOff($0) } ?? false
+            document.suppressBottomSpacing = settings.first("w:compat")?.first("w:suppressBottomSpacing").map { !_isOff($0) } ?? false
             document.compatibilityMode = settings.first("w:compat")?.all("w:compatSetting")
                 .first { $0["w:name"] == "compatibilityMode" }.flatMap { Int($0["w:val"] ?? "") }
             // (A file that names no compatibility mode — with a w:compat block
