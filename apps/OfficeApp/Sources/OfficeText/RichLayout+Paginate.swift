@@ -65,6 +65,8 @@ extension RichLayout {
         // (A table placed against the page that was set up to the page's edge: its table and the edge, in pixels.)
         var pageEdgeClamp: (table: String, edge: Double)? = nil
         var tableBands: [(top: Double, bottom: Double, owner: Int)] = []
+        // (Tops of the bands of page-anchored tables with a strip free to their right: empty paragraphs stand beside them.)
+        var stripBandTops = Set<Double>()
         var narrowBands: [(top: Double, bottom: Double, owner: Int, left: Double, right: Double)] = []
         // A page whose columns were balanced at a continuous section break:
         // its physical page and where the next section's columns start.
@@ -1844,7 +1846,13 @@ extension RichLayout {
                     let left = _tableLeft(back.table, document)
                     let beside = theme.wordRules && (left >= (_tableFlowWidth[back.table] ?? width) - 0.01
                         || left + (_columnWidths[back.table] ?? []).reduce(0, +) <= 0.01)
-                    if !beside { tableBands.append((top: back.top, bottom: y, owner: -1)) }
+                    if !beside {
+                        tableBands.append((top: back.top, bottom: y, owner: -1))
+                        if RichTextTheme.wordWindowsPages, document.tableStyles[back.table]?.pageAnchored == true, left < _px(12),
+                           (_tableFlowWidth[back.table] ?? width) - (left + (_columnWidths[back.table] ?? []).reduce(0, +)) >= _px(12) {
+                            stripBandTops.insert(back.top)
+                        }
+                    }
                     y = back.y
                 }
             }
@@ -2540,8 +2548,17 @@ extension RichLayout {
                         // under it. A title or a line that fits under the
                         // first row is taken there, and the table parts —
                         // zh-6cd1befe p51, zh-60173bb6, as `anchoredParts`.)
+                        // (Empty paragraphs do not count where the table is page-anchored and leaves a strip to its right: Word sets them
+                        // there beside it, dx2 606199f1's eleven blank lines run on past its third table's place at x 520 and the table
+                        // stays on the page.)
+                        let stripRight = document.tableStyles[c.table]?.pageAnchored == true
+                            && _tableLeft(c.table, document) < _px(12)
+                            && (_tableFlowWidth[c.table] ?? width) - (_tableLeft(c.table, document) + (_columnWidths[c.table] ?? []).reduce(0, +)) >= _px(12)
+                        func besideBlank(_ q: Int) -> Bool {
+                            stripRight && document.paragraphs[q].image == nil && !document.paragraphs[q].text.contains { $0 != " " }
+                        }
                         let under = _pages[page].filter { $0.paragraph < i && _cells[$0.paragraph] == nil && !$0.repeated
-                            && $0.pageY + ($0.flowBottom - $0.flowTop) > target + 0.01 }
+                            && !besideBlank($0.paragraph) && $0.pageY + ($0.flowBottom - $0.flowTop) > target + 0.01 }
                             .reduce(0.0) { $0 + $1.flowBottom - $1.flowTop }
                         // (And the line under that row, which the row after
                         // carries in its margin and the text set under the
@@ -2587,7 +2604,8 @@ extension RichLayout {
                         while k < count, let d = _cells[k], d.table == c.table { whole = max(whole, d.rowTop + d.ownRowHeight); k += 1 }
                         // (How far the text reaches past the place, not the sum of the lines that do: dx2 9baed400's text
                         // reaches 82pt past a place, less than its table's first row of 84pt, and Word keeps the table with it.)
-                        let reach = (_pages[page].filter { $0.paragraph < i && _cells[$0.paragraph] == nil && !$0.repeated }
+                        let reach = (_pages[page].filter { $0.paragraph < i && _cells[$0.paragraph] == nil && !$0.repeated
+                                && !besideBlank($0.paragraph) }
                             .map { $0.pageY + ($0.flowBottom - $0.flowTop) }.max() ?? target) - target
                         // (Only a table that cannot stand whole below its place but can on a page of its own moves (zh-3ab8a2fb's 3-page table stays): Word's lab atmove prints keep a 2-row and a 5-row table
                         // at their place with the title's second line beside them and move the 6-row one.)
@@ -4219,7 +4237,10 @@ extension RichLayout {
                     let ownsBand = tableBands.contains { $0.owner == i }
                     let line = (lineBottoms.first.map { $0 + (ownsBand ? 0 : geometry(i).textTop - geometry(i).top) } ?? _heights[i]) - gridHalf
                     let yBeforeBands = y
-                    while let band = tableBands.first(where: { $0.owner != i && $0.top < y + line - 0.01 && $0.bottom > y + 0.01 }), guardSteps < 40 {
+                    let blankBeside = !stripBandTops.isEmpty && document.paragraphs[i].image == nil && _cells[i] == nil
+                        && !document.paragraphs[i].text.contains { $0 != " " }
+                    while let band = tableBands.first(where: { $0.owner != i && $0.top < y + line - 0.01 && $0.bottom > y + 0.01
+                        && !(blankBeside && stripBandTops.contains($0.top)) }), guardSteps < 40 {
                         // (In a column that is not the last, what meets a picture wrapped top and
                         // bottom that an earlier paragraph of text anchors in the column goes on in the
                         // next column, not under the picture: lab f43/g43 (Word for Windows,
