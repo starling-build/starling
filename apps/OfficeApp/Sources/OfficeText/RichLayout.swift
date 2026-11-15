@@ -795,10 +795,20 @@ public final class RichTextTheme {
         // (Meiryo's superscript is 65% rounded up to the half point: 10.5pt gives 6.825, and 7.0 in 934bd3e5's print.)
         let meiryoScript = wordRules && RichTextTheme.wordWindowsPages && style.script != .normal
             && (familyName.map { $0.lowercased().containsSubstring("meiryo") || $0.containsSubstring("メイリオ") } ?? false)
+        // (A superscript or subscript in a Japanese face of Windows (MS Gothic, MS Mincho and their P forms, Yu Gothic, Yu Mincho) is 60% of the size
+        // rounded to the nearest half point, raised by what that leaves of the size: the sup-ms print, 12 sizes from 7 to 36pt, 12 of 12 (7pt: 4.0,
+        // raise 3.0; 10.5pt: 6.5, raise 4.0; 12pt: 7.0, raise 5.0). xb jpn-g1-5d7ee6's "※１" was 6.0 and raised 6.0.)
+        let jpScript = wordRules && RichTextTheme.wordWindowsPages && style.script != .normal
+            && (familyName.map { n in
+                let l = n.lowercased()
+                return l.containsSubstring("ms gothic") || l.containsSubstring("ms mincho") || l.containsSubstring("ms pgothic") || l.containsSubstring("ms pmincho")
+                    || l.containsSubstring("yu gothic") || l.containsSubstring("yu mincho") || n.containsSubstring("ＭＳ") || n.containsSubstring("游")
+            } ?? false)
+        let jpScriptPt = (size * 0.6 * 2).rounded() / 2
         let scriptRatio = wordRules && RichTextTheme.wordWindowsPages && style.script != .normal
             && (eastAsian || face?.isEastAsian == true)
             // (Meiryo says 65% like a Latin face: 934bd3e5's "３" in 10.5pt Meiryo Bold is 7.0pt in its print.)
-            && !meiryoScript ? 0.5 : 0.65
+            && !meiryoScript && !jpScript ? 0.5 : 0.65
         if style.unseen { color = color.withOpacity(1.0 / 255) }
         if style.hidden || ((named?.char.hidden ?? false) && !style.hidden) {
             // Hidden text takes no room and shows nothing, as Word prints it;
@@ -812,6 +822,7 @@ public final class RichTextTheme {
             backgroundColor: style.highlight ?? (style.comments.isEmpty ? nil : Color(0x40FFD966)),
             fontSize: style.script == .normal ? px
                 : scriptSizeWholeUp ? (size * 0.65 - 1e-6).rounded(.up) * widen * pixelsPerPoint * scale
+                : jpScript ? jpScriptPt * widen * pixelsPerPoint * scale
                 : meiryoScript ? (size * 0.65 * 2 - 1e-6).rounded(.up) / 2 * widen * pixelsPerPoint * scale : px * scriptRatio,
             fontWeight: bold ? .bold : .normal,
             fontStyle: italic ? .italic : .normal,
@@ -838,6 +849,7 @@ public final class RichTextTheme {
                 // half at half.)
                 // (Of the run's own size: not a stand-in's drawn one.)
                 let script = !shifted ? 0
+                    : jpScript && style.script == .superscript ? -(size - jpScriptPt) * pixelsPerPoint * scale
                     : scriptRatio < 0.6 && style.script == .superscript ? -(1 - scriptRatio) * size * pixelsPerPoint * scale
                     : (style.script == .superscript ? -Self.superscriptRaise(familyName) : 0.2) * px
                 let raised = wordRules && NativeParagraphBuilder.supportsBaselineShift ? (style.raised ?? named?.char.raised ?? 0) : 0

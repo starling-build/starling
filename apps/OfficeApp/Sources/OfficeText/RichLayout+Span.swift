@@ -3518,10 +3518,8 @@ extension RichLayout {
                     }
                     spans.append(TextSpan(text: String(ch), style: mark))
                     start = after
-                } else if ea, theme.wordRules, RichTextTheme.wordWindowsPages, ch == "\u{203B}", let cjk = Self._cjkFaceFamily,
-                          (run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? "").lowercased().containsSubstring("meiryo")
-                              || (run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? "").containsSubstring("メイリオ") {
-                    // (The reference mark ※ in a Meiryo run is Meiryo's own, an em wide, as the ☆ and the fullwidth digit beside it:
+                } else if ea, theme.wordRules, RichTextTheme.wordWindowsPages, ch == "\u{203B}", let cjk = Self._cjkFaceFamily {
+                    // (The reference mark ※ in an East Asian run is the East Asian face's own (Meiryo, MS Gothic: 5d7ee6's prints show MS-Gothic), an em wide, as the ☆ and the fullwidth digit beside it:
                     // dx2 934bd3e5's superscript "※１" is 7.0pt apiece in Word's print, where our DejaVu fallback gave 7.9
                     // for the mark and its lines broke a character early.)
                     flush(i)
