@@ -2049,6 +2049,14 @@ extension RichLayout {
                     start = end
                     return
                 }
+                // (A dot in a right-to-left Sakkal Majalla run: Word draws the face's own period, 0.195 em bold and 0.162 em regular
+                // (every Sakkal doc in xb and dx2 agrees), where the stand-in's is 0.232; a "label : ....." line then fits one line; dx2 61a67838.)
+                if joinedFace?.joinedSpaceEm != nil, text[start ..< end].allSatisfy({ $0 == "." }), let px = style(kind).fontSize, px > 0.5 {
+                    RuleTrace.hit("word-rtl-sakkal-dot-is-own-width")
+                    spans.append(contentsOf: capped(text[start ..< end], run, _indicSpaceStyle(base: style(kind), spaceEm: run.bold ? 0.195 : 0.162, unit: px, glyph: ".")))
+                    start = end
+                    return
+                }
                 // (Spaces between Devanagari words, in a run of its own: Word draws them in Leelawadee UI, 0.274 em, where our stand-in's are 0.22; dx2 fb94294e.)
                 if kind >= 0, aumsSpaces, text[start ..< end].allSatisfy({ $0 == " " || ($0 == "\u{00A0}" && spaceBeforeDanda) }) {
                     spans.append(contentsOf: capped(text[start ..< end], run, Self._leelaLatinStyle(text[start ..< end], base: joinedScaled(text[start ..< end], style(kind)))))
@@ -5076,8 +5084,8 @@ extension RichLayout {
     }
     /// A space at the face's own width (`spaceEm` of `unit`), as one letter spacing on the stand-in's space.
     @inline(never)
-    func _indicSpaceStyle(base: TextStyle, spaceEm: Double, unit: Double) -> TextStyle {
-        let t = TextPainter(text: TextSpan(text: " ", style: base.copyWith(letterSpacing: 0)), textDirection: .ltr)
+    func _indicSpaceStyle(base: TextStyle, spaceEm: Double, unit: Double, glyph: String = " ") -> TextStyle {
+        let t = TextPainter(text: TextSpan(text: glyph, style: base.copyWith(letterSpacing: 0)), textDirection: .ltr)
         t.layout(minWidth: 0, maxWidth: 100_000)
         let w0 = t.width
         t.dispose()
