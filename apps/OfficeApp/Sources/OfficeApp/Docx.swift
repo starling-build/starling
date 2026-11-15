@@ -917,7 +917,7 @@ enum DocxFormat {
                // replace Normal from Normal.dotm; a file URL, drive path or relative target keeps the
                // file's own Normal (Word COM, lab linkstyles: 70b475ea with a file:/// or relative
                // target kept Arial; 0c15d329 and 62034d67 with an HFS target were replaced).
-               target.contains(":") && !target.hasPrefix("file:") && !target.hasPrefix("\\\\") && !target.hasPrefix("/")
+               target.contains(":" as Character) && !target.hasPrefix("file:") && !target.hasPrefix("\\\\") && !target.hasPrefix("/")
                 && !(target.count > 1 && target.dropFirst().hasPrefix(":") && target.dropFirst(2).first.map { $0 == "\\" || $0 == "/" } == true) {
                 _applyBuiltinStyles(styles)
             }
