@@ -1,4 +1,4 @@
-109 documents: mean 81.1% of Word's lines matched, median 96.7%; 56 at 95% or more, 95 at half or more; 100 with Word's page count
+109 documents: mean 81.7% of Word's lines matched, median 96.7%; 57 at 95% or more, 96 at half or more; 101 with Word's page count
     2.1%  lines 383/232  pages 6/5  dx4j-a94b4fd3b1
    10.1%  lines 149/366  pages 6/16  dx4j-d5b6ee0cfa
    11.1%  lines 9/69  pages 2/3  lo-f5a68fc90b
@@ -10,7 +10,6 @@
    31.8%  lines 740/707  pages 21/17  gv-989ecc4fa6
    32.9%  lines 231/228  pages 5/5  lo-c25842c80b
    33.3%  lines 3/4  pages 1/1  lo-d0fc1bd5c5
-   33.7%  lines 609/603  pages 32/30  gv-9fba5bc3b0
    39.8%  lines 1607/1600  pages 37/37  gv-3db26a1d34
    45.1%  lines 304/306  pages 24/23  gv-802a85a40c
    50.0%  lines 8/8  pages 1/1  lo-3657739f63
@@ -62,6 +61,7 @@
    98.4%  lines 365/364  pages 22/22  th-044e3e71f7
    98.5%  lines 779/779  pages 19/19  oxsdk-1c09b12993
    98.5%  lines 403/403  pages 14/14  gv-d1907c960c
+   99.2%  lines 609/609  pages 32/32  gv-9fba5bc3b0
    99.4%  lines 1071/1071  pages 36/36  gv-e7920f5c77
    99.6%  lines 689/690  pages 37/37  gv-2eba1286c8
    99.7%  lines 327/327  pages 19/19  gv-c9368dd9d4
