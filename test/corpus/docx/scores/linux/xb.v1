@@ -1,14 +1,13 @@
-188 documents: mean 80.8% of Word's lines matched, median 98.9%; 127 at 95% or more, 149 at half or more; 174 with Word's page count
-    0.8%  lines 130/128  pages 6/6  ara-z21298544-b514c2
+188 documents: mean 81.3% of Word's lines matched, median 98.9%; 127 at 95% or more, 150 at half or more; 174 with Word's page count
     1.0%  lines 418/380  pages 13/13  ara-z8199393-075ed2
     1.1%  lines 90/72  pages 4/3  fas-z22832287-ac7399
     2.3%  lines 88/93  pages 10/9  fas-z14957015-3a9879
     2.6%  lines 272/280  pages 8/8  ara-z8215570-1aa55d
     3.6%  lines 658/766  pages 27/26  ara-z11030406-663296
-    5.4%  lines 624/637  pages 32/32  ara-z20756589-698264
     5.5%  lines 548/553  pages 13/13  urd-z17694289-27ac54
     6.2%  lines 503/559  pages 16/17  ara-z21988051-184d63
     6.2%  lines 241/241  pages 7/8  fas-z20703874-baff6e
+    6.9%  lines 624/638  pages 32/32  ara-z20756589-698264
     7.3%  lines 927/910  pages 24/24  urd-z7427432-7738e5
     7.6%  lines 694/663  pages 17/18  urd-z17694236-c03d57
     8.8%  lines 874/875  pages 34/33  ara-z20648189-8e6ca0
@@ -16,7 +15,6 @@
    11.7%  lines 111/111  pages 8/8  ara-z15699863-842f1e
    14.2%  lines 430/424  pages 16/16  fas-z22867828-b604ea
    14.3%  lines 504/510  pages 16/15  ara-z6757469-27b88d
-   15.4%  lines 149/149  pages 8/8  fas-z22973278-768d17
    16.0%  lines 463/458  pages 16/15  ara-z4399437-5bde25
    17.4%  lines 328/323  pages 10/10  urd-z7538882-13b0bc
    17.5%  lines 897/976  pages 26/27  urd-z10575633-e54653
@@ -29,6 +27,7 @@
    32.6%  lines 135/135  pages 9/9  fas-z22958620-bf2323
    36.4%  lines 33/34  pages 1/1  docx-79737edb
    36.4%  lines 890/886  pages 20/20  fra-g210-1a6d33
+   38.9%  lines 149/150  pages 8/8  fas-z22973278-768d17
    39.2%  lines 97/98  pages 4/4  heb-z5059159-4ac884
    41.9%  lines 1045/1047  pages 22/22  docx-5dc87fc7
    42.5%  lines 240/239  pages 8/8  ara-z23060052-a6e54c
@@ -45,6 +44,7 @@
    68.8%  lines 205/211  pages 12/12  jpn-z22855378-6fca0f
    69.3%  lines 127/127  pages 6/6  fas-z22910553-174812
    74.9%  lines 959/959  pages 19/20  fra-g156-5d636a
+   75.4%  lines 130/130  pages 6/6  ara-z21298544-b514c2
    78.4%  lines 51/51  pages 8/8  docx-e925ae95
    79.0%  lines 1583/1588  pages 32/32  fra-g274-cccee1
    81.7%  lines 278/278  pages 9/9  heb-z24027390-bae91d

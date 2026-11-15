@@ -1,5 +1,4 @@
-188 documents: mean 81.1% of Word's lines matched, median 98.8%; 127 at 95% or more, 151 at half or more; 174 with Word's page count
-    0.8%  lines 130/128  pages 6/6  ara-z21298544-b514c2
+188 documents: mean 81.6% of Word's lines matched, median 98.8%; 127 at 95% or more, 152 at half or more; 174 with Word's page count
     2.3%  lines 88/93  pages 10/9  fas-z14957015-3a9879
     4.2%  lines 664/778  pages 27/26  ara-z11030406-663296
     5.2%  lines 420/411  pages 13/13  ara-z8199393-075ed2
@@ -9,13 +8,12 @@
     7.6%  lines 695/686  pages 17/18  urd-z17694236-c03d57
     7.6%  lines 930/935  pages 24/24  urd-z7427432-7738e5
     8.0%  lines 550/552  pages 13/13  urd-z17694289-27ac54
-    8.2%  lines 624/637  pages 32/32  ara-z20756589-698264
     9.0%  lines 874/877  pages 34/33  ara-z20648189-8e6ca0
+    9.8%  lines 624/638  pages 32/32  ara-z20756589-698264
     9.9%  lines 566/572  pages 13/13  urd-z7294462-73d948
    10.8%  lines 296/282  pages 8/8  ara-z8215570-1aa55d
    11.7%  lines 111/111  pages 8/8  ara-z15699863-842f1e
    14.6%  lines 506/512  pages 16/15  ara-z6757469-27b88d
-   15.4%  lines 149/149  pages 8/8  fas-z22973278-768d17
    16.4%  lines 433/424  pages 16/16  fas-z22867828-b604ea
    17.6%  lines 922/948  pages 26/27  urd-z10575633-e54653
    17.7%  lines 469/459  pages 16/15  ara-z4399437-5bde25
@@ -29,6 +27,7 @@
    35.6%  lines 135/135  pages 9/9  fas-z22958620-bf2323
    36.4%  lines 33/34  pages 1/1  docx-79737edb
    36.7%  lines 877/878  pages 20/20  fra-g210-1a6d33
+   40.3%  lines 149/150  pages 8/8  fas-z22973278-768d17
    41.1%  lines 246/239  pages 8/8  ara-z23060052-a6e54c
    41.9%  lines 1045/1047  pages 22/22  docx-5dc87fc7
    42.4%  lines 974/979  pages 21/22  fra-g111-8b0e29
@@ -47,6 +46,7 @@
    76.4%  lines 127/127  pages 6/6  fas-z22910553-174812
    78.4%  lines 51/51  pages 8/8  docx-e925ae95
    79.0%  lines 1578/1580  pages 32/32  fra-g274-cccee1
+   82.3%  lines 130/130  pages 6/6  ara-z21298544-b514c2
    82.4%  lines 278/278  pages 9/9  heb-z24027390-bae91d
    82.5%  lines 361/361  pages 13/13  docx-6f1caa1e
    83.2%  lines 125/121  pages 16/16  docx-a567c5c2

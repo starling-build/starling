@@ -1643,6 +1643,14 @@ extension RichLayout {
                 return theme.complexFaceResolver?(name)
             }()
             let joinedFace: RichResolvedFace? = run.rightToLeft ? complexFaceOfRun : nil
+            // A right-to-left space is set in the complex-script face when the document names one apart from the Latin face (b514c2: Arial against the theme's Aptos); the same name for both keeps the Latin table (dx2 Tahoma fa/ur docs).
+            let complexSpaceFace: RichResolvedFace? = {
+                guard let joinedFace else { return nil }
+                let normal = _normalChar(document)
+                let latin = (run.fontFamily ?? named?.char.fontFamily ?? normal?.fontFamily ?? theme.fontFamily)?.trimmingWhitespace().lowercased()
+                guard let complex = (run.complexFontFamily ?? named?.char.complexFontFamily ?? normal?.complexFontFamily)?.trimmingWhitespace().lowercased(), complex != latin else { return nil }
+                return joinedFace
+            }()
             // (A zero-width non-joiner stays inside the word: Word sets the
             // two parts as two joined words and the mark at no width, where
             // the stand-in gave it 3pt and the parts no scale — lo
@@ -3260,7 +3268,8 @@ extension RichLayout {
                     // 16pt in Word's print, ours 7.6, and every line took a
                     // character Word wraps.)
                     if let grid, grid != 0 { extra -= 1.5 * _px(grid) }
-                } else if !ea, let face = (narrowLatinInRTL ? nil : latinFace), face.advances != nil, ch.unicodeScalars.count == 1,
+                // (A space in a right-to-left run whose complex-script face differs from its Latin one is the complex face's: b514c2's Arial 3.34 pt in Word's print, ours the Latin default's 2.4. Same family in both keeps the Latin table: dx2 Tahoma fa/ur docs.)
+                } else if !ea, let face = (narrowLatinInRTL ? nil : (ch == " " && complexSpaceFace != nil && theme.wordRules && RichTextTheme.wordWindowsPages ? complexSpaceFace : latinFace)), face.advances != nil, ch.unicodeScalars.count == 1,
                           let u = ch.unicodeScalars.first?.value, u >= 0x20, u <= 0x7E {
                     // The width the original face gives this character
                     // (`RichResolvedFace.advances`), at the size the
