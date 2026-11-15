@@ -17051,3 +17051,4 @@ HANDOFF amd-5 (2026-11-14, balloons):
 - Submitted: kept-run "goes over" only when no earlier member can split; left-tab digits past right indent stay on their line. Gains: dx2 5c72dd63 92.7->99.0, 93548565 84.3->100, 72f1cde8 81.4->95.3, 966e48f5 35.5->87, xd 94baf8b9 63->91.9 (40/40 pages). 8714e66e, zh-64044a1d, gv-3db26a1d34 unchanged vs tip. 756 and lo keepNext lists unchanged. Unit tests 655/0.
 - Left: xd 708e2879 footer words after a left stop (Word x=149, tip x=69) still wrong, 26.1 both; needs the line limit extended at the stop, not a squeeze. xd 8714e66e chain i=120 parked. Next: 73357ebf (12.2, text wrap beside logo).
 - Trap: squeezing text via negative hang makes long words vanish; restrict by property (digits).
+- amd-11 CLAIM (2026-11-15, after clear): 73357ebf plain text wrap beside logo (12.2); then check tight/square wrap docs in all sets.
