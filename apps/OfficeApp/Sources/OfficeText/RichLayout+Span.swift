@@ -515,7 +515,7 @@ extension RichLayout {
         // `_spacesToHold`), with a zero-width space after each run of
         // them for the break a space allows.
         // (Korean under wordWrap off, a line that fills to the margin: the space after its last word does not fit, and Word sets it at the START of the next line; _layoutParagraph records those, `_wwSpaceStarts`.)
-        let koreanSpaces: Set<Int> = index.map { _wwSpaceStarts[$0] ?? [] } ?? []
+        let koreanSpaces: Set<Int> = (index.map { _wwSpaceStarts[$0] ?? [] } ?? []).union(_wordWrapOffClosingSpaces(p, textWidth: textWidth))
         let heldSpaces = held.union(_closingSpaceHeld(p).map { [$0] } ?? []).union(koreanSpaces)
         // (Word for Windows' counted closing spaces, and the share of its
         // width each keeps — the run less half the line, at no less than

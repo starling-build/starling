@@ -1,4 +1,4 @@
-756 documents: mean 98.5% of Word's lines matched, median 100.0%; 742 at 95% or more, 746 at half or more; 756 with Word's page count
+756 documents: mean 98.5% of Word's lines matched, median 100.0%; 743 at 95% or more, 746 at half or more; 756 with Word's page count
     0.0%  lines 0/0  pages 0/0  51921-Word-Crash067
     0.0%  lines 0/0  pages 0/0  59378
     0.0%  lines 0/0  pages 0/0  Bug62859
@@ -11,7 +11,6 @@
     0.0%  lines 0/0  pages 0/0  zero-length
    80.4%  lines 92/91  pages 3/3  zh-27a874b740fff77c81e5ecbf5519d539cfb94540c635af560a682403b69a17bf
    80.8%  lines 99/100  pages 4/4  zh-d62da4dd45d1cb7451d59b7c9c484f6268b208d79a8bdf7c81403844017cd549
-   87.0%  lines 1073/1073  pages 52/52  zh-621d8756963c4652f1d35a6db8b148a83e6f5a44c1e7bde17cf2438f5b4057a0
    94.8%  lines 362/348  pages 14/14  zh-b24b396a099c46aebb9e03037461871b1575680ec5872c4da011540daef1c3d7
    95.7%  lines 46/46  pages 2/2  zh-d97c5474722aff7b293a8688dce9402a551b46bac6e8561eb28a6d4f86036173
    95.7%  lines 745/745  pages 39/39  zh-c4f2be3b5c5db212b2316fb1eab2c5e5908380a8496464733aea2224048fbac6
@@ -63,6 +62,7 @@
    99.3%  lines 442/442  pages 11/11  zh-25381d223574947c0435d03bb0178e1934a0a18939bc40d0e81b5bdbeae20d2c
    99.3%  lines 756/756  pages 25/25  zh-b4d367189e59a81f62e133f52eef292de536ebf966fbd43295bbed03a71714ef
    99.3%  lines 303/303  pages 14/14  zh-15428325c13776918542e6dd7ac2dc68b377c78452846f8d766907a3f9c5eb5e
+   99.3%  lines 1073/1073  pages 52/52  zh-621d8756963c4652f1d35a6db8b148a83e6f5a44c1e7bde17cf2438f5b4057a0
    99.4%  lines 310/308  pages 16/16  zh-8186c98d2356e9c01bc2c86fe1ff435878eaf3244179ac52f1de94dbae6b0424
    99.4%  lines 1404/1404  pages 66/66  zh-7773163de9c9480b4f85df47d226129f1d10f679b0bc4f4849cbb9c80fb15bfc
    99.4%  lines 157/157  pages 5/5  zh-454e2e29c6b60737e13624a747ac850c29f62384ed91023e328235e8d8ff8443

@@ -3061,6 +3061,23 @@ extension RichLayout {
     /// Word's print and sets the space on the next line, where ours hung
     /// both and every page from p14 ran a line early. Set as a no-break
     /// space (it takes room) with a break before it; nil elsewhere.
+    /// Under `w:wordWrap` off, a long run of spaces closing a paragraph after
+    /// its text counts against the line and wraps as characters: zh-621d8756's
+    /// "陈述申辩人：（…）" + 56 spaces (line exactly 33 pt) is two lines in Word's
+    /// print (about 51 spaces to a line), where ours hung all of them on one.
+    func _wordWrapOffClosingSpaces(_ p: RichParagraph, textWidth: Double) -> Set<Int> {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, p.style.eastAsian["w:wordWrap"] == "0",
+              p.style.alignment != .right, p.style.alignment != .center else { return [] }
+        let units = Array(p.text.utf16)
+        var s = units.count
+        while s > 0, units[s - 1] == 0x20 { s -= 1 }
+        guard s > 0, units.count - s >= 20 else { return [] }
+        // (Only a closing run wider than a whole line by itself: 44 spaces after "申请人：" stay one line in Word's print, zh-621d8756 p14.)
+        guard let size = p.runs.last?.style.fontSize, _px(Double(units.count - s) * size / 2) > textWidth else { return [] }
+        RuleTrace.hit("wordwrap0-long-closing-spaces-count")
+        return Set(s ..< units.count)
+    }
+
     func _closingSpaceHeld(_ p: RichParagraph) -> Int? {
         guard theme.wordRules, p.style.eastAsian["w:wordWrap"] == "0", p.style.alignment != .right, p.style.alignment != .center else { return nil }
         let units = Array(p.text.utf16)

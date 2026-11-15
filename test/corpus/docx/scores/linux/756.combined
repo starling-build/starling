@@ -1,4 +1,4 @@
-756 documents: COMBINED mean 99.94% (746 scored by Word's text lines, 10 by the visual comparison); pure line mean 99.94% over the 746 documents with text; visual-scored mean 100.00% (worst page differs by 0.01% of pixels on average, 10 at or under 1%)
+756 documents: COMBINED mean 99.95% (746 scored by Word's text lines, 10 by the visual comparison); pure line mean 99.95% over the 746 documents with text; visual-scored mean 100.00% (worst page differs by 0.01% of pixels on average, 10 at or under 1%)
  100.0%  lines 0/0  pages 0/0  51921-Word-Crash067
  100.0%  lines 2/2  pages 1/1  52288
  100.0%  lines 10/10  pages 1/1  52449
@@ -361,7 +361,7 @@
  100.0%  lines 160/160  pages 4/4  zh-61a05efcf58b7f5802344690719d6864623978fdbd540abf5e14165a2c5e756e
  100.0%  lines 68/68  pages 3/3  zh-61aaad09c217e9ebf637a9ef8cee035363fea579dfa01c2091aec8a361814890
  100.0%  lines 195/195  pages 10/10  zh-61b62a40fe230627f74a8f9da45151e72a68870b5aaf8bed48fb824fbb4851cb
-  87.3%  lines 1074/1074  pages 52/52  zh-621d8756963c4652f1d35a6db8b148a83e6f5a44c1e7bde17cf2438f5b4057a0
+  99.6%  lines 1074/1074  pages 52/52  zh-621d8756963c4652f1d35a6db8b148a83e6f5a44c1e7bde17cf2438f5b4057a0
  100.0%  lines 180/180  pages 9/9  zh-625b63743e48957d023298a22c7adb2de5598e3b8de02bab7ae780bbaf5091cf
  100.0%  lines 39/39  pages 1/1  zh-62ae94f79f669d868b6928cb94f94439810b83744bf754e3fe9bcb0b6b4c960b
  100.0%  lines 559/559  pages 13/13  zh-633792eb81826007f24e2cef2af6a55352a9e9da8bbb5690fbdd4cc02198e58b
