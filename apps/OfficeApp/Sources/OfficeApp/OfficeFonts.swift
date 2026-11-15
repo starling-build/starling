@@ -1262,6 +1262,23 @@ enum OfficeFonts {
     // windows 2026-11-02; lab test/labs/segoe on wip/lab-segoe). They replace the widths read from
     // Word's prints' subsets, whose glyphs no print used were estimated. fdo78885's 9pt Segoe UI body,
     // 12.0pt lines in Word's print, ours 10.4 in the sans stand-in.
+    // Palatino Linotype's own Greek widths (ems), the hmtx of the subsets Word for Windows' prints embed (4225 prints, 2026-11-15, amd-11):
+    // the Modern Greek letters read as printed; each polytonic letter with its breathing, accent or iota subscript is its base
+    // letter's width in the font (the glyph shape differs only in its marks): α 0x1F00-0x1F07 and 0x1F70-0x1F71 and 0x1FB3-0x1FB7,
+    // ε, η, ι, ο, υ, ω likewise. Without them the Times stand-in's Greek set every polytonic line wide (dx2 sq 0fd592a1).
+    static let palatinoLinotypeGreekAdvances: [UInt32: Double] = {
+        var t: [UInt32: Double] = [0x37A:0.3330, 0x384:0.3330, 0x394:0.6890, 0x399:0.3325, 0x3A3:0.6855, 0x3AC:0.6396, 0x3AD:0.4814, 0x3AE:0.5879, 0x3AF:0.3003, 0x3B1:0.6396, 0x3B2:0.5835, 0x3B3:0.5942, 0x3B4:0.5215, 0x3B5:0.4814, 0x3B6:0.4990, 0x3B7:0.5879, 0x3B8:0.6255, 0x3B9:0.3003, 0x3BA:0.5703, 0x3BB:0.5942, 0x3BC:0.6470, 0x3BD:0.5630, 0x3BE:0.5366, 0x3BF:0.5479, 0x3C0:0.6772, 0x3C1:0.5459, 0x3C2:0.4819, 0x3C3:0.6045, 0x3C4:0.4839, 0x3C5:0.5654, 0x3C6:0.7080, 0x3C7:0.5767, 0x3C8:0.6909, 0x3C9:0.7432, 0x3CA:0.3003, 0x3CC:0.5479, 0x3CD:0.5654, 0x3CE:0.7432, 0x1F38:0.4639, 0x1FBD:0.3330, 0x1FBF:0.3330, 0x1FC0:0.3330, 0x1FCD:0.3330, 0x1FCE:0.3330, 0x1FCF:0.3330, 0x1FDD:0.3330, 0x1FDE:0.3330, 0x1FDF:0.3330, 0x1FEF:0.3330, 0x1FFD:0.3330, 0x1FFE:0.3330]
+        func fill(_ ranges: [ClosedRange<UInt32>], _ w: Double) { for r in ranges { for u in r { t[u] = w } } }
+        fill([0x1F00...0x1F07, 0x1F70...0x1F71, 0x1FB0...0x1FB7], 0.6396)
+        fill([0x1F10...0x1F15, 0x1F72...0x1F73], 0.4814)
+        fill([0x1F20...0x1F27, 0x1F74...0x1F75, 0x1FC2...0x1FC7], 0.5879)
+        fill([0x1F30...0x1F37, 0x1F76...0x1F77, 0x1FD0...0x1FD3, 0x1FD6...0x1FD7], 0.3003)
+        fill([0x1F40...0x1F45, 0x1F78...0x1F79], 0.5479)
+        fill([0x1F50...0x1F57, 0x1F7A...0x1F7B, 0x1FE0...0x1FE3, 0x1FE6...0x1FE7], 0.5654)
+        fill([0x1F60...0x1F67, 0x1F7C...0x1F7D, 0x1FF2...0x1FF7], 0.7432)
+        t[0x1FE4] = 0.5459; t[0x1FE5] = 0.5459
+        return t
+    }()
     // Palatino Linotype's own widths, U+0020 to U+007E, read from the hmtx of the subsets Word for Windows' prints embed
     // (test/tools/print-font-metrics.py, 23 prints; Regular 79 of 95 read, Bold 58, the rest estimated from the stand-in's).
     static let palatinoLinotypeAdvances: [Double] = [
@@ -4301,6 +4318,8 @@ static let sylfaenAdvances: [Double] = [
                 face.baseline = 2150.0 / 2048
                 face.advances = palatinoLinotypeAdvances
                 face.boldAdvances = palatinoLinotypeBoldAdvances
+                face.otherAdvances = palatinoLinotypeGreekAdvances
+                face.boldOtherAdvances = palatinoLinotypeGreekAdvances
                 RuleTrace.hit("palatino-linotype-own-line")
             }
             // (Its weights Light, Semilight, Semibold and Black have the same line as Regular: 2210 over and
@@ -4358,7 +4377,7 @@ static let sylfaenAdvances: [Double] = [
             // (Not Sylfaen, nor GHEA Grapalat drawn as it: their own tables, set above, are not the circled digits'.)
             if clone != calibri, !(wordOnWindows && ["sylfaen", "ghea grapalat"].contains(family.trimmingWhitespace().lowercased())) {
                 // (Aptos holds its own widths past ASCII, set above: the circled digits go under them, not over.)
-                let ownAptos = wordOnWindows && family.trimmingWhitespace().lowercased() == "aptos"
+                let ownAptos = wordOnWindows && ["aptos", "palatino linotype"].contains(family.trimmingWhitespace().lowercased())
                 face.otherAdvances = ownAptos ? circled(1.2007).merging(face.otherAdvances ?? [:]) { $1 } : circled(1.2007)
                 face.boldOtherAdvances = ownAptos ? circled(1.2207).merging(face.boldOtherAdvances ?? [:]) { $1 } : circled(1.2207)
             }
