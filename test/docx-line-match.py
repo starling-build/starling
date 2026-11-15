@@ -164,7 +164,15 @@ def _unseen_pairs(ref_pdf, our_pdf):
     dw, do = {}, {}
     for i, hs in wh.items():
         vis = oa.get(i, set()) - oh.get(i, set())
-        dw[i] = {g for g in hs if not near(vis, g)}
+        # (A line Word's clip hides WHOLE — every glyph on its baseline hidden — is no line Word shows, whether
+        # or not we draw it: a fixed-height box keeps the text in the print and clips it away, dx2 2263e221's third
+        # header lines. A line clipped in part stays a real difference, as above. Word's side only.)
+        rows = {}
+        for (x, y, c) in wa.get(i, set()):
+            rows.setdefault(round(y), []).append((x, y, c))
+        whole = {g for g in hs if all(q in hs for r in (round(g[1]) - 1, round(g[1]), round(g[1]) + 1)
+                                       for q in rows.get(r, ()) if abs(q[1] - g[1]) < 0.5)}
+        dw[i] = {g for g in hs if not near(vis, g)} | whole
     for i, hs in oh.items():
         vis = wa.get(i, set()) - wh.get(i, set())
         do[i] = {g for g in hs if not near(vis, g)}
