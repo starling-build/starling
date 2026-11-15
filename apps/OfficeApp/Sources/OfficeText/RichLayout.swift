@@ -1474,6 +1474,9 @@ public final class RichLayout {
     /// … and up, where its paragraph's line was moved down under the
     /// pictures and the picture stays where the paragraph first stood.
     var _floatShiftY: [String: Double] = [:]
+    /// Rects found by the host-line scan in `_floatRect` while one outer call runs: that scan asks for the rects of the pictures
+    /// of the 6 paragraphs before, which scan the same way, so without this the work doubles with every page of pictures.
+    var _nearRectMemo: [String: Rect]? = nil
     /// A box wrapped on one side only: its own left and right, before the open side is run out to the column's edge.
     var _wrapOwnSpan: [String: (left: Double, right: Double)] = [:]
     /// Floats set before the content above their anchor on their page

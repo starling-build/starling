@@ -1206,13 +1206,18 @@ extension RichLayout {
             let top = g.textTop, bottom = first.height > 0 ? g.textTop + first.height : g.bottom
             var start = bandLeft
             var near: [(left: Double, right: Double)] = []
+            let outerScan = _nearRectMemo == nil
+            if outerScan { _nearRectMemo = [:] }
+            defer { if outerScan { _nearRectMemo = nil } }
             for k in max(0, i - 6) ..< (isBox ? i + 1 : i) {
                 var imgs: [ImageAttachment] = []
                 if k < _inline.count { imgs += _inline[k] }
                 if k < _floatImages.count, let im = _floatImages[k] { imgs.append(im) }
                 for im in imgs where im.id != image.id && im.textBox == nil {
                     guard let f = im.float, f.wraps, f.horizontalFrom == "column" else { continue }
-                    let r = _floatRect(f, im, geometry(k), k)
+                    let memoKey = "\(im.id)@\(k)"
+                    let r: Rect
+                    if let hit = _nearRectMemo?[memoKey] { r = hit } else { r = _floatRect(f, im, geometry(k), k); _nearRectMemo?[memoKey] = r }
                     if r.bottom > top, r.top < bottom { near.append((r.left - _px(f.distanceLeft ?? 0), r.right + _px(f.distanceRight ?? 0))) }
                 }
             }
