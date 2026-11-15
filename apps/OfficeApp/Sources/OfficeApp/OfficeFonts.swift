@@ -4316,7 +4316,7 @@ static let sylfaenAdvances: [Double] = [
                 face.baseline = 0.9858
                 RuleTrace.hit("century-own-widths")
             }
-            if wordOnWindows { Self.applyTabled(family, to: &face) }
+            if wordOnWindows { Self.applyTabled(family, to: &face); Self.applyTabledMore(family, to: &face) }
             // (Arial Narrow, drawn as the sans clone, at its own widths and line.)
             if family.trimmingWhitespace().lowercased() == "arial narrow" {
                 face.advances = arialNarrowAdvances
