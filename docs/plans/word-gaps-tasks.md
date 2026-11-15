@@ -17203,3 +17203,4 @@ TIP WATCH amd-8, round 479 (tip f2d7f0328): Word drops only accepted ones (urd-z
 - Parked, font gaps: gv-989ecc4fa6 (31.5, body "Humnst777 Lt BT"; Word uses Lucida Sans Unicode, no file on box); gv-dbc3c03efc (13.7, Word prints Lato, not in bundled fonts; also 2 dx2 docs ask for Lato). Both need sourced/bundled fonts: starling-bd decision.
 - gv-50df remaining lines 74.3 not investigated. Task 2 (balloon wording leftovers) not started.
 - Trap: a spAutoFit rule must be checked against the lo set too (wpg groups).
+- amd-11 CLAIM (2026-11-15, task 2): dx2 087dda6f (mk, 0.0, lines 46/46 pages 1/1). No free ko/ja/hi/bn below 95 (all claimed/parked); tip render lowest 10: 02272031 ur, 087dda6f mk, 1202c9de cs, 3a5235d0 af, 5efb827a fr, 813a5d38 af, ba162f65 sw, bbe99404 la, cc08e083 sl, ce134f43 lt (all 0.0). Not claiming the others yet.
