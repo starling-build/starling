@@ -2277,7 +2277,7 @@ extension RichLayout {
                 // "…पर्वतीय वनस्पति": the loop ended the line after "व" and left the next 7.2pt short, so the engine could not set what the
                 // loop had squeezed to fit.)
                 var carry = 0.0, carryFrom = a
-                if theme.wordRules, RichTextTheme.wordWindowsPages, !legacy, !piece.hard, a > 0, !isSpace(units[a - 1]), Self._isIndic(UInt32(units[a])),
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !legacy, !piece.hard, a > 0, !isSpace(units[a - 1]), Self._isIndic(UInt32(units[a])) || (p.style.rightToLeft && units[a] >= 0x5D0 && units[a] <= 0x5EA && units[a - 1] >= 0x5D0 && units[a - 1] <= 0x5EA),
                    let wordPieces = Optional(indicWordPieces(pieceIndex)), wordPieces.start < pieceIndex {
                     var whole = 0.0
                     for q in wordPieces.start ... wordPieces.end { whole += pieces[q].w }
