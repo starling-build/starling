@@ -2994,6 +2994,9 @@ static let sylfaenAdvances: [Double] = [
     private static func eastAsianFaceAsNamed(_ family: String, ignoringEmbedding: Bool = false) -> EastAsianFace {
         let n = family.trimmingWhitespace().lowercased()
         func has(_ keys: String...) -> Bool { keys.contains { faceHas(n, $0) } }
+        // (华文宋体 / STSong is a face the Word for Windows box lacks: its print of oxsdk-6209c6d5a7 draws the
+        // whole paragraph, digits included, in Microsoft YaHei, where ours took a serif's narrower digits.)
+        if wordOnWindows, !isEmbedded(family), has("stsong", "华文宋体") { RuleTrace.hit("word-stsong-falls-to-yahei"); return eastAsianFace("Microsoft YaHei") }
         if wordOnWindows, !isEmbedded(family), let fallback = windowsMissingFallback(family) { switch fallback {
             case "mincho": return windowsMincho
             case "batang":
