@@ -176,8 +176,9 @@ enum OfficeFonts {
                     if e.panoseZero { return e.family == "roman" ? cambria : calibri }
                     // (A face Word's machine lacks whose PANOSE is Times New Roman's own is matched to it by
                     // PANOSE: dx2 ce134f43's "TimesLT" and 087dda6f's "Macedonian Tms" print in Times New
-                    // Roman, their lines 13.8pt, where Calibri's 14.65 stood the page 6 to 8pt low.)
-                    if wordOnWindows, e.panose == "02020603050405020304", e.charset != "00", !e.charset.isEmpty { return substitute("times new roman") }
+                    // Roman, their lines 13.8pt, where Calibri's 14.65 stood the page 6 to 8pt low. Not an Arabic or Hebrew
+                    // face: xb urd-z10575633's Traditional Arabic, charset B2, kept its own stand-in.)
+                    if wordOnWindows, e.panose == "02020603050405020304", e.charset != "00", !e.charset.isEmpty, e.charset != "B2", e.charset != "B1" { return substitute("times new roman") }
                     return calibri
                 }
                 return cambria
