@@ -17046,3 +17046,8 @@ HANDOFF amd-5 (2026-11-14, balloons):
 - Task 2 (U+2011 + dot, lab arlat-face B-calibri): CLOSED, nothing to fix. On the tip (with fae318ce2) our baselines match Word within 0.2 pt per step; last baseline 415.9 vs Word 416.0 (was about 1 pt short).
 - Task 1 (xb fas 3a9879, matched 2 of 88, 9 pages vs Word 10): our Sakkal Majalla stand-in (Noto Naskh at a scaled size) has wrong word widths, both ways (36 pt title: Word 45.0/57.6/58.5/74.1 pt vs ours 47.9/63.5/61.1/70.0), so no scale fixes it. Requested from windows via starling-bd: Sakkal Majalla Regular+Bold advance metrics (Arabic block, FB50-FDFF, FE70-FEFF, lam-alef, ZWNJ/ZWJ, space, digits) plus ascent/descent/gap. Waiting on that.
 - amd-5 CLAIM (2026-11-15, after clear): Task 1 xa gv-ccf7f258bf (32 vs 33 pages), then gv-d79af1faf9 and the lowest gv docs (body first), then balloon wording leftovers.
+
+### amd-11 HANDOFF 2026-11-15 (keepNext chain + TOC page number), queue -232
+- Submitted: kept-run "goes over" only when no earlier member can split; left-tab digits past right indent stay on their line. Gains: dx2 5c72dd63 92.7->99.0, 93548565 84.3->100, 72f1cde8 81.4->95.3, 966e48f5 35.5->87, xd 94baf8b9 63->91.9 (40/40 pages). 8714e66e, zh-64044a1d, gv-3db26a1d34 unchanged vs tip. 756 and lo keepNext lists unchanged. Unit tests 655/0.
+- Left: xd 708e2879 footer words after a left stop (Word x=149, tip x=69) still wrong, 26.1 both; needs the line limit extended at the stop, not a squeeze. xd 8714e66e chain i=120 parked. Next: 73357ebf (12.2, text wrap beside logo).
+- Trap: squeezing text via negative hang makes long words vanish; restrict by property (digits).
