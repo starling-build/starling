@@ -17486,3 +17486,8 @@ Left: (1) our Intl minimum is 122.2, Word 112.7; (2) our Thai one-line max width
 
 amd-5 OPEN (2026-11-15): xd c016493b (Tamil, Noto Sans Tamil). 365 moved Tamil spaces to Mangal 0.5 em (matched 12 to 10, approved by starling-bd). Still wrong: Latin text, digits and hyphens are Carlito where Word draws Mangal (Mangal hyphen 4.19 pt at 12 pt, ours 3.68; dash line 430 pt wide in ours, 467 in Word, which wraps). Not pursued: user focus is Hindi and Bengali.
 amd-5 CLAIM (2026-11-15): xd d760f1e5 (Hindi, Kokila, 90.9, 242/246 lines). Other Hindi below 97: xd 77d6ca49 95.0, dx2 6dcc4527 95.7 (unclaimed).
+
+### HANDOFF amd-11 (2026-11-15, 79ea8977 and tall-table lift)
+- 79ea8977 (dx2): a turned (vertical-text) cell no longer grows its row when its longest word is longer than the row; Word-Windows breaks the word and keeps the row. Rows 62.9 pt as in Word, 10 pages to 8. A/B of 38 docs with turned cells: only 79ea8977 changes. Unit tests 655/0. Queued as entry 368. Rule in ~/word-rules.md.
+- 087dda6f is NOT a tall-table lift case: Word has 1 page, the table fits well inside the page (table ends about 670 of 842), and ours has the same table height. Our first baseline is 151.98, Word's 146.30 (5.7 pt higher), tblpY 1185, top margin 1701, header 289. The lab tblfit law (lift only when the table would run past the page bottom edge) does not apply; the 5.7 pt is an unexplained other cause. a4aad00b (ours 164.19, Word 157.22, 7 pt) probably the same.
+- Next: h4-h6 (paragraph before the floating table) and the 5.7/7 pt gap above need a lab: same table, header 289 vs none, to see what Word subtracts.
