@@ -1851,7 +1851,7 @@ extension RichLayout {
                         || left + (_columnWidths[back.table] ?? []).reduce(0, +) <= 0.01)
                     if !beside {
                         tableBands.append((top: back.top, bottom: y, owner: -1))
-                        if RichTextTheme.wordWindowsPages, document.tableStyles[back.table]?.pageAnchored == true, left < _px(12),
+                        if RichTextTheme.wordWindowsPages, document.tableStyles[back.table]?.pageAnchored == true,
                            (_tableFlowWidth[back.table] ?? width) - (left + (_columnWidths[back.table] ?? []).reduce(0, +)) >= _px(12) {
                             stripBandTops.insert(back.top)
                         }
@@ -2540,6 +2540,16 @@ extension RichLayout {
                     }() {
                         tableReturn = (c.table, y, page, target)
                         y = target
+                    } else if theme.wordRules, RichTextTheme.wordWindowsPages, target < -0.01, target > -insetTop, y > 0.01, deferredUnder.isEmpty,
+                              document.tableStyles[c.table]?.pageAnchored == true,
+                              _tableLeft(c.table, document) >= _px(12) && (_tableFlowWidth[c.table] ?? width) - (_tableLeft(c.table, document) + (_columnWidths[c.table] ?? []).reduce(0, +)) >= _px(12),
+                              let last = _pages[page].last, last.paragraph < i, _cells[last.paragraph] == nil, !last.repeated,
+                              document.paragraphs[last.paragraph].image == nil, !document.paragraphs[last.paragraph].text.contains(where: { $0 != " " }) {
+                        // (A table placed a fraction above the body's top, after a blank line: it keeps its place and the blank
+                        // lines after it stand beside it. dx2 f22ada3a, table at 124.8 on a body that begins at 125.2.)
+                        RuleTrace.hit("page-anchored-table-over-the-body-top-after-a-blank-line-keeps-its-place")
+                        tableReturn = (c.table, y, page, target)
+                        y = target
                     } else if theme.wordRules, target >= 0, target < y - 0.01, deferredUnder.isEmpty, {
                         // (Not where the text it would take under it does not
                         // fit under its first row: the table stands at its
@@ -2555,8 +2565,7 @@ extension RichLayout {
                         // there beside it, dx2 606199f1's eleven blank lines run on past its third table's place at x 520 and the table
                         // stays on the page.)
                         let stripRight = document.tableStyles[c.table]?.pageAnchored == true
-                            && _tableLeft(c.table, document) < _px(12)
-                            && (_tableFlowWidth[c.table] ?? width) - (_tableLeft(c.table, document) + (_columnWidths[c.table] ?? []).reduce(0, +)) >= _px(12)
+                            && ((_tableFlowWidth[c.table] ?? width) - (_tableLeft(c.table, document) + (_columnWidths[c.table] ?? []).reduce(0, +)) >= _px(12))
                         func besideBlank(_ q: Int) -> Bool {
                             stripRight && document.paragraphs[q].image == nil && !document.paragraphs[q].text.contains { $0 != " " }
                         }
@@ -2628,7 +2637,16 @@ extension RichLayout {
                         }
                     } else if target >= 0, target < y - 0.01, deferredUnder.isEmpty {
                         var moved: [PagePiece] = []
+                        // (A blank line that reaches a little past the place of a page-anchored table with a free strip beside it
+                        // stays where it is and the table keeps its place, as the blank lines after it do: dx2 f22ada3a's 1pt
+                        // line at 125.2 against a table at 124.8.)
+                        let tsA = document.tableStyles[c.table]
+                        let stripBeside = RichTextTheme.wordWindowsPages && tsA?.pageAnchored == true
+                            && (_tableLeft(c.table, document) >= _px(12)
+                                && (_tableFlowWidth[c.table] ?? width) - (_tableLeft(c.table, document) + (_columnWidths[c.table] ?? []).reduce(0, +)) >= _px(12))
+                        func blankLine(_ q: Int) -> Bool { document.paragraphs[q].image == nil && !document.paragraphs[q].text.contains { $0 != " " } }
                         while let last = _pages[page].last, last.paragraph < i, _cells[last.paragraph] == nil, !last.repeated,
+                              !(stripBeside && blankLine(last.paragraph)),
                               last.pageY + (last.flowBottom - last.flowTop) > target + 0.01 {
                             moved.insert(_pages[page].removeLast(), at: 0)
                             if let k = _allPieces.lastIndex(of: moved[0]) { _allPieces.remove(at: k) }
@@ -2638,6 +2656,11 @@ extension RichLayout {
                             deferredUnder = moved
                             deferredTable = c.table
                             reordered = true
+                            y = target
+                        } else if stripBeside, let last = _pages[page].last, last.paragraph < i, _cells[last.paragraph] == nil, !last.repeated,
+                                  blankLine(last.paragraph), last.pageY + (last.flowBottom - last.flowTop) > target + 0.01 {
+                            RuleTrace.hit("page-anchored-table-keeps-its-place-over-a-blank-line-reaching-it")
+                            tableReturn = (c.table, y, page, target)
                             y = target
                         } else if let last = _pages[page].last, last.paragraph < i, _cells[last.paragraph] != nil, !last.repeated,
                                   _cells[last.paragraph]?.table != c.table {

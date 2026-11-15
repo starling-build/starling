@@ -2565,6 +2565,19 @@ extension RichLayout {
                     var reach = _floatReach[k]
                     if theme.wordRules, RichTextTheme.wordWindowsPages {
                         for m in row.first ..< row.end where _cells[m]!.column == cell.column { reach = max(reach, _floatReach[m]) }
+                        // (A picture that floats without wrapping, set from the page, is held in the cell as if from the cell's
+                        // top, and a cell set at the bottom stands its text on the picture's foot: Word's print of dx2 f22ada3a's
+                        // page-number cell, a 20.9pt picture 68.05pt down, starts its lines at 21.6pt under the table's top
+                        // whether it holds one line or ten, the 88.95pt from the cell's foot.)
+                        if cell.verticalAlign == "bottom", !cell.vertical {
+                            for m in row.first ..< row.end where _cells[m]!.column == cell.column {
+                                for image in document.paragraphs[m].inlineImages.inOrder + [document.paragraphs[m].image].compactMap({ $0 }) {
+                                    guard let f = image.float, !f.wraps, f.verticalAlign == nil, f.verticalFrom == "page" else { continue }
+                                    RuleTrace.hit("word-bottom-cell-stands-on-the-foot-of-its-page-set-floating-picture")
+                                    reach = max(reach, _px(f.y) + _px(image.height + image.effectBottom) - cell.pad.top)
+                                }
+                            }
+                        }
                     }
                     let free = max(0, room - max(content[cell.column] ?? 0, reach))
                     let shift = cell.verticalAlign == "center" ? free / 2 : cell.verticalAlign == "bottom" ? free : 0

@@ -2107,7 +2107,15 @@ extension RichLayout {
             // down: Word leaves the body at the margin. dx2 f22ada3a: a 765pt rotated side tab in the header, body at the margin.)
             let tallSideTable = theme.wordRules && RichTextTheme.wordWindowsPages && header.pageAnchoredTableDeclared != nil
                 && _px(header.pageAnchoredTableDeclared ?? 0) > _px(setup.height) - _px(setup.marginTop) - _px(setup.marginBottom)
-            if tallSideTable { RuleTrace.hit("word-header-table-taller-than-text-area-does-not-push-body") }
+            if tallSideTable {
+                RuleTrace.hit("word-header-table-taller-than-text-area-does-not-push-body")
+                // (The table itself does not push, but the header's own lines do: dx2 f22ada3a's first-page header is a logo
+                // paragraph and seven empty 13pt lines (21.25 + 8 x 13 = 125.2) around the side tab, and Word's print starts the
+                // body there, 11.8pt under the margin; with three lines fewer (86.3) the body stays at the margin.)
+                // (Their heights added up: the line after the table stands below its rows in our flow, not in Word's.)
+                let own = header.document.paragraphs.indices.filter { header.document.paragraphs[$0].cell == nil && $0 < header.layout._heights.count }
+                if !own.isEmpty { top = max(top, _px(setup.headerDistance) + own.reduce(0) { $0 + header.layout._heights[$1] }) }
+            }
             else { top = max(top, (header.pageAnchoredTop.map { min(_px($0), _px(setup.headerDistance)) } ?? _px(setup.headerDistance)) + header.height) }
             // (A header of one paragraph whose picture, with the text above and below it, is set against the PAGE's top: Word
             // puts the picture there and the paragraph's one line under its foot, so the body starts at the foot plus that
@@ -2176,6 +2184,16 @@ extension RichLayout {
             let headerAt = hf.pageAnchoredTop.map { min(_px($0), _px(setup.headerDistance)) } ?? _px(setup.headerDistance)
             var top = kind == .header ? rect.top + headerAt : rect.bottom - _px(setup.footerDistance) - hf.height
             if kind == .footer, theme.wordRules, RichTextTheme.wordWindowsPages, let off = hf.pageAnchoredTop { top = min(top, rect.top + _px(off)) }
+            // A footer whose first lines are a table placed against the PAGE keeps that table where its
+            // own position says, not carried up by the footer's lines under it (Word's print of dx2
+            // f22ada3a: page-number table at 708.8pt under ten empty footer lines). The lines paint at
+            // the stacked place; the table piece is painted again, dropped to its own place.
+            var tableDrop: (end: Double, dy: Double)? = nil
+            if kind == .footer, theme.wordRules, RichTextTheme.wordWindowsPages, !setup.vertical, let off = hf.pageAnchoredTop,
+               let k = hf.document.paragraphs.firstIndex(where: { $0.cell == nil }), k > 0, k < hf.layout._tops.count,
+               top < rect.top + _px(off) - 0.5 {
+                tableDrop = (hf.layout._tops[k], rect.top + _px(off) - top)
+            }
             hf.layout.regionTopOnPage = top - rect.top
             hf.layout.regionMarginTop = _px(setup.marginTop)
             hf.layout.regionMarginBottom = _px(setup.marginBottom)
@@ -2190,9 +2208,18 @@ extension RichLayout {
             } else {
                 canvas.translate(rect.left + _pxMarginLeft(p), top)
             }
+            if let drop = tableDrop { canvas.clipRect(Rect.fromLTRB(-100_000, drop.end, 100_000, 100_000)) }
             hf.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: hf.document,
                             selection: nil, caret: nil)
             canvas.restore()
+            if let drop = tableDrop {
+                canvas.save()
+                canvas.translate(rect.left + _pxMarginLeft(p), top + drop.dy)
+                canvas.clipRect(Rect.fromLTRB(-100_000, -100_000, 100_000, drop.end))
+                hf.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: hf.document,
+                                selection: nil, caret: nil)
+                canvas.restore()
+            }
             drawn.insert(kind)
         }
         let style = theme.textStyle(for: CharStyle(color: theme.textColor.withOpacity(0.7)),
