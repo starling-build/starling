@@ -7160,6 +7160,8 @@ enum DocxFormat {
                 // (A run flagged w:rtl whose text is digits and marks, no letters, is complex
                 // script too: Word sets heb-z5059159's "1" in the szCs 12, not the sz 11.)
                 let rtlRun = _on(rPr.first("w:rtl")) && !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A }
+                    // (Only when the run itself names a complex-script size: a PAGEREF result with just webHidden and rtl, 47480880's contents list, prints in the ascii face at sz, Calibri 11 / David 12.)
+                    && (rPr.first("w:szCs") != nil || rPr.first("w:rFonts")?["w:cs"] != nil || rPr.first("w:rFonts")?["w:hint"] == "cs")
                 let csFlag = _on(rPr.first("w:cs"))
                 let complexSize = runText.unicodeScalars.contains {
                     (0x0590...0x08FF).contains($0.value) || (0xFB1D...0xFDFF).contains($0.value) || (0xFE70...0xFEFF).contains($0.value)
@@ -7181,6 +7183,11 @@ enum DocxFormat {
                     for styled in chain { cs = _charStyle(styled, base: cs, complexText: complex, complexSize: complexSize, indicOnly: indicOnly) }
                 }
                 cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize, indicOnly: indicOnly)
+                // (A run of ASCII digits flagged w:rtl with no szCs or cs font of its own is a plain Latin run to Word: 47480880's PAGEREF results.)
+                if cs.rightToLeft, _on(rPr.first("w:rtl")), rPr.first("w:szCs") == nil, rPr.first("w:rFonts")?["w:cs"] == nil, rPr.first("w:rFonts")?["w:hint"] != "cs",
+                   !runText.isEmpty, runText.unicodeScalars.allSatisfy({ (0x30...0x39).contains($0.value) }) {
+                    cs.rightToLeft = false; RuleTrace.hit("rtl-digits-no-cs-props")
+                }
                 // (The same where the weight comes from the PARAGRAPH style: dx2 f0001d05's Title (b, no bCs), a Kokila run with w:cs and no weight of its own, prints regular.)
                 if indicOnly, _on(rPr.first("w:cs")), rPr.first("w:b") == nil, rPr.first("w:bCs") == nil, !cs.bold,
                    let n = style.named, sheet[n]?.char.boldWithoutBCs == true { cs.off.insert(.bold) }

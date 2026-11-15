@@ -4028,6 +4028,16 @@ static let sylfaenAdvances: [Double] = [
             RuleTrace.hit("hangul-named-malgun-latin-is-malgun-gothic")
             return standInFace("Malgun Gothic", eastAsian: false)
         }
+        // (David named for Latin text, a face Word for Windows has and we do not: its digits and letters at David's own advances (Windows
+        // measured, metrics/latin/David_*.tsv) and its own line, 2015/2048 em, so a Hebrew contents list's page numbers (David 12 at 1.5 lines)
+        // step 17.7 as in Word's print, not the stand-in's 20.7. xd 47480880.)
+        if wordOnWindows, !eastAsian, !isEmbedded(family), family.trimmingWhitespace().lowercased() == "david", var f = standInFace("Times New Roman", eastAsian: false) {
+            RuleTrace.hit("windows-david-latin-own-advances-and-line")
+            f.baseline = 1505.0 / 2048; f.ownLineBaseline = true
+            f.naturalHeight = 2015.0 / 2048; f.boldHeight = 2015.0 / 2048
+            f.otherAdvances = davidOtherAdvances; f.boldOtherAdvances = davidBoldOtherAdvances
+            return f
+        }
         let own = isEastAsianFace(family)
         // (A face Windows lacks whose font table names Malgun Gothic as the alternate: Word draws its Latin letters, digits and
         // spaces in Malgun Gothic, a 0.35 em space where Liberation Sans' is 0.28. dx2 e86e26f7, Siyam Rupali: 71.7 to 78.3.)
