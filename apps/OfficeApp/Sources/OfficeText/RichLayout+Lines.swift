@@ -1343,6 +1343,17 @@ extension RichLayout {
         let map = _map(i)
         var pieces: [(rect: Rect, baseline: Double, k: Double)] = []
         var at = 0
+        // (Where each line's first box stands: a line's own `left` is the text's after a hanging indent's lead, so a
+        // stretch that follows plain text on its first line is not at the line's start; Word's print of xd 89a3482a,
+        // "❏ 심의사항:" before a w:w 87 group under a 1642-twip hanging indent, drew the lead and its clip hid it.)
+        var firstLeft: [Int: Double] = [:]
+        for box in g.painter.getBoxesForSelection(
+            TextSelection(baseOffset: map.painter(0), extentOffset: map.painter(p.text.utf16.count)), boxHeightStyle: .max) where box.right - box.left > 0.01 {
+            let mid = (box.top + box.bottom) / 2
+            var n = 0
+            for (j, line) in lines.enumerated() where mid >= line.baseline - line.ascent - 0.5 { n = j }
+            firstLeft[n] = min(firstLeft[n] ?? box.left, box.left)
+        }
         for run in p.runs {
             let from = at
             at += run.length
@@ -1359,7 +1370,7 @@ extension RichLayout {
                 // stretch ends the line: an overhang is not cut.)
                 let top = n == 0 ? -100_000 : lines[n - 1].baseline + lines[n - 1].descent
                 let bottom = n == lines.count - 1 ? 100_000 : line.baseline + line.descent
-                let left = box.left <= line.left + 0.5 ? -100_000 : box.left
+                let left = box.left <= min(line.left, firstLeft[n] ?? line.left) + 0.5 ? -100_000 : box.left
                 let right = box.right >= line.left + line.width - 0.5 ? 100_000 : box.right
                 if let last = pieces.last, last.k == k, last.baseline == line.baseline, left - last.rect.right < (box.bottom - box.top) / 2 {
                     pieces[pieces.count - 1].rect = Rect.fromLTRB(last.rect.left, top, right, bottom)
