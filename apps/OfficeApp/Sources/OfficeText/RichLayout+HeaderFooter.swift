@@ -2205,6 +2205,19 @@ extension RichLayout {
                top < rect.top + _px(off) - 0.5 {
                 tableDrop = (hf.layout._tops[k], rect.top + _px(off) - top)
             }
+            // The header counterpart: a page-anchored table that follows other header lines (dx2 f22ada3a's
+            // side tab, under six empty lines) keeps the place its own tblpY gives, not the flow place.
+            var headDrop: (start: Double, end: Double, dy: Double)? = nil
+            if kind == .header, theme.wordRules, RichTextTheme.wordWindowsPages, !setup.vertical,
+               let j = hf.document.paragraphs.firstIndex(where: { $0.cell != nil }), j > 0, j < hf.layout._tops.count,
+               let cell = hf.document.paragraphs[j].cell, let ts = hf.document.tableStyles[cell.table],
+               ts.pageAnchored, let off = ts.pageOffsetY {
+                var k = j
+                while k < hf.document.paragraphs.count, hf.document.paragraphs[k].cell?.table == cell.table { k += 1 }
+                let endY = k < hf.layout._tops.count ? hf.layout._tops[k] : hf.height
+                let dy = rect.top + _px(off) - (top + hf.layout._tops[j])
+                if dy < -0.5 { headDrop = (hf.layout._tops[j], endY, dy) }
+            }
             hf.layout.regionTopOnPage = top - rect.top
             hf.layout.regionMarginTop = _px(setup.marginTop)
             hf.layout.regionMarginBottom = _px(setup.marginBottom)
@@ -2220,8 +2233,21 @@ extension RichLayout {
                 canvas.translate(rect.left + _pxMarginLeft(p), top)
             }
             if let drop = tableDrop { canvas.clipRect(Rect.fromLTRB(-100_000, drop.end, 100_000, 100_000)) }
+            if let hd = headDrop {
+                for (lo, hi) in [(-100_000.0, hd.start), (hd.end, 100_000.0)] {
+                    canvas.save()
+                    canvas.clipRect(Rect.fromLTRB(-100_000, lo, 100_000, hi))
+                    hf.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: hf.document,
+                                    selection: nil, caret: nil)
+                    canvas.restore()
+                }
+                canvas.save()
+                canvas.translate(0, hd.dy)
+                canvas.clipRect(Rect.fromLTRB(-100_000, hd.start, 100_000, hd.end))
+            }
             hf.layout.paint(canvas, visible: Rect.fromLTWH(-100_000, -100_000, 200_000, 200_000), document: hf.document,
                             selection: nil, caret: nil)
+            if headDrop != nil { canvas.restore() }
             canvas.restore()
             if let drop = tableDrop {
                 canvas.save()
