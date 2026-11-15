@@ -17509,3 +17509,9 @@ amd-5 CLAIM (2026-11-15): xd d760f1e5 (Hindi, Kokila, 90.9, 242/246 lines). Othe
 - amd-2's "349/350 matched" was never on office: queue entry amd-2-47 was rejected (conflict). I re-cut its two commits (◆ in 굴림-only run, ₩ first-line raise) as one commit, queued as amd-1-371. Local result: b6f6c7d4 63.6 to 72.8 (matched 306 to 350 of 481), ac5ff286 92.3 to 96.5; 20 other ◆/₩ docs unchanged; unit tests 655/0.
 - Left: row-split commits 7ba1b2788 and f240d5ed7 (amd-2-47) still unlanded (they carry accepted drops on 4fabe1f2, cab6d785). The 32 missing lines are Word's space-only lines for empty paragraphs (scorer artefact). Page 5 first baseline Word 85.0 vs ours 86.9 is unexplained. First unmatched line now page 10, the ◆◆◆ 위원 line.
 amd-1 CLAIM (2026-11-15): xd 77d6ca49 (Hindi 95.0), then dx2 6dcc4527 (95.7). Rebuilding on tip f043e2058 first.
+
+### HANDOFF lenovo-2 (2026-11-15) xd 4fabe1f2 after the 경|우 fix (queue 372)
+- 4fabe1f2 is 48.3 (125/261 lines). First unmatched line: page 4, 제9조 ¶1 line 2 (Word baseline 295.0, ours 296.8). Next break difference: Word breaks "…예술적·공공|적 가치", ours puts "적" on the line.
+- Not justification: the paragraphs are left aligned (wordWrap off, no jc both). Word's space width varies per line (5.8 to 6.8) while ours is 5.6; ② and spaces after Malgun symbols are drawn in Malgun in Word, ours uses DejaVu/Liberation plus an extra NBSP before the space after circled digits.
+- Line pitch: Word splits the extra ~10 pt of a Malgun-symbol line as about 4 above / 6 below (B to M +4, M to B +6); ours is 2 above / 8 below. Page totals agree. Existing rule _koreanSymbolFirstLineRaise handles only first lines; Word does it for mid-paragraph lines holding Malgun "·" too.
+- Next step: model non-first symbol lines (4/6 split) and Malgun width for the space after ①-⑩; A/B 107500a8, 218dff529f, 6d273a8f4f, ecc32adb, b6f6c7d4, ac5ff286, 03cd29dc, aa51a122, 7416edcd and xb kor-z17264/17491/19581 first.
