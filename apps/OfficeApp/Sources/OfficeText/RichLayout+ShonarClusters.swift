@@ -6,7 +6,7 @@
 // Clusters the table lacks keep the stand-in's width times the flat scale (`_indicScale["shonar bangla"]`).
 
 enum ShonarAdvances {
-    static let regular: [String: Double] = regularClusters.merging(latinRegular) { _, n in n }
+    static let regular: [String: Double] = regularClusters.merging(latinRegular) { _, n in n }.merging(ShonarShaped.regular) { old, _ in old }
     static let regularClusters: [String: Double] = [
         // Punctuation Word draws in Shonar Bangla (hmtx of the print's subset): right single quote, danda.
         "\u{2019}": 0.2754, "\u{964}": 0.1982,
@@ -344,6 +344,7 @@ extension ShonarAdvances {
     /// Bold/regular is 1.127 on the median; clusters the lab did not print are the regular width times that.
     static let bold: [String: Double] = {
         var t = regularClusters.mapValues { $0 * 1.127 }
+        // (Then the face's own shaped advances over those estimates, and the print's own measures over them: below.)
         // (Shonar Bold's own glyph advances: a single glyph, or a consonant with a vowel sign that follows it (া ি ী ু ূ ে ৈ), is the sum of its glyphs, which
         // Word's print agrees with to 0.01 em (কা 0.8659 measured, 0.8647 summed; the first word of dx2 3f7da49c's title, 4.543 em summed, 4.540 in Word).)
         for (cp, v) in hmtxBold { t[String(UnicodeScalar(cp)!)] = v }
@@ -353,6 +354,7 @@ extension ShonarAdvances {
                 if let b = hmtxBold[UInt32(m)] { t[String(UnicodeScalar(UInt32(c))!) + String(UnicodeScalar(UInt32(m))!)] = a + b }
             }
         }
+        for (k, v) in ShonarShaped.bold { t[k] = v }
         for (k, v) in measuredBold { t[k] = v }
         for (k, v) in latinBold { t[k] = v }
         return t
