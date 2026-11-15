@@ -832,7 +832,10 @@ enum MangalAdvances {
             if stacked, block == 0x900, let sw = stackedAdvance(String(key), advance) {
                 sum += sw; known.append(contentsOf: u[i ..< j]); any = true; i = j; continue
             }
-            if let w = advance[String(key)] ?? ascii[String(key)] ?? Self._bengaliReph(u[i ..< j], advance, block, mangal: table == nil) ?? Self._nasalOn(u[i ..< j], advance, block, mangal: table == nil) ?? (lowVowelsZero ? _bengaliLowVowel(u[i ..< j], advance, block) : nil) ?? _bengaliSigns(u[i ..< j], advance, block) ?? conjunct(u[i ..< j], table: table, ratio: conjunctRatio) { sum += w; known.append(contentsOf: u[i ..< j]); any = true } else { rest = true }
+            let kStr = String(key)
+            var direct: Double? = advance[kStr] ?? ascii[kStr]
+            if direct == nil, table == nil, block == 0x900 { direct = MangalWinClusters.regular[kStr] }
+            if let w = direct ?? Self._bengaliReph(u[i ..< j], advance, block, mangal: table == nil) ?? Self._nasalOn(u[i ..< j], advance, block, mangal: table == nil) ?? (lowVowelsZero ? _bengaliLowVowel(u[i ..< j], advance, block) : nil) ?? _bengaliSigns(u[i ..< j], advance, block) ?? conjunct(u[i ..< j], table: table, ratio: conjunctRatio) { sum += w; known.append(contentsOf: u[i ..< j]); any = true } else { rest = true }
             i = j
         }
         return any ? (sum, String(known), rest) : nil
