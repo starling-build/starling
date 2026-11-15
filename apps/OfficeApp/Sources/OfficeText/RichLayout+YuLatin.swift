@@ -25,6 +25,8 @@ extension RichLayout {
     @inline(never)
     static func _yuLatinStyle(_ w: Substring, base: TextStyle) -> TextStyle? {
         guard let px = base.fontSize, px > 0.5 else { return nil }
+        // (Yu Gothic's Latin is set with no pair kerning in Word's print; the stand-in's pairs, spaces included, are no part of its widths: 22de7d.)
+        let base = base.copyWith(fontFeatures: (base.fontFeatures ?? []) + [FontFeature("kern", 0)])
         let bold = base.fontWeight == .bold
         let table = bold ? yuGothicBold : yuGothicRegular
         var sum = 0.0, known = "", rest = false, yu = false
