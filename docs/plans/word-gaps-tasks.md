@@ -17441,3 +17441,5 @@ HANDOFF amd-10 (2026-11-15): (1) Korean fix landed d4d0fd9c0 (107500a8 212 to 21
   * a78fce20 (Persian-like): Word 14 pages, ours 15; p1 Word 151 lines (759.7), ours 132 (756.7). Same cause likely. -> lenovo-3.
   * 79ea8977 (Mongolian): Word 8 pages, ours 10. Page 4 matches to heading "3.2." (y 409); then Word keeps a table of vertical Mongolian cells on p4 (first row 422.4), ours pushes it to p5. Table-fit gap. -> amd-11, after the header rule A/B.
   * 9daff823, lo-5be8ca31: no Word print, skipped (starling-bd).
+
+- OPEN (lenovo-5, 2026-11-15): xd fd72fac2 page 11 table block (Respondent type / Number of interviews) sits about 12.6 pt higher than Word (ours 203.9, Word 216.5 first baseline); row pitch now matches Word (14.6). The offset is older than commits f700b2ddb/543b7b138 (same on the old amd-8 binary). Drop 84.0 to 83.9 approved by starling-bd for entries 339/346/352. Cause of the 12.6 pt not found; look above the table on page 10/11.
