@@ -278,6 +278,17 @@ extension RichLayout {
                let mangal = _mangalMarkLine(look, mark: mark, named: markNamed, document: document, lineSpacing: p.style.lineSpacing) {
                 look = mangal
             }
+            // (An empty paragraph that runs right to left, with no run to say so: Word sizes its mark on the complex-script face (Normal's
+            // cs face), and where that face keeps its own line (David, FrankRuehl, Arabic faces Windows has) the line is that face's:
+            // xd 38d880e8's empty paragraph after the header table, 2.9 pt taller in Word's print than the Latin face's.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.rightToLeft, p.style.list == nil, p.style.lineHeightPoints == nil,
+               let px = look.fontSize, px > 0.5,
+               let cs = mark.complexFontFamily ?? markNamed?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily,
+               let f = theme.complexFaceResolver?(cs), f.ownLineBaseline, let base = f.baseline, let tall = f.naturalHeight {
+                RuleTrace.hit("word-empty-bidi-mark-is-the-complex-face-line")
+                let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
+                look = look.copyWith(ascentOverride: base * multiple * px, descentOverride: (tall - base) * multiple * px, height: tall * multiple, leadingDistribution: .even)
+            }
             if theme.wordRules, p.style.list != nil, lead > 0 {
                 // An empty list still has a number and its suffix. Reserve
                 // their width so centered/right numbers move with the line.
