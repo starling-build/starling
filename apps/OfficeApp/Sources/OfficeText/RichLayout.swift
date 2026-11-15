@@ -1453,6 +1453,8 @@ public final class RichLayout {
     /// How far pagination moved a floating picture to the right, clear of
     /// one already on its page (by image id; `_paginate`).
     var _floatShift: [String: Double] = [:]
+    /// Floats set from where their host line starts (already clear of the wrapped pictures before them).
+    var _hostLineSet: Set<String> = []
     /// A text box's width where it takes its text's (`RichTextBox.fitsText`).
     var _fitWidths: [String: Double] = [:]
     /// Body `spAutoFit` boxes' heights (pixels) as `_bodyBoxHeight` fitted them, by attachment id, for the placement and the paint.

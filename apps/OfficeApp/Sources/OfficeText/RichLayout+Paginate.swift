@@ -4431,7 +4431,9 @@ extension RichLayout {
                         let allowsOverlap = theme.wordRules && RichTextTheme.wordWindowsPages && ownFloat != nil
                         // (Only an offset the file gives, along the column: an aligned float has none to keep.)
                         let keptOffset = allowsOverlap && ownFloat?.float?.horizontalAlign == nil && ownFloat?.float?.horizontalFrom == "column"
-                        for b in (allowsOverlap ? bands : bands + placed) where b.top < r.bottom - 10 && b.bottom > r.top + 10
+                        // (Not one set from where its host line starts: that already clears the wrapped pictures before it, and Word lets the
+                        // rest of it lie over them: 4fbb6e32's picture, 207 to 365, over the one at 105 to 332.)
+                        for b in (allowsOverlap ? bands : bands + placed) where !_hostLineSet.contains(box.id) && b.top < r.bottom - 10 && b.bottom > r.top + 10
                             && b.left < span.1 + shift - 0.5 && b.right > span.0 + shift + 0.5 && span.0 + shift < b.right {
                             // (Moved clear it lands at the other's right edge PLUS its own offset along the column: windows' overlap2.)
                             shift = max(shift, b.right - span.0 + (keptOffset ? r.left : 0))

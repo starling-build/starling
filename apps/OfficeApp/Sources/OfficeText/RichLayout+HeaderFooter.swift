@@ -1194,6 +1194,45 @@ extension RichLayout {
            let first = g.painter.computeLineMetrics().first {
             x = g.textLeft + first.left + _px(float.x)
         }
+        // (A box set from the column, with no side of its own, is set from where its host line STARTS: Word's print of dx2 ja
+        // 4fbb6e32 puts the text boxes of a paragraph whose line is pushed in by a square-wrapped picture beside it that much
+        // further right — 87, 305 pt — where ours counted from the margin.)
+        // (A square-wrapped picture set from the column is set from there too, by the pictures of the paragraphs before it:
+        // 4fbb6e32's picture stands 171pt in from the line's start at 305, as Word, not 83.6 from its own.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, float.horizontalFrom == "column", float.horizontalAlign == nil,
+           float.wraps == (image.textBox == nil), i < _cells.count, _cells[i] == nil, let first = g.painter.computeLineMetrics().first {
+            let isBox = image.textBox != nil
+            let top = g.textTop, bottom = first.height > 0 ? g.textTop + first.height : g.bottom
+            var start = bandLeft
+            var near: [(left: Double, right: Double)] = []
+            for k in max(0, i - 6) ..< (isBox ? i + 1 : i) {
+                var imgs: [ImageAttachment] = []
+                if k < _inline.count { imgs += _inline[k] }
+                if k < _floatImages.count, let im = _floatImages[k] { imgs.append(im) }
+                for im in imgs where im.id != image.id && im.textBox == nil {
+                    guard let f = im.float, f.wraps, f.horizontalFrom == "column" else { continue }
+                    let r = _floatRect(f, im, geometry(k), k)
+                    if r.bottom > top, r.top < bottom { near.append((r.left - _px(f.distanceLeft ?? 0), r.right + _px(f.distanceRight ?? 0))) }
+                }
+            }
+            // (Walk them from the left: the line starts at the first gap that holds two lines' worth of text — the engine's own
+            // beside-a-float room — and otherwise goes past the picture. 4fbb6e32's lines 50, 51 and 53 start at 123, 341, 374 in
+            // Word's print, the lines after at the margin, with 60pt before the picture.)
+            let room = 2 * (bottom - top)
+            for p in near.sorted(by: { $0.left < $1.left }) {
+                if p.left - start >= room { break }
+                if p.right > start { start = p.right }
+            }
+            // (Past the picture there is no line to start: a picture as wide as the column leaves the host line below it, not at its
+            // right edge — xb jpn-z17350624's two charts, 486pt and 538pt in a 415pt column, stay at their own offsets in Word.)
+            if start > bandLeft, start + room <= bandLeft + bandWidth {
+                RuleTrace.hit("word-column-box-is-set-from-the-start-of-its-host-line")
+                x += start - bandLeft
+                _hostLineSet.insert(image.id)
+            } else {
+                _hostLineSet.remove(image.id)
+            }
+        }
         let pushed = i < _floatPush.count ? _floatPush[i] : 0
         var y = g.textTop - pushed + (float.verticalAlign == nil && ["paragraph", "line"].contains(float.verticalFrom) ? _px(float.y) : 0)
         // (From the paragraph's top, its space before and all: Word's
