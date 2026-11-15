@@ -17148,3 +17148,5 @@ HANDOFF amd-5 (2026-11-14, balloons):
 - amd-6 UNCOVERED (2026-11-15, approved by starling-bd for queue 20261115-075606-amd-6-265, bea98273 142 -> 140 matched): in Word a lowered Wingdings 2 box stands 3.0 pt under its text baseline; ours 2.5 pt (p5 two-column race rows), which changes how the scorer splits those rows. To chase after 3f7da49c.
 
 TIP WATCH amd-8, round 478 (tip ea0b92c40): Word no new drops (docx-bff1c672 accepted); unit tests 655 run, 0 failures; web build OK; xa gv-cd79f1fa6b pages 27 -> 24 (Word 24). dx2 c96f6a72 and e8d4712d: unchanged (73.9 / 72.7) across my last 60 tips, so amd-3 saw a base difference, not a commit.
+
+- amd-2 TASK 1 DONE (xd 89a3482a fit-text), queued amd-2-266: 201 to 210 of 221 matched, 14 pages, 심의 ends line 1 (x 507.5, Word 506.6). Cause: fitSpacing measured stand-in widths while paint draws wider (not unscaled advances: that guess is refuted). Other 10 w:fitText eval docs identical; unit 655/0. Left: ❏ MS Gothic 10.8 vs Word 12.1, stray space after “. Next: TASK 2.
