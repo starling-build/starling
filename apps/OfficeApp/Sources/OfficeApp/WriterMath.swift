@@ -699,7 +699,11 @@ enum WriterMath {
                 // read from zh-c2c92639's inline sum in Word's print: the face's 0.70 em
                 // ink top less 0.35, the 0.21 em it hangs plus 0.08.)
                 let fixed: (Double, Double)? = big ? (op.ascent - s * 0.282, op.descent + s * 0.222)
-                    : chr == "\u{2211}" ? (s * 0.292, s * 0.359) : nil
+                    : chr == "\u{2211}" ? (s * 0.292, s * 0.359)
+                    // (A display integral's limits, beside the sign: jpn-z22855378-6fca0f's ∬ at 14pt in
+                    // Word's print has the upper limit's baseline 16.0pt over the line and the lower's
+                    // 13.3pt under it, at 10pt; the stand-in's default put them 12.1 and 7.1.)
+                    : display && level == 0 && integral && RichTextTheme.wordWindowsPages ? (s * 1.143, s * 0.95) : nil
                 withLimits = hbox([op, stackScripts(sub: sub, sup: sup, size: s, base: op, fixed: fixed)])
             }
             return hbox([withLimits, space(s * 0.12), row(n.first("m:e"), size: size, level: level)])
