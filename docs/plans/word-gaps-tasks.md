@@ -17060,3 +17060,9 @@ HANDOFF amd-5 (2026-11-14, balloons):
 - Mincho chain (MS Gothic, Yu Gothic, JhengHei) gains f8ff8a48 59.3 to 70.4 but drops 2a9d6c3a 88.4 to 83.7 (page 2 "综上所述" paragraph: line 1 3.9 pt too far down, line 3 4.3 pt short; Word shows JhengHei lines 24.0, Yu lines 23.4). Patches: ab/fonts.patch, ab/span.patch.
 - Labs cm236d (Word): A plain 25.70/18.00/25.32; B long simplified 28.92/24.12/28.56; C short simplified 28.92/28.08; D Japanese + few simplified 28.92/20.76/25.34; E Japanese + one 產 27.72/28.56.
 - Next: find why the chain makes the JhengHei-only line taller above and the Yu line shorter than Word; do not subtract a constant. No waiver for 2a9d6c3a.
+
+### amd-7 HANDOFF 2026-11-15 (Bengali: dx2 e86e26f7, xd 73caaeda)
+- LANDED: e86e26f7 table-picture fix (3cafc60b7). Left there: cell-line x offsets (32 vs 28, 60 vs 56), ~1 pt page-2 row offset, ~2 pt p3 picture offset (Word 190.8, ours 192.5), two Word text-layer lines clipped/undrawn (scorer issue, do not tune).
+- QUEUED: 20261115-041319-amd-7-236, 73caaeda: empty line after a trailing break in a SolaimanLipi Bengali paragraph is Mangal 1.68 em, with or without a mark. Score 49.3 to 50.7; p3 heading-to-next 34.1 to 36.3 (Word 38.0). Only corpus doc naming SolaimanLipi. DocxTests 221/0.
+- OPEN on 73caaeda: (1) ~1.8 pt p3 drift before the heading (ours 554.0/574.16, Word 555.79/575.95); heading baseline itself matches. (2) Word wraps "ক্রুসেড।" to a new line: Word 209 lines/8 pages, ours 207/7. (3) p4 "মঙ্গঙ্গোল" vs Word "মঙ্গোল" (check a visible crop). (4) dashes-only line drawn Carlito vs Word Mangal 13.6.
+- TRAPS: first-line ascent block (_indicFirstLineAscent) is not reached for mid-page headings. docx-line-sweep needs DOCX_CORPUS=xd folder and names with .docx. For temporary C debug use fputs (write(2,..) takes 3 args).
