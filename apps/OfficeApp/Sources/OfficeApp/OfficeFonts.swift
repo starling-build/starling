@@ -4488,6 +4488,15 @@ static let sylfaenAdvances: [Double] = [
                let covered = windowsMinchoCovers {
                 face.covers = covered
                 face.uncoveredFamily = "Microsoft JhengHei"
+                // (What Mincho lacks Word takes from MS Gothic, else Yu Gothic, else
+                // JhengHei, as for an embedded subset below: lab cm236b's print draws
+                // 產 in Yu Gothic and 产发对… in JhengHei on a Calibri-default page.)
+                // (Only for a Japanese Mincho by name: the Chinese faces sharing its metrics, SimSun among them, keep JhengHei alone.)
+                if family.lowercased().containsSubstring("mincho") || family.containsSubstring("明朝") {
+                    face.uncoveredChain = [("MS Gothic", WindowsFallbackCovers.msGothic), ("Yu Gothic", WindowsFallbackCovers.yuGothic),
+                                           ("Microsoft JhengHei", nil)]
+                    face.chainFaceLines = true
+                }
             }
             // Mac Word uses MS Gothic's short line only for characters
             // the face holds. Its missing ideographs use YaHei: the

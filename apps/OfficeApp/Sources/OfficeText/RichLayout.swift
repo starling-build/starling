@@ -1109,6 +1109,8 @@ public struct RichResolvedFace: Sendable {
     /// it, else to the first that has it; one the subset holds starts
     /// over (see `_span`). `uncoveredFamily` is then the last.
     public var uncoveredChain: [(family: String, covers: Set<UInt32>?)]? = nil
+    /// The chain is a Japanese Mincho face's (lab cm236): its Yu Gothic and JhengHei characters carry those faces' own line heights.
+    public var chainFaceLines = false
     /// Whether the name is an East Asian face's: the quotes, dashes and
     /// dots both scripts claim are then its full-width ones, whatever
     /// the run's hint.
