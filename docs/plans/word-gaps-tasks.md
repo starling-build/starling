@@ -17183,3 +17183,9 @@ TIP WATCH amd-8, round 478 (tip ea0b92c40): Word no new drops (docx-bff1c672 acc
 TIP WATCH amd-8, round 479 (tip f2d7f0328): Word drops only accepted ones (urd-z10575633-e54653, aa5eda9b); unit tests 655 run, 0 failures; web build OK. dx2 c96f6a72/e8d4712d closed NOT REPRODUCED.
 
 - lenovo-5 2026-11-15 ee0b468e 木下闇 (task 1, IN PROGRESS): the answer to "side by ruby length or column position" is NEITHER. Longer-than-base rubies (薇, 春日傘) match Word at 1.15. 木下闇 is the only ruby paragraph at line=360 (1.5); 1.0, 1.15, 2.0 columns match within ~3 pt. At 1.5 our base is 7.5 pt right of Word, ruby only +2.0 (same as everywhere), so the BASE is the outlier, not the raise (raise is gated off for the base in vertical bodies; do not edit rubyLine.raise). Totals before+after equal (47.1 vs 47.7). Suspect: ascent/descent split of the ruby line at a multiple (ruby line h stays 2 pitches for all m while plain scales with m). Lab sent for Word: lab/rubyv3/rv3-p326.docx (ruby + no-ruby control at 1.0,1.15,1.3,1.5,1.75,2.0). Waiting for lab/rubyv3/word-win/. No code change yet; nothing queued for this.
+
+### amd-11 HANDOFF task 1 (2026-11-15): xd aa5eda9b
+- The 23.4 to 20.9 swing came from dot-run lines on pages 5-6 (my 259 commit), already misaligned pages: noise.
+- Real first divergence: page 4 dot rows did not part 152+4. Cause: TH SarabunPSK U+2026 had no width (fallback 1 em); true 0.479 regular / 0.504 bold. Rows of 79 ellipses widened the autofit column.
+- Fix queued as queue/amd-11-280: aa5eda9b 20.9 to 63.3 (pages 16/16), dx2 9db689b5 64.6 to 100, 449fac71 32.3 to 35.5, 3 other Sarabun dx2 docs unchanged. Unit tests 655/0.
+- Left: aa5eda9b still 63.3 (other gaps). docxcorp has ~10 more Sarabun+ellipsis docs, not scored.
