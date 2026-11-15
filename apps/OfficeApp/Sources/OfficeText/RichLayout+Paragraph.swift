@@ -2975,6 +2975,31 @@ extension RichLayout {
                 _lineLift[i] = lift
             }
         }
+        // Word splits the extra height of a Malgun-symbol line (○ · ① ※ curly quotes) the same on EVERY line
+        // that holds one, not on the first alone: the symbol face's taller ascent sits over the text, and the
+        // plain Batang lines of the paragraph stand 0.41 x (the ascents' difference) higher than the engine,
+        // which scales every line by its own tallest run, draws them (xd 4fabe1f2 p4: ① ② ⑤ lines 0.9-1.9pt low).
+        if theme.wordRules, RichTextTheme.wordWindowsPages,
+           painter.strutStyle == nil, p.inlineImages.isEmpty, p.image == nil, p.cell == nil, style.lineHeightPoints == nil,
+           theme.lineSpacingReduction == 0, style.lineSpacing > 1.05, p.text.utf16.count > 1 {
+            let flags = _koreanSymbolLineFlags(p, painter: painter, lead: _lead(i), named: _named(p, document), document: document)
+            let metrics = painter.computeLineMetrics()
+            if flags.count == metrics.count, metrics.count > 1, flags.contains(true) {
+                let top = metrics.map { $0.ascent }.max() ?? 0
+                // (Measured on xd 4fabe1f2 at 12pt, 1.7 lines: a plain line whose ascent is Batang's stands 0.8pt
+                // higher in Word's print than the engine's, one the symbol face's ascent made as tall as a symbol
+                // line 1.9pt: lift = -0.158 em + (1 - 1/spacing) x (the tallest line's ascent - its own).)
+                let size = p.runs.first.flatMap { $0.style.fontSize } ?? _named(p, document)?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                let held = _lineLift[i].count == metrics.count ? _lineLift[i] : []
+                let lift = metrics.enumerated().map { k, m in
+                    k == 0 || flags[k] ? (held.isEmpty ? 0 : held[k]) : -_px(0.158 * size) + (held.isEmpty ? (1 - 1 / style.lineSpacing) * (top - m.ascent) : held[k])
+                }
+                if lift.contains(where: { abs($0) > _px(0.05) }) {
+                    RuleTrace.hit("word-korean-symbol-lines-share-the-extra-height-on-every-line")
+                    _lineLift[i] = lift
+                }
+            }
+        }
         // A line whose every character Word sets in a shorter face of the fallback chain
         // (zh-5450d509's last line "引》）。": MS Gothic, no JhengHei ideograph on it) stands
         // on that face's baseline under the line's top, not the paragraph's: Word's lab
@@ -4348,6 +4373,38 @@ extension RichLayout {
     /// (c466d30a: the ① lines stood 3.4 pt high at 12 pt, 1.7 lines). The joiner of `_span` raises the line; the
     /// correction above had pulled the baseline back.
     @inline(never)
+    /// Which lines of the paragraph hold a character Word draws in Malgun (the first-line rule's characters and faces).
+    func _koreanSymbolLineFlags(_ p: RichParagraph, painter: TextPainter, lead: Int, named: RichNamedStyle?, document: RichDocument) -> [Bool] {
+        let units = Array(p.text.utf16)
+        var flags: [Bool] = []
+        var from = 0
+        while from < units.count {
+            let end = max(from + 1, painter.getLineBoundary(TextPosition(offset: from + lead)).end - lead)
+            var start = 0
+            var found = false
+            for run in p.runs where run.length > 0 {
+                defer { start += run.length }
+                let lo = max(start, from), hi = min(start + run.length, end, units.count)
+                guard lo < hi, run.style.inlineImage == nil else { continue }
+                let text = String(decoding: units[lo ..< hi], as: UTF16.self)
+                let hit = text.unicodeScalars.contains { u in
+                    let v = u.value
+                    return v == 0x25CB || v == 0x25B3 || v == 0x25A1 || v == 0xB7 || (v >= 0x2460 && v <= 0x2469) || v == 0x203B || v == 0x2192
+                        || v == 0x2018 || v == 0x2019 || v == 0x201C || v == 0x201D
+                }
+                guard hit else { continue }
+                let viaEastAsia = theme.faceResolver?(run.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                               ?? run.style.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.malgunSymbols == true
+                let viaAscii = run.style.eastAsiaFontFamily == nil && run.style.fontFamily != nil
+                    && theme.faceResolver?(run.style.fontFamily ?? "", true)?.malgunSymbols == true
+                if !(run.style.eastAsiaFontFamily != nil && (run.style.fontHint ?? named?.char.fontHint) == "eastAsia"), viaEastAsia || viaAscii { found = true; break }
+            }
+            flags.append(found)
+            from = end
+        }
+        return flags
+    }
+
     func _koreanSymbolFirstLineRaise(_ p: RichParagraph, painter: TextPainter, lead: Int, named: RichNamedStyle?, document: RichDocument) -> Double? {
         let firstEnd = painter.getLineBoundary(TextPosition(offset: 0)).end - lead
         let units = Array(p.text.utf16)
