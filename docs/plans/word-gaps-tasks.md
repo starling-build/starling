@@ -17443,3 +17443,8 @@ HANDOFF amd-10 (2026-11-15): (1) Korean fix landed d4d0fd9c0 (107500a8 212 to 21
   * 9daff823, lo-5be8ca31: no Word print, skipped (starling-bd).
 
 - OPEN (lenovo-5, 2026-11-15): xd fd72fac2 page 11 table block (Respondent type / Number of interviews) sits about 12.6 pt higher than Word (ours 203.9, Word 216.5 first baseline); row pitch now matches Word (14.6). The offset is older than commits f700b2ddb/543b7b138 (same on the old amd-8 binary). Drop 84.0 to 83.9 approved by starling-bd for entries 339/346/352. Cause of the 12.6 pt not found; look above the table on page 10/11.
+
+### HANDOFF lenovo-2 (2026-11-15)
+- dx2 ed5bf93a: already 100.0 (fixed by amd-2's landing); nothing to do.
+- oxsdk-6209c6d5a7 (xa) 67.5 to 99.5 (STSong to YaHei): queued earlier as 349.
+- xd 6be5dbc9 (50.0): first-line origin fix queued as 354 (dx2 4fbb6e32 91.1 to 96.4, no drops, unit tests 655/0). The doc itself is NOT fixed: line 1 breaks before अनधिकृत, ours ends 0.1 pt past the limit. Word's advances for the same word vary 0.12 pt with grid phase, so no table error to fix; parked, not tuned.
