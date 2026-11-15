@@ -22,6 +22,10 @@ extension RichLayout {
         // (A paragraph set on both sides of a box has a room of its own on every
         // line, its pieces: `room` is the line's, from `lineIndents`.)
         var width = baseWidth
+        // (Devanagari in a file that names no compatibility mode: the 0.12 pt tie of the main path, see `tieSlack`.
+        // A mode-15 Hindi file (dx2 0c80b3a3) does not take it.)
+        let devanagariTie = document.hangsLatinStops && p.text.unicodeScalars.contains { $0.value >= 0x900 && $0.value <= 0x97F }
+            && !p.text.unicodeScalars.contains { $0.value >= 0x2E80 }
         func room(_ line: Int) -> Double { line < lineIndents.count ? max(baseWidth - lineIndents[line].left - lineIndents[line].right, 0) : baseWidth }
         // (From Word 2013's layout on, only a justified paragraph's
         // lines are fitted — set left or centred, a mark neither hangs
@@ -589,6 +593,7 @@ extension RichLayout {
             // short of its width — a line that needs all of it does not
             // fit: see `tieShort` in `_layoutParagraph`.)
             let hair = (onFirstLine ? tieShort.first : tieShort.rest) ? -_px(0.0005)
+                : devanagariTie ? _px(0.12)   // (one 600 dpi step, as the main path's `tieSlack`)
                 : min(em * 0.01, _px(0.002))   // (a stand-in's half em is a hair over half)
             // (On a character grid in Word for Windows, what the marks give
             // for a character has a hundredth of a point to spare: lab hc2 (zh-8d6f702e's
