@@ -1417,6 +1417,8 @@ public struct TableStyle: Hashable, Sendable {
     /// taken from the cells instead (most of them stating a `w:tcMar`),
     /// with the margins that were current when it was read: written
     /// back while those still stand.
+    /// The table's own left cell margin (tblCellMar, else its style's, else 5.4), whatever its cells state.
+    public var tableOwnMarginLeft: Double? = nil
     public var keptCellMarginsXML: String? = nil
     public var keptCellMarginsUnder: [Double?] = []
     /// Per-side exceptions to `borders` (a form table ruled outside but

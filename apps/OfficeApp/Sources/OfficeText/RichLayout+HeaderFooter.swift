@@ -1345,8 +1345,10 @@ extension RichLayout {
         // at 86.6 in Word's print — its cell's 85.05 and a 1.5pt effect —
         // where ours stood at the page's edge.)
         if theme.wordRules, float.wraps, float.horizontalAlign == nil, float.horizontalFrom != "page",
-           i < _cells.count, let d = _cells[i], !d.vertical, x < d.colLeft + d.pad.left + _px(image.effectLeft) {
-            x = d.colLeft + d.pad.left + _px(image.effectLeft)
+           i < _cells.count, let d = _cells[i], !d.vertical {
+            // (Its floor is the cell's edge plus the TABLE's side margin, not the cell's own tcMar: lab-less, dx2 e86e26f7; as in _besideOwn.)
+            let back = float.horizontalFrom == "column" ? d.tableMarginLeft.map { max(0, d.pad.left - $0) } ?? 0 : 0
+            if x < d.colLeft + d.pad.left - back + _px(image.effectLeft) { x = d.colLeft + d.pad.left - back + _px(image.effectLeft) }
         }
         // (An anchor in a cell, `layoutInCell`, set from the page at both
         // offsets, is set from the cell's own corner: zh-d8247da5's two 14pt

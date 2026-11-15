@@ -919,7 +919,13 @@ extension RichLayout {
                 var x = float.horizontalAlign == "right" ? column - w : float.horizontalAlign == "left" ? 0 : _px(float.x)
                 // (Word clamps a square or tight box that sits left of its table cell to the cell's text edge, and the text stands beside it:
                 // e86e26f7's picture, 108 pt left of its cell; lab e86-picwrap. wrapNone/behind keep the offset.)
-                if theme.wordRules, cell != nil, float.horizontalFrom == "column", float.horizontalAlign == nil, x < _px(image.effectLeft) { x = _px(image.effectLeft) }
+                if theme.wordRules, cell != nil, float.horizontalFrom == "column", float.horizontalAlign == nil {
+                    // (The floor is the cell's edge plus the TABLE's side margin, not the cell's own tcMar: e86e26f7's cell states 108 twips
+                    // over a table margin of 10, and Word's picture stands 4.9 pt left of the cell's text edge.)
+                    let tblPad = p.cell.flatMap { document.tableStyles[$0.table]?.tableOwnMarginLeft }
+                    let back = tblPad.map { max(0, (cell?.pad.left ?? 0) - $0) } ?? 0
+                    if x < _px(image.effectLeft) - back { x = _px(image.effectLeft) - back; if back > 0 { RuleTrace.hit("word-cell-float-floor-is-table-margin") } }
+                }
                 // (A list item's text starts at its numbering's left: the lines beside the
                 // box start at its edge, not at that and the edge's whole.)
                 let listLeft = k == i ? _listIndents(p, document).map { _px($0.left) } ?? 0 : 0

@@ -2596,6 +2596,7 @@ enum DocxFormat {
                 let base = styled.under(defaultMargins).under(_Margins.word)
                 style.textOutdent = own.left ?? base.left ?? 5.4
                 style.textOutdentRight = own.right ?? base.right ?? 5.4
+                style.tableOwnMarginLeft = own.left ?? base.left ?? 5.4
                 // (… unless its first cell states its own: the table is set
                 // out by the margin of the cell whose text it lines up.
                 // zh-6143e5f0's plans, cells of zero margin in a table of

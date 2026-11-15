@@ -1477,6 +1477,8 @@ public final class RichLayout {
         var across: Double = 0
         /// The cell's margins, px: its own, or the table's.
         var pad = EdgeInsets.zero
+        /// The table's own left cell margin (px), whatever the cell states.
+        var tableMarginLeft: Double? = nil
         /// The bottom margin the file states for the cell, without the
         /// rule room `pad` takes in with it.
         var margin: Double = 0

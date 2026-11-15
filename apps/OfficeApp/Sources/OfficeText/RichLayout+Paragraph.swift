@@ -553,6 +553,7 @@ extension RichLayout {
                                  verticalAlign: cellAlign, direction: c.textDirection, pad: pad, rules: rules, ruleBelow: ruleBelow, borders: c.borders)
             _cells[i]!.ruleNext = ruleNext
             _cells[i]!.margin = c.padding.map { _px($0.bottom) } ?? 0
+            _cells[i]!.tableMarginLeft = document.tableStyles[c.table]?.tableOwnMarginLeft.map { _px($0) }
             _cells[i]!.ownTopRule = ownTopRule
             left = colLeft + pad.left + ownLeft
             textWidth = max(1, colWidth - pad.left - pad.right - ownLeft - right)
