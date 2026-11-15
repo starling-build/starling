@@ -17508,3 +17508,4 @@ amd-5 CLAIM (2026-11-15): xd d760f1e5 (Hindi, Kokila, 90.9, 242/246 lines). Othe
 ## HANDOFF amd-1 xd b6f6c7d4 (2026-11-15)
 - amd-2's "349/350 matched" was never on office: queue entry amd-2-47 was rejected (conflict). I re-cut its two commits (◆ in 굴림-only run, ₩ first-line raise) as one commit, queued as amd-1-371. Local result: b6f6c7d4 63.6 to 72.8 (matched 306 to 350 of 481), ac5ff286 92.3 to 96.5; 20 other ◆/₩ docs unchanged; unit tests 655/0.
 - Left: row-split commits 7ba1b2788 and f240d5ed7 (amd-2-47) still unlanded (they carry accepted drops on 4fabe1f2, cab6d785). The 32 missing lines are Word's space-only lines for empty paragraphs (scorer artefact). Page 5 first baseline Word 85.0 vs ours 86.9 is unexplained. First unmatched line now page 10, the ◆◆◆ 위원 line.
+amd-1 CLAIM (2026-11-15): xd 77d6ca49 (Hindi 95.0), then dx2 6dcc4527 (95.7). Rebuilding on tip f043e2058 first.
