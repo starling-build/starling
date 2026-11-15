@@ -17276,3 +17276,10 @@ TIP WATCH amd-8, round 479 (tip f2d7f0328): Word drops only accepted ones (urd-z
 - Left: b4a883 98.3 (1 line, mixed-script table cell); aa9a7f 98.5 (p6: Word breaks before "가능성이" 4 pt short, we squeeze 8 spaces and take it; opposite direction, needs a lab). Uneven stretch (standalone-space runs 7.3 pt vs in-run 3.7) in 30dbe1 lines, not fixed.
 - dx2 ko re-render NOT done.
 - lenovo-5 CLAIM (2026-11-15): dx2 70b475ea (1.7, 4 tables; lowest free table doc in my area). Also lab/tblroom (blank lines beside a floating table, left room) is waiting for Word prints.
+
+### amd-11 HANDOFF 2026-11-15 (steady-offset 0.0 docs, bbe99404)
+- LANDED a368ef2c7: unprefixed default-namespace elements read as w: (bbe99404 0.0 to 15.8).
+- QUEUED 20261115-122713-amd-11-305: (1) hidden leading paragraphs don't count as first for auto space-before (813a5d38 0 to 30/30); (2) missing face with TNR PANOSE and charset not 00 prints in TNR (ce134f43 0 to 13/13). 375-doc dx2 A/B: only those two change. Charset-00 TNR-PANOSE faces (Arabic, Bengali, Myanmar3) dropped when included, so excluded. Unit tests 655/0.
+- Stale: 335fbcf8, b84eb58b, bbe99404 first baselines already match Word; stored dx2.v2 is stale.
+- The steady offsets have DIFFERENT causes, no shared property.
+- OPEN: 087dda6f (+8.3 pt; floating table sits 7.4 pt lower than Word's, Word's table top ~138.65 vs ours ~146.9; header not the cause; needs a lab with tblpY 0/600/1185), a4aad00b (+9.6, same Macedonian template, framePr in cell), 1202c9de (first line 8.1 pt HIGH, Mystical Woods Smooth Script 24 pt, auto spacing + borders), ac5b5750, f7d88376 (0.3).
