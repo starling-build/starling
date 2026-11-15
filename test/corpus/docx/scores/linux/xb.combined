@@ -1,4 +1,4 @@
-188 documents: COMBINED mean 80.84% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 80.84% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
+188 documents: COMBINED mean 80.94% (188 scored by Word's text lines, 0 by the visual comparison); pure line mean 80.94% over the 188 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
   11.9%  lines 370/368  pages 13/13  ara-z10840115-a1e854
    2.4%  lines 664/778  pages 27/26  ara-z11030406-663296
   11.7%  lines 111/111  pages 8/8  ara-z15699863-842f1e
@@ -21,28 +21,28 @@
  100.0%  lines 125/125  pages 4/4  bul-z14225469-9d8b52
  100.0%  lines 139/139  pages 4/4  bul-z22116004-d3c1d3
  100.0%  lines 72/72  pages 2/2  deu-z4548799-c5d058
-  95.1%  lines 226/223  pages 13/13  docx-33355364
-  95.1%  lines 226/223  pages 13/13  docx-35fcd124
-  95.2%  lines 229/226  pages 14/14  docx-3e5af46a
-  83.6%  lines 226/223  pages 13/13  docx-46bc4851
-  95.2%  lines 229/226  pages 14/14  docx-5c013902
+  96.5%  lines 226/223  pages 13/13  docx-33355364
+  96.5%  lines 226/223  pages 13/13  docx-35fcd124
+  96.5%  lines 229/226  pages 14/14  docx-3e5af46a
+  85.0%  lines 226/223  pages 13/13  docx-46bc4851
+  96.5%  lines 229/226  pages 14/14  docx-5c013902
   41.9%  lines 1045/1047  pages 22/22  docx-5dc87fc7
-  95.2%  lines 229/226  pages 14/14  docx-69a87cfd
+  96.5%  lines 229/226  pages 14/14  docx-69a87cfd
   82.5%  lines 361/361  pages 13/13  docx-6f1caa1e
   36.4%  lines 33/34  pages 1/1  docx-79737edb
   96.0%  lines 226/223  pages 13/13  docx-7e68ac6f
   86.2%  lines 29/27  pages 6/6  docx-837e72c4
-  95.1%  lines 226/223  pages 13/13  docx-8f1703b9
-  95.1%  lines 226/231  pages 13/13  docx-9776508d
-  95.2%  lines 229/234  pages 14/14  docx-a3f77cda
+  96.5%  lines 226/223  pages 13/13  docx-8f1703b9
+  96.5%  lines 226/231  pages 13/13  docx-9776508d
+  95.6%  lines 229/234  pages 14/14  docx-a3f77cda
   83.2%  lines 125/121  pages 16/16  docx-a567c5c2
-  95.1%  lines 226/223  pages 13/13  docx-aab66635
-  95.1%  lines 226/223  pages 13/13  docx-b5656ae8
-  95.2%  lines 229/226  pages 14/14  docx-bcd80994
+  96.5%  lines 226/223  pages 13/13  docx-aab66635
+  96.5%  lines 226/223  pages 13/13  docx-b5656ae8
+  96.5%  lines 229/226  pages 14/14  docx-bcd80994
   60.4%  lines 485/470  pages 19/19  docx-bff1c672
-  95.2%  lines 229/226  pages 14/14  docx-d350f8c0
+  96.5%  lines 229/226  pages 14/14  docx-d350f8c0
   78.4%  lines 51/51  pages 8/8  docx-e925ae95
-  95.2%  lines 229/226  pages 14/14  docx-f32aa559
+  96.5%  lines 229/226  pages 14/14  docx-f32aa559
  100.0%  lines 20/20  pages 1/1  docx-f3550c7b
   94.1%  lines 17/17  pages 1/1  docx4j-198f9895
   68.1%  lines 119/114  pages 4/4  docx4j-1e349e20
@@ -110,7 +110,7 @@
  100.0%  lines 43/43  pages 1/1  jpn-g5-b79900
   96.4%  lines 84/81  pages 3/3  jpn-g6-2212a2
   98.0%  lines 147/148  pages 7/7  jpn-z17350624-9bde52
-  99.1%  lines 853/853  pages 32/32  jpn-z17544993-4a21de
+  99.6%  lines 853/853  pages 32/32  jpn-z17544993-4a21de
  100.0%  lines 404/404  pages 14/14  jpn-z17607492-12a6ce
  100.0%  lines 106/106  pages 5/5  jpn-z18767990-11142e
  100.0%  lines 240/240  pages 7/7  jpn-z18981562-5ff3d0
