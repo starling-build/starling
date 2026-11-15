@@ -2164,7 +2164,8 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
-                } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == " ", ch == "." || ch == ":" || ch == ";" || ch == "," || ch == "}" || ch == ")" || ch == "]" || ch == "!" || ch == "?" {
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == " ", ch == "." || ch == ":" || ch == ";" || ch == "," || ch == "}" || ch == ")" || ch == "]" || ch == "!" || ch == "?" || ch == "\u{BB}" || ch == "\u{203A}" {
+                    // (And before a closing guillemet, which the newer break table keeps with the word before its space: dx2 13c3a34e's "ville. »" ends the line at "ville." in Word's print.)
                     // (A line may part at a space before a stop, colon, semicolon, comma, closing bracket, "!" or "?" (xb hin-z20395192 opens lines ":<+" and "}kjk"): the engine keeps
                     // " ." together — a stop may not start a line, even after a
                     // space — and Word does not. lo-0349db3a's "Word / .doc" in a
