@@ -17345,3 +17345,9 @@ amd-6 HANDOFF (2026-11-15) dx2 61ec937a: queued (queue/amd-6-312). Square-wrappe
 
 - amd-1 CLAIM (2026-11-15): TASK 1 xd 55850db1, TASK 2 dx2 00bbc8b8, TASK 3 xd 6be5dbc9 then d760f1e5.
 - amd-1 NOTE (2026-11-15) 55850db1 (xd, 333 of 603 matched possible, now 330): the next wrong break is a Nepali line "…त्रिभुवन विश्वविद्यालय" that Word holds with its last space origin 0.07 pt past the edge; ours wraps the word down (natural end 0.04 over). The main-path 0.12 pt tie does not reach the East Asian fitter (hair 0.002). Giving the fitter the 0.12 tie for Devanagari paragraphs fixes that line (330 to 333) but drops dx2 0c80b3a3 from 45/45 to 28/45 and 426d1cc2 140 to 139, so it was NOT landed. Run-seam and per-word width bias were measured and ruled out (pitches match within 0.2 pt). Parked: needs a rule that tells 0c80b3a3's lines from this one.
+
+### lenovo-5 HANDOFF 2026-11-15 (linkStyles)
+- Queued as queue/lenovo-5-318 (f7b30df5b): linkStyles + attachedTemplate with an HFS-form Target ("Volume:dir:file") makes Word replace Normal from Normal.dotm; file:/// or relative targets keep the file's Normal (Word COM proof by windows). Also Normal's face now stands over a table style's firstRow/firstCol rFonts.
+- Result: dx2 70b475ea 1 -> 58 of 59 matched (Word 4 pages, ours 3: one page still short). The other 8 listed docs have Windows targets and are unchanged (0c15d329 6/6, d3b3c4d4 12/12, b790e6bc89 399, 62034d67 483). Unit tests 655/0. Rule in ~/word-rules.md.
+- Trap: the first gate (linkStyles+attachedTemplate alone) regressed 4 docs that matched; always check which docs already matched before generalising a one-doc finding.
+- Left: 70b475ea 3 vs 4 pages; table first-divergence survey (xa lo-aeacc79b45 tables in grouped text boxes; xs d8ed4202 bidi row 6 narrow first cell; xd 45acc7fe, xs 5de0db4c unexamined).
