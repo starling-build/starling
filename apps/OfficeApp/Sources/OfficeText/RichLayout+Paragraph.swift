@@ -3467,7 +3467,7 @@ extension RichLayout {
                 guard let float = image.float, float.wraps, float.verticalAlign == nil, ["paragraph", "line"].contains(float.verticalFrom),
                       float.horizontalFrom != "page", float.horizontalAlign == nil else { continue }
                 let w = _px(image.width)
-                spans.append((_px(float.x) - _px(9), _px(float.x) + w + _px(9), _px(float.y) + _px(image.height)))
+                spans.append((_px(float.x) - _px(9), _px(float.x) + w + _px(9), _px(float.y) + _bodyBoxHeight(image, document)))
             }
             if spans.count > 1 {
                 let sorted = spans.sorted { $0.0 < $1.0 }
@@ -3534,7 +3534,7 @@ extension RichLayout {
                 }
                 let leftRoom = x - gap - max(0, lead), rightRoom = textWidth - (x + w) - gap
                 guard em > 0 ? (leftRoom < em && rightRoom < em) : (leftRoom <= 0 && rightRoom <= 0) else { continue }
-                var under = _px(float.y) + _px(image.height)
+                var under = _px(float.y) + _bodyBoxHeight(image, document)
                 if let exact = style.lineHeightPoints, !style.lineHeightIsMinimum, exact > 0, under > 0 {
                     under = (under / _px(exact) - 0.001).rounded(.up) * _px(exact)
                 }
@@ -3723,7 +3723,7 @@ extension RichLayout {
             // fishbone chart, 419pt in a 401pt line, is drawn at 419 in
             // Word's print and 8pt taller than ours was).
             var w = _px(image.width)
-            var h = _px(image.height)
+            var h = image.float != nil ? _bodyBoxHeight(image, document) : _px(image.height)
             if w > textWidth, !theme.wordRules { h *= textWidth / w; w = textWidth }
             // (Or laid out again to the line's width, where it can be:
             // `objectFitter` — a display equation broken over lines.)
@@ -4099,7 +4099,7 @@ extension RichLayout {
                 if let float = image.float, float.takesRoom || float.bandsPage, !float.wraps, float.verticalFrom == "paragraph",
                    float.wrapSide == nil, !image.data.isEmpty || Self.drawsObject?(image) == true {
                     let y = float.verticalAlign == nil ? _px(float.y) : 0
-                    under = max(under, y + _px(image.height) + _px(float.effectBottom) + _px(float.distanceBottom))
+                    under = max(under, y + _bodyBoxHeight(image, document) + _px(float.effectBottom) + _px(float.distanceBottom))
                     continue
                 }
                 guard let float = image.float, float.wraps, !float.takesRoom, float.wrapSide == nil || float.wrapSide == "both",
@@ -4111,7 +4111,7 @@ extension RichLayout {
                 // (The empty line needs only its mark: 26pt beside lo-4d273731's chart in a 439pt cell is room
                 // enough in Word's print, the row 196 tall; a chart as wide as the cell, none.)
                 guard w > 0, x - _px(float.distanceLeft ?? 9) < size, inner - (x + w + _px(float.distanceRight ?? 9)) < size else { continue }
-                down = max(down, _px(float.y) + _px(image.height) + _px(float.effectBottom) + _px(float.distanceBottom))
+                down = max(down, _px(float.y) + _bodyBoxHeight(image, document) + _px(float.effectBottom) + _px(float.distanceBottom))
             }
             if under > 0.01, theme.wordRules {
                 let line = _markLineHeight(i, document)

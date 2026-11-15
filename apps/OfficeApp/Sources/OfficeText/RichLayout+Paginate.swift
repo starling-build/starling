@@ -3789,7 +3789,7 @@ extension RichLayout {
                         // (A box so carried that its drawn frame would end past the text foot is raised until it ends
                         // at the foot: Word's print of dx2 87097d3e ends the third chart at 778.1, the page's bottom
                         // margin, where ours ended 6.5pt past it.)
-                        let overFoot = y - carried + _px(f.y) + _px(image.height) - contentH
+                        let overFoot = y - carried + _px(f.y) + _bodyBoxHeight(image, document) - contentH
                         if overFoot > 0.01 { carried += overFoot; RuleTrace.hit("word-carried-box-ends-at-the-foot") }
                         _floatShiftY[image.id] = -carried
                         bandPushLast = i
@@ -4364,7 +4364,7 @@ extension RichLayout {
                               image.textBox != nil || !image.data.isEmpty else { continue }
                         let r = _floatRect(float, image, geometry(i), i)
                         let t = _px(float.y) - (float.verticalFrom == "page" ? _pxMarginTop(page) : 0)
-                        fixed.append((t - _px(float.distanceTop), t + _px(image.height) + _px(float.distanceBottom), r.left, r.right))
+                        fixed.append((t - _px(float.distanceTop), t + _bodyBoxHeight(image, document) + _px(float.distanceBottom), r.left, r.right))
                     }
                     if !fixed.isEmpty {
                         let reach = Self._lineBottoms(geometry(i).painter).first.map { $0 + (geometry(i).textTop - geometry(i).top) } ?? 0

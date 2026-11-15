@@ -1450,6 +1450,8 @@ public final class RichLayout {
     var _floatShift: [String: Double] = [:]
     /// A text box's width where it takes its text's (`RichTextBox.fitsText`).
     var _fitWidths: [String: Double] = [:]
+    /// Body `spAutoFit` boxes' heights (pixels) as `_bodyBoxHeight` fitted them, by attachment id, for the placement and the paint.
+    var _autofitHeights: [String: Double] = [:]
     /// Whether the page this layout is drawn for is a left-hand (even)
     /// one: a header's or footer's, where an object aligned "outside"
     /// stands at the left.

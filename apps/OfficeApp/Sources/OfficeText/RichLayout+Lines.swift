@@ -957,7 +957,7 @@ extension RichLayout {
                     if image.textBox?.fitsText == true { _ = _textBox(image, document) }
                     let w = laid.map { $0.width }
                         ?? min(_px(image.width), image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] } ?? .infinity)
-                    let h = laid.map { $0.height } ?? _px(image.height)
+                    let h = laid.map { $0.height } ?? _bodyBoxHeight(image, document)
                     var bandLeft = 0.0, bandWidth = inner
                     if float.horizontalFrom == "page" {
                         let setup = _setup(ofParagraph: i)
@@ -1012,7 +1012,7 @@ extension RichLayout {
                    float.wrapSide == nil, float.verticalAlign == nil, float.verticalFrom == "margin", float.horizontalFrom == "margin",
                    float.horizontalAlign == nil, !_perSection, float.x < 0, float.y <= 0, float.y + image.height + float.distanceBottom <= 12 {
                     let w = laid.map { $0.width } ?? _px(image.width)
-                    let h = laid.map { $0.height } ?? _px(image.height)
+                    let h = laid.map { $0.height } ?? _bodyBoxHeight(image, document)
                     let own = _px(p.style.indentLeft)
                     let edge = _px(float.x) + w + _px(float.distanceRight ?? 9)
                     let band = (top: _px(float.y) - _px(float.distanceTop), bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom))
@@ -1030,7 +1030,7 @@ extension RichLayout {
                 if image.textBox?.fitsText == true { _ = _textBox(image, document) }
                 let w = laid.map { $0.width }
                     ?? min(_px(image.width), image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] } ?? .infinity)
-                let h = laid.map { $0.height } ?? _px(image.height)
+                let h = laid.map { $0.height } ?? _bodyBoxHeight(image, document)
                 var x = float.horizontalAlign == "right" ? column - w : float.horizontalAlign == "left" ? 0 : _px(float.x)
                 // (Word clamps a square or tight box that sits left of its table cell to the cell's text edge, and the text stands beside it:
                 // e86e26f7's picture, 108 pt left of its cell; lab e86-picwrap. wrapNone/behind keep the offset.)

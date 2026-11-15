@@ -662,7 +662,7 @@ extension RichLayout {
         // "- 11 -" in a 36pt box is set from the margin at 479 in Word's print, 42pt in.)
         let fitted = image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] }
         let w = theme.wordRules && RichTextTheme.wordWindowsPages && image.textBox?.fitsOnce == true
-            ? (fitted ?? _px(image.width)) : min(_px(image.width), fitted ?? .infinity), h = _px(image.height)
+            ? (fitted ?? _px(image.width)) : min(_px(image.width), fitted ?? .infinity), h = _bodyBoxHeight(image, document)
                             let floatL = anchorLeft + _px(float.x) - _px(float.distanceLeft ?? 9)
                             let floatR = anchorLeft + _px(float.x) + w + _px(float.distanceRight ?? 9)
                             // (Whether it reaches out of its own column at all: the ones that stay in it

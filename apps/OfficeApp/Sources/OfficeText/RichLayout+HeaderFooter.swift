@@ -193,6 +193,17 @@ extension RichLayout {
         return fitted
     }
 
+    /// A body floating box's height (pixels) as the wrap and the lines below see it: the stated one,
+    /// or, for a wrapping `spAutoFit` box, its text's (Word shrinks it; the extent in the file is stale).
+    func _bodyBoxHeight(_ image: ImageAttachment, _ document: RichDocument) -> Double {
+        let stated = _px(image.height)
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, image.float != nil, let box = image.textBox, box.autoHeight,
+              !box.growsToFit, !box.fitsText else { return stated }
+        let fitted = _fittedBoxHeight(image, document)
+        if fitted < stated { RuleTrace.hit("word-body-autofit-box-wraps-at-its-text-height"); _autofitHeights["\(image.id)"] = fitted }
+        return fitted
+    }
+
     static func _onThePage(_ style: RichParagraphStyle) -> Bool {
         guard let frame = style.frame else { return false }
         return frame.verticalAnchor == "page" || frame.verticalAnchor == "margin" || !(style.frameXML ?? "").containsSubstring("w:vAnchor=")
@@ -1071,7 +1082,7 @@ extension RichLayout {
         let fitted = image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] }
         let w = theme.wordRules && RichTextTheme.wordWindowsPages && image.textBox?.fitsOnce == true
             ? (fitted ?? _px(image.width)) : min(_px(image.width), fitted ?? .infinity)
-        var h = _px(image.height)
+        var h = _autofitHeights["\(image.id)"] ?? _px(image.height)
         // The page it stands on, in pixels: a header's or footer's from
         // the page it is painted on, a body paragraph's from its section.
         let page: (height: Double, top: Double, bottom: Double) = {
