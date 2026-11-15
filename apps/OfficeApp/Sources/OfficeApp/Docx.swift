@@ -8056,7 +8056,9 @@ enum DocxFormat {
         var text = Substring(raw)
         while let f = text.first, ws.contains(f) { text.removeFirst() }
         while let l = text.last, ws.contains(l) { text.removeLast() }
-        return String(text)
+        // (The same inside a text without xml:space=preserve: the line feed between "wie" and "Ursula" of
+        // dx2 73357ebf prints as a blank and the line runs on; it was set as a break.)
+        return text.contains(where: { $0 == "\n" || $0 == "\r" || $0 == "\r\n" }) ? String(text.map { $0 == "\n" || $0 == "\r" || $0 == "\r\n" ? " " : $0 }) : String(text)
     }
 
     /// An on/off element: present counts as on unless w:val is false, 0 or off.
