@@ -2510,7 +2510,7 @@ extension RichLayout {
                    case let ts0 = document.tableStyles[c.table], ts0?.pageOffsetY != nil || ts0?.marginOffsetY != nil || ts0?.bottomAligned == true {
                     let physical = page / _columns
                     let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
-                    let target = ts0?.pageOffsetY.map { _px($0) - insetTop } ?? bottomAlignedOffset(c, i).map { _px($0) - insetTop } ?? _px(ts0?.marginOffsetY ?? 0)
+                    let target = ts0?.pageOffsetY.map { _px($0) - insetTop } ?? bottomAlignedOffset(c, i).map { _px($0) - insetTop } ?? (_px(ts0?.marginOffsetY ?? 0) - _headerPushBeyondMargin(physical))
                     if target > y + 0.01, target < contentH - 0.01 {
                         tableReturn = (c.table, y, page, target)
                         y = target
@@ -2645,7 +2645,7 @@ extension RichLayout {
                         newPage()
                         let physical = page / _columns
                         let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
-                        let target = ts0?.pageOffsetY.map { _px($0) - insetTop } ?? _px(ts0?.marginOffsetY ?? 0)
+                        let target = ts0?.pageOffsetY.map { _px($0) - insetTop } ?? (_px(ts0?.marginOffsetY ?? 0) - _headerPushBeyondMargin(physical))
                         if target > y + 0.01, target < contentH - 0.01 {
                             tableReturn = (c.table, y, page, target)
                             y = target
@@ -2723,7 +2723,7 @@ extension RichLayout {
                        case let ts0 = document.tableStyles[c.table], ts0?.pageOffsetY != nil || ts0?.marginOffsetY != nil {
                         let physical = page / _columns
                         let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
-                        let target = ts0?.pageOffsetY.map { _px($0) - insetTop } ?? _px(ts0?.marginOffsetY ?? 0)
+                        let target = ts0?.pageOffsetY.map { _px($0) - insetTop } ?? (_px(ts0?.marginOffsetY ?? 0) - _headerPushBeyondMargin(physical))
                         if target > y + 0.01, target < contentH - 0.01 {
                             tableReturn = (c.table, y, page, target)
                             y = target
@@ -3062,7 +3062,7 @@ extension RichLayout {
                        case let ts0 = document.tableStyles[c.table], ts0?.pageOffsetY != nil || ts0?.marginOffsetY != nil, _pages[page].isEmpty {
                         let physical = page / _columns
                         let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : 0
-                        let target = ts0?.pageOffsetY.map { _px($0) - insetTop } ?? _px(ts0?.marginOffsetY ?? 0)
+                        let target = ts0?.pageOffsetY.map { _px($0) - insetTop } ?? (_px(ts0?.marginOffsetY ?? 0) - _headerPushBeyondMargin(physical))
                         if target > y + 0.01, target < contentH - 0.01 {
                             tableReturn = (c.table, y, page, target)
                             y = target

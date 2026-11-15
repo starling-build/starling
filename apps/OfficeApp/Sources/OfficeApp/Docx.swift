@@ -2711,6 +2711,11 @@ enum DocxFormat {
                     if vertText, pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v > 0 {
                         if pos["w:vertAnchor"] == nil { style.marginOffsetY = v / 20 } else { style.floatOffsetY = v / 20 }
                     }
+                    // (A table anchored to the margin stands w:tblpY under the nominal top margin, as one
+                    // with no anchor stated does: Word's print of lab tblhdr h2, first baseline 151.82.)
+                    if Self.wordOnWindows, pos["w:vertAnchor"] == "margin", pos["w:tblpYSpec"] == nil, let v = Double(pos["w:tblpY"] ?? ""), v > 0 {
+                        style.marginOffsetY = v / 20
+                    }
                     // (`w:tblpYSpec="top"` with no anchor stated stands at the margin's top, over the empty
                     // paragraph before it: LibreOffice's lo-0dd5bc0a, a cover-page SDT; Word's print has it 26pt
                     // higher than ours, which set it under that paragraph.)

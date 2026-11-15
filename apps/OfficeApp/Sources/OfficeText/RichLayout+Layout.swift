@@ -2719,6 +2719,14 @@ extension RichLayout {
     func _pxPageW(_ page: Int) -> Double { _px(pageSetup(forPage: page).width) }
     func _pxPageH(_ page: Int) -> Double { _px(pageSetup(forPage: page).height) }
     var _pxGap: Double { _px(pageSetup!.gap) }
+    /// How far a taller header has pushed the body's top below the nominal top margin (px). Word stands a
+    /// table floating against the text or the margin at its offset from the NOMINAL margin, not from the
+    /// pushed body top (labs tblhdr h1/h2 and tblhdr2: first baseline 151.82 = 85.05 + tblpY + 7.5 under a
+    /// header reaching 178pt past the margin, the text under the header).
+    func _headerPushBeyondMargin(_ page: Int) -> Double {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, page >= 0, page < _pageInsetTop.count else { return 0 }
+        return max(0, _pageInsetTop[page] - _px(pageSetup(forPage: page).marginTop))
+    }
     func _pxMarginTop(_ page: Int) -> Double {
         page >= 0 && page < _pageInsetTop.count ? _pageInsetTop[page] : _px(pageSetup(forPage: page).marginTop)
     }
