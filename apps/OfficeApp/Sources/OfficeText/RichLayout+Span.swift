@@ -1192,6 +1192,15 @@ extension RichLayout {
                         RuleTrace.hit("word-danda-only-run-in-a-missing-face-is-nirmala")
                         return ("nirmala ui", 1)
                     }
+                    // (A run of only a danda in a missing Bengali face (Nikosh, SolaimanLipi) inside a paragraph of Bengali letters: Word draws it in Mangal, 4.58 pt at 11 pt
+                    // (0.4166 em) where the stand-in's Bengali danda is 4.1; dx2 2263e221 "\u{9E9}\u{964} ব্যবসায় নিবন্ধন নম্বর": "নম্বর" wraps in Word, stays in ours.)
+                    if text.unicodeScalars.contains(where: { $0.value == 0x964 }),
+                       !text.unicodeScalars.contains(where: { $0.value != 0x964 && $0.value != 0x20 }),
+                       Self._missingBengaliSpaceEm(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "") != nil,
+                       p.text.unicodeScalars.contains(where: { $0.properties.isAlphabetic && $0.value >= 0x980 && $0.value <= 0x9FF }) {
+                        RuleTrace.hit("word-danda-only-run-in-a-missing-bengali-face-is-mangal")
+                        return ("mangal", 1)
+                    }
                     // (A run of spaces and tabs in a missing Bengali face (Nikosh, SolaimanLipi) inside a paragraph of Bengali letters: Word draws the spaces in Mangal
                     // but they do not raise the line, which stays Nirmala UI's 1.33 em: dx2 2263e221's bold heading, 14.6 pt apart in Word, 18.5 in ours.)
                     if !text.isEmpty, !text.unicodeScalars.contains(where: { $0.value != 0x20 && $0.value != 0x09 }),
