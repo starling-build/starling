@@ -17197,3 +17197,9 @@ TIP WATCH amd-8, round 479 (tip f2d7f0328): Word drops only accepted ones (urd-z
 - Left: from page 3 on, wraps diverge. Cause: Word uses Mangal, we fall back to Noto Sans Devanagari, ~10% wider (item ज.: Word line 1 holds "...धनमाल अनधिकृत", ours cannot). Missing-font gap, not a layout rule; do not scale widths to the score.
 - Minor: 14 lines hold ZWJ/ZWNJ that Word's text layer lacks (scorer matter, for starling-bd).
 - Task 1 (Japanese docs): no free low-scoring doc (6fca0f equations released; ee9f8f, 771abc amd-5; rest 96+).
+
+## amd-5 HANDOFF 2026-11-15 (5 lowest xa gv docs)
+- gv-50df6a582d 13.3 to 74.3 (body spAutoFit text box is as tall as its text; groups excluded after landq rejected the first try on lo-40949e852ad9c2fe, now 100). Queued with gv-efcf85d5fd (21.5 to 86.2, nested table of 6-15 short rows stays a table) and gv-9fba5bc3b0 (33.4 to 99.2, table style's own cellSpacing). Unit tests 655/0. Rules in ~/word-rules.md.
+- Parked, font gaps: gv-989ecc4fa6 (31.5, body "Humnst777 Lt BT"; Word uses Lucida Sans Unicode, no file on box); gv-dbc3c03efc (13.7, Word prints Lato, not in bundled fonts; also 2 dx2 docs ask for Lato). Both need sourced/bundled fonts: starling-bd decision.
+- gv-50df remaining lines 74.3 not investigated. Task 2 (balloon wording leftovers) not started.
+- Trap: a spAutoFit rule must be checked against the lo set too (wpg groups).
