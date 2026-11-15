@@ -903,6 +903,26 @@ enum DocxFormat {
     static func read(_ archive: Data) throws -> DocxDocument {
         let entries = _withStandardMainPart(try Zip.read(archive))
         func part(_ name: String) -> Data? { entries.first { $0.name == name }?.data }
+        /// The styles part as Word reads it: a document with `w:linkStyles` ("automatically
+        /// update document styles") and an attached template Word cannot find takes Word's
+        /// built-in Normal over its own (dx2 70b475ea: Arial in the file, Cambria in Word's print).
+        func styleTree() -> XNode? {
+            guard let styles = part("word/styles.xml").flatMap(XNode.parse) else { return nil }
+            if let settings = part("word/settings.xml").flatMap(XNode.parse),
+               let link = settings.first("w:linkStyles"), !_isOff(link), let attached = settings.first("w:attachedTemplate"),
+               let rid = attached["r:id"],
+               let relRoot = part("word/_rels/settings.xml.rels").flatMap(XNode.parse),
+               let target = relRoot.all("Relationship").first(where: { $0["Id"] == rid })?["Target"],
+               // Only an HFS target ("Volume:dir:file", colon-separated, no URL scheme) makes Word
+               // replace Normal from Normal.dotm; a file URL, drive path or relative target keeps the
+               // file's own Normal (Word COM, lab linkstyles: 70b475ea with a file:/// or relative
+               // target kept Arial; 0c15d329 and 62034d67 with an HFS target were replaced).
+               target.contains(":") && !target.hasPrefix("file:") && !target.hasPrefix("\\\\") && !target.hasPrefix("/")
+                && !(target.count > 1 && target.dropFirst().hasPrefix(":") && target.dropFirst(2).first.map { $0 == "\\" || $0 == "/" } == true) {
+                _applyBuiltinStyles(styles)
+            }
+            return styles
+        }
         guard let docData = part("word/document.xml") else { throw DocxError.noDocumentPart }
         guard let root = XNode.parse(docData) else { throw DocxError.badXML("word/document.xml") }
         _hoistTablesOutOfParagraphs(root)
@@ -1190,7 +1210,7 @@ enum DocxFormat {
         var styleAliases: [String: String] = [:]
         var keptCharacterStyles: [String: String] = [:]
         var keptCharacterStyleIds: [String: String] = [:]
-        if let stylesData = part("word/styles.xml"), let styles = XNode.parse(stylesData) {
+        if let styles = styleTree() {
             _resolveThemeFonts(styles, theme)
             _normaliseStyleIds(styles)
             // A styles part with NO w:pPrDefault at all (WPS writes them
@@ -1571,7 +1591,7 @@ enum DocxFormat {
             // Normal's own: the font and size every plain paragraph is set
             // in. Without it a 12-point document came back at Calibri 11
             // (the writer's defaults), and every line wrapped elsewhere.
-            if let styles = part("word/styles.xml").flatMap(XNode.parse) {
+            if let styles = styleTree() {
                 _resolveThemeFonts(styles, theme)
                 _normaliseStyleIds(styles)
                 var cs = CharStyle()
@@ -3149,6 +3169,9 @@ enum DocxFormat {
                         if direction != nil, currentCell?.textDirection != .horizontal || direction == "lrTbV" { currentCell?.textDirectionValue = direction }
                         cellChar = r == 0 && firstRowOn ? (cond.headerChar ?? CharStyle())
                             : (column == 0 && firstColOn ? (cond.firstColChar ?? CharStyle()) : CharStyle())
+                        // (Normal's own face stands over a conditional part's too: a replaced Normal
+                        // in Cambria, table style firstRow Arial, prints Cambria in Word.)
+                        for (name, k) in _tableCharKeys where normalStatedChar[keyPath: k] != nil || (name == "hAnsi" && normalStatedChar.fontFamily != nil) { cellChar[keyPath: k] = nil }
                         if let sid = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"] {
                             if r == 0, firstRowOn, let hb = headerBases[sid], let hr = headerRootBases[sid] { cellBase = hb; cellRootBase = hr }
                             else if let tb = tableBases[sid], let tr = tableRootBases[sid] { cellBase = tb; cellRootBase = tr }
@@ -3851,7 +3874,7 @@ enum DocxFormat {
             document.hangsLatinStops = true
             document.usesEastAsianLayout = true
         }
-        if let styles = part("word/styles.xml").flatMap(XNode.parse) {
+        if let styles = styleTree() {
             // The defaults' language, or Normal's over it — each of its
             // three by itself: zh-63a571aa's Normal says only
             // `w:bidi="ar-SA"`, its East Asian text the defaults' zh-TW,
@@ -8171,6 +8194,16 @@ enum DocxFormat {
     static func _on(_ node: XNode?) -> Bool {
         guard let node = node else { return false }
         return !_isOff(node)
+    }
+
+    /// Word's built-in definitions, which a styles part takes when its template is gone.
+    /// Normal.dotm's Normal resolved through its defaults: +Body 12 pt, 0 before, 8 after, 1.16 lines (lab linkstyles NOTES). Only Normal is replaced; the file's Heading styles and defaults stay.
+    private static let _builtinNormal = "<w:style xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/><w:qFormat/><w:pPr><w:spacing w:before=\"0\" w:after=\"160\" w:line=\"278\" w:lineRule=\"auto\"/></w:pPr><w:rPr><w:rFonts w:asciiTheme=\"minorHAnsi\" w:hAnsiTheme=\"minorHAnsi\" w:eastAsiaTheme=\"minorEastAsia\" w:cstheme=\"minorBidi\"/><w:sz w:val=\"24\"/><w:szCs w:val=\"24\"/></w:rPr></w:style>"
+
+    private static func _applyBuiltinStyles(_ styles: XNode) {
+        guard let builtin = XNode.parse(Data(_builtinNormal.utf8)),
+              let i = styles.children.firstIndex(where: { $0.name == "w:style" && $0["w:styleId"] == "Normal" }) else { return }
+        styles.children[i] = builtin
     }
 
     private static func _isOff(_ node: XNode) -> Bool {
