@@ -1579,6 +1579,10 @@ static let sylfaenAdvances: [Double] = [
     // and bold; italics keep the regular's) and their own line, win ascent plus
     // descent of 2048 as Word on Windows sets a line. Numbers only, read from
     // the box's font files by windows' lab fontmetrics (2026-11-02).
+    // Sakkal Majalla's Latin (U+0020-007E, em), read from Word's prints (the medians in metrics/arabic): a run in Latin letters
+    // in Sakkal Majalla, which the stand-in (Carlito) sets wider. dx2 61a67838's "Nom :" is 31pt in Word's print, 41 in Carlito Bold.
+    static let sakkalLatinAdvances: [Double] = [0.1514, 0.1831, 0.2588, 0.4482, 0.3643, 0.5981, 0.5103, 0.1416, 0.2412, 0.2412, 0.3335, 0.4014, 0.1514, 0.2383, 0.1636, 0.2969, 0.4053, 0.4053, 0.4053, 0.4053, 0.4053, 0.4053, 0.4053, 0.4053, 0.4053, 0.4053, 0.1636, 0.1636, 0.3433, 0.4014, 0.3433, 0.2993, 0.6831, 0.4473, 0.4209, 0.4409, 0.5342, 0.3628, 0.3555, 0.4980, 0.5356, 0.1909, 0.1909, 0.4702, 0.3516, 0.6670, 0.5513, 0.5698, 0.3999, 0.5698, 0.4468, 0.3696, 0.3901, 0.5103, 0.4434, 0.6758, 0.4282, 0.4043, 0.4658, 0.2451, 0.2969, 0.2451, 0.3887, 0.3311, 0.2183, 0.3584, 0.4009, 0.3188, 0.4009, 0.3560, 0.2271, 0.3599, 0.4106, 0.1851, 0.1851, 0.3638, 0.1851, 0.6104, 0.4106, 0.4009, 0.4009, 0.4009, 0.2524, 0.2954, 0.2266, 0.4106, 0.3613, 0.5620, 0.3628, 0.3574, 0.3149, 0.2393, 0.1772, 0.2393, 0.4370]
+    static let sakkalLatinBoldAdvances: [Double] = [0.1514, 0.2197, 0.3076, 0.4482, 0.3799, 0.6011, 0.5103, 0.1562, 0.2861, 0.2861, 0.3335, 0.4014, 0.1758, 0.2383, 0.1953, 0.3101, 0.4053, 0.4053, 0.4053, 0.4053, 0.4053, 0.4053, 0.4053, 0.4053, 0.4053, 0.4053, 0.1948, 0.1948, 0.3433, 0.4014, 0.3433, 0.2993, 0.6831, 0.4834, 0.4346, 0.4712, 0.5513, 0.3882, 0.3726, 0.5244, 0.5474, 0.2192, 0.2192, 0.4937, 0.3672, 0.7197, 0.5728, 0.5845, 0.4175, 0.5845, 0.4575, 0.3833, 0.4243, 0.5425, 0.4736, 0.7002, 0.4517, 0.4180, 0.4653, 0.2754, 0.3101, 0.2754, 0.3887, 0.3311, 0.2183, 0.3828, 0.4248, 0.3452, 0.4248, 0.3857, 0.2568, 0.4004, 0.4341, 0.2124, 0.2124, 0.4146, 0.2124, 0.6387, 0.4341, 0.4165, 0.4248, 0.4248, 0.2783, 0.3184, 0.2803, 0.4341, 0.3809, 0.5601, 0.3921, 0.3706, 0.3398, 0.2676, 0.1772, 0.2676, 0.4370]
     static let comicSansAdvances: [Double] = [
         0.2988, 0.2378, 0.4243, 0.8428, 0.6934, 0.8203, 0.6543, 0.3882, 0.3662, 0.3662, 0.5298, 0.4805, 0.2769, 0.4165, 0.2490,
         0.5117, 0.6104, 0.4502, 0.6104, 0.6104, 0.6104, 0.6104, 0.6104, 0.6104, 0.6104, 0.6104, 0.2988, 0.2988, 0.3813, 0.5103,
@@ -3615,6 +3619,8 @@ static let sylfaenAdvances: [Double] = [
     /// it through `tabledFace`.
     static func applyTabled(_ family: String, to face: inout RichResolvedFace) {
         switch family.trimmingWhitespace().lowercased() {
+                // (Sakkal Majalla's own Latin, from the face's hmtx: Word sets "Nom :" in it, not in the Carlito stand-in. Widths only: its line and baseline stay.)
+                case "sakkal majalla": face.advances = sakkalLatinAdvances; face.boldAdvances = sakkalLatinBoldAdvances
                 case "comic sans ms": face.advances = comicSansAdvances; face.boldAdvances = comicSansBoldAdvances; face.naturalHeight = 1.3936; face.baseline = 1.1021
                 case "mystical woods smooth script": face.advances = mysticalWoodsAdvances; face.otherAdvances = mysticalWoodsOtherAdvances; face.naturalHeight = 1.7; face.baseline = 1.3
                 case "garamond": face.advances = garamondAdvances; face.boldAdvances = garamondBoldAdvances; face.italicAdvances = garamondItalicAdvances; face.naturalHeight = 1.1250; face.baseline = 0.8618
