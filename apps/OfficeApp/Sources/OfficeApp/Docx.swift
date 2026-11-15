@@ -5388,6 +5388,7 @@ enum DocxFormat {
         /// The look of each field's code (its first instruction run), by id.
         var fieldCodeStyle: [Int: CharStyle] = [:]
         var fieldLastCodeStyle: [Int: CharStyle] = [:]
+        var lastTextFamily: String? = nil   // the face of the last plain (non-field) text run, for an eq ring that names none
         var fieldCount = 0
         /// Every style's name, lowercased, and the fields whose STYLEREF
         /// error has been written: a STYLEREF naming no style prints Word's
@@ -7066,6 +7067,7 @@ enum DocxFormat {
             text += s
             for id in cs.comments { notes.carriedComments.insert(id) }
             var cs = cs
+            if cs.field == nil, s.contains(where: { !$0.isWhitespace }), let ff = cs.fontFamily { notes.lastTextFamily = ff }
             if let r = pendingRefChange { cs.commentRefSaid = r.said; cs.commentRefAuthor = r.author; pendingRefChange = nil }
             if s == "\u{B7}" { cs.loneDot = true }
             // (A run of circled digits that names only its ascii face is drawn from the East Asian slot of that same face in Word's print:
@@ -7328,6 +7330,15 @@ enum DocxFormat {
                             if let over = DocxFormat._ringOverlay(f.instr) {
                                 // (The other character is drawn over the ring at the size of its own code run, 8 pt in 4fabe1f2; Word's print puts it on the ring's baseline, centred.)
                                 shown.overlay = over
+                                // (An eq ring's code run names no face of its own, so it takes the style's Korean face Word lacks (함초롬바탕), and Malgun's
+                                // ascent moved its line's baseline 3.3 pt down while Word keeps it on the text's: 4fabe1f2 p2, three lines. A ring beside
+                                // text in another Hangul-named face takes that face for the line; its width is the overlay's, as before.)
+                                func hangulNamed(_ f: String?) -> Bool { f?.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 }) == true }
+                                if shown.fontFamily == nil || hangulNamed(shown.fontFamily), hangulNamed(notes.lastTextFamily), notes.lastTextFamily != shown.fontFamily {
+                                    RuleTrace.hit("eq-ring-line-takes-the-texts-hangul-face")
+                                    shown.fontFamily = notes.lastTextFamily
+                                    shown.eastAsiaFontFamily = notes.lastTextFamily
+                                }
                                 shown.overlaySize = (notes.fieldLastCodeStyle[f.id]?.fontSize ?? 0) > 0 ? notes.fieldLastCodeStyle[f.id]!.fontSize! : 8
                             }
                             addText(ringed, shown)
