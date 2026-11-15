@@ -72,7 +72,7 @@ enum OfficeFonts {
         let n = family.trimmingWhitespace().lowercased()
         if let alt = macTableAlternate(family) { return substitute(alt) }
         switch n {
-        case "liberation sans", "arial", "helvetica", "helvetica neue", "tahoma", "raavi",
+        case "liberation sans", "arial", "arial bold", "arial italic", "arial bold italic", "helvetica", "helvetica neue", "tahoma", "raavi",
              "segoe ui", "aptos", "arimo", "arial black", "montserrat":
             return sans
         case "verdana", "dejavu sans", "bitstream vera sans":
@@ -519,7 +519,9 @@ enum OfficeFonts {
             // (Their clones have their measures, not their letters: a page of
             // Arial 10, lo-pivottable_invalid_formats', within half a point of
             // Excel's everywhere and 9.9% apart in its glyphs.)
-            (["arial"], "Arial", "arial.ttf"),
+            // (Windows lists Arial's styles by their full names, and Word prints a run
+            // set in "Arial Bold" in Arial Bold: gv-989ecc4fa6's Heading1.)
+            (["arial", "arial bold", "arial italic", "arial bold italic"], "Arial", "arial.ttf"),
             (["times new roman"], "Times New Roman", "times.ttf"),
             (["calibri"], "Calibri", "calibri.ttf"),
             (["cambria"], "Cambria", "cambria.ttc"),

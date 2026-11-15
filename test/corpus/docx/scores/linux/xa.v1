@@ -1,6 +1,5 @@
-109 documents: mean 79.4% of Word's lines matched, median 96.7%; 55 at 95% or more, 93 at half or more; 98 with Word's page count
+109 documents: mean 80.0% of Word's lines matched, median 96.7%; 56 at 95% or more, 93 at half or more; 98 with Word's page count
     2.1%  lines 383/232  pages 6/5  dx4j-a94b4fd3b1
-    8.5%  lines 740/708  pages 21/18  gv-989ecc4fa6
    10.1%  lines 149/366  pages 6/16  dx4j-d5b6ee0cfa
    11.1%  lines 9/69  pages 2/3  lo-f5a68fc90b
    13.3%  lines 113/113  pages 11/15  gv-50df6a582d
@@ -10,6 +9,7 @@
    21.6%  lines 139/139  pages 6/6  dx4j-7acb626022
    22.3%  lines 968/905  pages 27/27  poi-59fdcfe90b
    25.0%  lines 8/4  pages 1/1  lo-8a42a9ac3d
+   31.2%  lines 740/703  pages 21/17  gv-989ecc4fa6
    32.9%  lines 231/228  pages 5/5  lo-c25842c80b
    33.3%  lines 3/4  pages 1/1  lo-d0fc1bd5c5
    33.7%  lines 609/603  pages 32/30  gv-9fba5bc3b0
@@ -19,7 +19,6 @@
    51.8%  lines 284/285  pages 11/11  gv-c63b496e93
    51.8%  lines 299/326  pages 10/11  gv-8ddf4f0650
    54.0%  lines 487/487  pages 20/20  gv-5f403944ae
-   54.1%  lines 1439/1438  pages 40/40  gv-30930cbf0f
    55.6%  lines 9/8  pages 1/1  lo-a5a3668a69
    57.1%  lines 829/830  pages 24/24  gv-cd79f1fa6b
    58.1%  lines 1324/1310  pages 39/38  gv-48dbbfebfb
@@ -36,7 +35,7 @@
    76.4%  lines 216/214  pages 13/13  gv-02852086d1
    77.8%  lines 36/34  pages 2/2  lo-ae4f3e8e64
    78.4%  lines 473/479  pages 23/23  gv-f711169bf7
-   78.5%  lines 968/968  pages 22/22  gv-952807372b
+   78.5%  lines 968/967  pages 22/22  gv-952807372b
    78.6%  lines 886/886  pages 25/25  gv-5cba2cd528
    78.9%  lines 19/19  pages 1/1  oxsdk-0ca19916e7
    79.1%  lines 416/417  pages 16/16  gv-f01921a2f4
@@ -53,6 +52,7 @@
    93.5%  lines 46/41  pages 2/2  lo-544679e206
    94.0%  lines 982/1015  pages 35/35  gv-1bfba88742
    94.5%  lines 127/131  pages 6/6  lo-a3e95e2fd2
+   96.2%  lines 1439/1439  pages 40/40  gv-30930cbf0f
    96.7%  lines 608/618  pages 24/24  gv-0c37898d9c
    96.7%  lines 92/92  pages 3/3  lo-97906e33ec
    96.8%  lines 125/125  pages 8/8  gv-40d42c6acc
