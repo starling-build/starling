@@ -17493,3 +17493,11 @@ amd-5 CLAIM (2026-11-15): xd d760f1e5 (Hindi, Kokila, 90.9, 242/246 lines). Othe
 - Next: h4-h6 (paragraph before the floating table) and the 5.7/7 pt gap above need a lab: same table, header 289 vs none, to see what Word subtracts.
 
 - amd-11 (2026-11-15) PARKED h4/h5 (lab tblhdr, tall header, a paragraph "Before" ahead of a margin-placed floating table): Word table 151.82, "Before" below the table at 393.77 (table bottom + ascent); ours Before 275.05, table 285.8 (table set in the flow after Before). h1/h2 (table first) already match after fa9c5a69c (151.98). Fix would need text moved down under a table placed ABOVE it (a new wrap-zone push); no corpus doc known to need it, so not done. h3/h6 (page anchor) not looked at. Waiting for tblstrip3 prints (tall-table lift).
+
+### HANDOFF amd-3 (2026-11-15): 6fca0f, 345, 934bd3e5, 5101ed6e
+- LANDED: 345 anchors+spaces line rule (gate = body paragraph, not header/footer; 412f21cdf); equations: display-integral limits at Word's offsets (6fca0f 151 -> 162, 26 equation docs +11).
+- QUEUED (entry 370): vertical marks in Japanese faces use plain code points in the text layer (vert feature draws the same glyph). Pixel-identical on all 7 vertical docs, unit tests 655/0. Chinese faces unchanged (Word's prints hold FE10-FE44 there).
+- 934bd3e5 (84.2): layout is right (columns/ruby within ~1 pt). Remaining loss is text-layer: Word merges base char + overlapping ruby into one line (same artifact as ee0b468e; scorer left alone, starling-bd decision). Plain-mark fix above covers the other part.
+- 5101ed6e (86.3): layout exact (51/51 lines, baselines within 0.3 pt). Nothing to fix; one line 2.7 pt left, right-edge diffs are trailing-space artifacts.
+- 6fca0f left: sign of double integral 2.5 pt low; display equation heights +-18 pt on p6/p11; p8 inline-fraction lines 0.6-1.4 pt short; p10 about -1.9.
+- OPEN: footer lab prints (lab/footer-anchor, 4 docs) pending from starling-bd; measure K<n-1>->K<n> gaps to settle the Lincang footer height (box 693.4 Word vs 695.3 ours).
