@@ -751,6 +751,29 @@ enum MangalAdvances {
         RuleTrace.hit("word-bengali-split-o-vowel-is-stem-plus-e-plus-aa")
         return stem + e + right
     }
+    @inline(never)
+    static func _bengaliSigns(_ c: ArraySlice<Unicode.Scalar>, _ table: [String: Double], _ block: UInt32) -> Double? {
+        if let w = _bengaliSplitO(c, table, block) { return w }
+        return _bengaliLongI(c, table, block)
+    }
+    /// Bengali: the long-i sign (U+09C0) adds the same advance to every consonant it stands on (Shonar Bangla regular: 14 listed pairs between 0.149 and 0.165 em, median 0.155;
+    /// bold 8 pairs 0.175 to 0.207), so an unlisted consonant with it is its listed stem plus the median of its own table's pairs (dx2 3f7da49c's "ধী": 7.5 pt in Word, 8.7 from Noto's sign).
+    @inline(never)
+    static func _bengaliLongI(_ c: ArraySlice<Unicode.Scalar>, _ table: [String: Double], _ block: UInt32) -> Double? {
+        guard block == 0x980, c.count > 1, let last = c.last, last.value == 0x9C0 else { return nil }
+        var key = String.UnicodeScalarView()
+        key.append(contentsOf: c.dropLast())
+        guard let stem = table[String(key)] else { return nil }
+        var diffs: [Double] = []
+        for (k, v) in table {
+            let u = Array(k.unicodeScalars)
+            if u.count == 2, u[1].value == 0x9C0, let s = table[String(u[0])] { diffs.append(v - s) }
+        }
+        guard diffs.count >= 5 else { return nil }
+        diffs.sort()
+        RuleTrace.hit("word-bengali-long-i-adds-its-tables-median-advance")
+        return stem + diffs[diffs.count / 2]
+    }
     /// A run tagged w:lang w:bidi="sa-IN" is drawn by Word with the stacked (Sanskrit) forms of क्त प्त ष्ट ष्ठ द्द द्ध ट्ट, a single narrow glyph; the
     /// other languages draw the horizontal ligature in `advance`. em of the authored size, read directly from the print of xd 6be5dbc9
     /// (every cluster below at least 3 samples but द्ध with 2; the ne-NP क्त of d91478e3 stays 1.298, its sa-IN द्दे is 0.57). A cluster not
@@ -794,7 +817,7 @@ enum MangalAdvances {
             if stacked, block == 0x900, let sw = stackedAdvance(String(key), advance) {
                 sum += sw; known.append(contentsOf: u[i ..< j]); any = true; i = j; continue
             }
-            if let w = advance[String(key)] ?? ascii[String(key)] ?? Self._bengaliReph(u[i ..< j], advance, block, mangal: table == nil) ?? Self._nasalOn(u[i ..< j], advance, block, mangal: table == nil) ?? (lowVowelsZero ? _bengaliLowVowel(u[i ..< j], advance, block) : nil) ?? _bengaliSplitO(u[i ..< j], advance, block) ?? conjunct(u[i ..< j], table: table, ratio: conjunctRatio) { sum += w; known.append(contentsOf: u[i ..< j]); any = true } else { rest = true }
+            if let w = advance[String(key)] ?? ascii[String(key)] ?? Self._bengaliReph(u[i ..< j], advance, block, mangal: table == nil) ?? Self._nasalOn(u[i ..< j], advance, block, mangal: table == nil) ?? (lowVowelsZero ? _bengaliLowVowel(u[i ..< j], advance, block) : nil) ?? _bengaliSigns(u[i ..< j], advance, block) ?? conjunct(u[i ..< j], table: table, ratio: conjunctRatio) { sum += w; known.append(contentsOf: u[i ..< j]); any = true } else { rest = true }
             i = j
         }
         return any ? (sum, String(known), rest) : nil
