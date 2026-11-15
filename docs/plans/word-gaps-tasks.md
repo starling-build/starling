@@ -17450,3 +17450,4 @@ HANDOFF amd-10 (2026-11-15): (1) Korean fix landed d4d0fd9c0 (107500a8 212 to 21
 - xd 6be5dbc9 (50.0): first-line origin fix queued as 354 (dx2 4fbb6e32 91.1 to 96.4, no drops, unit tests 655/0). The doc itself is NOT fixed: line 1 breaks before अनधिकृत, ours ends 0.1 pt past the limit. Word's advances for the same word vary 0.12 pt with grid phase, so no table error to fix; parked, not tuned.
 - lenovo-2 CLAIM 2026-11-15: dx2 ko 1f6d638c (from amd-2; was 100 on 11-13, 40.5 now: regression hunt)
 - lenovo-2 2026-11-15: dx2 ko 1f6d638c is 100.0 (37/37, 3/3) on tips 65b454105 and my 17:00 tip; the 40.5 is the stored dx2.v2 baseline seeded 11-13 (stale), not a regression. Released.
+- lenovo-2 CLAIM 2026-11-15: xd Korean 4fabe1f2 (moved from amd-2 by starling-bd)
