@@ -695,6 +695,15 @@ enum MangalAdvances {
         // Ligature forms (reph, rakar, kssa, jna, tra, shra) are one glyph in Mangal too: the stand-in's own width fits them.
         if k[k.startIndex].value == 0x930 || tail[tail.startIndex].value == 0x930 { return nil }
         if (k[k.startIndex].value == 0x915 && tail[tail.startIndex].value == 0x937) || (k[k.startIndex].value == 0x91C && tail[tail.startIndex].value == 0x91E) { return nil }
+        // A conjunct that carries a vowel sign is its listed stem plus the sign's own step (the same consonant's advance with and without the sign):
+        // over the 123 listed C+virama+C+sign clusters whose stem is listed, that reads -0.005 em on average (the 0.85 ratio: +0.07 em, up to 0.47).
+        // 55850db1's 'त्यस्तो' was 1.1 pt short with स्तो at 0.85 x (स + तो).
+        if k.count >= 4, isMatra(k[k.endIndex - 1].value), isConsonant(k[k.endIndex - 2].value), k[k.endIndex - 3].value == 0x94D,
+           let stem = advance[String(String.UnicodeScalarView(k.dropLast()))],
+           let withSign = advance[String(String.UnicodeScalarView(k[(k.endIndex - 2)...]))],
+           let plain = advance[String(String.UnicodeScalarView(k[(k.endIndex - 2) ..< (k.endIndex - 1)]))] {
+            return stem + withSign - plain
+        }
         guard let a = advance[String(head)], let b = advance[String(String.UnicodeScalarView(tail))] ?? conjunct(tail, table: table, ratio: ratio) else { return nil }
         // द, ठ and ह have no half form in Mangal: the virama stays visible and the head keeps its full advance, so the conjunct is the plain sum
         // (the listed conjuncts of these heads read 0.999 x (a + b) over 11 द, 0.99 over 2 ह, 1.00 for ठ; the others 0.83-0.91). 55850db1 'परिषद्ले' was 2 pt short.
