@@ -3122,6 +3122,13 @@ extension RichLayout {
                         RuleTrace.hit("lone-middle-dot-run-is-malgun")
                         w = style(kind).fontWeight == .bold ? 0.2617 : 0.2188
                     }
+                    // (A white circle or triangle in a run that names no face of its own, inheriting a Korean face Word lacks, is
+                    // Malgun Gothic's, an em: xd 4fabe1f2's eq \\o\\ac(○,예) rings step 11.7 pt at 12 pt in Word's print, ours 6.8 from
+                    // the YaHei-like 0.604 em.)
+                    if (u == 0x25CB || u == 0x25B3), w == 0.604, run.fontFamily == nil, run.eastAsiaFontFamily == nil, !eaFace.malgunSymbols, theme.wordRules, RichTextTheme.wordWindowsPages, document.usesEastAsianLayout {
+                        RuleTrace.hit("inherited-missing-korean-face-circle-is-an-em")
+                        w = 1.0
+                    }
                     extra += (w ?? 0) * em - _glyphWidth(style(kind), ch)
                     if document.balancesSpaceWidth, let g = grid, g != 0 { extra -= _px(g) / 2 }
                 }
@@ -4532,6 +4539,36 @@ extension RichLayout {
                 let cy = origin.dy + line.baseline + (under ? 0.29 : -1.08) * size
                 canvas.drawCircle(Offset(cx, cy), (under ? 0.065 : 0.06) * size, paint)
             }
+        }
+    }
+
+    /// The character an `eq \o\ac(○,예)` field lays over its ring: the ring's face at the overlay's size, centred on the ring, on its baseline.
+    func _paintOverlay(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
+                       _ canvas: any Canvas, _ document: RichDocument, map: _OffsetMap? = nil) {
+        guard theme.wordRules, p.runs.contains(where: { $0.style.overlay != nil }) else { return }
+        let named = _named(p, document)
+        let lines = painter.computeLineMetrics()
+        var at = 0
+        for run in p.runs {
+            defer { at += run.length }
+            guard let text = run.style.overlay, run.length > 0 else { continue }
+            let a = map?.painter(at) ?? at, b = (map?.painter(at + run.length - 1) ?? at + run.length - 1) + 1
+            guard let box = painter.getBoxesForSelection(TextSelection(baseOffset: a, extentOffset: b)).first?.toRect(),
+                  let line = lines.min(by: { abs($0.baseline - box.bottom) < abs($1.baseline - box.bottom) }) else { continue }
+            var look = run.style
+            look.overlay = nil
+            look.letterSpacing = nil
+            let ringSize = run.style.fontSize ?? named?.char.fontSize ?? theme.fontSize
+            let s = theme.textStyle(for: look, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: true)
+            // (The ring's own style, with its size scaled to the overlay's: whatever the pipeline does to the size, it does to both.)
+            let style = TextStyle(color: s.color, fontSize: (s.fontSize ?? 0) * run.style.overlaySize / max(ringSize, 1), fontWeight: s.fontWeight, fontStyle: s.fontStyle,
+                                  fontFamily: s.fontFamily, fontFamilyFallback: s.fontFamilyFallback)
+            let tp = TextPainter(text: TextSpan(text: text, style: style), textDirection: .ltr)
+            tp.layout(minWidth: 0, maxWidth: Double.infinity)
+            // Centred on the ring's em (Word's ring is an em wide, 11.7 pt at 12 pt; the selection box can be narrower).
+            let x = box.left + ((s.fontSize ?? 0) - tp.maxIntrinsicWidth) / 2
+            tp.paint(canvas, Offset(origin.dx + x, origin.dy + line.baseline - tp.computeDistanceToActualBaseline(.alphabetic)))
+            tp.dispose()
         }
     }
 

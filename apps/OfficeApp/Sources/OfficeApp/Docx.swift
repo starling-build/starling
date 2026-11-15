@@ -4156,6 +4156,15 @@ enum DocxFormat {
         return String(Character(u))
     }
 
+    /// The non-number character an `eq \o\ac(○,예)` field draws over its ring, or nil.
+    static func _ringOverlay(_ instr: String) -> String? {
+        let compact = instr.filter { !$0.isWhitespace }
+        guard compact.lowercased().hasPrefix("eq\\o\\ac("), compact.hasSuffix(")") else { return nil }
+        let parts = compact.dropFirst("eq\\o\\ac(".count).dropLast().split(separator: ",", omittingEmptySubsequences: false)
+        guard parts.count == 2, ["○", "◯"].contains(String(parts[0])), Int(parts[1]) == nil, !parts[1].isEmpty else { return nil }
+        return String(parts[1])
+    }
+
     /// The style a STYLEREF instruction names, quoted or not.
     static func _styleRefName(_ instr: String) -> String? {
         let text = instr.trimmingWhitespace(newlines: true)
@@ -5352,6 +5361,7 @@ enum DocxFormat {
         var fields: [(instr: String, result: Bool, id: Int, properties: [String: String])] = []
         /// The look of each field's code (its first instruction run), by id.
         var fieldCodeStyle: [Int: CharStyle] = [:]
+        var fieldLastCodeStyle: [Int: CharStyle] = [:]
         var fieldCount = 0
         /// Every style's name, lowercased, and the fields whose STYLEREF
         /// error has been written: a STYLEREF naming no style prints Word's
@@ -7282,6 +7292,11 @@ enum DocxFormat {
                             // not the closing marker's bare one.)
                             var shown = ringed.unicodeScalars.first.map { (0x2460 ... 0x2473).contains($0.value) } == true ? cs : (notes.fieldCodeStyle[f.id] ?? cs)
                             shown.field = f.instr.trimmingWhitespace(newlines: true)
+                            if let over = DocxFormat._ringOverlay(f.instr) {
+                                // (The other character is drawn over the ring at the size of its own code run, 8 pt in 4fabe1f2; Word's print puts it on the ring's baseline, centred.)
+                                shown.overlay = over
+                                shown.overlaySize = (notes.fieldLastCodeStyle[f.id]?.fontSize ?? 0) > 0 ? notes.fieldLastCodeStyle[f.id]!.fontSize! : 8
+                            }
                             addText(ringed, shown)
                         }
                         if !notes.fields.isEmpty { notes.fields.removeLast() }
@@ -7315,6 +7330,7 @@ enum DocxFormat {
                     } else if let f = notes.fields.last, !f.result {
                         notes.fields[notes.fields.count - 1].instr += child.text
                         if notes.fieldCodeStyle[f.id] == nil, !child.text.trimmingWhitespace(newlines: true).isEmpty { notes.fieldCodeStyle[f.id] = cs }
+                        if !child.text.trimmingWhitespace(newlines: true).isEmpty { notes.fieldLastCodeStyle[f.id] = cs }
                     }
                     if cs.formatChange != nil { notes.fieldCodeChanged = true }
                     if let on = pendingCheckbox, child.text.uppercased().containsSubstring("FORMCHECKBOX") {

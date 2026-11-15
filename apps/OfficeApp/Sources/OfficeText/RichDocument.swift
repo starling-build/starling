@@ -229,6 +229,9 @@ public struct CharStyle: Hashable, Sendable {
     /// Ruby set over this run's text (Word's `w:ruby`: furigana over
     /// kanji); nil for none.
     public var ruby: RubyText? = nil
+    /// A second character drawn over this run's ring (Word's `eq \o\ac(○,예)`): its text and size in points; takes no width.
+    public var overlay: String? = nil
+    public var overlaySize: Double = 0
     /// Word's `w:em` (emphasis marks): "dot", "comma", "circle" (over the
     /// text) or "underDot" (under it); nil for none.
     public var emphasis: String? = nil
