@@ -703,7 +703,7 @@ extension RichLayout {
             let normal = _normalChar(document)
             func size(_ c: CharStyle?) -> Double { c?.fontSize ?? named?.char.fontSize ?? normal?.fontSize ?? theme.fontSize }
             var best: Double? = nil
-            var floating = false, ideographic = false, spaced = 0.0
+            var floating = false, spaced = 0.0
             var at = p.text.utf16.startIndex
             for run in p.runs {
                 let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.utf16.endIndex) ?? p.text.utf16.endIndex
@@ -716,12 +716,13 @@ extension RichLayout {
                 // (Nor does a tab: IllustrativeCases' line of 11pt spaces
                 // and tabs under an 8pt mark is the mark's line.)
                 if p.text.utf16[at ..< end].contains(where: { $0 != 0x09 && !spaceUnit($0) }) { best = max(best ?? 0, size(run.style)) }
-                else if end > at { spaced = max(spaced, size(run.style)); if p.text.utf16[at ..< end].contains(0x3000) { ideographic = true } }
+                else if end > at { spaced = max(spaced, size(run.style)) }
                 at = end
             }
-            // (Only a line of anchors and IDEOGRAPHIC spaces: the lab's ASCII-space lines and the Lincang footers'
-            // "anchor and two spaces" (zh-4c4b1af8, zh-f59a76e9) and text lines with an anchor stay as they were.)
-            if floating && (best != nil || !ideographic) { return nil }
+            // (A body line of anchors and spaces alone, not a header's or footer's: Word's print of lab anchor-space,
+            // ASCII and ideographic spaces alike, is the mark's line; the Lincang footers (zh-4c4b1af8, zh-f59a76e9: anchor
+            // and two spaces, mark 16pt, line grid) are taller than that and keep the normal line.)
+            if floating && (best != nil || document.isHeaderFooterPart) { return nil }
             if let best { return (best, false) }
             // (With a floating anchor in the line, the larger of the mark's size and its spaces': dx2 ja 4fbb6e32's
             // 24pt under a 24pt mark is the mark's line; cs 2a42c845's header line of 11pt spaces under a mark of the

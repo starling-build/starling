@@ -504,6 +504,7 @@ extension RichLayout {
     /// `document`, laid out `width` wide.
     func _subLayout(_ paragraphs: [RichParagraph], _ document: RichDocument, width: Double, onGrid: Bool = false) -> _HeaderFooter {
         var sub = RichDocument(paragraphs: paragraphs.isEmpty ? [RichParagraph()] : paragraphs)
+        sub.isHeaderFooterPart = true
         sub.styles = document.styles
         sub.fontUsb0 = document.fontUsb0
         // (The font table too: a note whose face the table names must not read as a face Word lacks, now that the file flag reaches it; dx2-class xd 4fabe1f2's Hamchorom footnotes.)

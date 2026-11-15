@@ -2735,6 +2735,8 @@ public struct RichDocument: Hashable, Sendable {
     /// headings are plain paragraphs with contextual spacing, and giving
     /// them a style the next paragraph lacked put 10pt back between them.
     public var readFromFile = false
+    /// Set on the sub-document a header or footer file is laid out as (not on cells, notes or text boxes).
+    public var isHeaderFooterPart = false
     /// The space after a paragraph and the space before the next are both
     /// there (Word's `w:doNotUseHTMLParagraphAutoSpacing`, in files from
     /// Word 2003 and before). Without it Word keeps the larger of the two
