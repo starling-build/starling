@@ -1809,6 +1809,8 @@ extension RichLayout {
                 if kind >= 0, indic?.face == "nirmala ui" || indic?.face == "vijaya", text[start ..< end].unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) {
                     // (Tamil, word by word, at the widths of Nirmala UI's code points: `TamilAdvances`.)
                     let base = style(kind)
+                    let tamilCs = run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? ""
+                    let spaceInMangal = Self._markInMangal(tamilCs, text[start ..< end])
                     var wordStart = start
                     func putWord(_ a: Substring.Index, _ b: Substring.Index) {
                         guard a < b else { return }
@@ -1840,7 +1842,14 @@ extension RichLayout {
                     while k < end {
                         if text[k] == " " || text[k] == "\u{00A0}" {
                             putWord(wordStart, k)
-                            spans.append(contentsOf: capped(text[k ..< text.index(after: k)], run, base))
+                            // A space between Tamil words set in Noto Sans Tamil (a face Windows lacks): Word draws it in Mangal, 0.5 em (6.0 pt at 12 pt)
+                            // where the stand-in's Latin space is 2.7 (xd c016493b: its centred lines start 17 pt right of Word's).
+                            if spaceInMangal, text[k] == " ", let px0 = base.fontSize, px0 > 0.5 {
+                                RuleTrace.hit("word-noto-tamil-space-is-mangal-half-em")
+                                spans.append(contentsOf: capped(text[k ..< text.index(after: k)], run, _indicSpaceStyle(base: base, spaceEm: 0.5, unit: px0)))
+                            } else {
+                                spans.append(contentsOf: capped(text[k ..< text.index(after: k)], run, base))
+                            }
                             wordStart = text.index(after: k)
                         }
                         k = text.index(after: k)
