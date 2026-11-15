@@ -1030,6 +1030,16 @@ extension RichLayout {
                 let windowLine = wraps.filter { $0 <= t }.count
                 let window = windowLine < tabWindows.count ? tabWindows[windowLine] : LineIndent()
                 let x = (base.map { ownLeft + at - $0 + shift } ?? ownLeft + at - origin + shift) + window.left
+                // (A tab whose next character's edge the probe cannot give — its box missing, the caret read as 0 — has the width
+                // of its own box: xd 6be5dbc9's "३.<tab>संस्थाको", the tab taken as 27 pt wide, already at its hanging stop, so it
+                // got no stretch and stood 3 pt wide in Word's 27.)
+                if theme.wordRules, !style.rightToLeft,
+                   let own = probe.getBoxesForSelection(TextSelection(baseOffset: probeMap.painter(t), extentOffset: probeMap.painter(t) + 1)).first,
+                   own.right > own.left, after - at > own.right - own.left + _px(1),
+                   probe.getBoxesForSelection(TextSelection(baseOffset: probeMap.painter(t + 1), extentOffset: probeMap.painter(t + 1) + 1)).isEmpty {
+                    after = at + (own.right - own.left)
+                    RuleTrace.hit("word-tab-width-is-its-own-box-when-the-next-edge-is-missing")
+                }
                 let own = after - at
                 var stop: (x: Double, alignment: TabStop.Alignment, leader: String?)? = nil
                 if let s = stops.first(where: { _px($0.position) > x + 0.5 && !clampedStops.contains(_px($0.position)) }) { stop = (_px(s.position), s.alignment, s.leader) }
