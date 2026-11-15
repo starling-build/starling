@@ -1531,6 +1531,9 @@ extension RichLayout {
                     let own = text.count == 1 && fitLastSingle && base + rawText.utf16.count >= fitLastEnd ? 0 : f
                     s = s.copyWith(letterSpacing: kind == -2 ? (s.letterSpacing ?? 0) + own : own)
                 }
+                // (A mark of a right-to-left run is set in the complex-script face, not the Latin one its style names: the
+                // line it stands on takes no height of its own. Tagged for _strut.)
+                if run.rightToLeft, theme.wordRules, RichTextTheme.wordWindowsPages, !text.contains(where: { $0.isLetter || $0.isNumber }) { s = s.copyWith(debugLabel: (s.debugLabel ?? "") + " rtl-mark") }
                 if !fitBusy, !plainPiece, !latinNoScale { styles[kind] = s }
                 return s
             }
