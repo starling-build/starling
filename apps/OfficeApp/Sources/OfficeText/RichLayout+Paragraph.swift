@@ -3238,6 +3238,60 @@ extension RichLayout {
                 }
             }
         }
+        // (A line that holds text its run raises or lowers (`w:position`), in a paragraph of single spacing: Word makes the line as
+        // tall as the text's top plus the raise, and as deep as its foot plus the lowering. Lab CP3 (xb docx-8f1703b9, 11pt Calibri,
+        // "raised" at 6pt, "lowered" at -6pt): pitches 19.44 into the raised line (13.44 + 6, above its baseline), 13.44 out of it,
+        // 19.44 out of the lowered line (6 below it). A shorter run's own ascent and descent scale with its size.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft,
+           style.lineHeightPoints == nil, style.lineSpacing - theme.lineSpacingReduction <= 1.001,
+           besideLineIndents.isEmpty, keepClear == nil, Self._paired(painter) == nil, p.inlineImages.isEmpty,
+           p.runs.contains(where: { abs($0.style.raised ?? 0) > 0.01 && $0.style.script == .normal }) {
+            let metrics = painter.computeLineMetrics()
+            let bottoms = Self._rawLineBottoms(painter)
+            let units = p.text.utf16.count
+            let starts = _lineStarts(painter, _map(i), count: units)
+            if metrics.count == bottoms.count, starts.count == metrics.count {
+                var above = [Double](repeating: 0, count: metrics.count), below = above
+                var tallest = [Double](repeating: 0, count: metrics.count)
+                var at = 0
+                let text = Array(p.text.utf16)
+                for run in p.runs where run.length > 0 {
+                    defer { at += run.length }
+                    guard at < units else { break }
+                    let end = min(units, at + run.length)
+                    guard text[at ..< end].contains(where: { $0 > 0x20 }) else { continue }
+                    let line = max(0, (starts.lastIndex(where: { $0 <= at }) ?? 0))
+                    tallest[line] = max(tallest[line], run.style.fontSize ?? 0)
+                }
+                at = 0
+                for run in p.runs where run.length > 0 {
+                    defer { at += run.length }
+                    guard at < units else { break }
+                    let end = min(units, at + run.length)
+                    guard text[at ..< end].contains(where: { $0 > 0x20 }) else { continue }
+                    // (Only Latin text is measured: CJK, Thai and symbol-font runs raised in the corpus (xd, xb) are
+                    // set on the lines Word sets them on without the growth.)
+                    guard text[at ..< end].allSatisfy({ $0 <= 0x24F || (0x2000 ... 0x206F).contains($0) }) else { continue }
+                    let pos = (run.style.raised ?? 0) * _px(1)
+                    guard abs(run.style.raised ?? 0) > 0.01, run.style.script == .normal else { continue }
+                    let line = max(0, (starts.lastIndex(where: { $0 <= at }) ?? 0))
+                    let ratio = tallest[line] > 0 ? (run.style.fontSize ?? tallest[line]) / tallest[line] : 1
+                    let m = metrics[line]
+                    above[line] = max(above[line], m.ascent * ratio + pos - m.ascent)
+                    below[line] = max(below[line], m.descent * ratio - pos - m.descent)
+                }
+                if above.contains(where: { $0 > 0.05 }) || below.contains(where: { $0 > 0.05 }) {
+                    RuleTrace.hit("word-a-line-with-a-raised-or-lowered-run-grows-by-the-raise-above-and-the-lowering-below")
+                    var shifts = [Double](repeating: 0, count: metrics.count)
+                    var acc = 0.0
+                    for k in 0 ..< metrics.count {
+                        shifts[k] = acc + max(0, above[k])
+                        acc += max(0, above[k]) + max(0, below[k])
+                    }
+                    Self._pairedLines[ObjectIdentifier(painter)] = _PairedLines(painter: painter, shifts: shifts, saving: -acc)
+                }
+            }
+        }
         if (besideLeftRoom != nil && !besideLineIndents.isEmpty) || keepClear != nil {
             Self._registerPairs(painter, besideLeftRoom != nil ? besideLineIndents : [], push: keepClear)
         }

@@ -1,4 +1,4 @@
-188 documents: mean 80.3% of Word's lines matched, median 98.4%; 112 at 95% or more, 151 at half or more; 174 with Word's page count
+188 documents: mean 80.6% of Word's lines matched, median 98.4%; 126 at 95% or more, 151 at half or more; 174 with Word's page count
     0.8%  lines 130/128  pages 6/6  ara-z21298544-b514c2
     2.3%  lines 88/97  pages 10/9  fas-z14957015-3a9879
     2.4%  lines 664/778  pages 27/26  ara-z11030406-663296
@@ -38,7 +38,7 @@
    48.9%  lines 472/471  pages 14/14  heb-z17544993-944544
    50.2%  lines 265/267  pages 14/14  ara-z19427756-0dd311
    50.8%  lines 912/910  pages 21/21  fra-g255-612f49
-   60.8%  lines 485/469  pages 19/19  docx-bff1c672
+   60.4%  lines 485/470  pages 19/19  docx-bff1c672
    62.4%  lines 181/182  pages 7/7  ara-z18938499-0b6a0d
    64.1%  lines 181/186  pages 9/9  nld-z22251521-8c1881
    68.1%  lines 119/114  pages 4/4  docx4j-1e349e20
@@ -48,34 +48,34 @@
    76.4%  lines 127/127  pages 6/6  fas-z22910553-174812
    78.4%  lines 51/51  pages 8/8  docx-e925ae95
    79.0%  lines 1578/1580  pages 32/32  fra-g274-cccee1
-   80.1%  lines 226/223  pages 13/13  docx-46bc4851
    82.4%  lines 278/278  pages 9/9  heb-z24027390-bae91d
    82.5%  lines 361/361  pages 13/13  docx-6f1caa1e
    83.2%  lines 125/121  pages 16/16  docx-a567c5c2
+   83.6%  lines 226/223  pages 13/13  docx-46bc4851
    84.1%  lines 905/912  pages 24/24  fra-g70-0ecec1
    86.2%  lines 29/27  pages 6/6  docx-837e72c4
    87.4%  lines 1135/1143  pages 35/35  fra-z5579827-3c5db0
    88.4%  lines 776/780  pages 28/28  por-z1326468-80d0e5
    90.1%  lines 202/203  pages 5/5  ell-z10161459-ec79d6
-   91.6%  lines 226/223  pages 13/13  docx-33355364
-   91.6%  lines 226/223  pages 13/13  docx-35fcd124
-   91.6%  lines 226/223  pages 13/13  docx-8f1703b9
-   91.6%  lines 226/231  pages 13/13  docx-9776508d
-   91.6%  lines 226/223  pages 13/13  docx-aab66635
-   91.6%  lines 226/223  pages 13/13  docx-b5656ae8
-   91.7%  lines 229/226  pages 14/14  docx-3e5af46a
-   91.7%  lines 229/226  pages 14/14  docx-5c013902
-   91.7%  lines 229/226  pages 14/14  docx-69a87cfd
-   91.7%  lines 229/234  pages 14/14  docx-a3f77cda
-   91.7%  lines 229/226  pages 14/14  docx-bcd80994
-   91.7%  lines 229/226  pages 14/14  docx-d350f8c0
-   91.7%  lines 229/226  pages 14/14  docx-f32aa559
    91.8%  lines 598/580  pages 16/16  jpn-z23002680-ee9f8f
-   92.0%  lines 226/223  pages 13/13  docx-7e68ac6f
    93.3%  lines 180/180  pages 7/7  kor-z19581051-22de7d
    93.6%  lines 156/157  pages 5/5  heb-z23212898-e040af
    94.1%  lines 17/17  pages 1/1  docx4j-198f9895
+   95.1%  lines 226/223  pages 13/13  docx-33355364
+   95.1%  lines 226/223  pages 13/13  docx-35fcd124
+   95.1%  lines 226/223  pages 13/13  docx-8f1703b9
+   95.1%  lines 226/231  pages 13/13  docx-9776508d
+   95.1%  lines 226/223  pages 13/13  docx-aab66635
+   95.1%  lines 226/223  pages 13/13  docx-b5656ae8
+   95.2%  lines 229/226  pages 14/14  docx-3e5af46a
+   95.2%  lines 229/226  pages 14/14  docx-5c013902
+   95.2%  lines 229/226  pages 14/14  docx-69a87cfd
+   95.2%  lines 229/234  pages 14/14  docx-a3f77cda
+   95.2%  lines 229/226  pages 14/14  docx-bcd80994
+   95.2%  lines 229/226  pages 14/14  docx-d350f8c0
+   95.2%  lines 229/226  pages 14/14  docx-f32aa559
    95.4%  lines 498/498  pages 16/16  jpn-z23002680-771abc
+   96.0%  lines 226/223  pages 13/13  docx-7e68ac6f
    96.2%  lines 159/159  pages 6/6  rus-z15764990-244a14
    96.4%  lines 822/821  pages 18/18  ell-z10407270-89615d
    96.4%  lines 84/81  pages 3/3  jpn-g6-2212a2
