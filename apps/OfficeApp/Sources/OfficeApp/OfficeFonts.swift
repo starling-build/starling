@@ -4701,7 +4701,10 @@ static let sylfaenAdvances: [Double] = [
                 // JhengHei, as for an embedded subset below: lab cm236b's print draws
                 // 產 in Yu Gothic and 产发对… in JhengHei on a Calibri-default page.)
                 // (Only for a Japanese Mincho by name: the Chinese faces sharing its metrics, SimSun among them, keep JhengHei alone.)
-                if family.lowercased().containsSubstring("mincho") || family.containsSubstring("明朝") {
+                // (And for a Latin face Word has, which holds no Chinese and falls to Mincho: lab cm2a's Calibri
+                // eastAsia print draws 产 in JhengHei and 產 in Yu Gothic, lines taller as for a named Mincho.)
+                let viaLatinFallback = !(own || family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) || Self.isEastAsianFace(family))
+                if viaLatinFallback || family.lowercased().containsSubstring("mincho") || family.containsSubstring("明朝") {
                     face.uncoveredChain = [("MS Gothic", WindowsFallbackCovers.msGothic), ("Yu Gothic", WindowsFallbackCovers.yuGothic),
                                            ("Microsoft JhengHei", nil)]
                     face.chainFaceLines = true
