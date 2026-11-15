@@ -1381,7 +1381,11 @@ extension RichLayout {
         // way. The painter's slack takes the verdict, and so does
         // `_fitEastAsianLines`, whose `hair` and `edge` would otherwise
         // take such a line.
-        var tieSlack = 0.001
+        // (One 600 dpi grid step, 0.12 pt, past the room, in a paragraph with Devanagari: Word places glyph
+        // origins on that grid and takes a line whose end lands one step past the edge (Hindi and Nepali
+        // prints, amd-1 2026-11-15). Latin and Cyrillic text does NOT get it: dx2 A/B, 60 Latin-script docs
+        // fell, e.g. kk 61bba885 100 to 36.5. Ideographs, kana and Hangul keep the thousandth.)
+        var tieSlack = p.text.unicodeScalars.contains { $0.value >= 0x900 && $0.value <= 0x97F } && !p.text.unicodeScalars.contains { $0.value >= 0x2E80 } ? 0.12 : 0.001
         var tieShort = (first: false, rest: false)
         @inline(never) func _q3() {
         if theme.wordRules, wordList == nil, style.list == nil, !style.rightToLeft {
