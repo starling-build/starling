@@ -750,6 +750,16 @@ extension RichLayout {
             }
             return raise != nil
         }()
+        // (The face that decides whether a digit beside an East Asian character gets the automatic gap is the East Asian character's own
+        // (its run's East Asian slot), not the digit run's: xd 03cd29dc's "2024" in Arial (eastAsia "Arial") before "년" in 바탕 has Word's
+        // 2.2 pt gap at 9 pt, where ours read the digit run's Latin East Asian face and set none. Only Hangul, where it is measured.)
+        func eaFaceOffset(_ ch: Character, _ following: Character?, _ offset: Int, _ nextAt: Int) -> Int {
+            let ea = ch.unicodeScalars.first?.value ?? 0
+            let hangul: (UInt32) -> Bool = { ($0 >= 0xAC00 && $0 <= 0xD7A3) || ($0 >= 0x1100 && $0 <= 0x11FF) || ($0 >= 0x3130 && $0 <= 0x318F) }
+            if RichTextTheme.wordWindowsPages, ea >= 0x2E80, hangul(ea) { return offset }
+            if RichTextTheme.wordWindowsPages, ea < 0x2E80, let f = following?.unicodeScalars.first?.value, hangul(f) { return nextAt }
+            return ea >= 0x2E80 ? nextAt : offset
+        }
         func eastAsianFaceIsLatin(atOffset o: Int) -> Bool {
             var c = 0
             for r in p.runs {
@@ -3468,7 +3478,7 @@ extension RichLayout {
                     // zh-a0e932c2's gaps of 5.3 are its typed spaces.)
                     if theme.wordRules, document.usesEastAsianLayout || (document.autoSpacesWithoutFELayout && document.eastAsianLineRules && (document.defaultLangXML?.containsSubstring("w:eastAsia=\"") == true || ((document.compatibilityMode ?? 15) < 15)) && RichTextTheme.wordWindowsPages), !besideRaised, !(RichTextTheme.wordWindowsPages && document.skipsAutoSpace), Self._autoSpaced(ch, following, p.style, compat: document.compatibilityMode ?? 12),
                        !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin),
-                       !(RichTextTheme.wordWindowsPages && ((ch.unicodeScalars.first?.value ?? 0) >= 0x2E80 ? following : ch).isNumber && eastAsianFaceIsLatin(atOffset: (ch.unicodeScalars.first?.value ?? 0) >= 0x2E80 ? nextAt : offset)) {
+                       !(RichTextTheme.wordWindowsPages && ((ch.unicodeScalars.first?.value ?? 0) >= 0x2E80 ? following : ch).isNumber && eastAsianFaceIsLatin(atOffset: eaFaceOffset(ch, following, offset, nextAt))) {
                         let latin = run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily
                         // (Of the grid's character, where there is a grid
                         // of them, and of the run's spacing with it; a
