@@ -3577,6 +3577,20 @@ static let sylfaenAdvances: [Double] = [
         return windowsComplexFaces.contains(n) && !["arial", "times new roman", "tahoma", "segoe ui", "microsoft sans serif"].contains(n)
     }
 
+    /// A name Word's Windows lacks whose font table gives a real panose, family roman, charset 00 and no
+    /// alternate ("Bahij Nazanin"): Word draws it in Sakkal Majalla.
+    static func missingRomanComplexFace(_ name: String) -> Bool {
+        let n = name.trimmingWhitespace().lowercased()
+        guard windowsArabicWidthsOn, embeddedFamily(name) == nil, installedFamilies[n] == nil, let entry = fontEntry(name),
+              !windowsComplexFaces.contains(n), entry.alt?.trimmingWhitespace().isEmpty ?? true,
+              entry.family == "roman", !entry.panoseZero, entry.charset == "00" || entry.charset.isEmpty,
+              let usb0 = entry.usb0, usb0 & 0x2000 != 0,
+              // (Latin and Arabic only: no Greek, Cyrillic or Hebrew bit. A table that also claims those, IranNastaliq,
+              // Myanmar3, TITUS, prints in Arial, Tahoma or Times in Word's prints.)
+              usb0 & (1 << 7 | 1 << 9 | 1 << 11) == 0 else { return false }
+        return true
+    }
+
     static func complexFace(_ family: String?) -> RichResolvedFace? {
         // (A face neither embedded nor on the machine is the one Word sets
         // the text in, Times New Roman, and not a name nothing answers to:
@@ -3601,6 +3615,16 @@ static let sylfaenAdvances: [Double] = [
         // (Urdu, charset 00) — heb-z5059159, urd-z8387389, z7427432, z17694236 —
         // where the same Jameel with Times New Roman as its alternate, urd-z7538882's
         // table, prints in Times. The faces Windows ships are as they were.)
+        // (A complex-script name Word's Windows lacks whose font table gives it
+        // a real panose, family roman and charset 00 with no alternate, "Bahij
+        // Nazanin": Word's print draws it in Sakkal Majalla (xb fas-z14957015-3a9879,
+        // pitch 24.1 at 16 pt), not Arial.)
+        var viaRoman = false
+        if missing, wordOnWindows, missingRomanComplexFace(name) {
+            viaRoman = true
+            RuleTrace.hit("missing-roman-complex-face-is-sakkal")
+            name = "Sakkal Majalla"
+        } else
         if missing, wordOnWindows, let entry = fontEntry(name), !Self.windowsComplexFaces.contains(name.trimmingWhitespace().lowercased()),
            entry.alt?.trimmingWhitespace().isEmpty ?? true {
             RuleTrace.hit("missing-complex-face-is-arial")
@@ -3681,6 +3705,10 @@ static let sylfaenAdvances: [Double] = [
             // (David: hhea 1505 + 510 over 2048, bold the same, read from Word's prints; 12pt lines at 1.5 step 17.7.)
             // (FrankRuehl: hhea 1462 + 442 over 2048, from the face embedded in Word's prints.)
             if asked == "frankruehl" { face.baseline = 1462.0 / 2048; face.ownLineBaseline = true }
+            // (Sakkal Majalla: the first baseline of Word's print of xb 3a9879 stands 14.3pt under the top margin
+            // at 16pt and 31.8 at 36pt, 0.89 em; only for the stand-in: docs naming Sakkal Majalla directly
+            // matched worse with it, so their baseline stays.)
+            if viaRoman { face.baseline = 0.885; face.ownLineBaseline = true }
             if asked == "david" {
                 face.baseline = 1505.0 / 2048; face.ownLineBaseline = true
                 // (Its Hebrew letters' own advances, read from Word's prints: set word by word, `joinedScaled`.)
