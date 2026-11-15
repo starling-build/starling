@@ -5047,6 +5047,8 @@ extension RichLayout {
         let n = (full / pitch - 0.002).rounded(.up)
         _ = (ascent, descent)
         guard n >= 2 else { return nil }
+        // (A fraction holding a radical keeps its natural height, off the grid: 20d9968b's cos θ = a/√(a²+b²) lines step 27.4 and 27.9 pt in Word's print, not 36.)
+        if image.naturalInk == nil, (image.sourceXML ?? "").containsSubstring("<m:rad"), (image.sourceXML ?? "").containsSubstring("<m:f>") { return nil }
         let extra = (n - 1) * pitch / 2
         let offset = textAscent + extra
         return (n * pitch, offset, offset - base, full)
