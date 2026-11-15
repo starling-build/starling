@@ -1972,6 +1972,20 @@ extension RichLayout {
         var thaiJoins: Set<Int> = []
         if theme.wordRules, RichTextTheme.thaiBreaksAtSpaces, p.text.unicodeScalars.contains(where: { (0x0E01 ... 0x0E5B).contains($0.value) }) {
             let units = Array(p.text.utf16)
+            // (Thai drawn in Leelawadee UI, a run with no w:cs: Word's print breaks ANY Thai stretch where the line fills, at a letter start,
+            // even one that would fit a line whole ("พฤษ|ภาคม" at the end of a line, "รักษ|าจาก…"), dx2 fac01c51 42.9 to 100, aa59e402 33.3 to
+            // 77.8. Thai in Browallia, Angsana or Sarabun keeps a stretch narrower than the line whole (xd 0815aa59, bf230b4a: 91 to 10.6 if
+            // filled).)
+            var fillAll = false
+            do {
+                var at = 0
+                for r in p.runs {
+                    defer { at += r.length }
+                    guard at < units.count else { break }
+                    if units[at ..< min(units.count, at + r.length)].contains(where: { (0x0E01 ... 0x0E5B).contains($0) }),
+                       !(r.style.keptXML.map { $0.containsSubstring("<w:cs/>") || $0.containsSubstring("<w:cs ") } ?? false) { fillAll = true; break }
+                }
+            }
             let em = (p.runs.first?.style.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
             var k = 0
             while k < units.count {
@@ -1988,10 +2002,10 @@ extension RichLayout {
                 // (The first stretch against the first line's room, after
                 // its indent and number: that one is where it would stand.)
                 let room = k == 0 ? textWidth - max(0, lead) : textWidth
-                if thai, width <= room || k > 0 { for o in (k + 1) ..< max(k + 1, end) { thaiJoins.insert(o) } }
+                if thai, !fillAll, width <= room || k > 0 { for o in (k + 1) ..< max(k + 1, end) { thaiJoins.insert(o) } }
                 // (A stretch wider than a whole line is broken where the line fills, at any letter's start, as Word's print of
                 // xd 0815aa59 ends "…ปั" and starts "ตตานี…" — no dictionary word edge there. Break chances are marked as -offset.)
-                else if thai, width > textWidth {
+                else if thai, fillAll || width > textWidth {
                     for o in (k + 1) ..< max(k + 1, end) {
                         let c = units[o], b = units[o - 1]
                         if ((0x0E01 ... 0x0E2E).contains(c) || (0x0E40 ... 0x0E44).contains(c)), !(0x0E40 ... 0x0E44).contains(b) { thaiJoins.insert(-o) }
