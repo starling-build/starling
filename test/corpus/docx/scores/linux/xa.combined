@@ -1,4 +1,4 @@
-109 documents: COMBINED mean 79.69% (109 scored by Word's text lines, 0 by the visual comparison); pure line mean 79.69% over the 109 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
+109 documents: COMBINED mean 80.15% (109 scored by Word's text lines, 0 by the visual comparison); pure line mean 80.15% over the 109 documents with text; visual-scored mean 0.00% (worst page differs by 0.00% of pixels on average, 0 at or under 1%)
   25.9%  lines 139/139  pages 6/6  dx4j-7acb626022
   61.8%  lines 374/232  pages 6/5  dx4j-a94b4fd3b1
  100.0%  lines 16/16  pages 1/1  dx4j-bacc7e5885
@@ -47,7 +47,7 @@
  100.0%  lines 443/443  pages 10/10  gv-c898507cac
   99.7%  lines 327/327  pages 19/19  gv-c9368dd9d4
   75.1%  lines 1242/1240  pages 32/32  gv-ccf7f258bf
-   7.5%  lines 832/942  pages 24/27  gv-cd79f1fa6b
+  57.2%  lines 832/837  pages 24/24  gv-cd79f1fa6b
  100.0%  lines 346/336  pages 8/8  gv-d152e362be
   99.8%  lines 403/403  pages 14/14  gv-d1907c960c
   92.3%  lines 273/274  pages 17/17  gv-d21097f0f9

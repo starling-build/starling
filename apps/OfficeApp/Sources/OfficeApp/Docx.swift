@@ -6270,6 +6270,22 @@ enum DocxFormat {
                 // (One of them may be nothing: a level line is no height.)
                 w = cx / 12700
                 h = cy / 12700
+            } else if let line = _vmlTop(node), line.name == "v:line", RichTextTheme.wordWindowsPages,
+                      let from = line["from"], let to = line["to"] {
+                // (A VML line is the box between its two ends, not the
+                // 300 by 200 of a shape with no size: a header's rule from
+                // (0,34pt) to (595.3pt,34pt) is no height at all, and read
+                // as 200pt tall it wrapped the body's first lines to the
+                // right of it: gv-cd79f1fa6b's headings.)
+                func point(_ s: String) -> (Double, Double)? {
+                    let c = s.split(separator: ",")
+                    guard c.count == 2, let x = _length(String(c[0]).trimmingWhitespace()), let y = _length(String(c[1]).trimmingWhitespace()) else { return nil }
+                    return (x, y)
+                }
+                if let a = point(from), let b = point(to) {
+                    w = abs(b.0 - a.0)
+                    h = abs(b.1 - a.1)
+                }
             } else if let shape = _vmlTop(node), shape.name != "v:line", let st = shape["style"] {
                 for pair in st.split(separator: ";") {
                     let kv = pair.split(separator: ":", maxSplits: 1)
