@@ -2615,6 +2615,18 @@ extension RichLayout {
                 }
             }
         }
+        // (The "position" of a Wingdings 2 bullet's numbering run, where the box is lowered or stands: see `_span`.)
+        var w2Done = false
+        func _w2Half() -> Double? {
+            guard theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, p.style.list != nil,
+                  _levelNumberFonts(p, document).latin?.lowercased() == "wingdings 2",
+                  let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }) else { return nil }
+            var half = 0.0
+            if let pr = xml.rangeOfSubstring("<w:position w:val=\"") {
+                half = Double(xml[pr.upperBound...].prefix { $0 != "\"" }) ?? 0
+            }
+            return half <= 0 ? half : nil
+        }
         @inline(never) func _blk5() {
         if theme.wordRules, p.image == nil, !p.text.isEmpty, painter.strutStyle != nil || _heldTallerLatin.contains(i) || scriptsOnly || mixedSizes || Self._startsWithEmoji(p.text) || _koreanSymbolFirstLineRaise(p, painter: painter, lead: _lead(i), named: _named(p, document), document: document) != nil,
            let line = painter.computeLineMetrics().first {
@@ -2843,10 +2855,26 @@ extension RichLayout {
                     target += raise
                 }
                 _inkShift[i] = _px(target) - line.baseline
+                // (A Wingdings 2 bullet's line is laid out on the mark's ascent (`_span`, "word-wingdings2-lowered-bullet..."),
+                // but Word draws the row's ink as much lower as the bullet is lowered: lab bea-lab, rows 1.6 (3pt lowered 22pt boxes),
+                // 3.0 (12pt) and 3.15pt (6pt lowering) under ours, the pitches and the table's foot equal. The text's baseline above
+                // must not pull the line back to the text's ascent: dx2 bea98273's rows stood 8.7pt high.)
+                if let half = _w2Half(), let boxPt = _markerChar(p, document).fontSize, boxPt > 0.5 {
+                    let lowering = -half / 2 * theme.pixelsPerPoint * scale
+                    let up = max(_px(boxPt) * 1727.0 / 2048 - lowering, _px(target))
+                    RuleTrace.hit("word-wingdings2-bullet-row-ink-stands-lowered-under-its-line")
+                    _inkShift[i] = up + lowering - line.baseline
+                    w2Done = true
+                }
             }
         }
         }
         _blk5()
+        // (… and a paragraph `_blk5` leaves alone stands on the mark's ascent already: its ink goes as much lower.)
+        if !w2Done, let half = _w2Half(), half < 0, !p.text.isEmpty {
+            RuleTrace.hit("word-wingdings2-bullet-row-ink-stands-lowered-under-its-line")
+            _inkShift[i] += -half / 2 * theme.pixelsPerPoint * scale
+        }
         // An empty numbered paragraph in a cell, on an exact line: its number stands where
         // the same line's text would, which is lower than the strut sets it
         // (zh-c97500b6's 1, 2, 3, 4: 6pt high).
