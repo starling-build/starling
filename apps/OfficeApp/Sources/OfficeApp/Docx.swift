@@ -3030,11 +3030,14 @@ enum DocxFormat {
                                     // lo-c657ba7d's rows say 4.5pt navy on some sides and 1pt on others, the table's width the
                                     // 4.5 they mostly name, so those sides were left to the table's edges and drew nothing;
                                     // Word's print has the heavy rules between the rows.)
-                                    guard (e["w:val"] ?? "single") == "single", width != (style.borderWidth ?? 0.5) || (style.bordersFromCells && width > 1) else { return nil }
                                     var color = Color(0xFF000000)
                                     if let hex = e["w:color"], hex.lowercased() != "auto", hex.count == 6, let v = Int(hex, radix: 16) {
                                         color = Color(argb: 0xFF, (v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
                                     }
+                                    // (A side at the table's own width but in a colour of its own, white over the table's black, is drawn in that colour:
+                                    // xd e86e26f7's cell rules are FFFFFF at the table's width, drawn white in Word's print, black here.)
+                                    let recoloured = color != (style.borderColor ?? Color(0xFF000000))
+                                    guard (e["w:val"] ?? "single") == "single", width != (style.borderWidth ?? 0.5) || (style.bordersFromCells && width > 1) || recoloured else { return nil }
                                     return CellRef.CellLine(width: width, color: color)
                                 }
                                 return nil
