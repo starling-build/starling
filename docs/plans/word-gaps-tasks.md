@@ -17045,3 +17045,4 @@ HANDOFF amd-5 (2026-11-14, balloons):
 ### HANDOFF lenovo-3 2026-11-15 (tasks 1 and 2 after clear)
 - Task 2 (U+2011 + dot, lab arlat-face B-calibri): CLOSED, nothing to fix. On the tip (with fae318ce2) our baselines match Word within 0.2 pt per step; last baseline 415.9 vs Word 416.0 (was about 1 pt short).
 - Task 1 (xb fas 3a9879, matched 2 of 88, 9 pages vs Word 10): our Sakkal Majalla stand-in (Noto Naskh at a scaled size) has wrong word widths, both ways (36 pt title: Word 45.0/57.6/58.5/74.1 pt vs ours 47.9/63.5/61.1/70.0), so no scale fixes it. Requested from windows via starling-bd: Sakkal Majalla Regular+Bold advance metrics (Arabic block, FB50-FDFF, FE70-FEFF, lam-alef, ZWNJ/ZWJ, space, digits) plus ascent/descent/gap. Waiting on that.
+- amd-5 CLAIM (2026-11-15, after clear): Task 1 xa gv-ccf7f258bf (32 vs 33 pages), then gv-d79af1faf9 and the lowest gv docs (body first), then balloon wording leftovers.
