@@ -17451,3 +17451,10 @@ HANDOFF amd-10 (2026-11-15): (1) Korean fix landed d4d0fd9c0 (107500a8 212 to 21
 - lenovo-2 CLAIM 2026-11-15: dx2 ko 1f6d638c (from amd-2; was 100 on 11-13, 40.5 now: regression hunt)
 - lenovo-2 2026-11-15: dx2 ko 1f6d638c is 100.0 (37/37, 3/3) on tips 65b454105 and my 17:00 tip; the 40.5 is the stored dx2.v2 baseline seeded 11-13 (stale), not a regression. Released.
 - lenovo-2 CLAIM 2026-11-15: xd Korean 4fabe1f2 (moved from amd-2 by starling-bd)
+
+### HANDOFF amd-6 (2026-11-15): dx2 ebe45609 (es, 3.6%) PARKED, needs a Word lab
+- Landed: 3667057e (ro) 5.2 to 99.5 (entry 340); c23888cb (uk) Georgia Cyrillic 0.4 to 100 (entry 350, queued); 0fd592a1 Palatino Greek 4.1 to 100 (in 52c667438).
+- ebe45609 page 1: Word draws centred empty paragraphs (Engravers MT 11pt, pitch 28) at y129,157,185, then the host paragraph of picture C (para 5, anchored 213, C drawn at 385 = 213+172) is PUSHED to y367 (below pictures A+B, which span 216-367), x152 (centred in C's left strip 85-221). Everything after shifts 156pt; ours does not push it (the note is at 547, Word 703).
+- Why ours does not push: noRoom (Paginate ~4167) asks only half an em (bare paragraph, 5.5pt) of the widest free strip; the strip left of B is 17.55pt (1.6 em), so no push. zd d62da4dd says 10.95pt strip at 12pt STAYS (tight chart), so a plain width threshold contradicts it. Differences to test in a lab: TWO square pictures sharing the band, centred empty paragraph, distL 9.
+- Host-line x for C: branch ebe-hostline (local, 5fd360c7b, not landed): in the host-line scan (HeaderFooter ~1228) stop walking when the next picture's band starts inside the one just passed; also drop the `_cells[i]==nil` requirement when the doc has no tables. Gives C at 229.6 as Word. Not A/B'd across dx2, so NOT submitted.
+- Trap: amd-10's queued 343 adds Engravers MT / Baskerville tables; ebe45609 lines match 197/197 only with it. The "i - 6" look-back in Lines ~929 is not the cause (tried 12: no change).
