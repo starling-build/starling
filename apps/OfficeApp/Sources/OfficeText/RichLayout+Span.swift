@@ -554,9 +554,15 @@ extension RichLayout {
             var eaRunEnds: Set<Int> = []
             if RichTextTheme.wordWindowsPages {
                 var st = 0
+                let eaUnits = Array(p.text.utf16)
+                // (The importer gives a run of circled digits the East Asian slot of its ascii face: here it still reads as ascii-only.)
+                func circledOnly(_ from: Int, _ n: Int) -> Bool {
+                    n > 0 && from + n <= eaUnits.count && eaUnits[from ..< from + n].allSatisfy { $0 >= 0x2460 && $0 <= 0x2469 }
+                }
                 for (i, r) in p.runs.enumerated() {
                     st += r.length
-                    if i + 1 < p.runs.count, r.style.eastAsiaFontFamily != nil, p.runs[i + 1].style.eastAsiaFontFamily == nil { eaRunEnds.insert(st) }
+                    if i + 1 < p.runs.count, r.style.eastAsiaFontFamily != nil,
+                       p.runs[i + 1].style.eastAsiaFontFamily == nil || circledOnly(st, p.runs[i + 1].length) { eaRunEnds.insert(st) }
                 }
             }
             var at = 0
@@ -603,7 +609,11 @@ extension RichLayout {
                 var korean: Set<Int> = []
                 for r in p.runs {
                     defer { st += r.length }
-                    guard r.style.eastAsiaFontFamily == nil, r.style.fontHint != "eastAsia",
+                    // (A run of circled digits keeps the ascii-only reading here though the importer gave it the East Asian slot
+                    // of its ascii face: the space before 107500a8's "① " stays wide.)
+                    let circledOnly = r.length > 0 && st + r.length <= units.count
+                        && units[st ..< st + r.length].allSatisfy { $0 >= 0x2460 && $0 <= 0x2469 }
+                    guard r.style.eastAsiaFontFamily == nil || circledOnly, r.style.fontHint != "eastAsia",
                           theme.faceResolver?(r.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, true)?.malgunSymbols == true else { continue }
                     korean.formUnion(st ..< min(st + r.length, units.count))
                 }

@@ -6972,6 +6972,12 @@ enum DocxFormat {
             var cs = cs
             if let r = pendingRefChange { cs.commentRefSaid = r.said; cs.commentRefAuthor = r.author; pendingRefChange = nil }
             if s == "\u{B7}" { cs.loneDot = true }
+            // (A run of circled digits that names only its ascii face is drawn from the East Asian slot of that same face in Word's print:
+            // xd 4fabe1f2's ② under HY신명조, a missing Korean face, stands on Malgun's line like one that names both.)
+            if DocxFormat.wordOnWindows, cs.eastAsiaFontFamily == nil, cs.fontFamily != nil,
+               s.unicodeScalars.allSatisfy({ (0x2460 ... 0x2469).contains($0.value) }) {
+                cs.eastAsiaFontFamily = cs.fontFamily
+            }
             // (Word picks the face by character: Arabic and Hebrew letters in a run with no w:rtl still take the complex-script face,
             // as xb ara-z23060052's print sets them (the face is resolved elsewhere). Each Arabic stretch becomes its own
             // right-to-left run; the rest keeps the Latin face.)
