@@ -1370,6 +1370,16 @@ extension RichLayout {
                     let nirmalaNamedRun = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased().hasPrefix("nirmala ui")
                     s = s.copyWith(ascentOverride: m.0 * multiple * size, descentOverride: m.1 * multiple * size, height: nirmalaNamedRun ? (m.0 + m.1) * multiple : nil, leadingDistribution: nirmalaNamedRun ? .even : nil)
                 }
+                // (Garamond's Latin beside a Nirmala UI line: a line is its tallest ascent over its deepest descent, and Garamond's own descent (0.2632 em, ascent 0.8618:
+                // 1.125 em, Word's 12.36 pt at 11) is deeper than Nirmala's 0.251 where its stand-in's is shallower. Word's Bengali lines with Garamond runs are 14.76 at 11 pt and
+                // 14.1 at 10.5 (Nirmala alone 14.63, 13.97). dx2 bea98273.)
+                if kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, indic == nil, let size = s.fontSize, size > 0.5,
+                   (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "garamond",
+                   !text.unicodeScalars.contains(where: { Self._isIndic($0.value) }), text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 }),
+                   p.text.unicodeScalars.contains(where: { Self._indic.contains($0.value) }), !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) {
+                    let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+                    s = s.copyWith(ascentOverride: 0.8618 * multiple * size, descentOverride: 0.2632 * multiple * size)
+                }
                 // (A run of Latin in a face other than Kokila inside a Kokila paragraph: Word stands its line on that face's ascent (above Kokila's) and keeps the
                 // Kokila split below it, at a line multiple too (dx2 cbb7ae39's Times New Roman "IRB", lab cb7; its 1.57-line paragraphs: the line is 2.0 pt taller, the
                 // extra under the baseline unchanged). White space and the invisible marks beside Kokila text set no line of their own.)
