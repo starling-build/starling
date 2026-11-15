@@ -5023,7 +5023,9 @@ extension RichLayout {
     @inline(never)
     func _equationGridLine(_ image: ImageAttachment, size: Size, style: TextStyle, pitch: Double) -> (height: Double, offset: Double, down: Double, full: Double)? {
         guard let whole = image.naturalExtent else { return nil }
-        let base = _px(whole.ascent), full = _px(whole.ascent + whole.descent)
+        let base = _px(whole.ascent)
+        // (A fraction's line follows its ink: 20d9968b's n over k and 1 over x are one 18pt pitch in Word's print, e^x-1 over x two.)
+        let full = image.naturalInk.map { _px($0.up + $0.down) } ?? _px(whole.ascent + whole.descent)
         let probe = TextPainter(text: TextSpan(text: "\u{200B}", style: style), textDirection: .ltr)
         probe.layout(minWidth: 0, maxWidth: .infinity)
         let textAscent = probe.computeDistanceToActualBaseline(TextBaseline.alphabetic)

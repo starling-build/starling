@@ -83,7 +83,7 @@ enum WriterMath {
     /// Lays out the equation `node` (`m:oMath` or `m:oMathPara`) for the
     /// object attachment `id`, its text `size` points where its runs say
     /// none; its size and baseline (from its top), in points.
-    static func register(_ node: XNode, for id: String, size: Double, natural: ((Double, Double)) -> Void = { _ in }) -> (width: Double, height: Double, baseline: Double)? {
+    static func register(_ node: XNode, for id: String, size: Double, natural: ((Double, Double)) -> Void = { _ in }, ink: ((Double, Double)) -> Void = { _ in }) -> (width: Double, height: Double, baseline: Double)? {
         let display = node.name == "m:oMathPara"
         var box = Layout(display: display, inlineText: !display).row(node, size: size, level: 0)
         guard box.width > 0 else { return nil }
@@ -93,6 +93,7 @@ enum WriterMath {
         // grid in Word's print, where the subscript's depth took ours two.
         // It is drawn whole all the same.)
         natural((box.ascent, box.descent))
+        ink((box.iu, box.idn))
         // (A display equation ending on a manual break, `<w:br/>` in its last
         // run, is one empty line longer: Word sets that line under it, 7f0539's
         // equations stand a line apart from the text after them; 158454's
@@ -278,6 +279,20 @@ enum WriterMath {
             v
         }
 
+        /// How far below its baseline a run's ink reaches, in em: none for the digits and the letters
+        /// that stand on the baseline (not g j p q y, nor brackets and other signs that hang).
+        static func inkDepth(of s: String) -> Double {
+            for u in s.unicodeScalars {
+                switch u.value {
+                case 0x30 ... 0x39, 0x41 ... 0x5A, 0x2B, 0x2D, 0x3D, 0x2212: continue
+                case 0x61 ... 0x7A: if "gjpqy".unicodeScalars.contains(u) { return 0.2 }
+                case 0x1D44E ... 0x1D467: let k = u.value - 0x1D44E; if [6, 9, 15, 16, 24].contains(k) { return 0.2 }
+                case 0x1D434 ... 0x1D44D, 0x210E: continue
+                default: return 0.2
+                }
+            }
+            return 0
+        }
         func text(_ s: String, size: Double, italic: Bool, family: RichResolvedFace? = nil) -> Box {
             guard !s.isEmpty else { return .empty }
             // Word's formula letters are the mathematical italic ones (U+1D44E on): OMML letters
@@ -304,13 +319,13 @@ enum WriterMath {
                     var xs: [Double] = [], x = 0.0
                     for u in s.unicodeScalars { xs.append(x); x += adv[u.value]! * size }
                     let total = x
-                    return Box(width: total, ascent: cam(ps.map(\.ascent).max() ?? 0, size, 0.95), descent: cam(ps.map(\.descent).max() ?? 0, size, 0.22), inkUp: size * 0.7, inkDown: size * 0.2) { canvas, at in
+                    return Box(width: total, ascent: cam(ps.map(\.ascent).max() ?? 0, size, 0.95), descent: cam(ps.map(\.descent).max() ?? 0, size, 0.22), inkUp: size * 0.7, inkDown: size * Layout.inkDepth(of: s)) { canvas, at in
                         for (i, q) in ps.enumerated() { q.tp.paint(canvas, Offset(at.dx + xs[i], at.dy - q.baseline)) }
                     }
                 }
             }
             let p = Painter(s, size: size, italic: italic, color: ink, family: family?.family, height: family?.naturalHeight)
-            return Box(width: p.tp.width, ascent: cam(p.ascent, size, 0.95), descent: cam(p.descent, size, 0.22), inkUp: size * 0.7, inkDown: size * 0.2) { canvas, at in
+            return Box(width: p.tp.width, ascent: cam(p.ascent, size, 0.95), descent: cam(p.descent, size, 0.22), inkUp: size * 0.7, inkDown: size * Layout.inkDepth(of: s)) { canvas, at in
                 p.tp.paint(canvas, Offset(at.dx, at.dy - p.baseline))
             }
         }
@@ -732,7 +747,7 @@ enum WriterMath {
             let ascent = wd ? dNum + num.ascent : text ? numUp + num.ascent : axis + rule / 2 + gap + num.descent + num.ascent
             let descent = wd ? dDen + den.descent : text ? denDown + den.descent : max(0, gap + rule / 2 - axis + den.ascent + den.descent)
             let ruleUp = wd ? dRule : text ? size * 0.2875 : axis
-            return Box(width: w, ascent: ascent, descent: descent, inkUp: wd ? dNum + num.iu : nil, inkDown: wd ? dDen + den.idn : nil) { canvas, at in
+            return Box(width: w, ascent: ascent, descent: descent, inkUp: wd ? dNum + num.iu : text ? numUp + num.iu : nil, inkDown: wd ? dDen + den.idn : text ? denDown + den.idn : nil) { canvas, at in
                 let line = at.dy - ruleUp
                 num.draw(canvas, Offset(at.dx + (w - num.width) / 2, wd ? at.dy - dNum : text ? at.dy - numUp : line - rule / 2 - gap - num.descent))
                 den.draw(canvas, Offset(at.dx + (w - den.width) / 2, wd ? at.dy + dDen : text ? at.dy + denDown : line + rule / 2 + gap + den.ascent))
