@@ -1012,6 +1012,16 @@ extension RichLayout {
             var fitBusy = false
             var plainPiece = false
             var latinNoScale = false
+            // (A run names its Latin face itself, or takes one from its styles that is a Windows Latin face: xd 77d6ca49's ", AIESC" in
+            // Calibri (Normal style), 12.0 in Word, 12.48 with the Indic scale.)
+            let latinFaceNamed: Bool = {
+                if run.fontFamily != nil { return true }
+                guard theme.wordRules, RichTextTheme.wordWindowsPages else { return false }
+                // (Devanagari paragraphs only: dx2 d611e23b, Telugu with Arial from Normal, draws its Latin at the Indic scale in Word.)
+                guard p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 }) else { return false }
+                let f = (named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
+                return !f.isEmpty && !f.hasPrefix("nirmala ui") && WordWindowsFaces.names.contains(f)
+            }()
             var fitNone = false
             var fitLastSingle = false
             var fitLastEnd = 0
@@ -1900,7 +1910,7 @@ extension RichLayout {
                             plainPiece = !isIndic
                             // (Latin letters and digits of a run that names its own Latin face are that face's, not stretched by the Indic scale:
                             // d912c25b's "(COVID-19)", Calibri 12, 54.7 pt in Word, 57.9 here.)
-                            latinNoScale = !isIndic && run.fontFamily != nil && p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 }) && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
+                            latinNoScale = !isIndic && latinFaceNamed && p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 }) && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
                             // (A space between Devanagari words in a run whose ascii face is a Windows Latin face (Calibri, Arial): Word draws it in that face (Hindi only: the Gujarati table is not re-measured and b785c95e's lines were level only by luck) at the
                             // run's size, 0.2256 em in Calibri; the Indic stretch (scaleX) belongs to the Devanagari glyphs only. d912c25b: 2.94 pt here, 2.76 in Word. The same for the ASCII marks (not the spaces: those follow the rule above for every Windows face) of a run that names, itself, a Latin face whose Windows metrics we hold (`WordWindowsFaces.metricsHeld`; PROVISIONAL: the stand-in's advances are used, not the face's own, so only the Indic stretch is dropped); a theme-derived or Aptos run drew its marks wide (xd 77d6ca49 17.5 to 4.5): ", " "-" ". " drawn at 12.48 here against Calibri's 12.0, 0.8 pt over one line: d912c25b p2 "...एक यह".)
                             let asciiFace = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
@@ -1939,7 +1949,7 @@ extension RichLayout {
                     // and marks between Nirmala UI's words are Arial's and carry no Nirmala line of their own.)
                     for (piece, isIndic) in Self._splitIndicLatin(text[start ..< end]) {
                                                 plainPiece = !isIndic
-                        latinNoScale = !isIndic && run.fontFamily != nil && p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 }) && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
+                        latinNoScale = !isIndic && latinFaceNamed && p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 }) && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
                         let st = style(kind)
                         plainPiece = false
                         latinNoScale = false
@@ -1990,7 +2000,7 @@ extension RichLayout {
                 }
                 // (A stretch with no Indic letter in it, in a run that has some: its digits, marks and spaces are the Latin face's, at the
                 // Latin face's widths; the Indic width scale is for the Indic letters. dx2 d912c25b's "(COVID-19)": Word 54.7, ours 59.2.)
-                latinNoScale = kind >= 0 && indic != nil && run.fontFamily != nil && text[start ..< end].contains(where: { $0.isLetter || $0.isNumber }) && !text[start ..< end].unicodeScalars.contains(where: { $0.value == 0xA0 }) && !text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0x0900 && $0.value < 0x0E00 })
+                latinNoScale = kind >= 0 && indic != nil && latinFaceNamed && text[start ..< end].contains(where: { $0.isLetter || $0.isNumber }) && !text[start ..< end].unicodeScalars.contains(where: { $0.value == 0xA0 }) && !text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0x0900 && $0.value < 0x0E00 })
                 let st = style(kind)
                 latinNoScale = false
                 spans.append(contentsOf: capped(text[start ..< end], run, joinedScaled(text[start ..< end], st)))
