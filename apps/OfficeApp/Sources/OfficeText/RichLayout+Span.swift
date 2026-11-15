@@ -1947,8 +1947,11 @@ extension RichLayout {
                             var ws = piece.startIndex
                             while ws < piece.endIndex {
                                 var we = ws
-                                let sp = piece[ws] == " "
-                                while we < piece.endIndex, (piece[we] == " ") == sp { we = piece.index(after: we) }
+                                // (In a Bengali face Windows lacks, a no-break space beside a space is drawn in Mangal as the space is: xd 73caaeda's "এবং" + SP + NBSP + "মঙ্গোল", two 6.0 pt spaces in Word, 8.0 pt here.)
+                                let missingBn = Self._missingBengaliSpaceEm(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "") != nil
+                                let isGap: (Character) -> Bool = { $0 == " " || (missingBn && $0 == "\u{00A0}") }
+                                let sp = isGap(piece[ws])
+                                while we < piece.endIndex, isGap(piece[we]) == sp { we = piece.index(after: we) }
                                 let seg = piece[ws ..< we]
                                 if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: NirmalaAdvances.table(bold: nBold), flatScale: 1, conjunctRatio: nil, block: seg.unicodeScalars.first(where: { $0.value >= 0x900 && $0.value < 0xB00 }).map { $0.value & ~0x7F } ?? 0x900, lowVowelsZero: !nBold) {
                                     spans.append(contentsOf: capped(seg, run, fitted.style))
@@ -1981,7 +1984,7 @@ extension RichLayout {
                             }
                             // (Spaces between the Bengali words of a run in a face Windows lacks (SolaimanLipi, Nikosh): Word draws them in Mangal, half an em, not the
                             // stand-in's quarter: xd 73caaeda, 6.0 pt at 12 pt, so Word's first line breaks 10 characters earlier than ours did.)
-                            if !isIndic, authored > 0.5, theme.wordRules, RichTextTheme.wordWindowsPages, !piece.isEmpty, piece.allSatisfy({ $0 == " " }),
+                            if !isIndic, authored > 0.5, theme.wordRules, RichTextTheme.wordWindowsPages, !piece.isEmpty, piece.allSatisfy({ $0 == " " || $0 == "\u{00A0}" }),
                                let em = Self._missingBengaliSpaceEm(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? ""),
                                p.text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF && $0.properties.isAlphabetic }) {
                                 RuleTrace.hit("word-missing-bengali-face-space-between-words-is-mangal-half-em")
