@@ -1586,6 +1586,9 @@ extension RichLayout {
                 if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil {
                     let d = g.painter.computeDistanceToActualBaseline(.alphabetic) - marker.computeDistanceToActualBaseline(.alphabetic)
                     if d < -_px(0.5) { markerDown = d; RuleTrace.hit("word-list-number-on-its-lines-baseline") }
+                    // (And down to it when the text's line is the deeper one: xd 55850db1's "क)" over Courier New / Mangal text
+                    // stood 3.2pt above its line's baseline; Word's print has label and text on one baseline.)
+                    else if d > _px(0.5) { markerDown = d; RuleTrace.hit("word-list-number-down-to-its-lines-baseline") }
                 }
                 _paintMarker(marker, Offset(wl.format?.justification == "right" ? at - marker.width : at, g.inkTop + markerDown), p, document, label: label, canvas)
                 }
