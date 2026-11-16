@@ -1584,7 +1584,12 @@ extension RichLayout {
                 // tall line (Latin digits, no Indic letter) stood 7.8pt below its text, whose line is the
                 // Indic face's; the marker's own line has no such depth.)
                 var markerDown = 0.0
-                if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil {
+                // (A Wingdings 2 bullet lowered by its numbering run's `w:position` stands on the text's baseline in a cell too, then lowered:
+                // dx2 bea98273's table rows, Word's box 3.0pt under the text, ours 9.1 from its own ascent.)
+                let w2LoweredBullet: Bool = p.cell != nil && theme.wordRules && RichTextTheme.wordWindowsPages && document.readFromFile
+                    && p.style.lineHeightPoints == nil && p.style.list != nil && _levelNumberFonts(p, document).latin?.lowercased() == "wingdings 2"
+                    && (p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML })?.rangeOfSubstring("<w:position w:val=\"-") != nil)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil || w2LoweredBullet {
                     let d = g.painter.computeDistanceToActualBaseline(.alphabetic) - marker.computeDistanceToActualBaseline(.alphabetic)
                     if d < -_px(0.5) { markerDown = d; RuleTrace.hit("word-list-number-on-its-lines-baseline") }
                     // (And down to it when the text's line is the deeper one: xd 55850db1's "क)" over Courier New / Mangal text
