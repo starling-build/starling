@@ -2014,10 +2014,13 @@ extension RichLayout {
                 // Without the balance they give after a space too: zh-f2ca3070's
                 // "…共同工作空間   席", 4.80 of 6. A Latin word after them keeps
                 // lab `jg`'s rule: zh-4b8e0abc's Indonesian, balanced, mode 15.)
+                // (Korean, wordWrap 0, a Hangul syllable over the margin: Word keeps its Hangul-width spaces whole but squeezes a LATIN-width space, one set in a run naming only the ascii face: xd 4fabe1f2's "제20조(분쟁해결 등)①" line takes "하" 0.6 pt over with that one space at 3.0 of 3.7, every Korean space 5.6; 107500a8's print shows the same 2.9-3.0. Rule by the space's own width class.)
+                let hangulHold: Bool = RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && (inCell || !legacy && p.style.eastAsian["w:wordWrap"] == "0" && (isSpace(units[a]) || units[a] >= 0xAC00 && units[a] <= 0xD7A3)) && units[a ..< last].first(where: { !isSpace($0) }).map({ $0 >= 0xAC00 && $0 <= 0xD7A3 }) == true && !(legacy == false && a + 2 >= units.count && p.style.eastAsian["w:wordWrap"] == "0")
+                let latinGivers: [(k: Int, w: Double)] = hangulHold && !inCell ? wordSpaces.filter { $0.w < em * 0.4 } : []
                 if !fits, !opening, squeezesSpaces || pageBox,
                    !(document.balancesSpaceWidth && eastAsianAt(a) && a > 0 && isSpace(units[a - 1])),
                    // (Korean, balanceSingleByteDoubleByteWidth, in a table cell: Word stretches, never squeezes, a space to take a Hangul syllable (15093019); in body text it squeezes, 107500a8 takes '기' at 0.46 em spaces.)
-                   !(RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && (inCell || !legacy && p.style.eastAsian["w:wordWrap"] == "0" && (isSpace(units[a]) || units[a] >= 0xAC00 && units[a] <= 0xD7A3)) && units[a ..< last].first(where: { !isSpace($0) }).map({ $0 >= 0xAC00 && $0 <= 0xD7A3 }) == true && !(legacy == false && a + 2 >= units.count && p.style.eastAsian["w:wordWrap"] == "0")),
+                   !(hangulHold && latinGivers.isEmpty),
                    // (And with wordWrap ON in a compat-15 cell Word never squeezes to take a last word that holds Hangul, even one that opens on a digit: lab ko-stop3 ww and leftww, tcW 7760-7960, 101 cases, never taken; 6건입니다.)
                    !(RichTextTheme.wordWindowsPages && document.balancesSpaceWidth && inCell && !legacy && p.style.eastAsian["w:wordWrap"] != "0" && Self._koreanLastWord(units, a)),
                    !wordSpaces.isEmpty || (!(spaces + ownSpaces).isEmpty && units[a] != 0xFFFC && !isSpace(units[a])) {
@@ -2123,7 +2126,7 @@ extension RichLayout {
                         RuleTrace.hit("word-missing-hangul-face-space-gives-yu-advance")
                         return min(s.w, em * 584.0 / 2048)
                     }
-                    let givers = windowsAfterMarks ? wordSpaces.filter { spaceGives($0.k) } : wordSpaces
+                    let givers = hangulHold ? latinGivers : windowsAfterMarks ? wordSpaces.filter { spaceGives($0.k) } : wordSpaces
                     // (A number or Latin word brought onto a body line, Word for Windows, no grid: the automatic
                     // spaces give a quarter em and 0.3 of themselves, and a word space nothing. Lab `ds`
                     // (zh-eccb2003's "…資訊公開從105", mode 15, doNotCompress, 14pt) takes "105" 6.2pt over and not
@@ -2214,7 +2217,7 @@ extension RichLayout {
                     let hangulBodyHalf = windowsAfterMarks && autos.isEmpty && units[a] >= 0xAC00 && units[a] <= 0xD7A3
                         && a < runOf.count && !_hangulFaceMissingOnWord(p.runs[runOf[a]].style, lineStyle, document)   // (xd 107500a8 names 함초롬바탕, which Word's box lacks: it prints Batang and refuses the syllable)
                         && givers.allSatisfy { giveBase($0) == $0.w }   // (not the Yu Gothic spaces of a missing Hangul-named face: 22de7d refuses a 1.3 pt need, 0.15 of its stretch)
-                    let sharesStretch: Bool = onCharacterGrid || hangulPiece || (units[a] < 0x2E80 && !circled(units[a])) || (autos.isEmpty && !windowsAfterMarks)
+                    let sharesStretch: Bool = onCharacterGrid || hangulPiece || (hangulHold && !latinGivers.isEmpty) || (units[a] < 0x2E80 && !circled(units[a])) || (autos.isEmpty && !windowsAfterMarks)
                         || (windowsAfterMarks
                             ? (hangulBodyHalf ? need * 2 <= (width - x + spaceTrail + hair) : need * budgetStretch <= budgetGive * (width - x + spaceTrail + hair))
                             : need * oldStretch <= oldGive * (width - x + hair))
