@@ -77,7 +77,9 @@ extension RichLayout {
         "aparajita": (1550.0 / 2048, 870.0 / 2048), "raavi": (2048.0 / 2048, 1352.0 / 2048), "shruti": (2091.0 / 2048, 1352.0 / 2048),
         "gautami": (1892.0 / 2048, 1664.0 / 2048), "utsaah": (1518.0 / 2048, 774.0 / 2048), "vrinda": (2017.0 / 2048, 778.0 / 2048), "shonar bangla": (1655.0 / 2048, 996.0 / 2048), "shonar bangla bold": (1721.0 / 2048, 978.0 / 2048),
         // (Malgun Gothic as Word sets a line of it: hhea 1.088 + 0.242 and 0.4 of gap, 1.73 em, split evenly.)
-        "malgun gothic": (1.088 + 0.2, 0.242 + 0.2), "leelawadee ui": (1.08, 0.28)]
+        "malgun gothic": (1.088 + 0.2, 0.242 + 0.2), "leelawadee ui": (1.08, 0.28),
+        // (Myanmar Text: win ascent 2122, descent 1689 over 2048. Word sets a Myanmar-letter line at 1.861 em: dx2 2dbfc1a8, 22 pt a line at 11 pt on 259, ours 16.)
+        "myanmar text": (2122.0 / 2048, 1689.0 / 2048)]
     /// Width of each face's letters against the Noto stand-in's, per script (D Devanagari, B Bengali, T Telugu, P Gurmukhi, G Gujarati):
     /// the median ratio of Word's word widths to ours over the dx2 Indic documents that print in that face (spread under 0.03 per face).
     static let _indicScale: [String: [Character: Double]] = [
@@ -1237,6 +1239,11 @@ extension RichLayout {
                         RuleTrace.hit("word-thai-without-cs-is-leelawadee-ui")
                         return ("leelawadee ui", 1)
                     }
+                    // (Myanmar letters, in any run: Word draws them in Myanmar Text (Zawgyi-One and the rest are missing on Windows) and sets the line at its 1.861 em.)
+                    if text.unicodeScalars.contains(where: { $0.value >= 0x1000 && $0.value <= 0x109F }) {
+                        RuleTrace.hit("word-myanmar-letters-are-a-myanmar-text-line")
+                        return ("myanmar text", 1)
+                    }
                     // (Tamil: the line of Nirmala UI, 1.079 + 0.251 em, in the prints of tam-* and four of the xd Tamil documents.)
                     // (Width: set per word in flush() from TamilAdvances, a per-codepoint regression fit of Word's word widths
                     // (2864 words, four documents); our PDF embeds no Tamil face, so it cannot be read from glyph hmtx. No scale here.)
@@ -1720,6 +1727,17 @@ extension RichLayout {
             // tdf163575's "می‌توان" 37pt to Word's 27.)
             func isArabic(_ c: Character) -> Bool { c.unicodeScalars.first.map { ArabicForms.isArabic($0.value) || $0.value == 0x200C } ?? false }
             func joinedScaled(_ word: Substring, _ s: TextStyle) -> TextStyle {
+                // (Myanmar letters, word by word, at Myanmar Text's own advances: the stand-in has no Myanmar glyph and runs the line 12% wide.)
+                if theme.wordRules, document.readFromFile, let px = s.fontSize, px > 0.5,
+                   word.unicodeScalars.contains(where: { $0.value >= 0x1000 && $0.value <= 0x109F }) {
+                    let table = s.fontWeight == .bold ? MyanmarAdvances.bold : MyanmarAdvances.regular
+                    if word.unicodeScalars.allSatisfy({ table[$0.value] != nil }) {
+                        let ems = word.unicodeScalars.reduce(0.0) { $0 + (table[$1.value] ?? 0) }
+                        let shaped = _wordWidth(s, String(word))
+                        RuleTrace.hit("word-myanmar-letters-at-myanmar-text-advances")
+                        return shaped > 0.01 ? s.copyWith(scaleX: ems * px / shaped) : s
+                    }
+                }
                 // (Hebrew, word by word, at the advances the face carries per letter: David's, from Word's prints. A run of underscores too: the Cambria stand-in's is 0.633 em where David's is 0.504, Word's 6.0pt at 12.)
                 // (A number of a right-to-left run, digits and its separators, in a face that carries those advances too: FrankRuehl's 0.415 em digit in
                 // xd 38d880e8's case number, where the Latin stand-in's 0.553 ran the line wider. Direction marks have no width.)
@@ -2763,8 +2781,10 @@ extension RichLayout {
                 // that sets that line stands inside the word too, at each letter that opens a cluster. dx2 9baed400's 40 pt Kalimati cell, 21.2 pt
                 // pitch in Word on every line, 17.6 on the lines ours began mid-word.)
                 let insideWide = !wideIndicWords.isEmpty && wideIndicWords.contains { offset > $0.lowerBound && offset < $0.upperBound }
-                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, Self._isIndic(u),
-                   insideWide || !(before?.unicodeScalars.first.map { Self._isIndic($0.value) || $0.value == 0x200D || $0.value == 0x200C } ?? false) {
+                // (Myanmar: the line joiner goes before each consonant, so every line that holds Myanmar letters has Myanmar Text's line.)
+                let myanmarJoin = indic?.face == "myanmar text" && (ch.unicodeScalars.first.map { $0.value >= 0x1000 && $0.value <= 0x1021 } ?? false)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, Self._isIndic(u) || myanmarJoin,
+                   myanmarJoin || insideWide || !(before?.unicodeScalars.first.map { Self._isIndic($0.value) || $0.value == 0x200D || $0.value == 0x200C } ?? false) {
                     let face0 = indic?.face
                     // (Shonar Bangla Bold is its own face in Word: 1721+978 of 2048 against the regular's 1655+996.)
                     let face = (face0 == "shonar bangla" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? "shonar bangla bold" : face0

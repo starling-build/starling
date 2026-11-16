@@ -2918,6 +2918,16 @@ extension RichLayout {
                     target = raised
                     segoeLift = max(segoeLift, indicLift)
                 }
+                // (A first line of Myanmar letters under an "at least" line stands on Myanmar Text's own line, not on the Latin face's with the
+                // minimum's extra above it: the line is the taller of the minimum and 1.861 em, the extra above the baseline. dx2 80bde9af's
+                // 11 pt lines at least 20.1 pt: Word's first baseline 11.4 pt under the margin, ours 17.3.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, style.lineHeightIsMinimum, let least = style.lineHeightPoints,
+                   !p.text.isEmpty, let size = lead.0.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? Optional(theme.fontSize),
+                   String(p.text.prefix(max(0, painter.getLineBoundary(TextPosition(offset: 0)).end - _lead(i)))).unicodeScalars.contains(where: { $0.value >= 0x1000 && $0.value < 0x10A0 }) {
+                    let up = size * 2122.0 / 2048, down = size * 1689.0 / 2048
+                    RuleTrace.hit("word-myanmar-first-line-under-at-least-stands-on-myanmar-text")
+                    target = max(least, up + down) - down
+                }
                 // (A first line holding a Malgun-drawn symbol of a missing Korean face: see `_koreanSymbolFirstLineRaise`.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil,
                    let raise = _koreanSymbolFirstLineRaise(p, painter: painter, lead: _lead(i), named: named, document: document) {
