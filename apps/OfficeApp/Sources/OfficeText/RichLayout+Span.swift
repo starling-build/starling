@@ -2069,7 +2069,7 @@ extension RichLayout {
                                 let sp = isGap(piece[ws])
                                 while we < piece.endIndex, isGap(piece[we]) == sp { we = piece.index(after: we) }
                                 let seg = piece[ws ..< we]
-                                if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: NirmalaAdvances.table(bold: nBold), flatScale: 1, conjunctRatio: nil, block: seg.unicodeScalars.first(where: { $0.value >= 0x900 && $0.value < 0xB00 }).map { $0.value & ~0x7F } ?? 0x900, lowVowelsZero: !nBold) {
+                                if !sp, let fitted = _clusterFitted(seg, base: base, authored: authored, table: NirmalaAdvances.table(bold: nBold), flatScale: 1, conjunctRatio: nil, block: seg.unicodeScalars.first(where: { $0.value >= 0x900 && $0.value < 0xB00 }).map { $0.value & ~0x7F } ?? 0x900, lowVowelsZero: !nBold, spaceMarks: true) {
                                     spans.append(contentsOf: capped(seg, run, fitted.style))
                                 } else if sp, authored > 0.5, let em = Self._missingBengaliSpaceEm(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "") {
                                     // (A Bengali face Windows lacks: Word draws the space in Mangal, half an em, not the stand-in's 0.26: xd 73caaeda, 6.0 pt at 12 pt.)
@@ -5128,7 +5128,7 @@ extension RichLayout {
     /// The word set so its width is the sum of the face's per-cluster advances (`MangalAdvances.split`, any table), by letter spacing on the
     /// stand-in; clusters the table lacks keep the stand-in's width times `flatScale`. Nil where the table knows none of the word.
     @inline(never)
-    func _clusterFitted(_ w: Substring, base: TextStyle, authored: Double, table: [String: Double], flatScale: Double, conjunctRatio: Double? = 0.85, block: UInt32 = 0x900, lowVowelsZero: Bool = false) -> (style: TextStyle, flat: TextStyle)? {
+    func _clusterFitted(_ w: Substring, base: TextStyle, authored: Double, table: [String: Double], flatScale: Double, conjunctRatio: Double? = 0.85, block: UInt32 = 0x900, lowVowelsZero: Bool = false, spaceMarks: Bool = false) -> (style: TextStyle, flat: TextStyle)? {
         guard let split = MangalAdvances.split(w, table: table, conjunctRatio: conjunctRatio, block: block, lowVowelsZero: lowVowelsZero) else { return nil }
         let flat = base.copyWith(scaleX: 1)
         func measure(_ s: String, _ ls: Double) -> Double {
@@ -5144,7 +5144,7 @@ extension RichLayout {
         // (Word's character spacing falls on a word's letters and not on its combining marks: its Kokila words run wider
         // than ours by about the spacing per mark, dx2 hi 0c80b3a3 at -0.1 pt. The fit spreads it over the glyphs.)
         let marks = w.unicodeScalars.filter { $0.properties.generalCategory == .nonspacingMark || $0.properties.generalCategory == .spacingMark }.count
-        let spaced = Double(max(0, n - marks))
+        let spaced = Double(max(0, n - (spaceMarks ? 0 : marks)))
         return (flat.copyWith(letterSpacing: ((flat.letterSpacing ?? 0) * spaced + split.ems * authored + other - w0) / Double(n)), flat)
     }
 }
