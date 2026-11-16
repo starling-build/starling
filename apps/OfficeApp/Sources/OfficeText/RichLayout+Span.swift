@@ -3278,7 +3278,7 @@ extension RichLayout {
                     // (A white circle or triangle in a run that names no face of its own, inheriting a Korean face Word lacks, is
                     // Malgun Gothic's, an em: xd 4fabe1f2's eq \\o\\ac(○,예) rings step 11.7 pt at 12 pt in Word's print, ours 6.8 from
                     // the YaHei-like 0.604 em.)
-                    if (u == 0x25CB || u == 0x25B3), w == 0.604, run.fontFamily == nil, run.eastAsiaFontFamily == nil, !eaFace.malgunSymbols, theme.wordRules, RichTextTheme.wordWindowsPages, document.usesEastAsianLayout {
+                    if (u == 0x25CB || u == 0x25B3), w == 0.604, run.eastAsiaFontFamily == nil, !eaFace.malgunSymbols, theme.wordRules, RichTextTheme.wordWindowsPages, document.usesEastAsianLayout {
                         RuleTrace.hit("inherited-missing-korean-face-circle-is-an-em")
                         w = 1.0
                     }
