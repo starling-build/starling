@@ -337,7 +337,7 @@ extension RichLayout {
     /// lines 16.0 apart, and a line with a Calibri run lengthens by 0.8-0.9 under the baseline (Aptos 1.0), the line above it and the
     /// line's own top unchanged, the other lines of the paragraph not at all. The engine stacked the stand-in's Arabic face on both.
     static func _heldWhereTaller(_ span: TextSpan, _ painter: TextPainter) -> TextSpan? {
-        struct Leaf { var style: TextStyle; var arial: Bool; var blank: Bool; var arabic: Bool }
+        struct Leaf { var style: TextStyle; var arial: Bool; var blank: Bool; var arabic: Bool; var face: String = "" }
         var leaves: [Leaf] = []
         var plain: [UInt16] = []
         var ok = true
@@ -347,9 +347,12 @@ extension RichLayout {
                 var l = String((t.style?.debugLabel?.trimmingWhitespace().lowercased() ?? "").filter { $0 != "(" && $0 != ")" })
                 while l.hasSuffix(".copywith") { l = String(l.dropLast(9)) }
                 if let st = t.style, st.fontSize != nil, st.height != nil, st.baselineShift == nil {
-                    leaves.append(Leaf(style: st, arial: l == "arial",
+                    // (A face Word has not got that we draw in Arial (B Zar, B Nazanin) holds its line like Arial's: c2c3a2f3's 14 pt B Zar
+                    // lines are 18.5 apart in Word with a 14 pt Calibri "." only on the lines it stands on, not 21.3 on all.)
+                    leaves.append(Leaf(style: st, arial: l == "arial" || (!l.isEmpty && !l.containsSubstring("arial") && st.fontFamily?.lowercased() == "arial"),
                                        blank: !text.unicodeScalars.contains { !$0.properties.isWhitespace },
-                                       arabic: text.unicodeScalars.contains { ($0.value >= 0x0590 && $0.value <= 0x08FF) || ($0.value >= 0xFB1D && $0.value <= 0xFEFF) }))
+                                       arabic: text.unicodeScalars.contains { ($0.value >= 0x0590 && $0.value <= 0x08FF) || ($0.value >= 0xFB1D && $0.value <= 0xFEFF) },
+                                       face: l))
                 } else if !text.isEmpty { ok = false }
                 plain.append(contentsOf: text.utf16)
             }
@@ -358,10 +361,11 @@ extension RichLayout {
         visit(span)
         guard ok, leaves.contains(where: { $0.arial && $0.arabic }), let base = leaves.first(where: { $0.arial && $0.arabic })?.style,
               let size = base.fontSize, let h = base.height, size > 0.5 else { return nil }
-        guard leaves.allSatisfy({ $0.blank || $0.style.fontSize == base.fontSize }) else { return nil }
+        // (A smaller Latin run (a Calibri 11 pt "." among 14 pt letters) asks for its own, lower line and so for nothing.)
+        guard leaves.allSatisfy({ $0.blank || $0.style.fontSize == base.fontSize || (!$0.arabic && ($0.style.fontSize ?? size) < size) }) else { return nil }
         func box(_ st: TextStyle) -> (Double, Double)? {
             let pr = TextPainter(text: TextSpan(text: "x", style: st), textDirection: .ltr,
-                                 strutStyle: StrutStyle(fontFamily: st.fontFamily, fontFamilyFallback: st.fontFamilyFallback, fontSize: size, height: st.height,
+                                 strutStyle: StrutStyle(fontFamily: st.fontFamily, fontFamilyFallback: st.fontFamilyFallback, fontSize: st.fontSize ?? size, height: st.height,
                                                         leadingDistribution: .even, fontWeight: st.fontWeight, forceStrutHeight: true))
             pr.layout(minWidth: 0, maxWidth: 100_000)
             defer { pr.dispose() }
@@ -373,7 +377,10 @@ extension RichLayout {
         var any = false
         for lf in leaves {
             var e = 0.0
-            if !lf.arial, !lf.blank, let (a, d) = box(lf.style) { e = max(0, (a + d) - (asc + desc)); if e > 0.3 { any = true } }
+            // (A Latin mark authored in the same face as the paragraph's letters (B Nazanin's ":" in fc332781) is that face, not a taller one:
+            // Word keeps its lines 24.1 apart there, while a genuine Calibri "." (c2c3a2f3) lifts its line.)
+            let sameFace = !lf.face.isEmpty && leaves.contains { $0.arial && $0.arabic && $0.face == lf.face }
+            if !lf.arial, !lf.blank, !sameFace, let (a, d) = box(lf.style) { e = max(0, (a + d) - (asc + desc)); if e > 0.3 { any = true } }
             extra.append(e)
         }
         guard any else { return nil }
