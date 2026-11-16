@@ -1374,6 +1374,14 @@ extension RichLayout {
                 let grown = wholeRaised ? theme.raisedLineHeight(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) : nil
                 if let grown { styled.raised = grown.raise }
                 if kind == -3, let (alt, _) = uncovered { styled.eastAsiaFontFamily = alt }
+                // (A circle or square in a run that names only a missing Korean ascii face is drawn in Malgun, but its line is that ascii face's
+                // Batang line, not the style's East Asian face's: xd 4fabe1f2's "○○" runs in 바탕글, whose 함초롬바탕 stood the line Malgun-tall,
+                // 37.9 pt from the line above where Word's print has 35.4 at 1.7 lines.)
+                if kind == -4, run.eastAsiaFontFamily == nil, theme.wordRules, RichTextTheme.wordWindowsPages, document.usesEastAsianLayout,
+                   let f = run.fontFamily, theme.faceResolver?(f, true)?.malgunSymbols == true {
+                    RuleTrace.hit("korean-circle-in-ascii-only-run-keeps-the-ascii-faces-line")
+                    styled.eastAsiaFontFamily = f
+                }
                 if kind == -5, let h = run.hAnsiFontFamily ?? named?.char.hAnsiFontFamily { styled.eastAsiaFontFamily = h }
                 if kind <= -10, let chain, -10 - kind < chain.count { styled.eastAsiaFontFamily = chain[-10 - kind].family }
                 var s = theme.textStyle(for: styled, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: kind < 0, gridPitch: pitch,
