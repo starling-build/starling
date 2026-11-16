@@ -3253,6 +3253,8 @@ extension RichLayout {
                     if u == 0xB7, eaFace.malgunSymbols, theme.wordRules, RichTextTheme.wordWindowsPages, run.loneDot || tcFit {
                         RuleTrace.hit("lone-middle-dot-run-is-malgun")
                         w = style(kind).fontWeight == .bold ? 0.2617 : 0.2188
+                        // (And once the run's spacing, not twice: 2.5 pt at 12 pt spaced -0.2 in 4fabe1f2's print, ours 2.2.)
+                        if doubles, kind < 0 { extra -= spacing }
                     }
                     // (A white circle or triangle in a run that names no face of its own, inheriting a Korean face Word lacks, is
                     // Malgun Gothic's, an em: xd 4fabe1f2's eq \\o\\ac(○,예) rings step 11.7 pt at 12 pt in Word's print, ours 6.8 from
@@ -3313,6 +3315,9 @@ extension RichLayout {
                                        ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.fullWidthSymbols == true || malgunDigit {
                     let g = _glyphWidth(style(kind), ch)
                     if g > 0.5, g < em - 0.01 { extra += em - g }
+                    // (Word takes the run's spacing ONCE on a Malgun circled digit, not twice as on a Hangul syllable: 11.8 pt at 12 pt
+                    // spaced -0.2, xd 4fabe1f2's "②".)
+                    if malgunDigit, doubles, kind < 0 { extra -= spacing }
                 }
                 @inline(never) func _sblk2() {
                 if wideSpaces.contains(offset) {
