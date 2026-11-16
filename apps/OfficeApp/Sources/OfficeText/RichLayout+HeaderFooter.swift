@@ -2103,7 +2103,7 @@ extension RichLayout {
         for (j, hp) in header.document.paragraphs.enumerated() where hp.cell == nil && j < header.layout._tops.count {
             for image in hp.inlineImages.inOrder + (hp.image.map { [$0] } ?? []) {
                 guard let f = image.float, f.takesRoom || f.bandsPage, !f.wraps, f.verticalFrom == "paragraph", f.verticalAlign == nil,
-                      f.y >= 0, image.height > 0 else { continue }
+                      f.y >= 0 || (theme.wordRules && f.y + image.height > 0), image.height > 0 else { continue }
                 RuleTrace.hit("header-picture-from-its-paragraph-ends-the-header")
                 end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + _px(f.y) + _px(image.height) + _px(f.distanceBottom))
             }
