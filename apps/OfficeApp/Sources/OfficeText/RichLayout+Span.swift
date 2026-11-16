@@ -3024,7 +3024,7 @@ extension RichLayout {
                           // (A closing quote right after an ASCII character is no break, whatever the East Asian
                           // rules say: xa gv-690391482c (en-GB East Asian language, usesEastAsianLayout) keeps
                           // "individuals.”" whole in Word's print, ours sent the quote down alone.)
-                          Self._breaksBetween(b, ch, percentStarts: percentStarts, timesEastAsian: hinted, shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages, latinQuotes: theme.wordRules && !hinted) || (lineRulesOff && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
+                          Self._breaksBetween(b, ch, percentStarts: percentStarts, timesEastAsian: hinted, shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages, latinQuotes: theme.wordRules && !hinted) || (lineRulesOff && !(Self._hangulSyllable(b) && (ch == ")" || ch == "." || ch == "," || ch == "]")) && (Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)))
                             || (theme.wordRules && Self._closingQuote(ch) && (kinsokuOff && hinted && RichTextTheme.wordWindowsPages || !Self._eastAsianLineRules(run, document, named: named)))
                             // (And end one with an opening mark, where it is
                             // `w:kinsoku` 0 that turns them off in text of an

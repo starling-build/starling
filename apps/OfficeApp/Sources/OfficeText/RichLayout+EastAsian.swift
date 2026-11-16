@@ -220,7 +220,10 @@ extension RichLayout {
             // defaults' East Asian language en-US and kinsoku off, has
             // "…负责承储" / "（以下简称…" where ours ended the line on it.)
             if wordRules, (b.value == 0x3001 || b.value == 0x3002), o < runOf.count, Self._dunhaoMayStart(p.runs[runOf[o]].style, document, named: lineStyle) { return true }
-            if kinsokuOff || runRulesOff(o), Self._closingMarks.contains(Character(b)) || Self._latinCloser(Character(a), Character(b)) { return true }
+            // (But not an ASCII closing mark after a Hangul syllable: under w:kinsoku 0 Word's Korean text still never opens a line on ")" or ".",
+            // xd 67a3b93a's 243 kinsoku-off paragraphs: 0 such lines in Word's print, 6 in ours.)
+            let hangulCloser = a.value >= 0xAC00 && a.value <= 0xD7A3 && (b.value == 0x29 || b.value == 0x2E || b.value == 0x2C || b.value == 0x5D)
+            if (kinsokuOff || runRulesOff(o)), !hangulCloser, Self._closingMarks.contains(Character(b)) || Self._latinCloser(Character(a), Character(b)) { return true }
             // (… and under `w:kinsoku` 0: zh-b00fef0d's "…调度困难" opens its next line with "”".)
             if runRulesOff(o) || (kinsokuOff && RichTextTheme.wordWindowsPages && eastAsianRunAt(o)), Self._closingQuote(Character(b)) { return true }
             // (… and an opening one end it, under `w:kinsoku` 0 in text of
@@ -2726,6 +2729,10 @@ extension RichLayout {
         RichTextTheme.wordWindowsPages && "([{".contains(ch) && (after.unicodeScalars.first?.value ?? 0) >= 0x2E80
     }
 
+    static func _hangulSyllable(_ c: Character) -> Bool {
+        guard let v = c.unicodeScalars.first?.value else { return false }
+        return v >= 0xAC00 && v <= 0xD7A3
+    }
     static func _latinCloser(_ before: Character, _ ch: Character) -> Bool {
         ")]},.;:!?".contains(ch) && (before.unicodeScalars.first?.value ?? 0) >= 0x2E80
     }
