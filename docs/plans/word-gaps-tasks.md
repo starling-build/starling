@@ -17627,3 +17627,4 @@ HANDOFF amd-3 2026-11-16 xd a969ba6c: 27/27 pages, matched 785 -> 804 of 979. 39
 - Second error: a colon right after a Bengali word lays out at 2.78 pt (Liberation Sans) against Malgun 2.19 / Word about 2.28.
 - Refuted: colon run face / Malgun metrics as the cause (merging the colon into the Bengali run, w:cs, dropping the trailing space all still split). An earlier note claiming "missing-face path adds 0.1-0.15 pt to শেষের" is retracted: that test renamed the colon run too.
 - No code changed.
+- amd-5 CLAIM 2026-11-16: dx2 0d2c40e4 (score 0.6, 179/170 lines, 9/9 pages), taken as lowest unclaimed. Others unclaimed on my list: f15415f0, 99720426, 38cfc3bd, c423753e, 2292b814, e6f3406a, 78a7e614, 746c2e0c, 5a4c85e0.
