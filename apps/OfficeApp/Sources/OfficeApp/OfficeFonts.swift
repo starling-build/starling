@@ -3847,6 +3847,15 @@ static let sylfaenAdvances: [Double] = [
             name = "Arial"
             missing = false
         }
+        // (A complex-script name Word's Windows lacks whose font table names Courier New as its alternate and
+        // an Arabic charset: Word draws it in Courier New, 0.6 em a character, spaces too. dx2 c2c3a2f3's
+        // "2  Titr" table headers are CourierNewPSMT 10pt in its print, a 6-letter word 36pt wide.)
+        var viaCourier = false
+        if missing, wordOnWindows, !viaRoman, let entry = fontEntry(name), entry.charset == "B2", (entry.usb1 ?? 0) & 0x8000_0000 != 0,
+           entry.alt?.trimmingWhitespace().lowercased() == "courier new" {
+            viaCourier = true
+            RuleTrace.hit("missing-arabic-face-with-courier-alternate-is-courier")
+        }
         // (A file that NAMES Times New Roman or Arial for its complex text
         // has them on Word's machine, whatever this one holds: lo tdf129659's
         // Hebrew body sets its spaces and marks in Times New Roman, not the
@@ -3855,6 +3864,7 @@ static let sylfaenAdvances: [Double] = [
         if missing, wordHasIt { missing = false }
         let asked = name.trimmingWhitespace().lowercased()
         if missing { name = "Times New Roman" }
+        if viaCourier { missing = false; name = "Courier New" }
         var face = RichResolvedFace(family: missing ? cambria : embeddedFamily(name) ?? name)
         face.fallback = [cambria, "Times New Roman", "Noto Naskh Arabic", emojiPictographs, "DejaVu Sans"]
         // (Hebrew in Times New Roman or Arial: the Liberation clones have
@@ -3873,6 +3883,18 @@ static let sylfaenAdvances: [Double] = [
         // over zh-d97c5474's Arabic paragraph — 1817pt to Word's 1634 —
         // and its lines broke elsewhere. Each word is set to its joining
         // forms' widths in Word's face.)
+        if viaCourier {
+            var t: [UInt32: Double] = [:]
+            for u in 0x0600 ... 0x06FF { t[UInt32(u)] = 0.6 }
+            for u in 0x064B ... 0x065F { t[UInt32(u)] = 0 }
+            t[0x0670] = 0
+            for u in 0xFB50 ... 0xFDFF { t[UInt32(u)] = 0.6 }
+            for u in 0xFE70 ... 0xFEFF { t[UInt32(u)] = 0.6 }
+            face.joinedAdvances = t; face.boldJoinedAdvances = t
+            face.joinedSpaceEm = 0.6
+            face.fallback.removeAll { $0 == "Liberation Mono" }
+            face.fallback.insert("Liberation Mono", at: 0)
+        }
         if wordOnWindows, embeddedFamily(name) == nil {
             switch name.trimmingWhitespace().lowercased() {
             case "arial":
