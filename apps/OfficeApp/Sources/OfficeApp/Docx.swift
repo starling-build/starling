@@ -959,6 +959,7 @@ enum DocxFormat {
         }
         guard let body = root.first("w:body") else { throw DocxError.badXML("no w:body") }
         _inheritSpace(root)
+        WriterMath.heldGridLines = body.first("w:sectPr")?.first("w:docGrid")?["w:type"] == "lines"
         Self._foldDropCaps(root)
         Self._foldFrames(root)
         Self._floatFramedTables(root)

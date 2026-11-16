@@ -79,6 +79,8 @@ enum WriterMath {
 
     private nonisolated(unsafe) static var entries: [String: Entry] = [:]
     private static let lock = RegistryLock()
+    /// Set while a document is read: its section holds lines to a grid.
+    nonisolated(unsafe) static var heldGridLines = false
 
     /// Lays out the equation `node` (`m:oMath` or `m:oMathPara`) for the
     /// object attachment `id`, its text `size` points where its runs say
@@ -262,6 +264,8 @@ enum WriterMath {
         let display: Bool
         /// Set in a line of text (not a display equation): where Word's print sets fractions and scripts its own way.
         var inlineText = false
+        /// The document holds its lines to a grid (docGrid type lines): its equations keep the font-line depth (158454's grid-held lines sit as Word's print has them with it).
+        let heldGrid = WriterMath.heldGridLines
         let ink = Color(0xFF000000)
 
         /// The size at a script level: 0.73 of the one above, to half.
@@ -642,7 +646,7 @@ enum WriterMath {
             if let sup { parts.append(raised(sub != nil ? capped(sup) : sup, up)) }
             guard !parts.isEmpty else { return .empty }
             let w = parts.map(\.width).max() ?? 0
-            return Box(width: w + size * 0.05, ascent: parts.map(\.ascent).max() ?? 0, descent: parts.map(\.descent).max() ?? 0, inkUp: parts.map(\.iu).max() ?? 0, inkDown: parts.map(\.idn).max() ?? 0) { canvas, at in
+            return Box(width: w + size * 0.05, ascent: parts.map(\.ascent).max() ?? 0, descent: RichTextTheme.wordWindowsPages && !inlineText && !heldGrid ? parts.map(\.idn).max() ?? 0 : parts.map(\.descent).max() ?? 0, inkUp: parts.map(\.iu).max() ?? 0, inkDown: parts.map(\.idn).max() ?? 0) { canvas, at in
                 for p in parts { p.draw(canvas, at) }
             }
         }
