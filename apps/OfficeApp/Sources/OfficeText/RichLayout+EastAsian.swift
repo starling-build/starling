@@ -664,7 +664,8 @@ extension RichLayout {
             let spacedPiece = (a ..< last).contains { k in
                 k < runOf.count && (p.runs[runOf[k]].style.letterSpacing ?? lineStyle?.char.letterSpacing ?? _normalChar(document)?.letterSpacing ?? 0) != 0
             }
-            let latinSlack = (lineLatin || pieceLatin) && spacedPiece && !onCharacterGrid && !(onFirstLine ? tieShort.first : tieShort.rest) ? max(hair, _px(0.01)) : hair
+            let pieceHangul = (a ..< last).contains { (0xAC00 ... 0xD7AF).contains(Int(units[$0])) || (0x1100 ... 0x11FF).contains(Int(units[$0])) || (0x3130 ... 0x318F).contains(Int(units[$0])) }
+            let latinSlack = (pieceLatin || lineLatin && !pieceHangul) && spacedPiece && !onCharacterGrid && !(onFirstLine ? tieShort.first : tieShort.rest) ? max(hair, _px(0.01)) : hair
             var fits = x + w - after - (_yuEndKern[i]?[last - 1] ?? 0) + (parted ? ems[last - 1] / 2 : 0) <= width + pastRoom + latinSlack
             // (What follows a tab to a right stop at the margin that
             // starts inside it runs on past the margin — `runsPast`, T127:
