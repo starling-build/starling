@@ -7217,6 +7217,8 @@ enum DocxFormat {
                         // cef2f7bd's Telugu title, sz 14 / szCs 10, prints at 14.)
                         // (Only with the w:cs flag: a run without it prints at sz, lab cssz; 80152175's Bengali, 87097d3e's Hindi.)
                         || (csFlag && (0x0900...0x0B7F).contains($0.value))
+                        // (Lao with the w:cs flag: dx2 30f73046's title, sz 24 / szCs 32, is a 16 pt Leelawadee UI line in Word's print.)
+                        || (csFlag && (0x0E80...0x0EFF).contains($0.value))
                 } || rtlRun
                 // (Tamil takes bCs/iCs but not szCs: da732dfb's sz 14 / szCs 20 subtitle prints at 14 in Word. Only a run with no Latin letters.)
                 let tamilOnly = !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A } && runText.unicodeScalars.contains { (0x0B80...0x0BFF).contains($0.value) }

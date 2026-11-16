@@ -1234,6 +1234,13 @@ extension RichLayout {
                 guard let top = count.max(by: { $0.value < $1.value }) else {
                     // (Thai letters in a run with no w:cs: Word's print draws them in Leelawadee UI, not the run's complex face, and sets the line at its
                     // 1.36 em (16.3 pt at 12 pt). Width: the median of Word's glyph advances over ours is 0.93. Real prints: dx2 fac01c51, aa59e402, 9f1bd17e.)
+                    // (Lao letters: Word's print of dx2 30f73046 draws them in Leelawadee UI even in runs with w:cs whose face (Saysettha OT) is missing on Windows;
+                    // dx2 1f270ff6 (Phetsarath OT, DokChampa) is drawn in DokChampa, so that face is left out.)
+                    let laoFace = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
+                    if text.unicodeScalars.contains(where: { $0.value >= 0x0E81 && $0.value <= 0x0EDF }), laoFace != "phetsarath ot", laoFace != "dokchampa" {
+                        RuleTrace.hit("word-lao-letters-are-leelawadee-ui")
+                        return ("leelawadee ui", 1)
+                    }
                     if text.unicodeScalars.contains(where: { $0.value >= 0x0E01 && $0.value <= 0x0E5B }),
                        !(run.keptXML.map { $0.containsSubstring("<w:cs/>") || $0.containsSubstring("<w:cs ") } ?? false) {
                         RuleTrace.hit("word-thai-without-cs-is-leelawadee-ui")
@@ -1821,7 +1828,7 @@ extension RichLayout {
                 }
                 // (A Tamil run whose complex face Windows lacks (Arial Unicode MS): its Latin, digits and punctuation Word draws in Leelawadee UI.)
                 let leelawadeeLatin = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
-                if kind >= 0, indic?.face == "leelawadee ui", text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0x0E01 && $0.value <= 0x0E5B }) {
+                if kind >= 0, indic?.face == "leelawadee ui", text[start ..< end].unicodeScalars.contains(where: { ($0.value >= 0x0E01 && $0.value <= 0x0E5B) || ($0.value >= 0x0E81 && $0.value <= 0x0EDF) }) {
                     // (Thai without w:cs, word by word, at Leelawadee UI's advances: `ThaiAdvances`.)
                     let base = style(kind)
                     var wordStart = start

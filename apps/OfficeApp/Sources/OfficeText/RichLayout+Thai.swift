@@ -7,7 +7,7 @@ enum ThaiAdvances {
     static func split(_ word: Substring, bold isBold: Bool) -> (ems: Double, known: String, rest: Bool)? {
         var sum = 0.0, known = String.UnicodeScalarView(), rest = false, any = false
         for u in word.unicodeScalars {
-            if let w = (isBold ? bold : regular)[u.value] { sum += w; known.append(u); any = true } else { rest = true }
+            if let w = (isBold ? bold : regular)[u.value] ?? (isBold ? laoBold : laoRegular)[u.value] { sum += w; known.append(u); any = true } else { rest = true }
         }
         return any ? (sum, String(known), rest) : nil
     }
