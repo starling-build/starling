@@ -7692,7 +7692,8 @@ enum DocxFormat {
                             if let n = sheet["Normal"]?.char.fontSize { mathSize = n }
                             if let named = style.named, let n = sheet[named]?.char.fontSize { mathSize = n }
                             if let n = cellChar.fontSize { mathSize = n }
-                            if let n = markStyle?.fontSize { mathSize = n }
+                            // An inline equation takes the style's size, not the mark's (xb jpn 6fca0f: style 12, mark 11, Word draws 12; ce4069f1, 8b9d4558 gain). A display equation (m:oMathPara) takes the mark's (zh-8186c98d: mark 15, Word draws 15).
+                            if child.name == "m:oMathPara", let n = markStyle?.fontSize { mathSize = n }
                             var whole: (Double, Double)? = nil
                             var inkWhole: (Double, Double)? = nil
                             if let m = WriterMath.register(piece, for: att.id, size: mathSize, natural: { whole = $0 }, ink: { inkWhole = $0 }) {
