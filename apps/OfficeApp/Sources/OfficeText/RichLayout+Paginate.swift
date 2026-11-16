@@ -2302,6 +2302,28 @@ extension RichLayout {
                     // T10 to T11 is 172pt in Word's print, ours 192 with the step.)
                     if secondAt >= firstAt, second.width == nil, second.widthPercent == nil, first.width == nil, first.widthPercent == nil { y += _px(21.5) }
                 }
+                // (A table floating by the text straight after another that does, standing wholly beside it
+                // (its box clear of the first's at the side), where the first runs over from an earlier page:
+                // it starts level with the first's rows on this page, at their top, not under the first's foot.
+                // Word's print of dx2 33a4668e, 16 two-page floating tables, left and right in turn: each
+                // starts on the page the one before it ends on, level with its continuation; ours set it at
+                // the next page, under the spill of the first.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, c.row == 0, c.firstInRow, i > 0, let before = _cells[i - 1],
+                   before.table != c.table, let first = document.tableStyles[before.table], first.floatsOverText, !first.pageAnchored,
+                   let second = document.tableStyles[c.table], second.floatsOverText, !second.pageAnchored,
+                   first.keptPosition?.containsSubstring("w:vertAnchor=\"text\"") == true,
+                   second.keptPosition?.containsSubstring("w:vertAnchor=\"text\"") == true,
+                   let fw = _columnWidths[before.table], let sw = _columnWidths[c.table], page > 0 {
+                    let fl = _tableLeft(before.table, document), sl = _tableLeft(c.table, document)
+                    let fr = fl + fw.reduce(0, +), sr = sl + sw.reduce(0, +)
+                    let clear = sl >= fr - 0.01 || sr <= fl + 0.01
+                    let runsOver = _beside_firstPage(of: before.table, upTo: page, text: true) < page
+                    if clear, runsOver,
+                       let top = _pages[page].filter({ _cells[$0.paragraph]?.table == before.table && !$0.repeated }).map(\.pageY).min(), top < y - 0.01 {
+                        RuleTrace.hit("word-floating-table-beside-a-floating-table-running-over-starts-level-with-its-rows-on-this-page")
+                        y = top
+                    }
+                }
                 // A floating table anchored to the text stands its offset
                 // below the text's place (zh-64044a1d's equipment list,
                 // 4.35pt under the line before it in Word's print).
