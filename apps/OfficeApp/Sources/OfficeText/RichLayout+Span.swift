@@ -2062,7 +2062,20 @@ extension RichLayout {
                                 ws = we
                             }
                         } else if authored > 0.5, piece.unicodeScalars.allSatisfy({ shTable[String($0)] != nil && $0.value < 0x980 }), let fitted = _clusterFitted(piece, base: base, authored: authored, table: shTable, flatScale: 1, conjunctRatio: nil, block: 0x980) {
-                            spans.append(contentsOf: capped(piece, run, fitted.style))
+                            // (Each stretch ending in a hyphen fitted on its own: one letter spacing over a whole URL leaves the width of its first part short of Shonar's, so
+                            // dx2 3f7da49c's "...#credit-and-justice-" fitted a line it overruns in Word, whose limit is 5.45 pt in from the margin.)
+                            var cs = piece.startIndex
+                            var parts: [Substring] = []
+                            while cs < piece.endIndex {
+                                var ce = cs
+                                while ce < piece.endIndex { let c = piece[ce]; ce = piece.index(after: ce); if c == "-", ce < piece.endIndex, piece[ce] != "-" { break } }
+                                parts.append(piece[cs ..< ce]); cs = ce
+                            }
+                            if parts.count > 1, parts.allSatisfy({ _clusterFitted($0, base: base, authored: authored, table: shTable, flatScale: 1, conjunctRatio: nil, block: 0x980) != nil }) {
+                                for part in parts { spans.append(contentsOf: capped(part, run, _clusterFitted(part, base: base, authored: authored, table: shTable, flatScale: 1, conjunctRatio: nil, block: 0x980)!.style)) }
+                            } else {
+                                spans.append(contentsOf: capped(piece, run, fitted.style))
+                            }
                         } else {
                             spans.append(contentsOf: capped(piece, run, joinedScaled(piece, style(kind))))
                         }
