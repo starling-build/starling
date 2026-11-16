@@ -752,6 +752,8 @@ extension RichLayout {
         if let hit = _textBoxCache[key] { return hit }
         var sub = RichDocument(paragraphs: box.paragraphs)
         sub.styles = document.styles
+        // (A text box's paragraphs are read from the same file: the Word rules gated on it, such as an empty Nikosh mark's Mangal line, apply inside it: dx2 2263e221's TIN box.)
+        sub.readFromFile = document.readFromFile
         sub.fontUsb0 = document.fontUsb0
         sub.listFormats = document.listFormats
         sub.listCounterOf = document.listCounterOf
