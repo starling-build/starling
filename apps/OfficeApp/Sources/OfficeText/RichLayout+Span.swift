@@ -1422,7 +1422,7 @@ extension RichLayout {
                 if kind == -2 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + _spaceWidth(style(classed ? RichResolvedFace.characterClass(" ") : 0)) - _spaceWidth(s), height: Self.shadeShows(run.highlight) ? s.height : 0.01) }
                 // (Set to the original's widths, the stand-in's own
                 // kerning is no part of them: Arial's pair of ones.)
-                if kind >= 0, latinFace?.advances != nil { s = s.copyWith(fontFeatures: [FontFeature("kern", 0)]) }
+                if kind >= 0, latinFace?.advances != nil || (latinFace?.boldAdvances != nil && s.fontWeight == .bold) { s = s.copyWith(fontFeatures: [FontFeature("kern", 0)]) }
                 // (Yu Gothic's Latin, where Word's box lacks the Hangul-named face, carries no pair kerning in the print; 22de7d.)
                 if kind >= 0, yuOfMissingHangul, !aumsLatin { s = s.copyWith(fontFeatures: (s.fontFeatures ?? []) + [FontFeature("kern", 0)]) }
                 if kind >= 0, let indic, indic.scale != 1, !latinNoScale { s = s.copyWith(scaleX: indic.scale) }
@@ -3465,7 +3465,7 @@ extension RichLayout {
                     // character Word wraps.)
                     if let grid, grid != 0 { extra -= 1.5 * _px(grid) }
                 // (A space in a right-to-left run whose complex-script face differs from its Latin one is the complex face's: b514c2's Arial 3.34 pt in Word's print, ours the Latin default's 2.4. Same family in both keeps the Latin table: dx2 Tahoma fa/ur docs.)
-                } else if !ea, let face = (narrowLatinInRTL ? nil : (ch == " " && complexSpaceFace != nil && theme.wordRules && RichTextTheme.wordWindowsPages ? complexSpaceFace : latinFace)), face.advances != nil, ch.unicodeScalars.count == 1,
+                } else if !ea, let face = (narrowLatinInRTL ? nil : (ch == " " && complexSpaceFace != nil && theme.wordRules && RichTextTheme.wordWindowsPages ? complexSpaceFace : latinFace)), (face.advances != nil || (face.boldAdvances != nil && style(kind).fontWeight == .bold)), ch.unicodeScalars.count == 1,
                           let u = ch.unicodeScalars.first?.value, u >= 0x20, u <= 0x7E {
                     // The width the original face gives this character
                     // (`RichResolvedFace.advances`), at the size the
