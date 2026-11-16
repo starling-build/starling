@@ -3746,6 +3746,7 @@ extension RichLayout {
         if i < _floatTight.count { _floatTight[i] = p.inlineImages.inOrder.contains { $0.float?.wraps == true && $0.float?.wrapsTight == true } }
         _spaceBefore[i] = before + push
         var bodyHeight = painter.height + _px(segoeLift) - w2Trim
+        var markDescentKept = false
         if let pair = Self._paired(painter) { bodyHeight -= pair.saving }
         if i < _firstLineLift.count { _firstLineLift[i] = _px(segoeLift) }
         // A paragraph of nothing but floating objects stands as one of a
@@ -3952,6 +3953,7 @@ extension RichLayout {
                     let drop = _markLineHeight(i, document, single: true, descentOnly: true)
                     if drop > 0 {
                         RuleTrace.hit("picture-line-mark-descent")
+                        markDescentKept = true
                         bodyHeight = (bodyHeight + drop).rounded()
                     }
                 }
@@ -4165,7 +4167,10 @@ extension RichLayout {
                 // (A horizontal rule's line is the mark's line, set above at the paragraph's multiple already:
                 // jpn-z22306877-1047a4's rule at 1.25 stood 3.9pt, a quarter of the line, low in ours.)
             } else if p.image != nil {
-                bodyHeight += (multiple - 1) * single
+                // (An underlined picture line that keeps its mark's descent takes no multiple's extra under it: 0d2c40e4's
+                // 85.5pt logo over an underlined 24pt Bookman mark at 1.5 lines puts the empty line after it 29.3pt below in Word's
+                // print, a single line's, where ours added 14.1.)
+                if !(markDescentKept && RichTextTheme.wordWindowsPages) { bodyHeight += (multiple - 1) * single }
             } else if case let lines = painter.computeLineMetrics(), lines.count == 1,
                       let box = painter.inlinePlaceholderBoxes?.max(by: { $0.bottom - $0.top < $1.bottom - $1.top }),
                       box.bottom - box.top >= lines[0].ascent - 0.5 {

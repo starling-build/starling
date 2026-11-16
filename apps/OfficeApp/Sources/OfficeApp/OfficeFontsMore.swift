@@ -671,6 +671,15 @@ extension OfficeFonts {
             face.boldItalicAdvances = book_antiquaBoldItalicAdv
             face.naturalHeight = 1.2056; face.baseline = 0.9233
 
+        case "bookman old style":
+            face.advances = bookman_old_styleAdv
+            face.otherAdvances = bookman_old_styleOther
+            face.boldAdvances = bookman_old_styleBoldAdv
+            face.boldOtherAdvances = bookman_old_styleBoldOther
+            face.italicAdvances = bookman_old_styleItalicAdv
+            face.boldItalicAdvances = bookman_old_styleBoldItalicAdv
+            face.naturalHeight = 2404.0 / 2048; face.baseline = 1929.0 / 2048
+
         case "baskerville old face":
             face.advances = baskerville_old_faceAdv
             face.otherAdvances = baskerville_old_faceOther
