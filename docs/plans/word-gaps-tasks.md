@@ -17637,3 +17637,14 @@ HANDOFF amd-3 2026-11-16 xd a969ba6c: 27/27 pages, matched 785 -> 804 of 979. 39
 - Left: our ':' is drawn in Carlito, Word draws Mangal (x 110.4 vs 111.0); no effect on line positions.
 - Trap: the split piece is ASCII-only so the joiner's Bengali-letter test fails; the joiner needed an explicit splittingMark flag.
 - amd-7 claim (2026-11-16): dx2 746c2e0c, 5a4c85e0 (moved from amd-9 by starling-bd)
+- OPEN, UNASSIGNED dx2 list (amd-7, 2026-11-16; score, our/Word lines, our/Word pages; claim before taking):
+  - 590766b4 2.9, 417/499 lines, 17/19 pages
+  - 80bde9af 3.1, 782/844 lines, 30/32 pages
+  - 2dbfc1a8 3.4, 29/30 lines, 2/1 pages
+  - 7ffac240 3.6, 55/56 lines, 2/2 pages
+  - 72f67d49 3.8, 52/55 lines, 2/2 pages
+  - 30f73046 4.5, 67/68 lines, 2/2 pages
+  - 8a0e0087 4.5, 89/195 lines, 2/4 pages
+  - 21b6269d 4.8, 21/14 lines, 2/1 pages
+  - 41560659 4.8, 63/71 lines, 2/2 pages
+  - 33a4668e 5.4, 726/1034 lines, 13/25 pages
