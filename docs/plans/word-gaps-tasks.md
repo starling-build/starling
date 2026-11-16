@@ -17629,3 +17629,4 @@ HANDOFF amd-3 2026-11-16 xd a969ba6c: 27/27 pages, matched 785 -> 804 of 979. 39
 - No code changed.
 - amd-5 CLAIM 2026-11-16: dx2 0d2c40e4 (score 0.6, 179/170 lines, 9/9 pages), taken as lowest unclaimed. Others unclaimed on my list: f15415f0, 99720426, 38cfc3bd, c423753e, 2292b814, e6f3406a, 78a7e614, 746c2e0c, 5a4c85e0.
 - amd-9 CLAIM 2026-11-16: dx2 2292b814, e6f3406a, 78a7e614, 746c2e0c, 5a4c85e0 (all near-zero; looking for a shared whole-page cause). amd-5 keeps 0d2c40e4 and the rest of its list.
+- amd-4 CLAIM 2026-11-16: dx2 f15415f0, 99720426, 38cfc3bd, c423753e (near-zero, looking for a shared whole-page cause).
