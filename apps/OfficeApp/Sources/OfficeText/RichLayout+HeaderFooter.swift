@@ -1344,14 +1344,18 @@ extension RichLayout {
         // (Aligned top, centre or bottom on the page or within its
         // margins, the box and its bottom effect together: 60316's
         // divider, centred on the page.)
-        if theme.wordRules, let a = float.verticalAlign, ["top", "center", "bottom"].contains(a),
+        // (An offset from the bottom margin is the same strip: xd 67a3b93a p15's "UI Booklet" box, 0.9pt down from the
+        // top of the bottom margin, stands on the footer line in Word's print; ours drew it at its paragraph, 290pt up.)
+        let bottomOffset = float.verticalAlign == nil && float.verticalFrom == "bottomMargin"
+        if theme.wordRules, bottomOffset || (float.verticalAlign.map { ["top", "center", "bottom"].contains($0) } ?? false),
            float.verticalFrom == "page" || float.verticalFrom == "margin" || float.verticalFrom == "bottomMargin", page.height > 0 {
+            let a = float.verticalAlign ?? "top"
             // (Aligned from the bottom margin, the box stands in that margin's strip: xd 67a3b93a's "UI Booklet" boxes,
             // anchored "top of the bottom margin", stand on the footer line in Word's print, not up the page with their paragraph.)
             let top = float.verticalFrom == "page" ? 0 : float.verticalFrom == "bottomMargin" ? page.height - page.bottom : page.top
             let span = float.verticalFrom == "page" ? page.height : float.verticalFrom == "bottomMargin" ? page.bottom : page.height - page.top - page.bottom
             let whole = h + _px(float.effectBottom)
-            let onPage = top + (a == "center" ? (span - whole) / 2 : a == "bottom" ? span - whole : 0)
+            let onPage = top + (bottomOffset ? _px(float.y) : a == "center" ? (span - whole) / 2 : a == "bottom" ? span - whole : 0)
             if floatsFrames, let region = regionTopOnPage {
                 y = onPage - region
             } else if !floatsFrames, let piece = _allPieces.first(where: { $0.paragraph == i && !$0.repeated }) {
