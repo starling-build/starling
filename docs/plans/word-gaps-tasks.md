@@ -17636,3 +17636,4 @@ HANDOFF amd-3 2026-11-16 xd a969ba6c: 27/27 pages, matched 785 -> 804 of 979. 39
 - Measured: page 1 baselines within 0.6 pt of Word; page 9 (ক) paragraph exact. Per-page baselines within 1 pt 234 to 237 (Word 241). Matched lines 208 unchanged (v2). Only 2263e221 and xd 73caaeda change of 13 Bengali docs.
 - Left: our ':' is drawn in Carlito, Word draws Mangal (x 110.4 vs 111.0); no effect on line positions.
 - Trap: the split piece is ASCII-only so the joiner's Bengali-letter test fails; the joiner needed an explicit splittingMark flag.
+- amd-7 claim (2026-11-16): dx2 746c2e0c, 5a4c85e0 (moved from amd-9 by starling-bd)
