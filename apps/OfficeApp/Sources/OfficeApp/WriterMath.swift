@@ -267,7 +267,7 @@ enum WriterMath {
         /// The size at a script level: 0.73 of the one above, to half.
         func scriptSize(_ size: Double, _ level: Int) -> Double {
             // (Word's print of a 12pt equation: a fraction's parts 8.5pt, a script in them 7.0 — half points.)
-            if inlineText, RichTextTheme.wordWindowsPages, level >= 1 { return (size * (level == 1 ? 0.7 : 0.6) * 2).rounded() / 2 }
+            if RichTextTheme.wordWindowsPages, level >= 1 { return (size * (level == 1 ? 0.7 : 0.6) * 2).rounded() / 2 }
             return max(size * 0.5, size * pow(0.73, Double(min(level, 2))))
         }
 
