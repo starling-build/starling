@@ -3242,7 +3242,20 @@ extension RichLayout {
                     let word = String(decoding: units[piece], as: UTF16.self)
                     let painter = TextPainter(text: TextSpan(text: word, style: style), textDirection: .ltr)
                     painter.layout(minWidth: 0, maxWidth: 1_000_000)
-                    if painter.width > textWidth {
+                    // (At the face's own advances where it has them, as `_wideWordStarts` and `_span` set the word: xd 67a3b93a's
+                    // "uionline.detma.org/claimant/core/login.aspx", 43 letters of 16pt Arial Narrow Bold, is 274pt in Word's print
+                    // and 334 by the stand-in's glyphs, over the 333pt line; Word moves it whole to a line of its own after
+                    // "또는 ", and ours parted it after "clai".)
+                    var wordWidth = painter.width
+                    // (Only for a run that names its face: one that takes it from a style is drawn in a face this lookup can miss,
+                    // and ell-z18377521's 115-letter address, in Nunito Sans from the style, then sat in the line by the wrong
+                    // table where Word's print parts it after "wp-".)
+                    if let family = run.fontFamily, let face = theme.faceResolver?(family, false),
+                       let table = face.advanceTable(bold: style.fontWeight == .bold, italic: style.fontStyle == .italic), let px = style.fontSize, px > 0.5,
+                       word.unicodeScalars.allSatisfy({ $0.value >= 0x20 && $0.value <= 0x7E && Int($0.value) - 0x20 < table.count }) {
+                        wordWidth = word.unicodeScalars.reduce(0.0) { $0 + table[Int($1.value) - 0x20] * px / face.sizeScale + (style.letterSpacing ?? 0) }
+                    }
+                    if wordWidth > textWidth {
                         if hyphenated.isEmpty || !hyphenated.contains(where: { piece.contains($0) && $0 > piece.lowerBound }) {
                             // (Not right after an opening bracket the word begins with: zh-15f60bac's "（https://www.moea.gov.tw/…"
                             // stands whole on a line of its own in Word's print, the "(" with it; ours left it
