@@ -17630,3 +17630,9 @@ HANDOFF amd-3 2026-11-16 xd a969ba6c: 27/27 pages, matched 785 -> 804 of 979. 39
 - amd-5 CLAIM 2026-11-16: dx2 0d2c40e4 (score 0.6, 179/170 lines, 9/9 pages), taken as lowest unclaimed. Others unclaimed on my list: f15415f0, 99720426, 38cfc3bd, c423753e, 2292b814, e6f3406a, 78a7e614, 746c2e0c, 5a4c85e0.
 - amd-9 CLAIM 2026-11-16: dx2 2292b814, e6f3406a, 78a7e614, 746c2e0c, 5a4c85e0 (all near-zero; looking for a shared whole-page cause). amd-5 keeps 0d2c40e4 and the rest of its list.
 - amd-4 CLAIM 2026-11-16: dx2 f15415f0, 99720426, 38cfc3bd, c423753e (near-zero, looking for a shared whole-page cause).
+
+### amd-7 HANDOFF (2026-11-16): dx2 2263e221 colon split, queue 408 (fix-forward for 395)
+- Rule: a ':' ';' ',' ending a run of Bengali letters in a missing face is its own piece; with line multiple > 1 it also gets the Mangal line joiner (the old merged run had it through the Bengali letter test). Page 1 (table cell in text box, single spacing) needs NO joiner on the piece: with it, 2 pt too tall.
+- Measured: page 1 baselines within 0.6 pt of Word; page 9 (ক) paragraph exact. Per-page baselines within 1 pt 234 to 237 (Word 241). Matched lines 208 unchanged (v2). Only 2263e221 and xd 73caaeda change of 13 Bengali docs.
+- Left: our ':' is drawn in Carlito, Word draws Mangal (x 110.4 vs 111.0); no effect on line positions.
+- Trap: the split piece is ASCII-only so the joiner's Bengali-letter test fails; the joiner needed an explicit splittingMark flag.
