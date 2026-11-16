@@ -2737,6 +2737,9 @@ public struct RichDocument: Hashable, Sendable {
     /// headings are plain paragraphs with contextual spacing, and giving
     /// them a style the next paragraph lacked put 10pt back between them.
     public var readFromFile = false
+    /// A text box's sub-document of a document read from a file: `readFromFile` itself is not copied there (it would switch on every Word rule in boxes);
+    /// only the rules that name it opt in.
+    public var fromFileTextBox = false
     /// Set on the sub-document a header or footer file is laid out as (not on cells, notes or text boxes).
     public var isHeaderFooterPart = false
     /// The space after a paragraph and the space before the next are both
