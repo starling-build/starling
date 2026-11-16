@@ -2905,8 +2905,20 @@ extension RichLayout {
                             || (_perSection && manyColumns && _marginFloat(piece.paragraph))
                             || (manyColumns && RichTextTheme.wordWindowsPages && _pageFloat(piece.paragraph) && _cells[piece.paragraph] == nil)
                             || (manyColumns && _tableOverflowsColumn(piece.paragraph, columnW))
-                        let clipL = across ? 0 : columnClipL
-                        let clipR = across ? _pxPageW(p) : columnClipR
+                        // A column does not cut off text its paragraph's negative indent
+                        // sets outside it, into the margin or the gap (Word draws it).
+                        let outdentL: Double = {
+                            guard manyColumns, theme.wordRules, RichTextTheme.wordWindowsPages else { return 0 }
+                            let para = document.paragraphs[piece.paragraph]
+                            let listed = _wordList(para, document)
+                            let textLeft = listed?.left ?? para.style.indentLeft
+                            let first = listed?.first ?? para.style.firstLineIndent
+                            return _px(max(0, -min(textLeft, textLeft + first)))
+                        }()
+                        let outdentR = manyColumns && theme.wordRules && RichTextTheme.wordWindowsPages
+                            ? _px(max(0, -document.paragraphs[piece.paragraph].style.indentRight)) : 0
+                        let clipL = across ? 0 : columnClipL - outdentL
+                        let clipR = across ? _pxPageW(p) : columnClipR + outdentR
                         let top = pageTop + piece.pageY + (verticalShifts?[slot * 1_000_000 + pieceIndex] ?? 0)
                         let bottom = top + piece.height
                         if bottom < visible.top || top > visible.bottom { continue }

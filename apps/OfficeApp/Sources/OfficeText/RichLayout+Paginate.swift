@@ -3667,6 +3667,15 @@ extension RichLayout {
                                 c += 1; cy = 0
                                 break
                             }
+                            // (A two-line paragraph is not split one and one between
+                            // balanced columns: widow control keeps it whole at the
+                            // next column's top, as Word sets 48e5a592's bullet.)
+                            if theme.wordRules, c < nb - 1, top > 0.01, cuts.count == 1, rest.from == piece.flowTop,
+                               document.paragraphs[piece.paragraph].style.widowControl, !document.widowControlSuspended {
+                                RuleTrace.hit("column-balance-keeps-a-two-line-paragraph-whole")
+                                c += 1; top = 0; cy = 0
+                                continue
+                            }
                             if let cut = cuts.first(where: { top + ($0 - rest.from) >= target - 0.5 }) ?? cuts.last,
                                base + top + (cut - rest.from) <= contentH + 0.01 {
                                 // (At its last line the paragraph ends here, the
