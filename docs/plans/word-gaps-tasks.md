@@ -17614,3 +17614,8 @@ HANDOFF amd-3 2026-11-16 xd a969ba6c: 27/27 pages, matched 785 -> 804 of 979. 39
 - Bracket size is a separate, small gap: we pick the 5223/2048 em variant (35.9 pt Caladea), Word the 4047/2048 (23.7 pt) for body ink about 27.8 pt; ratio 0.853 vs our 0.9 factor. Needs one rule that also fits 6fca0f p8 (2.55 and 2.956 em) and 158454.
 - 0810551f: same kind of gap (Word 567.1 vs ours 564.8 at one inline equation).
 - Ascent +1.3 probably the skewed-fraction exponent box (1/3).
+
+### amd-6 HANDOFF 2026-11-16 (dx2 bea98273, Bengali)
+- Queued (queue/amd-6-406): 57cff808b Wingdings 2 Indic row trim (+1 pt pitch fixed) and 9deb8a5d2 w:spacing on Nirmala UI falls on every code point (vowel signs too; Kokila differs). bea98273 matched 171 -> 181 of 186. 32 other Nirmala/Wingdings-2 dx2 docs unchanged. Unit tests 655/0. Rules in ~/word-rules.md.
+- Left on bea98273: 5 lines; "গোষ্ঠী(গুলি)-তে" conjunct ষ্ঠ width ~1.8 pt wide; bold "জাতিসত্তা:" +0.4.
+- Not submitted: ebe-hostline 5fd360c7b (picture-x host-line); lab/ebe-strip Word prints pending.
