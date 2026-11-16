@@ -30,7 +30,9 @@ extension RichLayout {
         // (Outside East Asian layout only the spaces give, below.)
         // (A file that names compat mode 15 and no w:useFELayout, its defaults naming a Japanese East Asian language, is set
         // by the East Asian rules all the same: xb jpn-z19126474-754366's "…基礎として、" hangs its "、" in Word's print.)
-        let latinOnly = !(document.usesEastAsianLayout || (document.autoSpacesWithoutFELayout && (document.compatibilityMode ?? 0) >= 15
+        // (Word for Windows sets a w:jc distribute paragraph by the East Asian rules whatever the file's defaults: xb docx-79737edb, defaults naming a Latin face, hangs "。" and squeezes marks in EA6b, not in its "both" EA6a.)
+        let distributed = RichTextTheme.wordWindowsPages && theme.wordRules && p.style.eastAsian["w:jc"] == "distribute"
+        let latinOnly = !distributed && !(document.usesEastAsianLayout || (document.autoSpacesWithoutFELayout && (document.compatibilityMode ?? 0) >= 15
             && document.eastAsiaLanguage?.hasPrefix("ja") == true && document.defaultLangXML?.containsSubstring("w:eastAsia=\"") == true
             && RichTextTheme.wordWindowsPages && p.text.unicodeScalars.contains { $0.value >= 0x3040 && $0.value <= 0x30FF || $0.value >= 0x4E00 && $0.value <= 0x9FFF }))
         // (Word for Windows lets a Latin paragraph's last "," "." ";" ")" or "}" stay on a line while its
@@ -72,7 +74,7 @@ extension RichLayout {
         // the margin, and its "…累计扣分30-40 分（含）" sends "的，" down, stretching its one space, where
         // ours hung the "，".)
         let hangs = fitted && (!inCell || turned) && !(_inTextBox && legacy) && p.style.eastAsian["w:overflowPunct"] != "0" && p.style.eastAsian["w:kinsoku"] != "0"
-            && !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin)
+            && !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin && !distributed)
             && !(RichTextTheme.wordWindowsPages && theme.wordRules && (document.compatibilityMode ?? 12) == 14 && document.markSqueezeEm == 0
                  && document.characterSpacingControl == "compressPunctuation")
         // (Nor at compat 14 under compressPunctuation without a Chinese or Japanese language: lab comma-hang7 v6/v8, a
@@ -80,7 +82,7 @@ extension RichLayout {
         // (Nor where the defaults name a Latin face for East Asian text, in
         // Word for Windows: `RichDocument.eastAsianDefaultFaceIsLatin`.)
         let squeezes = fitted && !turned && (document.characterSpacingControl?.hasPrefix("compressPunctuation") ?? false)
-            && !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin)
+            && !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin && !distributed)
             && !(RichTextTheme.wordWindowsPages && theme.wordRules && (document.compatibilityMode ?? 12) == 14 && document.markSqueezeEm == 0)
         // (Compat 14, compressPunctuation, but no Chinese or Japanese eastAsia language, or ko-KR: lab comma-hang7
         // v6/v8 measure every mark's advance at the full 12.0 of 12 pt and 16.0 of 16 pt, so Word squeezes none.)
@@ -982,7 +984,7 @@ extension RichLayout {
                     // (Nor a 、 or 。 with text after it where the pause rule holds: lab `sqreal`
                     // (jpn-z19433747's abstract, 65 right indents in 0.25pt steps) opens the next
                     // line with it at every indent, where it would hang 4.7 to 7.7 pt over.)
-                    && !((squeezesPauseRule || noHangJa) && !paragraphEnd && (units[tail] == 0x3001 || units[tail] == 0x3002))
+                    && !((squeezesPauseRule || noHangJa) && p.style.eastAsian["w:jc"] != "distribute" && !paragraphEnd && (units[tail] == 0x3001 || units[tail] == 0x3002))
                     // (Nor a full-width percent sign in Taiwan's Chinese, whose own list leaves it out
                     // of what may not start a line: it is no closing mark there, and does not hang.
                     // zh-ab9cbe66's "…分署25％(不含)－55％(含)" sends "％(含)" down in Word's print
