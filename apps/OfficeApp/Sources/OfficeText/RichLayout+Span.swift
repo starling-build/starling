@@ -792,6 +792,7 @@ extension RichLayout {
         }
         var splittingVariation = false
         var splittingSpaces = false
+        var splittingMark = false
         func styled(_ rawText: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil, symbolsShown: Bool = false) -> [TextSpan] {
             // (U+FE0F after a text-style emoji draws it in colour, U+FE0E after a colour one as an outline: each such
             // pair is a piece of its own, in its own face.)
@@ -823,6 +824,24 @@ extension RichLayout {
                 RuleTrace.hit("word-spaces-before-a-bracket-in-a-missing-bengali-face-are-their-own-piece")
                 return styled(rawText[rawText.startIndex ..< cut], run, at: base, next: rawText[cut], symbolsShown: symbolsShown)
                     + styled(rawText[cut...], run, at: base + n, next: next, symbolsShown: symbolsShown)
+            }
+            // (Marks that END a run of Bengali letters, in a face Windows lacks, are a piece of their own: Word draws the colon in Mangal, lifting the line to
+            // 1.241 + 0.438 em, as when it is a run of its own; a run that merged with the letters (same flags) took the stand-in's split and stepped 19.3 pt, Word 18.5:
+            // dx2 2263e221's "নাম:" and "টিআইএন:".)
+            if !splittingSpaces, rawText.count > 1, theme.wordRules, RichTextTheme.wordWindowsPages,
+               let last = rawText.unicodeScalars.last, last.value > 0x20, last.value < 0x7F, !last.properties.isAlphabetic, last.properties.numericType == nil,
+               let cut = rawText.lastIndex(where: { !($0.unicodeScalars.first.map { $0.value > 0x20 && $0.value < 0x7F && !$0.properties.isAlphabetic && $0.properties.numericType == nil } ?? false) }),
+               rawText.index(after: cut) < rawText.endIndex,
+               rawText[...cut].unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF && $0.properties.isAlphabetic }),
+               _asciiRunInMissingBengaliFace(run, named, document, rawText[rawText.index(after: cut)...], p.text) {
+                splittingSpaces = true
+                splittingMark = true
+                defer { splittingSpaces = false; splittingMark = false }
+                RuleTrace.hit("word-marks-ending-a-bengali-run-in-a-missing-face-are-their-own-piece")
+                let at = rawText.index(after: cut)
+                let n = rawText.distance(from: rawText.startIndex, to: at)
+                return styled(rawText[rawText.startIndex ..< at], run, at: base, next: rawText[at], symbolsShown: symbolsShown)
+                    + styled(rawText[at...], run, at: base + n, next: next, symbolsShown: symbolsShown)
             }
             // (A right-to-left run of figures alone, in a document whose complex-script face is not the Latin one: Word's print draws
             // the digits in the run's Latin face, not the complex-script face the letters take: dx2 79a15231's date cells in
@@ -2656,7 +2675,7 @@ extension RichLayout {
                    !ch.isWhitespace,
                    u != 0x200B, u != 0x200C, u != 0x200D, u != 0x2060, u != 0xFFFC,
                    !(before.map { !$0.isWhitespace && !($0.unicodeScalars.first.map { Self._isIndic($0.value) } ?? false) } ?? false),
-                   Self._markInMangal(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "", text) || (_isSolaimanLipi(run, named, document) && _asciiRunInMissingBengaliFace(run, named, document, text, p.text)),
+                   Self._markInMangal(run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "", text) || ((_isSolaimanLipi(run, named, document) || (splittingMark && p.style.lineSpacing > 1.0 && p.style.lineHeightPoints == nil)) && _asciiRunInMissingBengaliFace(run, named, document, text, p.text)),
                    let metrics = Self._indicLines["mangal"] {
                     if devanagariStyles["mangal"] == nil {
                         devanagariStyles["mangal"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: metrics.0, descent: metrics.1)
