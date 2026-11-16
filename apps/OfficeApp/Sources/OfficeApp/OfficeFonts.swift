@@ -3004,6 +3004,9 @@ static let sylfaenAdvances: [Double] = [
     private static func eastAsianFaceAsNamed(_ family: String, ignoringEmbedding: Bool = false) -> EastAsianFace {
         let n = family.trimmingWhitespace().lowercased()
         func has(_ keys: String...) -> Bool { keys.contains { faceHas(n, $0) } }
+        // (A Cyrillic-charset (CC) "Arial Unicode" (no "MS") names Armenian text, which Word for Windows prints in Arial's own line, 1.149 em,
+        // not on Mincho's 1.3: dx2 c423753e (hy) steps 13.8 on page 2 where 1.3 em gave 15.5; its first baseline 67.9 with Arial.)
+        if has("arial unicode"), wordOnWindows, fontEntry(family)?.charset.uppercased() == "CC" { var f = EastAsianFace(height: 1.149, latin: sans, latinScale: 1.0, fakeBold: false); f.otherAdvances = arialArmenianAdvances; f.boldOtherAdvances = arialArmenianBoldAdvances; return f }
         // (华文宋体 / STSong is a face the Word for Windows box lacks: its print of oxsdk-6209c6d5a7 draws the
         // whole paragraph, digits included, in Microsoft YaHei, where ours took a serif's narrower digits.)
         if wordOnWindows, !isEmbedded(family), has("stsong", "华文宋体") { RuleTrace.hit("word-stsong-falls-to-yahei"); return eastAsianFace("Microsoft YaHei") }
