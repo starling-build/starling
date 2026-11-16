@@ -3343,7 +3343,11 @@ extension RichLayout {
                     // (Half the run's em as scaled, `w:w`: zh-4e5fe46f's space
                     // at w 95 is 4.32 in Word for Windows' print — 10.5 x 0.95
                     // / 2 less the doubled spacing — where ours set 4.55.)
-                    extra += em * wScale * fraction - _spaceWidth(s) + (s.letterSpacing ?? 0)
+                    // (A face that carries its own Hangul em, NanumGothic 0.94, spaces at half of it: 4.68 at 10 pt in
+                    // 397da2bb's Word print, where a Malgun run keeps half an em.)
+                    var halfBase = em * wScale
+                    if RichTextTheme.wordWindowsPages, !missingSpace, wScale == 1, spread == 0, let h = eaFace?.otherAdvances?[0xAC00] { halfBase = h * em }
+                    extra += halfBase * fraction - _spaceWidth(s) + (s.letterSpacing ?? 0)
                         - 2 * spread * (latinFace?.boldSpread ?? 0) + (missingSpace ? 0 : spread * (eaFace?.boldSpread ?? 0) / 2)
                     // (A trailing space set in the ideographs' face (kind -2)
                     // has the stand-in's width in its spacing: that is not
