@@ -76,7 +76,7 @@ enum OfficeFonts {
         if let alt = macTableAlternate(family) { return substitute(alt) }
         switch n {
         case "liberation sans", "arial", "arial bold", "arial italic", "arial bold italic", "helvetica", "helvetica neue", "tahoma", "raavi",
-             "segoe ui", "aptos", "arimo", "arial black", "montserrat":
+             "segoe ui", "aptos", "arimo", "arial black", "montserrat", "open sans":
             return sans
         case "verdana", "dejavu sans", "bitstream vera sans":
             // (Windows has no DejaVu Sans: Word takes the font table's alternate. lo-9eaf41a6's entry says Times New
@@ -4515,6 +4515,16 @@ static let sylfaenAdvances: [Double] = [
                 face.naturalHeight = 1.679
                 face.baseline = 1.241
                 RuleTrace.hit("nikosh-latin-in-mangal-widths")
+            }
+            // (Open Sans, a cloud face Word prints from its own copy: the sans clone at its own widths and 1.3623 em line, hhea 2189/-600 over 2048; dx2 99720426.)
+            if wordOnWindows, family.trimmingWhitespace().lowercased() == "open sans" {
+                face.advances = openSansAdvances
+                face.boldAdvances = openSansBoldAdvances
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging(openSansOtherAdvances) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(openSansBoldOtherAdvances) { $1 }
+                face.naturalHeight = 1.3623
+                face.baseline = 1.0688
+                RuleTrace.hit("open-sans-own-widths")
             }
             // (Montserrat, a cloud face we hold no file for: the sans clone at its own widths and line.)
             if wordOnWindows, family.trimmingWhitespace().lowercased() == "montserrat" {
