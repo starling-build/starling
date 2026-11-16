@@ -4061,7 +4061,17 @@ extension RichLayout {
                 _inkShift[i] = textFloor.inkShift
             } else if p.image == nil, !combined, tallest > px + 0.01 {
                 let own = (tallest / px - 0.002).rounded(.up) * px
-                _inkShift[i] += own - bodyHeight
+                // (On a snapToChars grid the spare room is split evenly above and below the
+                // picture, the text's descent not counted: xb jpn 837e72c4's GR16f, a 20pt
+                // picture in 36pt on an 18pt grid, stands 8pt from each edge in Word's print,
+                // where ours put all 13 above it.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, _gridCellBase(i, document) != nil, own > tallest + 0.01,
+                   !p.text.unicodeScalars.filter({ $0.value != 0xFFFC }).isEmpty {
+                    RuleTrace.hit("word-snapchars-picture-line-centred")
+                    _inkShift[i] += (own - tallest) / 2
+                } else {
+                    _inkShift[i] += own - bodyHeight
+                }
                 bodyHeight = own
             } else if !boxes.isEmpty, boxPitches < bodyHeight - 0.01 {
                 _inkShift[i] += (boxPitches - (boxFoot - boxTop)) / 2 - boxTop
