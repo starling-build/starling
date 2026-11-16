@@ -1055,6 +1055,7 @@ enum DocxFormat {
         notes.hasColumns = body.descendants("w:cols").contains { (Int($0["w:num"] ?? "") ?? 1) > 1 }
         if let compat = part("word/settings.xml").flatMap(XNode.parse)?.first("w:compat") {
             let mode = compat.all("w:compatSetting").first { $0["w:name"] == "compatibilityMode" }.flatMap { Int($0["w:val"] ?? "") } ?? 12
+            notes.compatMode = mode
             notes.marksFollowBreaks = mode < 15 && (compat.first("w:splitPgBreakAndParaMark").map { !_isOff($0) } ?? false)
         }
 
@@ -5436,6 +5437,7 @@ enum DocxFormat {
         /// `w:splitPgBreakAndParaMark` before 2013's layout: the mark of a
         /// paragraph that ends in a page break goes to the next page.
         var marksFollowBreaks = false
+        var compatMode = 12
         /// The mark of a paragraph that ends in a COLUMN break stands at the
         /// top of the next column, in 2010's layout and 2013's alike (lab
         /// cb1 and cb2 in Word for Windows; LibreOffice's tdf165492: Word's
@@ -7699,8 +7701,8 @@ enum DocxFormat {
                             if let n = sheet["Normal"]?.char.fontSize { mathSize = n }
                             if let named = style.named, let n = sheet[named]?.char.fontSize { mathSize = n }
                             if let n = cellChar.fontSize { mathSize = n }
-                            // An inline equation takes the style's size, not the mark's (xb jpn 6fca0f: style 12, mark 11, Word draws 12; ce4069f1, 8b9d4558 gain). A display equation (m:oMathPara) takes the mark's (zh-8186c98d: mark 15, Word draws 15).
-                            if child.name == "m:oMathPara", let n = markStyle?.fontSize { mathSize = n }
+                            // An inline equation takes the style's size, not the mark's (xb jpn 6fca0f: style 12, mark 11, Word draws 12). A display equation (m:oMathPara) takes the style's too in compatibility mode 14 and up (ce4069f1 mode 14, 8b9d4558 mode 15), and the mark's below that (zh-8186c98d mode 12: mark 15, Word draws 15).
+                            if child.name == "m:oMathPara", notes.compatMode < 14, let n = markStyle?.fontSize { mathSize = n }
                             var whole: (Double, Double)? = nil
                             var inkWhole: (Double, Double)? = nil
                             if let m = WriterMath.register(piece, for: att.id, size: mathSize, natural: { whole = $0 }, ink: { inkWhole = $0 }) {
