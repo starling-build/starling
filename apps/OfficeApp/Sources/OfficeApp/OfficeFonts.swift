@@ -3922,6 +3922,11 @@ static let sylfaenAdvances: [Double] = [
                     face.boldJoinedAdvances = WindowsArabicAdvances.tradArabicBold
                     face.joinedClusters = WindowsArabicAdvances.tradArabicClusters
                     face.boldJoinedClusters = WindowsArabicAdvances.tradArabicBoldClusters
+                    // (Its ASCII digits are 0.5 em in Word's prints, regular and bold, 440 digit pairs over the corpus; the Latin stand-in's 0.59 wrapped the two-digit date cells of dx2 8a0e0087 digit by digit.)
+                    var digits = face.otherAdvances ?? [:]
+                    var boldDigits = face.boldOtherAdvances ?? [:]
+                    for d in 0x30...0x39 { digits[UInt32(d)] = 0.5; boldDigits[UInt32(d)] = 0.5 }
+                    face.otherAdvances = digits; face.boldOtherAdvances = boldDigits
                 case "sakkal majalla":
                     face.joinedAdvances = WindowsArabicAdvances.sakkal
                     face.boldJoinedAdvances = WindowsArabicAdvances.sakkalBold

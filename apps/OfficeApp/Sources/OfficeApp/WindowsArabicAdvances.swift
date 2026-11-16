@@ -826,6 +826,8 @@ enum WindowsArabicAdvances {
     ]
 
     static let tradArabicBoldClusters: [String: Double] = [
+        // (Seen, ba, waw in Word's bold prints: س+ب measures 0.586 em from the seen's origin to the waw's, six prints over the corpus, plus the final waw 0.381; the letter sum is 0.685 and wrapped the week-column title of dx2 8a0e0087.)
+        "سبو|0|0": 0.9670, "سبو|1|0": 0.9670,
         "الل|0|1": 0.6910, "الله|0|0": 0.6910, "بأ|0|0": 0.3900, "بإ|0|0": 0.3900,
         "با|0|0": 0.3930, "بر|1|0": 0.5100, "بم|0|1": 0.3480, "به|0|1": 0.3930,
         "بي|0|0": 0.5190, "بي|1|0": 0.5920, "تأ|0|0": 0.3900, "تا|0|0": 0.3930,
