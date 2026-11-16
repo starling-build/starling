@@ -3099,6 +3099,35 @@ extension RichLayout {
                 segoeLift += max(0, _px(markerSize * 1.225) - line.height) / _px(1)
             }
         }
+        // (On a line grid the first line is as tall as its list number makes it too, where the number's own
+        // line is more pitches than the text's: the "7．" of xb jpn 771abc's "7．まとめと残された課題", an 11pt
+        // bold number over 10.5pt text, is a line of two pitches, 35.9pt to the next baseline in Word's print,
+        // where the text alone makes one and ours were 27.3. The text keeps its baseline; the foot is lower.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.list != nil, p.image == nil, !p.text.isEmpty,
+           style.lineHeightPoints == nil || style.lineHeightIsMinimum, !_offGrid(i, document), let gridPitch = _grid(i, document).pitch,
+           let label = listLabel(i, document), !label.isEmpty,
+           label.contains(where: { Self.isEastAsian($0, hinted: true) }),
+           !["symbol", "wingdings", "wingdings 2", "wingdings 3", "webdings"].contains(_levelNumberFonts(p, document).latin?.lowercased() ?? ""),
+           let line = painter.computeLineMetrics().first {
+            let mark = _markerChar(p, document)
+            if let natural = theme.naturalLine(for: mark, named: _named(p, document), eastAsian: true), natural > gridPitch + 0.01,
+               // (Only where the number's line is more pitches than the text's own: a 16pt number over 16pt text is the text's line already.)
+               let first = p.runs.first, let textNatural = theme.naturalLine(for: first.style, named: _named(p, document), eastAsian: true),
+               (natural / gridPitch).rounded(.up) > (textNatural / gridPitch).rounded(.up) {
+                let want = _px((natural / gridPitch).rounded(.up) * gridPitch)
+                if want > line.height + _px(0.5) {
+                    RuleTrace.hit("word-grid-first-line-is-as-tall-as-its-number")
+                    segoeLift += (want - line.height) / 2 / _px(1)
+                    let n = painter.computeLineMetrics().count
+                    if n > 1 {
+                        var lift = _lineLift[i]
+                        if lift.count < n { lift += Array(repeating: 0, count: n - lift.count) }
+                        for k in 1 ..< n { lift[k] += (want - line.height) / 2 }
+                        _lineLift[i] = lift
+                    }
+                }
+            }
+        }
         if numberLift > 0.001 {
             let extra = max(0, numberLift - _inkShift[i])
             _inkShift[i] += extra
