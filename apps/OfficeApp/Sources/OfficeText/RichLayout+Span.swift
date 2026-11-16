@@ -2343,6 +2343,17 @@ extension RichLayout {
                 if ea, eastDash, ch == "\u{2014}" { kind = -5; RuleTrace.hit("word-em-dash-drawn-in-east-asian-hansi-face") }
                 if ea, theme.wordRules, RichTextTheme.wordWindowsPages, Self._cjkFaceFamily != nil, let u = ch.unicodeScalars.first?.value,
                    (0x25A0 ... 0x25EF).contains(u) || u == 0x2605 || u == 0x2606 { kind = -4 }
+                // (A card suit in a run (East Asian by its hint) whose Latin face is Malgun Gothic itself (a theme's; Nanum Barun's suits are not an em: b60ada18) is that face's glyph, an em wide, not
+                // the stand-in's 0.66 em: xd 89a3482a's "♣♣♣" are Malgun 12 pt wide each in the print, ours 7.9, and "수" after them stayed on the line.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, Self._cjkFaceFamily != nil,
+                   let u = ch.unicodeScalars.first?.value, (0x2660 ... 0x2667).contains(u),
+                   { () -> Bool in
+                       let fam: String = run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily ?? ""
+                       return ["맑은 고딕", "malgun gothic"].contains(fam.trimmingWhitespace().lowercased())
+                   }() {
+                    kind = -4
+                    RuleTrace.hit("word-card-suit-in-a-korean-latin-face-is-an-em")
+                }
                 // (A curly quote an embedded subset lacks is Word's fallback face's too, full width:
                 // zh-5450d509's “ ” after 仿宋_GB2312's five glyphs are JhengHei's 12pt in the
                 // print; ours set them as a missing glyph, 17.8 and 12.1, and a line lost a character.)
