@@ -17690,3 +17690,4 @@ HANDOFF amd-4 2026-11-16 (near-zero dx2 docs): f15415f0 LANDED dea2930e7 (page-r
 - Rule "take the math run's own w:sz": 8b9d4558 66.4→64.0, 6fca0f 79.8→76.9 (worse). In 8b9d4558 and ce4069f1 the runs say 12 pt, mark 12, Normal 11/14; Word looks closer to Normal.
 - So 8186 (runs=mark=15, Word 15) vs 8b9d (runs=mark=12, Word ≈ Normal) contradict each other under every simple size rule; something else differs (8186 is a CJK doc with line atLeast 600; unexplained). Not landed.
 - Docx.swift comment near mathSize wrongly says ce4069f1/8b9d4558 gain from the 6fca0f rule; fix with the next edit there.
+- amd-2 CLAIM 2026-11-16: dx2 7ffac240 (3.6) and 72f67d49 (3.8). 89a3482a (xd Korean, 219 to 221 of 221, Malgun card suits an em wide) submitted, queue 432.
