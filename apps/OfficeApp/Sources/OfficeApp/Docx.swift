@@ -1064,6 +1064,7 @@ enum DocxFormat {
         // paragraphs are "Kopfzeile", which fell back to Normal).
         var keptHeaderFooters: [KeptHeaderFooter] = []
         var titlePage = false
+        var sectionChange: FormatChange? = nil
         var evenAndOddHeaders = false
         var footerFramed = false
         var keptCompat: String? = nil
@@ -1079,6 +1080,9 @@ enum DocxFormat {
             // first-page and even-page ones, which the editor has no
             // field for, are kept always.
             titlePage = _on(sect.first("w:titlePg"))
+            if let ch = sect.first("w:sectPrChange") {
+                sectionChange = FormatChange(author: ch["w:author"] ?? "", date: ch["w:date"] ?? "", oldRPrXML: Self._sectionChangeSaid(sect, was: ch.first("w:sectPr")))
+            }
             // The file's compatibility block, as it stands — including an
             // EMPTY one, which is Word's legacy (2003) layout mode and lays
             // text out measurably differently: drawing.docx wrapped tighter
@@ -3677,6 +3681,7 @@ enum DocxFormat {
         document.keptTables = keptTables
         document.keptHeaderFooters = keptHeaderFooters
         document.titlePage = titlePage
+        document.sectionChange = sectionChange
         document.evenAndOddHeaders = evenAndOddHeaders
         document.widowControlSuspended = footerFramed
         document.keptCompat = keptCompat
@@ -5178,6 +5183,20 @@ enum DocxFormat {
         let n = ((width / (size + (Double(grid["w:charSpace"] ?? "") ?? 0) / 4096)).rounded(.down))
         guard n >= 1, width > 0 else { return nil }
         return width / n - size
+    }
+
+    /// What Word's "Formatted:" balloon says of a section's changed page margins (w:sectPrChange): only
+    /// the margins and distances that differ, in inches to two places, e.g. `Left:  0.75", Bottom:  0.79"`.
+    static func _sectionChangeSaid(_ sect: XNode, was old: XNode?) -> String {
+        guard let now = sect.first("w:pgMar"), let was = old?.first("w:pgMar") else { return "" }
+        var parts: [String] = []
+        for (attr, label) in [("w:top", "Top"), ("w:left", "Left"), ("w:right", "Right"), ("w:bottom", "Bottom"),
+                              ("w:header", "Header distance from edge"), ("w:footer", "Footer distance from edge")] {
+            guard let a = Double(now[attr] ?? ""), a != Double(was[attr] ?? "") else { continue }
+            let v = (a / 1440 * 100).rounded() / 100
+            parts.append("\(label):  \(v == v.rounded() ? String(Int(v)) : (v * 10).rounded() == v * 10 ? String(v) + "0" : String(v))\"")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private static func _pageSetup(_ sect: XNode, _ notes: _Shared? = nil, normalSize: Double? = nil) -> PageSetup? {

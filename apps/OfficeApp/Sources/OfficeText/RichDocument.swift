@@ -2749,6 +2749,8 @@ public struct RichDocument: Hashable, Sendable {
     public var addsParagraphSpacing = false
     /// Word's w:titlePg: the first page uses the "first" header/footer.
     public var titlePage = false
+    /// The final section's tracked change of page setup (w:sectPrChange): the old w:sectPr, serialized.
+    public var sectionChange: FormatChange? = nil
     /// The kept headers and footers as paragraphs: what the layout draws
     /// on each page while the editor's one-line text for them
     /// (`header`, `footer`) is still the file's.

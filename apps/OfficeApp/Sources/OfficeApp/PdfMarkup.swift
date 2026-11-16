@@ -394,6 +394,10 @@ struct PdfMarkup {
         // them: lo n830205 in Word for Windows' print — four headings each reformatted
         // in their words and in their marks say "Font: 9 pt" once, under the four.)
         var markNote: (index: Int, paragraph: Int, text: String)? = nil
+        if let change = document.sectionChange, !change.oldRPrXML.isEmpty, !document.paragraphs.isEmpty {
+            // (A section's margins changed: "Formatted: Left:  0.75"" in the margin, at the section's first paragraph — lo 78a7e614.)
+            out.append(Note(anchor: RichPosition(paragraph: 0, offset: 0), label: "Formatted:", paragraphs: [change.oldRPrXML], author: change.author))
+        }
         for (i, p) in document.paragraphs.enumerated() {
             // (A cell deleted with its row's tracked change: one "Deleted
             // Cells" for the cell, at its first paragraph — tdf123001's.)
