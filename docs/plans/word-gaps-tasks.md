@@ -17699,3 +17699,5 @@ HANDOFF lenovo-3 2026-11-16 (2): c2c3a2f3 PARKED at 166 (24 vs 22 pages): page 1
 ### lenovo-2 handoff 2026-11-16 (xd 4fabe1f2, Korean)
 - Queued 435 (line-height fix c53b61683 + squeeze narrowing): Latin-width space (<0.4 em) gives in Hangul-body line fit; Hangul-width spaces hold. p8 now matches Word; 107500a8 219 to 220 of 220; A/B 307 xd+xb: only 107500a8, 4fabe1f2, 89a3482a differ, no drops. Unit tests 655/0. Rule in ~/word-rules.md.
 - 4fabe1f2 still 254 of 261 (267 ours). First mismatch p7 para 83 (④ 본 계약에 따른…): ours fits "건축", Word breaks after "건". Our line width is 481.904 against limit 481.900: a 0.004 pt overflow accepted by the latinSlack hair (RichLayout+EastAsian.swift ~667, max(hair, px(0.01))). Right fix: find the 0.004 per-glyph width error vs Word's print, not shrink the hair. Other spots: p1 [그의 break early, p2 ○○○원 cell, p6 제15조 one more char, p9 "’,‘설", p12-13 table rows.
+
+- amd-7 (2026-11-16) HANDOFF: dx2 30f73046 Lao matched 3 to 7 (entry 429); 41560659 Hebrew Arial widths 3 to 49, 11 more Hebrew docs up (entry 436). 21b6269d Arabic next, after lenovo-3 entry 428 lands. Myanmar entry 426 pending.
