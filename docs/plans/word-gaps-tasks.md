@@ -17619,3 +17619,11 @@ HANDOFF amd-3 2026-11-16 xd a969ba6c: 27/27 pages, matched 785 -> 804 of 979. 39
 - Queued (queue/amd-6-406): 57cff808b Wingdings 2 Indic row trim (+1 pt pitch fixed) and 9deb8a5d2 w:spacing on Nirmala UI falls on every code point (vowel signs too; Kokila differs). bea98273 matched 171 -> 181 of 186. 32 other Nirmala/Wingdings-2 dx2 docs unchanged. Unit tests 655/0. Rules in ~/word-rules.md.
 - Left on bea98273: 5 lines; "গোষ্ঠী(গুলি)-তে" conjunct ষ্ঠ width ~1.8 pt wide; bold "জাতিসত্তা:" +0.4.
 - Not submitted: ebe-hostline 5fd360c7b (picture-x host-line); lab/ebe-strip Word prints pending.
+
+### amd-5 handoff e86e26f7 (dx2 Bengali), 2026-11-16
+- Page 3 drifts +27.7 pt. Cause: cell "শেষের তারিখ: " (Siyam Rupali 10 pt, grid column 33.5 pt, tcMar left 108, right 0) wraps in 4 lines in ours against Word's 2.
+- Word does NOT widen the column (rules at 274.0 and 307.45 = 33.45 pt, same as ours). Word fits শেষের (28.0 pt) on line 1.
+- Ours splits শেষের unless text width >= about 28.25 pt (tcMar left 105 twips keeps it whole; 106-108 splits). Our text width is 28.1. So the word lays out about 0.2 pt wider than the probe/Word sum: the same probe-versus-layout gap as xd 77d6ca49 (amd-1's fitter fix). PARKED for that fix; recheck e86e26f7 page 3 after it lands.
+- Second error: a colon right after a Bengali word lays out at 2.78 pt (Liberation Sans) against Malgun 2.19 / Word about 2.28.
+- Refuted: colon run face / Malgun metrics as the cause (merging the colon into the Bengali run, w:cs, dropping the trailing space all still split). An earlier note claiming "missing-face path adds 0.1-0.15 pt to শেষের" is retracted: that test renamed the colon run too.
+- No code changed.
