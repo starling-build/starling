@@ -1259,6 +1259,10 @@ enum DocxFormat {
             // only where the defaults differ from Normal are they stated.)
             var rootChar = CharStyle()
             if docChar.fontSize != normalChar.fontSize { rootChar.fontSize = docChar.fontSize }
+            // docDefaults with no size: Word draws 10pt, for a style with no parent as
+            // much as for Normal (dx2 590766b4's Tabellenstil cells drew 12pt).
+            if docChar.fontSize == nil,
+               styles.first("w:docDefaults")?.first("w:rPrDefault") != nil { rootChar.fontSize = 10 }
             if docChar.fontFamily != normalChar.fontFamily { rootChar.fontFamily = docChar.fontFamily }
             // Kerning too, said as none where only Normal kerns: Word
             // closes up 》《 only where it kerns, and a Zhejiang plan's
