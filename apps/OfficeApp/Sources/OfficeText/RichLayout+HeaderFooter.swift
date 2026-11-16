@@ -1342,9 +1342,11 @@ extension RichLayout {
         // margins, the box and its bottom effect together: 60316's
         // divider, centred on the page.)
         if theme.wordRules, let a = float.verticalAlign, ["top", "center", "bottom"].contains(a),
-           float.verticalFrom == "page" || float.verticalFrom == "margin", page.height > 0 {
-            let top = float.verticalFrom == "page" ? 0 : page.top
-            let span = float.verticalFrom == "page" ? page.height : page.height - page.top - page.bottom
+           float.verticalFrom == "page" || float.verticalFrom == "margin" || float.verticalFrom == "bottomMargin", page.height > 0 {
+            // (Aligned from the bottom margin, the box stands in that margin's strip: xd 67a3b93a's "UI Booklet" boxes,
+            // anchored "top of the bottom margin", stand on the footer line in Word's print, not up the page with their paragraph.)
+            let top = float.verticalFrom == "page" ? 0 : float.verticalFrom == "bottomMargin" ? page.height - page.bottom : page.top
+            let span = float.verticalFrom == "page" ? page.height : float.verticalFrom == "bottomMargin" ? page.bottom : page.height - page.top - page.bottom
             let whole = h + _px(float.effectBottom)
             let onPage = top + (a == "center" ? (span - whole) / 2 : a == "bottom" ? span - whole : 0)
             if floatsFrames, let region = regionTopOnPage {
