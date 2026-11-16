@@ -4717,6 +4717,16 @@ extension RichLayout {
                 let a = map?.painter(u) ?? u
                 guard let box = painter.getBoxesForSelection(TextSelection(baseOffset: a, extentOffset: a + 1)).first?.toRect(), box.width > 0,
                       let line = lines.min(by: { abs($0.baseline - box.bottom) < abs($1.baseline - box.bottom) }) else { continue }
+                if em == "dot" {
+                    // (Word sets the over-dot as a "．" text glyph, a full-width period in the East Asian face, its baseline one em over the
+                    // line's and its origin 0.175 em left of the character's centre: xb jpn 837e72c4 GR16d, dots at 94.3 over 104.9, 10.56 pt.)
+                    let tp = TextPainter(text: TextSpan(text: "\u{FF0E}", style: s.copyWith(fontSize: size)), textDirection: .ltr)
+                    tp.layout(minWidth: 0, maxWidth: Double.infinity)
+                    let x = origin.dx + (box.left + box.right) / 2 - 0.175 * size
+                    tp.paint(canvas, Offset(x, origin.dy + line.baseline - size - tp.computeDistanceToActualBaseline(.alphabetic)))
+                    tp.dispose()
+                    continue
+                }
                 let cx = origin.dx + (box.left + box.right) / 2 - 0.1 * _px(1)
                 let cy = origin.dy + line.baseline + (under ? 0.29 : -1.08) * size
                 canvas.drawCircle(Offset(cx, cy), (under ? 0.065 : 0.06) * size, paint)
