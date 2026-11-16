@@ -149,7 +149,7 @@ extension RichLayout {
               first.computeLineMetrics().count > 1 else { return [:] }
         // What each character's automatic space after it is.
         var gaps: [Int: Double] = [:]
-        let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: width, lead: 0, adjust: tabs, autoSpaces: { gaps[$0] = $1 })
+        let (span, inline, inserts) = _span(for: p, at: i, document, textWidth: width, lead: 0, adjust: tabs, fitProbe: true, autoSpaces: { gaps[$0] = $1 })
         // (Marks to hang, or full stops and commas an older file's line may
         // end on past the margin: `RichDocument.hangsLatinStops`.)
         let stops = (document.hangsLatinStops && RichTextTheme.wordWindowsPages && legacy && hangs

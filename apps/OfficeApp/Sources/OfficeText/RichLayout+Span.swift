@@ -244,7 +244,7 @@ extension RichLayout {
     }
 
     func _span(for p: RichParagraph, at index: Int?, _ document: RichDocument, textWidth: Double, lead: Double = 0, adjust: [Int: Double] = [:],
-                       held: Set<Int> = [], spread: [Int: Double] = [:], autoSpaces: ((Int, Double) -> Void)? = nil)
+                       held: Set<Int> = [], spread: [Int: Double] = [:], fitProbe: Bool = false, autoSpaces: ((Int, Double) -> Void)? = nil)
         -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) {
         let named = _named(p, document)
         let pitch = (index.map { _offGrid($0, document) } ?? (p.style.eastAsian["w:snapToGrid"] == "0")) ? nil : _grid(index, document).pitch
@@ -1893,8 +1893,10 @@ extension RichLayout {
                 // (A word the fit's cut on a neighbouring space splits out of its run is still the run's: the cut makes a run of every space and
                 // word, and a word alone has no Latin to open this branch, so it fell to the flat scale and the engine found room the fit never
                 // counted. Only where there is a cut: a run of one word that is its own run, as Word has it, is as it was. f0001d05.)
+                // (The fitter's own probe has no cut either, but measures a word segment alone: it takes the whole run's text too, so a Kokila word
+                // is fitted at the table width the final pass draws it at. xd d760f1e5 220 to 229 matched lines.)
                 if kind >= 0, indic?.face == "kokila", kokilaLatin, let px = style(kind).fontSize, px > 0.5, let m = Self._indicLines["kokila"],
-                   (adjust.isEmpty ? text[start ..< end] : text[...]).unicodeScalars.contains(where: { $0.value < 0x250 || $0.value == 0x2026 || $0.value == 0x201C || $0.value == 0x201D }) {
+                   (adjust.isEmpty && !fitProbe ? text[start ..< end] : text[...]).unicodeScalars.contains(where: { $0.value < 0x250 || $0.value == 0x2026 || $0.value == 0x201C || $0.value == 0x201D }) {
                     // (Kokila's own Latin, digits and space: `KokilaLatin`; Devanagari stays on the flat scale.)
                     let base = style(kind)
                     var i = start
