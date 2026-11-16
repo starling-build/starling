@@ -2684,6 +2684,7 @@ extension RichLayout {
         }
         // (The "position" of a Wingdings 2 bullet's numbering run, where the box is lowered or stands: see `_span`.)
         var w2Done = false
+        var w2Trim = 0.0   // what the engine's first line stands over the bullet line's ascent (its ink is lifted by it above)
         func _w2Half() -> Double? {
             guard theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, p.style.list != nil,
                   _levelNumberFonts(p, document).latin?.lowercased() == "wingdings 2",
@@ -2932,6 +2933,11 @@ extension RichLayout {
                     let up = max(_px(boxPt) * 1727.0 / 2048 - lowering, _px(target))
                     RuleTrace.hit("word-wingdings2-bullet-row-ink-stands-lowered-under-its-line")
                     _inkShift[i] = up - line.baseline
+                    // (The engine's line can stand higher than the line the bullet and the row set (the stand-in
+                    // joiner of an Indic row): the row is as tall as that line, not the engine's: dx2 bea98273's
+                    // Nirmala UI rows pitched 19.2pt on Word's 18.3.)
+                    if line.baseline > up + 0.01, painter.computeLineMetrics().count == 1,
+                       p.text.unicodeScalars.first(where: { $0.value != 0x20 }).map({ Self._isIndic($0.value) }) == true { w2Trim = line.baseline - up }
                     w2Done = true
                 }
             }
@@ -3729,7 +3735,7 @@ extension RichLayout {
         if i < _floatPush.count { _floatPush[i] = push }
         if i < _floatTight.count { _floatTight[i] = p.inlineImages.inOrder.contains { $0.float?.wraps == true && $0.float?.wrapsTight == true } }
         _spaceBefore[i] = before + push
-        var bodyHeight = painter.height + _px(segoeLift)
+        var bodyHeight = painter.height + _px(segoeLift) - w2Trim
         if let pair = Self._paired(painter) { bodyHeight -= pair.saving }
         if i < _firstLineLift.count { _firstLineLift[i] = _px(segoeLift) }
         // A paragraph of nothing but floating objects stands as one of a
