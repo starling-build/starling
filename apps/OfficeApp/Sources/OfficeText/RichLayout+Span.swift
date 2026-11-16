@@ -193,13 +193,16 @@ extension RichLayout {
     /// its ascii face. When that face is one we hold line metrics for, the run takes that face's line (Latha 1.372 em, dx2 80152175; Mangal, and Kalimati
     /// which Windows lacks, in dx2 375919ba's leader runs). The script path picks a face only when the run names none we know.
     @inline(never) func _namedMetricFace(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument, _ text: Substring) -> String? {
-        guard theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, !text.isEmpty else { return nil }
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile || document.fromFileTextBox, !text.isEmpty else { return nil }
         let csFlag = run.keptXML.map { $0.containsSubstring("<w:cs/>") || $0.containsSubstring("<w:cs ") } ?? false
         let cs = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
         let ascii = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
         var face = csFlag ? cs : ascii
         let isKalimati = face == "kalimati"
         if isKalimati { face = "mangal" }
+        // (A text box's sub-document does not carry readFromFile; only a Kalimati run, drawn in Mangal, opts in there: dx2 d91478e3's "४. ......" list
+        // in a box, Mangal's 20.16 pt pitch in Word's print where ours stood on Calibri's 14.65.)
+        if !document.readFromFile, !isKalimati { return nil }
         // Only Latha is measured for letters and digits too; the other faces only for runs of marks (Kalimati/Preeti Nepali docs drop otherwise).
         // (And Mangal itself, the face the run names: 2db27e2d's "24 × 13 = (20 + 4) × ..." line, digits and signs in Mangal runs, is Mangal's
         // 18.5 pt in Word's print where ours stood 15.1 on the Latin stand-in.)

@@ -773,6 +773,7 @@ extension RichLayout {
         sub.defaultLangXML = document.defaultLangXML
         sub.htmlAutoSpacing = document.htmlAutoSpacing
         sub.defaultTabStop = document.defaultTabStop
+        sub.fromFileTextBox = document.readFromFile
         sub.tableStyles = box.tableStyles
         sub.tableColumns = box.tableColumns
         // (A box's text keeps to its section's grid, as the page's does:
