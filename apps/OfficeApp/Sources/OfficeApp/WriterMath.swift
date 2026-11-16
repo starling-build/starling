@@ -537,6 +537,15 @@ enum WriterMath {
                 // (Its parts in the inline style: zh-c2c92639's ∑ over A has
                 // its limits beside it in Word's print, the sign unenlarged.)
                 let inner = Layout(display: false, inlineText: inlineText)
+                // (A skewed fraction, <m:type val="skw">, is no stack: Word's print of a969ba6c's exponent 1/3
+                // sets numerator, fraction slash and denominator at the exponent's own size, the numerator 0.35 em
+                // over the slash's baseline and the denominator 0.35 em under it: 6.0 pt apart at 8.5 pt.)
+                if RichTextTheme.wordWindowsPages, n.first("m:fPr")?.first("m:type")?["m:val"] == "skw" {
+                    let k = runSize(n.first("m:num"), size, level)
+                    let sn = inner.row(n.first("m:num"), size: size, level: level)
+                    let sd = inner.row(n.first("m:den"), size: size, level: level)
+                    return hbox([raised(sn, k * 0.35), text("\u{2044}", size: k, italic: false), raised(sd, -k * 0.35)])
+                }
                 // (And in a line of text — no display equation — at script size: 20d9968b's
                 // n over k stands 7.6pt in a 10.6pt line in Word's print, 0.72 of it.)
                 let part = display ? level : level + 1
