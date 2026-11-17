@@ -850,6 +850,20 @@ extension RichLayout {
             // Calibri, 5b919053, d5a4662f, f7d88376 and others likewise, where the cs name is a face Windows lacks (B Nazanin) or none; a Hebrew face (font table charset B1) is drawn in Arial, heb xb 95e6b1.)
             var run = run
             var hyphenFace: String? = nil
+            // (Georgian letters in a run whose face has none: Word's print draws them in Sylfaen, at its 1.317 em line and its widths, where the stand-in
+            // drew DejaVu Sans's. dx2 72f67d49, Calibri runs under the theme's Geor = Sylfaen: Word 52 lines at 15.7 pt, ours 55 at 14.5.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile {
+                var georgian = 0, letters = 0
+                for u in rawText.unicodeScalars where u.properties.isAlphabetic { letters += 1; if u.value >= 0x10D0 && u.value <= 0x10FA { georgian += 1 } }
+                if georgian > 0, georgian * 2 >= letters {
+                    let face = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
+                    if face != "sylfaen", face != "ghea grapalat" {
+                        RuleTrace.hit("word-georgian-letters-are-sylfaen")
+                        run.fontFamily = "Sylfaen"
+                        run.hAnsiFontFamily = nil
+                    }
+                }
+            }
             // (Word reorders "-", "/" and "%" splits only where the run's complex-script language is not Persian: lab bidi-digits2, with
             // w:lang w:bidi="fa-IR" Word draws 15-13 as written, in any table, face or alignment; without it, 13-15.)
             let bidiLanguage = [run.keptXML, named?.char.keptXML].compactMap({ Self._attribute($0, "w:bidi") }).first ?? Self._attribute(document.defaultLangXML, "w:bidi") ?? ""
