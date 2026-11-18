@@ -4690,6 +4690,9 @@ static let sylfaenAdvances: [Double] = [
                 // table's column past the margin and kept its stop rows from parting.)
                 if let w = Self.thSarabunPSKLatin[0x2026] { face.otherAdvances?[0x2026] = w }
                 if let w = Self.thSarabunPSKBoldLatin[0x2026] { face.boldOtherAdvances?[0x2026] = w }
+                // (Its en dash and curly quotes, from f0818647's print: 5.76 pt, 3.94 pt and 5.91 pt at 16 pt; the table had none, so the
+                // fallback's wider dash made "micro –teaching" break before "teaching" where Word keeps it.)
+                for (cp, w) in [(0x2013, 0.361), (0x2019, 0.247), (0x201C, 0.370), (0x201D, 0.370)] as [(UInt32, Double)] { face.otherAdvances?[cp] = w }
                 // (Its own line: ascent 0.85 + descent 0.46 em in the print's
                 // subsets, a 20.95 pt pitch at 16 pt; ours ran 18.4 pt.)
                 face.naturalHeight = 1.31
