@@ -3870,7 +3870,10 @@ static let sylfaenAdvances: [Double] = [
         // has them on Word's machine, whatever this one holds: lo tdf129659's
         // Hebrew body sets its spaces and marks in Times New Roman, not the
         // Cambria of a face Word lacks.)
-        let wordHasIt = wordOnWindows && ["times new roman", "arial", "tahoma"].contains(name.trimmingWhitespace().lowercased())
+        // (Arial Unicode MS, which Windows lacks, in a document with no Indic text: its Hebrew prints in ArialMT on Arial's 1.149 em line,
+        // not the Cambria stand-in's 1.17: dx2 39a231ce.)
+        let aumsHebrew = wordOnWindows && !documentHasIndicText && name.trimmingWhitespace().lowercased() == "arial unicode ms"
+        let wordHasIt = wordOnWindows && (["times new roman", "arial", "tahoma"].contains(name.trimmingWhitespace().lowercased()) || aumsHebrew)
         if missing, wordHasIt { missing = false }
         let asked = name.trimmingWhitespace().lowercased()
         if missing { name = "Times New Roman" }
@@ -3979,7 +3982,7 @@ static let sylfaenAdvances: [Double] = [
         // (… and its clone first in the chain, so the spaces and marks are set
         // in the clone and not the Cambria stand-in that comes before it.)
         if wordHasIt, embeddedFamily(name) == nil, installedFamilies[name.trimmingWhitespace().lowercased()] == nil {
-            let clone = ["arial", "tahoma"].contains(name.trimmingWhitespace().lowercased()) ? "Liberation Sans" : "Liberation Serif"
+            let clone = (["arial", "tahoma"].contains(name.trimmingWhitespace().lowercased()) || aumsHebrew) ? "Liberation Sans" : "Liberation Serif"
             face.fallback.removeAll { $0 == clone }
             face.fallback.insert(clone, at: 0)
             // (Arial's own line: 1.1499 em, 13.8pt at 12 — the Cambria stand-in's
