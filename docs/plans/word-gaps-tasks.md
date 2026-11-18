@@ -17739,3 +17739,4 @@ HANDOFF lenovo-3 2026-11-16 (2): c2c3a2f3 PARKED at 166 (24 vs 22 pages): page 1
   - Not started: xd 3bcf7e61, dx2 ad537ae9, a6eae68e.
 - CLAIM sdk-4 (2026-11-18): Thai docs 3a493613, 53eca83a, 28fa7f69 (SE Asian task; sdk-4 f0818647 PSK Thai width queued as 458). Narrow-cell digit split (540fe10e: Word breaks '1,500,000' across lines in a narrow cell) noted, not yet taken.
 - sdk-3 (2026-11-18): 457 LANDED (INSIGHTSPerpetua->Cambria, drops 184d63/27ac54 waived). 459 queued: Sakkal Majalla lam+meem ligature cluster (0.3101 em), 184d63 76->163, dx2 697f78b3 52->76, 19 Sakkal docs no drops, unit 655/0. 184d63 residual: ص+و, ك+و, تت, tanween widths (الأصوات 2.4pt wide, تتكون 1.8pt wide). Next: other Sakkal ligature/word-width residuals in xb ara/urd.
+- sdk-5 (2026-11-18) CLAIM Spanish list es-a: dx2 335fbcf8, 62c79fa5, 2f747ec3, 51b1aa70, dea68bc2, 01838920, aa4cf830, xa lo-197f202205 (re-render on tip first; ebe45609 and 48e5a592 left to their owners)
