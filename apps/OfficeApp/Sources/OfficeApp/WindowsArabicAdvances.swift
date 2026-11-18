@@ -850,7 +850,7 @@ enum WindowsArabicAdvances {
     static let sakkalClusters: [String: Double] = [
         "الل|0|0": 0.8720, "الله|0|0": 0.8720, "لآ|0|0": 0.4480, "لأ|0|0": 0.4480,
         "لإ|0|0": 0.4830, "لا|0|0": 0.4830, "لا|1|0": 0.5080, "لل|0|0": 0.7260,
-        "لله|0|0": 0.7260,
+        "لله|0|0": 0.7260, "لم|0|1": 0.3101,
     ]
 
     static let sakkalBoldClusters: [String: Double] = [
