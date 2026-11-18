@@ -125,6 +125,20 @@ extension RichLayout {
         _listValid = false
     }
 
+    /// A face arrived (the browser fetches script fonts on demand): everything
+    /// is measured and drawn again, the text boxes, headers, footers and notes
+    /// as well, whose own layouts are kept by size and would stay as they were
+    /// (CJK text in a box drawn as boxes).
+    public func invalidateForFonts() {
+        for hf in _textBoxCache.values { hf.layout.invalidateAll() }
+        for hf in _headerFooterCache.values { hf.layout.invalidateAll() }
+        for hf in _noteCache.values { hf.layout.invalidateAll() }
+        _textBoxCache = [:]
+        _headerFooterCache = [:]
+        _noteCache = [:]
+        invalidateAll()
+    }
+
     public func invalidateAll() {
         _cellMins.removeAll()
         for i in _painters.indices {

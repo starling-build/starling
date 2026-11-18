@@ -237,7 +237,7 @@ public final class RichEditableState: State<StatefulWidget> {
         _controller.addListener({ [weak self] in self?._onControllerChanged() }, owner: self)
         SystemFontsNotifier.shared.addListener({ [weak self] in
             guard let self else { return }
-            self._layout.invalidateAll()
+            self._layout.invalidateForFonts()
             self._syncLayout()
             self._ensureCaretVisible()
             self._repaint.notifyListeners()

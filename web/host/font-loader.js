@@ -72,11 +72,15 @@ export function createFontLoader(entries, { register, registerFile, changed, sta
       await Promise.all(group.map(fetchEntry));
       loaded.add(key);
       failed.delete(key);
-      changed();
     }).catch(error => {
       failed.set(key, error);
       throw error;
-    }).finally(() => { pending.delete(key); report(); });
+    }).finally(() => {
+      pending.delete(key); report();
+      // After the pending flag clears: the relayout asks scriptPending, and a
+      // script still marked pending is drawn clear, with nothing to redraw it.
+      if (loaded.has(key)) changed();
+    });
     pending.set(key, promise);
     failed.delete(key);
     report();

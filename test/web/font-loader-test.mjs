@@ -106,6 +106,17 @@ test('a script loads its Regular file once, every face by index; Bold only when 
   await loader.loadScript('nothing');
 });
 
+test('the change notice comes after the script stops being pending (the relayout asks scriptPending)', async () => {
+  const seen = [];
+  const loader = createFontLoader(script, {
+    fetchBytes: async () => new Uint8Array([9]), inflate: async bytes => bytes, register() {},
+    changed: () => seen.push(loader.scriptPending('cjk-sc')),
+  });
+  await loader.loadScript('cjk-sc');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(seen, [false], 'a relayout during the notice must not see the script as pending');
+});
+
 test('the fallback chain is table order, not arrival order, and leaves out order 0 and Bold', () => {
   const loader = createFontLoader(script, { register() {}, changed() {} });
   assert.deepEqual(loader.fallbackChain(), ['Noto Sans CJK SC', 'Noto Sans CJK TC', 'Noto Sans Arabic']);
