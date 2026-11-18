@@ -3681,7 +3681,11 @@ static let sylfaenAdvances: [Double] = [
         // "Univers 45 Light" (auto) and "DIN-Bold" (swiss), the same
         // signature, are Calibri in Word's print — its headings 2.3pt
         // taller a line than Times'.)
-        case (0x0000_0003, 0): return e.family == "roman" ? "times new roman" : nil
+        // (A roman face with a PANOSE of its own that is not Times New Roman's: xb's "INSIGHTSPerpetua"
+        // (PANOSE 02020502060401020303, in 9 Arabic and Urdu docs) prints in Cambria, not Times New Roman.)
+        case (0x0000_0003, 0):
+            if e.family == "roman", !e.panoseZero, !e.panose.isEmpty, e.panose != "02020603050405020304" { return "cambria" }
+            return e.family == "roman" ? "times new roman" : nil
         case (0x0000_0287, 0x0000_0800): return "calibri"
         case (0x0000_7A87, 0x8000_0000): return "ebrima"
         // (LibreOffice's "Liberation Serif" entry with no alternate: a name
