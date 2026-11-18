@@ -17737,3 +17737,4 @@ HANDOFF lenovo-3 2026-11-16 (2): c2c3a2f3 PARKED at 166 (24 vs 22 pages): page 1
   - xd c7678c38 (Thai table, TH SarabunPSK): Word's vMerge header (restart + continue rows, trHeight 420 each) is 52.0pt, ours 43; data rows and the btLr row match. Not bold, not the empty cs-less mark. Guess: Word shares the merged cell's own text height over its rows; needs a Word lab (none available).
   - dx2 ae613a27, a6d5c830 (Georgian): the squeeze is not taken; no FITO line because the fit runs on a pre-fit layout (a line the fit thinks fits but the engine breaks logs nothing). Not diagnosed further.
   - Not started: xd 3bcf7e61, dx2 ad537ae9, a6eae68e.
+- CLAIM sdk-4 (2026-11-18): Thai docs 3a493613, 53eca83a, 28fa7f69 (SE Asian task; sdk-4 f0818647 PSK Thai width queued as 458). Narrow-cell digit split (540fe10e: Word breaks '1,500,000' across lines in a narrow cell) noted, not yet taken.
