@@ -1687,6 +1687,17 @@ extension RichLayout {
                 }
                 // (A mark of a right-to-left run is set in the complex-script face, not the Latin one its style names: the
                 // line it stands on takes no height of its own. Tagged for _strut.)
+                // (A symbol of a right-to-left run that the complex-script face lacks is drawn in Segoe UI Symbol, and its line takes that
+                // face's height as in a left-to-right run: 842f1e's ✦ heading lines, 3.3pt short.)
+                if run.rightToLeft, theme.wordRules, RichTextTheme.wordWindowsPages, kind >= 0, let px = s.fontSize, px > 0.5, s.height != nil,
+                   s.debugLabel?.lowercased().containsSubstring("segoe ui symbol") == true,
+                   !text.contains(where: { $0.isLetter || $0.isNumber }), text.unicodeScalars.contains(where: { $0.properties.generalCategory == .otherSymbol }) {
+                    var latinRun = run
+                    latinRun.rightToLeft = false
+                    let r = theme.textStyle(for: latinRun, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                            eastAsian: false, gridPitch: pitch, characterClass: nil, characterGrid: grid, scriptHidden: true)
+                    if let rs = r.fontSize, let rh = r.height, rs * rh / px > (s.height ?? 0) { s = s.copyWith(height: rs * rh / px); RuleTrace.hit("word-rtl-symbol-segoe-line-height") }
+                }
                 if run.rightToLeft, theme.wordRules, RichTextTheme.wordWindowsPages, !text.contains(where: { $0.isLetter || $0.isNumber }) { s = s.copyWith(debugLabel: (s.debugLabel ?? "") + " rtl-mark") }
                 if !fitBusy, !plainPiece, !latinNoScale { styles[kind] = s }
                 return s
