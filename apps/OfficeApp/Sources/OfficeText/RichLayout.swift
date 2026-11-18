@@ -813,11 +813,20 @@ public final class RichTextTheme {
                 return l.containsSubstring("ms gothic") || l.containsSubstring("ms mincho") || l.containsSubstring("ms pgothic") || l.containsSubstring("ms pmincho")
                     || l.containsSubstring("yu gothic") || l.containsSubstring("yu mincho") || n.containsSubstring("ＭＳ") || n.containsSubstring("游")
             } ?? false)
+        // (A Malgun Gothic run, or one in a Hangul-named face Word lacks (it draws Malgun for those), takes the 65%-rounded-up-to-the-half-point size too:
+        // 4fabe1f2's footnote marks in 9pt 함초롬바탕 are 6.0pt raised 3.0 in its print, where ours were 4.5.)
+        let malgunScript = wordRules && RichTextTheme.wordWindowsPages && style.script != .normal && !meiryoScript && !jpScript
+            && (familyName.map { n in
+                let l = n.trimmingWhitespace().lowercased()
+                if l.containsSubstring("malgun") || l.containsSubstring("맑은") { return true }
+                return l.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 }) && !RichLayout._windowsHangulNamedFaces.contains(l)
+            } ?? false)
+        let malgunScriptPt = (size * 0.65 * 2 - 1e-6).rounded(.up) / 2
         let jpScriptPt = (size * 0.6 * 2).rounded() / 2
         let scriptRatio = wordRules && RichTextTheme.wordWindowsPages && style.script != .normal
             && (eastAsian || face?.isEastAsian == true)
             // (Meiryo says 65% like a Latin face: 934bd3e5's "３" in 10.5pt Meiryo Bold is 7.0pt in its print.)
-            && !meiryoScript && !jpScript ? 0.5 : 0.65
+            && !meiryoScript && !jpScript && !malgunScript ? 0.5 : 0.65
         if style.unseen { color = color.withOpacity(1.0 / 255) }
         if style.hidden || ((named?.char.hidden ?? false) && !style.hidden) {
             // Hidden text takes no room and shows nothing, as Word prints it;
@@ -832,6 +841,7 @@ public final class RichTextTheme {
             fontSize: style.script == .normal ? px
                 : scriptSizeWholeUp ? (size * 0.65 - 1e-6).rounded(.up) * widen * pixelsPerPoint * scale
                 : jpScript ? jpScriptPt * widen * pixelsPerPoint * scale
+                : malgunScript ? malgunScriptPt * widen * pixelsPerPoint * scale
                 : meiryoScript ? (size * 0.65 * 2 - 1e-6).rounded(.up) / 2 * widen * pixelsPerPoint * scale : px * scriptRatio,
             fontWeight: bold ? .bold : .normal,
             fontStyle: italic ? .italic : .normal,
@@ -859,6 +869,7 @@ public final class RichTextTheme {
                 // (Of the run's own size: not a stand-in's drawn one.)
                 let script = !shifted ? 0
                     : jpScript && style.script == .superscript ? -(size - jpScriptPt) * pixelsPerPoint * scale
+                    : malgunScript && style.script == .superscript ? -(size - malgunScriptPt) * pixelsPerPoint * scale
                     : scriptRatio < 0.6 && style.script == .superscript ? -(1 - scriptRatio) * size * pixelsPerPoint * scale
                     : (style.script == .superscript ? -Self.superscriptRaise(familyName) : 0.2) * px
                 let raised = wordRules && NativeParagraphBuilder.supportsBaselineShift ? (style.raised ?? named?.char.raised ?? 0) : 0
