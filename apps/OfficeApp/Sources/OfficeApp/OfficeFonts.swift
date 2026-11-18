@@ -180,6 +180,10 @@ enum OfficeFonts {
                     if let alt = e.alt, !alt.isEmpty, !e.panoseZero, alt.trimmingWhitespace().lowercased() != n,
                        !(wordOnWindows && alt.trimmingWhitespace().lowercased() == "courier") { return substitute(alt) }
                     if e.panoseZero { return e.family == "roman" ? cambria : calibri }
+                    // (A roman face with no alternate and a PANOSE given only to its first digits, the rest zero, is as
+                    // good as unmatched: dx2 26efe1a3's "AGaramond" (02020500000000000000) prints in Cambria, not Calibri.)
+                    if wordOnWindows, e.family == "roman", e.panose.count == 20, e.panose.hasSuffix("00000000000000"),
+                       e.charset == "00" || e.charset.isEmpty { return cambria }
                     // (A face Word's machine lacks whose PANOSE is Times New Roman's own is matched to it by
                     // PANOSE: dx2 ce134f43's "TimesLT" and 087dda6f's "Macedonian Tms" print in Times New
                     // Roman, their lines 13.8pt, where Calibri's 14.65 stood the page 6 to 8pt low. Not an Arabic or Hebrew
