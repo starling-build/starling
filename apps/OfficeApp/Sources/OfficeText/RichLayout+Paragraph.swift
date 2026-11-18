@@ -4170,7 +4170,16 @@ extension RichLayout {
                 // (An underlined picture line that keeps its mark's descent takes no multiple's extra under it: 0d2c40e4's
                 // 85.5pt logo over an underlined 24pt Bookman mark at 1.5 lines puts the empty line after it 29.3pt below in Word's
                 // print, a single line's, where ours added 14.1.)
-                if !(markDescentKept && RichTextTheme.wordWindowsPages) { bodyHeight += (multiple - 1) * single }
+                // (A picture alone whose own run states no size, face or style, under a paragraph mark that does: the multiple's extra
+                // is that of the style's own line, not the mark's. dx2 01838920's 347pt picture over a 39pt Comic Sans mark at 1.08
+                // lines: the title 1.1pt under it in Word's print, the 11pt Calibri line's 1.06, where the mark's added 4.3.)
+                var extra = single
+                if RichTextTheme.wordWindowsPages, p.style.mark != nil, let image = p.image, let rpr = image.sourceRunPropertiesXML,
+                   !rpr.containsSubstring("w:sz ") && !rpr.containsSubstring("w:rFonts") && !rpr.containsSubstring("w:rStyle") {
+                    RuleTrace.hit("picture-alone-multiple-extra-of-the-styles-line")
+                    extra = _markLineHeight(i, document, single: true, using: CharStyle())
+                }
+                if !(markDescentKept && RichTextTheme.wordWindowsPages) { bodyHeight += (multiple - 1) * extra }
             } else if case let lines = painter.computeLineMetrics(), lines.count == 1,
                       let box = painter.inlinePlaceholderBoxes?.max(by: { $0.bottom - $0.top < $1.bottom - $1.top }),
                       box.bottom - box.top >= lines[0].ascent - 0.5 {
