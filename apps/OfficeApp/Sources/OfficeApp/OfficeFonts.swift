@@ -4548,6 +4548,21 @@ static let sylfaenAdvances: [Double] = [
                 face.baseline = 1.0688
                 RuleTrace.hit("open-sans-light-line")
             }
+            // (Franklin Gothic Book, Medium and Heavy, Windows-only faces: the sans clone at the face's own ASCII advances, read from Word's print.)
+            if wordOnWindows {
+                let franklin: [Double]?
+                switch family.trimmingWhitespace().lowercased() {
+                case "franklin gothic book": franklin = franklinBookAdvances
+                case "franklin gothic medium": franklin = franklinMediumAdvances
+                case "franklin gothic heavy": franklin = franklinHeavyAdvances
+                default: franklin = nil
+                }
+                if let franklin {
+                    face.advances = franklin
+                    face.boldAdvances = franklin
+                    RuleTrace.hit("franklin-gothic-own-widths")
+                }
+            }
             // (Montserrat, a cloud face we hold no file for: the sans clone at its own widths and line.)
             if wordOnWindows, family.trimmingWhitespace().lowercased() == "montserrat" {
                 face.advances = montserratAdvances
