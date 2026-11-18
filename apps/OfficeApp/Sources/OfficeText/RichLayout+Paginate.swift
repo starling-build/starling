@@ -2666,6 +2666,12 @@ extension RichLayout {
                             .map { $0.pageY + ($0.flowBottom - $0.flowTop) }.max() ?? target) - target
                         // (Only a table that cannot stand whole below its place but can on a page of its own moves (zh-3ab8a2fb's 3-page table stays): Word's lab atmove prints keep a 2-row and a 5-row table
                         // at their place with the title's second line beside them and move the 6-row one.)
+                        // (A table taller than any page, with text before it that reaches its place and does not fit under its first row: the text stays and the
+                        // whole table starts the next page, not its first row under the text (text that fits under the first row is taken there, zh-3ab8a2fb). xd f42177d2: a 54pt title over an 8-row table.)
+                        if RichTextTheme.wordWindowsPages, reach > 0.01, under > c.ownRowHeight + 0.01, whole - c.rowTop > contentH + 0.01, k - i > 1, target + c.ownRowHeight + line <= contentH + 0.01 {
+                            RuleTrace.hit("page-anchored-table-taller-than-a-page-goes-whole-to-the-next-page-where-the-text-before-it-reaches-past-its-first-row")
+                            return true
+                        }
                         if RichTextTheme.wordWindowsPages, reach > 0.01, whole - c.rowTop <= contentH + 0.01, target + reach + (whole - c.rowTop) > contentH + 0.01, target + c.ownRowHeight + line <= contentH + 0.01 {
                             RuleTrace.hit("page-anchored-table-whole-goes-to-the-next-page-where-the-text-before-it-reaches-its-place")
                             return true
