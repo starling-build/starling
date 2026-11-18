@@ -1061,6 +1061,9 @@ public struct RichResolvedFace: Sendable {
     /// A missing Korean face Word draws in Batang: its quotes, circles and circled digits come from Malgun Gothic, and a line holding one is Malgun's height.
     public var malgunSymbols = false
     public var boldOtherAdvances: [UInt32: Double]? = nil
+    /// A face's advances for the words of a Hebrew run (letters, with the punctuation, digits and Latin around them), kept apart from `otherAdvances` so Latin text of the same face in other runs keeps its own widths (Arial, e6f3406a).
+    public var hebrewAdvances: [UInt32: Double]? = nil
+    public var boldHebrewAdvances: [UInt32: Double]? = nil
     /// The original's Arabic advances by code point, presentation forms
     /// among them (`ArabicForms.width`): each word of it is set to the
     /// width its joining forms have there, where the stand-in's shaping
