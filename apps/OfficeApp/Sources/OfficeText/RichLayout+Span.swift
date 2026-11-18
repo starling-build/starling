@@ -2868,7 +2868,11 @@ extension RichLayout {
                     || (u >= 0x25A0 && u <= 0x25FF) && (run.eastAsiaFontFamily == nil && run.fontFamily.map { theme.faceResolver?($0, true)?.malgunSymbols == true || ($0.trimmingWhitespace() == "굴림" && u >= 0x25A0 && u <= 0x25FF) } == true)
                     // (A run holding only a middle dot, set in Gulim, is drawn in Malgun Gothic too: xd ac5ff286's "유치·운영" line, whose dot run Word's print names
                     // MalgunGothic, stands 29 and 30 pt from its neighbours where plain Gulim lines are 25.)
-                    || u == 0xB7 && run.loneDot && ["굴림", "gulim"].contains((run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? run.fontFamily ?? "").lowercased()) {
+                    || u == 0xB7 && run.loneDot && ["굴림", "gulim"].contains((run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? run.fontFamily ?? "").lowercased())
+                    // (A curly quote that is a run of its own has no Hangul neighbour to take its face from, so Word draws it in the hAnsi face: Malgun Gothic
+                    // when the theme's minor font is, though ascii and eastAsia say Gulim. xd b6f6c7d4's speech "의안명 “병 제조용 PET CHIP 구매”"
+                    // prints its quotes in MalgunGothic and the line steps 29.8 pt, plain Gulim lines 25; kor-z191's lone ” names hAnsi Gulim and stays Gulim.)
+                    || (u == 0x2018 || u == 0x2019 || u == 0x201C || u == 0x201D) && run.loneQuote && !run.hAnsiNamedAsAscii && ["굴림", "gulim"].contains((run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? run.fontFamily ?? "").trimmingWhitespace().lowercased()) && ["맑은 고딕", "malgun gothic"].contains((_normalChar(document)?.hAnsiFontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()) {
                     RuleTrace.hit("lone-middle-dot-in-gulim-is-malgun-line")
                     if devanagariStyles["malgunKo"] == nil {
                         devanagariStyles["malgunKo"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: 1.175, descent: 0.557)

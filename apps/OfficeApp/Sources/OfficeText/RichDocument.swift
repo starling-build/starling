@@ -169,6 +169,8 @@ public struct CharStyle: Hashable, Sendable {
     /// A run holding only a middle dot (U+00B7). Word draws such a run in the
     /// ascii face, so it must stay a run of its own (normalize() would merge it).
     public var loneDot = false
+    /// A run holding only a curly quote (U+2018/2019/201C/201D); Word draws it in Malgun Gothic when the run's face is Gulim, so it stays a run of its own.
+    public var loneQuote = false
     /// Extra space between characters in points (Word's w:spacing on a
     /// run); negative condenses.
     public var letterSpacing: Double? = nil
