@@ -90,6 +90,7 @@ enum MiniXML {
             var root: XNode?
             var stack: [Frame] = []
             var listSeen = false
+            var hoisted: [XNode] = []
             let itemsOnly = listItem != nil
             while !atEnd {
                 if b[i] != UInt8(ascii: "<") {
@@ -112,7 +113,21 @@ enum MiniXML {
                 if next == UInt8(ascii: "/") {
                     i += 2
                     skip(past: ">")
-                    if let closed = stack.popLast(), closed.isItem, let node = closed.node { each?(node) }
+                    if let closed = stack.popLast() {
+                        // A paragraph written INSIDE a w:t (malformed export: `<w:r><w:t><w:p>..</w:p></w:t></w:r>`) is a paragraph to Word,
+                        // set after the paragraph that holds the run (dx2 ca 0ab6d51b). Hoist it out and set it beside the outer one.
+                        if let node = closed.node, node.name == "w:p", !closed.isItem {
+                            if let t = stack.last?.node, t.name == "w:t", t.children.last === node {
+                                t.children.removeLast(); hoisted.append(node)
+                            } else if !hoisted.isEmpty, !stack.contains(where: { $0.node?.name == "w:p" }), let parent = stack.last?.node {
+                                // The holding paragraph is set AFTER them (what is left of it once its w:t is cut short): Word puts its blank
+                                // line at the foot of the hoisted text (0ab6d51b: 26 pt from the heading to the first hoisted line, not 51).
+                                if parent.children.last === node { parent.children.removeLast() }
+                                parent.children.append(contentsOf: hoisted); parent.children.append(node); hoisted.removeAll()
+                            }
+                        }
+                        if closed.isItem, let node = closed.node { each?(node) }
+                    }
                     continue
                 }
                 i += 1
