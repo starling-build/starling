@@ -278,9 +278,9 @@ extension RichLayout {
             // (An empty paragraph's mark in GHEA Grapalat, which Word for Windows lacks, is the font-table alternate's
             // line, where the table names one (Franklin Gothic Medium Cond's; text lines in it are Sylfaen's: dx2 05a96a87's empty top paragraphs
             // step 15.7 at 12 pt on a 1.15 multiple, ours 18.2.)
-            if theme.wordRules, RichTextTheme.wordWindowsPages, mark.fontFamily?.trimmingWhitespace().lowercased() == "ghea grapalat",
-               document.fontAlternates["ghea grapalat"] == "franklin gothic medium cond" {
-                mark.fontFamily = "Franklin Gothic Medium Cond"
+            if theme.wordRules, RichTextTheme.wordWindowsPages, (mark.fontFamily ?? named?.char.fontFamily)?.trimmingWhitespace().lowercased() == "ghea grapalat",
+               let alt = document.fontAlternates["ghea grapalat"], !alt.isEmpty {
+                mark.fontFamily = alt == "franklin gothic medium cond" ? "Franklin Gothic Medium Cond" : alt
                 RuleTrace.hit("ghea-empty-mark-franklin")
             }
             var markNamed = named
