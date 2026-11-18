@@ -74,6 +74,12 @@ enum OfficeFonts {
     static func substitute(_ family: String) -> String {
         let n = family.trimmingWhitespace().lowercased()
         if let alt = macTableAlternate(family) { return substitute(alt) }
+        // (A Helvetica-named face Windows lacks (Helvetica LT Std) in a document with no font table: Word for Windows prints it
+        // in Arial, where the generic missing-face stand-in gave a serif. dx2 1b7b8fc4 and 53e31548, 3249 and 1757 letters ArialMT.)
+        if wordOnWindows, !isEmbedded(family), n.hasPrefix("helvetica "), fontEntry(family) == nil {
+            RuleTrace.hit("windows-helvetica-named-missing-face-no-entry-is-arial")
+            return sans
+        }
         switch n {
         case "liberation sans", "arial", "arial bold", "arial italic", "arial bold italic", "helvetica", "helvetica neue", "tahoma", "raavi",
              "segoe ui", "aptos", "arimo", "arial black", "montserrat", "open sans":
