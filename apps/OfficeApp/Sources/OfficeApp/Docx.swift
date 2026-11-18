@@ -1701,6 +1701,8 @@ enum DocxFormat {
                         case 0xF0A8 where wingdings: glyph = "\u{25FB}"
                         case 0xF06F where wingdings: glyph = "\u{25A1}"
                         case 0xF09E where wingdings: glyph = "\u{00B7}"
+                        // (Symbol's 0x2D is its minus sign: the label of xb fra-g255's bullets, "−" in Word's print.)
+                        case 0xF02D where face == "symbol": glyph = "\u{2212}"
                         case 0xF0B7, 0x2022: glyph = "\u{2022}"
                         case 0xF06F: glyph = "\u{25E6}"
                         case 0xF0A7, 0x25AA: glyph = "\u{25AA}"
