@@ -17723,3 +17723,4 @@ HANDOFF lenovo-3 2026-11-16 (2): c2c3a2f3 PARKED at 166 (24 vs 22 pages): page 1
 - LANDED: 418; 432 (xd 89a3482a Korean card suits, 221/221); 444 (dx2 7ffac240 bold Calibri Light at Regular's advances, 2 to 53 of 55; 28af2ce5 104 to 211).
 - QUEUED 447: Georgian letters in a faceless run set as Sylfaen. dx2 72f67d49 2 to 52/52; 37a0ac9c 547 to 639; 4b53bd2f 46 to 48; 746c2e0c unchanged (~1, still wrong: 77 lines vs 75, no Sylfaen named; look next). Other 26 Georgian docs unchanged. Unit tests 655/0.
 - Left: dx2 72f67d49 done; 746c2e0c, 4b53bd2f (25 pages vs 23) still far off.
+- CLAIM sdk-4 (2026-11-18): dx2 39a231ce, f2c764d0, 688e836f, 082d8bcb; xd 80c852b0, fcd0d58c, aab5ab3d, f0818647, d9f52d28 (lenovo-5's OPEN list minus 02fb1429, which lenovo-5 holds). Working lowest first.
