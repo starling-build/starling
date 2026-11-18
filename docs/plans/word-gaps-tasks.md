@@ -17724,3 +17724,4 @@ HANDOFF lenovo-3 2026-11-16 (2): c2c3a2f3 PARKED at 166 (24 vs 22 pages): page 1
 - QUEUED 447: Georgian letters in a faceless run set as Sylfaen. dx2 72f67d49 2 to 52/52; 37a0ac9c 547 to 639; 4b53bd2f 46 to 48; 746c2e0c unchanged (~1, still wrong: 77 lines vs 75, no Sylfaen named; look next). Other 26 Georgian docs unchanged. Unit tests 655/0.
 - Left: dx2 72f67d49 done; 746c2e0c, 4b53bd2f (25 pages vs 23) still far off.
 - CLAIM sdk-4 (2026-11-18): dx2 39a231ce, f2c764d0, 688e836f, 082d8bcb; xd 80c852b0, fcd0d58c, aab5ab3d, f0818647, d9f52d28 (lenovo-5's OPEN list minus 02fb1429, which lenovo-5 holds). Working lowest first.
+- CLAIM sdk-2 (2026-11-18, task 2): dx2 f53badfc, 87fdfbc2, 56e9b698, 5716e3f7, a4b1c01d, eefebd66, 790961e1, c1a466ed (lowest unclaimed in dx2.v2; page/line mismatch first).
