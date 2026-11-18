@@ -795,6 +795,7 @@ extension RichLayout {
         var splittingVariation = false
         var splittingSpaces = false
         var splittingMark = false
+        var splittingDigits = false
         func styled(_ rawText: Substring, _ run: CharStyle, at base: Int = 0, next: Character? = nil, symbolsShown: Bool = false) -> [TextSpan] {
             // (U+FE0F after a text-style emoji draws it in colour, U+FE0E after a colour one as an outline: each such
             // pair is a piece of its own, in its own face.)
@@ -861,6 +862,39 @@ extension RichLayout {
                         RuleTrace.hit("word-georgian-letters-are-sylfaen")
                         run.fontFamily = "Sylfaen"
                         run.hAnsiFontFamily = nil
+                    }
+                }
+            }
+            // (ASCII digits inside a right-to-left run of Arabic-script letters, whose complex-script face is a Latin one (Arial, Times New
+            // Roman) and whose Latin face is another: Word's print draws the digits in the run's Latin face, the letters in the complex-script
+            // one: xb 842f1e's "يونيو 2025" (cs Arial, Calibri digits), 8e6ca0. Each such stretch is a piece of its own, which the rule below
+            // for a run of figures alone then sets.)
+            if !splittingDigits, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, run.rightToLeft, !splittingVariation,
+               rawText.count > 1, rawText.contains(where: { $0.isASCII && $0.isNumber }),
+               rawText.unicodeScalars.contains(where: { (0x600...0x6FF).contains($0.value) || (0x750...0x77F).contains($0.value) || (0xFB50...0xFEFF).contains($0.value) }) {
+                let csName = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
+                let latinName = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
+                if ["arial", "times new roman"].contains(csName), !latinName.isEmpty, latinName != csName,
+                   (!(theme.complexFaceKeepsDigits?(latinName) ?? false) || ["calibri", "cambria", "courier new", "cambria math"].contains(latinName)), document.fontCharsets[latinName] != "B2", document.fontCharsets[latinName] != "B1" {
+                    var cuts: [Substring.Index] = []
+                    var inDigits = false
+                    for i in rawText.indices {
+                        let d = rawText[i].isASCII && rawText[i].isNumber
+                        if d != inDigits { cuts.append(i); inDigits = d }
+                    }
+                    if !cuts.isEmpty {
+                        splittingDigits = true
+                        defer { splittingDigits = false }
+                        RuleTrace.hit("word-ascii-digits-in-an-arabic-rtl-run-take-the-latin-face")
+                        var out: [TextSpan] = []
+                        var from = rawText.startIndex
+                        for c in cuts + [rawText.endIndex] where c > from {
+                            let n = rawText.distance(from: rawText.startIndex, to: from)
+                            let nextChar: Character? = c < rawText.endIndex ? rawText[c] : next
+                            out += styled(rawText[from ..< c], run, at: base + n, next: nextChar, symbolsShown: symbolsShown)
+                            from = c
+                        }
+                        return out
                     }
                 }
             }
