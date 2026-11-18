@@ -1315,6 +1315,14 @@ extension RichLayout {
                         // (A part that goes on from the page before draws the cell's top margin again above its
                         // first line, and the room it is cut by never counted it: tdf170672's p9 kept a line 1.5pt
                         // under the last Word's print keeps, cut slack 94 against 178 for the lines it keeps.)
+                        // (A table with cell spacing closes a part under the cell margin and the spacing twice over, as it opens
+                        // one: its first baseline is 2.25pt down from the page's top for a 0.75 margin and 0.75 spacing, and
+                        // Word's print of xs 19be02d9, a one-cell table of a decree, ends every page's part 16.1pt short of
+                        // where ours put a 43rd line, 726.7 against a 728.5 foot with the cell's own margin alone counted; the foot keeps the table's margin and twice the spacing, 2.25pt.)
+                        let spacedFoot: Double = {
+                            guard RichTextTheme.wordWindowsPages, theme.wordRules, let ts = document.tableStyles[c.table], let sp = ts.cellSpacing, sp > 0 else { return 0 }
+                            return _px(2 * sp) + max(0, _px(ts.cellMarginBottom ?? 0) - (_cells[column.members[0]]?.margin ?? 0))
+                        }()
                         let contTop = RichTextTheme.wordWindowsPages && theme.wordRules && document.tableStyles[c.table]?.keptPosition != nil && column.cut > c.rowTop + 0.01 ? _cells[column.members[0]]!.pad.top : 0
                         let limit = column.cut + avail - ruleUnder(c, parted: true) - bottomMargin - contTop + 0.01
                         // (A cut, under the line the part is closed with —
@@ -1406,10 +1414,10 @@ extension RichLayout {
                             // Lab t190: with 1.0 more room it stays.)
                             if column.bottom > column.cut + 0.01 { moved = true }
                             next[n] = max(column.cut, rowBottom)
-                        } else if let at = column.cuts.indices.last(where: { column.cuts[$0] > column.cut + 0.01 && column.cuts[$0] - (column.slacks.indices.contains($0) ? column.slacks[$0] : 0) <= closed - (theme.wordRules && bottomMargin == 0 ? d0.margin : 0) - (theme.wordRules && bottomMargin == 0 && (document.compatibilityMode ?? 12) >= 15 ? (column.cuts[$0] >= column.bottom - d0.pad.bottom - 0.01 ? d0.pad.bottom : (d0.rowSpan == 1 && !_cells.contains { $0?.table == d0.table && ($0?.rowSpan ?? 1) > 1 } ? max(0, d0.pad.bottom - d0.ruleBelow) : 0)) : 0) - nestedFoot(column.owners.indices.contains($0) ? column.owners[$0] : -1) - nestedGap(column) }),
+                        } else if let at = column.cuts.indices.last(where: { column.cuts[$0] > column.cut + 0.01 && column.cuts[$0] - (column.slacks.indices.contains($0) ? column.slacks[$0] : 0) <= closed - (theme.wordRules && bottomMargin == 0 ? d0.margin + spacedFoot : 0) - (theme.wordRules && bottomMargin == 0 && (document.compatibilityMode ?? 12) >= 15 ? (column.cuts[$0] >= column.bottom - d0.pad.bottom - 0.01 ? d0.pad.bottom : (d0.rowSpan == 1 && !_cells.contains { $0?.table == d0.table && ($0?.rowSpan ?? 1) > 1 } ? max(0, d0.pad.bottom - d0.ruleBelow) : 0)) : 0) - nestedFoot(column.owners.indices.contains($0) ? column.owners[$0] : -1) - nestedGap(column) }),
                                   case let owner = column.owners.indices.contains(at) ? column.owners[at] : -1,
                                   let cut = column.cuts.indices.filter({ $0 >= at && (column.owners.indices.contains($0) ? column.owners[$0] : -1) == owner })
-                                    .last(where: { column.cuts[$0] - (column.slacks.indices.contains($0) ? column.slacks[$0] : 0) <= cutClosed - (theme.wordRules && bottomMargin == 0 ? d0.margin : 0) - (theme.wordRules && bottomMargin == 0 && (document.compatibilityMode ?? 12) >= 15 ? (column.cuts[$0] >= column.bottom - d0.pad.bottom - 0.01 ? d0.pad.bottom : (d0.rowSpan == 1 && !_cells.contains { $0?.table == d0.table && ($0?.rowSpan ?? 1) > 1 } ? max(0, d0.pad.bottom - d0.ruleBelow) : 0)) : 0) - nestedFoot(column.owners.indices.contains($0) ? column.owners[$0] : -1) - nestedGap(column) }).map({ column.cuts[$0] }) {
+                                    .last(where: { column.cuts[$0] - (column.slacks.indices.contains($0) ? column.slacks[$0] : 0) <= cutClosed - (theme.wordRules && bottomMargin == 0 ? d0.margin + spacedFoot : 0) - (theme.wordRules && bottomMargin == 0 && (document.compatibilityMode ?? 12) >= 15 ? (column.cuts[$0] >= column.bottom - d0.pad.bottom - 0.01 ? d0.pad.bottom : (d0.rowSpan == 1 && !_cells.contains { $0?.table == d0.table && ($0?.rowSpan ?? 1) > 1 } ? max(0, d0.pad.bottom - d0.ruleBelow) : 0)) : 0) - nestedFoot(column.owners.indices.contains($0) ? column.owners[$0] : -1) - nestedGap(column) }).map({ column.cuts[$0] }) {
                             // (Under the cut, the cell's bottom margin, as
                             // the part is closed with it: zh-12f87285's
                             // cells state 1.2pt, and Word leaves a line
