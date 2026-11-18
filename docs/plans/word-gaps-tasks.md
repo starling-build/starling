@@ -17725,3 +17725,4 @@ HANDOFF lenovo-3 2026-11-16 (2): c2c3a2f3 PARKED at 166 (24 vs 22 pages): page 1
 - Left: dx2 72f67d49 done; 746c2e0c, 4b53bd2f (25 pages vs 23) still far off.
 - CLAIM sdk-4 (2026-11-18): dx2 39a231ce, f2c764d0, 688e836f, 082d8bcb; xd 80c852b0, fcd0d58c, aab5ab3d, f0818647, d9f52d28 (lenovo-5's OPEN list minus 02fb1429, which lenovo-5 holds). Working lowest first.
 - CLAIM sdk-2 (2026-11-18, task 2): dx2 f53badfc, 87fdfbc2, 56e9b698, 5716e3f7, a4b1c01d, eefebd66, 790961e1, c1a466ed (lowest unclaimed in dx2.v2; page/line mismatch first).
+- sdk-3 2026-11-18 CLAIM: xb RTL lowest unclaimed: urd-z17694236-c03d57 (7.6), urd-z17694289-27ac54 (8.0), ara-z20648189-8e6ca0 (9.0), ara-z8215570-1aa55d (10.8), ara-z15699863-842f1e if time.
