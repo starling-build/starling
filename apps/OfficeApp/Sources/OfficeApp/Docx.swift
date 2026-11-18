@@ -5772,7 +5772,13 @@ enum DocxFormat {
             }
             if hangul > 0, kana == 0 { script = "Hang" }
         }
+        // (A document whose theme language (`w:themeFontLang w:val`) is Vietnamese takes the theme's face for the Viet script as its
+        // Latin theme face: xs 2dd064d7 and d631aa7d (vi-VN, theme Cambria/Calibri, Viet faces Times New Roman/Arial) print their
+        // majorHAnsi runs in Times New Roman and their minorHAnsi ones in Arial.)
+        let latinViet = (entries.first(where: { $0.name == "word/settings.xml" }).flatMap { XNode.parse($0.data) }?
+            .first("w:themeFontLang")?["w:val"]?.lowercased() ?? "").hasPrefix("vi")
         func latin(_ name: String) -> String? {
+            if latinViet, let f = scheme.first(name)?.all("a:font").first(where: { $0["script"] == "Viet" })?["typeface"], !f.isEmpty { return f }
             let f = scheme.first(name)?.first("a:latin")?["typeface"] ?? ""
             return f.isEmpty ? nil : f
         }
