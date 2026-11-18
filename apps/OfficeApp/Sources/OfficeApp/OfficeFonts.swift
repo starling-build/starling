@@ -4538,6 +4538,12 @@ static let sylfaenAdvances: [Double] = [
                 face.baseline = 1.0688
                 RuleTrace.hit("open-sans-own-widths")
             }
+            // (Open Sans Light, the same cloud family: Word's print stands its lines at Open Sans' 1.3623 em, hhea 2189/-600 over 2048; the footer's page number of xa gv-802a85a40c sat 0.7 pt low in the serif stand-in's line.)
+            if wordOnWindows, family.trimmingWhitespace().lowercased() == "open sans light" {
+                face.naturalHeight = 1.3623
+                face.baseline = 1.0688
+                RuleTrace.hit("open-sans-light-line")
+            }
             // (Montserrat, a cloud face we hold no file for: the sans clone at its own widths and line.)
             if wordOnWindows, family.trimmingWhitespace().lowercased() == "montserrat" {
                 face.advances = montserratAdvances
