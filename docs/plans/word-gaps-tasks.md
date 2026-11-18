@@ -17738,3 +17738,4 @@ HANDOFF lenovo-3 2026-11-16 (2): c2c3a2f3 PARKED at 166 (24 vs 22 pages): page 1
   - dx2 ae613a27, a6d5c830 (Georgian): the squeeze is not taken; no FITO line because the fit runs on a pre-fit layout (a line the fit thinks fits but the engine breaks logs nothing). Not diagnosed further.
   - Not started: xd 3bcf7e61, dx2 ad537ae9, a6eae68e.
 - CLAIM sdk-4 (2026-11-18): Thai docs 3a493613, 53eca83a, 28fa7f69 (SE Asian task; sdk-4 f0818647 PSK Thai width queued as 458). Narrow-cell digit split (540fe10e: Word breaks '1,500,000' across lines in a narrow cell) noted, not yet taken.
+- sdk-3 (2026-11-18): 457 LANDED (INSIGHTSPerpetua->Cambria, drops 184d63/27ac54 waived). 459 queued: Sakkal Majalla lam+meem ligature cluster (0.3101 em), 184d63 76->163, dx2 697f78b3 52->76, 19 Sakkal docs no drops, unit 655/0. 184d63 residual: ص+و, ك+و, تت, tanween widths (الأصوات 2.4pt wide, تتكون 1.8pt wide). Next: other Sakkal ligature/word-width residuals in xb ara/urd.
