@@ -2922,21 +2922,30 @@ extension RichLayout {
                         // in Word's print, not at that page's own 42.6.)
                         if theme.wordRules, RichTextTheme.wordWindowsPages, _mirrorsMargins, _columns == 1, !_perSection,
                            let cell = _cells[piece.paragraph], let ts = document.tableStyles[cell.table], ts.floatsOverText,
-                           ts.floatX != nil || (ts.keptPosition?.containsSubstring("w:tblpXSpec") == true && ts.floatXAnchor != "page") {
+                           ts.floatX != nil || ts.keptPosition?.containsSubstring("w:tblpXSpec") == true {
                             if floatTableFirstPage[cell.table] == nil {
                                 let first = _tableFirstParagraph[cell.table] ?? piece.paragraph
                                 floatTableFirstPage[cell.table] = _allPieces.first(where: { $0.paragraph == first && !$0.repeated }).map { $0.page / _columns } ?? p
                             }
-                            if let fp = floatTableFirstPage[cell.table], fp != p { left = _pxMarginLeft(fp) + Double(column) * _pxColumnStride(fp) }
+                            let pageSet = ts.floatXAnchor == "page" || ts.keptPosition?.containsSubstring("w:horzAnchor=\"page\"") == true
+                            if pageSet {
+                                // (A page-anchored x is the layout's from its reference margin, the first page's; the page's own
+                                // mirrored margin would push an even page's table off the sheet: the lab's page-99 table.)
+                                if ts.floatX != nil { left += _pxMarginLeft(0) - _pxMarginLeft(p) }
+                            } else if let fp = floatTableFirstPage[cell.table], fp != p { left = _pxMarginLeft(fp) + Double(column) * _pxColumnStride(fp) }
                             // (Inside and outside are the page's own edges, taken on the table's FIRST page: Word's print of the
                             // mirror lab puts an "outside" table at the right margin on an odd page and keeps it there.)
                             if let kept = ts.keptPosition, let fp = floatTableFirstPage[cell.table], let widths = _columnWidths[cell.table] {
                                 let odd = fp % 2 == 0
                                 let right = (kept.containsSubstring("w:tblpXSpec=\"outside\"") && odd) || (kept.containsSubstring("w:tblpXSpec=\"inside\"") && !odd)
-                                if right { left += _pxColumnW(fp) - widths.reduce(0, +) + _px(1.05) }
+                                if pageSet, kept.containsSubstring("w:tblpXSpec") {
+                                    // (Set from the PAGE's edges: text at the edge, 1.05pt past it on the right, as on the margin.)
+                                    let r = kept.containsSubstring("w:tblpXSpec=\"right\"") || right
+                                    left = r ? _pxPageW(fp) - widths.reduce(0, +) + _px(1.05) : 0
+                                } else if !pageSet, right { left += _pxColumnW(fp) - widths.reduce(0, +) + _px(1.05) }
                                 // (Spec "right": the layout already sets it at the right with 2 x 5.4pt too much, 9.75pt against
                                 // Word's print, and "outside" on an odd page, set the same way, comes out 1.05pt short.)
-                                if kept.containsSubstring("w:tblpXSpec=\"right\"") { left -= _px(9.75) }
+                                if !pageSet, kept.containsSubstring("w:tblpXSpec=\"right\"") { left -= _px(9.75) }
                             }
                         }
                         let columnW = _perSection ? _px(_setup(ofParagraph: piece.paragraph).columnWidth) : _pxColumnW(p)
