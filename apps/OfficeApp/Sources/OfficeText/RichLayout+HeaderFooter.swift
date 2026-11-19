@@ -66,7 +66,7 @@ extension RichLayout {
         guard p.cell == nil else { return nil }
         for image in p.inlineImages.inOrder + (p.image.map { [$0] } ?? []) {
             guard let float = image.float, float.wraps, !float.takesRoom, !float.bandsPage,
-                  let a = float.verticalAlign, a == "top" || a == "center" || a == "bottom",
+                  (float.verticalAlign == nil && !float.wrapsTight) || float.verticalAlign == "top" || float.verticalAlign == "center" || float.verticalAlign == "bottom",
                   float.verticalFrom == "page" || float.verticalFrom == "margin",
                   float.horizontalFrom == "page" || float.horizontalFrom == "margin",
                   float.horizontalAlign != "inside", float.horizontalAlign != "outside",
@@ -3165,7 +3165,7 @@ extension RichLayout {
               let natural = header.layout.theme.naturalLine(for: hp.runs.first?.style ?? CharStyle(), named: header.layout._named(hp, header.document), eastAsian: false) else { return nil }
         for image in hp.inlineImages.values {
             guard let float = image.float, float.takesRoom || float.bandsPage, !float.wraps, float.verticalFrom == "page",
-                  (float.verticalAlign == nil || float.verticalAlign == "top"), float.y >= 0, float.y < 1, image.height > 0 else { continue }
+                  ((float.verticalAlign == nil && !float.wrapsTight) || float.verticalAlign == "top"), float.y >= 0, float.y < 1, image.height > 0 else { continue }
             let foot = _px(float.y + image.height + float.distanceBottom + natural)
             if foot < top - 0.5 {
                 RuleTrace.hit("word-header-picture-at-the-page-top-stands-from-the-page")
