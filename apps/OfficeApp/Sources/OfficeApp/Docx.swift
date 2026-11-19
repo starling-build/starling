@@ -6118,6 +6118,9 @@ enum DocxFormat {
             if node.name == "w:rFonts" {
                 for (ref, attr) in [("w:asciiTheme", "w:ascii"), ("w:hAnsiTheme", "w:hAnsi"), ("w:eastAsiaTheme", "w:eastAsia"), ("w:cstheme", "w:cs")] {
                     guard let t = node.attrs[ref] else { continue }
+                    // (An East Asian slot pointed at a Latin theme font names no East Asian face: Word's print sets a hinted "·" in
+                    // MS Mincho there, fas-z22973278's paragraphs 1.297 em tall; four xb Persian docs.)
+                    if ref == "w:eastAsiaTheme", t.hasSuffix("HAnsi") || t.hasSuffix("Bidi") { continue }
                     if let face = theme.face(t) { node.attrs[attr] = face }
                 }
             }
