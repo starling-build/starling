@@ -3641,7 +3641,12 @@ static let sylfaenAdvances: [Double] = [
                 // (Sakkal Majalla's own Latin, from the face's hmtx: Word sets "Nom :" in it, not in the Carlito stand-in. Widths only: its line and baseline stay.)
                 // (Calibri Light has no bold: Word's print sets a bold run of it by the REGULAR Calibri's advances, no wider — dx2 7ffac240's 26.5 pt title is 459.9 pt in Word, 470.4 in Carlito Bold, which wraps it.)
                 case "calibri light": face.boldAdvances = calibriRegularLatinAdvances
-                case "sakkal majalla": face.advances = sakkalLatinAdvances; face.boldAdvances = sakkalLatinBoldAdvances
+                case "sakkal majalla":
+                    face.advances = sakkalLatinAdvances; face.boldAdvances = sakkalLatinBoldAdvances
+                    // (Its line too: a Latin paragraph in Sakkal Majalla 14pt steps 19.5 in Word's print, as its Arabic lines do, where
+                    // Carlito's line gave 17: xb urd e54653's endnotes, 25 pages ours against 26.)
+                    face.naturalHeight = 1.40; face.boldHeight = 1.40
+                    RuleTrace.hit("sakkal-latin-run-has-the-faces-own-line")
                 case "comic sans ms": face.advances = comicSansAdvances; face.boldAdvances = comicSansBoldAdvances; face.naturalHeight = 1.3936; face.baseline = 1.1021
                 case "mystical woods smooth script": face.advances = mysticalWoodsAdvances; face.otherAdvances = mysticalWoodsOtherAdvances; face.naturalHeight = 1.7; face.baseline = 1.3
                 case "garamond": face.advances = garamondAdvances; face.boldAdvances = garamondBoldAdvances; face.italicAdvances = garamondItalicAdvances; face.naturalHeight = 1.1250; face.baseline = 0.8618
@@ -4204,6 +4209,19 @@ static let sylfaenAdvances: [Double] = [
         if wordOnWindows, !eastAsian, !isEmbedded(family), ["arialmt", "arial mt"].contains(family.trimmingWhitespace().lowercased()),
            fontEntry(family)?.alt == nil {
             RuleTrace.hit("windows-arialmt-name-is-arial")
+            return standInFace("Arial", eastAsian: false)
+        }
+        // (A complex-script name Word's Windows lacks whose font table gives no alternate, charset 00 and the Arabic bit (Jameel
+        // Noori Nastaleeq): its Latin letters and digits print in Arial too, as its Arabic does (complexFace). xb urd 73d948's
+        // header date "2021", a left-to-right run naming Jameel, is ArialMT 11 in Word's print, 25 pt wide, where Calibri's
+        // is 22 and 1.5 pt taller a line. Not a Latin face that also has Greek, Cyrillic or Hebrew bits: Times and Helvetica in bug59058.)
+        if wordOnWindows, !eastAsian, !isEmbedded(family), installedFamilies[family.trimmingWhitespace().lowercased()] == nil,
+           !windowsComplexFaces.contains(family.trimmingWhitespace().lowercased()),
+           !WordWindowsFaces.names.contains(family.trimmingWhitespace().lowercased()),
+           let entry = fontEntry(family), entry.alt?.trimmingWhitespace().isEmpty ?? true,
+           entry.charset == "00", let usb0 = entry.usb0, usb0 & 0x2000 != 0, usb0 & 0xA08 == 0, !entry.panoseZero,
+           family.trimmingWhitespace().lowercased() != "arial" {
+            RuleTrace.hit("missing-arabic-bit-face-with-no-alternate-latin-is-arial")
             return standInFace("Arial", eastAsian: false)
         }
         let own = isEastAsianFace(family)

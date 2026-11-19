@@ -1853,6 +1853,10 @@ extension RichLayout {
                 else if theme.wordRules, RichTextTheme.wordWindowsPages, document.compatibilityMode == nil, p.cell != nil, pctWidthTable, contentFit, a == 0x2014 { parts = true }
                 else if theme.wordRules, RichTextTheme.wordWindowsPages, document.compatibilityMode == nil, p.cell != nil, pctWidthTable, contentFit,
                         !(a == 0x2D || a == 0x2013), !Self._autofitDictionaryScript(a), !Self._autofitDictionaryScript(b) { parts = false }
+                // (An Arabic-script word is ONE piece to autofit, with the digits and the colon, full stop, comma, slash or hyphen
+                // set in it: xb urd 73d948's header cell "خیرالامۃ:جلد1شمارہ1", 87pt in Word's print, widens its 86.5pt column to the whole
+                // string and sets one line, where ours measured one letter and parted it over two.)
+                else if theme.wordRules, RichTextTheme.wordWindowsPages, Self._arabicWordJoins(a, b) { parts = false }
                 else if breakBefore.contains(k) { parts = true }
                 // (After a hyphen before a digit in a time of day, where a
                 // word wider than its cell must part: zh-b3e887f7's schedule keeps its

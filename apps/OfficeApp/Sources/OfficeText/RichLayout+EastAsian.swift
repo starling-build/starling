@@ -2579,6 +2579,12 @@ extension RichLayout {
         return false
     }
 
+    /// Whether two neighbours with an Arabic-script letter between them stay one word to autofit's narrowest-piece measure.
+    static func _arabicWordJoins(_ a: UInt16, _ b: UInt16) -> Bool {
+        func arabic(_ u: UInt16) -> Bool { (u >= 0x600 && u <= 0x6FF && u != 0x60C && u != 0x61B && u != 0x61F) || (u >= 0x750 && u <= 0x77F) || (u >= 0xFB50 && u <= 0xFDFF) || (u >= 0xFE70 && u <= 0xFEFF) }
+        func joins(_ u: UInt16) -> Bool { arabic(u) || (u >= 0x30 && u <= 0x39) || u == 0x3A || u == 0x2E || u == 0x2C || u == 0x2F || u == 0x2D }
+        return arabic(a) && joins(b) || joins(a) && arabic(b)
+    }
     static let _pauseMarks = Set("，。、；：！？".utf16)
     /// The signs a line may end after only where they are set East Asian
     /// (`_breaksBetween`): "×", "°" and the primes.
