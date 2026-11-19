@@ -637,7 +637,11 @@ extension RichLayout {
                     korean.formUnion(st ..< min(st + r.length, units.count))
                 }
                 var taken: Set<Int> = []
-                for k in korean.sorted() where units[k] == 0x20 && k > 0 && korean.contains(k - 1) && (units[k - 1] != 0x20 || taken.contains(k - 1)) && !complexSpaces.contains(k) {
+                // (A LONE space, with no space before or after it, stays the Latin stand-in's width: c466d30a's date ". ○○. ○○." in
+                // ascii-only HY신명조 sets each space 3.7 in Word's print on a line that is not justified, where half an em, 5.6, wrapped a
+                // character early. Runs of two or more spaces, 4fabe1f2's ".␣␣␣␣.", are half an em.)
+                for k in korean.sorted() where units[k] == 0x20 && k > 0 && korean.contains(k - 1) && (units[k - 1] != 0x20 || taken.contains(k - 1))
+                    && (units[k - 1] == 0x20 || (k + 1 < units.count && units[k + 1] == 0x20)) && !complexSpaces.contains(k) {
                     taken.insert(k); wideSpaces.insert(k)
                 }
             }
