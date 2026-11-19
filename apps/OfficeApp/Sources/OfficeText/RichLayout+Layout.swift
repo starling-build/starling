@@ -416,7 +416,7 @@ extension RichLayout {
         // its margins (lo tdf36117's centred ones). Their place does not depend on the flow.
         // The page is where the paragraph holding them stands; every line there level with
         // one is held in to the side with the room, and laid out again until the lines settle.
-        if theme.wordRules, RichTextTheme.wordWindowsPages, pageSetup != nil, _columns == 1, !_stripPassing,
+        if theme.wordRules, RichTextTheme.wordWindowsPages, pageSetup != nil, _columns == 1 || _perSection, !_stripPassing,
            document.paragraphs.contains(where: { ($0.cell == nil && Self._stripFrame($0.style)) || Self._pageBox($0) != nil })
             || (theme.wordRules && RichTextTheme.wordWindowsPages && pageSetup != nil && _columns == 1 && !_stripPassing
                 && document.headerFooters.contains(where: { $0.paragraphs.contains { Self._hfBox($0) != nil } }))
@@ -443,7 +443,7 @@ extension RichLayout {
                         let space = xml.firstRange(of: "w:hSpace=\"").flatMap { r in Double(xml[r.upperBound...].prefix { $0 != "\"" }) }.map { _px($0 / 20) } ?? 0
                         blocks.append((first.page, f, top, h, (_px(setup.width) - w) / 2, w, space, space, nil))
                     }
-                    if let box = Self._pageBox(fp) {
+                    if _columnsOf(paragraph: f) == 1, let box = Self._pageBox(fp) {
                         let float = box.float, image = box.image
                         let pageH = _px(setup.height), marginTop = _px(setup.marginTop), marginBottom = _px(setup.marginBottom)
                         let h = _px(image.height), w = _px(image.width)
@@ -451,7 +451,7 @@ extension RichLayout {
                         let base = float.verticalFrom == "page" ? 0 : marginTop
                         let span = float.verticalFrom == "page" ? pageH : pageH - marginTop - marginBottom
                         let a = float.verticalAlign ?? "top"
-                        let onPage = base + (a == "center" ? (span - whole) / 2 : a == "bottom" ? span - whole : 0)
+                        let onPage = base + (a == "center" ? (span - whole) / 2 : a == "bottom" ? span - whole : 0) + (float.verticalAlign == nil ? _px(float.y) : 0)
                         let physical = first.page / _columns
                         let insetTop = physical < _pageInsetTop.count ? _pageInsetTop[physical] : marginTop
                         let left = float.horizontalFrom == "page" ? 0 : _px(setup.marginLeft + setup.gutter)
@@ -525,7 +525,7 @@ extension RichLayout {
                     for piece in _pages[block.page] where piece.paragraph != block.frame && !piece.repeated {
                         let k = piece.paragraph
                         let q = document.paragraphs[k]
-                        guard q.cell == nil, q.style.frame == nil, !q.text.isEmpty, !q.style.rightToLeft, k < _heights.count, want[k] == nil else { continue }
+                        guard q.cell == nil, q.style.frame == nil, !q.text.isEmpty, !q.style.rightToLeft, k < _heights.count, want[k] == nil, _columnsOf(paragraph: k) == 1 else { continue }
                         let rise = piece.flowBottom - piece.flowTop
                         guard piece.pageY < block.top + block.h - 0.01, piece.pageY + rise > block.top + 0.01 else { continue }
                         let column = _flowWidth(k)
