@@ -892,6 +892,10 @@ extension RichLayout {
             guard let ts, !ts.rowsCantSplit.contains(c.row), c.row >= headerRows(c.table),
                   !(theme.wordRules && ts.headerRow && c.row < ts.headerRowCount),
                   !(theme.wordRules && ts.rowsExactHeight.contains(c.row) && c.ownRowHeight <= contentH + 0.01) else { return false }
+            // (Nor an exact-height row taller than the page that starts at a page's top:
+            // sa1 173f0cb1's 720pt row stays whole there in Word's print, clipped at the
+            // foot, where ours parted it and made a third page.)
+            if theme.wordRules, atTop, ts.rowsExactHeight.contains(c.row) { return false }
             // (Nor a row whose first paragraph is kept with the next: lab
             // `kr` (Word 16, modes 15 and legacy), a one-row table of
             // twelve paragraphs with room for eight at a page's foot goes
