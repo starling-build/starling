@@ -17939,3 +17939,4 @@ amd-5 CLAIM (2026-11-19): Portuguese g1 (pt-g1.tsv) below 97: dx2 9d7e8c61 (51.0
 - Portuguese-specific: nothing found (no problem with ç ã õ, hyphenation, decimal commas, º ª). Both weak docs were float/endnote layout.
 - Traps: Docx.swift has separate guards for the footnote loop and the endnote loop; edit the right one. A throwaway worktree needs an engine symlink before office-env.sh works. Removing a debug line with a script can delete a closing brace on the same line.
 - Hindi/Bengali work stays OPEN.
+- amd-5 CLAIM (2026-11-19, starling-bd): sa1 Portuguese OPEN list amd-5: c11d31f3, 173f0cb1, a8678e3c, 74e2ec8f, 99ba67d7, 0dcf90bc, c6d4538d, 9881dc01, 97666801, 3a34a282, 8cfaa504, 764f4d8e, 2b3c3b42 (462c594f is amd-perf's). Then 9d7e8c61 with fresh eyes.
