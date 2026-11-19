@@ -3062,7 +3062,7 @@ extension RichLayout {
                 // line: dx2 2f415ce7's URL "…/zh-" / "tw/%E9…%99-" / "/%E9…", each piece after a hyphen opening
                 // its own line in Word's print and parted there.)
                 for o in (k + 2 ..< end) where units[o - 1] == 0x2D && o + 8 < end
-                    && (Self._isLatinWordUnit(units[o]) || units[o] == 0x2F || units[o] == 0x25) && Self._isLatinWordUnit(units[o - 2]) && units[o] < 0x80 {
+                    && (Self._isLatinWordUnit(units[o]) || units[o] == 0x2F || units[o] == 0x25) && (Self._isLatinWordUnit(units[o - 2]) || units[o - 2] == 0x2F) && units[o] < 0x80 {
                     let segEnd: Int = (o ..< end).first(where: { units[$0] == 0x2D }).map { $0 + 1 } ?? end
                     if segEnd < end, segEnd - o < 8 { continue }
                     var at = 0

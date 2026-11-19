@@ -7256,6 +7256,8 @@ enum DocxFormat {
                         || (csFlag && (0x0900...0x0B7F).contains($0.value))
                         // (Lao with the w:cs flag: dx2 30f73046's title, sz 24 / szCs 32, is a 16 pt Leelawadee UI line in Word's print.)
                         || (csFlag && (0x0E80...0x0EFF).contains($0.value))
+                        // (Thai with the w:cs flag: xs e17f28a6's heading, sz 16 / szCs 20, is a 20 pt TH SarabunPSK line in Word's print. Only when the run gives both sizes: xd 0815aa59's runs with one or none keep the style's sz.)
+                        || (csFlag && rPr.first("w:szCs") != nil && rPr.first("w:sz") != nil && (0x0E00...0x0E7F).contains($0.value))
                 } || rtlRun
                 // (Tamil takes bCs/iCs but not szCs: da732dfb's sz 14 / szCs 20 subtitle prints at 14 in Word. Only a run with no Latin letters.)
                 let tamilOnly = !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A } && runText.unicodeScalars.contains { (0x0B80...0x0BFF).contains($0.value) }
