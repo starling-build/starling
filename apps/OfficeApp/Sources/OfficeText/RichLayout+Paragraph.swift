@@ -3861,6 +3861,25 @@ extension RichLayout {
                 }
             }
         }
+        // (A last line of spaces alone, wrapped below an inline picture in a paragraph of text and pictures, is the
+        // paragraph mark's line when the mark is taller than the spaces: dx2 es 2f747ec3's 14pt bold mark after a
+        // 475pt picture and 11pt spaces, the next paragraph 3.3pt lower in Word's print than ours.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.image == nil, p.cell == nil, p.inlineImages.inOrder.contains(where: { $0.float == nil && $0.textBox == nil }),
+           abs(style.lineSpacing - 1) < 0.001, p.text.utf16.count > 1, p.text.utf16.last == 0x20,
+           let lastLine = painter.computeLineMetrics().last, painter.computeLineMetrics().count > 1 {
+            let units = Array(p.text.utf16)
+            var k = units.count
+            while k > 0, units[k - 1] == 0x20 { k -= 1 }
+            let spacesAt = _map(i).painter(k)
+            let end = _map(i).painter(units.count - 1) + 1
+            if painter.getLineBoundary(TextPosition(offset: end - 1)).start >= spacesAt {
+                let mark = _markLineHeight(i, document, single: true)
+                if mark > lastLine.height + 0.2 {
+                    RuleTrace.hit("word-spaces-only-last-line-takes-the-taller-paragraph-mark")
+                    bodyHeight += mark - lastLine.height
+                }
+            }
+        }
         // (No lines at all: `RichParagraphStyle.lineCollapsed`.)
         if theme.wordRules, style.lineCollapsed, p.image == nil { bodyHeight = 0 }
         if _markUnderNestedTable(i, document) { bodyHeight = 0 }
