@@ -2775,6 +2775,8 @@ public struct RichDocument: Hashable, Sendable {
     /// paragraph in the order their marks come, under their separator.
     public var endnotes: [Int: [RichParagraph]] = [:]
     public var endnoteSeparator: [RichParagraph] = []
+    /// The line Word sets at the top of a page where flowed endnotes go on from the page before.
+    public var endnoteContinuation: [RichParagraph] = []
     /// Endnotes set at the end of the section whose marks they are (`w:endnotePr`'s `w:pos` `sectEnd`), not the document's.
     public var endnotesAtSectionEnd = false
     /// The number of the first page where the last section says one

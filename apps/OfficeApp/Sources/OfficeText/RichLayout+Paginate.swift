@@ -322,6 +322,14 @@ extension RichLayout {
             }
             prevY = y
             y = 0
+            // (Where the flowed endnotes go on from the page before, Word sets the continuation separator's line
+            // first: xb por-z1326468's pages 27 and 28 start 13 pt lower.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, i < count, document.paragraphs[i].flowedEndnote.map({ $0 >= 0 }) == true,
+               page > 0, _pages[page - 1].contains(where: { document.paragraphs[$0.paragraph].flowedEndnote != nil }),
+               !document.endnoteContinuation.isEmpty,
+               let rule = document.paragraphs.firstIndex(where: { $0.flowedEndnote == -1 }) {
+                y = _markLineHeight(rule, document, single: true, paragraph: document.endnoteContinuation[0])
+            }
             // (A column of a page whose columns were balanced at a
             // continuous break starts under the balanced block.)
             if let floor = columnFloor, floor.physical == page / max(1, _columns) { y = floor.y }

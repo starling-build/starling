@@ -567,7 +567,7 @@ extension RichLayout {
         if let hit = _noteCache[key] { return hit }
         let paragraphs: [RichParagraph]
         if id == -1 { paragraphs = document.footnoteSeparator } else if let p = document.footnotes[id] { paragraphs = p } else { return nil }
-        let made = _subLayout(paragraphs, document, width: width, onGrid: theme.wordRules && id != -1)
+        let made = _subLayout(paragraphs, document, width: width, onGrid: theme.wordRules && id >= 0)
         if _noteCache.count > 512 { _noteCache.removeAll() }
         _noteCache[key] = made
         return made
@@ -579,7 +579,7 @@ extension RichLayout {
         let key = "e\(id)|\(width)|\(scale)"
         if let hit = _noteCache[key] { return hit }
         let paragraphs: [RichParagraph]
-        if id == -1 { paragraphs = document.endnoteSeparator } else if let p = document.endnotes[id] { paragraphs = p } else { return nil }
+        if id == -1 { paragraphs = document.endnoteSeparator } else if id == -2 { paragraphs = document.endnoteContinuation } else if let p = document.endnotes[id] { paragraphs = p } else { return nil }
         let made = _subLayout(paragraphs, document, width: width, onGrid: theme.wordRules && id != -1)
         if _noteCache.count > 512 { _noteCache.removeAll() }
         _noteCache[key] = made
@@ -1606,8 +1606,8 @@ extension RichLayout {
 
     /// The height of one line of paragraph `i` in its mark's look, as if
     /// it held nothing else (px).
-    func _markLineHeight(_ i: Int, _ document: RichDocument, single: Bool = false, using run: CharStyle? = nil, descentOnly: Bool = false) -> Double {
-        let p = document.paragraphs[i]
+    func _markLineHeight(_ i: Int, _ document: RichDocument, single: Bool = false, using run: CharStyle? = nil, descentOnly: Bool = false, paragraph: RichParagraph? = nil) -> Double {
+        let p = paragraph ?? document.paragraphs[i]
         var mark = run ?? p.style.mark ?? p.runs.first?.style ?? CharStyle()
         mark.inlineImage = nil
         var style = p.style

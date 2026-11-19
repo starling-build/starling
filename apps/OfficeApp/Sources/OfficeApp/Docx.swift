@@ -3637,6 +3637,7 @@ enum DocxFormat {
         // The endnotes, the same way: set after the body's last paragraph.
         var endnoteParagraphs: [Int: [RichParagraph]] = [:]
         var endnoteSeparator: [RichParagraph] = []
+        var endnoteContinuation: [RichParagraph] = []
         if notes.endnotes, let data = part("word/endnotes.xml"), let root = XNode.parse(data) {
             _resolveThemeFonts(root, theme)
             let bodyParagraphs = paragraphs, bodyRels = rels, bodyInfo = notes.rels
@@ -3655,14 +3656,14 @@ enum DocxFormat {
             for note in root.all("w:endnote") {
                 guard let id = Int(note["w:id"] ?? "") else { continue }
                 let type = note["w:type"] ?? "normal"
-                guard type == "normal" || type == "separator" else { continue }
-                guard type == "separator" || notes.endnoteNumbers[id] != nil || notes.customEndnotes.contains(id) else { continue }
+                guard type == "normal" || type == "separator" || type == "continuationSeparator" else { continue }
+                guard type == "separator" || type == "continuationSeparator" || notes.endnoteNumbers[id] != nil || notes.customEndnotes.contains(id) else { continue }
                 notes.currentNoteLabel = notes.endnoteNumbers[id].map { notes.label($0, footnote: false) }
                 paragraphs = []
                 currentCell = nil
                 pendingPageBreak = false
                 for child in note.children { walkBlock(child, indent: 0) }
-                if type == "separator" { endnoteSeparator = paragraphs } else { endnoteParagraphs[id] = paragraphs }
+                if type == "separator" { endnoteSeparator = paragraphs } else if type == "continuationSeparator" { endnoteContinuation = paragraphs } else { endnoteParagraphs[id] = paragraphs }
             }
             notes.currentNoteLabel = nil
             (notes.seenFootnotes, notes.seenEndnotes) = saved
@@ -3679,6 +3680,7 @@ enum DocxFormat {
         document.footnoteSeparator = footnoteSeparator
         document.endnotes = endnoteParagraphs
         document.endnoteSeparator = endnoteSeparator
+        document.endnoteContinuation = endnoteContinuation
         document.endnotesAtSectionEnd = part("word/settings.xml").flatMap(XNode.parse)?.first("w:endnotePr")?.first("w:pos")?["w:val"] == "sectEnd"
         // (Endnotes too long to stand under the last paragraph run on over the pages after it, as Word's do — urd-z8387389's
         // 58 notes are three pages of its 12 — so they are flowed as paragraphs of their own, in the order of their marks,
