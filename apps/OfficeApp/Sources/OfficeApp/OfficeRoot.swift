@@ -32,12 +32,18 @@ private final class _OfficeRootState: State<StatefulWidget> {
     private var _kind = DocumentKind.document
     private var _path: String? = nil
     private var _generation = 0
+    /// A newer release to announce (native builds only), until dismissed.
+    private var _update: OfficeRelease? = nil
 
     override func initState() {
         super.initState()
         let root = widget as! OfficeRoot
         _kind = root.initialKind
         _path = root.initialPath
+        UpdateCheck.start { [weak self] release in
+            guard let self, self.mounted else { return }
+            self.setState { self._update = release }
+        }
         #if os(Linux)
         if let dark = GpuDmaBufRenderer.lastPushedThemeIsDark { _dark = dark }
         GpuDmaBufRenderer.onThemeChanged = { [weak self] dark in
@@ -97,7 +103,12 @@ private final class _OfficeRootState: State<StatefulWidget> {
             theme: OfficeAppearance.theme(.light),
             darkTheme: OfficeAppearance.theme(.dark),
             themeMode: _dark ? .dark : .light,
-            home: home,
+            home: _update.map { release in
+                UpdateNoticeHost(release: release, home: home) { [weak self] in
+                    UpdateCheck.dismiss(release, store: SettingsUpdateStore())
+                    self?.setState { self?._update = nil }
+                }
+            } ?? home,
             title: _kind.appName
         ))
     }
@@ -111,4 +122,23 @@ private final class _Keyed: StatelessWidget {
         super.init(key: key)
     }
     override func build(_ context: any BuildContext) -> Widget { child }
+}
+
+/// The window's content with the update notice above it.
+private final class UpdateNoticeHost: StatelessWidget {
+    let release: OfficeRelease
+    let home: Widget
+    let onDismiss: () -> Void
+    init(release: OfficeRelease, home: Widget, onDismiss: @escaping () -> Void) {
+        self.release = release
+        self.home = home
+        self.onDismiss = onDismiss
+        super.init()
+    }
+    override func build(_ context: any BuildContext) -> Widget {
+        Column(children: [
+            UpdateNoticeBar(release: release, onDismiss: onDismiss),
+            Expanded(child: home),
+        ])
+    }
 }

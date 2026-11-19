@@ -1062,6 +1062,10 @@ enum OfficeSettings {
         #endif
     }
 
+    /// Any other setting by name (the update check keeps its state here).
+    static func string(_ key: String) -> String? { values[key] }
+    static func setString(_ key: String, _ value: String) { set(key, value) }
+
     /// Draw a document's fonts with the faces this computer has, where it
     /// has them (the default), or always with Starling's matching fonts.
     static var useInstalledFonts: Bool {
@@ -1117,4 +1121,10 @@ func _utf16Slice(_ text: String, _ r: Range<Int>) -> String {
     let a = u.index(u.startIndex, offsetBy: r.lowerBound)
     let b = u.index(u.startIndex, offsetBy: r.upperBound)
     return String(u[a ..< b]) ?? ""
+}
+
+/// The update check's state, in the settings file.
+final class SettingsUpdateStore: UpdateStore {
+    func get(_ key: String) -> String? { OfficeSettings.string(key) }
+    func set(_ key: String, _ value: String) { OfficeSettings.setString(key, value) }
 }
