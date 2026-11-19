@@ -17977,3 +17977,4 @@ amd-5 CLAIM (2026-11-19): Portuguese g1 (pt-g1.tsv) below 97: dx2 9d7e8c61 (51.0
 - Traps: first version dropped xd 03cd29dc and 3 more; fix was gating on compressPunctuation, a squeezed mark, and a piece that is a real word (no space inside).
 - For lenovo-2 (xd 397da2bb, b4b6fd1a): Word weighs the line-end ） with its word; at compat 15 it keeps the word while marks plus spaces need at most half the stretch, at compat 14 always.
 - Next: 03cd29dc re-render, fas-768d17, Hebrew Arial digits (5049065c1, docx-5dc87fc7), urd-e54653.
+- lenovo-2 CLAIM (2026-11-19, starling-bd): xb docx-5dc87fc7 (41.1 on tip; lenovo-3 has the separate Hebrew-digit 1-pt drop).
