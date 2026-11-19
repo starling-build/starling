@@ -1069,6 +1069,10 @@ extension RichLayout {
             let cellFix = _gridCellBase(index, document).map { $0 - em / (theme.pixelsPerPoint * scale) } ?? 0
             let grid = theme.wordRules && !runOffGrid && (p.style.eastAsian["w:snapToGrid"] != "0" || p.style.ownGridOff)
                 ? _grid(index, document).chars : nil
+            // (On a snapToChars grid Latin glyphs keep their plain widths, and a stretch of them stands a whole number of cells: lab gr16a,
+            // Word for Windows, "the survey of the coast was" 118.9 pt plain stands 11.0 cells of 11.08, "lighthouse" 47.0 stands 5.)
+            let latinCell: Double? = theme.wordRules && grid != nil ? _gridCellBase(index, document).map { $0 * theme.pixelsPerPoint * scale } : nil
+            let latinGrid = latinCell != nil ? 0 : grid
             // (Ideographs keep the grid's addition in a paragraph off the
             // grid — not in a run off it, which zh-457a8d62's "(附件一，1頁)"
             // runs are, set at their face's widths in Word's print. Lab
@@ -1460,7 +1464,7 @@ extension RichLayout {
                 if kind == -5, let h = run.hAnsiFontFamily ?? named?.char.hAnsiFontFamily { styled.eastAsiaFontFamily = h }
                 if kind <= -10, let chain, -10 - kind < chain.count { styled.eastAsiaFontFamily = chain[-10 - kind].family }
                 var s = theme.textStyle(for: styled, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: kind < 0, gridPitch: pitch,
-                                        characterClass: classed && kind >= 0 ? kind : nil, characterGrid: kind < 0 ? ideographGrid : grid, scriptHidden: true)
+                                        characterClass: classed && kind >= 0 ? kind : nil, characterGrid: kind < 0 ? ideographGrid : latinGrid, scriptHidden: true)
                 if doubles, kind < 0 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + spacing) }
                 // (A run set in a chain face (Yu Gothic, JhengHei) has that face's own ascent and descent: Word's line takes the larger above and
                 // below the baseline over the faces on it, so a Mincho line with one fallen-back character is 1.7 pt shorter above the next line
@@ -1731,7 +1735,7 @@ extension RichLayout {
                         }
                         let r = theme.textStyle(for: sized, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
                                                 eastAsian: kind < 0, gridPitch: pitch, characterClass: classed && kind >= 0 ? kind : nil,
-                                                characterGrid: kind < 0 ? ideographGrid : grid, scriptHidden: true)
+                                                characterGrid: kind < 0 ? ideographGrid : latinGrid, scriptHidden: true)
                         if let rs = r.fontSize, let rh = r.height, s.height != nil { s = s.copyWith(height: rs * rh / px) }
                         else if s.height == nil, r.height == nil {
                             // (Single lines in a face of its own metrics
@@ -2417,6 +2421,23 @@ extension RichLayout {
                 latinNoScale = kind >= 0 && indic != nil && latinFaceNamed && text[start ..< end].contains(where: { $0.isLetter || $0.isNumber }) && !text[start ..< end].unicodeScalars.contains(where: { $0.value == 0xA0 }) && !text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0x0900 && $0.value < 0x0E00 })
                 let st = style(kind)
                 latinNoScale = false
+                if kind >= 0, let cell = latinCell, cell > 0.5, text.distance(from: start, to: end) > 0 {
+                    let piece = text[start ..< end]
+                    let styled = joinedScaled(piece, st)
+                    let t = TextPainter(text: TextSpan(text: String(piece), style: styled), textDirection: .ltr)
+                    t.layout(minWidth: 0, maxWidth: 100_000)
+                    let w = t.width
+                    t.dispose()
+                    let pad = (w / cell - 0.02).rounded(.up) * cell - w
+                    if pad > 0.01, w > 0.01 {
+                        RuleTrace.hit("word-chars-grid-latin-stretch-takes-whole-cells")
+                        let lastAt = piece.index(before: piece.endIndex)
+                        spans.append(contentsOf: capped(piece[piece.startIndex ..< lastAt], run, styled))
+                        spans.append(contentsOf: capped(piece[lastAt ..< piece.endIndex], run, styled.copyWith(letterSpacing: (styled.letterSpacing ?? 0) + pad)))
+                        start = end
+                        return
+                    }
+                }
                 spans.append(contentsOf: capped(text[start ..< end], run, joinedScaled(text[start ..< end], st)))
                 start = end
             }
