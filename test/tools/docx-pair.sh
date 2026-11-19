@@ -50,7 +50,7 @@ esac
 
 # xb: the admitted batch-B documents that have a Windows print (interim set before the corpus swap; lives in the cache,
 # not in git: $STARLING_CORPUS/staging/xb/{docs,word-win}, stems listed in test/corpus/docx/xb/manifest.tsv)
-corpus() { case $1 in 756) echo "$ROOT/test/corpus/docx";; lo) echo "$ROOT/test/corpus/docx/lo";; xb|xa|xd|xs|dx2|sa1) echo "${STARLING_CORPUS:-/data/corpus-cache}/staging/$1";; esac; }
+corpus() { case $1 in 756) echo "$ROOT/test/corpus/docx";; lo) echo "$ROOT/test/corpus/docx/lo";; xb|xa|xd|xs|dx2|sa1|sa2) echo "${STARLING_CORPUS:-/data/corpus-cache}/staging/$1";; esac; }
 # refhash SET — one hash of the set's Word reference PDFs (names + contents): the code STAMP does not cover them, so
 # a print swap would leave stored scores that look valid. Stored beside the scores as REFS ("<set> <hash>" lines).
 refhash() { local C; C=$(corpus "$1"); ( cd "$C/word-win" 2>/dev/null && ls *.pdf 2>/dev/null | LC_ALL=C sort | while IFS= read -r f; do printf '%s ' "$f"; sha256sum < "$f" | cut -c1-64; done | sha256sum | cut -c1-32 ); }
@@ -64,7 +64,7 @@ dochash() { local C; C=$(corpus "$1"); ( cd "$C/docs" 2>/dev/null && ls *.docx 2
 base_ok() { local want have; want=$(refhash "$1"); have=$(awk -v s="$1" '$1==s{print $2}' "$3" 2>/dev/null)
   [ -n "$want" ] && [ "$want" = "$have" ] || return 1
   local dh; dh=$(awk -v s="$1" '$1==s{print $3}' "$3" 2>/dev/null); [ -z "$dh" ] || [ "$dh" = "$(dochash "$1")" ] || return 1
-  case "$1" in xb|xa|xd|xs|dx2|sa1) ;; *) return 0;; esac; local C n; C=$(corpus "$1"); n=$(ls "$C"/word-win/*-orig.pdf 2>/dev/null | wc -l)
+  case "$1" in xb|xa|xd|xs|dx2|sa1|sa2) ;; *) return 0;; esac; local C n; C=$(corpus "$1"); n=$(ls "$C"/word-win/*-orig.pdf 2>/dev/null | wc -l)
   [ "$(grep -c '%  lines ' "$2" 2>/dev/null)" = "$n" ]; }
 # sweep BIN WORK SET → WORK/match-v2.txt, match-v1.txt
 # A render that hit the 300 s alarm (exit 142) or exited non-zero is retried ONCE, then reported as TIMEOUT / RENDER-FAIL,
