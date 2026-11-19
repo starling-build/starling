@@ -4254,6 +4254,12 @@ extension RichLayout {
                     extra = _markLineHeight(i, document, single: true, using: CharStyle())
                 }
                 bodyHeight += (multiple - 1) * extra
+                // (A multiple's extra under a picture alone hangs past a page's foot as under text: sa1 c11d31f3's chart,
+                // 1.5 lines, stays on page 3 in Word's print with its extra 6.7pt over the margin, even 2pt taller.)
+                if theme.wordRules, multiple > 1.001, i < _overhang.count, p.cell == nil {
+                    RuleTrace.hit("picture-alone-multiple-extra-hangs-past-the-foot")
+                    _overhang[i] = max(_overhang[i], (multiple - 1) * extra)
+                }
             } else if case let lines = painter.computeLineMetrics(), lines.count == 1,
                       let box = painter.inlinePlaceholderBoxes?.max(by: { $0.bottom - $0.top < $1.bottom - $1.top }),
                       box.bottom - box.top >= lines[0].ascent - 0.5 {
