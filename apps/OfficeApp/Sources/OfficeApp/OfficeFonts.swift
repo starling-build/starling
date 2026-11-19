@@ -4612,6 +4612,16 @@ static let sylfaenAdvances: [Double] = [
                     RuleTrace.hit("franklin-gothic-own-widths")
                 }
             }
+            // (Arial Nova Light, a Windows cloud face we hold no file for: the sans clone at its own widths and 1.2095 em line, hhea 2011/-466 over 2048; sa1 51fd0f44.)
+            if wordOnWindows, family.trimmingWhitespace().lowercased() == "arial nova light" {
+                face.advances = arialNovaLightAdvances
+                face.boldAdvances = arialNovaLightAdvances
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging(arialNovaLightOtherAdvances) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(arialNovaLightOtherAdvances) { $1 }
+                face.naturalHeight = 1.2095
+                face.baseline = 0.9820
+                RuleTrace.hit("arial-nova-light-own-widths")
+            }
             // (Montserrat, a cloud face we hold no file for: the sans clone at its own widths and line.)
             if wordOnWindows, family.trimmingWhitespace().lowercased() == "montserrat" {
                 face.advances = montserratAdvances
