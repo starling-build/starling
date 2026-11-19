@@ -4555,8 +4555,7 @@ extension RichLayout {
             // (Word's shift is a constant 0.2833 em once the spacing is over single:
             // the same 3.4pt at 12pt for 1.7x (lab c466d30a) and 3x (xd 07eecf7a);
             // at single it stays 0.166 em.)
-            let spacingNow = p.style.lineSpacing - theme.lineSpacingReduction
-            let rise = size * (spacingNow > 1 ? 0.2833 : 0.166 * max(1, spacingNow))
+            let rise = size * 0.2833
             if rise > (best ?? 0) {
                 RuleTrace.hit("word-korean-symbol-first-line-stands-on-malgun-ascent")
                 best = rise

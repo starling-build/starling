@@ -2939,7 +2939,11 @@ extension RichLayout {
                     || (u == 0x2018 || u == 0x2019 || u == 0x201C || u == 0x201D) && run.loneQuote && !run.hAnsiNamedAsAscii && ["굴림", "gulim"].contains((run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? run.fontFamily ?? "").trimmingWhitespace().lowercased()) && ["맑은 고딕", "malgun gothic"].contains((_normalChar(document)?.hAnsiFontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()) {
                     RuleTrace.hit("lone-middle-dot-in-gulim-is-malgun-line")
                     if devanagariStyles["malgunKo"] == nil {
-                        devanagariStyles["malgunKo"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: 1.175, descent: 0.557)
+                        // (Word's lab kr-sym, 12 pt Batang lines at 1.0, 1.75 and 3.0: a Malgun symbol line is Malgun's own 1.288 + 0.441 em times the multiple
+                        // (steps into / out of the line 30.7 / 32.9 at 1.75, 50.3 / 58.8 at 3.0; 6a68f6ca's 29.9 / 31.9 at 1.7); the joiner is the box, the
+                        // first-line raise places the baseline.)
+                        let malgun = Self._indicLines["malgun gothic"] ?? (1.288, 0.442)
+                        devanagariStyles["malgunKo"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: malgun.0, descent: malgun.1, evenExtra: true)
                     }
                     if let joiner = devanagariStyles["malgunKo"] ?? nil {
                         flush(i)

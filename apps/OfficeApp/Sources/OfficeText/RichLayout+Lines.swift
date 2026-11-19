@@ -1627,7 +1627,7 @@ extension RichLayout {
     /// The same joiner for a face of the given ascent and descent in ems (its hhea): the line a Devanagari word
     /// gives Word's line, Mangal's 1.241 + 0.438 (`_span`).
     func _lineJoiner(_ run: CharStyle, _ named: RichNamedStyle?, _ own: TextStyle, _ paragraph: RichParagraphStyle,
-                     _ pitch: Double?, _ scale: Double, ascent ems: Double, descent emsDown: Double, spacing: Bool = true, belowOnly: Bool = false) -> TextStyle? {
+                     _ pitch: Double?, _ scale: Double, ascent ems: Double, descent emsDown: Double, spacing: Bool = true, belowOnly: Bool = false, evenExtra: Bool = false) -> TextStyle? {
         guard paragraph.lineHeightPoints == nil || paragraph.lineHeightIsMinimum, let px = own.fontSize, px > 0.5 else { return nil }
         var noto = run
         noto.eastAsiaFontFamily = "Noto Sans SC"
@@ -1641,7 +1641,9 @@ extension RichLayout {
         let split = (line.ascent - line.descent) / 100
         // (A multiple of lines (Word's 1.15) takes this line too, as it does any other.)
         let multiple = spacing && paragraph.lineHeightPoints == nil && paragraph.lineSpacing > 0.5 ? paragraph.lineSpacing : 1
-        let cut = belowOnly ? Self._multipleSplit(ascent: ems, descent: emsDown, multiple: multiple) : (ems * multiple, emsDown * multiple)
+        // (evenExtra: the face's own line plus the multiple's extra split evenly, as the engine scales every other run; the total is multiple x the line.)
+        let extra = (ems + emsDown) * max(multiple - 1, 0) / 2
+        let cut = evenExtra ? (ems + extra, emsDown + extra) : belowOnly ? Self._multipleSplit(ascent: ems, descent: emsDown, multiple: multiple) : (ems * multiple, emsDown * multiple)
         // (A character scale (w:w) is laid out as a larger size; the line's height follows the authored size.)
         let own1 = RichTextTheme.wordWidthScale(run.horizontalScale ?? named?.char.horizontalScale ?? 1, wordRules: theme.wordRules,
             eastAsiaFamily: run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily)
