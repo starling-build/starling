@@ -3938,6 +3938,16 @@ extension RichLayout {
                     start = after
                     afterHeld = !koreanSpaces.contains(offset)
                     heldKind = kind
+                } else if ch == "\t", theme.wordRules, RichTextTheme.wordWindowsPages, p.style.alignment == .right, !p.style.rightToLeft,
+                          extra > 0.01, adjust[-1_000_000 - offset] != nil {
+                    // (A right-aligned paragraph's last tab, its stop inside the margin: Word counts the tab in the line, so the text
+                    // stands that far left of the margin; the engine hangs a trailing tab like a space. A joiner of the tab's width stays.
+                    // xd 397da2bb's page number "202" + tab, 29.7 pt left of the margin in Word's print.)
+                    flush(i)
+                    let s = style(kind)
+                    RuleTrace.hit("word-right-aligned-trailing-tab-keeps-its-width")
+                    spans.append(TextSpan(text: "\u{2060}", style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + _glyphWidth(s, "\t"))))
+                    start = after
                 } else if theme.wordRules, let u = ch.unicodeScalars.first?.value,
                           [0x2000, 0x2001, 0x2004, 0x2006, 0x2008, 0x2009, 0x200A, 0x205F].contains(u) {
                     // (Word does not part a line at these spaces — lab `spaces`, in a body
