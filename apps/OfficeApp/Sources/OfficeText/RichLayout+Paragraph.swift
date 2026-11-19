@@ -1069,7 +1069,7 @@ extension RichLayout {
                 // centred ones too; ours ran the dots on to the stop and
                 // the number went to a line of its own.)
                 if theme.wordRules, var s = stop, s.alignment == .right || s.alignment == .center,
-                   s.x > ownLeft + textWidth + 0.5 + ((s.leader.map { $0 != "none" && !$0.isEmpty } ?? false) && s.alignment == .right ? _px(Self._tabPastMargin) : 0) {
+                   s.x > ownLeft + textWidth + 0.5 + ((s.leader.map { $0 != "none" && !$0.isEmpty } ?? false) && s.alignment == .right && style.alignment != .justify ? _px(Self._tabPastMargin) : 0) {
                     clampedStops.insert(s.x)
                     s.x = ownLeft + textWidth
                     s.alignment = .right
@@ -1121,7 +1121,11 @@ extension RichLayout {
                 switch stop.alignment {
                 case .left: break
                 case .center: extra -= following / 2
-                case .right: extra -= following
+                case .right:
+                    extra -= following
+                    // (A right stop clamped to the margin ends the line exactly AT it, and a float's rounding then wraps the
+                    // text: 462c594f's "<tab>Página" at a stop 389 twips out stood alone on a second line, Word's at the margin.)
+                    if theme.wordRules, atMargin.contains(t) { extra -= 0.02 }
                 case .decimal:
                     if let dot = (t + 1 ..< end).first(where: { units[$0] == 0x2E }) { extra -= edge(dot) - after } else { extra -= following }
                 }
@@ -1197,12 +1201,14 @@ extension RichLayout {
                         for k in t + 1 ... last where units[k] != 0x20 { hangs[k] = -rest * max(0, edge(k + 1) - edge(k)) / span }
                     }
                 }
+                // (Not in a justified paragraph: there Word ends the number at the margin, as at any stop past it,
+                // 462c594f's contents lines, stop 360 twips out, compat 15.)
                 // (A right stop a little past the margin is honoured: lab tabr, Word for Windows,
                 // stops 52 to 452 twips past an 8848-twip line all end the number AT the stop, on
                 // the line, the dots running on to it. The line stays inside the margin for the
                 // engine — the number's last character gives the overshoot up — and its ink
                 // ends at the stop. zh-875759ff's contents, stop 105 twips out.)
-                if theme.wordRules, !style.rightToLeft, stop.alignment == .right, let lead = stop.leader, lead != "none", !lead.isEmpty,
+                if theme.wordRules, !style.rightToLeft, style.alignment != .justify, stop.alignment == .right, let lead = stop.leader, lead != "none", !lead.isEmpty,
                    stop.x > ownLeft + textWidth + 0.5, stop.x <= ownLeft + textWidth + _px(Self._tabPastMargin) + 0.5,
                    x + own < stop.x - 0.01, hangs[t + 1] == nil,
                    let last = (t + 1 ..< end).last(where: { units[$0] != 0x20 }), hangs[last] == nil {

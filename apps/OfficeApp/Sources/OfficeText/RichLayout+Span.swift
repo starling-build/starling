@@ -3117,8 +3117,15 @@ extension RichLayout {
                 // "…habe?)<tab>1" in a contents line — the number is no room, the dotted tab and
                 // "1" go down and "habe?)" stays; the engine has no break there, wrapped "habe?)"
                 // with them, and a line behind the contents ran on.)
+                // (Not where a dotted right stop a little past the margin is honoured in a paragraph that is not
+                // justified (`word-right-tab-past-the-margin-is-honoured`): the number ends on the same line.)
                 else if theme.wordRules, RichTextTheme.wordWindowsPages, ch == "\t", offset > 0, let b = before,
-                        b != " ", b != "\t", b != "\n", b != "\u{2028}", b.isASCII || (following == "\t" && Self.isEastAsian(b, hinted: false)) {
+                        b != " ", b != "\t", b != "\n", b != "\u{2028}", b.isASCII || (following == "\t" && Self.isEastAsian(b, hinted: false)),
+                        (p.style.alignment == .justify || !p.style.tabStops.contains(where: { s in
+                            let edge = textWidth + _px(_listIndents(p, document)?.left ?? p.style.indentLeft)
+                            return s.alignment == .right && !(s.leader ?? "none").isEmpty && s.leader != "none"
+                                && _px(s.position) > edge + 0.5 && _px(s.position) <= edge + _px(Self._tabPastMargin) + 0.5
+                        })) {
                     // (An ideograph before a run of tabs as well (not a lone tab: zh-ab1ea005's contents lines): zh-77bd4900 p10's "…人數不得<tab><tab><tab>低於十人"
                     // keeps "得" on its line in Word's print and sends the tabs down; ours took "得" with them.)
                     flush(i)
