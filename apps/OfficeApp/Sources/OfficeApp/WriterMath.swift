@@ -289,6 +289,12 @@ enum WriterMath {
 
         /// How far below its baseline a run's ink reaches, in em: none for the digits and the letters
         /// that stand on the baseline (not g j p q y, nor brackets and other signs that hang).
+        /// (Word's math zone prints a typed apostrophe as the prime U+2032 and * as the asterisk operator U+2217,
+        /// except in a normal-text run: 6fca0f p6 ρ(x,x′)=ψ(x)ψ∗(x′) in Word's print.)
+        static func mathChars(_ s: String, literal: Bool) -> String {
+            guard RichTextTheme.wordWindowsPages, !literal, s.contains(where: { $0 == "'" || $0 == "*" }) else { return s }
+            return String(s.map { $0 == "'" ? "\u{2032}" : $0 == "*" ? "\u{2217}" : $0 })
+        }
         static func inkDepth(of s: String) -> Double {
             for u in s.unicodeScalars {
                 switch u.value {
@@ -397,7 +403,7 @@ enum WriterMath {
             var own = scriptSize(size, level)
             if let sz = r.first("w:rPr")?.first("w:sz")?["w:val"].flatMap(Double.init), sz > 0 { own = scriptSize(sz / 2, level) }
             let plain = r.first("m:rPr")?.first("m:sty")?["m:val"] == "p" || r.first("m:rPr")?.first("m:nor") != nil
-            let s = r.all("m:t").map(\.text).joined()
+            let s = Layout.mathChars(r.all("m:t").map(\.text).joined(), literal: r.first("m:rPr")?.first("m:nor") != nil)
             var parts: [Box] = []
             var piece = ""
             var pieceItalic = false
@@ -484,7 +490,7 @@ enum WriterMath {
             var own = scriptSize(size, 0)
             if let sz = r.first("w:rPr")?.first("w:sz")?["w:val"].flatMap(Double.init), sz > 0 { own = scriptSize(sz / 2, 0) }
             let plain = r.first("m:rPr")?.first("m:sty")?["m:val"] == "p" || r.first("m:rPr")?.first("m:nor") != nil
-            let s = r.all("m:t").map(\.text).joined()
+            let s = Layout.mathChars(r.all("m:t").map(\.text).joined(), literal: r.first("m:rPr")?.first("m:nor") != nil)
             var out: [(box: Box, breaksBefore: Bool)] = []
             var parts: [Box] = []
             var piece = ""
