@@ -1440,7 +1440,7 @@ enum ChartXML {
                 let index = s.autoIndex ?? series.count
                 if let scheme = fill.first("a:schemeClr"), _isCycle(scheme, index) {
                     // The theme's own colour for this series: follows the theme.
-                } else if let scheme = fill.first("a:schemeClr"), scheme.children.isEmpty {
+                } else if let scheme = fill.first("a:schemeClr"), scheme.children.isEmpty, (scheme["val"] ?? "").hasPrefix("accent") {
                     s.scheme = scheme["val"]
                 } else {
                     s.color = color(fill)
@@ -1511,6 +1511,7 @@ enum ChartXML {
                       let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) else { continue }
                 s.labelNudges[i] = Offset(x, y)
             }
+            s.labelPos = ser.first("c:dLbls")?.first("c:dLblPos")?["val"]
             series.append(s)
         }
         guard !series.isEmpty || allowEmpty else { return nil }
@@ -5241,6 +5242,8 @@ enum ChartPainter {
         }
         // Labels from cells, each with the bar it stands in the end of.
         var cellLabels: [(text: String, bar: Rect, series: ChartSeries)] = []
+        // Labels that end at their point instead of starting there: a Word bar's `dLblPos inEnd`.
+        var endAtPoint = Set<Int>()
         let fill = Paint()
         fill.style = .fill
         fill.isAntiAlias = true
@@ -5757,7 +5760,7 @@ enum ChartPainter {
                         t.layout(minWidth: 0, maxWidth: .infinity)
                         return t
                     }()
-                let dx = horizontal && !c.stacked ? 0 : tp.width / 2
+                let dx = endAtPoint.contains(li) ? tp.width : horizontal && !c.stacked ? 0 : tp.width / 2
                 let rise = horizontal ? 0 : Self._wordLabelRise(c, ser.labelSize ?? c.baseTextSize) * k
                 // (A label of several lines keeps its last line where a single one stood and grows upward.)
                 let lineCount = max(1, tp.computeLineMetrics().count)
