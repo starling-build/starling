@@ -2140,7 +2140,12 @@ extension RichLayout {
         var end: Double? = nil
         for (j, hp) in header.document.paragraphs.enumerated() where hp.cell == nil && j < header.layout._tops.count {
             for image in hp.inlineImages.inOrder + (hp.image.map { [$0] } ?? []) {
-                guard let f = image.float, f.takesRoom || f.bandsPage, !f.wraps, f.verticalFrom == "paragraph", f.verticalAlign == nil,
+                // (A square wrap round a picture as wide as the text leaves no room beside it: 90385e38's 611 pt banner, set 35 pt above
+                // its paragraph with its foot 71 pt below the paragraph's top, ends the header at its foot, the body's first line at 118.8
+                // in Word's print; ours stood 19.7 pt up.)
+                guard let f = image.float else { continue }
+                let fillsWidth = theme.wordRules && RichTextTheme.wordWindowsPages && f.wraps && !f.wrapsTight && image.width >= setup.contentWidth
+                guard f.takesRoom || f.bandsPage || fillsWidth, !f.wraps || fillsWidth, f.verticalFrom == "paragraph", f.verticalAlign == nil,
                       f.y >= 0 || (theme.wordRules && f.y + image.height > 0), image.height > 0 else { continue }
                 RuleTrace.hit("header-picture-from-its-paragraph-ends-the-header")
                 end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + _px(f.y) + _px(image.height) + _px(f.distanceBottom))
