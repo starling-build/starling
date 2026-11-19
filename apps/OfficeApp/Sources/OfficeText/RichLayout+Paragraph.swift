@@ -473,7 +473,10 @@ extension RichLayout {
                 // and each stands that much taller; ours took no room for
                 // either, and page 11 ran 2.7pt short by its foot.)
                 func frame(_ side: String) -> Double {
+                    // (A table ruled only through its cells' own lines, none at
+                    // the table level, stands no frame of its own: 3d6b9b5d's.)
                     guard theme.wordRules, spaced(c.row),
+                          (side == "top" ? c.edges?.top : c.edges?.bottom) == false || !ts.bordersFromCells,
                           (side == "top" ? ts.edges?.top : ts.edges?.bottom) ?? ts.borders else { return 0 }
                     let style = ts.edgeStyles[side] ?? ts.borderStyle
                     let width = ts.edgeWidths[side] ?? ts.borderWidth ?? 0.5
