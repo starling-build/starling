@@ -1770,6 +1770,19 @@ extension RichLayout {
                         return shaped > 0.01 ? s.copyWith(scaleX: ems * px / shaped) : s
                     }
                 }
+                // (Ethiopic letters, word by word, at Nyala's own advances: the stand-in has no Ethiopic glyph and sets each at 0.75 em, where Nyala's run 0.35 to 1.03; a letter we have not read takes the median. Other characters of the word keep their own width.)
+                if theme.wordRules, document.readFromFile, RichTextTheme.wordWindowsPages, let px = s.fontSize, px > 0.5,
+                   word.unicodeScalars.contains(where: { $0.value >= 0x1200 && $0.value <= 0x139F }) {
+                    var ems = 0.0
+                    var others = ""
+                    for u in word.unicodeScalars {
+                        if u.value >= 0x1200 && u.value <= 0x139F { ems += EthiopicAdvances.nyala[u.value] ?? EthiopicAdvances.median } else { others.unicodeScalars.append(u) }
+                    }
+                    let shaped = _wordWidth(s, String(word))
+                    let rest = others.isEmpty ? 0 : _wordWidth(s, others)
+                    RuleTrace.hit("word-ethiopic-letters-at-nyala-advances")
+                    return shaped > 0.01 ? s.copyWith(scaleX: (ems * px + rest) / shaped) : s
+                }
                 // (Hebrew, word by word, at the advances the face carries per letter: David's, from Word's prints. A run of underscores too: the Cambria stand-in's is 0.633 em where David's is 0.504, Word's 6.0pt at 12.)
                 // (A number of a right-to-left run, digits and its separators, in a face that carries those advances too: FrankRuehl's 0.415 em digit in
                 // xd 38d880e8's case number, where the Latin stand-in's 0.553 ran the line wider. Direction marks have no width.)
