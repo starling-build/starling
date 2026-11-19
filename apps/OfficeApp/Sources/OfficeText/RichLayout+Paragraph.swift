@@ -4551,10 +4551,14 @@ extension RichLayout {
             let hit = text.unicodeScalars.contains { u in
                 let v = u.value
                 return (v >= 0x25A0 && v <= 0x25FF) || v == 0xB7 || (v >= 0x2460 && v <= 0x2469) || v == 0x203B || v == 0x2192
-                    || v == 0x2018 || v == 0x2019 || v == 0x201C || v == 0x201D
+                    || v == 0x2018 || v == 0x2019 || v == 0x201C || v == 0x201D || v == 0xB1
             }
             let viaEastAsia = theme.faceResolver?(run.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                            ?? run.style.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.malgunSymbols == true
+            // (A quote or plus-minus sign that is a run of its own, set in Gulim, is drawn in Malgun Gothic: see `_span`'s joiner. xd b6f6c7d4 page 28.)
+            let viaLone = run.style.loneQuote && !run.style.hAnsiNamedAsAscii
+                && ["굴림", "gulim"].contains((run.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? run.style.fontFamily ?? "").trimmingWhitespace().lowercased())
+                && ["맑은 고딕", "malgun gothic"].contains((_normalChar(document)?.hAnsiFontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased())
             // (A run that names only a missing ascii face, with no eastAsia slot of its own, is judged by that face as in `_span`'s
             // joiner, though the style's eastAsia face is Batang itself: fe41a48c's 한양신명조 △△△ in 바탕글.)
             let viaAscii = run.style.eastAsiaFontFamily == nil && run.style.fontFamily != nil
@@ -4563,7 +4567,7 @@ extension RichLayout {
             let won = text.unicodeScalars.contains { $0.value == 0x20A9 } && run.style.fontHint != "eastAsia"
                 && theme.faceResolver?(run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false)?.isEastAsian == true
             guard (hit || won), !(run.style.eastAsiaFontFamily != nil && (run.style.fontHint ?? named?.char.fontHint) == "eastAsia"),
-                  viaEastAsia || viaAscii || won else { continue }
+                  viaEastAsia || viaAscii || viaLone || won else { continue }
             let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
             // (Word's shift is a constant 0.2833 em once the spacing is over single:
             // the same 3.4pt at 12pt for 1.7x (lab c466d30a) and 3x (xd 07eecf7a);
