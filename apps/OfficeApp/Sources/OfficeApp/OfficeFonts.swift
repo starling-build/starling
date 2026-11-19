@@ -1037,7 +1037,8 @@ enum OfficeFonts {
     }
 
     private static func _namesEastAsianFace(_ family: String) -> Bool {
-        if family.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) { return true }
+        // (The Latin ligatures U+FB00..FB06 in a mangled Latin name ("pNﬂ∑˛", ita-z13342017's body, alternate Calibri) are not East Asian.)
+        if family.unicodeScalars.contains(where: { $0.value >= 0x2E80 && !(0xFB00 ... 0xFB06).contains($0.value) }) { return true }
         let n = family.trimmingWhitespace().lowercased()
         for key in ["simsun", "simhei", "kaiti", "fangsong", "yahei", "dengxian", "mingliu", "dfkai", "jhenghei",
                     "stsong", "stkaiti", "stfangsong", "stzhongsong", "stxihei", "stxinwei", "stheiti", "songti", "heiti",
