@@ -2586,9 +2586,16 @@ extension RichLayout {
         // by a break; lo orrick's body, 9.5pt high in Word's print.)
         var topRaise = 0.0
         if theme.wordRules, RichTextTheme.wordWindowsPages, document.suppressesTopSpacing, p.cell == nil,
-           i == 0 || _pageBreak[i], !style.lineHeightIsMinimum, let h = style.lineHeightPoints, h > 12 {
-            RuleTrace.hit("suppress-top-spacing-raises-the-page-first-exact-line")
-            topRaise = _px(0.8 * (h - 12))
+           i == 0 || _pageBreak[i], let h = style.lineHeightPoints, h > 12 {
+            // (An "at least" height stands h - 9.4pt higher instead: lab atleast, Calibri 11 and 16
+            // at 13, 16, 20, 24 and 30pt: first baseline 78.6 on page 1 and every later page.)
+            if style.lineHeightIsMinimum {
+                RuleTrace.hit("suppress-top-spacing-raises-the-page-first-atleast-line")
+                topRaise = _px(h - 9.4)
+            } else {
+                RuleTrace.hit("suppress-top-spacing-raises-the-page-first-exact-line")
+                topRaise = _px(0.8 * (h - 12))
+            }
         }
         let before = (theme.wordRules ? (cellBreakLead ? 0 : spacing.before) + bTop : (spacing.before + bTop).rounded()) + _px(frameGap) - topRaise + _sectionEndnotesHeight(before: i, document)
         let after = spacing.after + bBottom

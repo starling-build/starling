@@ -4845,9 +4845,9 @@ extension RichLayout {
             // `_layoutParagraph` does it for the document's first and a break's.)
             var naturalRise = 0.0
             if theme.wordRules, RichTextTheme.wordWindowsPages, document.suppressesTopSpacing, resumeCursor == nil,
-               _cells[i] == nil, i > 0, !_pageBreak[i], !document.paragraphs[i].style.lineHeightIsMinimum,
+               _cells[i] == nil, i > 0, !_pageBreak[i],
                let h = document.paragraphs[i].style.lineHeightPoints, h > 12 {
-                naturalRise = _px(0.8 * (h - 12))
+                naturalRise = _px(document.paragraphs[i].style.lineHeightIsMinimum ? h - 9.4 : 0.8 * (h - 12))
             }
             while cursor < bottom - 0.01 {
                 if leavesLead, pageFresh, y < 0.01, page > 0, cursor <= top + 0.01 { cursor = min(bottom, top + lead) }
