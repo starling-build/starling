@@ -584,6 +584,8 @@ extension RichLayout {
                        p.runs[i + 1].style.eastAsiaFontFamily == nil || circledOnly(st, p.runs[i + 1].length) { eaRunEnds.insert(st) }
                 }
             }
+            var runStarts: [Int] = []
+            do { var st = 0; for r in p.runs { runStarts.append(st); st += r.length } }
             var at = 0
             var run: [Int] = []
             var nbsp: Set<Int> = []
@@ -599,6 +601,15 @@ extension RichLayout {
                     // (Between a Latin pair of brackets they are half an em too, in Word for Windows: zh-7b125a21's
                     // fill-in "(  )" sets its two 5.25 each at 10.5pt, where 2.6 took a character more a line. Not
                     // two spaces between words, nor a page number's "—  10  —". "[  ]" likewise: xb jpn 771abc's "[  ]は訳注" in 11pt Yu Mincho, 5.5 each.)
+                    // (A space that sits in a run whose East Asian face is a Latin one (docDefaults Calibri for all four slots), beside Han
+                    // in the NEXT run, stays the Latin space: xb 7e68ac6f's "CP19a " + MS Mincho run sets it 2.4 at 11 pt, ours 5.5.)
+                    if RichTextTheme.wordWindowsPages, nbsp.isEmpty, let lc = left, lc.isASCII, lc.isLetter || lc.isNumber, let rc = right, rc.unicodeScalars.first.map({ $0.value >= 0x4E00 && $0.value <= 0x9FFF || ($0.value >= 0x3040 && $0.value <= 0x30FF) }) == true, let o = run.last, run.count == 1,
+                       let ri = runStarts.lastIndex(where: { $0 <= o }), ri + 1 < p.runs.count, p.runs[ri].style.eastAsiaFontFamily == nil || p.runs[ri].style.eastAsiaFontFamily == p.runs[ri].style.fontFamily,
+                       o + 1 == (runStarts[ri] + p.runs[ri].length), p.runs[ri + 1].style.eastAsiaFontFamily != nil,
+                       let ef = theme.faceResolver?(p.runs[ri].style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? "", true), !ef.isEastAsian {
+                        RuleTrace.hit("latin-run-space-before-east-asian-run-stays-latin")
+                        return
+                    }
                     if !(latin(left) && latin(right)) || (RichTextTheme.wordWindowsPages && ((left == "(" && right == ")") || (left == "[" && right == "]"))) || eaRunEnds.contains((run.last ?? 0) + 1) || numberedHead(run) {
                         let balanced = run.filter { !complexSpaces.contains($0) }
                         wideSpaces.formUnion(balanced)
