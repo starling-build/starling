@@ -1352,8 +1352,12 @@ extension RichLayout {
             let a = float.verticalAlign ?? "top"
             // (Aligned from the bottom margin, the box stands in that margin's strip: xd 67a3b93a's "UI Booklet" boxes,
             // anchored "top of the bottom margin", stand on the footer line in Word's print, not up the page with their paragraph.)
-            let top = float.verticalFrom == "page" ? 0 : float.verticalFrom == "bottomMargin" ? page.height - page.bottom : page.top
-            let span = float.verticalFrom == "page" ? page.height : float.verticalFrom == "bottomMargin" ? page.bottom : page.height - page.top - page.bottom
+            // (A footer taller than the margin's room opens the margin upward: poi-51272c8358's page-number oval, centred
+            // in the bottom margin's strip, stands 5.7pt higher in Word's print than the nominal margin gives, the strip
+            // beginning where the footer's own text does.)
+            let stripTop = float.verticalFrom == "bottomMargin" && float.verticalAlign != nil && floatsFrames ? min(page.height - page.bottom, regionTopOnPage ?? .infinity) : page.height - page.bottom
+            let top = float.verticalFrom == "page" ? 0 : float.verticalFrom == "bottomMargin" ? stripTop : page.top
+            let span = float.verticalFrom == "page" ? page.height : float.verticalFrom == "bottomMargin" ? page.height - stripTop : page.height - page.top - page.bottom
             let whole = h + _px(float.effectBottom)
             let onPage = top + (bottomOffset ? _px(float.y) : a == "center" ? (span - whole) / 2 : a == "bottom" ? span - whole : 0)
             if floatsFrames, let region = regionTopOnPage {

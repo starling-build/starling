@@ -4783,7 +4783,9 @@ enum DocxFormat {
                 case "margin-left": if let v = _length(value) { f.x = v }
                 case "margin-top": if let v = _length(value) { f.y = v }
                 case "mso-position-horizontal-relative": f.horizontalFrom = value == "text" ? "column" : value
-                case "mso-position-vertical-relative": f.verticalFrom = value == "text" ? "paragraph" : value
+                // (VML names the bottom margin's strip "bottom-margin-area", DrawingML "bottomMargin": a footer's
+                // page-number oval centred in it stands mid-strip in Word's print, poi-51272c8358's 19pt lower than ours.)
+                case "mso-position-vertical-relative": f.verticalFrom = value == "text" ? "paragraph" : value == "bottom-margin-area" ? "bottomMargin" : value
                 case "mso-position-horizontal": if value != "absolute" { f.horizontalAlign = value }
                 case "mso-position-vertical": if value != "absolute" { f.verticalAlign = value }
                 case "mso-wrap-distance-top": if let v = _length(value) { f.distanceTop = v }
