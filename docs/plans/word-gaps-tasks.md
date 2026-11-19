@@ -17985,3 +17985,4 @@ amd-5 CLAIM (2026-11-19): Portuguese g1 (pt-g1.tsv) below 97: dx2 9d7e8c61 (51.0
 - NOT DONE: ebe45609 (7/197 matched; Word text starts y 711.7, ours 557.4; blank paragraphs below two pictures; picture 3 x 230 unexplained), 613edc1c (87.8, 245/279; page 2 first table 19.6 pt too high, many exact 10 pt empty paragraphs), fe15f71d (84/85 left).
 - Note: we draw double borders as two overlapping 0.48 pt lines; Word draws two 0.72 pt lines (paint gap, not fixed).
 - Trap: amend after a soft reset rewrites the top commit; use git reflog to recover.
+- CLAIM amd-11 2026-11-19: SA1 Spanish OPEN amd-11 list (90385e38, 6d68ddbf, 3a00de51, c4f2b4bd, 03f63881, bfe94022, e466671e, 06706f28, 9714db5f, fd1997fd, a56e81ec), lowest first; then 613edc1c, fe15f71d. cd95b495 cell lab (lab/cellrind) printing on Windows.
