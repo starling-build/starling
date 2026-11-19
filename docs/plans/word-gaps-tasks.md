@@ -17850,3 +17850,4 @@ sdk-9 round2: a1263627 (xd, Thai in cell, break before closing quote ” on p9; 
 - lenovo-5 CLAIM (2026-11-19, starling-bd): table autofit gap (content min/max column widths, lab/autofit notes at 17479), then lowest table-first docs on the tip. Thai too.
 - lenovo-3 CLAIM 2026-11-19: RTL docs below 97 (dx2 28af2ce5, c2c3a2f3, 21b6269d, f7d88376, 2d7a47f4; then xb ara/fas/urd list). Re-rendering on tip first.
 - amd-1 CLAIM (2026-11-19, coordinator brief): fit-vs-final width cases 02bdf459 p0 y383, d760f1e5, 73caaeda p4 SP+NBSP hang (sdk-7 left it parked), then xd b6f6c7d4 p10 drift. One at a time; corpus prints only.
+- amd-3 CLAIM (2026-11-19, starling-bd): Japanese docs below 97 on the tip, lowest first: dx2 ee0b468e, xb jpn-z22855378-6fca0f, dx2 4fbb6e32, 934bd3e5, 28abf02c, c67f3706, xb jpn-g6-2212a2 (ee0b468e and 934bd3e5 are the known ruby text-layer artifact; checking on the tip first). Then equations 20d9968b, a969ba6c.
