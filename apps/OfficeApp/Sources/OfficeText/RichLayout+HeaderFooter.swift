@@ -198,7 +198,7 @@ extension RichLayout {
     func _bodyBoxHeight(_ image: ImageAttachment, _ document: RichDocument) -> Double {
         let stated = _px(image.height)
         guard theme.wordRules, RichTextTheme.wordWindowsPages, image.float != nil, let box = image.textBox, box.autoHeight,
-              !box.growsToFit, !box.fitsText else { return stated }
+              !box.growsToFit else { return stated }
         let fitted = _fittedBoxHeight(image, document)
         if fitted < stated { RuleTrace.hit("word-body-autofit-box-wraps-at-its-text-height"); _autofitHeights["\(image.id)"] = fitted }
         return fitted
