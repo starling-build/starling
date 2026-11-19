@@ -612,7 +612,7 @@ public final class RichTextTheme {
         guard size > 0, let face = faceResolver?(familyName, eastAsian) else { return nil }
         let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight ?? naturalLineHeight(family: face.family, bold: bold, italic: italic)
         let ascent = (bold ? face.boldBaseline : nil) ?? face.baseline ?? 0.8
-        let rubySize = ruby.size > 0 ? ruby.size : size / 2
+        let rubySize = ruby.size < 0 ? size : ruby.size > 0 ? ruby.size : size / 2
         let raise = ruby.raise > 0 ? ruby.raise : size / 2
         let above = max(0, raise + ascent * rubySize - ascent * size)
         let line = lineBox(size: size, natural: natural + above / size, baseline: nil, in: paragraph, gridPitch: gridPitch).height

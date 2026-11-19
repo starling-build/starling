@@ -4230,6 +4230,24 @@ enum DocxFormat {
         return (ruby, base, size, raise, align)
     }
 
+    /// An `EQ \o(base,\s\up N(over),\s\do M(under))` field: the base, the item set above it (with its raise in
+    /// points) and the item set below, or nil for any other field.
+    static func _eqStack(_ instr: String) -> (base: String, over: String, raise: Double, under: String)? {
+        let t = instr.trimmingWhitespace(newlines: true)
+        guard t.uppercased().hasPrefix("EQ"), let o = t.rangeOfSubstring("\\o("), t.hasSuffix("))"),
+              let up = t.rangeOfSubstring(",\\s\\up"), let down = t.rangeOfSubstring("),\\s\\do") else { return nil }
+        let base = String(t[o.upperBound ..< up.lowerBound])
+        let upPart = t[up.upperBound ..< down.lowerBound]
+        guard let open = upPart.firstIndex(of: "("), !base.isEmpty else { return nil }
+        let raise = Double(String(upPart[upPart.startIndex ..< open]).trimmingWhitespace(newlines: true)) ?? 0
+        let over = String(upPart[upPart.index(after: open)...])
+        let downPart = t[down.upperBound ..< t.index(t.endIndex, offsetBy: -2)]
+        guard let open2 = downPart.firstIndex(of: "(") else { return nil }
+        let under = String(downPart[downPart.index(after: open2)...])
+        guard !over.isEmpty, !over.containsSubstring("("), !under.containsSubstring("(") else { return nil }
+        return (base, over, raise, under)
+    }
+
     /// The circled number an `eq \o\ac(○,N)` field draws (N from 1 to
     /// 20), or nil for any other field.
     static func _ringedNumber(_ instr: String) -> String? {
@@ -7451,6 +7469,15 @@ enum DocxFormat {
                             RuleTrace.hit("eq-ruby-like-w-ruby")
                             var look = notes.fieldCodeStyle[f.id] ?? cs
                             look.ruby = RubyText(text: eq.ruby, size: eq.size, raise: eq.raise, align: eq.align, group: text.utf16.count, xml: "")
+                            addText(eq.base, look)
+                        }
+                        // (An overstrike stack with an item above and one below, `EQ \o(arrow,\s\up7(催化剂),\s\do7(△))`: Word sets the
+                        // base's width, the over item rides 7 pt up at the base text size (RubyText size -1) and lifts its line (lo-ae4f3e8e p2 first line stands
+                        // 4.8 pt lower, so the paragraph moves to the next page). The under item is not drawn yet.)
+                        if let f = notes.fields.last, !f.result, let eq = DocxFormat._eqStack(f.instr) {
+                            RuleTrace.hit("eq-stack-over-item-rides-up")
+                            var look = notes.fieldCodeStyle[f.id] ?? cs
+                            look.ruby = RubyText(text: eq.over, size: -1, raise: eq.raise, align: "center", group: text.utf16.count, xml: "")
                             addText(eq.base, look)
                         }
                         if let f = notes.fields.last, !f.result, let ringed = DocxFormat._ringedNumber(f.instr) {

@@ -4889,7 +4889,7 @@ extension RichLayout {
         var look = g.style
         look.ruby = nil
         look.letterSpacing = nil
-        look.fontSize = g.ruby.size > 0 ? g.ruby.size : (g.style.fontSize ?? named?.char.fontSize ?? theme.fontSize) / 2
+        look.fontSize = g.ruby.size < 0 ? (g.style.fontSize ?? named?.char.fontSize ?? theme.fontSize) : g.ruby.size > 0 ? g.ruby.size : (g.style.fontSize ?? named?.char.fontSize ?? theme.fontSize) / 2
         let s = theme.textStyle(for: look, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: true)
         return TextStyle(color: s.color, fontSize: s.fontSize, fontWeight: s.fontWeight, fontStyle: s.fontStyle,
                          fontFamily: s.fontFamily, fontFamilyFallback: s.fontFamilyFallback)
