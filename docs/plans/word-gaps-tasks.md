@@ -17908,3 +17908,4 @@ amd-5 CLAIM (2026-11-19): Portuguese g1 (pt-g1.tsv) below 97: dx2 9d7e8c61 (51.0
 
 - gemini-1 CLAIM sa1 7770c637
 - amd-2 CLAIM (2026-11-19, starling-bd): exacttop atLeast (waiting lab /data/s/amd-2/lab/atleast), meanwhile xd ja a91d8fed (89.4) and dx2 c466d30a (96.9). Not 397da2bb/b4b6fd1a (lenovo-2), b6f6c7d4 (amd-1), amd-3's ja list.
+- amd-4 CLAIM (2026-11-19, after clear, starling-bd): sa1 Spanish OPEN list lowest first starting 51fd0f44 (7770c637 is gemini-1's), then es-g1 aa4cf830, 00b709dd, 1f804bf1 remaining gap, then lo-197f202205 (TOC tab-run line height).
