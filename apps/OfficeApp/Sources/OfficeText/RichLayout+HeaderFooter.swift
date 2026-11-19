@@ -2897,6 +2897,7 @@ extension RichLayout {
             let lastPage = page(atCanvasY: visible.bottom)
             let numbered = !shading && theme.wordRules && (pageSetup?.lineNumbers != nil || _sectionSetups.contains { $0.lineNumbers != nil })
             let ordinals = numbered ? _lineNumberOrdinals(document) : [:]
+            var floatTableFirstPage: [String: Int] = [:]
             for p in firstPage ... lastPage {
                 let pageTop = pageRect(p).top + _pxMarginTop(p)
                 let verticalShifts = _verticalAlignShifts(p, document)
@@ -2915,6 +2916,19 @@ extension RichLayout {
                         }
                         let acrossTable = _cells[piece.paragraph].map { _acrossColumns($0.table, document) } ?? false
                         if acrossTable { left = _perSection ? _pxColumnLeft(p, column: 0, paragraph: piece.paragraph) : _pxMarginLeft(p) }
+                        // (Mirrored margins: a floating table set from the text or the margin stands where its
+                        // FIRST page puts it and keeps that on the pages it runs over to. xd efbb06c2's tblpX 99
+                        // table begins on an even page, margin 70.9, and stands at 70.7 on the odd page after it
+                        // in Word's print, not at that page's own 42.6.)
+                        if theme.wordRules, RichTextTheme.wordWindowsPages, _mirrorsMargins, _columns == 1, !_perSection,
+                           let cell = _cells[piece.paragraph], let ts = document.tableStyles[cell.table], ts.floatsOverText,
+                           ts.floatX != nil, ts.floatXAnchor != "page" {
+                            if floatTableFirstPage[cell.table] == nil {
+                                let first = _tableFirstParagraph[cell.table] ?? piece.paragraph
+                                floatTableFirstPage[cell.table] = _allPieces.first(where: { $0.paragraph == first && !$0.repeated }).map { $0.page / _columns } ?? p
+                            }
+                            if let fp = floatTableFirstPage[cell.table], fp != p { left = _pxMarginLeft(fp) + Double(column) * _pxColumnStride(fp) }
+                        }
                         let columnW = _perSection ? _px(_setup(ofParagraph: piece.paragraph).columnWidth) : _pxColumnW(p)
                         let manyColumns = _perSection ? _columnsOf(paragraph: piece.paragraph) > 1 : _columns > 1
                         // One column clips to its own width; a lone column keeps
