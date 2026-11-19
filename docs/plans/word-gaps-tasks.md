@@ -17853,3 +17853,4 @@ sdk-9 round2: a1263627 (xd, Thai in cell, break before closing quote ” on p9; 
 - amd-3 CLAIM (2026-11-19, starling-bd): Japanese docs below 97 on the tip, lowest first: dx2 ee0b468e, xb jpn-z22855378-6fca0f, dx2 4fbb6e32, 934bd3e5, 28abf02c, c67f3706, xb jpn-g6-2212a2 (ee0b468e and 934bd3e5 are the known ruby text-layer artifact; checking on the tip first). Then equations 20d9968b, a969ba6c.
 - amd-6 CLAIM 2026-11-19: dx2 33a4668e (floating tables, 13 vs 23 pages; first fix 0fecb4d07 landed) then its Times New Roman 14 Arabic face choice.
 amd-5 CLAIM (2026-11-19): Hindi below 97, lowest first: dx2 6dcc4527 (93.6, stale baseline), xd d760f1e5 (95.9), xd 77d6ca49 (96.5). Re-rendering on tip 1e99a7d6e first.
+- amd-7 CLAIM (2026-11-19, starling-bd): Bengali docs below 97 on the tip: xd 73caaeda, dx2 2263e221, e86e26f7, 3f7da49c, bea98273, bede0fbc, 9ddfc84d (re-render on tip first).
