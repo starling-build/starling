@@ -4870,7 +4870,21 @@ extension RichLayout {
             guard let n = theme.naturalLine(for: r.style, named: named, eastAsian: true) else { continue }
             plain = max(plain, (n / pitch - 0.002).rounded(.up) * pitch)
         }
-        return line.height * size > plain + 0.01
+        if line.height * size > plain + 0.01 { return true }
+        // (Same pitches, but the ruby stands higher than the plain text's own ascent: Word still centres the ruby's room and the text in the
+        // pitches, f42177d2's 22pt title, 21pt raise, 11pt ruby, 54 pt either way: base 95.3 in Word's print, 91.3 unshifted. A ruby inside the
+        // plain ascent leaves the line as the plain text has it: the fltpage4 lab.)
+        guard let rt = ruby.ruby, theme.wordRules else { return false }
+        let rubySize = rt.size < 0 ? size : rt.size > 0 ? rt.size : size / 2
+        let raise = rt.raise > 0 ? rt.raise : size / 2
+        var rs = ruby; rs.ruby = nil; rs.fontSize = rubySize
+        var plainAscent = 0.0
+        for r in p.runs where r.style.ruby == nil && r.length > 0 && r.style.inlineImage == nil {
+            if let b = theme.baseline(for: r.style, in: p.style, named: named, eastAsian: true, gridPitch: nil) { plainAscent = max(plainAscent, b) }
+        }
+        guard plainAscent > 0, let rb = theme.baseline(for: rs, in: p.style, named: named, eastAsian: true, gridPitch: nil) else { return false }
+        if raise + rb > plainAscent + 0.01 { RuleTrace.hit("word-ruby-above-the-plain-ascent-centres-in-the-same-pitches"); return true }
+        return false
     }
 
     /// On a line grid a ruby's base is moved down with its line (`rubyLine`); where
