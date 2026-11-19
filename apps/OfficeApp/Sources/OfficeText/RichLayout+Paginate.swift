@@ -2450,6 +2450,46 @@ extension RichLayout {
                     } else {
                         y += _px(down)
                     }
+                    // (A floating table that keeps text off (tblOverlap never) after another that does, sharing part of its width
+                    // (the run's anchor has them one level): it stands below that one's rows on this page, and goes to the next
+                    // where it does not fit there. Word's print of dx2 33a4668e, two right-hand tables one after the other: the
+                    // first fills page 7, the second stands on page 8 beside the left table; ours set it level with the first,
+                    // over it, and every pair after it was a page late.)
+                    var before = i - 1
+                    while before > 0, _cells[before] == nil, document.paragraphs[before].text.isEmpty, document.paragraphs[before].image == nil { before -= 1 }
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, i > 0, let prevT = _cells[before]?.table, prevT != c.table,
+                       let first = document.tableStyles[prevT], first.floatsOverText, !first.pageAnchored,
+                       let second = document.tableStyles[c.table], second.floatsOverText, !second.pageAnchored,
+                       second.keptPosition?.containsSubstring("tblOverlap w:val=\"never\"") == true,
+                       first.keptPosition?.containsSubstring("tblOverlap w:val=\"never\"") == true,
+                       let sw = _columnWidths[c.table] {
+                        let sl = _tableLeft(c.table, document)
+                        var foot: CGFloat = 0
+                        var rows: [PagePiece] = []
+                        for pc in _pages[page] where !pc.repeated {
+                            guard let ot = _cells[pc.paragraph]?.table, ot != c.table else { continue }
+                            guard let os = document.tableStyles[ot], os.floatsOverText, !os.pageAnchored,
+                                  os.keptPosition?.containsSubstring("tblOverlap w:val=\"never\"") == true,
+                                  let ow = _columnWidths[ot] else { continue }
+                            let ol = _tableLeft(ot, document)
+                            guard sl < ol + ow.reduce(0, +) - 0.01 && sl + sw.reduce(0, +) > ol + 0.01 else { continue }
+                            rows.append(pc)
+                            foot = max(foot, pc.pageY + (pc.flowBottom - pc.flowTop))
+                        }
+                        let shares = !rows.isEmpty
+                        if shares, !rows.isEmpty, foot > y - 0.01 {
+                            RuleTrace.hit("word-never-overlap-floating-table-stands-below-the-float-it-shares-width-with")
+                            y = max(y, foot)
+                            // (Its first row goes whole to the next page where it does not fit under that foot, with the run's
+                            // anchor: the table after it at the other margin then stands level with it there.)
+                            if y + c.ownRowHeight > contentH + 0.01, y > 0.01 {
+                                newPage()
+                                floatRunBase = (c.table, page, y)
+                                if let tf = textFloatTop, tf.table == c.table { textFloatTop = (c.table, page, y, tf.down, tf.chained) }
+                                y += _px(down)
+                            }
+                        }
+                    }
                 }
                 // (And one placed above the text's place, at a page's head,
                 // that much up into the top margin: zh-76700e5f's cover table,
@@ -3089,6 +3129,15 @@ extension RichLayout {
                     // line 13pt lower in Word's print than ours at the top.)
                     if theme.wordRules, c.row == 0, c.firstInRow, i == 0 || _cells[i - 1]?.table != c.table,
                        let down = document.tableStyles[c.table]?.floatOffsetY, !(document.tableStyles[c.table]?.pageAnchored ?? false) {
+                        // (The run's anchor goes with it: the table after, at the other margin, hangs from the same level on this
+                        // page, not from where the first stood on the one before. dx2 33a4668e, tblOverlap never: a right-hand
+                        // table carried whole to the next page has the left-hand one beside it there in Word's print.)
+                        if theme.wordRules, RichTextTheme.wordWindowsPages, let fb = floatRunBase, fb.table == c.table,
+                           document.tableStyles[c.table]?.keptPosition?.containsSubstring("tblOverlap w:val=\"never\"") == true {
+                            RuleTrace.hit("word-never-overlap-floating-table-carried-whole-takes-its-run-anchor-with-it")
+                            floatRunBase = (c.table, page, y)
+                            if let tf = textFloatTop, tf.table == c.table { textFloatTop = (c.table, page, y, tf.down, tf.chained) }
+                        }
                         y += _px(down)
                     }
                     // (And one placed against the page stands at its offset

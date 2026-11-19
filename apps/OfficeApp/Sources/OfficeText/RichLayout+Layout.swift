@@ -799,6 +799,12 @@ extension RichLayout {
         return (String(style), max(0.25, (value("w:sz").flatMap { Double($0) } ?? 4) / 8))
     }
 
+    /// True where the cell's side says `w:sz="0"` outright; nil where it names no such side.
+    static func _cellSideZero(_ xml: String?, _ side: String) -> Bool? {
+        guard let xml, let a = xml.firstRange(of: "<w:\(side) "), let b = xml[a.upperBound...].firstRange(of: ">") else { return nil }
+        return xml[a.upperBound ..< b.lowerBound].firstRange(of: "w:sz=\"0\"") != nil
+    }
+
     /// The colour a side's `w:color` says (auto, or none said: nil).
     static func _cellSideColor(_ xml: String?, _ side: String) -> Color? {
         guard let xml, let a = xml.firstRange(of: "<w:\(side) "), let b = xml[a.upperBound...].firstRange(of: ">") else { return nil }

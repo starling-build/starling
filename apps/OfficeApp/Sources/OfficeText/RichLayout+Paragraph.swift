@@ -305,6 +305,10 @@ extension RichLayout {
                     let style = said?.style ?? ts.edgeStyles[tableSide] ?? ts.borderStyle
                     let width = said?.width ?? (ts.edgeWidths[tableSide] ?? ts.borderWidth ?? 0.5)
                     var room = Self._ruleRoom(style, width)
+                    // (A rule the cell states with an explicit w:sz="0" is a
+                    // hairline Word draws without growing the row: dx2
+                    // 33a4668e's rows are 0.25 pt shorter than ours.)
+                    if said != nil, theme.wordRules, Self._cellSideZero(d.bordersXML, side) ?? Self._cellSideZero(d.rowBordersXML, side) ?? false { RuleTrace.hit("word-cell-side-border-size-zero-adds-no-row-room"); return 0 }
                     // (At the table's own edge the wider of its line and the
                     // cell's wins: zh-cb56e605's outset top over a cell's
                     // single 0.5 — Word's header stands 0.8 lower.)
@@ -3853,7 +3857,12 @@ extension RichLayout {
                 let reach = pictureTabs ? -0.01 : 0.5
                 let stop = style.tabStops.map { _px($0.position) }.sorted().first(where: { $0 > x + reach })
                     ?? (step > 0 ? ((x + reach) / step).rounded(.down) * step + step : x)
-                if stop > ownLeft + textWidth + 0.5 {
+                // (A right-aligned paragraph's trailing tab past the margin takes no line of its own: the
+                // text stands flush right and the tab hangs, as the trailing spaces do. dx2 33a4668e's header, a
+                // page number set right with a tab after it, one 13.4pt line in Word's print, ours two.)
+                let hangsRight = theme.wordRules && RichTextTheme.wordWindowsPages && !pictureTabs && style.alignment == .right && !style.rightToLeft
+                if hangsRight, stop > ownLeft + textWidth + 0.5 { RuleTrace.hit("word-right-aligned-trailing-tab-takes-no-line") }
+                if !hangsRight, stop > ownLeft + textWidth + 0.5 {
                     if pictureTabs {
                         var mark = p.style.mark ?? p.runs.first?.style ?? CharStyle()
                         mark.inlineImage = nil
