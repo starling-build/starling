@@ -1124,8 +1124,8 @@ extension RichLayout {
             let latinFaceNamed: Bool = {
                 if run.fontFamily != nil { return true }
                 guard theme.wordRules, RichTextTheme.wordWindowsPages else { return false }
-                // (Devanagari paragraphs only: dx2 d611e23b, Telugu with Arial from Normal, draws its Latin at the Indic scale in Word.)
-                guard p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 }) else { return false }
+                // (Devanagari and Gurmukhi paragraphs only: dx2 d611e23b, Telugu with Arial from Normal, draws its Latin at the Indic scale in Word; Gurmukhi: dx2 6af76fa9, Arial from the table style, "(ATAR)" is Arial's own width.)
+                guard p.text.unicodeScalars.contains(where: { ($0.value >= 0x905 && $0.value <= 0x939) || ($0.value >= 0xA05 && $0.value <= 0xA39) }) else { return false }
                 let f = (named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
                 return !f.isEmpty && !f.hasPrefix("nirmala ui") && WordWindowsFaces.names.contains(f)
             }()
@@ -1255,7 +1255,7 @@ extension RichLayout {
                 && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xB00 })
             let mangalLatinSpace: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && document.readFromFile
                 && (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "mangal"
-                && p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 })
+                && p.text.unicodeScalars.contains(where: { ($0.value >= 0x905 && $0.value <= 0x939) || ($0.value >= 0xA05 && $0.value <= 0xA39) })
             let utsaahLatin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "utsaah"
             let namedFace: String? = text.unicodeScalars.contains(where: { $0.properties.isAlphabetic && Self._isIndic($0.value) }) ? nil : _namedMetricFace(run, named, document, text)
             // (Kalimati is a face Windows lacks, drawn in Mangal: a space-only paragraph whose MARK is a complex-script one (`w:cs`) takes Mangal's line,
@@ -2281,11 +2281,11 @@ extension RichLayout {
                             plainPiece = !isIndic
                             // (Latin letters and digits of a run that names its own Latin face are that face's, not stretched by the Indic scale:
                             // d912c25b's "(COVID-19)", Calibri 12, 54.7 pt in Word, 57.9 here.)
-                            latinNoScale = !isIndic && latinFaceNamed && p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 }) && (piece.contains(where: { $0.isLetter || $0.isNumber }) || piece.unicodeScalars.contains(where: { $0.value > 0x20 }) && piece.unicodeScalars.allSatisfy({ $0.value < 0x80 && $0.value != 0x20 })) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
+                            latinNoScale = !isIndic && latinFaceNamed && p.text.unicodeScalars.contains(where: { ($0.value >= 0x905 && $0.value <= 0x939) || ($0.value >= 0xA05 && $0.value <= 0xA39) }) && (piece.contains(where: { $0.isLetter || $0.isNumber }) || piece.unicodeScalars.contains(where: { $0.value > 0x20 }) && piece.unicodeScalars.allSatisfy({ $0.value < 0x80 && $0.value != 0x20 })) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
                             // (A space between Devanagari words in a run whose ascii face is a Windows Latin face (Calibri, Arial): Word draws it in that face (Hindi only: the Gujarati table is not re-measured and b785c95e's lines were level only by luck) at the
                             // run's size, 0.2256 em in Calibri; the Indic stretch (scaleX) belongs to the Devanagari glyphs only. d912c25b: 2.94 pt here, 2.76 in Word. The same for the ASCII marks (not the spaces: those follow the rule above for every Windows face) of a run that names, itself, a Latin face whose Windows metrics we hold (`WordWindowsFaces.metricsHeld`; PROVISIONAL: the stand-in's advances are used, not the face's own, so only the Indic stretch is dropped); a theme-derived or Aptos run drew its marks wide (xd 77d6ca49 17.5 to 4.5): ", " "-" ". " drawn at 12.48 here against Calibri's 12.0, 0.8 pt over one line: d912c25b p2 "...एक यह".)
                             let asciiFace = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
-                            latinNoScale = latinNoScale || !isIndic && theme.wordRules && RichTextTheme.wordWindowsPages && !piece.isEmpty && (piece.allSatisfy({ $0 == " " }) || run.fontFamily != nil && WordWindowsFaces.metricsHeld.contains(asciiFace) && piece.unicodeScalars.allSatisfy({ $0.value < 0x80 && !$0.properties.isAlphabetic && !($0.value >= 0x30 && $0.value <= 0x39) })) && p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 }) && !asciiFace.isEmpty && !asciiFace.hasPrefix("nirmala ui") && WordWindowsFaces.names.contains(asciiFace)
+                            latinNoScale = latinNoScale || !isIndic && theme.wordRules && RichTextTheme.wordWindowsPages && !piece.isEmpty && (piece.allSatisfy({ $0 == " " }) || run.fontFamily != nil && WordWindowsFaces.metricsHeld.contains(asciiFace) && piece.unicodeScalars.allSatisfy({ $0.value < 0x80 && !$0.properties.isAlphabetic && !($0.value >= 0x30 && $0.value <= 0x39) })) && p.text.unicodeScalars.contains(where: { ($0.value >= 0x905 && $0.value <= 0x939) || ($0.value >= 0xA05 && $0.value <= 0xA39) }) && !asciiFace.isEmpty && !asciiFace.hasPrefix("nirmala ui") && WordWindowsFaces.names.contains(asciiFace)
                             let st = style(kind)
                             latinNoScale = false
                             plainPiece = false
@@ -2320,7 +2320,7 @@ extension RichLayout {
                     // and marks between Nirmala UI's words are Arial's and carry no Nirmala line of their own.)
                     for (piece, isIndic) in Self._splitIndicLatin(text[start ..< end]) {
                                                 plainPiece = !isIndic
-                        latinNoScale = !isIndic && latinFaceNamed && p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 }) && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
+                        latinNoScale = !isIndic && latinFaceNamed && p.text.unicodeScalars.contains(where: { ($0.value >= 0x905 && $0.value <= 0x939) || ($0.value >= 0xA05 && $0.value <= 0xA39) }) && piece.contains(where: { $0.isLetter || $0.isNumber }) && !piece.unicodeScalars.contains(where: { $0.value == 0xA0 })
                         let st = style(kind)
                         plainPiece = false
                         latinNoScale = false
@@ -4065,7 +4065,7 @@ extension RichLayout {
                     // (A space the fit cut out of its run is set at the size the run's other spaces take: a Windows Latin face's own, not the Indic stand-in's, 4% wider. The fit loop counts 3.33 pt and the engine set 3.6, so a squeeze of 0.59 pt delivered 0.31 and 1116b68d's last word never fitted.)
                     var s: TextStyle
                     if ch == " ", kind >= 0, indic != nil, run.fontFamily != nil || indic?.face == "nirmala ui", theme.wordRules, RichTextTheme.wordWindowsPages,
-                       p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 }) {
+                       p.text.unicodeScalars.contains(where: { ($0.value >= 0x905 && $0.value <= 0x939) || ($0.value >= 0xA05 && $0.value <= 0xA39) }) {
                         latinNoScale = true
                         s = style(kind)
                         latinNoScale = false
@@ -5180,7 +5180,7 @@ extension RichLayout {
         // (Devanagari in Arial Unicode MS, whose font-table entry is the Japanese charset: the same, 0.36 em with the 1.079 of line 259;
         // lab aums2 B and H: 30.0 and 30.2 pt against 26.4, once per paragraph however many lines hold marks.)
         let tamil = document.defaultLangXML?.containsSubstring("ta-IN") == true && p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) })
-        let devanagari = !tamil && document.fontCharsets["arial unicode ms"] == "80" && p.text.unicodeScalars.contains(where: { $0.value >= 0x905 && $0.value <= 0x939 })
+        let devanagari = !tamil && document.fontCharsets["arial unicode ms"] == "80" && p.text.unicodeScalars.contains(where: { ($0.value >= 0x905 && $0.value <= 0x939) || ($0.value >= 0xA05 && $0.value <= 0xA39) })
         // (A paragraph of spaces only, in a Devanagari-language complex run of the same face: its one line is Leelawadee UI's, 3.3 pt taller than Nirmala's at 10 pt
         // (dx2 31a0a560, the blank line under the table: Word 18.5 pt from the table's bottom rule to the next text, ours 15.2).)
         let devanagariSpaces = !tamil && !devanagari && document.fontCharsets["arial unicode ms"] == "80" && !p.text.isEmpty
