@@ -2757,7 +2757,19 @@ enum ChartPainter {
                     return (i: e.i, tp: styled(names[e.i], size, wrapW, bold: c.legendBold, color: c.legendColor, align: .left, windowsLines: true))
                 }
             }
-            if let box {
+            // (A Word pie's legend in a box of its own: the names wrap in the box less the key's room and 0.65 of the size,
+            // set left, and the column stands as one, its widest entry centred 0.13 of the size right of the box's middle:
+            // f15415f0's three pie legends in Word's print, "Não especificado" wrapped in a 99 pt box, keys all at one x.)
+            let wordBoxPie = pie && box != nil && !c.onSlide && !c.onSheet && !c.chartex
+            if let box, wordBoxPie {
+                let inset = 0.65 * size * k
+                entries = entries.map { e in
+                    guard lead + inset + e.tp.width > box.width + 0.01 else { return e }
+                    RuleTrace.hit("word-pie-box-legend-name-wraps-inside-the-box")
+                    e.tp.dispose()
+                    return (i: e.i, tp: styled(names[e.i], size, max(size * k, box.width - lead - inset), bold: c.legendBold, color: c.legendColor, align: .left, windowsLines: true))
+                }
+            } else if let box {
                 entries = entries.map { e in
                     guard lead + e.tp.width > box.width + 0.01 else { return e }
                     e.tp.dispose()
@@ -2877,6 +2889,8 @@ enum ChartPainter {
                 // have had (lo-a14e916b's legend, at the right, with
                 // `legendPos` b: Word's plot ends 18pt higher than ours).
                 y = box.center.dy - linesH / 2
+                // (A Word pie's legend box: the entries stand 7.3 pt above the box's middle, f15415f0 pages 3 and 4 in Word's print.)
+                if wordBoxPie { y -= 7.3 * k }
                 if !pie, !c.onSlide, !c.onSheet, c.plotLayout == nil, c.legendPosition == "b" {
                     RuleTrace.hit("legend-box-keeps-its-row-below-the-plot")
                     area = Rect.fromLTRB(area.left, area.top, area.right,
@@ -2977,6 +2991,8 @@ enum ChartPainter {
             // n + 1 equal gaps, before the first, between and after the last, the row 0.19 of the size right of that:
             // lab legbox in PowerPoint's print, five box widths and three sizes, pitch within 1 pt, 5864 slide 11's two 12 pt
             // entries 95.6 apart in a 250 pt box where ours stood 45 apart.)
+            let wordColumnW: Double? = box != nil && wordBoxPie && lines.allSatisfy { $0.count == 1 }
+                ? lines.map { $0.reduce(0.0) { $0 + lead + $1.tp.width } }.max() : nil
             var slideRowStart: Double? = nil
             if let b = box, c.onSlide, !pie, lines.count == 1, let only = lines.first, only.count > 1 {
                 let room = b.width - only.reduce(0.0) { $0 + lead + $1.tp.width }
@@ -2987,6 +3003,7 @@ enum ChartPainter {
             }
             func startX(_ w: Double) -> Double {
                 if let x = slideRowStart { return x }
+                if let cw = wordColumnW, let b = box { return b.center.dx + 0.59 * (c.legendSize ?? c.baseTextSize) * k - cw / 2 }
                 if let cw = slideColumnW, let b = box { return b.center.dx + 0.19 * (c.legendSize ?? c.baseTextSize) * k - cw / 2 }
                 return beside ? columnX : (box == nil && c.legendAt != nil && !c.onSlide && !c.onSheet && !pie) ? r.left + c.legendAt!.dx * r.width + 15.8 * k : (box?.center.dx ?? middle) - w / 2
             }
