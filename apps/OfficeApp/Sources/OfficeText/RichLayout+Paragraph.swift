@@ -4561,7 +4561,18 @@ extension RichLayout {
             // (Word's shift is a constant 0.2833 em once the spacing is over single:
             // the same 3.4pt at 12pt for 1.7x (lab c466d30a) and 3x (xd 07eecf7a);
             // at single it stays 0.166 em.)
-            let rise = size * 0.2833
+            // (Malgun's 1.288 em box above the baseline less the paragraph face's 1.006 em at the line's largest size: the same 0.2833 em
+            // when the symbol is the largest run; a 11 pt quote beside 12 pt text rises only 2.1 pt, as Word's b6f6c7d4 page 5.)
+            var tallest = size
+            do {
+                var s2 = 0
+                for r2 in p.runs where r2.length > 0 {
+                    defer { s2 += r2.length }
+                    guard s2 < firstEnd else { break }
+                    tallest = max(tallest, r2.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize)
+                }
+            }
+            let rise = 1.288 * size - 1.006 * tallest
             if rise > (best ?? 0) {
                 RuleTrace.hit("word-korean-symbol-first-line-stands-on-malgun-ascent")
                 best = rise
