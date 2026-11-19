@@ -2018,9 +2018,9 @@ enum DocxFormat {
                 // in a cell is (below). zh-64044a1d's 災民收容登記表 is a form
                 // in a VML box behind the text; read for its paragraphs alone,
                 // the box held one empty line and printed as nothing.
-                if !notes.boxTables.isEmpty {
-                    func boxed(_ image: ImageAttachment) -> ImageAttachment {
-                        guard let content = notes.boxTables.removeValue(forKey: image.id), var box = image.textBox else { return image }
+                if !notes.boxTables.isEmpty || !notes.boxPartTables.isEmpty {
+                    /// A box's content read again with its tables.
+                    func readBlocks(_ content: XNode) -> [RichParagraph] {
                         let saved = (paragraphs, currentCell, cellChar, cellBase, cellRootBase, recordingBody,
                                      pendingPageBreak, pendingBreakCharacter, pendingBreakRPr, pendingBreakColumn)
                         let counts = (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.pendingBookmarkMarkers, notes.fields,
@@ -2035,6 +2035,44 @@ enum DocxFormat {
                          pendingPageBreak, pendingBreakCharacter, pendingBreakRPr, pendingBreakColumn) = saved
                         (notes.seenFootnotes, notes.seenEndnotes, notes.openComments, notes.pendingBookmarks, notes.pendingBookmarkMarkers, notes.fields,
                          notes.seenComments, notes.fieldShown) = counts
+                        return inner
+                    }
+                    /// A group's boxes of tables: each part's paragraphs read
+                    /// again with its tables, the table moved to its box's place.
+                    func boxedParts(_ image: ImageAttachment) -> ImageAttachment {
+                        guard let tables = notes.boxPartTables.removeValue(forKey: image.id), var box = image.textBox, !box.parts.isEmpty else { return image }
+                        let all = box.paragraphs
+                        var made: [RichParagraph] = []
+                        var styles = box.tableStyles, columns = box.tableColumns
+                        for n in box.parts.indices {
+                            let start = box.parts[n].first
+                            let end = n + 1 < box.parts.count ? box.parts[n + 1].first : all.count
+                            box.parts[n].first = made.count
+                            guard let t = tables[n] else { made += all[min(start, all.count) ..< min(max(start, end), all.count)]; continue }
+                            var inner = readBlocks(t.content)
+                            for q in inner.indices where inner[q].cell == nil {
+                                inner[q].style.indentLeft += t.left
+                                if let own = inner[q].style.listIndentLeft ?? Self._levelLeft(inner[q].style, notes) { inner[q].style.listIndentLeft = own + t.left }
+                                inner[q].style.indentRight += t.right
+                                inner[q].style.boxInsetRight = t.inset
+                            }
+                            for id in Set(inner.compactMap { $0.cell?.table }) {
+                                if var style = tableStyles[id] { style.indent += t.left; styles[id] = style }
+                                columns[id] = tableColumns[id]
+                            }
+                            made += inner
+                        }
+                        box.paragraphs = made
+                        box.tableStyles = styles
+                        box.tableColumns = columns
+                        var out = image
+                        out.textBox = box
+                        return out
+                    }
+                    func boxed(_ image: ImageAttachment) -> ImageAttachment {
+                        let image = boxedParts(image)
+                        guard let content = notes.boxTables.removeValue(forKey: image.id), var box = image.textBox else { return image }
+                        let inner = readBlocks(content)
                         guard !inner.isEmpty else { return image }
                         let ids = Set(inner.compactMap { $0.cell?.table })
                         box.paragraphs = inner
@@ -5404,6 +5442,10 @@ enum DocxFormat {
         /// its `w:txbxContent`, for the body's reader to read again with
         /// its tables (this reader sets paragraphs only).
         var boxTables: [String: XNode] = [:]
+        /// A group's text boxes that hold a table, by its attachment's id, then
+        /// by the box's part number: its `w:txbxContent` and the shifts that
+        /// place its paragraphs in the group (left, right, inset right).
+        var boxPartTables: [String: [Int: (content: XNode, left: Double, right: Double, inset: Double)]] = [:]
         /// The VML shape types read so far (`v:shapetype`): Word writes
         /// each once, where it is first used.
         var shapeTypes: [XNode] = []
@@ -6729,6 +6771,8 @@ enum DocxFormat {
                         // left, 85pt from Word's, and the box's was never
                         // read.)
                         perPart = true
+                        var partTables: [Int: (content: XNode, left: Double, right: Double, inset: Double)] = [:]
+                        defer { if !partTables.isEmpty { notes.boxPartTables[att.id] = partTables } }
                         let kx = Double(gx?.first("a:chExt")?["cx"] ?? "").flatMap { c in Double(gx?.first("a:ext")?["cx"] ?? "").map { c > 0 ? $0 / c : 1 } } ?? 1
                         let ox = Double(gx?.first("a:chOff")?["x"] ?? "") ?? 0, oy = Double(gx?.first("a:chOff")?["y"] ?? "") ?? 0
                         let groupWidth = (Double(gx?.first("a:ext")?["cx"] ?? "") ?? 0) / 12700
@@ -6757,7 +6801,15 @@ enum DocxFormat {
                                 r += (1 - rect.right) * w; bottom += (1 - rect.bottom) * h
                             }
                             let first = n == 0 ? 0 : inside.count
-                            if n > 0 { read(b.descendant("w:txbxContent")!) }
+                            let holdsBefore = holdsTable
+                            if n > 0 { holdsTable = false; read(b.descendant("w:txbxContent")!) }
+                            // (A box of a table: read again with its tables where the
+                            // group's text is set — lo-aeacc79b45's two score-sheet
+                            // boxes side by side, 20 rows each, drew none.)
+                            if holdsTable, n > 0 || holdsBefore, let own = b.descendant("w:txbxContent") {
+                                partTables[n] = (own, x + l, max(0, groupWidth - (x + w) + r), r)
+                            }
+                            holdsTable = holdsTable || holdsBefore
                             for q in first ..< inside.count {
                                 inside[q].style.indentLeft += x + l
                                 // (A list's number and text stand at its own left: moved with the box's.)
