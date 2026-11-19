@@ -17901,3 +17901,4 @@ amd-5 CLAIM (2026-11-19): Portuguese g1 (pt-g1.tsv) below 97: dx2 9d7e8c61 (51.0
 - Share rule (~line 3010 RichLayout+Paragraph.swift, -0.158 em) never fires in the lab; fitted under old joiner.
 - Parked, no new data: d760f1e5 (95.9), 73caaeda (52.6). 02bdf459 solved by other landings.
 - Trap: a joiner cannot be below-only (even leading needs ascent > descent); the joiner is the box, the raise places the baseline.
+- HANDOFF lenovo-2 (2026-11-19) Korean xd 397da2bb/b4b6fd1a: run-end space rule gated on ascii!=EA face; 58->59 lines each, no change in 16 other scored docs; submitted (queue lenovo-2-532). Open: page-4 signature block ('202년월일' x 373 vs Word 343, lines ~8pt low) in both; b6f6c7d4 95.4 not looked at. 4fabe1f2 done 99.2.
