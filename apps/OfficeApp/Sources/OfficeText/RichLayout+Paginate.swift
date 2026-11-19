@@ -4789,6 +4789,17 @@ extension RichLayout {
                 add(PagePiece(paragraph: i, flowTop: top, flowBottom: top, page: page, pageY: y))
                 cursor = bottom
             }
+            // (A document with `suppressTopSpacing` stands an exact line (over 12pt) that opens a page
+            // by the flow, not by a break, as high as one that opens by a break: 0.8 x (height - 12pt)
+            // off the top of the first line, the paragraph's other lines with it. Lab exacttop,
+            // Word for Windows; xb 46bc4851's p9 stood 6.4pt low. Taken off the flow here;
+            // `_layoutParagraph` does it for the document's first and a break's.)
+            var naturalRise = 0.0
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.suppressesTopSpacing, resumeCursor == nil,
+               _cells[i] == nil, i > 0, !_pageBreak[i], !document.paragraphs[i].style.lineHeightIsMinimum,
+               let h = document.paragraphs[i].style.lineHeightPoints, h > 12 {
+                naturalRise = _px(0.8 * (h - 12))
+            }
             while cursor < bottom - 0.01 {
                 if leavesLead, pageFresh, y < 0.01, page > 0, cursor <= top + 0.01 { cursor = min(bottom, top + lead) }
                 // (Space kept at a page's top is less the space after of
@@ -4803,6 +4814,12 @@ extension RichLayout {
                         i > 0, _cells[i - 1] == nil, !document.paragraphs[i].style.markFollowsBreak {
                     let prevAfter = _spacing(i - 1, document).after
                     if prevAfter > 0.01 { cursor = min(bottom, top + min(lead, prevAfter)) }
+                }
+                if naturalRise > 0, y < 0.01, page > 0, cursor <= top + lead + 0.01 {
+                    RuleTrace.hit("suppress-top-spacing-raises-a-natural-page-first-exact-line")
+                    cursor = min(bottom, cursor + naturalRise)
+                    naturalRise = 0
+                    if cursor >= bottom - 0.01 { break }
                 }
                 let available = (floatHold?.limit ?? contentH) - y
                 let rest = bottom - cursor
