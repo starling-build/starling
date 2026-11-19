@@ -4292,7 +4292,20 @@ extension RichLayout {
                 let listed = !bare && RichTextTheme.wordWindowsPages ? _listIndents(document.paragraphs[i], document) : nil
                 let label = listed.map { _px($0.hanging) } ?? 0
                 let lineStart = listed.map { max(0, _px($0.left - $0.hanging)) } ?? 0
-                let em = _px(document.paragraphs[i].runs.first?.style.fontSize ?? theme.fontSize) * (bare ? 0.5 : 1) + label
+                var em = _px(document.paragraphs[i].runs.first?.style.fontSize ?? theme.fontSize) * (bare ? 0.5 : 1) + label
+                // (A line of text needs its first unbreakable piece to fit the strip: Word's print
+                // (lab ebe-strip) sends "Probe text line" under pictures that leave 17.6 and 22 pt
+                // although the empty line stands in the 22.)
+                if !bare, RichTextTheme.wordWindowsPages, let r0 = document.paragraphs[i].runs.first {
+                    var piece = ""
+                    for u in document.paragraphs[i].text.unicodeScalars {
+                        if u.value == 0xFFFC { continue }
+                        if u == " " || u == "\t" || u == "\n" { if piece.isEmpty { continue }; break }
+                        piece.unicodeScalars.append(u)
+                        if u.value >= 0x2E80 || u == "-" { break }
+                    }
+                    if !piece.isEmpty { em = max(em, _px(_wordWidth(theme.textStyle(for: r0.style, in: document.paragraphs[i].style, normal: document.styles[RichNamedStyle.normalId]?.char, scale: 1), piece)) + label) }
+                }
                 // (Over any of the line, not only its top: an empty
                 // anchor's line that a photo starts 16pt down went under
                 // the photo in Word's print.)
