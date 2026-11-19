@@ -2418,7 +2418,16 @@ extension RichLayout {
                         let pads = cell.pad.top + cell.pad.bottom - cell.ruleBelow
                         let firstLine = _painters[k].flatMap { Self._lineBottoms($0).first }
                         let rests = (r + 1 ..< min(rows.count, r + cell.rowSpan)).contains { standing[$0] }
-                        if !rests { own[r] = max(own[r], (firstLine.map { $0 + _spacing(k, document).after } ?? _heights[k]) + pads) }
+                        // (A merged cell whose end mark the file hides (`w:hideMark`)
+                        // sizes each row it holds by the document's default
+                        // paragraph, an empty line at the default face, line
+                        // spacing and space after, whatever the cell's own
+                        // paragraph says: labs vm41/vm42, dx2 hu 41d35e0f's
+                        // 8pt heading over Calibri 11 defaults, 26.0 a row.)
+                        let hideMerged = RichTextTheme.wordWindowsPages && cell.rowSpan > 1
+                            && (document.paragraphs[k].cell?.keptPropertiesXML?.containsSubstring("w:hideMark") ?? false)
+                        let plain = RichTextTheme.wordWindowsPages && cell.rowSpan > 1 ? _defaultParagraphHeight(document) : nil
+                        if !rests { own[r] = max(own[r], ((hideMerged ? plain : nil) ?? firstLine.map { $0 + _spacing(k, document).after } ?? _heights[k]) + pads) }
                         let continued = document.paragraphs[k].cell?.continuationParagraphs ?? []
                         for offset in 1 ..< cell.rowSpan where r + offset < rows.count && offset - 1 < continued.count {
                             var h = 0.0
@@ -2426,6 +2435,9 @@ extension RichLayout {
                                 if measured[p] == nil { measured[p] = _detachedHeight(p, document, pair: cell.rowSpan == 2) }
                                 h += measured[p]!
                             }
+                            let hiddenHere = offset - 1 < (document.paragraphs[k].cell?.continuationHidden.count ?? 0)
+                                && document.paragraphs[k].cell!.continuationHidden[offset - 1]
+                            if let plain, hiddenHere { h = plain }
                             own[r + offset] = max(own[r + offset], h + pads + cell.ruleBelow)
                         }
                     }
@@ -2847,6 +2859,15 @@ extension RichLayout {
 
     /// The height of a paragraph that is not in the flow — one a
     /// vertically merged cell's continuation holds — with its spacing.
+    /// An empty paragraph at the document's defaults: face, size, line
+    /// spacing and space after, with no properties of its own.
+    func _defaultParagraphHeight(_ document: RichDocument) -> Double {
+        var d = RichParagraph()
+        if let n = document.docDefaultParagraph { d.style = n } else if let n = document.styles[RichNamedStyle.normalId] { d.style = n.paragraph }
+        d.style.mark = nil
+        return _detachedHeight(d, document)
+    }
+
     func _detachedHeight(_ p: RichParagraph, _ document: RichDocument, pair: Bool = false) -> Double {
         func body(_ p: RichParagraph) -> Double {
             let (span, _, _) = _span(for: p, at: nil, document, textWidth: _px(1000))

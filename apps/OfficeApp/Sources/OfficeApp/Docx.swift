@@ -3031,6 +3031,7 @@ enum DocxFormat {
                                     paragraphs[k].cell?.continuationBordersXML.append(contXML)
                                     paragraphs[k].cell?.continuationContentXML.append(contContent)
                                     paragraphs[k].cell?.continuationParagraphs.append(contParagraphs)
+                                    paragraphs[k].cell?.continuationHidden.append(tcPr?.first("w:hideMark") != nil)
                                 }
                                 column += span
                                 continue
@@ -3703,6 +3704,7 @@ enum DocxFormat {
         document.keptCharacterStyles = keptCharacterStyles
         document.keptCharacterStyleIds = keptCharacterStyleIds
         document.readFromFile = true
+        document.docDefaultParagraph = docBase
         document.fileFonts = _declaredFonts(docData).union(_declaredFonts(part("word/styles.xml")))
         document.listFormats = listFormats
         document.listCounterOf = listCounterOf

@@ -1262,6 +1262,8 @@ public struct CellRef: Hashable, Sendable {
     /// one above — by what its cells hold, and a continued cell holds
     /// these.
     public var continuationParagraphs: [[RichParagraph]] = []
+    /// By row offset: the continued cell hides its end mark (`w:hideMark`).
+    public var continuationHidden: [Bool] = []
     /// Points: the top and bottom margins of a cell merged down into this
     /// cell's row from above, where they exceed what the row's cells say —
     /// Word sets every cell of the row that far in (lab `rgap`); nil: none.
@@ -2742,6 +2744,8 @@ public struct RichDocument: Hashable, Sendable {
     /// headings are plain paragraphs with contextual spacing, and giving
     /// them a style the next paragraph lacked put 10pt back between them.
     public var readFromFile = false
+    /// The paragraph the file's document defaults alone describe (what an empty hidden end mark is sized by).
+    public var docDefaultParagraph: RichParagraphStyle? = nil
     /// A text box's sub-document of a document read from a file: `readFromFile` itself is not copied there (it would switch on every Word rule in boxes);
     /// only the rules that name it opt in.
     public var fromFileTextBox = false
