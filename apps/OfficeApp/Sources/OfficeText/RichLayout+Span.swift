@@ -2662,6 +2662,13 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == ":", ch == "\\" {
+                    // (Word does not part a drive colon from the backslash after it: xb jpn a3f77cda's CP19d "C:\path\to\a\file"
+                    // carries "C:\path..." down whole, where the engine ended a line "...file C:".)
+                    RuleTrace.hit("colon-backslash-held")
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == " ", ch != " ", let bb = beforeBefore, bb == "\u{A1}" || bb == "\u{BF}" {
                     // (A line may part at the space after "¡" or "¿": the break table reads them as openers
                     // and keeps what follows the space with them; Word breaks at any space. xb hin-z20395192,
