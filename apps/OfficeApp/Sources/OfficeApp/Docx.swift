@@ -7214,7 +7214,7 @@ enum DocxFormat {
             if cs.field == nil, s.contains(where: { !$0.isWhitespace }), let ff = cs.fontFamily { notes.lastTextFamily = ff }
             if let r = pendingRefChange { cs.commentRefSaid = r.said; cs.commentRefAuthor = r.author; pendingRefChange = nil }
             if s == "\u{B7}" { cs.loneDot = true }
-            if s == "\u{201C}" || s == "\u{201D}" || s == "\u{2018}" || s == "\u{2019}" { cs.loneQuote = true }
+            if s == "\u{201C}" || s == "\u{201D}" || s == "\u{2018}" || s == "\u{2019}" || s == "\u{B1}" { cs.loneQuote = true }
             // (A run of circled digits that names only its ascii face is drawn from the East Asian slot of that same face in Word's print:
             // xd 4fabe1f2's ② under HY신명조, a missing Korean face, stands on Malgun's line like one that names both.)
             if DocxFormat.wordOnWindows, cs.eastAsiaFontFamily == nil, cs.fontFamily != nil,
