@@ -7381,6 +7381,13 @@ enum DocxFormat {
                 cs.script = .normal
                 cs.fontSize = cs.fontSize.map { $0 * 0.65 }
             }
+            // (A superscript or subscript the PARAGRAPH style sets reaches a run that says nothing of its own: sa1 6d68ddbf's header title,
+            // Heading 2 in Copperplate 24 pt with w:vertAlign superscript, prints 15.5 pt in Word and fits one line; ours drew it 24 pt.)
+            if cs.script == .normal, let sc = sheet.resolve(style)?.char.script, sc != .normal,
+               r.first("w:rPr")?.first("w:vertAlign") == nil {
+                RuleTrace.hit("paragraph-style-vertalign-reaches-plain-runs")
+                cs.script = sc
+            }
             // A link the file does not underline (no Hyperlink character
             // style on its run, or one that says so): the save names the
             // style again, so the run has to say "none" over it —
