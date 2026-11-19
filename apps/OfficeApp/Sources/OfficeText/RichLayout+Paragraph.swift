@@ -1840,10 +1840,16 @@ extension RichLayout {
                 free.fractionalLineHeights = painter.fractionalLineHeights
                 free.setPlaceholderDimensions(inline.map { $0.dimensions })
                 free.layout(minWidth: painter.width, maxWidth: painter.width)
+                // (Not when a number set larger than its text opens a one-line paragraph at a multiple, in Word for Windows:
+                // the line keeps the paragraph's strut and its extra under the text, lifted only as the number's ascent
+                // asks, as the longer paragraphs do. Free of the strut it set the extra above the baseline, 1.2pt
+                // too tall and the baseline 3.7pt low: Batang 9 at 1.5 lines under a 10pt Arial number, xd 03cd29dc 232 to 253
+                // of 258 lines matched. A number as big as its text keeps the free line: xb jpn-z20806225.)
                 // (A paragraph of one line is that line, as without the
                 // strut: zh-76700e5f's "5.3 制棒" headings, 1.3pt deeper
                 // held to it and lifted, set what followed that much low.)
-                if painter.computeLineMetrics().count == 1 {
+                if painter.computeLineMetrics().count == 1, !(theme.wordRules && RichTextTheme.wordWindowsPages && style.lineHeightPoints == nil && style.lineSpacing > 1.001
+                    && (_levelNumberSize(p, document) ?? 0) > (_markSize(p, document) ?? .infinity)) {
                     painter.dispose()
                     return free
                 }
