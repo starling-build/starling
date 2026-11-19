@@ -4302,7 +4302,7 @@ extension RichLayout {
                         if u.value == 0xFFFC { continue }
                         if u == " " || u == "\t" || u == "\n" { if piece.isEmpty { continue }; break }
                         piece.unicodeScalars.append(u)
-                        if u.value >= 0x2E80 || u == "-" { break }
+                        if u.value >= 0x2E80 || u == "-" || u == "/" { break }
                     }
                     if !piece.isEmpty { em = max(em, _px(_wordWidth(theme.textStyle(for: r0.style, in: document.paragraphs[i].style, normal: document.styles[RichNamedStyle.normalId]?.char, scale: 1), piece)) + label) }
                 }
