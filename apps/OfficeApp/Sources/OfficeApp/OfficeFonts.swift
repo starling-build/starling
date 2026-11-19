@@ -3866,8 +3866,10 @@ static let sylfaenAdvances: [Double] = [
             RuleTrace.hit("missing-roman-complex-face-is-sakkal")
             name = "Sakkal Majalla"
         } else
+        // (An alternate that is Arial, Word's own face, is followed the same way: dx2 99905488's "B Nazanin", alternate
+        // Arial, charset B2, prints its Persian in ArialMT 12 pt, where the Times stand-in drew Noto Naskh.)
         if missing, wordOnWindows, let entry = fontEntry(name), !Self.windowsComplexFaces.contains(name.trimmingWhitespace().lowercased()),
-           entry.alt?.trimmingWhitespace().isEmpty ?? true {
+           entry.alt?.trimmingWhitespace().isEmpty ?? true || entry.alt?.trimmingWhitespace().lowercased() == "arial" {
             RuleTrace.hit("missing-complex-face-is-arial")
             name = "Arial"
             missing = false
