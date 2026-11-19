@@ -4733,7 +4733,17 @@ extension RichLayout {
                     children.append(TextSpan(text: "\u{200B}", style: style))
                     inserts.append(at + 1)
                     children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
-                    inline.append((box, PlaceholderDimensions(size: Size(_px(size * boxAdvance), _px(size * 0.936)), alignment: PlaceholderAlignment.baseline,
+                    // (A box alone in a cell narrower than it: one object on
+                    // its line stays there and runs past the margin, as Word
+                    // draws it; ours put it on a line under the empty one
+                    // before it, a row of two lines. dx2 es cd95b495's 22pt
+                    // box column holds 11.35pt for a 12.65pt advance.)
+                    var boxWidth = _px(size * boxAdvance)
+                    if textWidth > 0, boxWidth > textWidth, !p.text.contains(where: { $0 != "\u{2610}" && $0 != "\u{2612}" && $0 != " " && $0 != "\u{A0}" }) {
+                        RuleTrace.hit("word-lone-check-box-stays-on-its-line-in-a-narrow-cell")
+                        boxWidth = textWidth
+                    }
+                    inline.append((box, PlaceholderDimensions(size: Size(boxWidth, _px(size * 0.936)), alignment: PlaceholderAlignment.baseline,
                                                               baseline: TextBaseline.alphabetic, baselineOffset: _px(size * 0.84))))
                     inserts.append(at + 1)
                     start = after
