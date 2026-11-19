@@ -1306,6 +1306,11 @@ extension RichLayout {
                         // (Vijaya, when the run's complex face is that: Windows has it, and Word draws it as itself; dx2 c30a7a61.)
                         return (_tamilVijaya(run.complexFontFamily, named, document) ? "vijaya" : "nirmala ui", 1)
                     }
+                    // (Malayalam: Word draws it in Nirmala UI, whose line is 1.079 + 0.251 em; dx2 37abe13a's 11 pt body steps 14.64 pt, the stand-in's 12.6.)
+                    if text.unicodeScalars.contains(where: { $0.value >= 0xD00 && $0.value <= 0xD7F }) {
+                        RuleTrace.hit("word-malayalam-is-a-nirmala-ui-line")
+                        return ("nirmala ui", 1)
+                    }
                     // (A run with no Indic letter in a Kokila paragraph — dotted leaders, a comma, digits — is Kokila's too, in Word's print: its Latin
                     // face is Kokila as well. Left to the stand-in it set the line by Carlito's split, and stacked with the Kokila runs on the line.)
                     if kokilaLatin,
