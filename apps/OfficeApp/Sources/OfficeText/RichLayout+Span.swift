@@ -4332,7 +4332,7 @@ extension RichLayout {
                 // (dx2 it df984aa4).)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil,
                    p.style.lineSpacing > 1.001, leadChar.fontFamily?.lowercased() == "wingdings", let px = style.fontSize, px > 0.5,
-                   !p.style.rightToLeft, !p.text.unicodeScalars.contains(where: { $0.value >= 0x590 }) {
+                   !p.style.rightToLeft, !p.text.unicodeScalars.contains(where: { (0x590...0x8FF).contains($0.value) }) {
                     let probe = TextPainter(text: TextSpan(text: "x", style: theme.textStyle(for: firstLook, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)), textDirection: .ltr)
                     probe.layout(minWidth: 0, maxWidth: 100000)
                     let m = probe.computeLineMetrics().first
