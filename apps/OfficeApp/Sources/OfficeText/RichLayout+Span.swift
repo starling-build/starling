@@ -1300,6 +1300,11 @@ extension RichLayout {
                         RuleTrace.hit("word-myanmar-letters-are-a-myanmar-text-line")
                         return ("myanmar text", 1)
                     }
+                    // (Sinhala letters, in any run: Word draws them in Nirmala UI, whose line is 1.079 + 0.251 em; dx2 827a8947.)
+                    if text.unicodeScalars.contains(where: { $0.value >= 0xD80 && $0.value <= 0xDFF }) {
+                        RuleTrace.hit("word-sinhala-letters-are-a-nirmala-ui-line")
+                        return ("nirmala ui", 1)
+                    }
                     // (Tamil: the line of Nirmala UI, 1.079 + 0.251 em, in the prints of tam-* and four of the xd Tamil documents.)
                     // (Width: set per word in flush() from TamilAdvances, a per-codepoint regression fit of Word's word widths
                     // (2864 words, four documents); our PDF embeds no Tamil face, so it cannot be read from glyph hmtx. No scale here.)
@@ -1821,6 +1826,13 @@ extension RichLayout {
                         RuleTrace.hit("word-myanmar-letters-at-myanmar-text-advances")
                         return shaped > 0.01 ? s.copyWith(scaleX: ems * px / shaped) : s
                     }
+                }
+                // (Sinhala letters, word by word, at Nirmala UI's advances summed per code point, split vowels from their parts.)
+                if theme.wordRules, document.readFromFile, let px = s.fontSize, px > 0.5,
+                   word.unicodeScalars.contains(where: { $0.value >= 0xD80 && $0.value <= 0xDFF }), let ems = SinhalaAdvances.sum(word) {
+                    let shaped = _wordWidth(s, String(word))
+                    RuleTrace.hit("word-sinhala-letters-at-nirmala-ui-advances")
+                    return shaped > 0.01 ? s.copyWith(scaleX: ems * px / shaped) : s
                 }
                 // (Ethiopic letters, word by word, at Nyala's own advances: the stand-in has no Ethiopic glyph and sets each at 0.75 em, where Nyala's run 0.35 to 1.03; a letter we have not read takes the median. Other characters of the word keep their own width.)
                 if theme.wordRules, document.readFromFile, RichTextTheme.wordWindowsPages, let px = s.fontSize, px > 0.5,
