@@ -3124,7 +3124,10 @@ extension RichLayout {
             let need = _px(markerSize * (larger ? 1.125 : 1.005)) - line.baseline
             if need > _px(0.05) {
                 _inkShift[i] += max(0, need - _inkShift[i])
-                segoeLift += max(0, _px(markerSize * 1.225) - line.height) / _px(1)
+                // (A bullet that carries its own size stands on its ascent and adds none below, as the lead box does for it: the line's foot
+                // is the text's, 14.4pt apart for a 12pt bold Symbol dash over Arial 11 where 1.225 em made 14.7: xb fra-g111-8b0e29.)
+                let tall = ownMark != nil && !larger ? need + line.baseline + line.descent : _px(markerSize * 1.225)
+                segoeLift += max(0, tall - line.height) / _px(1)
             }
         }
         // (On a line grid the first line is as tall as its list number makes it too, where the number's own

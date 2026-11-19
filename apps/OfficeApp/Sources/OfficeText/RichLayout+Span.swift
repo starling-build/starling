@@ -4310,6 +4310,22 @@ extension RichLayout {
                     RuleTrace.hit("word-symbol-bullet-row-in-th-sarabunpsk-stands-on-the-symbol-ascent")
                     markStyle = style.copyWith(ascentOverride: above, descentOverride: below, height: (above + below) / bulletSize, leadingDistribution: .even)
                 }
+                // (A Symbol bullet over Latin text at single spacing, drawn larger than the text: as the Wingdings ones below, Word's print stands
+                // the first line on the bullet's ascent (Symbol's 1.005 em at the box's size) over the text's own depth, the bullet's adds
+                // nothing: 12pt bold Symbol dashes over Arial 11, items 14.4pt apart where the bullet's whole line made them 14.8 (xb fra-g111-8b0e29).)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, p.style.lineSpacing <= 1.001,
+                   p.style.list == .bullet, _levelNumberFonts(p, document).latin?.lowercased() == "symbol", let px = style.fontSize, px > 0.5,
+                   !p.text.unicodeScalars.contains(where: { $0.value >= 0x590 && $0.value <= 0x8FF }),
+                   let symBase = theme.faceResolver?("symbol", false)?.baseline {
+                    let probe = TextPainter(text: TextSpan(text: "x", style: theme.textStyle(for: firstLook, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)), textDirection: .ltr)
+                    probe.layout(minWidth: 0, maxWidth: 100000)
+                    let m = probe.computeLineMetrics().first
+                    probe.dispose()
+                    if let m, symBase * px > m.baseline + 0.01 {
+                        RuleTrace.hit("word-symbol-bullet-stands-the-first-line-on-its-ascent")
+                        markStyle = style.copyWith(ascentOverride: symBase * px, descentOverride: m.descent, height: (symBase * px + m.descent) / px, leadingDistribution: .even)
+                    }
+                }
                 // (A Wingdings bullet over Latin text at a line multiple: Word's print stands the first line on the BULLET's ascent
                 // and leaves under it what the text's own line has under ITS baseline, the multiple's extra included. 11pt Calibri at
                 // 1.15 under a 16pt bold Wingdings bullet: items 19.35pt apart, where the bullet's whole line at the multiple was 20.4
