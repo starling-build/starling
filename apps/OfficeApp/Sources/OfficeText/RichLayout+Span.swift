@@ -1911,6 +1911,50 @@ extension RichLayout {
                     start = end
                     return
                 }
+                if kind >= 0, indic?.face == "raavi", theme.wordRules, RichTextTheme.wordWindowsPages, text[start ..< end].unicodeScalars.contains(where: { (0x0A01 ... 0x0A76).contains($0.value) }) {
+                    // (Punjabi set in Raavi, word by word, at the face's own advances: `RaaviAdvances`. The stand-in's Gurmukhi is 8 percent wider.)
+                    let base = style(kind).copyWith(scaleX: 1)
+                    var wordStart = start
+                    func putWord(_ a: Substring.Index, _ b: Substring.Index) {
+                        guard a < b else { return }
+                        let w = text[a ..< b]
+                        var st = base
+                        if let px = base.fontSize, px > 0.5, let split = RaaviAdvances.split(w, bold: base.fontWeight == .bold) {
+                            func measure(_ ls: Double) -> Double {
+                                let t = TextPainter(text: TextSpan(text: String(w), style: base.copyWith(letterSpacing: ls)), textDirection: .ltr)
+                                t.layout(minWidth: 0, maxWidth: 100_000)
+                                defer { t.dispose() }
+                                return t.width
+                            }
+                            let w0 = measure(0)
+                            let n = max(1, Int((measure(10) - w0) / 10 + 0.5))
+                            var other = 0.0
+                            if split.rest {
+                                let t = TextPainter(text: TextSpan(text: split.known, style: base.copyWith(letterSpacing: 0)), textDirection: .ltr)
+                                t.layout(minWidth: 0, maxWidth: 100_000)
+                                other = w0 - t.width
+                                t.dispose()
+                            }
+                            if w0 > 0.01 {
+                                RuleTrace.hit("word-raavi-words-at-the-faces-own-advances")
+                                st = base.copyWith(letterSpacing: (base.letterSpacing ?? 0) + (split.ems * px + other - w0) / Double(n))
+                            }
+                        }
+                        spans.append(contentsOf: capped(w, run, st))
+                    }
+                    var k = start
+                    while k < end {
+                        if text[k] == " " || text[k] == "\u{00A0}" {
+                            putWord(wordStart, k)
+                            spans.append(contentsOf: capped(text[k ..< text.index(after: k)], run, base))
+                            wordStart = text.index(after: k)
+                        }
+                        k = text.index(after: k)
+                    }
+                    putWord(wordStart, end)
+                    start = end
+                    return
+                }
                 if kind >= 0, indic?.face == "nirmala ui" || indic?.face == "vijaya", text[start ..< end].unicodeScalars.contains(where: { Self._tamil.contains($0.value) }) {
                     // (Tamil, word by word, at the widths of Nirmala UI's code points: `TamilAdvances`.)
                     let base = style(kind)
