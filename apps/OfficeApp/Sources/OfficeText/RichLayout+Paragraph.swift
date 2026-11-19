@@ -3773,7 +3773,6 @@ extension RichLayout {
         if i < _floatTight.count { _floatTight[i] = p.inlineImages.inOrder.contains { $0.float?.wraps == true && $0.float?.wrapsTight == true } }
         _spaceBefore[i] = before + push
         var bodyHeight = painter.height + _px(segoeLift) - w2Trim
-        var markDescentKept = false
         if let pair = Self._paired(painter) { bodyHeight -= pair.saving }
         if i < _firstLineLift.count { _firstLineLift[i] = _px(segoeLift) }
         // A paragraph of nothing but floating objects stands as one of a
@@ -3999,11 +3998,12 @@ extension RichLayout {
                 // mark's descent under the picture's foot. b66c721a's 72.9pt picture over a 14pt
                 // mark puts the next line 3.65pt (0.26 em) lower in Word's print, 7.36 at 28pt; lab: underline off moves the title up 3.84, bold off changes nothing.)
                 else if RichTextTheme.wordWindowsPages, p.image != nil,
-                        (p.runs.first(where: { $0.style.inlineImage == image.id })?.style.underline ?? false) || (p.style.mark?.underline ?? false) {
+                        ((p.runs.first(where: { $0.style.inlineImage == image.id })?.style.underline ?? false)
+                         || ((image.sourceRunPropertiesXML?.containsSubstring("<w:u ") ?? false) && !(image.sourceRunPropertiesXML?.containsSubstring("w:val=\"none\"") ?? false))) {
+                    // (The picture's OWN run underlined: an underlined mark alone changes nothing; lab bookman1, 0d2c40e4.)
                     let drop = _markLineHeight(i, document, single: true, descentOnly: true)
                     if drop > 0 {
                         RuleTrace.hit("picture-line-mark-descent")
-                        markDescentKept = true
                         bodyHeight = (bodyHeight + drop).rounded()
                     }
                 }
@@ -4217,9 +4217,6 @@ extension RichLayout {
                 // (A horizontal rule's line is the mark's line, set above at the paragraph's multiple already:
                 // jpn-z22306877-1047a4's rule at 1.25 stood 3.9pt, a quarter of the line, low in ours.)
             } else if p.image != nil {
-                // (An underlined picture line that keeps its mark's descent takes no multiple's extra under it: 0d2c40e4's
-                // 85.5pt logo over an underlined 24pt Bookman mark at 1.5 lines puts the empty line after it 29.3pt below in Word's
-                // print, a single line's, where ours added 14.1.)
                 // (A picture alone whose own run states no size, face or style, under a paragraph mark that does: the multiple's extra
                 // is that of the style's own line, not the mark's. dx2 01838920's 347pt picture over a 39pt Comic Sans mark at 1.08
                 // lines: the title 1.1pt under it in Word's print, the 11pt Calibri line's 1.06, where the mark's added 4.3.)
@@ -4229,7 +4226,7 @@ extension RichLayout {
                     RuleTrace.hit("picture-alone-multiple-extra-of-the-styles-line")
                     extra = _markLineHeight(i, document, single: true, using: CharStyle())
                 }
-                if !(markDescentKept && RichTextTheme.wordWindowsPages) { bodyHeight += (multiple - 1) * extra }
+                bodyHeight += (multiple - 1) * extra
             } else if case let lines = painter.computeLineMetrics(), lines.count == 1,
                       let box = painter.inlinePlaceholderBoxes?.max(by: { $0.bottom - $0.top < $1.bottom - $1.top }),
                       box.bottom - box.top >= lines[0].ascent - 0.5 {
