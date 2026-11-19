@@ -1440,7 +1440,7 @@ enum ChartXML {
                 let index = s.autoIndex ?? series.count
                 if let scheme = fill.first("a:schemeClr"), _isCycle(scheme, index) {
                     // The theme's own colour for this series: follows the theme.
-                } else if let scheme = fill.first("a:schemeClr"), scheme.children.isEmpty {
+                } else if let scheme = fill.first("a:schemeClr"), scheme.children.isEmpty, (scheme["val"] ?? "").hasPrefix("accent") {
                     s.scheme = scheme["val"]
                 } else {
                     s.color = color(fill)
