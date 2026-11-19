@@ -3812,10 +3812,10 @@ extension RichLayout {
             // (Floating boxes that take no room set no height: the mark's line is the whole of it, not the larger
             // of that and the line the boxes' places made — xd 6be5dbc9's stamp box, one 11pt Times mark, Word's
             // 12.65 where ours kept 13.8 and every later line stood 1.1pt low.)
-            // (A paragraph of a lone floating picture, whatever its wrap, is the mark's line and no more: the picture's run
+            // (A paragraph of a lone picture that wraps text round it is the mark's line and no more: the picture's run
             // carries no size of its own, and the 10pt of the style under it made dx2 bg ec25df03's header's 1pt first
             // paragraph 10.4pt too deep, every line of the page after it.)
-            let pictureOnly = p.image?.float != nil && p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC })
+            let pictureOnly = p.image?.float?.wraps == true && p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC })
             bodyHeight = spacesOnly || p.image == nil || p.image?.textBox != nil || pictureOnly ? probe.height : max(bodyHeight, probe.height)
             probe.dispose()
         }
