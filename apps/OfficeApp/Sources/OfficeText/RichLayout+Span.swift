@@ -1458,6 +1458,7 @@ extension RichLayout {
                 }
                 if !fitBusy, !plainPiece, !latinNoScale, let s = styles[kind] { return s }
                 var styled = run
+                var symbolOnce = false
                 let grown = wholeRaised ? theme.raisedLineHeight(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) : nil
                 if let grown { styled.raised = grown.raise }
                 if kind == -3, let (alt, _) = uncovered { styled.eastAsiaFontFamily = alt }
@@ -1468,12 +1469,13 @@ extension RichLayout {
                    let f = run.fontFamily, theme.faceResolver?(f, true)?.malgunSymbols == true {
                     RuleTrace.hit("korean-circle-in-ascii-only-run-keeps-the-ascii-faces-line")
                     styled.eastAsiaFontFamily = f
+                    symbolOnce = true  // (its spacing is taken once: see malgun-shape-takes-spacing-once)
                 }
                 if kind == -5, let h = run.hAnsiFontFamily ?? named?.char.hAnsiFontFamily { styled.eastAsiaFontFamily = h }
                 if kind <= -10, let chain, -10 - kind < chain.count { styled.eastAsiaFontFamily = chain[-10 - kind].family }
                 var s = theme.textStyle(for: styled, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: kind < 0, gridPitch: pitch,
                                         characterClass: classed && kind >= 0 ? kind : nil, characterGrid: kind < 0 ? ideographGrid : latinGrid, scriptHidden: true)
-                if doubles, kind < 0 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + spacing) }
+                if doubles, kind < 0, !symbolOnce { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + spacing) }
                 // (A run set in a chain face (Yu Gothic, JhengHei) has that face's own ascent and descent: Word's line takes the larger above and
                 // below the baseline over the faces on it, so a Mincho line with one fallen-back character is 1.7 pt shorter above the next line
                 // than the 0.8/0.2 split of the face's height says. lab cm236c (2026-11-15), fbL1 18.12 / fbL2 17.64 / fbBoth 20.04 at 12 pt.)
@@ -3545,6 +3547,13 @@ extension RichLayout {
                         w = 1.0
                     }
                     extra += (w ?? 0) * em - _glyphWidth(style(kind), ch)
+                    // (Likewise a white circle or triangle in an ascii-only run of a Korean face Word lacks: it is Malgun's, and "○○" at 12 pt
+                    // spaced -0.2 steps 11.76 in c466d30a's print, ours 11.6.)
+                    if doubles, kind == -4, run.eastAsiaFontFamily == nil, RichTextTheme.wordWindowsPages, document.usesEastAsianLayout,
+                       u >= 0x25A0, u <= 0x25EF, eaFace.malgunSymbols, run.fontFamily != nil {
+                        RuleTrace.hit("malgun-shape-takes-spacing-once")
+                        extra -= spacing
+                    }
                     if document.balancesSpaceWidth, let g = grid, g != 0 { extra -= _px(g) / 2 }
                 }
                 // (Fit text: Word gives the middle dot only HALF a gap after it, labs dot1 and mar2: 7.2 pt after a Malgun dot
