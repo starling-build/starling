@@ -6898,7 +6898,7 @@ enum DocxFormat {
                         box.fitsText = body["wrap"] == "none" && body.first("a:spAutoFit") != nil
                         box.fitsOnce = box.fitsText
                         // (Not a group: its anchor is the whole group, text box and chart together, not the box alone: lo-40949e852ad9c2fe.)
-                        box.autoHeight = body["wrap"] != "none" && body.first("a:spAutoFit") != nil && node.descendant("wpg:wgp") == nil
+                        box.autoHeight = body.first("a:spAutoFit") != nil && node.descendant("wpg:wgp") == nil
                         box.fitsAsDrawing = box.fitsText
                         if let v = Double(body["lIns"] ?? "") { box.insetLeft = v / 12700 }
                         if let v = Double(body["tIns"] ?? "") { box.insetTop = v / 12700 }
