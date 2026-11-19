@@ -2933,6 +2933,18 @@ extension RichLayout {
                    let raise = _koreanSymbolFirstLineRaise(p, painter: painter, lead: _lead(i), named: named, document: document) {
                     target += raise
                 }
+                // (A first line of ASCII marks alone in a missing Bengali face (SolaimanLipi), in a document that has Bengali, is Mangal's line: under an "at least"
+                // height the extra goes above the baseline only where Mangal's own height falls short of the minimum, so the baseline stands on Mangal's
+                // ascent, not on the Latin face's under the minimum. xd 73caaeda's rule of dashes, 13.5 pt at least 22.5: Word's step into it 22.7, ours 24.9.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, style.lineHeightIsMinimum, let least = style.lineHeightPoints, let mangal = Self._indicLines["mangal"],
+                   let size = lead.0.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? Optional(theme.fontSize), !p.text.isEmpty,
+                   _asciiRunInMissingBengaliFace(lead.0, named, document, p.text[...], p.text) {
+                    let stand = max(size * mangal.0, least - size * mangal.1)
+                    if stand < target - 0.01 {
+                        RuleTrace.hit("word-missing-bengali-face-marks-line-under-at-least-stands-on-mangal-ascent")
+                        target = stand
+                    }
+                }
                 _inkShift[i] = _px(target) - line.baseline
                 // (A Wingdings 2 bullet's line is laid out on the mark's ascent (`_span`, "word-wingdings2-lowered-bullet..."),
                 // but Word draws the row's ink as much lower as the bullet is lowered: lab bea-lab, rows 1.6 (3pt lowered 22pt boxes),
@@ -4619,10 +4631,25 @@ extension RichLayout {
                             raisedTo = target
                             kokilaOwn = target
                             kokilaLine = size * (metrics.0 + metrics.1)
-                        } else if size * metrics.0 > target + 0.01 {
+                        } else if size * metrics.0 > target + 0.01, !(cs == "nirmala ui" && (style.lineHeightPoints == nil || style.lineHeightIsMinimum)
+                                  && _isSolaimanLipi(run.style, named, document)
+                                  && units[0 ..< min(firstEnd, units.count)].contains(where: { $0 >= 0x20 && $0 < 0x7F })) {
                             RuleTrace.hit("word-indic-first-line-stands-on-its-face-ascent")
                             target = size * metrics.0
                             raisedTo = target
+                        } else if cs == "nirmala ui", style.lineHeightPoints == nil || style.lineHeightIsMinimum, let mangal = Self._indicLines["mangal"],
+                                  _isSolaimanLipi(run.style, named, document),
+                                  units[0 ..< min(firstEnd, units.count)].contains(where: { $0 >= 0x20 && $0 < 0x7F }) {
+                            // (A first line holding a space or ASCII mark in a missing Bengali face (SolaimanLipi) is Mangal's own line, Word draws those in Mangal:
+                            // the baseline stands on Mangal's ascent, 14.9 pt at 12 pt, not on the Latin face's; under an "at least" height the extra goes above
+                            // the baseline only where Mangal's falls short of the minimum. xd 73caaeda's authors line, 13.5 pt at least 22.5: Word's step into it
+                            // 21.4, ours 23.5; its body's first line 20.8 under the rule of dashes, ours 18.9.)
+                            let stand = style.lineHeightPoints.map { max(size * mangal.0, $0 - size * mangal.1) } ?? size * mangal.0
+                            if abs(stand - target) > 0.01 {
+                                RuleTrace.hit("word-solaimanlipi-first-line-stands-on-mangal-ascent")
+                                target = stand
+                                raisedTo = target
+                            }
                         } else if cs == "nirmala ui", size * metrics.0 < target - 0.01, _nikoshLettersOnlyLine(units, firstEnd, run, named, document) {
                             // (A line of Bengali letters and spaces in Nikosh, a face Windows lacks: Word draws the letters in Nirmala UI
                             // and stands the line on Nirmala's ascent, 1.079 em, not on Mangal's 1.241 that the paragraph's Latin face

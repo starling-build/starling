@@ -5397,7 +5397,9 @@ extension RichLayout {
             if u.value > 0x20 { other = true }
         }
         guard other else { return false }
-        return paragraphText.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF && $0.properties.isAlphabetic })
+        if paragraphText.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value <= 0x9FF && $0.properties.isAlphabetic }) { return true }
+        // (A paragraph of ASCII alone in such a face is drawn in Mangal too, in a document that has Bengali: xd 73caaeda's rule of dashes.)
+        return document.hasIndicText && !paragraphText.unicodeScalars.contains(where: { $0.value >= 0x80 })
     }
     @inline(never) static func _missingBengaliSpaceEm(_ face: String) -> Double? {
         let f = face.trimmingWhitespace().lowercased()
