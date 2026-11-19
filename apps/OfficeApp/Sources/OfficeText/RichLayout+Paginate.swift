@@ -4511,7 +4511,19 @@ extension RichLayout {
                     }
                 }
                 if !mine.isEmpty {
-                    if y > 0.01, mine.contains(where: { _pinnedFloats[$0.id]?.page != page && y + $0.rect.bottom - top > contentH + 0.5 }) { newPage() }
+                    // (On Windows Word, a paragraph-anchored wrapping float positioned strictly below
+                    // its anchor paragraph — e.g. a cover logo placed in the bottom margin — stays on
+                    // its page up to the physical page edge, mirroring Word's floating-table rule; a
+                    // float overlapping or above its paragraph still moves when its foot passes
+                    // `contentH`: sa1 7770c637, dx2 b5237383 vs zh-f47b8a74, d618a7eb, zh-06c46ba9.)
+                    let physical = page / _columns
+                    let pageBottom = _px(pageSetup(forPage: physical).height) - _pxMarginTop(physical)
+                    let paraFoot = top + _heights[i]
+                    if y > 0.01, mine.contains(where: {
+                        guard _pinnedFloats[$0.id]?.page != page else { return false }
+                        let limit = theme.wordRules && RichTextTheme.wordWindowsPages && $0.rect.top > paraFoot + 0.5 ? pageBottom : contentH
+                        return y + $0.rect.bottom - top > limit + 0.5
+                    }) { newPage() }
                     var placed: [(top: Double, bottom: Double, left: Double, right: Double)] = []
                     for box in mine {
                         var r = (top: y + box.rect.top - top - box.above, bottom: y + box.rect.bottom - top + box.below, left: box.rect.left, right: box.rect.right)

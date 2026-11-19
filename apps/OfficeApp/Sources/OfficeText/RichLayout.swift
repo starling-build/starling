@@ -675,9 +675,13 @@ public final class RichTextTheme {
         guard size > 0, let face = faceResolver?(familyName, eastAsian) else { return nil }
         let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight ?? naturalLineHeight(family: face.family, bold: bold, italic: italic)
         let n = natural * size
-        // (The raised text's em stands on the line's foot: 11.5 + r
-        // against the lab's 11.58 + r.)
-        let grown = max(n, size + r)
+        // (The raised text stands with its ascent at the line's top, so the
+        // unraised baseline falls `r` below its own baseline: the line grows
+        // only once `base + r` reaches past its natural height `n` — for SimSun
+        // `base ≈ 1.005 * size` (11.56 against lab t198's 11.58), while for
+        // Courier New `base = 0.833 * size` (7.50 + 2.0 < 10.20, no growth).)
+        let base = ((bold ? face.boldBaseline : nil) ?? face.baseline ?? natural * 0.8) * size
+        let grown = max(n, base + r)
         // (The engine keeps the text's baseline where the unraised line
         // has it, the extra below; Word centres the grown height in the
         // line it takes as it centres the unraised one in its own. The
