@@ -4200,6 +4200,15 @@ static let sylfaenAdvances: [Double] = [
 
     static func standInFace(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
         guard let family else { return nil }
+        // (A roman face Word's machine lacks, no alternate, PANOSE 02 05 (a Garamond/Caslon-type serif) and charset 00 is matched to Palatino
+        // Linotype by PANOSE: sa1 8b5747ec's "Adobe Caslon Pro" header prints in PalatinoLinotype-Bold, a 1.349 em line, where Calibri's 1.22 stood
+        // every body line 6.3 pt high. With an alternate (e466671e: Georgia) the alternate wins.)
+        if wordOnWindows, !eastAsian, !isEmbedded(family), installedFamilies[family.trimmingWhitespace().lowercased()] == nil,
+           let e = fontEntry(family), e.family == "roman", e.alt?.trimmingWhitespace().isEmpty ?? true, !e.panoseZero, e.panose.hasPrefix("0205"),
+           e.charset == "00" || e.charset.isEmpty, family.trimmingWhitespace().lowercased() != "palatino linotype" {
+            RuleTrace.hit("word-missing-roman-panose-0205-is-palatino")
+            return standInFace("Palatino Linotype", eastAsian: false)
+        }
         if let alt = macTableAlternate(family) { return standInFace(alt, eastAsian: eastAsian) }
         // (Word's Korean faces are one family under two names: a run naming 맑은 고딕 for its Latin text is Malgun Gothic, line and all.
         // xd 658a33bb: ascii 맑은 고딕 gave the empty 20pt marks Carlito's 28 pt line where Word's print steps Malgun's 39.8.)
