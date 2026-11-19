@@ -590,7 +590,11 @@ extension RichLayout {
             var left: Character? = nil
             func close(_ right: Character?) {
                 defer { run = []; nbsp = [] }
-                guard !run.isEmpty, document.balancesSpaceWidth else { return }
+                // (A compat-15 file with the balance flag, no w:useFELayout and no East Asian default language sets a space beside
+                // East Asian text at plain Latin width in Word for Windows: xb jpn a3f77cda's "CP19a ほげ" label space is 2.4, not half an em.)
+                guard !run.isEmpty, document.balancesSpaceWidth,
+                      !(RichTextTheme.wordWindowsPages && !document.usesEastAsianLayout && (document.compatibilityMode ?? 12) >= 15
+                        && document.defaultLangXML?.containsSubstring("w:eastAsia=\"") != true) else { return }
                 // (A manual line break is no Latin word before spaces that open the next line, as at a paragraph's start: zh-5313b71d's "…发包结果。" ⏎ "    1.发包公告…"
                 // sets its four spaces half an em each from the margin in Word's print, where ours took them for the gap between
                 // Latin words and lost three.)
