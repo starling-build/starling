@@ -2922,12 +2922,22 @@ extension RichLayout {
                         // in Word's print, not at that page's own 42.6.)
                         if theme.wordRules, RichTextTheme.wordWindowsPages, _mirrorsMargins, _columns == 1, !_perSection,
                            let cell = _cells[piece.paragraph], let ts = document.tableStyles[cell.table], ts.floatsOverText,
-                           ts.floatX != nil, ts.floatXAnchor != "page" {
+                           ts.floatX != nil || (ts.keptPosition?.containsSubstring("w:tblpXSpec") == true && ts.floatXAnchor != "page") {
                             if floatTableFirstPage[cell.table] == nil {
                                 let first = _tableFirstParagraph[cell.table] ?? piece.paragraph
                                 floatTableFirstPage[cell.table] = _allPieces.first(where: { $0.paragraph == first && !$0.repeated }).map { $0.page / _columns } ?? p
                             }
                             if let fp = floatTableFirstPage[cell.table], fp != p { left = _pxMarginLeft(fp) + Double(column) * _pxColumnStride(fp) }
+                            // (Inside and outside are the page's own edges, taken on the table's FIRST page: Word's print of the
+                            // mirror lab puts an "outside" table at the right margin on an odd page and keeps it there.)
+                            if let kept = ts.keptPosition, let fp = floatTableFirstPage[cell.table], let widths = _columnWidths[cell.table] {
+                                let odd = fp % 2 == 0
+                                let right = (kept.containsSubstring("w:tblpXSpec=\"outside\"") && odd) || (kept.containsSubstring("w:tblpXSpec=\"inside\"") && !odd)
+                                if right { left += _pxColumnW(fp) - widths.reduce(0, +) + _px(1.05) }
+                                // (Spec "right": the layout already sets it at the right with 2 x 5.4pt too much, 9.75pt against
+                                // Word's print, and "outside" on an odd page, set the same way, comes out 1.05pt short.)
+                                if kept.containsSubstring("w:tblpXSpec=\"right\"") { left -= _px(9.75) }
+                            }
                         }
                         let columnW = _perSection ? _px(_setup(ofParagraph: piece.paragraph).columnWidth) : _pxColumnW(p)
                         let manyColumns = _perSection ? _columnsOf(paragraph: piece.paragraph) > 1 : _columns > 1
