@@ -313,7 +313,7 @@ enum WriterMetafiles {
         let played = entries[attachment.id]
         lock.unlock()
         guard let played else { return false }
-        played.paint(canvas, in: rect, image: { image($0) }, font: OfficeFonts.drawn)
+        played.paint(canvas, in: rect, image: { image($0) }, font: OfficeFonts.metafileDrawn)
         return true
     }
 }

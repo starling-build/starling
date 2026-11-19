@@ -72,11 +72,19 @@ enum OfficeFonts {
     /// The shipped face for a family name, by Word's names first and by
     /// the look of the name after that. Case-insensitive.
     static func substitute(_ family: String) -> String {
+        substitute(family, useFontTable: true)
+    }
+
+    /// Like `substitute(_:)`, but when `useFontTable` is false (Windows GDI
+    /// playback of an embedded WMF/EMF metafile), ignores the host document's
+    /// `word/fontTable.xml` alternates/signatures and falls back to Arial
+    /// (`sans`) for missing faces rather than Word's body-text Cambria.
+    static func substitute(_ family: String, useFontTable: Bool) -> String {
         let n = family.trimmingWhitespace().lowercased()
-        if let alt = macTableAlternate(family) { return substitute(alt) }
+        if useFontTable, let alt = macTableAlternate(family) { return substitute(alt) }
         // (A Helvetica-named face Windows lacks (Helvetica LT Std) in a document with no font table: Word for Windows prints it
         // in Arial, where the generic missing-face stand-in gave a serif. dx2 1b7b8fc4 and 53e31548, 3249 and 1757 letters ArialMT.)
-        if wordOnWindows, !isEmbedded(family), n.hasPrefix("helvetica "), fontEntry(family) == nil {
+        if useFontTable, wordOnWindows, !isEmbedded(family), n.hasPrefix("helvetica "), fontEntry(family) == nil {
             RuleTrace.hit("windows-helvetica-named-missing-face-no-entry-is-arial")
             return sans
         }
@@ -88,16 +96,16 @@ enum OfficeFonts {
             // (Windows has no DejaVu Sans: Word takes the font table's alternate. lo-9eaf41a6's entry says Times New
             // Roman, and its empty 12pt header line stands 13.8pt high in Word's print, not Verdana's 14.6: the body
             // and the floating tables on both pages stood 1.0pt low, every line with them.)
-            if wordOnWindows, n == "dejavu sans", let alt = fontEntry(family)?.alt, !alt.isEmpty { return substitute(alt) }
+            if useFontTable, wordOnWindows, n == "dejavu sans", let alt = fontEntry(family)?.alt, !alt.isEmpty { return substitute(alt) }
             return verdana
         case "liberation serif", "times new roman", "times", "georgia", "book antiqua",
              "garamond", "palatino", "palatino linotype", "tinos":
             // (Windows has no Liberation Serif: Word takes the font table's
             // alternate, else its signature's face — `windowsSigFace`.)
-            if wordOnWindows, n == "liberation serif", let by = windowsSigFace(family) { return substitute(by) }
+            if useFontTable, wordOnWindows, n == "liberation serif", let by = windowsSigFace(family) { return substitute(by) }
             // (An entry whose alternate is Cambria: ukr-z4769265's body is
             // Cambria in Word's print. Times New Roman alternates print Times.)
-            if wordOnWindows, n == "liberation serif", let alt = fontEntry(family)?.alt,
+            if useFontTable, wordOnWindows, n == "liberation serif", let alt = fontEntry(family)?.alt,
                alt.trimmingWhitespace().lowercased() == "cambria" { return cambria }
             return serif
         case "liberation mono", "courier new", "courier", "consolas", "menlo", "monaco",
@@ -108,7 +116,7 @@ enum OfficeFonts {
             // entry for it gives Word nothing to go by: its print draws the
             // run in Cambria — lo-47598455's 6pt marks are 7.03pt lines. With
             // an entry (lo-ff3b52d1) it is Calibri.)
-            if wordOnWindows, n == "carlito", fontEntry(family) == nil { return cambria }
+            if useFontTable, wordOnWindows, n == "carlito", fontEntry(family) == nil { return cambria }
             return calibri
         case "caladea", "cambria":
             return cambria
@@ -132,7 +140,7 @@ enum OfficeFonts {
             // zh-c399c91a's "LinTimes", PANOSE Times's and no alternate,
             // is Calibri in Word's print, its "/" 4.06pt at 10.5, where
             // ours took Times and a cell's "门" stayed on the line.)
-            let byTable = !wordMacFamilies.contains(n) && !family.unicodeScalars.contains { $0.value >= 0x2E80 && !(0xFB00 ... 0xFB06).contains($0.value) } && fontEntry(family) != nil
+            let byTable = useFontTable && !wordMacFamilies.contains(n) && !family.unicodeScalars.contains { $0.value >= 0x2E80 && !(0xFB00 ... 0xFB06).contains($0.value) } && fontEntry(family) != nil
             if !byTable, faceHas(n, "serif") && !faceHas(n, "sans") { return serif }
             if !byTable, faceHas(n, "times") || faceHas(n, "roman") || faceHas(n, "garamond")
                 || faceHas(n, "baskerville") || faceHas(n, "didot") {
@@ -171,17 +179,17 @@ enum OfficeFonts {
             // Arial, "Times New Roman CYR" Times New Roman.)
             if wordOnWindows, !eastAsianName {
                 for suffix in [" cyr", " ce", " baltic", " greek", " tur"] where n.hasSuffix(suffix) {
-                    return substitute(String(family.trimmingWhitespace().dropLast(suffix.count)))
+                    return substitute(String(family.trimmingWhitespace().dropLast(suffix.count)), useFontTable: useFontTable)
                 }
                 // (An alternate "Courier": Windows has only Courier New, so Word does not follow it. xa gv-0de3e9bcf1's
                 // Sabon (roman) and Frutiger 55 (swiss), alternate Courier, PANOSE zeros, print as Cambria and Calibri.)
-                if !wordMacFamilies.contains(n), let e = fontEntry(family), let alt = e.alt, !alt.isEmpty,
+                if useFontTable, !wordMacFamilies.contains(n), let e = fontEntry(family), let alt = e.alt, !alt.isEmpty,
                    alt.trimmingWhitespace().lowercased() != n, alt.trimmingWhitespace().lowercased() != "courier" {
                     return substitute(alt)
                 }
-                if !wordMacFamilies.contains(n), let by = windowsSigFace(family) { return by == "ebrima" ? sans : substitute(by) }
+                if useFontTable, !wordMacFamilies.contains(n), let by = windowsSigFace(family) { return by == "ebrima" ? sans : substitute(by) }
             }
-            if !eastAsianName, !wordMacFamilies.contains(n) {
+            if useFontTable, !eastAsianName, !wordMacFamilies.contains(n) {
                 if let e = fontEntry(family) {
                     if let alt = e.alt, !alt.isEmpty, !e.panoseZero, alt.trimmingWhitespace().lowercased() != n,
                        !(wordOnWindows && alt.trimmingWhitespace().lowercased() == "courier") { return substitute(alt) }
@@ -203,7 +211,7 @@ enum OfficeFonts {
             // for — "S宋体" — Word sets in Calibri: zh-a4b0f6ea's digits
             // are Calibri's 8.15pt at 16pt in its print, and Arial's 8.9
             // pushed a "〔2021〕" off the line Word keeps it on.)
-            if isDeclaredLatin(family) { return calibri }
+            if useFontTable, isDeclaredLatin(family) { return calibri }
             return sans
         }
     }
@@ -4143,6 +4151,15 @@ static let sylfaenAdvances: [Double] = [
     static func drawn(_ family: String) -> String {
         installed(family) ?? installedOriginal(of: substitute(family), for: family, math: standInFace(family, eastAsian: false)?.setsMath ?? false)
             ?? substitute(family)
+    }
+
+    /// The family an embedded WMF/EMF metafile draws `family` in: Windows GDI
+    /// does not read the host docx's `fontTable.xml` alternates (so a missing
+    /// face like "Artifex CF Extra Light" with docx altName "Courier New" is
+    /// drawn in Arial by GDI, not Courier New; sa1 7770c637).
+    static func metafileDrawn(_ family: String) -> String {
+        let standIn = substitute(family, useFontTable: false)
+        return installed(family) ?? installedOriginal(of: standIn, for: family, math: false) ?? standIn
     }
 
     /// The machine's faces by name, lowercased: fontconfig's families on
