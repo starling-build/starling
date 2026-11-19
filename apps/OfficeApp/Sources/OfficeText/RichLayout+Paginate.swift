@@ -291,6 +291,16 @@ extension RichLayout {
                     }
                     goesOn = here.flowBottom
                 }
+                // (A paragraph that begins on this new page, none of it on the
+                // last, takes the notes its marks call for as one going on
+                // does: only those whose marks stand in the lines this page
+                // will hold. f69b0ddd's paragraph "E hoje dá-se o mesmo?",
+                // begun at page 3's head, marks notes 4 and 5 in its 6th and
+                // 15th lines; Word sets both at page 3's foot with 17 lines,
+                // ours reserved all three at once and ran 12.)
+                if !stays, theme.wordRules, placingRange.count == 1, _cells[placingRange.lowerBound] == nil, !placing.isEmpty {
+                    goesOn = _tops[placingRange.lowerBound]
+                }
                 _pageNotes[page] = pageNotes.filter { !carried.contains($0) }
                 if let cut = pageCut, _pageNotes[page]?.contains(cut.id) == true { _noteCutOut[page] = cut } else { pageCut = nil }
                 pageNotes = []
