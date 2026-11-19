@@ -3217,8 +3217,8 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
                     inserts.append(offset)
-                } else if (kinsokuOff || plainNoLineRules || (theme.wordRules && (ch == "\u{3001}" || ch == "\u{3002}") && !hanJoins.contains(offset) && Self._dunhaoMayStart(run, document, named: named)) || (RichTextTheme.wordWindowsPages && theme.wordRules && document.defaultLangXML == nil && document.eastAsianDefaultFaceIsLatin && !document.bodyStatesLang)) && !breaksAtQuotes, let b = before,
-                          Self._closingMarks.contains(ch) || Self._latinCloser(b, ch)
+                } else if (kinsokuOff || plainNoLineRules || (theme.wordRules && (ch == "\u{3001}" || ch == "\u{3002}") && !hanJoins.contains(offset) && Self._dunhaoMayStart(run, document, named: named)) || (RichTextTheme.wordWindowsPages && theme.wordRules && document.defaultLangXML == nil && document.eastAsianDefaultFaceIsLatin && (!document.bodyStatesLang || !Self._runStatesLang(run, named)))) && !breaksAtQuotes, let b = before,
+                          Self._closingMarks.contains(ch) || Self._latinCloser(b, ch) || Self._plainMayStart(b, ch)
                             || (ch != " " && (Self._openingMarks.contains(b) || Self._latinOpener(b, ch))
                                 && Self._plainOrKinsoku(plainNoLineRules, kinsokuOff, Self._eastAsianLineRules(run, document, named: named)) && Self._plainOpenerBreak(plainNoLineRules && !kinsokuOff && !openerBeforeLatin, ch)) {
                     // The paragraph's explicit kinsoku=0 works without

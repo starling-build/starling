@@ -2745,8 +2745,27 @@ extension RichLayout {
         guard let v = c.unicodeScalars.first?.value else { return false }
         return v >= 0xAC00 && v <= 0xD7A3
     }
+    /// Marks Word lets open a line where no East Asian line rules hold (no kinsoku): its print of a no-language run
+    /// (xb docx-5dc87fc7, "永永…永°永永") starts the next line with each of these, where the ICU table keeps them
+    /// with the character before. Marks it still keeps back (― — 〃 ・ ー) are left out.
+    static let _plainStartMarks: Set<UInt32> = [
+        0x25, 0xA2, 0xA8, 0xB0, 0xB7, 0x2C7, 0x2010, 0x2013, 0x2016, 0x2019, 0x201D, 0x2025, 0x2026, 0x2027, 0x2030, 0x2032, 0x2033,
+        0x203A, 0x203C, 0x2049, 0x2103, 0x3005, 0x3017, 0x3019, 0x301C, 0x301E, 0x309B, 0x309C, 0x309D, 0x309E, 0x30A0, 0x30FD, 0x30FE,
+        0xFE30, 0xFE36, 0xFE50, 0xFE5A, 0xFF05, 0xFF1F, 0xFF61, 0xFF63, 0xFF64, 0xFF65, 0xFF9E, 0xFF9F, 0xFFE0]
+    static func _plainMayStart(_ before: Character, _ ch: Character) -> Bool {
+        guard let s = ch.unicodeScalars.first?.value, _plainStartMarks.contains(s) else { return false }
+        return (before.unicodeScalars.first?.value ?? 0) >= 0x2E80
+    }
+
     static func _latinCloser(_ before: Character, _ ch: Character) -> Bool {
         ")]},.;:!?".contains(ch) && (before.unicodeScalars.first?.value ?? 0) >= 0x2E80
+    }
+
+    /// Whether `run` (or its character style) carries a w:lang of its own. In a document whose defaults name a Latin
+    /// face for East Asian text, Word keeps its line-start ban only on runs that state a language
+    /// (xb docx-5dc87fc7, docx-79737edb: runs without w:lang have none).
+    static func _runStatesLang(_ run: CharStyle, _ named: RichNamedStyle?) -> Bool {
+        [run.keptXML, named?.char.keptXML].contains { $0?.containsSubstring("<w:lang ") == true }
     }
 
     /// Whether `run`'s East Asian line-breaking rules hold: by its own
@@ -2761,6 +2780,9 @@ extension RichLayout {
                 return ["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
             }
         }
+        // (A run with no language of its own, in a document whose defaults name a Latin face for East Asian text, has
+        // none of the rules even where other runs state one: xb docx-5dc87fc7's "永永…°永永" paragraphs.)
+        if RichTextTheme.wordWindowsPages, document.eastAsianDefaultFaceIsLatin, document.defaultLangXML == nil, !_runStatesLang(run, named) { return false }
         return document.eastAsianLineRules
     }
 
