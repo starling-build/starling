@@ -1864,7 +1864,11 @@ extension RichLayout {
                 let symbolBullet = p.style.list == .bullet
                     && (_levelNumberSize(p, document) == nil
                         || ["symbol", "wingdings", "wingdings 2", "wingdings 3", "webdings"].contains(bulletFonts.latin?.lowercased() ?? "")
-                        || (bulletFonts.eastAsian != nil && bulletFonts.latin == bulletFonts.eastAsian))
+                        || (bulletFonts.eastAsian != nil && bulletFonts.latin == bulletFonts.eastAsian
+                            // (A Latin bullet whose rFonts name one face for both, Calibri "-": its first line stands on
+                            // the bullet's ascent as any larger bullet's does; xb fra-g210-1a6d33.)
+                            && !(p.style.listId.flatMap { document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.text }?
+                                .unicodeScalars.allSatisfy { $0.value < 0x250 } ?? false)))
                 if !(RichTextTheme.wordWindowsPages && symbolBullet), let own = free.computeLineMetrics().first {
                     // (Over single spacing Word puts a line's extra under its text, so the number's
                     // baseline stands its own ascent under the line's top; the layout without the
