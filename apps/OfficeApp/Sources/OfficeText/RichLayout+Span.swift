@@ -1516,6 +1516,18 @@ extension RichLayout {
                     let nirmalaNamedRun = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased().hasPrefix("nirmala ui")
                     s = s.copyWith(ascentOverride: m.0 * multiple * size, descentOverride: m.1 * multiple * size, height: nirmalaNamedRun ? (m.0 + m.1) * multiple : nil, leadingDistribution: nirmalaNamedRun ? .even : nil)
                 }
+                // (A digit, a mark or a no-break space between Nirmala UI's words, in a run whose Latin face is Calibri, is on its line: the line takes Calibri's deeper descent
+                // (win 550/2048 = 0.2686 em against Nirmala's 0.251) even where the glyph is drawn in Nirmala; a plain space does not. Word's print of dx2 f4abc45d (Punjabi, 11 pt):
+                // lines with an apostrophe, comma, colon, digit or NBSP stand 14.88 apart, the others 14.63; 6af76fa9 likewise.)
+                if kind >= 0, plainPiece, indic?.face == "nirmala ui", theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5,
+                   (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily ?? "").trimmingWhitespace().lowercased() == "calibri",
+                   text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 }),
+                   !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) }),
+                   p.text.unicodeScalars.contains(where: { $0.value >= 0xA00 && $0.value < 0xA80 }),
+                   let m = Self._indicLines["nirmala ui"] {
+                    let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+                    s = s.copyWith(ascentOverride: m.0 * multiple * size, descentOverride: max(m.1, 550.0 / 2048) * multiple * size, height: (m.0 + max(m.1, 550.0 / 2048)) * multiple, leadingDistribution: .even)
+                }
                 // (Garamond's Latin beside a Nirmala UI line: a line is its tallest ascent over its deepest descent, and Garamond's own descent (0.2632 em, ascent 0.8618:
                 // 1.125 em, Word's 12.36 pt at 11) is deeper than Nirmala's 0.251 where its stand-in's is shallower. Word's Bengali lines with Garamond runs are 14.76 at 11 pt and
                 // 14.1 at 10.5 (Nirmala alone 14.63, 13.97). dx2 bea98273.)
