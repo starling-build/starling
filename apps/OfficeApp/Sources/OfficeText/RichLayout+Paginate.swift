@@ -4501,7 +4501,12 @@ extension RichLayout {
                     }
                 }
                 if !mine.isEmpty {
-                    if y > 0.01, mine.contains(where: { _pinnedFloats[$0.id]?.page != page && y + $0.rect.bottom - top > contentH + 0.5 }) { newPage() }
+                    // (A box of the paragraph's own does not send its paragraph on for the wrap distance below it: Word's print
+                    // of dx2 2f747ec3 keeps the title and its boxes on page 2 with the 334pt box's foot 1.5pt past the text area
+                    // and 4.3pt of distance below; ours sent it on and left a blank page. zh-f47b8a74's box with no distance, 44pt
+                    // past the area, still goes on.)
+                    let wordFoot = theme.wordRules && RichTextTheme.wordWindowsPages
+                    if y > 0.01, mine.contains(where: { _pinnedFloats[$0.id]?.page != page && y + $0.rect.bottom - top - (wordFoot ? $0.below : 0) > contentH + 0.5 }) { newPage() }
                     var placed: [(top: Double, bottom: Double, left: Double, right: Double)] = []
                     for box in mine {
                         var r = (top: y + box.rect.top - top - box.above, bottom: y + box.rect.bottom - top + box.below, left: box.rect.left, right: box.rect.right)
