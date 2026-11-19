@@ -3995,6 +3995,13 @@ enum DocxFormat {
                         case "begin": state = 1; instr = ""; results = []
                         case "separate": state = 2
                         case "end":
+                            // (A SET field shows nothing: it stores its text in a bookmark. lo-d0fc1bd5c5's
+                            // "2001. " + SET praun01 "Praun et al. 2001" + SET praun01yr 2001 is "2001. Consistent …" in
+                            // Word's print; ours showed both cached results.)
+                            if state == 2, instr.trimmingWhitespace(newlines: true).uppercased().hasPrefix("SET "), !results.isEmpty {
+                                RuleTrace.hit("set-field-shows-nothing")
+                                for t in results { t.text = "" }
+                            }
                             if state == 2, instr.trimmingWhitespace(newlines: true).uppercased() == "TITLE" {
                                 if core == nil { core = .some(part("docProps/core.xml").flatMap(XNode.parse)) }
                                 if let props = core ?? nil {

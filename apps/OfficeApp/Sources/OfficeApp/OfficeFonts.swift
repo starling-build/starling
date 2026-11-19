@@ -4196,6 +4196,13 @@ static let sylfaenAdvances: [Double] = [
             f.otherAdvances = davidOtherAdvances; f.boldOtherAdvances = davidBoldOtherAdvances
             return f
         }
+        // (Arial's PostScript name, "ArialMT", or "Arial MT": a face Windows lacks, with no alternate in the font table, yet Word's print
+        // draws it in Arial, ArialMT in the PDF. xs 15af243a, 30afb719: ours drew Carlito and set every line on Calibri's metrics.)
+        if wordOnWindows, !eastAsian, !isEmbedded(family), ["arialmt", "arial mt"].contains(family.trimmingWhitespace().lowercased()),
+           fontEntry(family)?.alt == nil {
+            RuleTrace.hit("windows-arialmt-name-is-arial")
+            return standInFace("Arial", eastAsian: false)
+        }
         let own = isEastAsianFace(family)
         // (A face Windows lacks whose font table names Malgun Gothic as the alternate: Word draws its Latin letters, digits and
         // spaces in Malgun Gothic, a 0.35 em space where Liberation Sans' is 0.28. dx2 e86e26f7, Siyam Rupali: 71.7 to 78.3.)
