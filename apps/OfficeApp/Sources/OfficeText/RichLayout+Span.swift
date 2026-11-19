@@ -3584,6 +3584,16 @@ extension RichLayout {
                                                ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.malgunSymbols == true
                 }()
                 if malgunDigit { RuleTrace.hit("malgun-circled-digit-em") }
+                // (The JIS symbols in Latin-1 (§ ¨ ° ± ´ ¶ × ÷) are an em in MS Mincho, MS Gothic and GulimChe, the fixed half-em Latin
+                // faces, where ASCII is half an em: Word's own metrics, and 5dc87fc7's "°" at 12 pt took 12 pt where our Liberation
+                // stand-in's 4.8 let it stay on a line Word wraps. Where the face drawing the character is that face: the hAnsi slot's,
+                // under no w:hint, which already makes it East Asian and an em.)
+                let jisLatin1: Bool = _jisLatin1Symbol(ch, theme: theme, run: run, named: named, document: document, hint: hint)
+                if jisLatin1 {
+                    RuleTrace.hit("jis-latin1-symbol-em")
+                    let g = _glyphWidth(style(kind), ch)
+                    if g < em - 0.01 { extra += em - g }
+                }
                 if let u = ch.unicodeScalars.first?.value,
                    !(symbolsShown && theme.symbolAdvance?(run.fontFamily ?? named?.char.fontFamily, ch) != nil),
                    !(theme.wordRules && RichTextTheme.wordWindowsPages && u == 0x2611),
@@ -5616,5 +5626,27 @@ extension RichLayout {
         if f.isEmpty { return false }
         if f.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 }) { return !Self._windowsHangulNamedFaces.contains(f) }
         return !WordWindowsFaces.names.contains(f)
+    }
+}
+
+extension RichLayout {
+    /// A JIS symbol in Latin-1 (§ ¨ ° ± ´ ¶ × ÷) drawn in a fixed half-em Latin face (MS Mincho, MS Gothic, GulimChe), where it is an em.
+    func _jisLatin1Symbol(_ ch: Character, theme: RichTextTheme, run: CharStyle, named: RichNamedStyle?, document: RichDocument,
+                                 hint: String?) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, ch.unicodeScalars.count == 1,
+              let u = ch.unicodeScalars.first?.value else { return false }
+        let set: [UInt32] = [0xA7, 0xA8, 0xB0, 0xB1, 0xB4, 0xB6, 0xD7, 0xF7]
+        guard set.contains(u) else { return false }
+        // (Under w:hint="eastAsia" the character is already East Asian and an em: lab xb e925ae95, where Word's print and our plain
+        // width agree.)
+        if hint == "eastAsia" { return false }
+        let latinName: String? = run.hAnsiFontFamily ?? named?.char.hAnsiFontFamily ?? run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily
+        guard let name = latinName else { return false }
+        let l = name.lowercased()
+        let names: [String] = ["ms mincho", "ms gothic", "ｍｓ 明朝", "ｍｓ ゴシック", "ms ゴシック", "ms 明朝", "gulimche"]
+        var named1 = false
+        for n in names where l.containsSubstring(n) { named1 = true }
+        guard named1 else { return false }
+        return theme.faceResolver?(name, false)?.fixedHalfLatin == true
     }
 }
