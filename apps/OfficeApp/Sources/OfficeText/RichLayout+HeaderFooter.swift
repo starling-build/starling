@@ -2145,6 +2145,18 @@ extension RichLayout {
                 RuleTrace.hit("header-picture-from-its-paragraph-ends-the-header")
                 end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + _px(f.y) + _px(image.height) + _px(f.distanceBottom))
             }
+            // (A picture in the header that wraps the text square, as wide as the text area and set from its paragraph: the
+            // body cannot stand beside it, so it starts under its foot. sa1 90385e38: a 106.5pt banner from the header's top,
+            // the body's first line at 118.8 in Word's print, ours at 99.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages {
+                for image in hp.inlineImages.inOrder + (hp.image.map { [$0] } ?? []) {
+                    guard let f = image.float, f.wraps, !f.wrapsTight, f.wrapSide == nil || f.wrapSide == "bothSides", f.verticalFrom == "paragraph",
+                          f.verticalAlign == nil, f.y + image.height > 0, image.height > 0,
+                          image.width >= setup.width - setup.marginLeft - setup.marginRight - 1 else { continue }
+                    RuleTrace.hit("header-full-width-square-picture-ends-the-header")
+                    end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + _px(f.y) + _px(image.height) + _px(f.distanceBottom))
+                }
+            }
             // (A picture set against the PAGE's top that the text goes over and under ends the header at its foot plus its
             // bottom distance: xa gv-57041316b7, a 49.9pt logo at 49.1pt with 226.8pt below it, the title at 325.7 in Word's
             // print; ours under the margin, over the logo.)
