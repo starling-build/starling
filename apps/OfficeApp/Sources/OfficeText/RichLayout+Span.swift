@@ -100,11 +100,12 @@ extension RichLayout {
         // Word's print of lab siyam1, 3 empty paragraphs after each label, 16.8 / 13.3 pt apart at 10 pt against ours 12.2; and in Kokila its own 1.153 em, lab kokila1: 20.8 pt at 18 pt, where Calibri's gave 22.0.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile {
             let latin = (mark.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
+            // (An empty paragraph's mark in Gautami or Shruti is that face's own line, 1.74 and 1.68 em: dx2 0977ae70's empty paragraph, Normal style at 14 pt, 48 pt below the title in Word's print, ours 40; 8b56cf6f's Shruti empty paragraphs.)
             // (A mark in a face Windows lacks that Word draws in Shonar Bangla (the usb0 rule) is Shonar's own line, 1.294 em: xb ben-bfc234's
             // empty ListParagraph lines, 27.2 pt at 14 pt on 1.5, where the Calibri stand-in gave 25.6.)
             let shonarMark = _shonarLatinRunFace(mark, named, document, "") != nil
             if shonarMark { RuleTrace.hit("word-empty-mark-in-a-missing-bengali-face-is-shonar-bangla") }
-            let face = shonarMark ? "shonar bangla" : (latin == "nikosh" || latin == "mangal" ? "mangal" : (latin == "nirmala ui" ? "nirmala ui" : (latin == "kokila" ? "kokila" : (latin == "utsaah" ? "utsaah" : ""))))
+            let face = shonarMark ? "shonar bangla" : (latin == "nikosh" || latin == "mangal" ? "mangal" : (latin == "nirmala ui" ? "nirmala ui" : (latin == "kokila" ? "kokila" : (latin == "utsaah" ? "utsaah" : (latin == "gautami" || latin == "shruti" ? latin : "")))))
             // (Kokila only where the mark has one size: hin-z20740649 sets sz 6 and szCs 13 and was 0.6 worse.)
             let kokilaOK = true
             if kokilaOK, let r = Self._indicLines[face] {
