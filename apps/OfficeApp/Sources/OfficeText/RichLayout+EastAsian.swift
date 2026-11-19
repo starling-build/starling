@@ -103,6 +103,11 @@ extension RichLayout {
         // (A left-aligned paragraph under the balance gives its Latin word spaces too, down to half, when that takes one more word, below compat 15 (lab sqz2, SimSun: 16 words a line at none, 12 and 14, 15 at compat 15, same in en, ja and zh). PROVISIONAL scope: left-aligned, useFELayout, zh; centred zh-90e0cea8, Korean Malgun ecc32adb and plain Latin gv-f711169b, fra-g188 must NOT squeeze:
         // oxsdk-1c09b12993's notes, no jc, SimSun 10.5, spaces 5.28 on lines that end short and 2.52-4.7 on lines that end on the margin.)
         let balancedLatinSqueeze = legacy && RichTextTheme.wordWindowsPages && theme.wordRules && document.balancesSpaceWidth && !inCell && _leftLatinSqueezeScope(document, p)
+        // (Compat 14 and earlier: a justified Korean paragraph under compressPunctuation closes its spaces to take one more syllable, as at 15
+        // and with no half-stretch weighing: kor-cb lab, all thirteen "여권 등）을" lines kept at 14.)
+        let koLegacySqueeze = legacy && fitted && p.style.alignment == .justify && !inCell && RichTextTheme.wordWindowsPages
+            && document.characterSpacingControl == "compressPunctuation"
+            && units.contains(where: { $0 >= 0xAC00 && $0 <= 0xD7A3 })
         let squeezesSpaces = !legacy && p.style.alignment == .justify
             || legacy && fitted && units.contains(0x2060)
                 && !units.contains(where: { $0 >= 0x2E80 })
@@ -110,6 +115,7 @@ extension RichLayout {
                 && document.characterSpacingControl == "compressPunctuation" && !units.contains(where: { $0 >= 0x2E80 })
                 && document.eastAsiaLanguage != nil && !["zh", "ja", "ko"].contains(where: { document.eastAsiaLanguage?.hasPrefix($0) == true })
             || balancedLatinSqueeze
+            || koLegacySqueeze
         // (A page number set apart by dashes in a text box, its field result
         // unmarked, gives them too, up to two fifths: zh-4e5fe46f's "— 10 —", 14pt
         // SimSun in 51.1pt, is one line in Word's print, the space after its
@@ -759,7 +765,15 @@ extension RichLayout {
                 }
                 FileHandle.standardError.write(Data("FITO\t\(i)\t\(lineNumber)\t\(a)\t\(last)\t\(x / pt)\t\(w / pt)\t\(width / pt)\t\(after / pt)\t\(marks.count)\t\(own.count)\t\(lineWide)\t\(lineEms / pt)\t\(lineOther ? 1 : 0)\n".utf8))
             }
-            if !fits, last > a, (!openingAlone || macBodyOpener), !joinedWord, !openerOwn {
+            // (A Hangul word of two pieces, the first kept by squeezing its marks: Word weighs the whole word, kor-cb lab — "여권 등）을"
+            // stays while marks and spaces together need no more than half what the line would stretch, and otherwise the whole word goes down.)
+            let hangulWholeFails: Bool = {
+                guard RichTextTheme.wordWindowsPages, !legacy, document.characterSpacingControl == "compressPunctuation", p.style.eastAsian["w:wordWrap"] != "0", p.style.alignment == .justify,
+                      a > 0, isSpace(units[a - 1]), units[a] >= 0xAC00, units[a] <= 0xD7A3, wordSpaces.count >= 2, pieceIndex + 1 < pieces.count,
+                      piece.b < units.count, !isSpace(units[piece.b - 1]), units[piece.b] >= 0xAC00, units[piece.b] <= 0xD7A3, pieces[pieceIndex + 1].a == piece.b else { return false }
+                return x + w + pieces[pieceIndex + 1].w - width > (width - spaceBaseX) / 2 + hair
+            }()
+            if !fits, !hangulWholeFails, last > a, (!openingAlone || macBodyOpener), !joinedWord, !openerOwn {
                 // (A parted bracket's whole width, as `fits` weighed it, and no
                 // hang for it — in Taiwan's convention, where marks are compressed:
                 // lab `prt` (zh-7a16a243's package) and that document's p26. Not
@@ -2172,8 +2186,14 @@ extension RichLayout {
                     let stretch = width - ((arabicLine || hangulPiece || indicPiece || georgianPiece) && !wordSpaces.isEmpty ? spaceBaseX : x - (wordSpaces.last?.w ?? 0))
                     let lowJoins = arabicLine && p.style.eastAsian["w:jc"] == "lowKashida" && !wordSpaces.isEmpty
                         ? 3.1 * Double(ArabicForms.joins(units[lineFrom ..< max(piece.b, wordSpaces.last?.k ?? lineFrom)].map { UInt32($0) }[...])) : 0
-                    let halfStretch = wordSpaces.count < 2 || balancedLatinSqueeze  // (a left-aligned line has no stretch to weigh: oxsdk-1c09b12993's notes)
-                        || need / Double(wordSpaces.count) <= stretch / (Double(wordSpaces.count - 1) + lowJoins) / 2 + hair
+                    // (A Hangul word whose first piece took the line full by squeezing its marks goes on, a syllable at a time, into the spaces:
+                    // kor-cb lab, "여권 등）을" — Word keeps it while what the whole word needs, marks and spaces together, is no more than half
+                    // what the line would stretch if the word went down.)
+                    let wordMarkGive = hangulPiece && pieceIndex > 0 && x >= width - hair && wordSpaces.count >= 2
+                        ? -(pieces[pieceIndex - 1].a ..< a).reduce(0.0) { isSpace(units[$1]) ? $0 : $0 + min(0, adjust[$1] ?? 0) } : 0
+                    let halfStretch = wordSpaces.count < 2 || balancedLatinSqueeze || koLegacySqueeze  // (a left-aligned line has no stretch to weigh: oxsdk-1c09b12993's notes)
+                        || (wordMarkGive > 0 ? need + wordMarkGive <= stretch / 2 + hair
+                            : need / Double(wordSpaces.count) <= stretch / (Double(wordSpaces.count - 1) + lowJoins) / 2 + hair)
                     // (Where automatic spaces give, off a character grid,
                     // they give as marks do from 2013's layout: what the
                     // spaces must give, as a share of what they can, is no
@@ -2218,7 +2238,7 @@ extension RichLayout {
                     let hangulBodyHalf = windowsAfterMarks && autos.isEmpty && units[a] >= 0xAC00 && units[a] <= 0xD7A3
                         && a < runOf.count && !_hangulFaceMissingOnWord(p.runs[runOf[a]].style, lineStyle, document)   // (xd 107500a8 names 함초롬바탕, which Word's box lacks: it prints Batang and refuses the syllable)
                         && givers.allSatisfy { giveBase($0) == $0.w }   // (not the Yu Gothic spaces of a missing Hangul-named face: 22de7d refuses a 1.3 pt need, 0.15 of its stretch)
-                    let sharesStretch: Bool = onCharacterGrid || hangulPiece || (hangulHold && !latinGivers.isEmpty) || (units[a] < 0x2E80 && !circled(units[a])) || (autos.isEmpty && !windowsAfterMarks)
+                    let sharesStretch: Bool = onCharacterGrid || hangulPiece || koLegacySqueeze || (hangulHold && !latinGivers.isEmpty) || (units[a] < 0x2E80 && !circled(units[a])) || (autos.isEmpty && !windowsAfterMarks)
                         || (windowsAfterMarks
                             ? (hangulBodyHalf ? need * 2 <= (width - x + spaceTrail + hair) : need * budgetStretch <= budgetGive * (width - x + spaceTrail + hair))
                             : need * oldStretch <= oldGive * (width - x + hair))
@@ -2263,7 +2283,9 @@ extension RichLayout {
                     onFirstLine = false
                     marks = []
                     spaces = []
-                    wordSpaces = []
+                    // (Hangul continues without a space: the next syllable may still be taken by squeezing the line's spaces.)
+                    if !(RichTextTheme.wordWindowsPages && (koLegacySqueeze || (!legacy && document.characterSpacingControl == "compressPunctuation")) && last < units.count && !isSpace(units[last]) && !isSpace(units[last - 1])
+                    && (a ..< last).contains(where: { !isSpace(units[$0]) && (adjust[$0] ?? 0) < 0 })) { wordSpaces = [] }
                     let endPiece = pieces[min(pieces.count - 1, pieceIndex + wordRest)]
                     if endPiece.hard { x = 0; lineNumber += 1; width = room(lineNumber); opening = true; lineWide = 0; lineFrom = endPiece.b; lineEms = 0; lineOther = false; lineSpaced = false; lineLatin = false; lineLetters = false; lineBlank = false; lineRaised = false; lineTabbed = false }
                     continue
