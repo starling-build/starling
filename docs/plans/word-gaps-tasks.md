@@ -17855,3 +17855,4 @@ sdk-9 round2: a1263627 (xd, Thai in cell, break before closing quote ” on p9; 
 amd-5 CLAIM (2026-11-19): Hindi below 97, lowest first: dx2 6dcc4527 (93.6, stale baseline), xd d760f1e5 (95.9), xd 77d6ca49 (96.5). Re-rendering on tip 1e99a7d6e first.
 - amd-7 CLAIM (2026-11-19, starling-bd): Bengali docs below 97 on the tip: xd 73caaeda, dx2 2263e221, e86e26f7, 3f7da49c, bea98273, bede0fbc, 9ddfc84d (re-render on tip first).
 - amd-10 CLAIM (2026-11-19, starling-bd): xb jpn-g6-2212a2 (96.4, lines 84 vs Word 81), then other Japanese docs below 97 not claimed by amd-3. 837e72c4 left at 96.6 (GR16b needs a lab).
+- amd-4 CLAIM (2026-11-19, Spanish g1 = ~/sdk/tasks/es-g1.tsv, starling-bd): all 20 docs of es-g1; sdk-10's claim released. Starting with dx2 62c79fa5, 1f804bf1, lo-197f202205, poi-51272c8358, aa4cf830, 00b709dd after re-scoring on the tip.
