@@ -1321,7 +1321,9 @@ extension RichLayout {
                         // where ours put a 43rd line, 726.7 against a 728.5 foot with the cell's own margin alone counted; the foot keeps the table's margin and twice the spacing, 2.25pt.)
                         let spacedFoot: Double = {
                             guard RichTextTheme.wordWindowsPages, theme.wordRules, let ts = document.tableStyles[c.table], let sp = ts.cellSpacing, sp > 0 else { return 0 }
-                            return _px(2 * sp) + max(0, _px(ts.cellMarginBottom ?? 0) - (_cells[column.members[0]]?.margin ?? 0))
+                            // (The page a part goes on to opens with the same 2.25pt, which the cut does not carry: Word's p2 and p3 of 19be02d9 hold 44 lines like p1.)
+                            let once = _px(2 * sp) + max(0, _px(ts.cellMarginBottom ?? 0) - (_cells[column.members[0]]?.margin ?? 0))
+                            return column.cut > c.rowTop + 0.01 ? 2 * once : once
                         }()
                         let contTop = RichTextTheme.wordWindowsPages && theme.wordRules && document.tableStyles[c.table]?.keptPosition != nil && column.cut > c.rowTop + 0.01 ? _cells[column.members[0]]!.pad.top : 0
                         let limit = column.cut + avail - ruleUnder(c, parted: true) - bottomMargin - contTop + 0.01
