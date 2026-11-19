@@ -3869,7 +3869,18 @@ extension RichLayout {
                 // page number set right with a tab after it, one 13.4pt line in Word's print, ours two.)
                 let hangsRight = theme.wordRules && RichTextTheme.wordWindowsPages && !pictureTabs && style.alignment == .right && !style.rightToLeft
                 if hangsRight, stop > ownLeft + textWidth + 0.5 { RuleTrace.hit("word-right-aligned-trailing-tab-takes-no-line") }
-                if !hangsRight, stop > ownLeft + textWidth + 0.5 {
+                // (A left stop inside a table cell's full width, its text edge and both rules' halves, is on the line
+                // Word draws the tab on: dx2 1469a400's underlined trailing tab at 11400 twips in a 11401-twip
+                // cell, 9 twips past our text edge, took no second line in Word's print.)
+                let cellRoom: Double = {
+                    guard theme.wordRules, !pictureTabs, p.cell != nil, let c = p.cell, let ts = document.tableStyles[c.table], ts.borders,
+                          style.tabStops.contains(where: { $0.alignment == .left && abs(_px($0.position) - stop) < 0.01 }) else { return 0 }
+                    return _px(((ts.edgeWidths["right"] ?? ts.borderWidth ?? 0.5) + (ts.edgeWidths["left"] ?? ts.borderWidth ?? 0.5)) / 2)
+                }()
+                if cellRoom > 0, stop > ownLeft + textWidth + 0.5, stop <= ownLeft + textWidth + 0.5 + cellRoom {
+                    RuleTrace.hit("word-trailing-left-tab-inside-the-cell-width-takes-no-second-line")
+                }
+                if !hangsRight, stop > ownLeft + textWidth + 0.5 + cellRoom {
                     if pictureTabs {
                         var mark = p.style.mark ?? p.runs.first?.style ?? CharStyle()
                         mark.inlineImage = nil
