@@ -4564,6 +4564,12 @@ static let sylfaenAdvances: [Double] = [
                 face.baseline = 1.0688
                 RuleTrace.hit("open-sans-light-line")
             }
+            // (Nyala, a Windows-only face we hold no file for: Word's print of xa lo-3657739f63 stands its lines 11.95pt at 11pt, 1.0864 em, over a 0.837 em baseline; the sans stand-in's 1.149 em line ran every line 0.8pt long.)
+            if wordOnWindows, family.trimmingWhitespace().lowercased() == "nyala" {
+                face.naturalHeight = 1.0864
+                face.baseline = 0.837
+                RuleTrace.hit("nyala-line")
+            }
             // (Franklin Gothic Book, Medium and Heavy, Windows-only faces: the sans clone at the face's own ASCII advances, read from Word's print.)
             if wordOnWindows {
                 let franklin: [Double]?
