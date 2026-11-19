@@ -5208,6 +5208,9 @@ extension RichLayout {
         // (Word's print of xa gv-d4270b921d's 3pt table top: a 0.69 line, 0.83 gap, 2.9 line, 0.83 gap, 0.69 line, 5.9pt in all.)
         case "thinThickThinSmallGap": return width + 3
         case "thinThickMediumGap", "thickThinMediumGap": return width * 2
+        // (Word's print of dx2 5b919053's 3pt threeDEngrave table top: 6.0pt from the outer edge to the first row, 1.4 + 3.0 + 1.4 of lines
+        // and a hairline; the first row and all below it sit 2.8pt lower than a single 3pt rule would put them.)
+        case "threeDEngrave", "threeDEmboss": return width * 2
         case "thinThickLargeGap", "thickThinLargeGap": return width + 2.25
         default: return width
         }
@@ -5224,6 +5227,7 @@ extension RichLayout {
         let thin = 0.75, gap = max(0, _ruleRoom(style, width) - width - thin)
         switch style {
         case "double": return [(0, width), (2 * width, width)]
+        case "threeDEngrave", "threeDEmboss": return [(0, 0.47 * width), (0.47 * width, width), (1.47 * width, 0.47 * width)]
         case "thinThickThinSmallGap": return [(0, thin), (thin + 0.75, width), (thin + 0.75 + width + 0.75, thin)]
         case "thinThickSmallGap", "thinThickMediumGap", "thinThickLargeGap": return [(0, width), (width + gap, thin)]
         case "thickThinSmallGap", "thickThinMediumGap", "thickThinLargeGap": return [(0, thin), (thin + gap, width)]
