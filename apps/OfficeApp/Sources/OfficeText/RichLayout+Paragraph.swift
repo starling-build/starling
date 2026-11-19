@@ -474,7 +474,6 @@ extension RichLayout {
                 // either, and page 11 ran 2.7pt short by its foot.)
                 func frame(_ side: String) -> Double {
                     guard theme.wordRules, spaced(c.row),
-                          (side == "top" ? c.edges?.top : c.edges?.bottom) == false,
                           (side == "top" ? ts.edges?.top : ts.edges?.bottom) ?? ts.borders else { return 0 }
                     let style = ts.edgeStyles[side] ?? ts.borderStyle
                     let width = ts.edgeWidths[side] ?? ts.borderWidth ?? 0.5
