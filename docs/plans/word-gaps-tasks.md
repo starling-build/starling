@@ -17918,3 +17918,5 @@ amd-5 CLAIM (2026-11-19): Portuguese g1 (pt-g1.tsv) below 97: dx2 9d7e8c61 (51.0
 - amd-2 CLAIM (2026-11-19, starling-bd): xb 7e68ac6 then dx2 c466d30a.
 - amd-perf 2026-11-19: Lao 30f73046 10.4 -> 26.9 (queued 542: Lao lines with spaces take Browallia descent, 1.452 em; no other mover in 1798). Still off: page 1 mixes sizes (10.6 pt Lao, Browallia/Arial/Wingdings pieces), 67/66 lines. Khmer 5a4c85e0 not started. bookman1 fix queued as 535.
 - amd-perf CLAIM (2026-11-19, starling-bd): sa1 lowest unclaimed from the OPEN lists: Spanish 8b5747ec (2.9), 90385e38 (4.6); Portuguese 462c594f (1.5). Then 0a4c7687, 6d68ddbf, c11d31f3 if free.
+
+- amd-1 HANDOFF 2026-11-19: b6f6c7d4 p5 raise landed (c339452a1; xd 03cd29dc 89.9->98.1). p10/p15 closing-line fix queued as amd-1-544 (compat<14 split row leaves cell bottom margin+rule above foot; p10,p15 now match Word, p12 kept; other pages identical before/after). Left: p8,p13,p18,p20,p22,p28,p31,p32 of b6f6c7d4 still differ (pre-existing). Next: lowest unclaimed Korean/Japanese doc.
