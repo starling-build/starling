@@ -4211,6 +4211,13 @@ static let sylfaenAdvances: [Double] = [
             RuleTrace.hit("windows-arialmt-name-is-arial")
             return standInFace("Arial", eastAsian: false)
         }
+        // (The Bahij face (missing, real panose, roman, no alternate, Arabic bit only) is Sakkal Majalla for its Latin text and empty
+        // marks too, as for its Arabic (complexFace): xb fas 3a9879's empty 36pt paragraphs step 62.3 pt in Word's print (Sakkal's
+        // 1.40 em line + 8 pt after), 58.9 in ours on the stand-in's line.)
+        if wordOnWindows, !eastAsian, !isEmbedded(family), missingRomanComplexFace(family) {
+            RuleTrace.hit("missing-roman-complex-face-latin-is-sakkal")
+            return standInFace("Sakkal Majalla", eastAsian: false)
+        }
         // (A complex-script name Word's Windows lacks whose font table gives no alternate, charset 00 and the Arabic bit (Jameel
         // Noori Nastaleeq): its Latin letters and digits print in Arial too, as its Arabic does (complexFace). xb urd 73d948's
         // header date "2021", a left-to-right run naming Jameel, is ArialMT 11 in Word's print, 25 pt wide, where Calibri's
@@ -4652,7 +4659,7 @@ static let sylfaenAdvances: [Double] = [
             // (Not "Liberation Serif" on Windows, which Word draws in Cambria by its font-table signature —
             // `windowsSigFace` — with Cambria's own line: lo-11ad5a95's 48pt lines step 56.77 in Word's print,
             // 56.48 with this one; tdf153136's 56.7.)
-            if clone == cambria, !["cambria", "caladea", "carlito"].contains(family.trimmingWhitespace().lowercased()),
+            if clone == cambria, !["cambria", "caladea", "carlito", "sakkal majalla"].contains(family.trimmingWhitespace().lowercased()),
                !(wordOnWindows && family.trimmingWhitespace().lowercased() == "liberation serif") {
                 face.naturalHeight = 0.95 + 0.2163
                 // (A face whose font-table alternate is "Courier", which Word does not follow on Windows, is drawn as the
