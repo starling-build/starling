@@ -17907,3 +17907,4 @@ amd-5 CLAIM (2026-11-19): Portuguese g1 (pt-g1.tsv) below 97: dx2 9d7e8c61 (51.0
 - HANDOFF amd-2 (2026-11-19): (1) LANDED 673790a81: xd 03cd29dc 232->253/258, one-line multiple paragraph under a bigger list number keeps strut. (2) QUEUED 534: exacttop, natural-page-top exact line raise under suppressTopSpacing; xb 46bc4851 194->220/226, bcd80994/a3f77cda/dx2 4144bc94 unchanged; unit 662/0. Left: atLeast variant (lab f) differs on page 1; Korean xd 397da2bb, b4b6fd1a (93.5, parked), b6f6c7d4 (95.4). Rules in ~/word-rules.md.
 
 - gemini-1 CLAIM sa1 7770c637
+- amd-2 CLAIM (2026-11-19, starling-bd): exacttop atLeast (waiting lab /data/s/amd-2/lab/atleast), meanwhile xd ja a91d8fed (89.4) and dx2 c466d30a (96.9). Not 397da2bb/b4b6fd1a (lenovo-2), b6f6c7d4 (amd-1), amd-3's ja list.
