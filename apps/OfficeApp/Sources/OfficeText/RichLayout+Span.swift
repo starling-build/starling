@@ -299,7 +299,7 @@ extension RichLayout {
             if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.rightToLeft, p.style.list == nil, p.style.lineHeightPoints == nil,
                let px = look.fontSize, px > 0.5,
                let cs = mark.complexFontFamily ?? markNamed?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily,
-               let f = theme.complexFaceResolver?(cs), f.ownLineBaseline, let base = f.baseline, let tall = f.naturalHeight {
+               let f = theme.complexFace(cs, latin: mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily), f.ownLineBaseline, let base = f.baseline, let tall = f.naturalHeight {
                 RuleTrace.hit("word-empty-bidi-mark-is-the-complex-face-line")
                 let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
                 look = look.copyWith(ascentOverride: base * multiple * px, descentOverride: (tall - base) * multiple * px, height: tall * multiple, leadingDistribution: .even)
@@ -1808,7 +1808,7 @@ extension RichLayout {
                 // (No complex-script face named, and Arial Narrow for Latin: Word sets the Arabic in Arial, not in the narrow face.)
                 var name = complex ?? latin
                 if complex == nil, name?.trimmingWhitespace().lowercased() == "arial narrow" { name = "Arial" }
-                return theme.complexFaceResolver?(name)
+                return theme.complexFace(name, latin: latin)
             }()
             let joinedFace: RichResolvedFace? = run.rightToLeft ? complexFaceOfRun : nil
             // A right-to-left space is set in the complex-script face when the document names one apart from the Latin face (b514c2: Arial against the theme's Aptos); the same name for both keeps the Latin table (dx2 Tahoma fa/ur docs).
