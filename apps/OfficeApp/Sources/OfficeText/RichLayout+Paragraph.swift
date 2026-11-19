@@ -3642,6 +3642,10 @@ extension RichLayout {
             for image in p.inlineImages.inOrder {
                 guard let float = image.float, float.wraps, float.verticalAlign == nil, ["paragraph", "line"].contains(float.verticalFrom),
                       float.horizontalFrom != "page", float.horizontalAlign == nil else { continue }
+                // (A box that starts below the line's foot is not met by it: Word's print of dx2 2f747ec3 sets the title line
+                // above its three boxes, the first 33pt down; ours pushed it under all of them and left a blank page.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.unicodeScalars.allSatisfy({ $0 == "\u{FFFC}" || $0 == "\n" }),
+                   lineEndsAbove(_px(float.y)) { continue }
                 let w = _px(image.width)
                 spans.append((_px(float.x) - _px(9), _px(float.x) + w + _px(9), _px(float.y) + _bodyBoxHeight(image, document)))
             }
