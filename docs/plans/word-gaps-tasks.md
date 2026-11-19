@@ -17883,3 +17883,8 @@ amd-5 CLAIM (2026-11-19): Portuguese g1 (pt-g1.tsv) below 97: dx2 9d7e8c61 (51.0
 - Portuguese-specific: nothing found (ç ã õ, º ª, decimal commas all fine); the gaps were table heights and chart labels.
 - TRAP: a cell-spacing frame rule must check bordersFromCells; a fast gate can land a drop before the approval answer arrives, so A/B every doc with the property first.
 - amd-7 CLAIM 2026-11-19: SA1 Portuguese OPEN list (14 docs above, lowest first) plus pt-g2 leftovers 30afb719, 76e156b9. f15415f0 chart pass comes after.
+
+### HANDOFF amd-10 (2026-11-19)
+- LANDED d15436abf: ruby above the plain ascent on a line grid centres in the same pitches; xd f42177d2 title baseline 95.3 as Word (match ~75%). Still open there: 12 pages vs Word's 11 (page-9 floating table 64.85 vs 51.84, fltpage4 note).
+- QUEUED 20261119-194123-amd-10-530: Latin on a snapToChars grid gets no grid addition (lab gr16b, compat 15: wraps identical across charSpace 210/420/0/-210). Lab 40/40; xb 837e72c4 27/29 (was 25); f3550c7b 20/20; dx2 4427518d 113/113. Lab was compat 15, real doc is 12: not separately tested. Latin beside an ideograph with no space (GR16a) NOT in lab: if 837e72c4 p1 regresses, a lab is needed.
+- Left: 837e72c4 two lines (centred Latin label in whole cells; last-line x offset ~2.3-2.9 in Word on snapToChars, ours 0).
