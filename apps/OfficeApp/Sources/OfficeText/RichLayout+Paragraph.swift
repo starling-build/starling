@@ -1880,7 +1880,7 @@ extension RichLayout {
                             // (A Latin bullet whose rFonts name one face for both, Calibri "-": its first line stands on
                             // the bullet's ascent as any larger bullet's does; xb fra-g210-1a6d33.)
                             && !(p.style.listId.flatMap { document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.text }?
-                                .unicodeScalars.allSatisfy { $0.value < 0x250 } ?? false)))
+                                .unicodeScalars.allSatisfy { $0.value < 0x250 || ($0.value >= 0x2010 && $0.value <= 0x2027) } ?? false)))
                 if !(RichTextTheme.wordWindowsPages && symbolBullet), let own = free.computeLineMetrics().first {
                     // (Over single spacing Word puts a line's extra under its text, so the number's
                     // baseline stands its own ascent under the line's top; the layout without the
@@ -3183,7 +3183,8 @@ extension RichLayout {
             }
         }
         if numberLift > 0.001 {
-            let extra = max(0, numberLift - _inkShift[i])
+            // (An ink shift already UP, negative, is no part of the lift: only a shift down covers it.)
+            let extra = max(0, numberLift - max(0, _inkShift[i]))
             _inkShift[i] += extra
             _numberLiftShift[i] = extra
             segoeLift += extra / _px(1)
