@@ -3183,8 +3183,10 @@ extension RichLayout {
             }
         }
         if numberLift > 0.001 {
-            // (An ink shift already UP, negative, is no part of the lift: only a shift down covers it.)
-            let extra = max(0, numberLift - max(0, _inkShift[i]))
+            // (An ink shift already UP, negative, is no part of a BULLET's lift: only a shift down covers it. A counted number's
+            // lift stands over it: xb a567c5c2's 20pt "1." over 11pt text at 1.5 lines.)
+            let bulletOnly = !(p.style.listId.flatMap { document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.text }?.containsSubstring("%") ?? false)
+            let extra = max(0, numberLift - (bulletOnly ? max(0, _inkShift[i]) : _inkShift[i]))
             _inkShift[i] += extra
             _numberLiftShift[i] = extra
             segoeLift += extra / _px(1)
