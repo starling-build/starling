@@ -17986,3 +17986,8 @@ amd-5 CLAIM (2026-11-19): Portuguese g1 (pt-g1.tsv) below 97: dx2 9d7e8c61 (51.0
 - Note: we draw double borders as two overlapping 0.48 pt lines; Word draws two 0.72 pt lines (paint gap, not fixed).
 - Trap: amend after a soft reset rewrites the top commit; use git reflog to recover.
 - CLAIM amd-11 2026-11-19: SA1 Spanish OPEN amd-11 list (90385e38, 6d68ddbf, 3a00de51, c4f2b4bd, 03f63881, bfe94022, e466671e, 06706f28, 9714db5f, fd1997fd, a56e81ec), lowest first; then 613edc1c, fe15f71d. cd95b495 cell lab (lab/cellrind) printing on Windows.
+
+### amd-10 HANDOFF 2026-11-19 (a3f77cda)
+- Queued (entry 564, a714ac28e): compat-15 + balance flag + no useFELayout + no eastAsia default lang => East Asian-adjacent space stays Latin width. a3f77cda 221 to 223 of 229. 10 other flag docs byte-identical text positions; unit tests 662/0.
+- Left: a3f77cda page 13 Korean CP19c paragraph (most unmatched lines). 234 lines ours vs 229 Word.
+- f42177d2 floating-table lift law stays OPEN (no single law fits d5/d6/d7/f42177d4/tblstrip data).
