@@ -1237,6 +1237,9 @@ extension RichLayout {
                     RuleTrace.hit("word-default-tab-at-the-margin-keeps-the-line")
                 }
                 tabs[t] = extra
+                // (The last tab of a right-aligned paragraph, its stop inside the margin: the span keeps its width.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !pictureTabs, style.alignment == .right, !style.rightToLeft, stop.alignment == .left,
+                   t == units.count - 1, t > 0, units[t - 1] != 0x09, stop.x <= ownLeft + textWidth + 0.5 { tabs[-1_000_000 - t] = 1 }
                 if toIndent { leftTabs.insert(t) }
                 shift += extra
                 if let fill = stop.leader, fill != "none" {
@@ -1365,7 +1368,7 @@ extension RichLayout {
         // there — tdf92157's signature block, 9 and 23 tabs, "Zaken," five stops in on the
         // third line; ours let them all hang and set the text at the margin's start.)
         let tabRuns: Set<Int> = theme.wordRules && RichTextTheme.wordWindowsPages
-            ? Set(tabs.keys.filter { t in (t > 0 && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t - 1)] == 0x09) || (t + 1 < p.text.utf16.count && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t + 1)] == 0x09) }).subtracting(atMargin)
+            ? Set(tabs.keys.filter { t in t >= 0 && ((t > 0 && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t - 1)] == 0x09) || (t + 1 < p.text.utf16.count && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t + 1)] == 0x09)) }).subtracting(atMargin)
             : []
         if !tabRuns.isEmpty { RuleTrace.hit("tab-runs-do-not-hang-past-the-margin") }
         let tabsHeld: Set<Int> = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(underHeld).union(beforeTabs).union(tabRuns).union(lonePastTabs)
