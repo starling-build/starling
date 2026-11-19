@@ -17882,3 +17882,4 @@ amd-5 CLAIM (2026-11-19): Portuguese g1 (pt-g1.tsv) below 97: dx2 9d7e8c61 (51.0
 - LEFT: f15415f0 (31.6) is parked: its charts (pages 3-5) differ in several independent ways: legend/category labels at other x/y (Word puts category names in a right-hand legend column at x 388/457, ours at 410-470 and, on page 4, above the bars), data labels 2-10 pt off. Needs a chart-legend layout pass, not a Word-text rule. 3d6b9b5d: unrelated extra wrapped line on page 1 (11 pt).
 - Portuguese-specific: nothing found (ç ã õ, º ª, decimal commas all fine); the gaps were table heights and chart labels.
 - TRAP: a cell-spacing frame rule must check bordersFromCells; a fast gate can land a drop before the approval answer arrives, so A/B every doc with the property first.
+- amd-7 CLAIM 2026-11-19: SA1 Portuguese OPEN list (14 docs above, lowest first) plus pt-g2 leftovers 30afb719, 76e156b9. f15415f0 chart pass comes after.
