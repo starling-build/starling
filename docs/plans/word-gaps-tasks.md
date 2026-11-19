@@ -17875,3 +17875,10 @@ amd-5 CLAIM (2026-11-19): Portuguese g1 (pt-g1.tsv) below 97: dx2 9d7e8c61 (51.0
 - amd-perf SA1 OPEN Portuguese (28) amd-5: 462c594f 1.5, c11d31f3 13.0, 173f0cb1 15.4, a8678e3c 34.1, 74e2ec8f 39.0, 99ba67d7 45.2, 0dcf90bc 55.6, c6d4538d 66.9, 9881dc01 84.1, 97666801 89.7, 3a34a282 91.2, 8cfaa504 92.8, 764f4d8e 95.2, 2b3c3b42 96.1
 - amd-perf SA1 OPEN Portuguese (28) amd-7: 2303e6f9 2.1, f69b0ddd 13.1, 98480d18 25.9, ccdc78e8 34.7, 62904a12 39.3, 1f900e58 55.2, b3ef470a 66.1, afbaab24 71.8, f39b852f 85.1, 7f30fc29 90.8, 1ae61c35 92.1, 7d8048ae 94.7, 1cc8d507 95.6, 1224f1e5 96.8
 - CLAIM amd-3 2026-11-19: eq-grid (confirm/refute lines-grid ink-depth skip, 0810551f p30), then footer-anchor, then jacell (xd efbb06c2). 6fca0f: fraction-size idea reverted (broke 8b9d4558); p5 gap is Word's Cambria Math size-variant glyphs (radical/parens drawn at 14 pt on the equation baseline, ours scales the fallback font): parked; prime/asterisk mapping submitted (queue 526).
+
+### HANDOFF amd-7 pt-g2 (2026-11-19)
+- LANDED 1f3dfd256: a table with cell spacing (even 0) stands its own top/bottom frame rule even when cells carry borders. dx2 pt: af62a100 87.0 to 100, 8ba99a6d 65.9 to 98.8, 632e961f 59.4 to 100, 8be181d6 72.2 to 100, 46cc5f49 97.6 to 100, 1c459443 44.7 to 58.9.
+- QUEUED 528 (narrowing): tables ruled only through cells (bordersFromCells) get no frame; restores 3d6b9b5d to 46.7 (v1 had dropped it to 41.0), all gains kept.
+- LEFT: f15415f0 (31.6) is parked: its charts (pages 3-5) differ in several independent ways: legend/category labels at other x/y (Word puts category names in a right-hand legend column at x 388/457, ours at 410-470 and, on page 4, above the bars), data labels 2-10 pt off. Needs a chart-legend layout pass, not a Word-text rule. 3d6b9b5d: unrelated extra wrapped line on page 1 (11 pt).
+- Portuguese-specific: nothing found (ç ã õ, º ª, decimal commas all fine); the gaps were table heights and chart labels.
+- TRAP: a cell-spacing frame rule must check bordersFromCells; a fast gate can land a drop before the approval answer arrives, so A/B every doc with the property first.
