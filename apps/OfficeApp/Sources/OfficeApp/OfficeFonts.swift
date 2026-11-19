@@ -4204,10 +4204,10 @@ static let sylfaenAdvances: [Double] = [
             f.otherAdvances = davidOtherAdvances; f.boldOtherAdvances = davidBoldOtherAdvances
             return f
         }
-        // (Arial's PostScript name, "ArialMT", or "Arial MT": a face Windows lacks, with no alternate in the font table, yet Word's print
+        // (Arial's PostScript name, "ArialMT", or "Arial MT": a face Windows lacks, with no alternate in the font table, or an alternate that is its own name (dx2 c96f6a72), yet Word's print
         // draws it in Arial, ArialMT in the PDF. xs 15af243a, 30afb719: ours drew Carlito and set every line on Calibri's metrics.)
         if wordOnWindows, !eastAsian, !isEmbedded(family), ["arialmt", "arial mt"].contains(family.trimmingWhitespace().lowercased()),
-           fontEntry(family)?.alt == nil {
+           fontEntry(family)?.alt.map({ $0.trimmingWhitespace().lowercased() == family.trimmingWhitespace().lowercased() }) ?? true {
             RuleTrace.hit("windows-arialmt-name-is-arial")
             return standInFace("Arial", eastAsian: false)
         }
