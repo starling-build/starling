@@ -1009,7 +1009,10 @@ extension RichLayout {
                 && (run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily)
                     .flatMap { name in name.unicodeScalars.contains(where: { $0.value >= 0x2E80 }) ? nil
                         : theme.faceResolver?(name, false) }.map { !$0.isEastAsian } == true
-            let hinted = (hint == "eastAsia" && !eaFaceIsLatin) || (latinFace?.isEastAsian ?? false) && (hint != "default" || (highFace?.isEastAsian ?? true))
+            // (A right-to-left run's hinted dash stays its Latin face where the East Asian face is unnamed: heb-z5059159's
+            // hinted "–" in Arial in Word's print, where the hint set the left-to-right "·" of fas-z22973278 in MS Mincho.)
+            let eaNamedNone = run.rightToLeft && theme.wordRules && text.unicodeScalars.allSatisfy({ $0.value == 0x2013 || $0.value == 0x2014 }) && (run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily) == nil
+            let hinted = (hint == "eastAsia" && !eaFaceIsLatin && !eaNamedNone) || (latinFace?.isEastAsian ?? false) && (hint != "default" || (highFace?.isEastAsian ?? true))
             // (… but an en dash, unhinted, is its hAnsi face's where that is
             // a Latin one: zh-ea70c30e's "辦公室 – 投訴", `w:ascii` PMingLiU
             // over an inherited Times hAnsi, sets its "–" in Times in Word's
