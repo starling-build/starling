@@ -181,6 +181,8 @@ struct Chart: Equatable {
     /// The legend's text names a size of its own (even the default 12), where LibreOffice's export names none.
     var legendSized = false
     var dataLabels = false
+    /// Where a column or bar chart's labels stand (`c:dLblPos` of its first series' labels, else the chart's).
+    var barLabelPos: String? = nil
     /// `c:grouping`: clustered/standard, stacked or percentStacked.
     var stacked = false
     var percent = false
@@ -1779,6 +1781,7 @@ enum ChartXML {
             if ["1", "true"].contains(d.first("c:delete")?["val"] ?? "") { return false }
             return d.first("c:showVal") == nil && d.first("c:showPercent") == nil ? shows(el.first("c:dLbls")) : shows(d)
         }
+        if type == .column || type == .bar { c.barLabelPos = (el.first("c:ser")?.first("c:dLbls")?.first("c:dLblPos") ?? el.first("c:dLbls")?.first("c:dLblPos"))?["val"] }
         if type == .doughnut, let hole = el.first("c:holeSize")?["val"].flatMap(Int.init) { c.holeSize = hole }
         if type == .pie || type == .doughnut, let ser = el.first("c:ser"), let d = ser.first("c:dLbls") ?? el.first("c:dLbls") {
             func on(_ n: XNode?, _ name: String) -> Bool { ["1", "true"].contains(n?.first(name)?["val"] ?? "") }
@@ -5222,6 +5225,7 @@ enum ChartPainter {
         }
 
         var labels: [(String, Offset, Int)] = []
+        var insideEnd = Set<Int>()
         // A moved label's leader: from the middle of its bar's top face (by label index).
         var leaderFrom: [Int: Offset] = [:]
         /// A bar's label moved as the file says (`ChartSeries.labelNudges`,
@@ -5390,6 +5394,12 @@ enum ChartPainter {
                     if horizontal {
                         let top = centre + group / 2 - Double(j) * step - bar
                         rect = Rect.fromLTRB(min(p0, p1), top, max(p0, p1), top + bar)
+                        // (A Word chart's bar label that says "inEnd" stands inside the bar's end, its right edge 6.8 pt in, its
+                        // baseline 1.9 pt lower than a centred one: f15415f0's chart 1 in Word's print, white 159 and 144 in the bars.)
+                        if !c.stacked, !c.onSlide, !c.onSheet, !c.chartex, raw > 0, c.barLabelPos == "inEnd" {
+                            insideEnd.insert(labels.count)
+                            RuleTrace.hit("word-horizontal-bar-label-inside-end")
+                        }
                         labels.append((dataLabel(c, raw), Offset(c.stacked ? rect.center.dx : max(p0, p1) + 3 * k, rect.center.dy) + nudge(j, i), j))
                     } else {
                         let left = centre - group / 2 + Double(j) * step
@@ -5752,7 +5762,8 @@ enum ChartPainter {
                 // (A label of several lines keeps its last line where a single one stood and grows upward.)
                 let lineCount = max(1, tp.computeLineMetrics().count)
                 let grown = lineCount > 1 ? tp.height - tp.height / Double(lineCount) : 0
-                let origin = Offset(at.dx - dx, at.dy - tp.height / 2 - rise - grown / 2)
+                var origin = Offset(at.dx - dx, at.dy - tp.height / 2 - rise - grown / 2)
+                if insideEnd.contains(li) { origin = Offset(at.dx - 3 * k - 6.8 * k - tp.width, origin.dy + 1.9 * k) }
                 // (Word draws the leader from the bar's top to the label's bottom middle, the box
                 // the text and its 1.5pt insets: zh-b8de3ae2's chart 1 in Word's print.)
                 if let from = leaderFrom[li] {
