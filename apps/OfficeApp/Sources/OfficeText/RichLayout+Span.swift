@@ -578,7 +578,9 @@ extension RichLayout {
                 }
                 for (i, r) in p.runs.enumerated() {
                     st += r.length
-                    if i + 1 < p.runs.count, r.style.eastAsiaFontFamily != nil,
+                    // (Not when the run's ascii face IS its East Asian face, NanumGothic for both: 397da2bb's "50␣Credit" space
+                    // is 2.76 in Word's print, where the zh TOC's Times New Roman "1␣␣" beside 宋体 is half an em.)
+                    if i + 1 < p.runs.count, r.style.eastAsiaFontFamily != nil, r.style.fontFamily != r.style.eastAsiaFontFamily,
                        p.runs[i + 1].style.eastAsiaFontFamily == nil || circledOnly(st, p.runs[i + 1].length) { eaRunEnds.insert(st) }
                 }
             }
