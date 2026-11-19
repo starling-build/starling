@@ -5433,6 +5433,8 @@ enum DocxFormat {
         /// The look of each field's code (its first instruction run), by id.
         var fieldCodeStyle: [Int: CharStyle] = [:]
         var fieldLastCodeStyle: [Int: CharStyle] = [:]
+        /// The page fields (PAGE, NUMPAGES) that closed inside the outermost field still open.
+        var nestedPageFields: Set<String> = []
         var lastTextFamily: String? = nil   // the face of the last plain (non-field) text run, for an eq ring that names none
         var fieldCount = 0
         /// Every style's name, lowercased, and the fields whose STYLEREF
@@ -6352,6 +6354,13 @@ enum DocxFormat {
         func addInline(_ att: ImageAttachment) {
             var att = att
             att.sourceRunPropertiesXML = runPropertiesXML
+            // (A picture in the code of `IF PAGE = NUMPAGES` is its "then" text: the last page's.)
+            if notes.inHeaderFooter, let outer = notes.fields.first, !outer.result,
+               outer.instr.trimmingWhitespace(newlines: true).lowercased().hasPrefix("if"), outer.instr.containsSubstring("="),
+               !outer.instr.containsSubstring("<>"), notes.nestedPageFields.contains("PAGE"), notes.nestedPageFields.contains("NUMPAGES") {
+                RuleTrace.hit("picture-in-if-page-numpages-is-the-last-pages")
+                att.lastPageOnly = true
+            }
             if att.float == nil, att.sourceXML?.containsSubstring("<wp:anchor") != true { att.frame = runFrame }
             inlineImages[att.id] = att
             var cs = CharStyle()
@@ -7357,6 +7366,11 @@ enum DocxFormat {
                                              properties: child.attrs.filter { $0.key == "w:fldLock" || $0.key == "w:dirty" })); notes.fieldShown = false
                     case "separate": if !notes.fields.isEmpty { notes.fields[notes.fields.count - 1].result = true }
                     case "end":
+                        if notes.fields.count >= 2, let f = notes.fields.last {
+                            let word = f.instr.trimmingWhitespace(newlines: true).uppercased().split(separator: " ").first.map(String.init) ?? ""
+                            if word == "PAGE" || word == "NUMPAGES" { notes.nestedPageFields.insert(word) }
+                        }
+                        if notes.fields.count == 1 { notes.nestedPageFields = [] }
                         // (A page field with no result yet shows a number
                         // all the same.)
                         if notes.inHeaderFooter, !notes.fieldShown, let f = notes.fields.last {

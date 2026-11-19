@@ -1953,7 +1953,31 @@ extension RichLayout {
         func filled(_ source: [RichParagraph]) -> [RichParagraph] {
             var paragraphs = source
             for k in paragraphs.indices {
-                let old = paragraphs[k]
+                var old = paragraphs[k]
+                // (A picture that is `IF PAGE = NUMPAGES`'s "then" text shows on the last page only.)
+                let lastOnly = Set(old.inlineImages.filter { $0.value.lastPageOnly }.keys)
+                if !lastOnly.isEmpty, number != Int(count) {
+                    var text = ""
+                    var runs: [Run] = []
+                    var at = old.text.utf16.startIndex
+                    for run in old.runs {
+                        let end = old.text.utf16.index(at, offsetBy: run.length)
+                        if let id = run.style.inlineImage, lastOnly.contains(id) { at = end; continue }
+                        text += String(old.text[at ..< end])
+                        runs.append(run)
+                        at = end
+                    }
+                    var stripped = RichParagraph(text: text, runs: runs.isEmpty ? nil : runs, style: old.style)
+                    stripped.cell = old.cell
+                    stripped.inlineImages = old.inlineImages.filter { !lastOnly.contains($0.key) }
+                    old = stripped
+                }
+                // (The same where the paragraph is that one picture, which the editor holds as its picture paragraph.)
+                if old.image?.lastPageOnly == true, number != Int(count) {
+                    var empty = RichParagraph(text: "", style: old.style)
+                    empty.cell = old.cell
+                    old = empty
+                }
                 var fresh = old
                 if old.runs.contains(where: { $0.style.field != nil }) {
                     var text = ""

@@ -1094,6 +1094,9 @@ public struct ImageAttachment: Hashable, Sendable {
     /// file wrote them: a character border round a thumbnail, the size
     /// that sets the line it stands on. Written back with `sourceXML`.
     public var sourceRunPropertiesXML: String? = nil
+    /// A footer or header picture the file wrapped in `IF PAGE = NUMPAGES "<picture>" ""`: Word shows it on
+    /// the last page only (lo-c25842c80b: the logo, on page 5 of 5).
+    public var lastPageOnly = false
     /// A character border round the picture in its line (`w:bdr` on the
     /// run it sits in): drawn `space` out from the picture's box, and
     /// its line taller by `space + width` above and below. bug59058's
