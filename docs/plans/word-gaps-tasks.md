@@ -18030,3 +18030,8 @@ amd-5 CLAIM (2026-11-19, after clear): SA1 Portuguese OPEN list line 'amd-5' (46
 
 - lenovo-2 HANDOFF xb 5dc87fc7: 41.1 -> 441/1045 lines matched (queued 590: JIS Latin-1 symbols, primes, middle dot/caron/double bar em widths; 13 docs holding the marks A/B text-identical; unit tests 662/0). Left: K66/K67 (U+FE36, U+FE5A drawn in YuGothic, Word block 45 pt vs ours 39: line-height fallback face), then later K70 (U+FF40) region p5. Rule bullet in ~/word-rules.md.
 - lenovo-3 CLAIM 2026-11-20 (starling-bd): xb fas-z22973278-768d17 (RTL breaks around Persian digits), then dx2 471e57de 5 pt line-height gap, then xb urd-e54653. Queue entries 559 and 578 still pending.
+
+## amd-11 2026-11-20: cell negative right-indent cap PARKED
+- Lab cellrind3 (compat 15, fixed layout, Arial Narrow, ind right -400): text stops at the cell's outer right edge +1.4 pt minus half the right rule (whole rule if pad 0). Matches lab first lines within one letter.
+- Corpus A/B (80 docs, base e52be3724): net LOSS. Gate on compat>=15, fixed layout, no cell spacing, no pct cells still loses 4144bc94 49 to 18, zh-ab9cbe66 2716 to 2662, zh-ae2dd08d 2751 to 2733, 6c8eb8a0 49 to 47; gains only c2c3a2f3 166 to 167. 6c8eb8a0 is dxa-only, so pct is not the separator.
+- Word keeps lines the lab law would wrap in those forms; the missing property is unknown (earlier labs cellrind and cellrind2 also saw no cap). Patch: /data/s/amd-11/cellcap-parked2.patch.
