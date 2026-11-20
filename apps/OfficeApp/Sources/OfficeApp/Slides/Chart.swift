@@ -1606,7 +1606,11 @@ enum ChartXML {
             lines.append(s)
         }
         let n = max(categories.count, series.map(\.values.count).max() ?? 0)
-        if categories.count < n { categories += (categories.count ..< n).map { "\($0 + 1)" } }
+        // A category cache that stops short of the values' count leaves the
+        // missing names blank (Word's print of ab55f8b0 chart4: 7 names, 8
+        // values, no "8" under the last slot); with no names at all they are
+        // the numbers 1, 2, ...
+        if categories.count < n { categories += (categories.count ..< n).map { categories.isEmpty ? "\($0 + 1)" : "" } }
         for i in series.indices where series[i].values.count < n {
             series[i].values += Array(repeating: nil, count: n - series[i].values.count)
         }
