@@ -2282,6 +2282,10 @@ enum DocxFormat {
                         && tblW?["w:type"] == "pct" && (Double(tblW?["w:w"] ?? "") ?? 0) >= 5000
                     if fullWidth {
                         nominalLeft = 0
+                        // (Against the page, it stands at its outer cell's own edge, not its text: lab fltpos on
+                        // Word for Windows, 03f63881's table in a cell with 5.4pt margins, its continuation's text
+                        // 4.9pt left of ours; the half border it shares with the cell's brings it to margin + 1pt.)
+                        if pos["w:horzAnchor"] == "page", let outer = saved.1 { nominalLeft = -(outer.padding?.left ?? 5.4) + 0.5 }
                         box.insetTop = f.y   // (its y under the anchor paragraph's top)
                     } else if pos["w:vertAnchor"] == "text", (pos["w:horzAnchor"] ?? "text") == "text", pos["w:tblpXSpec"] == nil, pos["w:tblpYSpec"] == nil,
                        f.y <= 1, f.x >= 0 {
