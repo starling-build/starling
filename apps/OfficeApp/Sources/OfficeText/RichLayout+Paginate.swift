@@ -2021,8 +2021,9 @@ extension RichLayout {
                let prev = _cells[i - 1]?.table, _floatLeavesNoStrip(prev, i, document),
                let ts = document.tableStyles[prev], ts.floatsOverText, !ts.pageAnchored, let down = ts.floatOffsetY, down > 0,
                let fb = floatRunBase, fb.table == prev, fb.page == page, fb.y < y - 0.01,
-               // (Its first line has to fit over the table, else the table pushes the line under it.)
-               case let g = geometry(i), let l1 = Self._lineBottoms(g.painter).first, l1 <= _px(down) + 0.01 {
+               // (The paragraph, from its first line's top to the end of its space after, has to fit in the offset,
+               // else the table pushes it under the table: Word prints, lab764.)
+               _heights[i] - (i < _spaceBefore.count ? _spaceBefore[i] : 0) <= _px(down) + 0.01 {
                 RuleTrace.hit("word-anchor-paragraph-of-a-full-width-floating-table-keeps-its-place-above-it")
                 besideTable = (y, page)
                 y = fb.y - (i < _spaceBefore.count ? _spaceBefore[i] : 0)
