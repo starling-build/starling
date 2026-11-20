@@ -302,6 +302,7 @@ extension RichLayout {
                let mangal = _mangalMarkLine(look, mark: mark, named: markNamed, document: document, lineSpacing: p.style.lineSpacing) {
                 look = mangal
             }
+            var emptyBidiOwnLine = false
             // (An empty paragraph that runs right to left, with no run to say so: Word sizes its mark on the complex-script face (Normal's
             // cs face), and where that face keeps its own line (David, FrankRuehl, Arabic faces Windows has) the line is that face's:
             // xd 38d880e8's empty paragraph after the header table, 2.9 pt taller in Word's print than the Latin face's.)
@@ -310,6 +311,7 @@ extension RichLayout {
                let cs = mark.complexFontFamily ?? markNamed?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily,
                let f = theme.complexFace(cs, latin: mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily), f.ownLineBaseline, let base = f.baseline, let tall = f.naturalHeight {
                 RuleTrace.hit("word-empty-bidi-mark-is-the-complex-face-line")
+                emptyBidiOwnLine = true
                 let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
                 look = look.copyWith(ascentOverride: base * multiple * px, descentOverride: (tall - base) * multiple * px, height: tall * multiple, leadingDistribution: .even)
             }
@@ -326,6 +328,16 @@ extension RichLayout {
                 let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
                 let base = f.baseline ?? 0.9425
                 look = look.copyWith(ascentOverride: base * multiple * px, descentOverride: (tall - base) * multiple * px, height: tall * multiple, leadingDistribution: .even)
+            }
+            // (An empty paragraph that runs right to left whose complex-script face has no line of ours: the mark is a Latin-face line at the
+            // szCs, not the sz. xb ara-z5177238's footer, Normal sz 12 / szCs 14 under cs Simplified Arabic: Word's second footer line is Times New
+            // Roman 14, 16.1 pt, ours 13.8.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.rightToLeft, p.style.list == nil, p.style.lineHeightPoints == nil,
+               !emptyBidiOwnLine, !mark.rightToLeft, let f = mark.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize, f > 0.5,
+               let z = mark.complexFontSize ?? markNamed?.char.complexFontSize ?? _normalChar(document)?.complexFontSize, z > 0.5, abs(z - f) > 0.01,
+               let px = look.fontSize, px > 0.5 {
+                RuleTrace.hit("word-empty-bidi-mark-takes-szcs")
+                look = look.copyWith(fontSize: px * z / f)
             }
             if theme.wordRules, p.style.list != nil, lead > 0 {
                 // An empty list still has a number and its suffix. Reserve

@@ -7459,6 +7459,11 @@ enum DocxFormat {
                 cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize, indicOnly: indicOnly)
                 // (Only a webHidden run in a header or footer, or any body run, as in a contents list: the PAGE results of the footers of 7d58f74e, b9164bf3 and fcd0d58c, with just rtl, stay complex and print in Arial.)
                 // (A run of ASCII digits flagged w:rtl with no szCs or cs font of its own is a plain Latin run to Word: 47480880's PAGEREF results.)
+                // (Arabic: the same for a PAGE result in a footer, whose face is the style's ascii one at the szCs: xb ara-z5177238's "2" under cs Simplified Arabic, an installed face, is Times New Roman 14.04 in two Word prints, sz 12 / szCs 14.)
+                if cs.rightToLeft, _on(rPr.first("w:rtl")), rPr.first("w:szCs") == nil, rPr.first("w:rFonts")?["w:cs"] == nil, rPr.first("w:rFonts")?["w:cstheme"] == nil, rPr.first("w:rFonts")?["w:hint"] != "cs",
+                   !DocxFormat._bidiLangHebrew, notes.inHeaderFooter, !runText.isEmpty, runText.unicodeScalars.allSatisfy({ (0x30...0x39).contains($0.value) }) {
+                    cs.rightToLeft = false; RuleTrace.hit("rtl-digits-no-cs-props-arabic-footer")
+                }
                 if DocxFormat._bidiLangHebrew, cs.rightToLeft, _on(rPr.first("w:rtl")), rPr.first("w:szCs") == nil, rPr.first("w:rFonts")?["w:cs"] == nil, rPr.first("w:rFonts")?["w:cstheme"] == nil, (rPr.first("w:webHidden") != nil || !notes.inHeaderFooter), rPr.first("w:rFonts")?["w:hint"] != "cs",
                    !runText.isEmpty, runText.unicodeScalars.allSatisfy({ (0x30...0x39).contains($0.value) }) {
                     cs.rightToLeft = false; RuleTrace.hit("rtl-digits-no-cs-props")
