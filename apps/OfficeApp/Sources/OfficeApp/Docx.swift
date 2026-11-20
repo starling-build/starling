@@ -7218,10 +7218,15 @@ enum DocxFormat {
                     }
                     if !perPart, node.descendant("wps:bodyPr") == nil, Self._vmlTop(node)?.name != "v:group",
                        att.width > 0, att.height > 0, let r = Self._vmlTextRect(node, types: notes.shapeTypes) {
-                        box.insetLeft += r.left * att.width
-                        box.insetTop += r.top * att.height
-                        box.insetRight += (1 - r.right) * att.width
-                        box.insetBottom += (1 - r.bottom) * att.height
+                        // (A VML ellipse's text rectangle is the inscribed one of the box already inset by the textbox's insets,
+                        // so each inset counts 0.7071 of itself: 5e813226's oval, Word's lines 156 pt wide, not 152, and its
+                        // first line 1.05 pt higher.)
+                        let ellipse = RichTextTheme.wordWindowsPages && (node.name == "v:oval" || node.descendant("v:oval") != nil)
+                        let k = ellipse ? 0.2929 : 0
+                        box.insetLeft += r.left * att.width - k * box.insetLeft
+                        box.insetTop += r.top * att.height - k * box.insetTop
+                        box.insetRight += (1 - r.right) * att.width - k * box.insetRight
+                        box.insetBottom += (1 - r.bottom) * att.height - k * box.insetBottom
                     }
                     // (A box fitted to its text's height: zh-a78d52e7's
                     // second paragraph holds a 78.75pt one round an empty
