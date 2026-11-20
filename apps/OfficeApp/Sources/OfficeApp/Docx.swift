@@ -7344,12 +7344,13 @@ enum DocxFormat {
                 let runText = r.children.filter { $0.name == "w:t" }.map(\.text).joined()
                 // (A run flagged w:rtl whose text is digits and marks, no letters, is complex
                 // script too: Word sets heb-z5059159's "1" in the szCs 12, not the sz 11.)
-                let rtlRun = _on(rPr.first("w:rtl")) && !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A }
+                let rtlRun = _on(rPr.first("w:rtl")) && !runText.isEmpty && (rPr.first("w:szCs") != nil || !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A })
                     // (Only when the run itself names a complex-script size: a PAGEREF result with just webHidden and rtl, 47480880's contents list, prints in the ascii face at sz, Calibri 11 / David 12.)
                     && (!DocxFormat._bidiLangHebrew || rPr.first("w:szCs") != nil || rPr.first("w:rFonts")?["w:cs"] != nil || rPr.first("w:rFonts")?["w:cstheme"] != nil || rPr.first("w:rFonts")?["w:hint"] == "cs" || (rPr.first("w:webHidden") == nil && notes.inHeaderFooter))
                 let csFlag = _on(rPr.first("w:cs"))
                 let complexSize = runText.unicodeScalars.contains {
-                    (0x0590...0x08FF).contains($0.value) || (0xFB1D...0xFDFF).contains($0.value) || (0xFE70...0xFEFF).contains($0.value)
+                    // (Hebrew letters in a run with neither w:rtl nor w:cs keep the sz, Latin pieces too: xb 5dc87fc7's Arial R5 paragraph, sz 22 / szCs 44, prints at 11.)
+                    ((0x0590...0x08FF).contains($0.value) && !((0x0590...0x05FF).contains($0.value) && !csFlag && !_on(rPr.first("w:rtl")))) || (0xFB1D...0xFDFF).contains($0.value) || (0xFE70...0xFEFF).contains($0.value)
                         // (Devanagari, Bengali, Gurmukhi and Gujarati: 375919ba's sz 16 / szCs 14 prints at 14, Word's Mangal. Tamil and Telugu do not:
                         // cef2f7bd's Telugu title, sz 14 / szCs 10, prints at 14.)
                         // (Only with the w:cs flag: a run without it prints at sz, lab cssz; 80152175's Bengali, 87097d3e's Hindi.)
