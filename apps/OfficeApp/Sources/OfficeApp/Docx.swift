@@ -2304,6 +2304,7 @@ enum DocxFormat {
                 }
                 var para = RichParagraph(image: image, style: cellBase)
                 para.style.indentLeft += nominalLeft
+                if nominalLeft < 0 { para.style.indentRight -= nominalLeft }   // (moved left, not wider: Word's lab fltpos table ends 4.9pt short of ours)
                 // (Word for Windows' labs T0-T2: the cell that holds a table is taller by that table's own
                 // cell margins, top and bottom, once more — lo-eb12e7d4's groups stand 2.8pt, the 28 twips
                 // of a pair, short of its print.)
