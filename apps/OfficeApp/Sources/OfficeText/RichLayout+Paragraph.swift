@@ -3482,16 +3482,23 @@ extension RichLayout {
                     let single = own.height / multiple, desc = own.descent / multiple
                     var above = [Double](repeating: -1, count: bottoms.count), below = above
                     var shiftsOwn = [Double](repeating: 0, count: bottoms.count)
+                    var wrappedPlain = Set<Int>()
                     for (k, box) in boxes.enumerated() {
                         guard inline[k].image != nil, inline[k].image?.float == nil, inline[k].image?.textBox == nil,
                               inline[k].image?.name != "m:oMath", let img = inline[k].image else { continue }
                         // (Only an object the run raises or lowers: a plain picture at position 0 keeps the multiple on the text,
                         // a8f4dfcd's 20pt icons in 1.5 Tahoma 12 pitch as text lines in Word's print.)
                         let pos = p.runs.first(where: { $0.style.inlineImage == img.id }).flatMap { $0.style.raised } ?? Self._runPosition(img.sourceRunPropertiesXML) ?? 0
-                        guard abs(pos) > 0.01 else { continue }
                         let r = box.toRect()
                         let mid = r.top + r.height / 2
                         guard let line = bottoms.firstIndex(where: { mid < $0 }) else { continue }
+                        if abs(pos) <= 0.01 {
+                            // (A plain chart that stands ALONE on a later line, after a line of text: the chart wrapped. (Not a picture: 8f697d90's screenshots at 1.08 do not take it.) Word puts
+                            // the multiple's extra under the text line and under the picture line alike; lab probe1-4 on dx2 f15415f0,
+                            // heading 11pt Verdana at 360 then a 272pt-wide chart: heading 438.9, chart line 748.8 from 735.0 single.)
+                            guard line > 0, img.sourceXML?.containsSubstring("drawingml/2006/chart") == true, metrics[line].width <= r.width + 1, r.height > 1.5 * bottoms[0], inline.count == 1 else { continue }
+                            wrappedPlain.insert(line)
+                        }
                         above[line] = max(above[line], metrics[line].baseline - r.top)
                         below[line] = max(below[line], r.bottom - metrics[line].baseline)
                     }
@@ -3504,8 +3511,21 @@ extension RichLayout {
                         // print of 1d944f7b: pitches 24.0 into the object's line and 23.1 out of it, 2.6 + 6.9 + 14.4 and 5 + 6.9 + 11.2.)
                         let want = own.baseline + max(0, above[line] - (single - desc))
                         shiftsOwn[line] = min(max(0, want - (metrics[line].baseline - before)), max(0, extra[line]))
+                        if wrappedPlain.contains(line) {
+                            // (painter units here are not the probe's: take the text line's own single height from line 0)
+                            extra[line] = (multiple - 1) * bottoms[0] / multiple
+                            shiftsOwn[line] = 0
+                        }
                     }
-                    if extra.contains(where: { abs($0) > 0.05 }) {
+                    if !wrappedPlain.isEmpty {
+                        // (the text lines before the picture: the multiple's extra goes under them, not above)
+                        RuleTrace.hit("word-a-wrapped-plain-picture-line-takes-the-multiples-extra-under-it-and-the-text-above-it")
+                        for k in 0 ..< bottoms.count where above[k] < 0 {
+                            let before = k == 0 ? 0 : bottoms[k - 1]
+                            shiftsOwn[k] = -(metrics[k].baseline - before) * (multiple - 1) / multiple
+                        }
+                    }
+                    if extra.contains(where: { abs($0) > 0.05 }) || !wrappedPlain.isEmpty {
                         RuleTrace.hit("word-a-line-with-an-object-is-its-tallest-and-deepest-plus-the-multiples-extra-below")
                         var shifts = [Double](repeating: 0, count: bottoms.count)
                         var acc = 0.0
