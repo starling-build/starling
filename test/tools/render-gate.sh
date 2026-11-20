@@ -8,12 +8,18 @@
 # Env: JOBS (default 44), GATE_SCRATCH (default $HOME/scratch/gate-$$), GATE_FULL=1 (no subset: the whole sets).
 set -u
 BASE_SHA=${1:?usage: render-gate.sh BASE_SHA}
-# Docs-only fast path: when the change touches only non-code files (docs/**, *.md, corpus lists *.tsv/*.txt under test/corpus), nothing can
-# change a render, so pass at once without building. Applies to a PR and to a merge group alike (BASE_SHA..HEAD).
-if git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
-  CODE=$(git diff --name-only "$BASE_SHA" HEAD | grep -v -E '^docs/|\.md$|^test/corpus/.*\.(tsv|txt)$' | head -1)
-  NFILES=$(git diff --name-only "$BASE_SHA" HEAD | wc -l)
-  if [ -z "$CODE" ] && [ "$NFILES" -gt 0 ]; then echo "render-gate: only non-code files changed ($NFILES); nothing to render, pass"; exit 0; fi
+# Classify the change (BASE_SHA..HEAD): (1) render-relevant paths (test/tools/render-paths.txt) -> the full gate;
+# (2) gate tooling (workflows, this script, the pair/combine/scorer tools) -> a quick self-test (2 documents through the new tooling);
+# (3) anything else cannot change a render -> pass at once.
+MODE=full
+if [ "${GATE_PREBUILD:-0}" != 1 ] && git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+  CH=$(git diff --name-only "$BASE_SHA" HEAD)
+  if [ -z "$CH" ]; then echo "render-gate: no changed files; no render-relevant change, pass"; exit 0; fi
+  PAT=$(grep -vE '^#|^$' "$(dirname "$0")/render-paths.txt" | paste -sd'|')
+  if ! echo "$CH" | grep -qE "$PAT"; then
+    if echo "$CH" | grep -qE '^\.github/workflows/render-gate|^test/tools/(render-gate|docx-pair|docx-combine|docx-line-match|docx-line-sweep|gen-render-paths)|^test/docx-line-match\.py|^test/tools/render-paths\.txt'; then MODE=selftest
+    else echo "render-gate: no render-relevant change ($(echo "$CH" | wc -l) files); pass"; exit 0; fi
+  fi
 fi
 cd "$(dirname "$0")/../.." || exit 2
 ROOT=$PWD; JOBS=${JOBS:-44}; W=${GATE_SCRATCH:-$HOME/scratch/gate}; mkdir -p "$W"   # PERSISTENT: the warm build scratches below make the builds incremental (cold 315 s, warm ~90 s)
@@ -27,7 +33,8 @@ git log --format=%B "$BASE_SHA..HEAD" | grep -oE '[0-9a-f]{6,12}|(zh|lo|xa|xb|xd
 # GATE_TARGETS_ONLY=1 (pull_request event): only the named documents, fast feedback; no named docs -> the sample, so the check is never vacuous.
 # The merge_group event runs the full gate (named + sample) against the group base.
 ids=$W/ids.txt
-if [ "${GATE_TARGETS_ONLY:-0}" = 1 ] && [ -s "$W/named.txt" ]; then sort -u "$W/named.txt" > "$ids"
+if [ "$MODE" = selftest ]; then head -2 "$LQ/sample.txt" > "$ids"; echo "render-gate: gate tooling changed: self-test on 2 documents"
+elif [ "${GATE_TARGETS_ONLY:-0}" = 1 ] && [ -s "$W/named.txt" ]; then sort -u "$W/named.txt" > "$ids"
 else { cat "$W/named.txt"; [ -s "$LQ/sample.txt" ] && cat "$LQ/sample.txt"; } | sort -u > "$ids"; fi
 # named ids are prefixes (8 hex) or set-prefixed names; the sweep matches whole stems, so expand each to the corpus stems it names
 # (a commit SHA in a message matches nothing and is dropped)

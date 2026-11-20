@@ -4,15 +4,14 @@ name: render-gate
 on:
   pull_request:
     branches: [main]
-  merge_group:
 permissions:
   contents: read
 concurrency:
-  group: render-gate-${{ github.event.pull_request.number || github.event.merge_group.head_ref || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: render-gate-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
 jobs:
   render-gate:
-    if: github.event_name == 'merge_group' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, linux, starling-render]
     timeout-minutes: 90
     steps:
@@ -20,7 +19,7 @@ jobs:
       - name: Update persistent clone
         env:
           GH_TOKEN: ${{ github.token }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -e
           C=$HOME/clone
@@ -32,10 +31,10 @@ jobs:
           git -C "$C" clean -fdq
       - name: Render gate
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ENGINE_DIR: /data/s/amd-8/starling-engine/engine
-          # pull_request: only the documents named in the commits (fast); merge_group: the full gate (named + sample).
-          GATE_TARGETS_ONLY: ${{ github.event_name == 'pull_request' && '1' || '0' }}
+          # no merge queue any more: every PR runs the full gate (named documents + sample) against its base.
+          GATE_TARGETS_ONLY: '0'
         run: |
           set -o pipefail
           cd "$HOME/clone"

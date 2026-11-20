@@ -1,0 +1,10 @@
+# Paths whose change can alter a render: the gate runs the FULL render gate for them (grep -E patterns, one per line).
+# Derived (2026-11-20) with `swift package show-dependencies` in apps/OfficeApp: OfficeApp -> FlutterSwift (sdk/) only;
+# the engine is a separate checkout (its own gated event). Regenerate with test/tools/gen-render-paths.sh when a Package.swift changes.
+^apps/OfficeApp/
+^sdk/
+(^|/)Package\.swift$
+(^|/)Package\.resolved$
+^test/tools/build-office-fast\.sh$
+^scripts/apply_engine_patches\.sh$
+^engine$
