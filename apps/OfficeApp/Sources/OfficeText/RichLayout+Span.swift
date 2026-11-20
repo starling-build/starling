@@ -3077,9 +3077,16 @@ extension RichLayout {
                 // (Not where the face gives the quote a width of its own
                 // (`otherAdvances`): Arial Unicode MS's are narrow, and Word
                 // sets them so with no blank beside them — zh-0aac9d1a.)
-                let narrowQuotes = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
-                                                       ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?
-                    .otherAdvances?[0x201D] != nil
+                let narrowFamily = run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                                   ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily
+                // (Asked once per family, not once per character.)
+                let narrowQuotes: Bool
+                if let known = _narrowQuoteMemo[narrowFamily ?? ""] {
+                    narrowQuotes = known
+                } else {
+                    narrowQuotes = theme.faceResolver?(narrowFamily, true)?.otherAdvances?[0x201D] != nil
+                    _narrowQuoteMemo[narrowFamily ?? ""] = narrowQuotes
+                }
                 let quote = ea && fullQuotes && (ch == "\u{201C}" || ch == "\u{2018}" || ch == "\u{201D}" || ch == "\u{2019}")
                     && !narrowQuotes
                 // (None where the face's own quote is the em to a hair: Starling

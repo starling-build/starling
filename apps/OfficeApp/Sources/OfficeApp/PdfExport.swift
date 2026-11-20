@@ -38,8 +38,19 @@ enum PdfExport {
         // file was saved with — lo tdf164905's "3" for every chapter where
         // the file says 3, 4, 4, 4. Laid out once more with them in.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, let updated = pageReferencesUpdated(document, layout) {
+            // (Only the paragraphs whose reference text changed are laid out
+            // again; every other painter is kept.)
+            var changedParagraphs: [Int] = []
+            for k in document.paragraphs.indices where document.paragraphs[k].text != updated.paragraphs[k].text { changedParagraphs.append(k) }
             document = updated
-            layout = laidOut(document)
+            // A picture the text wraps round moves lines it does not touch: only a document without one reuses the painters.
+            if !document.paragraphs.contains(where: { $0.image?.float != nil }) {
+                layout.apply(changedParagraphs.map { RichChange.changed($0) }, paragraphCount: document.paragraphs.count)
+                layout.invalidatePlacement()
+                layout.ensureLaidOut(document)
+            } else {
+                layout = laidOut(document)
+            }
         }
         // The pictures are decoded off to the side and painted as grey
         // boxes until they are: wait for them (the decoding runs on the

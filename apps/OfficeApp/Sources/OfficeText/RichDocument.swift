@@ -2455,6 +2455,25 @@ public struct RichSelection: Hashable, Codable, Sendable {
 
 // MARK: - Document
 
+private let _eaLangLock = OfficeLock()
+nonisolated(unsafe) private var _eaLangMemo: [String: Bool?] = [:]
+/// Whether the XML's w:eastAsia language is zh, ja or ko; nil when it states none.
+/// (Memoised: it runs for every character laid out.)
+func eastAsianLangIsCJK(_ xml: String) -> Bool? {
+    _eaLangLock.lock()
+    if let k = _eaLangMemo[xml] { _eaLangLock.unlock(); return k }
+    _eaLangLock.unlock()
+    var v: Bool? = nil
+    if let r = xml.rangeOfSubstring("w:eastAsia=\"") {
+        v = ["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
+    }
+    _eaLangLock.lock()
+    if _eaLangMemo.count > 4096 { _eaLangMemo.removeAll() }
+    _eaLangMemo[xml] = .some(v)
+    _eaLangLock.unlock()
+    return v
+}
+
 public struct RichDocument: Hashable, Codable, Sendable {
     public var paragraphs: [RichParagraph]
     /// Running header and footer, one line each; `{PAGE}` and `{NUMPAGES}`
@@ -2624,12 +2643,12 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// fellows bear it out: of the 198 files with the switch, those that
     /// state a language score 99.9 and those that do not 98.8.)
     public var eastAsianLineRules: Bool {
-        guard let xml = defaultLangXML, let r = xml.rangeOfSubstring("w:eastAsia=\"") else {
+        guard let xml = defaultLangXML, let known = eastAsianLangIsCJK(xml) else {
             // (Nor where nothing states a language and the East Asian default face is
             // a Latin one, e.g. Arial: jpn-z18981562 opens lines with "）" and "。".)
             return !(RichTextTheme.wordWindowsPages && (breakRulesOnlyForEastAsian || (eastAsianDefaultFaceIsLatin && !bodyStatesLang)))
         }
-        return ["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
+        return known
     }
     public var themeFontLangXML: String? = nil
     /// Word sets no automatic space between an ideograph and a digit or Latin

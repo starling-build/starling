@@ -139,6 +139,19 @@ extension RichLayout {
         invalidateAll()
     }
 
+    /// Every paragraph is placed and paginated again, but the painters already
+    /// built (the costly part) are kept: for a second pass over the same
+    /// document with a few paragraphs changed (PAGEREF numbers).
+    public func invalidatePlacement() {
+        _tablesDirty = true
+        _dirty = nil
+        _firstDirty = 0
+        _lastDirty = Int.max
+        _topsValid = false
+        _listValid = false
+        _pagesValid = false
+    }
+
     public func invalidateAll() {
         _cellMins.removeAll()
         for i in _painters.indices {

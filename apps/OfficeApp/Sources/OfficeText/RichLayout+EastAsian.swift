@@ -2810,9 +2810,7 @@ extension RichLayout {
     /// zh-TW — Word keeps "，" off a line's start there.)
     static func _eastAsianLineRules(_ run: CharStyle, _ document: RichDocument, named: RichNamedStyle? = nil) -> Bool {
         for xml in [run.keptXML, named?.char.keptXML].compactMap({ $0 }) {
-            if let r = xml.rangeOfSubstring("w:eastAsia=\"") {
-                return ["zh", "ja", "ko"].contains(String(xml[r.upperBound...].prefix(2)).lowercased())
-            }
+            if let known = eastAsianLangIsCJK(xml) { return known }
         }
         // (A run with no language of its own, in a document whose defaults name a Latin face for East Asian text, has
         // none of the rules even where other runs state one: xb docx-5dc87fc7's "永永…°永永" paragraphs.)
