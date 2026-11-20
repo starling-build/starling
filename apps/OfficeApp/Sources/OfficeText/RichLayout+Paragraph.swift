@@ -1232,7 +1232,7 @@ extension RichLayout {
                 // <4 tabs>" in a justified line, one line in Word's print, ours wrapped the last tab and
                 // moved the lines below it 17 pt.)
                 if theme.wordRules, style.alignment == .justify, stop.alignment == .left, abs(stop.x - (ownLeft + textWidth)) < 0.01,
-                   (t + 1 ..< units.count).allSatisfy({ units[$0] == 0x09 }) {
+                   (t + 1 ..< units.count).allSatisfy({ units[$0] == 0x09 || units[$0] == 0x20 }) {
                     atMargin.insert(t)
                 }
                 if collapsedTab { extra = -own }
