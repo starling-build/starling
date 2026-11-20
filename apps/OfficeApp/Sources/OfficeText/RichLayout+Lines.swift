@@ -731,6 +731,21 @@ extension RichLayout {
         return (column - width) / 2 >= _px(theme.fontSize) * 3 + _px(20)
     }
 
+    /// A table placed against the page (tblpY from the page's top) that runs over two pages and leaves a strip at its
+    /// right for three ems of text: what follows it stands at the top of the table's last page, beside the rows
+    /// there, not under them. (f42177d2: the table's 510pt on a landscape page, the chart's labels in the 252pt
+    /// strip at the page's top in Word's print.)
+    func _splitPageFloatBeside(_ table: String, _ i: Int, _ page: Int, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, page > 0, i > 0, _cells[i] == nil,
+              let ts = document.tableStyles[table], ts.pageAnchored, !ts.bottomAligned,
+              let kept = ts.keptPosition, !kept.containsSubstring("w:tblpXSpec"),
+              _pages[page].contains(where: { _cells[$0.paragraph]?.table == table }),
+              _pages[page - 1].contains(where: { _cells[$0.paragraph]?.table == table }),
+              let widths = _columnWidths[table] else { return false }
+        let column = _flowWidth(i), left = _tableLeft(table, document)
+        return left < column / 2 && column - (left + widths.reduce(0, +)) >= _px(theme.fontSize) * 3 + _px(20)
+    }
+
     /// A floating table at the left of the column that leaves a strip at its right for three ems of text, with a narrow
     /// ordinary table after the paragraph `i` (or paragraphs of text) that stand in the strip: the paragraph between
     /// them is beside it too. (lo-5e49366b: a blank line, a 90pt table and "x", all at the top of the strip in Word.)
