@@ -14,6 +14,7 @@ extension RichLayout {
     /// is split between lines (its painter is painted twice, clipped), so
     /// the breakable positions inside a block are the bottoms of its lines.
     func _paginate(_ document: RichDocument, from start: Int = 0, settled: Int = Int.max, pinPass: Bool = false) {
+        _firstParaHasText = document.paragraphs.first.map { !$0.text.unicodeScalars.allSatisfy { $0.value == 0xFFFC } } ?? false
         // (A float that wraps, set where its anchor puts it, over content
         // set before that anchor on its page: Word leaves the float there
         // and moves that content out from under it — zh-06c46ba9's

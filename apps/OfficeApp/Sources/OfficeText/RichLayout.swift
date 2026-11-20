@@ -1505,6 +1505,7 @@ public final class RichLayout {
     var inheritedFitWidths: [String: Double] = [:]
     /// … and up, where its paragraph's line was moved down under the
     /// pictures and the picture stays where the paragraph first stood.
+    var _firstParaHasText = false
     var _floatShiftY: [String: Double] = [:]
     /// Rects found by the host-line scan in `_floatRect` while one outer call runs: that scan asks for the rects of the pictures
     /// of the 6 paragraphs before, which scan the same way, so without this the work doubles with every page of pictures.

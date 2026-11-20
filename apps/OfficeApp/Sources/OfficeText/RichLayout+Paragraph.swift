@@ -11,6 +11,7 @@ import Foundation
 extension RichLayout {
 
     func _layoutParagraphOnce(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
+        if i == 0 { _firstParaHasText = !p.text.unicodeScalars.allSatisfy { $0.value == 0xFFFC } }
         _heldTallerLatin.remove(i)
         var p = p
         // A paragraph of hidden text alone, its mark not hidden, is one empty
@@ -3735,7 +3736,8 @@ extension RichLayout {
         if theme.wordRules, p.cell == nil, RichTextTheme.wordWindowsPages || p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " }) {
             let bareText = p.text.unicodeScalars.allSatisfy { $0.value == 0xFFFC || $0 == " " }
             for image in (p.image.map { [$0] } ?? []) + p.inlineImages.inOrder {
-                guard bareText || image.sourceXML?.containsSubstring("drawingml/2006/chart") == true else { continue }
+                let atTopText = theme.wordRules && RichTextTheme.wordWindowsPages && i == 0 && _firstParaHasText && (image.float?.y ?? 0) < -2 && image.float?.bandsPage == true && !floatsFrames && regionTopOnPage == nil
+                guard bareText || atTopText || image.sourceXML?.containsSubstring("drawingml/2006/chart") == true else { continue }
                 // (A hair above the line, -0.9pt as in lo-eb12e7d4's 137pt picture, in an empty
                 // paragraph: Word sets the line under it all the same — its p12 has the picture
                 // where the paragraph stood and the next paragraph at its foot, not over it.)
@@ -3744,12 +3746,17 @@ extension RichLayout {
                 // every line after it 42.5pt high. One document's evidence, so only the document's first paragraph.)
                 let atTop = _atPageTopNegativeOffset(i, image)
                 guard let f = image.float, f.bandsPage, f.verticalFrom == "paragraph", f.verticalAlign == nil,
-                      f.y > 0 || atTop || (RichTextTheme.wordWindowsPages && bareText && f.y < -0.3 && f.y > -2),
+                      f.y > 0 || atTop || atTopText || (RichTextTheme.wordWindowsPages && bareText && f.y < -0.3 && f.y > -2),
                       image.height + f.effectBottom > 0, before + max(painter.height, _markLineHeight(i, document)) >= _px(f.y) - 0.01 else { continue }
                 // (… and one more line than the picture's height: Word's p12 has two lines under it before the next paragraph.)
                 if atTop {
                     RuleTrace.hit("word-top-and-bottom-picture-above-the-margin-stands-at-it-and-the-line-goes-under")
                     push = max(push, _px(image.height + f.effectBottom + f.distanceBottom))
+                    continue
+                }
+                if atTopText {
+                    RuleTrace.hit("word-negative-offset-top-and-bottom-picture-on-first-text-paragraph-keeps-its-place-and-the-text-goes-under")
+                    push = max(push, _px(f.y + image.height + f.effectBottom + f.distanceBottom))
                     continue
                 }
                 push = max(push, _px(f.y + image.height + f.effectBottom + f.distanceBottom) + (f.y < 0 ? max(painter.height, _markLineHeight(i, document)) : 0))
@@ -4741,7 +4748,7 @@ extension RichLayout {
     @inline(never)
     func _atPageTopNegativeOffset(_ i: Int, _ image: ImageAttachment) -> Bool {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, let f = image.float, (f.bandsPage || (f.wraps && !f.wrapsTight && image.textBox == nil && image.sourceXML?.containsSubstring("txbxContent") != true)), f.verticalAlign == nil,
-              f.verticalFrom == "paragraph", f.y < -2, i == 0, !floatsFrames, regionTopOnPage == nil else { return false }
+              f.verticalFrom == "paragraph", f.y < -2, i == 0, !_firstParaHasText, !floatsFrames, regionTopOnPage == nil else { return false }
         return true
     }
 }
