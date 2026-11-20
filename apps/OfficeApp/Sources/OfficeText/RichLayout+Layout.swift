@@ -1592,7 +1592,14 @@ extension RichLayout {
             guard let cc = q.cell, cc.table == table else { continue }
             guard cc.span == 1, cc.column < stated.count else { return stated }
             let sides = cc.padding.map { _px($0.left) + _px($0.right) } ?? ins.left + ins.right
-            need[cc.column] = max(need[cc.column], sides + _minContent(k, q, document))
+            // (A no-wrap cell holds its text on one line, so its narrowest is the whole text: sa2 f6963ebe, noWrap in
+            // columns 2 to 7, which gave up nothing in Word's print while the first column gave up 21 pt. Only in a table with a stated width: sa1 adfc07ea, auto width, wraps its noWrap header in Word.)
+            var least = _minContent(k, q, document)
+            if theme.wordRules, document.tableStyles[table]?.width != nil, let kept = cc.keptPropertiesXML, kept.containsSubstring("<w:noWrap"),
+               !kept.containsSubstring("<w:noWrap w:val=\"0\"") && !kept.containsSubstring("<w:noWrap w:val=\"false\"") {
+                least = max(least, _maxContent(k, q, document))
+            }
+            need[cc.column] = max(need[cc.column], sides + least)
         }
         let grid = stated.map { _px($0) }
         var rise = 0.0
@@ -1623,7 +1630,20 @@ extension RichLayout {
             guard let c = p.cell, c.table == table else { continue }
             guard c.column + c.span <= base.count else { return base }
             // (Turned text runs along the row, not across the column.)
-            guard c.textDirection == .horizontal else { continue }
+            if c.textDirection != .horizontal {
+                // (Word for Windows, labs vtcell3 and f42177d2: a turned cell's column
+                // is at least one line high: a whole number of grid pitches
+                // (Yu Gothic 12 pt on an 18 pt grid, 36 pt) and the cell's margins.
+                // It is no narrower than that: f42177d2's first column 47.2 pt,
+                // its grid 35.1.)
+                guard theme.wordRules, RichTextTheme.wordWindowsPages, c.span == 1, !p.text.isEmpty else { continue }
+                let vL = c.padding.map { _px($0.left) } ?? ins.left, vR = c.padding.map { _px($0.right) } ?? ins.right
+                let v = vL + vR + _verticalCellLine(i, p, document)
+                let vkey = c.row * 4096 + c.column
+                if let k = at[vkey] { cells[k].min = max(cells[k].min, v); cells[k].whole = max(cells[k].whole, v); cells[k].max = max(cells[k].max, v) }
+                else { at[vkey] = cells.count; cells.append(Cell(column: c.column, span: 1, min: v, whole: v, max: v, picture: false)) }
+                continue
+            }
             let padL = c.padding.map { _px($0.left) } ?? ins.left, padR = c.padding.map { _px($0.right) } ?? ins.right
             let sides = padL + padR + _autofitRuleRoom(table, document, padL, padR)
             let w = sides + _minContent(i, p, document)
@@ -1875,6 +1895,18 @@ extension RichLayout {
     /// run that fits its line is never parted for it, and a line of
     /// ideographs came out as wide as all of them.)
     static func _isIndicUnit(_ u: UInt16) -> Bool { (u >= 0x900 && u <= 0xDFF) || u == 0x200C || u == 0x200D }
+    /// A turned cell paragraph's line height: its text's own line, on the grid in whole pitches.
+    fileprivate func _verticalCellLine(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> Double {
+        let (span, inline, _) = _span(for: p, at: i, document, textWidth: 100_000, autoSpaces: { _, _ in })
+        let probe = TextPainter(text: span, textAlign: .left, textDirection: .ltr)
+        if !inline.isEmpty { probe.setPlaceholderDimensions(inline.map { $0.dimensions }) }
+        probe.layout(minWidth: 0, maxWidth: 100_000)
+        var h = probe.height
+        if !_offGrid(i, document), let pitch = _grid(i, document).pitch, pitch > 0 { h = (h / pitch - 0.002).rounded(.up) * pitch }
+        probe.dispose()
+        return h
+    }
+
     func _minContent(_ i: Int, _ p: RichParagraph, _ document: RichDocument, contentFit: Bool = false) -> Double {
         if !contentFit, let m = _cellMins[i] { return m.min }
         var m = 0.0, first = 0.0   // the pieces after the first; the first
