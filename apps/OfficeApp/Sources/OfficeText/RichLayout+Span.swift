@@ -4459,7 +4459,15 @@ extension RichLayout {
             if rise == nil, !symbolLevel, pitch == nil, theme.wordRules, RichTextTheme.wordWindowsPages, p.style.list != nil,
                let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
                let r = xml.rangeOfSubstring("w:ascii=\"") {
-                let family = String(xml[r.upperBound...].prefix { $0 != "\"" })
+                var family = String(xml[r.upperBound...].prefix { $0 != "\"" })
+                // (A dingbat bullet (U+2700-27BF) in a Noto Sans Symbols face, which Windows lacks: Word draws it in Segoe UI Symbol, ascent 1.0791 em
+                // where Arial's is 0.905: 9pt ✔ bullets over Arial at 1.5, lines 16.8 apart where plain ones are 15.48 (sa2 5cf365e6).)
+                if family.lowercased().hasPrefix("noto sans symbols"),
+                   let u = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)] })?.text.unicodeScalars.first?.value,
+                   (0x2700 ... 0x27BF).contains(u) {
+                    RuleTrace.hit("word-noto-symbols-dingbat-bullet-is-segoe-ui-symbol")
+                    family = "Segoe UI Symbol"
+                }
                 if !family.isEmpty, !p.text.unicodeScalars.contains(where: { Self.isEastAsian(Character($0), hinted: true) }) {
                     // (Its face's own ascent, not a line's: the line's carries the spacing multiple.)
                     let textFace = firstLook.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily
@@ -4477,6 +4485,32 @@ extension RichLayout {
             // (A box sets no line height of its own: the level's face
             // reaches the line through a zero-width space in it, one
             // more character before the text.)
+            var dingStyle: TextStyle?
+            // (A dingbat bullet (✔ U+2714) in a Noto Sans Symbols face, drawn in Segoe UI Symbol (above), at a line multiple: Word's row is the
+            // text's own row at the multiple, taller by what Segoe's ascent stands over the text's single-spaced ascent, none of it below:
+            // 9pt Arial at 1.5, bullet lines 16.8 apart where a plain one is 15.48 (sa2 5cf365e6).)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil,
+               p.style.lineSpacing > 1.001, p.style.list == .bullet,
+               (_levelNumberFonts(p, document).latin ?? "").lowercased().hasPrefix("noto sans symbols"),
+               let lvl = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)] }),
+               let u = lvl.text.unicodeScalars.first?.value, (0x2700 ... 0x27BF).contains(u),
+               let leadPx = style.fontSize, leadPx > 0.5, !p.style.rightToLeft {
+                let bulletPt = _levelNumberSize(p, document) ?? p.style.mark?.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize
+                let px = bulletPt != nil && bulletPt! > 0.5 ? _px(bulletPt!) * fontScale : leadPx
+                let probe = TextPainter(text: TextSpan(text: "x", style: theme.textStyle(for: firstLook, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)), textDirection: .ltr)
+                probe.layout(minWidth: 0, maxWidth: 100000)
+                let m = probe.computeLineMetrics().first
+                probe.dispose()
+                if let m {
+                    let own = m.baseline / p.style.lineSpacing
+                    let up = 2210.0 / 2048 * px
+                    if up > own + 0.01 {
+                        RuleTrace.hit("word-noto-symbols-dingbat-bullet-is-segoe-ui-symbol-ascent-at-a-multiple")
+                        let above = m.baseline + (up - own), below = m.height - m.baseline
+                        dingStyle = style.copyWith(ascentOverride: above, descentOverride: below, height: (above + below) / leadPx, leadingDistribution: .even)
+                    }
+                }
+            }
             if symbolLevel {
                 var markStyle = style
                 var symStands = false
@@ -4637,6 +4671,9 @@ extension RichLayout {
                     children[children.count - 1] = RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: markStyle)
                 }
                 children.append(TextSpan(text: "\u{200B}", style: markStyle))
+                inserts.append(0)
+            } else if let dingStyle {
+                children.append(TextSpan(text: "\u{200B}", style: dingStyle))
                 inserts.append(0)
             } else if let rise {
                 // (The number's height above the line, as a box on the
