@@ -164,6 +164,7 @@ public final class RichTextTheme {
     /// descent and line gap — Calibri's 1.22, Arial's 1.15), measured once:
     /// what Word's and PowerPoint's "single" spacing is a multiple of.
     private var _naturalHeights: [String: Double] = [:]
+    private var _faceAscDesc: [String: (Double, Double)?] = [:]
 
     /// "Single" spacing as a multiple of the size whatever the face, where
     /// nil takes each face's own. PowerPoint's is 1.2 for every face — its
@@ -377,6 +378,21 @@ public final class RichTextTheme {
     /// otherwise it is measured. Off by default.
     public var naturalLinesPerFace = false
     public var faceLineHeight: ((String) -> Double?)? = nil
+
+    /// The drawn face's own ascent and descent in ems (the engine's line metrics at a large size), the face Word's win metrics stand in for.
+    public func faceAscentDescent(family: String, bold: Bool, italic: Bool) -> (Double, Double)? {
+        let key = "\(family)|\(bold)|\(italic)"
+        if let h = _faceAscDesc[key] { return h }
+        let probe = TextPainter(text: TextSpan(text: "x", style: TextStyle(fontSize: 10000, fontWeight: bold ? .bold : .normal,
+                                                                            fontStyle: italic ? .italic : .normal, fontFamily: family)),
+                                textDirection: .ltr)
+        probe.layout(minWidth: 0, maxWidth: 100_000)
+        var r: (Double, Double)? = nil
+        if let m = probe.computeLineMetrics().first, m.height > 1 { r = (m.ascent / 10000, m.descent / 10000) }
+        probe.dispose()
+        _faceAscDesc[key] = r
+        return r
+    }
 
     public func naturalLineHeight(family: String?, bold: Bool, italic: Bool) -> Double {
         if let singleLineHeight, !naturalLinesPerFace { return singleLineHeight }
