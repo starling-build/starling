@@ -5433,6 +5433,8 @@ extension RichLayout {
     static func _ruleRoom(_ style: String?, _ width: Double) -> Double {
         switch style {
         case "double": return width * 3
+        // (A triple rule: three lines and two gaps of the width, 5 widths. xa-style sa1 5393bae9's 0.5pt "triple" table rows are 2.5pt taller in Word's print.)
+        case "triple": return width * 5
         case "thinThickSmallGap", "thickThinSmallGap": return width + 1.5
         // (Word's print of xa gv-d4270b921d's 3pt table top: a 0.69 line, 0.83 gap, 2.9 line, 0.83 gap, 0.69 line, 5.9pt in all.)
         case "thinThickThinSmallGap": return width + 3
@@ -5456,6 +5458,7 @@ extension RichLayout {
         let thin = 0.75, gap = max(0, _ruleRoom(style, width) - width - thin)
         switch style {
         case "double": return [(0, width), (2 * width, width)]
+        case "triple": return [(0, width), (2 * width, width), (4 * width, width)]
         case "threeDEngrave", "threeDEmboss": return [(0, 0.47 * width), (0.47 * width, width), (1.47 * width, 0.47 * width)]
         case "thinThickThinSmallGap": return [(0, thin), (thin + 0.75, width), (thin + 0.75 + width + 0.75, thin)]
         case "thinThickSmallGap", "thinThickMediumGap", "thinThickLargeGap": return [(0, width), (width + gap, thin)]
