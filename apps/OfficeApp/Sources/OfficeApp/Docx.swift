@@ -2968,7 +2968,7 @@ enum DocxFormat {
                     // tables moved when they were set on those too.)
                     if !mixed, !shares.isEmpty {
                         style.columnPercents = shares
-                        if (style.cellSpacing ?? 0) > 0 { style.noWrapColumns = noWrap }
+                        if (style.cellSpacing ?? 0) > 0 || (shares.values.reduce(0, +) > 100.5) { style.noWrapColumns = noWrap }
                     }
                 }
                 if style != TableStyle() { tableStyles[id] = style }

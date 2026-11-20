@@ -1155,6 +1155,31 @@ extension RichLayout {
                     if theme.wordRules, RichTextTheme.wordWindowsPages, _nestedBlock, ts.widthPercent != nil, ts.columnPercents.count == base.count, base.count > 1 {
                         widths[c.table] = _pctColumns(c.table, widths[c.table] ?? base, ts, document)
                     }
+                    // (A top-level table of 100% whose cells state shares adding to more than
+                    // 100%: lab pcttbl, Word's print. Each column asks for its share of the
+                    // whole table; the excess is taken from the LAST columns first, each down
+                    // to its narrowest content, then the first. 5000+5000 and 5000+2500 leave
+                    // the last column at its content, the first the rest; 2500+5000 leaves
+                    // 223/230 after the first is raised to its content.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, !_nestedBlock, ts.widthPercent == 100, ts.columnPercents.count == base.count,
+                       base.count > 1, ts.columnPercents.values.reduce(0, +) > 100.5,
+                       !document.paragraphs.contains(where: { $0.cell?.table == c.table && ($0.cell?.span ?? 1) != 1 }) {
+                        let reach = (document.compatibilityMode ?? 12) >= 15 ? 0 : _px((ts.cellMarginLeft ?? 5.4) + (ts.cellMarginRight ?? 5.4))
+                        let total = width + reach - _px(max(0, ts.indent))
+                        let narrow = _pctColumns(c.table, Array(repeating: total / Double(base.count), count: base.count), {
+                            var s = ts; s.columnPercents = s.columnPercents.mapValues { _ in 0 }; return s
+                        }(), document)
+                        var out = (0 ..< base.count).map { total * (ts.columnPercents[$0] ?? 0) / 100 }
+                        var over = out.reduce(0, +) - total
+                        for k in (0 ..< base.count).reversed() where over > 0 {
+                            let take = min(over, max(0, out[k] - narrow[k]))
+                            out[k] -= take; over -= take
+                        }
+                        if over <= 0.5 {
+                            RuleTrace.hit("pct-cells-over-100-last-columns-first")
+                            widths[c.table] = out.indices.map { out[$0] <= narrow[$0] + 0.01 ? out[$0].rounded(.up) : out[$0].rounded(.down) }
+                        }
+                    }
                 } else if theme.wordRules, _columnPreview[c.table] == nil, let ts = document.tableStyles[c.table],
                           !ts.fixedLayout, (ts.cellSpacing ?? 0) > 0, !ts.columnPercents.isEmpty, let base = widths[c.table] {
                     widths[c.table] = _pctColumns(c.table, base, ts, document)
