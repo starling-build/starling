@@ -4166,7 +4166,17 @@ extension RichLayout {
                         // (A space run that opens a line after a manual break: a figure space of the space's width, which the engine keeps at a line start where a no-break space collapses.)
                         spans.append(TextSpan(text: "\u{00A0}", style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + _glyphWidth(s, " ") - _glyphWidth(s, "\u{00A0}"))))
                     } else {
-                        spans.append(TextSpan(text: "\u{00A0}", style: extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s))
+                        var heldStyle = extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s
+                        // (A tab held as a no-break space sets no line beside text, as a run of tabs sets none: sa1 7770c637's
+                        // justified contents line "I.<tab>RESUMEN…", its tab in Calibri 11 among 9pt Courier New raised 2pt, is
+                        // 24.36 to the next line in Word's print as every other contents line; its held tab broke the line's
+                        // strut and stood it on Calibri's 11pt line, 25.89. Shaded, it keeps its box to paint the shade.)
+                        if theme.wordRules, ch == "\t", s.fontSize ?? 0 > 0.5, !Self.shadeShows(run.highlight),
+                           p.text.contains(where: { !$0.isWhitespace && $0 != "\u{FFFC}" }) {
+                            RuleTrace.hit("held-tab-sets-no-line-beside-text")
+                            heldStyle = heldStyle.copyWith(height: 0.01)
+                        }
+                        spans.append(TextSpan(text: "\u{00A0}", style: heldStyle))
                     }
                     start = after
                     afterHeld = !koreanSpaces.contains(offset)
