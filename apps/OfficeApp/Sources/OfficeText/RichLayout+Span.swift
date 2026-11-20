@@ -4550,7 +4550,7 @@ extension RichLayout {
                         let up = isSymbol ? (theme.faceResolver?("symbol", false)?.baseline ?? 0) * px + (m.baseline - own) : px * 1841.0 / 2048
                         if up > (isSymbol ? m.baseline : own) + 0.01 {
                             let down = isSymbol ? m.height - m.baseline : single - own + m.height - single
-                            RuleTrace.hit("word-wingdings-bullet-stands-the-first-line-on-its-ascent")
+                            RuleTrace.hit(isSymbol ? "word-symbol-bullet-stands-the-first-line-on-its-ascent" : "word-wingdings-bullet-stands-the-first-line-on-its-ascent")
                             markStyle = style.copyWith(ascentOverride: up, descentOverride: down, height: (up + down) / px)
                         }
                     }
