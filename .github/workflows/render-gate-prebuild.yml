@@ -21,7 +21,7 @@ jobs:
         run: |
           set -e
           C=$HOME/clone
-          pgrep -u "$(id -u)" -x git >/dev/null || find "$C/.git" -maxdepth 2 -name "*.lock" -delete   # stale locks from a cancelled run, only if no git of ours is running
+          pgrep -u "$(id -u)" -x git >/dev/null || find "$C/.git" -maxdepth 2 -name "*.lock" -delete 2>/dev/null || true   # stale locks from a cancelled run, only if no git of ours is running
           [ -d "$C/.git" ] || { git init -q "$C"; git -C "$C" remote add origin "https://github.com/${{ github.repository }}.git"; }
           AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           git -C "$C" -c http.extraheader="$AUTH" fetch -q --no-tags --depth=200 origin "$GITHUB_SHA"
