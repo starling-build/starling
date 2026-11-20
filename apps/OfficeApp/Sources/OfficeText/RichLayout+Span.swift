@@ -1057,7 +1057,13 @@ extension RichLayout {
             // (A right-to-left run's hinted dash stays its Latin face where the East Asian face is unnamed: heb-z5059159's
             // hinted "–" in Arial in Word's print, where the hint set the left-to-right "·" of fas-z22973278 in MS Mincho.)
             let eaNamedNone = run.rightToLeft && theme.wordRules && text.unicodeScalars.allSatisfy({ $0.value == 0x2013 || $0.value == 0x2014 }) && (run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily) == nil
-            let hinted = (hint == "eastAsia" && !eaFaceIsLatin && !eaNamedNone) || (latinFace?.isEastAsian ?? false) && (hint != "default" || (highFace?.isEastAsian ?? true))
+            // (A hint where no East Asian face is named anywhere, over accented Latin letters only: sa2 1f26d09a's "çã"
+            // stay the run's own Times in Word's print, its 1.5 lines 20.7 pt, where ours took a fallback face's height, 22.2.)
+            let eaUnnamedLetters = theme.wordRules && hint == "eastAsia" && !text.isEmpty
+                && text.unicodeScalars.contains(where: { $0.value >= 0xC0 && $0.value <= 0x24F })
+                && text.unicodeScalars.allSatisfy({ ($0.value >= 0xC0 && $0.value <= 0x24F && $0.value != 0xD7 && $0.value != 0xF7) || $0.value < 0x80 })
+                && (run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily) == nil
+            let hinted = (hint == "eastAsia" && !eaFaceIsLatin && !eaNamedNone && !eaUnnamedLetters) || (latinFace?.isEastAsian ?? false) && (hint != "default" || (highFace?.isEastAsian ?? true))
             // (… but an en dash, unhinted, is its hAnsi face's where that is
             // a Latin one: zh-ea70c30e's "辦公室 – 投訴", `w:ascii` PMingLiU
             // over an inherited Times hAnsi, sets its "–" in Times in Word's
