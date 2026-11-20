@@ -1125,7 +1125,7 @@ extension RichLayout {
                     best = (edge - own, band, false, nil); _besideIndentOnTop.insert(i); _besideTightTop[i] = band.top - _px(float.wrapTopSkip); RuleTrace.hit("word-first-line-indent-beside-earlier-tight-float")
                     continue
                 }
-                if best == nil || edge - own > best!.indent { best = (tightList ? edge : edge - own, band, false, nil); if tightList { _besideListEarlier.insert(i); _besideTightTop[i] = band.top - _px(float.wrapTopSkip); RuleTrace.hit("word-list-beside-earlier-tight-float-counts-its-indent") } }
+                if best == nil || edge - own > best!.indent { best = (tightList ? edge : edge - own, band, false, nil); if fromPage, k < i, !tightList, hang == 0 { _besideIndentOnTop.insert(i) }; if tightList { _besideListEarlier.insert(i); _besideTightTop[i] = band.top - _px(float.wrapTopSkip); RuleTrace.hit("word-list-beside-earlier-tight-float-counts-its-indent") } }
             }
             if k > 0 { offset += _heights[k - 1] }
             k -= 1
