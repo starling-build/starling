@@ -88,4 +88,6 @@ while read -r line; do
 done < "$W/down.txt"
 if [ -n "$DROPS" ]; then echo "render-gate: BLOCKED, v2 drops not approved:$DROPS"; exit 1; fi
 [ "$DN" = 0 ] || [ -s "$W/down.txt" ] || { echo "render-gate: drops reported but not parsed"; exit 1; }
-echo "render-gate: $NCMP sets compared; clean ($(wc -l < "$W/down.txt") approved drops)"; exit 0
+echo "render-gate: $NCMP sets compared; clean ($(wc -l < "$W/down.txt") approved drops)"
+[ "$MODE" = full ] && [ "${GATE_BLAME:-1}" = 1 ] && { W=$W LQ=$LQ BC=$BC BASE_SHA=$BSHA EO=$EO JOBS=$JOBS timeout 1500 test/tools/render-gate-blame.sh 2>&1 | tail -5 | cut -c1-250 || true; }
+exit 0

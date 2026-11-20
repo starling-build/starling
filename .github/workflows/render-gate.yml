@@ -6,6 +6,7 @@ on:
     branches: [main]
 permissions:
   contents: read
+  issues: write
 concurrency:
   group: render-gate-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
@@ -31,6 +32,7 @@ jobs:
           git -C "$C" clean -fdq
       - name: Render gate
         env:
+          GH_TOKEN: ${{ github.token }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           ENGINE_DIR: /data/s/amd-8/starling-engine/engine
           # no merge queue any more: every PR runs the full gate (named documents + sample) against its base.
