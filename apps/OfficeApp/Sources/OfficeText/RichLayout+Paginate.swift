@@ -68,6 +68,7 @@ extension RichLayout {
         // (A table placed against the page that was set up to the page's edge: its table and the edge, in pixels.)
         var pageEdgeClamp: (table: String, edge: Double)? = nil
         var tableBands: [(top: Double, bottom: Double, owner: Int)] = []
+        var topPinnedOwners = Set<Int>()  // owners whose own picture sits at offset 0 from the paragraph, no space above it
         // (Tops of the bands of page-anchored tables with a strip free to their right: empty paragraphs stand beside them.)
         var stripBandTops = Set<Double>()
         var narrowBands: [(top: Double, bottom: Double, owner: Int, left: Double, right: Double)] = []
@@ -4103,6 +4104,7 @@ extension RichLayout {
                     // (Its own paragraph keeps its place: the band is under
                     // what follows it, as the title over zh-6d402586's box.)
                     tableBands.append((top: top, bottom: bottom, owner: mine ? i : -1))
+                    if mine, abs(f.y) < 0.01, f.distanceTop < 0.01 { topPinnedOwners.insert(i) }
                     var moved: [PagePiece] = []
                     // (A hair above its own line, -0.9pt as in lo-eb12e7d4's 137pt picture: the
                     // line before it is not under the picture — Word sets it where it stood and
@@ -4613,7 +4615,7 @@ extension RichLayout {
                     // (An empty anchor line whose own picture, wrapped top and bottom, starts at the paragraph's top is set
                     // under it, its space before kept and added: Word's print, lab tbempty3/4 — the line of 14.7pt at the
                     // picture's foot plus its before, 0 to 18pt; sa1 c4f2b4bd's title stood 23pt too high.)
-                    let ownBandPushes = theme.wordRules && RichTextTheme.wordWindowsPages && ownsBand && _anchorsOnly(i, document)
+                    let ownBandPushes = theme.wordRules && RichTextTheme.wordWindowsPages && ownsBand && topPinnedOwners.contains(i) && _anchorsOnly(i, document)
                         && _cells[i] == nil && resumeCursor == nil
                     while let band = tableBands.first(where: { ($0.owner != i || (ownBandPushes && abs($0.top - y) < 0.5)) && $0.top < y + line - 0.01 && $0.bottom > y + 0.01
                         && !(blankBeside && stripBandTops.contains($0.top)) }), guardSteps < 40 {
