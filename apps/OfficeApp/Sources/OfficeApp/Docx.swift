@@ -582,6 +582,11 @@ enum DocxFormat {
             guard let d = p.first("w:pPr")?.first("w:textDirection")?["w:val"] else { return nil }
             return ["btLr": "vert270", "tbRl": "vert"][d]
         }
+        let _columnTwips: Double = {
+            guard let sect = root.first("w:body")?.descendants("w:sectPr").last, let sz = sect.first("w:pgSz"), let mar = sect.first("w:pgMar"),
+                  let w = Double(sz["w:w"] ?? ""), let l = Double(mar["w:left"] ?? ""), let r = Double(mar["w:right"] ?? "") else { return 0 }
+            return w - l - r
+        }()
         func frameOf(_ p: XNode) -> XNode? {
             if p.name == "w:p", let f = p.first("w:pPr")?.first("w:framePr"), f["w:dropCap"] == nil, turned(p) != nil || f["w:yAlign"] != nil,
                ["page", "margin"].contains(f["w:vAnchor"] ?? ""), Double(f["w:w"] ?? "").map({ $0 > 0 }) == true,
@@ -613,6 +618,10 @@ enum DocxFormat {
                f["w:wrap"] == "around", f["w:y"] != nil, f["w:yAlign"] == nil, p.descendant("w:ins") == nil, p.descendant("w:del") == nil { return f }
             guard p.name == "w:p", let f = p.first("w:pPr")?.first("w:framePr"), f["w:dropCap"] == nil,
                   (f["w:vAnchor"] ?? "text") == "text", Double(f["w:w"] ?? "").map({ $0 > 0 }) == true,
+                  // (A frame of no stated vAnchor is anchored to the text only when it leaves room beside it, at most half the
+                  // column: sa1 b0e39b18's 324 pt frame in a 504 pt column, with another frame at the right, left a gap too
+                  // narrow for a word, and the paragraphs below it were set in that gap instead of under the frame.)
+                  f["w:vAnchor"] != nil || Double(f["w:w"] ?? "").map({ $0 * 2 <= _columnTwips }) == true,
                   Double(f["w:h"] ?? "").map({ $0 > 0 }) == true, f["w:y"] != nil, f["w:yAlign"] == nil,
                   f["w:wrap"] == "around" || f["w:wrap"] == "notBeside" else { return nil }
             // (Not a frame whose text is tracked: lo tdf125894's inserted and deleted
