@@ -880,6 +880,23 @@ struct PdfMarkup {
             }
             let bold = TextStyle(color: Color(0xFF000000), fontSize: size, fontWeight: .bold, height: lineHeight, fontFamily: family)
             var spans: [InlineSpan] = [TextSpan(text: note.label + " ", style: bold)]
+            // (The label is Tahoma Bold in Word's print; the stand-in's letters are narrower, so a comment's
+            // first line broke a word late: sa1 0e16000e "Commented [A2]: ... el" then "tema" on the next line.
+            // Set by Tahoma Bold's own advances, metrics/latin/Tahoma_Bold.tsv, U+0020-007E.)
+            if windows, balloon.line == 1.207, note.label.unicodeScalars.allSatisfy({ $0.value >= 0x20 && $0.value <= 0x7E }) {
+                RuleTrace.hit("balloon-label-by-tahoma-bold-advances")
+                let tahomaBold: [Double] = [0.2930,0.3428,0.4893,0.8184,0.6367,1.1987,0.7812,0.2754,0.4541,0.4541,0.6367,0.8184,0.3125,0.4312,0.3125,0.5771,0.6367,0.6367,0.6367,0.6367,0.6367,0.6367,0.6367,0.6367,0.6367,0.6367,0.3633,0.3633,0.8184,0.8184,0.8184,0.5664,0.9199,0.6846,0.6860,0.6675,0.7573,0.6152,0.5811,0.7451,0.7642,0.4834,0.5005,0.6963,0.5723,0.8931,0.7705,0.7700,0.6572,0.7700,0.7261,0.6333,0.6123,0.7388,0.6748,1.0278,0.6846,0.6704,0.6226,0.4541,0.5771,0.4541,0.8184,0.6367,0.5459,0.5986,0.6318,0.5273,0.6294,0.5938,0.3823,0.6294,0.6401,0.3018,0.3628,0.6025,0.3018,0.9536,0.6401,0.6172,0.6294,0.6294,0.4336,0.5146,0.4155,0.6401,0.5786,0.8896,0.6045,0.5757,0.5259,0.6230,0.6367,0.6230,0.8184]
+                var label: [InlineSpan] = []
+                for ch in note.label + " " {
+                    let u = Int(ch.unicodeScalars.first!.value)
+                    let probe = TextPainter(text: TextSpan(text: String(ch), style: bold), textDirection: .ltr)
+                    probe.layout(minWidth: 0, maxWidth: 100_000)
+                    let natural = probe.width
+                    probe.dispose()
+                    label.append(TextSpan(text: String(ch), style: bold.copyWith(letterSpacing: tahomaBold[u - 0x20] * size - natural)))
+                }
+                spans = label
+            }
             // (A deleted section break alone in its balloon stands on the
             // label's line, its name in smaller type: lab bal 02 and 04, Word
             // for Windows, "Deleted:" at 436.9 and "Section Break (Next
