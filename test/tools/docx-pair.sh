@@ -80,7 +80,7 @@ retry_failed() {  # retry_failed BIN WORKDIR DOCSDIR FAILFILE
 }
 sweep() {
   local BIN=$1 WORK=$2 SET=$3 C; C=$(corpus "$SET"); mkdir -p "$WORK/pdf" "$WORK/err"; : > "$WORK/fail.txt"
-  ( cd "$C/docs" && ls *.docx | while IFS= read -r n; do
+  ( cd "$C/docs" && ls -S *.docx | while IFS= read -r n; do
       [ -f "$C/word-win/${n%.docx}-orig.pdf" ] && [ ! -s "$WORK/pdf/${n%.docx}.pdf" ] && { [ -z "${SWEEP_ONLY:-}" ] || grep -qxF "${n%.docx}" "$SWEEP_ONLY"; } && printf '%s\0' "$n"; done |
     xargs -0 -P "$JOBS" -I{} sh -c 'n="$1"; perl -e "alarm 300; exec @ARGV" "$2" --convert "$n" "$3/pdf/${n%.docx}.pdf" >/dev/null 2>"$3/err/${n%.docx}.txt" || { echo $? > "$3/err/${n%.docx}.rc"; rm -f "$3/pdf/${n%.docx}.pdf"; echo "FAIL $n"; }' _ {} "$BIN" "$WORK" >> "$WORK/fail.txt" )
   retry_failed "$BIN" "$WORK" "$C/docs" "$WORK/fail.txt"
