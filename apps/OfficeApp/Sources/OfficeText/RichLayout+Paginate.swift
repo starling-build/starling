@@ -4610,7 +4610,12 @@ extension RichLayout {
                     let yBeforeBands = y
                     let blankBeside = !stripBandTops.isEmpty && document.paragraphs[i].image == nil && _cells[i] == nil
                         && !document.paragraphs[i].text.contains { $0 != " " }
-                    while let band = tableBands.first(where: { $0.owner != i && $0.top < y + line - 0.01 && $0.bottom > y + 0.01
+                    // (An empty anchor line whose own picture, wrapped top and bottom, starts at the paragraph's top is set
+                    // under it, its space before kept and added: Word's print, lab tbempty3/4 — the line of 14.7pt at the
+                    // picture's foot plus its before, 0 to 18pt; sa1 c4f2b4bd's title stood 23pt too high.)
+                    let ownBandPushes = theme.wordRules && RichTextTheme.wordWindowsPages && ownsBand && _anchorsOnly(i, document)
+                        && _cells[i] == nil && resumeCursor == nil
+                    while let band = tableBands.first(where: { ($0.owner != i || (ownBandPushes && abs($0.top - y) < 0.5)) && $0.top < y + line - 0.01 && $0.bottom > y + 0.01
                         && !(blankBeside && stripBandTops.contains($0.top)) }), guardSteps < 40 {
                         // (In a column that is not the last, what meets a picture wrapped top and
                         // bottom that an earlier paragraph of text anchors in the column goes on in the
