@@ -750,13 +750,19 @@ enum OfficeFonts {
         func u32(_ o: Int) -> Int { u16(o) << 16 | u16(o + 2) }
         func s16(_ o: Int) -> Int { let v = u16(o); return v >= 0x8000 ? v - 0x10000 : v }
         guard b.count > 12 else { return nil }
-        var head = -1, hhea = -1
+        var head = -1, hhea = -1, os2 = -1
         for t in 0 ..< u16(4) where 12 + 16 * t + 16 <= b.count {
             let at = 12 + 16 * t
             let tag = String(decoding: b[at ..< at + 4], as: UTF8.self)
-            if tag == "head" { head = u32(at + 8) } else if tag == "hhea" { hhea = u32(at + 8) }
+            if tag == "head" { head = u32(at + 8) } else if tag == "hhea" { hhea = u32(at + 8) } else if tag == "OS/2" { os2 = u32(at + 8) }
         }
         guard head >= 0, hhea >= 0, head + 20 <= b.count, hhea + 8 <= b.count, case let em = u16(head + 18), em > 0 else { return nil }
+        // (Word stands a line at the font's WIN ascent and descent unless the face sets USE_TYPO_METRICS: embedded Roboto, hhea 1900/500 but
+        // win 1946/512 of 2048, is 13.2 pt a line at 11.04 pt in Word's print, not 12.9; sa2 d1fab599.)
+        if os2 >= 0, os2 + 78 <= b.count, u16(os2 + 62) & 0x80 == 0, case let wa = u16(os2 + 74), case let wd = u16(os2 + 76), wa + wd > 0 {
+            RuleTrace.hit("embedded-font-win-metrics-line")
+            return (Double(wa) / Double(em), Double(wd) / Double(em))
+        }
         return (Double(s16(hhea + 4)) / Double(em), Double(-s16(hhea + 6)) / Double(em))
     }
 
