@@ -4270,6 +4270,14 @@ static let sylfaenAdvances: [Double] = [
             RuleTrace.hit("missing-face-with-lucida-alternate-latin-is-lucida")
             return standInFace("Lucida Sans Unicode", eastAsian: false)
         }
+        // (A face Windows lacks whose font table names Tahoma as the alternate: Word draws it in Tahoma, its advances and line,
+        // 1.207 em where Liberation Sans' is 1.149. sa1 0a4c7687, Proxima Nova: the title sits 5.8 pt high without it.)
+        if wordOnWindows, !own, !eastAsian, !isEmbedded(family), !WordWindowsFaces.names.contains(family.trimmingWhitespace().lowercased()),
+           family.trimmingWhitespace().lowercased() != "tahoma",
+           fontEntry(family)?.alt?.trimmingWhitespace().lowercased() == "tahoma" {
+            RuleTrace.hit("missing-face-with-tahoma-alternate-latin-is-tahoma")
+            return standInFace("Tahoma", eastAsian: false)
+        }
         // (A Hangul-named face Word for Windows lacks, with no font-table entry (so no altName, which Word follows first):
         // Word draws its Latin letters, digits and spaces in Yu Gothic Regular whatever the language (labs kor-yu c, d, e;
         // Hangul stays Malgun). Without it a theme face such as 함초롬돋움 gave pure-English lines Malgun's 1.729 em
