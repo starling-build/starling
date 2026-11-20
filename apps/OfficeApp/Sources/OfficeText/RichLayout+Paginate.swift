@@ -5258,7 +5258,10 @@ extension RichLayout {
                         if c <= cursor + 0.01 { continue }
                         if firstRemaining == nil { firstRemaining = k }
                         let h = c - prev
-                        let measure = textOnly ? h / st.lineSpacing : h
+                        // (Word 2010's layout counts the paragraph's space after in its last line's box: lab pwsplit3,
+                        // an item's third line stays over a picture whose top is 8pt, the space after, below its foot.)
+                        let afterShare = (document.compatibilityMode ?? 12) < 15 && k == lines.count - 1 ? _spacing(i, document).after : 0
+                        let measure = (textOnly ? h / st.lineSpacing : h) + afterShare
                         let lineTop = y + (prev - cursor)
                         guard probe(lineTop, measure) != nil else { continue }
                         if k == firstRemaining { break }
