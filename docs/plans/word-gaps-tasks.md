@@ -18029,3 +18029,4 @@ amd-5 CLAIM (2026-11-19, after clear): SA1 Portuguese OPEN list line 'amd-5' (46
 - Left: f42177d2 grid case (amd-10: lift 11.66 at edge ~568.2); text runs to the page edge in 56e12a87 (we cut at the margin, lose ~5 lines: matched 80/91). Unit tests 662/0.
 
 - lenovo-2 HANDOFF xb 5dc87fc7: 41.1 -> 441/1045 lines matched (queued 590: JIS Latin-1 symbols, primes, middle dot/caron/double bar em widths; 13 docs holding the marks A/B text-identical; unit tests 662/0). Left: K66/K67 (U+FE36, U+FE5A drawn in YuGothic, Word block 45 pt vs ours 39: line-height fallback face), then later K70 (U+FF40) region p5. Rule bullet in ~/word-rules.md.
+- lenovo-3 CLAIM 2026-11-20 (starling-bd): xb fas-z22973278-768d17 (RTL breaks around Persian digits), then dx2 471e57de 5 pt line-height gap, then xb urd-e54653. Queue entries 559 and 578 still pending.
