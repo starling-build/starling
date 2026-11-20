@@ -354,7 +354,23 @@ extension RichLayout {
                 let box = RichImageSpan(alignment: .baseline, baseline: .alphabetic, style: look)
                 let dimensions = PlaceholderDimensions(size: Size(textWidth > 1 ? min(lead, textWidth - 0.5) : lead, 0.01), alignment: .baseline,
                                                        baseline: .alphabetic, baselineOffset: 0.01)
-                return (TextSpan(children: [box, TextSpan(text: "\u{200B}", style: look)]), [(nil, dimensions)], [])
+                // (An empty bullet row stands on its Wingdings bullet's ascent (1841/2048 em at the level's size) over the mark's own depth, as a
+                // row with text does: 11pt Wingdings over 9pt Century Gothic marks make table rows 12.36pt apart in Word's print, ours 11.54
+                // (sa1 5393bae9 page 4).)
+                var markLook = look
+                if RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, p.style.lineSpacing <= 1.001, p.style.list == .bullet,
+                   !p.style.rightToLeft, _levelNumberFonts(p, document).latin?.lowercased() == "wingdings", let bulletPt = _levelNumberSize(p, document), bulletPt > 0.5 {
+                    let up = _px(bulletPt) * fontScale * 1841.0 / 2048
+                    let probe = TextPainter(text: TextSpan(text: "x", style: look), textDirection: .ltr)
+                    probe.layout(minWidth: 0, maxWidth: 100000)
+                    let m = probe.computeLineMetrics().first
+                    probe.dispose()
+                    if let m, let px = look.fontSize, px > 0.5, up > m.baseline + 0.01 {
+                        RuleTrace.hit("word-empty-wingdings-bullet-row-stands-on-the-bullet-ascent")
+                        markLook = look.copyWith(ascentOverride: up, descentOverride: m.descent, height: (up + m.descent) / px, leadingDistribution: .even)
+                    }
+                }
+                return (TextSpan(children: [box, TextSpan(text: "\u{200B}", style: markLook)]), [(nil, dimensions)], [])
             }
             if let joiner = _tamilEmptyMarkJoiner(mark, named: markNamed, p, document, look: look, pitch: pitch, scale: scale) {
                 return (TextSpan(children: [TextSpan(text: " ", style: look), TextSpan(text: "\u{2060}", style: joiner)]), [], [])
