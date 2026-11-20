@@ -14,8 +14,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [amd, starling2]
-    runs-on: [self-hosted, linux, starling-render, '${{ matrix.runner }}']
+        # amd-6 is DEDICATED to prebuilds (label prebuild; it no longer carries starling-render, so no PR gate ever queues ahead of
+        # a prebuild there). starling2 is one runner on its own machine and still shares.
+        include:
+          - labels: '["self-hosted","linux","prebuild"]'
+          - labels: '["self-hosted","linux","starling-render","starling2"]'
+    runs-on: ${{ fromJSON(matrix.labels) }}
     timeout-minutes: 60
     steps:
       - name: Update persistent clone
