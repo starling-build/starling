@@ -5230,7 +5230,30 @@ extension RichLayout {
                 // to page 2 and every later picture one page off.)
                 let pictureAfter: Double = theme.wordRules && RichTextTheme.wordWindowsPages && document.paragraphs[i].cell == nil
                     && (document.paragraphs[i].image != nil || _inlinePictureOnly(i, document)) ? _spacing(i, document).after : 0
-                if rest - pictureAfter <= available + slack + reach(lineOverhangs.count - 1) + emptyTail {
+                // (Word measures a line in whole twips, to the nearest: a part of a twip
+                // under a half, that an auto-height line has past the last whole one,
+                // does not count at the foot; ba88be26's 13pt Times line, over by
+                // more, goes to the next page. 8b5747ec's Arial Narrow 12 heading is 13.77pt, 275.4
+                // twips, and ends 0.4 twip past the foot; lab12 keeps it there
+                // and moves it from 2 twips.)
+                // (One line, with text: a blank line or a second line is left out; the
+                // wide A/B showed Word moves a space-only line, and a 2-line Hebrew
+                // paragraph, whole to the next page. The heading's own space after
+                // stands past the foot, so its line is tested at its cut below.)
+                func twipAllow(_ over: Double) -> Double {
+                    guard theme.wordRules, RichTextTheme.wordWindowsPages, document.paragraphs[i].style.lineHeightPoints == nil,
+                          document.paragraphs[i].cell == nil, cursor <= top + 0.01,
+                          over > 0, over < _px(1.0 / 20),
+                          document.paragraphs[i].text.unicodeScalars.contains(where: { $0 != " " && $0 != "\u{FFFC}" && $0 != "\n" && $0 != "\t" })
+                    else { return 0 }
+                    let lm = geometry(i).painter.computeLineMetrics()
+                    guard lm.count == 1, let h = lm.last?.height else { return 0 }
+                    let tw = h / _px(1.0 / 20)
+                    let frac = tw - tw.rounded(.down) < 0.5 ? (tw - tw.rounded(.down)) * _px(1.0 / 20) : 0
+                    return over <= frac + 0.001 ? over + max(0, -slack) : 0
+                }
+                let twipFrac = twipAllow(rest - pictureAfter - (available + reach(lineOverhangs.count - 1) + emptyTail))
+                if rest - pictureAfter <= available + slack + reach(lineOverhangs.count - 1) + emptyTail + twipFrac {
                     // (The line, not its space after: that may stand past the foot.)
                     // (Nor, off the grid, a multiple's extra under its
                     // text, which Word stands past the foot as it does
@@ -5274,7 +5297,7 @@ extension RichLayout {
                 // baseline, is Word's p28 start, where a plain line stands to 752.7.)
                 let partFoot: Double = theme.wordRules && RichTextTheme.wordWindowsPages
                     ? document.paragraphs[i].style.borders?.bottom.map { _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? 0 : 0
-                for (k, c) in cuts!.enumerated() where c > cursor + 0.01 && c - cursor <= available + slack + reach(k) + (k == cuts!.count - 1 ? emptyTail : -partFoot) { cut = c }
+                for (k, c) in cuts!.enumerated() where c > cursor + 0.01 && c - cursor <= available + slack + reach(k) + (k == cuts!.count - 1 ? emptyTail + twipAllow(c - cursor - (available + reach(k) + emptyTail)) : -partFoot) { cut = c }
                 // (A picture's paragraph goes whole or to the next page: its
                 // one cut is its empty line's, under the picture's top, and
                 // took all of the picture into whatever room was left. Widow
