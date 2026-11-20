@@ -4145,7 +4145,7 @@ enum ChartPainter {
         // 14.7 in PowerPoint's print, where ours stopped at 6 of 7.
         // (But not a slide's 3-D bars: PowerPoint rounds those up to a step like a shown axis, 13 to 14, 26 to 30, 130 to 140:
         // lab bar3dbox, the longest bar of x2 values 17 pt shorter than the original's and x10 values identical to it.)
-        if c.valueAxisDeleted, !c.valueGrid, !c.percent, !(c.onSlide && c.barView != nil) {
+        if c.valueAxisDeleted, !c.valueGrid, !c.percent, !(c.onSlide && c.barView != nil), !(c.onSlide == false && c.onSheet == false && !c.chartex && c.barView == nil && c.areaView == nil && !c.line3D && c.type == .column && !horizontal) {
             let lo0 = min(0, lo), hi0 = max(0, hi), span = hi0 - lo0
             if span > 0 {
                 if c.valueMax == nil { valueScale.hi = hi0 + (hi0 > 0 ? span * 0.05 : 0) }
