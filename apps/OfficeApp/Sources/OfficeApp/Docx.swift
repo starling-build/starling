@@ -2498,9 +2498,17 @@ enum DocxFormat {
                 // that fits its content: Word's print of the lab tw1 has each column as wide as its
                 // widest cell, 6381 + 6381 under a 4536 + 1845 grid, and the whole scaled down to the
                 // text when it is wider. LibreOffice's tdf79329.)
+                // (A preferred width under 6/10 of the grid it sits over, on an autofit table, is a converter's
+                // stale figure: sa2 cb623f0a says 7800 twips over five columns of 7800, and Word's print has the
+                // five scaled to the text width, 90 pt each. Treated as auto.)
+                let staleTblW: Bool = {
+                    guard DocxFormat.wordOnWindows, let tw = node.first("w:tblPr")?.first("w:tblW"), tw["w:type"] == "dxa",
+                          let w = Double(tw["w:w"] ?? ""), w > 0, let cols = tableColumns[id] else { return false }
+                    return w / 20 < cols.reduce(0, +) * 0.6
+                }()
                 if let cols = tableColumns[id], node.first("w:tblPr")?.first("w:tblLayout")?["w:type"] != "fixed",
                    !(node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].map { fixedTableStyles.contains($0) } ?? defaultTableFixed),
-                   (node.first("w:tblPr")?.first("w:tblW")?["w:type"] ?? "auto") == "auto" {
+                   staleTblW || (node.first("w:tblPr")?.first("w:tblW")?["w:type"] ?? "auto") == "auto" {
                     var widest = cols
                     var wider = false
                     // (Only where a row is far wider than the grid — nearly twice: lo-a197b7a8's three 4428-twip cells under an 8812 grid, 1.5 times, keep the grid in Word's print; a grid Word wrote is its own
@@ -2883,7 +2891,7 @@ enum DocxFormat {
                 if let tw = node.first("w:tblPr")?.first("w:tblW"), let w = Double(tw["w:w"] ?? ""), w > 0 {
                     switch tw["w:type"] ?? "auto" {
                     case "pct": style.widthPercent = w / 50
-                    case "dxa": style.width = w / 20
+                    case "dxa": if !staleTblW { style.width = w / 20 }
                     default: break
                     }
                 }
