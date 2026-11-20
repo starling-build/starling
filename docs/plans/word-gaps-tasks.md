@@ -18086,3 +18086,5 @@ amd-11 2026-11-20 HANDOFF (paused for PR workflow): (1) Done: nothing new landed
 amd-1 HANDOFF 2026-11-20 (PAUSED for PR workflow): DONE locally, NOT submitted: commit on branch wip/amd-1 (floor inline picture height to whole twips + header picture-and-text descent): sa1 6b74a903 45.7 to 53.3; 584 picture docs A/B 3 gain, fra-g216 -0.8 (mismatched doc, first baseline moves toward Word 69.96: 70.1 to 70.05); 2db27e2d/426d1cc2 unchanged; unit tests 662/0. Queue 555 LANDED.
 IN PROGRESS: nothing. LEFT: 6b74a903 page-9 divergence; Latin squeeze cap a little under 0.25 (sa1 0a4c7687 p1 line 25, from starling-ec). Add whole-twip rule to ~/word-rules.md.
 NEXT: open a PR from wip/amd-1 per the new workflow once briefed.
+
+amd-1 2026-11-20 CLAIM: PR 69 (inline picture whole twips + header picture line, 6b74a903); then Latin squeeze cap (sa1 0a4c7687 p1 line 25) and 6b74a903 header 0.055 pt.
