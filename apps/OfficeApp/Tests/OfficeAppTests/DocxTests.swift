@@ -5162,6 +5162,25 @@ final class DocxTests: XCTestCase {
         "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/><w:tblBorders><w:top w:val=\"single\" w:sz=\"8\" w:space=\"0\" w:color=\"FF0000\"/></w:tblBorders></w:tblPr><w:tblGrid><w:gridCol w:w=\"2000\"/><w:gridCol w:w=\"2000\"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>\(first)</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>\(second)</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
     }
 
+    /// deep-table-cell: a table nested 5000 deep overflowed the stack in the
+    /// reader (a recursive walk for core-property bindings): the app crashed on open.
+    func testATableNestedFiveThousandDeepIsRead() throws {
+        var a = RichParagraph(text: "outer")
+        a.cell = CellRef(table: "T", row: 0, column: 0)
+        var d = RichDocument(paragraphs: [a, RichParagraph(text: "")])
+        d.tableColumns["T"] = [300]
+        var entries = try Zip.read(try DocxFormat.write(d, pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let open = "<w:tbl><w:tblGrid><w:gridCol w:w=\"2000\"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr>"
+        let close = "<w:p/></w:tc></w:tr></w:tbl>"
+        let deep = String(repeating: open, count: 5000) + "<w:p><w:r><w:t>x</w:t></w:r></w:p>" + String(repeating: close, count: 5000)
+        xml.insert(contentsOf: deep, at: xml.range(of: "</w:tcPr>")!.upperBound)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let read = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertTrue(read.paragraphs.contains { $0.text == "x" })
+    }
+
     /// drawing.docx: an empty paragraph that ends a cell right under a
     /// table nested in it is set at half a point in Word's print (five
     /// such marks of 8.5pt, five lines of 0.48pt); any other empty

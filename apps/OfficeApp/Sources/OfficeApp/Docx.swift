@@ -4075,7 +4075,9 @@ enum DocxFormat {
                 }
             }
         }
-        func walk(_ node: XNode) {
+        // (Iterative: a table nested 5000 deep (deep-table-cell) overflowed the stack here.)
+        var pending: [XNode] = [root]
+        while let node = pending.popLast() {
             if node.name == "w:p" { titleFields(node) }
             if node.name == "w:sdt", let pr = node.first("w:sdtPr"), let bind = pr.first("w:dataBinding"),
                bind["w:storeItemID"]?.uppercased() == "{6C3C8BC8-F283-45AE-878A-BAB7291924A1}",
@@ -4083,25 +4085,25 @@ enum DocxFormat {
                let content = node.first("w:sdtContent") {
                 let local = String(last.split(separator: "[").first ?? "").split(separator: ":").last.map(String.init) ?? ""
                 if core == nil { core = .some(part("docProps/core.xml").flatMap(XNode.parse)) }
-                guard let props = core ?? nil else { return }
+                guard let props = core ?? nil else { continue }
                 var value = props.children.first { $0.name.hasSuffix(":" + local) }?.text ?? ""
                 value = value.trimmingWhitespace(newlines: true)
                 var placeholderRun: XNode?
                 if value.isEmpty {
-                    guard let name = pr.first("w:placeholder")?.first("w:docPart")?["w:val"], !name.isEmpty else { return }
+                    guard let name = pr.first("w:placeholder")?.first("w:docPart")?["w:val"], !name.isEmpty else { continue }
                     if glossary == nil { glossary = .some(part("word/glossary/document.xml").flatMap(XNode.parse)) }
                     guard let g = glossary ?? nil,
                           let docPart = (g.first("w:docParts")?.all("w:docPart") ?? []).first(where: { $0.first("w:docPartPr")?.first("w:name")?["w:val"] == name }),
-                          let body = docPart.first("w:docPartBody") else { return }
+                          let body = docPart.first("w:docPartBody") else { continue }
                     var shown: [XNode] = []
                     texts(body, &shown)
                     value = shown.map { $0.text }.joined()
-                    if value.isEmpty { return }
+                    if value.isEmpty { continue }
                     placeholderRun = body.descendants("w:r").first
                 }
                 var runs: [XNode] = []
                 texts(content, &runs)
-                guard let first = runs.first else { return }
+                guard let first = runs.first else { continue }
                 RuleTrace.hit("core-bound-control-shows-the-property")
                 first.text = value
                 // (The placeholder shows in its own formatting, not that of the text the control held:
@@ -4112,11 +4114,10 @@ enum DocxFormat {
                     if let rpr = ph.first("w:rPr") { run.children.insert(rpr, at: 0) }
                 }
                 for r in runs.dropFirst() { r.text = "" }
-                return
+                continue
             }
-            for child in node.children { walk(child) }
+            pending.append(contentsOf: node.children.reversed())
         }
-        walk(root)
     }
 
     /// Plain-text inline controls showing one named placeholder share its
