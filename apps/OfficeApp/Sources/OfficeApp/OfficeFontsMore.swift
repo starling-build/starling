@@ -744,6 +744,8 @@ extension OfficeFonts {
         case "impact":
             face.advances = impactAdv
             face.otherAdvances = impactOther
+            // (No bold face on the print box: a bold run is set at the regular advances; Impact, sa1 5e813226: 11 glyphs within 0.36 pt.)
+            face.boldAdvances = impactAdv; face.boldOtherAdvances = impactOther
             face.naturalHeight = 1.2197; face.baseline = 1.0088
 
         case "mv boli":
