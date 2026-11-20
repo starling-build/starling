@@ -259,6 +259,13 @@ extension RichLayout {
                        held: Set<Int> = [], spread: [Int: Double] = [:], fitProbe: Bool = false, autoSpaces: ((Int, Double) -> Void)? = nil)
         -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) {
         let named = _named(p, document)
+        // (Which face owns the Latin of a paragraph's Bengali/Kokila runs depends on the paragraph, not the run: found once per paragraph.
+        // 0fd592a1, 5,789 runs in four paragraphs, took 262 s with it asked of every run.)
+        lazy var paragraphLatinOwner: String? = {
+            func complex(_ r: Run) -> String { (r.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() }
+            if p.runs.contains(where: { complex($0) == "kokila" }) { return "kokila" }
+            return p.runs.contains(where: { Self._bengaliMissingFace(complex($0), document) == "shonar bangla" }) ? "shonar bangla" : nil
+        }()
         let pitch = (index.map { _offGrid($0, document) } ?? (p.style.eastAsian["w:snapToGrid"] == "0")) ? nil : _grid(index, document).pitch
         // (A hanging indent's first line starts out past the rest: the room it has for the paragraph to stay one line.)
         let mixedRubyRaise = _mixedRubyRaise(p, named: named, textWidth: textWidth + max(0, -_px(firstLineIndent(p, at: index, document))), pitch: pitch)
@@ -1632,9 +1639,7 @@ extension RichLayout {
                 // Kokila split below it, at a line multiple too (dx2 cbb7ae39's Times New Roman "IRB", lab cb7; its 1.57-line paragraphs: the line is 2.0 pt taller, the
                 // extra under the baseline unchanged). White space and the invisible marks beside Kokila text set no line of their own.)
                 // (Shonar Bangla beside Arial: the same line, the Latin face's ascent (with its line gap) over the Bengali face's descent; lab stk1.)
-                let latinOwner: String? = p.runs.contains(where: { ($0.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "kokila" }) ? "kokila"
-                    : (p.runs.contains(where: { Self._bengaliMissingFace(($0.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased(), document) == "shonar bangla" })
-                    ? "shonar bangla" : nil)
+                let latinOwner: String? = paragraphLatinOwner
                 if kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, !kokilaLatin || (run.keptXML?.containsSubstring("<w:cs") ?? false), p.style.lineHeightPoints == nil,
                    let latinOwner, let m = Self._indicLines[latinOwner], let size = s.fontSize, size > 0.5,
                    !text.unicodeScalars.contains(where: { Self._isIndic($0.value) }),
