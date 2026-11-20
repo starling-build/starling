@@ -2252,6 +2252,18 @@ extension RichLayout {
                 return _px(ts?.edgeWidths[side] ?? ts?.borderWidth ?? 0.5)
             }
             var rules: [(above: Double, below: Double)] = []
+            // (A row of continuation cells alone, where a merged first-row cell's span ends, stands its stated height and the room of the foot line the file draws nowhere: lab sa1f9.)
+            func spanFoot(_ row: Int, _ upTo: Int) -> Double {
+                guard theme.wordRules, RichTextTheme.wordWindowsPages else { return 0 }
+                var m = upTo - 1
+                while m >= 0, let e = _cells[m], e.table == table {
+                    if let ref = document.paragraphs[m].cell, ref.row + ref.rowSpan - 1 == row, ref.row < row, let style = ref.spanFootStyle, style != "nil", style != "none" {
+                        return _px(Self._ruleRoom(style, ref.spanFootWidth))
+                    }
+                    m -= 1
+                }
+                return 0
+            }
             var k0 = i
             while k0 < n, let d = _cells[k0], d.table == table {
                 // A row with no paragraph of its own — every cell of it
@@ -2261,7 +2273,7 @@ extension RichLayout {
                 // measured against the row after them, never stretched
                 // its own, and ran into the text below.)
                 while rows.count < d.row {
-                    let h = _px(document.tableStyles[table]?.rowHeights[rows.count] ?? 0)
+                    let h = _px(document.tableStyles[table]?.rowHeights[rows.count] ?? 0) + spanFoot(rows.count, k0)
                     rows.append((k0, k0, y, h))
                     rules.append((0, 0))
                     y += h
@@ -2410,6 +2422,10 @@ extension RichLayout {
                     var m = k0 - 1
                     while m >= 0, let e = _cells[m], e.table == table {
                         if let ref = document.paragraphs[m].cell, ref.row < d.row, ref.row + ref.rowSpan - 1 >= d.row {
+                            // (Where the span ends, its undrawn foot takes room: lab sa1f9.)
+                            if RichTextTheme.wordWindowsPages, ref.row + ref.rowSpan - 1 == d.row, let style = ref.spanFootStyle, style != "nil", style != "none" {
+                                ruled = max(ruled, _px(Self._ruleRoom(style, ref.spanFootWidth)))
+                            }
                             let at = d.row - ref.row - 1
                             if at < ref.continuationBordersXML.count, let side = Self._cellSide(ref.continuationBordersXML[at], "top") {
                                 ruled = max(ruled, _px(Self._ruleRoom(side.style, side.width)))
@@ -2540,7 +2556,7 @@ extension RichLayout {
             }
             // (… and so are such rows after the last that has one.)
             while theme.wordRules, !rows.isEmpty, rows.count <= _tableRows[table] ?? 0 {
-                let h = _px(document.tableStyles[table]?.rowHeights[rows.count] ?? 0)
+                let h = _px(document.tableStyles[table]?.rowHeights[rows.count] ?? 0) + spanFoot(rows.count, k0)
                 rows.append((k0, k0, y, h))
                 rules.append((0, 0))
                 y += h
