@@ -2193,6 +2193,23 @@ extension RichLayout {
         return end
     }
 
+    /// The band (page y, pixels) of a header's top-and-bottom picture that starts under the header's last line, which does not
+    /// move the body's start but which Word keeps the body's lines clear of: the first line whose box touches it stands at its foot.
+    func _headerBandUnderLastLine(_ header: _HeaderFooter, _ setup: PageSetup) -> (top: Double, bottom: Double)? {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages else { return nil }
+        let j = header.document.paragraphs.count - 1
+        guard j >= 0, header.document.paragraphs[j].cell == nil, j < header.layout._tops.count, j < header.layout._heights.count else { return nil }
+        let hp = header.document.paragraphs[j]
+        var best: (top: Double, bottom: Double)? = nil
+        for image in hp.inlineImages.inOrder + (hp.image.map { [$0] } ?? []) {
+            guard let f = image.float, f.takesRoom || f.bandsPage, !f.wraps, f.verticalFrom == "paragraph", f.verticalAlign == nil,
+                  f.y >= 0, _px(f.y) >= header.layout._heights[j], image.height > 0 else { continue }
+            let top = _px(setup.headerDistance) + header.layout._tops[j] + _px(f.y)
+            best = (top - _px(f.distanceTop), top + _px(image.height) + _px(f.distanceBottom))
+        }
+        return best
+    }
+
     /// How far from the page's foot a footer's picture that the text goes over and under, set up from its paragraph,
     /// reaches (pixels), if it has one: Word stands it wholly above that paragraph (or as far up as it says, if
     /// that is more).
