@@ -18092,3 +18092,4 @@ amd-1 2026-11-20 CLAIM: PR 69 (inline picture whole twips + header picture line,
 lenovo-2 CLAIM (2026-11-20, starling-bd): xb 5dc87fc7 next gaps: U+FF40 region page 5; Hebrew paragraph 115 pt high. Then sa1/sa2 (Spanish/Portuguese), ko, ja.
 
 amd-1 2026-11-20 OPEN: xb fra-g111-8b0e29 (header picture 763200 EMU = 60.096 pt, pic-only header, default header): Word body baselines are 0.04 (page 1: 106.94) to 0.13 pt (page 2: 107.78) LOWER than ours even before the whole-twip floor (ours 107.65); source of the extra header height unknown. Approved drop 69.1 to 68.6 comes with PR 69.
+- amd-10 CLAIM (2026-11-20, starling-bd): sa2 e6a5b0cd (42.6, 195/195 lines, pages 6/6); then cb623f0a if free. Lowest unclaimed after amd-2 and amd-3's lists.
