@@ -2306,7 +2306,8 @@ extension RichLayout {
                                     here.append(id)
                                 } else {
                                     if y > 0.01 || mark.top > c0.rowTop + 0.5 {
-                                        contentH = max(1, min(contentH, y + (mark.top - c0.rowTop) + (here.isEmpty ? 0 : room - note.height)))
+                                        // (The row's part ends over that line with its closing rule under it, which is not room the cut asks for.)
+                                        contentH = max(1, min(contentH, y + (mark.top - c0.rowTop) + ruleUnder(c0, parted: true) + (here.isEmpty ? 0 : room - note.height)))
                                     }
                                     rowPending.append(id)
                                 }

@@ -697,7 +697,15 @@ extension RichLayout {
                         bottom = max(bottom, k < bottoms.count ? bottoms[k] : top + metrics.height)
                     }
                 }
-                return (g.textTop + box.top, g.textTop + bottom)
+                // (The line is the one under the box's middle: a mark raised out of line 2 has its top over line 1's
+                // bottom, and the line is not line 1. c2104d44's bullet "…párrafo 26[9]" parts after its first line in
+                // Word's print; ours took the mark for line 1's, the page's end over its top, and the whole bullet went over.)
+                var top = box.top
+                if theme.wordRules, !bottoms.isEmpty, let k = bottoms.firstIndex(where: { $0 > (box.top + box.bottom) / 2 }),
+                   k > 0, box.top < bottoms[k - 1] {
+                    top = bottoms[k - 1]; bottom = max(bottom, bottoms[k])
+                }
+                return (g.textTop + top, g.textTop + bottom)
             }
             at += run.length
         }
