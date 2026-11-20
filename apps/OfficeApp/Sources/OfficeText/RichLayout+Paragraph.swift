@@ -2686,6 +2686,18 @@ extension RichLayout {
             // where Word's print has it at the 31's baseline whatever the
             // later lines' runs are.)
             if !mixedSizes, onFirst.count > 1, !onFirst.contains(-1), let lo = onFirst.min(), let hi = onFirst.max(), hi - lo <= 5.0 { mixedSizes = true }
+            // (… an inherited size counts as the paragraph's own: a 10pt label and an underscore fill that takes the 11pt of the
+            // style, in one line, are corrected as sizes a point apart. sa1 8cfaa504, lab8cfa.)
+            if !mixedSizes, theme.wordRules, RichTextTheme.wordWindowsPages, onFirst.count > 1, onFirst.contains(-1),
+               // (Latin text only: a complex-script or East Asian run takes its own size, szCs, so the plain size says nothing there:
+               // dx2 f0001d05's Hindi check-box lines, which stood 2.8pt higher than Word's.)
+               p.text.unicodeScalars.allSatisfy({ $0.value < 0x0590 || ($0.value >= 0x2000 && $0.value <= 0x206F) }),
+               case let inherited = _named(p, document)?.char.fontSize ?? theme.fontSize,
+               case let resolved = Set(onFirst.map { $0 == -1 ? inherited : $0 }), resolved.count > 1,
+               let lo = resolved.min(), let hi = resolved.max(), hi - lo <= 5.0 {
+                RuleTrace.hit("word-inherited-size-counts-as-the-style-size-in-a-mixed-size-first-line")
+                mixedSizes = true
+            }
             // (… and one of a single size whose faces differ, so that its lines
             // differ in height: zh-51af781b's 方正楷体_GBK (a YaHei stand-in) among
             // 仿宋 text. Word puts the extra of 1.5 lines under each line's tallest
