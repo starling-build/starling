@@ -3767,11 +3767,13 @@ extension RichLayout {
         if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, !p.text.isEmpty, !style.rightToLeft, !p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " }) {
             for image in p.inlineImages.inOrder {
                 guard let float = image.float, float.takesRoom || float.bandsPage, !float.wraps, float.verticalAlign == nil,
-                      float.verticalFrom == "paragraph", float.y.magnitude < 0.01, float.horizontalFrom != "page",
+                      float.verticalFrom == "paragraph", float.y.magnitude < 0.01 || (float.y < 0 && float.y + image.height + float.effectBottom > 0), float.horizontalFrom != "page",
                       image.height > 0, float.wrapSide == nil, !image.data.isEmpty || Self.drawsObject?(image) == true else { continue }
+                // (A hair of it above the paragraph, 24pt up in sa2 86737b97: Word does not lift it to the margin, it stands
+                // 24pt above the paragraph and the first line is set at its foot, 36.25pt down.)
                 if !lineEndsAbove(-_px(float.distanceTop)) {
                     RuleTrace.hit("word-first-line-set-under-a-top-and-bottom-picture-at-the-paragraphs-top")
-                    push = max(push, pushUnder(_px(image.height + float.effectBottom + float.distanceBottom)))
+                    push = max(push, pushUnder(_px(float.y + image.height + float.effectBottom + float.distanceBottom)))
                 }
                 break
             }
