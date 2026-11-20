@@ -4628,20 +4628,18 @@ extension RichLayout {
                         }
                     }
                 }
-                // (Not applied in table cells yet: there the bullet split 1.95 pt from its text line; xd b88f2314 p2 cell paragraphs, logged OPEN.)
                 // A Wingdings bullet over East Asian text at single spacing: Word's print stands the first line on the taller of the bullet's
                 // ascent (1841/2048 em at the box's size) and the text face's own, over the deeper of the two below. Malgun Gothic's line is 1.73 em,
                 // 1.288 above and 0.442 below, so 14pt boxes over 9pt rows stand 12.58 over 3.98: rows 16.56 apart where the text's line alone is 15.56
                 // (xd b88f2314 p2 checkboxes, Word 16.56 against our 15.56).)
-                if theme.wordRules, p.cell == nil, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil,
-                   p.style.lineSpacing <= 1.001, leadChar.fontFamily?.lowercased() == "wingdings", let px = style.fontSize, px > 0.5,
-                   !p.style.rightToLeft, p.text.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7AF }),
-                   (p.runs.first?.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? "").trimmingWhitespace().lowercased() == "malgun gothic"
-                    || (p.runs.first?.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? "").trimmingWhitespace() == "맑은 고딕",
+                if let px = style.fontSize, px > 0.5, leadChar.fontFamily?.lowercased() == "wingdings", _wingdingsOverMalgunText(p, document),
                    let ml = Self._indicLines["malgun gothic"],
                    let textPt = p.runs.first?.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize, textPt > 0.5 {
                     let textSize = _px(textPt) * fontScale
-                    let up = max(px * 1841.0 / 2048, ml.0 * textSize), down = max(px * 432.0 / 2048, ml.1 * textSize)
+                    let total = max(px * 1841.0 / 2048, ml.0 * textSize) + max(px * 432.0 / 2048, ml.1 * textSize)
+                    // (The line's extra height is above the baseline: the text's own depth stays under it, the next line standing 15.56 on, not 16.56
+                    // (xd b88f2314 p2 cell paragraphs, Word 15.5-15.6 line to line, 16.56 paragraph to paragraph).)
+                    let down = max(px * 432.0 / 2048, (ml.1 - 0.1) * textSize), up = total - down
                     RuleTrace.hit("word-wingdings-bullet-over-malgun-text-stands-on-the-taller-ascent")
                     symStands = true
                     markStyle = style.copyWith(ascentOverride: up, descentOverride: down, height: (up + down) / px, leadingDistribution: .even)
@@ -5514,6 +5512,15 @@ extension RichLayout {
         guard let q = rest.firstIndex(of: "\"") else { return nil }
         return String(rest[rest.startIndex..<q])
     }
+    /// A single-spaced paragraph of Hangul text in Malgun Gothic whose list marker is a Wingdings bullet (read from a file, Windows pages).
+    func _wingdingsOverMalgunText(_ p: RichParagraph, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil,
+              p.style.lineSpacing <= 1.001, !p.style.rightToLeft,
+              p.text.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7AF }) else { return false }
+        let ea = (p.runs.first?.style.eastAsiaFontFamily ?? _named(p, document)?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? "").trimmingWhitespace()
+        return ea.lowercased() == "malgun gothic" || ea == "맑은 고딕"
+    }
+
     func _tamilMarkedLinesExtra(_ i: Int, _ p: RichParagraph, _ document: RichDocument, _ painter: TextPainter) -> Double {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.isEmpty else { return 0 }
         // (Devanagari in Arial Unicode MS, whose font-table entry is the Japanese charset: the same, 0.36 em with the 1.079 of line 259;
