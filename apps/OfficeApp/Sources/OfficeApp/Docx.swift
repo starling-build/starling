@@ -1883,6 +1883,7 @@ enum DocxFormat {
             for c in ids.reversed() { if let pPr = paragraphStyles[c]?.first("w:pPr") { _paragraphProps(pPr, into: &ps) } }
             return ps
         }
+        let outerBase = base   // the paragraph defaults outside any table
         var cellBase = base   // the table style's spacing while inside one
         var cellRootBase = docBase
         // (A cell's paragraph of no style of its own is Normal's, and
@@ -3073,8 +3074,12 @@ enum DocxFormat {
                                 var contParagraphs: [RichParagraph] = []
                                 if contContent != nil {
                                     for block in blocks where block.first("w:pPr")?.first("w:numPr") == nil {
-                                        contParagraphs += _paragraphs(block, cellBase, styleByDocx, styleNums, sheet, kindByNum, rels, media, indent, notes, cellChar,
-                                                                      { id in chainOver(id, cellBase, cellRootBase) }).map(\.paragraph)
+                                        // (A merged-down cell's hidden paragraphs are sized by the document's
+                                        // paragraph defaults, not the table style's spacing: sa2 f70e17f6's
+                                        // TableGrid says after 0 / single, Word's rows 6-8 stand 8pt taller on the
+                                        // defaults' after 8 / 1.08.)
+                                        contParagraphs += _paragraphs(block, normalStyleId.flatMap { chainOver($0, outerBase, docBase) } ?? outerBase, styleByDocx, styleNums, sheet, kindByNum, rels, media, indent, notes, cellChar,
+                                                                      { id in chainOver(id, outerBase, docBase) }).map(\.paragraph)
                                     }
                                 }
                                 // (Its margins, as an own cell's are read below.)
