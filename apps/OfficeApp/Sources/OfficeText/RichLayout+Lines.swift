@@ -2015,7 +2015,9 @@ extension RichLayout {
                     defer { at += r.length }
                     guard at < units.count else { break }
                     if units[at ..< min(units.count, at + r.length)].contains(where: { (0x0E01 ... 0x0E5B).contains($0) }),
-                       !(r.style.keptXML.map { $0.containsSubstring("<w:cs/>") || $0.containsSubstring("<w:cs ") } ?? false) { fillAll = true; break }
+                       !(r.style.keptXML.map { $0.containsSubstring("<w:cs/>") || $0.containsSubstring("<w:cs ") } ?? false),
+                       // (Not a run set in Tahoma, which has Thai and is drawn in: xb 5dc87fc7's print breaks its spaced Thai at the spaces.)
+                       (r.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() != "tahoma" { fillAll = true; break }
                 }
             }
             let em = (p.runs.first?.style.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale

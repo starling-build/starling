@@ -4701,6 +4701,11 @@ static let sylfaenAdvances: [Double] = [
                 face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(tahomaGreekBoldAdvances) { $1 }
                 face.otherAdvances = (face.otherAdvances ?? [:]).merging(tahomaHebrewAdvances) { $1 }
                 face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(tahomaHebrewBoldAdvances) { $1 }
+                if wordOnWindows {
+                    // (Word for Windows draws Thai in Tahoma in Tahoma: 0.595 em for U+0E01, the Noto stand-in's 0.7.)
+                    face.otherAdvances = (face.otherAdvances ?? [:]).merging(tahomaThaiAdvances) { $1 }
+                    face.boldOtherAdvances = (face.boldOtherAdvances ?? [:]).merging(tahomaThaiBoldAdvances) { $1 }
+                }
                 face.naturalHeight = 1.2070
                 face.baseline = 1.0005
                 RuleTrace.hit("tahoma-own-widths")
