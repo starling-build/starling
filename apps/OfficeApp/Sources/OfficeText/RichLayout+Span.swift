@@ -313,6 +313,20 @@ extension RichLayout {
                 let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
                 look = look.copyWith(ascentOverride: base * multiple * px, descentOverride: (tall - base) * multiple * px, height: tall * multiple, leadingDistribution: .even)
             }
+            // (An empty paragraph whose mark is set in a Windows Arabic face with a line of its own (Traditional Arabic's 1.495 em) is that
+            // face's line, not the Latin stand-in's 1.22: xb urd-e54653's empty 16 pt mark between the keywords and the heading is 23.5 pt
+            // tall in Word's print, ours 19.5, and every line after it stood 4 pt high.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.rightToLeft, p.style.list == nil, p.style.lineHeightPoints == nil,
+               let px = look.fontSize, px > 0.5,
+               let famName = mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily, !mark.rightToLeft,
+               case let fam = famName.trimmingWhitespace().lowercased(),
+               ["traditional arabic", "sakkal majalla", "simplified arabic"].contains(fam),
+               let f = theme.complexFace(famName, latin: famName), let tall = f.naturalHeight, tall > 1.3 {
+                RuleTrace.hit("word-empty-mark-windows-arabic-own-line")
+                let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
+                let base = f.baseline ?? 0.9425
+                look = look.copyWith(ascentOverride: base * multiple * px, descentOverride: (tall - base) * multiple * px, height: tall * multiple, leadingDistribution: .even)
+            }
             if theme.wordRules, p.style.list != nil, lead > 0 {
                 // An empty list still has a number and its suffix. Reserve
                 // their width so centered/right numbers move with the line.
