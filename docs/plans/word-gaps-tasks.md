@@ -18088,3 +18088,4 @@ IN PROGRESS: nothing. LEFT: 6b74a903 page-9 divergence; Latin squeeze cap a litt
 NEXT: open a PR from wip/amd-1 per the new workflow once briefed.
 
 amd-1 2026-11-20 CLAIM: PR 69 (inline picture whole twips + header picture line, 6b74a903); then Latin squeeze cap (sa1 0a4c7687 p1 line 25) and 6b74a903 header 0.055 pt.
+- lenovo-2 HANDOFF (2026-11-20, on main): PR 66 (JIS Latin-1 symbols, primes, middle dot/caron/double bar widths in MS Mincho/Gothic/GulimChe; unit tests 662/0) and PR 79 (Yu Gothic/JhengHei line joiner for U+FE30-FE5F in MS Mincho/Gothic text; xb 5dc87fc7 441 to 853 of 1045 lines; the 37 corpus docs holding these forms and the 4 dx2 docs holding them are text-identical; unit tests 835/0) both submitted via pr.sh. Next: U+FF40 region on page 5 of 5dc87fc7, then the Hebrew paragraph y (lenovo-3 says 115 pt high). Binaries for A/B: /data/s/lenovo-2/bins/{base,wip}.
