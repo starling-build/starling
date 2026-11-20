@@ -2460,6 +2460,8 @@ public struct RichDocument: Hashable, Codable, Sendable {
     public var footer: String = ""
     /// Column widths in points per table id; a table without an entry gets
     /// equal columns across the content width.
+    /// An autofit table's cells' stated widths where they differ from its grid: used when each fits its content.
+    public var tableCellColumns: [String: [Double]] = [:]
     public var tableColumns: [String: [Double]] = [:]
     /// Per table id, what the table looks like beyond its cells; a table
     /// without an entry has borders and no header row.
