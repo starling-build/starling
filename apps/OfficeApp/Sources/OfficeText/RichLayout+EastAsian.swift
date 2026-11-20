@@ -2129,6 +2129,13 @@ extension RichLayout {
                     func spaceGive(_ k: Int) -> Double {
                         pageBox ? 0.4 : balancedLatinSqueeze ? 0.5 : RichTextTheme.wordWindowsPages && !(k > 0 && (0x2460...0x24FF).contains(units[k - 1])) && ((k > 0 && zhNeighbour(k - 1)) || (k + 1 < units.count && zhNeighbour(k + 1))) ? 0.2 : 0.25
                     }
+                    // (A quarter of a space is cut down to whole twips: Word's print of sa1 0a4c7687 page 1 line 25 (Tahoma 11 pt,
+                    // space 65.75 twips, 15 spaces) refuses a word needing 12.3231 pt where the exact quarter gave 12.3281;
+                    // a quarter of 16 twips gives 12.0. Nirmala/Vrinda/Shonar read 0.244-0.249 of the space for the same reason.)
+                    func squeezeGive(_ w: Double, _ share: Double) -> Double {
+                        guard share == 0.25, RichTextTheme.wordWindowsPages else { return w * share }
+                        return (w * share * 20).rounded(.down) / 20
+                    }
                     let windowsAfterMarks = RichTextTheme.wordWindowsPages && eastAsianAt(a) && !inCell
                     // (A space of a missing Hangul-named face is Yu Gothic's: 0.5 em wide beside Hangul, but only Yu's own advance
                     // (584/2048 em) gives a quarter when the line is squeezed; xb kor 22de7d, whose "1. 초록" line Word breaks
@@ -2162,7 +2169,7 @@ extension RichLayout {
                         ? Array(((wordSpaces.last!.k + 1) ..< a).filter { units[$0] >= 0x2E80 && eastAsianAt($0) }.prefix(8)) : []  // at most 8 (lab: 8 gave 1.5; zh-79d08edd, 12 after one space, refused at 0.78+2.25)
                     let tailRoom: Double = Double(tailSqueezers.count) * em / 64
                     let roomSpaces = latinPulled ? em / 4 + autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) } * 0.3
-                        : givers.reduce(0.0) { $0 + giveBase($1) * (windowsAfterMarks ? 0.25 : spaceGive($1.k)) } + roomAutos + tailRoom
+                        : givers.reduce(0.0) { $0 + squeezeGive(giveBase($1), windowsAfterMarks ? 0.25 : spaceGive($1.k)) } + roomAutos + tailRoom
                     // (And only where each space gives at most half of
                     // what each would stretch were the word left for the
                     // next line: lab `jg` (Word for Windows, Times New
@@ -2251,7 +2258,7 @@ extension RichLayout {
                     if need <= (koCellFinal ? min(roomSpaces, em / 12) : roomSpaces) + hair, halfStretch, sharesStretch {
                         // (Each gives the same share of what it can.)
                         let share = min(1, (need + 0.02) / max(0.001, roomSpaces))
-                        if !latinPulled { for space in givers { adjust[space.k, default: 0] -= space.w * (windowsAfterMarks ? 0.25 : spaceGive(space.k)) * share } }
+                        if !latinPulled { for space in givers { adjust[space.k, default: 0] -= squeezeGive(space.w, windowsAfterMarks ? 0.25 : spaceGive(space.k)) * share } }
                         let autoShare = (latinPulled ? roomSpaces : roomAutos) / max(0.001, autos.reduce(0.0) { $0 + (gaps[$1] ?? 0) })
                         for k in autos { adjust[k, default: 0] -= (gaps[k] ?? 0) * autoShare * share }
                         for k in tailSqueezers { adjust[k, default: 0] -= em / 64 * share }
