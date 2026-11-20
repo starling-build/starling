@@ -3048,9 +3048,12 @@ extension RichLayout {
                 // every one of its cells says so: lo floattable-header's "A2: page
                 // 2" is Heading 1, which keeps with the next, beside a cell that
                 // does not, and Word's print leaves the row on page 2 under the
-                // header row, where ours took it to page 3 and left page 2 empty.)
+                // header row, where ours took it to page 3 and left page 2 empty.
+                // Only in a floating table: lab lab75 (Word, modes 14 and 15), in a
+                // table in the flow, keepNext in the FIRST cell alone keeps the row
+                // with the next; in the second cell alone it does not.)
                 var rowKept = document.paragraphs[i].style.keepNext
-                if rowKept, theme.wordRules, RichTextTheme.wordWindowsPages, _cells[i] != nil {
+                if rowKept, theme.wordRules, RichTextTheme.wordWindowsPages, _cells[i] != nil, document.tableStyles[c.table]?.keptPosition != nil {
                     var m = i
                     while m < count, let e = _cells[m], e.table == c.table, e.row == c.row {
                         if m == i || _cells[m - 1]?.column != e.column, !document.paragraphs[m].style.keepNext { rowKept = false; RuleTrace.hit("row-kept-only-if-every-cell-keeps") }
@@ -3088,6 +3091,20 @@ extension RichLayout {
                                 }
                             }
                             k += 1
+                        }
+                        // (A run of kept rows that ends the table keeps with the
+                        // paragraph after it: 75f0f9d1's three rows of keepNext
+                        // in the first cell, then a paragraph of a page break,
+                        // go whole to page 28 in Word's print, where the first
+                        // two stood on 27 and the third alone went over.)
+                        if follower == nil, theme.wordRules, RichTextTheme.wordWindowsPages, k < count, _cells[k] == nil,
+                           document.tableStyles[c.table]?.keptPosition == nil {
+                            var bottom = rowBottom, m = j
+                            while m < count, let d = _cells[m], d.table == c.table { bottom = max(bottom, d.rowTop + d.ownRowHeight); m += 1 }
+                            let g = geometry(k)
+                            let first = document.paragraphs[k].image != nil ? _heights[k] : (Self._lineBottoms(g.painter).first ?? _heights[k])
+                            follower = (bottom, (g.textTop - g.top) + first)
+                            RuleTrace.hit("kept-last-row-keeps-with-the-paragraph-after")
                         }
                         if let follower {
                             let need = follower.top - c.rowTop + follower.height
