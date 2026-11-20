@@ -908,7 +908,7 @@ extension RichLayout {
     /// anchored in the paragraph itself or in one of the few before it in the
     /// same cell (or the body), the paragraphs between standing under it.
     func _besideOwn(_ i: Int, _ p: RichParagraph, _ document: RichDocument) -> (indent: Double, band: (top: Double, bottom: Double), right: Bool, leftRoom: Double?)? {
-        guard theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.isEmpty else { return nil }
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.isEmpty, !_besideDrop.contains(i) else { return nil }
         // (A picture in the header that wraps the text and stands the page's height: every
         // line of the body starts past it. See `PageSetup.headerWrapLeft`.)
         if p.cell == nil, p.style.list == nil, i >= 0 {
@@ -922,6 +922,9 @@ extension RichLayout {
         let inner = cell.map { max(0, $0.colWidth - $0.pad.left - $0.pad.right) } ?? _flowWidth(i)
         let size = _px(p.runs.first?.style.fontSize ?? theme.fontSize)
         var best: (indent: Double, band: (top: Double, bottom: Double), right: Bool, leftRoom: Double?)?
+        _besideFar[i] = nil
+        var farK: Int? = nil
+        defer { if best != nil, let farK { _besideFar[i] = farK } }
         var boxes: [(top: Double, bottom: Double, left: Double, right: Double)] = []
         _besideBoxes[i] = nil
         _besideStartLeft[i] = nil
@@ -933,8 +936,9 @@ extension RichLayout {
         let hang = max(0, -_px(firstLineIndent(p, at: i, document)))
         var offset = 0.0
         var k = i
-        while k >= 0, k >= i - 6 {
+        while k >= 0, k >= i - 6 || (offset < _px(300) && theme.wordRules && RichTextTheme.wordWindowsPages && p.cell == nil) {
             let q = document.paragraphs[k]
+            if k < i - 6, farK == nil, q.inlineImages.inOrder.contains(where: { $0.float?.wraps == true }) { farK = k }
             if k < i {
                 guard q.cell == p.cell, k < _heights.count else { break }
                 // (A picture on an earlier page does not narrow this one: the paragraph that opens
