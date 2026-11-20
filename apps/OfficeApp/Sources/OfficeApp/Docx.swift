@@ -7279,7 +7279,13 @@ enum DocxFormat {
                 let shapes = notes.part(dir + "/_rels/" + file + ".rels").flatMap(XNode.parse)?.all("Relationship")
                     .first(where: { ($0["Type"] ?? "").hasSuffix("/chartUserShapes") && $0["TargetMode"] != "External" })?["Target"]
                     .flatMap { notes.part(_resolvePath(dir, $0)) }.flatMap(XNode.parse)
-                WriterCharts.register(space, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)), themeOverride: over, userShapes: shapes)
+                // (A chart whose numbers live in a workbook it links to, not one it carries: Word prints its
+                // whole-number labels with thousands separators though the cache says General. Five
+                // documents of two sets (sa1 c11d31f3, dx2 f15415f0 ...: 1,030 and 11,965) against
+                // sa2 db23237f, whose embedded workbook prints 10999.)
+                let linkedSource = notes.part(dir + "/_rels/" + file + ".rels").flatMap(XNode.parse)?.all("Relationship")
+                    .contains(where: { ($0["Type"] ?? "").hasSuffix("/oleObject") && $0["TargetMode"] == "External" }) ?? false
+                WriterCharts.register(space, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)), themeOverride: over, userShapes: shapes, linkedSource: linkedSource)
             }
             // A box-and-whisker chart (Office 2016's chartex part), drawn
             // on a column chart's axes, or a sunburst: named by `cx:chart`

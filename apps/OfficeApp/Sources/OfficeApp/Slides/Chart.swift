@@ -85,6 +85,8 @@ struct ChartSeries: Equatable {
     var labelSize: Double? = nil
     var labelBold = false
     var labelColor: Color? = nil
+    /// The face the series' labels name (`a:latin typeface`, a theme's "+mn-lt" not one).
+    var labelFace: String? = nil
     /// The outline round a bar or slice (`c:spPr/a:ln`), and its width in
     /// points; nil is none.
     var outline: Color? = nil
@@ -1428,6 +1430,7 @@ enum ChartXML {
                 s.labelSize = run["sz"].flatMap(Double.init).map { $0 / 100 }
                 s.labelBold = ["1", "true"].contains(run["b"] ?? "")
                 if let f = run.first("a:solidFill") { s.labelColor = color(f) }
+                if let face = run.first("a:latin")?["typeface"], !face.isEmpty, !face.hasPrefix("+") { s.labelFace = face }
             }
             if series.isEmpty {
                 for pt in ser.all("c:dPt") {
@@ -5492,6 +5495,12 @@ enum ChartPainter {
                         if raw < 0, atZero, !c.onSlide, !c.onSheet, !c.stacked, !c.categoryAxisDeleted {
                             labelAt = Offset(labelAt.dx, max(labelAt.dy, zero + 3.3 * size * k))
                         }
+                        // (A Word column's label that says "inEnd" stands inside the column's top, its line 4.6 pt under the
+                        // top: c11d31f3's chart 7, white 10 pt "120" in Word's print, 213.2 under a bar topping at 208.6.)
+                        if raw > 0, !c.stacked, !c.onSlide, !c.onSheet, !c.chartex, c.barLabelPos == "inEnd", p0 - p1 > 2.5 * size * k {
+                            labelAt = Offset(labelAt.dx, min(p0, p1) + 1.065 * size * k)
+                            RuleTrace.hit("word-column-label-inside-end")
+                        }
                         labels.append((shown, labelAt, j))
                     }
                     // In a 3-D box, the bar stands in the middle of its
@@ -5818,12 +5827,13 @@ enum ChartPainter {
                 // (Word wraps a written-out label at a fifth of the chart's width less the box's 7.7 pt, after a
                 // space: sa1 06706f28's "100.00%; 10,150,000.00" is "100.00%;" over "10,150,000.00".)
                 let wrapAt = wrapLabels.contains(li) && !c.onSlide && !c.onSheet ? max(20 * k, frame.width * 0.2 - 7.7 * k) : Double.infinity
-                let tp = ser.labelSize == nil && !ser.labelBold && ser.labelColor == nil ? text(s, c.baseTextSize, wrapAt)
+                let ownFace = c.onSlide || c.onSheet ? nil : ser.labelFace
+                let tp = ser.labelSize == nil && !ser.labelBold && ser.labelColor == nil && ownFace == nil ? text(s, c.baseTextSize, wrapAt)
                     : { () -> TextPainter in
                         let t = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
                             color: ser.labelColor ?? c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65)),
                             fontSize: max(3, (ser.labelSize ?? c.baseTextSize) * k), fontWeight: ser.labelBold ? .bold : .normal,
-                            fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textAlign: .center, textDirection: .ltr)
+                            fontFamily: OfficeFonts.substitute(ownFace ?? c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textAlign: .center, textDirection: .ltr)
                         t.layout(minWidth: 0, maxWidth: wrapAt)
                         return t
                     }()
