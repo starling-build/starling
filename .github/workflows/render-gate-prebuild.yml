@@ -29,6 +29,8 @@ jobs:
           AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           git -C "$C" -c http.extraheader="$AUTH" fetch -q --no-tags --depth=200 origin "$GITHUB_SHA"
           git -C "$C" checkout -q -f --detach "$GITHUB_SHA"
+          git -C "$C" cat-file -e "$GITHUB_SHA^{tree}" || { echo "pushed sha missing after fetch"; exit 1; }
+          git -C "$C" -c http.extraheader="$AUTH" fetch -q --no-tags --depth=200 origin "$(git -C "$C" rev-parse "$GITHUB_SHA^" 2>/dev/null || echo "$GITHUB_SHA")" 2>/dev/null || true   # its parent too
           git -C "$C" clean -fdq
       - name: Prebuild
         env:
