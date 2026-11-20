@@ -8,5 +8,5 @@
 # Needs STARLING_ENGINE_OUT etc. exported as in the AMD README. SCRATCH defaults to .build-shared.
 set -e
 cd "$(dirname "$0")/../.."
-exec swift build -c release --package-path apps/OfficeApp --scratch-path "${1:-$PWD/.build-shared}" \
+exec swift build ${BUILD_JOBS:+-j $BUILD_JOBS} -c release --package-path apps/OfficeApp --scratch-path "${1:-$PWD/.build-shared}" \
   --product OfficeApp -Xswiftc -no-whole-module-optimization
