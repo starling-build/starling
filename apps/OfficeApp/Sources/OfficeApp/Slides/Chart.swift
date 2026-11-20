@@ -2805,6 +2805,12 @@ enum ChartPainter {
             var lines: [[(i: Int, tp: TextPainter)]] = [[]]
             var lineW = 0.0
             var wasWide = false
+            // (A Word legend at the right or left in a box of its own stacks its entries in one column while their rows fit the box's height:
+            // dx2 f15415f0's three pie legends, nine entries in a 0.93 x chart-height box, one to a row in Word's print, two to a row in ours.)
+            let boxColumn: Bool = {
+                guard let box, !c.onSlide, !c.onSheet, !c.chartex, ["r", "l"].contains(c.legendPosition) else { return false }
+                return entries.reduce(0.0) { $0 + $1.tp.height } <= box.height + 0.01
+            }()
             for e in entries {
                 let w = lead + e.tp.width
                 // (A pie's legend in a Word document sets an entry whose name is wider than 0.41 of the frame (names of 140 pt in a 360 frame stand two to a row, of 155 alone) on a row of its own: lab piesize3, two
@@ -2812,7 +2818,7 @@ enum ChartPainter {
                 // five 14-character ones and three 24-character ones (0.28) share rows.)
                 let ownRow = c.type == .pie && !c.onSlide && !c.onSheet && box == nil && (e.tp.width > 0.41 * area.width || wasWide)
                 wasWide = c.type == .pie && !c.onSlide && !c.onSheet && box == nil && e.tp.width > 0.41 * area.width
-                if lineW > 0, beside || ownRow || lineW + spacing + w > (box?.width ?? area.width) { lines.append([]); lineW = 0 }
+                if lineW > 0, beside || boxColumn || ownRow || lineW + spacing + w > (box?.width ?? area.width) { lines.append([]); lineW = 0 }
                 lineW += (lineW > 0 ? spacing : 0) + w
                 lines[lines.count - 1].append(e)
             }
