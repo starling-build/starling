@@ -18088,3 +18088,5 @@ IN PROGRESS: nothing. LEFT: 6b74a903 page-9 divergence; Latin squeeze cap a litt
 NEXT: open a PR from wip/amd-1 per the new workflow once briefed.
 
 amd-1 2026-11-20 CLAIM: PR 69 (inline picture whole twips + header picture line, 6b74a903); then Latin squeeze cap (sa1 0a4c7687 p1 line 25) and 6b74a903 header 0.055 pt.
+
+lenovo-2 CLAIM (2026-11-20, starling-bd): xb 5dc87fc7 next gaps: U+FF40 region page 5; Hebrew paragraph 115 pt high. Then sa1/sa2 (Spanish/Portuguese), ko, ja.
