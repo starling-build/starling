@@ -2179,7 +2179,8 @@ extension RichLayout {
                 var below = _px(wrapped ? f.y : lift) + _px(image.height * (wrapped && f.wrapsTight ? f.wrapBottomShare : 1)) + _px(f.distanceBottom)
                 // (The empty line moves down whole lines until it clears the picture's wrap foot, so its top is a multiple of the line height:
                 // sa1 2303e6f9 lab hdrpoly, Word's body top steps by 13.42pt with the picture's height and its polygon's foot, never between.)
-                if wrapped, line > 0 { below = max(0, (below / line).rounded(.up)) * line }  // (the wrap foot is where the picture really stands, not where it is clamped)
+                // (Only a tight wrap's: a square one's line lands at the picture's foot and its distance, not on a whole line below it: dx2 zh 837ac08d's 95.8pt square picture, the body at 150.62 in Word's print, a line lower, 162.9, with the rounding.)
+                if wrapped, f.wrapsTight, line > 0 { below = max(0, (below / line).rounded(.up)) * line }  // (the wrap foot is where the picture really stands, not where it is clamped)
                 end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + below + line)
             }
             // (A picture set against the PAGE's top that the text goes over and under ends the header at its foot plus its
