@@ -12,15 +12,17 @@ cd "$(dirname "$0")/../.." || exit 2
 ROOT=$PWD; JOBS=${JOBS:-44}; W=${GATE_SCRATCH:-$HOME/scratch/gate-$$}; mkdir -p "$W"
 LQ=${LANDQ:-/data/landq}; SB=$LQ/base/linux
 trap 'rm -rf "$W/pair" "$W/build"' EXIT
-export PYTHON=${PYTHON:-$HOME/venv-word/bin/python}
+TH=${TOOLS_HOME:-/home/starling}   # the runner user has its own empty HOME: tools live under the machine owner
+export PYTHON=${PYTHON:-$TH/venv-word/bin/python}
 # documents named in the commit messages
 git log --format=%B "$BASE_SHA..HEAD" | grep -oE '[0-9a-f]{6,12}|(zh|lo|xa|xb|xd|xs|ko|ja|hi|bn)-[A-Za-z0-9_.-]+' | sort -u > "$W/named.txt"
 ids=$W/ids.txt; { cat "$W/named.txt"; [ -s "$LQ/sample.txt" ] && cat "$LQ/sample.txt"; } | sort -u > "$ids"
 # a fresh runner checkout has no engine link and no corpus: use the machine's engine and the corpus cache
 [ -e engine ] || ln -s "${ENGINE_DIR:?set ENGINE_DIR in the runner .env}" engine
-test/tools/corpus-cache.sh restore >/dev/null 2>&1 || echo "render-gate: corpus restore failed"
+test/tools/corpus-cache.sh restore 2>&1 | tail -3 | cut -c1-200 || echo "render-gate: corpus restore failed"
 # build HEAD here and BASE_SHA in a worktree; the base binary is cached by sha in the runner's own scratch
-. ~/bin/office-env.sh >/dev/null 2>&1 || { echo "render-gate: office-env.sh failed"; exit 2; }
+. "$TH/bin/office-env.sh" || { echo "render-gate: office-env.sh failed"; exit 2; }
+export PATH=$TH/.local/share/swiftly/toolchains/6.2.4/usr/bin:$PATH
 export OFFICE_WORD_FONTS=windows OFFICE_FONT_SOURCE=bundled
 EO=$(readlink -f engine)/src/out/host_release
 BC=${GATE_BASECACHE:-$HOME/scratch/basecache}; BSHA=$(git rev-parse "$BASE_SHA"); mkdir -p "$BC"
