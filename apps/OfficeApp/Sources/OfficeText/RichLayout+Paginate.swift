@@ -4863,7 +4863,32 @@ extension RichLayout {
                         guard let r = xml.firstRange(of: key + "=\"") else { return nil }
                         return Double(xml[r.upperBound...].prefix { $0 != "\"" })
                     }
-                    if xml.containsSubstring("w:wrap=\"notBeside\""), xml.containsSubstring("w:hRule=\"exact\""), let h = number("w:h"), h > 0 {
+                    // (Wrapped "around" with no strip of text width left beside it: Word keeps the
+                    // text below, as for notBeside. sa1 b0e39b18's 324pt frame, 17pt between its
+                    // right edge and a page-anchored frame, has "Person Filing" 28pt lower.)
+                    var noStrip = false
+                    if RichTextTheme.wordWindowsPages, xml.containsSubstring("w:wrap=\"around\""), let w = number("w:w"), let x = number("w:x"), let h = number("w:h") {
+                        let setup = pageSetup(forPage: page)
+                        let pageAnchored = xml.containsSubstring("w:hAnchor=\"page\"")
+                        let hs = (number("w:hSpace") ?? 0) / 20
+                        let left0 = x / 20 - (pageAnchored ? setup.marginLeft : 0)
+                        let right0 = left0 + w / 20
+                        let topPg = (xml.containsSubstring("w:vAnchor=\"page\"") ? 0 : setup.marginTop) + (number("w:y") ?? 0) / 20
+                        var rightEdge = setup.columnWidth
+                        for (j, q) in document.paragraphs.enumerated() where j != i {
+                            guard let qx = q.style.frameXML, qx.containsSubstring("w:hAnchor=\"page\""), qx.containsSubstring("w:vAnchor=\"page\""),
+                                  qx.containsSubstring("w:hRule=\"exact\"") else { continue }
+                            func qn(_ key: String) -> Double? {
+                                guard let r = qx.firstRange(of: key + "=\"") else { return nil }
+                                return Double(qx[r.upperBound...].prefix { $0 != "\"" })
+                            }
+                            guard let ox = qn("w:x"), let oy = qn("w:y"), let oh = qn("w:h") else { continue }
+                            let oLeft = ox / 20 - setup.marginLeft - ((qn("w:hSpace") ?? 0) / 20)
+                            if oLeft >= right0, oy / 20 < topPg + h / 20, oy / 20 + oh / 20 > topPg { rightEdge = min(rightEdge, oLeft) }
+                        }
+                        noStrip = max(rightEdge - right0 - hs, left0 - hs) < 36
+                    }
+                    if xml.containsSubstring("w:wrap=\"notBeside\"") || noStrip, xml.containsSubstring("w:hRule=\"exact\""), let h = number("w:h"), h > 0 {
                         frameFoot = (target + _px(h / 20 + 2 * (number("w:vSpace") ?? 0) / 20), page, 0)
                     }
                 }
