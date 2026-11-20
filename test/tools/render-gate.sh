@@ -8,6 +8,13 @@
 # Env: JOBS (default 44), GATE_SCRATCH (default $HOME/scratch/gate-$$), GATE_FULL=1 (no subset: the whole sets).
 set -u
 BASE_SHA=${1:?usage: render-gate.sh BASE_SHA}
+# Docs-only fast path: when the change touches only non-code files (docs/**, *.md, corpus lists *.tsv/*.txt under test/corpus), nothing can
+# change a render, so pass at once without building. Applies to a PR and to a merge group alike (BASE_SHA..HEAD).
+if git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+  CODE=$(git diff --name-only "$BASE_SHA" HEAD | grep -v -E '^docs/|\.md$|^test/corpus/.*\.(tsv|txt)$' | head -1)
+  NFILES=$(git diff --name-only "$BASE_SHA" HEAD | wc -l)
+  if [ -z "$CODE" ] && [ "$NFILES" -gt 0 ]; then echo "render-gate: only non-code files changed ($NFILES); nothing to render, pass"; exit 0; fi
+fi
 cd "$(dirname "$0")/../.." || exit 2
 ROOT=$PWD; JOBS=${JOBS:-44}; W=${GATE_SCRATCH:-$HOME/scratch/gate-$$}; mkdir -p "$W"
 LQ=${LANDQ:-/data/landq}; SB=$LQ/base/linux
@@ -16,7 +23,11 @@ TH=${TOOLS_HOME:-/home/starling}   # the runner user has its own empty HOME: too
 export PYTHON=${PYTHON:-$TH/venv-word/bin/python}
 # documents named in the commit messages
 git log --format=%B "$BASE_SHA..HEAD" | grep -oE '[0-9a-f]{6,12}|(zh|lo|xa|xb|xd|xs|ko|ja|hi|bn)-[A-Za-z0-9_.-]+' | sort -u > "$W/named.txt"
-ids=$W/ids.txt; { cat "$W/named.txt"; [ -s "$LQ/sample.txt" ] && cat "$LQ/sample.txt"; } | sort -u > "$ids"
+# GATE_TARGETS_ONLY=1 (pull_request event): only the named documents, fast feedback; no named docs -> the sample, so the check is never vacuous.
+# The merge_group event runs the full gate (named + sample) against the group base.
+ids=$W/ids.txt
+if [ "${GATE_TARGETS_ONLY:-0}" = 1 ] && [ -s "$W/named.txt" ]; then sort -u "$W/named.txt" > "$ids"
+else { cat "$W/named.txt"; [ -s "$LQ/sample.txt" ] && cat "$LQ/sample.txt"; } | sort -u > "$ids"; fi
 # a fresh runner checkout has no engine link and no corpus: use the machine's engine and the corpus cache
 [ -e engine ] || ln -s "${ENGINE_DIR:?set ENGINE_DIR in the runner .env}" engine
 test/tools/corpus-cache.sh restore 2>&1 | tail -3 | cut -c1-200 || echo "render-gate: corpus restore failed"
