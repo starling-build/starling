@@ -783,7 +783,7 @@ extension OfficeFonts {
         case "copperplate gothic light":
             face.advances = copperplate_gothic_lightAdv
             face.otherAdvances = copperplate_gothic_lightOther
-            face.naturalHeight = 1.0786; face.baseline = 0.8721
+            face.naturalHeight = 1.0991; face.baseline = 0.8926
 
         case "goudy old style":
             face.advances = goudy_old_styleAdv
