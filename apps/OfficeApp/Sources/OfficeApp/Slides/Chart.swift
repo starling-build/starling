@@ -1939,9 +1939,10 @@ enum ChartXML {
             guard let t = ax?.first("c:title"), let m = t.first("c:layout")?.first("c:manualLayout"),
                   (m.first("c:xMode")?["val"] ?? "factor") == "edge", (m.first("c:yMode")?["val"] ?? "factor") == "edge",
                   let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init),
-                  let rot = t.descendant("a:bodyPr")?["rot"], rot == "0" || (rot == "-5400000" && ax?.name == "c:valAx") else { return nil }
-            let size = (t.descendant("a:rPr") ?? t.descendant("a:defRPr"))?["sz"].flatMap(Double.init).map { $0 / 100 }
-            return PlacedAxisTitle(at: Offset(x, y), size: size, turned: rot != "0")
+                  case let rotAttr = t.descendant("a:bodyPr")?["rot"], rotAttr == nil ? (ax?.name == "c:valAx" && ["l", "r"].contains(ax?.first("c:axPos")?["val"] ?? "")) : (rotAttr == "0" || (rotAttr == "-5400000" && ax?.name == "c:valAx")) else { return nil }
+            let rot = rotAttr ?? "-5400000"
+            let size = (t.descendant("a:rPr")?["sz"] ?? t.descendant("a:defRPr")?["sz"]).flatMap(Double.init).map { $0 / 100 }
+            return PlacedAxisTitle(at: Offset(x, y), size: size, turned: rot != "0", assumedTurn: rotAttr == nil)
         }
         let axes = plot.children.filter { ["c:catAx", "c:valAx", "c:dateAx"].contains($0.name) }
         let titledCategory = type == .scatter ? axes.first { ["b", "t"].contains($0.first("c:axPos")?["val"] ?? "") } : axes.first { $0.name != "c:valAx" }
@@ -4241,7 +4242,8 @@ enum ChartPainter {
         }
         var deferredValueTitle: TextPainter? = nil
         var deferredCategoryTitle: (tp: TextPainter, top: Double)? = nil
-        for (t, placed) in [(c.valueAxisTitle, c.valueAxisTitleAt), (c.categoryAxisTitle, c.categoryAxisTitleAt)] {
+        let valueTitleAt = c.valueAxisTitleAt?.assumedTurn == true && (c.onSlide || c.onSheet) ? nil : c.valueAxisTitleAt
+        for (t, placed) in [(c.valueAxisTitle, valueTitleAt), (c.categoryAxisTitle, c.categoryAxisTitleAt)] {
             guard let t, let placed else { continue }
             let tp = axisText(t, placed.size ?? titleSize, .infinity)
             let top = tp.computeLineMetrics().first.map { $0.baseline - $0.ascent } ?? 0
@@ -4264,7 +4266,7 @@ enum ChartPainter {
             }
             tp.dispose()
         }
-        if let t = c.valueAxisTitle, c.valueAxisTitleAt == nil {
+        if let t = c.valueAxisTitle, valueTitleAt == nil {
             // (No longer than four fifths of the chart in Word: lo-948cd424's category
             // axis title, "In Word the default length of the axis title box is about to
             // 80% of the length of the chart area.", breaks in two in its print.)
@@ -7664,6 +7666,9 @@ struct PlacedAxisTitle: Equatable {
     var size: Double? = nil
     /// Turned a quarter up (a value axis' own title), its box's top left at `at`.
     var turned = false
+    /// The file says nothing of the turn (a value axis' title, turned up by default): only a Word
+    /// document draws it where the file puts it.
+    var assumedTurn = false
 }
 
 /// A stock chart's high-low lines (`Chart.highLowLines`).
