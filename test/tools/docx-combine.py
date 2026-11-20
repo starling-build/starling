@@ -80,6 +80,9 @@ def main():
         for k in sorted(vrows):
             f.write(fmt(k, vrows[k]))
     n = len(comb)
+    if n == 0:
+        open(out_comb, 'w').write(f"0 documents ({label})\n")
+        return 0
     cmean = sum(v[0] for v in comb.values()) / n
     text = [v[0] for k, v in comb.items() if k not in vrows]
     lmean = sum(text) / len(text)
