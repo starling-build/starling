@@ -2129,12 +2129,12 @@ extension RichLayout {
                     func spaceGive(_ k: Int) -> Double {
                         pageBox ? 0.4 : balancedLatinSqueeze ? 0.5 : RichTextTheme.wordWindowsPages && !(k > 0 && (0x2460...0x24FF).contains(units[k - 1])) && ((k > 0 && zhNeighbour(k - 1)) || (k + 1 < units.count && zhNeighbour(k + 1))) ? 0.2 : 0.25
                     }
-                    // (A quarter of a space is cut down to whole twips: Word's print of sa1 0a4c7687 page 1 line 25 (Tahoma 11 pt,
+                    // (A quarter of a space is rounded to the nearest whole twip (w is in twips; 14 for Arial 10, where Word fits 'Gathering' on xd c82d98bc p3 line 1): Word's print of sa1 0a4c7687 page 1 line 25 (Tahoma 11 pt,
                     // space 65.75 twips, 15 spaces) refuses a word needing 12.3231 pt where the exact quarter gave 12.3281;
                     // a quarter of 16 twips gives 12.0. Nirmala/Vrinda/Shonar read 0.244-0.249 of the space for the same reason.)
                     func squeezeGive(_ w: Double, _ share: Double) -> Double {
                         guard share == 0.25, RichTextTheme.wordWindowsPages else { return w * share }
-                        return (w * share * 20).rounded(.down) / 20
+                        return (w * share).rounded()
                     }
                     let windowsAfterMarks = RichTextTheme.wordWindowsPages && eastAsianAt(a) && !inCell
                     // (A space of a missing Hangul-named face is Yu Gothic's: 0.5 em wide beside Hangul, but only Yu's own advance
