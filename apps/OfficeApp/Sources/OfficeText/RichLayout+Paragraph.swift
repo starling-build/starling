@@ -4400,6 +4400,19 @@ extension RichLayout {
             // baseline — ours 15.10 alone and 19.19 with the space.)
             bodyHeight = (box.bottom - box.top).rounded()
         }
+        // (A picture and a horizontal rule in one paragraph: the picture's line takes the multiple's extra too, half
+        // a line of the run's text at 1.5, whatever the paragraph mark's size. Word's print, lab hrimg A, B: the
+        // line after stands 4.66pt lower than the engine set it, the same with an 8pt and a 20pt mark.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.image == nil, p.cell == nil, style.lineHeightPoints == nil,
+           case let multiple = style.lineSpacing - theme.lineSpacingReduction, multiple > 1.001,
+           p.inlineImages.values.filter({ $0.float == nil }).count == 2, p.inlineImages.values.contains(where: { $0.name == "hr" && $0.float == nil }),
+           p.inlineImages.values.contains(where: { $0.name != "hr" && $0.float == nil && $0.textBox == nil && $0.baseline == nil }),
+           p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0.value == 0x0A }),
+           _grid(i, document).pitch == nil || _offGrid(i, document),
+           painter.computeLineMetrics().count == 2, let hrRun = p.runs.first(where: { $0.style.fontSize != nil }) {
+            RuleTrace.hit("word-picture-and-rule-line-takes-the-multiples-extra")
+            bodyHeight += (multiple - 1) * _markLineHeight(i, document, single: true, using: hrRun.style)
+        }
         }
         _blk9()
         // (A paragraph that ends in a line break ends with a line of its
