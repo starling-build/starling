@@ -735,11 +735,15 @@ extension OfficeFonts {
         case "baskerville old face":
             face.advances = baskerville_old_faceAdv
             face.otherAdvances = baskerville_old_faceOther
+            // (No bold face on the print box (Regular is the only style): a bold run is set at the regular advances; Impact, sa1 5e813226: 11 glyphs within 0.36 pt.)
+            face.boldAdvances = baskerville_old_faceAdv; face.boldOtherAdvances = baskerville_old_faceOther
             face.naturalHeight = 1.1406; face.baseline = 0.8813
 
         case "engravers mt":
             face.advances = engravers_mtAdv
             face.otherAdvances = engravers_mtOther
+            // (No bold face on the print box (Regular is the only style): a bold run is set at the regular advances; Impact, sa1 5e813226: 11 glyphs within 0.36 pt.)
+            face.boldAdvances = engravers_mtAdv; face.boldOtherAdvances = engravers_mtOther
             face.naturalHeight = 1.1646; face.baseline = 0.9375
 
         case "impact":

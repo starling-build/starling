@@ -1232,6 +1232,9 @@ extension RichLayout {
                 if k < _floatImages.count, let im = _floatImages[k] { imgs.append(im) }
                 for im in imgs where im.id != image.id && im.textBox == nil {
                     guard let f = im.float, f.wraps, f.horizontalFrom == "column" else { continue }
+                    // (A picture anchored after the box in its own paragraph is not met by the host line: sa1 5e813226's text box, whose
+                    // two tight pictures follow it, stands 132.05pt from the margin in Word's print.)
+                    if k == i, theme.wordRules, RichTextTheme.wordWindowsPages, im.seq > image.seq { continue }
                     let memoKey = "\(im.id)@\(k)"
                     let r: Rect
                     if let hit = _nearRectMemo?[memoKey] { r = hit } else { r = _floatRect(f, im, geometry(k), k); _nearRectMemo?[memoKey] = r }
