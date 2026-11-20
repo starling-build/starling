@@ -16,10 +16,19 @@ jobs:
     runs-on: [self-hosted, linux, starling-render]
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 100
-          submodules: false
+      # One persistent clone per runner ($HOME/clone): fetch the two commits into it instead of a fresh checkout every run.
+      - name: Update persistent clone
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+        run: |
+          set -e
+          C=$HOME/clone
+          [ -d "$C/.git" ] || { git init -q "$C"; git -C "$C" remote add origin "https://github.com/${{ github.repository }}.git"; }
+          AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -C "$C" -c http.extraheader="$AUTH" fetch -q --no-tags --depth=200 origin "$GITHUB_SHA" "$BASE_SHA"
+          git -C "$C" checkout -q -f --detach "$GITHUB_SHA"
+          git -C "$C" clean -fdq
       - name: Render gate
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
@@ -28,6 +37,7 @@ jobs:
           GATE_TARGETS_ONLY: ${{ github.event_name == 'pull_request' && '1' || '0' }}
         run: |
           set -o pipefail
+          cd "$HOME/clone"
           export JOBS=$(nproc)
           [ "$JOBS" -gt 170 ] && JOBS=170
           test/tools/render-gate.sh "$BASE_SHA" 2>&1 | tail -40 | cut -c1-200
