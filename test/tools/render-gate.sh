@@ -102,9 +102,14 @@ if [ ! -x "$BC/$BSHA/release/OfficeApp" ]; then
 fi
 [ "${GATE_PREBUILD:-0}" = 1 ] && { [ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; exit 1; }
   BASEBIN=$BC/$BSHA/release/OfficeApp; fill_rows; chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; echo "render-gate: base $BSHA cached"; exit 0; }
+# base cached: render+score the uncached base documents WHILE the PR builds (the base pass needs only the base binary; the
+# build is mostly one thread, so the two overlap). Measured 2026-11-20: the base pass ran after the build and took ~3-4 min.
+FPID=
+if [ -z "${BPID:-}" ]; then BASEBIN=$BC/$BSHA/release/OfficeApp; ( fill_rows ) > "$W/fillrows.out" 2>&1 & FPID=$!; fi
 test/tools/build-office-fast.sh "$W/build" > "$W/build.log" 2>&1 || { echo "render-gate: BUILD FAILED"; tail -15 "$W/build.log" | cut -c1-200; exit 1; }
 [ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; tail -15 "$W/base-build.log" | cut -c1-200; exit 1; }
 BASEBIN=$BC/$BSHA/release/OfficeApp
+[ -z "$FPID" ] || { wait $FPID; cat "$W/fillrows.out"; echo "render-gate: base rows ready at $(( $(date +%s)-T0 )) s"; }
 BIN=$(ls "$W"/build/*/release/OfficeApp 2>/dev/null | head -1); [ -x "$BIN" ] && [ -x "$BASEBIN" ] || { echo "render-gate: no binary"; exit 2; }
 echo "render-gate: files compiled: PR $(grep -o "[A-Za-z0-9+_]*\.swift" "$W/build.log" | sort -u | wc -l), base $(grep -o "[A-Za-z0-9+_]*\.swift" "$W/base-build.log" 2>/dev/null | sort -u | wc -l) (a cold build lists ~210)"
 echo "render-gate: $(wc -l < "$ids") documents (named + sample); build step $(( $(date +%s)-T0 )) s ($([ -n "${BPID:-}" ] && echo base built here || echo base cached))"; T1=$(date +%s)
@@ -112,7 +117,7 @@ echo "render-gate: $(wc -l < "$ids") documents (named + sample); build step $(( 
 [ "${GATE_FULL:-0}" = 1 ] || export SWEEP_ONLY=$ids
 BSD=
 if [ "${GATE_FULL:-0}" != 1 ]; then
-  fill_rows
+  [ -n "$FPID" ] || fill_rows
   flock -s 8; if [ -s "$RC/REFS" ]; then BSD=$W/bs; rm -rf "$BSD"; mkdir -p "$BSD"; cp "$RC/REFS" "$BSD/REFS"
     for f in "$RC"/*.v2 "$RC"/*.v1; do [ -f "$f" ] && awk 'NR==FNR{k[$1]=1;next} ($NF in k)' "$ids" "$f" > "$BSD/$(basename "$f")"; done; fi; flock -u 8
 fi
