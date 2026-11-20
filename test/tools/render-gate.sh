@@ -43,7 +43,9 @@ CC=${STARLING_CORPUS:-/data/corpus-cache}
     for d in test/corpus/docx test/corpus/docx/lo "$CC"/staging/*; do ls "$d/docs" 2>/dev/null | grep -E "\.docx$" | grep -F "$t" | sed 's/\.docx$//'; done
   done < "$W/named.txt"; } | sort -u > "$ids.x" && mv "$ids.x" "$ids"
 # a fresh runner checkout has no engine link and no corpus: use the machine's engine and the corpus cache
-[ -e engine ] || ln -s "${ENGINE_DIR:?set ENGINE_DIR in the runner .env}" engine
+ENGINE_DIR=${ENGINE_DIR:?set ENGINE_DIR in the runner .env}
+[ -d "$ENGINE_DIR/src/out/host_release" ] || { echo "render-gate: ENGINE_DIR=$ENGINE_DIR has no src/out/host_release"; exit 2; }
+ln -sfn "$ENGINE_DIR" engine   # every run: a clone must never keep pointing at an old engine path
 test/tools/corpus-cache.sh restore 2>&1 | tail -3 | cut -c1-200 || echo "render-gate: corpus restore failed"
 # build HEAD here and BASE_SHA in a worktree; the base binary is cached by sha in the runner's own scratch
 . "$TH/bin/office-env.sh" || { echo "render-gate: office-env.sh failed"; exit 2; }
@@ -59,7 +61,7 @@ if [ ! -x "$BC/$BSHA/release/OfficeApp" ]; then
   # a stale or broken persistent worktree is dropped and made again (first prebuild: "unable to read tree")
   if { [ -d "$W/basetree/.git" ] || [ -f "$W/basetree/.git" ]; } && git -C "$W/basetree" checkout -q --detach "$BSHA" 2>/dev/null; then :
   else rm -rf "$W/basetree"; git worktree prune; git worktree add -f --detach "$W/basetree" "$BSHA" -q || { echo "render-gate: cannot check out base"; exit 2; }; fi
-  [ -e "$W/basetree/engine" ] || ln -s "$(readlink -f engine)" "$W/basetree/engine"
+  ln -sfn "$ENGINE_DIR" "$W/basetree/engine"
   ( cd "$W/basetree" && test/tools/build-office-fast.sh "$W/basebuild" > "$W/base-build.log" 2>&1 ) &
   BPID=$!
 fi
