@@ -914,6 +914,13 @@ extension RichLayout {
                     }
                 }
             }
+            // (A paragraph that keeps with the next in its cell is not a place the row may part: Word's print of
+            // c2104d44 sends the empty kept paragraph that opens the chain "…, Jueves, 16 de marzo" to the next page with it,
+            // and stands the line before it at the foot.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.paragraphs[k].style.keepNext, k + 1 < count,
+               let here = _cells[k], let next = _cells[k + 1], next.table == here.table, next.row == here.row, next.column == here.column {
+                return lines
+            }
             return lines + [end]
         }
         // A cell merged down from a row above (Word's `w:vMerge`) is
@@ -2306,7 +2313,8 @@ extension RichLayout {
                                     here.append(id)
                                 } else {
                                     if y > 0.01 || mark.top > c0.rowTop + 0.5 {
-                                        contentH = max(1, min(contentH, y + (mark.top - c0.rowTop) + (here.isEmpty ? 0 : room - note.height)))
+                                        // (The row's part ends over that line with its closing rule under it, which is not room the cut asks for.)
+                                        contentH = max(1, min(contentH, y + (mark.top - c0.rowTop) + ruleUnder(c0, parted: true) + (here.isEmpty ? 0 : room - note.height)))
                                     }
                                     rowPending.append(id)
                                 }
