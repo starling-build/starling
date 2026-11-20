@@ -2168,6 +2168,14 @@ extension RichLayout {
                     RuleTrace.hit("word-header-picture-below-the-last-line-does-not-push-the-body")
                     continue
                 }
+                // (A square wrap set from the column that leaves room beside it, here 6.3pt between the paragraph's left indent and the
+                // picture's wrap box, holds the paragraph's empty line there: Word's body stays at the top margin, dx2 733cf360's 485pt
+                // banner whose foot, 64.5, is above the margin; pushing the line under it put the body 19.9pt low.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, f.wraps, !f.wrapsTight, f.horizontalFrom == "column", hp.text.allSatisfy({ $0 == " " || $0 == "\u{FFFC}" || $0 == "\n" }) {
+                    let roomLeft = f.x - (f.distanceLeft ?? 9) - hp.style.indentLeft
+                    let roomRight = setup.contentWidth - (f.x + image.width + (f.distanceRight ?? 9))
+                    if roomLeft > 0 || roomRight > 0 { RuleTrace.hit("word-header-empty-line-sits-beside-a-square-picture-with-room"); continue }
+                }
                 RuleTrace.hit("header-picture-from-its-paragraph-ends-the-header")
                 // (A wrapped one pushes the paragraph's own line under it, and Word does not lift it above the paragraph: sa1 2303e6f9,
                 // the picture 0 to 136pt, the empty 11pt line baseline at 144.7, the body from 148.4.)
