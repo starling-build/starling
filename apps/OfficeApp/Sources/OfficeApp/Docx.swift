@@ -2638,7 +2638,7 @@ enum DocxFormat {
                 // above rows whose cells name left/right none; Word's print has it).
                 let cellSaid = cells.compactMap { c -> _Borders? in
                     guard let b = _borders(c.first("w:tcPr"), "w:tcBorders", lost: lostEdges[ObjectIdentifier(c)] ?? []) else { return nil }
-                    if !b.on, RichTextTheme.wordWindowsPages, styledBorders?.on == true || _borders(node.first("w:tblPr"), "w:tblBorders")?.on == true,
+                    if !b.on, RichTextTheme.wordWindowsPages, styledBorders?.on == true, node.first("w:tblPr")?.first("w:tblBorders") == nil,
                        let tb = c.first("w:tcPr")?.first("w:tcBorders"),
                        !tb.children.contains(where: { $0.name == "w:top" || $0.name == "w:bottom" }) { return nil }
                     return b
@@ -3178,7 +3178,8 @@ enum DocxFormat {
                             // take away the rule the table's style draws there: Word's print
                             // of sa2 fee2a9e5 (Light Shading, every cell "none" on all four
                             // sides in the header row) rules the table 1pt top and bottom.
-                            if RichTextTheme.wordWindowsPages, !style.bordersFromCells, style.borders {
+                            if RichTextTheme.wordWindowsPages, !style.bordersFromCells, style.borders,
+                               node.first("w:tblPr")?.first("w:tblStyle") != nil, node.first("w:tblPr")?.first("w:tblBorders") == nil {
                                 let te = style.edges ?? BorderEdges()
                                 if r == 0, own.top == false, te.top ?? style.borders { own.top = nil }
                                 if r == rowCount - 1, own.bottom == false, te.bottom ?? style.borders { own.bottom = nil }
