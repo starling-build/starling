@@ -805,6 +805,10 @@ enum WindowsArabicAdvances {
     // "letters|joinsBefore|joinsAfter" -> em width: medians over the batch B prints' clusters
     // (zero-width follow-on letters), groups seen four or more times with a spread under 0.03 em.
     static let tradArabicClusters: [String: Double] = [
+        // (A waw at the start of a word kerns the letter after it, in ems added to the sum, by that
+        // letter's shaped form: lab arabgroups, Word 14/15 prints, 31 followers; flat followers such as ba, meem,
+        // noon measure -0.067, "waw+*" is the default; the overhanging ones (hah, ain, kaf, heh) more.)
+        "waw+*": -0.0670, "waw+FE8D": -0.0940, "waw+FE93": -0.0980, "waw+FE9D": -0.1620, "waw+FE9F": -0.1230, "waw+FEA1": -0.1620, "waw+FEA3": -0.1230, "waw+FEA5": -0.0860, "waw+FEA7": -0.1230, "waw+FEB1": -0.0330, "waw+FEC9": -0.1870, "waw+FEDB": -0.2670, "waw+FEE9": -0.0980, "waw+FEEB": -0.0970, "waw+FEF1": -0.0030,
         "الل|0|1": 0.6440, "الله|0|0": 0.6440, "بأ|0|0": 0.3900, "با|0|0": 0.3900,
         "بج|0|1": 0.4620, "بح|0|1": 0.4620, "بخ|0|1": 0.4620, "بر|1|0": 0.4620,
         "بم|0|1": 0.3140, "به|0|1": 0.3970, "بي|0|0": 0.5360, "بي|1|0": 0.5360,
@@ -815,7 +819,8 @@ enum WindowsArabicAdvances {
         "فى|0|0": 0.5360, "في|0|0": 0.5360, "لآ|0|0": 0.4620, "لأ|0|0": 0.4620,
         "لإ|1|0": 0.5180, "لا|1|0": 0.5180, "لج|0|1": 0.4880, "لح|0|0": 0.5180,
         "لح|0|1": 0.4880, "لخ|0|1": 0.4880, "لل|0|1": 0.3700, "لله|0|0": 0.5360,
-        "لم|0|1": 0.2580, "لمج|0|1": 0.4800, "لمح|0|1": 0.4800, "له|0|1": 0.3510,
+        "لم|0|1": 0.2580, "لم|0|0": 0.3140, "للا|0|0": 0.6910, "لأ|1|0": 0.5180,
+        "لإ|0|0": 0.4680, "لا|0|0": 0.4680, "خم|0|1": 0.5800, "شم|0|1": 0.5370, "لمج|0|1": 0.4800, "لمح|0|1": 0.4800, "له|0|1": 0.3510,
         "لى|0|0": 0.5360, "لي|0|0": 0.5360, "مج|0|1": 0.4620, "مح|0|1": 0.4620,
         "مخ|0|1": 0.4620, "مم|0|1": 0.3510, "نا|0|0": 0.3900, "نج|0|1": 0.4620,
         "نح|0|1": 0.4620, "نم|0|1": 0.3140, "نه|0|1": 0.3970, "نى|1|0": 0.5360,
