@@ -1512,6 +1512,8 @@ public struct TableStyle: Hashable, Codable, Sendable {
     public var contentFitFloor: [Int: Double] = [:]
     /// A gridless 100%-wide table whose cells all state twips: each column is the larger of that and its narrowest content, all scaled to the room (lab pctfit).
     public var twipScale = false
+    public var twipStated: [Double] = []
+    public var twipShares: [Int: Double] = [:]
     /// Columns whose cells state a share of the table's width (`w:tcW`
     /// in pct; 12 = 12%), and those whose cells do not wrap (`w:noWrap`):
     /// a spaced table of a stated share sizes them so (`_pctColumns`).

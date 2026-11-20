@@ -53,11 +53,11 @@ esac
 corpus() { case $1 in 756) echo "$ROOT/test/corpus/docx";; lo) echo "$ROOT/test/corpus/docx/lo";; xb|xa|xd|xs|dx2|sa1|sa2) echo "${STARLING_CORPUS:-/data/corpus-cache}/staging/$1";; esac; }
 # refhash SET — one hash of the set's Word reference PDFs (names + contents): the code STAMP does not cover them, so
 # a print swap would leave stored scores that look valid. Stored beside the scores as REFS ("<set> <hash>" lines).
-refhash() { local C; C=$(corpus "$1"); ( cd "$C/word-win" 2>/dev/null && ls *.pdf 2>/dev/null | LC_ALL=C sort | while IFS= read -r f; do printf '%s ' "$f"; sha256sum < "$f" | cut -c1-64; done | sha256sum | cut -c1-32 ); }
+refhash() { local C; C=$(corpus "$1"); python3 -I "$HERE/hashdir.py" "$C/word-win" .pdf; }
 # dochash SET — hash of the set's input .docx files (names + contents): a changed input doc makes stored scores stale
 # even when the references and the code stamp are unchanged (xs, 2026-11-13). REFS lines are "<set> <refhash> <dochash>";
 # an old two-field line is accepted (no doc check) until the next seed rewrites it.
-dochash() { local C; C=$(corpus "$1"); ( cd "$C/docs" 2>/dev/null && ls *.docx 2>/dev/null | LC_ALL=C sort | while IFS= read -r f; do printf '%s ' "$f"; sha256sum < "$f" | cut -c1-64; done | sha256sum | cut -c1-32 ); }
+dochash() { local C; C=$(corpus "$1"); python3 -I "$HERE/hashdir.py" "$C/docs" .docx; }
 # base_ok SET FILE REFSFILE — stored/cached base scores usable for the set? (1) the references they were scored against
 # are the ones on disk now (REFSFILE has a line for the set with the current refhash), and (2) for the cache-resident sets
 # (xb xa xd xs dx2) the row count matches the number of prints (membership can change).

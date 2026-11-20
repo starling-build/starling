@@ -2977,6 +2977,16 @@ enum DocxFormat {
                         return pr?.first("w:tcW")?["w:type"] == "dxa" && pr?.first("w:gridSpan") == nil && pr?.first("w:vMerge") == nil
                     }
                     if plain, counts.count == 1, rows.allSatisfy({ $0.first("w:trPr")?.first("w:gridBefore") == nil }) { style.twipScale = true }
+                    // (Cells in twips and in a share, a column to each kind: the share's columns keep that share of the room, the others are scaled into the rest. sa2 be63fe36 table 7.)
+                    if !plain, counts.count == 1, rows.allSatisfy({ $0.first("w:trPr")?.first("w:gridBefore") == nil }), let first = rows.first {
+                        var stated: [Double] = [], shares: [Int: Double] = [:], ok = true
+                        for (k, tc) in unwrapped(first, "w:tc").enumerated() {
+                            let pr = tc.first("w:tcPr"), w = pr?.first("w:tcW")
+                            guard pr?.first("w:gridSpan") == nil, pr?.first("w:vMerge") == nil, let v = Double(w?["w:w"] ?? ""), v > 0 else { ok = false; break }
+                            if w?["w:type"] == "dxa" { stated.append(v / 20) } else if w?["w:type"] == "pct" { stated.append(0); shares[k] = v / 50 } else { ok = false; break }
+                        }
+                        if ok, !shares.isEmpty, shares.count < stated.count { style.twipScale = true; style.twipStated = stated; style.twipShares = shares }
+                    }
                 }
                 // (A table of a width in twips over an equal-split grid is content-fitted too, to that width: lab atcol1.)
                 if !cells.isEmpty, widthless == cells.count, style.width != nil, style.widthPercent == nil, equalGrid, !style.fixedLayout { style.contentFit = true }

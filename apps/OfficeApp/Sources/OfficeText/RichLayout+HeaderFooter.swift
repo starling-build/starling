@@ -1232,6 +1232,9 @@ extension RichLayout {
                 if k < _floatImages.count, let im = _floatImages[k] { imgs.append(im) }
                 for im in imgs where im.id != image.id && im.textBox == nil {
                     guard let f = im.float, f.wraps, f.horizontalFrom == "column" else { continue }
+                    // (A picture anchored after the box in its own paragraph is not met by the host line: sa1 5e813226's text box, whose
+                    // two tight pictures follow it, stands 132.05pt from the margin in Word's print.)
+                    if k == i, theme.wordRules, RichTextTheme.wordWindowsPages, im.seq > image.seq { continue }
                     let memoKey = "\(im.id)@\(k)"
                     let r: Rect
                     if let hit = _nearRectMemo?[memoKey] { r = hit } else { r = _floatRect(f, im, geometry(k), k); _nearRectMemo?[memoKey] = r }
@@ -2165,6 +2168,14 @@ extension RichLayout {
                     RuleTrace.hit("word-header-picture-below-the-last-line-does-not-push-the-body")
                     continue
                 }
+                // (A square wrap set from the column that leaves room beside it, here 6.3pt between the paragraph's left indent and the
+                // picture's wrap box, holds the paragraph's empty line there: Word's body stays at the top margin, dx2 733cf360's 485pt
+                // banner whose foot, 64.5, is above the margin; pushing the line under it put the body 19.9pt low.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, f.wraps, !f.wrapsTight, f.horizontalFrom == "column", hp.text.allSatisfy({ $0 == " " || $0 == "\u{FFFC}" || $0 == "\n" }) {
+                    let roomLeft = f.x - (f.distanceLeft ?? 9) - hp.style.indentLeft
+                    let roomRight = setup.contentWidth - (f.x + image.width + (f.distanceRight ?? 9))
+                    if roomLeft > 0 || roomRight > 0 { RuleTrace.hit("word-header-empty-line-sits-beside-a-square-picture-with-room"); continue }
+                }
                 RuleTrace.hit("header-picture-from-its-paragraph-ends-the-header")
                 // (A wrapped one pushes the paragraph's own line under it, and Word does not lift it above the paragraph: sa1 2303e6f9,
                 // the picture 0 to 136pt, the empty 11pt line baseline at 144.7, the body from 148.4.)
@@ -2179,7 +2190,8 @@ extension RichLayout {
                 var below = _px(wrapped ? f.y : lift) + _px(image.height * (wrapped && f.wrapsTight ? f.wrapBottomShare : 1)) + _px(f.distanceBottom)
                 // (The empty line moves down whole lines until it clears the picture's wrap foot, so its top is a multiple of the line height:
                 // sa1 2303e6f9 lab hdrpoly, Word's body top steps by 13.42pt with the picture's height and its polygon's foot, never between.)
-                if wrapped, line > 0 { below = max(0, (below / line).rounded(.up)) * line }  // (the wrap foot is where the picture really stands, not where it is clamped)
+                // (Only a tight wrap's: a square one's line lands at the picture's foot and its distance, not on a whole line below it: dx2 zh 837ac08d's 95.8pt square picture, the body at 150.62 in Word's print, a line lower, 162.9, with the rounding.)
+                if wrapped, f.wrapsTight, line > 0 { below = max(0, (below / line).rounded(.up)) * line }  // (the wrap foot is where the picture really stands, not where it is clamped)
                 end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + below + line)
             }
             // (A picture set against the PAGE's top that the text goes over and under ends the header at its foot plus its
