@@ -2229,7 +2229,10 @@ extension RichLayout {
                       image.height > 0 else { continue }
                 // (Not one raised clear of its paragraph by more than its height: the body knows nothing of that —
                 // floattable-footer-nofit, raised 200pt, keeps five rows a page.)
-                let reach = f.bandsPage ? _px(image.height) + _px(f.effectBottom) : -_px(f.y)
+                // (A wide wrap-through shape ends the body one line of its paragraph above the paragraph, wherever the shape stands:
+                // lab footreach moved 511c21d4's box from -28pt to 0 and -40pt, and its page picture to -40pt, and Word's breaks did not move;
+                // any reach from 12 to 24pt gives Word's pages and the paragraph's line is 13.4pt.)
+                let reach = f.bandsPage ? _px(image.height) + _px(f.effectBottom) : footer.layout._heights[j]
                 guard -_px(f.y) < _px(image.height) + _px(f.effectBottom), reach > 0 else { continue }
                 RuleTrace.hit("footer-picture-above-its-paragraph-ends-the-body")
                 end = max(end ?? 0, _px(setup.footerDistance) + footer.height - footer.layout._tops[j] + reach)
