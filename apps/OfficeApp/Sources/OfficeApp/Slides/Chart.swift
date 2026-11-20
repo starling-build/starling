@@ -155,6 +155,8 @@ struct Chart: Equatable {
     /// gives them (its first run's, else the title's default run
     /// properties); nil is PowerPoint's default for a chart title.
     var titleSize: Double? = nil
+    /// A title that gives no text and no look (`<c:title/>`): its text is the series' name, and in a Word document Word prints it 18 pt bold (db23237f, 1f900e58).
+    var autoTitle = false
     var titleSpacing: Double? = nil
     /// A size of a title's later paragraph where it differs from the
     /// first's, by line of `title` (aascu 5864's 14 pt titles with a 12 pt
@@ -1739,6 +1741,7 @@ enum ChartXML {
             c.plainText = true
         }
         c.titleSize = titleSize
+        if let t = chart.first("c:title"), t.first("c:tx") == nil, t.first("c:txPr") == nil, space.first("c:txPr") == nil { c.autoTitle = true }
         c.titleSpacing = titleSpacing
         c.titleLineSizes = titleLineSizes
         c.titleAt = titleAt
@@ -1818,7 +1821,7 @@ enum ChartXML {
         // one series deletes them under a chart that shows values).
         c.dataLabels = el.all("c:ser").contains { ser in
             guard let d = ser.first("c:dLbls") else { return shows(el.first("c:dLbls")) }
-            if ["1", "true"].contains(d.first("c:delete")?["val"] ?? "") { return false }
+            if ["1", "true"].contains(d.first("c:delete")?["val"] ?? "") { return type == .pie && d.all("c:dLbl").contains { shows($0) } }
             return d.first("c:showVal") == nil && d.first("c:showPercent") == nil ? shows(el.first("c:dLbls")) : shows(d)
         }
         // (Only where some series shows labels does a series that does not go without: else the flag is moot.)
@@ -1827,12 +1830,21 @@ enum ChartXML {
         if type == .doughnut, let hole = el.first("c:holeSize")?["val"].flatMap(Int.init) { c.holeSize = hole }
         if type == .pie || type == .doughnut, let ser = el.first("c:ser"), let d = ser.first("c:dLbls") ?? el.first("c:dLbls") {
             func on(_ n: XNode?, _ name: String) -> Bool { ["1", "true"].contains(n?.first(name)?["val"] ?? "") }
-            c.pieLabelsAround = type == .pie && d.first("c:delete")?["val"] != "1"
-                && ["c:showVal", "c:showPercent", "c:showCatName", "c:showSerName"].contains { on(d, $0) }
+            // (A group delete does not take the labels a point's own `c:dLbl` shows: db23237f's pie
+            // deletes the group and shows seven of seven, Word prints all seven.)
+            let shownOwn = d.all("c:dLbl").filter { one in ["c:showVal", "c:showPercent", "c:showCatName", "c:showSerName"].contains { on(one, $0) } }
+            let groupGone = ["1", "true"].contains(d.first("c:delete")?["val"] ?? "")
+            let f = groupGone && !shownOwn.isEmpty ? shownOwn[0] : d
+            c.pieLabelsAround = type == .pie && (!groupGone || !shownOwn.isEmpty)
+                && ["c:showVal", "c:showPercent", "c:showCatName", "c:showSerName"].contains { on(f, $0) }
                 && !["ctr", "inEnd", "inBase"].contains(d.first("c:dLblPos")?["val"] ?? "bestFit")
             var l = Chart.PieLabels()
-            l.series = on(d, "c:showSerName"); l.category = on(d, "c:showCatName")
-            l.value = on(d, "c:showVal"); l.percent = on(d, "c:showPercent")
+            l.series = on(f, "c:showSerName"); l.category = on(f, "c:showCatName")
+            l.value = on(f, "c:showVal"); l.percent = on(f, "c:showPercent")
+            if groupGone, !shownOwn.isEmpty {
+                let have = Set(shownOwn.compactMap { $0.first("c:idx")?["val"].flatMap(Int.init) })
+                for i in 0..<(c.series.first?.values.count ?? 0) where !have.contains(i) { l.deleted.insert(i) }
+            }
             l.separator = d.first("c:separator")?.text
             // (None written is a best fit, Excel's default for a pie:
             // zh-d62da4dd's 3-D pies give no position, and Word's print of
@@ -2604,7 +2616,7 @@ enum ChartPainter {
             // each line centred. (A Word document's chart that gives no size anywhere: 10pt, as
             // Word's print of fdo78474's "Sales" and the rest of its text.)
             let titleStyle = Flutter.TextStyle(
-                color: c.titleColor ?? ink, fontSize: max(3, (c.titleSize ?? c.textSize.map { ($0 * 1.2).rounded() } ?? (!c.onSlide && !c.onSheet && !c.chartex ? 10 : 18.6)) * k),
+                color: c.titleColor ?? ink, fontSize: max(3, (c.titleSize ?? (c.autoTitle && !c.onSlide && !c.onSheet && !c.chartex ? 18 : nil) ?? c.textSize.map { ($0 * 1.2).rounded() } ?? (!c.onSlide && !c.onSheet && !c.chartex ? 10 : 18.6)) * k),
                 fontWeight: c.titleBold ? .bold : .normal, letterSpacing: c.titleSpacing.map { $0 * k }, fontFeatures: plain,
                 fontFamily: OfficeFonts.substitute(c.titleFont ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c, traditional: c.titleTraditional))
             // (A line in a size of its own, as its own span.)
