@@ -52,7 +52,27 @@ test/tools/corpus-cache.sh restore 2>&1 | tail -3 | cut -c1-200 || echo "render-
 export PATH=$TH/.local/share/swiftly/toolchains/6.2.4/usr/bin:$PATH
 export OFFICE_WORD_FONTS=windows OFFICE_FONT_SOURCE=bundled
 EO=$(readlink -f engine)/src/out/host_release
-BC=${GATE_BASECACHE:-$HOME/scratch/basecache}; BSHA=$(git rev-parse "$BASE_SHA"); mkdir -p "$BC"
+BC=${GATE_BASECACHE:-$HOME/scratch/basecache}; BSHA=$(git rev-parse "$BASE_SHA")
+# pull_request checks out the merge of the PR into the CURRENT main: its first parent is what the prebuild cached. The PR's own
+# base.sha is usually older (a second build per gate). BASE_SHA stays for the path classification and the named documents.
+[ "$(git rev-list --parents -n1 HEAD | wc -w)" = 3 ] && BSHA=$(git rev-parse HEAD^1)
+mkdir -p "$BC"
+
+# base scores cached per (base sha, document): $BC/$BSHA/rows/<set>.{v2,v1} + REFS + tried.txt. A document the cache lacks is
+# rendered once with the base binary (docx-pair --seed) and kept; the prebuild does that for the sample, so a gate renders only HEAD.
+RC=$BC/$BSHA/rows
+fill_rows() {
+  mkdir -p "$RC"; touch "$RC/tried.txt"
+  sort -u "$RC/tried.txt" | comm -23 "$ids" - > "$W/missing.txt"
+  [ -s "$W/missing.txt" ] || { echo "render-gate: base scores cached for all $(wc -l < "$ids") documents"; return 0; }
+  echo "render-gate: rendering base for $(wc -l < "$W/missing.txt") uncached documents"
+  rm -rf "$W/fill"
+  SWEEP_ONLY=$W/missing.txt ENGINE_OUT=$EO STAGE=$W/fill BASE_REV=$BSHA SCORES_BASE=/nonexistent test/tools/docx-pair.sh --seed "$BASEBIN" "$BASEBIN" "$JOBS" > "$W/fill.log" 2>&1 \
+    || { echo "render-gate: base fill failed (rows not cached)"; return 0; }
+  if [ -s "$RC/REFS" ] && ! cmp -s "$RC/REFS" "$W/fill/fix/REFS"; then rm -f "$RC"/*.v2 "$RC"/*.v1 "$RC/tried.txt"; fi   # corpus changed: older rows are stale
+  for f in "$W"/fill/fix/*.v2 "$W"/fill/fix/*.v1; do [ -f "$f" ] && cat "$f" >> "$RC/$(basename "$f")"; done
+  cp "$W/fill/fix/REFS" "$RC/REFS"; cat "$W/missing.txt" >> "$RC/tried.txt"
+}
 T0=$(date +%s); echo "render-gate: building"
 if [ ! -x "$BC/$BSHA/release/OfficeApp" ]; then
   # base build: persistent worktree + persistent scratch (incremental from the previous base). Normally a prebuild
@@ -66,7 +86,7 @@ if [ ! -x "$BC/$BSHA/release/OfficeApp" ]; then
   BPID=$!
 fi
 [ "${GATE_PREBUILD:-0}" = 1 ] && { [ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; exit 1; }
-  [ -z "${BPID:-}" ] || { BREL=$(dirname "$(ls "$W"/basebuild/*/release/OfficeApp | head -1)"); rm -rf "$BC/$BSHA"; mkdir -p "$BC/$BSHA"; cp -a "$BREL" "$BC/$BSHA/release"; }; echo "render-gate: base $BSHA cached"; exit 0; }
+  [ -z "${BPID:-}" ] || { BREL=$(dirname "$(ls "$W"/basebuild/*/release/OfficeApp | head -1)"); rm -rf "$BC/$BSHA"; mkdir -p "$BC/$BSHA"; cp -a "$BREL" "$BC/$BSHA/release"; }; BASEBIN=$BC/$BSHA/release/OfficeApp; fill_rows; echo "render-gate: base $BSHA cached"; exit 0; }
 test/tools/build-office-fast.sh "$W/build" > "$W/build.log" 2>&1 || { echo "render-gate: BUILD FAILED"; tail -15 "$W/build.log" | cut -c1-200; exit 1; }
 if [ -n "${BPID:-}" ]; then
   wait $BPID || { echo "render-gate: BASE BUILD FAILED"; tail -15 "$W/base-build.log" | cut -c1-200; exit 1; }
@@ -77,7 +97,14 @@ BIN=$(ls "$W"/build/*/release/OfficeApp 2>/dev/null | head -1); [ -x "$BIN" ] &&
 echo "render-gate: $(wc -l < "$ids") documents (named + sample); build step $(( $(date +%s)-T0 )) s"; T1=$(date +%s)
 # both binaries render the same subset (SWEEP_ONLY), so the base needs no stored scores
 [ "${GATE_FULL:-0}" = 1 ] || export SWEEP_ONLY=$ids
-ENGINE_OUT=$EO STAGE=$W/pair BASE_SCORES= BASE_REV=$BASE_SHA SCORES_BASE=/nonexistent test/tools/docx-pair.sh "$BASEBIN" "$BIN" "$JOBS" > "$W/pair.log" 2>&1
+BSD=
+if [ "${GATE_FULL:-0}" != 1 ]; then
+  fill_rows
+  if [ -s "$RC/REFS" ]; then BSD=$W/bs; rm -rf "$BSD"; mkdir -p "$BSD"; cp "$RC/REFS" "$BSD/REFS"
+    for f in "$RC"/*.v2 "$RC"/*.v1; do [ -f "$f" ] && awk 'NR==FNR{k[$1]=1;next} ($NF in k)' "$ids" "$f" > "$BSD/$(basename "$f")"; done; fi
+fi
+[ -n "$BSD" ] && echo "render-gate: base scores from the cache ($BSD)"
+BASE_PARTIAL=${BSD:+1} CANARY=${BSD:+0} ENGINE_OUT=$EO STAGE=$W/pair BASE_SCORES=$BSD BASE_REV=$BASE_SHA SCORES_BASE=/nonexistent test/tools/docx-pair.sh "$BASEBIN" "$BIN" "$JOBS" > "$W/pair.log" 2>&1
 rc=$?; echo "render-gate: render+compare step $(( $(date +%s)-T1 )) s"
 if [ $rc != 0 ]; then echo "render-gate: pair failed (exit $rc)"; grep -aE "ABORT|failed|no engine" "$W/pair.log" | head -5 | cut -c1-200; exit 1; fi
 # a gate that compared nothing must not pass

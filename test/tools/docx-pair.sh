@@ -64,6 +64,7 @@ dochash() { local C; C=$(corpus "$1"); ( cd "$C/docs" 2>/dev/null && ls *.docx 2
 base_ok() { local want have; want=$(refhash "$1"); have=$(awk -v s="$1" '$1==s{print $2}' "$3" 2>/dev/null)
   [ -n "$want" ] && [ "$want" = "$have" ] || return 1
   local dh; dh=$(awk -v s="$1" '$1==s{print $3}' "$3" 2>/dev/null); [ -z "$dh" ] || [ "$dh" = "$(dochash "$1")" ] || return 1
+  [ "${BASE_PARTIAL:-0}" = 1 ] && return 0   # a per-document cache (render-gate): rows for the swept documents only
   case "$1" in xb|xa|xd|xs|dx2|sa1|sa2) ;; *) return 0;; esac; local C n; C=$(corpus "$1"); n=$(ls "$C"/word-win/*-orig.pdf 2>/dev/null | wc -l)
   [ "$(grep -c '%  lines ' "$2" 2>/dev/null)" = "$n" ]; }
 # sweep BIN WORK SET → WORK/match-v2.txt, match-v1.txt
