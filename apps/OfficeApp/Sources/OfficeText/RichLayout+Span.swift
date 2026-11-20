@@ -781,8 +781,9 @@ extension RichLayout {
             // and two spaces, mark 16pt, line grid) are taller than that and keep the normal line.)
             // (Anchors beside text in a body line: the spaces still add no height, as with no anchor. sa1 79f33282's
             // "Personal: ... Contratado" line, a wrapNone square anchored in it and 12pt spaces and tabs among 10pt text, is the
-            // 10pt line in Word's print, 25.8 to the next paragraph where ours was 29.2.)
-            if floating && (document.isHeaderFooterPart || (best != nil && !(theme.wordRules && RichTextTheme.wordWindowsPages))) { return nil }
+            // 10pt line in Word's print, 25.8 to the next paragraph where ours was 29.2. Not in a page header or footer: zh-4c4b1af8's
+            // footer line of an anchor, 14pt text and 14pt trailing spaces under a 16pt line grid stays the normal line.)
+            if floating && (document.isHeaderFooterPart || (best != nil && (document.isPageHeaderFooterPart || !(theme.wordRules && RichTextTheme.wordWindowsPages)))) { return nil }
             if let best { return (best, false) }
             // (With a floating anchor in the line, the larger of the mark's size and its spaces': dx2 ja 4fbb6e32's
             // 24pt under a 24pt mark is the mark's line; cs 2a42c845's header line of 11pt spaces under a mark of the

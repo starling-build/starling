@@ -2822,6 +2822,8 @@ public struct RichDocument: Hashable, Codable, Sendable {
     public var fromFileTextBox = false
     /// Set on the sub-document a header or footer file is laid out as (not on cells, notes or text boxes).
     public var isHeaderFooterPart = false
+    /// A page header or footer's own document (not a note's, which `isHeaderFooterPart` also marks).
+    public var isPageHeaderFooterPart = false
     /// Set on the sub-document a page's HEADER (not footer) is laid out as.
     public var isPageHeaderPart = false
     /// The space after a paragraph and the space before the next are both
