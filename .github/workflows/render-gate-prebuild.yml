@@ -27,14 +27,14 @@ jobs:
           pgrep -u "$(id -u)" -x git >/dev/null || find "$C/.git" -maxdepth 2 -name "*.lock" -delete 2>/dev/null || true   # stale locks from a cancelled run, only if no git of ours is running
           [ -d "$C/.git" ] || { git init -q "$C"; git -C "$C" remote add origin "https://github.com/${{ github.repository }}.git"; }
           AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
-          git -C "$C" -c http.extraheader="$AUTH" fetch -q --no-tags --depth=200 origin "$GITHUB_SHA"
+          # the token goes through the environment of the one git process (never the command line: ps shows that); a hung fetch is killed after 300 s and retried once
+          gfetch() { for _t in 1 2; do GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.extraheader GIT_CONFIG_VALUE_0="$AUTH" timeout 300 git -C "$C" fetch "$@" && return 0; done; return 1; }
+          gfetch -q --no-tags --depth=200 origin "$GITHUB_SHA"
           git -C "$C" checkout -q -f --detach "$GITHUB_SHA"
           git -C "$C" cat-file -e "$GITHUB_SHA^{tree}" || { echo "pushed sha missing after fetch"; exit 1; }
-          git -C "$C" -c http.extraheader="$AUTH" fetch -q --no-tags --depth=200 origin "$(git -C "$C" rev-parse "$GITHUB_SHA^" 2>/dev/null || echo "$GITHUB_SHA")" 2>/dev/null || true   # its parent too
+          gfetch -q --no-tags --depth=200 origin "$(git -C "$C" rev-parse "$GITHUB_SHA^" 2>/dev/null || echo "$GITHUB_SHA")" 2>/dev/null || true   # its parent too
           git -C "$C" clean -fdq
       - name: Prebuild
-        env:
-          ENGINE_DIR: /data/s/amd-8/starling-engine/engine
         run: |
           set -o pipefail
           cd "$HOME/clone"
