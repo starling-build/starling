@@ -1121,7 +1121,7 @@ extension RichLayout {
                             // (By more than the cells' side margins: a grid a hair over its stated width is Word's own
                             // rounding and keeps its grid, zh-d0a207's 13-column form, tblW 11028 over a grid of 11060
                             // twips, stands at its grid past the margin in Word's print; cb623f0a's grid is five times its tblW.)
-                            if statedBelowGrid, _px(sum) - _px(w) <= _px((ts.cellMarginLeft ?? 5.4) + (ts.cellMarginRight ?? 5.4)) { statedBelowGrid = false }
+                            if statedBelowGrid, _px(sum) - _px(w) <= _px((ts.cellMarginLeft ?? 5.4) + (ts.cellMarginRight ?? 5.4)) { statedBelowGrid = false; RuleTrace.hit("stated-width-grid-within-cell-margins-keeps-its-grid") }
                         }
                     }
                     // (A fixed layout keeps its grid, past the margin too:
