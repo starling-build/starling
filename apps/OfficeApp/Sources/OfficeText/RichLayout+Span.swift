@@ -273,6 +273,22 @@ extension RichLayout {
         // "ตอบ : 1." alone and the overlong stretch after it from the
         // next line's start. 61.2 -> 67.9 against word-win.)
         let thaiParagraph = p.text.unicodeScalars.contains(where: { (0x0E01 ... 0x0E5B).contains($0.value) })
+        // (Word for Windows sets a line that holds runs of more than one Latin face as the tallest ascent over the deepest descent of the
+        // faces' own win metrics, not as the paragraph face's line: lab tahcal, Calibri beside Tahoma at 11 pt, 13.96 pt = Tahoma's 11.01
+        // above and Calibri's 2.95 below, where the Tahoma line alone is 13.28; sa2 78bf1be7.)
+        let mixedLatinFaces: Bool = {
+            guard theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil else { return false }
+            var names = Set<String>()
+            var at = p.text.utf16.startIndex
+            for run in p.runs {
+                let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.utf16.endIndex) ?? p.text.utf16.endIndex
+                defer { at = end }
+                guard run.style.script == .normal, (run.style.raised ?? 0) == 0, p.text.utf16[at ..< end].contains(where: { ($0 >= 0x30 && $0 <= 0x39) || ($0 >= 0x41 && $0 <= 0x5A) || ($0 >= 0x61 && $0 <= 0x7A) || ($0 >= 0xC0 && $0 < 0x250) }) else { continue }
+                let n = (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
+                names.insert(n)
+            }
+            return names.count > 1 && names.isSubset(of: ["calibri", "tahoma"])
+        }()
         let thaiJoins = _thaiJoins(p, document, named: named, textWidth: textWidth, lead: lead)
         let hanJoins = theme.wordRules ? Self._hanJoins(p, document, index: index, fitChars: _hanFitChars(p, named: named, textWidth: textWidth)) : []
         if p.text.isEmpty {
@@ -1713,6 +1729,20 @@ extension RichLayout {
                         RuleTrace.hit("word-latin-beside-yu-keeps-baseline-extra-below")
                         let sp = Self._multipleSplit(ascent: t, descent: nat - t, multiple: p.style.lineSpacing)
                         s = s.copyWith(ascentOverride: size * sp.0, descentOverride: size * sp.1, height: nat * p.style.lineSpacing, leadingDistribution: .even)
+                    }
+                }
+                if mixedLatinFaces, kind >= 0, pitch == nil, s.ascentOverride == nil, p.style.lineSpacing > 0, run.ruby == nil, run.emphasis == nil,
+                   let size = s.fontSize, size > 0.5, s.height != nil, !(index.map { _verticalBody($0) } ?? false),
+                   text.unicodeScalars.contains(where: { ($0.value >= 0x30 && $0.value <= 0x39) || ($0.value >= 0x41 && $0.value <= 0x5A) || ($0.value >= 0x61 && $0.value <= 0x7A) || ($0.value >= 0xC0 && $0.value < 0x250) }) {
+                    let bold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
+                    let italic = run.italic || ((named?.char.italic ?? false) && !run.off.contains(.italic))
+                    let latin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)
+                    var single = p.style; single.lineSpacing = 1
+                    if let b = theme.baseline(for: run, in: single, named: named, eastAsian: false, gridPitch: pitch), let pt = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize, pt > 0.5 {
+                        let nat = b / pt + (["calibri": 0.2686, "tahoma": 0.2065][(latin ?? "").trimmingWhitespace().lowercased()] ?? 0.25)
+                        RuleTrace.hit("word-line-of-mixed-latin-faces-is-tallest-ascent-over-deepest-descent")
+                        let sp = Self._multipleSplit(ascent: b / pt, descent: nat - b / pt, multiple: p.style.lineSpacing)
+                        s = s.copyWith(ascentOverride: size * sp.0, descentOverride: size * sp.1, height: nat * max(1, p.style.lineSpacing), leadingDistribution: .even)
                     }
                 }
                 // (A run with emphasis marks makes its line 0.31 em taller on their side: off a grid, single spacing, horizontal.)
