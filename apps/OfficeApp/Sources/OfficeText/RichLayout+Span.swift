@@ -1775,7 +1775,7 @@ extension RichLayout {
                 }
                 if mixedLatinFaces, kind >= 0, pitch == nil, s.ascentOverride == nil, p.style.lineSpacing > 0, run.ruby == nil, run.emphasis == nil,
                    let size = s.fontSize, size > 0.5, s.height != nil, !(index.map { _verticalBody($0) } ?? false),
-                   text.unicodeScalars.contains(where: { ($0.value >= 0x30 && $0.value <= 0x39) || ($0.value >= 0x41 && $0.value <= 0x5A) || ($0.value >= 0x61 && $0.value <= 0x7A) || ($0.value >= 0xC0 && $0.value < 0x250) }) {
+                   !text.isEmpty, text.unicodeScalars.allSatisfy({ $0.value < 0x250 }) {
                     let bold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
                     let italic = run.italic || ((named?.char.italic ?? false) && !run.off.contains(.italic))
                     let latin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)?.trimmingWhitespace()
@@ -1791,7 +1791,11 @@ extension RichLayout {
                         let asc = ad.0, nat = ad.0 + ad.1
                         RuleTrace.hit("word-line-of-mixed-latin-faces-is-tallest-ascent-over-deepest-descent")
                         let sp = Self._multipleSplit(ascent: asc, descent: nat - asc, multiple: p.style.lineSpacing)
-                        s = s.copyWith(ascentOverride: size * sp.0, descentOverride: size * sp.1, height: nat * max(1, p.style.lineSpacing), leadingDistribution: .even)
+                        // (A character scale (w:w) is laid out as a larger size; the line's height follows the authored size: lab tahcal at 105%.)
+                        let wScale = RichTextTheme.wordWidthScale(run.horizontalScale ?? named?.char.horizontalScale ?? 1, wordRules: theme.wordRules,
+                            eastAsiaFamily: run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily)
+                        let lineSize = wScale > 0.01 ? size / wScale : size
+                        s = s.copyWith(ascentOverride: lineSize * sp.0, descentOverride: lineSize * sp.1, height: nat * max(1, p.style.lineSpacing) * lineSize / size, leadingDistribution: .even)
                     }
                 }
                 // (A run with emphasis marks makes its line 0.31 em taller on their side: off a grid, single spacing, horizontal.)
