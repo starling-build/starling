@@ -152,6 +152,15 @@ extension ArabicForms {
                 continue
             }
             let joinsNext = next.map { joinsBoth(u) && joinsRight($0) } ?? false
+            // (A waw at the start of a word kerns the letter after it: the clusters table holds the
+            // adjustment by that letter's shaped form, "waw+<hex>", and "waw+*" for the rest.)
+            if u == 0x0648, k == 0, !joinsPrev, let clusters, k + 1 < shown.count {
+                let f = shown[k + 1]
+                let nf = k + 2 < shown.count ? shown[k + 2] : (after.flatMap { (0x0600 ... 0x06FF).contains($0) ? $0 : nil })
+                let fj = nf.map { joinsBoth(f) && joinsRight($0) } ?? false
+                let code = letters[f]?[fj ? 2 : 0] ?? 0
+                if let d = clusters["waw+" + String(code != 0 ? code : f, radix: 16, uppercase: true)] ?? clusters["waw+*"] { total += d }
+            }
             let form = joinsPrev ? (joinsNext ? 3 : 1) : (joinsNext ? 2 : 0)
             let shaped = letters[u]?[form] ?? 0
             guard let w = advances[shaped != 0 ? shaped : u] else { return nil }
