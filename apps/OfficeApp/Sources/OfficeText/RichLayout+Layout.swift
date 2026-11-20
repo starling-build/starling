@@ -1117,7 +1117,12 @@ extension RichLayout {
                         // centred article table says 552.75pt over a grid
                         // of 553.5, and Word centres the grid — ours stood
                         // 0.4pt right, and "logistic" no longer fitted.)
-                        if theme.wordRules, !ts.fixedLayout, scale < 1 { statedBelowGrid = _px(w) < _px(sum) - 0.5; scale = 1 }
+                        if theme.wordRules, !ts.fixedLayout, scale < 1 { statedBelowGrid = _px(w) < _px(sum) - 0.5; scale = 1
+                            // (By more than the cells' side margins: a grid a hair over its stated width is Word's own
+                            // rounding and keeps its grid, zh-d0a207's 13-column form, tblW 11028 over a grid of 11060
+                            // twips, stands at its grid past the margin in Word's print; cb623f0a's grid is five times its tblW.)
+                            if statedBelowGrid, _px(sum) - _px(w) <= _px((ts.cellMarginLeft ?? 5.4) + (ts.cellMarginRight ?? 5.4)) { statedBelowGrid = false }
+                        }
                     }
                     // (A fixed layout keeps its grid, past the margin too:
                     // zh-454e2e29's 482pt in a column of 468, whose second
