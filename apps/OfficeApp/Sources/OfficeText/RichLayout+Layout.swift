@@ -1226,8 +1226,14 @@ extension RichLayout {
                 widths[c.table] = Array(repeating: (room / Double(cols)).rounded(.down), count: cols)
                 // (Cells of no width in a gridless 100% table are fitted to their content: lab pctfit T1, T4, T7, T10, T13, T15, T17.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, _columnPreview[c.table] == nil, !_nestedInFixedTable, let ts = document.tableStyles[c.table],
-                   ts.contentFit, ts.widthPercent == 100, !ts.fixedLayout, (ts.cellSpacing ?? 0) == 0, let base = widths[c.table] {
+                   (ts.contentFit || !ts.twipStated.isEmpty), ts.widthPercent == 100, !ts.fixedLayout, (ts.cellSpacing ?? 0) == 0, let base = widths[c.table] {
                     widths[c.table] = _autofit(c.table, base, document)
+                }
+                // (Cells that all state a share, in a gridless 100% table: the shares of the room, margins in; lab pctfit T21, 239.4 + 239.5.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, _columnPreview[c.table] == nil, !_nestedInFixedTable, let ts = document.tableStyles[c.table],
+                   !ts.contentFit, ts.widthPercent == 100, !ts.fixedLayout, (ts.cellSpacing ?? 0) == 0, cols > 1, ts.columnPercents.count == cols, ts.columnPercents.values.reduce(0, +) <= 100.5, let base = widths[c.table] {
+                    let room = _contentFitRoom(c.table, base, document, _cellInsets(c.table, document).left + _cellInsets(c.table, document).right)
+                    widths[c.table] = _pctColumns(c.table, Array(repeating: room / Double(cols), count: cols), ts, document)
                 }
                 // (Its cells' shares speak for it all the same: sa2 be63fe36's form tables have no grid.)
                 if let ts = document.tableStyles[c.table], !ts.fixedLayout, (ts.cellSpacing ?? 0) == 0, _columnPreview[c.table] == nil, !_nestedInFixedTable,
@@ -1749,8 +1755,20 @@ extension RichLayout {
            !cells.contains(where: { $0.span != 1 || $0.picture }) {
             var floor = Array(repeating: 0.0, count: base.count)
             for c in cells { floor[c.column] = max(floor[c.column], c.min) }
-            let start = zip(base, floor).map { max($0, $1) }
+            let ts = document.tableStyles[table]
             let room = _contentFitRoom(table, base, document, ins.left + ins.right)
+            if let ts, !ts.twipStated.isEmpty, ts.twipStated.count == base.count {
+                var out = Array(repeating: 0.0, count: base.count)
+                var taken = 0.0, rest = 0.0
+                for k in 0 ..< base.count {
+                    if let share = ts.twipShares[k] { out[k] = max(room * share / 100, floor[k]); taken += out[k] }
+                    else { out[k] = max(_px(ts.twipStated[k]), floor[k]); rest += out[k] }
+                }
+                guard rest > 0, room > taken else { return base }
+                RuleTrace.hit("pct-and-twip-cells-share-then-scale")
+                return out.enumerated().map { ts.twipShares[$0.offset] != nil ? ($0.element + 0.001).rounded(.down) : ($0.element * (room - taken) / rest + 0.001).rounded(.down) }
+            }
+            let start = zip(base, floor).map { max($0, $1) }
             let sum = start.reduce(0, +)
             if sum > 0, room > 0 {
                 RuleTrace.hit("pct-twip-cells-scaled-from-narrowest")
