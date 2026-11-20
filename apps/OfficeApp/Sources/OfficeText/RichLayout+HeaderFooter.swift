@@ -2186,12 +2186,16 @@ extension RichLayout {
         var end: Double? = nil
         for (j, hp) in footer.document.paragraphs.enumerated() where hp.cell == nil && j < footer.layout._tops.count {
             for image in hp.inlineImages.inOrder + (hp.image.map { [$0] } ?? []) {
-                guard let f = image.float, f.bandsPage, f.wrapSide == nil, f.verticalFrom == "paragraph", f.verticalAlign == nil,
+                // (A shape the text wraps round, wide as the text, is as much of a band: sa2 511c21d4's footer holds a 515pt
+                // wrap-through text box raised 28pt over its paragraph on a 565pt text width, and Word's print ends the body at its
+                // top, 28pt above the paragraph, one empty line sooner than the footer's own line does; pages 3 and 4 then open with the lines Word has.)
+                let wide = image.float?.wraps == true && image.width >= 0.9 * (setup.width - setup.marginLeft - setup.marginRight)
+                guard let f = image.float, f.bandsPage || wide, f.wrapSide == nil, f.verticalFrom == "paragraph", f.verticalAlign == nil,
                       image.height > 0 else { continue }
                 // (Not one raised clear of its paragraph by more than its height: the body knows nothing of that —
                 // floattable-footer-nofit, raised 200pt, keeps five rows a page.)
-                let reach = _px(image.height) + _px(f.effectBottom)
-                guard -_px(f.y) < reach else { continue }
+                let reach = f.bandsPage ? _px(image.height) + _px(f.effectBottom) : -_px(f.y)
+                guard -_px(f.y) < _px(image.height) + _px(f.effectBottom), reach > 0 else { continue }
                 RuleTrace.hit("footer-picture-above-its-paragraph-ends-the-body")
                 end = max(end ?? 0, _px(setup.footerDistance) + footer.height - footer.layout._tops[j] + reach)
             }
