@@ -7385,8 +7385,17 @@ enum DocxFormat {
             // (Word stands an inline picture whole twips tall, the fraction cut off: its printed heights are 17.0, 60.05,
             // 351.75 for extents of 17.008, 60.094, 351.799 pt, in nine corpus docs; es 6b74a903's header picture, 67.39
             // pt, printed 67.35 and put the body 0.055 pt too low here.)
+            // (An inline picture turned a quarter occupies its turned box: sa2 d1fab599's 630 by 379 pt
+            // map, turned 270 degrees, stands 379 wide and 630 tall in Word's print.)
+            var inlineTurn = 0.0
+            if Self.wordOnWindows, let rot = drawing.descendant("a:graphic")?.descendant("a:xfrm")?["rot"].flatMap({ Double($0) }) {
+                let deg = rot / 60000
+                let r = (deg.truncatingRemainder(dividingBy: 180) + 180).truncatingRemainder(dividingBy: 180)
+                if abs(r - 90) < 1 { inlineTurn = deg; swap(&w, &h) }
+            }
             if RichTextTheme.wordWindowsPages, h > 1 { h = (h * 20 + 1e-6).rounded(.down) / 20 }
             var att = ImageAttachment(data: data, width: w, height: h, name: target.lastPathComponent)
+            if inlineTurn != 0 { att.rotation = inlineTurn }
             att.crop = Self._pictureCrop(drawing)
             att.inset = Self._canvasInset(drawing)
             if let effect = drawing.descendant("wp:effectExtent") {
