@@ -1616,16 +1616,19 @@ extension RichLayout {
     func _raiseToNarrowest(_ table: String, _ stated: [Double], _ document: RichDocument) -> [Double] {
         let ins = _cellInsets(table, document)
         var need = Array(repeating: 0.0, count: stated.count)
+        var holds = Set<Int>()   // columns with a no-wrap cell: they keep their stated width
         for (k, q) in document.paragraphs.enumerated() {
             guard let cc = q.cell, cc.table == table else { continue }
             guard cc.span == 1, cc.column < stated.count else { return stated }
             let sides = cc.padding.map { _px($0.left) + _px($0.right) } ?? ins.left + ins.right
-            // (A no-wrap cell holds its text on one line, so its narrowest is the whole text: sa2 f6963ebe, noWrap in
-            // columns 2 to 7, which gave up nothing in Word's print while the first column gave up 21 pt. Only in a table with a stated width: sa1 adfc07ea, auto width, wraps its noWrap header in Word.)
-            var least = _minContent(k, q, document)
+            // (A column with a no-wrap cell gives up nothing to a column that outgrows its stated width: sa2 f6963ebe, noWrap
+            // in columns 2 to 7 and not in the first, has Word's columns at the grid's, the first 21 pt narrower than its
+            // cell says and the rest as stated, with "Ocio (ciber, comunidad)" wrapped in 64.5 pt. Only in a table with a stated
+            // width: sa1 adfc07ea, auto width, wraps its noWrap header in Word.)
+            let least = _minContent(k, q, document)
             if theme.wordRules, document.tableStyles[table]?.width != nil, let kept = cc.keptPropertiesXML, kept.containsSubstring("<w:noWrap"),
                !kept.containsSubstring("<w:noWrap w:val=\"0\"") && !kept.containsSubstring("<w:noWrap w:val=\"false\"") {
-                least = max(least, _maxContent(k, q, document))
+                holds.insert(cc.column)
             }
             need[cc.column] = max(need[cc.column], sides + least)
         }
@@ -1633,7 +1636,7 @@ extension RichLayout {
         var rise = 0.0
         var spare = Array(repeating: 0.0, count: grid.count)
         for i in grid.indices {
-            if need[i] > grid[i] + 0.5 { rise += need[i] - grid[i] } else { spare[i] = max(0, grid[i] - need[i]) }
+            if need[i] > grid[i] + 0.5 { rise += need[i] - grid[i] } else if !holds.contains(i) { spare[i] = max(0, grid[i] - need[i]) }
         }
         let spareSum = spare.reduce(0, +)
         guard rise > 0, spareSum > 0 else { return stated }
