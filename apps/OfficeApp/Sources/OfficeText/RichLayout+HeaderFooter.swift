@@ -565,8 +565,13 @@ extension RichLayout {
     func _note(_ id: Int, width: Double, _ document: RichDocument) -> _HeaderFooter? {
         let key = "\(id)|\(width)|\(scale)"
         if let hit = _noteCache[key] { return hit }
-        let paragraphs: [RichParagraph]
-        if id == -1 { paragraphs = document.footnoteSeparator } else if let p = document.footnotes[id] { paragraphs = p } else { return nil }
+        var paragraphs: [RichParagraph]
+        if id == -1 {
+            paragraphs = document.footnoteSeparator
+            // A file with no separator footnote still gets Word's default one: a single-spaced line, no space after
+            // (f69b0ddd: the empty default paragraph, 1.15 and 10 pt after, set the rule 6 pt too high).
+            if paragraphs.isEmpty, theme.wordRules, document.readFromFile { paragraphs = [RichParagraph(style: .cell)] }
+        } else if let p = document.footnotes[id] { paragraphs = p } else { return nil }
         let made = _subLayout(paragraphs, document, width: width, onGrid: theme.wordRules && id >= 0)
         if _noteCache.count > 512 { _noteCache.removeAll() }
         _noteCache[key] = made
