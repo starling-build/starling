@@ -3654,7 +3654,27 @@ extension RichLayout {
                 probe.dispose()
                 if let own, own.height > 0.5 {
                     // (the probe carries the paragraph's own multiple in its style: undo it)
-                    let single = own.height / multiple, desc = own.descent / multiple
+                    let single = own.height / multiple
+                    // (the text's own depth under the baseline at SINGLE spacing: Word's own split of the face's line where it is known
+                    // (Tahoma 1.0005 over 1.2070 em), else what the engine draws; the multiple's extra the engine shares above and below is not part of it)
+                    var desc = own.descent / multiple
+                    // (the label reads like "(unknown).merge(((Tahoma).copyWith).copyWith)": the face is the name inside the innermost brackets)
+                    let faceName = textStyle.debugLabel.flatMap { label -> String? in
+                        label.split(separator: "(").compactMap { part -> String? in
+                            guard let end = part.firstIndex(of: ")") else { return nil }
+                            let n = String(part[part.startIndex ..< end])
+                            return n.isEmpty || n == "unknown" ? nil : n
+                        }.last
+                    }
+                    if let name = faceName, let face = theme.faceResolver?(name, false), let nh = face.naturalHeight, nh > 0.5,
+                       let bl = face.baseline, bl > 0, bl < nh {
+                        desc = single * (1 - bl / nh)
+                    } else {
+                        let flat = TextPainter(text: TextSpan(text: "x", style: textStyle.copyWith(height: (textStyle.height ?? multiple) / multiple)), textDirection: .ltr)
+                        flat.layout(minWidth: 0, maxWidth: 10000)
+                        desc = flat.computeLineMetrics().first?.descent ?? desc
+                        flat.dispose()
+                    }
                     var above = [Double](repeating: -1, count: bottoms.count), below = above
                     var shiftsOwn = [Double](repeating: 0, count: bottoms.count)
                     var wrappedPlain = Set<Int>()
@@ -3682,7 +3702,10 @@ extension RichLayout {
                     }
                     // (Only while the pictures stay within the text's own line: lab afbaab-multiple has 12.75pt pictures in 11pt
                     // Tahoma. A taller picture is not in the lab, and a8f4dfcd's 20pt icons in 1.5 Tahoma 12 do not fit the formula.)
-                    let tallPic = boxes.contains { $0.toRect().height > single + 0.5 }
+                    let tallPic = zip(boxes, inline).contains { box, il in
+                        let grown = il.image.flatMap { _pageFill[$0.id] }.map { max(0, box.toRect().height - $0) } ?? 0
+                        return box.toRect().height - grown > single + 0.5
+                    }
                     if tallPic { above = [Double](repeating: -1, count: bottoms.count); below = above }
                     if wrappedPlain.isEmpty, above.contains(where: { $0 >= 0 }) {
                         // (Word's print, lab afbaab-multiple, 27 lines to 0.1 pt: EVERY line of the paragraph stands max(text ascent, picture top)
