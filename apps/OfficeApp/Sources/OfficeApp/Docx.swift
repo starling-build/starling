@@ -3263,7 +3263,7 @@ enum DocxFormat {
                         let vAlign = tcPr?.first("w:vAlign")?["w:val"].flatMap { ["center", "bottom"].contains($0) ? $0 : nil } ?? (tcPr?.first("w:vAlign") == nil ? ((r == 0 && firstRowOn ? cond.headerVAlign : nil) ?? cond.cellVAlign) : nil)
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
                         // (The foot of a merged header cell is no drawn line, yet it takes its room where the span ends: lab sa1f9, Word's merged rows stand 0.96 taller than their stated sum.)
-                        if r == 0, firstRowOn, tcPr?.first("w:vMerge")?["w:val"] == "restart", let e = cond.headerBorders?.first("w:bottom"),
+                        if r == 0, firstRowOn, tcPr?.first("w:vMerge")?["w:val"] == "restart", let e = cond.headerBorders?.first("w:bottom") ?? styledSides?.first("w:insideH"),
                            let sz = Double(e["w:sz"] ?? ""), tcPr?.first("w:tcBorders")?.first("w:bottom") == nil {
                             currentCell?.spanFootStyle = e["w:val"] ?? "single"; currentCell?.spanFootWidth = sz / 8
                         }
