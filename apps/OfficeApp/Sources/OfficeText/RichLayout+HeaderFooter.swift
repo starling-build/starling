@@ -2042,6 +2042,7 @@ extension RichLayout {
         let paragraphs = filled(source.paragraphs)
         var sub = RichDocument(paragraphs: paragraphs)
         sub.isPageHeaderPart = kind == .header
+        sub.isPageHeaderFooterPart = true
         sub.styles = document.styles
         sub.fontUsb0 = document.fontUsb0
         sub.listFormats = document.listFormats
