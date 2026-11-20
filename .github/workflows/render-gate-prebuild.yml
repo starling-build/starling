@@ -1,18 +1,21 @@
 name: render-gate-prebuild
-# After each push to main, build that commit on the runner and fill the base-binary cache, so the next merge group
-# never has to build its base. Not a required check. A newer push cancels a running prebuild.
+# After each push to main, build that commit on the runner and fill the base-binary cache, so the next PR gate
+# never has to build its base (on both runners). Not a required check. A newer push cancels a running prebuild.
 on:
   push:
     branches: [main]
 permissions:
   contents: read
-  issues: write
 concurrency:
   group: render-gate-prebuild
-  cancel-in-progress: false   # a skipped push is covered: the watch compares from the last watched commit
+  cancel-in-progress: false
 jobs:
   prebuild:
-    runs-on: [self-hosted, linux, starling-render]
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [amd, starling2]
+    runs-on: [self-hosted, linux, starling-render, '${{ matrix.runner }}']
     timeout-minutes: 60
     steps:
       - name: Update persistent clone
@@ -36,26 +39,3 @@ jobs:
           export JOBS=$(nproc)
           [ "$JOBS" -gt 170 ] && JOBS=170
           GATE_PREBUILD=1 test/tools/render-gate.sh "$GITHUB_SHA" 2>&1 | tail -20 | cut -c1-200
-      # MAIN WATCH: the gate is an A/B against main, so an interaction regression that lands on main becomes the new base and later
-      # PR gates cannot see it. Render the full gate for new main against the last watched commit; on a drop, open an issue and log it.
-      - name: Main watch
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ENGINE_DIR: /data/s/amd-8/starling-engine/engine
-          BEFORE: ${{ github.event.before }}
-        run: |
-          cd "$HOME/clone"
-          S="$HOME/scratch/watched"; mkdir -p "$HOME/scratch"
-          PREV=$(cat "$S" 2>/dev/null || echo "$BEFORE")
-          git cat-file -e "$PREV^{commit}" 2>/dev/null || { AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"; git -c http.extraheader="$AUTH" fetch -q --no-tags --depth=200 origin "$PREV" 2>/dev/null || PREV=$(git rev-parse HEAD~1); }
-          export JOBS=$(nproc); [ "$JOBS" -gt 170 ] && JOBS=170
-          GATE_TARGETS_ONLY=0 test/tools/render-gate.sh "$PREV" > "$HOME/scratch/watch.log" 2>&1; rc=$?
-          tail -15 "$HOME/scratch/watch.log" | cut -c1-200
-          if [ $rc = 0 ]; then echo "$GITHUB_SHA" > "$S"; exit 0; fi
-          SUM=$(grep -aE 'render-gate:|DOWN' "$HOME/scratch/watch.log" | head -20 | cut -c1-200)
-          COMMITS=$(git log --format='%h %s' "$PREV..$GITHUB_SHA" | cut -c1-120 | head -10)
-          BODY=$(printf 'Main watch: the full render gate on main %s versus %s failed.\n\nCommits:\n%s\n\nSummary:\n%s\n' "${GITHUB_SHA:0:9}" "${PREV:0:9}" "$COMMITS" "$SUM")
-          gh issue create --repo "$GITHUB_REPOSITORY" --title "main watch: render drop at ${GITHUB_SHA:0:9}" --body "$BODY" || true
-          echo "$(date -u +%FT%TZ) main watch FAILED at ${GITHUB_SHA:0:9} (from ${PREV:0:9}): $(echo "$SUM" | tr '\n' ' ' | cut -c1-300)" >> /data/landq/to-coordinator.log || true
-          echo "$GITHUB_SHA" > "$S"
-          exit 1
