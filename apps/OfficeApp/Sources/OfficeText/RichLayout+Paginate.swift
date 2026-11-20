@@ -1080,7 +1080,14 @@ extension RichLayout {
                 // footer at 545.4 — `anchoredParts` keeps its head with it,
                 // and ours sent its last row alone to page 7, its title
                 // after it.)
-                if theme.wordRules, first, document.tableStyles[c.table]?.pageAnchored == true {
+                // (A one-row table floating by the text or the margin runs its lines to the page's edge as a page-anchored one does: dx2 56e12a87's
+                // row, tblpY 59pt under the margin, keeps lines to 816.6 and blank ones to 837.5 on a 841.9pt page in Word's print; ours stopped at the margin, 793.7.)
+                let textFloatOneRow: Bool = {
+                    guard theme.wordRules, RichTextTheme.wordWindowsPages, first, c.row == 0,
+                          let ts = document.tableStyles[c.table], !ts.pageAnchored, ts.marginOffsetY != nil || (ts.floatsOverText && ts.floatOffsetY != nil) else { return false }
+                    return !_cells.contains { $0?.table == c.table && $0!.row > 0 }
+                }()
+                if theme.wordRules, first, document.tableStyles[c.table]?.pageAnchored == true || textFloatOneRow {
                     var bottom = c.rowTop + c.ownRowHeight, k = i
                     while k < count, let d = _cells[k], d.table == c.table { bottom = max(bottom, d.rowTop + d.ownRowHeight); k += 1 }
                     // (A row alone, in Word for Windows: LibreOffice's
