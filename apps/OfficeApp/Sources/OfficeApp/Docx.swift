@@ -2166,15 +2166,9 @@ enum DocxFormat {
                                 // and one of 75 lines ran 40pt past the foot with the rest of its lines
                                 // lost. Lab nt1, Word for Windows: such a row parts at the foot like any.)
                                 && !(unwrapped(node, "w:tr").count == 1 && node.descendants("w:p").count >= 50)
-                                && ((unwrapped(node, "w:tr").count <= 15 && textLength(node) <= 600)
-                                    // (Or six to fifteen rows of short text, 150 characters a row at most: DBS's agenda
-                                    // table, 13 rows of 100, parts between its rows in Word as a table; flattened, its
-                                    // columns stood as one column of lines. Few rows of much text stay flattened.)
-                                    || (unwrapped(node, "w:tr").count >= 6 && unwrapped(node, "w:tr").count <= 15 && textLength(node) <= 150 * unwrapped(node, "w:tr").count)
-                                    || (unwrapped(node, "w:tr").count > 15 && (node.first("w:tblGrid")?.all("w:gridCol").count ?? 1) >= 2)
-                                    // (Or a list of short rows, one column: LibreOffice's tdf170620, 56 rows
-                                    // of 14 characters, parts between its rows as Word's does.)
-                                    || (unwrapped(node, "w:tr").count > 15 && textLength(node) <= 40 * unwrapped(node, "w:tr").count)):
+                                // (No limit on text or rows: a block parts across pages by rows, and inside a row at its
+                                // cells' line ends, as Word's nested table does. Lab nt1; sa1 a8eb7723.)
+                                :
                 // A small table in a cell, with none in it, is a table of
                 // its own: read as a document is, and set in its cell as a
                 // block as tall as it lays out (`RichTextBox.growsToFit`).
