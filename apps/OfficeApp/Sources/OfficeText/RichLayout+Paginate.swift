@@ -4517,7 +4517,14 @@ extension RichLayout {
                         piece.unicodeScalars.append(u)
                         if u.value >= 0x2E80 || u == "-" || u == "/" { break }
                     }
-                    if !piece.isEmpty { em = max(em, _px(_wordWidth(theme.textStyle(for: r0.style, in: document.paragraphs[i].style, normal: document.styles[RichNamedStyle.normalId]?.char, scale: 1), piece)) + label) }
+                    if !piece.isEmpty {
+                        let st = theme.textStyle(for: r0.style, in: document.paragraphs[i].style, normal: document.styles[RichNamedStyle.normalId]?.char, scale: 1)
+                        var need = _px(_wordWidth(st, piece)) + label
+                        // (A piece wider than the whole column breaks by character wherever it stands, so it asks the strip for one
+                        // character only: sa1 62904a12's 100 underscores stand beside the picture in Word's print, not under it.)
+                        if need > column, let c = piece.first { need = _px(_wordWidth(st, String(c))) + label }
+                        em = max(em, need)
+                    }
                 }
                 // (Over any of the line, not only its top: an empty
                 // anchor's line that a photo starts 16pt down went under
