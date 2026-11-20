@@ -3201,7 +3201,13 @@ extension RichLayout {
         if i < _overhang.count {
             _overhang[i] = 0
             if i < _lineOverhang.count { _lineOverhang[i] = [] }
-            if theme.wordRules, p.image == nil, p.cell == nil, style.eastAsian["w:snapToGrid"] != "0", let pitch = _grid(i, document).pitch {
+            // (A picture's paragraph has no overhang, whatever floats are anchored in
+                // it: a wrapNone text box beside one tall inline picture made the picture
+                // look like text, and its 37pt allowance kept it 12pt past page 1's foot
+                // where Word starts page 2 with it: sa2 a7546bac.)
+                let loneInline = theme.wordRules && RichTextTheme.wordWindowsPages && _inlinePictureOnly(i, document)
+                    && p.inlineImages.values.filter { $0.float == nil && $0.textBox == nil }.count == 1
+                if theme.wordRules, p.image == nil, !loneInline, p.cell == nil, style.eastAsian["w:snapToGrid"] != "0", let pitch = _grid(i, document).pitch {
                 let named = _named(p, document)
                 // (An empty paragraph's line is its mark's, and the mark
                 // has two faces: its overhang is the smaller of theirs —
