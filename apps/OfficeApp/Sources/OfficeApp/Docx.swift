@@ -2939,6 +2939,9 @@ enum DocxFormat {
                         }
                     }
                 }
+                for tr in unwrapped(node, "w:tr") where !style.hasPctCells {
+                    for tc in unwrapped(tr, "w:tc") where tc.first("w:tcPr")?.first("w:tcW")?["w:type"] == "pct" { style.hasPctCells = true; break }
+                }
                 // (A spaced table of a stated share whose cells state shares
                 // of it, column by column: zh-045c5a75's article table,
                 // 85% with cells of 12% and 2% and one auto.)

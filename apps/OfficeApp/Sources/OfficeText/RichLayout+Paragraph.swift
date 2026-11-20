@@ -263,6 +263,7 @@ extension RichLayout {
             // cells rule their bottoms and say none above is ruled
             // between every two rows, 31pt apart for rows 30 high.)
             var rules = 0.0
+            var cellRightRule = 0.0
             var ruleBelow = 0.0
             var ownTopRule = 0.0
             var ruleNext = 0.0
@@ -357,6 +358,7 @@ extension RichLayout {
                 // a whole line further in, left "系" for the next line.)
                 if l == 0, c.column > 0, !spaced(c.row), let d = neighbour(true) { l = sideLine(d, "right") }
                 if r == 0, c.column + c.span < widths.count, !spaced(c.row), let d = neighbour(false) { r = sideLine(d, "left") }
+                cellRightRule = r
                 if l > 0 || r > 0 {
                     if spaced(c.row) {
                         // (Separated, each cell's lines lie inside its own
@@ -564,6 +566,20 @@ extension RichLayout {
             _cells[i]!.ownTopRule = ownTopRule
             left = colLeft + pad.left + ownLeft
             textWidth = max(1, colWidth - pad.left - pad.right - ownLeft - right)
+            // (A negative right indent lets the text run past the cell's right line, but not far: Word keeps it
+            // within 1.4pt of the cell's outer edge less half the right line (the whole line in a cell with no
+            // margin). Lab cellrind3 (Word for Windows, mode 15, 5000-5085 twips, right indent -400, 18 cells in
+            // each of six tables): the last "i" of the first line stands at most 1.41, 1.16, 0.63 and 0.17pt past the
+            // edge under no line and 0.5, 1.5 and 3pt lines with 108-twip margins, and 0.81 and -1.49 under 0.5 and
+            // 3pt lines with none, where ours ran the whole 20pt. The lab held Latin text only: a full-width "）" ends 1.9pt past the edge in zh-ae2dd08d's cells and a drawing's anchor line is not text, so the cap is for Latin text.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) >= 15, right < 0, document.tableStyles[c.table]?.cellSpacing == nil, document.tableStyles[c.table]?.fixedLayout == true, document.tableStyles[c.table]?.hasPctCells != true,
+               !p.text.isEmpty, !p.text.unicodeScalars.contains(where: { Self._isEastAsianScalar($0.value) || $0.value == 0xFFFC }) {
+                let limit = colWidth + _px(1.4) - (pad.right == 0 && c.padding != nil ? cellRightRule : cellRightRule / 2) - left + colLeft
+                if limit < textWidth, limit >= 1 {
+                    RuleTrace.hit("cell-negative-right-indent-stops-at-the-cell-edge")
+                    textWidth = limit
+                }
+            }
             // (Across its hanging indent, as in the body — see above: a
             // centred "□" item in a cell of zh-20c1d74a's p46 form,
             // "□回收地址" in a 63.4pt cell on a 12pt hang, is one line
