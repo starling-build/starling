@@ -49,7 +49,7 @@ extension RichLayout {
         // (A run moved off the baseline whose line is taller than the held one: a ruby's base on a line
         // grid, which asks its line for two pitches. A strut would hold the line at one: flt1-1-asis's
         // wrapped "かえてくれる" paragraph came out 18 pt short.)
-        var tallShifted = 0.0
+        var tallShifted = 0.0, shadowReach = 0.0
         var kokilaOwn = false, latinOwn = false, latinStacked = false, bengaliSeen = false, nirmalaSeen = false
         func visit(_ s: InlineSpan) {
             guard uniform, let t = s as? TextSpan else { return }
@@ -61,6 +61,7 @@ extension RichLayout {
                 else if st.ascentOverride != nil, tx.unicodeScalars.contains(where: { $0.value >= 0x20 && $0.value < 0x250 && ($0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39)) }), !tx.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xD80 }) { latinStacked = true }
             }
             if let text = t.text, text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value < 0xA00 }) { bengaliSeen = true }
+            if let label = t.style?.debugLabel, let r = label.rangeOfSubstring(" shadow-line@"), let v = Double(label[r.upperBound...].prefix { $0 == "." || $0 == "-" || $0.isNumber }) { shadowReach = max(shadowReach, v) }
             if !shiftedToo, let st = t.style, st.baselineShift != nil, let sz = st.fontSize, let hh = st.height, sz > 0.5 { tallShifted = max(tallShifted, sz * hh) }
             if let text = t.text, text.unicodeScalars.contains(where: { ($0.value >= 0x0590 && $0.value <= 0x08FF) || ($0.value >= 0xFB1D && $0.value <= 0xFEFF) }) { bidi = true }
             // (Spaces and letters name the face; a lone mark such as « or » in the Latin theme face does not.)
@@ -150,8 +151,11 @@ extension RichLayout {
         // face's ascent and descent by a height that counts its line gap
         // too, and comes out that much short — 15.15 for 15.6 in
         // Liberation Sans.)
+        // (A shadow on a raised or lowered run grows the line by its reach above: see "shadow-line@" in `_spanStyle`.)
+        let grownH = !shiftedToo && shadowReach > 0 ? h + shadowReach / size : h
+        if grownH != h { RuleTrace.hit("word-raised-run-shadow-reach-grows-the-line") }
         return StrutStyle(fontFamily: base.fontFamily, fontFamilyFallback: base.fontFamilyFallback,
-                          fontSize: size, height: h, leadingDistribution: .even, fontWeight: base.fontWeight,
+                          fontSize: size, height: grownH, leadingDistribution: .even, fontWeight: base.fontWeight,
                           forceStrutHeight: !((kokilaOwn && latinOwn) || (latinStacked && bengaliSeen)
                                               // (A Nirmala UI line is its tallest ascent over its deepest descent, so a deeper Latin face (Calibri's 0.269 against 0.247 em) lengthens the lines it is on: lab nirpitch2, 14.88 against 14.64 at 11 pt.)
                                               || (theme.wordRules && RichTextTheme.wordWindowsPages && nirmalaSeen)))
