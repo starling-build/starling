@@ -4091,7 +4091,19 @@ extension RichLayout {
             if theme.wordRules, let float = image.float, !float.takesRoom {} else { bodyHeight = (h + room.top + room.bottom).rounded() }
             // (A horizontal rule's paragraph is a line of its text: the
             // reader's "hr", lab `hr`.)
-            if theme.wordRules, image.name == "hr" { bodyHeight = max(bodyHeight, _markLineHeight(i, document)) }
+            if theme.wordRules, image.name == "hr" {
+                // (An hr-only paragraph is the height of the rule's own run, at the paragraph's multiple, whatever size its mark
+                // is: labs hronly 1-10, marks 8 to 20 all 53.5pt apart at 1.5 lines.)
+                var own: CharStyle? = nil
+                if RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 0) >= 15, let rpr = image.sourceRunPropertiesXML, let r = rpr.rangeOfSubstring("w:sz w:val=\""),
+                   let half = Double(rpr[r.upperBound...].prefix(while: { $0 != "\"" })) {
+                    RuleTrace.hit("hr-only-paragraph-is-the-height-of-the-rules-run")
+                    var m = document.paragraphs[i].style.mark ?? document.paragraphs[i].runs.first?.style ?? CharStyle()
+                    m.fontSize = half / 2
+                    own = m
+                }
+                bodyHeight = max(bodyHeight, _markLineHeight(i, document, using: own))
+            }
             // (In a line of an exact height a picture taller than it keeps
             // the line that tall, and stands on its baseline, rising over
             // the lines above: zh-ae2dd08d's flowchart, a 594pt inline
