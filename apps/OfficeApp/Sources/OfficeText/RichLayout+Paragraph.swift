@@ -1064,6 +1064,16 @@ extension RichLayout {
                     after = at + (own.right - own.left)
                     RuleTrace.hit("word-tab-width-is-its-own-box-when-the-next-edge-is-missing")
                 }
+                // (A tab whose next character's edge lies BEFORE the tab's own, the probe putting a tab that starts a differently
+                // styled run behind it: the tab has the width of its own box, not a negative one. sa1 b0e39b18's fourteen tabs, the
+                // 6th and 7th not underlined between underlined ones: the 7th measured -348 twips, was stretched 406 too far and
+                // the 14th tab went down to a line of its own, the page below it one line low.)
+                if theme.wordRules, !style.rightToLeft, after < at - 0.01,
+                   let own = probe.getBoxesForSelection(TextSelection(baseOffset: probeMap.painter(t), extentOffset: probeMap.painter(t) + 1)).first,
+                   own.right > own.left {
+                    after = at + (own.right - own.left)
+                    RuleTrace.hit("word-tab-width-is-its-own-box-when-the-next-edge-lies-behind-it")
+                }
                 let own = after - at
                 var stop: (x: Double, alignment: TabStop.Alignment, leader: String?)? = nil
                 if let s = stops.first(where: { _px($0.position) > x + 0.5 && !clampedStops.contains(_px($0.position)) }) { stop = (_px(s.position), s.alignment, s.leader) }
