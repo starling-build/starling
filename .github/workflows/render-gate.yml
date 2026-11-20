@@ -23,6 +23,7 @@ jobs:
       - name: Render gate
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          ENGINE_DIR: /data/s/amd-8/starling-engine/engine
         run: |
           set -o pipefail
           export JOBS=$(nproc)
