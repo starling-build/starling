@@ -28,6 +28,12 @@ git log --format=%B "$BASE_SHA..HEAD" | grep -oE '[0-9a-f]{6,12}|(zh|lo|xa|xb|xd
 ids=$W/ids.txt
 if [ "${GATE_TARGETS_ONLY:-0}" = 1 ] && [ -s "$W/named.txt" ]; then sort -u "$W/named.txt" > "$ids"
 else { cat "$W/named.txt"; [ -s "$LQ/sample.txt" ] && cat "$LQ/sample.txt"; } | sort -u > "$ids"; fi
+# named ids are prefixes (8 hex) or set-prefixed names; the sweep matches whole stems, so expand each to the corpus stems it names
+# (a commit SHA in a message matches nothing and is dropped)
+CC=${STARLING_CORPUS:-/data/corpus-cache}
+{ cat "$ids"; while read -r t; do [ ${#t} -ge 6 ] || continue
+    for d in test/corpus/docx test/corpus/docx/lo "$CC"/staging/*; do ls "$d/docs" 2>/dev/null | grep -E "\.docx$" | grep -F "$t" | sed 's/\.docx$//'; done
+  done < "$W/named.txt"; } | sort -u > "$ids.x" && mv "$ids.x" "$ids"
 # a fresh runner checkout has no engine link and no corpus: use the machine's engine and the corpus cache
 [ -e engine ] || ln -s "${ENGINE_DIR:?set ENGINE_DIR in the runner .env}" engine
 test/tools/corpus-cache.sh restore 2>&1 | tail -3 | cut -c1-200 || echo "render-gate: corpus restore failed"
