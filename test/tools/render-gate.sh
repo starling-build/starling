@@ -53,7 +53,7 @@ export PATH=$TH/.local/share/swiftly/toolchains/6.2.4/usr/bin:$PATH
 export OFFICE_WORD_FONTS=windows OFFICE_FONT_SOURCE=bundled
 EO=$(readlink -f engine)/src/out/host_release
 # the base cache (binary + base scores per sha) is SHARED by every runner on the machine when /data/gate/cache exists (mode 1777); else per runner
-umask 000
+umask 002
 if [ -n "${GATE_BASECACHE:-}" ]; then BC=$GATE_BASECACHE; elif [ -d /data/gate/cache ] && [ -w /data/gate/cache ]; then BC=/data/gate/cache; else BC=$HOME/scratch/basecache; fi
 BSHA=$(git rev-parse "$BASE_SHA")
 # pull_request checks out the merge of the PR into the CURRENT main: its first parent is what the prebuild cached. The PR's own
@@ -92,14 +92,14 @@ build_base() {   # builds BSHA into the shared cache once: the sha lock makes a 
   local BREL; BREL=$(dirname "$(ls "$W"/basebuild/*/release/OfficeApp | head -1)")
   rm -rf "$BC/$BSHA.tmp"; mkdir -p "$BC/$BSHA.tmp"; cp -a "$BREL" "$BC/$BSHA.tmp/release"
   mkdir -p "$BC/$BSHA"; rm -rf "$BC/$BSHA/release"; mv "$BC/$BSHA.tmp/release" "$BC/$BSHA/release"; rmdir "$BC/$BSHA.tmp"
-  chmod -R a+rwX "$BC/$BSHA" 2>/dev/null; flock -u 8
+  chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; flock -u 8
 }
 if [ ! -x "$BC/$BSHA/release/OfficeApp" ]; then
   # normally the prebuild (GATE_PREBUILD=1 render-gate.sh <sha>, after each main push) has filled the cache and this is skipped
   build_base & BPID=$!
 fi
 [ "${GATE_PREBUILD:-0}" = 1 ] && { [ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; exit 1; }
-  BASEBIN=$BC/$BSHA/release/OfficeApp; fill_rows; chmod -R a+rwX "$BC/$BSHA" 2>/dev/null; echo "render-gate: base $BSHA cached"; exit 0; }
+  BASEBIN=$BC/$BSHA/release/OfficeApp; fill_rows; chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; echo "render-gate: base $BSHA cached"; exit 0; }
 test/tools/build-office-fast.sh "$W/build" > "$W/build.log" 2>&1 || { echo "render-gate: BUILD FAILED"; tail -15 "$W/build.log" | cut -c1-200; exit 1; }
 [ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; tail -15 "$W/base-build.log" | cut -c1-200; exit 1; }
 BASEBIN=$BC/$BSHA/release/OfficeApp
