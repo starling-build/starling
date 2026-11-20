@@ -8,6 +8,7 @@ import collections, importlib.util, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)   # importable by name so the worker pool can unpickle
 cen = importlib.import_module("docx-census"); feat = importlib.import_module("docx-features")
+ZH_EXTRA = 15   # extra zh documents from the 756 set (see main)
 SLOW = ("07356df9", "a6d65f60")   # slow renders: only when a commit names them
 
 def main():
@@ -51,6 +52,13 @@ def main():
             c = [k for k in mine if k not in pick]
             if not c: break
             take(max(c, key=gain)); got += 1
+    # Round 492 (2026-11-20): the 80-doc sample missed two 756 zh regressions, so 15 more zh documents of the 756 set are added,
+    # chosen by coverage among zh documents only (floating anchors, keep-with-next tables, East Asian hints, ...): rarest token first.
+    zh = [k for k in T if sset[k] == "756" and k.startswith("zh-") and k not in pick]
+    zcov = set().union(*[T[k] for k in pick if k.startswith("zh-")]) if any(k.startswith("zh-") for k in pick) else set()
+    zf = collections.Counter(x for k in zh for x in T[k]); zw = {x: 1.0 / f for x, f in zf.items()}
+    for _ in range(min(ZH_EXTRA, len(zh))):
+        k = max(zh, key=lambda k: sum(zw[x] for x in T[k] - zcov) / (1 + size[k] / 150000.0)); zh.remove(k); pick.append(k); zcov |= T[k]
     open(out, "w").write("\n".join(sorted(pick)) + "\n")
     print(f"{len(pick)} docs, {len(cov)} of {len(freq)} tokens covered; per set:", dict(collections.Counter(sset[k] for k in pick)))
 
