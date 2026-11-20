@@ -3848,7 +3848,11 @@ extension RichLayout {
                _columns == 1, document.paragraphs[i].text.isEmpty, document.paragraphs[i].image == nil, document.paragraphs[i].style.frameXML == nil,
                case let pst = document.paragraphs[i].style, case let after = _px(pst.spaceAfter),
                // (Its line counts as a single one, Word's multiple hanging below the foot like the leading.)
-               Self._needs(_heights[i], after, pst.lineSpacing) > contentH - emptyBegins + 0.01, !_pageBreak[i] {
+               Self._needs(_heights[i], after, pst.lineSpacing) > contentH - emptyBegins + 0.01, !_pageBreak[i],
+               // (A line that stands over a floating table's offset, in the room above the table, is not at the foot:
+               // sa1 5e813226's five empties under a text-anchored table with tblpY 798: Word sets the first two over
+               // the table and the third under it on the page, the other two carried; ours carried from the second.)
+               !(textFloatTop.map { $0.chained && $0.page == page && frameReturn == nil && _heights[i] <= $0.down + 0.01 } ?? false) {
                 var k = i
                 while k < count, _cells[k] == nil, document.paragraphs[k].text.isEmpty { k += 1 }
                 if k < count, _cells[k] != nil, Self._followsFloatingTable(k, _cells[k]!.table, document: document, cells: _cells) {
@@ -3856,7 +3860,10 @@ extension RichLayout {
                     newPage()
                 }
             }
-            if _cells[i] == nil, document.paragraphs[i].text.isEmpty { lastEmptyAt = (i, page, y) }
+            // (An empty line that stands over a floating table's offset does not move the flow under the table on.)
+            if _cells[i] == nil, document.paragraphs[i].text.isEmpty {
+                lastEmptyAt = RichTextTheme.wordWindowsPages && (textFloatTop.map { $0.chained && $0.page == page && frameReturn == nil && _heights[i] <= $0.down + 0.01 } ?? false) ? nil : (i, page, y)
+            }
             // (A paragraph that is only the break, carried to a page of its
             // own because no line of it fit at the foot under a table,
             // stays on the page it ends where the table reached the foot,
