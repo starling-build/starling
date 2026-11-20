@@ -602,7 +602,9 @@ enum DocxFormat {
             // of its own and pushed the text down.)
             if p.name == "w:p", let f = p.first("w:pPr")?.first("w:framePr"), f["w:dropCap"] == nil, f["w:w"] == nil, f["w:h"] == nil,
                f["w:vAnchor"] == "text", f["w:hAnchor"] == "margin", f["w:xAlign"] == "right",
-               f["w:wrap"] == "none", f["w:y"] != nil, f["w:yAlign"] == nil, p.descendant("w:ins") == nil, p.descendant("w:del") == nil { return f }
+               f["w:wrap"] == "none" || f["w:wrap"] == "around", f["w:y"] != nil, f["w:yAlign"] == nil, p.descendant("w:ins") == nil, p.descendant("w:del") == nil { return f }
+            // (Wrap "around" the same, sa2 d72074ba: a page number as the body's first paragraph, in Word's print at the
+            // right margin on the first line of the next paragraph, taking no line of its own.)
             // (A frame of no stated size, at an x on the page beside the text: its
             // box stands at that x whatever column the text is in, as wide as the
             // column — LibreOffice's tdf135035, in a column section of three.)
