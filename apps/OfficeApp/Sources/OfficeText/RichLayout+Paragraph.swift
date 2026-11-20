@@ -2036,6 +2036,31 @@ extension RichLayout {
                         }
                     }
                     numberLift = max(0, ownBaseline - first.baseline)
+                    // (A character scale (w:w) over 100 is laid out as a larger size with the line's height held at the authored one, the face's
+                    // extra split evenly, so the baseline of that first line stands (w - 1) x size x (its baseline in ems at height 1 - 1/2) lower
+                    // than the authored size's: the lift is measured from the authored baseline. sa1 51fd0f44's w:w 105 Arial Nova Light items lifted
+                    // 0.40pt for the 0.62 of the items without it, and Word's pitches are the same either way.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, let r0 = p.runs.first {
+                        let named0 = _named(p, document)
+                        let w = RichTextTheme.wordWidthScale(r0.style.horizontalScale ?? named0?.char.horizontalScale ?? 1, wordRules: true,
+                            eastAsiaFamily: r0.style.eastAsiaFontFamily ?? named0?.char.eastAsiaFontFamily ?? r0.style.fontFamily ?? named0?.char.fontFamily ?? theme.fontFamily)
+                        if w > 1.001 {
+                            let ts = theme.textStyle(for: r0.style, in: style, named: named0, normal: _normalChar(document), scale: scale, fontScale: fontScale)
+                            if let size = ts.fontSize, size > 0.5 {
+                                let probe = ts.copyWith(fontSize: 100, letterSpacing: 0, height: 1, leadingDistribution: .even)
+                                let t = TextPainter(text: TextSpan(text: "x", style: probe), textDirection: .ltr)
+                                t.layout(minWidth: 0, maxWidth: 100_000)
+                                if let l = t.computeLineMetrics().first {
+                                    let inflate = (w - 1) * size * (l.baseline / 100 - 0.5)
+                                    if inflate > 0.001 {
+                                        RuleTrace.hit("word-character-scale-line-lift-measured-from-the-authored-baseline")
+                                        numberLift += inflate
+                                    }
+                                }
+                                t.dispose()
+                            }
+                        }
+                    }
                 }
                 free.dispose()
             }
