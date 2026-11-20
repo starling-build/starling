@@ -1636,6 +1636,19 @@ extension RichLayout {
         probe.layout(minWidth: 0, maxWidth: width)
         defer { probe.dispose() }
         if descentOnly { return probe.computeLineMetrics().first?.descent ?? 0 }
+        // (An empty top-aligned paragraph whose mark is lowered: its line is the multiple of the lowered single line,
+        // `word-top-aligned-lowered-text-line-is-ink-box-plus-lowering`; lab pos14, amd-opus.)
+        if !single, theme.wordRules, RichTextTheme.wordWindowsPages, p.style.eastAsian["w:textAlignment"] == "top",
+           p.style.lineHeightPoints == nil, let low = mark.raised ?? _named(p, document)?.char.raised, low < -0.01 {
+            let multiple = max(1, p.style.lineSpacing - theme.lineSpacingReduction)
+            let one = probe.height / multiple
+            let family = mark.fontFamily ?? _named(p, document)?.char.fontFamily ?? theme.fontFamily
+            let em = max(1, mark.fontSize ?? _markSize(p, document) ?? theme.fontSize) * _px(1)
+            if let box = theme.winLineBox?(family).map({ $0 * em }) {
+                let lowered = max(one, box - low * _px(1))
+                if lowered > one { RuleTrace.hit("word-top-aligned-lowered-empty-line-is-the-multiple-of-the-lowered-single-line"); return multiple * lowered }
+            }
+        }
         return probe.height
     }
 
