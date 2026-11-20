@@ -717,6 +717,7 @@ extension OfficeFonts {
             face.boldAdvances = berlin_sans_fbBoldAdv
             face.boldOtherAdvances = berlin_sans_fbBoldOther
             face.naturalHeight = 2251.0 / 2048; face.baseline = 1835.0 / 2048
+            face.boldHeight = 2535.0 / 2048; face.boldBaseline = 1857.0 / 2048
 
         case "berlin sans fb demi":
             face.advances = berlin_sans_fb_demiAdv
