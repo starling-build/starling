@@ -1023,7 +1023,11 @@ extension RichLayout {
                 if let g = statedPts, g.count == cols {
                     let gs = g.reduce(0, +), rs = r.reduce(0, +), k = rs > gs && rs > 0 ? gs / rs : 1
                     if zip(g, r).contains(where: { abs($0 - $1 * k) > 0.5 }) {
-                        statedPts = r.map { (($0 * 600 / 72).rounded()) * 72 / 600 }
+                        // (A column raised to its content goes up to the next twip: its piece then still fits. sa1 79f33282's "SOLICITA",
+                        // 41.01 pt in a cell of 1013 twips, came to 51.84 pt, whole twips down 51.80, and wrapped; Word keeps it whole.)
+                        statedPts = r.indices.map { i in
+                            r[i] > alt[i] + 0.01 ? ((r[i] * 20 - 0.001).rounded(.up)) / 20 : ((r[i] * 600 / 72).rounded()) * 72 / 600
+                        }
                         RuleTrace.hit("word-autofit-cell-widths-raised-to-narrowest")
                     }
                 } else { statedPts = r }

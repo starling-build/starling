@@ -669,8 +669,25 @@ extension OfficeFonts {
         0.5732, 0.3803, 0.2471, 0.3803, 0.6651,
     ]
     /// Faces added from the Windows metrics (Word for Windows only).
+    // Edwardian Script ITC (Regular), from a Word-for-Windows print (79f33282): 24 advances exact, rest estimated.
+    static let edwardianScriptITCAdvances: [Double] = [
+        0.1768, 0.2871, 0.4780, 0.5862, 0.5862, 0.9372, 0.7030, 0.2012, 0.3510, 0.3510, 0.4102, 0.6156, 0.2928, 0.3579, 0.2928,
+        0.2928, 0.3961, 0.3961, 0.3961, 0.3961, 0.3961, 0.3961, 0.3961, 0.3961, 0.3961, 0.3961, 0.2928, 0.2928, 0.6156, 0.6156,
+        0.6156, 0.5862, 1.0700, 0.7757, 0.7757, 0.8399, 0.8472, 0.7757, 0.7104, 0.7339, 0.8628, 0.3231, 0.5815, 0.7757, 0.6468,
+        0.9780, 0.8399, 0.9046, 0.7690, 0.9046, 0.8399, 0.7757, 0.5869, 0.8399, 0.7757, 1.0977, 0.7757, 0.7757, 0.7104, 0.2928,
+        0.2928, 0.2928, 0.4946, 0.5862, 0.3510, 0.3442, 0.3372, 0.2422, 0.3442, 0.2461, 0.1685, 0.3372, 0.3372, 0.1680, 0.1347,
+        0.3032, 0.1602, 0.5439, 0.3911, 0.2900, 0.2651, 0.3372, 0.2778, 0.1948, 0.1650, 0.3130, 0.3032, 0.4379, 0.3032, 0.3032,
+        0.3032, 0.3520, 0.2738, 0.3520, 0.6156,
+    ]
+
     static func applyTabledMore(_ family: String, to face: inout RichResolvedFace) {
         switch family.trimmingWhitespace().lowercased() {
+        case "edwardian script itc":
+            face.advances = edwardianScriptITCAdvances
+            // (Accented lowercase vowels and ñ at their base letter's advance: not in the print.)
+            face.otherAdvances = [0xE1: 0.3442, 0xE9: 0.2461, 0xED: 0.1680, 0xF3: 0.2900, 0xFA: 0.3130, 0xF1: 0.3911, 0xFC: 0.3130]
+            face.naturalHeight = 2414.0 / 2048.0; face.baseline = 1742.0 / 2048.0
+
         case "lucida sans":
             face.advances = lucidaSansAdvances
             face.naturalHeight = 1.178; face.baseline = 0.967
