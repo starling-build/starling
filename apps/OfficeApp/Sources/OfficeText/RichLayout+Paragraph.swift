@@ -965,6 +965,11 @@ extension RichLayout {
                     var wordEnd = w
                     while wordEnd < units.count, units[wordEnd] != 0x20, units[wordEnd] != 0x09, units[wordEnd] != 0x0A, units[wordEnd] != 0x2028 { wordEnd += 1 }
                     let wordAfter = loneAfterSpace && wordEnd > w ? edge(wordEnd) - edge(w) : 0
+                    // (A run of tabs with nothing after it to set (paragraph or line end) does not restart on the next line: its
+                    // stops sit within the margin. sa1 b0e39b18, tabs before a line break: one line in Word.s print.)
+                    var runEnd = w
+                    while runEnd < units.count, units[runEnd] == 0x09 { runEnd += 1 }
+                    if runEnd >= units.count || units[runEnd] == 0x0A || units[runEnd] == 0x2028 { continue }
                     guard w - t0 >= 2 || loneAfterSpace, t0 > 0, loneAfterSpace || units[t0 - 1] != 0x20, units[t0 - 1] != 0x0A, units[t0 - 1] != 0x2028,
                           k == 0 || wraps[k - 1] < t0,
                           edge(t0 + 1) + (tabs[t0] ?? 0) + (loneAfterSpace ? wordAfter : 0) > textWidth + _px(0.5) else { continue }
