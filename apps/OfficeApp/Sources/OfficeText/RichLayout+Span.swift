@@ -2716,6 +2716,15 @@ extension RichLayout {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == "\u{A1}" || before == "\u{BF}",
+                          let v = ch.unicodeScalars.first?.value, (v >= 0x4E00 && v <= 0x9FFF) || (v >= 0x3400 && v <= 0x4DBF) {
+                    // (A line may end on "¡" or "¿" when an ideograph follows: the break table reads them as
+                    // openers and glues them to it; Word parts after them. xb 5dc87fc7 p8 ends a line "永¿" and
+                    // opens the next with "永".)
+                    RuleTrace.hit("inverted-mark-ideograph-break")
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+                    inserts.append(offset)
                 } else if theme.wordRules, RichTextTheme.wordWindowsPages, before == " ", ch != " ", let bb = beforeBefore, bb == "\u{A1}" || bb == "\u{BF}" {
                     // (A line may part at the space after "¡" or "¿": the break table reads them as openers
                     // and keeps what follows the space with them; Word breaks at any space. xb hin-z20395192,
@@ -3673,8 +3682,10 @@ extension RichLayout {
                     RuleTrace.hit("jis-latin1-symbol-em")
                     let g = _glyphWidth(style(kind), ch)
                     // (Word's MS Mincho table: · and ˇ are half an em, the rest an em.)
-                    let target = (ch == "\u{B7}" || ch == "\u{2C7}") ? em * 0.5 : em
-                    if g < target - 0.01 { extra += target - g }
+                    // (¡ and ¿ too: half an em in the print, 6.0 pt at 12 pt, 5dc87fc7 E31, where the stand-in's 4.0 and 7.3 are not.)
+                    let half = ch == "\u{B7}" || ch == "\u{2C7}" || ch == "\u{A1}" || ch == "\u{BF}"
+                    let target = half ? em * 0.5 : em
+                    if g < target - 0.01 || (half && g > target + 0.01) { extra += target - g }
                 }
                 if let u = ch.unicodeScalars.first?.value,
                    !(symbolsShown && theme.symbolAdvance?(run.fontFamily ?? named?.char.fontFamily, ch) != nil),
@@ -5731,13 +5742,13 @@ extension RichLayout {
 }
 
 extension RichLayout {
-    /// A JIS symbol in Latin-1 (§ ¨ ° ± ´ ¶ × ÷) drawn in a fixed half-em Latin face (MS Mincho, MS Gothic, GulimChe), where it is an em.
+    /// A JIS symbol in Latin-1 (§ ¨ ° ± ´ ¶ × ÷, and ¡ ¿ at half an em) drawn in a fixed half-em Latin face (MS Mincho, MS Gothic, GulimChe), where it is an em.
     func _jisLatin1Symbol(_ ch: Character, theme: RichTextTheme, run: CharStyle, named: RichNamedStyle?, document: RichDocument,
                                  hint: String?) -> Bool {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, ch.unicodeScalars.count == 1,
               let u = ch.unicodeScalars.first?.value else { return false }
         // (U+2010 too: Word draws it a full em in an MS Mincho run, xb 5dc87fc7 K85 12.0 of 12.0.)
-        let set: [UInt32] = [0xA7, 0xA8, 0xB0, 0xB1, 0xB4, 0xB6, 0xD7, 0xF7, 0xB7, 0x2C7, 0x2010, 0x2016, 0x2032, 0x2033]
+        let set: [UInt32] = [0xA7, 0xA8, 0xB0, 0xB1, 0xB4, 0xB6, 0xD7, 0xF7, 0xB7, 0x2C7, 0x2010, 0x2016, 0x2032, 0x2033, 0xA1, 0xBF]
         guard set.contains(u) else { return false }
         // (Under w:hint="eastAsia" the character is already East Asian and an em: lab xb e925ae95, where Word's print and our plain
         // width agree.)
