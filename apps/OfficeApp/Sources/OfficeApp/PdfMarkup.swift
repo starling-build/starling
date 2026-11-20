@@ -454,7 +454,7 @@ struct PdfMarkup {
                     last = nil
                 }
                 guard let change = run.style.formatChange, run.style.revision?.kind != .deleted else { last = nil; continue }
-                let text = _describe(run.style, was: change.oldRPrXML, defaultLang: document.defaultLangXML)
+                let text = _describe(run.style, was: change.oldRPrXML, defaultLang: document.defaultLangXML, defaultFace: document.defaultFontFamily)
                 guard !text.isEmpty else { last = nil; continue }
                 let field = run.style.fieldResult
                 // (Word says one "Formatted" for a stretch of runs that look alike now: xb ee9f8f's
@@ -557,6 +557,20 @@ struct PdfMarkup {
         // (A change that took the numbering away: Word names the indent as it now is and then "No bullets or
         // numbering", even when the left indent did not move. xa gv-d4270b921d p2, gv-9febdcb8f3 p2.)
         if numberingGone { said.append("No bullets or numbering") }
+        // (Space and keep-with-next changes, worded as Word's print of lab2335 words them: "Space After:  24 pt" with
+        // two spaces, "Keep with next". Only where the old properties state the value, so a style's own spacing
+        // never reads as a change. lab2335 pPrChange, Word for Windows.)
+        func points(_ v: Double) -> String { (v == v.rounded() ? String(Int(v)) : String(v)) + " pt" }
+        if DocxFormat.wordOnWindows {
+            if let was = attribute("w:spacing", "w:before").flatMap({ Double($0) }), abs(was / 20 - style.spaceBefore) > 0.01 {
+                said.append("Space Before:  " + points(style.spaceBefore)); RuleTrace.hit("formatted-balloon-space-before")
+            }
+            if let was = attribute("w:spacing", "w:after").flatMap({ Double($0) }), abs(was / 20 - style.spaceAfter) > 0.01 {
+                said.append("Space After:  " + points(style.spaceAfter)); RuleTrace.hit("formatted-balloon-space-after")
+            }
+            let oldKeep = attribute("w:keepNext", "w:val").map { $0 != "0" && $0 != "false" } ?? (old.rangeOfSubstring("<w:keepNext") != nil)
+            if style.keepNext != oldKeep { said.append(style.keepNext ? "Keep with next" : "Don't keep with next"); RuleTrace.hit("formatted-balloon-keep-with-next") }
+        }
         // (Tab stops now there that were not, "0.69", Left", then those gone, "Not at 0.75"". A hanging indent
         // is a tab stop at its left indent; a list's own "num" tab at or before the indent is the list's.
         // xa gv-9febdcb8f3 p12 and p14, gv-ccf7f258bf p12 and p17.)
@@ -594,7 +608,7 @@ struct PdfMarkup {
     }
 
     /// What a run's look is now that it was not, in Word's words.
-    static func _describe(_ style: CharStyle, was old: String, defaultLang: String? = nil) -> String {
+    static func _describe(_ style: CharStyle, was old: String, defaultLang: String? = nil, defaultFace: String? = nil) -> String {
         func attribute(_ xml: String, _ element: String, _ name: String = "w:val") -> String? {
             guard let r = xml.rangeOfSubstring("<\(element) ") ?? xml.rangeOfSubstring("<\(element)/") else { return nil }
             let tail = xml[r.upperBound...]
@@ -609,7 +623,7 @@ struct PdfMarkup {
         // words it — before the style words, then the size and the highlight:
         // n830205's "Font: (Default) Arial, 9 pt" and "Font: 9 pt, Highlight".)
         let oldFace = attribute(old, "w:rFonts", "w:ascii")
-        if let face = style.fontFamily, !face.isEmpty, face != oldFace { font.append("(Default) " + face) }
+        if let face = style.fontFamily, !face.isEmpty, face != oldFace { font.append(DocxFormat.wordOnWindows && defaultFace != nil && face != defaultFace ? face : "(Default) " + face) }
         let oldBold = attribute(old, "w:b").map { $0 != "0" && $0 != "false" } ?? false
         if style.bold != oldBold { font.append(style.bold ? "Bold" : "Not Bold") }
         let oldItalic = attribute(old, "w:i").map { $0 != "0" && $0 != "false" } ?? false
@@ -624,6 +638,10 @@ struct PdfMarkup {
         if style.highlight != nil, attribute(old, "w:highlight") == nil { highlightWord = "Highlight" }
         else if style.highlight == nil, let h = attribute(old, "w:highlight"), !h.isEmpty, h != "none" { highlightWord = "Not Highlight" }
         if let w = highlightWord { if w == "Highlight" && !font.isEmpty { font.append(w) } else { rest.append(w) } }
+        if DocxFormat.wordOnWindows, style.underline, (attribute(old, "w:u") ?? "none") == "none" {
+            if font.isEmpty { rest.append("Underline") } else { font.append("Underline") }
+            RuleTrace.hit("formatted-balloon-underline-added")
+        }
         if !style.underline, let u = attribute(old, "w:u"), !u.isEmpty, u != "none" { rest.append("No underline") }
         if let c = style.color, attribute(old, "w:color") != "FF0000", c.value & 0xFFFFFF == 0xFF0000 { rest.append("Font color: Red") }
         if let was = attribute(old, "w:color"), !was.isEmpty, style.color == nil { rest.append("Font color: Auto") }

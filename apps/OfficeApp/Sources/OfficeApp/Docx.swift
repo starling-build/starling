@@ -3987,6 +3987,9 @@ enum DocxFormat {
             let legacyCompat = document.compatibilityMode == 12 && legacyNoFE && document.eastAsianDefaultFaceIsLatin
             document.joinsHanAfterSpace = legacyCompat || document.compatibilityMode == nil
                 && (document.hangsLatinStops || ["minorHAnsi", "majorHAnsi", "minorAscii", "majorAscii"].contains(defaultEastAsia ?? ""))
+            document.defaultFontFamily = styles.all("w:style").first { $0["w:type"] == "paragraph" && ($0["w:default"] == "1" || $0["w:styleId"] == "Normal") }?
+                .first("w:rPr")?.first("w:rFonts")?["w:ascii"]
+                ?? styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:rFonts")?["w:ascii"]
             if let own, let defaults {
                 document.defaultLangXML = PptxXML.serialize(XNode(name: own.name, attrs: defaults.attrs.merging(own.attrs) { _, mine in mine }))
             } else if let lang = own ?? defaults {
