@@ -191,15 +191,50 @@ extension RichLayout {
             let physical = page / _columns
             guard let header = _headerFooter(.header, page: physical, document, pageCount: 1),
                   let band = _headerBandUnderLastLine(header, pageSetup(forPage: physical)) else { return }
-            // (Not where the page holds a figure of its own that the text goes over and under, set from its paragraph: Word's prints of
-            // the lab (h0, m15 to m40) charge the push at that figure, not at the page's top, and not by an amount the labs pinned
-            // down, so the page stays as it was. Looked for in the paragraphs the page may hold, 60 on.)
+            // (A page that holds a figure of its own that the text goes over and under, set from its paragraph: Word's prints of
+            // the lab hdrfig (h0, m15 to m40, 7 prints within 0.05 pt) charge the push D (the rule's foot less the box top of the first
+            // line it touches) at the FIGURE when D reaches the gap between the anchor paragraph's line foot and the figure's top:
+            // the text above and the anchor line stay, the figure and all after it go down by D. Under the gap D lands at the
+            // page's top, as for a page without a figure. The first figure on the page decides; amd-opus's rule B, board 173311.)
             let first = min(i, max(0, count - 1))
-            for k in first..<min(count, first + 60) {
-                let own = ((k < _floatImages.count ? [_floatImages[k]].compactMap { $0 } : []) + (k < _inline.count ? _inline[k] : []))
-                if own.contains(where: { $0.float.map { ($0.takesRoom || $0.bandsPage) && !$0.wraps && $0.verticalFrom == "paragraph" } ?? false }) { return }
-            }
             let top = _bodyInsets(page: physical, document).top
+            for k in first..<min(count, first + 60) {
+                guard _cells[k] == nil else { continue }
+                let own = ((k < _floatImages.count ? [_floatImages[k]].compactMap { $0 } : []) + (k < _inline.count ? _inline[k] : []))
+                guard own.contains(where: { $0.float.map { ($0.takesRoom || $0.bandsPage) && !$0.wraps && $0.verticalFrom == "paragraph" } ?? false }) else { continue }
+                guard let figure = own.first(where: { $0.float.map { ($0.takesRoom || $0.bandsPage) && !$0.wraps && $0.verticalFrom == "paragraph" } ?? false }),
+                      let f = figure.float, f.verticalAlign == nil, k < _painters.count, _painters[k] != nil, first < _painters.count, _painters[first] != nil,
+                      _cells[first] == nil else { break }
+                // The first line the rule touches, over the lines of the paragraphs from the page's start on.
+                let bandTop = band.top - top, bandBottom = band.bottom - top
+                var cum = 0.0
+                var d: Double? = nil
+                scan: for p in first..<min(count, first + 12) {
+                    guard _cells[p] == nil, p < _painters.count, p < _heights.count, _painters[p] != nil else { break }
+                    var lineTop = cum
+                    for foot in Self._lineBottoms(geometry(p).painter) {
+                        if cum + foot > bandTop + 0.01 { d = bandBottom - lineTop; break scan }
+                        lineTop = cum + foot
+                    }
+                    cum += _heights[p]
+                }
+                guard let push = d, push > 0.01 else { break }
+                let anchorFoot = Self._lineBottoms(geometry(k).painter).first ?? 0
+                let gap = _px(f.y) - anchorFoot
+                if push >= gap {
+                    RuleTrace.hit("word-header-picture-push-is-charged-at-the-top-and-bottom-figure")
+                    // From the document's own float, so a pass that opens the page again does not add it twice.
+                    func moved(_ image: ImageAttachment) -> ImageAttachment {
+                        var out = image
+                        if var g = out.float, let orig = document.paragraphs[k].image?.float ?? document.paragraphs[k].inlineImages.values.first(where: { $0.id == image.id })?.float { g.y = orig.y + push / _px(1); out.float = g }
+                        return out
+                    }
+                    if k < _floatImages.count, let image = _floatImages[k] { _floatImages[k] = moved(image); _floats[k] = _floatImages[k]?.float }
+                    if k < _inline.count { _inline[k] = _inline[k].map { $0.float == nil ? $0 : moved($0) } }
+                    return
+                }
+                break
+            }
             RuleTrace.hit("word-header-picture-below-the-last-line-keeps-the-body-lines-clear")
             fixedBands.append((band.top - top, band.bottom - top, 0, 1e9))
         }
