@@ -963,6 +963,11 @@ extension RichLayout {
                 candidates.append((image, k < _imageSize.count ? _imageSize[k] : nil))
                 RuleTrace.hit("word-text-beside-square-float-clamped-to-page-top")
             }
+            // (A box that is the paragraph's own image, a framed text box placed from the page: it wraps the lines after it as one in the runs does.)
+            if p.cell == nil, theme.wordRules, RichTextTheme.wordWindowsPages, let image = q.image, image.textBox != nil, image.data.isEmpty,
+               let f = image.float, f.wraps, f.horizontalFrom == "page", !candidates.contains(where: { $0.image.id == image.id }) {
+                candidates.append((image, k < _imageSize.count ? _imageSize[k] : nil))
+            }
             for (image, laid) in candidates {
                 // (A header's square picture placed from the margin does not narrow the lines of the header paragraphs beside it, its own or the next: Word's
                 // print of lab hdrsq sets the centred first line over the full text width beside it, even where it would fit clear of
@@ -1051,7 +1056,10 @@ extension RichLayout {
                 guard let float = image.float, float.wraps, !float.takesRoom, float.verticalAlign == nil, float.verticalFrom == "paragraph",
                       float.horizontalAlign == nil || float.horizontalAlign == "left" || float.horizontalAlign == "right" else { continue }
                 let inCell = float.horizontalFrom == "cell" && cell != nil
-                guard inCell || float.horizontalFrom == "column" || (float.horizontalFrom == "margin" && p.cell == nil) else { continue }
+                // (From the page, by its offset from the page's left edge: a framed box, `w:framePr` with hAnchor page, wrapped round on its
+                // right: sa2 c3375ac5's "A S.E. EL PRESIDENTE" frame, the "En uso" paragraph after it starts 214.85, its right edge and gap.)
+                let fromPage = float.horizontalFrom == "page" && p.cell == nil && float.horizontalAlign == nil && RichTextTheme.wordWindowsPages
+                guard inCell || float.horizontalFrom == "column" || (float.horizontalFrom == "margin" && p.cell == nil) || fromPage else { continue }
                 let column = inCell ? (cell?.colWidth ?? 0) : inner
                 // (A box that takes its text's width is that wide: a drop cap's.)
                 if image.textBox?.fitsText == true { _ = _textBox(image, document) }
@@ -1059,6 +1067,7 @@ extension RichLayout {
                     ?? min(_px(image.width), image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] } ?? .infinity)
                 let h = laid.map { $0.height } ?? _bodyBoxHeight(image, document)
                 var x = float.horizontalAlign == "right" ? column - w : float.horizontalAlign == "left" ? 0 : _px(float.x)
+                if fromPage { let setup = _setup(ofParagraph: i); x -= _px(setup.marginLeft + setup.gutter) }
                 // (Word clamps a square or tight box that sits left of its table cell to the cell's text edge, and the text stands beside it:
                 // e86e26f7's picture, 108 pt left of its cell; lab e86-picwrap. wrapNone/behind keep the offset.)
                 if theme.wordRules, cell != nil, float.horizontalFrom == "column", float.horizontalAlign == nil {
