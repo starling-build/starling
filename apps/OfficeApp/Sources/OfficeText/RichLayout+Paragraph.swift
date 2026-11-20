@@ -1102,9 +1102,13 @@ extension RichLayout {
                 // styled run behind it: the tab has the width of its own box, not a negative one. sa1 b0e39b18's fourteen tabs, the
                 // 6th and 7th not underlined between underlined ones: the 7th measured -348 twips, was stretched 406 too far and
                 // the 14th tab went down to a line of its own, the page below it one line low.)
+                // (On the tab's own line: a tab ending its line has the next character on the line below, its edge
+                // behind by the whole line, and keeps its width; dx2 th 3578a03d.)
                 if theme.wordRules, !style.rightToLeft, after < at - 0.01,
                    let own = probe.getBoxesForSelection(TextSelection(baseOffset: probeMap.painter(t), extentOffset: probeMap.painter(t) + 1)).first,
-                   own.right > own.left {
+                   own.right > own.left,
+                   let nextBox = probe.getBoxesForSelection(TextSelection(baseOffset: probeMap.painter(t + 1), extentOffset: probeMap.painter(t + 1) + 1)).first,
+                   abs(nextBox.top - own.top) < 1 {
                     after = at + (own.right - own.left)
                     RuleTrace.hit("word-tab-width-is-its-own-box-when-the-next-edge-lies-behind-it")
                 }
@@ -1223,6 +1227,14 @@ extension RichLayout {
                     RuleTrace.hit("word-wide-centred-tab-takes-no-room-when-the-text-just-fits")
                 }
                 extra = stop.alignment == .left ? max(0.5 - own, extra) : max(0, extra)
+                // (A justified paragraph's trailing tabs, the last stop at the margin's edge: that tab is set as a
+                // tab, not as a held space, which is a hair wider and wrapped it. sa1 b0e39b18, "Hearing Time:
+                // <4 tabs>" in a justified line, one line in Word's print, ours wrapped the last tab and
+                // moved the lines below it 17 pt.)
+                if theme.wordRules, style.alignment == .justify, stop.alignment == .left, abs(stop.x - (ownLeft + textWidth)) < 0.01,
+                   (t + 1 ..< units.count).allSatisfy({ units[$0] == 0x09 }) {
+                    atMargin.insert(t)
+                }
                 if collapsedTab { extra = -own }
                 // Trailing tabs do not open an empty line beyond the
                 // margin. Keep their stops within the remaining width.
