@@ -2157,6 +2157,14 @@ extension RichLayout {
                 let fillsText = fillsWidth
                 guard f.takesRoom || f.bandsPage || fillsWidth, !f.wraps || fillsWidth, f.verticalFrom == "paragraph", f.verticalAlign == nil,
                       f.y >= 0 || (theme.wordRules && f.y + image.height > 0), image.height > 0 else { continue }
+                // (A picture that starts under the header's LAST paragraph, with no line left to push down, leaves the header at the
+                // text's foot: sa2 0840cb25's 0.75pt rule 13.8pt under a 12.6pt paragraph, the body at 61.2 in Word's print, 1.9 above
+                // the rule's foot.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !f.wraps, j == header.document.paragraphs.count - 1,
+                   j < header.layout._heights.count, f.y >= 0, _px(f.y) >= header.layout._heights[j] {
+                    RuleTrace.hit("word-header-picture-below-the-last-line-does-not-push-the-body")
+                    continue
+                }
                 RuleTrace.hit("header-picture-from-its-paragraph-ends-the-header")
                 // (A wrapped one pushes the paragraph's own line under it, and Word does not lift it above the paragraph: sa1 2303e6f9,
                 // the picture 0 to 136pt, the empty 11pt line baseline at 144.7, the body from 148.4.)
