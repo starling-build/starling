@@ -69,6 +69,15 @@ extension RichLayout {
         (0x2E80 ... 0xA4CF).contains(u) || (0xAC00 ... 0xD7FF).contains(u) || (0xF900 ... 0xFAFF).contains(u) || (0xFE30 ... 0xFE4F).contains(u)
             || (0xFF00 ... 0xFFEF).contains(u) || (0x20000 ... 0x3FFFF).contains(u)
     }
+    /// The face Word draws a CJK compatibility form (U+FE30-FE5F) in when MS Mincho/MS Gothic lack it, with that face's line: Yu Gothic for
+    /// the vertical forms and small brackets, Microsoft JhengHei for the small comma and ideographic comma. Nil for the rest.
+    static func _compatFormFallbackLine(_ u: UInt32) -> (String, (Double, Double))? {
+        switch u {
+        case 0xFE30, 0xFE36, 0xFE59, 0xFE5A, 0xFE5B, 0xFE5D: return ("yu", _chainFaceLines["Yu Gothic"] ?? (1.2, 0.473))
+        case 0xFE50, 0xFE51: return ("jh", _chainFaceLines["Microsoft JhengHei"] ?? (1.30, 0.4308))
+        default: return nil
+        }
+    }
     static let _chainFaceLines: [String: (Double, Double)] = [
         "Yu Gothic": (1.2, 0.473), "Microsoft JhengHei": (1.30, 0.4308),
     ]
@@ -3004,6 +3013,23 @@ extension RichLayout {
                         devanagariStyles["malgunKo"] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: malgun.0, descent: malgun.1, evenExtra: true)
                     }
                     if let joiner = devanagariStyles["malgunKo"] ?? nil {
+                        flush(i)
+                        spans.append(TextSpan(text: "\u{2060}", style: joiner))
+                        inserts.append(offset)
+                    }
+                }
+                // (The CJK compatibility forms U+FE30-FE5F in MS Mincho/MS Gothic text are not in those faces: Word draws them in Yu Gothic (the
+                // vertical brackets and the small parentheses/brackets/braces) or Microsoft JhengHei (the small comma and ideographic comma), so a
+                // line holding one is that face's, taller than the Mincho line: xb 5dc87fc7 p4, a 44.1 pt block where ours was 39.7.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, (0xFE30 ... 0xFE5F).contains(u),
+                   let fb = Self._compatFormFallbackLine(u),
+                   { let n = (run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? "").lowercased()
+                       return n.containsSubstring("ms mincho") || n.containsSubstring("ms gothic") }() {
+                    let key = "compatForm\(fb.0)"
+                    if devanagariStyles[key] == nil {
+                        devanagariStyles[key] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: fb.1.0, descent: fb.1.1)
+                    }
+                    if let joiner = devanagariStyles[key] ?? nil {
                         flush(i)
                         spans.append(TextSpan(text: "\u{2060}", style: joiner))
                         inserts.append(offset)
