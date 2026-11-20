@@ -2699,9 +2699,10 @@ extension RichLayout {
                 defer { start += run.length }
                 let from = p.text.utf16.index(p.text.utf16.startIndex, offsetBy: min(start, p.text.utf16.count))
                 let to = p.text.utf16.index(from, offsetBy: min(run.length, p.text.utf16.count - min(start, p.text.utf16.count)))
-                if p.text[from ..< to].allSatisfy(\.isWhitespace) { continue }
+                // (A paragraph opening on a line break: that break's run sizes the empty first line.)
+                if p.text[from ..< to].allSatisfy(\.isWhitespace), !(theme.wordRules && start == 0 && p.text.hasPrefix("\n") && run.length == 1) { continue }
                 let size = run.style.fontSize ?? -1
-                if start < firstEnd { onFirst.insert(size) } else { later.insert(size) }
+                if start < firstEnd || (theme.wordRules && start == 0 && run.length == 1 && p.text.hasPrefix("\n")) { onFirst.insert(size) } else { later.insert(size) }
             }
             mixedSizes = onFirst.count == 1 && later.contains { !onFirst.contains($0) }
             // (… and a first line whose sizes differ by no more than a
