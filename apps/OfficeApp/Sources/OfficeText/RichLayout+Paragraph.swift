@@ -1152,6 +1152,16 @@ extension RichLayout {
                     extra = min(extra, max(0, ownLeft + textWidth - x) - own)
                     RuleTrace.hit("word-trailing-left-tab-inside-the-margin-stays-on-its-line")
                 }
+                // (An EXPLICIT left stop past the margin itself, the tab run ending the paragraph with the text short of
+                // the margin: the tab fills to the margin and stays on its line in Word's print. sa2 3c4382f0's "Eu, <tab>",
+                // stop 9683 twips in an 8504-twip measure, the next paragraph one line below; ours sent the tab down.)
+                                if theme.wordRules, RichTextTheme.wordWindowsPages, !pictureTabs, !style.rightToLeft, style.alignment == .justify, stop.alignment == .left,
+                   stop.x > ownLeft + textWidth + 0.01 + right, x + own < ownLeft + textWidth - 0.5,
+                   stops.contains(where: { $0.alignment == .left && abs(_px($0.position) - stop.x) < 0.01 }),
+                   units[(t + 1)...].allSatisfy({ $0 == 0x09 }) {
+                    extra = -own
+                    RuleTrace.hit("word-explicit-trailing-left-tab-past-the-margin-stays-on-its-line")
+                }
                 // (A left stop at or past the right indent but inside the margin, text after its tab that ends
                 // inside the margin too: the text stands at the stop on the line, over the indent, as in
                 // Word's print of xd 94baf8b9bd's contents, "NDCO program aims and outcomes<tab>5" in a
@@ -3915,7 +3925,13 @@ extension RichLayout {
                 if cellRoom > 0, stop > ownLeft + textWidth + 0.5, stop <= ownLeft + textWidth + 0.5 + cellRoom {
                     RuleTrace.hit("word-trailing-left-tab-inside-the-cell-width-takes-no-second-line")
                 }
-                if !hangsRight, stop > ownLeft + textWidth + 0.5 + cellRoom {
+                // (An EXPLICIT left stop past the margin, with the text still short of the margin, takes no line of its
+                // own in Word's print: sa2 3c4382f0's "Eu, " + tab, stop 9683 twips in an 8504-twip measure, the next
+                // paragraph one line below, ours two. A default stop past the margin, text at the margin, still does.)
+                let explicitPast = theme.wordRules && RichTextTheme.wordWindowsPages && !pictureTabs && style.alignment == .justify && x < ownLeft + textWidth - 0.5
+                    && style.tabStops.contains(where: { $0.alignment == .left && abs(_px($0.position) - stop) < 0.01 })
+                if explicitPast, stop > ownLeft + textWidth + 0.5 { RuleTrace.hit("word-explicit-tab-stop-past-the-margin-takes-no-line") }
+                if !hangsRight, !explicitPast, stop > ownLeft + textWidth + 0.5 + cellRoom {
                     if pictureTabs {
                         var mark = p.style.mark ?? p.runs.first?.style ?? CharStyle()
                         mark.inlineImage = nil
