@@ -1567,7 +1567,7 @@ extension RichLayout {
     /// Whether a floating picture is turned by an odd number of quarters.
     static func _quarterTurned(_ image: ImageAttachment) -> Bool {
         let r = (image.rotation.truncatingRemainder(dividingBy: 180) + 180).truncatingRemainder(dividingBy: 180)
-        return abs(r - 90) < 1 && image.float != nil
+        return abs(r - 90) < 1
     }
 
     /// A decoded picture into its box, turned as the file turns it: the
@@ -1583,7 +1583,7 @@ extension RichLayout {
         if theme.wordRules, RichTextTheme.wordWindowsPages, let crop = image.crop {
             src = Rect.fromLTRB(src.width * crop.left, src.height * crop.top, src.width * (1 - crop.right), src.height * (1 - crop.bottom))
         }
-        guard image.float != nil, abs(image.rotation) > 0.01 else {
+        guard abs(image.rotation) > 0.01 else {
             canvas.drawImageRect(decoded, src, box, Paint())
             return
         }
