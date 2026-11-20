@@ -11,6 +11,7 @@
 //
 // The model here compiles for the browser too; the builder is native only.
 
+import OfficeText
 import Flutter
 import Foundation
 

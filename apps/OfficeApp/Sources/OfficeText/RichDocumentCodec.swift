@@ -8,6 +8,7 @@
 // bridge, and the paragraph identities a stored document must have — and
 // the schema number that lets a reader refuse what it does not know.
 
+import Flutter
 import FlutterSwiftBridge
 import Foundation
 

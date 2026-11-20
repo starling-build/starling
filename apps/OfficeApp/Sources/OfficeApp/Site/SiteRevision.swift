@@ -1,6 +1,7 @@
 // Copyright the Starling authors
 // SPDX-License-Identifier: Apache-2.0
 
+import OfficeText
 import Flutter
 import Foundation
 

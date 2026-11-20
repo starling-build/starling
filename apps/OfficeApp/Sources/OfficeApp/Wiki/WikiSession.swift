@@ -4,6 +4,7 @@
 // The wiki API, as the client speaks it (wiki/Sources/WikiServer/App.swift
 // is the other side). Models mirror the server's JSON; dates stay strings.
 
+import OfficeText
 import Flutter
 import Foundation
 

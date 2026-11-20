@@ -6,6 +6,7 @@
 // the lock, saved as a new version, drawn in the flow layout. The same
 // code runs in a tab (same-origin API) and natively (`--wiki <url>`).
 
+import OfficeText
 import Flutter
 import FlutterSwiftBridge
 import FluentSystemIcons

@@ -8,6 +8,7 @@
 // same over both; it shows Edit, New page and Publish only where the
 // store can write.
 
+import OfficeText
 import Flutter
 import Foundation
 

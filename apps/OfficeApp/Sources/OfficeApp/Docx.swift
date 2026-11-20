@@ -9035,8 +9035,6 @@ enum DocxFormat {
             if !markRPr.isEmpty { pPr += "<w:rPr>\(markRPr)</w:rPr>" }
             if let sect = p.style.sectionXML, p.cell == nil, index < doc.paragraphs.count - 1 { pPr += keptFragmentXML(sect, p.style.sectionRels) }
             body += "<w:p\(p.id != 0 ? " w14:paraId=\"\(_paraIdHex(p.id))\"" : "")><w:pPr>\(pPr)</w:pPr>"
-            for name in p.bookmarks where writtenBookmarks.insert(name).inserted {
-            body += "<w:p><w:pPr>\(pPr)</w:pPr>"
             for name in p.bookmarks where !rangedBookmarkNames.contains(name) && writtenBookmarks.insert(name).inserted {
                 // (Numbered clear of any a kept table's own XML carries.)
                 repeat { nextPointBookmarkID += 1 } while rangedBookmarkIDs.contains(String(nextPointBookmarkID))

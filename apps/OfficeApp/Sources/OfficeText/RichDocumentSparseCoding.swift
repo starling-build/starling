@@ -481,12 +481,13 @@ extension RichDocument {
 
 extension ImageAttachment {
     enum CodingKeys: String, CodingKey {
-        case id, data, width, height, name, naturalWidth, naturalHeight, sourceXML, sourceRels, outline, sourceWidth, sourceHeight, sourceRunPropertiesXML, frame, effectLeft, effectRight, effectTop, baseline, effectBottom, float, rotation, textBox
+        case id, data, width, height, name, naturalWidth, naturalHeight, sourceXML, sourceRels, outline, sourceWidth, sourceHeight, sourceRunPropertiesXML, frame, effectLeft, effectRight, effectTop, baseline, effectBottom, float, rotation, textBox, isDropCap, lastPageOnly, stackedEquation, crop, inset
     }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
+        seq = ImageAttachment._nextSeq()
         data = try c.decode(Data.self, forKey: .data)
         width = try c.decode(Double.self, forKey: .width)
         height = try c.decode(Double.self, forKey: .height)
@@ -508,6 +509,11 @@ extension ImageAttachment {
         float = try c.decodeIfPresent(ImageFloat.self, forKey: .float)
         rotation = try c.decodeIfPresent(Double.self, forKey: .rotation) ?? 0
         textBox = try c.decodeIfPresent(RichTextBox.self, forKey: .textBox)
+        isDropCap = try c.decodeIfPresent(Bool.self, forKey: .isDropCap) ?? false
+        lastPageOnly = try c.decodeIfPresent(Bool.self, forKey: .lastPageOnly) ?? false
+        stackedEquation = try c.decodeIfPresent(Bool.self, forKey: .stackedEquation) ?? false
+        crop = try c.decodeIfPresent(PictureCrop.self, forKey: .crop)
+        inset = try c.decodeIfPresent(PictureCrop.self, forKey: .inset)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -534,6 +540,11 @@ extension ImageAttachment {
         try c.encodeIfPresent(float, forKey: .float)
         try c.encode(rotation, forKey: .rotation)
         try c.encodeIfPresent(textBox, forKey: .textBox)
+        try c.encode(isDropCap, forKey: .isDropCap)
+        try c.encode(lastPageOnly, forKey: .lastPageOnly)
+        try c.encode(stackedEquation, forKey: .stackedEquation)
+        try c.encodeIfPresent(crop, forKey: .crop)
+        try c.encodeIfPresent(inset, forKey: .inset)
     }
 }
 

@@ -11,6 +11,7 @@
 // (HostedDocument), New page adds to site.json, Publish builds, commits
 // and pushes. Over the built site (a tab on GitHub Pages) it only reads.
 
+import OfficeText
 import Flutter
 import FlutterSwiftBridge
 import Foundation

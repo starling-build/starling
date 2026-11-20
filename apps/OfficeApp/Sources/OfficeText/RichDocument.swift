@@ -869,6 +869,19 @@ final class _StyleBox<T: Sendable>: @unchecked Sendable {
     init(_ v: T) { value = v }
 }
 
+extension _StyleBox: Encodable where T: Encodable {
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        try c.encode(value)
+    }
+}
+
+extension _StyleBox: Decodable where T: Decodable {
+    convenience init(from decoder: Decoder) throws {
+        self.init(try decoder.singleValueContainer().decode(T.self))
+    }
+}
+
 /// One entry of a document's style sheet: Word's Title, Heading 1, Quote…
 /// `paragraph` is copied onto a paragraph when the style is applied;
 /// `char` supplies the defaults a run's own formatting does not set.
@@ -1164,7 +1177,7 @@ public struct ImageAttachment: Hashable, Codable, Sendable {
 
     private static let _seqLock = OfficeLock()
     nonisolated(unsafe) private static var _seqCounter = 0
-    private static func _nextSeq() -> Int {
+    static func _nextSeq() -> Int {
         _seqLock.lock(); defer { _seqLock.unlock() }
         _seqCounter += 1
         return _seqCounter
@@ -1943,7 +1956,7 @@ public struct Run: Hashable, Codable, Sendable {
 }
 
 /// One endpoint of a named DOCX text range, in paragraph-local UTF-16 units.
-public struct RichBookmarkMarker: Hashable, Sendable {
+public struct RichBookmarkMarker: Hashable, Codable, Sendable {
     public var id: String
     /// A start marker's name; nil for its matching end.
     public var name: String?

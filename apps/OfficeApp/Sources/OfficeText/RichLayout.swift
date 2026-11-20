@@ -1201,8 +1201,8 @@ public struct RichResolvedFace: Sendable {
 /// footers, nor of a paragraph that says `suppressLineNumbers`) and sets the
 /// count in the margin, `distance` points left of the text, at every
 /// `countBy`th line.
-public struct LineNumbering: Hashable, Sendable {
-    public enum Restart: Sendable { case newPage, newSection, continuous }
+public struct LineNumbering: Hashable, Codable, Sendable {
+    public enum Restart: String, Codable, Sendable { case newPage, newSection, continuous }
     public var countBy = 1
     /// The first line's number.
     public var start = 1
@@ -1216,7 +1216,7 @@ public struct LineNumbering: Hashable, Sendable {
 /// Paper size and margins, in points. `nil` on the layout means a continuous
 /// column (a note, a text field); set, the flow is cut into pages at line
 /// boundaries and every geometry query has a canvas-space twin.
-public struct ColumnSpan: Hashable, Sendable {
+public struct ColumnSpan: Hashable, Codable, Sendable {
     public var width: Double
     public var gap: Double
     public init(width: Double, gap: Double) { self.width = width; self.gap = gap }

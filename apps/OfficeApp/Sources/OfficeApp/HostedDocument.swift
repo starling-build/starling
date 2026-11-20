@@ -8,6 +8,7 @@
 // Backstage's Close) calls `close`, through the usual unsaved-changes
 // question first.
 
+import OfficeText
 import Flutter
 
 struct HostedDocument {
