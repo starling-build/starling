@@ -38,6 +38,6 @@ jobs:
         run: |
           set -o pipefail
           cd "$HOME/clone"
-          export JOBS=${GATE_JOBS:-$(nproc)}; export BUILD_JOBS=$(( JOBS / 2 ))
+          export JOBS=${GATE_JOBS:-$(cat "$HOME/.gate-jobs" 2>/dev/null || nproc)}; export BUILD_JOBS=$(( JOBS / 2 ))
           [ "$JOBS" -gt 170 ] && JOBS=170
           GATE_PREBUILD=1 test/tools/render-gate.sh "$GITHUB_SHA" 2>&1 | tail -20 | cut -c1-200
