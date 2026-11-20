@@ -4548,8 +4548,11 @@ extension RichLayout {
                 // 1.15 under a 16pt bold Wingdings bullet: items 19.35pt apart, where the bullet's whole line at the multiple was 20.4
                 // (dx2 it df984aa4).)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil,
-                   p.style.lineSpacing > 1.001, leadChar.fontFamily?.lowercased() == "wingdings", let px = style.fontSize, px > 0.5,
+                   p.style.lineSpacing > 1.001, leadChar.fontFamily?.lowercased() == "wingdings" || leadChar.fontFamily?.lowercased() == "symbol",
+                   let leadPx = style.fontSize, leadPx > 0.5,
                    !p.style.rightToLeft, !p.text.unicodeScalars.contains(where: { (0x590...0x8FF).contains($0.value) }) {
+                    let bulletPt = _levelNumberSize(p, document) ?? p.style.mark?.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize
+                    let px = leadChar.fontFamily?.lowercased() == "symbol" && bulletPt != nil && bulletPt! > 0.5 ? _px(bulletPt!) * fontScale : leadPx
                     let probe = TextPainter(text: TextSpan(text: "x", style: theme.textStyle(for: firstLook, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)), textDirection: .ltr)
                     probe.layout(minWidth: 0, maxWidth: 100000)
                     let m = probe.computeLineMetrics().first
@@ -4558,11 +4561,21 @@ extension RichLayout {
                         let multiple = p.style.lineSpacing
                         let single = m.height / multiple
                         let own = m.baseline / multiple
-                        let up = px * 1841.0 / 2048
-                        if up > own + 0.01 {
+                        let isSymbol = leadChar.fontFamily?.lowercased() == "symbol"
+                        let up = isSymbol ? (theme.faceResolver?("symbol", false)?.baseline ?? 0) * px : px * 1841.0 / 2048
+                        if isSymbol || up > own + 0.01 {
+                            if isSymbol {
+                                // (A Symbol bullet at a line multiple: Word's row is the text's own row at the multiple, taller only by what the bullet's
+                                // ascent stands over the text's single-spaced ascent, none of it below: 12pt Symbol over Arial 12 at 1.08, rows 16.68 apart where a
+                                // wrapped text line is 15.84; an 11pt bullet stands no higher than the text, so its rows stay 15.84 (lab bl4490).)
+                                RuleTrace.hit("word-symbol-bullet-at-a-multiple-adds-its-ascent-over-the-text-above")
+                                let above = m.baseline + max(0, up - own), below = m.height - m.baseline
+                                markStyle = style.copyWith(ascentOverride: above, descentOverride: below, height: (above + below) / leadPx, leadingDistribution: .even)
+                            } else {
                             let down = single - own + m.height - single
                             RuleTrace.hit("word-wingdings-bullet-stands-the-first-line-on-its-ascent")
                             markStyle = style.copyWith(ascentOverride: up, descentOverride: down, height: (up + down) / px)
+                            }
                         }
                     }
                 }
