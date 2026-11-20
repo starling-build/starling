@@ -1357,7 +1357,9 @@ extension RichLayout {
                         RuleTrace.hit("word-lao-letters-are-leelawadee-ui")
                         return ("leelawadee ui", 1)
                     }
-                    if text.unicodeScalars.contains(where: { $0.value >= 0x0E01 && $0.value <= 0x0E5B }),
+                    // (Not where the run's own font is Tahoma, which has Thai: xb 5dc87fc7's print draws a no-w:cs Thai run set in Tahoma in Tahoma, a 14.5 pt line at 12 pt.)
+                    let thaiOwnFace = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "tahoma"
+                    if !thaiOwnFace, text.unicodeScalars.contains(where: { $0.value >= 0x0E01 && $0.value <= 0x0E5B }),
                        !(run.keptXML.map { $0.containsSubstring("<w:cs/>") || $0.containsSubstring("<w:cs ") } ?? false) {
                         RuleTrace.hit("word-thai-without-cs-is-leelawadee-ui")
                         return ("leelawadee ui", 1)
