@@ -95,6 +95,7 @@ final class OfficeSession {
         theme.complexFaceKeepsDigits = OfficeFonts.complexFaceKeepsDigits
         theme.averageCharWidth = OfficeFonts.averageCharWidth
         theme.symbolGlyphs = { face, text in face.map { Metafile.symbols(text, face: $0) } ?? text }
+        theme.isSymbolFace = { Metafile.isSymbolFace($0) }
         theme.symbolAdvance = Metafile.symbolAdvance
         theme.wordRules = true
         // (Letters one by one: Word sets a face's ligatures only where a
