@@ -897,7 +897,7 @@ public final class RichTextTheme {
                     : jpScript && style.script == .superscript ? -(size - jpScriptPt) * pixelsPerPoint * scale
                     : malgunScript && style.script == .superscript ? -(size - malgunScriptPt) * pixelsPerPoint * scale
                     : scriptRatio < 0.6 && style.script == .superscript ? -(1 - scriptRatio) * size * pixelsPerPoint * scale
-                    : (style.script == .superscript ? -Self.superscriptRaise(familyName) : 0.2) * px
+                    : (style.script == .superscript ? -Self.superscriptRaise(familyName) : (wordRules ? 0.09 : 0.2)) * px
                 let raised = wordRules && NativeParagraphBuilder.supportsBaselineShift ? (style.raised ?? named?.char.raised ?? 0) : 0
                 let shift = script - raised * pixelsPerPoint * scale
                 return shift != 0 ? shift : nil

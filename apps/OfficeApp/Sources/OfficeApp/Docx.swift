@@ -177,6 +177,18 @@ final class XNode {
             }
             percents(root)
         }
+        // A run size with a fraction of a half point ("40.5", "19.2") is read
+        // by Word as its whole part: 40 (20 pt), 19 (9.5 pt), 25.5 as 25
+        // (12.5 pt). The prints of sa2 cb623f0a and dx2 8afcc2c4/53e31548
+        // show 20.04, 9.48 and 12.48 pt (PDF sizes run 0.04 over).
+        if data.prefix(4096).range(of: Data("/wordprocessingml/".utf8)) != nil {
+            func wholeHalfPoints(_ n: XNode) {
+                if n.name == "w:sz" || n.name == "w:szCs", let v = n.attrs["w:val"], v.utf8.contains(UInt8(ascii: ".")),
+                   let d = Double(v), d >= 0 { n.attrs["w:val"] = String(Int(d)) }
+                for c in n.children { wholeHalfPoints(c) }
+            }
+            wholeHalfPoints(root)
+        }
         guard data.prefix(4096).range(of: Data("ooxml/wordprocessingml/main".utf8)) != nil,
               data.prefix(4096).range(of: Data("purl.oclc.org".utf8)) != nil else { return root }
         func convert(_ raw: String, per: Double) -> String? {
