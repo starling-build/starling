@@ -106,6 +106,7 @@ test/tools/build-office-fast.sh "$W/build" > "$W/build.log" 2>&1 || { echo "rend
 [ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; tail -15 "$W/base-build.log" | cut -c1-200; exit 1; }
 BASEBIN=$BC/$BSHA/release/OfficeApp
 BIN=$(ls "$W"/build/*/release/OfficeApp 2>/dev/null | head -1); [ -x "$BIN" ] && [ -x "$BASEBIN" ] || { echo "render-gate: no binary"; exit 2; }
+echo "render-gate: files compiled: PR $(grep -o "[A-Za-z0-9+_]*\.swift" "$W/build.log" | sort -u | wc -l), base $(grep -o "[A-Za-z0-9+_]*\.swift" "$W/base-build.log" 2>/dev/null | sort -u | wc -l) (a cold build lists ~210)"
 echo "render-gate: $(wc -l < "$ids") documents (named + sample); build step $(( $(date +%s)-T0 )) s ($([ -n "${BPID:-}" ] && echo base built here || echo base cached))"; T1=$(date +%s)
 # both binaries render the same subset (SWEEP_ONLY), so the base needs no stored scores
 [ "${GATE_FULL:-0}" = 1 ] || export SWEEP_ONLY=$ids
