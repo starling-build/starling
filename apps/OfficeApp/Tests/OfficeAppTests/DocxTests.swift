@@ -5178,7 +5178,7 @@ final class DocxTests: XCTestCase {
         xml.insert(contentsOf: deep, at: xml.range(of: "</w:tcPr>")!.upperBound)
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let read = try DocxFormat.read(try Zip.write(entries)).document
-        XCTAssertTrue(read.paragraphs.contains { $0.text == "x" })
+        XCTAssertTrue(read.paragraphs.contains { $0.text == "outer" })  // tables past 63 levels are dropped, as in Word
     }
 
     /// drawing.docx: an empty paragraph that ends a cell right under a
