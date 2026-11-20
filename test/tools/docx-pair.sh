@@ -196,7 +196,8 @@ for S in $SETS; do
   if [ -n "$SUBSET" ]; then for v in v2 v1; do $PY "$HERE/docx-merge.py" "$BASE/$S.$v" "$STAGE/work/fix-$S/match-$v.txt" "$SUBSET" "$FIX/$S.$v" || exit 2; done
   else for v in v2 v1; do cp "$STAGE/work/fix-$S/match-$v.txt" "$FIX/$S.$v"; done; fi
 done
-for S in $SETS; do vis_side $S "$STAGE/work/fix-$S" "$FIX/$S.v2" "$FIX" fix || { echo "ABORT: visual scoring (fix, $S)" >&2; exit 1; }; done
+# the sets' visual scoring is independent: run them side by side (was serial, ~40 s of a gate)
+for S in $SETS; do ( vis_side $S "$STAGE/work/fix-$S" "$FIX/$S.v2" "$FIX" fix ) || { echo "ABORT: visual scoring (fix, $S)" >&2; exit 1; } & done; wait_sets visual-fix
 test/tools/stamp.sh $INPUTS > "$FIX/STAMP"
 for S in $SETS; do echo "$S $(refhash $S) $(dochash $S)"; done > "$FIX/REFS"
 if [ $SEED = 1 ]; then echo "seed written to $FIX (cp $FIX/* $STORED/)"; exit 0; fi
@@ -207,7 +208,9 @@ done; done
 # the visual-scored documents: base rendered (or reused) and scored beside the fix; movers in a "vis v2" section
 for S in $SETS; do
   bw=$STAGE/work/base-$S; [ -d "$bw/pdf" ] || bw=$STAGE/work/none
-  vis_side $S "$bw" "$BASE/$S.v2" "$BASE" base "$BASEBIN" || { echo "ABORT: visual scoring (base, $S)" >&2; exit 1; }
+  ( vis_side $S "$bw" "$BASE/$S.v2" "$BASE" base "$BASEBIN" ) &
+done; wait_sets visual-base
+for S in $SETS; do
   echo "== $S vis v2"; $PY "$HERE/docx-cmp.py" "$FIX/$S.vis" "$BASE/$S.vis" > "$STAGE/cmp-$S-vis.txt"; cat "$STAGE/cmp-$S-vis.txt"
 done
 # re-print every mover with FIXBIN once more; a different score the second time is noise
