@@ -91,6 +91,8 @@ public final class RichTextTheme {
     /// a box. Character for character, so offsets hold; the document keeps
     /// what it said. Nil leaves the text as it is.
     public var symbolGlyphs: ((String?, String) -> String)? = nil
+    /// Whether a face is a symbol-charset face (Symbol, Wingdings, Webdings): its letters and digits are drawn as pictures, not as Latin text.
+    public var isSymbolFace: ((String) -> Bool)? = nil
     /// … and such a glyph's advance in the symbol face, in ems, where
     /// the stand-in's differs.
     public var symbolAdvance: ((String?, Character) -> Double?)? = nil

@@ -74,6 +74,7 @@ final class Metafile {
     /// Text in a symbol face (Wingdings, Webdings, Symbol) as the Unicode
     /// glyphs it shows.
     static func symbols(_ text: String, face: String) -> String { Player.symbols(text, face: face) }
+    static func isSymbolFace(_ face: String) -> Bool { let n = face.lowercased(); return n == "symbol" || n.hasPrefix("wingdings") || n.hasPrefix("webdings") }
     static func symbolAdvance(_ face: String?, _ glyph: Character) -> Double? { Player.symbolAdvance(face, glyph) }
 
     private enum Kind { case wmf, emf }
