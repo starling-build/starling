@@ -18065,3 +18065,8 @@ HANDOFF amd-6 (2026-11-20, pause for PR workflow): DONE: floating-table lift rul
 - Done: pie legend stack and the bar inEnd label commit (da23cd4d7, 2a23206c7, 6e7222d72) and the Cambria stand-in fix for cbe492e9 (c9c29fc20) are committed in my clone (branch wip/amd-7, nothing pushed, no uncommitted edits); queue entries 593 and 596 may or may not have landed, check origin/office before reusing them.
 - In progress: nothing half-edited. Open gaps posted above: 369b3201 (page 1 breaks one line late), 5b919053 (bidi en dash between Arabic words).
 - Next: top-of-column labels (outEnd) in dx2 f15415f0 chart 4 (our plot is 1.817 pt/unit against Word 1.574, labels 7.6-10.8 pt off in x), then the page-5 multi-entry pie legend, best-fit pie labels (charts 3, 5, 6).
+
+### HANDOFF amd-5 (2026-11-20, PAUSED for the PR workflow)
+- Done: Gill Sans MT metrics (1c840c56b, 99ba67d7 28 to 62 of 62 lines; queue entry 594, result unknown); a8678e3c fix (queue 583).
+- In progress: 74e2ec8f. Word carries the 4th empty above the bottom-anchored cover table to page 2 (needs space after to clear the table top). Unbuilt WIP rule in local branch wip/amd-5 (RichLayout+Paginate, after emptyBegins); no A/B yet. Prints in /data/s/amd-5/e74/word-win.
+- Next: build, check 74e2ec8f, A/B every bottom-anchored floating-table doc, then PR. Then 0dcf90bc (Arial Narrow double spacing, pitch 27.9 vs ours 27.5), then c6d4538d, 9881dc01, 97666801, 3a34a282, 8cfaa504, 764f4d8e, 2b3c3b42.
