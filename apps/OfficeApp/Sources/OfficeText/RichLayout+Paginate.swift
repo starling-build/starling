@@ -1964,7 +1964,7 @@ extension RichLayout {
             // (A table as wide as the text leaves no strip: what follows goes under
             // it, not up at its anchor — 6e6d8e9e's blank lines after its sections.)
             if theme.wordRules, besideTable == nil, i > 0, _cells[i] == nil, let prev = _cells[i - 1]?.table,
-               !(_floatLeavesNoStrip(prev, i, document) && _floatFollowsFloat(prev, document)),
+               !((_floatLeavesNoStrip(prev, i, document) && _floatFollowsFloat(prev, document)) || _floatStripNarrowerThanIndent(prev, i, document)),
                blank(document.paragraphs[i]) || (i < _besideLead.count && _besideLead[i] > 0) || _splitMarginFloatBeside(prev, i, page, document),
                let ts = document.tableStyles[prev], ts.floatOffsetY != nil || (ts.floatRaiseY != nil && _markBesideOffsetFloat(prev, i, document)) || (i < _besideLead.count && _besideLead[i] > 0) || _anchorBesideLeftTable(prev, i, document) || _splitMarginFloatBeside(prev, i, page, document), !ts.pageAnchored, ts.keptPosition != nil,
                (i < _besideLead.count && _besideLead[i] > 0) || _splitMarginFloatBeside(prev, i, page, document) || _tableLeft(prev, document) - _px(9) - _px(_setup(ofParagraph: i).headerWrapLeft) >= _px(18) || _stripBesideLeftTable(prev, i, document) || _anchorBesideLeftTable(prev, i, document) || _markBesideOffsetFloat(prev, i, document),
@@ -5961,6 +5961,21 @@ extension RichLayout {
 extension RichLayout {
     /// True when a floating table spans the text's whole width and the next
     /// element is a plain paragraph or a table that does not float.
+    /// A strip at a left-set floating table's right that is narrower than the paragraph's own right indent holds no
+    /// line of it: what follows goes under the table (sa1 770498eb's empty paragraphs, indent 26.8pt against the 21.5pt
+    /// left of a 403pt table, stand under it in Word's print).
+    @inline(never)
+    func _floatStripNarrowerThanIndent(_ table: String, _ i: Int, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, _cells[i] == nil, i < document.paragraphs.count else { return false }
+        let indent = document.paragraphs[i].style.indentRight
+        guard indent > 0.01 else { return false }
+        let left = _tableLeft(table, document)
+        let strip = (_tableFlowWidth[table] ?? width) - (left + (_columnWidths[table] ?? []).reduce(0, +))
+        guard left < _px(12), strip > 0, _px(indent) > strip + 0.01 else { return false }
+        RuleTrace.hit("word-float-strip-narrower-than-the-paragraphs-right-indent-leaves-no-strip")
+        return true
+    }
+
     @inline(never)
     func _floatLeavesNoStrip(_ table: String, _ i: Int, _ document: RichDocument) -> Bool {
         guard theme.wordRules, _cells[i] == nil else { return false }
