@@ -10,7 +10,31 @@ import Foundation
 
 extension RichLayout {
 
+    /// Word for Windows at compat 14 and under honours a tab stop past the margin (lab tabpast14; sa1 0058af10, dx2 e1996ca7 and
+    /// 9f798d64, xa gv-0de3e9bcf1): the text after it ends AT the stop and stays on the line. The engine fits a line against the
+    /// margin, so the lines are broken by the clamped layout first (it matched Word's breaks in all four); where that is ONE line
+    /// the paragraph is laid out again with room past the margin, the stops as written.
     func _layoutParagraphOnce(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
+        _pastNeed[i] = nil
+        _pastLeft[i] = nil
+        _pastWiden = nil
+        _layoutParagraphBody(i, p, document)
+        guard theme.wordRules, Self._honoursStopsPastMargin(document),
+              !p.style.rightToLeft, p.style.alignment == .left || p.style.alignment == .justify,
+              let painter = _painters[i] else { return }
+        let single = painter.computeLineMetrics().count == 1
+        guard let need = (single ? _pastNeed[i] : nil) ?? _pastLeft[i], need > 0.01 else { return }
+        _pastWiden = max(need, _pastNeed[i] ?? 0, _pastLeft[i] ?? 0) + _px(80)
+        _layoutParagraphBody(i, p, document)
+        _pastWiden = nil
+        if let again = _painters[i], again.computeLineMetrics().count != 1 {
+            _layoutParagraphBody(i, p, document)
+        } else {
+            RuleTrace.hit("word-tab-past-the-margin-keeps-its-stop-on-one-line")
+        }
+    }
+
+    func _layoutParagraphBody(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
         _heldTallerLatin.remove(i)
         var p = p
         // A paragraph of hidden text alone, its mark not hidden, is one empty
@@ -207,6 +231,7 @@ extension RichLayout {
             // something in the fit test, not the widths, is a hair apart.)
             width -= _px(10.0)
         }
+        if let w = _pastWiden { right -= w }
         var textWidth = max(1, width - left - right + (frameLeft ?? 0))
         if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, let room = style.wrapperRoom, _px(room) > width { textWidth += _px(room) - width }
         // (Centred or set right, a numbered line is set across its
@@ -1082,6 +1107,7 @@ extension RichLayout {
                 let own = after - at
                 var stop: (x: Double, alignment: TabStop.Alignment, leader: String?)? = nil
                 if let s = stops.first(where: { _px($0.position) > x + 0.5 && !clampedStops.contains(_px($0.position)) }) { stop = (_px(s.position), s.alignment, s.leader) }
+                if Self._honoursStopsPastMargin(document), let s = stop, s.alignment == .left, s.x > ownLeft + textWidth + 0.5, stops.contains(where: { abs(_px($0.position) - s.x) < 0.01 }) { _pastLeft[i] = max(_pastLeft[i] ?? 0, s.x - (ownLeft + textWidth)) }
                 var toIndent = false
                 if lead < 0, ownLeft > x + 0.5, stop.map({ ownLeft < $0.x }) ?? true { stop = (ownLeft, .left, nil); toIndent = true }
                 if stop == nil, step > 0 { stop = (((x + 0.5) / step).rounded(.down) * step + step, .left, nil) }
@@ -1104,6 +1130,7 @@ extension RichLayout {
                 if theme.wordRules, var s = stop, s.alignment == .right || s.alignment == .center,
                    s.x > ownLeft + textWidth + 0.5 + ((s.leader.map { $0 != "none" && !$0.isEmpty } ?? false) && s.alignment == .right && style.alignment != .justify ? _px(Self._tabPastMargin) : 0) {
                     clampedStops.insert(s.x)
+                    if Self._honoursStopsPastMargin(document) { _pastNeed[i] = max(_pastNeed[i] ?? 0, s.x - (ownLeft + textWidth)) }
                     s.x = ownLeft + textWidth
                     s.alignment = .right
                     stop = s
