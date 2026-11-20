@@ -3018,6 +3018,12 @@ extension RichLayout {
                         if target > y + 0.01, target < contentH - 0.01 {
                             tableReturn = (c.table, y, page, target)
                             y = target
+                        } else if theme.wordRules, RichTextTheme.wordWindowsPages, ts0?.pageAnchored == true, ts0?.pageOffsetY != nil,
+                                  target < -0.01, target > -insetTop, y < 0.01, _pages[page].isEmpty {
+                            // (Up into the top margin too, on the page the break opened: sa1 b3ef470a's schedule, tblpY 53.9pt against
+                            // an 85pt margin, has its title at 71.64 in Word's print, ours at the margin, 31pt low.)
+                            RuleTrace.hit("page-anchored-table-after-a-page-break-stands-in-the-top-margin")
+                            y = target
                         }
                     }
                     // (A table floating by the text, its offset lost with the page it
