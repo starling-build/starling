@@ -1048,7 +1048,10 @@ extension RichLayout {
                                       let side = Self._cellSide(qc.bordersXML, "right") ?? Self._cellSide(qc.rowBordersXML, "right") else { continue }
                                 rule = max(rule, side.width)
                             }
-                            scale = (width + _px((ts.cellMarginLeft ?? 5.4) + rule / 2)) / _px(sum)
+                            // (A centred one takes the right margin too: sa1 a8678e3c, 3.5pt margins, Word's
+                            // rules run 655pt over a 648 share, margin-3.5 to margin+width+3.4.)
+                            let rightM = ts.alignment == .center ? (ts.cellMarginRight ?? ts.cellMarginLeft ?? 5.4) : 0
+                            scale = (width + _px((ts.cellMarginLeft ?? 5.4) + rightM + rule / 2)) / _px(sum)
                         }
                     }
                     else if let w = ts.width {
