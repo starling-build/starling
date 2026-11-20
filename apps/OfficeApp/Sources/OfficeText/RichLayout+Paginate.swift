@@ -781,6 +781,40 @@ extension RichLayout {
                         rows.insert(top + c.rowTop + c.ownRowHeight)
                     }
                 }
+                // (And inside a nested row, at its cells' own line ends, as the outer rows part: Word's print of
+                // sa1 03f63881 cuts the "Video-conferencia 2" table's "Consigna" row after two lines at a
+                // page's foot, not at the row above.)
+                let innerTable = inside.layout._cells.compactMap({ $0 }).first?.table
+                let widows = (inside.document.compatibilityMode ?? 12) >= 15
+                // (Only where no other cell of that inner row has a line across it: the cut stands at a line end, or
+                // under the text, of every cell of the row.)
+                struct InnerPiece { var row: Int; var column: Int; var cuts: [Double]; var bottom: Double }
+                var pieces: [InnerPiece] = []
+                for m in 0 ..< min(inside.document.paragraphs.count, inside.layout._cells.count) {
+                    guard let c = inside.layout._cells[m], c.table == innerTable, c.rowSpan == 1, !c.vertical,
+                          inside.document.tableStyles[c.table]?.rowsCantSplit.contains(c.row) != true else { continue }
+                    guard m < inside.layout._painters.count, inside.layout._painters[m] != nil else { continue }
+                    let g2 = inside.layout.geometry(m)
+                    let all = Self._lineBottoms(g2.painter).map { top + g2.textTop + $0 }
+                    var lines = all
+                    if widows, inside.document.paragraphs[m].style.widowControl {
+                        lines = lines.count >= 4 ? Array(lines[1 ..< lines.count - 2]) : []
+                    } else if !lines.isEmpty {
+                        lines.removeLast()
+                    }
+                    pieces.append(InnerPiece(row: c.row, column: c.column, cuts: lines, bottom: all.last ?? (top + g2.textTop)))
+                }
+                for piece in pieces {
+                    for b in piece.cuts {
+                        let others = pieces.filter { $0.row == piece.row && $0.column != piece.column }
+                        let columns = Set(others.map(\.column))
+                        let clear = columns.allSatisfy { col in
+                            let mine = others.filter { $0.column == col }
+                            return mine.allSatisfy { $0.bottom <= b + 0.01 } || mine.contains { q in q.cuts.contains { abs($0 - b) < 0.5 } }
+                        }
+                        if clear { rows.insert(b) }
+                    }
+                }
                 return Array(rows.sorted().dropLast()) + [_tops[k] + _heights[k]]
             }
             // (The shift a lifted first line carries — a bullet larger than its text — stands over every line the part

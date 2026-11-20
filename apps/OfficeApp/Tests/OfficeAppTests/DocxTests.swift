@@ -5152,6 +5152,12 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(tail.style.spaceAfter - plain.style.spaceAfter, 2.25, accuracy: 0.001)
     }
 
+    /// A nested table that still flattens: one row holding 50 paragraphs.
+    private func flatNestedTable(_ first: String, _ second: String) -> String {
+        let filler = String(repeating: "<w:p><w:r><w:t>f</w:t></w:r></w:p>", count: 48)
+        return "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/><w:tblBorders><w:top w:val=\"single\" w:sz=\"8\" w:space=\"0\" w:color=\"FF0000\"/></w:tblBorders></w:tblPr><w:tblGrid><w:gridCol w:w=\"2000\"/><w:gridCol w:w=\"2000\"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>\(first)</w:t></w:r></w:p>\(filler)</w:tc><w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>\(second)</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
+    }
+
     private func nestedTable(_ first: String, _ second: String) -> String {
         "<w:tbl><w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/><w:tblBorders><w:top w:val=\"single\" w:sz=\"8\" w:space=\"0\" w:color=\"FF0000\"/></w:tblBorders></w:tblPr><w:tblGrid><w:gridCol w:w=\"2000\"/><w:gridCol w:w=\"2000\"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>\(first)</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:r><w:t>\(second)</w:t></w:r></w:p></w:tc></w:tr></w:tbl>"
     }
@@ -5161,7 +5167,7 @@ final class DocxTests: XCTestCase {
     /// such marks of 8.5pt, five lines of 0.48pt); any other empty
     /// paragraph keeps its mark's line. Flagged by the reader, not saved.
     func testTheMarkUnderANestedTableIsHalfAPoint() throws {
-        let long = "in1 " + String(repeating: "x", count: 600)   // flattened, not a block
+        let long = "in1"   // flattened, not a block
         func document(outerText: String) throws -> RichDocument {
             var a = RichParagraph(text: "outer")
             a.cell = CellRef(table: "T", row: 0, column: 0)
@@ -5170,7 +5176,7 @@ final class DocxTests: XCTestCase {
             var entries = try Zip.read(try DocxFormat.write(d, pageSetup: .letter))
             let di = entries.firstIndex { $0.name == "word/document.xml" }!
             var xml = String(decoding: entries[di].data, as: UTF8.self)
-            xml.insert(contentsOf: nestedTable(long, "in2"), at: xml.range(of: "</w:tcPr>")!.upperBound)
+            xml.insert(contentsOf: flatNestedTable(long, "in2"), at: xml.range(of: "</w:tcPr>")!.upperBound)
             xml = xml.replacingAll(">outer</w:t>", with: ">\(outerText)</w:t>")
             entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
             return try DocxFormat.read(try Zip.write(entries)).document
@@ -5463,22 +5469,23 @@ final class DocxTests: XCTestCase {
         XCTAssertNil(middle.paragraphs.first { $0.text == "after" }?.cell)
     }
 
-    /// A long one is flattened into its cell, kept verbatim for the save
+    /// One row of 50 paragraphs is flattened into its cell, kept verbatim for the save
     /// while its text stands as read.
     func testNestedTableKeptVerbatim() throws {
-        let long = "in1 " + String(repeating: "x", count: 600)
-        let back = try nestedTableDocument(nestedTable(long, "in2"))
+        let long = "in1"
+        let all = [long] + Array(repeating: "f", count: 48) + ["in2"]
+        let back = try nestedTableDocument(flatNestedTable(long, "in2"))
         let flat = back.paragraphs.filter { $0.keptTable != nil }
-        XCTAssertEqual(flat.map(\.text), [long, "in2"])
-        XCTAssertEqual(flat.map { $0.cell?.table }, [flat[0].cell?.table, flat[0].cell?.table], "flattened into the outer cell")
-        XCTAssertEqual(back.paragraphs.filter { $0.cell != nil }.map(\.text), [long, "in2", "outer"])
+        XCTAssertEqual(flat.map(\.text), all)
+        XCTAssertEqual(flat.map { $0.cell?.table }, Array(repeating: flat[0].cell?.table, count: 50), "flattened into the outer cell")
+        XCTAssertEqual(back.paragraphs.filter { $0.cell != nil }.map(\.text), all + ["outer"])
         let kept = try XCTUnwrap(back.keptTables[flat[0].keptTable!])
-        XCTAssertEqual(kept.texts, [long, "in2"])
+        XCTAssertEqual(kept.texts, all)
         XCTAssertTrue(kept.xml.hasPrefix("<w:tbl"), kept.xml)
         let saved = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
         XCTAssertTrue(saved.contains("</w:tcPr><w:tbl") && saved.contains("w:color=\"FF0000\"") && saved.contains("</w:tbl><w:p>"), saved)
         XCTAssertEqual(tableCount(saved), 2, "the outer table and the kept inner one")
-        XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(back, pageSetup: .letter)).document.paragraphs.filter { $0.keptTable != nil }.map(\.text), [long, "in2"])
+        XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(back, pageSetup: .letter)).document.paragraphs.filter { $0.keptTable != nil }.map(\.text), all)
         // Edited text: the flattened paragraphs are written instead.
         var edited = back
         let i = edited.paragraphs.firstIndex { $0.text == "in2" }!
