@@ -45,6 +45,10 @@ def find_doc(arg):
     if not hits:
         die("no doc matches %r" % arg)
     if len(hits) > 1:
+        import hashlib
+        h = lambda f: hashlib.sha1(open(f, "rb").read()).hexdigest()
+        if len({h(f) for f in hits}) == 1:
+            return hits[0]
         die("%r is ambiguous: %s" % (arg, ", ".join(os.path.basename(h) for h in hits[:5])))
     return hits[0]
 
@@ -116,7 +120,9 @@ def render(binpath, doc):
 
 
 def norm(s):
-    return re.sub(r"\s+", "", unicodedata.normalize("NFKC", s))  # NFKC folds ligatures
+    # NFKC folds ligatures; format characters (ZWNJ, bidi marks) draw nothing
+    t = unicodedata.normalize("NFKC", s)
+    return re.sub(r"\s+", "", "".join(ch for ch in t if unicodedata.category(ch) != "Cf"))
 
 
 class Line:
@@ -125,7 +131,12 @@ class Line:
         self.page, self.y, self.chars = page, y, chars
         self.x0 = min(c[1] for c in chars)
         self.x1 = max(c[2] for c in chars)
-        self.text = norm("".join(c[0] for c in chars))
+        t = norm("".join(c[0] for c in chars))
+        # RTL runs come out of PDFs in visual order, and the two PDFs may order
+        # or shape them differently: compare such lines as a bag of characters.
+        if re.search("[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufeff]", t):
+            t = "".join(sorted(t))
+        self.text = t
 
 
 def extract(path, pages):
