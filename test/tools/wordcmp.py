@@ -89,11 +89,15 @@ def engine_out():
 
 
 def file_key(p):
-    # key on the binary's CONTENT: path+mtime let a rebuilt or copied-with-mtime binary read an old render
+    # key on CONTENT of the binary AND every *.so beside it (sdk code builds into the .so files, so the
+    # binary can be byte-identical after an sdk change); path+mtime let a rebuilt binary read an old render
     h = hashlib.sha1()
-    with open(p, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 22), b""):
-            h.update(chunk)
+    d = os.path.dirname(os.path.realpath(p))
+    for f in [p] + sorted(glob.glob(os.path.join(d, "*.so*"))):
+        h.update(os.path.basename(f).encode())
+        with open(f, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 22), b""):
+                h.update(chunk)
     return h.hexdigest()[:12]
 
 
