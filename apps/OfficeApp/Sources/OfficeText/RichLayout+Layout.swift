@@ -1204,31 +1204,7 @@ extension RichLayout {
                     if theme.wordRules, RichTextTheme.wordWindowsPages, _nestedBlock, ts.widthPercent != nil, ts.columnPercents.count == base.count, base.count > 1 {
                         widths[c.table] = _pctColumns(c.table, widths[c.table] ?? base, ts, document)
                     }
-                    // (A top-level table of 100% whose cells state shares adding to more than
-                    // 100%: lab pcttbl, Word's print. Each column asks for its share of the
-                    // whole table; the excess is taken from the LAST columns first, each down
-                    // to its narrowest content, then the first. 5000+5000 and 5000+2500 leave
-                    // the last column at its content, the first the rest; 2500+5000 leaves
-                    // 223/230 after the first is raised to its content.)
-                    if theme.wordRules, RichTextTheme.wordWindowsPages, !_nestedBlock, ts.widthPercent == 100, ts.columnPercents.count == base.count,
-                       base.count > 1, ts.columnPercents.values.reduce(0, +) > 100.5,
-                       !document.paragraphs.contains(where: { $0.cell?.table == c.table && ($0.cell?.span ?? 1) != 1 }) {
-                        let reach = (document.compatibilityMode ?? 12) >= 15 ? 0 : _px((ts.cellMarginLeft ?? 5.4) + (ts.cellMarginRight ?? 5.4))
-                        let total = width + reach - _px(max(0, ts.indent))
-                        let narrow = _pctColumns(c.table, Array(repeating: total / Double(base.count), count: base.count), {
-                            var s = ts; s.columnPercents = s.columnPercents.mapValues { _ in 0 }; return s
-                        }(), document)
-                        var out = (0 ..< base.count).map { total * (ts.columnPercents[$0] ?? 0) / 100 }
-                        var over = out.reduce(0, +) - total
-                        for k in (0 ..< base.count).reversed() where over > 0 {
-                            let take = min(over, max(0, out[k] - narrow[k]))
-                            out[k] -= take; over -= take
-                        }
-                        if over <= 0.5 {
-                            RuleTrace.hit("pct-cells-over-100-last-columns-first")
-                            widths[c.table] = out.indices.map { out[$0] <= narrow[$0] + 0.01 ? out[$0].rounded(.up) : out[$0].rounded(.down) }
-                        }
-                    }
+                    if let out = _pctOverHundred(c.table, count: base.count, ts: ts, width: width, document: document) { widths[c.table] = out }
                 } else if theme.wordRules, _columnPreview[c.table] == nil, let ts = document.tableStyles[c.table],
                           !ts.fixedLayout, (ts.cellSpacing ?? 0) > 0, !ts.columnPercents.isEmpty, let base = widths[c.table] {
                     widths[c.table] = _pctColumns(c.table, base, ts, document)
@@ -1240,6 +1216,9 @@ extension RichLayout {
                 var room = width
                 if theme.wordRules, let pct = document.tableStyles[c.table]?.widthPercent, pct > 0, pct < 100 { room = width * pct / 100 }
                 widths[c.table] = Array(repeating: (room / Double(cols)).rounded(.down), count: cols)
+                // (Its cells' shares speak for it all the same: sa2 be63fe36's form tables have no grid.)
+                if let ts = document.tableStyles[c.table], !ts.fixedLayout, (ts.cellSpacing ?? 0) == 0, _columnPreview[c.table] == nil, !_nestedInFixedTable,
+                   let out = _pctOverHundred(c.table, count: cols, ts: ts, width: width, document: document) { widths[c.table] = out }
             }
         }
         for (table, w) in widths where _columnWidths[table] != w {
@@ -1528,6 +1507,48 @@ extension RichLayout {
         }
         return true
     }
+
+    func _pctOverHundred(_ table: String, count: Int, ts: TableStyle, width: Double, document: RichDocument) -> [Double]? {
+        // (A top-level table of 100% whose cells state shares adding to more than
+        // 100%: lab pcttbl, Word's print. Each column asks for its share of the
+        // whole table; the excess is taken from the LAST columns first, each down
+        // to its narrowest content, then the first. 5000+5000 and 5000+2500 leave
+        // the last column at its content, the first the rest; 2500+5000 leaves
+        // 223/230 after the first is raised to its content.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, !_nestedBlock, ts.widthPercent == 100, ts.columnPercents.count == count,
+           count > 1, ts.columnPercents.values.reduce(0, +) > 100.5 {
+            let reach = (document.compatibilityMode ?? 12) >= 15 ? 0 : _px((ts.cellMarginLeft ?? 5.4) + (ts.cellMarginRight ?? 5.4))
+            let total = width + reach - _px(max(0, ts.indent))
+            let narrow = _pctColumns(table, Array(repeating: total / Double(count), count: count), {
+                var s = ts; s.columnPercents = s.columnPercents.mapValues { _ in 0 }; return s
+            }(), document)
+            var out = (0 ..< count).map { total * (ts.columnPercents[$0] ?? 0) / 100 }
+            var over = out.reduce(0, +) - total
+            // (The columns that cannot give their whole excess go to their content; what is
+            // left of it is taken from the ones before them in proportion to their shares:
+            // sa2 be63fe36, four 46% columns of 472pt are 182.5/182.5/61/46 in Word's print.)
+            for k in (0 ..< count).reversed() where over > 0 {
+                let room = max(0, out[k] - narrow[k])
+                if room >= over || k == 0 {
+                    let before = (0 ... k).map { out[$0] }
+                    let share = before.reduce(0, +)
+                    if k > 0, share > 0 {
+                        var left = over
+                        for j in 0 ... k { let t = min(left, over * out[j] / share, max(0, out[j] - narrow[j])); out[j] -= t; left -= t }
+                        over = left
+                    } else { out[k] -= min(over, room); over -= min(over, room) }
+                    break
+                }
+                out[k] -= room; over -= room
+            }
+            if over <= 0.5 {
+                RuleTrace.hit("pct-cells-over-100-last-columns-first")
+                return out.indices.map { out[$0] <= narrow[$0] + 0.01 ? out[$0].rounded(.up) : out[$0].rounded(.down) }
+            }
+        }
+        return nil
+    }
+
 
     /// Word's re-fit of an autofit table (`w:tblLayout` autofit, the
     /// default), as office.md's "Autofit tables" has it (labs `at1`–`at5`,
