@@ -12,7 +12,7 @@ def mk(name, rows):
         pg.insert_text((x, y), t, fontsize=11)
     doc.save(f"{d}/{name}.pdf")
 mk("word", [(72, 100, "First line of text"), (72, 120, "fine second line"), (72, 140, "Third line here")])
-mk("ours", [(72, 100, "First line of "), (150, 100, "text"), (72, 120, "fine second line"), (72, 141.5, "Third line here")])
+mk("ours", [(72, 100, "First line of "), (137, 100, "text"), (72, 120, "fine second line"), (72, 141.5, "Third line here")])
 P
 out=$("$PY" -W ignore test/tools/wordcmp.py x.docx --word $d/word.pdf --ours $d/ours.pdf --json)
 echo "$out" | "$PY" -c '

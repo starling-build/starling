@@ -24,6 +24,7 @@ except ImportError:
     sys.exit("wordcmp: PyMuPDF (fitz) not found")
 
 TOL = 0.3          # pt: a row is marked when |dy| or |dx| exceeds this
+XGAP = 18.0         # pt: a wider gap on one baseline starts a new row (cell, column)
 YCLUSTER = 1.5     # pt: spans whose baselines are within this are one visual line
 CACHE = os.path.expanduser("~/.cache/wordcmp")
 
@@ -164,7 +165,16 @@ def extract(path, pages):
             else:
                 groups.append([y, list(cs)])
         for y, cs in groups:
-            lines.append(Line(pn, y, cs))
+            # Text in separate horizontal ranges (table cells, columns) is
+            # separate rows even when the baselines are level.
+            cs = sorted(cs, key=lambda c: c[1])
+            piece = [cs[0]]
+            for c in cs[1:]:
+                if c[1] - piece[-1][2] > XGAP:
+                    lines.append(Line(pn, y, piece))
+                    piece = []
+                piece.append(c)
+            lines.append(Line(pn, y, piece))
     return lines, skipped, len(doc)
 
 
