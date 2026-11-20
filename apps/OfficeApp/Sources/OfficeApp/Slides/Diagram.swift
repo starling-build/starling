@@ -15,6 +15,7 @@
 
 import Foundation
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 
 /// One point of a diagram's data model (`dgm:pt`): a node with text, the
@@ -156,6 +157,12 @@ final class DgmPresNode {
     /// The node a size was taken from (a space 0.14 as wide as its
     /// neighbour follows the neighbour when that shrinks).
     var sizeRef: [String: String] = [:]
+    /// … and the factor of that reference (`fact`), by dimension.
+    var sizeFact: [String: Double] = [:]
+    /// Word's own fit of this box's text (points), after the tree was scaled to the frame, and its margins as
+    /// shares of that size (`fitWordText`).
+    var wordSize: Double? = nil
+    var wordMargin: [String: Double] = [:]
     /// Its height capped by its own width (`h` ≤ a share of `w`): a box
     /// whose text the layout shrinks to fit (accent-process's heading).
     var heightCappedByWidth = false
@@ -164,6 +171,7 @@ final class DgmPresNode {
     var derived: [String: (ref: String, fact: Double)] = [:]
     var rect = Rect.zero
     var rotation = 0.0
+    var heldSlot = false
     var laidOut = false
     /// A shape the algorithm draws itself (a pyramid's level), as a
     /// polygon in absolute points.
@@ -239,6 +247,9 @@ struct DiagramLayout {
     /// No font size is set above this (points): how a layout's
     /// `primFontSz` rule shrinks the text, and every size tied to it.
     private var fontCap = Double.infinity
+    /// Word relays a diagram out from its definition (no cached drawing) without
+    /// the author's width scale on text, and keeps a step as tall as its line.
+    private var wordLayout = false
 
     init?(data: XNode, layout: XNode, colors: XNode?, style: XNode?) {
         guard let model = DgmModel(data) else { return nil }
@@ -257,19 +268,21 @@ struct DiagramLayout {
 
     /// The diagram as a `p:spTree` of `p:sp` elements in EMU, the frame's
     /// origin at 0,0.
-    static func render(data: XNode, layout: XNode, colors: XNode?, style: XNode?, frame: Rect) -> XNode? {
+    static func render(data: XNode, layout: XNode, colors: XNode?, style: XNode?, frame: Rect, word: Bool = false) -> XNode? {
         guard let first = DiagramLayout(data: data, layout: layout, colors: colors, style: style),
               let rootDef = layout.first("dgm:layoutNode") else { return nil }
         let box = Rect.fromLTWH(0, 0, frame.width, frame.height)
         func laidOut(fontCap: Double) -> (DiagramLayout, DgmPresNode) {
             var engine = first
             engine.fontCap = fontCap
+            engine.wordLayout = word
             let root = engine.build(rootDef, point: engine.model.root, iter: (0, 1), parent: nil)
             root.rect = box
             engine.layoutNode(root)
             return (engine, root)
         }
-        func fits(_ root: DgmPresNode) -> Bool {
+        func fits(_ root: DgmPresNode, cap: Double = .infinity) -> Bool {
+            if word, !first.wordTextFits(root, cap: cap) { return false }
             // Nothing outside the frame, and no box sized in font sizes
             // squeezed smaller than that by the room it was given.
             func squeezed(_ n: DgmPresNode) -> Bool {
@@ -289,7 +302,7 @@ struct DiagramLayout {
                         let stated = n.presOf.compactMap { $0.text }.flatMap { $0.all("a:p") }.flatMap { $0.all("a:r") }
                             .compactMap { $0.first("a:rPr")?["sz"].flatMap(Double.init) }.max().map { $0 / 100 }
                         let size = stated ?? prim
-                        let need = Double(lines) * 1.2 * size + (n.value("tMarg") ?? 0.56 * prim) + (n.value("bMarg") ?? 0.56 * prim)
+                        let need = Double(lines) * 1.15 * size + (n.value("tMarg") ?? 0.56 * prim) + (n.value("bMarg") ?? 0.56 * prim)
                         if need > n.rect.height + 0.5 { return true }
                     }
                 }
@@ -320,11 +333,13 @@ struct DiagramLayout {
             while lo <= hi {
                 let mid = (lo + hi) / 2
                 let attempt = laidOut(fontCap: Double(mid))
-                if fits(attempt.1) { best = attempt; lo = mid + 1 } else { hi = mid - 1 }
+                if fits(attempt.1, cap: Double(mid)) { best = attempt; lo = mid + 1 } else { hi = mid - 1 }
             }
             if let best { (engine, root) = best }
         }
         engine.fit(root, into: box)
+        if word { engine.placeProcessCircles(root) }
+        if word { engine.fitWordText(root); engine.growForText(root) }
         #if !os(WASI)
         if ProcessInfo.processInfo.environment["STARLING_DIAGRAM_DEBUG"] != nil {
             func dump(_ n: DgmPresNode, _ d: Int) {
@@ -345,7 +360,154 @@ struct DiagramLayout {
             dump(root, 0)
         }
         #endif
-        return engine.emit(root)
+        let emitted = engine.emit(root)
+        #if !os(WASI)
+        if ProcessInfo.processInfo.environment["STARLING_DIAGRAM_XML"] != nil { FileHandle.standardError.write(Data((PptxXML.serialize(emitted) + "\n").utf8)) }
+        #endif
+        return emitted
+    }
+
+    // MARK: - Word's text fit
+
+    /// The text of a node as paragraphs of words, with whether any run is bold and the face named.
+    private func wordParagraphs(_ n: DgmPresNode) -> (words: [[String]], bold: Bool, face: String) {
+        var out: [[String]] = []
+        var bold = false
+        var face = "Calibri"
+        for p in n.presOf.compactMap({ $0.text }).flatMap({ $0.all("a:p") }) {
+            let runs = p.all("a:r")
+            let text = runs.map { $0.first("a:t")?.text ?? "" }.joined()
+            if runs.contains(where: { $0.first("a:rPr")?["b"] == "1" }) { bold = true }
+            if let f = runs.compactMap({ $0.first("a:rPr")?.first("a:latin")?["typeface"] }).first, !f.hasPrefix("+") { face = f }
+            let words = text.split(separator: " ").map(String.init)
+            if !words.isEmpty { out.append(words) }
+        }
+        return (out, bold, face)
+    }
+
+    /// Lines the text sets in `width` at `size`, and whether a word is wider than the line.
+    private func wordLines(_ words: [[String]], bold: Bool, face: String, size: Double, width: Double) -> (lines: Int, whole: Bool) {
+        let style = Flutter.TextStyle(fontSize: size, fontWeight: bold ? .bold : nil, fontFamily: SlideFonts.resolve(face))
+        func measure(_ t: String) -> Double {
+            let tp = TextPainter(text: TextSpan(text: t, style: style), textDirection: .ltr)
+            tp.layout(minWidth: 0, maxWidth: Double.infinity)
+            defer { tp.dispose() }
+            return tp.width
+        }
+        let space = measure("a a") - measure("aa")
+        var lines = 0, whole = true
+        for para in words {
+            var used = 0.0
+            lines += 1
+            for (i, w) in para.enumerated() {
+                let ww = measure(w) * 1.004
+                if ww > width + 0.01 { whole = false }
+                if i == 0 { used = ww } else if used + space + ww <= width + 0.01 { used += space + ww } else { lines += 1; used = ww }
+            }
+        }
+        return (lines, whole)
+    }
+
+    /// How far a layout lets a box's height grow for its text at `size` (`rule type="h" fact="1.5"`), 1 where
+    /// it does not: rules apply in the order the layout lists them, so a text shrinking first down to the rule
+    /// before it (`primFontSz val="18"`) grows its box only below that size (lab sa1a: 37 pt in a box of 0.6 of
+    /// its width, not grown; sa2a: 17 pt in one grown from 68.1 to 90.4).
+    private func heightGrowth(_ n: DgmPresNode, size: Double) -> Double {
+        var threshold = Double.infinity
+        for r in n.rules {
+            if r["type"] == "primFontSz", let v = r["val"].flatMap(Double.init), v.isFinite { threshold = min(threshold, v) }
+            if r["type"] == "h", let f = r["fact"].flatMap(Double.init), f.isFinite, f > 1 { return size < threshold ? f : 1 }
+        }
+        return 1
+    }
+
+    /// The room a box's text has: an ellipse's is the rectangle inscribed in it.
+    private func textRoom(_ n: DgmPresNode) -> (width: Double, height: Double) {
+        let k = n.shapeType == "ellipse" ? 0.7071 : 1
+        return (n.rect.width * k, n.rect.height * k)
+    }
+
+    /// Word's own rule check of a diagram's text at a font cap: every word whole in its box, and the lines
+    /// (Calibri's 1.2207 of the size) inside the box's height, grown as the layout lets it (lab sa1a-sa2b:
+    /// 37, 18, 17 and 8 pt, whole points, from the widest word and the height).
+    func wordTextFits(_ root: DgmPresNode, cap: Double) -> Bool {
+        for n in root.descendants where n.algType == "tx" && n.shapeType != nil && !n.hideGeom && n.rect.width > 0 {
+            let t = wordParagraphs(n)
+            guard !t.words.isEmpty else { continue }
+            let size = min(n.value("primFontSz") ?? 65, cap)
+            guard size > 0, size.isFinite else { continue }
+            let side = (n.value("lMarg") ?? 0.56 * size) + (n.value("rMarg") ?? 0.56 * size)
+            let vert = (n.value("tMarg") ?? 0.56 * size) + (n.value("bMarg") ?? 0.56 * size)
+            let room = textRoom(n)
+            let m = wordLines(t.words, bold: t.bold, face: t.face, size: size, width: max(1, room.width - side))
+            if !m.whole { return false }
+            // (Where it may grow, the check is of the text as it will stand — its last paragraph's space after
+            // too, 0.35 of the size: lab sa2b's 9 pt, four lines in a box 34 to 51 high, does not fit; 8 does.)
+            let growth = heightGrowth(n, size: size)
+            if Double(m.lines) * 1.2207 * size + (growth > 1 ? 0.35 * size : 0) + vert > room.height * growth + 0.01 { return false }
+        }
+        return true
+    }
+
+    /// Word sets a diagram's text to fit the boxes it ends up with, after the tree was brought down to the frame
+    /// (an org chart laid out at ten times its frame, lab sa4: 14 pt in boxes of 121.5 x 77.1, 65 pt asked): the
+    /// largest whole size at which every word stands whole and the lines fit, the same for every box, margins
+    /// the share of it they were asked as.
+    func fitWordText(_ root: DgmPresNode) {
+        let boxes = root.descendants.filter { $0.algType == "tx" && $0.shapeType != nil && !$0.hideGeom && $0.rect.width > 0 && !wordParagraphs($0).words.isEmpty }
+        guard !boxes.isEmpty else { return }
+        var nominal = Double.infinity
+        var ratios: [ObjectIdentifier: [String: Double]] = [:]
+        for n in boxes {
+            let prim = min(n.value("primFontSz") ?? 65, fontCap)
+            guard prim > 0, prim.isFinite else { return }
+            nominal = min(nominal, prim)
+            var r: [String: Double] = [:]
+            for m in ["lMarg", "rMarg", "tMarg", "bMarg"] { r[m] = (n.value(m) ?? 0.56 * prim) / prim }
+            ratios[ObjectIdentifier(n)] = r
+        }
+        func fits(_ size: Double) -> Bool {
+            for n in boxes {
+                let r = ratios[ObjectIdentifier(n)]!
+                let t = wordParagraphs(n)
+                let room = textRoom(n)
+                let m = wordLines(t.words, bold: t.bold, face: t.face, size: size, width: max(1, room.width - (r["lMarg"]! + r["rMarg"]!) * size))
+                if !m.whole { return false }
+                let growth = heightGrowth(n, size: size)
+                if Double(m.lines) * 1.2207 * size + (growth > 1 ? 0.35 * size : 0) + (r["tMarg"]! + r["bMarg"]!) * size > room.height * growth + 0.01 { return false }
+            }
+            return true
+        }
+        if fits(nominal) { return }
+        var size = 5.0
+        var s = Int(nominal.rounded(.down))
+        while s >= 5 { if fits(Double(s)) { size = Double(s); break }; s -= 1 }
+        for n in boxes {
+            n.wordSize = size
+            n.wordMargin = ratios[ObjectIdentifier(n)]!
+        }
+    }
+
+    /// Word grows a box that the layout lets grow to the height its text takes (lab sa2a: 90.4 where the
+    /// boxes' 0.6 of their width is 68.1; the same for every box tied by `op="equ"`).
+    func growForText(_ root: DgmPresNode) {
+        var grown: [(DgmPresNode, Double)] = []
+        for n in root.descendants where n.algType == "tx" && n.shapeType != nil && !n.hideGeom && n.rect.width > 0 && heightGrowth(n, size: n.wordSize ?? min(n.value("primFontSz") ?? 65, fontCap)) > 1 {
+            let t = wordParagraphs(n)
+            guard !t.words.isEmpty else { continue }
+            let size = n.wordSize ?? min(n.value("primFontSz") ?? 65, fontCap)
+            guard size > 0, size.isFinite else { continue }
+            let side = n.wordSize != nil ? ((n.wordMargin["lMarg"] ?? 0) + (n.wordMargin["rMarg"] ?? 0)) * size : (n.value("lMarg") ?? 0.56 * size) + (n.value("rMarg") ?? 0.56 * size)
+            let vert = n.wordSize != nil ? ((n.wordMargin["tMarg"] ?? 0) + (n.wordMargin["bMarg"] ?? 0)) * size : (n.value("tMarg") ?? 0.56 * size) + (n.value("bMarg") ?? 0.56 * size)
+            let m = wordLines(t.words, bold: t.bold, face: t.face, size: size, width: max(1, n.rect.width - side))
+            let growth = heightGrowth(n, size: size)
+            let need = Double(m.lines) * 1.2207 * 0.9 * size + 0.35 * size + vert
+            grown.append((n, min(need, n.rect.height * growth)))
+        }
+        guard let target = grown.map(\.1).max() else { return }
+        for (n, _) in grown where target > n.rect.height + 0.01 {
+            n.rect = Rect.fromLTWH(n.rect.left, n.rect.center.dy - target / 2, n.rect.width, target)
+        }
     }
 
     /// The smallest font size a layout's rules let its text shrink to, or
@@ -652,7 +814,7 @@ struct DiagramLayout {
                     }
                     set(t, type, base * fact, op)
                     if t === node, op == "equ" { t.selfSet.insert(type) }
-                    if ref !== t, op == "equ" { t.sizeRef[type] = ref.name }
+                    if ref !== t, op == "equ" { t.sizeRef[type] = ref.name; t.sizeFact[type] = fact }
                     if op == "lte", ref === t, type == "h", refType == "w" { t.heightCappedByWidth = true }
                     // (A factor of a thousand is not a proportion: `h` = 1000 `w`
                     // is how a layout says "as tall as it needs", and kept in
@@ -675,6 +837,22 @@ struct DiagramLayout {
                 // A margin named with no value is the schema's 0 — not the
                 // default a margin no constraint names gets (`textBody`).
                 for t in ts { set(t, type, 0, op) }
+            }
+        }
+        // A text box whose rule lets its height grow (`h` INF) is as tall as
+        // its text needs where the constraint gave less: PowerPoint's print
+        // of vertical-bracket-list holds 65 pt in boxes of 110.8, where the
+        // constraint's 0.55 x 65 mm is 101.3 (a line at 1.1046 of the size
+        // and the margins: the bracket's 19.5 pt margins make the 71.8 pt
+        // line a box of 110.8; lab smartfit, the same at every frame height).
+        if !wordLayout, node.algType == "tx", node.rules.contains(where: { $0["type"] == "h" && $0["val"] == "INF" }),
+           let h = node.vals["h"], let prim = node.value("primFontSz"),
+           let tm = node.value("tMarg"), let bm = node.value("bMarg") {
+            let lines = node.presOf.compactMap { $0.text }.flatMap { $0.all("a:p") }
+                .filter { p in p.all("a:r").contains { !($0.first("a:t")?.text ?? "").isEmpty } }.count
+            if lines > 0 {
+                let need = Double(lines) * 1.1046 * prim + tm + bm
+                if need > h { node.vals["h"] = need }
             }
         }
     }
@@ -757,6 +935,19 @@ struct DiagramLayout {
     // MARK: - Layout
 
     /// Lays `node` out within its rect, placing its children.
+    /// A child held to at least a sibling's height (`h` `gte`, the bracket
+    /// beside its text) takes the height the sibling grew to, about its own
+    /// middle: PowerPoint's braces stand as tall as the text they hold.
+    private func holdMinimumHeights(_ node: DgmPresNode) {
+        for c in node.constraints where c["type"] == "h" && c["op"] == "gte" && c["for"] == "ch" && c["refFor"] == "ch" {
+            guard let name = c["forName"], let refName = c["refForName"], c["refType"] == "h" else { continue }
+            guard let ref = node.children.first(where: { $0.name == refName && !$0.isSpace }) else { continue }
+            for t in node.children where t.name == name && t.rect.height > 0 && t.rect.height < ref.rect.height - 0.01 {
+                t.rect = Rect.fromCenter(center: t.rect.center, width: t.rect.width, height: ref.rect.height)
+            }
+        }
+    }
+
     private func layoutNode(_ node: DgmPresNode) {
         node.laidOut = true
         applyConstraints(node)
@@ -792,7 +983,9 @@ struct DiagramLayout {
             }
         }
         switch node.algType {
-        case "lin": layoutLinear(node)
+        case "lin":
+            layoutLinear(node)
+            if !wordLayout { holdMinimumHeights(node) }
         case "snake": layoutSnake(node)
         case "cycle": layoutCycle(node)
         case "hierRoot": layoutHierRoot(node)
@@ -847,7 +1040,7 @@ struct DiagramLayout {
             // The author's own resizing (`custScaleX`/`Y`), about the
             // box's middle and after the constraints: composite-infer-right's
             // picture is 70.8% of its fifth, its text where it was.
-            if let pr = model.pres[c.point.id + "|" + c.name] {
+            if !(wordLayout && c.algType == "tx"), let pr = model.pres[c.point.id + "|" + c.name] {
                 if let sx = pr["custScaleX"].flatMap(Double.init), sx > 0 { x += w * (1 - sx / 100_000) / 2; w *= sx / 100_000 }
                 if let sy = pr["custScaleY"].flatMap(Double.init), sy > 0 { y += h * (1 - sy / 100_000) / 2; h *= sy / 100_000 }
             }
@@ -867,7 +1060,16 @@ struct DiagramLayout {
         }
         // A composite is as big as what it holds (its slot stays where its
         // parent put it; the size is for alignment).
-        if node.parent != nil, let u = extent(of: node.children) { node.rect = u }
+        if node.parent != nil, let u = extent(of: node.children) {
+            // (Held to its slot's height where a constraint asked for all of it:
+            // hProcess11's two kinds of step are each as tall as the line, text
+            // above or below its circle, and centred by what they hold they
+            // stood off the line's middle.)
+            if wordLayout, let h = node.vals["h"], node.rect.height > 0, h >= node.rect.height - 0.5, node.vals["w"] != nil {
+                node.rect = Rect.fromLTRB(u.left, min(u.top, node.rect.top), u.right, max(u.bottom, node.rect.bottom))
+                node.heldSlot = true
+            } else { node.rect = u }
+        }
     }
 
     /// The box round the visible children (a hidden text box does not count).
@@ -892,7 +1094,7 @@ struct DiagramLayout {
             let box: Rect?
             if c.shapeType == nil && !c.isSpace {
                 // A line knows its own run (spaces included) once laid out.
-                box = c.algType == "lin" && c.laidOut ? c.rect : extent(of: c.children)
+                box = (c.algType == "lin" || c.heldSlot) && c.laidOut ? c.rect : extent(of: c.children)
             } else if c.isSpace && c.shapeType == nil {
                 // A space has no box of its own; the line it sits in counts
                 // it along its direction (`layoutLinear`).
@@ -925,6 +1127,13 @@ struct DiagramLayout {
             // within the slot.
             if let d = c.derived[S], d.ref == P { s = p * d.fact; if s > availS { s = availS; p = s / d.fact } }
             if let d = c.derived[P], d.ref == S { p = s * d.fact }
+            // A space or connector sized as a share of the node it follows is that share of the node AS
+            // SET, after the height held it down: process1's arrow gap is 0.4 of a node 240 wide in a
+            // frame 144 high, not of the frame's 432 (Word's print of lab sa1a: nodes 113.5, gaps 45.4).
+            if wordLayout, c.isSpace || c.isConnector, let name = c.sizeRef[P], let fact = c.sizeFact[P],
+               let at = node.children.indices.first(where: { $0 < primary.count && node.children[$0].name == name && !node.children[$0].isSpace && !node.children[$0].isConnector }) {
+                p = primary[at] * fact
+            }
             primary.append(p); secondary.append(s)
         }
         // Too long for the slot: everything shrinks together, spaces too —
@@ -980,6 +1189,18 @@ struct DiagramLayout {
             cursor += p
             endP = max(endP, cursor)
             layoutNode(c)
+            // A connector keeps its begin and end pads (a share of the gap it spans) clear of the nodes it joins:
+            // Word's print of lab sa1a, gap 45.4, has the arrow 24.1 wide from 11.4 in (0.25 and 0.22).
+            if wordLayout, c.isConnector, horizontal, c.shapeType != nil {
+                func pad(_ type: String) -> Double {
+                    c.constraints.first { $0["type"] == type && $0["refType"] == "connDist" }.flatMap { $0["fact"].flatMap(Double.init) } ?? 0
+                }
+                let beg = pad("begPad"), end = pad("endPad")
+                if beg + end > 0, beg + end < 1 {
+                    let tall = c.derived["h"].flatMap { $0.ref == "w" ? p * $0.fact : nil } ?? c.rect.height
+                    c.rect = Rect.fromLTWH(c.rect.left + beg * p, c.rect.center.dy - tall / 2, p * (1 - beg - end), tall)
+                }
+            }
         }
         // What a child turned out to hold is what gets aligned across the
         // line (a chevron shorter than its slot sits in the middle of it),
@@ -1045,9 +1266,47 @@ struct DiagramLayout {
             let side = min(w, h * ar)
             w = side; h = side / ar
         }
+        let n = items.count
+        // PictureStrips is sized as PowerPoint's built-in one (measured at
+        // n = 1...6): strips of aspect 3, one column up to four of them and
+        // two from five, row gap 0.1325 of a strip's height and column gap
+        // twice that, the strips (with the picture bar's 0.03 overhang)
+        // centred in the frame.
+        if layout["uniqueId"] == "urn:microsoft.com/office/officeart/2008/layout/PictureStrips",
+           first.params["ar"].flatMap(Double.init) == 3, (node.params["flowDir"] ?? "row") == "row" {
+            let g = 0.1325, over = 0.03
+            // (Where the height limits them PowerPoint's own rule is not known:
+            // n = 3 and 4 measured, the rest by the frame less a tenth.)
+            var bestH = 0.0, bestC = 1
+            for c in 1 ... min(2, n) {
+                let r = (n + c - 1) / c
+                let byWidth = W / (3 * Double(c) + Double(c - 1) * 2 * g)
+                let byHeight: Double
+                if c == 1, n == 3 { byHeight = 117.7 / 426.7 * H } else if c == 1, n == 4 { byHeight = 86.6 / 426.7 * H }
+                else { byHeight = 0.9 * H / (Double(r) + Double(r - 1) * g + over) }
+                let hh = min(byWidth, byHeight)
+                if hh > bestH + 1e-9 { bestH = hh; bestC = c }
+            }
+            let cols = bestC, rows = (n + cols - 1) / cols
+            let h = bestH, w = 3 * h
+            var gap = g * h
+            // (Width-limited in a column, the rest of the height is shared out between them.)
+            if cols == 1, n == 2 { gap = max(gap, (0.8725 * H - Double(n) * h - over * h) / Double(n - 1)) }
+            let colPitch = w + 2 * g * h
+            let spanW = Double(cols) * w + Double(cols - 1) * 2 * g * h
+            let spanH = Double(rows) * h + Double(rows - 1) * gap + over * h
+            let ox = node.rect.left + (W - spanW) / 2, oy = node.rect.top + (H - spanH) / 2
+            for (i, item) in items.enumerated() {
+                let row = i / cols, col = i % cols
+                let inLine = min(cols, n - row * cols)
+                let shift = inLine < cols ? Double(cols - inLine) / 2 * colPitch : 0
+                item.rect = Rect.fromLTWH(ox + Double(col) * colPitch + shift, oy + Double(row) * (h + gap), w, h)
+                layoutNode(item)
+            }
+            return
+        }
         let hs = spaces.first?.vals["w"] ?? 0
         let vs = node.vals["sp"] ?? hs
-        let n = items.count
         let byRow = (node.params["flowDir"] ?? "row") == "row"
         // The column count whose grid is largest in the frame.
         var best = 1, bestScore = Double.infinity
@@ -1127,6 +1386,21 @@ struct DiagramLayout {
             // The ring touches the centre shape, less the overlap asked for.
             let (cw, _) = sizes(items[0])
             radius = (cw + w) / 2 + (node.vals["sp"] ?? node.vals["sibSp"] ?? 0)
+        } else if m > 1, layout["uniqueId"]?.split(separator: "#").first.map(String.init) == "urn:microsoft.com/office/officeart/2005/8/layout/arrow5", full, (3 ... 5).contains(m) || m >= 9 {
+            // PowerPoint draws a layout it knows by its uniqueId from its own
+            // definition, not from the file's (windows' lab on
+            // lo-smartart-rotation, with the id renamed so the file's was
+            // read): the chord between neighbours is (c + sibSp) arrows,
+            // c = 1.414 for four, 1.291 for five,
+            // and for three always 1.221 whatever the sibSp: 158.9 pt
+            // arrows on a ring 0.705 of one, where the file's -0.35 gave
+            // 0.375 and arrows 205 pt wide.
+            let s = max(w, h)
+            // (A "#1" or "#2" after the id is a copy of the same layout, drawn the same: autoTxRot's pages 2 and 3.)
+            // (Nine and more: lo-smartart-autoTxRot's sixteen arrows are 48.04 pt on a ring whose neighbours
+            // are 1.1038 of one apart in PowerPoint's print, c = 1.2038 with the file's -0.1.)
+            let chord = m == 3 ? s * 1.1708 : s * (m == 4 ? 2.0.squareRoot() : m >= 9 ? 1.2038 : 1.2908) + (node.vals["sibSp"] ?? 0)
+            radius = chord / (2 * sin(abs(step) / 2 * .pi / 180))
         } else if m > 1 {
             let chord = max(w, h) + (node.vals["sibSp"] ?? 0)
             radius = chord / (2 * sin(abs(step) / 2 * .pi / 180))
@@ -1145,12 +1419,34 @@ struct DiagramLayout {
             let (cw, ch) = sizes(items[0])
             placed.append((items[0], Offset.zero, cw, ch, 0))
         }
+        // cycle7's arrows are 0.8 of the smallest gap between neighbouring nodes (`connDist` equal for all, `begPad` and
+        // `endPad` a tenth of it each), measured along the line between their centres from edge to edge, and as thick as
+        // half of the layout's 0.35-of-a-node `w` (lo-smartart-multidirectional's three nodes: PowerPoint's arrows are 86.34
+        // long at nodes 165.7 wide, 29.0 thick, the diagonal ones as long as the horizontal one).
+        let cycle7 = layout["uniqueId"] == "urn:microsoft.com/office/officeart/2008/layout/cycle7"
+            || layout["uniqueId"] == "urn:microsoft.com/office/officeart/2005/8/layout/cycle7"
+        var connDist: Double? = nil
+        if cycle7, ring.count > 1, full {
+            var smallest = Double.infinity
+            for i in 0 ..< ring.count {
+                let p0 = placed[i], p1 = placed[(i + 1) % ring.count]
+                let dx = p1.1.dx - p0.1.dx, dy = p1.1.dy - p0.1.dy
+                let d = (dx * dx + dy * dy).squareRoot()
+                guard d > 0 else { continue }
+                let ux = abs(dx / d), uy = abs(dy / d)
+                func exit(_ cw: Double, _ ch: Double) -> Double { min(ux > 1e-9 ? cw / 2 / ux : .infinity, uy > 1e-9 ? ch / 2 / uy : .infinity) }
+                smallest = min(smallest, d - exit(p0.2, p0.3) - exit(p1.2, p1.3))
+            }
+            if smallest.isFinite, smallest > 0 { connDist = smallest }
+        }
         for (i, c) in conns.enumerated() where ring.count > 1 {
             let a = stAng + (Double(i) + 0.5) * step
             // Sized against the nodes as they ended up, not as preferred.
-            let cw = (c.value("w") ?? preferredW * 0.25) * (preferredW > 0 ? w / preferredW : 1)
+            var cw = (c.value("w") ?? preferredW * 0.25) * (preferredW > 0 ? w / preferredW : 1)
             var ch = (c.value("h") ?? cw) * (preferredW > 0 ? w / preferredW : 1)
             if let d = c.derived["h"], d.ref == "w" { ch = cw * d.fact }
+            else if cycle7 { ch = cw * 0.5 }
+            if let cd = connDist { cw = cd * 0.8 }
             // Between its two neighbours, on the straight line from one to
             // the other — nearer the centre than the ring by the chord's sag.
             let at = pos(a), sag = cos(abs(step) / 2 * .pi / 180)
@@ -1325,6 +1621,39 @@ struct DiagramLayout {
         return out
     }
 
+    /// Word's print of hProcess11 (lab hp0..hp2, seven steps, texts resized by `custScaleX`): the circles do not
+    /// stand at an even pitch (63.6 59.9 52.4 59.7 63.6 64.2 in a 421.2 line, whatever the texts say) and no rule
+    /// in the definition gives that, so they are set at the shares Word printed, each step carrying its text
+    /// with it. Only the seven-step diagram is known. Done after the fit, which would read a step
+    /// leaving the line as a diagram too wide and shrink it.
+    private func placeProcessCircles(_ root: DgmPresNode) {
+        guard layout["uniqueId"] == "urn:microsoft.com/office/officeart/2005/8/layout/hProcess11" else { return }
+        // (Only where the author resized the texts (`custScaleX`, as in the lab's files): without it the fit's
+        // own even pitch is Word's, as its prints of 3, 5, 9 and 11 steps with no stored sizes show — lab hp3,
+        // circles at 144.5/287.0/429.5, 117.5…457.0, 99.0…475.5, 95.0…479.5, all within the print's 0.5 pt.)
+        guard model.pres.contains(where: { $0.key.hasSuffix("|textA") || $0.key.hasSuffix("|textB") ? $0.value["custScaleX"] != nil : false }) else { return }
+        func circle(_ n: DgmPresNode) -> DgmPresNode? {
+            if n.name.hasPrefix("circle") { return n }
+            for k in n.children { if let r = circle(k) { return r } }
+            return nil
+        }
+        func visit(_ node: DgmPresNode) {
+            if node.name == "points" {
+                let steps = node.children.filter { !$0.isSpace && !$0.isConnector }
+                let shares = [26.81, 90.44, 150.35, 202.72, 262.38, 325.99, 390.22].map { $0 / 421.2 }
+                if steps.count == shares.count, node.params["linDir"] != "fromR" {
+                    for (c, share) in zip(steps, shares) {
+                        guard let ring = circle(c) else { continue }
+                        shift(c, Offset(node.rect.left + share * node.rect.width - ring.rect.center.dx, 0))
+                    }
+                }
+                return
+            }
+            for k in node.children { visit(k) }
+        }
+        visit(root)
+    }
+
     private func shift(_ node: DgmPresNode, _ d: Offset) {
         node.rect = node.rect.shift(d)
         for c in node.children { shift(c, d) }
@@ -1361,6 +1690,8 @@ struct DiagramLayout {
         var lineWidth = 9525
         var fillRef = 1
         var lineRef = 2
+        var effectRef = 0
+        var sp3d: XNode?
     }
 
     /// The colours and style references for a style label, by its index
@@ -1389,6 +1720,8 @@ struct DiagramLayout {
         if let s = st?.first("dgm:style") {
             l.fillRef = s.first("a:fillRef")?["idx"].flatMap(Int.init) ?? 1
             l.lineRef = s.first("a:lnRef")?["idx"].flatMap(Int.init) ?? 2
+            l.effectRef = s.first("a:effectRef")?["idx"].flatMap(Int.init) ?? 0
+            if let sp = st?.first("dgm:sp3d"), sp["prstMaterial"] == "metal", sp.first("a:bevelT") != nil { l.sp3d = clone(sp) }
             if l.text == nil, let f = s.first("a:fontRef")?.children.first { l.text = clone(f) }
         }
         l.lineWidth = [0: 0, 1: 9525, 2: 25400, 3: 38100][l.lineRef] ?? 12700
@@ -1575,6 +1908,8 @@ struct DiagramLayout {
             // The point's own effects (fill-color-list's shadow under
             // each heading).
             if let e = own?.first("a:effectLst") { spPr.children.append(clone(e)) }
+            // The quick style's metal bevel (3d3): drawn as a thin rim, see SlidePainter.
+            if let sp = look.sp3d, !n.hideGeom { var at = sp.attrs; at["starlingDiagram"] = "1"; let q = XNode(name: "a:sp3d", attrs: at); q.children = sp.children; spPr.children.append(q) }
         }
         // The style: references with the scheme's colours, the text's colour.
         let style = XNode(name: "p:style", attrs: [:])
@@ -1584,7 +1919,7 @@ struct DiagramLayout {
             return r
         }
         style.children = [ref("a:lnRef", look.lineRef, look.line), ref("a:fillRef", look.fillRef, look.fill),
-                          ref("a:effectRef", 0, look.fill)]
+                          ref("a:effectRef", n.hideGeom ? 0 : look.effectRef, look.fill)]
         let font = XNode(name: "a:fontRef", attrs: ["idx": "minor"])
         font.children = [look.text.map(clone) ?? XNode(name: "a:schemeClr", attrs: ["val": "lt1"])]
         style.children.append(font)
@@ -1647,7 +1982,11 @@ struct DiagramLayout {
         let noLine = XNode(name: "a:ln", attrs: [:])
         noLine.children = [XNode(name: "a:noFill", attrs: [:])]
         tPr.children = [txf, rectGeom, XNode(name: "a:noFill", attrs: [:]), noLine]
-        tx.children = [tnv, tPr, clone(style), body]
+        // (The text's own shape has no fill or line, so no shadow either: the style's effect would
+        // cast the text box's rectangle as a grey block under the wedge.)
+        let textStyle = clone(style)
+        textStyle.children.first { $0.name == "a:effectRef" }?.attrs["idx"] = "0"
+        tx.children = [tnv, tPr, textStyle, body]
         return [sp, tx]
     }
 
@@ -1700,14 +2039,15 @@ struct DiagramLayout {
         // Bullets from the second level unless the algorithm says otherwise
         // (`stBulletLvl="1"`: the bracket list's "•A", alone in its shape).
         let startLevel = Int(n.params["stBulletLvl"] ?? "2") ?? 2
-        let prim = min(n.value("primFontSz") ?? 65, fontCap)
+        let prim = n.wordSize ?? min(n.value("primFontSz") ?? 65, fontCap)
         // A lower level under a higher one, in one shape, is 78% of its size
         // when nothing says otherwise: PowerPoint's 51 under 65
         // (lo-smartart-bullet-list) and 33 under 42 (lo-smartart-missing-
         // bullet).
-        let sec = min(n.value("secFontSz") ?? prim * 0.78, fontCap)
+        let sec = min(n.value("secFontSz") ?? (prim * 0.78).rounded(), fontCap)
         var paragraphs: [XNode] = []
         var listed = false
+        var generatedHang = false
         for p in points {
             let level = max(0, p.depth - top)
             let bulleted = bullets && level + 1 >= startLevel
@@ -1719,8 +2059,19 @@ struct DiagramLayout {
                 let pPr = XNode(name: "a:pPr", attrs: [:])
                 if level > 0 { pPr.attrs["lvl"] = String(min(8, level)) }
                 if bulleted {
-                    pPr.attrs["marL"] = String(171450 * (level + 2 - startLevel))
-                    pPr.attrs["indent"] = "-171450"
+                    // The hanging indent follows the paragraph's size in steps
+                    // of 4.5 pt, up to 22.5 (PowerPoint's 9 at 12 pt, 13.5 at
+                    // 16, 18 at 27, 22.5 from 31 up).
+                    let stated = runs.first { $0.name == "a:r" }?.first("a:rPr")?["sz"].flatMap(Double.init).map { $0 / 100 }
+                    let own = stated ?? (level > 0 ? sec : prim)
+                    // (A hang the data's own paragraph states is kept: missing-
+                    // bullet's 8.75 pt, under which the 12 pt bullet pushes its
+                    // text right in PowerPoint's print.)
+                    let said = para.first("a:pPr")?["indent"].flatMap(Int.init).map { -$0 }
+                    let unit = said.flatMap { $0 > 0 ? $0 : nil } ?? Int(4.5 * Double(min(5, Int((own / 6.75).rounded(.up)))) * 12700)
+                    if said.flatMap({ $0 > 0 ? $0 : nil }) == nil { generatedHang = true }
+                    pPr.attrs["marL"] = String(unit * (level + 2 - startLevel))
+                    pPr.attrs["indent"] = String(-unit)
                     pPr.children = [XNode(name: "a:buChar", attrs: ["char": "•"])]
                 } else {
                     pPr.children = [XNode(name: "a:buNone", attrs: [:])]
@@ -1733,8 +2084,12 @@ struct DiagramLayout {
                     n.children = [XNode(name: "a:spcPct", attrs: ["val": String(v)])]
                     return n
                 }
-                pPr.children.insert(contentsOf: [pct("a:lnSpc", 90000), pct("a:spcBef", 0),
-                                                 pct("a:spcAft", level > 0 ? 15000 : 35000)], at: 0)
+                // (What the data's own paragraph states stands: missing-bullet's
+                // bullet line is at 100% and no space after, a tenth taller than
+                // the generated 90%, in PowerPoint's print.)
+                func stated(_ name: String, _ fallback: XNode) -> XNode { para.first("a:pPr")?.first(name) ?? fallback }
+                pPr.children.insert(contentsOf: [stated("a:lnSpc", pct("a:lnSpc", 90000)), stated("a:spcBef", pct("a:spcBef", 0)),
+                                                 stated("a:spcAft", pct("a:spcAft", level > 0 ? 15000 : 35000))], at: 0)
                 out.children = [pPr]
                 for run in runs {
                     let r = clone(run)
@@ -1770,10 +2125,35 @@ struct DiagramLayout {
             .filter { $0.name == "a:r" && !($0.first("a:t")?.text ?? "").isEmpty }
         let ownSizes = fileRuns.compactMap { $0.first("a:rPr")?["sz"].flatMap(Double.init) }
         let k = !fileRuns.isEmpty && ownSizes.count == fileRuns.count && prim > 0 ? min(1, (ownSizes.max() ?? 0) / 100 / prim) : 1
-        func margin(_ name: String) -> String { Self.emu((n.value(name) ?? inset) * k) }
+        // PictureStrips' text starts a tenth of a strip's height past the
+        // small picture's right edge (measured at n = 1...6), not at 0.6 of
+        // the bar's width.
+        let strips = layout["uniqueId"] == "urn:microsoft.com/office/officeart/2008/layout/PictureStrips"
+        func margin(_ name: String) -> String {
+            if strips, name == "lMarg", n.vals["lMarg"] != nil, n.rect.width > 0 {
+                let strip = n.rect.width / 0.96
+                return Self.emu((0.21 - 0.04) * strip + 0.1 * strip / 3)
+            }
+            if let ws = n.wordSize, let r = n.wordMargin[name] { return Self.emu(r * ws * k) }
+            return Self.emu((n.value(name) ?? inset) * k)
+        }
         let bodyPr = XNode(name: "a:bodyPr", attrs: ["anchor": anchor, "wrap": "square", "starling:insScale": "1",
                                                      "lIns": margin("lMarg"), "tIns": margin("tMarg"),
                                                      "rIns": margin("rMarg"), "bIns": margin("bMarg")])
+        // (Word sets a diagram's text about 1.9pt lower in its box than the text engine's centring does: lab
+        // sa1a-sa4's single lines 1.2 to 2.5pt, lo-8ab9b90f's labels 1.6 to 2.8, whichever way anchored.)
+        if wordLayout, let t = bodyPr["tIns"].flatMap(Double.init), let b = bodyPr["bIns"].flatMap(Double.init) {
+            // (hProcess11's two texts, lab hp3's prints at 3 to 11 steps: the one above its circle, anchored at the
+            // bottom, stands 0.9pt lower than that 1.9 gives and the one below, anchored at the top, 2.2pt higher —
+            // fixed in Word's box whatever the text's length: baselines 161.66 and 230.21.)
+            var shift = 1.9
+            if layout["uniqueId"] == "urn:microsoft.com/office/officeart/2005/8/layout/hProcess11" {
+                shift = anchor == "b" ? 2.83 : -0.31
+            }
+            let d = shift >= 0 ? min(b, shift * 12700) : shift * 12700
+            bodyPr.attrs["tIns"] = String(Int((t + d).rounded()))
+            bodyPr.attrs["bIns"] = String(Int((b - d).rounded()))
+        }
         // (Text the author sized — every point it shows `custT`, every run
         // its own `sz` — keeps that size, out of the shared fit: autofit-
         // sync's third column, 16 and 14 pt in PowerPoint, was taken down
@@ -1783,8 +2163,12 @@ struct DiagramLayout {
             bodyPr.children = []
         } else {
             if let g = n.sizeGroup { bodyPr.attrs["starling:sizeGroup"] = g }
+            if generatedHang { bodyPr.attrs["starling:generatedHang"] = "1" }
             bodyPr.children = [XNode(name: "a:normAutofit", attrs: [:])]
         }
+        // (PictureStrips' left margin is a distance from the picture, not a
+        // share of the font: it stays when the text shrinks.)
+        if strips, n.vals["lMarg"] != nil { bodyPr.attrs["starling:insScale"] = "0" }
         body.children = [bodyPr, XNode(name: "a:lstStyle", attrs: [:])] + paragraphs
         return body
     }

@@ -1,0 +1,3 @@
+NEW: 756 docs, mean with text 99.934 (n=746), all 98.612, >=95 745, 100% 659, pages equal 756
+OLD: 756 docs, mean with text 99.934 (n=746), all 98.612, >=95 745, 100% 659, pages equal 756
+up 0  down 0  pagecount-changed 0  missing-in-new 0

@@ -43,7 +43,7 @@ public enum TextInputChannel {
     }
 
     private nonisolated(unsafe) static var _nextClient = 1
-    static func nextClientId() -> Int {
+    public static func nextClientId() -> Int {
         defer { _nextClient += 1 }
         return _nextClient
     }
@@ -51,7 +51,7 @@ public enum TextInputChannel {
     private nonisolated(unsafe) static var _owner: ObjectIdentifier? = nil
 
     /// Take the channel's listener.
-    static func listen(owner: AnyObject, _ handler: @escaping (Data?) -> Void) {
+    public static func listen(owner: AnyObject, _ handler: @escaping (Data?) -> Void) {
         _owner = ObjectIdentifier(owner)
         MainActor.assumeIsolated {
             channelBuffers.setListener(name) { data, reply in
@@ -62,7 +62,7 @@ public enum TextInputChannel {
     }
 
     /// Let go of the listener, if it is still this owner's.
-    static func unlisten(owner: AnyObject) {
+    public static func unlisten(owner: AnyObject) {
         guard _owner == ObjectIdentifier(owner) else { return }
         _owner = nil
         MainActor.assumeIsolated { channelBuffers.clearListener(name) }
@@ -83,7 +83,7 @@ public enum TextInputChannel {
         #endif
     }
 
-    static func send(_ method: String, _ args: Any?) {
+    public static func send(_ method: String, _ args: Any?) {
         #if !os(WASI)
         var body: [String: Any] = ["method": method]
         body["args"] = args ?? null
@@ -95,7 +95,7 @@ public enum TextInputChannel {
 
     /// A decoded message: its method and the client id and payload of a
     /// `TextInputClient.*` call, or nil for anything else.
-    static func decode(_ data: Data?) -> (method: String, client: Int, payload: Any?)? {
+    public static func decode(_ data: Data?) -> (method: String, client: Int, payload: Any?)? {
         #if os(WASI)
         return nil
         #else
@@ -108,7 +108,7 @@ public enum TextInputChannel {
     }
 
     /// The client configuration for `TextInput.setClient`.
-    static func config(multiline: Bool) -> [String: Any] {
+    public static func config(multiline: Bool) -> [String: Any] {
         [
             "inputType": ["name": multiline ? "TextInputType.multiline" : "TextInputType.text",
                           "signed": null, "decimal": null],

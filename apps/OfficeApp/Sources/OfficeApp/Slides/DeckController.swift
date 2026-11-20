@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 
@@ -58,6 +59,7 @@ struct ShapeState: Equatable {
     var chartDrawing: [ShapeState] = []
     var insetsFollowFont = false
     var sizeGroup: String? = nil
+    var generatedHang = false
     var outlineDash: String? = nil
     var outlineJoin: String? = nil
     var outlineCap: String? = nil
@@ -66,7 +68,10 @@ struct ShapeState: Equatable {
     var tailEnd: LineEnd? = nil
     var outlineCompound: String? = nil
     var textTurn = 0
+    var textStacked = 0
     var textSpin = 0.0
+    var textRev = 0.0
+    var textScene: Scene3D? = nil
     var naturalLines = false
     var shadow: CharShadow? = nil
     var innerShadow: CharShadow? = nil
@@ -1154,6 +1159,7 @@ final class DeckController: ChangeNotifier {
         st.lineReduction = s.lineReduction
         st.pictureLevels = s.pictureLevels
         st.sizeGroup = s.sizeGroup
+        st.generatedHang = s.generatedHang
         st.outlineDash = s.outlineDash
         st.outlineJoin = s.outlineJoin
         st.outlineCap = s.outlineCap
@@ -1162,7 +1168,10 @@ final class DeckController: ChangeNotifier {
         st.outlineCompound = s.outlineCompound
         st.tailEnd = s.tailEnd
         st.textTurn = s.textTurn
+        st.textStacked = s.textStacked
         st.textSpin = s.textSpin
+        st.textRev = s.textRev
+        st.textScene = s.textScene
         st.naturalLines = s.naturalLines
         st.shadow = s.shadow
         st.innerShadow = s.innerShadow
@@ -1242,6 +1251,12 @@ final class DeckController: ChangeNotifier {
                 }
                 for r in shape.rendered { if let n = nominal(r) { smallest[n] = min(smallest[n] ?? 1, r.fontScale) } }
                 for r in shape.rendered { if let n = nominal(r), let s = smallest[n] { r.fontScale = s } }
+                // A hang this layout generated from the unshrunk size follows
+                // the size the text ended at (cycle-matrix's side boxes:
+                // 8 pt in PowerPoint, not 22.5); a stated hang stays.
+                for r in shape.rendered where r.generatedHang && r.autofit && r.fontScale < 1 {
+                    if let tt = r.textTheme { tt.listIndent = max(4.5, tt.listIndent * r.fontScale) }
+                }
             }
         } else if case .chart = st.kind, !st.chartDrawing.isEmpty {
             if shape.rendered.map(_state) != st.chartDrawing { shape.rendered = st.chartDrawing.map(_make) }
@@ -1263,6 +1278,7 @@ final class DeckController: ChangeNotifier {
         shape.fontScale = st.fontScale
         shape.insetsFollowFont = st.insetsFollowFont
         shape.sizeGroup = st.sizeGroup
+        shape.generatedHang = st.generatedHang
         shape.outlineDash = st.outlineDash
         shape.outlineJoin = st.outlineJoin
         shape.outlineCap = st.outlineCap
@@ -1271,7 +1287,10 @@ final class DeckController: ChangeNotifier {
         shape.outlineCompound = st.outlineCompound
         shape.tailEnd = st.tailEnd
         shape.textTurn = st.textTurn
+        shape.textStacked = st.textStacked
         shape.textSpin = st.textSpin
+        shape.textRev = st.textRev
+        shape.textScene = st.textScene
         shape.naturalLines = st.naturalLines
         shape.shadow = st.shadow
         shape.innerShadow = st.innerShadow
@@ -1390,10 +1409,11 @@ final class DeckController: ChangeNotifier {
         theme.scriptSizeWholeUp = true      // and sets a raised run at 65% rounded up to a whole point
         theme.measuresShownCaps = true      // and fits a run in capitals by its capitals
         theme.kernsByRun = true             // and kerns a run only from its `kern` size up
-        theme.cellLineShift = { $0.rounded() - 0.02 - $0 }   // and sets a cell's lines on whole points from its text's top
+        // (No `cellLineShift`: PowerPoint for Windows keeps a cell's lines at their pitch, as it does a box's.)
         theme.cellLinesPastCorners = true   // and runs a cell's own lines half their width past its corners
         theme.exactLineDescentShare = 0.22  // and sets a line of so many points' baseline 0.78 down it, whatever the face
         theme.exactLineDescentOfSize = 0.25 // but no less than a quarter of its text's size above its foot
+        theme.exactLinesAsPowerPoint = true
         theme.extraAboveShare = 0.7         // and puts 0.7 of a spacing over single's extra above the line
         theme.marksEmptyListItems = false   // PowerPoint shows no bullet on an empty paragraph
         theme.markersAtHang = true          // and puts the bullet at marL + indent

@@ -1332,6 +1332,37 @@ Word has them 62% of POI's and 45% of the Chinese sample's (42% and
 What Word does, by what was measured (each is in the code beside the
 line that does it):
 
+- **An em space is an em and an en space half one, whatever face sets it (2026-10-30).** zh-8415d258's paragraphs open with
+  two U+2003 in a 仿宋_GB2312 run: 15pt apiece at 15pt in Word for Windows' print (set in Cambria Math), where the stand-in's
+  fallback set them 6.7 and every such first line took a character more. Same-base pair on the tip (8ac9be91), 756
+  Windows documents, both matchers: zh-8415d258 97.8 -> 99.6 (v2 96.2 -> 98.0), zh-b62c9e11 98.0 -> 100, nothing else.
+
+- **A Thai word is measured by its shaped width, not letter by letter, for "wider than the line" (2026-10-30).**
+  `_wideWordStarts` sends a word wider than the line to a line of its own, and summed each character's advance alone;
+  for Thai (a base letter alone is wider than in a word) that put zh-6a4fc013's 392.7pt stretch over a 467.8 column
+  ("คำถามที่ 4 ： บทลง…เป็นเท็จ?", after an ideograph and a space) and forced a U+2028 before it, so p18's headings
+  took two lines and every page after ran one late. Found by dumping the span the engine laid out (a U+2028 sat
+  after the colon's space; an ASCII colon avoids the check, which is why Latin "：" fit). Thai words now use
+  `_thaiJoins`'s width (0.42 em a base letter, none for marks). zh-6a4fc013 412 -> 577 of 616 lines (v2 66.9 -> 93.7);
+  it is the only document in the corpus with Thai text (every package part checked), so nothing else can move.
+  Then p26's questions (lab thq, reprinted alone): the closing "?" hangs its whole 3.85pt past the margin, the fit is
+  tested on the stretch without it (taken to ~0.7 over, refused at 0.8), the "：" before the tab is not squeezed.
+  Thai paragraphs only: a "?" ending a Thai stretch hangs and the rest may be 2pt over (ours is a hair wider than Word's
+  face); a mark before a tab gives nothing. zh-6a4fc013 577 -> 601 of 616 lines (v2 93.7 -> 97.6), 27 of 27 pages.
+  Left: a text-layer difference in the "คำถามที่" headings (sara am) and a line broken mid-word 3 characters apart.
+
+- **An unhinted curly quote gives nothing, in Word for Windows (2026-10-29).**
+  A “ ” ‘ ’ whose run is not hinted `eastAsia` is set in the Latin slot,
+  full-width or not by the face there, and no line-end squeeze takes room
+  from it. Labs e5q–e5t (zh-e5eb092a's package, mode 14, compressPunctuation,
+  zh-CN, its quotes unhinted in Normal (Web)'s 宋体 hAnsi): "府”，" is taken
+  only while "…府”" fits with every quote at its em; the same quotes as 《》
+  let "》" give half its em, and "《" nothing. The Word-for-Windows prints
+  that squeeze full-width quotes have them hinted East Asian. Pair
+  tip0 (8d52c101) → q1, 756 documents, Windows mode: zh-e5eb092a 96.9 → 100,
+  zh-4a2ab598 99.6 → 99.9, nothing else moved; the same two again on
+  d645363c.
+
 - **Overflowing first-line indents in fixed text boxes (2026-10-28).**
   In measured standalone DrawingML `noAutofit` frames, Word keeps the first
   glyph on line one at its stated positive indent even when it cannot fit.
@@ -2956,6 +2987,12 @@ fitter dropped the paragraph's tail).
   character longer. A level not yet counted (or reset by a higher one)
   now begins at its start; a parent level not yet counted shows its
   start too. zh-ac627439 99.5% -> 99.7; nothing else moved by 0.3.
+  (2026-10-29) And counts it so: a shallower level not yet counted when
+  a deeper item comes first is counted at its start, and the next item
+  there is the one after. zh-505b9619's list opens at level 2 ("1.1"),
+  and Word for Windows numbers its first level-1 items 2 and 3; ours
+  numbered them 1 and 2. Pair d645363c, 756 Windows mode: only
+  zh-505b9619 96.6 -> 96.8 (v2 matcher 97.9 -> 98.1).
 
 - **A flattened table's cells keep their room above and below
   (2026-10-15).** A nested table too big or too deep to be a block is
@@ -8599,3 +8636,42 @@ with no other document changes; tab indentation remains a separate issue.
   sum falls short refuses it. Pair on the Windows box, 756 documents per
   mode: zh-f39e54b6 94.5→95.9 Windows (第十四條 sends "日" down, 第十五條
   keeps "查", as both Words' prints), every other document identical.
+- **Three Windows-host causes: Thai breaks, a missing cs face, WordArt's extent
+  (2026-10-29).** (1) Word for Windows breaks Thai only at spaces, but the
+  switch (`thaiBreaksAtSpaces`) was set only once Word for Mac's cordia.ttc
+  had loaded, which happens on macOS alone; a Windows host broke Thai at ICU's
+  dictionary boundaries. It is now set on Windows hosts too, and the Windows
+  Thai face takes Browallia New's advances (2.5% narrow over 11,356 letters)
+  in place of a class scale. zh-6a4fc013 48.5→66.9 Windows-hosted, the bulk of
+  the ~0.09 zh gap between Windows- and Mac-hosted Windows mode; residual: p18
+  keeps a bold heading on one line where ours breaks after "：". (2) A cs face
+  neither embedded nor installed ("Noto Sans Arabic UI" in POI `rtl`) fell to
+  the platform default; on Windows that is Segoe UI, 1.33em, 15.96pt lines
+  against Word's ~14. It now falls to Times New Roman: rtl 28.6→85.7 both
+  modes. (3) An inline VML WordArt shape (text path, spt 136–175) adds to its
+  line in Word for Windows' print 0.68 plus the larger of its outline's term
+  (lab wa4: 0.84/2.28/11.28/19.56/30.0 at 0.5/1/2/3/4pt, in proportion
+  between, past 4pt on the 3→4 step) and 2.28 for a shadow; within 0.02 of the
+  lab but for the text's own part ("ОООО"/"IIII" at 1pt: 42.95 against 41.52).
+  WordWithAttachments 73.7→81.6; its rest is p2's embedded document. Pair on
+  the Windows box, 756 documents, Windows mode: only those three move; Mac mode
+  (Thai+WordArt) only zh-6a4fc013 48.7→49.8.
+- **A missing complex-script face: spaces in Cambria, Arabic in Times
+  (2026-10-30).** Word-win's rtl print sets the Arabic of a cs face it has
+  none of ("Noto Sans Arabic UI") in TimesNewRomanPSMT and its spaces and
+  neutral marks in Cambria — 115 spaces of 2.64pt at 12pt, where Times' are
+  3.0. Times as the primary face (2026-10-29) had fixed the lines' height but
+  set the spaces in Times: each line took three letters fewer, 8 lines to
+  Word's 7, rtl 85.7 — and on a Mac host, which had fallen through to the
+  same split before, down from 100. The Cambria clone is now the primary
+  face and Times' joining widths still set each Arabic word. Pair on the
+  Windows box, office 8ac9be91, Windows mode, 756 documents: rtl 85.7→100,
+  nothing else moves (v1 and v2).
+
+- **A Word chart with no title: its plot starts higher.** Word for Windows' print puts the top value-axis
+  label 15.15pt under the frame's top in a 432x252 untitled chart (a titled one: 41.15), ours 19.15, so the
+  4.5 and 5 labels missed the 3pt window (ten charts in nine LibreOffice documents, tdf130031 and tdf130380
+  among them). A 2013-style flat chart takes -4pt at the top; an unstyled (LibreOffice's older export) one -3
+  at the top and 6pt more at the foot (lo-40949e85 tdf124398, lo-79680f48: the axis 9pt taller). 3-D
+  charts keep their plot (lo-8743d336 stood right). amd-5, 2026-11-01: LO 593 ten documents up (about 20
+  lines), none down; the 756 identical. Census of the chart-text class: docs/plans/word-gaps-tasks.md.

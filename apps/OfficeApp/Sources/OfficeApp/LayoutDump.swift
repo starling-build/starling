@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Flutter
+import OfficeText
 import Foundation
 
 /// The document's lines and pages as text, laid out the way the window
@@ -15,6 +16,7 @@ enum OfficeLayoutDump {
         theme.fontFamilyResolver = OfficeFonts.drawn
         theme.faceResolver = OfficeFonts.face
         theme.complexFaceResolver = OfficeFonts.complexFace
+        theme.complexFaceKeepsDigits = OfficeFonts.complexFaceKeepsDigits
         theme.averageCharWidth = OfficeFonts.averageCharWidth
         theme.symbolGlyphs = { face, text in face.map { Metafile.symbols(text, face: $0) } ?? text }
         theme.symbolAdvance = Metafile.symbolAdvance

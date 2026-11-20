@@ -9,6 +9,7 @@
 // `_compositeChild`) — so they are drawn, not composited.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 
@@ -26,6 +27,14 @@ final class SlideTextCache {
     }
     private var _entries: [ObjectIdentifier: Entry] = [:]
     private var _images: [String: Image] = [:]
+    /// The pixel sizes (width << 32 | height) of the pictures decoded from a
+    /// JPEG: the ones PowerPoint for Windows marks smooth in its PDF.
+    nonisolated(unsafe) static var jpegSizes: Set<UInt64> = []
+    /// Sizes of tiled pictures with an alpha mask that PowerPoint still marks smooth.
+    nonisolated(unsafe) static var alphaSmooth: Set<UInt64> = []
+    static func noteJpeg(_ bytes: [UInt8], _ image: Image) {
+        if bytes.starts(with: [0xFF, 0xD8]) { jpegSizes.insert(UInt64(image.width) << 32 | UInt64(image.height)) }
+    }
     private var _decoding: Set<String> = []
     /// Called when a picture finishes decoding: repaint.
     var onImageDecoded: (() -> Void)?
@@ -64,6 +73,7 @@ final class SlideTextCache {
             guard let self else { decoded?.dispose(); return }
             self._decoding.remove(id)
             if let decoded {
+                Self.noteJpeg(bytes, decoded)
                 if self._images[id] == nil { self._images[id] = decoded } else { decoded.dispose() }
                 self.onImageDecoded?()
             } else if self._images[id] == nil {
@@ -85,22 +95,68 @@ final class SlideTextCache {
         if let source = imageSource { await source.decodeNow(attachment); return }
         let id = attachment.id
         guard _images[id] == nil, !_undecodable.contains(id), !Metafile.isMetafile(attachment.data) else { return }
-        var decoded: Image? = nil
         var bytes = [UInt8](attachment.data)
         if Tiff.isTiff(bytes), let bmp = Tiff.bmp(bytes) { bytes = bmp }
-        if let codec = try? await instantiateImageCodec(bytes) {
-            decoded = (try? await codec.getNextFrame())?.image
-            codec.dispose()
+        // A decode that fails is tried once more (memory or time under load can fail it for a
+        // moment) and, if it still fails, said on stderr: it used to be marked undecodable silently.
+        var decoded: Image? = nil
+        var failure = "no codec"
+        for attempt in 0 ..< 2 {
+            do {
+                let codec = try await instantiateImageCodec(bytes)
+                decoded = try await codec.getNextFrame().image
+                codec.dispose()
+            } catch { failure = "\(error)" }
+            if decoded == nil, let fixed = Png.repaired(bytes), let codec = try? await instantiateImageCodec(fixed) {
+                decoded = (try? await codec.getNextFrame())?.image
+                codec.dispose()
+            }
+            if decoded != nil { break }
+            if attempt == 0 { try? await Task.sleep(nanoseconds: 200_000_000) }
         }
-        if decoded == nil, let fixed = Png.repaired(bytes), let codec = try? await instantiateImageCodec(fixed) {
-            decoded = (try? await codec.getNextFrame())?.image
-            codec.dispose()
+        #if !os(WASI)
+        if decoded == nil {
+            let head = bytes.prefix(8).map { String($0, radix: 16) }.joined(separator: " ")
+            fputs("[slides] picture decode failed: attachment #\(attachment.seq), \(bytes.count) bytes, head \(head): \(failure)\n", stderr)
         }
+        #endif
         if let decoded {
+            Self.noteJpeg(bytes, decoded)
             if _images[id] == nil { _images[id] = decoded; onImageDecoded?() } else { decoded.dispose() }
         } else if _images[id] == nil {
             _undecodable.insert(id)
         }
+    }
+
+    private var _scaled: [String: Image] = [:]
+    /// `image` redrawn at w by h pixels.
+    func scaled(_ image: Image, _ w: Int, _ h: Int) -> Image? {
+        let key = "\(ObjectIdentifier(image).hashValue)/\(w)x\(h)"
+        if let known = _scaled[key] { return known }
+        let recorder = NativePictureRecorder()
+        let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, Double(w), Double(h)))
+        let paint = Paint()
+        paint.filterQuality = .medium
+        canvas.drawImageRect(image, Rect.fromLTWH(0, 0, Double(image.width), Double(image.height)), Rect.fromLTWH(0, 0, Double(w), Double(h)), paint)
+        guard let out = recorder.endRecording().toImageSync(width: w, height: h) else { return nil }
+        _scaled[key] = out
+        return out
+    }
+
+    private var _withAlpha: [String: Image] = [:]
+    /// `image` redrawn at its own size with `alpha` applied to its pixels.
+    func withAlpha(_ image: Image, _ alpha: Double) -> Image? {
+        let key = "\(ObjectIdentifier(image).hashValue)/\(alpha)"
+        if let known = _withAlpha[key] { return known }
+        let recorder = NativePictureRecorder()
+        let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, Double(image.width), Double(image.height)))
+        let w = Double(image.width), h = Double(image.height)
+        let paint = Paint()
+        paint.color = Color(0xFFFFFFFF).withOpacity(alpha)
+        canvas.drawImageRect(image, Rect.fromLTWH(0, 0, w, h), Rect.fromLTWH(0, 0, w, h), paint)
+        guard let baked = recorder.endRecording().toImageSync(width: image.width, height: image.height) else { return nil }
+        _withAlpha[key] = baked
+        return baked
     }
 
     /// Pictures whose decode failed.
@@ -255,13 +311,88 @@ final class SlideTextCache {
         // In columns the text is as tall as its tallest column.
         let height = layout.isPaged
             ? layout.pieces.map { $0.reduce(0) { $0 + $1.height } }.max() ?? 0 : layout.totalHeight
-        let spare = room - height
+        // (A last line over single does not count its extra foot: see `trailingExtra`.)
+        let dropped = layout.isPaged || shape.anchor == .top ? 0 : shape.text.map { layout.trailingExtra($0.document) } ?? 0
+        let spare = room - (height - dropped)
         switch shape.anchor {
         case .top: return top
         case .middle: return top + spare / 2
         case .bottom: return top + spare
         }
     }
+
+    /// A shape body's stacked text (`bodyPr vert="wordArtVert"`, `"wordArtVertRtl"`), as PowerPoint prints it (lab
+    /// wordartvert): every character upright in a square place 1.414 em on a side, one under the other from the
+    /// top of the box (a space takes its place), the next column to the right (to the left for Rtl) once the box's
+    /// height is used; a paragraph starts a column of its own. The columns stand together at the start side
+    /// (`anchor` top), in the middle (centre) or at the far side (bottom); more than fit run past the box.
+    static func paintStacked(_ shape: SlideShape, _ r: Rect, _ px: Double, _ canvas: Canvas, _ cache: SlideTextCache) -> Bool {
+        guard let layout = cache.layout(shape, pxPerPt: px) else { return false }
+        let ins = shape.drawInsets
+        let left = r.left + ins.left * px, top = r.top + ins.top * px
+        let width = r.width - (ins.left + ins.right) * px, height = r.height - (ins.top + ins.bottom) * px
+        struct Place { var glyph: TextPainter; var column: Int; var row: Int; var size: Double }
+        var places: [Place] = []
+        var pitches: [Double] = []
+        var column = 0
+        for i in 0 ..< layout.count {
+            guard let root = layout.geometry(i).painter.text else { continue }
+            let text = Array(root.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
+            var styles: [Flutter.TextStyle?] = []
+            func walk(_ span: InlineSpan, _ inherited: Flutter.TextStyle?) {
+                guard let t = span as? TextSpan else { styles.append(inherited); return }
+                let own = inherited.map { $0.merge(t.style) } ?? t.style
+                if let s = t.text { styles.append(contentsOf: repeatElement(own, count: s.utf16.count)) }
+                for child in t.children ?? [] { walk(child, own) }
+            }
+            walk(root, nil)
+            guard styles.count == text.count, !text.isEmpty else { continue }
+            var row = 0
+            var k = 0
+            var started = false
+            while k < text.count {
+                let size = styles[k]?.fontSize ?? 18
+                let perColumn = max(1, Int(height / (1.414 * size) + 1e-6))
+                if row >= perColumn { row = 0; column += 1 }
+                if !started { started = true; while pitches.count <= column { pitches.append(1.414 * size) } }
+                while pitches.count <= column { pitches.append(1.414 * size) }
+                let unit = text[k]
+                let end = (unit >= 0xD800 && unit <= 0xDBFF && k + 1 < text.count) ? k + 2 : k + 1
+                if unit != 0x20 && unit != 0x00A0 {
+                    let g = TextPainter(text: TextSpan(text: String(decoding: text[k ..< end], as: UTF16.self),
+                                                       style: styles[k]?.copyWith(letterSpacing: 0)), textDirection: .ltr)
+                    g.layout()
+                    places.append(Place(glyph: g, column: column, row: row, size: size))
+                }
+                row += 1
+                k = end
+            }
+            if started { column += 1 }
+        }
+        guard !places.isEmpty else { return false }
+        let block = pitches.reduce(0, +)
+        let rtl = shape.textStacked < 0
+        // The block's start edge: where the first column stands.
+        var start: Double
+        switch shape.anchor {
+        case .top: start = rtl ? left + width : left
+        case .middle: start = rtl ? left + width / 2 + block / 2 : left + width / 2 - block / 2
+        case .bottom: start = rtl ? left + block : left + width - block
+        }
+        var offsets: [Double] = []
+        var x = 0.0
+        for w in pitches { offsets.append(x); x += w }
+        for pl in places {
+            let pitch = pitches[pl.column]
+            let colLeft = rtl ? start - offsets[pl.column] - pitch : start + offsets[pl.column]
+            let gx = colLeft + pitch / 2 - pl.glyph.width / 2
+            let baseline = top + Double(pl.row) * pitch + pitch / 2 + 0.45 * pl.size
+            pl.glyph.paint(canvas, Offset(gx, baseline - pl.glyph.computeDistanceToActualBaseline(.alphabetic)))
+            pl.glyph.dispose()
+        }
+        return true
+    }
+
 
     /// Where the text's column starts right of the shape's left edge, in
     /// pixels: the left inset — less what unwrapped text wider than its box
@@ -272,7 +403,7 @@ final class SlideTextCache {
         guard shape.noWrap || shape.anchorCentred, shape.kind != .table, let layout = layout(shape, pxPerPt: pxPerPt),
               let doc = shape.text?.document else { return left }
         let room = (shape.frame.width - shape.drawInsets.left - shape.drawInsets.right) * pxPerPt
-        let over = layout.width - room
+        let flowOver = layout.width - room
         // Centred as a block (`anchorCtr`): the widest line's span in the
         // middle of the room, the others aligned within it — hanging out
         // both sides alike when it is wider.
@@ -286,7 +417,19 @@ final class SlideTextCache {
             }
             return hi > lo ? left + room / 2 - (lo + hi) / 2 : left
         }
-        guard shape.noWrap, over > 0 else { return left }
+        guard shape.noWrap else { return left }
+        // (A single line comes back from the layout as wide as the room, so
+        // its overhang is measured on the line itself: how-we-refactor's "R"
+        // in an 18 pt square, centred in PowerPoint's print, 3.6 in; ours 7.2.)
+        var over = flowOver
+        if over <= 0 {
+            var widest = 0.0
+            for i in 0 ..< layout.count {
+                for m in layout.geometry(i).painter.computeLineMetrics() { widest = max(widest, m.width) }
+            }
+            over = widest - room
+        }
+        guard over > 0 else { return left }
         switch doc.paragraphs.first?.style.alignment {
         case .center?: return left - over / 2
         case .right?: return left - over
@@ -421,6 +564,10 @@ final class SlidePainter: CustomPainter {
     /// Not for a box in columns, whose lines stand side by side. Turned
     /// text (`vert`, a turned diagram frame) is snapped along its own
     /// lines, as laid out (eaVertAnchor 1.22 → 0.46).
+    /// False: lines keep their laid-out pitch. PowerPoint for Windows does not
+    /// snap them (au.asn.aes p8: 16.80 pt between every Verdana 14 line).
+    nonisolated(unsafe) static var snapsLinesToPoints = false
+
     static func paintOnWholePoints(_ layout: RichLayout, _ doc: RichDocument, _ canvas: any Canvas, pxPerPt px: Double,
                                    visible: Rect) {
         var baselines: [Double] = []
@@ -562,8 +709,43 @@ final class SlidePainter: CustomPainter {
                 canvas.translate(at.dx, at.dy)
                 canvas.scale(sh.scale, sh.scale)
                 canvas.translate(-at.dx, -at.dy)
+            } else if let mm = sh.ground {
+                // A shadow cast on the ground (sx != sy, or kx / ky): the outline scaled and skewed about that point.
+                let at = Offset(r.left + r.width * sh.anchor.dx, r.top + r.height * sh.anchor.dy)
+                canvas.translate(at.dx, at.dy)
+                canvas.transform([mm[0], mm[3], 0, 0, mm[2], mm[1], 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
+                canvas.translate(-at.dx, -at.dy)
             }
-            canvas.drawPath(outline, p)
+            if shape.picture == nil, shape.flipH || shape.flipV {
+                // A mirrored shape's shadow falls from the mirrored outline (cycleMatrix's third wedge).
+                let c = r.center
+                canvas.translate(c.dx, c.dy)
+                canvas.scale(shape.flipH ? -1 : 1, shape.flipV ? -1 : 1)
+                canvas.translate(-c.dx, -c.dy)
+            }
+            if let line = shape.outline, shape.outlineWidth > 0, line.alpha > 0, shape.picture == nil,
+               let body = shape.fill, body.alpha > 0, shape.fillStyle == nil {
+                // The silhouette that casts is the fill and its outline together (a title bar's thick white
+                // border is part of the bar the shadow falls from: customGeo's titles print darker under
+                // the border, 188 against 219): both drawn opaque in one layer, which lays down the shadow's
+                // opacity once over their union.
+                let layer = Paint()
+                layer.color = Color(Int(p.color.alpha) << 24)
+                canvas.saveLayer(r.inflate(sh.blur * px * 2 + shape.outlineWidth * px + 4), layer)
+                let solid = Paint()
+                solid.style = .fill
+                solid.isAntiAlias = true
+                solid.color = p.color.withOpacity(1)
+                solid.maskFilter = p.maskFilter
+                canvas.drawPath(outline, solid)
+                solid.style = .stroke
+                solid.strokeWidth = max(0.5, shape.outlineWidth * px)
+                solid.strokeJoin = Self.join(shape.outlineJoin)
+                canvas.drawPath(outline, solid)
+                canvas.restore()
+            } else {
+                canvas.drawPath(outline, p)
+            }
             canvas.restore()
         } else if let sh = shape.shadow, let style = shape.fillStyle, style.image != nil, shape.picture == nil {
             // A shape filled with a picture casts the shadow of what the
@@ -606,7 +788,12 @@ final class SlidePainter: CustomPainter {
         // inside its outline faded out of it before it is put down.
         let softEdge = shape.softEdge.map { $0 * px }
         if let softEdge { canvas.saveLayer(r.inflate(softEdge), Paint()) }
-        if let image = shape.picture {
+        // A picture on a solid turned by the camera: the solid is drawn
+        // first and the picture goes onto its turned front.
+        let picture3D = shape.picture != nil && shape.scene3d.map { !$0.isFlatTurn } == true && shape.chart == nil && shape.opaque == nil
+        let drawPicture: () -> Void = {
+          guard let image = shape.picture else { return }
+          do {
             if let metafile = cache.metafile(image) {
                 // A WMF or EMF, as vectors: the whole picture placed so that
                 // the crop's share of it fills the frame.
@@ -644,7 +831,22 @@ final class SlidePainter: CustomPainter {
                 canvas.restore()
             } else if let decoded = cache.image(image) {
                 let w = Double(decoded.width), h = Double(decoded.height)
-                let c = shape.crop ?? .zero
+                let c: EdgeInsets = {
+                    let c0 = shape.crop ?? .zero
+                    // PowerPoint cuts a cropped picture to whole pixels (customGeo p36: 991 x 614 taken at
+                    // (152, 265) of a 1280 x 1024 PNG with l=11.852% t=25.887% r=10.76% b=14.165%, zero
+                    // error against the source) and stretches that to the frame: the start rounds, the span rounds.
+                    var l = c0.left, rr = c0.right, t = c0.top, bt = c0.bottom
+                    if l >= 0, rr >= 0, l > 0 || rr > 0, w * (1 - l - rr) >= 1 {
+                        let x0 = (l * w).rounded(), span = (w * (1 - l - rr)).rounded()
+                        if span >= 1 { l = x0 / w; rr = (w - x0 - span) / w }
+                    }
+                    if t >= 0, bt >= 0, t > 0 || bt > 0, h * (1 - t - bt) >= 1 {
+                        let y0 = (t * h).rounded(), span = (h * (1 - t - bt)).rounded()
+                        if span >= 1 { t = y0 / h; bt = (h - y0 - span) / h }
+                    }
+                    return EdgeInsets(left: l, top: t, right: rr, bottom: bt)
+                }()
                 // `a:fillRect`: the picture's place within the frame.
                 let frame = r
                 let place = Self.inset(r, shape.pictureInset)
@@ -682,7 +884,15 @@ final class SlidePainter: CustomPainter {
                     canvas.drawImageRect(decoded, Rect.fromLTWH(0, 0, w, h),
                                          Rect.fromLTWH(r.left - src.left * sx, r.top - src.top * sy, w * sx, h * sy), paint)
                 } else {
-                    canvas.drawImageRect(decoded, src, r, paint)
+                    // PowerPoint's PDF holds an uncropped picture shrunk to 200 pixels an inch
+                    // (a 3508 px picture over 841.6 pt is 2337; 1890 over 204.1 pt is 567).
+                    var shown = decoded
+                    if shape.pictureInset == .zero, shape.pictureDuotone == nil, shape.pictureLevels == nil, shape.pictureAlpha >= 1, !Self.pngHasAlpha(image.data),
+                       c.left == 0, c.right == 0, c.top == 0, c.bottom == 0, px > 0 {
+                        let nw = Int((r.width / px * 200 / 72).rounded(.down)), nh = Int((r.height / px * 200 / 72).rounded(.down))
+                        if nw >= 1, nh >= 1, nw < decoded.width, nh < decoded.height, let small = cache.scaled(decoded, nw, nh) { shown = small }
+                    }
+                    canvas.drawImageRect(shown, shown === decoded ? src : Rect.fromLTWH(0, 0, Double(shown.width), Double(shown.height)), r, paint)
                 }
                 canvas.restore()
             } else {
@@ -691,7 +901,9 @@ final class SlidePainter: CustomPainter {
                 p.color = Color(0xFFEDEDED)
                 canvas.drawRect(r, p)
             }
+          }
         }
+        if !picture3D { drawPicture() }
         if let chart = shape.chart {
             if let style = shape.fillStyle { paintFill(style, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation) }
             var onSlide = chart
@@ -734,13 +946,13 @@ final class SlidePainter: CustomPainter {
         let freeform = shape.opaque?.freeform ?? (shape.picture == nil && shape.chart == nil ? shape.customPath : nil)
         // A shape with depth: its solid, in place of the flat outline.
         var solid = false
-        if shape.scene3d != nil, shape.picture == nil, shape.chart == nil, shape.opaque == nil {
+        if shape.scene3d != nil, shape.chart == nil, shape.opaque == nil {
             let outline: Path
             if let freeform { outline = Self.combinedPath(freeform, r) }
-            else if let p = shape.preset ?? shape.inheritedPreset, !p.isLine { outline = geometryPath(p, r) }
+            else if let p = shape.preset ?? shape.inheritedPreset ?? shape.pictureGeometry, !p.isLine { outline = PresetGeometry.path(p.rawValue, in: r) ?? geometryPath(p, r) }
             else { outline = Path(); outline.addRect(r) }
             if mirrored { mirror() }
-            solid = Extrusion.paint(shape, outline: outline, r, canvas, pxPerPt: px)
+            solid = Extrusion.paint(shape, outline: outline, r, canvas, pxPerPt: px, onFront: picture3D ? drawPicture : nil)
             if mirrored { canvas.restore() }
         }
         if solid {
@@ -750,8 +962,18 @@ final class SlidePainter: CustomPainter {
             if let style = shape.fillStyle {
                 // A gradient or picture, within every filled subpath at once.
                 canvas.save()
-                canvas.clipPath(Self.combinedPath(freeform, r))
-                paintFill(style, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
+                let outline = Self.combinedPath(freeform, r)
+                canvas.clipPath(outline)
+                let named = (shape.preset ?? shape.inheritedPreset)?.rawValue
+                if style.path == .shape, Self.shapePathIsCircle(named) {
+                    var circle = style
+                    circle.path = .circle
+                    paintFill(circle, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
+                } else if style.path == .shape, style.stops.count >= 2, style.overlay == nil {
+                    Self.paintShapePath(style, outline, r, canvas, ellipse: named == "ellipse")
+                } else {
+                    paintFill(style, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
+                }
                 canvas.restore()
             }
             // Every fill, then every outline — PowerPoint's order whatever
@@ -827,7 +1049,15 @@ final class SlidePainter: CustomPainter {
             // A gradient or picture fill, within the shape's outline.
             canvas.save()
             if let path { canvas.clipPath(path) } else { canvas.clipRect(area) }
-            paintFill(style, area, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
+            if style.path == .shape, Self.shapePathIsCircle(preset?.rawValue) {
+                var circle = style
+                circle.path = .circle
+                paintFill(circle, area, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
+            } else if style.path == .shape, let path, preset?.rawValue != "rect", style.stops.count >= 2, style.overlay == nil {
+                Self.paintShapePath(style, path, area, canvas, ellipse: preset?.rawValue == "ellipse")
+            } else {
+                paintFill(style, area, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
+            }
             canvas.restore()
         } else if let fill = shape.fill, shape.preset?.isOpenPath != true, !drawnAlready {
             let p = Paint()
@@ -861,9 +1091,50 @@ final class SlidePainter: CustomPainter {
         }
         // (Not a dark-edged one: bnc862510_5's grey box and tdf145528's
         // matrix print flat but for their own lines.)
-        if let bevel = shape.bevel, bevel.material != "dkEdge", let fill = shape.fill, shape.fillStyle == nil,
+        // (A dark-edged bevel under the flat rig, SmartArt's quick style (8200 x 38100
+        // EMU): PowerPoint's print has a dark line as wide as the bevel centred on the
+        // edge, so the shape prints half a pixel larger all round: lab-sa-matrix and
+        // tdf145528's Windows print, 150 dpi.)
+        if let bevel = shape.bevel, bevel.material == "dkEdge", bevel.rig == "flat", bevel.width < 2, shape.fill != nil,
+           shape.fillStyle == nil, shape.picture == nil, shape.preset?.isOpenPath != true, shape.scene3d == nil {
+            let outline = path ?? { let q = Path(); q.addRect(area); return q }()
+            RuleTrace.hit("slide-dkedge-flat-bevel-is-a-dark-line-on-the-edge")
+            let rim = Paint()
+            rim.style = .stroke
+            rim.isAntiAlias = true
+            rim.strokeWidth = bevel.width * px
+            rim.color = Color(0x66000000)
+            canvas.drawPath(outline, rim)
+        }
+        // (A SmartArt metal bevel (quick style 3d3, 7 x 16 pt): PowerPoint's print is a grey
+        // outline pixel, then a light band about 4 px deep fading into the fill.)
+        if let bevel = shape.bevel, bevel.diagram, shape.fill != nil, shape.fillStyle == nil, shape.picture == nil,
+           shape.preset?.isOpenPath != true {
+            let outline = path ?? { let q = Path(); q.addRect(area); return q }()
+            RuleTrace.hit("slide-diagram-metal-bevel-is-a-thin-rim")
+            canvas.save()
+            canvas.clipPath(outline)
+            for depth in [2.0, 1.5, 1.0, 0.5] {
+                let band = Paint()
+                band.style = .stroke
+                band.isAntiAlias = true
+                band.strokeWidth = px * depth * 2
+                band.color = Color(0x1AFFFFFF)
+                canvas.drawPath(outline, band)
+            }
+            canvas.restore()
+            let edge = Paint()
+            edge.style = .stroke
+            edge.isAntiAlias = true
+            edge.strokeWidth = px * 0.5
+            edge.color = Color(0x99606060)
+            canvas.drawPath(outline, edge)
+        } else if let bevel = shape.bevel, bevel.material != "dkEdge", let fill = shape.fill, shape.fillStyle == nil,
            shape.picture == nil, shape.preset?.isOpenPath != true {
-            Self.paintBevel(bevel, path ?? { let q = Path(); q.addRect(area); return q }(), area, canvas, pxPerPt: px, fill: fill)
+            let outline = path ?? { let q = Path(); q.addRect(area); return q }()
+            if bevel.material == "translucentPowder" || !Extrusion.paintBevel(bevel, outline, area, canvas, pxPerPt: px, fill: fill) {
+                Self.paintBevel(bevel, outline, area, canvas, pxPerPt: px, fill: fill)
+            }
         }
         if let line = shape.outline, !drawnAlready, let sh = shape.shadow, shape.fill == nil, shape.fillStyle == nil,
            shape.picture == nil {
@@ -970,12 +1241,25 @@ final class SlidePainter: CustomPainter {
         }
         defer { shape.frame = keptFrame; shape.insets = keptInsets }
         // (An empty table still has its rows' fills and borders to draw.)
-        if text, !shape.isEmptyText, shape.warp != nil, WordArt.paint(shape, tr, canvas, pxPerPt: px, cache: cache) {
+        if text, shape.textStacked != 0, !shape.isEmptyText, SlideTextCache.paintStacked(shape, r, px, canvas, cache) {
+            // Stacked text (`wordArtVert`): every character upright, one to a square place down the box.
+        } else if text, !shape.isEmptyText, shape.warp != nil, WordArt.paint(shape, tr, canvas, pxPerPt: px, cache: cache) {
             // WordArt: fitted to the box and bent, not laid out in it.
         } else if text, !shape.isEmptyText || shape.kind == .table, let layout = cache.layout(shape, pxPerPt: px), let doc = shape.text?.document {
             let ox = tr.left + cache.textLeft(shape, pxPerPt: px), oy = tr.top + cache.textTop(shape, pxPerPt: px)
             canvas.translate(ox, oy)
             if shape.textSpin != 0 {
+                // Turned about the middle of the text area, not of its lines
+                // (labs vertrot and flip: `vert` at 180° lands where `vert270`
+                // at 0° does, about the box's middle; a flipV box's text the
+                // same half turn).
+                let c = Offset(tr.center.dx - ox + (shape.insets.left - shape.insets.right) / 2 * px,
+                               tr.center.dy - oy + (shape.insets.top - shape.insets.bottom) / 2 * px)
+                canvas.translate(c.dx, c.dy)
+                canvas.rotate(shape.textSpin * .pi / 180)
+                canvas.translate(-c.dx, -c.dy)
+            }
+            if shape.textRev != 0 {
                 // Turned about the middle of the text as set.
                 var lo = Double.infinity, hi = -Double.infinity
                 for i in 0 ..< layout.count {
@@ -986,10 +1270,42 @@ final class SlidePainter: CustomPainter {
                 }
                 let c = Offset(hi > lo ? (lo + hi) / 2 : layout.width / 2, layout.totalHeight / 2)
                 canvas.translate(c.dx, c.dy)
-                canvas.rotate(shape.textSpin * .pi / 180)
+                canvas.rotate(shape.textRev * .pi / 180)
                 canvas.translate(-c.dx, -c.dy)
             }
             let visible = Rect.fromLTWH(0, -10_000, layout.width, layout.totalHeight + 20_000)
+            if shape.textSpin == 0, let ground = doc.paragraphs.lazy.flatMap({ $0.runs }).filter({ ($0.style.color?.alpha ?? 255) > 0 }).compactMap({ $0.style.shadow }).first(where: { $0.ground != nil }),
+               let mm = ground.ground {
+                // A shadow cast on the ground: the letters scaled and
+                // skewed about a corner of the text's box, blurred, in the
+                // shadow's colour, under them (tdf114848's title).
+                RuleTrace.hit("slide-text-ground-shadow-is-the-letters-skewed")
+                let layer = Paint()
+                layer.colorFilter = ColorFilter(mode: ground.color, .srcIn)
+                if ground.blur > 0 { layer.imageFilter = ImageFilterFactory.blur(sigmaX: ground.blur * px / 2, sigmaY: ground.blur * px / 2) }
+                canvas.saveLayer(Rect.fromLTWH(-ox - 2000, -oy - 2000, tr.width + 4000, tr.height + 4000), layer)
+                // (Each line cast about its own box — PowerPoint's print puts
+                // a two-line title's shadows at each line's foot — the offset
+                // taken before the flattening, so it is flattened too.)
+                for pi in 0 ..< layout.count {
+                    let g = layout.geometry(pi)
+                    for m in g.painter.computeLineMetrics() where m.width > 0 {
+                        let top = g.top + m.baseline - m.ascent, bottom = g.top + m.baseline + m.descent
+                        let left = g.textLeft + m.left, right = left + m.width
+                        let at = Offset(left + (right - left) * ground.anchor.dx, top + (bottom - top) * ground.anchor.dy)
+                        canvas.save()
+                        canvas.translate(ground.dx * px, ground.dy * px)
+                        canvas.translate(at.dx, at.dy)
+                        canvas.transform([mm[0], mm[3], 0, 0, mm[2], mm[1], 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
+                        canvas.translate(-at.dx, -at.dy)
+                        // (The cut is of the letters being cast, this line's alone, not of where the shadow lands.)
+                        canvas.clipRect(Rect.fromLTRB(-10_000, top - 1, 10_000, bottom + 1))
+                        layout.paint(canvas, visible: visible, document: doc, selection: nil, caret: nil)
+                        canvas.restore()
+                    }
+                }
+                canvas.restore()
+            }
             if let paragraphs, !paragraphs.isEmpty {
                 // Built by paragraph: each paragraph's band drawn on its own,
                 // as far into its entrance as it has got.
@@ -1009,7 +1325,7 @@ final class SlidePainter: CustomPainter {
                         draw()
                     }
                 }
-            } else if shape.kind != .table, shape.columns <= 1, shape.textSpin == 0,
+            } else if Self.snapsLinesToPoints, shape.kind != .table, shape.columns <= 1, shape.textSpin == 0, shape.textRev == 0,
                       abs(shape.rotation.truncatingRemainder(dividingBy: 90)) < 0.01 {
                 // (Not in a box turned other than by quarters: under such a
                 // turn a band's cut leaves every line's text in the PDF —
@@ -1056,9 +1372,15 @@ final class SlidePainter: CustomPainter {
             for c in 0 ..< 4 { for r in 0 ..< 4 { for k in 0 ..< 4 { m[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k] } } }
             return m
         }
+        // (A path gradient blends evenly in sRGB, as Windows PowerPoint prints
+        // it: lo-tdf154858's green / yellow / green ellipse has a yellow ring at
+        // half the corner radius and green again beyond it, where the linear-
+        // light blend of the Mac prints held a yellow plateau. Linear gradients
+        // keep the linear-light blend — tdf105739's red to green is 91% off
+        // blended evenly.)
         let (colors, positions) = fill.squared ? Self.squaredRamp(fill.stops)
-            : fill.even || fill.undirected ? (fill.stops.map(\.color), fill.stops.map(\.position))
-                                            : Self.linearLight(fill.stops, eased: fill.eased, shifted: !fill.unshifted)
+            : fill.even || fill.undirected || fill.path != nil ? (fill.stops.map(\.color), fill.stops.map(\.position))
+                                            : Self.linearLight(fill.stops, eased: fill.eased, shifted: false)
         if let path = fill.path, r.width > 0, r.height > 0 {
             // From the focus out to the circle through the area's four
             // corners: a two-point gradient, its focus placed by the
@@ -1073,6 +1395,14 @@ final class SlidePainter: CustomPainter {
             // squeezed to the area's proportions as before.
             _ = path
             let f = fill.fillTo
+            // (A circle from the middle of its tile rectangle: lab gradpath.)
+            if path == .circle, fill.tile != nil || Self.cornerFocus(f) {
+                let t = fill.tile ?? Rect.fromLTRB(0, 0, 1, 1)
+                let area = Rect.fromLTRB(r.left + t.left * r.width, r.top + t.top * r.height,
+                                         r.left + t.right * r.width, r.top + t.bottom * r.height)
+                return Gradient(radial: area.center, radius: max(1, hypot(area.width, area.height) / 2), colors: colors,
+                                colorStops: positions, matrix4: pre, focal: area.center, focalRadius: 0)
+            }
             let focus = Self.pathFocus(f), fx = focus.dx, fy = focus.dy
             if (0 ... 1).contains(fx), (0 ... 1).contains(fy) {
                 return Gradient(radial: r.center, radius: max(1, hypot(r.width, r.height) / 2), colors: colors,
@@ -1110,11 +1440,24 @@ final class SlidePainter: CustomPainter {
         }
     }
 
+    /// A fill-to point at a corner of the area: a circle gradient is drawn from the middle all the same
+    /// (lab gradpath: all four corners print as the centred circle).
+    static func cornerFocus(_ f: Rect) -> Bool {
+        let p = pathFocus(f)
+        return (p.dx < 0.01 || p.dx > 0.99) && (p.dy < 0.01 || p.dy > 0.99)
+    }
+
     /// Where a path gradient starts, in fractions of its area: the
     /// fill-to rectangle's insets in proportion — l / (l + r) across,
     /// t / (t + b) down — which is the rectangle itself when it is a point.
     static func pathFocus(_ fillTo: Rect) -> Offset {
         func ratio(_ a: Double, _ b: Double) -> Double { a + b > 1e-9 ? a / (a + b) : 0.5 }
+        // (A rectangle that is not a point — its insets not adding to the
+        // whole across and down — is the area's middle: Windows PowerPoint
+        // prints GeomLec1's background (l 65%, b 98%) as a circle round the
+        // middle, where the Mac's started at the top right corner.)
+        let across = fillTo.left + 1 - fillTo.right, down = fillTo.top + 1 - fillTo.bottom
+        if abs(across - 1) > 0.01 || abs(down - 1) > 0.01, across >= 0, down >= 0, across <= 1, down <= 1 { return Offset(0.5, 0.5) }
         return Offset(ratio(fillTo.left, 1 - fillTo.right), ratio(fillTo.top, 1 - fillTo.bottom))
     }
 
@@ -1198,6 +1541,15 @@ final class SlidePainter: CustomPainter {
         let w = min(b.width * px, min(box.width, box.height) / 2)
         guard w > 0.25 * px else { return }
         let k = min(1, b.height / b.width / 0.4)
+        // A powder material lays white over the face: translucentPowder prints
+        // as 0.70 of the fill and 30% white under the chilly rig (customGeo's
+        // headers, PowerPoint's print) and 0.60 and 51% under threePt (Lab B).
+        var fill = fill
+        if b.material == "translucentPowder" {
+            let (mul, white) = b.rig == "threePt" ? (0.60, 0.51) : (0.70, 0.30)
+            func ch(_ v: Int) -> Int { min(255, Int((Double(v) * mul + 255 * white).rounded())) }
+            fill = Color(argb: fill.alpha, ch(fill.red), ch(fill.green), ch(fill.blue))
+        }
         func shade(_ f: (Int) -> Double) -> Color {
             Color(rgbo: Int(max(0, min(255, f(fill.red))).rounded()), Int(max(0, min(255, f(fill.green))).rounded()),
                   Int(max(0, min(255, f(fill.blue))).rounded()), Double(fill.alpha) / 255)
@@ -1231,6 +1583,52 @@ final class SlidePainter: CustomPainter {
         canvas.restore()
     }
 
+    /// The presets whose `path="shape"` PowerPoint prints as a circle gradient (lab gradshape: the ellipse
+    /// the right arrow; an ellipse, a star and a heart nest their own outline instead).
+    static func shapePathIsCircle(_ preset: String?) -> Bool { preset == "rightArrow" }
+
+    /// The colour a path gradient has `u` of the way from its focus (0) to its edge (1).
+    static func pathRampColor(_ colors: [Color], _ positions: [Double]) -> (Double) -> Color {
+        func at(_ u: Double) -> Color {
+            guard let j = positions.firstIndex(where: { $0 >= u }) else { return colors.last! }
+            if j == 0 { return colors[0] }
+            let a = positions[j - 1], b = positions[j]
+            let k = b > a ? (u - a) / (b - a) : 0
+            func ch(_ c: Color, _ sh: Int) -> Double { Double((c.value >> sh) & 0xFF) }
+            func m(_ sh: Int) -> Int64 { Int64((ch(colors[j - 1], sh) * (1 - k) + ch(colors[j], sh) * k).rounded()) }
+            let al = Int64((Double(colors[j - 1].alpha) * (1 - k) + Double(colors[j].alpha) * k).rounded())
+            return Color(al << 24 | m(16) << 16 | m(8) << 8 | m(0))
+        }
+        return at
+    }
+
+    /// `path="shape"` on a shape that is not a box: the outline itself, shrunk toward the fill-to point
+    /// in as many steps, each in the colour that far along (PowerPoint's print of lab gradshape: nested
+    /// ellipses, stars, hearts; with a corner point the copies crowd into that corner).
+    static func paintShapePath(_ fill: SlideFill, _ outline: Path, _ r: Rect, _ canvas: any Canvas, ellipse: Bool = false) {
+        let (colors, positions) = fill.squared ? Self.squaredRamp(fill.stops) : (fill.stops.map(\.color), fill.stops.map(\.position))
+        let at = pathRampColor(colors, positions)
+        let f = fill.fillTo
+        // (An ellipse keeps to its middle whatever the fill-to point, as a circle does: lab gradshape.)
+        let mid = ellipse && cornerFocus(f)
+        let fx = r.left + (mid ? 0.5 : (f.left + f.right) / 2) * r.width, fy = r.top + (mid ? 0.5 : (f.top + f.bottom) / 2) * r.height
+        let p = Paint()
+        p.style = .fill
+        p.color = at(1)
+        canvas.drawRect(r, p)
+        let steps = 96
+        for k in 0 ... steps {
+            let t = 1 - Double(k) / Double(steps)
+            p.color = at(t)
+            canvas.save()
+            canvas.translate(fx, fy)
+            canvas.scale(t, t)
+            canvas.translate(-fx, -fy)
+            canvas.drawPath(outline, p)
+            canvas.restore()
+        }
+    }
+
     static func paintFill(_ fill: SlideFill, _ r: Rect, _ canvas: any Canvas, cache: SlideTextCache, pxPerPt: Double = 1,
                           turn: Double = 0) {
         if let overlay = fill.overlay {
@@ -1261,31 +1659,36 @@ final class SlidePainter: CustomPainter {
         // toward every edge, where a circle round the middle had it).
         if fill.path == .rect || fill.path == .shape, fill.stops.count >= 2, r.width > 0, r.height > 0 {
             let (colors, positions) = fill.squared ? Self.squaredRamp(fill.stops)
-                : fill.even ? (fill.stops.map(\.color), fill.stops.map(\.position))
-                                                : Self.linearLight(fill.stops, eased: fill.eased, shifted: !fill.unshifted)
-            func at(_ u: Double) -> Color {
-                guard let j = positions.firstIndex(where: { $0 >= u }) else { return colors.last! }
-                if j == 0 { return colors[0] }
-                let a = positions[j - 1], b = positions[j]
-                let k = b > a ? (u - a) / (b - a) : 0
-                func ch(_ c: Color, _ sh: Int) -> Double { Double((c.value >> sh) & 0xFF) }
-                func m(_ sh: Int) -> Int64 { Int64((ch(colors[j - 1], sh) * (1 - k) + ch(colors[j], sh) * k).rounded()) }
-                let al = Int64((Double(colors[j - 1].alpha) * (1 - k) + Double(colors[j].alpha) * k).rounded())
-                return Color(al << 24 | m(16) << 16 | m(8) << 8 | m(0))
-            }
+                : fill.even || fill.path != nil ? (fill.stops.map(\.color), fill.stops.map(\.position))
+                                                : Self.linearLight(fill.stops, eased: fill.eased, shifted: false)
+            let at = Self.pathRampColor(colors, positions)
             let f = fill.fillTo
+            // (`fillTo` holds the fill-to rectangle's edges as fractions across and down: its right and
+            // bottom are `1 - r` and `1 - b`. A corner point, l 100% b 100%, once read as r.left to r.right
+            // — an inverted box — and drew solid; lab gradpath.)
+            // (Laid out in the tile rectangle where there is one, and clipped to the area: lab gradpath.)
+            // (The tile rectangle is where the boxes end; the fill-to point stays measured on the area itself.)
+            var t0 = Rect.fromLTRB(0, 0, 1, 1)
+            if let t = fill.tile { t0 = t }
+            let outer = Rect.fromLTRB(r.left + t0.left * r.width, r.top + t0.top * r.height,
+                                      r.left + t0.right * r.width, r.top + t0.bottom * r.height)
             let inner = Rect.fromLTRB(r.left + f.left * r.width, r.top + f.top * r.height,
-                                      r.right - f.right * r.width, r.bottom - f.bottom * r.height)
+                                      r.left + f.right * r.width, r.top + f.bottom * r.height)
             let steps = 96
             let p = Paint()
             p.style = .fill
+            canvas.save()
+            canvas.clipRect(r)
+            p.color = at(1)
+            canvas.drawRect(r, p)
             for k in 0 ... steps {
                 let t = 1 - Double(k) / Double(steps)
-                let box = Rect.fromLTRB(inner.left + (r.left - inner.left) * t, inner.top + (r.top - inner.top) * t,
-                                        inner.right + (r.right - inner.right) * t, inner.bottom + (r.bottom - inner.bottom) * t)
+                let box = Rect.fromLTRB(inner.left + (outer.left - inner.left) * t, inner.top + (outer.top - inner.top) * t,
+                                        inner.right + (outer.right - inner.right) * t, inner.bottom + (outer.bottom - inner.bottom) * t)
                 p.color = at(t)
-                canvas.drawRect(k == 0 ? r : box, p)
+                canvas.drawRect(box, p)
             }
+            canvas.restore()
             return
         }
         let p = Paint()
@@ -1300,14 +1703,39 @@ final class SlidePainter: CustomPainter {
         // A picture fill has nothing under it: one drawn half transparent
         // shows what lies behind, not white (the Concourse theme's corner).
         if fill.image == nil || fill.color != nil || p.shader != nil { canvas.drawRect(r, p) }
-        if let image = fill.image, let decoded = cache.image(image) {
-            let src = Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height))
-            let paint = imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone, levels: fill.imageLevels)
+        if let image = fill.image, let metafile = cache.metafile(image) {
+            // A WMF or EMF as the fill: its drawing played over the area
+            // (stretched, or into its `a:fillRect`), as vectors; not tiled —
+            // a metafile has no pixel size to tile at.
+            let recoloured = fill.imageAlpha < 1 || fill.duotone != nil || fill.imageLevels != nil
+            if recoloured { canvas.saveLayer(r, imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone, levels: fill.imageLevels)) }
+            metafile.paint(canvas, in: Self.inset(r, fill.imageInset), image: { cache.image($0) }, font: OfficeFonts.substitute)
+            if recoloured { canvas.restore() }
+        }
+        if let image = fill.image, let drawn = cache.image(image) {
+            // A picture with its own transparency is drawn from a copy with
+            // the transparency in its pixels, as PowerPoint writes it (a new
+            // picture in the PDF, with an alpha channel, not the JPEG).
+            let baked = fill.imageAlpha < 1 && fill.duotone == nil && fill.imageLevels == nil ? cache.withAlpha(drawn, fill.imageAlpha) : nil
+            var decoded = baked ?? drawn
+            // (A tiled PNG with its own transparency is written as a colour
+            // picture with a mask and marked smooth, as a JPEG is: lo-page_transparent_bitmap's
+            // brick tile, PowerPoint's PDF; a lone PNG with alpha stays lossless and sharp.)
+            if let b = baked, fill.tiled, !fill.isPattern { let k = UInt64(b.width) << 32 | UInt64(b.height); SlideTextCache.jpegSizes.insert(k); SlideTextCache.alphaSmooth.insert(k) }
+            let paint = baked != nil ? imagePaint(alpha: 1, duotone: nil) : imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone, levels: fill.imageLevels)
             let tw = max(1, Double(decoded.width) * 0.75 * fill.tileScale * pxPerPt)
             let th = max(1, Double(decoded.height) * 0.75 * fill.tileScaleY * pxPerPt)
-            // A tile larger than the area in both directions is a photo
-            // marked "tile": PowerPoint shows it fitted, not cropped.
-            if fill.tiled, tw < r.width || th < r.height || fill.tileAnchored {
+            // PowerPoint's PDF holds a tiled picture shrunk to 200 pixels an
+            // inch (a 484 x 290 picture on a 69.7 x 48.7 pt tile is 193 x 135).
+            if fill.tiled, !fill.isPattern, fill.duotone == nil, fill.imageLevels == nil {
+                let nw = Int(tw / pxPerPt * 200 / 72), nh = Int(th / pxPerPt * 200 / 72)
+                if nw >= 1, nh >= 1, nw < decoded.width, nh < decoded.height, let small = cache.scaled(decoded, nw, nh) { decoded = small }
+            }
+            let src = Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height))
+            // A tile larger than the area is cropped, not fitted: Windows
+            // PowerPoint lays ececapstonespring2012's 1600x1200 px background
+            // at 96/in, 1200 pt wide on a 794 pt slide.
+            if fill.tiled {
                 // At the picture's own size (96/in) times the tile scale,
                 // from the one tile the alignment and offset place, back
                 // to the area's top left edge and on past its bottom right.
@@ -1349,6 +1777,22 @@ final class SlidePainter: CustomPainter {
     }
 
     /// `r` inset by fractions of its own size from each edge.
+    /// A PNG with an alpha channel (colour type 4 or 6, or a tRNS chunk): PowerPoint's PDF
+    /// keeps it at its own pixels (lo-tdf95932: 996 px over 325.9 pt, 220/in, with a soft mask).
+    static func pngHasAlpha(_ data: Data) -> Bool {
+        let b = [UInt8](data.prefix(4096))
+        guard b.count > 33, b[1] == 0x50, b[2] == 0x4E, b[3] == 0x47 else { return false }
+        if b[25] == 4 || b[25] == 6 { return true }
+        let t: [UInt8] = [0x74, 0x52, 0x4E, 0x53]
+        var i = 33
+        while i + 8 <= b.count {
+            if Array(b[(i + 4)..<(i + 8)]) == t { return true }
+            let n = Int(b[i]) << 24 | Int(b[i + 1]) << 16 | Int(b[i + 2]) << 8 | Int(b[i + 3])
+            i += 12 + n
+        }
+        return false
+    }
+
     static func inset(_ r: Rect, _ f: EdgeInsets) -> Rect {
         guard f != .zero else { return r }
         return Rect.fromLTRB(r.left + f.left * r.width, r.top + f.top * r.height,
@@ -1429,7 +1873,10 @@ final class SlidePainter: CustomPainter {
     /// shader blends in sRGB; these are the stops with linear-light
     /// in-betweens spelled out, so it lands where PowerPoint does.
     ///
-    /// `shifted`: as PowerPoint's export shows it. It writes such a
+    /// `shifted` (no longer asked for): as PowerPoint for MAC's export shows
+    /// it — Windows PowerPoint's prints are plain sRGB, with no such shift
+    /// (aascu 5864's blue band 0,0,121 .. 0,0,252, not 9,48,254), so none
+    /// of the corpus' references want it now. The Mac export writes such a
     /// gradient's blend as linear values tagged "Generic RGB Linear", whose
     /// primaries are not sRGB's, so every colour of it — the stops too —
     /// prints a little off: pure blue as 9,48,254, red as 255,39,0
@@ -1482,6 +1929,15 @@ final class SlidePainter: CustomPainter {
     /// A `gamma` gradient's stops (`SlideFill.squared`) with in-betweens:
     /// each blend in sRGB, leaving the lighter of its two stops as the
     /// square of the way along.
+    /// How far along a `gamma` blend has gone from its lighter stop at `t` (0 to 1): PowerPoint's print
+    /// of the 45541 decks' backgrounds (102 -> 47 and 205 -> 94 in green) holds to the light end, then
+    /// falls fastest past the middle: a tenth of the way at a quarter, 0.38 at half, 0.79 at three quarters.
+    static func gammaEase(_ t: Double) -> Double {
+        let xs = [0.0, 0.25, 0.5, 0.75, 1.0], ys = [0.0, 0.10, 0.385, 0.79, 1.0]
+        let i = min(3, max(0, Int(t * 4)))
+        return ys[i] + (ys[i + 1] - ys[i]) * (t - xs[i]) / 0.25
+    }
+
     static func squaredRamp(_ stops: [SlideFill.GradientStop]) -> ([Color], [Double]) {
         func part(_ c: Color, _ sh: Int) -> Double { Double((c.value >> sh) & 0xFF) }
         func light(_ c: Color) -> Double { 0.2126 * part(c, 16) + 0.7152 * part(c, 8) + 0.0722 * part(c, 0) }
@@ -1494,7 +1950,7 @@ final class SlidePainter: CustomPainter {
                 let steps = 16
                 for k in 1 ..< steps {
                     let at = Double(k) / Double(steps)
-                    let t = fromLight ? at * at : 1 - (1 - at) * (1 - at)
+                    let t = fromLight ? Self.gammaEase(at) : 1 - Self.gammaEase(1 - at)
                     func ch(_ sh: Int) -> Int { Int((part(a.color, sh) * (1 - t) + part(s.color, sh) * t).rounded()) }
                     colors.append(Color((ch(24) << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)))
                     positions.append(a.position + (s.position - a.position) * at)

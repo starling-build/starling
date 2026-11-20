@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 
@@ -11,23 +12,35 @@ import Foundation
 /// (96/in); the canvas is scaled to PDF points (72/in) first.
 enum PdfExport {
     static func write(_ document: RichDocument, pageSetup: PageSetup, theme: RichTextTheme,
-                      to path: String, title: String) -> Bool {
+                      to path: String, title: String, layoutOnly: Bool = false) -> Bool {
         // A document with comments or tracked changes prints with its
         // markup, as Word prints it by default: the page smaller, its
         // balloons beside it (`MarkupFrame`, `PdfMarkup`), its deleted
         // text gone into them.
         let markup = hasMarkup(document) ? PdfMarkup(document) : nil
-        let document = markup?.document ?? document
-        let layout = RichLayout(theme: theme, paragraphCount: document.paragraphs.count)
+        var document = markup?.document ?? document
         // Laid out fifteen times finer than the screen's pixel — twenty
         // steps to the point, Word's own twip: the engine rounds every
         // line's height to a whole pixel, which at 96 to the inch is
         // three quarters of a point a line and a line or two a page.
         let zoom = Double(ProcessInfo.processInfo.environment["OFFICE_PDF_SCALE"] ?? "") ?? 15.0
-        layout.scale = zoom
-        layout.pageSetup = pageSetup
-        layout.width = pageSetup.columnWidth * theme.pixelsPerPoint * zoom
-        layout.ensureLaidOut(document)
+        func laidOut(_ document: RichDocument) -> RichLayout {
+            let layout = RichLayout(theme: theme, paragraphCount: document.paragraphs.count)
+            layout.scale = zoom
+            layout.pageSetup = pageSetup
+            layout.width = pageSetup.columnWidth * theme.pixelsPerPoint * zoom
+            layout.ensureLaidOut(document)
+            return layout
+        }
+        var layout = laidOut(document)
+        // (Word works its page references out again as it prints: a contents
+        // page lists the pages its own layout gives, not the numbers the
+        // file was saved with — lo tdf164905's "3" for every chapter where
+        // the file says 3, 4, 4, 4. Laid out once more with them in.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, let updated = pageReferencesUpdated(document, layout) {
+            document = updated
+            layout = laidOut(document)
+        }
         // The pictures are decoded off to the side and painted as grey
         // boxes until they are: wait for them (the decoding runs on the
         // main queue, which nothing is turning here), but not for ever.
@@ -49,14 +62,26 @@ enum PdfExport {
         }
         #endif
 
+        // (`--trace-rules`: laid out, and every header and text box with it,
+        // as a PDF is written from them; no page of it is.)
+        if layoutOnly { return true }
+
         var pages: [PdfDocument.Page] = []
         for p in 0 ..< layout.pageCount {
             let rect = layout.pageRect(p)
             // (Each page at its own section's size.)
-            let pageSetup = layout.pageSetup(forPage: p)
+            var pageSetup = layout.pageSetup(forPage: p)
+            // (A vertical section is laid out in the turned page; the paper
+            // is the other way round and the page is turned back onto it.)
+            let vertical = pageSetup.vertical
+            if vertical { pageSetup = pageSetup.transposed() }
             let recorder = NativePictureRecorder()
             let canvas = NativeCanvas(recorder: recorder,
                                       cullRect: Rect.fromLTWH(0, 0, pageSetup.width, pageSetup.height))
+            if vertical {
+                canvas.translate(pageSetup.width, 0)
+                canvas.rotate(Double.pi / 2)
+            }
             if let markup {
                 let frame = MarkupFrame(pageSetup)
                 let pane = Paint()
@@ -75,20 +100,91 @@ enum PdfExport {
             pages.append(PdfDocument.Page(picture: recorder.endRecording(),
                                           width: pageSetup.width, height: pageSetup.height))
         }
-        return PdfDocument.write(to: path, pages: pages, title: title, author: PdfExport.authorName())
+        guard PdfDocument.write(to: path, pages: pages, title: title, author: PdfExport.authorName()) else { return false }
+        if theme.wordRules, !RichLayout.jpegSizes.isEmpty, let data = FileManager.default.contents(atPath: path),
+           let smooth = SlidesPdf.smoothPictures(data, jpeg: RichLayout.jpegSizes, otherSizes: RichLayout.otherPictureSizes) {
+            try? smooth.write(to: URL(fileURLWithPath: path))
+        }
+        return true
     }
 }
 
 extension PdfExport {
+    /// The document with each page reference (`PAGEREF name`) to a bookmark it has set to the page
+    /// that bookmark's paragraph starts on in `layout`; nil where none changes.
+    static func pageReferencesUpdated(_ document: RichDocument, _ layout: RichLayout) -> RichDocument? {
+        var home: [String: Int] = [:]
+        for (k, p) in document.paragraphs.enumerated() {
+            for name in p.bookmarks where home[name.lowercased()] == nil { home[name.lowercased()] = k }
+        }
+        guard !home.isEmpty else { return nil }
+        var result = document
+        var changed = false
+        for k in document.paragraphs.indices {
+            let p = document.paragraphs[k]
+            guard p.runs.contains(where: { $0.style.field?.uppercased().hasPrefix("PAGEREF ") == true }) else { continue }
+            var text = ""
+            var runs: [Run] = []
+            var at = p.text.utf16.startIndex
+            var lastField: String? = nil
+            var touched = false
+            for run in p.runs {
+                let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.utf16.endIndex) ?? p.text.utf16.endIndex
+                var piece = String(p.text[at ..< end])
+                at = end
+                if let field = run.style.field, field.uppercased().hasPrefix("PAGEREF "), !field.containsSubstring("\\p"),
+                   let target = field.split(separator: " ", omittingEmptySubsequences: true).dropFirst().first
+                       .map({ String($0.filter { $0 != "\"" }).lowercased() }),
+                   let paragraph = home[target], let label = layout.pageLabel(ofParagraph: paragraph, document) {
+                    // (One number per field, however many runs its old result was in.)
+                    let shown = lastField == field ? "" : label
+                    if shown != piece { touched = true }
+                    piece = shown
+                }
+                lastField = run.style.field
+                guard !piece.isEmpty else { continue }
+                text += piece
+                runs.append(Run(length: piece.utf16.count, style: run.style))
+            }
+            guard touched else { continue }
+            var q = p
+            q.text = text
+            q.runs = runs.isEmpty ? [Run(length: 0, style: p.runs.first?.style ?? CharStyle())] : runs
+            result.paragraphs[k] = q
+            changed = true
+        }
+        if changed { RuleTrace.hit("page-references-brought-up-to-date") }
+        return changed ? result : nil
+    }
+
     /// Whether Word prints the document with its markup: it carries a
     /// comment or a tracked change (inserted, deleted or reformatted text).
     /// (A comment Word prints no balloon for is no markup: comment.docx's,
     /// alone in the document, prints a plain page — `PdfMarkup.silentComments`.)
     static func hasMarkup(_ document: RichDocument) -> Bool {
         let silent = PdfMarkup.silentComments(document)
+        if document.sectionChange != nil { return true }
         return document.paragraphs.contains { p in
-            p.runs.contains { $0.style.comments.contains { !silent.contains($0) } || $0.style.revision != nil || $0.style.formatChange != nil }
+            // (A deleted paragraph mark is a tracked change too, with its
+            // "Deleted: ¶" balloon: tdf120336's one empty paragraph.)
+            p.style.markRevision?.kind == .deleted || p.style.propertyChange != nil || p.cell?.revision?.kind == .deleted ||
+            (p.style.markRevision != nil && p.style.sectionXML != nil) ||
+            p.runs.contains { $0.style.comments.contains { !silent.contains($0) } || $0.style.revision.map(Self.hasBalloon) == true || $0.style.formatChange != nil }
         }
+    }
+
+    /// Whether a tracked change has a balloon in Word's print: a deletion
+    /// and a move do; an insertion is only underlined where it stands, and
+    /// a document whose changes are all insertions prints as any other
+    /// page, at full size, with no markup area (lo CT-with-frame: its two
+    /// insertions print at 72pt, the margin, in Word's PDF; ours scaled the
+    /// page for balloons that were not there). An inserted section
+    /// break has one ("Inserted: Section Break"): lo-512aa398's prints with
+    /// the frame, where zh-25381d22's and zh-86547e97's inserted paragraph
+    /// marks, and a run inserted in a table cell (lo-e998b55c), do not.
+    static func hasBalloon(_ revision: RevisionMark) -> Bool {
+        if revision.kind == .inserted, !revision.moved { RuleTrace.hit("insertion-has-no-balloon"); return false }
+        return true
     }
 
     /// Where a page printed with its markup stands on the paper, as Word
@@ -108,7 +204,7 @@ extension PdfExport {
         let top: Double
         let pane: Rect
         init(_ setup: PageSetup) {
-            let textRight = setup.width - setup.marginRight
+            let textRight = setup.width - setup.marginRight + setup.columnTrim
             if DocxFormat.wordOnWindows {
                 scale = setup.width / (textRight + 266.4)
                 left = 0

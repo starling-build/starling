@@ -9,6 +9,7 @@
 // else — printed blank.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 
@@ -27,8 +28,22 @@ enum WriterCharts {
         /// The chart area's own fill and border (`c:chartSpace/c:spPr`):
         /// Word's default is white with a light grey line.
         let fill: Color?
+        /// … as a gradient (`a:gradFill`, a circle or rectangle path or an angle), over `fill`:
+        /// lo-5afb2204's dark, centre-lit bar chart.
+        var gradient: SlideFill? = nil
         let line: Color?
         let lineWidth: Double
+        /// The chart's own drawing's text boxes (`c:userShapes`), by
+        /// fractions of the frame: lo tdf156267's rings' "32%".
+        var notes: [Note] = []
+    }
+
+    struct Note {
+        let left: Double, top: Double, right: Double, bottom: Double
+        let lines: [(text: String, size: Double, bold: Bool, align: TextAlign)]
+        let middle: Bool
+        /// The text's insets from the box, points (`a:bodyPr` lIns, tIns, rIns, bIns): 7.2, 3.6, 7.2, 3.6 unless it says.
+        var inset: (left: Double, top: Double, right: Double, bottom: Double) = (7.2, 3.6, 7.2, 3.6)
     }
 
     private nonisolated(unsafe) static var entries: [String: Entry] = [:]
@@ -38,10 +53,21 @@ enum WriterCharts {
     /// colours from `themePart` (the document's `a:theme`), for the
     /// object attachment `id`; false where it is no chart this can draw.
     @discardableResult
-    static func register(_ space: XNode, for id: String, themePart: Data?, themeOverride: Data? = nil) -> Bool {
+    static func register(_ space: XNode, for id: String, themePart: Data?, themeOverride: Data? = nil, userShapes: XNode? = nil) -> Bool {
         let space = ChartXML.canonical(space)
         let pptxTheme = PptxTheme(themePart.flatMap { XNode.parse($0) })
-        let colors = ColorContext(theme: pptxTheme)
+        var colors = ColorContext(theme: pptxTheme)
+        // (The chart's own theme override's colours, where it has one: zh-b8de3ae2's
+        // line chart and pies stand in A5B592, accent 2 …, not the document's blue.)
+        if let scheme = themeOverride.flatMap({ XNode.parse($0) })?.descendant("a:clrScheme") {
+            for child in scheme.children {
+                let name = String(child.name.drop { $0 != ":" }.dropFirst())
+                if let c = child.first("a:srgbClr")?["val"].flatMap(PptxTheme.hex)
+                    ?? child.first("a:sysClr")?["lastClr"].flatMap(PptxTheme.hex) {
+                    colors.theme.colors[name] = c
+                }
+            }
+        }
         let chartex = space.name == "cx:chartSpace"
         guard var chart = chartex ? ChartXML.readWordChartex(space) : ChartXML.read(space, color: { colors.color(in: $0) })
         else { return false }
@@ -52,6 +78,7 @@ enum WriterCharts {
            let ea = themePart.flatMap({ XNode.parse($0) })?.descendant("a:minorFont")?.first("a:ea"), (ea["typeface"] ?? "").isEmpty {
             chart.windowsMinchoText = true
             chart.windowsMinchoTitle = !(space.descendant("c:title").map(ChartXML._traditional) ?? false)
+            chart.windowsHantTitle = !chart.windowsMinchoTitle
         }
         // (Word for Mac sets it in the theme's Hans and Hant faces — the
         // chart's own theme override's where it has one, zh-b8de3ae2's
@@ -89,8 +116,45 @@ enum WriterCharts {
         // in D9D9D9: chartex's box-and-whisker chart.)
         let line = ln?.first("a:solidFill").flatMap { colors.color(in: $0) }
             ?? (chartex && area == nil ? Color(0xFFD9D9D9) : nil)
-        let entry = Entry(chart: chart, theme: theme, fill: fill, line: line,
+            // (A chart part with no shape properties at all is framed in Word's own 0.75pt grey over
+            // white: every such chart in the corpus prints that way — lo-7b8ccfbe, lo-3a0ca937,
+            // lo-8743d336, lo-40949e85, lo-79680f48, zh-d62da4dd and others.)
+            ?? (!chartex && area == nil ? Color(0xFF868686) : nil)
+        var entry = Entry(chart: chart, theme: theme, fill: fill, line: line,
                           lineWidth: (ln?["w"]).flatMap { Double($0) }.map { $0 / 12700 } ?? 0.75)
+        if fill == nil, let g = area?.first("a:gradFill"), g.first("a:path") != nil, let f = PptxReader.gradient(g, colors: colors), f.stops.count > 1 {
+            entry.gradient = f
+        }
+        // (Text boxes only, placed by `cdr:relSizeAnchor`; other shapes are not drawn.)
+        for anchor in userShapes?.children ?? [] where anchor.name == "cdr:relSizeAnchor" {
+            func at(_ n: XNode?) -> (Double, Double)? {
+                guard let x = n?.first("cdr:x").flatMap({ Double($0.text) }), let y = n?.first("cdr:y").flatMap({ Double($0.text) }) else { return nil }
+                return (x, y)
+            }
+            guard let a = at(anchor.first("cdr:from")), let b = at(anchor.first("cdr:to")),
+                  let body = anchor.first("cdr:sp")?.first("cdr:txBody") else { continue }
+            var lines: [(text: String, size: Double, bold: Bool, align: TextAlign)] = []
+            for para in body.all("a:p") {
+                let runs = para.all("a:r")
+                let text = runs.compactMap { $0.first("a:t")?.text }.joined()
+                guard !text.isEmpty else { continue }
+                let rPr = runs.first?.first("a:rPr")
+                let size = rPr?["sz"].flatMap(Double.init).map { $0 / 100 } ?? 18
+                let algn = para.first("a:pPr")?["algn"]
+                lines.append((text, size, rPr?["b"] == "1", algn == "ctr" ? .center : algn == "r" ? .right : .left))
+            }
+            guard !lines.isEmpty else { continue }
+            var note = Note(left: a.0, top: a.1, right: b.0, bottom: b.1, lines: lines,
+                            middle: body.first("a:bodyPr")?["anchor"] == "ctr")
+            // (Its text stands in from the box by its insets, 3.6pt each way in Word's print of
+            // zh-547fc43c's chart "%": drawn from the box's own corner it stood 3.6pt high and left.)
+            if RichTextTheme.wordWindowsPages, let pr = body.first("a:bodyPr") {
+                func pt(_ k: String, _ d: Double) -> Double { pr[k].flatMap(Double.init).map { $0 / 12700 } ?? d }
+                note.inset = (pt("lIns", 7.2), pt("tIns", 3.6), pt("rIns", 7.2), pt("bIns", 3.6))
+                RuleTrace.hit("word-chart-text-box-text-stands-in-by-its-insets")
+            }
+            entry.notes.append(note)
+        }
         lock.lock()
         entries[id] = entry
         lock.unlock()
@@ -108,8 +172,14 @@ enum WriterCharts {
     /// Draws the chart registered for `attachment` into `rect`; false
     /// where none is.
     static func paint(_ attachment: ImageAttachment, _ canvas: any Canvas, _ rect: Rect, _ pxPerPt: Double) -> Bool {
+        paint(id: attachment.id, canvas, rect, pxPerPt)
+    }
+
+    /// … by the id it was registered under (a chart in a group: its
+    /// attachment's id and its part's).
+    static func paint(id: String, _ canvas: any Canvas, _ rect: Rect, _ pxPerPt: Double) -> Bool {
         lock.lock()
-        let entry = entries[attachment.id]
+        let entry = entries[id]
         lock.unlock()
         guard let entry else { return false }
         if let fill = entry.fill {
@@ -117,8 +187,37 @@ enum WriterCharts {
             p.style = .fill
             p.color = fill
             canvas.drawRect(rect, p)
+        } else if let gradient = entry.gradient, let shader = SlidePainter.gradientShader(gradient, rect) {
+            let p = Paint()
+            p.style = .fill
+            p.color = gradient.color ?? Color(0xFF000000)
+            p.shader = shader
+            canvas.drawRect(rect, p)
         }
         ChartPainter.paint(entry.chart, canvas, rect, pxPerPt: pxPerPt, theme: entry.theme)
+        for note in entry.notes {
+            let whole = Rect.fromLTRB(rect.left + note.left * rect.width, rect.top + note.top * rect.height,
+                                      rect.left + note.right * rect.width, rect.top + note.bottom * rect.height)
+            let inset: (left: Double, top: Double, right: Double, bottom: Double) = RichTextTheme.wordWindowsPages ? note.inset : (0, 0, 0, 0)
+            let box = Rect.fromLTRB(whole.left + inset.left * pxPerPt, whole.top + inset.top * pxPerPt,
+                                    max(whole.left + inset.left * pxPerPt + 1, whole.right - inset.right * pxPerPt),
+                                    max(whole.top + inset.top * pxPerPt + 1, whole.bottom - inset.bottom * pxPerPt))
+            var painters: [TextPainter] = []
+            for line in note.lines {
+                let tp = TextPainter(text: TextSpan(text: line.text, style: Flutter.TextStyle(
+                    color: entry.theme.text, fontSize: line.size * pxPerPt, fontWeight: line.bold ? .bold : .normal,
+                    fontFamily: OfficeFonts.substitute(entry.chart.font ?? entry.theme.bodyFont))), textAlign: line.align, textDirection: .ltr)
+                tp.layout(minWidth: box.width, maxWidth: max(1, box.width))
+                painters.append(tp)
+            }
+            let total = painters.reduce(0.0) { $0 + $1.height }
+            var y = note.middle ? box.top + (box.height - total) / 2 : box.top
+            for tp in painters {
+                tp.paint(canvas, Offset(box.left, y))
+                y += tp.height
+                tp.dispose()
+            }
+        }
         if let line = entry.line {
             let p = Paint()
             p.style = .stroke
@@ -247,9 +346,17 @@ enum WriterGroups {
         var dash: String? = nil
         /// A picture's bytes and its decode key: drawn over its box.
         var picture: (key: String, data: Data)? = nil
+        /// A chart in the group (`WriterCharts`, by this id), drawn in its box.
+        var chartID: String? = nil
         /// WordArt (a VML textpath): its text fitted to the box.
         var wordArt: WordArtText? = nil
         var drawingWordArt: DrawingWordArt? = nil
+        /// A gradient fill (the shape's own, or its theme's fill style), drawn in place of `fill`.
+        var gradient: SlideFill? = nil
+        /// A pattern fill (`a:pattFill`), tiled over the shape.
+        var pattern: SlideFill? = nil
+        /// A shadow its theme's effect style casts: offset and blur in points, and its colour.
+        var shadow: (dx: Double, dy: Double, blur: Double, color: Color)? = nil
     }
     /// A VML textpath — Word's WordArt — drawn as Slides draws WordArt
     /// (`WordArt`): each line stretched to the shape's box by its warp, in
@@ -347,7 +454,7 @@ enum WriterGroups {
             return Double(formula.dropFirst(4))
         }
         let warp = TextWarp(preset: preset, adjust: adjustments, xml: PptxXML.serialize(w))
-        return WordArt.envelope(warp) != nil ? warp : nil
+        return WordArt.draws(warp) ? warp : nil
     }
 
     /// Reads the shapes of `group` (a `wpg:wgp`) — straight lines, and
@@ -355,7 +462,8 @@ enum WriterGroups {
     /// left, for the object attachment `id`; false where it has none to
     /// draw.
     @discardableResult
-    static func register(_ group: XNode, for id: String, themePart: Data?, wordArt: [ObjectIdentifier: DrawingWordArt] = [:]) -> Bool {
+    static func register(_ group: XNode, for id: String, themePart: Data?, wordArt: [ObjectIdentifier: DrawingWordArt] = [:],
+                         picture: (String) -> Data? = { _ in nil }) -> Bool {
         let theme = PptxTheme(themePart.flatMap { XNode.parse($0) })
         let colors = ColorContext(theme: theme)
         // (Or one shape alone, a `wps:wsp`: a group of itself.)
@@ -387,6 +495,27 @@ enum WriterGroups {
                 switch child.name {
                 case "wpg:grpSp":
                     if let xfrm = child.first("wpg:grpSpPr")?.first("a:xfrm") { walk(child.children, map(xfrm, outer: place)) }
+                case "pic:pic":
+                    // (A picture in the group, drawn over its box: lo
+                    // tdf126426's page-size photo under a white text box.)
+                    guard let rid = child.first("pic:blipFill")?.first("a:blip")?["r:embed"], let data = picture(rid),
+                          let xfrm = child.first("pic:spPr")?.first("a:xfrm") else { continue }
+                    let at = place(Rect.fromLTWH(number(xfrm.first("a:off"), "x"), number(xfrm.first("a:off"), "y"),
+                                                 number(xfrm.first("a:ext"), "cx"), number(xfrm.first("a:ext"), "cy")))
+                    shapes.append(Shape(rect: Rect.fromLTWH(at.left / 12700, at.top / 12700, at.width / 12700, at.height / 12700),
+                                        fill: nil, line: nil, lineWidth: 0, isLine: false, rising: false, geometry: nil,
+                                        rotation: 0, flipH: false, flipV: false, headEnd: nil, tailEnd: nil,
+                                        picture: (id + "#" + String(shapes.count), data)))
+                case "wpg:graphicFrame":
+                    // (A chart in the group, at its own place in it: lo
+                    // tdf124398 and tdf-chart-in-group drew it at the group's top, as the
+                    // whole drawing.)
+                    guard let rid = child.descendant("c:chart")?["r:id"], let xfrm = child.first("wpg:xfrm") else { continue }
+                    let at = place(Rect.fromLTWH(number(xfrm.first("a:off"), "x"), number(xfrm.first("a:off"), "y"),
+                                                 number(xfrm.first("a:ext"), "cx"), number(xfrm.first("a:ext"), "cy")))
+                    shapes.append(Shape(rect: Rect.fromLTWH(at.left / 12700, at.top / 12700, at.width / 12700, at.height / 12700),
+                                        fill: nil, line: nil, lineWidth: 0, isLine: false, rising: false, geometry: nil,
+                                        rotation: 0, flipH: false, flipV: false, headEnd: nil, tailEnd: nil, chartID: id + "#" + rid))
                 case "wps:wsp":
                     // (A freeform too, `a:custGeom`: zh-ae2dd08d's flowcharts
                     // draw their boxes and diamonds so, Word's print each with
@@ -415,7 +544,40 @@ enum WriterGroups {
                     if !isLine {
                         if sp.first("a:noFill") != nil { fill = nil }
                         else if let f = sp.first("a:solidFill") { fill = colors.color(in: f) ?? f.first("a:sysClr")?["lastClr"].flatMap { Int64($0, radix: 16) }.map { Color(0xFF00_0000 | $0) } }
-                        else { fill = styled("a:fillRef").0 }
+                        else if sp.first("a:gradFill") == nil, sp.first("a:pattFill") == nil { fill = styled("a:fillRef").0 }
+                    }
+                    // (A gradient: the shape's own, or the theme's fill style its style refers to, in the
+                    // shape's colour: lo-7de905dc's rectangle is `fillRef idx=2`, a pale vertical gradient
+                    // in Word's print, where ours was the flat accent.)
+                    var gradient: SlideFill? = nil
+                    var pattern: SlideFill? = nil
+                    if !isLine {
+                        if let pf = sp.first("a:pattFill") {
+                            pattern = PptxReader.pattern(pf, colors: colors)
+                            fill = pattern?.color
+                        } else if let g = sp.first("a:gradFill") {
+                            gradient = PptxReader.gradient(g, colors: colors)
+                        } else if sp.first("a:noFill") == nil, sp.first("a:solidFill") == nil,
+                                  let ref = style?.first("a:fillRef"), let idx = ref["idx"].flatMap(Int.init), idx > 0,
+                                  theme.fillStyles.indices.contains(idx - 1), theme.fillStyles[idx - 1].name == "a:gradFill" {
+                            var c = colors
+                            c.placeholder = fill
+                            gradient = PptxReader.gradient(theme.fillStyles[idx - 1], colors: c)
+                        }
+                        if let g = gradient, g.stops.count < 2 { if fill == nil { fill = g.color }; gradient = nil }
+                        if gradient != nil, fill == nil { fill = gradient?.stops.first?.color }
+                    }
+                    var shadow: (dx: Double, dy: Double, blur: Double, color: Color)? = nil
+                    if !isLine, fill != nil || gradient != nil, sp.first("a:effectLst") == nil,
+                       let ref = style?.first("a:effectRef"), let idx = ref["idx"].flatMap(Int.init), idx > 0,
+                       theme.effectStyles.indices.contains(idx - 1),
+                       let sh = theme.effectStyles[idx - 1].descendant("a:outerShdw") {
+                        var c = colors
+                        c.placeholder = styled("a:effectRef").0
+                        let dist = (sh["dist"].flatMap(Double.init) ?? 0) / 12700, dir = (sh["dir"].flatMap(Double.init) ?? 0) / 60000 * .pi / 180
+                        if let color = c.color(in: sh) {
+                            shadow = (dist * cos(dir), dist * sin(dir), (sh["blurRad"].flatMap(Double.init) ?? 0) / 12700, color)
+                        }
                     }
                     let ln = sp.first("a:ln")
                     var line: Color? = nil
@@ -451,7 +613,7 @@ enum WriterGroups {
                                         geometry: geometry, rotation: (Double(xfrm["rot"] ?? "") ?? 0) / 60000,
                                         flipH: flipH, flipV: flipV,
                                         headEnd: fromStart ? head : tail, tailEnd: fromStart ? tail : head,
-                                        dash: PptxReader.dash(ln), drawingWordArt: art))
+                                        dash: PptxReader.dash(ln), drawingWordArt: art, gradient: gradient, pattern: pattern, shadow: shadow))
                 default: continue
                 }
             }
@@ -481,7 +643,7 @@ enum WriterGroups {
         112: "flowChartPredefinedProcess", 113: "flowChartInternalStorage", 114: "flowChartDocument",
         115: "flowChartMultidocument", 116: "flowChartTerminator", 117: "flowChartPreparation",
         118: "flowChartManualInput", 119: "flowChartManualOperation", 120: "flowChartConnector",
-        176: "flowChartAlternateProcess", 202: "rect",
+        71: "irregularSeal1", 176: "flowChartAlternateProcess", 202: "rect",
         33: "bentConnector2", 34: "bentConnector3", 35: "bentConnector4", 37: "curvedConnector2", 38: "curvedConnector3",
     ]
     /// Connectors: lines, never filled.
@@ -627,7 +789,10 @@ enum WriterGroups {
                                fitsPath: !off(path["fitshape"] ?? "f") || !off(path["fitpath"] ?? "f"))
         }
         let g = style(group)
-        guard let gw = points(g["width"]), let gh = points(g["height"]), gw > 0, gh > 0 else { return false }
+        // (A flat frame — a straight connector alone, `registerVMLShape` — has one side 0: its
+        // box is kept at a hundredth of a point, the child's own mapped size 0 as written.)
+        guard var gw = points(g["width"]), var gh = points(g["height"]), gw >= 0, gh >= 0, gw + gh > 0 else { return false }
+        gw = max(gw, 0.01); gh = max(gh, 0.01)
         var shapes: [Shape] = []
         typealias Map = (Rect) -> Rect
         func walk(_ group: XNode, _ map: @escaping Map) {
@@ -752,9 +917,43 @@ enum WriterGroups {
                 // zh-6e6b9821's side notes are text boxes whose stroke says
                 // `endarrow`, and Word draws them as plain boxes.)
                 let open = (spt.map { _vmlConnectors.contains($0) } ?? false) || (path.map { !$0.containsSubstring("x") } ?? false)
+                // (A gradient fill, `v:fill type="gradient"` with its stops in `colors`, and a shadow
+                // (`v:shadow`): lo-dc0529c3's stars, metallic with a hard shadow in Word's print.)
+                var gradient: SlideFill? = nil
+                if filled, let kind = fillNode?["type"], kind.hasPrefix("gradient") {
+                    var stops: [SlideFill.GradientStop] = []
+                    for item in (fillNode?["colors"] ?? "").split(separator: ";") {
+                        let kv = item.trimmingWhitespace().split(separator: " ", maxSplits: 1)
+                        if kv.count == 2, let at = fraction(String(kv[0])), let c = color(String(kv[1])) { stops.append(SlideFill.GradientStop(position: at, color: c)) }
+                    }
+                    if stops.count < 2, let first = fill {
+                        stops = [SlideFill.GradientStop(position: 0, color: first),
+                                 SlideFill.GradientStop(position: 1, color: color(fillNode?["color2"]) ?? Color(0xFFFFFFFF))]
+                    }
+                    let focus = fraction(fillNode?["focus"]) ?? 0
+                    if abs(focus) > 0.75 { /* focus 100%: stops run as listed, blue at the top of lo-dc0529c3 */ }
+                    else if abs(focus) > 0.25 {
+                        let half = stops.map { SlideFill.GradientStop(position: $0.position / 2, color: $0.color) }
+                        stops = half + half.reversed().map { SlideFill.GradientStop(position: 1 - $0.position, color: $0.color) }
+                    }
+                    if stops.count >= 2 {
+                        var g = SlideFill()
+                        g.stops = stops
+                        g.angle = 90 - (Double(fillNode?["angle"] ?? "0") ?? 0)
+                        g.even = true
+                        gradient = g
+                    }
+                }
+                var cast: (dx: Double, dy: Double, blur: Double, color: Color)? = nil
+                if let sd = child.first("v:shadow"), !off(sd["on"] ?? "f"), fill != nil {
+                    let o = (sd["offset"] ?? "").split(separator: ",", omittingEmptySubsequences: false).map { points(String($0)) }
+                    let c = (color(sd["color"]) ?? Color(0xFF808080)).withOpacity(max(0, min(1, fraction(sd["opacity"]) ?? 1)))
+                    cast = ((o.count > 0 ? o[0] : nil) ?? 2, (o.count > 1 ? o[1] : nil) ?? 2, 0, c)
+                }
                 shapes.append(Shape(rect: pt, fill: fill, line: line, lineWidth: weight, isLine: false, rising: false,
                                     geometry: geometry, rotation: rotation, flipH: flipH, flipV: flipV,
-                                    headEnd: open ? start : nil, tailEnd: open ? end : nil, dash: dash(stroke?["dashstyle"])))
+                                    headEnd: open ? start : nil, tailEnd: open ? end : nil, dash: dash(stroke?["dashstyle"]),
+                                    gradient: gradient, shadow: cast))
             }
         }
         let size = pair(group["coordsize"], (1000, 1000))
@@ -787,9 +986,12 @@ enum WriterGroups {
             }
             return Double(t).map { $0 * k }
         }
-        guard let w = pt(st["width"]), let h = pt(st["height"]), w > 0, h > 0 else { return false }
+        // (A straight connector's box has no height or no width — WPS's t32 arrows between
+        // flowchart steps, `height:0pt`, drawn in Word's print.)
+        let flat = (shape["o:spt"].flatMap { Int($0) }).map { _vmlStraight.contains($0) } ?? false
+        guard let w = pt(st["width"]), let h = pt(st["height"]), (w > 0 || (flat && w == 0)), (h > 0 || (flat && h == 0)), w + h > 0 else { return false }
         // Its own box in hundredths of a point, the group's frame the same.
-        let cw = Int((w * 100).rounded()), ch = Int((h * 100).rounded())
+        let cw = max(1, Int((w * 100).rounded())), ch = max(1, Int((h * 100).rounded()))
         var keep = st.filter { ["rotation", "flip"].contains($0.key) }.map { "\($0.key):\($0.value)" }
         keep += ["left:0", "top:0", "width:\(cw)", "height:\(ch)"]
         var attrs = shape.attrs
@@ -824,7 +1026,11 @@ enum WriterGroups {
             while out.count < n, i < tokens.count {
                 let t = tokens[i]
                 if t == "," { if expectValue { out.append(0) }; expectValue = true; i += 1; continue }
-                guard let v = Double(t) else { break }
+                guard let v = Double(t) else {
+                    // (A number left out before the next command is 0: lo-dc0529c3's star, `l962343,r…`.)
+                    if expectValue, !out.isEmpty, out.count < n, tokens[max(0, i - 1)] == "," { out.append(0); expectValue = false }
+                    break
+                }
                 out.append(v); expectValue = false; i += 1
             }
             if i < tokens.count, tokens[i] == ",", out.count == n { i += 1 }
@@ -876,9 +1082,13 @@ enum WriterGroups {
         let entry = entries[attachment.id]
         lock.unlock()
         guard let entry else { return false }
-        let sx = entry.width > 0 ? rect.width / entry.width : 1, sy = entry.height > 0 ? rect.height / entry.height : 1
+        let sx = entry.width > 0.01 ? rect.width / entry.width : 1, sy = entry.height > 0.01 ? rect.height / entry.height : 1
         for s in entry.shapes {
             let r = Rect.fromLTWH(rect.left + s.rect.left * sx, rect.top + s.rect.top * sy, s.rect.width * sx, s.rect.height * sy)
+            if let cid = s.chartID {
+                _ = WriterCharts.paint(id: cid, canvas, r, pxPerPt)
+                continue
+            }
             if let pic = s.picture {
                 if let img = image(pic.key, pic.data) {
                     canvas.drawImageRect(img, Rect.fromLTWH(0, 0, Double(img.width), Double(img.height)), r, Paint())
@@ -941,12 +1151,43 @@ enum WriterGroups {
                     if let e = s.tailEnd { SlidePainter.lineEnd(e, tip: b0, from: a0, base: base, paint: stroke, canvas) }
                 }
             } else if let g = s.geometry {
+                if let cast = s.shadow, s.fill != nil || s.gradient != nil {
+                    let p = Paint()
+                    p.style = .fill
+                    p.isAntiAlias = true
+                    p.color = cast.color
+                    if cast.blur > 0 { p.maskFilter = MaskFilter(blur: .normal, cast.blur * pxPerPt / 2) }
+                    canvas.drawPath(SlidePainter.combinedPath(g, r.shift(Offset(cast.dx * pxPerPt, cast.dy * pxPerPt))), p)
+                }
                 if let fill = s.fill {
                     let p = Paint()
                     p.style = .fill
                     p.isAntiAlias = true
                     p.color = fill
-                    canvas.drawPath(SlidePainter.combinedPath(g, r), p)
+                    if let gradient = s.gradient, let shader = SlidePainter.gradientShader(gradient, r) { p.shader = shader; p.color = Color(0xFFFFFFFF) }
+                    if let pattern = s.pattern {
+                        canvas.save()
+                        canvas.clipPath(SlidePainter.combinedPath(g, r))
+                        if let tile = pattern.image {
+                            // (The tile picture, 32pt a side, laid edge to edge from the shape's corner.)
+                            if let img = image(tile.id, tile.data) {
+                                let side = 32 * pxPerPt
+                                let source = Rect.fromLTWH(0, 0, Double(img.width), Double(img.height))
+                                var y = r.top
+                                while y < r.bottom {
+                                    var x = r.left
+                                    while x < r.right { canvas.drawImageRect(img, source, Rect.fromLTWH(x, y, side, side), Paint()); x += side }
+                                    y += side
+                                }
+                            } else {
+                                let flat = Paint(); flat.style = .fill; flat.color = pattern.color ?? fill
+                                canvas.drawRect(r, flat)
+                            }
+                        }
+                        canvas.restore()
+                    } else {
+                        canvas.drawPath(SlidePainter.combinedPath(g, r), p)
+                    }
                 }
                 if s.line != nil {
                     for sub in g.subpaths where sub.stroke {
@@ -987,7 +1228,8 @@ enum WriterGroups {
                 let area = Rect.fromLTRB(r.left + art.insets.left * sx, r.top + art.insets.top * sy,
                                          r.right - art.insets.right * sx, r.bottom - art.insets.bottom * sy)
                 WordArt.paint(lines: lines, alignment: art.paragraphs.first?.style.alignment ?? .left,
-                              warp: art.warp, area: area, canvas: canvas, pxPerPt: (sx + sy) / 2, fitsInk: true)
+                              warp: art.warp, area: area, canvas: canvas, pxPerPt: (sx + sy) / 2, fitsInk: true,
+                              family: art.paragraphs.first?.runs.first?.style.fontFamily)
             }
             canvas.restore()
         }

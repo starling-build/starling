@@ -97,6 +97,9 @@ for doc in "${DOCS[@]}"; do
             || { echo "  ✘ $name: could not write welcome fixture"; fails=$((fails + 1)); continue; }
     fi
     "$BIN" --layout "$doc" > "$native" || { echo "  ✘ $name: native layout failed"; fails=$((fails + 1)); continue; }
+    # The browser opens the file by path; a snap Chromium reads only under the home directory, so a fixture
+    # that lives elsewhere (a checkout under /data) is copied beside the other working files first.
+    mkdir -p "$WORK/in" && cp "$doc" "$WORK/in/$(basename "$doc")" && doc="$WORK/in/$(basename "$doc")"
     abs="$(cd "$(dirname "$doc")" && pwd)/$(basename "$doc")"
     PORT="$DEVTOOLS_PORT" node "$DRIVE" wait 6000 chord ctrl o wait 500 setfile "$abs" settle "$(basename "$abs")" dump layout "$web" > "$WORK/$name.log" 2>&1 \
         || { echo "  ✘ $name: browser dump failed"; tail -3 "$WORK/$name.log"; fails=$((fails + 1)); continue; }

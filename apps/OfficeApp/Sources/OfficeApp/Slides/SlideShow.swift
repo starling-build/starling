@@ -9,6 +9,7 @@
 // ends. After the last slide comes PowerPoint's black end screen.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

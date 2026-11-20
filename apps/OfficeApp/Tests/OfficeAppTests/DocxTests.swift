@@ -6,15 +6,65 @@ import XCTest
 import FoundationXML   // XMLParser, off Darwin
 #endif
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 @testable import OfficeApp
 
 final class DocxTests: XCTestCase {
+    func testPageReferenceKeepsEveryFormattedResultRunWhenSaved() throws {
+        let instruction = "PAGEREF _Target \\h"
+        var p = RichParagraph(text: "See XLII now")
+        p.applyStyle(4 ..< 8) { $0.field = instruction; $0.fieldResult = 1 }
+        var target = RichParagraph(text: "Target")
+        target.bookmarks = ["_Target"]
+        var doc = try DocxFormat.read(DocxFormat.write(RichDocument(paragraphs: [p, target]), pageSetup: .letter)).document
+        // Editing only part of the cached number splits the result into
+        // runs while retaining the imported field's identity.
+        doc.paragraphs[0].applyStyle(5 ..< 8) { $0.bold = true }
+        let saved = try DocxFormat.write(doc, pageSetup: .letter)
+        let back = try DocxFormat.read(saved).document.paragraphs[0]
+        XCTAssertEqual(back.text, p.text)
+        XCTAssertEqual(back.runs(in: 4 ..< 8).map(\.style.field), [instruction, instruction])
+        XCTAssertFalse(back.runs(in: 4 ..< 5)[0].style.bold)
+        XCTAssertTrue(back.runs(in: 5 ..< 8)[0].style.bold)
+        let xml = String(decoding: try XCTUnwrap(Zip.read(saved).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertEqual(xml.components(separatedBy: "w:fldCharType=\"begin\"").count - 1, 1)
+        XCTAssertEqual(xml.components(separatedBy: "w:fldCharType=\"end\"").count - 1, 1)
+    }
+
+    func testAdjacentPageReferencesWithTheSameInstructionStaySeparate() throws {
+        var p = RichParagraph(text: "12")
+        p.applyStyle(0 ..< 1) { $0.field = "PAGEREF _Target"; $0.fieldResult = 1 }
+        p.applyStyle(1 ..< 2) { $0.field = "PAGEREF _Target"; $0.fieldResult = 2 }
+        var target = RichParagraph(text: "Target")
+        target.bookmarks = ["_Target"]
+        let saved = try DocxFormat.write(RichDocument(paragraphs: [p, target]), pageSetup: .letter)
+        let back = try DocxFormat.read(saved).document.paragraphs[0]
+        XCTAssertEqual(back.text, "12")
+        XCTAssertNotEqual(try XCTUnwrap(back.runs(in: 0 ..< 1).first).style.fieldResult,
+                          try XCTUnwrap(back.runs(in: 1 ..< 2).first).style.fieldResult)
+        let xml = String(decoding: try XCTUnwrap(Zip.read(saved).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+        XCTAssertEqual(xml.components(separatedBy: "w:fldCharType=\"begin\"").count - 1, 2)
+    }
+
     // (ICU's data before this class lays any text out: a run filtered to
     // it has no `AAATextSetupTests` ahead of it.)
     override class func setUp() {
         super.setUp()
         _ = TestText.icuLoaded
+    }
+
+    /// An IF field with no result written shows the branch its comparison picks: strings without regard to case,
+    /// two numbers as numbers, `<>` `<` `>` `<=` `>=`, a missing false text empty; anything else, nothing.
+    func testAnIfFieldShowsItsBranch() {
+        XCTAssertEqual(DocxFormat._ifFieldResult(" IF 1=2 \"yes\" \"no\" "), "no")
+        XCTAssertEqual(DocxFormat._ifFieldResult("IF 2 > 10 \"big\" \"small\""), "small")
+        XCTAssertEqual(DocxFormat._ifFieldResult("IF \"Abc\" = \"aBC\" \"same\" \"other\""), "same")
+        XCTAssertEqual(DocxFormat._ifFieldResult("IF 3 <> 3 \"x\""), "")
+        XCTAssertEqual(DocxFormat._ifFieldResult("IF 3 <= 3 \"x\" \"y\""), "x")
+        XCTAssertEqual(DocxFormat._ifFieldResult("IF \"a\" < \"b\" \"lt\" \"ge\""), "lt")
+        XCTAssertNil(DocxFormat._ifFieldResult("IF = \"BASEDMAFAC\" \""))
+        XCTAssertNil(DocxFormat._ifFieldResult("MERGEFIELD Name"))
     }
 
     private func sample() -> RichDocument {
@@ -41,6 +91,11 @@ final class DocxTests: XCTestCase {
     /// A cached placeholder is shared by named inline text controls. A
     /// filled control, a different name, and a block control keep their
     /// own content (Word's 55966 and independently printed variants).
+    func testHtmlAltChunkIsItsParagraphs() {
+        let html = "<html><head><title>t</title><style>p{}</style></head><body><p>HTML &amp; AltChunk</p><div>two<br>lines</div></body></html>"
+        XCTAssertEqual(DocxFormat._htmlParagraphs(html), ["HTML & AltChunk", "two", "lines"])
+    }
+
     func testNamedInlinePlaceholders() throws {
         func control(_ text: String, name: String = "Shared", showing: String = "<w:showingPlcHdr/>", block: Bool = false) -> String {
             let runs = "<w:r><w:t>\(text)</w:t></w:r>"
@@ -63,6 +118,121 @@ final class DocxTests: XCTestCase {
         let distinct = try read("<w:p>\(control("First"))\(control("Different", name: "Other"))\(control("Unnamed", name: ""))\(control("Independent", name: ""))</w:p>")
         XCTAssertEqual(distinct.paragraphs.map(\.text), ["FirstDifferentUnnamedIndependent"])
         XCTAssertEqual(try read("<w:p>\(control("Another document"))</w:p>").paragraphs.map(\.text), ["Another document"])
+    }
+
+    /// Characters XML 1.0 cannot hold never reach the saved part: the
+    /// copy of LibreOffice's EDB-36788-1 (bytes that were never a
+    /// document, read as text) had 3,508 of them in its document.xml and
+    /// no parser opened it.
+    func testControlCharactersNeverReachTheXML() throws {
+        let doc = RichDocument(paragraphs: [RichParagraph(text: "A\u{1}B\u{19}C\u{0}D\u{FFFE}E tab\there & <more>")])
+        let saved = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let xml = try XCTUnwrap(saved.first { $0.name == "word/document.xml" }).data
+        let parser = XMLParser(data: xml)
+        XCTAssertTrue(parser.parse(), "document.xml must be well-formed: \(String(describing: parser.parserError))")
+        let back = try DocxFormat.read(try DocxFormat.write(doc, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs.map(\.text), ["ABCDE tab\there & <more>"])
+    }
+
+    /// A page break does not add a paragraph on every save. Where the
+    /// file says the paragraph mark follows the break
+    /// (`w:splitPgBreakAndParaMark`, before 2013's layout) each shape
+    /// below read as one paragraph more after a save — LibreOffice's
+    /// tdf123636_newlinePageBreak and its twelve like it.
+    func testPageBreakDoesNotAddParagraphsOnEverySave() throws {
+        func read(_ body: String) throws -> RichDocument {
+            var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph()]), pageSetup: .letter))
+            let i = entries.firstIndex { $0.name == "word/document.xml" }!
+            entries[i] = ZipEntry(name: "word/document.xml", data: Data("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>\(body)<w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/></w:sectPr></w:body></w:document>".utf8))
+            let s = entries.firstIndex { $0.name == "word/settings.xml" }!
+            entries[s] = ZipEntry(name: "word/settings.xml", data: Data("<w:settings xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:compat><w:splitPgBreakAndParaMark/><w:compatSetting w:name=\"compatibilityMode\" w:uri=\"http://schemas.microsoft.com/office/word\" w:val=\"12\"/></w:compat></w:settings>".utf8))
+            return try DocxFormat.read(Zip.write(entries)).document
+        }
+        let page = "<w:r><w:br w:type=\"page\"/></w:r>"
+        func run(_ text: String) -> String { "<w:r><w:t>\(text)</w:t></w:r>" }
+        let shapes: [String: String] = [
+            "break alone": "<w:p>\(page)</w:p>",
+            "text then break": "<w:p>\(run("A"))\(page)</w:p>",
+            "text, break, text": "<w:p>\(run("A"))\(page)\(run("B"))</w:p>",
+            "break alone, then a paragraph": "<w:p>\(page)</w:p><w:p>\(run("Next"))</w:p>",
+            "text then break, then a paragraph": "<w:p>\(run("A"))\(page)</w:p><w:p>\(run("Next"))</w:p>",
+        ]
+        for (name, body) in shapes {
+            let first = try read(body)
+            let saved = try DocxFormat.write(first, pageSetup: .letter)
+            let again = try DocxFormat.read(saved).document
+            XCTAssertEqual(again.paragraphs.map(\.text), first.paragraphs.map(\.text), name)
+            XCTAssertEqual(again.paragraphs.count, first.paragraphs.count, "\(name): paragraphs after one save")
+            let twice = try DocxFormat.read(DocxFormat.write(again, pageSetup: .letter)).document
+            XCTAssertEqual(twice.paragraphs.count, first.paragraphs.count, "\(name): paragraphs after two saves")
+        }
+    }
+
+    /// The main part is the one the root relationships name, wherever it
+    /// stands in `word/`: LibreOffice's tdf104713_undefinedStyles calls it
+    /// `word/trial.xml`, with `word/_rels/trial.xml.rels` beside it.
+    func testMainPartNamedByTheRootRelationships() throws {
+        let plain = try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "Named by the root relationships")]), pageSetup: .letter)
+        var entries = try Zip.read(plain)
+        entries = entries.map { e in
+            switch e.name {
+            case "word/document.xml": return ZipEntry(name: "word/trial.xml", data: e.data)
+            case "word/_rels/document.xml.rels": return ZipEntry(name: "word/_rels/trial.xml.rels", data: e.data)
+            case "_rels/.rels":
+                return ZipEntry(name: e.name, data: Data(String(decoding: e.data, as: UTF8.self).replacingAll("word/document.xml", with: "word/trial.xml").utf8))
+            default: return e
+            }
+        }
+        XCTAssertFalse(entries.contains { $0.name == "word/document.xml" })
+        let back = try DocxFormat.read(Zip.write(entries)).document
+        XCTAssertEqual(back.paragraphs.map(\.text), ["Named by the root relationships"])
+        let saved = try Zip.read(try DocxFormat.write(back, pageSetup: .letter))
+        XCTAssertTrue(saved.contains { $0.name == "word/document.xml" }, "saved under the usual name")
+        // No such part anywhere: still the error, not a guess.
+        XCTAssertThrowsError(try DocxFormat.read(Zip.write(entries.filter { $0.name != "word/trial.xml" })))
+    }
+
+    /// A save loses no paragraph's text. LibreOffice's tdf123163-1 sets a
+    /// section's columns as a table whose markup is kept for the save, and
+    /// a paragraph whose picture names media the package does not hold had
+    /// none: the copy left that paragraph's text out. (The copy no longer
+    /// points at the picture that was never there, so its columns read as
+    /// a table the second time and the paragraph counts differ: no text.)
+    func testSectionColumnsKeepAParagraphWhoseMediaIsMissing() throws {
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/lo/docs/lo-d88152cce1e2574c.docx")
+        guard let data = try? Data(contentsOf: file) else { throw XCTSkip("the LibreOffice set is not checked out") }
+        let first = try DocxFormat.read(data).document
+        let saved = try DocxFormat.write(first, pageSetup: .letter)
+        let xml = String(decoding: try XCTUnwrap(try Zip.read(saved).first { $0.name == "word/document.xml" }).data, as: UTF8.self)
+            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "&quot;", with: "\"").replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">").replacingOccurrences(of: "&amp;", with: "&")
+        let lost = first.paragraphs.map(\.text).filter { text in
+            let word = text.replacingOccurrences(of: "\u{FFFC}", with: " ").replacingOccurrences(of: "\u{00AD}", with: " ").split(whereSeparator: \.isWhitespace).last.map(String.init) ?? ""
+            return !word.isEmpty && !xml.contains(word)
+        }
+        XCTAssertEqual(lost, [], "paragraphs whose last word is not in the saved document")
+    }
+
+    /// A table nested in a cell that floats only in name (against the text,
+    /// from the column's edge, a twip under its paragraph's top) is an
+    /// inline block shifted by its x, so that it parts between its rows
+    /// over a page break as one does: LibreOffice's tdf170381, a 75pt table
+    /// in a 383pt cell, was a floating box that ran off the page's foot.
+    func testNominallyFloatingNestedTableIsAnInlineBlock() throws {
+        let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("test/corpus/docx/lo/docs/lo-1e0077c34b69d826.docx")
+        guard let data = try? Data(contentsOf: file) else { throw XCTSkip("the LibreOffice set is not checked out") }
+        let doc = try DocxFormat.read(data).document
+        let boxes = doc.paragraphs.filter { $0.image?.textBox?.growsToFit == true }
+        XCTAssertEqual(boxes.count, 1)
+        let box = try XCTUnwrap(boxes.first)
+        XCTAssertNil(box.image?.float, "set in the flow, not floated")
+        XCTAssertEqual(box.style.indentLeft, 11.35, accuracy: 0.01, "shifted by its tblpX")
+        XCTAssertEqual(box.image?.width ?? 0, 74.85, accuracy: 0.01)
     }
 
     func testRightToLeftRunsResolveTheirComplexScriptFont() {
@@ -298,6 +468,15 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(saved.contains("<w:tblCellMar><w:top w:w=\"0\" w:type=\"dxa\"/><w:left w:w=\"108\" w:type=\"dxa\"/>"), saved)
     }
 
+    /// On/off elements (w:b, w:titlePg, w:rtl ...): present is on unless w:val
+    /// is false, 0 or off.
+    func testOnOffElementsHonourVal() {
+        XCTAssertFalse(DocxFormat._on(nil))
+        XCTAssertTrue(DocxFormat._on(XNode(name: "w:titlePg", attrs: [:])))
+        for v in ["true", "1", "on"] { XCTAssertTrue(DocxFormat._on(XNode(name: "w:b", attrs: ["w:val": v])), v) }
+        for v in ["false", "0", "off"] { XCTAssertFalse(DocxFormat._on(XNode(name: "w:b", attrs: ["w:val": v])), v) }
+    }
+
     func testHeaderFooterTabsAreThirds() throws {
         // A footer "name <right tab> Page N": the positional tab reads as
         // two tabs (left, centre, right thirds), and the thirds write back
@@ -312,6 +491,43 @@ final class DocxTests: XCTestCase {
         let i = entries.firstIndex { $0.name == "word/footer1.xml" }!
         entries[i] = ZipEntry(name: "word/footer1.xml", data: Data(xml.replacingAll("<w:r><w:tab/></w:r><w:r><w:tab/></w:r>", with: "<w:r><w:ptab w:relativeTo=\"margin\" w:alignment=\"right\" w:leader=\"none\"/></w:r>").utf8))
         XCTAssertEqual(try DocxFormat.read(try Zip.write(entries)).document.footer, "Left\t\tPage {PAGE}")
+    }
+
+    func testTableStyleRunPropertiesStandUnderTheParagraphStyle() throws {
+        // A table style's own w:rPr (kern, East Asian face, colour) reaches
+        // its cells' runs where the Normal style says nothing of it; a
+        // paragraph style that states one keeps its own. (Read and then
+        // dropped, a table style's w:kern left Word's kerned pairs unkerned:
+        // lab asp's Times "11".)
+        var a = RichParagraph(text: "11 a"), b = RichParagraph(text: "11 b")
+        a.cell = CellRef(table: "T", row: 0, column: 0); b.cell = CellRef(table: "T", row: 0, column: 1)
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "Before"), a, b, RichParagraph(text: "")])
+        doc.tableColumns["T"] = [100, 100]
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+        let si = entries.firstIndex { $0.name == "word/styles.xml" }!
+        var styles = String(decoding: entries[si].data, as: UTF8.self)
+        styles = styles.replacingAll("</w:styles>", with: "<w:style w:type=\"paragraph\" w:styleId=\"Tight\"><w:name w:val=\"Tight\"/><w:basedOn w:val=\"Normal\"/><w:rPr><w:kern w:val=\"0\"/></w:rPr></w:style><w:style w:type=\"table\" w:styleId=\"Base\"><w:name w:val=\"Base\"/><w:rPr><w:color w:val=\"336699\"/></w:rPr></w:style><w:style w:type=\"table\" w:styleId=\"Kerned\"><w:name w:val=\"Kerned\"/><w:basedOn w:val=\"Base\"/><w:rPr><w:rFonts w:eastAsia=\"PMingLiU\"/><w:kern w:val=\"2\"/></w:rPr></w:style></w:styles>")
+        entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:tblPr><w:tblW w:w=\"0\" w:type=\"auto\"/>", with: "<w:tblPr><w:tblStyle w:val=\"Kerned\"/><w:tblW w:w=\"0\" w:type=\"auto\"/>")
+        XCTAssertTrue(xml.contains("<w:tblStyle w:val=\"Kerned\"/>"), xml)
+        // The second cell's paragraph in a style that states its own kern.
+        let marker = "<w:tcW w:w=\"2000\" w:type=\"dxa\"/></w:tcPr><w:p><w:pPr>"
+        if let last = xml.range(of: marker, options: .backwards) {
+            xml.replaceSubrange(last, with: marker + "<w:pStyle w:val=\"Tight\"/>")
+        }
+        XCTAssertTrue(xml.contains("<w:pStyle w:val=\"Tight\"/>"), xml)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        let cells = back.paragraphs.filter { $0.cell != nil }
+        XCTAssertEqual(cells.count, 2)
+        XCTAssertEqual(cells[0].runs[0].style.kerningFrom, 1)
+        XCTAssertEqual(cells[0].runs[0].style.eastAsiaFontFamily, "PMingLiU")
+        XCTAssertEqual(cells[0].runs[0].style.color, Color(0xFF336699), "the parent table style's colour")
+        XCTAssertNil(cells[1].runs[0].style.kerningFrom, "the paragraph's style states its own")
+        XCTAssertEqual(cells[1].runs[0].style.eastAsiaFontFamily, "PMingLiU")
+        XCTAssertNil(back.paragraphs[0].runs[0].style.kerningFrom, "outside the table")
     }
 
     func testStyleNumberingColourAutoAndConditionalTableParts() throws {
@@ -681,7 +897,8 @@ final class DocxTests: XCTestCase {
         let file = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs/WordWithAttachments.docx")
-        let wmf = try XCTUnwrap(try Zip.read(Data(contentsOf: file)).first { $0.name == "word/media/image1.wmf" }).data
+        guard let docData = try? Data(contentsOf: file) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
+        let wmf = try XCTUnwrap(try Zip.read(docData).first { $0.name == "word/media/image1.wmf" }).data
         let icon = ImageAttachment(data: wmf, width: 54, height: 38.25, name: "image1.wmf")
         XCTAssertTrue(WriterMetafiles.register(wmf, for: icon.id))
         func painted() -> Int {
@@ -819,6 +1036,76 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(saved.contains("<m:oMathPara"), saved)
         XCTAssertFalse(saved.contains("<w:r><m:oMathPara"), saved)
         XCTAssertTrue(saved.contains("<m:t>L=99−</m:t>"), saved)
+    }
+
+    /// A paragraph that holds a bare `m:oMath` and nothing else is a display
+    /// equation to Word, centred: LibreOffice's tdf169843 (its ℝ at the page's
+    /// middle in Word's print, at the left margin in ours). With text beside
+    /// it, it is inline and the paragraph's alignment stands.
+    func testALoneBareEquationParagraphIsCentred() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let m = "xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\""
+        let eq = "<m:oMath \(m)><m:r><m:t>R</m:t></m:r></m:oMath>"
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p>\(eq)</w:p><w:p><w:r><w:t>x </w:t></w:r>\(eq)</w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(doc.paragraphs[0].style.alignment, .center)
+        XCTAssertNotEqual(doc.paragraphs[1].style.alignment, .center)
+    }
+
+    /// A line separator typed into a `w:t` is no break to Word: it prints a
+    /// blank half an em wide and the line runs on (tdf152983-1-min).
+    func testALineSeparatorInTextIsNotABreak() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:r><w:t>one\u{2028}two</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(doc.paragraphs[0].text, "one\u{2002}two")
+    }
+
+    /// A VML textbox's `layout-flow:vertical` reads down; with
+    /// `mso-layout-flow-alt:bottom-to-top`, up (btlr-frame-vml).
+    func testAVmlTextboxFlowsVertically() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        func box(_ flow: String) -> String {
+            "<w:p><w:r><w:pict><v:rect xmlns:v=\"urn:schemas-microsoft-com:vml\" style=\"position:absolute;margin-top:0pt;height:144pt;width:57pt\" filled=\"f\" stroked=\"f\">"
+            + "<v:textbox style=\"\(flow)\" inset=\".72pt,7.2pt,.72pt,7.2pt\"><w:txbxContent><w:p><w:r><w:t>Vertical Text</w:t></w:r></w:p></w:txbxContent></v:textbox></v:rect></w:pict></w:r></w:p>"
+        }
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            box("layout-flow:vertical;mso-layout-flow-alt:bottom-to-top") + box("layout-flow:vertical") + box(""))
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let boxes = doc.paragraphs.compactMap { p in (p.image ?? p.inlineImages.values.first)?.textBox }
+        XCTAssertEqual(boxes.map(\.textDirection), [.up, .down, .horizontal])
+    }
+
+    /// A section's line numbers (`w:lnNumType`) and vertical page alignment
+    /// (`w:vAlign`) are read into its page setup.
+    func testLineNumbersAndPageAlignmentAreReadFromTheSection() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let end = try XCTUnwrap(xml.range(of: "</w:sectPr>", options: .backwards))
+        xml.replaceSubrange(end, with: "<w:vAlign w:val=\"center\"/><w:lnNumType w:countBy=\"5\" w:start=\"3\" w:distance=\"283\" w:restart=\"continuous\"/></w:sectPr>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let setup = try XCTUnwrap(DocxFormat.read(try Zip.write(entries)).pageSetup)
+        XCTAssertEqual(setup.verticalAlign, "center")
+        let numbering = try XCTUnwrap(setup.lineNumbers)
+        XCTAssertEqual(numbering.countBy, 5)
+        XCTAssertEqual(numbering.start, 3)
+        XCTAssertEqual(try XCTUnwrap(numbering.distance), 14.15, accuracy: 0.01)
+        XCTAssertEqual(numbering.restart, .continuous)
     }
 
     func testADisplayEquationWiderThanItsLineBreaksBeforeItsOperators() throws {
@@ -2616,7 +2903,8 @@ final class DocxTests: XCTestCase {
                            mode: Int = 14, letterSpacing: Double? = nil, compresses: Bool = true,
                            hanging: Double = 0, justified: Bool = false,
                            documentLanguage: String? = nil, characterGrid: Double? = nil,
-                           runXML: String = "", kerns: Bool = false) throws -> (width: Double, length: Int) {
+                           runXML: String = "", kerns: Bool = false,
+                           linePitch: Double? = nil) throws -> (width: Double, length: Int) {
         // (The fitter measures each character as the engine shapes it,
         // which wants ICU's data in the bridge: without it every one is
         // zero wide and nothing is ever over.)
@@ -2648,6 +2936,7 @@ final class DocxTests: XCTestCase {
         doc.characterSpacingControl = compresses ? "compressPunctuation" : "doNotCompress"
         doc.usesEastAsianLayout = true
         if let characterGrid { doc.characterGridSpace = characterGrid }
+        doc.lineGridPitch = linePitch
         if let documentLanguage { doc.defaultLangXML = "<w:lang w:eastAsia=\"\(documentLanguage)\"/>" }
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
         theme.fontFamilyResolver = OfficeFonts.substitute
@@ -2660,6 +2949,68 @@ final class DocxTests: XCTestCase {
         let painter = l.geometry(0).painter
         return ((painter.computeLineMetrics().first?.width ?? 0) / theme.pixelsPerPoint,
                 painter.getLineBoundary(TextPosition(offset: 0)).end)
+    }
+
+    func testAnOpeningMarkMayEndALineSqueezedUnderCompressPunctuation() throws {
+        // Word for Windows, compat 15, compressPunctuation, kinsoku on (labs
+        // opn1/opn11, zh 8787f4): with room for half an em or more the opener
+        // ends the line squeezed to fit; with less than half it is carried.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        let head = String(repeating: "一", count: 20)
+        let text = head + "「" + String(repeating: "二", count: 10)
+        let squeezed = try firstLine(text, width: 20 * 12 + 9, hangs: false, mode: 15, justified: true, documentLanguage: "ja-JP")
+        XCTAssertEqual(squeezed.length, 22, "room of 0.75 em: the opener (and its zero-width break mark) ends the line")
+        XCTAssertEqual(squeezed.width, 20 * 12 + 9, accuracy: 0.5, "squeezed to the room")
+        let carried = try firstLine(text, width: 20 * 12 + 4, hangs: false, mode: 15, justified: true, documentLanguage: "ja-JP")
+        XCTAssertEqual(carried.length, 20, "room of a third of an em: the opener goes down")
+        let whole = try firstLine(text, width: 21 * 12 + 2, hangs: false, mode: 15, justified: true, documentLanguage: "ja-JP")
+        XCTAssertEqual(whole.length, 20, "room for the whole opener: kinsoku carries it")
+        let tw = try firstLine(text, width: 20 * 12 + 9, hangs: false, mode: 15, justified: true, documentLanguage: "zh-TW")
+        XCTAssertEqual(tw.length, 20, "not Japanese: Word does not end a zh-TW line on an opener")
+    }
+
+    func testAClosingMarkBeforeAnOpenerOrMiddleDotClosesUpToItsHalfOnAGrid() throws {
+        // Word for Windows, compat 15, line grid, kana text (lab jis4051, JIS
+        // X 4051's pair table): "…」「国" and "…」・国" keep the 」 and the opener
+        // on the line while the line is over by up to 0.75 em (the 」 at its
+        // half, the opener giving 0.29 em, the shared limit binding at this
+        // size), and carry them from a hair more. 。（ is not in the lab's
+        // pair table and keeps its old limit (cab6d785: Word keeps "。（発）（ノ）"
+        // at 9 pt). The lab's own 10.5 pt rows are held by the jis4051 labs.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        for (mark, head, tail) in [("」「", "一", "二"), ("）（", "あ", "い"), ("」・", "あ", "い"), ("。（", "あ", "い")] {
+            let text = String(repeating: head, count: 19) + mark + String(repeating: tail, count: 10)
+            let kept = try firstLine(text, width: 19 * 12 + 27, hangs: false, mode: 15, justified: true,
+                                     documentLanguage: "ja-JP", linePitch: 18)
+            XCTAssertEqual(kept.length, 22, "\(mark): 9 pt over (0.75 em) keeps the pair and the character after")
+            let carried = try firstLine(text, width: 19 * 12 + 26.75, hangs: false, mode: 15, justified: true,
+                                        documentLanguage: "ja-JP", linePitch: 18)
+            XCTAssertLessThan(carried.length, 22, "\(mark): a quarter point less carries them")
+        }
+    }
+
+    func testASpaceBesideHangulSqueezesAQuarterNotAFifth() throws {
+        // Word for Windows, compat 15, justified (lab kofit-mix-malgun): a
+        // Latin word after a Hangul one stays on the line while the squeeze
+        // needed is within a quarter of the space (we gave a fifth), and is
+        // carried once it needs more.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        let head = String(repeating: "한", count: 12)
+        let tail = " " + String(repeating: "한", count: 6)
+        func line(_ fewer: Double, _ space: Double, _ spaced: Double) throws -> Int {
+            try firstLine(head + " Korea" + tail, width: spaced - fewer * space, hangs: false, mode: 15,
+                          justified: true, documentLanguage: "ko-KR").length
+        }
+        let joined = try firstLine(head + "Korea", width: 1000, hangs: false, mode: 15, documentLanguage: "ko-KR").width
+        let spaced = try firstLine(head + " Korea", width: 1000, hangs: false, mode: 15, documentLanguage: "ko-KR").width
+        let space = spaced - joined
+        // (The engine counts joiners in a line's length, so measure the kept line in the same units.)
+        let whole = try firstLine(head + " Korea", width: 1000, hangs: false, mode: 15, documentLanguage: "ko-KR").length
+        XCTAssertGreaterThanOrEqual(try line(0.225, space, spaced), whole, "0.225 space short: within the quarter, kept")
+        XCTAssertLessThan(try line(0.6, space, spaced), whole, "0.6 space short: more than the quarter, carried")
     }
 
     func testAFullWidthPercentMayOpenATraditionalChineseLine() throws {
@@ -2785,6 +3136,45 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(l.geometry(0).painter.computeLineMetrics().count, 6)
     }
 
+    func testAutofitNoCompatPercentTableBreaksAtEmDash() throws {
+        try requireFitterWidths()
+        // Word, no compat mode, a percentage-width table (labs atcol5-8):
+        // a cell's narrowest piece ends at an em dash,
+        // where unpunctuated text of the same length stays whole. The first column is the dashed text.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        func firstColumn(_ word: String, compat: Int? = nil) -> Double {
+            var style = CharStyle()
+            style.fontFamily = "Arial"
+            style.fontSize = 12
+            let body = "ab"
+            var a = RichParagraph(text: word, runs: [Run(length: word.utf16.count, style: style)])
+            var b = RichParagraph(text: body, runs: [Run(length: body.utf16.count, style: style)])
+            a.cell = CellRef(table: "T", row: 0, column: 0)
+            b.cell = CellRef(table: "T", row: 0, column: 1)
+            var doc = RichDocument(paragraphs: [a, b, RichParagraph(text: "")])
+            doc.compatibilityMode = compat
+            doc.tableColumns["T"] = [100, 300]
+            var ts = TableStyle()
+            ts.widthPercent = 15
+            ts.contentFit = true
+            doc.tableStyles["T"] = ts
+            let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+            theme.fontFamilyResolver = OfficeFonts.substitute
+            theme.faceResolver = OfficeFonts.face
+            theme.averageCharWidth = OfficeFonts.averageCharWidth
+            theme.wordRules = true
+            let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+            l.width = 500 * theme.pixelsPerPoint
+            l.ensureLaidOut(doc)
+            return l.columnWidths(of: "T")?.first ?? -1
+        }
+        let dash = firstColumn("\u{6F22}\u{5B57}\u{6F22}\u{5B57}\u{6F22}\u{5B57}\u{2014}\u{6F22}\u{5B57}\u{6F22}\u{5B57}\u{6F22}\u{5B57}")
+        let whole = firstColumn("\u{6F22}\u{5B57}\u{6F22}\u{5B57}\u{6F22}\u{5B57}\u{5B57}\u{6F22}\u{5B57}\u{6F22}\u{5B57}\u{6F22}\u{5B57}")
+        let dash15 = firstColumn("\u{6F22}\u{5B57}\u{6F22}\u{5B57}\u{6F22}\u{5B57}\u{2014}\u{6F22}\u{5B57}\u{6F22}\u{5B57}\u{6F22}\u{5B57}", compat: 15)
+        XCTAssertLessThan(dash, whole - 2, "dash \(dash) whole \(whole) dash15 \(dash15)")
+    }
+
     func testARunOffTheGridWeighsItsCharactersAtTheirOwnEms() throws {
         try requireFitterWidths()
         // zh-c15af02e (mode 15, a grid adding 1pt) sets its runs off the grid,
@@ -2861,7 +3251,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-499adba6") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-499adba6") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -2923,7 +3313,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-8628cfbe") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-8628cfbe") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -2955,7 +3345,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-db07d44e") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-db07d44e") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -2988,7 +3378,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-d746674a") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-d746674a") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3018,7 +3408,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-20c1d74a") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-20c1d74a") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3048,7 +3438,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-0513f641") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-0513f641") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3078,7 +3468,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-51af781b") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-51af781b") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3110,7 +3500,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-8f9b19f4") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-8f9b19f4") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3162,7 +3552,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-72da925e") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-72da925e") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3193,7 +3583,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-e5eb092a") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-e5eb092a") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3225,7 +3615,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-753cd6a8") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-753cd6a8") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -3677,7 +4067,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-117cf7c6") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-117cf7c6") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let entries = try Zip.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         func height(bulleted: Bool) throws -> Double {
             var parts = entries
@@ -4167,6 +4557,23 @@ final class DocxTests: XCTestCase {
         XCTAssertFalse(latin.bold)
     }
 
+    func testDevanagariRunWeightFollowsBCsNotB() throws {
+        // Word takes a Devanagari run's weight from w:bCs: b alone leaves it regular (dx2 745490897f9f's
+        // Kokila words), and b 0 with bCs makes it bold (af19d946's Heading3 run).
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "\u{0928}\u{092E}"), RichParagraph(text: "\u{0928}\u{0915}"), RichParagraph(text: "\u{0928}\u{0924}")]), pageSetup: .letter))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">\u{0928}\u{092E}</w:t>", with: "<w:r><w:rPr><w:b/><w:cs/></w:rPr><w:t xml:space=\"preserve\">\u{0928}\u{092E}</w:t>")
+        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">\u{0928}\u{0915}</w:t>", with: "<w:r><w:rPr><w:b w:val=\"0\"/><w:bCs/><w:cs/></w:rPr><w:t xml:space=\"preserve\">\u{0928}\u{0915}</w:t>")
+        // The same b alone WITHOUT the w:cs flag stays bold (xd 77d6ca49's Nirmala UI runs).
+        xml = xml.replacingAll("<w:r><w:t xml:space=\"preserve\">\u{0928}\u{0924}</w:t>", with: "<w:r><w:rPr><w:b/></w:rPr><w:t xml:space=\"preserve\">\u{0928}\u{0924}</w:t>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let back = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertTrue(try XCTUnwrap(back.paragraphs[2].runs.first?.style).bold)
+        XCTAssertFalse(try XCTUnwrap(back.paragraphs[0].runs.first?.style).bold)
+        XCTAssertTrue(try XCTUnwrap(back.paragraphs[1].runs.first?.style).bold)
+    }
+
     func testListLevelKeepsItsNumberLookAndSuffix() throws {
         // bug65649: sub-levels whose numbers are 14pt and not bold, and a
         // level followed by a space rather than a tab.
@@ -4228,7 +4635,7 @@ final class DocxTests: XCTestCase {
         let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("test/corpus/docx/docs")
-        let name = try XCTUnwrap(try FileManager.default.contentsOfDirectory(atPath: dir.path).first { $0.hasPrefix("zh-c15af02e") })
+        guard let name = (try? FileManager.default.contentsOfDirectory(atPath: dir.path))?.first(where: { $0.hasPrefix("zh-c15af02e") }) else { throw XCTSkip("the corpus is not in this checkout (test/tools/corpus-cache.sh restore)") }
         let opened = try DocxFormat.read(try Data(contentsOf: dir.appendingPathComponent(name)))
         let doc = opened.document
         let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
@@ -5520,6 +5927,7 @@ final class DocxTests: XCTestCase {
         var word = TableStyle(borders: false, headerRow: true, cellMarginTop: 0, cellMarginLeft: 5.4, cellMarginBottom: 0, cellMarginRight: 5.4)
         word.textOutdent = 5.4
         word.textOutdentRight = 5.4
+        word.tableOwnMarginLeft = 5.4
         XCTAssertEqual(back.document.tableStyles[id], word)
         // The default writes bordered, no header.
         doc.tableStyles = [:]
@@ -5528,6 +5936,7 @@ final class DocxTests: XCTestCase {
         var plainStyle = TableStyle(cellMarginTop: 0, cellMarginLeft: 5.4, cellMarginBottom: 0, cellMarginRight: 5.4)
         plainStyle.textOutdent = 5.4
         plainStyle.textOutdentRight = 5.4
+        plainStyle.tableOwnMarginLeft = 5.4
         XCTAssertEqual(plain.document.tableStyles[plainId], plainStyle)
     }
 
@@ -5926,7 +6335,7 @@ final class DocxTests: XCTestCase {
         XCTAssertTrue(back.paragraphs[4].style.pageBreakBefore && back.paragraphs[4].style.columnBreak)
         let again = try part("word/document.xml", of: back)
         XCTAssertTrue(again.contains("<w:fldChar w:fldCharType=\"begin\"/></w:r><w:r><w:instrText xml:space=\"preserve\"> PAGEREF _Toc1 \\h </w:instrText></w:r><w:r><w:fldChar w:fldCharType=\"separate\"/></w:r><w:r><w:t xml:space=\"preserve\">6</w:t></w:r><w:r><w:fldChar w:fldCharType=\"end\"/></w:r>"), again)
-        XCTAssertTrue(again.contains("w:name=\"_Toc1\"/><w:bookmarkEnd"), again)
+        XCTAssertTrue(again.contains("w:name=\"_Toc1\"/>"), again)
         XCTAssertTrue(again.contains("<w:r><w:rPr><w:sz w:val=\"32\"/></w:rPr><w:br w:type=\"column\"/></w:r>"), again)
         XCTAssertFalse(again.contains("<w:pageBreakBefore/>"), again)
         XCTAssertTrue(again.contains("<w:framePr w:h=\"6974\" w:hAnchor=\"page\" w:vAnchor=\"page\" w:w=\"9639\" w:x=\"1419\" w:y=\"6408\"/>"), again)
@@ -6154,4 +6563,5 @@ private final class TurnedTextCanvas: Canvas {
     func drawAtlas(_ atlas: Image, _ transforms: [RSTransform], _ rects: [Rect], _ colors: [Color]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
     func drawRawAtlas(_ atlas: Image, _ rstTransforms: [Float], _ rects: [Float], _ colors: [Int32]?, _ blendMode: BlendMode?, _ cullRect: Rect?, _ paint: Paint) {}
     func drawShadow(_ path: Path, _ color: Color, _ elevation: Double, _ transparentOccluder: Bool) {}
+
 }

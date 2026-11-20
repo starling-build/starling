@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 
@@ -9,7 +10,8 @@ import Foundation
 /// camera: its outline swept back into a solid, turned, and drawn face by
 /// face, far ones first, each in the shape's colour lit by how it faces.
 ///
-/// What this is not: PowerPoint's renderer. There are no bevels, no
+/// What this is not: PowerPoint's renderer. Bevels only on text under the
+/// morning rig (a lit rim, from lab p3t); no
 /// materials and two measured light rigs, and a perspective camera is drawn as
 /// the parallel one that looks along the same line — the solid's outline
 /// and which sides show are right, its shading is plausible.
@@ -44,19 +46,245 @@ enum Extrusion {
         return dx == 0 && dy == 0 ? nil : Offset(dx, dy)
     }
 
-    static func read(_ spPr: XNode?, colors: ColorContext) -> Scene3D? {
+    /// PowerPoint's light rigs, as printed (test/labs/p3d, Lab A: a slab under
+    /// `isometricOffAxis1Right`, fill 199,100,50, every rig at dir t/r/b/l).
+    /// The lights sit in the shape's own frame, so a face's brightness is a
+    /// function of how it faces the shape, not the camera: `front` is the
+    /// face's multiple of its colour, and `walls` the four a side wall takes
+    /// as it faces right, down, left, up (azimuth 0, 90, 180, 270 in the
+    /// shape's frame, y down) at `dir="t"` — each as red, green, blue
+    /// multiples and an additive share of white (the specular band). `dir`
+    /// turns the rig a quarter round per step (t, r, b, l); between the four
+    /// a wall is read off a smooth curve through them.
+    struct Rig {
+        var front: (Double, Double, Double)
+        var walls: [(Double, Double, Double, Double)]
+    }
+    static let rigs: [String: Rig] = [
+        "threePt": Rig(front: (1.04, 1.04, 1.04), walls: [(0.12, 0.12, 0.12, 0.00), (1.00, 1.00, 1.00, 0.05), (0.60, 0.60, 0.60, 0.20), (0.74, 0.74, 0.74, 0.00)]),
+        "balanced": Rig(front: (0.96, 0.96, 0.96), walls: [(0.85, 0.85, 0.85, 0.03), (0.73, 0.73, 0.73, 0.02), (0.56, 0.56, 0.56, 0.00), (1.08, 1.08, 1.08, 0.00)]),
+        "soft": Rig(front: (0.97, 0.97, 0.97), walls: [(0.80, 0.80, 0.80, 0.00), (0.43, 0.43, 0.43, 0.00), (0.60, 0.60, 0.60, 0.00), (0.97, 0.97, 0.97, 0.00)]),
+        "harsh": Rig(front: (0.84, 0.84, 0.84), walls: [(0.28, 0.28, 0.28, 0.00), (0.88, 0.88, 0.88, 0.00), (1.50, 1.50, 1.50, 0.00), (0.80, 0.80, 0.80, 0.00)]),
+        "flood": Rig(front: (0.86, 0.86, 0.86), walls: [(0.20, 0.20, 0.20, 0.00), (0.76, 0.76, 0.76, 0.00), (2.02, 2.02, 2.02, 0.00), (0.88, 0.88, 0.88, 0.00)]),
+        "contrasting": Rig(front: (1.00, 1.00, 1.00), walls: [(1.00, 1.00, 1.00, 0.00), (1.00, 1.00, 1.00, 0.00), (1.00, 1.00, 1.00, 0.00), (1.00, 1.00, 1.00, 0.00)]),
+        "morning": Rig(front: (0.92, 0.92, 0.92), walls: [(0.95, 0.95, 0.95, 0.00), (1.08, 1.08, 1.08, 0.00), (1.30, 1.30, 1.30, 0.00), (0.31, 0.31, 0.31, 0.00)]),
+        "sunrise": Rig(front: (0.91, 0.91, 0.91), walls: [(1.28, 1.28, 0.96, 0.00), (1.07, 1.07, 1.07, 0.00), (1.31, 1.31, 1.31, 0.00), (0.44, 0.44, 0.44, 0.00)]),
+        "sunset": Rig(front: (0.98, 0.98, 0.98), walls: [(0.78, 0.78, 0.78, 0.00), (1.00, 0.56, 0.48, 0.00), (1.13, 0.66, 0.52, 0.00), (0.37, 0.37, 0.37, 0.00)]),
+        "chilly": Rig(front: (0.99, 0.99, 0.99), walls: [(0.41, 0.41, 0.41, 0.02), (0.98, 0.98, 0.98, 0.02), (1.02, 1.02, 1.02, 0.02), (0.49, 0.49, 0.49, 0.01)]),
+        "freezing": Rig(front: (0.60, 0.60, 0.60), walls: [(0.80, 0.80, 0.80, 0.12), (0.70, 0.70, 0.70, 0.06), (0.86, 0.86, 0.86, 0.07), (0.25, 0.25, 0.25, 0.03)]),
+        "flat": Rig(front: (1.00, 1.00, 1.00), walls: [(0.94, 0.94, 0.94, 0.15), (0.97, 0.97, 0.97, 0.05), (1.00, 1.00, 1.00, 0.00), (1.00, 1.00, 1.00, 0.00)]),
+        "twoPtPlain": Rig(front: (1.00, 1.00, 1.00), walls: [(0.32, 0.32, 0.32, 0.00), (0.69, 0.69, 0.69, 0.00), (0.60, 0.60, 0.60, 0.00), (0.52, 0.52, 0.52, 0.00)]),
+        "twoPt": Rig(front: (1.00, 1.00, 1.00), walls: [0.08, 0.81, 0.72, 0.40].map { ($0, $0, $0, 0.00) }),
+        "glow": Rig(front: (1.00, 1.00, 1.00), walls: [(1.70, 1.70, 1.70, 0.00), (1.00, 1.00, 1.00, 0.00), (1.98, 1.98, 1.98, 0.00), (1.00, 1.00, 1.00, 0.00)]),
+        "brightRoom": Rig(front: (1.00, 1.00, 1.00), walls: [(1.98, 1.98, 1.98, 0.00), (1.50, 1.50, 1.50, 0.00), (2.50, 2.50, 2.50, 0.00), (1.50, 1.50, 1.50, 0.00)]),
+    ]
+
+    /// A face with normal `n` (shape frame, z out of the slide) lit by `rig`
+    /// turned `turn` degrees: a wall (no z) from the curve round the four
+    /// measured azimuths, the front from `front`, a slope between by how far
+    /// it leans.
+    /// What a material does to a wall, fitted to Lab F (a donut under each of
+    /// the 14 named materials: twoPt at rev 90 and 0, threePt at rev 90): the
+    /// wall takes `diffuse` of the rig's matte curve plus `floor` white
+    /// everywhere, and a highlight band of `lobe` more white, `sigma` degrees
+    /// wide, centred on the wall azimuth `bandAz` (the band moves two thirds
+    /// as far as the rig's turn: twoPt 145 + 2/3 turn, threePt 165 at turn
+    /// 90). `back` is the share of the fill the unlit back face keeps.
+    /// PROVISIONAL for turns other than the three printed.
+    /// Refit colour-aware (2026-11-06): a wall is the line colour times `diffuse`
+    /// of the rig's curve plus `floor` white (about 0.17 for the opaque materials,
+    /// 0.2 under threePt, 0.65 for the translucent ones), and the highlight band is
+    /// narrower and brighter than the first fit had it; `shift` moves its centre
+    /// (degrees, to the later rows) from the two-thirds-of-the-turn rule, and
+    /// twoPt is printed at two turns (90, 0) and interpolated between.
+    struct Band { var diffuse, floor, lobe, sigma, shift: Double }
+    struct Material { var two: Band, two0: Band, three: Band, back: Double }
+    static func material(_ name: String) -> Material {
+        func m(_ t: (Double, Double, Double, Double, Double), _ z: (Double, Double, Double, Double, Double), _ h: (Double, Double, Double, Double, Double), _ back: Double = 0.25) -> Material {
+            func bd(_ v: (Double, Double, Double, Double, Double)) -> Band { Band(diffuse: v.0, floor: v.1, lobe: v.2, sigma: v.3, shift: v.4) }
+            return Material(two: bd(t), two0: bd(z), three: bd(h), back: back)
+        }
+        switch name {
+        case "legacyPlastic": return m((0.69, 0.17, 0.89, 9, 6), (0.55, 0.18, 0.93, 11, -8), (0.84, 0.20, 0.30, 12, -1))
+        case "legacyMetal": return m((0.52, 0.17, 0.75, 8, 6), (0.47, 0.19, 0.75, 8, -8), (0.63, 0.16, 0.25, 12, -1), 0.17)
+        case "plastic": return m((0.72, 0.18, 0.68, 9, 4), (0.60, 0.20, 0.68, 11, -6), (0.84, 0.20, 0.15, 10, -1))
+        case "metal": return m((0.78, 0.17, 0.75, 9, 4), (0.63, 0.20, 0.80, 11, -6), (0.84, 0.20, 0.20, 12, -1))
+        case "translucentPowder": return m((0.26, 0.65, 0.32, 11, 2), (0.24, 0.65, 0.41, 12, -8), (0.34, 0.71, 0.09, 5, 0))
+        case "powder": return m((0.77, 0.19, 0.34, 12, 4), (0.72, 0.22, 0.26, 12, -8), (0.84, 0.24, 0.10, 10, 3))
+        case "dkEdge": return m((0.62, 0.16, 0.90, 7, 6), (0.52, 0.17, 0.89, 8, -8), (0.80, 0.14, 0.15, 6, -1), 0.23)
+        case "softEdge": return m((0.70, 0.16, 0.91, 7, 6), (0.59, 0.18, 0.93, 8, -8), (0.84, 0.18, 0.10, 6, -1))
+        case "clear": return m((0.21, 0.63, 0.45, 10, 10), (0.18, 0.66, 0.40, 11, -10), (0.44, 0.62, 0.16, 6, -2))
+        case "flat": return m((0.94, 0.15, 0.95, 7, 6), (0.98, 0.17, 0.94, 7, -8), (0.90, 0.19, 0.00, 30, 0))
+        case "softmetal": return m((0.78, 0.19, 0.75, 10, 4), (0.63, 0.21, 0.82, 12, -6), (0.88, 0.16, 0.25, 16, -1))
+        case "matte", "legacyMatte": return m((0.70, 0.18, 0.00, 30, 0), (0.66, 0.18, 0.00, 30, 0), (0.84, 0.16, 0.00, 30, 0))
+        default: return m((0.73, 0.17, 0.33, 11, 4), (0.68, 0.21, 0.25, 11, -8), (0.84, 0.20, 0.10, 8, 0))   // warmMatte, PowerPoint's default
+    }
+    }
+
+    /// The face the camera turns away from, seen from behind (Lab F, 14 materials): the fill times `share` plus
+    /// `white` of white. twoPt prints 0.26 for the opaque materials and threePt 0.77 (three times); the translucent
+    /// ones carry white of their own, flat none of the light.
+    static func backFace(_ material: String, threePt: Bool) -> (share: Double, white: Double) {
+        switch material {
+        case "legacyMetal": return threePt ? (0.52, 0) : (0.165, 0)
+        case "powder": return threePt ? (0.81, 0) : (0.32, 0)
+        case "dkEdge": return threePt ? (0.70, 0) : (0.225, 0)
+        case "translucentPowder": return threePt ? (0.33, 0.57) : (0.175, 0.48)
+        case "clear": return threePt ? (0.25, 0.66) : (0.05, 0.66)
+        case "flat": return (0.99, 0)
+        default: return threePt ? (0.77, 0) : (0.26, 0)
+        }
+    }
+
+    /// A wall at azimuth `az` (degrees, shape frame) under material `m`: its multiple of the rig's colour and the share of white added.
+    static func band(_ m: Material, az: Double, turn: Double, threePt: Bool) -> (diffuse: Double, white: Double) {
+        var b = m.three
+        if !threePt {
+            let t = max(0, min(1, turn / 90))
+            func mix(_ p: Double, _ q: Double) -> Double { p + (q - p) * t }
+            b = Band(diffuse: mix(m.two0.diffuse, m.two.diffuse), floor: mix(m.two0.floor, m.two.floor), lobe: mix(m.two0.lobe, m.two.lobe), sigma: mix(m.two0.sigma, m.two.sigma), shift: mix(m.two0.shift, m.two.shift))
+        }
+        let centre = (threePt ? 165 + 2.0 / 3 * (turn - 90) : 145 + 2.0 / 3 * turn) - b.shift
+        var d = (az - centre).truncatingRemainder(dividingBy: 360)
+        if d > 180 { d -= 360 } else if d < -180 { d += 360 }
+        let g = d / b.sigma
+        return (b.diffuse, b.floor + b.lobe * exp(-0.5 * g * g))
+    }
+
+    /// The rigs as lights, for a rig that carries an `a:rot`: an ambient share
+    /// and lights (direction in the rig's own frame, strength), fitted to Lab
+    /// D (test/labs/p3d, 23 cells a rig, front and two walls). A face's share
+    /// of its colour is `ambient + sum strength * max(0, n . R L)`, R the
+    /// rig's rotation Ry(lon) Rx(lat) Rz(rev) (the angles as written), n the
+    /// face's normal in the shape's frame. The fit is within 0.5% for harsh and
+    /// soft, 1% flood, 2% threePt; a highlight's white is not in it. Without
+    /// an `a:rot` the measured table above stands. `dir` does not matter once
+    /// there is an `a:rot` (Lab D: dir r prints as dir t).
+    static let rotatedRigs: [String: (ambient: Double, lights: [(P3, Double)])] = [
+        "harsh": (0.28, [(P3(x: -35.4, y: -27.98, z: 15.63), 0.88), (P3(x: -19.02, y: 19.38, z: 8.78), 0.87)]),
+        "soft": (0.69, [(P3(x: 0.77, y: -2.11, z: 2.1), 0.41), (P3(x: -0.35, y: 1.05, z: -1.06), -0.39)]),
+        "flood": (0.14, [(P3(x: -2.17, y: 0.8, z: 0.42), 1.81), (P3(x: -0.46, y: -1.34, z: 0.83), 0.75), (P3(x: 3.28, y: -6.34, z: 0.51), 0.13)]),
+        "threePt": (0.02, [(P3(x: -1.78, y: 5.23, z: -5.5), 1.07), (P3(x: 1.35, y: 3.02, z: 6.21), 0.51), (P3(x: -4.47, y: -9.76, z: 7.65), 0.96)]),
+    ]
+
+    /// `v` turned about the line of sight, then the horizontal axis, then the vertical.
+    static func turned(_ v: P3, lat: Double, lon: Double, rev: Double) -> P3 {
+        let (la, lo, re) = (lat * .pi / 180, lon * .pi / 180, rev * .pi / 180)
+        var q = P3(x: v.x * cos(re) - v.y * sin(re), y: v.x * sin(re) + v.y * cos(re), z: v.z)
+        q = P3(x: q.x, y: q.y * cos(la) - q.z * sin(la), z: q.y * sin(la) + q.z * cos(la))
+        return P3(x: q.x * cos(lo) + q.z * sin(lo), y: q.y, z: -q.x * sin(lo) + q.z * cos(lo))
+    }
+
+    /// The share of its colour a face with normal `n` takes from a rotated rig.
+    static func rotatedShare(_ n: P3, rig: String, rot: [Double]) -> Double? {
+        guard let m = rotatedRigs[rig] else { return nil }
+        let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
+        var k = m.ambient
+        for (v, strength) in m.lights {
+            let vl = max(1e-9, (v.x * v.x + v.y * v.y + v.z * v.z).squareRoot())
+            let l = turned(P3(x: v.x / vl, y: v.y / vl, z: v.z / vl), lat: rot[0], lon: rot[1], rev: rot[2])
+            let d = (n.x * l.x + n.y * l.y + n.z * l.z) / len
+            // soft's pair is a straight line across the face (its two lights cancel to one without the clamp).
+            k += strength * (rig == "soft" ? d : max(0, d))
+        }
+        return max(0, k)
+    }
+
+    static func lit(_ base: Color, _ n: P3, rig: Rig, turn: Double, material m: Material? = nil, threePt: Bool = false, whiteShare: Double = 0.5) -> Color {
+        let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
+        let lean = min(1, abs(n.z) / len)
+        let w = (1 - lean * lean).squareRoot()
+        var k = [rig.front.0, rig.front.1, rig.front.2]
+        // The back of the solid takes no light: the darkest of the walls (it
+        // is what shows through the hairline between two quads).
+        if n.z < 0 { k = (0..<3).map { i in rig.walls.map { [$0.0, $0.1, $0.2][i] }.min() ?? 0 } }
+        var spec = 0.0
+        if w > 1e-6 {
+            let a = (atan2(n.y, n.x) * 180 / .pi - turn) * .pi / 180
+            func at(_ pick: ((Double, Double, Double, Double)) -> Double) -> Double {
+                let v = rig.walls.map(pick)
+                let c0 = (v[0] + v[1] + v[2] + v[3]) / 4, c1 = (v[0] - v[2]) / 2
+                let s1 = (v[1] - v[3]) / 2, c2 = (v[0] - v[1] + v[2] - v[3]) / 4
+                return max(0, c0 + c1 * cos(a) + s1 * sin(a) + c2 * cos(2 * a))
+            }
+            let wall = [at { $0.0 }, at { $0.1 }, at { $0.2 }]
+            for i in 0..<3 { k[i] = w * wall[i] + (1 - w) * k[i] }
+            if let m {
+                let bd = Extrusion.band(m, az: atan2(n.y, n.x) * 180 / .pi, turn: turn, threePt: threePt)
+                for i in 0..<3 { k[i] *= bd.diffuse }
+                spec = w * bd.white
+            }
+            // The fourth number is the white a highlight added where Lab A sampled
+            // the wall. It moves with the camera and the material, so laid whole over
+            // a wall it overshoots (a cyan wall washed out in shape_rotation) and
+            // left out it undershoots (isometricRightUp); half is what both decks
+            // like. PROVISIONAL until the material model replaces it.
+            if m == nil { spec = whiteShare * w * at { $0.3 } }
+        }
+        func ch(_ v: Int, _ f: Double) -> Int { max(0, min(255, Int((Double(v) * f + 255 * spec).rounded()))) }
+        return Color(argb: base.alpha, ch(base.red, k[0]), ch(base.green, k[1]), ch(base.blue, k[2]))
+    }
+
+    /// The `morning` rig on extruded TEXT, as lab p3t printed it (grey walls,
+    /// camera 20/330, orthographic): a wall's multiple of its colour, as red,
+    /// green and blue, by the azimuth of its normal in the shape's frame (y
+    /// down), in 30-degree bins centred 15, 45 ... 345 at `dir="t"`. A `dir`
+    /// turn is that curve turned (t, r, b, l line up to within 0.03); the
+    /// rig's own `rev` of 120 is not a turn of it, so it has a table of its own
+    /// where it was printed (135 to 285, the side of the letters the camera
+    /// shows). PROVISIONAL: one camera, one rev.
+    static let morningWalls: [(Double, Double, Double)] = [
+        (0.85, 0.79, 0.68), (0.745, 0.705, 0.65), (1.025, 0.975, 0.92), (1.15, 1.105, 1.045),
+        (1.50, 1.45, 1.36), (1.24, 1.20, 1.11), (1.10, 1.06, 0.99), (0.28, 0.27, 0.23),
+        (0.32, 0.30, 0.24), (0.41, 0.38, 0.33), (0.86, 0.80, 0.69), (0.89, 0.82, 0.71),
+    ]
+    static let morningWallsRev120: [Int: (Double, Double, Double)] = [
+        4: (0.67, 0.62, 0.54), 5: (0.68, 0.65, 0.59), 6: (0.76, 0.73, 0.67),
+        7: (1.40, 1.34, 1.26), 8: (1.52, 1.44, 1.35), 9: (1.49, 1.43, 1.34),
+    ]
+    static func morningWall(_ azimuth: Double, turn: Double) -> (Double, Double, Double) {
+        func bin(_ deg: Double) -> Double {
+            var u = (deg - 15).truncatingRemainder(dividingBy: 360) / 30
+            if u < 0 { u += 12 }
+            return u
+        }
+        func at(_ u: Double) -> (Double, Double, Double) {
+            let i = Int(u) % 12, f = u - floor(u), j = (i + 1) % 12
+            func pick(_ k: Int) -> (Double, Double, Double) {
+                if abs(turn - 120) < 1, let m = morningWallsRev120[k] { return m }
+                let t = morningWalls[((k - Int((turn / 30).rounded())) % 12 + 12) % 12]
+                return t
+            }
+            let a = pick(i), b = pick(j)
+            return (a.0 * (1 - f) + b.0 * f, a.1 * (1 - f) + b.1 * f, a.2 * (1 - f) + b.2 * f)
+        }
+        return at(bin(azimuth))
+    }
+
+    static func read(_ spPr: XNode?, colors: ColorContext, text: Bool = false) -> Scene3D? {
         let sp3d = spPr?.first("a:sp3d")
         var s = Scene3D(depth: max(0, sp3d?["extrusionH"].flatMap(Double.init) ?? 0) / Pptx.emu)
         s.extrusionColor = sp3d?.first("a:extrusionClr").flatMap(colors.color(in:))
+        if let b = sp3d?.first("a:bevelT") {
+            s.bevelW = (b["w"].flatMap(Double.init) ?? 76200) / Pptx.emu
+            s.bevelH = (b["h"].flatMap(Double.init) ?? 76200) / Pptx.emu
+            s.bevelPreset = b["prst"] ?? "circle"
+        }
+        s.bevelBH = (sp3d?.first("a:bevelB")?["h"].flatMap(Double.init) ?? 0) / Pptx.emu
+        s.contourColor = sp3d?.first("a:contourClr").flatMap(colors.color(in:))
+        s.contourW = (sp3d?["contourW"].flatMap(Double.init) ?? 0) / Pptx.emu
         s.wireframe = sp3d?["prstMaterial"] == "legacyWireframe"
+        s.lift = (sp3d?["z"].flatMap(Double.init) ?? 0) / Pptx.emu
+        s.material = sp3d?["prstMaterial"] ?? ""
         if let camera = spPr?.first("a:scene3d")?.first("a:camera") {
             let name = camera["prst"] ?? ""
             s.perspective = name.hasPrefix("legacyPerspective")
+            s.cameraName = name
             s.oblique = s.depth > 0 ? oblique(name) : nil
             if let c = cameras[name] { (s.lat, s.lon, s.rev) = c }
             s.legacy = name.hasPrefix("legacy")
             if let rot = camera.first("a:rot") {
-                func deg(_ a: String) -> Double { (rot[a].flatMap(Double.init) ?? 0) / 60000 }
+                func deg(_ a: String) -> Double { let v = (rot[a].flatMap(Double.init) ?? 0) / 60000; return abs(v) < 0.05 ? 0 : v }
                 (s.lat, s.lon, s.rev) = (deg("lat"), deg("lon"), deg("rev"))
             }
         }
@@ -64,13 +292,22 @@ enum Extrusion {
             s.rig = rig["rig"] ?? "threePt"
             let turns: [String: Double] = ["t": 0, "tr": 45, "r": 90, "br": 135, "b": 180, "bl": 225, "l": 270, "tl": 315]
             s.rigTurn = turns[rig["dir"] ?? "t"] ?? 0
+            // The rig's own roll about the line of sight is the same as turning it
+            // (Lab A: rev 90 prints as dir="r", pixel for pixel). Its latitude and
+            // longitude tip the lights out of the plane; not drawn yet.
+            if let rev = rig.first("a:rot")?["rev"].flatMap(Double.init) { s.rigTurn += rev / 60000 }
+            if let rot = rig.first("a:rot") {
+                func deg(_ a: String) -> Double { (rot[a].flatMap(Double.init) ?? 0) / 60000 }
+                s.rigRot = [deg("lat"), deg("lon"), deg("rev")]
+            }
         }
-        // Looked at square on, a solid is its own front.
-        if s.oblique == nil, s.lat == 0, s.lon == 0, s.rev == 0 { return nil }
+        // Looked at square on, a solid is its own front — but text with a top
+        // bevel still wears it (lab p3u: PowerPoint bevels face-on letters).
+        if s.oblique == nil, s.lat == 0, s.lon == 0, s.rev == 0, !(text && s.bevelW > 0 && s.bevelH > 0) { return nil }
         return s
     }
 
-    private struct P3 { var x, y, z: Double }
+    struct P3 { var x, y, z: Double }
 
     /// The outline as closed runs of points, a curve as short chords.
     private static func contours(_ path: Path) -> [[Offset]] {
@@ -89,12 +326,22 @@ enum Extrusion {
     /// Draws `shape` as its solid. `outline` is the shape's outline in the
     /// canvas's space (`r` its frame). False when there is nothing to
     /// draw this way, and the shape is then drawn flat.
-    static func paint(_ shape: SlideShape, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double) -> Bool {
-        guard let scene = shape.scene3d, !scene.isFlatTurn, let fill = shape.fill ?? shape.fillStyle?.stops.first?.color ?? shape.fillStyle?.color else { return false }
+    static func paint(_ shape: SlideShape, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, onFront: (() -> Void)? = nil) -> Bool {
+        guard let scene = shape.scene3d, !scene.isFlatTurn, let fill = shape.fill ?? shape.fillStyle?.stops.first?.color ?? shape.fillStyle?.color ?? (onFront != nil ? Color(0xFFFFFFFF) : nil) else { return false }
+        return solid(scene: scene, fill: fill, line: shape.outline, lineWidth: shape.outlineWidth, outline: outline, r, canvas, pxPerPt: px, onFront: onFront)
+    }
+
+    /// `paint` for anything with an outline: the scene, the face's colour,
+    /// and the line (colour, width in points) round it.
+    static func solid(scene: Scene3D, fill: Color, line: Color?, lineWidth: Double, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, onFront: (() -> Void)? = nil, rim: Bool = false) -> Bool {
         let rings = contours(outline)
         guard !rings.isEmpty else { return false }
         let c = r.center
-        let depth = scene.depth * px
+        // Bevelled text under a rig other than morning prints deeper than its extrusionH: about the
+        // bevel's height more, or three quarters of the bottom bevel's if that is more: amd-4's lab p3u (a 9x3 or 9x9 top bevel
+        // and a 12 pt bottom one: 9 pt more, bounding boxes and cell scores) and lab p3pv (a 9x3 top bevel and no bottom one:
+        // 3.2 pt more at depths 36 and 72, left edges of the solids).
+        let depth = (scene.depth + (rim && scene.rig != "morning" && scene.depth > 0 && scene.bevelW > 0 && scene.bevelH > 0 ? max(scene.bevelH, 0.75 * scene.bevelBH) : 0)) * px
         // The camera turns one way; what is seen turns the other.
         let lat = -scene.lat * .pi / 180, lon = -scene.lon * .pi / 180, rev = -scene.rev * .pi / 180
         func turn(_ p: P3) -> P3 {
@@ -104,25 +351,55 @@ enum Extrusion {
             return P3(x: q.x * cos(rev) - q.y * sin(rev), y: q.x * sin(rev) + q.y * cos(rev), z: q.z)
         }
         func place(_ p: Offset, _ z: Double) -> P3 {
-            var q = turn(P3(x: p.dx - c.dx, y: p.dy - c.dy, z: z))
+            // `a:sp3d z` under a legacy perspective camera (lab p3fit, z -18..36 pt): the whole solid
+            // draws larger by 650/(650 - z) (face 107.2 pt at z 0, 113.2 at 36, 104.4 at -18) and slides
+            // 0.22 pt left per point; the depth below the face is placed as if z were 0.
+            let lifted = scene.perspective && scene.oblique != nil
+            let lz = lifted ? scene.lift * px : 0
+            var q = turn(P3(x: p.dx - c.dx, y: p.dy - c.dy, z: z - lz))
             // An oblique camera: what lies behind slides aside as it recedes
             // — and, in perspective, draws in toward a point as it goes.
+            if scene.oblique == nil, scene.cameraName.hasPrefix("perspective") {
+                // The eye ~1100 pt away (swept on perspectiveContrastingLeft,
+                // shape_rotation and cropped_image).
+                let f = 1100 * px / (1100 * px - q.z)
+                q.x *= f; q.y *= f
+            }
             if let o = scene.oblique {
                 let f = scene.perspective ? 250 * px / (250 * px + max(0, -q.z)) : 1
                 q.x = q.x * f - o.dx * q.z * f
                 q.y = q.y * f - o.dy * q.z * f
             }
+            if lifted, lz != 0 {
+                let g = 650 * px / (650 * px - lz)
+                q.x = q.x * g - 0.22 * lz; q.y *= g
+            }
             return q
         }
-        func flat(_ p: P3) -> Offset { Offset(c.dx + p.x, c.dy + p.y) }
+        // PowerPoint prints a solid with a material as a picture whose box is larger than the shape's:
+        // Scene3d_material_highlight, six donuts of five materials, ours 0.62 to 0.75 short on the left and
+        // top and 0.4 to 0.5 on the right and foot.
+        var grown: (lo: Offset, hi: Offset)? = nil
+        func flat(_ p: P3) -> Offset {
+            let o = Offset(c.dx + p.x, c.dy + p.y)
+            guard let g = grown else { return o }
+            let gx = 0.65 * px, gy = 0.75 * px, ex = 0.45 * px, ey = 0.62 * px
+            return Offset(g.lo.dx - gx + (o.dx - g.lo.dx) * (g.hi.dx - g.lo.dx + gx + ex) / max(1e-6, g.hi.dx - g.lo.dx),
+                          g.lo.dy - gy + (o.dy - g.lo.dy) * (g.hi.dy - g.lo.dy + gy + ey) / max(1e-6, g.hi.dy - g.lo.dy))
+        }
         // z runs toward the eye: the front at 0, the back `depth` behind.
-        let front = rings.map { $0.map { place($0, 0) } }
-        let back = rings.map { $0.map { place($0, -depth) } }
+        let front = rings.map { $0.map { place($0, scene.lift * px) } }
+        let back = rings.map { $0.map { place($0, scene.lift * px - depth) } }
+        if !rim, !scene.wireframe, !scene.material.isEmpty {
+            var lo = Offset(.infinity, .infinity), hi = Offset(-.infinity, -.infinity)
+            for ring in front + back { for q in ring { let o = flat(q); lo = Offset(min(lo.dx, o.dx), min(lo.dy, o.dy)); hi = Offset(max(hi.dx, o.dx), max(hi.dy, o.dy)) } }
+            grown = (lo, hi)
+        }
 
         // The sides are the colour the file names, else the outline's where
         // the shape has one (PowerPoint's "automatic" depth colour), else
         // the fill's.
-        let side = scene.extrusionColor ?? shape.outline ?? fill
+        let side = scene.extrusionColor ?? line ?? fill
         // PowerPoint's rigs light the shape in its own frame (x right, y
         // down, z out of the slide), so a face is as bright whatever the
         // camera: an ambient share and lights given as direction times
@@ -141,6 +418,30 @@ enum Extrusion {
             P3(x: l.x * cos(turnRig) - l.y * sin(turnRig), y: l.x * sin(turnRig) + l.y * cos(turnRig), z: l.z)
         }
         func litLocal(_ base: Color, _ n: P3) -> Color {
+            if rim, scene.rig == "morning" {
+                // Text: the rig's warm light as the lab printed it.
+                var k: (Double, Double, Double)
+                if abs(n.z) < 1e-6 { k = Extrusion.morningWall(atan2(n.y, n.x) * 180 / .pi, turn: scene.rigTurn) }
+                else if n.z > 0 { k = (0.875, 0.85, 0.76) }
+                else { k = (0.28, 0.27, 0.23) }
+                func ch(_ v: Int, _ f: Double) -> Int { max(0, min(255, Int((Double(v) * f).rounded()))) }
+                return Color(argb: base.alpha, ch(base.red, k.0), ch(base.green, k.1), ch(base.blue, k.2))
+            }
+            if let rot = scene.rigRot, let k = Extrusion.rotatedShare(n, rig: scene.rig, rot: rot) {
+                // A wall also takes the default material's white floor (swept on
+                // lightRig_rot_rotation: 0.06-0.08 best, 0 and 0.12 worse).
+                var floor = abs(n.z) < 0.5 ? 0.07 * 255 : 0
+                var k = k
+                if abs(n.z) < 0.5, scene.rig == "threePt", !scene.material.isEmpty {
+                    let bd = Extrusion.band(Extrusion.material(scene.material), az: atan2(n.y, n.x) * 180 / .pi, turn: scene.rigTurn, threePt: true)
+                    k *= bd.diffuse; floor = 255 * bd.white
+                }
+                func ch(_ v: Int) -> Int { max(0, min(255, Int((Double(v) * k + floor).rounded()))) }
+                return Color(argb: base.alpha, ch(base.red), ch(base.green), ch(base.blue))
+            }
+            // twoPt with no turn and no a:rot is the measured plain table (modernCamera); a turned or rot-ed one is Lab F's.
+            let plain = scene.rig == "twoPt" && scene.rigTurn == 0 && scene.rigRot == nil
+            if let table = Extrusion.rigs[plain ? "twoPtPlain" : scene.rig] { return Extrusion.lit(base, n, rig: table, turn: scene.rigTurn, material: !plain && (scene.rig == "twoPt" || (scene.rig == "threePt" && !scene.material.isEmpty)) ? Extrusion.material(scene.material) : nil, threePt: scene.rig == "threePt", whiteShare: rim || (scene.rig == "threePt" && !scene.legacy && !scene.cameraName.hasPrefix("perspective") && scene.material.isEmpty) ? 1.0 : 0.5) }
             let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
             var k = rig.ambient
             for l in lights { k += max(0, (n.x * l.x + n.y * l.y + n.z * l.z) / len) }
@@ -181,7 +482,7 @@ enum Extrusion {
             canvas.drawPath(path, p)
             if let edge {
                 p.style = .stroke
-                p.strokeWidth = max(0.5, shape.outlineWidth * px)
+                p.strokeWidth = max(0.5, lineWidth * px)
                 p.color = edge
                 canvas.drawPath(path, p)
             }
@@ -191,12 +492,25 @@ enum Extrusion {
             let p = Paint()
             p.style = .stroke
             p.isAntiAlias = true
-            p.strokeWidth = max(0.5, 0.5 * px)
-            p.color = Color(0xFFBFBFBF)
+            // PowerPoint draws the edges as a picture: one pixel of the shape's line
+            // colour (200 to the inch), its box a point larger on the left and
+            // above than the shape (Scene3d_material_wireframe's print: the
+            // front face's left edge 186.7 for a shape at 187.6, the back's 156.1
+            // for 157.4; the right and foot 0.4 beyond).
+            p.strokeWidth = 0.36 * px
+            p.color = line ?? Color(0xFF000000)
+            var lo = Offset(.infinity, .infinity), hi = Offset(-.infinity, -.infinity)
+            for ring in front + back { for q in ring { let o = flat(q); lo = Offset(min(lo.dx, o.dx), min(lo.dy, o.dy)); hi = Offset(max(hi.dx, o.dx), max(hi.dy, o.dy)) } }
+            let gx = 1.0 * px, gy = 1.0 * px, ex = 0.55 * px, ey = 0.45 * px
+            func wf(_ q: P3) -> Offset {
+                let o = flat(q)
+                return Offset(lo.dx - gx + (o.dx - lo.dx) * (hi.dx - lo.dx + gx + ex) / max(1e-6, hi.dx - lo.dx),
+                              lo.dy - gy + (o.dy - lo.dy) * (hi.dy - lo.dy + gy + ey) / max(1e-6, hi.dy - lo.dy))
+            }
             for (ri, ring) in front.enumerated() {
                 for rings3 in [ring, back[ri]] {
                     let path = Path()
-                    path.addPolygon(rings3.map(flat), true)
+                    path.addPolygon(rings3.map(wf), true)
                     canvas.drawPath(path, p)
                 }
                 // A corner is where the outline turns sharply.
@@ -204,7 +518,7 @@ enum Extrusion {
                     let a = ring[(i + ring.count - 1) % ring.count], b = ring[i], d = ring[(i + 1) % ring.count]
                     let u = Offset(b.x - a.x, b.y - a.y), v = Offset(d.x - b.x, d.y - b.y)
                     let cross = abs(u.dx * v.dy - u.dy * v.dx), dot = u.dx * v.dx + u.dy * v.dy
-                    if atan2(cross, dot) > 0.5 { canvas.drawLine(flat(b), flat(back[ri][i]), p) }
+                    if atan2(cross, dot) > 0.5 { canvas.drawLine(wf(b), wf(back[ri][i]), p) }
                 }
             }
             return true
@@ -213,7 +527,7 @@ enum Extrusion {
         // right angle — away, and then the back is what is seen.
         let n0 = turn(P3(x: 0, y: 0, z: 1))
         let frontShows = n0.z + n0.x * (scene.oblique?.dx ?? 0) + n0.y * (scene.oblique?.dy ?? 0) >= 0
-        face(frontShows ? back : front, scene.legacy ? lit(side, P3(x: -n0.x, y: -n0.y, z: -abs(n0.z))) : litLocal(side, P3(x: 0, y: 0, z: frontShows ? -1 : 1)), edge: nil)
+        face(frontShows ? back : front, scene.legacy && n0.z < 0.9 ? lit(side, P3(x: -n0.x, y: -n0.y, z: -abs(n0.z))) : litLocal(side, P3(x: 0, y: 0, z: frontShows ? -1 : 1)), edge: nil)
         // The sides, far ones first.
         var quads: [(z: Double, pts: [Offset], color: Color)] = []
         for (ri, ring) in front.enumerated() {
@@ -232,7 +546,7 @@ enum Extrusion {
                 let seen = turn(local)
                 if seen.x * n.x + seen.y * n.y + seen.z * n.z < 0 { local = P3(x: -local.x, y: -local.y, z: 0) }
                 quads.append(((a.z + b.z + a2.z + b2.z) / 4, [flat(a), flat(b), flat(b2), flat(a2)],
-                              scene.legacy ? lit(side, n) : litLocal(side, local)))
+                              scene.legacy && n0.z < 0.9 ? lit(side, n) : litLocal(side, local)))
             }
         }
         for q in quads.sorted(by: { $0.z < $1.z }) { polygon(q.pts, q.color) }
@@ -245,8 +559,300 @@ enum Extrusion {
         func dark(_ c: Color) -> Color {
             Color(argb: c.alpha, Int(Double(c.red) * 0.3), Int(Double(c.green) * 0.3), Int(Double(c.blue) * 0.3))
         }
-        let shown = !frontShows ? dark(side) : scene.legacy ? bright(fill) : litLocal(fill, P3(x: 0, y: 0, z: 1))
-        face(frontShows ? front : back, shown, edge: frontShows ? shape.outline : nil)
+        // A legacy camera that turns the face well away darkens it with the
+        // tilt: twoPt at 60 degrees prints 0.39 of the fill (legacyCamera).
+        let tilted = scene.legacy && n0.z > 0 && n0.z < 0.9
+        let tiltK = (Extrusion.rigs[scene.rig]?.front.0 ?? 1) * pow(max(0, n0.z), 1.3)
+        let shown = !frontShows ? (scene.rig == "twoPt" || (scene.rig == "threePt" && !scene.material.isEmpty) ? { () -> Color in
+            let b = Extrusion.backFace(scene.material, threePt: scene.rig == "threePt")
+            func ch(_ v: Int) -> Int { max(0, min(255, Int((Double(v) * b.share + 255 * b.white).rounded()))) }
+            return Color(argb: fill.alpha, ch(fill.red), ch(fill.green), ch(fill.blue)) }() : dark(side)) : tilted ? Color(argb: fill.alpha, Int(Double(fill.red) * tiltK), Int(Double(fill.green) * tiltK), Int(Double(fill.blue) * tiltK)) : scene.legacy && n0.z < 0.9 ? bright(fill) : litLocal(fill, P3(x: 0, y: 0, z: 1))
+        // Lab E: a legacy oblique camera's face carries a white sheen the rig
+        // lights it with — the bottom-facing ones under threePt (.19, .24
+        // when the camera is also turned), TopRight under twoPt (.18).
+        var sheen = 0.0
+        if scene.legacy, !tilted, frontShows {
+            let nm = scene.cameraName
+            let turned = scene.rigRot != nil || scene.lat != 0 || scene.lon != 0
+            if scene.rig == "threePt" {
+                // Face centre, per camera (oblique | perspective; the walls
+                // keep the rig's table either way).
+                let at = ["Front", "BottomRight", "BottomLeft", "Bottom", "Right"]
+                let ob = [0.02, 0.19, 0.04, 0.19, 0.04], pe = [0.02, 0.11, 0.04, 0.08, 0.04]
+                if let i = at.firstIndex(where: { nm.hasSuffix($0) }) { sheen = turned && i == 1 ? 0.24 : (scene.perspective ? pe[i] : ob[i]) }
+            } else if scene.rig == "twoPt", nm.hasSuffix("TopRight") { sheen = scene.perspective ? 0.10 : 0.18 }
+        }
+        // Lab p3fit (six fills, isometricRightUp and a 20/330 tilt, threePt, no material): PowerPoint's face
+        // is the fill's multiple plus a white that grows as the face turns from the eye, 16 levels at
+        // the isometric camera (face normal z .577), 4.5 at the tilt (.814); 0.23 x (1 - z)^1.5.
+        if !scene.legacy, !scene.cameraName.hasPrefix("perspective"), scene.rig == "threePt", scene.material.isEmpty, frontShows, n0.z > 0 { sheen = 0.23 * pow(max(0, 1 - n0.z), 1.5) }
+        var shownFace = shown
+        if sheen > 0 {
+            func lift(_ v: Int) -> Int { min(255, v + Int((255.0 * sheen).rounded())) }
+            shownFace = Color(argb: shown.alpha, lift(shown.red), lift(shown.green), lift(shown.blue))
+        }
+        face(frontShows ? front : back, shownFace, edge: frontShows ? line : nil)
+        // A top bevel under a rig the shapes' bevel model lights (ShapeBevel,
+        // paintBevel: Lab C) is that model's, so text and shapes share one;
+        // it lights the slopes as seen face-on, so a turned camera only foreshortens them.
+        var bevelled = false
+        if rim, frontShows, scene.rig != "morning", scene.bevelW > 0, scene.bevelH > 0, !scene.legacy {
+            let outline = Path()
+            for ring in rings { outline.addPolygon(ring.map { flat(place($0, 0)) }, true) }
+            var b = ShapeBevel(width: scene.bevelW, height: scene.bevelH)
+            b.rig = scene.rig; b.material = scene.material.isEmpty ? "warmMatte" : scene.material
+            b.preset = scene.bevelPreset; b.turn = scene.rigTurn
+            if let r = scene.rigRot { b.rot = r; b.turn = 0 }
+            if Extrusion.paintBevel(b, outline, outline.getBounds(), canvas, pxPerPt: px, fill: fill, face: false) {
+                RuleTrace.hit("slide-3d-text-bevel-is-the-shapes-bevel")
+                bevelled = true
+            }
+        }
+        if rim, frontShows, !bevelled, scene.rig == "morning", scene.bevelW > 0, scene.bevelH > 0 {
+            // A top bevel is a rim just inside the outline, lit by which way its
+            // edge faces. (Lab p3t, softRound 9 x 3 under morning: the brightness
+            // a quarter of the way in, by the edge's direction, 0 = right, 90 = up.)
+            RuleTrace.hit("slide-3d-text-bevel-is-a-lit-rim")
+            let table: [Double] = [1.62, 1.74, 1.50, 1.18, 0.89, 0.71, 0.65, 0.57, 0.53, 0.67, 1.0, 1.36]
+            func peak(_ deg: Double) -> Double {
+                var u = (deg - 15).truncatingRemainder(dividingBy: 360) / 30
+                if u < 0 { u += 12 }
+                let i = Int(u) % 12, f = u - floor(u)
+                return table[i] * (1 - f) + table[(i + 1) % 12] * f
+            }
+            let w = min(scene.bevelW, 12) * px, hScale = min(1.5, scene.bevelH / 3)
+            let turn = scene.rigTurn
+            func inside(_ p: Offset, _ ring: [Offset]) -> Bool {
+                var odd = false
+                var j = ring.count - 1
+                for i in ring.indices {
+                    if (ring[i].dy > p.dy) != (ring[j].dy > p.dy), p.dx < (ring[j].dx - ring[i].dx) * (p.dy - ring[i].dy) / (ring[j].dy - ring[i].dy) + ring[i].dx { odd.toggle() }
+                    j = i
+                }
+                return odd
+            }
+            for (ri, ring) in rings.enumerated() {
+                let n = ring.count
+                var held = 0
+                for (rj, other) in rings.enumerated() where rj != ri && inside(ring[0], other) { held += 1 }
+                var area2 = 0.0
+                for i in 0 ..< n { let a = ring[i], b = ring[(i + 1) % n]; area2 += a.dx * b.dy - b.dx * a.dy }
+                // The way into the letter from each edge: right of travel for a ring that
+                // runs clockwise on the page, left for one that runs the other way; a hole's
+                // letter is outside it.
+                let sign = (area2 > 0 ? 1.0 : -1.0) * (held % 2 == 1 ? -1.0 : 1.0)
+                var inward: [Offset] = []
+                for i in 0 ..< n {
+                    let a = ring[i], b = ring[(i + 1) % n]
+                    let len = max(1e-9, ((b.dx - a.dx) * (b.dx - a.dx) + (b.dy - a.dy) * (b.dy - a.dy)).squareRoot())
+                    inward.append(Offset(-(b.dy - a.dy) / len * sign, (b.dx - a.dx) / len * sign))
+                }
+                var deep: [Offset] = []
+                for i in 0 ..< n {
+                    let n1 = inward[(i + n - 1) % n], n2 = inward[i]
+                    let denom = max(0.4, 1 + n1.dx * n2.dx + n1.dy * n2.dy)
+                    deep.append(Offset(ring[i].dx + (n1.dx + n2.dx) / denom * w, ring[i].dy + (n1.dy + n2.dy) / denom * w))
+                }
+                func mid(_ a: Offset, _ b: Offset) -> Offset { Offset((a.dx + b.dx) / 2, (a.dy + b.dy) / 2) }
+                for i in 0 ..< n {
+                    let j = (i + 1) % n
+                    let out = Offset(-inward[i].dx, -inward[i].dy)
+                    let k = peak(atan2(-out.dy, out.dx) * 180 / .pi + turn)
+                    let halfA = mid(ring[i], deep[i]), halfB = mid(ring[j], deep[j])
+                    for (g, quad) in [(0.9, [ring[i], ring[j], halfB, halfA]), (0.42, [halfA, halfB, deep[j], deep[i]])] {
+                        let f = 1 + (k - 1) * g * hScale, white = 0.06 * max(0, f - 1) * 255
+                        func ch(_ v: Int) -> Int { max(0, min(255, Int((Double(v) * f + white).rounded()))) }
+                        polygon(quad.map { flat(place($0, 0)) }, Color(argb: shownFace.alpha, ch(shownFace.red), ch(shownFace.green), ch(shownFace.blue)))
+                    }
+                }
+            }
+        }
+        if let onFront, frontShows {
+            // The picture, carried onto the turned front: the frame's corners
+            // say where its axes went.
+            let tl = place(Offset(r.left, r.top), 0), tr = place(Offset(r.right, r.top), 0), bl = place(Offset(r.left, r.bottom), 0)
+            let a = (tr.x - tl.x) / r.width, b = (tr.y - tl.y) / r.width, cc = (bl.x - tl.x) / r.height, d = (bl.y - tl.y) / r.height
+            let e = c.dx + tl.x - a * r.left - cc * r.top, f = c.dy + tl.y - b * r.left - d * r.top
+            canvas.save()
+            let clip = Path()
+            for ring in front { clip.addPolygon(ring.map(flat), true) }
+            canvas.clipPath(clip)
+            canvas.transform([a, b, 0, 0, cc, d, 0, 0, 0, 0, 1, 0, e, f, 0, 1])
+            onFront()
+            canvas.restore()
+        }
         return true
     }
+    // MARK: - Bevels
+
+    /// A bevel's tilt, in degrees, at each of fifteen steps in from its
+    /// edge (a quarter, a half ... of its width in fifteenths); 0 is flat,
+    /// a positive tilt rises inward, a negative one dips. Read out of Lab C
+    /// (test/labs/p3d, a face-on 108 pt square, width = height, threePt,
+    /// matte) by finding, at each step, the one tilt that explains the four
+    /// edges' brightness under the rig's lights; the circle comes out a
+    /// quarter circle, the angle a constant 43 degrees.
+    static let bevelProfiles: [String: [Double]] = [
+        "circle": [66.0, 56.0, 50.0, 44.0, 36.0, 32.0, 27.0, 23.0, 18.0, 14.0, 11.0, 8.0, 5.0, 2.0, 0.0],
+        "relaxedInset": [69.0, 60.0, 53.0, 46.0, 37.0, 30.0, 24.0, -49.0, -47.0, -46.0, -36.0, -27.0, -14.0, -7.0, 0.0],
+        "cross": [17.0, 0.0, 0.0, 0.0, 0.0, 11.0, 54.0, 32.0, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "coolSlant": [68.0, 65.0, 62.0, 59.0, 49.0, 30.0, 14.0, 4.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "angle": [43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 43.0, 22.0],
+        "softRound": [75.0, 56.0, -52.0, -56.0, -54.0, -49.0, -45.0, -36.0, -29.0, -23.0, -15.0, -10.0, -7.0, -3.0, 0.0],
+        "convex": [15.0, 4.0, 10.0, 16.0, 23.0, 29.0, 34.0, 41.0, 45.0, 49.0, 52.0, 57.0, 66.0, 33.0, 3.0],
+        "slope": [76.0, 68.0, 51.0, 14.0, 3.0, 0.0, 0.0, -3.0, -15.0, -52.0, -69.0, -76.0, -65.0, -28.0, -4.0],
+        "divot": [68.0, 60.0, 53.0, 45.0, 33.0, 25.0, 16.0, 6.0, -1.0, 0.0, 0.0, 0.0, 22.0, 16.0, 2.0],
+        "riblet": [63.0, 56.0, 51.0, 48.0, 46.0, 42.0, 33.0, 20.0, 8.0, 3.0, 0.0, 0.0, 13.0, 30.0, 3.0],
+        "hardEdge": [76.0, 71.0, 22.0, 1.0, 0.0, 0.0, 0.0, 0.0, -6.0, -53.0, -30.0, -18.0, -10.0, -4.0, 0.0],
+        "artDeco": [51.0, 32.0, 17.0, 8.0, 62.0, 61.0, 52.0, 42.0, 33.0, 26.0, 18.0, 12.0, 8.0, 3.0, 1.0],
+    ]
+
+
+    /// The outline sampled finely and thinned to what it needs: a straight
+    /// edge to its two ends, a curve to chords within a quarter of a pixel,
+    /// so a corner is a vertex and not a cut.
+    private static func fineContours(_ path: Path) -> [[Offset]] {
+        var out: [[Offset]] = []
+        for metric in path.computeMetrics() {
+            let n = max(8, min(2000, Int(metric.length)))
+            var pts: [Offset] = []
+            for i in 0 ..< n {
+                if let t = metric.getTangentForOffset(metric.length * Double(i) / Double(n)) { pts.append(t.position) }
+            }
+            guard pts.count >= 3 else { continue }
+            func dist(_ p: Offset, _ a: Offset, _ b: Offset) -> Double {
+                let dx = b.dx - a.dx, dy = b.dy - a.dy, l = max(1e-9, (dx * dx + dy * dy).squareRoot())
+                return abs((p.dx - a.dx) * dy - (p.dy - a.dy) * dx) / l
+            }
+            func rdp(_ lo: Int, _ hi: Int, _ keep: inout [Bool]) {
+                guard hi - lo > 1 else { return }
+                var worst = 0.0, at = lo
+                for i in (lo + 1) ..< hi {
+                    let d = dist(pts[i], pts[lo], pts[hi % pts.count])
+                    if d > worst { worst = d; at = i }
+                }
+                if worst > 0.25 { keep[at] = true; rdp(lo, at, &keep); rdp(at, hi, &keep) }
+            }
+            // Split the ring at its first point and the one farthest from it.
+            var far = 0, best = 0.0
+            for i in pts.indices { let d = hypot(pts[i].dx - pts[0].dx, pts[i].dy - pts[0].dy); if d > best { best = d; far = i } }
+            var keep = [Bool](repeating: false, count: pts.count)
+            keep[0] = true; keep[far] = true
+            rdp(0, far, &keep)
+            rdp(far, pts.count, &keep)
+            let thin = pts.indices.filter { keep[$0] }.map { pts[$0] }
+            if thin.count >= 3 { out.append(thin) }
+        }
+        return out
+    }
+
+    /// Paints a bevel on `outline` as the lit slope it is: bands in from the
+    /// edge, each as bright as a surface tilted as the profile says would be
+    /// under the rig (`rotatedShare`). False for a rig with no light model.
+    static func paintBevel(_ b: ShapeBevel, _ outline: Path, _ box: Rect, _ canvas: any Canvas, pxPerPt px: Double, fill: Color, face: Bool = true) -> Bool {
+        guard rotatedRigs[b.rig] != nil else { return false }
+        let profile = bevelProfiles[b.preset] ?? bevelProfiles["circle"]!
+        let w = min(b.width * px, min(box.width, box.height) / 2)
+        guard w > 0.25 * px else { return true }
+        let rot = [b.rot[0], b.rot[1], b.rot[2] + b.turn]
+        func share(_ n: P3) -> Double { rotatedShare(n, rig: b.rig, rot: rot) ?? 1 }
+        // (The glint's strength swept on 60810's bevelled boxes: 0.6.)
+        let glossy = !(b.material == "matte" || b.material == "legacyMatte")
+        let gloss = glossy ? 0.6 * 255 : 0
+        func tint(_ k: Double, _ white: Double = 0) -> Color {
+            func ch(_ v: Int) -> Int { max(0, min(255, Int((Double(v) * k + gloss * white).rounded()))) }
+            return Color(argb: fill.alpha, ch(fill.red), ch(fill.green), ch(fill.blue))
+        }
+        let slopeScale = b.height / b.width
+        func tilt(_ t: Double) -> Double {
+            // t in 0...1 across the band; the table's step j sits at j / 15.
+            let x = t * 15
+            if x < 1 { return min(88, profile[0] + (profile[0] - profile[1]) * (1 - x)) }
+            let j = min(13, Int(x) - 1)
+            let f = min(1, x - Double(j + 1))
+            return profile[j] + (profile[j + 1] - profile[j]) * f
+        }
+        canvas.save()
+        canvas.clipPath(outline)
+        let p = Paint()
+        p.style = .fill
+        p.color = tint(share(P3(x: 0, y: 0, z: 1)))
+        // (Text keeps the face the solid already drew.)
+        if face { canvas.drawRect(box, p) }
+        let steps = 15
+        let rings = fineContours(outline)
+        // Every chord of the outline, for the reach of an inward offset: a
+        // stroke thinner than the bevel closes up (the offset would cross the
+        // far side), so a vertex moves at most half its distance to it.
+        var chords: [(Int, Int, Offset, Offset)] = []
+        for (ri, r) in rings.enumerated() where r.count >= 3 { for i in 0 ..< r.count { chords.append((ri, i, r[i], r[(i + 1) % r.count])) } }
+        for (ringIndex, ring) in rings.enumerated() {
+            let n = ring.count
+            guard n >= 3 else { continue }
+            var area = 0.0
+            for i in 0 ..< n { let a = ring[i], c = ring[(i + 1) % n]; area += a.dx * c.dy - c.dx * a.dy }
+            // The inward side of each chord, by the ring's winding.
+            let sign = area > 0 ? 1.0 : -1.0
+            var inward: [Offset] = [], outward: [Offset] = []
+            for i in 0 ..< n {
+                let a = ring[i], c = ring[(i + 1) % n]
+                let dx = c.dx - a.dx, dy = c.dy - a.dy, len = max(1e-9, (dx * dx + dy * dy).squareRoot())
+                let inn = Offset(-dy / len * sign, dx / len * sign)
+                inward.append(inn); outward.append(Offset(-inn.dx, -inn.dy))
+            }
+            // Mitred offset rings at each depth.
+            let reach: [Double] = (0 ..< n).map { i in
+                let a = inward[(i + n - 1) % n], c = inward[i]
+                let bx = a.dx + c.dx, by = a.dy + c.dy, bl = (bx * bx + by * by).squareRoot()
+                guard bl > 1e-6 else { return 1e9 }
+                let ux = bx / bl, uy = by / bl
+                var best = 1e9
+                for (ri, ci, p, q) in chords where !(ri == ringIndex && (ci == i || ci == (i + n - 1) % n)) {
+                    let ex = q.dx - p.dx, ey = q.dy - p.dy
+                    let den = ux * ey - uy * ex
+                    if abs(den) < 1e-9 { continue }
+                    let wx = p.dx - ring[i].dx, wy = p.dy - ring[i].dy
+                    let t = (wx * ey - wy * ex) / den, v = (wx * uy - wy * ux) / den
+                    if t > 1e-6, v >= 0, v <= 1, t < best { best = t }
+                }
+                return best / 2
+            }
+            func offsetRing(_ d: Double) -> [Offset] {
+                (0 ..< n).map { i in
+                    let a = inward[(i + n - 1) % n], c = inward[i]
+                    let k = 1 + a.dx * c.dx + a.dy * c.dy
+                    var s = d / max(0.35, k)
+                    let bl = ((a.dx + c.dx) * (a.dx + c.dx) + (a.dy + c.dy) * (a.dy + c.dy)).squareRoot()
+                    if bl * s > reach[i] { s = reach[i] / max(1e-9, bl) }
+                    return Offset(ring[i].dx + (a.dx + c.dx) * s, ring[i].dy + (a.dy + c.dy) * s)
+                }
+            }
+            var prev = offsetRing(0)
+            for j in 0 ..< steps {
+                let t0 = Double(j) / Double(steps), t1 = Double(j + 1) / Double(steps)
+                let cur = offsetRing(t1 * w)
+                let th = tilt((t0 + t1) / 2) * .pi / 180
+                let g = tan(th) * slopeScale
+                for i in 0 ..< n {
+                    let o = outward[i]
+                    let k = share(P3(x: g * o.dx, y: g * o.dy, z: 1))
+                    let q = Path()
+                    let i2 = (i + 1) % n
+                    q.addPolygon([prev[i], prev[i2], cur[i2], cur[i]], true)
+                    // A slope facing up catches a glint on a glossy material.
+                    let up = max(0, -o.dy) * g / (1 + g * g).squareRoot()
+                    p.color = tint(k, up)
+                    canvas.drawPath(q, p)
+                    p.style = .stroke
+                    p.strokeWidth = 0.5
+                    canvas.drawPath(q, p)
+                    p.style = .fill
+                }
+                prev = cur
+            }
+        }
+        canvas.restore()
+        return true
+    }
+
 }

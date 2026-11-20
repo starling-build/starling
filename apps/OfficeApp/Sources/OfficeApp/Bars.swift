@@ -6,6 +6,7 @@
 // bottom edges.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation

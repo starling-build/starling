@@ -7,6 +7,7 @@
 // never rebuilds anything but the editor's own painter.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 #if os(WASI)
@@ -231,12 +232,17 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         session.onFormatPainter = { [weak self] in
             guard let self else { return }
-            if self.session.paintedStyle != nil {
-                self.session.paintedStyle = nil
-                self._flash("Format Painter off")
+            let now = ProcessInfo.processInfo.systemUptime
+            let double = now - self.session.lastPainterPress < 0.45
+            self.session.lastPainterPress = now
+            if self.session.paintedStyle != nil && double {
+                self.session.paintSticky = true   // second press: keep painting
+                self._flash("Format Painter on: Esc to stop")
+            } else if self.session.paintedStyle != nil {
+                self._cancelPainter()
             } else {
-                self.session.paintedStyle = self.controller.currentCharStyle
-                self.session.paintedStyle?.link = nil
+                self.session.paintedStyle = self.controller.copyFormat()
+                self.session.paintSticky = false
                 self._flash("Format Painter: select the text to paint")
             }
             self.setState { self.session.summary = self.session.summarize() }
@@ -496,6 +502,11 @@ final class OfficeShellState: State<StatefulWidget> {
     }
 
     private func _open(_ path: String, opened: OpenedDocument) throws {
+        #if os(WASI)
+        // Ask the page for the script fonts the text needs before its first
+        // layout; the page holds that layout (a few seconds at most) for them.
+        for paragraph in opened.document.paragraphs { ScriptFonts.request(for: paragraph.text) }
+        #endif
         controller.load(opened.document)
         session.path = path
         _savedRevision = controller.revision
@@ -834,9 +845,29 @@ final class OfficeShellState: State<StatefulWidget> {
 
     // MARK: Shortcuts
 
+    func _cancelPainter() {
+        session.paintedStyle = nil
+        session.paintSticky = false
+        _flash("Format Painter off")
+        setState { session.summary = session.summarize() }
+    }
+
+    /// Paint the selection (a bare click paints its word) and drop the
+    /// painter unless it was double-clicked on.
+    func _applyPainter() {
+        guard let painted = session.paintedStyle else { return }
+        controller.selectWordForPainting()
+        guard controller.hasSelection else { return }
+        if !session.paintSticky { session.paintedStyle = nil }
+        controller.pasteFormat(painted)
+        _flash("Painted")
+        setState { session.summary = session.summarize() }
+    }
+
     private func _shortcut(_ key: KeyData, _ mods: KeyModifiers) -> Bool {
         let named = KeyChordTracker.named(key.logical)
         if named == .escape {
+            if session.paintedStyle != nil { _cancelPainter(); return true }
             if _styleOpen != nil { setState { _styleOpen = nil }; return true }
             if _linkOpen { setState { _linkOpen = false }; return true }
             if _colorOpen { setState { _colorOpen = false }; return true }
@@ -876,6 +907,8 @@ final class OfficeShellState: State<StatefulWidget> {
         case "g": _findNext(backwards: mods.contains(.shift))
         case "p": setState { _backstage = .print }
         case "k": _openLink()
+        case "c" where mods.contains(.shift): session.paintedStyle = c.copyFormat(); session.paintSticky = false; setState { session.summary = session.summarize() }
+        case "v" where mods.contains(.shift): c.pasteFormat(session.paintedStyle ?? c.copyFormat()); setState { session.summary = session.summarize() }
         // Word's alignment keys; Export lives in Backstage.
         case "e": c.setAlignment(.center)
         case "l" where mods.contains(.shift): c.toggleList(.bullet)   // ⌘⇧L: bullets, as in Word
@@ -1037,17 +1070,7 @@ final class OfficeShellState: State<StatefulWidget> {
             },
             onLinkActivate: { [weak self] link in self?._followLink(link) },
             // Format Painter applies when a selection gesture ends, as Word does.
-            onSelectionGestureEnd: { [weak self] in
-                guard let self, let painted = self.session.paintedStyle else { return }
-                self.session.paintedStyle = nil
-                self.controller.applyCharStyle { style in
-                    let link = style.link
-                    style = painted
-                    style.link = link   // formatting travels, the hyperlink stays
-                }
-                self._flash("Painted")
-                self.setState { self.session.summary = self.session.summarize() }
-            },
+            onSelectionGestureEnd: { [weak self] in self?._applyPainter() },
             onContextMenu: { [weak self] point in self?._showContextMenu(at: point) },
             spellChecker: session.checkSpelling ? _spelling : nil
         )
@@ -1106,6 +1129,10 @@ enum OfficeSettings {
         #endif
     }
 
+    /// Any other setting by name (the update check keeps its state here).
+    static func string(_ key: String) -> String? { values[key] }
+    static func setString(_ key: String, _ value: String) { set(key, value) }
+
     /// Draw a document's fonts with the faces this computer has, where it
     /// has them (the default), or always with Starling's matching fonts.
     static var useInstalledFonts: Bool {
@@ -1161,4 +1188,10 @@ func _utf16Slice(_ text: String, _ r: Range<Int>) -> String {
     let a = u.index(u.startIndex, offsetBy: r.lowerBound)
     let b = u.index(u.startIndex, offsetBy: r.upperBound)
     return String(u[a ..< b]) ?? ""
+}
+
+/// The update check's state, in the settings file.
+final class SettingsUpdateStore: UpdateStore {
+    func get(_ key: String) -> String? { OfficeSettings.string(key) }
+    func set(_ key: String, _ value: String) { OfficeSettings.setString(key, value) }
 }

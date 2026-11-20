@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Flutter
+import OfficeText
 import Foundation
 
 /// The document a fresh launch opens on: one page that uses what Writer

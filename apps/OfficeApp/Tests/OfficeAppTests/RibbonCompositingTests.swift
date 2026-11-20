@@ -1,5 +1,6 @@
 import XCTest
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 
 /// Ribbon menu targets must remain visible inside the horizontal viewport.

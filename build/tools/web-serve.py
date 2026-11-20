@@ -12,6 +12,7 @@ isolation); harmless otherwise.
 """
 import os
 import sys
+import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 ENCODINGS = (("br", ".br"), ("gzip", ".gz"))
@@ -22,6 +23,10 @@ class Handler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=DIRECTORY, **kwargs)
 
     def send_head(self):
+        # STARLING_SERVE_FONT_DELAY_MS slows the script fonts, so a test can
+        # look at the page while they are still on their way.
+        if "/fonts/Noto" in self.path and os.environ.get("STARLING_SERVE_FONT_DELAY_MS"):
+            time.sleep(int(os.environ["STARLING_SERVE_FONT_DELAY_MS"]) / 1000)
         path = self.translate_path(self.path)
         accepted = self.headers.get("Accept-Encoding", "")
         for encoding, suffix in ENCODINGS:

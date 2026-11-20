@@ -152,6 +152,12 @@ public struct TextStyle: Hashable, CustomStringConvertible {
     /// or wider — SkFont::setScaleX, through the engine's
     /// patches/skia-scale-x.patch; nil or 1 for none. (No Dart counterpart.)
     public let scaleX: Double?
+    /// Starling: this run's ascent and descent, positive logical-pixel distances
+    /// from its baseline, in place of its face's (both or neither) —
+    /// `ui.TextStyle.ascentOverride`, through the engine's
+    /// patches/skia-style-line-indents-metrics.patch. (No Dart counterpart.)
+    public let ascentOverride: Double?
+    public let descentOverride: Double?
 
     /// The common baseline that should be aligned between this text span and its
     /// parent text span, or, for the root text spans, with the line box.
@@ -289,6 +295,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
         wordSpacing: Double? = nil,
         baselineShift: Double? = nil,
         scaleX: Double? = nil,
+        ascentOverride: Double? = nil,
+        descentOverride: Double? = nil,
         textBaseline: TextBaseline? = nil,
         height: Double? = nil,
         leadingDistribution: TextLeadingDistribution? = nil,
@@ -321,6 +329,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
         self.wordSpacing = wordSpacing
         self.baselineShift = baselineShift
         self.scaleX = scaleX
+        self.ascentOverride = ascentOverride
+        self.descentOverride = descentOverride
         self.textBaseline = textBaseline
         self.height = height
         self.leadingDistribution = leadingDistribution
@@ -372,6 +382,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
         wordSpacing: Double? = nil,
         baselineShift: Double? = nil,
         scaleX: Double? = nil,
+        ascentOverride: Double? = nil,
+        descentOverride: Double? = nil,
         textBaseline: TextBaseline? = nil,
         height: Double? = nil,
         leadingDistribution: TextLeadingDistribution? = nil,
@@ -414,6 +426,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
             wordSpacing: wordSpacing ?? self.wordSpacing,
             baselineShift: baselineShift ?? self.baselineShift,
             scaleX: scaleX ?? self.scaleX,
+            ascentOverride: ascentOverride ?? self.ascentOverride,
+            descentOverride: descentOverride ?? self.descentOverride,
             textBaseline: textBaseline ?? self.textBaseline,
             height: height ?? self.height,
             leadingDistribution: leadingDistribution ?? self.leadingDistribution,
@@ -520,6 +534,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
                 : self.wordSpacing! * wordSpacingFactor + wordSpacingDelta,
             baselineShift: self.baselineShift,
             scaleX: self.scaleX,
+            ascentOverride: self.ascentOverride,
+            descentOverride: self.descentOverride,
             textBaseline: textBaseline ?? self.textBaseline,
             height: newHeight,
             leadingDistribution: leadingDistribution ?? self.leadingDistribution,
@@ -582,6 +598,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
             wordSpacing: other.wordSpacing,
             baselineShift: other.baselineShift,
             scaleX: other.scaleX,
+            ascentOverride: other.ascentOverride,
+            descentOverride: other.descentOverride,
             textBaseline: other.textBaseline,
             height: other.height,
             leadingDistribution: other.leadingDistribution,
@@ -637,6 +655,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
                 wordSpacing: t < 0.5 ? nil : b!.wordSpacing,
                 baselineShift: t < 0.5 ? nil : b!.baselineShift,
                 scaleX: t < 0.5 ? nil : b!.scaleX,
+                ascentOverride: t < 0.5 ? nil : b!.ascentOverride,
+                descentOverride: t < 0.5 ? nil : b!.descentOverride,
                 textBaseline: t < 0.5 ? nil : b!.textBaseline,
                 height: t < 0.5 ? nil : b!.height,
                 leadingDistribution: t < 0.5 ? nil : b!.leadingDistribution,
@@ -670,6 +690,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
                 wordSpacing: t < 0.5 ? a!.wordSpacing : nil,
                 baselineShift: t < 0.5 ? a!.baselineShift : nil,
                 scaleX: t < 0.5 ? a!.scaleX : nil,
+                ascentOverride: t < 0.5 ? a!.ascentOverride : nil,
+                descentOverride: t < 0.5 ? a!.descentOverride : nil,
                 textBaseline: t < 0.5 ? a!.textBaseline : nil,
                 height: t < 0.5 ? a!.height : nil,
                 leadingDistribution: t < 0.5 ? a!.leadingDistribution : nil,
@@ -755,6 +777,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
             ),
             baselineShift: t < 0.5 ? a.baselineShift : b.baselineShift,
             scaleX: t < 0.5 ? a.scaleX : b.scaleX,
+            ascentOverride: t < 0.5 ? a.ascentOverride : b.ascentOverride,
+            descentOverride: t < 0.5 ? a.descentOverride : b.descentOverride,
             textBaseline: t < 0.5 ? a.textBaseline : b.textBaseline,
             height: lerpDouble(a.height ?? b.height, b.height ?? a.height, t),
             leadingDistribution: t < 0.5 ? a.leadingDistribution : b.leadingDistribution,
@@ -826,6 +850,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
             wordSpacing: wordSpacing,
             baselineShift: baselineShift,
             scaleX: scaleX,
+            ascentOverride: ascentOverride,
+            descentOverride: descentOverride,
             height: height,
             leadingDistribution: leadingDistribution,
             locale: locale,
@@ -930,6 +956,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
             wordSpacing != other.wordSpacing ||
             baselineShift != other.baselineShift ||
             scaleX != other.scaleX ||
+            ascentOverride != other.ascentOverride ||
+            descentOverride != other.descentOverride ||
             textBaseline != other.textBaseline ||
             height != other.height ||
             leadingDistribution != other.leadingDistribution ||
@@ -974,6 +1002,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
             lhs.wordSpacing == rhs.wordSpacing &&
             lhs.baselineShift == rhs.baselineShift &&
             lhs.scaleX == rhs.scaleX &&
+            lhs.ascentOverride == rhs.ascentOverride &&
+            lhs.descentOverride == rhs.descentOverride &&
             lhs.textBaseline == rhs.textBaseline &&
             lhs.height == rhs.height &&
             lhs.leadingDistribution == rhs.leadingDistribution &&
@@ -1009,6 +1039,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
         hasher.combine(wordSpacing)
         hasher.combine(baselineShift)
         hasher.combine(scaleX)
+        hasher.combine(ascentOverride)
+        hasher.combine(descentOverride)
         hasher.combine(textBaseline)
         hasher.combine(height)
         hasher.combine(leadingDistribution)

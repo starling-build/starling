@@ -1,0 +1,24 @@
+1	flat reference, no bevel
+2	rig=threePt tilt 20,330 ext=27 bevel softRound 9x3
+3	rig=threePt face-on ext=27 bevel softRound 9x3
+4	rig=threePt face-on ext=0 bevel softRound 9x3
+5	rig=balanced tilt 20,330 ext=27 bevel softRound 9x3
+6	rig=balanced face-on ext=27 bevel softRound 9x3
+7	rig=balanced face-on ext=0 bevel softRound 9x3
+8	rig=harsh tilt 20,330 ext=27 bevel softRound 9x3
+9	rig=harsh face-on ext=27 bevel softRound 9x3
+10	rig=harsh face-on ext=0 bevel softRound 9x3
+11	rig=flat tilt 20,330 ext=27 bevel softRound 9x3
+12	rig=flat face-on ext=27 bevel softRound 9x3
+13	rig=flat face-on ext=0 bevel softRound 9x3
+14	rig=soft tilt 20,330 ext=27 bevel softRound 9x3
+15	rig=soft face-on ext=27 bevel softRound 9x3
+16	rig=soft face-on ext=0 bevel softRound 9x3
+17	rig=flood tilt 20,330 ext=27 bevel softRound 9x3
+18	rig=flood face-on ext=27 bevel softRound 9x3
+19	rig=flood face-on ext=0 bevel softRound 9x3
+20	rig=threePt dir=r tilt 20,330 ext=27 bevel softRound 9x3
+21	rig=threePt dir=b tilt 20,330 ext=27 bevel softRound 9x3
+22	rig=threePt dir=l tilt 20,330 ext=27 bevel softRound 9x3
+23	rig=threePt tilt bevel circle 9x9
+24	rig=threePt tilt bevel angle 9x3

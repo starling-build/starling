@@ -6,6 +6,7 @@
 // selects its shape; the pane's buttons reorder and remove.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation

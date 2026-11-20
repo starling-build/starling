@@ -148,6 +148,22 @@ round-trips with its cached value.
 - Function list — anything the user's own sheets need that is missing
   above.
 
+## Worst workbooks by cause (amd-3, 2026-11-06, tip sweep = baseline-mupdf.tsv, 757 rows, identical)
+
+Ranked by mean page diff; text positions compared with Excel's PDF (median dy/dx per page).
+
+1. clusterfuzz-testcase-minimized-POIXSSFFuzzer (9.96): **not ours** — Excel printed it on Letter at 0.92 scale (repaired file, see "Fills and frames"). Skip.
+2. 49609 (7.32), NumberFormatApproxTests (6.64), lo-pivottable_invalid_formats (6.09): positions match Excel to 0.1 pt. **Font floor** (glyph rendering). Skip.
+3. bug66675 (6.55, 20 pp): **row heights**, rows 1.5 pt high per page (header rows 15.24 in Excel; known open, line ~580).
+4. 47813 (5.62, 17 pp): **row heights**, dy -5.9 by page end; default Verdana 10 rows 13.20 in Excel, 12.96 ours (known open, line ~418). One rule fixes 17 pages.
+5. lo-tdf76115 (4.45 mean, 14.35 worst, 20 pp): **row heights**, Excel rows 14.9 pt, ours 14.5; also first row 13.3 v 12.9. Drift 8-30 pt per page.
+6. lo-forum-mso-de-104083 (4.75): **pagination / row heights**, 20 pt jumps on pages 1 and 3.
+7. chart-tdf119138 (5.89), lo-tdf58243 (5.25): **charts** (labels 200 pt off in x) and **fit-to-page centring** (known open, line ~556).
+8. style-alternate-content (5.79): CJK font line + a few row heights; mostly **font floor**.
+9. Tables (5.04), AverageTaxRates (4.66), lo-tdf100034, lo-tdf118668, NumberFormatTests: under 1 pt off in position, **font floor** plus 0.2-1.1 pt **row height** drift.
+
+Cause totals: row heights are the one real class showing in 5 of the top 9 real cases. Starting there: 47813, then lo-tdf76115. Both need an Excel lab on Windows to settle the rule.
+
 ## Where it stands
 
 **Sweep 14 (2026-10-16): mean 1.43%, median 0.39%**, 751 scored, 1 with
@@ -1458,3 +1474,32 @@ under the file's own `<styleSheet>` root, whose prefixes they use).
   2147483649 in PptxTemplates.swift, and `.atomic` writes in
   SlidesShell.swift. None is in Sheets/, so the Sheets code type-checks
   for wasm; it cannot be run there until those are fixed.
+
+## Segoe UI 8 row fit (amd-3, 2026-11-07, fd1b2c353)
+- Excel fits Segoe UI 8 in a Calibri 11 book at 14.88 pt (Windows lab mx-cal11-SegoeUI8); sizes 9 to 12 do not follow it (hinted pixel rows), so it is a `hinted` table entry, not a formula. A sheet that sets its own default row height (56274, row ~12.4) does not use it.
+- lo-tdf76115 4.45 to 2.45. Approved drift: lo-tdf167019 3.50 to 3.53 and lo-tdf41722 0.06 to 0.08. Neither workbook has Segoe UI in its styles (fonts: Arial, Calibri / Arial, Arial Unicode MS), so these are not Segoe 8 rows; the change is from the base moving, not the table.
+- Still open: Segoe 8 in a Verdana 10 book prints 14.52 (ours 13.32); size-12 one-dot misses (Arial, Verdana, Calibri, Malgun 10); bug66675 wrapped header rows (15.24); 47813 parked (reference 13.20 vs reprint 12.60).
+
+**Chart-caused gaps, fresh sweep (2026-11-07, amd-1, 184 chart books, worst page %).**
+tdf119138 7.77 (2007-style bar plot width/bar thickness), LIBRE_OFFICE-128382-0 6.88 (3-D line),
+chart-hatch-fill 4.17 (pattern tile, not position), tdf140489 3.87 (now drawn; text/hatch remain),
+testDataseriesOverlapStackedChart 5.17 -> 3.42 (fixed: a stacked group with overlap under 100 keeps
+its series in lanes, each stacking on the last), tdf111824 6.25 (3-D series rows). 47813, 45544 and
+45540_* are cell-caused, not charts.
+
+## Non-Calibri-11 book row fit, landed (amd-3, 2026-11-07, bc4f55949)
+- In a book whose default font is not Calibri 11, rows use a book-independent screen-px table (`Face.plainBook`, applied when the sheet sets no default row height of its own): Segoe UI 8 = 37 px, 9 = 36; Calibri 9 = 34; Verdana 12 = 38.85 (labs bk-* on wip/lab-xlbooks, Windows prints on wip/lab-xlbooks-prints). 29 of 30 bk labs match Excel; Verdana10-Segoe9 is one printer dot off (14.16 v 14.04). Calibri 9 in a Verdana book (34 v table 31) rests on one book. Corpus: no drop; 48962 2.39 to 2.32, lo-forum-mso-de-104083 4.75 to 4.68. 632 tests, 0 failures.
+- Status of the rest: bug66675 row 12 (15.24) waits on Windows prints of lab xl66675 h-l. 47813 parked. lo-tdf58243 (5.25): cells match Excel to 0.2 pt; only the header/footer differs: with fit-to-page + horizontalCentered + alignWithMargins=0 Excel's header runs 55.0 to 540.5 pt (ours 17.0 to 575.4 = the margins); rule unknown, one document, not worth a lab yet. LIBRE_OFFICE-116306-0, lo-tdf131575, AverageTaxRates, Tables, lo-tdf100034: positions within 1 pt (font floor); no row rule left to fit.
+
+**57362 after the 5.8 pt title inset (amd-1, 2026-11-07).** Its left side got nearer Excel's (turned title baseline 6.2 -> 1.9 pt off, first value label 5.7 -> 1.8) yet its worst page went 0.66 -> 0.73. It differs from the five books that improved by having a secondary value axis on the right with its own turned title, which we do not draw (Excel's baseline at x 508.9): the loss is on that right side. Open: a secondary axis' title and the room it takes.
+- Header/footer inset, landed (amd-3, 2026-11-07, 38209f5d2): headerFooter alignWithMargins="0" puts the header/footer edges 54.9 pt in from the page edges at any margin and scale (Excel left edge 55.0 in lo-tdf58243, 49156, 45540_form_Footer). This replaces the "unknown" header line for lo-tdf58243 above (5.25 to 5.19; 45540 forms ~0.03 better; no drops; 632 tests pass). Not separable on current data: fixed 54.9 vs max(margin, 54.9) for margins above 0.76 in.
+
+**Chart pass, 2026-11-07 (amd-1) — landed and open.** Landed: stacked bar/column groups with an explicit overlap under 100 keep lanes (5191ba263); the turned value-axis title and plot 5.8 pt further in on sheets (bc574c011); a pie with varyColors 0 draws one colour (f6a0f1527); Word bar-of-pie bestFit label fitted into the frame (ba2c0513a). Open, with what is known:
+- Hatch tile origin (chart-hatch-fill 4.17): Excel prints 6 pt tiles (16 px images). Tile y origin = frame top - 10.55 on both pages; x origin differs by page in a way that follows neither the page nor the frame (page 0 tile x 219.36 with frame 223.44; page 1 tile -210.48 with frame -210.7; tile_x + frame_left = 4.8 mod 6 on both). Lab test/lab/hatchorigin (branch wip/amd1-hatchorigin, 7b670fef1) printed by windows: read its TSV on wip/amd1-hatchorigin-prints.
+- Gradient bars (external_str_ref 4.92): path="circle" fillToRect l50 t130 r50 b-30, three stops; Excel shows a glow low-middle of each bar and a skewed shadow (outerShdw sy 23 kx -1.2e6); we paint the mean colour and no shadow. Needs a lab for the path gradient's focus.
+- Compound border (cmpd thickThin 3 pt): Excel prints two hairlines (0.31 pt at the frame edge, 0.56 pt at +0.9), not a 3 pt black line; ours draws it solid black.
+- 57362: secondary value axis title not drawn.
+- tdf119138: plot top 3.2 pt lower than Excel's, gridlines 0xD9 vs Excel's 0x86 (style 10); 3-D (tdf111824, 128382): amd-5's.
+
+**Hatch tile origin, 2026-11-07 (amd-1) — closed, no change.** windows' prints (test/lab/hatchorigin/prints on wip/amd1-hatchorigin-prints): tile phase is fixed per page (3.36 mod 6 in x and y on page 1 for every chart whatever its frame position), x phase 5.52 on page 2. Zoomed on chart-hatch-fill p1 the lgGrid lines of our current drawing (phase 0) are already within 0.1 pt of Excel's mod 6; adding the 3.36 phase moved them 2.8 pt off and left the score at 4.16, so reverted. Only page 2's x (2.16 further) is unexplained; it is hatch dither, well under 0.1% of a page. The gap in chart-hatch-fill is the pie: Excel's pie is bigger, and the page-1 green slice's grid differs by position.
+Gradient bars landed (ebee3b1a5): path gradient focus outside the bar = its centre, stops opaque; the outer shadow (skewed grey block right of each bar, outerShdw sy 23 kx -1.2e6) is still not drawn in external_str_ref.

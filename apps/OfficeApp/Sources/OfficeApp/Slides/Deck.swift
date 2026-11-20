@@ -8,6 +8,7 @@
 // has to survive every edit to the deck around it.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 
@@ -293,6 +294,8 @@ struct SlideFill: Equatable {
     /// over, so (0.5, 0) is `algn="t"`, the top middle — then moved by
     /// `tileOffset` (points), and the rest are laid edge to edge from it.
     var tiled = false
+    /// The picture is a generated pattern (`a:pattFill`), not the file's own.
+    var isPattern = false
     var tileScale = 1.0
     var tileScaleY = 1.0
     var tileAlign = Offset(0, 0)
@@ -354,6 +357,10 @@ struct SlideFill: Equatable {
     /// instead of running along `angle`.
     var path: GradientPath? = nil
     var fillTo = Rect.fromLTRB(0.5, 0.5, 0.5, 0.5)
+    /// `a:tileRect` of a path gradient: the rectangle the gradient is laid out in, in fractions of the
+    /// area (a negative inset reaches beyond it); the area clips it. Lab gradpath (PowerPoint for Windows):
+    /// a circle gradient radiates from the middle of that rectangle, whatever its fill-to corner says.
+    var tile: Rect? = nil
     /// `a:stretch/a:fillRect`: where a stretched picture sits within the
     /// area, as fractions inset from each edge (negative: beyond it, and
     /// clipped).
@@ -398,6 +405,9 @@ struct TextWarp: Equatable {
 /// file names one.
 struct Scene3D: Equatable {
     var depth: Double
+    /// `a:sp3d z`: the solid stands this far toward the eye.
+    var bevelBH = 0.0
+    var lift = 0.0
     var lat = 0.0, lon = 0.0, rev = 0.0
     var oblique: Offset? = nil
     /// A legacy perspective camera: what lies behind also shrinks toward
@@ -406,12 +416,21 @@ struct Scene3D: Equatable {
     var extrusionColor: Color? = nil
     /// `prstMaterial="legacyWireframe"`: edges only.
     var wireframe = false
+    /// `a:sp3d prstMaterial` ("" when omitted).
+    var material = ""
+    var cameraName = ""
     /// `a:lightRig`: the rig's name, and how far `dir` turns it about the
     /// line of sight, in degrees clockwise ("t" 0, "r" 90).
     var rig = "threePt"
     var rigTurn = 0.0
+    /// `a:lightRig/a:rot` as written (latitude, longitude, revolution, degrees); nil when absent.
+    var rigRot: [Double]? = nil
     /// A `legacy…` camera, which PowerPoint lights its old way.
     var legacy = false
+    /// `a:bevelT`'s width and height, in points (0 for none); `a:contourClr` and `contourW`.
+    var bevelW = 0.0, bevelH = 0.0, bevelPreset = "circle"
+    var contourColor: Color? = nil
+    var contourW = 0.0
 
     /// A camera that only revolves a shape with no depth: the shape
     /// turned in its own plane, and nothing of a solid to draw.
@@ -429,6 +448,9 @@ struct RunLook: Equatable {
     var noFill = false
     var outline: Color? = nil
     var outlineWidth = 0.75
+    /// `a:ln/a:prstDash` (nil solid) and `cap="rnd"` of the text's outline.
+    var outlineDash: String? = nil
+    var outlineRound = false
 
     var isPlain: Bool { fill == nil && !noFill && outline == nil }
 }
@@ -468,6 +490,8 @@ final class SlideShape {
     /// A diagram laid out here: the shapes that end at one size
     /// (`starling:sizeGroup`, from the layout's `op="equ"` constraints).
     var sizeGroup: String? = nil
+    /// The bullet hang was generated here (not stated by the data): it scales with the fitted size.
+    var generatedHang = false
     /// `a:ln/a:prstDash`: the outline's dash pattern ("dash", "sysDot"…);
     /// nil for a solid line.
     var outlineDash: String? = nil
@@ -489,9 +513,16 @@ final class SlideShape {
     /// `bodyPr vert`: the text set a quarter turn clockwise (1: `vert`,
     /// `eaVert`) or anticlockwise (-1: `vert270`); 0 across.
     var textTurn = 0
+    /// `bodyPr vert="wordArtVert"` (1) or `"wordArtVertRtl"` (-1): every character upright, one to a square place
+    /// down the box, the next column to the right (to the left, for -1).
+    var textStacked = 0
     /// The text turned about its own middle, degrees clockwise (a
     /// camera's `rev`, the other way).
     var textSpin = 0.0
+    /// A flat camera's `rev`: the text turned about the middle of its lines.
+    var textRev = 0.0
+    /// `bodyPr`'s `a:scene3d`/`a:sp3d` on warped text: the letters as a solid.
+    var textScene: Scene3D? = nil
     /// A diagram's text: its lines step at its face's own height, not
     /// PowerPoint's 1.2 (`ShapeState.naturalLines`).
     var naturalLines = false
@@ -915,4 +946,11 @@ struct ShapeBevel: Hashable {
     var height: Double
     var rig = "threePt"
     var material = "warmMatte"
+    /// The bevel's profile (`a:bevelT prst`), the rig's turn about the line
+    /// of sight (`dir`) in degrees and its `a:rot` (lat, lon, rev).
+    var preset = "circle"
+    var turn = 0.0
+    var rot: [Double] = [0, 0, 0]
+    /// Laid out by the diagram engine from the quick style, not authored.
+    var diagram = false
 }

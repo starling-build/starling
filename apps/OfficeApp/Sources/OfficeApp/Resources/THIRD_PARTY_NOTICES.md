@@ -28,6 +28,11 @@ Copyright (c) 2010-2013 tyPoland Lukasz Dziedzic. SIL Open Font License 1.1.
 Document face standing in for Calibri.
 Full text: fonts/Carlito-LICENSE.txt.
 
+## Noto Sans
+Copyright 2012 Google Inc. Apache License 2.0.
+Bundled as itself (Regular, Bold, Italic, Bold Italic; Version 1.04, from Microsoft Office's cloud font cache) for documents that name Noto Sans.
+Full text: fonts/NotoSans-1.04-LICENSE.txt.
+
 ## Zhuque Fangsong (as Starling FangSong)
 Copyright (c) 2023, Zhejiang JadeFoci Technology Co. LTD. SIL Open Font License 1.1.
 Modified (re-metricked to FangSong's widths, subset) and renamed Starling FangSong;
@@ -52,6 +57,11 @@ Full text: fonts/WorkSans-LICENSE.txt.
 Copyright 2015 The Libre Franklin Project Authors. SIL Open Font License 1.1.
 Slides' stand-in for Franklin Gothic (fixed weights cut from the variable font).
 Full text: fonts/LibreFranklin-LICENSE.txt.
+
+## Lato
+Copyright 2010-2011 Łukasz Dziedzic. SIL Open Font License 1.1.
+Word documents that name Lato are drawn in it (Regular, Bold, Italic, Bold Italic, Black, Light).
+Full text: fonts/Lato-LICENSE.txt.
 
 ## Archivo Black
 Copyright 2017 The Archivo Black Project Authors (https://github.com/Omnibus-Type/ArchivoBlack). SIL Open Font License 1.1.
@@ -103,3 +113,8 @@ Copyright (c) 2003 Bitstream, Inc. (Bitstream Vera); DejaVu changes are in
 the public domain. Bitstream Vera Fonts licence.
 Document face standing in for Verdana.
 Full text: fonts/DejaVu-LICENSE.txt.
+
+## Noto Sans CJK, Noto Serif CJK and the Noto script faces
+
+Noto Sans CJK and Noto Serif CJK (Regular, Bold; Japanese, Korean, Simplified and Traditional Chinese, Hong Kong), Noto Sans Arabic, Noto Naskh Arabic, Noto Sans Hebrew, Noto Serif Hebrew, Noto Sans Thai, Noto Sans Devanagari, Noto Sans Bengali, Noto Sans Telugu, Noto Sans Gurmukhi, Noto Sans Gujarati and Noto Color Emoji (as "Noto Color Emoji Pictographs and Variation", our subset of it under a new name; recipe build/tools/subset-emoji.py), bundled for text no other bundled face draws. SIL Open Font License 1.1.
+Sources and checksums: fonts/README.md. Full text: fonts/Noto-OFL-LICENSE.txt.

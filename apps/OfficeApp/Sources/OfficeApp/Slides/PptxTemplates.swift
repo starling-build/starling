@@ -9,6 +9,7 @@
 // is copied from a Microsoft template.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 #if os(WASI)
 import FoundationEssentials

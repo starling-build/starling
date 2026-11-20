@@ -10,6 +10,7 @@
 //   OFFICE_DEMO_PAGES=200 swift run OfficeApp  the Phase 0 perf document
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 
@@ -70,6 +71,8 @@ func initializeHeadlessText() {
         break
     }
     OfficeFonts.register()
+    // (A stale engine is said at once, on stderr, not at the first indent.)
+    _ = starlingEngineKnowsLineIndents()
 }
 
 // `--bench [pages]`: the perf gate without a window. Lays out the generated
@@ -668,10 +671,53 @@ if let i = CommandLine.arguments.firstIndex(of: "--read-bench"), i + 1 < Command
     exit(ReadBench.run(Array(CommandLine.arguments[(i + 1)...])))
 }
 
+// OFFICE_NOW_TABLE=<tsv> (document name, tab, time): a test script pins the clock DATE and TIME fields read to the
+// moment the reference print was made (test/corpus/docx/clock.tsv). Unset, the real clock is used.
+if getenv("OFFICE_NOW") == nil, let table = getenv("OFFICE_NOW_TABLE"),
+   let i = CommandLine.arguments.firstIndex(where: { $0 == "--convert" || $0 == "--trace-rules" }),
+   i + 1 < CommandLine.arguments.count,
+   let text = try? String(contentsOfFile: String(cString: table), encoding: .utf8) {
+    let stem = CommandLine.arguments[i + 1].lastPathComponent.deletingPathExtension
+    for line in text.split(separator: "\n") {
+        let cols = line.split(separator: "\t")
+        if cols.count == 2, String(cols[0]) == stem { setenv("OFFICE_NOW", String(cols[1]), 1) }
+    }
+}
+
+// `--trace-rules <in>`: the document laid out as `--convert in out.pdf` lays
+// it out, without the PDF; with OFFICE_RULE_TRACE=<file> set, the rules it
+// reaches (`RuleTrace.hit`) are appended there. Several times faster than
+// a conversion, for finding which documents a change can move.
+if let i = CommandLine.arguments.firstIndex(of: "--trace-rules"), i + 1 < CommandLine.arguments.count {
+    let src = CommandLine.arguments[i + 1]
+    initializeHeadlessText()
+    RuleTrace.document = src.lastPathComponent.deletingPathExtension
+    do {
+        let opened = try OfficeFormats.read(src)
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.drawn
+        theme.faceResolver = OfficeFonts.face
+        theme.complexFaceResolver = OfficeFonts.complexFace
+        theme.complexFaceKeepsDigits = OfficeFonts.complexFaceKeepsDigits
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.symbolGlyphs = { face, text in face.map { Metafile.symbols(text, face: $0) } ?? text }
+        theme.symbolAdvance = Metafile.symbolAdvance
+        theme.wordRules = true
+        theme.disablesLigatures = true
+        _ = PdfExport.write(opened.document, pageSetup: opened.pageSetup ?? .letter, theme: theme,
+                            to: "", title: src.lastPathComponent, layoutOnly: true)
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("trace failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+
 if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLine.arguments.count {
     let src = CommandLine.arguments[i + 1]
     let dst = CommandLine.arguments[i + 2]
     initializeHeadlessText()
+    RuleTrace.document = src.lastPathComponent.deletingPathExtension
     do {
         let opened = try src == "welcome"
             ? OpenedDocument(document: WelcomeDocument.make(), pageSetup: .letter)
@@ -681,6 +727,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--convert"), i + 2 < CommandLin
             theme.fontFamilyResolver = OfficeFonts.drawn
             theme.faceResolver = OfficeFonts.face
             theme.complexFaceResolver = OfficeFonts.complexFace
+            theme.complexFaceKeepsDigits = OfficeFonts.complexFaceKeepsDigits
             theme.averageCharWidth = OfficeFonts.averageCharWidth
             theme.symbolGlyphs = { face, text in face.map { Metafile.symbols(text, face: $0) } ?? text }
             theme.symbolAdvance = Metafile.symbolAdvance

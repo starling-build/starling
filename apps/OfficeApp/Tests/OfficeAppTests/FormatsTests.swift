@@ -3,6 +3,7 @@
 
 import XCTest
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 @testable import OfficeApp
 

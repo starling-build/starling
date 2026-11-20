@@ -8,6 +8,7 @@
 // the 6.2.1 type checker on trees this deep.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation

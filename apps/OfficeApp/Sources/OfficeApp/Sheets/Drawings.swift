@@ -16,6 +16,7 @@
 // or resized drawing has its anchor rewritten on save.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 
@@ -59,6 +60,8 @@ struct SheetChart: Equatable {
     /// weeks read live as 54 bars, the last the year's total, and every
     /// week stood a sliver under an axis twenty times too tall.
     var pivot = false
+    /// A pivot chart's field buttons (`c14:dropZonesVisible`): Excel prints them in the chart.
+    var pivotButtons = false
 
     static func == (a: SheetChart, b: SheetChart) -> Bool {
         a.chart == b.chart && a.path == b.path && a.formulas == b.formulas && a.refs.count == b.refs.count
@@ -156,10 +159,20 @@ enum SheetDrawingsXML {
                 var sc = SheetChart(chart: chart, refs: space.name.hasPrefix("cx:") ? _chartexRefs(space) : _refs(space), path: path)
                 let axis = space.descendant("c:catAx")?.first("c:numFmt") ?? space.descendant("c:dateAx")?.first("c:numFmt")
                 sc.pivot = space.descendant("c:pivotSource") != nil
+                sc.pivotButtons = sc.pivot && space.descendant("c14:dropZonesVisible")?["val"] == "1"
                 sc.categoryFormat = axis.flatMap { ["0", "false"].contains($0["sourceLinked"] ?? "1") ? $0["formatCode"] : nil }
                 for f in _formulas(space) { sc.formulas[f] = f }
                 d.kind = .chart(sc)
                 d.relId = ref
+            } else if let frame = el.child("graphicFrame") ?? el.child("AlternateContent")?.child("Choice")?.child("graphicFrame"),
+                      let diagram = _diagram(frame, rels: rels, parts: parts) {
+                // (A SmartArt diagram: the shapes Excel drew it as, in its drawing part, read as a group
+                // — lo-tdf83671's Venn printed nothing.)
+                d.name = frame.child("nvGraphicFramePr")?.child("cNvPr")?["name"] ?? "Diagram"
+                var shape = SheetShape.readGroup(diagram.group, colors: colors)
+                shape.native = true
+                shape.fill = diagram.background.flatMap { $0.child("solidFill") }.flatMap { colors.color(in: $0) }
+                d.kind = .shape(shape)
             } else if let sp = el.child("sp") ?? el.child("cxnSp") {
                 d.name = (sp.child("nvSpPr") ?? sp.child("nvCxnSpPr"))?.child("cNvPr")?["name"] ?? "Shape"
                 d.kind = .shape(SheetShape.read(sp, colors: colors))
@@ -176,6 +189,55 @@ enum SheetDrawingsXML {
             out.append(d)
         }
         return (out, drawingPath, split.rootStart)
+    }
+
+    /// The shapes of a SmartArt diagram in a graphic frame (`dgm:relIds`): its data part's `dsp:dataModelExt`
+    /// names the drawing part Excel wrote, whose shapes lie in the frame's own space (from 0, 0, in EMU,
+    /// at their size: Excel prints them unscaled in the frame's corner), read as a group. A shape's text
+    /// has its own box (`dsp:txXfrm`), so it goes in a shape of its own after the shape's outline.
+    private static func _diagram(_ frame: XNode, rels: [String: String], parts: [String: Data]) -> (group: XNode, background: XNode?)? {
+        guard let ids = frame.child("graphic")?.child("graphicData")?.child("relIds"), let dm = ids["r:dm"],
+              let dataPath = rels[dm], let data = parts[dataPath].flatMap({ XNode.parse($0) }),
+              let rid = data.descendant("dsp:dataModelExt")?["relId"], let drawingPath = rels[rid],
+              let drawing = parts[drawingPath].flatMap({ XNode.parse($0) }),
+              let tree = drawing.descendant("dsp:spTree") else { return nil }
+        func local(_ n: XNode) -> String { n.name.split(separator: ":").last.map(String.init) ?? "" }
+        var right = 0.0, bottom = 0.0
+        var members: [XNode] = []
+        for sp in tree.children where ["sp", "grpSp", "cxnSp"].contains(local(sp)) {
+            guard let x = sp.child("spPr")?.child("xfrm") ?? sp.child("grpSpPr")?.child("xfrm"),
+                  let off = x.child("off"), let ext = x.child("ext") else { continue }
+            right = max(right, (Double(off["x"] ?? "") ?? 0) + (Double(ext["cx"] ?? "") ?? 0))
+            bottom = max(bottom, (Double(off["y"] ?? "") ?? 0) + (Double(ext["cy"] ?? "") ?? 0))
+            if local(sp) == "sp", let tx = sp.child("txXfrm"), let body = sp.child("txBody") {
+                let outline = XNode(name: sp.name, attrs: sp.attrs)
+                outline.children = sp.children.filter { $0 !== body && $0 !== tx }
+                let text = XNode(name: sp.name, attrs: sp.attrs)
+                let pr = XNode(name: "spPr", attrs: [:])
+                let xf = XNode(name: "xfrm", attrs: [:])
+                xf.children = tx.children
+                let geom = XNode(name: "prstGeom", attrs: ["prst": "rect"])
+                let none = XNode(name: "noFill", attrs: [:]), ln = XNode(name: "ln", attrs: [:])
+                ln.children = [XNode(name: "noFill", attrs: [:])]
+                pr.children = [xf, geom, none, ln]
+                text.children = [pr, body] + (sp.child("style").map { [$0] } ?? [])
+                members += [outline, text]
+                if let o = tx.child("off"), let e = tx.child("ext") {
+                    right = max(right, (Double(o["x"] ?? "") ?? 0) + (Double(e["cx"] ?? "") ?? 0))
+                    bottom = max(bottom, (Double(o["y"] ?? "") ?? 0) + (Double(e["cy"] ?? "") ?? 0))
+                }
+            } else {
+                members.append(sp)
+            }
+        }
+        guard right > 0, bottom > 0 else { return nil }
+        let grp = XNode(name: "grpSp", attrs: [:])
+        let pr = XNode(name: "grpSpPr", attrs: [:])
+        let x = XNode(name: "xfrm", attrs: [:])
+        x.children = [XNode(name: "chOff", attrs: ["x": "0", "y": "0"]), XNode(name: "chExt", attrs: ["cx": String(Int(right)), "cy": String(Int(bottom))])]
+        pr.children = [x]
+        grp.children = [pr] + members
+        return (grp, data.child("bg"))
     }
 
     /// The text of every `c:f` in a chart part.
@@ -271,7 +333,27 @@ extension SheetChart {
     /// the cells they reference, where those resolve.
     func live(book: Workbook, engine: CalcEngine) -> Chart {
         var c = chart
-        if pivot { return c }
+        if pivot {
+            // The field buttons name the pivot's value field (the cell above-left of the
+            // series names) and its category field (the cell over the categories).
+            if pivotButtons, let ref = refs.first, let cf = ref.cat, let nf = ref.name {
+                func cell(_ formula: String) -> (Int, CellRange)? {
+                    guard let expr = try? Formula.parse("=" + formula), case .ref(let r) = expr, let name = r.sheet,
+                          let si = book.sheet(named: name) else { return nil }
+                    return (si, r.range)
+                }
+                func text(_ si: Int, _ row: Int, _ col: Int) -> String? {
+                    guard row >= 0, col >= 0 else { return nil }
+                    let a = CellRange(top: row, left: col, bottom: row, right: col)
+                    return engine.values(si, a, includeEmpty: true).first.map { NumberFormat.display($0, "General", width: 255).text.trimmingWhitespace() }
+                }
+                if let (si, cr) = cell(cf), let (_, nr) = cell(nf),
+                   let top = text(si, nr.top, cr.left), let bottom = text(si, cr.top - 1, cr.left), !top.isEmpty, !bottom.isEmpty {
+                    c.pivotButtons = [top, bottom]
+                }
+            }
+            return c
+        }
         func resolve(_ formula: String) -> (sheet: Int, range: CellRange)? {
             // (Or a defined name for one: a `cx:` chart's _xlchart.v1.0.)
             let formula = book.names[formula.uppercased()] ?? formula

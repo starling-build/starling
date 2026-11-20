@@ -1,5 +1,6 @@
 import XCTest
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 @testable import OfficeApp
 
@@ -22,6 +23,22 @@ final class ChartTests: XCTestCase {
             if type.isPie { back.series = Array(back.series.prefix(1)) }
             XCTAssertEqual(back, c, "\(type)")
         }
+    }
+
+    /// Excel's box of a 3-D area at right angles, from Windows lab view3d's prints (480 x 288 pt, its room 398.4 x 224.6 pt):
+    /// the front 340.0 x 96.7 pt, its depth 57.2 across, for two series; 297.2 x 126.8 and 101.0 for four; hPercent 100 makes the
+    /// front 170.5 high.
+    func testA3DAreaAtRightAnglesStandsInItsRoomAsExcelPrintsIt() {
+        let two = ChartPainter.area3DRightBox(roomW: 398.4, roomH: 224.6, series: 2, categories: 4, depth: 1, heightPercent: nil, rotX: 15, rotY: 20)
+        XCTAssertEqual(two.width, 340.0, accuracy: 1.5)
+        XCTAssertEqual(two.height, 96.7, accuracy: 1.5)
+        XCTAssertEqual(two.dx, 57.2, accuracy: 1.5)
+        let four = ChartPainter.area3DRightBox(roomW: 398.4, roomH: 224.6, series: 4, categories: 4, depth: 1, heightPercent: nil, rotX: 15, rotY: 20)
+        XCTAssertEqual(four.width, 297.2, accuracy: 1.5)
+        XCTAssertEqual(four.height, 126.8, accuracy: 2)
+        XCTAssertEqual(four.dx, 101.0, accuracy: 1.5)
+        let tall = ChartPainter.area3DRightBox(roomW: 398.4, roomH: 224.6, series: 2, categories: 4, depth: 1, heightPercent: 100, rotX: 15, rotY: 20)
+        XCTAssertEqual(tall.height, 170.5, accuracy: 1.5)
     }
 
     func testStackingAndBlanks() throws {
@@ -264,11 +281,14 @@ final class ChartTests: XCTestCase {
 
     /// A chart this app cannot draw reads as nothing, so the frame keeps
     /// its own picture. (Every single kind is drawn since surfaces were,
-    /// 5c5d43a4; an area under a line is a combination still left alone.)
+    /// 5c5d43a4. An area under a line on one pair of axes is drawn too, since
+    /// bc0dd4262 — chart-tdf140489's; an area beside a pie is still left alone.)
     func testAKindThisAppCannotDrawIsKept() {
         let ser = "<c:ser><c:val><c:numLit><c:ptCount val=\"1\"/><c:pt idx=\"0\"><c:v>1</c:v></c:pt></c:numLit></c:val></c:ser><c:axId val=\"1\"/><c:axId val=\"2\"/>"
         let combo = "<c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart><c:plotArea><c:areaChart>\(ser)</c:areaChart><c:lineChart>\(ser)</c:lineChart></c:plotArea></c:chart></c:chartSpace>"
-        XCTAssertNil(ChartXML.read(XNode.parse(Data(combo.utf8))!, color: { _ in nil }))
+        XCTAssertNotNil(ChartXML.read(XNode.parse(Data(combo.utf8))!, color: { _ in nil }), "an area under a line on one pair of axes is drawn (bc0dd4262)")
+        let odd = combo.replacingOccurrences(of: "<c:lineChart>\(ser)</c:lineChart>", with: "<c:pieChart>\(ser)</c:pieChart>")
+        XCTAssertNil(ChartXML.read(XNode.parse(Data(odd.utf8))!, color: { _ in nil }))
         XCTAssertNotNil(ChartXML.read(XNode.parse(Data(combo.replacingOccurrences(of: "<c:lineChart>\(ser)</c:lineChart>", with: "").utf8))!, color: { _ in nil }), "the area alone is drawn")
     }
 

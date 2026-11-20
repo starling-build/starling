@@ -25,13 +25,20 @@ public enum WebFonts {
     /// (the page fetches a font straight into one). Takes over the caller's
     /// reference to `data`.
     public static func register(data: sk_ptr, family: String?) -> Bool {
+        register(data: data, family: family, faceIndex: nil, keep: false)
+    }
+
+    /// One face of a font collection, by index (nil: a plain file). With
+    /// `keep` the caller's reference to `data` stays its own, so the faces of
+    /// one file share one copy of its bytes (a CJK collection is 19 MB).
+    public static func register(data: sk_ptr, family: String?, faceIndex: Int32?, keep: Bool) -> Bool {
         guard data != 0 else { return false }
         // The typeface holds its own reference to the bytes, and the
         // collection its own to the typeface, so ours can go as soon as each
         // has been handed on. typeface_create returns 0 for bytes that are
         // not a font.
-        let typeface = typeface_create(data)
-        skData_dispose(data)
+        let typeface = faceIndex.map { typeface_createWithIndex(data, $0) } ?? typeface_create(data)
+        if !keep { skData_dispose(data) }
         guard typeface != 0 else { return false }
 
         if let family, !family.isEmpty {

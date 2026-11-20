@@ -27,7 +27,7 @@ import urllib.error
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-APP = os.path.join(ROOT, "apps/OfficeApp/.build/debug/OfficeApp")
+APP = os.environ.get("OFFICE_APP") or os.path.join(ROOT, "apps/OfficeApp/.build/debug/OfficeApp")
 CHECK = os.path.join(ROOT, "test/ooxml-check.py")
 LIST = "https://api.github.com/repos/apache/poi/contents/test-data/document"
 
@@ -108,7 +108,14 @@ def main():
             else:
                 c, ctext, _ = run([sys.executable, CHECK, dst])
                 if c != 0:
-                    verdict, detail = "CHECK-FAIL", last(ctext)
+                    # (A copy no more unsound than its original is its original's
+                    # fault: LibreOffice's footer-margin-lost names a header image
+                    # the package never held, and the copy says the same.)
+                    c0, text0, _ = run([sys.executable, CHECK, src])
+                    if c0 != 0 and last(text0) == last(ctext):
+                        verdict, detail = "SRC-UNSOUND", last(ctext)
+                    else:
+                        verdict, detail = "CHECK-FAIL", last(ctext)
                 else:
                     verdict, detail = "ok", f"{first[0]} paragraphs, {first[1]} words" if first else ""
         tally[verdict] = tally.get(verdict, 0) + 1

@@ -164,6 +164,19 @@ In order:
    on the repaint that `onImageDecoded` asks for; a metafile as a shape
    or background *fill* (not a picture) is not drawn. `test/slides-drive.py`
    is the way in.
+   **Done 2026-10-31 (macos-ios, c8c4eea1b):** all three seen on screen
+   and settled. A turned table cell's caret, selection and click now map
+   through the cell's turn (`RichLayout._turnedFrame`; the click used to
+   find the end of the text wherever it fell); a metafile as a shape's or
+   background's picture fill is played over the area (`paintFill`,
+   stretched or into its `a:fillRect`, not tiled — no corpus deck has
+   one, a test deck is a rect/ellipse with `a:blipFill` on a WMF/EMF part);
+   a metafile's own bitmaps were already fine on screen (lo-tdf149206's
+   WMF and its thumbnail). Painter gate, 553 decks: no movers. To drive a
+   deck by hand: `Driver.launch(args=[path])` with a COPY of the deck (the
+   app writes a `~` backup and restores unsaved edits per file), and a
+   debug build needs `apps/OfficeApp/.build/debug/data` (copy it from a
+   checkout that has one) or the engine's ICU data check aborts at launch.
 2. **Triage the 2–20% band.** Sample it (every fifth deck by rank, say),
    put a cause on each from its pair image, and fix what recurs.
    Suspects, unmeasured: wrapping that differs by a word (font
@@ -2316,6 +2329,53 @@ by up to half a point. One unit narrower (as a WMF) made it 6.25.
 tdf149206 fits neither: its one bitmap prints 563.5 by 451 units for
 a frame of 562.95 by 450.35 (and a window mapped onto a viewport of
 its own), half a unit either side; left.
+
+**WordArt against Windows, 2026-10-31 (windows-1; released, nothing more to
+get).** ThemeColorTransparency's fill and outline transparency were drawn
+already; what showed was a `w="0"` hairline PowerPoint for Windows draws
+(0.14 pt in its PDF; 28 decks have one: 1.0361 → 1.0248, aascu 6.52 →
+4.77, lo-tdf109067 2.58 → 0.04, lo-tdf105739 1.19 → 0). `textInflate`'s
+edge is an ellipse's arc, not a parabola (−0.11 on two decks). The rest is
+the face: Windows sets Arial Black, we set Archivo Black, whose line is
+1.088 em against Arial Black's 1.41, and the letters' height in the warp
+follows the line — in ThemeColorTransparency "Happy" stands 9–27% shorter
+than PowerPoint's (the H 87.5 pt against 111). Knobs that fit the letters
+to a pt (line box 0.9 em, baseline 0.82 down it, the arc) scored WORSE
+(6.20 → 6.74, ImportWordArtGradient 13.72 → 14.42): the pixel score is
+the glyph shapes, not the placement. Unreachable without Arial Black.
+Left: the sysDot outline of a text run (drawn solid), a path gradient with
+an alpha ramp and a `tileRect` (PowerPoint's print is solid accent1 across
+the text; ours fades), WordArtBitmapFill.
+
+**Lines on whole points — Mac's rule, switched off against Windows, 2026-10-31**
+(555 decks vs powerpoint-win: 1.0874 → 1.0361, 70 better, 16 worse by at
+most 0.31, the 93 exact decks still exact; lo-tdf154858 4.39 → 0,
+lo-tdf93830 4.09 → 0.95, lo-tdf157635 2.26 → 0, lo-tdf157793 2.55 → 0.35).
+PowerPoint for Mac sets every line on a whole point (below); PowerPoint
+for Windows keeps the true pitch — the AES deck's 16.8 pt lines print
+16.80 apart, every one — so snapping gave a sawtooth of ±0.4 pt down a
+box (+0.24, −0.58, −0.38, −0.18, 0, +0.20, −0.58 …). Boxes
+(`SlidePainter.snapsLinesToPoints`) and table cells (`cellLineShift`)
+are laid at their pitch now; `paintOnWholePoints` stays for a Mac style.
+Lines at least half a point off in the survey (`pptx-line-survey.py` on
+powerpoint-win): Calibri 264 → 124 of 2029, Verdana 37 → 2, Cambria
+47 → 0. Left: Lucida Sans Unicode (25 of 90), Courier New (15 of 62),
+Aptos Display (6 of 21).
+
+*Line spacing under single, tried and dropped (2026-11-01).* Windows seems
+to scale a proportional spacing under 100% from the line's top, so the
+baseline sits (1 − s) × descent lower than the Mac-fitted rule
+(`RichLayout.baselineShift`): HowWeRefactor's 60% Courier 12 pt boxes
+were −1.42 pt on every line (0.4 × 3.57), GeomLec1's 90% −0.59, and a
+flag doing it fixed both (off lines 22 → 5, 15 → 0). Over the 555 decks
+it is a net loss: 52 worse against 14 better, lo-font-scale +1.54,
+lo-3columns +1.30, KEY02 +0.68, alterman_security +0.52 (alterman's
+Arial 18/24 pt lines went from 4 off to 78, now too low). The rule is
+right for some faces (Courier, Calibri at 90%) and wrong for others,
+and nothing tells them apart yet — not `lnSpcReduction`, not the stated
+versus reduced spacing. The one big win in that sweep,
+ececapstonespring2012 12.37 → 1.47, was b257d61f8 (a base difference),
+not the flag. Not landed; the experiment is `wip/win1-slides-lowspc`.
 
 **Lines on whole points, 2026-10-17** (sweep 180: 1.0145 → 1.0016;
 55 decks better, 25 worse; smartart-simple 3.24 → 1.63, pptx2svg 5.00
@@ -4809,3 +4869,85 @@ The app is one bundle for both kinds, and its name is "Writer" today.
 A suite name is needed before the macOS bundle and the About box can
 say anything sensible; until then the bundle stays "Writer" and each
 window's title names its kind.
+
+**SmartArt causes, amd-7, 2026-11-06 (vs powerpoint-win; 50 decks, all 0.0-2.4%, so
+near the noise floor).** Rotation question: lo-smartart-rotation's drawing part has 0
+shapes (so do 33 of the lo-* decks); nothing cached to lay out from, and the 17 decks
+whose drawing has shapes already draw from it. fa9851207 took rotation 1.31 to 0.50.
+1. Bevel/3D from the quick style (`sp3d bevelT`, e.g. dkEdge) not drawn on a diagram's
+   shapes: lo-tdf145528_SmartArt_Matrix 2.27, lo-smartart-composite-infer-right 2.07.
+   Tried passing the label's sp3d/scene3d into the laid-out shapes: composite 2.07 to 2.59
+   (bevel far heavier than PowerPoint's). LAB OUT: wip/lab-smartart (12 quick-style variants), prints from windows on wip/lab-smartart-prints (test/labs/smartart/prints/*.png, 150 dpi, unmeasured). To fit: shadow size/offset (cycle-matrix eff0/1/2), bevel rim (composite/matrix orig vs nobevel vs flatrig vs material-default); does PowerPoint relayout Matrix or use its cached drawing (compare matrix-orig with nobevel).
+2. Quick style effectRef idx 1 (theme outerShdw) on laid-out decks: lo-smartart-cycle-matrix
+   2.27. Passing the idx through drew a big hard grey block (2.27 to 3.10); PowerPoint
+   shows a small soft ~1.6 pt drop there (I wrote 'none' wrongly). Lab out (see 1); amd-2 (starling-aa) is changing SlidePainter's shadow silhouette to include the stroke: retry the effectRef pass-through after that lands. Diagram.swift still writes effectRef 0.
+3. Text glyph raster / 1-2 px text offsets only (no shape error): missing-bullet 2.42,
+   textposition 2.15, org-chart 1.34, org-chart2, accent-process 1.47 (frames 2 px low),
+   snake-rows, autofit-sync. Noise floor; nothing to build.
+4. Pyramid (lo-tdf149551_SmartArt_Pyramid 1.29): PowerPoint prints dark text, we print
+   white, from the cached drawing's own style; not yet read down.
+Nothing landed in this pass.
+5. cycle-matrix side boxes: bullet-to-text gap 21 pt vs PowerPoint 8. Cause found: Diagram.swift sets the hang from the unshrunk 65 pt size (22.5 pt) and the reader's shrink to ~0.17 does not scale it. The hang lives in the list marker slot (indentLeft/firstLineIndent are 0), so scaling those does nothing. Half-done on wip/smartart-bullet-hang (not landed). Fix idea: scale the list hang (RichLayout list indent, gated by spacingFollowsFont) by fontScale, or have the layout know the fitted size.
+Unit tests at the Pyramid commit: 628 run, 0 failures (amd-8's env.sh + test/tools/office-unit-tests.sh).
+
+**amd-2, 2026-11-06 (SmartArt, taking amd-7's work).**
+- LANDED 9b8cc9713: Diagram.swift now passes the quick style's effectRef idx (theme shadow) to laid-out shapes (text-only hideGeom shapes get 0); SlidePainter now flips a shadow with its shape (flipH/flipV: cycleMatrix's third wedge cast its shadow from the unflipped wedge = the "big hard grey block" amd-7 saw). cycle-matrix 2.27 -> 2.25, tdf131082 0.33 -> 0.22, no deck worse. (Earlier a15c8c9a... a915c8c9a: shape shadow casts from fill + outline together.)
+- Lab prints measured (cyclematrix, 150 dpi): eff0 no shadow; eff1 and eff2 the same soft shadow below a side box: darkening 83,74,59,43,28,16,7,3,1 /255 over ~9 px (4.3 pt) below the line edge = the theme's outerShdw (blur 40000, dist 23000, alpha 35%) cast from fill+outline. Side-box roundRects in the deck's quick style have effectRef 0, so the deck prints none there; the lab's eff1/eff2 edit is what adds it. So no size/offset fit is needed: the theme value is right.
+- Bullet hang (wip/smartart-bullet-hang): tried theme.listIndent = max(4.5, listIndent * fontScale) after the equal-size pass in DeckController (the slot is TextTheme.listIndent, set from the first bulleted paragraph's hang in PptxReader ~3298). cycle-matrix 2.25 -> 2.23 only, and lo-smartart-missing-bullet 2.42 -> 2.82 (its paragraph STATES an 8.75 pt hang that must stay). NOT landed. A retry needs to scale only a generated hang (Diagram.swift's step rule), not a stated one.
+- Left unmeasured: bevel rim (lab-sa composite-orig/nobevel/flatrig, matrix-orig/nobevel/material-default prints are on wip/lab-smartart-prints, not read).
+
+**Slides charts, amd-1, 2026-11-06 (vs powerpoint-win; Chart.swift is shared with Word).**
+Chart decks (18 of 561), by worst page: aascu-5864 11.05 (chart pages p5 8.8, p8 7.5, p11 7.1, p16 7.0), cooper 4.21, LIBRE_OFFICE-100610-0 3.74, tdf169781 1.71, tdf149985 1.52, radar 1.30, pie 0.96; the rest under 0.8.
+- LANDED b0f2a8e16: (1) 3-D column value labels on a slide stand 5.0 - 2.3 sin(rotX) pt higher (lab b3dlabels, Windows prints: within 0.2 pt at any label size/gapDepth/depth); (2) category names of a tickless 2007-style slide chart stand 0.62 pt per point of size over 11.8 lower (lab pptxneg). aascu-5864 p5 9.09 to 8.84, p8 7.98 to 7.47; labels now within 0.1 pt; the rest of those pages is stand-in font. Slides sweep: no mover; ChartTests 25/0; Word + LO pairs up 0 down 0.
+- Not yet read: p11 (legend key for a line series with markers: PowerPoint's key is a square then the dot), p16, the LIBRE_OFFICE-100610 pages (3 to 3.7 each, all chart pages), cooper p6/p7.
+
+**amd-1 2026-11-06, Slides charts, status after d819779e2.** LANDED b0f2a8e16 (3-D column labels, tickless names) and d819779e2 (legend in a box of its own: a row shares the room in n+1 gaps, a column aligns left; labs b3dlabels, pptxneg, legbox). Left, all small: LIBRE_OFFICE-100610-0 p8 (3.74): its 3-D stacked bar (LibreOffice-made) stands 5.5 pt left of PowerPoint's at the left edge and 7.5 at the right (width 290 vs 292), its top bar 2.5 pt higher and the foot equal; the 3-D pie's rim 1-2 pt higher. Both 3-D, one deck each, no lab yet. aascu 5864 p11 legend text 1.7 pt left of PowerPoint's (key lead 9.49 vs 9.07). cooper p6/p7 (3.3/3.0) not read. Now on lo-f9b9a8fc (lab pieang out to windows).
+
+**amd-1 2026-11-06, Slides charts, open small pieces.** tdf169781 (1.71): gridlines within 0.1 pt, rest is the title font. tdf149985 (1.52): value labels 2.1 pt left, category names 1.2 left, data labels 0.7 left and 1.3 high, legend text 1.2 high, all in PowerPoint's print. aascu 5864 p5 (8.84): value labels drift 1.0 to 1.8 pt right across the plot (plot 0.14% too wide), title font differs. Status: OPEN, small pieces; come back once the bigger items are done. Bigger item now: LIBRE_OFFICE-100610 p2/p8, our 3-D bar box 301 pt wide v PowerPoint 279 (front 569 to 828.5, depth 19.5; ours 562 to 842, depth 21). Lab bar3dbox (wip/lab-bar3dbox, 14 decks) is with windows.
+
+**amd-1 2026-11-06, lab bar3dbox read (PowerPoint prints, 14 decks of LIBRE_OFFICE-100610 p2's 3-D bars, axes deleted, rotX 15 rotY 20 rAngAx, inner plot 346.7 wide).** Measured front faces (pt, from the 100 dpi rasters; Windows tsv has only fills). (1) Our "deleted axis runs to data + 5%" rule is wrong for this chart: values x10 print identical to the original, values x2 print the longest bar 17 pt shorter (241 v 258). Fits a rounded-up maximum (13 to 14, 26 to 30, 130 to 140): full axis 277.8 / 278.1 / 277.8 pt. (2) Box: depth d = 20.2 (rotY 20), 10.8 (10), 0 (0), 28.8 (30). In PowerPoint the front axis length holds at about 279 for rotY 0 to 20 and the front-left moves LEFT as depth grows (580, 575, 569); ours takes the depth out of the axis (length 345, 318, 293 at rotY 0, 10, 20; front-left 546, 554, 562). Axis length is about W - 68 for plot widths 243 to 347 (w60, orig, x02); w40 (162 wide) is 15 short and not centred. rotX 0 / 30, gapWidth 100 and plot height change the length a lot (rotX 30: 222) and are not modelled. (3) The deck's five 3-D bar charts share frame, view and layout, only the values differ, but the front length per unit is NOT constant across them (p2 19.9, p4 20.0, p6 23.3, p10 17.1; p8's four series 48.7), so the axis length also moves with something in the values (data label width at the bar end is my guess). Not fixed: needs the label-room rule worked out first; the tested axis-max rounding is the part with evidence. Pie "13" label 7 pt off is a separate gap.
+
+**amd-1 2026-11-06, value-axis label offsets of 2007-style slide charts read.** Ours v PowerPoint's print, baselines of the value labels: cooper p7 (Verdana, we draw DejaVu Sans) 1.7 pt high, aascu 5864 p11 (Gill Sans MT, we draw Liberation Sans) 1.1 high and 3.3 left, p16 (Calibri, Carlito) 0.9 high and 1.8 left. The size of the miss follows the face we stand in for, so it is the stand-in font's vertical metrics (and side bearing), not a chart rule; bar-chart and line-chart (Calibri) match within 0.2. A fix would centre the labels on the authored face's metrics: not chart code. Open, small pieces.
+
+**lenovo-5 2026-11-06, open for later: dkEdge bevel leftovers.** Landed 1ef7a46a3 (flat rig, width < 2 pt: black stroke alpha 0.4, one bevel wide, on the edge). Open: (1) PowerPoint also prints a LIGHTER row just inside the top edge (Matrix tile top: 117 full fill, 118 lighter, 119 near fill; 150 dpi) which we do not draw; (2) other bevels stay excluded from the dkEdge branch: threePt + relaxedInset (bnc862510_5, with extrusion) and the glow-rig shapes in customGeo; (3) alpha/width scores are noisy (page score 2.1-2.5 across settings), so judge by the edge-row profile, not the page score.
+
+**amd-2 2026-11-06: a slide's PDF page size is PowerPoint's, and a tiled PNG with alpha is smooth.** Skia writes MediaBox in whole points (10077450 EMU: 794 x 596); PowerPoint writes round(EMU/1524) x 0.12 pt (793.56 x 595.56; 680.4 x 453.48 for 8640763 x 5759450). The scorer stretches each page to whole pixels, so every odd-size deck drifted (tile phase lines, sub-pixel shifts). `SlidesPdf.exactPageSize` patches the box after export, top edge kept where Skia's content sits (it lays content from the foot of the whole-point page; changing only the height moved everything 0.44 pt: 4.00 -> 7.12 on the first try). Also a tiled background PNG with `alphaModFix` is marked `/Interpolate true` as PowerPoint does (a lone PNG with alpha stays unmarked). Full run 555 decks: mean 0.7848 -> 0.7481, 43 better (lo-page_transparent_bitmap 4.00 -> 0.10, lo-ShapePlusImage -1.42, presetDashDot 1.29 -> 0.00, smartart-simple -1.25, WordArtBitmapFill -1.22), matched-win exact. Ten small rises on odd-size decks are errors the fix uncovers (approved by starling-bd), to chase: Scene3d_material_wireframe +0.18, Scene3d_material_highlight +0.15, ImportWordArtGradient +0.14, ececapstonespring2012 +0.13, Scene3d_isometricRightUp +0.13, legacyObliqueBottomRight +0.10, ThemeColorTransparency +0.09, KEY02 +0.08, lo-hyperlinktest +0.06, tdf164622 +0.05. Open: lo-tdf140865Wordart3D prints 3.7 pt left of ours (size and shape equal); turning the solid about a point a third of the depth behind the front takes it 5.65 -> 4.38 (-0.15: 4.80, -0.25: 4.50, -0.5: 4.95), one deck only: needs a lab (pivot at varied depths and extrusion heights) before it lands.
+
+**amd-2 2026-11-06: wireframe and `sp3d z`, two of the ten uncovered 3-D rises.** (1) `legacyWireframe` (Scene3d_material_wireframe 1.07 -> 0.86; the only wireframe deck): PowerPoint prints the edges as a picture, one pixel (0.36 pt) of the shape's line colour (black for tx1), not 0.5 pt grey BFBFBF; its box is 1.0 pt larger on the left/top and ~0.5 on the right/foot than the shape (front-face left edge 186.7 for a shape at 187.6). Fitted on one deck. (2) `a:sp3d z` (a solid stands that far toward the eye) was ignored: legacyObliqueBottomRight's face stood (10, 5) pt down-right of PowerPoint's (z 18 pt under a 0.35-per-pt oblique); now placed at +z with the back at z - depth: 2.89 -> 1.44, face within 1 pt; LIBRE_OFFICE-100610-0 1.28 -> 1.13. Only that deck has a `z`. Still open of the ten: Scene3d_material_highlight (PowerPoint's prints are 0.5 pt larger each side and its shading is streaky), isometricRightUp (ours 1.2 pt wider), ThemeColorTransparency (WordArt).
+
+**amd-2 2026-11-06 (later): 3-D rises closed, two parked, two decks found to be font floor.** Landed: threePt face/wall white on orthographic cameras (958758ffa, isometricRightUp 1.40 to 1.24), `sp3d z` under legacy perspective (17affc2bd, lab p3fit: face scale 650/(650-z), 0.22 pt left per pt; no corpus deck has it), material solids print ~0.5 pt larger each side (17da632b5, material_highlight 2.70 to 2.49; the rest is PowerPoint's streaky shading). Parked: ThemeColorTransparency (3.93): ink x matches to 0.2 pt; PowerPoint's Arial Black is ~3% taller than Archivo Black (cap top 305.4 vs 310.4), font floor. lo-3columns (3.78): every line baseline within 0.04 pt of Word's, only Carlito vs Calibri glyphs. lo-tdf98603 (3.72): PowerPoint draws the Hebrew in Calibri, we use DejaVu Sans (Carlito has no Hebrew); a Hebrew stand-in with Calibri's widths would be the only lever. Text-level 3-D (scene3d inside bodyPr) is only extruded when the text has a prstTxWarp (PptxReader: `body0.warp != nil`); unwarped 3-D text stays flat. Lab p3pv (branch wip/lab-p3pv) is out for the Wordart3D pivot.
+
+**amd-2 2026-11-07: lab bar3dbox, what ours still misses (PowerPoint's print v ours, blue front face, pt; no corpus deck has these cases, so no code).** The orig, rotY 0/10/20/30, values x2/x10, x .02 and gapWidth 100 decks agree within 1.5 pt (x) and 1.5 pt (height 59 v 60.5). Not modelled: rotX (front height 61.2 / 59.0 / 51.1 at rotX 0 / 15 / 30, ours 73.4 / 60.5 / 49.6; front length 267.7 / 259.1 / 207.3, ours 262 / 257.6 / 277; at rotX 0 the height follows cos(rotX)^~1.25); inner h 0.4 (PP front 575.7 to 830.5, ours 560.6 to 844.9); inner w 0.4 / 0.6 / 0.95 (PP front 73.4 / 163.4 / 287.9 long, ours 100.8 / 150.4 / 292.8; PowerPoint's left margin inside the plot is 22.5 / 16 / 14.6 pt at plot widths 347 / 243 / 162). The axis is deleted in every deck, so the true axis maximum (and so tick step) is never printed; a second lab with the axis SHOWN would settle the length rule. The series-count decks s1..s5 have different bar colours and need a colour-by-series read. Data: wip/lab-bar3dbox-prints; the measuring script is in amd-2's /data/amd-2/b3d/meas.py.
+
+**amd-2 2026-11-07, 3-D bar box cases closed (landed 0ecfcb278, 193b9d9b2).** Lab bar3dbox + p3bx (wip/lab-p3bx, prints wip/lab-p3bx-prints), one-series-free 4-series bars, chart frame 496.7..901.4 pt, inner plot x .1219, W = w x 404.7. (1) rotX 0 / 15 / 30: front length 267.7 / 259.1 / 207.3, height 61.2 / 59 / 51.1 (cos^1.25), foot 5 pt higher at 0; ours now within 1.5 pt across (rx30 exact), 3.6 pt in rx0 height. (2) Plot widths 162..405: front length trims 13 / 12.8 / 1.5 / -4.9 / -10.7 pt at W 161.9 / 242.8 / 346.7 / 384.5 / 404.7 on top of the shared rule. (3) The left offset is not a centring rule: up to W 324 the box is centred as before; past 347 the box's RIGHT edge stops (848.5 at W 405, 854.2 at 364; ours: frame.right - 17.4 + 0.14 (W - 404.7)) and the box grows leftward. Data labels (showVal) change nothing (nl-* decks print identical). Not done: h40 (inner h .4: PP front 575.7-830.5, ours 559-846), series count s1..s5. Unit run: 632 tests, 0 failures. Also landed 7ec06f69a: textCurveDown/Up (adj pinned 56338, top 1.05 a sin 2u, foot bows 0.376 a, stems lean, curveUp mirrors).
+
+**amd-2 2026-11-07 CLAIM:** oox-tdf139618_WordArtBitmapFill (6.99), oox-tdf155327_WordArtDefaultColor (4.48). (Landed since the last note: 9aa07d366 bar box depth at other plot heights; lab p3bx2 (plot heights .3-1.0) is with windows.)
+
+**amd-2 2026-11-07 RESULT:** landed 15ad30fd0 (textDeflateInflate bands stand 0.045 above / 0.06 below the curve; oox-tdf139618_WordArtBitmapFill 6.99 to 6.34: Happy feet and Birthday tops now within 1 pt; the rest is the confetti fill's offset/scale and font shapes). PARKED: oox-tdf155327_WordArtDefaultColor 4.48 (thin italic text on a Square warp; shapes and positions agree, the stand-in font's width is the whole gap: font floor). PARKED: clusterfuzz-...5611274456596480 61.55 (fuzzed, truncated zip: only the SmartArt data part survives, no layout/drawing; PowerPoint repairs it and draws 4 blue boxes from the data points, we draw nothing: needs a SmartArt layout engine for missing parts, not worth it). Lab p3bx2 (plot heights .3-1.0) read: our bar box x edges within 1-4 pt at every height after 9aa07d366; NOT modelled: heights .9 / 1.0, where PowerPoint's front stands 411-486 / 401-486 and ours 438-499 / 458-499 (vertical size past the lab's height).
+
+**amd-2 2026-11-07 CLAIM:** ae.ac.uaeu.faculty_nafaachbili_GeomLec1 (4.64), then aascu 5864 (4.39).
+
+**amd-7 2026-11-07 RESULT:** landed bfe91b75b (Verdana's foot below its baseline 0.210 -> 0.202 em, from lab verdana-ls prints V and M; lab mean error -0.162 -> -0.030 pt). Approved drop (starling-bd, by name): lo-tdf129686 0.09 -> 0.30. It was a cancelling error: its title baseline stands 0.83 pt low (ours 49.55, PowerPoint 48.72) and the correct Verdana number exposes that. The end-paragraph mark (26 pt) is NOT the cause: changing it to 24 pt did not move the baseline. Still unexplained; the 100% centred lab matches within 0.03 pt, so it is deck-specific (normAutofit, anchor ctr, hanging indent marL=indent=1550). Lab verdana-em (wip/lab-verdana-ls, in/E.pptx, cells-E.tsv) sent to windows to ask whether the end mark's size changes a line that has text.
+
+**amd-7 2026-11-07 FINDING (lo-tdf129686 0.83 pt, from labs E, tdf..tdf7, W on wip/lab-verdana-ls, prints on wip/lab-verdana-ls-prints):** the cause is the END-OF-PARAGRAPH MARK'S FACE, not its size and not autofit/indent/anchor/insets. The deck's 24 pt Verdana title has an endParaRPr in +mj-lt (Calibri). PowerPoint lifts the line: top-anchored Verdana 24 baseline 52.68 -> 51.60 with a Calibri mark at 12, 24, 26 or 40 pt alike (size irrelevant); Arial mark 52.20, Times New Roman mark 52.08; Calibri run + Verdana mark (24 or 40) 51.60 (plain Calibri 51.24). Removing the mark, or a Verdana mark at any size 12-44, gives the plain value (E lab; ours within 0.12). Same-face marks never matter. Our engine ignores the mark when the line has text, and its mixed-face rule (tried with a zero-width run in the mark's face at the run's size) does not reproduce the print: Verdana+Calibri ours 52.66 vs 51.60, Verdana+Arial 52.81 vs 52.20, Calibri+Verdana 51.75 vs 51.60. So the real gap is PowerPoint's rule for a line holding two faces, which a mixed-face lab with real runs (several faces and sizes) should fit. Parked after this; not started.
+
+**amd-2 2026-11-07: LANDED 76e207105 (SmartArt text in the Lucida stand-in steps at Lucida's own natural height 3147/2048, as PowerPoint prints it; GeomLec1 diagram lines 33.3 pt apart at 24 pt, 4.64 to 4.58, no deck worse, 632 tests 0 failures). Parked, GeomLec1 p11 (9.24): the master's bodyStyle says rtl="1" algn="r" and PowerPoint prints the bullet at the RIGHT with text right-aligned but still LTR-ordered (full stop stays at the end), the title (rtl=1 algn=l) stays at the LEFT. Making level rtl="1" count as right-to-left (PptxReader, `own`) was tried: it flips the title right and reverses the text order, worse; reverted. A fix needs "bullet side follows rtl, text order and algn stay physical". aascu 5864: p34/p6/p3 have our layout equal to PowerPoint's line for line; the rest is Gill Sans MT / Lucida glyph shapes (our bold title is closer to PowerPoint's than regular: pixel diff 3.7k vs 5.3k). Released to the font floor. CLAIM next: oox-tdf139618_ImportWordArtGradient (9.13).**
+
+**amd-7 2026-11-07 RESULT:** landed 6e0020ffc, PowerPoint's line for ONE-LINE paragraphs holding more than one face (runs, plus an end mark in another face at the last run's size; text boxes only). Pieces: each run and the mark has its face's plain split of a single line scaled to its size; line height H = 1.2 x the largest size; baseline H*A/(A+D), A the tallest ascent, D the deepest depth. Labs verdana-mf (27 cells, 14 slides): all within 0.10 pt (was 1.06); lo-tdf129686 title 49.55 -> 48.50 (PowerPoint's fresh print 48.50; the corpus reference score barely moves, 0.31 -> 0.30). Code: RichLayout+MixedFaces.swift, `RichParagraphStyle.endMarkFace` set by PptxReader, `_mixedFace` skips baselineShift. Sweep vs same-box control: lo-tdf165261 0.40 -> 0.27; approved drops by starling-bd, logged as uncovered errors: lo-group 1.77 -> 1.82 (28 pt Calibri bold titles stand 0.25 pt lower) and lo-tdf104789 1.18 -> 1.23 (20 pt Calibri bold, Arial end mark, 0.2 pt lower; both are the lab's Calibri + Arial case, so the cause is elsewhere in those decks). NOT yet done, measured in lab verdana-mf2 (prints MF2-WORD.tsv): per LINE, not per paragraph (Calibri on line 2 only leaves line 1 plain; the mark touches only the last line), and 90% / 110% single lines.
+
+### amd-7 RESULT: mixed-face rule, per line and 90/110% (a96f4e2fa)
+- Wrapped paragraphs: each line gets its own split from the faces on that line (end mark on the last line). Single 90%/110% lines use the same split. Lab MF 0.10 pt, MF2 all cells within 0.20 pt (the 0.20 is plain Verdana 110% top, older).
+- Sweep vs same-box control: lo-group 1.82 to 1.84, lo-tdf89927 0.25 to 0.26 (approved by starling-bd, in scope, uncovered errors); 2411 and Divino 0.02 better. Tests 632, 0 failures.
+- OPEN: right-to-left paragraphs. The rule is switched off for text with Hebrew/Arabic letters because lo-tdf98603's Hebrew line moved the wrong way (174.54 to 172.90). Needs its own lab (complex-script size, mixed faces on one RTL line).
+- OPEN: table-cell paragraphs (end mark face not read there), spacing other than 100% on wrapped lines.
+
+**amd-2 2026-11-07 LANDED (3):** be3561ede/8d7bc20e5 master level rtl=1 puts bullet and list indent at the right, text order and alignment untouched (RichParagraphStyle.bulletAtEnd; GeomLec1 4.58 to 4.39, Maloney 3.91 to 3.79). aa3cbb236 unwrapped one-line text wider than its room hangs out by its MEASURED width (the layout returns the room for one line, so `over` was 0): HowWeRefactor's centred R in an 18 pt square 3.5 pt off, 2.06 to 1.98. da2d2347f textInflate with 2+ lines stands 0.975 of the box, centred (PowerPoint's ink ends 2.0 pt in at top and 2.3 at foot in all three ImportWordArtGradient blocks; a single line fills the box); ImportWordArtGradient 9.13 to 8.42, lo-group 2.06 to 1.88. NOT for textPlain: WordArtDefaultColor/FontText/FontTheme got worse (+0.15) with the same shrink, so it is gated to textInflate. Released to the font floor (line positions within 0.3 pt of PowerPoint, only glyph shapes differ): aascu 5864, alterman, 60810, lo-font-scale, 45541 x3 (picture), Maloney. Divino: PowerPoint's own print is blank. Still open: ImportWordArtGradient's inter-line gap (PowerPoint's two lines about 6 pt closer than ours; Happy 2% taller, Birthday 4% shorter; linePitch 1.3 was fitted partly on this deck); lo-smartart-cycle-matrix bullet hang (see amd-7's note). Method note: split the page diff by shape and compare ink extents before fitting; a whole-page fit gives small gains.
+
+**amd-2 2026-11-07 LANDED (4,5):** 73d8dc5fa an arch whose text is longer than its arc fills the arc (k = fit; no loose-fit spread or spacing shrink): texteffects shapes 1, 2, 6 glyph span 98.6/53/73.8 to 105/58/80 vs PP 106/58.5/81; deck 2.91 to 2.75, no other deck moved. Still open there: circle/button shapes 10, 12, 13 run 3-7% long, and archDown shape 15 +1.6 pt (not fitted). 26d64ea56 a failed picture decode retries once after 0.2 s and logs "[slides] picture decode failed: attachment #n, bytes, head, error" to stderr (native only); the corpus has none. RELEASED: lo-tcPr-vert-roundtrip (0.26%, at floor), lo-smartart-cycle-matrix (2.23 after 40ca67c68; nothing left above the font floor). Red test on office: testAShapesShadowIsRead (PainterFixTests:707) contradicts bf3377dd6 (ground shadows drawn); not mine.
+
+**amd-7 2026-11-07 RESULT (landed d8678e73e): mixed-face line for right-to-left text, and U+FE0F/FE0E.**
+- RTL: lab verdana-rtl (Hebrew and Arabic 24 pt, Latin Verdana run inside, end mark in Calibri, 90/100/110%, ctr/top/bottom; prints on wip/lab-verdana-ls-prints RTL-WORD.tsv). The existing rule, with its left-to-right guard removed, puts all 60 cells within 0.16 pt (was up to 1.06). The end mark's face is always the LATIN face, whatever endParaRPr's lang says (a cs-only mark reads as the theme's Calibri). Full Slides gate vs powerpoint-win: one mover, lo-tdf98603 3.72 to 3.83 (approved by starling-bd): its Hebrew title baseline is now 172.90 vs PowerPoint 172.82 (was 174.54); the rise is our taller Hebrew stand-in glyphs (ink 114..183.5 v PP 119.5..184.5), previously cancelling. Word 756 + LO: up 0, down 0. Tests 634, 0 failures.
+- FE0F: a text-style Emoji=Yes base (U+2764, U+263A, U+2714, U+2600, U+00A9 ...) followed by U+FE0F draws in colour from a second subset face, Noto Color Emoji Variation (210 chars, 374 KB, fallback_order 0 = never in the glyph fallback; build/tools/subset-emoji.py --text-bases). RichLayout+Emoji.swift (tables from build/tools/emoji-ranges.py) cuts the run in RichLayout+Span.swift `styled`. U+FE0E after a colour emoji takes the colour face to the END of the fallback (outline where a text face has the shape; colour where none does, e.g. U+231A, U+2B50, instead of an empty box). Slides and Word both. Test deck/docx: test/labs/verdana-ls/in/FE0F.pptx/.docx (genfe0f.py, wip/lab-verdana-ls). No corpus file contains U+FE0F: no score moved. NOT checked: the web build (web-app.sh; ScriptFonts now asks for the emoji files on U+FE0F, but the variation face is loaded by family name only when requested), and PowerPoint's own print of these (no Windows lab yet).
+- Note for CLAUDE.md: a build that prints nothing for a minute is not a stale binary, but a binary older than your last edit is: check the mtime AND run the render; an infinite-recursion crash showed up only on the first real render.
+
+**amd-7 2026-11-07 RESULT (landed b91417fb1): FE0F fitted to the Windows prints (lab fe0f, wip/lab-fe0f-prints).** Word and PowerPoint print the same: colour only for a text-style emoji WITH U+FE0F (and bare U+231A, U+2B50); bare U+2764/263A/2714/2600 and every FE0E form are outlines; (c), (R)-kin, (tm), !! stay plain text even with FE0F (we now leave U+A9, AE, 203C, 2049, 2122 uncut; (R) and ?! unprinted, by kin). Read the PNGs, not the extractor's summary: PowerPoint writes the outline forms as bitmaps too, so "image count" does not mean colour. Still differs: FE0E on U+231A/U+2B50 is an outline in Word (CambriaMath / Segoe UI Symbol), ours the colour glyph (no bundled text face has the shape). Tests 634, 0 failures; Word 756 + LO up 0 down 0.

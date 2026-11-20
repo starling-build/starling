@@ -7,6 +7,7 @@
 // into view on its own.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation

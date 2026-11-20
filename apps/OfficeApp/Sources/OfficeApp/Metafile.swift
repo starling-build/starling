@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 
@@ -15,6 +16,8 @@ import Foundation
 /// other than the copy and mask ones, hatches and EMF+ are approximated or
 /// skipped.
 final class Metafile {
+    /// Scoring against PowerPoint for Mac's prints (the Windows ones are the default).
+    static let macReference = ProcessInfo.processInfo.environment["STARLING_PPT_MAC"] != nil
     enum Step {
         case fill(Path, Color)
         /// A stroke `width` metafile units wide; 0 is GDI's one-pixel pen.
@@ -447,7 +450,7 @@ private struct Player {
         if name == "wingdings 2" {
             // (Wingdings 2's boxes, ticks and crosses: forms tick "£" and "R"
             // — zh-d0a207ac's 双龙杯 / 钱江杯 / 鲁班杯 boxes.)
-            map = ["£": "☐", "R": "☑", "S": "☒", "T": "☒", "P": "✓", "O": "✗", "Q": "☒"]
+            map = ["*": "☐", "£": "☐", "R": "☑", "S": "☒", "T": "☒", "P": "✓", "O": "✗", "Q": "☒"]
         } else if name == "wingdings 3" {
             return text
         } else if name.hasPrefix("wingdings") {
@@ -726,10 +729,13 @@ private struct Player {
                     at += 8
                 }
                 guard at + n <= p + size else { break }
-                // (An empty one that only fills its box, in the transparent
-                // background mode, fills nothing in PowerPoint's print:
-                // lo-activex_textbox's control pictures draw no green.)
-                let fills = options & 2 != 0 && (n > 0 || dc.bkOpaque)
+                // (An empty one that only fills its box fills it, whatever the
+                // background mode: PowerPoint for Windows' print of
+                // lo-activex_textbox's control pictures has their green.)
+                // (PowerPoint for Mac's print leaves it empty in the transparent
+                // mode: STARLING_PPT_MAC=1, which the sweep sets against test/
+                // corpus/pptx/powerpoint (the retired Mac prints), keeps that.)
+                let fills = options & 2 != 0 && (n > 0 || dc.bkOpaque || !Metafile.macReference)
                 text(ansi(at, n), at: Offset(x, y), opaque: fills ? box : nil)
             case 0x0940:   // DibBitBlt: rop, ySrc, xSrc, height, width, yDest, xDest, bitmap
                 if size == 6 + 18 {   // no bitmap: rop, ySrc, xSrc, (unused), height, width, yDest, xDest
@@ -813,10 +819,9 @@ private struct Player {
         if devW > 0, devH > 0, mmW > 0, mmH > 0 {
             let kx = devW / (mmW * 100), ky = devH / (mmH * 100)
             let f = Rect.fromLTRB(Double(i32(24)) * kx, Double(i32(28)) * ky, Double(i32(32)) * kx, Double(i32(36)) * ky)
-            // A unit wider and taller, the frame counted to and including
-            // its last unit: lo-tdf143222's sheet, 1569 units across its
-            // frame, prints 1570 across, ecodesign's table 496 for 495.
-            bounds = f.width > 0 && f.height > 0 ? Rect.fromLTWH(f.left, f.top, f.width + 1, f.height + 1) : box
+            // The frame exactly: lo-tdf143222's sheet (1568.9 units across)
+            // and bug54570 print at the frame's own scale.
+            bounds = f.width > 0 && f.height > 0 ? Rect.fromLTWH(f.left, f.top, f.width, f.height) : box
         } else {
             bounds = box
         }
@@ -974,7 +979,7 @@ private struct Player {
                 let rop = u32(a + 60), w = Double(i32(a + 64)), h = Double(i32(a + 68))
                 let image = headLength > 0 ? bitmap(header: p + head, headerLength: headLength, bits: p + bits, bitsLength: bitsLength) : nil
                 let source = image.map { Rect.fromLTWH(sx, $0.height - sy - sh, sw, sh) }
-                blit(rop: rop, dest: Rect.fromLTWH(x, y, w, h), source: source, image: image)
+                blit(rop: rop, dest: Rect.fromLTWH(x, y, w > 1 ? w - 1 : w, h > 1 ? h - 1 : h), source: source, image: image)
             default:
                 break
             }

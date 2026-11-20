@@ -385,7 +385,13 @@ enum Formula {
                 out.append(.number(v, t)); continue
             }
             // References, names, functions, booleans — with an optional sheet prefix.
-            if c == "'" || c == "$" || c.isLetterQuick || c == "_" {
+            let externalPrefix: Bool = {
+                guard c == "[", let close = s[i...].firstIndex(of: "]"), close > s.index(after: i),
+                      s[s.index(after: i) ..< close].allSatisfy({ $0.isNumberQuick }) else { return false }
+                let n = s.index(after: close)
+                return n < s.endIndex && (s[n].isLetterQuick || s[n] == "_")
+            }()
+            if c == "'" || c == "$" || c.isLetterQuick || c == "_" || externalPrefix {
                 var j = i
                 var sheet: String? = nil
                 if c == "'" {
@@ -406,6 +412,10 @@ enum Formula {
                 } else {
                     // An identifier; if a "!" follows, it was a sheet name.
                     var k = j
+                    // [1]Sheet1!A1: a sheet of a linked workbook, unquoted.
+                    if s[k] == "[", let close = s[k...].firstIndex(of: "]"), s[s.index(after: k) ..< close].allSatisfy({ $0.isNumberQuick }) {
+                        k = s.index(after: close)
+                    }
                     while k < s.endIndex, s[k].isLetterQuick || s[k].isNumberQuick || s[k] == "_" || s[k] == "." || s[k] == "$" {
                         k = s.index(after: k)
                     }

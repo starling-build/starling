@@ -7,6 +7,7 @@
 // with the workbook's own New, Open and Save.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation

@@ -366,6 +366,22 @@ func starlingFontLoaded(_ data: sk_ptr, _ family: UnsafePointer<UInt8>?, _ famil
     return WebFonts.register(data: data, family: name) ? 1 : 0
 }
 
+/// One face of a collection (or a plain file, `faceIndex` -1) the page wrote
+/// into an SkData. Unlike `starling_font_loaded`, the SkData stays the
+/// page's: it registers each face of a file from the one copy, then frees it.
+@_expose(wasm, "starling_font_face_loaded")
+@_cdecl("starling_font_face_loaded")
+func starlingFontFaceLoaded(_ data: sk_ptr, _ family: UnsafePointer<UInt8>?, _ familyLength: Int32, _ faceIndex: Int32)
+    -> Int32
+{
+    let name = family.flatMap { pointer in
+        familyLength > 0
+            ? String(decoding: UnsafeBufferPointer(start: pointer, count: Int(familyLength)), as: UTF8.self)
+            : nil
+    }
+    return WebFonts.register(data: data, family: name, faceIndex: faceIndex >= 0 ? faceIndex : nil, keep: true) ? 1 : 0
+}
+
 /// Called between frames after a complete deferred family has arrived.
 @_expose(wasm, "starling_fonts_changed")
 @_cdecl("starling_fonts_changed")
@@ -391,7 +407,9 @@ func starlingFontFallback(_ family: UnsafePointer<UInt8>?, _ familyLength: Int32
     guard let family, familyLength > 0 else { return }
     let name = String(
         decoding: UnsafeBufferPointer(start: family, count: Int(familyLength)), as: UTF8.self)
-    if !WebFonts.fallbackFamilies.contains(name) { WebFonts.fallbackFamilies.append(name) }
+    if WebFonts.fallbackFamilies.contains(name) { return }
+    // (The colour pictographs go first: DejaVu Sans draws some emoji as black outlines.)
+    if name == "Noto Color Emoji Pictographs" { WebFonts.fallbackFamilies.insert(name, at: 0) } else { WebFonts.fallbackFamilies.append(name) }
 }
 
 /// The page's answer to starling_host_open_file. `bytes` came from

@@ -306,6 +306,9 @@ else
     echo "  SKIPPED — no Node.js (22+ required)"
 fi
 
+step "web: script fonts in a real browser"
+"$REPO/test/web-fonts.sh" || fails=$((fails + 1))
+
 step "web: size gate"
 skwasm_dir="${STARLING_SKWASM_DIR:-$REPO/engine/src/out/wasm_release/flutter_web_sdk/canvaskit}"
 if ! swift sdk list 2>/dev/null | grep -q "_wasm$"; then

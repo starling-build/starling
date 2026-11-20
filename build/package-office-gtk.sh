@@ -51,6 +51,7 @@ mkdir -p "$LIB/data" "$ROOT/usr/bin" "$ROOT/usr/share/applications" \
 
 # --- payload -----------------------------------------------------------------
 install -m755 "$BIN" "$LIB/starling-office"
+printf "%s\n" "$VER" > "$LIB/office-version"   # read by the app's update check
 install -m644 "$REL/libFlutterShared.so" "$LIB/"
 install -m644 "$E/libflutter_engine.so" "$E/libflutter_linux_gtk.so" "$LIB/"
 install -m644 "$E/icudtl.dat" "$LIB/data/"

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 
@@ -55,16 +56,19 @@ enum SlidesPdf {
         if let data = FileManager.default.contents(atPath: path), let smooth = smoothPictures(data) {
             try? smooth.write(to: URL(fileURLWithPath: path))
         }
+        if let data = FileManager.default.contents(atPath: path), let exact = exactPageSize(data, width: size.width, height: size.height) {
+            try? exact.write(to: URL(fileURLWithPath: path))
+        }
         return true
     }
 
-    /// The PDF with every picture marked `/Interpolate true`, as
-    /// PowerPoint marks one drawn larger than its pixels: a viewer then
-    /// smooths it, as the slide on screen does, where unmarked a 16-pixel
-    /// icon shown an inch across is blocks (tdf93830's). Nil when the file
+    /// The PDF with every picture that came from a JPEG marked
+    /// `/Interpolate true`, as PowerPoint for Windows marks them (a picture
+    /// from a PNG it marks false: lo-tdf146223's 2-pixel background is four
+    /// blocks there, tdf93830's 16-pixel icon too): a viewer then smooths it. Nil when the file
     /// is not laid out as the PDF backend writes it — one classic
     /// cross-reference table — and is left as it is.
-    static func smoothPictures(_ data: Data) -> Data? {
+    static func smoothPictures(_ data: Data, jpeg jpegSizes: Set<UInt64> = SlideTextCache.jpegSizes, otherSizes: Set<UInt64> = []) -> Data? {
         let bytes = [UInt8](data)
         let mark = Array("/Subtype /Image".utf8), add = Array("\n/Interpolate true".utf8)
         // (Not the soft mask of a grey picture: PowerPoint leaves such a
@@ -121,7 +125,18 @@ enum SlidesPdf {
         }
         var at: [Int] = []  // where each mark ends
         var i = 0
+        let jpeg = jpegSizes
         while let r = _find(mark, in: bytes, from: i) {
+            // (A picture with an alpha channel is not the JPEG: PowerPoint
+            // writes one made so as false.)
+            if let open = (0 ..< r).reversed().first(where: { bytes[$0] == 0x3C && bytes[$0 + 1] == 0x3C }),
+               let close = _find(Array(">>".utf8), in: bytes, from: r),
+               let w = value("/Width ", in: bytes[open ..< close]), let h = value("/Height ", in: bytes[open ..< close]),
+               !jpeg.contains(UInt64(w) << 32 | UInt64(h)) || (_find(smask, in: Array(bytes[open ..< close]), from: 0) != nil && !SlideTextCache.alphaSmooth.contains(UInt64(w) << 32 | UInt64(h)))
+                || (otherSizes.contains(UInt64(w) << 32 | UInt64(h)) && !_isGrey(bytes, dict: bytes[open ..< close], close: close, value: { value($0, in: $1) })) {
+                i = r + mark.count
+                continue
+            }
             if masks.isEmpty || object(before: r).map({ !masks.contains($0) }) ?? true { at.append(r + mark.count) }
             i = r + mark.count
         }
@@ -147,6 +162,73 @@ enum SlidesPdf {
         out += Array(lines.joined(separator: "\n").utf8)
         out += Array("startxref\n\(moved(table))\n%%EOF\n".utf8)
         return Data(out)
+    }
+
+    /// The PDF with every page's size as PowerPoint writes it: the slide's size
+    /// in twelfths of a point of 1/600 inch (round(EMU / 1524) x 0.12 pt:
+    /// 10077450 EMU is 793.56 pt, where Skia writes the whole point, 794).
+    /// A page of another size is scored stretched against PowerPoint's, and a
+    /// tiled background drifts across it. Nil when nothing changes or the file
+    /// is not one classic cross-reference table.
+    static func exactPageSize(_ data: Data, width: Double, height: Double) -> Data? {
+        func units(_ pt: Double) -> Double { (pt * 12700 / 1524).rounded() * 0.12 }
+        func text(_ v: Double) -> String {
+            var t = String(Int((v * 100).rounded()))
+            while t.count < 3 { t = "0" + t }
+            let whole = String(t.dropLast(2)), frac = String(t.suffix(2))
+            return frac == "00" ? whole : frac.hasSuffix("0") ? "\(whole).\(frac.prefix(1))" : "\(whole).\(frac)"
+        }
+        let bytes = [UInt8](data)
+        let key = Array("/MediaBox [0 0 ".utf8)
+        // (Skia lays a page's content from its foot, upward from the whole-point
+        // height it wrote; the top edge stays there and the foot moves up.)
+        var spans: [(Int, Int, [UInt8])] = []
+        var i = 0
+        while let r = _find(key, in: bytes, from: i) {
+            guard let close = bytes[r...].firstIndex(of: 0x5D) else { return nil }
+            let old = String(decoding: bytes[(r + key.count) ..< close], as: UTF8.self).split(separator: " ").compactMap { Double($0) }
+            guard old.count == 2 else { return nil }
+            let h = units(height)
+            let new = Array("/MediaBox [0 \(text(old[1] - h)) \(text(units(width))) \(text(old[1]))]".utf8)
+            if Array(bytes[r ... close]) != new { spans.append((r, close + 1, new)) }
+            i = close + 1
+        }
+        guard !spans.isEmpty, let sx = _find(Array("startxref\n".utf8), in: bytes, from: max(0, bytes.count - 64)),
+              let end = bytes[(sx + 10)...].firstIndex(of: 0x0A), let table = Int(String(decoding: bytes[(sx + 10) ..< end], as: UTF8.self)),
+              table > spans.last!.1, table + 5 < bytes.count, Array(bytes[table ..< table + 5]) == Array("xref\n".utf8)
+        else { return nil }
+        func moved(_ offset: Int) -> Int {
+            offset + spans.filter { $0.1 <= offset }.reduce(0) { $0 + $1.2.count - ($1.1 - $1.0) }
+        }
+        var out: [UInt8] = []
+        var from = 0
+        for (a, b, new) in spans { out += bytes[from ..< a]; out += new; from = b }
+        out += bytes[from ..< table]
+        var lines = String(decoding: bytes[table ..< sx], as: UTF8.self).components(separatedBy: "\n")
+        guard lines.count > 2, lines[0] == "xref" else { return nil }
+        for k in 2 ..< lines.count {
+            let f = lines[k].split(separator: " ")
+            guard f.count == 3, f[2] == "n", let o = Int(f[0]) else { continue }
+            let digits = String(moved(o))
+            lines[k] = String(repeating: "0", count: max(0, 10 - digits.count)) + digits + " \(f[1]) n "
+        }
+        out += Array(lines.joined(separator: "\n").utf8)
+        out += Array("startxref\n\(moved(table))\n%%EOF\n".utf8)
+        return Data(out)
+    }
+
+    /// Whether the picture whose dictionary is `dict` holds only grey pixels
+    /// (a JPEG of one component, as Skia writes it: three equal channels).
+    private static func _isGrey(_ bytes: [UInt8], dict: ArraySlice<UInt8>, close: Int, value: (String, ArraySlice<UInt8>) -> Int?) -> Bool {
+        guard let w = value("/Width ", dict), let h = value("/Height ", dict), let length = value("/Length ", dict),
+              let start = _find(Array("stream\n".utf8), in: bytes, from: close).map({ $0 + 7 }),
+              start + length <= bytes.count, length > 2, w > 0, h > 0, w * h <= 4_000_000,
+              let pixels = try? Zip.inflate(Data(bytes[(start + 2) ..< (start + length)]), expected: w * h * 3),
+              pixels.count >= w * h * 3 else { return false }
+        return pixels.withUnsafeBytes { (b: UnsafeRawBufferPointer) -> Bool in
+            for i in 0 ..< w * h where b[i * 3] != b[i * 3 + 1] || b[i * 3] != b[i * 3 + 2] { return false }
+            return true
+        }
     }
 
     private static func _find(_ needle: [UInt8], in hay: [UInt8], from: Int) -> Int? {

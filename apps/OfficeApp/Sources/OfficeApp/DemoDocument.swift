@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Flutter
+import OfficeText
 import Foundation
 
 /// The Phase 0 perf document: `pages` pages of prose with a heading per

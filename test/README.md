@@ -235,6 +235,48 @@ Note it needs port 2222 free: the harness forwards a fixed port, and the
 minimal dependency-testing VM uses the same one. The script refuses rather
 than testing the wrong machine.
 
+## The Word VISUAL gate — `test/docx-visual-sweep.sh`
+
+The line matcher reads text only. This one compares PAGES against Word's print, so x
+positions, graphics, colours, charts, shapes and borders show: every page of both corpora is
+rendered at 96 dpi grey by MuPDF and a pixel differs when it is not within two pixels of an
+equal-ish pixel on the other page (Slides' "share of pixels over a threshold" with
+anti-aliasing and one-to-two-pixel shifts forgiven). A document is ranked by its worst page; a
+page one side lacks counts 100%. A full sweep of both corpora takes about 12 minutes at
+`PARALLEL=64`:
+
+    OFFICE_APP=<bin> PYTHON=<python with pymupdf+numpy> PARALLEL=64 test/docx-visual-sweep.sh WORK
+    SKIP_CONVERT=1 ...                # score the PDFs a line sweep already left in WORK/{756,lo}/pdf
+    test/corpus/docx/scores/linux/{756,lo}.visual     # the committed ranking, worst first
+
+WORK/*/pairs holds ours | Word | differences PNGs of each document's worst page over 0.5%.
+It is a ranking for finding work, not a drop gate (yet): the text noise floor is about
+0.5-1% on a full page of text.
+
+## The Word pair — `test/tools/docx-pair.sh`
+
+Every Word fix lands on a pair: the 756 corpus and the LibreOffice set, Windows mode,
+v2 (official) and v1 beside it, nothing may drop. The scores are COMMITTED so the tip is
+not re-swept for every fix:
+
+    test/tools/docx-pair.sh BASEBIN FIXBIN [JOBS]      # PYTHON=<python with PyMuPDF>
+    test/corpus/docx/scores/<host>/{756,lo}.{v2,v1} + STAMP     host = mac | linux | windows
+
+`STAMP` (`test/tools/stamp.sh`) is the git hash of `apps/OfficeApp`, `sdk` and
+`test/docx-line-match.py`, the engine commit and the font setting. The scores directory is
+not in it, so committing scores does not invalidate them. If origin/office's stamp equals
+the stored one the stored files are the base and BASEBIN is never run; otherwise the base
+is swept first. The fix is always swept; its files and stamp go to `/tmp/docx-pair-<host>/fix`.
+To land: `cp /tmp/docx-pair-<host>/fix/* test/corpus/docx/scores/<host>/ && git add
+test/corpus/docx/scores && git commit --amend --no-edit`, then fetch + rebase + push. If the
+rebase changes `apps/` or `sdk/` the stamp is stale: re-run. A conflict in `scores/`: take
+theirs and re-run. A host whose files are stale seeds them with `docx-pair.sh --seed BIN BIN`
+and a scores-only commit (`scores: <host> at <sha>`). The output is deterministic, so a
+document that moves between two prints of one binary is printed as `!!! NONDETERMINISTIC`
+and is a bug. A Slides baseline can carry the same stamp:
+`test/tools/stamp.sh apps/OfficeApp sdk test/pptx-app-render.sh > test/corpus/pptx/baseline-win.STAMP`
+when it is refreshed.
+
 ## Not built yet
 
 - **Performance** — few robust metrics with generous thresholds and a trend
@@ -303,3 +345,20 @@ as a scheduled task rather than over ssh.
 
 Z-order is separate and slower: `test/bench/win-latency/zorder-stress.ps1`,
 24 launch/close cycles with three shell restarts.
+
+## Where the office corpus lives (not in git)
+
+The documents (`test/corpus/{docx,pptx,xlsx}/…`, `pptx-wordart`) and every reference PDF
+(`word-win`, `powerpoint-win`, `excel`, `lo/word-win`) are **not tracked**. They sit in a shared
+cache, `/data/corpus-cache` (`$STARLING_CORPUS`), mirroring the repo paths, and are kept
+untracked (gitignored) at the same paths in every checkout, so no script needs a path change.
+Git keeps the text beside them: `SHA256SUMS`, manifests, `scores/`, baselines, READMEs.
+
+If `test/corpus` looks empty (a fresh clone, or after a pull that deleted the files):
+
+    test/tools/corpus-cache.sh restore          # copy from the cache, then verify the SHA-256s
+    test/tools/corpus-cache.sh install-hooks    # post-merge/-rewrite/-checkout do it for you
+
+Retired Mac sets (`docx/word`, `pptx/powerpoint`) are in `/data/corpus-cache/archive/`, not
+restored. Unit tests that open a corpus file skip when it is absent. Staging batches for new sets
+are in `/data/corpus-cache/staging/<set>` (`corpus-cache.sh check|sync`).

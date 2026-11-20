@@ -11,6 +11,7 @@
 // can write masters, layouts and themes back byte for byte.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 
@@ -278,7 +279,7 @@ struct ColorContext {
                 // picture's duotone (Treck's background).
                 let sRGBTint = tint && !duotone && _hsl(r, g, b).1 > 0.1
                     && kids.indices.contains(k + 1) && kids[k + 1].name == "a:satMod"
-                    && (kids[k + 1]["val"].flatMap(Double.init) ?? 0) >= 155000
+                    && (kids[k + 1]["val"].flatMap(Double.init) ?? 0) >= 250000
                 func apply(_ c: Double) -> Double {
                     if gammaShifted || sRGBTint { return tint ? 1 - (1 - c) * v : c * v }
                     return srgb(tint ? 1 - (1 - lin(c)) * v : lin(c) * v)
@@ -330,6 +331,7 @@ private enum Bullet: Equatable { case none, char, number }
 /// inheritance chain says; `filled(from:)` completes it from a lower layer.
 private struct LevelStyle {
     var algn: String?
+    var rtl: String?
     var marL: Double?
     var indent: Double?
     var lineMultiple: Double?
@@ -369,6 +371,9 @@ private struct LevelStyle {
     /// that has none), and whether the list was there at all.
     var shadow: CharShadow?
     var shadowSet = false
+    /// `a:ln` on the run: its outline (nil under `a:noFill`), and whether it was said.
+    var outline: CharOutline?
+    var outlineSet = false
     /// `a:highlight`: the run's text highlight colour.
     var highlight: Color?
     /// `a:buBlip`: the picture bullet, resolved from the part it is in.
@@ -384,6 +389,7 @@ private struct LevelStyle {
     func filled(from lower: LevelStyle) -> LevelStyle {
         var s = self
         s.algn = s.algn ?? lower.algn
+        s.rtl = s.rtl ?? lower.rtl
         s.marL = s.marL ?? lower.marL
         s.indent = s.indent ?? lower.indent
         if s.lineMultiple == nil && s.linePoints == nil { s.lineMultiple = lower.lineMultiple; s.linePoints = lower.linePoints }
@@ -407,6 +413,7 @@ private struct LevelStyle {
         s.spc = s.spc ?? lower.spc
         s.kern = s.kern ?? lower.kern
         if !s.shadowSet { s.shadow = lower.shadow; s.shadowSet = lower.shadowSet }
+        if !s.outlineSet { s.outline = lower.outline; s.outlineSet = lower.outlineSet }
         s.highlight = s.highlight ?? lower.highlight
         s.tabs = s.tabs ?? lower.tabs
         s.defTab = s.defTab ?? lower.defTab
@@ -419,6 +426,7 @@ private struct LevelStyle {
         var s = LevelStyle()
         guard let p else { return s }
         s.algn = p["algn"]
+        s.rtl = p["rtl"]
         s.marL = p["marL"].flatMap(Double.init).map { $0 / Pptx.emu }
         s.indent = p["indent"].flatMap(Double.init).map { $0 / Pptx.emu }
         if let ln = p.first("a:lnSpc") {
@@ -528,6 +536,12 @@ private struct LevelStyle {
         else if let g = r.first("a:gradFill"), let f = PptxReader.gradient(g, colors: colors), f.stops.count >= 2 {
             s.color = SlideFill.colorAt(f.stops, 0.5)
         }
+        if let ln = r.first("a:ln") {
+            s.outlineSet = true
+            if !ln.has("a:noFill"), let c = ln.first("a:solidFill").flatMap(colors.color(in:)), c.alpha > 0 {
+                s.outline = CharOutline(color: c, width: ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75)
+            }
+        }
         if let h = r.first("a:highlight") { s.highlight = colors.color(in: h) }
         if let link = r.first("a:hlinkClick") {
             // Linked text: underlined, in the theme's link colour over its
@@ -543,7 +557,13 @@ private struct LevelStyle {
             // (One cast on the ground — scaled or skewed, tdf114848's —
             // is not drawn: as a copy of the letters it would stand up.)
             s.shadowSet = true
-            s.shadow = outerShadow(effects, colors)
+            s.shadow = outerShadow(effects, colors, text: true)
+            // (A glow on the run, with no shadow of its own: the letters haloed.)
+            if s.shadow == nil, let g = effects.first("a:glow"), let c = colors.color(in: g) {
+                var glow = CharShadow(color: c, dx: 0, dy: 0, blur: (g["rad"].flatMap(Double.init) ?? 0) / Pptx.emu)
+                glow.glow = true
+                s.shadow = glow
+            }
         }
         return s
     }
@@ -552,21 +572,25 @@ private struct LevelStyle {
     /// degree, clockwise from the right), blurred by `blurRad`. One cast
     /// on the ground — scaled or skewed — is nil: drawn as a copy of the
     /// outline it would stand up.
-    static func outerShadow(_ effects: XNode?, _ colors: ColorContext) -> CharShadow? {
+    static func outerShadow(_ effects: XNode?, _ colors: ColorContext, text: Bool = false) -> CharShadow? {
         // (Scaled alike both ways it is the outline larger or smaller —
         // tdf104015's title's 101%, tdf130058's 1% — and drawn so.)
-        guard let sh = effects?.first("a:outerShdw"), let c = colors.color(in: sh),
-              ["kx", "ky"].allSatisfy({ k in sh[k].flatMap(Double.init).map { $0 == 0 } ?? true }),
-              (sh["sx"].flatMap(Double.init) ?? 100000) == (sh["sy"].flatMap(Double.init) ?? 100000)
-        else { return nil }
+        guard let sh = effects?.first("a:outerShdw"), let c = colors.color(in: sh) else { return nil }
+        let flat = ["kx", "ky"].allSatisfy({ k in sh[k].flatMap(Double.init).map { $0 == 0 } ?? true })
+            && (sh["sx"].flatMap(Double.init) ?? 100000) == (sh["sy"].flatMap(Double.init) ?? 100000)
         let dist = (sh["dist"].flatMap(Double.init) ?? 0) / Pptx.emu
         let dir = (sh["dir"].flatMap(Double.init) ?? 0) / 60000 * .pi / 180
         var shadow = CharShadow(color: c, dx: dist * cos(dir), dy: dist * sin(dir),
                                 blur: (sh["blurRad"].flatMap(Double.init) ?? 0) / Pptx.emu)
-        shadow.scale = (sh["sx"].flatMap(Double.init) ?? 100000) / 100000
+        shadow.scale = flat ? (sh["sx"].flatMap(Double.init) ?? 100000) / 100000 : 1
         let algn = sh["algn"] ?? "b"
         shadow.anchor = Offset(algn.hasSuffix("l") ? 0 : algn.hasSuffix("r") ? 1 : 0.5,
                                algn.hasPrefix("t") ? 0 : algn.hasPrefix("b") ? 1 : 0.5)
+        if !flat {
+            func angle(_ k: String) -> Double { tan((sh[k].flatMap(Double.init) ?? 0) / 60000 * .pi / 180) }
+            shadow.ground = [(sh["sx"].flatMap(Double.init) ?? 100000) / 100000, (sh["sy"].flatMap(Double.init) ?? 100000) / 100000,
+                             angle("kx"), angle("ky")]
+        }
         return shadow
     }
 }
@@ -641,7 +665,12 @@ struct PptxReader {
                                    tableStyles: tableStyles, foreignTheme: n > 0 && themePart != deckThemePart,
                                    unsaidKern: unsaidKern)
             var shapes: [ShapeState] = []
-            if let tree = slide.first("p:cSld")?.first("p:spTree") {
+            // A shape whose `p:cNvPr` has no `id` breaks the schema (id is
+            // required): PowerPoint prints that slide as a blank page, its
+            // backdrop and background gone too (clusterfuzz 4986's p5, whose
+            // eighty shapes read `nd=` for `id=`). The page stays, empty.
+            let noIds = slide.first("p:cSld")?.first("p:spTree")?.descendants("p:cNvPr").contains { $0["id"] == nil } ?? false
+            if !noIds, let tree = slide.first("p:cSld")?.first("p:spTree") {
                 ctx.shapes(in: tree, transform: nil, into: &shapes, id: id)
             }
             // What the master and the layout draw behind the slide — their
@@ -649,7 +678,7 @@ struct PptxReader {
             // unless the slide (or, for the master's, the layout) says
             // `showMasterSp="0"`. Drawn, never written.
             var decorations: [ShapeState] = []
-            if slide["showMasterSp"] != "0" {
+            if slide["showMasterSp"] != "0", !noIds {
                 var owners: [(String, XNode)] = []
                 if let masterPart, let master, layout?["showMasterSp"] != "0" { owners.append((masterPart, master)) }
                 if let layoutPart, let layout { owners.append((layoutPart, layout)) }
@@ -686,21 +715,29 @@ struct PptxReader {
                 ctx.shapes(in: tree, transform: nil, into: &found, id: id)
                 decorations += found.filter { if case .picture = $0.kind { return true } else { return false } }
             }
-            let bg = slide.first("p:cSld")?.first("p:bg")
+            let bg = noIds ? nil : slide.first("p:cSld")?.first("p:bg")
             let themeRoot = themePart.flatMap(package.xml)
             // The slide's own background is its; one from its layout or
             // master is only drawn (writing it per slide would copy the
             // master's picture into every slide).
             var bgFill: SlideFill? = nil
             var inherited: SlideFill? = nil
-            if let b = slide.first("p:cSld")?.first("p:bg") {
+            if noIds {
+                // (blank: no background of its own, none inherited)
+            } else if let b = slide.first("p:cSld")?.first("p:bg") {
                 bgFill = _background(b, owner: part, colors: colors, theme: themeRoot, themePart: themePart)
                 // Shaded to the title (`shadeToTitle`): the path gradient
-                // runs out from the title's box.
+                // runs out from a point at the title box's top centre, as
+                // Windows PowerPoint prints tdf114848's slide 5 (t = the
+                // larger of the across distance over half the width and the
+                // down distance from the title's top over what is left).
                 if b.first("p:bgPr")?["shadeToTitle"] == "1", bgFill?.path != nil, size.width > 0, size.height > 0,
                    let title = shapes.first(where: { $0.phType == "title" || $0.phType == "ctrTitle" })?.frame {
-                    bgFill?.fillTo = Rect.fromLTRB(max(0, title.left / size.width), max(0, title.top / size.height),
-                                                   max(0, 1 - title.right / size.width), max(0, 1 - title.bottom / size.height))
+                    let cx = min(1, max(0, (title.left + title.right) / 2 / size.width)), top = min(1, max(0, title.top / size.height))
+                    // (A rect or shape path is stepped from the fill-to POINT: its edges in fractions across and
+                    // down, as `gradient` writes them; a circle's keeps the insets it was fitted with.)
+                    let isCircle = bgFill?.path == .circle
+                    bgFill?.fillTo = isCircle ? Rect.fromLTRB(cx, top, 1 - cx, 1 - top) : Rect.fromLTRB(cx, top, cx, top)
                 }
             } else {
                 for (owner, xml) in [(layoutPart, layout), (masterPart, master)] {
@@ -818,11 +855,11 @@ struct PptxReader {
     static func tile(_ tile: XNode?, image: Data?, into f: inout SlideFill) {
         f.tiled = true
         // At the picture's own resolution (its declared dpi) times `sx` and
-        // `sy`. One that declares none comes out at 144 dpi — as measured
-        // against PowerPoint's (for Mac) export of
-        // lo-page_transparent_bitmap, a 94 px PNG drawn 47 pt wide; its
-        // pixels taken as a Retina screen's, it seems.
-        let dpi = image.flatMap(imageDPI) ?? 144
+        // `sy`. One that declares none comes out at 96 dpi in PowerPoint for
+        // Windows — lo-page_transparent_bitmap, a 94 px PNG, tiles at 70.5 pt
+        // in its export (PowerPoint for Mac drew it 47 pt wide, as at 144 dpi:
+        // its pixels taken as a Retina screen's, it seems).
+        let dpi = image.flatMap(imageDPI) ?? 96
         f.tileScale = (tile?["sx"].flatMap(Double.init) ?? 100000) / 100000 * 96 / dpi
         f.tileScaleY = (tile?["sy"].flatMap(Double.init) ?? 100000) / 100000 * 96 / dpi
         // `tx`/`ty` in EMU, after the alignment (tdf152070: the grid starts
@@ -877,14 +914,47 @@ struct PptxReader {
         return nil
     }
 
+    /// Stops that share a position, as PowerPoint for Windows draws them
+    /// (lab grad, 20 gradients): at 0 the later stop wins, at 100 the first
+    /// does; anywhere else the later stop moves on to the next position a
+    /// stop holds (100 if none) and gives way to the stop already there.
+    /// So red 30 / blue 30 is red to 30 and a blend to blue at 100, and
+    /// red 0 / blue 50 / green 50 is red to blue to green.
+    static func settled(_ stops: [SlideFill.GradientStop]) -> [SlideFill.GradientStop] {
+        var out: [(stop: SlideFill.GradientStop, moved: Bool)] = []
+        for (i, stop) in stops.enumerated() {
+            var stop = stop
+            var moved = false
+            if let last = out.last, last.stop.position == stop.position {
+                if last.moved { out.removeLast() }
+                else if stop.position <= 0 { out.removeLast() }
+                else if stop.position >= 1 { continue }
+                else {
+                    stop.position = stops[(i + 1)...].first { $0.position > stop.position }?.position ?? 1
+                    moved = true
+                }
+            }
+            out.append((stop, moved))
+        }
+        return out.map(\.stop)
+    }
+
+    /// The stops seen from the far end: a path gradient (`a:path`) is
+    /// settled that way round, as PowerPoint draws it.
+    static func mirrored(_ stops: [SlideFill.GradientStop]) -> [SlideFill.GradientStop] {
+        stops.reversed().map { SlideFill.GradientStop(position: ((1 - $0.position) * 1e6).rounded() / 1e6, color: $0.color) }
+    }
+
     /// An `a:gradFill` as a fill: its stops in order and its direction, or
     /// its path (`a:path`, radiating from `a:fillToRect`). A single stop is
     /// a colour; none at all is nothing (the shape's style fill then).
     static func gradient(_ g: XNode, colors: ColorContext) -> SlideFill? {
-        let stops: [SlideFill.GradientStop] = (g.first("a:gsLst")?.all("a:gs") ?? []).compactMap { gs in
+        let read: [SlideFill.GradientStop] = (g.first("a:gsLst")?.all("a:gs") ?? []).compactMap { gs in
             guard let c = colors.color(in: gs) else { return nil }
             return SlideFill.GradientStop(position: (gs["pos"].flatMap(Double.init) ?? 0) / 100000, color: c)
-        }.sorted { $0.position < $1.position }
+        }
+        let ordered = read.enumerated().sorted { ($0.element.position, $0.offset) < ($1.element.position, $1.offset) }.map(\.element)
+        let stops = g.first("a:path") != nil ? Self.mirrored(Self.settled(Self.mirrored(ordered))) : Self.settled(ordered)
         if stops.isEmpty { return nil }
         if stops.count == 1 { return SlideFill(color: stops[0].color) }
         var f = SlideFill(color: stops[0].color, stops: stops,
@@ -899,9 +969,20 @@ struct PptxReader {
         f.squared = (g.first("a:gsLst")?.all("a:gs") ?? []).contains { gs in gs.children.contains { $0.first("a:gamma") != nil } }
         if let path = g.first("a:path") {
             f.path = path["path"].flatMap(SlideFill.GradientPath.init(rawValue:)) ?? .shape
+            if let t = g.first("a:tileRect") {
+                func v(_ k: String) -> Double { (t[k].flatMap(Double.init) ?? 0) / 100000 }
+                if ["l", "t", "r", "b"].contains(where: { v($0) != 0 }) { f.tile = Rect.fromLTRB(v("l"), v("t"), 1 - v("r"), 1 - v("b")) }
+            }
             if let to = path.first("a:fillToRect") {
                 func v(_ k: String) -> Double { (to[k].flatMap(Double.init) ?? 0) / 100000 }
-                f.fillTo = Rect.fromLTRB(v("l"), v("t"), 1 - v("r"), 1 - v("b"))
+                // A focus outside the shape (t 150%, b -50%) is drawn by
+                // Windows PowerPoint at the centre, not beyond the edge
+                // where the Mac's print has it (tdf94238).
+                if ["l", "t", "r", "b"].contains(where: { v($0) < 0 || v($0) > 1 }) {
+                    f.fillTo = Rect.fromLTRB(0.5, 0.5, 0.5, 0.5)
+                } else {
+                    f.fillTo = Rect.fromLTRB(v("l"), v("t"), 1 - v("r"), 1 - v("b"))
+                }
             } else {
                 f.fillTo = Rect.fromLTRB(0, 0, 1, 1)
             }
@@ -1130,7 +1211,11 @@ private struct SlideContext {
                 guard let p = _ph(sp) else { return false }
                 let t = p["type"] ?? "obj"
                 if want == "body" && masterRules { return t == "body" }
-                return t == want || (want == "obj" && t == "body")
+                // (A slide's `ctrTitle` inherits from its layout's `title` and the other way round: lo-tdf128550's
+                // second slide, `ctrTitle` over a layout whose title sits at y 129pt, anchored to its foot, took
+                // the master's at the top of the page; PowerPoint's print has it by the layout's.)
+                let titled = { (v: String) in v == "title" || v == "ctrTitle" }
+                return t == want || (want == "obj" && t == "body") || (!masterRules && titled(t) && titled(want))
             }
         }
         return (find(layout, masterRules: false), find(master, masterRules: true))
@@ -1157,6 +1242,34 @@ private struct SlideContext {
                 s.fill = groupFill
                 s.keptLook?.readFill = groupFill
                 if s.readShape != nil { s.readShape = ReadShape(s) }
+            }
+            // Text held level in a shape that turns (`bodyPr upright`): the
+            // shape, and its text as a box of its own.
+            if let box = s.uprightBox, s.text != nil {
+                var shape = s
+                shape.text = nil
+                shape.uprightBox = nil
+                var text = s
+                text.id = id()
+                text.kind = .textBox
+                text.frame = box
+                text.rotation = 0
+                text.flipH = false
+                text.flipV = false
+                text.fill = nil
+                text.fillStyle = nil
+                text.outline = nil
+                text.customPath = nil
+                text.shadow = nil
+                text.glowRadius = nil
+                text.softEdge = nil
+                text.scene3d = nil
+                text.shapeInsets = .zero
+                text.insets = s.uprightInsets
+                text.uprightBox = nil
+                out.append(shape)
+                out.append(text)
+                return
             }
             out.append(s)
         }
@@ -1462,12 +1575,12 @@ private struct SlideContext {
                 outline = stops.first { $0.alpha > 0 }
             }
             else if let ref = style?.first("a:lnRef"), ref["idx"] != "0" { outline = colors.lineColor(in: ref) }
-            // A line at alpha 0 is no line, and so is one of no width
-            // (`w="0"`, as LibreOffice writes a hairline: PowerPoint shows
-            // ThemeColorTransparency's red box and vert_and_padding's blue
-            // arrows with none).
+            // A line at alpha 0 is no line. One of no width (`w="0"`, as
+            // LibreOffice writes a hairline) is drawn as one in PowerPoint
+            // for Windows, 0.14 pt in its PDF (ThemeColorTransparency's red
+            // box, vert_and_padding's blue arrows); Mac's showed none.
             if let o = outline, o.alpha == 0 { outline = nil }
-            if ln["w"] == "0" { outline = nil }
+            if ln["w"] == "0" { outlineWidth = 0.14 }
         } else if let ref = style?.first("a:lnRef"), ref["idx"] != "0" {
             outline = colors.lineColor(in: ref)
         }
@@ -1518,10 +1631,14 @@ private struct SlideContext {
         st.lineReduction = text.lineReduction
         st.insetsFollowFont = text.insetsFollowFont
         st.sizeGroup = text.sizeGroup
+        st.generatedHang = text.generatedHang
         st.noWrap = text.noWrap
         st.anchorCentred = text.anchorCentred
         st.textTurn = text.textTurn
+        st.textStacked = text.textStacked
         st.textSpin = text.textSpin
+        st.textRev = text.textRev
+        st.textScene = text.textScene
         st.columns = text.columns
         st.columnGap = text.columnGap
         st.warp = text.warp
@@ -1529,6 +1646,11 @@ private struct SlideContext {
         st.scene3d = Extrusion.read(spPr, colors: colors)
         st.flipH = xfrm?["flipH"] == "1"
         st.flipV = xfrm?["flipV"] == "1"
+        // A shape mirrored top to bottom turns its text half round (flipH
+        // leaves it), horizontal or vertical, and the file's `bodyPr rot`
+        // comes on top: tdf165261's pyramid steps are flipV with rot 180,
+        // which together read upright (lab flip, all 36 boxes).
+        if st.flipV { st.textSpin += 180 }
         st.fillsWithBackground = sp["useBgFill"] == "1"
         st.outlineDash = PptxReader.dash(spPr?.first("a:ln")) ?? inheritedDash
         // (Its join and ends, else its theme line style's.)
@@ -1703,6 +1825,27 @@ private struct SlideContext {
                 }
             }
         }
+        // `bodyPr upright="1"`: the text stays level whatever the shape's
+        // turn. Its frame is the text rectangle's own, set level about the
+        // rectangle's turned middle — its width and height swapped when the
+        // shape lies on its side (45° to 135° either way); PowerPoint wraps
+        // oox-tdf149538_upright's 8 pt Courier in 168 pt, not the arrow
+        // callout's 80 pt turned with it.
+        let uprightTurn = rotation.truncatingRemainder(dividingBy: 360)
+        if st.uprightBox == nil, st.text != nil, abs(uprightTurn) > 0.01, abs(abs(uprightTurn) - 360) > 0.01,
+           ["1", "true"].contains(sp.first("p:txBody")?.first("a:bodyPr")?["upright"] ?? "") {
+            let t = st.shapeInsets
+            let w = frame.width - t.left - t.right, h = frame.height - t.top - t.bottom
+            let mid = Offset(frame.left + t.left + w / 2, frame.top + t.top + h / 2)
+            let c = frame.center, th = uprightTurn * .pi / 180
+            let at = Offset(c.dx + cos(th) * (mid.dx - c.dx) - sin(th) * (mid.dy - c.dy),
+                            c.dy + sin(th) * (mid.dx - c.dx) + cos(th) * (mid.dy - c.dy))
+            let side = (abs(uprightTurn).truncatingRemainder(dividingBy: 180)) >= 45
+                && (abs(uprightTurn).truncatingRemainder(dividingBy: 180)) < 135
+            st.uprightBox = Rect.fromCenter(center: at, width: side ? h : w, height: side ? w : h)
+            st.uprightInsets = EdgeInsets(left: st.insets.left - t.left, top: st.insets.top - t.top,
+                                          right: st.insets.right - t.right, bottom: st.insets.bottom - t.bottom)
+        }
         // The look as the file spells it — fills this app flattens (gradients,
         // patterns, pictures), effects it does not draw, the style it refers
         // to — written back while the fill and outline are unchanged.
@@ -1852,12 +1995,19 @@ private struct SlideContext {
     /// PowerPoint's box for a picture it cannot draw: white, ruled black,
     /// a bevelled icon with a red cross 7 pt in, and "The picture can't be
     /// displayed." in Segoe UI 10.5 pt, 27 pt in — measured on its print.
-    static func brokenPicture(in r: Rect, id: () -> Int) -> [ShapeState] {
+    static func brokenPicture(in r: Rect, onMaster: Bool = false, id: () -> Int) -> [ShapeState] {
         func box(_ f: Rect, fill: Color?, outline: Color? = nil, width: Double = 0, preset: String = "rect") -> ShapeState {
             ShapeState(id: id(), name: "Broken picture", kind: .geometry(ShapePreset(rawValue: preset)), frame: f, rotation: 0,
                        fill: fill, outline: outline, outlineWidth: width, anchor: .top,
                        insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), prompt: nil, text: nil,
                        font: nil, size: 18, color: Color(0xFF000000), listIndent: 18)
+        }
+        if onMaster {
+            // On a master or layout PowerPoint prints the same box at a seventh
+            // of the size (tdf147586): a hairline frame, a speck of icon, and the
+            // message as a black bar 16.6 x 1.1 pt.
+            return [box(r, fill: Color(0xFFFFFFFF), outline: Color(0xFF000000), width: 0.14),
+                    box(Rect.fromLTWH(r.left + 3.4, r.top + 1.2, 16.6, 1.1), fill: Color(0xFF000000))]
         }
         var shapes = [box(Rect.fromLTRB(r.left + 0.5, r.top + 0.5, r.right - 0.5, r.bottom - 0.5),
                           fill: Color(0xFFFFFFFF), outline: Color(0xFF000000), width: 1)]
@@ -1931,7 +2081,7 @@ private struct SlideContext {
             // its zip cut short, print as nothing.)
             let blip = el.first("p:blipFill")?.first("a:blip")
             if blip?["r:embed"] == nil, blip?["r:link"] == nil, case .opaque(var obj) = o.kind {
-                obj.rendering = Self.brokenPicture(in: o.frame, id: id)
+                obj.rendering = Self.brokenPicture(in: o.frame, onMaster: part.containsSubstring("slideMasters/") || part.containsSubstring("slideLayouts/"), id: id)
                 obj.clipsRendering = true
                 o.kind = .opaque(obj)
             }
@@ -1956,6 +2106,7 @@ private struct SlideContext {
         let xfrm = el.first("p:spPr")?.first("a:xfrm")
         s.flipH = xfrm?["flipH"] == "1"
         s.flipV = xfrm?["flipV"] == "1"
+        if let spPr = el.first("p:spPr") { s.scene3d = Extrusion.read(spPr, colors: colors) }
         if let prst = el.first("p:spPr")?.first("a:prstGeom")?["prst"], prst != "rect" {
             s.pictureGeometry = ShapePreset(rawValue: prst)
         } else if let geom = el.first("p:spPr")?.first("a:custGeom") {
@@ -1974,9 +2125,7 @@ private struct SlideContext {
         // Its outline (graphic-stroke's green frame round an OLE object's
         // picture): the line's own colour, else its style's.
         let ln = el.first("p:spPr")?.first("a:ln"), lnRef = el.first("p:style")?.first("a:lnRef")
-        // (Not one turned in 3-D, which is drawn flat here: its frame
-        // would stand where the picture does not — Scene3d_pureImage.)
-        if ln?.has("a:noFill") != true, el.first("p:spPr")?.first("a:scene3d") == nil {
+        if ln?.has("a:noFill") != true {
             if let f = ln?.first("a:solidFill") { s.outline = colors.color(in: f) }
             else if let ref = lnRef, ref["idx"] != "0" { s.outline = colors.lineColor(in: ref) }
             if s.outline != nil {
@@ -2106,7 +2255,12 @@ private struct SlideContext {
                                           right: margin("marR", 7.2), bottom: margin("marB", 3.6))
                 if let tcPr {
                     switch tcPr["anchor"] { case "ctr": cell.verticalAlign = "center"; case "b": cell.verticalAlign = "bottom"; default: break }
-                    switch tcPr["vert"] { case "vert", "eaVert": cell.textDirection = .down; case "vert270": cell.textDirection = .up; default: break }
+                    switch tcPr["vert"] {
+                    case "vert", "eaVert": cell.textDirection = .down
+                    case "vert270": cell.textDirection = .up
+                    case "wordArtVert": cell.textDirection = .down; cell.stackedUpright = true
+                    default: break
+                    }
                     if let f = tcPr.first("a:solidFill") {
                         cell.fill = colors.color(in: f)
                     } else if let g = tcPr.first("a:gradFill") {
@@ -2138,6 +2292,20 @@ private struct SlideContext {
                     cell.borders.right = line("a:lnR")
                     cell.borders.top = line("a:lnT")
                     cell.borders.bottom = line("a:lnB")
+                }
+                // The style's own rule under its header row and over its last (Medium Style 2's 3 pt
+                // white ones: lo-bnc887225, PowerPoint's print): on both cells that share the edge.
+                func styled(_ part: TablePartStyle?, _ side: KeyPath<BorderEdges, Bool?>) -> CellRef.CellLine? {
+                    guard let part, let e = part.edges, e[keyPath: side] == true, let w = part.borderWidth, w > 1 else { return nil }
+                    return CellRef.CellLine(width: w, color: part.borderColor)
+                }
+                if firstRow {
+                    if r == 0, let l = styled(firstRowPart, \.bottom) { if cell.borders.bottom == nil { cell.borders.bottom = l } }
+                    if r == 1, let l = styled(firstRowPart, \.bottom) { if cell.borders.top == nil { cell.borders.top = l } }
+                }
+                if pr?["lastRow"] == "1", rowCount > 1 {
+                    if r == rowCount - 1, let l = styled(lastRowPart, \.top) { if cell.borders.top == nil { cell.borders.top = l } }
+                    if r == rowCount - 2, let l = styled(lastRowPart, \.top) { if cell.borders.bottom == nil { cell.borders.bottom = l } }
                 }
                 // The header row's text is light and bold in every styled
                 // table PowerPoint offers; a style the deck defines says
@@ -2211,12 +2379,12 @@ private struct SlideContext {
                     // cells, 6 pt before each paragraph, sat that much high).
                     let endMark: Double? = p.first("a:endParaRPr")?["sz"].flatMap(Double.init).map { $0 / 100 }
                     let size: Double = runs.first?.style.fontSize ?? endMark ?? level.size ?? 18
-                    if let m = level.lineMultiple { style.lineSpacing = m } else if let pts = level.linePoints { style.lineHeightPoints = pts }
+                    if let m = level.lineMultiple { style.lineSpacing = m } else if let pts = level.linePoints { style.lineHeightPoints = pts.rounded() }
                     // (None before a cell's first paragraph, as none before a
                     // body's: aptia's empty first line and the text under it
                     // both say 6 pt, and the text is 6 lower, not 12.)
-                    style.spaceBefore = cellParas.isEmpty ? 0 : level.beforePoints ?? (level.beforePercent.map { $0 * size * 1.2 } ?? 0)
-                    style.spaceAfter = level.afterPoints ?? (level.afterPercent.map { $0 * size * 1.2 } ?? 0)
+                    style.spaceBefore = cellParas.isEmpty ? 0 : level.beforePoints.map { $0.rounded() } ?? (level.beforePercent.map { $0 * size * 1.2 } ?? 0)
+                    style.spaceAfter = level.afterPoints.map { $0.rounded() } ?? (level.afterPercent.map { $0 * size * 1.2 } ?? 0)
                     // A bulleted cell paragraph. In a cell the layout puts
                     // the text at `indentLeft` and the bullet in the 18 pt
                     // slot before it (no per-level indent), so the text edge
@@ -2580,8 +2748,20 @@ private struct SlideContext {
                 for l in scheme.all("dgm:styleLbl") {
                     if let name = l["name"], let c = l.first("dgm:txFillClrLst")?.children.first { textColors[name] = c }
                 }
+                // A node drawn as a shape with a text companion (pyramid1's
+                // `levelTx`, label `revTx`): the layout shows the text in the
+                // companion, so its colour rules where the node's list is
+                // empty (pyramid's grey tiers carry `lt1` in the drawing,
+                // PowerPoint prints `tx1`).
+                var shows: [String: String] = [:], companion: Set<String> = []
+                for cxn in data.first("dgm:cxnLst")?.all("dgm:cxn") ?? [] where cxn["type"] == "presOf" {
+                    guard let src = cxn["srcId"], let dst = cxn["destId"] else { continue }
+                    shows[dst] = src
+                    if labels[dst] == "revTx" { companion.insert(src) }
+                }
                 for sp in tree?.all("p:sp") ?? [] {
-                    guard let id = sp["modelId"], let label = labels[id], let color = textColors[label],
+                    guard let id = sp["modelId"], let label = labels[id],
+                          let color = textColors[label] ?? shows[id].flatMap({ companion.contains($0) ? textColors["revTx"] : nil }),
                           let font = sp.first("p:style")?.first("a:fontRef") else { continue }
                     font.children = [color]
                 }
@@ -2782,7 +2962,18 @@ private struct SlideContext {
             guard w > 0.1, h > 0 else { return nil }
             var b = ShapeBevel(width: w, height: h)
             if let rig = scene?.first("a:lightRig")?["rig"] { b.rig = rig }
+            b.preset = bev["prst"] ?? "circle"
+            if let rig = scene?.first("a:lightRig") {
+                let turns: [String: Double] = ["t": 0, "tr": 45, "r": 90, "br": 135, "b": 180, "bl": 225, "l": 270, "tl": 315]
+                b.turn = turns[rig["dir"] ?? "t"] ?? 0
+                if let r = rig.first("a:rot") {
+                    func deg(_ a: String) -> Double { (r[a].flatMap(Double.init) ?? 0) / 60000 }
+                    b.rot = [deg("lat"), deg("lon"), deg("rev")]
+                    b.turn = 0
+                }
+            }
             if let m = sp3d?["prstMaterial"] { b.material = m }
+            b.diagram = sp3d?["starlingDiagram"] != nil
             return b
         }
         if let spPr, spPr.first("a:sp3d") != nil || spPr.first("a:scene3d") != nil {
@@ -2862,15 +3053,19 @@ private struct SlideContext {
         var insetsFollowFont = false
         /// A diagram laid out here: the shapes that end at one size.
         var sizeGroup: String? = nil
+        var generatedHang = false
         /// `bodyPr wrap="none"`.
         var noWrap = false
         /// `bodyPr anchorCtr="1"`.
         var anchorCentred = false
         /// `bodyPr vert`: 1 a quarter clockwise, -1 anticlockwise.
         var textTurn = 0
+        var textStacked = 0
         /// The text's camera turned about its axis (`scene3d/camera/rot
         /// rev`), degrees clockwise.
         var textSpin = 0.0
+        var textRev = 0.0
+        var textScene: Scene3D? = nil
         /// `bodyPr numCol` and `spcCol` (points).
         var columns = 1
         var columnGap = 0.0
@@ -2979,8 +3174,11 @@ private struct SlideContext {
         // — the plain face left "TRADE SHOW" on one line where PowerPoint
         // breaks it in two. (Segoe UI, Tahoma, Franklin Gothic and the
         // rest have their own widths there too.)
+        // (Archivo Black is heavy as it stands: asked for bold it was
+        // thickened again by a stroke, which a translucent fill shows as a
+        // darker ring: ThemeColorTransparency.)
         if cs.fontFamily?.lowercased() == "arial black" {
-            cs.bold = true
+            cs.bold = !SlideFonts.hasHeavyStandIn
         }
         // Aptos, set in Liberation Sans: that much tighter, as
         // Aptos runs narrower — PowerPoint's lines in it are 3.5%
@@ -3138,7 +3336,11 @@ private struct SlideContext {
             // lines under a 28 pt level, each 1.3 pt further apart.)
             let endSize = p.all("a:r").isEmpty ? p.first("a:endParaRPr")?["sz"].flatMap(Double.init).map { $0 / 100 } : nil
             let size = runSizes.max() ?? endSize ?? level.size ?? 18
-            var style = RichParagraphStyle(spaceAfter: level.afterPoints ?? 0, lineSpacing: 1.0)
+            // (PowerPoint for Windows sets the space before and after and an exact line spacing on whole points:
+            // labs p3b and p3c, 5.67 pt -> 6, 17.01 -> 17, 27.5 -> 28. Not under its shrink to fit, where the
+            // spacing is scaled and lo-font-scale's 6.41 stands as it is.)
+            let whole: (Double) -> Double = { $0.rounded() }
+            var style = RichParagraphStyle(spaceAfter: level.afterPoints.map(whole) ?? 0, lineSpacing: 1.0)
             switch level.algn {
             case "ctr": style.alignment = .center
             case "r": style.alignment = .right
@@ -3147,14 +3349,14 @@ private struct SlideContext {
             }
             if let m = level.lineMultiple { style.lineSpacing = m } else if let pts = level.linePoints {
                 // Exactly that many points, whatever the runs' sizes.
-                style.lineHeightPoints = pts
+                style.lineHeightPoints = whole(pts)
             } else {
                 style.lineSpacingUnstated = true
             }
             // (A percentage is of the text as drawn: under PowerPoint's own
             // shrink to fit, `fontScale` of it — bug62513's 20% before its
             // 77.5% list items is 6 pt in the print, ours was 7.7.)
-            style.spaceBefore = level.beforePoints ?? (level.beforePercent.map { $0 * size * scale * 1.2 } ?? 0)
+            style.spaceBefore = level.beforePoints.map(whole) ?? (level.beforePercent.map { $0 * size * scale * 1.2 } ?? 0)
             // A percentage after, as before: of the line, taken as 1.2 of the
             // size — but not under the last paragraph, where PowerPoint adds
             // nothing: counted there, a one-line SmartArt label (35% after,
@@ -3211,6 +3413,15 @@ private struct SlideContext {
                     style.indentLeft = 36 * Double(lvl) - shapeIndent * Double(lvl + 1)
                     style.firstLineIndent = shapeIndent
                 }
+                // (The bullet PowerPoint's own body style gives, in a deck whose master has no text styles at
+                // all: its print of lo-subtitle-animation-save puts the text 17.6 pt from the bullet's left,
+                // the bullet's 9.8 and an Arial space after it. A bullet the paragraph names, ececapstone's,
+                // has the text right after it.)
+                if level.marL == nil, level.indent == nil, lvl == 0, master?.first("p:txStyles") == nil,
+                   pPr?.first("a:buChar") == nil, pPr?.first("a:buAutoNum") == nil, ["body", "subTitle"].contains(ph?["type"] ?? "") {
+                    style.indentLeft = 17.6 - shapeIndent
+                    style.firstLineIndent = shapeIndent - 17.6
+                }
                 SlideContext.hangPositiveIndent(&style, own: pPr?["indent"].flatMap(Double.init), indent: level.indent,
                                                 marL: level.marL, shapeIndent: shapeIndent, level: lvl)
             default:
@@ -3253,6 +3464,8 @@ private struct SlideContext {
                 Self.faceSpacing(&cs)
                 cs.shadow = s.shadow
                 cs.highlight = s.highlight
+                // (WordArt draws its own outline: `RunLook`.)
+                if body?.first("a:bodyPr")?.first("a:prstTxWarp") == nil, (cs.color?.alpha ?? 255) == 255 { cs.outline = s.outline }
                 if s.caps == "all" { cs.caps = true } else if s.caps == "small" { cs.smallCaps = true }
                 text += t
                 // Hebrew, Arabic and Thai letters in the complex-script
@@ -3286,7 +3499,7 @@ private struct SlideContext {
                     if let script = piece.script, let face = _csFont(s.csFont, script: script), face != plain.fontFamily {
                         c = plain
                         c.fontFamily = face
-                        c.shadow = cs.shadow; c.highlight = cs.highlight; c.caps = cs.caps; c.smallCaps = cs.smallCaps
+                        c.shadow = cs.shadow; c.outline = cs.outline; c.highlight = cs.highlight; c.caps = cs.caps; c.smallCaps = cs.smallCaps
                     }
                     if let last = runs.last, last.style == c, runs.count > runsBefore {
                         runs[runs.count - 1].length += piece.length
@@ -3336,6 +3549,13 @@ private struct SlideContext {
                 // in PowerPoint's print.
                 let own = p.first("a:pPr")?["rtl"]
                 if own == "1" || (own == nil && Self._startsRightToLeft(text)) { style.rightToLeft = true }
+                // A master level that says rtl="1" moves the bullet and the
+                // list indent to the right and nothing else (GeomLec1's body:
+                // PowerPoint's print keeps the text's order and its alignment).
+                else if own == nil, level.rtl == "1", style.list != nil { style.bulletAtEnd = true }
+                if let e = p.first("a:endParaRPr").map({ LevelStyle.run($0, colors).filled(from: level) }), _font(e.font) != runs.last?.style.fontFamily {
+                    style.endMarkFace = _font(e.font)
+                }
                 paragraphs.append(RichParagraph(text: text, runs: runs, style: style))
             }
             runLooks.append(looks)
@@ -3373,10 +3593,13 @@ private struct SlideContext {
                         columnGap: attr("spcCol").flatMap(Double.init).map { $0 / Pptx.emu } ?? 0,
                         warp: warp, runLooks: runLooks)
         body0.sizeGroup = body?.first("a:bodyPr")?["starling:sizeGroup"]
+        body0.generatedHang = body?.first("a:bodyPr")?["starling:generatedHang"] == "1"
         body0.anchorCentred = ["1", "true"].contains(attr("anchorCtr") ?? "")
         switch attr("vert") {
         case "vert", "eaVert", "mongolianVert": body0.textTurn = 1
         case "vert270": body0.textTurn = -1
+        case "wordArtVert": body0.textStacked = 1
+        case "wordArtVertRtl": body0.textStacked = -1
         default: break
         }
         // A flat camera turned about its axis (`rev`, lat and lon nought)
@@ -3386,7 +3609,16 @@ private struct SlideContext {
         if let rot = body?.first("a:bodyPr")?.first("a:scene3d")?.first("a:camera")?.first("a:rot"),
            (rot["lat"].flatMap(Double.init) ?? 0) == 0, (rot["lon"].flatMap(Double.init) ?? 0) == 0,
            let rev = rot["rev"].flatMap(Double.init), rev != 0 {
-            body0.textSpin = -rev / 60000
+            body0.textRev = -rev / 60000
+        }
+        // `bodyPr rot`: the text turned about the middle of its lines, any
+        // angle (tdf149551's "a b c…" in a right triangle at 12°).
+        // (Not with `vert`: PowerPoint's pivot for the pair is none of the text's
+        // middle, the frame's or the text area's — vert270AndTextRot's lines
+        // land 11 pt off with each — so that deck keeps the unturned text.)
+        if let turn = attr("rot").flatMap(Double.init), turn != 0 { body0.textSpin += turn / 60000 }
+        if body0.warp != nil, let bp = body?.first("a:bodyPr"), bp.first("a:scene3d") != nil {
+            body0.textScene = Extrusion.read(bp, colors: colors, text: true)
         }
         return body0
     }
@@ -3453,6 +3685,8 @@ private struct SlideContext {
         if let ln = rPr.first("a:ln"), !ln.has("a:noFill"), let c = ln.first("a:solidFill").flatMap(colors.color(in:)), c.alpha > 0 {
             look.outline = c
             look.outlineWidth = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75
+            look.outlineDash = PptxReader.dash(ln)
+            look.outlineRound = ln["cap"] == "rnd"
             any = true
         }
         return any ? look : nil

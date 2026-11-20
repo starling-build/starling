@@ -2,6 +2,7 @@
 
 import XCTest
 import Flutter
+import OfficeText
 @testable import OfficeApp
 
 final class ColorBarTests: XCTestCase {

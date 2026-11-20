@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 
@@ -91,6 +92,7 @@ final class OfficeSession {
         theme.fontFamilyResolver = OfficeFonts.drawn
         theme.faceResolver = OfficeFonts.face
         theme.complexFaceResolver = OfficeFonts.complexFace
+        theme.complexFaceKeepsDigits = OfficeFonts.complexFaceKeepsDigits
         theme.averageCharWidth = OfficeFonts.averageCharWidth
         theme.symbolGlyphs = { face, text in face.map { Metafile.symbols(text, face: $0) } ?? text }
         theme.symbolAdvance = Metafile.symbolAdvance
@@ -124,7 +126,10 @@ final class OfficeSession {
     var autoSave = false
     /// Format Painter: the character style picked up, applied to the next
     /// selection and then dropped.
-    var paintedStyle: CharStyle? = nil
+    var paintedStyle: FormatSample? = nil
+    /// Double-clicked on: stays on for several applications until Esc.
+    var paintSticky = false
+    var lastPainterPress = 0.0
     var pageInfo = (page: 1, count: 1)
 
     var path: String? = nil

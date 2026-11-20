@@ -6,6 +6,7 @@
 // Close) and the chosen page on the right.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation

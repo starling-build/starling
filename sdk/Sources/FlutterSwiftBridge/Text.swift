@@ -2240,6 +2240,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
     wordSpacing: Double? = nil,
     baselineShift: Double? = nil,
     scaleX: Double? = nil,
+    ascentOverride: Double? = nil,
+    descentOverride: Double? = nil,
     height: Double? = nil,
     leadingDistribution: TextLeadingDistribution? = nil,
     locale: Locale? = nil,
@@ -2269,6 +2271,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
     self.wordSpacing = wordSpacing
     self.baselineShift = baselineShift
     self.scaleX = scaleX
+    self.ascentOverride = ascentOverride
+    self.descentOverride = descentOverride
     self.height = height
     self.leadingDistribution = leadingDistribution
     self.locale = locale
@@ -2355,6 +2359,12 @@ public struct TextStyle: Hashable, CustomStringConvertible {
   /// or wider — SkFont::setScaleX, through the engine's
   /// patches/skia-scale-x.patch; nil or 1 for none. (No Dart counterpart.)
   public let scaleX: Double?
+  /// Starling: this run's ascent and descent, positive layout-pixel
+  /// distances from its baseline, in place of its face's — the run's box and
+  /// the line it sits on take them. Both or neither: nil on either leaves
+  /// the face. Through the engine's patches/skia-style-line-indents-metrics.patch.
+  public let ascentOverride: Double?
+  public let descentOverride: Double?
 
   /// The height of this text span, as a multiplier of the font size.
   ///
@@ -2434,6 +2444,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
       && lhs.wordSpacing == rhs.wordSpacing
       && lhs.baselineShift == rhs.baselineShift
       && lhs.scaleX == rhs.scaleX
+      && lhs.ascentOverride == rhs.ascentOverride
+      && lhs.descentOverride == rhs.descentOverride
       && lhs.height == rhs.height
       && lhs.leadingDistribution == rhs.leadingDistribution
       && lhs.locale == rhs.locale
@@ -2471,6 +2483,8 @@ public struct TextStyle: Hashable, CustomStringConvertible {
     hasher.combine(wordSpacing)
     hasher.combine(baselineShift)
     hasher.combine(scaleX)
+    hasher.combine(ascentOverride)
+    hasher.combine(descentOverride)
     hasher.combine(height)
     hasher.combine(decorationThickness)
     hasher.combine(locale)
@@ -2893,6 +2907,17 @@ public struct StrutStyle: Hashable, CustomStringConvertible {
 /// REASON: Encoding is moved to C++ bridge. The C++ bridge will extract
 /// all fields and encode them internally when NativeParagraphBuilder is
 /// initialized.
+/// Starling: one line's inset from the paragraph's width, in layout pixels —
+/// `ParagraphStyle.lineIndents`. (No Dart counterpart.)
+public struct LineIndent: Hashable {
+  public var left: Double
+  public var right: Double
+  public init(left: Double = 0, right: Double = 0) {
+    self.left = left
+    self.right = right
+  }
+}
+
 public struct ParagraphStyle: Hashable, CustomStringConvertible {
 
   /// Creates a new ParagraphStyle object.
@@ -3039,6 +3064,21 @@ public struct ParagraphStyle: Hashable, CustomStringConvertible {
   /// counterpart; the bridge passes it as bit 13 of the encoded style.
   public var fractionalLineHeights = false
 
+  /// Starling: a (left, right) inset per line, in layout pixels, the last
+  /// entry repeating for every line after it; empty is no inset. The line
+  /// breaker and justification both work in `width - left - right`, and a
+  /// line's reported `left` carries the left half. (No Dart counterpart; the
+  /// bridge passes the pairs after slot 7 of the encoded style, under bit 14.)
+  public var lineIndents: [LineIndent] = []
+
+  /// Starling: room, in layout pixels, the line breaker holds back from
+  /// every line while justification still stretches the line across the
+  /// whole width (less its indents): a line breaks as if the paragraph were
+  /// this much narrower and is then set to the full measure. Word's kashida
+  /// justification does this. 0 is today's behaviour. (No Dart counterpart;
+  /// the bridge passes it after the line-indent pairs, under bit 15.)
+  public var fitReserve: Double = 0
+
   // MARK: - Equatable
 
   /// **Dart Source:** `text.dart:2081-2098`
@@ -3064,6 +3104,8 @@ public struct ParagraphStyle: Hashable, CustomStringConvertible {
       && lhs.locale == rhs.locale
       && lhs._leadingDistribution == rhs._leadingDistribution
       && lhs.fractionalLineHeights == rhs.fractionalLineHeights
+      && lhs.lineIndents == rhs.lineIndents
+      && lhs.fitReserve == rhs.fitReserve
   }
 
   // MARK: - Hashable
@@ -3089,6 +3131,8 @@ public struct ParagraphStyle: Hashable, CustomStringConvertible {
     hasher.combine(locale)
     hasher.combine(_leadingDistribution)
     hasher.combine(fractionalLineHeights)
+    hasher.combine(lineIndents)
+    hasher.combine(fitReserve)
   }
 
   // MARK: - CustomStringConvertible
@@ -3233,6 +3277,12 @@ public protocol Paragraph: AnyObject {
   /// Visible glyph bounds after layout, excluding whitespace and line
   /// leading. Decorations and paint effects are not included. Nil for no ink.
   func getGlyphInkBounds() -> Rect?
+
+  /// The outlines of the glyphs whose cluster starts in the UTF-8 byte range
+  /// `utf8Start..<utf8End` of the paragraph's text, as one path in paragraph
+  /// coordinates (each glyph where it is laid out). Nil when no glyph there
+  /// has an outline, or the engine cannot give one. (No Dart counterpart.)
+  func getGlyphPath(utf8Start: Int, utf8End: Int) -> Path?
 
   /// Whether this reference to the underlying picture is `dispose`d.
   ///
@@ -3409,6 +3459,7 @@ extension Paragraph {
   /// (Where a paragraph knows no advances of its own: its lines' heights.)
   public func computeLineAdvances() -> [Double] { computeLineMetrics().map { $0.height } }
   public func getGlyphInkBounds() -> Rect? { nil }
+  public func getGlyphPath(utf8Start: Int, utf8End: Int) -> Path? { nil }
 }
 
 // MARK: - Paragraph Protocol Extension (Default Implementations)
@@ -3517,6 +3568,27 @@ public class NativeParagraph: Paragraph {
     var left = 0.0, top = 0.0, right = 0.0, bottom = 0.0
     guard bridge.GetGlyphInkBounds(&left, &top, &right, &bottom) else { return nil }
     return Rect.fromLTRB(left, top, right, bottom)
+  }
+
+  public func getGlyphPath(utf8Start: Int, utf8End: Int) -> Path? {
+    guard utf8End > utf8Start, engineKnowsGlyphPath else { return nil }
+    var verbCount = 0, pointCount = 0
+    // (Sized first, then filled: the engine reports what the outline needs.)
+    _ = bridge.GetGlyphPath(
+      utf8Start, utf8End, nil, 0, &verbCount, nil, 0, &pointCount)
+    guard verbCount > 0, pointCount > 0 else { return nil }
+    var verbs = [UInt8](repeating: 0, count: verbCount)
+    var points = [Float](repeating: 0, count: pointCount * 2)
+    var filledVerbs = 0, filledPoints = 0
+    let ok = verbs.withUnsafeMutableBufferPointer { v in
+      points.withUnsafeMutableBufferPointer { p in
+        bridge.GetGlyphPath(
+          utf8Start, utf8End, v.baseAddress, verbCount, &filledVerbs, p.baseAddress, pointCount,
+          &filledPoints)
+      }
+    }
+    guard ok, filledVerbs == verbCount, filledPoints == pointCount else { return nil }
+    return Path.fromGlyphOutline(verbs: verbs, points: points)
   }
 
   /// The distance from the left edge of the leftmost glyph to the right edge of
@@ -4423,6 +4495,23 @@ public class NativeParagraphBuilder: ParagraphBuilder {
     // [5]: maxLines (if mask & (1<<5))
     // [6]: textHeightBehavior encoded (if mask & (1<<6))
     var encodedStyle: [Int32] = [Int32](repeating: 0, count: 7)
+    // (Starling: per-line indents ride after slot 7 — the count, then each
+    // pair's floats' bits — under bit 14; an older engine ignores both.)
+    if !style.lineIndents.isEmpty, engineKnowsLineIndents {
+      encodedStyle.append(Int32(style.lineIndents.count))
+      for indent in style.lineIndents {
+        encodedStyle.append(Int32(bitPattern: Float(indent.left).bitPattern))
+        encodedStyle.append(Int32(bitPattern: Float(indent.right).bitPattern))
+      }
+    }
+    // (Starling: the fit reserve's float follows the pairs — slot 8 + 2 * count,
+    // the count in slot 7, which reads 0 here when there are no indents —
+    // under bit 15. An engine without it ignores the bit and the slot.)
+    let sendsFitReserve = style.fitReserve > 0 && engineKnowsFitReserve
+    if sendsFitReserve {
+      if style.lineIndents.isEmpty || !engineKnowsLineIndents { encodedStyle.append(0) }
+      encodedStyle.append(Int32(bitPattern: Float(style.fitReserve).bitPattern))
+    }
     var mask: Int32 = 0
 
     if let textAlign = style.textAlign {
@@ -4458,6 +4547,12 @@ public class NativeParagraphBuilder: ParagraphBuilder {
     // (Starling: a flag alone, no value of its own.)
     if style.fractionalLineHeights {
       mask |= (1 << 13)
+    }
+    if !style.lineIndents.isEmpty, engineKnowsLineIndents {
+      mask |= (1 << 14)
+    }
+    if sendsFitReserve {
+      mask |= (1 << 15)
     }
 
     encodedStyle[0] = mask
@@ -4587,7 +4682,7 @@ public class NativeParagraphBuilder: ParagraphBuilder {
     // [6]: fontStyle index (if mask & (1<<6))
     // [7]: textBaseline index (if mask & (1<<7))
     // [8]: (unused)
-    var encodedStyle: [Int32] = [Int32](repeating: 0, count: 9)
+    var encodedStyle: [Int32] = [Int32](repeating: 0, count: 11)
     var mask: Int32 = 0
 
     // Use the leading distribution from style, or default from paragraph style
@@ -4693,6 +4788,15 @@ public class NativeParagraphBuilder: ParagraphBuilder {
     if let scaleX = style.scaleX, scaleX != 1 {
       mask |= (1 << 20)
       encodedStyle[8] = Int32(bitPattern: Float(scaleX).bitPattern)
+    }
+
+    // Starling: ascent and descent overrides, their floats' bits in slots 9
+    // and 10 under mask bit 21 (the array is 11 long so an engine that
+    // knows the bit can read them; an older one ignores both).
+    if let ascent = style.ascentOverride, let descent = style.descentOverride, engineKnowsLineIndents {
+      mask |= (1 << 21)
+      encodedStyle[9] = Int32(bitPattern: Float(ascent).bitPattern)
+      encodedStyle[10] = Int32(bitPattern: Float(descent).bitPattern)
     }
 
     // Update the mask in encodedStyle after all bits are set
@@ -5175,3 +5279,92 @@ public func loadFontFromList(_ list: Data, fontFamily: String? = nil) async thro
   // Notify the framework that fonts have changed
   sendFontChangeMessage()
 }
+
+#if !os(Windows) && !os(WASI)
+/// Whether the engine in this process knows per-line indents and metrics
+/// overrides (it exports `StarlingTextLineIndentsSupported`). One that does
+/// not ignores both silently and lays the text out wrong, so the first use
+/// against it says so, once.
+private let engineKnowsLineIndents: Bool = {
+  let known = dlopen(nil, RTLD_NOW).map { dlsym($0, "StarlingTextLineIndentsSupported") != nil } ?? false
+  if !known {
+    // write(2) rather than fputs(_, stderr): Glibc's `stderr` is a mutable global that Swift 6 rejects as not concurrency-safe.
+    let warning = "engine lacks StarlingTextLineIndentsSupported: per-line indents OFF (this engine predates starling-engine e837b7634c9, or on Linux was linked without the export in embedder_exports.lst); text beside floats is laid out wrong. Rebuild/relink the engine.\n"
+    warning.withCString { _ = write(2, $0, strlen($0)) }
+  }
+  return known
+}()
+#else
+private let engineKnowsLineIndents = true
+#endif
+
+/// Whether the engine in this process knows per-line indents (looking the
+/// probe up warns once, on stderr, if it does not). A headless tool calls it
+/// at start so a stale engine is said at once, not only at the first text
+/// that needs an indent.
+public func starlingEngineKnowsLineIndents() -> Bool { engineKnowsLineIndents }
+
+#if !os(Windows) && !os(WASI)
+/// Whether the engine in this process knows the fit reserve (it exports
+/// `StarlingTextFitReserveSupported`). One that does not ignores the reserve
+/// silently and breaks lines at the full width, so a paragraph that asks for
+/// one against it says so, once. (Only looked up when a reserve is asked for.)
+private let engineKnowsFitReserve: Bool = {
+  let known = dlopen(nil, RTLD_NOW).map { dlsym($0, "StarlingTextFitReserveSupported") != nil } ?? false
+  if !known {
+    let warning = "engine lacks StarlingTextFitReserveSupported: fit reserve OFF (this engine predates the fit-reserve round, or on Linux was linked without the export in embedder_exports.lst); justified lines break at the full width. Rebuild/relink the engine.\n"
+    warning.withCString { _ = write(2, $0, strlen($0)) }
+  }
+  return known
+}()
+/// Whether the engine in this process can hand back glyph outlines (it exports
+/// `StarlingTextGlyphPathSupported`).
+private let engineKnowsGlyphPath: Bool = {
+  let known = dlopen(nil, RTLD_NOW).map { dlsym($0, "StarlingTextGlyphPathSupported") != nil } ?? false
+  if !known {
+    let warning = "engine lacks StarlingTextGlyphPathSupported: glyph outlines OFF (this engine predates the glyph-path round, or on Linux was linked without the export in embedder_exports.lst); outlined and warped text falls back to its plain drawing. Rebuild/relink the engine.\n"
+    warning.withCString { _ = write(2, $0, strlen($0)) }
+  }
+  return known
+}()
+#else
+private let engineKnowsFitReserve = true
+private let engineKnowsGlyphPath = true
+#endif
+
+extension Path {
+  /// A path rebuilt from the engine's flattened glyph outline: Skia's verb
+  /// numbers (0 move, 1 line, 2 quad, 4 cubic, 5 close) and the x, y pairs
+  /// each takes (1, 1, 2, 3, 0 of them). A verb the list cannot finish
+  /// (short of points, or a number it does not know) ends the path there.
+  static func fromGlyphOutline(verbs: [UInt8], points: [Float]) -> Path {
+    let path = Path()
+    var at = 0
+    func pt(_ k: Int) -> (Double, Double) { (Double(points[2 * (at + k)]), Double(points[2 * (at + k) + 1])) }
+    for verb in verbs {
+      switch verb {
+      case 0 where at + 1 <= points.count / 2:
+        let p = pt(0); path.moveTo(p.0, p.1); at += 1
+      case 1 where at + 1 <= points.count / 2:
+        let p = pt(0); path.lineTo(p.0, p.1); at += 1
+      case 2 where at + 2 <= points.count / 2:
+        let a = pt(0), b = pt(1); path.quadraticBezierTo(a.0, a.1, b.0, b.1); at += 2
+      case 4 where at + 3 <= points.count / 2:
+        let a = pt(0), b = pt(1), c = pt(2); path.cubicTo(a.0, a.1, b.0, b.1, c.0, c.1); at += 3
+      case 5:
+        path.close()
+      default:
+        return path
+      }
+    }
+    return path
+  }
+}
+
+/// Whether the engine in this process knows the fit reserve (looking the
+/// probe up warns once, on stderr, if it does not).
+public func starlingEngineKnowsFitReserve() -> Bool { engineKnowsFitReserve }
+
+/// Whether the engine in this process can hand back glyph outlines (looking
+/// the probe up warns once, on stderr, if it cannot).
+public func starlingEngineKnowsGlyphPath() -> Bool { engineKnowsGlyphPath }

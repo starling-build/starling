@@ -1,0 +1,843 @@
+// Copyright the Starling authors
+// SPDX-License-Identifier: Apache-2.0
+
+// Word for Windows' Mangal (regular) Devanagari: the advance in em of each grapheme cluster, fitted by ridge regression to
+// 15,265 word widths read from the Mangal-embedding prints of dx2 and batch B (space origin minus first glyph origin; rms 0.006 em
+// after the worst tenth is dropped; 98.7% of the clusters in those words). Mangal draws a conjunct as half-form + letter
+// where the Noto stand-in ligates, so a flat scale cannot match it (375919ba's N-NA: Mangal 1.20 em).
+
+// (2026-11-14, amd-1: the independent vowels U+0905-0914 are re-read directly (cluster start to the next consonant or space, authored size, median; n >= 8, sd <= 0.005 em); the median correction had left them up to 0.005 em wide, which cost dx2 9baed400 a line.)
+// (2026-11-09, amd-1: widths are linear in the AUTHORED size, not the PDF size (Word writes 11 pt as 11.04); the table was
+// fitted per PDF size, so it ran about 0.4% low. 361 clusters were re-read directly at authored sizes
+// (test/tools/indic-cluster-direct.py with DIRECT_AUTHORED=1; n >= 8, sd <= 0.01 em); every other entry is CORRECTED BY MEDIAN
+// (the old fit x 1.0042, the weighted median of direct/fit over those 361), to be replaced by a direct re-read, or by each
+// entry's own source-size ratio if the fit's provenance is ever kept.)
+enum MangalAdvances {
+    static let advance: [String: Double] = [
+        "\u{930}\u{94D}\u{907}": 0.5445,
+        "\u{901}": 0.0010,
+        "\u{902}": 0.0058,
+        "\u{903}": 0.3033,
+        "\u{905}": 0.7848,
+        "\u{906}": 1.0473,
+        "\u{907}": 0.5455,
+        "\u{908}": 0.5455,
+        "\u{909}": 0.5771,
+        "\u{90A}": 0.7300,
+        "\u{90B}": 0.8676,
+        "\u{90F}": 0.6000,
+        "\u{910}": 0.6000,
+        "\u{911}": 1.0458,
+        "\u{913}": 1.0473,
+        "\u{914}": 1.0490,
+        "\u{915}": 0.7848,
+        "\u{915}\u{93E}": 1.0468,
+        "\u{915}\u{93F}": 1.0990,
+        "\u{915}\u{940}": 1.0448,
+        "\u{915}\u{941}": 0.7855,
+        "\u{915}\u{942}": 0.7855,
+        "\u{915}\u{943}": 0.7855,
+        "\u{915}\u{947}": 0.7838,
+        "\u{915}\u{947}\u{902}": 0.7800,
+        "\u{915}\u{948}": 0.7838,
+        "\u{915}\u{949}": 1.0468,
+        "\u{915}\u{94B}": 1.0473,
+        "\u{915}\u{94B}\u{902}": 1.0449,
+        "\u{915}\u{94D}\u{924}": 1.2982,
+        "\u{915}\u{94D}\u{924}\u{93E}": 1.5537,
+        "\u{915}\u{94D}\u{924}\u{93F}": 1.5997,
+        "\u{915}\u{94D}\u{928}\u{947}": 1.3053,
+        "\u{915}\u{94D}\u{92F}\u{93E}": 1.5697,
+        "\u{915}\u{94D}\u{92F}\u{94B}\u{902}": 1.5697,
+        "\u{915}\u{94D}\u{930}": 0.7848,
+        "\u{915}\u{94D}\u{930}\u{93F}": 1.0990,
+        "\u{915}\u{94D}\u{937}": 0.7949,
+        "\u{915}\u{94D}\u{937}\u{93E}": 1.0569,
+        "\u{915}\u{94D}\u{937}\u{93F}": 1.1026,
+        "\u{915}\u{94D}\u{937}\u{947}": 0.7908,
+        "\u{915}\u{94D}\u{938}": 1.3644,
+        "\u{916}": 0.8370,
+        "\u{916}\u{93E}": 1.0990,
+        "\u{916}\u{93F}": 1.1455,
+        "\u{916}\u{940}": 1.0824,
+        "\u{916}\u{941}": 0.8400,
+        "\u{916}\u{947}": 0.8400,
+        "\u{916}\u{94B}": 1.0990,
+        "\u{916}\u{94D}\u{92F}": 1.3485,
+        "\u{916}\u{94D}\u{92F}\u{93E}": 1.6145,
+        "\u{917}": 0.6982,
+        "\u{917}\u{902}": 0.6982,
+        "\u{917}\u{93E}": 0.9600,
+        "\u{917}\u{93F}": 1.0137,
+        "\u{917}\u{940}": 0.9600,
+        "\u{917}\u{941}": 0.7000,
+        "\u{917}\u{942}": 0.6912,
+        "\u{917}\u{943}": 0.7000,
+        "\u{917}\u{947}": 0.6982,
+        "\u{917}\u{948}": 0.6982,
+        "\u{917}\u{94B}": 0.9600,
+        "\u{917}\u{94B}\u{902}": 0.9529,
+        "\u{917}\u{94D}\u{92F}": 1.1451,
+        "\u{917}\u{94D}\u{930}": 0.6982,
+        "\u{917}\u{94D}\u{930}\u{902}": 0.6970,
+        "\u{917}\u{94D}\u{930}\u{940}": 0.9615,
+        "\u{917}\u{94D}\u{930}\u{947}": 0.6995,
+        "\u{918}": 0.6750,
+        "\u{918}\u{947}": 0.6790,
+        "\u{919}\u{94D}\u{915}": 1.3636,
+        "\u{919}\u{94D}\u{917}": 1.2756,
+        "\u{919}\u{94D}\u{917}\u{94D}\u{930}\u{947}": 1.2650,
+        "\u{91A}": 0.7066,
+        "\u{91A}\u{93E}": 0.9685,
+        "\u{91A}\u{93F}": 1.0200,
+        "\u{91A}\u{940}": 0.9600,
+        "\u{91A}\u{941}": 0.7074,
+        "\u{91A}\u{947}": 0.7091,
+        "\u{91A}\u{94D}\u{91A}": 1.2383,
+        "\u{91A}\u{94D}\u{91A}\u{947}": 1.2408,
+        "\u{91A}\u{94D}\u{92F}\u{93E}": 1.4991,
+        "\u{91B}": 0.7848,
+        "\u{91B}\u{93E}": 1.0468,
+        "\u{91B}\u{93F}": 1.0961,
+        "\u{91B}\u{941}": 0.7855,
+        "\u{91B}\u{94B}": 1.0463,
+        "\u{91C}": 0.7848,
+        "\u{91C}\u{93E}": 1.0468,
+        "\u{91C}\u{93F}": 1.0971,
+        "\u{91C}\u{940}": 1.0428,
+        "\u{91C}\u{941}": 0.7855,
+        "\u{91C}\u{942}": 0.7827,
+        "\u{91C}\u{947}": 0.7848,
+        "\u{91C}\u{948}": 0.7800,
+        "\u{91C}\u{94B}": 1.0448,
+        "\u{91C}\u{94D}\u{91E}": 0.8066,
+        "\u{91C}\u{94D}\u{91E}\u{93E}": 1.0679,
+        "\u{91C}\u{94D}\u{92F}": 1.3070,
+        "\u{91D}": 0.8390,
+        "\u{91D}\u{93E}": 1.1010,
+        "\u{91E}\u{94D}\u{91A}\u{93E}": 1.5125,
+        "\u{91F}": 0.5761,
+        "\u{91F}\u{93E}": 0.8306,
+        "\u{91F}\u{93F}": 0.8932,
+        "\u{91F}\u{940}": 0.8400,
+        "\u{91F}\u{941}": 0.5782,
+        "\u{91F}\u{947}": 0.5771,
+        "\u{91F}\u{948}": 0.5705,
+        "\u{91F}\u{94B}": 0.8380,
+        "\u{91F}\u{94B}\u{902}": 0.8207,
+        "\u{91F}\u{94C}": 0.8380,
+        "\u{91F}\u{94C}\u{901}": 0.8380,
+        "\u{91F}\u{94D}\u{91F}\u{948}": 0.9606,
+        "\u{91F}\u{94D}\u{930}\u{947}": 0.5716,
+        "\u{920}": 0.6303,
+        "\u{920}\u{93E}": 0.8900,
+        "\u{920}\u{93F}": 0.9484,
+        "\u{920}\u{940}": 0.8900,
+        "\u{920}\u{947}": 0.6290,
+        "\u{920}\u{94D}\u{92F}": 1.3091,
+        "\u{921}": 0.5455,
+        "\u{921}\u{93C}": 0.5430,
+        "\u{921}\u{93C}\u{93E}": 0.7880,
+        "\u{921}\u{93C}\u{940}": 0.8041,
+        "\u{921}\u{93C}\u{947}": 0.5476,
+        "\u{921}\u{93E}": 0.8079,
+        "\u{921}\u{93F}": 0.8618,
+        "\u{921}\u{940}": 0.8073,
+        "\u{921}\u{947}": 0.5455,
+        "\u{922}": 0.5629,
+        "\u{922}\u{93C}": 0.5777,
+        "\u{922}\u{93C}\u{93E}": 0.8380,
+        "\u{922}\u{93E}": 0.8289,
+        "\u{922}\u{93F}": 0.8792,
+        "\u{922}\u{940}": 0.8380,
+        "\u{923}": 0.8059,
+        "\u{923}\u{93E}": 1.0600,
+        "\u{923}\u{93F}": 1.1127,
+        "\u{923}\u{940}": 1.0620,
+        "\u{923}\u{947}": 0.8018,
+        "\u{923}\u{94B}\u{902}": 1.0517,
+        "\u{923}\u{94D}\u{92F}\u{93E}": 1.4600,
+        "\u{924}": 0.6669,
+        "\u{924}\u{902}": 0.6690,
+        "\u{924}\u{903}": 0.9727,
+        "\u{924}\u{93E}": 0.9273,
+        "\u{924}\u{93F}": 0.9816,
+        "\u{924}\u{940}": 0.9294,
+        "\u{924}\u{941}": 0.6700,
+        "\u{924}\u{942}": 0.6700,
+        "\u{924}\u{943}": 0.6655,
+        "\u{924}\u{947}": 0.6674,
+        "\u{924}\u{947}\u{902}": 0.6604,
+        "\u{924}\u{948}": 0.6674,
+        "\u{924}\u{94B}": 0.9273,
+        "\u{924}\u{94B}\u{902}": 0.9089,
+        "\u{924}\u{94D}\u{915}\u{943}": 1.2300,
+        "\u{924}\u{94D}\u{924}": 0.6300,
+        "\u{924}\u{94D}\u{924}\u{93E}": 0.8875,
+        "\u{924}\u{94D}\u{924}\u{93F}": 0.9382,
+        "\u{924}\u{94D}\u{925}": 1.1400,
+        "\u{924}\u{94D}\u{92A}\u{93E}": 1.3007,
+        "\u{924}\u{94D}\u{92E}": 1.1633,
+        "\u{924}\u{94D}\u{92E}\u{93F}": 1.4800,
+        "\u{924}\u{94D}\u{92F}": 1.1127,
+        "\u{924}\u{94D}\u{92F}\u{902}": 1.1165,
+        "\u{924}\u{94D}\u{92F}\u{93E}": 1.3800,
+        "\u{924}\u{94D}\u{930}": 0.5747,
+        "\u{924}\u{94D}\u{930}\u{93E}": 0.8370,
+        "\u{924}\u{94D}\u{930}\u{93F}": 0.8880,
+        "\u{924}\u{94D}\u{930}\u{940}": 0.8311,
+        "\u{924}\u{94D}\u{930}\u{948}": 0.5771,
+        "\u{924}\u{94D}\u{930}\u{94B}\u{902}": 0.8304,
+        "\u{924}\u{94D}\u{935}": 1.0364,
+        "\u{924}\u{94D}\u{935}\u{93E}": 1.3020,
+        "\u{925}": 0.7040,
+        "\u{925}\u{93E}": 0.9685,
+        "\u{925}\u{93F}": 1.0223,
+        "\u{925}\u{940}": 0.9131,
+        "\u{925}\u{941}": 0.7091,
+        "\u{925}\u{947}": 0.7017,
+        "\u{925}\u{948}": 0.6908,
+        "\u{925}\u{94B}": 0.9685,
+        "\u{925}\u{94D}\u{92F}\u{93E}": 1.4824,
+        "\u{926}": 0.5761,
+        "\u{926}\u{93E}": 0.8380,
+        "\u{926}\u{93F}": 0.8832,
+        "\u{926}\u{940}": 0.8332,
+        "\u{926}\u{941}": 0.5782,
+        "\u{926}\u{942}": 0.5760,
+        "\u{926}\u{943}": 0.5700,
+        "\u{926}\u{947}": 0.5771,
+        "\u{926}\u{948}": 0.5747,
+        "\u{926}\u{94B}": 0.8380,
+        "\u{926}\u{94B}\u{902}": 0.8265,
+        "\u{926}\u{94D}\u{927}": 1.2461,
+        "\u{926}\u{94D}\u{927}\u{93F}": 1.5857,
+        "\u{926}\u{94D}\u{92F}": 1.2480,
+        "\u{926}\u{94D}\u{92F}\u{93E}": 1.5185,
+        "\u{926}\u{94D}\u{92F}\u{94B}": 1.5132,
+        "\u{926}\u{94D}\u{930}": 0.5700,
+        "\u{926}\u{94D}\u{930}\u{93F}": 0.8932,
+        "\u{926}\u{94D}\u{935}\u{93E}": 1.4315,
+        "\u{927}": 0.7029,
+        "\u{927}\u{93E}": 0.9685,
+        "\u{927}\u{93F}": 1.0145,
+        "\u{927}\u{940}": 0.9591,
+        "\u{927}\u{941}": 0.7091,
+        "\u{927}\u{94D}\u{92F}": 1.2218,
+        "\u{927}\u{94D}\u{92F}\u{93E}": 1.4836,
+        "\u{927}\u{94D}\u{92F}\u{947}": 1.2230,
+        "\u{928}": 0.6764,
+        "\u{928}\u{903}": 0.9663,
+        "\u{928}\u{93E}": 0.9382,
+        "\u{928}\u{93F}": 0.9927,
+        "\u{928}\u{940}": 0.9384,
+        "\u{928}\u{941}": 0.6764,
+        "\u{928}\u{942}": 0.6764,
+        "\u{928}\u{947}": 0.6764,
+        "\u{928}\u{948}": 0.6765,
+        "\u{928}\u{94B}\u{902}": 0.9399,
+        "\u{928}\u{94C}": 0.9382,
+        "\u{928}\u{94D}\u{91C}\u{940}": 1.5436,
+        "\u{928}\u{94D}\u{921}\u{941}": 1.0691,
+        "\u{928}\u{94D}\u{924}": 1.1891,
+        "\u{928}\u{94D}\u{926}\u{93E}": 1.3636,
+        "\u{928}\u{94D}\u{926}\u{94D}\u{930}": 1.0990,
+        "\u{928}\u{94D}\u{927}\u{93E}": 1.4945,
+        "\u{928}\u{94D}\u{927}\u{93F}": 1.5429,
+        "\u{928}\u{94D}\u{927}\u{940}": 1.4914,
+        "\u{928}\u{94D}\u{928}": 1.2007,
+        "\u{928}\u{94D}\u{928}\u{93E}": 1.4603,
+        "\u{928}\u{94D}\u{92F}": 1.1990,
+        "\u{928}\u{94D}\u{92F}\u{942}": 1.2000,
+        "\u{928}\u{94D}\u{935}": 1.1251,
+        "\u{928}\u{94D}\u{935}\u{947}\u{902}": 1.1234,
+        "\u{928}\u{94D}\u{938}\u{93F}": 1.5697,
+        "\u{928}\u{94D}\u{939}\u{947}\u{902}": 1.0660,
+        "\u{928}\u{94D}\u{939}\u{94B}\u{902}": 1.3308,
+        "\u{92A}": 0.6000,
+        "\u{92A}\u{93E}": 0.8618,
+        "\u{92A}\u{93F}": 0.9163,
+        "\u{92A}\u{940}": 0.8610,
+        "\u{92A}\u{941}": 0.6000,
+        "\u{92A}\u{942}": 0.6000,
+        "\u{92A}\u{947}": 0.6017,
+        "\u{92A}\u{948}": 0.5940,
+        "\u{92A}\u{94B}": 0.8618,
+        "\u{92A}\u{94C}": 0.8618,
+        "\u{92A}\u{94D}\u{924}": 1.1100,
+        "\u{92A}\u{94D}\u{930}": 0.6000,
+        "\u{92A}\u{94D}\u{930}\u{93E}": 0.8618,
+        "\u{92A}\u{94D}\u{930}\u{93F}": 0.9163,
+        "\u{92A}\u{94D}\u{930}\u{947}": 0.5988,
+        "\u{92A}\u{94D}\u{932}": 1.1773,
+        "\u{92A}\u{94D}\u{932}\u{93E}": 1.4392,
+        "\u{92B}": 0.7848,
+        "\u{92B}\u{93E}": 1.0470,
+        "\u{92B}\u{93F}": 1.0990,
+        "\u{92B}\u{940}": 1.0227,
+        "\u{92B}\u{942}": 0.7855,
+        "\u{92B}\u{947}": 0.7828,
+        "\u{92B}\u{94B}": 1.0468,
+        "\u{92B}\u{94D}\u{928}\u{94B}": 1.5541,
+        "\u{92C}": 0.6000,
+        "\u{92C}\u{902}": 0.5982,
+        "\u{92C}\u{93E}": 0.8618,
+        "\u{92C}\u{93F}": 0.9163,
+        "\u{92C}\u{940}": 0.8625,
+        "\u{92C}\u{941}": 0.6000,
+        "\u{92C}\u{942}": 0.6000,
+        "\u{92C}\u{947}": 0.6022,
+        "\u{92C}\u{948}": 0.6000,
+        "\u{92C}\u{94B}": 0.8618,
+        "\u{92C}\u{94D}\u{927}": 1.1352,
+        "\u{92D}": 0.7309,
+        "\u{92D}\u{93E}": 0.9927,
+        "\u{92D}\u{93F}": 1.0468,
+        "\u{92D}\u{940}": 0.9946,
+        "\u{92D}\u{942}": 0.7320,
+        "\u{92D}\u{94B}": 0.9946,
+        "\u{92D}\u{94C}": 0.9943,
+        "\u{92D}\u{94D}\u{92F}\u{93E}": 1.5100,
+        "\u{92E}": 0.7309,
+        "\u{92E}\u{902}": 0.7300,
+        "\u{92E}\u{93E}": 0.9927,
+        "\u{92E}\u{93F}": 1.0468,
+        "\u{92E}\u{940}": 0.9940,
+        "\u{92E}\u{941}": 0.7309,
+        "\u{92E}\u{942}": 0.7300,
+        "\u{92E}\u{943}": 0.7305,
+        "\u{92E}\u{947}": 0.7309,
+        "\u{92E}\u{947}\u{902}": 0.7311,
+        "\u{92E}\u{948}\u{902}": 0.7296,
+        "\u{92E}\u{94B}": 0.9910,
+        "\u{92E}\u{94B}\u{902}": 0.9770,
+        "\u{92E}\u{94C}": 0.9946,
+        "\u{92E}\u{94D}\u{91D}": 1.4057,
+        "\u{92E}\u{94D}\u{91D}\u{94C}": 1.6771,
+        "\u{92E}\u{94D}\u{924}\u{940}": 1.5055,
+        "\u{92E}\u{94D}\u{928}": 1.2535,
+        "\u{92E}\u{94D}\u{92A}": 1.1782,
+        "\u{92E}\u{94D}\u{92A}\u{93E}": 1.4402,
+        "\u{92E}\u{94D}\u{92A}\u{942}": 1.1673,
+        "\u{92E}\u{94D}\u{92C}": 1.1782,
+        "\u{92E}\u{94D}\u{92D}\u{93E}": 1.5707,
+        "\u{92E}\u{94D}\u{92E}": 1.3091,
+        "\u{92E}\u{94D}\u{92E}\u{93E}": 1.5709,
+        "\u{92E}\u{94D}\u{92E}\u{947}": 1.3091,
+        "\u{92E}\u{94D}\u{935}": 1.1783,
+        "\u{92F}": 0.6764,
+        "\u{92F}\u{902}": 0.6641,
+        "\u{92F}\u{93E}": 0.9382,
+        "\u{92F}\u{93F}": 0.9927,
+        "\u{92F}\u{940}": 0.9364,
+        "\u{92F}\u{941}": 0.6764,
+        "\u{92F}\u{942}": 0.6764,
+        "\u{92F}\u{947}": 0.6792,
+        "\u{92F}\u{94B}": 0.9382,
+        "\u{92F}\u{94B}\u{902}": 0.9420,
+        "\u{92F}\u{94D}\u{92F}": 1.2014,
+        "\u{930}": 0.4691,
+        "\u{930}\u{902}": 0.4691,
+        "\u{930}\u{93E}": 0.7309,
+        "\u{930}\u{93F}": 0.7848,
+        "\u{930}\u{940}": 0.7309,
+        "\u{930}\u{941}": 0.5761,
+        "\u{930}\u{942}": 0.6520,
+        "\u{930}\u{947}": 0.4677,
+        "\u{930}\u{947}\u{902}": 0.4666,
+        "\u{930}\u{94B}": 0.7309,
+        "\u{930}\u{94B}\u{902}": 0.7296,
+        "\u{930}\u{94D}\u{915}": 0.7821,
+        "\u{930}\u{94D}\u{915}\u{94B}": 0.9737,
+        "\u{930}\u{94D}\u{917}": 0.6965,
+        "\u{930}\u{94D}\u{91A}": 0.7019,
+        "\u{930}\u{94D}\u{91A}\u{93E}": 0.9625,
+        "\u{930}\u{94D}\u{91F}": 0.5377,
+        "\u{930}\u{94D}\u{921}": 0.5427,
+        "\u{930}\u{94D}\u{923}": 0.8073,
+        "\u{930}\u{94D}\u{924}": 0.6613,
+        "\u{930}\u{94D}\u{924}\u{93E}": 0.9273,
+        "\u{930}\u{94D}\u{924}\u{93F}": 0.9800,
+        "\u{930}\u{94D}\u{925}": 0.7086,
+        "\u{930}\u{94D}\u{925}\u{93F}": 1.0145,
+        "\u{930}\u{94D}\u{925}\u{940}": 0.9685,
+        "\u{930}\u{94D}\u{925}\u{94D}\u{92F}\u{93E}\u{902}": 1.4900,
+        "\u{930}\u{94D}\u{926}": 0.5708,
+        "\u{930}\u{94D}\u{926}\u{93E}": 0.8260,
+        "\u{930}\u{94D}\u{926}\u{947}": 0.5771,
+        "\u{930}\u{94D}\u{927}\u{93E}": 0.9685,
+        "\u{930}\u{94D}\u{928}": 0.6764,
+        "\u{930}\u{94D}\u{928}\u{941}": 0.6764,
+        "\u{930}\u{94D}\u{928}\u{947}": 0.6754,
+        "\u{930}\u{94D}\u{92B}": 0.7818,
+        "\u{930}\u{94D}\u{92D}": 0.7300,
+        "\u{930}\u{94D}\u{92E}": 0.7306,
+        "\u{930}\u{94D}\u{92E}\u{93E}": 0.9910,
+        "\u{930}\u{94D}\u{92E}\u{93F}": 1.0400,
+        "\u{930}\u{94D}\u{92F}": 0.6754,
+        "\u{930}\u{94D}\u{92F}\u{93E}": 0.9372,
+        "\u{930}\u{94D}\u{935}": 0.5972,
+        "\u{930}\u{94D}\u{935}\u{93E}": 0.8618,
+        "\u{930}\u{94D}\u{936}": 0.7296,
+        "\u{930}\u{94D}\u{936}\u{93E}": 0.9936,
+        "\u{930}\u{94D}\u{937}": 0.5984,
+        "\u{930}\u{94D}\u{937}\u{93F}": 0.9133,
+        "\u{930}\u{94D}\u{938}": 0.7228,
+        "\u{930}\u{94D}\u{938}\u{93E}": 0.9891,
+        "\u{932}": 0.7309,
+        "\u{932}\u{902}": 0.7300,
+        "\u{932}\u{93E}": 0.9927,
+        "\u{932}\u{93F}": 1.0451,
+        "\u{932}\u{940}": 0.9900,
+        "\u{932}\u{941}": 0.7309,
+        "\u{932}\u{942}": 0.7146,
+        "\u{932}\u{947}": 0.7309,
+        "\u{932}\u{949}": 0.9927,
+        "\u{932}\u{94B}": 0.9946,
+        "\u{932}\u{94B}\u{902}": 0.9900,
+        "\u{932}\u{94D}\u{915}": 1.3354,
+        "\u{932}\u{94D}\u{915}\u{93F}": 1.6681,
+        "\u{932}\u{94D}\u{921}": 1.1251,
+        "\u{932}\u{94D}\u{928}\u{947}": 1.2260,
+        "\u{932}\u{94D}\u{92F}": 1.2545,
+        "\u{932}\u{94D}\u{92F}\u{93E}": 1.5164,
+        "\u{932}\u{94D}\u{932}\u{93E}": 1.5707,
+        "\u{932}\u{94D}\u{932}\u{947}": 1.3029,
+        "\u{933}": 0.7810,
+        "\u{933}\u{93E}": 1.0317,
+        "\u{935}": 0.6000,
+        "\u{935}\u{902}": 0.6000,
+        "\u{935}\u{93E}": 0.8618,
+        "\u{935}\u{93F}": 0.9163,
+        "\u{935}\u{940}": 0.8614,
+        "\u{935}\u{941}": 0.6000,
+        "\u{935}\u{943}": 0.6000,
+        "\u{935}\u{947}": 0.6000,
+        "\u{935}\u{948}": 0.6000,
+        "\u{935}\u{94B}\u{902}": 0.8397,
+        "\u{935}\u{94D}\u{92F}": 1.1236,
+        "\u{935}\u{94D}\u{92F}\u{902}": 1.1251,
+        "\u{935}\u{94D}\u{92F}\u{93E}": 1.3870,
+        "\u{936}": 0.7309,
+        "\u{936}\u{93E}": 0.9927,
+        "\u{936}\u{93F}": 1.0458,
+        "\u{936}\u{940}": 0.9938,
+        "\u{936}\u{941}": 0.7309,
+        "\u{936}\u{947}": 0.7309,
+        "\u{936}\u{948}": 0.7309,
+        "\u{936}\u{94B}": 0.9927,
+        "\u{936}\u{94D}\u{924}": 1.1060,
+        "\u{936}\u{94D}\u{928}": 1.1344,
+        "\u{936}\u{94D}\u{92F}": 1.1455,
+        "\u{936}\u{94D}\u{930}": 0.7066,
+        "\u{936}\u{94D}\u{930}\u{940}": 0.9700,
+        "\u{936}\u{94D}\u{935}": 1.0691,
+        "\u{936}\u{94D}\u{935}\u{93E}": 1.3160,
+        "\u{937}": 0.6000,
+        "\u{937}\u{93E}": 0.8610,
+        "\u{937}\u{93F}": 0.9120,
+        "\u{937}\u{947}": 0.6000,
+        "\u{937}\u{94D}\u{92A}": 1.0590,
+        "\u{937}\u{94D}\u{91F}": 1.0183,
+        "\u{937}\u{94D}\u{91F}\u{93F}": 1.3388,
+        "\u{937}\u{94D}\u{91F}\u{940}": 1.2710,
+        "\u{937}\u{94D}\u{91F}\u{941}": 1.0145,
+        "\u{937}\u{94D}\u{91F}\u{94D}\u{930}\u{93E}": 1.2764,
+        "\u{937}\u{94D}\u{91F}\u{94D}\u{930}\u{940}": 1.2873,
+        "\u{937}\u{94D}\u{920}": 1.0690,
+        "\u{937}\u{94D}\u{920}\u{93E}": 1.3300,
+        "\u{937}\u{94D}\u{923}": 1.2400,
+        "\u{937}\u{94D}\u{92F}": 1.0956,
+        "\u{938}": 0.7309,
+        "\u{938}\u{902}": 0.7309,
+        "\u{938}\u{93E}": 0.9927,
+        "\u{938}\u{93F}": 1.0468,
+        "\u{938}\u{940}": 0.9927,
+        "\u{938}\u{941}": 0.7309,
+        "\u{938}\u{942}": 0.7309,
+        "\u{938}\u{943}": 0.7309,
+        "\u{938}\u{947}": 0.7309,
+        "\u{938}\u{94B}": 0.9927,
+        "\u{938}\u{94C}\u{902}": 0.9910,
+        "\u{938}\u{94D}\u{915}": 1.3609,
+        "\u{938}\u{94D}\u{915}\u{943}": 1.3500,
+        "\u{938}\u{94D}\u{91F}": 1.1552,
+        "\u{938}\u{94D}\u{924}": 1.2400,
+        "\u{938}\u{94D}\u{924}\u{93E}": 1.5055,
+        "\u{938}\u{94D}\u{924}\u{93F}": 1.5514,
+        "\u{938}\u{94D}\u{924}\u{941}": 1.2400,
+        "\u{938}\u{94D}\u{924}\u{94D}\u{930}": 1.1443,
+        "\u{938}\u{94D}\u{925}": 1.2758,
+        "\u{938}\u{94D}\u{925}\u{93E}": 1.5424,
+        "\u{938}\u{94D}\u{925}\u{93F}": 1.5896,
+        "\u{938}\u{94D}\u{928}\u{947}": 1.2145,
+        "\u{938}\u{94D}\u{92A}": 1.1782,
+        "\u{938}\u{94D}\u{92F}": 1.2545,
+        "\u{938}\u{94D}\u{92F}\u{93E}": 1.5185,
+        "\u{938}\u{94D}\u{930}\u{94B}": 0.9902,
+        "\u{938}\u{94D}\u{935}": 1.1700,
+        "\u{938}\u{94D}\u{935}\u{940}": 1.4400,
+        "\u{939}": 0.5455,
+        "\u{939}\u{902}": 0.5450,
+        "\u{939}\u{93E}": 0.8073,
+        "\u{939}\u{93F}": 0.8618,
+        "\u{939}\u{940}": 0.8071,
+        "\u{939}\u{941}": 0.5455,
+        "\u{939}\u{947}": 0.5450,
+        "\u{939}\u{947}\u{901}": 0.5450,
+        "\u{939}\u{948}": 0.5448,
+        "\u{939}\u{948}\u{902}": 0.5436,
+        "\u{939}\u{94B}": 0.8069,
+        "\u{939}\u{94D}\u{928}": 1.2007,
+        "\u{939}\u{94D}\u{935}\u{93E}": 1.4082,
+        "\u{93E}": -0.0042,
+        "\u{940}": -0.0036,
+        "\u{941}": 0.0797,
+        "\u{95B}": 0.7855,
+        "\u{964}": 0.4166,
+        "\u{966}": 0.5240,
+        "\u{967}": 0.5226,
+        "\u{968}": 0.5219,
+        "\u{969}": 0.5202,
+        "\u{96A}": 0.5210,
+        "\u{96B}": 0.5191,
+        "\u{96C}": 0.5197,
+        "\u{96D}": 0.5213,
+        "\u{96E}": 0.5214,
+        "\u{96F}": 0.5210,
+        "\u{915}\u{902}": 0.7789,
+        "\u{915}\u{94C}": 1.0474,
+        "\u{915}\u{94D}\u{915}": 1.4021,
+        "\u{915}\u{94D}\u{91F}": 1.1992,
+        "\u{915}\u{94D}\u{91F}\u{942}": 1.2055,
+        "\u{915}\u{94D}\u{91F}\u{947}": 1.1992,
+        "\u{915}\u{94D}\u{92F}": 1.3091,
+        "\u{915}\u{94D}\u{930}\u{940}": 1.0473,
+        "\u{915}\u{94D}\u{930}\u{94B}": 1.0468,
+        "\u{915}\u{94D}\u{937}\u{940}": 1.0504,
+        "\u{917}\u{94D}\u{928}": 1.1448,
+        "\u{917}\u{94D}\u{930}\u{93E}": 0.9615,
+        "\u{917}\u{94D}\u{930}\u{93F}": 1.0137,
+        "\u{918}\u{93E}": 0.9352,
+        "\u{918}\u{93F}": 0.9889,
+        "\u{918}\u{94B}": 0.9384,
+        "\u{91A}\u{94B}": 0.9709,
+        "\u{91A}\u{94C}": 0.9600,
+        "\u{91A}\u{94D}\u{91A}\u{93E}": 1.5130,
+        "\u{91A}\u{94D}\u{91B}\u{93E}": 1.5927,
+        "\u{91B}\u{940}": 1.0473,
+        "\u{91B}\u{948}": 0.7855,
+        "\u{91C}\u{947}\u{902}": 0.7809,
+        "\u{91C}\u{94D}\u{92F}\u{93E}": 1.5690,
+        "\u{91C}\u{94D}\u{92F}\u{942}": 1.3091,
+        "\u{91C}\u{94D}\u{92F}\u{94B}": 1.5697,
+        "\u{91C}\u{94D}\u{930}": 0.7848,
+        "\u{91D}\u{940}": 1.0906,
+        "\u{91D}\u{941}": 0.8400,
+        "\u{91D}\u{947}": 0.8400,
+        "\u{91D}\u{94D}\u{926}": 1.2500,
+        "\u{91F}\u{942}": 0.5782,
+        "\u{91F}\u{94D}\u{92F}\u{93E}": 1.5185,
+        "\u{91F}\u{94D}\u{930}\u{93F}": 0.8874,
+        "\u{920}\u{902}": 0.6345,
+        "\u{921}\u{942}": 0.5400,
+        "\u{921}\u{94D}\u{930}\u{93E}": 0.8073,
+        "\u{922}\u{902}": 0.5747,
+        "\u{922}\u{947}": 0.5771,
+        "\u{923}\u{942}": 0.8000,
+        "\u{923}\u{94D}\u{91F}\u{93F}": 1.4182,
+        "\u{923}\u{94D}\u{921}\u{93F}": 1.3830,
+        "\u{924}\u{94C}": 0.9294,
+        "\u{924}\u{94D}\u{915}\u{93E}": 1.4828,
+        "\u{924}\u{94D}\u{92A}": 1.0390,
+        "\u{924}\u{94D}\u{92F}\u{93E}\u{902}": 1.3800,
+        "\u{924}\u{94D}\u{92F}\u{947}": 1.1100,
+        "\u{924}\u{94D}\u{930}\u{93E}\u{902}": 0.8310,
+        "\u{924}\u{94D}\u{938}": 1.1690,
+        "\u{924}\u{94D}\u{938}\u{93E}": 1.4232,
+        "\u{926}\u{94C}": 0.8380,
+        "\u{926}\u{94D}\u{926}\u{93E}": 1.4160,
+        "\u{926}\u{94D}\u{927}\u{93E}\u{902}": 1.5369,
+        "\u{926}\u{94D}\u{92D}\u{941}": 1.3000,
+        "\u{926}\u{94D}\u{92F}\u{941}": 1.2600,
+        "\u{926}\u{94D}\u{930}\u{940}": 0.8316,
+        "\u{926}\u{94D}\u{935}": 1.1783,
+        "\u{926}\u{94D}\u{935}\u{93F}": 1.4954,
+        "\u{927}\u{94B}": 0.9591,
+        "\u{927}\u{94D}\u{935}": 1.1374,
+        "\u{928}\u{94B}": 0.9364,
+        "\u{928}\u{94D}\u{91B}": 1.3086,
+        "\u{928}\u{94D}\u{91C}": 1.3077,
+        "\u{928}\u{94D}\u{91F}": 1.0990,
+        "\u{928}\u{94D}\u{924}\u{93E}": 1.4455,
+        "\u{928}\u{94D}\u{924}\u{93F}": 1.4964,
+        "\u{928}\u{94D}\u{924}\u{941}": 1.1891,
+        "\u{928}\u{94D}\u{924}\u{94D}\u{930}": 1.1018,
+        "\u{928}\u{94D}\u{924}\u{94D}\u{930}\u{93E}": 1.3529,
+        "\u{928}\u{94D}\u{924}\u{94D}\u{930}\u{93F}": 1.4073,
+        "\u{928}\u{94D}\u{925}": 1.2327,
+        "\u{928}\u{94D}\u{926}": 1.0909,
+        "\u{928}\u{94D}\u{926}\u{93F}": 1.4171,
+        "\u{928}\u{94D}\u{926}\u{94D}\u{930}\u{93F}": 1.4051,
+        "\u{928}\u{94D}\u{926}\u{94D}\u{930}\u{940}": 1.3623,
+        "\u{928}\u{94D}\u{927}": 1.2295,
+        "\u{928}\u{94D}\u{92F}\u{93E}": 1.4618,
+        "\u{928}\u{94D}\u{92F}\u{94C}": 1.4623,
+        "\u{92A}\u{902}": 0.6000,
+        "\u{92A}\u{94D}\u{92A}\u{93E}": 1.3000,
+        "\u{92A}\u{94D}\u{92A}\u{94D}\u{92F}\u{93E}": 1.8240,
+        "\u{92A}\u{94D}\u{930}\u{94B}": 0.8641,
+        "\u{92B}\u{901}": 0.7855,
+        "\u{92B}\u{941}": 0.7855,
+        "\u{92B}\u{948}": 0.7832,
+        "\u{92B}\u{94C}": 1.0368,
+        "\u{92B}\u{94D}\u{92F}\u{93E}": 1.5586,
+        "\u{92B}\u{94D}\u{932}\u{947}": 1.3639,
+        "\u{92C}\u{948}\u{902}": 0.5992,
+        "\u{92C}\u{94D}\u{926}": 1.0110,
+        "\u{92C}\u{94D}\u{930}\u{93E}": 0.8626,
+        "\u{92D}\u{941}": 0.7309,
+        "\u{92D}\u{947}": 0.7309,
+        "\u{92D}\u{94D}\u{930}": 0.7309,
+        "\u{92E}\u{948}": 0.7196,
+        "\u{92E}\u{949}": 0.9946,
+        "\u{92E}\u{94D}\u{924}\u{93F}": 1.5496,
+        "\u{92E}\u{94D}\u{928}\u{93E}": 1.5164,
+        "\u{92E}\u{94D}\u{92A}\u{94D}\u{92F}\u{941}": 1.6909,
+        "\u{92E}\u{94D}\u{92F}\u{93E}": 1.5106,
+        "\u{92E}\u{94D}\u{938}\u{93E}": 1.5708,
+        "\u{92E}\u{94D}\u{939}": 1.1200,
+        "\u{92F}\u{94C}": 0.9382,
+        "\u{930}\u{94D}\u{915}\u{93F}": 1.0945,
+        "\u{930}\u{94D}\u{917}\u{93E}": 0.9580,
+        "\u{930}\u{94D}\u{918}": 0.6780,
+        "\u{930}\u{94D}\u{91B}\u{94D}\u{92F}\u{94C}": 1.7236,
+        "\u{930}\u{94D}\u{91C}": 0.7855,
+        "\u{930}\u{94D}\u{91C}\u{93F}": 1.1010,
+        "\u{930}\u{94D}\u{91C}\u{941}": 0.7855,
+        "\u{930}\u{94D}\u{91C}\u{94D}\u{92F}\u{93E}": 1.5697,
+        "\u{930}\u{94D}\u{921}\u{947}": 0.5440,
+        "\u{930}\u{94D}\u{923}\u{93E}": 1.0659,
+        "\u{930}\u{94D}\u{925}\u{93E}": 0.9653,
+        "\u{930}\u{94D}\u{926}\u{93F}": 0.8922,
+        "\u{930}\u{94D}\u{92A}": 0.5972,
+        "\u{930}\u{94D}\u{92F}\u{94B}": 1.6138,
+        "\u{930}\u{94D}\u{935}\u{947}": 0.6011,
+        "\u{930}\u{94D}\u{935}\u{94B}": 0.8574,
+        "\u{932}\u{94C}": 0.9949,
+        "\u{932}\u{94C}\u{901}": 0.9946,
+        "\u{932}\u{94D}\u{92A}": 1.1680,
+        "\u{932}\u{94D}\u{92A}\u{93F}": 1.4824,
+        "\u{932}\u{94D}\u{92D}\u{93F}": 1.6232,
+        "\u{932}\u{94D}\u{92F}\u{93E}\u{902}": 1.5164,
+        "\u{932}\u{94D}\u{932}\u{902}": 1.3058,
+        "\u{935}\u{94B}": 0.8641,
+        "\u{935}\u{94D}\u{92F}\u{942}": 1.1200,
+        "\u{935}\u{94D}\u{930}": 0.6000,
+        "\u{935}\u{94D}\u{932}\u{947}": 1.1773,
+        "\u{935}\u{94D}\u{939}\u{93E}": 1.2545,
+        "\u{936}\u{94C}": 0.9816,
+        "\u{936}\u{94D}\u{915}\u{93F}": 1.5655,
+        "\u{936}\u{94D}\u{91A}\u{93F}": 1.4836,
+        "\u{936}\u{94D}\u{930}\u{93E}": 0.9685,
+        "\u{936}\u{94D}\u{930}\u{947}": 0.6985,
+        "\u{936}\u{94D}\u{930}\u{94B}": 0.9600,
+        "\u{936}\u{94D}\u{932}\u{947}": 1.2000,
+        "\u{937}\u{94D}\u{915}": 1.2247,
+        "\u{938}\u{901}": 0.7309,
+        "\u{938}\u{947}\u{902}": 0.7327,
+        "\u{938}\u{948}": 0.7309,
+        "\u{938}\u{94D}\u{915}\u{941}": 1.3500,
+        "\u{938}\u{94D}\u{915}\u{942}": 1.3636,
+        "\u{938}\u{94D}\u{915}\u{94B}": 1.6138,
+        "\u{938}\u{94D}\u{91F}\u{93F}": 1.4500,
+        "\u{938}\u{94D}\u{924}\u{902}": 1.2395,
+        "\u{938}\u{94D}\u{924}\u{943}": 1.2380,
+        "\u{938}\u{94D}\u{924}\u{94D}\u{930}\u{94B}": 1.4076,
+        "\u{938}\u{94D}\u{925}\u{93E}\u{902}": 1.5310,
+        "\u{938}\u{94D}\u{928}\u{93E}": 1.5185,
+        "\u{938}\u{94D}\u{92B}\u{94B}": 1.6205,
+        "\u{938}\u{94D}\u{92F}\u{940}": 1.5164,
+        "\u{938}\u{94D}\u{935}\u{93E}": 1.4402,
+        "\u{938}\u{94D}\u{935}\u{947}": 1.1782,
+        "\u{939}\u{901}": 0.5455,
+        "\u{939}\u{94B}\u{902}": 0.8028,
+    ]
+
+    /// Mangal's ASCII punctuation and digits (hmtx of the subsets in Word's print, 7756e774): a run flagged `w:cs` draws them in Mangal too.
+    static let ascii: [String: Double] = [
+        ".": 0.288, ",": 0.288, "!": 0.288, "/": 0.288, "-": 0.345,
+        "0": 0.576, "1": 0.576, "2": 0.576, "3": 0.576, "4": 0.576, "5": 0.576, "6": 0.576, "7": 0.576, "8": 0.576, "9": 0.576,
+        // Latin letters and brackets in Mangal (Mangal_Regular hmtx; Word draws Latin of a missing Bengali face in Mangal, xd 73caaeda).
+        "(": 0.345, ")": 0.345, ":": 0.288, ";": 0.288, "?": 0.576, "A": 0.691, "B": 0.691, "C": 0.748, "D": 0.748, "E": 0.691, "F": 0.633, "G": 0.806, "H": 0.748, "I": 0.288, "J": 0.518, "K": 0.691, "L": 0.576, "M": 0.864, "N": 0.748, "O": 0.806, "P": 0.691, "Q": 0.806, "R": 0.748, "S": 0.691, "T": 0.633, "U": 0.748, "V": 0.691, "W": 0.978, "X": 0.691, "Y": 0.691, "Z": 0.633, "a": 0.576, "b": 0.576, "c": 0.518, "d": 0.576, "e": 0.576, "f": 0.288, "g": 0.576, "h": 0.576, "i": 0.236, "j": 0.236, "k": 0.518, "l": 0.236, "m": 0.864, "n": 0.576, "o": 0.576, "p": 0.576, "q": 0.576, "r": 0.345, "s": 0.518, "t": 0.288, "u": 0.576, "v": 0.518, "w": 0.748, "x": 0.518, "y": 0.518, "z": 0.518,
+    ]
+
+    /// Mangal Bold, the same fit on 1,729 words (rms 0.015 em; 97.8% of the clusters).
+
+    static func isConsonant(_ v: UInt32) -> Bool { (0x915 ... 0x939).contains(v) || (0x958 ... 0x95F).contains(v) }
+    static func isMatra(_ v: UInt32) -> Bool {
+        (0x93E ... 0x94C).contains(v) || v == 0x945 || v == 0x946 || v == 0x949 || v == 0x94A || v == 0x962 || v == 0x963 || v == 0x901 || v == 0x902 || v == 0x903
+    }
+
+    /// The width in em of the word's clusters that the table has, and the characters of those clusters (`known`), `rest` where some are not.
+    /// An unlisted conjunct (C + virama + the rest): Mangal draws a half form and then the rest, about 0.85 of the parts' sum
+    /// (median over the 180 listed conjuncts whose parts are listed too; the Noto stand-in ligates and comes out far narrower).
+    static func conjunct(_ k: ArraySlice<Unicode.Scalar>, table: [String: Double]? = nil, ratio: Double? = 0.85) -> Double? {
+        guard let ratio else { return nil }
+        let advance = table ?? Self.advance
+        guard k.count > 2, isConsonant(k[k.startIndex].value) else { return nil }
+        var v = k.startIndex + 1
+        if k[v].value == 0x93C { v += 1 }
+        guard v + 1 < k.endIndex, k[v].value == 0x94D else { return nil }
+        var head = String.UnicodeScalarView()
+        head.append(contentsOf: k[k.startIndex ..< v])
+        let tail = k[(v + 1)...]
+        // Ligature forms (reph, rakar, kssa, jna, tra, shra) are one glyph in Mangal too: the stand-in's own width fits them.
+        if k[k.startIndex].value == 0x930 || tail[tail.startIndex].value == 0x930 { return nil }
+        if (k[k.startIndex].value == 0x915 && tail[tail.startIndex].value == 0x937) || (k[k.startIndex].value == 0x91C && tail[tail.startIndex].value == 0x91E) { return nil }
+        // A conjunct that carries a vowel sign is its listed stem plus the sign's own step (the same consonant's advance with and without the sign):
+        // over the 123 listed C+virama+C+sign clusters whose stem is listed, that reads -0.005 em on average (the 0.85 ratio: +0.07 em, up to 0.47).
+        // 55850db1's 'त्यस्तो' was 1.1 pt short with स्तो at 0.85 x (स + तो).
+        if k.count >= 4, isMatra(k[k.endIndex - 1].value), isConsonant(k[k.endIndex - 2].value), k[k.endIndex - 3].value == 0x94D,
+           let stem = advance[String(String.UnicodeScalarView(k.dropLast()))],
+           let withSign = advance[String(String.UnicodeScalarView(k[(k.endIndex - 2)...]))],
+           let plain = advance[String(String.UnicodeScalarView(k[(k.endIndex - 2) ..< (k.endIndex - 1)]))] {
+            return stem + withSign - plain
+        }
+        guard let a = advance[String(head)], let b = advance[String(String.UnicodeScalarView(tail))] ?? conjunct(tail, table: table, ratio: ratio) else { return nil }
+        // द, ठ and ह have no half form in Mangal: the virama stays visible and the head keeps its full advance, so the conjunct is the plain sum
+        // (the listed conjuncts of these heads read 0.999 x (a + b) over 11 द, 0.99 over 2 ह, 1.00 for ठ; the others 0.83-0.91). 55850db1 'परिषद्ले' was 2 pt short.
+        let h = k[k.startIndex].value
+        let full = h == 0x926 || h == 0x920 || h == 0x939
+        return (full ? 1.0 : ratio) * (a + b)
+    }
+
+    /// Block-aware cluster tests (consonants +0x15...+0x39, nukta +0x3C, matras +0x3E...+0x4C and +0x01...+0x03, +0x62/+0x63, virama +0x4D);
+    /// for the Devanagari block they equal `isConsonant`/`isMatra` above.
+    static func isConsonant(_ v: UInt32, block b: UInt32) -> Bool { (b + 0x15 ... b + 0x39).contains(v) || (b == 0x900 && (0x958 ... 0x95F).contains(v)) }
+    static func isMatra(_ v: UInt32, block b: UInt32) -> Bool { (b + 0x3E ... b + 0x4C).contains(v) || (b + 0x01 ... b + 0x03).contains(v) || v == b + 0x62 || v == b + 0x63 }
+
+    /// Mangal: a cluster that ends in an anusvara or candrabindu and is not listed is its cluster without the mark plus the mark's own (tiny) advance:
+    /// the table's "सं" reads 0.7309 against स 0.7309 (920 samples), so "भों" is "भो" (2db27e2d's "संदर्भों").
+    @inline(never)
+    static func _nasalOn(_ c: ArraySlice<Unicode.Scalar>, _ table: [String: Double], _ block: UInt32, mangal: Bool) -> Double? {
+        guard block == 0x900, mangal, c.count > 1, let last = c.last, last.value == 0x901 || last.value == 0x902 else { return nil }
+        var key = String.UnicodeScalarView()
+        key.append(contentsOf: c.dropLast())
+        var withReph: Double? = nil
+        if let base = table[String(key)] { withReph = base }
+        else if let r = _bengaliReph(c.dropLast(), table, block, mangal: true) { withReph = r }
+        guard let w = withReph, let m = table[String(last)] else { return nil }
+        return w + m
+    }
+
+    /// Bengali: Word draws a reph cluster (র্ + base) at the base cluster's own advance (the reph is a zero-advance mark): 40 clusters read
+    /// directly from Word's prints agree with their base within 0.01 em (test/tools/indic-cluster-direct-bn.py).
+    @inline(never)
+    static func _bengaliReph(_ c: ArraySlice<Unicode.Scalar>, _ table: [String: Double], _ block: UInt32, mangal: Bool = false) -> Double? {
+        // (Devanagari too: a reph cluster is drawn at its base cluster's own advance, 48 clusters read directly from Word's Mangal prints
+        // agree with their base to a median 0.000 em; 2db27e2d's "संदर्भों" was 0.76 pt wide.)
+        guard block == 0x980 || (block == 0x900 && mangal), c.count > 2, c[c.startIndex].value == block + 0x30, c[c.startIndex + 1].value == block + 0x4D else { return nil }
+        var key = String.UnicodeScalarView()
+        key.append(contentsOf: c.dropFirst(2))
+        return table[String(key)]
+    }
+    /// Nirmala UI Bengali: the below-vowels u, uu and vocalic r (U+09C1 to U+09C3) add no advance to their cluster (35 listed pairs differ from their stem by 0.00 em, median),
+    /// so an unlisted "ক্ষু" stands at "ক্ষ" (dx2 bea98273's "চাক্ষুষ": 26.4 pt in Word, 25.4 before).
+    @inline(never)
+    static func _bengaliLowVowel(_ c: ArraySlice<Unicode.Scalar>, _ table: [String: Double], _ block: UInt32) -> Double? {
+        guard block == 0x980, c.count > 1, let last = c.last, (0x9C1 ... 0x9C3).contains(last.value) else { return nil }
+        var key = String.UnicodeScalarView()
+        key.append(contentsOf: c.dropLast())
+        let r = table[String(key)]
+        if r != nil { RuleTrace.hit("word-nirmala-bengali-low-vowel-adds-no-advance") }
+        return r
+    }
+    /// Bengali: the two-part vowel signs o (U+09CB) and au (U+09CC) are drawn as the left part (the e sign, U+09C7) before the consonant and the right part
+    /// (aa, U+09BE; the length mark U+09D7 for au) after it, so an unlisted cluster is its stem's advance plus the two parts' (dx2 3f7da49c, Shonar Bangla:
+    /// "দো" 13.1 pt at 14.04, stem 6.0 + 4.6 + 2.5; the 5 listed o-clusters agree with stem + e + aa within 0.02 em).
+    @inline(never)
+    static func _bengaliSplitO(_ c: ArraySlice<Unicode.Scalar>, _ table: [String: Double], _ block: UInt32) -> Double? {
+        guard block == 0x980, c.count > 1, let last = c.last, last.value == 0x9CB || last.value == 0x9CC,
+              let e = table["\u{9C7}"], let right = table[last.value == 0x9CB ? "\u{9BE}" : "\u{9D7}"] else { return nil }
+        var key = String.UnicodeScalarView()
+        key.append(contentsOf: c.dropLast())
+        guard let stem = table[String(key)] ?? _bengaliReph(c.dropLast(), table, block) else { return nil }
+        RuleTrace.hit("word-bengali-split-o-vowel-is-stem-plus-e-plus-aa")
+        return stem + e + right
+    }
+    @inline(never)
+    static func _bengaliSigns(_ c: ArraySlice<Unicode.Scalar>, _ table: [String: Double], _ block: UInt32) -> Double? {
+        if let w = _bengaliSplitO(c, table, block) { return w }
+        return _bengaliLongI(c, table, block)
+    }
+    /// Bengali: the long-i sign (U+09C0) adds the same advance to every consonant it stands on (Shonar Bangla regular: 14 listed pairs between 0.149 and 0.165 em, median 0.155;
+    /// bold 8 pairs 0.175 to 0.207), so an unlisted consonant with it is its listed stem plus the median of its own table's pairs (dx2 3f7da49c's "ধী": 7.5 pt in Word, 8.7 from Noto's sign).
+    @inline(never)
+    static func _bengaliLongI(_ c: ArraySlice<Unicode.Scalar>, _ table: [String: Double], _ block: UInt32) -> Double? {
+        guard block == 0x980, c.count > 1, let last = c.last, last.value == 0x9C0 else { return nil }
+        var key = String.UnicodeScalarView()
+        key.append(contentsOf: c.dropLast())
+        guard let stem = table[String(key)] else { return nil }
+        var diffs: [Double] = []
+        for (k, v) in table {
+            let u = Array(k.unicodeScalars)
+            if u.count == 2, u[1].value == 0x9C0, let s = table[String(u[0])] { diffs.append(v - s) }
+        }
+        guard diffs.count >= 5 else { return nil }
+        diffs.sort()
+        RuleTrace.hit("word-bengali-long-i-adds-its-tables-median-advance")
+        return stem + diffs[diffs.count / 2]
+    }
+    /// A run tagged w:lang w:bidi="sa-IN" is drawn by Word with the stacked (Sanskrit) forms of क्त प्त ष्ट ष्ठ द्द द्ध ट्ट, a single narrow glyph; the
+    /// other languages draw the horizontal ligature in `advance`. em of the authored size, read directly from the print of xd 6be5dbc9
+    /// (every cluster below at least 3 samples but द्ध with 2; the ne-NP क्त of d91478e3 stays 1.298, its sa-IN द्दे is 0.57). A cluster not
+    /// listed whose conjunct IS listed (ष्टि) takes the base's stacked width plus its own matra's advance.
+    static let sanskritStacked: [String: Double] = [
+        "\u{915}\u{94D}\u{924}": 0.807, "\u{92A}\u{94D}\u{924}": 0.653, "\u{937}\u{94D}\u{91F}": 0.600, "\u{937}\u{94D}\u{920}": 0.600,
+        "\u{926}\u{94D}\u{926}": 0.576, "\u{91F}\u{94D}\u{91F}": 0.578, "\u{926}\u{94D}\u{927}": 0.982,
+        "\u{915}\u{94D}\u{924}\u{93F}": 1.124, "\u{937}\u{94D}\u{91F}\u{93E}": 0.860, "\u{926}\u{94D}\u{935}\u{93E}": 0.839,
+    ]
+    static func stackedAdvance(_ key: String, _ advance: [String: Double]) -> Double? {
+        if let w = sanskritStacked[key] { return w }
+        let u = Array(key.unicodeScalars)
+        guard u.count > 3, isConsonant(u[0].value), u[1].value == 0x94D, isConsonant(u[2].value) else { return nil }
+        let base = String(String.UnicodeScalarView(u[0 ..< 3]))
+        guard let s = sanskritStacked[base], let a = advance[base], let b = advance[key], b >= a else { return nil }
+        return s + (b - a)
+    }
+    static func split(_ word: Substring, bold: Bool = false, table: [String: Double]? = nil, conjunctRatio: Double? = 0.85, block: UInt32 = 0x900, lowVowelsZero: Bool = false, stacked: Bool = false) -> (ems: Double, known: String, rest: Bool)? {
+        let advance = table ?? Self.advance
+        let u = Array(word.unicodeScalars)
+        var sum = 0.0, known = String.UnicodeScalarView(), rest = false, any = false
+        var i = 0
+        while i < u.count {
+            var j = i
+            if block == 0x900, u[i].value == 0x930, i + 2 < u.count, u[i + 1].value == 0x94D, (0x905 ... 0x914).contains(u[i + 2].value) {
+                // (Reph over an independent vowel, "र्इ" as Nepali spells "ई": one cluster in Word's print, 0.543 em direct from 38 samples,
+                // where र, virama and इ apart give 1.009: 9baed400's "कार्यालयलार्इ" is 54.3 pt in Word, 59.3 split.)
+                j = i + 3
+            } else if isConsonant(u[i].value, block: block) {
+                while j < u.count, isConsonant(u[j].value, block: block) {
+                    j += 1
+                    if j < u.count, u[j].value == block + 0x3C { j += 1 }
+                    if j + 1 < u.count, u[j].value == block + 0x4D, isConsonant(u[j + 1].value, block: block) { j += 1 } else { break }
+                }
+                while j < u.count, isMatra(u[j].value, block: block) { j += 1 }
+            } else {
+                j = i + 1
+            }
+            var key = String.UnicodeScalarView()
+            key.append(contentsOf: u[i ..< j])
+            if stacked, block == 0x900, let sw = stackedAdvance(String(key), advance) {
+                sum += sw; known.append(contentsOf: u[i ..< j]); any = true; i = j; continue
+            }
+            let kStr = String(key)
+            var direct: Double? = advance[kStr] ?? ascii[kStr]
+            if direct == nil, table == nil, block == 0x900 { direct = MangalWinClusters.regular[kStr] }
+            if let w = direct ?? Self._bengaliReph(u[i ..< j], advance, block, mangal: table == nil) ?? Self._nasalOn(u[i ..< j], advance, block, mangal: table == nil) ?? (lowVowelsZero ? _bengaliLowVowel(u[i ..< j], advance, block) : nil) ?? _bengaliSigns(u[i ..< j], advance, block) ?? conjunct(u[i ..< j], table: table, ratio: conjunctRatio) { sum += w; known.append(contentsOf: u[i ..< j]); any = true } else { rest = true }
+            i = j
+        }
+        return any ? (sum, String(known), rest) : nil
+    }
+}

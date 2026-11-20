@@ -61,6 +61,49 @@ FLUTTER_SWIFT_BRIDGE_EXPORT bool LoadFontFromList(
 FLUTTER_SWIFT_BRIDGE_EXPORT bool LoadFontFromFile(const char* path,
                                                   const char* family_name);
 
+/// LoadFontFromFile for one face of a font COLLECTION (.ttc / .otc): the
+/// face at `face_index`, counted from 0, instead of always the first.
+///
+/// Noto Sans/Serif CJK ship as collections — one file holds SC, TC, JP and KR
+/// — and LoadFontFromFile reads only face 0. The file is mmap'd as there, so
+/// loading all four faces of a 30 MB collection maps it four times over the
+/// same page cache and costs no more memory than once.
+///
+/// @param face_index which face of the file; 0 is LoadFontFromFile's face
+/// @return True if the font was loaded; false for an unreadable file or an
+/// index past the file's last face (no face is registered then)
+///
+/// Probe: `StarlingTextFontFaceIndexSupported` (extern "C"; an engine without
+/// it has no such call and the caller must not link-bind to it).
+FLUTTER_SWIFT_BRIDGE_EXPORT bool LoadFontFromFileFace(const char* path,
+                                                      const char* family_name,
+                                                      int face_index);
+
+/// Takes the system's fonts out of text layout: after this, the families the
+/// app registered (LoadFontFromList / LoadFontFromFile / LoadFontFromFileFace)
+/// are the only fonts the engine's font collection can resolve, and a glyph
+/// none of them has is drawn as missing — never found in a font the machine
+/// happens to have. Without it a character the app's fonts lack is looked up
+/// through the platform (fontconfig, CoreText, DirectWrite), so the same
+/// document lays out differently on a machine with more fonts installed.
+///
+/// What it does: the default font manager of the engine's collection and of
+/// the bridge's own is replaced by an empty one, and the collection's
+/// per-character fallback is turned off. Fonts loaded before or after the
+/// call are kept (they live in the dynamic font manager). Typefaces are still
+/// decoded by the platform manager, so loading keeps working. Idempotent;
+/// the engine's collection is picked up when it exists, now or at its first
+/// font registered later.
+///
+/// Not undone — a process chooses once. Unused by default: an app that never
+/// calls it lays out as it always did.
+///
+/// Probe: `StarlingTextBundledFontsOnlySupported`.
+FLUTTER_SWIFT_BRIDGE_EXPORT void DisableSystemFontFallback();
+
+/// True once DisableSystemFontFallback has been called.
+FLUTTER_SWIFT_BRIDGE_EXPORT bool SystemFontFallbackDisabled();
+
 /// Clears the font family cache.
 ///
 /// This should be called after loading fonts to ensure the paragraph

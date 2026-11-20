@@ -1,5 +1,6 @@
 import XCTest
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 @testable import OfficeApp
 
@@ -20,8 +21,10 @@ final class PainterFixTests: XCTestCase {
         let g = try XCTUnwrap(PptxReader.gradient(XNode.parse(Data(xml.utf8))!, colors: colors))
         XCTAssertEqual(g.path, .circle)
         XCTAssertEqual(g.fillTo.left, 0.5, accuracy: 1e-9)
-        XCTAssertEqual(g.fillTo.top, -0.8, accuracy: 1e-9)
-        XCTAssertEqual(g.fillTo.bottom, -0.8, accuracy: 1e-9, "b=180%: the rect's bottom is 80% above the top")
+        // t -80%, b 180%: a focus outside the shape is drawn from the centre,
+        // as Windows PowerPoint does (e69fefc7a, lo-tdf94238).
+        XCTAssertEqual(g.fillTo.top, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(g.fillTo.bottom, 0.5, accuracy: 1e-9)
         XCTAssertEqual(g.stops.count, 2)
         // A linear one has no path; one with no stops is nothing at all.
         let lin = "<a:gradFill \(ns)><a:gsLst><a:gs pos=\"0\"><a:srgbClr val=\"FFFFFF\"/></a:gs><a:gs pos=\"100000\"><a:srgbClr val=\"000000\"/></a:gs></a:gsLst><a:lin ang=\"2700000\"/></a:gradFill>"
@@ -34,8 +37,11 @@ final class PainterFixTests: XCTestCase {
     /// and one of theme colours under modifiers blends evenly.
     func testAPathGradientStartsWhereItsInsetsBalance() throws {
         let focus = SlidePainter.pathFocus(Rect.fromLTRB(0.65, 0, 1, 0.02))
-        XCTAssertEqual(focus.dx, 1, accuracy: 1e-9)
-        XCTAssertEqual(focus.dy, 0, accuracy: 1e-9)
+        // GeomLec1's rectangle is not a point: Windows PowerPoint prints a
+        // circle round the middle (684080609), where the Mac started at the
+        // top right corner.
+        XCTAssertEqual(focus.dx, 0.5, accuracy: 1e-9)
+        XCTAssertEqual(focus.dy, 0.5, accuracy: 1e-9)
         let point = SlidePainter.pathFocus(Rect.fromLTRB(0.3, 0.7, 0.3, 0.7))
         XCTAssertEqual(point.dx, 0.3, accuracy: 1e-9, "a point is itself")
         XCTAssertEqual(point.dy, 0.7, accuracy: 1e-9)
@@ -102,12 +108,12 @@ final class PainterFixTests: XCTestCase {
         let advances = try XCTUnwrap(face.advances)
         XCTAssertEqual(advances.count, 95, "U+0020 to U+007E")
         func width(_ c: Character) -> Double { advances[Int(c.asciiValue!) - 0x20] }
-        XCTAssertEqual(width("0"), 0.632)
-        XCTAssertEqual(width("7"), 0.632, "every digit alike")
-        XCTAssertEqual(width(" "), 0.316)
-        XCTAssertEqual(width("-"), 0.579)
-        XCTAssertEqual(width("t"), 0.374)
-        XCTAssertEqual(width("M"), 0.861)
+        XCTAssertEqual(width("0"), 0.632, accuracy: 0.001)
+        XCTAssertEqual(width("7"), 0.632, accuracy: 0.001, "every digit alike")
+        XCTAssertEqual(width(" "), 0.316, accuracy: 0.001)
+        XCTAssertEqual(width("-"), 0.579, accuracy: 0.001)
+        XCTAssertEqual(width("t"), 0.374, accuracy: 0.001)
+        XCTAssertEqual(width("M"), 0.861, accuracy: 0.001)
         XCTAssertNil(OfficeFonts.face("Arial", eastAsian: false)?.advances, "Arial is its stand-in's own width")
     }
 
@@ -375,15 +381,17 @@ final class PresetGeometryTests: XCTestCase {
         var f = SlideFill()
         PptxReader.tile(tile, image: nil, into: &f)
         XCTAssertTrue(f.tiled)
-        XCTAssertEqual(f.tileScale, 0.6 * 96 / 144, accuracy: 1e-9)
-        XCTAssertEqual(f.tileScaleY, 0.7 * 96 / 144, accuracy: 1e-9)
+        // A picture that declares no dpi is laid at 96 dpi, as Windows
+        // PowerPoint does (aa870cdb3): the scale is sx / sy as written.
+        XCTAssertEqual(f.tileScale, 0.6, accuracy: 1e-9)
+        XCTAssertEqual(f.tileScaleY, 0.7, accuracy: 1e-9)
         XCTAssertEqual(f.tileOffset, Offset(35, 40.5))
         XCTAssertEqual(f.tileAlign, Offset(0, 0))
         PptxReader.tile(XNode.parse(Data("<a:tile \(ns) algn=\"t\"/>".utf8)), image: nil, into: &f)
         XCTAssertEqual(f.tileAlign, Offset(0.5, 0))
         XCTAssertEqual(f.tileOffset, Offset(0, 0))
         PptxReader.tile(nil, image: nil, into: &f)
-        XCTAssertEqual(f.tileScaleY, 96 / 144, accuracy: 1e-9, "a bare blip tiles at its own size")
+        XCTAssertEqual(f.tileScaleY, 1, accuracy: 1e-9, "a bare blip tiles at its own size")
     }
 }
 
@@ -478,6 +486,51 @@ final class TableCellTests: XCTestCase {
         // The turned paragraph sits at the row's top in the flow.
         XCTAssertEqual(long.geometry(1).top, 0, accuracy: 0.01)
         XCTAssertEqual(try XCTUnwrap(long.rowRect(1)).height, long.totalHeight, accuracy: 0.01)
+    }
+
+    /// The caret, the selection and a click in a turned cell follow its
+    /// text: the caret is a bar across the run, the selection lies in the
+    /// cell's column, and a click on the start caret finds the start (Slides' table
+    /// cells, seen on screen 2026-10-31: the caret and selection were drawn
+    /// as for across text, and a click always found the text's end).
+    func testATurnedCellsCaretSelectionAndClickAreTurned() throws {
+        _ = OfficeFonts.register()
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans, fontSize: 18)
+        for direction in [CellRef.CellTextDirection.up, .down] {
+            var a = RichParagraph(text: "x")
+            a.cell = CellRef(table: "t", row: 0, column: 0)
+            var b = RichParagraph(text: "Wednesday")
+            b.cell = CellRef(table: "t", row: 0, column: 1)
+            b.cell?.textDirection = direction
+            var doc = RichDocument(paragraphs: [a, b])
+            doc.tableColumns["t"] = [100, 100]
+            let l = RichLayout(theme: theme, paragraphCount: 2)
+            l.width = 400
+            l.ensureLaidOut(doc)
+            let row = try XCTUnwrap(l.rowRect(1))
+            let left = 100 * 96.0 / 72.0, right = 200 * 96.0 / 72.0
+            func inCell(_ r: Rect, _ what: String) {
+                XCTAssertGreaterThanOrEqual(r.left, left - 0.5, "\(what) \(r) \(direction)")
+                XCTAssertLessThanOrEqual(r.right, right + 0.5, "\(what) \(r) \(direction)")
+                XCTAssertGreaterThanOrEqual(r.top, row.top - 0.5, "\(what) \(r) \(direction)")
+                XCTAssertLessThanOrEqual(r.bottom, row.bottom + 0.5, "\(what) \(r) \(direction)")
+            }
+            let start = l.caretRect(RichPosition(paragraph: 1, offset: 0), doc)
+            let end = l.caretRect(RichPosition(paragraph: 1, offset: 9), doc)
+            inCell(start, "caret at the start"); inCell(end, "caret at the end")
+            XCTAssertGreaterThan(start.width, start.height, "a bar across the run, not along it")
+            // Reading up starts at the foot of the row, reading down at its top.
+            if direction == .up { XCTAssertGreaterThan(start.top, end.top) } else { XCTAssertLessThan(start.top, end.top) }
+            let sel = RichSelection(anchor: RichPosition(paragraph: 1, offset: 0), focus: RichPosition(paragraph: 1, offset: 9))
+            let rects = l.selectionRects(sel, doc)
+            XCTAssertFalse(rects.isEmpty)
+            for r in rects { inCell(r, "selection") }
+            // A click on the start caret finds the start (it found the
+            // text's end wherever it fell).
+            let found = l.position(at: Offset(start.center.dx, start.center.dy), doc)
+            XCTAssertEqual(found.paragraph, 1)
+            XCTAssertEqual(found.offset, 0, "\(direction)")
+        }
     }
 }
 
@@ -651,7 +704,15 @@ final class RunCapsAndBulletTests: XCTestCase {
         XCTAssertEqual(sh.dy, 3, accuracy: 1e-9, "three points straight down")
         XCTAssertEqual(sh.blur, 4, accuracy: 1e-9)
         let ground = try read("<a:outerShdw blurRad=\"50800\" dist=\"38100\" dir=\"5400000\" sy=\"23000\" kx=\"-1200000\"><a:prstClr val=\"black\"/></a:outerShdw>")
-        XCTAssertTrue(ground.allSatisfy { $0.shadow == nil })
+        // (A shadow cast on the ground, scaled and skewed, is read too and drawn as the outline so transformed:
+        // sx 100%, sy 23%, kx -20 degrees, ky none.)
+        let gs = try XCTUnwrap(ground.lazy.compactMap(\.shadow).first)
+        let mm = try XCTUnwrap(gs.ground)
+        XCTAssertEqual(mm[0], 1, accuracy: 1e-9)
+        XCTAssertEqual(mm[1], 0.23, accuracy: 1e-9)
+        XCTAssertEqual(mm[2], tan(-20 * Double.pi / 180), accuracy: 1e-9)
+        XCTAssertEqual(mm[3], 0, accuracy: 1e-9)
+        XCTAssertEqual(gs.scale, 1, accuracy: 1e-9)
     }
 
     func testAnEmptyListParagraphShowsNoMarkerInSlides() {
@@ -756,7 +817,7 @@ final class MetafileTests: XCTestCase {
         file += record(14, [0, 0, 20])
         XCTAssertTrue(Metafile.isMetafile(Data(file)))
         let m = try XCTUnwrap(Metafile(Data(file), id: "e"))
-        XCTAssertEqual(m.bounds.width, 101, accuracy: 0.5, "the frame in device units, to and including its last")
+        XCTAssertEqual(m.bounds.width, 100, accuracy: 0.5, "the frame in device units, exactly — not a unit wider (b1d56e15f)")
         XCTAssertEqual(m.steps.count, 1, "filled, not stroked: \(m.steps)")
         guard case .fill(let path, let color) = m.steps[0] else { return XCTFail("a fill") }
         XCTAssertEqual(color, Color(0xFF0000FF))

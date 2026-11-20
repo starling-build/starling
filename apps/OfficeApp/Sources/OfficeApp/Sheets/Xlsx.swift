@@ -1,3 +1,4 @@
+import OfficeText
 // Copyright the Starling authors
 // SPDX-License-Identifier: Apache-2.0
 
@@ -156,6 +157,43 @@ enum Xlsx {
         }
         if book.sheets.isEmpty { book.sheets = [Worksheet(name: "Sheet1")] }
         book.activeTab = min(max(0, activeTab), book.sheets.count - 1)
+
+        // The values saved from linked workbooks, in the order [1], [2]... name them.
+        for ref in wbNode.child("externalReferences")?.kids("externalReference") ?? [] {
+            var ext = ExternalBook()
+            if let rid = ref["id"] ?? ref.attrs.first(where: { $0.key.hasSuffix(":id") })?.value,
+               let path = wbRels[rid] {
+                let relPath = path.replacingAll("externalLinks/", with: "externalLinks/_rels/") + ".rels"
+                if let rels = _part(parts, relPath).flatMap({ XNode.parse($0) }),
+                   let t = rels.kids("Relationship").first?["Target"] {
+                    ext.file = String(t.split(separator: "/").last ?? "")
+                }
+                if let root = xml(path), let eb = root.child("externalBook") {
+                    ext.sheetNames = (eb.child("sheetNames")?.kids("sheetName") ?? []).map { $0["val"] ?? "" }
+                    for n in eb.child("definedNames")?.kids("definedName") ?? [] {
+                        if let name = n["name"], let to = n["refersTo"] { ext.names[name.uppercased()] = to }
+                    }
+                    for sd in eb.child("sheetDataSet")?.kids("sheetData") ?? [] {
+                        let si = Int(sd["sheetId"] ?? "") ?? 0
+                        for row in sd.kids("row") {
+                            for c in row.kids("cell") {
+                                guard let a = c["r"].flatMap({ CellAddress($0) }) else { continue }
+                                let v = c.child("v")?.text
+                                let value: CellValue
+                                switch c["t"] ?? "n" {
+                                case "str", "s": value = .text(v ?? "")
+                                case "b": value = .bool(v == "1")
+                                case "e": value = .error(ExcelError(rawValue: v ?? "") ?? .value)
+                                default: value = v.flatMap { Double($0) }.map { .number($0) } ?? .empty
+                                }
+                                ext.cells[si, default: [:]][a] = value
+                            }
+                        }
+                    }
+                }
+            }
+            book.externals.append(ext)
+        }
 
         // Defined names (print areas and other built-ins are not formulas to
         // evaluate). A sheet's own name is read from `fileNames` by that
@@ -535,7 +573,7 @@ enum Xlsx {
         43: "_(* #,##0.00_);_(* (#,##0.00);_(* \"-\"??_);_(@_)",
     ]
 
-    private struct _Font { var bold = false, italic = false, underline = false, strike = false, script = 0
+    private struct _Font { var bold = false, italic = false, underline = false, accounting = 0, strike = false, script = 0
         var size: Double? = nil, name: String? = nil, color: UInt32? = nil }
 
     /// A font's face. One of the theme's (`scheme` minor or major) is the
@@ -590,6 +628,7 @@ enum Xlsx {
             font.bold = f.child("b").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
             font.italic = f.child("i").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
             font.underline = f.child("u").map { $0["val"] != "none" } ?? false
+            font.accounting = ["singleAccounting": 1, "doubleAccounting": 2][f.child("u")?["val"] ?? ""] ?? 0
             font.strike = f.child("strike").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
             font.script = ["superscript": 1, "subscript": -1][f.child("vertAlign")?["val"] ?? ""] ?? 0
             font.size = f.child("sz").flatMap { Double($0["val"] ?? "") }
@@ -637,7 +676,7 @@ enum Xlsx {
             if let id = Int(xf["numFmtId"] ?? "0") { s.numberFormat = formats[id] ?? "General" }
             if let fi = Int(xf["fontId"] ?? "0"), fi < fonts.count {
                 let f = fonts[fi]
-                s.bold = f.bold; s.italic = f.italic; s.underline = f.underline; s.strike = f.strike; s.script = f.script
+                s.bold = f.bold; s.italic = f.italic; s.underline = f.underline; s.accounting = f.accounting; s.strike = f.strike; s.script = f.script
                 // The default font is the theme's: left nil, so a new face follows it.
                 if f.name != base.name { s.fontName = f.name }
                 if f.size != base.size { s.fontSize = f.size }
@@ -766,8 +805,9 @@ enum Xlsx {
             var used = Set<String>()
             for (i, col) in (t.ref.left ... t.ref.right).enumerated() {
                 let a = CellAddress(row: t.ref.top, col: col)
-                let text = NumberFormat.display(ws.value(a), "General", width: 255).text.trimmingWhitespace()
-                if !text.isEmpty { used.insert(text.lowercased()); continue }
+                let raw = NumberFormat.display(ws.value(a), "General", width: 255).text
+                // (A header of blank spaces stays as the file has it: chart-auto_marker_excel10's " ".)
+                if !raw.isEmpty { used.insert(raw.trimmingWhitespace().lowercased()); continue }
                 var name = "Column\(i + 1)", n = 2
                 while used.contains(name.lowercased()) { name = "Column\(i + 1)\(n)"; n += 1 }
                 used.insert(name.lowercased())

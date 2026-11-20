@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Flutter
+import OfficeText
 import Foundation
 
 /// A slide's faces as PowerPoint stands in for them: the shared
@@ -41,6 +42,17 @@ enum SlideFonts {
         "lucida sans unicode": "Starling Lucida Sans",
     ]
 
+    /// Arial Black is drawn in Archivo Black, which is heavy without a bold.
+    static let hasHeavyStandIn = true
+
+    /// PowerPoint for Windows has no DejaVu Sans and prints it as Verdana
+    /// (Matrix's theme face, tdf134862's runs: the print's face is Verdana);
+    /// its metrics and widths are Verdana's.
+    static func windowsName(_ family: String) -> String {
+        let n = family.trimmingWhitespace().lowercased()
+        return n == "dejavu sans" && OfficeFonts.installed(family) == nil ? "verdana" : n
+    }
+
     static func resolve(_ family: String) -> String {
         // (The machine's own face, where it has it and the user takes it:
         // `OfficeFonts.installed`.)
@@ -60,7 +72,7 @@ enum SlideFonts {
     static func face(_ family: String?, _ eastAsian: Bool) -> RichResolvedFace? {
         // (None of a stand-in's widths for the machine's own face.)
         guard !eastAsian, let family, OfficeFonts.installed(family) == nil else { return nil }
-        switch family.trimmingWhitespace().lowercased() {
+        switch windowsName(family) {
         case "lucida sans unicode":
             var face = RichResolvedFace(family: resolve(family))
             face.advances = OfficeFonts.lucidaSansUnicodeAdvances
@@ -141,7 +153,7 @@ enum SlideFonts {
     /// own is the face's (Calibri in Carlito, the free faces themselves).
     static func ownNaturalHeight(_ family: String) -> Double? {
         guard OfficeFonts.installed(family) == nil else { return nil }
-        switch family.trimmingWhitespace().lowercased() {
+        switch windowsName(family) {
         case "courier new", "courier": return 2320.0 / 2048
         case "segoe ui", "segoe ui light", "segoe ui semilight", "segoe ui semibold": return 2724.0 / 2048
         case "franklin gothic book", "franklin gothic medium": return 2322.0 / 2048
@@ -166,14 +178,16 @@ enum SlideFonts {
         case "TeX Gyre Adventor": return 2440.0 / 2048
         case "TeX Gyre Pagella": return 2763.0 / 2048
         case OfficeFonts.verdana: return 2489.0 / 2048
+        case "Starling Lucida Sans": return 3147.0 / 2048   // (GeomLec1's diagram: 33.3 pt apart at 24 pt, 90%)
         default: return nil
         }
     }
 
     static func ownDescentShare(_ family: String) -> Double? {
         guard OfficeFonts.installed(family) == nil else { return nil }
-        let n = family.trimmingWhitespace().lowercased()
-        if n == "verdana" { return 430.0 / 2489 }
+        let n = windowsName(family)
+        // (PowerPoint's print, lab verdana-ls: the foot of a Verdana line is 0.202 em at every size and spacing, of 1.2 em: not hhea's 430 of 2489.)
+        if n == "verdana" { return 0.202 / 1.2 }
         if n.hasPrefix("tahoma") { return 423.0 / 2472 }
         if n.hasPrefix("segoe ui") { return 514.0 / 2724 }
         if n == "lucida sans unicode" { return 901.0 / 3147 }
@@ -206,6 +220,10 @@ enum SlideFonts {
         // put a share of it under the baseline in the engine's line, and
         // Arial's 43 decks stood 0.011 em high.)
         if n == "arial" { return 434.0 / 2288 }
+        // (MS Gothic by its own, 0.859 over and 0.141 under of its square
+        // 1.0 em line: lab p3lp's first baseline stood 0.073 of the size
+        // high in its stand-in's depth, 1.3 pt at 18 pt, 2.2 at 32.)
+        if n == "ms gothic" || n == "ｍｓ ゴシック" { return 0.141 }
         if n == "times new roman" { return 443.0 / 2268 }
         return nil
     }

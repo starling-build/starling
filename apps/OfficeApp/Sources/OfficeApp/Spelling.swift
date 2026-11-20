@@ -4,6 +4,7 @@
 // ones), and a version that moves when the user ignores or learns a word.
 
 import Flutter
+import OfficeText
 import Foundation
 #if canImport(AppKit)
 import AppKit

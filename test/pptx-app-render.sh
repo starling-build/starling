@@ -1,5 +1,5 @@
 #!/bin/bash
-# test/pptx-app-render.sh IN_DIR PPT_DIR WORK [names…] — how this app DRAWS
+# test/pptx-app-render.sh [-j JOBS] IN_DIR PPT_DIR WORK [names…] — how this app DRAWS
 # a deck against how PowerPoint draws it: every .pptx in IN_DIR that has a
 # NAME-orig.pdf in PPT_DIR (PowerPoint's export, from
 # test/pptx-powerpoint-render.sh) is exported by `OfficeApp --deck-pdf` and
@@ -11,43 +11,60 @@
 # the side-by-side PNGs of pages over the threshold (pairs/), and
 # render.tsv (name, pages, worst %, mean %); rows already there are
 # skipped, so a sweep resumes. OFFICE_APP picks the binary.
+# -j JOBS (default 1) renders and scores that many decks at once, each deck
+# writing its row to WORK/rows/ and the rows joining render.tsv in deck
+# order at the end, so the file is the same at any JOBS. On the Windows
+# box (16 threads) use -j 12; elsewhere -j 4 to 8 (each render holds a
+# whole engine, so memory is what limits it).
 #   test/pptx-app-render.sh                  # the corpus in the repo, into ~/starling-ppt-check/app
 #   test/pptx-app-render.sh WORK             # … into WORK
 #   OFFICE_WEB=1 test/pptx-app-render.sh WORK   # … drawn by the browser build
-#   test/pptx-app-render.sh test/corpus/pptx/decks test/corpus/pptx/powerpoint WORK [names…]
+#   test/pptx-app-render.sh test/corpus/pptx/decks test/corpus/pptx/powerpoint-win WORK [names…]
 # The decks and PowerPoint's PDFs of them are checked in under
 # test/corpus/pptx (its README says where they come from and how the PDFs
 # were made); with fewer than three arguments those are what is swept.
 # (Starling's own fonts, whatever this machine has: a harness pins them so no
 # baseline moves with the machine — see OfficeFonts.fontSource.)
 export OFFICE_FONT_SOURCE="${OFFICE_FONT_SOURCE:-bundled}"
+JOBS=1
+if [ "${1:-}" = -j ]; then JOBS=${2:?-j wants a number}; shift 2; fi
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/.." && pwd)
 if [ $# -le 1 ]; then
-  IN="$ROOT/test/corpus/pptx/decks"; PPT="$ROOT/test/corpus/pptx/powerpoint"; WORK="${1:-$HOME/starling-ppt-check/app}"
+  IN="$ROOT/test/corpus/pptx/decks"; PPT="$ROOT/test/corpus/pptx/powerpoint-win"; WORK="${1:-$HOME/starling-ppt-check/app}"
   shift $#
 else
   IN=$1; PPT=$2; WORK=$3; shift 3
 fi
 APP="${OFFICE_APP:-$ROOT/apps/OfficeApp/.build/release/OfficeApp}"
+# Against the Mac prints (the retired test/corpus/pptx/powerpoint, now in the cache archive) the app draws as Mac PowerPoint does where the two differ.
+[ "$(basename "$PPT")" = powerpoint ] && export STARLING_PPT_MAC=1
 [ -d "$IN" ] && [ -d "$PPT" ] || { echo "usage: $0 IN_DIR PPT_DIR WORK [names]" >&2; exit 2; }
 mkdir -p "$WORK/pdf" "$WORK/pairs"
 # The page diff is CoreGraphics on a Mac and MuPDF anywhere else
 # (test/pdf-diff.py: the same lines and threshold, another rasteriser — so
 # a sweep is comparable with sweeps from the same kind of machine). Under
 # Git Bash the app is SwiftPM's Windows build, or OFFICE_APP.
-if [ "$(uname)" = Darwin ]; then
+if [ "$(uname)" = Darwin ] && [ -z "$PPTX_DIFF" ]; then
   DIFF=("$WORK/pdf-diff")
   if [ ! -x "$DIFF" ]; then
     swiftc -O -o "$DIFF" "$HERE/pdf-diff.swift" 2>&1 | grep -E 'error:' && exit 1
   fi
-elif [ "$(uname)" = Linux ]; then
+elif [ "$(uname)" = Linux ] || [ -n "$PPTX_DIFF" ]; then
   # What build/build-all.sh makes, and its own RUNPATH picking the engine:
   # an inherited LD_LIBRARY_PATH outranks it (the packaged terminal exports
   # one to every shell inside it, and with it an older engine). PYTHON names
   # an interpreter that has pymupdf, where the system's does not.
   unset LD_LIBRARY_PATH
+  [ -n "$PYTHON" ] || { [ -x "$HOME/venv-word/bin/python" ] && PYTHON="$HOME/venv-word/bin/python"; }  # land.sh's: pymupdf, numpy, pillow
   DIFF=("${PYTHON:-python3}" "$HERE/pdf-diff.py")
+  # The page diff is only comparable between runs on the same MuPDF (its anti-aliasing moves a score by ~0.2 pt):
+  # the baseline's version is committed beside it; a different one stops the sweep (MUPDF_ANY=1 to go on).
+  MUPDF=$("${PYTHON:-python3}" -c 'import pymupdf; print(pymupdf.mupdf_version)' 2>/dev/null)
+  WANT=$(cat "$HERE/corpus/pptx/baseline-win.MUPDF" 2>/dev/null)
+  if [ -n "$WANT" ] && [ "$MUPDF" != "$WANT" ] && [ -z "$MUPDF_ANY" ]; then
+    echo "MuPDF is '$MUPDF' here and the baseline was scored with '$WANT': scores are not comparable. Use PYTHON=$HOME/venv-word/bin/python, or MUPDF_ANY=1." >&2; exit 3
+  fi
   [ -n "$OFFICE_APP" ] || [ -x "$APP" ] || APP="$ROOT/.build-shared/x86_64-unknown-linux-gnu/release/OfficeApp"
 else
   DIFF=(python "$HERE/pdf-diff.py")
@@ -59,12 +76,22 @@ fi
 # this machine's page diff. A matched deck that no longer scores 0.00 has
 # regressed: the sweep says which and exits 1.
 LISTS="$ROOT/test/corpus/pptx"; SUFFIX=-mupdf; [ "$(uname)" = Darwin ] && SUFFIX=
+# GROUP_SUFFIX=-win: the list of the decks at 0.00 against PowerPoint for Windows (baseline-win.tsv, MuPDF's page diff; sweep with
+# PPT_DIR=test/corpus/pptx/powerpoint-win and, on a Mac, PPTX_DIFF=mupdf PYTHON=<python with pymupdf> so the diff is the baseline's).
+SUFFIX="${GROUP_SUFFIX:-$SUFFIX}"
 names=("$@")
 if [ ${#names[@]} -eq 0 ] && [ -n "$CORPUS_GROUP" ]; then
   [ -f "$LISTS/$CORPUS_GROUP$SUFFIX.txt" ] || { echo "no list $LISTS/$CORPUS_GROUP$SUFFIX.txt" >&2; exit 2; }
   names=($(tr -d '\015' < "$LISTS/$CORPUS_GROUP$SUFFIX.txt"))
 fi
 [ ${#names[@]} -gt 0 ] || names=($(cd "$IN" && ls *.pptx | grep -v '^~\$'))
+# A row is only as good as the binary that made it: a sweep resumes (rows already there are skipped) only
+# with the same app; with another one the old rows are dropped so a stale score cannot be read as current.
+APP_ID=$(sha1sum "${OFFICE_APP:-$APP}" 2>/dev/null | cut -c1-16)
+if [ -n "$APP_ID" ] && [ "$(cat "$WORK/app.sha1" 2>/dev/null)" != "$APP_ID" ]; then
+  [ ! -s "$WORK/render.tsv" ] || echo "[sweep] the app changed since $WORK/render.tsv was written: starting it afresh" >&2
+  : > "$WORK/render.tsv"; echo "$APP_ID" > "$WORK/app.sha1"
+fi
 touch "$WORK/render.tsv"
 # OFFICE_WEB=1 sweeps the BROWSER build instead: every deck opened in
 # headless Chrome and exported there (build/tools/web-drive.mjs pdfs — one
@@ -87,19 +114,61 @@ if [ -n "$OFFICE_WEB" ]; then
     node "$ROOT/build/tools/web-drive.mjs" pdfs "$WORK/web-list.txt" "$WORK/pdf" > "$WORK/web-drive.log" 2>&1
   kill $SERVER 2>/dev/null
 fi
+# One deck: render it, score it against PowerPoint's print, and print its row
+# (a row is "NAME<TAB>summary…", or "NAME<TAB>ERROR<TAB>why").
+one() {
+  local n=$1 base=${1%.pptx} out s
+  if [ -n "$OFFICE_WEB" ]; then
+    [ -s "$WORK/pdf/$base.pdf" ] || {
+      printf '%s	ERROR	%s
+' "$n" "$(grep "^$n	" "$WORK/pdf/web.tsv" | tail -1 | cut -f2- | cut -c1-120)"; return; }
+  elif ! out=$("$APP" --deck-pdf "$IN/$n" "$WORK/pdf/$base.pdf" 2>&1); then
+    printf '%s	ERROR	%s
+' "$n" "$(echo "$out" | tail -1 | cut -c1-120)"; return
+  fi
+  s=$(eval "$DIFF_STR" '"$PPT/$base-orig.pdf" "$WORK/pdf/$base.pdf" "$WORK/pairs" 1' | tail -1)
+  printf '%s	%s
+' "$n" "$s"
+}
+export -f one
+export APP IN PPT WORK OFFICE_WEB
+export DIFF_STR; DIFF_STR=$(printf '%q ' "${DIFF[@]}")
+todo=()
 for n in "${names[@]}"; do
   n=$(basename "$n"); base=${n%.pptx}
   [ -f "$PPT/$base-orig.pdf" ] || continue
   grep -q "^$n	" "$WORK/render.tsv" && continue
-  if [ -n "$OFFICE_WEB" ]; then
-    [ -s "$WORK/pdf/$base.pdf" ] || {
-      printf '%s\tERROR\t%s\n' "$n" "$(grep "^$n	" "$WORK/pdf/web.tsv" | tail -1 | cut -f2- | cut -c1-120)" | tee -a "$WORK/render.tsv"; continue; }
-  elif ! out=$("$APP" --deck-pdf "$IN/$n" "$WORK/pdf/$base.pdf" 2>&1); then
-    printf '%s\tERROR\t%s\n' "$n" "$(echo "$out" | tail -1 | cut -c1-120)" | tee -a "$WORK/render.tsv"; continue
-  fi
-  s=$("${DIFF[@]}" "$PPT/$base-orig.pdf" "$WORK/pdf/$base.pdf" "$WORK/pairs" 1 | tail -1)
-  printf '%s\t%s\n' "$n" "$s" | tee -a "$WORK/render.tsv"
+  todo+=("$n")
 done
+if [ "$JOBS" -le 1 ]; then
+  for n in "${todo[@]}"; do one "$n" | tee -a "$WORK/render.tsv"; done
+elif [ ${#todo[@]} -gt 0 ]; then
+  rm -rf "$WORK/rows"; mkdir -p "$WORK/rows"
+  printf '%s
+' "${todo[@]}" | xargs -P "$JOBS" -I{} bash -c 'one "$1" > "$WORK/rows/$1.tsv"' _ {}
+  for n in "${todo[@]}"; do cat "$WORK/rows/$n.tsv"; done | tee -a "$WORK/render.tsv"
+  rm -rf "$WORK/rows"
+fi
+# A parallel sweep on a loaded box gives false movers (a deck that scores 0.1 alone scored 42 under load: aascu 11 to 74,
+# lo-page_transparent_bitmap 0.1 to 42; the app drops a picture it could not decode right then without an error). So a deck that
+# comes out more than 5 points worse than its baseline row (or as an ERROR) is rendered again ALONE, once, and the better row is
+# kept; "[retry] NAME a -> b" on stderr says which. BASELINE_TSV names the baseline (default: baseline-win.tsv against powerpoint-win);
+# RETRY_MOVERS=0 turns it off. A deck that is really worse is worse again, so a true rise still shows.
+BASE="${BASELINE_TSV:-}"
+[ -n "$BASE" ] || [ "$(basename "$PPT")" != powerpoint-win ] || BASE="$LISTS/baseline-win.tsv"
+if [ "$JOBS" -gt 1 ] && [ "${RETRY_MOVERS:-1}" = 1 ] && [ -n "$BASE" ] && [ -f "$BASE" ]; then
+  worst() { sed -n 's/.*worst=\([0-9.]*\)%.*/\1/p' | head -1; }
+  for n in "${todo[@]}"; do
+    row=$(grep "^$n	" "$WORK/render.tsv" | tail -1); w=$(echo "$row" | worst)
+    b=$(grep "^$n	" "$BASE" | worst); [ -n "$b" ] || continue
+    if [ -n "$w" ] && ! awk -v w="$w" -v b="$b" 'BEGIN{exit !(w>b+5)}'; then continue; fi
+    new=$(one "$n"); nw=$(echo "$new" | worst)
+    if [ -n "$nw" ] && { [ -z "$w" ] || awk -v w="$w" -v nw="$nw" 'BEGIN{exit !(nw<w)}'; }; then
+      echo "[retry] $n ${w:-ERROR} -> $nw (baseline $b)" >&2
+      { grep -v "^$n	" "$WORK/render.tsv"; echo "$new"; } > "$WORK/render.tsv.tmp" && mv "$WORK/render.tsv.tmp" "$WORK/render.tsv"
+    fi
+  done
+fi
 if [ "$CORPUS_GROUP" = matched ]; then
   lost=$(for n in "${names[@]}"; do grep "^$n	" "$WORK/render.tsv"; done | grep -v 'worst=0.00%')
   [ -z "$lost" ] || { echo "no longer matching PowerPoint exactly:"; echo "$lost"; exit 1; }

@@ -6,6 +6,7 @@
 // pointed at the text being edited.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation

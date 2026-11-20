@@ -6,6 +6,7 @@
 // "Don't show on title slide" — applied to this slide or to all of them.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

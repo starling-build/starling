@@ -6,6 +6,7 @@
 // Backstage is Writer's, with the deck's own New.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation

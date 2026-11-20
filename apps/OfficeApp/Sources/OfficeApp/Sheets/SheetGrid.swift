@@ -14,6 +14,7 @@
 // grid and an editor widget to get wrong.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation
@@ -316,9 +317,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // Calibri 10 print at 13.32 pt in a Calibri 11 book, whatever
             // the sheet's defaultRowHeight says.
             var lines: [Int: Double] = [:]   // by style
+            let calibri11 = (book.defaultFontName ?? "Calibri").lowercased() == "calibri" && (book.defaultFontSize ?? 11) == 11
             func line(_ style: Int) -> Double {
                 if let known = lines[style] { return known }
-                let l = style == 0 ? m.defaultRow : Self._fittedLine(book.style(style), m, book)
+                let l = style == 0 ? m.defaultRow : Self._fittedLine(book.style(style), m, book, hinted: !ws.customDefaultRowHeight && calibri11, otherBook: !ws.customDefaultRowHeight && !calibri11)
                 lines[style] = l
                 return l
             }
@@ -355,6 +357,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 for r in g.top...min(g.bottom, g.top + 1000) { merged[r, default: []].append(g) }
             }
             var fit: [Int: Double] = [:]     // by row
+            var fitSize: [Int: Double] = [:] // the size of the font that sets it
+            var accounting: [Int: [(Double, Int)]] = [:]
             for (a, cell) in ws.cells where refits(a.row) {
                 // (Nor is one merged down over rows, wrapping or not:
                 // LIBRE_OFFICE-128382-0's date of Calibri 14 in D22:D23
@@ -362,7 +366,26 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 if let g = merged[a.row]?.first(where: { $0.contains(a) }),
                    g.top != g.bottom || book.style(ws.cells[g.topLeft]?.style ?? cell.style).wrap { continue }
                 let l = line(cell.style)
-                if l > fit[a.row] ?? 0 { fit[a.row] = l }
+                if l > fit[a.row] ?? 0 { fit[a.row] = l; fitSize[a.row] = book.fontSize(book.style(cell.style)) }
+                let acc = book.style(cell.style).accounting
+                if acc > 0 { accounting[a.row, default: []].append((book.fontSize(book.style(cell.style)), acc)) }
+            }
+            // An accounting underline stands below the descent, at the foot
+            // of the cell, and the row grows to hold it (the underline lab,
+            // Excel 16): a 10 pt cell of singleAccounting makes its row
+            // 2.28 pt taller in Verdana (2.16 in Arial), a 16 pt one 3.6
+            // (3.24); doubleAccounting 1.08 and 2.4 (2.16). Where a larger
+            // font sets the row, only what overhangs ITS descent counts:
+            // a 10 pt singleAccounting in a plain 16 pt row adds 0.84
+            // (0.72), a doubleAccounting none. (48962's rows 10-12.)
+            for (r, list) in accounting {
+                guard let base = fit[r], let big = fitSize[r] else { continue }
+                var extra = 0.0
+                for (size, kind) in list {
+                    let e = size * (kind == 1 ? 0.22 : 0.13)
+                    extra = max(extra, 0.24 * size + e - 0.24 * big)
+                }
+                fit[r] = base + extra
             }
             for r in Set(fit.keys).union(ws.fittedRows) {
                 let floor = ws.rowStyle(r).map(line) ?? blank
@@ -427,6 +450,19 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     guard lines > one * 1.5 else { continue }
                     let tall = (lines / one).rounded() * Self._fittedLine(st, m, book)
                     if tall > heights[a.row] ?? m.defaultRow { heights[a.row] = tall }
+                }
+                // A wrapped, bottom-aligned text of a font smaller than the default's in a
+                // merged cell makes its row
+                // two screen pixels taller than the default font's line, though
+                // the merge is left out of the fit: bug66675's row 12 prints
+                // 15.24 for 14.52 (windows lab xl66675: centred or unwrapped
+                // it stays 14.52).
+                for (a, cell) in ws.cells where cell.style != 0 && refits(a.row) && cell.value.isText {
+                    guard ws.fittedRows.contains(a.row) || ws.customDefaultRowHeight || ws.fittedRows.isEmpty else { continue }
+                    let st = book.style(cell.style)
+                    guard st.wrap, st.vAlign == .bottom, Self._fittedLine(st, m, book) < m.defaultRow - 0.01, (st.fontSize ?? 11) < (book.defaultFontSize ?? 11), ws.merges.contains(where: { $0.contains(a) && $0.top == a.row && $0.left == a.col }) else { continue }
+                    let up = m.defaultRow + 2 * 72 / 192 * m.rowScale
+                    if (heights[a.row] ?? m.defaultRow) < up { heights[a.row] = up }
                 }
             }
             // (A default height the sheet sets is a set height: cut down to
@@ -671,7 +707,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             if !chart.areaNoFill {
                 p.color = chart.areaFill ?? theme.background
                 if let g = chart.areaGradient, let shader = SlidePainter.gradientShader(g, r) { p.shader = shader }
-                canvas.drawRect(r, p)
+                if let ink = chart.areaPattern, ChartPainter._hatch({ let q = Path(); q.addRect(r); return q }(), ink, k: 1, canvas) {
+                    // (A pattern-filled chart area, hatched: chart-chart-hatch-fill's.)
+                } else {
+                    canvas.drawRect(r, p)
+                }
                 p.shader = nil
             }
             if !chart.areaNoLine {
@@ -679,7 +719,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let w = chart.areaLineWidth.map { $0 * scale } ?? 1
                 p.strokeWidth = w
                 p.color = chart.areaLine ?? Color(0xFFD9D9D9)
-                canvas.drawRect(r.deflate(w / 2), p)
+                if chart.areaLineCompound {
+                    // (Excel's print of a thickThin line: a 0.31 pt hairline at the frame edge and a 0.56 pt one 0.9 pt inside it, chart-external_str_ref.)
+                    p.strokeWidth = 0.31 * scale
+                    canvas.drawRect(r.deflate(0.155 * scale), p)
+                    p.strokeWidth = 0.56 * scale
+                    canvas.drawRect(r.deflate(0.9 * scale + 0.28 * scale), p)
+                } else {
+                    canvas.drawRect(r.deflate(w / 2), p)
+                }
             }
             // Excel's chart text is three quarters of PowerPoint's (14pt
             // titles, 9pt labels against 18.6 and 12), the painter's sizes.
@@ -2524,9 +2572,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let key = name + (st.bold ? " bold" : "") + (st.italic ? " italic" : "")
             if SheetHinting.has(key), name == "arial" || name == "times new roman" || OfficeFonts.sheetFaceIsOwn(name) { hint = key }
         }
-        return GridTextStyle(family: face,
+        var style = GridTextStyle(family: face,
                              size: book.fontSize(st) * scale * (printing ? 1 : Self.excelTextScale), bold: st.bold, italic: st.italic,
                              underline: st.underline, strike: st.strike, color: c, dots: dots, hint: hint)
+        let lower = book.fontName(st).trimmingWhitespace().lowercased()
+        if lower == "aptos narrow" || OfficeFonts.tabledNames.contains(lower) { style.own = lower }
+        return style
     }
 
     private func _paintCell(_ canvas: any Canvas, _ a: CellAddress, _ cell: Cell, in r: Rect, spill: Bool,
@@ -2714,7 +2765,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 .split(separator: "\n", omittingEmptySubsequences: false)
             if lines.count > 1 {
                 let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
-                let pitch = Self._fittedLine(st, m, book) * scale
+                // The face's own printed line in dots (57523's Calibri Bold 10 header: 109 dots, 13.08 pt, where the screen
+                // pixels scaled by the book's default font made 13.37).
+                let pitch = (st.fontName == nil && st.fontSize == nil && st.bold == book.defaultFontBold ? m.defaultRow
+                    : SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold).defaultRow) * scale
                 let one = texts.painter("X", style).height, n = Double(lines.count - 1)
                 let y0: Double
                 switch st.vAlign {
@@ -2797,9 +2851,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// (Bold counts where the face's bold has a line of its own, though the
     /// style names neither face nor size: FormulaSheetRange's bold Arial 10
     /// labels fit its rows at 35 screen pixels, 12.72 pt, not Arial's 12.36.)
-    static func _fittedLine(_ st: CellStyle, _ m: SheetPrintMetrics, _ book: Workbook) -> Double {
+    static func _fittedLine(_ st: CellStyle, _ m: SheetPrintMetrics, _ book: Workbook, hinted: Bool = false, otherBook: Bool = false) -> Double {
         st.fontName == nil && st.fontSize == nil && st.bold == book.defaultFontBold ? m.defaultRow
-            : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold))
+            : m.fittedRow(SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold, hinted: hinted, otherBook: otherBook))
     }
 
     /// On paper, where a line of text set at a cell's foot has its top:
@@ -3111,6 +3165,9 @@ struct GridTextStyle: Hashable {
     /// The face whose hinted widths it is set to (`SheetHinting`), where
     /// what draws it has that face's advances; "" for none.
     var hint = ""
+    /// The face whose own widths it is set to, where Excel's face has none
+    /// in the stand-in that draws it ("aptos narrow", lower case); "" for none.
+    var own = ""
 
     var flutter: Flutter.TextStyle {
         var decorations: [TextDecoration] = []
@@ -3126,7 +3183,7 @@ struct GridTextStyle: Hashable {
                                  fontWeight: bold ? .bold : .normal, fontStyle: italic ? .italic : .normal,
                                  fontFeatures: [FontFeature("kern", 0), FontFeature("liga", 0), FontFeature("clig", 0)],
                                  decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
-                                 fontFamily: family)
+                                 fontFamily: family, fontFamilyFallback: RichTextTheme.glyphFallback)
     }
 }
 
@@ -3184,6 +3241,20 @@ final class _TextCache {
     /// drawn in DejaVu Sans (a few per cent wider in its letters, narrower
     /// in its space — the format tests' lines ran past Excel's), in ems.
     private func _own(_ ch: Character, _ style: GridTextStyle) -> Double? {
+        // A Hangul syllable is a whole em in Excel's Malgun Gothic and Dotum (style-alternate-content's
+        // four-syllable "전화번호" at 11pt is 44.2 pt); the stand-in that draws it sets it 0.92.
+        if ch.unicodeScalars.count == 1, let h = ch.unicodeScalars.first?.value, (0xAC00 ... 0xD7A3).contains(h) { return 1.0 }
+        if style.own == "aptos narrow", ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value, v >= 0x20, v <= 0x7E {
+            return (style.bold ? OfficeFonts.aptosNarrowBoldAdvances : OfficeFonts.aptosNarrowAdvances)[Int(v - 0x20)]
+        }
+        if OfficeFonts.tabledNames.contains(style.own), ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value,
+           let face = OfficeFonts.tabledFaceCached(style.own) {
+            // (Word's table for the face, as its print set it: bold, italic and bold italic its own.)
+            let table = style.italic ? (style.bold ? (face.boldItalicAdvances ?? face.italicAdvances) : face.italicAdvances) : nil
+            let t = table ?? (style.bold ? face.boldAdvances : face.advances)
+            if v >= 0x20, v <= 0x7E, let t, t.count > Int(v - 0x20) { return t[Int(v - 0x20)] }
+            return (style.bold ? face.boldOtherAdvances ?? face.otherAdvances : face.otherAdvances)?[v]
+        }
         guard style.family == OfficeFonts.verdana, ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value else { return nil }
         if v >= 0x20, v <= 0x7E { return (style.bold ? OfficeFonts.verdanaBoldAdvances : OfficeFonts.verdanaAdvances)[Int(v - 0x20)] }
         return (style.bold ? OfficeFonts.verdanaBoldOtherAdvances : OfficeFonts.verdanaOtherAdvances)[v]
@@ -3192,7 +3263,7 @@ final class _TextCache {
     /// own widths, or on a page (`GridTextStyle.dots`) — save where its
     /// script joins or stacks its letters, which only the whole run shapes.
     private func _spaces(_ run: String, _ style: GridTextStyle) -> Bool {
-        guard style.family == OfficeFonts.verdana || style.dots > 0 else { return false }
+        guard style.family == OfficeFonts.verdana || style.own == "aptos narrow" || OfficeFonts.tabledNames.contains(style.own) || style.dots > 0 else { return false }
         return !run.unicodeScalars.contains { v in
             let x = v.value
             return (0x0300 ... 0x036F).contains(x) || (0x0590 ... 0x0DFF).contains(x) || (0x0E00 ... 0x0FFF).contains(x)

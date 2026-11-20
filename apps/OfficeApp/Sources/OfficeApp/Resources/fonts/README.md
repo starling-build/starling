@@ -39,6 +39,25 @@ word more on a line than Word gives it. It was bundled here until
 2026-10-13. Check a replacement against Word's own Cambria before
 trusting the name.
 
+## Noto Sans (2026-10-30)
+
+A document that names "Noto Sans" (LibreOffice's test files do) is drawn with Noto Sans itself, not a
+stand-in: the clone table above has nothing close to its widths, and Word's print of those files
+sets it in the real face. Regular, Bold, Italic and Bold Italic, Version 1.04 (2048 upem, 2299 glyphs in
+Regular), the build Word's print is set in, so its advances are Word's. Licence: Apache 2.0
+(NotoSans-1.04-LICENSE.txt). Source: Microsoft Office cloud font cache, Monotype build for Google
+(FontCache/4/CloudFonts/Noto Sans under %LOCALAPPDATA%, taken 2026-11-01). AOSP (external/noto-fonts)
+does not carry 1.04: its earliest copy, android-6.0.0_r1 other/NotoSans-Regular.ttf, is 1.05 with 2188 glyphs.
+Replaces the OFL 2.x release (NotoSans-LICENSE.txt is kept for that release; it no longer covers these files).
+Loaded with the extra faces below under the family "Noto Sans"; `OfficeFonts.substitute` maps the name.
+
+## Lato (2026-11-15)
+
+A document that names "Lato", "Lato Black" or "Lato Light" is drawn with Lato itself (Word's print has the
+real face). Regular, Bold, Italic, Bold Italic; Black and Light as their own families. Debian fonts-lato 2.0
+(2000 upem, ascent 1974, descent 426, no line gap). Licence: OFL 1.1 (Lato-LICENSE.txt). Loaded with the
+extra faces; `OfficeFonts.substitute` maps the names.
+
 ## Slides' free faces (2026-10-17)
 
 Families PowerPoint decks name that none of the six clones draws well,
@@ -101,3 +120,77 @@ every page count are as before, but for a few documents whose table rows
 the PDF reader now groups otherwise (zh-998727df 100 to 98.4; five others
 up by half a point).
 
+
+## Noto CJK and script faces (2026-11-01)
+
+The faces a document's East Asian, Arabic, Hebrew, Thai, Devanagari and Bengali text is drawn
+with, and that any glyph the named face lacks falls back to, so that a render does not
+depend on the fonts a machine happens to have installed. All SIL OFL 1.1
+(Noto-OFL-LICENSE.txt). `fonts.tsv` is the table (file, face index in a collection,
+family, weight, script, role, glyph-fallback order, bytes, sha256) the desktop registers
+from and the web build's manifest reads; `fonts-aliases.tsv` maps Word's font names
+(SimSun, PMingLiU, MS Gothic ...) to a family. CJK collections: faces 0 JP, 1 KR, 2 SC,
+3 TC, 4 HK, each loaded under its own family name by face index (`LoadFontFromFileFace`).
+Regular and Bold only. KaiTi / 楷体 have no OFL Kai face and take Noto Serif CJK SC.
+
+Sources, unchanged from the release named:
+
+| Files | Source |
+|---|---|
+| NotoSansCJK-Regular.ttc, -Bold.ttc | github.com/notofonts/noto-cjk, tag Sans2.004, 03_NotoSansCJK-OTC.zip |
+| NotoSerifCJK-Regular.ttc, -Bold.ttc | github.com/notofonts/noto-cjk, tag Serif2.003, 04_NotoSerifCJKOTC.zip |
+| the CJK files above | byte-identical to Ubuntu's `fonts-noto-cjk` 1:20240730 |
+| NotoSansArabic, NotoNaskhArabic, NotoSansHebrew, NotoSerifHebrew, NotoSansThai, NotoSansDevanagari, NotoSansBengali, NotoSansTelugu, NotoSansGurmukhi, NotoSansGujarati (Regular, Bold) | Ubuntu `fonts-noto-core` 20201225 (the 2020-12 Noto snapshot) |
+| NotoColorEmoji-Pictographs.ttf | Ubuntu `fonts-noto-color-emoji` (NotoColorEmoji.ttf, sha256 9fd0a3d0ce84d77e3185dfbae77bd1abf3926aa49a032e354d076c4f17151f10) cut down by `build/tools/subset-emoji.py` (fonttools, throwaway venv) to the characters whose Unicode Emoji_Presentation is Yes, plus ZWJ, space and CR (less the plain shapes used as bullets, U+26AB and kin): a modified version of the Noto font under a new name (OFL). It goes AHEAD of DejaVu Sans in the glyph fallback so emoji draw in colour, while text-style symbols (U+263A, U+2714, U+2764 ...) stay on the outline faces. Desktop and web both use only this file |
+| NotoColorEmoji-Variation.ttf | The same source cut by `build/tools/subset-emoji.py ... --text-bases` to the Emoji=Yes characters that are NOT Emoji_Presentation (U+2764, U+263A, U+2714, U+2600, U+00A9 ...; 210 code points, no ASCII), family "Noto Color Emoji Variation", fallback_order 0 (never in the glyph fallback): the layout draws a character in it only when U+FE0F follows (`RichLayout+Emoji.swift`, tables from `build/tools/emoji-ranges.py`). |
+
+The script faces are the 2020 snapshot, not the newest notofonts releases, on purpose:
+those are what a Linux machine's glyph fallback drew until now, and the 2021-2026
+releases (Arabic v2.013/v2.021, Hebrew v3.001, Thai v2.002, Devanagari v2.007) changed
+the shaped output enough to move rtl, zh-6a4fc013 (Thai) and others in the line pair.
+Moving to them is a separate, measured step. The 2020 snapshot has no upstream release
+asset to download (notofonts' releases begin later), so its provenance is the distro
+package plus the sha256 below. The WebAssembly build should fetch these lazily, not ship
+them in the page: about 105 MB together.
+
+Thai is in the glyph-fallback chain (fallback_order 9). Before it was, zh-6a4fc013's Thai
+was drawn as missing-glyph boxes, which the line pair counts as matching any character; that
+is where its old 91.7 came from. With real Thai the document scores about 54 in the pair.
+That is honest: the Thai is measured with a size scale of 0.82 (616 lines on 27 pages, as
+Word's print), but Thai lines still break in other places than Word's (Word breaks at Thai
+word boundaries). Thai line breaking is the open item.
+
+sha256:
+
+    b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a  NotoSansCJK-Regular.ttc
+    faa5f3656a78b2e2d450d27fe8382c778bc2b6bb5ea29c986664a6a435056ceb  NotoSansCJK-Bold.ttc
+    5d9c31a059600193c9d7968a998bde886ccdc77e934006ad243b41794c496a7d  NotoSerifCJK-Regular.ttc
+    1505ee3b9c0890fae6302ee0e9c6fd74d690f4a55a6ace1d9944f3f6352d622d  NotoSerifCJK-Bold.ttc
+    504d7407d86875acf7d04dfaa0fd7524d0b8797723bc4aa18022f29db25b0b6e  NotoSansArabic-Regular.ttf
+    ded6fc7359ca36d15d7aab9ef0c066e21ce48b26a069994d6602fa2cb9a1b952  NotoSansArabic-Bold.ttf
+    8c67eaa2f0086872628fc3f7f760386f83c8be5c5e9a1ba3a38891237b2ac7cb  NotoNaskhArabic-Regular.ttf
+    b5cbcb561b4b540ff11d7b6934577dbbbbb9e1d152d47f6f31f19176d58ff39c  NotoNaskhArabic-Bold.ttf
+    436900d5ad77d33e4234247f3076eaecd25b92b9bea0519514f684140e3566a7  NotoSansHebrew-Regular.ttf
+    d3b01343f71e8a93fffb84c345a1aecbaf4694b98d0eaace916cb9eac9e6dcd3  NotoSansHebrew-Bold.ttf
+    789b7e7e3ff4d95a5e105872a385db12c50c08b60ad5b773d25a3bec86621abf  NotoSerifHebrew-Regular.ttf
+    95150a28d438cba6c79393ef18ad06f39a8b53a7d457e61d8c9d585176ef36da  NotoSerifHebrew-Bold.ttf
+    dfbd5ed0f1e68c3cbc51aa08f646d1ab0e68e7c4ceab70a69e465225ff701f93  NotoSansThai-Regular.ttf
+    97bbc8ea98328325285f2f552228c7aac1db39d8f38f0096a61ba7df1f1f780e  NotoSansThai-Bold.ttf
+    79a470365ccb210fa3c7d8d8ff2e005ef9d983cfd067f735a0caf7e15070ca9f  NotoSansDevanagari-Regular.ttf
+    77ad688cfe1dc55185bf4edb4db3c614202c65dd23a1463ad0e23fc52bcc9a5c  NotoSansDevanagari-Bold.ttf
+    9bb35b3547829ecc42041b6017e87fd4c5f1da1edcd00f59171777050f346018  NotoSansBengali-Regular.ttf
+    22c9ff99baca4d31c531ce450a1369beed889467e1ad964f4b8a6f810aa46955  NotoSansBengali-Bold.ttf
+    cb3165071121b1e80c55a041d0c1f79b3bbc68e4b0eab37b0d881958dfc3ed7a  NotoSansTelugu-Regular.ttf
+    34e3a81c02ea8474f00b1046cbb183461648fd253a56475140d6b025db828b5b  NotoSansTelugu-Bold.ttf
+    1db960ff6f506a98f5b3ece78f54618388c6187e7edf8ceee5ab63389c0db3ab  NotoSansGurmukhi-Regular.ttf
+    ded9c1f56a7ed0b835cfef5dd642f26cfc0f41a16fbc08008d376ddcc91d606e  NotoSansGurmukhi-Bold.ttf
+    4468a3a24516831874fb4a867b760a22257944584e478d32a97e3c4d4bfc6400  NotoSansGujarati-Regular.ttf
+    db2b642c28b021da8cb0f3463bf41376549c850aa718ca863ec3ff5d5df0f2f7  NotoSansGujarati-Bold.ttf
+    2babe375f708225a6cfc6fe870bba15cdfbadc260d4bb96040413310608b64a2  NotoColorEmoji-Pictographs.ttf
+    8ccdc7cca6515eaa4e9e15573a95dc28d508088a6bba05ca30bbdcea07fb2d5f  NotoColorEmoji-Variation.ttf
+
+## DejaVu Math TeX Gyre
+
+`DejaVuMathTeXGyre.ttf` (fallback_order 9, family "DejaVu Math TeX Gyre", the name WriterMath
+asks for) is the maths face; it keeps the pi in lo-6e71a4d5. Added by amd-4. Licence as Debian
+lists it for DejaVu (Bitstream Vera terms); the TeX Gyre side originates with the GUST e-foundry.

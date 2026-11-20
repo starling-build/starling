@@ -12,9 +12,9 @@ OUT = ROOT / 'artifacts/office-compatibility'
 ASSETS = OUT / 'assets'
 ASSETS.mkdir(parents=True, exist_ok=True)
 SOURCES = {
-    'slides-reference': ROOT / 'test/corpus/pptx/powerpoint/lo-tdf149985-orig.pdf',
+    'slides-reference': ROOT / 'test/corpus/pptx/powerpoint-win/lo-tdf149985-orig.pdf',
     'slides-before': Path.home() / 'starling-ppt-check/app27/pdf/lo-tdf149985.pdf',
-    'writer-reference': ROOT / 'test/corpus/docx/word/IllustrativeCases-orig.pdf',
+    'writer-reference': ROOT / 'test/corpus/docx/word-win/IllustrativeCases-orig.pdf',
     'writer-before': Path.home() / 'starling-doc-check-starling-ios/np17/pdf/IllustrativeCases.pdf',
     'writer-after': Path.home() / 'starling-doc-check-starling-ios/np18/pdf/IllustrativeCases.pdf',
     'sheets-reference': ROOT / 'test/corpus/xlsx/excel/chart-piechart_outside-orig.pdf',

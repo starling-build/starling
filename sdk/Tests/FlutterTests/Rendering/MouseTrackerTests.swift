@@ -523,14 +523,15 @@ final class MouseTrackerDebugDeviceActiveCursorTests: XCTestCase {
         XCTAssertNil(tracker.debugDeviceActiveCursor(0))
     }
 
-    /// Test that debugDeviceActiveCursor returns nil for a connected device (stub).
+    /// Test that a connected device with nothing under it has a cursor.
     ///
-    /// The stub implementation of MouseCursorManager always returns nil.
-    func testDebugDeviceActiveCursorReturnsNilForConnectedDevice() {
+    /// (This was a nil-returning stub's test; the manager is real now and a
+    /// device that hit nothing falls back to the basic cursor.)
+    func testDebugDeviceActiveCursorIsSetForConnectedDevice() {
         let tracker = MouseTracker { _, _ in HitTestResult() }
         let addedEvent = PointerAddedEvent(kind: .mouse, device: 1, position: .zero)
         tracker.updateWithEvent(addedEvent, hitTestResult: HitTestResult())
-        XCTAssertNil(tracker.debugDeviceActiveCursor(1))
+        XCTAssertNotNil(tracker.debugDeviceActiveCursor(1))
     }
 }
 

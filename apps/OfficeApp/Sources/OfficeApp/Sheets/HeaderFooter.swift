@@ -23,6 +23,11 @@ struct HeaderFooter: Equatable {
     /// (`scaleWithDoc`, on unless the file says not): CVLKRA-KYC's
     /// headers print at the 66% its sheet does.
     var scaleWithDoc = true
+    /// `alignWithMargins="0"`: the text lines up with the page, not the
+    /// margins. Excel's prints stand 54.9 pt in from each side then, at any
+    /// margin and scale (lo-tdf58243 at 17 pt margins and 52%, 49156 at 12,
+    /// 45540_form_Footer at 18 and 100%: left edge 55.0 in all three).
+    var alignWithMargins = true
 
     var isEmpty: Bool {
         [oddHeader, oddFooter, evenHeader, evenFooter, firstHeader, firstFooter].allSatisfy(\.isEmpty)
@@ -47,6 +52,7 @@ struct HeaderFooter: Equatable {
         func flag(_ k: String) -> Bool { node[k] == "1" || node[k] == "true" }
         h.differentOddEven = flag("differentOddEven")
         h.differentFirst = flag("differentFirst")
+        h.alignWithMargins = node["alignWithMargins"] != "0" && node["alignWithMargins"] != "false"
         h.scaleWithDoc = node["scaleWithDoc"] != "0" && node["scaleWithDoc"] != "false"
         h.oddHeader = node.child("oddHeader")?.text ?? ""
         h.oddFooter = node.child("oddFooter")?.text ?? ""

@@ -11,6 +11,7 @@
 // Everything else in the parts is written back as it was.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

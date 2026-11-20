@@ -6,6 +6,7 @@
 // lowest icon of the set (a red down arrow), the last the highest.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 

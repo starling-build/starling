@@ -30,6 +30,8 @@ SKWASM(fontCollection_create) sk_ptr fontCollection_create(void);
 SKWASM(fontCollection_dispose) void fontCollection_dispose(sk_ptr collection);
 // Returns 0 when the bytes are not a font. Like SkData, reference counted.
 SKWASM(typeface_create) sk_ptr typeface_create(sk_ptr fontData);
+// Starling's: face `index` of a font collection (.ttc); 0 for a bad index.
+SKWASM(typeface_createWithIndex) sk_ptr typeface_createWithIndex(sk_ptr fontData, int32_t index);
 SKWASM(typeface_dispose) void typeface_dispose(sk_ptr typeface);
 // fontName is an SkString*, or 0 for the family name inside the font file.
 SKWASM(fontCollection_registerTypeface)
@@ -68,6 +70,9 @@ void textStyle_setLetterSpacing(sk_ptr style, float letterSpacing);
 // the run's glyphs drawn and advanced this much narrower or wider. Absent
 // from Google's published skwasm; the host binds it to nothing there.
 SKWASM(textStyle_setScaleX) void textStyle_setScaleX(sk_ptr style, float scaleX);
+// Starling's, like setScaleX: the run's ascent and descent (positive pixels).
+SKWASM(textStyle_setMetricsOverride)
+void textStyle_setMetricsOverride(sk_ptr style, float ascent, float descent);
 SKWASM(textStyle_setBaselineShift) void textStyle_setBaselineShift(sk_ptr style, float shift);
 SKWASM(textStyle_setWordSpacing)
 void textStyle_setWordSpacing(sk_ptr style, float wordSpacing);
@@ -135,6 +140,13 @@ void paragraphStyle_setApplyRoundingHack(sk_ptr style, bool applyRoundingHack);
 // (web/host/starling.js) binds it to nothing there.
 SKWASM(paragraphStyle_setFractionalLineHeights)
 void paragraphStyle_setFractionalLineHeights(sk_ptr style, bool value);
+// Starling's, likewise: one more line's (left, right) inset, in line order.
+SKWASM(paragraphStyle_addLineIndent)
+void paragraphStyle_addLineIndent(sk_ptr style, float left, float right);
+// Starling's, likewise: room every line's break holds back while justification
+// still stretches the line across the whole width (patches/skia-fit-reserve.patch).
+SKWASM(paragraphStyle_setFitReserve)
+void paragraphStyle_setFitReserve(sk_ptr style, float reserve);
 
 // --- text/paragraph_builder*.cpp --------------------------------------------
 SKWASM(paragraphBuilder_create)
@@ -157,6 +169,10 @@ SKWASM(paragraph_dispose) void paragraph_dispose(sk_ptr paragraph);
 SKWASM(paragraph_getWidth) float paragraph_getWidth(sk_ptr paragraph);
 SKWASM(paragraph_getHeight) float paragraph_getHeight(sk_ptr paragraph);
 SKWASM(paragraph_getGlyphInkBounds) bool paragraph_getGlyphInkBounds(sk_ptr paragraph, sk_ptr bounds);
+SKWASM(paragraph_getGlyphPath)
+bool paragraph_getGlyphPath(sk_ptr paragraph, uint32_t start, uint32_t end, sk_ptr verbs,
+                            uint32_t verbCapacity, sk_ptr points, uint32_t pointCapacity,
+                            sk_ptr counts);
 SKWASM(paragraph_getLongestLine) float paragraph_getLongestLine(sk_ptr paragraph);
 SKWASM(paragraph_getMinIntrinsicWidth)
 float paragraph_getMinIntrinsicWidth(sk_ptr paragraph);

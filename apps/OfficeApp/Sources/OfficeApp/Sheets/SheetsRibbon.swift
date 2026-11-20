@@ -8,6 +8,7 @@
 // `WorkbookController.onCommand`, which the shell points at the grid.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation

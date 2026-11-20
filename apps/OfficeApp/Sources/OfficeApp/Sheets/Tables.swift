@@ -346,7 +346,13 @@ extension CalcEngine {
     /// one the formula sits in, for `[@Qty]`), the rows by special item
     /// (#All, #Data, #Headers, #Totals, #This Row / @), the columns by
     /// name or `[A]:[B]` span. Unknown tables or columns are #REF!.
-    func resolveStructured(_ text: String, _ ctx: EvalContext) -> EvalValue {
+    /// `evaluate`, except a structured reference stays a range even for one cell (ROW, COLUMN).
+    func refValue(_ e: FormulaExpr, _ ctx: EvalContext) -> EvalValue {
+        if case .structured(let t) = e { return resolveStructured(t, ctx, asRange: true) }
+        return evaluate(e, ctx)
+    }
+
+    func resolveStructured(_ text: String, _ ctx: EvalContext, asRange: Bool = false) -> EvalValue {
         guard let open = text.firstIndex(of: "[") else { return .error(.ref) }
         let tableName = String(text[..<open]).lowercased()
         var found: (Int, SheetTable)? = nil
@@ -427,7 +433,7 @@ extension CalcEngine {
         let r = rows ?? (dataTop <= dataBottom ? dataTop ... dataBottom : dataTop ... dataTop)
         let c = cols ?? (t.ref.left ... t.ref.right)
         let range = CellRange(top: r.lowerBound, left: c.lowerBound, bottom: r.upperBound, right: c.upperBound)
-        return range.isSingle ? .scalar(value(si, range.topLeft)) : .range(sheet: si, range)
+        return range.isSingle && !asRange ? .scalar(value(si, range.topLeft)) : .range(sheet: si, range)
     }
 }
 

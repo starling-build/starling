@@ -11,6 +11,7 @@
 // two scoring formulas, and the 50pt they stand in.
 
 import Flutter
+import OfficeText
 import FlutterSwiftBridge
 import Foundation
 
@@ -22,7 +23,12 @@ enum WriterMath {
         var width: Double
         var ascent: Double
         var descent: Double
+        /// How far its ink reaches (nil: as far as its line extents), to size a stretched delimiter.
+        var inkUp: Double? = nil
+        var inkDown: Double? = nil
         var draw: (any Canvas, Offset) -> Void
+        var iu: Double { inkUp ?? ascent }
+        var idn: Double { inkDown ?? descent }
         static let empty = Box(width: 0, ascent: 0, descent: 0) { _, _ in }
     }
 
@@ -35,21 +41,68 @@ enum WriterMath {
         var fits: [Box] = []
     }
 
+    /// An inline equation cut after each relation of its top level (Word breaks one there, and nowhere
+    /// else: jpn-z22855378-6fca0f's "重心座標 X=" ends a line, its fraction begins the next). The pieces
+    /// are drawn side by side as the whole was; every piece after the first carries `cont`, so a sign
+    /// that opens it keeps its gaps as after a relation.
+    static func splitAtRelations(_ node: XNode) -> [XNode] {
+        let relations: Set<Character> = ["=", "<", ">", "≤", "≥", "≈", "≠"]
+        var pieces: [[XNode]] = [[]]
+        for (i, c) in node.children.enumerated() {
+            guard c.name == "m:r", c.all("m:t").count == 1, let t = c.first("m:t") else { pieces[pieces.count - 1].append(c); continue }
+            var cur = ""
+            var parts: [String] = []
+            for ch in t.text { cur.append(ch); if relations.contains(ch) { parts.append(cur); cur = "" } }
+            if !cur.isEmpty { parts.append(cur) }
+            func part(_ text: String) -> XNode {
+                let r = XNode(name: c.name, attrs: c.attrs)
+                for k in c.children {
+                    if k === t { let n = XNode(name: k.name, attrs: k.attrs); n.text = text; r.children.append(n) } else { r.children.append(k) }
+                }
+                return r
+            }
+            for (k, text) in parts.enumerated() {
+                pieces[pieces.count - 1].append(parts.count == 1 ? c : part(text))
+                let endsRelation = text.last.map { relations.contains($0) } ?? false
+                let more = k < parts.count - 1 || node.children[(i + 1)...].contains { !$0.name.hasSuffix("Pr") }
+                if endsRelation, more { pieces.append([]) }
+            }
+        }
+        guard pieces.count > 1 else { return [node] }
+        return pieces.enumerated().map { k, kids in
+            let n = XNode(name: node.name, attrs: node.attrs)
+            if k > 0 { n.attrs["cont"] = "1" }
+            n.children = kids
+            return n
+        }
+    }
+
     private nonisolated(unsafe) static var entries: [String: Entry] = [:]
     private static let lock = RegistryLock()
+    /// Set while a document is read: its section holds lines to a grid.
+    nonisolated(unsafe) static var heldGridLines = false
 
     /// Lays out the equation `node` (`m:oMath` or `m:oMathPara`) for the
     /// object attachment `id`, its text `size` points where its runs say
     /// none; its size and baseline (from its top), in points.
-    static func register(_ node: XNode, for id: String, size: Double) -> (width: Double, height: Double, baseline: Double)? {
+    static func register(_ node: XNode, for id: String, size: Double, natural: ((Double, Double)) -> Void = { _ in }, ink: ((Double, Double)) -> Void = { _ in }) -> (width: Double, height: Double, baseline: Double)? {
         let display = node.name == "m:oMathPara"
-        var box = Layout(display: display).row(node, size: size, level: 0)
+        var box = Layout(display: display, inlineText: !display).row(node, size: size, level: 0)
         guard box.width > 0 else { return nil }
         // (An equation in a line takes no more of it than its text would:
         // its scripts reach into the line's leading, as Word sets them —
         // zh-c2c92639's "式中：C_dm ——…" lines are one 16.65pt pitch of its
         // grid in Word's print, where the subscript's depth took ours two.
         // It is drawn whole all the same.)
+        natural((box.ascent, box.descent))
+        ink((box.iu, box.idn))
+        // (A display equation ending on a manual break, `<w:br/>` in its last
+        // run, is one empty line longer: Word sets that line under it, 7f0539's
+        // equations stand a line apart from the text after them; 158454's
+        // taller ones the same single line, not their own height again.)
+        if display, node.all("m:oMath").last?.children.last(where: { $0.name == "m:r" })?.first("w:br") != nil {
+            box.descent += size * 1.172   // a plain line of the equation font, as Word sets the empty one
+        }
         if !display {
             let s = Layout(display: false).runSize(node, size)
             box.ascent = min(box.ascent, s * 0.85)
@@ -120,7 +173,7 @@ enum WriterMath {
     /// where they say none: for a sheet's text box, which draws it where
     /// its paragraph stands. nil for one with nothing in it.
     static func box(_ node: XNode, size: Double) -> Box? {
-        let box = Layout(display: node.name == "m:oMathPara").row(node, size: size, level: 0)
+        let box = Layout(display: node.name == "m:oMathPara", inlineText: node.name != "m:oMathPara").row(node, size: size, level: 0)
         return box.width > 0 ? box : nil
     }
 
@@ -168,24 +221,125 @@ enum WriterMath {
                              textDirection: .ltr)
             tp.layout(minWidth: 0, maxWidth: .infinity)
             let m = tp.computeLineMetrics().first
-            ascent = m?.ascent ?? size * 0.8
-            descent = m?.descent ?? size * 0.2
-            baseline = m?.baseline ?? ascent
+            baseline = m?.baseline ?? size * 0.8
+            // (The box is the face's own height, not the height a fallback face's glyph makes
+            // of the line: Word's math boxes stand on the math font's metrics. A Greek σ in
+            // Caladea's run took DejaVu's taller ascent and descent, and lo-4aa628bd's row
+            // was 2pt taller than Word's, its σ 1.7pt low.)
+            var fa = m?.ascent ?? size * 0.8, fd = m?.descent ?? size * 0.2
+            // A mathematical-bold letter or digit (m:sty b/bi) is the same letter set bold: Word's print of
+            // lab bold-math-lab puts its fraction, scripts and baseline exactly where the regular letters'
+            // are. Its box takes the height of the plain ASCII text, not of the fallback face holding the glyph.
+            func plain(_ sc: Unicode.Scalar) -> Unicode.Scalar? {
+                let v = sc.value
+                switch v {
+                case 0x1D400 ... 0x1D433: let o = v - 0x1D400; return Unicode.Scalar(o < 26 ? 0x41 + o : 0x61 + o - 26)
+                case 0x1D468 ... 0x1D49B: let o = v - 0x1D468; return Unicode.Scalar(o < 26 ? 0x41 + o : 0x61 + o - 26)
+                case 0x1D7CE ... 0x1D7FF: return Unicode.Scalar(0x30 + (v - 0x1D7CE) % 10)
+                default: return nil
+                }
+            }
+            let hasBoldAlnum = text.unicodeScalars.contains { plain($0) != nil }
+            let onlyBoldAlnum = !text.unicodeScalars.contains { $0.value > 0x24F && plain($0) == nil }
+            if hasBoldAlnum || text.unicodeScalars.contains(where: { $0.value > 0x24F }) {
+                var u = String.UnicodeScalarView()
+                for sc in text.unicodeScalars { u.append(plain(sc) ?? (sc.value > 0x24F ? "x" : sc)) }
+                let ref = TextPainter(text: TextSpan(text: String(u), style: TextStyle(color: color, fontSize: size, fontStyle: italic ? .italic : .normal,
+                                                                                 height: height, fontFamily: family ?? WriterMath.family,
+                                                                                 fontFamilyFallback: WriterMath.fallback + RichTextTheme.glyphFallback)),
+                                      textDirection: .ltr)
+                ref.layout(minWidth: 0, maxWidth: .infinity)
+                if let r = ref.computeLineMetrics().first {
+                    if onlyBoldAlnum && hasBoldAlnum { fa = r.ascent; fd = r.descent } else { fa = min(fa, r.ascent); fd = min(fd, r.descent) }
+                }
+            }
+            ascent = fa
+            descent = fd
         }
     }
 
+    private final class LeadRuns { var ids = Set<ObjectIdentifier>() }
     private struct Layout {
+        let leadRuns = LeadRuns()
         let display: Bool
+        /// Set in a line of text (not a display equation): where Word's print sets fractions and scripts its own way.
+        var inlineText = false
+        /// The document holds its lines to a grid (docGrid type lines): its equations keep the font-line depth (158454's grid-held lines sit as Word's print has them with it).
+        let heldGrid = WriterMath.heldGridLines
         let ink = Color(0xFF000000)
 
         /// The size at a script level: 0.73 of the one above, to half.
-        func scriptSize(_ size: Double, _ level: Int) -> Double { max(size * 0.5, size * pow(0.73, Double(min(level, 2)))) }
+        func scriptSize(_ size: Double, _ level: Int) -> Double {
+            // (Word's print of a 12pt equation: a fraction's parts 8.5pt, a script in them 7.0 — half points.)
+            if RichTextTheme.wordWindowsPages, level >= 1 {
+                // Word's prints: 10pt -> 7.0, 11 -> 8.0, 12 -> 8.5 (first level rounds UP to the half point); second level 0.6, nearest.
+                if level == 1 { return (size * 0.7 * 2 - 1e-9).rounded(.up) / 2 }
+                return (size * 0.6 * 2).rounded() / 2
+            }
+            return max(size * 0.5, size * pow(0.73, Double(min(level, 2))))
+        }
 
         /// A string set as one piece, its baseline at the box's.
+        /// (Not clamped to Cambria Math's 0.95 em / 0.22 em: that made xb fra-g255-612f49, xd 0810551f and zh-db07d44e
+        /// lower and gained nothing; was tried for jpn-z22855378-6fca0f p8's equation is 20.5 over / 10.7 under
+        /// at 12pt in Word's print, 25.3 / 14.0 in ours.)
+        func cam(_ v: Double, _ size: Double, _ em: Double) -> Double {
+            v
+        }
+
+        /// How far below its baseline a run's ink reaches, in em: none for the digits and the letters
+        /// that stand on the baseline (not g j p q y, nor brackets and other signs that hang).
+        /// (Word's math zone prints a typed apostrophe as the prime U+2032 and * as the asterisk operator U+2217,
+        /// except in a normal-text run: 6fca0f p6 ρ(x,x′)=ψ(x)ψ∗(x′) in Word's print.)
+        static func mathChars(_ s: String, literal: Bool) -> String {
+            guard RichTextTheme.wordWindowsPages, !literal, s.contains(where: { $0 == "'" || $0 == "*" }) else { return s }
+            return String(s.map { $0 == "'" ? "\u{2032}" : $0 == "*" ? "\u{2217}" : $0 })
+        }
+        static func inkDepth(of s: String) -> Double {
+            for u in s.unicodeScalars {
+                switch u.value {
+                case 0x30 ... 0x39, 0x41 ... 0x5A, 0x2B, 0x2D, 0x3D, 0x2212: continue
+                case 0x61 ... 0x7A: if "gjpqy".unicodeScalars.contains(u) { return 0.2 }
+                case 0x1D44E ... 0x1D467: let k = u.value - 0x1D44E; if [6, 9, 15, 16, 24].contains(k) { return 0.2 }
+                case 0x1D434 ... 0x1D44D, 0x210E: continue
+                default: return 0.2
+                }
+            }
+            return 0
+        }
         func text(_ s: String, size: Double, italic: Bool, family: RichResolvedFace? = nil) -> Box {
             guard !s.isEmpty else { return .empty }
+            // Word's formula letters are the mathematical italic ones (U+1D44E on): OMML letters
+            // default to math italic, and its print has those code points, not slanted plain letters.
+            var s = s, italic = italic
+            if italic, RichTextTheme.wordWindowsPages, s.unicodeScalars.allSatisfy({ $0.isASCII }) {
+                s = String(String.UnicodeScalarView(s.unicodeScalars.map { u -> Unicode.Scalar in
+                    switch u.value {
+                    case 0x41 ... 0x5A: return Unicode.Scalar(0x1D434 + u.value - 0x41)!
+                    case 0x68: return Unicode.Scalar(0x210E)!
+                    case 0x61 ... 0x7A: return Unicode.Scalar(0x1D44E + u.value - 0x61)!
+                    default: return u
+                    }
+                }))
+                italic = false
+            }
+            // Each math-alphanumeric letter stands at Cambria Math's advance, not the fallback face's own
+            // (the bold ones too: Word's bold-italic ψ(x) is 10.9pt, DejaVu's 14).
+            if RichTextTheme.wordWindowsPages, !italic, s.unicodeScalars.allSatisfy({ !$0.isASCII && $0.value >= 0x1D400 }) {
+                let adv = OfficeFonts.cambriaMathAdvances
+                let glyphs = s.unicodeScalars.map { String($0) }
+                if s.unicodeScalars.allSatisfy({ adv[$0.value] != nil }) {
+                    let ps = glyphs.map { Painter($0, size: size, italic: false, color: ink, family: family?.family, height: family?.naturalHeight) }
+                    var xs: [Double] = [], x = 0.0
+                    for u in s.unicodeScalars { xs.append(x); x += adv[u.value]! * size }
+                    let total = x
+                    return Box(width: total, ascent: cam(ps.map(\.ascent).max() ?? 0, size, 0.95), descent: cam(ps.map(\.descent).max() ?? 0, size, 0.22), inkUp: size * 0.7, inkDown: size * Layout.inkDepth(of: s)) { canvas, at in
+                        for (i, q) in ps.enumerated() { q.tp.paint(canvas, Offset(at.dx + xs[i], at.dy - q.baseline)) }
+                    }
+                }
+            }
             let p = Painter(s, size: size, italic: italic, color: ink, family: family?.family, height: family?.naturalHeight)
-            return Box(width: p.tp.width, ascent: p.ascent, descent: p.descent) { canvas, at in
+            return Box(width: p.tp.width, ascent: cam(p.ascent, size, 0.95), descent: cam(p.descent, size, 0.22), inkUp: size * 0.7, inkDown: size * Layout.inkDepth(of: s)) { canvas, at in
                 p.tp.paint(canvas, Offset(at.dx, at.dy - p.baseline))
             }
         }
@@ -197,7 +351,7 @@ enum WriterMath {
             var xs: [Double] = []
             var x = 0.0
             for b in parts { xs.append(x); x += b.width }
-            return Box(width: x, ascent: parts.map(\.ascent).max() ?? 0, descent: parts.map(\.descent).max() ?? 0) { canvas, at in
+            return Box(width: x, ascent: parts.map(\.ascent).max() ?? 0, descent: parts.map(\.descent).max() ?? 0, inkUp: parts.map(\.iu).max() ?? 0, inkDown: parts.map(\.idn).max() ?? 0) { canvas, at in
                 for (b, dx) in zip(parts, xs) { b.draw(canvas, Offset(at.dx + dx, at.dy)) }
             }
         }
@@ -207,7 +361,7 @@ enum WriterMath {
 
         /// A box moved up (negative: down) by `dy` points.
         func raised(_ b: Box, _ dy: Double) -> Box {
-            Box(width: b.width, ascent: max(0, b.ascent + dy), descent: max(0, b.descent - dy)) { canvas, at in
+            Box(width: b.width, ascent: max(0, b.ascent + dy), descent: max(0, b.descent - dy), inkUp: max(0, b.iu + dy), inkDown: max(0, b.idn - dy)) { canvas, at in
                 b.draw(canvas, Offset(at.dx, at.dy - dy))
             }
         }
@@ -220,31 +374,78 @@ enum WriterMath {
             r.first("w:rPr")?.first("w:rFonts")?["w:eastAsia"].flatMap { OfficeFonts.face($0, eastAsian: true) }
         }
         func wide(_ s: String) -> Bool { s.unicodeScalars.contains { $0.value >= 0x2E80 } }
+        /// A bold run's letters and digits as Word prints them: the mathematical bold
+        /// code points (m:sty "b" upright, "bi" italic; Word's print of jpn-z22855378-6fca0f
+        /// page 5 shows 𝑾(𝒙), 𝐞𝐱𝐩, 𝟏, 𝝈). Only on Windows pages, where the table has them.
+        func boldText(_ s: String, _ r: XNode) -> String {
+            guard RichTextTheme.wordWindowsPages, let sty = r.first("m:rPr")?.first("m:sty")?["m:val"], sty == "b" || sty == "bi" else { return s }
+            let it = sty == "bi"
+            return String(String.UnicodeScalarView(s.unicodeScalars.map { u -> Unicode.Scalar in
+                let v = u.value
+                let m: UInt32
+                switch v {
+                case 0x41 ... 0x5A: m = (it ? 0x1D468 : 0x1D400) + v - 0x41
+                case 0x61 ... 0x7A: m = (it ? 0x1D482 : 0x1D41A) + v - 0x61
+                case 0x30 ... 0x39: m = 0x1D7CE + v - 0x30
+                case 0x391 ... 0x3A9 where v != 0x3A2: m = (it ? 0x1D71C : 0x1D6A8) + v - 0x391
+                case 0x3B1 ... 0x3C9: m = (it ? 0x1D736 : 0x1D6C2) + v - 0x3B1
+                default: return u
+                }
+                return Unicode.Scalar(m) ?? u
+            }))
+        }
 
         /// A run's text: letters italic unless the run is plain
         /// (`m:sty p`, `m:nor`), operators spaced as Word sets them.
+        // (A run that begins its row: a sign at its start has nothing on its left to stand off from —
+        // Word's print of jpn-z22855378-6fca0f's exp[−(Δx+d0)²/4σ²] sets the minus against its bracket.)
         func run(_ r: XNode, size: Double, level: Int) -> Box {
             var own = scriptSize(size, level)
             if let sz = r.first("w:rPr")?.first("w:sz")?["w:val"].flatMap(Double.init), sz > 0 { own = scriptSize(sz / 2, level) }
             let plain = r.first("m:rPr")?.first("m:sty")?["m:val"] == "p" || r.first("m:rPr")?.first("m:nor") != nil
-            let s = r.all("m:t").map(\.text).joined()
+            let s = Layout.mathChars(r.all("m:t").map(\.text).joined(), literal: r.first("m:rPr")?.first("m:nor") != nil)
             var parts: [Box] = []
             var piece = ""
             var pieceItalic = false
             let ea = eastAsianFamily(r)
             func flush() {
-                if !piece.isEmpty { parts.append(text(piece, size: own, italic: pieceItalic, family: wide(piece) ? ea : nil)) }
+                if !piece.isEmpty { parts.append(text(boldText(piece, r), size: own, italic: pieceItalic && boldText(piece, r) == piece, family: wide(piece) ? ea : nil)) }
                 piece = ""
             }
+            var firstChar = true
             for ch in s {
+                let leads = firstChar && leadRuns.ids.contains(ObjectIdentifier(r)) && inlineText && RichTextTheme.wordWindowsPages && "+−-±∓".contains(ch)
+                firstChar = false
                 if "=+−-±×÷<>≤≥≈≠∓→←⇒∈∉⊂⊃∪∩".contains(ch) {
                     flush()
                     // (A relation or a binary operator stands a fifth of
                     // an em off what is beside it, in scripts less.)
-                    let gap = level == 0 ? own * 0.22 : own * 0.1
-                    parts.append(space(gap))
-                    parts.append(text(String(ch == "-" ? "−" : ch), size: own, italic: false))
-                    parts.append(space(gap))
+                    var gap = level == 0 ? own * 0.22 : own * 0.1
+                    var glyph = text(String(ch == "-" ? "−" : ch), size: own, italic: false)
+                    if RichTextTheme.wordWindowsPages && inlineText {
+                        // Cambria Math (Word's print of jpn-z22855378-6fca0f): =, + and − advance
+                        // 0.75 em (the fallback face's 0.56), a relation stands 5/18 em and a binary
+                        // operator 4/18 em off its neighbours, and in a script none at all.
+                        let relation = "=<>≤≥≈≠→←⇒∈∉⊂⊃".contains(ch)
+                        gap = level == 0 ? own * (relation ? 5.0 / 18 : 4.0 / 18) : 0
+                        if "=+−-".contains(ch) {
+                            let w = own * 0.75, inner = glyph
+                            glyph = Box(width: w, ascent: inner.ascent, descent: inner.descent) { canvas, at in
+                                inner.draw(canvas, Offset(at.dx + (w - inner.width) / 2, at.dy))
+                            }
+                        }
+                    }
+                    if !leads { parts.append(space(gap)) }
+                    parts.append(glyph)
+                    // (A sign leading its row, Word's exp[−(Δx+d0)²/4σ²]: ink to ink 2.0 pt of 12 to the bracket; our bracket carries 1.0 pt of side space, so 1/12 em, after it.)
+                    parts.append(space(leads ? own / 12 : gap))
+                    continue
+                }
+                if ch == ",", level == 0, inlineText, RichTextTheme.wordWindowsPages {
+                    // (Word sets a thin space, 1/6 em, after a comma.)
+                    flush()
+                    parts.append(text(",", size: own, italic: false))
+                    parts.append(space(own / 6))
                     continue
                 }
                 let italic = !plain && ch.isLetter && ch.unicodeScalars.allSatisfy { $0.value < 0x2E80 }
@@ -289,14 +490,14 @@ enum WriterMath {
             var own = scriptSize(size, 0)
             if let sz = r.first("w:rPr")?.first("w:sz")?["w:val"].flatMap(Double.init), sz > 0 { own = scriptSize(sz / 2, 0) }
             let plain = r.first("m:rPr")?.first("m:sty")?["m:val"] == "p" || r.first("m:rPr")?.first("m:nor") != nil
-            let s = r.all("m:t").map(\.text).joined()
+            let s = Layout.mathChars(r.all("m:t").map(\.text).joined(), literal: r.first("m:rPr")?.first("m:nor") != nil)
             var out: [(box: Box, breaksBefore: Bool)] = []
             var parts: [Box] = []
             var piece = ""
             var pieceItalic = false
             var opens = false
             let ea = eastAsianFamily(r)
-            func flush() { if !piece.isEmpty { parts.append(text(piece, size: own, italic: pieceItalic, family: wide(piece) ? ea : nil)) }; piece = "" }
+            func flush() { if !piece.isEmpty { parts.append(text(boldText(piece, r), size: own, italic: pieceItalic && boldText(piece, r) == piece, family: wide(piece) ? ea : nil)) }; piece = "" }
             func close() { flush(); if !parts.isEmpty { out.append((hbox(parts), opens)) }; parts = []; opens = false }
             for ch in s {
                 if "=+−-±×÷<>≤≥≈≠∓→←⇒∈∉⊂⊃∪∩".contains(ch) {
@@ -319,6 +520,7 @@ enum WriterMath {
         /// What `node` holds, in a row: its children, as each one sets.
         func row(_ node: XNode?, size: Double, level: Int) -> Box {
             guard let node else { return .empty }
+            if node.attrs["cont"] == nil, let head = node.children.first(where: { !$0.name.hasSuffix("Pr") }), head.name == "m:r" { leadRuns.ids.insert(ObjectIdentifier(head)) }
             return hbox(node.children.map { element($0, size: size, level: level) })
         }
 
@@ -348,10 +550,24 @@ enum WriterMath {
             case "m:f":
                 // (Its parts in the inline style: zh-c2c92639's ∑ over A has
                 // its limits beside it in Word's print, the sign unenlarged.)
-                let inner = Layout(display: false)
-                let num = inner.row(n.first("m:num"), size: size, level: level)
-                let den = inner.row(n.first("m:den"), size: size, level: level)
-                let s = runSize(n.first("m:num"), size, level)
+                let inner = Layout(display: false, inlineText: inlineText)
+                // (A skewed fraction, <m:type val="skw">, is no stack: Word's print of a969ba6c's exponent 1/3
+                // sets numerator, fraction slash and denominator at the exponent's own size, the numerator 0.35 em
+                // over the slash's baseline and the denominator 0.35 em under it: 6.0 pt apart at 8.5 pt.)
+                if RichTextTheme.wordWindowsPages, n.first("m:fPr")?.first("m:type")?["m:val"] == "skw" {
+                    let k = runSize(n.first("m:num"), size, level)
+                    let sn = inner.row(n.first("m:num"), size: size, level: level)
+                    let sd = inner.row(n.first("m:den"), size: size, level: level)
+                    return hbox([raised(sn, k * 0.35), text("\u{2044}", size: k, italic: false), raised(sd, -k * 0.35)])
+                }
+                // (And in a line of text — no display equation — at script size: 20d9968b's
+                // n over k stands 7.6pt in a 10.6pt line in Word's print, 0.72 of it.)
+                let part = display ? level : level + 1
+                let num = inner.row(n.first("m:num"), size: size, level: part)
+                let den = inner.row(n.first("m:den"), size: size, level: part)
+                // (Word sets a display fraction's rule and stacking at the equation's size, whatever one run
+                // inside it is: jpn-z22855378-6fca0f p8's x-bar at 14pt in a 12pt fraction.)
+                let s = RichTextTheme.wordWindowsPages && !inlineText ? scriptSize(size, level) : runSize(n.first("m:num"), size, level)
                 if n.first("m:fPr")?.first("m:type")?["m:val"] == "lin" {
                     return hbox([num, text("/", size: s, italic: false), den])
                 }
@@ -367,6 +583,23 @@ enum WriterMath {
                 let base = row(n.first("m:e"), size: size, level: level)
                 let chr = n.first("m:accPr")?.first("m:chr")?["m:val"] ?? "\u{0302}"
                 let mark = text(Self.spacingAccent(chr), size: runSize(n.first("m:e"), size, level), italic: false)
+                // (An accent over a letter is a mark of the letter's own line box, not a box stacked on it:
+                // Word sets the bar on the letter's baseline, as one glyph with a combining mark, so the
+                // equation is no taller for it. Over something taller than the line's own ascent, stacked.)
+                if base.ascent <= mark.ascent + 0.01 {
+                    let w = max(base.width, mark.width)
+                    // The mark clears the letter's ink: its own glyph sits at a fixed height above the baseline
+                    // (a macron high, a tilde low), so it is lifted by what the letter's top (x-height, or cap/ascender height) lacks.
+                    let letters = (n.first("m:e")?.all("m:t").map(\.text).joined() ?? "")
+                    let tall = letters.first.map { $0.isUppercase || $0.isNumber || "bdfhklt\u{3C8}\u{3C6}\u{2113}\u{3B4}\u{3B8}\u{3BB}\u{3B2}\u{3B6}\u{3BE}".contains($0) } ?? false
+                    let markBottom: Double = (chr == "\u{0303}" || chr == "~") ? 0.28 : (chr == "\u{0302}" || chr == "^") ? 0.45 : 0.50
+                    let gap: Double = markBottom < 0.5 ? 0.15 : 0.03
+                    let lift = max(0, (tall ? 0.70 : 0.46) + gap - markBottom) * size
+                    return Box(width: w, ascent: mark.ascent + lift, descent: base.descent) { canvas, at in
+                        base.draw(canvas, Offset(at.dx + (w - base.width) / 2, at.dy))
+                        mark.draw(canvas, Offset(at.dx + (w - mark.width) / 2, at.dy - lift))
+                    }
+                }
                 return over(base, mark, gap: 0)
             case "m:bar":
                 let base = row(n.first("m:e"), size: size, level: level)
@@ -395,7 +628,7 @@ enum WriterMath {
         }
 
         /// Sub- and superscripts beside a base, stacked.
-        func stackScripts(sub: Box?, sup: Box?, size: Double, base: Box) -> Box {
+        func stackScripts(sub: Box?, sup: Box?, size: Double, base: Box, fixed: (Double, Double)? = nil) -> Box {
             // (A superscript's baseline 0.38 em up, a subscript's 0.18 down,
             // a tenth more each where both stand; past a taller base than a
             // letter's, that much further. zh-c2c92639's "C" over "dm" in
@@ -403,14 +636,23 @@ enum WriterMath {
             // the scripts' own heights, ours went 6.9 down and its line
             // took a second grid pitch.)
             let both = sub != nil && sup != nil ? size * 0.1 : 0
-            let up = max(size * 0.38, base.ascent - size * 0.95 + size * 0.38) + both
-            let down = max(size * 0.18, base.descent - size * 0.22 + size * 0.18) + both
+            let up = fixed?.0 ?? max(size * 0.38, base.ascent - size * 0.95 + size * 0.38) + both
+            let down = fixed?.1 ?? max(size * 0.18, base.descent - size * 0.22 + size * 0.18) + both
             var parts: [Box] = []
-            if let sup { parts.append(raised(sup, up)) }
-            if let sub { parts.append(raised(sub, -down)) }
+            // (Drawn subscript first, as Word's print sets them: its glyphs come out base,
+            // subscript with its own scripts, then the superscript — lo-4aa628bd's
+            // "σEx2" is one line of Word's print with the outer 2 apart.)
+            // (A script reaches no higher over its own baseline than 0.85 of its size, as an
+            // inline equation's line does: lo-4aa628bd's 8pt "2" over a σ is 6.8 above its
+            // baseline in Word's print, 7.6 in the face's own ascent; a superscript with no subscript is not capped (lo-6e71a4d5's "A=πr2" stands where it did); the row stood 2pt
+            // taller than Word's.)
+            let cap = size * 0.73 * 0.85
+            func capped(_ b: Box) -> Box { Box(width: b.width, ascent: min(b.ascent, cap), descent: b.descent, inkUp: min(b.iu, cap), inkDown: b.idn, draw: b.draw) }
+            if let sub { parts.append(raised(capped(sub), -down)) }
+            if let sup { parts.append(raised(sub != nil ? capped(sup) : sup, up)) }
             guard !parts.isEmpty else { return .empty }
             let w = parts.map(\.width).max() ?? 0
-            return Box(width: w + size * 0.05, ascent: parts.map(\.ascent).max() ?? 0, descent: parts.map(\.descent).max() ?? 0) { canvas, at in
+            return Box(width: w + size * 0.05, ascent: parts.map(\.ascent).max() ?? 0, descent: RichTextTheme.wordWindowsPages && !inlineText && !heldGrid ? parts.map(\.idn).max() ?? 0 : parts.map(\.descent).max() ?? 0, inkUp: parts.map(\.iu).max() ?? 0, inkDown: parts.map(\.idn).max() ?? 0) { canvas, at in
                 for p in parts { p.draw(canvas, at) }
             }
         }
@@ -418,7 +660,7 @@ enum WriterMath {
         /// `top` centred over `base`, `gap` points between.
         func over(_ base: Box, _ top: Box, gap: Double) -> Box {
             let w = max(base.width, top.width)
-            return Box(width: w, ascent: base.ascent + gap + top.ascent + top.descent, descent: base.descent) { canvas, at in
+            return Box(width: w, ascent: base.ascent + gap + top.ascent + top.descent, descent: base.descent, inkUp: base.ascent + gap + top.iu + top.idn, inkDown: base.idn) { canvas, at in
                 base.draw(canvas, Offset(at.dx + (w - base.width) / 2, at.dy))
                 top.draw(canvas, Offset(at.dx + (w - top.width) / 2, at.dy - base.ascent - gap - top.descent))
             }
@@ -427,7 +669,7 @@ enum WriterMath {
         /// `low` centred under `base`.
         func under(_ base: Box, _ low: Box, gap: Double) -> Box {
             let w = max(base.width, low.width)
-            return Box(width: w, ascent: base.ascent, descent: base.descent + gap + low.ascent + low.descent) { canvas, at in
+            return Box(width: w, ascent: base.ascent, descent: base.descent + gap + low.ascent + low.descent, inkUp: base.iu, inkDown: base.descent + gap + low.iu + low.idn) { canvas, at in
                 base.draw(canvas, Offset(at.dx + (w - base.width) / 2, at.dy))
                 low.draw(canvas, Offset(at.dx + (w - low.width) / 2, at.dy + base.descent + gap + low.ascent))
             }
@@ -457,19 +699,50 @@ enum WriterMath {
             // (Inline, the limits stand beside the sign whatever it says.)
             let limits = display ? pr?.first("m:limLoc")?["m:val"] ?? (integral ? "subSup" : "undOvr") : "subSup"
             let s = runSize(n.first("m:e") ?? n, size, level)
-            // (A display equation's operator 1.6 times its
-            // text, as Word draws ∑: zh-20ff844e's.)
-            let opSize = display && level == 0 ? s * 1.6 : s
-            let op = raised(text(chr, size: opSize, italic: false), -(opSize - s) * 0.35)
+            // (A display equation's ∑ is Cambria Math's large variant, the face's own
+            // glyph at the text size: ink 1.240 em over the baseline to 0.669 under it,
+            // 1.326 em advance (read from the Cambria Math subset in Word's own PDFs, as
+            // the constants below: its MATH table). The stand-in's ∑ is 0.667 em tall, so
+            // it is drawn 2.864 times larger, its ink on the variant's.)
+            let big = display && level == 0 && chr == "\u{2211}"
+            let opSize = display && level == 0 && !big ? s * 1.6 : s
+            var op: Box
+            if big {
+                let glyph = text(chr, size: s * 2.864, italic: false)
+                op = Box(width: s * 1.326, ascent: s * 1.240, descent: s * 0.669, inkUp: s * 1.240, inkDown: s * 0.669) { canvas, at in
+                    glyph.draw(canvas, Offset(at.dx - s * 0.374, at.dy + s * 0.669))
+                }
+            } else {
+                op = raised(text(chr, size: opSize, italic: false), -(opSize - s) * 0.35)
+            }
             let hidden = { (name: String) in pr?.first(name).map { ["1", "on", "true"].contains($0["m:val"] ?? "1") } ?? false }
             let sub = hidden("m:subHide") ? nil : n.first("m:sub").map { row($0, size: size, level: level + 1) }
             let sup = hidden("m:supHide") ? nil : n.first("m:sup").map { row($0, size: size, level: level + 1) }
             var withLimits = op
             if limits == "undOvr" {
-                if let sup, sup.width > 0 { withLimits = over(withLimits, sup, gap: s * 0.08) }
-                if let sub, sub.width > 0 { withLimits = under(withLimits, sub, gap: s * 0.08) }
+                // (Cambria Math: the upper limit's baseline at least 500/2048 em over the
+                // sign, the lower's at least 1240/2048 under it, each at least 133/2048 em
+                // clear of the sign; the limit's ink being about 0.75 of its size tall.)
+                if let sup, sup.width > 0 {
+                    withLimits = over(withLimits, sup, gap: big ? max(s * 0.244 - sup.descent, s * 0.065) : s * 0.08)
+                }
+                if let sub, sub.width > 0 {
+                    withLimits = under(withLimits, sub, gap: big ? max(s * 0.605, s * 0.065 + min(sub.ascent, s * 0.55)) - sub.ascent : s * 0.08)
+                }
             } else {
-                withLimits = hbox([op, stackScripts(sub: sub, sup: sup, size: s, base: op)])
+                // (Cambria Math, beside: the superscript's baseline 460/2048 em under the
+                // sign's top, the subscript's 320/2048 em under its foot; zh-c2c92639's
+                // sums at 10.6pt: 10.7 up, 8.7 down.)
+                // (The inline sign: its limits' baselines 0.349 em over and 0.292 em under the line,
+                // read from zh-c2c92639's inline sum in Word's print: the face's 0.70 em
+                // ink top less 0.35, the 0.21 em it hangs plus 0.08.)
+                let fixed: (Double, Double)? = big ? (op.ascent - s * 0.282, op.descent + s * 0.222)
+                    : chr == "\u{2211}" ? (s * 0.292, s * 0.359)
+                    // (A display integral's limits, beside the sign: jpn-z22855378-6fca0f's ∬ at 14pt in
+                    // Word's print has the upper limit's baseline 16.0pt over the line and the lower's
+                    // 13.3pt under it, at 10pt; the stand-in's default put them 12.1 and 7.1.)
+                    : display && level == 0 && integral && RichTextTheme.wordWindowsPages ? (s * 1.143, s * 0.95) : nil
+                withLimits = hbox([op, stackScripts(sub: sub, sup: sup, size: s, base: op, fixed: fixed)])
             }
             return hbox([withLimits, space(s * 0.12), row(n.first("m:e"), size: size, level: level)])
         }
@@ -481,12 +754,26 @@ enum WriterMath {
             // Word's print.)
             let axis = size * 0.27, rule = max(0.4, size * 0.05), gap = size * 0.06, pad = size * 0.08
             let w = max(num.width, den.width) + 2 * pad
-            let ascent = axis + rule / 2 + gap + num.descent + num.ascent
-            let descent = max(0, gap + rule / 2 - axis + den.ascent + den.descent)
-            return Box(width: w, ascent: ascent, descent: descent) { canvas, at in
-                let line = at.dy - axis
-                num.draw(canvas, Offset(at.dx + (w - num.width) / 2, line - rule / 2 - gap - num.descent))
-                den.draw(canvas, Offset(at.dx + (w - den.width) / 2, line + rule / 2 + gap + den.ascent))
+            // (A fraction in a line of text — no display equation: Word's print of jpn-z22855378-6fca0f's
+            // exp[-(Δx+d0)²/4σ²] at 12pt has the rule 3.45pt over the baseline, the numerator's
+            // baseline 7.1 over it and the denominator's 6.0 under it, so the equation is 21.5pt tall
+            // and the 18pt-grid line takes two pitches.)
+            let text = inlineText && RichTextTheme.wordWindowsPages
+            let numUp = text ? size * 0.592 : 0, denDown = text ? size * 0.5 : 0
+            // (A display fraction in Word's print, jpn-z22855378-6fca0f p8 at 12pt: the rule 3.8pt over the
+            // baseline, the numerator's baseline 9.1 over it and the denominator's 8.1 under it, whatever
+            // they hold; a taller numerator or denominator is pushed clear of the rule.)
+            let wd = RichTextTheme.wordWindowsPages && !inlineText
+            let dRule = size * 0.317
+            let dNum = max(size * 0.758, dRule + rule / 2 + gap + min(num.descent, size * 0.3))
+            let dDen = max(size * 0.675, rule / 2 + gap + min(den.ascent, size * 0.75) - dRule)
+            let ascent = wd ? dNum + num.ascent : text ? numUp + num.ascent : axis + rule / 2 + gap + num.descent + num.ascent
+            let descent = wd ? dDen + den.descent : text ? denDown + den.descent : max(0, gap + rule / 2 - axis + den.ascent + den.descent)
+            let ruleUp = wd ? dRule : text ? size * 0.2875 : axis
+            return Box(width: w, ascent: ascent, descent: descent, inkUp: wd ? dNum + num.iu : text ? numUp + num.iu : nil, inkDown: wd ? dDen + den.idn : text ? denDown + den.idn : nil) { canvas, at in
+                let line = at.dy - ruleUp
+                num.draw(canvas, Offset(at.dx + (w - num.width) / 2, wd ? at.dy - dNum : text ? at.dy - numUp : line - rule / 2 - gap - num.descent))
+                den.draw(canvas, Offset(at.dx + (w - den.width) / 2, wd ? at.dy + dDen : text ? at.dy + denDown : line + rule / 2 + gap + den.ascent))
                 let p = Paint()
                 p.style = .stroke
                 p.strokeWidth = rule
@@ -508,19 +795,47 @@ enum WriterMath {
                 inner.append(row(e, size: size, level: level))
             }
             let body = hbox(inner)
-            let tall = max(s, (body.ascent + body.descent) * 0.95)
+            // (In a line of text Word's print leaves the brackets round a fraction at the text's size: jpn-z22855378-6fca0f's exp[…].)
+            var tall = inlineText && RichTextTheme.wordWindowsPages ? s : max(s, (body.ascent + body.descent) * 0.95)
+            // (Cambria Math's DelimitedSubFormulaMinHeight is 3000/2048 em: a display equation's body whose ink is shorter
+            // than that keeps its brackets at the text size. xb jpn-z22855378-158454: arg(h_obs(f)h*_GR(f)) is one line in
+            // Word's print, ours had stretched brackets and the superscript broke the line in two. A taller body takes
+            // the next size variant of the parenthesis that is at least 0.9 of the body's ink on both sides of the axis;
+            // the variant heights are the font's MATH table advanceMeasurements /2048 (lab cambria-math), jpn-z22855378-6fca0f
+            // p8: 1.976 em round fractions at 14pt, 2.55 and 2.956 em at 12pt.)
+            var fenceAdvance: Double? = nil
+            if RichTextTheme.wordWindowsPages, !inlineText {
+                let axis = s * 0.286
+                let ink = 2 * max(body.iu - axis, body.idn + axis)
+                if ink < 3000.0 / 2048 * s { tall = s } else {
+                    let steps = [1898.0, 2475, 3379, 4047, 5223, 6053, 7613, 8881].map { $0 / 2048 }
+                    let h = (steps.first { $0 * s >= 0.9 * ink } ?? steps.last!) * s
+                    tall = h / 0.853
+                    // (The variant's own advance, from the font's hmtx: 850, 1012 and 1175 /2048 em for the first, fourth and fifth;
+                    // the others read 0 in the file we have, so they take the nearest known one.)
+                    let adv = [850.0, 850, 1012, 1012, 1175, 1175, 1175, 1175]
+                    let k = steps.firstIndex { $0 * s >= 0.9 * ink } ?? steps.count - 1
+                    fenceAdvance = adv[k] / 2048 * s
+                }
+            }
             func fence(_ c: String) -> Box {
                 guard !c.isEmpty else { return .empty }
                 let f = text(c, size: tall, italic: false)
                 // (Centred on the body, not set on its baseline.)
-                let middle = (body.ascent - body.descent) / 2
-                return raised(f, middle - (f.ascent - f.descent) / 2)
+                let middle = RichTextTheme.wordWindowsPages && !inlineText ? s * 0.286 : (body.ascent - body.descent) / 2
+                let r = raised(f, middle - (f.ascent - f.descent) / 2)
+                // (A stretched bracket reserves its ink, not its whole font line: the line under a display
+                // equation was 11-15 pt too tall in jpn-z22855378-6fca0f p8.)
+                guard RichTextTheme.wordWindowsPages, !inlineText else { return r }
+                return Box(width: fenceAdvance ?? r.width, ascent: min(r.ascent, body.ascent + s * 0.1), descent: min(r.descent, body.descent + s * 0.1), draw: r.draw)
             }
             return hbox([fence(beg), body, fence(end)])
         }
 
         /// A radical: the sign grown to its body, a rule over it, its
         /// degree small at the left.
+        // (Windows Word, a root in a line of text: the sign's ink ends at the rule, so the line is no taller than the rule
+        // over its body; a display equation's root keeps the sign's height, xs 5e2af397: lo-98ae9de23e's roots stand in 15.6pt lines of a 13.8pt text, the sign's font line gave 19.)
         func radical(_ n: XNode, size: Double, level: Int) -> Box {
             let body = row(n.first("m:e"), size: size, level: level)
             let s = runSize(n.first("m:e"), size, level)
@@ -529,9 +844,10 @@ enum WriterMath {
             let height = body.ascent + body.descent + s * 0.15
             let sign = text("\u{221A}", size: max(s, height * 0.95), italic: false)
             let rule = max(0.4, s * 0.05)
-            let top = body.ascent + s * 0.12
+            // (In a line of text the gap over the body is Cambria Math's text-style 0.05 em, not the display 0.12.)
+            let top = body.ascent + s * (RichTextTheme.wordWindowsPages && inlineText ? 0.05 : 0.12)
             let lead = (degree?.width ?? 0) * 0.6
-            return Box(width: lead + sign.width + body.width + s * 0.05, ascent: max(top + rule, sign.ascent, (degree?.ascent ?? 0) + top * 0.5),
+            return Box(width: lead + sign.width + body.width + s * 0.05, ascent: max(top + rule, RichTextTheme.wordWindowsPages && inlineText ? 0 : sign.ascent, (degree?.ascent ?? 0) + top * 0.5),
                        descent: max(body.descent, sign.descent)) { canvas, at in
                 degree?.draw(canvas, Offset(at.dx, at.dy - top * 0.5))
                 sign.draw(canvas, Offset(at.dx + lead, at.dy + body.descent - sign.descent))

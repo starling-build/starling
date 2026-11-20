@@ -3,6 +3,7 @@
 
 import XCTest
 import Flutter
+import OfficeText
 @testable import OfficeApp
 #if canImport(AppKit)
 import AppKit
