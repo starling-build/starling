@@ -287,7 +287,7 @@ extension RichLayout {
                 let n = (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
                 names.insert(n)
             }
-            return names.count > 1 && names.isSubset(of: ["calibri", "tahoma"])
+            return names.count > 1
         }()
         let thaiJoins = _thaiJoins(p, document, named: named, textWidth: textWidth, lead: lead)
         let hanJoins = theme.wordRules ? Self._hanJoins(p, document, index: index, fitChars: _hanFitChars(p, named: named, textWidth: textWidth)) : []
@@ -1736,12 +1736,19 @@ extension RichLayout {
                    text.unicodeScalars.contains(where: { ($0.value >= 0x30 && $0.value <= 0x39) || ($0.value >= 0x41 && $0.value <= 0x5A) || ($0.value >= 0x61 && $0.value <= 0x7A) || ($0.value >= 0xC0 && $0.value < 0x250) }) {
                     let bold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
                     let italic = run.italic || ((named?.char.italic ?? false) && !run.off.contains(.italic))
-                    let latin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)
-                    var single = p.style; single.lineSpacing = 1
-                    if let b = theme.baseline(for: run, in: single, named: named, eastAsian: false, gridPitch: pitch), let pt = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize, pt > 0.5 {
-                        let nat = b / pt + (["calibri": 0.2686, "tahoma": 0.2065][(latin ?? "").trimmingWhitespace().lowercased()] ?? 0.25)
+                    let latin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)?.trimmingWhitespace()
+                    let face = latin.flatMap { theme.faceResolver?($0, false) }
+                    // (Only a face whose line Word's metrics give: a stand-in's own ascent and descent are not the face's.)
+                    let own: (Double, Double)? = {
+                        let drawn = theme.faceAscentDescent(family: face?.family ?? latin ?? "", bold: bold, italic: italic)
+                        guard let t = (bold ? face?.boldBaseline : nil) ?? face?.baseline else { return nil }
+                        guard let d = ((bold ? face?.boldHeight : nil) ?? face?.naturalHeight).map({ $0 - t }) ?? drawn?.1 else { return nil }
+                        return (t, d)
+                    }()
+                    if let ad = own {
+                        let asc = ad.0, nat = ad.0 + ad.1
                         RuleTrace.hit("word-line-of-mixed-latin-faces-is-tallest-ascent-over-deepest-descent")
-                        let sp = Self._multipleSplit(ascent: b / pt, descent: nat - b / pt, multiple: p.style.lineSpacing)
+                        let sp = Self._multipleSplit(ascent: asc, descent: nat - asc, multiple: p.style.lineSpacing)
                         s = s.copyWith(ascentOverride: size * sp.0, descentOverride: size * sp.1, height: nat * max(1, p.style.lineSpacing), leadingDistribution: .even)
                     }
                 }
