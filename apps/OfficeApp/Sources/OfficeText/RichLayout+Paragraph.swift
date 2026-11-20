@@ -2739,8 +2739,13 @@ extension RichLayout {
             }
             return half <= 0 ? half : nil
         }
+        func _symbolBulletOnNaturalLine(_ p: RichParagraph, painter: TextPainter, style: RichParagraphStyle, document: RichDocument) -> Bool {
+            theme.wordRules && RichTextTheme.wordWindowsPages && p.style.list == .bullet && painter.strutStyle == nil
+                && style.lineHeightPoints == nil && style.lineSpacing > 1.01
+                && _levelNumberFonts(p, document).latin?.lowercased() == "symbol"
+        }
         @inline(never) func _blk5() {
-        if theme.wordRules, p.image == nil, !p.text.isEmpty, painter.strutStyle != nil || _heldTallerLatin.contains(i) || chainFaceLine || scriptsOnly || mixedSizes || Self._startsWithEmoji(p.text) || _koreanSymbolFirstLineRaise(p, painter: painter, lead: _lead(i), named: _named(p, document), document: document) != nil,
+        if theme.wordRules, p.image == nil, !p.text.isEmpty, painter.strutStyle != nil || _heldTallerLatin.contains(i) || _symbolBulletOnNaturalLine(p, painter: painter, style: style, document: document) || chainFaceLine || scriptsOnly || mixedSizes || Self._startsWithEmoji(p.text) || _koreanSymbolFirstLineRaise(p, painter: painter, lead: _lead(i), named: _named(p, document), document: document) != nil,
            let line = painter.computeLineMetrics().first {
             let named = _named(p, document)
             let pitch = _offGrid(i, document) ? nil : _grid(i, document).pitch
@@ -2988,6 +2993,11 @@ extension RichLayout {
                         RuleTrace.hit("word-missing-bengali-face-marks-line-under-at-least-stands-on-mangal-ascent")
                         target = stand
                     }
+                }
+                if _symbolBulletOnNaturalLine(p, painter: painter, style: style, document: document),
+                   let ms = _markerChar(p, document).fontSize ?? lead.0.fontSize, ms * 1.005 > target {
+                    RuleTrace.hit("word-symbol-bullet-line-at-a-line-multiple-stands-on-symbols-ascent")
+                    target = ms * 1.005
                 }
                 _inkShift[i] = _px(target) - line.baseline
                 // (A Wingdings 2 bullet's line is laid out on the mark's ascent (`_span`, "word-wingdings2-lowered-bullet..."),
