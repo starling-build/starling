@@ -1476,6 +1476,7 @@ public final class RichLayout {
     /// How far a picture paragraph's picture stands in from its text's
     /// left, as the paragraph aligns it (pixels).
     var _imageShift: [Double] = []
+    var _inlineOverflow: [String: Double] = [:]
     /// How far down its line a picture paragraph's picture stands: its
     /// character border's and effect extent's room above it (pixels).
     var _imageDrop: [Double] = []

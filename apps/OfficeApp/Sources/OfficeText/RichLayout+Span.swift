@@ -4854,6 +4854,16 @@ extension RichLayout {
                     size = Size(size.height, 0)
                     eqOffset = 0
                 }
+                // (A picture opening the paragraph, wider than the line once the first-line indent stands before it: Word keeps it on that
+                // first line, at the indent, running past the margin. The painter would part the indent from the picture, so the picture's
+                // box is cut to fit and drawn at its own width: aea0a2a2's 243.75pt equation, 11.35pt in, stood at the margin in ours.)
+                if lead > 0 { _inlineOverflow[image.id] = nil }
+                if theme.wordRules, RichTextTheme.wordWindowsPages, image.float == nil, lead > 0, p.style.list == nil, p.cell == nil,
+                   inline.count == 1, inline[0].image == nil, textWidth - lead >= 1, size.width > 0, size.width + lead > textWidth + 0.01 {
+                    RuleTrace.hit("word-first-picture-wider-than-the-indented-line-stays-on-it")
+                    _inlineOverflow[image.id] = size.width + lead - textWidth
+                    size = Size(textWidth - lead, size.height)
+                }
                 children.append(RichImageSpan(alignment: alignment, baseline: TextBaseline.alphabetic, style: style))
                 inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic,
                                                              baselineOffset: (hung ?? eqOffset ?? middle.map { size.height / 2 + _px($0) }
