@@ -18090,3 +18090,10 @@ NEXT: open a PR from wip/amd-1 per the new workflow once briefed.
 amd-1 2026-11-20 CLAIM: PR 69 (inline picture whole twips + header picture line, 6b74a903); then Latin squeeze cap (sa1 0a4c7687 p1 line 25) and 6b74a903 header 0.055 pt.
 
 lenovo-2 CLAIM (2026-11-20, starling-bd): xb 5dc87fc7 next gaps: U+FF40 region page 5; Hebrew paragraph 115 pt high. Then sa1/sa2 (Spanish/Portuguese), ko, ja.
+
+### amd-6 HANDOFF 2026-11-20
+- LANDED: PR 68 (tall one-row floating table lift; PR 52 was the same commits, closed). PR 89 queued: merged hideMark cell's last empty paragraph leaves the span height (sa2 25bdbf91 p6 now matches Word, 609.3 vs 609.2; also moves 585eb7bb, ces-z14728513-f2af69 toward Word). Unit tests 835/0.
+- LEFT, 56e12a87 (lab row56): Word keeps the same 132 lines on page 1 in all four files. Lifts: y1800 ~21.4 pt (past the 11.34 cap), nonest ~11 (ours 8.4). Candidate law: top = min(tblpY place, page limit - height of kept part), same as f42177d2 (top = H - 22.3 - n lines). Text-anchored tables stop at the margin because the by-lines extension to the page foot is gated on pageAnchored; an experiment ungating it drew a line past the page and lost nonest page-2 text (reverted).
+- LEFT, f42177d2 (lab gridlift2): page-2 top moves with tblpY, not 1:1.
+- LEFT, sa2 511c21d4 (63.9), 299ec051 (64.3). 585eb7bb still ~14 pt off from an earlier cause on its page 3.
+- TRAP: do not touch floatingTableLiftLimit; re-render tblstrip5-8 if the lift area changes.
