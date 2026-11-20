@@ -77,6 +77,8 @@ extension RichLayout {
         // its physical page and where the next section's columns start.
         var columnFloor: (physical: Int, y: Double)? = nil
         var besideTable: (bottom: Double, page: Int)? = nil
+        // (Set with the bottom of a table whose anchor paragraph stands above it: the empty paragraphs after it go under the table too.)
+        var anchorAboveBottom: Double? = nil
         var reordered = false
         var i = 0
         // A page is as tall as its section's content: the section of the
@@ -1988,7 +1990,7 @@ extension RichLayout {
                     RuleTrace.hit("floating-table-set-from-an-anchor-beside-the-float-above")
                     besideTable = nil
                 }
-                else if (_cells[i] != nil && !(_cells[i].map { _narrowBesideFloat($0.table, document) } ?? false)) || (_cells[i] == nil && !(blank(p) || (i < _besideLead.count && _besideLead[i] > 0))) { y = beside.bottom; besideTable = nil }
+                else if (_cells[i] != nil && !(_cells[i].map { _narrowBesideFloat($0.table, document) } ?? false)) || (_cells[i] == nil && !((blank(p) && anchorAboveBottom != beside.bottom) || (i < _besideLead.count && _besideLead[i] > 0))) { y = beside.bottom; besideTable = nil }
             }
             // (A table floating in the left margin, wholly outside the text's width, takes no room of
             // the text's: the paragraph after it stands at its top, beside it. Word for Windows' print of
@@ -2034,6 +2036,7 @@ extension RichLayout {
                _heights[i] - (i < _spaceBefore.count ? _spaceBefore[i] : 0) <= _px(down) + 0.01 {
                 RuleTrace.hit("word-anchor-paragraph-of-a-full-width-floating-table-keeps-its-place-above-it")
                 besideTable = (y, page)
+                anchorAboveBottom = y
                 y = fb.y - (i < _spaceBefore.count ? _spaceBefore[i] : 0)
             }
             // (A table as wide as the text leaves no strip: what follows goes under
