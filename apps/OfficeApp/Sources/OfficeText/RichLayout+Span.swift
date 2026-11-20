@@ -2479,6 +2479,7 @@ extension RichLayout {
             }
             var offset = base
             var i = text.startIndex
+            var compatJoinerAfter: TextStyle? = nil
             // (Measured as shown: a run in capitals (`capped`) is spaced,
             // kerned and put on the grid by its capitals — 60810's titles,
             // "Connection to global talent programmes/R200" in caps, lost
@@ -3036,9 +3037,8 @@ extension RichLayout {
                         devanagariStyles[key] = _lineJoiner(run, named, style(-1), p.style, pitch, scale, ascent: fb.1.0, descent: fb.1.1)
                     }
                     if let joiner = devanagariStyles[key] ?? nil {
-                        flush(i)
-                        spans.append(TextSpan(text: "\u{2060}", style: joiner))
-                        inserts.append(offset)
+                        // (After the form, so a line that starts with it holds the taller face and the line it leaves does not: xb 5dc87fc7 p5.)
+                        compatJoinerAfter = joiner
                     }
                 }
                 // (A Devanagari word wider than its column is cut where each line fills, and every line of it is a line of Mangal: the joiner
@@ -4271,6 +4271,12 @@ extension RichLayout {
                 }
                 }
                 _sblk4()
+                if let joiner = compatJoinerAfter {
+                    compatJoinerAfter = nil
+                    flush(after)
+                    spans.append(TextSpan(text: "\u{2060}", style: joiner))
+                    inserts.append(offset + ch.utf16.count)
+                }
                 offset += ch.utf16.count
                 i = after
             }
@@ -5696,7 +5702,8 @@ extension RichLayout {
                                  hint: String?) -> Bool {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, ch.unicodeScalars.count == 1,
               let u = ch.unicodeScalars.first?.value else { return false }
-        let set: [UInt32] = [0xA7, 0xA8, 0xB0, 0xB1, 0xB4, 0xB6, 0xD7, 0xF7, 0xB7, 0x2C7, 0x2016, 0x2032, 0x2033]
+        // (U+2010 too: Word draws it a full em in an MS Mincho run, xb 5dc87fc7 K85 12.0 of 12.0.)
+        let set: [UInt32] = [0xA7, 0xA8, 0xB0, 0xB1, 0xB4, 0xB6, 0xD7, 0xF7, 0xB7, 0x2C7, 0x2010, 0x2016, 0x2032, 0x2033]
         guard set.contains(u) else { return false }
         // (Under w:hint="eastAsia" the character is already East Asian and an em: lab xb e925ae95, where Word's print and our plain
         // width agree.)
