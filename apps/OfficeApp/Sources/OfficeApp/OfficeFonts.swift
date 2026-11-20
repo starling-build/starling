@@ -4871,6 +4871,7 @@ static let sylfaenAdvances: [Double] = [
             // letter wider in Word's print than the stand-in's.)
             if wordOnWindows, family.trimmingWhitespace().lowercased() == "century" {
                 face.advances = centuryAdvances
+                face.boldAdvances = centuryAdvances
                 face.naturalHeight = 1.2021
                 face.baseline = 0.9858
                 RuleTrace.hit("century-own-widths")
