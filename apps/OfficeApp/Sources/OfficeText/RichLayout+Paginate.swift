@@ -1123,9 +1123,12 @@ extension RichLayout {
                 // row, tblpY 59pt under the margin, keeps lines to 816.6 and blank ones to 837.5 on a 841.9pt page in Word's print; ours stopped at the margin, 793.7.)
                 let textFloatOneRow: Bool = {
                     guard theme.wordRules, RichTextTheme.wordWindowsPages, first, c.row == 0,
-                          let ts = document.tableStyles[c.table], !ts.pageAnchored, ts.marginOffsetY != nil || (ts.floatsOverText && (ts.floatOffsetY.map { _px($0) > _heights[i] } ?? false)) else { return false }
+                          let ts = document.tableStyles[c.table], !ts.pageAnchored, ts.marginOffsetY != nil else { return false }
                     // (Set by the text a line or less under its anchor, the row flows as the text does and ends at the margin: lo-148591d5
                     // and lo-c98d1eaf, tblpY 1 twip, break at the margin in Word's print, as 56e12a87's, 59pt down, does not.)
+                    // (A table set by the text, 20 to 420 twips under its anchor, flows and breaks at the margin too: lab thr, Word for Windows, compat 12,
+                    // a ten-line row 1 to 21 pt under an anchor line 17 pt above the margin keeps 2 lines (20, 60 twips), 1 line (120 to 300) or none (420) on page 1.
+                    // Only a margin-anchored table, 56e12a87's, runs to the edge.)
                     return !_cells.contains { $0?.table == c.table && $0!.row > 0 }
                 }()
                 if theme.wordRules, first, document.tableStyles[c.table]?.pageAnchored == true || textFloatOneRow {
