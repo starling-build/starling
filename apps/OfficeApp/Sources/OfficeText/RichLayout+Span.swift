@@ -4583,6 +4583,23 @@ extension RichLayout {
                         }
                     }
                 }
+                // (A Wingdings bullet over East Asian text at single spacing: Word's print stands the first line on the taller of the bullet's
+                // ascent (1841/2048 em at the box's size) and the text face's own, over the deeper of the two below. Malgun Gothic's line is 1.73 em,
+                // 1.288 above and 0.442 below, so 14pt boxes over 9pt rows stand 12.58 over 3.98: rows 16.56 apart where the text's line alone is 15.56
+                // (xd b88f2314 p2 checkboxes, Word 16.56 against our 15.56).)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil,
+                   p.style.lineSpacing <= 1.001, leadChar.fontFamily?.lowercased() == "wingdings", let px = style.fontSize, px > 0.5,
+                   !p.style.rightToLeft, p.text.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7AF }),
+                   (p.runs.first?.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? "").trimmingWhitespace().lowercased() == "malgun gothic"
+                    || (p.runs.first?.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? "").trimmingWhitespace() == "맑은 고딕",
+                   let ml = Self._indicLines["malgun gothic"],
+                   let textPt = p.runs.first?.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize, textPt > 0.5 {
+                    let textSize = _px(textPt) * fontScale
+                    let up = max(px * 1841.0 / 2048, ml.0 * textSize), down = max(px * 432.0 / 2048, ml.1 * textSize)
+                    RuleTrace.hit("word-wingdings-bullet-over-malgun-text-stands-on-the-taller-ascent")
+                    symStands = true
+                    markStyle = style.copyWith(ascentOverride: up, descentOverride: down, height: (up + down) / px, leadingDistribution: .even)
+                }
                 // (A Wingdings 2 bullet, the empty box: Word's print stands the line on the box's ascent less its lowering (or the row's own text
                 // ascent when that is taller), over the row's own text depth only: the box's depth, lowered or not, adds nothing. Lab bea-lab
                 // (22pt boxes: rows 21.06 apart unlowered, 18.06 lowered 3pt, 15.07 lowered 6pt; 12pt boxes lowered 3pt are the text row alone);
