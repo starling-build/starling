@@ -1868,7 +1868,7 @@ extension RichLayout {
                 // (No complex-script face named, and Arial Narrow for Latin: Word sets the Arabic in Arial, not in the narrow face.)
                 var name = complex ?? latin
                 if complex == nil, name?.trimmingWhitespace().lowercased() == "arial narrow" { name = "Arial" }
-                return theme.complexFace(name, latin: latin)
+                return theme.complexFace(name, latin: latin, letters: run.csLetters)
             }()
             let joinedFace: RichResolvedFace? = run.rightToLeft ? complexFaceOfRun : nil
             // A right-to-left space is set in the complex-script face when the document names one apart from the Latin face (b514c2: Arial against the theme's Aptos); the same name for both keeps the Latin table (dx2 Tahoma fa/ur docs).
