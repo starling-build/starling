@@ -184,6 +184,25 @@ extension RichLayout {
         // the paragraphs after their anchor keep clear of them (the anchor's own is sent under by the rule below).
         var fixedBands: [(top: Double, bottom: Double, left: Double, right: Double)] = []
         var tightBandBottoms: [Double] = []   // feet of the wrapTight/Through boxes' bands
+        // (A header picture that starts under the header's last line leaves the body's start alone, but the body's lines keep clear
+        // of it: the first whose box touches it stands at its foot. Word's prints of sa2 0840cb25's lab, rule 13.8 to 40pt under a 12.6pt line.)
+        func addHeaderBand() {
+            guard theme.wordRules, RichTextTheme.wordWindowsPages else { return }
+            let physical = page / _columns
+            guard let header = _headerFooter(.header, page: physical, document, pageCount: 1),
+                  let band = _headerBandUnderLastLine(header, pageSetup(forPage: physical)) else { return }
+            // (Not where the page holds a figure of its own that the text goes over and under, set from its paragraph: Word's prints of
+            // the lab (h0, m15 to m40) charge the push at that figure, not at the page's top, and not by an amount the labs pinned
+            // down, so the page stays as it was. Looked for in the paragraphs the page may hold, 60 on.)
+            let first = min(i, max(0, count - 1))
+            for k in first..<min(count, first + 60) {
+                let own = ((k < _floatImages.count ? [_floatImages[k]].compactMap { $0 } : []) + (k < _inline.count ? _inline[k] : []))
+                if own.contains(where: { $0.float.map { ($0.takesRoom || $0.bandsPage) && !$0.wraps && $0.verticalFrom == "paragraph" } ?? false }) { return }
+            }
+            let top = _bodyInsets(page: physical, document).top
+            RuleTrace.hit("word-header-picture-below-the-last-line-keeps-the-body-lines-clear")
+            fixedBands.append((band.top - top, band.bottom - top, 0, 1e9))
+        }
         // The pinned floats' bands on this page (in `bands` too), which a
         // table's rows keep clear of as well.
         var pinBands: [(top: Double, bottom: Double, left: Double, right: Double)] = []
@@ -345,6 +364,7 @@ extension RichLayout {
             if let floor = columnFloor, floor.physical == page / max(1, _columns) { y = floor.y }
             prevContentH = contentH
             openPage()
+            addHeaderBand()
             loadPins()
             // (The rest of a note the page before parted, first under the
             // rule.)
@@ -422,6 +442,7 @@ extension RichLayout {
             _pageSection.removeAll(keepingCapacity: true)
             _pageHeaderSection = [:]
             openPage()
+            addHeaderBand()
         }
         func add(_ piece: PagePiece) {
             _pages[page].append(piece)
