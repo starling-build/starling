@@ -4205,7 +4205,9 @@ static let sylfaenAdvances: [Double] = [
         // every body line 6.3 pt high. With an alternate (e466671e: Georgia) the alternate wins.)
         if wordOnWindows, !eastAsian, !isEmbedded(family), installedFamilies[family.trimmingWhitespace().lowercased()] == nil,
            let e = fontEntry(family), e.family == "roman", e.alt?.trimmingWhitespace().isEmpty ?? true, !e.panoseZero, e.panose.hasPrefix("0205"),
-           e.charset == "00" || e.charset.isEmpty, family.trimmingWhitespace().lowercased() != "palatino linotype" {
+           e.charset == "00" || e.charset.isEmpty, family.trimmingWhitespace().lowercased() != "palatino linotype",
+           !wordMacFamilies.contains(family.trimmingWhitespace().lowercased()) {
+            // (A face Office ships, such as Bookman Old Style, is on Word's machine with its own metrics: dx4j 7acb6260, bd1d0f24 dropped.)
             RuleTrace.hit("word-missing-roman-panose-0205-is-palatino")
             return standInFace("Palatino Linotype", eastAsian: false)
         }
