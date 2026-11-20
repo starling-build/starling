@@ -3180,8 +3180,11 @@ enum DocxFormat {
                             // sides in the header row) rules the table 1pt top and bottom.
                             if RichTextTheme.wordWindowsPages, !style.bordersFromCells, style.borders {
                                 let te = style.edges ?? BorderEdges()
-                                if r == 0, own.top == false, te.top ?? style.borders { own.top = nil }
-                                if r == rowCount - 1, own.bottom == false, te.bottom ?? style.borders { own.bottom = nil }
+                                // (Only a "none": a cell's "nil" is no rule at all. sa1 9881dc01's first rows say `w:top w:val="nil"` under
+                                // Table Grid, and Word's print has their text 0.58pt higher than the table's top rule would leave it.)
+                                let nilSide = { (n: String) in sidesPr?.first("w:tcBorders")?.first(n)?["w:val"] == "nil" }
+                                if r == 0, own.top == false, te.top ?? style.borders, !nilSide("w:top") { own.top = nil }
+                                if r == rowCount - 1, own.bottom == false, te.bottom ?? style.borders, !nilSide("w:bottom") { own.bottom = nil }
                             }
                             own.insideH = nil; own.insideV = nil
                             if style.bordersFromCells {
