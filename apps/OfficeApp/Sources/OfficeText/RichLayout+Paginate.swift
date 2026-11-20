@@ -54,6 +54,7 @@ extension RichLayout {
         var keptPastFoot: String? = nil
         // The last empty paragraph the compat 14 carry rule looked at: where it began, and on which page.
         var lastEmptyAt: (i: Int, page: Int, y: Double)? = nil
+        var bottomTablePage: (table: String, page: Int)? = nil
         var deferredTable: String? = nil
         // A table placed against the page further down than the text has
         // come: where the text stood, to go on from there round it.
@@ -2607,6 +2608,7 @@ extension RichLayout {
                     let target = ts0?.pageOffsetY.map { _px($0) - insetTop } ?? bottomAlignedOffset(c, i).map { _px($0) - insetTop } ?? (_px(ts0?.marginOffsetY ?? 0) - _headerPushBeyondMargin(physical))
                     if target > y + 0.01, target < contentH - 0.01 {
                         tableReturn = (c.table, y, page, target)
+                        if ts0?.bottomAligned == true { bottomTablePage = (c.table, page) }
                         y = target
                         // (A table placed against the page whose first row, or
                         // the whole of it, would pass the page's bottom EDGE is
@@ -3611,6 +3613,42 @@ extension RichLayout {
             // next page and the second table stands under them, where 0 after leaves the first one.)
             var emptyBegins = y
             if let last = lastEmptyAt, last.i == i - 1, last.page == page { emptyBegins = max(y, last.y + _heights[i - 1]) }
+            // (An empty paragraph above a table that asks for the body's foot (tblpYSpec bottom) must clear the table's
+            // top with its space after, else Word carries it to the next page: sa1 74e2ec8f's cover, four empties
+            // of 25.4pt over a full-width bottom table, Word's prints keep three and carry the fourth, even with the table
+            // 3pt higher; with 0 after all four stay.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, resumeCursor == nil, y > 0.01, (document.compatibilityMode ?? 12) < 15,
+               _columns == 1, document.paragraphs[i].text.isEmpty, document.paragraphs[i].image == nil, document.paragraphs[i].style.frameXML == nil,
+               !_pageBreak[i], _cells[i] == nil {
+                // (The table stands after the empties in the file, or before them: its first cell is the first
+                // non-empty paragraph in either direction.)
+                var k = i
+                while k < count, _cells[k] == nil, document.paragraphs[k].text.isEmpty, document.paragraphs[k].image == nil { k += 1 }
+                var cell = k < count ? _cells[k] : nil
+                if cell == nil || document.tableStyles[cell!.table]?.bottomAligned != true {
+                    var j = i - 1
+                    while j >= 0, _cells[j] == nil, document.paragraphs[j].text.isEmpty, document.paragraphs[j].image == nil { j -= 1 }
+                    cell = j >= 0 ? _cells[j] : nil
+                    if let c = cell, j >= 0, bottomTablePage?.table == c.table, bottomTablePage?.page == page, document.tableStyles[c.table]?.bottomAligned == true {
+                        var f = j
+                        while f > 0, let d = _cells[f - 1], d.table == c.table { f -= 1 }
+                        cell = _cells[f]
+                    } else { cell = nil }
+                }
+                if let c = cell, document.tableStyles[c.table]?.bottomAligned == true {
+                    var bottom = c.rowTop + c.ownRowHeight, m = 0
+                    while m < count {
+                        if let d = _cells[m], d.table == c.table { bottom = max(bottom, d.rowTop + d.ownRowHeight) }
+                        m += 1
+                    }
+                    let height = bottom - c.rowTop
+                    let pst = document.paragraphs[i].style
+                    if height < contentH, Self._needs(_heights[i], _px(pst.spaceAfter), pst.lineSpacing) > contentH - height - emptyBegins + 0.01 {
+                        RuleTrace.hit("word-empty-above-a-bottom-table-clears-its-top-with-its-space-after")
+                        newPage()
+                    }
+                }
+            }
             if theme.wordRules, RichTextTheme.wordWindowsPages, resumeCursor == nil, y > 0.01,
                // (Compat 15 carries a lone empty between the tables, lab compat1415b after2; of two or more the ones past the foot are absorbed.)
                (document.compatibilityMode ?? 12) < 15 || (i > 0 && _cells[i - 1] != nil && i + 1 < count && _cells[i + 1] != nil),
