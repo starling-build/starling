@@ -3636,8 +3636,8 @@ extension RichLayout {
                     for (k, box) in boxes.enumerated() {
                         guard inline[k].image != nil, inline[k].image?.float == nil, inline[k].image?.textBox == nil,
                               inline[k].image?.name != "m:oMath", let img = inline[k].image else { continue }
-                        // (Only an object the run raises or lowers: a plain picture at position 0 keeps the multiple on the text,
-                        // a8f4dfcd's 20pt icons in 1.5 Tahoma 12 pitch as text lines in Word's print.)
+                        // (A plain picture at position 0 takes part too: it raises only its own line, and every line of the
+                        // paragraph takes the multiple's extra below.)
                         let pos = p.runs.first(where: { $0.style.inlineImage == img.id }).flatMap { $0.style.raised } ?? Self._runPosition(img.sourceRunPropertiesXML) ?? 0
                         let r = box.toRect()
                         let mid = r.top + r.height / 2
@@ -3646,11 +3646,24 @@ extension RichLayout {
                             // (A plain chart that stands ALONE on a later line, after a line of text: the chart wrapped. (Not a picture: 8f697d90's screenshots at 1.08 do not take it.) Word puts
                             // the multiple's extra under the text line and under the picture line alike; lab probe1-4 on dx2 f15415f0,
                             // heading 11pt Verdana at 360 then a 272pt-wide chart: heading 438.9, chart line 748.8 from 735.0 single.)
-                            guard line > 0, img.sourceXML?.containsSubstring("drawingml/2006/chart") == true, metrics[line].width <= r.width + 1, r.height > 1.5 * bottoms[0], inline.count == 1 else { continue }
-                            wrappedPlain.insert(line)
+                            if line > 0, img.sourceXML?.containsSubstring("drawingml/2006/chart") == true, metrics[line].width <= r.width + 1, r.height > 1.5 * bottoms[0], inline.count == 1 {
+                                wrappedPlain.insert(line)
+                            }
                         }
                         above[line] = max(above[line], metrics[line].baseline - r.top)
-                        below[line] = max(below[line], r.bottom - metrics[line].baseline)
+                        // (a placeholder the first-line rule enlarged for the text's room under the baseline: its foot is the picture's own)
+                        let grown = _pageFill[img.id].map { max(0, r.height - $0) } ?? 0
+                        below[line] = max(below[line], r.bottom - grown - metrics[line].baseline)
+                    }
+                    // (Only while the pictures stay within the text's own line: lab afbaab-multiple has 12.75pt pictures in 11pt
+                    // Tahoma. A taller picture is not in the lab, and a8f4dfcd's 20pt icons in 1.5 Tahoma 12 do not fit the formula.)
+                    let tallPic = boxes.contains { $0.toRect().height > single + 0.5 }
+                    if tallPic { above = [Double](repeating: -1, count: bottoms.count); below = above }
+                    if wrappedPlain.isEmpty, above.contains(where: { $0 >= 0 }) {
+                        // (Word's print, lab afbaab-multiple, 27 lines to 0.1 pt: EVERY line of the paragraph stands max(text ascent, picture top)
+                        // above its baseline, and below it go the text's descent plus ALL of the multiple's extra, so a line without
+                        // an object takes the same formula.)
+                        for k in 0 ..< bottoms.count where above[k] < 0 { above[k] = 0; below[k] = 0 }
                     }
                     var extra = [Double](repeating: 0, count: bottoms.count)
                     for line in 0 ..< bottoms.count where above[line] >= 0 {
@@ -3659,8 +3672,8 @@ extension RichLayout {
                         extra[line] = target - advance
                         // (Where the growth sits: the object's top pushes THIS line's own baseline down, its foot adds below it. Word's
                         // print of 1d944f7b: pitches 24.0 into the object's line and 23.1 out of it, 2.6 + 6.9 + 14.4 and 5 + 6.9 + 11.2.)
-                        let want = own.baseline + max(0, above[line] - (single - desc))
-                        shiftsOwn[line] = min(max(0, want - (metrics[line].baseline - before)), max(0, extra[line]))
+                        let want = max(single - desc, above[line])
+                        shiftsOwn[line] = min(want - (metrics[line].baseline - before), max(0, extra[line]))
                         if wrappedPlain.contains(line) {
                             // (painter units here are not the probe's: take the text line's own single height from line 0)
                             extra[line] = (multiple - 1) * bottoms[0] / multiple
@@ -3675,7 +3688,7 @@ extension RichLayout {
                             shiftsOwn[k] = -(metrics[k].baseline - before) * (multiple - 1) / multiple
                         }
                     }
-                    if extra.contains(where: { abs($0) > 0.05 }) || !wrappedPlain.isEmpty {
+                    if extra.contains(where: { abs($0) > 0.05 }) || shiftsOwn.contains(where: { abs($0) > 0.05 }) || !wrappedPlain.isEmpty {
                         RuleTrace.hit("word-a-line-with-an-object-is-its-tallest-and-deepest-plus-the-multiples-extra-below")
                         var shifts = [Double](repeating: 0, count: bottoms.count)
                         var acc = 0.0
