@@ -130,7 +130,7 @@ rc=$?; echo "render-gate: render+compare step $(( $(date +%s)-T1 )) s"
 if [ $rc != 0 ]; then echo "render-gate: pair failed (exit $rc)"; grep -aE "ABORT|failed|no engine" "$W/pair.log" | head -5 | cut -c1-200; exit 1; fi
 # a document whose render timed out (DOC_ALARM s) or crashed is not scored: name it and fail, never hang or pass silently
 TO=$(grep -aE '^(TIMEOUT|RENDER-FAIL) ' "$W/pair.log" | sort -u | head -20 | sed 's/ (not scored)//')
-if [ -n "$TO" ]; then echo "render-gate: FAILED, render did not finish (timeout ${DOC_ALARM} s) for:"; echo "$TO" | sed 's/^/  /'; exit 1; fi
+if [ -n "$TO" ]; then echo "render-gate: FAILED, render timed out (over ${DOC_ALARM} s) or crashed for:"; echo "$TO" | sed 's/^/  /'; exit 1; fi
 # a gate that compared nothing must not pass
 NCMP=$(awk '/^== /{v2=($0 ~ / v2$/)} v2 && /^NEW: [1-9]/{n++} END{print n+0}' "$W/pair.log")
 [ "$NCMP" -gt 0 ] || { echo "render-gate: nothing was compared (see runner log)"; exit 1; }
