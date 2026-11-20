@@ -2242,6 +2242,25 @@ extension RichLayout {
     /// How far below the paper's top page `p`'s text starts, and how far
     /// above its bottom it ends (pixels): the margins, or the header's
     /// and the footer's extent where that is more.
+    /// A header's square-wrapped picture, wide as the text, holds the page's first body line under it
+    /// (`_headerParagraphPictureEnd`): the line is pushed down by the wrap, not by the margin. Word keeps
+    /// a page-top paragraph's space before there, less the space after of the paragraph that ended the
+    /// page before: lab hdrpic (Word for Windows, compat 12; the real picture 0 to 106.5pt over a 70.85pt
+    /// margin), a 12pt heading under 0, 3, 6, 10, 12, 18 and 24pt after stands 12, 9, 6, 2, 0, 0, 0 below
+    /// the picture's foot and a 24pt one under 10pt stands 14; the same file without the picture drops all.
+    func _headerWrapHoldsTop(page p: Int, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) < 15,
+              let header = _headerFooter(.header, page: p, document, pageCount: 1) else { return false }
+        let setup = pageSetup(forPage: p)
+        guard let end = _headerParagraphPictureEnd(header, setup), end > _px(setup.marginTop) + 0.01 else { return false }
+        for hp in header.document.paragraphs where hp.cell == nil {
+            for image in hp.inlineImages.inOrder + (hp.image.map { [$0] } ?? []) {
+                if let f = image.float, f.wraps, f.verticalFrom == "paragraph", image.width >= setup.contentWidth { return true }
+            }
+        }
+        return false
+    }
+
     func _bodyInsets(page p: Int, _ document: RichDocument) -> (top: Double, bottom: Double) {
         let setup = pageSetup(forPage: p)
         var top = _px(setup.marginTop), bottom = _px(setup.marginBottom)

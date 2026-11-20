@@ -4460,6 +4460,9 @@ extension RichLayout {
                 // page keeps the 6pt before — lo tdf151704's page 2 opens
                 // at 20.4 in Word's print, the table 32.7, where ours
                 // stood 6.3pt high.)
+                if leavesLead, page > 0, !newSection, y < 0.01, _headerWrapHoldsTop(page: page, document) {
+                    leavesLead = false; RuleTrace.hit("word-header-wrap-holds-page-top-heading-space-before")
+                }
                 if leavesLead, st.markFollowsBreak { leavesLead = false; RuleTrace.hit("word-split-break-mark-keeps-its-space-before") }
             }
             // How much of it a page's head takes off, for where a line
