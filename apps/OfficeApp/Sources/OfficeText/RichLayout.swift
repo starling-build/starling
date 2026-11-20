@@ -185,10 +185,11 @@ public final class RichTextTheme {
 
     /// Word raises a superscript by the face's own OS/2 offset when that is
     /// small (lab sup1: Cambria 0.246, Georgia 0.265, Palatino 0.273 ...), and
-    /// by 0.355 em otherwise (Times, Calibri, Arial, Verdana, Tahoma, Malgun).
+    /// by 0.355 em otherwise (Times, Calibri, Verdana, Tahoma, Malgun).
     @inline(never)
     static func superscriptRaise(_ family: String?) -> Double {
         switch family?.lowercased() ?? "" {
+        case "arial": return 0.33 // sa2 e6a5b0cd + 80 Word prints: 3.0pt at 10, 3.96 at 11-12, 5.04 at 14
         case "cambria": return 0.246
         case "book antiqua": return 0.242
         case "georgia": return 0.265
