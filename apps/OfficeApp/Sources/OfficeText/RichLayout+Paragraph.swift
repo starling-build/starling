@@ -1163,7 +1163,19 @@ extension RichLayout {
                 // line's nine spaces then had 0.87pt each to give — past
                 // their quarter — so "выполнения" went over. Word's
                 // print has them at 2.31, the line filled to the margin.)
+                // (A centred or right stop that the text after it is too wide to be set at, where the tab's own width would
+                // push the text past the margin but the text alone fits: the tab takes no room and the text starts where the
+                // tab stood. sa2 81f316d6's header, "<tab>" + 138 spaces + "Comité de Selección" (472.9 pt of 473) at a centre
+                // stop at 212 pt: Word's print starts the spaces at the margin and keeps one line; ours gave the tab 2.7 pt and
+                // sent "Selección" down. Lab tbhdrwrap, Word for Windows.)
+                var collapsedTab = false
+                if theme.wordRules, RichTextTheme.wordWindowsPages, stop.alignment == .center || stop.alignment == .right, extra < 0,
+                   x + following <= ownLeft + textWidth + 0.01, x + own + following > ownLeft + textWidth + 0.01 {
+                    collapsedTab = true
+                    RuleTrace.hit("word-wide-centred-tab-takes-no-room-when-the-text-just-fits")
+                }
                 extra = stop.alignment == .left ? max(0.5 - own, extra) : max(0, extra)
+                if collapsedTab { extra = -own }
                 // Trailing tabs do not open an empty line beyond the
                 // margin. Keep their stops within the remaining width.
                 if theme.wordRules, pictureTabs, units[(t + 1)...].allSatisfy({ $0 == 0x09 }) {

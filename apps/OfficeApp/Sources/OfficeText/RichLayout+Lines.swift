@@ -995,8 +995,10 @@ extension RichLayout {
             for (image, laid) in candidates {
                 // (A header's square picture placed from the margin does not narrow the lines of the header paragraphs beside it, its own or the next: Word's
                 // print of lab hdrsq sets the centred first line over the full text width beside it, even where it would fit clear of
-                // the picture; sa1 98480d18.)
-                if document.isPageHeaderPart, let f = image.float, f.wraps, !f.wrapsTight, !f.takesRoom, f.horizontalFrom == "margin",
+                // the picture; sa1 98480d18. A tight or through-wrapped picture placed from the column does the same: sa2 81f316d6's logo, whose
+                // header line of spaces and a right-hand heading stands whole beside it in Word's print, and lab tbhdrwrap. A square one from
+                // the column does narrow the lines: lo-9181670262a2714c.)
+                if document.isPageHeaderPart, let f = image.float, f.wraps, !f.takesRoom, f.horizontalFrom == "margin" || (f.wrapsTight && f.horizontalFrom == "column"),
                    !image.data.isEmpty {
                     RuleTrace.hit("word-header-margin-square-picture-leaves-header-lines-whole")
                     continue
