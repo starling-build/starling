@@ -3577,7 +3577,9 @@ extension RichLayout {
                 if jisLatin1 {
                     RuleTrace.hit("jis-latin1-symbol-em")
                     let g = _glyphWidth(style(kind), ch)
-                    if g < em - 0.01 { extra += em - g }
+                    // (Word's MS Mincho table: · and ˇ are half an em, the rest an em.)
+                    let target = (ch == "\u{B7}" || ch == "\u{2C7}") ? em * 0.5 : em
+                    if g < target - 0.01 { extra += target - g }
                 }
                 if let u = ch.unicodeScalars.first?.value,
                    !(symbolsShown && theme.symbolAdvance?(run.fontFamily ?? named?.char.fontFamily, ch) != nil),
@@ -5620,7 +5622,7 @@ extension RichLayout {
                                  hint: String?) -> Bool {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, ch.unicodeScalars.count == 1,
               let u = ch.unicodeScalars.first?.value else { return false }
-        let set: [UInt32] = [0xA7, 0xA8, 0xB0, 0xB1, 0xB4, 0xB6, 0xD7, 0xF7, 0x2032, 0x2033]
+        let set: [UInt32] = [0xA7, 0xA8, 0xB0, 0xB1, 0xB4, 0xB6, 0xD7, 0xF7, 0xB7, 0x2C7, 0x2016, 0x2032, 0x2033]
         guard set.contains(u) else { return false }
         // (Under w:hint="eastAsia" the character is already East Asian and an em: lab xb e925ae95, where Word's print and our plain
         // width agree.)
@@ -5628,6 +5630,8 @@ extension RichLayout {
         let latinName: String? = run.hAnsiFontFamily ?? named?.char.hAnsiFontFamily ?? run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily
         guard let name = latinName else { return false }
         let l = name.lowercased()
+        // GulimChe draws · and ˇ a full em (the half-em target below is MS Mincho/MS Gothic only).
+        if (u == 0xB7 || u == 0x2C7) && l.containsSubstring("gulim") { return false }
         let names: [String] = ["ms mincho", "ms gothic", "ｍｓ 明朝", "ｍｓ ゴシック", "ms ゴシック", "ms 明朝", "gulimche"]
         var named1 = false
         for n in names where l.containsSubstring(n) { named1 = true }
