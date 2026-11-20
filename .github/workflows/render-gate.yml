@@ -41,6 +41,6 @@ jobs:
         run: |
           set -o pipefail
           cd "$HOME/clone"
-          export JOBS=$(nproc)
+          export JOBS=${GATE_JOBS:-$(nproc)}; export BUILD_JOBS=$(( JOBS / 2 ))
           [ "$JOBS" -gt 170 ] && JOBS=170
           test/tools/render-gate.sh "$BASE_SHA" 2>&1 | tail -40 | cut -c1-200
