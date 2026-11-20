@@ -9,9 +9,10 @@
 set -u
 BASE_SHA=${1:?usage: render-gate.sh BASE_SHA}
 cd "$(dirname "$0")/../.." || exit 2
-ROOT=$PWD; JOBS=${JOBS:-44}; W=${GATE_SCRATCH:-$HOME/scratch/gate-$$}; mkdir -p "$W"
+ROOT=$PWD; JOBS=${JOBS:-44}; W=${GATE_SCRATCH:-$HOME/scratch/gate}; mkdir -p "$W"   # PERSISTENT: the warm build scratches below make the builds incremental (cold 315 s, warm ~90 s)
+exec 9>"$W/lock"; flock 9   # one gate (or prebuild) at a time per scratch
 LQ=${LANDQ:-/data/landq}; SB=$LQ/base/linux
-trap 'rm -rf "$W/pair" "$W/build"' EXIT
+trap 'rm -rf "$W/pair"' EXIT
 TH=${TOOLS_HOME:-/home/starling}   # the runner user has its own empty HOME: tools live under the machine owner
 export PYTHON=${PYTHON:-$TH/venv-word/bin/python}
 # documents named in the commit messages
@@ -26,26 +27,30 @@ export PATH=$TH/.local/share/swiftly/toolchains/6.2.4/usr/bin:$PATH
 export OFFICE_WORD_FONTS=windows OFFICE_FONT_SOURCE=bundled
 EO=$(readlink -f engine)/src/out/host_release
 BC=${GATE_BASECACHE:-$HOME/scratch/basecache}; BSHA=$(git rev-parse "$BASE_SHA"); mkdir -p "$BC"
-echo "render-gate: building"
+T0=$(date +%s); echo "render-gate: building"
 if [ ! -x "$BC/$BSHA/release/OfficeApp" ]; then
-  git worktree add -f --detach "$W/basetree" "$BSHA" -q || { echo "render-gate: cannot check out base"; exit 2; }
-  ln -s "$(readlink -f engine)" "$W/basetree/engine" 2>/dev/null
+  # base build: persistent worktree + persistent scratch (incremental from the previous base). Normally a prebuild
+  # (GATE_PREBUILD=1 render-gate.sh <sha>, run after each main push) has filled the cache and this is skipped.
+  if [ -d "$W/basetree/.git" ] || [ -f "$W/basetree/.git" ]; then git -C "$W/basetree" checkout -q --detach "$BSHA" || { echo "render-gate: cannot check out base"; exit 2; }
+  else git worktree add -f --detach "$W/basetree" "$BSHA" -q || { echo "render-gate: cannot check out base"; exit 2; }; fi
+  [ -e "$W/basetree/engine" ] || ln -s "$(readlink -f engine)" "$W/basetree/engine"
   ( cd "$W/basetree" && test/tools/build-office-fast.sh "$W/basebuild" > "$W/base-build.log" 2>&1 ) &
   BPID=$!
 fi
+[ "${GATE_PREBUILD:-0}" = 1 ] && { [ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; exit 1; }
+  [ -z "${BPID:-}" ] || { BREL=$(dirname "$(ls "$W"/basebuild/*/release/OfficeApp | head -1)"); rm -rf "$BC/$BSHA"; mkdir -p "$BC/$BSHA"; cp -a "$BREL" "$BC/$BSHA/release"; }; echo "render-gate: base $BSHA cached"; exit 0; }
 test/tools/build-office-fast.sh "$W/build" > "$W/build.log" 2>&1 || { echo "render-gate: BUILD FAILED"; tail -15 "$W/build.log" | cut -c1-200; exit 1; }
 if [ -n "${BPID:-}" ]; then
   wait $BPID || { echo "render-gate: BASE BUILD FAILED"; tail -15 "$W/base-build.log" | cut -c1-200; exit 1; }
   BREL=$(dirname "$(ls "$W"/basebuild/*/release/OfficeApp | head -1)"); rm -rf "$BC/$BSHA"; mkdir -p "$BC/$BSHA"; cp -a "$BREL" "$BC/$BSHA/release"
-  git worktree remove --force "$W/basetree" 2>/dev/null
 fi
 BASEBIN=$BC/$BSHA/release/OfficeApp
 BIN=$(ls "$W"/build/*/release/OfficeApp 2>/dev/null | head -1); [ -x "$BIN" ] && [ -x "$BASEBIN" ] || { echo "render-gate: no binary"; exit 2; }
-echo "render-gate: $(wc -l < "$ids") documents (named + sample)"
+echo "render-gate: $(wc -l < "$ids") documents (named + sample); build step $(( $(date +%s)-T0 )) s"; T1=$(date +%s)
 # both binaries render the same subset (SWEEP_ONLY), so the base needs no stored scores
 [ "${GATE_FULL:-0}" = 1 ] || export SWEEP_ONLY=$ids
 ENGINE_OUT=$EO STAGE=$W/pair BASE_SCORES= BASE_REV=$BASE_SHA SCORES_BASE=/nonexistent test/tools/docx-pair.sh "$BASEBIN" "$BIN" "$JOBS" > "$W/pair.log" 2>&1
-rc=$?
+rc=$?; echo "render-gate: render+compare step $(( $(date +%s)-T1 )) s"
 if [ $rc != 0 ]; then echo "render-gate: pair failed (exit $rc)"; grep -aE "ABORT|failed|no engine" "$W/pair.log" | head -5 | cut -c1-200; exit 1; fi
 # a gate that compared nothing must not pass
 NCMP=$(awk '/^== /{v2=($0 ~ / v2$/)} v2 && /^NEW: [1-9]/{n++} END{print n+0}' "$W/pair.log")
