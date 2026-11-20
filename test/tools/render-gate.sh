@@ -27,7 +27,7 @@ export BUILD_INCREMENTAL=1   # base and PR build use the same flags (incremental
 export DOC_ALARM=${DOC_ALARM:-180}   # per-document render timeout (s): a hung render is reported TIMEOUT, never hangs the gate
 export SETS="${SETS:-756 lo xb xa xd xs sa1 sa2 dx2}"   # the gate sample draws from these sets too (user focus: es-MX, pt-BR, ko, ja)
 ROOT=$PWD; JOBS=${JOBS:-44}; W=${GATE_SCRATCH:-$HOME/scratch/gate}; mkdir -p "$W"   # PERSISTENT: the warm build scratches below make the builds incremental (cold 315 s, warm ~90 s)
-exec 9>"$W/lock"; flock 9   # one gate (or prebuild) at a time per scratch
+exec 9>"$W/lock"; flock 9; SL=$(date +%s)   # one gate (or prebuild) at a time per scratch
 LQ=${LANDQ:-/data/landq}; SB=$LQ/base/linux
 trap 'rm -rf "$W/pair"' EXIT
 TH=${TOOLS_HOME:-/home/starling}   # the runner user has its own empty HOME: tools live under the machine owner
@@ -50,7 +50,7 @@ CC=${STARLING_CORPUS:-/data/corpus-cache}
 ENGINE_DIR=${ENGINE_DIR:?set ENGINE_DIR in the runner .env}
 [ -d "$ENGINE_DIR/src/out/host_release" ] || { echo "render-gate: ENGINE_DIR=$ENGINE_DIR has no src/out/host_release"; exit 2; }
 ln -sfn "$ENGINE_DIR" engine   # every run: a clone must never keep pointing at an old engine path
-test/tools/corpus-cache.sh restore 2>&1 | tail -3 | cut -c1-200 || echo "render-gate: corpus restore failed"
+SR=$(date +%s); test/tools/corpus-cache.sh restore 2>&1 | tail -3 | cut -c1-200 || echo "render-gate: corpus restore failed"; ER=$(date +%s)
 # build HEAD here and BASE_SHA in a worktree; the base binary is cached by sha in the runner's own scratch
 . "$TH/bin/office-env.sh" || { echo "render-gate: office-env.sh failed"; exit 2; }
 export PATH=$TH/.local/share/swiftly/toolchains/6.2.4/usr/bin:$PATH
@@ -83,7 +83,7 @@ fill_rows_locked() {
   for f in "$W"/fill/fix/*.v2 "$W"/fill/fix/*.v1; do [ -f "$f" ] && cat "$f" >> "$RC/$(basename "$f")"; done
   cp "$W/fill/fix/REFS" "$RC/REFS"; cat "$W/missing.txt" >> "$RC/tried.txt"
 }
-T0=$(date +%s); echo "render-gate: setup before the build $(( T0-S0 )) s (lock, classify, corpus restore, document names)"; echo "render-gate: building"
+T0=$(date +%s); echo "render-gate: setup before the build $(( T0-S0 )) s (lock wait $(( SL-S0 )) s, corpus restore $(( ER-SR )) s)"; echo "render-gate: building"
 build_base() {   # builds BSHA into the shared cache once: the sha lock makes a second runner wait for the first instead of building it again
   flock 8
   if [ -x "$BC/$BSHA/release/OfficeApp" ]; then flock -u 8; return 0; fi
