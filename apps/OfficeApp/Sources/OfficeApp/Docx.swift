@@ -7265,6 +7265,23 @@ enum DocxFormat {
         var pendingCheckbox: Bool? = nil   // a FORMCHECKBOX field's state, from its begin
         var pendingDropdown: String? = nil // a FORMDROPDOWN field's chosen entry, from its begin
         func walkRun(_ r: XNode, link: String?, revision: RevisionMark? = nil) {
+            // (A run nested in a run, which the schema does not allow: Word prints the inner run's text. lab gridlift2 / f42177d2's title holds
+            // <w:r><w:rPr/><w:r><w:t>共感性</w:t></w:r></w:r>; ours dropped the text, so its title line was 55pt short and never wrapped.)
+            if r.children.contains(where: { $0.name == "w:r" }) {
+                var piece = XNode(name: r.name, attrs: r.attrs)
+                func flush() {
+                    if piece.children.contains(where: { $0.name != "w:rPr" }) { walkRun(piece, link: link, revision: revision) }
+                    piece = XNode(name: r.name, attrs: r.attrs)
+                    piece.children = r.children.filter { $0.name == "w:rPr" }
+                }
+                piece.children = r.children.filter { $0.name == "w:rPr" }
+                for child in r.children where child.name != "w:rPr" {
+                    if child.name == "w:r" { flush(); walkRun(child, link: link, revision: revision) }
+                    else { piece.children.append(child) }
+                }
+                flush()
+                return
+            }
             // (Misplaced run properties, Word's own print of lab rprorder: a w:rPr applies to what
             // FOLLOWS it in the run, the last of several in a row wins, and one after the run's
             // last content is ignored. 5b9c7c3f's runs hold w:rPr after w:t, Word prints them at
