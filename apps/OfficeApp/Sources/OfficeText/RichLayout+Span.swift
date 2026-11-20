@@ -4659,6 +4659,24 @@ extension RichLayout {
                         }
                     }
                 }
+                // (A Wingdings bullet over Latin text at single spacing, drawn larger than the text: as the Symbol ones above, the first line
+                // stands on the bullet's ascent (1841/2048 em at the box's size) over the text's own depth. 12pt Wingdings over 10pt Century Gothic:
+                // items 12.96pt apart in Word's print, ours 13.32 with the bullet's whole line (sa1 5393bae9).)
+                if !symStands, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, p.style.lineSpacing <= 1.001,
+                   p.style.list == .bullet, leadChar.fontFamily?.lowercased() == "wingdings", let px = style.fontSize, px > 0.5,
+                   !p.style.rightToLeft, !p.text.unicodeScalars.contains(where: { $0.value >= 0x590 && $0.value <= 0x8FF }),
+                   !p.text.unicodeScalars.contains(where: { Self._isIndic($0.value) || ($0.value >= 0x2E80 && $0.value <= 0xFFEF) }) {
+                    let probe = TextPainter(text: TextSpan(text: "x", style: theme.textStyle(for: firstLook, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)), textDirection: .ltr)
+                    probe.layout(minWidth: 0, maxWidth: 100000)
+                    let m = probe.computeLineMetrics().first
+                    probe.dispose()
+                    let up = px * 1841.0 / 2048
+                    if let m, up > m.baseline + 0.01 {
+                        RuleTrace.hit("word-wingdings-bullet-at-single-stands-the-first-line-on-its-ascent")
+                        symStands = true
+                        markStyle = style.copyWith(ascentOverride: up, descentOverride: m.descent, height: (up + m.descent) / px, leadingDistribution: .even)
+                    }
+                }
                 // A Wingdings bullet over East Asian text at single spacing: Word's print stands the first line on the taller of the bullet's
                 // ascent (1841/2048 em at the box's size) and the text face's own, over the deeper of the two below. Malgun Gothic's line is 1.73 em,
                 // 1.288 above and 0.442 below, so 14pt boxes over 9pt rows stand 12.58 over 3.98: rows 16.56 apart where the text's line alone is 15.56
