@@ -74,22 +74,29 @@ final class XNode {
     }
     var has: (String) -> Bool { { self.first($0) != nil } }
 
-    /// A table nested more than 63 deep is cut off (Word's own limit is that many levels): every later
-    /// pass walks the tree by recursion, one native frame or more per level, and deep-table-cell (5000
-    /// levels) overflowed the web build's small stack. Walked with a list, not by recursion.
+    /// A table nested more than 63 deep (Word's own limit is that many levels) is flattened: its
+    /// paragraphs, in order, stand in its place in the cell, so the text stays and the tables go. Every
+    /// later pass walks the tree by recursion, one native frame or more per level, and deep-table-cell
+    /// (5000 levels) overflowed the web build's small stack. Walked with lists, not by recursion, and
+    /// taken apart with a list too (freeing a 5000-deep chain recurses once per level).
     private static func _capTableNesting(_ root: XNode) {
         var pending: [(XNode, Int)] = [(root, 0)]
         while let (node, depth) = pending.popLast() {
-            let isTable = node.name == "w:tbl" || node.name == "tbl"
-            if isTable && depth >= 63 {
-                // (Its place in the cell is an empty paragraph: a cell must end in one.)
-                node.name = "w:p"; node.attrs = [:]
-                // (Taken apart with a list too: freeing a 5000-deep chain recurses once per level.)
-                var dismantle = node.children
-                node.children = []
-                while let n = dismantle.popLast() { dismantle.append(contentsOf: n.children); n.children = [] }
-                continue
+            var kept: [XNode] = []
+            var changed = false
+            for c in node.children {
+                if (c.name == "w:tbl" || c.name == "tbl") && depth >= 63 {
+                    changed = true
+                    var walk: [XNode] = [c]
+                    while let n = walk.popLast() {
+                        if n.name == "w:p" || n.name == "p" { kept.append(n); continue }
+                        walk.append(contentsOf: n.children.reversed())
+                        n.children = []
+                    }
+                } else { kept.append(c) }
             }
+            if changed { node.children = kept }
+            let isTable = node.name == "w:tbl" || node.name == "tbl"
             for c in node.children { pending.append((c, isTable ? depth + 1 : depth)) }
         }
     }
