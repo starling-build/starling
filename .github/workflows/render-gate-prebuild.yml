@@ -20,6 +20,7 @@ jobs:
         run: |
           set -e
           C=$HOME/clone
+          rm -f "$C"/.git/shallow.lock "$C"/.git/index.lock "$C"/.git/HEAD.lock   # left by a cancelled run (the runner takes one job at a time)
           [ -d "$C/.git" ] || { git init -q "$C"; git -C "$C" remote add origin "https://github.com/${{ github.repository }}.git"; }
           AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           git -C "$C" -c http.extraheader="$AUTH" fetch -q --no-tags --depth=200 origin "$GITHUB_SHA"
