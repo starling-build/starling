@@ -5080,7 +5080,7 @@ extension RichLayout {
                     var spacing = false
                     if rest > available + 0.01, case let g = geometry(i), let line = Self._lineBottoms(g.painter).last {
                         let st = document.paragraphs[i].style
-                        let offGrid = document.paragraphs[i].cell == nil && document.paragraphs[i].image == nil
+                        let offGrid = document.paragraphs[i].cell == nil
                             && !(st.eastAsian["w:snapToGrid"] != "0" && _grid(i, document).pitch != nil)
                         let extra = theme.wordRules && offGrid && st.lineHeightPoints == nil
                             && st.lineSpacing - theme.lineSpacingReduction > 1.001 && i < _overhang.count ? _overhang[i] : 0
