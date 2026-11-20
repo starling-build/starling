@@ -3332,6 +3332,10 @@ enum DocxFormat {
             case "w:commentRangeEnd":
                 if let id = node["w:id"] { notes.openComments.removeAll { $0 == id } }
             case "w:sectPr":
+                // (A body-level section with no properties at all, after one that has them, does not reset the page:
+                // sa2 be63fe36 opens its body with a full sectPr (margins 1400/600, headers) and ends with an empty one;
+                // Word prints the first's margins, we took the empty one's 1-inch defaults.)
+                if node.children.isEmpty, pageSetup != nil { RuleTrace.hit("empty-body-sectpr-keeps-earlier-page-setup"); break }
                 pageSetup = _pageSetup(node, notes, normalSize: sheet[RichNamedStyle.normalId]?.char.fontSize ?? 11)
             case "w:altChunk":
                 // An HTML chunk, as Word imports it: paragraphs of the markup's
@@ -5880,6 +5884,9 @@ enum DocxFormat {
     }
 
     private static func _themeFonts(_ entries: [ZipEntry]) -> ThemeFonts {
+        // (A package with no theme part at all: Word takes its current default theme, whose minor Latin face is Aptos
+        // (sa2 be63fe36: docDefaults say minorHAnsi, no theme part; Word prints Aptos, we set it in Calibri, 9.5% narrow).)
+        if !entries.contains(where: { $0.name.hasPrefix("word/theme/") }) { return ThemeFonts(minor: "Aptos") }
         guard let e = entries.first(where: { $0.name.hasPrefix("word/theme/") && $0.name.hasSuffix(".xml") }),
               let root = XNode.parse(e.data), let scheme = root.descendant("a:fontScheme") else { return ThemeFonts() }
         let lang = entries.first(where: { $0.name == "word/settings.xml" }).flatMap { XNode.parse($0.data) }?
