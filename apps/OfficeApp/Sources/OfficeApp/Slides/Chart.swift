@@ -56,6 +56,8 @@ struct PatternInk: Equatable {
 }
 
 struct ChartSeries: Equatable {
+    static let labelValueMark = "\u{1}V"
+    static let labelCellMark = "\u{1}C"
     var name: String
     /// One per category; nil is a blank cell (a gap).
     var values: [Double?]
@@ -123,6 +125,15 @@ struct ChartSeries: Equatable {
     /// paragraphs, the value field (`type="VALUE"`) as nil — lo tdf136061's
     /// "4.3" over "Custom label". Only where every field is the value.
     var labelRich: [Int: [String?]] = [:]
+    /// A point's label made of literal text and fields (`a:fld`), where the
+    /// file writes one: "[CELLRANGE]; [VALOR]" is the cell-range text, "; "
+    /// and the value (sa1 06706f28). Pieces: literal text, `labelValueMark`
+    /// for the value, `labelCellMark` for the point's cell-range text, and
+    /// "\n" between paragraphs.
+    var labelParts: [Int: [String]] = [:]
+    /// Whether this series' labels show at all: a chart whose group says
+    /// "no values" shows only the series that say so themselves.
+    var labelsShown = true
     /// Where those labels stand by their points (`c:dLblPos`): nil is
     /// Excel's default for a line, to the right ("r").
     var labelPos: String? = nil
@@ -1506,12 +1517,33 @@ enum ChartXML {
                         else { plain = false; break }
                     }
                     if plain, paras.count > 1 { s.labelRich[i] = paras }
+                    else if !plain || paras.count == 1 {
+                        var parts: [String] = []
+                        var literal = false
+                        for (k, p) in rich.all("a:p").enumerated() {
+                            if k > 0 { parts.append("\n") }
+                            for run in p.children {
+                                if run.name == "a:fld" {
+                                    parts.append(run["type"] == "CELLRANGE" ? ChartSeries.labelCellMark : ChartSeries.labelValueMark)
+                                } else if run.name == "a:r" { parts.append(run.first("a:t")?.text ?? ""); literal = true }
+                            }
+                        }
+                        let fieldTypes = Set(rich.all("a:p").flatMap { $0.all("a:fld") }.compactMap { $0["type"] })
+                        if fieldTypes.isSubset(of: ["VALUE", "CELLRANGE"]), literal || fieldTypes.contains("CELLRANGE") {
+                            s.labelParts[i] = parts
+                        }
+                    }
                 }
                 guard let i = one.first("c:idx")?["val"].flatMap(Int.init), let m = one.first("c:layout")?.first("c:manualLayout"),
                       let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) else { continue }
                 s.labelNudges[i] = Offset(x, y)
             }
             s.labelPos = ser.first("c:dLbls")?.first("c:dLblPos")?["val"]
+            if let d = ser.first("c:dLbls"), !["1", "true"].contains(d.first("c:delete")?["val"] ?? "") {
+                func on(_ n: XNode?) -> Bool { n?.first("c:showVal")?["val"] == "1" || n?.first("c:showPercent")?["val"] == "1" }
+                s.labelsShown = d.first("c:showVal") == nil && d.first("c:showPercent") == nil ? on(el.first("c:dLbls")) : on(d)
+            } else if ser.first("c:dLbls") != nil { s.labelsShown = false }
+            else { s.labelsShown = el.first("c:dLbls")?.first("c:showVal")?["val"] == "1" || el.first("c:dLbls")?.first("c:showPercent")?["val"] == "1" }
             series.append(s)
         }
         guard !series.isEmpty || allowEmpty else { return nil }
@@ -1782,6 +1814,8 @@ enum ChartXML {
             if ["1", "true"].contains(d.first("c:delete")?["val"] ?? "") { return false }
             return d.first("c:showVal") == nil && d.first("c:showPercent") == nil ? shows(el.first("c:dLbls")) : shows(d)
         }
+        // (Only where some series shows labels does a series that does not go without: else the flag is moot.)
+        if !c.dataLabels || c.series.allSatisfy({ !$0.labelsShown }) { for i in c.series.indices { c.series[i].labelsShown = true } }
         if type == .column || type == .bar { c.barLabelPos = (el.first("c:ser")?.first("c:dLbls")?.first("c:dLblPos") ?? el.first("c:dLbls")?.first("c:dLblPos"))?["val"] }
         if type == .doughnut, let hole = el.first("c:holeSize")?["val"].flatMap(Int.init) { c.holeSize = hole }
         if type == .pie || type == .doughnut, let ser = el.first("c:ser"), let d = ser.first("c:dLbls") ?? el.first("c:dLbls") {
@@ -5265,6 +5299,7 @@ enum ChartPainter {
         }
         // Labels from cells, each with the bar it stands in the end of.
         var cellLabels: [(text: String, bar: Rect, series: ChartSeries)] = []
+        var wrapLabels = Set<Int>()
         // Labels that end at their point instead of starting there: a Word bar's `dLblPos inEnd`.
         var endAtPoint = Set<Int>()
         let fill = Paint()
@@ -5444,7 +5479,11 @@ enum ChartPainter {
                         // where ours set them all over the axis line.)
                         let off = c.onSlide ? (p1 > p0 ? 0.94 : -0.79) * size * k : p1 > p0 ? 0.94 * size * k : -8 * k
                         // (A label written out over the value: lines of its own below or above the value's.)
-                        let shown = c.series[safe: j]?.labelRich[i].map { $0.map { $0 ?? dataLabel(c, raw) }.joined(separator: "\n") } ?? dataLabel(c, raw)
+                        var shown = c.series[safe: j]?.labelRich[i].map { $0.map { $0 ?? dataLabel(c, raw) }.joined(separator: "\n") } ?? dataLabel(c, raw)
+                        if let parts = c.series[safe: j]?.labelParts[i] {
+                            shown = parts.map { $0 == ChartSeries.labelValueMark ? dataLabel(c, raw) : $0 == ChartSeries.labelCellMark ? c.series[j].cellLabels[i] ?? "" : $0 }.joined()
+                            wrapLabels.insert(labels.count)
+                        }
                         var labelAt = Offset(rect.center.dx, c.stacked ? rect.center.dy
                             : (off > 0 ? max(p0, p1) : min(p0, p1)) + off) + (raw < 0 && !c.onSlide && !c.onSheet && !c.stacked ? lowered(j, i) : nudge(j, i))
                         // (A falling bar's label stands clear below the row of names where the names hang from the zero
@@ -5617,7 +5656,8 @@ enum ChartPainter {
                         line.color = o
                         canvas.drawRect(rect, line)
                     }
-                    if let t = c.series[j].cellLabels[i] { cellLabels.append((t, rect, c.series[j])) }
+                    // (A point's own label, written out, takes the place of the cell-range text drawn inside the bar.)
+                    if c.series[j].labelParts[i] == nil, let t = c.series[j].cellLabels[i] { cellLabels.append((t, rect, c.series[j])) }
                 }
             }
             if !horizontal { paintOverlayLines() }
@@ -5774,13 +5814,17 @@ enum ChartPainter {
             for (li, (s, at, j)) in labels.enumerated() {
                 // In the series' own label look where it has one.
                 let ser = c.series[j]
-                let tp = ser.labelSize == nil && !ser.labelBold && ser.labelColor == nil ? text(s, c.baseTextSize, .infinity)
+                if !ser.labelsShown { continue }
+                // (Word wraps a written-out label at a fifth of the chart's width less the box's 7.7 pt, after a
+                // space: sa1 06706f28's "100.00%; 10,150,000.00" is "100.00%;" over "10,150,000.00".)
+                let wrapAt = wrapLabels.contains(li) && !c.onSlide && !c.onSheet ? max(20 * k, frame.width * 0.2 - 7.7 * k) : Double.infinity
+                let tp = ser.labelSize == nil && !ser.labelBold && ser.labelColor == nil ? text(s, c.baseTextSize, wrapAt)
                     : { () -> TextPainter in
                         let t = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
                             color: ser.labelColor ?? c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65)),
                             fontSize: max(3, (ser.labelSize ?? c.baseTextSize) * k), fontWeight: ser.labelBold ? .bold : .normal,
                             fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textAlign: .center, textDirection: .ltr)
-                        t.layout(minWidth: 0, maxWidth: .infinity)
+                        t.layout(minWidth: 0, maxWidth: wrapAt)
                         return t
                     }()
                 let dx = endAtPoint.contains(li) ? tp.width : horizontal && !c.stacked ? 0 : tp.width / 2
@@ -5789,6 +5833,9 @@ enum ChartPainter {
                 let lineCount = max(1, tp.computeLineMetrics().count)
                 let grown = lineCount > 1 ? tp.height - tp.height / Double(lineCount) : 0
                 var origin = Offset(at.dx - dx, at.dy - tp.height / 2 - rise - grown / 2)
+                // (A written-out label that wraps stands 1.5 pt (a sixth of its 9 pt size) higher than a plain one's
+                // lines in Word's print: sa1 06706f28's twenty "100.00%;" over "10,150,000.00" labels, 1.5 pt low in ours.)
+                if wrapLabels.contains(li), lineCount > 1, wrapAt.isFinite { origin = Offset(origin.dx, origin.dy - (ser.labelSize ?? c.baseTextSize) / 6 * k) }
                 if insideEnd.contains(li) { origin = Offset(at.dx - 3 * k - 6.8 * k - tp.width, origin.dy + 1.9 * k) }
                 // (Word draws the leader from the bar's top to the label's bottom middle, the box
                 // the text and its 1.5pt insets: zh-b8de3ae2's chart 1 in Word's print.)
