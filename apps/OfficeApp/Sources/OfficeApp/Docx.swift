@@ -3050,6 +3050,19 @@ enum DocxFormat {
                 // table's, it does not. Ours set the row as its own cells say.)
                 let tableStart = paragraphs.count
                 var continuedMargins: [Int: (top: Double, bottom: Double)] = [:]
+                // (A cell merged down takes the largest top margin of its first row and the largest bottom margin of its
+                // last, as its own: sa2 be63fe36's signature picture, 75pt over two rows whose text cells say 225 twips
+                // above and below, is 98pt of rows (75 + 11.25 + 11.25 + rules) in Word's print, ours 87.)
+                var rowMaxMargins: [Int: (top: Double, bottom: Double)] = [:]
+                if RichTextTheme.wordWindowsPages {
+                    for (r, tr) in unwrapped(node, "w:tr").enumerated() {
+                        for tc in unwrapped(tr, "w:tc") where tc.first("w:tcPr")?.first("w:tcMar") != nil {
+                            let m = _cellMargins(tc.first("w:tcPr"), "w:tcMar").under(margins)
+                            let was = rowMaxMargins[r] ?? (0, 0)
+                            rowMaxMargins[r] = (max(was.top, m.top ?? 0), max(was.bottom, m.bottom ?? 0))
+                        }
+                    }
+                }
                 for (r, tr) in unwrapped(node, "w:tr").enumerated() {
                     // (A row's cells start after the grid columns it leaves
                     // empty: zh-51af781b's scoring table switches from a
@@ -3349,6 +3362,10 @@ enum DocxFormat {
                     guard let cell = paragraphs[k].cell, cell.table == id else { continue }
                     if let t = continuedMargins[cell.row]?.top, t > 0 { paragraphs[k].cell?.rowMarginTop = t }
                     if let b = continuedMargins[cell.row + max(1, cell.rowSpan) - 1]?.bottom, b > 0 { paragraphs[k].cell?.rowMarginBottom = b }
+                    if cell.rowSpan > 1 {
+                        if let t = rowMaxMargins[cell.row]?.top, t > (paragraphs[k].cell?.rowMarginTop ?? 0) { paragraphs[k].cell?.rowMarginTop = t }
+                        if let b = rowMaxMargins[cell.row + cell.rowSpan - 1]?.bottom, b > (paragraphs[k].cell?.rowMarginBottom ?? 0) { paragraphs[k].cell?.rowMarginBottom = b }
+                    }
                 }
                 currentCell = nil
                 cellChar = CharStyle()
