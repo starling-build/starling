@@ -1281,6 +1281,9 @@ public struct CellRef: Hashable, Codable, Sendable {
     public var keptPropertiesXML: String? = nil
     public var widthKeptUnder: Int? = nil
     public var continuationBordersXML: [String?] = []
+    /// A merged first-row cell's foot line the file draws nowhere, yet Word gives room for where the span ends (lab sa1f9).
+    public var spanFootStyle: String? = nil
+    public var spanFootWidth: Double = 0
     /// What each continuation row's cell holds, as written, when it is
     /// only paragraphs: their marks' sizes and spacing are the height the
     /// merged cell asks of that row, which a bare empty paragraph is not.
