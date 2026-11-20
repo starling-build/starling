@@ -2309,6 +2309,10 @@ extension RichLayout {
                 let ruleBelow = lastRow ? rule("bottom", ts?.edges?.bottom) : rule("insideH", ts?.edges?.insideH)
                 for k in k0 ..< j {
                     let cell = _cells[k]!
+                    if RichTextTheme.wordWindowsPages, cell.rowSpan > 1 {
+                        // (A merged cell's top line takes room in the row it starts: 1f900e58's merged header row is 1 pt taller in Word's print.)
+                        if cell.row == d.row { ruled = max(ruled, cell.rules) }
+                    }
                     if cell.rowSpan == 1 {
                         ruled = max(ruled, cell.rules); padded = max(padded, cell.pad.top + cell.pad.bottom)
                         // (The margin alone: `pad.bottom` holds the rule under it.)
