@@ -2011,6 +2011,22 @@ extension RichLayout {
                 besideTable = (y, page)
                 y = top
             }
+            // (The paragraph after a floating table that hangs from the text is the table's anchor: the table
+            // stands its offset below that paragraph's top. Where the table is as wide as the text, the anchor
+            // keeps its own place above it, its text level with the table's anchor line, and what follows goes under the table. sa1 764f4d8e: "TERMO DE
+            // DESISTÊNCIA" at 121.4 in Word's print, its form table tblpY 694 twips under it; ours set it under
+            // the table, at 695.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, besideTable == nil, resumeCursor == nil, i > 0, i < _heights.count,
+               _cells[i] == nil, !blank(document.paragraphs[i]), !_pageBreak[i],
+               let prev = _cells[i - 1]?.table, _floatLeavesNoStrip(prev, i, document),
+               let ts = document.tableStyles[prev], ts.floatsOverText, !ts.pageAnchored, let down = ts.floatOffsetY, down > 0,
+               let fb = floatRunBase, fb.table == prev, fb.page == page, fb.y < y - 0.01,
+               // (Its first line has to fit over the table, else the table pushes the line under it.)
+               case let g = geometry(i), let l1 = Self._lineBottoms(g.painter).first, l1 <= _px(down) + 0.01 {
+                RuleTrace.hit("word-anchor-paragraph-of-a-full-width-floating-table-keeps-its-place-above-it")
+                besideTable = (y, page)
+                y = fb.y - (i < _spaceBefore.count ? _spaceBefore[i] : 0)
+            }
             // (A table as wide as the text leaves no strip: what follows goes under
             // it, not up at its anchor — 6e6d8e9e's blank lines after its sections.)
             if theme.wordRules, besideTable == nil, i > 0, _cells[i] == nil, let prev = _cells[i - 1]?.table,
