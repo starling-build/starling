@@ -5870,6 +5870,18 @@ extension RichLayout {
                 spaceBefore = max(0, spaceBefore - spaceAfter(i - 1))
             }
         }
+        // (In a table cell the same: lab 80b2f61a, Word's print: a heading
+        // with contextual spacing and Normal's 10pt after, then a paragraph
+        // of 7pt before in the cell: no gap between them, where ours kept
+        // the 7pt and ran the table 7pt a section too tall.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, theme.collapsesParagraphSpacing, !document.addsParagraphSpacing, i > 0, p.cell != nil,
+           i - 1 < document.paragraphs.count, document.paragraphs[i - 1].cell == p.cell {
+            let a = document.paragraphs[i - 1].style
+            if a.contextualSpacing, a.named == style.named, a.heading == style.heading, a.list == style.list, spaceAfter(i - 1) > spaceBefore {
+                RuleTrace.hit("word-contextual-spacing-in-a-cell-takes-the-space-before")
+                spaceBefore = max(0, spaceBefore - spaceAfter(i - 1))
+            }
+        }
         // (An empty paragraph that only ends a section takes no room — see
         // `_layoutParagraph` — but its space after is still taken off the
         // space before of the paragraph that follows it: lab `t165` (Windows
