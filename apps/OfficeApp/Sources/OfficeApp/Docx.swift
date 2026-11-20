@@ -1819,6 +1819,7 @@ enum DocxFormat {
         var pendingBreakRPr: String? = nil
         var pendingBreakColumn = false
         var tableColumns: [String: [Double]] = [:]
+        var tableCellColumns: [String: [Double]] = [:]
         var tableStyles: [String: TableStyle] = [:]
         var tableCount = 0
         var currentCell: CellRef? = nil
@@ -2523,10 +2524,16 @@ enum DocxFormat {
                 // 1728 / 6048 / 2304, its columns at 59.4 / 145.8 / 448.3 pt in Word's print.)
                 // (Fixed layout too: jpn-z22667840-bc5fb7's python-docx table, grid 3293 x 3 under cells
                 // of 3168 / 2016 / 4464 and tblLayout fixed, has its edges by the cells in Word's print.)
-                if let cols = tableColumns[id], cols.count > 1, (cols.max() ?? 0) - (cols.min() ?? 0) <= 0.1,
+                // (Or any auto-layout table whose rows all state the same widths: Word's autofit starts from the
+                // cells' widths, not the grid, and shrinks them to the room by their slack over the content minimum:
+                // dx2 cf39f18f, cells 1060/1944/6376 over a grid of 931/2471/5318, columns 49/101/287 pt in Word's print.)
+                if let cols = tableColumns[id], cols.count > 1,
                    let cw = _statedCellColumns(node, count: cols.count),
                    _cellsAgreeWithTableWidth(node, cells: cw.reduce(0, +)) {
-                    tableColumns[id] = cw
+                    if (cols.max() ?? 0) - (cols.min() ?? 0) <= 0.1 { tableColumns[id] = cw }
+                    // (Left to the layout, which takes them when no cell's narrowest outgrows its stated width.)
+                    else if zip(cw, cols).contains(where: { abs($0 - $1) > 1 }),
+                            node.first("w:tblPr")?.first("w:tblLayout")?["w:type"] != "fixed" { tableCellColumns[id] = cw }
                 }
                 // (A fixed table of a stated share whose cells all state widths, each row the
                 // same, a little under its grid: Word rules the cells' widths, not the grid.
@@ -3700,6 +3707,7 @@ enum DocxFormat {
             }
         }
         document.tableColumns = tableColumns
+        document.tableCellColumns = tableCellColumns
         document.tableStyles = tableStyles
         document.styles = sheet
         document.styleAliases = styleAliases

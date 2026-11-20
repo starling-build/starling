@@ -972,7 +972,22 @@ extension RichLayout {
                 _tableSpacedOutdent[c.table] = (c.padding?.left ?? ts.cellMarginLeft ?? ts.textOutdent ?? 5.4) + 2 * sp
                     + (ts.borders ? (ts.borderWidth ?? 0.5) / 2 : 0)
             }
-            if let pts = _columnPreview[c.table] ?? document.tableColumns[c.table], pts.count == cols {
+            // (An autofit table's cells state widths other than its grid: Word starts from the cells', and only a column
+            // whose content will not go in its stated width takes more. dx2 cf39f18f, e18b2068.)
+            var statedPts = document.tableColumns[c.table]
+            if theme.wordRules, RichTextTheme.wordWindowsPages, _columnPreview[c.table] == nil, let alt = document.tableCellColumns[c.table], alt.count == cols {
+                // (Word's own saved grid is its exact answer, on a 1/600 inch grid: when the cells' rule agrees with it to the rounding
+                // (scaled to the grid's total, as the room does), keep the grid; when a column is further off, the grid is stale.)
+                let r = _raiseToNarrowest(c.table, alt, document)
+                if let g = statedPts, g.count == cols {
+                    let gs = g.reduce(0, +), rs = r.reduce(0, +), k = rs > gs && rs > 0 ? gs / rs : 1
+                    if zip(g, r).contains(where: { abs($0 - $1 * k) > 0.5 }) {
+                        statedPts = r.map { (($0 * 600 / 72).rounded()) * 72 / 600 }
+                        RuleTrace.hit("word-autofit-cell-widths-raised-to-narrowest")
+                    }
+                } else { statedPts = r }
+            }
+            if let pts = _columnPreview[c.table] ?? statedPts, pts.count == cols {
                 // Wider than the column: scaled to fit, as Word autofits a
                 // table whose grid outgrows the page; a preferred width
                 // (a share of the column, or points) scales the grid to it.
@@ -1522,6 +1537,33 @@ extension RichLayout {
     static func _autofitDictionaryScript(_ u: UInt16) -> Bool {
         // (Thai is not one: in Word's autofit a Thai string with no space is ONE unbreakable piece, its minimum width the whole string; lab autofitth, 2026-11-15.)
         (u >= 0x0E80 && u <= 0x0EFF) || (u >= 0x1780 && u <= 0x17FF) || (u >= 0x1000 && u <= 0x109F)
+    }
+
+    /// Stated column widths (points) with each column whose narrowest content outgrows it raised to that, the rise
+    /// taken from the other columns by their share of what they have over their own narrowest.
+    func _raiseToNarrowest(_ table: String, _ stated: [Double], _ document: RichDocument) -> [Double] {
+        let ins = _cellInsets(table, document)
+        var need = Array(repeating: 0.0, count: stated.count)
+        for (k, q) in document.paragraphs.enumerated() {
+            guard let cc = q.cell, cc.table == table else { continue }
+            guard cc.span == 1, cc.column < stated.count else { return stated }
+            let sides = cc.padding.map { _px($0.left) + _px($0.right) } ?? ins.left + ins.right
+            need[cc.column] = max(need[cc.column], sides + _minContent(k, q, document))
+        }
+        let grid = stated.map { _px($0) }
+        var rise = 0.0
+        var spare = Array(repeating: 0.0, count: grid.count)
+        for i in grid.indices {
+            if need[i] > grid[i] + 0.5 { rise += need[i] - grid[i] } else { spare[i] = max(0, grid[i] - need[i]) }
+        }
+        let spareSum = spare.reduce(0, +)
+        guard rise > 0, spareSum > 0 else { return stated }
+        let take = min(rise, spareSum)
+        let px1 = _px(1)
+        return grid.indices.map { i in
+            if need[i] > grid[i] + 0.5 { return need[i] / px1 }
+            return (grid[i] - take * spare[i] / spareSum) / px1
+        }
     }
 
     func _autofit(_ table: String, _ base: [Double], _ document: RichDocument) -> [Double] {
