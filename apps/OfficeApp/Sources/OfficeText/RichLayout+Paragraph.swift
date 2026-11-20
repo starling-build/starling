@@ -4394,6 +4394,16 @@ extension RichLayout {
                    !rpr.containsSubstring("w:sz ") && !rpr.containsSubstring("w:rFonts") && !rpr.containsSubstring("w:rStyle") {
                     RuleTrace.hit("picture-alone-multiple-extra-of-the-styles-line")
                     extra = _markLineHeight(i, document, single: true, using: CharStyle())
+                } else if RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 0) >= 15, p.cell == nil, let image = p.image, image.name != "w:object",
+                          let rpr = image.sourceRunPropertiesXML, let r = rpr.rangeOfSubstring("w:sz w:val=\""),
+                          let half = Double(rpr[r.upperBound...].prefix(while: { $0 != "\"" })) {
+                    // (A picture alone whose own run states a size: the multiple's extra is that run's line, not the mark's, as under a
+                    // picture and a rule: lab hrimg F, a 100x50pt picture in an 8pt run over a 20pt mark at 1.5 lines, the next line
+                    // 93.9 down in Word's print, 101.7 with the mark's extra.)
+                    RuleTrace.hit("picture-alone-multiple-extra-of-its-runs-line")
+                    var m = p.style.mark ?? p.runs.first?.style ?? CharStyle()
+                    m.fontSize = half / 2
+                    extra = _markLineHeight(i, document, single: true, using: m)
                 }
                 bodyHeight += (multiple - 1) * extra
                 // (A multiple's extra under a picture alone hangs past a page's foot as under text: sa1 c11d31f3's chart,
