@@ -176,6 +176,9 @@ extension RichLayout {
         // The floating pictures on this page that text wraps round: page
         // y, and x from the column's edge.
         var bands: [(top: Double, bottom: Double, left: Double, right: Double)] = []
+        // Pictures placed from the margin or the page at a fixed height, wrapped square and leaving no room at either side:
+        // the paragraphs after their anchor keep clear of them (the anchor's own is sent under by the rule below).
+        var fixedBands: [(top: Double, bottom: Double, left: Double, right: Double)] = []
         var tightBandBottoms: [Double] = []   // feet of the wrapTight/Through boxes' bands
         // The pinned floats' bands on this page (in `bands` too), which a
         // table's rows keep clear of as well.
@@ -266,6 +269,7 @@ extension RichLayout {
         }
         func newPage() {
             bands.removeAll()
+            fixedBands.removeAll()
             tightBandBottoms.removeAll()
             tableBands.removeAll()
             narrowBands.removeAll()
@@ -4437,7 +4441,7 @@ extension RichLayout {
                 // anchor's line that a photo starts 16pt down went under
                 // the photo in Word's print.)
                 func noRoom(at at: Double, height: Double = 0, _ extra: [(top: Double, bottom: Double, left: Double, right: Double)]) -> Double? {
-                    let over = (bands + extra).filter { $0.top < at + max(0.02, height) - 0.01 && $0.bottom > at + 0.01 }
+                    let over = (bands + fixedBands + extra).filter { $0.top < at + max(0.02, height) - 0.01 && $0.bottom > at + 0.01 }
                     guard !over.isEmpty else { return nil }
                     // The widest stretch of the column no picture covers.
                     var spans = over.map { (max(0, $0.left - gap), min(column, $0.right + gap)) }.sorted { $0.0 < $1.0 }
@@ -4492,7 +4496,12 @@ extension RichLayout {
                     let firstHeight = label > 0 ? (Self._lineBottoms(geometry(i).painter).first ?? 0) : 0
                     if label > 0, firstHeight + lead > 1 {
                         let step = firstHeight + lead
-                        while let below = noRoom(at: y + lead, height: firstHeight, []), guardSteps < 20 {
+                        // (Word 2010's mode: a list item whose later lines would reach a picture that leaves no room beside it
+                        // goes under the picture whole, its first line clear of it or not: lab pic-wrap c14, a 509pt square
+                        // picture, the item's first line 4pt above it, stands at the picture's foot with the lines after it.)
+                        let reachAll = RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) < 15
+                            ? max(firstHeight, Self._lineBottoms(geometry(i).painter).last ?? 0) : firstHeight
+                        while let below = noRoom(at: y + lead, height: reachAll, []), guardSteps < 20 {
                             y += max(1, ((below - y - lead) / step - 0.001).rounded(.up)) * step
                             guardSteps += 1
                         }
@@ -4639,6 +4648,24 @@ extension RichLayout {
                     }
                 }
                 var mine = _wrapBoxes(i)
+                // (Word's print of lab pic-wrap, c14 and sa2 78bf1be7: a 509pt picture, 6.5pt in from the margin of a 522pt
+                // column, wrapped square, from the margin; the list items after it go under it whole, not over it. A picture
+                // with 26pt at its side keeps text beside it there, so the test is for less than that at each side.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages {
+                    var own: [ImageAttachment] = []
+                    if i < _floatImages.count, let image = _floatImages[i] { own.append(image) }
+                    if i < _inline.count { own += _inline[i] }
+                    for image in own {
+                        guard let float = image.float, float.wraps, !float.wrapsTight, !float.takesRoom, !float.bandsPage, float.verticalAlign == nil,
+                              float.heightShare == nil, float.verticalFrom == "margin", float.horizontalFrom == "margin", float.wrapSide == nil,
+                              !image.data.isEmpty, _cells[i] == nil else { continue }
+                        let r = _floatRect(float, image, geometry(i), i)
+                        guard max(0, r.left) < _px(24), _flowWidth(i) - r.right < _px(24) else { continue }
+                        let t = _px(float.y)
+                        fixedBands.append((t - _px(float.distanceTop), t + _bodyBoxHeight(image, document) + _px(float.distanceBottom), r.left, r.right))
+                        RuleTrace.hit("word-wide-margin-square-picture-takes-the-column-after-its-anchor")
+                    }
+                }
                 for box in mine { if let dy = _floatShiftY[box.id] { _floatShiftY[box.id] = nil; let r = box.rect; mine = mine.map { $0.id == box.id ? ($0.id, Rect.fromLTWH(r.left, r.top - dy, r.width, r.height), $0.above, $0.below) : $0 } } }
                 // (A box of the paragraph's own that the page fixes — a text box
                 // wrapped square, placed from the page or its margin, the
