@@ -135,6 +135,14 @@ clang toolchain, the sysroots. Transient
 — gclient retries and the sync still succeeds. On a slow link,
 `gclient sync --no-history` shallows the sub-repos.
 
+After the sync, re-apply the local Skia / engine patches (`gclient sync` overwrites them):
+
+```bash
+scripts/apply_engine_patches.sh
+```
+
+It is idempotent, so it is safe to run again after any later sync. Skip it and the host build links against an unpatched Skia.
+
 ### 1.5 Generate the build files
 
 ```bash

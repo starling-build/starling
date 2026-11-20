@@ -1,0 +1,37 @@
+name: render-gate-prebuild
+# After each push to main, build that commit on the runner and fill the base-binary cache, so the next merge group
+# never has to build its base. Not a required check. A newer push cancels a running prebuild.
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: render-gate-prebuild
+  cancel-in-progress: true
+jobs:
+  prebuild:
+    runs-on: [self-hosted, linux, starling-render]
+    timeout-minutes: 60
+    steps:
+      - name: Update persistent clone
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          C=$HOME/clone
+          pgrep -u "$(id -u)" -x git >/dev/null || find "$C/.git" -maxdepth 2 -name "*.lock" -delete   # stale locks from a cancelled run, only if no git of ours is running
+          [ -d "$C/.git" ] || { git init -q "$C"; git -C "$C" remote add origin "https://github.com/${{ github.repository }}.git"; }
+          AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -C "$C" -c http.extraheader="$AUTH" fetch -q --no-tags --depth=200 origin "$GITHUB_SHA"
+          git -C "$C" checkout -q -f --detach "$GITHUB_SHA"
+          git -C "$C" clean -fdq
+      - name: Prebuild
+        env:
+          ENGINE_DIR: /data/s/amd-8/starling-engine/engine
+        run: |
+          set -o pipefail
+          cd "$HOME/clone"
+          export JOBS=$(nproc)
+          [ "$JOBS" -gt 170 ] && JOBS=170
+          GATE_PREBUILD=1 test/tools/render-gate.sh "$GITHUB_SHA" 2>&1 | tail -20 | cut -c1-200
