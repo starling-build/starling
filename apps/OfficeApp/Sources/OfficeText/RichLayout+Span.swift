@@ -4564,7 +4564,9 @@ extension RichLayout {
                         let own = m.baseline / multiple
                         let isSymbol = leadChar.fontFamily?.lowercased() == "symbol"
                         let up = isSymbol ? (theme.faceResolver?("symbol", false)?.baseline ?? 0) * px : px * 1841.0 / 2048
-                        if isSymbol || up > own + 0.01 {
+                        // (Only when the bullet stands higher than the text's own ascent: where it does not, the row is the text's, and rebuilding it here
+                        // moved where the multiple's extra falls: a 14pt Symbol bullet over bold 14pt Kalpurush at 1.5, rows 5 pt too tall, xb ben-z17281487 page 9.)
+                        if up > own + 0.01 {
                             if isSymbol {
                                 // (A Symbol bullet at a line multiple: Word's row is the text's own row at the multiple, taller only by what the bullet's
                                 // ascent stands over the text's single-spaced ascent, none of it below: 12pt Symbol over Arial 12 at 1.08, rows 16.68 apart where a
