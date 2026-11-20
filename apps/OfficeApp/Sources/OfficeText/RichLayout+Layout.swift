@@ -2166,7 +2166,7 @@ extension RichLayout {
                 first = max(first, _px(boxMin)); m = max(m, _px(boxMin)); opening = max(opening, _px(boxMin))
             }
         }
-        let sides = _sideIndents(p, document)
+        var sides = _sideIndents(p, document)
         // (Indents out into the cell's margins count against it:
         // bug65649's equipment table indents every paragraph -113 twips
         // a side, and its "№ п/п" column of 54pt holds "(согласно" in
@@ -2187,6 +2187,10 @@ extension RichLayout {
         // 1320 twips in a 62pt column, and Word keeps the grid.)
         var lead = units.isEmpty && p.image == nil ? p.style.firstLineIndent : firstLineIndent(p, document)
         if theme.wordRules, units.isEmpty, p.image == nil, lead > 0 { lead = 0 }
+        // (Nor does an empty paragraph's left indent ask for room: sa1 fd1997fd's empty cells indented 920 and 1730 twips
+        // sit in 20.5 and 21.7pt columns, and Word keeps the grid, where ours widened them and narrowed the others.)
+        let emptyLeft = theme.wordRules && units.isEmpty && p.image == nil && _wordList(p, document) == nil
+        if emptyLeft { sides.left = 0 }
         if theme.wordRules, _wordList(p, document) == nil {
             // (Before 2013's layout every piece is measured from where a
             // hanging line starts, and a first line set further in asks
