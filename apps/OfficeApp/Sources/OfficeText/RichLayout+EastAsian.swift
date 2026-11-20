@@ -3398,6 +3398,13 @@ extension RichLayout {
         let x = document.paragraphs[a], y = document.paragraphs[b]
         guard let bx = x.style.borders, bx == y.style.borders, x.cell == y.cell,
               x.style.indentLeft == y.style.indentLeft, x.style.indentRight == y.style.indentRight else { return false }
+        // (A numbered paragraph's indent comes from its list level, so a bordered one beside a plain bordered one
+        // has another indent and does not run together with it: sa1 90385e38's "3. PARTICIPANTES" heading and the
+        // "Alumnos" line under it, 1.4 pt apart more in Word's print.)
+        if RichTextTheme.wordWindowsPages, (x.style.listId == nil) != (y.style.listId == nil) || (x.style.listId != nil && x.style.listLevel != y.style.listLevel) {
+            RuleTrace.hit("numbered-and-plain-bordered-paragraphs-do-not-join")
+            return false
+        }
         // (Not across a page or column break at the paragraph's start: its box
         // opens again on the new page, with its top line and room — lab pb
         // (Word for Windows) over LibreOffice's tdf153964_firstIndentAfterBreak14,
