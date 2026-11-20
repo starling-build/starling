@@ -2142,13 +2142,21 @@ extension RichLayout {
             for image in hp.inlineImages.inOrder + (hp.image.map { [$0] } ?? []) {
                 // (A square wrap round a picture as wide as the text leaves no room beside it: 90385e38's 611 pt banner, set 35 pt above
                 // its paragraph with its foot 71 pt below the paragraph's top, ends the header at its foot, the body's first line at 118.8
-                // in Word's print; ours stood 19.7 pt up.)
+                // in Word's print; ours stood 19.7 pt up. A tight one set from the page holds the body under it too: sa1 2303e6f9, a
+                // 594.5pt picture on a 595pt page, the body at 144.7 in Word's print.)
                 guard let f = image.float else { continue }
-                let fillsWidth = theme.wordRules && RichTextTheme.wordWindowsPages && f.wraps && !f.wrapsTight && image.width >= setup.contentWidth
+                let wide = theme.wordRules && RichTextTheme.wordWindowsPages && f.wraps && image.width >= setup.contentWidth
+                let fillsWidth = wide && (!f.wrapsTight || f.horizontalFrom == "page")
+                let fillsText = fillsWidth
                 guard f.takesRoom || f.bandsPage || fillsWidth, !f.wraps || fillsWidth, f.verticalFrom == "paragraph", f.verticalAlign == nil,
                       f.y >= 0 || (theme.wordRules && f.y + image.height > 0), image.height > 0 else { continue }
                 RuleTrace.hit("header-picture-from-its-paragraph-ends-the-header")
-                end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + _px(f.y) + _px(image.height) + _px(f.distanceBottom))
+                // (A wrapped one pushes the paragraph's own line under it, and Word does not lift it above the paragraph: sa1 2303e6f9,
+                // the picture 0 to 136pt, the empty 11pt line baseline at 144.7, the body from 148.4.)
+                let wrapped = f.wraps && fillsText
+                let lift = wrapped ? max(0, f.y) : f.y
+                let line = wrapped && j < header.layout._heights.count ? header.layout._heights[j] : 0
+                end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + _px(lift) + _px(image.height) + _px(f.distanceBottom) + line)
             }
             // (A picture set against the PAGE's top that the text goes over and under ends the header at its foot plus its
             // bottom distance: xa gv-57041316b7, a 49.9pt logo at 49.1pt with 226.8pt below it, the title at 325.7 in Word's
