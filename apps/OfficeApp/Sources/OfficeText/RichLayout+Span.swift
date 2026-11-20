@@ -5463,7 +5463,10 @@ extension RichLayout {
             let hinted = (run.style.fontHint ?? named?.char.fontHint) == "eastAsia"
             let chars = p.text[a ..< b].filter { !Self._setsNoLine($0) }
             if chars.isEmpty { continue }
-            if chars.contains(where: { Self.isEastAsian($0, hinted: hinted) }) { ea = true } else { latin = true }
+            if chars.contains(where: { Self.isEastAsian($0, hinted: hinted) }) { ea = true }
+            // (A run of punctuation alone is not Latin text: it takes the line's face, and splitting a Korean line at a hinted "." or "/"
+            // is no change of face: xd b88f2314's bullets stood 1.9 pt apart in the step where Word's pitch is the plain 15.5 pt.)
+            else if !chars.allSatisfy({ $0.isASCII && !$0.isLetter && !$0.isNumber }) || !theme.wordRules { latin = true }
         }
         return ea && latin
     }
