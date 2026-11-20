@@ -1751,6 +1751,28 @@ extension RichLayout {
                     // (The rest of a one-line paragraph moves with its ruby's base.)
                     s = s.copyWith(baselineShift: (s.baselineShift ?? 0) - mixedRubyRaise * theme.pixelsPerPoint * scale)
                 }
+                // (A run with a text shadow (w14:shadow) makes its line taller by the shadow's reach: the blur radius past the offset,
+                // below and above the face's own line. Lab hdrsup v7 against v10, 72 pt Copperplate Gothic Light, shadow 3 pt out at 45 degrees
+                // blurred 4 pt: the baseline falls 1.92 pt (4 - 3 sin 45 = 1.88) and the body 8.04 (4 + 3 sin 45 = 6.12 more below).)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let sh = run.shadow ?? named?.char.shadow, !sh.glow, sh.blur > 0,
+                   let size = s.fontSize, size > 0.5, !(index.map { _verticalBody($0) } ?? false),
+                   let latin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)?.trimmingWhitespace(),
+                   let face = theme.faceResolver?(latin, false),
+                   let pt = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize, pt > 0.5 {
+                    var single = p.style; single.lineSpacing = 1
+                    let bold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
+                    let line = (bold ? face.boldHeight : nil) ?? face.naturalHeight ?? theme.naturalLineHeight(family: face.family, bold: bold, italic: run.italic)
+                    if let b = theme.baseline(for: run, in: single, named: named, eastAsian: false, gridPitch: pitch), case let asc = b / pt, asc > 0.3, line > asc {
+                        RuleTrace.hit("word-text-shadow-reaches-the-line")
+                        let k = theme.pixelsPerPoint * scale
+                        // (The glyphs are set down by the reach above them and the line grows by the reach below as well: the line's own
+                        // ascent stays, the paint takes the baseline from the face.)
+                        let above = max(0, sh.blur - sh.dy) * k, below = max(0, sh.blur + sh.dy) * k
+                        let up = s.ascentOverride ?? asc * size, down = (s.descentOverride ?? (line - asc) * size) + above + below
+                        s = s.copyWith(baselineShift: (s.baselineShift ?? 0) + above, ascentOverride: up, descentOverride: down, height: (up + down) / size,
+                                       leadingDistribution: .even, debugLabel: (s.debugLabel ?? "") + " shadow-line")
+                    }
+                }
                 // (A run of tabs alone takes no line of its own in a paragraph of
                 // other text: windows-1's lab `ttab`, zh-147bdae0's "四、承諾事項"
                 // — its 16pt bold tab after 14pt text, at the line's end, mid-line

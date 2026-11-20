@@ -194,6 +194,8 @@ public final class RichTextTheme {
         case "book antiqua": return 0.242
         case "georgia": return 0.265
         case "sylfaen": return 0.283
+        case "copperplate gothic light": return 546.0 / 2048 // OS/2 ySuperscriptYOffset; sa1 6d68ddbf, lab hdrsup v3/v8: 6.48 pt at 24 pt
+        case "copperplate gothic bold": return 525.0 / 2048
         case "palatino linotype": return 0.273
         default: return 0.355
         }
