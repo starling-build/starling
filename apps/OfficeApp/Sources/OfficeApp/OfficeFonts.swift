@@ -329,6 +329,8 @@ enum OfficeFonts {
         declaredLock.lock()
         defer { declaredLock.unlock() }
         fontEntries = Dictionary(entries.map { ($0.key.trimmingWhitespace().lowercased(), $0.value) }, uniquingKeysWith: { a, _ in a })
+        missingFallbackMemo = [:]
+        boldWidenMemo = [:]
     }
     /// The Latin and other families Word 16 for Mac can set text in:
     /// the faces it bundles (its DFonts) and the Mac's own, by family
@@ -1205,7 +1207,17 @@ enum OfficeFonts {
                    "mingliu", "細明體", "新細明體", "microsoft jhenghei", "微軟正黑", "dengxian", "等线", "dfkai", "標楷",
                    "mincho", "明朝", "gothic", "ゴシック", "meiryo", "malgun", "batang", "gulim", "dotum", "맑은 고딕", "_gb2312", "华文", "stsong", "stkaiti",
                    "stfangsong", "stzhongsong", "stxihei", "stxinwei"]
+    /// Per-family memo of `windowsMissingFallback` (it depends only on the family and the font table, and was redone for every styled run).
+    nonisolated(unsafe) private static var missingFallbackMemo: [String: String?] = [:]
     private static func windowsMissingFallback(_ family: String) -> String? {
+        declaredLock.lock()
+        if let hit = missingFallbackMemo[family] { declaredLock.unlock(); return hit }
+        declaredLock.unlock()
+        let r = windowsMissingFallbackUncached(family)
+        declaredLock.lock(); missingFallbackMemo[family] = .some(r); declaredLock.unlock()
+        return r
+    }
+    private static func windowsMissingFallbackUncached(_ family: String) -> String? {
         let n = family.trimmingWhitespace().lowercased()
         guard !n.isEmpty else { return nil }
         // (BatangChe and DotumChe are Word for Windows' own faces, drawn at their own widths further on.)
@@ -3750,7 +3762,16 @@ static let sylfaenAdvances: [Double] = [
     /// zh-aa3f29a0's 20pt DFKai-SB title onto a second line, and the
     /// alternate's 1/2048 keeps zh-167ee06c's 華康雅風體 — JhengHei UI
     /// Light to Word — where it was.)
+    nonisolated(unsafe) private static var boldWidenMemo: [String: Double] = [:]
     private static func windowsBoldWiden(_ family: String) -> Double {
+        declaredLock.lock()
+        if let hit = boldWidenMemo[family] { declaredLock.unlock(); return hit }
+        declaredLock.unlock()
+        let r = windowsBoldWidenUncached(family)
+        declaredLock.lock(); boldWidenMemo[family] = r; declaredLock.unlock()
+        return r
+    }
+    private static func windowsBoldWidenUncached(_ family: String) -> Double {
         func units(_ name: String) -> Double? {
             let n = name.lowercased()
             if ["標楷", "dfkai", "細明", "mingliu"].contains(where: { faceHas(n, $0) }) { return 1024 }
