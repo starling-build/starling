@@ -986,7 +986,9 @@ extension RichLayout {
                     rightSides[c.table, default: []].append((c.column + c.span, own))
                 }
                 if _tableFirstParagraph[c.table] == nil { _tableFirstParagraph[c.table] = k }
-                if c.column == 0, let own = Self._cellSide(c.bordersXML, "left") ?? Self._cellSide(c.rowBordersXML, "left"),
+                // (Its first row's: sa1 f84c295b's grid has one row, the sixth, with a left double rule of its own, and Word's
+                // print keeps the table's edge and every row's text where they stood, 1.1 pt left of ours.)
+                if c.column == 0, c.row == 0, let own = Self._cellSide(c.bordersXML, "left") ?? Self._cellSide(c.rowBordersXML, "left"),
                    own.width > _tableOwnLeft[c.table]?.width ?? 0 { _tableOwnLeft[c.table] = own }
                 columns[c.table] = max(columns[c.table] ?? 1, c.column + c.span)
                 _tableRows[c.table] = max(_tableRows[c.table] ?? 0, c.row + c.rowSpan - 1)
