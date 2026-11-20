@@ -2765,8 +2765,20 @@ extension RichLayout {
             var lead: (CharStyle, Bool) = (p.runs[0].style, false)
             // (A line opening on an anchored picture's mark is sized by the text after it:
             // lo-7ec36a70's Persian line, Times 10 for the mark's run, stood 2pt high.)
-            if theme.wordRules, p.runs[0].length > 0, p.text.unicodeScalars.prefix(p.runs[0].length).allSatisfy({ $0 == "\u{FFFC}" }),
-               let next = p.runs.dropFirst().first(where: { $0.length > 0 }) { lead = (next.style, false) }
+            // (Several anchors in a row open the line the same: the text's run is the one that sets it, not a second anchor's,
+            // dx2 48e5a592's "PUNTOS POR PASAJERO" line, two ovals ahead of it, stood 3.55pt low.)
+            if theme.wordRules, p.runs[0].length > 0, p.text.unicodeScalars.prefix(p.runs[0].length).allSatisfy({ $0 == "\u{FFFC}" }) {
+                var off = p.runs[0].length
+                var found: Run? = nil
+                let u = Array(p.text.utf16)
+                for r in p.runs.dropFirst() where r.length > 0 {
+                    let end = min(u.count, off + r.length)
+                    let anchorsOnly = RichTextTheme.wordWindowsPages && off < end && u[off ..< end].allSatisfy { $0 == 0xFFFC }
+                    off = end
+                    if !anchorsOnly { found = r; break }
+                }
+                if let next = found { lead = (next.style, false) }
+            }
             search: for run in p.runs {
                 let hinted = (run.style.fontHint ?? named?.char.fontHint) == "eastAsia"
                 let a = p.text.utf16.index(p.text.utf16.startIndex, offsetBy: at)
