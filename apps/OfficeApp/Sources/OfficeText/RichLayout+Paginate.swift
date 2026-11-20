@@ -2842,6 +2842,36 @@ extension RichLayout {
                         if target > y + 0.01, target < contentH - 0.01 {
                             tableReturn = (c.table, y, page, target)
                             y = target
+                            // (A table moved whole to a new page is lifted until one of its possible cuts, a row's end or a line's
+                            // under inside a row that may part, sits at the page's edge, taking the most table it can; not above the
+                            // top margin plus the bottom margin, else it stays where it was set. Word for Windows' labs gridlift1-7
+                            // and fltpage5-8, 43 prints within 0.02pt: page-2 tops 33.84 to 75.02 by bottom margin, 58.32 at pitch
+                            // 12 and 24, 41.40 at 14, and the set place at 15, 20, 30 and 36. dx2 f42177d2 51.84.)
+                            if RichTextTheme.wordWindowsPages, let ts1 = ts0 {
+                                let pageBottom = _px(pageSetup(forPage: physical).height) - insetTop
+                                let floor = _px(pageSetup(forPage: physical).marginBottom)
+                                let rule = max(c.ruleBelow, ruleUnder(c))
+                                var cuts: [Double] = []
+                                var k = i
+                                while k < count, let d = _cells[k], d.table == c.table {
+                                    if d.rowSpan == 1 { cuts.append(d.rowTop + d.ownRowHeight - c.rowTop) }
+                                    if d.rowSpan == 1, !d.vertical, !ts1.rowsCantSplit.contains(d.row), !ts1.rowsExactHeight.contains(d.row),
+                                       document.paragraphs[k].image?.name != "table" {
+                                        let g = geometry(k)
+                                        let least = _px(ts1.rowHeights[d.row] ?? 0)
+                                        for b in Self._lineBottoms(g.painter) {
+                                            cuts.append(d.rowTop - c.rowTop + max(least, g.textTop - d.rowTop + b + d.pad.bottom))
+                                        }
+                                    }
+                                    k += 1
+                                }
+                                let kept = cuts.map { pageBottom - $0 - rule }.filter { $0 >= floor - 0.01 && $0 <= target + 0.01 }
+                                if let lo = kept.min() {
+                                    RuleTrace.hit("page-anchored-table-moved-whole-is-lifted-to-a-cut-at-the-page-edge")
+                                    y = lo
+                                    tableReturn = (c.table, tableReturn?.1 ?? y, page, lo)
+                                }
+                            }
                         }
                     } else if target >= 0, target < y - 0.01, deferredUnder.isEmpty {
                         var moved: [PagePiece] = []
