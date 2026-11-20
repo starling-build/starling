@@ -898,6 +898,7 @@ extension RichLayout {
         // holds in starts its tabs that far along, and a stop past the window's far edge is Word's, not the column's.)
         var tabWindows: [LineIndent] = []
         var forcedWraps: Set<Int> = []
+        var afterTabWraps: Set<Int> = []
         @inline(never) func _blk3() {
         if theme.wordRules || theme.markersAtHang, !style.rightToLeft || theme.wordRules, p.text.utf16.contains(0x09) {
             let (probeSpan, probeInline, probeInserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead)
@@ -934,6 +935,7 @@ extension RichLayout {
             // distance, so every page number went to a line of its own.)
             var wraps = found.map { w in w < units.count && (units[w] == 0x0A || units[w] == 0x2028) ? w + 1 : w }
             if tabWindows.isEmpty { forcedWraps = [] } else if !forcedWraps.isEmpty { wraps = Array(Set(wraps).union(forcedWraps)).sorted() }
+            if !afterTabWraps.isEmpty { wraps = Array(Set(wraps).union(afterTabWraps)).sorted() }
             // (A word that ends in a tab, the line it would end short by a hair of the room — the
             // engine's strict fit sends it down, and the line fitting takes it back up: the tab
             // then stands where the line breaks before it, at the line's start, as Word's does.)
@@ -1268,6 +1270,24 @@ extension RichLayout {
                     }
                     RuleTrace.hit("word-default-tab-at-the-margin-keeps-the-line")
                 }
+                // (An EXPLICIT left stop past the line's text edge, spaces after its tab to the paragraph's end: the tab
+                // fills the line to its edge and the spaces go to a second line at the indent, in Word's print.
+                // sa2 d6f66b01's "Médicos AP<spaces><tab><18 spaces>" in a cell, stops at 5445 and 7470 twips in a
+                // 4599-twip text width, two lines in Word, ours one; lab tabcell5/6: stops at 4700 twips and past
+                // wrap in a 4599-twip width, stops at 3000 and 4400 stay on one line; cell margins, table style,
+                // cell width and layout mode do not matter. With only default stops the tab stays on one line.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !pictureTabs, !style.rightToLeft, stop.alignment == .left, !toIndent,
+                   stop.x > ownLeft + textWidth + 0.01, x + own < ownLeft + textWidth - 0.5,
+                   stops.contains(where: { $0.alignment == .left && abs(_px($0.position) - stop.x) < 0.01 }),
+                   t + 1 < units.count, units[(t + 1)...].allSatisfy({ $0 == 0x20 }) {
+                    extra = ownLeft + textWidth - x - own - 0.02
+                    if !afterTabWraps.contains(t + 1), !wraps.contains(t + 1) {
+                        afterTabWraps.insert(t + 1)
+                        measure(wraps)
+                        return
+                    }
+                    RuleTrace.hit("word-explicit-left-tab-past-the-edge-sends-trailing-spaces-to-the-next-line")
+                }
                 tabs[t] = extra
                 if toIndent { leftTabs.insert(t) }
                 shift += extra
@@ -1400,7 +1420,7 @@ extension RichLayout {
             ? Set(tabs.keys.filter { t in (t > 0 && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t - 1)] == 0x09) || (t + 1 < p.text.utf16.count && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t + 1)] == 0x09) }).subtracting(atMargin)
             : []
         if !tabRuns.isEmpty { RuleTrace.hit("tab-runs-do-not-hang-past-the-margin") }
-        let tabsHeld: Set<Int> = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(underHeld).union(beforeTabs).union(tabRuns).union(lonePastTabs)
+        let tabsHeld: Set<Int> = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(underHeld).union(beforeTabs).union(tabRuns).union(lonePastTabs).union(afterTabWraps)
             .union(theme.wordRules && RichTextTheme.wordWindowsPages ? Self._underlinedClosingCounted(p) : [])
         // A line exactly as wide as its room fits or not as Word's sum of
         // the room comes out: each measure in twips goes to the sixteenth
