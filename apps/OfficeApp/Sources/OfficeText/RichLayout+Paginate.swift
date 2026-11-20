@@ -4184,7 +4184,23 @@ extension RichLayout {
                 }
                 if !violated, !ended, k < count, k > i, (_cells[k] != nil || !document.paragraphs[k].style.keepNext) {
                     let single = k == i + 1 && _cells[k] == nil && !document.paragraphs[k].style.keepNext
-                    violated = cum + start(k, trailing: single) > room + (single ? sharedNow : 0) + 0.01
+                    // (The notes of the kept members stand at this page's foot with them: Word's print of c2104d44 sends
+                    // a heading with a footnote mark, kept with its paragraph, to the next page where the note
+                    // and the paragraph's first line do not both fit under it.)
+                    var noteRoom = 0.0
+                    if theme.wordRules, notesOn, RichTextTheme.wordWindowsPages, !slotNotes {
+                        var seen: [Int] = []
+                        for m in i ..< k {
+                            for id in _footnotes(in: m, document) where !pageNotes.contains(id) && !seen.contains(id) {
+                                guard let note = _note(id, width: noteWidth(), document) else { continue }
+                                if seen.isEmpty && pageNotes.isEmpty { noteRoom += _note(-1, width: noteWidth(), document)?.height ?? 0 }
+                                noteRoom += note.height
+                                seen.append(id)
+                            }
+                        }
+                        if noteRoom > 0 { RuleTrace.hit("word-kept-heading-counts-its-notes") }
+                    }
+                    violated = cum + start(k, trailing: single) + noteRoom > room + (single ? sharedNow : 0) + 0.01
                 }
                     return violated
                 }
