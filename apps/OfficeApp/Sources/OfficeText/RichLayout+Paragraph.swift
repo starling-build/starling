@@ -1506,6 +1506,14 @@ extension RichLayout {
             // and out past the left one: Word's print of xd 658a33bb, "참가신청서" 60pt in from the edge.)
             if _besideIndentOnTop.contains(i), !besideRight, besideLeftRoom == nil, original > 0 { firstExtra = original }
             else
+            if theme.wordRules, RichTextTheme.wordWindowsPages, !besideRight, besideLeftRoom == nil, p.cell == nil, p.style.list == nil, p.style.listId == nil,
+               original < 0, p.style.indentLeft > 0, (document.compatibilityMode ?? 12) < 15 {
+                // (Compat 14, a hanging item (typed bullet and tab) beside a picture: Word's print of lab pic-wrap sets the bullet 18pt and the
+                // text 36pt in from the picture's edge, its own offsets, the lines under it at the edge.)
+                firstExtra = _px(p.style.indentLeft) + original
+                RuleTrace.hit("word-c14-hanging-item-beside-picture-keeps-its-offsets")
+            }
+            else
             if theme.wordRules, RichTextTheme.wordWindowsPages, !besideRight, _besideLead[i] == 0, p.cell == nil, !_besideListEarlier.contains(i),
                p.style.listId != nil, let own = _listIndents(p, document), own.left > 0 {
                 firstExtra = _px(own.left)
