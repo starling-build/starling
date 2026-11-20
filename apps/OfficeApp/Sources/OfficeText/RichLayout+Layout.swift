@@ -1131,8 +1131,10 @@ extension RichLayout {
                 // shares of (width - narrowest) at 20.8pt apiece to 0.1pt; equal
                 // columns still scale evenly. lo fdo63164-1's 2nd column is 3pt
                 // wider so.)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, scale < 1, !_nestedInFixedTable, _columnPreview[c.table] == nil,
-                   let ts = document.tableStyles[c.table], !ts.fixedLayout, ts.widthPercent == nil, ts.width == nil, (ts.cellSpacing ?? 0) == 0,
+                // (A stated width the grid and the cells' widths outgrow does not hold the table to it: sa2 cb623f0a, tblW
+                // 390pt over five columns of 390pt each, is the room wide in Word's print, the columns equal.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !_nestedInFixedTable, _columnPreview[c.table] == nil,
+                   let ts = document.tableStyles[c.table], !ts.fixedLayout, ts.widthPercent == nil, ts.width == nil ? scale < 1 : scale >= 1, (ts.cellSpacing ?? 0) == 0,
                    // (An outdent keeps the old way, untested.)
                    ts.indent > -0.5 {
                     let ins = _cellInsets(c.table, document)
