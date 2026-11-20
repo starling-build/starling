@@ -7,6 +7,7 @@
 # Public log: only a short summary (counts and document stems), no paths or renders.
 # Env: JOBS (default 44), GATE_SCRATCH (default $HOME/scratch/gate-$$), GATE_FULL=1 (no subset: the whole sets).
 set -u
+S0=$(date +%s)   # gate start, to report the setup time before the build
 BASE_SHA=${1:?usage: render-gate.sh BASE_SHA}
 # Classify the change (BASE_SHA..HEAD): (1) render-relevant paths (test/tools/render-paths.txt) -> the full gate;
 # (2) gate tooling (workflows, this script, the pair/combine/scorer tools) -> a quick self-test (2 documents through the new tooling);
@@ -82,7 +83,7 @@ fill_rows_locked() {
   for f in "$W"/fill/fix/*.v2 "$W"/fill/fix/*.v1; do [ -f "$f" ] && cat "$f" >> "$RC/$(basename "$f")"; done
   cp "$W/fill/fix/REFS" "$RC/REFS"; cat "$W/missing.txt" >> "$RC/tried.txt"
 }
-T0=$(date +%s); echo "render-gate: building"
+T0=$(date +%s); echo "render-gate: setup before the build $(( T0-S0 )) s (lock, classify, corpus restore, document names)"; echo "render-gate: building"
 build_base() {   # builds BSHA into the shared cache once: the sha lock makes a second runner wait for the first instead of building it again
   flock 8
   if [ -x "$BC/$BSHA/release/OfficeApp" ]; then flock -u 8; return 0; fi
