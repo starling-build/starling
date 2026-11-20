@@ -2619,11 +2619,38 @@ extension RichLayout {
                             while k < count, let d = _cells[k], d.table == c.table { whole = max(whole, d.rowTop + d.ownRowHeight); k += 1 }
                             let total = whole - c.rowTop
                             let height = total <= pageBottom + 0.01 ? total : c.ownRowHeight
-                            if y + c.ownRowHeight > pageBottom + 0.01, height <= pageBottom + 0.01 {
+                            // (Only a table anchored to the PAGE is set up to its edge; one anchored to the text or the margin is not:
+                            // Word's print of lab tblstrip5 m_k45 leaves it where the text puts it.)
+                            if ts0?.pageAnchored == true, y + c.ownRowHeight > pageBottom + 0.01, height <= pageBottom + 0.01 {
                                 RuleTrace.hit("page-anchored-table-set-up-to-the-page-edge")
                                 y = pageBottom - height - max(c.ruleBelow, ruleUnder(c))
                                 pageEdgeClamp = (c.table, pageBottom)
                                 keptPastFoot = c.table
+                            }
+                            // (A tall table floating by the page or the text is set up by as much as its text overruns the page's
+                            // EDGE: the line of a cell that straddles the edge, laid out unlifted, runs past it by `over`; the
+                            // table rises by that, the largest cell deciding (a nested table's block is no text line and does not count: dx2 56e12a87's signature table at the edge leaves the table where it is), unless the overrun is past 0.4 cm, where the line
+                            // goes over to the next page whole. Word's print of labs tblstrip5-8 (A4, no line grid): overruns
+                            // 4.9 to 10.9pt lifted by 4.92 to 10.92, 11.4 and more by none, the 26.9pt line's 10.36 by 10.32.)
+                            else if total > pageBottom - y + 0.01, pageSetup(forPage: physical).lineGridPitch == nil {
+                                var over = 0.0, k = i, oneRow = true
+                                while k < count, let d = _cells[k], d.table == c.table {
+                                    if abs(d.rowTop - c.rowTop) > 0.01 { oneRow = false }
+                                    if d.rowSpan == 1, !d.vertical, document.paragraphs[k].image?.name != "table" {
+                                        let g = geometry(k)
+                                        var top = g.textTop
+                                        for b in Self._lineBottoms(g.painter) {
+                                            let bottom = y + (g.textTop + b - c.rowTop)
+                                            if y + (top - c.rowTop) < pageBottom - 0.01, bottom > pageBottom + 0.01 { over = max(over, bottom - pageBottom) }
+                                            top = g.textTop + b
+                                        }
+                                    }
+                                    k += 1
+                                }
+                                if oneRow, over > 0.01, over <= _px(Self.floatingTableLiftLimit) {
+                                    RuleTrace.hit("tall-floating-table-lifted-by-its-overrun-past-the-page-edge")
+                                    y -= over
+                                }
                             }
                         }
                     } else if target < -0.01, y < 0.01, _pages[page].isEmpty, target > -insetTop {
@@ -5309,6 +5336,9 @@ extension RichLayout {
     /// paragraph's width against its column's, too.
     /// How far past the right margin Word still honours a right tab stop (lab tabr: 452 twips measured, none refused).
     static let _tabPastMargin = 22.6
+    /// How far a tall floating table (text- or page-anchored) can rise to bring a straddling line to the page edge: 0.4 cm
+    /// (Word's print of labs tblstrip8: lifts to 10.92, none from 11.4).
+    static let floatingTableLiftLimit = 11.34
     static let debugFit = ProcessInfo.processInfo.environment["STARLING_RICHTEXT_FIT"]
     /// A machine-readable record of each over-the-margin decision in `_fitEastAsianLines`, to stderr: test/tools/fit-decisions.py joins them with Word's lines.
     static let debugFitLog = ProcessInfo.processInfo.environment["STARLING_FIT_LOG"] != nil
