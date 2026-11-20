@@ -5762,11 +5762,6 @@ extension RichLayout {
     /// paragraph's width against its column's, too.
     /// How far past the right margin Word still honours a right tab stop (lab tabr: 452 twips measured, none refused).
     static let _tabPastMargin = 22.6
-    /// Word for Windows before 2013's layout (compat 14 and under) ends a right stop's text AT the stop, however far past the margin
-    /// (lab tabpast, compat 14: stops 0 to 1000 twips past, none with a leader clamped; compat 15 clamps all but a leader's near ones).
-    static func _honoursStopsPastMargin(_ d: RichDocument) -> Bool {
-        RichTextTheme.wordWindowsPages && (d.compatibilityMode ?? 12) < 15
-    }
     /// How far a tall floating table (text- or page-anchored) can rise to bring a straddling line to the page edge: 0.4 cm
     /// (Word's print of labs tblstrip8: lifts to 10.92, none from 11.4).
     static let floatingTableLiftLimit = 11.34

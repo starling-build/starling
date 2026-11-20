@@ -1096,11 +1096,8 @@ extension RichLayout {
                 // twips in a 9264-twip line all end "123" at the margin,
                 // centred ones too; ours ran the dots on to the stop and
                 // the number went to a line of its own.)
-                // (Compat 14 and under: a right stop with no leader past the margin is honoured whole, see below.)
-                let plainPastHonoured = theme.wordRules && Self._honoursStopsPastMargin(document) && !style.rightToLeft
-                    && (stop.map { $0.alignment == .right && $0.leader.map { $0 == "none" || $0.isEmpty } ?? true && $0.x > ownLeft + textWidth + 0.5 } ?? false)
                 if theme.wordRules, var s = stop, s.alignment == .right || s.alignment == .center,
-                   s.x > ownLeft + textWidth + 0.5 + (s.alignment == .right && (style.alignment != .justify || Self._honoursStopsPastMargin(document)) ? ((s.leader.map { $0 != "none" && !$0.isEmpty } ?? false) ? _px(Self._tabPastMargin) : (Self._honoursStopsPastMargin(document) ? 1e6 : 0)) : 0) {
+                   s.x > ownLeft + textWidth + 0.5 + ((s.leader.map { $0 != "none" && !$0.isEmpty } ?? false) && s.alignment == .right && style.alignment != .justify ? _px(Self._tabPastMargin) : 0) {
                     clampedStops.insert(s.x)
                     s.x = ownLeft + textWidth
                     s.alignment = .right
@@ -1223,7 +1220,7 @@ extension RichLayout {
                 // a line behind. Only where the tab starts inside its stop:
                 // one past it goes down with what follows, T127.)
                 if theme.wordRules, !style.rightToLeft, stop.alignment == .right, stop.x >= ownLeft + textWidth - _px(1) { runsPast.insert(t) }
-                if theme.wordRules, !plainPastHonoured, !style.rightToLeft, stop.alignment == .right, stop.x >= ownLeft + textWidth - _px(1), x + own < stop.x - 0.01,
+                if theme.wordRules, !style.rightToLeft, stop.alignment == .right, stop.x >= ownLeft + textWidth - _px(1), x + own < stop.x - 0.01,
                    let last = (t + 1 ..< end).last(where: { units[$0] != 0x20 }),
                    case let over = x + own + edge(last + 1) - after - (ownLeft + textWidth), over > 0.01 {
                     // (The tab takes nothing — the number follows the text
@@ -1249,9 +1246,8 @@ extension RichLayout {
                 // the line, the dots running on to it. The line stays inside the margin for the
                 // engine — the number's last character gives the overshoot up — and its ink
                 // ends at the stop. zh-875759ff's contents, stop 105 twips out.)
-                if theme.wordRules, !style.rightToLeft, style.alignment != .justify || Self._honoursStopsPastMargin(document), stop.alignment == .right,
-                   (stop.leader.map { $0 != "none" && !$0.isEmpty } ?? false) || Self._honoursStopsPastMargin(document),
-                   stop.x > ownLeft + textWidth + 0.5, stop.x <= ownLeft + textWidth + ((stop.leader.map { $0 != "none" && !$0.isEmpty } ?? false) ? _px(Self._tabPastMargin) : 1e6) + 0.5,
+                if theme.wordRules, !style.rightToLeft, style.alignment != .justify, stop.alignment == .right, let lead = stop.leader, lead != "none", !lead.isEmpty,
+                   stop.x > ownLeft + textWidth + 0.5, stop.x <= ownLeft + textWidth + _px(Self._tabPastMargin) + 0.5,
                    x + own < stop.x - 0.01, hangs[t + 1] == nil,
                    let last = (t + 1 ..< end).last(where: { units[$0] != 0x20 }), hangs[last] == nil {
                     let over = stop.x - (ownLeft + textWidth)
