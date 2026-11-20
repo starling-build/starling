@@ -5635,7 +5635,7 @@ extension RichLayout {
                                  hint: String?) -> Bool {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, ch.unicodeScalars.count == 1,
               let u = ch.unicodeScalars.first?.value else { return false }
-        let set: [UInt32] = [0xA7, 0xA8, 0xB0, 0xB1, 0xB4, 0xB6, 0xD7, 0xF7]
+        let set: [UInt32] = [0xA7, 0xA8, 0xB0, 0xB1, 0xB4, 0xB6, 0xD7, 0xF7, 0x2032, 0x2033]
         guard set.contains(u) else { return false }
         // (Under w:hint="eastAsia" the character is already East Asian and an em: lab xb e925ae95, where Word's print and our plain
         // width agree.)
