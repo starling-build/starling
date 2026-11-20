@@ -4434,6 +4434,7 @@ extension RichLayout {
             // more character before the text.)
             if symbolLevel {
                 var markStyle = style
+                var symStands = false
                 // (A Shonar Bangla paragraph's bullet stacks as Latin text does there, the Latin face's ascent over Shonar's split below the baseline,
                 // not the face's whole line at the multiple: bfc234's Symbol bullets stand 30pt apart in Word's print, ours 35.9.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil,
@@ -4488,7 +4489,14 @@ extension RichLayout {
                     probe.dispose()
                     if let m, symBase * px > m.baseline + 0.01 {
                         RuleTrace.hit("word-symbol-bullet-stands-the-first-line-on-its-ascent")
-                        markStyle = style.copyWith(ascentOverride: symBase * px, descentOverride: m.descent, height: (symBase * px + m.descent) / px, leadingDistribution: .even)
+                        symStands = true
+                        // (Garamond's stand-in is shallower below the baseline than the real face (0.2632 em): the line's foot is the real one, 15.2 pt for a 12pt bullet over 12pt text; Word's 15.0 in dx2 8c6b47a9.)
+                        var below = m.descent
+                        if (firstLook.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "garamond",
+                           let textPt = firstLook.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize, textPt > 0.5 {
+                            below = max(below, 0.2632 * _px(textPt) * fontScale)
+                        }
+                        markStyle = style.copyWith(ascentOverride: symBase * px, descentOverride: below, height: (symBase * px + below) / px, leadingDistribution: .even)
                     }
                 }
                 // (A Wingdings bullet over Latin text at a line multiple: Word's print stands the first line on the BULLET's ascent
@@ -4544,6 +4552,11 @@ extension RichLayout {
                         RuleTrace.hit("word-wingdings2-lowered-bullet-stands-the-line-on-its-ascent-less-the-lowering")
                         markStyle = style.copyWith(ascentOverride: up, descentOverride: down, height: (up + down) / px)
                     }
+                }
+                // (The box carries the face's whole 1.225 em line as its height too; it takes the same ascent over the text's descent.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, markStyle.ascentOverride != nil, style.ascentOverride == nil,
+                   symStands, p.style.lineSpacing <= 1.001, let lastSpan = children.last, !(lastSpan is TextSpan) {
+                    children[children.count - 1] = RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: markStyle)
                 }
                 children.append(TextSpan(text: "\u{200B}", style: markStyle))
                 inserts.append(0)
