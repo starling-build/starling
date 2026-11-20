@@ -1122,7 +1122,9 @@ extension RichLayout {
                 // row, tblpY 59pt under the margin, keeps lines to 816.6 and blank ones to 837.5 on a 841.9pt page in Word's print; ours stopped at the margin, 793.7.)
                 let textFloatOneRow: Bool = {
                     guard theme.wordRules, RichTextTheme.wordWindowsPages, first, c.row == 0,
-                          let ts = document.tableStyles[c.table], !ts.pageAnchored, ts.marginOffsetY != nil || (ts.floatsOverText && ts.floatOffsetY != nil) else { return false }
+                          let ts = document.tableStyles[c.table], !ts.pageAnchored, ts.marginOffsetY != nil || (ts.floatsOverText && (ts.floatOffsetY.map { _px($0) > _heights[i] } ?? false)) else { return false }
+                    // (Set by the text a line or less under its anchor, the row flows as the text does and ends at the margin: lo-148591d5
+                    // and lo-c98d1eaf, tblpY 1 twip, break at the margin in Word's print, as 56e12a87's, 59pt down, does not.)
                     return !_cells.contains { $0?.table == c.table && $0!.row > 0 }
                 }()
                 if theme.wordRules, first, document.tableStyles[c.table]?.pageAnchored == true || textFloatOneRow {
@@ -4082,8 +4084,21 @@ extension RichLayout {
                         _floatShiftY[image.id] = -carried
                         bandPushLast = i
                     }
-                    let onPage = mine ? y - carried + _px(f.y) : _px(f.y) - (f.verticalFrom == "margin" ? 0 : insetTop)
-                    let top = onPage - _px(f.distanceTop), bottom = onPage + _px(image.height + f.distanceBottom)
+                    var onPage = mine ? y - carried + _px(f.y) : _px(f.y) - (f.verticalFrom == "margin" ? 0 : insetTop)
+                    var top = onPage - _px(f.distanceTop), bottom = onPage + _px(image.height + f.distanceBottom)
+                    // (A picture the text goes over and under, set from its paragraph, whose foot would pass the
+                    // page's foot while it would fit whole on a page of its own: Word sets the paragraph and the
+                    // picture on the next page, the text after it under the picture there. sa2 0278f198's page 3,
+                    // a 241pt picture 16.6pt under an empty line near the foot: Word's page 4 opens with it, ours
+                    // let it run off page 3 and set the text of page 4 258pt too high.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, mine, f.verticalAlign == nil, !f.wraps, f.y >= 0, _columns <= 1,
+                       resumeCursor == nil, _cells[i] == nil, y > 0.01, carried == 0, image.height > 0,
+                       bottom > contentH + 0.01, _px(f.y) + _px(image.height + f.distanceBottom) <= contentH {
+                        RuleTrace.hit("word-top-and-bottom-picture-past-the-foot-goes-with-its-paragraph-to-the-next-page")
+                        newPage()
+                        onPage = y + _px(f.y)
+                        top = onPage - _px(f.distanceTop); bottom = onPage + _px(image.height + f.distanceBottom)
+                    }
                     guard bottom > 0.01, top < contentH - 0.01, !(mine && image.height <= 0) else { continue }
                     // (Its own paragraph keeps its place: the band is under
                     // what follows it, as the title over zh-6d402586's box.)
