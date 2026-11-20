@@ -7179,6 +7179,10 @@ enum DocxFormat {
             }
             // An inline picture keeps its markup too (effectExtent, docPr,
             // crop), used while the editor has not resized it.
+            // (Word stands an inline picture whole twips tall, the fraction cut off: its printed heights are 17.0, 60.05,
+            // 351.75 for extents of 17.008, 60.094, 351.799 pt, in nine corpus docs; es 6b74a903's header picture, 67.39
+            // pt, printed 67.35 and put the body 0.055 pt too low here.)
+            if RichTextTheme.wordWindowsPages, h > 1 { h = (h * 20 + 1e-6).rounded(.down) / 20 }
             var att = ImageAttachment(data: data, width: w, height: h, name: target.lastPathComponent)
             att.crop = Self._pictureCrop(drawing)
             att.inset = Self._canvasInset(drawing)

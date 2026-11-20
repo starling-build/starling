@@ -1925,7 +1925,12 @@ extension RichLayout {
             // bottoms, as the picture alone does; the engine gave the spaces their 15pt line
             // and the next baseline 3.2 too low (dx2 es 1c5a1268's header). Real glyphs
             // on the line keep theirs. Lab picdescent.)
-            if pil, theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, _inlinePictureOnly(i, document),
+            // (The same where the line also holds real text: Word's header of es 6b74a903, a 67pt picture, 11pt spaces
+            // and tabs and then 8pt text, stands 0.7pt shorter than the spaces' 11pt descent makes it; with the spaces
+            // and tabs set to 8pt it matches Word's print to 0.1. Only where the text is smaller than the spaces does
+            // this change anything.)
+            let textTail = !_inlinePictureOnly(i, document) && document.paragraphs[i].inlineImages.count == 1
+            if pil, theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, _inlinePictureOnly(i, document) || textTail,
                document.paragraphs[i].text.containsSubstring(" "),
                // (Pictures, not equations, all on one line: a first line of spaces that the picture then wraps from keeps
                // its own text line — dx2 pl fa1371a3.)
@@ -1934,7 +1939,7 @@ extension RichLayout {
                 func bare(_ s: InlineSpan) -> InlineSpan {
                     guard let t = s as? TextSpan else { return s }
                     var st = t.style
-                    if let text = t.text, !text.isEmpty, text.allSatisfy({ $0 == " " }), let x = st, let size = x.fontSize, size > 0.5 {
+                    if let text = t.text, !text.isEmpty, text.allSatisfy({ $0 == " " || (textTail && $0 == "\t") }), let x = st, let size = x.fontSize, size > 0.5 {
                         st = x.copyWith(ascentOverride: 0, descentOverride: 0, height: 0.001)
                     }
                     return TextSpan(text: t.text, children: t.children?.map { bare($0) }, style: st, recognizer: t.recognizer, locale: t.locale)
