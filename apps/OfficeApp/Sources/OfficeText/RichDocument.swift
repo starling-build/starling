@@ -1504,6 +1504,8 @@ public struct TableStyle: Hashable, Codable, Sendable {
     /// in pct; 12 = 12%), and those whose cells do not wrap (`w:noWrap`):
     /// a spaced table of a stated share sizes them so (`_pctColumns`).
     public var columnPercents: [Int: Double] = [:]
+    /// Some cell of the table states its width as a share (`w:tcW` type pct).
+    public var hasPctCells = false
     public var noWrapColumns: Set<Int> = []
     /// Space between cells in points (w:tblCellSpacing, HTML's
     /// cellspacing); nil when the file says nothing. Zero is kept apart
