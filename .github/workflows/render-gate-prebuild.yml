@@ -1,13 +1,13 @@
 name: render-gate-prebuild
 # After each push to main, build that commit on the runner and fill the base-binary cache, so the next PR gate
-# never has to build its base (on both runners). Not a required check. A newer push cancels a running prebuild.
+# never has to build its base (on both runners). Not a required check. NEVER cancelled: one concurrency group per sha (a shared group kept only one pending run, so nearly every prebuild was dropped and each gate built its base itself). The cache is shared by the runners of a machine (/data/gate/cache), so one runner builds a sha and the others find it.
 on:
   push:
     branches: [main]
 permissions:
   contents: read
 concurrency:
-  group: render-gate-prebuild
+  group: render-gate-prebuild-${{ github.sha }}
   cancel-in-progress: false
 jobs:
   prebuild:
@@ -34,7 +34,11 @@ jobs:
           git -C "$C" cat-file -e "$GITHUB_SHA^{tree}" || { echo "pushed sha missing after fetch"; exit 1; }
           gfetch -q --no-tags --depth=200 origin "$(git -C "$C" rev-parse "$GITHUB_SHA^" 2>/dev/null || echo "$GITHUB_SHA")" 2>/dev/null || true   # its parent too
           git -C "$C" clean -fdq
+          # a sha that is already 3+ commits behind main is not worth a build: no gate will use it as its base
+          gfetch -q --no-tags --depth=200 origin main 2>/dev/null || true
+          if [ "$(git -C "$C" rev-list --count "$GITHUB_SHA..FETCH_HEAD" 2>/dev/null || echo 0)" -ge 3 ]; then echo "SKIP_PREBUILD=1" >> "$GITHUB_ENV"; echo "main is 3+ commits ahead; skipping this prebuild"; fi
       - name: Prebuild
+        if: env.SKIP_PREBUILD != '1'
         run: |
           set -o pipefail
           cd "$HOME/clone"
