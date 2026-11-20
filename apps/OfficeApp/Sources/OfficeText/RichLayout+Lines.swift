@@ -968,6 +968,15 @@ extension RichLayout {
                let f = image.float, f.wraps, f.horizontalFrom == "page", !candidates.contains(where: { $0.image.id == image.id }) {
                 candidates.append((image, k < _imageSize.count ? _imageSize[k] : nil))
             }
+            // (A square picture that is the whole of its paragraph, placed from the column and wrapped on both sides, with room at its left:
+            // the text of the paragraphs after it is held in beside it as one anchored in a run is. sa1 62904a12: Word wraps "Escreva três
+            // frases ..." three paragraphs under the picture's own, ours set it across the picture.)
+            if k < i, p.cell == nil, q.cell == nil, theme.wordRules, RichTextTheme.wordWindowsPages, let image = q.image, image.textBox == nil,
+               q.text.isEmpty, let f = image.float, f.wraps, !f.wrapsTight, !f.takesRoom, f.horizontalFrom == "column", f.horizontalAlign == nil,
+               !candidates.contains(where: { $0.image.id == image.id }) {
+                candidates.append((image, k < _imageSize.count ? _imageSize[k] : nil))
+                RuleTrace.hit("word-text-beside-square-picture-of-an-earlier-paragraph")
+            }
             for (image, laid) in candidates {
                 // (A header's square picture placed from the margin does not narrow the lines of the header paragraphs beside it, its own or the next: Word's
                 // print of lab hdrsq sets the centred first line over the full text width beside it, even where it would fit clear of
