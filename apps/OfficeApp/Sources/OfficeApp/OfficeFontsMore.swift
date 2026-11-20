@@ -673,7 +673,7 @@ extension OfficeFonts {
         switch family.trimmingWhitespace().lowercased() {
         case "lucida sans":
             face.advances = lucidaSansAdvances
-            face.naturalHeight = 1.178; face.baseline = 0.967
+            face.naturalHeight = 1.139; face.baseline = 0.928
 
         case "book antiqua":
             face.advances = book_antiquaAdv
