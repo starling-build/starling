@@ -3107,6 +3107,14 @@ extension RichLayout {
                 // table in the flow, keepNext in the FIRST cell alone keeps the row
                 // with the next; in the second cell alone it does not.)
                 var rowKept = document.paragraphs[i].style.keepNext
+                // (In a table in the flow the FIRST cell is the one that counts; a
+                // row whose first cell is a vertical merge continuation has no
+                // paragraph there, and the next cell's keepNext does not keep the
+                // row: zh-9e08ed28's rows over "3、推廣", the heading style in the
+                // second cell, stay on page 15 in Word's print.)
+                if rowKept, theme.wordRules, RichTextTheme.wordWindowsPages, c.column > 0, document.tableStyles[c.table]?.keptPosition == nil {
+                    rowKept = false; RuleTrace.hit("zh9e08-first-cell-merged-keeps-nothing")
+                }
                 if rowKept, theme.wordRules, RichTextTheme.wordWindowsPages, _cells[i] != nil, document.tableStyles[c.table]?.keptPosition != nil {
                     var m = i
                     while m < count, let e = _cells[m], e.table == c.table, e.row == c.row {
