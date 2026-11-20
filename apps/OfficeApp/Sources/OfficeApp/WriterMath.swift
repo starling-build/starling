@@ -572,6 +572,12 @@ enum WriterMath {
                     return hbox([num, text("/", size: s, italic: false), den])
                 }
                 return fraction(num, den, size: s)
+            case "m:box" where RichTextTheme.wordWindowsPages:
+                // (A box whose argument size is -1 sets its content one script level down: c54c0add's
+                // 1/3 after D_i= stands at 7 pt beside the subscript in Word's print, not at 10 pt.)
+                let e = n.first("m:e")
+                let drop = e?.first("m:argPr")?.first("m:argSz")?["m:val"].flatMap(Int.init) ?? 0
+                return row(e, size: size, level: max(0, level - drop))
             case "m:d":
                 return delimited(n, size: size, level: level)
             case "m:rad":
