@@ -416,6 +416,13 @@ extension RichLayout {
             .union(_wideWordHyphens(p, document, textWidth: textWidth, named: named, pitch: pitch))
             .union(_fittingWordHyphens(p, document, textWidth: textWidth, named: named, pitch: pitch))
         var wideStarts = _wideWordStarts(p, document, textWidth: textWidth, named: named, pitch: pitch)
+        var rubyHeld = Set<Int>()
+        if theme.wordRules, RichTextTheme.wordWindowsPages {
+            for g in _rubyGroups(p) where g.to - g.from > 1 {
+                let (_, base) = _rubyWidths(g, p, named: named, document, pitch: pitch)
+                if base < textWidth - 1 { for k in g.from + 1 ..< g.to { rubyHeld.insert(k) } }
+            }
+        }
         let wideIndicWords = _wideIndicWords(p, document, textWidth: textWidth, named: named, pitch: pitch)
         // (A numbered paragraph's first word, wider than the line, is
         // parted where the line ends, beside its number: Word sets
@@ -2672,6 +2679,13 @@ extension RichLayout {
                     } else {
                         spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
                     }
+                    inserts.append(offset)
+                } else if rubyHeld.contains(offset) {
+                    // (A ruby group is not parted by a line end: Word's column in 934bd3e5 p3 ends at "ありけるに、" and sets the
+                    // whole of 小式部内 on the next, where ours took 小式 and split the reading, every later column two late.)
+                    RuleTrace.hit("word-ruby-group-holds-its-base")
+                    flush(i)
+                    spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
                 } else if theme.wordRules, !document.usesEastAsianLayout, spacesAfterNbsp, before == " ", !ea,
                           !ch.isWhitespace, ch != "\u{00A0}" {
