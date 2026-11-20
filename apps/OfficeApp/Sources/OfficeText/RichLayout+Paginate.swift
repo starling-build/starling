@@ -2098,7 +2098,7 @@ extension RichLayout {
             // (A table as wide as the text leaves no strip: what follows goes under
             // it, not up at its anchor — 6e6d8e9e's blank lines after its sections.)
             if theme.wordRules, besideTable == nil, i > 0, _cells[i] == nil, let prev = _cells[i - 1]?.table,
-               !((_floatLeavesNoStrip(prev, i, document) && _floatFollowsFloat(prev, document)) || _floatStripNarrowerThanIndent(prev, i, document)),
+               !((_floatLeavesNoStrip(prev, i, document) && _floatFollowsFloat(prev, document)) || _floatStripNarrowerThanIndent(prev, i, document) || _floatWiderThanFlow(prev, i, document)),
                blank(document.paragraphs[i]) || (i < _besideLead.count && _besideLead[i] > 0) || _splitMarginFloatBeside(prev, i, page, document) || _splitPageFloatBeside(prev, i, page, document),
                let ts = document.tableStyles[prev], ts.floatOffsetY != nil || (ts.floatRaiseY != nil && _markBesideOffsetFloat(prev, i, document)) || (i < _besideLead.count && _besideLead[i] > 0) || _anchorBesideLeftTable(prev, i, document) || _splitMarginFloatBeside(prev, i, page, document) || _splitPageFloatBeside(prev, i, page, document), !ts.pageAnchored || _splitPageFloatBeside(prev, i, page, document), ts.keptPosition != nil,
                (i < _besideLead.count && _besideLead[i] > 0) || _splitMarginFloatBeside(prev, i, page, document) || _splitPageFloatBeside(prev, i, page, document) || _tableLeft(prev, document) - _px(9) - _px(_setup(ofParagraph: i).headerWrapLeft) >= _px(18) || _stripBesideLeftTable(prev, i, document) || _anchorBesideLeftTable(prev, i, document) || _markBesideOffsetFloat(prev, i, document),
@@ -6459,6 +6459,20 @@ extension RichLayout {
         let strip = (_tableFlowWidth[table] ?? width) - (left + (_columnWidths[table] ?? []).reduce(0, +))
         guard left < _px(12), strip > 0, _px(indent) > strip + 0.01 else { return false }
         RuleTrace.hit("word-float-strip-narrower-than-the-paragraphs-right-indent-leaves-no-strip")
+        return true
+    }
+
+    /// A table floating by the text that is WIDER than the text column (it overhangs its right edge): there is no strip
+    /// beside it at all, so the whitespace-only paragraph after it goes under it, not up at its anchor line. sa1 5393bae9:
+    /// "1. ANTECEDENTES" 204.5 in Word's print, 190.0 in ours (the 12pt mark's line left beside the 438pt table in a 427.7pt column).
+    @inline(never)
+    func _floatWiderThanFlow(_ table: String, _ i: Int, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, _cells[i] == nil else { return false }
+        let left = _tableLeft(table, document)
+        let flow = _tableFlowWidth[table] ?? width
+        let sum = (_columnWidths[table] ?? []).reduce(0, +)
+        guard left < _px(12), flow - (left + sum) < -0.01 else { return false }
+        RuleTrace.hit("word-float-wider-than-the-column-leaves-no-strip-for-the-mark-after-it")
         return true
     }
 
