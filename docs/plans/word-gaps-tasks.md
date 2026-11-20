@@ -18090,3 +18090,8 @@ NEXT: open a PR from wip/amd-1 per the new workflow once briefed.
 amd-1 2026-11-20 CLAIM: PR 69 (inline picture whole twips + header picture line, 6b74a903); then Latin squeeze cap (sa1 0a4c7687 p1 line 25) and 6b74a903 header 0.055 pt.
 
 lenovo-2 CLAIM (2026-11-20, starling-bd): xb 5dc87fc7 next gaps: U+FF40 region page 5; Hebrew paragraph 115 pt high. Then sa1/sa2 (Spanish/Portuguese), ko, ja.
+
+## amd-4 HANDOFF 2026-11-20 (sa1 90c35268, PARKED)
+- Tried: multi-line bullet item whose first line alone holds the tallest stretch (Symbol bullet stop 22.05 pt at 1.5 lines, text 20.7 pt): give line 1 only the strut's ascent/descent. Works on 90c35268 (502 to 514 matched lines, still 25 pages vs Word 24).
+- A/B over the 127 docs the rule reaches: mean 85.2 to 83.8. DOWN: fra-g111 69 to 42, fra-g255 76 to 51, fra-g70 99.6 to 84, sa2 02b835ae 100 to 54, 44a22c5de7e6 100 to 62, 191f5ff70cf0 100 to 79. So the strut baseline is not what Word does on line 1 in general; the 90c35268 gap has another cause. Not landed. Patch: /data/s/amd-4/90c35268-first-line-strut.diff.
+- Next: b0e39b18 (frame default anchor).
