@@ -4028,6 +4028,9 @@ static let sylfaenAdvances: [Double] = [
             // (David: hhea 1505 + 510 over 2048, bold the same, read from Word's prints; 12pt lines at 1.5 step 17.7.)
             // (FrankRuehl: hhea 1462 + 442 over 2048, from the face embedded in Word's prints.)
             if asked == "frankruehl" { face.baseline = 1462.0 / 2048; face.ownLineBaseline = true }
+            // (Traditional Arabic: line 1.495 em on a 0.997 em baseline, 0.498 below. lab arabgroups' first line stands 13.96pt under a 50pt margin at 14pt,
+            // 0.997 em; xa poi-59fdcfe90b's bottom-aligned header cell stands 6.96pt over its row foot on a 14pt star run, 0.497 em.)
+            if asked == "traditional arabic" { face.baseline = 0.997; face.ownLineBaseline = true }
             // (Sakkal Majalla: the first baseline of Word's print of xb 3a9879 stands 14.3pt under the top margin
             // at 16pt and 31.8 at 36pt, 0.89 em; only for the stand-in: docs naming Sakkal Majalla directly
             // matched worse with it, so their baseline stays.)
