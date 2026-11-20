@@ -778,7 +778,7 @@ extension RichLayout {
             // took the whole table over.)
             if theme.wordRules, let image = document.paragraphs[k].image, image.textBox?.growsToFit == true,
                let inside = _textBox(image, document) {
-                let top = g.textTop + (k < _imageDrop.count ? _imageDrop[k] : 0)
+                let top = g.textTop + (k < _imageDrop.count ? _imageDrop[k] : 0) + _px(image.textBox?.insetTop ?? 0)
                 var rows = Set<Double>()
                 for m in 0 ..< min(inside.document.paragraphs.count, inside.layout._cells.count) {
                     if let c = inside.layout._cells[m], c.firstInRow, c.table == inside.layout._cells.compactMap({ $0 }).first?.table {

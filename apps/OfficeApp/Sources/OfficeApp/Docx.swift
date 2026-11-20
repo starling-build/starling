@@ -2261,7 +2261,17 @@ enum DocxFormat {
                     // which Word parts over two pages between its rows, as an
                     // inline one does; a floating box ran off the page's foot
                     // and its rows were never cut.)
-                    if pos["w:vertAnchor"] == "text", (pos["w:horzAnchor"] ?? "text") == "text", pos["w:tblpXSpec"] == nil, pos["w:tblpYSpec"] == nil,
+                    // (Nor one as wide as its cell, which leaves no room for text beside it: the whole cell's width
+                    // by `w:tblW`, 100%. sa1 03f63881's two-column table in an outer cell, `w:tblpPr` against the
+                    // page, starts at the foot of page 13 and goes on at the top of page 14 in Word's print,
+                    // as an inline nested table does; the floating box moved whole to page 14.)
+                    let tblW = node.first("w:tblPr")?.first("w:tblW")
+                    let fullWidth = Self.wordOnWindows && pos["w:tblpXSpec"] == nil && pos["w:tblpYSpec"] == nil
+                        && tblW?["w:type"] == "pct" && (Double(tblW?["w:w"] ?? "") ?? 0) >= 5000
+                    if fullWidth {
+                        nominalLeft = 0
+                        box.insetTop = f.y   // (its y under the anchor paragraph's top)
+                    } else if pos["w:vertAnchor"] == "text", (pos["w:horzAnchor"] ?? "text") == "text", pos["w:tblpXSpec"] == nil, pos["w:tblpYSpec"] == nil,
                        f.y <= 1, f.x >= 0 {
                         nominalLeft = f.x
                     } else {
