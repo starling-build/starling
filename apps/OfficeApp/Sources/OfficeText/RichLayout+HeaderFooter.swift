@@ -3087,8 +3087,9 @@ extension RichLayout {
                         // over its first line but them. zh-e49d7943's
                         // "附件2" box, 30.65pt over a title whose 660pt
                         // picture goes to the next page, was drawn nowhere.)
-                        let opensWithFloats = theme.wordRules && !shading && !whole && piece.part == .all
-                            && piece.flowTop <= _tops[i] + 0.5 && lines == nil
+                        let opensWithFloats = theme.wordRules && !shading && lines == nil
+                            && ((!whole && piece.part == .all && piece.flowTop <= _tops[i] + 0.5)
+                                || (RichTextTheme.wordWindowsPages && !whole && piece.part == .text && _cells[i] != nil))
                             && ((i < _floatImages.count && _floatImages[i] != nil)
                                 || (i < _inline.count && _inline[i].contains { $0.float.map { !$0.takesRoom } ?? false }))
                         // (A cell's text past its row of exact height, where
@@ -3139,7 +3140,7 @@ extension RichLayout {
                             // picture in it), runs on down to the paper's edge
                             // in Word's print; ours showed its header row.)
                             let window = Path()
-                            window.addRect(Rect.fromLTRB(clipL, top - 1_000_000, clipR, bottom + _baselineShift(i, document)))
+                            window.addRect(Rect.fromLTRB(clipL, top - 1_000_000, clipR, piece.part == .text ? bottom + 1_000_000 : bottom + _baselineShift(i, document)))
                             if theme.wordRules, i < _inline.count {
                                 let g = geometry(i)
                                 for image in _inline[i] {
