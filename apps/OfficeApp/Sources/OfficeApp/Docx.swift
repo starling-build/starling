@@ -7232,6 +7232,18 @@ enum DocxFormat {
                         box.insetRight += (1 - r.right) * att.width - k * box.insetRight
                         box.insetBottom += (1 - r.bottom) * att.height - k * box.insetBottom
                     }
+                    // (A VML rounded rectangle's text rectangle is inset by 0.2929 of its corner radius, `arcsize` of the
+                    // shorter side, 1/6 where it states none: 5e813226's boxes, Word's text 4.1 pt lower than the plain box.)
+                    else if RichTextTheme.wordWindowsPages, !perPart, node.descendant("wps:bodyPr") == nil, Self._vmlTop(node)?.name != "v:group",
+                            att.width > 0, att.height > 0, let rr = Self._vmlTop(node), rr.name == "v:roundrect" {
+                        var frac = 10923.0 / 65536
+                        if let raw = rr["arcsize"] {
+                            let t = raw.trimmingWhitespace()
+                            if t.hasSuffix("f"), let v = Double(t.dropLast()) { frac = v / 65536 } else if let v = Double(t) { frac = v }
+                        }
+                        let inset = 0.2929 * frac * min(att.width, att.height)
+                        box.insetLeft += inset; box.insetTop += inset; box.insetRight += inset; box.insetBottom += inset
+                    }
                     // (A box fitted to its text's height: zh-a78d52e7's
                     // second paragraph holds a 78.75pt one round an empty
                     // paragraph, and Word's print gives the line a text
