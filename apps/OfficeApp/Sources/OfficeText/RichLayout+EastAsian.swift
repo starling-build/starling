@@ -574,9 +574,21 @@ extension RichLayout {
         }
         var pastFrom: (x: Double, tab: Int)? = nil   // where a tab to a right stop at the margin starts, the piece before ending with it
         var wordRest = 0   // pieces of an Arabic word a squeeze took whole, already on the line
+        // (A word wider than the line opens a line of its own: `_wideWordStarts`, whose synthetic break the
+        // spans carry. The lines here part where the rendered ones do: 6b74a903 p9's underscores after "saber,".)
+        let wideLineStarts: Set<Int> = theme.wordRules && RichTextTheme.wordWindowsPages && !onCharacterGrid && !legacy && p.cell == nil
+            ? _wideWordStarts(p, document, textWidth: baseWidth, named: _named(p, document), pitch: nil) : []
         for (pieceIndex, piece) in pieces.enumerated() {
             if wordRest > 0 { wordRest -= 1; continue }
             let a = piece.a, last = piece.last, w = piece.w
+            if !wideLineStarts.isEmpty, wideLineStarts.contains(a), x > _px(0.01), lineWide > 0 {
+                x = 0; lineNumber += 1; width = room(lineNumber)
+                onFirstLine = false
+                marks = []; spaces = []; wordSpaces = []
+                lineWide = 0; lineFrom = a; lineEms = 0
+                lineLatin = false; lineLetters = false; lineOther = false; lineBlank = false
+                lineSpaced = false; lineRaised = false; lineTabbed = false
+            }
             if lineSpaced, last > a { lineOther = true }
             // (The automatic space after this stretch, which is no part
             // of a line that ends with it.)
