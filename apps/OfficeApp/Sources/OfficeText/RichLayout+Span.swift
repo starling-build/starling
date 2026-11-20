@@ -1774,8 +1774,12 @@ extension RichLayout {
                         // ascent stays, the paint takes the baseline from the face.)
                         let above = max(0, sh.blur - sh.dy) * k, below = max(0, sh.blur + sh.dy) * k
                         let up = s.ascentOverride ?? asc * size, down = (s.descentOverride ?? (line - asc) * size) + above + below
+                        // (A raised or lowered run's box takes no line of its own: its shadow's reach above it is carried in the label for the
+                        // line pass, `_strut`, which grows the line by it. Lab hdr3 v1 against v2: the body 1.85 pt lower for the shadow on the
+                        // raised run alone, the reach 4 - 3 sin 45 = 1.88.)
+                        let raisedRun = s.baselineShift != nil
                         s = s.copyWith(baselineShift: (s.baselineShift ?? 0) + above, ascentOverride: up, descentOverride: down, height: (up + down) / size,
-                                       leadingDistribution: .even, debugLabel: (s.debugLabel ?? "") + " shadow-line")
+                                       leadingDistribution: .even, debugLabel: (s.debugLabel ?? "") + (raisedRun ? " shadow-line@\(above)" : " shadow-line"))
                     }
                 }
                 // (A run of tabs alone takes no line of its own in a paragraph of
