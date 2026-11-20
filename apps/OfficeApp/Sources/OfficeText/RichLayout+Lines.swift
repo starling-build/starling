@@ -81,7 +81,7 @@ extension RichLayout {
                 for c in t.children ?? [] { visit(c) }
                 return
             }
-            if let text = t.text, blanksToo || t.style?.debugLabel == "yu-joiner" || text.contains(where: { !Self._setsNoLine($0) }),
+            if let text = t.text, blanksToo || t.style?.debugLabel == "yu-joiner" || text.contains(where: { !Self._setsNoLine($0) && $0 != "\t" }),
                joiners || text.contains(where: { $0 != "\u{2060}" }),
                let style = t.style, style.baselineShift == nil || shiftedToo, let size = style.fontSize, let h = style.height, h > 0.05, size > 0.5 {
                 count += 1
