@@ -571,8 +571,8 @@ extension RichLayout {
             // margin). Lab cellrind3 (Word for Windows, mode 15, 5000-5085 twips, right indent -400, 18 cells in
             // each of six tables): the last "i" of the first line stands at most 1.41, 1.16, 0.63 and 0.17pt past the
             // edge under no line and 0.5, 1.5 and 3pt lines with 108-twip margins, and 0.81 and -1.49 under 0.5 and
-            // 3pt lines with none, where ours ran the whole 20pt. The lab held Latin text only: a full-width "）" ends 1.9pt past the edge in zh-ae2dd08d's cells and a drawing's anchor line is not text, so the cap is for Latin text.)
-            if theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) >= 15, right < 0, document.tableStyles[c.table]?.cellSpacing == nil, document.tableStyles[c.table]?.fixedLayout == true, document.tableStyles[c.table]?.hasPctCells != true,
+            // 3pt lines with none, where ours ran the whole 20pt. The lab held Latin text only: a full-width "）" ends 1.9pt past the edge in zh-ae2dd08d's cells and a drawing's anchor line is not text, so the cap is for Latin text. It bounds where left-aligned text may run, not where a CENTRED line sits: sa1 c2104d44's centred cell lines (right indent -279 in a 9953-twip cell) stand 6.98pt right of the unindented centre in Word's print, half the whole indent, ours 3.3pt with the cap, so a centred paragraph keeps the whole width.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) >= 15, right < 0, style.alignment != .center, document.tableStyles[c.table]?.cellSpacing == nil, document.tableStyles[c.table]?.fixedLayout == true, document.tableStyles[c.table]?.hasPctCells != true,
                !p.text.isEmpty, !p.text.unicodeScalars.contains(where: { Self._isEastAsianScalar($0.value) || $0.value == 0xFFFC }) {
                 let limit = colWidth + _px(1.4) - (pad.right == 0 && c.padding != nil ? cellRightRule : cellRightRule / 2) - left + colLeft
                 if limit < textWidth, limit >= 1 {
