@@ -1177,6 +1177,18 @@ extension RichLayout {
                     let boxes = probe.getBoxesForSelection(TextSelection(baseOffset: from, extentOffset: to))
                     if let lo = boxes.map(\.left).min(), let hi = boxes.map(\.right).max() { following = max(0, hi - lo) }
                 }
+                // (A run of tabs that ends the paragraph: a tab that starts past the margin goes to the next line, and the stops
+                // start again there, from the line's own start. The probe sets the run on one long line and the final layout wraps
+                // it, so the tabs after the wrap kept their widths from the stops of the first line: sa1 9994f234's "OTRO:)" and 38
+                // tabs, stops at 1080, 1440, 2160... twips; Word's second line goes 90, 126, 144, 180, 216 pt, ours 90, 126, 162, 198
+                // on a grid, a line more in all, the signature block of the page on the next one.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, t > 0, x > ownLeft + textWidth + 0.5, units[t - 1] == 0x09,
+                   units[t...].allSatisfy({ $0 == 0x09 }), !wraps.contains(t), !afterTabWraps.contains(t) {
+                    afterTabWraps.insert(t)
+                    RuleTrace.hit("word-tab-run-ending-the-paragraph-restarts-its-stops-past-the-margin")
+                    measure(wraps)
+                    return
+                }
                 var extra = stop.x - x - own
                 switch stop.alignment {
                 case .left: break

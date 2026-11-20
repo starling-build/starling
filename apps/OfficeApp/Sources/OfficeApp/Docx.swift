@@ -612,7 +612,7 @@ enum DocxFormat {
                f["w:vAnchor"] == "text", f["w:hAnchor"] == "page", f["w:xAlign"] == nil, Double(f["w:x"] ?? "") != nil,
                f["w:wrap"] == "around", f["w:y"] != nil, f["w:yAlign"] == nil, p.descendant("w:ins") == nil, p.descendant("w:del") == nil { return f }
             guard p.name == "w:p", let f = p.first("w:pPr")?.first("w:framePr"), f["w:dropCap"] == nil,
-                  f["w:vAnchor"] == "text", Double(f["w:w"] ?? "").map({ $0 > 0 }) == true,
+                  (f["w:vAnchor"] ?? "text") == "text", Double(f["w:w"] ?? "").map({ $0 > 0 }) == true,
                   Double(f["w:h"] ?? "").map({ $0 > 0 }) == true, f["w:y"] != nil, f["w:yAlign"] == nil,
                   f["w:wrap"] == "around" || f["w:wrap"] == "notBeside" else { return nil }
             // (Not a frame whose text is tracked: lo tdf125894's inserted and deleted
