@@ -2183,7 +2183,10 @@ extension RichLayout {
         // empty cells indented 23.6pt hanging all of it in 22pt columns,
         // and Word keeps the grid, where ours asked 24.6 of each and
         // took the room from the next column's "訓練目標".)
-        let lead = units.isEmpty && p.image == nil ? p.style.firstLineIndent : firstLineIndent(p, document)
+        // (A POSITIVE first-line indent on an empty paragraph asks nothing: sa2 585eb7bb's empty first-column cells carry firstLine
+        // 1320 twips in a 62pt column, and Word keeps the grid.)
+        var lead = units.isEmpty && p.image == nil ? p.style.firstLineIndent : firstLineIndent(p, document)
+        if theme.wordRules, units.isEmpty, p.image == nil, lead > 0 { lead = 0 }
         if theme.wordRules, _wordList(p, document) == nil {
             // (Before 2013's layout every piece is measured from where a
             // hanging line starts, and a first line set further in asks
