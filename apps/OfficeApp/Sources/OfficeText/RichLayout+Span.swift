@@ -2631,7 +2631,7 @@ extension RichLayout {
                     // (A word wider than the line opens a line of its own,
                     // and is parted there: see `_wideWordStarts`.)
                     flush(i)
-                    spans.append(TextSpan(text: "\u{2028}", style: zeroWidth(current ?? kind)))
+                    spans.append(TextSpan(text: "\u{2029}", style: zeroWidth(current ?? kind)))
                     inserts.append(offset)
                 } else if loose.contains(offset) {
                     flush(i)
