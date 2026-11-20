@@ -6,7 +6,7 @@
 # then open an issue naming it, its PR and the docs, and add a line to the coordinator log.
 # env: W (gate scratch, holds pair/), LQ, BC (binary cache), BASE_SHA, EO, JOBS
 set -u
-BL=$LQ/base/linux; BADL=$W/blame.bad; : > "$BADL"
+BL=${BLAME_BASELINE:-$LQ/base/linux}; BADL=$W/blame.bad; : > "$BADL"
 for f in "$W"/pair/work/base-*/match-v2.txt; do
   [ -f "$f" ] || continue; S=${f%/match-v2.txt}; S=${S##*/base-}; [ -f "$BL/$S.v2" ] || continue
   awk -v S="$S" 'NR==FNR{if($0 ~ /%  lines /){b[$NF]=$1+0}; next} /%  lines /{id=$NF; if((id in b) && $1+0 < b[id]-0.05) print S, id, $1+0, b[id]}' "$BL/$S.v2" "$f"
