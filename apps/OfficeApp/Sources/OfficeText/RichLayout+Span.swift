@@ -1657,6 +1657,17 @@ extension RichLayout {
                     }
                     s = s.copyWith(ascentOverride: above, descentOverride: split.1 * size, height: (above + split.1 * size) / size, leadingDistribution: .even)
                 }
+                // (Latin letters set in Shruti (the run's own ascii face, the file naming it): Word sets Shruti's own line, 1.68 em, a Latin line
+                // that is 13.4 pt in the stand-in at 11 pt against Word's 18.5: sa1 2b3c3b42's header lines in Shruti.)
+                if kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5,
+                   !text.unicodeScalars.contains(where: { Self._isIndic($0.value) }), text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 }),
+                   let face = Optional((run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()), face == "shruti",
+                   let m = Self._indicLines[face] {
+                    RuleTrace.hit("word-latin-run-in-shruti-sets-shrutis-line")
+                    let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+                    let split = Self._multipleSplit(ascent: m.0, descent: m.1, multiple: multiple)
+                    s = s.copyWith(ascentOverride: split.0 * size, descentOverride: split.1 * size, height: (split.0 + split.1) * size / size, leadingDistribution: .even)
+                }
                 if kind >= 0, let indic, indic.face == "aparajita" || indic.face == "vijaya", let m = Self._indicLines[indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
                     let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
                     s = s.copyWith(height: (m.0 + m.1) * multiple, leadingDistribution: .even)
