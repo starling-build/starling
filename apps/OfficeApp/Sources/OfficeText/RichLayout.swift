@@ -84,6 +84,8 @@ public final class RichTextTheme {
     /// this and the ideograph face's half em together — 0.225 em beside
     /// Times New Roman, 0.275 beside Courier New.
     public var averageCharWidth: ((String?) -> Double)? = nil
+    /// A face's usWinAscent + usWinDescent over its em, by the name the document uses (nil: unknown).
+    public var winLineBox: ((String?) -> Double?)? = nil
     /// A symbol face's characters as the Unicode glyphs they show, for
     /// drawing: a run in Wingdings 2 says "£" (`w:sym w:char="00A3"`) for
     /// a box. Character for character, so offsets hold; the document keeps

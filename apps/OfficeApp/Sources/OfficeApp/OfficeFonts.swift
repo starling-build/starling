@@ -5775,6 +5775,53 @@ static let sylfaenAdvances: [Double] = [
         #endif
     }
 
+    nonisolated(unsafe) private static var _standInWin: [String: Double?] = [:]
+    /// (usWinAscent + usWinDescent) / unitsPerEm of the bundled stand-in of `family` (Regular): the box of ink Word's lines
+    /// are measured from beside lowered text. nil where the file or table cannot be read.
+    /// Win ascent + win descent over units per em, of faces Word draws with their own file while the stand-in's differs.
+    /// Arial Narrow: 1888 + 431 of 2048 (lab pos14).
+    private static let faceWinBox: [String: Double] = ["arial narrow": 2319.0 / 2048.0]
+
+    static func standInWinBox(_ family: String?) -> Double? {
+        #if os(WASI)
+        return nil
+        #else
+        guard let family else { return nil }
+        // (Word's own win box (win ascent + descent, in ems) of a face whose stand-in file is another face's: measured from the
+        // face's own tables, in a table so a new face is a row.)
+        if let own = Self.faceWinBox[family.lowercased()] { return own }
+        let key = substitute(family)
+        declaredLock.lock()
+        defer { declaredLock.unlock() }
+        if let known = _standInWin[key] { return known }
+        var result: Double? = nil
+        let files = [sans: "LiberationSans", serif: "LiberationSerif", mono: "LiberationMono",
+                     calibri: "Carlito", cambria: "Caladea", verdana: "DejaVuSans"]
+        if let file = files[key], let bundle = _bundle("OfficeApp_OfficeApp") {
+            let resources = bundle.resourceURL ?? bundle.bundleURL
+            let path = resources.appendingPathComponent("fonts/\(file)-Regular.ttf").path
+            if let data = FileManager.default.contents(atPath: path) {
+                let b = [UInt8](data)
+                func u16(_ o: Int) -> Int { o + 1 < b.count ? Int(b[o]) << 8 | Int(b[o + 1]) : 0 }
+                func u32(_ o: Int) -> Int { u16(o) << 16 | u16(o + 2) }
+                var head = -1, os2 = -1
+                if b.count > 12 {
+                    for t in 0 ..< u16(4) where 12 + 16 * t + 16 <= b.count {
+                        let at = 12 + 16 * t
+                        let tag = String(decoding: b[at ..< at + 4], as: UTF8.self)
+                        if tag == "head" { head = u32(at + 8) } else if tag == "OS/2" { os2 = u32(at + 8) }
+                    }
+                }
+                if head >= 0, os2 >= 0, os2 + 78 <= b.count, head + 20 <= b.count, case let em = u16(head + 18), em > 0 {
+                    result = Double(u16(os2 + 74) + u16(os2 + 76)) / Double(em)
+                }
+            }
+        }
+        _standInWin[key] = result
+        return result
+        #endif
+    }
+
     /// xAvgCharWidth / unitsPerEm from an sfnt's OS/2 and head tables.
     static func sfntAverageWidth(_ data: Data) -> Double? {
         let b = [UInt8](data)

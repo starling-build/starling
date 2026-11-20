@@ -3611,10 +3611,15 @@ extension RichLayout {
         // tall as the text's top plus the raise, and as deep as its foot plus the lowering. Lab CP3 (xb docx-8f1703b9, 11pt Calibri,
         // "raised" at 6pt, "lowered" at -6pt): pitches 19.44 into the raised line (13.44 + 6, above its baseline), 13.44 out of it,
         // 19.44 out of the lowered line (6 below it). A shorter run's own ascent and descent scale with its size.)
+        // (A top-aligned paragraph's lowering may stand in its style (`w:position` in the paragraph style's run properties).)
+        let lowTop = style.eastAsian["w:textAlignment"] == "top"
+        let lowNamed = lowTop ? _named(p, document)?.char.raised : nil
+        func raisedOf(_ r: Run) -> Double { r.style.raised ?? lowNamed ?? 0 }
         if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft,
-           style.lineHeightPoints == nil, style.lineSpacing - theme.lineSpacingReduction <= 1.001,
+           style.lineHeightPoints == nil,
+           style.lineSpacing - theme.lineSpacingReduction <= 1.001 || style.eastAsian["w:textAlignment"] == "top",
            besideLineIndents.isEmpty, keepClear == nil, Self._paired(painter) == nil, p.inlineImages.isEmpty,
-           p.runs.contains(where: { abs($0.style.raised ?? 0) > 0.01 && $0.style.script == .normal }) {
+           p.runs.contains(where: { abs(raisedOf($0)) > 0.01 && $0.style.script == .normal }) {
             let metrics = painter.computeLineMetrics()
             let bottoms = Self._rawLineBottoms(painter)
             let units = p.text.utf16.count
@@ -3632,6 +3637,23 @@ extension RichLayout {
                     let line = max(0, (starts.lastIndex(where: { $0 <= at }) ?? 0))
                     tallest[line] = max(tallest[line], run.style.fontSize ?? 0)
                 }
+                // Lines whose every text run is lowered by one same amount, in a top-aligned paragraph: that amount (px), else 0.
+                var topLine = [Double](repeating: 0, count: metrics.count)
+                var glyphAdj = [Double](repeating: 0, count: metrics.count)
+                if style.eastAsian["w:textAlignment"] == "top" {
+                    var seen = [Double?](repeating: nil, count: metrics.count), mixed = [Bool](repeating: false, count: metrics.count)
+                    var q = 0
+                    for run in p.runs where run.length > 0 {
+                        defer { q += run.length }
+                        guard q < units else { break }
+                        let e = min(units, q + run.length)
+                        guard text[q ..< e].contains(where: { $0 > 0x20 }) else { continue }
+                        let line = max(0, (starts.lastIndex(where: { $0 <= q }) ?? 0))
+                        let r = raisedOf(run)
+                        if let s0 = seen[line] { if abs(s0 - r) > 0.01 { mixed[line] = true } } else { seen[line] = r }
+                    }
+                    for k in 0 ..< metrics.count where !mixed[k] { if let r = seen[k], r < -0.01 { topLine[k] = -r * _px(1) } }
+                }
                 at = 0
                 for run in p.runs where run.length > 0 {
                     defer { at += run.length }
@@ -3640,12 +3662,29 @@ extension RichLayout {
                     guard text[at ..< end].contains(where: { $0 > 0x20 }) else { continue }
                     // (Only Latin text is measured: CJK, Thai and symbol-font runs raised in the corpus (xd, xb) are
                     // set on the lines Word sets them on without the growth.)
-                    guard text[at ..< end].allSatisfy({ $0 <= 0x24F || (0x2000 ... 0x206F).contains($0) }) else { continue }
-                    let pos = (run.style.raised ?? 0) * _px(1)
-                    guard abs(run.style.raised ?? 0) > 0.01, run.style.script == .normal else { continue }
+                    let lineOfRun = max(0, (starts.lastIndex(where: { $0 <= at }) ?? 0))
+                    guard topLine[lineOfRun] > 0 || text[at ..< end].allSatisfy({ $0 <= 0x24F || (0x2000 ... 0x206F).contains($0) }) else { continue }
+                    let pos = raisedOf(run) * _px(1)
+                    guard abs(raisedOf(run)) > 0.01, run.style.script == .normal else { continue }
                     let line = max(0, (starts.lastIndex(where: { $0 <= at }) ?? 0))
                     let ratio = tallest[line] > 0 ? (run.style.fontSize ?? tallest[line]) / tallest[line] : 1
                     let m = metrics[line]
+                    // (Above single spacing only the uniformly lowered top-aligned lines are measured: the raise/lower growth is verified at single.)
+                    if topLine[line] == 0, style.lineSpacing - theme.lineSpacingReduction > 1.001 { continue }
+                    if topLine[line] > 0 {
+                        // (Top-aligned text lowered by L: the line is max(single, its ink box + L) tall, the lowering first eating the face's
+                        // spare line gap; the glyphs stand that much below where the unlowered line sets them. Lab pos14, amd-opus.)
+                        let multiple = max(1, style.lineSpacing - theme.lineSpacingReduction)
+                        let single = m.height / multiple
+                        let family = run.style.fontFamily ?? _named(p, document)?.char.fontFamily ?? theme.fontFamily
+                        let em = max(1, run.style.fontSize ?? _named(p, document)?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * _px(1)
+                        let box = theme.winLineBox?(family).map { $0 * em } ?? (m.ascent + m.descent) * ratio / multiple
+                        let grown = max(0, box - pos - single)
+                        if grown > above[line] { RuleTrace.hit("word-top-aligned-lowered-text-line-is-ink-box-plus-lowering"); above[line] = grown }
+                        // (The glyphs keep the lowering the text style gives them; they stand `grown` below the unlowered line, so take it back.)
+                        glyphAdj[line] = -topLine[line]
+                        continue
+                    }
                     above[line] = max(above[line], m.ascent * ratio + pos - m.ascent)
                     below[line] = max(below[line], m.descent * ratio - pos - m.descent)
                 }
@@ -3654,7 +3693,7 @@ extension RichLayout {
                     var shifts = [Double](repeating: 0, count: metrics.count)
                     var acc = 0.0
                     for k in 0 ..< metrics.count {
-                        shifts[k] = acc + max(0, above[k])
+                        shifts[k] = acc + max(0, above[k]) + glyphAdj[k]
                         acc += max(0, above[k]) + max(0, below[k])
                     }
                     Self._pairedLines[ObjectIdentifier(painter)] = _PairedLines(painter: painter, shifts: shifts, saving: -acc)
