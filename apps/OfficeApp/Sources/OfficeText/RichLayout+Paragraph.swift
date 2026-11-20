@@ -3289,6 +3289,15 @@ extension RichLayout {
                 // flag they need the whole 30.9 / 20.9.)
                 RuleTrace.hit("word-suppressbottomspacing-lets-an-exact-line-hang-past-the-foot")
                 _overhang[i] = _px(exact - natural)
+            } else if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, style.lineHeightPoints == nil,
+                      p.image != nil || _inlinePictureOnly(i, document),
+                      case let multiple = style.lineSpacing - theme.lineSpacingReduction, multiple > 1.001 {
+                // (A picture's line under a multiple: the extra stands under the picture, (m - 1) of the
+                // mark's single line, and may hang past the foot as a text line's does. sa2 ab55f8b0's
+                // pie chart, 306.55pt in a 1.5-spaced paragraph, ends 0.7pt past the text foot and
+                // stays on page 3 in Word's print; ours sent it to page 4.)
+                RuleTrace.hit("word-picture-line-multiple-extra-hangs-past-the-foot")
+                _overhang[i] = (multiple - 1) * _markLineHeight(i, document, single: true)
             } else if theme.wordRules, p.image == nil, p.cell == nil, style.lineHeightPoints == nil,
                       case let multiple = style.lineSpacing - theme.lineSpacingReduction, multiple > 1.001,
                       let last = painter.computeLineMetrics().last {
