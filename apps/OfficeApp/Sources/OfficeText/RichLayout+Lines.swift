@@ -960,6 +960,14 @@ extension RichLayout {
                 RuleTrace.hit("word-text-beside-square-float-clamped-to-page-top")
             }
             for (image, laid) in candidates {
+                // (A header's square picture placed from the margin does not narrow the lines of the header paragraphs beside it, its own or the next: Word's
+                // print of lab hdrsq sets the centred first line over the full text width beside it, even where it would fit clear of
+                // the picture; sa1 98480d18.)
+                if document.isPageHeaderPart, let f = image.float, f.wraps, !f.wrapsTight, !f.takesRoom, f.horizontalFrom == "margin",
+                   !image.data.isEmpty {
+                    RuleTrace.hit("word-header-margin-square-picture-leaves-header-lines-whole")
+                    continue
+                }
                 // (A box in the middle of the column with room on both sides, text
                 // wrapped round it on both: the lines alternate between the room
                 // at its left and the room at its right, a left piece and a
