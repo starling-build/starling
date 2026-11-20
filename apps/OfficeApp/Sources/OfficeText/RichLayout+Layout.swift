@@ -1009,6 +1009,7 @@ extension RichLayout {
                 // (a share of the column, or points) scales the grid to it.
                 let sum = pts.reduce(0, +)
                 var scale = sum > 0 && _px(sum) > width ? width / _px(sum) : 1
+                var statedBelowGrid = false   // the stated width is under the grid's (the grid outgrows what the table says)
                 if sum > 0, _columnPreview[c.table] == nil, let ts = document.tableStyles[c.table] {
                     // (A width the table states is its width, past the
                     // margin too where Word's rules are followed: a form
@@ -1091,7 +1092,7 @@ extension RichLayout {
                         // centred article table says 552.75pt over a grid
                         // of 553.5, and Word centres the grid — ours stood
                         // 0.4pt right, and "logistic" no longer fitted.)
-                        if theme.wordRules, !ts.fixedLayout, scale < 1 { scale = 1 }
+                        if theme.wordRules, !ts.fixedLayout, scale < 1 { statedBelowGrid = _px(w) < _px(sum) - 0.5; scale = 1 }
                     }
                     // (A fixed layout keeps its grid, past the margin too:
                     // zh-454e2e29's 482pt in a column of 468, whose second
@@ -1134,7 +1135,7 @@ extension RichLayout {
                 // (A stated width the grid and the cells' widths outgrow does not hold the table to it: sa2 cb623f0a, tblW
                 // 390pt over five columns of 390pt each, is the room wide in Word's print, the columns equal.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, !_nestedInFixedTable, _columnPreview[c.table] == nil,
-                   let ts = document.tableStyles[c.table], !ts.fixedLayout, ts.widthPercent == nil, ts.width == nil ? scale < 1 : scale >= 1, (ts.cellSpacing ?? 0) == 0,
+                   let ts = document.tableStyles[c.table], !ts.fixedLayout, ts.widthPercent == nil, ts.width == nil ? scale < 1 : statedBelowGrid, (ts.cellSpacing ?? 0) == 0,
                    // (An outdent keeps the old way, untested.)
                    ts.indent > -0.5 {
                     let ins = _cellInsets(c.table, document)
