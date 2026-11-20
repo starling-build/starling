@@ -5483,10 +5483,15 @@ extension RichLayout {
                 // baseline, is Word's p28 start, where a plain line stands to 752.7.)
                 let partFoot: Double = theme.wordRules && RichTextTheme.wordWindowsPages
                     ? document.paragraphs[i].style.borders?.bottom.map { _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? 0 : 0
+                // (A paragraph's bottom rule lies under its last line, before the space after: the last
+                // line fits only with the rule's gap and width above the foot. 5e813226's Title heading,
+                // 26pt Cambria, line ends 0.8pt above page 9's foot and its 1.5pt rule 0.7pt past it:
+                // Word's print starts page 10 with it.)
+                let lastFoot: Double = partFoot > 0 && !_bordersJoin(i, i + 1, document) ? partFoot : 0
                 // (Over a page's footnotes the last line's space after must fit above the separator too: Word for Windows
                 // keeps iv) of 58192c08 on page 5 with 0 pt after and sends it to page 6 with 3 pt, lab fnbreak v6/v7.)
                 let afterOnNotes: Double = theme.wordRules && RichTextTheme.wordWindowsPages && !pageNotes.isEmpty && document.paragraphs[i].cell == nil ? _spacing(i, document).after : 0
-                for (k, c) in cuts!.enumerated() where c > cursor + 0.01 && c - cursor <= available + slack + reach(k) + (k == cuts!.count - 1 ? emptyTail + twipAllow(c - cursor - (available + reach(k) + emptyTail)) - afterOnNotes : -partFoot) { cut = c }
+                for (k, c) in cuts!.enumerated() where c > cursor + 0.01 && c - cursor <= available + slack + reach(k) + (k == cuts!.count - 1 ? emptyTail + twipAllow(c - cursor - (available + reach(k) + emptyTail)) - afterOnNotes - lastFoot : -partFoot) { cut = c }
                 // (A picture's paragraph goes whole or to the next page: its
                 // one cut is its empty line's, under the picture's top, and
                 // took all of the picture into whatever room was left. Widow
