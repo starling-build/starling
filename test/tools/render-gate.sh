@@ -23,6 +23,7 @@ if [ "${GATE_PREBUILD:-0}" != 1 ] && git cat-file -e "$BASE_SHA^{commit}" 2>/dev
 fi
 cd "$(dirname "$0")/../.." || exit 2
 export BUILD_INCREMENTAL=1   # base and PR build use the same flags (incremental, path-stable scratches)
+export DOC_ALARM=${DOC_ALARM:-180}   # per-document render timeout (s): a hung render is reported TIMEOUT, never hangs the gate
 export SETS="${SETS:-756 lo xb xa xd xs sa1 sa2 dx2}"   # the gate sample draws from these sets too (user focus: es-MX, pt-BR, ko, ja)
 ROOT=$PWD; JOBS=${JOBS:-44}; W=${GATE_SCRATCH:-$HOME/scratch/gate}; mkdir -p "$W"   # PERSISTENT: the warm build scratches below make the builds incremental (cold 315 s, warm ~90 s)
 exec 9>"$W/lock"; flock 9   # one gate (or prebuild) at a time per scratch
@@ -127,6 +128,9 @@ fi
 BASE_PARTIAL=${BSD:+1} CANARY=${BSD:+0} ENGINE_OUT=$EO STAGE=$W/pair BASE_SCORES=$BSD BASE_REV=$BASE_SHA SCORES_BASE=/nonexistent test/tools/docx-pair.sh "$BASEBIN" "$BIN" "$JOBS" > "$W/pair.log" 2>&1
 rc=$?; echo "render-gate: render+compare step $(( $(date +%s)-T1 )) s"
 if [ $rc != 0 ]; then echo "render-gate: pair failed (exit $rc)"; grep -aE "ABORT|failed|no engine" "$W/pair.log" | head -5 | cut -c1-200; exit 1; fi
+# a document whose render timed out (DOC_ALARM s) or crashed is not scored: name it and fail, never hang or pass silently
+TO=$(grep -aE '^(TIMEOUT|RENDER-FAIL) ' "$W/pair.log" | sort -u | head -20 | sed 's/ (not scored)//')
+if [ -n "$TO" ]; then echo "render-gate: FAILED, render did not finish (timeout ${DOC_ALARM} s) for:"; echo "$TO" | sed 's/^/  /'; exit 1; fi
 # a gate that compared nothing must not pass
 NCMP=$(awk '/^== /{v2=($0 ~ / v2$/)} v2 && /^NEW: [1-9]/{n++} END{print n+0}' "$W/pair.log")
 [ "$NCMP" -gt 0 ] || { echo "render-gate: nothing was compared (see runner log)"; exit 1; }
