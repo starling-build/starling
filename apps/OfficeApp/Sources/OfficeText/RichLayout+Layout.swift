@@ -1951,6 +1951,15 @@ extension RichLayout {
         if theme.wordRules, total > room + _px(1), over.contains(where: { $0.picture }) {
             widths = widths.map { $0 * room / total }
         }
+        // (Word for Windows, sa1 8b5747ec's dates table: a table whose grid
+        // is within the text width stays at the grid when its columns'
+        // narrowest would take it past the width; the dates part by letter,
+        // "09/08/201" / "6", where ours widened the table 35 pt past the
+        // margin and moved everything below it.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, !over.contains(where: { $0.picture }),
+           widths.reduce(0, +) > room + _px(1), base.reduce(0, +) <= room + _px(1), _nestedCap == nil {
+            return base
+        }
         // (Not past the room an autofitting parent that spans its page
         // leaves it: `_nestedCap`.)
         if let cap = _nestedCap, widths.reduce(0, +) > cap + _px(1), base.reduce(0, +) <= cap + _px(1) { return base }
