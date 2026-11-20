@@ -3869,7 +3869,18 @@ extension RichLayout {
                 // page number set right with a tab after it, one 13.4pt line in Word's print, ours two.)
                 let hangsRight = theme.wordRules && RichTextTheme.wordWindowsPages && !pictureTabs && style.alignment == .right && !style.rightToLeft
                 if hangsRight, stop > ownLeft + textWidth + 0.5 { RuleTrace.hit("word-right-aligned-trailing-tab-takes-no-line") }
-                if !hangsRight, stop > ownLeft + textWidth + 0.5 {
+                // (A left stop inside a table cell's full width, its text edge and both rules' halves, is on the line
+                // Word draws the tab on: dx2 1469a400's underlined trailing tab at 11400 twips in a 11401-twip
+                // cell, 9 twips past our text edge, took no second line in Word's print.)
+                let cellRoom: Double = {
+                    guard theme.wordRules, !pictureTabs, p.cell != nil, let c = p.cell, let ts = document.tableStyles[c.table], ts.borders,
+                          style.tabStops.contains(where: { $0.alignment == .left && abs(_px($0.position) - stop) < 0.01 }) else { return 0 }
+                    return _px(((ts.edgeWidths["right"] ?? ts.borderWidth ?? 0.5) + (ts.edgeWidths["left"] ?? ts.borderWidth ?? 0.5)) / 2)
+                }()
+                if cellRoom > 0, stop > ownLeft + textWidth + 0.5, stop <= ownLeft + textWidth + 0.5 + cellRoom {
+                    RuleTrace.hit("word-trailing-left-tab-inside-the-cell-width-takes-no-second-line")
+                }
+                if !hangsRight, stop > ownLeft + textWidth + 0.5 + cellRoom {
                     if pictureTabs {
                         var mark = p.style.mark ?? p.runs.first?.style ?? CharStyle()
                         mark.inlineImage = nil
@@ -4551,10 +4562,14 @@ extension RichLayout {
             let hit = text.unicodeScalars.contains { u in
                 let v = u.value
                 return (v >= 0x25A0 && v <= 0x25FF) || v == 0xB7 || (v >= 0x2460 && v <= 0x2469) || v == 0x203B || v == 0x2192
-                    || v == 0x2018 || v == 0x2019 || v == 0x201C || v == 0x201D
+                    || v == 0x2018 || v == 0x2019 || v == 0x201C || v == 0x201D || v == 0xB1
             }
             let viaEastAsia = theme.faceResolver?(run.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                            ?? run.style.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.malgunSymbols == true
+            // (A quote or plus-minus sign that is a run of its own, set in Gulim, is drawn in Malgun Gothic: see `_span`'s joiner. xd b6f6c7d4 page 28.)
+            let viaLone = run.style.loneQuote && !run.style.hAnsiNamedAsAscii
+                && ["굴림", "gulim"].contains((run.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? run.style.fontFamily ?? "").trimmingWhitespace().lowercased())
+                && ["맑은 고딕", "malgun gothic"].contains((_normalChar(document)?.hAnsiFontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased())
             // (A run that names only a missing ascii face, with no eastAsia slot of its own, is judged by that face as in `_span`'s
             // joiner, though the style's eastAsia face is Batang itself: fe41a48c's 한양신명조 △△△ in 바탕글.)
             let viaAscii = run.style.eastAsiaFontFamily == nil && run.style.fontFamily != nil
@@ -4563,7 +4578,7 @@ extension RichLayout {
             let won = text.unicodeScalars.contains { $0.value == 0x20A9 } && run.style.fontHint != "eastAsia"
                 && theme.faceResolver?(run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily, false)?.isEastAsian == true
             guard (hit || won), !(run.style.eastAsiaFontFamily != nil && (run.style.fontHint ?? named?.char.fontHint) == "eastAsia"),
-                  viaEastAsia || viaAscii || won else { continue }
+                  viaEastAsia || viaAscii || viaLone || won else { continue }
             let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
             // (Word's shift is a constant 0.2833 em once the spacing is over single:
             // the same 3.4pt at 12pt for 1.7x (lab c466d30a) and 3x (xd 07eecf7a);

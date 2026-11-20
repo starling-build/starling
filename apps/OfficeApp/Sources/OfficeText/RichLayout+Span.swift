@@ -637,7 +637,11 @@ extension RichLayout {
                     korean.formUnion(st ..< min(st + r.length, units.count))
                 }
                 var taken: Set<Int> = []
-                for k in korean.sorted() where units[k] == 0x20 && k > 0 && korean.contains(k - 1) && (units[k - 1] != 0x20 || taken.contains(k - 1)) && !complexSpaces.contains(k) {
+                // (A LONE space, with no space before or after it, stays the Latin stand-in's width: c466d30a's date ". ○○. ○○." in
+                // ascii-only HY신명조 sets each space 3.7 in Word's print on a line that is not justified, where half an em, 5.6, wrapped a
+                // character early. Runs of two or more spaces, 4fabe1f2's ".␣␣␣␣.", are half an em.)
+                for k in korean.sorted() where units[k] == 0x20 && k > 0 && korean.contains(k - 1) && (units[k - 1] != 0x20 || taken.contains(k - 1))
+                    && (units[k - 1] == 0x20 || (k + 1 < units.count && units[k + 1] == 0x20)) && !complexSpaces.contains(k) {
                     taken.insert(k); wideSpaces.insert(k)
                 }
             }
@@ -2955,7 +2959,7 @@ extension RichLayout {
                 if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, ch.unicodeScalars.count == 1,
                    !(run.eastAsiaFontFamily != nil && (run.fontHint ?? named?.char.fontHint) == "eastAsia"),
                    (u >= 0x25A0 && u <= 0x25FF) || u == 0xB7 || (u >= 0x2460 && u <= 0x2469) || u == 0x203B || u == 0x2192
-                    || u == 0x2018 || u == 0x2019 || u == 0x201C || u == 0x201D,
+                    || u == 0x2018 || u == 0x2019 || u == 0x201C || u == 0x201D || u == 0xB1 && run.loneQuote,
                    theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                        ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.malgunSymbols == true
                     // (A run that names only the ascii face, the missing Korean one, still draws △ and ○ in it (they have no ascii form; quotes in such a run stay Latin: 218dff52 page 2): 218dff52's △△△.)
@@ -2966,7 +2970,7 @@ extension RichLayout {
                     // (A curly quote that is a run of its own has no Hangul neighbour to take its face from, so Word draws it in the hAnsi face: Malgun Gothic
                     // when the theme's minor font is, though ascii and eastAsia say Gulim. xd b6f6c7d4's speech "의안명 “병 제조용 PET CHIP 구매”"
                     // prints its quotes in MalgunGothic and the line steps 29.8 pt, plain Gulim lines 25; kor-z191's lone ” names hAnsi Gulim and stays Gulim.)
-                    || (u == 0x2018 || u == 0x2019 || u == 0x201C || u == 0x201D) && run.loneQuote && !run.hAnsiNamedAsAscii && ["굴림", "gulim"].contains((run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? run.fontFamily ?? "").trimmingWhitespace().lowercased()) && ["맑은 고딕", "malgun gothic"].contains((_normalChar(document)?.hAnsiFontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()) {
+                    || (u == 0x2018 || u == 0x2019 || u == 0x201C || u == 0x201D || u == 0xB1) && run.loneQuote && !run.hAnsiNamedAsAscii && ["굴림", "gulim"].contains((run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? run.fontFamily ?? "").trimmingWhitespace().lowercased()) && ["맑은 고딕", "malgun gothic"].contains((_normalChar(document)?.hAnsiFontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()) {
                     RuleTrace.hit("lone-middle-dot-in-gulim-is-malgun-line")
                     if devanagariStyles["malgunKo"] == nil {
                         // (Word's lab kr-sym, 12 pt Batang lines at 1.0, 1.75 and 3.0: a Malgun symbol line is Malgun's own 1.288 + 0.441 em times the multiple
