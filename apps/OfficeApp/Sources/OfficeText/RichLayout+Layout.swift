@@ -2474,7 +2474,17 @@ extension RichLayout {
                 for k in row.first ..< row.end {
                     let cell = _cells[k]!
                     guard cell.rowSpan > 1, !cell.vertical else { continue }
-                    stackByColumn[cell.column, default: 0] += _heights[k] - (stackByColumn[cell.column] == nil ? 0 : shared(k))
+                    // (A merged cell's last empty paragraph under a hidden end mark is no part of
+                    // its height, as it is none of what Word centres: sa2 25bdbf91's
+                    // "Obs" cell, five lines in Word's print, 13.5pt short of ours.)
+                    var spareEnd = 0.0
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, k > row.first, _cells[k - 1]!.column == cell.column,
+                       k + 1 == row.end || _cells[k + 1]!.column != cell.column {
+                        let q = document.paragraphs[k]
+                        if q.text.isEmpty, q.image == nil, q.inlineImages.isEmpty,
+                           q.cell?.keptPropertiesXML?.containsSubstring("w:hideMark") ?? false { spareEnd = _heights[k] }
+                    }
+                    stackByColumn[cell.column, default: 0] += _heights[k] - (stackByColumn[cell.column] == nil ? 0 : shared(k)) - spareEnd
                     let need = stackByColumn[cell.column]! + cell.pad.top + cell.pad.bottom
                     spanning.append((r, min(rows.count - 1, r + cell.rowSpan - 1), need))
                 }
