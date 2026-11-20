@@ -897,6 +897,9 @@ extension RichLayout {
             return _px(from) - left
         }
         switch style?.alignment ?? .left {
+        case .center where theme.wordRules && style?.floatCentredBidi == true && document.compatibilityMode == 14:
+            RuleTrace.hit("centred-floating-bidi-table-stands-half-a-cell-margin-right-compat-14")
+            return (width - sum) / 2 + _px(style?.textOutdent ?? 5.4) / 2
         case .center: return theme.wordRules ? (width - sum) / 2 : max(0, ((width - sum) / 2).rounded(.down))
         case .right: return theme.wordRules ? width - sum + right : max(0, (width - sum).rounded(.down))
         default:

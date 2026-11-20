@@ -1432,6 +1432,9 @@ public struct TableStyle: Hashable, Codable, Sendable {
     /// (`w:horzAnchor`: "page", "margin" or "text").
     public var floatX: Double? = nil
     public var floatXAnchor: String? = nil
+    /// A floating table centred in its margin (`w:tblpXSpec` center) that is also `w:bidiVisual`: Word 2010's layout
+    /// (compat 14) stands it half a cell margin right of the middle (lab rtlctr; dx2 5b919053).
+    public var floatCentredBidi = false
     /// A floating table placed against the page (`w:tblpPr w:vertAnchor="page"`):
     /// where it does not fit whole, Word sets its first row alone on its page
     /// and the rest on the next (zh-6cd1befe p51, zh-a4b0f6ea p20).

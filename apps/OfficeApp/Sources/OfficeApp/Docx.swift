@@ -2801,6 +2801,9 @@ enum DocxFormat {
                         // its first column's text at 54pt in Word's print,
                         // where ours, at the margin, stood at 115.
                         if spec == "center" { style.alignment = .center }
+                        if spec == "center", DocxFormat.wordOnWindows,
+                           let bv = node.first("w:tblPr")?.first("w:bidiVisual") ?? node.mirroredFrom?.first("w:tblPr")?.first("w:bidiVisual"),
+                           !["0", "false", "off"].contains((bv["w:val"] ?? "1").lowercased()) { style.floatCentredBidi = true }
                         if spec == "right" { style.alignment = .right }
                         style.floatXAnchor = pos["w:horzAnchor"] ?? "text"   // (read only for the table's x in columns)
                     }
