@@ -3192,7 +3192,9 @@ extension RichLayout {
                 _inkShift[i] += max(0, need - _inkShift[i])
                 // (A bullet that carries its own size stands on its ascent and adds none below, as the lead box does for it: the line's foot
                 // is the text's, 14.4pt apart for a 12pt bold Symbol dash over Arial 11 where 1.225 em made 14.7: xb fra-g111-8b0e29.)
-                let tall = ownMark != nil && !larger ? need + line.baseline + line.descent : _px(markerSize * 1.225)
+                var tall = ownMark != nil && !larger ? need + line.baseline + line.descent : _px(markerSize * 1.225)
+                // (A line the strut already stands on Symbol's ascent over the text's descent (see `_span`) is Word's pitch as it is, 12.17 pt for Arial 10, not the face's whole 1.225 em.)
+                if !larger, ownMark == nil, style.lineSpacing <= 1.001, line.height >= _px(markerSize * 1.2) { tall = line.height }
                 segoeLift += max(0, tall - line.height) / _px(1)
             }
         }
