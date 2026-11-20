@@ -1178,6 +1178,15 @@ extension RichLayout {
                 var end = t + 1
                 while end < units.count, units[end] != 0x09, units[end] != 0x0A, units[end] != 0x2028 { end += 1 }
                 var following = max(0, edge(end) - after)
+                // (Spaces that END the paragraph after a right or centre tab hang: sa1 7770c637's contents "<tab>3 " stands its 3 at
+                // 481.06, the right edge of the stop, where "11" without one ends at it too; ours counted the space and stood 6 pt left.)
+                if theme.wordRules, !style.rightToLeft, stop.alignment == .right || stop.alignment == .center, end == units.count, end > t + 1,
+                   units[end - 1] == 0x20 {
+                    var e2 = end
+                    while e2 > t + 1, units[e2 - 1] == 0x20 { e2 -= 1 }
+                    following = max(0, edge(e2) - after)
+                    RuleTrace.hit("word-spaces-ending-the-paragraph-after-a-right-tab-hang")
+                }
                 if style.rightToLeft, end > t + 1 {
                     // (Right-to-left letters stand reversed in the probe: the
                     // run's width is its boxes' spread, not the offsets'.)
