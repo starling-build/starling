@@ -693,6 +693,18 @@ extension OfficeFonts {
             face.boldItalicAdvances = bookman_old_styleBoldItalicAdv
             face.naturalHeight = 2404.0 / 2048; face.baseline = 1929.0 / 2048
 
+        case "berlin sans fb":
+            face.advances = berlin_sans_fbAdv
+            face.otherAdvances = berlin_sans_fbOther
+            face.boldAdvances = berlin_sans_fbBoldAdv
+            face.boldOtherAdvances = berlin_sans_fbBoldOther
+            face.naturalHeight = 2251.0 / 2048; face.baseline = 1835.0 / 2048
+
+        case "berlin sans fb demi":
+            face.advances = berlin_sans_fb_demiAdv
+            face.otherAdvances = berlin_sans_fb_demiOther
+            face.naturalHeight = 2312.0 / 2048; face.baseline = 1893.0 / 2048
+
         case "gill sans mt":
             face.advances = gill_sans_mtAdv
             face.otherAdvances = gill_sans_mtOther
