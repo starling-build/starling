@@ -3712,6 +3712,19 @@ extension RichLayout {
     /// kana, hangul, their punctuation and the full-width forms — and,
     /// in a run hinted East Asian, the quotes, dashes and dots both
     /// scripts claim.
+    /// A Latin letter (Latin-1 letters, Latin Extended-A/B) that Unicode does NOT list as East Asian Ambiguous.
+    static func _latinLetterNotAmbiguous(_ u: UInt32) -> Bool {
+        guard (0xC0 ... 0x24F).contains(u), u != 0xD7, u != 0xF7 else { return false }
+        switch u {
+        case 0xC6, 0xD0, 0xD8, 0xDE, 0xDF, 0xE0, 0xE1, 0xE6, 0xE8, 0xE9, 0xEA, 0xEC, 0xED, 0xF0, 0xF2, 0xF3, 0xF8, 0xF9, 0xFA, 0xFC, 0xFE,
+             0x101, 0x111, 0x113, 0x11B, 0x126, 0x127, 0x12B, 0x131, 0x132, 0x133, 0x138, 0x13F, 0x140, 0x141, 0x142, 0x144, 0x148, 0x149,
+             0x14A, 0x14B, 0x14D, 0x152, 0x153, 0x166, 0x167, 0x16B, 0x1CE, 0x1D0, 0x1D2, 0x1D4, 0x1D6, 0x1D8, 0x1DA, 0x1DC:
+            return false
+        default:
+            return true
+        }
+    }
+
     static func isEastAsian(_ ch: Character, hinted: Bool) -> Bool {
         guard let u = ch.unicodeScalars.first?.value, u >= 0xA0 else { return false }
         switch u {
@@ -3727,6 +3740,10 @@ extension RichLayout {
             // a run whose Latin face is 新細明體 and whose East Asian one
             // is Normal's 標楷體, is YaHei Bold in Word's print, its line
             // the taller for it; ours drew it in the Latin face.)
+            // (A Latin LETTER takes the East Asian face under the hint only where Unicode lists it East Asian Ambiguous
+            // (à á è é ê ì í ò ó ù ú ü æ ø ß ...); ç ã õ â and the rest stay in the run's Latin face: sa1 c6d4538d's italic
+            // quote lines, runs hinted eastAsia over SimSun Normal, print in Arial at 12.65 pt pitch, ours 14.3.)
+            if hinted, Self._latinLetterNotAmbiguous(u) { return false }
             return hinted
         default:
             return false
