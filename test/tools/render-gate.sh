@@ -55,8 +55,10 @@ T0=$(date +%s); echo "render-gate: building"
 if [ ! -x "$BC/$BSHA/release/OfficeApp" ]; then
   # base build: persistent worktree + persistent scratch (incremental from the previous base). Normally a prebuild
   # (GATE_PREBUILD=1 render-gate.sh <sha>, run after each main push) has filled the cache and this is skipped.
-  if [ -d "$W/basetree/.git" ] || [ -f "$W/basetree/.git" ]; then git -C "$W/basetree" checkout -q --detach "$BSHA" || { echo "render-gate: cannot check out base"; exit 2; }
-  else git worktree add -f --detach "$W/basetree" "$BSHA" -q || { echo "render-gate: cannot check out base"; exit 2; }; fi
+  git cat-file -e "$BSHA^{tree}" 2>/dev/null || { echo "render-gate: base tree ${BSHA:0:9} missing in the clone"; exit 2; }
+  # a stale or broken persistent worktree is dropped and made again (first prebuild: "unable to read tree")
+  if { [ -d "$W/basetree/.git" ] || [ -f "$W/basetree/.git" ]; } && git -C "$W/basetree" checkout -q --detach "$BSHA" 2>/dev/null; then :
+  else rm -rf "$W/basetree"; git worktree prune; git worktree add -f --detach "$W/basetree" "$BSHA" -q || { echo "render-gate: cannot check out base"; exit 2; }; fi
   [ -e "$W/basetree/engine" ] || ln -s "$(readlink -f engine)" "$W/basetree/engine"
   ( cd "$W/basetree" && test/tools/build-office-fast.sh "$W/basebuild" > "$W/base-build.log" 2>&1 ) &
   BPID=$!
