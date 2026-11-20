@@ -5,8 +5,12 @@
 # documents (756 + 593 LibreOffice) print BYTE-IDENTICAL PDFs to the default build, and the sweep
 # is no slower. Slides is gated too (amd-7, 2026-11-01, tip 120672010): all 555 decks print byte-identical
 # --deck-pdf output to the default build, same scores.
+# BUILD_INCREMENTAL=1 adds -incremental (SwiftPM release builds are otherwise NOT incremental: all 210 files
+# recompile every time). The render gate sets it for the base AND the PR build; a body edit then recompiles 1-4 files
+# (42-50 s with link) instead of ~115 s; an interface change still rebuilds dependents (~4 min). Keep the scratch and
+# source paths stable between builds.
 # Needs STARLING_ENGINE_OUT etc. exported as in the AMD README. SCRATCH defaults to .build-shared.
 set -e
 cd "$(dirname "$0")/../.."
 exec swift build ${BUILD_JOBS:+-j $BUILD_JOBS} -c release --package-path apps/OfficeApp --scratch-path "${1:-$PWD/.build-shared}" \
-  --product OfficeApp -Xswiftc -no-whole-module-optimization
+  --product OfficeApp -Xswiftc -no-whole-module-optimization ${BUILD_INCREMENTAL:+-Xswiftc -incremental}
