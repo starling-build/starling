@@ -2161,8 +2161,13 @@ extension RichLayout {
                 // (A wrapped one pushes the paragraph's own line under it, and Word does not lift it above the paragraph: sa1 2303e6f9,
                 // the picture 0 to 136pt, the empty 11pt line baseline at 144.7, the body from 148.4.)
                 let wrapped = f.wraps && fillsText
-                let lift = wrapped ? max(0, f.y) : f.y
-                let line = wrapped && j < header.layout._heights.count ? header.layout._heights[j] : 0
+                // (It does not rise above the paper's top: sa1 90385e38's banner, 35.4pt up from a paragraph at the header distance 35.45, stands
+                // at the paper's top, its foot 106.5, and the body starts there in Word's print; clamped at the paragraph it ended at 142.)
+                let lift = wrapped ? max(-setup.headerDistance, f.y) : f.y
+                // (Not when that line holds an inline picture: sa1 90385e38's header line of spaces and a 48.5pt logo stays at the header's top
+                // over the banner in Word's print, and the body starts at the banner's foot, 108.1, not a line lower, 193.4.)
+                let lineHoldsPicture = theme.wordRules && RichTextTheme.wordWindowsPages && hp.inlineImages.inOrder.contains(where: { $0.float == nil })
+                let line = wrapped && !lineHoldsPicture && j < header.layout._heights.count ? header.layout._heights[j] : 0
                 end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + _px(lift) + _px(image.height) + _px(f.distanceBottom) + line)
             }
             // (A picture set against the PAGE's top that the text goes over and under ends the header at its foot plus its
