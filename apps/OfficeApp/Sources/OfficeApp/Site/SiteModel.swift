@@ -353,6 +353,7 @@ enum SiteBuilder {
         theme.fontFamilyResolver = OfficeFonts.substitute
         theme.faceResolver = OfficeFonts.face
         theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.winLineBox = OfficeFonts.standInWinBox
         theme.wordRules = true
         theme.disablesLigatures = true
         guard let web, fm.fileExists(atPath: web + "/index.html"), fm.fileExists(atPath: web + "/app.wasm") else {

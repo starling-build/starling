@@ -94,6 +94,7 @@ final class OfficeSession {
         theme.complexFaceResolver = OfficeFonts.complexFace
         theme.complexFaceKeepsDigits = OfficeFonts.complexFaceKeepsDigits
         theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.winLineBox = OfficeFonts.standInWinBox
         theme.symbolGlyphs = { face, text in face.map { Metafile.symbols(text, face: $0) } ?? text }
         theme.symbolAdvance = Metafile.symbolAdvance
         theme.wordRules = true
