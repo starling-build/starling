@@ -1032,13 +1032,20 @@ extension RichLayout {
                     }
                     let own = _px(p.style.indentLeft)
                     let rightGap = _px(p.style.indentRight)
-                    let leftEdge = x - _px(float.distanceLeft ?? 9), rightEdge = x + w + _px(float.distanceRight ?? 9)
+                    // (A tight wrap's outline, not its box, holds the text off: the pieces stand at the outline's extreme
+                    // points and its vertical extent. sa1 5e813226: a 72 pt line level with a picture's empty corner stays whole.)
+                    let polyOn = theme.wordRules && RichTextTheme.wordWindowsPages && float.wrapsTight && float.wrapPolygon.count >= 3
+                    let pxs = float.wrapPolygon.map { $0.x }, pys = float.wrapPolygon.map { $0.y }
+                    let pl = polyOn ? (pxs.min() ?? 0) : 0, pr = polyOn ? (pxs.max() ?? 1) : 1
+                    let pt = polyOn ? (pys.min() ?? 0) : 0, pb = polyOn ? (pys.max() ?? 1) : 1
+                    if polyOn { RuleTrace.hit("word-tight-wrap-pieces-stand-at-the-outline's-extent") }
+                    let leftEdge = x + w * pl - _px(float.distanceLeft ?? 9), rightEdge = x + w * pr + _px(float.distanceRight ?? 9)
                     // (Room at its left for a character and a half is enough: lab `anc` D (Word for Windows, 12pt,
                     // a 40pt square at x 20 from the column's edge, no gap) sets "D-" in the 20pt strip and "p3"
                     // after the picture, on each of the three lines it spans; the room was three ems.)
                     if w > 0, leftEdge - own > 0.5, inner - rightEdge - rightGap >= size * 3 {
-                        let band = (top: _px(float.y) - _px(float.distanceTop) - offset,
-                                    bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
+                        let band = (top: _px(float.y) + h * pt - _px(float.distanceTop) - offset,
+                                    bottom: _px(float.y) + h * pb + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
                         if band.bottom > 0.01 { boxes.append((band.top, band.bottom, leftEdge - own, rightEdge - own)) }
                         if band.bottom > 0.01, best == nil || rightEdge - own > best!.indent { best = (rightEdge - own, band, false, leftEdge - own) }
                         continue

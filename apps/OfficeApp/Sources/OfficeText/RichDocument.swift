@@ -345,6 +345,8 @@ public struct KeptHeaderFooter: Hashable, Codable, Sendable {
 /// "margin", "page", "paragraph", "line"…), or an alignment in place of
 /// an offset ("left", "center", "right"; "top", "bottom"), and whether
 /// the text keeps clear above and below it (`wp:wrapTopAndBottom`).
+public struct WrapPoint: Hashable, Sendable { public var x: Double, y: Double; public init(x: Double, y: Double) { self.x = x; self.y = y } }
+
 public struct ImageFloat: Hashable, Codable, Sendable {
     /// The anchor says `layoutInCell="0"`: it is not laid out in its table cell.
     public var leavesCell = false
@@ -398,6 +400,9 @@ public struct ImageFloat: Hashable, Codable, Sendable {
     public var wrapReach = 1.0
     /// A tight wrap's polygon ends this share of the picture's height down (1 when it reaches the box's foot): sa1 2303e6f9, 21441 of 21600.
     public var wrapBottomShare = 1.0
+    /// A tight wrap's polygon as shares of the picture's width and height (x, y), in the file's order: a line is held in by the
+    /// polygon's reach over the strip it covers, not by the box (sa1 5e813226: "2017-2021" at 208.01 in Word's print).
+    public var wrapPolygon: [WrapPoint] = []
     /// How far text keeps from its top and its foot where it wraps round
     /// it (`wp:anchor`'s `distT`/`distB`, VML's `mso-wrap-distance-top`
     /// and `-bottom`), in points.
