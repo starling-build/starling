@@ -694,7 +694,6 @@ export async function startStarling({ canvas, app, appBrotli, preloaded, immutab
   // straight into an SkData in skwasm's memory. A font may be registered
   // under several family names — the first entry is also given skwasm's
   // fallback name, so text in a family nobody loaded still draws.
-  const encoder = new TextEncoder();
   const registerFont = (bytes, family, faceIndex = -1) => {
     const data = sk.skData_create(bytes.length);
     skBytes().set(bytes, sk.skData_getPointer(data));
