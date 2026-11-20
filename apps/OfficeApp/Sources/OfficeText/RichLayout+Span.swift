@@ -4583,11 +4583,12 @@ extension RichLayout {
                         }
                     }
                 }
-                // (A Wingdings bullet over East Asian text at single spacing: Word's print stands the first line on the taller of the bullet's
+                // (Not applied in table cells yet: there the bullet split 1.95 pt from its text line; xd b88f2314 p2 cell paragraphs, logged OPEN.)
+                // A Wingdings bullet over East Asian text at single spacing: Word's print stands the first line on the taller of the bullet's
                 // ascent (1841/2048 em at the box's size) and the text face's own, over the deeper of the two below. Malgun Gothic's line is 1.73 em,
                 // 1.288 above and 0.442 below, so 14pt boxes over 9pt rows stand 12.58 over 3.98: rows 16.56 apart where the text's line alone is 15.56
                 // (xd b88f2314 p2 checkboxes, Word 16.56 against our 15.56).)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil,
+                if theme.wordRules, p.cell == nil, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil,
                    p.style.lineSpacing <= 1.001, leadChar.fontFamily?.lowercased() == "wingdings", let px = style.fontSize, px > 0.5,
                    !p.style.rightToLeft, p.text.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7AF }),
                    (p.runs.first?.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? "").trimmingWhitespace().lowercased() == "malgun gothic"
