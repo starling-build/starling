@@ -3817,6 +3817,13 @@ extension RichLayout {
                     push = max(push, _px(image.height + f.effectBottom + f.distanceBottom))
                     continue
                 }
+                // (A picture whose foot lies inside the paragraph's own space before: the line stands where that space puts it and
+                // is not pushed again. sa2 78bf1be7's header, a 0.75pt rule 0.9pt down an empty paragraph with 2.95pt before: the body
+                // starts at 106.9 in Word's print, ours 1.6pt lower with the foot added to the space.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, f.y > 0, _px(f.y + image.height + f.effectBottom + f.distanceBottom) <= before + 0.01 {
+                    RuleTrace.hit("word-top-and-bottom-picture-inside-the-space-before-does-not-push-the-line")
+                    continue
+                }
                 push = max(push, _px(f.y + image.height + f.effectBottom + f.distanceBottom) + (f.y < 0 ? max(painter.height, _markLineHeight(i, document)) : 0))
             }
         }
