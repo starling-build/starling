@@ -197,6 +197,8 @@ public struct CharStyle: Hashable, Codable, Sendable {
     public var sizeFromStyleSzCs: Bool = false
     /// Hebrew letters split out of a run with neither `w:rtl` nor `w:cs`: Word sets them at `w:sz`, not `w:szCs`.
     public var plainSize: Bool = false
+    /// The run's text holds Arabic or Hebrew letters (set where the reader builds the run): Calibri, which has none, cannot be the face it is drawn in.
+    public var csLetters: Bool = false
     public var complexFontFamily: String? = nil
     public var eastAsiaFontFamily: String? = nil
     /// The face for the rest of the Latin range (`w:hAnsi`) when the file

@@ -7270,7 +7270,8 @@ enum DocxFormat {
                 func flush() {
                     guard !piece.isEmpty else { return }
                     var c = cs
-                    if pieceArabic { c.rightToLeft = true; if piece.unicodeScalars.contains(where: { (0x0590 ... 0x05FF).contains($0.value) }) { c.plainSize = true } }
+                    if cs.rightToLeft { c.csLetters = true }
+                    if pieceArabic { c.rightToLeft = true; c.csLetters = true; if piece.unicodeScalars.contains(where: { (0x0590 ... 0x05FF).contains($0.value) }) { c.plainSize = true } }
                     runs.append(Run(length: piece.utf16.count, style: c)); piece = ""
                 }
                 for u in s.unicodeScalars {
@@ -7281,6 +7282,7 @@ enum DocxFormat {
                 flush()
                 return
             }
+            if cs.rightToLeft || s.unicodeScalars.contains(where: { (0x0590 ... 0x08FF).contains($0.value) || (0xFB1D ... 0xFDFF).contains($0.value) || (0xFE70 ... 0xFEFF).contains($0.value) }) { cs.csLetters = true }
             runs.append(Run(length: s.utf16.count, style: cs))
         }
         var pendingCheckbox: Bool? = nil   // a FORMCHECKBOX field's state, from its begin

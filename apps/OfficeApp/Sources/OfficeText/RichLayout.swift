@@ -58,7 +58,15 @@ public final class RichTextTheme {
     /// Roman's own, 1.149 em on its 0.891 baseline: dx2 33a4668e's 14pt Arabic header rows, xb fas-z21853138 and urd-z8387389's
     /// page 1 stand on it in Word's print. Where the Latin face is another (Cambria for a face Word lacks) that face's taller line
     /// is the line's, and the Times line must not cut it: xb heb-z24027390-bae91d, ara-z23060052-a6e54c.)
-    public func complexFace(_ cs: String?, latin: String?) -> RichResolvedFace? {
+    public func complexFace(_ cs: String?, latin: String?, letters: Bool = true) -> RichResolvedFace? {
+        // (Calibri is a face Word has, with its own 1.22 em line, for every complex-script run whose letters it can draw: digits, Latin,
+        // CJK. A run holding Arabic or Hebrew letters, which Calibri lacks, keeps the fallback face: xb 5dc87fc7 page 17 against dx2
+        // 3f58bbd7 and 79a15231.)
+        if !letters, wordRules, RichTextTheme.wordWindowsPages, (cs ?? "").trimmingWhitespace().lowercased() == "calibri",
+           let f = faceResolver?(cs, false) {
+            RuleTrace.hit("calibri-complex-face-without-cs-letters")
+            return f
+        }
         guard var f = complexFaceResolver?(cs) else { return nil }
         if wordRules, RichTextTheme.wordWindowsPages,
            (cs ?? "Times New Roman").trimmingWhitespace().lowercased() == "times new roman",
@@ -515,7 +523,7 @@ public final class RichTextTheme {
         var complexFace: RichResolvedFace? = nil
         if wordRules, RichTextTheme.wordWindowsPages, style.rightToLeft, !eastAsian,
            let cs = style.complexFontFamily ?? named?.char.complexFontFamily,
-           let f = self.complexFace(cs, latin: familyName), f.ownLineBaseline, f.baseline != nil {
+           let f = self.complexFace(cs, latin: familyName, letters: style.csLetters), f.ownLineBaseline, f.baseline != nil {
             complexFace = f
         }
         guard size > 0, let face = complexFace ?? faceResolver?(familyName, eastAsian),
@@ -776,7 +784,7 @@ public final class RichTextTheme {
         if complex, wordRules, complexName?.trimmingWhitespace().lowercased() == "arial narrow" { complexName = "Arial" }
         let familyName = complex ? complexName
             : eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
-        let face = complex ? complexFace(familyName, latin: latinName) : faceResolver?(familyName, eastAsian)
+        let face = complex ? complexFace(familyName, latin: latinName, letters: style.csLetters) : faceResolver?(familyName, eastAsian)
         let family = face?.family ?? familyName.map { complex ? $0 : (fontFamilyResolver?($0) ?? $0) }
         // (A character scale is laid out as that much smaller or larger
         // a size — the engine sets no face narrower than it is, and the
