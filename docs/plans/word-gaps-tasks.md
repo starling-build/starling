@@ -18100,3 +18100,9 @@ amd-1 2026-11-20 OPEN: xb fra-g111-8b0e29 (header picture 763200 EMU = 60.096 pt
 - Landed/queued: PR 110 (value-axis title with manual layout and no rot reads turned -90; 2-D column with deleted value axis and no gridlines rounds to a step: f15415f0 chart 4 label 101 top 65.9 to 87.2, Word 91.2; xd 45acc7fe 81 to 80 approved) passed. PR 117 (Word legend r/l in a manual box stacks one column while rows fit; f15415f0 page-5 pie) passed.
 - OPEN: f15415f0 page-5 chart frame sits about 25-37 pt higher than Word's (text paragraph above wraps to 2 lines in Word, ours differs); chart-4 outEnd label x still 7-10 pt off; f84c295b value-label gap 16.7 vs 10.3 pt, `_-` padding, legend border 0.25 pt; title y -2.5 pt (frame offset -2.3).
 - Trap: a stale OfficeApp in /data/s/amd-8/bins is useless as A/B base (other commits moved sa1/sa2 by 60 points); rely on the PR gate.
+- amd-4 (2026-11-20) PARKED, sa1/sa2 Spanish list:
+  - 75f0f9d1 (826/902): Word keeps a 3-row inline table whole on page 28; ours puts 2 rows on page 27. Left-cell paragraphs have keepNext, right-cell first paragraph does not. Our rule "row kept only if EVERY cell's first paragraph keeps" (from lo floattable-header A2) says no. floattable-header is a FLOATING table (tblpPr). One inline sample against one floating counter-sample: no rule without a Word lab (keepNext in first vs second cell x floating vs inline). 27 corpus docs have rows where only the first cell keeps; census not done.
+  - 6883a0fd (691/778): first mismatch at page 15/16. Word puts one orphan first line in a float strip at the page foot despite widowControl; ours moves the whole paragraph. One sample, unexplained.
+  - 0e16000e (136/142): margin comment balloon wraps one word differently. Small.
+  - 2335cfd7: needs Word's "Formatted:" paragraph-property balloons and header/footer "Deleted:" balloons.
+  - Landed: 111 exact-height frame, 114/115 board, 125 triple rule (open when written).
