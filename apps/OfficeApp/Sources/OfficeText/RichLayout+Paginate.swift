@@ -69,6 +69,7 @@ extension RichLayout {
         var pageEdgeClamp: (table: String, edge: Double)? = nil
         var tableBands: [(top: Double, bottom: Double, owner: Int)] = []
         var topPinnedOwners = Set<Int>()  // owners whose own picture sits at offset 0 from the paragraph, no space above it
+        var pictureBands: [(top: Double, bottom: Double, owner: Int)] = []
         // (Tops of the bands of page-anchored tables with a strip free to their right: empty paragraphs stand beside them.)
         var stripBandTops = Set<Double>()
         var narrowBands: [(top: Double, bottom: Double, owner: Int, left: Double, right: Double)] = []
@@ -273,6 +274,7 @@ extension RichLayout {
             fixedBands.removeAll()
             tightBandBottoms.removeAll()
             tableBands.removeAll()
+            pictureBands.removeAll()
             narrowBands.removeAll()
             anchorRun.removeAll()
             markOnPage = false
@@ -4146,6 +4148,7 @@ extension RichLayout {
                     // what follows it, as the title over zh-6d402586's box.)
                     tableBands.append((top: top, bottom: bottom, owner: mine ? i : -1))
                     if mine, abs(f.y) < 0.01, f.distanceTop < 0.01 { topPinnedOwners.insert(i) }
+                    pictureBands.append((top: top, bottom: bottom, owner: mine ? i : -1))
                     var moved: [PagePiece] = []
                     // (A hair above its own line, -0.9pt as in lo-eb12e7d4's 137pt picture: the
                     // line before it is not under the picture — Word sets it where it stood and
@@ -4480,6 +4483,7 @@ extension RichLayout {
             //   stands to its right (the second of two photos of a row,
             //   anchored 10pt left of the column, is drawn beside the
             //   first).
+            var pictureProbe: ((Double, Double) -> Double?)? = nil
             if theme.wordRules, resumeCursor == nil, _cells[i] == nil {
                 let column = _flowWidth(i)
                 let gap = _px(9)
@@ -4526,6 +4530,7 @@ extension RichLayout {
                     spans.removeAll()
                     return widest < em ? over.map(\.bottom).min() : nil
                 }
+                pictureProbe = { at, height in noRoom(at: at, height: height, pictureBands.filter { $0.owner != i }.map { (top: $0.top, bottom: $0.bottom, left: 0, right: column) }) }
                 var guardSteps = 0
                 // (Word tries the line where it first stood, then a step
                 // down at a time — its line less the grid's half of the
@@ -4562,8 +4567,15 @@ extension RichLayout {
                     // its table after it; ours set it under the box's top, the
                     // two drawn over each other. Word for Mac sets it there, as
                     // ours did.)
+                    // (From Word 2013's layout only the text of a multiple's line meets a picture, not its extra:
+                    // lab pwsplit, a picture's top at the text's foot leaves the line over it.)
+                    func textOnlyExtra(_ line: Double) -> Double {
+                        let st = document.paragraphs[i].style
+                        return RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) >= 15 && st.lineSpacing > 1.001
+                            && st.lineHeightPoints == nil ? line * (1 - 1 / st.lineSpacing) : 0
+                    }
                     let reach = RichTextTheme.wordWindowsPages
-                        ? (Self._lineBottoms(geometry(i).painter).first.map { $0 + (geometry(i).textTop - geometry(i).top) } ?? 0) : 0
+                        ? (Self._lineBottoms(geometry(i).painter).first.map { $0 + (geometry(i).textTop - geometry(i).top) - textOnlyExtra($0) } ?? 0) : 0
                     // (A list paragraph's whole first line meets the picture, and
                     // steps a line and its space before at a time, as Word does:
                     // zh-f2ca3070's heading, first at 285, stands at 376.7 under a
@@ -4574,8 +4586,7 @@ extension RichLayout {
                         // (Word 2010's mode: a list item whose later lines would reach a picture that leaves no room beside it
                         // goes under the picture whole, its first line clear of it or not: lab pic-wrap c14, a 509pt square
                         // picture, the item's first line 4pt above it, stands at the picture's foot with the lines after it.)
-                        let reachAll = RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) < 15
-                            ? max(firstHeight, Self._lineBottoms(geometry(i).painter).last ?? 0) : firstHeight
+                        let reachAll = firstHeight - textOnlyExtra(firstHeight)
                         while let below = noRoom(at: y + lead, height: reachAll, []), guardSteps < 20 {
                             y += max(1, ((below - y - lead) / step - 0.001).rounded(.up)) * step
                             guardSteps += 1
@@ -4649,7 +4660,14 @@ extension RichLayout {
                     // lo's c4c60fcb, a chart group anchored in an empty line above
                     // a text box's band, went to the next page.)
                     let ownsBand = tableBands.contains { $0.owner == i }
-                    let line = (lineBottoms.first.map { $0 + (ownsBand ? 0 : geometry(i).textTop - geometry(i).top) } ?? _heights[i]) - gridHalf
+                    let lineFull0 = (lineBottoms.first.map { $0 + (ownsBand ? 0 : geometry(i).textTop - geometry(i).top) } ?? _heights[i]) - gridHalf
+                    // (From Word 2013's layout only the text of a multiple's line meets a picture's band, not its extra: lab pwsplit, c15 top and bottom.)
+                    var textOnlyCut = 0.0
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, !ownsBand, (document.compatibilityMode ?? 12) >= 15, style.lineSpacing > 1.001,
+                       style.lineHeightPoints == nil, let first = lineBottoms.first, !document.paragraphs[i].text.isEmpty {
+                        textOnlyCut = first * (1 - 1 / style.lineSpacing)
+                    }
+                    let line = lineFull0
                     let yBeforeBands = y
                     let blankBeside = !stripBandTops.isEmpty && document.paragraphs[i].image == nil && _cells[i] == nil
                         && !document.paragraphs[i].text.contains { $0 != " " }
@@ -4658,8 +4676,11 @@ extension RichLayout {
                     // picture's foot plus its before, 0 to 18pt; sa1 c4f2b4bd's title stood 23pt too high.)
                     let ownBandPushes = theme.wordRules && RichTextTheme.wordWindowsPages && ownsBand && topPinnedOwners.contains(i) && _anchorsOnly(i, document)
                         && _cells[i] == nil && resumeCursor == nil
-                    while let band = tableBands.first(where: { ($0.owner != i || (ownBandPushes && abs($0.top - y) < 0.5)) && $0.top < y + line - 0.01 && $0.bottom > y + 0.01
-                        && !(blankBeside && stripBandTops.contains($0.top)) }), guardSteps < 40 {
+                    while let band = tableBands.first(where: { band in
+                        let reach = line - (textOnlyCut > 0 && pictureBands.contains(where: { $0.top == band.top && $0.bottom == band.bottom && $0.owner == band.owner }) ? textOnlyCut : 0)
+                        return (band.owner != i || (ownBandPushes && abs(band.top - y) < 0.5)) && band.top < y + reach - 0.01 && band.bottom > y + 0.01
+                        && !(blankBeside && stripBandTops.contains(band.top)) }), guardSteps < 40 {
+                        if textOnlyCut > 0 { RuleTrace.hit("word-multiple-line-meets-a-picture-by-its-text-only") }
                         // (In a column that is not the last, what meets a picture wrapped top and
                         // bottom that an earlier paragraph of text anchors in the column goes on in the
                         // next column, not under the picture: lab f43/g43 (Word for Windows,
@@ -5203,6 +5224,45 @@ extension RichLayout {
                     cursor = min(bottom, cursor + naturalRise)
                     naturalRise = 0
                     if cursor >= bottom - 0.01 { break }
+                }
+                // (A paragraph that meets a picture with no room beside it goes line by line, in Word's print
+                // (lab pwsplit, compat 14 and 15): the lines that stand clear of it stay over it, the first
+                // that meets it and all after it go to the picture's foot, the paragraph's flow unbroken. What
+                // counts of a line is its whole box in Word 2010's layout, its text alone (not a multiple's
+                // extra) from 2013's: a picture's top at the text's foot leaves the line over it.)
+                if let probe = pictureProbe, floatHold == nil, theme.wordRules, RichTextTheme.wordWindowsPages, frameReturn == nil, _columns == 1,
+                   _cells[i] == nil, document.paragraphs[i].image == nil,
+                   !document.paragraphs[i].text.isEmpty, _besideOwn(i, document.paragraphs[i], document) == nil {
+                    let g = geometry(i)
+                    let lift = i < _firstLineLift.count ? _firstLineLift[i] : 0
+                    let lines = Self._lineBottoms(g.painter).map { g.textTop + $0 + lift }
+                    let st = document.paragraphs[i].style
+                    let textOnly = (document.compatibilityMode ?? 12) >= 15 && st.lineSpacing > 1.001 && st.lineHeightPoints == nil
+                    var prev = g.textTop + lift
+                    var firstRemaining: Int? = nil
+                    for (k, c) in lines.enumerated() {
+                        defer { prev = c }
+                        if c <= cursor + 0.01 { continue }
+                        if firstRemaining == nil { firstRemaining = k }
+                        let h = c - prev
+                        let measure = textOnly ? h / st.lineSpacing : h
+                        let lineTop = y + (prev - cursor)
+                        guard probe(lineTop, measure) != nil else { continue }
+                        if k == firstRemaining { break }
+                        var back = lineTop, steps = 0
+                        while let below = probe(back, measure), steps < 20 { back = below; steps += 1 }
+                        // (One line left above the picture while the rest goes on to the next page is an orphan, which
+                        // widow control forbids: lab pwsplit2 foot r2, the three-line item goes whole to page 2.)
+                        if st.widowControl, !document.widowControlSuspended, resumeCursor == nil, k - (firstRemaining ?? k) == 1, lines.count >= 3,
+                           back + (lines[lines.count - 1] - lines[k - 1]) > contentH + 0.01 {
+                            RuleTrace.hit("word-orphan-line-above-a-picture-takes-its-paragraph-to-the-next-page")
+                            newPage()
+                            break
+                        }
+                        RuleTrace.hit("word-paragraph-parts-around-a-picture")
+                        floatHold = (lineTop + 0.05, back)
+                        break
+                    }
                 }
                 let available = (floatHold?.limit ?? contentH) - y
                 let rest = bottom - cursor
