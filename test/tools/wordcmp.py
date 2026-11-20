@@ -89,8 +89,12 @@ def engine_out():
 
 
 def file_key(p):
-    st = os.stat(p)
-    return hashlib.sha1(("%s|%d|%d" % (os.path.realpath(p), st.st_size, int(st.st_mtime))).encode()).hexdigest()[:12]
+    # key on the binary's CONTENT: path+mtime let a rebuilt or copied-with-mtime binary read an old render
+    h = hashlib.sha1()
+    with open(p, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 22), b""):
+            h.update(chunk)
+    return h.hexdigest()[:12]
 
 
 def doc_key(p):
