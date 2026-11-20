@@ -3761,6 +3761,36 @@ enum DocxFormat {
             currentCell = nil
             pendingPageBreak = false
         }
+        // (A picture wrapped top and bottom whose position is "centre" or "bottom" of the margins' box, or of the page, is a
+        // fixed band at that place: text before it keeps its lines, and the lines that would meet it go under it. Lab-free:
+        // sa1 afbaab24's 136.5pt picture, centred in the margins of an A4 page, stands 354.7 to 491.2 in Word's print and
+        // the text after it at 506.6; set in the line, ours stood it at 323.4 and the text at 484.9. Resolved here to an
+        // offset from the margin's top (or the page's), where the section is known, so the fixed-band rules read it.)
+        if let last = pageSetup {
+            var sectionEnds: [Int] = []
+            for (i, q) in paragraphs.enumerated() where q.cell == nil && q.style.sectionPage != nil { sectionEnds.append(i) }
+            func setup(_ i: Int) -> PageSetup { sectionEnds.first { $0 >= i }.flatMap { paragraphs[$0].style.sectionPage } ?? last }
+            func resolved(_ image: ImageAttachment, _ s: PageSetup) -> ImageAttachment? {
+                guard var f = image.float, f.takesRoom, !f.wraps, f.horizontalFrom != "character",
+                      f.verticalAlign == "center" || f.verticalAlign == "bottom", f.verticalFrom == "margin" || f.verticalFrom == "page",
+                      image.height > 0 else { return nil }
+                let whole = image.height + f.effectBottom
+                let span = f.verticalFrom == "page" ? s.height : s.height - s.marginTop - s.marginBottom
+                guard span > whole else { return nil }
+                RuleTrace.hit("top-and-bottom-picture-centred-in-the-margins-is-a-fixed-band")
+                f.y = f.verticalAlign == "center" ? (span - whole) / 2 : span - whole
+                f.verticalAlign = nil
+                Self._bandPage(&f)
+                var out = image
+                out.float = f
+                return out
+            }
+            for i in paragraphs.indices where paragraphs[i].cell == nil {
+                let s = setup(i)
+                if let image = paragraphs[i].image, let r = resolved(image, s) { paragraphs[i].image = r }
+                for (key, image) in paragraphs[i].inlineImages { if let r = resolved(image, s) { paragraphs[i].inlineImages[key] = r } }
+            }
+        }
         var document = RichDocument(paragraphs: paragraphs)
         document.headerFooters = headerFooters
         document.footnotes = footnoteParagraphs
