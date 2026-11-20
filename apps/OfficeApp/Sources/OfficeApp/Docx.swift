@@ -3710,7 +3710,7 @@ enum DocxFormat {
                 currentCell = nil
                 pendingPageBreak = false
                 for child in note.children { walkBlock(child, indent: 0) }
-                if type == "separator" { footnoteSeparator = paragraphs } else { footnoteParagraphs[id] = paragraphs }
+                if type == "separator" { Self.sizeSeparatorByItsRun(note, &paragraphs); footnoteSeparator = paragraphs } else { footnoteParagraphs[id] = paragraphs }
             }
             notes.currentNote = nil
             (notes.seenFootnotes, notes.seenEndnotes) = saved
@@ -3750,7 +3750,7 @@ enum DocxFormat {
                 currentCell = nil
                 pendingPageBreak = false
                 for child in note.children { walkBlock(child, indent: 0) }
-                if type == "separator" { endnoteSeparator = paragraphs } else if type == "continuationSeparator" { endnoteContinuation = paragraphs } else { endnoteParagraphs[id] = paragraphs }
+                if type == "separator" { Self.sizeSeparatorByItsRun(note, &paragraphs); endnoteSeparator = paragraphs } else if type == "continuationSeparator" { endnoteContinuation = paragraphs } else { endnoteParagraphs[id] = paragraphs }
             }
             notes.currentNoteLabel = nil
             (notes.seenFootnotes, notes.seenEndnotes) = saved
@@ -4486,6 +4486,21 @@ enum DocxFormat {
         case "caption": return "Caption"
         case "code", "html preformatted", "htmlpreformatted", "source code", "sourcecode", "plain text", "plaintext": return "Code"
         default: return nil
+        }
+    }
+
+    /// A separator note's line is sized by the separator character it holds, in that run's own face and size: Word sets the line
+    /// 13.47 pt for a bare `w:separator` run (Normal 11 pt) under a 6 pt paragraph mark, not by the mark's 7.44 (sa1 3a00de51).
+    /// The importer keeps no character for the run, so the mark's size is dropped where the run sets none of its own.
+    static func sizeSeparatorByItsRun(_ note: XNode, _ paragraphs: inout [RichParagraph]) {
+        let sources = note.all("w:p")
+        guard sources.count == paragraphs.count else { return }
+        for (k, src) in sources.enumerated() {
+            let runs = src.all("w:r")
+            guard let run = runs.first(where: { $0.first("w:separator") != nil || $0.first("w:continuationSeparator") != nil }),
+                  run.first("w:rPr")?.first("w:sz") == nil, paragraphs[k].text.isEmpty else { continue }
+            var st = paragraphs[k].style; st.mark = nil
+            paragraphs[k] = RichParagraph(text: "", style: st)
         }
     }
 
