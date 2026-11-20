@@ -1804,6 +1804,12 @@ public final class RichLayout {
     /// Each cell paragraph's narrowest and widest settings (px), for
     /// `_autofit`.
     var _cellMins: [Int: (min: Double, max: Double)] = [:]
+    /// Compat 14 and under: how far past its margin a paragraph's right or centre tab stop lies (px) as the clamped pass saw it,
+    /// and the width the second, unclamped pass is given beyond the margin (nil in the first).
+    var _pastNeed: [Int: Double] = [:]
+    var _pastWiden: Double? = nil
+    /// The same for an explicit LEFT stop past the margin, which the clamped pass wraps (so no one-line test).
+    var _pastLeft: [Int: Double] = [:]
     struct ListSig: Equatable {
         var kind: ListKind?
         var level: Int
