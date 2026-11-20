@@ -74,6 +74,26 @@ final class XNode {
     }
     var has: (String) -> Bool { { self.first($0) != nil } }
 
+    /// A table nested more than 63 deep is cut off (Word's own limit is that many levels): every later
+    /// pass walks the tree by recursion, one native frame or more per level, and deep-table-cell (5000
+    /// levels) overflowed the web build's small stack. Walked with a list, not by recursion.
+    private static func _capTableNesting(_ root: XNode) {
+        var pending: [(XNode, Int)] = [(root, 0)]
+        while let (node, depth) = pending.popLast() {
+            let isTable = node.name == "w:tbl" || node.name == "tbl"
+            if isTable && depth >= 63 {
+                // (Its place in the cell is an empty paragraph: a cell must end in one.)
+                node.name = "w:p"; node.attrs = [:]
+                // (Taken apart with a list too: freeing a 5000-deep chain recurses once per level.)
+                var dismantle = node.children
+                node.children = []
+                while let n = dismantle.popLast() { dismantle.append(contentsOf: n.children); n.children = [] }
+                continue
+            }
+            for c in node.children { pending.append((c, isTable ? depth + 1 : depth)) }
+        }
+    }
+
     /// The system's parser, with prefixes kept ("w:p") — which is what the
     /// OOXML parts use consistently and saves resolving namespaces. What
     /// `parse` falls back on.
@@ -90,7 +110,7 @@ final class XNode {
 
     static func parseSystem(_ data: Data) -> XNode? {
         let root = _parseSystemRaw(data)
-        if let root { _prefixDefaultMain(root, false) }
+        if let root { _capTableNesting(root); _prefixDefaultMain(root, false) }
         return root
     }
 
@@ -128,7 +148,7 @@ final class XNode {
         #else
         if _systemOnly { return parseSystem(data) }
         let bytes = [UInt8](data)
-        if _plainUTF8(bytes), let root = MiniXML.parse(bytes) { _prefixDefaultMain(root, false); return _strictMeasures(root, data) }
+        if _plainUTF8(bytes), let root = MiniXML.parse(bytes) { _capTableNesting(root); _prefixDefaultMain(root, false); return _strictMeasures(root, data) }
         return parseSystem(data).map { _strictMeasures($0, data) }
         #endif
     }
