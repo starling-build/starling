@@ -2176,7 +2176,11 @@ extension RichLayout {
                 // over the banner in Word's print, and the body starts at the banner's foot, 108.1, not a line lower, 193.4.)
                 let lineHoldsPicture = theme.wordRules && RichTextTheme.wordWindowsPages && hp.inlineImages.inOrder.contains(where: { $0.float == nil })
                 let line = wrapped && !lineHoldsPicture && j < header.layout._heights.count ? header.layout._heights[j] : 0
-                end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + _px(lift) + _px(image.height) - _px(wrapped ? f.wrapBottomCut : 0) + _px(f.distanceBottom) + line)
+                var below = _px(wrapped ? f.y : lift) + _px(image.height * (wrapped && f.wrapsTight ? f.wrapBottomShare : 1)) + _px(f.distanceBottom)
+                // (The empty line moves down whole lines until it clears the picture's wrap foot, so its top is a multiple of the line height:
+                // sa1 2303e6f9 lab hdrpoly, Word's body top steps by 13.42pt with the picture's height and its polygon's foot, never between.)
+                if wrapped, line > 0 { below = max(0, (below / line).rounded(.up)) * line }  // (the wrap foot is where the picture really stands, not where it is clamped)
+                end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + below + line)
             }
             // (A picture set against the PAGE's top that the text goes over and under ends the header at its foot plus its
             // bottom distance: xa gv-57041316b7, a 49.9pt logo at 49.1pt with 226.8pt below it, the title at 325.7 in Word's
