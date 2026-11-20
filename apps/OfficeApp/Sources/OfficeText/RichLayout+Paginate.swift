@@ -5189,13 +5189,15 @@ extension RichLayout {
                 // line, not under the offset. sa2 299ec051, tblpY 438 twips, seven empty lines and "Fuente" after it:
                 // Word's print has the empties 25.4pt apart from the margin and "Fuente" at 244.3, ours 266.3.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, !tf.chained, i > 0, _cells[i - 1]?.table == tf.table, _cells[i] == nil,
-                   tf.page == page, page == 0, frameReturn == nil, !_pageBreak[i], bottom - top > tf.down + 0.01, tf.y < 0.01,
+                   tf.page == page, frameReturn == nil, !_pageBreak[i], bottom - top > tf.down + 0.01, tf.y < 0.01,
                    // (A table with room beside it: one as wide as the text sets the lines under it.)
                    let across = _columnWidths[tf.table]?.reduce(0, +), across < _flowWidth(i) - _px(40),
                    { () -> Bool in
                        var k = i - 1
                        while k > 0, _cells[k - 1]?.table == tf.table { k -= 1 }
-                       return k == 0
+                       // (On a later page too: the anchor stands at the page's top where the offset is measured from. sa2 bf81a10c: the caption
+                       // "4. Grado..." with its clearing break, 57pt against a 52.6pt offset, stood in the room beside its table, 52pt low.)
+                       return k == 0 || page > 0
                    }() {
                     RuleTrace.hit("word-first-block-floating-table-anchor-stands-at-the-top")
                     y = tf.y
