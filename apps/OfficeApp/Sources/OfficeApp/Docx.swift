@@ -2632,7 +2632,17 @@ enum DocxFormat {
                 let styledBorders = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap { tableBorders[$0] }
                 let cells = unwrapped(node, "w:tr").flatMap { unwrapped($0, "w:tc") }
                 let lostEdges = _lostCellEdges(rows: unwrapped(node, "w:tr").map { unwrapped($0, "w:tc") })
-                let cellSaid = cells.compactMap { _borders($0.first("w:tcPr"), "w:tcBorders", lost: lostEdges[ObjectIdentifier($0)] ?? []) }
+                // A cell that only switches its left/right sides off says nothing about
+                // the horizontal rules, which the table's own or its style's top and
+                // bottom borders still draw (sa2 fee2a9e5: Light Shading's 1pt top rule
+                // above rows whose cells name left/right none; Word's print has it).
+                let cellSaid = cells.compactMap { c -> _Borders? in
+                    guard let b = _borders(c.first("w:tcPr"), "w:tcBorders", lost: lostEdges[ObjectIdentifier(c)] ?? []) else { return nil }
+                    if !b.on, RichTextTheme.wordWindowsPages, styledBorders?.on == true || _borders(node.first("w:tblPr"), "w:tblBorders")?.on == true,
+                       let tb = c.first("w:tcPr")?.first("w:tcBorders"),
+                       !tb.children.contains(where: { $0.name == "w:top" || $0.name == "w:bottom" }) { return nil }
+                    return b
+                }
                 var cellBorders: _Borders? = nil
                 if cellSaid.count * 2 >= cells.count, !cells.isEmpty {
                     let on = cellSaid.filter(\.on)
@@ -3164,6 +3174,15 @@ enum DocxFormat {
                         }()
                         var ownEdges: BorderEdges? = nil
                         if var own = _edges(sidesPr, "w:tcBorders") {
+                            // A cell's "none" on the table's outer top or bottom does not
+                            // take away the rule the table's style draws there: Word's print
+                            // of sa2 fee2a9e5 (Light Shading, every cell "none" on all four
+                            // sides in the header row) rules the table 1pt top and bottom.
+                            if RichTextTheme.wordWindowsPages, !style.bordersFromCells, style.borders {
+                                let te = style.edges ?? BorderEdges()
+                                if r == 0, own.top == false, te.top ?? style.borders { own.top = nil }
+                                if r == rowCount - 1, own.bottom == false, te.bottom ?? style.borders { own.bottom = nil }
+                            }
                             own.insideH = nil; own.insideV = nil
                             if style.bordersFromCells {
                                 // Every stated side stays: the writer puts
