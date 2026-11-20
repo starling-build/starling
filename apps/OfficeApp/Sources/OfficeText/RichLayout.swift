@@ -1644,6 +1644,8 @@ public final class RichLayout {
     var _tableMerged: [String: [Int]] = [:]       // each table's paragraphs in cells merged down
     public var cellPadding: Double = 4   // px, inside a cell
 
+    /// Whether a family sets curly quotes at widths of its own (asked once per family: `_span` asked it for every character).
+    var _narrowQuoteMemo: [String: Bool] = [:]
     var _painters: [TextPainter?] = []
     var _textLeft: [Double] = []
     var _textWidth: [Double] = []
