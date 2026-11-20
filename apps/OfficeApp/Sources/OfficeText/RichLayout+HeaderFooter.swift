@@ -2140,10 +2140,20 @@ extension RichLayout {
         var end: Double? = nil
         for (j, hp) in header.document.paragraphs.enumerated() where hp.cell == nil && j < header.layout._tops.count {
             for image in hp.inlineImages.inOrder + (hp.image.map { [$0] } ?? []) {
-                guard let f = image.float, f.takesRoom || f.bandsPage, !f.wraps, f.verticalFrom == "paragraph", f.verticalAlign == nil,
+                // (A tight- or square-wrapped one as wide as the text leaves no room beside it, so it holds the body
+                // under it as well: sa1 2303e6f9, a 594.5pt picture on a 595pt page, the body at 144.7 in Word's print.)
+                let fillsText = theme.wordRules && RichTextTheme.wordWindowsPages
+                    && image.width >= setup.width - setup.marginLeft - setup.marginRight
+                    && image.float?.horizontalFrom == "page"
+                guard let f = image.float, f.takesRoom || f.bandsPage || (fillsText && f.wraps), !f.wraps || fillsText, f.verticalFrom == "paragraph", f.verticalAlign == nil,
                       f.y >= 0 || (theme.wordRules && f.y + image.height > 0), image.height > 0 else { continue }
                 RuleTrace.hit("header-picture-from-its-paragraph-ends-the-header")
-                end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + _px(f.y) + _px(image.height) + _px(f.distanceBottom))
+                // (A wrapped one pushes the paragraph's own line under it, and Word does not lift it above the paragraph: sa1 2303e6f9,
+                // the picture 0 to 136pt, the empty 11pt line baseline at 144.7, the body from 148.4.)
+                let wrapped = f.wraps && fillsText
+                let lift = wrapped ? max(0, f.y) : f.y
+                let line = wrapped && j < header.layout._heights.count ? header.layout._heights[j] : 0
+                end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + _px(lift) + _px(image.height) + _px(f.distanceBottom) + line)
             }
             // (A picture set against the PAGE's top that the text goes over and under ends the header at its foot plus its
             // bottom distance: xa gv-57041316b7, a 49.9pt logo at 49.1pt with 226.8pt below it, the title at 325.7 in Word's
