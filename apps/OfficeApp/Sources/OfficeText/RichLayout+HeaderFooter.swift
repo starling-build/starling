@@ -2176,7 +2176,7 @@ extension RichLayout {
                 // over the banner in Word's print, and the body starts at the banner's foot, 108.1, not a line lower, 193.4.)
                 let lineHoldsPicture = theme.wordRules && RichTextTheme.wordWindowsPages && hp.inlineImages.inOrder.contains(where: { $0.float == nil })
                 let line = wrapped && !lineHoldsPicture && j < header.layout._heights.count ? header.layout._heights[j] : 0
-                end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + _px(lift) + _px(image.height) + _px(f.distanceBottom) + line)
+                end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + _px(lift) + _px(image.height) - _px(wrapped ? f.wrapBottomCut : 0) + _px(f.distanceBottom) + line)
             }
             // (A picture set against the PAGE's top that the text goes over and under ends the header at its foot plus its
             // bottom distance: xa gv-57041316b7, a 49.9pt logo at 49.1pt with 226.8pt below it, the title at 325.7 in Word's

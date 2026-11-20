@@ -392,6 +392,9 @@ public struct ImageFloat: Hashable, Codable, Sendable {
     /// A tight wrap's polygon that starts narrow at the top and reaches its full width within the
     /// first few points (points): the lines over that stretch keep the full width.
     public var wrapTopSkip = 0.0
+    /// A tight wrap's polygon that stops short of the picture's bottom (points): a header picture that pushes the body
+    /// down ends this much above its box (sa2 1a0edf9b: 21441 of 21600 on a 136pt picture).
+    public var wrapBottomCut = 0.0
     /// The wrap is tight or through (not square): lab anch.
     public var wrapsTight = false
     /// A tight wrap's polygon reaches this share of the picture's width at its right (1 when it fills the box).
