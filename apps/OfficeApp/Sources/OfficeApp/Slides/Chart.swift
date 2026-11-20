@@ -659,6 +659,8 @@ struct Chart: Equatable {
         var line: Color? = nil
         var lineWidth = 0.75
         var leaders = false
+        /// No `showLeaderLines` element at all (Word then still draws a pie's leaders for labels it moved apart).
+        var leadersUnset = false
         /// A pie-of-pie bar's labels stand with their right edge here (Word: 42 pt past the bar).
         var anchorRight: Double? = nil
         var leaderColor: Color? = nil
@@ -1903,6 +1905,7 @@ enum ChartXML {
             }
             l.fitted = l.outside && !ends
             l.leaders = on(d, "c:showLeaderLines")
+            l.leadersUnset = d.first("c:showLeaderLines") == nil
             if let ln = (d.first("c:leaderLines") ?? d.descendant("c15:leaderLines"))?.first("c:spPr")?.first("a:ln") {
                 if let f = ln.first("a:solidFill") { l.leaderColor = color(f) }
                 l.leaderWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
@@ -7130,7 +7133,8 @@ extension ChartPainter {
                            slices: [(index: Int, mid: Double, value: Double, color: Color)],
                            centre: Offset, rx: Double, ry: Double, inner: Double, k: Double, theme: DeckTheme, ink: Color,
                            point: ((Double, Double) -> Offset)? = nil, movedEdge: ((Double) -> Offset)? = nil,
-                           pulled: ((Int) -> Offset)? = nil, probe: Bool = false) -> Bool {
+                           pulled: ((Int) -> Offset)? = nil, probe: Bool = false,
+                           collect: PieSpread? = nil, spread: [Int: Offset] = [:]) -> Bool {
         // (`probe`: nothing painted; whether any label would stand outside its slice is all that comes back.)
         var anyOutside = false
         // (A slice pulled out: its points stand where the pull puts them, set as each slice's turn comes.)
@@ -7143,6 +7147,16 @@ extension ChartPainter {
         }
         let sum = slices.reduce(0) { $0 + $1.value }
         guard sum > 0 else { return false }
+        // (Small slices' best-fit labels that would stand on one another: Word's print of sa2 db23237f's pies moves them apart, in a row
+        // above or below the pie, or a column beside it, each on a leader line from its slice. Laid out once without painting, spread, then
+        // painted where they come to.)
+        var spreadAt = spread
+        if !probe, collect == nil, point == nil, l.fitted, l.outside, !c.onSlide, !c.onSheet, !c.chartex {
+            let rec = PieSpread()
+            _ = _pieLabels(c, l, canvas, frame: frame, slices: slices, centre: centre, rx: rx, ry: ry, inner: inner, k: k, theme: theme, ink: ink,
+                           point: point, movedEdge: movedEdge, pulled: pulled, probe: false, collect: rec)
+            spreadAt = Self._spreadPieLabels(rec.boxes, frame: frame, k: k)
+        }
         #if !os(WASI)
         if Self._pieLog, let point {
             // (STARLING_PIE_LOG: the top face's rim, a point a degree, from the frame's top left.)
@@ -7671,12 +7685,19 @@ extension ChartPainter {
                     at = Offset(at.dx < centre.dx ? hit.left - gap - tw / 2 : hit.right + gap + tw / 2, at.dy)
                 }
             }
+            var spreadMoved = false
+            if let o = spreadAt[s.index] { at = o; hugsRim = false; spreadMoved = true }
+            if let collect {
+                if hugsRim { collect.boxes.append((s.index, s.mid, Rect.fromLTWH(at.dx - tp.width / 2, at.dy - tp.height / 2, tp.width, tp.height))) }
+                tp.dispose()
+                continue
+            }
             taken.append(Rect.fromLTWH(at.dx - tp.width / 2, at.dy - tp.height / 2, tp.width, tp.height))
             let box = Rect.fromLTWH(at.dx - w / 2, at.dy - h / 2, w, h)
             let leftOut = l.outside && !fitsInside
             // The leader: from the slice's outer edge to the box's nearest
             // point, where the label has left its slice.
-            if l.leaders, moved != nil || leftOut {
+            if l.leaders || (spreadMoved && l.leadersUnset), moved != nil || leftOut || spreadMoved {
                 // (A doughnut's leader ends in the middle of its ring: tdf161607's, Excel's print.)
                 let from = on(s.mid, c.type == .doughnut ? (1 + Double(c.holeSize) / 100) / 2 : 1)
                 let to = Offset(min(max(from.dx, box.left), box.right), min(max(from.dy, box.top), box.bottom))
@@ -7711,6 +7732,59 @@ extension ChartPainter {
             tp.dispose()
         }
         return anyOutside
+    }
+}
+
+/// The label boxes a flat pie's best-fit labels come to, in slice order, for `Chart._spreadPieLabels`.
+final class PieSpread {
+    var boxes: [(index: Int, mid: Double, box: Rect)] = []
+}
+
+extension ChartPainter {
+    /// Where overlapping best-fit labels of small slices stand once moved apart: the boxes that overlap form a group; a group at the top or
+    /// bottom of the pie goes out along a row (its boxes side by side, 4 pt apart, centred on where they were, raised 14 pt away from the pie),
+    /// one at its sides along a column. Returns each moved label's new centre.
+    static func _spreadPieLabels(_ boxes: [(index: Int, mid: Double, box: Rect)], frame: Rect, k: Double) -> [Int: Offset] {
+        let n = boxes.count
+        guard n > 1 else { return [:] }
+        var group = Array(0 ..< n)
+        func root(_ i: Int) -> Int { var r = i; while group[r] != r { r = group[r] }; return r }
+        for i in 0 ..< n {
+            for j in (i + 1) ..< n {
+                let a = boxes[i].box, b = boxes[j].box
+                if a.left + 1 * k < b.right && b.left + 1 * k < a.right && a.top + 1 * k < b.bottom && b.top + 1 * k < a.bottom {
+                    group[root(i)] = root(j)
+                }
+            }
+        }
+        var out: [Int: Offset] = [:]
+        for r in Set((0 ..< n).map(root)) {
+            let m = (0 ..< n).filter { root($0) == r }
+            guard m.count > 1 else { continue }
+            let sx = m.reduce(0.0) { $0 + cos(boxes[$1].mid) }, sy = m.reduce(0.0) { $0 + sin(boxes[$1].mid) }
+            let row = abs(sy) >= abs(sx)
+            let gap = 4 * k, raise = 14 * k
+            let order = m.sorted { row ? boxes[$0].box.center.dx < boxes[$1].box.center.dx : boxes[$0].box.center.dy < boxes[$1].box.center.dy }
+            let size: (Int) -> Double = { row ? boxes[$0].box.width : boxes[$0].box.height }
+            let total = order.reduce(0.0) { $0 + size($1) } + gap * Double(order.count - 1)
+            let mean = order.reduce(0.0) { $0 + (row ? boxes[$1].box.center.dx : boxes[$1].box.center.dy) } / Double(order.count)
+            let lo = row ? frame.left : frame.top, hi = row ? frame.right : frame.bottom
+            var start = min(max(mean - total / 2, lo), max(lo, hi - total))
+            for i in order {
+                let b = boxes[i].box
+                var cx = b.center.dx, cy = b.center.dy
+                if row {
+                    cx = start + b.width / 2
+                    cy = min(max(cy + (sy < 0 ? -raise : raise), frame.top + b.height / 2), frame.bottom - b.height / 2)
+                } else {
+                    cy = start + b.height / 2
+                    cx = min(max(cx + (sx < 0 ? -raise : raise), frame.left + b.width / 2), frame.right - b.width / 2)
+                }
+                start += size(i) + gap
+                out[boxes[i].index] = Offset(cx, cy)
+            }
+        }
+        return out
     }
 }
 
