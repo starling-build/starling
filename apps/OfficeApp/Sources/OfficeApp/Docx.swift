@@ -2957,6 +2957,18 @@ enum DocxFormat {
                 let gridCols = node.first("w:tblGrid")?.all("w:gridCol").compactMap { Double($0["w:w"] ?? "") } ?? []
                 let equalGrid = gridCols.count > 1 && (gridCols.max() ?? 0) - (gridCols.min() ?? 0) <= 2
                 if !cells.isEmpty, widthless == cells.count, style.width == nil, !style.fixedLayout, style.widthPercent == nil || equalGrid { style.contentFit = true }
+                // (A gridless table 100% wide whose cells state no width is fitted to its content, the room wide: lab pctfit T1, T4,
+                // T7, T10, T13, T15, T17 against Word's print. One whose cells all state twips takes those as a floor and is scaled: below.)
+                if !cells.isEmpty, !style.contentFit, gridCols.isEmpty, style.widthPercent == 100, widthless == cells.count, !style.fixedLayout, RichTextTheme.wordWindowsPages { style.contentFit = true }
+                if !cells.isEmpty, gridCols.isEmpty, style.widthPercent == 100, !style.fixedLayout, RichTextTheme.wordWindowsPages {
+                    let rows = unwrapped(node, "w:tr")
+                    let counts = Set(rows.map { unwrapped($0, "w:tc").count })
+                    let plain = cells.allSatisfy { tc in
+                        let pr = tc.first("w:tcPr")
+                        return pr?.first("w:tcW")?["w:type"] == "dxa" && pr?.first("w:gridSpan") == nil && pr?.first("w:vMerge") == nil
+                    }
+                    if plain, counts.count == 1, rows.allSatisfy({ $0.first("w:trPr")?.first("w:gridBefore") == nil }) { style.twipScale = true }
+                }
                 // (A table of a width in twips over an equal-split grid is content-fitted too, to that width: lab atcol1.)
                 if !cells.isEmpty, widthless == cells.count, style.width != nil, style.widthPercent == nil, equalGrid, !style.fixedLayout { style.contentFit = true }
                 // (… and one whose stated cells are whole columns of one

@@ -1159,6 +1159,8 @@ extension RichLayout {
                 // at the print's scale, which the scale's 4/3 times 15
                 // makes 1269.9999…, and bug57031's autofit column, exactly
                 // as wide as "Transform", lost a pixel and wrapped it.)
+                // (A twip-celled 100% table keeps its stated widths here: _autofit scales them to the room, after the narrowest content; lab pctfit.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, document.tableStyles[c.table]?.twipScale == true { scale = 1 }
                 widths[c.table] = pts.map { (_px($0) * scale + 0.001).rounded(.down) }
                 // (An autofit table of no stated width whose grid outgrows the room is
                 // shrunk by each column's share of what it has over its narrowest —
@@ -1222,6 +1224,11 @@ extension RichLayout {
                 var room = width
                 if theme.wordRules, let pct = document.tableStyles[c.table]?.widthPercent, pct > 0, pct < 100 { room = width * pct / 100 }
                 widths[c.table] = Array(repeating: (room / Double(cols)).rounded(.down), count: cols)
+                // (Cells of no width in a gridless 100% table are fitted to their content: lab pctfit T1, T4, T7, T10, T13, T15, T17.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, _columnPreview[c.table] == nil, !_nestedInFixedTable, let ts = document.tableStyles[c.table],
+                   ts.contentFit, ts.widthPercent == 100, !ts.fixedLayout, (ts.cellSpacing ?? 0) == 0, let base = widths[c.table] {
+                    widths[c.table] = _autofit(c.table, base, document)
+                }
                 // (Its cells' shares speak for it all the same: sa2 be63fe36's form tables have no grid.)
                 if let ts = document.tableStyles[c.table], !ts.fixedLayout, (ts.cellSpacing ?? 0) == 0, _columnPreview[c.table] == nil, !_nestedInFixedTable,
                    let out = _pctOverHundred(c.table, count: cols, ts: ts, width: width, document: document) { widths[c.table] = out }
@@ -1733,6 +1740,21 @@ extension RichLayout {
             } else {
                 at[key] = cells.count
                 cells.append(Cell(column: c.column, span: c.span, min: w, whole: wWhole, max: widest, picture: picture))
+            }
+        }
+        // (A gridless 100% table whose cells state twips only: each column starts at the larger of its stated width and its narrowest
+        // content, and all are scaled by one factor to the room; lab pctfit T2, T3, T5, T6, T8, T9, T11, T12, T14, T16, T18 against Word's
+        // print, within 0.3 pt. Only the narrowest content counts, never the widest.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, document.tableStyles[table]?.twipScale == true, _nestedCap == nil, !cells.isEmpty,
+           !cells.contains(where: { $0.span != 1 || $0.picture }) {
+            var floor = Array(repeating: 0.0, count: base.count)
+            for c in cells { floor[c.column] = max(floor[c.column], c.min) }
+            let start = zip(base, floor).map { max($0, $1) }
+            let room = _contentFitRoom(table, base, document, ins.left + ins.right)
+            let sum = start.reduce(0, +)
+            if sum > 0, room > 0 {
+                RuleTrace.hit("pct-twip-cells-scaled-from-narrowest")
+                return start.map { ($0 * room / sum + 0.001).rounded(.down) }
             }
         }
         // A table that states no width, nor any of its cells, is fitted
