@@ -1716,6 +1716,12 @@ public final class RichLayout {
     /// that go on to the next page are set across it (`_capPassing`).
     var _bandCap: [Int: Double] = [:]
     var _capPassing = false
+    /// A paragraph whose beside-picture band comes from a picture anchored more than six paragraphs
+    /// above it: the anchor. `_besideDrop` holds those that fell on another page than the picture's
+    /// (the pass after pagination), which stand clear of it.
+    var _besideFar: [Int: Int] = [:]
+    var _besideDrop: Set<Int> = []
+    var _farPassing = false
     /// A box the text keeps above and below, set from the top of the part of
     /// its paragraph its anchor's line is in, in the paragraph's own pixels
     /// (`_clearPassing`): in several columns that is known only once the

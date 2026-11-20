@@ -5295,7 +5295,10 @@ extension RichLayout {
                               // parts after its first in Word's print.)
                               !(RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) < 15
                                 && document.paragraphs[i].keptTable?.hasPrefix("kc") == true) {
-                        if all.count - 1 - last == 1 { keep -= 1 }
+                        let besideStripC14 = RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) < 15 && first == 0
+                            && last < all.count - 1 && document.paragraphs[i].image == nil && document.paragraphs[i].cell == nil
+                            && (_besideFar[i] != nil || _besideOwn(i, document.paragraphs[i], document) != nil)
+                        if all.count - 1 - last == 1, !(besideStripC14 && keep == 1) { keep -= 1 }
                         // (An orphan only where lines go on: the whole of
                         // a one-line paragraph fits, though its space
                         // after does not — bug59058's thirteenth empty
@@ -5304,7 +5307,13 @@ extension RichLayout {
                         // picture's paragraph, whose cuts are its empty
                         // line's and not the picture's: bug57031's 360pt
                         // chart then started at page 1's foot.)
-                        if cursor <= top + 0.01, keep < 2, last < all.count - 1 || document.paragraphs[i].image != nil { keep = 0 }
+                        // (Before Word's 2013 layout a paragraph whose first line stands beside a picture's strip at the
+                        // foot parts after that line: no orphan control there. lab6883, compat 14: one line at
+                        // page 1's foot, in the strip, whatever the wrapping and the widow setting; at compat 15 the
+                        // whole paragraph goes on.)
+                        let aloneBesideStrip = besideStripC14 && keep == 1
+                        if aloneBesideStrip { RuleTrace.hit("word-compat14-orphan-line-beside-a-picture-strip-stays-at-the-foot") }
+                        else if cursor <= top + 0.01, keep < 2, last < all.count - 1 || document.paragraphs[i].image != nil { keep = 0 }
                     }
                     // (Nor does a page end with a line its automatic hyphenation parted a word at, in Word for
                     // Windows: lab `pf` (lo-000463df's styles, an 8-line paragraph whose lines 2 and 5 end "…ti-")

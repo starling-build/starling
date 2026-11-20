@@ -612,6 +612,31 @@ extension RichLayout {
                 ensureLaidOut(document)
             }
         }
+        // (A picture reaches the paragraphs under it from further than six paragraphs above, when it is
+        // tall; one of them that falls on the next page, a widow's or an orphan's move, stands clear of
+        // it: lab6883 compat 15, widow control on, the whole paragraph goes to page 2 and starts at the margin.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, pageSetup != nil, !_farPassing, !_besideFar.isEmpty {
+            _farPassing = true
+            defer { _farPassing = false }
+            for _ in 0 ..< 3 {
+                var changes: [RichChange] = []
+                for (i, k) in _besideFar where !_besideDrop.contains(i) && i < _pieceStart.count && k < _pieceStart.count {
+                    func firstPage(_ n: Int) -> Int? {
+                        let end = n + 1 < _pieceStart.count ? _pieceStart[n + 1] : _allPieces.count
+                        guard _pieceStart[n] < min(end, _allPieces.count) else { return nil }
+                        return _allPieces[_pieceStart[n] ..< min(end, _allPieces.count)].first(where: { !$0.repeated })?.page
+                    }
+                    if let a = firstPage(k), let b = firstPage(i), a != b {
+                        _besideDrop.insert(i)
+                        changes.append(.changed(i))
+                    }
+                }
+                if changes.isEmpty { break }
+                RuleTrace.hit("word-picture-far-above-does-not-narrow-a-paragraph-on-another-page")
+                apply(changes, paragraphCount: document.paragraphs.count)
+                ensureLaidOut(document)
+            }
+        }
         // (A paragraph that parts at a page's foot is held in by the box beside it on its first page
         // only: the lines that go on are set across the page, in Word's print — lo
         // tdf154703_framePrWrapSpacing's page 2 opens "happening of course. On each round-trip, you
