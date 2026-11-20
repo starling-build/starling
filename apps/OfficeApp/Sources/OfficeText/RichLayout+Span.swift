@@ -4535,7 +4535,7 @@ extension RichLayout {
                 // 1.15 under a 16pt bold Wingdings bullet: items 19.35pt apart, where the bullet's whole line at the multiple was 20.4
                 // (dx2 it df984aa4).)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil,
-                   p.style.lineSpacing > 1.001, leadChar.fontFamily?.lowercased() == "wingdings", let px = style.fontSize, px > 0.5,
+                   p.style.lineSpacing > 1.001, ["wingdings", "symbol"].contains(leadChar.fontFamily?.lowercased() ?? ""), let px = style.fontSize, px > 0.5,
                    !p.style.rightToLeft, !p.text.unicodeScalars.contains(where: { (0x590...0x8FF).contains($0.value) }) {
                     let probe = TextPainter(text: TextSpan(text: "x", style: theme.textStyle(for: firstLook, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)), textDirection: .ltr)
                     probe.layout(minWidth: 0, maxWidth: 100000)
@@ -4545,9 +4545,11 @@ extension RichLayout {
                         let multiple = p.style.lineSpacing
                         let single = m.height / multiple
                         let own = m.baseline / multiple
-                        let up = px * 1841.0 / 2048
-                        if up > own + 0.01 {
-                            let down = single - own + m.height - single
+                        // (A Symbol bullet's line is Symbol's ascent (1.005 em) with the multiple's extra above it that a text line has, over the text's depth: sa2 3944b073's 11pt bullets over Calibri 11 at 1.15 stand 18.12 apart in Word's print, 2.05 of it space before; Wingdings' ascent is 1841/2048.)
+                        let isSymbol = leadChar.fontFamily?.lowercased() == "symbol"
+                        let up = isSymbol ? (theme.faceResolver?("symbol", false)?.baseline ?? 0) * px + (m.baseline - own) : px * 1841.0 / 2048
+                        if up > (isSymbol ? m.baseline : own) + 0.01 {
+                            let down = isSymbol ? m.height - m.baseline : single - own + m.height - single
                             RuleTrace.hit("word-wingdings-bullet-stands-the-first-line-on-its-ascent")
                             markStyle = style.copyWith(ascentOverride: up, descentOverride: down, height: (up + down) / px)
                         }
