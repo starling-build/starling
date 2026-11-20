@@ -4707,7 +4707,19 @@ static let sylfaenAdvances: [Double] = [
                 face.baseline = 0.9858
                 RuleTrace.hit("century-own-widths")
             }
-            if wordOnWindows { Self.applyTabled(family, to: &face); Self.applyTabledMore(family, to: &face) }
+            if wordOnWindows {
+                // (A face Word's machine lacks whose font table names a face it has and we hold a table for as the alternate is drawn in
+                // that face, at its widths and line: "Adobe Caslon Pro", alternate Georgia, sets a footer line 272.4 pt in Word's print
+                // where the stand-in's widths gave 252.7. sa1 bfe94022.)
+                var tabledName = family
+                let low = family.trimmingWhitespace().lowercased()
+                if !isEmbedded(family), installedFamilies[low] == nil, !WordWindowsFaces.names.contains(low),
+                   let alt = fontEntry(family)?.alt?.trimmingWhitespace().lowercased(), alt != low, tabledNames.contains(alt) {
+                    RuleTrace.hit("missing-face-alternate-has-its-own-table")
+                    tabledName = alt
+                }
+                Self.applyTabled(tabledName, to: &face); Self.applyTabledMore(tabledName, to: &face)
+            }
             // (Arial Narrow, drawn as the sans clone, at its own widths and line.)
             if family.trimmingWhitespace().lowercased() == "arial narrow" {
                 face.advances = arialNarrowAdvances
