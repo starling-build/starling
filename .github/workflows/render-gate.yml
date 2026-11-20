@@ -1,0 +1,30 @@
+name: render-gate
+# Gate for main: renders the Word corpus before and after a change on a self-hosted runner.
+# pull_request only (never pull_request_target): fork PRs need approval, and the job refuses forks anyway.
+on:
+  pull_request:
+    branches: [main]
+  merge_group:
+permissions:
+  contents: read
+concurrency:
+  group: render-gate-${{ github.event.pull_request.number || github.event.merge_group.head_ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  render-gate:
+    if: github.event_name == 'merge_group' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, linux, starling-render]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+      - name: Render gate
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+        run: |
+          set -o pipefail
+          export JOBS=$(nproc)
+          [ "$JOBS" -gt 170 ] && JOBS=170
+          test/tools/render-gate.sh "$BASE_SHA" 2>&1 | tail -40 | cut -c1-200
