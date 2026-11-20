@@ -2310,8 +2310,8 @@ extension RichLayout {
                 for k in k0 ..< j {
                     let cell = _cells[k]!
                     if RichTextTheme.wordWindowsPages, cell.rowSpan > 1 {
-                        // (A merged cell's top line takes room in the row it starts: 1f900e58's merged header row is 1 pt taller in Word's print.)
-                        if cell.row == d.row { ruled = max(ruled, cell.rules) }
+                        // (A merged cell of the first row takes room for its top line: 1f900e58's merged header row is 1 pt taller in Word's print; a merged cell starting mid-table does not, 5393bae9.)
+                        if cell.row == 0 { ruled = max(ruled, cell.rules) }
                     }
                     if cell.rowSpan == 1 {
                         ruled = max(ruled, cell.rules); padded = max(padded, cell.pad.top + cell.pad.bottom)
