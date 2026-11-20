@@ -114,6 +114,8 @@ extension RichLayout {
             || legacy && fitted && p.style.alignment == .justify && document.usesEastAsianLayout && !inCell && RichTextTheme.wordWindowsPages
                 && document.characterSpacingControl == "compressPunctuation" && !units.contains(where: { $0 >= 0x2E80 })
                 && document.eastAsiaLanguage != nil && !["zh", "ja", "ko"].contains(where: { document.eastAsiaLanguage?.hasPrefix($0) == true })
+                // (Only where the settings say useFELayout: a file with no compat mode and no useFELayout is set by the East Asian rules by default (`hangsLatinStops`), and its justified Latin lines keep their spaces: sa1 ccdc78e8, pt-BR, Courier New 11.5, Word breaks at 37 characters where the squeeze took 38.)
+                && !document.hangsLatinStops
             || balancedLatinSqueeze
             || koLegacySqueeze
         // (A page number set apart by dashes in a text box, its field result
