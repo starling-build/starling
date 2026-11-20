@@ -1765,6 +1765,7 @@ extension RichLayout {
                 let box = all[slot]
                 let image = _inline[i][k]
                 var rect = box.toRect().shift(Offset(g.textLeft, g.inkTop))
+                if let over = _inlineOverflow[image.id], image.float == nil { rect = Rect.fromLTRB(rect.left, rect.top, rect.right + over, rect.bottom) }
                 if let real = _pageFill[image.id], image.float == nil {
                     let down = _lineCentre[image.id] ?? 0
                     rect = Rect.fromLTRB(rect.left, rect.top + down, rect.right, rect.top + down + real)
