@@ -693,6 +693,15 @@ extension OfficeFonts {
             face.boldItalicAdvances = bookman_old_styleBoldItalicAdv
             face.naturalHeight = 2404.0 / 2048; face.baseline = 1929.0 / 2048
 
+        case "gill sans mt":
+            face.advances = gill_sans_mtAdv
+            face.otherAdvances = gill_sans_mtOther
+            face.boldAdvances = gill_sans_mtBoldAdv
+            face.boldOtherAdvances = gill_sans_mtBoldOther
+            face.italicAdvances = gill_sans_mtItalicAdv
+            face.boldItalicAdvances = gill_sans_mtBoldItalicAdv
+            face.naturalHeight = 2375.0 / 2048; face.baseline = 1903.0 / 2048
+
         case "baskerville old face":
             face.advances = baskerville_old_faceAdv
             face.otherAdvances = baskerville_old_faceOther
