@@ -195,6 +195,11 @@ done < "$W/down.txt"
 if [ -n "$DROPS" ] && [ -n "$EXACTB" ]; then echo "render-gate: drops against the cached ancestor ($DROPS ); rerunning against the exact base"; exec env GATE_EXACT_BASE=1 "$SELF" "$BASE_SHA"; fi
 if [ -n "$DROPS" ]; then echo "render-gate: BLOCKED, v2 drops not approved:$DROPS"; exit 1; fi
 [ "$DN" = 0 ] || [ -s "$W/down.txt" ] || { echo "render-gate: drops reported but not parsed"; exit 1; }
+# Slides step (full gate only): every deck drawn by the PR binary, deck means vs baseline-win.tsv (test/tools/slides-gate.sh, ~80 s)
+if [ "$MODE" = full ] && [ "${GATE_SLIDES:-1}" = 1 ]; then
+  SL=$(LQ=$LQ test/tools/slides-gate.sh "$BIN" "$JOBS" 2>&1); src=$?; echo "$SL" | tail -20
+  [ "$src" = 1 ] && { echo "render-gate: BLOCKED, Slides decks worse than the baseline (above)"; exit 1; }
+fi
 echo "render-gate: $NCMP sets compared; clean ($(wc -l < "$W/down.txt") approved drops)"
 [ "$MODE" = full ] && [ "${GATE_BLAME:-1}" = 1 ] && { W=$W LQ=$LQ BC=$BC BASE_SHA=$BSHA EO=$EO JOBS=$JOBS timeout 1500 test/tools/render-gate-blame.sh 2>&1 | tail -5 | cut -c1-250 || true; }
 exit 0
