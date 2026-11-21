@@ -2816,6 +2816,7 @@ enum DocxFormat {
                     style.keptCellMarginsXML = xml + "</w:tblCellMar>"
                     style.keptCellMarginsUnder = [margins.top, margins.left, margins.bottom, margins.right]
                 }
+                if node.mirroredFrom != nil { style.bidiVisual = true }
                 if let ind = node.first("w:tblPr")?.first("w:tblInd"), (ind["w:type"] ?? "dxa") == "dxa",
                    let w = Double(ind["w:w"] ?? "") {
                     // (A table nested in a cell never starts left of the cell's text edge in

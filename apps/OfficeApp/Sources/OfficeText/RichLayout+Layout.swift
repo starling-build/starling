@@ -975,6 +975,11 @@ extension RichLayout {
             // xd 80c852b0 p2's letter grid, tblInd 720 bidiVisual, stands 24.5pt left of where ours put it; xd b9164bf3's tblInd 360 tables, no compat setting, 18pt.)
             RuleTrace.hit("bidi-visual-table-indent-from-the-right-margin-before-compat-15")
             return width - sum + right - _px(style?.indent ?? 0)
+        case .left where theme.wordRules && RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 0) >= 15 && style?.bidiVisual == true && style?.floatX == nil && (style?.indent ?? 0) == 0 && sum < width:
+            // (A right-to-left table of its own columns' width, no indent, stands at the right margin: xd c7b72657 p3's 589pt table
+            // in a 647pt text width, edge 747.7 in Word's print, where ours stood at the left margin.)
+            RuleTrace.hit("bidi-visual-table-stands-at-the-right-margin-compat-15")
+            return width - sum + right
         case .center: return theme.wordRules ? (width - sum) / 2 : max(0, ((width - sum) / 2).rounded(.down))
         case .right: return theme.wordRules ? width - sum + right : max(0, (width - sum).rounded(.down))
         default:
