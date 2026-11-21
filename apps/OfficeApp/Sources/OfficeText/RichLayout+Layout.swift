@@ -982,6 +982,11 @@ extension RichLayout {
             // (Its indent is not read, and one wider than the text stands at the left margin: xd 38d880e8's 440pt table, tblInd 80,
             // 425pt of text, its text 4.0 and 5.3pt left of where ours put it, exactly where the table of no indent puts it.)
             return max(0, width - sum + right)
+        case .center where theme.wordRules && RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 0) >= 15 && style?.bidiVisual == true && style?.floatX == nil && sum > width + 0.01:
+            // (A centred right-to-left table wider than the text stands at the left margin too, not overhanging both sides:
+            // xd 38d880e8's 441pt one-cell title table in 425pt of text, its centred lines 7.7pt right of ours in Word's print.)
+            RuleTrace.hit("bidi-visual-centred-table-wider-than-the-text-stands-at-the-left-margin")
+            return 0
         case .center: return theme.wordRules ? (width - sum) / 2 : max(0, ((width - sum) / 2).rounded(.down))
         case .right: return theme.wordRules ? width - sum + right : max(0, (width - sum).rounded(.down))
         default:
