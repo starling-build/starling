@@ -1153,7 +1153,7 @@ extension RichLayout {
                         // share, to the share and the left cell margin more — lab b60 (lo-b60b7299): a
                         // 225pt share and 5.4 margin, the grid's 224.95, ruled 230.5 wide; the second
                         // column's "paragraph" then fits one line, as it does in Word's print.)
-                        if theme.wordRules, RichTextTheme.wordWindowsPages, ts.fixedLayout, (document.compatibilityMode ?? 12) < 15,
+                        if theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) < 15,
                            !_nestedBlock, pct == 100, _px(sum) <= width, width - _px(sum) <= _px(1) {
                             RuleTrace.hit("word-fixed-100-percent-table-is-the-share-and-a-cell-margin")
                             // (… and half the last column's right rule more: 3, 6 and 12pt rules put the
