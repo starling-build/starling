@@ -5139,7 +5139,11 @@ enum ChartPainter {
                 // plot than the room left for them: chart-slide-bg's and
                 // its three like it, at 166.5 where ours were at 169, the
                 // plot where PowerPoint's is.)
-                let further = word ? 0 : libre ? 0.2 * k : c.styled2013 ? 2.5 * k : 2.6 * k
+                // (A classic-style chart in a Word document whose file places the plot: Word's labels stand 9.25 pt off it and
+                // 0.55 pt over their lines, not the slide's 11.1 and 1.45: sa2 511c21d4's value axis, 10 pt, ours 1.85 left and 0.9 high.)
+                let wordClassicLaid = !c.onSlide && !c.onSheet && !c.chartex && !c.styled2013 && !libre && c.plotLayoutInner
+                if wordClassicLaid { RuleTrace.hit("word-classic-chart-laid-plot-value-labels-stand-9.25-off-and-0.55-up") }
+                let further = word ? 0 : libre ? 0.2 * k : c.styled2013 ? 2.5 * k : wordClassicLaid ? 0.75 * k : 2.6 * k
                 // (A 2007-style chart's stand with their middles 1.45 pt
                 // above their lines, line- and scatter-chart's 18 pt
                 // labels. A newer chart's are measured so too, and came
@@ -5147,7 +5151,7 @@ enum ChartPainter {
                 // (A newer one's on a slide, 1.25 pt above theirs: its plot
                 // stands 1.5 pt lower there, and chart-slide-bg's labels
                 // print 1.1 to 1.5 above where that put them.)
-                let lift = libre ? 0.15 * k : c.styled2013 ? (c.onSlide ? 1.25 * k : 0) : 1.45 * k
+                let lift = libre ? 0.15 * k : c.styled2013 ? (c.onSlide ? 1.25 * k : 0) : wordClassicLaid ? 0.55 * k : 1.45 * k
                 // (Word's walled 3-D columns: 8 pt nearer the plot, lo-1bd2003e's labels ending at 142.)
                 let wall3D = inWord && c.barView?.walled == true && c.plotLayoutInner ? 8 * k : 0
                 tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - further - tp.width + wall3D + valueLabelsBack, p - tp.height / 2 - lift))
