@@ -360,13 +360,26 @@ extension RichLayout {
                // (And one whose mark has no w:rtl at all is the Latin face even where sz = szCs: xd 564a33e9's bare `<w:bidi/>` empty paragraph
                // is 13.3 pt Times New Roman in Word's print, ours 11.8 as David; its next empty David line (mark w:rtl) is 11.9 in both.)
                mark.rightToLeft,
-               let px = look.fontSize, px > 0.5,
+               let px0 = look.fontSize, px0 > 0.5,
                let cs = mark.complexFontFamily ?? markNamed?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily,
                let f = theme.complexFace(cs, latin: mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily), f.ownLineBaseline, let base = f.baseline, let tall = f.naturalHeight {
                 RuleTrace.hit("word-empty-bidi-mark-is-the-complex-face-line")
                 emptyBidiOwnLine = true
+                // (The mark's size is its szCs, inherited when it has none, not its sz: lab emptymark2 (Word print, David 14 pt lines at 1.5, a
+                // Narkisim mark with w:rtl): sz 14 with no szCs, sz 11 with no szCs and a David mark all 17.76 = the style's 12 pt cs size; szCs 11
+                // 16.2; szCs 14 20.7. xd 72ea457a's empty mark (sz 14, no szCs) between its signature lines.)
+                var px = px0
+                // (Only at a multiple above single, which the lab measured; xd 414170f0's 2 pt marks at one sixth of a line keep their size.)
+                if p.style.lineSpacing > 1, let z = mark.complexFontSize ?? markNamed?.char.complexFontSize ?? _normalChar(document)?.complexFontSize, z > 0.5 {
+                    var atCs = mark
+                    atCs.fontSize = z
+                    atCs.complexFontSize = z
+                    if let sized = theme.textStyle(for: atCs, in: p.style, named: markNamed, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch).fontSize, sized > 0.5 {
+                        px = sized
+                    }
+                }
                 let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
-                look = look.copyWith(ascentOverride: base * multiple * px, descentOverride: (tall - base) * multiple * px, height: tall * multiple, leadingDistribution: .even)
+                look = look.copyWith(ascentOverride: base * multiple * px, descentOverride: (tall - base) * multiple * px, height: tall * multiple * px / px0, leadingDistribution: .even)
             }
             // (An empty paragraph whose mark is w:rtl in a complex face Word lacks, drawn in Arial: Arial's own line, 1.149 em, as its text
             // lines have (rule word-arial-stand-in-complex-run-keeps-arials-line): dx2 6e7a3d11's empty Times marks, cs B YAGOT, 10 pt on
