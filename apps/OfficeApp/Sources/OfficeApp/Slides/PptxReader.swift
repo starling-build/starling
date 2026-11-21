@@ -3865,7 +3865,12 @@ private struct SlideContext {
                 // that says left to right, its opening quote at the right
                 // in PowerPoint's print.
                 let own = p.first("a:pPr")?["rtl"]
-                if own == "1" || (own == nil && Self._startsRightToLeft(text)) { style.rightToLeft = true }
+                // (A paragraph that says rtl="1" over Latin text alone, no list: PowerPoint's print
+                // keeps the letters' order, its closing colon at the right end, aligned as algn says
+                // — e311341c p8 'Different west bank governorates:'. Nothing there is right to left.)
+                let hasRtlLetter = text.unicodeScalars.contains { u in
+                    (0x0590 ... 0x08FF ~= u.value || 0xFB1D ... 0xFDFF ~= u.value || 0xFE70 ... 0xFEFF ~= u.value) && u.properties.isAlphabetic }
+                if (own == "1" && (hasRtlLetter || style.list != nil)) || (own == nil && Self._startsRightToLeft(text)) { style.rightToLeft = true }
                 // A master level that says rtl="1" moves the bullet and the
                 // list indent to the right and nothing else (GeomLec1's body:
                 // PowerPoint's print keeps the text's order and its alignment).
