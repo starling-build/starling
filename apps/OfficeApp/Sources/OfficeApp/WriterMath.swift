@@ -131,7 +131,7 @@ enum WriterMath {
         let layout = Layout(display: true)
         let pieces = layout.pieces(node, size: entry.size)
         guard pieces.count > 1 else { return nil }
-        let indent = min(72, width / 2)
+        var indent = min(72, width / 2)
         var lines: [[Box]] = [[]]
         var x = 0.0
         for (k, piece) in pieces.enumerated() {
@@ -148,10 +148,15 @@ enum WriterMath {
         }
         guard lines.count > 1 else { return nil }
         let boxes = lines.map { layout.hbox($0) }
+        // (A line after the first that fills the line is not set an inch in: Word's print of sa1 5393bae9's
+        // cell "PA =MAPRA*f_F" stands both lines at the cell's left edge; ours stood the second 32 pt in.)
+        if let widest = boxes.dropFirst().map({ $0.width }).max() { indent = max(0, min(indent, width - widest)) }
         // (0.3 of its size between lines: zh-db07d44e's fractions' rules
         // are 46.8pt apart at 12pt in Word's print, a line of two 15.8pt
         // YaHei rows and the rule's room under 0.3 em more.)
-        let gap = entry.size * 0.3
+        // (No fraction in it, no rule's room: sa1 5393bae9's "PA / =MAPRA*f_F" lines stand 10.56 pt apart in Word's
+        // print, the two lines' own heights, where 0.3 em more made ours 13.8.)
+        let gap = node.descendants("m:f").isEmpty ? 0 : entry.size * 0.3
         var tops: [Double] = []
         var y = 0.0
         for b in boxes { tops.append(y); y += b.ascent + b.descent + gap }
