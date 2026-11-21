@@ -374,7 +374,7 @@ extension RichLayout {
             // (An empty paragraph that runs right to left, with no run to say so: Word sizes its mark on the complex-script face (Normal's
             // cs face), and where that face keeps its own line (David, FrankRuehl, Arabic faces Windows has) the line is that face's:
             // xd 38d880e8's empty paragraph after the header table, 2.9 pt taller in Word's print than the Latin face's.)
-            if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.rightToLeft, p.style.list == nil, p.style.lineHeightPoints == nil,
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.rightToLeft || mark.rightToLeft, p.style.list == nil, p.style.lineHeightPoints == nil,
                // (A mark that is not w:rtl and whose szCs differs from its sz is the Latin face at the szCs instead (rule below): lab tabline2 D,
                // an empty LTR-mark paragraph under Normal bidi, cs David, sz 11 / szCs 14, line 1.5: Word 36.72 apart = the tab-only line A, ours
                // 27.99 as the complex face's line.)
@@ -408,7 +408,7 @@ extension RichLayout {
             if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, !emptyBidiOwnLine, p.style.list == nil, p.style.lineHeightPoints == nil,
                mark.rightToLeft, look.ascentOverride == nil, let px = look.fontSize, px > 0.5,
                case let cs = mark.complexFontFamily ?? markNamed?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily,
-               let f = theme.complexFace(cs, latin: mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily, letters: true), f.arialStandIn {
+               let f = theme.complexFace(cs, latin: mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily, letters: true), f.arialStandIn || cs?.trimmingWhitespace().lowercased() == "arial" {
                 RuleTrace.hit("word-empty-mark-arial-stand-in-keeps-arials-line")
                 let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
                 let sp = Self._multipleSplit(ascent: 0.905, descent: 1.149 - 0.905, multiple: multiple)
