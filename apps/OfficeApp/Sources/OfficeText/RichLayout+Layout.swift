@@ -1008,8 +1008,8 @@ extension RichLayout {
     /// the indent, 0.24 for a 0.5pt rim, with no indent too and with dxa
     /// widths; ours stood the line's middle on the indent.
     func _edgeShift(_ table: String, _ document: RichDocument) -> Double {
-        guard theme.wordRules, (document.compatibilityMode ?? 12) >= 15,
-              let ts = document.tableStyles[table], ts.cellSpacing == nil, ts.floatX == nil else { return 0 }
+        guard theme.wordRules, let ts = document.tableStyles[table], ts.cellSpacing == nil, ts.floatX == nil,
+              (document.compatibilityMode ?? 12) >= 15 || (RichTextTheme.wordWindowsPages && ts.inWrapperCell) else { return 0 }
         let ruled = ts.edges?.left ?? (ts.borders && !ts.bordersFromCells)
         // (A first column whose cells state a wider line of their own
         // stands by that: zh-e329b438's "Table Grid" (0.5pt) with 1.5pt
