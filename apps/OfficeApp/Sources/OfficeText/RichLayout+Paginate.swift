@@ -788,6 +788,11 @@ extension RichLayout {
                 for s in first ... lastPage { seq += _pages[s] }
                 // (A section that began partway down the page balances its
                 // own pieces, under those of the sections above it.)
+                // (A section that holds a column break has its columns made by
+                // the breaks: balancing would move what follows the break back
+                // into the first column. dx2 9331dd51's title block, "Stručan rad"
+                // opening the second column at the first column's top.)
+                let ownBreaks = theme.wordRules && RichTextTheme.sectionColumnsFlow && seq.contains(where: { $0.paragraph < document.paragraphs.count && _sectionOf[$0.paragraph] == _sectionOf[pgs.i - 1] && document.paragraphs[$0.paragraph].style.columnBreak && document.paragraphs[$0.paragraph].style.pageBreakBefore })
                 var head: [PagePiece] = []
                 if _perSection, let before = seq.first.map({ _sectionOf[$0.paragraph] }), before != _sectionOf[pgs.i - 1] {
                     head = seq.filter { _sectionOf[$0.paragraph] != _sectionOf[pgs.i - 1] }
@@ -800,7 +805,7 @@ extension RichLayout {
                 let wide = Set(seq.compactMap { _cells[$0.paragraph] }.filter { $0.column > 0 || $0.span > 1 }.map(\.table))
                 let oneColumnTables = Set(seq.compactMap { _cells[$0.paragraph]?.table }).subtracting(wide)
                 let tail = Array(_allPieces.suffix(seq.count))
-                if seq.count > head.count, tail == seq || Set(tail.map(\.paragraph)) == Set(seq.map(\.paragraph)),
+                if !ownBreaks, seq.count > head.count, tail == seq || Set(tail.map(\.paragraph)) == Set(seq.map(\.paragraph)),
                    seq.allSatisfy({ head.contains($0) || ((_cells[$0.paragraph].map { document.tableStyles[$0.table]?.floatsOverText == true || oneColumnTables.contains($0.table) } ?? true) && !$0.repeated && $0.part == .all) }) {
                     // (A floating table in the block stands where it is, a band the
                     // columns run around: lo-a998edda's A1–A4 in two columns are 2
@@ -909,6 +914,17 @@ extension RichLayout {
                         while _pages.count < first + _columns { _pages.append([]) }
                         for k in 0 ..< nb where first + k <= max(pgs.page, first + _columns - 1) { _pages[first + k] = head.filter { $0.page == first + k } + out[k] }
                         _allPieces.append(contentsOf: (head + out.flatMap { $0 }).sorted { ($0.paragraph, $0.flowTop) < ($1.paragraph, $1.flowTop) })
+                        pgs.page = first
+                        pgs.y = blockBottom
+                        pgs.columnFloor = (first / _columns, blockBottom)
+                        balancedHere = true
+                    }
+                }
+                // (Its columns stay as the breaks made them; the next section goes
+                // on under the longest, as under a balanced block.)
+                if ownBreaks, !balancedHere, seq.count > head.count {
+                    let blockBottom = seq.map { $0.pageY + $0.height }.max() ?? 0
+                    if blockBottom <= pgs.contentH + 0.01 {
                         pgs.page = first
                         pgs.y = blockBottom
                         pgs.columnFloor = (first / _columns, blockBottom)
@@ -1100,12 +1116,16 @@ extension RichLayout {
             // third page, after "2" on the second; after "3" a section from
             // 1 opens a page later and one numbered on, or from 2, does not;
             // without `w:evenAndOddHeaders` none does.
-            if theme.wordRules, document.evenAndOddHeaders, _columns == 1, pgs.resumeCursor == nil, pgs.i > 0, pgs.page > 0,
+            // (In columns the pages are virtual, a page being `_columns` of them: the
+            // rule reads the physical page. dx2 9331dd51's title section, its
+            // next one numbered from 91 after page 1, leaves Word's page 2 blank.)
+            if theme.wordRules, document.evenAndOddHeaders, pgs.resumeCursor == nil, pgs.i > 0, pgs.page >= _columns,
+               pgs.page % _columns == 0, _columns == 1 || RichTextTheme.sectionColumnsFlow,
                pgs.y < 0.01, _pages[pgs.page].isEmpty, pgs.i < _sectionOf.count, _sectionOf[pgs.i] != _sectionOf[pgs.i - 1],
                let first = _sectionNumberStart(_sectionOf[pgs.i], document),
-               (first - _pageNumberOf(pgs.page - 1, document)) % 2 == 0 {
-                _blankPages.insert(pgs.page)
-                _pg_newPage(&pgs, document)
+               (first - _pageNumberOf(pgs.page / _columns - 1, document)) % 2 == 0 {
+                _blankPages.insert(pgs.page / _columns)
+                repeat { _pg_newPage(&pgs, document) } while pgs.page % _columns != 0
             }
             if endsSection { pgs.markOnPage = true }
             // (A paragraph under a table whose header was left off a page
