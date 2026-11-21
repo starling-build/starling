@@ -1451,6 +1451,9 @@ public final class TextPainter {
         let lower = max(0, min(range?.lowerBound ?? 0, units))
         let upper = max(lower, min(range?.upperBound ?? units, units))
         guard upper > lower else { return nil }
+        // (The engine's glyph visit traps on a line with no glyphs, an empty last line or an empty line
+        // between two breaks, so such text gives no outlines.)
+        if text.hasSuffix("\n") || text.hasPrefix("\n") || text.containsSubstring("\n\n") { return nil }
         // (The engine counts bytes of the UTF-8 it was given; the range is in
         // UTF-16 code units, as `getBoxesForRange` takes them.)
         let u16 = text.utf16
