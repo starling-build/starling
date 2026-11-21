@@ -3054,8 +3054,14 @@ extension RichLayout {
                         // 14pt) ends its line at "from " and parts the address at the next margin; ours
                         // parted it after "ht". Lab `ww`'s underscores, Mac, are parted where they stand.)
                         || RichTextTheme.wordWindowsPages && (k ..< part).contains { (0x41 ... 0x5A).contains(units[$0]) || (0x61 ... 0x7A).contains(units[$0]) }))
+            // (A space and a tab before it, in a body not set by the East Asian rules: Word's print of lab
+            // ce-tabwrap (xd ce4069f1: " <tab>" and a Thai stretch of 900pt) leaves the space alone on the
+            // line and opens the next with the tab, which runs to the stop and sets the stretch there, parted
+            // at the margin; ours set the stretch's start beside the space, at the tab's stop.)
+            let afterSpaceTab = RichTextTheme.wordWindowsPages && p.cell == nil && !document.usesEastAsianLayout
+                && k > 1 && units[k - 1] == 0x09 && units[k - 2] == 0x20
             let afterIdeograph = k > 0 && wide(units[k - 1])
-            if afterSpace || afterIdeograph, part - k >= (narrowCell && afterSpace ? 3 : 20),
+            if afterSpace || afterIdeograph || afterSpaceTab, part - k >= (narrowCell && afterSpace ? 3 : 20),
                !(k ..< part).contains(where: { wide(units[$0]) }) {
                 var at = 0
                 var run = p.runs[0].style
@@ -3108,7 +3114,7 @@ extension RichLayout {
                 // opens a line in Word's print, the "（" with it, as an opener may not end a line; ours ended
                 // the line before with "（" and parted the address from its first letter.)
                 if width > textWidth {
-                    out.insert(k > 0 && afterIdeograph && Self._openingUnits.contains(units[k - 1]) ? k - 1 : k)
+                    out.insert(k > 0 && afterIdeograph && Self._openingUnits.contains(units[k - 1]) ? k - 1 : afterSpaceTab ? k - 1 : k)
                 }
                 painter.dispose()
             }
