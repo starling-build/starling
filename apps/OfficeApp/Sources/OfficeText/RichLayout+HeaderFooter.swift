@@ -727,6 +727,13 @@ extension RichLayout {
         return _imageParagraphs?[id]
     }
 
+    /// The width (pt) an inline text box in a right-to-left paragraph sets its text at when it is wider than the line, else nil.
+    func _inlineTextClamp(_ image: ImageAttachment, _ holding: Int?, _ document: RichDocument) -> Double? {
+        guard image.textBox?.hasFixedFrame == true, let h = holding, h < _textWidth.count, _textWidth[h] > 0, document.paragraphs[h].style.rightToLeft, document.paragraphs[h].cell == nil else { return nil }
+        let line = _textWidth[h] / _px(1)
+        return image.width > line + 0.5 ? line : nil
+    }
+
     func _textBox(_ image: ImageAttachment, _ document: RichDocument) -> _HeaderFooter? {
         guard theme.wordRules, let box = image.textBox else { return nil }
         let holding = _paragraphHolding(image.id, document)
@@ -745,7 +752,10 @@ extension RichLayout {
         // ran 10pt past it. Not before its cell is laid out.)
         let fitted = box.growsToFit && holding.flatMap { document.paragraphs[$0].cell } != nil
             ? holding.flatMap { $0 < _textWidth.count && _textWidth[$0] > 0 ? _textWidth[$0] / _px(1) : nil } : nil
-        let boxWidth = fixedParent && holding != nil ? _textWidth[holding!] / _px(1) : fitted ?? image.width
+        // (A box with an explicit noAutofit in the line of a right-to-left paragraph, wider than the line, sets its text no wider than the line: xd bf53d2b7's
+        // 448.6pt boxes in a 432pt column wrap their text at 432, which Word's print shows from the right end.)
+        let lineClamp = RichTextTheme.wordWindowsPages && image.float == nil && box.growsToFit == false ? _inlineTextClamp(image, holding, document) : nil
+        let boxWidth = fixedParent && holding != nil ? _textWidth[holding!] / _px(1) : fitted ?? lineClamp ?? image.width
         // (An autofitting parent that spans its page's text already has no
         // room to give a child that would grow: Word keeps the child at its
         // saved grid and lets its content overflow. drawing.docx's p9
