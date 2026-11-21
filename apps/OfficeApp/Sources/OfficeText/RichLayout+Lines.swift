@@ -8,6 +8,9 @@ import Flutter
 import FlutterSwiftBridge
 import Foundation
 
+private struct _TallerLeaf { var style: TextStyle; var arial: Bool; var blank: Bool; var arabic: Bool; var face: String = "" }
+private struct _UnstackedLeaf { var range: Range<Int>; var size: Double; var box: Double; var family: String?; var ascii: Bool; var ideo: Bool }
+
 extension RichLayout {
 
     func _strut(_ span: TextSpan, tallest: Bool = false, near nearCounts: Bool = false, wide: Bool = false, joiners: Bool = true) -> StrutStyle? {
@@ -173,8 +176,7 @@ extension RichLayout {
     /// this is for the one that has none (its sizes differ) — each such stretch keeps its width and loses
     /// its height where a taller-or-equal ideograph stretch is on the same line.
     static func _unstackedFaces(_ span: TextSpan, _ painter: TextPainter) -> TextSpan? {
-        struct Leaf { var range: Range<Int>; var size: Double; var box: Double; var family: String?; var ascii: Bool; var ideo: Bool }
-        var leaves: [Leaf] = []
+        var leaves: [_UnstackedLeaf] = []
         var at = 0
         var simple = true
         func visit(_ s: InlineSpan) {
@@ -186,7 +188,7 @@ extension RichLayout {
                 let n = text.utf16.count
                 if let st = t.style, let fs = st.fontSize, let h = st.height, n > 0 {
                     let blank = text.unicodeScalars.allSatisfy { $0.properties.isWhitespace }
-                    leaves.append(Leaf(range: at ..< at + n, size: fs, box: fs * h, family: st.fontFamily,
+                    leaves.append(_UnstackedLeaf(range: at ..< at + n, size: fs, box: fs * h, family: st.fontFamily,
                                        ascii: st.debugLabel != "yu-joiner" && text.utf16.allSatisfy { $0 < 0x2E80 }, ideo: !blank && text.utf16.contains { $0 >= 0x2E80 }))
                 } else { simple = false }
                 at += n
@@ -205,7 +207,7 @@ extension RichLayout {
             }
             return out
         }
-        var reference = [Leaf?](repeating: nil, count: metrics.count)
+        var reference = [_UnstackedLeaf?](repeating: nil, count: metrics.count)
         var leafLines: [Set<Int>] = []
         for leaf in leaves {
             let ls = lines(leaf.range)
@@ -345,8 +347,7 @@ extension RichLayout {
     /// lines 16.0 apart, and a line with a Calibri run lengthens by 0.8-0.9 under the baseline (Aptos 1.0), the line above it and the
     /// line's own top unchanged, the other lines of the paragraph not at all. The engine stacked the stand-in's Arabic face on both.
     static func _heldWhereTaller(_ span: TextSpan, _ painter: TextPainter) -> TextSpan? {
-        struct Leaf { var style: TextStyle; var arial: Bool; var blank: Bool; var arabic: Bool; var face: String = "" }
-        var leaves: [Leaf] = []
+        var leaves: [_TallerLeaf] = []
         var plain: [UInt16] = []
         var ok = true
         func visit(_ s: InlineSpan) {
@@ -357,7 +358,7 @@ extension RichLayout {
                 if let st = t.style, st.fontSize != nil, st.height != nil, st.baselineShift == nil {
                     // (A face Word has not got that we draw in Arial (B Zar, B Nazanin) holds its line like Arial's: c2c3a2f3's 14 pt B Zar
                     // lines are 18.5 apart in Word with a 14 pt Calibri "." only on the lines it stands on, not 21.3 on all.)
-                    leaves.append(Leaf(style: st, arial: l == "arial" || (!l.isEmpty && !l.containsSubstring("arial") && st.fontFamily?.lowercased() == "arial"),
+                    leaves.append(_TallerLeaf(style: st, arial: l == "arial" || (!l.isEmpty && !l.containsSubstring("arial") && st.fontFamily?.lowercased() == "arial"),
                                        blank: !text.unicodeScalars.contains { !$0.properties.isWhitespace },
                                        arabic: text.unicodeScalars.contains { ($0.value >= 0x0590 && $0.value <= 0x08FF) || ($0.value >= 0xFB1D && $0.value <= 0xFEFF) },
                                        face: l))
