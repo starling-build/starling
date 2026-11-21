@@ -1788,6 +1788,22 @@ final class SlidePainter: CustomPainter {
                 let x0 = fill.tileAnchored ? 0 : r.left + (r.width - tw) * fill.tileAlign.dx + fill.tileOffset.dx * pxPerPt
                 let y0 = fill.tileAnchored ? 0 : r.top + (r.height - th) * fill.tileAlign.dy + fill.tileOffset.dy * pxPerPt
                 var y = y0 - ((y0 - r.top) / th).rounded(.up) * th
+                // Many tiles of one picture are one repeating shader: a
+                // drawImageRect per tile writes the picture into the PDF
+                // once per tile (a 1572 px tile 380 times, 8bef769d: a
+                // 200 MB export that took over 15 minutes).
+                let xs = x0 - ((x0 - r.left) / tw).rounded(.up) * tw
+                let tilesAcross = Int(((r.right - xs) / tw).rounded(.up))
+                let tilesDown = Int(((r.bottom - y) / th).rounded(.up))
+                if tilesAcross * tilesDown > 4 {
+                    let m = [tw / src.width, 0, 0, 0, 0, th / src.height, 0, 0, 0, 0, 1, 0, xs, y, 0, 1]
+                    if let shader = try? ImageShader(decoded, .repeated, .repeated, m, filterQuality: .medium) {
+                        paint.shader = shader
+                        canvas.drawRect(r, paint)
+                        canvas.restore()
+                        return
+                    }
+                }
                 while y < r.bottom {
                     var x = x0 - ((x0 - r.left) / tw).rounded(.up) * tw
                     while x < r.right {
