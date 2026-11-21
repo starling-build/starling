@@ -1265,6 +1265,12 @@ enum OfficeFonts {
         // (A Korean-named face Word lacks whose alternate is Yu Gothic, which has no Hangul: Word draws
         // the Hangul in Malgun Gothic, 5101ed6e's "Noto Serif CJK KR", 31 lines 4 pt short in ours.)
         if e.charset.uppercased() == "80", e.alt?.trimmingWhitespace().lowercased() == "yu gothic", koreanSuffix(n) { return "malgun" }
+        // (A Korean face Word lacks whose font table names Malgun Gothic as its alternate prints in Malgun, line and all: 나눔바른고딕 in dx2 ko 4e7fa635,
+        // MalgunGothic is the only face in the print, 14 pt lines at 259/240 step 26.1 where the face's own height gave 25.9.)
+        if (e.charset == "81" || e.charset == "129"), ["맑은 고딕", "malgun gothic"].contains(e.alt?.trimmingWhitespace().lowercased() ?? ""), n != "맑은 고딕", n != "malgun gothic" {
+            RuleTrace.hit("korean-face-with-malgun-alternate-prints-in-malgun")
+            return "malgun"
+        }
         if let alt = e.alt?.trimmingWhitespace().lowercased(), !alt.isEmpty, alt != n,
            has.contains(where: { faceHas(alt, $0) })
             || (alt.unicodeScalars.contains(where: { $0.value >= 0x2E80 })
