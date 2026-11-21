@@ -18,6 +18,13 @@ extension RichLayout {
         (u >= 0x30 && u <= 0x39) || (u >= 0x41 && u <= 0x5A) || (u >= 0x61 && u <= 0x7A) || u == 0x2C
     }
 
+    /// PowerPoint's hanging punctuation for one Slides paragraph (`a:pPr hangingPunct`, on unless the paragraph says "0"): a line-end
+    /// closing mark stands past the margin. The one switch for the East Asian fitter (`hangs`) and for the 、。，． pass in
+    /// `RichLayout+Paragraph+Body1`; justified last-line code asks it too.
+    func _hangsLineEndMarks(_ p: RichParagraph) -> Bool {
+        !theme.wordRules && theme.officeLatinBreaks && !p.style.rightToLeft && p.style.eastAsian["a:hangingPunct"] != "0"
+    }
+
     func _fitEastAsianLines(_ p: RichParagraph, at i: Int, _ document: RichDocument, textWidth baseWidth: Double,
                                     first: TextPainter, leadWidth: Double, tabs: [Int: Double] = [:], leftTabs: Set<Int> = [],
                                     runsPast: Set<Int> = [], beyond: [Int: Double] = [:], tieShort: (first: Bool, rest: Bool) = (false, false),
@@ -76,7 +83,7 @@ extension RichLayout {
         // marks are not compressed there, `squeezes`: zh-cd48112c's print ends no line with a mark past
         // the margin, and its "…累计扣分30-40 分（含）" sends "的，" down, stretching its one space, where
         // ours hung the "，".)
-        let hangs = fitted && (!inCell || turned) && !(_inTextBox && legacy && (theme.wordRules || !theme.officeLatinBreaks)) && p.style.eastAsian["w:overflowPunct"] != "0" && p.style.eastAsian["w:kinsoku"] != "0"
+        let hangs = fitted && (!inCell || turned) && !(_inTextBox && legacy && (theme.wordRules || !theme.officeLatinBreaks)) && p.style.eastAsian["w:overflowPunct"] != "0" && p.style.eastAsian["w:kinsoku"] != "0" && (theme.wordRules || !theme.officeLatinBreaks || _hangsLineEndMarks(p))
             && !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin && !distributed)
             && !(RichTextTheme.wordWindowsPages && theme.wordRules && (document.compatibilityMode ?? 12) == 14 && document.markSqueezeEm == 0
                  && document.characterSpacingControl == "compressPunctuation")
