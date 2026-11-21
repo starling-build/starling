@@ -3095,6 +3095,19 @@ enum ChartPainter {
                     canvas.drawPath(SlidePainter.dashed(path, c.legendLineDash, width: p.strokeWidth, capped: c.legendLineRound), p)
                 }
             }
+            // (On a Word page a legend given an exact box is framed and filled as that box: sa1 f84c295b's white one with a hairline
+            // black frame over the navy plot, which Word prints and our entries sat unframed on.)
+            if RichTextTheme.wordWindowsPages, !c.onSlide, !c.onSheet, let b = box, c.legendFill != nil || c.legendLine != nil, !lines.isEmpty {
+                let p = Paint()
+                p.isAntiAlias = true
+                if let f = c.legendFill { p.style = .fill; p.color = f; canvas.drawRect(b, p) }
+                if let ln = c.legendLine {
+                    p.style = .stroke; p.color = ln; p.strokeWidth = max(0.25, c.legendLineWidth * k)
+                    let path = Path()
+                    path.addRect(b)
+                    canvas.drawPath(SlidePainter.dashed(path, c.legendLineDash, width: p.strokeWidth, capped: c.legendLineRound), p)
+                }
+            }
             for (n, line) in lines.enumerated() {
                 let lineH = lineHs[n]
                 let w = line.reduce(0.0) { $0 + lead + $1.tp.width } + spacing * Double(max(0, line.count - 1))
@@ -7679,7 +7692,9 @@ extension ChartPainter {
                 FileHandle.standardError.write(line.data(using: .utf8)!)
             }
             #endif
-            if point != nil, l.outside, !fitsInside, moved == nil, !c.onSlide, !c.onSheet {
+            // (A zero slice's label stands on the next ones' and on its neighbours' without being moved: sa1 f84c295b's five zeros print
+            // as one "0" in Word, over its own slice's edge.)
+            if point != nil, l.outside, !fitsInside, moved == nil, s.value > 0, !c.onSlide, !c.onSheet {
                 let gap = 2.6 * k, tw = tp.width, th = tp.height, slack = 4 * k
                 for _ in 0 ..< 4 {
                     // (Only a real overlap: lab pie5's long-name outEnd labels at 8% and 5%
@@ -7692,7 +7707,7 @@ extension ChartPainter {
             var spreadMoved = false
             if let o = spreadAt[s.index] { at = o; hugsRim = false; spreadMoved = true }
             if let collect {
-                if hugsRim { collect.boxes.append((s.index, s.mid, Rect.fromLTWH(at.dx - tp.width / 2, at.dy - tp.height / 2, tp.width, tp.height))) }
+                if hugsRim, s.value > 0 { collect.boxes.append((s.index, s.mid, Rect.fromLTWH(at.dx - tp.width / 2, at.dy - tp.height / 2, tp.width, tp.height))) }
                 tp.dispose()
                 continue
             }
