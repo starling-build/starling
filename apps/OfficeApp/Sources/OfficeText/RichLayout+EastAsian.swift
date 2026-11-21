@@ -35,7 +35,7 @@ extension RichLayout {
         // by the East Asian rules all the same: xb jpn-z19126474-754366's "…基礎として、" hangs its "、" in Word's print.)
         // (Word for Windows sets a w:jc distribute paragraph by the East Asian rules whatever the file's defaults: xb docx-79737edb, defaults naming a Latin face, hangs "。" and squeezes marks in EA6b, not in its "both" EA6a.)
         let distributed = RichTextTheme.wordWindowsPages && theme.wordRules && p.style.eastAsian["w:jc"] == "distribute"
-        let latinOnly = !distributed && !(document.usesEastAsianLayout || (document.autoSpacesWithoutFELayout && (document.compatibilityMode ?? 0) >= 15
+        let latinOnly = !distributed && !(theme.officeLatinBreaks && !theme.wordRules && p.text.unicodeScalars.contains { $0.value >= 0x3040 && $0.value <= 0x30FF || $0.value >= 0x4E00 && $0.value <= 0x9FFF } || document.usesEastAsianLayout || (document.autoSpacesWithoutFELayout && (document.compatibilityMode ?? 0) >= 15
             && document.eastAsiaLanguage?.hasPrefix("ja") == true && document.defaultLangXML?.containsSubstring("w:eastAsia=\"") == true
             && RichTextTheme.wordWindowsPages && p.text.unicodeScalars.contains { $0.value >= 0x3040 && $0.value <= 0x30FF || $0.value >= 0x4E00 && $0.value <= 0x9FFF }))
         // (Word for Windows lets a Latin paragraph's last "," "." ";" ")" or "}" stay on a line while its
@@ -43,7 +43,7 @@ extension RichLayout {
         // Calibri 10pt, left; a letter never does. fas-z19537379 p5.)
         let latinStops = _latinStopsRule(latinOnly: latinOnly, document, p)
         let balancedLatinPre = RichTextTheme.wordWindowsPages && theme.wordRules && document.balancesSpaceWidth && p.cell == nil && _leftLatinSqueezeScope(document, p)
-        guard theme.wordRules, !latinOnly || latinStops || balancedLatinPre || ((document.compatibilityMode ?? 12) >= 15 && p.style.alignment == .justify),
+        guard theme.wordRules || (theme.officeLatinBreaks && !latinOnly), !latinOnly || latinStops || balancedLatinPre || ((document.compatibilityMode ?? 12) >= 15 && p.style.alignment == .justify),
               !p.style.rightToLeft || (latinOnly && RichTextTheme.wordWindowsPages && Self._squeezesRightToLeft(p.text)), p.text.utf16.count > 2 else { return [:] }
         let legacy = (document.compatibilityMode ?? 12) < 15
         let fitted = (!latinOnly || latinStops) && (p.style.alignment == .justify || legacy)
@@ -76,7 +76,7 @@ extension RichLayout {
         // marks are not compressed there, `squeezes`: zh-cd48112c's print ends no line with a mark past
         // the margin, and its "…累计扣分30-40 分（含）" sends "的，" down, stretching its one space, where
         // ours hung the "，".)
-        let hangs = fitted && (!inCell || turned) && !(_inTextBox && legacy) && p.style.eastAsian["w:overflowPunct"] != "0" && p.style.eastAsian["w:kinsoku"] != "0"
+        let hangs = fitted && (!inCell || turned) && !(_inTextBox && legacy && (theme.wordRules || !theme.officeLatinBreaks)) && p.style.eastAsian["w:overflowPunct"] != "0" && p.style.eastAsian["w:kinsoku"] != "0"
             && !(RichTextTheme.wordWindowsPages && document.eastAsianDefaultFaceIsLatin && !distributed)
             && !(RichTextTheme.wordWindowsPages && theme.wordRules && (document.compatibilityMode ?? 12) == 14 && document.markSqueezeEm == 0
                  && document.characterSpacingControl == "compressPunctuation")
