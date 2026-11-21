@@ -3705,6 +3705,9 @@ private struct SlideContext {
                 guard let f = gd["fmla"], f.hasPrefix("val ") else { return nil }
                 return Double(f.dropFirst(4))
             }
+            // (A plain, unslanted warp on text that wraps in its box (no wrap="none") is no WordArt: PowerPoint sets it as ordinary text,
+            // letter spacing and all; KYWA's header boxes (textPlain, no adjust) wrapped a word early when fitted as WordArt.)
+            if preset == "textPlain", adjust.first.map({ $0 == 50000 }) ?? true, (body?.first("a:bodyPr")?["wrap"] ?? "square") != "none" { return nil }
             return TextWarp(preset: preset, adjust: adjust, xml: PptxXML.serialize(w))
         }
         if paragraphs.isEmpty {
