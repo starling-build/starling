@@ -1547,6 +1547,8 @@ public final class RichLayout {
     /// The space before and after paragraphs shrinks with `fontScale` too:
     /// a SmartArt shape's spacing is a share of its line, and PowerPoint
     /// sets it smaller with the text it fits (an office diagram's list).
+    /// A turned text body (`eaVert`) whose ideographs stand upright, as a vertical section's do.
+    public var uprightIdeographs = false
     public var spacingFollowsFont = false {
         didSet { if spacingFollowsFont != oldValue { invalidateAll() } }
     }

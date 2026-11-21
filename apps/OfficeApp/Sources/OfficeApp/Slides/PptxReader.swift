@@ -1735,6 +1735,7 @@ private struct SlideContext {
         st.keepsFirstSpace = text.keepsFirstSpace
         st.textTurn = text.textTurn
         st.textStacked = text.textStacked
+        st.uprightIdeographs = text.uprightIdeographs
         st.textSpin = text.textSpin
         st.textRev = text.textRev
         st.textScene = text.textScene
@@ -3186,6 +3187,7 @@ private struct SlideContext {
         /// `bodyPr vert`: 1 a quarter clockwise, -1 anticlockwise.
         var textTurn = 0
         var textStacked = 0
+        var uprightIdeographs = false
         /// The text's camera turned about its axis (`scene3d/camera/rot
         /// rev`), degrees clockwise.
         var textSpin = 0.0
@@ -3849,7 +3851,8 @@ private struct SlideContext {
         body0.anchorCentred = ["1", "true"].contains(attr("anchorCtr") ?? "")
         body0.keepsFirstSpace = ["1", "true"].contains(attr("spcFirstLastPara") ?? "")
         switch attr("vert") {
-        case "vert", "eaVert", "mongolianVert": body0.textTurn = 1
+        case "vert", "mongolianVert": body0.textTurn = 1
+        case "eaVert": body0.textTurn = 1; body0.uprightIdeographs = true
         case "vert270": body0.textTurn = -1
         case "wordArtVert": body0.textStacked = 1
         case "wordArtVertRtl": body0.textStacked = -1
