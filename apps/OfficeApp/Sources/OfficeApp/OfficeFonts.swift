@@ -4241,6 +4241,34 @@ static let sylfaenAdvances: [Double] = [
         return true
     }
 
+    /// Traditional Arabic and Sakkal Majalla as PowerPoint sets them: their own shaped advances and lines (the Word tables,
+    /// `WindowsArabicAdvances`), the Naskh drawing the letters. "Majalla UI" is Sakkal Majalla in PowerPoint's prints
+    /// (rtl/f355b7fc p43's body). nil for any other name.
+    static func slidesArabicFace(_ family: String) -> RichResolvedFace? {
+        let asked = family.trimmingWhitespace().lowercased()
+        guard ["traditional arabic", "sakkal majalla", "majalla ui"].contains(asked) else { return nil }
+        var face = RichResolvedFace(family: cambria)
+        face.fallback = [cambria, "Times New Roman", "Noto Naskh Arabic", emojiPictographs, "DejaVu Sans"]
+        if asked == "traditional arabic" {
+            face.joinedAdvances = WindowsArabicAdvances.tradArabic
+            face.boldJoinedAdvances = WindowsArabicAdvances.tradArabicBold
+            face.joinedClusters = WindowsArabicAdvances.tradArabicClusters
+            face.boldJoinedClusters = WindowsArabicAdvances.tradArabicBoldClusters
+            face.baseline = 0.997; face.ownLineBaseline = true
+            face.naturalHeight = 1.495; face.boldHeight = 1.495
+        } else {
+            face.joinedAdvances = WindowsArabicAdvances.sakkal
+            face.boldJoinedAdvances = WindowsArabicAdvances.sakkalBold
+            face.joinedSpaceEm = 0.151
+            face.joinedWords = SakkalShapedWords.regular
+            face.boldJoinedWords = SakkalShapedWords.bold
+            face.joinedClusters = WindowsArabicAdvances.sakkalClusters
+            face.boldJoinedClusters = WindowsArabicAdvances.sakkalBoldClusters
+            face.naturalHeight = 1.40; face.boldHeight = 1.40
+        }
+        return face
+    }
+
     static func complexFace(_ family: String?) -> RichResolvedFace? {
         // (A face neither embedded nor on the machine is the one Word sets
         // the text in, Times New Roman, and not a name nothing answers to:
