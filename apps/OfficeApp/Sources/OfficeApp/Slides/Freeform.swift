@@ -98,9 +98,10 @@ struct FreeformGeometry: Equatable {
         var broken = false
         for p in geom.first("a:pathLst")?.all("a:path") ?? [] {
             // The path's own coordinate space, or the shape's when absent.
-            let pw = p["w"].flatMap(Double.init).flatMap { $0 > 0 ? $0 : nil } ?? w
-            let ph = p["h"].flatMap(Double.init).flatMap { $0 > 0 ? $0 : nil } ?? h
-            guard pw > 0, ph > 0 else { continue }
+            // (A rule drawn as a path of no height, or no width — PDF converters write them so — has every point on one edge: its
+            // unit is 1, not nothing, and the frame's own zero extent keeps it a line.)
+            let pw = p["w"].flatMap(Double.init).flatMap { $0 > 0 ? $0 : nil } ?? (w > 0 ? w : 1)
+            let ph = p["h"].flatMap(Double.init).flatMap { $0 > 0 ? $0 : nil } ?? (h > 0 ? h : 1)
             var cmds: [Command] = []
             var cur = (0.0, 0.0)
             func pt(_ n: XNode) -> (Double, Double)? {
