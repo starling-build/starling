@@ -4248,6 +4248,11 @@ static let sylfaenAdvances: [Double] = [
             RuleTrace.hit("dubai-complex-face-has-its-own-tall-line")
             face.naturalHeight = 1.6880; face.baseline = 1.1290
         }
+        // (Urdu Typesetting's own line: winAscent 2806 and winDescent 682 over 2048 units, metrics file UrduTypesetting_Regular.tsv.)
+        if wordOnWindows, asked == "urdu typesetting" {
+            RuleTrace.hit("urdu-typesetting-complex-face-has-its-own-tall-line")
+            face.naturalHeight = 1.7031; face.baseline = 1.3701
+        }
         if viaCourier {
             var t: [UInt32: Double] = [:]
             for u in 0x0600 ... 0x06FF { t[UInt32(u)] = 0.6 }
@@ -4298,6 +4303,13 @@ static let sylfaenAdvances: [Double] = [
                     face.joinedClusters = WindowsArabicAdvances.dubaiClusters
                     face.boldJoinedClusters = WindowsArabicAdvances.dubaiBoldClusters
                     RuleTrace.hit("dubai-complex-face-has-its-own-arabic-advances")
+                case "urdu typesetting":
+                    face.joinedAdvances = WindowsArabicAdvances.urduTypesetting
+                    face.boldJoinedAdvances = WindowsArabicAdvances.urduTypesettingBold
+                    face.joinedSpaceEm = 0.1465
+                    face.joinedWords = UrduShapedWords.regular
+                    face.boldJoinedWords = UrduShapedWords.bold
+                    RuleTrace.hit("urdu-typesetting-complex-face-has-its-own-arabic-advances")
                 case "sakkal majalla":
                     face.joinedAdvances = WindowsArabicAdvances.sakkal
                     face.boldJoinedAdvances = WindowsArabicAdvances.sakkalBold
