@@ -1519,7 +1519,7 @@ final class DeckController: ChangeNotifier {
                     shape.fieldShown = nil
                     continue
                 }
-                let want = field.value(slide: i + firstSlideNum)
+                let want = field.value(slide: SlideField.number(ofSlideAt: i, first: firstSlideNum))
                 shape.fieldShown = want
                 guard shown != want else { continue }
                 let style = doc.paragraphs[at].runs.first?.style ?? CharStyle()

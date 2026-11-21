@@ -721,7 +721,7 @@ struct PptxReader {
                     for k in found.indices {
                         guard let field = found[k].field, field.isSlideNumber, var doc = found[k].text else { continue }
                         guard let at = doc.paragraphs.firstIndex(where: { !$0.text.isEmpty }) else { continue }
-                        let want = field.value(slide: n + (presentation["firstSlideNum"].flatMap(Int.init) ?? 1))
+                        let want = field.value(slide: SlideField.number(ofSlideAt: n, first: presentation["firstSlideNum"].flatMap(Int.init) ?? 1))
                         let style = doc.paragraphs[at].runs.first?.style ?? CharStyle()
                         doc.paragraphs[at].text = want
                         doc.paragraphs[at].runs = [Run(length: want.utf16.count, style: style)]

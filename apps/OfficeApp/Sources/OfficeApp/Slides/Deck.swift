@@ -58,6 +58,10 @@ struct SlideField: Equatable {
     var isSlideNumber: Bool { type == "slidenum" }
 
     /// The text the field shows on slide `number` (1-based) today.
+    /// The number a slide-number field shows on the slide at `index` (0-based): the one count, for a field the slide holds and for one
+    /// its layout or master draws on it.
+    static func number(ofSlideAt index: Int, first: Int) -> Int { index + first }
+
     func value(slide number: Int, date: Date = Date()) -> String {
         if isSlideNumber { return "\(number)" }
         let pattern: String
