@@ -365,7 +365,7 @@ extension _StyledFrame {
             let verticalHere = index.map { _verticalBody($0) } ?? false
             if h.raise != 0, !verticalHere, !_rubyShiftApplies(p, named: named, ruby: run, pitch: pitch) { h.raise = 0 }
             s = s.copyWith(height: h.height)
-                    if verticalHere, pitch != nil, p.style.lineHeightPoints == nil, h.raise != 0 { s = s.copyWith(leadingDistribution: .even, debugLabel: (s.debugLabel ?? "") + " vruby-line vshift=\(-h.raise * theme.pixelsPerPoint * scale)") }
+                    if verticalHere, pitch != nil, p.style.lineHeightPoints == nil, h.raise != 0 { s = s.copyWith(leadingDistribution: .even, debugLabel: (s.debugLabel ?? "") + " vruby-line") }
             // (Off a grid the room for the ruby is all over the baseline, not shared with the line's foot:
             // xb jpn 231fe1 p1 "申請者" under ﾌﾘｶﾞﾅ stands 7pt lower, the next paragraph where it was. Single spacing only: at 1.15 Word's ruby line is shorter, lo-181b561b0a.)
             if gridPitchIsNil(pitch), p.style.lineHeightPoints == nil, p.style.lineSpacing > 0.995, h.descent > 0, s.ascentOverride == nil, let size = s.fontSize {

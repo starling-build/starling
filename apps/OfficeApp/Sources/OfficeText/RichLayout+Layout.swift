@@ -1348,7 +1348,7 @@ extension RichLayout {
     /// print. A vertical cell's too: zh-74b34f3b's tbRlV "東引鄉活動中心
     /// 2樓" keeps its ideographs upright and lays the "2" on its side,
     /// where its "2" had turned ours whole.)
-    func _paintUpright(_ painter: TextPainter, at origin: Offset, _ canvas: Canvas, distribute: Bool = false, justify: Bool = false, mixed: Bool = false, centred: Bool = false) -> Bool {
+    func _paintUpright(_ painter: TextPainter, at origin: Offset, _ canvas: Canvas, distribute: Bool = false, justify: Bool = false, mixed: Bool = false, centred: Bool = false, rubyShifts: [(from: Int, to: Int, shift: Double)] = []) -> Bool {
         guard let root = painter.text else { return false }
         let text = Array(root.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
         // (※ ☆ ★ stand upright in a Japanese face's column — dx2 934bd3e5's Meiryo — and lie on their side in
@@ -1448,14 +1448,9 @@ extension RichLayout {
         // (A column with a ruby in it is laid at its full width and its glyphs are set across it by the ruby's overflow share
         // at paint, not by an engine baseline shift, which grows the line by the shift: lab rgrid, Word's ruby column is 2 pitches whatever the spacing.)
         func rubyColumnShift(_ k: Int) -> Double {
-            guard styles.indices.contains(k) else { return 0 }
+            guard !rubyShifts.isEmpty, styles.indices.contains(k) else { return 0 }
             let line = painter.getLineBoundary(TextPosition(offset: k))
-            for j in line.start ..< min(line.end, styles.count) {
-                guard let label = styles[j]?.debugLabel, let r = label.rangeOfSubstring(" vshift=") else { continue }
-                // (A later copyWith wraps the label: "(… vshift=71.0).copyWith(…)"; read the number alone.)
-                return Double(String(label[r.upperBound...].prefix(while: { "0123456789.-+eE".contains($0) }))) ?? 0
-            }
-            return 0
+            return rubyShifts.first(where: { $0.from < line.end && $0.to > line.start })?.shift ?? 0
         }
         func acrossC(_ box: TextBox, _ em: Double, _ k: Int) -> Double {
             guard let st = styles[k] else { return across(box) }
