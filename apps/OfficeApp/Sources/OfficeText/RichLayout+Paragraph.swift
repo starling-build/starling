@@ -351,7 +351,10 @@ extension RichLayout {
                                   && _isSolaimanLipi(run.style, named, document)
                                   && units[0 ..< min(firstEnd, units.count)].contains(where: { $0 >= 0x20 && $0 < 0x7F })) {
                             RuleTrace.hit("word-indic-first-line-stands-on-its-face-ascent")
-                            target = size * metrics.0
+                            // (Under a multiple below single the ascent is cut in proportion: Word's 14 pt bold Nirmala heading at 0.9 stands 13.70 pt under the margin, 1.079 x 14 x 0.9 = 13.60, not the 15.11 of the whole ascent. lab pa-bullet.)
+                            let cut = cs == "nirmala ui" && p.style.lineHeightPoints == nil && p.style.lineSpacing > 0.5 && p.style.lineSpacing < 1 ? p.style.lineSpacing : 1
+                            if cut != 1 { RuleTrace.hit("word-nirmala-first-line-under-a-multiple-below-single-cuts-the-ascent-in-proportion") }
+                            target = size * metrics.0 * cut
                             raisedTo = target
                         } else if cs == "nirmala ui", style.lineHeightPoints == nil || style.lineHeightIsMinimum, let mangal = Self._indicLines["mangal"],
                                   _isSolaimanLipi(run.style, named, document),
