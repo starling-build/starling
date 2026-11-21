@@ -1765,13 +1765,12 @@ extension RichLayout {
                 }
                 // (A run with ruby over it makes its line room for the ruby.)
                 if theme.wordRules, run.ruby != nil, s.fontSize ?? 0 > 0.5,
-                   var h = theme.rubyLine(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch) {
+                   var h = theme.rubyLine(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch, vertical: index.map { _verticalBody($0) } ?? false) {
                     if h.raise != 0, !_rubyShiftApplies(p, named: named, ruby: run, pitch: pitch) { h.raise = 0 }
                     s = s.copyWith(height: h.height)
                     // (Off a grid the room for the ruby is all over the baseline, not shared with the line's foot:
                     // xb jpn 231fe1 p1 "申請者" under ﾌﾘｶﾞﾅ stands 7pt lower, the next paragraph where it was. Single spacing only: at 1.15 Word's ruby line is shorter, lo-181b561b0a.)
-                    if gridPitchIsNil(pitch), p.style.lineHeightPoints == nil, p.style.lineSpacing > 0.995, h.descent > 0, s.ascentOverride == nil, let size = s.fontSize,
-                       !(index.map { _verticalBody($0) } ?? false) {
+                    if gridPitchIsNil(pitch), p.style.lineHeightPoints == nil, p.style.lineSpacing > 0.995, h.descent > 0, s.ascentOverride == nil, let size = s.fontSize {
                         s = s.copyWith(ascentOverride: size * (h.height - h.descent), descentOverride: size * h.descent, leadingDistribution: .even, debugLabel: (s.debugLabel ?? "") + " ruby-line")
                     }
                     if h.raise != 0, NativeParagraphBuilder.supportsBaselineShift, !(index.map { _verticalBody($0) } ?? false) {
@@ -5457,7 +5456,7 @@ extension RichLayout {
             let movedHere = plainBeside && lines.count > 1 && (index.map { _verticalBody($0) } ?? false) ? 0 : moved
             if let index, _verticalBody(index) {
                 _paintUprightRuby(g.ruby.text, style, x: x, step: baseWidth > rubyWidth ? (baseWidth - rubyWidth) / count : 0,
-                                  centre: (first.top + first.bottom) / 2 - raise - movedHere * _px(1), origin: origin, canvas)
+                                  centre: (first.top + first.bottom) / 2 - raise - movedHere * _px(1) + _px(_grid(index, document).pitch == nil ? theme.verticalRubyExtra(for: g.style, in: p.style, named: named, eastAsian: true) / 2 : 0), origin: origin, canvas)
                 tp.dispose()
                 continue
             }
