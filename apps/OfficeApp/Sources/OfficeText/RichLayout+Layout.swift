@@ -2197,6 +2197,11 @@ extension RichLayout {
                 // string and sets one line, where ours measured one letter and parted it over two.)
                 else if theme.wordRules, RichTextTheme.wordWindowsPages, Self._arabicWordJoins(a, b) { parts = false }
                 else if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell != nil, !pctWidthTable && (document.compatibilityMode ?? 12) >= 15 || pctWidthTable && (document.compatibilityMode ?? 12) < 15, a >= 0x0E01, a <= 0x0E7F, b >= 0x0E01, b <= 0x0E7F { parts = false }
+                // (… and a Thai letter beside a full stop, a digit or a Latin letter, no space between, is the same one piece: xd bf230b4a's
+                // first column holds "พ.ย.62" whole in Word's print, 40.7pt; ours parted it after the Thai letter and set the column 33.6pt.)
+                else if theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) < 15, p.cell != nil, pctWidthTable,
+                        (a >= 0x0E01 && a <= 0x0E7F) != (b >= 0x0E01 && b <= 0x0E7F), !(a == 0x2D || a == 0x2013 || a == 0x2014 || b == 0x2D || b == 0x2013 || b == 0x2014),
+                        !Self._autofitDictionaryScript(a >= 0x0E01 && a <= 0x0E7F ? b : a) { parts = false }
                 else if breakBefore.contains(k) { parts = true }
                 // (After a hyphen before a digit in a time of day, where a
                 // word wider than its cell must part: zh-b3e887f7's schedule keeps its
