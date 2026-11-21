@@ -362,7 +362,7 @@ enum WordArt {
     /// size on a line one em high.
     private static func _glyph(_ ch: String, _ base: Flutter.TextStyle, _ look: RunLook?, family: String? = nil) -> Glyph {
         func style(_ paint: Paint) -> Flutter.TextStyle {
-            Flutter.TextStyle(fontSize: base.fontSize, fontWeight: base.fontWeight, fontStyle: base.fontStyle, height: 1.0,
+            Flutter.TextStyle(fontSize: base.fontSize, fontWeight: base.fontWeight, fontStyle: base.fontStyle, letterSpacing: base.letterSpacing, height: 1.0,
                               foreground: paint, fontFamily: base.fontFamily, fontFamilyFallback: base.fontFamilyFallback)
         }
         let fill = Paint()
