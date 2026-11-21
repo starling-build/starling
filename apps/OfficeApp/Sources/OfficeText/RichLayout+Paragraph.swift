@@ -5071,6 +5071,11 @@ extension RichLayout {
             // 1.44 up, the picture 1.47; a 2-line paragraph (spaces, picture) over a 13pt mark takes the cut twice, once in the engine's
             // line of spaces. Ours had set an empty anchor line 0.9pt high.)
             RuleTrace.hit("word-picture-line-under-a-multiple-below-one-loses-its-top")
+            // (The floats make no line, so the first-line indent is the picture's, not the anchor line's: the picture that
+            // wrapped past the indent still stands that far in. dx2 ko 1f6d638c page 2, 459.8pt picture in a 470pt column under
+            // firstLineChars 100: x 82.2 in Word's print, 70.2 in ours.)
+            let leadIn = _px(firstLineIndent(p, at: i, document))
+            if leadIn > 0 { _textLeft[i] += leadIn }
             bodyHeight = lines.reduce(0) { $0 + $1.height }
             if multiple < 0.999 {
                 let cut = (1 - multiple) * _markLineHeight(i, document, single: true)
