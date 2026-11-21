@@ -4453,7 +4453,11 @@ extension RichLayout {
             // (Not its effect extent's left, in a frame placed on the page: the
             // drawing stands at the frame's x — lab frame.)
             let atFrameX = style.frame.map { $0.verticalAnchor == "page" && $0.horizontalAnchor == "page" } ?? false
-            _imageShift[i] = indent + (style.alignment == .center ? spare / 2 : style.alignment == .right ? spare : 0) + (atFrameX ? 0 : room.left)
+            // (A right-to-left paragraph starts at the right: its object stands at the right end of the line, and one wider than the line
+            // runs out past the left: xd bf53d2b7's 448.6pt text boxes in a 432pt column stood at 55.3 in Word's print, at 73.3 in ours.)
+            let startsRight = RichTextTheme.wordWindowsPages && style.rightToLeft && image.float == nil && style.alignment != .center && style.alignment != .right
+            let rtlSpare = startsRight ? textWidth - indent - w.rounded() - room.left - room.right : spare
+            _imageShift[i] = indent + (style.alignment == .center ? spare / 2 : style.alignment == .right ? spare : startsRight ? rtlSpare : 0) + (atFrameX ? 0 : room.left)
             // A floating object stands clear of the flow: its paragraph
             // is the height of its (empty) line, as Word sets it.
             if theme.wordRules, let float = image.float, !float.takesRoom {} else { bodyHeight = (h + room.top + room.bottom).rounded() }
