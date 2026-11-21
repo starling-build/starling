@@ -351,6 +351,8 @@ private struct LevelStyle {
     /// forms (follow the text) read as nil.
     var bulletColor: Color?
     var bulletScale: Double?
+    /// `buSzPts`: a bullet at a fixed size, in points.
+    var bulletPoints: Double?
     var bulletColorFollows = false
     var bulletSizeFollows = false
     /// `cap`: "all", "small" or "none".
@@ -407,7 +409,7 @@ private struct LevelStyle {
         if s.autoNumType == nil { s.autoNumType = lower.autoNumType; s.autoNumStart = s.autoNumStart ?? lower.autoNumStart }
         if s.bulletChar == nil { s.bulletChar = lower.bulletChar; s.bulletFont = s.bulletFont ?? lower.bulletFont; s.bulletPicture = lower.bulletPicture }
         if s.bulletColor == nil, !s.bulletColorFollows { s.bulletColor = lower.bulletColor; s.bulletColorFollows = lower.bulletColorFollows }
-        if s.bulletScale == nil, !s.bulletSizeFollows { s.bulletScale = lower.bulletScale; s.bulletSizeFollows = lower.bulletSizeFollows }
+        if s.bulletScale == nil, s.bulletPoints == nil, !s.bulletSizeFollows { s.bulletScale = lower.bulletScale; s.bulletSizeFollows = lower.bulletSizeFollows; if s.bulletPoints == nil { s.bulletPoints = lower.bulletPoints } }
         s.caps = s.caps ?? lower.caps
         s.size = s.size ?? lower.size
         s.bold = s.bold ?? lower.bold
@@ -457,7 +459,8 @@ private struct LevelStyle {
         if let f = p.first("a:buFont")?["typeface"] { s.bulletFont = f }
         if let c = p.first("a:buClr") { s.bulletColor = colors.color(in: c) }
         if p.has("a:buClrTx") { s.bulletColorFollows = true }
-        if let v = p.first("a:buSzPct")?["val"].flatMap(Double.init) { s.bulletScale = v / 100000 }
+        if let v = p.first("a:buSzPct")?["val"].flatMap(Double.init) { s.bulletScale = v / 100000; s.bulletPoints = nil }
+        if let v = p.first("a:buSzPts")?["val"].flatMap(Double.init) { s.bulletPoints = v / 100; s.bulletScale = nil }
         if p.has("a:buSzTx") { s.bulletSizeFollows = true }
         if let n = p.first("a:buAutoNum") {
             s.bullet = .number
@@ -3469,6 +3472,9 @@ private struct SlideContext {
                 if level.bullet == .char { style.bulletPicture = level.bulletPicture }
                 style.bulletColor = level.bulletColor
                 style.bulletScale = level.bulletScale
+                // A bullet of so many points is that share of this text's size
+                // (ab07bcf5: the layout's 16 pt × before 40 pt headings).
+                if let pts = level.bulletPoints, size > 0 { style.bulletScale = pts / size }
                 // The bullet's own face — but not a symbol face, whose codes
                 // were turned into the glyphs they show and are set in the
                 // text's.

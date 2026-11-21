@@ -72,7 +72,7 @@ enum SlideFonts {
         guard embeddedFamily(family) == nil, n.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 }), OfficeFonts.installed(family) == nil else { return false }
         let own = ["맑은 고딕", "바탕", "바탕체", "돋움", "돋움체", "굴림", "굴림체", "궁서", "궁서체", "나눔고딕"]
         if own.contains(n) { return false }
-        return !["명조", "바탕", "궁서", "헤드라인", "신명", "필기", "손글씨", "펜"].contains(where: { n.containsSubstring($0) })
+        return !["명조", "바탕", "궁서", "신명", "필기", "손글씨", "펜"].contains(where: { n.containsSubstring($0) })
     }
 
     static func resolve(_ family: String) -> String {
