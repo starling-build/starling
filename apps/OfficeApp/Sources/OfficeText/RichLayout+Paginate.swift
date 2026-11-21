@@ -1074,7 +1074,7 @@ extension RichLayout {
                         let inner = _flowWidth(pgs.i), w = _px(image.width), x = (inner - w) / 2
                         let l = x - _px(f.distanceLeft ?? 9), r = inner - (x + w) - _px(f.distanceRight ?? 9)
                         let top = pgs.y + _px(f.y) - _px(f.distanceTop), bottom = pgs.y + _px(f.y) + _px(image.height + f.effectBottom + f.distanceBottom)
-                        pgs.narrowBands.removeAll(where: { $0.owner >= pgs.i })
+                        let cutAt = pgs.i; pgs.narrowBands.removeAll(where: { $0.owner >= cutAt })
                         if bottom > top, bottom > 0.01 { pgs.narrowBands.append((top, bottom, pgs.i, l, r)) }
                     }
                     guard let f = image.float, f.bandsPage else { continue }
