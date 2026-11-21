@@ -220,7 +220,10 @@ extension PdfExport {
                 // (Word for Windows prints the page at a whole number of 600-dpi dots to the inch, c = 600 W / (text
                 // right + 266.4) rounded, and centres it from the unrounded c / 600: amd-opus' fit of 26 documents'
                 // prints, 03f63881, 5e813226, 2335cfd7 among them, to about one dot, 0.12 pt.)
-                let exact = setup.width / (textRight + 266.4)
+                // The fit is made on the printer's paper: a page within half a point of A4 or Letter (11900 twips for 11906,
+                // 2065f8a1, pol-z609: their panes sat 0.27-0.29 pt low with the document's own width) uses that paper's width.
+                let paperW = [595.32, 612.0].first { abs($0 - setup.width) < 0.5 } ?? setup.width
+                let exact = paperW / (textRight + 266.4)
                 scale = (600 * exact).rounded() / 600
                 left = 0
                 top = (setup.height - exact * setup.height) / 2
