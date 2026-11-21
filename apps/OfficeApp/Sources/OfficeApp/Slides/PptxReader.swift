@@ -345,6 +345,7 @@ private enum Bullet: Equatable { case none, char, number }
 /// inheritance chain says; `filled(from:)` completes it from a lower layer.
 private struct LevelStyle {
     var algn: String?
+    var latinLnBrk: String?
     var rtl: String?
     var marL: Double?
     var marR: Double?
@@ -411,6 +412,7 @@ private struct LevelStyle {
     func filled(from lower: LevelStyle) -> LevelStyle {
         var s = self
         s.algn = s.algn ?? lower.algn
+        s.latinLnBrk = s.latinLnBrk ?? lower.latinLnBrk
         s.rtl = s.rtl ?? lower.rtl
         s.marL = s.marL ?? lower.marL
         s.marR = s.marR ?? lower.marR
@@ -451,6 +453,7 @@ private struct LevelStyle {
         var s = LevelStyle()
         guard let p else { return s }
         s.algn = p["algn"]
+        s.latinLnBrk = p["latinLnBrk"]
         s.rtl = p["rtl"]
         s.marL = p["marL"].flatMap(Double.init).map { $0 / Pptx.emu }
         s.marR = p["marR"].flatMap(Double.init).map { $0 / Pptx.emu }
@@ -3609,6 +3612,7 @@ private struct SlideContext {
             default: style.alignment = .left
             }
             if p.first("a:pPr")?["hangingPunct"] == "0" { style.eastAsian["a:hangingPunct"] = "0" }
+            if let b = level.latinLnBrk { style.eastAsian["a:latinLnBrk"] = b }
             if let m = level.lineMultiple { style.lineSpacing = m } else if let pts = level.linePoints {
                 // Exactly that many points, whatever the runs' sizes.
                 style.lineHeightPoints = whole(pts)
