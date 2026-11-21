@@ -3755,6 +3755,43 @@ extension RichLayout {
                 Self._pairedLines[ObjectIdentifier(painter)] = _PairedLines(painter: painter, shifts: shifts, saving: -acc)
             }
         }
+        // (A fraction in a line of "at least" spacing: Word's line is as tall as the text's strut or the fraction's own
+        // ascent over the last line's foot, whichever is more: the gap from one baseline to the next is the larger of
+        // the strut and the line above's descent plus this line's ascent. Lab frac3 case 10, 14pt at least, 11pt text and
+        // fraction: 16.34 and 16.68 where the lines were all 14.0.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, !p.text.isEmpty, !style.rightToLeft, _columns <= 1,
+           style.lineHeightIsMinimum, let least = style.lineHeightPoints, least > 0, keepClear == nil, besideLineIndents.isEmpty,
+           Self._paired(painter) == nil, let boxes = painter.inlinePlaceholderBoxes, boxes.count == inline.count, !boxes.isEmpty {
+            let bottoms = Self._rawLineBottoms(painter)
+            let metrics = painter.computeLineMetrics()
+            if bottoms.count == metrics.count, bottoms.count > 1 {
+                let textDescent = metrics.map { $0.descent }
+                var ascent = [Double](repeating: 0, count: bottoms.count), descent = ascent
+                for (k, box) in boxes.enumerated() {
+                    guard let whole = inline[k].image?.naturalExtent, inline[k].image?.name == "m:oMath", inline[k].image?.stackedEquation == true else { continue }
+                    let mid = box.toRect().top + box.toRect().height / 2
+                    guard let line = bottoms.firstIndex(where: { mid < $0 }) else { continue }
+                    // (Cambria Math's own extent is 0.077 em over Word's above and 0.15 em under the fraction's: lab frac3, 11pt.)
+                    let em = painter.strutStyle?.fontSize ?? _px(11)
+                    ascent[line] = max(ascent[line], _px(whole.ascent) - 0.077 * em); descent[line] = max(descent[line], _px(whole.descent) - 0.15 * em)
+                }
+                var extra = [Double](repeating: 0, count: bottoms.count)
+                for line in 1 ..< bottoms.count {
+                    let advance = bottoms[line] - bottoms[line - 1]
+                    let tD = textDescent[line - 1]
+                    let a = max(ascent[line], advance - tD)
+                    let want = max(advance, max(descent[line - 1], tD) + a)
+                    if want > advance + 0.01 { extra[line] = want - advance }
+                }
+                if extra.contains(where: { $0 > 0 }) {
+                    RuleTrace.hit("word-a-fraction-in-at-least-spacing-takes-its-own-ascent-and-descent")
+                    var shifts = [Double](repeating: 0, count: bottoms.count)
+                    var acc = 0.0
+                    for k in 0 ..< bottoms.count { acc += extra[k]; shifts[k] = acc }
+                    Self._pairedLines[ObjectIdentifier(painter)] = _PairedLines(painter: painter, shifts: shifts, saving: -acc)
+                }
+            }
+        }
         // (A line of Latin letters alone in a paragraph on a line grid at a multiple: Word's box is the multiple of the
         // pitch it fits in, 27 pt for 14 pt Times in an 18 pt grid at 1.5 lines, where the line holding any East Asian
         // letter is the strut's two pitches (36). The text stays centred in its box, as in the strut's. Lab head2line
