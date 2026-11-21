@@ -1184,6 +1184,8 @@ public struct RichResolvedFace: Sendable {
     /// stand-in's own kerning is off, its pairs not the original's.
     public var kerns: [UInt32: Double]? = nil
     public var boldKerns: [UInt32: Double]? = nil
+    /// Kern outside Word's rules too (Slides: PowerPoint kerns Aptos).
+    public var kernsOutsideWord = false
     /// The same for characters past those which the original face has
     /// and its stand-in has not, by code point: the stand-in's fallback
     /// draws them, and the line is set by the original's widths (Times

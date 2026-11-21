@@ -91,8 +91,17 @@ enum SlideFonts {
             face.otherAdvances = OfficeFonts.lucidaSansUnicodeOtherAdvances
             face.boldOtherAdvances = OfficeFonts.lucidaSansUnicodeOtherAdvances
             return face
-        // (Aptos stays on its stand-in: PowerPoint kerns Aptos, and Word's measured table has no kerning, so
-        // "Outer, " came out 3% wide (lo-NumberedList-12ab-ab-34 2.14 to 2.56). Back when a full kern table exists.)
+        case "aptos":
+            // (Word's measured Aptos widths are unkerned and PowerPoint kerns Aptos, so the GPOS pairs go with them.)
+            var face = RichResolvedFace(family: resolve(family))
+            face.advances = OfficeFonts.aptosAdvances
+            face.boldAdvances = OfficeFonts.aptosBoldAdvances
+            face.otherAdvances = OfficeFonts.aptosOtherAdvances
+            face.boldOtherAdvances = OfficeFonts.aptosBoldOtherAdvances
+            face.kerns = SlideAptosKerns.regular
+            face.boldKerns = SlideAptosKerns.bold
+            face.kernsOutsideWord = true
+            return face
         case "verdana":
             // (Verdana in DejaVu Sans, at Verdana's widths: its space is
             // 0.35 em to DejaVu's 0.32, and pptx2svg's words stood closer
