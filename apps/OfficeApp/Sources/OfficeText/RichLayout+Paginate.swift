@@ -385,10 +385,12 @@ extension RichLayout {
                 // under the first's four lines, in Word's print.)
                 if let pf = pgs.pinnedFrom, pf.table == prev, pf.page == pgs.page { pgs.y = max(pgs.y, pf.y) }
             }
+            // (Not under the switch with columns: splicing the old pieces back in lost the lines
+            // of a paragraph that stood in the second column slot; dx2 6e956549's page 3 ran 26 lines short.)
             // Converged: this paragraph starts on the same page at the same
             // y as before and nothing below has changed, so the old pieces
             // and pages from here on are still right.
-            if pgs.restarted, !pgs.reordered, pgs.i > pgs.settled, pgs.resumeCursor == nil, pgs.oldStart.count == count + 1,
+            if pgs.restarted, !(RichTextTheme.sectionColumnsFlow && _columns > 1), !pgs.reordered, pgs.i > pgs.settled, pgs.resumeCursor == nil, pgs.oldStart.count == count + 1,
                pgs.oldStart[pgs.i] < pgs.oldPieces.count, case let old = pgs.oldPieces[pgs.oldStart[pgs.i]],
                old.page == pgs.page, abs(old.pageY - pgs.y) < 0.01, abs(old.flowTop - _tops[pgs.i]) < 0.01,
                pgs.page < pgs.oldPages.count {
@@ -781,7 +783,7 @@ extension RichLayout {
             let nb = _perSection && pgs.i > 0 ? _columnsOf(paragraph: pgs.i - 1) : _columns
             var balancedHere = false
             if theme.wordRules, nb > 1, !(_perSection && document.leavesColumnsUnbalanced), !_pageBreak[pgs.i], pgs.i > 0, pgs.i < _sectionOf.count, _sectionOf[pgs.i] != _sectionOf[pgs.i - 1],
-               _cells[pgs.i] == nil, pgs.resumeCursor == nil, !pgs.notesOn || pgs.pageNotes.isEmpty {
+               _cells[pgs.i] == nil || RichTextTheme.sectionColumnsFlow, pgs.resumeCursor == nil, !pgs.notesOn || pgs.pageNotes.isEmpty {
                 let first = (pgs.page / _columns) * _columns
                 var seq: [PagePiece] = []
                 // (Through the last column of the page, not just the one being set:
