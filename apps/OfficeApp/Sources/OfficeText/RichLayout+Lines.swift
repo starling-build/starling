@@ -781,14 +781,16 @@ extension RichLayout {
     func _markBesideOffsetFloat(_ table: String, _ i: Int, _ document: RichDocument) -> Bool {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, i > 0, document.paragraphs[i].text.isEmpty,
               let ts = document.tableStyles[table], ts.floatOffsetY != nil || ts.floatRaiseY != nil, ts.floatsOverText, !ts.pageAnchored, let kept = ts.keptPosition,
-              kept.containsSubstring("w:vertAnchor=\"text\""), !kept.containsSubstring("w:horzAnchor=\"page\""),
+              kept.containsSubstring("w:vertAnchor=\"text\""),
               !kept.containsSubstring("w:tblpXSpec"), let widths = _columnWidths[table] else { return false }
         func twips(_ name: String) -> Double {
             guard let r = kept.rangeOfSubstring("\(name)=\"") else { return 0 }
             return Double(kept[r.upperBound...].prefix { $0 == "-" || $0.isNumber }) ?? 0
         }
         let size = document.paragraphs[i].style.mark?.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
-        let strip = _flowWidth(i) - _px(twips("w:tblpX") / 20) - widths.reduce(0, +) - _px(twips("w:rightFromText") / 20)
+        // (A table set from the page's edge: its left is the flow's own, `_tableLeft`.)
+        let left = kept.containsSubstring("w:horzAnchor=\"page\"") ? _tableLeft(table, document) : _px(twips("w:tblpX") / 20)
+        let strip = _flowWidth(i) - left - widths.reduce(0, +) - _px(twips("w:rightFromText") / 20)
         return strip >= _px(size)
     }
 
