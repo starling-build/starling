@@ -404,6 +404,8 @@ struct Chart: Equatable {
         /// Its slices carry no outline (`a:ln` of `noFill` on its points), and
         /// whether it draws the lines joining the plots (`c:serLines`).
         var noEdge = false, joined = false
+        /// The colour the file gives the lines joining the plots.
+        var lineColor: Color? = nil
     }
     /// A bar chart of one series whose points each take a colour of
     /// their own (`c:varyColors`): they cycle as a pie's slices do, and
@@ -2080,6 +2082,7 @@ enum ChartXML {
         c.pointPatterns = pointPatterns
         if el.name == "c:ofPieChart", let values = c.series.first?.values {
             c.ofPie = Self._ofPie(el, values: values)
+            if let f = el.first("c:serLines")?.first("c:spPr")?.first("a:ln")?.first("a:solidFill") { c.ofPie?.lineColor = color(f) }
         }
         c.sameColour = type == .pie && el.name != "c:ofPieChart" && el.first("c:varyColors")?["val"] == "0" && c.series.count == 1
         c.variedPoints = (type == .bar || type == .column) && c.series.count == 1 && c.lineSeries.isEmpty
@@ -2913,6 +2916,19 @@ enum ChartPainter {
                     lines = stride(from: 0, to: entries.count, by: columns).map { Array(entries[$0 ..< min($0 + columns, entries.count)]) }
                 }
             }
+            // (A legend wrapped on a slide stands as a grid: every column as wide as the widest key and name, no gap between,
+            // as many columns as fit the frame less a key's room at each end, the entries across row by row, the block centred:
+            // 0338b5a8 p5's ten entries, 207.8 pt a column and two of them where three would take 623 of a 640 pt frame, in
+            // PowerPoint's print.)
+            var slideGridW: Double? = nil
+            if !beside, box == nil, lines.count > 1, c.onSlide {
+                let colW = entries.map { lead + $0.tp.width }.max() ?? 0
+                let cols = max(1, min(entries.count, Int((area.width - 2 * lead) / max(1, colW))))
+                if colW > 0, cols > 1 {
+                    slideGridW = colW
+                    lines = stride(from: 0, to: entries.count, by: cols).map { Array(entries[$0 ..< min($0 + cols, entries.count)]) }
+                }
+            }
             // (An entry to a line: PowerPoint's 9 pt entries are 16.9 pt apart.)
             // (A line of the chart's Latin face, whatever the names' script:
             // zh-37b6536f's Chinese entries, 9pt, stand 16.8 apart in Word's
@@ -3146,7 +3162,7 @@ enum ChartPainter {
             }
             for (n, line) in lines.enumerated() {
                 let lineH = lineHs[n]
-                let w = line.reduce(0.0) { $0 + lead + $1.tp.width } + spacing * Double(max(0, line.count - 1))
+                let w = slideGridW.map { $0 * Double(lines.map(\.count).max() ?? 1) } ?? (line.reduce(0.0) { $0 + lead + $1.tp.width } + spacing * Double(max(0, line.count - 1)))
                 // (A row on a slide stands 0.19 of its size right of the
                 // frame's middle: chart-slide-bg's 12 pt legend 2.37 pt in
                 // PowerPoint's print, cooper's 10 pt ones 1.76 and 1.74 —
@@ -3217,7 +3233,7 @@ enum ChartPainter {
                         textDrop = (lineH - textH) / 2
                     }
                     e.tp.paint(canvas, Offset(x + lead, y + textDrop))
-                    x += lead + e.tp.width + spacing
+                    x += slideGridW ?? (lead + e.tp.width + spacing)
                 }
                 y += lineH
             }
@@ -6521,6 +6537,18 @@ extension ChartPainter {
         } else {
             let r2 = d * o.size / 2
             let oval2 = Rect.fromCircle(center: Offset(x2 + r2, centre.dy), radius: r2)
+            // The lines from the main pie's two edges to the top and bottom
+            // of the second pie (`c:serLines`; 0338b5a8 p5's, in PowerPoint's print).
+            if o.joined, c.onSlide {
+                let rule = Paint()
+                rule.style = .stroke
+                rule.isAntiAlias = true
+                rule.strokeWidth = max(0.5, 0.75 * k)
+                rule.color = o.lineColor ?? Color(0xFFA6A6A6)
+                let r = d / 2
+                canvas.drawLine(Offset(centre.dx + r * cos(half), centre.dy - r * sin(half)), Offset(x2 + r2, centre.dy - r2), rule)
+                canvas.drawLine(Offset(centre.dx + r * cos(half), centre.dy + r * sin(half)), Offset(x2 + r2, centre.dy + r2), rule)
+            }
             var a = half
             for i in moved where values[i] > 0 {
                 let sweep = values[i] / other * 2 * .pi
