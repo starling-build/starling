@@ -2669,6 +2669,9 @@ private struct SlideContext {
                 st.fillStyle = f
             } else if let f = pr.first("a:solidFill"), let c = colors.color(in: f) {
                 st.fillStyle = SlideFill(color: c)
+            } else if let g = pr.first("a:gradFill"), let f = PptxReader.gradient(g, colors: colors), f.stops.count >= 2 {
+                // (0338b5a8's dark circle-path gradient behind its pies.)
+                st.fillStyle = f
             }
             // The chart area's outline.
             if let ln = pr.first("a:ln"), !ln.has("a:noFill"), let f = ln.first("a:solidFill"), let c = colors.color(in: f) {
