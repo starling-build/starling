@@ -1918,6 +1918,9 @@ public final class RichLayout {
     /// and the width the second, unclamped pass is given beyond the margin (nil in the first).
     var _pastNeed: [Int: Double] = [:]
     var _pastWiden: Double? = nil
+    /// Top-aligned paragraph with a mixed-size line: per line, the biggest run size on it (set by the probe layout in _layoutParagraphOnce).
+    var _topLift: [(from: Int, to: Int, big: Double)]? = nil
+    var _topLiftBig: Double? = nil
     /// The same for an explicit LEFT stop past the margin, which the clamped pass wraps (so no one-line test).
     var _pastLeft: [Int: Double] = [:]
     struct ListSig: Equatable {

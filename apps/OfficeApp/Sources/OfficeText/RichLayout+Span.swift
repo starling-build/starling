@@ -2059,24 +2059,16 @@ extension RichLayout {
                 // (Word's `w:textAlignment` "top": each run stands on its own ascent below the line's top, so a smaller run sets higher
                 // than the baseline a bigger one on its line shares: xd sa1 97666801's 12 pt "SIM" beside a 16 pt box glyph stands 3.9 pt
                 // higher in Word's print than ours. The line's height is the bigger run's, unchanged.)
-                if kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil,
+                if kind >= 0, _topLiftBig != nil, theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil,
                    p.style.eastAsian["w:textAlignment"] == "top", let size = s.fontSize, size > 0.5 {
                     // (Only the size differs: the same face's ascent at the paragraph's biggest size against its own.)
                     func sizePt(_ r: CharStyle) -> Double { r.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize }
                     let fam = run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily
                     let ratio = theme.faceResolver?(fam, false)?.baseline ?? 0.8
                     let own = sizePt(run) * ratio
-                    // (A run of only tabs is skipped: its size is not carried into the run style, so it would read as the Normal size.)
-                    let u16 = Array(p.text.utf16)
-                    var at = 0
-                    var big = sizePt(run)
-                    for r in p.runs {
-                        defer { at += r.length }
-                        guard r.length > 0, r.style.script == .normal, at + r.length <= u16.count,
-                              u16[at..<(at + r.length)].contains(where: { $0 != 9 }) else { continue }
-                        big = max(big, sizePt(r.style))
-                    }
-                    let most = big * ratio
+                    // (The biggest run on THIS line, from the probe layout `_topLift`: Word stands each line's runs on that line's
+                    // own tallest run, not the paragraph's — xd 0815aa59's one 22 pt space lifts its own line only.)
+                    let most = (_topLiftBig ?? sizePt(run)) * ratio
                     if most - own > 0.05 {
                         RuleTrace.hit("word-top-aligned-runs-stand-on-their-own-ascent")
                         s = s.copyWith(baselineShift: (s.baselineShift ?? 0) - (most - own) * theme.pixelsPerPoint * scale)
@@ -4629,6 +4621,26 @@ extension RichLayout {
             if spans.count == 1 { return (spans[0], [], inserts) }
             return (TextSpan(children: spans), [], inserts)
         }
+        // (Per-line top-aligned lift: a run is cut at the probe layout's line starts, each part set with its line's biggest size.)
+        func styledByLine(_ sub: Substring, _ run: CharStyle, at base: Int, next: Character?) -> [TextSpan] {
+            guard let table = _topLift, !sub.isEmpty else { return styled(sub, run, at: base, next: next) }
+            var out: [TextSpan] = []
+            var from = sub.startIndex
+            var off = base
+            let end = base + sub.utf16.count
+            while from < sub.endIndex {
+                let seg = table.first(where: { $0.from <= off && off < $0.to })
+                let nextFrom = table.map { $0.from }.filter { $0 > off }.min() ?? end
+                let stop = min(end, seg.map { min($0.to, end) } ?? nextFrom)
+                let cut = stop <= off ? sub.endIndex : sub.utf16.index(from, offsetBy: stop - off)
+                _topLiftBig = seg?.big
+                out += styled(sub[from ..< cut], run, at: off, next: cut < sub.endIndex ? sub[cut] : next)
+                _topLiftBig = nil
+                from = cut
+                off = max(stop, off + 1)
+            }
+            return out
+        }
         var children: [InlineSpan] = []
         var inline: [(image: ImageAttachment?, dimensions: PlaceholderDimensions)] = []
         children.reserveCapacity(p.runs.count + 1)
@@ -5283,7 +5295,7 @@ extension RichLayout {
                 for idx in p.text[a ..< b].indices where p.text[idx] == "\u{2610}" || p.text[idx] == "\u{2612}" {
                     let at = pos - run.length + utf16.distance(from: a, to: idx)
                     if start < idx {
-                        children.append(contentsOf: styled(p.text[start ..< idx], run.style, at: pos - run.length + utf16.distance(from: a, to: start), next: p.text[idx]))
+                        children.append(contentsOf: styledByLine(p.text[start ..< idx], run.style, at: pos - run.length + utf16.distance(from: a, to: start), next: p.text[idx]))
                     }
                     var box = ImageAttachment(data: Data(), width: size * 0.936, height: size * 0.936, name: p.text[idx] == "\u{2612}" ? "checkbox-on" : "checkbox")
                     box.outline = ShapeOutline(kind: .box, color: run.style.color ?? theme.textColor, width: size * 0.072)
@@ -5321,12 +5333,12 @@ extension RichLayout {
                     start = after
                 }
                 if start < b {
-                    children.append(contentsOf: styled(p.text[start ..< b], run.style, at: pos - run.length + utf16.distance(from: a, to: start), next: b < utf16.endIndex ? p.text[b] : nil))
+                    children.append(contentsOf: styledByLine(p.text[start ..< b], run.style, at: pos - run.length + utf16.distance(from: a, to: start), next: b < utf16.endIndex ? p.text[b] : nil))
                 }
                 continue
             }
             let runStart = pos - run.length
-            children.append(contentsOf: styled(p.text[a ..< b], run.style, at: runStart, next: b < utf16.endIndex ? p.text[b] : nil))
+            children.append(contentsOf: styledByLine(p.text[a ..< b], run.style, at: runStart, next: b < utf16.endIndex ? p.text[b] : nil))
             // (The half share after a ruby's base: a word joiner that wide.)
             if let tail = rubyTails[pos], tail > 0, run.style.ruby != nil {
                 rubyTails[pos] = nil
