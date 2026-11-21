@@ -228,6 +228,16 @@ extension _ParaFrame {
             var mark = p.style.mark ?? p.runs.first?.style ?? CharStyle()
             mark.inlineImage = nil
             var empty = RichParagraph(text: "\u{FFFC}", runs: [Run(length: 1, style: mark)], style: p.style)
+            // (A paragraph holding only floating objects whose mark is w:rtl: Word sets its line as it sets an empty paragraph with that
+            // mark, the complex-script face's line at szCs, not the Latin face's line the object character would make: lab rtlmark1 (Word
+            // print), a lone floating line in a mark of David or Arial, 10/12/18 pt, is the empty paragraph's height to 0.1 pt; xd b9164bf3's
+            // two such paragraphs stood 0.93 pt tall each.)
+            var markLine = false
+            if RichTextTheme.wordWindowsPages, document.readFromFile, mark.rightToLeft, p.style.list == nil, p.style.lineHeightPoints == nil {
+                markLine = true
+                empty = RichParagraph(text: "", runs: [Run(length: 0, style: mark)], style: p.style)
+                RuleTrace.hit("word-line-of-only-floats-is-the-empty-mark-line")
+            }
             empty.cell = p.cell
             let (span, held, _) = _span(for: empty, at: nil, document, textWidth: textWidth)
             let probe = TextPainter(text: span, textAlign: .left, textDirection: .ltr,
@@ -242,7 +252,7 @@ extension _ParaFrame {
             // carries no size of its own, and the 10pt of the style under it made dx2 bg ec25df03's header's 1pt first
             // paragraph 10.4pt too deep, every line of the page after it.)
             let pictureOnly = p.image?.float?.wraps == true && p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC })
-            bodyHeight = spacesOnly || p.image == nil || p.image?.textBox != nil || pictureOnly ? probe.height : max(bodyHeight, probe.height)
+            bodyHeight = spacesOnly || markLine || p.image == nil || p.image?.textBox != nil || pictureOnly ? probe.height : max(bodyHeight, probe.height)
             probe.dispose()
         }
         // A tab at the paragraph's end whose stop lies past the right
