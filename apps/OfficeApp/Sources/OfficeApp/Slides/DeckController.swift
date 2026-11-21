@@ -134,6 +134,8 @@ struct DeckState: Equatable {
     /// Undo restores the look too: applying a theme is one step.
     var theme: DeckTheme? = nil
     var ownTemplates: Bool? = nil
+    /// `p:presentation firstSlideNum`: the number the first slide shows in a slide-number field (PowerPoint prints 0 when a deck says 0).
+    var firstSlideNum = 1
 }
 
 /// Every change to a deck goes through here. Listeners hear about slide
@@ -151,6 +153,7 @@ final class DeckController: ChangeNotifier {
     /// The slide in points: 16:9 Widescreen by default, PowerPoint's own
     /// default since 2013 (13.333 x 7.5 in).
     private(set) var slideSize = Size(960, 540)
+    private(set) var firstSlideNum = 1
     var theme = DeckTheme()
     private(set) var revision = 0
     /// Moves on every change to the content (not on selection or moving
@@ -1072,7 +1075,7 @@ final class DeckController: ChangeNotifier {
                        transition: slide.transition, timingXML: slide.timingXML,
                        footerFrames: slide.footerFrames, animations: slide.animations,
                        sourceAnimations: slide.sourceAnimations)
-        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates)
+        }, current: current, slideSize: slideSize, theme: theme, ownTemplates: ownTemplates, firstSlideNum: firstSlideNum)
     }
 
     /// Put the deck back as `state` was. Objects that still exist are kept
@@ -1132,6 +1135,7 @@ final class DeckController: ChangeNotifier {
         }
         slides = next
         slideSize = state.slideSize
+        firstSlideNum = state.firstSlideNum
         if let t = state.theme { theme = t }
         if let o = state.ownTemplates { ownTemplates = o }
         current = max(0, min(state.current, slides.count - 1))
@@ -1515,7 +1519,7 @@ final class DeckController: ChangeNotifier {
                     shape.fieldShown = nil
                     continue
                 }
-                let want = field.value(slide: i + 1)
+                let want = field.value(slide: i + firstSlideNum)
                 shape.fieldShown = want
                 guard shown != want else { continue }
                 let style = doc.paragraphs[at].runs.first?.style ?? CharStyle()
