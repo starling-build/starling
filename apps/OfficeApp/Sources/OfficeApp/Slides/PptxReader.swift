@@ -3256,7 +3256,13 @@ private struct SlideContext {
     private func _eaFont(_ f: String?, scalar: UInt32, lang: String?) -> String? {
         let major = f == "+mj-ea" || f == "+mj-lt" || f == "+mj-cs"
         let table = major ? theme.majorScript : theme.minorScript
-        if let f, !f.hasPrefix("+") { return f }
+        // A Latin-only face named for the East Asian slot of a run that is not marked Japanese (Google Slides exports
+        // name Calibri there, lang en-US) has no letters for kana and kanji: PowerPoint sets them in MS Gothic
+        // (054ae4d7 p8 pitch 101.6 pt). Runs marked ja keep the named face (6effb0bd, 5cf98ad4: Arial, lang ja-JP).
+        if let f, !f.hasPrefix("+") {
+            if Self.latinOnlyOfficeFaces.contains(f), scalar >= 0x3040, scalar <= 0x9FFF, !(lang ?? "").lowercased().hasPrefix("ja") { return "MS Gothic" }
+            return f
+        }
         if let named = table["ea"], !named.isEmpty { return named }
         let l = (lang ?? "").lowercased()
         // (PowerPoint's print, bug64693, a theme whose East Asian slot is empty: Chinese letters of a run that names
@@ -3274,6 +3280,8 @@ private struct SlideContext {
         }
         return table[script]
     }
+
+    static let latinOnlyOfficeFaces: Set<String> = ["Calibri", "Arial", "Times New Roman", "Cambria", "Verdana", "Tahoma", "Georgia", "Trebuchet MS"]
 
     static func isEastAsian(_ v: UInt32) -> Bool {
         switch v {
