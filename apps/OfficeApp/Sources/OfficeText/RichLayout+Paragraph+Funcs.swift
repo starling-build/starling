@@ -876,7 +876,12 @@ extension _ParaFrame {
                 // spacing that pushes the line on keeps the stop drawn.)
                 let windowLine = wraps.filter { $0 <= t }.count
                 let window = windowLine < tabWindows.count ? tabWindows[windowLine] : LineIndent()
-                let x = (base.map { ownLeft + at - $0 + shift } ?? ownLeft + at - origin + shift) + window.left
+                // (A PowerPoint bullet paragraph: its text starts at marL, past the first line's start `ownLeft` the
+                // bullet stands at, and its tab stops are counted from the box's edge. es-5ddc3269 p2's "Tener<tab>distintos",
+                // marL 23.5pt, indent -22.5, a stop at 86.45: PowerPoint's print has "distintos" at 86.45 from the box,
+                // ours at 109, the text's 22.6pt start counted twice.)
+                let listText = !theme.wordRules && theme.markersAtHang && style.list != nil ? max(0, left - ownLeft) : 0
+                let x = (base.map { ownLeft + at - $0 + shift } ?? ownLeft + at - origin + shift) + window.left + listText
                 // (A tab whose next character's edge the probe cannot give — its box missing, the caret read as 0 — has the width
                 // of its own box: xd 6be5dbc9's "३.<tab>संस्थाको", the tab taken as 27 pt wide, already at its hanging stop, so it
                 // got no stretch and stood 3 pt wide in Word's 27.)
