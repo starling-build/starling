@@ -85,6 +85,11 @@ enum OfficeFonts {
             RuleTrace.hit("windows-helvetica-named-missing-face-no-entry-is-arial")
             return sans
         }
+        // (American Typewriter, a Mac-only face with no alternate: Word for Windows prints it in Courier New (sa1 a56e81ec and
+        // 3437aefa headers). Not a property rule: lab missface gave 120 invented faces only Cambria or Calibri, none Courier.)
+        if wordOnWindows, !isEmbedded(family), n == "american typewriter", (fontEntry(family)?.alt ?? "").isEmpty {
+            return mono
+        }
         switch n {
         case "liberation sans", "arial", "arial bold", "arial italic", "arial bold italic", "helvetica", "helvetica neue", "tahoma", "raavi",
              "segoe ui", "aptos", "arimo", "arial black", "montserrat", "open sans":
@@ -205,8 +210,11 @@ enum OfficeFonts {
                     // PANOSE: dx2 ce134f43's "TimesLT" and 087dda6f's "Macedonian Tms" print in Times New
                     // Roman, their lines 13.8pt, where Calibri's 14.65 stood the page 6 to 8pt low. Not an Arabic or Hebrew
                     // face: xb urd-z10575633's Traditional Arabic, charset B2, kept its own stand-in.)
-                    if wordOnWindows, e.panose == "02020603050405020304", e.charset != "00", !e.charset.isEmpty, e.charset != "B2", e.charset != "B1" { return substitute("times new roman") }
-                    return calibri
+                    if wordOnWindows, e.panose == "02020603050405020304", e.charset != "00", !e.charset.isEmpty, e.charset != "B2", e.charset != "B1", e.charset != "4D" { return substitute("times new roman") }
+                    // (Lab missface: family roman is Cambria whatever its PANOSE, any other family Calibri. The lab's signatures were Latin
+                    // only, so a face whose signature claims Greek or any later block, as dx2 80bde9af's Myanmar3, keeps Calibri.)
+                    return wordOnWindows && e.family == "roman" && !windowsComplexFaces.contains(n) && n != "ghea grapalat" && osAverageWidth[n] == nil
+                       && (e.usb0 ?? 0) & 0x1FFF_FF80 == 0 ? cambria : calibri
                 }
                 return cambria
             }
@@ -4014,8 +4022,12 @@ static let sylfaenAdvances: [Double] = [
         // (A roman face with a PANOSE of its own that is not Times New Roman's: xb's "INSIGHTSPerpetua"
         // (PANOSE 02020502060401020303, in 9 Arabic and Urdu docs) prints in Cambria, not Times New Roman.)
         case (0x0000_0003, 0):
-            if e.family == "roman", !e.panoseZero, !e.panose.isEmpty, e.panose != "02020603050405020304",
+            // (Lab missface, 120 invented faces, Word for Windows: every face of family roman with no alternate is Cambria
+            // whatever its PANOSE, charset, pitch or signature, every other family Calibri. Not Times New Roman for a
+            // PANOSE zero or Times's own: xb ara-z439's "AHT Times New Roman" prints Cambria too.)
+            if e.family == "roman", !windowsComplexFaces.contains(family.trimmingWhitespace().lowercased()), family.trimmingWhitespace().lowercased() != "ghea grapalat",
                osAverageWidth[family.trimmingWhitespace().lowercased()] == nil { return "cambria" }
+            // (A roman face Windows does have, as dx2 cbe492e9's Californian FB, keeps the old stand-in.)
             return e.family == "roman" ? "times new roman" : nil
         case (0x0000_0287, 0x0000_0800): return "calibri"
         case (0x0000_7A87, 0x8000_0000): return "ebrima"
