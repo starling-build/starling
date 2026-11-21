@@ -1208,7 +1208,7 @@ extension RichLayout {
             let edge = min(_px(2), c.ownRowHeight / 4)
             for k in pgs.i ..< j {
                 let d = _cells[k]!
-                let down = d.rowSpan > 1 ? 0 : headDrop + (d.verticalAlign == "center" ? (spare - headDrop) / 2 : d.verticalAlign == "bottom" ? spare - headDrop : 0)
+                let down = d.rowSpan > 1 ? headDrop : headDrop + (d.verticalAlign == "center" ? (spare - headDrop) / 2 : d.verticalAlign == "bottom" ? spare - headDrop : 0)
                 var text = PagePiece(paragraph: k, flowTop: c.rowTop + down,
                                      flowBottom: d.rowSpan > 1 ? c.rowTop + d.rowHeight : c.rowTop + down + shown, page: pgs.page, pageY: pgs.y)
                 text.part = .text
