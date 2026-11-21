@@ -5564,6 +5564,20 @@ extension RichLayout {
                                     raisedTo = target
                                 }
                             }
+                            // (A Latin run of a Tamil-language document, a complex-script (w:cs) run of Arial Unicode MS, in a paragraph with no Tamil letter: its line is
+                            // Nirmala UI's, standing on 1.079 em; dx2 a347c3b3's "00 month 20XX", 1.64 pt lower in Word's print than the Latin stand-in's.)
+                            if document.defaultLangXML?.containsSubstring("ta-IN") == true,
+                               run.style.keptXML.map({ $0.containsSubstring("<w:cs/>") || $0.containsSubstring("<w:cs ") }) == true,
+                               (run.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms",
+                               !p.text.unicodeScalars.contains(where: { Self._tamil.contains($0.value) }),
+                               let nirmala = Self._indicLines["nirmala ui"] {
+                                let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                                if size * nirmala.0 > target + 0.01 {
+                                    RuleTrace.hit("word-tamil-doc-latin-cs-run-stands-the-first-line-on-nirmalas-ascent")
+                                    target = size * nirmala.0
+                                    raisedTo = target
+                                }
+                            }
                             // (A run of Latin letters on a Kokila line stands the line on its own face's baseline where that is the taller: dx2 cbb7ae39's
                             // "IRB" and "SS", Times New Roman 10 pt beside 10 pt Kokila, lab cb7: 9.3 pt above the baseline in Word's print, Kokila's 7.3.)
                             if text.unicodeScalars.contains(where: { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A }),

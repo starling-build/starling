@@ -2204,17 +2204,19 @@ extension RichLayout {
 }
 
 extension RichLayout {
-    /// An empty paragraph of a Tamil document whose mark asks for Arial Unicode MS (a face Windows lacks) is a line of Mangal,
-    /// 1.680 em, in Word's print: a347c3b3's empty marks step 18.5 pt at 11 pt, against the 12.65 of the Latin stand-in. A bold
-    /// mark stays on Nirmala UI's line (14.6).
+    /// An empty paragraph of a Tamil document whose mark asks for Arial Unicode MS (a face Windows lacks) is a line of Nirmala UI,
+    /// 1.330 em (14.6 pt at 11 pt), against the 12.65 of the Latin stand-in. (It was set as Mangal's 18.5 until a347c3b3's empty line
+    /// after a 9-line paragraph of 6 marked lines stood 37.4 pt under the last line and 14.6 above the next: Nirmala's line plus the
+    /// marked lines' surplus, 2.76 + 6 x 3.8 + 11.87. The 18.5 seen after a one-line marked paragraph is that paragraph's own
+    /// 3.8 surplus on a 14.6 line.)
     @inline(never)
     func _tamilEmptyMarkJoiner(_ mark: CharStyle, named: RichNamedStyle?, _ p: RichParagraph, _ document: RichDocument,
                                look: TextStyle, pitch: Double?, scale: Double) -> TextStyle? {
         guard theme.wordRules, RichTextTheme.wordWindowsPages,
               document.defaultLangXML?.containsSubstring("ta-IN") == true,
               (mark.complexFontFamily ?? named?.char.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms",
-              let metrics = Self._indicLines[(mark.bold || (named?.char.bold ?? false)) ? "nirmala ui" : "mangal"] else { return nil }
-        RuleTrace.hit("word-tamil-empty-mark-is-a-line-of-mangal")
+              let metrics = Self._indicLines["nirmala ui"] else { return nil }
+        RuleTrace.hit("word-tamil-empty-mark-is-a-line-of-nirmala")
         return _lineJoiner(mark, named, look, p.style, pitch, scale, ascent: metrics.0, descent: metrics.1)
     }
 }
@@ -2312,11 +2314,7 @@ extension RichLayout {
         // (A line that already holds a Yu Gothic run is Yu's line, and the Leelawadee marks beside it add nothing after the paragraph: fb94294e's first line,
         // " (" in Leelawadee next to "Sample) " in Yu Gothic Bold, Word 22.0 pt to the next paragraph where ours gave 25.9.)
         if devanagari, !yuLines.isEmpty { starts.subtract(yuLines) }
-        // (Word lab a347gap A: a one-line marked paragraph followed by an empty one adds nothing, 18.4 pt line to line; the paragraph's last line is not counted.)
-        if tamil, !p.text.isEmpty {
-            let lastStart = painter.getLineBoundary(TextPosition(offset: max(0, p.text.utf16.count - 1) + lead)).start
-            if lastStart == painter.getLineBoundary(TextPosition(offset: lead)).start { starts.remove(lastStart) }  // one-line paragraphs only (a multi-line one keeps its last line's extra: a347c3b3)
-        }
+        // (Every marked line counts, the last and a one-line paragraph's only line included: a347c3b3, with the empty mark a Nirmala line.)
         if starts.isEmpty { return 0 }
         if devanagari {
             RuleTrace.hit("word-devanagari-aums-marked-lines-add-to-the-paragraph")
