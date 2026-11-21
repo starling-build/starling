@@ -704,7 +704,10 @@ extension OfficeFonts {
             face.boldOtherAdvances = book_antiquaBoldOther
             face.italicAdvances = book_antiquaItalicAdv
             face.boldItalicAdvances = book_antiquaBoldItalicAdv
-            face.naturalHeight = 1.2056; face.baseline = 0.9233
+            // (A line is the taller of hhea (1891+578) and win: the regular's win is 1967+578 = 2545, ebe45609's 11pt lines
+            // step 13.68 in Word where hhea's 13.26 ran short; the bold's win (2434) is the shorter, so hhea holds for it.)
+            face.naturalHeight = 2545.0 / 2048; face.baseline = 1967.0 / 2048
+            face.boldHeight = 2469.0 / 2048; face.boldBaseline = 1891.0 / 2048
 
         case "bookman old style":
             face.advances = bookman_old_styleAdv
