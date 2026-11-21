@@ -370,6 +370,18 @@ extension RichLayout {
                let mangal = _mangalMarkLine(look, mark: mark, named: markNamed, document: document, lineSpacing: p.style.lineSpacing) {
                 look = mangal
             }
+            // (An empty paragraph whose mark names a Latin face Windows lacks (DejaVu Sans Condensed) over a Sinhala complex face Windows lacks is Sylfaen's line,
+            // win 2062 + 635 of 2048 = 1.317 em: 27.7 pt at 21 pt, ours 25.6, which put every later line 2.13 pt high. dx2 827a8947's empty title-size paragraph,
+            // Word's print.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, p.style.list == nil, let size = look.fontSize, size > 0.5,
+               case let lat = (mark.fontFamily ?? markNamed?.char.fontFamily ?? "").trimmingWhitespace().lowercased(), !lat.isEmpty, !WordWindowsFaces.names.contains(lat),
+               case let cs = (mark.complexFontFamily ?? markNamed?.char.complexFontFamily ?? "").trimmingWhitespace().lowercased(), !cs.isEmpty, !WordWindowsFaces.names.contains(cs),
+               let at = index, [at - 1, at + 1].contains(where: { $0 >= 0 && $0 < document.paragraphs.count
+                   && document.paragraphs[$0].text.unicodeScalars.contains(where: { $0.value >= 0xD80 && $0.value <= 0xDFF }) }) {
+                RuleTrace.hit("word-sinhala-empty-mark-is-sylfaen-line")
+                let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+                look = look.copyWith(ascentOverride: 2062.0 / 2048 * multiple * size, descentOverride: 635.0 / 2048 * multiple * size, height: (2062.0 + 635) / 2048 * multiple, leadingDistribution: .even)
+            }
             var emptyBidiOwnLine = false
             // (An empty paragraph that runs right to left, with no run to say so: Word sizes its mark on the complex-script face (Normal's
             // cs face), and where that face keeps its own line (David, FrankRuehl, Arabic faces Windows has) the line is that face's:
