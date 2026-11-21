@@ -4114,7 +4114,6 @@ extension RichLayout {
         func raisedOf(_ r: Run) -> Double { r.style.raised ?? lowNamed ?? 0 }
         if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft,
            style.lineHeightPoints == nil,
-           style.lineSpacing - theme.lineSpacingReduction <= 1.001 || style.eastAsian["w:textAlignment"] == "top",
            besideLineIndents.isEmpty, keepClear == nil, Self._paired(painter) == nil,
            p.runs.contains(where: { abs(raisedOf($0)) > 0.01 && $0.style.script == .normal }),
            // (A numbered line's raise (up to 2pt, lab pitch2) is taken off the number's rise instead: see the number span.)
@@ -4170,8 +4169,9 @@ extension RichLayout {
                     let line = max(0, (starts.lastIndex(where: { $0 <= at }) ?? 0))
                     let ratio = tallest[line] > 0 ? (run.style.fontSize ?? tallest[line]) / tallest[line] : 1
                     let m = metrics[line]
-                    // (Above single spacing only the uniformly lowered top-aligned lines are measured: the raise/lower growth is verified at single.)
-                    if topLine[line] == 0, style.lineSpacing - theme.lineSpacingReduction > 1.001 { continue }
+                    // (Word's print, lab raise259, Arial 9 and 11 at 240, 259, 276 and 360 auto: a raised line grows by the raise itself, 1, 2
+                    // and 6 pt giving 1.0, 2.0 and 6.0 more between the plain lines around it at every multiple, and a lowered one by the
+                    // lowering; the multiple never scales it.)
                     if !p.inlineImages.isEmpty {
                         // (A line with an inline picture or object stands on the picture's foot; raised text grows it only where its top, the
                         // raise over its own ascent, passes the line's. Word's print, sa1 a7044bb8: a 46.5 pt object beside 26 pt Old English
