@@ -21,6 +21,13 @@ extension RichLayout {
         guard let ts, !ts.rowsCantSplit.contains(c.row), c.row >= _pg_headerRows(&pgs, document, c.table),
               !(theme.wordRules && ts.headerRow && c.row < ts.headerRowCount),
               !(theme.wordRules && ts.rowsExactHeight.contains(c.row) && c.ownRowHeight <= pgs.contentH + 0.01) else { return false }
+        // (Nor a row of a floating table that holds an anchored picture, when a page could hold it: 99a68284's row goes
+        // whole to the next page in Word's print, where ours parted it at the foot.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, !atTop, ts.keptPosition != nil || ts.floatOffsetY != nil, c.ownRowHeight <= pgs.contentH + 0.01,
+           (i ..< j).contains(where: { k in let q = document.paragraphs[k]; return (q.inlineImages.inOrder + [q.image].compactMap({ $0 })).contains(where: { $0.float != nil }) }) {
+            RuleTrace.hit("floating-table-row-with-an-anchored-picture-goes-whole")
+            return false
+        }
         // (Nor an exact-height row taller than the page that starts at a page's top:
         // sa1 173f0cb1's 720pt row stays whole there in Word's print, clipped at the
         // foot, where ours parted it and made a third page.)

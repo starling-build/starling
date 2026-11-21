@@ -2093,6 +2093,11 @@ extension RichLayout {
                 if theme.wordRules, tf.chained, tf.page == pgs.page, pgs.frameReturn == nil, _cells[pgs.i] == nil, tf.y > pgs.y + 0.01,
                    !document.paragraphs[pgs.i].text.contains(where: { $0 != " " && $0 != "\t" }) {
                     pgs.y = tf.y
+                } else if theme.wordRules, RichTextTheme.wordWindowsPages, tf.chained, tf.page == pgs.page, pgs.frameReturn == nil, _cells[pgs.i] == nil, tf.y > pgs.y + 0.01,
+                          !alongside, let end = pgs.besideChainEnd, tf.y >= end - 0.01 {
+                    // (The strip beside the table used up, the paragraph after it goes on under the lines stacked there.)
+                    RuleTrace.hit("word-text-after-the-strip-beside-a-floating-table-goes-on-under-it")
+                    pgs.y = tf.y
                 }
                 // (The document's first block, a table floating by the text: its anchor is the paragraph after it, which
                 // stands at the page's top where the table's offset is measured from, and the flow goes on under that
