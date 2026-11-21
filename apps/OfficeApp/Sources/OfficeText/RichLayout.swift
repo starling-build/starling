@@ -352,6 +352,10 @@ public final class RichTextTheme {
     /// screen and in Word, draws it sharp and fainter. Set only around
     /// such a drawing.
     nonisolated(unsafe) public static var shadowBlurDeviceScale: Double? = nil
+    /// Set around a PDF drawing: a run's shadow (not a glow) is drawn as the letters' outlines
+    /// filled in the shadow's colour (`_paintShadowPaths`), not as a second copy of the text, so the PDF's text
+    /// holds the words once, as PowerPoint's and Word's prints do.
+    nonisolated(unsafe) public static var shadowsAsPaths = false
     /// Whether a run's characters are set at the widths its resolved
     /// face gives (`RichResolvedFace.advances`) outside Word's rules too:
     /// PowerPoint's Lucida Sans Unicode, drawn here in a narrower face.
@@ -1028,7 +1032,7 @@ public final class RichTextTheme {
                 return [Offset(r, 0), Offset(d, d), Offset(0, r), Offset(-d, d), Offset(-r, 0), Offset(-d, -d), Offset(0, -r), Offset(d, -d)]
                     .map { Shadow(color: line.color, offset: $0, blurRadius: 0) }
             }().map { ring in (style.shadow.map { sh in
-                if sh.ground != nil { return [] }
+                if sh.ground != nil || (Self.shadowsAsPaths && !sh.glow) { return [] }
                 let k = pixelsPerPoint * scale
                 let device = sh.blur > 0 ? Self.shadowBlurDeviceScale : nil
                 if sh.glow {
@@ -1054,7 +1058,7 @@ public final class RichTextTheme {
                 return [Shadow(color: Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, a),
                                offset: Offset(sh.dx * k, sh.dy * k), blurRadius: radius)]
             } ?? []) + ring } ?? style.shadow.map { sh in
-                if sh.ground != nil { return [] }
+                if sh.ground != nil || (Self.shadowsAsPaths && !sh.glow) { return [] }
                 let k = pixelsPerPoint * scale
                 let device = sh.blur > 0 ? Self.shadowBlurDeviceScale : nil
                 if sh.glow {

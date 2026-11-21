@@ -1073,6 +1073,7 @@ extension RichLayout {
             // Lines from inside the paragraph: no marker, no rules — the text alone.
             let at = Offset(g.textLeft, g.textTop + lines.top + _baselineShift(i, document))
             _paintScripts(lines.paragraph, lines.painter, at: at, canvas, document, leading: true)
+            _paintShadowPaths(lines.paragraph, lines.painter, at: at, canvas)
             lines.painter.paint(canvas, at)
             _paintScripts(lines.paragraph, lines.painter, at: at, canvas, document, leading: false)
             _paintRuby(lines.paragraph, lines.painter, at: at, canvas, document, index: i)
@@ -1769,7 +1770,7 @@ extension RichLayout {
                 onlyRest.paint(canvas, textAt)
             } else if shifts.isEmpty, _verticalBody(i), _paintUpright(g.painter, at: textAt, canvas, mixed: true, rubyShifts: _rubyColumnShifts(i, document)) {
                 // (A vertical section's lines: each ideograph upright down its column, as Word prints them.)
-            } else if shifts.isEmpty { if _paintMode != 2 { g.painter.paint(canvas, _unseenShift[i].map { Offset(textAt.dx + $0, textAt.dy) } ?? textAt) } } else { _paintShiftedLines(g.painter, at: textAt, shifts, canvas) }
+            } else if shifts.isEmpty { if _paintMode != 2 { _paintShadowPaths(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, map: lines == nil ? _map(i) : nil); g.painter.paint(canvas, _unseenShift[i].map { Offset(textAt.dx + $0, textAt.dy) } ?? textAt) } } else { _paintShiftedLines(g.painter, at: textAt, shifts, canvas) }
         }
         _paintScripts(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
                       map: lines == nil ? _map(i) : nil, leading: false)

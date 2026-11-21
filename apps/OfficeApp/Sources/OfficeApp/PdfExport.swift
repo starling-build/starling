@@ -17,6 +17,8 @@ enum PdfExport {
         // markup, as Word prints it by default: the page smaller, its
         // balloons beside it (`MarkupFrame`, `PdfMarkup`), its deleted
         // text gone into them.
+        RichTextTheme.shadowsAsPaths = true
+        defer { RichTextTheme.shadowsAsPaths = false }
         let markup = hasMarkup(document) ? PdfMarkup(document) : nil
         var document = markup?.document ?? document
         // Laid out fifteen times finer than the screen's pixel — twenty
