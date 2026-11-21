@@ -5396,6 +5396,7 @@ final class DocxTests: XCTestCase {
     /// column and one for the gap — with its section's end left as an
     /// empty top-level paragraph, and goes back as written.
     func testColumnSectionBeforeContinuousIsARow() throws {
+        try XCTSkipIf(RichTextTheme.sectionColumnsFlow, "the one-row table is the OFFICE_SECTION_COLUMNS=table regime; columns flow by default")
         let doc = RichDocument(paragraphs: [RichParagraph(text: "x")])
         var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
         let di = entries.firstIndex { $0.name == "word/document.xml" }!
@@ -5457,6 +5458,7 @@ final class DocxTests: XCTestCase {
     }
 
     func testAContinuousLastSectionOfColumnsIsARow() throws {
+        try XCTSkipIf(RichTextTheme.sectionColumnsFlow, "the one-row table is the OFFICE_SECTION_COLUMNS=table regime; columns flow by default")
         func read(_ body: String) throws -> RichDocument {
             var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .letter))
             let di = entries.firstIndex { $0.name == "word/document.xml" }!
