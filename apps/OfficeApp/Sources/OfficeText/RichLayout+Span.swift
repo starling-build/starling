@@ -1835,7 +1835,7 @@ extension RichLayout {
                 @inline(never) func _r0() {
                 if let lineSize, !text.isEmpty, text.allSatisfy(spaceLike), let px = s.fontSize, px > 0.5 {
                     let own = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
-                    if !lineSize.blank, kind != -2, !text.containsSubstring("\t"), !text.containsSubstring("\u{3000}") {
+                    if !lineSize.blank, kind != -2, !text.containsSubstring("\u{3000}"), !text.containsSubstring("\t") || (theme.wordRules && RichTextTheme.wordWindowsPages && own > lineSize.size + 0.01) {
                         // (Beside other characters, spaces have no height
                         // at all, whatever their face or size: lab `cap2`
                         // (Word 16, 2026-10-17) — two 14pt or 20pt spaces
