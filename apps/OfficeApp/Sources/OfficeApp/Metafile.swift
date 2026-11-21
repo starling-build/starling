@@ -456,6 +456,9 @@ private struct Player {
         // (Word's print of an EMF's text: a top-aligned run's baseline is the record's y plus Windows' whole-pixel ascent for the
         // font at the picture's own pixel size, a bottom-aligned one's the y less the pixel descent; ours was the face's own
         // unrounded ascent, a whole pixel off either way. sa1 58f4b75d and its kin; metrics from GDI GetTextMetrics.)
+        // (A mapping that turns the page up (a negative vertical scale: PowerPoint's chart pictures) sets a font's escapement the
+        // other way round: d8e0c8b2's rotated axis titles read upward in the print, and ours ran off the picture downward.)
+        let flipY: Double = !isWMF && dc.scales && dc.winExt.height != 0 && dc.vpExt.height / dc.winExt.height < 0 ? -1 : 1
         var drop: Double? = nil, pixel: Double? = nil
         if !isWMF, dc.textAlign & 24 != 24, dc.font.escapement == 0, abs(turn) < 1e-9, RichTextTheme.wordWindowsPages {
             let ky = dc.scales && dc.winExt.height != 0 ? abs(dc.vpExt.height / dc.winExt.height) : 1
@@ -467,7 +470,7 @@ private struct Player {
         steps.append(.text(Metafile.TextRun(
             text: shown, at: map(ref), size: size, face: dc.font.face, bold: dc.font.bold, italic: dc.font.italic,
             underline: dc.font.underline, color: dc.textColor, align: dc.textAlign,
-            angle: turn - dc.font.escapement / 10 * .pi / 180, baselineDrop: drop, pixel: pixel,
+            angle: turn - flipY * dc.font.escapement / 10 * .pi / 180, baselineDrop: drop, pixel: pixel,
             advances: RichTextTheme.wordWindowsPages && !isWMF && string.utf16.count == shown.utf16.count && shown.count == advances?.count
                 ? advances?.map { $0 * scaleX } : nil)))
     }
