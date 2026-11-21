@@ -3495,9 +3495,13 @@ extension RichLayout {
         // (A first line under a Hebrew or Arabic-letter number is as tall as the number's face makes it: xd b9164bf3's David 12pt lines
         // at 1.5 step 17.7, the lines opened by a bold Times New Roman "א." 19.9, 1.107 em by the multiple.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, p.image == nil, !p.text.isEmpty, style.lineHeightPoints == nil,
-           p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.rawFormat })
-               .map({ $0.hasPrefix("hebrew") || $0.hasPrefix("arabic") }) ?? false,
-           let face = _levelNumberFonts(p, document).latin, face.trimmingWhitespace().lowercased() == "times new roman",
+           // (Or a counted number whose level names only a complex-script face, as `_markerChar` draws it: xd ba3e11e2's "1." items,
+           // a w:cs Times New Roman level over David 12pt lines, step 26.0 at 1.5 with their 6pt before where David's step 23.7.)
+           (p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.rawFormat })
+               .map({ $0.hasPrefix("hebrew") || $0.hasPrefix("arabic") }) ?? false
+            || (p.style.list == .numbered && _markerChar(p, document).complexFontFamily?.trimmingWhitespace().lowercased() == "times new roman"
+                && _levelNumberFonts(p, document).latin == nil)),
+           let face = _levelNumberFonts(p, document).latin ?? _markerChar(p, document).complexFontFamily, face.trimmingWhitespace().lowercased() == "times new roman",
            let nat = Optional(2268.0 / 2048.0),   // (Windows Times New Roman: 1825 ascent, 443 descent of 2048)
            let line = painter.computeLineMetrics().first {
             let named = _named(p, document)
