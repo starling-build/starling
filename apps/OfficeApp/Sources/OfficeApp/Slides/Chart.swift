@@ -2177,7 +2177,11 @@ enum ChartXML {
         if let fmt = valueAxis?.first("c:numFmt") {
             let linked = ["1", "true"].contains(fmt["sourceLinked"] ?? "")
             let source = plot.descendant("c:val")?.descendant("c:formatCode")?.text
-            let code = (linked ? source : nil) ?? fmt["formatCode"] ?? ""
+            // (A linked axis that names a format of its own, not General, is drawn in it in Word: sa1 67e19017's third chart, axis "0%"
+            // over series of 0.00%, 0.00% and 0%, runs 0%, 50%, 100% in Word's print, where ours took the first series' 0.00%.)
+            let own = fmt["formatCode"] ?? ""
+            let sourceIsOwnFormat = !(source ?? "").isEmpty && (source ?? "").lowercased() != "general"
+            let code = (linked && sourceIsOwnFormat && !(own.lowercased() == "general" || own.isEmpty) && !c.onSlide && !c.onSheet ? own : (linked ? source : nil)) ?? own
             if !code.isEmpty, code.lowercased() != "general" { c.valueFormat = code }
         }
         return c
@@ -4223,9 +4227,13 @@ enum ChartPainter {
             let catLine = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k
             var room = area0.height - (0.61 * labelSize * k + catLine + 3.2 * k)
             if c.categoryAxisTitle != nil { room -= (1.22 * (c.axisTitleSize ?? 13.3) + 4) * k }
+            // (A plot the file places by hand still has its step chosen on the room an automatic layout would leave it, the
+            // legend's row at the top or bottom taken out: sa1 67e19017's charts of 51.7, 95.6 and 100.85pt of room go by 1, 2 and 5 steps
+            // in Word's print, the first two where ours ran 2 and 5; 23.2 is the room a top legend takes elsewhere in this file.)
+            if c.plotLayout != nil, c.legend, c.legendPosition == "t" || c.legendPosition == "b" { room -= 23.2 * k; RuleTrace.hit("word-placed-plot-axis-step-takes-the-legend-row-out-of-its-room") }
             // (14.5, not 15: lo-817b02d41c5ce84c's 145.3pt of room goes 0 to 5 by halves, ten steps, in
             // Word's print, where 15 made it nine and ones.)
-            return max(2, min(10, Int(room / (14.5 * k))))
+            return max(c.plotLayout != nil && c.legend && (c.legendPosition == "t" || c.legendPosition == "b") ? 1 : 2, min(10, Int(room / (14.5 * k))))
         }()
         // (Excel's major unit follows the plot's height: a step takes at least 13pt, as many steps as the plot has room for.
         // Lab xl-unit, Excel's prints of one column or line chart at five heights, 2-D and 3-D: spacing 13.8pt and up
