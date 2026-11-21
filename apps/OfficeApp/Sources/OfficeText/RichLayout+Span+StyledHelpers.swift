@@ -595,7 +595,7 @@ extension _StyledFrame {
         }
         // (Sinhala letters, word by word, at Nirmala UI's advances summed per code point, split vowels from their parts.)
         if theme.wordRules, document.readFromFile, let px = s.fontSize, px > 0.5,
-           word.unicodeScalars.contains(where: { $0.value >= 0xD80 && $0.value <= 0xDFF }), let ems = SinhalaAdvances.sum(word) {
+           word.unicodeScalars.contains(where: { $0.value >= 0xD80 && $0.value <= 0xDFF }), let ems = SinhalaAdvances.sum(word, bold: s.fontWeight == .bold) {
             let shaped = _wordWidth(s, String(word))
             RuleTrace.hit("word-sinhala-letters-at-nirmala-ui-advances")
             return shaped > 0.01 ? s.copyWith(scaleX: ems * px / shaped) : s
