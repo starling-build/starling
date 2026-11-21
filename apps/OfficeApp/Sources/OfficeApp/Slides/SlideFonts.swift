@@ -242,6 +242,10 @@ enum SlideFonts {
         case "simsun", "宋体", "nsimsun", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝", "ms pgothic", "ｍｓ ｐゴシック": return 36.0 / 256
         case "ms gothic", "ｍｓ ゴシック", "ms ui gothic", "ｍｓ ｕｉ ゴシック", "hgゴシックe", "hgｺﾞｼｯｸe", "hg gothic e", "hg丸ゴシックm-pro", "hg丸ｺﾞｼｯｸm-pro",
              "hgmarugothicmpro", "hg明朝e", "hg mincho e", "hgp明朝e", "hgp mincho e", "hgp創英角ゴシックub", "hgp創英角ｺﾞｼｯｸub", "hgpsoeikakugothicub": return 288.0 / 2048
+        case "gulim", "굴림", "gulimche", "굴림체", "dotum", "돋움", "dotumche", "돋움체", "batang", "바탕", "batangche", "바탕체": return 145.0 / 1024
+        case "nanumgothic", "나눔고딕": return 198.0 / 1083
+        case "nunito", "nunito light", "nunito black": return 300.0 / 1377
+        case "baskerville old face": return 531.0 / 2336
         case "meiryo ui": return 430.0 / 2601
         case "yu gothic ui": return 514.0 / 2724
         case "yu gothic light", "游ゴシック light": return 610.0 / 2636
