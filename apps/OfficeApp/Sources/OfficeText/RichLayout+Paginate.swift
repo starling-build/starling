@@ -2282,7 +2282,13 @@ extension RichLayout {
                         guard probe(lineTop, measure) != nil else { continue }
                         if k == firstRemaining { break }
                         var back = lineTop, steps = 0
-                        while let below = probe(back, measure), steps < 20 { back = below; steps += 1 }
+                        while let below = probe(back, measure), steps < 20 {
+                            // (Word's lab tightstep J: a tight box's foot is met by whole lines of the paragraph's own grid.)
+                            if RichTextTheme.wordWindowsPages, h > 1, pgs.tightBandBottoms.contains(where: { abs($0 - below) < 0.02 }) {
+                                back += max(1, ((below - back) / h - 0.001).rounded(.up)) * h
+                            } else { back = below }
+                            steps += 1
+                        }
                         // (One line left above the picture while the rest goes on to the next page is an orphan, which
                         // widow control forbids: lab pwsplit2 foot r2, the three-line item goes whole to page 2.)
                         // (Lab pwsplit4, compat 15: widow control or keep-lines on, a split that spills lines below the
