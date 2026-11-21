@@ -1754,6 +1754,12 @@ public final class RichLayout {
     /// The strips beside a frame the page fixes (`_stripFrame`): for each paragraph a line of
     /// it stands level with, the room it is held in and the band, from the paragraph's top.
     var _stripUse: [Int: (indent: Double, band: (top: Double, bottom: Double), right: Bool)] = [:]
+    /// A paragraph parted around a picture goes on from line `from` `dy` lower (the hold's jump), so its lines from there are
+    /// tested against a second picture's band by where they stand then. `_lineDropWant` is what the last pagination found,
+    /// `_lineDrop` what the paragraph was laid out with.
+    var _lineDrop: [Int: (from: Int, dy: Double)] = [:]
+    var _lineDropWant: [Int: (from: Int, dy: Double)] = [:]
+    var _lineDropSeen: Set<Int> = []
     /// A shape that wraps the text, set by its offset from a paragraph in a column of a
     /// section of columns, reaches the other columns too (lo-ff3b52d1's oval, anchored in the
     /// first and standing over the second and third): every piece of the paragraph on the
