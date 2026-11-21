@@ -926,7 +926,14 @@ extension RichLayout {
                 // (Its columns stay as the breaks made them; the next section goes
                 // on under the longest, as under a balanced block.)
                 if ownBreaks, !balancedHere, seq.count > head.count {
-                    let blockBottom = seq.map { $0.pageY + $0.height }.max() ?? 0
+                    // (A paragraph that holds only a column break: its mark falls in the column
+                    // the break opens, so it does not lengthen the column it stands in.)
+                    let holdsBreak: (Int) -> Bool = { k in
+                        k + 1 < document.paragraphs.count && document.paragraphs[k].text.isEmpty && document.paragraphs[k].cell == nil
+                            && document.paragraphs[k + 1].style.columnBreak && document.paragraphs[k + 1].style.pageBreakBefore
+                            && document.paragraphs[k + 1].style.breakEndsPrevious
+                    }
+                    let blockBottom = seq.filter { !holdsBreak($0.paragraph) }.map { $0.pageY + $0.height }.max() ?? 0
                     if blockBottom <= pgs.contentH + 0.01 {
                         pgs.page = first
                         pgs.y = blockBottom
