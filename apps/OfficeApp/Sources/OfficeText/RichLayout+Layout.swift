@@ -1443,6 +1443,17 @@ extension RichLayout {
         // middle is the face's baseline less half its line, the way `lineMiddle` has it for a picture. dx2 934bd3e5's
         // Meiryo columns stood 1.1pt to the side of Word's, MS Mincho's in 4427518d and ee0b468e 0.8pt: the stand-in's
         // own box has its own ascent and descent.)
+        // (A column with a ruby in it is laid at its full width and its glyphs are set across it by the ruby's overflow share
+        // at paint, not by an engine baseline shift, which grows the line by the shift: lab rgrid, Word's ruby column is 2 pitches whatever the spacing.)
+        func rubyColumnShift(_ k: Int) -> Double {
+            guard styles.indices.contains(k) else { return 0 }
+            let line = painter.getLineBoundary(TextPosition(offset: k))
+            for j in line.start ..< min(line.end, styles.count) {
+                guard let label = styles[j]?.debugLabel, let r = label.rangeOfSubstring(" vshift=") else { continue }
+                return Double(label[r.upperBound...].prefix(while: { $0 != " " })) ?? 0
+            }
+            return 0
+        }
         func acrossC(_ box: TextBox, _ em: Double, _ k: Int) -> Double {
             guard let st = styles[k] else { return across(box) }
             let fam = st.debugLabel ?? st.fontFamily ?? ""
@@ -1522,7 +1533,7 @@ extension RichLayout {
             // "東引鄉活動中心2樓" 1.8pt: windows' measurement.)
             let higher = centred && abs((styles[k]?.height ?? 0) - 1.3) < 0.001 ? 0.11 * em : 0
             let along = box.left + min(box.right - box.left, glyph.width) / 2 + lead(k) - higher
-            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em, origin.dy + acrossC(box, em, k) + (plain ? 0.085 * em : 0) + sharedShift(k))
+            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em, origin.dy + acrossC(box, em, k) + rubyColumnShift(k) + (plain ? 0.085 * em : 0) + sharedShift(k))
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
             canvas.restore()

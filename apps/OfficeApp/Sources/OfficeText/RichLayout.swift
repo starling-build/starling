@@ -692,6 +692,18 @@ public final class RichTextTheme {
             let extra = max(0, raise + natural * rubySize / 2 - natural * size / 2)
             return (natural + extra / size, 0, natural - ascent)
         }
+        // (On a line grid the same overflow, `extra`, is shared: the column is as many pitches as the base's line and the overflow take
+        // together, both boxes centred in it, so the base stands extra / 2 off the column's centre toward the next column. A negative
+        // `raise` is that shift. Labs rgrid (MS Mincho 12, ruby 6 raised 11, 16.3 grid: base 746.14 in Word's print) and rubycol rc-a, rc-e.)
+        if vertical, wordRules, gridPitch != nil, paragraph.lineHeightPoints == nil {
+            let extra = max(0, raise + natural * rubySize / 2 - natural * size / 2)
+            // (The column is the plain line at the paragraph's spacing or the pitches the base and its overflow need, the larger: the
+            // spacing does not multiply the ruby's pitches. Lab rgrid at 1.15, 1.5, 2.0: the ruby column is 2 pitches in all.)
+            let plain = lineBox(size: size, natural: natural, baseline: nil, in: paragraph, gridPitch: gridPitch).height
+            let need = ((natural * size + extra) / gridPitch!).rounded(.up) * gridPitch!
+            let tall = max(plain, need)
+            return (tall / size, -extra / 2, natural - ascent)
+        }
         let line = lineBox(size: size, natural: natural + above / size, baseline: nil, in: paragraph, gridPitch: gridPitch).height
         // (Off a grid at single spacing the line keeps the plain line's foot and its baseline, the ruby's em standing on its raise over it:
         // lab ruby-hl14r, MS Mincho 20 with 8pt ruby, single: ascent max(20.15, raise + 8), descent 5.77 as plain.)

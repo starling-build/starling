@@ -50,6 +50,7 @@ extension RichLayout {
         // grid, which asks its line for two pitches. A strut would hold the line at one: flt1-1-asis's
         // wrapped "かえてくれる" paragraph came out 18 pt short.)
         var tallShifted = 0.0, shadowReach = 0.0
+        var verticalRuby = false
         var kokilaOwn = false, latinOwn = false, latinStacked = false, bengaliSeen = false, nirmalaSeen = false
         func visit(_ s: InlineSpan) {
             guard uniform, let t = s as? TextSpan else { return }
@@ -62,7 +63,7 @@ extension RichLayout {
             }
             if let text = t.text, text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value < 0xA00 }) { bengaliSeen = true }
             if let label = t.style?.debugLabel, let r = label.rangeOfSubstring(" shadow-line@"), let v = Double(label[r.upperBound...].prefix { $0 == "." || $0 == "-" || $0.isNumber }) { shadowReach = max(shadowReach, v) }
-            if !shiftedToo, let st = t.style, st.baselineShift != nil, let sz = st.fontSize, let hh = st.height, sz > 0.5 { tallShifted = max(tallShifted, sz * hh) }
+            if !shiftedToo, let st = t.style, st.baselineShift != nil, let sz = st.fontSize, let hh = st.height, sz > 0.5 { tallShifted = max(tallShifted, sz * hh); if st.debugLabel?.containsSubstring(" vruby-line") == true { verticalRuby = true } }
             if let text = t.text, text.unicodeScalars.contains(where: { ($0.value >= 0x0590 && $0.value <= 0x08FF) || ($0.value >= 0xFB1D && $0.value <= 0xFEFF) }) { bidi = true }
             // (Spaces and letters name the face; a lone mark such as « or » in the Latin theme face does not.)
             if let text = t.text, text.contains(where: { $0.isLetter || $0.isNumber || $0.isWhitespace }) {
@@ -139,7 +140,8 @@ extension RichLayout {
             if alike.count > 1 { held = alike.values.max { $0.1 != $1.1 ? $0.1 < $1.1 : $0.2 > $1.2 }?.0 ?? top }
         }
         guard uniform, count > 0, let base = held, let size = base.fontSize, let h = base.height else { return nil }
-        if !shiftedToo, tallShifted >= size * h * 1.6 { return nil }
+        // (A vertical ruby's base on a grid asks its column for the pitches the ruby needs, whatever the spacing's own line: lab rgrid at 1.5 lines, ruby column 32.6 pt.)
+        if !shiftedToo, tallShifted >= size * h * 1.6 || (verticalRuby && tallShifted > size * h + 0.01) { return nil }
         // (A run that carries its own ascent and descent (Kokila's, split at a line multiple by `_multipleSplit`) sets its line itself: a strut in the
         // stand-in's face put the baseline 4.1 pt low at 18 pt on every line above single. lab mmatrix2.)
         if base.ascentOverride != nil, base.debugLabel?.lowercased().containsSubstring("kokila") == true { return nil }
