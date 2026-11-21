@@ -1080,6 +1080,9 @@ extension RichLayout {
                     // (Smaller too: a mark of no size under a style smaller than the text is the style's, lab bullet-mark2, 9pt Symbol bullets over 12pt text
                     // step 19.8 pt in Word's print, 6 before and the text's 13.8, where the bullet at the text's size made 20.66.)
                     else if _markerChar(p, document).fontSize == nil, p.style.mark != nil, let ss = (_named(p, document)?.char.fontSize ?? _normalChar(document)?.fontSize), abs(ss - (leadChar.fontSize ?? .infinity)) > 0.01 { leadChar.fontSize = ss }
+                    // (A mark with its own size smaller than the text sizes the bullet too: lab bullet-mark2 page G, 9 pt mark over 12 pt text steps
+                    // 20.64 in Word's print, 20.76 for a 12 pt mark, where the bullet at the text's size made 21.52.)
+                    else if let ms = _markerChar(p, document).fontSize, p.style.mark != nil, ms < (leadChar.fontSize ?? 0) - 0.01 { leadChar.fontSize = ms }
                     symbolLevel = true
                 }
             }
