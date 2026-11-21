@@ -195,7 +195,10 @@ enum MiniXML {
                     }
                     attrs[key] = value
                 }
-                let node = XNode(name: String(decoding: b[name], as: UTF8.self), attrs: attrs)
+                var elementName = String(decoding: b[name], as: UTF8.self)
+                // (w:cr, a carriage return, breaks the line as w:br does: dx2 es 613edc1c's notice ends on one and Word's page 2 starts a line lower.)
+                if elementName == "w:cr" { elementName = "w:br" }
+                let node = XNode(name: elementName, attrs: attrs)
                 frame.node = node
                 if frame.isItem {
                     if selfClosing { each?(node) }
