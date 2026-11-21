@@ -743,6 +743,38 @@ struct PptxReader {
                     // (A slide-number field in a shape the layout or master draws (not a placeholder, so the slide holds no copy of it) shows the number of
                     // the slide it is drawn on: PowerPoint prints ko-2fd3de28's layout text box as 136, not the field's stored ‹#›.)
                     for k in found.indices {
+                        // (The same where the field shares its paragraph with other text, "- page ‹#› -" in ko-c03ed80e's layout
+                        // footer: the stored mark inside the text becomes the number.)
+                        if found[k].field == nil, var doc = found[k].text {
+                            let want = "\(n + (presentation["firstSlideNum"].flatMap(Int.init) ?? 1))"
+                            var changed = false
+                            for at in doc.paragraphs.indices {
+                                let mark = "‹#›"
+                                guard doc.paragraphs[at].text.containsSubstring(mark) else { continue }
+                                var text = Array(doc.paragraphs[at].text.utf16)
+                                let m = Array(mark.utf16)
+                                var i = 0
+                                while i + m.count <= text.count {
+                                    if Array(text[i ..< i + m.count]) == m {
+                                        var pos = 0
+                                        for r in doc.paragraphs[at].runs.indices {
+                                            let len = doc.paragraphs[at].runs[r].length
+                                            if i >= pos, i + m.count <= pos + len {
+                                                doc.paragraphs[at].runs[r].length = len - m.count + want.utf16.count
+                                                break
+                                            }
+                                            pos += len
+                                        }
+                                        text.replaceSubrange(i ..< i + m.count, with: Array(want.utf16))
+                                        i += want.utf16.count
+                                        changed = true
+                                    } else { i += 1 }
+                                }
+                                doc.paragraphs[at].text = String(decoding: text, as: UTF16.self)
+                            }
+                            if changed { found[k].text = doc }
+                            continue
+                        }
                         guard let field = found[k].field, field.isSlideNumber, var doc = found[k].text else { continue }
                         guard let at = doc.paragraphs.firstIndex(where: { !$0.text.isEmpty }) else { continue }
                         let want = field.value(slide: n + (presentation["firstSlideNum"].flatMap(Int.init) ?? 1))
