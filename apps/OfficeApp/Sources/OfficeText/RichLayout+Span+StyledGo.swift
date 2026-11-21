@@ -148,6 +148,11 @@ extension _StyledFrame {
             // spaces hang after it, and runs of spaces fill lines of six; lab inv28sp sp1-sp3, 26 ideographic spaces
             // take five lines. A space that hangs or is carried on a line is set with no width.)
             stackHung = {
+                // compat < 15: in a one-character stack a space takes its own line (lab colindent m14: Word 6 and 11 pages against 5 and 9)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) < 15, textWidth <= 1.01, p.cell == nil,
+                   rawText.containsSubstring(" ") {
+                    return String(rawText.map { $0 == " " ? "\u{00A0}" : $0 })
+                }
             // Word's counts (labs inv28sp, inv28sp2, compat 15): up to 5 spaces hang after a character and runs of spaces fill
             // lines of 6. Prints at 5 pt and 7 pt with different right indents gave the same 5 lines, so the count does not
             // follow the space advance or the line width; it is a fixed rule, not derived from widths.
