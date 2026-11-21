@@ -1472,6 +1472,9 @@ private struct SlideContext {
                 for k in members.indices { SlideContext.swapGroupScale(&members[k], sx: sx, sy: sy) }
                 out += members
             case "mc:AlternateContent":
+                // Ink (a p:contentPart): PowerPoint draws the strokes, never the fallback picture, which is a
+                // stale thumbnail at a different size (3680b255's ink fallback filled a box 8 M EMU tall). Strokes are not drawn yet.
+                if el.first("mc:Choice")?.first("p:contentPart") != nil { continue }
                 // The fallback is what an older reader would draw: keep the
                 // whole thing — and draw it as that fallback's shapes (or the
                 // choice's, where the fallback holds nothing this app reads:
