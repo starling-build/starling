@@ -136,6 +136,12 @@ enum SlideFonts {
                 face.italicOtherAdvances = SlideEastAsianWidths.parse(it.regular.other)
                 face.boldItalicOtherAdvances = it.bold.map { SlideEastAsianWidths.parse($0.other) } ?? face.italicOtherAdvances
             }
+            // (PowerPoint kerns these Latin faces at the run's kern size, as it kerns Aptos.)
+            if let pairs = SlideLatinKerns.lookup(windowsName(family)) {
+                face.kerns = pairs.regular
+                face.boldKerns = pairs.bold
+                face.kernsOutsideWord = true
+            }
             eastAsianMade[family] = face
             return face
         }
