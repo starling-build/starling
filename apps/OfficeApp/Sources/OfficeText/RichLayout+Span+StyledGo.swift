@@ -644,6 +644,8 @@ extension _StyledFrame {
                 switch cs {
                 case "kalimati": face = "mangal"
                 case "mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "utsaah", "shonar bangla": break
+                // A Gurmukhi run whose complex face is Times New Roman is drawn in Raavi, not Nirmala UI, when the document's first Gurmukhi run names Raavi (dx2 53342b69 print; 60aa1e5d, first run Arial, stays Nirmala UI).
+                case "times new roman" where top.key == "P" && document.gurmukhiFirstRunRaavi: face = "raavi"
                 default: face = top.key == "B" ? RichLayout._bengaliMissingFace(cs, document) : (document.devanagariFirstRunMangal && cs != "times new roman" ? "mangal" : "nirmala ui")
                 }
                 guard var scale = RichLayout._indicScale[face]?[top.key] else { return nil }

@@ -4105,6 +4105,7 @@ enum DocxFormat {
             OfficeFonts.noteFontEntries(entries)
             document.hasIndicText = Self._hasIndicBytes(docData)
             document.devanagariFirstRunMangal = Self._firstDevanagariRunNamesMangal(docData)
+            document.gurmukhiFirstRunRaavi = Self._firstGurmukhiRunNamesRaavi(docData)
             OfficeFonts.noteIndicText(document.hasIndicText)
         } else {
             OfficeFonts.noteEmbedded([])
@@ -9273,10 +9274,14 @@ enum DocxFormat {
     /// Whether the document part holds Devanagari to Malayalam text (UTF-8 lead bytes E0 A4 to E0 B5).
     /// Whether the first run holding Devanagari names Mangal itself (ascii, hAnsi or cs): Word then draws every Devanagari run of the document in Mangal,
     /// even runs whose complex face is one Windows lacks (Arial), which would otherwise fall to Nirmala UI (dx2 88e26672; labs dpitch5-9).
-    private static func _firstDevanagariRunNamesMangal(_ data: Data) -> Bool {
+    private static func _firstDevanagariRunNamesMangal(_ data: Data) -> Bool { _firstRunNames(data, leads: [0xA4, 0xA5], face: "\"mangal\"") }
+    /// The same test for Gurmukhi (E0 A8, E0 A9) and Raavi: a document whose first Gurmukhi run names Raavi has its Times New Roman complex-face
+    /// Gurmukhi runs drawn in Raavi, not Nirmala UI (dx2 53342b69 against 60aa1e5d, whose first Gurmukhi run is Arial and whose body is Nirmala UI).
+    static func _firstGurmukhiRunNamesRaavi(_ data: Data) -> Bool { _firstRunNames(data, leads: [0xA8, 0xA9], face: "\"raavi\"") }
+    private static func _firstRunNames(_ data: Data, leads: [UInt8], face: String) -> Bool {
         let bytes = [UInt8](data)
         var i = 0
-        while i + 1 < bytes.count { if bytes[i] == 0xE0, bytes[i + 1] == 0xA4 || bytes[i + 1] == 0xA5 { break }; i += 1 }
+        while i + 1 < bytes.count { if bytes[i] == 0xE0, leads.contains(bytes[i + 1]) { break }; i += 1 }
         guard i + 1 < bytes.count else { return false }
         // The run's opening tag: the last "<w:r>" or "<w:r " before the first Devanagari byte; its properties run to the first "<w:t".
         var start = i
@@ -9288,7 +9293,7 @@ enum DocxFormat {
         var stop = start
         while stop + 4 < i, !(bytes[stop] == 0x3C && bytes[stop + 1] == 0x77 && bytes[stop + 2] == 0x3A && bytes[stop + 3] == 0x74) { stop += 1 }
         let props = String(decoding: bytes[start ..< stop], as: UTF8.self).lowercased()
-        return props.containsSubstring("\"mangal\"")
+        return props.containsSubstring(face)
     }
     private static func _hasIndicBytes(_ data: Data) -> Bool {
         let bytes = [UInt8](data)
