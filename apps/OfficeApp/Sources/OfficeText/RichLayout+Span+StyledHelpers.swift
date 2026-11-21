@@ -207,6 +207,16 @@ extension _StyledFrame {
             let nirmalaNamedRun = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased().hasPrefix("nirmala ui")
             s = s.copyWith(ascentOverride: m.0 * multiple * size, descentOverride: m.1 * multiple * size, height: nirmalaNamedRun ? (m.0 + m.1) * multiple : nil, leadingDistribution: nirmalaNamedRun ? .even : nil)
         }
+        // (A full stop in a run of a face Windows lacks (the Latin face of a Sinhala paragraph) is drawn in Sylfaen by Word, whose win descent 635/2048 = 0.31 em
+        // is deeper than Nirmala UI's 0.251: the Sinhala line is Nirmala's ascent 1.079 over Sylfaen's descent, 16.68 pt at 12 pt, 29.16 at 21 pt, against 15.96 and
+        // 28.0 (dx2 827a8947, Word's print: every line with a Sylfaen stop; the lines without stand 14.64 at 11 pt). Sylfaen: /data/corpus-cache/metrics/indic-si-ta-20261121.)
+        if kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5,
+           text.unicodeScalars.contains(where: { $0.value == 0x2E }), p.text.unicodeScalars.contains(where: { $0.value >= 0xD80 && $0.value <= 0xDFF }),
+           case let ff = (run.fontFamily ?? named?.char.fontFamily ?? "").trimmingWhitespace().lowercased(), !ff.isEmpty, !WordWindowsFaces.names.contains(ff) {
+            RuleTrace.hit("word-sinhala-line-full-stop-in-sylfaen-descent")
+            let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+            s = s.copyWith(ascentOverride: 2210.0 / 2048 * multiple * size, descentOverride: 635.0 / 2048 * multiple * size, height: (2210.0 + 635) / 2048 * multiple, leadingDistribution: .even)
+        }
         // (A digit, a mark or a no-break space between Nirmala UI's words, in a run whose Latin face is Calibri, is on its line: the line takes Calibri's deeper descent
         // (win 550/2048 = 0.2686 em against Nirmala's 0.251) even where the glyph is drawn in Nirmala; a plain space does not. Word's print of dx2 f4abc45d (Punjabi, 11 pt):
         // lines with an apostrophe, comma, colon, digit or NBSP stand 14.88 apart, the others 14.63; 6af76fa9 likewise.)
