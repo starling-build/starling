@@ -170,6 +170,7 @@ struct PptxTheme {
                 guard let font = fonts.first(key) else { continue }
                 for f in font.all("a:font") { if let k = f["script"], let t = f["typeface"], !t.isEmpty { table[k] = t } }
                 if let t = font.first("a:cs")?["typeface"], !t.isEmpty { table["cs"] = t }
+                if let t = font.first("a:ea")?["typeface"], !t.isEmpty { table["ea"] = t }
                 if key == "a:majorFont" { majorScript = table } else { minorScript = table }
             }
         }
@@ -361,6 +362,9 @@ private struct LevelStyle {
     var font: String?
     /// `a:cs`: the face for complex-script (Hebrew, Arabic, Thai) text.
     var csFont: String?
+    /// `a:ea`: the face for East Asian text; `lang` picks the theme's script face when it is empty.
+    var eaFont: String?
+    var lang: String?
     var color: Color?
     var baseline: Double?
     /// Character spacing in points (`spc`, hundredths of a point).
@@ -408,6 +412,8 @@ private struct LevelStyle {
         s.strike = s.strike ?? lower.strike
         s.font = s.font ?? lower.font
         s.csFont = s.csFont ?? lower.csFont
+        s.eaFont = s.eaFont ?? lower.eaFont
+        s.lang = s.lang ?? lower.lang
         s.color = s.color ?? lower.color
         s.baseline = s.baseline ?? lower.baseline
         s.spc = s.spc ?? lower.spc
@@ -529,6 +535,8 @@ private struct LevelStyle {
         s.kern = r["kern"].flatMap(Double.init).map { $0 / 100 }
         s.font = r.first("a:latin")?["typeface"]
         s.csFont = r.first("a:cs")?["typeface"].flatMap { $0.isEmpty ? nil : $0 }
+        s.eaFont = r.first("a:ea")?["typeface"].flatMap { $0.isEmpty ? nil : $0 }
+        s.lang = r["lang"].flatMap { $0.isEmpty ? nil : $0 }
         if let fill = r.first("a:solidFill") { s.color = colors.color(in: fill) }
         // Text filled with a gradient is drawn as such in WordArt (its run
         // looks); elsewhere in the gradient's middle colour, not the black
@@ -3155,6 +3163,34 @@ private struct SlideContext {
         return s
     }
 
+    /// The face East Asian letters are set in: the run's `a:ea`, a theme
+    /// reference's East Asian face, else the theme's face for the script
+    /// the letter is of (the run's language picks Han's) — nil where
+    /// nothing names one (the Latin face serves, as before).
+    private func _eaFont(_ f: String?, scalar: UInt32, lang: String?) -> String? {
+        let major = f == "+mj-ea" || f == "+mj-lt" || f == "+mj-cs"
+        let table = major ? theme.majorScript : theme.minorScript
+        if let f, !f.hasPrefix("+") { return f }
+        if let named = table["ea"] { return named }
+        let l = (lang ?? "").lowercased()
+        let script: String
+        switch scalar {
+        case 0x3040 ... 0x30FF, 0x31F0 ... 0x31FF, 0xFF66 ... 0xFF9F: script = "Jpan"
+        case 0xAC00 ... 0xD7AF, 0x1100 ... 0x11FF, 0x3130 ... 0x318F: script = "Hang"
+        default:
+            script = l.hasPrefix("ja") ? "Jpan" : l.hasPrefix("ko") ? "Hang" : (l == "zh-tw" || l == "zh-hk" || l == "zh-mo") ? "Hant" : l.hasPrefix("zh") ? "Hans" : "Hans"
+        }
+        return table[script]
+    }
+
+    static func isEastAsian(_ v: UInt32) -> Bool {
+        switch v {
+        case 0x1100 ... 0x11FF, 0x2E80 ... 0x303F, 0x3040 ... 0x30FF, 0x3130 ... 0x318F, 0x31F0 ... 0x31FF,
+             0x3400 ... 0x4DBF, 0x4E00 ... 0x9FFF, 0xAC00 ... 0xD7AF, 0xF900 ... 0xFAFF, 0xFF66 ... 0xFF9F: return true
+        default: return false
+        }
+    }
+
     /// The face a complex script's letters are set in: the run's `a:cs`,
     /// a theme reference's complex-script face, else the theme's face for
     /// that script — nil where nothing names one (the Latin face serves).
@@ -3481,7 +3517,7 @@ private struct SlideContext {
                 var sawLetter = false
                 for ch in t.unicodeScalars {
                     let n = ch.utf16.count
-                    let script = Self.complexScript(ch.value)
+                    let script = Self.complexScript(ch.value) ?? (Self.isEastAsian(ch.value) && ch.value != 0x3000 ? "ea" : nil)
                     let letter = script != nil || ch.properties.isAlphabetic
                     if pieces.isEmpty {
                         pieces.append((n, script))
@@ -3497,9 +3533,22 @@ private struct SlideContext {
                         pieces[pieces.count - 1].length += n
                     }
                 }
+                var consumed = 0
+                let utf16 = Array(t.utf16)
                 for piece in pieces {
+                    defer { consumed += piece.length }
                     var c = cs
-                    if let script = piece.script, let face = _csFont(s.csFont, script: script), face != plain.fontFamily {
+                    if piece.script == "ea" {
+                        // (The first letter of the piece names its script.)
+                        let slice = String(decoding: utf16[consumed ..< min(utf16.count, consumed + piece.length)], as: UTF16.self)
+                        let first = slice.unicodeScalars.first { Self.isEastAsian($0.value) }?.value ?? 0x4E00
+                        if let face = _eaFont(s.eaFont ?? s.font, scalar: first, lang: s.lang),
+                           face != plain.fontFamily {
+                            c = plain
+                            c.fontFamily = face
+                            c.shadow = cs.shadow; c.outline = cs.outline; c.highlight = cs.highlight; c.caps = cs.caps; c.smallCaps = cs.smallCaps
+                        }
+                    } else if let script = piece.script, let face = _csFont(s.csFont, script: script), face != plain.fontFamily {
                         c = plain
                         c.fontFamily = face
                         c.shadow = cs.shadow; c.outline = cs.outline; c.highlight = cs.highlight; c.caps = cs.caps; c.smallCaps = cs.smallCaps
