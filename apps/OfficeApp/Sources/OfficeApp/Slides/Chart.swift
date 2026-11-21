@@ -4679,7 +4679,8 @@ enum ChartPainter {
             // with both value axes deleted. The slot is itself a share of the plot, so solve for it.)
             if !c.onSlide, !c.onSheet, !c.chartex, c.plotLayout == nil, c.type == .column, aslant, let first = catLabels.first, c.categories.count > 1 {
                 let half = 1 / (2 * Double(c.categories.count))
-                let want = (drop(first) - (area.width - right) * half + 1.9 * k) / (1 - half)
+                // (A 2013-style chart (own chart style and colours parts) keeps it 8.5 pt PAST the frame instead: sa2 ab55f8b0's chart 4, 7 names at 12 pt, legend below, plot started 10.6 pt in where Word's does; fitted on that one witness.)
+                let want = (drop(first) - (area.width - right) * half + (c.styled2013 ? -8.5 : 1.9) * k) / (1 - half)
                 if want > left {
                     RuleTrace.hit("word-column-chart-turned-first-name-stays-inside-the-frame")
                     left = want
