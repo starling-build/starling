@@ -1770,7 +1770,7 @@ extension RichLayout {
                 }
                 if mixedLatinFaces, kind >= 0, pitch == nil, s.ascentOverride == nil, p.style.lineSpacing > 0, run.ruby == nil, run.emphasis == nil,
                    let size = s.fontSize, size > 0.5, s.height != nil, !(index.map { _verticalBody($0) } ?? false),
-                   !text.isEmpty, text.unicodeScalars.allSatisfy({ $0.value < 0x250 }),
+                   !text.isEmpty, text.unicodeScalars.allSatisfy({ $0.value < 0x250 || ($0.value >= 0xFB00 && $0.value <= 0xFB06) }),
                    !((run.fontFamily ?? named?.char.fontFamily).map { theme.isSymbolFace?($0.trimmingWhitespace()) ?? false } ?? false) {
                     let bold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
                     let italic = run.italic || ((named?.char.italic ?? false) && !run.off.contains(.italic))
@@ -1792,6 +1792,7 @@ extension RichLayout {
                             eastAsiaFamily: run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily)
                         let lineSize = wScale > 0.01 ? size / wScale : size
                         s = s.copyWith(ascentOverride: lineSize * sp.0, descentOverride: lineSize * sp.1, height: nat * max(1, p.style.lineSpacing) * lineSize / size, leadingDistribution: .even)
+                        s = s.copyWith(debugLabel: (s.debugLabel ?? "") + " mixed-latin-line")
                     }
                 }
                 // (A run with emphasis marks makes its line 0.31 em taller on their side: off a grid, single spacing, horizontal.)
