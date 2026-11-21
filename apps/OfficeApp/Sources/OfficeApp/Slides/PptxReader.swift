@@ -3231,13 +3231,7 @@ private struct SlideContext {
         if cs.fontFamily?.lowercased() == "arial black" {
             cs.bold = !SlideFonts.hasHeavyStandIn
         }
-        // Aptos, set in Liberation Sans: that much tighter, as
-        // Aptos runs narrower — PowerPoint's lines in it are 3.5%
-        // shorter than ours across the twelve Aptos decks, 5.5% in
-        // bold (28 lines compared).
-        if cs.fontFamily?.lowercased() == "aptos" {
-            cs.letterSpacing = (cs.letterSpacing ?? 0) - (cs.bold ? 0.031 : 0.0185) * (cs.fontSize ?? 18)
-        }
+        // (Aptos is no longer tightened by a spacing: it is set at its own measured widths and kern pairs, `SlideFonts.face`.)
         // Calibri Light, set in Calibri's regular: 0.0054 em a letter
         // tighter — PowerPoint's lines in it are 1.2 to 1.6% shorter than
         // ours, the same in all twenty decks (69 lines compared). (Its own
