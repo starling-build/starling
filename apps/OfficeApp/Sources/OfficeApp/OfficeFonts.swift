@@ -6023,7 +6023,9 @@ static let sylfaenAdvances: [Double] = [
         // bold with no italic: the face has none, and PowerPoint's print
         // slants its regular — the engine does the same for a family with
         // no italic, where Liberation Sans's own italic has other letters.)
-        faces += [("LiberationSans-Regular.ttf", "Starling Lucida Sans"), ("LiberationSans-Bold.ttf", "Starling Lucida Sans")]
+        // (No bold file either: the face has no bold style, and PowerPoint draws its bold as the regular
+        // filled and stroked, about size/35 wide, as Word does; the engine fakes a bold asked of a family with no bold.)
+        faces += [("LiberationSans-Regular.ttf", "Starling Lucida Sans")]
         faces += [("SelawikDoc-Regular.ttf", "Selawik Doc"), ("SelawikDoc-Bold.ttf", "Selawik Doc"),
                   ("SelawikDoc-Light.ttf", "Selawik Doc Light"), ("SelawikDoc-Semilight.ttf", "Selawik Doc Semilight"),
                   ("SelawikDoc-Semibold.ttf", "Selawik Doc Semibold")]
