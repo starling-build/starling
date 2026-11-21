@@ -625,6 +625,20 @@ public final class RichTextTheme {
         return (line / size, natural - ascent + (em == "underDot" ? extra : 0))
     }
 
+    /// How much wider a vertical column is made on its ruby side by the ruby (`rubyLine`, vertical), in points; the ruby's
+    /// column is centred on the base's glyph, so it is placed from the base's centre, `extra` / 2 inside the column's own.
+    public func verticalRubyExtra(for style: CharStyle, in paragraph: RichParagraphStyle, named: RichNamedStyle?, eastAsian: Bool) -> Double {
+        guard let l = rubyLine(for: style, in: paragraph, named: named, eastAsian: eastAsian, gridPitch: nil, vertical: true),
+              case let size = style.fontSize ?? named?.char.fontSize ?? fontSize, size > 0 else { return 0 }
+        let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
+        let familyName = eastAsian ? (style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? latinName) : latinName
+        let bold = style.bold || ((named?.char.bold ?? false) && !style.off.contains(.bold))
+        let italic = style.italic || ((named?.char.italic ?? false) && !style.off.contains(.italic))
+        guard let face = faceResolver?(familyName, eastAsian) else { return 0 }
+        let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight ?? naturalLineHeight(family: face.family, bold: bold, italic: italic)
+        return max(0, (l.height - natural) * size)
+    }
+
     /// The ruby line's height as a multiple of the text's size, and on a
     /// line grid how far the text stands above where the engine puts it
     /// (negative: below). The engine keeps the baseline where the line of
@@ -633,7 +647,7 @@ public final class RichTextTheme {
     /// 11pt MS Mincho line is 36pt with its baseline 24.3 down, the text
     /// alone's 12.9 by the engine.
     public func rubyLine(for style: CharStyle, in paragraph: RichParagraphStyle, named: RichNamedStyle?,
-                         eastAsian: Bool, gridPitch: Double?) -> (height: Double, raise: Double, descent: Double)? {
+                         eastAsian: Bool, gridPitch: Double?, vertical: Bool = false) -> (height: Double, raise: Double, descent: Double)? {
         guard let ruby = style.ruby else { return nil }
         let size = style.fontSize ?? named?.char.fontSize ?? fontSize
         let latinName = style.fontFamily ?? named?.char.fontFamily ?? fontFamily
@@ -646,6 +660,13 @@ public final class RichTextTheme {
         let rubySize = ruby.size < 0 ? size : ruby.size > 0 ? ruby.size : size / 2
         let raise = ruby.raise > 0 ? ruby.raise : size / 2
         let above = max(0, raise + ascent * rubySize - ascent * size)
+        // (A vertical column is centred, not standing on a baseline: the ruby's column, its em box centred `raise` toward the
+        // ruby side of the base's centre, reaches past the plain column's half by that much more, and the column takes it on the ruby side.
+        // Lab rubycol rc-c, off a grid, Meiryo 10.5 with 5pt ruby raised 9: the ruby column is 24.4 wide against the plain 20.9.)
+        if vertical, wordRules, gridPitch == nil, paragraph.lineHeightPoints == nil, paragraph.lineSpacing > 0.995, paragraph.lineSpacing < 1.005 {
+            let extra = max(0, raise + natural * rubySize / 2 - natural * size / 2)
+            return (natural + extra / size, 0, natural - ascent)
+        }
         let line = lineBox(size: size, natural: natural + above / size, baseline: nil, in: paragraph, gridPitch: gridPitch).height
         // (Off a grid at single spacing the line keeps the plain line's foot and its baseline, the ruby's em standing on its raise over it:
         // lab ruby-hl14r, MS Mincho 20 with 8pt ruby, single: ascent max(20.15, raise + 8), descent 5.77 as plain.)
