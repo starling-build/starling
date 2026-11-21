@@ -4242,6 +4242,12 @@ static let sylfaenAdvances: [Double] = [
         // over zh-d97c5474's Arabic paragraph — 1817pt to Word's 1634 —
         // and its lines broke elsewhere. Each word is set to its joining
         // forms' widths in Word's face.)
+        // (Dubai ships with Windows and is tall: its line is 1.688 em, baseline 1.129 (hhea 1129+559 over 1000, Dubai_Regular.tsv), also
+        // for Arabic runs. dx2 bf1c58dd's contents rows step 23.3 pt at 12 pt, spacing 1.15; the Times stand-in's 1.15 em line gave 13.5.)
+        if wordOnWindows, asked == "dubai" {
+            RuleTrace.hit("dubai-complex-face-has-its-own-tall-line")
+            face.naturalHeight = 1.6880; face.baseline = 1.1290
+        }
         if viaCourier {
             var t: [UInt32: Double] = [:]
             for u in 0x0600 ... 0x06FF { t[UInt32(u)] = 0.6 }
