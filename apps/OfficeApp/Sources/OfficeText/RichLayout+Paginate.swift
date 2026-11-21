@@ -2207,8 +2207,12 @@ extension RichLayout {
                 // over a one-line note, holds thirteen in Word's print; the
                 // fourteenth reaches 4.3pt into the separator's line, and
                 // its overhang let ours keep it.)
-                let overhang = placedFrame ? .infinity : theme.wordRules && pgs.i < _overhang.count && pgs.pageNotes.isEmpty ? _overhang[pgs.i] : 0
-                let lineOverhangs = !placedFrame && theme.wordRules && pgs.pageNotes.isEmpty && pgs.i < _lineOverhang.count ? _lineOverhang[pgs.i] : []
+                // (Nor over notes already taken off the foot of a page of columns' slot, which the page
+                // holds though none is set yet: sa1 978697fd's page 4, a note's 37.8pt off the
+                // foot, ends its paragraph a line sooner in Word's print than the overhang let ours.)
+                let reservedNotes = _columns > 1 && (_columnNoteReserve[pgs.page] ?? 0) > 0
+                let overhang = placedFrame ? .infinity : theme.wordRules && pgs.i < _overhang.count && pgs.pageNotes.isEmpty && !reservedNotes ? _overhang[pgs.i] : 0
+                let lineOverhangs = !placedFrame && theme.wordRules && pgs.pageNotes.isEmpty && !reservedNotes && pgs.i < _lineOverhang.count ? _lineOverhang[pgs.i] : []
                 // (The reach of line `k` past the foot: its own faces'.)
                 func reach(_ k: Int) -> Double { k >= 0 && k < lineOverhangs.count ? max(overhang, lineOverhangs[k]) : overhang }
                 // (A last line that is empty — only the paragraph mark, after a trailing line break —
