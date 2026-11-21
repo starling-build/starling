@@ -490,6 +490,11 @@ extension _StyledFrame {
                         RuleTrace.hit("word-thai-without-cs-is-leelawadee-ui")
                         return ("leelawadee ui", 1)
                     }
+                    // (Thaana letters, in any run: Faruma and the rest are missing on Windows and Word draws them in MV Boli, whose line is 1.611 em; dx2 3a5235d0.)
+                    if text.unicodeScalars.contains(where: { $0.value >= 0x0780 && $0.value <= 0x07BF }) {
+                        RuleTrace.hit("word-thaana-letters-are-an-mv-boli-line")
+                        return ("mv boli", 1)
+                    }
                     // (Myanmar letters, in any run: Word draws them in Myanmar Text (Zawgyi-One and the rest are missing on Windows) and sets the line at its 1.861 em.)
                     if text.unicodeScalars.contains(where: { $0.value >= 0x1000 && $0.value <= 0x109F }) {
                         RuleTrace.hit("word-myanmar-letters-are-a-myanmar-text-line")

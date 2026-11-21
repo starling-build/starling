@@ -88,7 +88,9 @@ extension RichLayout {
         // (Malgun Gothic as Word sets a line of it: hhea 1.088 + 0.242 and 0.4 of gap, 1.73 em, split evenly.)
         "malgun gothic": (1.088 + 0.2, 0.242 + 0.2), "leelawadee ui": (1.08, 0.28),
         // (Myanmar Text: win ascent 2122, descent 1689 over 2048. Word sets a Myanmar-letter line at 1.861 em: dx2 2dbfc1a8, 22 pt a line at 11 pt on 259, ours 16.)
-        "myanmar text": (2122.0 / 2048, 1689.0 / 2048)]
+        "myanmar text": (2122.0 / 2048, 1689.0 / 2048),
+        // (MV Boli, which Word draws Thaana in: win ascent 2333, descent 967 over 2048; dx2 3a5235d0.)
+        "mv boli": (2333.0 / 2048, 967.0 / 2048)]
     /// Width of each face's letters against the Noto stand-in's, per script (D Devanagari, B Bengali, T Telugu, P Gurmukhi, G Gujarati):
     /// the median ratio of Word's word widths to ours over the dx2 Indic documents that print in that face (spread under 0.03 per face).
     static let _indicScale: [String: [Character: Double]] = [
