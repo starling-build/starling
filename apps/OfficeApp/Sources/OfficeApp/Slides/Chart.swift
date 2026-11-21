@@ -2148,7 +2148,10 @@ enum ChartXML {
         }
         if let valueAxis {
             c.valueGrid = valueAxis.first("c:majorGridlines") != nil
+            // (An axis whose labels are "none" and whose line is hidden draws nothing,
+            // as a deleted one does: ko-e114b968 p23's bars with no scale.)
             c.valueAxisDeleted = ["1", "true"].contains(valueAxis.first("c:delete")?["val"] ?? "")
+                || (valueAxis.first("c:tickLblPos")?["val"] == "none" && valueAxis.first("c:spPr")?.first("a:ln")?.first("a:noFill") != nil)
             c.valueTicksOut = ["out", "cross"].contains(valueAxis.first("c:majorTickMark")?["val"] ?? "")
             c.valueLine = valueAxis.first("c:spPr")?.first("a:ln")?.first("a:noFill") == nil
         }
