@@ -2900,8 +2900,20 @@ extension RichLayout {
                     // of the middle — zh-b0401810's "职业资格证书…", which
                     // stood 3.3pt right of Word's.)
                     let endPad = theme.wordRules && cell.direction == .down ? 0 : cell.pad.left
+                    // (A cell set in the middle or at the foot of a row takes the row's deepest margins
+                    // for its room, not only its own: lab cellc2, Word for Windows — a 200-twip bottom or top
+                    // margin on one cell of two, both centred in an at-least 2400 row, moves neither cell's
+                    // text, the row alone being taller; ours moved the other cell 5.2pt.)
+                    var roomTop = cell.pad.top, roomBottom = cell.pad.bottom
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, cell.rowSpan == 1, cell.verticalAlign == "center" || cell.verticalAlign == "bottom" {
+                        var deepest = roomTop + roomBottom
+                        for m in row.first ..< row.end where _cells[m]!.rowSpan == 1 && _cells[m]!.pad.top + _cells[m]!.pad.bottom > deepest {
+                            deepest = _cells[m]!.pad.top + _cells[m]!.pad.bottom
+                            roomTop = _cells[m]!.pad.top; roomBottom = _cells[m]!.pad.bottom
+                        }
+                    }
                     let room = cell.vertical ? cell.colWidth - endPad - cell.pad.right
-                        : spanned - cell.pad.top - cell.pad.bottom - rules[r].above - rules[last].below
+                        : spanned - roomTop - roomBottom - rules[r].above - rules[last].below
                     // (The reach of a table floating in the cell is the whole cell's, not its own paragraph's:
                     // lo-158ec986's "outer B1" stands at the cell's top in Word, beside the 39.7pt table that
                     // is anchored to the paragraph above it in the same cell, where ours centred it.)
@@ -2928,7 +2940,7 @@ extension RichLayout {
                         _tops[k] = row.top
                         _cells[k]!.across = cell.acrossStart + offset + shift
                     } else {
-                        _tops[k] = row.top + rules[r].above + cell.pad.top + offset + shift
+                        _tops[k] = row.top + rules[r].above + roomTop + offset + shift
                     }
                     _rowTops[k] = row.top
                     stack[cell.column] = offset + _heights[k]
