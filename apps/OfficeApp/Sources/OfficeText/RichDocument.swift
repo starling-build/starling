@@ -1124,6 +1124,8 @@ public struct ImageAttachment: Hashable, Codable, Sendable {
     public var sourceXML: String? = nil
     /// A drop cap Docx folded into a text box (Word prints its text after the page's body).
     public var isDropCap = false
+    /// An embedded ActiveX control (a `w:control` in the object), not an OLE picture such as an equation.
+    public var isActiveXControl = false
     public var sourceRels: [KeptRel] = []
     /// A kept shape's outline, where it is one the layout draws.
     public var outline: ShapeOutline? = nil
