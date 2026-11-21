@@ -5,6 +5,8 @@ import Foundation
 // Page borders (`w:pgBorders`): a box drawn round each page of a section.
 // Line borders only; art borders (`w:val` of a picture name) are not drawn.
 
+private struct _BorderSide { var style: String; var width: Double; var space: Double; var color: Int64 }
+
 extension RichLayout {
     /// The `w:pgBorders` of the section page `p` is in, or nil.
     func _pageBordersXML(_ p: Int, _ document: RichDocument) -> String? {
@@ -43,8 +45,7 @@ extension RichLayout {
         let page = pageRect(p)
         let s = pageSetup(forPage: p)
 
-        struct Side { var style: String; var width: Double; var space: Double; var color: Int64 }
-        func side(_ name: String) -> Side? {
+        func side(_ name: String) -> _BorderSide? {
             guard let r = xml.rangeOfSubstring("<w:" + name + " ") else { return nil }
             let tail = xml[r.lowerBound...]
             let tag = tail[tail.startIndex ..< (tail.firstIndex(of: ">") ?? tail.endIndex)]
@@ -59,7 +60,7 @@ extension RichLayout {
             let space = Double(Self._attr(tag, "w:space") ?? "") ?? 0
             var color: Int64 = 0
             if let c = Self._attr(tag, "w:color"), c.count == 6, let v = Int64(c, radix: 16) { color = v }
-            return Side(style: val, width: max(0.25, sz / 8), space: space, color: color)
+            return _BorderSide(style: val, width: max(0.25, sz / 8), space: space, color: color)
         }
 
         // The outer edge of each side, in pixels.
@@ -69,7 +70,7 @@ extension RichLayout {
         let pxRightText = page.right - _px(s.marginRight)
         let pxBottomText = page.bottom - _px(s.marginBottom)
         // The strokes of a style as (offset inward, thickness) in points.
-        func strokes(_ sd: Side, thickOutside: Bool) -> [(Double, Double)] {
+        func strokes(_ sd: _BorderSide, thickOutside: Bool) -> [(Double, Double)] {
             let w = sd.width
             switch sd.style {
             case "double": return [(0, w), (2 * w, w)]
@@ -88,7 +89,7 @@ extension RichLayout {
         }
         // (From the text, `space` is to the line's INNER edge, so the outer
         // one lies the line's own width further out: lo-811b5975's box.)
-        func extent(_ sd: Side) -> Double { strokes(sd, thickOutside: false).map { $0.0 + $0.1 }.max() ?? sd.width }
+        func extent(_ sd: _BorderSide) -> Double { strokes(sd, thickOutside: false).map { $0.0 + $0.1 }.max() ?? sd.width }
         let tEdge = top.map { fromText ? pxTopText - _px($0.space + extent($0)) : page.top + _px($0.space) }
         let lEdge = left.map { fromText ? pxLeftText - _px($0.space + extent($0)) : page.left + _px($0.space) }
         let bEdge = bottom.map { fromText ? pxBottomText + _px($0.space + extent($0)) : page.bottom - _px($0.space) }
@@ -103,7 +104,7 @@ extension RichLayout {
             paint.style = .fill
             canvas.drawRect(r, paint)
         }
-        func ink(_ sd: Side, _ along: (Double, Double) -> Rect) {
+        func ink(_ sd: _BorderSide, _ along: (Double, Double) -> Rect) {
             for (off, th) in strokes(sd, thickOutside: false) { fill(along(_px(off), _px(th)), sd.color) }
         }
         if let sd = top {

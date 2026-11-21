@@ -822,8 +822,8 @@ def check_office_local_types() -> None:
     whole-module emit-module job, so every one-line edit re-type-checks it (one such
     function cost 36 s per build). Declare the type at file scope instead."""
     root = REPO / "apps/OfficeApp/Sources/OfficeText"
-    # Known leftovers, to be moved (remove entries as they are fixed).
-    known = {"RichLayout+PageBorders.swift", "RichLayout+Lines.swift", "RichLayout+Paginate+State.swift"}
+    # Paginate+State.swift: FloatHold.Source is a member of a type, not a function-local type.
+    known = {"RichLayout+Paginate+State.swift"}
     pat = re.compile(r"^ {8,}(?:private |fileprivate )?(?:struct|class|enum) \w+")
     for path in sorted(root.glob("*.swift")):
         if path.name in known:
