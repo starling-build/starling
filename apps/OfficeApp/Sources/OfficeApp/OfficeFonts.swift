@@ -5150,6 +5150,12 @@ static let sylfaenAdvances: [Double] = [
             face.boldBaseline = 0.872
             RuleTrace.hit("th-browallia-own-line")
         }
+        if wordOnWindows, family.trimmingWhitespace().lowercased() == "cordia new" {
+            // (Cordia New: its own line from xd e91c8825 header, two 14 pt lines: 1.388 em, ascent 0.892; Word 40.56 and body 88.22.)
+            face.naturalHeight = 1.388
+            face.baseline = 0.892
+            RuleTrace.hit("th-cordia-own-line")
+        }
         if wordOnWindows, family.trimmingWhitespace().lowercased() == "th sarabunpsk" {
                 // (Word for Windows has the real TH SarabunPSK, not
                 // Browallia: its own widths from the print's subsets.)
