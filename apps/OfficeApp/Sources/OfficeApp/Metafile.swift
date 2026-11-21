@@ -46,6 +46,8 @@ final class Metafile {
         var baselineDrop: Double? = nil
         /// One device pixel in output units, where the face is not in GDI's table: its own ascent (descent) is rounded to whole pixels.
         var pixel: Double? = nil
+        /// The record's own per-character advances (ExtTextOut's dx array) in output units, one per character of `text`.
+        var advances: [Double]? = nil
 
         /// Its style in `color`, set in `family` — with the documents'
         /// fallback faces: tika-3388's icon caption, "約翰的測試文件" in
@@ -159,7 +161,8 @@ final class Metafile {
                 let tp = TextPainter(text: TextSpan(text: run.text, style: run.style(ink, family: font(run.face))),
                                      textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
-                let dx = run.align & 6 == 6 ? -tp.width / 2 : run.align & 6 == 2 ? -tp.width : 0
+                let total = run.advances?.reduce(0, +) ?? tp.width
+                let dx = run.align & 6 == 6 ? -total / 2 : run.align & 6 == 2 ? -total : 0
                 let base = tp.computeDistanceToActualBaseline(.alphabetic)
                 var drop = run.baselineDrop
                 if drop == nil, let px = run.pixel, px > 0, run.align & 24 != 24 {
@@ -171,7 +174,18 @@ final class Metafile {
                 canvas.save()
                 canvas.translate(run.at.dx, run.at.dy)
                 if run.angle != 0 { canvas.rotate(run.angle) }
-                tp.paint(canvas, Offset(dx, dy))
+                if let advances = run.advances {
+                    var x = dx
+                    for (ch, step) in zip(run.text, advances) {
+                        let one = TextPainter(text: TextSpan(text: String(ch), style: run.style(ink, family: font(run.face))), textDirection: .ltr)
+                        one.layout(minWidth: 0, maxWidth: .infinity)
+                        one.paint(canvas, Offset(x, dy))
+                        one.dispose()
+                        x += step
+                    }
+                } else {
+                    tp.paint(canvas, Offset(dx, dy))
+                }
                 canvas.restore()
                 tp.dispose()
             }
@@ -406,7 +420,7 @@ private struct Player {
         }
     }
 
-    mutating func text(_ string: String, at: Offset, opaque: Rect?) {
+    mutating func text(_ string: String, at: Offset, opaque: Rect?, advances: [Double]? = nil) {
         if let r = opaque {
             steps.append(.fill(rect(r.left, r.top, r.right, r.bottom), dc.bkColor))
         }
@@ -452,7 +466,9 @@ private struct Player {
         steps.append(.text(Metafile.TextRun(
             text: shown, at: map(ref), size: size, face: dc.font.face, bold: dc.font.bold, italic: dc.font.italic,
             underline: dc.font.underline, color: dc.textColor, align: dc.textAlign,
-            angle: turn - dc.font.escapement / 10 * .pi / 180, baselineDrop: drop, pixel: pixel)))
+            angle: turn - dc.font.escapement / 10 * .pi / 180, baselineDrop: drop, pixel: pixel,
+            advances: RichTextTheme.wordWindowsPages && !isWMF && string.utf16.count == shown.utf16.count && shown.count == advances?.count
+                ? advances?.map { $0 * scaleX } : nil)))
     }
 
     /// Text in a symbol face as the Unicode glyphs it shows: the bullets,
@@ -979,7 +995,12 @@ private struct Player {
                 // UTF-16 it drew a row of Greek and Cyrillic; without that
                 // face's own table it is left out.)
                 guard options & 0x10 == 0 else { break }
-                text(utf16(at, n), at: Offset(x, y), opaque: options & 2 != 0 ? box : nil)
+                // (The record's dx array, where there is one: GDI sets each character that far from the last, in whole device
+                // pixels; Word's print of an EMF's text follows it, and the face's own advances drift off it. Not PDY pairs.)
+                let offDx = u32(a + 64)
+                let advances: [Double]? = offDx > 0 && options & 0x2000 == 0 && p + offDx + n * 4 <= p + size && n > 0
+                    ? (0..<n).map { Double(i32(p + offDx + $0 * 4)) } : nil
+                text(utf16(at, n), at: Offset(x, y), opaque: options & 2 != 0 ? box : nil, advances: advances)
             case 76, 77, 114:   // BitBlt, StretchBlt, AlphaBlend (StretchBlt's record, a blend where its raster op is)
                 let x = Double(i32(a + 16)), y = Double(i32(a + 20)), w = Double(i32(a + 24)), h = Double(i32(a + 28))
                 let sx = Double(i32(a + 36)), sy = Double(i32(a + 40))
