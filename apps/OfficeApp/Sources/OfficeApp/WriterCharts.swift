@@ -126,7 +126,7 @@ enum WriterCharts {
             ?? (!chartex && area == nil ? Color(0xFF868686) : nil)
         var entry = Entry(chart: chart, theme: theme, fill: fill, line: line,
                           lineWidth: (ln?["w"]).flatMap { Double($0) }.map { $0 / 12700 } ?? 0.75)
-        if fill == nil, let g = area?.first("a:gradFill"), g.first("a:path") != nil, let f = PptxReader.gradient(g, colors: colors), f.stops.count > 1 {
+        if fill == nil, let g = area?.first("a:gradFill"), let f = PptxReader.gradient(g, colors: colors), f.stops.count > 1 {
             entry.gradient = f
         }
         // (Text boxes only, placed by `cdr:relSizeAnchor`; other shapes are not drawn.)
