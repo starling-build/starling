@@ -1,4 +1,5 @@
 // Copyright the Starling authors
+// (gate self-test: comment-only change in a Slides file)
 // SPDX-License-Identifier: Apache-2.0
 
 // .pptx out. Two modes, chosen by where the deck came from:
