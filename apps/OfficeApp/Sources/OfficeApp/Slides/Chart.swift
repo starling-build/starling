@@ -4599,6 +4599,10 @@ enum ChartPainter {
         let belowOut = ticksPush && (horizontal ? c.valueTicksOut : c.categoryTicksOut) ? 3.7 * k : 0
         var valueLabelsBack = 0.0
         let widenedPlain = plainUntitledWord && c.valueTicksOut && c.type == .column
+            // (An untitled 2013-style Word column chart whose value axis is deleted has no top tick label to stand 4 pt higher by:
+            // dx2 f15415f0's page 7 chart, plot top 4.5 pt lower than ours, its baseline 1.7 higher, its left edge 4.0 further left.)
+            let deletedAxis2013 = word && c.barView == nil && (c.title ?? "").isEmpty && c.titleAt == nil && c.valueAxisDeleted
+                && c.type == .column && c.lineSeries.isEmpty && c.plotLayout == nil && c.dataTable == nil
         if horizontal {
             // (A 2007-style slide chart's plot stands 1.9 pt further right
             // and 3.8 pt higher at the bottom: bar-chart's in PowerPoint's
@@ -4629,7 +4633,7 @@ enum ChartPainter {
             // (A 2007-style chart's plot starts 2.6 pt further off its
             // value labels — line- and scatter-chart's at 152.3, the
             // labels where ours are.)
-            var left = (valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k + besideOut - (word ? 2.5 * k : libre ? 2.4 * k : 0)
+            var left = (valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k + besideOut - (word ? 2.5 * k : libre ? 2.4 * k : 0) - (deletedAxis2013 ? 4 * k : 0)
             // (A 2007-style slide chart with no tick marks: its labels stand off the plot by their size, not a
             // fixed gap, and the category labels' gap grows with theirs. Windows' prints of 5864 slide 8
             // in 15 variants, bare of ticks: value labels 8.97 pt off at 10 pt, 14.56 at 16, 21.73 at 24;
@@ -4647,7 +4651,7 @@ enum ChartPainter {
             // Not a box plot's, already higher than Excel's.)
             // (Each outer level of a multi-level axis takes a row of its own under the names.)
             let levelRows = c.categoryLevels.isEmpty ? 0 : Double(c.categoryLevels.count) * ((catLabels.first?.height ?? 12 * k) + 8.2 * k) + 4.5 * k
-            let bottom = levelRows - legendFootRise + (atZero ? (slideBare ? 8.1 : 4) * k : tallest + 7.6 * k + belowOut + slideFoot) - (wordFoot ? 4.4 * k : 0) + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
+            let bottom = levelRows - legendFootRise + (atZero ? (slideBare ? 8.1 : 4) * k : tallest + 7.6 * k + belowOut + slideFoot) - (wordFoot ? 4.4 * k : 0) + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (deletedAxis2013 ? 1.7 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
@@ -4716,7 +4720,7 @@ enum ChartPainter {
             // lo-8743d336's and lo-40949e85's plots stand where they did.)
             // (An untitled 2007-style Word chart whose value axis is deleted has no top tick label to stand 3 pt higher by: its plot
             // starts 1.5 pt lower than the generic one, 9.8 under the frame's top in lo-1e6077df's print, ours 5.3.)
-            let untitledWordRise = -4.0
+            let untitledWordRise = deletedAxis2013 ? 0.5 : -4.0
             let pt = k / 0.75
             let titled = !(c.title ?? "").isEmpty && c.titleAt == nil && !(c.onSheet && c.titleOverlay)
             // (An untitled 2007-style column chart on a slide: its plot starts
