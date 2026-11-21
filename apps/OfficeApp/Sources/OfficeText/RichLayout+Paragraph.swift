@@ -3385,7 +3385,9 @@ extension RichLayout {
             let larger = ownMark == nil && (styleSize ?? 0) > (p.runs[0].style.fontSize ?? .infinity) + 0.01
             let markerSize = ownMark ?? (larger ? styleSize : nil) ?? p.runs[0].style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
             let need = _px(markerSize * (larger ? 1.125 : 1.005)) - line.baseline
-            if need > _px(0.05) {
+            // (At a line multiple the text's own shift may already stand the extra UNDER the text, up from the painter's baseline; Symbol's ascent
+            // is then judged against that stood baseline: Calibri 12pt at 1.15 stands 11.43, Symbol 12.06, and sa1 5e813226 p37's first bullet was 0.63pt high.)
+            if need > _px(0.05) || (_inkShift[i] < 0 && need > _inkShift[i] + _px(0.05)) {
                 _inkShift[i] += max(0, need - _inkShift[i])
                 // (A bullet that carries its own size stands on its ascent and adds none below, as the lead box does for it: the line's foot
                 // is the text's, 14.4pt apart for a 12pt bold Symbol dash over Arial 11 where 1.225 em made 14.7: xb fra-g111-8b0e29.)
