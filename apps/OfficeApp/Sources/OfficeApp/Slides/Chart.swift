@@ -55,6 +55,8 @@ struct PatternInk: Equatable {
     var background: Color
 }
 
+struct ChartTrendline: Equatable { var color: Color?; var width: Double }
+
 struct ChartSeries: Equatable {
     static let labelValueMark = "\u{1}V"
     static let labelCellMark = "\u{1}C"
@@ -102,6 +104,8 @@ struct ChartSeries: Equatable {
     var markerFill: Color? = nil
     var markerLine: Color? = nil
     var unmarked: Set<Int> = []
+    /// A linear trendline (`c:trendline`): its colour (nil follows the series') and width in points.
+    var trendline: ChartTrendline? = nil
     var lineHidden = false
     /// A line's ends drawn as dots (`a:ln/a:headEnd`, `a:tailEnd` of type oval): their diameter in line widths (sm 2, med 3,
     /// lg 5), 0 for none. Word draws them on the line's first and last points and on the legend's key.
@@ -209,6 +213,9 @@ struct Chart: Equatable {
     /// The axis titles' size where their text says nothing at all of its
     /// look (`bareTitles`); nil is the usual.
     var axisTitleSize: Double? = nil
+    /// Each axis title's own size as its text states it (slides only).
+    var valueAxisTitleSize: Double? = nil
+    var categoryAxisTitleSize: Double? = nil
     /// The axis titles say nothing of their look (openpyxl's): Excel sets them 20 pt.
     var bareAxisTitle = false
     var axisTitleColor: Color? = nil   // (Word's own: the title's run, else its default run properties)
@@ -697,6 +704,8 @@ struct Chart: Equatable {
         c.categoryLabelSize = categoryLabelSize.map { $0 * f }
         c.textSize = textSize.map { $0 * f }
         c.axisTitleSize = axisTitleSize.map { $0 * f }
+        c.valueAxisTitleSize = valueAxisTitleSize.map { $0 * f }
+        c.categoryAxisTitleSize = categoryAxisTitleSize.map { $0 * f }
         // (And the title's box's line, which is as stated too:
         // chart-tdf135184's 3 pt.)
         c.titleLineWidth = titleLineWidth * f
@@ -1400,6 +1409,10 @@ enum ChartXML {
                     if !series.isEmpty, !pts.isEmpty, pts.allSatisfy({ $0 != nil }), pts != shared { s.xValues = pts.map { $0! } }
                 }
             }
+            if type == .scatter, let t = ser.first("c:trendline"), (t.first("c:trendlineType")?["val"] ?? "linear") == "linear" {
+                let ln = t.first("c:spPr")?.first("a:ln")
+                s.trendline = ChartTrendline(color: ln?.first("a:solidFill").flatMap { color($0) }, width: ln?["w"].flatMap(Double.init).map { $0 / 12700 } ?? 2.25)
+            }
             // (A line hidden, and its marks: chartex's stock chart sets its
             // three series' lines to none, Close marked by 3pt dots.)
             // (A line shown, its marks too: chart-add_series_secondary_axis'
@@ -2063,6 +2076,12 @@ enum ChartXML {
                 if let fill = layer.first("a:solidFill") { c.axisTitleColor = color(fill) }
             }
         }
+        func statedSize(_ ax: XNode?) -> Double? {
+            guard let t = ax?.first("c:title") else { return nil }
+            return (t.descendant("a:rPr")?["sz"] ?? t.descendant("a:defRPr")?["sz"]).flatMap(Double.init).map { $0 / 100 }
+        }
+        c.valueAxisTitleSize = statedSize(titledValue)
+        c.categoryAxisTitleSize = statedSize(titledCategory)
         c.categoryAxisTitleAt = c.categoryAxisTitle == nil ? nil : placed(titledCategory)
         c.valueAxisTitleAt = c.valueAxisTitle == nil ? nil : placed(titledValue)
         c.valueAxisTitleAcross = c.valueAxisTitle != nil && c.valueAxisTitleAt == nil && titledValue?.first("c:title")?.descendant("a:bodyPr")?["rot"] == "0"
@@ -4458,7 +4477,7 @@ enum ChartPainter {
             // axis title, "In Word the default length of the axis title box is about to
             // 80% of the length of the chart area.", breaks in two in its print.)
             let writerChart = !c.onSlide && !c.onSheet
-            let tp = axisText(t, titleSize, min(horizontal ? area.width : area.height, writerChart ? 0.8 * (horizontal ? frame.width : frame.height) : .infinity))
+            let tp = axisText(t, c.onSlide ? (c.valueAxisTitleSize ?? titleSize) : titleSize, min(horizontal ? area.width : area.height, writerChart ? 0.8 * (horizontal ? frame.width : frame.height) : .infinity))
             if horizontal {
                 tp.paint(canvas, Offset(area.center.dx - tp.width / 2, area.bottom - tp.height))
                 area = Rect.fromLTRB(area.left, area.top, area.right, area.bottom - tp.height - 4 * k)
@@ -4467,7 +4486,7 @@ enum ChartPainter {
                 // from the area's left, its middle over the plot's; they break at 18% of the chart — lo-6b6ece9c's
                 // "Horizontal, long axis title which breaks" in three lines, 66.7pt the widest, the plot starting
                 // 93.8 from the area's left in Word's print.)
-                let across = axisText(t, titleSize, 0.18 * frame.width)
+                let across = axisText(t, c.onSlide ? (c.valueAxisTitleSize ?? titleSize) : titleSize, 0.18 * frame.width)
                 let widest = across.computeLineMetrics().map(\.width).max() ?? across.width
                 let block = widest + 10 * k
                 // (Over the plot's middle, not the area's: the plot's top is half a label under the area's,
@@ -4487,7 +4506,7 @@ enum ChartPainter {
                 var lift = 0.0
                 if c.onSheet, c.bareAxisTitle, c.type != .scatter {
                     let names = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.2 * k
-                    let below = c.categoryAxisTitle != nil ? axisText(c.categoryAxisTitle!, titleSize, .infinity) : nil
+                    let below = c.categoryAxisTitle != nil ? axisText(c.categoryAxisTitle!, c.onSlide ? (c.categoryAxisTitleSize ?? titleSize) : titleSize, .infinity) : nil
                     let titleRoom = (below?.height ?? 0) + (below == nil ? 0 : 4 * k + 6 * k)
                     below?.dispose()
                     lift = (names + titleRoom - 0.61 * labelSize * k) / 2
@@ -4506,7 +4525,7 @@ enum ChartPainter {
         }
         if let t = c.categoryAxisTitle, c.categoryAxisTitleAt == nil {
             // (Excel's bare titles stand as long as four fifths of the chart: tdf119138's 162 pt "Sample length (mm)" beside a 150 pt plot.)
-            let tp = axisText(t, titleSize, !c.onSlide && !c.onSheet || (c.onSheet && horizontal) ? min(horizontal && c.onSheet ? .infinity : horizontal ? area.height : area.width, 0.8 * (horizontal ? frame.height : frame.width)) : min(horizontal ? area.height : area.width, .infinity))
+            let tp = axisText(t, c.onSlide ? (c.categoryAxisTitleSize ?? titleSize) : titleSize, !c.onSlide && !c.onSheet || (c.onSheet && horizontal) ? min(horizontal && c.onSheet ? .infinity : horizontal ? area.height : area.width, 0.8 * (horizontal ? frame.height : frame.width)) : min(horizontal ? area.height : area.width, .infinity))
             if horizontal {
                 canvas.save()
                 canvas.translate(area.left, area.center.dy + tp.width / 2)
@@ -5974,6 +5993,30 @@ enum ChartPainter {
                         if pen { path.lineTo(x, vpos(v)) } else { path.moveTo(x, vpos(v)); pen = true }
                     }
                     canvas.drawPath(path, p)
+                }
+                // The series' linear trendline (least squares over its points), under its marks, across the x range of the points.
+                if let t = c.series[j].trendline {
+                    let pts = (0 ..< n).compactMap { i in (c.series[j].values[safe: i] ?? nil).map { (c.x(j, i), $0) } }
+                    if pts.count >= 2 {
+                        let mx = pts.map(\.0).reduce(0, +) / Double(pts.count), my = pts.map(\.1).reduce(0, +) / Double(pts.count)
+                        let sxx = pts.map { ($0.0 - mx) * ($0.0 - mx) }.reduce(0, +)
+                        if sxx > 0 {
+                            let b1 = pts.map { ($0.0 - mx) * ($0.1 - my) }.reduce(0, +) / sxx, b0 = my - b1 * mx
+                            let x0 = pts.map(\.0).min()!, x1 = pts.map(\.0).max()!
+                            let tp = Paint()
+                            tp.style = .stroke
+                            tp.isAntiAlias = true
+                            tp.strokeWidth = max(1, t.width * k)
+                            tp.strokeCap = .round
+                            tp.color = t.color ?? fill.color
+                            let path = Path()
+                            for (m, xv) in [x0, x1].enumerated() {
+                                let px = plot.left + (xt(xv) - xs.lo) / (xs.hi - xs.lo) * plot.width, py = vpos(b0 + b1 * xv)
+                                if m == 0 { path.moveTo(px, py) } else { path.lineTo(px, py) }
+                            }
+                            canvas.drawPath(path, tp)
+                        }
+                    }
                 }
                 for i in 0 ..< n {
                     guard let v = c.series[j].values[safe: i] ?? nil else { continue }
