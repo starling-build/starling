@@ -2705,18 +2705,13 @@ extension RichLayout {
                 // columns and margin its first notes stand in, lo-9749f2b5.)
                 let s = same ? _setup(ofParagraph: first) : pageSetup(forPage: phys)
                 let geo = (columns: max(1, s.columns), width: _px(s.columnWidth), stride: _px(s.columnWidth + s.columnGap),
-                           left: same ? _pxColumnLeft(phys, column: 0, paragraph: first) : _pxMarginLeft(phys), perColumn: same)
+                           left: same ? _pxColumnLeft(phys, column: 0, paragraph: first) : _pxMarginLeft(phys), perColumn: false)
                 _columnNoteGeometry[phys] = geo
-                // (Each column's room is its own notes' and the rule over them:
-                // Word's lab fn-cols-long2 and -short, the notes standing
-                // under the column their marks stand in.)
-                if same, let lay = _columnNoteLayout(phys, ids, document) {
-                    for (c, h) in lay.colHeights.enumerated() where h > 0 { needed[phys * _columns + c] = h + lay.separator }
-                }
-                // (A page of sections that differ holds its notes' room off every column too: the notes stand
-                // at the page's foot whole, so a line that would cross their rule goes on. sa1 978697fd's page 5,
+                // (Word shares a page's notes out over its columns in order, whole, whatever column their marks stand in
+                // (f7341551 pages 5-9: 311 to 635 of 642 lines), and holds the tallest column's room off every column: the notes stand
+                // at the page's foot, so a line that would cross their rule goes on. sa1 978697fd's page 5,
                 // a one-line note at 702pt, parts "Para el 2013" whole to page 6 in Word's print.)
-                else if !same, theme.wordRules, let lay = _columnNoteLayout(phys, ids, document), lay.height > 0 {
+                if theme.wordRules, let lay = _columnNoteLayout(phys, ids, document), lay.height > 0 {
                     for c in 0 ..< _columns { needed[phys * _columns + c] = lay.height + lay.separator }
                 }
             }
