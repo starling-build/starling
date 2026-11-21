@@ -8,6 +8,8 @@ import Flutter
 import FlutterSwiftBridge
 import Foundation
 
+private struct _AutofitCell { var column: Int; var span: Int; var min: Double; var whole: Double; var max: Double; var picture: Bool }
+
 extension RichLayout {
 
     /// Check the paragraphs paint queued, newest first, within `budget`
@@ -1761,8 +1763,7 @@ extension RichLayout {
     }
 
     func _autofit(_ table: String, _ base: [Double], _ document: RichDocument) -> [Double] {
-        struct Cell { var column: Int; var span: Int; var min: Double; var whole: Double; var max: Double; var picture: Bool }
-        var cells: [Cell] = []
+        var cells: [_AutofitCell] = []
         var at: [Int: Int] = [:]   // (row, column) → its cell in `cells`
         var wholeNeed: [Int: Double] = [:]   // a noWrap column's whole text (Mac Word): see below
         // (In a table a share of its room wide: zh-8415d258's and zh-d0a207ac's,
@@ -1784,7 +1785,7 @@ extension RichLayout {
                 let v = vL + vR + _verticalCellLine(i, p, document)
                 let vkey = c.row * 4096 + c.column
                 if let k = at[vkey] { cells[k].min = max(cells[k].min, v); cells[k].whole = max(cells[k].whole, v); cells[k].max = max(cells[k].max, v) }
-                else { at[vkey] = cells.count; cells.append(Cell(column: c.column, span: 1, min: v, whole: v, max: v, picture: false)) }
+                else { at[vkey] = cells.count; cells.append(_AutofitCell(column: c.column, span: 1, min: v, whole: v, max: v, picture: false)) }
                 continue
             }
             let padL = c.padding.map { _px($0.left) } ?? ins.left, padR = c.padding.map { _px($0.right) } ?? ins.right
@@ -1812,7 +1813,7 @@ extension RichLayout {
                 cells[k].max = max(cells[k].max, widest)
             } else {
                 at[key] = cells.count
-                cells.append(Cell(column: c.column, span: c.span, min: w, whole: wWhole, max: widest, picture: picture))
+                cells.append(_AutofitCell(column: c.column, span: c.span, min: w, whole: wWhole, max: widest, picture: picture))
             }
         }
         // (A gridless 100% table whose cells state twips only: each column starts at the larger of its stated width and its narrowest
@@ -1924,7 +1925,7 @@ extension RichLayout {
                 return fitted
             }
         }
-        func room(_ c: Cell) -> Double { base[c.column ..< c.column + c.span].reduce(0, +) }
+        func room(_ c: _AutofitCell) -> Double { base[c.column ..< c.column + c.span].reduce(0, +) }
         // (Over by a point at least: ours are Word's widths to within a
         // little, and the grid is down to whole pixels. bug57031's HTML
         // tables are saved at Word's own fit of their text, and ours

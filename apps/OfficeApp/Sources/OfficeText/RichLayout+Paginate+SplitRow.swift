@@ -8,6 +8,8 @@ import Flutter
 import FlutterSwiftBridge
 import Foundation
 
+private struct _SplitColumn { var members: [Int]; var cuts: [Double]; var bottom: Double; var cut: Double; var owners: [Int] = []; var slacks: [Double] = [] }
+
 extension RichLayout {
     func _pg_splitRow(_ pgs: inout _PState, _ document: RichDocument, _ i: Int, _ j: Int, _ c: _CellGeo, atTop: Bool) -> Bool {
         let ts = document.tableStyles[c.table]
@@ -99,10 +101,9 @@ extension RichLayout {
         if !theme.wordRules { for k in i ..< j { guard let d = _cells[k], !d.vertical else { return false } } }
         var fresh = atTop
         let rowBottom = c.rowTop + c.ownRowHeight
-        struct Column { var members: [Int]; var cuts: [Double]; var bottom: Double; var cut: Double; var owners: [Int] = []; var slacks: [Double] = [] }
         // (The top margins and lines of the nested cells a part that goes over a page is still in: it is
         // set under them again — see `RichParagraphStyle.nestedTopRepeat`.)
-        func nestedRepeat(_ column: Column) -> Double {
+        func nestedRepeat(_ column: _SplitColumn) -> Double {
             guard theme.wordRules, let k = column.members.first(where: { _tops[$0] + _heights[$0] > column.cut + 0.01 }) else { return 0 }
             return _px(document.paragraphs[k].style.nestedTopRepeat)
         }
@@ -110,7 +111,7 @@ extension RichLayout {
         // bottoms: the outer cell's top margin under its rule and the nested tops, which the next part stands
         // under again — Word ends lo-c7082c66's page 3 a line sooner than the bottoms alone allow; 0.3 of the cell's top margin more is fitted to lab nf1
         // (Word for Windows, margins 0 / 113 / 300 twips: pages 1-3 end where Word's do; a flat 3pt broke the 0 one).)
-        func nestedGap(_ column: Column) -> Double {
+        func nestedGap(_ column: _SplitColumn) -> Double {
             let r = nestedRepeat(column)
             guard r > 0 else { return 0 }
             return r + max(0, _cells[column.members[0]]!.pad.top - _pg_ruleUnder(&pgs, document, c, parted: true)) + 0.3 * _cells[column.members[0]]!.pad.top
@@ -118,7 +119,7 @@ extension RichLayout {
         // (A flattened row, a floating table's, is no shorter than its least height on EACH page its part stands on:
         // lab nf1, Word for Windows — the last part of lo-c7082c66's float row, six lines on page 4, stands 169.6pt
         // tall, its least height, and the cell's next paragraphs under that.)
-        func partPad(_ column: Column) -> (at: Double, amount: Double)? {
+        func partPad(_ column: _SplitColumn) -> (at: Double, amount: Double)? {
             guard theme.wordRules else { return nil }
             for k in column.members {
                 guard let least = document.paragraphs[k].style.blockMinHeight, _tops[k] < column.cut - 0.01 else { continue }
@@ -133,11 +134,11 @@ extension RichLayout {
             guard theme.wordRules, owner >= 0, owner < document.paragraphs.count else { return 0 }
             return _px(document.paragraphs[owner].style.nestedBottomRepeat)
         }
-        var columns: [Column] = []
+        var columns: [_SplitColumn] = []
         for k in i ..< j {
             let d = _cells[k]!
             if columns.isEmpty || _cells[columns[columns.count - 1].members[0]]!.column != d.column {
-                columns.append(Column(members: [], cuts: [], bottom: 0, cut: c.rowTop))
+                columns.append(_SplitColumn(members: [], cuts: [], bottom: 0, cut: c.rowTop))
             }
             columns[columns.count - 1].members.append(k)
             let own = _pg_cellCuts(&pgs, document, k)

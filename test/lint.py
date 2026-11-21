@@ -817,6 +817,22 @@ def check_script_syntax() -> None:
 
 # ── main ─────────────────────────────────────────────────────────────────────
 
+def check_office_local_types() -> None:
+    """A local struct/class/enum inside a function stops Swift skipping that body in the
+    whole-module emit-module job, so every one-line edit re-type-checks it (one such
+    function cost 36 s per build). Declare the type at file scope instead."""
+    root = REPO / "apps/OfficeApp/Sources/OfficeText"
+    # Known leftovers, to be moved (remove entries as they are fixed).
+    known = {"RichLayout+PageBorders.swift", "RichLayout+Lines.swift", "RichLayout+Paginate+State.swift"}
+    pat = re.compile(r"^ {8,}(?:private |fileprivate )?(?:struct|class|enum) \w+")
+    for path in sorted(root.glob("*.swift")):
+        if path.name in known:
+            continue
+        for n, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
+            if pat.match(line):
+                fail("office-local-types", f"{path.name}:{n}: local type inside a function; move it to file scope (slows every build)")
+
+
 def main() -> int:
     print("starling lint")
     check_catalog()
@@ -826,6 +842,7 @@ def main() -> int:
     check_window_chrome()
     check_gpu_offload()
     check_script_syntax()
+    check_office_local_types()
 
     for check, msg in notes:
         print(f"\n  note [{check}] {msg}")
