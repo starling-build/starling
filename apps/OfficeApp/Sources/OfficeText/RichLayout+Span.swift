@@ -1691,7 +1691,7 @@ extension RichLayout {
                 for idx in p.text[a ..< b].indices where p.text[idx] == "\u{2610}" || p.text[idx] == "\u{2612}" {
                     let at = pos - run.length + utf16.distance(from: a, to: idx)
                     if start < idx {
-                        children.append(contentsOf: _spanStyled(&ctx, p.text[start ..< idx], run.style, at: pos - run.length + utf16.distance(from: a, to: start), next: p.text[idx]))
+                        children.append(contentsOf: _spanStyledByLine(&ctx, p.text[start ..< idx], run.style, at: pos - run.length + utf16.distance(from: a, to: start), next: p.text[idx]))
                     }
                     var box = ImageAttachment(data: Data(), width: size * 0.936, height: size * 0.936, name: p.text[idx] == "\u{2612}" ? "checkbox-on" : "checkbox")
                     box.outline = ShapeOutline(kind: .box, color: run.style.color ?? theme.textColor, width: size * 0.072)
@@ -1729,12 +1729,12 @@ extension RichLayout {
                     start = after
                 }
                 if start < b {
-                    children.append(contentsOf: _spanStyled(&ctx, p.text[start ..< b], run.style, at: pos - run.length + utf16.distance(from: a, to: start), next: b < utf16.endIndex ? p.text[b] : nil))
+                    children.append(contentsOf: _spanStyledByLine(&ctx, p.text[start ..< b], run.style, at: pos - run.length + utf16.distance(from: a, to: start), next: b < utf16.endIndex ? p.text[b] : nil))
                 }
                 continue
             }
             let runStart = pos - run.length
-            children.append(contentsOf: _spanStyled(&ctx, p.text[a ..< b], run.style, at: runStart, next: b < utf16.endIndex ? p.text[b] : nil))
+            children.append(contentsOf: _spanStyledByLine(&ctx, p.text[a ..< b], run.style, at: runStart, next: b < utf16.endIndex ? p.text[b] : nil))
             // (The half share after a ruby's base: a word joiner that wide.)
             if let tail = ctx.rubyTails[pos], tail > 0, run.style.ruby != nil {
                 ctx.rubyTails[pos] = nil
