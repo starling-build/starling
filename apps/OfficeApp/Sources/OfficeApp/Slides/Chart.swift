@@ -6199,6 +6199,12 @@ enum ChartPainter {
         if c.onSheet, c.pieLabelsAround, c.plotLayout == nil {
             radius = max(radius / 2, radius - 1.25 * (c.series[0].labelSize ?? c.baseTextSize) * k)
         }
+        // On a slide too: a flat pie whose labels stand outside it and whose plot the file leaves to PowerPoint is 1.6 of
+        // the labels' size smaller in the radius (espt-c249abc3 p6, 15 pt labels: 161 pt in PowerPoint's print, ours 185 with the labels clipped).
+        if values.contains(where: { $0 > 0 }), c.onSlide, c.type == .pie, c.pieLabelsAround, c.plotLayout == nil, c.pieLabels?.outside == true, c.ofPie == nil, c.pieTilt == nil {
+            RuleTrace.hit("slide-pie-with-outside-labels-leaves-room-for-them")
+            radius = max(radius / 2, radius - 1.6 * (c.series[0].labelSize ?? c.baseTextSize) * k)
+        }
         // In a Word document the same: a pie whose labels stand outside it
         // and whose plot the file leaves to Word is 15.3pt smaller a side at
         // 9pt labels (1.7 of their size) — lo tdf137154's eight labels
