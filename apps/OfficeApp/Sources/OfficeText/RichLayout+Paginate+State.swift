@@ -168,6 +168,8 @@ struct _PState {
     var rowPending: [Int] = []
     // (The note this page parts, set at its foot to `keep`.)
     var pageCut: (id: Int, keep: Double)? = nil
+    // (The last member of a kept run that parts at the foot: the room the paragraph after asks of it.)
+    var tailHold: (paragraph: Int, page: Int, give: Double)? = nil
     // (Where a column ends at the line marking the note it parts.)
     var cutEnds: Double? = nil
     var omittedHeadHeight: [String: Double] = [:]
