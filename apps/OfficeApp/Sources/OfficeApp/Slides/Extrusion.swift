@@ -74,8 +74,9 @@ enum Extrusion {
         "freezing": Rig(front: (0.60, 0.60, 0.60), walls: [(0.80, 0.80, 0.80, 0.12), (0.70, 0.70, 0.70, 0.06), (0.86, 0.86, 0.86, 0.07), (0.25, 0.25, 0.25, 0.03)]),
         "flat": Rig(front: (1.00, 1.00, 1.00), walls: [(0.94, 0.94, 0.94, 0.15), (0.97, 0.97, 0.97, 0.05), (1.00, 1.00, 1.00, 0.00), (1.00, 1.00, 1.00, 0.00)]),
         // legacyFlat3 (es deck b3255e9d p3, legacyObliqueTopRight, dir b, white fill): front 193 of 255, the
-        // right and top walls 154 and 151-158. One deck measured it: every wall takes the 0.60.
-        "legacyFlat3": Rig(front: (0.757, 0.757, 0.757), walls: [(0.60, 0.60, 0.60, 0.00), (0.60, 0.60, 0.60, 0.00), (0.60, 0.60, 0.60, 0.00), (0.60, 0.60, 0.60, 0.00)]),
+        // top walls 151-158. One deck measured it: at dir b the wall facing right on the page (the table's third entry, turned half a round) is 0.84
+        // (205-223 on the core's 34 pt bars), the top wall 0.60 (151); the other two are unseen under this camera.
+        "legacyFlat3": Rig(front: (0.757, 0.757, 0.757), walls: [(0.60, 0.60, 0.60, 0.00), (0.60, 0.60, 0.60, 0.00), (0.84, 0.84, 0.84, 0.00), (0.60, 0.60, 0.60, 0.00)]),
         "twoPtPlain": Rig(front: (1.00, 1.00, 1.00), walls: [(0.32, 0.32, 0.32, 0.00), (0.69, 0.69, 0.69, 0.00), (0.60, 0.60, 0.60, 0.00), (0.52, 0.52, 0.52, 0.00)]),
         "twoPt": Rig(front: (1.00, 1.00, 1.00), walls: [0.08, 0.81, 0.72, 0.40].map { ($0, $0, $0, 0.00) }),
         "glow": Rig(front: (1.00, 1.00, 1.00), walls: [(1.70, 1.70, 1.70, 0.00), (1.00, 1.00, 1.00, 0.00), (1.98, 1.98, 1.98, 0.00), (1.00, 1.00, 1.00, 0.00)]),
@@ -331,12 +332,12 @@ enum Extrusion {
     /// draw this way, and the shape is then drawn flat.
     static func paint(_ shape: SlideShape, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, onFront: (() -> Void)? = nil) -> Bool {
         guard let scene = shape.scene3d, !scene.isFlatTurn, let fill = shape.fill ?? shape.fillStyle?.stops.first?.color ?? shape.fillStyle?.color ?? (onFront != nil ? Color(0xFFFFFFFF) : nil) else { return false }
-        return solid(scene: scene, fill: fill, line: shape.outline, lineWidth: shape.outlineWidth, outline: outline, r, canvas, pxPerPt: px, onFront: onFront)
+        return solid(scene: scene, fill: fill, line: shape.outline, lineWidth: shape.outlineWidth, outline: outline, r, canvas, pxPerPt: px, onFront: onFront, spin: shape.rotation)
     }
 
     /// `paint` for anything with an outline: the scene, the face's colour,
     /// and the line (colour, width in points) round it.
-    static func solid(scene: Scene3D, fill: Color, line: Color?, lineWidth: Double, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, onFront: (() -> Void)? = nil, rim: Bool = false) -> Bool {
+    static func solid(scene: Scene3D, fill: Color, line: Color?, lineWidth: Double, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, onFront: (() -> Void)? = nil, rim: Bool = false, spin: Double = 0) -> Bool {
         let rings = contours(outline)
         guard !rings.isEmpty else { return false }
         let c = r.center
@@ -369,6 +370,9 @@ enum Extrusion {
                 q.x *= f; q.y *= f
             }
             if let o = scene.oblique {
+                // (The camera stands in the slide, not on the shape: a shape turned on the page, as the
+                // bars of es b3255e9d's core, still has its depth recede up and to the right.)
+                let o = spin == 0 ? o : Offset(o.dx * cos(spin * .pi / 180) + o.dy * sin(spin * .pi / 180), -o.dx * sin(spin * .pi / 180) + o.dy * cos(spin * .pi / 180))
                 let f = scene.perspective ? 250 * px / (250 * px + max(0, -q.z)) : 1
                 q.x = q.x * f - o.dx * q.z * f
                 q.y = q.y * f - o.dy * q.z * f
