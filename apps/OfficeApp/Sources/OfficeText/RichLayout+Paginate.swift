@@ -15,6 +15,7 @@ extension RichLayout {
     /// the breakable positions inside a block are the bottoms of its lines.
     func _paginate(_ document: RichDocument, from start: Int = 0, settled: Int = Int.max, pinPass: Bool = false) {
         var pgs = _PState(start: start, settled: settled, pinPass: pinPass)
+        _lineDropSeen.removeAll()
         // (A float that wraps, set where its anchor puts it, over content
         // set before that anchor on its page: Word leaves the float there
         // and moves that content out from under it — zh-06c46ba9's
@@ -2227,6 +2228,7 @@ extension RichLayout {
                 // that meets it and all after it go to the picture's foot, the paragraph's flow unbroken. What
                 // counts of a line is its whole box in Word 2010's layout, its text alone (not a multiple's
                 // extra) from 2013's: a picture's top at the text's foot leaves the line over it.)
+                if _lineDropSeen.insert(pgs.i).inserted { _lineDropWant[pgs.i] = nil }
                 if let probe = pictureProbe, pgs.floatHold == nil, theme.wordRules, RichTextTheme.wordWindowsPages, pgs.frameReturn == nil, _columns == 1,
                    _cells[pgs.i] == nil, document.paragraphs[pgs.i].image == nil,
                    !document.paragraphs[pgs.i].text.isEmpty, _besideOwn(pgs.i, document.paragraphs[pgs.i], document) == nil {
@@ -2272,6 +2274,10 @@ extension RichLayout {
                         }
                         RuleTrace.hit("word-paragraph-parts-around-a-picture")
                         pgs.floatHold = .init(limit: lineTop + 0.05, back: back, source: .picture)
+                        if k > 0, back - lineTop > 0.01 {
+                            RuleTrace.hit("word-lines-carried-past-a-picture-are-set-beside-a-second-one-where-they-stand")
+                            _lineDropWant[pgs.i] = (k, 0)
+                        }
                         break
                     }
                     // (The paragraph went whole to the next page: its space before at that page's top goes by the
