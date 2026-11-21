@@ -5181,6 +5181,8 @@ extension RichLayout {
     func _atPageTopNegativeOffset(_ i: Int, _ image: ImageAttachment) -> Bool {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, let f = image.float, (f.bandsPage || (f.wraps && !f.wrapsTight && image.textBox == nil && image.sourceXML?.containsSubstring("txbxContent") != true)), f.verticalAlign == nil,
               f.verticalFrom == "paragraph", f.y < -2, i == 0, !floatsFrames, regionTopOnPage == nil else { return false }
+        // (One lying wholly above its paragraph is not lifted: sa1 8e800da4's 28pt picture 50.4pt up stands 57.6pt from its paragraph's top in Word's print, ours at the paragraph's.)
+        if f.y + image.height + f.effectBottom <= 0 { return false }
         return true
     }
 }
