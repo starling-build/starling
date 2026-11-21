@@ -3619,8 +3619,34 @@ private struct SlideContext {
                         pieces[pieces.count - 1].length += n
                     }
                 }
-                var consumed = 0
                 let utf16 = Array(t.utf16)
+                // Ordinary spaces ahead of East Asian letters stay in the Latin face (5c820695 p2: an ideographic space and 57
+                // spaces before 予防が重要; the spaces step Calibri's 0.226 em, not the East Asian face's 0.305, and the
+                // line is one line, as printed); ideographic spaces go with the letters (505a93a9 p1).
+                var split: [(length: Int, script: String?)] = []
+                var at = 0
+                for piece in pieces {
+                    if piece.script == "ea" {
+                        var k = at
+                        while k < at + piece.length, utf16[k] == 0x20 || utf16[k] == 0x3000 { k += 1 }
+                        if k > at, k < at + piece.length, utf16[at ..< k].contains(0x20) {
+                            var m = at
+                            while m < k {
+                                var e = m + 1
+                                while e < k, (utf16[e] == 0x20) == (utf16[m] == 0x20) { e += 1 }
+                                split.append((e - m, utf16[m] == 0x20 ? nil : "ea"))
+                                m = e
+                            }
+                            split.append((at + piece.length - k, "ea"))
+                            at += piece.length
+                            continue
+                        }
+                    }
+                    split.append(piece)
+                    at += piece.length
+                }
+                pieces = split
+                var consumed = 0
                 for piece in pieces {
                     defer { consumed += piece.length }
                     var c = cs
