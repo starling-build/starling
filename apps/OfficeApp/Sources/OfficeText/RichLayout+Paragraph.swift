@@ -3716,7 +3716,7 @@ extension RichLayout {
         // (Word print, 26 variants of position -12 to +6 half-points, heights 9 to 30, Times and Arial 8 to 14, lines 240 to 360,
         // objects and drawings alike): pitches 19.9 / 21.2 / 22.3 / 25.3 for an 18pt object 6 down to 3 up in 11pt Times at 276,
         // 18.2 for a 9pt one, 24.3 at 360, 18.0 at 240; to 0.1pt. Not tied to the object being lowered.)
-        if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, _columns <= 1,
+        if theme.wordRules, RichTextTheme.wordWindowsPages, _columns <= 1,
            style.lineHeightPoints == nil, case let multiple = style.lineSpacing - theme.lineSpacingReduction, multiple > 1.001,
            besideLineIndents.isEmpty, keepClear == nil, Self._paired(painter) == nil,
            p.text.contains(where: { !$0.isWhitespace && $0 != "\u{FFFC}" }),
@@ -4774,7 +4774,7 @@ extension RichLayout {
                     RuleTrace.hit("picture-alone-multiple-extra-hangs-past-the-foot")
                     _overhang[i] = max(_overhang[i], (multiple - 1) * extra)
                 }
-            } else if case let lines = painter.computeLineMetrics(), lines.count == 1,
+            } else if !(style.rightToLeft && Self._paired(painter)?.objects == true), case let lines = painter.computeLineMetrics(), lines.count == 1,
                       let box = painter.inlinePlaceholderBoxes?.max(by: { $0.bottom - $0.top < $1.bottom - $1.top }),
                       box.bottom - box.top >= lines[0].ascent - 0.5 {
                 // (The engine scales the text's descent by the multiple
