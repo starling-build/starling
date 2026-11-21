@@ -136,6 +136,9 @@ struct ChartSeries: Equatable {
     /// Whether this series' labels show at all: a chart whose group says
     /// "no values" shows only the series that say so themselves.
     var labelsShown = true
+    /// A series that shows labels only through the cells it takes their text from (`c15:showDataLabelsRange`), the value
+    /// and percent switches off: PowerPoint draws those texts all the same (lo-tdf149985's "19.8%" over 2017's column).
+    var cellLabelsOnly = false
     /// Where those labels stand by their points (`c:dLblPos`): nil is
     /// Excel's default for a line, to the right ("r").
     var labelPos: String? = nil
@@ -1552,11 +1555,13 @@ enum ChartXML {
                 s.labelNudges[i] = Offset(x, y)
             }
             s.labelPos = ser.first("c:dLbls")?.first("c:dLblPos")?["val"]
+            s.cellLabelsOnly = !s.cellLabels.isEmpty && !["1", "true"].contains(ser.first("c:dLbls")?.first("c:delete")?["val"] ?? "")
             if let d = ser.first("c:dLbls"), !["1", "true"].contains(d.first("c:delete")?["val"] ?? "") {
                 func on(_ n: XNode?) -> Bool { n?.first("c:showVal")?["val"] == "1" || n?.first("c:showPercent")?["val"] == "1" }
                 s.labelsShown = d.first("c:showVal") == nil && d.first("c:showPercent") == nil ? on(el.first("c:dLbls")) : on(d)
             } else if ser.first("c:dLbls") != nil { s.labelsShown = false }
             else { s.labelsShown = el.first("c:dLbls")?.first("c:showVal")?["val"] == "1" || el.first("c:dLbls")?.first("c:showPercent")?["val"] == "1" }
+            if s.cellLabelsOnly { s.labelsShown = true }
             series.append(s)
         }
         guard !series.isEmpty || allowEmpty else { return nil }
@@ -1827,7 +1832,7 @@ enum ChartXML {
         // A series' own labels stand in for the chart's: deleted there, it
         // has none, whatever the chart says (chart-DataTable-Multiple…'s
         // one series deletes them under a chart that shows values).
-        c.dataLabels = el.all("c:ser").contains { ser in
+        c.dataLabels = c.series.contains { $0.cellLabelsOnly } || el.all("c:ser").contains { ser in
             guard let d = ser.first("c:dLbls") else { return shows(el.first("c:dLbls")) }
             if ["1", "true"].contains(d.first("c:delete")?["val"] ?? "") { return type == .pie && d.all("c:dLbl").contains { shows($0) } }
             return d.first("c:showVal") == nil && d.first("c:showPercent") == nil ? shows(el.first("c:dLbls")) : shows(d)
@@ -5607,6 +5612,11 @@ enum ChartPainter {
                         if raw > 0, !c.stacked, !c.onSlide, !c.onSheet, !c.chartex, c.barLabelPos == "inEnd", p0 - p1 > 2.5 * size * k {
                             labelAt = Offset(labelAt.dx, min(p0, p1) + 1.065 * size * k)
                             RuleTrace.hit("word-column-label-inside-end")
+                        }
+                        // (A slide's stacked column whose label says "inEnd" stands under its segment's top: lo-tdf149985's 12 pt
+                        // "16.1%" and "16.7%" have their baselines 16.3 pt under the top in PowerPoint's print, ours stood in the middle.)
+                        if c.stacked, c.onSlide, !c.chartex, raw > 0, c.series[safe: j]?.labelPos == "inEnd" || c.barLabelPos == "inEnd", p0 - p1 > 2.5 * size * k {
+                            labelAt = Offset(labelAt.dx, min(p0, p1) + 1.0125 * size * k)
                         }
                         // (A Word column's label past its top (outEnd, the default) stands with its baseline its face's descent plus 4.2 pt
                         // over the top (the box's 1.5 pt inset and a 2.8 pt gap): c11d31f3's chart 8, 12 pt Verdana, baseline 6.82 over
