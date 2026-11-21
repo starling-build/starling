@@ -384,9 +384,9 @@ enum SlideFonts {
         // Mono's deeper share set clusterfuzz 4986's code 1 to 2 pt high.)
         if n == "consolas" { return 514.0 / 2398 }
         // (Poppins by its ascent and descent, its line gap not counted —
-        // the engine puts half of it under the baseline; Work Sans by its
+        // the engine puts half of it under the baseline; its descent is 0.35 of the 1.5 em with the gap, as PowerPoint prints it; Work Sans by its
         // Windows ascent and descent.)
-        if n.hasPrefix("poppins") { return 0.35 / 1.4 }
+        if n.hasPrefix("poppins") { return 0.35 / 1.5 }
         if n.hasPrefix("work sans") { return 0.343 / 1.448 }
         if n == "trebuchet ms" { return 455.0 / 2378 }
         if n.hasPrefix("franklin gothic") { return 445.0 / 2322 }
