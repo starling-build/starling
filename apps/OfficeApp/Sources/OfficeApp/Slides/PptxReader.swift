@@ -3923,6 +3923,14 @@ private struct SlideContext {
                     if let last = text.unicodeScalars.last(where: { $0.value != 0x0A && $0.value != 0x0B }), Self.isEastAsian(last.value), last.value != 0x3000,
                        let ea = _eaFont(e.eaFont ?? e.font, scalar: last.value, lang: e.lang) { mark = ea }
                     if mark != runs.last?.style.fontFamily { style.endMarkFace = mark }
+                    // (A paragraph that ends in a line break ends with an empty line of its end mark's size, not the last run's:
+                    // efe520c1 p4's title, 36 pt lines ending in a break over a 32 pt mark at 90%, stands 3.7 pt lower in PowerPoint's print.)
+                    if text.hasSuffix("\n") {
+                        var cs = CharStyle(bold: e.bold ?? false, italic: e.italic ?? false, fontFamily: mark,
+                                           fontSize: ((e.size ?? 18) * 10).rounded() / 10, color: e.color ?? tx1)
+                        cs.kerningFrom = 0
+                        style.mark = cs
+                    }
                 }
                 var made = RichParagraph(text: text, runs: runs, style: style)
                 made.inlineImages = mathImages
