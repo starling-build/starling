@@ -17,6 +17,7 @@ PPT_MATCH_JOBS=N scores in N processes.
 import importlib.util, os, sys
 
 os.environ["DOCX_LINE_MATCH"] = "v2"
+os.environ.setdefault("PPT_RTL_NORM", "1")
 HERE = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location("docx_line_match", os.path.join(HERE, "docx-line-match.py"))
 M = importlib.util.module_from_spec(spec)

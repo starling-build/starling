@@ -440,6 +440,17 @@ def same_start(a, b):
     # (ی/ي, ھ/ه, ک/ك), so both are folded, and only letters are counted:
     # Windows' print puts the closing stop at the line's visual start and
     # repeats a mark (ًا ًا ًا).)
+    if rtl and os.environ.get("PPT_RTL_NORM"):
+        # PowerPoint's print writes the lam-alef ligature as "ال" (swapped), ours as "لا", and
+        # its lines in visual order: compare NFKC letters without alef and lam, both directions.
+        def core(t):
+            return "".join(c for c in unicodedata.normalize("NFKC", t)
+                           if unicodedata.category(c).startswith("L") and c not in "\u0627\u0644")
+        p, q = core(a), core(b)
+        if len(p) >= 3 and len(q) >= 3:
+            for x in (q, q[::-1]):
+                if p[:3] == x[:3] or p[-3:] == x[-3:]:
+                    return True
     if rtl:
         fold = str.maketrans("یھکۀ", "يهكة")
         def letters(t):
