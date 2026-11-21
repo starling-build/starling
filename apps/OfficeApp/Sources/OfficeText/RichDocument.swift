@@ -2624,6 +2624,7 @@ public struct RichDocument: Hashable, Codable, Sendable {
     public var hasIndicText = false
     /// Whether the first run holding Devanagari names Mangal; Word then draws all Devanagari in Mangal (see the importer).
     public var devanagariFirstRunMangal = false
+    public var gurmukhiFirstRunRaavi = false
     /// The font table's charset code for each face name (lower-cased): "80" is the Japanese one, which decides Word's fallback for Arial Unicode MS.
     public var fontCharsets: [String: String] = [:]
     /// Faces (lowercased) whose font-table entry carries the Thaana mark (Unicode-range bit 72, `w:usb2` 0x100): Word sets a run of one in MV Boli whole when the face is missing.
