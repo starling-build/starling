@@ -196,7 +196,7 @@ extension _StyledFrame {
               // rules say: xa gv-690391482c (en-GB East Asian language, usesEastAsianLayout) keeps
               // "individuals.”" whole in Word's print, ours sent the quote down alone.)
               RichLayout._breaksBetween(b, ch, percentStarts: percentStarts, timesEastAsian: hinted, shapesPart: (document.compatibilityMode ?? 12) >= 15 || RichTextTheme.wordWindowsPages, latinQuotes: theme.wordRules && !hinted) || (lineRulesOff && !(RichLayout._hangulSyllable(b) && (ch == ")" || ch == "." || ch == "," || ch == "]")) && (RichLayout._closingMarks.contains(ch) || RichLayout._latinCloser(b, ch)))
-                || (theme.wordRules && RichLayout._closingQuote(ch) && (kinsokuOff && hinted && RichTextTheme.wordWindowsPages || !RichLayout._eastAsianLineRules(run, document, named: named)))
+                || (theme.wordRules && RichLayout._closingQuote(ch) && !(b.unicodeScalars.first.map { (0x0E01 ... 0x0E5B).contains($0.value) } ?? false) && (kinsokuOff && hinted && RichTextTheme.wordWindowsPages || !RichLayout._eastAsianLineRules(run, document, named: named)))
                 // (And end one with an opening mark, where it is
                 // `w:kinsoku` 0 that turns them off in text of an
                 // East Asian language: zh-72da925e (zh-TW) ends

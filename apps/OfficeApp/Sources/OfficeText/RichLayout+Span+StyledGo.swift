@@ -1154,7 +1154,7 @@ extension _StyledFrame {
                 }
                 else if thaiJoins.contains(offset), let b = ctx.before,
                         let pb = b.unicodeScalars.first?.value, let pc = ch.unicodeScalars.first?.value,
-                        (0x0E01 ... 0x0E5B).contains(pb), (0x0E01 ... 0x0E5B).contains(pc) {
+                        (0x0E01 ... 0x0E5B).contains(pb), (0x0E01 ... 0x0E5B).contains(pc) || [0x201D, 0x2019, 0x22, 0x27, 0x29, 0x5D, 0x7D, 0xBB].contains(pc) {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     ctx.inserts.append(offset)
