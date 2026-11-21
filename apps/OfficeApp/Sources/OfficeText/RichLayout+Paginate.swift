@@ -1388,7 +1388,7 @@ extension RichLayout {
                     // last line with the paragraph after, so the member parts and the run stands on if the members before it
                     // and its own first lines fit. gv-95df15ab58's four-line "The only exceptions…" heading, 128 short of
                     // the paragraph's start, sets two lines on page 8 and two on page 9 in Word's print.)
-                    if violated, theme.wordRules, RichTextTheme.wordWindowsPages, k - 1 == pgs.i, _cells[k - 1] == nil, !whole(k - 1),
+                    if violated, theme.wordRules, RichTextTheme.wordWindowsPages, k - 1 >= pgs.i, _cells[k - 1] == nil, _cells[k] == nil, !whole(k - 1),
                        cum - _heights[k - 1] + start(k - 1) + noteRoom <= room + 0.01 {
                         RuleTrace.hit("word-kept-last-member-parts-at-the-foot")
                         violated = false
