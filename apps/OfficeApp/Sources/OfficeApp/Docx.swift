@@ -7157,7 +7157,15 @@ enum DocxFormat {
                                 partTables[n] = (own, x + l, max(0, groupWidth - (x + w) + r), r)
                             }
                             holdsTable = holdsTable || holdsBefore
-                            for q in first ..< inside.count {
+                            for q in first ..< inside.count where Self.wordOnWindows && inside[q].style.rightToLeft {
+                                // (A right-to-left paragraph's indents run from its right edge:
+                                // the box's place is physical, so its two sides trade. bf53d2b7's
+                                // footer diagram stood mirrored, "מבוא" at the left.)
+                                inside[q].style.indentLeft += max(0, groupWidth - (x + w) + r)
+                                inside[q].style.indentRight += x + l
+                                inside[q].style.boxInsetRight = l
+                            }
+                            for q in first ..< inside.count where !(Self.wordOnWindows && inside[q].style.rightToLeft) {
                                 inside[q].style.indentLeft += x + l
                                 // (A list's number and text stand at its own left: moved with the box's.)
                                 if let own = inside[q].style.listIndentLeft ?? Self._levelLeft(inside[q].style, notes) { inside[q].style.listIndentLeft = own + x + l }
