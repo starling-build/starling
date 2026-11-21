@@ -1603,11 +1603,12 @@ extension RichLayout {
         var besideRight = besideIndent > 0 && _besideRightSide[i]
         var besideLeftRoom: Double?
         var besideBand = besideIndent > 0 ? _besideBand(i, document) : nil
-        let colWrapBoxes = _colWrap[i]
+        var colWrapBoxes = _colWrap[i]
         if let boxes = colWrapBoxes, besideIndent == 0, !boxes.isEmpty { besideIndent = 1; besideBand = (-1, -1) }
         else
         if besideIndent > 0, besideBand == nil { _besidePending.insert(i) }
-        else if besideIndent == 0, let own = _besideOwn(i, p, document) { besideIndent = own.indent; besideBand = own.band; besideRight = own.right; besideLeftRoom = own.leftRoom }
+        else if besideIndent == 0, let own = _besideOwn(i, p, document) { besideIndent = own.indent; besideBand = own.band; besideRight = own.right; besideLeftRoom = own.leftRoom
+            if colWrapBoxes == nil, besideLeftRoom == nil, !besideRight, let seq = _besideSeq[i] { colWrapBoxes = seq; besideIndent = 1; besideBand = (-1, -1); RuleTrace.hit("word-boxes-one-under-the-other-hold-lines-by-their-own-edge") } }
         else if besideIndent == 0, let own = _stripUse[i] { besideIndent = own.indent; besideBand = own.band; besideRight = own.right }
         if let cap = _bandCap[i], besideIndent > 0, besideLeftRoom == nil, let b = besideBand, b.bottom > cap { besideBand = (b.top, cap) }
         @inline(never) func _blk4() {
@@ -1776,6 +1777,14 @@ extension RichLayout {
         _blk4()
         if theme.wordRules, RichTextTheme.wordWindowsPages, !tabs.isEmpty, tabWindows.isEmpty, besideRight, besideLeftRoom == nil,
            besideLineIndents.contains(where: { $0.left > 0 }), besideLineIndents.contains(where: { $0.right > 0 }) {
+            tabWindows = besideLineIndents
+            _blk3()
+            _blk4()
+        }
+        // (Tabs beside a box at the left: the line starts at the box's edge, but the default stops stay on the margin's grid, the
+        // first tab short — sa1 7f30fc29's cover, Word 6 tabs a line beside box 1 where ours had 5 from the edge.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, !tabs.isEmpty, tabWindows.isEmpty, !besideRight, besideLeftRoom == nil,
+           besideLineIndents.contains(where: { $0.left > 0 }) {
             tabWindows = besideLineIndents
             _blk3()
             _blk4()

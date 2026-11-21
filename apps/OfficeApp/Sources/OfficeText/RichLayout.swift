@@ -1726,6 +1726,7 @@ public final class RichLayout {
         return m == .infinity ? nil : m
     }
     var _stripPassing = false
+    var _besideSeq: [Int: [ColWrapBox]] = [:]
     /// A table floating by the text whose room above it (`w:topFromText`) reaches the text
     /// before it: the place in the flow it is held at, by table, once that text wraps beside it.
     var _floatPin: [String: (page: Int, y: Double)] = [:]

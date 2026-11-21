@@ -948,6 +948,9 @@ extension RichLayout {
         defer { if best != nil, let farK { _besideFar[i] = farK } }
         var boxes: [(top: Double, bottom: Double, left: Double, right: Double)] = []
         _besideBoxes[i] = nil
+        _besideSeq[i] = nil
+        var leftSeq: [ColWrapBox] = []
+        defer { if leftSeq.count >= 2, best?.right == false, best?.leftRoom == nil { _besideSeq[i] = leftSeq } }
         _besideStartLeft[i] = nil
         var startLeft: (indent: Double, band: (top: Double, bottom: Double))?
         defer { if best?.right == true, best?.leftRoom == nil, let sl = startLeft, theme.wordRules, RichTextTheme.wordWindowsPages { _besideStartLeft[i] = sl } }
@@ -1191,6 +1194,8 @@ extension RichLayout {
                     best = (edge - own, band, false, nil); _besideIndentOnTop.insert(i); _besideTightTop[i] = band.top - _px(float.wrapTopSkip); RuleTrace.hit("word-first-line-indent-beside-earlier-tight-float")
                     continue
                 }
+                // (Two or more boxes at the left, one under the other: each holds the lines beside it by its own edge, `_besideSeq`.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !tightList, p.cell == nil { leftSeq.append(ColWrapBox(top: band.top, bottom: band.bottom, left: edge - own, right: 0)) }
                 if best == nil || edge - own > best!.indent { best = (tightList ? edge : edge - own, band, false, nil); if fromPage, k < i, !tightList, hang == 0 { _besideIndentOnTop.insert(i) }; if tightList { _besideListEarlier.insert(i); _besideTightTop[i] = band.top - _px(float.wrapTopSkip); RuleTrace.hit("word-list-beside-earlier-tight-float-counts-its-indent") } }
             }
             if k > 0 { offset += _heights[k - 1] }
