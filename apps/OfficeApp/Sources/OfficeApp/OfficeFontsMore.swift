@@ -728,17 +728,21 @@ extension OfficeFonts {
 
         case "eras light itc":
             face.advances = eras_light_itcAdv
+            face.otherAdvances = eras_light_itcOther
             face.naturalHeight = 2322.0 / 2048; face.baseline = 1810.0 / 2048
         case "eras medium itc":
             face.advances = eras_medium_itcAdv
+            face.otherAdvances = eras_medium_itcOther
             face.naturalHeight = 2337.0 / 2048; face.baseline = 1825.0 / 2048
 
         case "eras demi itc":
             face.advances = eras_demi_itcAdv
+            face.otherAdvances = eras_demi_itcOther
             face.naturalHeight = 2353.0 / 2048; face.baseline = 1841.0 / 2048
 
         case "eras bold itc":
             face.advances = eras_bold_itcAdv
+            face.otherAdvances = eras_bold_itcOther
             face.naturalHeight = 2371.0 / 2048; face.baseline = 1859.0 / 2048
 
         case "berlin sans fb demi":
