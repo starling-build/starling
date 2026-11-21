@@ -4044,6 +4044,14 @@ extension RichLayout {
                         let grown = il.image.flatMap { _pageFill[$0.id] }.map { max(0, box.toRect().height - $0) } ?? 0
                         return box.toRect().height - grown > single * 1.05
                     }
+                    // (A tall picture on a line of its own, no text beside it, stays on the engine's pitch: e23ca36b's screenshots at 1.08 matched
+                    // to 0.1 pt without the rule below, which gave each 2.6 pt more. Text beside it is a8f4dfcd's icons.)
+                    if tallPic {
+                        for (box, il) in zip(boxes, inline) where il.image != nil {
+                            let r = box.toRect(), mid = r.top + r.height / 2
+                            if let line = bottoms.firstIndex(where: { mid < $0 }), metrics[line].width <= r.width + 1 { above[line] = -1; below[line] = -1 }
+                        }
+                    }
                     if wrappedPlain.isEmpty, !tallPic, above.contains(where: { $0 >= 0 }) {
                         // (Word's print, lab afbaab-multiple, 27 lines to 0.1 pt: EVERY line of the paragraph stands max(text ascent, picture top)
                         // above its baseline, and below it go the text's descent plus ALL of the multiple's extra, so a line without
