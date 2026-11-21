@@ -1075,6 +1075,35 @@ extension RichLayout {
                 return String(last) + rawText.dropLast()
             }()
             // (A closing run of ideographic spaces Word lets hang is set with no width: _cutTrailingSpaces.)
+            // (A line narrower than a glyph, one character wide (a stack): Word sets a character and lets up to five
+            // spaces hang after it, and runs of spaces fill lines of six; lab inv28sp sp1-sp3, 26 ideographic spaces
+            // take five lines. A space that hangs or is carried on a line is set with no width.)
+            let stackHung: String? = {
+            // Word's counts (labs inv28sp, inv28sp2, compat 15): up to 5 spaces hang after a character and runs of spaces fill
+            // lines of 6. Prints at 5 pt and 7 pt with different right indents gave the same 5 lines, so the count does not
+            // follow the space advance or the line width; it is a fixed rule, not derived from widths.
+                guard theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) >= 15, textWidth <= 1.01, p.cell == nil,
+                      rawText.containsSubstring("\u{3000}") else { return nil }
+                let units = Array(p.text.utf16)
+                var zero = Set<Int>()
+                var k = 0
+                while k < units.count {
+                    guard units[k] == 0x3000 else { k += 1; continue }
+                    var end = k
+                    while end < units.count, units[end] == 0x3000 { end += 1 }
+                    var at = k
+                    if k > 0 { for _ in 0 ..< 5 where at < end { zero.insert(at); at += 1 } }
+                    while at < end {
+                        let group = min(6, end - at)
+                        if group > 1 { for o in (at + 1) ..< (at + group) { zero.insert(o) } }
+                        at += group
+                    }
+                    k = end
+                }
+                var at = base, out = ""
+                for c in rawText { out.append(c == "\u{3000}" && zero.contains(at) ? "\u{200B}" : c); at += c.utf16.count }
+                return out
+            }()
             let hung: String? = {
                 guard let idx = index, let cut = _trailCut[idx], base + rawText.utf16.count > cut, rawText.containsSubstring("\u{3000}") else { return nil }
                 var at = base, out = ""
@@ -1086,7 +1115,7 @@ extension RichLayout {
             // danda alone below. The engine hangs a trailing space, so it is set as a no-break space with a break after it.)
             let spaceBeforeDanda: Bool = theme.wordRules && RichTextTheme.wordWindowsPages && rawText.last == " " && (next == "\u{0964}" || next == "\u{0965}")
                 && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value <= 0x97F })
-            let text0: Substring = (spaceBeforeDanda ? Substring(String((hung ?? moved ?? String(rawText)).dropLast()) + "\u{00A0}") : hung.map { Substring($0) } ?? moved.map { Substring($0) } ?? rawText)
+            let text0: Substring = (spaceBeforeDanda ? Substring(String((hung ?? stackHung ?? moved ?? String(rawText)).dropLast()) + "\u{00A0}") : (hung ?? stackHung).map { Substring($0) } ?? moved.map { Substring($0) } ?? rawText)
             // (A space + U+00A0 gap after an Indic letter is not a place to part the line: Word moves the word before it down with
             // the gap and the word after, one unit. Lab nbsp4 (dx2 6dcc4527 p2): "ਵਿਚ" + SP + NBSP + "ਭਾਰਤ" returns to the line only when
             // the edge holds the whole unit (+31 pt), never when just "ਵਿਚ" + SP would fit; NBSP alone parts at +28, SP+NBSP+NBSP at
