@@ -3781,8 +3781,10 @@ extension RichLayout {
                 let own = probe.computeLineMetrics().first
                 probe.dispose()
                 if let own, own.height > 0.5 {
+                    // (a probe whose line is under half its font size measured nothing, as 11pt Malgun drawn at 220 units, a line of 2.0, in Korean dx2 1f6d638c: its single then comes from the paragraph's own text line, in painter units, or the whole descent went off a picture's line.)
                     // (the probe carries the paragraph's own multiple in its style: undo it)
-                    let single = own.height / multiple
+                    let probeFailed = own.height < (textStyle.fontSize ?? 0) * 0.5
+                    let single = probeFailed ? (_tallestTextLine(i, document) ?? _markLineHeight(i, document) / multiple) : own.height / multiple
                     // (the text's own depth under the baseline at SINGLE spacing: Word's own split of the face's line where it is known
                     // (Tahoma 1.0005 over 1.2070 em), else what the engine draws; the multiple's extra the engine shares above and below is not part of it)
                     var desc = own.descent / multiple
