@@ -231,9 +231,9 @@ extension _ParaFrame {
         // PowerPoint hangs a line-end 、 or 。 past the margin (its hangingPunct, on by default): where one would open the next line, it
         // is set no wider than a point, so the line takes it and the character before it (befe9f6b p6 "…明記する。").
         if _hangsLineEndMarks(p),
-           p.text.utf16.contains(where: { $0 == 0x3001 || $0 == 0x3002 || $0 == 0xFF0C || $0 == 0xFF0E }) {
+           p.text.utf16.contains(where: { $0 == 0x3001 || $0 == 0x3002 || $0 == 0xFF0C || $0 == 0xFF0E || $0 == 0x201D }) {
             let units = Array(p.text.utf16)
-            func isMark(_ k: Int) -> Bool { k < units.count && (units[k] == 0x3001 || units[k] == 0x3002 || units[k] == 0xFF0C || units[k] == 0xFF0E) }
+            func isMark(_ k: Int) -> Bool { k < units.count && (units[k] == 0x3001 || units[k] == 0x3002 || units[k] == 0xFF0C || units[k] == 0xFF0E || units[k] == 0x201D) }
             var stays = Set<Int>()
             for _ in 0 ..< 3 {
                 let map = _map(i)
@@ -241,7 +241,7 @@ extension _ParaFrame {
                 var adj = fit
                 for s0 in starts.dropFirst() where s0 > 0 {
                     // (The mark opens the line, or follows its one first character: that character comes up with it.)
-                    let m = isMark(s0) ? s0 : (isMark(s0 + 1) ? s0 + 1 : -1)
+                    let m = isMark(s0) ? s0 : (isMark(s0 + 1) ? s0 + 1 : (s0 + 2 < units.count && units[s0 + 1] == 0x20 && units[s0 + 2] == 0x201D ? s0 + 2 : -1))
                     guard m >= 0, adj[m] == nil, !stays.contains(m) else { continue }
                     let boxes = painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(m), extentOffset: map.painter(m) + 1))
                     if let b = boxes.first { adj[m] = -max(0, b.right - b.left - _px(0.5)) }
