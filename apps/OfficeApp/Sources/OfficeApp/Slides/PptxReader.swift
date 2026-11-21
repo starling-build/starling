@@ -334,6 +334,7 @@ private struct LevelStyle {
     var algn: String?
     var rtl: String?
     var marL: Double?
+    var marR: Double?
     var indent: Double?
     var lineMultiple: Double?
     var linePoints: Double?
@@ -397,6 +398,7 @@ private struct LevelStyle {
         s.algn = s.algn ?? lower.algn
         s.rtl = s.rtl ?? lower.rtl
         s.marL = s.marL ?? lower.marL
+        s.marR = s.marR ?? lower.marR
         s.indent = s.indent ?? lower.indent
         if s.lineMultiple == nil && s.linePoints == nil { s.lineMultiple = lower.lineMultiple; s.linePoints = lower.linePoints }
         if s.beforePoints == nil && s.beforePercent == nil { s.beforePoints = lower.beforePoints; s.beforePercent = lower.beforePercent }
@@ -436,6 +438,7 @@ private struct LevelStyle {
         s.algn = p["algn"]
         s.rtl = p["rtl"]
         s.marL = p["marL"].flatMap(Double.init).map { $0 / Pptx.emu }
+        s.marR = p["marR"].flatMap(Double.init).map { $0 / Pptx.emu }
         s.indent = p["indent"].flatMap(Double.init).map { $0 / Pptx.emu }
         if let ln = p.first("a:lnSpc") {
             if let v = ln.first("a:spcPct")?["val"].flatMap(Double.init) { s.lineMultiple = v / 100000 }
@@ -2442,8 +2445,14 @@ private struct SlideContext {
                             style.bulletStandInScale = 0.565 / 0.46
                         }
                     default:
-                        break
+                        // A plain cell paragraph keeps its own left edge, first-line offset and right margin
+                        // (marL, indent, marR): espt 174ab0c2's table labels stand 7.2 pt in and break 13.6 pt short.
+                        if level.marL != nil || level.indent != nil {
+                            style.indentLeft = level.marL ?? 0
+                            style.firstLineIndent = level.indent ?? 0
+                        }
                     }
+                    if let marR = level.marR, marR > 0 { style.indentRight = marR }
                     // An empty paragraph is as tall as its end mark says
                     // (`endParaRPr`): a row grows for 96 pt of nothing
                     // (tdf144092), as it would for a letter that size.
@@ -3476,6 +3485,8 @@ private struct SlideContext {
                 style.indentLeft = level.marL ?? 0
                 style.firstLineIndent = level.indent ?? 0
             }
+            // The paragraph's right margin (marR): the line breaks that far short of the box's edge.
+            if let marR = level.marR, marR > 0 { style.indentRight = marR }
             if let tabs = level.tabs { style.tabStops = tabs }
 
             var text = ""
