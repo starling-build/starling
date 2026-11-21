@@ -4802,6 +4802,15 @@ extension RichLayout {
             }
         }
         total += _tamilMarkedLinesExtra(i, p, document, painter)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.eastAsian["w:fieldMarkDefault"] == "1", p.cell == nil, p.image == nil,
+           style.lineHeightPoints == nil, abs(style.lineSpacing - theme.lineSpacingReduction - 1) < 0.001,
+           let normal = document.styles[RichNamedStyle.normalId]?.char {
+            let line = _markLineHeight(i, document, single: true, using: normal)
+            if before + line + after > total + 0.01 {
+                RuleTrace.hit("word-field-mark-in-default-font-counts-in-the-line")
+                total = before + line + after
+            }
+        }
         _heights[i] = painter.fractionalLineHeights ? total : total.rounded(.up)
         // An empty paragraph that only ends a section stands for the
         // break and takes no room, as Word sets it.
