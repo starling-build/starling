@@ -290,7 +290,7 @@ enum SlideFonts {
         case "gungsuh", "궁서", "gungsuhche", "궁서체": return 145.0 / 1024
         case "pmingliu", "新細明體", "mingliu", "細明體": return 204.0 / 1024
         case "georgia": return 449.0 / 2327
-        case "raleway": return 234.0 / 1388
+        case "raleway": return 234.0 / 1200
         case "rockwell": return 468.0 / 2405
         case "rockwell condensed": return 481.0 / 2408
         case "rockwell extra bold": return 468.0 / 2405
