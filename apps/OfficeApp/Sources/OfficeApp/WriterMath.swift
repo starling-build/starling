@@ -26,6 +26,9 @@ enum WriterMath {
         /// How far its ink reaches (nil: as far as its line extents), to size a stretched delimiter.
         var inkUp: Double? = nil
         var inkDown: Double? = nil
+        /// What plain math runs at the base level of the row stand on (Cambria's 0.95 em over, 0.222 em under the baseline): Word's line holds them whole; every other part counts by its ink.
+        var baseA: Double = 0
+        var baseD: Double = 0
         var draw: (any Canvas, Offset) -> Void
         var iu: Double { inkUp ?? ascent }
         var idn: Double { inkDown ?? descent }
@@ -116,8 +119,16 @@ enum WriterMath {
         }
         if !display {
             let s = Layout(display: false).runSize(node, size)
-            box.ascent = min(box.ascent, s * 0.85)
-            box.descent = min(box.descent, s * 0.22)
+            if RichTextTheme.wordWindowsPages {
+                // (An equation in a line is as tall as its ink and Cambria Math's leading over it, or as its plain runs at the base level
+                // (Cambria's 0.95 em / 0.222 em), whichever is more: lab mathline, Word for Windows, compat 12 and 15 alike.)
+                box.ascent = max(box.baseA, box.iu + s * 300 / 2048)
+                box.descent = max(box.baseD, box.idn)
+                natural((box.ascent, box.descent))
+            } else {
+                box.ascent = min(box.ascent, s * 0.85)
+                box.descent = min(box.descent, s * 0.22)
+            }
         }
         lock.lock()
         entries[id] = Entry(box: box, node: display ? node : nil, size: size)
@@ -323,7 +334,17 @@ enum WriterMath {
             }
             return 0
         }
-        func text(_ s: String, size: Double, italic: Bool, family: RichResolvedFace? = nil) -> Box {
+        /// How far a string's ink reaches over and under its baseline: Cambria Math's glyph boxes (script-style variants at a script level), where Word's print measured them; a flat 0.7 em and the depth guess for what the table lacks.
+        func glyphInk(_ s: String, _ size: Double, _ script: Bool) -> (Double, Double) {
+            guard RichTextTheme.wordWindowsPages else { return (size * 0.7, size * Layout.inkDepth(of: s)) }
+            var up = 0.0, down = 0.0
+            for u in s.unicodeScalars {
+                guard let g = OfficeFonts.cambriaMathInk[u.value] else { return (size * 0.7, size * Layout.inkDepth(of: s)) }
+                up = max(up, Double(script ? g.3 : g.1)); down = max(down, Double(-(script ? g.2 : g.0)))
+            }
+            return (size * up, size * down)
+        }
+        func text(_ s: String, size: Double, italic: Bool, family: RichResolvedFace? = nil, script: Bool = false) -> Box {
             guard !s.isEmpty else { return .empty }
             // Word's formula letters are the mathematical italic ones (U+1D44E on): OMML letters
             // default to math italic, and its print has those code points, not slanted plain letters.
@@ -349,13 +370,13 @@ enum WriterMath {
                     var xs: [Double] = [], x = 0.0
                     for u in s.unicodeScalars { xs.append(x); x += adv[u.value]! * size }
                     let total = x
-                    return Box(width: total, ascent: cam(ps.map(\.ascent).max() ?? 0, size, 0.95), descent: cam(ps.map(\.descent).max() ?? 0, size, 0.22), inkUp: size * 0.7, inkDown: size * Layout.inkDepth(of: s)) { canvas, at in
+                    return Box(width: total, ascent: cam(ps.map(\.ascent).max() ?? 0, size, 0.95), descent: cam(ps.map(\.descent).max() ?? 0, size, 0.22), inkUp: glyphInk(s, size, script).0, inkDown: glyphInk(s, size, script).1, baseA: size * 0.95, baseD: size * 0.222) { canvas, at in
                         for (i, q) in ps.enumerated() { q.tp.paint(canvas, Offset(at.dx + xs[i], at.dy - q.baseline)) }
                     }
                 }
             }
             let p = Painter(s, size: size, italic: italic, color: ink, family: family?.family, height: family?.naturalHeight)
-            return Box(width: p.tp.width, ascent: cam(p.ascent, size, 0.95), descent: cam(p.descent, size, 0.22), inkUp: size * 0.7, inkDown: size * Layout.inkDepth(of: s)) { canvas, at in
+            return Box(width: p.tp.width, ascent: cam(p.ascent, size, 0.95), descent: cam(p.descent, size, 0.22), inkUp: glyphInk(s, size, script).0, inkDown: glyphInk(s, size, script).1, baseA: size * 0.95, baseD: size * 0.222) { canvas, at in
                 p.tp.paint(canvas, Offset(at.dx, at.dy - p.baseline))
             }
         }
@@ -367,7 +388,7 @@ enum WriterMath {
             var xs: [Double] = []
             var x = 0.0
             for b in parts { xs.append(x); x += b.width }
-            return Box(width: x, ascent: parts.map(\.ascent).max() ?? 0, descent: parts.map(\.descent).max() ?? 0, inkUp: parts.map(\.iu).max() ?? 0, inkDown: parts.map(\.idn).max() ?? 0) { canvas, at in
+            return Box(width: x, ascent: parts.map(\.ascent).max() ?? 0, descent: parts.map(\.descent).max() ?? 0, inkUp: parts.map(\.iu).max() ?? 0, inkDown: parts.map(\.idn).max() ?? 0, baseA: parts.map(\.baseA).max() ?? 0, baseD: parts.map(\.baseD).max() ?? 0) { canvas, at in
                 for (b, dx) in zip(parts, xs) { b.draw(canvas, Offset(at.dx + dx, at.dy)) }
             }
         }
@@ -425,7 +446,7 @@ enum WriterMath {
             var pieceItalic = false
             let ea = eastAsianFamily(r)
             func flush() {
-                if !piece.isEmpty { parts.append(text(boldText(piece, r), size: own, italic: pieceItalic && boldText(piece, r) == piece, family: wide(piece) ? ea : nil)) }
+                if !piece.isEmpty { parts.append(text(boldText(piece, r), size: own, italic: pieceItalic && boldText(piece, r) == piece, family: wide(piece) ? ea : nil, script: level >= 1)) }
                 piece = ""
             }
             var firstChar = true
@@ -446,7 +467,7 @@ enum WriterMath {
                         gap = level == 0 ? own * (relation ? 5.0 / 18 : 4.0 / 18) : 0
                         if "=+−-".contains(ch) {
                             let w = own * 0.75, inner = glyph
-                            glyph = Box(width: w, ascent: inner.ascent, descent: inner.descent) { canvas, at in
+                            glyph = Box(width: w, ascent: inner.ascent, descent: inner.descent, inkUp: inner.iu, inkDown: inner.idn, baseA: inner.baseA, baseD: inner.baseD) { canvas, at in
                                 inner.draw(canvas, Offset(at.dx + (w - inner.width) / 2, at.dy))
                             }
                         }
@@ -782,7 +803,7 @@ enum WriterMath {
             // baseline 7.1 over it and the denominator's 6.0 under it, so the equation is 21.5pt tall
             // and the 18pt-grid line takes two pitches.)
             let text = inlineText && RichTextTheme.wordWindowsPages
-            let numUp = text ? size * 0.592 : 0, denDown = text ? size * 0.5 : 0
+            let numUp = text ? size * 1200 / 2048 : 0, denDown = text ? size * 1030 / 2048 : 0
             // (A display fraction in Word's print, jpn-z22855378-6fca0f p8 at 12pt: the rule 3.8pt over the
             // baseline, the numerator's baseline 9.1 over it and the denominator's 8.1 under it, whatever
             // they hold; a taller numerator or denominator is pushed clear of the rule.)
@@ -871,7 +892,9 @@ enum WriterMath {
             let top = body.ascent + s * (RichTextTheme.wordWindowsPages && inlineText ? 0.05 : 0.12)
             let lead = (degree?.width ?? 0) * 0.6
             return Box(width: lead + sign.width + body.width + s * 0.05, ascent: max(top + rule, RichTextTheme.wordWindowsPages && inlineText ? 0 : sign.ascent, (degree?.ascent ?? 0) + top * 0.5),
-                       descent: max(body.descent, sign.descent)) { canvas, at in
+                       descent: max(body.descent, sign.descent),
+                       // (Its ink reaches a quarter em over the body's: the bar's gap and thickness, and Cambria Math's RadicalExtraAscender over it. lab mathline C16.)
+                       inkUp: RichTextTheme.wordWindowsPages ? max(body.iu + s * 0.25, (degree?.iu ?? 0)) : nil, inkDown: RichTextTheme.wordWindowsPages ? max(body.idn, sign.idn) : nil) { canvas, at in
                 degree?.draw(canvas, Offset(at.dx, at.dy - top * 0.5))
                 sign.draw(canvas, Offset(at.dx + lead, at.dy + body.descent - sign.descent))
                 body.draw(canvas, Offset(at.dx + lead + sign.width, at.dy))

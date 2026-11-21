@@ -2446,20 +2446,18 @@ extension RichLayout {
         guard let whole = image.naturalExtent else { return nil }
         let base = _px(whole.ascent)
         // (A fraction's line follows its ink: 20d9968b's n over k and 1 over x are one 18pt pitch in Word's print, e^x-1 over x two.)
-        let full = image.naturalInk.map { _px($0.up + $0.down) } ?? _px(whole.ascent + whole.descent)
-        let probe = TextPainter(text: TextSpan(text: "\u{200B}", style: style), textDirection: .ltr)
-        probe.layout(minWidth: 0, maxWidth: .infinity)
-        let textAscent = probe.computeDistanceToActualBaseline(TextBaseline.alphabetic)
-        probe.dispose()
+        // (The text's own ascent and descent, the font's natural line; the grid's pitch is not a floor: labs mathline G2, G4, G5, G7 and
+        // 20d9968b's n over k, one pitch, against (a+b) over (c+d), two. Spec: docs/plans/board/20261121-114912-amd-opus.md.)
+        var textAscent = 0.0, textDescent = 0.0
+        if let split = _textStrutSplit(style: style) { textAscent = split.line - split.descent; textDescent = split.descent }
         let ascent = max(textAscent, base)
-        let descent = max(pitch - textAscent, full - base)
+        let descent = max(textDescent, _px(whole.descent))
+        let full = ascent + descent
         let n = (full / pitch - 0.002).rounded(.up)
-        _ = (ascent, descent)
         guard n >= 2 else { return nil }
         // (A fraction holding a radical keeps its natural height, off the grid: 20d9968b's cos θ = a/√(a²+b²) lines step 27.4 and 27.9 pt in Word's print, not 36.)
         if image.naturalInk == nil, (image.sourceXML ?? "").containsSubstring("<m:rad"), (image.sourceXML ?? "").containsSubstring("<m:f>") { return nil }
-        let extra = (n - 1) * pitch / 2
-        let offset = textAscent + extra
+        let offset = ascent + (n * pitch - full) / 2
         return (n * pitch, offset, offset - base, full)
     }
 }

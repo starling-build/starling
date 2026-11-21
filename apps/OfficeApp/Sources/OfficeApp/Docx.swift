@@ -8387,7 +8387,7 @@ enum DocxFormat {
                             var whole: (Double, Double)? = nil
                             var inkWhole: (Double, Double)? = nil
                             if let m = WriterMath.register(piece, for: att.id, size: mathSize, natural: { whole = $0 }, ink: { inkWhole = $0 }) {
-                                if piece.name == "m:oMath", let w = whole { att.naturalExtent = (w.0, w.1) 
+                                if piece.name == "m:oMath", let w = whole { att.naturalExtent = (w.0, w.1); att.mathSize = mathSize
                                     if let k = inkWhole, frag.xml.containsSubstring("<m:f>"), !["<m:rad", "<m:nary", "<m:m>", "<m:eqArr>", "<m:limLow>", "<m:limUpp>"].contains(where: { frag.xml.containsSubstring($0) }) { att.naturalInk = (k.0, k.1) }
                                     att.stackedEquation = ["<m:f>", "<m:f ", "<m:rad>", "<m:rad ", "<m:nary>", "<m:nary ", "<m:m>", "<m:eqArr>", "<m:limLow>", "<m:limUpp>"].contains { frag.xml.containsSubstring($0) }
                                 }

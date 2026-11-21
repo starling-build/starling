@@ -485,7 +485,7 @@ extension RichDocument {
 
 extension ImageAttachment {
     enum CodingKeys: String, CodingKey {
-        case id, data, width, height, name, naturalWidth, naturalHeight, sourceXML, sourceRels, outline, sourceWidth, sourceHeight, sourceRunPropertiesXML, frame, effectLeft, effectRight, effectTop, baseline, effectBottom, float, rotation, textBox, isDropCap, lastPageOnly, stackedEquation, crop, inset
+        case id, data, width, height, name, naturalWidth, naturalHeight, sourceXML, sourceRels, outline, sourceWidth, sourceHeight, sourceRunPropertiesXML, frame, effectLeft, effectRight, effectTop, baseline, effectBottom, float, rotation, textBox, isDropCap, lastPageOnly, stackedEquation, mathSize, crop, inset
     }
 
     public init(from decoder: Decoder) throws {
@@ -516,6 +516,7 @@ extension ImageAttachment {
         isDropCap = try c.decodeIfPresent(Bool.self, forKey: .isDropCap) ?? false
         lastPageOnly = try c.decodeIfPresent(Bool.self, forKey: .lastPageOnly) ?? false
         stackedEquation = try c.decodeIfPresent(Bool.self, forKey: .stackedEquation) ?? false
+        mathSize = try c.decodeIfPresent(Double.self, forKey: .mathSize) ?? 0
         crop = try c.decodeIfPresent(PictureCrop.self, forKey: .crop)
         inset = try c.decodeIfPresent(PictureCrop.self, forKey: .inset)
     }
@@ -547,6 +548,7 @@ extension ImageAttachment {
         try c.encode(isDropCap, forKey: .isDropCap)
         try c.encode(lastPageOnly, forKey: .lastPageOnly)
         try c.encode(stackedEquation, forKey: .stackedEquation)
+        try c.encode(mathSize, forKey: .mathSize)
         try c.encodeIfPresent(crop, forKey: .crop)
         try c.encodeIfPresent(inset, forKey: .inset)
     }

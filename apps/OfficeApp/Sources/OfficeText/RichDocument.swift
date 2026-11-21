@@ -1163,6 +1163,8 @@ public struct ImageAttachment: Hashable, Codable, Sendable {
     public var naturalInk: (up: Double, down: Double)? = nil
     /// An inline equation holding a stacked object (fraction, radical, n-ary, matrix, limit): the kind whose line Word grows.
     public var stackedEquation = false
+    /// An inline equation's base size in points (the 1.1733 em line the multiple spacing takes under it).
+    public var mathSize = 0.0
     public var effectBottom = 0.0
     /// For an object anchored to its paragraph rather than standing in
     /// the line (Word's `wp:anchor`): where it floats. The text makes no
