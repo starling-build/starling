@@ -2010,6 +2010,23 @@ extension RichLayout {
         // width: zh-0aac9d1a's, tblW 8578 twips over a grid of the same sum,
         // takes the columns' narrowest in Word's print, 11 pages where the
         // grid made 9.)
+        // (… but where the narrowest are Thai strings, the columns share the room in proportion to them: xd eb52ce9b's
+        // 134.5 / 155.9 / 177.2 grid, narrowest 152.4 / 116.0 / 339.8, is 117.7 / 90.4 / 259.5 in Word's print.)
+        var thaiCols = Set<Int>()
+        for q in document.paragraphs where q.cell?.table == table {
+            if let c = q.cell, q.text.unicodeScalars.contains(where: { $0.value >= 0x0E01 && $0.value <= 0x0E7F }) { thaiCols.insert(c.column) }
+        }
+        if theme.wordRules, RichTextTheme.wordWindowsPages, !thaiCols.isEmpty, (document.tableStyles[table]?.width ?? 0) <= 0, !over.contains(where: { $0.picture }),
+           widths.reduce(0, +) > room + _px(1), base.reduce(0, +) <= room + _px(1), _nestedCap == nil {
+            // (Only the Thai columns give; a column of numbers keeps its narrowest: 66cda9e3's table of percentages.)
+            let share = _contentFitRoom(table, base, document, ins.left + ins.right)
+            let keep = widths.indices.filter { !thaiCols.contains($0) }.reduce(0) { $0 + widths[$1] }
+            let give = widths.indices.filter { thaiCols.contains($0) }.reduce(0) { $0 + widths[$1] }
+            if give > 0, share > keep {
+                let k = (share - keep) / give
+                return widths.indices.map { thaiCols.contains($0) ? (widths[$0] * k + 0.001).rounded(.down) : widths[$0] }
+            }
+        }
         if theme.wordRules, RichTextTheme.wordWindowsPages, !over.contains(where: { $0.picture }),
            widths.reduce(0, +) > room + _px(1), base.reduce(0, +) <= room + _px(1), _nestedCap == nil,
            (document.tableStyles[table]?.width ?? 0) <= 0 {
@@ -2148,6 +2165,7 @@ extension RichLayout {
                 // set in it: xb urd 73d948's header cell "خیرالامۃ:جلد1شمارہ1", 87pt in Word's print, widens its 86.5pt column to the whole
                 // string and sets one line, where ours measured one letter and parted it over two.)
                 else if theme.wordRules, RichTextTheme.wordWindowsPages, Self._arabicWordJoins(a, b) { parts = false }
+                else if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell != nil, !pctWidthTable, (document.compatibilityMode ?? 12) >= 15, a >= 0x0E01, a <= 0x0E7F, b >= 0x0E01, b <= 0x0E7F { parts = false }
                 else if breakBefore.contains(k) { parts = true }
                 // (After a hyphen before a digit in a time of day, where a
                 // word wider than its cell must part: zh-b3e887f7's schedule keeps its
