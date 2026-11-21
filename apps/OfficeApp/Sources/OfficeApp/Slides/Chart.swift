@@ -539,6 +539,10 @@ struct Chart: Equatable {
     /// Mincho lacks (`OfficeFonts.windowsMinchoCovers`) — so a data
     /// table's rows stand on those faces' lines (`_tableRows`).
     var windowsMinchoText = false
+    /// A chart in a Word for Windows print whose East Asian text is not Mincho's: its data table's rows are
+    /// 3.4pt and the deepest cell's lines of 1.22 em (sa1 06706f28's Calibri 9pt rows 14.35 apart, its
+    /// five-line category row 58.3), not the 1.64 em rows of Word for Mac's prints.
+    var windowsLatinTable = false
     /// … and its title too: not where the title's runs say Traditional
     /// Chinese, which Word for Windows sets in PMingLiU (zh-b8de3ae2's
     /// eleven titles, `lang="zh-TW"`, in its print).
@@ -3373,6 +3377,15 @@ enum ChartPainter {
             rows[0] += Double(max(0, lines - 1)) * line.height * size * k
             return rows
         }
+        if c.windowsLatinTable, !c.windowsMinchoText {
+            let line = 1.22 * size * k
+            let lines = c.categories.map { s -> Int in
+                let tp = text(s, size, max(1, slot - 7.2 * k))
+                defer { tp.dispose() }
+                return max(1, tp.computeLineMetrics().count)
+            }.max() ?? 1
+            return [3.4 * k + Double(lines) * line] + Array(repeating: 3.4 * k + line, count: count - 1)
+        }
         guard c.windowsMinchoText, let covers = OfficeFonts.windowsMinchoCovers else {
             return Array(repeating: 1.64 * size * k, count: count)
         }
@@ -3422,12 +3435,12 @@ enum ChartPainter {
         // (Under Word for Windows' faces, a label of several lines
         // centred as a block: zh-61aaad09's wrapped categories.)
         func textTop(_ tp: TextPainter, _ j: Int) -> Double {
-            let lines = c.windowsMinchoText || c.macSimplifiedFace != nil ? tp.computeLineMetrics().count : 1
+            let lines = c.windowsMinchoText || c.windowsLatinTable || c.macSimplifiedFace != nil ? tp.computeLineMetrics().count : 1
             return rowTop(j) + rowHeight(j) / 2 + 0.27 * size * k - tp.computeDistanceToActualBaseline(.alphabetic)
                 - (tp.height - tp.height / Double(max(1, lines))) / 2
         }
         func centred(_ s: String, _ cx: Double, _ j: Int) {
-            let tp = text(s, size, j == 0 && (c.windowsMinchoText || c.macSimplifiedFace != nil) ? max(1, slot - 7.2 * k) : slot)
+            let tp = text(s, size, j == 0 && (c.windowsMinchoText || c.windowsLatinTable || c.macSimplifiedFace != nil) ? max(1, slot - 7.2 * k) : slot)
             tp.paint(canvas, Offset(cx - tp.width / 2, textTop(tp, j)))
             tp.dispose()
         }

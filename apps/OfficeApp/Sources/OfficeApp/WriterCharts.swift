@@ -87,6 +87,7 @@ enum WriterCharts {
             chart.windowsMinchoTitle = !(space.descendant("c:title").map(ChartXML._traditional) ?? false)
             chart.windowsHantTitle = !chart.windowsMinchoTitle
         }
+        if RichTextTheme.wordWindowsPages, !chart.windowsMinchoText { chart.windowsLatinTable = true }
         // (Word for Mac sets it in the theme's Hans and Hant faces — the
         // chart's own theme override's where it has one, zh-b8de3ae2's
         // pies' 等线: `Chart.macSimplifiedFace`.)
