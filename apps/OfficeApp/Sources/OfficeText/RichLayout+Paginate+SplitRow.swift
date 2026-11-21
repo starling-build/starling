@@ -697,7 +697,8 @@ extension RichLayout {
                         if repeats { _pg_repeatHeader(&pgs, document, of: c.table, before: i) }
                         if c.row > 0 { _pg_continueSpans(&pgs, document, into: i, c) }
                         // (Under the table's top line there: see `headLift`.)
-                        if pgs.y < 0.01 { pgs.y += _pg_headLift(&pgs, document, i, j, c) }
+                        // (A parted frame too, where the row opens the page whole: sa1 67e19017 p6, 1pt.)
+                        if pgs.y < 0.01 { pgs.y += _pg_headLift(&pgs, document, i, j, c, wholeRow: true) }
                         continue
                     }
                     // (A line taller than a page: placed, and over the foot.)

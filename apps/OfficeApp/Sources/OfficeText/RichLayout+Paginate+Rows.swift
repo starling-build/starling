@@ -112,10 +112,10 @@ extension RichLayout {
     // takes for the table's top line, where a cell of it states no top
     // line of its own: zh-cec9d337's p19, p25 and p26 — see where a
     // part goes over in `splitRow`.
-    func _pg_headLift(_ pgs: inout _PState, _ document: RichDocument, _ i: Int, _ j: Int, _ c: _CellGeo) -> Double {
+    func _pg_headLift(_ pgs: inout _PState, _ document: RichDocument, _ i: Int, _ j: Int, _ c: _CellGeo, wholeRow: Bool = false) -> Double {
         guard theme.wordRules, c.row > 0, let ts = document.tableStyles[c.table],
               ts.edges?.top ?? (ts.borders && !ts.bordersFromCells),
-              !(RichTextTheme.wordWindowsPages && Self._partedFrame(ts)),
+              !(RichTextTheme.wordWindowsPages && !wholeRow && Self._partedFrame(ts)),
               (i ..< j).contains(where: { k in
                   document.paragraphs[k].cell.map { d in !(d.bordersXML ?? "").containsSubstring("<w:top ") && d.edges?.top == nil } ?? false
               }) || Self._rowHasContinuedTopUnsaid(i, document) else { return 0 }
