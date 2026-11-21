@@ -1172,6 +1172,21 @@ extension RichLayout {
            shown + extra + _pg_ruleUnder(&pgs, document, c) <= pgs.contentH + 0.01 {
             pgs.y += extra
         }
+        // (A row at a page's head whose every cell says nil above, in a table with no top line of its own, has no line
+        // over it: the line under the row before stays on the page before, and the row is that line's room shorter with
+        // its text as much higher. sa1 8b5747ec's date row, 27.6pt in Word's print, ours 28.55.)
+        var headDrop = 0.0
+        if theme.wordRules, RichTextTheme.wordWindowsPages, pgs.y < 0.01, c.firstInRow, c.row > 0, c.rules > 0.01, shown >= c.ownRowHeight - 0.01,
+           let ts = document.tableStyles[c.table], !(ts.edges?.top ?? (ts.borders && !ts.bordersFromCells)),
+           (pgs.i ..< j).allSatisfy({ k in
+               document.paragraphs[k].cell.map { d in
+                   let xml = d.bordersXML ?? ""
+                   return (xml.containsSubstring("<w:top w:val=\"nil\"") || xml.containsSubstring("<w:top w:val=\"none\"")) && d.edges?.top != true } ?? false
+           }) {
+            RuleTrace.hit("word-row-opening-a-page-under-nil-tops-has-no-line-over-it")
+            headDrop = c.rules
+            shown -= headDrop
+        }
         if abs(shown - c.ownRowHeight) > 0.01 {
             // Its cells' text from where each stands in a row of
             // that height, and its rules: their last stretch with
@@ -1181,7 +1196,7 @@ extension RichLayout {
             let edge = min(_px(2), c.ownRowHeight / 4)
             for k in pgs.i ..< j {
                 let d = _cells[k]!
-                let down = d.rowSpan > 1 ? 0 : d.verticalAlign == "center" ? spare / 2 : d.verticalAlign == "bottom" ? spare : 0
+                let down = d.rowSpan > 1 ? 0 : headDrop + (d.verticalAlign == "center" ? (spare - headDrop) / 2 : d.verticalAlign == "bottom" ? spare - headDrop : 0)
                 var text = PagePiece(paragraph: k, flowTop: c.rowTop + down,
                                      flowBottom: d.rowSpan > 1 ? c.rowTop + d.rowHeight : c.rowTop + down + shown, page: pgs.page, pageY: pgs.y)
                 text.part = .text
