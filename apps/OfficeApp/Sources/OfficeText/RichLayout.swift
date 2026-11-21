@@ -68,6 +68,11 @@ public final class RichTextTheme {
             return f
         }
         guard var f = complexFaceResolver?(cs) else { return nil }
+        // (A complex face Word lacks, drawn in Arial, is for letters only: digits alone stay in the Latin face, dx2 6e7a3d11's "35".)
+        if !letters, f.arialStandIn, wordRules, RichTextTheme.wordWindowsPages, let lf = faceResolver?(latin, false) {
+            RuleTrace.hit("word-arial-stand-in-complex-face-leaves-digits-to-latin")
+            return lf
+        }
         if wordRules, RichTextTheme.wordWindowsPages,
            (cs ?? "Times New Roman").trimmingWhitespace().lowercased() == "times new roman",
            latin?.trimmingWhitespace().lowercased() == "times new roman" {
