@@ -116,7 +116,7 @@ extension _StyledFrame {
         // (Cambria has no "≦" or "≧": Word for Windows sets them in Cambria Math, 0.7471 em wide;
         // after a Latin letter or digit; after an ideograph it stays the East Asian face's full width (lab c2301a p3 "で≦2fm"). The fallback face's 0.84 pushed jpn-z21601833-c2301a's "…CHSH≦2、完" a character over.)
         extra += w * em - _glyphWidth(style(kind), ch)
-    } else if !ea, let grid = theme.advanceGrid, grid > 0, latinFace?.advances == nil, ch != "\t", !ch.isNewline,
+    } else if !ea, let grid = theme.advanceGrid, grid > 0, latinFace?.advances == nil, ch != "\t", !ch.isNewline, !(!theme.wordRules && joinedFace != nil && isArabic(ch)),
               latinFace?.otherAdvances.flatMap({ t in ch.unicodeScalars.first.flatMap { t[$0.value] } }) == nil,
               ch.unicodeScalars.first.map({ $0.value >= 0x20 && $0.value < 0x2E80 }) ?? false {
         // On the print's grid (`advanceGrid`) — kerned with the

@@ -692,7 +692,9 @@ extension _StyledFrame {
                 if complex == nil, name?.trimmingWhitespace().lowercased() == "arial narrow" { name = "Arial" }
                 return theme.complexFace(name, latin: latin, letters: run.csLetters)
             }()
-            joinedFace = run.rightToLeft ? complexFaceOfRun : nil
+            // (A slide's Arabic in a face that carries its own shaped advances, Traditional Arabic or Sakkal Majalla: set word by word at
+            // them as Word's is.)
+            joinedFace = run.rightToLeft ? complexFaceOfRun : (theme.wordRules || !p.style.rightToLeft ? nil : run.fontFamily.flatMap { theme.faceResolver?($0, false) }.flatMap { $0.joinedAdvances != nil ? $0 : nil })
             // A right-to-left space is set in the complex-script face when the document names one apart from the Latin face (b514c2: Arial against the theme's Aptos); the same name for both keeps the Latin table (dx2 Tahoma fa/ur docs).
             complexSpaceFace = {
                 guard let joinedFace else { return nil }
