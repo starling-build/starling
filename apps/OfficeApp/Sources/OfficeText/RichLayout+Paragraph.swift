@@ -1286,6 +1286,15 @@ extension RichLayout {
                 if collapsedTab { extra = -own }
                 // Trailing tabs do not open an empty line beyond the
                 // margin. Keep their stops within the remaining width.
+                // (Tabs that end a paragraph after a tab that reached the margin stay on that line, taking no width: Word's
+                // print of cc08e083's header, picture, tab, spaces, right tab at the margin and two more tabs, one line,
+                // ours a second. Lab hdr-tab-float, Word for Windows: the same with and without the anchored picture.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !pictureTabs, !style.rightToLeft, t > 0, units[t - 1] == 0x09,
+                   stop.alignment == .left, style.tabStops.contains(where: { $0.alignment == .right && abs(_px($0.position) - x) < 0.01 }), abs(x - (ownLeft + textWidth)) < 0.01, stop.x > ownLeft + textWidth + 0.01,
+                   units[t...].allSatisfy({ $0 == 0x09 }) {
+                    extra = min(extra, -own)
+                    RuleTrace.hit("word-tabs-after-a-tab-at-the-margin-take-no-width")
+                }
                 if theme.wordRules, pictureTabs, units[(t + 1)...].allSatisfy({ $0 == 0x09 }) {
                     extra = min(extra, max(0, ownLeft + textWidth - x) - own)
                 }
