@@ -38,6 +38,8 @@ enum SlidesPdf {
         // (A text shadow's blur is in the PDF's units, points; see below.)
         RichTextTheme.shadowBlurDeviceScale = 1 / 20.0
         defer { RichTextTheme.shadowBlurDeviceScale = nil }
+        RichTextTheme.shadowsAsPaths = true
+        defer { RichTextTheme.shadowsAsPaths = false }
         for slide in deck.slides where !slide.hidden {
             let recorder = NativePictureRecorder()
             let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, size.width, size.height))
