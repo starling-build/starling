@@ -650,6 +650,16 @@ struct PptxReader {
             }
         }
         SlideFonts.noteEmbedded(embeddedFaces)
+        var missingRoman: Set<String> = []
+        for (name, data) in package.parts where name.hasPrefix("ppt/") && name.hasSuffix(".xml") {
+            let text = String(decoding: data, as: UTF8.self)
+            guard text.containsSubstring("panose=\"0205") else { continue }
+            for piece in text.split(separator: "<").map(String.init) where piece.hasPrefix("a:latin ") && piece.containsSubstring("panose=\"0205") {
+                guard piece.containsSubstring("pitchFamily=\"18\""), !piece.containsSubstring("charset=\"") || piece.containsSubstring("charset=\"0\"") else { continue }
+                if let r = piece.rangeOfSubstring("typeface=\"") { missingRoman.insert(String(piece[r.upperBound...].prefix { $0 != "\"" })) }
+            }
+        }
+        SlideFonts.noteMissingRoman(missingRoman)
         var slideParts: [String] = []
         for id in presentation.first("p:sldIdLst")?.all("p:sldId") ?? [] {
             if let rid = id["r:id"], let r = rels.first(where: { $0.id == rid }) { slideParts.append(r.target) }

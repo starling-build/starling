@@ -50,7 +50,16 @@ enum SlideFonts {
     /// its metrics and widths are Verdana's.
     static func windowsName(_ family: String) -> String {
         let n = family.trimmingWhitespace().lowercased()
+        if missingRoman.contains(n), OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil { return "palatino linotype" }
         return n == "dejavu sans" && OfficeFonts.installed(family) == nil ? "verdana" : n
+    }
+
+    /// Roman faces the deck names with PANOSE 02 05 (a Garamond/Caslon-type serif), pitchFamily roman and charset 0 that PowerPoint's machine
+    /// lacks: it prints them in Palatino Linotype (58246e12's "Adobe Caslon Pro" runs are PalatinoLinotype in the print; the Word rule is
+    /// word-missing-roman-panose-0205-is-palatino). A face Office ships (Bernard MT Condensed) is not one.
+    nonisolated(unsafe) private static var missingRoman: Set<String> = []
+    static func noteMissingRoman(_ names: Set<String>) {
+        missingRoman = Set(names.map { $0.trimmingWhitespace().lowercased() }.filter { !OfficeFonts.wordMacFamilies.contains($0) && freeFaces[$0] == nil && $0 != "palatino linotype" })
     }
 
     /// The deck's own fonts (`ppt/fonts/*.fntdata`), by typeface name in
@@ -80,6 +89,7 @@ enum SlideFonts {
         // `OfficeFonts.installed`.)
         if let own = OfficeFonts.installed(family) { return own }
         if let mine = embeddedFamily(family) { return mine }
+        if windowsName(family) == "palatino linotype", family.trimmingWhitespace().lowercased() != "palatino linotype" { return resolve("Palatino Linotype") }
         if let free = freeFaces[family.trimmingWhitespace().lowercased()] { return free }
         let face = OfficeFonts.substitute(family)
         guard face == OfficeFonts.cambria else { return face }
