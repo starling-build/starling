@@ -71,7 +71,10 @@ enum WriterCharts {
         let chartex = space.name == "cx:chartSpace"
         guard var chart = chartex ? ChartXML.readWordChartex(space) : ChartXML.read(space, color: { colors.color(in: $0) })
         else { return false }
+        // (The linked workbook's cell format travels in the cache as a point's own `formatCode`: only a chart
+        // whose points carry a thousands format prints them so; zh b8de3ae2's linked chart, points with none, prints 107660.)
         if linkedSource, !chartex, chart.labelFormat == nil,
+           space.descendants("c:pt").contains(where: { ($0["formatCode"] ?? "").containsSubstring("#,##0") }),
            chart.series.allSatisfy({ $0.values.allSatisfy { $0 == nil || $0! == $0!.rounded() } }) {
             chart.labelFormat = "#,##0"
         }
