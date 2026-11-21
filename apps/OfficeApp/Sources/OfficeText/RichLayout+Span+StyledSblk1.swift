@@ -25,6 +25,13 @@ extension _StyledFrame {
         flush(i)
         spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
         ctx.inserts.append(offset)
+    } else if !theme.wordRules, theme.officeLatinBreaks, let b = ctx.before, ch.unicodeScalars.count == 1, "ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶー".contains(ch), p.style.eastAsian["a:looseKinsoku"] != "1",
+              b.unicodeScalars.count == 1, let bv = b.unicodeScalars.first?.value, bv >= 0x3041 && bv <= 0x9FFF {
+        // (PowerPoint keeps small kana and the prolonged sound mark with the kana or ideograph before them under strict kinsoku, the default (a deck with strictFirstAndLastChars 0 opens lines with them: ff27a386 p8 "ウ" | "ェールズ"): e89e63a8 p6's
+        // "こども支援センター" in a 177pt box goes down as "セン" | "ター" in the print, where the engine's loose rules took "センタ" | "ー".)
+        flush(i)
+        spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+        ctx.inserts.append(offset)
     } else if !theme.wordRules, theme.officeLatinBreaks, ctx.before == "-", ch.isASCII, ch.isNumber,
               ctx.beforeBefore.map({ $0.isASCII && ($0.isLetter || $0.isNumber) }) == true {
         // (PowerPoint ends a line after a hyphen that stands between a letter or digit and a digit: ba4b81b7's
