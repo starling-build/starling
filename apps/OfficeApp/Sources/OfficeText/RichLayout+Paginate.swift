@@ -3045,7 +3045,12 @@ extension RichLayout {
                   let a = p.cell, let b = document.paragraphs[j].cell else { return false }
             return a.table == b.table && b.row >= a.row + a.rowSpan
         }
-        let skipAfter = contextual && (sameStyle(i + 1) || nextRow(i + 1)) && !keepsLines(i + 1, "w:afterLines")
+        // (Word for Windows, mode 14, xd 80c852b0 p2: a contextual list item over a table whose first cell's paragraph
+        // is the same style gives its space after up too, 8pt, though the cell paragraph is no list item.)
+        let intoTable = theme.wordRules && RichTextTheme.wordWindowsPages && contextual && p.cell == nil && style.named != nil
+            && i + 1 < document.paragraphs.count && document.paragraphs[i + 1].cell != nil && document.paragraphs[i + 1].keptTable == nil
+            && document.paragraphs[i + 1].style.named == style.named && document.paragraphs[i + 1].style.heading == style.heading
+        let skipAfter = contextual && (sameStyle(i + 1) || nextRow(i + 1) || intoTable) && !keepsLines(i + 1, "w:afterLines")
         // Automatic spacing is the web's, unless the document says its
         // own numbers stand: see `RichDocument.htmlAutoSpacing`.
         let web = !theme.wordRules || document.htmlAutoSpacing

@@ -1455,6 +1455,8 @@ public struct TableStyle: Hashable, Codable, Sendable {
     /// A floating table centred in its margin (`w:tblpXSpec` center) that is also `w:bidiVisual`: Word 2010's layout
     /// (compat 14) stands it half a cell margin right of the middle (lab rtlctr; dx2 5b919053).
     public var floatCentredBidi = false
+    /// A table laid out right to left (`w:bidiVisual`): its `w:tblInd` is measured from the right margin.
+    public var bidiVisual = false
     /// A floating table placed against the page (`w:tblpPr w:vertAnchor="page"`):
     /// where it does not fit whole, Word sets its first row alone on its page
     /// and the rest on the next (zh-6cd1befe p51, zh-a4b0f6ea p20).
