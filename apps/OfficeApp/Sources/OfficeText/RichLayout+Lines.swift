@@ -867,8 +867,8 @@ extension RichLayout {
         return nil
     }
 
-    func _besideIndent(_ i: Int, _ p: RichParagraph, _ document: RichDocument, table: String? = nil) -> (indent: Double, right: Bool)? {
-        guard theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, i > 0, !p.text.isEmpty, p.image == nil,
+    func _besideIndent(_ i: Int, _ p: RichParagraph, _ document: RichDocument, table: String? = nil, picture: Bool = false) -> (indent: Double, right: Bool)? {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, i > 0, (!p.text.isEmpty ? p.image == nil : (picture && p.image != nil)),
               !p.style.clearsFloat,
               let source = table ?? _besideSource(i, document)?.cell.table,
               let ts = document.tableStyles[source], ts.floatsOverText, !ts.pageAnchored,
@@ -919,11 +919,13 @@ extension RichLayout {
         let rightRoom = column - edge - _px(p.style.indentRight)
         if leftRoom >= size * 3, leftRoom > rightRoom, left >= column / 2 || leftRoom > rightRoom + size * 3 {
             let narrow = column - gap - _px(p.style.indentRight)
+            // (A picture alone takes the strip only where it stands whole in it.)
+            if let img = p.image, _px(img.width) > leftRoom + 0.01 { return nil }
             return narrow > 0 ? (narrow, true) : nil
         }
         // (Beside a table at the left, in the strip at its right: one that ends in the middle
         // of the column leaves the text under it, and so does one that fills most of it.)
-        guard left < column / 2, rightRoom >= size * 3 else { return nil }
+        guard !picture, left < column / 2, rightRoom >= size * 3 else { return nil }
         return edge > own ? (edge - own, false) : nil
     }
 

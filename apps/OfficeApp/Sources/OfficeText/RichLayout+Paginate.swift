@@ -2108,11 +2108,11 @@ extension RichLayout {
                 // (A paragraph with the strip beside a table at the right margin to itself stays level with
                 // it as long as the table lasts: lo-717ff943's bullets, tdf97090.)
                 let alongside = pgs.i > 0 && (tf.chained || _cells[pgs.i - 1]?.table == tf.table) && (pgs.besideChainEnd.map { tf.y + 0.01 < $0 } ?? false)
-                    && _cells[pgs.i] == nil && _besideIndent(pgs.i, document.paragraphs[pgs.i], document)?.right == true
+                    && _cells[pgs.i] == nil && _besideIndent(pgs.i, document.paragraphs[pgs.i], document, picture: document.paragraphs[pgs.i].image != nil)?.right == true
                     // (A blank line, or one of spaces only, keeps its own height and moves the flow on:
                     // dx2 9dc455a3's two lines of spaces and the empty mark after "Tarikh Proses", beside
                     // a table at the right with tblpY, stand 12.8pt apart in Word's print.)
-                    && document.paragraphs[pgs.i].text.contains(where: { $0 != " " && $0 != "\t" })
+                    && (document.paragraphs[pgs.i].image != nil || document.paragraphs[pgs.i].text.contains(where: { $0 != " " && $0 != "\t" }))
                 // (The lines stacked beside the table before a blank one have moved the flow on.)
                 if theme.wordRules, tf.chained, tf.page == pgs.page, pgs.frameReturn == nil, _cells[pgs.i] == nil, tf.y > pgs.y + 0.01,
                    !document.paragraphs[pgs.i].text.contains(where: { $0 != " " && $0 != "\t" }) {

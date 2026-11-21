@@ -272,6 +272,17 @@ extension RichLayout {
                 // from where the flow has got to. Lab anchor, Word for Windows.)
                 RuleTrace.hit("compat15-second-floating-table-hangs-from-the-empty-line-before-it")
                 pgs.y = last.y + _px(down)
+            } else if RichTextTheme.wordWindowsPages, pgs.i > 1, _cells[pgs.i - 1] == nil, _cells[pgs.i - 2] == nil,
+                      _heights[pgs.i - 1] < 0.01, _heights[pgs.i - 2] > 0.01, pgs.y >= _heights[pgs.i - 2] - 0.01,
+                      !document.paragraphs[pgs.i - 1].text.contains(where: { $0 != " " && $0 != "\t" }),
+                      !document.paragraphs[pgs.i - 2].text.contains(where: { $0 != " " && $0 != "\t" }),
+                      pgs.i < _sectionOf.count, _sectionOf[pgs.i - 1] != _sectionOf[pgs.i] {
+                // (Compat 15, Windows: a table floating by the text that follows an empty line and then the empty
+                // paragraph that holds a section break, which has no height of its own, hangs from the top of the
+                // empty line, not from the section break: 90385e38's two tables, tblpY 359 and 22 twips, stand
+                // 17.95 and 1.1pt under the top of that line in Word's print, 24pt above where the flow stood.)
+                RuleTrace.hit("word-floating-table-after-section-break-hangs-from-the-empty-line-before-it")
+                pgs.y = pgs.y - _heights[pgs.i - 2] + _px(down)
             } else {
                 pgs.y += _px(down)
             }
