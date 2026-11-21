@@ -3182,7 +3182,15 @@ enum ChartPainter {
                             canvas.drawRect(Rect.fromLTWH(x, y + (lineH - high) / 2 + keyDrop, key, high), q)
                         }
                     }
-                    e.tp.paint(canvas, Offset(x + lead, y + (lineH - e.tp.height) / 2))
+                    // (A Word pie's legend in a box of its own: an entry that wraps stands its first line where a one-line entry's
+                    // stands in its slot and lets the rest hang below, not centred in the slot: f15415f0's "Não especificado" and
+                    // "Questões relacionadas à COVID-19", 6.8 pt lower than centred in Word's print, the others on their slots.)
+                    var textDrop = (lineH - e.tp.height) / 2
+                    if wordBoxPie, boxColumn, e.tp.height > 1.5 * textH {
+                        RuleTrace.hit("word-pie-box-legend-wrapped-entry-hangs-from-its-slots-line")
+                        textDrop = (lineH - textH) / 2
+                    }
+                    e.tp.paint(canvas, Offset(x + lead, y + textDrop))
                     x += lead + e.tp.width + spacing
                 }
                 y += lineH
