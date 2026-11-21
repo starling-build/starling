@@ -230,7 +230,7 @@ extension _ParaFrame {
         }
         // PowerPoint hangs a line-end 、 or 。 past the margin (its hangingPunct, on by default): where one would open the next line, it
         // is set no wider than a point, so the line takes it and the character before it (befe9f6b p6 "…明記する。").
-        if !theme.wordRules, theme.officeLatinBreaks, !p.style.rightToLeft, p.style.eastAsian["a:hangingPunct"] != "0",
+        if _hangsLineEndMarks(p),
            p.text.utf16.contains(where: { $0 == 0x3001 || $0 == 0x3002 || $0 == 0xFF0C || $0 == 0xFF0E }) {
             let units = Array(p.text.utf16)
             func isMark(_ k: Int) -> Bool { k < units.count && (units[k] == 0x3001 || units[k] == 0x3002 || units[k] == 0xFF0C || units[k] == 0xFF0E) }
