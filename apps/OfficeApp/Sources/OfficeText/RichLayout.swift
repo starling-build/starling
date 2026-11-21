@@ -1110,6 +1110,8 @@ public struct RichResolvedFace: Sendable {
     public var naturalHeight: Double?
     /// A face whose own line baseline was read from Word's prints (FrankRuehl, David): a right-to-left run stands on it.
     public var ownLineBaseline = false
+    /// A complex face Word's machine lacks, drawn in Arial: its line is Arial's own, 1.149 em.
+    public var arialStandIn = false
     public var boldSpread: Double
     /// A face Word's machine lacks, printed in Yu Gothic (charset-80 Mincho name with no alternate): lines stand on Yu's own split.
     public var standsAsYuGothic = false

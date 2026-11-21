@@ -4202,6 +4202,7 @@ static let sylfaenAdvances: [Double] = [
         // Nazanin": Word's print draws it in Sakkal Majalla (xb fas-z14957015-3a9879,
         // pitch 24.1 at 16 pt), not Arial.)
         var viaRoman = false
+        var arialStandIn = false
         if missing, wordOnWindows, missingRomanComplexFace(name) {
             viaRoman = true
             RuleTrace.hit("missing-roman-complex-face-is-sakkal")
@@ -4214,6 +4215,7 @@ static let sylfaenAdvances: [Double] = [
             RuleTrace.hit("missing-complex-face-is-arial")
             name = "Arial"
             missing = false
+            arialStandIn = true
         }
         // (A complex-script name Word's Windows lacks whose font table names Courier New as its alternate and
         // an Arabic charset: Word draws it in Courier New, 0.6 em a character, spaces too. dx2 c2c3a2f3's
@@ -4237,6 +4239,7 @@ static let sylfaenAdvances: [Double] = [
         if missing { name = "Times New Roman" }
         if viaCourier { missing = false; name = "Courier New" }
         var face = RichResolvedFace(family: missing ? cambria : embeddedFamily(name) ?? name)
+        face.arialStandIn = arialStandIn
         face.fallback = [cambria, "Times New Roman", "Noto Naskh Arabic", emojiPictographs, "DejaVu Sans"]
         // (Hebrew in Times New Roman or Arial: the Liberation clones have
         // the letters at Times' and Arial's widths — alef 0.600 em, 0.628
