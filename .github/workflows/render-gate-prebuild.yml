@@ -15,10 +15,11 @@ jobs:
       fail-fast: false
       matrix:
         # amd-6 is DEDICATED to prebuilds (label prebuild; it no longer carries starling-render, so no PR gate ever queues ahead of
-        # a prebuild there). starling2 is one runner on its own machine and still shares.
+        # a prebuild there). starling2 (3x slower to compile: gates took 20 min there against 5 on AMD, 2026-11-21) lost the
+        # starling-render label: it only prebuilds now.
         include:
           - labels: '["self-hosted","linux","prebuild"]'
-          - labels: '["self-hosted","linux","starling-render","starling2"]'
+          - labels: '["self-hosted","linux","starling2"]'
             thin: 5
     # starling2's three runners carry the gate label too, and ~20 merges an hour kept them all on prebuilds (0 gates in an hour,
     # 2026-11-21): there it builds only every 5th push; a gate that finds no base for its sha uses the nearest cached ancestor.
