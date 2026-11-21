@@ -540,7 +540,12 @@ extension RichLayout {
                           // (Not a table that floats itself: two floating tables lay over each other in Word's print,
                           // lab ovl13, where a raised table's rows reach 150pt down and the page-anchored one at 84pt
                           // stays on the page.)
+                          // (Nor one placed against the PAGE, unless this table forbids overlap: sa1 a56e81ec's two
+                          // page-anchored tables at the same place both stand on page 3 in Word's print, one over
+                          // the other; ours sent the second to page 4.)
                           !(theme.wordRules && document.tableStyles[other.table]?.floatsOverText == true),
+                          !(theme.wordRules && RichTextTheme.wordWindowsPages && document.tableStyles[other.table]?.pageAnchored == true
+                            && document.tableStyles[c.table]?.keptPosition?.containsSubstring("tblOverlap w:val=\"never\"") != true),
                           $0.pageY + ($0.flowBottom - $0.flowTop) > target + 0.01 else { return false }
                     let l = _tableLeft(other.table, document)
                     return l < myRight - 0.01 && myLeft < l + (_columnWidths[other.table] ?? []).reduce(0, +) - 0.01
