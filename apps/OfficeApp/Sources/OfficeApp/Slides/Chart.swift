@@ -2224,7 +2224,11 @@ enum ChartXML {
         c.valueStep = valueAxis?.first("c:majorUnit")?["val"].flatMap(Double.init).flatMap { $0 > 0 ? $0 : nil }
         if let fmt = valueAxis?.first("c:numFmt") {
             let linked = ["1", "true"].contains(fmt["sourceLinked"] ?? "")
-            let source = plot.descendant("c:val")?.descendant("c:formatCode")?.text
+            var source = plot.descendant("c:val")?.descendant("c:formatCode")?.text
+            // (A cache that says General while its first point names a format of its own: the axis follows the point's, as
+            // espt-e365f9b4 p14's accounting whole numbers on an empty chart, "1" to "0" and "-", in PowerPoint's print.)
+            if (source ?? "").isEmpty || source?.lowercased() == "general", linked,
+               let pf = plot.descendant("c:val")?.descendant("c:pt")?["formatCode"], !pf.isEmpty { source = pf }
             // (A linked axis that names a format of its own, not General, is drawn in it in Word: sa1 67e19017's third chart, axis "0%"
             // over series of 0.00%, 0.00% and 0%, runs 0%, 50%, 100% in Word's print, where ours took the first series' 0.00%.)
             let own = fmt["formatCode"] ?? ""
