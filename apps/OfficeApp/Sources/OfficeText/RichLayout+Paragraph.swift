@@ -4041,6 +4041,7 @@ extension RichLayout {
                 var above = [Double](repeating: 0, count: metrics.count), below = above
                 var tallest = [Double](repeating: 0, count: metrics.count)
                 var unraised = [Bool](repeating: false, count: metrics.count)
+                var plainRun = [Bool](repeating: false, count: metrics.count)
                 var at = 0
                 let text = Array(p.text.utf16)
                 for run in p.runs where run.length > 0 {
@@ -4051,6 +4052,7 @@ extension RichLayout {
                     let line = max(0, (starts.lastIndex(where: { $0 <= at }) ?? 0))
                     tallest[line] = max(tallest[line], run.style.fontSize ?? 0)
                     if abs(raisedOf(run)) < 0.01 || raisedOf(run) < 0 { unraised[line] = true }
+                    if abs(raisedOf(run)) < 0.01, run.style.script == .normal { plainRun[line] = true }
                 }
                 // Lines whose every text run is lowered by one same amount, in a top-aligned paragraph: that amount (px), else 0.
                 var topLine = [Double](repeating: 0, count: metrics.count)
@@ -4139,6 +4141,14 @@ extension RichLayout {
                         above[line] = max(above[line], pos - descFace - reachBelow)
                         continue
                     }
+                    // (Lab raise259 holds lowered text only beside plain text on its line; a line whose every text run is lowered, as a
+                    // lowered footnote beside its superscript mark, is unmeasured: at a multiple it keeps the engine's own height. Word's
+                    // page, 1d944f7b footnote 6: its start stands 3.9 pt too low already, 2 pt more taller makes a table row overflow.)
+                    // (Nor a run smaller than its line's text above single spacing: sa1 ad8f0ad1's 7 pt note mark raised 4 pt in 10 pt text at 273 keeps the
+                    // engine's line; at single the raise is the growth, as verified.)
+                    if style.lineSpacing - theme.lineSpacingReduction > 1.001, let sz = run.style.fontSize,
+                       sz < (_named(p, document)?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) - 0.01 { continue }
+                    if pos < 0, !plainRun[line], style.lineSpacing - theme.lineSpacingReduction > 1.001 { continue }
                     above[line] = max(above[line], m.ascent * ratio + pos - m.ascent)
                     below[line] = max(below[line], m.descent * ratio - pos - m.descent)
                 }
