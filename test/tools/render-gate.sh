@@ -27,7 +27,19 @@ export BUILD_INCREMENTAL=1   # base and PR build use the same flags (incremental
 export DOC_ALARM=${DOC_ALARM:-180}   # per-document render timeout (s): a hung render is reported TIMEOUT, never hangs the gate
 export SETS="${SETS:-756 lo xb xa xd xs sa1 sa2 dx2}"   # the gate sample draws from these sets too (user focus: es-MX, pt-BR, ko, ja)
 ROOT=$PWD; JOBS=${JOBS:-44}; W=${GATE_SCRATCH:-$HOME/scratch/gate}; mkdir -p "$W"   # PERSISTENT: the warm build scratches below make the builds incremental (cold 315 s, warm ~90 s)
-exec 9>"$W/lock"; flock 9; SL=$(date +%s)   # one gate (or prebuild) at a time per scratch
+exec 9>"$W/lock"
+# One gate (or prebuild) at a time per scratch. A prebuild only warms the scratch, so a GATE preempts it: kill the
+# prebuild (by PID, with its children) and build on from wherever the scratch got to. Another gate holding the lock: wait.
+if ! flock -n 9; then
+  read -r OP OR < "$W/lock.owner" 2>/dev/null || OP=
+  if [ -z "${GATE_PREBUILD:-}" ] && [ "$OR" = prebuild ] && [ -n "$OP" ] && kill -0 "$OP" 2>/dev/null; then
+    echo "render-gate: the scratch lock is held by a prebuild (pid $OP): stopping it"
+    kill_tree() { local c; for c in $(pgrep -P "$1" 2>/dev/null); do kill_tree "$c"; done; kill -TERM "$1" 2>/dev/null; }
+    kill_tree "$OP"
+  fi
+  flock 9
+fi
+echo "$$ ${GATE_PREBUILD:+prebuild}" > "$W/lock.owner"; SL=$(date +%s)
 LQ=${LANDQ:-/data/landq}; SB=$LQ/base/linux
 trap 'rm -rf "$W/pair"' EXIT
 TH=${TOOLS_HOME:-/home/starling}   # the runner user has its own empty HOME: tools live under the machine owner
