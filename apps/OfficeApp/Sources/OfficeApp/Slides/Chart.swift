@@ -1875,7 +1875,7 @@ enum ChartXML {
                 if let d = one.first("c:txPr")?.descendant("a:defRPr") {
                     l.own[i] = Chart.PieLabels.OwnText(size: d["sz"].flatMap(Double.init).map { $0 / 100 },
                                                        bold: d["b"].map { $0 == "1" || $0 == "true" },
-                                                       face: d.first("a:latin")?["typeface"],
+                                                       face: d.first("a:latin")?["typeface"].flatMap { $0.hasPrefix("+") || $0.isEmpty ? nil : $0 },   // (a theme slot, "+mn-lt", names no face of its own: ab55f8b0's four small labels came out in Cambria's stand-in)
                                                        color: d.first("a:solidFill").flatMap { color($0) })
                 }
                 if let rich = one.first("c:tx")?.first("c:rich") {
@@ -6946,6 +6946,12 @@ extension ChartPainter {
         // chart 3, plot 320 x 273 pt, the pie 311 against our 300; where the height binds (sa2 1a0edf9b, a plot 0.6 wide and 0.75 high) it fills 0.972 of that, as it did.)
         let fillW = !c.onSlide && !c.onSheet && c.plotLayout != nil && c.plotLayoutInner ? 0.974 : 0.941
         let scale = min(plot.width * (fillW + 0.014 * wide) / (hi30.x - lo30.x), plot.height * 0.972 / (hi30.y - lo30.y)) / (1 + (!c.onSlide && !c.onSheet ? 0.91 + 0.42 * wide : 1) * c.pieExplosion) * (unbanded ? 1.16 : 1)
+        // (A Word pie in a plot the file places (inner) stands above the plot's middle (its labels with it) by 0.057 of the height the pie leaves unused:
+        // lab pieslack, one pie in plots 270, 212, 167 and 121 pt high, its middle 5.0, 2.0, 0.2 and 0 over the 121 pt one's.)
+        let slackUp: Double = {
+            guard !c.onSlide, !c.onSheet, c.plotLayout != nil, c.plotLayoutInner else { return 0 }
+            return 0.057 * max(0, plot.height - scale * (hi.y - lo.y))
+        }()
         let origin = Offset(plot.center.dx - scale * (lo.x + hi.x) / 2 - 30 * wide * c.pieExplosion * k, plot.center.dy - scale * (lo.y + hi.y) / 2 - (4.8 * wide + 8.5 * wide * min(1, 10 * c.pieExplosion) + (!c.onSlide && !c.onSheet ? 17 * c.pieExplosion : 0)) * k)
         // (Drawn, where Word lays it out itself — no title, no legend, no
         // layout of the file's — on the frame's middle and 1.5pt over it,
@@ -6958,12 +6964,6 @@ extension ChartPainter {
         let drawn: Offset = {
             guard let f = frame, !c.onSlide, !c.onSheet, c.plotLayout == nil, !c.legend, (c.title ?? "").isEmpty, abs(tilt - 30) < 0.5 else { return .zero }
             return Offset(f.center.dx - (origin.dx + scale * (lo.x + hi.x) / 2), f.center.dy - 1.5 * k - (origin.dy + scale * (lo.y + hi.y) / 2))
-        }()
-        // (A Word pie in a plot the file places (inner) stands above the plot's middle by 0.057 of the height the pie leaves unused:
-        // lab pieslack, one pie in plots 270, 212, 167 and 121 pt high, its middle 5.0, 2.0, 0.2 and 0 over the 121 pt one's.)
-        let slackUp: Double = {
-            guard !c.onSlide, !c.onSheet, c.plotLayout != nil, c.plotLayoutInner else { return 0 }
-            return 0.057 * max(0, plot.height - scale * (hi.y - lo.y))
         }()
         canvas.save()
         canvas.translate(drawn.dx, drawn.dy - slackUp)
@@ -7148,7 +7148,7 @@ extension ChartPainter {
                            // (One on the right stands 4pt over ours when it is not the one pulled, 1 when it is.)
                            if word, cos(m) >= 0, wide > 0 { up = (pull > 0 ? 1 : 4) * wide * k }
                            return Offset(q.dx - centre.dx, q.dy - centre.dy - up)
-                       } : nil)
+                       } : nil, outsideUp: slackUp)
         } else if c.dataLabels {
             for s in slices {
                 let pt = at((s.from + s.to) / 2, 0.7)
@@ -7226,7 +7226,7 @@ extension ChartPainter {
                            centre: Offset, rx: Double, ry: Double, inner: Double, k: Double, theme: DeckTheme, ink: Color,
                            point: ((Double, Double) -> Offset)? = nil, movedEdge: ((Double) -> Offset)? = nil,
                            pulled: ((Int) -> Offset)? = nil, probe: Bool = false,
-                           collect: PieSpread? = nil, spread: [Int: Offset] = [:]) -> Bool {
+                           collect: PieSpread? = nil, spread: [Int: Offset] = [:], outsideUp: Double = 0) -> Bool {
         // (`probe`: nothing painted; whether any label would stand outside its slice is all that comes back.)
         var anyOutside = false
         // (A slice pulled out: its points stand where the pull puts them, set as each slice's turn comes.)
@@ -7605,7 +7605,7 @@ extension ChartPainter {
                     : tp.computeLineMetrics().count > 2 ? (dy < 0 ? -1 : 1) * min(reach, 26 * k * abs(dy))
                     : abs(dy) > (dy < 0 ? 0.3 : 0.4) ? (dy < 0 ? -1 : 1) * reach : 0
                                                 let halfW = tuneFlat ? min(1, abs(dx) / 0.5) * w / 2 : (abs(dx) < 0.15 ? 0 : w / 2)
-                at = Offset(edge.dx + dx * gapX + (dx >= 0 ? halfW : -halfW), edge.dy + down)
+                at = Offset(edge.dx + dx * gapX + (dx >= 0 ? halfW : -halfW), edge.dy + down - outsideUp)
                 if tuneFlat {
                     // (Word's own placing, lab pie1 (Word for Windows, 2026-11-07: lo-f9b9a8fc's pie with one label alone at 159
                     // angles, all 28 pairs, 21 frame widths) and the 104 prints before it: the box is the text's advance box and its
