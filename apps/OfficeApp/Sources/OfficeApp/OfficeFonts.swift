@@ -5106,7 +5106,9 @@ static let sylfaenAdvances: [Double] = [
             // `windowsSigFace` — with Cambria's own line: lo-11ad5a95's 48pt lines step 56.77 in Word's print,
             // 56.48 with this one; tdf153136's 56.7.)
             if clone == cambria, !["cambria", "caladea", "carlito", "sakkal majalla"].contains(family.trimmingWhitespace().lowercased()),
-               !(wordOnWindows && family.trimmingWhitespace().lowercased() == "liberation serif") {
+               !(wordOnWindows && family.trimmingWhitespace().lowercased() == "liberation serif"),
+               !(wordOnWindows && ["sylfaen", "ghea grapalat"].contains(family.trimmingWhitespace().lowercased())) {
+                // (Not Sylfaen nor GHEA Grapalat on Windows: their own 1.317 line is set above; dx2 ka 746c2e0c's 12pt lines step 15.8 in Word.)
                 face.naturalHeight = 0.95 + 0.2163
                 // (A face whose font-table alternate is "Courier", which Word does not follow on Windows, is drawn as the
                 // real Cambria, with Cambria's own line, 2401 of 2048: xa gv-690391482c's Sabon at 1.15 steps 14.82 in
