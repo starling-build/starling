@@ -108,6 +108,12 @@ enum SlideFonts {
             face.boldOtherAdvances = bold
             // (Malgun Gothic's Hangul is an em, which the table of advances that are not one does not hold.)
             if cuts.regular.ascii == SlideEastAsianWidths.malgun.regular.ascii { face.otherAdvances?[0xAC00] = 1.0; face.boldOtherAdvances?[0xAC00] = 1.0 }
+            if let it = SlideEastAsianWidths.lookupItalic(windowsName(family)) {
+                face.italicAdvances = it.regular.ascii
+                face.boldItalicAdvances = it.bold?.ascii ?? it.regular.ascii
+                face.italicOtherAdvances = SlideEastAsianWidths.parse(it.regular.other)
+                face.boldItalicOtherAdvances = it.bold.map { SlideEastAsianWidths.parse($0.other) } ?? face.italicOtherAdvances
+            }
             return face
         }
         switch windowsName(family) {
@@ -267,6 +273,9 @@ enum SlideFonts {
         case "tw cen mt": return 477.0 / 2230
         case "noto sans": return 600.0 / 2789
         case "comic sans ms": return 597.0 / 2854
+        case "gungsuh", "궁서", "gungsuhche", "궁서체": return 145.0 / 1024
+        case "pmingliu", "新細明體", "mingliu", "細明體": return 204.0 / 1024
+        case "georgia": return 449.0 / 2327
         case "meiryo ui": return 430.0 / 2601
         case "yu gothic ui": return 514.0 / 2724
         case "yu gothic light", "游ゴシック light": return 610.0 / 2636
