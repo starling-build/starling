@@ -4012,6 +4012,11 @@ enum DocxFormat {
             document.hasKana = kana
         }
         if let table = part("word/fontTable.xml").flatMap(XNode.parse) {
+            for font in table.all("w:font") {
+                if let name = font["w:name"], let usb2 = font.first("w:sig")?["w:usb2"], let v = UInt32(usb2, radix: 16), v & 0x100 != 0 {
+                    document.thaanaFaces.insert(name.trimmingWhitespace().lowercased())
+                }
+            }
             var charsets: [String: String] = [:]
             for font in table.all("w:font") {
                 guard let name = font["w:name"], name.unicodeScalars.contains(where: { $0.value >= 0x2E80 }),
