@@ -91,6 +91,9 @@ enum SlideFonts {
         if let mine = embeddedFamily(family) { return mine }
         if windowsName(family) == "palatino linotype", family.trimmingWhitespace().lowercased() != "palatino linotype" { return resolve("Palatino Linotype") }
         if let free = freeFaces[family.trimmingWhitespace().lowercased()] { return free }
+        // (Century Schoolbook is a serif face: PowerPoint's print of es/66517aeb sets its text in a serif, at the face's own widths
+        // from the table below; the generic stand-in is a sans, which draws the same widths as wide-spaced sans.)
+        if windowsName(family) == "century schoolbook" { return OfficeFonts.serif }
         let face = OfficeFonts.substitute(family)
         guard face == OfficeFonts.cambria else { return face }
         let n = family.trimmingWhitespace().lowercased()
