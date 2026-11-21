@@ -527,7 +527,13 @@ extension RichLayout {
                     // lab `l701`, the line gone from the cell, puts it
                     // back where ours stood.)
                     for k in _tableMerged[c.table] ?? [] {
-                        guard let d = document.paragraphs[k].cell, d.row < c.row, d.row + d.rowSpan - 1 >= c.row else { continue }
+                        // (A cell merged down to the row above, ending there, states its
+                        // bottom in its last part: sa1 8b5747ec's rows 1-2 merged, the
+                        // last stating sz4, the row after them stands 0.5 taller in
+                        // Word's print — a restart cell's own bottom, said by its
+                        // first part, is `rule` above.)
+                        guard let d = document.paragraphs[k].cell, d.row < c.row,
+                              d.row + d.rowSpan - 1 >= c.row || (theme.wordRules && RichTextTheme.wordWindowsPages && d.row + d.rowSpan - 1 == c.row - 1 && d.row < c.row - 1) else { continue }
                         let part = c.row - 1 - d.row
                         let xml = part == 0 ? d.bordersXML : part - 1 < d.continuationBordersXML.count ? d.continuationBordersXML[part - 1] : nil
                         if let side = Self._cellSide(xml, "bottom") { top = max(top, _px(Self._ruleRoom(side.style, side.width)) - pad.top) }

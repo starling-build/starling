@@ -2445,6 +2445,13 @@ extension RichLayout {
                     if let ref = document.paragraphs[m].cell, ref.row + ref.rowSpan - 1 == row, ref.row < row, let style = ref.spanFootStyle, style != "nil", style != "none" {
                         return _px(Self._ruleRoom(style, ref.spanFootWidth))
                     }
+                    // (A foot the file states in the span's last part: sa1 8b5747ec's rows 1-2
+                    // merged, the last part's bottom sz4, stand 0.43 over their stated
+                    // sum between the rules in Word's print.)
+                    if let ref = document.paragraphs[m].cell, ref.row + ref.rowSpan - 1 == row, ref.row < row - 0, row - ref.row - 1 < ref.continuationBordersXML.count,
+                       let side = Self._cellSide(ref.continuationBordersXML[row - ref.row - 1], "bottom") {
+                        return _px(Self._ruleRoom(side.style, side.width))
+                    }
                     m -= 1
                 }
                 return 0
