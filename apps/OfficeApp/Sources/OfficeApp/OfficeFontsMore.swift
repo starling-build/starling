@@ -720,6 +720,18 @@ extension OfficeFonts {
             face.naturalHeight = 2251.0 / 2048; face.baseline = 1835.0 / 2048
             face.boldHeight = 2535.0 / 2048; face.boldBaseline = 1857.0 / 2048
 
+        case "eras medium itc":
+            face.advances = eras_medium_itcAdv
+            face.naturalHeight = 2337.0 / 2048; face.baseline = 1825.0 / 2048
+
+        case "eras demi itc":
+            face.advances = eras_demi_itcAdv
+            face.naturalHeight = 2353.0 / 2048; face.baseline = 1841.0 / 2048
+
+        case "eras bold itc":
+            face.advances = eras_bold_itcAdv
+            face.naturalHeight = 2371.0 / 2048; face.baseline = 1859.0 / 2048
+
         case "berlin sans fb demi":
             face.advances = berlin_sans_fb_demiAdv
             face.otherAdvances = berlin_sans_fb_demiOther
