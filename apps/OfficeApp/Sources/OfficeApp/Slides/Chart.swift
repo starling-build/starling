@@ -4602,6 +4602,10 @@ enum ChartPainter {
         let belowOut = ticksPush && (horizontal ? c.valueTicksOut : c.categoryTicksOut) ? 3.7 * k : 0
         var valueLabelsBack = 0.0
         let widenedPlain = plainUntitledWord && c.valueTicksOut && c.type == .column
+            // (An untitled 2013-style Word column chart whose value axis is deleted has no top tick label to stand 4 pt higher by:
+            // dx2 f15415f0's page 7 chart, plot top 4.5 pt lower than ours, its baseline 1.7 higher, its left edge 4.0 further left.)
+            let deletedAxis2013 = word && c.barView == nil && (c.title ?? "").isEmpty && c.titleAt == nil && c.valueAxisDeleted
+                && c.type == .column && c.lineSeries.isEmpty && c.plotLayout == nil && c.dataTable == nil
         if horizontal {
             // (A 2007-style slide chart's plot stands 1.9 pt further right
             // and 3.8 pt higher at the bottom: bar-chart's in PowerPoint's
@@ -4650,7 +4654,7 @@ enum ChartPainter {
             // Not a box plot's, already higher than Excel's.)
             // (Each outer level of a multi-level axis takes a row of its own under the names.)
             let levelRows = c.categoryLevels.isEmpty ? 0 : Double(c.categoryLevels.count) * ((catLabels.first?.height ?? 12 * k) + 8.2 * k) + 4.5 * k
-            let bottom = levelRows - legendFootRise + (atZero ? (slideBare ? 8.1 : 4) * k : tallest + 7.6 * k + belowOut + slideFoot) - (wordFoot ? 4.4 * k : 0) + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
+            let bottom = levelRows - legendFootRise + (atZero ? (slideBare ? 8.1 : 4) * k : tallest + 7.6 * k + belowOut + slideFoot) - (wordFoot ? 4.4 * k : 0) + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (deletedAxis2013 ? 1.7 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
