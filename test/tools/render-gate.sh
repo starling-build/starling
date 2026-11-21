@@ -176,6 +176,17 @@ if [ "${GATE_FULL:-0}" != 1 ]; then
     for f in "$RC"/*.v2 "$RC"/*.v1; do [ -f "$f" ] && awk 'NR==FNR{k[$1]=1;next} ($NF in k)' "$ids" "$f" > "$BSD/$(basename "$f")"; done; fi; flock -u 8
 fi
 [ -n "$BSD" ] && echo "render-gate: base scores from the cache ($BSD)"
+# Slides step (full gate): every deck drawn by the PR binary, deck means vs baseline-win.tsv (test/tools/slides-gate.sh, ~80 s), run
+# alongside the Word pair (different documents). Skipped when the change is Word-reader-only (Docx.swift, WordWindowsFaces.swift):
+# shared text/layout code (OfficeText, Slides, sdk, build files) still runs it.
+SLPID=""
+if [ "$MODE" = full ] && [ "${GATE_SLIDES:-1}" = 1 ]; then
+  if [ -n "${CH:-}" ] && ! echo "$CH" | grep -vE '^(docs/|test/(tools|corpus)/|apps/OfficeApp/Sources/OfficeApp/Docx\.swift$|apps/OfficeApp/Sources/(OfficeApp|OfficeText)/WordWindowsFaces\.swift$)' | grep -q .; then
+    echo "render-gate: Slides step skipped (Word-reader-only change)"
+  else
+    LQ=$LQ test/tools/slides-gate.sh "$BIN" 32 > "$W/slides.out" 2>&1 & SLPID=$!
+  fi
+fi
 BASE_PARTIAL=${BSD:+1} CANARY=${BSD:+0} ENGINE_OUT=$EO STAGE=$W/pair BASE_SCORES=$BSD BASE_REV=$BASE_SHA SCORES_BASE=/nonexistent test/tools/docx-pair.sh "$BASEBIN" "$BIN" "$JOBS" > "$W/pair.log" 2>&1
 rc=$?; echo "render-gate: render+compare step $(( $(date +%s)-T1 )) s"
 if [ $rc != 0 ]; then echo "render-gate: pair failed (exit $rc)"; grep -aE "ABORT|failed|no engine" "$W/pair.log" | head -5 | cut -c1-200; exit 1; fi
@@ -192,12 +203,12 @@ DROPS=""
 while read -r line; do
   stem=${line##* }; s=$(basename "${stem%.docx}"); grep -qE "^${s}[ .]" "$LQ/approved.txt" 2>/dev/null || DROPS="$DROPS $s"
 done < "$W/down.txt"
-if [ -n "$DROPS" ] && [ -n "$EXACTB" ]; then echo "render-gate: drops against the cached ancestor ($DROPS ); rerunning against the exact base"; exec env GATE_EXACT_BASE=1 "$SELF" "$BASE_SHA"; fi
+if [ -n "$DROPS" ] && [ -n "$EXACTB" ]; then echo "render-gate: drops against the cached ancestor ($DROPS ); rerunning against the exact base"; [ -n "$SLPID" ] && kill "$SLPID" 2>/dev/null; exec env GATE_EXACT_BASE=1 "$SELF" "$BASE_SHA"; fi
 if [ -n "$DROPS" ]; then echo "render-gate: BLOCKED, v2 drops not approved:$DROPS"; exit 1; fi
 [ "$DN" = 0 ] || [ -s "$W/down.txt" ] || { echo "render-gate: drops reported but not parsed"; exit 1; }
-# Slides step (full gate only): every deck drawn by the PR binary, deck means vs baseline-win.tsv (test/tools/slides-gate.sh, ~80 s)
-if [ "$MODE" = full ] && [ "${GATE_SLIDES:-1}" = 1 ]; then
-  SL=$(LQ=$LQ test/tools/slides-gate.sh "$BIN" "$JOBS" 2>&1); src=$?; echo "$SL" | tail -20
+# Slides step result (started before the Word pair, see SLPID): block on decks worse than the baseline
+if [ -n "${SLPID:-}" ]; then
+  wait "$SLPID"; src=$?; tail -20 "$W/slides.out"
   [ "$src" = 1 ] && { echo "render-gate: BLOCKED, Slides decks worse than the baseline (above)"; exit 1; }
 fi
 echo "render-gate: $NCMP sets compared; clean ($(wc -l < "$W/down.txt") approved drops)"
