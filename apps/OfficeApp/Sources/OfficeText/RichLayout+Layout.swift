@@ -2178,7 +2178,7 @@ extension RichLayout {
                 // set in it: xb urd 73d948's header cell "خیرالامۃ:جلد1شمارہ1", 87pt in Word's print, widens its 86.5pt column to the whole
                 // string and sets one line, where ours measured one letter and parted it over two.)
                 else if theme.wordRules, RichTextTheme.wordWindowsPages, Self._arabicWordJoins(a, b) { parts = false }
-                else if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell != nil, !pctWidthTable, (document.compatibilityMode ?? 12) >= 15, a >= 0x0E01, a <= 0x0E7F, b >= 0x0E01, b <= 0x0E7F { parts = false }
+                else if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell != nil, !pctWidthTable && (document.compatibilityMode ?? 12) >= 15 || pctWidthTable && document.compatibilityMode == nil, a >= 0x0E01, a <= 0x0E7F, b >= 0x0E01, b <= 0x0E7F { parts = false }
                 else if breakBefore.contains(k) { parts = true }
                 // (After a hyphen before a digit in a time of day, where a
                 // word wider than its cell must part: zh-b3e887f7's schedule keeps its
