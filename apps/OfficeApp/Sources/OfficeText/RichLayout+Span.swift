@@ -2049,18 +2049,30 @@ extension RichLayout {
         }
     }
 
+    /// A paragraph with an empty line (two hard breaks in a row): the engine's glyph visitor traps on it, whatever the range
+    /// (pilot ab07bcf5 p5's shadowed title, with empty runs between its breaks), so no glyph paths are asked of it.
+    static func _hasEmptyLine(_ p: RichParagraph) -> Bool {
+        var last: UInt16 = 0
+        for u in p.text.utf16 {
+            if (u == 10 || u == 11 || u == 0x2028) && (last == 10 || last == 11 || last == 0x2028) { return true }
+            last = u
+        }
+        return false
+    }
+
     /// A run's sharp shadow as the letters' outlines, offset and filled in the shadow's colour, under the text
     /// (`shadowsAsPaths`: a PDF's text layer then holds the words once). Blurred shadows and glows stay the engine's.
     func _paintShadowPaths(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
                            _ canvas: any Canvas, map: _OffsetMap? = nil) {
-        guard RichTextTheme.shadowsAsPaths else { return }
+        guard RichTextTheme.shadowsAsPaths, !Self._hasEmptyLine(p) else { return }
         var at = 0
         for run in p.runs {
             defer { at += run.length }
             guard run.length > 0, let sh = run.style.shadow, !sh.glow || RichTextTheme.shadowBlurDeviceScale != nil, sh.ground == nil,
                   run.style.script == .normal, !run.style.noFill else { continue }
             let a = map?.painter(at) ?? at, b = (map?.painter(at + run.length - 1) ?? at + run.length - 1) + 1
-            guard let path = painter.glyphPath(range: a..<b) else { continue }
+            // (A run the offset map folds away, such as a line break beside empty runs, can map to a backwards range: draw nothing for it.)
+            guard b > a, let path = painter.glyphPath(range: a..<b) else { continue }
             let k = _px(1)
             let paint = Paint(); paint.style = .fill
             if sh.glow {
@@ -2089,13 +2101,14 @@ extension RichLayout {
     /// outlined runs showing, as a stroke in the outline's colour centred on the glyph edge (a stroke-only twin over the fill).
     func _paintOutlineStrokes(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
                               _ canvas: any Canvas, map: _OffsetMap? = nil) {
-        guard theme.wordRules || theme.outlineOverFill, p.runs.contains(where: { ($0.style.outline ?? $0.style.textLine) != nil && !$0.style.noFill }), let root = painter.text else { return }
+        guard !Self._hasEmptyLine(p), theme.wordRules || theme.outlineOverFill, p.runs.contains(where: { ($0.style.outline ?? $0.style.textLine) != nil && !$0.style.noFill }), let root = painter.text else { return }
         var marks: [(Range<Int>, Paint)] = []
         var at = 0
         for run in p.runs {
             defer { at += run.length }
             guard run.length > 0, let line = run.style.outline ?? run.style.textLine, line.width > 0, !run.style.noFill else { continue }
             let a = map?.painter(at) ?? at, b = (map?.painter(at + run.length - 1) ?? at + run.length - 1) + 1
+            guard b > a else { continue }
             let stroke = Paint(); stroke.style = .stroke
             stroke.strokeWidth = max(0.5, _px(line.width)); stroke.color = line.color
             marks.append((a..<b, stroke))
