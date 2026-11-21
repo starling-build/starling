@@ -22,9 +22,10 @@ extension RichLayout {
               !(theme.wordRules && ts.headerRow && c.row < ts.headerRowCount),
               !(theme.wordRules && ts.rowsExactHeight.contains(c.row) && c.ownRowHeight <= pgs.contentH + 0.01) else { return false }
         // (Nor a row of a floating table that holds an anchored picture the text wraps round, when a page could hold it: 99a68284's row goes
-        // whole to the next page in Word's print, where ours parted it at the foot.)
+        // whole to the next page in Word's print, where ours parted it at the foot. Only when the picture would pass the foot from where the row stands:
+        // lo-47598455's two 92pt pictures at 500pt on a 842pt page stay on it, the row parting there.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, !atTop, ts.keptPosition != nil || ts.floatOffsetY != nil, c.ownRowHeight <= pgs.contentH + 0.01,
-           (i ..< j).contains(where: { k in let q = document.paragraphs[k]; return (q.inlineImages.inOrder + [q.image].compactMap({ $0 })).contains(where: { $0.float?.wraps == true }) }) {
+           (i ..< j).contains(where: { k in let q = document.paragraphs[k]; return (q.inlineImages.inOrder + [q.image].compactMap({ $0 })).contains(where: { $0.float?.wraps == true && $0.float?.verticalFrom == "paragraph" && pgs.y + _px(($0.float?.y ?? 0) + $0.height) > pgs.contentH }) }) {
             RuleTrace.hit("floating-table-row-with-an-anchored-picture-goes-whole")
             return false
         }
