@@ -51,6 +51,9 @@ enum SlideFonts {
     static func windowsName(_ family: String) -> String {
         let n = family.trimmingWhitespace().lowercased()
         if missingRoman.contains(n), OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil { return "palatino linotype" }
+        // (Arial's PostScript name, "ArialMT" or "Arial MT", is Arial in the print: 5ddc3269 sets "Arial MT" 20pt at Arial's widths, where
+        // ours drew Carlito and broke "intercambiar ideas y" a word early.)
+        if (n == "arialmt" || n == "arial mt") && OfficeFonts.installed(family) == nil && embeddedFamily(family) == nil { return "arial" }
         return n == "dejavu sans" && OfficeFonts.installed(family) == nil ? "verdana" : n
     }
 
@@ -90,6 +93,7 @@ enum SlideFonts {
         if let own = OfficeFonts.installed(family) { return own }
         if let mine = embeddedFamily(family) { return mine }
         if windowsName(family) == "palatino linotype", family.trimmingWhitespace().lowercased() != "palatino linotype" { return resolve("Palatino Linotype") }
+        if windowsName(family) == "arial" && family.trimmingWhitespace().lowercased() != "arial" { return resolve("Arial") }
         if let free = freeFaces[family.trimmingWhitespace().lowercased()] { return free }
         let face = OfficeFonts.substitute(family)
         guard face == OfficeFonts.cambria else { return face }
