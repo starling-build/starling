@@ -1871,7 +1871,7 @@ extension RichLayout {
             var pil = picturesInLine
             // (Where the line-growing step after layout runs, the paragraph keeps its strut and that step sizes the taller equation lines.)
             equationLinesGrowAfterLayout = theme.wordRules && RichTextTheme.wordWindowsPages && p.cell == nil && !style.rightToLeft && _columns <= 1
-                && style.lineSpacing > 1.001 && style.lineHeightPoints == nil && besideLineIndents.isEmpty
+                && style.lineSpacing > 0.999 && style.lineHeightPoints == nil && besideLineIndents.isEmpty
             if pil, theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft,
                inline.allSatisfy({ $0.image.map { $0.name == "m:oMath" && $0.float == nil } ?? true }),
                (equationLinesGrowAfterLayout || _equationsAfterFirstLine(span, inline.map { $0.dimensions }, align: align, rtl: style.rightToLeft, width: textWidth + _px(tieSlack), indents: besideLineIndents)
