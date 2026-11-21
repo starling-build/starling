@@ -2155,6 +2155,8 @@ extension RichLayout {
                     // external leading, unscaled by the multiple, and the text's on its own; the lift is the difference. sa1 51fd0f44's 13.5pt
                     // Times New Roman bullets over 12pt Arial Nova Light at 1.15: 0.82pt, Word's items 21.48 apart.)
                     if theme.wordRules, RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil, style.lineSpacing > 1.001,
+                       // (Latin text only, as measured: Korean items in 바탕 9pt under an Arial 10pt number sit on the text's own line, 03cd29dc 98.1 to 78.7 with the lift.)
+                       !p.text.unicodeScalars.contains(where: { $0.value >= 0x250 && !($0.value >= 0x2000 && $0.value < 0x2070) }),
                        let bs = _levelNumberSize(p, document), let ts = _markSize(p, document), bs > ts, ts > 0,
                        let bf = bulletFonts.latin,
                        let nb = theme.faceResolver?(bf, false)?.baseline,
