@@ -2057,12 +2057,20 @@ extension RichLayout {
         var at = 0
         for run in p.runs {
             defer { at += run.length }
-            guard run.length > 0, let sh = run.style.shadow, !sh.glow, sh.ground == nil,
+            guard run.length > 0, let sh = run.style.shadow, !sh.glow || RichTextTheme.shadowBlurDeviceScale != nil, sh.ground == nil,
                   run.style.script == .normal, !run.style.noFill else { continue }
             let a = map?.painter(at) ?? at, b = (map?.painter(at + run.length - 1) ?? at + run.length - 1) + 1
             guard let path = painter.glyphPath(range: a..<b) else { continue }
             let k = _px(1)
             let paint = Paint(); paint.style = .fill
+            if sh.glow {
+                // (A glow, as the engine draws it in a PDF: ten blurred copies, sigma a fifth of the radius, 85% strength.)
+                paint.color = Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, Double(sh.color.alpha) / 255 * 0.85)
+                paint.maskFilter = MaskFilter(blur: .normal, sh.blur * 0.2 * k)
+                let at0 = path.shift(Offset(origin.dx, origin.dy))
+                for _ in 0 ..< 10 { canvas.drawPath(at0, paint) }
+                continue
+            }
             let moved = path.shift(Offset(origin.dx + sh.dx * k, origin.dy + sh.dy * k))
             if sh.blur > 0, RichTextTheme.shadowBlurDeviceScale != nil {
                 // (The engine's blurred text shadow, as it draws it in a PDF: 55% strength, sigma 0.4 of the radius.)
