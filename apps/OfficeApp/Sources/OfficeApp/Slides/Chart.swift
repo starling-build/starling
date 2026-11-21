@@ -4504,7 +4504,7 @@ enum ChartPainter {
                 // area's, its foot the category names, their gap and the category title over it. tdf119138's "Test number"
                 // stands 17 px over where ours was, its middle at the plot's.)
                 var lift = 0.0
-                if c.onSheet, c.bareAxisTitle, c.type != .scatter {
+                if (c.onSheet && c.bareAxisTitle && c.type != .scatter) || (c.onSlide && c.categoryAxisTitleSize != nil) {
                     let names = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.2 * k
                     let below = c.categoryAxisTitle != nil ? axisText(c.categoryAxisTitle!, c.onSlide ? (c.categoryAxisTitleSize ?? titleSize) : titleSize, .infinity) : nil
                     let titleRoom = (below?.height ?? 0) + (below == nil ? 0 : 4 * k + 6 * k)
