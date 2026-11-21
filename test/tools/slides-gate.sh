@@ -16,14 +16,23 @@ T=$(date +%s)
 PILOT=${PILOT_DIR:-${CORPUS_CACHE:-/data/corpus-cache}/test/corpus/pptx-pilot}; PB=$PILOT/baseline-pilot-win.tsv; STG=${PILOT_STAGING:-${CORPUS_CACHE:-/data/corpus-cache}/staging/pptx-new/pilot}
 mkdir -p "$W/in" "$W/ppt"
 for f in "$DECKS"/*.pptx; do ln -s "$f" "$W/in/"; done; for f in "$PPT"/*-orig.pdf; do ln -s "$f" "$W/ppt/"; done
-BASEALL=$BASE
+BASEALL=$BASE; MISS=""
+# A pilot corpus that is present but whose baseline is not, or a baseline row whose deck or print is not, FAILS the step (never a silent skip).
+if [ ! -s "$PB" ] && [ -n "$(ls "$PILOT/decks" 2>/dev/null | head -1)" ]; then MISS="$MISS $PB"; fi
 if [ -s "$PB" ]; then
-  for n in $(cut -f1 "$PB" | sed 's#.*/##'); do
-    for d in "$PILOT/decks" "$PILOT/decks/ja" "$PILOT/decks/raw" "$STG/ja" "$STG/raw"; do [ -f "$d/$n" ] && { ln -sf "$d/$n" "$W/in/$n"; break; }; done
-    for d in "$PILOT/powerpoint-win" "$STG/ja/powerpoint-win" "$STG/raw/powerpoint-win"; do [ -f "$d/${n%.pptx}-orig.pdf" ] && { ln -sf "$d/${n%.pptx}-orig.pdf" "$W/ppt/"; break; }; done
+  for rel in $(cut -f1 "$PB"); do
+    n=${rel##*/}; found=""
+    for d in "$PILOT/decks/$rel" "$PILOT/decks/$n" "$STG/$rel"; do [ -f "$d" ] && { ln -sf "$d" "$W/in/$n"; found=1; break; }; done
+    [ -n "$found" ] || MISS="$MISS deck:$rel"
+    found=""
+    for d in "$PILOT/powerpoint-win" "$PILOT/powerpoint-win/${rel%/*}" "$STG/${rel%/*}/powerpoint-win"; do [ -f "$d/${n%.pptx}-orig.pdf" ] && { ln -sf "$d/${n%.pptx}-orig.pdf" "$W/ppt/"; found=1; break; }; done
+    [ -n "$found" ] || MISS="$MISS print:$rel"
   done
   { cat "$BASE"; awk -F'\t' 'BEGIN{OFS="\t"} {sub(/.*\//,"",$1); print}' "$PB"; } > "$W/base.tsv"; BASEALL=$W/base.tsv
 fi
+[ -s "$CC/baseline-lines-win.tsv" ] || MISS="$MISS $CC/baseline-lines-win.tsv"
+if [ -s "$PB" ] && ! ls "$PILOT"/baseline-*lines*.tsv >/dev/null 2>&1; then MISS="$MISS $PILOT/baseline-lines-pilot-win.tsv"; fi
+[ -z "$MISS" ] || { echo "slides-gate: FAILED, missing:$MISS"; exit 1; }
 DECKS=$W/in; PPT=$W/ppt
 PDFDIFF_NO_PAIRS=1 OFFICE_APP=$BIN "$ROOT/test/pptx-app-render.sh" -j "$JOBS" "$DECKS" "$PPT" "$W" $(ls -SL "$DECKS" | grep '\.pptx$') > "$W/run.log" 2>&1
 [ -s "$W/render.tsv" ] || { echo "slides-gate: no scores produced"; tail -3 "$W/run.log" | cut -c1-200; exit 1; }
