@@ -1287,7 +1287,10 @@ extension RichLayout {
         // most Word allows) with hangingChars 200 at 10.5pt, stands at the
         // margin in Word's print and runs on 21pt in; ours had no room
         // for it, and the notes after it went to a page of their own.)
-        if let index, _px(left) >= _flowWidth(index) { left = max(0, -firstLineIndent(p, document)) }
+        // (An indent past the column but inside the page is kept: Word stacks the paragraph one
+        // character a line down the column; colindent labs, 250pt in a 216pt column. One past the
+        // whole page has no place to stand and goes.)
+        if let index, _px(left) >= _flowWidth(index), !(_perSection ? _columnsOf(paragraph: index) > 1 : _columns > 1) || _px(left) >= _px(_setup(ofParagraph: index).width) { left = max(0, -firstLineIndent(p, document)) }
         return (_wholeCells(left, index, document), _wholeCells(right, index, document))
     }
 

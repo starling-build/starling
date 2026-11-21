@@ -1940,7 +1940,13 @@ extension RichLayout {
             // between them or not.)
             if theme.wordRules, !p.text.isEmpty {
                 let em = _px(p.runs.first?.style.fontSize ?? _named(p, document)?.char.fontSize ?? theme.fontSize)
-                if textWidth < em { lineWidth = max(lineWidth, em) }
+                if textWidth < em {
+                    // Word sets a line narrower than a glyph one character wide, whatever the
+                    // glyph (colindent labs: Times 'm' and 'i' alike stack one a line); a CJK
+                    // character is the em wide and the floor below keeps it.
+                    let latin = p.cell == nil && left > 0 && textWidth <= 1.01 && p.text.unicodeScalars.allSatisfy { $0.value < 0x0250 }
+                    lineWidth = latin ? max(lineWidth, 1) : max(lineWidth, em)
+                }
             }
             // (Word holds a reserve back from the fit of a line set `mediumKashida` or
             // `highKashida` and justifies across the whole width: its lab (tdf155707, Calibri 11,
