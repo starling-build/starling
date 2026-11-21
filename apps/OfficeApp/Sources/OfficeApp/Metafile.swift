@@ -233,6 +233,8 @@ private struct Player {
     struct DC {
         var winOrg = Offset.zero
         var winExt = Size(1, 1)
+        /// ScaleWindowExt's ratios (numerator over denominator, across and down), which a later SetWindowExt does not undo.
+        var extScale = Size(1, 1)
         var vpOrg = Offset.zero
         var vpExt = Size(1, 1)
         /// Whether the extents scale (MM_ISOTROPIC, MM_ANISOTROPIC).
@@ -293,8 +295,8 @@ private struct Player {
         if isWMF {
             // Into the first window, which is the picture.
             guard let frame, dc.winExt.width != 0, dc.winExt.height != 0 else { return Offset(wx, wy) }
-            return Offset(frame.left + (wx - dc.winOrg.dx) / dc.winExt.width * frame.width,
-                          frame.top + (wy - dc.winOrg.dy) / dc.winExt.height * frame.height)
+            return Offset(frame.left + (wx - dc.winOrg.dx) / dc.winExt.width * frame.width * dc.extScale.width,
+                          frame.top + (wy - dc.winOrg.dy) / dc.winExt.height * frame.height * dc.extScale.height)
         }
         let kx = dc.scales && dc.winExt.width != 0 ? dc.vpExt.width / dc.winExt.width : 1
         let ky = dc.scales && dc.winExt.height != 0 ? dc.vpExt.height / dc.winExt.height : 1
@@ -684,6 +686,10 @@ private struct Player {
                     // −1824 — maps into it upside down, and a frame of
                     // negative height drew nothing.)
                     frame = Rect.fromLTWH(o.dx, o.dy, abs(dc.winExt.width), abs(dc.winExt.height))
+                }
+            case 0x0412:   // ScaleWindowExt: yDenom, yNum, xDenom, xNum (1c3bb90e's map prints at 2165/2313 across, 2337/2395 down)
+                if i16(a) != 0, i16(a + 4) != 0 {
+                    dc.extScale = Size(dc.extScale.width * Double(i16(a + 6)) / Double(i16(a + 4)), dc.extScale.height * Double(i16(a + 2)) / Double(i16(a)))
                 }
             case 0x001E: save()
             case 0x0127: restore(i16(a))
