@@ -72,6 +72,17 @@ enum SlideFonts {
     static func face(_ family: String?, _ eastAsian: Bool) -> RichResolvedFace? {
         // (None of a stand-in's widths for the machine's own face.)
         guard !eastAsian, let family, OfficeFonts.installed(family) == nil else { return nil }
+        if let cuts = SlideEastAsianWidths.lookup(windowsName(family)) {
+            // (An East Asian face at its own measured widths, Latin and the rest past ASCII: PowerPoint sets it by itself, not by a stand-in's.)
+            var face = RichResolvedFace(family: resolve(family))
+            let regular = SlideEastAsianWidths.parse(cuts.regular.other)
+            let bold = cuts.bold.map { SlideEastAsianWidths.parse($0.other) } ?? regular
+            face.advances = cuts.regular.ascii
+            face.boldAdvances = cuts.bold?.ascii ?? cuts.regular.ascii
+            face.otherAdvances = regular
+            face.boldOtherAdvances = bold
+            return face
+        }
         switch windowsName(family) {
         case "lucida sans unicode":
             var face = RichResolvedFace(family: resolve(family))
