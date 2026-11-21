@@ -4624,7 +4624,7 @@ enum ChartPainter {
             let barNameWidth = (!c.onSlide && !c.onSheet ? 0.2 : 0.3) * area.width
             // (Under a multi-level axis the names are not wrapped: lo tdf126244's
             // "Categoria 1 Categoria 1 Categoria 4" is one line in Word's print.)
-            catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, horizontal ? (c.categoryLevels.isEmpty ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : max(slot - 2 * k, 8 * k)) }
+            catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, horizontal ? (c.categoryLevels.isEmpty ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : max(slot * Double(max(1, c.categoryLabelSkip)) - 2 * k, 8 * k)) }
             if !horizontal, c.type != .area, !c.categoryAxisDeleted, let turn = c.categoryLabelTurn {
                 // As the file says: turned (up to a quarter, either way) or
                 // level.
@@ -4648,8 +4648,11 @@ enum ChartPainter {
                 // quarter right angle, like the columns', when they do not fit
                 // their slots: lo-c996762f20bf4f32's five dates in a 217pt chart;
                 // ours broke "1/5/2002" inside its year.)
-                let room = max(slot - 2 * k, 8 * k)
-                let words = c.categories.flatMap { $0.split(separator: " ").map(String.init) }
+                // (Where the file shows only every 60th name (`tickLblSkip`), each shown one has that many slots: ja-7c77f08b's years,
+                // level in PowerPoint's print, ours turned upright.)
+                let skip = max(1, c.categoryLabelSkip)
+                let room = max(slot * Double(skip) - 2 * k, 8 * k)
+                let words = c.categories.enumerated().filter { $0.offset % skip == 0 }.flatMap { $0.element.split(separator: " ").map(String.init) }
                 let widest = words.map { w -> Double in
                     let t = categoryText(w, catSize, .infinity)
                     defer { t.dispose() }
