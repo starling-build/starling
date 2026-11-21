@@ -3806,7 +3806,7 @@ extension RichLayout {
         // the strut and the line above's descent plus this line's ascent. Lab frac3 case 10, 14pt at least, 11pt text and
         // fraction: 16.34 and 16.68 where the lines were all 14.0.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, !p.text.isEmpty, !style.rightToLeft, _columns <= 1,
-           style.lineHeightIsMinimum, let least = style.lineHeightPoints, least > 0, keepClear == nil, besideLineIndents.isEmpty,
+           (style.lineHeightIsMinimum && (style.lineHeightPoints ?? 0) > 0 || style.lineHeightPoints == nil && abs(style.lineSpacing - 1) < 0.001), keepClear == nil, besideLineIndents.isEmpty,
            Self._paired(painter) == nil, let boxes = painter.inlinePlaceholderBoxes, boxes.count == inline.count, !boxes.isEmpty {
             let bottoms = Self._rawLineBottoms(painter)
             let metrics = painter.computeLineMetrics()
@@ -3825,9 +3825,11 @@ extension RichLayout {
                 for line in 1 ..< bottoms.count {
                     let advance = bottoms[line] - bottoms[line - 1]
                     let tD = textDescent[line - 1]
-                    let a = max(ascent[line], advance - tD)
+                    let a = max(ascent[line], style.lineHeightPoints == nil ? metrics[line].baseline - bottoms[line - 1] : advance - tD)
                     let want = max(advance, max(descent[line - 1], tD) + a)
-                    if want > advance + 0.01 { extra[line] = want - advance }
+                    // (At single spacing the line after a bigger run already stands that run's descent under it: the gap to beat is the natural one.)
+                    let held = style.lineHeightPoints == nil ? max(advance, tD + metrics[line].baseline - bottoms[line - 1]) : advance
+                    if want > held + 0.01 { extra[line] = want - held }
                 }
                 if extra.contains(where: { $0 > 0 }) {
                     RuleTrace.hit("word-a-fraction-in-at-least-spacing-takes-its-own-ascent-and-descent")
