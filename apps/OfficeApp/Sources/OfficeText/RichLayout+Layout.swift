@@ -2309,7 +2309,7 @@ extension RichLayout {
             // (An EMPTY paragraph asks nothing of its column before 2013's layout, whatever its indent: sa1 5e813226 p28's
             // 236-twip spacer column, empty cells one of them in a ListParagraph (indent 36pt), is 11.6pt in Word's print, grid kept,
             // where ours asked the 36pt and widened it to 46.8, moving the columns after it.)
-            if theme.wordRules, RichTextTheme.wordWindowsPages, units.isEmpty, p.image == nil, (document.compatibilityMode ?? 12) < 15, document.compatibilityMode != nil {
+            if theme.wordRules, RichTextTheme.wordWindowsPages, units.isEmpty, p.image == nil, document.compatibilityMode != nil {
                 RuleTrace.hit("word-empty-paragraph-asks-no-indent-of-its-column-before-2013")
                 m = 0
             } else if (document.compatibilityMode ?? 12) < 15 {
