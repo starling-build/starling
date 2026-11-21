@@ -64,6 +64,28 @@ extension _StyledFrame {
             hyphenFace = nil
             // (Georgian letters in a run whose face has none: Word's print draws them in Sylfaen, at its 1.317 em line and its widths, where the stand-in
             // drew DejaVu Sans's. dx2 72f67d49, Calibri runs under the theme's Geor = Sylfaen: Word 52 lines at 15.7 pt, ours 55 at 14.5.)
+            // (The run's spaces, commas, figures and Latin letters are not Georgian: Word's print draws them in the run's own face, here Arial Bold
+            // for an Arial Unicode MS run, a piece each beside the Sylfaen letters: dx2 ka 746c2e0c, words 3.34 pt apart, ours 3.0 at Sylfaen's space.)
+            if !ctx.splittingGeorgian, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, rawText.count > 1 {
+                func isKa(_ c: Character) -> Bool { c.unicodeScalars.first.map { $0.value >= 0x10A0 && $0.value <= 0x10FF } ?? false }
+                let kaFace = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
+                if kaFace != "sylfaen", kaFace != "ghea grapalat", rawText.contains(where: isKa), rawText.contains(where: { !isKa($0) }) {
+                    ctx.splittingGeorgian = true
+                    defer { ctx.splittingGeorgian = false }
+                    RuleTrace.hit("word-georgian-letters-and-their-spaces-are-pieces")
+                    var out: [TextSpan] = []
+                    var from = rawText.startIndex
+                    while from < rawText.endIndex {
+                        let ka = isKa(rawText[from])
+                        var to = from
+                        while to < rawText.endIndex, isKa(rawText[to]) == ka { to = rawText.index(after: to) }
+                        let n = rawText.distance(from: rawText.startIndex, to: from)
+                        out += _spanStyled(&ctx, rawText[from ..< to], run, at: base + n, next: to < rawText.endIndex ? rawText[to] : next, symbolsShown: symbolsShown)
+                        from = to
+                    }
+                    return out
+                }
+            }
             if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile {
                 var georgian = 0, letters = 0
                 for u in rawText.unicodeScalars where u.properties.isAlphabetic { letters += 1; if u.value >= 0x10D0 && u.value <= 0x10FA { georgian += 1 } }

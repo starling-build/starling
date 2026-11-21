@@ -55,6 +55,7 @@ struct _SpanCtx {
     var rubyTails: [Int : Double]
     var spacesAfterNbsp: Bool
     var splittingMark: Bool
+    var splittingGeorgian: Bool
     var splittingSpaces: Bool
     var splittingVariation: Bool
     var spread: [Int : Double]
