@@ -262,7 +262,10 @@ extension RichLayout {
         // c2104d44 sends the empty kept paragraph that opens the chain "…, Jueves, 16 de marzo" to the next page with it,
         // and stands the line before it at the foot.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, document.paragraphs[k].style.keepNext, k + 1 < count,
-           let here = _cells[k], let next = _cells[k + 1], next.table == here.table, next.row == here.row, next.column == here.column {
+           let here = _cells[k], let next = _cells[k + 1], next.table == here.table, next.row == here.row, next.column == here.column,
+           document.paragraphs[k].text.allSatisfy({ $0 == " " || $0 == "\n" }) {
+            // (Only an empty one: lo-89daf93d's "PSTN Calling" heading, kept with the heading under it, still stands at the foot
+            // in Word's print while the heading under it and its text part to the next page.)
             return lines
         }
         return lines + [end]
