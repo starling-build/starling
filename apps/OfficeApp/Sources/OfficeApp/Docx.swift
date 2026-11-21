@@ -7105,7 +7105,14 @@ enum DocxFormat {
                                                           atFoot: b.first("wps:bodyPr")?["anchor"] == "b"))
                         }
                     } else if !boxes.isEmpty, boxes.count > 1 || !drawingWordArt.isEmpty
-                                || (placed[0].place.top - (Double(gx?.first("a:chOff")?["y"] ?? "") ?? 0) > 1),
+                                // (A lone box that is not the group's whole child frame: one at the group's top edge but off its left,
+                                // narrower or shorter is set from its own offset and scale as Word draws it; dx2 9d7e8c61's circled "1",
+                                // lab 2 boxes G, K and L at 315 / 307.6 / 315 where the group's origin put them at 300.)
+                                || (placed[0].place.top - (Double(gx?.first("a:chOff")?["y"] ?? "") ?? 0) > 1)
+                                || (placed.count == 1 && gx != nil && (
+                                    abs(placed[0].place.left - (Double(gx?.first("a:chOff")?["x"] ?? "") ?? 0)) > 1
+                                    || abs(placed[0].place.width - (Double(gx?.first("a:chExt")?["cx"] ?? "") ?? 0)) > 1
+                                    || abs(placed[0].place.height - (Double(gx?.first("a:chExt")?["cy"] ?? "") ?? 0)) > 1)),
                               boxes[0].descendant("w:txbxContent") === content {
                         // (A single box lower in its group is one of these too:
                         // lo tdf126426's white box at the foot of a page-size
