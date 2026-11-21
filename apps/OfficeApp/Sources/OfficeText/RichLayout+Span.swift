@@ -1615,6 +1615,17 @@ extension RichLayout {
                     let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
                     s = s.copyWith(ascentOverride: m.0 * multiple * size, descentOverride: m.1 * multiple * size, height: (m.0 + m.1) * multiple, leadingDistribution: .even)
                 }
+                // (A right-to-left run in a complex face Word lacks, drawn in Arial, carries Arial's own line (1.149 em) itself: where a Sakkal Majalla run
+                // makes the paragraph's heights differ there is no strut, and each line took the Noto stand-in's 17.1 pt where Word's step 14.8. dx2 ur 84f36322.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, kind >= 0, run.rightToLeft, s.ascentOverride == nil, p.style.lineHeightPoints == nil, pitch == nil,
+                   let size = s.fontSize, size > 0.5, run.ruby == nil,
+                   case let cs = run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily,
+                   let face = theme.complexFace(cs, latin: run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily, letters: run.csLetters), face.arialStandIn {
+                    RuleTrace.hit("word-arial-stand-in-complex-run-keeps-arials-line")
+                    let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+                    let sp = Self._multipleSplit(ascent: 0.905, descent: 1.149 - 0.905, multiple: multiple)
+                    s = s.copyWith(ascentOverride: size * sp.0, descentOverride: size * sp.1, height: 1.149 * multiple, leadingDistribution: .even)
+                }
                 if kind == -4, let cjk = Self._cjkFaceFamily {
                     RuleTrace.hit("word-east-asian-shape-is-the-cjk-faces-glyph")
                     s = s.copyWith(fontFamily: cjk)
