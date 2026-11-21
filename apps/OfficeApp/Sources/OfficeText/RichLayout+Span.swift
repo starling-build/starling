@@ -1889,6 +1889,15 @@ extension RichLayout {
                                        leadingDistribution: .even, debugLabel: (s.debugLabel ?? "") + (raisedRun ? " shadow-line@\(allRaised ? above + below : above)" : " shadow-line"))
                     }
                 }
+                // (A vertical page's column of East Asian text steps by the single line and 0.0425 of the size more: lab vpitch, Word's print of
+                // Meiryo 1.990 em (ours 1.950), MS Mincho and Gothic 1.344 (1.297), Yu Mincho 1.7145 (1.673), at 8 to 24 pt.)
+                if vertical, kind < 0, theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil, pitch == nil,
+                   abs(p.style.lineSpacing - 1) < 0.005, let h = s.height, s.fontSize ?? 0 > 0.5 {
+                    RuleTrace.hit("vertical-plain-column-pitch-adds-0.0425-em")
+                    if let asc = s.ascentOverride, let desc = s.descentOverride, let size = s.fontSize {
+                        s = s.copyWith(ascentOverride: asc + 0.02125 * size, descentOverride: desc + 0.02125 * size, height: h + 0.0425)
+                    } else { s = s.copyWith(height: h + 0.0425) }
+                }
                 // (A run of tabs alone takes no line of its own in a paragraph of
                 // other text: windows-1's lab `ttab`, zh-147bdae0's "四、承諾事項"
                 // — its 16pt bold tab after 14pt text, at the line's end, mid-line
