@@ -170,6 +170,8 @@ public final class RichTextTheme {
     /// 21.375), and a line that fits there by a hair can be a hair too
     /// long at the faces' own widths. nil for the faces' own.
     public var advanceGrid: Double? = nil
+    /// A face with its own width table snaps each glyph to a thousandth of an em, not to `advanceGrid` points.
+    public var advanceGridOfFaceTables = false
 
     /// Each face's natural line height as a multiple of its size (ascent,
     /// descent and line gap — Calibri's 1.22, Arial's 1.15), measured once:
