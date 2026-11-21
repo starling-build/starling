@@ -6959,8 +6959,14 @@ extension ChartPainter {
             guard let f = frame, !c.onSlide, !c.onSheet, c.plotLayout == nil, !c.legend, (c.title ?? "").isEmpty, abs(tilt - 30) < 0.5 else { return .zero }
             return Offset(f.center.dx - (origin.dx + scale * (lo.x + hi.x) / 2), f.center.dy - 1.5 * k - (origin.dy + scale * (lo.y + hi.y) / 2))
         }()
+        // (A Word pie in a plot the file places (inner) stands above the plot's middle by 0.057 of the height the pie leaves unused:
+        // lab pieslack, one pie in plots 270, 212, 167 and 121 pt high, its middle 5.0, 2.0, 0.2 and 0 over the 121 pt one's.)
+        let slackUp: Double = {
+            guard !c.onSlide, !c.onSheet, c.plotLayout != nil, c.plotLayoutInner else { return 0 }
+            return 0.057 * max(0, plot.height - scale * (hi.y - lo.y))
+        }()
         canvas.save()
-        canvas.translate(drawn.dx, drawn.dy)
+        canvas.translate(drawn.dx, drawn.dy - slackUp)
         func at(_ a: Double, _ f: Double = 1, _ h: Double = 0, pull: (x: Double, z: Double) = (0, 0)) -> Offset {
             let q = unit(a, f, h, pull: pull)
             return Offset(origin.dx + q.x * scale, origin.dy + q.y * scale)
