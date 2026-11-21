@@ -601,9 +601,25 @@ enum WordArt {
             // letters' feet are on the outside).
             var pour: ((Double, Double) -> Offset)? = nil
             func poured(start: Double, sweep: Double, feetOut: Bool) {
-                let inner = (warp.adjust.count > 1 ? warp.adjust[1] : 50000) / 100_000
+                // (Arch Down Pour's ring is thinner at 25000: PowerPoint's print of warps2, overlap .36 at 50000, .91 at 25000.)
+                let inner = (warp.adjust.count > 1 ? warp.adjust[1] : (warp.preset == "textArchDownPour" ? 25000 : 50000)) / 100_000
+                // (The text runs along the outer ellipse by its length, not by its angle: the two differ on
+                // a box wider than tall.)
+                let rx = area.width / 2, ry = area.height / 2, steps = 360
+                var arc = [0.0]
+                for k in 1...steps {
+                    let a0 = (start + sweep * Double(k - 1) / Double(steps)) * .pi / 180, a1 = (start + sweep * Double(k) / Double(steps)) * .pi / 180
+                    arc.append(arc[k - 1] + ((rx * (cos(a1) - cos(a0))) * (rx * (cos(a1) - cos(a0))) + (ry * (sin(a1) - sin(a0))) * (ry * (sin(a1) - sin(a0)))).squareRoot())
+                }
+                func angle(_ u: Double) -> Double {
+                    let want = max(0, min(1, u)) * (arc.last ?? 1)
+                    var lo = 0, hi = steps
+                    while hi - lo > 1 { let mid = (lo + hi) / 2; if arc[mid] <= want { lo = mid } else { hi = mid } }
+                    let span = arc[hi] - arc[lo], t = span > 0 ? (want - arc[lo]) / span : 0
+                    return (start + sweep * (Double(lo) + t) / Double(steps)) * .pi / 180
+                }
                 pour = { u, v in
-                    let a = (start + sweep * u) * .pi / 180
+                    let a = angle(u)
                     let rho = feetOut ? inner + (1 - inner) * v : 1 - (1 - inner) * v
                     return Offset(area.center.dx + area.width / 2 * rho * cos(a), area.center.dy + area.height / 2 * rho * sin(a))
                 }
