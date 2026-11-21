@@ -2230,7 +2230,17 @@ extension RichLayout {
                 // sa1 2303e6f9 lab hdrpoly, Word's body top steps by 13.42pt with the picture's height and its polygon's foot, never between.)
                 // (Only a tight wrap's: a square one's line lands at the picture's foot and its distance, not on a whole line below it: dx2 zh 837ac08d's 95.8pt square picture, the body at 150.62 in Word's print, a line lower, 162.9, with the rounding.)
                 if wrapped, f.wrapsTight, line > 0 { below = max(0, (below / line).rounded(.up)) * line }  // (the wrap foot is where the picture really stands, not where it is clamped)
-                end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + below + line)
+                var pushedLine = 0.0
+                // (A top-and-bottom picture that starts ABOVE its paragraph and runs into the paragraph's line pushes that line under it,
+                // as a wrapped one does if the line holds spaces (an empty one is not pushed: sa2 3c4382f0's logo 4pt up from an empty line, the body at its foot), (its height holds the space after): dx2 ka 746c2e0c's 68.4pt logo set 36pt above a header
+                // paragraph of spaces (after 8pt), Word's body at 99.2 = picture foot 77.45 + the 13.4pt line + 8pt; ours stood 21.5pt up.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !wrapped, !f.wraps, f.y < 0, f.y + image.height > 0, !f.wrapsTight,
+                   hp.text.contains(" "), hp.text.allSatisfy({ $0 == " " || $0 == "\u{FFFC}" || $0 == "\n" }), j < header.layout._heights.count,
+                   !hp.inlineImages.inOrder.contains(where: { $0.float == nil }) {
+                    RuleTrace.hit("word-header-line-is-pushed-under-a-top-and-bottom-picture-from-above")
+                    pushedLine = header.layout._heights[j]
+                }
+                end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + below + line + pushedLine)
             }
             // (A picture set against the PAGE's top that the text goes over and under ends the header at its foot plus its
             // bottom distance: xa gv-57041316b7, a 49.9pt logo at 49.1pt with 226.8pt below it, the title at 325.7 in Word's
