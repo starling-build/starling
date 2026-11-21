@@ -1996,6 +1996,7 @@ enum DocxFormat {
         // `w:sdtContent` > `w:tr`/`w:tc`, as Word writes repeating-section
         // and cell controls): the wrapper is transparent here.
         var inWrapperBody = false
+        var wrapperIndent = 0.0
         func unwrapped(_ parent: XNode, _ name: String) -> [XNode] {
             var out: [XNode] = []
             for c in parent.children {
@@ -2455,8 +2456,10 @@ enum DocxFormat {
                         if let last = children.last, last.name == "w:p", children.dropLast().last?.name == "w:tbl",
                            !last.children.contains(where: { $0.name != "w:pPr" }) { children.removeLast() }
                         inWrapperBody = true
+                        wrapperIndent = Self.wordOnWindows ? (node.first("w:tblPr")?.first("w:tblInd").flatMap { (($0["w:type"] ?? "dxa") == "dxa") ? Double($0["w:w"] ?? "") : nil } ?? 0) / 20 : 0
                         for child in children { walkBlock(child, indent: indent, depth: depth) }
                         inWrapperBody = false
+                        wrapperIndent = 0
                         guard paragraphs.count > first else { continue }
                         // (A row of one paragraph keeps the height the row
                         // was given as that line's least: 60329's 9pt
@@ -2858,6 +2861,7 @@ enum DocxFormat {
                     // Word for Windows, either compat mode: lab nest51 prints tblInd -120, -60
                     // and 0 all at the edge, +60 and +120 that far in. zh-/lo-51b81ccd's -60.)
                     style.indent = Self.wordOnWindows && (currentCell != nil || depth > 0) ? max(0, w / 20) : w / 20
+                    if inWrapperBody, wrapperIndent > 0 { style.indent += wrapperIndent }
                     if node.mirroredFrom != nil { style.bidiVisual = true }
                 } else if node.first("w:tblPr")?.first("w:tblInd") == nil,
                           let w = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap({ tableIndents[$0] }) {
