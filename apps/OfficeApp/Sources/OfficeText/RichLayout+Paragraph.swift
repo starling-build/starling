@@ -4122,6 +4122,10 @@ extension RichLayout {
             for image in p.inlineImages.inOrder {
                 guard let float = image.float, float.wraps, float.verticalAlign == nil, ["paragraph", "line"].contains(float.verticalFrom),
                       float.horizontalFrom != "page", float.horizontalAlign == nil else { continue }
+                // (Only a float whose band the line reaches: one that starts below the line's foot leaves it the whole width above.
+                // dx2 2f747ec3's three text boxes, the nearest 29.7pt down under a 19.7pt line: Word keeps the line at the top and
+                // the page's first box under it; ours put it under all three, 624pt down, and the paragraph went to the next page.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, lineEndsAbove(_px(float.y - float.distanceTop)) { continue }
                 let w = _px(image.width)
                 spans.append((_px(float.x) - _px(9), _px(float.x) + w + _px(9), _px(float.y) + _bodyBoxHeight(image, document)))
             }
