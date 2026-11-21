@@ -7721,7 +7721,8 @@ enum DocxFormat {
             // (A right-to-left run of Arabic letters with ASCII numbers inside it: Word draws each number in the Latin face, and that face's line
             // raises the line it is on, Tahoma's 13.3 pt step over Arial's 12.6. dx2 491931cb page 1, Tahoma Latin and B Nazanin cs, "0011234555"
             // among Persian words: Word's lines with a number step 13.3 pt, those without 12.6, ours stayed on Arial's. The number is its own run.)
-            if DocxFormat.wordOnWindows, cs.rightToLeft, !digitsOnly, cs.csLetters, s.unicodeScalars.contains(where: { (0x30 ... 0x39).contains($0.value) }) {
+            if DocxFormat.wordOnWindows, cs.rightToLeft, !digitsOnly, cs.csLetters, s.unicodeScalars.contains(where: { (0x30 ... 0x39).contains($0.value) }),
+               s.unicodeScalars.contains(where: { (0x0590 ... 0x08FF).contains($0.value) || (0xFB1D ... 0xFDFF).contains($0.value) || (0xFE70 ... 0xFEFF).contains($0.value) }) {
                 let u = Array(s.unicodeScalars)
                 func isDigit(_ i: Int) -> Bool { (0x30 ... 0x39).contains(u[i].value) }
                 var inNumber = [Bool](repeating: false, count: u.count)
