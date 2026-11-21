@@ -1026,6 +1026,30 @@ extension RichLayout {
             }
             if theme.wordRules, pgs.resumeCursor == nil, _cells[pgs.i] == nil, pgs.deferredUnder.isEmpty {
                 let images = (pgs.i < _floatImages.count ? _floatImages[pgs.i].map { [$0] } ?? [] : []) + (pgs.i < _inline.count ? _inline[pgs.i] : [])
+                // (Pictures wrapped square, set side by side from one paragraph so that together they leave no strip a character
+                // wide across the column: a later paragraph's line stands under them, an empty one too — dx2 es ebe45609's two
+                // photos, 26.5 and 212.9pt in, 187 and 194pt wide, leave 17pt and 9.4pt; Word sets the empty lines after them
+                // under the photos' foot, not beside them.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, _cells[pgs.i] == nil {
+                    var boxes: [(l: Double, r: Double, top: Double, bottom: Double)] = []
+                    let inner = _flowWidth(pgs.i)
+                    for image in images {
+                        guard image.textBox == nil, let f = image.float, f.wraps, !f.takesRoom, f.wrapSide == nil, f.verticalFrom == "paragraph", f.verticalAlign == nil,
+                              f.horizontalAlign == nil, f.horizontalFrom == "column", image.width > 0, image.height > 0 else { continue }
+                        let x = _px(f.x), w = min(_px(image.width), inner)
+                        boxes.append((x - _px(f.distanceLeft ?? 9), x + w + _px(f.distanceRight ?? 9), pgs.y + _px(f.y) - _px(f.distanceTop),
+                                      pgs.y + _px(f.y) + _px(image.height + f.effectBottom + f.distanceBottom)))
+                    }
+                    if boxes.count > 1 {
+                        var widest = 0.0, edge = 0.0
+                        for b in boxes.sorted(by: { $0.l < $1.l }) { widest = max(widest, b.l - edge); edge = max(edge, b.r) }
+                        widest = max(widest, inner - edge)
+                        let top = boxes.map(\.top).min() ?? 0, bottom = boxes.map(\.bottom).max() ?? 0
+                        let me = pgs.i
+                        pgs.narrowBands.removeAll(where: { $0.owner >= me })
+                        if bottom > top, bottom > 0.01 { pgs.narrowBands.append((top, bottom, me, widest, widest)) }
+                    }
+                }
                 for image in images {
                     // (A picture centred in its column, wrapped on both sides, with room at each side for less than
                     // three ems: the text of a later paragraph whose first unit does not fit at either side stands
@@ -1568,11 +1592,13 @@ extension RichLayout {
                 // off it, not only the line's top: zh-10eab555's contents
                 // line 17, which would reach into the issuing table, goes
                 // under it — and so to page 3 — in Word's print.)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, !pgs.narrowBands.isEmpty, _cells[pgs.i] == nil, !document.paragraphs[pgs.i].text.isEmpty {
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !pgs.narrowBands.isEmpty, _cells[pgs.i] == nil, document.paragraphs[pgs.i].image == nil {
                     let q = document.paragraphs[pgs.i]
                     let size = _px(q.runs.first?.style.fontSize ?? theme.fontSize)
                     let opens = q.text.first.map { "（(【《「『〈［｛".contains($0) } ?? false
-                    let unit = size * (opens ? 2 : 1)
+                    // (An empty paragraph's line, beside pictures of an earlier paragraph, needs a strip of about 20pt, whatever its size: Word's
+                    // prints of lab ebe-ls, the 11pt mark's line pushed under at a 19pt strip and kept at 20pt, and a 16pt one kept at 22pt.)
+                    let unit = q.text.isEmpty ? _px(20) : size * (opens ? 2 : 1)
                     let first = q.style.indentLeft + max(0, firstLineIndent(q, document))
                     let lineBottoms = Self._lineBottoms(geometry(pgs.i).painter)
                     let step = (lineBottoms.first ?? _heights[pgs.i]) + (geometry(pgs.i).textTop - geometry(pgs.i).top)
