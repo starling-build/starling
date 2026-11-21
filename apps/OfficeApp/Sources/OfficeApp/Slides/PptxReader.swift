@@ -3585,6 +3585,7 @@ private struct SlideContext {
                 // punctuation go with the letters before them.
                 let runsBefore = runs.count
                 var pieces: [(length: Int, script: String?)] = []
+                let explicitLatin = rPr?.first("a:latin")?["typeface"].map { !$0.isEmpty && !$0.hasPrefix("+") } ?? false
                 var sawLetter = false
                 for ch in t.unicodeScalars {
                     let n = ch.utf16.count
@@ -3593,6 +3594,10 @@ private struct SlideContext {
                     if pieces.isEmpty {
                         pieces.append((n, script))
                         sawLetter = letter
+                    } else if ch.value == 0x20, explicitLatin, pieces[pieces.count - 1].script == "ea" {
+                        // (A run that names its own Latin face sets the space between East Asian words in it, not in the East Asian face:
+                        // ko-3d95d35b's Times New Roman runs, 5.0 pt a space at 20 pt in PowerPoint's print, Malgun's is 7.0.)
+                        pieces.append((n, nil))
                     } else if letter, !sawLetter {
                         // The first letter claims what came before it.
                         pieces[pieces.count - 1].script = script
