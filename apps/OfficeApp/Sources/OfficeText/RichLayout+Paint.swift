@@ -1487,7 +1487,7 @@ extension RichLayout {
                 _paintVerticalCellFloats(i, g, canvas)
                 return
             }
-            g.painter.paint(canvas, origin)
+            if _paintMode != 2 { g.painter.paint(canvas, origin) }
             canvas.restore()
             _paintVerticalCellPictures(i, g, canvas, c, origin, document)
             _paintVerticalCellFloats(i, g, canvas)
@@ -1769,7 +1769,7 @@ extension RichLayout {
                 onlyRest.paint(canvas, textAt)
             } else if shifts.isEmpty, _verticalBody(i), _paintUpright(g.painter, at: textAt, canvas, mixed: true, rubyShifts: _rubyColumnShifts(i, document)) {
                 // (A vertical section's lines: each ideograph upright down its column, as Word prints them.)
-            } else if shifts.isEmpty { g.painter.paint(canvas, _unseenShift[i].map { Offset(textAt.dx + $0, textAt.dy) } ?? textAt) } else { _paintShiftedLines(g.painter, at: textAt, shifts, canvas) }
+            } else if shifts.isEmpty { if _paintMode != 2 { g.painter.paint(canvas, _unseenShift[i].map { Offset(textAt.dx + $0, textAt.dy) } ?? textAt) } } else { _paintShiftedLines(g.painter, at: textAt, shifts, canvas) }
         }
         _paintScripts(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
                       map: lines == nil ? _map(i) : nil, leading: false)
@@ -1789,11 +1789,18 @@ extension RichLayout {
         }
         if i < _inline.count, !_inline[i].isEmpty, let all = g.painter.inlinePlaceholderBoxes {
             for k in _floatPaintOrder(i) {
+                if _paintMode == 1, _inline[i][k].float.map({ !$0.takesRoom }) == true { continue }
                 let slot = _inlineBoxes[i][k]
                 guard slot < all.count else { continue }
                 let box = all[slot]
                 let image = _inline[i][k]
                 var rect = box.toRect().shift(Offset(g.textLeft, g.inkTop))
+                // (Word's lab tightstep J: a picture anchored in a line above this piece was drawn whole by the piece that holds
+                // that line; the piece that goes on, its range over the picture, drew it a second time, 108pt lower.)
+                if let from = _pieceContinuesFrom, image.float.map({ !$0.takesRoom }) == true, rect.bottom <= from + 0.5 {
+                    RuleTrace.hit("word-a-piece-that-goes-on-does-not-draw-a-picture-anchored-above-it-again")
+                    continue
+                }
                 if let over = _inlineOverflow[image.id], image.float == nil { rect = Rect.fromLTRB(rect.left, rect.top, rect.right + over, rect.bottom) }
                 if let real = _pageFill[image.id], image.float == nil {
                     let down = _lineCentre[image.id] ?? 0
