@@ -5059,7 +5059,11 @@ static let sylfaenAdvances: [Double] = [
                 // real Cambria, with Cambria's own line, 2401 of 2048: xa gv-690391482c's Sabon at 1.15 steps 14.82 in
                 // Word's print, 14.75 with the line above, and a page of them ran 2 to 4pt short, so a paragraph and its
                 // footnote fitted on page 8 that Word split.)
-                if wordOnWindows, fontEntry(family)?.alt?.trimmingWhitespace().lowercased() == "courier" {
+                // (No alternate at all counts too, unless the font-table signature already names its face — `windowsSigFace`: xb's
+                // INSIGHTSPerpetua, drawn in Cambria by its signature, keeps the 1.166 line; Word steps its Urdu pages by it.
+                // dx2 es 26efe1a3's AGaramond, an entry with no alternate and another signature, takes Cambria's own.)
+                if wordOnWindows, fontEntry(family)?.alt?.trimmingWhitespace().lowercased() == "courier"
+                    || (fontEntry(family) != nil && fontEntry(family)?.alt == nil && windowsSigFace(family) == nil) {
                     face.naturalHeight = 2401.0 / 2048
                     RuleTrace.hit("courier-alternate-face-is-cambria-with-its-own-line")
                 }
