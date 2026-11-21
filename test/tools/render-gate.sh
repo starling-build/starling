@@ -31,7 +31,7 @@ exec 9>"$W/lock"
 # One gate (or prebuild) at a time per scratch. A prebuild only warms the scratch, so a GATE preempts it: kill the
 # prebuild (by PID, with its children) and build on from wherever the scratch got to. Another gate holding the lock: wait.
 if ! flock -n 9; then
-  read -r OP OR < "$W/lock.owner" 2>/dev/null || OP=
+  OP=; OR=; read -r OP OR < "$W/lock.owner" 2>/dev/null || true
   if [ -z "${GATE_PREBUILD:-}" ] && [ "$OR" = prebuild ] && [ -n "$OP" ] && kill -0 "$OP" 2>/dev/null; then
     echo "render-gate: the scratch lock is held by a prebuild (pid $OP): stopping it"
     kill_tree() { local c; for c in $(pgrep -P "$1" 2>/dev/null); do kill_tree "$c"; done; kill -TERM "$1" 2>/dev/null; }
