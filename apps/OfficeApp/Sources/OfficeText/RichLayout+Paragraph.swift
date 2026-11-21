@@ -18,7 +18,38 @@ extension RichLayout {
         _pastNeed[i] = nil
         _pastLeft[i] = nil
         _pastWiden = nil
+        _topLift = nil
         _layoutParagraphBody(i, p, document)
+        // (Word's top alignment is per line: a smaller run stands higher only on a line that holds a bigger one. The probe layout above
+        // gives the line starts; the paragraph is laid out again with each line's biggest size. Only top-aligned mixed-size paragraphs.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil,
+           p.style.eastAsian["w:textAlignment"] == "top", p.runs.count > 1, let painter = _painters[i] {
+            let named = _named(p, document)
+            func sizePt(_ r: CharStyle) -> Double { r.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize }
+            let u16 = Array(p.text.utf16)
+            var spans: [(from: Int, to: Int, size: Double)] = []
+            var at = 0
+            for r in p.runs {
+                defer { at += r.length }
+                guard r.length > 0, r.style.script == .normal, at + r.length <= u16.count,
+                      u16[at..<(at + r.length)].contains(where: { $0 != 9 }) else { continue }
+                spans.append((at, at + r.length, sizePt(r.style)))
+            }
+            if Set(spans.map { $0.size }).count > 1 {
+                let starts = _lineStarts(painter, _map(i), count: u16.count)
+                var table: [(from: Int, to: Int, big: Double)] = []
+                for (k, st) in starts.enumerated() {
+                    let en = k + 1 < starts.count ? starts[k + 1] : u16.count
+                    let sizes = spans.filter { $0.from < en && $0.to > st }.map { $0.size }
+                    if let big = sizes.max(), let lo = sizes.min(), big - lo > 0.01 { table.append((st, en, big)) }
+                }
+                if !table.isEmpty {
+                    _topLift = table
+                    _layoutParagraphBody(i, p, document)
+                }
+            }
+        }
+        defer { _topLift = nil }
         guard theme.wordRules, Self._honoursStopsPastMargin(document),
               !p.style.rightToLeft, p.style.alignment == .left || p.style.alignment == .justify,
               let painter = _painters[i] else { return }
