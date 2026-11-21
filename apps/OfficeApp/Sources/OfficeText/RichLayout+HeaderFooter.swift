@@ -1256,6 +1256,10 @@ extension RichLayout {
             let room = 2 * (bottom - top)
             for p in near.sorted(by: { $0.left < $1.left }) {
                 if p.left - start >= room { break }
+                // (A picture whose right edge leaves less than a line's room in the column is not passed: the host line stands
+                // at the one before it — dx2 es ebe45609's third picture, 223pt in at the second picture's right edge, as Word,
+                // not past the first which leaves 16pt.)
+                if theme.wordRules, p.right + room > bandLeft + bandWidth, start > bandLeft { break }
                 if p.right > start { start = p.right }
             }
             // (Past the picture there is no line to start: a picture as wide as the column leaves the host line below it, not at its
