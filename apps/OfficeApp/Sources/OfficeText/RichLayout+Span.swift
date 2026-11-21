@@ -284,7 +284,8 @@ extension RichLayout {
         // faces' own win metrics, not as the paragraph face's line: lab tahcal, Calibri beside Tahoma at 11 pt, 13.96 pt = Tahoma's 11.01
         // above and Calibri's 2.95 below, where the Tahoma line alone is 13.28; sa2 78bf1be7.)
         let mixedLatinFaces: Bool = {
-            guard theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil else { return false }
+            // (Body text only: lab tahcal measured body paragraphs; sa1 6b74a903's footer, Arial beside the default face, grew 0.07 pt and pushed an empty line off page 2, 441 to 407 of 457 lines.)
+            guard theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil, !document.isPageHeaderFooterPart else { return false }
             var names = Set<String>()
             var at = p.text.utf16.startIndex
             for run in p.runs {
