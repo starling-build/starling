@@ -8,6 +8,9 @@ import Flutter
 import FlutterSwiftBridge
 import Foundation
 
+// (A piece of a line, in `_fitEastAsianLines`: at file scope, not inside the function, because a function that declares a type is type-checked in full by the module-emit step on every build: 36 s.)
+private struct _EaPiece { var a: Int; var b: Int; var last: Int; var w: Double; var trail: Double; var hard: Bool }
+
 extension RichLayout {
 
     /// An ASCII letter, digit or comma: what a real Latin word run has beside its last space (a "=" or "-" does not: xb jpn 5ff3d0's "n = -5〜+5）…" took "上" with the tail's room, and Word's print leaves it for the next line).
@@ -321,8 +324,7 @@ extension RichLayout {
         // breaks even inside a word): each with its width, and its
         // trailing spaces' apart, which the engine leaves out of a line's
         // width and of its fit.
-        struct Piece { var a: Int; var b: Int; var last: Int; var w: Double; var trail: Double; var hard: Bool }
-        var pieces: [Piece] = []
+        var pieces: [_EaPiece] = []
         var start = 0           // painter offset
         let total = units.count + inserts.count
         // (Thai measured on the text laid out as one line: the probe at no
@@ -396,7 +398,7 @@ extension RichLayout {
         // on a line of its own: a word joiner as wide as an opening
         // quote's blank. Its width goes with what follows it.)
         var pending = 0.0
-        func endsOpening(_ g: Piece?) -> Bool {
+        func endsOpening(_ g: _EaPiece?) -> Bool {
             guard let g, g.last > g.a, g.last < g.b else { return false }
             return Self._openingUnits.contains(units[g.last - 1])
         }
@@ -474,7 +476,7 @@ extension RichLayout {
                 g.hard = hard
                 pieces[pieces.count - 1] = g
             } else {
-                pieces.append(Piece(a: a, b: b, last: last, w: lineWidth, trail: trail, hard: hard))
+                pieces.append(_EaPiece(a: a, b: b, last: last, w: lineWidth, trail: trail, hard: hard))
             }
         }
         var loggedParagraph = false

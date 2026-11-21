@@ -8,6 +8,8 @@ import Flutter
 import FlutterSwiftBridge
 import Foundation
 
+private struct _InnerPiece { var row: Int; var column: Int; var cuts: [Double]; var bottom: Double }
+
 extension RichLayout {
     func _pg_lineUnderRow(_ pgs: inout _PState, _ document: RichDocument, _ c: _CellGeo) -> Double {
         if let rows = pgs.linesUnderRows[c.table] { return rows[c.row] ?? 0 }
@@ -192,8 +194,7 @@ extension RichLayout {
             let widows = (inside.document.compatibilityMode ?? 12) >= 15
             // (Only where no other cell of that inner row has a line across it: the cut stands at a line end, or
             // under the text, of every cell of the row.)
-            struct InnerPiece { var row: Int; var column: Int; var cuts: [Double]; var bottom: Double }
-            var pieces: [InnerPiece] = []
+            var pieces: [_InnerPiece] = []
             for m in 0 ..< min(inside.document.paragraphs.count, inside.layout._cells.count) {
                 guard let c = inside.layout._cells[m], c.table == innerTable, c.rowSpan == 1, !c.vertical,
                       inside.document.tableStyles[c.table]?.rowsCantSplit.contains(c.row) != true else { continue }
@@ -211,7 +212,7 @@ extension RichLayout {
                 // page 14 to its foot; ours parted only inside the long ones and took the rest over, five lines short.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, let end = all.last, m + 1 < inside.document.paragraphs.count,
                    let next = inside.layout._cells[m + 1], next.table == c.table, next.row == c.row, next.column == c.column { lines.append(end) }
-                pieces.append(InnerPiece(row: c.row, column: c.column, cuts: lines, bottom: all.last ?? (top + g2.textTop)))
+                pieces.append(_InnerPiece(row: c.row, column: c.column, cuts: lines, bottom: all.last ?? (top + g2.textTop)))
             }
             for piece in pieces {
                 for b in piece.cuts {
