@@ -43,10 +43,15 @@ enum WordArt {
         case "textInflateBottom": let a = adj(60000); return { (0, 1 - (1 - a) * bow($0)) }
         case "textDeflateTop": let a = adj(50000); return { (a * (1 - bow($0)), 1) }
         case "textDeflateBottom": let a = adj(50000); return { (0, a + (1 - a) * bow($0)) }
-        case "textWave1": let a = adj(12500); return { let t = a * (1 - sin(2 * .pi * $0)); return (t, t + 1 - 2 * a) }
-        case "textWave2": let a = adj(12500); return { let t = a * (1 + sin(2 * .pi * $0)); return (t, t + 1 - 2 * a) }
-        case "textDoubleWave1": let a = adj(6250); return { let t = a * (1 - sin(4 * .pi * $0)); return (t, t + 1 - 2 * a) }
-        case "textWave4": let a = adj(6250); return { let t = a * (1 + sin(4 * .pi * $0)); return (t, t + 1 - 2 * a) }
+        // Wave: the spec's cubic (control points a third in, 10/3 of the amplitude out): per period the edge moves
+        // by 10 a t (1 - t) (2 t - 1), t the position in the period; Wave 2 and 4 are the mirror.
+        case "textWave1", "textWave2", "textDoubleWave1", "textWave4":
+            let double = warp.preset == "textDoubleWave1" || warp.preset == "textWave4"
+            let a = adj(double ? 6250 : 12500), sign = warp.preset == "textWave1" || warp.preset == "textDoubleWave1" ? 1.0 : -1.0
+            return {
+                let v = double ? $0 * 2 - ($0 < 0.5 ? 0 : 1) : $0
+                let t = a * (1 + sign * 10 * v * (1 - v) * (2 * v - 1)); return (t, t + 1 - 2 * a)
+            }
         case "textCanUp": let d = 1 - adj(85714); return { (d * arc($0), 1 - d + d * arc($0)) }
         case "textCanDown": let d = adj(14286); return { (d * (1 - arc($0)), 1 - d * arc($0)) }
         case "textTriangle": let a = adj(50000); return { (a * abs(2 * $0 - 1), 1) }
@@ -74,8 +79,8 @@ enum WordArt {
         case "textFadeLeft": let a = adj(33333); return { ((1 - $0) * a, 1 - (1 - $0) * a) }
         case "textFadeUp", "textFadeDown": return { _ in (0, 1) }
         // Cascade: the lines climb (or descend) and shrink as they go.
-        case "textCascadeUp": let a = adj(44444); return { (0, 1 - (1 - a) * $0) }
-        case "textCascadeDown": let a = adj(44444); return { (0, a + (1 - a) * $0) }
+        case "textCascadeUp": let a = max(0.2857, adj(44444)); return { ((1 - a) / 4 * (1 - $0), 1 - (1 - a) * $0) }   // spec: the top runs from a quarter of the band down to the top
+        case "textCascadeDown": let a = max(0.2857, adj(44444)); return { ((1 - a) / 4 * $0, a + (1 - a) * $0) }
         default: return nil
         }
     }
