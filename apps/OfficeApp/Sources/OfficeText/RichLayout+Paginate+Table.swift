@@ -1065,6 +1065,17 @@ extension RichLayout {
                     pgs.floatRunBase = (c.table, pgs.page, pgs.y)
                     if let tf = pgs.textFloatTop, tf.table == c.table { pgs.textFloatTop = (c.table, pgs.page, pgs.y, tf.down, tf.chained) }
                 }
+                // (The text beside it hangs from the new page's anchor too, not the old page's.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let tf = pgs.textFloatTop, tf.table == c.table, tf.page != pgs.page {
+                    RuleTrace.hit("floating-table-carried-whole-takes-its-beside-text-anchor-with-it")
+                    pgs.textFloatTop = (c.table, pgs.page, pgs.y, tf.down, false)
+                    pgs.besideChainEnd = nil
+                    if document.tableStyles[c.table]?.keptPosition?.containsSubstring("w:tblpXSpec=\"right\"") == true {
+                        var lo = Double.infinity, hi = -Double.infinity, k = pgs.i
+                        while k < count, let d = _cells[k], d.table == c.table { lo = min(lo, d.rowTop); hi = max(hi, d.rowTop + d.ownRowHeight); k += 1 }
+                        if hi > lo { pgs.besideChainEnd = pgs.y + _px(down) + (hi - lo) }
+                    }
+                }
                 pgs.y += _px(down)
             }
             // (And one placed against the page stands at its offset
