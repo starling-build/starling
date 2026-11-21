@@ -22,11 +22,14 @@ jobs:
             thin: 5
     # starling2's three runners carry the gate label too, and ~20 merges an hour kept them all on prebuilds (0 gates in an hour,
     # 2026-11-21): there it builds only every 5th push; a gate that finds no base for its sha uses the nearest cached ancestor.
-    if: ${{ !matrix.thin || github.run_number % matrix.thin == 0 }}
     runs-on: ${{ fromJSON(matrix.labels) }}
     timeout-minutes: 60
     steps:
+      - name: Thin
+        if: ${{ matrix.thin && github.run_number % matrix.thin != 0 }}
+        run: echo "SKIP_PREBUILD=1" >> "$GITHUB_ENV"; echo "thinned prebuild on this runner"
       - name: Update persistent clone
+        if: env.SKIP_PREBUILD != '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
