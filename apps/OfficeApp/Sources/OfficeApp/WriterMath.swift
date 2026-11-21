@@ -96,6 +96,15 @@ enum WriterMath {
         // It is drawn whole all the same.)
         natural((box.ascent, box.descent))
         ink((box.iu, box.idn))
+        // (A display fraction's line in Word's print is counted from the INK of its numerator and
+        // denominator, not from the font's ascent and descent: a plain one at 10pt is 2.3 em tall,
+        // where the font's extras made ours 2.6 em. lab frac2.)
+        if display, RichTextTheme.wordWindowsPages, !node.descendants("m:f").isEmpty,
+           ["sSup", "sSub", "sSubSup", "nary"].allSatisfy({ node.descendants("m:" + $0).isEmpty }) {
+            RuleTrace.hit("display-fraction-line-counts-ink")
+            box.ascent = box.iu + size * 0.08
+            box.descent = max(box.idn, size * 0.17) + size * 0.08
+        }
         // (A display equation ending on a manual break, `<w:br/>` in its last
         // run, is one empty line longer: Word sets that line under it, 7f0539's
         // equations stand a line apart from the text after them; 158454's
@@ -838,7 +847,7 @@ enum WriterMath {
                 // (A stretched bracket reserves its ink, not its whole font line: the line under a display
                 // equation was 11-15 pt too tall in jpn-z22855378-6fca0f p8.)
                 guard RichTextTheme.wordWindowsPages, !inlineText else { return r }
-                return Box(width: fenceAdvance ?? r.width, ascent: min(r.ascent, body.ascent + s * 0.1), descent: min(r.descent, body.descent + s * 0.1), draw: r.draw)
+                return Box(width: fenceAdvance ?? r.width, ascent: min(r.ascent, body.ascent + s * 0.1), descent: min(r.descent, body.descent + s * 0.1), inkUp: body.iu, inkDown: body.idn, draw: r.draw)
             }
             return hbox([fence(beg), body, fence(end)])
         }
