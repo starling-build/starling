@@ -286,18 +286,25 @@ extension RichLayout {
         let mixedLatinFaces: Bool = {
             // (Body text only: lab tahcal measured body paragraphs; sa1 6b74a903's footer, Arial beside the default face, grew 0.07 pt and pushed an empty line off page 2, 441 to 407 of 457 lines.)
             guard theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil, !document.isPageHeaderFooterPart else { return false }
+            // (Latin script only: a paragraph with East Asian, Indic or Arabic text in it was not measured by lab tahcal, and Word's lines of those take their own face's height: zh-86547e97, 'VHF等终端' ran 1.27 pt off; the Persian and Hindi sets dropped.)
+            if p.text.unicodeScalars.contains(where: { !($0.value < 0x250 || ($0.value >= 0x2000 && $0.value <= 0x2BFF) || ($0.value >= 0xFB00 && $0.value <= 0xFB06) || ($0.value >= 0xE000 && $0.value <= 0xF8FF) || $0.value == 0xFFFC) }) { return false }
             var names = Set<String>()
+            var measured = true
             var at = p.text.utf16.startIndex
             for run in p.runs {
                 let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.utf16.endIndex) ?? p.text.utf16.endIndex
                 defer { at = end }
-                guard run.style.script == .normal, (run.style.raised ?? 0) == 0, p.text.utf16[at ..< end].contains(where: { ($0 >= 0x30 && $0 <= 0x39) || ($0 >= 0x41 && $0 <= 0x5A) || ($0 >= 0x61 && $0 <= 0x7A) || ($0 >= 0xC0 && $0 < 0x250) }) else { continue }
+                guard run.style.script == .normal, (run.style.raised ?? 0) == 0, p.text.utf16[at ..< end].contains(where: { ($0 >= 0x41 && $0 <= 0x5A) || ($0 >= 0x61 && $0 <= 0x7A) || ($0 >= 0xC0 && $0 < 0x250) }) else { continue }
                 let n = (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
                 // (A symbol face's letters draw as other glyphs: not Latin text in a second face.)
                 if theme.isSymbolFace?(n) == true { continue }
-                names.insert(n)
+                // (Faces count by what they resolve to: two names Word's machine lacks stand as the same substitute, one face, not two: sa1 e33fba63's Brandon Grotesque Light and Black.)
+                let rf = theme.faceResolver?((run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace(), false)
+                names.insert(rf.map { "\($0.family)|\($0.baseline ?? -1)|\($0.naturalHeight ?? -1)" } ?? n)
+                // (Every face of the paragraph must have a line Word's metrics give: a face on Word's machine only: one it lacks (Kruti Dev, Brandon Grotesque) stands as another, unknown, so the tallest-over-deepest of the rest is not the line: sa1 e33fba63, Brandon Grotesque beside Times New Roman ran 3.8 pt low.)
+                if !WordWindowsFaces.names.contains(n) || theme.faceResolver?((run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace(), false)?.baseline == nil { measured = false }
             }
-            return names.count > 1
+            return names.count > 1 && measured
         }()
         let thaiJoins = _thaiJoins(p, document, named: named, textWidth: textWidth, lead: lead)
         let hanJoins = theme.wordRules ? Self._hanJoins(p, document, index: index, fitChars: _hanFitChars(p, named: named, textWidth: textWidth)) : []
