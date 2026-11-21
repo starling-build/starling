@@ -3171,8 +3171,14 @@ private struct SlideContext {
         let major = f == "+mj-ea" || f == "+mj-lt" || f == "+mj-cs"
         let table = major ? theme.majorScript : theme.minorScript
         if let f, !f.hasPrefix("+") { return f }
-        if let named = table["ea"] { return named }
+        if let named = table["ea"], !named.isEmpty { return named }
         let l = (lang ?? "").lowercased()
+        // (PowerPoint's print, bug64693, a theme whose East Asian slot is empty: Chinese letters of a run that names
+        // that slot (+mn-ea) are SimSun, of a run that names none are Microsoft YaHei, not the theme's Hans face.)
+        if l == "zh-cn", scalar >= 0x3400, scalar <= 0x9FFF || (scalar >= 0xF900 && scalar <= 0xFAFF) {
+            if let f, f.hasSuffix("-ea") { return "SimSun" }
+            if f == nil { return "Microsoft YaHei" }
+        }
         let script: String
         switch scalar {
         case 0x3040 ... 0x30FF, 0x31F0 ... 0x31FF, 0xFF66 ... 0xFF9F: script = "Jpan"
@@ -3605,8 +3611,12 @@ private struct SlideContext {
                 // list indent to the right and nothing else (GeomLec1's body:
                 // PowerPoint's print keeps the text's order and its alignment).
                 else if own == nil, level.rtl == "1", style.list != nil { style.bulletAtEnd = true }
-                if let e = p.first("a:endParaRPr").map({ LevelStyle.run($0, colors).filled(from: level) }), _font(e.font) != runs.last?.style.fontFamily {
-                    style.endMarkFace = _font(e.font)
+                if let e = p.first("a:endParaRPr").map({ LevelStyle.run($0, colors).filled(from: level) }) {
+                    // (A paragraph that ends in East Asian letters has its end mark in the East Asian face the same way.)
+                    var mark = _font(e.font)
+                    if let last = text.unicodeScalars.last(where: { $0.value != 0x0A && $0.value != 0x0B }), Self.isEastAsian(last.value), last.value != 0x3000,
+                       let ea = _eaFont(e.eaFont ?? e.font, scalar: last.value, lang: e.lang) { mark = ea }
+                    if mark != runs.last?.style.fontFamily { style.endMarkFace = mark }
                 }
                 paragraphs.append(RichParagraph(text: text, runs: runs, style: style))
             }
