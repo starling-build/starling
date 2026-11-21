@@ -388,6 +388,9 @@ struct Chart: Equatable {
     }
     /// A pie's slices in their own colours (`c:dPt`), by index.
     var pointColors: [Int: Color] = [:]
+    struct GradientStop: Equatable { var pos: Double; var color: Color }
+    /// A pie of pie's slices that stand in a vertical gradient (a point's `a:gradFill` with `a:lin` at 90 degrees): its stops, top to bottom.
+    var pointGradients: [Int: [Chart.GradientStop]] = [:]
     /// The slices a pattern fills (`c:dPt` with `a:pattFill`), hatched; `pointColors` holds the colour it comes to.
     /// A pie that says `c:varyColors` 0: every slice in the series' colour (chart-piechart_legend, Excel's print).
     var sameColour = false
@@ -1342,6 +1345,7 @@ enum ChartXML {
         var categories: [String] = []
         var series: [ChartSeries] = []
         var pointColors: [Int: Color] = [:]
+        var pointGradients: [Int: [Chart.GradientStop]] = [:]
         var pointPatterns: [Int: PatternInk] = [:]
         var levels: [[ChartLevelGroup]] = []
         var named = false
@@ -1457,7 +1461,16 @@ enum ChartXML {
                     else if let i = pt.first("c:idx")?["val"].flatMap(Int.init), pt.first("c:spPr") == nil,
                             let f = ser.first("c:spPr")?.first("a:solidFill"), let c = color(f) { pointColors[i] = c }
                     else if let i = pt.first("c:idx")?["val"].flatMap(Int.init),
-                            let g = pt.first("c:spPr")?.first("a:gradFill"), let c = _meanColor(g, color) { pointColors[i] = c }
+                            let g = pt.first("c:spPr")?.first("a:gradFill"), let c = _meanColor(g, color) {
+                        pointColors[i] = c
+                        if el.name == "c:ofPieChart", g.first("a:lin")?["ang"] == "5400000" {
+                            let stops = (g.first("a:gsLst")?.all("a:gs") ?? []).compactMap { gs -> Chart.GradientStop? in
+                                guard let pos = gs["pos"].flatMap(Double.init), let c = color(gs) else { return nil }
+                                return Chart.GradientStop(pos: pos / 100000, color: c)
+                            }
+                            if stops.count >= 2 { pointGradients[i] = stops }
+                        }
+                    }
                     else if let i = pt.first("c:idx")?["val"].flatMap(Int.init),
                             let pf = pt.first("c:spPr")?.first("a:pattFill"), let (ink, mean) = ChartPainter._patternInk(pf, color) {
                         pointColors[i] = mean
@@ -2079,6 +2092,7 @@ enum ChartXML {
             c.categoryLabelTurn = -rot / 60000
         }
         c.pointColors = pointColors
+        c.pointGradients = pointGradients
         c.pointPatterns = pointPatterns
         if el.name == "c:ofPieChart", let values = c.series.first?.values {
             c.ofPie = Self._ofPie(el, values: values)
@@ -6465,10 +6479,14 @@ extension ChartPainter {
         edge.color = theme.background
         if c.onSlide, !c.styled2013, c.officeStyled { edge.color = Color(0x00000000) }
         // (zh-b8de3ae2's slices say no outline, and Word draws none.)
-        if o.noEdge, !c.onSlide, !c.onSheet { edge.color = Color(0x00000000) }
-        func slice(_ oval: Rect, _ from: Double, _ sweep: Double, _ color: Color) {
+        if o.noEdge, !c.onSheet { edge.color = Color(0x00000000) }
+        func slice(_ oval: Rect, _ from: Double, _ sweep: Double, _ color: Color, _ index: Int? = nil) {
             fill.color = color
+            if let i = index, let g = c.pointGradients[i] {
+                fill.shader = Gradient(linear: Offset(0, oval.top), to: Offset(0, oval.bottom), colors: g.map(\.color), colorStops: g.map(\.pos))
+            }
             canvas.drawArc(oval, from, sweep, true, fill)
+            fill.shader = nil
             canvas.drawArc(oval, from, sweep, true, edge)
         }
         // The main pie.
@@ -6478,7 +6496,7 @@ extension ChartPainter {
         var labelled: [(index: Int, mid: Double, value: Double, color: Color)] = []
         for i in values.indices where !o.second.contains(i) && values[i] > 0 {
             let sweep = values[i] / sum * 2 * .pi
-            slice(oval, angle, sweep, c.pointColor(i, accents: theme.accents))
+            slice(oval, angle, sweep, c.pointColor(i, accents: theme.accents), i)
             labelled.append((i, angle + sweep / 2, values[i], c.pointColor(i, accents: theme.accents)))
             angle += sweep
         }
@@ -6552,7 +6570,7 @@ extension ChartPainter {
             var a = half
             for i in moved where values[i] > 0 {
                 let sweep = values[i] / other * 2 * .pi
-                slice(oval2, a, sweep, c.pointColor(i, accents: theme.accents))
+                slice(oval2, a, sweep, c.pointColor(i, accents: theme.accents), i)
                 a += sweep
             }
         }
