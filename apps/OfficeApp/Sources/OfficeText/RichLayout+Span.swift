@@ -2101,6 +2101,13 @@ extension RichLayout {
             marks.append((a..<b, stroke))
         }
         guard !marks.isEmpty else { return }
+        if RichTextTheme.shadowsAsPaths {
+            // (In a PDF the outline is a stroke on the letters' paths, so the text layer holds the words once.)
+            for (range, stroke) in marks {
+                if let path = painter.glyphPath(range: range) { canvas.drawPath(path.shift(origin), stroke) }
+            }
+            return
+        }
         let id = ObjectIdentifier(painter)
         let twin: TextPainter
         if let hit = _clearedPainters[id]?[-77], hit.source === painter { twin = hit.cleared } else {
