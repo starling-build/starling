@@ -495,6 +495,12 @@ extension _StyledFrame {
                         RuleTrace.hit("word-thaana-letters-are-an-mv-boli-line")
                         return ("mv boli", 1)
                     }
+                    // (Digits and spaces in a run whose complex-script face is a Thaana one: Word draws them in MV Boli too, so a digit-only cell is a 1.611 em line; dx2 e3906782.)
+                    if text.unicodeScalars.contains(where: { $0.value >= 0x30 && $0.value <= 0x39 }),
+                       ["faruma", "mv boli", "mvboli"].contains((run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()) {
+                        RuleTrace.hit("word-thaana-face-digits-are-an-mv-boli-line")
+                        return ("mv boli", 1)
+                    }
                     // (Myanmar letters, in any run: Word draws them in Myanmar Text (Zawgyi-One and the rest are missing on Windows) and sets the line at its 1.861 em.)
                     if text.unicodeScalars.contains(where: { $0.value >= 0x1000 && $0.value <= 0x109F }) {
                         RuleTrace.hit("word-myanmar-letters-are-a-myanmar-text-line")

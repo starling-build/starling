@@ -107,6 +107,14 @@ extension RichLayout {
             let multiple = lineSpacing > 1 ? lineSpacing : 1
             return look.copyWith(ascentOverride: r.0 * multiple * px, descentOverride: r.1 * multiple * px, height: (r.0 + r.1) * multiple, leadingDistribution: .even)
         }
+        // (An empty mark set in Faruma or MV Boli: Faruma is missing on Windows and Word draws the mark in MV Boli, 1.611 em; dx2 e3906782's empty cell paragraphs, 11 pt marks, a 20.9 pt row step in Word's print against 19.0.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile,
+           ["faruma", "mv boli", "mvboli"].contains((mark.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()),
+           let r = Self._indicLines["mv boli"] {
+            RuleTrace.hit("word-empty-mark-in-faruma-is-an-mv-boli-line")
+            let multiple = lineSpacing > 1 ? lineSpacing : 1
+            return look.copyWith(ascentOverride: r.0 * multiple * px, descentOverride: r.1 * multiple * px, height: (r.0 + r.1) * multiple, leadingDistribution: .even)
+        }
         // (An empty line whose mark is set in Nikosh (Windows lacks it) or Mangal is a line of Mangal, 1.68 em, and in Nirmala UI one of 1.33 em (Leelawadee UI has the same win box, 2210 + 514 of 2048: lab leela1, 13.3 pt a paragraph at 10 pt, 15.97 at 12, ours 11.7):
         // Word's print of lab siyam1, 3 empty paragraphs after each label, 16.8 / 13.3 pt apart at 10 pt against ours 12.2; and in Kokila its own 1.153 em, lab kokila1: 20.8 pt at 18 pt, where Calibri's gave 22.0.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile {
