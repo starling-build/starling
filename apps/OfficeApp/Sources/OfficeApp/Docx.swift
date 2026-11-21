@@ -7708,7 +7708,10 @@ enum DocxFormat {
             }
             // (A right-to-left run of ASCII digits alone holds no complex-script letter: Word's print of dx2 6e7a3d11 draws "35", w:rtl and
             // cs B Mitra, in the Latin face, Calibri, beside Arial Persian.)
-            let digitsOnly = DocxFormat.wordOnWindows && s.unicodeScalars.allSatisfy { (0x30 ... 0x39).contains($0.value) }
+            // (… and with the signs a number carries: lab urdu-digits variant F, "97-96" in w:rtl runs with no w:hint, a Persian line of B Zar whose
+            // number run Word sets in the Latin face, Tahoma's taller line: 29.4 pt steps, ours 28.5 on Arial's.)
+            let digitsOnly = DocxFormat.wordOnWindows && s.unicodeScalars.contains { (0x30 ... 0x39).contains($0.value) }
+                && s.unicodeScalars.allSatisfy { (0x30 ... 0x39).contains($0.value) || "-./:,%".unicodeScalars.contains($0) }
             if (cs.rightToLeft && !digitsOnly) || s.unicodeScalars.contains(where: { (0x0590 ... 0x08FF).contains($0.value) || (0xFB1D ... 0xFDFF).contains($0.value) || (0xFE70 ... 0xFEFF).contains($0.value) }) { cs.csLetters = true }
             runs.append(Run(length: s.utf16.count, style: cs))
         }
