@@ -1117,7 +1117,11 @@ extension RichLayout {
                             let right: Double = max(ts.edgeWidths["right"] ?? side, _tableOwnRight[c.table]?.width ?? 0)
                             return _px((left + right) / 2)
                         }()
-                        scale = (theme.wordRules ? width * pct / 100 - outerInset : min(width, width * pct / 100)) / _px(sum)
+                        // (Below compat 15 the share is of the column plus both cell margins, as in a gridless table: 6883a0fd's 100%
+                        // table, 28-twip margins, no compat mode, is 484.78 pt in Word's print in a 481.9 pt column.)
+                        let marginRoom: Double = theme.wordRules && RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 0) < 15 && pct >= 100
+                            ? _cellInsets(c.table, document).left + _cellInsets(c.table, document).right : 0
+                        scale = (theme.wordRules ? width * pct / 100 + marginRoom - (marginRoom > 0 ? 0 : outerInset) : min(width, width * pct / 100)) / _px(sum)
                         // (A table whose grid — Word's own last fit of it —
                         // is wider than its share keeps the grid: zh-06c46ba9's
                         // table 4 says 100% of 415.6pt and Word sets its
@@ -1168,7 +1172,7 @@ extension RichLayout {
                             }
                             // (A centred one takes the right margin too: sa1 a8678e3c, 3.5pt margins, Word's
                             // rules run 655pt over a 648 share, margin-3.5 to margin+width+3.4.)
-                            let rightM = ts.alignment == .center ? (ts.cellMarginRight ?? ts.cellMarginLeft ?? 5.4) : 0
+                            let rightM = ts.alignment == .center || !ts.fixedLayout ? (ts.cellMarginRight ?? ts.cellMarginLeft ?? 5.4) : 0
                             scale = (width + _px((ts.cellMarginLeft ?? 5.4) + rightM + rule / 2)) / _px(sum)
                         }
                     }
