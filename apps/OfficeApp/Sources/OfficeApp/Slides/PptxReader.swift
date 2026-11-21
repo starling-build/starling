@@ -1809,7 +1809,12 @@ private struct SlideContext {
                 st.flipV.toggle()
             }
         }
-        if case .geometry(let preset) = kind, preset.rawValue != "rect", !preset.isLine {
+        // (A text box that names a preset keeps it as any shape does: its text in the preset's text rectangle, the 4.7 pt
+        // a rounded rectangle at 4% leaves PowerPoint's 87a69a7b bullets short of ours.)
+        var presetOfShape: ShapePreset? = nil
+        if case .geometry(let preset) = kind { presetOfShape = preset }
+        else if case .textBox = kind, let prst, prst != "rect", PresetGeometry.has(prst) { presetOfShape = ShapePreset(rawValue: prst) }
+        if let preset = presetOfShape, preset.rawValue != "rect", !preset.isLine {
             // A preset from its definition, at the shape's adjust values;
             // its text within the definition's text rectangle (an oval's
             // inscribed box, a pie's quarter) unless the shape has its own
