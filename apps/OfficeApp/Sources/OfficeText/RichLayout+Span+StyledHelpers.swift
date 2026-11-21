@@ -302,6 +302,14 @@ extension _StyledFrame {
            let size = s.fontSize, size > 0.5, let h = s.height, let split = RichLayout._thaiLineSplit(s.debugLabel, bold: s.fontWeight == .bold), thaiParagraph {
             s = s.copyWith(ascentOverride: size * h * split, descentOverride: size * h * (1 - split), leadingDistribution: .even)
         }
+        // (A TH SarabunPSK run among runs Word draws in Browallia: the real PSK face is ascent 0.85 over descent 0.46, so the run deepens the line
+        // below and leaves the ascent to Browallia's 0.864: xd 540fe10e 37 to 182 of 1117 lines. A paragraph of PSK alone keeps the stand-in's line.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil, s.ascentOverride == nil, thaiParagraph,
+           let size = s.fontSize, size > 0.5, let h = s.height, s.debugLabel?.lowercased().containsSubstring("th sarabunpsk") == true,
+           p.runs.contains(where: { ["th sarabunit๙", "th sarabun new", "browallia new"].contains(($0.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()) }) {
+            RuleTrace.hit("word-psk-run-in-browallia-line-is-pscs-split")
+            s = s.copyWith(ascentOverride: size * h * 0.85 / 1.31, descentOverride: size * h * 0.46 / 1.31, leadingDistribution: .even)
+        }
         // (Yu Gothic and Yu Mincho ideographs stand a line on the face's own split, 1.18 em above the baseline and 0.5 below
         // (`EastAsianFace.baseline`), whatever else is in the paragraph: the stand-in's own split, 0.8 above, lifted the title lines of
         // xb jpn 12d9fb 2.6pt (a Latin-only line among them kept a paragraph strut off), Word's first baseline 18.8 at 16pt, ours 21.4.)
