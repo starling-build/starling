@@ -691,7 +691,10 @@ final class SlidePainter: CustomPainter {
         // of what the picture paints — tdf128596's ticks on nothing — and
         // the outline's showed grey through the gaps.)
         if let sh = shape.shadow, shape.picture != nil || shape.fill != nil || shape.fillStyle != nil,
-           shape.fillStyle?.image == nil {
+           shape.fillStyle?.image == nil,
+           // (A WMF/EMF picture is drawing calls on nothing: PowerPoint casts no box under it. b3255e9d's
+           // equation pictures printed with a dark rectangle behind them.)
+           !(shape.picture.map { Metafile.isMetafile($0.data) } ?? false) {
             // The outline's blurred copy, where the shadow falls: offset on
             // the page, not turned with the shape (rotWithShape="0", as
             // PowerPoint writes its shadows).
