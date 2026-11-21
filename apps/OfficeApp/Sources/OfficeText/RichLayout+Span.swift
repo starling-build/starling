@@ -2020,6 +2020,59 @@ extension RichLayout {
         }
     }
 
+    /// Word's outlined letters: the fill is the painter's own; this draws a second pass of the same text with only the
+    /// outlined runs showing, as a stroke in the outline's colour centred on the glyph edge (a stroke-only twin over the fill).
+    func _paintOutlineStrokes(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
+                              _ canvas: any Canvas, map: _OffsetMap? = nil) {
+        guard theme.wordRules, p.runs.contains(where: { ($0.style.outline ?? $0.style.textLine) != nil && !$0.style.noFill }), let root = painter.text else { return }
+        var marks: [(Range<Int>, Paint)] = []
+        var at = 0
+        for run in p.runs {
+            defer { at += run.length }
+            guard run.length > 0, let line = run.style.outline ?? run.style.textLine, line.width > 0, !run.style.noFill else { continue }
+            let a = map?.painter(at) ?? at, b = (map?.painter(at + run.length - 1) ?? at + run.length - 1) + 1
+            let stroke = Paint(); stroke.style = .stroke
+            stroke.strokeWidth = max(0.5, _px(line.width)); stroke.color = line.color
+            marks.append((a..<b, stroke))
+        }
+        guard !marks.isEmpty else { return }
+        let id = ObjectIdentifier(painter)
+        let twin: TextPainter
+        if let hit = _clearedPainters[id]?[-77], hit.source === painter { twin = hit.cleared } else {
+            let transparent = Paint(); transparent.color = Color(0x00000000)
+            let none = [Shadow(color: Color(0x00000000), offset: .zero, blurRadius: 0)]  // (empty would inherit the run's own)
+            let clear = TextStyle(foreground: transparent, shadows: none)
+            var pos = 0
+            func copy(_ span: InlineSpan) -> InlineSpan {
+                guard let t = span as? TextSpan else { pos += 1; return span }
+                var parts: [InlineSpan] = []
+                if let text = t.text {
+                    let units = Array(text.utf16)
+                    var from = 0
+                    while from < units.count {
+                        let mark = marks.first { $0.0.contains(pos + from) }
+                        var to = from + 1
+                        while to < units.count, marks.first(where: { $0.0.contains(pos + to) })?.0 == mark?.0 { to += 1 }
+                        let piece = String(decoding: units[from..<to], as: UTF16.self)
+                        parts.append(TextSpan(text: piece, style: mark.map { TextStyle(foreground: $0.1, shadows: none) } ?? clear))
+                        from = to
+                    }
+                    pos += units.count
+                }
+                for child in t.children ?? [] { parts.append(copy(child)) }
+                return TextSpan(children: parts, style: t.style, locale: t.locale)
+            }
+            let made = TextPainter(text: copy(root), textAlign: painter.textAlign, textDirection: painter.textDirection ?? .ltr,
+                                   strutStyle: painter.strutStyle)
+            made.fractionalLineHeights = painter.fractionalLineHeights
+            if let dims = painter.placeholderDimensions { made.setPlaceholderDimensions(dims) }
+            made.layout(minWidth: painter.width, maxWidth: painter.width)
+            _clearedPainters[id, default: [:]][-77] = (painter, made)
+            twin = made
+        }
+        twin.paint(canvas, origin)
+    }
+
     /// The character an `eq \o\ac(○,예)` field lays over its ring: the ring's face at the overlay's size, centred on the ring, on its baseline.
     func _paintOverlay(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
                        _ canvas: any Canvas, _ document: RichDocument, map: _OffsetMap? = nil) {

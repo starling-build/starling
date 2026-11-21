@@ -1015,6 +1015,7 @@ public final class RichTextTheme {
             // (Hollow letters cast none: Word's print of 7de651e7's heading has the outline alone.)
             shadows: hollow != nil ? nil : scriptHidden && style.script != .normal && !shifted ? [] : px <= 0.01 ? nil : { () -> [Shadow]? in
                 guard let line = style.outline, line.width > 0 else { return nil }
+                if wordRules { return nil }  // (Word's outline is a stroke twin over the fill, `_paintOutlineStrokes`.)
                 // (An outline as the letters' copies a half line out all round, in its colour, under the
                 // letters: PowerPoint's is centred on the edge.)
                 let k = pixelsPerPoint * scale, r = line.width * 0.35 * k
