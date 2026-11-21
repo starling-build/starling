@@ -4809,7 +4809,16 @@ extension RichLayout {
            _grid(i, document).pitch == nil || _offGrid(i, document),
            painter.computeLineMetrics().count == 2, let hrRun = p.runs.first(where: { $0.style.fontSize != nil }) {
             RuleTrace.hit("word-picture-and-rule-line-takes-the-multiples-extra")
-            bodyHeight += (multiple - 1) * _markLineHeight(i, document, single: true, using: hrRun.style)
+            // (A picture whose own run states no size takes the extra of the style's own line, as a picture alone does: dx2 48e5a592's
+            // 210pt picture, its run stating only an East Asian face, over an 8pt Tahoma rule and a 20pt mark, in a 12pt Calibri Light style
+            // at 1.5 lines: the next paragraph 7.31pt lower than single in Word's print, half the style's line, not the rule run's 4.83.)
+            let pictureRun = p.inlineImages.values.first(where: { $0.name != "hr" && $0.float == nil })?.sourceRunPropertiesXML
+            if let pictureRun, !pictureRun.containsSubstring("w:sz ") {
+                RuleTrace.hit("word-picture-and-rule-line-extra-of-the-styles-line")
+                bodyHeight += (multiple - 1) * _markLineHeight(i, document, single: true, using: CharStyle())
+            } else {
+                bodyHeight += (multiple - 1) * _markLineHeight(i, document, single: true, using: hrRun.style)
+            }
         }
         }
         _blk9()
