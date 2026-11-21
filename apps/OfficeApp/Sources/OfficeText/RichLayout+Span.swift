@@ -2005,6 +2005,23 @@ extension RichLayout {
                     if let rs = r.fontSize, let rh = r.height, rs * rh / px > (s.height ?? 0) { s = s.copyWith(height: rs * rh / px); RuleTrace.hit("word-rtl-symbol-segoe-line-height") }
                 }
                 if run.rightToLeft, theme.wordRules, RichTextTheme.wordWindowsPages, !text.contains(where: { $0.isLetter || $0.isNumber }) { s = s.copyWith(debugLabel: (s.debugLabel ?? "") + " rtl-mark") }
+                // (Word's `w:textAlignment` "top": each run stands on its own ascent below the line's top, so a smaller run sets higher
+                // than the baseline a bigger one on its line shares: xd sa1 97666801's 12 pt "SIM" beside a 16 pt box glyph stands 3.9 pt
+                // higher in Word's print than ours. The line's height is the bigger run's, unchanged.)
+                if kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil,
+                   p.style.eastAsian["w:textAlignment"] == "top", let size = s.fontSize, size > 0.5 {
+                    func ascentPt(_ r: CharStyle) -> Double {
+                        let pt = r.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                        let fam = r.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily
+                        return pt * (theme.faceResolver?(fam, false)?.baseline ?? 0.8)
+                    }
+                    let own = ascentPt(run)
+                    let most = p.runs.filter { $0.length > 0 && $0.style.script == .normal }.map { ascentPt($0.style) }.max() ?? own
+                    if most - own > 0.05 {
+                        RuleTrace.hit("word-top-aligned-runs-stand-on-their-own-ascent")
+                        s = s.copyWith(baselineShift: (s.baselineShift ?? 0) - (most - own) * theme.pixelsPerPoint * scale)
+                    }
+                }
                 if !fitBusy, !plainPiece, !latinNoScale { styles[kind] = s }
                 return s
             }
