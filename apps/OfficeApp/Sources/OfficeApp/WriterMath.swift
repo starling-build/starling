@@ -100,10 +100,12 @@ enum WriterMath {
         // denominator, not from the font's ascent and descent: a plain one at 10pt is 2.3 em tall,
         // where the font's extras made ours 2.6 em. lab frac2.)
         if display, RichTextTheme.wordWindowsPages, !node.descendants("m:f").isEmpty,
-           ["sSup", "sSub", "sSubSup", "nary"].allSatisfy({ node.descendants("m:" + $0).isEmpty }) {
+           ["nary"].allSatisfy({ node.descendants("m:" + $0).isEmpty }) {
             RuleTrace.hit("display-fraction-line-counts-ink")
-            box.ascent = box.iu + size * 0.08
-            box.descent = max(box.idn, size * 0.17) + size * 0.08
+            let scripted = ["sSup", "sSub", "sSubSup"].contains(where: { !node.descendants("m:" + $0).isEmpty })
+            let pad = scripted ? 0 : size * 0.08
+            box.ascent = box.iu + pad
+            box.descent = max(box.idn, size * 0.17) + pad
         }
         // (A display equation ending on a manual break, `<w:br/>` in its last
         // run, is one empty line longer: Word sets that line under it, 7f0539's
@@ -312,7 +314,7 @@ enum WriterMath {
         static func inkDepth(of s: String) -> Double {
             for u in s.unicodeScalars {
                 switch u.value {
-                case 0x30 ... 0x39, 0x41 ... 0x5A, 0x2B, 0x2D, 0x3D, 0x2212: continue
+                case 0x20, 0xA0, 0x30 ... 0x39, 0x41 ... 0x5A, 0x2B, 0x2D, 0x3D, 0x2212: continue
                 case 0x61 ... 0x7A: if "gjpqy".unicodeScalars.contains(u) { return 0.2 }
                 case 0x1D44E ... 0x1D467: let k = u.value - 0x1D44E; if [6, 9, 15, 16, 24].contains(k) { return 0.2 }
                 case 0x1D434 ... 0x1D44D, 0x210E: continue
