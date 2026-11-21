@@ -3435,9 +3435,19 @@ extension RichLayout {
     @inline(never)
     func _floatStripNarrowerThanIndent(_ table: String, _ i: Int, _ document: RichDocument) -> Bool {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, _cells[i] == nil, i < document.paragraphs.count else { return false }
+        let left = _tableLeft(table, document)
+        // (A table standing right of the text's left edge leaves its strip at the LEFT, less the 9pt the text keeps
+        // from it: the indent that must fit there is the paragraph's left-hand one, its END indent in a right-to-left
+        // paragraph. xd c7b72657: two empties, end indent 35.5pt against 37.8 - 9 = 28.8, stand under the table in Word.)
+        if left >= _px(12), (_tableFlowWidth[table] ?? width) - (left + (_columnWidths[table] ?? []).reduce(0, +)) < _px(12) {
+            let st = document.paragraphs[i].style
+            let side = st.rightToLeft ? st.indentRight : st.indentLeft
+            guard side > 0.01, _px(side) > left - _px(9) + 0.01 else { return false }
+            RuleTrace.hit("word-float-strip-narrower-than-the-paragraphs-left-indent-leaves-no-strip")
+            return true
+        }
         let indent = document.paragraphs[i].style.indentRight
         guard indent > 0.01 else { return false }
-        let left = _tableLeft(table, document)
         let strip = (_tableFlowWidth[table] ?? width) - (left + (_columnWidths[table] ?? []).reduce(0, +))
         guard left < _px(12), strip > 0, _px(indent) > strip + 0.01 else { return false }
         RuleTrace.hit("word-float-strip-narrower-than-the-paragraphs-right-indent-leaves-no-strip")
