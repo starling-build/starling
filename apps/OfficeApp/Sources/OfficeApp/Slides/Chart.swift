@@ -2951,7 +2951,7 @@ enum ChartPainter {
             // 5.3 pt closer than a row's of one: lo-f9b9a8fc's "datalabel1…8", four to a row.)
             var wordPieRows = pie && !beside && box == nil && !c.onSlide && !c.onSheet && lines.count > 1
             if wordPieRows { RuleTrace.hit("word-pie-foot-legend-rows-of-two-are-spaced-wider-apart-than-the-line"); spacing -= 5.3 * k }
-            let lineH = beside ? (c.onSheet && box == nil ? 1.2213 * size * k + 5.88 : textH + (libreLegend && box == nil ? 5.57 : 6) * k) : textH
+            let lineH = slideGridW != nil ? textH + 6 * k : beside ? (c.onSheet && box == nil ? 1.2213 * size * k + 5.88 : textH + (libreLegend && box == nil ? 5.57 : 6) * k) : textH
             // (Each line as tall as its tallest name, a wrapped one too.)
             var droppedLegend: [(i: Int, tp: TextPainter)] = []
             // (A column too tall for the chart drops its last entries: the lab legend's 12 and 20 entries
