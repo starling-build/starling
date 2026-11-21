@@ -2164,6 +2164,9 @@ extension RichLayout {
                     for o in (k + 1) ..< max(k + 1, end) {
                         let c = units[o], b = units[o - 1]
                         if ((0x0E01 ... 0x0E30).contains(c) || c == 0x0E32 || c == 0x0E33 || (0x0E40 ... 0x0E44).contains(c)), !(0x0E40 ... 0x0E44).contains(b) { thaiJoins.insert(-o) }
+                        // (A closing quote or bracket after Thai stays with it: the engine would break before a quotation mark that follows a
+                        // Thai letter, xd a1263627's cell "…“มาแกแต|”ระดม…" left a short line, Word's print fills it: `_span` joins them.)
+                        if [0x201D, 0x2019, 0x22, 0x27, 0x29, 0x5D, 0x7D, 0xBB].contains(c), (0x0E01 ... 0x0E5B).contains(b) { thaiJoins.insert(o) }
                     }
                 }
                 k = end
