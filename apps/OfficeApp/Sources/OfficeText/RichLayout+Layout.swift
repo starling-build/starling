@@ -2221,6 +2221,11 @@ extension RichLayout {
                 // full stop does not part from a letter after it: dx2 2263e221's header "এস.আর.ও." fits its cell
                 // in Word's print, which widens the column to the whole word, where ours parted it at "র." / "ও.".)
                 else if theme.wordRules, a == 0x2E, k > 1, Self._isIndicUnit(units[k - 2]), Self._isIndicUnit(b), !pctWidthTable { parts = false }
+                // (A percent sign after a hyphen that ends a Latin word: Word's Windows print parts the line there, the percent
+                // opening the next: dx2 3a5235d0's link "…Annex%202%20-" / "%20Application%20form…" in a Thaana cell. The
+                // no-line-start list that holds a % to what precedes it is East Asian; ours took the 91-character link for one
+                // piece, 525 pt, and the autofit squeezed the label column of that form to 25 pt, 9 pages to Word's 4.)
+                else if theme.wordRules, RichTextTheme.wordWindowsPages, a == 0x2D, b == 0x25, k > 1, Self._isLatinWordUnit(units[k - 2]) { parts = true }
                 else { parts = !Self._glued(a, b, strict: Self._strictKinsoku(document)) }
                 if parts {
                     if start == 0 { first = piece(start, k) } else { m = max(m, piece(start, k)) }
