@@ -231,9 +231,12 @@ extension _ParaFrame {
         // PowerPoint hangs a line-end 、 or 。 past the margin (its hangingPunct, on by default): where one would open the next line, it
         // is set no wider than a point, so the line takes it and the character before it (befe9f6b p6 "…明記する。").
         if _hangsLineEndMarks(p),
-           p.text.utf16.contains(where: { $0 == 0x3001 || $0 == 0x3002 || $0 == 0xFF0C || $0 == 0xFF0E || $0 == 0x201D }) {
+           p.text.utf16.contains(where: { $0 == 0x3001 || $0 == 0x3002 || $0 == 0xFF0C || $0 == 0xFF0E || $0 == 0x201D || $0 == 0x29 }) {
             let units = Array(p.text.utf16)
-            func isMark(_ k: Int) -> Bool { k < units.count && (units[k] == 0x3001 || units[k] == 0x3002 || units[k] == 0xFF0C || units[k] == 0xFF0E || units[k] == 0x201D) }
+            func isMark(_ k: Int) -> Bool {
+                // (A ")" that closes a Hangul or ideograph hangs the same way: ko-4f5289 p6 keeps "(실부하)" whole in a narrow cell.)
+                if k > 0, k < units.count, units[k] == 0x29 { return units[k - 1] >= 0x3040 && units[k - 1] < 0xD7B0 || units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 }
+                return k < units.count && (units[k] == 0x3001 || units[k] == 0x3002 || units[k] == 0xFF0C || units[k] == 0xFF0E || units[k] == 0x201D) }
             var stays = Set<Int>()
             for _ in 0 ..< 3 {
                 let map = _map(i)
