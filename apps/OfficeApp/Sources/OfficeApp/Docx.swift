@@ -7273,6 +7273,14 @@ enum DocxFormat {
                         if parts.count > 2, let v = parts[2] { box.insetRight = v }
                         if parts.count > 3, let v = parts[3] { box.insetBottom = v }
                     }
+                    // (Half the outline's width too, as DrawingML's above: sa1 5e813226's 1pt
+                    // rects and rounded boxes hold their text 0.4 to 0.5 below ours.)
+                    if !perPart, node.descendant("wps:bodyPr") == nil, node.descendant("v:textbox") != nil,
+                       let vs = (node.name == "v:rect" || node.name == "v:oval" ? node : node.descendant("v:rect") ?? node.descendant("v:oval")),
+                       (vs["stroked"] ?? "t") != "f", (vs["stroked"] ?? "t") != "false" {
+                        let half = (_length(vs["strokeweight"] ?? "") ?? 0.75) / 2
+                        box.insetLeft += half; box.insetTop += half; box.insetRight += half; box.insetBottom += half
+                    }
                     // (Turned text in VML: the textbox's `layout-flow:vertical` reads
                     // down, as DrawingML's `vert`, and with `mso-layout-flow-alt:
                     // bottom-to-top` upward, as `vert270`; `vertical-ideographic`
