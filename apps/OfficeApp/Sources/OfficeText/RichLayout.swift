@@ -908,8 +908,14 @@ public final class RichTextTheme {
             px = 0.01
             color = color.withOpacity(0)
         }
+        var hollow: Paint? = nil
+        if wordRules, style.noFill, let line = style.textLine, px > 0.01 {
+            // (No fill and a line: the letters print as outlines only, the line centred on the edge.)
+            let p = Paint(); p.style = .stroke; p.strokeWidth = max(0.5, line.width * pixelsPerPoint * scale); p.color = line.color
+            hollow = p
+        }
         return TextStyle(
-            color: color,
+            color: hollow == nil ? color : nil,
             // Commented text carries Word's balloon tint.
             backgroundColor: style.highlight ?? (style.comments.isEmpty ? nil : Color(0x40FFD966)),
             fontSize: style.script == .normal ? px
@@ -982,6 +988,7 @@ public final class RichTextTheme {
             // (None on a raised or lowered run held unseen in its line:
             // its shadow goes with the run where `_paintScripts` draws it,
             // where it stood at the baseline under 5864's raised "st".)
+            foreground: hollow,
             shadows: scriptHidden && style.script != .normal && !shifted ? [] : px <= 0.01 ? nil : { () -> [Shadow]? in
                 guard let line = style.outline, line.width > 0 else { return nil }
                 // (An outline as the letters' copies a half line out all round, in its colour, under the

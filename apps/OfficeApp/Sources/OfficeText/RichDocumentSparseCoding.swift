@@ -226,7 +226,7 @@ extension CharStyle {
         case eastAsiaFontFamily
         case hAnsiFontFamily
         case fontHint
-        case shadow
+        case shadow, textLine, noFill
         case keptXML
         case comments
         case field
@@ -267,6 +267,8 @@ extension CharStyle {
         hAnsiFontFamily = try c.decodeIfPresent(String.self, forKey: .hAnsiFontFamily) ?? d.hAnsiFontFamily
         fontHint = try c.decodeIfPresent(String.self, forKey: .fontHint) ?? d.fontHint
         shadow = try c.decodeIfPresent(CharShadow.self, forKey: .shadow) ?? d.shadow
+        textLine = try c.decodeIfPresent(CharOutline.self, forKey: .textLine) ?? d.textLine
+        noFill = try c.decodeIfPresent(Bool.self, forKey: .noFill) ?? d.noFill
         keptXML = try c.decodeIfPresent(String.self, forKey: .keptXML) ?? d.keptXML
         comments = try c.decodeIfPresent([String].self, forKey: .comments) ?? d.comments
         field = try c.decodeIfPresent(String.self, forKey: .field) ?? d.field
@@ -306,6 +308,8 @@ extension CharStyle {
         if hAnsiFontFamily != d.hAnsiFontFamily, let v = hAnsiFontFamily { try c.encode(v, forKey: .hAnsiFontFamily) }
         if fontHint != d.fontHint, let v = fontHint { try c.encode(v, forKey: .fontHint) }
         if shadow != d.shadow, let v = shadow { try c.encode(v, forKey: .shadow) }
+        if textLine != d.textLine, let v = textLine { try c.encode(v, forKey: .textLine) }
+        if noFill != d.noFill { try c.encode(noFill, forKey: .noFill) }
         if keptXML != d.keptXML, let v = keptXML { try c.encode(v, forKey: .keptXML) }
         if comments != d.comments { try c.encode(comments, forKey: .comments) }
         if field != d.field, let v = field { try c.encode(v, forKey: .field) }
