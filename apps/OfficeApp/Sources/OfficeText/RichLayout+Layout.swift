@@ -1969,11 +1969,6 @@ extension RichLayout {
         // (Not past the room an autofitting parent that spans its page
         // leaves it: `_nestedCap`.)
         if let cap = _nestedCap, widths.reduce(0, +) > cap + _px(1), base.reduce(0, +) <= cap + _px(1) { return base }
-        // (A table that states its width as the whole of its room (tblW 100%) is held to it: Word parts the
-        // over-long word inside its cell, a URL of 219 letters in a 452.5pt table, and does not widen the
-        // table past the page. sa1 03f63881 p22-23: ours took 778.7pt, Word's table stood at its grid.)
-        if theme.wordRules, RichTextTheme.wordWindowsPages, let pct = document.tableStyles[table]?.widthPercent, pct >= 100,
-           base.reduce(0, +) <= room + _px(1), widths.reduce(0, +) > room + _px(1) { return base }
         // (Whole pixels: up for a column a cell's narrowest set, so that
         // its piece still fits it.)
         let fitted = widths.indices.map { set.contains($0) ? (widths[$0] - 0.001).rounded(.up) : (widths[$0] + 0.001).rounded(.down) }
