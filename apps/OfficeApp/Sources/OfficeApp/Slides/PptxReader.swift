@@ -3309,6 +3309,9 @@ private struct SlideContext {
         for (k, layer) in layers.enumerated() {
             s = s.filled(from: LevelStyle.paragraph(layer, colors, picture: pictures(k < owners.count ? owners[k] : nil)))
         }
+        // (A text box's tab distance is the deck's default text style's, an inch where that says none: the master's `otherStyle`
+        // 36 pt is not read for it. ko-439a1778 p16's boxes put their tabbed lines at 72 pt steps in PowerPoint's print.)
+        if ph == nil, defaults != nil, defaults?.first(tag)?["defTabSz"] == nil, shapeList?.first(tag)?["defTabSz"] == nil { s.defTab = nil }
         return s
     }
 
