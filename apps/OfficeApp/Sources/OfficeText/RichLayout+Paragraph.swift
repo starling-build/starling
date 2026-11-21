@@ -1053,6 +1053,28 @@ extension RichLayout {
                     RuleTrace.hit("word-tab-run-past-the-margin-restarts-its-stops-on-the-next-line")
                 }
             }
+            // (A right-to-left paragraph's "." and the tabs after it have no space to break at: the trial lays them as one
+            // word and takes it down whole. Word breaks at a tab, the "." stays with the text and the tabs that fit; the
+            // break comes before the first tab whose stop lies past the line's end. xd 72ea457a.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, style.rightToLeft {
+                var k = 0
+                while k < wraps.count {
+                    let w = wraps[k]
+                    var e = w
+                    while e < units.count, units[e] != 0x09, units[e] != 0x20, units[e] != 0x0A, units[e] != 0x2028 { e += 1 }
+                    let prev = k == 0 ? 0 : wraps[k - 1]
+                    if w > prev, w < units.count, e > w, e < units.count, units[e] == 0x09, units[w] != 0x09, prev < w,
+                       !(prev ..< w).isEmpty, !units[(prev ..< w)].contains(0x09) {
+                        let line = probe.getBoxesForSelection(TextSelection(baseOffset: probeMap.painter(prev), extentOffset: probeMap.painter(e - 1) + 1))
+                        if let lo = line.map(\.left).min(), let hi = line.map(\.right).max(), hi - lo <= textWidth - _px(0.5) {
+                            wraps.remove(at: k)
+                            RuleTrace.hit("word-rtl-text-before-a-tab-run-keeps-its-line")
+                            continue
+                        }
+                    }
+                    k += 1
+                }
+            }
             // (The same lone tab after a space, with words after it on the line before the break: its default
             // stop past the margin, it opens the next line with them. Word's gv-d1907c960c "of this <tab>Grant".)
             if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, stops.isEmpty {
@@ -1106,10 +1128,37 @@ extension RichLayout {
                     let lineStart = (0 ..< t).last(where: { units[$0] == 0x0A || units[$0] == 0x2028 }).map { $0 + 1 } ?? 0
                     let rtlLetter: (UInt16) -> Bool = { ($0 >= 0x0590 && $0 <= 0x08FF) || ($0 >= 0xFB1D && $0 <= 0xFDFF) || ($0 >= 0xFE70 && $0 <= 0xFEFF) }
                     if units[lineStart ..< t].contains(where: rtlLetter) {
-                        if base != nil || lineStart != 0 { continue }
-                        let boxes = probe.getBoxesForSelection(TextSelection(baseOffset: probeMap.painter(0), extentOffset: probeMap.painter(t - 1) + 1))
-                        guard let lo = boxes.map(\.left).min(), let hi = boxes.map(\.right).max() else { continue }
-                        rtlAt = lead + (hi - lo)
+                        // (On a wrapped line too, measured from where the line starts: xd 72ea457a's
+                        // eighteen tabs after Hebrew, which had a space's width each past the first line.)
+                        let wrapped = base != nil || lineStart != 0
+                        let from = max(lineStart, wraps.last(where: { $0 <= t }).map { units[$0] == 0x0A || units[$0] == 0x2028 ? min($0 + 1, t) : $0 } ?? 0)
+                        if wrapped && !theme.wordRules { continue }
+                        let opensLine = from >= t && wrapped && theme.wordRules && wraps.contains(t)
+                        if from >= t && !opensLine { continue }
+                        // (Tabs among them count as one tab's own width each: the probe spreads an earlier tab to the stop it
+                        // would find in a left-to-right line, thousands of points wide.)
+                        var width = 0.0
+                        var seg = from
+                        var priorTabs = 0
+                        var failed = false
+                        while seg < t && !opensLine {
+                            var e = seg
+                            while e < t, units[e] != 0x09 { e += 1 }
+                            if e > seg {
+                                let bx = probe.getBoxesForSelection(TextSelection(baseOffset: probeMap.painter(seg), extentOffset: probeMap.painter(e - 1) + 1))
+                                if let lo = bx.map(\.left).min(), let hi = bx.map(\.right).max() { width += hi - lo } else { failed = true }
+                            }
+                            if e < t { priorTabs += 1 }
+                            seg = e + 1
+                        }
+                        if failed { continue }
+                        if priorTabs > 0 {
+                            let me = probeMap.painter(t)
+                            let ob = probe.getBoxesForSelection(TextSelection(baseOffset: me, extentOffset: me + 1)).first
+                            width += Double(priorTabs) * max(0, (ob?.right ?? 0) - (ob?.left ?? 0))
+                        }
+                        rtlAt = (wrapped ? (base ?? origin) : lead) + width
+                        if wrapped { RuleTrace.hit("word-rtl-tab-after-hebrew-is-measured-on-a-wrapped-line") }
                     }
                     let here = stops.first(where: { _px($0.position) > ownLeft + (rtlAt ?? edge(t)) - (base ?? origin) + shift + 0.5 })
                     if let here, here.alignment == .decimal { continue }
@@ -1245,6 +1294,18 @@ extension RichLayout {
                 // it, so the tabs after the wrap kept their widths from the stops of the first line: sa1 9994f234's "OTRO:)" and 38
                 // tabs, stops at 1080, 1440, 2160... twips; Word's second line goes 90, 126, 144, 180, 216 pt, ours 90, 126, 162, 198
                 // on a grid, a line more in all, the signature block of the page on the next one.)
+                // (A right-to-left paragraph's tab whose default stop lies past the line's end goes to the next line, the tabs
+                // before it staying, and the stops start again there; run ending the paragraph or not. Word's xd 72ea457a: 18 tabs
+                // after "." end at 36 pt steps from the margin, 8 on the line, the 9th's stop past the end, 10 on the next.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, style.rightToLeft, stop.alignment == .left, t > 0,
+                   stop.x > ownLeft + textWidth + 0.5, x <= ownLeft + textWidth + 0.5, !wraps.contains(t), !afterTabWraps.contains(t),
+                   (wraps.last(where: { $0 <= t }) ?? 0) < t,
+                   !(t > 0 && (units[t - 1] == 0x0A || units[t - 1] == 0x2028)) {
+                    afterTabWraps.insert(t)
+                    RuleTrace.hit("word-rtl-tab-past-the-line-end-opens-the-next-line")
+                    measure(wraps)
+                    return
+                }
                 if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, t > 0, x > ownLeft + textWidth + 0.5, units[t - 1] == 0x09,
                    units[t...].allSatisfy({ $0 == 0x09 }), !wraps.contains(t), !afterTabWraps.contains(t) {
                     afterTabWraps.insert(t)
@@ -1433,6 +1494,14 @@ extension RichLayout {
                         return
                     }
                     RuleTrace.hit("word-explicit-left-tab-past-the-edge-sends-trailing-spaces-to-the-next-line")
+                }
+                // (The tab before one that opens the next line of a right-to-left paragraph fills its line, as the explicit
+                // stop above: the engine hangs a run of tabs at the line's end, and without the fill the narrower first tab
+                // of the next line's grid would fit on this one. xd 72ea457a's "." + eighteen tabs + underscores.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, style.rightToLeft, stop.alignment == .left,
+                   afterTabWraps.contains(t + 1), !toIndent, x + own < ownLeft + textWidth - 0.5 {
+                    extra = ownLeft + textWidth - x - own - 0.02
+                    RuleTrace.hit("word-rtl-tab-before-the-next-line-fills-its-line")
                 }
                 tabs[t] = extra
                 if toIndent { leftTabs.insert(t) }
