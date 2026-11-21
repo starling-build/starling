@@ -844,6 +844,11 @@ extension RichLayout {
                 let ownStop = theme.wordRules
                     ? style.tabStops.filter { $0.rawKind != "bar" && $0.rawKind != "clear" }.map { _px($0.position) }.sorted()
                         .first(where: { $0 > ownLeft + end + 0.01 && ($0 < ownLeft - 0.01 || wl.first >= 0 || end > 0.01) }) : nil
+                // (A number that ends exactly on a stop of the paragraph's own, a right-set "iv." under a 1440 indent and a stop at 1440,
+                // is taken to that stop with no width, so the tab the text opens with goes on to the next: sa1 462c594f "iv." has its
+                // text at the 2160 stop in Word's print, not the 3600 one.)
+                let onOwnStop = theme.wordRules && RichTextTheme.wordWindowsPages && ownStop != nil && wl.first == 0 && abs(end) < 0.01
+                    && style.tabStops.contains(where: { $0.rawKind != "bar" && $0.rawKind != "clear" && abs(_px($0.position) - ownLeft) < 0.01 })
                 // (Where the settings say `w:doNotUseIndentAsNumberingTabStop`,
                 // the default stops before the hanging indent count too:
                 // the text goes to the first of the next one and the
@@ -853,7 +858,10 @@ extension RichLayout {
                 // held three characters fewer a line. zh-fec5fa30's "1."
                 // ends at 115.6 with its indent at 124.9 before the stop
                 // at 126, and its text starts at the indent.)
-                if let stop = ownStop {
+                if onOwnStop {
+                    end = 0
+                    RuleTrace.hit("word-number-ending-on-own-stop-takes-it")
+                } else if let stop = ownStop {
                     end = stop - ownLeft
                 } else if wl.first < 0, end <= 0.01, theme.wordRules, document.indentNotNumberingTabStop,
                           case let tab = _px(document.defaultTabStop ?? 36), tab > 0.01 {
