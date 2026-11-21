@@ -203,6 +203,11 @@ enum SlideFonts {
             var face = RichResolvedFace(family: resolve(family))
             face.advances = t.0
             face.boldAdvances = t.1
+            if n == "tahoma" {
+                // (Tahoma's own Arabic, as the Word path sets it.)
+                face.joinedAdvances = WindowsArabicAdvances.tahoma
+                face.boldJoinedAdvances = WindowsArabicAdvances.tahomaBold
+            }
             return face
         case "nunito sans", "nunito sans light":
             // (Nunito Sans's own widths. Plain Nunito is not here: a deck that does not carry it is printed by PowerPoint in
@@ -224,6 +229,18 @@ enum SlideFonts {
             let hebrew = family.trimmingWhitespace().lowercased() == "calibri" ? SlideFontWidths.calibriHebrew : SlideFontWidths.timesHebrew
             face.otherAdvances = hebrew
             face.boldOtherAdvances = hebrew
+            if family.trimmingWhitespace().lowercased() == "times new roman" {
+                face.joinedAdvances = WindowsArabicAdvances.times
+                face.boldJoinedAdvances = WindowsArabicAdvances.timesBold
+            }
+            return face
+        case "arial":
+            // (Arial's own Arabic advances, as the Word path sets it: rtl/8c48d77a's body lines, 27 pt, took the DejaVu Sans stand-in's
+            // widths and broke two words early.)
+            var face = RichResolvedFace(family: resolve(family))
+            face.fallback = ["Liberation Sans", "Noto Sans Arabic", "Noto Naskh Arabic", OfficeFonts.emojiPictographs, "DejaVu Sans"]
+            face.joinedAdvances = WindowsArabicAdvances.arial
+            face.boldJoinedAdvances = WindowsArabicAdvances.arialBold
             return face
         case "rockwell condensed":
             // (PowerPoint's print of 6e9fe27b sets it a third narrower than the Arial it was drawn in: lines ran a third over.)
