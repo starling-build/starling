@@ -808,7 +808,11 @@ extension RichLayout {
                     // line under it.)
                     let bandsHere = seq.filter { _cells[$0.paragraph] != nil && !oneColumnTables.contains(_cells[$0.paragraph]!.table) }
                     let total = (first ... lastPage).reduce(0.0) { acc, s in acc + ((_pages[s].filter { p in !head.contains(where: { $0 == p }) }).map { $0.pageY + $0.height }.max().map { $0 - base } ?? 0) }
-                    let target = total / Double(nb)
+                    // (The space after the block's last paragraph is not a column's length:
+                    // sa1 978697fd's three one-line items, 1+1+1 in Word's print, were
+                    // 2+1 here with the last item's 8pt counted in the even length.)
+                    let lastAfter = theme.wordRules && pgs.i >= 1 && seq.contains(where: { $0.paragraph == pgs.i - 1 }) && _cells[pgs.i - 1] == nil ? _px(document.paragraphs[pgs.i - 1].style.spaceAfter) : 0
+                    let target = max(0, total - lastAfter) / Double(nb)
                     var out: [[PagePiece]] = Array(repeating: [], count: nb)
                     var c = 0, cy = 0.0
                     var lastBottom: [Int: Double] = [:]
