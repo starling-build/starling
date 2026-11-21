@@ -38,7 +38,7 @@ extension RichLayout {
 
     func _paintObject(_ image: ImageAttachment, _ rect0: Rect, _ canvas: any Canvas) -> Bool {
         let rect = _insetBox(image, rect0)
-        guard theme.wordRules, image.data.isEmpty || Self.drawsObject?(image) == true, let paint = Self.objectPainter else { return false }
+        guard theme.wordRules || Self.drawsObject?(image) == true, image.data.isEmpty || Self.drawsObject?(image) == true, let paint = Self.objectPainter else { return false }
         canvas.save()
         defer { canvas.restore() }
         return paint(image, canvas, rect, theme.pixelsPerPoint * scale)

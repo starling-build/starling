@@ -1431,7 +1431,13 @@ private struct SlideContext {
                 // tdf131553's diagram sits in one of each).
                 var o = _opaque(el, label: "Object", transform, id: id)
                 if case .opaque(var obj)? = o?.kind {
-                    for branch in ["mc:Fallback", "mc:Choice"] where obj.rendering.isEmpty {
+                    // An equation the math engine can lay out is drawn as text from the choice; the fallback picture only where it cannot.
+                    let mathChoice = el.first("mc:Choice").map { c in
+                        let eqs = c.descendants("a14:m").flatMap { $0.children.filter { $0.name == "m:oMath" || $0.name == "m:oMathPara" } }
+                        WriterMath.slideScope = true; defer { WriterMath.slideScope = false }
+                        return !eqs.isEmpty && eqs.allSatisfy { WriterMath.box($0, size: 18) != nil }
+                    } ?? false
+                    for branch in (mathChoice ? ["mc:Choice", "mc:Fallback"] : ["mc:Fallback", "mc:Choice"]) where obj.rendering.isEmpty {
                         guard let b = el.first(branch) else { continue }
                         var inner: [ShapeState] = []
                         shapes(in: b, transform: transform, into: &inner, id: id, group: nil, groupFill: groupFill)
@@ -1874,7 +1880,7 @@ private struct SlideContext {
         }
         // A body that is one field and nothing else (a slide number, a
         // date) stays that field.
-        let paras = sp.first("p:txBody")?.all("a:p").filter { !$0.all("a:r").isEmpty || !$0.all("a:fld").isEmpty } ?? []
+        let paras = sp.first("p:txBody")?.all("a:p").filter { !$0.all("a:r").isEmpty || !$0.all("a:fld").isEmpty || !$0.all("a14:m").isEmpty } ?? []
         if paras.count == 1, paras[0].all("a:r").isEmpty, paras[0].all("a:fld").count == 1,
            let fld = paras[0].first("a:fld"), let type = fld["type"], let fid = fld["id"] {
             st.field = SlideField(type: type, id: fid)
@@ -3475,7 +3481,8 @@ private struct SlideContext {
             var text = ""
             var runs: [Run] = []
             var looks: [RunLook] = []
-            func add(_ t0: String, _ r: LevelStyle, _ rPr: XNode? = nil) {
+            var mathImages: [String: ImageAttachment] = [:]
+            func add(_ t0: String, _ r: LevelStyle, _ rPr: XNode? = nil, inline: String? = nil) {
                 guard !t0.isEmpty else { return }
                 // A symbol face's private-range codes as the glyphs they show
                 // (`a:sym` Symbol, or the run's own face): GeomLec1's U+F0DE
@@ -3509,6 +3516,7 @@ private struct SlideContext {
                 // (WordArt draws its own outline: `RunLook`.)
                 if body?.first("a:bodyPr")?.first("a:prstTxWarp") == nil, (cs.color?.alpha ?? 255) == 255 { cs.outline = s.outline; cs.noFill = s.noFill && s.outline != nil }
                 if s.caps == "all" { cs.caps = true } else if s.caps == "small" { cs.smallCaps = true }
+                if let inline { cs.inlineImage = inline }
                 text += t
                 // Hebrew, Arabic and Thai letters in the complex-script
                 // face, as PowerPoint sets them: tdf98603's Hebrew title is
@@ -3578,6 +3586,20 @@ private struct SlideContext {
                     if noWrapBody, text.hasSuffix(" ") { text = String(text.dropLast()) + "\u{00A0}" }
                     add("\n", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle())
                 case "a:fld": add(child.first("a:t")?.text ?? "", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle(), child.first("a:rPr"))
+                case "a14:m":
+                    // An equation, laid out and drawn by `WriterMath` as real text (PowerPoint prints Cambria Math glyphs).
+                    for piece in child.children where piece.name == "m:oMath" || piece.name == "m:oMathPara" {
+                        let first = piece.descendants("m:r").first?.first("a:rPr")
+                        let look = first.map { LevelStyle.run($0, colors) } ?? LevelStyle()
+                        let size = look.filled(from: level).size ?? 18
+                        WriterMath.slideScope = true; WriterMath.slideInk = look.filled(from: level).color
+                        defer { WriterMath.slideScope = false; WriterMath.slideInk = nil }
+                        var att = ImageAttachment(data: Data(), width: 1, height: 1, name: piece.name)
+                        guard let m = WriterMath.register(piece, for: att.id, size: size) else { continue }
+                        att.width = m.width; att.height = m.height; att.baseline = m.baseline
+                        mathImages[att.id] = att
+                        add(RichParagraph.inlineImageCharacter, look, first, inline: att.id)
+                    }
                 default: continue
                 }
             }
@@ -3611,7 +3633,17 @@ private struct SlideContext {
                 if let e = p.first("a:endParaRPr").map({ LevelStyle.run($0, colors).filled(from: level) }), _font(e.font) != runs.last?.style.fontFamily {
                     style.endMarkFace = _font(e.font)
                 }
-                paragraphs.append(RichParagraph(text: text, runs: runs, style: style))
+                var made = RichParagraph(text: text, runs: runs, style: style)
+                made.inlineImages = mathImages
+                // (A display equation sits by its own `m:jc` (centred by default), whatever the paragraph says.)
+                if !mathImages.isEmpty, let para = p.all("a14:m").first?.first("m:oMathPara"), p.all("a:r").isEmpty {
+                    switch para.first("m:oMathParaPr")?.first("m:jc")?["m:val"] {
+                    case "left": made.style.alignment = .left
+                    case "right": made.style.alignment = .right
+                    default: made.style.alignment = .center
+                    }
+                }
+                paragraphs.append(made)
             }
             runLooks.append(looks)
         }

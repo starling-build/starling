@@ -1467,10 +1467,16 @@ extension RichLayout {
                 // A picture in the line, sitting on the baseline as Word
                 // sets it; shrunk to the column when wider.
                 var w = _px(image.width), h = _px(image.height)
+                // (An equation of a slide is laid out again to the line's width, as Word's, before any shrinking.)
+                let drawn = !theme.wordRules && image.data.isEmpty && Self.drawsObject?(image) == true
+                var fittedBaseline: Double? = nil
+                if drawn, w > textWidth + 0.5, textWidth > 0,
+                   let fit = Self.objectFitter?(image, textWidth / (theme.pixelsPerPoint * scale)) {
+                    w = _px(fit.width); h = _px(fit.height); fittedBaseline = fit.baseline
+                }
                 if w > textWidth, !theme.wordRules { h *= textWidth / w; w = textWidth }
                 // (Or laid out again to the line's width, where it can be:
                 // `objectFitter`.)
-                var fittedBaseline: Double? = nil
                 if theme.wordRules, image.float == nil, image.data.isEmpty, w > textWidth + 0.5, textWidth > 0,
                    let fit = Self.objectFitter?(image, textWidth / (theme.pixelsPerPoint * scale)) {
                     w = _px(fit.width); h = _px(fit.height); fittedBaseline = fit.baseline
