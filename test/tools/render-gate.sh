@@ -11,6 +11,12 @@ SELF=$(readlink -f "$0")
 export RENDER_GATE=1   # a gate (and a prebuild) runs at normal priority; hand-run builds and A/B runs are niced (build-office-fast.sh, docx-pair.sh)
 S0=$(date +%s)   # gate start, to report the setup time before the build
 BASE_SHA=${1:?usage: render-gate.sh BASE_SHA}
+# On a pull_request run HEAD is GitHub's test merge (main tip + the PR). The event's base.sha is main as it was when the PR was
+# opened, so BASE_SHA..HEAD also holds everything that landed on main since (a board-only PR then looked like code, and drops
+# from other PRs were blamed on it). The PR's own change is HEAD^1..HEAD: use the merge's first parent as the base.
+if [ "${GATE_PREBUILD:-0}" != 1 ] && [ "$(git rev-list --parents -n1 HEAD | wc -w)" = 3 ] && git cat-file -e "HEAD^1^{commit}" 2>/dev/null; then
+  echo "render-gate: base $BASE_SHA -> merge first parent $(git rev-parse --short HEAD^1)"; BASE_SHA=$(git rev-parse HEAD^1)
+fi
 # Classify the change (BASE_SHA..HEAD): (1) render-relevant paths (test/tools/render-paths.txt) -> the full gate;
 # (2) gate tooling (workflows, this script, the pair/combine/scorer tools) -> a quick self-test (2 documents through the new tooling);
 # (3) anything else cannot change a render -> pass at once.
