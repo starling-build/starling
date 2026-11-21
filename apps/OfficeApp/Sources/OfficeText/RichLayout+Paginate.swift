@@ -3041,6 +3041,13 @@ extension RichLayout {
                 RuleTrace.hit("word-contextual-spacing-across-list-and-table-edge")
                 return true
             }
+            // (A paragraph's space after, contextual, stands before the next CELL's paragraph of the same style: contextual spacing
+            // looks inside one cell only. xd 7d58f74e p2's header row of List Paragraph cells, 10 pt after, is 29.5 pt in Word's print, ours 19.5.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, j > i, let a = p.cell, let b = document.paragraphs[j].cell, a != b,
+               !(style.spaceAfterAuto || o.spaceBeforeAuto) {
+                RuleTrace.hit("word-contextual-spacing-stays-across-a-cell-edge")
+                return false
+            }
             return o.named == style.named && o.heading == style.heading
                 && (o.list == style.list || (theme.wordRules && style.named != nil && o.list != nil && style.list != nil
                     && document.paragraphs[j].cell == p.cell))
@@ -3210,6 +3217,7 @@ extension RichLayout {
             if i + 1 >= document.paragraphs.count || document.paragraphs[i + 1].style.divId != div { divBottom = m.bottom }
         }
         let k = spacingFollowsFont ? fontScale : 1
+        if p.cell != nil, i < 60, i > 20 { FileHandle.standardError.write("DBG \(i) row=\(p.cell!.row) ctx=\(contextual) skipA=\(skipAfter) drop=\(dropAfter) after=\(spaceAfter(i)) \n".data(using: .utf8)!) }
         return ((skipBefore ? 0 : _px(spaceBefore * k)) + _px(divTop),
                 (skipAfter || dropAfter ? 0 : _px(spaceAfter(i) * k)) + _px(divBottom))
     }
