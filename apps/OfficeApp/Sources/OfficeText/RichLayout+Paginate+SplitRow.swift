@@ -886,7 +886,11 @@ extension RichLayout {
                     // road signs, a row of pictures parted at page 5's
                     // foot, go on 5pt lower on page 6 in Word's print
                     // than ours, which had only the rule.)
-                    let again = !first && theme.wordRules ? max(0, _cells[column.members[0]]!.pad.top - _pg_ruleUnder(&pgs, document, c, parted: true)) + nestedRepeat(column) : 0
+                    // (A text box that goes on stands under its cell's top margin AND the rule, not the margin overlapping the rule as
+                    // plain text does: Word's print of sa1 03f63881, a 1pt margin under a 1pt white rule, takes the continued box's
+                    // first line 1pt lower, 0.75 on the scaled page, on pages 14 and 15.)
+                    let boxed = RichTextTheme.wordWindowsPages && document.paragraphs[k].image?.textBox != nil
+                    let again = !first && theme.wordRules ? (boxed ? _cells[column.members[0]]!.pad.top : max(0, _cells[column.members[0]]!.pad.top - _pg_ruleUnder(&pgs, document, c, parted: true))) + nestedRepeat(column) : 0
                     var piece = PagePiece(paragraph: k, flowTop: lo, flowBottom: hi, page: pgs.page, pageY: pgs.y + (lo - column.cut) + (shift[n] ?? 0) + again + (fits ? ((partPad(column).map { lo >= $0.at - 0.01 ? $0.amount : 0 }) ?? 0) : 0))
                     piece.part = .text
                     pieces[k, default: []].append(piece)
