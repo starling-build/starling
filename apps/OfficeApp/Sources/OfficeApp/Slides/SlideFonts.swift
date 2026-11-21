@@ -191,10 +191,10 @@ enum SlideFonts {
             face.advances = t.0
             face.boldAdvances = t.1
             return face
-        case "nunito", "nunito light", "nunito medium", "nunito black", "nunito sans", "nunito sans light":
-            // (Nunito at Nunito Sans's widths, which PowerPoint's print of e3e0b3e0 matches for Nunito Light to the
-            // third place; Carlito's are 4% narrower and a line held a word more. Medium is set at the regular's,
-            // Black at the bold's: no cut of either is measured.)
+        case "nunito sans", "nunito sans light":
+            // (Nunito Sans's own widths. Plain Nunito is not here: a deck that does not carry it is printed by PowerPoint in
+            // Calibri (pilot 617866bf's Nunito Medium box held 'Actúo siempre con'); a deck that carries it is measured by
+            // the embedded face itself.)
             let light = family.lowercased().hasSuffix("light")
             var face = RichResolvedFace(family: resolve(family))
             let black = family.lowercased().hasSuffix("black")
