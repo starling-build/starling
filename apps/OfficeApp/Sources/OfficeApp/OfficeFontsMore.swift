@@ -720,6 +720,9 @@ extension OfficeFonts {
             face.naturalHeight = 2251.0 / 2048; face.baseline = 1835.0 / 2048
             face.boldHeight = 2535.0 / 2048; face.boldBaseline = 1857.0 / 2048
 
+        case "eras light itc":
+            face.advances = eras_light_itcAdv
+            face.naturalHeight = 2322.0 / 2048; face.baseline = 1810.0 / 2048
         case "eras medium itc":
             face.advances = eras_medium_itcAdv
             face.naturalHeight = 2337.0 / 2048; face.baseline = 1825.0 / 2048
