@@ -653,7 +653,8 @@ struct PptxReader {
             for style in ["p:regular", "p:bold", "p:italic", "p:boldItalic"] {
                 guard let rid = font.first(style)?["r:id"], let r = rels.first(where: { $0.id == rid }),
                       let raw = package.parts[r.target], let sfnt = EmbeddedEot.sfnt(raw),
-                      let family = OfficeFonts.loadEmbedded(OfficeFonts.pinnedWeight(sfnt, named: name), sharedFamily: "Starling Embedded " + name) else { continue }
+                      let family = OfficeFonts.loadEmbedded(sfnt, sharedFamily: "Starling Embedded " + name) else { continue }
+                if let w = OfficeFonts.variableWeight(sfnt, named: name) { RichTextTheme.variableWeights["Starling Embedded " + name] = w }
                 embeddedFaces[name] = family
             }
         }
