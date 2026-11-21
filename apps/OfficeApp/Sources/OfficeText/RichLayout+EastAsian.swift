@@ -1036,6 +1036,9 @@ extension RichLayout {
                     && !(squeezes && paragraphEnd && !legacy && units[tail] >= 0x2E80
                          && !Self._pauseMarks.contains(units[tail]) && units[tail] != 0xFF0E)
                     && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf || macComma || halfStop)
+                    // (PowerPoint hangs only 、。，． and ” past the margin, as the pass in `RichLayout+Paragraph+Body1` does: a closing
+                    // bracket goes down with the character before it. ja ae6c89bb p2 sends "グ」" to line 2, where 」 would end 5.5 pt over.)
+                    && !(_hangsLineEndMarks(p) && !Self._slidesHangingUnits.contains(units[tail]))
                     && !runRulesOff(tail) && !afterLatin
                     // (Nor a 、 or 。 with text after it where the pause rule holds: lab `sqreal`
                     // (jpn-z19433747's abstract, 65 right indents in 0.25pt steps) opens the next
@@ -2724,6 +2727,8 @@ extension RichLayout {
     }
 
     static let _hangingUnits = _closingUnits.union("？”’％′″﹚﹜﹞".utf16)
+    /// What PowerPoint's hangingPunct lets stand past a Slides line's end: 、。，． and the closing quote ”.
+    static let _slidesHangingUnits: Set<UInt16> = [0x3001, 0x3002, 0xFF0C, 0xFF0E, 0x201D]
 
     /// Punctuation whose ink keeps to the left half of its em, and to
     /// the right half: Word takes half an em off the first of two that
