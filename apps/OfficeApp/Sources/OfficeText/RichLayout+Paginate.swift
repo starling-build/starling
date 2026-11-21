@@ -1384,11 +1384,25 @@ extension RichLayout {
                         if noteRoom > 0 { RuleTrace.hit("word-kept-heading-counts-its-notes") }
                     }
                     violated = cum + start(k, trailing: single) + noteRoom > room + (single ? sharedNow : 0) + 0.01
+                    // (Where the last kept member can part, the page's foot may fall inside its lines: Word keeps only its
+                    // last line with the paragraph after, so the member parts and the run stands on if the members before it
+                    // and its own first lines fit. gv-95df15ab58's four-line "The only exceptions…" heading, 128 short of
+                    // the paragraph's start, sets two lines on page 8 and two on page 9 in Word's print.)
+                    if violated, theme.wordRules, RichTextTheme.wordWindowsPages, k - 1 == pgs.i, _cells[k - 1] == nil, !whole(k - 1),
+                       cum - _heights[k - 1] + start(k - 1) + noteRoom <= room + 0.01 {
+                        RuleTrace.hit("word-kept-last-member-parts-at-the-foot")
+                        violated = false
+                        let bt = Self._lineBottoms(geometry(k - 1).painter)
+                        let lastLine = bt.count > 1 ? bt[bt.count - 1] - bt[bt.count - 2] : 0
+                        pgs.tailHold = (paragraph: k - 1, page: pgs.page, give: max(cum + start(k, trailing: single) + noteRoom - room, lastLine))
+                    }
                 }
                     return violated
                 }
+                pgs.tailHold = nil
                 var violated = weigh(pgs.contentH - pgs.y)
                 if violated {
+                    pgs.tailHold = nil
                     _pg_newPage(&pgs, document)
                     // (The run weighed again where it landed: sent into a
                     // column that cannot hold it either, it goes on to the
@@ -2284,7 +2298,8 @@ extension RichLayout {
                     // page-top rules above, so run the loop again from the top.)
                     if restartOnNewPage { continue }
                 }
-                let available = (pgs.floatHold?.limit ?? pgs.contentH) - pgs.y
+                let tailGive = pgs.tailHold.map { $0.paragraph == pgs.i && $0.page == pgs.page ? $0.give : 0 } ?? 0
+                let available = (pgs.floatHold?.limit ?? pgs.contentH) - pgs.y - tailGive
                 let rest = bottom - cursor
                 // (The last line may reach past the foot by its grid's
                 // overhang.)
