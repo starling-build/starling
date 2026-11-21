@@ -105,7 +105,9 @@ extension _StyledFrame {
                 let size = run.fontSize ?? named?.char.fontSize ?? theme.fontSize
                 let kerns = (run.kerningFrom ?? named?.char.kerningFrom).map { $0 > 0 && size >= $0 } ?? false
                 if kerns, let following { target += _pairAdvance(s, ch, following) - _glyphWidth(s, ch) }
-                let g = grid * theme.pixelsPerPoint * scale
+                // (A face PowerPoint has measured widths for sets its glyphs on a thousandth of an em, as its print shows: Aptos digits
+                // 9.612 at 18 pt, not the eighth of a point's 9.625; the stand-in faces keep the eighth.)
+                let g = theme.advanceGridOfFaceTables ? 0.001 * px : grid * theme.pixelsPerPoint * scale
                 if g > 0 { target = (target / g).rounded() * g }
             }
             extra += target - _glyphWidth(s, ch)
