@@ -2343,7 +2343,28 @@ extension RichLayout {
                 let own = header.document.paragraphs.indices.filter { header.document.paragraphs[$0].cell == nil && $0 < header.layout._heights.count }
                 if !own.isEmpty { top = max(top, _px(setup.headerDistance) + own.reduce(0) { $0 + header.layout._heights[$1] }) }
             }
-            else { top = max(top, (header.pageAnchoredTop.map { min(_px($0), _px(setup.headerDistance)) } ?? _px(setup.headerDistance)) + header.height) }
+            else {
+                var below = 0.0
+                // (A header's in-flow table of exact rows keeps its last row's bottom rule under it: the body stands that much lower. Lab
+                // hdrtbl, Word for Windows: rules 0.625 / 1.5 / 3 pt moved the body 0.6 / 1.44 / 3.0 pt.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages {
+                    let hd = header.document
+                    if let t = hd.paragraphs.last(where: { $0.cell != nil })?.cell?.table, let ts = hd.tableStyles[t],
+                       !ts.pageAnchored, ts.pageOffsetY == nil, ts.marginOffsetY == nil, !ts.rowHeights.isEmpty,
+                       !ts.rowsExactHeight.isEmpty, ts.rowHeights.keys.allSatisfy({ ts.rowsExactHeight.contains($0) }) {
+                        let cs = hd.paragraphs.compactMap { $0.cell }.filter { $0.table == t }
+                        if let lastRow = cs.map({ $0.row + $0.rowSpan - 1 }).max() {
+                            for d in cs where d.row + d.rowSpan - 1 == lastRow {
+                                let part = d.rowSpan - 1
+                                let xml = part == 0 ? d.bordersXML : part - 1 < d.continuationBordersXML.count ? d.continuationBordersXML[part - 1] : nil
+                                if let side = Self._cellSide(xml, "bottom") { below = max(below, _px(Self._ruleRoom(side.style, side.width))) }
+                            }
+                            if below > 0 { RuleTrace.hit("header-exact-row-table-keeps-its-bottom-rule-under-it") }
+                        }
+                    }
+                }
+                top = max(top, (header.pageAnchoredTop.map { min(_px($0), _px(setup.headerDistance)) } ?? _px(setup.headerDistance)) + header.height + below)
+            }
             // (A header of one paragraph whose picture, with the text above and below it, is set against the PAGE's top: Word
             // puts the picture there and the paragraph's one line under its foot, so the body starts at the foot plus that
             // line, not at the header distance plus the picture's height as our flow has it. dx2 b785c95e and 4bc34886: a
