@@ -400,14 +400,18 @@ final class SlideTextCache {
     /// centred, all of it aligned right).
     func textLeft(_ shape: SlideShape, pxPerPt: Double) -> Double {
         let left = shape.drawInsets.left * pxPerPt
-        guard shape.noWrap || shape.anchorCentred, shape.kind != .table, let layout = layout(shape, pxPerPt: pxPerPt),
-              let doc = shape.text?.document else { return left }
         let room = (shape.frame.width - shape.drawInsets.left - shape.drawInsets.right) * pxPerPt
+        // (A box with no room left between its insets, an 11 pt circle with
+        // 7.2 pt each side, wraps nothing: its text hangs out like unwrapped
+        // text. ko-87d15438 p51's "1" in a circle: centred in PowerPoint's print, 3 pt right in ours.)
+        let noRoom = room <= 0
+        guard shape.noWrap || shape.anchorCentred || noRoom, shape.kind != .table, let layout = layout(shape, pxPerPt: pxPerPt),
+              let doc = shape.text?.document else { return left }
         let flowOver = layout.width - room
         // Centred as a block (`anchorCtr`): the widest line's span in the
         // middle of the room, the others aligned within it — hanging out
         // both sides alike when it is wider.
-        if shape.anchorCentred {
+        if shape.anchorCentred || (noRoom && doc.paragraphs.first?.style.alignment == .center) {
             var lo = Double.infinity, hi = -Double.infinity
             for i in 0 ..< layout.count {
                 let g = layout.geometry(i)
@@ -417,7 +421,7 @@ final class SlideTextCache {
             }
             return hi > lo ? left + room / 2 - (lo + hi) / 2 : left
         }
-        guard shape.noWrap else { return left }
+        guard shape.noWrap || noRoom else { return left }
         // (A single line comes back from the layout as wide as the room, so
         // its overhang is measured on the line itself: how-we-refactor's "R"
         // in an 18 pt square, centred in PowerPoint's print, 3.6 in; ours 7.2.)
