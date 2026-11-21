@@ -495,10 +495,12 @@ extension _StyledFrame {
                         RuleTrace.hit("word-thaana-letters-are-an-mv-boli-line")
                         return ("mv boli", 1)
                     }
-                    // (Digits and spaces in a run whose complex-script face is a Thaana one: Word draws them in MV Boli too, so a digit-only cell is a 1.611 em line; dx2 e3906782.)
-                    if text.unicodeScalars.contains(where: { $0.value >= 0x30 && $0.value <= 0x39 }),
-                       ["faruma", "mv boli", "mvboli"].contains((run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()) {
-                        RuleTrace.hit("word-thaana-face-digits-are-an-mv-boli-line")
+                    // (A run whose complex-script face carries the font table's Thaana mark and is missing on Windows: Word sets the run whole in MV Boli, its digits, spaces and punctuation too, so a digit-only cell is a 1.611 em line; dx2 e3906782.)
+                    if !text.isEmpty, !document.thaanaFaces.isEmpty,
+                       document.thaanaFaces.contains((run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased())
+                        || (!text.unicodeScalars.contains(where: { ($0.value >= 0x41 && $0.value <= 0x5A) || ($0.value >= 0x61 && $0.value <= 0x7A) || $0.value > 0x7F && !($0.value >= 0x0600 && $0.value <= 0x06FF) && $0.value != 0x2019 })
+                            && document.thaanaFaces.contains((run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased())) {
+                        RuleTrace.hit("word-thaana-face-run-is-an-mv-boli-line")
                         return ("mv boli", 1)
                     }
                     // (Myanmar letters, in any run: Word draws them in Myanmar Text (Zawgyi-One and the rest are missing on Windows) and sets the line at its 1.861 em.)
