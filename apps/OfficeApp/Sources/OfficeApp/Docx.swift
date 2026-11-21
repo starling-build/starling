@@ -2823,6 +2823,7 @@ enum DocxFormat {
                     RuleTrace.hit("no-default-table-style-text-half-point-in")
                     style.cellMarginLeft = 0.5
                     style.textOutdent = 0
+                    style.cellMarginRight = 0.5
                 }
                 // (… unless its first cell states its own: the table is set
                 // out by the margin of the cell whose text it lines up.

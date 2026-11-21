@@ -1245,7 +1245,10 @@ extension RichLayout {
                     // the margin + 5.4 whatever the indent, the indent moving the left edge
                     // alone, so the room is the column + 10.8 - indent. Lab ovfit's A3 (2013's
                     // layout) lost the indent from a room of the column's width.)
-                    let reach = (document.compatibilityMode ?? 12) >= 15 ? 0 : _px((ts.cellMarginLeft ?? 5.4) + (ts.cellMarginRight ?? 5.4))
+                    // (A table whose text stands in from its edge by a margin the edge does not outdent by (no default table style: text 0.5pt in, edge on the margin)
+            // is that much narrower than its two margins: dx2 8afcc2c4's 100% tables, right edge 0.5pt, not 1pt, past the text width.)
+            let unoutdented = ts.textOutdent == 0 ? (ts.cellMarginLeft ?? 0) : 0
+            let reach = (document.compatibilityMode ?? 12) >= 15 ? 0 : _px(max(0, (ts.cellMarginLeft ?? 5.4) + (ts.cellMarginRight ?? 5.4) - unoutdented))
                     let room = width + reach - _px(max(0, ts.indent))
                     let over = grid.reduce(0, +) - room
                     let spare = zip(grid, need).map { max(0, $0 - $1) }
@@ -1601,7 +1604,10 @@ extension RichLayout {
         // 223/230 after the first is raised to its content.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, !_nestedBlock, ts.widthPercent == 100, ts.columnPercents.count == count,
            count > 1, ts.columnPercents.values.reduce(0, +) > 100.5 {
-            let reach = (document.compatibilityMode ?? 12) >= 15 ? 0 : _px((ts.cellMarginLeft ?? 5.4) + (ts.cellMarginRight ?? 5.4))
+            // (A table whose text stands in from its edge by a margin the edge does not outdent by (no default table style: text 0.5pt in, edge on the margin)
+            // is that much narrower than its two margins: dx2 8afcc2c4's 100% tables, right edge 0.5pt, not 1pt, past the text width.)
+            let unoutdented = ts.textOutdent == 0 ? (ts.cellMarginLeft ?? 0) : 0
+            let reach = (document.compatibilityMode ?? 12) >= 15 ? 0 : _px(max(0, (ts.cellMarginLeft ?? 5.4) + (ts.cellMarginRight ?? 5.4) - unoutdented))
             let total = width + reach - _px(max(0, ts.indent))
             let narrow = _pctColumns(table, Array(repeating: total / Double(count), count: count), {
                 var s = ts; s.columnPercents = s.columnPercents.mapValues { _ in 0 }; return s
