@@ -627,6 +627,18 @@ struct PptxReader {
             size = Size(cx / Pptx.emu, cy / Pptx.emu)
         }
         let rels = package.rels(pres)
+        // The fonts the deck carries (EOT, usually MicroType Express packed).
+        var embeddedFaces: [String: String] = [:]
+        for font in presentation.first("p:embeddedFontLst")?.all("p:embeddedFont") ?? [] {
+            guard let name = font.first("p:font")?["typeface"] else { continue }
+            for style in ["p:regular", "p:bold", "p:italic", "p:boldItalic"] {
+                guard let rid = font.first(style)?["r:id"], let r = rels.first(where: { $0.id == rid }),
+                      let raw = package.parts[r.target], let sfnt = EmbeddedEot.sfnt(raw),
+                      let family = OfficeFonts.loadEmbedded(sfnt, sharedFamily: "Starling Embedded " + name) else { continue }
+                embeddedFaces[name] = family
+            }
+        }
+        SlideFonts.noteEmbedded(embeddedFaces)
         var slideParts: [String] = []
         for id in presentation.first("p:sldIdLst")?.all("p:sldId") ?? [] {
             if let rid = id["r:id"], let r = rels.first(where: { $0.id == rid }) { slideParts.append(r.target) }
