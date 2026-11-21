@@ -8,6 +8,7 @@
 # Env: JOBS (default 44), GATE_SCRATCH (default $HOME/scratch/gate-$$), GATE_FULL=1 (no subset: the whole sets).
 set -u
 SELF=$(readlink -f "$0")
+export RENDER_GATE=1   # a gate (and a prebuild) runs at normal priority; hand-run builds and A/B runs are niced (build-office-fast.sh, docx-pair.sh)
 S0=$(date +%s)   # gate start, to report the setup time before the build
 BASE_SHA=${1:?usage: render-gate.sh BASE_SHA}
 # Classify the change (BASE_SHA..HEAD): (1) render-relevant paths (test/tools/render-paths.txt) -> the full gate;
