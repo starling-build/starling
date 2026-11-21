@@ -5163,7 +5163,7 @@ extension RichLayout {
                 }()
                 // (An embedded object — an ActiveX check box — stands on the line of its own run's text, whatever else is on the
                 // line: dx2 00b709dd's 37 boxes, 14.25pt in 12pt Calibri, are lines 14.65 apart in Word's print, ours 14.42.)
-                let objectLine = image.name == "w:object" && image.textBox == nil
+                let objectLine = image.name == "w:object" && image.textBox == nil && image.isActiveXControl
                 if theme.wordRules, image.float == nil, w < textWidth - 1,
                    exactPictures || (at == 0 || breaks(at - 1)) && (pos >= units.count || breaks(pos)) {
                     // (In the text's own style: the picture's run keeps no
