@@ -18,11 +18,11 @@ mkdir -p "$W/in" "$W/ppt"
 for f in "$DECKS"/*.pptx; do ln -s "$f" "$W/in/"; done; for f in "$PPT"/*-orig.pdf; do ln -s "$f" "$W/ppt/"; done
 BASEALL=$BASE
 if [ -s "$PB" ]; then
-  for n in $(cut -f1 "$PB"); do
-    for d in "$PILOT/decks" "$STG/ja" "$STG/raw"; do [ -f "$d/$n" ] && { ln -sf "$d/$n" "$W/in/$n"; break; }; done
+  for n in $(cut -f1 "$PB" | sed 's#.*/##'); do
+    for d in "$PILOT/decks" "$PILOT/decks/ja" "$PILOT/decks/raw" "$STG/ja" "$STG/raw"; do [ -f "$d/$n" ] && { ln -sf "$d/$n" "$W/in/$n"; break; }; done
     for d in "$PILOT/powerpoint-win" "$STG/ja/powerpoint-win" "$STG/raw/powerpoint-win"; do [ -f "$d/${n%.pptx}-orig.pdf" ] && { ln -sf "$d/${n%.pptx}-orig.pdf" "$W/ppt/"; break; }; done
   done
-  cat "$BASE" "$PB" > "$W/base.tsv"; BASEALL=$W/base.tsv
+  { cat "$BASE"; awk -F'\t' 'BEGIN{OFS="\t"} {sub(/.*\//,"",$1); print}' "$PB"; } > "$W/base.tsv"; BASEALL=$W/base.tsv
 fi
 DECKS=$W/in; PPT=$W/ppt
 PDFDIFF_NO_PAIRS=1 OFFICE_APP=$BIN "$ROOT/test/pptx-app-render.sh" -j "$JOBS" "$DECKS" "$PPT" "$W" $(ls -SL "$DECKS" | grep '\.pptx$') > "$W/run.log" 2>&1
@@ -57,7 +57,7 @@ rc=$?
 # against baseline-lines-win.tsv in the corpus cache (not in git). A deck more than LTOL (default 1 pt) worse, or newly an error, blocks.
 PY=${PYTHON:-$( [ -x "$HOME/venv-word/bin/python" ] && echo "$HOME/venv-word/bin/python" || echo python3)}
 LB=$CC/baseline-lines-win.tsv
-PLB=$(ls "$PILOT"/baseline-lines*.tsv 2>/dev/null | head -1); [ -s "$LB" ] && [ -s "$PLB" ] && { cat "$LB" "$PLB" > "$W/lines-base.tsv"; LB=$W/lines-base.tsv; }
+PLB=$(ls "$PILOT"/baseline-*lines*.tsv 2>/dev/null | head -1); [ -s "$LB" ] && [ -s "$PLB" ] && { { cat "$LB"; awk -F'\t' 'BEGIN{OFS="\t"} {sub(/.*\//,"",$1); print}' "$PLB"; } > "$W/lines-base.tsv"; LB=$W/lines-base.tsv; }
 if [ -s "$LB" ]; then
   PPT_REFS=$PPT PPT_MATCH_JOBS=$JOBS "$PY" "$ROOT/test/pptx-line-match.py" "$W" > "$W/lines.txt" 2> "$W/lines.err"
   "$PY" -I "$ROOT/test/tools/pptx-combine.py" "$W/lines.txt" "$W/render.tsv" "$W/combined.tsv" "$DECKS" "$PPT" | head -1
