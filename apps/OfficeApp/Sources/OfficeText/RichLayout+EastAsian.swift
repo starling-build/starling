@@ -3408,8 +3408,11 @@ extension RichLayout {
         guard theme.wordRules, a >= 0, b < document.paragraphs.count, a < b else { return false }
         if _emptyBreakFragment(a, document) || _emptyBreakFragment(b, document) { return false }
         let x = document.paragraphs[a], y = document.paragraphs[b]
+        // (The box's left edge is where the paragraph's text first reaches, so a hanging paragraph (left 567, hanging 387) beside a plain one at 180
+        // is one box: sa2 af8615a0's checkbox list, its items 3.05pt apart more in ours than in Word's print.)
+        func edge(_ q: RichParagraph) -> Double { q.style.indentLeft + (RichTextTheme.wordWindowsPages ? min(0, q.style.firstLineIndent) : 0) }
         guard let bx = x.style.borders, bx == y.style.borders, x.cell == y.cell,
-              x.style.indentLeft == y.style.indentLeft, x.style.indentRight == y.style.indentRight else { return false }
+              edge(x) == edge(y), x.style.indentRight == y.style.indentRight else { return false }
         // (A numbered paragraph's indent comes from its list level, so a bordered one beside a plain bordered one
         // has another indent and does not run together with it: sa1 90385e38's "3. PARTICIPANTES" heading and the
         // "Alumnos" line under it, 1.4 pt apart more in Word's print.)
