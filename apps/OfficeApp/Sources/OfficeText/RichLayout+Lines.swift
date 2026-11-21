@@ -1044,7 +1044,7 @@ extension RichLayout {
                     let x: Double
                     switch float.horizontalAlign {
                     case "center": x = bandLeft + (bandWidth - w) / 2
-                    case "right": x = bandLeft + bandWidth - w
+                    case "right": x = bandLeft + bandWidth - w - (theme.wordRules && float.wraps ? _px(float.effectRight) : 0)
                     case "left": x = bandLeft
                     default: x = bandLeft + _px(float.x)
                     }
@@ -1136,7 +1136,7 @@ extension RichLayout {
                 let w = laid.map { $0.width }
                     ?? min(_px(image.width), image.textBox.flatMap { _fitWidths["\(image.id)|\($0.hashValue)"] } ?? .infinity)
                 let h = laid.map { $0.height } ?? _bodyBoxHeight(image, document)
-                var x = float.horizontalAlign == "right" ? column - w : float.horizontalAlign == "left" ? 0 : _px(float.x)
+                var x = float.horizontalAlign == "right" ? column - w - (theme.wordRules && float.wraps ? _px(float.effectRight) : 0) : float.horizontalAlign == "left" ? 0 : _px(float.x)
                 if fromPage { let setup = _setup(ofParagraph: i); x -= _px(setup.marginLeft + setup.gutter) }
                 // (Word clamps a square or tight box that sits left of its table cell to the cell's text edge, and the text stands beside it:
                 // e86e26f7's picture, 108 pt left of its cell; lab e86-picwrap. wrapNone/behind keep the offset.)

@@ -1197,7 +1197,8 @@ extension RichLayout {
         let align = float.horizontalAlign == "outside" ? outside : float.horizontalAlign == "inside" ? inside : float.horizontalAlign
         switch align {
         case "center": x = bandLeft + (bandWidth - w) / 2 + (theme.wordRules && !float.wraps ? _px(float.effectCentreShift) : 0)
-        case "right": x = bandLeft + bandWidth - w
+        // (Word aligns the box with its effect extent inside: sa1 978697fd's picture, effectExtent r 0.45 pt, stands that much left of the margin.)
+        case "right": x = bandLeft + bandWidth - w - (theme.wordRules && float.wraps ? _px(float.effectRight) : 0)
         case "left": x = bandLeft
         default: x = bandLeft + _px(float.x)
         }
