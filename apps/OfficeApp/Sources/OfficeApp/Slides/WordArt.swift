@@ -92,6 +92,8 @@ enum WordArt {
     /// their advances — 1 - spacing x size in points (outer lines a touch less than the innermost).
     static let circleInset = 0.165
     static let circleSpacing = 0.002
+    static let archInset = 0.195
+    static let archSpacingRise = 0.17
     static let circleSpacingOuter = 0.0035
     static let circlePitch = 0.975
     /// A line of a slide's text on a circle keeps its size only up to this share of its circle's length (lab prints, textcircle).
@@ -929,8 +931,45 @@ enum WordArt {
                     }
                 } else if f < 0.84 { lift = liftFor(f); build() }
             }
+            // PowerPoint's print (lab warplab1: Arial, three boxes, 24 and 54 pt, glyph centres fit an ellipse
+            // to 0.5 pt): the baseline rides the box's own ellipse pulled in (Arch Down: out) by 0.195 of the
+            // letters' size, which keep their advances; the text is only shrunk when it is longer than half the
+            // box's ellipse, down to that length, and a line longer than the path runs past its ends.
+            var archFit: Double?
+            var spaced: [Double]?
+            if slide, ring == 0, line.alignment == .center, line.width > 0, warp.preset == "textArchUp" || warp.preset == "textArchDown" || warp.preset == "textButton" {
+                var per = 0.0, prev = Offset(rx0 * cos(start * .pi / 180), ry0 * sin(start * .pi / 180))
+                for i in 1 ... 360 {
+                    let a = (start + sweep * Double(i) / 360) * .pi / 180
+                    let q = Offset(rx0 * cos(a), ry0 * sin(a))
+                    per += hypot(q.dx - prev.dx, q.dy - prev.dy); prev = q
+                }
+                let f = min(1, per / line.width)
+                archFit = f
+                lift = (warp.preset == "textArchDown" ? 1 : -1) * Self.archInset * size * f
+                sx = 1; c = area.center
+                let ext = 60.0, dir = sweep < 0 ? -1.0 : 1.0
+                let (st, sw) = (start - dir * ext, sweep + dir * 2 * ext)
+                let rxl = max(1, rx0 + lift), ryl = max(1, ry0 + lift)
+                pts = []; lens = [0]
+                for i in 0 ... steps {
+                    let a = (st + sw * Double(i) / Double(steps)) * .pi / 180
+                    pts.append(Offset(c.dx + rxl * cos(a), c.dy + ryl * sin(a)))
+                    if i > 0 { lens.append(lens[i - 1] + hypot(pts[i].dx - pts[i - 1].dx, pts[i].dy - pts[i - 1].dy)) }
+                }
+                // The letters are spaced along a path a quarter of their size from the baseline, toward their tops.
+                let up = (warp.preset == "textArchDown" ? -1.0 : 1.0) * Self.archSpacingRise * size * f
+                let rxs = max(1, rx0 + lift + up), rys = max(1, ry0 + lift + up)
+                var sp = [0.0], q = Offset(c.dx + rxs * cos(st * .pi / 180), c.dy + rys * sin(st * .pi / 180))
+                for i in 1 ... steps {
+                    let a = (st + sw * Double(i) / Double(steps)) * .pi / 180
+                    let n = Offset(c.dx + rxs * cos(a), c.dy + rys * sin(a))
+                    sp.append(sp[i - 1] + hypot(n.dx - q.dx, n.dy - q.dy)); q = n
+                }
+                spaced = sp
+            }
             let rx = max(1, offset ? rx0 : rx0 * sx + lift), ry = max(1, offset ? ry0 : ry0 + lift)
-            let arc = lens[steps]
+            let arc = (spaced ?? lens)[steps]
             guard arc > 0, line.width > 0 else { return }
             // (Fitted to its path — VML's `fitshape`/`fitpath`, Word's
             // WordArt — the line runs the arc's whole length, grown or
@@ -946,15 +985,17 @@ enum WordArt {
             // A slide's arch whose text is longer than the arc fills the arc exactly (texteffects shapes
             // 1, 2, 6: the glyph origins span the arc, where the loose-fit spread left 7% short).
             let tight = slide && ring == 0 && fit < 0.97 && (warp.preset == "textArchUp" || warp.preset == "textArchDown")
-            let k = tight ? fit : fit * archSpread * (slide ? 1 - (ring > 0 ? Self.circleSpacingOuter : Self.circleSpacing) * min(size / pxPerPt, 60) : 1)
+            var k = tight ? fit : fit * archSpread * (slide ? 1 - (ring > 0 ? Self.circleSpacingOuter : Self.circleSpacing) * min(size / pxPerPt, 60) : 1)
+            if let f = archFit { fit = f; k = f }
             let used = line.width * k
             let free = arc * (slide ? room : 1) - used
             var s = line.alignment == .center ? free / 2 : line.alignment == .right ? free : 0
             func at(_ d: Double) -> (Offset, Offset) {
                 let d = max(0, min(arc, d))
-                var i = lens.firstIndex { $0 >= d } ?? steps
+                let ls = spaced ?? lens
+                var i = ls.firstIndex { $0 >= d } ?? steps
                 i = max(1, i)
-                let t = (d - lens[i - 1]) / max(1e-9, lens[i] - lens[i - 1])
+                let t = (d - ls[i - 1]) / max(1e-9, ls[i] - ls[i - 1])
                 let p = Offset(pts[i - 1].dx + (pts[i].dx - pts[i - 1].dx) * t, pts[i - 1].dy + (pts[i].dy - pts[i - 1].dy) * t)
                 let len = max(1e-9, hypot(pts[i].dx - pts[i - 1].dx, pts[i].dy - pts[i - 1].dy))
                 return (p, Offset((pts[i].dx - pts[i - 1].dx) / len, (pts[i].dy - pts[i - 1].dy) / len))
@@ -1007,6 +1048,17 @@ enum WordArt {
             while sweep <= 0 { sweep += 360 }
             for (i, l) in lines.enumerated() {
                 if i == 0 { along(l, start: a, sweep: sweep) }
+                else if slide, lines.count == 2, l.alignment == .center {
+                    // PowerPoint (lab print): the second line runs straight across, its baseline
+                    // 0.195 of its size below the box centre.
+                    let size = l.glyphs.map(\.size).max() ?? 0
+                    let base = c.dy + Self.archInset * size
+                    var x = c.dx - l.width / 2
+                    for g in l.glyphs {
+                        draw(g, Offset(x, base - g.painter.computeDistanceToActualBaseline(.alphabetic)), Offset(1, 0), Offset(0, 1))
+                        x += g.width
+                    }
+                }
                 else if i == lines.count - 1 { along(l, start: a, sweep: -(360 - sweep)) }
                 else {
                     var x = c.dx - l.width / 2
