@@ -899,7 +899,7 @@ extension RichLayout {
                                _ canvas: any Canvas, _ document: RichDocument, map: _OffsetMap? = nil, leading: Bool? = nil) {
         guard p.runs.contains(where: { $0.style.script != .normal }) else { return }
         // (Drawn in their line already, shifted: `textStyle`.)
-        if theme.wordRules, NativeParagraphBuilder.supportsBaselineShift { return }
+        if theme.wordRules || theme.scriptsInLine, NativeParagraphBuilder.supportsBaselineShift { return }
         let named = document.styles.resolve(p.style)
         let units = Array(p.text.utf16)
         var pos = 0
