@@ -33,6 +33,15 @@ exec 9>"$W/lock"
 # prebuild (by PID, with its children) and build on from wherever the scratch got to. Another gate holding the lock: wait.
 if ! flock -n 9; then
   OP=; OR=; read -r OP OR < "$W/lock.owner" 2>/dev/null || true
+  # A prebuild in its last steps (the build log's [a/b] counter within 3 of the end, log touched in the last 30 s) is allowed
+  # to finish: killing it would throw away a nearly warm scratch (amd-perf, 2026-11-21).
+  if [ -z "${GATE_PREBUILD:-}" ] && [ "$OR" = prebuild ] && [ -n "$OP" ] && kill -0 "$OP" 2>/dev/null \
+     && [ $(( $(date +%s) - $(stat -c %Y "$W/build.log" 2>/dev/null || echo 0) )) -lt 30 ] \
+     && tail -c 400 "$W/build.log" 2>/dev/null | grep -aoE '\[[0-9]+/[0-9]+\]' | tail -1 | tr -d '[]' | awk -F/ '{exit !($2-$1<=3)}'; then
+    echo "render-gate: the scratch lock is held by a prebuild (pid $OP) in its last steps: letting it finish (up to 90 s)"
+    flock -w 90 9 || true
+    flock -n 9 || true
+  fi
   if [ -z "${GATE_PREBUILD:-}" ] && [ "$OR" = prebuild ] && [ -n "$OP" ] && kill -0 "$OP" 2>/dev/null; then
     echo "render-gate: the scratch lock is held by a prebuild (pid $OP): stopping it"
     kill_tree() { local c; for c in $(pgrep -P "$1" 2>/dev/null); do kill_tree "$c"; done; kill -TERM "$1" 2>/dev/null; }
@@ -141,7 +150,7 @@ FPID=
 if [ -z "${BPID:-}" ]; then BASEBIN=$BC/$BSHA/release/OfficeApp; ( fill_rows ) > "$W/fillrows.out" 2>&1 & FPID=$!; fi
 PREV=$(cat "$W/build.rev" 2>/dev/null); TB=$(date +%s)
 test/tools/build-office-fast.sh "$W/build" > "$W/build.log" 2>&1 || { echo "render-gate: BUILD FAILED"; tail -15 "$W/build.log" | cut -c1-200; exit 1; }
-echo "render-gate: PR build $(( $(date +%s)-TB )) s"   # the build alone; "build step" below also waits for the base rows/base build
+echo "render-gate: PR build $(( $(date +%s)-TB )) s, load $(cut -d" " -f1-3 /proc/loadavg), -j ${BUILD_JOBS:-default}; compiled: $(grep -aoE "[A-Za-z0-9+_]+\.swift" "$W/build.log" | sort -u | head -12 | tr "\n" " ")"   # the build alone; "build step" below also waits for the base rows/base build
 [ "${GATE_PREBUILD:-0}" = 1 ] && { echo "render-gate: PR build alone $(( $(date +%s)-TB )) s; changed since this scratch's last build: $( [ -n "$PREV" ] && git diff --name-only "$PREV" HEAD 2>/dev/null | wc -l || echo unknown) files (prev ${PREV:0:9})"; git rev-parse HEAD > "$W/build.rev"
 [ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; exit 1; }
   BASEBIN=$BC/$BSHA/release/OfficeApp; fill_rows; chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; echo "render-gate: base $BSHA cached"; exit 0; }
