@@ -1168,7 +1168,7 @@ extension RichLayout {
         // row 四, its middle cell of no top line, and Word draws the
         // table's 3pt compound line over that cell and sets the row's
         // text under it, 3.9pt lower than ours.)
-        if theme.wordRules, pgs.y < 0.01, c.firstInRow, case let extra = _pg_headLift(&pgs, document, pgs.i, j, c), extra > 0.01,
+        if theme.wordRules, pgs.y < 0.01, c.firstInRow, case let extra = _pg_headLift(&pgs, document, pgs.i, j, c, wholeRow: true), extra > 0.01,
            shown + extra + _pg_ruleUnder(&pgs, document, c) <= pgs.contentH + 0.01 {
             pgs.y += extra
         }
