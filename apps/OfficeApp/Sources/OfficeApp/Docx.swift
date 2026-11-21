@@ -5180,7 +5180,7 @@ enum DocxFormat {
         }
         // A DrawingML paragraph as a Word one: its alignment, line and
         // after spacing, and each run's face, size, weight and colour.
-        func paragraph(_ ap: XNode) -> XNode {
+        func paragraph(_ ap: XNode, last: Bool = false) -> XNode {
             var pPr: [XNode] = []
             let props = ap.first("a:pPr")
             let sz: String? = ap.all("a:r").first?.first("a:rPr")?["sz"] ?? ap.first("a:endParaRPr")?["sz"]
@@ -5196,6 +5196,9 @@ enum DocxFormat {
                     spacing[key] = String(Int((pts / 100 * 20).rounded()))
                 }
             }
+            // (The last paragraph's space after does not count in a drawing's text block, so the block centres without it:
+            // xd bf53d2b7's footer text stood 1.87 pt high with it, 1.92 pt less without.)
+            if last, Self.wordOnWindows { spacing["w:after"] = "0" }
             if !spacing.isEmpty { pPr.append(el("w:spacing", spacing)) }
             let jc = ["ctr": "center", "r": "right", "l": "left", "just": "both", "dist": "distribute"][props?["algn"] ?? "l"] ?? "left"
             pPr.append(el("w:jc", ["w:val": jc]))
@@ -5246,7 +5249,7 @@ enum DocxFormat {
             let box = el("wps:spPr", [:], [place, el("a:prstGeom", ["prst": "rect"], [el("a:avLst")]), el("a:noFill"),
                                            el("a:ln", [:], [el("a:noFill")])])
             shapes.append(el("wps:wsp", [:], [el("wps:cNvSpPr", ["txBox": "1"]), box,
-                                              el("wps:txbx", [:], [el("w:txbxContent", [:], body.all("a:p").map(paragraph))]), bodyPr]))
+                                              el("wps:txbx", [:], [el("w:txbxContent", [:], { let ps = body.all("a:p"); return ps.enumerated().map { paragraph($1, last: $0 == ps.count - 1) } }())]), bodyPr]))
         }
         guard !shapes.isEmpty else { return nil }
         let e = String(Int(cx)), f = String(Int(cy))
