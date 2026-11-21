@@ -71,6 +71,21 @@ final class Metafile {
 
     static func isMetafile(_ data: Data) -> Bool { kind(data) != nil }
 
+    /// Its picture is a bitmap painted as it stands (no mask blend) and nothing drawn as lines or text:
+    /// PowerPoint's shadow under such a picture is the box of the bitmap (1c3bb90e p13's pasted screenshot
+    /// printed in EMF), where one of drawing calls on nothing casts none.
+    var isOpaqueBitmap: Bool {
+        var bitmap = false
+        for step in steps {
+            switch step {
+            case .image(_, _, _, let blend): if blend == nil { bitmap = true } else { return false }
+            case .text, .stroke: return false
+            default: break
+            }
+        }
+        return bitmap
+    }
+
     /// Text in a symbol face (Wingdings, Webdings, Symbol) as the Unicode
     /// glyphs it shows.
     static func symbols(_ text: String, face: String) -> String { Player.symbols(text, face: face) }
