@@ -680,7 +680,8 @@ enum WriterMath {
             // took a second grid pitch.)
             let both = sub != nil && sup != nil ? size * 0.1 : 0
             let up = fixed?.0 ?? max(size * 0.38, base.ascent - size * 0.95 + size * 0.38) + both
-            let down = fixed?.1 ?? max(size * 0.18, base.descent - size * 0.22 + size * 0.18) + both
+            let baseDepth = base.descent
+            let down = fixed?.1 ?? max(size * 0.18, baseDepth - size * 0.22 + size * 0.18) + both
             var parts: [Box] = []
             // (Drawn subscript first, as Word's print sets them: its glyphs come out base,
             // subscript with its own scripts, then the superscript — lo-4aa628bd's
@@ -870,6 +871,11 @@ enum WriterMath {
                 let r = raised(f, middle - (f.ascent - f.descent) / 2)
                 // (A stretched bracket reserves its ink, not its whole font line: the line under a display
                 // equation was 11-15 pt too tall in jpn-z22855378-6fca0f p8.)
+                // (A bracket in a line sinks a little under the baseline where it is centred on the body, but Word's line counts its glyph's own
+                // ink: the 10 pt lines of xd 8714e66e step 11.76 with (Re+alt) in them, 9.5 over and 2.2 under, not 3.07 under.)
+                if RichTextTheme.wordWindowsPages, inlineText {
+                    return Box(width: r.width, ascent: r.ascent, descent: r.descent, inkUp: r.iu, inkDown: min(r.idn, f.idn), draw: r.draw)
+                }
                 guard RichTextTheme.wordWindowsPages, !inlineText else { return r }
                 return Box(width: fenceAdvance ?? r.width, ascent: min(r.ascent, body.ascent + s * 0.1), descent: min(r.descent, body.descent + s * 0.1), inkUp: body.iu, inkDown: body.idn, draw: r.draw)
             }
@@ -894,7 +900,7 @@ enum WriterMath {
             return Box(width: lead + sign.width + body.width + s * 0.05, ascent: max(top + rule, RichTextTheme.wordWindowsPages && inlineText ? 0 : sign.ascent, (degree?.ascent ?? 0) + top * 0.5),
                        descent: max(body.descent, sign.descent),
                        // (Its ink reaches a quarter em over the body's: the bar's gap and thickness, and Cambria Math's RadicalExtraAscender over it. lab mathline C16.)
-                       inkUp: RichTextTheme.wordWindowsPages ? max(body.iu + s * 0.25, (degree?.iu ?? 0)) : nil, inkDown: RichTextTheme.wordWindowsPages ? max(body.idn, sign.idn) : nil) { canvas, at in
+                       inkUp: RichTextTheme.wordWindowsPages && inlineText ? max(body.iu + s * 0.25, (degree?.iu ?? 0)) : nil, inkDown: RichTextTheme.wordWindowsPages && inlineText ? max(body.idn, sign.idn) : nil) { canvas, at in
                 degree?.draw(canvas, Offset(at.dx, at.dy - top * 0.5))
                 sign.draw(canvas, Offset(at.dx + lead, at.dy + body.descent - sign.descent))
                 body.draw(canvas, Offset(at.dx + lead + sign.width, at.dy))
