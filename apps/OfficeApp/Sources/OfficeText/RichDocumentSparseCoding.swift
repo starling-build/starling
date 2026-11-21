@@ -636,7 +636,7 @@ extension RichTextBox {
 
 extension TableStyle {
     enum CodingKeys: String, CodingKey {
-        case borders, keptPosition, floatOffsetY, floatX, floatXAnchor, floatCentredBidi, pageAnchored, pageOffsetY, floatsOverText, keptCellMarginsXML, keptCellMarginsUnder, edges, headerRow, headerRowCount, widthPercent, width, fixedLayout, autoCellWidths, cellSpacing, textOutdent, textOutdentRight, headerFill, bandFill, bandAltFill, borderColor, borderWidth, borderStyle, edgeStyles, edgeWidths, bordersFromCells, alignment, indent, rowsCantSplit, rowExceptions, rowsGridBefore, rowHeights, rowsExactHeight, cellMarginTop, cellMarginLeft, cellMarginBottom, cellMarginRight
+        case borders, keptPosition, floatOffsetY, floatX, floatXAnchor, floatCentredBidi, bidiVisual, pageAnchored, pageOffsetY, floatsOverText, keptCellMarginsXML, keptCellMarginsUnder, edges, headerRow, headerRowCount, widthPercent, width, fixedLayout, autoCellWidths, cellSpacing, textOutdent, textOutdentRight, headerFill, bandFill, bandAltFill, borderColor, borderWidth, borderStyle, edgeStyles, edgeWidths, bordersFromCells, alignment, indent, rowsCantSplit, rowExceptions, rowsGridBefore, rowHeights, rowsExactHeight, cellMarginTop, cellMarginLeft, cellMarginBottom, cellMarginRight
     }
 
     public init(from decoder: Decoder) throws {
@@ -648,6 +648,7 @@ extension TableStyle {
         floatXAnchor = try c.decodeIfPresent(String.self, forKey: .floatXAnchor)
         pageAnchored = try c.decodeIfPresent(Bool.self, forKey: .pageAnchored) ?? false
         floatCentredBidi = try c.decodeIfPresent(Bool.self, forKey: .floatCentredBidi) ?? false
+        bidiVisual = try c.decodeIfPresent(Bool.self, forKey: .bidiVisual) ?? false
         pageOffsetY = try c.decodeIfPresent(Double.self, forKey: .pageOffsetY)
         floatsOverText = try c.decodeIfPresent(Bool.self, forKey: .floatsOverText) ?? false
         keptCellMarginsXML = try c.decodeIfPresent(String.self, forKey: .keptCellMarginsXML)
@@ -693,6 +694,7 @@ extension TableStyle {
         try c.encodeIfPresent(floatXAnchor, forKey: .floatXAnchor)
         try c.encode(pageAnchored, forKey: .pageAnchored)
         if floatCentredBidi { try c.encode(floatCentredBidi, forKey: .floatCentredBidi) }
+        if bidiVisual { try c.encode(bidiVisual, forKey: .bidiVisual) }
         try c.encodeIfPresent(pageOffsetY, forKey: .pageOffsetY)
         try c.encode(floatsOverText, forKey: .floatsOverText)
         try c.encodeIfPresent(keptCellMarginsXML, forKey: .keptCellMarginsXML)

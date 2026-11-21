@@ -944,6 +944,11 @@ extension RichLayout {
         case .center where theme.wordRules && style?.floatCentredBidi == true && document.compatibilityMode == 14:
             RuleTrace.hit("centred-floating-bidi-table-stands-half-a-cell-margin-right-compat-14")
             return (width - sum) / 2 + _px(style?.textOutdent ?? 5.4) / 2
+        case .left where old && RichTextTheme.wordWindowsPages && document.compatibilityMode == 14 && style?.bidiVisual == true && style?.floatX == nil && (style?.indent ?? 0) != 0:
+            // (A right-to-left table's indent is measured from the right margin, its right edge a cell margin past it:
+            // xd 80c852b0 p2's letter grid, tblInd 720 bidiVisual, stands 24.5pt left of where ours put it.)
+            RuleTrace.hit("bidi-visual-table-indent-from-the-right-margin-compat-14")
+            return width - sum + right - _px(style?.indent ?? 0)
         case .center: return theme.wordRules ? (width - sum) / 2 : max(0, ((width - sum) / 2).rounded(.down))
         case .right: return theme.wordRules ? width - sum + right : max(0, (width - sum).rounded(.down))
         default:

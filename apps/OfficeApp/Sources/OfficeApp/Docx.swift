@@ -2822,6 +2822,7 @@ enum DocxFormat {
                     // Word for Windows, either compat mode: lab nest51 prints tblInd -120, -60
                     // and 0 all at the edge, +60 and +120 that far in. zh-/lo-51b81ccd's -60.)
                     style.indent = Self.wordOnWindows && (currentCell != nil || depth > 0) ? max(0, w / 20) : w / 20
+                    if node.mirroredFrom != nil { style.bidiVisual = true }
                 } else if node.first("w:tblPr")?.first("w:tblInd") == nil,
                           let w = node.first("w:tblPr")?.first("w:tblStyle")?["w:val"].flatMap({ tableIndents[$0] }) {
                     // (Or its style's: LibreOffice's NumberedList, a table style that
