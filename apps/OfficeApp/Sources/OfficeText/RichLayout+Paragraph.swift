@@ -3328,6 +3328,11 @@ extension RichLayout {
                     target = ms * 1.005
                 }
                 _inkShift[i] = _px(target) - line.baseline
+                // (A vertical ruby column on a grid is laid out as the tall column it is: the plain line's baseline is not its own,
+                // and the column shift is applied at paint time per glyph (`vshift=`). Lab rgrid.)
+                if _verticalBody(i), pitch != nil, style.lineHeightPoints == nil, p.runs.contains(where: { $0.style.ruby != nil }), _inkShift[i] < 0 {
+                    _inkShift[i] = 0
+                }
                 // (A Wingdings 2 bullet's line is laid out on the mark's ascent (`_span`, "word-wingdings2-lowered-bullet..."),
                 // but Word draws the row's ink as much lower as the bullet is lowered: lab bea-lab, rows 1.6 (3pt lowered 22pt boxes),
                 // 3.0 (12pt) and 3.15pt (6pt lowering) under ours, the pitches and the table's foot equal. The text's baseline above

@@ -362,17 +362,19 @@ extension _StyledFrame {
         // (A run with ruby over it makes its line room for the ruby.)
         if theme.wordRules, run.ruby != nil, s.fontSize ?? 0 > 0.5,
            var h = theme.rubyLine(for: run, in: p.style, named: named, eastAsian: kind < 0, gridPitch: pitch, vertical: index.map { _verticalBody($0) } ?? false) {
-            if h.raise != 0, !_rubyShiftApplies(p, named: named, ruby: run, pitch: pitch) { h.raise = 0 }
+            let verticalHere = index.map { _verticalBody($0) } ?? false
+            if h.raise != 0, !verticalHere, !_rubyShiftApplies(p, named: named, ruby: run, pitch: pitch) { h.raise = 0 }
             s = s.copyWith(height: h.height)
+                    if verticalHere, pitch != nil, p.style.lineHeightPoints == nil, h.raise != 0 { s = s.copyWith(leadingDistribution: .even, debugLabel: (s.debugLabel ?? "") + " vruby-line vshift=\(-h.raise * theme.pixelsPerPoint * scale)") }
             // (Off a grid the room for the ruby is all over the baseline, not shared with the line's foot:
             // xb jpn 231fe1 p1 "申請者" under ﾌﾘｶﾞﾅ stands 7pt lower, the next paragraph where it was. Single spacing only: at 1.15 Word's ruby line is shorter, lo-181b561b0a.)
             if gridPitchIsNil(pitch), p.style.lineHeightPoints == nil, p.style.lineSpacing > 0.995, h.descent > 0, s.ascentOverride == nil, let size = s.fontSize {
                 s = s.copyWith(ascentOverride: size * (h.height - h.descent), descentOverride: size * h.descent, leadingDistribution: .even, debugLabel: (s.debugLabel ?? "") + " ruby-line")
             }
-            if h.raise != 0, NativeParagraphBuilder.supportsBaselineShift, !(index.map { _verticalBody($0) } ?? false) {
+            if h.raise != 0, NativeParagraphBuilder.supportsBaselineShift, !verticalHere {
                 s = s.copyWith(baselineShift: (s.baselineShift ?? 0) - h.raise * theme.pixelsPerPoint * scale)
             }
-        } else if mixedRubyRaise != 0, run.ruby == nil, s.fontSize ?? 0 > 0.5 {
+        } else if mixedRubyRaise != 0, run.ruby == nil, s.fontSize ?? 0 > 0.5, !(index.map { _verticalBody($0) } ?? false) {
             // (The rest of a one-line paragraph moves with its ruby's base.)
             s = s.copyWith(baselineShift: (s.baselineShift ?? 0) - mixedRubyRaise * theme.pixelsPerPoint * scale)
         }

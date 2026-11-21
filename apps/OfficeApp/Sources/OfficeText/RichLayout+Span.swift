@@ -1953,6 +1953,24 @@ extension RichLayout {
         }
     }
 
+
+    /// Where the base of a vertical ruby is drawn across its column, which the ruby is placed from: the ruby's centre is the base
+    /// glyph's centre plus the raise (Word's print, MS Mincho and Meiryo labs: raise less 0.1pt). A Japanese face's column stands on
+    /// its own line's middle (`_paintUpright`'s `acrossC`), not on the middle of the layout box, which stood 0.9pt off. The box
+    /// already holds the baseline shift of its line; the face's place takes it separately.
+    func _drawnBaseCentre(_ base: TextStyle?, first: Rect, line: LineMetrics, shiftPx: Double) -> Double {
+        let boxCentre = (first.top + first.bottom) / 2
+        guard theme.wordRules, let base, let em = base.fontSize, em > 0 else { return boxCentre }
+        let family = base.debugLabel ?? base.fontFamily ?? ""
+        let low = family.lowercased()
+        guard ["meiryo", "メイリオ", "ms mincho", "ms gothic", "ＭＳ", "明朝", "yu mincho", "yu gothic", "游"].contains(where: { low.containsSubstring($0) }),
+              let face = theme.faceResolver?(family, true) else { return boxCentre }
+        let bold = base.fontWeight.map { $0.value >= 600 } ?? false
+        guard let t = (bold ? face.boldBaseline : nil) ?? face.baseline,
+              let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight else { return boxCentre }
+        return line.baseline - (t - natural / 2) * em + shiftPx
+    }
+
     func _paintRuby(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
                             _ canvas: any Canvas, _ document: RichDocument, map: _OffsetMap? = nil, index: Int? = nil) {
         guard theme.wordRules, p.runs.contains(where: { $0.style.ruby != nil }) else { return }
@@ -1984,16 +2002,15 @@ extension RichLayout {
             tp.layout(minWidth: 0, maxWidth: Double.infinity)
             let raise = _px(g.ruby.raise > 0 ? g.ruby.raise : (g.style.fontSize ?? named?.char.fontSize ?? theme.fontSize) / 2)
             // (On a line grid the base text was moved with the ruby line: `rubyLine`.)
-            let moved = NativeParagraphBuilder.supportsBaselineShift && _rubyShiftApplies(p, named: named, ruby: g.style, pitch: _grid(index, document).pitch)
-                ? theme.rubyLine(for: g.style, in: p.style, named: named, eastAsian: true, gridPitch: _grid(index, document).pitch)?.raise ?? 0 : 0
+            let verticalHere = index.map { _verticalBody($0) } ?? false
+            let moved = NativeParagraphBuilder.supportsBaselineShift && (verticalHere ? _grid(index, document).pitch != nil && p.style.lineHeightPoints == nil : _rubyShiftApplies(p, named: named, ruby: g.style, pitch: _grid(index, document).pitch))
+                ? theme.rubyLine(for: g.style, in: p.style, named: named, eastAsian: true, gridPitch: _grid(index, document).pitch, vertical: verticalHere)?.raise ?? 0 : 0
             // (The plain text beside a ruby is moved with the ruby line only where the paragraph is all ruby or one line
             // (`_mixedRubyRaise`); in a mixed paragraph that wraps it stays, and so must the ruby's share of that move: ee0b468e's
             // 薇 over ぜんまい stood 5.4pt from its base, Word's print 13.9, the lab's one-line 14.9 with the move.)
-            let plainBeside = p.runs.contains { $0.style.ruby == nil && $0.length > 0 && $0.style.inlineImage == nil }
-            let movedHere = plainBeside && lines.count > 1 && (index.map { _verticalBody($0) } ?? false) ? 0 : moved
             if let index, _verticalBody(index) {
                 _paintUprightRuby(g.ruby.text, style, x: x, step: baseWidth > rubyWidth ? (baseWidth - rubyWidth) / count : 0,
-                                  centre: (first.top + first.bottom) / 2 - raise - movedHere * _px(1) + _px(_grid(index, document).pitch == nil ? theme.verticalRubyExtra(for: g.style, in: p.style, named: named, eastAsian: true) / 2 : 0), origin: origin, canvas)
+                                  centre: _drawnBaseCentre(theme.textStyle(for: g.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, eastAsian: true), first: first, line: line, shiftPx: -moved * _px(1)) - raise, origin: origin, canvas)
                 tp.dispose()
                 continue
             }
