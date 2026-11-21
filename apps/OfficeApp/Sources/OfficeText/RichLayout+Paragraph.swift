@@ -1947,7 +1947,14 @@ extension RichLayout {
                 RuleTrace.hit("word-equations-after-the-first-line-keep-the-paragraphs-strut")
                 pil = false
             }
-            let strut = pil ? nil : _strut(span, near: spacedOver || thaiNear, wide: thaiNear)
+            var strut = pil ? nil : _strut(span, near: spacedOver || thaiNear, wide: thaiNear)
+            if pil, theme.wordRules, RichTextTheme.wordWindowsPages,
+               style.lineSpacing > 1.001, style.lineSpacing < 1.5, style.lineHeightPoints == nil, !inline.isEmpty, inline.allSatisfy({ $0.image != nil && $0.image?.float == nil && $0.image?.name != "m:oMath" }),
+               let r = _strut(span, near: spacedOver || thaiNear, wide: thaiNear), let rs = r.fontSize, let rh = r.height,
+               inline.allSatisfy({ $0.dimensions.size.height <= rs * rh / style.lineSpacing }) {
+                strut = StrutStyle(fontFamily: r.fontFamily, fontFamilyFallback: r.fontFamilyFallback, fontSize: r.fontSize, height: r.height,
+                                   leadingDistribution: r.leadingDistribution, fontWeight: r.fontWeight, forceStrutHeight: false)
+            }
             let painter = TextPainter(
                 text: span,
                 textAlign: align,
