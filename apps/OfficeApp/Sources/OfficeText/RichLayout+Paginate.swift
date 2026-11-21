@@ -1596,7 +1596,7 @@ extension RichLayout {
                         // it stood, to the first try whose top is clear of the band's foot, as in the first branch:
                         // Word's print of lab b80-step stands a 12pt title 15.84pt lower each time the box's foot
                         // passes the line's grid, not 3.6pt under the foot.)
-                        let lineStep = (Self._lineBottoms(geometry(pgs.i).painter).first ?? 0) / max(1, document.paragraphs[pgs.i].style.lineSpacing)
+                        let lineStep = (Self._lineBottoms(geometry(pgs.i).painter).first ?? 0) / (document.paragraphs[pgs.i].style.lineHeightPoints != nil ? 1 : max(1, document.paragraphs[pgs.i].style.lineSpacing))
                         while let below = noRoom(at: pgs.y, height: reach, []), guardSteps < 20 {
                             if RichTextTheme.wordWindowsPages, lineStep > 1, pgs.tightBandBottoms.contains(where: { abs($0 - below) < 0.02 }) {
                                 pgs.y += max(1, ((below - pgs.y) / lineStep - 0.001).rounded(.up)) * lineStep
