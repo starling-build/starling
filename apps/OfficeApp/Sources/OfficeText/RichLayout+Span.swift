@@ -107,6 +107,17 @@ extension RichLayout {
             let multiple = lineSpacing > 1 ? lineSpacing : 1
             return look.copyWith(ascentOverride: r.0 * multiple * px, descentOverride: r.1 * multiple * px, height: (r.0 + r.1) * multiple, leadingDistribution: .even)
         }
+        // (A complex-script mark (`w:cs`) whose complex face is Raavi is a Raavi line at szCs: dx2 60aa1e5d's empty paragraph, Arial/Raavi 12 pt, 19.9 pt in Word's print against 13.8.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, let kept = mark.keptXML,
+           kept.containsSubstring("<w:cs/>") || kept.containsSubstring("<w:cs "),
+           (mark.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "raavi",
+           let r = Self._indicLines["raavi"] {
+            RuleTrace.hit("word-empty-cs-mark-in-raavi-is-a-raavi-line")
+            let multiple = lineSpacing > 1 ? lineSpacing : 1
+            var size = px
+            if let f = mark.fontSize, f > 0.5, let z = mark.complexFontSize ?? named?.char.complexFontSize ?? _normalChar(document)?.complexFontSize, z > 0.5 { size = px * z / f }
+            return look.copyWith(ascentOverride: r.0 * multiple * size, descentOverride: r.1 * multiple * size, height: (r.0 + r.1) * multiple * size / px, leadingDistribution: .even)
+        }
         // (An empty mark set in Faruma or MV Boli: Faruma is missing on Windows and Word draws the mark in MV Boli, 1.611 em; dx2 e3906782's empty cell paragraphs, 11 pt marks, a 20.9 pt row step in Word's print against 19.0.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile,
            ["faruma", "mv boli", "mvboli"].contains((mark.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()),
