@@ -75,7 +75,7 @@ extension _ParaFrame {
             ? Set(tabs.keys.filter { t in (t > 0 && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t - 1)] == 0x09) || (t + 1 < p.text.utf16.count && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t + 1)] == 0x09) }).subtracting(atMargin)
             : []
         if !tabRuns.isEmpty { RuleTrace.hit("tab-runs-do-not-hang-past-the-margin") }
-        tabsHeld = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(leadTab && theme.wordRules && style.alignment == .justify ? [0] : []).union(underHeld).union(beforeTabs).union(tabRuns).union(lonePastTabs).union(afterTabWraps)
+        tabsHeld = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(leadTab && style.alignment == .justify ? [0] : []).union(underHeld).union(beforeTabs).union(tabRuns).union(lonePastTabs).union(afterTabWraps)
             .union(theme.wordRules && RichTextTheme.wordWindowsPages ? RichLayout._underlinedClosingCounted(p) : [])
         // A line exactly as wide as its room fits or not as Word's sum of
         // the room comes out: each measure in twips goes to the sixteenth
