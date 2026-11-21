@@ -2734,7 +2734,10 @@ enum ChartPainter {
             let pieOnSlide = c.onSlide && c.type == .pie && c.ofPie == nil && c.pieTilt == nil
             let beforeTitle = area.top
             if !(c.onSheet && c.titleOverlay) {
-                area = Rect.fromLTRB(area.left, area.top + tp.height + grown + (c.chartex ? 1.6 : pieOnSlide ? 6.95 : 3.6) * k, area.right, area.bottom)
+                // (A title Word was told where to stand, over a plot it lays out itself, leaves the plot 1.4 pt lower:
+                // sa1 67e19017's Spanish charts, titles of 10 and 12 pt alike, plots' tops 1.4 under ours.)
+                let placedOverAuto = c.titleAt != nil && c.plotLayout == nil && !c.onSlide && !c.onSheet && !c.chartex && !c.styled2013 && c.type == .column
+                area = Rect.fromLTRB(area.left, area.top + tp.height + grown + ((c.chartex ? 1.6 : pieOnSlide ? 6.95 : 3.6) + (placedOverAuto ? 1.4 : 0)) * k, area.right, area.bottom)
             }
             if c.type == .pie, c.ofPie == nil, c.pieTilt == nil, !c.onSlide, !c.onSheet, !c.chartex, !c.styled2013, c.titleAt == nil,
                c.plotLayout == nil, !c.legendPlaced, c.legend, ["r", "l"].contains(c.legendPosition),
@@ -4596,6 +4599,9 @@ enum ChartPainter {
         let wordLegendFoot = inWord && word && c.barView == nil && c.lineSeries.isEmpty && c.type == .column && !horizontal
             && c.legend && c.legendPosition == "b" && !(c.title ?? "").isEmpty && c.titleAt == nil && c.plotLayout == nil
         let legendFootRise = wordLegendFoot ? 1.5 * k : 0
+        // (A title Word was told where to stand over a plot it lays out itself: the plot's foot 1.25 pt lower and its names
+        // not, sa1 67e19017's Spanish column charts.)
+        let placedOverAutoFoot = inWord && !c.styled2013 && c.titleAt != nil && c.plotLayout == nil && c.type == .column ? 1.25 * k : 0
         let wordFoot = word && !(c.legend && c.legendPosition == "b") && c.categoryAxisTitle == nil && c.categoryAxisTitleAt == nil
         let besideOut = ticksPush && (horizontal ? c.categoryTicksOut : c.valueTicksOut) ? (horizontal ? 8.8 : 5.6) * k : 0
         let revCat = horizontal && c.categoryReversed
@@ -4659,7 +4665,7 @@ enum ChartPainter {
             // Not a box plot's, already higher than Excel's.)
             // (Each outer level of a multi-level axis takes a row of its own under the names.)
             let levelRows = c.categoryLevels.isEmpty ? 0 : Double(c.categoryLevels.count) * ((catLabels.first?.height ?? 12 * k) + 8.2 * k) + 4.5 * k
-            let bottom = levelRows - legendFootRise + (atZero ? (slideBare ? 8.1 : 4) * k : tallest + 7.6 * k + belowOut + slideFoot) - (wordFoot ? 4.4 * k : 0) + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (deletedAxis2013 ? 1.7 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
+            let bottom = levelRows - legendFootRise + (atZero ? (slideBare ? 8.1 : 4) * k : tallest + 7.6 * k + belowOut + slideFoot) - (wordFoot ? 4.4 * k : 0) - placedOverAutoFoot + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (deletedAxis2013 ? 1.7 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
@@ -5315,7 +5321,7 @@ enum ChartPainter {
                     // the rest down to the right (chart-chart-text-can-
                     // overlap's 45°).
                     canvas.save()
-                    canvas.translate(cx, foot + (wordFoot ? 5.7 : 7.6) * k + belowOut - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k - legendFootRise)
+                    canvas.translate(cx, foot + (wordFoot ? 5.7 : 7.6) * k - placedOverAutoFoot + belowOut - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k - legendFootRise)
                     canvas.rotate(clockwise ? slant : -slant)
                     // (Word's print has an aslant date label as outlines, not text:
                     // lo tdf82824's date axis leaves no characters in its PDF,
@@ -5336,7 +5342,7 @@ enum ChartPainter {
                     // 11.8: Windows' prints of 5864 slide 8 in 15 variants, 1.4 pt at 14 pt and 5.1 at 20, at the foot or the zero
                     // line alike; 10 pt names stay where they are (cooper's charts match).)
                     let slideNames = c.onSlide && !c.styled2013 && !c.categoryTicksOut ? max(0, 0.62 * (catSize - 11.8)) * k : 0
-                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : 7.6) * k + (widenedPlain ? 0 : belowOut) - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k - legendFootRise + slideNames))
+                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : 7.6) * k - placedOverAutoFoot + (widenedPlain ? 0 : belowOut) - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k - legendFootRise + slideNames))
                 }
             }
             // The outer levels of a multi-level axis: each group's name under the names it
