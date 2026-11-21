@@ -1153,6 +1153,14 @@ public struct RichResolvedFace: Sendable {
     /// A missing Korean face Word draws in Batang: its quotes, circles and circled digits come from Malgun Gothic, and a line holding one is Malgun's height.
     public var malgunSymbols = false
     public var boldOtherAdvances: [UInt32: Double]? = nil
+    /// Italic's and bold italic's, where the face's differ from the regular's (nil: those are used).
+    public var italicOtherAdvances: [UInt32: Double]? = nil
+    public var boldItalicOtherAdvances: [UInt32: Double]? = nil
+    func otherTable(bold: Bool, italic: Bool) -> [UInt32: Double]? {
+        if italic, bold, let t = boldItalicOtherAdvances ?? italicOtherAdvances { return t }
+        if italic, !bold, let t = italicOtherAdvances { return t }
+        return bold ? boldOtherAdvances : otherAdvances
+    }
     /// A face's advances for the words of a Hebrew run (letters, with the punctuation, digits and Latin around them), kept apart from `otherAdvances` so Latin text of the same face in other runs keeps its own widths (Arial, e6f3406a).
     public var hebrewAdvances: [UInt32: Double]? = nil
     public var boldHebrewAdvances: [UInt32: Double]? = nil

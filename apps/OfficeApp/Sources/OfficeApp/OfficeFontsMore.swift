@@ -694,6 +694,9 @@ extension OfficeFonts {
             face.advances = lucidaSansAdvances
             face.naturalHeight = 1.139; face.baseline = 0.928
 
+        case "palatino linotype":
+            applyPalatinoLinotype(to: &face)
+
         case "book antiqua":
             face.advances = book_antiquaAdv
             face.otherAdvances = book_antiquaOther
