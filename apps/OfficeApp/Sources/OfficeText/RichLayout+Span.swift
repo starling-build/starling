@@ -4240,7 +4240,8 @@ extension RichLayout {
                         // 24.36 to the next line in Word's print as every other contents line; its held tab broke the line's
                         // strut and stood it on Calibri's 11pt line, 25.89. Shaded, it keeps its box to paint the shade.)
                         if theme.wordRules, ch == "\t", s.fontSize ?? 0 > 0.5, !Self.shadeShows(run.highlight),
-                           p.text.contains(where: { !$0.isWhitespace && $0 != "\u{FFFC}" }) {
+                           p.text.contains(where: { !$0.isWhitespace && $0 != "\u{FFFC}" }),
+                           Self._tabBiggerThanText(run.fontSize ?? named?.char.fontSize ?? theme.fontSize, p, named?.char.fontSize ?? theme.fontSize) {
                             RuleTrace.hit("held-tab-sets-no-line-beside-text")
                             heldStyle = heldStyle.copyWith(height: 0.01)
                         }
@@ -6012,6 +6013,19 @@ extension RichLayout {
 }
 
 extension RichLayout {
+    // (Only a tab in a BIGGER face than the text raises the line: xd 53eca83a and 8e81b68d, tabs the size of the text or
+    // smaller, fell from 42.1 to 13.9 and 19.9 to 9.8 when theirs were flattened too.)
+    static func _tabBiggerThanText(_ tab: Double, _ p: RichParagraph, _ fallback: Double) -> Bool {
+        var biggest = 0.0
+        var at = p.text.utf16.startIndex
+        for r in p.runs {
+            let end = p.text.utf16.index(at, offsetBy: r.length, limitedBy: p.text.utf16.endIndex) ?? p.text.utf16.endIndex
+            if p.text[at..<end].contains(where: { !$0.isWhitespace && $0 != "\u{FFFC}" }) { biggest = max(biggest, r.style.fontSize ?? fallback) }
+            at = end
+        }
+        return tab > biggest
+    }
+
     @inline(never) static func _afterBreakRun(_ u: [UInt16], _ offset: Int) -> Bool {
         var k = offset - 1
         while k >= 0, u[k] == 0x20 { k -= 1 }
