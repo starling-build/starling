@@ -215,6 +215,7 @@ final class _StyledFrame {
     func _gridCellBase(_ i: Int?, _ document: RichDocument) -> Double? { rl._gridCellBase(i, document) }
     var _yuEndKern: [Int: [Int: Double]] { get { rl._yuEndKern } set { rl._yuEndKern = newValue } }
     var _topLiftBig: Double? { get { rl._topLiftBig } set { rl._topLiftBig = newValue } }
+    var _vrubyPlain: (ascent: Double, descent: Double, size: Double)? { get { rl._vrubyPlain } set { rl._vrubyPlain = newValue } }
     var _trailCut: [Int: Int] { get { rl._trailCut } set { rl._trailCut = newValue } }
     func _tamilVijaya(_ cs: String?, _ named: RichNamedStyle?, _ document: RichDocument) -> Bool { rl._tamilVijaya(cs, named, document) }
     func _segoeJoiner(_ run: CharStyle, _ named: RichNamedStyle?, _ own: TextStyle, _ paragraph: RichParagraphStyle, _ pitch: Double?, _ scale: Double) -> TextStyle? { rl._segoeJoiner(run, named, own, paragraph, pitch, scale) }

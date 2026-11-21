@@ -19,6 +19,7 @@ extension RichLayout {
         _pastLeft[i] = nil
         _pastWiden = nil
         _topLift = nil
+        _vrubyPlain = nil
         _layoutParagraphBody(i, p, document)
         // (Word's top alignment is per line: a smaller run stands higher only on a line that holds a bigger one. The probe layout above
         // gives the line starts; the paragraph is laid out again with each line's biggest size. Only top-aligned mixed-size paragraphs.)
