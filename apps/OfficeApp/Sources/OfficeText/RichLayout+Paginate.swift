@@ -2337,7 +2337,11 @@ extension RichLayout {
                 // 26pt Cambria, line ends 0.8pt above page 9's foot and its 1.5pt rule 0.7pt past it:
                 // Word's print starts page 10 with it.)
                 let lastFoot: Double = partFoot > 0 && !_bordersJoin(pgs.i, pgs.i + 1, document) ? partFoot : 0
-                for (k, c) in cuts!.enumerated() where c > cursor + 0.01 && c - cursor <= available + slack + reach(k) + (k == cuts!.count - 1 ? emptyTail + twipAllow(c - cursor - (available + reach(k) + emptyTail)) - lastFoot : -partFoot) { cut = c }
+                // (Over a page's footnotes the last line's space after must fit above the separator too: Word for Windows
+                // keeps iv) of 58192c08 on page 5 with 0 pt after and sends it to page 6 with 3 pt, lab fnbreak v6/v7;
+                // compat 14 keeps it, lab fncompat m14-v0/m14-v7. A paragraph that carries a note itself keeps its line: f0ca0950 p4 caption.)
+                let afterOnNotes: Double = theme.wordRules && RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) >= 15 && !pgs.pageNotes.isEmpty && pgs.placing.isEmpty && document.paragraphs[pgs.i].cell == nil ? _spacing(pgs.i, document).after : 0
+                for (k, c) in cuts!.enumerated() where c > cursor + 0.01 && c - cursor <= available + slack + reach(k) + (k == cuts!.count - 1 ? emptyTail + twipAllow(c - cursor - (available + reach(k) + emptyTail)) - lastFoot - afterOnNotes : -partFoot) { cut = c }
                 // (A picture's paragraph goes whole or to the next page: its
                 // one cut is its empty line's, under the picture's top, and
                 // took all of the picture into whatever room was left. Widow
