@@ -2610,6 +2610,8 @@ public struct RichDocument: Hashable, Codable, Sendable {
     public var defaultLangXML: String? = nil
     /// The face the document's Normal style (or its defaults) sets: Word's balloons call it "(Default)".
     public var defaultFontFamily: String? = nil
+    /// The size the document's Normal style (or its defaults) sets, in points.
+    public var defaultFontSize: Double? = nil
     /// The font table's alternate for each face name (both lower-cased), as Word for Windows reads it for a face it lacks.
     public var fontAlternates: [String: String] = [:]
     /// Whether the file's body text holds Devanagari to Malayalam letters (read from the document part's bytes by the importer).

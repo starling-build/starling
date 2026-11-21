@@ -492,7 +492,10 @@ struct PdfMarkup {
                 lastLook = (text, look)
             }
             guard let mark = p.style.mark, let change = mark.formatChange, p.style.markRevision?.kind != .deleted || finalDeleted else { last = nil; continue }
-            let text = _describe(mark, was: change.oldRPrXML)
+            var markNow = mark
+            // A mark that now inherits its size (the old one was set) is described at the size the paragraph's text resolved to.
+            if markNow.fontSize == nil, change.oldRPrXML.containsSubstring("<w:sz "), let size = p.runs.compactMap({ $0.style.fontSize }).first ?? document.defaultFontSize { markNow.fontSize = size }
+            let text = _describe(markNow, was: change.oldRPrXML)
             guard !text.isEmpty else { last = nil; continue }
             if let l = last, l.text == text, l.field == 0 { continue }
             if let m = markNote, m.paragraph == i - 1, m.text == text {
@@ -501,9 +504,15 @@ struct PdfMarkup {
                 last = (text, 0)
                 continue
             }
-            markNote = (out.count, i, text)
-            out.append(Note(anchor: RichPosition(paragraph: i, offset: p.text.utf16.count), label: "Formatted:", paragraphs: [text],
-                            author: change.author))
+            // (In a paragraph with no text the mark's look comes before the paragraph's own change: header "Font: 11 pt" over "Border:", sa1 2335cfd7.)
+            let note = Note(anchor: RichPosition(paragraph: i, offset: p.text.utf16.count), label: "Formatted:", paragraphs: [text], author: change.author)
+            if p.text.isEmpty, let l = out.last, l.anchor.paragraph == i, l.anchor.offset == 0, l.label == "Formatted:" {
+                out.insert(note, at: out.count - 1)
+                markNote = (out.count - 2, i, text)
+            } else {
+                markNote = (out.count, i, text)
+                out.append(note)
+            }
             last = (text, 0)
         }
         return out
@@ -1232,6 +1241,24 @@ struct PdfMarkup {
                         rode = true
                     }
                 }
+            }
+        }
+        // (A column whose last boxes belong to the FOOTER, standing below where the page's text ends, rides up from its foot,
+        // each box clear of the one above, the last ending just under the body's foot, the boxes before them where they were:
+        // sa1 2335cfd7, whose footer's "Deleted: Page" and "Formatted" boxes end 2.2pt under the margin in Word's print and
+        // whose header boxes stay at the top of the page, not packed down from the first as a column of body lines is.)
+        if windows, !rode, let lt = tops.last, lt + heights[heights.count - 1] > limit,
+           entries.last?.note.runningKind == .footer {
+            let bottom = layout.bodyBandPoints(page: p, document).bottom + padBottom
+            var up = tops, next = bottom
+            for i in stride(from: entries.count - 1, through: 0, by: -1) {
+                up[i] = min(tops[i], next - heights[i])
+                next = up[i] - gap
+            }
+            if up[0] >= 0 {
+                RuleTrace.hit("balloon-column-of-footer-notes-rides-up-to-the-bodys-foot")
+                tops = up
+                rode = true
             }
         }
         if !rode, let lt = tops.last, lt + heights[heights.count - 1] > limit {
