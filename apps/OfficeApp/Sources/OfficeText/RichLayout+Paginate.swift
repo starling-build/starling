@@ -1591,7 +1591,7 @@ extension RichLayout {
                         }
                     } else if !keepsOwnPicture {
                         let stoodAt = pgs.y
-                        let topWasInBand = noRoom(at: stoodAt, []) != nil
+                        let topWasInBand = noRoom(at: stoodAt, []) != nil || noRoom(at: stoodAt + lead, []) != nil
                         // (A line that meets a tight or through box's band goes down a whole line at a time from where
                         // it stood, to the first try whose top is clear of the band's foot, as in the first branch:
                         // Word's print of lab b80-step stands a 12pt title 15.84pt lower each time the box's foot
