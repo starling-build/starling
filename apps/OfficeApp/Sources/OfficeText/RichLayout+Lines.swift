@@ -1896,6 +1896,18 @@ extension RichLayout {
             if let r = xml.rangeOfSubstring("w:ascii=\"") ?? xml.rangeOfSubstring("w:cs=\"") { markerChar.complexFontFamily = String(xml[r.upperBound...].prefix { $0 != "\"" }) }
             if xml.containsSubstring("<w:bCs/>") { markerChar.bold = true }
         }
+        // (A number whose level names only a complex-script face (w:cs, no ascii or hAnsi) is complex-script text:
+        // xd ba3e11e2's "1." items, David marks and a level of w:cs Times New Roman with w:b and w:bCs val 0, are
+        // Times New Roman regular in Word's print, 13.3 pt lines stepping 26.0 at 1.5 spacing where David's step 23.7.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.list == .numbered,
+           let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
+           !xml.containsSubstring("w:ascii=\""), !xml.containsSubstring("w:hAnsi=\""), let r = xml.rangeOfSubstring("w:cs=\"") {
+            RuleTrace.hit("word-number-level-naming-only-cs-is-complex-script-text")
+            let face = String(xml[r.upperBound...].prefix { $0 != "\"" })
+            markerChar.complexFontFamily = face
+            markerChar.fontFamily = face
+            markerChar.bold = xml.containsSubstring("<w:bCs/>")
+        }
         if let c = p.style.bulletColor { markerChar.color = c }
         // (The level's own size, where it says one: bug65649's "3.1.1."
         // is 14pt over 12pt text in Word's print.)
