@@ -5506,7 +5506,9 @@ enum DocxFormat {
                     style.lineHeightIsMinimum = true
                     style.lineSpacing = 1.0
                 default:
-                    style.lineSpacing = v / 240
+                    // (A fractional w:line, Google Docs' 335.99999999999994, is read as the whole twips below it: 335 is 1.3958 lines, not 1.4;
+                    // lab coverpitch, Arial 33 / 22 and Roboto 11 pitches 0.4% under 1.4 times single, all three.)
+                    style.lineSpacing = (RichTextTheme.wordWindowsPages ? v.rounded(.towardZero) : v) / 240
                     style.lineHeightPoints = nil
                 }
             }
