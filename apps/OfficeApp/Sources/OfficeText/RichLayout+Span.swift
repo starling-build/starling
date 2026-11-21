@@ -182,6 +182,9 @@ extension RichLayout {
         default: return false
         }
     }
+    /// Latin text whose own (ascii) face is Noto Sans Tamil: Word draws it in Mangal too, even in a paragraph with no Tamil letter (xd c016493b's
+    /// dash rule: hyphens 0.344 em, a line 1.680 em tall).
+    @inline(never) static func _latinInNotoTamil(_ face: String) -> Bool { face.trimmingWhitespace().lowercased() == "noto sans tamil" }
     /// The Windows face Word draws Bengali in for a face it lacks (labs bnfield, 15 prints): Shonar Bangla when the font-table signature's usb0 has the
     /// Bengali bit (0x10000) and no other Indic bit (Devanagari 0x8000, Gurmukhi to Malayalam 0x20000-0x800000; those further bits are an extension of the
     /// lab, not proved), i.e. a face whose coverage is Bengali only; otherwise (no entry, no signature, a shared Indic signature such as Nikosh's) Nirmala UI.
@@ -1725,6 +1728,18 @@ extension RichLayout {
                         above = max(above, b / pt * size)
                     }
                     s = s.copyWith(ascentOverride: above, descentOverride: split.1 * size, height: (above + split.1 * size) / size, leadingDistribution: .even)
+                }
+                // (Latin text, digits and marks whose own (ascii) face is Noto Sans Tamil, which Windows lacks: Word draws them in Mangal, and every
+                // line holding one, wrapped or not, is Mangal's 1.680 em tall (1.241 above, 0.4385 below), also in a paragraph with no Tamil letter.
+                // xd c016493b's rule of dashes wraps to a second line of 20.16 pt, the author block's URL line 20.16.)
+                if kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5,
+                   !text.unicodeScalars.contains(where: { Self._isIndic($0.value) }), text.unicodeScalars.contains(where: { $0.value > 0x20 && $0.value < 0x250 }),
+                   Self._latinInNotoTamil(run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? ""),
+                   let m = Self._indicLines["mangal"] {
+                    RuleTrace.hit("word-latin-run-in-noto-sans-tamil-sets-mangals-line")
+                    let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+                    let split = Self._multipleSplit(ascent: m.0, descent: m.1, multiple: multiple)
+                    s = s.copyWith(ascentOverride: split.0 * size, descentOverride: split.1 * size, height: (split.0 + split.1) * size / size, leadingDistribution: .even)
                 }
                 // (Latin letters set in Shruti (the run's own ascii face, the file naming it): Word sets Shruti's own line, 1.68 em, a Latin line
                 // that is 13.4 pt in the stand-in at 11 pt against Word's 18.5: sa1 2b3c3b42's header lines in Shruti.)

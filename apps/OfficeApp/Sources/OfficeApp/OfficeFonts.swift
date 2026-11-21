@@ -4973,6 +4973,13 @@ static let sylfaenAdvances: [Double] = [
                 face.baseline = 1.241
                 RuleTrace.hit("nikosh-latin-in-mangal-widths")
             }
+            // (Noto Sans Tamil, which Windows lacks: Word draws the run's digits and marks, and Latin letters, in Mangal, so they take Mangal's advances;
+            // xd c016493b's 117 hyphens are 4.13 pt each at 12 pt, ours 3.67, and its URL 206 pt, ours 190.)
+            if wordOnWindows, family.trimmingWhitespace().lowercased() == "noto sans tamil" {
+                face.advances = mangalAdvances
+                face.boldAdvances = mangalAdvances
+                RuleTrace.hit("word-noto-sans-tamil-latin-in-mangal-widths")
+            }
             // (Open Sans, a cloud face Word prints from its own copy: the sans clone at its own widths and 1.3623 em line, hhea 2189/-600 over 2048; dx2 99720426.)
             if wordOnWindows, family.trimmingWhitespace().lowercased() == "open sans" {
                 face.advances = openSansAdvances

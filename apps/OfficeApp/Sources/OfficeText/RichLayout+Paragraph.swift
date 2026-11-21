@@ -3200,6 +3200,25 @@ extension RichLayout {
                     target = raised
                     segoeLift = max(segoeLift, indicLift)
                 }
+                // (A first line holding a mark, digit or Latin letter that Word draws in Mangal, in a Tamil paragraph set in Noto Sans Tamil (a face Windows
+                // lacks), stands on Mangal's 1.241 em ascent: xd c016493b's author lines, 3.1 pt higher in Word's print than the Nirmala line's.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil, let mangal = Self._indicLines["mangal"],
+                   let size = lead.0.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? Optional(theme.fontSize), !p.text.isEmpty,
+                   _firstLineHoldsMangalMark(p, painter: painter, lead: _lead(i), named: named, document: document),
+                   size * mangal.0 > target + 0.01 {
+                    RuleTrace.hit("word-noto-sans-tamil-mark-stands-the-first-line-on-mangals-ascent")
+                    target = size * mangal.0
+                }
+                // (A first line of Tamil letters alone in Noto Sans Tamil stands on Nirmala UI's 1.079 em, the face Word draws them in: ours stood
+                // 1.4 pt higher on the Latin stand-in's; c016493b's "தமிழ் மேம்பாட்டுச் சங்கப்பலகை" line 1.2 pt high, the next 1.4 pt too far.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil, let nirmala = Self._indicLines["nirmala ui"],
+                   let size = lead.0.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? Optional(theme.fontSize), !p.text.isEmpty,
+                   Self._markInMangal(lead.0.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "", p.text[...]),
+                   !_firstLineHoldsMangalMark(p, painter: painter, lead: _lead(i), named: named, document: document),
+                   size * nirmala.0 > target + 0.01 {
+                    RuleTrace.hit("word-noto-sans-tamil-letters-stand-the-first-line-on-nirmalas-ascent")
+                    target = size * nirmala.0
+                }
                 // (A first line of Myanmar letters under an "at least" line stands on Myanmar Text's own line, not on the Latin face's with the
                 // minimum's extra above it: the line is the taller of the minimum and 1.861 em, the extra above the baseline. dx2 80bde9af's
                 // 11 pt lines at least 20.1 pt: Word's first baseline 11.4 pt under the margin, ours 17.3.)
@@ -5154,6 +5173,27 @@ extension RichLayout {
 
 extension RichLayout {
     /// The baseline a first line of Indic letters stands at when its face's ascent is above `target`.
+        /// A first line with a character Word draws in Mangal for Noto Sans Tamil text (see `_markInMangal`, `_latinInNotoTamil`).
+    @inline(never)
+    func _firstLineHoldsMangalMark(_ p: RichParagraph, painter: TextPainter, lead: Int, named: RichNamedStyle?, document: RichDocument) -> Bool {
+        let firstEnd = painter.getLineBoundary(TextPosition(offset: 0)).end - lead
+        let units = Array(p.text.utf16)
+        var start = 0
+        for run in p.runs where run.length > 0 {
+            defer { start += run.length }
+            guard start < firstEnd else { break }
+            let end = min(start + run.length, firstEnd, units.count)
+            guard start < end, run.style.inlineImage == nil else { continue }
+            let text = String(decoding: units[start ..< end], as: UTF16.self)
+            let isMark: (Unicode.Scalar) -> Bool = { !Self._isIndic($0.value) && $0.value > 0x20 && $0.value != 0xA0 && $0.value != 0x200B && $0.value != 0x200C && $0.value != 0x200D && $0.value != 0x2060 && $0.value != 0xFFFC }
+            guard text.unicodeScalars.contains(where: isMark) else { continue }
+            if Self._latinInNotoTamil(run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? ""),
+               !text.unicodeScalars.contains(where: { Self._isIndic($0.value) }) { return true }
+            if Self._markInMangal(run.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "", p.text[...]) { return true }
+        }
+        return false
+    }
+
     @inline(never)
     func _indicFirstLineAscent(_ p: RichParagraph, painter: TextPainter, lead: Int, named: RichNamedStyle?, document: RichDocument, target: Double,
                                 style: RichParagraphStyle, pitch: Double?, lift: inout Double) -> Double? {
