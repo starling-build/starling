@@ -7,6 +7,7 @@
 # Public log: only a short summary (counts and document stems), no paths or renders.
 # Env: JOBS (default 44), GATE_SCRATCH (default $HOME/scratch/gate-$$), GATE_FULL=1 (no subset: the whole sets).
 set -u
+S0=$(date +%s)   # gate start, to report the setup time before the build
 BASE_SHA=${1:?usage: render-gate.sh BASE_SHA}
 # Classify the change (BASE_SHA..HEAD): (1) render-relevant paths (test/tools/render-paths.txt) -> the full gate;
 # (2) gate tooling (workflows, this script, the pair/combine/scorer tools) -> a quick self-test (2 documents through the new tooling);
@@ -23,9 +24,10 @@ if [ "${GATE_PREBUILD:-0}" != 1 ] && git cat-file -e "$BASE_SHA^{commit}" 2>/dev
 fi
 cd "$(dirname "$0")/../.." || exit 2
 export BUILD_INCREMENTAL=1   # base and PR build use the same flags (incremental, path-stable scratches)
+export DOC_ALARM=${DOC_ALARM:-180}   # per-document render timeout (s): a hung render is reported TIMEOUT, never hangs the gate
 export SETS="${SETS:-756 lo xb xa xd xs sa1 sa2 dx2}"   # the gate sample draws from these sets too (user focus: es-MX, pt-BR, ko, ja)
 ROOT=$PWD; JOBS=${JOBS:-44}; W=${GATE_SCRATCH:-$HOME/scratch/gate}; mkdir -p "$W"   # PERSISTENT: the warm build scratches below make the builds incremental (cold 315 s, warm ~90 s)
-exec 9>"$W/lock"; flock 9   # one gate (or prebuild) at a time per scratch
+exec 9>"$W/lock"; flock 9; SL=$(date +%s)   # one gate (or prebuild) at a time per scratch
 LQ=${LANDQ:-/data/landq}; SB=$LQ/base/linux
 trap 'rm -rf "$W/pair"' EXIT
 TH=${TOOLS_HOME:-/home/starling}   # the runner user has its own empty HOME: tools live under the machine owner
@@ -48,7 +50,7 @@ CC=${STARLING_CORPUS:-/data/corpus-cache}
 ENGINE_DIR=${ENGINE_DIR:?set ENGINE_DIR in the runner .env}
 [ -d "$ENGINE_DIR/src/out/host_release" ] || { echo "render-gate: ENGINE_DIR=$ENGINE_DIR has no src/out/host_release"; exit 2; }
 ln -sfn "$ENGINE_DIR" engine   # every run: a clone must never keep pointing at an old engine path
-test/tools/corpus-cache.sh restore 2>&1 | tail -3 | cut -c1-200 || echo "render-gate: corpus restore failed"
+SR=$(date +%s); test/tools/corpus-cache.sh restore 2>&1 | tail -3 | cut -c1-200 || echo "render-gate: corpus restore failed"; ER=$(date +%s)
 # build HEAD here and BASE_SHA in a worktree; the base binary is cached by sha in the runner's own scratch
 . "$TH/bin/office-env.sh" || { echo "render-gate: office-env.sh failed"; exit 2; }
 export PATH=$TH/.local/share/swiftly/toolchains/6.2.4/usr/bin:$PATH
@@ -81,7 +83,7 @@ fill_rows_locked() {
   for f in "$W"/fill/fix/*.v2 "$W"/fill/fix/*.v1; do [ -f "$f" ] && cat "$f" >> "$RC/$(basename "$f")"; done
   cp "$W/fill/fix/REFS" "$RC/REFS"; cat "$W/missing.txt" >> "$RC/tried.txt"
 }
-T0=$(date +%s); echo "render-gate: building"
+T0=$(date +%s); echo "render-gate: setup before the build $(( T0-S0 )) s (lock wait $(( SL-S0 )) s, corpus restore $(( ER-SR )) s)"; echo "render-gate: building"
 build_base() {   # builds BSHA into the shared cache once: the sha lock makes a second runner wait for the first instead of building it again
   flock 8
   if [ -x "$BC/$BSHA/release/OfficeApp" ]; then flock -u 8; return 0; fi
@@ -100,15 +102,15 @@ if [ ! -x "$BC/$BSHA/release/OfficeApp" ]; then
   # normally the prebuild (GATE_PREBUILD=1 render-gate.sh <sha>, after each main push) has filled the cache and this is skipped
   build_base & BPID=$!
 fi
-[ "${GATE_PREBUILD:-0}" = 1 ] && { echo "render-gate: PR build alone $(( $(date +%s)-TB )) s; changed since this scratch's last build: $( [ -n "$PREV" ] && git diff --name-only "$PREV" HEAD 2>/dev/null | wc -l || echo unknown) files (prev ${PREV:0:9})"; git rev-parse HEAD > "$W/build.rev"
-[ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; exit 1; }
-  BASEBIN=$BC/$BSHA/release/OfficeApp; fill_rows; chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; echo "render-gate: base $BSHA cached"; exit 0; }
 # base cached: render+score the uncached base documents WHILE the PR builds (the base pass needs only the base binary; the
 # build is mostly one thread, so the two overlap). Measured 2026-11-20: the base pass ran after the build and took ~3-4 min.
 FPID=
 if [ -z "${BPID:-}" ]; then BASEBIN=$BC/$BSHA/release/OfficeApp; ( fill_rows ) > "$W/fillrows.out" 2>&1 & FPID=$!; fi
 PREV=$(cat "$W/build.rev" 2>/dev/null); TB=$(date +%s)
 test/tools/build-office-fast.sh "$W/build" > "$W/build.log" 2>&1 || { echo "render-gate: BUILD FAILED"; tail -15 "$W/build.log" | cut -c1-200; exit 1; }
+[ "${GATE_PREBUILD:-0}" = 1 ] && { echo "render-gate: PR build alone $(( $(date +%s)-TB )) s; changed since this scratch's last build: $( [ -n "$PREV" ] && git diff --name-only "$PREV" HEAD 2>/dev/null | wc -l || echo unknown) files (prev ${PREV:0:9})"; git rev-parse HEAD > "$W/build.rev"
+[ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; exit 1; }
+  BASEBIN=$BC/$BSHA/release/OfficeApp; fill_rows; chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; echo "render-gate: base $BSHA cached"; exit 0; }
 [ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; tail -15 "$W/base-build.log" | cut -c1-200; exit 1; }
 BASEBIN=$BC/$BSHA/release/OfficeApp
 [ -z "$FPID" ] || { wait $FPID; cat "$W/fillrows.out"; echo "render-gate: base rows ready at $(( $(date +%s)-T0 )) s"; }
@@ -127,6 +129,9 @@ fi
 BASE_PARTIAL=${BSD:+1} CANARY=${BSD:+0} ENGINE_OUT=$EO STAGE=$W/pair BASE_SCORES=$BSD BASE_REV=$BASE_SHA SCORES_BASE=/nonexistent test/tools/docx-pair.sh "$BASEBIN" "$BIN" "$JOBS" > "$W/pair.log" 2>&1
 rc=$?; echo "render-gate: render+compare step $(( $(date +%s)-T1 )) s"
 if [ $rc != 0 ]; then echo "render-gate: pair failed (exit $rc)"; grep -aE "ABORT|failed|no engine" "$W/pair.log" | head -5 | cut -c1-200; exit 1; fi
+# a document whose render timed out (DOC_ALARM s) or crashed is not scored: name it and fail, never hang or pass silently
+TO=$(grep -aE '^(TIMEOUT|RENDER-FAIL) ' "$W/pair.log" | sort -u | head -20 | sed 's/ (not scored)//')
+if [ -n "$TO" ]; then echo "render-gate: FAILED, render timed out (over ${DOC_ALARM} s) or crashed for:"; echo "$TO" | sed 's/^/  /'; exit 1; fi
 # a gate that compared nothing must not pass
 NCMP=$(awk '/^== /{v2=($0 ~ / v2$/)} v2 && /^NEW: [1-9]/{n++} END{print n+0}' "$W/pair.log")
 [ "$NCMP" -gt 0 ] || { echo "render-gate: nothing was compared (see runner log)"; exit 1; }

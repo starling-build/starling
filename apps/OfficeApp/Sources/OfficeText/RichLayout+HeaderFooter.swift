@@ -697,7 +697,15 @@ extension RichLayout {
                         bottom = max(bottom, k < bottoms.count ? bottoms[k] : top + metrics.height)
                     }
                 }
-                return (g.textTop + box.top, g.textTop + bottom)
+                // (The line is the one under the box's middle: a mark raised out of line 2 has its top over line 1's
+                // bottom, and the line is not line 1. c2104d44's bullet "…párrafo 26[9]" parts after its first line in
+                // Word's print; ours took the mark for line 1's, the page's end over its top, and the whole bullet went over.)
+                var top = box.top
+                if theme.wordRules, !bottoms.isEmpty, let k = bottoms.firstIndex(where: { $0 > (box.top + box.bottom) / 2 }),
+                   k > 0, box.top < bottoms[k - 1] {
+                    top = bottoms[k - 1]; bottom = max(bottom, bottoms[k])
+                }
+                return (g.textTop + top, g.textTop + bottom)
             }
             at += run.length
         }
@@ -1232,6 +1240,9 @@ extension RichLayout {
                 if k < _floatImages.count, let im = _floatImages[k] { imgs.append(im) }
                 for im in imgs where im.id != image.id && im.textBox == nil {
                     guard let f = im.float, f.wraps, f.horizontalFrom == "column" else { continue }
+                    // (A picture anchored after the box in its own paragraph is not met by the host line: sa1 5e813226's text box, whose
+                    // two tight pictures follow it, stands 132.05pt from the margin in Word's print.)
+                    if k == i, theme.wordRules, RichTextTheme.wordWindowsPages, im.seq > image.seq { continue }
                     let memoKey = "\(im.id)@\(k)"
                     let r: Rect
                     if let hit = _nearRectMemo?[memoKey] { r = hit } else { r = _floatRect(f, im, geometry(k), k); _nearRectMemo?[memoKey] = r }
@@ -1564,7 +1575,7 @@ extension RichLayout {
     /// Whether a floating picture is turned by an odd number of quarters.
     static func _quarterTurned(_ image: ImageAttachment) -> Bool {
         let r = (image.rotation.truncatingRemainder(dividingBy: 180) + 180).truncatingRemainder(dividingBy: 180)
-        return abs(r - 90) < 1 && image.float != nil
+        return abs(r - 90) < 1
     }
 
     /// A decoded picture into its box, turned as the file turns it: the
@@ -1580,7 +1591,7 @@ extension RichLayout {
         if theme.wordRules, RichTextTheme.wordWindowsPages, let crop = image.crop {
             src = Rect.fromLTRB(src.width * crop.left, src.height * crop.top, src.width * (1 - crop.right), src.height * (1 - crop.bottom))
         }
-        guard image.float != nil, abs(image.rotation) > 0.01 else {
+        guard abs(image.rotation) > 0.01 else {
             canvas.drawImageRect(decoded, src, box, Paint())
             return
         }
@@ -1633,6 +1644,19 @@ extension RichLayout {
         probe.layout(minWidth: 0, maxWidth: width)
         defer { probe.dispose() }
         if descentOnly { return probe.computeLineMetrics().first?.descent ?? 0 }
+        // (An empty top-aligned paragraph whose mark is lowered: its line is the multiple of the lowered single line,
+        // `word-top-aligned-lowered-text-line-is-ink-box-plus-lowering`; lab pos14, amd-opus.)
+        if !single, theme.wordRules, RichTextTheme.wordWindowsPages, p.style.eastAsian["w:textAlignment"] == "top",
+           p.style.lineHeightPoints == nil, let low = mark.raised ?? _named(p, document)?.char.raised, low < -0.01 {
+            let multiple = max(1, p.style.lineSpacing - theme.lineSpacingReduction)
+            let one = probe.height / multiple
+            let family = mark.fontFamily ?? _named(p, document)?.char.fontFamily ?? theme.fontFamily
+            let em = max(1, mark.fontSize ?? _markSize(p, document) ?? theme.fontSize) * _px(1)
+            if let box = theme.winLineBox?(family).map({ $0 * em }) {
+                let lowered = max(one, box - low * _px(1))
+                if lowered > one { RuleTrace.hit("word-top-aligned-lowered-empty-line-is-the-multiple-of-the-lowered-single-line"); return multiple * lowered }
+            }
+        }
         return probe.height
     }
 
@@ -2165,6 +2189,14 @@ extension RichLayout {
                     RuleTrace.hit("word-header-picture-below-the-last-line-does-not-push-the-body")
                     continue
                 }
+                // (A square wrap set from the column that leaves room beside it, here 6.3pt between the paragraph's left indent and the
+                // picture's wrap box, holds the paragraph's empty line there: Word's body stays at the top margin, dx2 733cf360's 485pt
+                // banner whose foot, 64.5, is above the margin; pushing the line under it put the body 19.9pt low.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, f.wraps, !f.wrapsTight, f.horizontalFrom == "column", hp.text.allSatisfy({ $0 == " " || $0 == "\u{FFFC}" || $0 == "\n" }) {
+                    let roomLeft = f.x - (f.distanceLeft ?? 9) - hp.style.indentLeft
+                    let roomRight = setup.contentWidth - (f.x + image.width + (f.distanceRight ?? 9))
+                    if roomLeft > 0 || roomRight > 0 { RuleTrace.hit("word-header-empty-line-sits-beside-a-square-picture-with-room"); continue }
+                }
                 RuleTrace.hit("header-picture-from-its-paragraph-ends-the-header")
                 // (A wrapped one pushes the paragraph's own line under it, and Word does not lift it above the paragraph: sa1 2303e6f9,
                 // the picture 0 to 136pt, the empty 11pt line baseline at 144.7, the body from 148.4.)
@@ -2179,7 +2211,8 @@ extension RichLayout {
                 var below = _px(wrapped ? f.y : lift) + _px(image.height * (wrapped && f.wrapsTight ? f.wrapBottomShare : 1)) + _px(f.distanceBottom)
                 // (The empty line moves down whole lines until it clears the picture's wrap foot, so its top is a multiple of the line height:
                 // sa1 2303e6f9 lab hdrpoly, Word's body top steps by 13.42pt with the picture's height and its polygon's foot, never between.)
-                if wrapped, line > 0 { below = max(0, (below / line).rounded(.up)) * line }  // (the wrap foot is where the picture really stands, not where it is clamped)
+                // (Only a tight wrap's: a square one's line lands at the picture's foot and its distance, not on a whole line below it: dx2 zh 837ac08d's 95.8pt square picture, the body at 150.62 in Word's print, a line lower, 162.9, with the rounding.)
+                if wrapped, f.wrapsTight, line > 0 { below = max(0, (below / line).rounded(.up)) * line }  // (the wrap foot is where the picture really stands, not where it is clamped)
                 end = max(end ?? 0, _px(setup.headerDistance) + header.layout._tops[j] + below + line)
             }
             // (A picture set against the PAGE's top that the text goes over and under ends the header at its foot plus its
@@ -2229,7 +2262,10 @@ extension RichLayout {
                       image.height > 0 else { continue }
                 // (Not one raised clear of its paragraph by more than its height: the body knows nothing of that —
                 // floattable-footer-nofit, raised 200pt, keeps five rows a page.)
-                let reach = f.bandsPage ? _px(image.height) + _px(f.effectBottom) : -_px(f.y)
+                // (A wide wrap-through shape ends the body one line of its paragraph above the paragraph, wherever the shape stands:
+                // lab footreach moved 511c21d4's box from -28pt to 0 and -40pt, and its page picture to -40pt, and Word's breaks did not move;
+                // any reach from 12 to 24pt gives Word's pages and the paragraph's line is 13.4pt.)
+                let reach = f.bandsPage ? _px(image.height) + _px(f.effectBottom) : footer.layout._heights[j]
                 guard -_px(f.y) < _px(image.height) + _px(f.effectBottom), reach > 0 else { continue }
                 RuleTrace.hit("footer-picture-above-its-paragraph-ends-the-body")
                 end = max(end ?? 0, _px(setup.footerDistance) + footer.height - footer.layout._tops[j] + reach)

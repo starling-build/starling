@@ -914,6 +914,13 @@ extension RichLayout {
                     }
                 }
             }
+            // (A paragraph that keeps with the next in its cell is not a place the row may part: Word's print of
+            // c2104d44 sends the empty kept paragraph that opens the chain "…, Jueves, 16 de marzo" to the next page with it,
+            // and stands the line before it at the foot.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.paragraphs[k].style.keepNext, k + 1 < count,
+               let here = _cells[k], let next = _cells[k + 1], next.table == here.table, next.row == here.row, next.column == here.column {
+                return lines
+            }
             return lines + [end]
         }
         // A cell merged down from a row above (Word's `w:vMerge`) is
@@ -1550,10 +1557,10 @@ extension RichLayout {
                             // Lab t190: with 1.0 more room it stays.)
                             if column.bottom > column.cut + 0.01 { moved = true }
                             next[n] = max(column.cut, rowBottom)
-                        } else if let at = column.cuts.indices.last(where: { column.cuts[$0] > column.cut + 0.01 && column.cuts[$0] - (column.slacks.indices.contains($0) ? column.slacks[$0] : 0) <= closed - (theme.wordRules && bottomMargin == 0 ? d0.margin + spacedFoot : 0) - (theme.wordRules && bottomMargin == 0 && (document.compatibilityMode ?? 12) >= 15 ? (column.cuts[$0] >= column.bottom - d0.pad.bottom - 0.01 ? d0.pad.bottom : (d0.rowSpan == 1 && !_cells.contains { $0?.table == d0.table && ($0?.rowSpan ?? 1) > 1 } ? max(0, d0.pad.bottom - d0.ruleBelow) : 0)) : 0) - nestedFoot(column.owners.indices.contains($0) ? column.owners[$0] : -1) - nestedGap(column) }),
+                        } else if let at = column.cuts.indices.last(where: { column.cuts[$0] > column.cut + 0.01 && column.cuts[$0] - (column.slacks.indices.contains($0) ? column.slacks[$0] : 0) <= closed - (theme.wordRules && bottomMargin == 0 ? (((document.compatibilityMode ?? 12) >= 15 && d0.rowSpan == 1 && column.cuts[$0] < column.bottom - d0.pad.bottom - 0.01 && !_cells.contains { $0?.table == d0.table && ($0?.rowSpan ?? 1) > 1 }) ? 0 : d0.margin) + spacedFoot : 0) - (theme.wordRules && bottomMargin == 0 && (document.compatibilityMode ?? 12) >= 15 ? (column.cuts[$0] >= column.bottom - d0.pad.bottom - 0.01 ? d0.pad.bottom : (d0.rowSpan == 1 && !_cells.contains { $0?.table == d0.table && ($0?.rowSpan ?? 1) > 1 } ? max(0, d0.pad.bottom - d0.ruleBelow) : 0)) : 0) - nestedFoot(column.owners.indices.contains($0) ? column.owners[$0] : -1) - nestedGap(column) }),
                                   case let owner = column.owners.indices.contains(at) ? column.owners[at] : -1,
                                   let cut = column.cuts.indices.filter({ $0 >= at && (column.owners.indices.contains($0) ? column.owners[$0] : -1) == owner })
-                                    .last(where: { column.cuts[$0] - (column.slacks.indices.contains($0) ? column.slacks[$0] : 0) <= cutClosed - (theme.wordRules && bottomMargin == 0 ? d0.margin + spacedFoot : 0) - (theme.wordRules && bottomMargin == 0 && (document.compatibilityMode ?? 12) >= 15 ? (column.cuts[$0] >= column.bottom - d0.pad.bottom - 0.01 ? d0.pad.bottom : (d0.rowSpan == 1 && !_cells.contains { $0?.table == d0.table && ($0?.rowSpan ?? 1) > 1 } ? max(0, d0.pad.bottom - d0.ruleBelow) : 0)) : 0) - nestedFoot(column.owners.indices.contains($0) ? column.owners[$0] : -1) - nestedGap(column) }).map({ column.cuts[$0] }) {
+                                    .last(where: { column.cuts[$0] - (column.slacks.indices.contains($0) ? column.slacks[$0] : 0) <= cutClosed - (theme.wordRules && bottomMargin == 0 ? (((document.compatibilityMode ?? 12) >= 15 && d0.rowSpan == 1 && column.cuts[$0] < column.bottom - d0.pad.bottom - 0.01 && !_cells.contains { $0?.table == d0.table && ($0?.rowSpan ?? 1) > 1 }) ? 0 : d0.margin) + spacedFoot : 0) - (theme.wordRules && bottomMargin == 0 && (document.compatibilityMode ?? 12) >= 15 ? (column.cuts[$0] >= column.bottom - d0.pad.bottom - 0.01 ? d0.pad.bottom : (d0.rowSpan == 1 && !_cells.contains { $0?.table == d0.table && ($0?.rowSpan ?? 1) > 1 } ? max(0, d0.pad.bottom - d0.ruleBelow) : 0)) : 0) - nestedFoot(column.owners.indices.contains($0) ? column.owners[$0] : -1) - nestedGap(column) }).map({ column.cuts[$0] }) {
                             // (Under the cut, the cell's bottom margin, as
                             // the part is closed with it: zh-12f87285's
                             // cells state 1.2pt, and Word leaves a line
@@ -2098,7 +2105,7 @@ extension RichLayout {
             // (A table as wide as the text leaves no strip: what follows goes under
             // it, not up at its anchor — 6e6d8e9e's blank lines after its sections.)
             if theme.wordRules, besideTable == nil, i > 0, _cells[i] == nil, let prev = _cells[i - 1]?.table,
-               !((_floatLeavesNoStrip(prev, i, document) && _floatFollowsFloat(prev, document)) || _floatStripNarrowerThanIndent(prev, i, document)),
+               !((_floatLeavesNoStrip(prev, i, document) && _floatFollowsFloat(prev, document)) || _floatStripNarrowerThanIndent(prev, i, document) || _floatWiderThanFlow(prev, i, document)),
                blank(document.paragraphs[i]) || (i < _besideLead.count && _besideLead[i] > 0) || _splitMarginFloatBeside(prev, i, page, document) || _splitPageFloatBeside(prev, i, page, document),
                let ts = document.tableStyles[prev], ts.floatOffsetY != nil || (ts.floatRaiseY != nil && _markBesideOffsetFloat(prev, i, document)) || (i < _besideLead.count && _besideLead[i] > 0) || _anchorBesideLeftTable(prev, i, document) || _splitMarginFloatBeside(prev, i, page, document) || _splitPageFloatBeside(prev, i, page, document), !ts.pageAnchored || _splitPageFloatBeside(prev, i, page, document), ts.keptPosition != nil,
                (i < _besideLead.count && _besideLead[i] > 0) || _splitMarginFloatBeside(prev, i, page, document) || _splitPageFloatBeside(prev, i, page, document) || _tableLeft(prev, document) - _px(9) - _px(_setup(ofParagraph: i).headerWrapLeft) >= _px(18) || _stripBesideLeftTable(prev, i, document) || _anchorBesideLeftTable(prev, i, document) || _markBesideOffsetFloat(prev, i, document),
@@ -2306,7 +2313,8 @@ extension RichLayout {
                                     here.append(id)
                                 } else {
                                     if y > 0.01 || mark.top > c0.rowTop + 0.5 {
-                                        contentH = max(1, min(contentH, y + (mark.top - c0.rowTop) + (here.isEmpty ? 0 : room - note.height)))
+                                        // (The row's part ends over that line with its closing rule under it, which is not room the cut asks for.)
+                                        contentH = max(1, min(contentH, y + (mark.top - c0.rowTop) + ruleUnder(c0, parted: true) + (here.isEmpty ? 0 : room - note.height)))
                                     }
                                     rowPending.append(id)
                                 }
@@ -3848,7 +3856,11 @@ extension RichLayout {
                _columns == 1, document.paragraphs[i].text.isEmpty, document.paragraphs[i].image == nil, document.paragraphs[i].style.frameXML == nil,
                case let pst = document.paragraphs[i].style, case let after = _px(pst.spaceAfter),
                // (Its line counts as a single one, Word's multiple hanging below the foot like the leading.)
-               Self._needs(_heights[i], after, pst.lineSpacing) > contentH - emptyBegins + 0.01, !_pageBreak[i] {
+               Self._needs(_heights[i], after, pst.lineSpacing) > contentH - emptyBegins + 0.01, !_pageBreak[i],
+               // (A line that stands over a floating table's offset, in the room above the table, is not at the foot:
+               // sa1 5e813226's five empties under a text-anchored table with tblpY 798: Word sets the first two over
+               // the table and the third under it on the page, the other two carried; ours carried from the second.)
+               !(textFloatTop.map { $0.chained && $0.page == page && frameReturn == nil && _heights[i] <= $0.down + 0.01 } ?? false) {
                 var k = i
                 while k < count, _cells[k] == nil, document.paragraphs[k].text.isEmpty { k += 1 }
                 if k < count, _cells[k] != nil, Self._followsFloatingTable(k, _cells[k]!.table, document: document, cells: _cells) {
@@ -3856,7 +3868,10 @@ extension RichLayout {
                     newPage()
                 }
             }
-            if _cells[i] == nil, document.paragraphs[i].text.isEmpty { lastEmptyAt = (i, page, y) }
+            // (An empty line that stands over a floating table's offset does not move the flow under the table on.)
+            if _cells[i] == nil, document.paragraphs[i].text.isEmpty {
+                lastEmptyAt = RichTextTheme.wordWindowsPages && (textFloatTop.map { $0.chained && $0.page == page && frameReturn == nil && _heights[i] <= $0.down + 0.01 } ?? false) ? nil : (i, page, y)
+            }
             // (A paragraph that is only the break, carried to a page of its
             // own because no line of it fit at the foot under a table,
             // stays on the page it ends where the table reached the foot,
@@ -5483,10 +5498,12 @@ extension RichLayout {
                 // baseline, is Word's p28 start, where a plain line stands to 752.7.)
                 let partFoot: Double = theme.wordRules && RichTextTheme.wordWindowsPages
                     ? document.paragraphs[i].style.borders?.bottom.map { _px($0.space + Self._ruleRoom($0.style, $0.width)) } ?? 0 : 0
-                // (Over a page's footnotes the last line's space after must fit above the separator too: Word for Windows
-                // keeps iv) of 58192c08 on page 5 with 0 pt after and sends it to page 6 with 3 pt, lab fnbreak v6/v7.)
-                let afterOnNotes: Double = theme.wordRules && RichTextTheme.wordWindowsPages && !pageNotes.isEmpty && document.paragraphs[i].cell == nil ? _spacing(i, document).after : 0
-                for (k, c) in cuts!.enumerated() where c > cursor + 0.01 && c - cursor <= available + slack + reach(k) + (k == cuts!.count - 1 ? emptyTail + twipAllow(c - cursor - (available + reach(k) + emptyTail)) - afterOnNotes : -partFoot) { cut = c }
+                // (A paragraph's bottom rule lies under its last line, before the space after: the last
+                // line fits only with the rule's gap and width above the foot. 5e813226's Title heading,
+                // 26pt Cambria, line ends 0.8pt above page 9's foot and its 1.5pt rule 0.7pt past it:
+                // Word's print starts page 10 with it.)
+                let lastFoot: Double = partFoot > 0 && !_bordersJoin(i, i + 1, document) ? partFoot : 0
+                for (k, c) in cuts!.enumerated() where c > cursor + 0.01 && c - cursor <= available + slack + reach(k) + (k == cuts!.count - 1 ? emptyTail + twipAllow(c - cursor - (available + reach(k) + emptyTail)) - lastFoot : -partFoot) { cut = c }
                 // (A picture's paragraph goes whole or to the next page: its
                 // one cut is its empty line's, under the picture's top, and
                 // took all of the picture into whatever room was left. Widow
@@ -5762,6 +5779,11 @@ extension RichLayout {
     /// paragraph's width against its column's, too.
     /// How far past the right margin Word still honours a right tab stop (lab tabr: 452 twips measured, none refused).
     static let _tabPastMargin = 22.6
+    /// Word for Windows before 2013's layout (compat 14 and under) ends a tab stop's text AT the stop, however far past the margin
+    /// (lab tabpast14: stops 0 to 568 twips past, right, centre and left alike; compat 15 clamps them).
+    static func _honoursStopsPastMargin(_ d: RichDocument) -> Bool {
+        RichTextTheme.wordWindowsPages && (d.compatibilityMode ?? 12) < 15
+    }
     /// How far a tall floating table (text- or page-anchored) can rise to bring a straddling line to the page edge: 0.4 cm
     /// (Word's print of labs tblstrip8: lifts to 10.92, none from 11.4).
     static let floatingTableLiftLimit = 11.34
@@ -6457,6 +6479,20 @@ extension RichLayout {
         let strip = (_tableFlowWidth[table] ?? width) - (left + (_columnWidths[table] ?? []).reduce(0, +))
         guard left < _px(12), strip > 0, _px(indent) > strip + 0.01 else { return false }
         RuleTrace.hit("word-float-strip-narrower-than-the-paragraphs-right-indent-leaves-no-strip")
+        return true
+    }
+
+    /// A table floating by the text that is WIDER than the text column (it overhangs its right edge): there is no strip
+    /// beside it at all, so the whitespace-only paragraph after it goes under it, not up at its anchor line. sa1 5393bae9:
+    /// "1. ANTECEDENTES" 204.5 in Word's print, 190.0 in ours (the 12pt mark's line left beside the 438pt table in a 427.7pt column).
+    @inline(never)
+    func _floatWiderThanFlow(_ table: String, _ i: Int, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, _cells[i] == nil else { return false }
+        let left = _tableLeft(table, document)
+        let flow = _tableFlowWidth[table] ?? width
+        let sum = (_columnWidths[table] ?? []).reduce(0, +)
+        guard left < _px(12), flow - (left + sum) < -0.01 else { return false }
+        RuleTrace.hit("word-float-wider-than-the-column-leaves-no-strip-for-the-mark-after-it")
         return true
     }
 

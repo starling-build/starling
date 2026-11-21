@@ -84,6 +84,8 @@ public final class RichTextTheme {
     /// this and the ideograph face's half em together — 0.225 em beside
     /// Times New Roman, 0.275 beside Courier New.
     public var averageCharWidth: ((String?) -> Double)? = nil
+    /// A face's usWinAscent + usWinDescent over its em, by the name the document uses (nil: unknown).
+    public var winLineBox: ((String?) -> Double?)? = nil
     /// A symbol face's characters as the Unicode glyphs they show, for
     /// drawing: a run in Wingdings 2 says "£" (`w:sym w:char="00A3"`) for
     /// a box. Character for character, so offsets hold; the document keeps
@@ -197,6 +199,8 @@ public final class RichTextTheme {
         case "book antiqua": return 0.242
         case "georgia": return 0.265
         case "sylfaen": return 0.283
+        case "copperplate gothic light": return 546.0 / 2048 // OS/2 ySuperscriptYOffset; sa1 6d68ddbf, lab hdrsup v3/v8: 6.48 pt at 24 pt
+        case "copperplate gothic bold": return 525.0 / 2048
         case "palatino linotype": return 0.273
         default: return 0.355
         }
@@ -1820,6 +1824,12 @@ public final class RichLayout {
     /// Each cell paragraph's narrowest and widest settings (px), for
     /// `_autofit`.
     var _cellMins: [Int: (min: Double, max: Double)] = [:]
+    /// Compat 14 and under: how far past its margin a paragraph's right or centre tab stop lies (px) as the clamped pass saw it,
+    /// and the width the second, unclamped pass is given beyond the margin (nil in the first).
+    var _pastNeed: [Int: Double] = [:]
+    var _pastWiden: Double? = nil
+    /// The same for an explicit LEFT stop past the margin, which the clamped pass wraps (so no one-line test).
+    var _pastLeft: [Int: Double] = [:]
     struct ListSig: Equatable {
         var kind: ListKind?
         var level: Int

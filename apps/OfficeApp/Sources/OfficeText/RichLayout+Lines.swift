@@ -49,7 +49,7 @@ extension RichLayout {
         // (A run moved off the baseline whose line is taller than the held one: a ruby's base on a line
         // grid, which asks its line for two pitches. A strut would hold the line at one: flt1-1-asis's
         // wrapped "かえてくれる" paragraph came out 18 pt short.)
-        var tallShifted = 0.0
+        var tallShifted = 0.0, shadowReach = 0.0
         var kokilaOwn = false, latinOwn = false, latinStacked = false, bengaliSeen = false, nirmalaSeen = false
         func visit(_ s: InlineSpan) {
             guard uniform, let t = s as? TextSpan else { return }
@@ -61,6 +61,7 @@ extension RichLayout {
                 else if st.ascentOverride != nil, tx.unicodeScalars.contains(where: { $0.value >= 0x20 && $0.value < 0x250 && ($0.properties.isAlphabetic || ($0.value >= 0x30 && $0.value <= 0x39)) }), !tx.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xD80 }) { latinStacked = true }
             }
             if let text = t.text, text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value < 0xA00 }) { bengaliSeen = true }
+            if let label = t.style?.debugLabel, let r = label.rangeOfSubstring(" shadow-line@"), let v = Double(label[r.upperBound...].prefix { $0 == "." || $0 == "-" || $0.isNumber }) { shadowReach = max(shadowReach, v) }
             if !shiftedToo, let st = t.style, st.baselineShift != nil, let sz = st.fontSize, let hh = st.height, sz > 0.5 { tallShifted = max(tallShifted, sz * hh) }
             if let text = t.text, text.unicodeScalars.contains(where: { ($0.value >= 0x0590 && $0.value <= 0x08FF) || ($0.value >= 0xFB1D && $0.value <= 0xFEFF) }) { bidi = true }
             // (Spaces and letters name the face; a lone mark such as « or » in the Latin theme face does not.)
@@ -150,8 +151,11 @@ extension RichLayout {
         // face's ascent and descent by a height that counts its line gap
         // too, and comes out that much short — 15.15 for 15.6 in
         // Liberation Sans.)
+        // (A shadow on a raised or lowered run grows the line by its reach above: see "shadow-line@" in `_spanStyle`.)
+        let grownH = !shiftedToo && shadowReach > 0 ? h + shadowReach / size : h
+        if grownH != h { RuleTrace.hit("word-raised-run-shadow-reach-grows-the-line") }
         return StrutStyle(fontFamily: base.fontFamily, fontFamilyFallback: base.fontFamilyFallback,
-                          fontSize: size, height: h, leadingDistribution: .even, fontWeight: base.fontWeight,
+                          fontSize: size, height: grownH, leadingDistribution: .even, fontWeight: base.fontWeight,
                           forceStrutHeight: !((kokilaOwn && latinOwn) || (latinStacked && bengaliSeen)
                                               // (A Nirmala UI line is its tallest ascent over its deepest descent, so a deeper Latin face (Calibri's 0.269 against 0.247 em) lengthens the lines it is on: lab nirpitch2, 14.88 against 14.64 at 11 pt.)
                                               || (theme.wordRules && RichTextTheme.wordWindowsPages && nirmalaSeen)))
@@ -985,8 +989,9 @@ extension RichLayout {
             }
             // (A square picture that is the whole of its paragraph, placed from the column and wrapped on both sides, with room at its left:
             // the text of the paragraphs after it is held in beside it as one anchored in a run is. sa1 62904a12: Word wraps "Escreva três
-            // frases ..." three paragraphs under the picture's own, ours set it across the picture.)
-            if k < i, p.cell == nil, q.cell == nil, theme.wordRules, RichTextTheme.wordWindowsPages, let image = q.image, image.textBox == nil,
+            // frases ..." three paragraphs under the picture's own, ours set it across the picture. Not in a header: dx2 75f32c04's header logo, from the
+            // column too, leaves the three lines beside it whole in Word's print.)
+            if k < i, p.cell == nil, q.cell == nil, theme.wordRules, RichTextTheme.wordWindowsPages, !document.isPageHeaderPart, let image = q.image, image.textBox == nil,
                q.text.isEmpty, let f = image.float, f.wraps, !f.wrapsTight, !f.takesRoom, f.horizontalFrom == "column", f.horizontalAlign == nil,
                !candidates.contains(where: { $0.image.id == image.id }) {
                 candidates.append((image, k < _imageSize.count ? _imageSize[k] : nil))
@@ -995,8 +1000,10 @@ extension RichLayout {
             for (image, laid) in candidates {
                 // (A header's square picture placed from the margin does not narrow the lines of the header paragraphs beside it, its own or the next: Word's
                 // print of lab hdrsq sets the centred first line over the full text width beside it, even where it would fit clear of
-                // the picture; sa1 98480d18.)
-                if document.isPageHeaderPart, let f = image.float, f.wraps, !f.wrapsTight, !f.takesRoom, f.horizontalFrom == "margin",
+                // the picture; sa1 98480d18. A tight or through-wrapped picture placed from the column does the same: sa2 81f316d6's logo, whose
+                // header line of spaces and a right-hand heading stands whole beside it in Word's print, and lab tbhdrwrap. A square one from
+                // the column does narrow the lines: lo-9181670262a2714c.)
+                if document.isPageHeaderPart, let f = image.float, f.wraps, !f.takesRoom, f.horizontalFrom == "margin" || (f.wrapsTight && f.horizontalFrom == "column"),
                    !image.data.isEmpty {
                     RuleTrace.hit("word-header-margin-square-picture-leaves-header-lines-whole")
                     continue
@@ -1030,13 +1037,20 @@ extension RichLayout {
                     }
                     let own = _px(p.style.indentLeft)
                     let rightGap = _px(p.style.indentRight)
-                    let leftEdge = x - _px(float.distanceLeft ?? 9), rightEdge = x + w + _px(float.distanceRight ?? 9)
+                    // (A tight wrap's outline, not its box, holds the text off: the pieces stand at the outline's extreme
+                    // points and its vertical extent. sa1 5e813226: a 72 pt line level with a picture's empty corner stays whole.)
+                    let polyOn = theme.wordRules && RichTextTheme.wordWindowsPages && float.wrapsTight && float.wrapPolygon.count >= 3
+                    let pxs = float.wrapPolygon.map { $0.x }, pys = float.wrapPolygon.map { $0.y }
+                    let pl = polyOn ? (pxs.min() ?? 0) : 0, pr = polyOn ? (pxs.max() ?? 1) : 1
+                    let pt = polyOn ? (pys.min() ?? 0) : 0, pb = polyOn ? (pys.max() ?? 1) : 1
+                    if polyOn { RuleTrace.hit("word-tight-wrap-pieces-stand-at-the-outline's-extent") }
+                    let leftEdge = x + w * pl - _px(float.distanceLeft ?? 9), rightEdge = x + w * pr + _px(float.distanceRight ?? 9)
                     // (Room at its left for a character and a half is enough: lab `anc` D (Word for Windows, 12pt,
                     // a 40pt square at x 20 from the column's edge, no gap) sets "D-" in the 20pt strip and "p3"
                     // after the picture, on each of the three lines it spans; the room was three ems.)
                     if w > 0, leftEdge - own > 0.5, inner - rightEdge - rightGap >= size * 3 {
-                        let band = (top: _px(float.y) - _px(float.distanceTop) - offset,
-                                    bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
+                        let band = (top: _px(float.y) + h * pt - _px(float.distanceTop) - offset,
+                                    bottom: _px(float.y) + h * pb + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
                         if band.bottom > 0.01 { boxes.append((band.top, band.bottom, leftEdge - own, rightEdge - own)) }
                         if band.bottom > 0.01, best == nil || rightEdge - own > best!.indent { best = (rightEdge - own, band, false, leftEdge - own) }
                         continue

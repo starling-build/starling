@@ -669,8 +669,26 @@ extension OfficeFonts {
         0.5732, 0.3803, 0.2471, 0.3803, 0.6651,
     ]
     /// Faces added from the Windows metrics (Word for Windows only).
+    // Edwardian Script ITC (Regular), measured on Windows (metrics only; its 24 advances from the 79f33282 print agree).
+    static let edwardianScriptITCAdvances: [Double] = [
+        0.1768, 0.2871, 0.4780, 0.4780, 0.4780, 0.5352, 0.8892, 0.3208, 0.4390, 0.4390, 0.2778, 0.5229,
+        0.2231, 0.3579, 0.2231, 0.5288, 0.4780, 0.4780, 0.4780, 0.4780, 0.4780, 0.4780, 0.4780, 0.4780,
+        0.4780, 0.4780, 0.2231, 0.2231, 0.5229, 0.5229, 0.5229, 0.4360, 0.6802, 0.9082, 0.9292, 0.7969,
+        0.8472, 0.8408, 0.6602, 0.7339, 0.8628, 0.6382, 0.5630, 0.8809, 0.7588, 0.9780, 0.8711, 0.7930,
+        0.7690, 0.7021, 0.9248, 0.7070, 0.5869, 0.9009, 0.7490, 0.9238, 1.0039, 0.9312, 0.6528, 0.4390,
+        0.5288, 0.4390, 0.5000, 0.5000, 0.5000, 0.3442, 0.2632, 0.2422, 0.3442, 0.2461, 0.1328, 0.3350,
+        0.3130, 0.1680, 0.1509, 0.3008, 0.1602, 0.5439, 0.3911, 0.2900, 0.2651, 0.2891, 0.2778, 0.1948,
+        0.1650, 0.3130, 0.2729, 0.4238, 0.3481, 0.3081, 0.2788, 0.4390, 0.5000, 0.4390, 0.6670,
+    ]
+
     static func applyTabledMore(_ family: String, to face: inout RichResolvedFace) {
         switch family.trimmingWhitespace().lowercased() {
+        case "edwardian script itc":
+            face.advances = edwardianScriptITCAdvances
+            // (All of the measured non-ASCII entries.)
+            face.otherAdvances = [0xA0: 0.1768, 0xA1: 0.2871, 0xA2: 0.4780, 0xA3: 0.4780, 0xA4: 0.5078, 0xA5: 0.4780, 0xA6: 0.5000, 0xA7: 0.4780, 0xA8: 0.5000, 0xA9: 0.7681, 0xAA: 0.3442, 0xAB: 0.3579, 0xAC: 0.6011, 0xAD: 0.5229, 0xAE: 0.7681, 0xAF: 0.5000, 0xB0: 0.4780, 0xB1: 0.5229, 0xB2: 0.3179, 0xB3: 0.3179, 0xB4: 0.5000, 0xB5: 0.3481, 0xB6: 0.8271, 0xB7: 0.2310, 0xB8: 0.5000, 0xB9: 0.3179, 0xBA: 0.3442, 0xBB: 0.3579, 0xBC: 0.6675, 0xBD: 0.6504, 0xBE: 0.6587, 0xBF: 0.4360, 0xC0: 0.9082, 0xC1: 0.9082, 0xC2: 0.9082, 0xC3: 0.9082, 0xC4: 0.9082, 0xC5: 0.9082, 0xC6: 1.2910, 0xC7: 0.7969, 0xC8: 0.8408, 0xC9: 0.8408, 0xCA: 0.8408, 0xCB: 0.8408, 0xCC: 0.6382, 0xCD: 0.6382, 0xCE: 0.6382, 0xCF: 0.6382, 0xD0: 0.8472, 0xD1: 0.8711, 0xD2: 0.7930, 0xD3: 0.7930, 0xD4: 0.7930, 0xD5: 0.7930, 0xD6: 0.7930, 0xD7: 0.5229, 0xD8: 0.7930, 0xD9: 0.9009, 0xDA: 0.9009, 0xDB: 0.9009, 0xDC: 0.9009, 0xDD: 0.9312, 0xDE: 0.7480, 0xDF: 0.2910, 0xE0: 0.3442, 0xE1: 0.3442, 0xE2: 0.3442, 0xE3: 0.3442, 0xE4: 0.3442, 0xE5: 0.3442, 0xE6: 0.4399, 0xE7: 0.2422, 0xE8: 0.2461, 0xE9: 0.2461, 0xEA: 0.2461, 0xEB: 0.2461, 0xEC: 0.1680, 0xED: 0.1680, 0xEE: 0.1680, 0xEF: 0.1680, 0xF0: 0.2900, 0xF1: 0.3911, 0xF2: 0.2900, 0xF3: 0.2900, 0xF4: 0.2900, 0xF5: 0.2900, 0xF6: 0.2900, 0xF7: 0.5229, 0xF8: 0.2900, 0xF9: 0.3130, 0xFA: 0.3130, 0xFB: 0.3130, 0xFC: 0.3130, 0xFD: 0.3081, 0xFE: 0.2612, 0xFF: 0.3081, 0x131: 0.1680, 0x152: 1.1680, 0x153: 0.4160, 0x160: 0.7070, 0x161: 0.1948, 0x178: 0.9312, 0x2013: 0.4448, 0x2014: 0.5972, 0x2018: 0.2090, 0x2019: 0.2090, 0x201A: 0.2090, 0x201C: 0.3008, 0x201D: 0.3008, 0x201E: 0.3008, 0x2020: 0.4780, 0x2021: 0.4780, 0x2022: 0.6689, 0x2026: 0.6680, 0x2030: 0.7310, 0x2039: 0.2490, 0x203A: 0.2490, 0x20AC: 0.4780, 0x2122: 0.7749]
+            face.naturalHeight = 2414.0 / 2048.0; face.baseline = 1742.0 / 2048.0
+
         case "lucida sans":
             face.advances = lucidaSansAdvances
             face.naturalHeight = 1.139; face.baseline = 0.928
@@ -693,6 +711,19 @@ extension OfficeFonts {
             face.boldItalicAdvances = bookman_old_styleBoldItalicAdv
             face.naturalHeight = 2404.0 / 2048; face.baseline = 1929.0 / 2048
 
+        case "berlin sans fb":
+            face.advances = berlin_sans_fbAdv
+            face.otherAdvances = berlin_sans_fbOther
+            face.boldAdvances = berlin_sans_fbBoldAdv
+            face.boldOtherAdvances = berlin_sans_fbBoldOther
+            face.naturalHeight = 2251.0 / 2048; face.baseline = 1835.0 / 2048
+            face.boldHeight = 2535.0 / 2048; face.boldBaseline = 1857.0 / 2048
+
+        case "berlin sans fb demi":
+            face.advances = berlin_sans_fb_demiAdv
+            face.otherAdvances = berlin_sans_fb_demiOther
+            face.naturalHeight = 2312.0 / 2048; face.baseline = 1893.0 / 2048
+
         case "gill sans mt":
             face.advances = gill_sans_mtAdv
             face.otherAdvances = gill_sans_mtOther
@@ -705,16 +736,22 @@ extension OfficeFonts {
         case "baskerville old face":
             face.advances = baskerville_old_faceAdv
             face.otherAdvances = baskerville_old_faceOther
+            // (No bold face on the print box (Regular is the only style): a bold run is set at the regular advances; Impact, sa1 5e813226: 11 glyphs within 0.36 pt.)
+            face.boldAdvances = baskerville_old_faceAdv; face.boldOtherAdvances = baskerville_old_faceOther
             face.naturalHeight = 1.1406; face.baseline = 0.8813
 
         case "engravers mt":
             face.advances = engravers_mtAdv
             face.otherAdvances = engravers_mtOther
+            // (No bold face on the print box (Regular is the only style): a bold run is set at the regular advances; Impact, sa1 5e813226: 11 glyphs within 0.36 pt.)
+            face.boldAdvances = engravers_mtAdv; face.boldOtherAdvances = engravers_mtOther
             face.naturalHeight = 1.1646; face.baseline = 0.9375
 
         case "impact":
             face.advances = impactAdv
             face.otherAdvances = impactOther
+            // (No bold face on the print box: a bold run is set at the regular advances; Impact, sa1 5e813226: 11 glyphs within 0.36 pt.)
+            face.boldAdvances = impactAdv; face.boldOtherAdvances = impactOther
             face.naturalHeight = 1.2197; face.baseline = 1.0088
 
         case "mv boli":
@@ -751,7 +788,7 @@ extension OfficeFonts {
         case "copperplate gothic light":
             face.advances = copperplate_gothic_lightAdv
             face.otherAdvances = copperplate_gothic_lightOther
-            face.naturalHeight = 1.0786; face.baseline = 0.8721
+            face.naturalHeight = 1.0991; face.baseline = 0.8926
 
         case "goudy old style":
             face.advances = goudy_old_styleAdv

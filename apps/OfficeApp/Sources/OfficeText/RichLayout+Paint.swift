@@ -1589,7 +1589,10 @@ extension RichLayout {
                 let w2LoweredBullet: Bool = p.cell != nil && theme.wordRules && RichTextTheme.wordWindowsPages && document.readFromFile
                     && p.style.lineHeightPoints == nil && p.style.list != nil && _levelNumberFonts(p, document).latin?.lowercased() == "wingdings 2"
                     && (p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML })?.rangeOfSubstring("<w:position w:val=\"-") != nil)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil || w2LoweredBullet {
+                // (A Wingdings bullet whose line is stood on its own ascent over Korean text goes to the text's baseline in a cell too:
+                // xd b88f2314 p2 cell paragraphs, Word's box and text on one baseline, ours 1.95pt apart.)
+                let wingdingsMalgun: Bool = p.cell != nil && p.style.list != nil && _levelNumberFonts(p, document).latin?.lowercased() == "wingdings" && _wingdingsOverMalgunText(p, document)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil || w2LoweredBullet || wingdingsMalgun {
                     let d = g.painter.computeDistanceToActualBaseline(.alphabetic) - marker.computeDistanceToActualBaseline(.alphabetic)
                     if d < -_px(0.5) { markerDown = d; RuleTrace.hit("word-list-number-on-its-lines-baseline") }
                     // (And down to it when the text's line is the deeper one: xd 55850db1's "क)" over Courier New / Mangal text

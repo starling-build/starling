@@ -85,6 +85,8 @@ struct ChartSeries: Equatable {
     var labelSize: Double? = nil
     var labelBold = false
     var labelColor: Color? = nil
+    /// The face the series' labels name (`a:latin typeface`, a theme's "+mn-lt" not one).
+    var labelFace: String? = nil
     /// The outline round a bar or slice (`c:spPr/a:ln`), and its width in
     /// points; nil is none.
     var outline: Color? = nil
@@ -153,6 +155,8 @@ struct Chart: Equatable {
     /// gives them (its first run's, else the title's default run
     /// properties); nil is PowerPoint's default for a chart title.
     var titleSize: Double? = nil
+    /// A title that gives no text and no look (`<c:title/>`): its text is the series' name, and in a Word document Word prints it 18 pt bold (db23237f, 1f900e58).
+    var autoTitle = false
     var titleSpacing: Double? = nil
     /// A size of a title's later paragraph where it differs from the
     /// first's, by line of `title` (aascu 5864's 14 pt titles with a 12 pt
@@ -655,6 +659,8 @@ struct Chart: Equatable {
         var line: Color? = nil
         var lineWidth = 0.75
         var leaders = false
+        /// No `showLeaderLines` element at all (Word then still draws a pie's leaders for labels it moved apart).
+        var leadersUnset = false
         /// A pie-of-pie bar's labels stand with their right edge here (Word: 42 pt past the bar).
         var anchorRight: Double? = nil
         var leaderColor: Color? = nil
@@ -1428,6 +1434,7 @@ enum ChartXML {
                 s.labelSize = run["sz"].flatMap(Double.init).map { $0 / 100 }
                 s.labelBold = ["1", "true"].contains(run["b"] ?? "")
                 if let f = run.first("a:solidFill") { s.labelColor = color(f) }
+                if let face = run.first("a:latin")?["typeface"], !face.isEmpty, !face.hasPrefix("+") { s.labelFace = face }
             }
             if series.isEmpty {
                 for pt in ser.all("c:dPt") {
@@ -1603,7 +1610,11 @@ enum ChartXML {
             lines.append(s)
         }
         let n = max(categories.count, series.map(\.values.count).max() ?? 0)
-        if categories.count < n { categories += (categories.count ..< n).map { "\($0 + 1)" } }
+        // A category cache that stops short of the values' count leaves the
+        // missing names blank (Word's print of ab55f8b0 chart4: 7 names, 8
+        // values, no "8" under the last slot); with no names at all they are
+        // the numbers 1, 2, ...
+        if categories.count < n { categories += (categories.count ..< n).map { categories.isEmpty ? "\($0 + 1)" : "" } }
         for i in series.indices where series[i].values.count < n {
             series[i].values += Array(repeating: nil, count: n - series[i].values.count)
         }
@@ -1732,6 +1743,7 @@ enum ChartXML {
             c.plainText = true
         }
         c.titleSize = titleSize
+        if let t = chart.first("c:title"), t.first("c:tx") == nil, t.first("c:txPr") == nil, space.first("c:txPr") == nil { c.autoTitle = true }
         c.titleSpacing = titleSpacing
         c.titleLineSizes = titleLineSizes
         c.titleAt = titleAt
@@ -1811,7 +1823,7 @@ enum ChartXML {
         // one series deletes them under a chart that shows values).
         c.dataLabels = el.all("c:ser").contains { ser in
             guard let d = ser.first("c:dLbls") else { return shows(el.first("c:dLbls")) }
-            if ["1", "true"].contains(d.first("c:delete")?["val"] ?? "") { return false }
+            if ["1", "true"].contains(d.first("c:delete")?["val"] ?? "") { return type == .pie && d.all("c:dLbl").contains { shows($0) } }
             return d.first("c:showVal") == nil && d.first("c:showPercent") == nil ? shows(el.first("c:dLbls")) : shows(d)
         }
         // (Only where some series shows labels does a series that does not go without: else the flag is moot.)
@@ -1820,12 +1832,21 @@ enum ChartXML {
         if type == .doughnut, let hole = el.first("c:holeSize")?["val"].flatMap(Int.init) { c.holeSize = hole }
         if type == .pie || type == .doughnut, let ser = el.first("c:ser"), let d = ser.first("c:dLbls") ?? el.first("c:dLbls") {
             func on(_ n: XNode?, _ name: String) -> Bool { ["1", "true"].contains(n?.first(name)?["val"] ?? "") }
-            c.pieLabelsAround = type == .pie && d.first("c:delete")?["val"] != "1"
-                && ["c:showVal", "c:showPercent", "c:showCatName", "c:showSerName"].contains { on(d, $0) }
+            // (A group delete does not take the labels a point's own `c:dLbl` shows: db23237f's pie
+            // deletes the group and shows seven of seven, Word prints all seven.)
+            let shownOwn = d.all("c:dLbl").filter { one in ["c:showVal", "c:showPercent", "c:showCatName", "c:showSerName"].contains { on(one, $0) } }
+            let groupGone = ["1", "true"].contains(d.first("c:delete")?["val"] ?? "")
+            let f = groupGone && !shownOwn.isEmpty ? shownOwn[0] : d
+            c.pieLabelsAround = type == .pie && (!groupGone || !shownOwn.isEmpty)
+                && ["c:showVal", "c:showPercent", "c:showCatName", "c:showSerName"].contains { on(f, $0) }
                 && !["ctr", "inEnd", "inBase"].contains(d.first("c:dLblPos")?["val"] ?? "bestFit")
             var l = Chart.PieLabels()
-            l.series = on(d, "c:showSerName"); l.category = on(d, "c:showCatName")
-            l.value = on(d, "c:showVal"); l.percent = on(d, "c:showPercent")
+            l.series = on(f, "c:showSerName"); l.category = on(f, "c:showCatName")
+            l.value = on(f, "c:showVal"); l.percent = on(f, "c:showPercent")
+            if groupGone, !shownOwn.isEmpty {
+                let have = Set(shownOwn.compactMap { $0.first("c:idx")?["val"].flatMap(Int.init) })
+                for i in 0..<(c.series.first?.values.count ?? 0) where !have.contains(i) { l.deleted.insert(i) }
+            }
             l.separator = d.first("c:separator")?.text
             // (None written is a best fit, Excel's default for a pie:
             // zh-d62da4dd's 3-D pies give no position, and Word's print of
@@ -1884,6 +1905,7 @@ enum ChartXML {
             }
             l.fitted = l.outside && !ends
             l.leaders = on(d, "c:showLeaderLines")
+            l.leadersUnset = d.first("c:showLeaderLines") == nil
             if let ln = (d.first("c:leaderLines") ?? d.descendant("c15:leaderLines"))?.first("c:spPr")?.first("a:ln") {
                 if let f = ln.first("a:solidFill") { l.leaderColor = color(f) }
                 l.leaderWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
@@ -2597,7 +2619,7 @@ enum ChartPainter {
             // each line centred. (A Word document's chart that gives no size anywhere: 10pt, as
             // Word's print of fdo78474's "Sales" and the rest of its text.)
             let titleStyle = Flutter.TextStyle(
-                color: c.titleColor ?? ink, fontSize: max(3, (c.titleSize ?? c.textSize.map { ($0 * 1.2).rounded() } ?? (!c.onSlide && !c.onSheet && !c.chartex ? 10 : 18.6)) * k),
+                color: c.titleColor ?? ink, fontSize: max(3, (c.titleSize ?? (c.autoTitle && !c.onSlide && !c.onSheet && !c.chartex ? 18 : nil) ?? c.textSize.map { ($0 * 1.2).rounded() } ?? (!c.onSlide && !c.onSheet && !c.chartex ? 10 : 18.6)) * k),
                 fontWeight: c.titleBold ? .bold : .normal, letterSpacing: c.titleSpacing.map { $0 * k }, fontFeatures: plain,
                 fontFamily: OfficeFonts.substitute(c.titleFont ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c, traditional: c.titleTraditional))
             // (A line in a size of its own, as its own span.)
@@ -5492,6 +5514,12 @@ enum ChartPainter {
                         if raw < 0, atZero, !c.onSlide, !c.onSheet, !c.stacked, !c.categoryAxisDeleted {
                             labelAt = Offset(labelAt.dx, max(labelAt.dy, zero + 3.3 * size * k))
                         }
+                        // (A Word column's label that says "inEnd" stands inside the column's top, its line 4.6 pt under the
+                        // top: c11d31f3's chart 7, white 10 pt "120" in Word's print, 213.2 under a bar topping at 208.6.)
+                        if raw > 0, !c.stacked, !c.onSlide, !c.onSheet, !c.chartex, c.barLabelPos == "inEnd", p0 - p1 > 2.5 * size * k {
+                            labelAt = Offset(labelAt.dx, min(p0, p1) + 1.065 * size * k)
+                            RuleTrace.hit("word-column-label-inside-end")
+                        }
                         labels.append((shown, labelAt, j))
                     }
                     // In a 3-D box, the bar stands in the middle of its
@@ -5818,12 +5846,13 @@ enum ChartPainter {
                 // (Word wraps a written-out label at a fifth of the chart's width less the box's 7.7 pt, after a
                 // space: sa1 06706f28's "100.00%; 10,150,000.00" is "100.00%;" over "10,150,000.00".)
                 let wrapAt = wrapLabels.contains(li) && !c.onSlide && !c.onSheet ? max(20 * k, frame.width * 0.2 - 7.7 * k) : Double.infinity
-                let tp = ser.labelSize == nil && !ser.labelBold && ser.labelColor == nil ? text(s, c.baseTextSize, wrapAt)
+                let ownFace = c.onSlide || c.onSheet ? nil : ser.labelFace
+                let tp = ser.labelSize == nil && !ser.labelBold && ser.labelColor == nil && ownFace == nil ? text(s, c.baseTextSize, wrapAt)
                     : { () -> TextPainter in
                         let t = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
                             color: ser.labelColor ?? c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65)),
                             fontSize: max(3, (ser.labelSize ?? c.baseTextSize) * k), fontWeight: ser.labelBold ? .bold : .normal,
-                            fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textAlign: .center, textDirection: .ltr)
+                            fontFamily: OfficeFonts.substitute(ownFace ?? c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textAlign: .center, textDirection: .ltr)
                         t.layout(minWidth: 0, maxWidth: wrapAt)
                         return t
                     }()
@@ -7104,7 +7133,8 @@ extension ChartPainter {
                            slices: [(index: Int, mid: Double, value: Double, color: Color)],
                            centre: Offset, rx: Double, ry: Double, inner: Double, k: Double, theme: DeckTheme, ink: Color,
                            point: ((Double, Double) -> Offset)? = nil, movedEdge: ((Double) -> Offset)? = nil,
-                           pulled: ((Int) -> Offset)? = nil, probe: Bool = false) -> Bool {
+                           pulled: ((Int) -> Offset)? = nil, probe: Bool = false,
+                           collect: PieSpread? = nil, spread: [Int: Offset] = [:]) -> Bool {
         // (`probe`: nothing painted; whether any label would stand outside its slice is all that comes back.)
         var anyOutside = false
         // (A slice pulled out: its points stand where the pull puts them, set as each slice's turn comes.)
@@ -7117,6 +7147,16 @@ extension ChartPainter {
         }
         let sum = slices.reduce(0) { $0 + $1.value }
         guard sum > 0 else { return false }
+        // (Small slices' best-fit labels that would stand on one another: Word's print of sa2 db23237f's pies moves them apart, in a row
+        // above or below the pie, or a column beside it, each on a leader line from its slice. Laid out once without painting, spread, then
+        // painted where they come to.)
+        var spreadAt = spread
+        if !probe, collect == nil, point == nil, l.fitted, l.outside, !c.onSlide, !c.onSheet, !c.chartex {
+            let rec = PieSpread()
+            _ = _pieLabels(c, l, canvas, frame: frame, slices: slices, centre: centre, rx: rx, ry: ry, inner: inner, k: k, theme: theme, ink: ink,
+                           point: point, movedEdge: movedEdge, pulled: pulled, probe: false, collect: rec)
+            spreadAt = Self._spreadPieLabels(rec.boxes, frame: frame, k: k)
+        }
         #if !os(WASI)
         if Self._pieLog, let point {
             // (STARLING_PIE_LOG: the top face's rim, a point a degree, from the frame's top left.)
@@ -7645,12 +7685,19 @@ extension ChartPainter {
                     at = Offset(at.dx < centre.dx ? hit.left - gap - tw / 2 : hit.right + gap + tw / 2, at.dy)
                 }
             }
+            var spreadMoved = false
+            if let o = spreadAt[s.index] { at = o; hugsRim = false; spreadMoved = true }
+            if let collect {
+                if hugsRim { collect.boxes.append((s.index, s.mid, Rect.fromLTWH(at.dx - tp.width / 2, at.dy - tp.height / 2, tp.width, tp.height))) }
+                tp.dispose()
+                continue
+            }
             taken.append(Rect.fromLTWH(at.dx - tp.width / 2, at.dy - tp.height / 2, tp.width, tp.height))
             let box = Rect.fromLTWH(at.dx - w / 2, at.dy - h / 2, w, h)
             let leftOut = l.outside && !fitsInside
             // The leader: from the slice's outer edge to the box's nearest
             // point, where the label has left its slice.
-            if l.leaders, moved != nil || leftOut {
+            if l.leaders || (spreadMoved && l.leadersUnset), moved != nil || leftOut || spreadMoved {
                 // (A doughnut's leader ends in the middle of its ring: tdf161607's, Excel's print.)
                 let from = on(s.mid, c.type == .doughnut ? (1 + Double(c.holeSize) / 100) / 2 : 1)
                 let to = Offset(min(max(from.dx, box.left), box.right), min(max(from.dy, box.top), box.bottom))
@@ -7685,6 +7732,59 @@ extension ChartPainter {
             tp.dispose()
         }
         return anyOutside
+    }
+}
+
+/// The label boxes a flat pie's best-fit labels come to, in slice order, for `Chart._spreadPieLabels`.
+final class PieSpread {
+    var boxes: [(index: Int, mid: Double, box: Rect)] = []
+}
+
+extension ChartPainter {
+    /// Where overlapping best-fit labels of small slices stand once moved apart: the boxes that overlap form a group; a group at the top or
+    /// bottom of the pie goes out along a row (its boxes side by side, 4 pt apart, centred on where they were, raised 14 pt away from the pie),
+    /// one at its sides along a column. Returns each moved label's new centre.
+    static func _spreadPieLabels(_ boxes: [(index: Int, mid: Double, box: Rect)], frame: Rect, k: Double) -> [Int: Offset] {
+        let n = boxes.count
+        guard n > 1 else { return [:] }
+        var group = Array(0 ..< n)
+        func root(_ i: Int) -> Int { var r = i; while group[r] != r { r = group[r] }; return r }
+        for i in 0 ..< n {
+            for j in (i + 1) ..< n {
+                let a = boxes[i].box, b = boxes[j].box
+                if a.left + 1 * k < b.right && b.left + 1 * k < a.right && a.top + 1 * k < b.bottom && b.top + 1 * k < a.bottom {
+                    group[root(i)] = root(j)
+                }
+            }
+        }
+        var out: [Int: Offset] = [:]
+        for r in Set((0 ..< n).map(root)) {
+            let m = (0 ..< n).filter { root($0) == r }
+            guard m.count > 1 else { continue }
+            let sx = m.reduce(0.0) { $0 + cos(boxes[$1].mid) }, sy = m.reduce(0.0) { $0 + sin(boxes[$1].mid) }
+            let row = abs(sy) >= abs(sx)
+            let gap = 4 * k, raise = 14 * k
+            let order = m.sorted { row ? boxes[$0].box.center.dx < boxes[$1].box.center.dx : boxes[$0].box.center.dy < boxes[$1].box.center.dy }
+            let size: (Int) -> Double = { row ? boxes[$0].box.width : boxes[$0].box.height }
+            let total = order.reduce(0.0) { $0 + size($1) } + gap * Double(order.count - 1)
+            let mean = order.reduce(0.0) { $0 + (row ? boxes[$1].box.center.dx : boxes[$1].box.center.dy) } / Double(order.count)
+            let lo = row ? frame.left : frame.top, hi = row ? frame.right : frame.bottom
+            var start = min(max(mean - total / 2, lo), max(lo, hi - total))
+            for i in order {
+                let b = boxes[i].box
+                var cx = b.center.dx, cy = b.center.dy
+                if row {
+                    cx = start + b.width / 2
+                    cy = min(max(cy + (sy < 0 ? -raise : raise), frame.top + b.height / 2), frame.bottom - b.height / 2)
+                } else {
+                    cy = start + b.height / 2
+                    cx = min(max(cx + (sx < 0 ? -raise : raise), frame.left + b.width / 2), frame.right - b.width / 2)
+                }
+                start += size(i) + gap
+                out[boxes[i].index] = Offset(cx, cy)
+            }
+        }
+        return out
     }
 }
 

@@ -986,7 +986,9 @@ extension RichLayout {
                     rightSides[c.table, default: []].append((c.column + c.span, own))
                 }
                 if _tableFirstParagraph[c.table] == nil { _tableFirstParagraph[c.table] = k }
-                if c.column == 0, let own = Self._cellSide(c.bordersXML, "left") ?? Self._cellSide(c.rowBordersXML, "left"),
+                // (Its first row's: sa1 f84c295b's grid has one row, the sixth, with a left double rule of its own, and Word's
+                // print keeps the table's edge and every row's text where they stood, 1.1 pt left of ours.)
+                if c.column == 0, c.row == 0, let own = Self._cellSide(c.bordersXML, "left") ?? Self._cellSide(c.rowBordersXML, "left"),
                    own.width > _tableOwnLeft[c.table]?.width ?? 0 { _tableOwnLeft[c.table] = own }
                 columns[c.table] = max(columns[c.table] ?? 1, c.column + c.span)
                 _tableRows[c.table] = max(_tableRows[c.table] ?? 0, c.row + c.rowSpan - 1)
@@ -1023,7 +1025,11 @@ extension RichLayout {
                 if let g = statedPts, g.count == cols {
                     let gs = g.reduce(0, +), rs = r.reduce(0, +), k = rs > gs && rs > 0 ? gs / rs : 1
                     if zip(g, r).contains(where: { abs($0 - $1 * k) > 0.5 }) {
-                        statedPts = r.map { (($0 * 600 / 72).rounded()) * 72 / 600 }
+                        // (A column raised to its content goes up to the next twip: its piece then still fits. sa1 79f33282's "SOLICITA",
+                        // 41.01 pt in a cell of 1013 twips, came to 51.84 pt, whole twips down 51.80, and wrapped; Word keeps it whole.)
+                        statedPts = r.indices.map { i in
+                            r[i] > alt[i] + 0.01 ? ((r[i] * 20 - 0.001).rounded(.up)) / 20 : ((r[i] * 600 / 72).rounded()) * 72 / 600
+                        }
                         RuleTrace.hit("word-autofit-cell-widths-raised-to-narrowest")
                     }
                 } else { statedPts = r }
@@ -1153,6 +1159,8 @@ extension RichLayout {
                 // at the print's scale, which the scale's 4/3 times 15
                 // makes 1269.9999…, and bug57031's autofit column, exactly
                 // as wide as "Transform", lost a pixel and wrapped it.)
+                // (A twip-celled 100% table keeps its stated widths here: _autofit scales them to the room, after the narrowest content; lab pctfit.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, document.tableStyles[c.table]?.twipScale == true { scale = 1 }
                 widths[c.table] = pts.map { (_px($0) * scale + 0.001).rounded(.down) }
                 // (An autofit table of no stated width whose grid outgrows the room is
                 // shrunk by each column's share of what it has over its narrowest —
@@ -1216,6 +1224,17 @@ extension RichLayout {
                 var room = width
                 if theme.wordRules, let pct = document.tableStyles[c.table]?.widthPercent, pct > 0, pct < 100 { room = width * pct / 100 }
                 widths[c.table] = Array(repeating: (room / Double(cols)).rounded(.down), count: cols)
+                // (Cells of no width in a gridless 100% table are fitted to their content: lab pctfit T1, T4, T7, T10, T13, T15, T17.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, _columnPreview[c.table] == nil, !_nestedInFixedTable, let ts = document.tableStyles[c.table],
+                   (ts.contentFit || !ts.twipStated.isEmpty), ts.widthPercent == 100, !ts.fixedLayout, (ts.cellSpacing ?? 0) == 0, let base = widths[c.table] {
+                    widths[c.table] = _autofit(c.table, base, document)
+                }
+                // (Cells that all state a share, in a gridless 100% table: the shares of the room, margins in; lab pctfit T21, 239.4 + 239.5.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, _columnPreview[c.table] == nil, !_nestedInFixedTable, let ts = document.tableStyles[c.table],
+                   !ts.contentFit, ts.widthPercent == 100, !ts.fixedLayout, (ts.cellSpacing ?? 0) == 0, cols > 1, ts.columnPercents.count == cols, ts.columnPercents.values.reduce(0, +) <= 100.5, let base = widths[c.table] {
+                    let room = _contentFitRoom(c.table, base, document, _cellInsets(c.table, document).left + _cellInsets(c.table, document).right)
+                    widths[c.table] = _pctColumns(c.table, Array(repeating: room / Double(cols), count: cols), ts, document)
+                }
                 // (Its cells' shares speak for it all the same: sa2 be63fe36's form tables have no grid.)
                 if let ts = document.tableStyles[c.table], !ts.fixedLayout, (ts.cellSpacing ?? 0) == 0, _columnPreview[c.table] == nil, !_nestedInFixedTable,
                    let out = _pctOverHundred(c.table, count: cols, ts: ts, width: width, document: document) { widths[c.table] = out }
@@ -1729,6 +1748,33 @@ extension RichLayout {
                 cells.append(Cell(column: c.column, span: c.span, min: w, whole: wWhole, max: widest, picture: picture))
             }
         }
+        // (A gridless 100% table whose cells state twips only: each column starts at the larger of its stated width and its narrowest
+        // content, and all are scaled by one factor to the room; lab pctfit T2, T3, T5, T6, T8, T9, T11, T12, T14, T16, T18 against Word's
+        // print, within 0.3 pt. Only the narrowest content counts, never the widest.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, document.tableStyles[table]?.twipScale == true, _nestedCap == nil, !cells.isEmpty,
+           !cells.contains(where: { $0.span != 1 || $0.picture }) {
+            var floor = Array(repeating: 0.0, count: base.count)
+            for c in cells { floor[c.column] = max(floor[c.column], c.min) }
+            let ts = document.tableStyles[table]
+            let room = _contentFitRoom(table, base, document, ins.left + ins.right)
+            if let ts, !ts.twipStated.isEmpty, ts.twipStated.count == base.count {
+                var out = Array(repeating: 0.0, count: base.count)
+                var taken = 0.0, rest = 0.0
+                for k in 0 ..< base.count {
+                    if let share = ts.twipShares[k] { out[k] = max(room * share / 100, floor[k]); taken += out[k] }
+                    else { out[k] = max(_px(ts.twipStated[k]), floor[k]); rest += out[k] }
+                }
+                guard rest > 0, room > taken else { return base }
+                RuleTrace.hit("pct-and-twip-cells-share-then-scale")
+                return out.enumerated().map { ts.twipShares[$0.offset] != nil ? ($0.element + 0.001).rounded(.down) : ($0.element * (room - taken) / rest + 0.001).rounded(.down) }
+            }
+            let start = zip(base, floor).map { max($0, $1) }
+            let sum = start.reduce(0, +)
+            if sum > 0, room > 0 {
+                RuleTrace.hit("pct-twip-cells-scaled-from-narrowest")
+                return start.map { ($0 * room / sum + 0.001).rounded(.down) }
+            }
+        }
         // A table that states no width, nor any of its cells, is fitted
         // to its content, its grid set aside (office.md's "All-auto
         // tables"; labs `aa`, `ab`, `ac` on Word for Windows). Each column
@@ -1905,9 +1951,23 @@ extension RichLayout {
         if theme.wordRules, total > room + _px(1), over.contains(where: { $0.picture }) {
             widths = widths.map { $0 * room / total }
         }
+        // (Word for Windows, sa1 8b5747ec's dates table: a table whose grid
+        // is within the text width stays at the grid when its columns'
+        // narrowest would take it past the width; the dates part by letter,
+        // "09/08/201" / "6", where ours widened the table 35 pt past the
+        // margin and moved everything below it.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, !over.contains(where: { $0.picture }),
+           widths.reduce(0, +) > room + _px(1), base.reduce(0, +) <= room + _px(1), _nestedCap == nil {
+            return base
+        }
         // (Not past the room an autofitting parent that spans its page
         // leaves it: `_nestedCap`.)
         if let cap = _nestedCap, widths.reduce(0, +) > cap + _px(1), base.reduce(0, +) <= cap + _px(1) { return base }
+        // (A table that states its width as the whole of its room (tblW 100%) is held to it: Word parts the
+        // over-long word inside its cell, a URL of 219 letters in a 452.5pt table, and does not widen the
+        // table past the page. sa1 03f63881 p22-23: ours took 778.7pt, Word's table stood at its grid.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, let pct = document.tableStyles[table]?.widthPercent, pct >= 100,
+           base.reduce(0, +) <= room + _px(1), widths.reduce(0, +) > room + _px(1) { return base }
         // (Whole pixels: up for a column a cell's narrowest set, so that
         // its piece still fits it.)
         let fitted = widths.indices.map { set.contains($0) ? (widths[$0] - 0.001).rounded(.up) : (widths[$0] + 0.001).rounded(.down) }
@@ -2120,7 +2180,7 @@ extension RichLayout {
                 first = max(first, _px(boxMin)); m = max(m, _px(boxMin)); opening = max(opening, _px(boxMin))
             }
         }
-        let sides = _sideIndents(p, document)
+        var sides = _sideIndents(p, document)
         // (Indents out into the cell's margins count against it:
         // bug65649's equipment table indents every paragraph -113 twips
         // a side, and its "№ п/п" column of 54pt holds "(согласно" in
@@ -2137,7 +2197,14 @@ extension RichLayout {
         // empty cells indented 23.6pt hanging all of it in 22pt columns,
         // and Word keeps the grid, where ours asked 24.6 of each and
         // took the room from the next column's "訓練目標".)
-        let lead = units.isEmpty && p.image == nil ? p.style.firstLineIndent : firstLineIndent(p, document)
+        // (A POSITIVE first-line indent on an empty paragraph asks nothing: sa2 585eb7bb's empty first-column cells carry firstLine
+        // 1320 twips in a 62pt column, and Word keeps the grid.)
+        var lead = units.isEmpty && p.image == nil ? p.style.firstLineIndent : firstLineIndent(p, document)
+        if theme.wordRules, units.isEmpty, p.image == nil, lead > 0 { lead = 0 }
+        // (Nor does an empty paragraph's left indent ask for room: sa1 fd1997fd's empty cells indented 920 and 1730 twips
+        // sit in 20.5 and 21.7pt columns, and Word keeps the grid, where ours widened them and narrowed the others.)
+        let emptyLeft = theme.wordRules && units.isEmpty && p.image == nil && _wordList(p, document) == nil
+        if emptyLeft { sides.left = 0 }
         if theme.wordRules, _wordList(p, document) == nil {
             // (Before 2013's layout every piece is measured from where a
             // hanging line starts, and a first line set further in asks
@@ -2148,7 +2215,13 @@ extension RichLayout {
             // 15 widens each, the later pieces set at the indent; a 100pt
             // indent, and a Latin word past the column from the hanging
             // start, widen it in both.)
-            if (document.compatibilityMode ?? 12) < 15 {
+            // (An EMPTY paragraph asks nothing of its column before 2013's layout, whatever its indent: sa1 5e813226 p28's
+            // 236-twip spacer column, empty cells one of them in a ListParagraph (indent 36pt), is 11.6pt in Word's print, grid kept,
+            // where ours asked the 36pt and widened it to 46.8, moving the columns after it.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, units.isEmpty, p.image == nil, (document.compatibilityMode ?? 12) < 15, document.compatibilityMode != nil {
+                RuleTrace.hit("word-empty-paragraph-asks-no-indent-of-its-column-before-2013")
+                m = 0
+            } else if (document.compatibilityMode ?? 12) < 15 {
                 m = max(_px(sides.left + min(lead, 0)) + max(m, first), 0) + _px(sides.right)
             } else {
                 m = max(m > 0 ? _px(sides.left) + m : 0, _px(sides.left + lead) + first, 0) + _px(sides.right)
@@ -2343,8 +2416,8 @@ extension RichLayout {
                 for k in k0 ..< j {
                     let cell = _cells[k]!
                     if RichTextTheme.wordWindowsPages, cell.rowSpan > 1 {
-                        // (A merged cell of the first row takes room for its top line: 1f900e58's merged header row is 1 pt taller in Word's print; a merged cell starting mid-table does not, 5393bae9.)
-                        if cell.row == 0 { ruled = max(ruled, cell.rules) }
+                        // (A merged cell of the first row takes room for its top line when the row holds nothing else: 1f900e58's merged header row is 1 pt taller in Word's print; a merged cell starting mid-table does not, 5393bae9, nor does one beside single cells, xd b88f2314 / 55680978.)
+                        if cell.row == 0, (k0 ..< j).allSatisfy({ _cells[$0]!.rowSpan > 1 }) { ruled = max(ruled, cell.rules) }
                     }
                     if cell.rowSpan == 1 {
                         ruled = max(ruled, cell.rules); padded = max(padded, cell.pad.top + cell.pad.bottom)

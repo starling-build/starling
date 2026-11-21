@@ -53,11 +53,11 @@ esac
 corpus() { case $1 in 756) echo "$ROOT/test/corpus/docx";; lo) echo "$ROOT/test/corpus/docx/lo";; xb|xa|xd|xs|dx2|sa1|sa2) echo "${STARLING_CORPUS:-/data/corpus-cache}/staging/$1";; esac; }
 # refhash SET — one hash of the set's Word reference PDFs (names + contents): the code STAMP does not cover them, so
 # a print swap would leave stored scores that look valid. Stored beside the scores as REFS ("<set> <hash>" lines).
-refhash() { local C; C=$(corpus "$1"); ( cd "$C/word-win" 2>/dev/null && ls *.pdf 2>/dev/null | LC_ALL=C sort | while IFS= read -r f; do printf '%s ' "$f"; sha256sum < "$f" | cut -c1-64; done | sha256sum | cut -c1-32 ); }
+refhash() { local C; C=$(corpus "$1"); python3 -I "$HERE/hashdir.py" "$C/word-win" .pdf; }
 # dochash SET — hash of the set's input .docx files (names + contents): a changed input doc makes stored scores stale
 # even when the references and the code stamp are unchanged (xs, 2026-11-13). REFS lines are "<set> <refhash> <dochash>";
 # an old two-field line is accepted (no doc check) until the next seed rewrites it.
-dochash() { local C; C=$(corpus "$1"); ( cd "$C/docs" 2>/dev/null && ls *.docx 2>/dev/null | LC_ALL=C sort | while IFS= read -r f; do printf '%s ' "$f"; sha256sum < "$f" | cut -c1-64; done | sha256sum | cut -c1-32 ); }
+dochash() { local C; C=$(corpus "$1"); python3 -I "$HERE/hashdir.py" "$C/docs" .docx; }
 # base_ok SET FILE REFSFILE — stored/cached base scores usable for the set? (1) the references they were scored against
 # are the ones on disk now (REFSFILE has a line for the set with the current refhash), and (2) for the cache-resident sets
 # (xb xa xd xs dx2) the row count matches the number of prints (membership can change).
@@ -73,16 +73,16 @@ base_ok() { local want have; want=$(refhash "$1"); have=$(awk -v s="$1" '$1==s{p
 retry_failed() {  # retry_failed BIN WORKDIR DOCSDIR FAILFILE
   local bin=$1 work=$2 docs=$3 ff=$4 n rc
   [ -s "$ff" ] || return 0
-  sed 's/^FAIL //' "$ff" | tr '\n' '\0' | ( cd "$docs" && xargs -0 -P "${RETRY_JOBS:-8}" -I{} sh -c 'n="$1"; rm -f "$3/pdf/${n%.docx}.pdf"; perl -e "alarm 300; exec @ARGV" "$2" --convert "$n" "$3/pdf/${n%.docx}.pdf" >/dev/null 2>"$3/err/${n%.docx}.txt" && rm -f "$3/err/${n%.docx}.rc" || { echo $? > "$3/err/${n%.docx}.rc"; rm -f "$3/pdf/${n%.docx}.pdf"; echo "$n"; }' _ {} "$bin" "$work" ) > "$work/fail-after-retry.txt"
+  sed 's/^FAIL //' "$ff" | tr '\n' '\0' | ( cd "$docs" && xargs -0 -P "${RETRY_JOBS:-8}" -I{} sh -c 'n="$1"; rm -f "$3/pdf/${n%.docx}.pdf"; timeout -k 10 $(( ${DOC_ALARM:-300} + 30 )) perl -e "alarm ${DOC_ALARM:-300}; exec @ARGV" "$2" --convert "$n" "$3/pdf/${n%.docx}.pdf" >/dev/null 2>"$3/err/${n%.docx}.txt" && rm -f "$3/err/${n%.docx}.rc" || { echo $? > "$3/err/${n%.docx}.rc"; rm -f "$3/pdf/${n%.docx}.pdf"; echo "$n"; }' _ {} "$bin" "$work" ) > "$work/fail-after-retry.txt"
   echo "renders that failed at first: $(wc -l < "$ff"); still failing after one retry: $(wc -l < "$work/fail-after-retry.txt")"
-  while IFS= read -r n; do rc=$(cat "$work/err/${n%.docx}.rc" 2>/dev/null); if [ "$rc" = 142 ]; then echo "TIMEOUT $n (not scored)"; else echo "RENDER-FAIL $n exit $rc (not scored)"; fi; done < "$work/fail-after-retry.txt"
+  while IFS= read -r n; do rc=$(cat "$work/err/${n%.docx}.rc" 2>/dev/null); if [ "$rc" = 142 ] || [ "$rc" = 124 ] || [ "$rc" = 137 ]; then echo "TIMEOUT $n (not scored)"; else echo "RENDER-FAIL $n exit $rc (not scored)"; fi; done < "$work/fail-after-retry.txt"
   sed 's/^/FAIL /' "$work/fail-after-retry.txt" > "$ff"
 }
 sweep() {
   local BIN=$1 WORK=$2 SET=$3 C; C=$(corpus "$SET"); mkdir -p "$WORK/pdf" "$WORK/err"; : > "$WORK/fail.txt"
-  ( cd "$C/docs" && ls *.docx | while IFS= read -r n; do
+  ( cd "$C/docs" && ls -S *.docx | while IFS= read -r n; do
       [ -f "$C/word-win/${n%.docx}-orig.pdf" ] && [ ! -s "$WORK/pdf/${n%.docx}.pdf" ] && { [ -z "${SWEEP_ONLY:-}" ] || grep -qxF "${n%.docx}" "$SWEEP_ONLY"; } && printf '%s\0' "$n"; done |
-    xargs -0 -P "$JOBS" -I{} sh -c 'n="$1"; perl -e "alarm 300; exec @ARGV" "$2" --convert "$n" "$3/pdf/${n%.docx}.pdf" >/dev/null 2>"$3/err/${n%.docx}.txt" || { echo $? > "$3/err/${n%.docx}.rc"; rm -f "$3/pdf/${n%.docx}.pdf"; echo "FAIL $n"; }' _ {} "$BIN" "$WORK" >> "$WORK/fail.txt" )
+    xargs -0 -P "$JOBS" -I{} sh -c 'n="$1"; timeout -k 10 $(( ${DOC_ALARM:-300} + 30 )) perl -e "alarm ${DOC_ALARM:-300}; exec @ARGV" "$2" --convert "$n" "$3/pdf/${n%.docx}.pdf" >/dev/null 2>"$3/err/${n%.docx}.txt" || { echo $? > "$3/err/${n%.docx}.rc"; rm -f "$3/pdf/${n%.docx}.pdf"; echo "FAIL $n"; }' _ {} "$BIN" "$WORK" >> "$WORK/fail.txt" )
   retry_failed "$BIN" "$WORK" "$C/docs" "$WORK/fail.txt"
   local nf nd; nf=$(wc -l < "$WORK/fail.txt"); nd=$(ls "$C/docs"/*.docx | wc -l)
   if [ $(( nf * 100 )) -gt $(( nd * ${MAXFAIL:-3} )) ]; then
@@ -112,7 +112,7 @@ vis_side() {  # SET WORKDIR(with pdf/) V2FILE OUTDIR LABEL [BIN]
   for n in $names; do
     ln -s "$C/word-win/$n-orig.pdf" "$VW/refs/$n-orig.pdf" 2>/dev/null
     if [ -s "$W/pdf/$n.pdf" ]; then ln -s "$W/pdf/$n.pdf" "$VW/pdf/$n.pdf"
-    elif [ -n "$BIN" ]; then ( cd "$C/docs" && perl -e "alarm 300; exec @ARGV" "$BIN" --convert "$n.docx" "$VW/pdf/$n.pdf" >/dev/null 2>&1 ); fi
+    elif [ -n "$BIN" ]; then ( cd "$C/docs" && timeout -k 10 $(( ${DOC_ALARM:-300} + 30 )) perl -e "alarm ${DOC_ALARM:-300}; exec @ARGV" "$BIN" --convert "$n.docx" "$VW/pdf/$n.pdf" >/dev/null 2>&1 ); fi
   done
   DOCX_CORPUS=$C $PY -W ignore "$HERE/../docx-visual.py" "$VW" "$VW/refs" "$VW/visual" >"$VW/visual.log" 2>&1 || { echo "visual scoring failed for $L $S (see $VW/visual.log)" >&2; return 1; }
   $PY "$HERE/docx-combine.py" combine "$V2" "$VW/visual" "$OUT/$S.vis" "$OUT/$S.combined" "$L $S"
@@ -220,7 +220,7 @@ for S in $SETS; do
   C=$(corpus "$S"); names=$(grep -hE '^\s+(UP|DOWN|CHANGED)' "$STAGE/cmp-$S-v2.txt" "$STAGE/cmp-$S-v1.txt" | awk '{ if ($0 ~ /CHANGED\(same ratio\)/) { match($0, /CHANGED\(same ratio\) [^: ]+/); split(substr($0,RSTART,RLENGTH),a," "); print a[2] } else print $NF }' | sort -u)
   [ -n "$names" ] || continue
   W=$STAGE/work/again-$S; mkdir -p "$W/pdf"
-  printf '%s\n' $names | xargs -P "$JOBS" -I{} sh -c 'f=$(ls "$1/docs/$2"*.docx 2>/dev/null | head -1); [ -n "$f" ] && perl -e "alarm 300; exec @ARGV" "$3" --convert "$f" "$4/pdf/$(basename "${f%.docx}").pdf" >/dev/null 2>&1' _ "$C" {} "$FIXBIN" "$W"
+  printf '%s\n' $names | xargs -P "$JOBS" -I{} sh -c 'f=$(ls "$1/docs/$2"*.docx 2>/dev/null | head -1); [ -n "$f" ] && timeout -k 10 $(( ${DOC_ALARM:-300} + 30 )) perl -e "alarm ${DOC_ALARM:-300}; exec @ARGV" "$3" --convert "$f" "$4/pdf/$(basename "${f%.docx}").pdf" >/dev/null 2>&1' _ "$C" {} "$FIXBIN" "$W"
   score "$W" "$C"
   for n in $names; do k=$(basename "$(ls "$C/docs/$n"*.docx | head -1)" .docx)
     a=$(grep " $k\$" "$W/match-v2.txt"); b=$(grep " $k\$" "$STAGE/work/fix-$S/match-v2.txt")

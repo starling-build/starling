@@ -259,6 +259,13 @@ extension RichLayout {
                        held: Set<Int> = [], spread: [Int: Double] = [:], fitProbe: Bool = false, autoSpaces: ((Int, Double) -> Void)? = nil)
         -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) {
         let named = _named(p, document)
+        // (Which face owns the Latin of a paragraph's Bengali/Kokila runs depends on the paragraph, not the run: found once per paragraph.
+        // 0fd592a1, 5,789 runs in four paragraphs, took 262 s with it asked of every run.)
+        lazy var paragraphLatinOwner: String? = {
+            func complex(_ r: Run) -> String { (r.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() }
+            if p.runs.contains(where: { complex($0) == "kokila" }) { return "kokila" }
+            return p.runs.contains(where: { Self._bengaliMissingFace(complex($0), document) == "shonar bangla" }) ? "shonar bangla" : nil
+        }()
         let pitch = (index.map { _offGrid($0, document) } ?? (p.style.eastAsian["w:snapToGrid"] == "0")) ? nil : _grid(index, document).pitch
         // (A hanging indent's first line starts out past the rest: the room it has for the paragraph to stay one line.)
         let mixedRubyRaise = _mixedRubyRaise(p, named: named, textWidth: textWidth + max(0, -_px(firstLineIndent(p, at: index, document))), pitch: pitch)
@@ -325,6 +332,7 @@ extension RichLayout {
             // cs face), and where that face keeps its own line (David, FrankRuehl, Arabic faces Windows has) the line is that face's:
             // xd 38d880e8's empty paragraph after the header table, 2.9 pt taller in Word's print than the Latin face's.)
             if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.rightToLeft, p.style.list == nil, p.style.lineHeightPoints == nil,
+               mark.rightToLeft || mark.complexFontFamily == nil,
                let px = look.fontSize, px > 0.5,
                let cs = mark.complexFontFamily ?? markNamed?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily,
                let f = theme.complexFace(cs, latin: mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily), f.ownLineBaseline, let base = f.baseline, let tall = f.naturalHeight {
@@ -365,7 +373,23 @@ extension RichLayout {
                 let box = RichImageSpan(alignment: .baseline, baseline: .alphabetic, style: look)
                 let dimensions = PlaceholderDimensions(size: Size(textWidth > 1 ? min(lead, textWidth - 0.5) : lead, 0.01), alignment: .baseline,
                                                        baseline: .alphabetic, baselineOffset: 0.01)
-                return (TextSpan(children: [box, TextSpan(text: "\u{200B}", style: look)]), [(nil, dimensions)], [])
+                // (An empty bullet row stands on its Wingdings bullet's ascent (1841/2048 em at the level's size) over the mark's own depth, as a
+                // row with text does: 11pt Wingdings over 9pt Century Gothic marks make table rows 12.36pt apart in Word's print, ours 11.54
+                // (sa1 5393bae9 page 4).)
+                var markLook = look
+                if RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, p.style.lineSpacing <= 1.001, p.style.list == .bullet,
+                   !p.style.rightToLeft, _levelNumberFonts(p, document).latin?.lowercased() == "wingdings", let bulletPt = _levelNumberSize(p, document), bulletPt > 0.5 {
+                    let up = _px(bulletPt) * fontScale * 1841.0 / 2048
+                    let probe = TextPainter(text: TextSpan(text: "x", style: look), textDirection: .ltr)
+                    probe.layout(minWidth: 0, maxWidth: 100000)
+                    let m = probe.computeLineMetrics().first
+                    probe.dispose()
+                    if let m, let px = look.fontSize, px > 0.5, up > m.baseline + 0.01 {
+                        RuleTrace.hit("word-empty-wingdings-bullet-row-stands-on-the-bullet-ascent")
+                        markLook = look.copyWith(ascentOverride: up, descentOverride: m.descent, height: (up + m.descent) / px, leadingDistribution: .even)
+                    }
+                }
+                return (TextSpan(children: [box, TextSpan(text: "\u{200B}", style: markLook)]), [(nil, dimensions)], [])
             }
             if let joiner = _tamilEmptyMarkJoiner(mark, named: markNamed, p, document, look: look, pitch: pitch, scale: scale) {
                 return (TextSpan(children: [TextSpan(text: " ", style: look), TextSpan(text: "\u{2060}", style: joiner)]), [], [])
@@ -1662,9 +1686,7 @@ extension RichLayout {
                 // Kokila split below it, at a line multiple too (dx2 cbb7ae39's Times New Roman "IRB", lab cb7; its 1.57-line paragraphs: the line is 2.0 pt taller, the
                 // extra under the baseline unchanged). White space and the invisible marks beside Kokila text set no line of their own.)
                 // (Shonar Bangla beside Arial: the same line, the Latin face's ascent (with its line gap) over the Bengali face's descent; lab stk1.)
-                let latinOwner: String? = p.runs.contains(where: { ($0.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "kokila" }) ? "kokila"
-                    : (p.runs.contains(where: { Self._bengaliMissingFace(($0.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased(), document) == "shonar bangla" })
-                    ? "shonar bangla" : nil)
+                let latinOwner: String? = paragraphLatinOwner
                 if kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, !kokilaLatin || (run.keptXML?.containsSubstring("<w:cs") ?? false), p.style.lineHeightPoints == nil,
                    let latinOwner, let m = Self._indicLines[latinOwner], let size = s.fontSize, size > 0.5,
                    !text.unicodeScalars.contains(where: { Self._isIndic($0.value) }),
@@ -1794,6 +1816,32 @@ extension RichLayout {
                 } else if mixedRubyRaise != 0, run.ruby == nil, s.fontSize ?? 0 > 0.5 {
                     // (The rest of a one-line paragraph moves with its ruby's base.)
                     s = s.copyWith(baselineShift: (s.baselineShift ?? 0) - mixedRubyRaise * theme.pixelsPerPoint * scale)
+                }
+                // (A run with a text shadow (w14:shadow) makes its line taller by the shadow's reach: the blur radius past the offset,
+                // below and above the face's own line. Lab hdrsup v7 against v10, 72 pt Copperplate Gothic Light, shadow 3 pt out at 45 degrees
+                // blurred 4 pt: the baseline falls 1.92 pt (4 - 3 sin 45 = 1.88) and the body 8.04 (4 + 3 sin 45 = 6.12 more below).)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let sh = run.shadow ?? named?.char.shadow, !sh.glow, sh.blur > 0,
+                   let size = s.fontSize, size > 0.5, !(index.map { _verticalBody($0) } ?? false),
+                   let latin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)?.trimmingWhitespace(),
+                   let face = theme.faceResolver?(latin, false),
+                   let pt = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize, pt > 0.5 {
+                    var single = p.style; single.lineSpacing = 1
+                    let bold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
+                    let line = (bold ? face.boldHeight : nil) ?? face.naturalHeight ?? theme.naturalLineHeight(family: face.family, bold: bold, italic: run.italic)
+                    if let b = theme.baseline(for: run, in: single, named: named, eastAsian: false, gridPitch: pitch), case let asc = b / pt, asc > 0.3, line > asc {
+                        RuleTrace.hit("word-text-shadow-reaches-the-line")
+                        let k = theme.pixelsPerPoint * scale
+                        // (The glyphs are set down by the reach above them and the line grows by the reach below as well: the line's own
+                        // ascent stays, the paint takes the baseline from the face.)
+                        let above = max(0, sh.blur - sh.dy) * k, below = max(0, sh.blur + sh.dy) * k
+                        let up = s.ascentOverride ?? asc * size, down = (s.descentOverride ?? (line - asc) * size) + above + below
+                        // (A raised or lowered run's box takes no line of its own: its shadow's reach above it is carried in the label for the
+                        // line pass, `_strut`, which grows the line by it. Lab hdr3 v1 against v2: the body 1.85 pt lower for the shadow on the
+                        // raised run alone, the reach 4 - 3 sin 45 = 1.88.)
+                        let raisedRun = s.baselineShift != nil
+                        s = s.copyWith(baselineShift: (s.baselineShift ?? 0) + above, ascentOverride: up, descentOverride: down, height: (up + down) / size,
+                                       leadingDistribution: .even, debugLabel: (s.debugLabel ?? "") + (raisedRun ? " shadow-line@\(above)" : " shadow-line"))
+                    }
                 }
                 // (A run of tabs alone takes no line of its own in a paragraph of
                 // other text: windows-1's lab `ttab`, zh-147bdae0's "四、承諾事項"
@@ -4162,7 +4210,17 @@ extension RichLayout {
                         // (A space run that opens a line after a manual break: a figure space of the space's width, which the engine keeps at a line start where a no-break space collapses.)
                         spans.append(TextSpan(text: "\u{00A0}", style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + _glyphWidth(s, " ") - _glyphWidth(s, "\u{00A0}"))))
                     } else {
-                        spans.append(TextSpan(text: "\u{00A0}", style: extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s))
+                        var heldStyle = extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s
+                        // (A tab held as a no-break space sets no line beside text, as a run of tabs sets none: sa1 7770c637's
+                        // justified contents line "I.<tab>RESUMEN…", its tab in Calibri 11 among 9pt Courier New raised 2pt, is
+                        // 24.36 to the next line in Word's print as every other contents line; its held tab broke the line's
+                        // strut and stood it on Calibri's 11pt line, 25.89. Shaded, it keeps its box to paint the shade.)
+                        if theme.wordRules, ch == "\t", s.fontSize ?? 0 > 0.5, !Self.shadeShows(run.highlight),
+                           p.text.contains(where: { !$0.isWhitespace && $0 != "\u{FFFC}" }) {
+                            RuleTrace.hit("held-tab-sets-no-line-beside-text")
+                            heldStyle = heldStyle.copyWith(height: 0.01)
+                        }
+                        spans.append(TextSpan(text: "\u{00A0}", style: heldStyle))
                     }
                     start = after
                     afterHeld = !koreanSpaces.contains(offset)
@@ -4672,20 +4730,36 @@ extension RichLayout {
                         }
                     }
                 }
-                // (Not applied in table cells yet: there the bullet split 1.95 pt from its text line; xd b88f2314 p2 cell paragraphs, logged OPEN.)
+                // (A Wingdings bullet over Latin text at single spacing, drawn larger than the text: as the Symbol ones above, the first line
+                // stands on the bullet's ascent (1841/2048 em at the box's size) over the text's own depth. 12pt Wingdings over 10pt Century Gothic:
+                // items 12.96pt apart in Word's print, ours 13.32 with the bullet's whole line (sa1 5393bae9).)
+                if !symStands, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, p.style.lineSpacing <= 1.001,
+                   p.style.list == .bullet, leadChar.fontFamily?.lowercased() == "wingdings", let px = style.fontSize, px > 0.5,
+                   !p.style.rightToLeft, !p.text.unicodeScalars.contains(where: { $0.value >= 0x590 && $0.value <= 0x8FF }),
+                   !p.text.unicodeScalars.contains(where: { Self._isIndic($0.value) || ($0.value >= 0x2E80 && $0.value <= 0xFFEF) }) {
+                    let probe = TextPainter(text: TextSpan(text: "x", style: theme.textStyle(for: firstLook, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)), textDirection: .ltr)
+                    probe.layout(minWidth: 0, maxWidth: 100000)
+                    let m = probe.computeLineMetrics().first
+                    probe.dispose()
+                    let up = px * 1841.0 / 2048
+                    if let m, up > m.baseline + 0.01 {
+                        RuleTrace.hit("word-wingdings-bullet-at-single-stands-the-first-line-on-its-ascent")
+                        symStands = true
+                        markStyle = style.copyWith(ascentOverride: up, descentOverride: m.descent, height: (up + m.descent) / px, leadingDistribution: .even)
+                    }
+                }
                 // A Wingdings bullet over East Asian text at single spacing: Word's print stands the first line on the taller of the bullet's
                 // ascent (1841/2048 em at the box's size) and the text face's own, over the deeper of the two below. Malgun Gothic's line is 1.73 em,
                 // 1.288 above and 0.442 below, so 14pt boxes over 9pt rows stand 12.58 over 3.98: rows 16.56 apart where the text's line alone is 15.56
                 // (xd b88f2314 p2 checkboxes, Word 16.56 against our 15.56).)
-                if theme.wordRules, p.cell == nil, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil,
-                   p.style.lineSpacing <= 1.001, leadChar.fontFamily?.lowercased() == "wingdings", let px = style.fontSize, px > 0.5,
-                   !p.style.rightToLeft, p.text.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7AF }),
-                   (p.runs.first?.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? "").trimmingWhitespace().lowercased() == "malgun gothic"
-                    || (p.runs.first?.style.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? "").trimmingWhitespace() == "맑은 고딕",
+                if let px = style.fontSize, px > 0.5, leadChar.fontFamily?.lowercased() == "wingdings", _wingdingsOverMalgunText(p, document),
                    let ml = Self._indicLines["malgun gothic"],
                    let textPt = p.runs.first?.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize, textPt > 0.5 {
                     let textSize = _px(textPt) * fontScale
-                    let up = max(px * 1841.0 / 2048, ml.0 * textSize), down = max(px * 432.0 / 2048, ml.1 * textSize)
+                    let total = max(px * 1841.0 / 2048, ml.0 * textSize) + max(px * 432.0 / 2048, ml.1 * textSize)
+                    // (The line's extra height is above the baseline: the text's own depth stays under it, the next line standing 15.56 on, not 16.56
+                    // (xd b88f2314 p2 cell paragraphs, Word 15.5-15.6 line to line, 16.56 paragraph to paragraph).)
+                    let down = max(px * 432.0 / 2048, (ml.1 - 0.1) * textSize), up = total - down
                     RuleTrace.hit("word-wingdings-bullet-over-malgun-text-stands-on-the-taller-ascent")
                     symStands = true
                     markStyle = style.copyWith(ascentOverride: up, descentOverride: down, height: (up + down) / px, leadingDistribution: .even)
@@ -5487,7 +5561,10 @@ extension RichLayout {
             let hinted = (run.style.fontHint ?? named?.char.fontHint) == "eastAsia"
             let chars = p.text[a ..< b].filter { !Self._setsNoLine($0) }
             if chars.isEmpty { continue }
-            if chars.contains(where: { Self.isEastAsian($0, hinted: hinted) }) { ea = true } else { latin = true }
+            if chars.contains(where: { Self.isEastAsian($0, hinted: hinted) }) { ea = true }
+            // (A run of punctuation alone is not Latin text: it takes the line's face, and splitting a Korean line at a hinted "." or "/"
+            // is no change of face: xd b88f2314's bullets stood 1.9 pt apart in the step where Word's pitch is the plain 15.5 pt.)
+            else if !chars.allSatisfy({ $0.isASCII && !$0.isLetter && !$0.isNumber }) || !theme.wordRules { latin = true }
         }
         return ea && latin
     }
@@ -5558,6 +5635,15 @@ extension RichLayout {
         guard let q = rest.firstIndex(of: "\"") else { return nil }
         return String(rest[rest.startIndex..<q])
     }
+    /// A single-spaced paragraph of Hangul text in Malgun Gothic whose list marker is a Wingdings bullet (read from a file, Windows pages).
+    func _wingdingsOverMalgunText(_ p: RichParagraph, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil,
+              p.style.lineSpacing <= 1.001, !p.style.rightToLeft,
+              p.text.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7AF }) else { return false }
+        let ea = (p.runs.first?.style.eastAsiaFontFamily ?? _named(p, document)?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? "").trimmingWhitespace()
+        return ea.lowercased() == "malgun gothic" || ea == "맑은 고딕"
+    }
+
     func _tamilMarkedLinesExtra(_ i: Int, _ p: RichParagraph, _ document: RichDocument, _ painter: TextPainter) -> Double {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, !p.text.isEmpty else { return 0 }
         // (Devanagari in Arial Unicode MS, whose font-table entry is the Japanese charset: the same, 0.36 em with the 1.079 of line 259;

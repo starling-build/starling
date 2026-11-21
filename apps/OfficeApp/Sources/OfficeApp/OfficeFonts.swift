@@ -4137,7 +4137,7 @@ static let sylfaenAdvances: [Double] = [
     static let timesHebrewBoldAdvances: [UInt32: Double] = [0x5BE: 0.363, 0x5D0: 0.527, 0x5D1: 0.459, 0x5D2: 0.367, 0x5D3: 0.464, 0x5D4: 0.512, 0x5D5: 0.298, 0x5D6: 0.317, 0x5D7: 0.504, 0x5D8: 0.529, 0x5D9: 0.311, 0x5DA: 0.458, 0x5DB: 0.446, 0x5DC: 0.435, 0x5DD: 0.511, 0x5DE: 0.533, 0x5DF: 0.326, 0x5E0: 0.316, 0x5E1: 0.478, 0x5E2: 0.507, 0x5E3: 0.493, 0x5E4: 0.457, 0x5E5: 0.564, 0x5E6: 0.515, 0x5E7: 0.483, 0x5E8: 0.464, 0x5E9: 0.688, 0x5EA: 0.518, 0x5F3: 0.255, 0x5F4: 0.460]
     private static let windowsArabicWidthsOn = true
     // (Arabic and Hebrew faces Windows has and we do not: their own line heights.)
-    private static let windowsArabicLines: [String: Double] = ["traditional arabic": 1.495, "sakkal majalla": 1.40, "simplified arabic": 3395.0 / 2048, "david": 2015.0 / 2048, "narkisim": 2023.0 / 2048, "frankruehl": 1904.0 / 2048]
+    private static let windowsArabicLines: [String: Double] = ["traditional arabic": 1.495, "sakkal majalla": 1.40, "simplified arabic": 3395.0 / 2048, "david": 2015.0 / 2048, "miriam": 2021.0 / 2048, "narkisim": 2023.0 / 2048, "frankruehl": 1904.0 / 2048]
 
     /// An installed complex-script face of its own (David, Simplified Arabic, Urdu Typesetting...): Word's prints draw a
     /// right-to-left run of digits in it. Arial, Times New Roman and Tahoma are the Latin faces too, and a name Windows
@@ -4319,6 +4319,7 @@ static let sylfaenAdvances: [Double] = [
             // matched worse with it, so their baseline stays.)
             if viaRoman { face.baseline = 0.885; face.ownLineBaseline = true }
             // (Narkisim: hhea 1505 + 518 over 2048 (metrics/latin/Narkisim_Regular.tsv); Word's print of dx2 2292b814 steps 12pt lines at 1.5 by 17.8, the stand-in's 21.1.)
+            if asked == "miriam" { face.baseline = 1505.0 / 2048; face.ownLineBaseline = true }
             if asked == "narkisim" { face.baseline = 1505.0 / 2048; face.ownLineBaseline = true }
             if asked == "david" {
                 face.baseline = 1505.0 / 2048; face.ownLineBaseline = true
@@ -4871,6 +4872,7 @@ static let sylfaenAdvances: [Double] = [
             // letter wider in Word's print than the stand-in's.)
             if wordOnWindows, family.trimmingWhitespace().lowercased() == "century" {
                 face.advances = centuryAdvances
+                face.boldAdvances = centuryAdvances
                 face.naturalHeight = 1.2021
                 face.baseline = 0.9858
                 RuleTrace.hit("century-own-widths")
@@ -5771,6 +5773,53 @@ static let sylfaenAdvances: [Double] = [
             if let data = FileManager.default.contents(atPath: path) { result = sfntAverageWidth(data) }
         }
         _standInAvg[family] = result
+        return result
+        #endif
+    }
+
+    nonisolated(unsafe) private static var _standInWin: [String: Double?] = [:]
+    /// (usWinAscent + usWinDescent) / unitsPerEm of the bundled stand-in of `family` (Regular): the box of ink Word's lines
+    /// are measured from beside lowered text. nil where the file or table cannot be read.
+    /// Win ascent + win descent over units per em, of faces Word draws with their own file while the stand-in's differs.
+    /// Arial Narrow: 1888 + 431 of 2048 (lab pos14).
+    private static let faceWinBox: [String: Double] = ["arial narrow": 2319.0 / 2048.0]
+
+    static func standInWinBox(_ family: String?) -> Double? {
+        #if os(WASI)
+        return nil
+        #else
+        guard let family else { return nil }
+        // (Word's own win box (win ascent + descent, in ems) of a face whose stand-in file is another face's: measured from the
+        // face's own tables, in a table so a new face is a row.)
+        if let own = Self.faceWinBox[family.lowercased()] { return own }
+        let key = substitute(family)
+        declaredLock.lock()
+        defer { declaredLock.unlock() }
+        if let known = _standInWin[key] { return known }
+        var result: Double? = nil
+        let files = [sans: "LiberationSans", serif: "LiberationSerif", mono: "LiberationMono",
+                     calibri: "Carlito", cambria: "Caladea", verdana: "DejaVuSans"]
+        if let file = files[key], let bundle = _bundle("OfficeApp_OfficeApp") {
+            let resources = bundle.resourceURL ?? bundle.bundleURL
+            let path = resources.appendingPathComponent("fonts/\(file)-Regular.ttf").path
+            if let data = FileManager.default.contents(atPath: path) {
+                let b = [UInt8](data)
+                func u16(_ o: Int) -> Int { o + 1 < b.count ? Int(b[o]) << 8 | Int(b[o + 1]) : 0 }
+                func u32(_ o: Int) -> Int { u16(o) << 16 | u16(o + 2) }
+                var head = -1, os2 = -1
+                if b.count > 12 {
+                    for t in 0 ..< u16(4) where 12 + 16 * t + 16 <= b.count {
+                        let at = 12 + 16 * t
+                        let tag = String(decoding: b[at ..< at + 4], as: UTF8.self)
+                        if tag == "head" { head = u32(at + 8) } else if tag == "OS/2" { os2 = u32(at + 8) }
+                    }
+                }
+                if head >= 0, os2 >= 0, os2 + 78 <= b.count, head + 20 <= b.count, case let em = u16(head + 18), em > 0 {
+                    result = Double(u16(os2 + 74) + u16(os2 + 76)) / Double(em)
+                }
+            }
+        }
+        _standInWin[key] = result
         return result
         #endif
     }

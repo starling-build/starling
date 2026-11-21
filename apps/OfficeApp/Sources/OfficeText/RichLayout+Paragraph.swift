@@ -10,7 +10,31 @@ import Foundation
 
 extension RichLayout {
 
+    /// Word for Windows at compat 14 and under honours a tab stop past the margin (lab tabpast14; sa1 0058af10, dx2 e1996ca7 and
+    /// 9f798d64, xa gv-0de3e9bcf1): the text after it ends AT the stop and stays on the line. The engine fits a line against the
+    /// margin, so the lines are broken by the clamped layout first (it matched Word's breaks in all four); where that is ONE line
+    /// the paragraph is laid out again with room past the margin, the stops as written.
     func _layoutParagraphOnce(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
+        _pastNeed[i] = nil
+        _pastLeft[i] = nil
+        _pastWiden = nil
+        _layoutParagraphBody(i, p, document)
+        guard theme.wordRules, Self._honoursStopsPastMargin(document),
+              !p.style.rightToLeft, p.style.alignment == .left || p.style.alignment == .justify,
+              let painter = _painters[i] else { return }
+        let single = painter.computeLineMetrics().count == 1
+        guard let need = (single ? _pastNeed[i] : nil) ?? _pastLeft[i], need > 0.01 else { return }
+        _pastWiden = max(need, _pastNeed[i] ?? 0, _pastLeft[i] ?? 0) + _px(80)
+        _layoutParagraphBody(i, p, document)
+        _pastWiden = nil
+        if let again = _painters[i], again.computeLineMetrics().count != 1 {
+            _layoutParagraphBody(i, p, document)
+        } else {
+            RuleTrace.hit("word-tab-past-the-margin-keeps-its-stop-on-one-line")
+        }
+    }
+
+    func _layoutParagraphBody(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
         _heldTallerLatin.remove(i)
         var p = p
         // A paragraph of hidden text alone, its mark not hidden, is one empty
@@ -207,6 +231,7 @@ extension RichLayout {
             // something in the fit test, not the widths, is a hair apart.)
             width -= _px(10.0)
         }
+        if let w = _pastWiden { right -= w }
         var textWidth = max(1, width - left - right + (frameLeft ?? 0))
         if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, let room = style.wrapperRoom, _px(room) > width { textWidth += _px(room) - width }
         // (Centred or set right, a numbered line is set across its
@@ -408,7 +433,11 @@ extension RichLayout {
                         // Word sends down. Mac Word's lab cimac (macOS-doc, three
                         // 120pt cells, 5.4 margins, lines 0.5 to 3pt) agrees. The table's left line stands inside
                         // it, `_edgeShift`, its first column's text where it was.)
-                        let shift = _edgeShift(c.table, document)
+                        // (A rule of a later row's first cell, the first row stating none, moves neither the table's edge
+                        // nor that row's text: sa1 f84c295b's sixth row, a double left rule, starts its text at the margin
+                        // and the cell margin, 74.40, in Word's print, where ours stood 1.07 in.)
+                        let laterRowRule = c.column == 0 && c.row > 0 && _tableOwnLeft[c.table] == nil
+                        let shift = laterRowRule ? l / 2 : _edgeShift(c.table, document)
                         let half = RichTextTheme.wordWindowsPages && document.compatibilityMode == 14   // (lab tbl14 is mode 14; mode 12 keeps the whole line)
                         if modern, shift > 0 || inside {
                             pad = EdgeInsets(left: max(pad.left, l / 2) + (inside ? 0 : max(0, l / 2 - shift)), top: pad.top,
@@ -571,8 +600,8 @@ extension RichLayout {
             // margin). Lab cellrind3 (Word for Windows, mode 15, 5000-5085 twips, right indent -400, 18 cells in
             // each of six tables): the last "i" of the first line stands at most 1.41, 1.16, 0.63 and 0.17pt past the
             // edge under no line and 0.5, 1.5 and 3pt lines with 108-twip margins, and 0.81 and -1.49 under 0.5 and
-            // 3pt lines with none, where ours ran the whole 20pt. The lab held Latin text only: a full-width "）" ends 1.9pt past the edge in zh-ae2dd08d's cells and a drawing's anchor line is not text, so the cap is for Latin text.)
-            if theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) >= 15, right < 0, document.tableStyles[c.table]?.cellSpacing == nil, document.tableStyles[c.table]?.fixedLayout == true, document.tableStyles[c.table]?.hasPctCells != true,
+            // 3pt lines with none, where ours ran the whole 20pt. The lab held Latin text only: a full-width "）" ends 1.9pt past the edge in zh-ae2dd08d's cells and a drawing's anchor line is not text, so the cap is for Latin text. It bounds where left-aligned text may run, not where a CENTRED line sits: sa1 c2104d44's centred cell lines (right indent -279 in a 9953-twip cell) stand 6.98pt right of the unindented centre in Word's print, half the whole indent, ours 3.3pt with the cap, so a centred paragraph keeps the whole width.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) >= 15, right < 0, style.alignment != .center, document.tableStyles[c.table]?.cellSpacing == nil, document.tableStyles[c.table]?.fixedLayout == true, document.tableStyles[c.table]?.hasPctCells != true,
                !p.text.isEmpty, !p.text.unicodeScalars.contains(where: { Self._isEastAsianScalar($0.value) || $0.value == 0xFFFC }) {
                 let limit = colWidth + _px(1.4) - (pad.right == 0 && c.padding != nil ? cellRightRule : cellRightRule / 2) - left + colLeft
                 if limit < textWidth, limit >= 1 {
@@ -965,6 +994,11 @@ extension RichLayout {
                     var wordEnd = w
                     while wordEnd < units.count, units[wordEnd] != 0x20, units[wordEnd] != 0x09, units[wordEnd] != 0x0A, units[wordEnd] != 0x2028 { wordEnd += 1 }
                     let wordAfter = loneAfterSpace && wordEnd > w ? edge(wordEnd) - edge(w) : 0
+                    // (A run of tabs with nothing after it to set (paragraph or line end) does not restart on the next line: its
+                    // stops sit within the margin. sa1 b0e39b18, tabs before a line break: one line in Word.s print.)
+                    var runEnd = w
+                    while runEnd < units.count, units[runEnd] == 0x09 { runEnd += 1 }
+                    if runEnd >= units.count || units[runEnd] == 0x0A || units[runEnd] == 0x2028 { continue }
                     guard w - t0 >= 2 || loneAfterSpace, t0 > 0, loneAfterSpace || units[t0 - 1] != 0x20, units[t0 - 1] != 0x0A, units[t0 - 1] != 0x2028,
                           k == 0 || wraps[k - 1] < t0,
                           edge(t0 + 1) + (tabs[t0] ?? 0) + (loneAfterSpace ? wordAfter : 0) > textWidth + _px(0.5) else { continue }
@@ -1068,9 +1102,13 @@ extension RichLayout {
                 // styled run behind it: the tab has the width of its own box, not a negative one. sa1 b0e39b18's fourteen tabs, the
                 // 6th and 7th not underlined between underlined ones: the 7th measured -348 twips, was stretched 406 too far and
                 // the 14th tab went down to a line of its own, the page below it one line low.)
+                // (On the tab's own line: a tab ending its line has the next character on the line below, its edge
+                // behind by the whole line, and keeps its width; dx2 th 3578a03d.)
                 if theme.wordRules, !style.rightToLeft, after < at - 0.01,
                    let own = probe.getBoxesForSelection(TextSelection(baseOffset: probeMap.painter(t), extentOffset: probeMap.painter(t) + 1)).first,
-                   own.right > own.left {
+                   own.right > own.left,
+                   let nextBox = probe.getBoxesForSelection(TextSelection(baseOffset: probeMap.painter(t + 1), extentOffset: probeMap.painter(t + 1) + 1)).first,
+                   abs(nextBox.top - own.top) < 1 {
                     after = at + (own.right - own.left)
                     RuleTrace.hit("word-tab-width-is-its-own-box-when-the-next-edge-lies-behind-it")
                 }
@@ -1079,6 +1117,7 @@ extension RichLayout {
                 if let s = stops.first(where: { _px($0.position) > x + 0.5 && !clampedStops.contains(_px($0.position)) }) { stop = (_px(s.position), s.alignment, s.leader) }
                 var toIndent = false
                 if lead < 0, ownLeft > x + 0.5, stop.map({ ownLeft < $0.x }) ?? true { stop = (ownLeft, .left, nil); toIndent = true }
+                if !toIndent, Self._honoursStopsPastMargin(document), let s = stop, s.alignment == .left, s.x > ownLeft + textWidth + 0.5, stops.contains(where: { abs(_px($0.position) - s.x) < 0.01 }) { _pastLeft[i] = max(_pastLeft[i] ?? 0, s.x - (ownLeft + textWidth)) }
                 if stop == nil, step > 0 { stop = (((x + 0.5) / step).rounded(.down) * step + step, .left, nil) }
                 // (A positional tab goes to its place on the margins, past
                 // the stops between: bug57031's footer has "Page 2 of 14"
@@ -1099,6 +1138,7 @@ extension RichLayout {
                 if theme.wordRules, var s = stop, s.alignment == .right || s.alignment == .center,
                    s.x > ownLeft + textWidth + 0.5 + ((s.leader.map { $0 != "none" && !$0.isEmpty } ?? false) && s.alignment == .right && style.alignment != .justify ? _px(Self._tabPastMargin) : 0) {
                     clampedStops.insert(s.x)
+                    if Self._honoursStopsPastMargin(document) { _pastNeed[i] = max(_pastNeed[i] ?? 0, s.x - (ownLeft + textWidth)) }
                     s.x = ownLeft + textWidth
                     s.alignment = .right
                     stop = s
@@ -1138,12 +1178,33 @@ extension RichLayout {
                 var end = t + 1
                 while end < units.count, units[end] != 0x09, units[end] != 0x0A, units[end] != 0x2028 { end += 1 }
                 var following = max(0, edge(end) - after)
+                // (Spaces that END the paragraph after a right or centre tab hang: sa1 7770c637's contents "<tab>3 " stands its 3 at
+                // 481.06, the right edge of the stop, where "11" without one ends at it too; ours counted the space and stood 6 pt left.)
+                if theme.wordRules, !style.rightToLeft, stop.alignment == .right || stop.alignment == .center, end == units.count, end > t + 1,
+                   units[end - 1] == 0x20 {
+                    var e2 = end
+                    while e2 > t + 1, units[e2 - 1] == 0x20 { e2 -= 1 }
+                    following = max(0, edge(e2) - after)
+                    RuleTrace.hit("word-spaces-ending-the-paragraph-after-a-right-tab-hang")
+                }
                 if style.rightToLeft, end > t + 1 {
                     // (Right-to-left letters stand reversed in the probe: the
                     // run's width is its boxes' spread, not the offsets'.)
                     let from = probeMap.painter(t + 1), to = probeMap.painter(end - 1) + 1
                     let boxes = probe.getBoxesForSelection(TextSelection(baseOffset: from, extentOffset: to))
                     if let lo = boxes.map(\.left).min(), let hi = boxes.map(\.right).max() { following = max(0, hi - lo) }
+                }
+                // (A run of tabs that ends the paragraph: a tab that starts past the margin goes to the next line, and the stops
+                // start again there, from the line's own start. The probe sets the run on one long line and the final layout wraps
+                // it, so the tabs after the wrap kept their widths from the stops of the first line: sa1 9994f234's "OTRO:)" and 38
+                // tabs, stops at 1080, 1440, 2160... twips; Word's second line goes 90, 126, 144, 180, 216 pt, ours 90, 126, 162, 198
+                // on a grid, a line more in all, the signature block of the page on the next one.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, t > 0, x > ownLeft + textWidth + 0.5, units[t - 1] == 0x09,
+                   units[t...].allSatisfy({ $0 == 0x09 }), !wraps.contains(t), !afterTabWraps.contains(t) {
+                    afterTabWraps.insert(t)
+                    RuleTrace.hit("word-tab-run-ending-the-paragraph-restarts-its-stops-past-the-margin")
+                    measure(wraps)
+                    return
                 }
                 var extra = stop.x - x - own
                 switch stop.alignment {
@@ -1163,7 +1224,27 @@ extension RichLayout {
                 // line's nine spaces then had 0.87pt each to give — past
                 // their quarter — so "выполнения" went over. Word's
                 // print has them at 2.31, the line filled to the margin.)
+                // (A centred or right stop that the text after it is too wide to be set at, where the tab's own width would
+                // push the text past the margin but the text alone fits: the tab takes no room and the text starts where the
+                // tab stood. sa2 81f316d6's header, "<tab>" + 138 spaces + "Comité de Selección" (472.9 pt of 473) at a centre
+                // stop at 212 pt: Word's print starts the spaces at the margin and keeps one line; ours gave the tab 2.7 pt and
+                // sent "Selección" down. Lab tbhdrwrap, Word for Windows.)
+                var collapsedTab = false
+                if theme.wordRules, RichTextTheme.wordWindowsPages, stop.alignment == .center || stop.alignment == .right, extra < 0,
+                   x + following <= ownLeft + textWidth + 0.01, x + own + following > ownLeft + textWidth + 0.01 {
+                    collapsedTab = true
+                    RuleTrace.hit("word-wide-centred-tab-takes-no-room-when-the-text-just-fits")
+                }
                 extra = stop.alignment == .left ? max(0.5 - own, extra) : max(0, extra)
+                // (A justified paragraph's trailing tabs, the last stop at the margin's edge: that tab is set as a
+                // tab, not as a held space, which is a hair wider and wrapped it. sa1 b0e39b18, "Hearing Time:
+                // <4 tabs>" in a justified line, one line in Word's print, ours wrapped the last tab and
+                // moved the lines below it 17 pt.)
+                if theme.wordRules, style.alignment == .justify, stop.alignment == .left, abs(stop.x - (ownLeft + textWidth)) < 0.01,
+                   (t + 1 ..< units.count).allSatisfy({ units[$0] == 0x09 || units[$0] == 0x20 }) {
+                    atMargin.insert(t)
+                }
+                if collapsedTab { extra = -own }
                 // Trailing tabs do not open an empty line beyond the
                 // margin. Keep their stops within the remaining width.
                 if theme.wordRules, pictureTabs, units[(t + 1)...].allSatisfy({ $0 == 0x09 }) {
@@ -1976,6 +2057,31 @@ extension RichLayout {
                         }
                     }
                     numberLift = max(0, ownBaseline - first.baseline)
+                    // (A character scale (w:w) over 100 is laid out as a larger size with the line's height held at the authored one, the face's
+                    // extra split evenly, so the baseline of that first line stands (w - 1) x size x (its baseline in ems at height 1 - 1/2) lower
+                    // than the authored size's: the lift is measured from the authored baseline. sa1 51fd0f44's w:w 105 Arial Nova Light items lifted
+                    // 0.40pt for the 0.62 of the items without it, and Word's pitches are the same either way.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, let r0 = p.runs.first {
+                        let named0 = _named(p, document)
+                        let w = RichTextTheme.wordWidthScale(r0.style.horizontalScale ?? named0?.char.horizontalScale ?? 1, wordRules: true,
+                            eastAsiaFamily: r0.style.eastAsiaFontFamily ?? named0?.char.eastAsiaFontFamily ?? r0.style.fontFamily ?? named0?.char.fontFamily ?? theme.fontFamily)
+                        if w > 1.001 {
+                            let ts = theme.textStyle(for: r0.style, in: style, named: named0, normal: _normalChar(document), scale: scale, fontScale: fontScale)
+                            if let size = ts.fontSize, size > 0.5 {
+                                let probe = ts.copyWith(fontSize: 100, letterSpacing: 0, height: 1, leadingDistribution: .even)
+                                let t = TextPainter(text: TextSpan(text: "x", style: probe), textDirection: .ltr)
+                                t.layout(minWidth: 0, maxWidth: 100_000)
+                                if let l = t.computeLineMetrics().first {
+                                    let inflate = (w - 1) * size * (l.baseline / 100 - 0.5)
+                                    if inflate > 0.001 {
+                                        RuleTrace.hit("word-character-scale-line-lift-measured-from-the-authored-baseline")
+                                        numberLift += inflate
+                                    }
+                                }
+                                t.dispose()
+                            }
+                        }
+                    }
                 }
                 free.dispose()
             }
@@ -3548,15 +3654,35 @@ extension RichLayout {
                 probe.dispose()
                 if let own, own.height > 0.5 {
                     // (the probe carries the paragraph's own multiple in its style: undo it)
-                    let single = own.height / multiple, desc = own.descent / multiple
+                    let single = own.height / multiple
+                    // (the text's own depth under the baseline at SINGLE spacing: Word's own split of the face's line where it is known
+                    // (Tahoma 1.0005 over 1.2070 em), else what the engine draws; the multiple's extra the engine shares above and below is not part of it)
+                    var desc = own.descent / multiple
+                    // (the label reads like "(unknown).merge(((Tahoma).copyWith).copyWith)": the face is the name inside the innermost brackets)
+                    let faceName = textStyle.debugLabel.flatMap { label -> String? in
+                        label.split(separator: "(").compactMap { part -> String? in
+                            guard let end = part.firstIndex(of: ")") else { return nil }
+                            let n = String(part[part.startIndex ..< end])
+                            return n.isEmpty || n == "unknown" ? nil : n
+                        }.last
+                    }
+                    if let name = faceName, let face = theme.faceResolver?(name, false), let nh = face.naturalHeight, nh > 0.5,
+                       let bl = face.baseline, bl > 0, bl < nh {
+                        desc = single * (1 - bl / nh)
+                    } else {
+                        let flat = TextPainter(text: TextSpan(text: "x", style: textStyle.copyWith(height: (textStyle.height ?? multiple) / multiple)), textDirection: .ltr)
+                        flat.layout(minWidth: 0, maxWidth: 10000)
+                        desc = flat.computeLineMetrics().first?.descent ?? desc
+                        flat.dispose()
+                    }
                     var above = [Double](repeating: -1, count: bottoms.count), below = above
                     var shiftsOwn = [Double](repeating: 0, count: bottoms.count)
                     var wrappedPlain = Set<Int>()
                     for (k, box) in boxes.enumerated() {
                         guard inline[k].image != nil, inline[k].image?.float == nil, inline[k].image?.textBox == nil,
                               inline[k].image?.name != "m:oMath", let img = inline[k].image else { continue }
-                        // (Only an object the run raises or lowers: a plain picture at position 0 keeps the multiple on the text,
-                        // a8f4dfcd's 20pt icons in 1.5 Tahoma 12 pitch as text lines in Word's print.)
+                        // (A plain picture at position 0 takes part too: it raises only its own line, and every line of the
+                        // paragraph takes the multiple's extra below.)
                         let pos = p.runs.first(where: { $0.style.inlineImage == img.id }).flatMap { $0.style.raised } ?? Self._runPosition(img.sourceRunPropertiesXML) ?? 0
                         let r = box.toRect()
                         let mid = r.top + r.height / 2
@@ -3565,11 +3691,27 @@ extension RichLayout {
                             // (A plain chart that stands ALONE on a later line, after a line of text: the chart wrapped. (Not a picture: 8f697d90's screenshots at 1.08 do not take it.) Word puts
                             // the multiple's extra under the text line and under the picture line alike; lab probe1-4 on dx2 f15415f0,
                             // heading 11pt Verdana at 360 then a 272pt-wide chart: heading 438.9, chart line 748.8 from 735.0 single.)
-                            guard line > 0, img.sourceXML?.containsSubstring("drawingml/2006/chart") == true, metrics[line].width <= r.width + 1, r.height > 1.5 * bottoms[0], inline.count == 1 else { continue }
-                            wrappedPlain.insert(line)
+                            if line > 0, img.sourceXML?.containsSubstring("drawingml/2006/chart") == true, metrics[line].width <= r.width + 1, r.height > 1.5 * bottoms[0], inline.count == 1 {
+                                wrappedPlain.insert(line)
+                            }
                         }
                         above[line] = max(above[line], metrics[line].baseline - r.top)
-                        below[line] = max(below[line], r.bottom - metrics[line].baseline)
+                        // (a placeholder the first-line rule enlarged for the text's room under the baseline: its foot is the picture's own)
+                        let grown = _pageFill[img.id].map { max(0, r.height - $0) } ?? 0
+                        below[line] = max(below[line], r.bottom - grown - metrics[line].baseline)
+                    }
+                    // (Only while the pictures stay within the text's own line: lab afbaab-multiple has 12.75pt pictures in 11pt
+                    // Tahoma. A taller picture is not in the lab, and a8f4dfcd's 20pt icons in 1.5 Tahoma 12 do not fit the formula.)
+                    let tallPic = zip(boxes, inline).contains { box, il in
+                        let grown = il.image.flatMap { _pageFill[$0.id] }.map { max(0, box.toRect().height - $0) } ?? 0
+                        return box.toRect().height - grown > single + 0.5
+                    }
+                    if tallPic { above = [Double](repeating: -1, count: bottoms.count); below = above }
+                    if wrappedPlain.isEmpty, above.contains(where: { $0 >= 0 }) {
+                        // (Word's print, lab afbaab-multiple, 27 lines to 0.1 pt: EVERY line of the paragraph stands max(text ascent, picture top)
+                        // above its baseline, and below it go the text's descent plus ALL of the multiple's extra, so a line without
+                        // an object takes the same formula.)
+                        for k in 0 ..< bottoms.count where above[k] < 0 { above[k] = 0; below[k] = 0 }
                     }
                     var extra = [Double](repeating: 0, count: bottoms.count)
                     for line in 0 ..< bottoms.count where above[line] >= 0 {
@@ -3578,8 +3720,8 @@ extension RichLayout {
                         extra[line] = target - advance
                         // (Where the growth sits: the object's top pushes THIS line's own baseline down, its foot adds below it. Word's
                         // print of 1d944f7b: pitches 24.0 into the object's line and 23.1 out of it, 2.6 + 6.9 + 14.4 and 5 + 6.9 + 11.2.)
-                        let want = own.baseline + max(0, above[line] - (single - desc))
-                        shiftsOwn[line] = min(max(0, want - (metrics[line].baseline - before)), max(0, extra[line]))
+                        let want = max(single - desc, above[line])
+                        shiftsOwn[line] = min(want - (metrics[line].baseline - before), max(0, extra[line]))
                         if wrappedPlain.contains(line) {
                             // (painter units here are not the probe's: take the text line's own single height from line 0)
                             extra[line] = (multiple - 1) * bottoms[0] / multiple
@@ -3594,7 +3736,7 @@ extension RichLayout {
                             shiftsOwn[k] = -(metrics[k].baseline - before) * (multiple - 1) / multiple
                         }
                     }
-                    if extra.contains(where: { abs($0) > 0.05 }) || !wrappedPlain.isEmpty {
+                    if extra.contains(where: { abs($0) > 0.05 }) || shiftsOwn.contains(where: { abs($0) > 0.05 }) || !wrappedPlain.isEmpty {
                         RuleTrace.hit("word-a-line-with-an-object-is-its-tallest-and-deepest-plus-the-multiples-extra-below")
                         var shifts = [Double](repeating: 0, count: bottoms.count)
                         var acc = 0.0
@@ -3611,10 +3753,15 @@ extension RichLayout {
         // tall as the text's top plus the raise, and as deep as its foot plus the lowering. Lab CP3 (xb docx-8f1703b9, 11pt Calibri,
         // "raised" at 6pt, "lowered" at -6pt): pitches 19.44 into the raised line (13.44 + 6, above its baseline), 13.44 out of it,
         // 19.44 out of the lowered line (6 below it). A shorter run's own ascent and descent scale with its size.)
+        // (A top-aligned paragraph's lowering may stand in its style (`w:position` in the paragraph style's run properties).)
+        let lowTop = style.eastAsian["w:textAlignment"] == "top"
+        let lowNamed = lowTop ? _named(p, document)?.char.raised : nil
+        func raisedOf(_ r: Run) -> Double { r.style.raised ?? lowNamed ?? 0 }
         if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft,
-           style.lineHeightPoints == nil, style.lineSpacing - theme.lineSpacingReduction <= 1.001,
+           style.lineHeightPoints == nil,
+           style.lineSpacing - theme.lineSpacingReduction <= 1.001 || style.eastAsian["w:textAlignment"] == "top",
            besideLineIndents.isEmpty, keepClear == nil, Self._paired(painter) == nil, p.inlineImages.isEmpty,
-           p.runs.contains(where: { abs($0.style.raised ?? 0) > 0.01 && $0.style.script == .normal }) {
+           p.runs.contains(where: { abs(raisedOf($0)) > 0.01 && $0.style.script == .normal }) {
             let metrics = painter.computeLineMetrics()
             let bottoms = Self._rawLineBottoms(painter)
             let units = p.text.utf16.count
@@ -3632,6 +3779,23 @@ extension RichLayout {
                     let line = max(0, (starts.lastIndex(where: { $0 <= at }) ?? 0))
                     tallest[line] = max(tallest[line], run.style.fontSize ?? 0)
                 }
+                // Lines whose every text run is lowered by one same amount, in a top-aligned paragraph: that amount (px), else 0.
+                var topLine = [Double](repeating: 0, count: metrics.count)
+                var glyphAdj = [Double](repeating: 0, count: metrics.count)
+                if style.eastAsian["w:textAlignment"] == "top" {
+                    var seen = [Double?](repeating: nil, count: metrics.count), mixed = [Bool](repeating: false, count: metrics.count)
+                    var q = 0
+                    for run in p.runs where run.length > 0 {
+                        defer { q += run.length }
+                        guard q < units else { break }
+                        let e = min(units, q + run.length)
+                        guard text[q ..< e].contains(where: { $0 > 0x20 }) else { continue }
+                        let line = max(0, (starts.lastIndex(where: { $0 <= q }) ?? 0))
+                        let r = raisedOf(run)
+                        if let s0 = seen[line] { if abs(s0 - r) > 0.01 { mixed[line] = true } } else { seen[line] = r }
+                    }
+                    for k in 0 ..< metrics.count where !mixed[k] { if let r = seen[k], r < -0.01 { topLine[k] = -r * _px(1) } }
+                }
                 at = 0
                 for run in p.runs where run.length > 0 {
                     defer { at += run.length }
@@ -3640,12 +3804,29 @@ extension RichLayout {
                     guard text[at ..< end].contains(where: { $0 > 0x20 }) else { continue }
                     // (Only Latin text is measured: CJK, Thai and symbol-font runs raised in the corpus (xd, xb) are
                     // set on the lines Word sets them on without the growth.)
-                    guard text[at ..< end].allSatisfy({ $0 <= 0x24F || (0x2000 ... 0x206F).contains($0) }) else { continue }
-                    let pos = (run.style.raised ?? 0) * _px(1)
-                    guard abs(run.style.raised ?? 0) > 0.01, run.style.script == .normal else { continue }
+                    let lineOfRun = max(0, (starts.lastIndex(where: { $0 <= at }) ?? 0))
+                    guard topLine[lineOfRun] > 0 || text[at ..< end].allSatisfy({ $0 <= 0x24F || (0x2000 ... 0x206F).contains($0) }) else { continue }
+                    let pos = raisedOf(run) * _px(1)
+                    guard abs(raisedOf(run)) > 0.01, run.style.script == .normal else { continue }
                     let line = max(0, (starts.lastIndex(where: { $0 <= at }) ?? 0))
                     let ratio = tallest[line] > 0 ? (run.style.fontSize ?? tallest[line]) / tallest[line] : 1
                     let m = metrics[line]
+                    // (Above single spacing only the uniformly lowered top-aligned lines are measured: the raise/lower growth is verified at single.)
+                    if topLine[line] == 0, style.lineSpacing - theme.lineSpacingReduction > 1.001 { continue }
+                    if topLine[line] > 0 {
+                        // (Top-aligned text lowered by L: the line is max(single, its ink box + L) tall, the lowering first eating the face's
+                        // spare line gap; the glyphs stand that much below where the unlowered line sets them. Lab pos14, amd-opus.)
+                        let multiple = max(1, style.lineSpacing - theme.lineSpacingReduction)
+                        let single = m.height / multiple
+                        let family = run.style.fontFamily ?? _named(p, document)?.char.fontFamily ?? theme.fontFamily
+                        let em = max(1, run.style.fontSize ?? _named(p, document)?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * _px(1)
+                        let box = theme.winLineBox?(family).map { $0 * em } ?? (m.ascent + m.descent) * ratio / multiple
+                        let grown = max(0, box - pos - single)
+                        if grown > above[line] { RuleTrace.hit("word-top-aligned-lowered-text-line-is-ink-box-plus-lowering"); above[line] = grown }
+                        // (The glyphs keep the lowering the text style gives them; they stand `grown` below the unlowered line, so take it back.)
+                        glyphAdj[line] = -topLine[line]
+                        continue
+                    }
                     above[line] = max(above[line], m.ascent * ratio + pos - m.ascent)
                     below[line] = max(below[line], m.descent * ratio - pos - m.descent)
                 }
@@ -3654,7 +3835,7 @@ extension RichLayout {
                     var shifts = [Double](repeating: 0, count: metrics.count)
                     var acc = 0.0
                     for k in 0 ..< metrics.count {
-                        shifts[k] = acc + max(0, above[k])
+                        shifts[k] = acc + max(0, above[k]) + glyphAdj[k]
                         acc += max(0, above[k]) + max(0, below[k])
                     }
                     Self._pairedLines[ObjectIdentifier(painter)] = _PairedLines(painter: painter, shifts: shifts, saving: -acc)
@@ -4612,6 +4793,15 @@ extension RichLayout {
         // paragraph of its own, only its place — see the reader's
         // `w:tblpPr`.)
         if theme.wordRules, p.cell != nil, let image = p.image, image.name == "table", image.float != nil { _heights[i] = 0; _spaceBefore[i] = 0 }
+        // (An empty paragraph in a cell whose own picture, wrapped top and bottom, stands down its line and
+        // reaches into it is set under the picture: Word's print of sa2 3c4382f0's signature rule, drawn 13.6pt
+        // down an empty 13.8pt line, puts the next line 14.28pt lower — the picture's foot, then the line.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell != nil, p.text.isEmpty, !_vanishes(p, document),
+           let own = p.image, let f = own.float, f.takesRoom || f.bandsPage, f.verticalFrom == "paragraph", f.verticalAlign == nil,
+           f.y > 0.01, _px(f.y) < _heights[i] - _spaceBefore[i] {
+            RuleTrace.hit("word-empty-cell-line-with-its-own-band-stands-under-it")
+            _heights[i] += _px(f.y + own.height + f.effectBottom)
+        }
         // (So does one wholly hidden, its mark too: see `_vanishes`.)
         if _vanishes(p, document) { _heights[i] = 0; _spaceBefore[i] = 0 }
         // (And, in Word for Windows, an empty paragraph straight after a

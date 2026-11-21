@@ -582,6 +582,11 @@ enum DocxFormat {
             guard let d = p.first("w:pPr")?.first("w:textDirection")?["w:val"] else { return nil }
             return ["btLr": "vert270", "tbRl": "vert"][d]
         }
+        let _columnTwips: Double = {
+            guard let sect = root.first("w:body")?.descendants("w:sectPr").last, let sz = sect.first("w:pgSz"), let mar = sect.first("w:pgMar"),
+                  let w = Double(sz["w:w"] ?? ""), let l = Double(mar["w:left"] ?? ""), let r = Double(mar["w:right"] ?? "") else { return 0 }
+            return w - l - r
+        }()
         func frameOf(_ p: XNode) -> XNode? {
             if p.name == "w:p", let f = p.first("w:pPr")?.first("w:framePr"), f["w:dropCap"] == nil, turned(p) != nil || f["w:yAlign"] != nil,
                ["page", "margin"].contains(f["w:vAnchor"] ?? ""), Double(f["w:w"] ?? "").map({ $0 > 0 }) == true,
@@ -612,7 +617,11 @@ enum DocxFormat {
                f["w:vAnchor"] == "text", f["w:hAnchor"] == "page", f["w:xAlign"] == nil, Double(f["w:x"] ?? "") != nil,
                f["w:wrap"] == "around", f["w:y"] != nil, f["w:yAlign"] == nil, p.descendant("w:ins") == nil, p.descendant("w:del") == nil { return f }
             guard p.name == "w:p", let f = p.first("w:pPr")?.first("w:framePr"), f["w:dropCap"] == nil,
-                  f["w:vAnchor"] == "text", Double(f["w:w"] ?? "").map({ $0 > 0 }) == true,
+                  (f["w:vAnchor"] ?? "text") == "text", Double(f["w:w"] ?? "").map({ $0 > 0 }) == true,
+                  // (A frame of no stated vAnchor is anchored to the text only when it leaves room beside it, at most half the
+                  // column: sa1 b0e39b18's 324 pt frame in a 504 pt column, with another frame at the right, left a gap too
+                  // narrow for a word, and the paragraphs below it were set in that gap instead of under the frame.)
+                  f["w:vAnchor"] != nil || Double(f["w:w"] ?? "").map({ $0 * 2 <= _columnTwips }) == true,
                   Double(f["w:h"] ?? "").map({ $0 > 0 }) == true, f["w:y"] != nil, f["w:yAlign"] == nil,
                   f["w:wrap"] == "around" || f["w:wrap"] == "notBeside" else { return nil }
             // (Not a frame whose text is tracked: lo tdf125894's inserted and deleted
@@ -2273,6 +2282,10 @@ enum DocxFormat {
                         && tblW?["w:type"] == "pct" && (Double(tblW?["w:w"] ?? "") ?? 0) >= 5000
                     if fullWidth {
                         nominalLeft = 0
+                        // (Against the page, it stands at its outer cell's own edge, not its text: lab fltpos on
+                        // Word for Windows, 03f63881's table in a cell with 5.4pt margins, its continuation's text
+                        // 4.9pt left of ours; the half border it shares with the cell's brings it to margin + 1pt.)
+                        if pos["w:horzAnchor"] == "page", let outer = saved.1 { nominalLeft = -(outer.padding?.left ?? 5.4) + 0.5 }
                         box.insetTop = f.y   // (its y under the anchor paragraph's top)
                     } else if pos["w:vertAnchor"] == "text", (pos["w:horzAnchor"] ?? "text") == "text", pos["w:tblpXSpec"] == nil, pos["w:tblpYSpec"] == nil,
                        f.y <= 1, f.x >= 0 {
@@ -2291,6 +2304,7 @@ enum DocxFormat {
                 }
                 var para = RichParagraph(image: image, style: cellBase)
                 para.style.indentLeft += nominalLeft
+                if nominalLeft < 0 { para.style.indentRight -= nominalLeft }   // (moved left, not wider: Word's lab fltpos table ends 4.9pt short of ours)
                 // (Word for Windows' labs T0-T2: the cell that holds a table is taller by that table's own
                 // cell margins, top and bottom, once more — lo-eb12e7d4's groups stand 2.8pt, the 28 twips
                 // of a pair, short of its print.)
@@ -2957,6 +2971,28 @@ enum DocxFormat {
                 let gridCols = node.first("w:tblGrid")?.all("w:gridCol").compactMap { Double($0["w:w"] ?? "") } ?? []
                 let equalGrid = gridCols.count > 1 && (gridCols.max() ?? 0) - (gridCols.min() ?? 0) <= 2
                 if !cells.isEmpty, widthless == cells.count, style.width == nil, !style.fixedLayout, style.widthPercent == nil || equalGrid { style.contentFit = true }
+                // (A gridless table 100% wide whose cells state no width is fitted to its content, the room wide: lab pctfit T1, T4,
+                // T7, T10, T13, T15, T17 against Word's print. One whose cells all state twips takes those as a floor and is scaled: below.)
+                if !cells.isEmpty, !style.contentFit, gridCols.isEmpty, style.widthPercent == 100, widthless == cells.count, !style.fixedLayout, RichTextTheme.wordWindowsPages { style.contentFit = true }
+                if !cells.isEmpty, gridCols.isEmpty, style.widthPercent == 100, !style.fixedLayout, RichTextTheme.wordWindowsPages {
+                    let rows = unwrapped(node, "w:tr")
+                    let counts = Set(rows.map { unwrapped($0, "w:tc").count })
+                    let plain = cells.allSatisfy { tc in
+                        let pr = tc.first("w:tcPr")
+                        return pr?.first("w:tcW")?["w:type"] == "dxa" && pr?.first("w:gridSpan") == nil && pr?.first("w:vMerge") == nil
+                    }
+                    if plain, counts.count == 1, rows.allSatisfy({ $0.first("w:trPr")?.first("w:gridBefore") == nil }) { style.twipScale = true }
+                    // (Cells in twips and in a share, a column to each kind: the share's columns keep that share of the room, the others are scaled into the rest. sa2 be63fe36 table 7.)
+                    if !plain, counts.count == 1, rows.allSatisfy({ $0.first("w:trPr")?.first("w:gridBefore") == nil }), let first = rows.first {
+                        var stated: [Double] = [], shares: [Int: Double] = [:], ok = true
+                        for (k, tc) in unwrapped(first, "w:tc").enumerated() {
+                            let pr = tc.first("w:tcPr"), w = pr?.first("w:tcW")
+                            guard pr?.first("w:gridSpan") == nil, pr?.first("w:vMerge") == nil, let v = Double(w?["w:w"] ?? ""), v > 0 else { ok = false; break }
+                            if w?["w:type"] == "dxa" { stated.append(v / 20) } else if w?["w:type"] == "pct" { stated.append(0); shares[k] = v / 50 } else { ok = false; break }
+                        }
+                        if ok, !shares.isEmpty, shares.count < stated.count { style.twipScale = true; style.twipStated = stated; style.twipShares = shares }
+                    }
+                }
                 // (A table of a width in twips over an equal-split grid is content-fitted too, to that width: lab atcol1.)
                 if !cells.isEmpty, widthless == cells.count, style.width != nil, style.widthPercent == nil, equalGrid, !style.fixedLayout { style.contentFit = true }
                 // (… and one whose stated cells are whole columns of one
@@ -3232,7 +3268,7 @@ enum DocxFormat {
                         let vAlign = tcPr?.first("w:vAlign")?["w:val"].flatMap { ["center", "bottom"].contains($0) ? $0 : nil } ?? (tcPr?.first("w:vAlign") == nil ? ((r == 0 && firstRowOn ? cond.headerVAlign : nil) ?? cond.cellVAlign) : nil)
                         currentCell = CellRef(table: id, row: r, column: column, span: span, fill: fill, edges: ownEdges, verticalAlign: vAlign)
                         // (The foot of a merged header cell is no drawn line, yet it takes its room where the span ends: lab sa1f9, Word's merged rows stand 0.96 taller than their stated sum.)
-                        if r == 0, firstRowOn, tcPr?.first("w:vMerge")?["w:val"] == "restart", let e = cond.headerBorders?.first("w:bottom"),
+                        if r == 0, firstRowOn, tcPr?.first("w:vMerge")?["w:val"] == "restart", let e = cond.headerBorders?.first("w:bottom") ?? styledSides?.first("w:insideH"),
                            let sz = Double(e["w:sz"] ?? ""), tcPr?.first("w:tcBorders")?.first("w:bottom") == nil {
                             currentCell?.spanFootStyle = e["w:val"] ?? "single"; currentCell?.spanFootWidth = sz / 8
                         }
@@ -3655,6 +3691,7 @@ enum DocxFormat {
                 }
                 notes.rels = info
                 notes.inHeaderFooter = true
+                notes.normalAsciiIsCs = sheet[RichNamedStyle.normalId].map { $0.char.fontFamily != nil && $0.char.fontFamily == $0.char.complexFontFamily } ?? false
                 paragraphs = []
                 currentCell = nil
                 pendingPageBreak = false
@@ -4676,6 +4713,58 @@ enum DocxFormat {
     }
 
     /// A lone VML shape's text rectangle, as fractions of its box: its
+    /// The four numbers of a `textboxrect` that names `v:formulas` entries (`@n`) or handles (`#n`), read
+    /// through the type's formulas (`val sum prod mid abs min max sqrt if`) with the shape's `adj` over the type's.
+    static func _vmlFormulaRect(_ raw: String, type: XNode, shape: XNode, coord: (Double, Double)) -> [Double]? {
+        let adjRaw = (shape["adj"] ?? "").split(separator: ",", omittingEmptySubsequences: false)
+        let typeAdj = (type["adj"] ?? "").split(separator: ",", omittingEmptySubsequences: false)
+        var adjs: [Double] = []
+        for i in 0..<max(adjRaw.count, typeAdj.count) {
+            let a = i < adjRaw.count ? Double(adjRaw[i].trimmingWhitespace()) : nil
+            let t = i < typeAdj.count ? Double(typeAdj[i].trimmingWhitespace()) : nil
+            adjs.append(a ?? t ?? 0)
+        }
+        let eqns = (type.first("v:formulas")?.all("v:f") ?? []).compactMap { $0["eqn"] }
+        var memo: [Int: Double] = [:]
+        func arg(_ t: String, _ depth: Int) -> Double? {
+            let t = t.trimmingWhitespace()
+            if let d = Double(t) { return d }
+            if t == "width" { return coord.0 }
+            if t == "height" { return coord.1 }
+            if t == "xcenter" { return coord.0 / 2 }
+            if t == "ycenter" { return coord.1 / 2 }
+            if t.hasPrefix("#"), let i = Int(t.dropFirst()), i < adjs.count { return adjs[i] }
+            if t.hasPrefix("@"), let i = Int(t.dropFirst()), i < eqns.count, depth < 12 { return eval(i, depth + 1) }
+            return nil
+        }
+        func eval(_ i: Int, _ depth: Int) -> Double? {
+            if let m = memo[i] { return m }
+            let parts = eqns[i].split(separator: " ").map(String.init)
+            guard let op = parts.first else { return nil }
+            let a = parts.dropFirst().map { arg($0, depth) }
+            if a.contains(where: { $0 == nil }) { return nil }
+            let x = a.map { $0! }
+            var r: Double?
+            switch op {
+            case "val" where x.count == 1: r = x[0]
+            case "sum" where x.count == 3: r = x[0] + x[1] - x[2]
+            case "prod" where x.count == 3: r = x[2] == 0 ? nil : x[0] * x[1] / x[2]
+            case "mid" where x.count == 2: r = (x[0] + x[1]) / 2
+            case "abs" where x.count == 1: r = Swift.abs(x[0])
+            case "min" where x.count == 2: r = Swift.min(x[0], x[1])
+            case "max" where x.count == 2: r = Swift.max(x[0], x[1])
+            case "sqrt" where x.count == 1: r = x[0] >= 0 ? x[0].squareRoot() : nil
+            case "if" where x.count == 3: r = x[0] > 0 ? x[1] : x[2]
+            default: r = nil
+            }
+            if let r { memo[i] = r }
+            return r
+        }
+        let vals = raw.split(separator: ",").map { arg(String($0), 0) }
+        guard vals.count == 4, !vals.contains(where: { $0 == nil }) else { return nil }
+        return vals.map { $0! }
+    }
+
     /// `v:shapetype`'s `textboxrect` (among `types`, by id) where that
     /// is plain numbers, else VML's own for the type (`o:spt`) — nil for
     /// a rectangle or a type not known here. The rounded ones inset by
@@ -4691,8 +4780,12 @@ enum DocxFormat {
         let typeId = shape["type"].map { $0.hasPrefix("#") ? String($0.dropFirst()) : $0 }
         if let id = typeId, let type = types.first(where: { $0["id"] == id }),
            let raw = type.first("v:path")?["textboxrect"]?.split(separator: ";").first {
-            let v = raw.split(separator: ",").compactMap { Double($0.trimmingWhitespace()) }
             let cs = (type["coordsize"] ?? "21600,21600").split(separator: ",").compactMap { Double($0.trimmingWhitespace()) }
+            var v = raw.split(separator: ",").compactMap { Double($0.trimmingWhitespace()) }
+            if v.count != 4, cs.count == 2 {
+                // (A textboxrect named by the type's formulas, as the right arrow's `0,@1,@6,@2`.)
+                v = Self._vmlFormulaRect(String(raw), type: type, shape: shape, coord: (cs[0], cs[1])) ?? v
+            }
             guard v.count == 4, cs.count == 2, cs[0] > 0, cs[1] > 0, v[2] > v[0], v[3] > v[1] else { return nil }
             return Rect.fromLTRB(v[0] / cs[0], v[1] / cs[1], v[2] / cs[0], v[3] / cs[1])
         }
@@ -4906,6 +4999,7 @@ enum DocxFormat {
                     let skip = (first.1 - minY) / 21600 * cy / 12700
                     if skip > 0, skip <= 12, skip <= cy / 12700 * 0.12 { f.wrapTopSkip = skip }
                 }
+                if pts.count >= 3 { f.wrapPolygon = pts.map { WrapPoint(x: $0.0 / 21600, y: $0.1 / 21600) } }
                 // (The polygon's right reach: Word's wrap edge is the polygon's, not the picture box's: kla.tv's logo, 21185 of 21600.)
                 if let maxX = pts.map(\.0).max(), maxX >= 10800, maxX < 21600 { f.wrapReach = maxX / 21600 }
                 if let maxY = pts.map(\.1).max(), maxY >= 10800, maxY < 21600 { f.wrapBottomShare = maxY / 21600 }
@@ -4971,6 +5065,17 @@ enum DocxFormat {
                 f.heightFrom = vmlHeightFrom
             }
             f.takesRoom = shape.first("w10:wrap")?["type"] == "topAndBottom"
+            // (A VML line with no margin offsets stands at its `from` and `to` points; a top-and-bottom one
+            // 13.6pt down its paragraph is set under by the next text, as a picture is: sa2 3c4382f0's
+            // signature rule, Word's next line 14.28pt lower than ours.)
+            if shape.name == "v:line", Self.wordOnWindows, f.takesRoom, !st.containsSubstring("margin-top"),
+               let from = shape["from"], let to = shape["to"] {
+                func point(_ s: String) -> Double? {
+                    let c = s.split(separator: ",")
+                    return c.count == 2 ? _length(String(c[1]).trimmingWhitespace()) : nil
+                }
+                if let a = point(from), let b = point(to) { f.y = min(a, b); f.effectBottom = _length(shape["strokeweight"] ?? "") ?? 0.75 }
+            }
             f.wraps = ["square", "tight", "through"].contains(shape.first("w10:wrap")?["type"] ?? "")
             if let side = shape.first("w10:wrap")?["side"], side == "left" || side == "right" { f.wrapSide = side }
             // (Behind the text — a z-index under 0 — no text wraps beside it,
@@ -5613,6 +5718,8 @@ enum DocxFormat {
         /// Reading a header or footer part: its page fields stay fields
         /// (the layout fills them for each page).
         var inHeaderFooter = false
+        /// Normal's ascii face is its complex face (a Simplified Arabic document): an rtl flag on digits then changes no face.
+        var normalAsciiIsCs = false
         /// Reading a text box's paragraphs (a box inside a box is not read).
         var inTextBox = false
         /// The document's own paragraph base while a paragraph inside a table
@@ -7183,10 +7290,27 @@ enum DocxFormat {
                     }
                     if !perPart, node.descendant("wps:bodyPr") == nil, Self._vmlTop(node)?.name != "v:group",
                        att.width > 0, att.height > 0, let r = Self._vmlTextRect(node, types: notes.shapeTypes) {
-                        box.insetLeft += r.left * att.width
-                        box.insetTop += r.top * att.height
-                        box.insetRight += (1 - r.right) * att.width
-                        box.insetBottom += (1 - r.bottom) * att.height
+                        // (A VML ellipse's text rectangle is the inscribed one of the box already inset by the textbox's insets,
+                        // so each inset counts 0.7071 of itself: 5e813226's oval, Word's lines 156 pt wide, not 152, and its
+                        // first line 1.05 pt higher.)
+                        let ellipse = RichTextTheme.wordWindowsPages && (node.name == "v:oval" || node.descendant("v:oval") != nil)
+                        let k = ellipse ? 0.2929 : 0
+                        box.insetLeft += r.left * att.width - k * box.insetLeft
+                        box.insetTop += r.top * att.height - k * box.insetTop
+                        box.insetRight += (1 - r.right) * att.width - k * box.insetRight
+                        box.insetBottom += (1 - r.bottom) * att.height - k * box.insetBottom
+                    }
+                    // (A VML rounded rectangle's text rectangle is inset by 0.2929 of its corner radius, `arcsize` of the
+                    // shorter side, 1/6 where it states none: 5e813226's boxes, Word's text 4.1 pt lower than the plain box.)
+                    else if RichTextTheme.wordWindowsPages, !perPart, node.descendant("wps:bodyPr") == nil, Self._vmlTop(node)?.name != "v:group",
+                            att.width > 0, att.height > 0, let rr = Self._vmlTop(node), rr.name == "v:roundrect" {
+                        var frac = 10923.0 / 65536
+                        if let raw = rr["arcsize"] {
+                            let t = raw.trimmingWhitespace()
+                            if t.hasSuffix("f"), let v = Double(t.dropLast()) { frac = v / 65536 } else if let v = Double(t) { frac = v }
+                        }
+                        let inset = 0.2929 * frac * min(att.width, att.height)
+                        box.insetLeft += inset; box.insetTop += inset; box.insetRight += inset; box.insetBottom += inset
                     }
                     // (A box fitted to its text's height: zh-a78d52e7's
                     // second paragraph holds a 78.75pt one round an empty
@@ -7276,7 +7400,13 @@ enum DocxFormat {
                 let shapes = notes.part(dir + "/_rels/" + file + ".rels").flatMap(XNode.parse)?.all("Relationship")
                     .first(where: { ($0["Type"] ?? "").hasSuffix("/chartUserShapes") && $0["TargetMode"] != "External" })?["Target"]
                     .flatMap { notes.part(_resolvePath(dir, $0)) }.flatMap(XNode.parse)
-                WriterCharts.register(space, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)), themeOverride: over, userShapes: shapes)
+                // (A chart whose numbers live in a workbook it links to, not one it carries: Word prints its
+                // whole-number labels with thousands separators though the cache says General. Five
+                // documents of two sets (sa1 c11d31f3, dx2 f15415f0 ...: 1,030 and 11,965) against
+                // sa2 db23237f, whose embedded workbook prints 10999.)
+                let linkedSource = notes.part(dir + "/_rels/" + file + ".rels").flatMap(XNode.parse)?.all("Relationship")
+                    .contains(where: { ($0["Type"] ?? "").hasSuffix("/oleObject") && $0["TargetMode"] == "External" }) ?? false
+                WriterCharts.register(space, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)), themeOverride: over, userShapes: shapes, linkedSource: linkedSource)
             }
             // A box-and-whisker chart (Office 2016's chartex part), drawn
             // on a column chart's axes, or a sunburst: named by `cx:chart`
@@ -7353,8 +7483,17 @@ enum DocxFormat {
             // (Word stands an inline picture whole twips tall, the fraction cut off: its printed heights are 17.0, 60.05,
             // 351.75 for extents of 17.008, 60.094, 351.799 pt, in nine corpus docs; es 6b74a903's header picture, 67.39
             // pt, printed 67.35 and put the body 0.055 pt too low here.)
+            // (An inline picture turned a quarter occupies its turned box: sa2 d1fab599's 630 by 379 pt
+            // map, turned 270 degrees, stands 379 wide and 630 tall in Word's print.)
+            var inlineTurn = 0.0
+            if Self.wordOnWindows, let rot = drawing.descendant("a:graphic")?.descendant("a:xfrm")?["rot"].flatMap({ Double($0) }) {
+                let deg = rot / 60000
+                let r = (deg.truncatingRemainder(dividingBy: 180) + 180).truncatingRemainder(dividingBy: 180)
+                if abs(r - 90) < 1 { inlineTurn = deg; swap(&w, &h) }
+            }
             if RichTextTheme.wordWindowsPages, h > 1 { h = (h * 20 + 1e-6).rounded(.down) / 20 }
             var att = ImageAttachment(data: data, width: w, height: h, name: target.lastPathComponent)
+            if inlineTurn != 0 { att.rotation = inlineTurn }
             att.crop = Self._pictureCrop(drawing)
             att.inset = Self._canvasInset(drawing)
             if let effect = drawing.descendant("wp:effectExtent") {
@@ -7559,7 +7698,7 @@ enum DocxFormat {
                 // (A run of ASCII digits flagged w:rtl with no szCs or cs font of its own is a plain Latin run to Word: 47480880's PAGEREF results.)
                 // (Arabic: the same for a PAGE result in a footer, whose face is the style's ascii one at the szCs: xb ara-z5177238's "2" under cs Simplified Arabic, an installed face, is Times New Roman 14.04 in two Word prints, sz 12 / szCs 14.)
                 if cs.rightToLeft, _on(rPr.first("w:rtl")), rPr.first("w:szCs") == nil, rPr.first("w:rFonts")?["w:cs"] == nil, rPr.first("w:rFonts")?["w:cstheme"] == nil, rPr.first("w:rFonts")?["w:hint"] != "cs",
-                   !DocxFormat._bidiLangHebrew, notes.inHeaderFooter, !runText.isEmpty, runText.unicodeScalars.allSatisfy({ (0x30...0x39).contains($0.value) }) {
+                   !DocxFormat._bidiLangHebrew, !notes.normalAsciiIsCs, notes.inHeaderFooter, !runText.isEmpty, runText.unicodeScalars.allSatisfy({ (0x30...0x39).contains($0.value) }) {
                     cs.rightToLeft = false; RuleTrace.hit("rtl-digits-no-cs-props-arabic-footer")
                 }
                 if DocxFormat._bidiLangHebrew, cs.rightToLeft, _on(rPr.first("w:rtl")), rPr.first("w:szCs") == nil, rPr.first("w:rFonts")?["w:cs"] == nil, rPr.first("w:rFonts")?["w:cstheme"] == nil, (rPr.first("w:webHidden") != nil || !notes.inHeaderFooter), rPr.first("w:rFonts")?["w:hint"] != "cs",

@@ -53,7 +53,7 @@ enum WriterCharts {
     /// colours from `themePart` (the document's `a:theme`), for the
     /// object attachment `id`; false where it is no chart this can draw.
     @discardableResult
-    static func register(_ space: XNode, for id: String, themePart: Data?, themeOverride: Data? = nil, userShapes: XNode? = nil) -> Bool {
+    static func register(_ space: XNode, for id: String, themePart: Data?, themeOverride: Data? = nil, userShapes: XNode? = nil, linkedSource: Bool = false) -> Bool {
         let space = ChartXML.canonical(space)
         let pptxTheme = PptxTheme(themePart.flatMap { XNode.parse($0) })
         var colors = ColorContext(theme: pptxTheme)
@@ -71,6 +71,10 @@ enum WriterCharts {
         let chartex = space.name == "cx:chartSpace"
         guard var chart = chartex ? ChartXML.readWordChartex(space) : ChartXML.read(space, color: { colors.color(in: $0) })
         else { return false }
+        if linkedSource, !chartex, chart.labelFormat == nil,
+           chart.series.allSatisfy({ $0.values.allSatisfy { $0 == nil || $0! == $0!.rounded() } }) {
+            chart.labelFormat = "#,##0"
+        }
         // (Word for Windows sets a theme's East Asian text in Mincho and
         // JhengHei where the theme names no East Asian face: zh-2a241df1's
         // and zh-61aaad09's tables, whose `a:ea` is "".)
@@ -122,7 +126,7 @@ enum WriterCharts {
             ?? (!chartex && area == nil ? Color(0xFF868686) : nil)
         var entry = Entry(chart: chart, theme: theme, fill: fill, line: line,
                           lineWidth: (ln?["w"]).flatMap { Double($0) }.map { $0 / 12700 } ?? 0.75)
-        if fill == nil, let g = area?.first("a:gradFill"), g.first("a:path") != nil, let f = PptxReader.gradient(g, colors: colors), f.stops.count > 1 {
+        if fill == nil, let g = area?.first("a:gradFill"), let f = PptxReader.gradient(g, colors: colors), f.stops.count > 1 {
             entry.gradient = f
         }
         // (Text boxes only, placed by `cdr:relSizeAnchor`; other shapes are not drawn.)
