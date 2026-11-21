@@ -5036,6 +5036,11 @@ extension RichLayout {
                     extra = _markLineHeight(i, document, single: true, using: m)
                 }
                 bodyHeight += (multiple - 1) * extra
+                // (A picture alone keeps its line but its ink rises by the cut as well: lab kopic3 D, 0.929 lines, Word 88.41, ours 89.87.)
+                if RichTextTheme.wordWindowsPages, multiple < 0.999, multiple > 0.1, p.cell == nil {
+                    RuleTrace.hit("word-picture-alone-under-a-multiple-below-one-rises-by-the-cut")
+                    _inkShift[i] -= (1 - multiple) * extra
+                }
                 // (A multiple's extra under a picture alone hangs past a page's foot as under text: sa1 c11d31f3's chart,
                 // 1.5 lines, stays on page 3 in Word's print with its extra 6.7pt over the margin, even 2pt taller.)
                 if theme.wordRules, multiple > 1.001, i < _overhang.count, p.cell == nil {
@@ -5052,6 +5057,25 @@ extension RichLayout {
                 _pictureTextLineAdjust(i, p, multiple: multiple, single: single, bodyHeight: &bodyHeight)
                 // (Word keeps the baseline where single spacing puts it, the extra all under it; the engine put its share above the picture: lab picline1, 146be6fb.)
                 if box.top > 0.05, !p.text.isEmpty { RuleTrace.hit("picture-line-extra-all-below"); _inkShift[i] -= box.top; bodyHeight -= box.top }
+            }
+        } else if theme.wordRules, RichTextTheme.wordWindowsPages, p.image == nil, p.cell == nil, !_hasVisibleText(p),
+                  style.lineHeightPoints == nil, _grid(i, document).pitch == nil || _offGrid(i, document),
+                  case let multiple = style.lineSpacing - theme.lineSpacingReduction, multiple <= 1.001, multiple > 0.1,
+                  p.inlineImages.values.filter({ $0.float == nil && $0.baseline == nil }).count == 1,
+                  p.inlineImages.values.contains(where: { $0.float != nil }),
+                  case let lines = painter.computeLineMetrics(), lines.count == 2 {
+            // (Floating shapes ahead of an inline picture, and spaces or nothing else: the floats make no line, the picture's line is
+            // the paragraph's last, and under a multiple below 1 every line with a picture and no visible text loses (1 - multiple) of
+            // the paragraph mark's single line off its top, so the picture stands that much higher: lab kopic3 (Word for Windows),
+            // 11 cases, dx2 ko 1f6d638c. A 363pt picture after an anchor line, 0.929 lines over a 20.75pt Malgun Bold mark: the next line
+            // 1.44 up, the picture 1.47; a 2-line paragraph (spaces, picture) over a 13pt mark takes the cut twice, once in the engine's
+            // line of spaces. Ours had set an empty anchor line 0.9pt high.)
+            RuleTrace.hit("word-picture-line-under-a-multiple-below-one-loses-its-top")
+            bodyHeight = lines.reduce(0) { $0 + $1.height }
+            if multiple < 0.999 {
+                let cut = (1 - multiple) * _markLineHeight(i, document, single: true)
+                bodyHeight -= cut
+                _inkShift[i] -= cut
             }
         } else if theme.wordRules, p.image == nil, p.inlineImages.count == 1, p.inlineImages.values.allSatisfy({ $0.float == nil }),
                   style.lineHeightPoints == nil || style.lineHeightIsMinimum,
