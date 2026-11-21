@@ -3137,6 +3137,9 @@ extension RichLayout {
         // last line, where its one-paragraph cells have none — the
         // item's space before at the cell's top goes as any does.)
         var dropAfter = false
+        // (PowerPoint sizes a table row without the last paragraph's space after: 58ef266e p17's cells of 10 pt
+        // after make a 42.7 pt header row of two 16 pt lines at 115%, ours 53.)
+        if !theme.wordRules, theme.officeLatinBreaks, let c = p.cell, i + 1 >= document.paragraphs.count || document.paragraphs[i + 1].cell != c { dropAfter = true }
         if theme.wordRules, web, let c = p.cell {
             if style.spaceBeforeAuto, i == 0 || document.paragraphs[i - 1].cell != c { spaceBefore = 0 }
             if style.spaceAfterAuto, style.list == nil, i + 1 >= document.paragraphs.count || document.paragraphs[i + 1].cell != c { dropAfter = true }
@@ -3230,7 +3233,6 @@ extension RichLayout {
             if i + 1 >= document.paragraphs.count || document.paragraphs[i + 1].style.divId != div { divBottom = m.bottom }
         }
         let k = spacingFollowsFont ? fontScale : 1
-        if p.cell != nil, i < 60, i > 20 { FileHandle.standardError.write("DBG \(i) row=\(p.cell!.row) ctx=\(contextual) skipA=\(skipAfter) drop=\(dropAfter) after=\(spaceAfter(i)) \n".data(using: .utf8)!) }
         return ((skipBefore ? 0 : _px(spaceBefore * k)) + _px(divTop),
                 (skipAfter || dropAfter ? 0 : _px(spaceAfter(i) * k)) + _px(divBottom))
     }
