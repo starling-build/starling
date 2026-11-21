@@ -3527,7 +3527,7 @@ static let sylfaenAdvances: [Double] = [
         }
         // (AR P Maru Gothic E, not on Word's machine, prints as Yu Gothic: f42177d2. BIZ UDPゴシック and BIZ UDゴシック (e7a5f897), also missing there,
         // prints as Yu Gothic too: lab opn3 D against B, identical prints.)
-        if wordOnWindows, has("yu gothic", "游ゴシック", "yu mincho", "游明朝", "ar p丸ゴシック", "ar丸ゴシック", "biz udpゴシック", "biz udゴシック") {
+        if wordOnWindows, has("yu gothic", "游ゴシック", "yu mincho", "游明朝", "ar p丸ゴシック", "ar丸ゴシック", "biz udpゴシック") {
             return EastAsianFace(height: 1.2871 * 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 1.2871 * 0.15 + 0.98486)
         }
         if wordOnWindows, has("malgun", "맑은 고딕") {
@@ -3803,7 +3803,14 @@ static let sylfaenAdvances: [Double] = [
         // (A Japanese face (charset 80) that Word's machine lacks, one no rule above holds metrics or a stand-in for, prints as Yu Gothic:
         // lab hgpop's HG創英角ﾎﾟｯﾌﾟ体 and a made-up name alike, Yu Gothic's line even on an empty paragraph, 40.1 pt at 24 pt where
         // MS Gothic's is 31.1; the same as AR P Maru Gothic E (f42177d2) and BIZ UDPゴシック (lab opn3) above.)
-        if wordOnWindows, !isEmbedded(family), !wordKnownEastAsianKeys.contains(where: { faceHas(n, $0) }),
+        // (A name that only carries the generic words "gothic"/"ゴシック"/"mincho"/"明朝" is no installed face unless it is one of the Japanese
+        // families on Word's machine (MS, Yu, HG, Meiryo, Kozuka-free): BIZ UDゴシック, charset 80, no alternate, prints as Yu Gothic (dx2 e7a5f897's print
+        // holds YuGothic only); the whole-name test stays for faces the keys name outright.)
+        let japaneseInstalled = ["ms", "ｍｓ", "yu", "游", "hg", "ｈｇ", "meiryo", "メイリオ"].contains(where: { n.hasPrefix($0) }) || WordWindowsFaces.names.contains(n)
+        let genericOnly = wordKnownEastAsianKeys.filter({ faceHas(n, $0) }).isEmpty || !japaneseInstalled && wordKnownEastAsianKeys.filter({ faceHas(n, $0) }).allSatisfy({ ["gothic", "ゴシック", "mincho", "明朝"].contains($0) })
+        // (A generic-word name with an alternate, AR丸ゴシック体M's ＭＳ ゴシック, prints as the alternate: dx2 4fbb6e32.)
+        let keyed = wordKnownEastAsianKeys.contains(where: { faceHas(n, $0) })
+        if wordOnWindows, !isEmbedded(family), genericOnly, !keyed || (fontEntry(family)?.alt ?? "").trimmingWhitespace().isEmpty,
            fontEntry(family)?.charset.uppercased() == "80" {
             RuleTrace.hit("missing-japanese-face-yu-gothic")
             return EastAsianFace(height: 1.2871 * 1.3, latin: sans, latinScale: 1.0, fakeBold: true, baseline: 1.2871 * 0.15 + 0.98486)
