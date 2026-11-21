@@ -2180,6 +2180,22 @@ extension RichLayout {
                 each.layout(minWidth: textWidth + slack, maxWidth: textWidth + slack)
                 if each.computeLineMetrics().count == 1 {
                     RuleTrace.hit("word-picture-and-spaces-line-has-no-text-descent")
+                    // (Raised text on that line: the line is as tall as its top, the raise over the text's own ascent, where that passes the
+                    // picture's foot. Word's print, sa1 a7044bb8: a 46.5 pt object and 26 pt Old English Text MT raised 23 pt stand
+                    // 49.04 under the header's top, 23 + the face's win ascent 26.08, where the engine's line stood 47.75.)
+                    if let m0 = each.computeLineMetrics().first, Self._paired(each) == nil {
+                        var single = style; single.lineSpacing = 1
+                        var grow = 0.0
+                        for run in document.paragraphs[i].runs where run.length > 0 {
+                            guard let r = run.style.raised, r > 0.01, run.style.script == .normal else { continue }
+                            if let b = theme.baseline(for: run.style, in: single, named: _named(document.paragraphs[i], document), eastAsian: false, gridPitch: nil, centresInLine: false),
+                               (r + b) * _px(1) > m0.ascent + 0.05 { grow = max(grow, (r + b) * _px(1) - m0.ascent) }
+                        }
+                        if grow > 0 {
+                            RuleTrace.hit("word-raised-text-beside-an-inline-picture-grows-the-line-to-its-top")
+                            Self._pairedLines[ObjectIdentifier(each)] = _PairedLines(painter: each, shifts: [grow], saving: -grow)
+                        }
+                    }
                     return each
                 }
             }
@@ -3881,7 +3897,7 @@ extension RichLayout {
         if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft,
            style.lineHeightPoints == nil,
            style.lineSpacing - theme.lineSpacingReduction <= 1.001 || style.eastAsian["w:textAlignment"] == "top",
-           besideLineIndents.isEmpty, keepClear == nil, Self._paired(painter) == nil, p.inlineImages.isEmpty,
+           besideLineIndents.isEmpty, keepClear == nil, Self._paired(painter) == nil,
            p.runs.contains(where: { abs(raisedOf($0)) > 0.01 && $0.style.script == .normal }),
            // (A numbered line's raise (up to 2pt, lab pitch2) is taken off the number's rise instead: see the number span.)
            !(p.style.list != nil && !lowTop && p.runs.allSatisfy({ abs(raisedOf($0)) <= 2.01 })) {
@@ -3938,6 +3954,20 @@ extension RichLayout {
                     let m = metrics[line]
                     // (Above single spacing only the uniformly lowered top-aligned lines are measured: the raise/lower growth is verified at single.)
                     if topLine[line] == 0, style.lineSpacing - theme.lineSpacingReduction > 1.001 { continue }
+                    if !p.inlineImages.isEmpty {
+                        // (A line with an inline picture or object stands on the picture's foot; raised text grows it only where its top, the
+                        // raise over its own ascent, passes the line's. Word's print, sa1 a7044bb8: a 46.5 pt object beside 26 pt Old English
+                        // Text MT raised 23 pt stands 49.04 under the header's top, 23 + the face's win ascent 26.08, where the engine's
+                        // line stood 47.75.)
+                        guard pos > 0, topLine[line] == 0 else { continue }
+                        var single = style; single.lineSpacing = 1
+                        if let b = theme.baseline(for: run.style, in: single, named: _named(p, document), eastAsian: false, gridPitch: nil, centresInLine: false),
+                           pos + b * _px(1) > m.ascent + 0.05 {
+                            RuleTrace.hit("word-raised-text-beside-an-inline-picture-grows-the-line-to-its-top")
+                            above[line] = max(above[line], pos + b * _px(1) - m.ascent)
+                        }
+                        continue
+                    }
                     if topLine[line] > 0 {
                         // (Top-aligned text lowered by L: the line is max(single, its ink box + L) tall, the lowering first eating the face's
                         // spare line gap; the glyphs stand that much below where the unlowered line sets them. Lab pos14, amd-opus.)
