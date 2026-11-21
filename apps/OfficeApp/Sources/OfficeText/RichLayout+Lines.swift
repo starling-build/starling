@@ -145,6 +145,8 @@ extension RichLayout {
         if base.ascentOverride != nil, base.debugLabel?.lowercased().containsSubstring("kokila") == true { return nil }
         if latinStacked && bengaliSeen { return nil }
         // (A ruby's line off a grid is its own ascent over its own descent, the room for the ruby all over the baseline: a strut splits it evenly about the face.)
+        // (The mixed Latin faces' line rule carries its own ascent and descent: a strut on the held run would throw them away. sa2 78bf1be7.)
+        if base.ascentOverride != nil, base.debugLabel?.containsSubstring(" mixed-latin-line") == true { return nil }
         if base.ascentOverride != nil, base.debugLabel?.containsSubstring(" ruby-line") == true { return nil }
         if wide, base.ascentOverride != nil, Self._thaiLineSplit(base.debugLabel, bold: false) != nil { return nil }
         // (Even leading: the engine's proportional strut scales the
