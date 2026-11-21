@@ -831,7 +831,7 @@ struct PptxReader {
             slides.append(SlideState(id: id(), layout: .blank, hidden: false,
                                      notes: RichDocument(), shapes: []))
         }
-        return (DeckState(slides: slides, current: 0, slideSize: size), deckTheme, package)
+        return (DeckState(slides: slides, current: 0, slideSize: size, firstSlideNum: presentation["firstSlideNum"].flatMap(Int.init) ?? 1), deckTheme, package)
     }
 
     /// A `p:bg`: its own properties, or a reference into the theme's
