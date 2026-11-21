@@ -692,7 +692,8 @@ extension OfficeFonts {
 
         case "lucida sans":
             face.advances = lucidaSansAdvances
-            face.naturalHeight = 1.139; face.baseline = 0.928
+            // (Windows line: the taller of hhea 1980+432 and win 1900+432 -- hhea; 92c84270's 11pt header baseline stands 10.68 under its top, 1980/2048 x 11.)
+            face.naturalHeight = 2412.0 / 2048; face.baseline = 1980.0 / 2048
 
         case "palatino linotype":
             applyPalatinoLinotype(to: &face)
