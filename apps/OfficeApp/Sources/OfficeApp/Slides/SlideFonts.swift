@@ -53,10 +53,22 @@ enum SlideFonts {
         return n == "dejavu sans" && OfficeFonts.installed(family) == nil ? "verdana" : n
     }
 
+    private static let embeddedLock = RegistryLock()
+    nonisolated(unsafe) private static var embeddedNames: Set<String> = []
+    /// The faces the deck being read embeds (`p:embeddedFontLst`).
+    static func setEmbedded(_ names: [String]) {
+        embeddedLock.lock(); embeddedNames = Set(names.map { $0.trimmingWhitespace() }); embeddedLock.unlock()
+    }
+    static func isEmbedded(_ family: String) -> Bool {
+        embeddedLock.lock(); defer { embeddedLock.unlock() }
+        return embeddedNames.contains(family.trimmingWhitespace())
+    }
+
     /// A Hangul-named gothic face Windows lacks (나눔바른고딕OTF): PowerPoint draws it in Malgun Gothic, at Malgun's widths.
     /// (The Windows Korean faces, and the serif, headline and brush kinds, are not this: Batang, Gulim, Dotum have their own.)
     static func missingKoreanGothic(_ family: String) -> Bool {
         let n = family.trimmingWhitespace()
+        guard !isEmbedded(n) else { return false }   // (A face the deck embeds is drawn as itself.)
         guard n.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 }), OfficeFonts.installed(family) == nil else { return false }
         let own = ["맑은 고딕", "바탕", "바탕체", "돋움", "돋움체", "굴림", "굴림체", "궁서", "궁서체", "나눔고딕"]
         if own.contains(n) { return false }

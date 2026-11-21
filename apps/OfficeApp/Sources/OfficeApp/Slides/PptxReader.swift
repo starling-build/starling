@@ -626,6 +626,7 @@ struct PptxReader {
         if let sz = presentation.first("p:sldSz"), let cx = sz["cx"].flatMap(Double.init), let cy = sz["cy"].flatMap(Double.init) {
             size = Size(cx / Pptx.emu, cy / Pptx.emu)
         }
+        SlideFonts.setEmbedded((presentation.first("p:embeddedFontLst")?.all("p:embeddedFont") ?? []).compactMap { $0.first("p:font")?["typeface"] })
         let rels = package.rels(pres)
         var slideParts: [String] = []
         for id in presentation.first("p:sldIdLst")?.all("p:sldId") ?? [] {
