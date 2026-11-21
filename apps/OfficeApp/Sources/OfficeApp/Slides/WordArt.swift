@@ -143,6 +143,11 @@ enum WordArt {
     private struct Line {
         var glyphs: [Glyph] = []
         var alignment: ParagraphAlignment = .left
+        /// The paragraph's line spacing: a multiple of the 1.2 x size line, or exact points.
+        var spacing = 1.0
+        var spacingPoints: Double?
+        /// Space before, in layout units (lab circle3: it adds to the gap above the line).
+        var before = 0.0
         var width: Double { glyphs.reduce(0) { $0 + $1.width } }
         var height: Double { glyphs.map { $0.painter.height }.max() ?? 0 }
     }
@@ -199,6 +204,9 @@ enum WordArt {
         for (pi, p) in doc.paragraphs.enumerated() where !p.text.isEmpty {
             var line = Line()
             line.alignment = p.style.alignment
+            line.spacing = p.style.lineSpacing
+            line.before = p.style.spaceBefore * scale * theme.pixelsPerPoint
+            line.spacingPoints = p.style.lineHeightPoints.map { $0 * scale * theme.pixelsPerPoint }
             // The looks hold while they still cover the paragraph they were read with.
             let units = Array(p.text.utf16)
             var looks = keepLooks ? shape.runLooks[pi] : []
@@ -252,6 +260,9 @@ enum WordArt {
                     }
                     var part = Line()
                     part.alignment = line.alignment
+                    part.spacing = line.spacing
+                    part.spacingPoints = line.spacingPoints
+                    part.before = 0
                     part.glyphs = Array(rest[..<cut])
                     rest = Array(rest[cut...])
                     if !rest.isEmpty || true, !shape.noWrap {
@@ -1078,7 +1089,14 @@ enum WordArt {
                 let face = l.glyphs.first { $0.width > 0 }?.face ?? ""
                 // Inset of the baseline: 0.418 - 1.2 x (win descent share of the win line); Arial .190, Times .183, Calibri .152 (lab).
                 let inset: Double = SheetPrintMetrics.descent(family: face).flatMap { d in SheetPrintMetrics.ascent(family: face).map { 0.418 - 1.2 * d / ($0 + d) } } ?? 0.19
-                let (pts, lens) = curve(1.2 * Double(ring) * size * f)
+                // Rings stand one line apart: 1.2 x size x the line spacing, or the exact points (lab circle3, Arial 24/36 pt, 50-200%).
+                var off = 0.0
+                for m in i ..< max(i, lines.count - 1) {
+                    let sz = lines[m].glyphs.map(\.size).max() ?? 0
+                    off += lines[m].spacingPoints ?? (1.2 * sz * lines[m].spacing)
+                    off += lines[m + 1].before
+                }
+                let (pts, lens) = curve(off * f)
                 let total = lens[steps]
                 let w = l.glyphs.reduce(0) { $0 + $1.width + $1.kernAfter } * f
                 var s0 = 0.0
