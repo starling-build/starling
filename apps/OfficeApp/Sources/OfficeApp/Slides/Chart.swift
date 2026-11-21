@@ -1445,6 +1445,10 @@ enum ChartXML {
                     // A gradient as the colour it comes to over the slice
                     // (LIBRE_OFFICE-128382-0's pale 3-D pie, drawn in the
                     // accents themselves).
+                    // (A point entry that gives no look of its own keeps the series' own fill, not the cycle: sa1 f84c295b's
+                    // first slice, 9999FF in Word's print.)
+                    else if let i = pt.first("c:idx")?["val"].flatMap(Int.init), pt.first("c:spPr") == nil,
+                            let f = ser.first("c:spPr")?.first("a:solidFill"), let c = color(f) { pointColors[i] = c }
                     else if let i = pt.first("c:idx")?["val"].flatMap(Int.init),
                             let g = pt.first("c:spPr")?.first("a:gradFill"), let c = _meanColor(g, color) { pointColors[i] = c }
                     else if let i = pt.first("c:idx")?["val"].flatMap(Int.init),
@@ -7151,7 +7155,7 @@ extension ChartPainter {
         // above or below the pie, or a column beside it, each on a leader line from its slice. Laid out once without painting, spread, then
         // painted where they come to.)
         var spreadAt = spread
-        if !probe, collect == nil, point == nil, l.fitted, l.outside, !c.onSlide, !c.onSheet, !c.chartex {
+        if !probe, collect == nil, point == nil, l.moves.isEmpty, l.fitted, l.outside, !c.onSlide, !c.onSheet, !c.chartex {
             let rec = PieSpread()
             _ = _pieLabels(c, l, canvas, frame: frame, slices: slices, centre: centre, rx: rx, ry: ry, inner: inner, k: k, theme: theme, ink: ink,
                            point: point, movedEdge: movedEdge, pulled: pulled, probe: false, collect: rec)

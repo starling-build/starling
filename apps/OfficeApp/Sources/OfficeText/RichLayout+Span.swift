@@ -4539,6 +4539,7 @@ extension RichLayout {
                     // line of the face, under the text's 13.8 — Word's line
                     // is the text's; at the text's size it was 14.7.)
                     if let size = _levelNumberSize(p, document) { leadChar.fontSize = size }
+                    else if _markerChar(p, document).fontSize == nil, let ss = (_named(p, document)?.char.fontSize ?? _normalChar(document)?.fontSize), ss > (leadChar.fontSize ?? .infinity) + 0.01 { leadChar.fontSize = ss }
                     symbolLevel = true
                 }
             }
