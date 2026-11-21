@@ -1458,10 +1458,12 @@ extension RichLayout {
         // started 10.8pt right of their indent. A document's the same:
         // WordWithAttachments' header, "<tab>Страница 1" on a centre stop,
         // stood half its tab — 101pt — right of Word's.)
+        var leadTab = false
         if theme.markersAtHang || theme.wordRules, p.text.utf16.first == 0x09, let e = tabs[0], e != 0 {
             lead += e
             tabs[0] = nil
             _leadWidth[i] = lead
+            leadTab = true
         }
         // (Not one set at the margin: it ends its line, which is not
         // justified after it, and a held space is a little wider than
@@ -1519,7 +1521,7 @@ extension RichLayout {
             ? Set(tabs.keys.filter { t in (t > 0 && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t - 1)] == 0x09) || (t + 1 < p.text.utf16.count && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t + 1)] == 0x09) }).subtracting(atMargin)
             : []
         if !tabRuns.isEmpty { RuleTrace.hit("tab-runs-do-not-hang-past-the-margin") }
-        let tabsHeld: Set<Int> = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(underHeld).union(beforeTabs).union(tabRuns).union(lonePastTabs).union(afterTabWraps)
+        let tabsHeld: Set<Int> = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(leadTab && theme.wordRules && style.alignment == .justify ? [0] : []).union(underHeld).union(beforeTabs).union(tabRuns).union(lonePastTabs).union(afterTabWraps)
             .union(theme.wordRules && RichTextTheme.wordWindowsPages ? Self._underlinedClosingCounted(p) : [])
         // A line exactly as wide as its room fits or not as Word's sum of
         // the room comes out: each measure in twips goes to the sixteenth
