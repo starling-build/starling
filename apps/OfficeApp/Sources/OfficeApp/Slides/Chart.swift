@@ -2002,8 +2002,11 @@ enum ChartXML {
             guard let t = ax?.first("c:title"), let m = t.first("c:layout")?.first("c:manualLayout"),
                   (m.first("c:xMode")?["val"] ?? "factor") == "edge", (m.first("c:yMode")?["val"] ?? "factor") == "edge",
                   let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init),
-                  case let rotAttr = t.descendant("a:bodyPr")?["rot"], rotAttr == nil ? (ax?.name == "c:valAx" && ["l", "r"].contains(ax?.first("c:axPos")?["val"] ?? "")) : (rotAttr == "0" || (rotAttr == "-5400000" && ax?.name == "c:valAx")) else { return nil }
-            let rot = rotAttr ?? "-5400000"
+                  case let rotAttr = t.descendant("a:bodyPr")?["rot"], rotAttr == nil ? (["l", "r", "b", "t"].contains(ax?.first("c:axPos")?["val"] ?? "") && (ax?.name == "c:valAx" || ["b", "t"].contains(ax?.first("c:axPos")?["val"] ?? ""))) : (rotAttr == "0" || (rotAttr == "-5400000" && ax?.name == "c:valAx")) else { return nil }
+            // (A title the file does not turn reads across on a bottom or top axis and up on a side one: lo/dx2 99cfc555's
+            // "Nhiệt độ xử lý, 0C", a category axis at the bottom with a placed title and a bare `a:bodyPr`, set
+            // at its x and y in Word's print; ours set it under the plot, over the legend.)
+            let rot = rotAttr ?? (["b", "t"].contains(ax?.first("c:axPos")?["val"] ?? "") ? "0" : "-5400000")
             let size = (t.descendant("a:rPr")?["sz"] ?? t.descendant("a:defRPr")?["sz"]).flatMap(Double.init).map { $0 / 100 }
             return PlacedAxisTitle(at: Offset(x, y), size: size, turned: rot != "0", assumedTurn: rotAttr == nil)
         }
@@ -5178,7 +5181,11 @@ enum ChartPainter {
                 // 0.55 pt over their lines, not the slide's 11.1 and 1.45: sa2 511c21d4's value axis, 10 pt, ours 1.85 left and 0.9 high.)
                 let wordClassicLaid = !c.onSlide && !c.onSheet && !c.chartex && !c.styled2013 && !libre && c.plotLayoutInner
                 if wordClassicLaid { RuleTrace.hit("word-classic-chart-laid-plot-value-labels-stand-9.25-off-and-0.55-up") }
-                let further = word ? 0 : libre ? 0.2 * k : c.styled2013 ? 2.5 * k : wordClassicLaid ? 0.75 * k : 2.6 * k
+                // (A chart whose file places the plot, in a Word document, 9 pt Times labels: lo/dx2 99cfc555's value axis prints 1.06 pt
+                // nearer the plot and 1.2 pt lower than the 0.2 and 0.15 pt the unplaced one's measure.)
+                let libreLaid = libre && !word && inWord && c.plotLayoutInner
+                if libreLaid { RuleTrace.hit("word-libre-chart-laid-plot-value-labels-1.06-nearer-1.2-lower") }
+                let further = word ? 0 : libreLaid ? (0.2 - 1.06) * k : libre ? 0.2 * k : c.styled2013 ? 2.5 * k : wordClassicLaid ? 0.75 * k : 2.6 * k
                 // (A 2007-style chart's stand with their middles 1.45 pt
                 // above their lines, line- and scatter-chart's 18 pt
                 // labels. A newer chart's are measured so too, and came
@@ -5186,7 +5193,7 @@ enum ChartPainter {
                 // (A newer one's on a slide, 1.25 pt above theirs: its plot
                 // stands 1.5 pt lower there, and chart-slide-bg's labels
                 // print 1.1 to 1.5 above where that put them.)
-                let lift = libre ? 0.15 * k : c.styled2013 ? (c.onSlide ? 1.25 * k : 0) : wordClassicLaid ? 0.55 * k : 1.45 * k
+                let lift = libreLaid ? (0.15 - 1.24) * k : libre ? 0.15 * k : c.styled2013 ? (c.onSlide ? 1.25 * k : 0) : wordClassicLaid ? 0.55 * k : 1.45 * k
                 // (Word's walled 3-D columns: 8 pt nearer the plot, lo-1bd2003e's labels ending at 142.)
                 let wall3D = inWord && c.barView?.walled == true && c.plotLayoutInner ? 8 * k : 0
                 tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - further - tp.width + wall3D + valueLabelsBack, p - tp.height / 2 - lift))
@@ -5199,12 +5206,12 @@ enum ChartPainter {
         }
         // (Raised as the first axis' are: Word's print of zh-2a241df1 sets
         // "60.00%" on the line of "500000", where ours stood 1.5pt lower.)
-        let lift2 = c.styled2013 ? 0 : 1.45 * k
+        let lift2 = c.styled2013 ? 0 : (libre && inWord && c.plotLayoutInner ? 1.45 - 1.24 : 1.45) * k
         for (i, v) in secondTicks.enumerated() {
             let tp = secondLabels[i]
             // (Word for Windows stands them 10.1pt off the plot's edge: zh-61aaad09's
             // and zh-2a241df1's "60.00%" labels print 4pt right of where 6 put them.)
-            tp.paint(canvas, Offset(plot.right + (!c.onSlide && !c.onSheet && !c.chartex ? 10.1 : 6) * k, vpos2(v) - tp.height / 2 - lift2))
+            tp.paint(canvas, Offset(plot.right + (!c.onSlide && !c.onSheet && !c.chartex ? (libre && c.plotLayoutInner ? 10.1 - 2.41 : 10.1) : 6) * k, vpos2(v) - tp.height / 2 - lift2))
         }
         // (Its title, turned, 4.6 pt past the widest label and over the plot's middle: zh-b8de3ae2's
         // "%" at 534.6 where the labels end 530, in a Word document whose file places the plot.)
