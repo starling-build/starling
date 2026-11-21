@@ -4717,7 +4717,7 @@ extension RichLayout {
                 if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil,
                    p.style.lineSpacing > 1.001, leadChar.fontFamily?.lowercased() == "wingdings" || leadChar.fontFamily?.lowercased() == "symbol",
                    let leadPx = style.fontSize, leadPx > 0.5,
-                   !p.style.rightToLeft, !p.text.unicodeScalars.contains(where: { (0x590...0x8FF).contains($0.value) }) {
+                   leadChar.fontFamily?.lowercased() == "symbol" || (!p.style.rightToLeft && !p.text.unicodeScalars.contains(where: { (0x590...0x8FF).contains($0.value) })) {
                     let bulletPt = _levelNumberSize(p, document) ?? p.style.mark?.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize
                     let px = leadChar.fontFamily?.lowercased() == "symbol" && bulletPt != nil && bulletPt! > 0.5 ? _px(bulletPt!) * fontScale : leadPx
                     let probe = TextPainter(text: TextSpan(text: "x", style: theme.textStyle(for: firstLook, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)), textDirection: .ltr)
