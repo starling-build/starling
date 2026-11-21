@@ -4247,7 +4247,7 @@ static let sylfaenAdvances: [Double] = [
     /// (rtl/f355b7fc p43's body). nil for any other name.
     static func slidesArabicFace(_ family: String) -> RichResolvedFace? {
         let asked = family.trimmingWhitespace().lowercased()
-        guard ["traditional arabic", "sakkal majalla", "majalla ui", "simplified arabic"].contains(asked) else { return nil }
+        guard ["traditional arabic", "sakkal majalla", "majalla ui", "simplified arabic", "arabic typesetting"].contains(asked) else { return nil }
         var face = RichResolvedFace(family: cambria)
         face.fallback = [cambria, "Times New Roman", "Noto Naskh Arabic", emojiPictographs, "DejaVu Sans"]
         if asked == "traditional arabic" {
@@ -4264,6 +4264,11 @@ static let sylfaenAdvances: [Double] = [
             face.joinedSpaceEm = 0.3174
             face.baseline = 2416.0 / 2048; face.ownLineBaseline = true
             face.naturalHeight = 3395.0 / 2048; face.boldHeight = 3405.0 / 2048
+        } else if asked == "arabic typesetting" {
+            face.joinedAdvances = WindowsArabicAdvances.arabicTypesetting
+            face.boldJoinedAdvances = WindowsArabicAdvances.arabicTypesetting
+            face.baseline = 1435.0 / 2048; face.ownLineBaseline = true
+            face.naturalHeight = 2334.0 / 2048; face.boldHeight = 2334.0 / 2048
         } else {
             face.joinedAdvances = WindowsArabicAdvances.sakkal
             face.boldJoinedAdvances = WindowsArabicAdvances.sakkalBold
