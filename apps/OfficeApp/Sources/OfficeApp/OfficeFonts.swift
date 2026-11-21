@@ -4804,6 +4804,16 @@ static let sylfaenAdvances: [Double] = [
                 face.baseline = 1891.0 / 2048
                 RuleTrace.hit("book-antiqua-own-line")
             }
+            // A Hebrew face Windows has and we lack, named for Latin text (a run's w:ascii): Word draws the characters in that face, so the
+            // line is its own, not the stand-in's (xd 72ea457a's sz 14 Narkisim "." in a 1.5 line: Word's baselines step 19.1, 1.4 over the
+            // David 12 lines' 17.7, the Calibri stand-in's 1.22 em made them 23.7).
+            if wordOnWindows, !isEmbedded(family), let tall = Self.windowsArabicLines[family.trimmingWhitespace().lowercased()],
+               let base = ["narkisim": 1505.0 / 2048, "david": 1505.0 / 2048, "miriam": 1546.0 / 2048, "frankruehl": 1462.0 / 2048][family.trimmingWhitespace().lowercased()] {
+                face.naturalHeight = tall
+                face.baseline = base
+                face.ownLineBaseline = true
+                RuleTrace.hit("word-hebrew-face-named-for-latin-keeps-its-own-line")
+            }
             // Franklin Gothic Medium Cond's own line (hhea 1886 over, 436 under of 2048: 1.134 em): the line Word gives an
             // empty paragraph mark set in GHEA Grapalat (dx2 05a96a87: marks step 15.7 at 12 pt, 1.15 multiple).
             if wordOnWindows, family.trimmingWhitespace().lowercased() == "franklin gothic medium cond" {
