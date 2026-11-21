@@ -193,6 +193,12 @@ struct ColorContext {
     var map: [String: String] = ["bg1": "lt1", "tx1": "dk1", "bg2": "lt2", "tx2": "dk2"]
     /// What `phClr` stands for inside a theme style (the referring colour).
     var placeholder: Color? = nil
+    /// Colours of a page background fill: PowerPoint mixes their tints in
+    /// linear light even before a strong saturation boost (5ea13b90's
+    /// tint 80% satMod 300% centre prints (91,124,198), as linear light
+    /// gives and sRGB's (1,101,226) does not; the shapes' of the same
+    /// theme styles print as sRGB's).
+    var pageBackground = false
 
     func scheme(_ name: String) -> Color? {
         if name == "phClr" { return placeholder }
@@ -224,7 +230,7 @@ struct ColorContext {
             default: continue
             }
             guard let b = base else { continue }
-            return Self.modify(b, child, duotone: duotone)
+            return Self.modify(b, child, duotone: duotone || pageBackground)
         }
         return nil
     }
@@ -860,6 +866,7 @@ struct PptxReader {
         guard let ref = bg.first("p:bgRef"), let idx = ref["idx"].flatMap(Int.init) else { return nil }
         var c = colors
         c.placeholder = colors.color(in: ref)
+        c.pageBackground = true
         let styles = theme?.descendant("a:fmtScheme")
         let list = idx >= 1001 ? styles?.first("a:bgFillStyleLst") : styles?.first("a:fillStyleLst")
         let n = idx >= 1001 ? idx - 1001 : idx - 1
