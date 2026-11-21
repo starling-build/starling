@@ -3086,7 +3086,14 @@ enum UrduShapedWords {
         var d: [String: Double] = [:]
         for line in s.split(separator: "\n") {
             let f = line.split(separator: " ")
-            if f.count == 2, let v = Double(f[1]) { d[String(f[0])] = v }
+            if f.count == 2, var v = Double(f[1]) {
+                // Word draws a word-initial kaf or gaf 0.15 em wider than the shaped table, except
+                // before a final yeh barree (کے, گے), which matches (Word's own print of dx2
+                // 02272031: 55 of 58 such words, each +0.150 em; the 145 کے and the گے are exact).
+                let u = Array(f[0].unicodeScalars)
+                if let c = u.first, c.value == 0x06A9 || c.value == 0x06AF, !(u.count > 1 && u[1].value == 0x06D2) { v += 0.15 }
+                d[String(f[0])] = v
+            }
         }
         return d
     }
