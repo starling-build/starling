@@ -1799,6 +1799,12 @@ public final class RichLayout {
     var _mirrored: Set<Int> = []
     var _mirrorPassing = false
     var _besidePassing = false
+    /// The flow top of the piece being painted when it goes on from an earlier one of its paragraph: the floating pictures
+    /// anchored above it were drawn whole by the piece that holds their anchor, not again by this one.
+    var _pieceContinuesFrom: Double? = nil
+    /// 1: a paragraph's text without its floating pictures; 2: only the pictures (a parted paragraph's first piece draws its text
+    /// in the piece's range and its pictures whole, in a pass of their own).
+    var _paintMode = 0
     /// The first paragraph of a page whose header holds a box the body may not run under
     /// (`_headerBoxFloor`): how far its line goes down to clear it (pixels), by paragraph.
     var _headPushUse: [Int: Double] = [:]
