@@ -7,6 +7,7 @@
 # Public log: only a short summary (counts and document stems), no paths or renders.
 # Env: JOBS (default 44), GATE_SCRATCH (default $HOME/scratch/gate-$$), GATE_FULL=1 (no subset: the whole sets).
 set -u
+SELF=$(readlink -f "$0")
 S0=$(date +%s)   # gate start, to report the setup time before the build
 BASE_SHA=${1:?usage: render-gate.sh BASE_SHA}
 # Classify the change (BASE_SHA..HEAD): (1) render-relevant paths (test/tools/render-paths.txt) -> the full gate;
@@ -75,6 +76,16 @@ BSHA=$(git rev-parse "$BASE_SHA")
 # pull_request checks out the merge of the PR into the CURRENT main: its first parent is what the prebuild cached. The PR's own
 # base.sha is usually older (a second build per gate). BASE_SHA stays for the path classification and the named documents.
 [ "$(git rev-list --parents -n1 HEAD | wc -w)" = 3 ] && BSHA=$(git rev-parse HEAD^1)
+# BASE MISS (amd-perf, 2026-11-21): main moves about once a minute and a prebuild takes minutes, so the exact base is often not
+# built yet (a 330 s base build inside the gate). Score against the newest CACHED ancestor instead; only if a document drops
+# against it is the exact base built and the gate rerun (GATE_EXACT_BASE=1), so a drop that came from main in between is not
+# blamed on the PR. Accepted blind spot: a main commit in between that improved a document the PR then undoes (hourly rounds).
+EXACTB=
+if [ "${GATE_PREBUILD:-0}" != 1 ] && [ "${GATE_EXACT_BASE:-0}" != 1 ] && [ ! -x "$BC/$BSHA/release/OfficeApp" ]; then
+  for a in $(git rev-list --max-count=150 "$BSHA" 2>/dev/null | tail -n +2); do
+    if [ -x "$BC/$a/release/OfficeApp" ]; then EXACTB=$BSHA; BSHA=$a; echo "render-gate: base ${EXACTB:0:9} not cached; scoring against the cached ancestor ${a:0:9}"; break; fi
+  done
+fi
 mkdir -p "$BC"
 find "$BC" -mindepth 1 -maxdepth 1 -user "$(id -u)" -mmin +240 -exec rm -rf {} + 2>/dev/null   # prune what this user wrote more than 4 h ago
 touch "$BC/$BSHA.lock" 2>/dev/null; exec 8>>"$BC/$BSHA.lock"   # fd 8: one writer per base sha across runners (binary publish and score rows)
@@ -154,6 +165,7 @@ DROPS=""
 while read -r line; do
   stem=${line##* }; s=$(basename "${stem%.docx}"); grep -qE "^${s}[ .]" "$LQ/approved.txt" 2>/dev/null || DROPS="$DROPS $s"
 done < "$W/down.txt"
+if [ -n "$DROPS" ] && [ -n "$EXACTB" ]; then echo "render-gate: drops against the cached ancestor ($DROPS ); rerunning against the exact base"; exec env GATE_EXACT_BASE=1 "$SELF" "$BASE_SHA"; fi
 if [ -n "$DROPS" ]; then echo "render-gate: BLOCKED, v2 drops not approved:$DROPS"; exit 1; fi
 [ "$DN" = 0 ] || [ -s "$W/down.txt" ] || { echo "render-gate: drops reported but not parsed"; exit 1; }
 echo "render-gate: $NCMP sets compared; clean ($(wc -l < "$W/down.txt") approved drops)"
