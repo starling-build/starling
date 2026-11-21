@@ -346,7 +346,9 @@ extension RichLayout {
                // (A mark that is not w:rtl and whose szCs differs from its sz is the Latin face at the szCs instead (rule below): lab tabline2 D,
                // an empty LTR-mark paragraph under Normal bidi, cs David, sz 11 / szCs 14, line 1.5: Word 36.72 apart = the tab-only line A, ours
                // 27.99 as the complex face's line.)
-               mark.rightToLeft || (mark.complexFontFamily == nil && !_markSzCsDiffers(mark, named: markNamed, document: document)),
+               // (And one whose mark has no w:rtl at all is the Latin face even where sz = szCs: xd 564a33e9's bare `<w:bidi/>` empty paragraph
+               // is 13.3 pt Times New Roman in Word's print, ours 11.8 as David; its next empty David line (mark w:rtl) is 11.9 in both.)
+               mark.rightToLeft,
                let px = look.fontSize, px > 0.5,
                let cs = mark.complexFontFamily ?? markNamed?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily,
                let f = theme.complexFace(cs, latin: mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily), f.ownLineBaseline, let base = f.baseline, let tall = f.naturalHeight {
