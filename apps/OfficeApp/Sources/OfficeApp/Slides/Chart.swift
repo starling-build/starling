@@ -2269,7 +2269,8 @@ enum ChartXML {
         case "pos" where at != nil:
             o.second = Set(max(0, n - Int(max(0, min(Double(n), at!)))) ..< n)
         default:
-            o.second = Set(max(0, n - Int((Double(n) / 3).rounded())) ..< n)
+            // (A third, rounded up: PowerPoint's print of espt-0338b5a8's ten points has the last four in the second pie; Excel's six and nine give two and three.)
+            o.second = Set(max(0, n - Int((Double(n) / 3).rounded(.up))) ..< n)
         }
         // (Never all of them: the main pie keeps one.)
         if o.second.count >= n { o.second.remove(0) }
@@ -6657,10 +6658,16 @@ extension ChartPainter {
                 canvas.drawLine(Offset(centre.dx + r * cos(half), centre.dy + r * sin(half)), Offset(x2 + r2, centre.dy + r2), rule)
             }
             var a = half
+            var second: [(index: Int, mid: Double, value: Double, color: Color)] = []
             for i in moved where values[i] > 0 {
                 let sweep = values[i] / other * 2 * .pi
                 slice(oval2, a, sweep, c.pointColor(i, accents: theme.accents), i)
+                second.append((i, a + sweep / 2, values[i], c.pointColor(i, accents: theme.accents)))
                 a += sweep
+            }
+            // (Its slices' labels as the main pie's: 0338b5a8 p5's 1, 1, 1 and 6, in PowerPoint's print.)
+            if let l = c.pieLabels, c.onSlide {
+                _pieLabels(c, l, canvas, frame: frame, slices: second, centre: oval2.center, rx: r2, ry: r2, inner: 0, k: k, theme: theme, ink: ink)
             }
         }
     }
