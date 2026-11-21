@@ -121,6 +121,8 @@ struct PptxTheme {
     /// The format scheme's fill styles (`a:fillStyleLst`), which a shape's
     /// style refers to by index with its own colour as `phClr`.
     var fillStyles: [XNode] = []
+    /// The theme's part, whose relationships its picture fill styles use.
+    var part: String?
     /// Its effect styles (`a:effectStyleLst`), referred to the same way.
     var effectStyles: [XNode] = []
     /// Its line styles' widths (`a:lnStyleLst`, points): a shape whose
@@ -699,7 +701,8 @@ struct PptxReader {
             let masterPart = layoutPart.flatMap { package.rel($0, kind: "slideMaster")?.target }
             let master = masterPart.flatMap(package.xml)
             let themePart = masterPart.flatMap { package.rel($0, kind: "theme")?.target }
-            let theme = PptxTheme(themePart.flatMap(package.xml))
+            var theme = PptxTheme(themePart.flatMap(package.xml))
+            theme.part = themePart
             var colors = ColorContext(theme: theme)
             if let map = master?.first("p:clrMap") { for (k, v) in map.attrs { colors.map[k] = v } }
             // A slide (or its layout) may override the map — swapping bg1
@@ -1654,6 +1657,27 @@ private struct SlideContext {
                 c.placeholder = fill
                 if let gradient = PptxReader.gradient(theme.fillStyles[idx - 1], colors: c), gradient.stops.count >= 2 {
                     fillStyle = gradient
+                }
+            }
+            // A picture in the theme's fill style (a tiled, duotoned texture:
+            // es/6422a4c7's hatched teal title band), whose r:embed is the
+            // theme's.
+            if let idx = ref["idx"].flatMap(Int.init), theme.fillStyles.indices.contains(idx - 1),
+               theme.fillStyles[idx - 1].name == "a:blipFill", let tp = theme.part {
+                var c = colors
+                c.placeholder = fill
+                let b = theme.fillStyles[idx - 1]
+                if let blip = b.first("a:blip"), let rid = blip["r:embed"],
+                   let rel = package.rels(tp).first(where: { $0.id == rid }), !rel.external,
+                   package.parts[rel.target] != nil {
+                    var f = SlideFill(image: images.attachment(rel.target, package))
+                    (f.imageAlpha, f.duotone) = PptxReader.blipEffects(blip, colors: c)
+                    f.imageLevels = PptxReader.blipLevels(blip)
+                    f.imageInset = PptxReader.stretchInset(b)
+                    if b.first("a:tile") != nil || b.first("a:stretch") == nil {
+                        PptxReader.tile(b.first("a:tile"), image: package.parts[rel.target], into: &f)
+                    }
+                    fillStyle = f
                 }
             }
         }
