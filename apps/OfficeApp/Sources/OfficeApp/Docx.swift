@@ -7403,7 +7403,8 @@ enum DocxFormat {
                     // (Half the outline's width too, as DrawingML's above: sa1 5e813226's 1pt
                     // rects and rounded boxes hold their text 0.4 to 0.5 below ours.)
                     if !perPart, node.descendant("wps:bodyPr") == nil, node.descendant("v:textbox") != nil,
-                       let vs = (node.name == "v:rect" || node.name == "v:oval" ? node : node.descendant("v:rect") ?? node.descendant("v:oval")),
+                       let vs = (node.name == "v:rect" || node.name == "v:oval" ? node : node.descendant("v:rect") ?? node.descendant("v:oval")
+                            ?? (node.name == "v:shape" ? node : node.descendant("v:shape")).flatMap { $0["strokeweight"] != nil && (($0["type"] ?? "").hasSuffix("_x0000_t202") || ($0["o:spt"] ?? "") == "202") ? $0 : nil }),
                        (vs["stroked"] ?? "t") != "f", (vs["stroked"] ?? "t") != "false" {
                         let half = (_length(vs["strokeweight"] ?? "") ?? 0.75) / 2
                         box.insetLeft += half; box.insetTop += half; box.insetRight += half; box.insetBottom += half
