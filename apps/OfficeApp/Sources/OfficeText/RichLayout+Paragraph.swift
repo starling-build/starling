@@ -3752,10 +3752,11 @@ extension RichLayout {
                             return n.isEmpty || n == "unknown" ? nil : n
                         }.last
                     }
-                    if let name = faceName, let wd = theme.winDescent?(name), let fs = textStyle.fontSize, fs > 0 {
+                    if let name = faceName, let share = theme.winDescent?(name) {
                         // (A face's own depth under the baseline in Word is its win descent (Calibri 550/2048 em: 2.96 pt at 11, where the engine's flat
                         // probe draws 2.29), read from the face's tables. 6f0b70eb p2: the step into a line holding a 13.5 pt picture, 3.42 = 2.96 + the multiple's 0.46.)
-                        desc = wd * fs
+                        // (the face's win descent's share of its win line, times the line the engine drew)
+                        desc = single * share
                     } else if let name = faceName, let face = theme.faceResolver?(name, false), let nh = face.naturalHeight, nh > 0.5,
                        let bl = face.baseline, bl > 0, bl < nh {
                         desc = single * (1 - bl / nh)
