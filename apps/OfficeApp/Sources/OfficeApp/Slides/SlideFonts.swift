@@ -53,6 +53,16 @@ enum SlideFonts {
         return n == "dejavu sans" && OfficeFonts.installed(family) == nil ? "verdana" : n
     }
 
+    /// A Hangul-named gothic face Windows lacks (나눔바른고딕OTF): PowerPoint draws it in Malgun Gothic, at Malgun's widths.
+    /// (The Windows Korean faces, and the serif, headline and brush kinds, are not this: Batang, Gulim, Dotum have their own.)
+    static func missingKoreanGothic(_ family: String) -> Bool {
+        let n = family.trimmingWhitespace()
+        guard n.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 }), OfficeFonts.installed(family) == nil else { return false }
+        let own = ["맑은 고딕", "바탕", "바탕체", "돋움", "돋움체", "굴림", "굴림체", "궁서", "궁서체", "나눔고딕"]
+        if own.contains(n) { return false }
+        return !["명조", "바탕", "궁서", "헤드라인", "신명", "필기", "손글씨", "펜"].contains(where: { n.containsSubstring($0) })
+    }
+
     static func resolve(_ family: String) -> String {
         // (The machine's own face, where it has it and the user takes it:
         // `OfficeFonts.installed`.)
@@ -71,8 +81,10 @@ enum SlideFonts {
     /// Its bold and italic are made from the regular, as wide.
     static func face(_ family: String?, _ eastAsian: Bool) -> RichResolvedFace? {
         // (None of a stand-in's widths for the machine's own face.)
-        guard !eastAsian, let family, OfficeFonts.installed(family) == nil else { return nil }
-        if let cuts = SlideEastAsianWidths.lookup(windowsName(family)) {
+        guard let family, OfficeFonts.installed(family) == nil else { return nil }
+        // (An East Asian query is answered for Malgun Gothic only, whose Hangul em the layout asks for by it.)
+        guard !eastAsian || windowsName(family) == "malgun gothic" || windowsName(family) == "맑은 고딕" || missingKoreanGothic(family) else { return nil }
+        if let cuts = SlideEastAsianWidths.lookup(windowsName(family)) ?? (missingKoreanGothic(family) ? SlideEastAsianWidths.malgun : nil) {
             // (An East Asian face at its own measured widths, Latin and the rest past ASCII: PowerPoint sets it by itself, not by a stand-in's.)
             var face = RichResolvedFace(family: resolve(family))
             let regular = SlideEastAsianWidths.parse(cuts.regular.other)
@@ -81,6 +93,8 @@ enum SlideFonts {
             face.boldAdvances = cuts.bold?.ascii ?? cuts.regular.ascii
             face.otherAdvances = regular
             face.boldOtherAdvances = bold
+            // (Malgun Gothic's Hangul is an em, which the table of advances that are not one does not hold.)
+            if cuts.regular.ascii == SlideEastAsianWidths.malgun.regular.ascii { face.otherAdvances?[0xAC00] = 1.0; face.boldOtherAdvances?[0xAC00] = 1.0 }
             return face
         }
         switch windowsName(family) {
