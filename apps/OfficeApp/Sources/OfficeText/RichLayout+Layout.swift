@@ -482,7 +482,7 @@ extension RichLayout {
                         let space = xml.firstRange(of: "w:hSpace=\"").flatMap { r in Double(xml[r.upperBound...].prefix { $0 != "\"" }) }.map { _px($0 / 20) } ?? 0
                         blocks.append((first.page, f, top, h, (_px(setup.width) - w) / 2, w, space, space, nil))
                     }
-                    if _columnsOf(paragraph: f) == 1, let box = Self._pageBox(fp) {
+                    if _columnsOf(paragraph: f) == 1 { for box in Self._pageBoxes(fp) {
                         let float = box.float, image = box.image
                         let pageH = _px(setup.height), marginTop = _px(setup.marginTop), marginBottom = _px(setup.marginBottom)
                         let h = _px(image.height), w = _px(image.width)
@@ -503,7 +503,7 @@ extension RichLayout {
                         default: x0 = left + _px(float.x)
                         }
                         blocks.append((first.page, nil, onPage - insetTop, whole, x0, w, _px(float.distanceLeft ?? 9), _px(float.distanceRight ?? 9), float.wrapSide))
-                    }
+                    } }
                 }
                 // (And a header's or footer's own boxes that the text goes round: Word wraps the
                 // body round a sidebar picture anchored in the header — lo tdf38575's, 84pt wide
