@@ -135,6 +135,18 @@ enum SlideFonts {
             face.advances = t.0
             face.boldAdvances = t.1
             return face
+        case "nunito", "nunito light", "nunito medium", "nunito black", "nunito sans", "nunito sans light":
+            // (Nunito at Nunito Sans's widths, which PowerPoint's print of e3e0b3e0 matches for Nunito Light to the
+            // third place; Carlito's are 4% narrower and a line held a word more. Medium is set at the regular's,
+            // Black at the bold's: no cut of either is measured.)
+            let light = family.lowercased().hasSuffix("light")
+            var face = RichResolvedFace(family: resolve(family))
+            let black = family.lowercased().hasSuffix("black")
+            face.advances = light ? OfficeFonts.nunitoSansLightAdvances : black ? OfficeFonts.nunitoSansBoldAdvances : OfficeFonts.nunitoSansAdvances
+            face.boldAdvances = OfficeFonts.nunitoSansBoldAdvances
+            face.otherAdvances = light ? OfficeFonts.nunitoSansLightOtherAdvances : black ? OfficeFonts.nunitoSansBoldOtherAdvances : OfficeFonts.nunitoSansOtherAdvances
+            face.boldOtherAdvances = OfficeFonts.nunitoSansBoldOtherAdvances
+            return face
         case "times new roman", "calibri":
             // (Hebrew at the face's own widths: tdf98603's title and quote
             // are a fifth narrower in PowerPoint's print than the stand-ins
