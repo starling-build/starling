@@ -2228,9 +2228,9 @@ extension RichLayout {
                 // (A paragraph at the top of a column, by a column break or by the flow,
                 // in a section that starts in the middle of the page, holds none of its
                 // space before there: lo/dx2 99cfc555's Abstract, and "2. Nguyên liệu", 3pt.)
-                // (Columns only: in a one-column document the rule fired on a paragraph that follows a table at a page's top and
-                // took its space before, which Word keeps; xb jpn-z21601833's heading after a table, 1104 of 1143 lines to 417 under it.)
-                else if theme.wordRules, RichTextTheme.wordWindowsPages, _columns > 1, pgs.pageFresh, pgs.page > 0, pgs.resumeCursor == nil, lead > 0.01, cursor <= top + 0.01,
+                // (Not in a legacy-mode document, no compatibilityMode: there a paragraph after a table at a page's top keeps its space before;
+                // xb jpn-z21601833's heading, 1104 of 1143 lines to 417 under this rule. dx2 fb068d84's empty marks after a table in mode 15 drop it; 99cfc555 is mode 14: 503 to 1712 of 2523.)
+                else if theme.wordRules, RichTextTheme.wordWindowsPages, document.compatibilityMode != nil, pgs.pageFresh, pgs.page > 0, pgs.resumeCursor == nil, lead > 0.01, cursor <= top + 0.01,
                         pgs.y >= 0.01, _cells[pgs.i] == nil {
                     RuleTrace.hit("column-break-paragraph-drops-its-space-before-at-column-top")
                     cursor = min(bottom, top + lead)
