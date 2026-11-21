@@ -290,6 +290,53 @@ enum SlideFonts {
         case "gungsuh", "궁서", "gungsuhche", "궁서체": return 145.0 / 1024
         case "pmingliu", "新細明體", "mingliu", "細明體": return 204.0 / 1024
         case "georgia": return 449.0 / 2327
+        case "raleway": return 234.0 / 1388
+        case "rockwell": return 468.0 / 2405
+        case "rockwell condensed": return 481.0 / 2408
+        case "rockwell extra bold": return 468.0 / 2405
+        case "tenorite": return 506.0 / 2458
+        case "bierstadt": return 539.0 / 2341
+        case "aptos display": return 563.0 / 2631
+        case "nunito sans": return 327.0 / 1429
+        case "franklin gothic book": return 445.0 / 2322
+        case "montserrat": return 270.0 / 1379
+        case "harlow solid italic", "harlow solid": return 795.0 / 2586
+        case "modern love": return 1003.0 / 3358
+        case "aharoni": return 518.0 / 2023
+        case "lucida console": return 432.0 / 2048
+        case "jokerman": return 729.0 / 3097
+        case "chiller": return 625.0 / 2363
+        case "segoe ui historic": return 514.0 / 2724
+        case "agency fb": return 410.0 / 2299
+        case "arial narrow": return 431.0 / 2319
+        case "arial rounded mt bold": return 432.0 / 2370
+        case "bahnschrift": return 422.0 / 2458
+        case "berlin sans fb": return 416.0 / 2243
+        case "berlin sans fb demi": return 419.0 / 2299
+        case "bodoni mt": return 578.0 / 2456
+        case "bodoni mt black": return 514.0 / 2392
+        case "book antiqua": return 578.0 / 2545
+        case "bradley hand itc": return 815.0 / 2554
+        case "britannic bold": return 434.0 / 2269
+        case "century schoolbook": return 442.0 / 2461
+        case "constantia": return 550.0 / 2500
+        case "cooper black": return 469.0 / 2349
+        case "franklin gothic heavy": return 445.0 / 2322
+        case "franklin gothic medium": return 445.0 / 2322
+        case "garamond": return 539.0 / 2304
+        case "impact": return 432.0 / 2498
+        case "lucida calligraphy": return 666.0 / 2566
+        case "lucida handwriting": return 666.0 / 2630
+        case "open sans": return 600.0 / 2789
+        case "palace script mt": return 496.0 / 1897
+        case "roboto": return 512.0 / 2458
+        case "stkaiti", "华文楷体": return 260.0 / 1120
+        case "stxingkai", "华文行楷": return 289.0 / 1050
+        case "stxinwei", "华文新魏": return 236.0 / 1017
+        case "segoe script": return 1014.0 / 3244
+        case "segoe ui symbol": return 514.0 / 2724
+        case "showcard gothic": return 416.0 / 2535
+        case "tw cen mt condensed extra bold": return 430.0 / 2218
         case "meiryo ui": return 430.0 / 2601
         case "yu gothic ui": return 514.0 / 2724
         case "yu gothic light", "游ゴシック light": return 610.0 / 2636
