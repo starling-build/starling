@@ -37,4 +37,25 @@ for d,k,v,x in bad[:15]: print("  WORSE %s %.2f -> %.2f"%(k[:-5],v,x))
 for k in gone[:10]: print("  NO-RENDER",k[:-5])
 sys.exit(1 if bad or gone else 0)
 P
-rc=$?; echo "slides-gate: $(( $(date +%s)-T )) s"; exit $rc
+rc=$?
+# The line score beside the pixel mean (docs/plans/slides-corpus.md §5): PowerPoint's text lines matched per deck
+# (test/pptx-line-match.py), combined with the visual score for decks whose print has no text (test/tools/pptx-combine.py),
+# against test/corpus/pptx/baseline-lines-win.tsv. A deck more than LTOL (default 1 pt) worse, or newly an error, blocks.
+PY=${PYTHON:-$( [ -x "$HOME/venv-word/bin/python" ] && echo "$HOME/venv-word/bin/python" || echo python3)}
+LB=$ROOT/test/corpus/pptx/baseline-lines-win.tsv
+if [ -s "$LB" ]; then
+  PPT_REFS=$PPT PPT_MATCH_JOBS=$JOBS "$PY" "$ROOT/test/pptx-line-match.py" "$W" > "$W/lines.txt" 2> "$W/lines.err"
+  "$PY" -I "$ROOT/test/tools/pptx-combine.py" "$W/lines.txt" "$W/render.tsv" "$W/combined.tsv" "$DECKS" "$PPT" | head -1
+  "$PY" - "$LB" "$W/combined.tsv" "${LTOL:-1}" "${LQ:-/data/landq}/approved.txt" <<'Q' || rc=1
+import sys
+def rd(f): return {l.split('\t')[0]:(float(l.split('\t')[1]),l.split('\t')[2].strip()) for l in open(f) if l.strip()}
+b,n=rd(sys.argv[1]),rd(sys.argv[2]); tol=float(sys.argv[3])
+try: ok=set(open(sys.argv[4]).read().split())
+except OSError: ok=set()
+bad=sorted(((v[0]-n[k][0],k,v[0],n[k][0]) for k,v in b.items() if k in n and v[1]!='unscoreable' and n[k][1]!='unscoreable' and v[0]-n[k][0]>tol and k not in ok),reverse=True)
+print("slides-gate: line score: %d decks worse than baseline by over %g pt"%(len(bad),tol))
+for d,k,x,y in bad[:15]: print("  LINES %s %.1f -> %.1f"%(k,x,y))
+sys.exit(1 if bad else 0)
+Q
+fi
+echo "slides-gate: $(( $(date +%s)-T )) s"; exit $rc
