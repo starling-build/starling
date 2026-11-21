@@ -753,6 +753,7 @@ extension OfficeFonts {
             face.advances = algerianAdvances
             face.otherAdvances = algerianOther
             face.naturalHeight = 2703.0 / 2048; face.baseline = 2245.0 / 2048
+            face.fakeBoldFamily = cambriaNoBold
 
         case "old english text mt":
             face.advances = oldEnglishTextMTAdvances; face.boldAdvances = oldEnglishTextMTAdvances
@@ -762,6 +763,8 @@ extension OfficeFonts {
             face.otherAdvances = oldEnglishTextMTOther
             // (win 2054+442 over hhea 1764+284: sa1 a7044bb8's 26pt run raised 23pt stands its baseline 49.04 under the header top, 23 + 26 x 2054/2048.)
             face.naturalHeight = 2496.0 / 2048; face.baseline = 2054.0 / 2048
+            // (No bold style on Word's machine: Word fakes it, so the bold is drawn in a face the engine emboldens the same way.)
+            face.fakeBoldFamily = cambriaNoBold
 
         case "trebuchet ms":
             // (Windows measuring run of all four styles; every style's line is hhea 1923+455 of 2048, 2f747ec3's 12 pt line

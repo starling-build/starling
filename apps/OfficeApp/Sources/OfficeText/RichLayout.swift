@@ -1114,7 +1114,7 @@ public final class RichTextTheme {
             decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
             decorationColor: color,
             debugLabel: familyName,
-            fontFamily: family,
+            fontFamily: bold && face?.family == family ? face?.fakeBoldFamily ?? family : family,
             fontFamilyFallback: {
                 let list = (face?.fallback ?? []) + Self.glyphFallback
                 return list.isEmpty ? nil : list
@@ -1137,6 +1137,9 @@ public struct RichResolvedFace: Sendable {
     /// A complex face Word's machine lacks, drawn in Arial: its line is Arial's own, 1.149 em.
     public var arialStandIn = false
     public var boldSpread: Double
+    /// A face Word has no bold of: the family to draw its bold in, a face with no bold of its own, so the engine emboldens it as Word does
+    /// (fill and stroke, stroke 0.0285 of the size in Word's print, lab oetbold).
+    public var fakeBoldFamily: String? = nil
     /// A face Word's machine lacks, printed in Yu Gothic (charset-80 Mincho name with no alternate): lines stand on Yu's own split.
     public var standsAsYuGothic = false
     /// Further scales by kind of character — digits, capitals, small

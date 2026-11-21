@@ -41,6 +41,8 @@ enum OfficeFonts {
     static let latoBlack = "Lato Black"
     static let latoLight = "Lato Light"
     static let cambria = "Caladea"
+    /// Caladea's regular alone, under a name of its own: a bold asked of it is the engine's fake bold, as Word draws a face with no bold.
+    static let cambriaNoBold = "Caladea NoBold"
     /// DejaVu Sans, for Verdana: not a metric clone, but of the same
     /// family (both grew out of Bitstream Vera's design) and within a
     /// hundredth of its widths word for word, where Liberation Sans set
@@ -4950,6 +4952,7 @@ static let sylfaenAdvances: [Double] = [
                 face.baseline = 0.9858
                 RuleTrace.hit("century-own-widths")
             }
+            var tableSetLine = false
             if wordOnWindows {
                 // (A face Word's machine lacks whose font table names a face it has and we hold a table for as the alternate is drawn in
                 // that face, at its widths and line: "Adobe Caslon Pro", alternate Georgia, sets a footer line 272.4 pt in Word's print
@@ -4961,7 +4964,9 @@ static let sylfaenAdvances: [Double] = [
                     RuleTrace.hit("missing-face-alternate-has-its-own-table")
                     tabledName = alt
                 }
+                let lineBefore = face.naturalHeight
                 Self.applyTabled(tabledName, to: &face); Self.applyTabledMore(tabledName, to: &face)
+                tableSetLine = face.naturalHeight != lineBefore
             }
             // (Arial Narrow, drawn as the sans clone, at its own widths and line.)
             if family.trimmingWhitespace().lowercased() == "arial narrow" {
@@ -5120,7 +5125,10 @@ static let sylfaenAdvances: [Double] = [
             // 56.48 with this one; tdf153136's 56.7.)
             if clone == cambria, !["cambria", "caladea", "carlito", "sakkal majalla"].contains(family.trimmingWhitespace().lowercased()),
                !(wordOnWindows && family.trimmingWhitespace().lowercased() == "liberation serif"),
-               !(wordOnWindows && ["sylfaen", "ghea grapalat"].contains(family.trimmingWhitespace().lowercased())) {
+               !(wordOnWindows && ["sylfaen", "ghea grapalat"].contains(family.trimmingWhitespace().lowercased())),
+               // (Nor a face whose own line a measured table set: Old English Text MT's 2054+442 of 2048 and Algerian's, held from
+               // Word's print, stepped 1.166 here for regular text where Word steps 1.2188; lab oetbold, 40 pt rows 48.84 apart.)
+               !tableSetLine {
                 // (Not Sylfaen nor GHEA Grapalat on Windows: their own 1.317 line is set above; dx2 ka 746c2e0c's 12pt lines step 15.8 in Word.)
                 face.naturalHeight = 0.95 + 0.2163
                 // (A face whose font-table alternate is "Courier", which Word does not follow on Windows, is drawn as the
@@ -6136,6 +6144,7 @@ static let sylfaenAdvances: [Double] = [
             }
         }
         _gapAboveLoaded = !gapAboveFailed
+        _ = flutter.swift_bridge.LoadFontFromFile(resources.appendingPathComponent("fonts/Caladea-Regular.ttf").path, cambriaNoBold)
         // 仿宋's ideographs in a 仿宋 face (`fangSongFamily`).
         let fangSong = resources.appendingPathComponent("fonts/StarlingFangSong-Regular.ttf").path
         if FileManager.default.fileExists(atPath: fangSong) {
