@@ -2279,6 +2279,14 @@ enum ChartXML {
     /// The cached points of a `c:cat`/`c:val`-like element, by index.
     /// A series' numbers' format where it is not General (`c:formatCode`).
     private static func _format(_ val: XNode?) -> String? {
+        // A cache that says General but whose points each carry a format of
+        // their own (`c:pt formatCode`, one code throughout) shows them in it:
+        // an accounting zero reads "-" (e365f9b4 p17's empty data table).
+        if let cache = val?.descendant("c:numCache"),
+           (val?.descendant("c:formatCode")?.text.trimmingWhitespace() ?? "General").lowercased() == "general" {
+            let codes = Set(cache.children.filter { $0.name == "c:pt" }.compactMap { $0["formatCode"] })
+            if codes.count == 1, let code = codes.first, !code.isEmpty, code.lowercased() != "general" { return code }
+        }
         guard let code = val?.descendant("c:formatCode")?.text.trimmingWhitespace(), !code.isEmpty, code.lowercased() != "general" else { return nil }
         return code
     }
@@ -3382,7 +3390,16 @@ enum ChartPainter {
     /// and its "举报"/"总" categories' and "同比增长率" rows 20.4 and 20.6;
     /// zh-61aaad09's rows 17.6 at 11pt and its wrapped "投诉举报总量"
     /// categories 36.8 (a JhengHei line and a Mincho one).
+    /// (A multi-level category axis adds a row under the categories for each
+    /// outer level: PowerPoint's e365f9b4 p17 table sets the years in a row of
+    /// their own under Nación / Propios / Total.)
     static func _tableRows(_ c: Chart, size: Double, k: Double, slot: Double, text: (String, Double, Double) -> TextPainter) -> [Double] {
+        var rows = _tableRowsBase(c, size: size, k: k, slot: slot, text: text)
+        if let first = rows.first, !c.categoryLevels.isEmpty { rows.insert(contentsOf: Array(repeating: first, count: c.categoryLevels.count), at: 1) }
+        return rows
+    }
+
+    private static func _tableRowsBase(_ c: Chart, size: Double, k: Double, slot: Double, text: (String, Double, Double) -> TextPainter) -> [Double] {
         let count = c.series.count + c.lineSeries.count + 1
         // (Word for Mac wraps a category as Word for Windows does, each
         // line past the first its face's East Asian line deeper: zh-
@@ -3456,6 +3473,14 @@ enum ChartPainter {
             tp.dispose()
         }
         for i in 0 ..< n { centred(c.categories[safe: i] ?? "", plot.left + (Double(i) + 0.5) * slot, 0) }
+        // Each outer level's groups, centred over the categories they cover.
+        let levels = c.categoryLevels.count
+        for (li, level) in c.categoryLevels.enumerated() {
+            for (g, group) in level.enumerated() {
+                let end = level[safe: g + 1]?.from ?? n
+                centred(group.text, plot.left + (Double(group.from + end) / 2) * slot, li + 1)
+            }
+        }
         let fill = Paint()
         fill.style = .fill
         fill.isAntiAlias = true
@@ -3467,8 +3492,9 @@ enum ChartPainter {
         // ChartDataTable's names 24.5 pt in, in Excel's print.)
         let e = dt.squareKeys ? size / 10 * k : k, u = c.onSheet ? 1 : k
         for (j, (s, line)) in rows.enumerated() {
+            let j = j + levels
             let y = rowTop(j + 1), row = rowHeight(j + 1)
-            let colour = s.color ?? c.color(series: j, accents: theme.accents)
+            let colour = s.color ?? c.color(series: j - levels, accents: theme.accents)
             var x = left + (dt.squareKeys && !line ? 3.5 * e : 3.2 * u)
             if dt.keys {
                 if line {
@@ -3501,7 +3527,7 @@ enum ChartPainter {
         // Across: under the categories' row and between the series'; the
         // categories' row starts at the plot, the series' at their names.
         if dt.horizontalRules {
-            for j in 1 ... rows.count { canvas.drawLine(Offset(left, rowTop(j)), Offset(plot.right, rowTop(j)), rule) }
+            for j in 1 ... rows.count + levels { canvas.drawLine(Offset(left, rowTop(j)), Offset(plot.right, rowTop(j)), rule) }
         }
         if dt.verticalRules {
             for i in 1 ..< max(1, n) { canvas.drawLine(Offset(plot.left + Double(i) * slot, top), Offset(plot.left + Double(i) * slot, bottom), rule) }
@@ -3527,6 +3553,8 @@ enum ChartPainter {
     /// deck's axis tells nine from ten. Across the page, eight.
     static func scale(_ lo0: Double, _ hi0: Double, intervals: Int = 10, headroom: Double = 0.05) -> (lo: Double, hi: Double, step: Double) {
         if let s = _offZero(lo0, hi0, intervals: intervals) { return s }
+        // (All zero: PowerPoint's empty chart runs 0 to 1 in tenths, e365f9b4 p17.)
+        if lo0 == 0, hi0 == 0 { return (0, 1, 0.1) }
         var lo = min(0, lo0), hi = max(0, hi0)
         if hi == lo { hi = lo + 1 }
         let span = hi - lo
@@ -5326,7 +5354,7 @@ enum ChartPainter {
             }
             // The outer levels of a multi-level axis: each group's name turned up
             // in a column of its own, centred on the names it covers.
-            if !c.categoryLevels.isEmpty, !c.categoryAxisDeleted {
+            if !c.categoryLevels.isEmpty, !c.categoryAxisDeleted, table == nil {
                 let band = (catLabels.first?.height ?? 12 * k) + 9.2 * k
                 let leafLeft = plot.left - 8.5 * k - besideOut - (catLabels.map(\.width).max() ?? 0)
                 for (li, level) in c.categoryLevels.enumerated() {
@@ -5391,7 +5419,7 @@ enum ChartPainter {
             }
             // The outer levels of a multi-level axis: each group's name under the names it
             // covers, with a divider between groups from the axis down through the rows.
-            if !c.categoryLevels.isEmpty, !c.categoryAxisDeleted, !aslant, c.type != .area {
+            if !c.categoryLevels.isEmpty, !c.categoryAxisDeleted, !aslant, c.type != .area, table == nil {
                 let row = (catLabels.first?.height ?? 12 * k) + 8.2 * k
                 let names = catLabels.isEmpty ? 0 : (catLabels.map(\.height).max() ?? 0)
                 let top = foot + 7.6 * k + belowOut
