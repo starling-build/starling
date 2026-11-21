@@ -19,6 +19,10 @@ jobs:
         include:
           - labels: '["self-hosted","linux","prebuild"]'
           - labels: '["self-hosted","linux","starling-render","starling2"]'
+            thin: 5
+    # starling2's three runners carry the gate label too, and ~20 merges an hour kept them all on prebuilds (0 gates in an hour,
+    # 2026-11-21): there it builds only every 5th push; a gate that finds no base for its sha uses the nearest cached ancestor.
+    if: ${{ !matrix.thin || github.run_number % matrix.thin == 0 }}
     runs-on: ${{ fromJSON(matrix.labels) }}
     timeout-minutes: 60
     steps:
