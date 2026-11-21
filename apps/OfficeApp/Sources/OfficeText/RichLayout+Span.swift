@@ -105,7 +105,7 @@ extension RichLayout {
             let multiple = lineSpacing > 1 ? lineSpacing : 1
             return look.copyWith(ascentOverride: r.0 * multiple * px, descentOverride: r.1 * multiple * px, height: (r.0 + r.1) * multiple, leadingDistribution: .even)
         }
-        // (An empty line whose mark is set in Nikosh (Windows lacks it) or Mangal is a line of Mangal, 1.68 em, and in Nirmala UI one of 1.33 em:
+        // (An empty line whose mark is set in Nikosh (Windows lacks it) or Mangal is a line of Mangal, 1.68 em, and in Nirmala UI one of 1.33 em (Leelawadee UI has the same win box, 2210 + 514 of 2048: lab leela1, 13.3 pt a paragraph at 10 pt, 15.97 at 12, ours 11.7):
         // Word's print of lab siyam1, 3 empty paragraphs after each label, 16.8 / 13.3 pt apart at 10 pt against ours 12.2; and in Kokila its own 1.153 em, lab kokila1: 20.8 pt at 18 pt, where Calibri's gave 22.0.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile {
             let latin = (mark.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
@@ -114,7 +114,7 @@ extension RichLayout {
             // empty ListParagraph lines, 27.2 pt at 14 pt on 1.5, where the Calibri stand-in gave 25.6.)
             let shonarMark = _shonarLatinRunFace(mark, named, document, "") != nil
             if shonarMark { RuleTrace.hit("word-empty-mark-in-a-missing-bengali-face-is-shonar-bangla") }
-            let face = shonarMark ? "shonar bangla" : (latin == "nikosh" || latin == "mangal" ? "mangal" : (latin == "nirmala ui" ? "nirmala ui" : (latin == "kokila" ? "kokila" : (latin == "utsaah" ? "utsaah" : (latin == "gautami" || latin == "shruti" ? latin : "")))))
+            let face = shonarMark ? "shonar bangla" : (latin == "nikosh" || latin == "mangal" ? "mangal" : (latin == "nirmala ui" || latin == "leelawadee ui" ? "nirmala ui" : (latin == "kokila" ? "kokila" : (latin == "utsaah" ? "utsaah" : (latin == "gautami" || latin == "shruti" ? latin : "")))))
             // (Kokila only where the mark has one size: hin-z20740649 sets sz 6 and szCs 13 and was 0.6 worse.)
             let kokilaOK = true
             if kokilaOK, let r = Self._indicLines[face] {
