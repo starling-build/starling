@@ -378,6 +378,8 @@ private struct LevelStyle {
     /// `a:ln` on the run: its outline (nil under `a:noFill`), and whether it was said.
     var outline: CharOutline?
     var outlineSet = false
+    /// `a:noFill` on the run: with an outline, the letters print hollow.
+    var noFill = false
     /// `a:highlight`: the run's text highlight colour.
     var highlight: Color?
     /// `a:buBlip`: the picture bullet, resolved from the part it is in.
@@ -544,6 +546,7 @@ private struct LevelStyle {
         else if let g = r.first("a:gradFill"), let f = PptxReader.gradient(g, colors: colors), f.stops.count >= 2 {
             s.color = SlideFill.colorAt(f.stops, 0.5)
         }
+        if r.has("a:noFill") { s.noFill = true }
         if let ln = r.first("a:ln") {
             s.outlineSet = true
             if !ln.has("a:noFill"), let c = ln.first("a:solidFill").flatMap(colors.color(in:)), c.alpha > 0 {
@@ -3504,7 +3507,7 @@ private struct SlideContext {
                 cs.shadow = s.shadow
                 cs.highlight = s.highlight
                 // (WordArt draws its own outline: `RunLook`.)
-                if body?.first("a:bodyPr")?.first("a:prstTxWarp") == nil, (cs.color?.alpha ?? 255) == 255 { cs.outline = s.outline }
+                if body?.first("a:bodyPr")?.first("a:prstTxWarp") == nil, (cs.color?.alpha ?? 255) == 255 { cs.outline = s.outline; cs.noFill = s.noFill && s.outline != nil }
                 if s.caps == "all" { cs.caps = true } else if s.caps == "small" { cs.smallCaps = true }
                 text += t
                 // Hebrew, Arabic and Thai letters in the complex-script
