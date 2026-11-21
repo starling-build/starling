@@ -69,6 +69,7 @@ struct ShapeState: Equatable {
     var outlineCompound: String? = nil
     var textTurn = 0
     var textStacked = 0
+    var uprightIdeographs = false
     var textSpin = 0.0
     var textRev = 0.0
     var textScene: Scene3D? = nil
@@ -1174,6 +1175,7 @@ final class DeckController: ChangeNotifier {
         st.tailEnd = s.tailEnd
         st.textTurn = s.textTurn
         st.textStacked = s.textStacked
+        st.uprightIdeographs = s.uprightIdeographs
         st.textSpin = s.textSpin
         st.textRev = s.textRev
         st.textScene = s.textScene
@@ -1294,6 +1296,7 @@ final class DeckController: ChangeNotifier {
         shape.tailEnd = st.tailEnd
         shape.textTurn = st.textTurn
         shape.textStacked = st.textStacked
+        shape.uprightIdeographs = st.uprightIdeographs
         shape.textSpin = st.textSpin
         shape.textRev = st.textRev
         shape.textScene = st.textScene

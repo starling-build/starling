@@ -259,6 +259,7 @@ final class SlideTextCache {
             let l = RichLayout(theme: theme, paragraphCount: text.document.paragraphs.count)
             l.scale = scale
             l.fontScale = shape.fontScale
+            l.uprightIdeographs = shape.uprightIdeographs
             l.spacingFollowsFont = shape.insetsFollowFont
             l.width = w
             if shape.columns > 1, !shape.noWrap {

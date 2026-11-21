@@ -516,6 +516,8 @@ final class SlideShape {
     /// `bodyPr vert="wordArtVert"` (1) or `"wordArtVertRtl"` (-1): every character upright, one to a square place
     /// down the box, the next column to the right (to the left, for -1).
     var textStacked = 0
+    /// `bodyPr vert="eaVert"`: its ideographs stand upright in the turned lines.
+    var uprightIdeographs = false
     /// The text turned about its own middle, degrees clockwise (a
     /// camera's `rev`, the other way).
     var textSpin = 0.0
