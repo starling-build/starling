@@ -901,11 +901,17 @@ enum WordArt {
         let rx0 = max(1, area.width / 2 - (narrow && !fits ? 152 : 0)), ry0 = area.height / 2, c = area.center
         /// A line along the arc from `start`, sweeping `sweep` degrees
         /// (clockwise positive, as DrawingML measures).
-        func along(_ line: Line, start: Double, sweep: Double, ring: Int = 0, room: Double = 1) {
+        func along(_ line: Line, start: Double, sweep: Double, ring: Int = 0, room: Double = 1, bottom: Bool = false, outer: Int = 0) {
             // A slide's line rides inside the box's ellipse by 0.165 of its size, and each
             // line after it (toward the middle) a pitch nearer.
             let size = line.glyphs.map(\.size).max() ?? 0
-            func liftFor(_ scale: Double) -> Double { slide ? (warp.preset == "textArchDown" ? Self.circleInset : -Self.circleInset) * size * scale + Double(ring) * (Self.circlePitch * size + 4.5 * pxPerPt) : 0 }
+            func liftFor(_ scale: Double) -> Double {
+                // Arch Up / Down, two or more lines (lab warplab2): each line stands 1.2 of its size outside the next, on the same
+                // box ellipse inset by 0.195 of its size.
+                if slide, ring > 0, warp.preset == "textArchUp" || warp.preset == "textArchDown" {
+                    return (warp.preset == "textArchDown" ? 1 : -1) * Self.archInset * size * scale + Double(ring) * 1.2 * size
+                }
+                return slide ? (warp.preset == "textArchDown" ? Self.circleInset : -Self.circleInset) * size * scale + Double(ring) * (Self.circlePitch * size + 4.5 * pxPerPt) : 0 }
             let offset = false
             let steps = 720
             var lift = liftFor(1)
@@ -951,7 +957,9 @@ enum WordArt {
                 }
                 let f = min(1, per / line.width)
                 archFit = f
-                lift = (warp.preset == "textArchDown" ? 1 : -1) * Self.archInset * size * f
+                lift = (warp.preset == "textArchDown" || bottom ? 1 : -1) * Self.archInset * size * f
+                // Button, four lines (lab warplab2): the first line stands a line pitch (1.2 of its size) outside the second, on the same arc.
+                lift += Double(outer) * 1.2 * size
                 sx = 1; c = area.center
                 let ext = 60.0, dir = sweep < 0 ? -1.0 : 1.0
                 let (st, sw) = (start - dir * ext, sweep + dir * 2 * ext)
@@ -963,7 +971,7 @@ enum WordArt {
                     if i > 0 { lens.append(lens[i - 1] + hypot(pts[i].dx - pts[i - 1].dx, pts[i].dy - pts[i - 1].dy)) }
                 }
                 // The letters are spaced along a path a quarter of their size from the baseline, toward their tops.
-                let up = (warp.preset == "textArchDown" ? -1.0 : 1.0) * Self.archSpacingRise * size * f
+                let up = (warp.preset == "textArchDown" || bottom ? -1.0 : 1.0) * Self.archSpacingRise * size * f
                 let rxs = max(1, rx0 + lift + up), rys = max(1, ry0 + lift + up)
                 var sp = [0.0], q = Offset(c.dx + rxs * cos(st * .pi / 180), c.dy + rys * sin(st * .pi / 180))
                 for i in 1 ... steps {
@@ -990,7 +998,7 @@ enum WordArt {
             // A slide's arch whose text is longer than the arc fills the arc exactly (texteffects shapes
             // 1, 2, 6: the glyph origins span the arc, where the loose-fit spread left 7% short).
             let tight = slide && ring == 0 && fit < 0.97 && (warp.preset == "textArchUp" || warp.preset == "textArchDown")
-            var k = tight ? fit : fit * archSpread * (slide ? 1 - (ring > 0 ? Self.circleSpacingOuter : Self.circleSpacing) * min(size / pxPerPt, 60) : 1)
+            var k = tight ? fit : fit * archSpread * (slide ? 1 - (ring > 0 ? Self.circleSpacingOuter : Self.circleSpacing) * size / pxPerPt : 1)
             if let f = archFit { fit = f; k = f }
             let used = line.width * k
             let free = arc * (slide ? room : 1) - used
@@ -1051,11 +1059,13 @@ enum WordArt {
             let a = angle(10_800_000)
             var sweep = (540 - a).truncatingRemainder(dividingBy: 360) - a
             while sweep <= 0 { sweep += 360 }
+            // A slide's lines go to the preset's three paths (lab warplab2): two lines take the top arc and the
+            // straight one; three take top, straight, bottom; four put the first two on the top arc (the first
+            // a line pitch outside) and then straight, bottom. Beyond four the extra lines are taken to join the top arc.
+            let n = lines.count
             for (i, l) in lines.enumerated() {
-                if i == 0 { along(l, start: a, sweep: sweep) }
-                else if slide, lines.count == 2, l.alignment == .center {
-                    // PowerPoint (lab print): the second line runs straight across, its baseline
-                    // 0.195 of its size below the box centre.
+                let centred = slide && n >= 2 && l.alignment == .center
+                if centred, n == 2 ? i == 1 : (n >= 3 && i == n - 2) {
                     let size = l.glyphs.map(\.size).max() ?? 0
                     let base = c.dy + Self.archInset * size
                     var x = c.dx - l.width / 2
@@ -1063,8 +1073,10 @@ enum WordArt {
                         draw(g, Offset(x, base - g.painter.computeDistanceToActualBaseline(.alphabetic)), Offset(1, 0), Offset(0, 1))
                         x += g.width
                     }
-                }
-                else if i == lines.count - 1 { along(l, start: a, sweep: -(360 - sweep)) }
+                } else if centred, n >= 3, i == n - 1 { along(l, start: a, sweep: -(360 - sweep), bottom: true) }
+                else if centred, i < max(1, n - 2) { along(l, start: a, sweep: sweep, outer: max(0, n - 3 - i)) }
+                else if i == 0 { along(l, start: a, sweep: sweep) }
+                else if i == n - 1 { along(l, start: a, sweep: -(360 - sweep)) }
                 else {
                     var x = c.dx - l.width / 2
                     for g in l.glyphs {
