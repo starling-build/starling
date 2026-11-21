@@ -359,6 +359,14 @@ extension RichLayout {
                 if _pages[pgs.page].contains(where: { $0.paragraph == first }), let down = ts.floatOffsetY {
                     pgs.y = max(_pages[pgs.page].map(\.pageY).min() ?? 0, top - _px(down))
                 }
+                // (A table raised over its anchor, tblpY negative from the text: the mark after it is the anchor and
+                // stands where the flow puts it, the table's top a tblpY above it, so the lines beside it keep their
+                // places. Word's print of lab tblpy, tblpY -68 and -400 twips: the marks stand 13.8pt apart from the
+                // anchor's line as with no table; ours took the table's raised top for the first of them.)
+                else if RichTextTheme.wordWindowsPages, ts.floatOffsetY == nil, let up = ts.floatRaiseY, up > 0, !ts.pageAnchored, _pages[pgs.page].contains(where: { $0.paragraph == first }) {
+                    RuleTrace.hit("word-mark-after-a-raised-float-stands-at-the-anchors-own-line")
+                    pgs.y = max(_pages[pgs.page].map(\.pageY).min() ?? 0, top + _px(up))
+                }
                 // (A line the table hangs from, after a paragraph framed against the page whose top stands
                 // inside the first line's place and whose foot is over the table's top, stands 4.9pt under
                 // the frame's top, not at the margin: Word for Windows' labs b88 (lo-88b29958), the text
