@@ -214,12 +214,12 @@ enum SlideFonts {
             face.boldOtherAdvances = SlideFontWidths.rockwellCondensedBoldOther
             return face
         case "calibri light":
-            // (Calibri Light has no bold: PowerPoint sets a bold run of it at Calibri Regular's advances, not Carlito Bold's,
-            // which are wider and wrapped 6d178027's 48 pt title a word early.)
+            // (Calibri Light has no bold: PowerPoint emboldens the regular outline and sets each glyph at 0.9845 of the Light
+            // advance (clbold lab), not at Carlito Bold's widths, which are wider and wrapped 6d178027's 48 pt title a word early.)
             var face = RichResolvedFace(family: resolve(family))
-            face.boldAdvances = OfficeFonts.calibriRegularLatinAdvances
+            face.boldAdvances = SlideFontWidths.calibriLightBoldLatin
             face.otherAdvances = SlideFontWidths.calibriHebrew
-            face.boldOtherAdvances = SlideFontWidths.calibriHebrew
+            face.boldOtherAdvances = SlideFontWidths.calibriHebrew.merging(SlideFontWidths.calibriLightBoldOther) { a, _ in a }
             return face
         case "arial black":
             var face = RichResolvedFace(family: resolve(family))
