@@ -40,7 +40,7 @@ enum WordArt {
         case "textInflate": let a = adj(18750); return { (a * bow($0), 1 - a * bow($0)) }   // a parabola (lab wordart-fit2: 14.2 pt at a fifth of the way in)
         case "textDeflate": let a = adj(18750); return { (a * (1 - bow($0)), 1 - a * (1 - bow($0))) }
         case "textInflateTop": let a = adj(40000); return { (a * (0.5 + 0.5 * bow($0)), 1) }   // spec: quad from (l,t+dy) via (hc,t)
-        case "textInflateBottom": let a = adj(60000); return { (0, 1 - (1 - a) * bow($0)) }
+        case "textInflateBottom": let a = max(0.6, adj(60000)); return { (0, 1 - (1 - a) * (1 + bow($0)) / 2) }   // spec: a quad from (l,a) via (hc,b) to (r,a) peaks half-way to b
         case "textDeflateTop": let a = adj(50000); return { (a * (1 - bow($0)), 1) }
         case "textDeflateBottom": let a = adj(50000); return { (0, a + (1 - a) * bow($0)) }
         // Wave: the spec's cubic (control points a third in, 10/3 of the amplitude out): per period the edge moves
@@ -653,7 +653,7 @@ enum WordArt {
                 func mid(_ u: Double) -> Double { 0.5 - (0.5 - a) * (1 - bow(u)) }
                 if lines.count == 1 {
                     // One line has the upper band alone.
-                    bands = [(lines, { u in (0, mid(u)) }, false, nil)]
+                    bands = [(lines, { u in (0, mid(u) - 0.05) }, false, nil)]   // spec: the first curve runs 0.05 above the adjust point
                 } else {
                     // The lines shared between the two bands, the upper one
                     // taking the odd one (lab wordart-banded: 3 lines stand
@@ -675,7 +675,7 @@ enum WordArt {
                 func lower(_ u: Double) -> Double { max(1 - upper(u), upper(u) + 0.07) }
                 if lines.count < 3 {
                     // Fewer lines than bands: the bands from the top down.
-                    bands = [([lines[0]], { u in (0, upper(u) - 0.02) }, false, nil)]
+                    bands = [([lines[0]], { u in (0, upper(u) - (lines.count == 1 ? 0.03 : 0.02)) }, false, nil)]
                     if lines.count == 2 { bands.append(([lines[1]], { u in (upper(u) + 0.02, lower(u) - 0.02) }, false, nil)) }
                 } else {
                     // Shared out from the top, the extra lines to the upper
