@@ -1031,6 +1031,17 @@ extension RichLayout {
             RuleTrace.hit("margin-placed-floating-table-row-ending-within-the-footer-edge-stays-at-the-foot")
             pastFoot = true
         }
+        // (The same for a floating table set by the text, its row, set at its offset, ending within the page: dx2 491931cb's
+        // picture table, tblpY 1042 twips, ends 26pt under the foot at 796 of 842 on page 2 in Word's
+        // print, its anchor heading above it there; ours took it whole to page 3 and the heading after it.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, !pastFoot, !atTop, c.firstInRow, c.row == 0,
+           let ts = document.tableStyles[c.table], let down = ts.floatOffsetY, down > 0, !ts.pageAnchored,
+           shown + _pg_ruleUnder(&pgs, document, c) > pgs.contentH - pgs.y + 0.01,
+           case let setup = pageSetup(forPage: pgs.page / _columns),
+           pgs.y + shown + _pg_ruleUnder(&pgs, document, c) <= _px(setup.height) - _bodyInsets(page: pgs.page / _columns, document).top + 0.01 {
+            RuleTrace.hit("word-text-anchored-floating-table-row-ending-within-the-page-stays-at-the-foot")
+            pastFoot = true
+        }
         if theme.wordRules, !pastFoot, shown + _pg_ruleUnder(&pgs, document, c) > pgs.contentH - pgs.y + 0.01, _pg_splitRow(&pgs, document, pgs.i, j, c, atTop: atTop) {
             // (A row that ends at the margin leaves the next of a page-anchored table in compat 12 to part by lines to the
             // page's own foot, where it is the table's own and begun here: lo-c9b8c5ab's A4 ends 468.1 of 468 and A5
