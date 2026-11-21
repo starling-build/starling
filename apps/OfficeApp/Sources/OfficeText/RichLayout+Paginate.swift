@@ -1591,6 +1591,7 @@ extension RichLayout {
                         }
                     } else if !keepsOwnPicture {
                         let stoodAt = pgs.y
+                        let topWasInBand = noRoom(at: stoodAt, []) != nil
                         // (A line that meets a tight or through box's band goes down a whole line at a time from where
                         // it stood, to the first try whose top is clear of the band's foot, as in the first branch:
                         // Word's print of lab b80-step stands a 12pt title 15.84pt lower each time the box's foot
@@ -1609,7 +1610,7 @@ extension RichLayout {
                         // wrapSquare box's foot, 172 (170.25 and the line's ascent),
                         // its space before overlapping the box; ours set it that
                         // far again lower, at 199.)
-                        if theme.wordRules, RichTextTheme.wordWindowsPages, pgs.y > stoodAt + 0.01, lead > 0.01 {
+                        if theme.wordRules, RichTextTheme.wordWindowsPages, pgs.y > stoodAt + 0.01, lead > 0.01, topWasInBand {
                             RuleTrace.hit("word-box-pushed-paragraph-stands-its-line-at-the-foot")
                             pgs.y = max(stoodAt, pgs.y - lead)
                         }
