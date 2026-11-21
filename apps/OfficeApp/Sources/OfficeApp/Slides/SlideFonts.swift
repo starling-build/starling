@@ -224,6 +224,11 @@ enum SlideFonts {
             face.boldAdvances = t.1
             // (Trebuchet MS kerns as PowerPoint prints it, by the pairs of the font's own tables, measured on Windows.)
             if let k = SlideLatinKerns.lookup(n) { face.kerns = k.regular; face.boldKerns = k.bold ?? k.regular; face.kernsOutsideWord = true }
+            if n == "tahoma" {
+                // (Tahoma's own Arabic, as the Word path sets it.)
+                face.joinedAdvances = WindowsArabicAdvances.tahoma
+                face.boldJoinedAdvances = WindowsArabicAdvances.tahomaBold
+            }
             return face
         case "open sans":
             // (A cloud face PowerPoint prints from its own copy, not installed on the Windows box: Open Sans's measured widths, the same
@@ -254,6 +259,18 @@ enum SlideFonts {
             let hebrew = family.trimmingWhitespace().lowercased() == "calibri" ? SlideFontWidths.calibriHebrew : SlideFontWidths.timesHebrew
             face.otherAdvances = hebrew
             face.boldOtherAdvances = hebrew
+            if family.trimmingWhitespace().lowercased() == "times new roman" {
+                face.joinedAdvances = WindowsArabicAdvances.times
+                face.boldJoinedAdvances = WindowsArabicAdvances.timesBold
+            }
+            return face
+        case "arial":
+            // (Arial's own Arabic advances, as the Word path sets it: rtl/8c48d77a's body lines, 27 pt, took the DejaVu Sans stand-in's
+            // widths and broke two words early.)
+            var face = RichResolvedFace(family: resolve(family))
+            face.fallback = ["Liberation Sans", "Noto Sans Arabic", "Noto Naskh Arabic", OfficeFonts.emojiPictographs, "DejaVu Sans"]
+            face.joinedAdvances = WindowsArabicAdvances.arial
+            face.boldJoinedAdvances = WindowsArabicAdvances.arialBold
             return face
         case "rockwell condensed":
             // (PowerPoint's print of 6e9fe27b sets it a third narrower than the Arial it was drawn in: lines ran a third over.)
