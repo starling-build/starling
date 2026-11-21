@@ -4602,6 +4602,8 @@ enum ChartPainter {
         let belowOut = ticksPush && (horizontal ? c.valueTicksOut : c.categoryTicksOut) ? 3.7 * k : 0
         var valueLabelsBack = 0.0
         let widenedPlain = plainUntitledWord && c.valueTicksOut && c.type == .column
+        let plainBarWord = horizontal && inWord && !c.styled2013 && c.barView == nil && (c.title ?? "").isEmpty && c.titleAt == nil && !c.legend
+            && c.plotLayout == nil && c.dataTable == nil && c.categoryLevels.isEmpty
             // (An untitled 2013-style Word column chart whose value axis is deleted has no top tick label to stand 4 pt higher by:
             // dx2 f15415f0's page 7 chart, plot top 4.5 pt lower than ours, its baseline 1.7 higher, its left edge 4.0 further left.)
             let deletedAxis2013 = word && c.barView == nil && (c.title ?? "").isEmpty && c.titleAt == nil && c.valueAxisDeleted
@@ -4628,9 +4630,12 @@ enum ChartPainter {
                                      area.right - (valueLabels.last?.width ?? 0) / 2,
                                      area.bottom - (c.styled2013 ? lineH / 2 : (old2007 ? 7 : 2) * k))
             } else {
-            plot = Rect.fromLTRB(area.left + left, area.top + (c.styled2013 ? lineH / 2 : (old2007 ? 7 : 2) * k),
-                                 area.right - (valueLabels.last?.width ?? 0) / 2,
-                                 area.bottom - lineH - (old2007 ? 7.8 : 4) * k - belowOut)
+            // (An untitled, legendless 2007-style bar chart in a Word document: dx2 aa4cf830's plot starts 5.0 pt higher and
+            // ends 3.4 lower than ours, 1.1 further left at its left edge and 2.05 nearer at its right: 117.9 to 493.4, 109.5 to 293.1.)
+            if plainBarWord { RuleTrace.hit("word-plain-untitled-bar-chart-plot-insets") }
+            plot = Rect.fromLTRB(area.left + left - (plainBarWord ? 1.1 * k : 0), area.top + (c.styled2013 ? lineH / 2 : (plainBarWord ? 2 : old2007 ? 7 : 2) * k),
+                                 area.right - (valueLabels.last?.width ?? 0) / 2 - (plainBarWord ? 2.05 * k : 0),
+                                 area.bottom - lineH - (plainBarWord ? 4.4 : old2007 ? 7.8 : 4) * k - belowOut)
             }
         } else {
             // (A 2007-style chart's plot starts 2.6 pt further off its
@@ -5133,7 +5138,7 @@ enum ChartPainter {
                 // plot ends 7.8 pt over them, and they stay at the frame's
                 // foot — bar-chart's at 401.4 in PowerPoint's print, where
                 // ours had risen with the plot to 397.8.)
-                let under = (c.plainText && !c.styled2013 && c.officeStyled ? 7.8 : 4) * k
+                let under = (plainBarWord ? 4.57 : c.plainText && !c.styled2013 && c.officeStyled ? 7.8 : 4) * k
                 tp.paint(canvas, Offset(p - tp.width / 2, revCat ? plot.top - under - belowOut - tp.height : plot.bottom + under + belowOut))
             } else {
                 if c.valueGrid {
@@ -5262,11 +5267,11 @@ enum ChartPainter {
                 // Category 1 at the bottom, as PowerPoint draws a bar chart.
                 // (A 2007-style chart's stand 1.45 pt above their bands'
                 // middles, as its value labels above their lines.)
-                let cy = (revCat ? plot.top + (Double(i) + 0.5) * slot : plot.bottom - (Double(i) + 0.5) * slot) - (c.plainText && !c.styled2013 && c.officeStyled ? 1.45 * k : 0)
+                let cy = (revCat ? plot.top + (Double(i) + 0.5) * slot : plot.bottom - (Double(i) + 0.5) * slot) - (c.plainText && !c.styled2013 && c.officeStyled && !plainBarWord ? 1.45 * k : 0)
                 // (In a Word document a bar chart's names stand beside the axis, at its
                 // zero where the bars run both ways: lo tdf128996's end 8.5 pt before it.)
                 let side = word && sc.lo < 0 && !c.categoryLabelsLow && !c.categoryAxisDeleted ? zero : plot.left
-                tp.paint(canvas, Offset(side - 8.5 * k - besideOut - tp.width, cy - tp.height / 2))
+                tp.paint(canvas, Offset(side - (plainBarWord ? 6.8 : 8.5) * k - besideOut - tp.width, cy - tp.height / 2))
             }
             // The outer levels of a multi-level axis: each group's name turned up
             // in a column of its own, centred on the names it covers.
