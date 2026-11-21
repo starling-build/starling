@@ -4721,10 +4721,13 @@ extension RichLayout {
                     // (Its face's own ascent, not a line's: the line's carries the spacing multiple.)
                     let textFace = firstLook.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily
                     let size = _px(firstLook.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * fontScale
+                    // (The number's ascent over the text's is measured at the number's OWN size when it sets one, smaller or not: lab lblcal1 G,
+                    // a 9pt Calibri number over 11pt Times stands level with a plain item in Word's print.)
+                    let numberSize = _levelNumberSize(p, document).map { _px($0) * fontScale } ?? size
                     if let numberBase = theme.faceResolver?(family, false)?.baseline, let textBase = theme.faceResolver?(textFace, false)?.baseline,
-                       (numberBase - textBase) * size > 0.5 {
+                       numberBase * numberSize - textBase * size > 0.5 {
                         RuleTrace.hit("word-number-face-taller-above-the-baseline-lifts-the-first-line")
-                        rise = numberBase * size
+                        rise = numberBase * numberSize
                     }
                 }
             }
