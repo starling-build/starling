@@ -60,7 +60,7 @@ for n in range(1, max(pages, 1) + 1):
     worst = max(worst, share)
     total += share
     print("page %2d  %6.2f%% pixels differ  mean %5.2f" % (n, share, mean))
-    if share > 0.5:
+    if share > 0.5 and not os.environ.get("PDFDIFF_NO_PAIRS"):  # the gate wants the scores only
         diff = np.full((h, w, 3), 255, dtype=np.uint8)
         diff[differing] = (255, 0, 0)
         pair = np.zeros((h, w * 3 + 20, 3), dtype=np.uint8)
@@ -69,5 +69,5 @@ for n in range(1, max(pages, 1) + 1):
             pair[:, k * (w + 10):k * (w + 10) + w] = img
         base = os.path.basename(sys.argv[2])
         base = base[:-4] if base.lower().endswith(".pdf") else base
-        Image.fromarray(pair).save(os.path.join(out_dir, "pair-%05.2f-%s-p%d.png" % (share, base, n)))
+        Image.fromarray(pair).save(os.path.join(out_dir, "pair-%05.2f-%s-p%d.png" % (share, base, n)), compress_level=1)
 print("summary pages=%d worst=%.2f%% mean=%.2f%%" % (pages, worst, total / pages if pages > 0 else 0))
