@@ -2490,6 +2490,14 @@ extension RichLayout {
                                 default: continue
                                 }
                                 rowHeight = max(rowHeight, top + h)
+                                // (A picture that is the whole of its paragraph, with the cell's next paragraph set beside it, is the cell's content
+                                // height for a centred or bottom cell: sa2 af8615a0's logo cell, 45.75pt in Word's print, where ours took the
+                                // text's 36.8 and set it 4.5pt low.)
+                                if RichTextTheme.wordWindowsPages, image.textBox == nil, !f.takesRoom, f.horizontalFrom == "column", f.horizontalAlign == nil, !document.isPageHeaderPart,
+                                   document.paragraphs[k].text.isEmpty, k + 1 < document.paragraphs.count, document.paragraphs[k + 1].cell == document.paragraphs[k].cell {
+                                    _floatReach[k] = max(_floatReach[k], top + h - cell.pad.top)
+                                    RuleTrace.hit("word-cell-content-height-holds-the-picture-its-next-paragraph-stands-beside")
+                                }
                                 // (A table floating in the cell with no room beside it — wider than the cell's text
                                 // from its offset — has the anchor's empty line set under it, and the row holds that
                                 // line: lo-9fa3dedd's Table3 ends at 531 in a cell that ends at 545 in Word's print.)

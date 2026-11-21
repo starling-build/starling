@@ -1002,8 +1002,16 @@ extension RichLayout {
                 candidates.append((image, k < _imageSize.count ? _imageSize[k] : nil))
                 RuleTrace.hit("word-text-beside-square-picture-of-an-earlier-paragraph")
             }
+            // (A tight or square picture that is the whole of its paragraph in a table cell, placed from the column: the cell's paragraph after it
+            // stands beside it. sa2 af8615a0 p2: the logo's cell, "Fundo nacional de ..." in two lines from x 205 in Word's print.)
+            if k < i, p.cell != nil, q.cell == p.cell, theme.wordRules, RichTextTheme.wordWindowsPages, !document.isPageHeaderPart, let image = q.image, image.textBox == nil,
+               q.text.isEmpty, let f = image.float, f.wraps, !f.takesRoom, f.horizontalFrom == "column", f.horizontalAlign == nil,
+               !candidates.contains(where: { $0.image.id == image.id }) {
+                candidates.append((image, k < _imageSize.count ? _imageSize[k] : nil))
+                RuleTrace.hit("word-text-beside-tight-picture-of-an-earlier-cell-paragraph")
+            }
             for (image, laid) in candidates {
-                // (A header's square picture placed from the margin does not narrow the lines of the header paragraphs beside it, its own or the next: Word's
+                    // (A header's square picture placed from the margin does not narrow the lines of the header paragraphs beside it, its own or the next: Word's
                 // print of lab hdrsq sets the centred first line over the full text width beside it, even where it would fit clear of
                 // the picture; sa1 98480d18. A tight or through-wrapped picture placed from the column does the same: sa2 81f316d6's logo, whose
                 // header line of spaces and a right-hand heading stands whole beside it in Word's print, and lab tbhdrwrap. A square one from
