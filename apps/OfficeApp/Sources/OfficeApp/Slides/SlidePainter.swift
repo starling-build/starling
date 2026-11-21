@@ -1690,14 +1690,33 @@ final class SlidePainter: CustomPainter {
             p.style = .fill
             canvas.save()
             canvas.clipRect(r)
+            // (Stops with transparency: stacked boxes would pile their alpha up toward the middle, so each
+            // step paints only its own ring, from its box out to the next one in.)
+            let seeThrough = colors.contains { $0.alpha < 255 }
+            func box(_ t: Double) -> Rect {
+                Rect.fromLTRB(inner.left + (outer.left - inner.left) * t, inner.top + (outer.top - inner.top) * t,
+                              inner.right + (outer.right - inner.right) * t, inner.bottom + (outer.bottom - inner.bottom) * t)
+            }
+            if seeThrough {
+                canvas.clipRect(r)
+                for k in 0 ... steps {
+                    let t = 1 - Double(k) / Double(steps)
+                    let ring = Path()
+                    ring.fillType = .evenOdd
+                    ring.addRect(k == 0 ? r : box(t))
+                    if k < steps { ring.addRect(box(1 - Double(k + 1) / Double(steps))) }
+                    p.color = at(t)
+                    canvas.drawPath(ring, p)
+                }
+                canvas.restore()
+                return
+            }
             p.color = at(1)
             canvas.drawRect(r, p)
             for k in 0 ... steps {
                 let t = 1 - Double(k) / Double(steps)
-                let box = Rect.fromLTRB(inner.left + (outer.left - inner.left) * t, inner.top + (outer.top - inner.top) * t,
-                                        inner.right + (outer.right - inner.right) * t, inner.bottom + (outer.bottom - inner.bottom) * t)
                 p.color = at(t)
-                canvas.drawRect(box, p)
+                canvas.drawRect(box(t), p)
             }
             canvas.restore()
             return
