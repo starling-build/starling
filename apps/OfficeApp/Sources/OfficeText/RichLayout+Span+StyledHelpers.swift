@@ -207,6 +207,16 @@ extension _StyledFrame {
             let nirmalaNamedRun = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased().hasPrefix("nirmala ui")
             s = s.copyWith(ascentOverride: m.0 * multiple * size, descentOverride: m.1 * multiple * size, height: nirmalaNamedRun ? (m.0 + m.1) * multiple : nil, leadingDistribution: nirmalaNamedRun ? .even : nil)
         }
+        // (Urdu Typesetting's line is its win ascent 2806 over win descent 682 of 2048 units (1.3701 and 0.3330 em) on every line it is on: where the
+        // paragraph holds no strut (its runs differ in size, as a larger line break opening it), the stand-in's own deeper descent made the lines 22.2 pt apart
+        // at 11 pt for Word's 18.7. dx2 02272031's paragraph after a 16 pt break.)
+        if kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5,
+           (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == "urdu typesetting",
+           text.unicodeScalars.contains(where: { $0.value >= 0x600 && $0.value <= 0x6FF }) {
+            RuleTrace.hit("urdu-typesetting-line-is-its-win-ascent-over-win-descent")
+            let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+            s = s.copyWith(ascentOverride: 2806.0 / 2048 * multiple * size, descentOverride: 682.0 / 2048 * multiple * size, height: (2806.0 + 682) / 2048 * multiple, leadingDistribution: .even)
+        }
         // (A full stop in a run of a face Windows lacks (the Latin face of a Sinhala paragraph) is drawn in Sylfaen by Word, whose win descent 635/2048 = 0.31 em
         // is deeper than Nirmala UI's 0.251: the Sinhala line is Nirmala's ascent 1.079 over Sylfaen's descent, 16.68 pt at 12 pt, 29.16 at 21 pt, against 15.96 and
         // 28.0 (dx2 827a8947, Word's print: every line with a Sylfaen stop; the lines without stand 14.64 at 11 pt). Sylfaen: /data/corpus-cache/metrics/indic-si-ta-20261121.)
