@@ -14,6 +14,16 @@ private struct _EaPiece { var a: Int; var b: Int; var last: Int; var w: Double; 
 extension RichLayout {
 
     /// An ASCII letter, digit or comma: what a real Latin word run has beside its last space (a "=" or "-" does not: xb jpn 5ff3d0's "n = -5〜+5）…" took "上" with the tail's room, and Word's print leaves it for the next line).
+    /// PowerPoint's free break between two ideographs or kana: both are ideograph or kana, and the second is not one a line may not start with (small kana, the prolonged sound mark, iteration marks).
+    static func _slidesBreaksBetween(_ b: Character, _ ch: Character) -> Bool {
+        func ideo(_ c: Character) -> Bool {
+            guard c.unicodeScalars.count == 1, let v = c.unicodeScalars.first?.value else { return false }
+            return (v >= 0x3041 && v <= 0x30FF) || (v >= 0x3400 && v <= 0x4DBF) || (v >= 0x4E00 && v <= 0x9FFF) || (v >= 0xF900 && v <= 0xFAFF)
+        }
+        guard ideo(b), ideo(ch) else { return false }
+        return !"ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶーゝゞヽヾ々〻・゛゜".contains(ch) && !"\u{3099}\u{309A}\u{309B}\u{309C}\u{30FB}".contains(ch)
+    }
+
     static func _asciiWordUnit(_ u: UInt16) -> Bool {
         (u >= 0x30 && u <= 0x39) || (u >= 0x41 && u <= 0x5A) || (u >= 0x61 && u <= 0x7A) || u == 0x2C
     }
