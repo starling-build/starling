@@ -2620,6 +2620,11 @@ private struct SlideContext {
         }
         for (r, h) in rowHeights.enumerated() where h > 0 { ts.rowHeights[r] = h }
         doc.tableStyles[tableId] = ts
+        // PowerPoint sets a table as wide as its grid, whatever width the graphic frame states (a Google Slides export states 3000000
+        // EMU on every table; e2a1fcdb p8's two columns, 268 + 692 pt, were squeezed into 236 pt here and wrapped a character a line).
+        if transform == nil, !widths.isEmpty, frame.width > 0 {
+            frame = Rect.fromLTWH(frame.left, frame.top, widths.reduce(0, +), frame.height)
+        }
         var st = ShapeState(id: id(), name: el.descendant("p:cNvPr")?["name"] ?? "Table", kind: .table, frame: frame,
                             rotation: 0, fill: nil, outline: nil, outlineWidth: 0, anchor: .top,
                             insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), prompt: nil, text: doc,
