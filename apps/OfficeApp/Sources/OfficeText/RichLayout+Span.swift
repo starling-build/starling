@@ -2047,7 +2047,7 @@ extension RichLayout {
     /// outlined runs showing, as a stroke in the outline's colour centred on the glyph edge (a stroke-only twin over the fill).
     func _paintOutlineStrokes(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
                               _ canvas: any Canvas, map: _OffsetMap? = nil) {
-        guard theme.wordRules, p.runs.contains(where: { ($0.style.outline ?? $0.style.textLine) != nil && !$0.style.noFill }), let root = painter.text else { return }
+        guard theme.wordRules || theme.outlineOverFill, p.runs.contains(where: { ($0.style.outline ?? $0.style.textLine) != nil && !$0.style.noFill }), let root = painter.text else { return }
         var marks: [(Range<Int>, Paint)] = []
         var at = 0
         for run in p.runs {
