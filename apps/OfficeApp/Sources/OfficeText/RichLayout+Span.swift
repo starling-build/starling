@@ -5038,6 +5038,9 @@ extension RichLayout {
                           !p.style.lineHeightIsMinimum, p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC }) else { return false }
                     return p.inlineImages.values.allSatisfy { $0.float == nil }
                 }()
+                // (An embedded object — an ActiveX check box — stands on the line of its own run's text, whatever else is on the
+                // line: dx2 00b709dd's 37 boxes, 14.25pt in 12pt Calibri, are lines 14.65 apart in Word's print, ours 14.42.)
+                let objectLine = image.name == "w:object" && image.textBox == nil
                 if theme.wordRules, image.float == nil, w < textWidth - 1,
                    exactPictures || (at == 0 || breaks(at - 1)) && (pos >= units.count || breaks(pos)) {
                     // (In the text's own style: the picture's run keeps no
@@ -5087,6 +5090,15 @@ extension RichLayout {
                     RuleTrace.hit("word-first-picture-wider-than-the-indented-line-stays-on-it")
                     _inlineOverflow[image.id] = size.width + lead - textWidth
                     size = Size(textWidth - lead, size.height)
+                }
+                // (An object shorter than Word's line of its run's text makes that line, as a picture does on a line grid: its box is the
+                // line's, the object at its top, the room all under it. dx2 00b709dd's check boxes, 14.25pt in 12pt Calibri, 14.65 apart.)
+                if objectLine, hung == nil, size.height > 0, let box = theme.winLineBox?(run.style.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily)
+                    .map({ $0 * max(1, style.fontSize ?? _px(run.style.fontSize ?? theme.fontSize)) }), box.rounded() > size.height {
+                    hung = box
+                    _pageFill[image.id] = size.height
+                    _lineCentre[image.id] = 0
+                    size = Size(size.width, box)
                 }
                 children.append(RichImageSpan(alignment: alignment, baseline: TextBaseline.alphabetic, style: style))
                 inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic,
