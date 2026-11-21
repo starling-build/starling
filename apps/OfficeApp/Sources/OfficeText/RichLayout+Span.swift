@@ -4029,7 +4029,7 @@ extension RichLayout {
                     // hAnsi is 宋体 are SimSun's, an em each in Word's print.)
                     let s = style(kind)
                     let own = face.family == latinFace?.family
-                    let table = s.fontWeight == .bold ? face.boldOtherAdvances : face.otherAdvances
+                    let table = face.otherTable(bold: s.fontWeight == .bold, italic: s.fontStyle == .italic)
                     let each = ch.unicodeScalars.map { table?[$0.value] }
                     if !each.contains(where: { $0 == nil }), let w = Optional(each.reduce(0) { $0 + ($1 ?? 0) }), let px = s.fontSize, px > 0.5 {
                         let classScale = classed ? face.classScales.flatMap { kind >= 0 && kind < $0.count ? $0[kind] : nil } ?? 1 : 1

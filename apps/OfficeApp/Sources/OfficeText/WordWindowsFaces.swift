@@ -7,7 +7,7 @@ public enum WordWindowsFaces {
     public static let metricsHeld: Set<String> = [
         "calibri", "cambria", "arial", "times new roman", "aptos", "georgia", "verdana", "tahoma",
         "courier new", "segoe ui", "century", "segoe ui symbol", "symbol", "wingdings",
-        "book antiqua", "baskerville old face", "engravers mt", "impact", "mv boli", "khmer ui", "dubai",
+        "book antiqua", "palatino linotype", "baskerville old face", "engravers mt", "impact", "mv boli", "khmer ui", "dubai",
         "urdu typesetting", "copperplate gothic bold", "copperplate gothic light", "goudy old style",
     ]
     public static let names: Set<String> = [
