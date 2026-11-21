@@ -7155,7 +7155,7 @@ extension ChartPainter {
         // above or below the pie, or a column beside it, each on a leader line from its slice. Laid out once without painting, spread, then
         // painted where they come to.)
         var spreadAt = spread
-        if !probe, collect == nil, point == nil, l.fitted, l.outside, !c.onSlide, !c.onSheet, !c.chartex {
+        if !probe, collect == nil, point == nil, l.moves.isEmpty, l.fitted, l.outside, !c.onSlide, !c.onSheet, !c.chartex {
             let rec = PieSpread()
             _ = _pieLabels(c, l, canvas, frame: frame, slices: slices, centre: centre, rx: rx, ry: ry, inner: inner, k: k, theme: theme, ink: ink,
                            point: point, movedEdge: movedEdge, pulled: pulled, probe: false, collect: rec)
