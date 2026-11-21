@@ -1171,18 +1171,6 @@ extension RichLayout {
         if theme.wordRules, pgs.y < 0.01, c.firstInRow, case let extra = _pg_headLift(&pgs, document, pgs.i, j, c, wholeRow: true), extra > 0.01,
            shown + extra + _pg_ruleUnder(&pgs, document, c) <= pgs.contentH + 0.01 {
             pgs.y += extra
-            // (The cells merged down from the page before, set at the page's head already, stand under that line too.)
-            if _pg_openWholeLift(pgs, document, pgs.i, c) {
-                for n in _pages[pgs.page].indices {
-                    let old = _pages[pgs.page][n]
-                    var moved = PagePiece(paragraph: old.paragraph, flowTop: old.flowTop, flowBottom: old.flowBottom, page: old.page, pageY: old.pageY + extra)
-                    moved.repeated = old.repeated
-                    moved.part = old.part
-                    moved.inner = old.inner
-                    if let at = _allPieces.lastIndex(of: old) { _allPieces[at] = moved }
-                    _pages[pgs.page][n] = moved
-                }
-            }
         }
         // (A row at a page's head whose every cell says nil above, in a table with no top line of its own, has no line
         // over it: the line under the row before stays on the page before, and the row is that line's room shorter with

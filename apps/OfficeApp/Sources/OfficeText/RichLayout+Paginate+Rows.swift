@@ -121,9 +121,7 @@ extension RichLayout {
               (i ..< j).contains(where: { k in
                   document.paragraphs[k].cell.map { d in !(d.bordersXML ?? "").containsSubstring("<w:top ") && d.edges?.top == nil } ?? false
               }) || Self._rowHasContinuedTopUnsaid(i, document) else { return 0 }
-        let room = _px(Self._ruleRoom(ts.edgeStyles["top"] ?? ts.borderStyle, ts.edgeWidths["top"] ?? ts.borderWidth ?? 0.5))
-        if wholeRow, _pg_openWholeLift(pgs, document, i, c, room: room) { return max(0, room) }
-        return max(0, room - max(0, c.rules - c.ruleBelow))
+        return max(0, _px(Self._ruleRoom(ts.edgeStyles["top"] ?? ts.borderStyle, ts.edgeWidths["top"] ?? ts.borderWidth ?? 0.5)) - max(0, c.rules - c.ruleBelow))
     }
 
     // (Cells merged down from the page before whose text all goes over to this page, none of it left on the page before:
@@ -133,7 +131,7 @@ extension RichLayout {
     // (Only where the cell's own rule would take the whole line's room away: where it leaves some, the lines already set stand.)
     func _pg_openWholeLift(_ pgs: _PState, _ document: RichDocument, _ i: Int, _ c: _CellGeo, room: Double? = nil) -> Bool {
         guard RichTextTheme.wordWindowsPages, _pg_spansOpenWhole(pgs), Self._rowHasContinuedTopUnsaid(i, document) else { return false }
-        guard let ts = document.tableStyles[c.table] else { return false }
+        guard let ts = document.tableStyles[c.table], ts.edges?.top ?? (ts.borders && !ts.bordersFromCells) else { return false }
         let r = room ?? _px(Self._ruleRoom(ts.edgeStyles["top"] ?? ts.borderStyle, ts.edgeWidths["top"] ?? ts.borderWidth ?? 0.5))
         return r - max(0, c.rules - c.ruleBelow) <= 0.01
     }
@@ -369,6 +367,20 @@ extension RichLayout {
                 _allPieces.replaceSubrange(n ... n, with: kept + [fresh])
                 if let at = _pages[old.page].lastIndex(of: old) { _pages[old.page].replaceSubrange(at ... at, with: kept) }
                 _pages[pgs.page].append(fresh)
+            }
+        }
+        // (… and stands under the table's top line there, as the row's own cells do under theirs: the row is not
+        // lowered, and grows only where the cell is its tallest — see `_pg_openWholeLift`.)
+        if _pg_openWholeLift(pgs, document, i, c), let ts = document.tableStyles[c.table] {
+            let room = max(0, _px(Self._ruleRoom(ts.edgeStyles["top"] ?? ts.borderStyle, ts.edgeWidths["top"] ?? ts.borderWidth ?? 0.5)))
+            for n in _pages[pgs.page].indices where room > 0.01 {
+                let old = _pages[pgs.page][n]
+                var moved = PagePiece(paragraph: old.paragraph, flowTop: old.flowTop, flowBottom: old.flowBottom, page: old.page, pageY: old.pageY + room)
+                moved.repeated = old.repeated
+                moved.part = old.part
+                moved.inner = old.inner
+                if let at = _allPieces.lastIndex(of: old) { _allPieces[at] = moved }
+                _pages[pgs.page][n] = moved
             }
         }
     }
