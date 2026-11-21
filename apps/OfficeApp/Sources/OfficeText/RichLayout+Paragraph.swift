@@ -3750,7 +3750,11 @@ extension RichLayout {
                             return n.isEmpty || n == "unknown" ? nil : n
                         }.last
                     }
-                    if let name = faceName, let face = theme.faceResolver?(name, false), let nh = face.naturalHeight, nh > 0.5,
+                    if faceName?.trimmingWhitespace().lowercased() == "calibri", let fs = textStyle.fontSize, fs > 0 {
+                        // (Calibri's own depth under the baseline in Word is its win descent, 550/2048 em: 2.96 pt at 11, where the engine's flat
+                        // probe draws 2.29. 6f0b70eb p2: the step into a line holding a 13.5 pt picture, 3.42 = 2.96 + the multiple's 0.46 below the line above.)
+                        desc = 550.0 / 2048 * fs
+                    } else if let name = faceName, let face = theme.faceResolver?(name, false), let nh = face.naturalHeight, nh > 0.5,
                        let bl = face.baseline, bl > 0, bl < nh {
                         desc = single * (1 - bl / nh)
                     } else {
@@ -3788,7 +3792,7 @@ extension RichLayout {
                     // Tahoma. A taller picture is not in the lab, and a8f4dfcd's 20pt icons in 1.5 Tahoma 12 do not fit the formula.)
                     let tallPic = zip(boxes, inline).contains { box, il in
                         let grown = il.image.flatMap { _pageFill[$0.id] }.map { max(0, box.toRect().height - $0) } ?? 0
-                        return box.toRect().height - grown > single + 0.5
+                        return box.toRect().height - grown > single * 1.05
                     }
                     if wrappedPlain.isEmpty, !tallPic, above.contains(where: { $0 >= 0 }) {
                         // (Word's print, lab afbaab-multiple, 27 lines to 0.1 pt: EVERY line of the paragraph stands max(text ascent, picture top)
