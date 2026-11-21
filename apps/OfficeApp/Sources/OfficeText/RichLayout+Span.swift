@@ -824,7 +824,12 @@ extension RichLayout {
             // (With a floating anchor in the line, the larger of the mark's size and its spaces': dx2 ja 4fbb6e32's
             // 24pt under a 24pt mark is the mark's line; cs 2a42c845's header line of 11pt spaces under a mark of the
             // default size stays 11. The two cannot tell the spaces' size from the anchor run's.)
-            return (floating ? max(size(p.style.mark), spaced) : size(p.style.mark), true)
+            // (A line of spaces and tabs in a paragraph that runs right to left, its mark not marked w:rtl, is the mark's line at the complex-script size, as an
+            // empty one is: dx2 537b33ec's tab lines, sz 11 / szCs 14 under Normal's bidi, are 14 pt Times New Roman in Word's print.)
+            var markSize = size(p.style.mark)
+            if wider, p.style.rightToLeft, !floating, !(p.style.mark?.rightToLeft ?? false), p.style.mark?.fontSize == nil,
+               let z = p.style.mark?.complexFontSize ?? named?.char.complexFontSize ?? normal?.complexFontSize, z > 0.5 { markSize = z }
+            return (floating ? max(size(p.style.mark), spaced) : markSize, true)
         }()
         // (Which characters are a note's number: no automatic space stands
         // beside one, see below.)
@@ -1773,32 +1778,9 @@ extension RichLayout {
                     // (The rest of a one-line paragraph moves with its ruby's base.)
                     s = s.copyWith(baselineShift: (s.baselineShift ?? 0) - mixedRubyRaise * theme.pixelsPerPoint * scale)
                 }
-                // (A run with a text shadow (w14:shadow) makes its line taller by the shadow's reach: the blur radius past the offset,
-                // below and above the face's own line. Lab hdrsup v7 against v10, 72 pt Copperplate Gothic Light, shadow 3 pt out at 45 degrees
-                // blurred 4 pt: the baseline falls 1.92 pt (4 - 3 sin 45 = 1.88) and the body 8.04 (4 + 3 sin 45 = 6.12 more below).)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, let sh = run.shadow ?? named?.char.shadow, !sh.glow, sh.blur > 0, sh.scale > 0,
-                   let size = s.fontSize, size > 0.5, !(index.map { _verticalBody($0) } ?? false),
-                   let latin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)?.trimmingWhitespace(),
-                   let face = theme.faceResolver?(latin, false),
-                   let pt = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize, pt > 0.5 {
-                    var single = p.style; single.lineSpacing = 1
-                    let bold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
-                    let line = (bold ? face.boldHeight : nil) ?? face.naturalHeight ?? theme.naturalLineHeight(family: face.family, bold: bold, italic: run.italic)
-                    if let b = theme.baseline(for: run, in: single, named: named, eastAsian: false, gridPitch: pitch), case let asc = b / pt, asc > 0.3, line > asc {
-                        RuleTrace.hit("word-text-shadow-reaches-the-line")
-                        let k = theme.pixelsPerPoint * scale
-                        // (The glyphs are set down by the reach above them and the line grows by the reach below as well: the line's own
-                        // ascent stays, the paint takes the baseline from the face.)
-                        let above = max(0, sh.blur - sh.dy) * k, below = max(0, sh.blur + sh.dy) * k
-                        let up = s.ascentOverride ?? asc * size, down = (s.descentOverride ?? (line - asc) * size) + above + below
-                        // (A raised or lowered run's box takes no line of its own: its shadow's reach above it is carried in the label for the
-                        // line pass, `_strut`, which grows the line by it. Lab hdr3 v1 against v2: the body 1.85 pt lower for the shadow on the
-                        // raised run alone, the reach 4 - 3 sin 45 = 1.88.)
-                        let raisedRun = s.baselineShift != nil
-                        s = s.copyWith(baselineShift: (s.baselineShift ?? 0) + above, ascentOverride: up, descentOverride: down, height: (up + down) / size,
-                                       leadingDistribution: .even, debugLabel: (s.debugLabel ?? "") + (raisedRun ? " shadow-line@\(above)" : " shadow-line"))
-                    }
-                }
+                // (A run with a text shadow (w14:shadow) does NOT grow its line: lab hdrsup/hdr3's 72 pt Copperplate runs did, but 12 pt body
+                // text with a 3 pt blur does not in Word's print (dx2 2d7a47f4 73 to 27, th 10ffb69f, ja 4fbb6e32 dropped when it was a rule).
+                // See docs/plans/board for the open question: what separates the two.)
                 // (A run of tabs alone takes no line of its own in a paragraph of
                 // other text: windows-1's lab `ttab`, zh-147bdae0's "四、承諾事項"
                 // — its 16pt bold tab after 14pt text, at the line's end, mid-line
