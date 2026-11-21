@@ -217,9 +217,13 @@ extension PdfExport {
         init(_ setup: PageSetup) {
             let textRight = setup.width - setup.marginRight + setup.columnTrim
             if DocxFormat.wordOnWindows {
-                scale = setup.width / (textRight + 266.4)
+                // (Word for Windows prints the page at a whole number of 600-dpi dots to the inch, c = 600 W / (text
+                // right + 266.4) rounded, and centres it from the unrounded c / 600: amd-opus' fit of 26 documents'
+                // prints, 03f63881, 5e813226, 2335cfd7 among them, to about one dot, 0.12 pt.)
+                let exact = setup.width / (textRight + 266.4)
+                scale = (600 * exact).rounded() / 600
                 left = 0
-                top = (setup.height - scale * setup.height) / 2
+                top = (setup.height - exact * setup.height) / 2
                 pane = Rect.fromLTWH(scale * (textRight + 9), top, scale * 257.4, scale * setup.height)
                 return
             }
