@@ -283,6 +283,18 @@ struct PdfMarkup {
         // (Deletions anchored past the text's end stand at its last paragraph.)
         let last = max(0, paragraphs.count - 1)
         deletions = deletions.map { var n = $0; if n.anchor.paragraph > last { n.anchor = RichPosition(paragraph: last, offset: 0) }; return n }
+        // (A header or footer prints as the body does: its deleted text taken out, so
+        // it stands shorter and the page's body takes the room — 2335cfd7's footer.)
+        if !source.headerFooters.isEmpty {
+            printed.headerFooters = source.headerFooters.map { hf in
+                var sub = source
+                sub.headerFooters = []
+                sub.paragraphs = hf.paragraphs
+                var out = hf
+                if PdfExport.hasMarkup(sub) { out.paragraphs = PdfMarkup(sub).document.paragraphs }
+                return out
+            }
+        }
         document = printed
         // (By anchor, and in the order made where two share one: a
         // field's "Field Code Changed" before its result's "Formatted".)
