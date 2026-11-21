@@ -602,7 +602,12 @@ extension _StyledFrame {
         }
         // (Thaana letters, word by word, at MV Boli's advances: Word draws them in it, the stand-in's glyphs are wider.)
         if theme.wordRules, document.readFromFile, RichTextTheme.wordWindowsPages, let px = s.fontSize, px > 0.5,
-           word.unicodeScalars.contains(where: { $0.value >= 0x0780 && $0.value <= 0x07BF }), let ems = ThaanaAdvances.sum(word) {
+           word.unicodeScalars.contains(where: { $0.value >= 0x0780 && $0.value <= 0x07BF })
+            || (!document.thaanaFaces.isEmpty
+                && (document.thaanaFaces.contains((run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased())
+                    || (document.thaanaFaces.contains((run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased())
+                        && !word.unicodeScalars.contains(where: { ($0.value >= 0x41 && $0.value <= 0x5A) || ($0.value >= 0x61 && $0.value <= 0x7A) })))),
+           let ems = ThaanaAdvances.sum(word) {
             let shaped = _wordWidth(s, String(word))
             RuleTrace.hit("word-thaana-letters-at-mv-boli-advances")
             return shaped > 0.01 ? s.copyWith(scaleX: ems * px / shaped) : s
