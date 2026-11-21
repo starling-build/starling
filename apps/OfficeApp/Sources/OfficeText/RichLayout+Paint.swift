@@ -1698,7 +1698,28 @@ extension RichLayout {
                                             gridPitch: _offGrid(i, document) ? nil : _grid(i, document).pitch)
                 let one = TextPainter(text: TextSpan(text: leader.fill, style: style), textDirection: .ltr)
                 one.layout(minWidth: 0, maxWidth: 10_000)
-                let n = Int(((box.right - box.left) / max(0.5, one.width)).rounded(.down))
+                var n = Int(((box.right - box.left) / max(0.5, one.width)).rounded(.down))
+                // (Word's leader marks stand on a grid of whole 600 dpi pixels counted from the page's left edge, not packed
+                // against the right tab: 99a68284 dots every 2.76 pt at 11 pt, 7de651e7 every 3.00 pt, both at multiples of the
+                // pitch; the line keeps the dots between the text and the number that fit the grid.)
+                if RichTextTheme.wordWindowsPages, leader.fill.count == 1, one.width > 0.5 {
+                    let px = _px(72.0 / 600.0)
+                    let pitch = max(px, (one.width / px).rounded() * px)
+                    let origin = _px(_setup(ofParagraph: i).marginLeft)
+                    let left = origin + g.textLeft + box.left, right = origin + g.textLeft + box.right
+                    let first = (left / pitch - 1e-6).rounded(.up)
+                    let count = Int(((right - first * pitch) / pitch + 1e-6).rounded(.down))
+                    let oneWidth = one.width
+                    one.dispose()
+                    guard count > 0 else { return }
+                    let spaced = style.copyWith(letterSpacing: pitch - oneWidth + (style.letterSpacing ?? 0))
+                    let grid = TextPainter(text: TextSpan(text: String(repeating: leader.fill, count: count), style: spaced),
+                                           textDirection: .ltr, strutStyle: g.painter.strutStyle)
+                    grid.layout(minWidth: 0, maxWidth: 10_000_000)
+                    grid.paint(canvas, Offset(first * pitch - origin, g.inkTop + box.top))
+                    grid.dispose()
+                    return
+                }
                 one.dispose()
                 guard n > 0 else { return }
                 let fill = TextPainter(text: TextSpan(text: String(repeating: leader.fill, count: n), style: style),
