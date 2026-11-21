@@ -25,6 +25,13 @@ extension _StyledFrame {
         flush(i)
         spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
         ctx.inserts.append(offset)
+    } else if !theme.wordRules, theme.officeLatinBreaks, ctx.before == "-", ch.isASCII, ch.isNumber,
+              ctx.beforeBefore.map({ $0.isASCII && ($0.isLetter || $0.isNumber) }) == true {
+        // (PowerPoint ends a line after a hyphen that stands between a letter or digit and a digit: ba4b81b7's
+        // "IDs 1M-2M" and "14M-15M" print "1M-" and "2M" on two lines. The engine's rules (UAX 14) keep "-" and a digit together.)
+        flush(i)
+        spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
+        ctx.inserts.append(offset)
     } else if theme.wordRules, (ctx.before == "\u{2014}" && ch.isASCII && ch.isNumber && ctx.beforeBefore.map { $0.isASCII && $0.isNumber || RichLayout._closingMarks.contains($0) } == true)
                 || (ch == "\u{2014}" && !ea && ctx.before.map { $0.isASCII && $0.isNumber } == true && following.map { $0.isASCII && $0.isNumber } == true)
                 || (RichTextTheme.wordWindowsPages && ch == "\u{2014}" && !ea && ctx.before.map { $0.isASCII && $0.isLetter } == true) {
