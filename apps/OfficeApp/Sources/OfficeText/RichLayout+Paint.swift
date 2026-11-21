@@ -1480,7 +1480,7 @@ extension RichLayout {
                 - (theme.wordRules && fromStart && c.direction == .down && indent > 0.01 && !c.wrapsPart && !japaneseFace && !(_spaceBefore[i] > 0.01) ? min(indent, _px(2.25)) : 0)
             let origin = Offset(along, c.across + _spaceBefore[i] + _turnedInkShift(i, document))
             if c.direction == .down, document.paragraphs[i].cell?.uprightIdeographs == true,
-               _paintUpright(g.painter, at: origin, canvas, distribute: document.paragraphs[i].style.eastAsian["w:jc"] == "distribute", justify: theme.wordRules && aligned == .justify && document.paragraphs[i].style.eastAsian["w:jc"] == nil, mixed: true, centred: aligned == .center) {
+               _paintUpright(g.painter, at: origin, canvas, distribute: document.paragraphs[i].style.eastAsian["w:jc"] == "distribute", justify: theme.wordRules && aligned == .justify && document.paragraphs[i].style.eastAsian["w:jc"] == nil, mixed: true, centred: aligned == .center, rubyShifts: _rubyColumnShifts(i, document)) {
                 canvas.restore()
                 _paintVerticalCellPictures(i, g, canvas, c, origin, document)
                 _paintVerticalCellFloats(i, g, canvas)
@@ -1766,7 +1766,7 @@ extension RichLayout {
                 // the lines after it at the paragraph's own place.)
                 onlyFirst.paint(canvas, Offset(textAt.dx + shift, textAt.dy))
                 onlyRest.paint(canvas, textAt)
-            } else if shifts.isEmpty, _verticalBody(i), _paintUpright(g.painter, at: textAt, canvas, mixed: true) {
+            } else if shifts.isEmpty, _verticalBody(i), _paintUpright(g.painter, at: textAt, canvas, mixed: true, rubyShifts: _rubyColumnShifts(i, document)) {
                 // (A vertical section's lines: each ideograph upright down its column, as Word prints them.)
             } else if shifts.isEmpty { g.painter.paint(canvas, _unseenShift[i].map { Offset(textAt.dx + $0, textAt.dy) } ?? textAt) } else { _paintShiftedLines(g.painter, at: textAt, shifts, canvas) }
         }

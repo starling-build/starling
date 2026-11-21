@@ -1824,6 +1824,16 @@ extension RichLayout {
     /// offsets), with the first run's look.
     @inline(__always) func gridPitchIsNil(_ pitch: Double?) -> Bool { pitch == nil }
 
+    /// A vertical ruby paragraph on a line grid: per ruby group, how far its column's glyphs stand toward the next column (px).
+    func _rubyColumnShifts(_ i: Int, _ document: RichDocument) -> [(from: Int, to: Int, shift: Double)] {
+        let p = document.paragraphs[i]
+        guard theme.wordRules, _verticalBody(i), _grid(i, document).pitch != nil, p.style.lineHeightPoints == nil else { return [] }
+        let named = _named(p, document)
+        return _rubyGroups(p).compactMap { g in
+            guard let h = theme.rubyLine(for: g.style, in: p.style, named: named, eastAsian: true, gridPitch: _grid(i, document).pitch, vertical: true), h.raise != 0 else { return nil }
+            return (g.from, g.to, -h.raise * theme.pixelsPerPoint * scale)
+        }
+    }
     func _rubyGroups(_ p: RichParagraph) -> [(from: Int, to: Int, ruby: RubyText, style: CharStyle)] {
         var out: [(from: Int, to: Int, ruby: RubyText, style: CharStyle)] = []
         var at = 0
