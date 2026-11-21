@@ -370,9 +370,9 @@ enum Extrusion {
                 q.x *= f; q.y *= f
             }
             if let o = scene.oblique {
-                // (The camera stands in the slide, not on the shape: a shape turned on the page, as the
+                // (A legacy camera stands in the slide, not on the shape (the plain oblique ones turn with it, oox-Scene3d_obliqueTopRight): a shape turned on the page, as the
                 // bars of es b3255e9d's core, still has its depth recede up and to the right.)
-                let o = spin == 0 ? o : Offset(o.dx * cos(spin * .pi / 180) + o.dy * sin(spin * .pi / 180), -o.dx * sin(spin * .pi / 180) + o.dy * cos(spin * .pi / 180))
+                let o = spin == 0 || !scene.cameraName.lowercased().hasPrefix("legacy") ? o : Offset(o.dx * cos(spin * .pi / 180) + o.dy * sin(spin * .pi / 180), -o.dx * sin(spin * .pi / 180) + o.dy * cos(spin * .pi / 180))
                 let f = scene.perspective ? 250 * px / (250 * px + max(0, -q.z)) : 1
                 q.x = q.x * f - o.dx * q.z * f
                 q.y = q.y * f - o.dy * q.z * f
