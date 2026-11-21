@@ -56,8 +56,8 @@ for k,v in b.items():
     elif n[k]>v+tol and s not in ok: bad.append((n[k]-v,k,v,n[k]))
 bad.sort(reverse=True)
 print("slides-gate: %d decks scored, %d worse than baseline by over %.2f pt, %d no longer render"%(sum(1 for v in n.values() if v is not None),len(bad),tol,len(gone)))
-for d,k,v,x in bad[:15]: print("  WORSE %s %.2f -> %.2f"%(k[:-5],v,x))
-for k in gone[:10]: print("  NO-RENDER",k[:-5])
+for d,k,v,x in bad[:15]: print("slides-gate:   WORSE %s %.2f -> %.2f"%(k[:-5],v,x))
+for k in gone: print("slides-gate:   NO-RENDER",k[:-5])
 sys.exit(1 if bad or gone else 0)
 P
 rc=$?
