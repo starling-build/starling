@@ -331,7 +331,7 @@ def mupdf_glyphs(pdf, drop=None):
                     # glyphs' sizes stand empty between two: see `found`.)
                     pieces = [[row[0]]]
                     for prev, g2 in zip(row, row[1:]):
-                        if g2[2] - prev[4] > 0.8 * max(prev[5], g2[5]):
+                        if g2[2] - prev[4] > 0.8 * max(prev[5], g2[5]) - 0.1:  # (0.1pt: a gap of exactly 4/5 em is 18.00 in one print, 18.02 in the other)
                             pieces.append([])
                         pieces[-1].append(g2)
                     parts = "\x1e".join(f"{round(q[0][2])}\x1f{round(max(r[4] for r in q))}\x1f{''.join(r[3] for r in q)}"
