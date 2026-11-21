@@ -358,6 +358,8 @@ public final class RichTextTheme {
     /// filled in the shadow's colour (`_paintShadowPaths`), not as a second copy of the text, so the PDF's text
     /// holds the words once, as PowerPoint's and Word's prints do.
     nonisolated(unsafe) public static var shadowsAsPaths = false
+    /// The weight an embedded variable font is drawn at, by the family it is loaded as (set from the deck's font names).
+    nonisolated(unsafe) public static var variableWeights: [String: Double] = [:]
     /// Whether a run's characters are set at the widths its resolved
     /// face gives (`RichResolvedFace.advances`) outside Word's rules too:
     /// PowerPoint's Lucida Sans Unicode, drawn here in a narrower face.
@@ -1122,6 +1124,7 @@ public final class RichTextTheme {
                 }
                 return features.isEmpty ? nil : features
             }(),
+            fontVariations: family.flatMap { Self.variableWeights[$0] }.map { [FontVariation("wght", $0)] },
             decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
             decorationColor: color,
             debugLabel: familyName,
