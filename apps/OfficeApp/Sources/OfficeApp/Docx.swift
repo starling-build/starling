@@ -1717,6 +1717,7 @@ enum DocxFormat {
         var listCounterOf: [String: String] = [:]
         var listRestarts: [String: [Int: Int]] = [:]
         if let numData = part("word/numbering.xml"), let numbering = XNode.parse(numData) {
+            _resolveThemeFonts(numbering, theme)
             var abstract: [String: [Int: ListKind]] = [:]
             var abstractFormats: [String: [Int: ListLevelFormat]] = [:]
             func readLevel(_ lvl: XNode, _ levels: inout [Int: ListKind], _ formats: inout [Int: ListLevelFormat]) {

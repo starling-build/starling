@@ -1885,6 +1885,14 @@ extension RichLayout {
                 markerChar.letterSpacing = v / 20
             }
         }
+        // (A Hebrew or Arabic-letter number (hebrew1, arabicAlpha) is drawn in the level's latin face (the theme's majorBidi, Times New Roman, where it names one; w:cs says David and Word does not use it), bold where the level's
+        // bCs says so: xd b9164bf3's "א." is Times New Roman Bold in Word's print, a line 13.3 pt tall, so each list line steps 19.9 at
+        // 1.5 spacing where the paragraph's David lines step 17.7.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, let lvl = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)] }),
+           let raw = lvl.rawFormat, raw.hasPrefix("hebrew") || raw.hasPrefix("arabic"), let xml = lvl.numberRPrXML {
+            if let r = xml.rangeOfSubstring("w:ascii=\"") ?? xml.rangeOfSubstring("w:cs=\"") { markerChar.complexFontFamily = String(xml[r.upperBound...].prefix { $0 != "\"" }) }
+            if xml.containsSubstring("<w:bCs/>") { markerChar.bold = true }
+        }
         if let c = p.style.bulletColor { markerChar.color = c }
         // (The level's own size, where it says one: bug65649's "3.1.1."
         // is 14pt over 12pt text in Word's print.)

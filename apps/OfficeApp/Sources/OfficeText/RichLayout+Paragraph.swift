@@ -3486,6 +3486,22 @@ extension RichLayout {
                 }
             }
         }
+        // (A first line under a Hebrew or Arabic-letter number is as tall as the number's face makes it: xd b9164bf3's David 12pt lines
+        // at 1.5 step 17.7, the lines opened by a bold Times New Roman "א." 19.9, 1.107 em by the multiple.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.image == nil, !p.text.isEmpty, style.lineHeightPoints == nil,
+           p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.rawFormat })
+               .map({ $0.hasPrefix("hebrew") || $0.hasPrefix("arabic") }) ?? false,
+           let face = _levelNumberFonts(p, document).latin, face.trimmingWhitespace().lowercased() == "times new roman",
+           let nat = Optional(2268.0 / 2048.0),   // (Windows Times New Roman: 1825 ascent, 443 descent of 2048)
+           let line = painter.computeLineMetrics().first {
+            let named = _named(p, document)
+            let size = _levelNumberSize(p, document) ?? _markerChar(p, document).fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+            let h = _px(size * nat) * style.lineSpacing
+            if h > line.height + _px(0.05) {
+                RuleTrace.hit("word-hebrew-number-face-lifts-the-first-line")
+                segoeLift += (h - line.height) / _px(1)
+            }
+        }
         if numberLift > 0.001 {
             // (An ink shift already UP, negative, is no part of a BULLET's lift: only a shift down covers it. A counted number's
             // lift stands over it: xb a567c5c2's 20pt "1." over 11pt text at 1.5 lines.)
