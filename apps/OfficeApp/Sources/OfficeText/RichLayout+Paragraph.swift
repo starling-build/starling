@@ -3790,7 +3790,13 @@ extension RichLayout {
         // objects and drawings alike): pitches 19.9 / 21.2 / 22.3 / 25.3 for an 18pt object 6 down to 3 up in 11pt Times at 276,
         // 18.2 for a 9pt one, 24.3 at 360, 18.0 at 240; to 0.1pt. Not tied to the object being lowered.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, _columns <= 1,
-           style.lineHeightPoints == nil, case let multiple = style.lineSpacing - theme.lineSpacingReduction, multiple > 1.001,
+           style.lineHeightPoints == nil, case let multiple = style.lineSpacing - theme.lineSpacingReduction, multiple > 0.999,
+           // (at SINGLE spacing only a raised or lowered picture or object takes the rule: a plain one at position 0 keeps the ordinary line)
+           multiple > 1.001 || inline.contains(where: { item in
+               guard let img = item.image else { return false }
+               let pos = p.runs.first(where: { $0.style.inlineImage == img.id }).flatMap { $0.style.raised } ?? Self._runPosition(img.sourceRunPropertiesXML) ?? 0
+               return abs(pos) > 0.01
+           }),
            besideLineIndents.isEmpty, keepClear == nil, Self._paired(painter) == nil,
            p.text.contains(where: { !$0.isWhitespace && $0 != "\u{FFFC}" }),
            let boxes = painter.inlinePlaceholderBoxes, boxes.count == inline.count, !boxes.isEmpty,
@@ -3861,9 +3867,9 @@ extension RichLayout {
                                 wrappedPlain.insert(line)
                             }
                         }
-                        above[line] = max(above[line], metrics[line].baseline - r.top)
                         // (a placeholder the first-line rule enlarged for the text's room under the baseline: its foot is the picture's own)
                         let grown = _pageFill[img.id].map { max(0, r.height - $0) } ?? 0
+                        above[line] = max(above[line], metrics[line].baseline - r.top - (multiple > 1.001 ? 0 : grown))
                         below[line] = max(below[line], r.bottom - grown - metrics[line].baseline)
                     }
                     // (Only while the pictures stay within the text's own line: lab afbaab-multiple has 12.75pt pictures in 11pt
