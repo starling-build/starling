@@ -1120,7 +1120,7 @@ extension RichLayout {
                         }()
                         // (Below compat 15 the share is of the column plus both cell margins, as in a gridless table: 6883a0fd's 100%
                         // table, 28-twip margins, no compat mode, is 484.78 pt in Word's print in a 481.9 pt column.)
-                        let marginRoom: Double = theme.wordRules && RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 0) < 15 && pct >= 100
+                        let marginRoom: Double = theme.wordRules && RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 0) < 15 && pct >= 100 && document.tableStyles[c.table]?.floatsOverText != true
                             ? _cellInsets(c.table, document).left + _cellInsets(c.table, document).right : 0
                         scale = (theme.wordRules ? width * pct / 100 + marginRoom - (marginRoom > 0 ? 0 : outerInset) : min(width, width * pct / 100)) / _px(sum)
                         // (A table whose grid — Word's own last fit of it —
@@ -1161,7 +1161,7 @@ extension RichLayout {
                         // 225pt share and 5.4 margin, the grid's 224.95, ruled 230.5 wide; the second
                         // column's "paragraph" then fits one line, as it does in Word's print.)
                         if theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 12) < 15,
-                           !_nestedBlock, pct == 100, _px(sum) <= width, width - _px(sum) <= _px(1) {
+                           !_nestedBlock, document.tableStyles[c.table]?.floatsOverText != true, pct == 100, _px(sum) <= width, width - _px(sum) <= _px(1) {
                             RuleTrace.hit("word-fixed-100-percent-table-is-the-share-and-a-cell-margin")
                             // (… and half the last column's right rule more: 3, 6 and 12pt rules put the
                             // table's right edge 1.5, 3 and 6pt out, the columns in share.)
