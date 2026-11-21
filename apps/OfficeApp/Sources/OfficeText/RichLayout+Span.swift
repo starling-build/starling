@@ -4539,7 +4539,8 @@ extension RichLayout {
                     RuleTrace.hit("word-noto-symbols-dingbat-bullet-is-segoe-ui-symbol")
                     family = "Segoe UI Symbol"
                 }
-                if !family.isEmpty, !p.text.unicodeScalars.contains(where: { Self.isEastAsian(Character($0), hinted: true) }) {
+                // (Real East Asian letters only: Latin accents such as the á of "estándar" are not, and sa1 508b647e's Tahoma dash bullets over Spanish text were left unlifted by hinted: true.)
+                if !family.isEmpty, !p.text.unicodeScalars.contains(where: { Self.isEastAsian(Character($0), hinted: false) }) {
                     // (Its face's own ascent, not a line's: the line's carries the spacing multiple.)
                     let textFace = firstLook.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily
                     let size = _px(firstLook.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize) * fontScale

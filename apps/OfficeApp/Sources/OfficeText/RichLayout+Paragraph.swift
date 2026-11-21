@@ -2038,7 +2038,19 @@ extension RichLayout {
                 let bulletFonts = _levelNumberFonts(p, document)
                 // (Only a bullet that sets its own size: a Thai doc's Angsana bullet with none stands where the text does in Word's print,
                 // 2pt under ours when lifted; xd 53eca83a.)
-                let symbolBullet = p.style.list == .bullet
+                // (A Latin bullet face with no size of its own, standing higher over its baseline than the text's face (Tahoma's dash over Times,
+                // sa1 508b647e): `_span` lifts the first line by the face's ascent, in a wrapped item as in a one-line one.)
+                let latinRisingBullet: Bool = {
+                    guard theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.list == .bullet, _levelNumberSize(p, document) == nil,
+                          let fam = bulletFonts.latin?.lowercased(), !["symbol", "wingdings", "wingdings 2", "wingdings 3", "webdings"].contains(fam),
+                          bulletFonts.eastAsian == nil || bulletFonts.latin != bulletFonts.eastAsian,
+                          let r0 = p.runs.first else { return false }
+                    let textFace = r0.style.fontFamily ?? _named(p, document)?.char.fontFamily ?? _normalChar(document)?.fontFamily
+                    let pt = r0.style.fontSize ?? _named(p, document)?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                    guard let nb = theme.faceResolver?(fam, false)?.baseline, let tb = theme.faceResolver?(textFace, false)?.baseline else { return false }
+                    return (nb - tb) * pt > 0.5
+                }()
+                let symbolBullet = p.style.list == .bullet && !latinRisingBullet
                     && (_levelNumberSize(p, document) == nil
                         || ["symbol", "wingdings", "wingdings 2", "wingdings 3", "webdings"].contains(bulletFonts.latin?.lowercased() ?? "")
                         || (bulletFonts.eastAsian != nil && bulletFonts.latin == bulletFonts.eastAsian
