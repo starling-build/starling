@@ -1385,7 +1385,10 @@ extension RichLayout {
             guard styles.indices.contains(k), (styles[k]?.baselineShift ?? 0) == 0 else { return 0 }
             let line = painter.getLineBoundary(TextPosition(offset: k))
             for j in line.start ..< min(line.end, styles.count) where j != k {
-                if let b = styles[j]?.baselineShift, b != 0, wide(text[j]) { return b }
+                // (A superscript's own shift is its alone, in a smaller size: dx2 934bd3e5's "※１" raised 3.7pt beside Meiryo
+                // does not take the ideographs of its column with it; Word's print keeps them on the grid.)
+                if let b = styles[j]?.baselineShift, b != 0, wide(text[j]),
+                   !((styles[j]?.fontSize ?? 0) < (styles[k]?.fontSize ?? 0) - 0.5) { return b }
             }
             return 0
         }
