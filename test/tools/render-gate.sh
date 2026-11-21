@@ -38,7 +38,17 @@ if ! flock -n 9; then
     kill_tree() { local c; for c in $(pgrep -P "$1" 2>/dev/null); do kill_tree "$c"; done; kill -TERM "$1" 2>/dev/null; }
     kill_tree "$OP"
   fi
-  flock 9
+  # STUCK LOCK (amd-perf, 2026-11-21): a build cancelled by the runner leaves an orphan (swiftc, 30 h old on amd-2) that inherited
+  # fd 9 and holds this lock for ever; every gate on the runner then sat in `flock 9` until gate-unstick cancelled it at 25 min,
+  # and its rerun hung the same way (8 gates today). When the recorded owner is dead, whoever still holds the lock file is an
+  # orphan of ours (same user): kill it by PID and take the lock.
+  until flock -w 60 9; do
+    OP=; read -r OP _ < "$W/lock.owner" 2>/dev/null || true
+    if [ -z "$OP" ] || ! kill -0 "$OP" 2>/dev/null; then
+      H=$(fuser "$W/lock" 2>/dev/null | tr -s ' ' '\n' | grep -E '^[0-9]+$' | while read -r q; do [ "$q" != "$$" ] && [ "$(ps -o ppid= -p "$q" 2>/dev/null | tr -d ' ')" = 1 ] && echo "$q"; done || true)
+      [ -n "$H" ] && { echo "render-gate: the scratch lock owner (pid ${OP:-none}) is gone; stopping orphan holder(s) $(echo $H): $(ps -o args= -p ${H%%$'\n'*} | cut -c1-80)"; kill -TERM $H 2>/dev/null; sleep 3; kill -KILL $H 2>/dev/null; }
+    fi
+  done
 fi
 echo "$$ ${GATE_PREBUILD:+prebuild}" > "$W/lock.owner"; SL=$(date +%s)
 LQ=${LANDQ:-/data/landq}; SB=$LQ/base/linux
