@@ -2389,6 +2389,25 @@ extension RichLayout {
     /// page, in Normal's face: the header's top and the footer's bottom
     /// at the page setup's distances from the paper's edges, as Word
     /// places them. The file's own, where it has them, as it wrote them.
+    /// Where a position in a page's running header or footer stands on that page, in layout pixels from the page's
+    /// top left (nil where the page shows another header or footer than `index` of `document.headerFooters`, or none).
+    /// For the balloons of a header's or footer's tracked changes.
+    public func headerFooterCaret(_ kind: KeptHeaderFooter.Kind, page p: Int, index: Int, at pos: RichPosition,
+                                  _ document: RichDocument) -> Rect? {
+        guard pageSetup != nil, !_blankPages.contains(p), !pageSetup(forPage: p).vertical,
+              let hf = _headerFooter(kind, page: p, document) else { return nil }
+        let type = _titlePage(p, document) ? "first" : document.evenAndOddHeaders && _pageNumberOf(p, document) % 2 == 0 ? "even" : "default"
+        let section = _headerFooterSection(p)
+        guard let chosen = document.headerFooters.firstIndex(where: {
+            $0.kind == kind && $0.type == type && ($0.section == nil || $0.section == section.index)
+        }), chosen == index, !hf.document.paragraphs.isEmpty else { return nil }
+        let setup = pageSetup(forPage: p)
+        let headerAt = hf.pageAnchoredTop.map { min(_px($0), _px(setup.headerDistance)) } ?? _px(setup.headerDistance)
+        let top = kind == .header ? headerAt : _px(setup.height) - _px(setup.footerDistance) - hf.height
+        let r = hf.layout.caretRect(pos, hf.document)
+        return Rect.fromLTWH(r.left + _pxMarginLeft(p), r.top + top, r.width, r.height)
+    }
+
     func _paintHeaderFooter(_ p: Int, _ canvas: any Canvas, _ document: RichDocument) {
         // (A page left blank for a section's side has neither.)
         guard pageSetup != nil, !_blankPages.contains(p) else { return }
