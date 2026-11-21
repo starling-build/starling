@@ -6942,7 +6942,10 @@ extension ChartPainter {
         // and under a title. Ours, its labels' size whatever they were,
         // is Word's with them outside.)
         let unbanded = frame != nil && !c.onSlide && !c.onSheet && c.plotLayout == nil && (!c.legend || c.legendPosition == "r") && !c.pieLabelsAround
-        let scale = min(plot.width * (0.941 + 0.014 * wide) / (hi30.x - lo30.x), plot.height * 0.972 / (hi30.y - lo30.y)) / (1 + (!c.onSlide && !c.onSheet ? 0.91 + 0.42 * wide : 1) * c.pieExplosion) * (unbanded ? 1.16 : 1)
+        // (A Word pie in a plot the file places itself (inner) fills 0.974 of its width where the plot is the narrower bound, not 0.941: sa2 ab55f8b0's
+        // chart 3, plot 320 x 273 pt, the pie 311 against our 300; where the height binds (sa2 1a0edf9b, a plot 0.6 wide and 0.75 high) it fills 0.972 of that, as it did.)
+        let fillW = !c.onSlide && !c.onSheet && c.plotLayout != nil && c.plotLayoutInner ? 0.974 : 0.941
+        let scale = min(plot.width * (fillW + 0.014 * wide) / (hi30.x - lo30.x), plot.height * 0.972 / (hi30.y - lo30.y)) / (1 + (!c.onSlide && !c.onSheet ? 0.91 + 0.42 * wide : 1) * c.pieExplosion) * (unbanded ? 1.16 : 1)
         let origin = Offset(plot.center.dx - scale * (lo.x + hi.x) / 2 - 30 * wide * c.pieExplosion * k, plot.center.dy - scale * (lo.y + hi.y) / 2 - (4.8 * wide + 8.5 * wide * min(1, 10 * c.pieExplosion) + (!c.onSlide && !c.onSheet ? 17 * c.pieExplosion : 0)) * k)
         // (Drawn, where Word lays it out itself — no title, no legend, no
         // layout of the file's — on the frame's middle and 1.5pt over it,
