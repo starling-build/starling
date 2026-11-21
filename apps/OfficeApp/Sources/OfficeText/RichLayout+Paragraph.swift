@@ -4793,6 +4793,15 @@ extension RichLayout {
         // paragraph of its own, only its place — see the reader's
         // `w:tblpPr`.)
         if theme.wordRules, p.cell != nil, let image = p.image, image.name == "table", image.float != nil { _heights[i] = 0; _spaceBefore[i] = 0 }
+        // (An empty paragraph in a cell whose own picture, wrapped top and bottom, stands down its line and
+        // reaches into it is set under the picture: Word's print of sa2 3c4382f0's signature rule, drawn 13.6pt
+        // down an empty 13.8pt line, puts the next line 14.28pt lower — the picture's foot, then the line.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell != nil, p.text.isEmpty, !_vanishes(p, document),
+           let own = p.image, let f = own.float, f.takesRoom || f.bandsPage, f.verticalFrom == "paragraph", f.verticalAlign == nil,
+           f.y > 0.01, _px(f.y) < _heights[i] - _spaceBefore[i] {
+            RuleTrace.hit("word-empty-cell-line-with-its-own-band-stands-under-it")
+            _heights[i] += _px(f.y + own.height + f.effectBottom)
+        }
         // (So does one wholly hidden, its mark too: see `_vanishes`.)
         if _vanishes(p, document) { _heights[i] = 0; _spaceBefore[i] = 0 }
         // (And, in Word for Windows, an empty paragraph straight after a

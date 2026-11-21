@@ -5009,6 +5009,17 @@ enum DocxFormat {
                 f.heightFrom = vmlHeightFrom
             }
             f.takesRoom = shape.first("w10:wrap")?["type"] == "topAndBottom"
+            // (A VML line with no margin offsets stands at its `from` and `to` points; a top-and-bottom one
+            // 13.6pt down its paragraph is set under by the next text, as a picture is: sa2 3c4382f0's
+            // signature rule, Word's next line 14.28pt lower than ours.)
+            if shape.name == "v:line", Self.wordOnWindows, f.takesRoom, !st.containsSubstring("margin-top"),
+               let from = shape["from"], let to = shape["to"] {
+                func point(_ s: String) -> Double? {
+                    let c = s.split(separator: ",")
+                    return c.count == 2 ? _length(String(c[1]).trimmingWhitespace()) : nil
+                }
+                if let a = point(from), let b = point(to) { f.y = min(a, b); f.effectBottom = _length(shape["strokeweight"] ?? "") ?? 0.75 }
+            }
             f.wraps = ["square", "tight", "through"].contains(shape.first("w10:wrap")?["type"] ?? "")
             if let side = shape.first("w10:wrap")?["side"], side == "left" || side == "right" { f.wrapSide = side }
             // (Behind the text — a z-index under 0 — no text wraps beside it,
