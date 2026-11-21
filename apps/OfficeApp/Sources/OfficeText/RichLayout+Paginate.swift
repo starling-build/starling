@@ -1765,11 +1765,14 @@ extension RichLayout {
                     for image in own {
                         guard let float = image.float, float.wraps, !float.wrapsTight, !float.takesRoom, !float.bandsPage, float.verticalAlign == nil,
                               float.heightShare == nil, float.verticalFrom == "margin", float.horizontalFrom == "margin", float.wrapSide == nil,
-                              !image.data.isEmpty, _cells[pgs.i] == nil else { continue }
+                              !image.data.isEmpty || image.outline != nil, _cells[pgs.i] == nil else { continue }
                         let r = _floatRect(float, image, geometry(pgs.i), pgs.i)
                         guard max(0, r.left) < _px(24), _flowWidth(pgs.i) - r.right < _px(24) else { continue }
                         let t = _px(float.y)
-                        pgs.fixedBands.append((t - _px(float.distanceTop), t + _bodyBoxHeight(image, document) + _px(float.distanceBottom), r.left, r.right))
+                        let line = image.data.isEmpty ? _px(float.effectBottom) : 0
+                        fixedBandsAdd: do {
+                            pgs.fixedBands.append((t - _px(float.distanceTop), t + _bodyBoxHeight(image, document) + line + _px(float.distanceBottom), r.left, r.right))
+                        }
                         RuleTrace.hit("word-wide-margin-square-picture-takes-the-column-after-its-anchor")
                     }
                 }
@@ -1791,10 +1794,13 @@ extension RichLayout {
                     for image in own {
                         guard let float = image.float, float.wraps, !float.takesRoom, float.verticalAlign == nil, float.heightShare == nil,
                               float.verticalFrom == "page" || float.verticalFrom == "margin", float.horizontalFrom != "character",
-                              image.textBox != nil || !image.data.isEmpty else { continue }
+                              image.textBox != nil || !image.data.isEmpty || image.outline != nil else { continue }
                         let r = _floatRect(float, image, geometry(pgs.i), pgs.i)
                         let t = _px(float.y) - (float.verticalFrom == "page" ? _pxMarginTop(pgs.page) : 0)
-                        fixed.append((t - _px(float.distanceTop), t + _bodyBoxHeight(image, document) + _px(float.distanceBottom), r.left, r.right))
+                        // (A line shape of no height, wrapped square from the margin across the column: the line under it is
+                        // sent below its stroke, effect extent and all. aab5ab3d's cover rule, Word 10.5pt lower.)
+                        let line = image.outline != nil && image.data.isEmpty && image.textBox == nil ? _px(float.effectBottom) : 0
+                        fixed.append((t - _px(float.distanceTop), t + _bodyBoxHeight(image, document) + line + _px(float.distanceBottom), r.left, r.right))
                     }
                     if !fixed.isEmpty {
                         let reach = Self._lineBottoms(geometry(pgs.i).painter).first.map { $0 + (geometry(pgs.i).textTop - geometry(pgs.i).top) } ?? 0
