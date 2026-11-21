@@ -365,6 +365,8 @@ public final class RichTextTheme {
     /// 32 → 21, 34 → 23, 11 → 8 in its prints), where 65% exactly is
     /// Word's.
     public var scriptSizeWholeUp = false
+    /// Raised and lowered runs drawn in their line, shifted (as Word's are), so a PDF holds them in reading order; up 0.3 of the size, down 0.2 (Slides).
+    public var scriptsInLine = false
     /// A run in capitals is measured — spaced, kerned, put on the grid —
     /// by the capitals it shows rather than the letters it holds, as
     /// PowerPoint fits a title in caps. Off for Word.
@@ -891,7 +893,7 @@ public final class RichTextTheme {
         // the run is drawn in its line instead, shifted: a PDF then holds a
         // note mark where it stands — "Blahdeblah¹ 1", not "Blahdeblah 1"
         // and a "1" after the line, as copying and readers gave it.)
-        let shifted = scriptHidden && style.script != .normal && wordRules && NativeParagraphBuilder.supportsBaselineShift
+        let shifted = scriptHidden && style.script != .normal && (wordRules || scriptsInLine) && NativeParagraphBuilder.supportsBaselineShift
         if scriptHidden, style.script != .normal, !shifted { color = color.withOpacity(0) }
         var px = size * widen * pixelsPerPoint * scale
         // (A raised or lowered run's size, of its own: Word for Windows takes
@@ -979,6 +981,7 @@ public final class RichTextTheme {
                 // half at half.)
                 // (Of the run's own size: not a stand-in's drawn one.)
                 let script = !shifted ? 0
+                    : !wordRules ? (style.script == .superscript ? -0.3 : 0.2) * size * pixelsPerPoint * scale
                     : jpScript && style.script == .superscript ? -(size - jpScriptPt) * pixelsPerPoint * scale
                     : malgunScript && style.script == .superscript ? -(size - malgunScriptPt) * pixelsPerPoint * scale
                     : scriptRatio < 0.6 && style.script == .superscript ? -(1 - scriptRatio) * size * pixelsPerPoint * scale
