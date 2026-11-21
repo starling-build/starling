@@ -11,7 +11,7 @@ PPT=$CC/powerpoint-win; BASE=$ROOT/test/corpus/pptx/baseline-win.tsv
 [ -d "$DECKS" ] && [ -d "$PPT" ] && [ -s "$BASE" ] || { echo "slides-gate: no deck corpus or baseline here; skipped"; exit 2; }
 W=${SLIDES_SCRATCH:-${GATE_SCRATCH:-$HOME/scratch/gate}/slides}; rm -rf "$W"; mkdir -p "$W"
 T=$(date +%s)
-OFFICE_APP=$BIN "$ROOT/test/pptx-app-render.sh" -j "$JOBS" "$DECKS" "$PPT" "$W" > "$W/run.log" 2>&1
+PDFDIFF_NO_PAIRS=1 OFFICE_APP=$BIN "$ROOT/test/pptx-app-render.sh" -j "$JOBS" "$DECKS" "$PPT" "$W" > "$W/run.log" 2>&1
 [ -s "$W/render.tsv" ] || { echo "slides-gate: no scores produced"; tail -3 "$W/run.log" | cut -c1-200; exit 1; }
 python3 - "$BASE" "$W/render.tsv" "$TOL" "${LQ:-/data/landq}/approved.txt" <<'P'
 import re,sys
