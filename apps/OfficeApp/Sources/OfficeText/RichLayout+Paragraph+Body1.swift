@@ -228,6 +228,29 @@ extension _ParaFrame {
             painter.dispose()
             painter = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit, held: tabsHeld).0)
         }
+        // PowerPoint hangs a line-end 、 or 。 past the margin (its hangingPunct, on by default): where one would open the next line, it
+        // is set no wider than a point, so the line takes it and the character before it (befe9f6b p6 "…明記する。").
+        if !theme.wordRules, theme.officeLatinBreaks, !p.style.rightToLeft, p.style.eastAsian["a:hangingPunct"] != "0",
+           p.text.utf16.contains(where: { $0 == 0x3001 || $0 == 0x3002 || $0 == 0xFF0C || $0 == 0xFF0E }) {
+            let units = Array(p.text.utf16)
+            func isMark(_ k: Int) -> Bool { k < units.count && (units[k] == 0x3001 || units[k] == 0x3002 || units[k] == 0xFF0C || units[k] == 0xFF0E) }
+            for _ in 0 ..< 3 {
+                let map = _map(i)
+                let starts = _lineStarts(painter, map, count: units.count)
+                var adj = fit
+                for s0 in starts.dropFirst() where s0 > 0 {
+                    // (The mark opens the line, or follows its one first character: that character comes up with it.)
+                    let m = isMark(s0) ? s0 : (isMark(s0 + 1) ? s0 + 1 : -1)
+                    guard m >= 0, adj[m] == nil else { continue }
+                    let boxes = painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(m), extentOffset: map.painter(m) + 1))
+                    if let b = boxes.first { adj[m] = -max(0, b.right - b.left - _px(0.5)) }
+                }
+                if adj.count == fit.count { break }
+                let trial = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: adj, held: tabsHeld).0)
+                if _lineStarts(trial, map, count: units.count) == starts { trial.dispose(); break }
+                painter.dispose(); painter = trial; fit = adj
+            }
+        }
         // (A vertical section's ruby wider than its base: the line ends stand as the unwidened layout set them; the base is set
         // widened, and what that adds to a line past its room comes off the line's last character — see `_span`'s rubyKeep.)
         _rubyApply.remove(i)

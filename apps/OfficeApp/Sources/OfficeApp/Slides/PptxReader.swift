@@ -3406,6 +3406,7 @@ private struct SlideContext {
             case "just", "dist": style.alignment = .justify
             default: style.alignment = .left
             }
+            if p.first("a:pPr")?["hangingPunct"] == "0" { style.eastAsian["a:hangingPunct"] = "0" }
             if let m = level.lineMultiple { style.lineSpacing = m } else if let pts = level.linePoints {
                 // Exactly that many points, whatever the runs' sizes.
                 style.lineHeightPoints = whole(pts)
