@@ -745,6 +745,26 @@ struct PptxReader {
                     octx.shapes(in: tree, transform: nil, into: &found, id: id)
                     // (A slide-number field in a shape the layout or master draws (not a placeholder, so the slide holds no copy of it) shows the number of
                     // the slide it is drawn on: PowerPoint prints ko-2fd3de28's layout text box as 136, not the field's stored ‹#›.)
+                    // (The same where the field is one run among others, "- page ‹#› -": the stored ‹#› becomes the number, in the run that holds it:
+                    // ko-c03ed80e's layout footer, printed "- page 4 -" by PowerPoint.)
+                    for k in found.indices where found[k].field == nil && (found[k].sourceXML?.contains("type=\"slidenum\"") ?? false) {
+                        guard var doc = found[k].text else { continue }
+                        let want = SlideField(type: "slidenum", id: "").value(slide: n + (presentation["firstSlideNum"].flatMap(Int.init) ?? 1))
+                        var changed = false
+                        for pi in doc.paragraphs.indices {
+                            let units = Array(doc.paragraphs[pi].text.utf16)
+                            let mark = Array("‹#›".utf16)
+                            guard units.count >= mark.count, let at = (0 ... units.count - mark.count).first(where: { Array(units[$0 ..< $0 + mark.count]) == mark }) else { continue }
+                            var start = 0
+                            var runs = doc.paragraphs[pi].runs
+                            guard let ri = runs.firstIndex(where: { r in defer { start += r.length }; return start <= at && at + mark.count <= start + r.length }) else { continue }
+                            runs[ri].length += want.utf16.count - mark.count
+                            doc.paragraphs[pi].text = String(decoding: units[..<at], as: UTF16.self) + want + String(decoding: units[(at + mark.count)...], as: UTF16.self)
+                            doc.paragraphs[pi].runs = runs
+                            changed = true
+                        }
+                        if changed { found[k].text = doc }
+                    }
                     for k in found.indices {
                         // (The same where the field shares its paragraph with other text, "- page ‹#› -" in ko-c03ed80e's layout
                         // footer: the stored mark inside the text becomes the number.)
@@ -3911,6 +3931,9 @@ private struct SlideContext {
             // (A plain, unslanted warp on text that wraps in its box (no wrap="none") is no WordArt: PowerPoint sets it as ordinary text,
             // letter spacing and all; KYWA's header boxes (textPlain, no adjust) wrapped a word early when fitted as WordArt.)
             if preset == "textPlain", adjust.first.map({ $0 == 50000 }) ?? true, (body?.first("a:bodyPr")?["wrap"] ?? "square") != "none" { return nil }
+            // (A plain warp on one unwrapped line in a box that sizes itself to its text (spAutoFit) has nothing to stretch to: the box is the text's own,
+            // and PowerPoint prints it as text, a real text layer: ko-c03ed80e's layout footer, 35 lines.)
+            if preset == "textPlain", adjust.first.map({ $0 == 50000 }) ?? true, body?.first("a:bodyPr")?.first("a:spAutoFit") != nil { return nil }
             return TextWarp(preset: preset, adjust: adjust, xml: PptxXML.serialize(w))
         }
         if paragraphs.isEmpty {
