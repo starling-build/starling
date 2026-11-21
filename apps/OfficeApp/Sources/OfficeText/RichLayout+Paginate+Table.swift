@@ -907,13 +907,21 @@ extension RichLayout {
                     var bottom = rowBottom, m = j
                     while m < count, let d = _cells[m], d.table == c.table { bottom = max(bottom, d.rowTop + d.ownRowHeight); m += 1 }
                     let g = geometry(k)
-                    let first = document.paragraphs[k].image != nil ? _heights[k] : (Self._lineBottoms(g.painter).first ?? _heights[k])
+                    let kst = document.paragraphs[k].style
+                    let bottoms = Self._lineBottoms(g.painter)
+                    // (Under widow control a paragraph of two or three lines does
+                    // not part, so all its lines are needed beside the table:
+                    // e60b34e0's header rows then "ARTÍCULO 2" of two lines fit
+                    // page 7's foot by one line and go whole to page 8 in Word.)
+                    let wholeLines = !kst.keepLines && kst.widowControl && !document.widowControlSuspended && bottoms.count >= 2 && bottoms.count <= 3
+                    let first = document.paragraphs[k].image != nil ? _heights[k]
+                        : (wholeLines ? bottoms[bottoms.count - 1] : (bottoms.first ?? _heights[k]))
                     follower = (bottom, (g.textTop - g.top) + first)
                     RuleTrace.hit("kept-last-row-keeps-with-the-paragraph-after")
                 }
                 if let follower {
                     let need = follower.top - c.rowTop + follower.height
-                    if pgs.y + need > pgs.contentH + 0.01, need <= pgs.contentH - 0.01 { _pg_newPage(&pgs, document) }
+                    if pgs.y + need > pgs.contentH + 0.01 { _pg_newPage(&pgs, document) }
                 }
             }
         }
