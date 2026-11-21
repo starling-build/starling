@@ -53,10 +53,23 @@ enum SlideFonts {
         return n == "dejavu sans" && OfficeFonts.installed(family) == nil ? "verdana" : n
     }
 
+    /// The deck's own fonts (`ppt/fonts/*.fntdata`), by typeface name in
+    /// lower case to the family they are loaded as. PowerPoint draws an
+    /// embedded face where the machine has none of that name.
+    nonisolated(unsafe) private static var embedded: [String: String] = [:]
+
+    static func noteEmbedded(_ faces: [String: String]) {
+        embedded = Dictionary(faces.map { ($0.key.trimmingWhitespace().lowercased(), $0.value) }, uniquingKeysWith: { a, _ in a })
+    }
+    private static func embeddedFamily(_ family: String) -> String? {
+        return embedded.isEmpty ? nil : embedded[family.trimmingWhitespace().lowercased()]
+    }
+
     static func resolve(_ family: String) -> String {
         // (The machine's own face, where it has it and the user takes it:
         // `OfficeFonts.installed`.)
         if let own = OfficeFonts.installed(family) { return own }
+        if let mine = embeddedFamily(family) { return mine }
         if let free = freeFaces[family.trimmingWhitespace().lowercased()] { return free }
         let face = OfficeFonts.substitute(family)
         guard face == OfficeFonts.cambria else { return face }
@@ -71,7 +84,7 @@ enum SlideFonts {
     /// Its bold and italic are made from the regular, as wide.
     static func face(_ family: String?, _ eastAsian: Bool) -> RichResolvedFace? {
         // (None of a stand-in's widths for the machine's own face.)
-        guard !eastAsian, let family, OfficeFonts.installed(family) == nil else { return nil }
+        guard !eastAsian, let family, OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil else { return nil }
         if let cuts = SlideEastAsianWidths.lookup(windowsName(family)) {
             // (An East Asian face at its own measured widths, Latin and the rest past ASCII: PowerPoint sets it by itself, not by a stand-in's.)
             var face = RichResolvedFace(family: resolve(family))
