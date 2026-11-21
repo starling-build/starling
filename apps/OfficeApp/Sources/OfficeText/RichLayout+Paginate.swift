@@ -3145,6 +3145,12 @@ extension RichLayout {
 
     /// The sheet's Normal look, for `RichTextTheme.textStyle`.
     func _normalChar(_ document: RichDocument) -> CharStyle? { document.styles[RichNamedStyle.normalId]?.char }
+    /// Whether a paragraph mark's complex-script size is set and differs from its size (the mark's own, its style's, Normal's).
+    func _markSzCsDiffers(_ mark: CharStyle, named: RichNamedStyle?, document: RichDocument) -> Bool {
+        guard let f = mark.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize, f > 0.5,
+              let z = mark.complexFontSize ?? named?.char.complexFontSize ?? _normalChar(document)?.complexFontSize, z > 0.5 else { return false }
+        return abs(z - f) > 0.01
+    }
 
     /// How much of body paragraph `i`'s space before lies over the space
     /// after the body paragraph above it: the smaller of the two, so the

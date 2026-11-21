@@ -314,7 +314,10 @@ extension RichLayout {
             // cs face), and where that face keeps its own line (David, FrankRuehl, Arabic faces Windows has) the line is that face's:
             // xd 38d880e8's empty paragraph after the header table, 2.9 pt taller in Word's print than the Latin face's.)
             if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, p.style.rightToLeft, p.style.list == nil, p.style.lineHeightPoints == nil,
-               mark.rightToLeft || mark.complexFontFamily == nil,
+               // (A mark that is not w:rtl and whose szCs differs from its sz is the Latin face at the szCs instead (rule below): lab tabline2 D,
+               // an empty LTR-mark paragraph under Normal bidi, cs David, sz 11 / szCs 14, line 1.5: Word 36.72 apart = the tab-only line A, ours
+               // 27.99 as the complex face's line.)
+               mark.rightToLeft || (mark.complexFontFamily == nil && !_markSzCsDiffers(mark, named: markNamed, document: document)),
                let px = look.fontSize, px > 0.5,
                let cs = mark.complexFontFamily ?? markNamed?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily,
                let f = theme.complexFace(cs, latin: mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily), f.ownLineBaseline, let base = f.baseline, let tall = f.naturalHeight {
