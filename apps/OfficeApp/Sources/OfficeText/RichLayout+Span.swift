@@ -292,6 +292,8 @@ extension RichLayout {
             // (Latin script only: a paragraph with East Asian, Indic or Arabic text in it was not measured by lab tahcal, and Word's lines of those take their own face's height: zh-86547e97, 'VHF等终端' ran 1.27 pt off; the Persian and Hindi sets dropped.)
             if p.text.unicodeScalars.contains(where: { !($0.value < 0x250 || ($0.value >= 0x2000 && $0.value <= 0x2BFF) || ($0.value >= 0xFB00 && $0.value <= 0xFB06) || ($0.value >= 0xE000 && $0.value <= 0xF8FF) || $0.value == 0xFFFC) }) { return false }
             var names = Set<String>()
+            var punctuation: [(String, Double)] = []
+            var letterAscent = 0.0
             var measured = true
             var at = p.text.utf16.startIndex
             for run in p.runs {
@@ -303,10 +305,19 @@ extension RichLayout {
                 if theme.isSymbolFace?(n) == true { continue }
                 // (Faces count by what they resolve to: two names Word's machine lacks stand as the same substitute, one face, not two: sa1 e33fba63's Brandon Grotesque Light and Black.)
                 let rf = theme.faceResolver?((run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace(), false)
-                names.insert(rf.map { "\($0.family)|\($0.baseline ?? -1)|\($0.naturalHeight ?? -1)" } ?? n)
+                let key = rf.map { "\($0.family)|\($0.baseline ?? -1)|\($0.naturalHeight ?? -1)" } ?? n
+                // (A run of punctuation alone in another face counts only where its ascent stands above the letters' faces: it can then
+                // lift the line. Word's print, sa1 6f0b70eb: Tahoma stops beside Calibri lift the line; xd f7888b70's Arial stops (shorter
+                // than Calibri's) do not.)
+                if !p.text.utf16[at ..< end].contains(where: { ($0 >= 0x41 && $0 <= 0x5A) || ($0 >= 0x61 && $0 <= 0x7A) || ($0 >= 0xC0 && $0 < 0x250) }) {
+                    punctuation.append((key, rf?.baseline ?? 0))
+                } else {
+                    names.insert(key); letterAscent = max(letterAscent, rf?.baseline ?? 0)
+                }
                 // (Every face of the paragraph must have a line Word's metrics give: a face on Word's machine only: one it lacks (Kruti Dev, Brandon Grotesque) stands as another, unknown, so the tallest-over-deepest of the rest is not the line: sa1 e33fba63, Brandon Grotesque beside Times New Roman ran 3.8 pt low.)
                 if !WordWindowsFaces.names.contains(n) || theme.faceResolver?((run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace(), false)?.baseline == nil { measured = false }
             }
+            for (key, ascent) in punctuation where ascent > letterAscent { names.insert(key) }
             return names.count > 1 && measured
         }()
         let thaiJoins = _thaiJoins(p, document, named: named, textWidth: textWidth, lead: lead)
