@@ -4717,6 +4717,9 @@ enum ChartPainter {
             // (An untitled 2007-style Word chart whose value axis is deleted has no top tick label to stand 3 pt higher by: its plot
             // starts 1.5 pt lower than the generic one, 9.8 under the frame's top in lo-1e6077df's print, ours 5.3.)
             let untitledWordRise = -4.0
+            // (A 2013-style Word column chart with no title and its value axis deleted, no tick label to stand by: its plot starts
+            // 11.2 pt under the frame's top, c11d31f3's chart 8 in Word's print, ours 5.6, 5.6 higher.)
+            let deleted2013Column = word && !c.onSlide && !c.onSheet && !c.chartex && c.styled2013 && c.valueAxisDeleted && c.plotLayout == nil && c.barView == nil && c.type == .column && c.lineSeries.isEmpty
             // (A 2013-style Word column chart whose value axis is deleted: its plot starts 4.3 pt further left than the
             // label gap makes it, c11d31f3's chart 8: first column's name at 57.46 in Word's print, ours 61.55.)
             if word, !c.onSlide, !c.onSheet, !c.chartex, c.styled2013, c.valueAxisDeleted, c.plotLayout == nil, c.barView == nil, secondLabels.isEmpty, c.lineSeries.isEmpty {
@@ -4732,7 +4735,7 @@ enum ChartPainter {
             let bare2007 = c.onSlide && c.plainText && !c.styled2013 && c.officeStyled && c.title == nil
             let lower = c.onSlide ? (c.styled2013 ? 1.5 : c.title != nil ? 1.0 : bare2007 ? -4.0 : 0) * k
                 : c.onSheet ? (titled ? (c.chartex ? 0.45 : c.styled2013 ? 2.57 : 2.05) : (c.styled2013 ? -1.25 : -1.62)) * pt
-                : (word && c.barView == nil && (c.title ?? "").isEmpty && c.titleAt == nil ? untitledWordRise * k : plainUntitledWord ? (c.valueAxisDeleted ? 1.5 : libre ? -3.75 : -3) * k
+                : (word && c.barView == nil && (c.title ?? "").isEmpty && c.titleAt == nil ? (deleted2013Column ? 1.6 : untitledWordRise) * k : plainUntitledWord ? (c.valueAxisDeleted ? 1.5 : libre ? -3.75 : -3) * k
                    // (A titled 3-D column chart: its front plane starts 5.4 pt lower than ours at any title size —
                    // lab ch4 (Word for Windows, rotX 15 / rotY 20, legend below): the top value label's baseline
                    // 60.58 / 55.73 / 50.88 under the frame's top for a title of 18 / 14 / 10pt, ours 55.2 / 50.4 /
@@ -5351,6 +5354,7 @@ enum ChartPainter {
 
         var labels: [(String, Offset, Int)] = []
         var insideEnd = Set<Int>()
+        var wordColumnLabelBase = [Int: Double]() // label index -> its baseline's height over the column's top, pt
         // A moved label's leader: from the middle of its bar's top face (by label index).
         var leaderFrom: [Int: Offset] = [:]
         /// A bar's label moved as the file says (`ChartSeries.labelNudges`,
@@ -5564,6 +5568,14 @@ enum ChartPainter {
                         if raw > 0, !c.stacked, !c.onSlide, !c.onSheet, !c.chartex, c.barLabelPos == "inEnd", p0 - p1 > 2.5 * size * k {
                             labelAt = Offset(labelAt.dx, min(p0, p1) + 1.065 * size * k)
                             RuleTrace.hit("word-column-label-inside-end")
+                        }
+                        // (A Word column's label past its top (outEnd, the default) stands with its baseline 0.568 of its size over the
+                        // top, whatever face draws it: c11d31f3's chart 8, 12 pt Verdana, baseline 6.82 over bars in Word's print; ours
+                        // set the label's centre 8 over, which put a 12 pt line's baseline 4.0 over, 2.9 low.)
+                        if raw >= 0, p1 <= p0, !c.stacked, !c.onSlide, !c.onSheet, !c.chartex, c.barView == nil, c.series[safe: j]?.labelParts[i] == nil,
+                           [nil, "outEnd"].contains(c.barLabelPos) {
+                            wordColumnLabelBase[labels.count] = 0.568 * size * k
+                            RuleTrace.hit("word-column-label-baseline")
                         }
                         labels.append((shown, labelAt, j))
                     }
@@ -5910,6 +5922,9 @@ enum ChartPainter {
                 // (A written-out label that wraps stands 1.5 pt (a sixth of its 9 pt size) higher than a plain one's
                 // lines in Word's print: sa1 06706f28's twenty "100.00%;" over "10,150,000.00" labels, 1.5 pt low in ours.)
                 if wrapLabels.contains(li), lineCount > 1, wrapAt.isFinite { origin = Offset(origin.dx, origin.dy - (ser.labelSize ?? c.baseTextSize) / 6 * k) }
+                if let b = wordColumnLabelBase[li], lineCount == 1, let line = tp.computeLineMetrics().first {
+                    origin = Offset(origin.dx, at.dy + 8 * k - b - line.baseline)
+                }
                 if insideEnd.contains(li) { origin = Offset(at.dx - 3 * k - 6.8 * k - tp.width, origin.dy + 1.9 * k) }
                 // (Word draws the leader from the bar's top to the label's bottom middle, the box
                 // the text and its 1.5pt insets: zh-b8de3ae2's chart 1 in Word's print.)
