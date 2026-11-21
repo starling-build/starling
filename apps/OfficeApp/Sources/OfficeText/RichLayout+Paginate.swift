@@ -6113,7 +6113,7 @@ extension RichLayout {
             guard theme.wordRules, RichTextTheme.wordWindowsPages, j >= 0, j < document.paragraphs.count,
                   document.paragraphs[j].keptTable == nil, p.keptTable == nil,
                   let a = p.cell, let b = document.paragraphs[j].cell else { return false }
-            return a.table == b.table && b.row > a.row
+            return a.table == b.table && b.row >= a.row + a.rowSpan
         }
         let skipAfter = contextual && (sameStyle(i + 1) || nextRow(i + 1)) && !keepsLines(i + 1, "w:afterLines")
         // Automatic spacing is the web's, unless the document says its
