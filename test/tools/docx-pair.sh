@@ -111,11 +111,11 @@ vis_side() {  # SET WORKDIR(with pdf/) V2FILE OUTDIR LABEL [BIN]
   local S=$1 W=$2 V2=$3 OUT=$4 L=$5 BIN=${6:-} C names v n; C=$(corpus "$S")
   names=$($PY "$HERE/docx-combine.py" select "$V2") || return 1
   local VW=$STAGE/work/vis-$L-$S; rm -rf "$VW"; mkdir -p "$VW/pdf" "$VW/refs"
-  for n in $names; do
+  while IFS= read -r n; do [ -n "$n" ] || continue
     ln -s "$C/word-win/$n-orig.pdf" "$VW/refs/$n-orig.pdf" 2>/dev/null
     if [ -s "$W/pdf/$n.pdf" ]; then ln -s "$W/pdf/$n.pdf" "$VW/pdf/$n.pdf"
     elif [ -n "$BIN" ]; then ( cd "$C/docs" && timeout -k 10 $(( ${DOC_ALARM:-300} + 30 )) perl -e "alarm ${DOC_ALARM:-300}; exec @ARGV" "$BIN" --convert "$n.docx" "$VW/pdf/$n.pdf" >/dev/null 2>&1 ); fi
-  done
+  done <<< "$names"
   DOCX_CORPUS=$C $PY -W ignore "$HERE/../docx-visual.py" "$VW" "$VW/refs" "$VW/visual" >"$VW/visual.log" 2>&1 || { echo "visual scoring failed for $L $S (see $VW/visual.log)" >&2; return 1; }
   $PY "$HERE/docx-combine.py" combine "$V2" "$VW/visual" "$OUT/$S.vis" "$OUT/$S.combined" "$L $S"
 }
@@ -222,11 +222,11 @@ for S in $SETS; do
   C=$(corpus "$S"); names=$(grep -hE '^\s+(UP|DOWN|CHANGED)' "$STAGE/cmp-$S-v2.txt" "$STAGE/cmp-$S-v1.txt" | awk '{ if ($0 ~ /CHANGED\(same ratio\)/) { match($0, /CHANGED\(same ratio\) [^: ]+/); split(substr($0,RSTART,RLENGTH),a," "); print a[2] } else print $NF }' | sort -u)
   [ -n "$names" ] || continue
   W=$STAGE/work/again-$S; mkdir -p "$W/pdf"
-  printf '%s\n' $names | xargs -P "$JOBS" -I{} sh -c 'f=$(ls "$1/docs/$2"*.docx 2>/dev/null | head -1); [ -n "$f" ] && timeout -k 10 $(( ${DOC_ALARM:-300} + 30 )) perl -e "alarm ${DOC_ALARM:-300}; exec @ARGV" "$3" --convert "$f" "$4/pdf/$(basename "${f%.docx}").pdf" >/dev/null 2>&1' _ "$C" {} "$FIXBIN" "$W"
+  printf '%s\n' "$names" | tr '\n' '\0' | xargs -0 -P "$JOBS" -I{} sh -c 'f=$(ls "$1/docs/$2"*.docx 2>/dev/null | head -1); [ -n "$f" ] && timeout -k 10 $(( ${DOC_ALARM:-300} + 30 )) perl -e "alarm ${DOC_ALARM:-300}; exec @ARGV" "$3" --convert "$f" "$4/pdf/$(basename "${f%.docx}").pdf" >/dev/null 2>&1' _ "$C" {} "$FIXBIN" "$W"
   score "$W" "$C"
-  for n in $names; do k=$(basename "$(ls "$C/docs/$n"*.docx | head -1)" .docx)
-    a=$(grep " $k\$" "$W/match-v2.txt"); b=$(grep " $k\$" "$STAGE/work/fix-$S/match-v2.txt")
+  while IFS= read -r n; do [ -n "$n" ] || continue; k=$(basename "$(ls "$C/docs/$n"*.docx | head -1)" .docx)
+    a=$(awk -v k="$k" 'substr($0,length($0)-length(k))==" " k' "$W/match-v2.txt"); b=$(awk -v k="$k" 'substr($0,length($0)-length(k))==" " k' "$STAGE/work/fix-$S/match-v2.txt")
     [ "$a" = "$b" ] || echo "!!! NONDETERMINISTIC $k: the same binary scored $(echo $b | cut -d' ' -f1) then $(echo $a | cut -d' ' -f1) — a BUG (an iteration-order dependence), not a mover; tell macOS-doc"
-  done
+  done <<< "$names"
 done
 echo "fix files and stamp: $FIX — to land: cp $FIX/* $STORED/ && git add $STORED && git commit --amend --no-edit"

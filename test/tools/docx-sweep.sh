@@ -63,16 +63,16 @@ echo "$count documents"
 if [ -n "$TRACE" ]; then
   : > "$WORK/trace.tsv"
   export OFFICE_RULE_TRACE="$WORK/trace.tsv"
-  echo "$names" | xargs -P "$JOBS" -I{} sh -c 'timeout 300 "'"$APP"'" --trace-rules "'"$DOCS"'/{}.docx" >/dev/null 2>&1 || echo "FAIL {}"' > "$WORK/fail.txt"
+  printf '%s\n' "$names" | tr '\n' '\0' | xargs -0 -P "$JOBS" -I{} sh -c 'timeout 300 "$1" --trace-rules "$2/$3.docx" >/dev/null 2>&1 || echo "FAIL $3"' _ "$APP" "$DOCS" {} > "$WORK/fail.txt"
   cut -f1 "$WORK/trace.tsv" | sort -u > "$WORK/trace.keys"
   echo "$(wc -l < "$WORK/trace.keys") documents reached a rule ($(cut -f2 "$WORK/trace.tsv" | sort -u | wc -l) rules): $WORK/trace.keys"
   [ -s "$WORK/fail.txt" ] && { echo "FAILURES:"; cat "$WORK/fail.txt"; }
   exit 0
 fi
 
-echo "$names" | xargs -P "$JOBS" -I{} sh -c '
-  rm -f "'"$WORK"'/pdf/{}.pdf"
-  timeout 300 "'"$APP"'" --convert "'"$DOCS"'/{}.docx" "'"$WORK"'/pdf/{}.pdf" >/dev/null 2>"'"$WORK"'/pdf/{}.err" || echo "FAIL {}"' > "$WORK/fail.txt"
+printf '%s\n' "$names" | tr '\n' '\0' | xargs -0 -P "$JOBS" -I{} sh -c '
+  rm -f "$3/pdf/$4.pdf"
+  timeout 300 "$1" --convert "$2/$4.docx" "$3/pdf/$4.pdf" >/dev/null 2>"$3/pdf/$4.err" || echo "FAIL $4"' _ "$APP" "$DOCS" "$WORK" {} > "$WORK/fail.txt"
 export DOCX_WORD_REFS=$WIN
 $PYTHON "$ROOT/test/docx-line-match.py" "$WORK" > "$WORK/match.txt"
 DOCX_LINE_MATCH=v2 $PYTHON "$ROOT/test/docx-line-match.py" "$WORK" > "$WORK/match-v2.txt"
