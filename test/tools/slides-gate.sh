@@ -11,9 +11,23 @@ PPT=$CC/powerpoint-win; BASE=$ROOT/test/corpus/pptx/baseline-win.tsv
 [ -d "$DECKS" ] && [ -d "$PPT" ] && [ -s "$BASE" ] || { echo "slides-gate: no deck corpus or baseline here; skipped"; exit 2; }
 W=${SLIDES_SCRATCH:-${GATE_SCRATCH:-$HOME/scratch/gate}/slides}; rm -rf "$W"; mkdir -p "$W"
 T=$(date +%s)
-PDFDIFF_NO_PAIRS=1 OFFICE_APP=$BIN "$ROOT/test/pptx-app-render.sh" -j "$JOBS" "$DECKS" "$PPT" "$W" > "$W/run.log" 2>&1
+# The pilot decks (real decks of 20-60 slides, ja and ko; amd-8's baseline rows name them) join the SAME sweep so they share the job
+# pool; every deck is launched largest first so the longest one never starts last. Without a pilot baseline the sweep is the corpus alone.
+PILOT=${PILOT_DIR:-${CORPUS_CACHE:-/data/corpus-cache}/test/corpus/pptx-pilot}; PB=$PILOT/baseline-pilot-win.tsv; STG=${PILOT_STAGING:-${CORPUS_CACHE:-/data/corpus-cache}/staging/pptx-new/pilot}
+mkdir -p "$W/in" "$W/ppt"
+for f in "$DECKS"/*.pptx; do ln -s "$f" "$W/in/"; done; for f in "$PPT"/*-orig.pdf; do ln -s "$f" "$W/ppt/"; done
+BASEALL=$BASE
+if [ -s "$PB" ]; then
+  for n in $(cut -f1 "$PB"); do
+    for d in "$PILOT/decks" "$STG/ja" "$STG/raw"; do [ -f "$d/$n" ] && { ln -sf "$d/$n" "$W/in/$n"; break; }; done
+    for d in "$PILOT/powerpoint-win" "$STG/ja/powerpoint-win" "$STG/raw/powerpoint-win"; do [ -f "$d/${n%.pptx}-orig.pdf" ] && { ln -sf "$d/${n%.pptx}-orig.pdf" "$W/ppt/"; break; }; done
+  done
+  cat "$BASE" "$PB" > "$W/base.tsv"; BASEALL=$W/base.tsv
+fi
+DECKS=$W/in; PPT=$W/ppt
+PDFDIFF_NO_PAIRS=1 OFFICE_APP=$BIN "$ROOT/test/pptx-app-render.sh" -j "$JOBS" "$DECKS" "$PPT" "$W" $(ls -SL "$DECKS" | grep '\.pptx$') > "$W/run.log" 2>&1
 [ -s "$W/render.tsv" ] || { echo "slides-gate: no scores produced"; tail -3 "$W/run.log" | cut -c1-200; exit 1; }
-python3 - "$BASE" "$W/render.tsv" "$TOL" "${LQ:-/data/landq}/approved.txt" <<'P'
+python3 - "$BASEALL" "$W/render.tsv" "$TOL" "${LQ:-/data/landq}/approved.txt" <<'P'
 import re,sys
 base,new,tol,appr=sys.argv[1],sys.argv[2],float(sys.argv[3]),sys.argv[4]
 def rd(f):
@@ -43,6 +57,7 @@ rc=$?
 # against baseline-lines-win.tsv in the corpus cache (not in git). A deck more than LTOL (default 1 pt) worse, or newly an error, blocks.
 PY=${PYTHON:-$( [ -x "$HOME/venv-word/bin/python" ] && echo "$HOME/venv-word/bin/python" || echo python3)}
 LB=$CC/baseline-lines-win.tsv
+PLB=$(ls "$PILOT"/baseline-lines*.tsv 2>/dev/null | head -1); [ -s "$LB" ] && [ -s "$PLB" ] && { cat "$LB" "$PLB" > "$W/lines-base.tsv"; LB=$W/lines-base.tsv; }
 if [ -s "$LB" ]; then
   PPT_REFS=$PPT PPT_MATCH_JOBS=$JOBS "$PY" "$ROOT/test/pptx-line-match.py" "$W" > "$W/lines.txt" 2> "$W/lines.err"
   "$PY" -I "$ROOT/test/tools/pptx-combine.py" "$W/lines.txt" "$W/render.tsv" "$W/combined.tsv" "$DECKS" "$PPT" | head -1
