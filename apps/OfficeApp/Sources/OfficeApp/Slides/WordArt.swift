@@ -1040,7 +1040,7 @@ enum WordArt {
             let half = gap(a, 90) < gap(a, 270) ? 90.0 : 270.0
             for (i, l) in lines.enumerated() {
                 let sits = slide && l.alignment != .left
-                along(l, start: sits ? half - 4.4 : a, sweep: 360, ring: lines.count - 1 - i, room: sits ? 0.5 : 1)
+                along(l, start: sits ? half : a, sweep: 360, ring: lines.count - 1 - i, room: sits ? 0.5 : 1)
             }
         default:   // textButton: over the top, straight across, under the bottom
             let a = angle(10_800_000)
