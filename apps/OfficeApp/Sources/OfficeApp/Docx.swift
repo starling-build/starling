@@ -7713,6 +7713,29 @@ enum DocxFormat {
             let digitsOnly = DocxFormat.wordOnWindows && s.unicodeScalars.contains { (0x30 ... 0x39).contains($0.value) }
                 && s.unicodeScalars.allSatisfy { (0x30 ... 0x39).contains($0.value) || "-./:,%".unicodeScalars.contains($0) }
             if (cs.rightToLeft && !digitsOnly) || s.unicodeScalars.contains(where: { (0x0590 ... 0x08FF).contains($0.value) || (0xFB1D ... 0xFDFF).contains($0.value) || (0xFE70 ... 0xFEFF).contains($0.value) }) { cs.csLetters = true }
+            // (A right-to-left run of Arabic letters with ASCII numbers inside it: Word draws each number in the Latin face, and that face's line
+            // raises the line it is on, Tahoma's 13.3 pt step over Arial's 12.6. dx2 491931cb page 1, Tahoma Latin and B Nazanin cs, "0011234555"
+            // among Persian words: Word's lines with a number step 13.3 pt, those without 12.6, ours stayed on Arial's. The number is its own run.)
+            if DocxFormat.wordOnWindows, cs.rightToLeft, !digitsOnly, cs.csLetters, s.unicodeScalars.contains(where: { (0x30 ... 0x39).contains($0.value) }) {
+                let u = Array(s.unicodeScalars)
+                func isDigit(_ i: Int) -> Bool { (0x30 ... 0x39).contains(u[i].value) }
+                var inNumber = [Bool](repeating: false, count: u.count)
+                for i in 0 ..< u.count {
+                    if isDigit(i) { inNumber[i] = true }
+                    else if "-./:,%".unicodeScalars.contains(u[i]), i > 0, i + 1 < u.count, isDigit(i - 1), isDigit(i + 1) { inNumber[i] = true }
+                }
+                var i = 0
+                while i < u.count {
+                    var j = i
+                    while j < u.count, inNumber[j] == inNumber[i] { j += 1 }
+                    var c = cs
+                    if inNumber[i] { c.csLetters = false; RuleTrace.hit("word-rtl-number-in-arabic-run-is-latin-face") }
+                    var piece = String.UnicodeScalarView(); piece.append(contentsOf: u[i ..< j])
+                    runs.append(Run(length: String(piece).utf16.count, style: c))
+                    i = j
+                }
+                return
+            }
             runs.append(Run(length: s.utf16.count, style: cs))
         }
         var pendingCheckbox: Bool? = nil   // a FORMCHECKBOX field's state, from its begin
