@@ -62,8 +62,13 @@ extension RichLayout {
         return nil
     }
 
-    static func _pageBox(_ p: RichParagraph) -> (image: ImageAttachment, float: ImageFloat)? {
-        guard p.cell == nil else { return nil }
+    static func _pageBox(_ p: RichParagraph) -> (image: ImageAttachment, float: ImageFloat)? { _pageBoxes(p).first }
+
+    /// Every such box of a paragraph, in the order `_pageBox` takes them (a paragraph's second picture wraps the text too:
+    /// the lab's two square pictures in one paragraph).
+    static func _pageBoxes(_ p: RichParagraph) -> [(image: ImageAttachment, float: ImageFloat)] {
+        guard p.cell == nil else { return [] }
+        var found: [(image: ImageAttachment, float: ImageFloat)] = []
         for image in p.inlineImages.inOrder + (p.image.map { [$0] } ?? []) {
             guard let float = image.float, float.wraps, !float.takesRoom, !float.bandsPage,
                   (float.verticalAlign == nil && !float.wrapsTight) || float.verticalAlign == "top" || float.verticalAlign == "center" || float.verticalAlign == "bottom",
@@ -71,9 +76,9 @@ extension RichLayout {
                   float.horizontalFrom == "page" || float.horizontalFrom == "margin",
                   float.horizontalAlign != "inside", float.horizontalAlign != "outside",
                   float.heightShare == nil, image.textBox?.fitsText != true, image.width > 0, image.height > 0 else { continue }
-            return (image, float)
+            found.append((image, float))
         }
-        return nil
+        return found
     }
 
     /// A box in a header's or footer's paragraph that the body's text goes round.

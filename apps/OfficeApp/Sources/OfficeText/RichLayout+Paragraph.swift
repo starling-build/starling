@@ -1689,7 +1689,9 @@ extension RichLayout {
                     var saved = 0.0, k = 0
                     while k < bottoms.count {
                         let before = k == 0 ? 0 : bottoms[k - 1]
-                        let top = before - saved, bottom = bottoms[k] - saved
+                        // (Lines carried past a picture stand where the jump puts them: see `_lineDrop`.)
+                        let drop = _lineDrop[i].flatMap { k >= $0.from && $0.from >= 1 && $0.from <= bottoms.count ? $0.dy - bottoms[$0.from - 1] : nil } ?? 0
+                        let top = before - saved + drop, bottom = bottoms[k] - saved + drop
                         let active = boxes.filter { bottom > $0.top + 0.01 && top < $0.bottom - 0.01 }.sorted { $0.left < $1.left }
                         var segments: [(from: Double, to: Double)] = []
                         // (The first line of a hanging paragraph starts in the hanging area, and its first piece with it.)
