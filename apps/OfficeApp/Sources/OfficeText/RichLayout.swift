@@ -930,7 +930,7 @@ public final class RichTextTheme {
             color = color.withOpacity(0)
         }
         var hollow: Paint? = nil
-        if wordRules, style.noFill, let line = style.textLine, px > 0.01 {
+        if wordRules || outlineOverFill, style.noFill, let line = style.textLine ?? (outlineOverFill ? style.outline : nil), px > 0.01 {
             // (No fill and a line: the letters print as outlines only, the line centred on the edge.)
             let p = Paint(); p.style = .stroke; p.strokeWidth = max(0.5, line.width * pixelsPerPoint * scale); p.color = line.color
             hollow = p
