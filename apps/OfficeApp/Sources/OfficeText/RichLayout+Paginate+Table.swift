@@ -659,6 +659,30 @@ extension RichLayout {
         while j < count, let d = _cells[j], d.table == c.table, d.row == c.row { j += 1 }
         let rowBottom = c.rowTop + c.ownRowHeight
         pgs.resumeCursor = nil   // a row restarts whole
+        // (A table that opens a section, after a section of columns whose breaks made its columns:
+        // it stands under the longest of them, on the page they are on, as a paragraph would —
+        // dx2 c96f6a72's balance sheet, under the report's two-column heading block, not in the
+        // second column slot. The paragraph rule is in _paginate; a table row skips it.)
+        if theme.wordRules, RichTextTheme.sectionColumnsFlow, _perSection, c.firstInRow, c.row == 0, pgs.i > 0, pgs.i < _sectionOf.count, _sectionOf[pgs.i] != _sectionOf[pgs.i - 1],
+           _columnsOf(paragraph: pgs.i - 1) > 1, !_pageBreak[pgs.i], pgs.page % _columns > 0 || _pages[pgs.page].isEmpty == false {
+            let first = (pgs.page / _columns) * _columns
+            var seq: [PagePiece] = []
+            for s in first ... max(pgs.page, min(first + _columns - 1, _pages.count - 1)) { seq += _pages[s] }
+            let own = seq.filter { $0.paragraph < document.paragraphs.count && _sectionOf[$0.paragraph] == _sectionOf[pgs.i - 1] }
+            let holdsBreak: (Int) -> Bool = { k in
+                k + 1 < document.paragraphs.count && document.paragraphs[k].text.isEmpty && document.paragraphs[k].cell == nil
+                    && document.paragraphs[k + 1].style.columnBreak && document.paragraphs[k + 1].style.pageBreakBefore
+                    && document.paragraphs[k + 1].style.breakEndsPrevious
+            }
+            if own.contains(where: { document.paragraphs[$0.paragraph].style.columnBreak && document.paragraphs[$0.paragraph].style.pageBreakBefore }) {
+                let blockBottom = own.filter { !holdsBreak($0.paragraph) }.map { $0.pageY + $0.height }.max() ?? 0
+                if blockBottom > 0, blockBottom <= pgs.contentH + 0.01 {
+                    pgs.page = first
+                    pgs.y = blockBottom
+                    pgs.columnFloor = (first / _columns, blockBottom)
+                }
+            }
+        }
         // A row whose first paragraph breaks the page before it
         // opens a page as a paragraph's break would: the section
         // break on the paragraph before the table (its next
