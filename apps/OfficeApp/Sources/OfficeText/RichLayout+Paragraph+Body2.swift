@@ -125,6 +125,47 @@ extension _ParaFrame {
                 }
             }
         }
+        // Slides: PowerPoint justifies a line of East Asian text by sharing its spare room evenly over every gap between its
+        // characters (befe9f6b p6: 24.7 pt a gap on a 24 pt line); the engine's justify puts it only at script boundaries.
+        if !theme.wordRules, style.alignment == .justify, !style.rightToLeft, textWidth < 50_000, !p.text.isEmpty,
+           (p.cell?.textDirection ?? .horizontal) == .horizontal, painter.computeLineMetrics().count > 1,
+           p.text.unicodeScalars.contains(where: { RichLayout._isEastAsianScalar($0.value) }) {
+            let units = Array(p.text.utf16)
+            let map = _OffsetMap(lead: _lead(i), inserts: _inserts[i])
+            let starts = _lineStarts(painter, map, count: units.count)
+            let kept = align, keptLift = numberLift
+            align = .left
+            let flat = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit.isEmpty ? tabs : fit, held: held).0)
+            align = kept
+            numberLift = keptLift
+            func ea(_ k: Int) -> Bool { RichLayout._isEastAsianScalar(UInt32(units[k])) }
+            var spread: [Int: Double] = [:]
+            for (k, start) in starts.enumerated() where k + 1 < starts.count {
+                var end = min(starts[k + 1], units.count)
+                guard start >= 0, start < units.count else { continue }
+                while end > start, [0x20, 0x09, 0x0A, 0x0B, 0x3000].contains(units[end - 1]) { end -= 1 }
+                guard end > start + 1 else { continue }
+                let gapsAt = ((start + 1) ..< end).filter { !(units[$0] >= 0xDC00 && units[$0] <= 0xDFFF) && (ea($0) || ea($0 - 1)) }
+                guard !gapsAt.isEmpty, end > start else { continue }
+                let boxes = flat.getBoxesForSelection(TextSelection(baseOffset: map.painter(start), extentOffset: map.painter(end)))
+                guard let right = boxes.map({ $0.right }).max() else { continue }
+                let spare = textWidth - right - _px(0.05)
+                guard spare > 0 else { continue }
+                for g in gapsAt { spread[g] = spare / Double(gapsAt.count) }
+            }
+            flat.dispose()
+            if !spread.isEmpty {
+                let (span, _, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit.isEmpty ? tabs : fit, held: held, spread: spread)
+                let again = laidOut(span)
+                if _lineStarts(again, _OffsetMap(lead: _lead(i), inserts: inserts), count: units.count) == starts {
+                    painter.dispose()
+                    painter = again
+                    _inserts[i] = inserts
+                } else {
+                    again.dispose()
+                }
+            }
+        }
         // Distributed (`w:jc` distribute): the last line is spread too,
         // its first character at the line's start, its last ending at the
         // line's end and the room left shared evenly between them — in
