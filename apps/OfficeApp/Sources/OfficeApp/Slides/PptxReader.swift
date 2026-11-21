@@ -3304,6 +3304,9 @@ private struct SlideContext {
         // set at its own widths is not kerned here, and its titles are.)
         if cs.fontFamily?.lowercased() == "calibri light" {
             cs.letterSpacing = (cs.letterSpacing ?? 0) - 0.0054 * (cs.fontSize ?? 18)
+            // (Its bold run, set at the regular's widths (`SlideFonts.face`), is a further 0.006 em a letter tighter in
+            // PowerPoint's print: 6d178027's 48 pt lines, 40 words measured, run 2.4% under Calibri's regular less the above.)
+            if cs.bold { cs.letterSpacing = (cs.letterSpacing ?? 0) - 0.006 * (cs.fontSize ?? 18) }
         }
         // Consolas, set in Liberation Mono: 0.55 em a letter, not
         // 0.6 (lines 8.7% wide).
