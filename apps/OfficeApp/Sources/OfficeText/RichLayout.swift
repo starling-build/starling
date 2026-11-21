@@ -1299,6 +1299,8 @@ public struct PageSetup: Hashable, Codable, Sendable {
     /// How much of `marginRight` is a single unequal column's narrowing (not the paper's margin): the
     /// markup print's scale goes by the paper's.
     public var columnTrim: Double = 0
+    /// A right-to-left (`w:bidi`) section: a single narrowed column sits at the right margin.
+    public var bidiSection = false
     /// Space between pages on the canvas, in points.
     public var gap: Double
     /// Where the header's top and the footer's bottom sit from the page

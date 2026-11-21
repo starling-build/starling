@@ -3423,7 +3423,7 @@ extension RichLayout {
         // (One column of its own width, `w:equalWidth` 0 and a single `w:col`:
         // the text wraps at that, not at the page's. lo-eae9bbb1's last
         // section, a 100pt column under a first section of the page's width.)
-        if theme.wordRules, RichTextTheme.wordWindowsPages, setups.count > 0, final.columns == 1, let xml = document.columnsXML,
+        if theme.wordRules, RichTextTheme.wordWindowsPages, setups.count > 0, final.columns == 1, !final.bidiSection, let xml = document.columnsXML,
            xml.containsSubstring("w:equalWidth=\"0\""), let r = xml.rangeOfSubstring("<w:col w:w=\""),
            let end = xml[r.upperBound...].firstIndex(of: "\""), let twips = Double(xml[r.upperBound ..< end]),
            twips / 20 > 20, twips / 20 < final.contentWidth - 1, xml.components(separatedBy: "<w:col ").count == 2 {

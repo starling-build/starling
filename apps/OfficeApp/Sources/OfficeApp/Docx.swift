@@ -5617,7 +5617,18 @@ enum DocxFormat {
         }
         // (A right-to-left section sets its columns from the right: its first
         // column is the rightmost, lo-998868b6's "RTL 1".)
-        if let bidi = sect.first("w:bidi"), bidi["w:val"] != "0", bidi["w:val"] != "false", setup.columns > 1 { setup.rtlColumns = true }
+        if let bidi = sect.first("w:bidi"), bidi["w:val"] != "0", bidi["w:val"] != "false" {
+            setup.bidiSection = true
+            if setup.columns > 1 { setup.rtlColumns = true }
+            // (A right-to-left section of one narrowed column, `w:equalWidth` 0 and a single `w:col`, sets that column
+            // at the right margin: the text's left edge is the narrowing in from the left. xd bf53d2b7: the table
+            // spans 73.3 to 530.7 in Word's print, with margins 31.5 and 90.)
+            if RichTextTheme.wordWindowsPages, setup.columns == 1, let cols = sect.first("w:cols"),
+               ["0", "false", "off"].contains(cols["w:equalWidth"] ?? ""), cols.all("w:col").count == 1,
+               let tw = Double(cols.first("w:col")?["w:w"] ?? ""), tw / 20 > 20, tw / 20 < setup.contentWidth - 1 {
+                setup.marginLeft += setup.contentWidth - tw / 20
+            }
+        }
         if let grid = sect.first("w:docGrid") {
             // (A top-to-bottom section's snapToChars grid also holds its columns to linePitch: dx2 4427518d's print steps 33.7 pt, 671 twips.)
             let verticalSection = ["tbRl", "tbRlV"].contains(sect.first("w:textDirection")?["w:val"] ?? "")
@@ -6645,7 +6656,7 @@ enum DocxFormat {
                 if RichTextTheme.wordWindowsPages, var setup = style.sectionPage, setup.columns == 1,
                    let cols = sect.first("w:cols"), ["0", "false", "off"].contains(cols["w:equalWidth"] ?? ""),
                    cols.all("w:col").count == 1, let tw = Double(cols.first("w:col")?["w:w"] ?? ""),
-                   tw / 20 > 20, tw / 20 < setup.contentWidth - 1 {
+                   !setup.bidiSection, tw / 20 > 20, tw / 20 < setup.contentWidth - 1 {
                     setup.columnTrim += setup.contentWidth - tw / 20
                     setup.marginRight += setup.contentWidth - tw / 20
                     style.sectionPage = setup
