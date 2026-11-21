@@ -757,6 +757,8 @@ extension OfficeFonts {
         case "mv boli":
             face.advances = mv_boliAdv
             face.otherAdvances = mv_boliOther
+            // (No bold face: a bold run is set at the regular advances. sa2 dd0d48ad's bold 16 pt heading is 221.3 pt wide in Word's print, the regular advances plus the 1 pt spacing give 221.35.)
+            face.boldAdvances = mv_boliAdv; face.boldOtherAdvances = mv_boliOther
             face.naturalHeight = 1.6113; face.baseline = 1.1392
 
         case "khmer ui":
