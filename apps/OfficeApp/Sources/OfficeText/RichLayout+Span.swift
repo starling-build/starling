@@ -368,6 +368,39 @@ extension RichLayout {
                 let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
                 look = look.copyWith(ascentOverride: base * multiple * px, descentOverride: (tall - base) * multiple * px, height: tall * multiple, leadingDistribution: .even)
             }
+            // (An empty paragraph whose mark is w:rtl in a complex face Word lacks, drawn in Arial: Arial's own line, 1.149 em, as its text
+            // lines have (rule word-arial-stand-in-complex-run-keeps-arials-line): dx2 6e7a3d11's empty Times marks, cs B YAGOT, 10 pt on
+            // a 0.9 multiple, are 10.35 apart in Word's print, ours 10.55, and the heading under them stood 2.5 pt low.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, !emptyBidiOwnLine, p.style.list == nil, p.style.lineHeightPoints == nil,
+               mark.rightToLeft, look.ascentOverride == nil, let px = look.fontSize, px > 0.5,
+               case let cs = mark.complexFontFamily ?? markNamed?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily,
+               let f = theme.complexFace(cs, latin: mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily, letters: true), f.arialStandIn {
+                RuleTrace.hit("word-empty-mark-arial-stand-in-keeps-arials-line")
+                let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+                let sp = Self._multipleSplit(ascent: 0.905, descent: 1.149 - 0.905, multiple: multiple)
+                look = look.copyWith(ascentOverride: px * sp.0, descentOverride: px * sp.1, height: 1.149 * multiple, leadingDistribution: .even)
+            }
+            // (An empty paragraph whose mark is w:rtl in a complex face Word lacks and names an alternate for (B YAGOT, alternate Times New
+            // Roman), the face itself with no line of ours: the mark's line is the Latin face's at that size, as without w:rtl. dx2 6e7a3d11's
+            // empty Times marks, 10 pt on a 0.9 multiple, are 10.35 apart in Word's print, ours 10.55 on the Noto stand-in's 1.172 em.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, !emptyBidiOwnLine, p.style.list == nil, p.style.lineHeightPoints == nil,
+               mark.rightToLeft, look.ascentOverride == nil, let px = look.fontSize, px > 0.5,
+               case let cs = mark.complexFontFamily ?? markNamed?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily,
+               let f = theme.complexFace(cs, latin: mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily, letters: true),
+               !f.arialStandIn, !f.ownLineBaseline {
+                var latinMark = mark
+                latinMark.rightToLeft = false
+                let latin = theme.textStyle(for: latinMark, in: p.style, named: markNamed, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                let probe = TextPainter(text: TextSpan(text: "x", style: latin), textDirection: .ltr)
+                probe.layout(minWidth: 0, maxWidth: 100000)
+                let m = probe.computeLineMetrics().first
+                probe.dispose()
+                if let m, let lpx = latin.fontSize, lpx > 0.5, m.ascent + m.descent > 0.5 {
+                    RuleTrace.hit("word-empty-rtl-mark-in-an-alternate-face-is-the-latin-line")
+                    // (The probe's line already carries the paragraph's multiple.)
+                    look = look.copyWith(ascentOverride: px * m.ascent / lpx, descentOverride: px * m.descent / lpx, height: (m.ascent + m.descent) / lpx, leadingDistribution: .even)
+                }
+            }
             // (An empty paragraph whose mark is set in a Windows Arabic face with a line of its own (Traditional Arabic's 1.495 em) is that
             // face's line, not the Latin stand-in's 1.22: xb urd-e54653's empty 16 pt mark between the keywords and the heading is 23.5 pt
             // tall in Word's print, ours 19.5, and every line after it stood 4 pt high.)
