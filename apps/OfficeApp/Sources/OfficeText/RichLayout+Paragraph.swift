@@ -4816,9 +4816,10 @@ extension RichLayout {
         }
         total += _tamilMarkedLinesExtra(i, p, document, painter)
         if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.eastAsian["w:fieldMarkDefault"] == "1", p.cell == nil, p.image == nil,
-           style.lineHeightPoints == nil, abs(style.lineSpacing - theme.lineSpacingReduction - 1) < 0.001,
-           let normal = document.styles[RichNamedStyle.normalId]?.char {
-            let line = _markLineHeight(i, document, single: true, using: normal)
+           style.lineHeightPoints == nil, abs(style.lineSpacing - theme.lineSpacingReduction - 1) < 0.001 {
+            // (A marker with no rPr of its own is in the paragraph's style, whose size and face the paragraph's other runs get too: zh-0513f641's
+            // footer page number sits in the 9pt footer style, not the 12pt Normal, and was grown to 12 by measuring Normal.)
+            let line = _markLineHeight(i, document, single: true, using: CharStyle())
             if before + line + after > total + 0.01 {
                 RuleTrace.hit("word-field-mark-in-default-font-counts-in-the-line")
                 total = before + line + after
