@@ -701,6 +701,17 @@ struct PptxReader {
                                             unsaidKern: unsaidKern)
                     var found: [ShapeState] = []
                     octx.shapes(in: tree, transform: nil, into: &found, id: id)
+                    // (A slide-number field in a shape the layout or master draws (not a placeholder, so the slide holds no copy of it) shows the number of
+                    // the slide it is drawn on: PowerPoint prints ko-2fd3de28's layout text box as 136, not the field's stored ‹#›.)
+                    for k in found.indices {
+                        guard let field = found[k].field, field.isSlideNumber, var doc = found[k].text else { continue }
+                        guard let at = doc.paragraphs.firstIndex(where: { !$0.text.isEmpty }) else { continue }
+                        let want = field.value(slide: n + (presentation["firstSlideNum"].flatMap(Int.init) ?? 1))
+                        let style = doc.paragraphs[at].runs.first?.style ?? CharStyle()
+                        doc.paragraphs[at].text = want
+                        doc.paragraphs[at].runs = [Run(length: want.utf16.count, style: style)]
+                        found[k].text = doc
+                    }
                     decorations += found.filter { s in
                         if case .placeholder = s.kind { return false }
                         // An object this app cannot draw is a labelled box on
