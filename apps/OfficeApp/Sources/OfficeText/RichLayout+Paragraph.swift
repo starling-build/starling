@@ -1668,7 +1668,13 @@ extension RichLayout {
                 if let boxes = colWrapBoxes, !boxes.isEmpty, besideLeftRoom == nil, _besideLead[i] == 0 {
                     for k in 0 ..< bottoms.count {
                         let top = k == 0 ? 0 : bottoms[k - 1]
-                        if let b = boxes.first(where: { $0.byStart ? (top >= $0.top - 0.01 && top < $0.bottom - 0.01) : (bottoms[k] > $0.top + 0.01 && top < $0.bottom - 0.01) }) { next.append(LineIndent(left: b.left, right: b.right)) } else { next.append(LineIndent()) }
+                        if let b = boxes.first(where: { $0.byStart ? (top >= $0.top - 0.01 && top < $0.bottom - 0.01) : (bottoms[k] > $0.top + 0.01 && top < $0.bottom - 0.01) }) {
+                            var right = b.right
+                            if !b.outline.isEmpty, b.left == 0, b.outH > 0, let m = Self._outlineMinX(b.outline, (top - b.outTop) / b.outH, (bottoms[k] - b.outTop) / b.outH) {
+                                right = max(b.outBase - (b.outX + b.outW * m - b.outGap), 0); RuleTrace.hit("word-tight-wrap-line-meets-the-outline-over-its-own-rows")
+                            }
+                            next.append(LineIndent(left: b.left, right: right))
+                        } else { next.append(LineIndent()) }
                     }
                 } else if besideLeftRoom != nil, let boxes = _besideBoxes[i], boxes.count >= 2 {
                     // (Round two boxes or more: a row of the page is the room
@@ -1719,7 +1725,7 @@ extension RichLayout {
                             // from taking it for the right piece of a pair.)
                             next.append(LineIndent(left: besideIndent, right: 0.001)); k += 1
                         } else if bottoms[k] - saved > band.top + 0.01, before - saved < band.bottom - 0.01 {
-                            next.append(LineIndent(left: 0, right: max(textWidth - leftRoom, 0)))
+                            next.append(LineIndent(left: 0, right: max(textWidth - (_besideLeftAt[i]?(before - saved, bottoms[k] - saved) ?? leftRoom), 0)))
                             if k + 1 < bottoms.count {
                                 next.append(LineIndent(left: besideIndent, right: 0))
                                 saved += min(bottoms[k + 1] - bottoms[k], bottoms[k] - before)
@@ -1746,7 +1752,7 @@ extension RichLayout {
                         // 246.2 of room, where the cut column less the indent held 21.)
                         // (A box at the line's start as well as the one at the right: the lines level with each stand in the window between them, as Word's print of lab ellhdr, a 2pt tab line between two header boxes.)
                         let startLeft: Double = besideRight ? (_besideStartLeft[i].flatMap { sl in bottoms[k] > sl.band.top + 0.01 && top < sl.band.bottom - 0.01 ? sl.indent : nil } ?? 0) : 0
-                        next.append(besideRight ? LineIndent(left: startLeft, right: beside ? max(besideIndent - gridCut, 0) : 0) : LineIndent(left: beside ? besideIndent + (k == 0 ? firstExtra : 0) : 0, right: 0))
+                        next.append(besideRight ? LineIndent(left: startLeft, right: beside ? max((_besideRightAt[i]?(top, bottoms[k]) ?? besideIndent) - gridCut, 0) : 0) : LineIndent(left: beside ? besideIndent + (k == 0 ? firstExtra : 0) : 0, right: 0))
                     }
                 }
                 while let last = next.last, last.left == 0, last.right == 0, next.count > 1, next[next.count - 2].left == 0, next[next.count - 2].right == 0 { next.removeLast() }
