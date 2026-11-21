@@ -2457,7 +2457,9 @@ extension RichLayout {
                 // keeps iv) of 58192c08 on page 5 with 0 pt after and sends it to page 6 with 3 pt, lab fnbreak v6/v7;
                 // compat 14 keeps it, lab fncompat m14-v0/m14-v7. A paragraph that carries a note itself keeps its line: f0ca0950 p4 caption.)
                 let afterOnNotes: Double = theme.wordRules && RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) >= 15 && !pgs.pageNotes.isEmpty && pgs.placing.isEmpty && document.paragraphs[pgs.i].cell == nil ? _spacing(pgs.i, document).after : 0
-                for (k, c) in cuts!.enumerated() where c > cursor + 0.01 && c - cursor <= available + slack + reach(k) + (k == cuts!.count - 1 ? emptyTail + twipAllow(c - cursor - (available + reach(k) + emptyTail)) - lastFoot - afterOnNotes : -partFoot) { cut = c }
+                // (A Tamil paragraph's marked-line surplus is under its last line and Word fits it with the line, only the space after standing past the foot: dx2 a347c3b3 page 4, three marked lines whose last ends 3 pt above the foot but whose surplus does not, go whole to page 5.)
+                let tamilFoot = _tamilMarkedLinesExtra(pgs.i, document.paragraphs[pgs.i], document, geometry(pgs.i).painter)
+                for (k, c) in cuts!.enumerated() where c > cursor + 0.01 && c - cursor <= available + slack + reach(k) + (k == cuts!.count - 1 ? emptyTail + twipAllow(c - cursor - (available + reach(k) + emptyTail)) - lastFoot - afterOnNotes - (k == cuts!.count - 1 ? tamilFoot : 0) : -partFoot) { cut = c }
                 // (A picture's paragraph goes whole or to the next page: its
                 // one cut is its empty line's, under the picture's top, and
                 // took all of the picture into whatever room was left. Widow
