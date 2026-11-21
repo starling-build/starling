@@ -128,7 +128,7 @@ extension _ParaFrame {
         // Slides: PowerPoint justifies a line of East Asian text by sharing its spare room evenly over every gap between its
         // characters (befe9f6b p6: 24.7 pt a gap on a 24 pt line); the engine's justify puts it only at script boundaries.
         if !theme.wordRules, style.alignment == .justify, !style.rightToLeft, textWidth < 50_000, !p.text.isEmpty,
-           (p.cell?.textDirection ?? .horizontal) == .horizontal, painter.computeLineMetrics().count > 1,
+           (p.cell?.textDirection ?? .horizontal) == .horizontal, painter.computeLineMetrics().count > 1 || _lastLineHangsMark(p, fit),
            p.text.unicodeScalars.contains(where: { RichLayout._isEastAsianScalar($0.value) }) {
             let units = Array(p.text.utf16)
             let map = _OffsetMap(lead: _lead(i), inserts: _inserts[i])
@@ -140,22 +140,39 @@ extension _ParaFrame {
             numberLift = keptLift
             func ea(_ k: Int) -> Bool { RichLayout._isEastAsianScalar(UInt32(units[k])) }
             var spread: [Int: Double] = [:]
-            for (k, start) in starts.enumerated() where k + 1 < starts.count {
-                var end = min(starts[k + 1], units.count)
+            var markFit: [Int: Double] = [:]
+            // (The paragraph's last line is not justified, unless its closing mark hangs past the margin: PowerPoint then spreads the
+            // line until the mark stands at the edge, befe9f6b p6 "…重要。".)
+            let hangLast = _lastLineHangsMark(p, fit)
+            for (k, start) in starts.enumerated() where k + 1 < starts.count || hangLast {
+                var end = min(k + 1 < starts.count ? starts[k + 1] : units.count, units.count)
                 guard start >= 0, start < units.count else { continue }
                 while end > start, [0x20, 0x09, 0x0A, 0x0B, 0x3000].contains(units[end - 1]) { end -= 1 }
                 guard end > start + 1 else { continue }
                 let gapsAt = ((start + 1) ..< end).filter { !(units[$0] >= 0xDC00 && units[$0] <= 0xDFFF) && (ea($0) || ea($0 - 1)) }
                 guard !gapsAt.isEmpty, end > start else { continue }
                 let boxes = flat.getBoxesForSelection(TextSelection(baseOffset: map.painter(start), extentOffset: map.painter(end)))
-                guard let right = boxes.map({ $0.right }).max() else { continue }
+                guard var right = boxes.map({ $0.right }).max() else { continue }
+                if k + 1 >= starts.count {
+                    // (The last line: only where its closing mark hangs, i.e. has no room of its own; the text before it is spread so the
+                    // mark's origin lands on the edge.)
+                    let markBoxes = flat.getBoxesForSelection(TextSelection(baseOffset: map.painter(end - 1), extentOffset: map.painter(end)))
+                    guard markBoxes.isEmpty || (markBoxes.last?.right ?? 0) > textWidth - _px(1) else { continue }
+                    let before = flat.getBoxesForSelection(TextSelection(baseOffset: map.painter(start), extentOffset: map.painter(end - 1)))
+                    guard let b = before.map({ $0.right }).max() else { continue }
+                    // (The mark is set a sliver wide so it stands at the edge without wrapping.)
+                    let natural = (markBoxes.last.map { $0.right - $0.left } ?? 0) - (fit[end - 1] ?? 0)
+                    guard natural > _px(0.5) else { continue }
+                    markFit[end - 1] = -(natural - _px(0.5))
+                    right = b + _px(0.5)
+                }
                 let spare = textWidth - right - _px(0.05)
                 guard spare > 0 else { continue }
                 for g in gapsAt { spread[g] = spare / Double(gapsAt.count) }
             }
             flat.dispose()
             if !spread.isEmpty {
-                let (span, _, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit.isEmpty ? tabs : fit, held: held, spread: spread)
+                let (span, _, inserts) = _span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: (fit.isEmpty ? tabs : fit).merging(markFit) { $1 }, held: held, spread: spread)
                 let again = laidOut(span)
                 if _lineStarts(again, _OffsetMap(lead: _lead(i), inserts: inserts), count: units.count) == starts {
                     painter.dispose()

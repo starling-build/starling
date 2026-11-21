@@ -25,6 +25,14 @@ extension RichLayout {
         !theme.wordRules && theme.officeLatinBreaks && !p.style.rightToLeft && p.style.eastAsian["a:hangingPunct"] != "0"
     }
 
+    /// A Slides paragraph whose last character is a 、。，． that may hang past the margin.
+    func _lastLineHangsMark(_ p: RichParagraph, _ fit: [Int: Double]) -> Bool {
+        guard _hangsLineEndMarks(p) else { return false }
+        let units = Array(p.text.utf16)
+        guard let m = units.lastIndex(where: { ![0x20, 0x09, 0x0A, 0x0B, 0x3000].contains($0) }) else { return false }
+        return [0x3001, 0x3002, 0xFF0C, 0xFF0E].contains(units[m])
+    }
+
     func _fitEastAsianLines(_ p: RichParagraph, at i: Int, _ document: RichDocument, textWidth baseWidth: Double,
                                     first: TextPainter, leadWidth: Double, tabs: [Int: Double] = [:], leftTabs: Set<Int> = [],
                                     runsPast: Set<Int> = [], beyond: [Int: Double] = [:], tieShort: (first: Bool, rest: Bool) = (false, false),

@@ -270,6 +270,7 @@ extension _ParaFrame {
     var _lineLift: [[Double]] { get { rl._lineLift } set { rl._lineLift = newValue } }
     var _lineOverhang: [[Double]] { get { rl._lineOverhang } set { rl._lineOverhang = newValue } }
     func _hangsLineEndMarks(_ a0: RichParagraph) -> Bool { rl._hangsLineEndMarks(a0) }
+    func _lastLineHangsMark(_ a0: RichParagraph, _ a1: [Int: Double]) -> Bool { rl._lastLineHangsMark(a0, a1) }
     func _lineStarts(_ a0: TextPainter, _ a1: _OffsetMap, count a2: Int) -> [Int] { rl._lineStarts(a0, a1, count: a2) }
     func _listIndents(_ a0: RichParagraph, _ a1: RichDocument) -> (left: Double, hanging: Double)? { rl._listIndents(a0, a1) }
     func _map(_ a0: Int) -> _OffsetMap { rl._map(a0) }
