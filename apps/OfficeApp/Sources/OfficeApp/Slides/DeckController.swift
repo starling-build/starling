@@ -87,6 +87,7 @@ struct ShapeState: Equatable {
     var uprightInsets = EdgeInsets.zero
     var noWrap = false
     var anchorCentred = false
+    var keepsFirstSpace = false
     var columns = 1
     var columnGap = 0.0
     var warp: TextWarp? = nil
@@ -1214,6 +1215,7 @@ final class DeckController: ChangeNotifier {
            tt.fontFamily != st.font || tt.fontSize != st.size || tt.textColor != st.color || tt.listIndent != st.listIndent {
             let fresh = _textTheme(font: st.font ?? theme.bodyFont, size: st.size, color: st.color)
             fresh.listIndent = st.listIndent
+            if st.keepsFirstSpace { fresh.omitsLeadingSpace = false }
             if st.naturalLines { Self.naturalLines(fresh, font: st.font ?? theme.bodyFont) }
             shape.textTheme = fresh
         }
@@ -1319,6 +1321,7 @@ final class DeckController: ChangeNotifier {
     private func _make(_ st: ShapeState) -> SlideShape {
         let theme = st.text == nil ? nil : _textTheme(font: st.font ?? self.theme.bodyFont, size: st.size, color: st.color)
         theme?.listIndent = st.listIndent
+        if st.keepsFirstSpace { theme?.omitsLeadingSpace = false }
         if st.naturalLines, let theme { Self.naturalLines(theme, font: st.font ?? self.theme.bodyFont) }
         let shape = SlideShape(id: st.id, name: st.name, kind: st.kind, frame: st.frame,
                                text: st.text.map(_textController), textTheme: theme,

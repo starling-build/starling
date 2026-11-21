@@ -1680,6 +1680,7 @@ private struct SlideContext {
         st.generatedHang = text.generatedHang
         st.noWrap = text.noWrap
         st.anchorCentred = text.anchorCentred
+        st.keepsFirstSpace = text.keepsFirstSpace
         st.textTurn = text.textTurn
         st.textStacked = text.textStacked
         st.textSpin = text.textSpin
@@ -3119,6 +3120,8 @@ private struct SlideContext {
         var noWrap = false
         /// `bodyPr anchorCtr="1"`.
         var anchorCentred = false
+        /// `bodyPr spcFirstLastPara="1"`: the first paragraph keeps its space before.
+        var keepsFirstSpace = false
         /// `bodyPr vert`: 1 a quarter clockwise, -1 anticlockwise.
         var textTurn = 0
         var textStacked = 0
@@ -3741,6 +3744,7 @@ private struct SlideContext {
         body0.sizeGroup = body?.first("a:bodyPr")?["starling:sizeGroup"]
         body0.generatedHang = body?.first("a:bodyPr")?["starling:generatedHang"] == "1"
         body0.anchorCentred = ["1", "true"].contains(attr("anchorCtr") ?? "")
+        body0.keepsFirstSpace = ["1", "true"].contains(attr("spcFirstLastPara") ?? "")
         switch attr("vert") {
         case "vert", "eaVert", "mongolianVert": body0.textTurn = 1
         case "vert270": body0.textTurn = -1
