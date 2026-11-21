@@ -209,9 +209,9 @@ enum SlideFonts {
             // (PowerPoint's print of 6e9fe27b sets it a third narrower than the Arial it was drawn in: lines ran a third over.)
             var face = RichResolvedFace(family: resolve(family))
             face.advances = SlideFontWidths.rockwellCondensed
-            face.boldAdvances = SlideFontWidths.rockwellCondensed
+            face.boldAdvances = SlideFontWidths.rockwellCondensedBold
             face.otherAdvances = SlideFontWidths.rockwellCondensedOther
-            face.boldOtherAdvances = SlideFontWidths.rockwellCondensedOther
+            face.boldOtherAdvances = SlideFontWidths.rockwellCondensedBoldOther
             return face
         case "calibri light":
             // (Calibri Light has no bold: PowerPoint sets a bold run of it at Calibri Regular's advances, not Carlito Bold's,
