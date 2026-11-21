@@ -7851,6 +7851,13 @@ enum DocxFormat {
                    !DocxFormat._bidiLangHebrew, !notes.normalAsciiIsCs, notes.inHeaderFooter, !runText.isEmpty, runText.unicodeScalars.allSatisfy({ (0x30...0x39).contains($0.value) }) {
                     cs.rightToLeft = false; RuleTrace.hit("rtl-digits-no-cs-props-arabic-footer")
                 }
+                // (A run flagged w:rtl whose text holds Arabic-script letters is complex script throughout: its w:hint="eastAsia" does not make the
+                // marks, digits and quotes in it East Asian, so the line is not the Mincho-tall one. dx2 6e7a3d11's Persian body, every run hinted:
+                // lines 0.7 pt too tall, 3.9 pt of drift by the foot of page 3.)
+                if cs.rightToLeft, _on(rPr.first("w:rtl")), cs.fontHint == "eastAsia", !DocxFormat._bidiLangHebrew,
+                   runText.unicodeScalars.contains(where: { (0x0600...0x06FF).contains($0.value) }) {
+                    cs.fontHint = nil; RuleTrace.hit("word-rtl-arabic-run-ignores-east-asian-hint")
+                }
                 if DocxFormat._bidiLangHebrew, cs.rightToLeft, _on(rPr.first("w:rtl")), rPr.first("w:szCs") == nil, rPr.first("w:rFonts")?["w:cs"] == nil, rPr.first("w:rFonts")?["w:cstheme"] == nil, (rPr.first("w:webHidden") != nil || !notes.inHeaderFooter), rPr.first("w:rFonts")?["w:hint"] != "cs",
                    !runText.isEmpty, runText.unicodeScalars.allSatisfy({ (0x30...0x39).contains($0.value) }) {
                     cs.rightToLeft = false; RuleTrace.hit("rtl-digits-no-cs-props")
