@@ -3428,6 +3428,9 @@ extension RichLayout {
                 var tall = ownMark != nil && !larger ? need + line.baseline + line.descent : _px(markerSize * 1.225)
                 // (A line the strut already stands on Symbol's ascent over the text's descent (see `_span`) is Word's pitch as it is, 12.17 pt for Arial 10, not the face's whole 1.225 em.)
                 if !larger, ownMark == nil, style.lineSpacing <= 1.001, line.height >= _px(markerSize * 1.2) { tall = line.height }
+                // (Under a line multiple below one the Symbol bullet's line is scaled with the text's: dx2 fa 6e7a3d11's 10pt bullet items at 0.8
+                // step 9.96 pt in Word's print, 0.8 of Symbol's 12.45, where the lift stood unscaled on the squeezed line made 11.9.)
+                if style.lineSpacing < 0.999 { tall *= style.lineSpacing }
                 segoeLift += max(0, tall - line.height) / _px(1)
             }
         }
