@@ -557,7 +557,7 @@ public final class RichTextTheme {
         var complexFace: RichResolvedFace? = nil
         if wordRules, RichTextTheme.wordWindowsPages, style.rightToLeft, !eastAsian,
            let cs = style.complexFontFamily ?? named?.char.complexFontFamily,
-           let f = self.complexFace(cs, latin: familyName, letters: style.csLetters), f.ownLineBaseline, f.baseline != nil {
+           let f = self.complexFace(cs, latin: familyName, letters: style.csLetters), (f.ownLineBaseline || (f.arialStandIn && style.csLetters)), f.baseline != nil {
             complexFace = f
         }
         guard size > 0, let face = complexFace ?? faceResolver?(familyName, eastAsian),
