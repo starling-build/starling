@@ -136,6 +136,8 @@ enum SlideFonts {
                 face.italicOtherAdvances = SlideEastAsianWidths.parse(it.regular.other)
                 face.boldItalicOtherAdvances = it.bold.map { SlideEastAsianWidths.parse($0.other) } ?? face.italicOtherAdvances
             }
+            // (Rockwell and Tw Cen MT kern, as PowerPoint prints them, by the pairs of the font's own kern table.)
+            if let k = SlideLatinKerns.lookup(windowsName(family)) { face.kerns = k.regular; face.boldKerns = k.bold ?? k.regular; face.kernsOutsideWord = true }
             eastAsianMade[family] = face
             return face
         }
