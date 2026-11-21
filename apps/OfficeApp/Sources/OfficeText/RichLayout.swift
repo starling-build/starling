@@ -86,7 +86,7 @@ public final class RichTextTheme {
     public var averageCharWidth: ((String?) -> Double)? = nil
     /// A face's usWinAscent + usWinDescent over its em, by the name the document uses (nil: unknown).
     public var winLineBox: ((String?) -> Double?)? = nil
-    /// A face's usWinDescent over its em, by the name the document uses (nil: unknown).
+    /// A face's usWinDescent as a share of its win line (ascent + descent), by the name the document uses (nil: unknown).
     public var winDescent: ((String?) -> Double?)? = nil
     /// A symbol face's characters as the Unicode glyphs they show, for
     /// drawing: a run in Wingdings 2 says "£" (`w:sym w:char="00A3"`) for
