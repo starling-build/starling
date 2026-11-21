@@ -4611,6 +4611,16 @@ extension RichLayout {
                     }
                 }
             }
+            // (A raised or lowered text run under a larger number, in Word for Windows: the raise comes OFF the number's rise. Lab
+            // pitch1/pitch2 (amd-10): 9.5pt text under a 10.5pt number stands 11.88 apart, 11.40 raised 0.5pt, 10.92 raised 1pt or more
+            // (the text's own line), 12.84 lowered 1pt; under a 12pt number 12.75, 12.24 for 0.5pt, 1pt. Ours added the raise to the
+            // number's rise, 12.86 at 1pt, and took no account of a lowering.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, let up = rise, pitch == nil,
+               let r = p.runs.first(where: { $0.length > 0 })?.style.raised, abs(r) > 0.01 {
+                RuleTrace.hit("word-list-number-rise-less-the-text-raise")
+                let rpx = r * _px(1) * fontScale
+                rise = up - max(0, rpx) - rpx
+            }
             let style = theme.textStyle(for: leadChar, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
             children.append(RichImageSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style))
             inline.append((nil, PlaceholderDimensions(size: Size(lead, 0.01), alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, baselineOffset: 0.01)))

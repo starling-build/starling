@@ -3828,7 +3828,9 @@ extension RichLayout {
            style.lineHeightPoints == nil,
            style.lineSpacing - theme.lineSpacingReduction <= 1.001 || style.eastAsian["w:textAlignment"] == "top",
            besideLineIndents.isEmpty, keepClear == nil, Self._paired(painter) == nil, p.inlineImages.isEmpty,
-           p.runs.contains(where: { abs(raisedOf($0)) > 0.01 && $0.style.script == .normal }) {
+           p.runs.contains(where: { abs(raisedOf($0)) > 0.01 && $0.style.script == .normal }),
+           // (A numbered line's raise (up to 2pt, lab pitch2) is taken off the number's rise instead: see the number span.)
+           !(p.style.list != nil && !lowTop && p.runs.allSatisfy({ abs(raisedOf($0)) <= 2.01 })) {
             let metrics = painter.computeLineMetrics()
             let bottoms = Self._rawLineBottoms(painter)
             let units = p.text.utf16.count
