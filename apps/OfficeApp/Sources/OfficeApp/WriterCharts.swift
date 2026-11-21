@@ -350,6 +350,9 @@ enum WriterGroups {
         var dash: String? = nil
         /// A picture's bytes and its decode key: drawn over its box.
         var picture: (key: String, data: Data)? = nil
+        /// A linked picture's description (`descr` on its `pic:cNvPr`, where that carries a `hlinkClick`): Word writes it into
+        /// its PDF as 1.2pt Calibri text at the picture's top, fully transparent, on every page that shows the picture.
+        var alt: String? = nil
         /// A chart in the group (`WriterCharts`, by this id), drawn in its box.
         var chartID: String? = nil
         /// WordArt (a VML textpath): its text fitted to the box.
@@ -509,7 +512,11 @@ enum WriterGroups {
                     shapes.append(Shape(rect: Rect.fromLTWH(at.left / 12700, at.top / 12700, at.width / 12700, at.height / 12700),
                                         fill: nil, line: nil, lineWidth: 0, isLine: false, rising: false, geometry: nil,
                                         rotation: 0, flipH: false, flipV: false, headEnd: nil, tailEnd: nil,
-                                        picture: (id + "#" + String(shapes.count), data)))
+                                        picture: (id + "#" + String(shapes.count), data), alt: {
+                                            let nv = child.first("pic:nvPicPr")?.first("pic:cNvPr")
+                                            guard let nv, nv.first("a:hlinkClick") != nil, let d = nv["descr"], !d.isEmpty else { return nil }
+                                            return d
+                                        }()))
                 case "wpg:graphicFrame":
                     // (A chart in the group, at its own place in it: lo
                     // tdf124398 and tdf-chart-in-group drew it at the group's top, as the
@@ -1081,6 +1088,22 @@ enum WriterGroups {
         return entries[attachment.id] != nil
     }
 
+    /// A linked picture's description, as Word's PDF holds it: 1.2pt Calibri text, a 1.44pt line each (a blank one too), the first
+    /// standing on the picture's top, from its left; fully transparent there, so it is only in the text layer (search, readers).
+    /// Alpha 1/255 stands in for it (the PDF backend leaves out a paint of alpha 0; text mode 3 would need the engine's help).
+    static func _paintAlt(_ alt: String, _ canvas: any Canvas, _ r: Rect, _ pxPerPt: Double) {
+        var y = r.top
+        for line in alt.split(separator: "\n", omittingEmptySubsequences: false).map({ String($0).trimmingWhitespace() }) {
+            defer { y += 1.44 * pxPerPt }
+            guard !line.isEmpty else { continue }
+            let tp = TextPainter(text: TextSpan(text: line, style: Flutter.TextStyle(
+                color: Color(0x01000000), fontSize: 1.2 * pxPerPt, fontFamily: OfficeFonts.substitute("Calibri"))), textDirection: .ltr)
+            tp.layout(minWidth: 0, maxWidth: 100000)
+            tp.paint(canvas, Offset(r.left, y - tp.computeDistanceToActualBaseline(.alphabetic)))
+            tp.dispose()
+        }
+    }
+
     static func paint(_ attachment: ImageAttachment, _ canvas: any Canvas, _ rect: Rect, _ pxPerPt: Double) -> Bool {
         lock.lock()
         let entry = entries[attachment.id]
@@ -1097,6 +1120,7 @@ enum WriterGroups {
                 if let img = image(pic.key, pic.data) {
                     canvas.drawImageRect(img, Rect.fromLTWH(0, 0, Double(img.width), Double(img.height)), r, Paint())
                 }
+                if let alt = s.alt { _paintAlt(alt, canvas, r, pxPerPt) }
                 continue
             }
             canvas.save()
