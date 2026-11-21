@@ -1836,7 +1836,7 @@ extension RichLayout {
                 // (A run with a text shadow (w14:shadow) makes its line taller by the shadow's reach: the blur radius past the offset,
                 // below and above the face's own line. Lab hdrsup v7 against v10, 72 pt Copperplate Gothic Light, shadow 3 pt out at 45 degrees
                 // blurred 4 pt: the baseline falls 1.92 pt (4 - 3 sin 45 = 1.88) and the body 8.04 (4 + 3 sin 45 = 6.12 more below).)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, let sh = run.shadow ?? named?.char.shadow, !sh.glow, sh.blur > 0, sh.scale > 0, run.shadow == nil || s.baselineShift != nil,
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let sh = run.shadow ?? named?.char.shadow, !sh.glow, sh.blur > 0, sh.scale > 0,
                    let size = s.fontSize, size > 0.5, !(index.map { _verticalBody($0) } ?? false),
                    let latin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)?.trimmingWhitespace(),
                    let face = theme.faceResolver?(latin, false),
@@ -1849,13 +1849,21 @@ extension RichLayout {
                         let k = theme.pixelsPerPoint * scale
                         // (The glyphs are set down by the reach above them and the line grows by the reach below as well: the line's own
                         // ascent stays, the paint takes the baseline from the face.)
-                        let above = max(0, sh.blur - sh.dy) * k, below = max(0, sh.blur + sh.dy) * k
+                        // (Lab shadow2, Word's print, Calibri, blur 4 dist 3 at 45 degrees (full reach 8 pt): the line grows by 2.28 pt at 12, 3.72 at 24,
+                        // 4.92 at 36, 6.72 at 55, 8.04 at 72, the same for a style's shadow and a direct one, 1.15 spacing multiplying it;
+                        // blur 3 dist 1.8 at 55 grows 5.04 = 0.84 of its reach 6. So the reach counts by a fraction of the size, whole from 72 pt.)
+                        let sizes = [0.0, 12, 24, 36, 55, 72], fracs = [0.0, 0.285, 0.465, 0.615, 0.84, 1.0]
+                        var frac = 1.0
+                        if pt < 72, let i = sizes.lastIndex(where: { $0 <= pt }) {
+                            frac = fracs[i] + (fracs[i + 1] - fracs[i]) * (pt - sizes[i]) / (sizes[i + 1] - sizes[i])
+                        }
+                        let above = max(0, sh.blur - sh.dy) * k * frac, below = max(0, sh.blur + sh.dy) * k * frac
                         let up = s.ascentOverride ?? asc * size, down = (s.descentOverride ?? (line - asc) * size) + above + below
                         // (A raised or lowered run's box takes no line of its own: its shadow's reach above it is carried in the label for the
                         // line pass, `_strut`, which grows the line by it. Lab hdr3 v1 against v2: the body 1.85 pt lower for the shadow on the
                         // raised run alone, the reach 4 - 3 sin 45 = 1.88.)
                         let raisedRun = s.baselineShift != nil
-                        s = s.copyWith(baselineShift: (s.baselineShift ?? 0) + above, ascentOverride: up, descentOverride: down, height: (up + down) / size,
+                        s = s.copyWith(baselineShift: (s.baselineShift ?? 0) + above, ascentOverride: up, descentOverride: down, height: (up + down) * max(1, p.style.lineSpacing) / size,
                                        leadingDistribution: .even, debugLabel: (s.debugLabel ?? "") + (raisedRun ? " shadow-line@\(above)" : " shadow-line"))
                     }
                 }
