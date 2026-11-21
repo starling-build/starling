@@ -16,6 +16,11 @@ import FlutterSwiftBridge
 import Foundation
 
 enum WriterMath {
+    /// Windows Office's math rules: Word for Windows pages, or an equation set for a slide (PowerPoint's print uses the same engine and Cambria Math).
+    nonisolated(unsafe) static var slideScope = false
+    /// The text colour of the slide shape an equation sits in (Word's equations are black).
+    nonisolated(unsafe) static var slideInk: Color? = nil
+    static var windows: Bool { RichTextTheme.wordWindowsPages || slideScope }
     /// A laid-out piece of an equation, in points: its width, how far it
     /// reaches above and below its baseline, and how to draw it with its
     /// baseline's left end at a point.
@@ -26,6 +31,9 @@ enum WriterMath {
         /// How far its ink reaches (nil: as far as its line extents), to size a stretched delimiter.
         var inkUp: Double? = nil
         var inkDown: Double? = nil
+        /// What plain math runs at the base level of the row stand on (Cambria's 0.95 em over, 0.222 em under the baseline): Word's line holds them whole; every other part counts by its ink.
+        var baseA: Double = 0
+        var baseD: Double = 0
         var draw: (any Canvas, Offset) -> Void
         var iu: Double { inkUp ?? ascent }
         var idn: Double { inkDown ?? descent }
@@ -39,6 +47,9 @@ enum WriterMath {
         var size: Double = 11
         /// Its forms broken to a width (`fit`).
         var fits: [Box] = []
+        /// Set for a slide's equation: laid out again under the same rules and ink.
+        var slide = false
+        var ink: Color? = nil
     }
 
     /// An inline equation cut after each relation of its top level (Word breaks one there, and nowhere
@@ -99,7 +110,7 @@ enum WriterMath {
         // (A display fraction's line in Word's print is counted from the INK of its numerator and
         // denominator, not from the font's ascent and descent: a plain one at 10pt is 2.3 em tall,
         // where the font's extras made ours 2.6 em. lab frac2.)
-        if display, RichTextTheme.wordWindowsPages, !node.descendants("m:f").isEmpty,
+        if display, WriterMath.windows, !node.descendants("m:f").isEmpty,
            ["nary"].allSatisfy({ node.descendants("m:" + $0).isEmpty }) {
             RuleTrace.hit("display-fraction-line-counts-ink")
             let scripted = ["sSup", "sSub", "sSubSup"].contains(where: { !node.descendants("m:" + $0).isEmpty })
@@ -114,13 +125,21 @@ enum WriterMath {
         if display, node.all("m:oMath").last?.children.last(where: { $0.name == "m:r" })?.first("w:br") != nil {
             box.descent += size * 1.172   // a plain line of the equation font, as Word sets the empty one
         }
-        if !display {
+        if !display || WriterMath.slideScope {
             let s = Layout(display: false).runSize(node, size)
-            box.ascent = min(box.ascent, s * 0.85)
-            box.descent = min(box.descent, s * 0.22)
+            if WriterMath.windows {
+                // (An equation in a line is as tall as its ink and Cambria Math's leading over it, or as its plain runs at the base level
+                // (Cambria's 0.95 em / 0.222 em), whichever is more: lab mathline, Word for Windows, compat 12 and 15 alike.)
+                box.ascent = max(box.baseA, box.iu + s * 300 / 2048)
+                box.descent = max(box.baseD, box.idn)
+                natural((box.ascent, box.descent))
+            } else {
+                box.ascent = min(box.ascent, s * 0.85)
+                box.descent = min(box.descent, s * 0.22)
+            }
         }
         lock.lock()
-        entries[id] = Entry(box: box, node: display ? node : nil, size: size)
+        entries[id] = Entry(box: box, node: display ? node : nil, size: size, slide: slideScope, ink: slideInk)
         lock.unlock()
         WriterCharts.installHooks()
         return (box.width, box.ascent + box.descent, box.ascent)
@@ -139,10 +158,13 @@ enum WriterMath {
         let entry = entries[attachment.id]
         lock.unlock()
         guard let entry, let node = entry.node, entry.box.width > width + 0.5 else { return nil }
+        let (wasScope, wasInk) = (slideScope, slideInk)
+        slideScope = entry.slide; slideInk = entry.ink
+        defer { slideScope = wasScope; slideInk = wasInk }
         let layout = Layout(display: true)
         let pieces = layout.pieces(node, size: entry.size)
         guard pieces.count > 1 else { return nil }
-        var indent = min(72, width / 2)
+        var indent = slideScope ? 0 : min(72, width / 2)
         var lines: [[Box]] = [[]]
         var x = 0.0
         for (k, piece) in pieces.enumerated() {
@@ -282,12 +304,12 @@ enum WriterMath {
         var inlineText = false
         /// The document holds its lines to a grid (docGrid type lines): its equations keep the font-line depth (158454's grid-held lines sit as Word's print has them with it).
         let heldGrid = WriterMath.heldGridLines
-        let ink = Color(0xFF000000)
+        let ink = WriterMath.slideScope ? (WriterMath.slideInk ?? Color(0xFF000000)) : Color(0xFF000000)
 
         /// The size at a script level: 0.73 of the one above, to half.
         func scriptSize(_ size: Double, _ level: Int) -> Double {
             // (Word's print of a 12pt equation: a fraction's parts 8.5pt, a script in them 7.0 — half points.)
-            if RichTextTheme.wordWindowsPages, level >= 1 {
+            if WriterMath.windows, level >= 1 {
                 // Word's prints: 10pt -> 7.0, 11 -> 8.0, 12 -> 8.5 (first level rounds UP to the half point); second level 0.6, nearest.
                 if level == 1 { return (size * 0.7 * 2 - 1e-9).rounded(.up) / 2 }
                 return (size * 0.6 * 2).rounded() / 2
@@ -308,7 +330,7 @@ enum WriterMath {
         /// (Word's math zone prints a typed apostrophe as the prime U+2032 and * as the asterisk operator U+2217,
         /// except in a normal-text run: 6fca0f p6 ρ(x,x′)=ψ(x)ψ∗(x′) in Word's print.)
         static func mathChars(_ s: String, literal: Bool) -> String {
-            guard RichTextTheme.wordWindowsPages, !literal, s.contains(where: { $0 == "'" || $0 == "*" }) else { return s }
+            guard WriterMath.windows, !literal, s.contains(where: { $0 == "'" || $0 == "*" }) else { return s }
             return String(s.map { $0 == "'" ? "\u{2032}" : $0 == "*" ? "\u{2217}" : $0 })
         }
         static func inkDepth(of s: String) -> Double {
@@ -323,12 +345,22 @@ enum WriterMath {
             }
             return 0
         }
-        func text(_ s: String, size: Double, italic: Bool, family: RichResolvedFace? = nil) -> Box {
+        /// How far a string's ink reaches over and under its baseline: Cambria Math's glyph boxes (script-style variants at a script level), where Word's print measured them; a flat 0.7 em and the depth guess for what the table lacks.
+        func glyphInk(_ s: String, _ size: Double, _ script: Bool) -> (Double, Double) {
+            guard WriterMath.windows else { return (size * 0.7, size * Layout.inkDepth(of: s)) }
+            var up = 0.0, down = 0.0
+            for u in s.unicodeScalars {
+                guard let g = OfficeFonts.cambriaMathInk[u.value] else { return (size * 0.7, size * Layout.inkDepth(of: s)) }
+                up = max(up, Double(script ? g.3 : g.1)); down = max(down, Double(-(script ? g.2 : g.0)))
+            }
+            return (size * up, size * down)
+        }
+        func text(_ s: String, size: Double, italic: Bool, family: RichResolvedFace? = nil, script: Bool = false) -> Box {
             guard !s.isEmpty else { return .empty }
             // Word's formula letters are the mathematical italic ones (U+1D44E on): OMML letters
             // default to math italic, and its print has those code points, not slanted plain letters.
             var s = s, italic = italic
-            if italic, RichTextTheme.wordWindowsPages, s.unicodeScalars.allSatisfy({ $0.isASCII }) {
+            if italic, WriterMath.windows, s.unicodeScalars.allSatisfy({ $0.isASCII }) {
                 s = String(String.UnicodeScalarView(s.unicodeScalars.map { u -> Unicode.Scalar in
                     switch u.value {
                     case 0x41 ... 0x5A: return Unicode.Scalar(0x1D434 + u.value - 0x41)!
@@ -341,7 +373,7 @@ enum WriterMath {
             }
             // Each math-alphanumeric letter stands at Cambria Math's advance, not the fallback face's own
             // (the bold ones too: Word's bold-italic ψ(x) is 10.9pt, DejaVu's 14).
-            if RichTextTheme.wordWindowsPages, !italic, s.unicodeScalars.allSatisfy({ !$0.isASCII && $0.value >= 0x1D400 }) {
+            if WriterMath.windows, !italic, s.unicodeScalars.allSatisfy({ !$0.isASCII && $0.value >= 0x1D400 }) {
                 let adv = OfficeFonts.cambriaMathAdvances
                 let glyphs = s.unicodeScalars.map { String($0) }
                 if s.unicodeScalars.allSatisfy({ adv[$0.value] != nil }) {
@@ -349,13 +381,13 @@ enum WriterMath {
                     var xs: [Double] = [], x = 0.0
                     for u in s.unicodeScalars { xs.append(x); x += adv[u.value]! * size }
                     let total = x
-                    return Box(width: total, ascent: cam(ps.map(\.ascent).max() ?? 0, size, 0.95), descent: cam(ps.map(\.descent).max() ?? 0, size, 0.22), inkUp: size * 0.7, inkDown: size * Layout.inkDepth(of: s)) { canvas, at in
+                    return Box(width: total, ascent: cam(ps.map(\.ascent).max() ?? 0, size, 0.95), descent: cam(ps.map(\.descent).max() ?? 0, size, 0.22), inkUp: glyphInk(s, size, script).0, inkDown: glyphInk(s, size, script).1, baseA: size * 0.95, baseD: size * 0.222) { canvas, at in
                         for (i, q) in ps.enumerated() { q.tp.paint(canvas, Offset(at.dx + xs[i], at.dy - q.baseline)) }
                     }
                 }
             }
             let p = Painter(s, size: size, italic: italic, color: ink, family: family?.family, height: family?.naturalHeight)
-            return Box(width: p.tp.width, ascent: cam(p.ascent, size, 0.95), descent: cam(p.descent, size, 0.22), inkUp: size * 0.7, inkDown: size * Layout.inkDepth(of: s)) { canvas, at in
+            return Box(width: p.tp.width, ascent: cam(p.ascent, size, 0.95), descent: cam(p.descent, size, 0.22), inkUp: glyphInk(s, size, script).0, inkDown: glyphInk(s, size, script).1, baseA: size * 0.95, baseD: size * 0.222) { canvas, at in
                 p.tp.paint(canvas, Offset(at.dx, at.dy - p.baseline))
             }
         }
@@ -367,7 +399,7 @@ enum WriterMath {
             var xs: [Double] = []
             var x = 0.0
             for b in parts { xs.append(x); x += b.width }
-            return Box(width: x, ascent: parts.map(\.ascent).max() ?? 0, descent: parts.map(\.descent).max() ?? 0, inkUp: parts.map(\.iu).max() ?? 0, inkDown: parts.map(\.idn).max() ?? 0) { canvas, at in
+            return Box(width: x, ascent: parts.map(\.ascent).max() ?? 0, descent: parts.map(\.descent).max() ?? 0, inkUp: parts.map(\.iu).max() ?? 0, inkDown: parts.map(\.idn).max() ?? 0, baseA: parts.map(\.baseA).max() ?? 0, baseD: parts.map(\.baseD).max() ?? 0) { canvas, at in
                 for (b, dx) in zip(parts, xs) { b.draw(canvas, Offset(at.dx + dx, at.dy)) }
             }
         }
@@ -394,7 +426,7 @@ enum WriterMath {
         /// code points (m:sty "b" upright, "bi" italic; Word's print of jpn-z22855378-6fca0f
         /// page 5 shows 𝑾(𝒙), 𝐞𝐱𝐩, 𝟏, 𝝈). Only on Windows pages, where the table has them.
         func boldText(_ s: String, _ r: XNode) -> String {
-            guard RichTextTheme.wordWindowsPages, let sty = r.first("m:rPr")?.first("m:sty")?["m:val"], sty == "b" || sty == "bi" else { return s }
+            guard WriterMath.windows, let sty = r.first("m:rPr")?.first("m:sty")?["m:val"], sty == "b" || sty == "bi" else { return s }
             let it = sty == "bi"
             return String(String.UnicodeScalarView(s.unicodeScalars.map { u -> Unicode.Scalar in
                 let v = u.value
@@ -425,12 +457,12 @@ enum WriterMath {
             var pieceItalic = false
             let ea = eastAsianFamily(r)
             func flush() {
-                if !piece.isEmpty { parts.append(text(boldText(piece, r), size: own, italic: pieceItalic && boldText(piece, r) == piece, family: wide(piece) ? ea : nil)) }
+                if !piece.isEmpty { parts.append(text(boldText(piece, r), size: own, italic: pieceItalic && boldText(piece, r) == piece, family: wide(piece) ? ea : nil, script: level >= 1)) }
                 piece = ""
             }
             var firstChar = true
             for ch in s {
-                let leads = firstChar && leadRuns.ids.contains(ObjectIdentifier(r)) && inlineText && RichTextTheme.wordWindowsPages && "+−-±∓".contains(ch)
+                let leads = firstChar && leadRuns.ids.contains(ObjectIdentifier(r)) && inlineText && WriterMath.windows && "+−-±∓".contains(ch)
                 firstChar = false
                 if "=+−-±×÷<>≤≥≈≠∓→←⇒∈∉⊂⊃∪∩".contains(ch) {
                     flush()
@@ -438,7 +470,7 @@ enum WriterMath {
                     // an em off what is beside it, in scripts less.)
                     var gap = level == 0 ? own * 0.22 : own * 0.1
                     var glyph = text(String(ch == "-" ? "−" : ch), size: own, italic: false)
-                    if RichTextTheme.wordWindowsPages && inlineText {
+                    if WriterMath.windows && (inlineText || WriterMath.slideScope) {
                         // Cambria Math (Word's print of jpn-z22855378-6fca0f): =, + and − advance
                         // 0.75 em (the fallback face's 0.56), a relation stands 5/18 em and a binary
                         // operator 4/18 em off its neighbours, and in a script none at all.
@@ -446,7 +478,7 @@ enum WriterMath {
                         gap = level == 0 ? own * (relation ? 5.0 / 18 : 4.0 / 18) : 0
                         if "=+−-".contains(ch) {
                             let w = own * 0.75, inner = glyph
-                            glyph = Box(width: w, ascent: inner.ascent, descent: inner.descent) { canvas, at in
+                            glyph = Box(width: w, ascent: inner.ascent, descent: inner.descent, inkUp: inner.iu, inkDown: inner.idn, baseA: inner.baseA, baseD: inner.baseD) { canvas, at in
                                 inner.draw(canvas, Offset(at.dx + (w - inner.width) / 2, at.dy))
                             }
                         }
@@ -457,7 +489,7 @@ enum WriterMath {
                     parts.append(space(leads ? own / 12 : gap))
                     continue
                 }
-                if ch == ",", level == 0, inlineText, RichTextTheme.wordWindowsPages {
+                if ch == ",", level == 0, inlineText, WriterMath.windows {
                     // (Word sets a thin space, 1/6 em, after a comma.)
                     flush()
                     parts.append(text(",", size: own, italic: false))
@@ -570,7 +602,7 @@ enum WriterMath {
                 // (A skewed fraction, <m:type val="skw">, is no stack: Word's print of a969ba6c's exponent 1/3
                 // sets numerator, fraction slash and denominator at the exponent's own size, the numerator 0.35 em
                 // over the slash's baseline and the denominator 0.35 em under it: 6.0 pt apart at 8.5 pt.)
-                if RichTextTheme.wordWindowsPages, n.first("m:fPr")?.first("m:type")?["m:val"] == "skw" {
+                if WriterMath.windows, n.first("m:fPr")?.first("m:type")?["m:val"] == "skw" {
                     let k = runSize(n.first("m:num"), size, level)
                     let sn = inner.row(n.first("m:num"), size: size, level: level)
                     let sd = inner.row(n.first("m:den"), size: size, level: level)
@@ -583,12 +615,12 @@ enum WriterMath {
                 let den = inner.row(n.first("m:den"), size: size, level: part)
                 // (Word sets a display fraction's rule and stacking at the equation's size, whatever one run
                 // inside it is: jpn-z22855378-6fca0f p8's x-bar at 14pt in a 12pt fraction.)
-                let s = RichTextTheme.wordWindowsPages && !inlineText ? scriptSize(size, level) : runSize(n.first("m:num"), size, level)
+                let s = WriterMath.windows && !inlineText ? scriptSize(size, level) : runSize(n.first("m:num"), size, level)
                 if n.first("m:fPr")?.first("m:type")?["m:val"] == "lin" {
                     return hbox([num, text("/", size: s, italic: false), den])
                 }
                 return fraction(num, den, size: s)
-            case "m:box" where RichTextTheme.wordWindowsPages:
+            case "m:box" where WriterMath.windows:
                 // (A box whose argument size is -1 sets its content one script level down: c54c0add's
                 // 1/3 after D_i= stands at 7 pt beside the subscript in Word's print, not at 10 pt.)
                 let e = n.first("m:e")
@@ -659,7 +691,8 @@ enum WriterMath {
             // took a second grid pitch.)
             let both = sub != nil && sup != nil ? size * 0.1 : 0
             let up = fixed?.0 ?? max(size * 0.38, base.ascent - size * 0.95 + size * 0.38) + both
-            let down = fixed?.1 ?? max(size * 0.18, base.descent - size * 0.22 + size * 0.18) + both
+            let baseDepth = base.descent
+            let down = fixed?.1 ?? max(size * 0.18, baseDepth - size * 0.22 + size * 0.18) + both
             var parts: [Box] = []
             // (Drawn subscript first, as Word's print sets them: its glyphs come out base,
             // subscript with its own scripts, then the superscript — lo-4aa628bd's
@@ -674,7 +707,7 @@ enum WriterMath {
             if let sup { parts.append(raised(sub != nil ? capped(sup) : sup, up)) }
             guard !parts.isEmpty else { return .empty }
             let w = parts.map(\.width).max() ?? 0
-            return Box(width: w + size * 0.05, ascent: parts.map(\.ascent).max() ?? 0, descent: RichTextTheme.wordWindowsPages && !inlineText && !heldGrid ? parts.map(\.idn).max() ?? 0 : parts.map(\.descent).max() ?? 0, inkUp: parts.map(\.iu).max() ?? 0, inkDown: parts.map(\.idn).max() ?? 0) { canvas, at in
+            return Box(width: w + size * 0.05, ascent: parts.map(\.ascent).max() ?? 0, descent: WriterMath.windows && !inlineText && !heldGrid ? parts.map(\.idn).max() ?? 0 : parts.map(\.descent).max() ?? 0, inkUp: parts.map(\.iu).max() ?? 0, inkDown: parts.map(\.idn).max() ?? 0) { canvas, at in
                 for p in parts { p.draw(canvas, at) }
             }
         }
@@ -764,7 +797,7 @@ enum WriterMath {
                     // (A display integral's limits, beside the sign: jpn-z22855378-6fca0f's ∬ at 14pt in
                     // Word's print has the upper limit's baseline 16.0pt over the line and the lower's
                     // 13.3pt under it, at 10pt; the stand-in's default put them 12.1 and 7.1.)
-                    : display && level == 0 && integral && RichTextTheme.wordWindowsPages ? (s * 1.143, s * 0.95) : nil
+                    : display && level == 0 && integral && WriterMath.windows ? (s * 1.143, s * 0.95) : nil
                 withLimits = hbox([op, stackScripts(sub: sub, sup: sup, size: s, base: op, fixed: fixed)])
             }
             return hbox([withLimits, space(s * 0.12), row(n.first("m:e"), size: size, level: level)])
@@ -775,18 +808,18 @@ enum WriterMath {
             // (Close about its rule: zh-c2c92639's "∑…/A", 10.5pt, stands
             // 28pt from its numerator's top to its denominator's foot in
             // Word's print.)
-            let axis = size * 0.27, rule = max(0.4, size * 0.05), gap = size * 0.06, pad = size * 0.08
+            let axis = size * 0.27, rule = max(0.4, size * 0.05), gap = size * 0.06, pad = WriterMath.slideScope ? 0 : size * 0.08
             let w = max(num.width, den.width) + 2 * pad
             // (A fraction in a line of text — no display equation: Word's print of jpn-z22855378-6fca0f's
             // exp[-(Δx+d0)²/4σ²] at 12pt has the rule 3.45pt over the baseline, the numerator's
             // baseline 7.1 over it and the denominator's 6.0 under it, so the equation is 21.5pt tall
             // and the 18pt-grid line takes two pitches.)
-            let text = inlineText && RichTextTheme.wordWindowsPages
-            let numUp = text ? size * 0.592 : 0, denDown = text ? size * 0.5 : 0
+            let text = inlineText && WriterMath.windows
+            let numUp = text ? size * 1200 / 2048 : 0, denDown = text ? size * 1030 / 2048 : 0
             // (A display fraction in Word's print, jpn-z22855378-6fca0f p8 at 12pt: the rule 3.8pt over the
             // baseline, the numerator's baseline 9.1 over it and the denominator's 8.1 under it, whatever
             // they hold; a taller numerator or denominator is pushed clear of the rule.)
-            let wd = RichTextTheme.wordWindowsPages && !inlineText
+            let wd = WriterMath.windows && !inlineText
             let dRule = size * 0.317
             let dNum = max(size * 0.758, dRule + rule / 2 + gap + min(num.descent, size * 0.3))
             let dDen = max(size * 0.675, rule / 2 + gap + min(den.ascent, size * 0.75) - dRule)
@@ -819,7 +852,7 @@ enum WriterMath {
             }
             let body = hbox(inner)
             // (In a line of text Word's print leaves the brackets round a fraction at the text's size: jpn-z22855378-6fca0f's exp[…].)
-            var tall = inlineText && RichTextTheme.wordWindowsPages ? s : max(s, (body.ascent + body.descent) * 0.95)
+            var tall = inlineText && WriterMath.windows ? s : max(s, (body.ascent + body.descent) * 0.95)
             // (Cambria Math's DelimitedSubFormulaMinHeight is 3000/2048 em: a display equation's body whose ink is shorter
             // than that keeps its brackets at the text size. xb jpn-z22855378-158454: arg(h_obs(f)h*_GR(f)) is one line in
             // Word's print, ours had stretched brackets and the superscript broke the line in two. A taller body takes
@@ -827,7 +860,7 @@ enum WriterMath {
             // the variant heights are the font's MATH table advanceMeasurements /2048 (lab cambria-math), jpn-z22855378-6fca0f
             // p8: 1.976 em round fractions at 14pt, 2.55 and 2.956 em at 12pt.)
             var fenceAdvance: Double? = nil
-            if RichTextTheme.wordWindowsPages, !inlineText {
+            if WriterMath.windows, !inlineText {
                 let axis = s * 0.286
                 let ink = 2 * max(body.iu - axis, body.idn + axis)
                 if ink < 3000.0 / 2048 * s { tall = s } else {
@@ -845,11 +878,16 @@ enum WriterMath {
                 guard !c.isEmpty else { return .empty }
                 let f = text(c, size: tall, italic: false)
                 // (Centred on the body, not set on its baseline.)
-                let middle = RichTextTheme.wordWindowsPages && !inlineText ? s * 0.286 : (body.ascent - body.descent) / 2
+                let middle = WriterMath.windows && !inlineText ? s * 0.286 : (body.ascent - body.descent) / 2
                 let r = raised(f, middle - (f.ascent - f.descent) / 2)
                 // (A stretched bracket reserves its ink, not its whole font line: the line under a display
                 // equation was 11-15 pt too tall in jpn-z22855378-6fca0f p8.)
-                guard RichTextTheme.wordWindowsPages, !inlineText else { return r }
+                // (A bracket in a line sinks a little under the baseline where it is centred on the body, but Word's line counts its glyph's own
+                // ink: the 10 pt lines of xd 8714e66e step 11.76 with (Re+alt) in them, 9.5 over and 2.2 under, not 3.07 under.)
+                if WriterMath.windows, inlineText {
+                    return Box(width: r.width, ascent: r.ascent, descent: r.descent, inkUp: r.iu, inkDown: min(r.idn, f.idn), draw: r.draw)
+                }
+                guard WriterMath.windows, !inlineText else { return r }
                 return Box(width: fenceAdvance ?? r.width, ascent: min(r.ascent, body.ascent + s * 0.1), descent: min(r.descent, body.descent + s * 0.1), inkUp: body.iu, inkDown: body.idn, draw: r.draw)
             }
             return hbox([fence(beg), body, fence(end)])
@@ -868,10 +906,12 @@ enum WriterMath {
             let sign = text("\u{221A}", size: max(s, height * 0.95), italic: false)
             let rule = max(0.4, s * 0.05)
             // (In a line of text the gap over the body is Cambria Math's text-style 0.05 em, not the display 0.12.)
-            let top = body.ascent + s * (RichTextTheme.wordWindowsPages && inlineText ? 0.05 : 0.12)
+            let top = body.ascent + s * (WriterMath.windows && inlineText ? 0.05 : 0.12)
             let lead = (degree?.width ?? 0) * 0.6
-            return Box(width: lead + sign.width + body.width + s * 0.05, ascent: max(top + rule, RichTextTheme.wordWindowsPages && inlineText ? 0 : sign.ascent, (degree?.ascent ?? 0) + top * 0.5),
-                       descent: max(body.descent, sign.descent)) { canvas, at in
+            return Box(width: lead + sign.width + body.width + s * 0.05, ascent: max(top + rule, WriterMath.windows && inlineText ? 0 : sign.ascent, (degree?.ascent ?? 0) + top * 0.5),
+                       descent: max(body.descent, sign.descent),
+                       // (Its ink reaches a quarter em over the body's: the bar's gap and thickness, and Cambria Math's RadicalExtraAscender over it. lab mathline C16.)
+                       inkUp: WriterMath.windows && inlineText ? max(body.iu + s * 0.25, (degree?.iu ?? 0)) : nil, inkDown: WriterMath.windows && inlineText ? max(body.idn, sign.idn) : nil) { canvas, at in
                 degree?.draw(canvas, Offset(at.dx, at.dy - top * 0.5))
                 sign.draw(canvas, Offset(at.dx + lead, at.dy + body.descent - sign.descent))
                 body.draw(canvas, Offset(at.dx + lead + sign.width, at.dy))
