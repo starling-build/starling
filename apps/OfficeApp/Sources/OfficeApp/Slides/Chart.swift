@@ -2957,6 +2957,16 @@ enum ChartPainter {
                 // have had (lo-a14e916b's legend, at the right, with
                 // `legendPos` b: Word's plot ends 18pt higher than ours).
                 y = box.center.dy - linesH / 2
+                // (A pie's entry that wraps takes one slot of the even share all the same, and the block stands
+                // half of its extra lines higher: c11d31f3's "Questões relacionadas à COVID-19" in two lines, keys 6.4 pt
+                // higher in Word's print than centred, the pitch the same.)
+                if pie, lines.count > 1, let one = entries.map({ $0.tp.height }).min() {
+                    let extra = entries.reduce(0.0) { $0 + max(0, $1.tp.height - one) }
+                    if extra > 0.5 * one {
+                        RuleTrace.hit("word-pie-legend-block-stands-half-its-wrapped-lines-higher")
+                        y -= extra / 2
+                    }
+                }
                 if !pie, !c.onSlide, !c.onSheet, c.plotLayout == nil, c.legendPosition == "b" {
                     RuleTrace.hit("legend-box-keeps-its-row-below-the-plot")
                     area = Rect.fromLTRB(area.left, area.top, area.right,
