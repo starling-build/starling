@@ -3044,7 +3044,11 @@ enum DocxFormat {
                 // (A spaced table of a stated share whose cells state shares
                 // of it, column by column: zh-045c5a75's article table,
                 // 85% with cells of 12% and 2% and one auto.)
-                if style.widthPercent != nil, !style.fixedLayout {
+                // (A table of no stated width whose cells state shares adding to more than 100% is as wide as
+                // the room, and cut down as a 100% one: dx2 8afcc2c4's price tables, two 5000-pct cells over
+                // an auto width, the price column at its narrowest in Word's print.)
+                let autoWidthShares = style.widthPercent == nil && style.width == nil && RichTextTheme.wordWindowsPages
+                if style.widthPercent != nil || autoWidthShares, !style.fixedLayout {
                     var shares: [Int: Double] = [:], noWrap = Set<Int>(), mixed = false
                     for tr in unwrapped(node, "w:tr") {
                         var col = Int(tr.first("w:trPr")?.first("w:gridBefore")?["w:val"] ?? "") ?? 0
@@ -3065,7 +3069,9 @@ enum DocxFormat {
                     // (A table of no cell spacing keeps its shares only: its no-wrap columns are the layout's
                     // wrap rule for spaced tables (`noWrapColumns`), and eleven documents' unspaced pct
                     // tables moved when they were set on those too.)
+                    if autoWidthShares, !(shares.values.reduce(0, +) > 100.5) { mixed = true }
                     if !mixed, !shares.isEmpty {
+                        if autoWidthShares { style.widthPercent = 100 }
                         style.columnPercents = shares
                         if (style.cellSpacing ?? 0) > 0 || (shares.values.reduce(0, +) > 100.5) { style.noWrapColumns = noWrap }
                     }
