@@ -1587,13 +1587,29 @@ extension RichLayout {
                     size = Size(size.width, box)
                 }
                 children.append(RichImageSpan(alignment: alignment, baseline: TextBaseline.alphabetic, style: style))
-                inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic,
-                                                             baselineOffset: (hung ?? eqOffset ?? middle.map { size.height / 2 + _px($0) }
+                var placeOffset = (hung ?? eqOffset ?? middle.map { size.height / 2 + _px($0) }
                                                                 ?? (fittedBaseline ?? image.baseline).map { min(size.height, _px($0)) } ?? size.height)
                                                                 // (Raised or lowered as its run's `w:position` says: Word
                                                                 // sets a MathType object that far under the baseline
                                                                 // — tdf119200's equations, lowered 2 to 4pt.)
-                                                                + (theme.wordRules && image.float == nil ? _px(run.style.raised ?? named?.char.raised ?? 0) : 0))))
+                                                                + (theme.wordRules && image.float == nil ? _px(run.style.raised ?? named?.char.raised ?? 0) : 0)
+                // (A picture in a line of text of an exact height, lowered or raised past that line, does not grow it: Word's line stays
+                // the exact height, the picture drawn whole where it stands, over the line's edge. dx2 es 613edc1c p4's 26.4pt picture,
+                // lowered 10.5pt in a cell's 26.1pt exact line, made the row 4.4pt taller in ours than in Word's print.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, image.float == nil, image.name != "m:oMath", hung == nil, eqOffset == nil,
+                   let exact = p.style.lineHeightPoints, exact > 0, !p.style.lineHeightIsMinimum,
+                   !p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC }), size.height > 0 {
+                    let above = placeOffset, below = size.height - placeOffset
+                    let upper = min(above, _px(exact * 4 / 5)), lower = min(below, _px(exact / 5))
+                    if above > upper + 0.5 || below > lower + 0.5 {
+                        RuleTrace.hit("word-picture-in-an-exact-line-does-not-grow-the-line")
+                        _pageFill[image.id] = size.height
+                        _lineCentre[image.id] = upper - above
+                        placeOffset = upper
+                        size = Size(size.width, upper + max(0, lower))
+                    }
+                }
+                inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic, baselineOffset: placeOffset)))
                 // (Before 2013's layout a space after a picture wider than
                 // the line goes to a line of its own: lab `ps` (Word 16, a
                 // cell of 74.35pt) sets the paragraph under a 76 or 80pt
