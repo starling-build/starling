@@ -989,7 +989,8 @@ public final class RichTextTheme {
             // its shadow goes with the run where `_paintScripts` draws it,
             // where it stood at the baseline under 5864's raised "st".)
             foreground: hollow,
-            shadows: scriptHidden && style.script != .normal && !shifted ? [] : px <= 0.01 ? nil : { () -> [Shadow]? in
+            // (Hollow letters cast none: Word's print of 7de651e7's heading has the outline alone.)
+            shadows: hollow != nil ? nil : scriptHidden && style.script != .normal && !shifted ? [] : px <= 0.01 ? nil : { () -> [Shadow]? in
                 guard let line = style.outline, line.width > 0 else { return nil }
                 // (An outline as the letters' copies a half line out all round, in its colour, under the
                 // letters: PowerPoint's is centred on the edge.)
