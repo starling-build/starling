@@ -1195,6 +1195,7 @@ enum DocxFormat {
         // document lays out (and saves) in Cambria or Aptos; the theme part
         // itself rides along in keptParts.
         let theme = _themeFonts(entries)
+        notes.themeFonts = theme
         _themeColors = _themePalette(entries)
         _resolveThemeFonts(root, theme)
         let thaiAlternates = _thaiAlternates(entries)
@@ -5184,6 +5185,11 @@ enum DocxFormat {
                 if let f = rPr?.first("a:latin")?["typeface"], !f.hasPrefix("+") { fonts["w:ascii"] = f; fonts["w:hAnsi"] = f }
                 if let f = rPr?.first("a:ea")?["typeface"], !f.hasPrefix("+") { fonts["w:eastAsia"] = f }
                 if let f = rPr?.first("a:cs")?["typeface"], !f.hasPrefix("+") { fonts["w:cs"] = f }
+                // (A SmartArt run that names no face is set in the theme's body faces, as the diagram's own text is in Word:
+                // xd bf53d2b7's footer diagram prints its Hebrew in Arial, the theme's complex-script face, not the document default.)
+                if fonts.isEmpty, Self.wordOnWindows {
+                    fonts = ["w:asciiTheme": "minorHAnsi", "w:hAnsiTheme": "minorHAnsi", "w:eastAsiaTheme": "minorEastAsia", "w:cstheme": "minorBidi"]
+                }
                 if !fonts.isEmpty { out.append(el("w:rFonts", fonts)) }
                 if rPr?["b"] == "1" { out.append(el("w:b")) }
                 if rPr?["i"] == "1" { out.append(el("w:i")) }
@@ -5724,6 +5730,8 @@ enum DocxFormat {
         let footnotes: Bool, endnotes: Bool
         /// The lists' levels as the file defines them, by `w:numId`.
         var listFormats: [String: [Int: ListLevelFormat]] = [:]
+        /// The document's theme faces, for text the reader builds after the parts were read (a SmartArt's).
+        var themeFonts: ThemeFonts? = nil
         fileprivate var seenFootnotes = 0, seenEndnotes = 0
         /// Footnote ids that open a section whose footnotePr restarts the numbering (numRestart eachSect).
         var footnoteRestarts: Set<Int> = []
@@ -6907,6 +6915,7 @@ enum DocxFormat {
                 if let rid = model.descendant("dsp:dataModelExt")?["relId"], let rel = notes.rels[rid], !rel.external,
                    let drawing = notes.part(_resolvePath("word", rel.target)).flatMap(XNode.parse) {
                     group = Self._diagramGroup(drawing, cx: w * 12700, cy: h * 12700)
+                    if let g = group, let theme = notes.themeFonts { Self._resolveThemeFonts(g, theme) }
                 }
                 // (No drawing part, as in a file LibreOffice wrote: laid out
                 // here from the data and the layout definition, as the deck
@@ -6928,6 +6937,7 @@ enum DocxFormat {
                         let drawing = XNode(name: "dsp:drawing", attrs: [:])
                         drawing.children = [renamed(tree)]
                         group = Self._diagramGroup(drawing, cx: w * 12700, cy: h * 12700)
+                        if let g = group, let theme = notes.themeFonts { Self._resolveThemeFonts(g, theme) }
                     }
                 }
                 if let group {
