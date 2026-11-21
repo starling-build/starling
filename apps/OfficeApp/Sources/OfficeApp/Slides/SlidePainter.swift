@@ -70,7 +70,7 @@ final class SlideTextCache {
                 decoded = (try? await codec.getNextFrame())?.image
                 codec.dispose()
             }
-            if let d = decoded, CmykJpeg.isCmyk(bytes), let c = await CmykJpeg.recoloured(d) { d.dispose(); decoded = c }
+            if decoded != nil, let c = await CmykJpeg.decoded(bytes) { decoded?.dispose(); decoded = c }
             guard let self else { decoded?.dispose(); return }
             self._decoding.remove(id)
             if let decoded {
@@ -115,7 +115,7 @@ final class SlideTextCache {
             if decoded != nil { break }
             if attempt == 0 { try? await Task.sleep(nanoseconds: 200_000_000) }
         }
-        if let d = decoded, CmykJpeg.isCmyk(bytes), let c = await CmykJpeg.recoloured(d) { d.dispose(); decoded = c }
+        if decoded != nil, let c = await CmykJpeg.decoded(bytes) { decoded?.dispose(); decoded = c }
         #if !os(WASI)
         if decoded == nil {
             let head = bytes.prefix(8).map { String($0, radix: 16) }.joined(separator: " ")
