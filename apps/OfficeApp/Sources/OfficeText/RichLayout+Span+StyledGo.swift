@@ -1397,7 +1397,11 @@ extension _StyledFrame {
                 // all 1.000 em across the kor batch B prints — where the
                 // Noto Sans CJK stand-in's is 0.92. Lines held 8% more text
                 // and the pages drifted.)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value,
+                // (A face that carries its Hangul em (U+AC00 of otherAdvances) has it set in Slides too: PowerPoint's Malgun Gothic, and
+                // the Malgun it draws for a Korean face the machine lacks, step 1.000 em where the stand-in's is 0.92.)
+                if (theme.wordRules && RichTextTheme.wordWindowsPages) || (!theme.wordRules && theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
+                       ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)?.otherAdvances?[0xAC00] != nil),
+                   let u = ch.unicodeScalars.first?.value,
                    u >= 0xAC00 && u <= 0xD7A3 {
                     let g = _glyphWidth(style(kind), ch)
                     // (A face may carry its own Hangul em under U+AC00 of otherAdvances: NanumGothic 0.94.)
