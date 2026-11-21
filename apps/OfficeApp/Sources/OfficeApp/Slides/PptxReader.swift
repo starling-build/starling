@@ -1251,6 +1251,9 @@ private struct SlideContext {
         func find(_ tree: XNode?, masterRules: Bool) -> XNode? {
             guard let shapes = tree?.first("p:cSld")?.first("p:spTree")?.children else { return nil }
             let sps = shapes.filter { $0.name == "p:sp" }
+            // An orphan placeholder (`idx` 4294967295, PowerPoint's mark for a shape whose layout
+            // placeholder is gone) takes nothing from the layout, only from the master.
+            if !masterRules, idx == "4294967295" { return nil }
             if !masterRules, let idx {
                 if let hit = sps.first(where: { _ph($0)?["idx"] == idx }) { return hit }
             }
