@@ -7699,8 +7699,9 @@ enum DocxFormat {
                 // (A run flagged w:rtl whose text is digits and marks, no letters, is complex
                 // script too: Word sets heb-z5059159's "1" in the szCs 12, not the sz 11.)
                 let rtlRun = _on(rPr.first("w:rtl")) && !runText.isEmpty && (rPr.first("w:szCs") != nil || !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A })
+                    // (A run of marks and spaces only, no digit, takes the complex size too: xd 564a33e9's Narkisim sz 14 "(" and ": \"" runs, no szCs, print at the szCs 12 in Word.)
                     // (Only when the run itself names a complex-script size: a PAGEREF result with just webHidden and rtl, 47480880's contents list, prints in the ascii face at sz, Calibri 11 / David 12.)
-                    && (!DocxFormat._bidiLangHebrew || rPr.first("w:szCs") != nil || rPr.first("w:rFonts")?["w:cs"] != nil || rPr.first("w:rFonts")?["w:cstheme"] != nil || rPr.first("w:rFonts")?["w:hint"] == "cs" || (rPr.first("w:webHidden") == nil && notes.inHeaderFooter))
+                    && (!DocxFormat._bidiLangHebrew || rPr.first("w:szCs") != nil || !runText.unicodeScalars.contains { (0x30...0x39).contains($0.value) } || rPr.first("w:rFonts")?["w:cs"] != nil || rPr.first("w:rFonts")?["w:cstheme"] != nil || rPr.first("w:rFonts")?["w:hint"] == "cs" || (rPr.first("w:webHidden") == nil && notes.inHeaderFooter))
                 let csFlag = _on(rPr.first("w:cs"))
                 let complexSize = runText.unicodeScalars.contains {
                     // (Hebrew letters in a run with neither w:rtl nor w:cs keep the sz, Latin pieces too: xb 5dc87fc7's Arial R5 paragraph, sz 22 / szCs 44, prints at 11.)
