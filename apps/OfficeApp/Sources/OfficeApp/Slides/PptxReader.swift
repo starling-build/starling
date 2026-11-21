@@ -3399,6 +3399,7 @@ private struct SlideContext {
         // Each paragraph's level and numbering scheme, for the runs of
         // numbers below.
         var paragraphLevels: [Int] = []
+        var paragraphDefTab: Double? = nil
         var numbering: [(type: String, start: Int)?] = []
         for p in allParagraphs {
             let pPr = p.first("a:pPr")
@@ -3453,6 +3454,7 @@ private struct SlideContext {
             // one paragraph, stood 5.75 high.)
             if p === allParagraphs.last { style.spaceAfter = 0 }
             paragraphLevels.append(lvl)
+            if paragraphDefTab == nil { paragraphDefTab = level.defTab }
             numbering.append(level.bullet == .number ? (level.autoNumType ?? "arabicPeriod", level.autoNumStart ?? 1) : nil)
             switch level.bullet {
             case .char?, .number?:
@@ -3710,7 +3712,7 @@ private struct SlideContext {
         // an inch unless the level says otherwise) from the text's left.
         var bodyDocument = RichDocument(paragraphs: paragraphs)
         Self._numberRuns(&bodyDocument, levels: paragraphLevels, numbering: numbering)
-        bodyDocument.defaultTabStop = level0.defTab ?? 72
+        bodyDocument.defaultTabStop = paragraphDefTab ?? level0.defTab ?? 72
         var body0 = TextBody(document: bodyDocument, anchor: anchor, insets: insets,
                         font: _font(level0.font), size: level0.size ?? 18,
                         color: level0.color ?? tx1 ?? Color(0xFF000000),
