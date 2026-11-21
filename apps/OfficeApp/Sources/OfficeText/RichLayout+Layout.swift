@@ -1450,7 +1450,8 @@ extension RichLayout {
             let line = painter.getLineBoundary(TextPosition(offset: k))
             for j in line.start ..< min(line.end, styles.count) {
                 guard let label = styles[j]?.debugLabel, let r = label.rangeOfSubstring(" vshift=") else { continue }
-                return Double(label[r.upperBound...].prefix(while: { $0 != " " })) ?? 0
+                // (A later copyWith wraps the label: "(… vshift=71.0).copyWith(…)"; read the number alone.)
+                return Double(String(label[r.upperBound...].prefix(while: { "0123456789.-+eE".contains($0) }))) ?? 0
             }
             return 0
         }
