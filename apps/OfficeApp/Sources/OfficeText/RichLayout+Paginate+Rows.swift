@@ -121,7 +121,26 @@ extension RichLayout {
               (i ..< j).contains(where: { k in
                   document.paragraphs[k].cell.map { d in !(d.bordersXML ?? "").containsSubstring("<w:top ") && d.edges?.top == nil } ?? false
               }) || Self._rowHasContinuedTopUnsaid(i, document) else { return 0 }
-        return max(0, _px(Self._ruleRoom(ts.edgeStyles["top"] ?? ts.borderStyle, ts.edgeWidths["top"] ?? ts.borderWidth ?? 0.5)) - max(0, c.rules - c.ruleBelow))
+        let room = _px(Self._ruleRoom(ts.edgeStyles["top"] ?? ts.borderStyle, ts.edgeWidths["top"] ?? ts.borderWidth ?? 0.5))
+        if wholeRow, _pg_openWholeLift(pgs, document, i, c, room: room) { return max(0, room) }
+        return max(0, room - max(0, c.rules - c.ruleBelow))
+    }
+
+    // (Cells merged down from the page before whose text all goes over to this page, none of it left on the page before:
+    // they open it with the row, under the table's top line. Word's print of sa1 bfe94022 p9, a four-line cell over two
+    // rows, the first of which stays on p8 with none of its lines. Where part of the cell's lines stay on the page before,
+    // the cell goes on from its cut and the print has no extra line: zh-b5359de4 p10.)
+    // (Only where the cell's own rule would take the whole line's room away: where it leaves some, the lines already set stand.)
+    func _pg_openWholeLift(_ pgs: _PState, _ document: RichDocument, _ i: Int, _ c: _CellGeo, room: Double? = nil) -> Bool {
+        guard RichTextTheme.wordWindowsPages, _pg_spansOpenWhole(pgs), Self._rowHasContinuedTopUnsaid(i, document) else { return false }
+        guard let ts = document.tableStyles[c.table] else { return false }
+        let r = room ?? _px(Self._ruleRoom(ts.edgeStyles["top"] ?? ts.borderStyle, ts.edgeWidths["top"] ?? ts.borderWidth ?? 0.5))
+        return r - max(0, c.rules - c.ruleBelow) <= 0.01
+    }
+
+    func _pg_spansOpenWhole(_ pgs: _PState) -> Bool {
+        let here = _pages[pgs.page]
+        return !here.isEmpty && here.allSatisfy { $0.part == .text && !$0.repeated && $0.flowTop <= _tops[$0.paragraph] + 0.01 }
     }
 
     func _pg_ruleClosing(_ pgs: inout _PState, _ document: RichDocument, _ c: _CellGeo) -> Double {
