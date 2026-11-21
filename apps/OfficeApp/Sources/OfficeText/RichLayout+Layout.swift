@@ -1968,9 +1968,13 @@ extension RichLayout {
         // is within the text width stays at the grid when its columns'
         // narrowest would take it past the width; the dates part by letter,
         // "09/08/201" / "6", where ours widened the table 35 pt past the
-        // margin and moved everything below it.)
+        // margin and moved everything below it. Only a table that states no
+        // width: zh-0aac9d1a's, tblW 8578 twips over a grid of the same sum,
+        // takes the columns' narrowest in Word's print, 11 pages where the
+        // grid made 9.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, !over.contains(where: { $0.picture }),
-           widths.reduce(0, +) > room + _px(1), base.reduce(0, +) <= room + _px(1), _nestedCap == nil {
+           widths.reduce(0, +) > room + _px(1), base.reduce(0, +) <= room + _px(1), _nestedCap == nil,
+           (document.tableStyles[table]?.width ?? 0) <= 0 {
             return base
         }
         // (Not past the room an autofitting parent that spans its page
