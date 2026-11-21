@@ -1037,6 +1037,7 @@ extension RichLayout {
         if theme.wordRules, RichTextTheme.wordWindowsPages, !pastFoot, !atTop, c.firstInRow, c.row == 0,
            let ts = document.tableStyles[c.table], let down = ts.floatOffsetY, down > 0, !ts.pageAnchored,
            shown + _pg_ruleUnder(&pgs, document, c) > pgs.contentH - pgs.y + 0.01,
+           (pgs.i ..< j).contains(where: { k in let q = document.paragraphs[k]; return q.image != nil || !q.inlineImages.inOrder.isEmpty }),
            case let setup = pageSetup(forPage: pgs.page / _columns),
            pgs.y + shown + _pg_ruleUnder(&pgs, document, c) <= _px(setup.height) - _bodyInsets(page: pgs.page / _columns, document).top + 0.01 {
             RuleTrace.hit("word-text-anchored-floating-table-row-ending-within-the-page-stays-at-the-foot")
