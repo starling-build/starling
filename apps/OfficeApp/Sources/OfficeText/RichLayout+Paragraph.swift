@@ -2094,6 +2094,17 @@ extension RichLayout {
                         }
                     }
                     numberLift = max(0, ownBaseline - first.baseline)
+                    // (A plain-text bullet over smaller text at a line multiple: Word stands the first line on the bullet's ascent plus its
+                    // external leading, unscaled by the multiple, and the text's on its own; the lift is the difference. sa1 51fd0f44's 13.5pt
+                    // Times New Roman bullets over 12pt Arial Nova Light at 1.15: 0.82pt, Word's items 21.48 apart.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil, style.lineSpacing > 1.001,
+                       let bs = _levelNumberSize(p, document), let ts = _markSize(p, document), bs > ts, ts > 0,
+                       let bf = bulletFonts.latin,
+                       let nb = theme.faceResolver?(bf, false)?.baseline,
+                       let tb = theme.faceResolver?(p.runs.first?.style.fontFamily ?? _named(p, document)?.char.fontFamily ?? _normalChar(document)?.fontFamily, false)?.baseline {
+                        RuleTrace.hit("word-plain-bullet-lift-is-its-ascent-less-the-texts")
+                        numberLift = max(0, nb * bs - tb * ts) * _px(1)
+                    }
                     // (A character scale (w:w) over 100 is laid out as a larger size with the line's height held at the authored one, the face's
                     // extra split evenly, so the baseline of that first line stands (w - 1) x size x (its baseline in ems at height 1 - 1/2) lower
                     // than the authored size's: the lift is measured from the authored baseline. sa1 51fd0f44's w:w 105 Arial Nova Light items lifted
