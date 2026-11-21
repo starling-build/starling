@@ -1412,6 +1412,14 @@ extension _StyledFrame {
                         RuleTrace.hit("hangul-syllable-is-an-em")
                         extra += hEm - g
                     }
+                    // (PowerPoint sets no pair kerning between Hangul syllables (ko-439a1778 p17: all 18 "가들" steps 18.0 pt); the stand-in's pairs are not Malgun Gothic's, so a syllable followed by one keeps its own width.)
+                    if !theme.wordRules, let fv = following?.unicodeScalars.first?.value, fv >= 0xAC00 && fv <= 0xD7A3, following?.unicodeScalars.count == 1 {
+                        let pair = _pairAdvance(style(kind), ch, following!)
+                        if abs(pair - g) > 0.001 {
+                            RuleTrace.hit("hangul-pair-is-not-kerned")
+                            extra += g - pair
+                        }
+                    }
                     // (Where single and double byte widths are balanced, a spaced syllable in Malgun Gothic is set apart by the spacing ONCE
                     // (12 pt spaced -0.5 is 11.5 apart in xd 89a3482a's print); Gulim, Batang and HY Shinmyeongjo take it twice, as an ideograph does.)
                     if doubles, kind < 0, let fam = run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
