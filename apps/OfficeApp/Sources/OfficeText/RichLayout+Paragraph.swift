@@ -3744,8 +3744,7 @@ extension RichLayout {
                         let grown = il.image.flatMap { _pageFill[$0.id] }.map { max(0, box.toRect().height - $0) } ?? 0
                         return box.toRect().height - grown > single + 0.5
                     }
-                    if tallPic { above = [Double](repeating: -1, count: bottoms.count); below = above }
-                    if wrappedPlain.isEmpty, above.contains(where: { $0 >= 0 }) {
+                    if wrappedPlain.isEmpty, !tallPic, above.contains(where: { $0 >= 0 }) {
                         // (Word's print, lab afbaab-multiple, 27 lines to 0.1 pt: EVERY line of the paragraph stands max(text ascent, picture top)
                         // above its baseline, and below it go the text's descent plus ALL of the multiple's extra, so a line without
                         // an object takes the same formula.)
@@ -3754,7 +3753,12 @@ extension RichLayout {
                     var extra = [Double](repeating: 0, count: bottoms.count)
                     for line in 0 ..< bottoms.count where above[line] >= 0 {
                         let before = line == 0 ? 0 : bottoms[line - 1], advance = bottoms[line] - before
-                        let target = max(single - desc, above[line]) + max(desc, below[line]) + (multiple - 1) * single
+                        // (A picture TALLER than the text line: the engine shares the multiple's extra between above and below the text of
+                        // every line, and Word puts all of it below; the two differ by the same amount on the next text line, so the pitch into
+                        // the next line matches only if this line keeps the engine's own share, desc x multiple (a8f4dfcd's 20pt icons in
+                        // 1.5 Tahoma 12: Word 22.68 out of the line, 23.52 into it).)
+                        let target = tallPic ? max(single - desc, above[line]) + max(desc, below[line]) * multiple
+                            : max(single - desc, above[line]) + max(desc, below[line]) + (multiple - 1) * single
                         extra[line] = target - advance
                         // (Where the growth sits: the object's top pushes THIS line's own baseline down, its foot adds below it. Word's
                         // print of 1d944f7b: pitches 24.0 into the object's line and 23.1 out of it, 2.6 + 6.9 + 14.4 and 5 + 6.9 + 11.2.)
