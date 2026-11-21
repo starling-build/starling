@@ -1402,7 +1402,9 @@ extension RichLayout {
             } else if let inside = _textBox(image, document), let text = image.textBox {
                 // A text box: its text, set inside it.
                 if !_paintHorizontalBoxOnVerticalPage(i, inside, text, image, box, canvas) {
-                    _paintTurnedTextBox(inside, text, image, box, canvas)
+                    var textBox = box
+                    if image.float == nil, let line = _inlineTextClamp(image, i, document) { textBox = Rect.fromLTRB(box.right - _px(line), box.top, box.right, box.bottom) }
+                    _paintTurnedTextBox(inside, text, image, textBox, canvas)
                 }
             } else if !drawn, !(theme.wordRules && image.float.map({ !$0.takesRoom }) == true) {
                 // (No stand-in for a floating object the editor cannot
