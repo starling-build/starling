@@ -118,7 +118,7 @@ extension RichLayout {
               !(RichTextTheme.wordWindowsPages && Self._partedFrame(ts)),
               (i ..< j).contains(where: { k in
                   document.paragraphs[k].cell.map { d in !(d.bordersXML ?? "").containsSubstring("<w:top ") && d.edges?.top == nil } ?? false
-              }) else { return 0 }
+              }) || Self._rowHasContinuedTopUnsaid(i, document) else { return 0 }
         return max(0, _px(Self._ruleRoom(ts.edgeStyles["top"] ?? ts.borderStyle, ts.edgeWidths["top"] ?? ts.borderWidth ?? 0.5)) - max(0, c.rules - c.ruleBelow))
     }
 

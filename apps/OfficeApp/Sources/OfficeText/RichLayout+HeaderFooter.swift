@@ -2841,7 +2841,26 @@ extension RichLayout {
     /// no top line (`w:top` nil or none): a part of it that goes over to a
     /// new page opens with none (lab `tb`).
     static func _rowOpensBare(_ i: Int, _ j: Int, _ document: RichDocument) -> Bool {
-        j > i && (i ..< min(j, document.paragraphs.count)).allSatisfy { document.paragraphs[$0].cell?.edges?.top == false }
+        guard j > i else { return false }
+        return (i ..< min(j, document.paragraphs.count)).allSatisfy { document.paragraphs[$0].cell?.edges?.top == false }
+            && !_rowHasContinuedTopUnsaid(i, document)
+    }
+
+    /// A cell merged down from above, whose own part of this row does not
+    /// say "no top", keeps the row's top line (lab `flbare2`: an opener
+    /// whose continued first column states only its right edge sits half a
+    /// line lower; all four cells stating none sits at 0).
+    static func _rowHasContinuedTopUnsaid(_ i: Int, _ document: RichDocument) -> Bool {
+        guard i < document.paragraphs.count, let row = document.paragraphs[i].cell else { return false }
+        var k = i - 1
+        while k >= 0, let above = document.paragraphs[k].cell, above.table == row.table {
+            let offset = row.row - above.row
+            if offset >= 1, offset < above.rowSpan, above.continuationEdges.count >= offset,
+               above.continuationEdges[offset - 1]?.top != false,
+               !(above.continuationBordersXML.count >= offset ? above.continuationBordersXML[offset - 1] ?? "" : "").containsSubstring("<w:top ") { return true }
+            k -= 1
+        }
+        return false
     }
 
     /// A table with outer top and bottom lines and none between its rows.
