@@ -31,32 +31,73 @@ extension _ParaFrame {
         wholePitchEquation = inline.contains { $0.image?.name == "m:oMath" && $0.image?.float == nil && _pageFill[$0.image?.id ?? ""] != nil }
         if equationLinesGrowAfterLayout, !wholePitchEquation, painter.strutStyle?.forceStrutHeight == true, keepClear == nil, RichLayout._paired(painter) == nil,
            let boxes = painter.inlinePlaceholderBoxes, boxes.count == inline.count, !boxes.isEmpty {
+            // (Word's line holding an equation: its ascent is the text's or the equation's, whichever is more; the same under the baseline;
+            // "at least" puts any extra over the line's top, a multiple puts (m-1) times the taller of the text's line and 1.1733 em of the
+            // equation under it. Spec: docs/plans/board/20261121-114912-amd-opus.md; labs mathline, frac3, frac4.)
             let bottoms = RichLayout._rawLineBottoms(painter)
             let metrics = painter.computeLineMetrics()
-            var extra = [Double](repeating: 0, count: bottoms.count), above = extra
-            for (k, box) in boxes.enumerated() {
-                guard let whole = inline[k].image?.naturalExtent, inline[k].image?.name == "m:oMath", inline[k].image?.stackedEquation == true else { continue }
-                let mid = box.toRect().top + box.toRect().height / 2
-                guard let line = bottoms.firstIndex(where: { mid < $0 }), line < metrics.count else { continue }
-                let before = line == 0 ? 0 : bottoms[line - 1], advance = bottoms[line] - before
-                let target = style.lineSpacing * _px(whole.ascent + whole.descent)
-                guard target > advance + 0.01 else { continue }
-                // Word sets the equation centred in its taller line: the gap above and below it is equal.
-                let eqHeight = _px(whole.ascent + whole.descent)
-                let newBase = (target - eqHeight) / 2 + _px(whole.ascent)
-                let reach = max(0, newBase - (metrics[line].baseline - before))
-                extra[line] = max(extra[line], target - advance)
-                above[line] = max(above[line], min(reach, extra[line]))
-            }
-            if extra.contains(where: { $0 > 0 }) {
-                RuleTrace.hit("word-an-equation-line-of-multiple-spacing-is-the-multiple-of-the-equation")
-                var shifts = [Double](repeating: 0, count: bottoms.count)
-                var acc = 0.0
-                for k in 0 ..< bottoms.count {
-                    shifts[k] = acc + above[k]
-                    acc += extra[k]
+            let atLeast = style.lineHeightIsMinimum && (style.lineHeightPoints ?? 0) > 0
+            let split = rl._textStrutSplit(painter)
+            if bottoms.count == metrics.count {
+                var eqA = [Double](repeating: 0, count: bottoms.count), eqD = eqA, eqS = eqA
+                for (k, box) in boxes.enumerated() {
+                    guard let img = inline[k].image, img.name == "m:oMath", img.float == nil, let whole = img.naturalExtent else { continue }
+                    let mid = box.toRect().top + box.toRect().height / 2
+                    guard let line = bottoms.firstIndex(where: { mid < $0 }) else { continue }
+                    eqA[line] = max(eqA[line], _px(whole.ascent)); eqD[line] = max(eqD[line], _px(whole.descent)); eqS[line] = max(eqS[line], _px(img.mathSize))
                 }
-                RichLayout._pairedLines[ObjectIdentifier(painter)] = _PairedLines(painter: painter, shifts: shifts, saving: -acc)
+                var extra = [Double](repeating: 0, count: bottoms.count), above = extra
+                let multiple = !atLeast && style.lineSpacing > 1.001
+            // (An exact line height is the line's whatever stands in it: TAMainText's 12 pt steps 12.00 under a subscripted equation in sa1 a5d8ccb3's print.)
+            let exact = !style.lineHeightIsMinimum && (style.lineHeightPoints ?? 0) > 0
+                for line in 0 ..< bottoms.count {
+                    let before = line == 0 ? 0 : bottoms[line - 1], advance = bottoms[line] - before
+                    let a0 = metrics[line].baseline - before
+                    var tA = a0, tD = advance - a0, text = advance
+                    if let split {
+                        text = split.line; tD = split.descent; tA = split.line - split.descent
+                        // (Word's text line is the face's hhea ascent + descent + line gap where that is more than its win line, the gap over the baseline:
+                        // Times New Roman 10 is 11.5 pt, 9.33 up and 2.16 down, in the prints of lab plainrun, where the equation's step off the line
+                        // before it is 4.46 + 0.95 em. A multiple's strut line is that natural line times the multiple.)
+                        if multiple, case let natural = advance / style.lineSpacing, natural > split.line + 0.01, natural < split.line * 1.1 { text = natural; tA += natural - split.line }
+                    }
+                    // (Word's text lines of a multiple stand their baseline the text's ascent under the line's top, the extra below; the strut's stand it half the extra lower.)
+                    guard eqA.contains(where: { $0 > 0 }) else { break }
+                    if eqA[line] <= 0 || exact { continue }
+                    let a = max(tA, eqA[line]), d = max(tD, eqD[line])
+                    var height = a + d
+                    var top = a, gridded = false
+                    if atLeast { let least = _px(style.lineHeightPoints ?? 0); if least > height { top += least - height; height = least } }
+                    else if multiple {
+                        height += (style.lineSpacing - 1) * max(text, 1.1733 * eqS[line])
+                        // (On a lines grid the equation's line is whole pitches, the spare shared evenly over and under it, as at single spacing: Word's print of
+                        // jpn-z22855378-6fca0f steps 32.28 into and 30.72 out of a 22.6 pt equation line at 1.5 spacing on an 18 pt grid, 36.0 = two pitches
+                        // against the plain lines' 27.)
+                        if let gp = _grid(i, document).pitch, !_offGrid(i, document), case let pitch = _px(gp), pitch > 0, case let n = ((a + d) / pitch - 0.002).rounded(.up), n >= 2, n * pitch > height {
+                            gridded = true
+                            top = a + (n * pitch - (a + d)) / 2; height = n * pitch
+                        }
+                    }
+                    else if style.lineSpacing < 0.999 { continue }
+                    // (a line of text alone is the strut's: a smaller equation changes nothing)
+                    // (The text lines stay where the engine put them; the equation's baseline stands where it does against a text line's own in Word's frame.)
+                    var textTop = gridded ? a0 : atLeast || multiple ? tA : a0
+                    if atLeast, case let least = _px(style.lineHeightPoints ?? 0), least > text { textTop += least - text }
+                    if height > advance + 0.01 || abs(top - textTop) > 0.01 && height >= advance - 0.01 {
+                        extra[line] = height - advance
+                        above[line] = top - textTop
+                    }
+                }
+                if extra.contains(where: { abs($0) > 0.01 }) || above.contains(where: { abs($0) > 0.01 }) {
+                    RuleTrace.hit("word-an-equation-line-is-the-text-or-the-equation-over-and-under-the-baseline")
+                    var shifts = [Double](repeating: 0, count: bottoms.count)
+                    var acc = 0.0
+                    for k in 0 ..< bottoms.count {
+                        shifts[k] = acc + above[k]
+                        acc += extra[k]
+                    }
+                    RichLayout._pairedLines[ObjectIdentifier(painter)] = _PairedLines(painter: painter, shifts: shifts, saving: -acc)
+                }
             }
         }
         // (A tall equation on a line grid: Word's line is the equation's whole pitches (20d9968b's (1-r^n)/(1-r)^2 is two pitches, 36pt,
@@ -65,6 +106,7 @@ extension _ParaFrame {
            keepClear == nil, besideLineIndents.isEmpty, RichLayout._paired(painter) == nil,
            let boxes = painter.inlinePlaceholderBoxes, boxes.count == inline.count, !boxes.isEmpty {
             let bottoms = RichLayout._rawLineBottoms(painter)
+            let metrics = painter.computeLineMetrics()
             var above = [Double](repeating: 0, count: bottoms.count), below = above
             for (k, box) in boxes.enumerated() {
                 guard let image = inline[k].image, image.name == "m:oMath", image.float == nil, _pageFill[image.id] != nil else { continue }
@@ -73,9 +115,16 @@ extension _ParaFrame {
                 guard let line = bottoms.firstIndex(where: { mid < $0 }) else { continue }
                 let before = line == 0 ? 0 : bottoms[line - 1]
                 // (The extra is shared evenly above and below the strut's own line: the baseline stands half the extra lower, 21.8pt down a 36pt line.)
-                let grow = max(0, r.height - (bottoms[line] - before)) / 2
-                above[line] = max(above[line], grow)
-                below[line] = max(below[line], grow)
+                // (Word's baseline is the larger of the text's and the equation's ascent down, the spare of the whole pitches shared evenly:
+                // the grid fit stored it as the equation's centre offset; labs mathline G2-G7.)
+                let advance = bottoms[line] - before
+                let grow = max(0, r.height - advance)
+                var up = grow / 2
+                if let c = _lineCentre[image.id], let whole = image.naturalExtent, line < metrics.count {
+                    up = max(0, c + _px(whole.ascent) - (metrics[line].baseline - before))
+                }
+                above[line] = max(above[line], min(up, grow))
+                below[line] = max(below[line], grow - min(up, grow))
             }
             if above.contains(where: { $0 > 0.01 }) || below.contains(where: { $0 > 0.01 }) {
                 RuleTrace.hit("word-a-tall-equation-line-on-a-grid-is-its-whole-pitches")
@@ -86,45 +135,6 @@ extension _ParaFrame {
                     acc += max(0, above[k]) + max(0, below[k])
                 }
                 RichLayout._pairedLines[ObjectIdentifier(painter)] = _PairedLines(painter: painter, shifts: shifts, saving: -acc)
-            }
-        }
-        // (A fraction in a line of "at least" spacing: Word's line is as tall as the text's strut or the fraction's own
-        // ascent over the last line's foot, whichever is more: the gap from one baseline to the next is the larger of
-        // the strut and the line above's descent plus this line's ascent. Lab frac3 case 10, 14pt at least, 11pt text and
-        // fraction: 16.34 and 16.68 where the lines were all 14.0.)
-        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, !p.text.isEmpty, !style.rightToLeft, _columns <= 1,
-           (style.lineHeightIsMinimum && (style.lineHeightPoints ?? 0) > 0 || style.lineHeightPoints == nil && abs(style.lineSpacing - 1) < 0.001), keepClear == nil, besideLineIndents.isEmpty,
-           RichLayout._paired(painter) == nil, let boxes = painter.inlinePlaceholderBoxes, boxes.count == inline.count, !boxes.isEmpty {
-            let bottoms = RichLayout._rawLineBottoms(painter)
-            let metrics = painter.computeLineMetrics()
-            if bottoms.count == metrics.count, bottoms.count > 1 {
-                let textDescent = metrics.map { $0.descent }
-                var ascent = [Double](repeating: 0, count: bottoms.count), descent = ascent
-                for (k, box) in boxes.enumerated() {
-                    guard let whole = inline[k].image?.naturalExtent, inline[k].image?.name == "m:oMath", inline[k].image?.stackedEquation == true else { continue }
-                    let mid = box.toRect().top + box.toRect().height / 2
-                    guard let line = bottoms.firstIndex(where: { mid < $0 }) else { continue }
-                    // (Cambria Math's own extent is 0.077 em over Word's above and 0.15 em under the fraction's: lab frac3, 11pt.)
-                    let em = painter.strutStyle?.fontSize ?? _px(11)
-                    ascent[line] = max(ascent[line], _px(whole.ascent) - 0.077 * em); descent[line] = max(descent[line], _px(whole.descent) - 0.15 * em)
-                }
-                var extra = [Double](repeating: 0, count: bottoms.count)
-                for line in 1 ..< bottoms.count {
-                    let advance = bottoms[line] - bottoms[line - 1]
-                    let tD = textDescent[line - 1]
-                    let a = max(ascent[line], style.lineHeightPoints == nil ? metrics[line].baseline - bottoms[line - 1] : advance - tD)
-                    let want = max(advance, max(descent[line - 1], tD) + a)
-                    // (At single spacing the line after a bigger run already stands that run's descent under it: the gap to beat is the natural one.)
-                    let held = style.lineHeightPoints == nil ? max(advance, tD + metrics[line].baseline - bottoms[line - 1]) : advance
-                    if want > held + 0.01 { extra[line] = want - held }
-                }
-                if extra.contains(where: { $0 > 0 }) {
-                    RuleTrace.hit("word-a-fraction-in-at-least-spacing-takes-its-own-ascent-and-descent")
-                    var shifts = [Double](repeating: 0, count: bottoms.count)
-                    var acc = 0.0
-                    for k in 0 ..< bottoms.count { acc += extra[k]; shifts[k] = acc }
-                    RichLayout._pairedLines[ObjectIdentifier(painter)] = _PairedLines(painter: painter, shifts: shifts, saving: -acc)
-                }
             }
         }
         // (A raised or lowered picture or object in a line of "at least" spacing: Word's line is the text's ascent or the

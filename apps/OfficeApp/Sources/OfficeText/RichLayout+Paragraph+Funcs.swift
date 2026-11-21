@@ -1494,7 +1494,7 @@ extension _ParaFrame {
             var pil = picturesInLine
             // (Where the line-growing step after layout runs, the paragraph keeps its strut and that step sizes the taller equation lines.)
             equationLinesGrowAfterLayout = theme.wordRules && RichTextTheme.wordWindowsPages && p.cell == nil && !style.rightToLeft && _columns <= 1
-                && style.lineSpacing > 0.999 && style.lineHeightPoints == nil && besideLineIndents.isEmpty
+                && (style.lineSpacing > 0.999 && style.lineHeightPoints == nil || style.lineHeightIsMinimum && (style.lineHeightPoints ?? 0) > 0) && besideLineIndents.isEmpty
             if pil, theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft,
                inline.allSatisfy({ $0.image.map { $0.name == "m:oMath" && $0.float == nil } ?? true }),
                (equationLinesGrowAfterLayout || _equationsAfterFirstLine(span, inline.map { $0.dimensions }, align: align, rtl: style.rightToLeft, width: textWidth + _px(tieSlack), indents: besideLineIndents)
@@ -3091,4 +3091,33 @@ extension _ParaFrame {
         // the box hanging past the margin, where ours took it a line
         // and it opened a page of its own.)
         func clear(_ image: ImageAttachment) -> Bool { image.float.map { !$0.takesRoom && !$0.wraps } ?? false }
+}
+
+extension RichLayout {
+    /// The paragraph's own text line (Word's win line of its first face) and the descent part of it, in layout units; nil where the face is unknown.
+    func _textStrutSplit(_ painter: TextPainter) -> (line: Double, descent: Double)? {
+        guard let rootSpan = painter.text as? TextSpan else { return nil }
+        func firstStyle(_ span: TextSpan, _ inherited: Flutter.TextStyle) -> Flutter.TextStyle? {
+            let own = inherited.merge(span.style)
+            if let tx = span.text, tx.contains(where: { !$0.isWhitespace && $0 != "\u{FFFC}" }) { return own }
+            for c in span.children ?? [] { if let t = c as? TextSpan, let f = firstStyle(t, own) { return f } }
+            return nil
+        }
+        guard let ts = firstStyle(rootSpan, Flutter.TextStyle()) else { return nil }
+        return _textStrutSplit(style: ts)
+    }
+
+    func _textStrutSplit(style ts: Flutter.TextStyle) -> (line: Double, descent: Double)? {
+        guard let size = ts.fontSize else { return nil }
+        let faceName = ts.debugLabel.flatMap { label -> String? in
+            label.split(separator: "(").compactMap { part -> String? in
+                guard let end = part.firstIndex(of: ")") else { return nil }
+                let n = String(part[part.startIndex ..< end])
+                return n.isEmpty || n == "unknown" ? nil : n
+            }.last
+        }
+        guard let name = faceName, let share = theme.winDescent?(name), let box = theme.winLineBox?(name) else { return nil }
+        let line = size * box
+        return (line, line * share)
+    }
 }
