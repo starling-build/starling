@@ -2627,7 +2627,11 @@ enum DocxFormat {
                     if (cols.max() ?? 0) - (cols.min() ?? 0) <= 0.1 { tableColumns[id] = cw }
                     // (Left to the layout, which takes them when no cell's narrowest outgrows its stated width.)
                     else if zip(cw, cols).contains(where: { abs($0 - $1) > 1 }),
-                            node.first("w:tblPr")?.first("w:tblLayout")?["w:type"] != "fixed" { tableCellColumns[id] = cw }
+                            node.first("w:tblPr")?.first("w:tblLayout")?["w:type"] != "fixed",
+                            // (A table that zeroes its own left and right cell margins keeps its grid: sa1 8b5747ec's
+                            // table, tblCellMar 0 / 0 with the cells' 108 stated per cell, has all seven columns on the grid
+                            // within 0.1 pt in Word's print.)
+                            !_tableZeroesSideMargins(node) { tableCellColumns[id] = cw }
                 }
                 // (A fixed table of a stated share whose cells all state widths, each row the
                 // same, a little under its grid: Word rules the cells' widths, not the grid.
@@ -6065,6 +6069,16 @@ enum DocxFormat {
         let e = BorderEdges(top: side("w:top"), left: side("w:left") ?? side("w:start"), bottom: side("w:bottom"),
                             right: side("w:right") ?? side("w:end"), insideH: side("w:insideH"), insideV: side("w:insideV"))
         return e.isEmpty ? nil : e
+    }
+
+    /// True when the table's own `w:tblCellMar` states both left (or start) and right (or end) as 0.
+    private static func _tableZeroesSideMargins(_ node: XNode) -> Bool {
+        guard let m = node.first("w:tblPr")?.first("w:tblCellMar") else { return false }
+        func z(_ a: String, _ b: String) -> Bool {
+            guard let e = m.first(a) ?? m.first(b) else { return false }
+            return (Double(e["w:w"] ?? "") ?? 1) == 0
+        }
+        return z("w:left", "w:start") && z("w:right", "w:end")
     }
 
     /// `w:tblCellMar` of a table or table style (or a cell's `w:tcMar`),
