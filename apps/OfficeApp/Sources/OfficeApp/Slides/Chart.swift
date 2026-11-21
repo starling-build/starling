@@ -4717,6 +4717,12 @@ enum ChartPainter {
             // (An untitled 2007-style Word chart whose value axis is deleted has no top tick label to stand 3 pt higher by: its plot
             // starts 1.5 pt lower than the generic one, 9.8 under the frame's top in lo-1e6077df's print, ours 5.3.)
             let untitledWordRise = -4.0
+            // (A 2013-style Word column chart whose value axis is deleted: its plot starts 4.3 pt further left than the
+            // label gap makes it, c11d31f3's chart 8: first column's name at 57.46 in Word's print, ours 61.55.)
+            if word, !c.onSlide, !c.onSheet, !c.chartex, c.styled2013, c.valueAxisDeleted, c.plotLayout == nil, c.barView == nil, secondLabels.isEmpty, c.lineSeries.isEmpty {
+                left -= 4.3 * k
+                RuleTrace.hit("word-column-chart-deleted-value-axis-plot-left")
+            }
             let pt = k / 0.75
             let titled = !(c.title ?? "").isEmpty && c.titleAt == nil && !(c.onSheet && c.titleOverlay)
             // (An untitled 2007-style column chart on a slide: its plot starts
