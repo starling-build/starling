@@ -2043,6 +2043,34 @@ extension RichLayout {
         }
     }
 
+    /// A run's sharp shadow as the letters' outlines, offset and filled in the shadow's colour, under the text
+    /// (`shadowsAsPaths`: a PDF's text layer then holds the words once). Blurred shadows and glows stay the engine's.
+    func _paintShadowPaths(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
+                           _ canvas: any Canvas, map: _OffsetMap? = nil) {
+        guard RichTextTheme.shadowsAsPaths else { return }
+        var at = 0
+        for run in p.runs {
+            defer { at += run.length }
+            guard run.length > 0, let sh = run.style.shadow, !sh.glow, sh.ground == nil,
+                  run.style.script == .normal, !run.style.noFill else { continue }
+            let a = map?.painter(at) ?? at, b = (map?.painter(at + run.length - 1) ?? at + run.length - 1) + 1
+            guard let path = painter.glyphPath(range: a..<b) else { continue }
+            let k = _px(1)
+            let paint = Paint(); paint.style = .fill
+            let moved = path.shift(Offset(origin.dx + sh.dx * k, origin.dy + sh.dy * k))
+            if sh.blur > 0, RichTextTheme.shadowBlurDeviceScale != nil {
+                // (The engine's blurred text shadow, as it draws it in a PDF: 55% strength, sigma 0.4 of the radius.)
+                paint.color = Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, Double(sh.color.alpha) / 255 * 0.55)
+                paint.maskFilter = MaskFilter(blur: .normal, sh.blur * 0.4 * k)
+                canvas.drawPath(moved, paint)
+            } else {
+                // (Where nothing blurs, as in Word's PDF, the engine draws a blurred shadow sharp at 45%.)
+                paint.color = sh.blur > 0 ? Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, Double(sh.color.alpha) / 255 * 0.45) : sh.color
+                canvas.drawPath(moved, paint)
+            }
+        }
+    }
+
     /// Word's outlined letters: the fill is the painter's own; this draws a second pass of the same text with only the
     /// outlined runs showing, as a stroke in the outline's colour centred on the glyph edge (a stroke-only twin over the fill).
     func _paintOutlineStrokes(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
