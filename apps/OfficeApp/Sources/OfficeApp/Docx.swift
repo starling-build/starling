@@ -6487,6 +6487,12 @@ enum DocxFormat {
             if let r0 = p.first("w:r"), r0.first("w:fldChar") != nil, r0.first("w:rPr")?.first("w:sz") == nil {
                 style.eastAsian["w:fieldFirst"] = "1"
             }
+            // (A field's begin, separate or end run that says nothing of its own is in the document's default font, and Word counts
+            // it in the line's height though it draws nothing: d1fab599's contents rows, Arial 11 text over Roboto 11 defaults,
+            // step 23.28 in Word's print against the Arial line's 22.65.)
+            if p.children.contains(where: { $0.name == "w:r" && $0.first("w:fldChar") != nil && $0.first("w:rPr") == nil }) {
+                style.eastAsian["w:fieldMarkDefault"] = "1"
+            }
             if let g = pPr.first("w:snapToGrid") { style.ownGridOff = _isOff(g) }
             style.indentLeft += indent
             // (A moved paragraph's mark too: `w:moveFrom` is a deleted mark and
