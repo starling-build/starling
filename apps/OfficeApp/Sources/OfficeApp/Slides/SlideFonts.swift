@@ -130,6 +130,14 @@ enum SlideFonts {
             face.boldOtherAdvances = bold
             // (Malgun Gothic's Hangul is an em, which the table of advances that are not one does not hold.)
             if cuts.regular.ascii == SlideEastAsianWidths.malgun.regular.ascii { face.otherAdvances?[0xAC00] = 1.0; face.boldOtherAdvances?[0xAC00] = 1.0 }
+            // (Malgun Gothic sets its circled numbers, geometric shapes, box line and fullwidth forms an em wide: every one that PowerPoint
+            // for Windows printed in it across the Korean pilot decks, ① to ⑮, ⓒ, ─ ▒ ■ □ ▲ △ ▽ ◆ ◇ ○ ◎ ● ☆ ☞ ♤ and the fullwidth ＂ ＇ （ ） ＊ ＜ ＞ Ａ Ｂ Ｚ ～, 1.000 em
+            // at 18 pt (ko-ca2dc787 p7's "□ " steps 24.3, where the Latin stand-in's □ stepped 17.7 and the line held a syllable more).)
+            if cuts.regular.ascii == SlideEastAsianWidths.malgun.regular.ascii {
+                let em: [UInt32] = Array(0x2460...0x246F) + [0x24D2, 0x2500, 0x2592, 0x25A0, 0x25A1, 0x25B2, 0x25B3, 0x25BD, 0x25C6, 0x25C7, 0x25CB, 0x25CE, 0x25CF, 0x2606, 0x261E, 0x2664,
+                                                              0xFF02, 0xFF07, 0xFF08, 0xFF09, 0xFF0A, 0xFF1C, 0xFF1E, 0xFF21, 0xFF22, 0xFF3A, 0xFF5E]
+                for c in em where face.otherAdvances?[c] == nil { face.otherAdvances?[c] = 1.0; face.boldOtherAdvances?[c] = 1.0 }
+            }
             if let it = SlideEastAsianWidths.lookupItalic(windowsName(family)) {
                 face.italicAdvances = it.regular.ascii
                 face.boldItalicAdvances = it.bold?.ascii ?? it.regular.ascii
