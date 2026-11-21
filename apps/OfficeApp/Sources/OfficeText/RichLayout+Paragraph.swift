@@ -5512,7 +5512,7 @@ extension RichLayout {
                         let end = min(start + run.length, firstEnd, units.count)
                         guard start < end, run.style.inlineImage == nil else { continue }
                         let text = String(decoding: units[start ..< end], as: UTF16.self)
-                        guard text.unicodeScalars.contains(where: { Self._isIndic($0.value) }) else {
+                        guard text.unicodeScalars.contains(where: { Self._isIndic($0.value) || ($0.value >= 0x0D00 && $0.value <= 0x0D7F) }) else {
                             // (A Latin run of Arial Unicode MS with no w:cs flag in a Devanagari paragraph is drawn in Yu Gothic, which stands the first line on its own
                             // 1.18 em ascent: lab aumsy2, Word's step into such a line 12.8 pt against 12.0 for a Nirmala one; fb94294e.)
                             if document.readFromFile, document.fontCharsets["arial unicode ms"] == "80",
