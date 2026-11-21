@@ -437,6 +437,14 @@ extension RichLayout {
                let px = look.fontSize, px > 0.5 {
                 RuleTrace.hit("word-empty-bidi-mark-takes-szcs")
                 look = look.copyWith(fontSize: px * z / f)
+                // (And the Latin face it names keeps its own line where Windows has it with one: lab emptymark2 D, Narkisim named for ascii at
+                // sz 14, cs David szCs 12, line 1.5: Word 17.8 = 0.988 em x 12 x 1.5, ours 21.96 on the stand-in's 1.22.)
+                if let famName = mark.fontFamily ?? markNamed?.char.fontFamily, let face = theme.complexFace(famName, latin: famName),
+                   face.ownLineBaseline, let tall = face.naturalHeight, tall > 0.5, let base = face.baseline {
+                    let multiple = p.style.lineSpacing > 1 ? p.style.lineSpacing : 1
+                    let sized = px * z / f
+                    look = look.copyWith(ascentOverride: base * multiple * sized, descentOverride: (tall - base) * multiple * sized, height: tall * multiple, leadingDistribution: .even)
+                }
             }
             if theme.wordRules, p.style.list != nil, lead > 0 {
                 // An empty list still has a number and its suffix. Reserve
