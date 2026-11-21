@@ -4166,6 +4166,22 @@ extension RichLayout {
                 push = max(push, _px(f.y + image.height + f.effectBottom + f.distanceBottom) + (f.y < 0 ? max(painter.height, _markLineHeight(i, document)) : 0))
             }
         }
+        // (A paragraph of nothing but a square-wrapped box placed from the page that spans the text's whole width, no room at either
+        // side: its own line cannot stand beside it and goes under it, as under a top-and-bottom one. xd bf53d2b7's title bar, 613 pt
+        // from x -19.7 on a 612 pt page, anchored in an empty paragraph: Word's print has the next paragraph, a picture, 65 pt lower
+        // than ours, which had left the picture in the box's band.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, p.text.unicodeScalars.allSatisfy({ $0.value == 0xFFFC || $0 == " " }) {
+            let setup = _setup(ofParagraph: i)
+            for image in (p.image.map { [$0] } ?? []) + p.inlineImages.inOrder {
+                guard let f = image.float, f.wraps, !f.takesRoom, !f.bandsPage, f.verticalFrom == "paragraph", f.verticalAlign == nil, f.y >= 0,
+                      f.horizontalFrom == "page", f.horizontalAlign == nil, image.textBox != nil, image.height > 0 else { continue }
+                let left = f.x - setup.marginLeft
+                let right = setup.width - setup.marginRight - (f.x + image.width)
+                guard left < 12, right < 12 else { continue }
+                RuleTrace.hit("word-empty-paragraph-line-goes-under-a-box-that-leaves-no-room-beside")
+                push = max(push, _px(f.y + image.height + f.effectBottom + f.distanceBottom))
+            }
+        }
         // (A picture wrapped top and bottom that stands at the top of the paragraph holding
         // its anchor, text and all: the first line goes under it, the picture where it was.
         // Lab `anc` (Word for Windows, one column and two): 40pt at (20, 0) in p3 puts p3 at
