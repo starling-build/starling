@@ -286,6 +286,17 @@ extension RichLayout {
                         guard start < end, run.style.inlineImage == nil else { continue }
                         let text = String(decoding: units[start ..< end], as: UTF16.self)
                         guard text.unicodeScalars.contains(where: { Self._isIndic($0.value) || ($0.value >= 0x0D00 && $0.value <= 0x0DFF) }) else {
+                            // (A run of Thaana letters is drawn in MV Boli, 2333+967 of 2048: the first line stands on its 1.139 em ascent, not on the Latin
+                            // stand-in's: dx2 e3906782's title, 2.9 pt high in ours at 16 pt.)
+                            if text.unicodeScalars.contains(where: { $0.value >= 0x780 && $0.value <= 0x7BF }), let mv = Self._indicLines["mv boli"] {
+                                let size = run.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+                                let cut = p.style.lineHeightPoints == nil && p.style.lineSpacing > 0.5 && p.style.lineSpacing < 1 ? p.style.lineSpacing : 1
+                                if size * mv.0 * cut > target + 0.01 {
+                                    RuleTrace.hit("word-thaana-first-line-stands-on-mv-boli-ascent")
+                                    target = size * mv.0 * cut
+                                    raisedTo = target
+                                }
+                            }
                             // (A Latin run of Arial Unicode MS with no w:cs flag in a Devanagari paragraph is drawn in Yu Gothic, which stands the first line on its own
                             // 1.18 em ascent: lab aumsy2, Word's step into such a line 12.8 pt against 12.0 for a Nirmala one; fb94294e.)
                             if document.readFromFile, document.fontCharsets["arial unicode ms"] == "80",
