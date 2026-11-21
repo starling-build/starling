@@ -1,0 +1,5 @@
+# amd-7 HANDOFF: Slides Japanese (2026-11-21)
+Landed or in PR (render-gate): #1048 spaces before East Asian text stay Latin (5c820695 78.1 to 82.2); #1068 Latin-only ea face (Calibri) for kana/kanji of non-ja runs prints MS Gothic (054ae4d7 79.7 to 93.6); #1090 deck default line/paragraph spacing does not reach table cells (65a1be73 85.8 to 94.5, 99f6ddd1 86.3 to 91.6, 6effb0bd 100, 5cf98ad4 99); #1102 U+3000 in a spaces-only run is East Asian (5c820695 89.0, 5df7b42e 98.7, 505a93a9 82.9; down 7c77f08b 91.9 to 90.8, 5bdba90e 98.1 to 95.6, uncovered, not looked at).
+My 20 full ja decks mean 91.8 to 94.9.
+Open: 505a93a9 (82.9): p2-p4 body lines sit 3-4 pt low and x 2-4 pt off under normAutofit fontScale 92.5 + lnSpcReduction 10; JP symbols (circle, square...) are 1 em in MS PGothic/HG/YuGothic (patch at /data/s/amd-7/w4/fonts.patch, dropped 505a93a9 because full-width brackets in runs with no lang and a Latin-named MS PGothic then need half width).
+Pilot 44a86430 (90.2): callout (wedgeRoundRectCallout, 14 pt, text width 201 pt) wraps one char earlier in PowerPoint on p2/p3; wrap owner. Other pilot decks 95 to 100.
