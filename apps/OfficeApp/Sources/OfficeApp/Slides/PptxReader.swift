@@ -1474,7 +1474,31 @@ private struct SlideContext {
             case "mc:AlternateContent":
                 // Ink (a p:contentPart): PowerPoint draws the strokes, never the fallback picture, which is a
                 // stale thumbnail at a different size (3680b255's ink fallback filled a box 8 M EMU tall). Strokes are not drawn yet.
-                if el.first("mc:Choice")?.first("p:contentPart") != nil { continue }
+                if let cp = el.first("mc:Choice")?.first("p:contentPart") {
+                    // The strokes are the part's InkML, laid on the part's own frame; the element is kept whole for the file.
+                    guard let xf = cp.first("p14:xfrm"), var frame = _xfrmRect(xf) else { continue }
+                    if let t = transform { frame = t(frame) }
+                    let box = ShapeState(id: id(), name: cp.descendant("p14:cNvPr")?["name"] ?? "Ink",
+                                         kind: .opaque(OpaqueObject(xml: PptxXML.serialize(el), label: "Ink", sourcePart: part)),
+                                         frame: frame, rotation: 0, fill: nil, outline: nil, outlineWidth: 0, anchor: .top,
+                                         insets: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), prompt: nil, text: nil,
+                                         font: nil, size: 18, color: Color(0xFF000000), listIndent: 18)
+                    var ink = box
+                    if case .opaque(var obj) = ink.kind,
+                       let rid = cp["r:id"], let rel = package.rels(part).first(where: { $0.id == rid && !$0.external }),
+                       let doc = package.xml(rel.target), let off = xf.first("a:off"),
+                       let ox = off["x"].flatMap(Double.init), let oy = off["y"].flatMap(Double.init) {
+                        for (sp, _) in InkStrokes.shapes(doc, offX: ox, offY: oy) {
+                            let holder = XNode(name: "p:spTree", attrs: [:]); holder.children = [sp]
+                            var inner: [ShapeState] = []
+                            shapes(in: holder, transform: transform, into: &inner, id: id, group: nil, groupFill: groupFill)
+                            obj.rendering += inner
+                        }
+                        ink.kind = .opaque(obj)
+                    }
+                    out.append(ink)
+                    continue
+                }
                 // The fallback is what an older reader would draw: keep the
                 // whole thing — and draw it as that fallback's shapes (or the
                 // choice's, where the fallback holds nothing this app reads:
