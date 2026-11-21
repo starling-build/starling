@@ -2683,7 +2683,9 @@ extension RichLayout {
                     for id in _footnotes(in: piece.paragraph, document) {
                         if cuts[piece.paragraph, default: 1] > 1, _cells[piece.paragraph] == nil,
                            let top = _footnoteMarkTop(piece.paragraph, id, document) {
-                            let o = origin[piece.paragraph] ?? 0
+                            // (A page of sections keeps the flow's own positions, the mark's as well as the pieces': f7341551's
+                            // footnotes 1-10, marked on cut paragraphs of its two-column section, stood on no page.)
+                            let o = _perSection ? 0 : origin[piece.paragraph] ?? 0
                             if top < piece.flowTop - o - 0.01 || top >= piece.flowBottom - o - 0.01 { continue }
                         }
                         if _pageNotes[phys]?.contains(id) != true { _pageNotes[phys, default: []].append(id); _noteColumn[id] = slot % _columns }
@@ -2723,7 +2725,7 @@ extension RichLayout {
             // third round they only grow, which settles.)
             let raw = needed
             if _columnNoteRounds >= 2 { for (k, v) in _columnNoteRaw { needed[k] = max(needed[k] ?? 0, v) } }
-            _columnNoteRaw = raw
+            _columnNoteRaw = _columnNoteRounds >= 2 ? needed : raw
             if needed != _columnNoteReserve, _columnNoteRounds < 10 {
                 _columnNoteReserve = needed
                 _columnNoteRounds += 1
