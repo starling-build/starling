@@ -1,4 +1,5 @@
-// Tamil in Word for Windows: widths of Nirmala UI, per code point (em).
+// Tamil in Word for Windows: widths of Nirmala UI, per code point (em), and per consonant + sign pair where the
+// pair is a ligature (51 pairs, fitted on 2443 distinct words of 12 Word prints, mean error 0.57%).
 // Not read from glyph advances (our PDF embeds no Tamil face to compare, and the
 // shaped clusters have no code point): a regression of the widths of 2864 Tamil
 // words in the Word prints of four Tamil documents (all set in Nirmala UI), each
@@ -8,13 +9,27 @@
 // width +6% (the measured mean Bold/regular ratio).
 enum TamilAdvances {
     static let regular: [UInt32: Double] = [
-        0xB83: 0.795, 0xB85: 1.122, 0xB86: 1.296, 0xB87: 1.054, 0xB88: 0.720, 0xB89: 1.078, 0xB8A: 1.423,
-        0xB8E: 0.788, 0xB8F: 0.819, 0xB90: 0.949, 0xB92: 0.972, 0xB93: 0.858, 0xB95: 0.875, 0xB99: 1.082,
-        0xB9A: 0.795, 0xB9C: 0.888, 0xB9E: 1.104, 0xB9F: 0.843, 0xBA3: 1.663, 0xBA4: 0.866, 0xBA8: 0.798,
-        0xBA9: 1.241, 0xBAA: 0.820, 0xBAE: 0.954, 0xBAF: 0.984, 0xBB0: 0.739, 0xBB1: 0.902, 0xBB2: 1.010,
-        0xBB3: 1.060, 0xBB4: 0.974, 0xBB5: 0.985, 0xBB7: 1.303, 0xBB8: 1.243, 0xBB9: 1.574, 0xBBE: 0.680,
-        0xBBF: 0.227, 0xBC0: 0.005, 0xBC1: 0.203, 0xBC2: 0.273, 0xBC6: 0.909, 0xBC7: 0.739, 0xBC8: 1.211,
+        0xB83: 0.795, 0xB85: 1.152, 0xB86: 1.309, 0xB87: 1.054, 0xB88: 0.868, 0xB89: 1.110, 0xB8A: 1.468,
+        0xB8E: 0.802, 0xB8F: 0.850, 0xB90: 0.944, 0xB92: 0.929, 0xB93: 0.936, 0xB95: 0.882, 0xB99: 1.082,
+        0xB9A: 0.809, 0xB9C: 0.948, 0xB9E: 1.110, 0xB9F: 0.799, 0xBA3: 1.688, 0xBA4: 0.867, 0xBA8: 0.817,
+        0xBA9: 1.236, 0xBAA: 0.852, 0xBAE: 0.953, 0xBAF: 1.016, 0xBB0: 0.707, 0xBB1: 0.898, 0xBB2: 1.004,
+        0xBB3: 1.066, 0xBB4: 0.956, 0xBB5: 1.021, 0xBB7: 1.296, 0xBB8: 1.306, 0xBB9: 1.648, 0xBBE: 0.672,
+        0xBBF: 0.227, 0xBC0: 0.005, 0xBC1: 0.203, 0xBC2: 0.273, 0xBC6: 0.891, 0xBC7: 0.731, 0xBC8: 1.221,
         0xBCA: 1.589, 0xBCB: 1.419, 0xBCD: 0.007,
+    ]
+    /// A consonant with a following vowel sign or virama (ீ ு ூ ்) as one cluster, keyed consonant<<8 | low byte of the sign: Word's
+    /// ligature forms (கு, தே...) are not the sum of their parts, and a code-point table was up to 8% off on them. Fit on 2443 distinct words
+    /// of 12 Word prints (mean error 0.57% per word, against 1.25% for code points alone).
+    static let pairs: [UInt32: Double] = [
+        0xB95C0: 0.900, 0xB95C1: 1.058, 0xB95C2: 1.268, 0xB95CD: 0.875, 0xB99CD: 1.072, 0xB9AC0: 0.852,
+        0xB9AC1: 0.938, 0xB9AC2: 1.124, 0xB9ACD: 0.792, 0xB9ECD: 1.152, 0xB9FC1: 1.096, 0xB9FCD: 0.857,
+        0xBA3C1: 1.753, 0xBA3CD: 1.659, 0xBA4C0: 0.875, 0xBA4C1: 1.064, 0xBA4C2: 1.385, 0xBA4CD: 0.859,
+        0xBA8C0: 0.799, 0xBA8C1: 1.067, 0xBA8CD: 0.810, 0xBA9C1: 1.352, 0xBA9C2: 1.562, 0xBA9CD: 1.234,
+        0xBAAC0: 0.860, 0xBAAC1: 0.863, 0xBAAC2: 1.010, 0xBAACD: 0.842, 0xBAEC0: 0.968, 0xBAEC1: 1.229,
+        0xBAEC2: 1.333, 0xBAECD: 0.964, 0xBAFC1: 1.006, 0xBAFCD: 1.040, 0xBB0C1: 1.044, 0xBB0C2: 1.184,
+        0xBB0CD: 0.696, 0xBB1C0: 0.863, 0xBB1C1: 1.129, 0xBB1CD: 0.910, 0xBB2C1: 1.186, 0xBB2CD: 0.997,
+        0xBB3C0: 0.992, 0xBB3C1: 1.373, 0xBB3CD: 1.061, 0xBB4C1: 1.224, 0xBB4CD: 0.974, 0xBB5C0: 1.024,
+        0xBB5C1: 1.014, 0xBB5CD: 1.027, 0xBB8CD: 1.302,
     ]
     static let bold: [UInt32: Double] = [
         0xB85: 1.158, 0xB86: 1.289, 0xB87: 1.169, 0xB8A: 1.317, 0xB8E: 0.822, 0xB92: 1.086, 0xB95: 0.932,
@@ -50,7 +65,15 @@ enum TamilAdvances {
     /// (punctuation, digits, joiners) as the characters not in it.
     static func split(_ word: Substring, bold isBold: Bool, vijaya: Bool = false, leelawadee: Bool = false) -> (ems: Double, known: String, rest: Bool)? {
         var sum = 0.0, known = String.UnicodeScalarView(), rest = false, any = false
-        for u in word.unicodeScalars {
+        let us = Array(word.unicodeScalars)
+        var i = 0
+        while i < us.count {
+            let u = us[i]
+            i += 1
+            if !vijaya, i < us.count, [0xBC0, 0xBC1, 0xBC2, 0xBCD].contains(us[i].value), !(0xBC0...0xBCD).contains(u.value),
+               let w = pairs[u.value << 8 | (us[i].value & 0xFF)] {
+                sum += isBold ? w * 1.06 : w; known.append(u); known.append(us[i]); any = true; i += 1; continue
+            }
             if vijaya, let w = (isBold ? vijayaBold : vijayaRegular)[u.value] { sum += w; known.append(u); any = true; continue }
             let k = vijaya ? 0.793 : 1.0
             if isBold, let w = bold[u.value] { sum += w * k; known.append(u); any = true }

@@ -4564,7 +4564,14 @@ extension RichLayout {
                 let explicitPast = theme.wordRules && RichTextTheme.wordWindowsPages && !pictureTabs && style.alignment == .justify && x < ownLeft + textWidth - 0.5
                     && style.tabStops.contains(where: { $0.alignment == .left && abs(_px($0.position) - stop) < 0.01 })
                 if explicitPast, stop > ownLeft + textWidth + 0.5 { RuleTrace.hit("word-explicit-tab-stop-past-the-margin-takes-no-line") }
-                if !hangsRight, !explicitPast, stop > ownLeft + textWidth + 0.5 + cellRoom {
+                // (A RIGHT stop past the margin, the paragraph ending in the tab: the stop is clamped to the margin, the tab fills
+                // to it and ends the line, no line of its own. xd 6dd1ef35's footer "<tab>2<tab>March 2024<tab>" with a right stop
+                // 226 twips past the margin: one line in Word's print, ours two, 10.4 pt taller, the page's table header pushed
+                // to the next page. The same footer with that stop at or inside the margin, or a left stop, was already one line.)
+                let rightClampedTab = theme.wordRules && RichTextTheme.wordWindowsPages && !pictureTabs && !style.rightToLeft
+                    && style.tabStops.contains(where: { $0.alignment == .right && abs(_px($0.position) - stop) < 0.01 })
+                if rightClampedTab, stop > ownLeft + textWidth + 0.5 + cellRoom { RuleTrace.hit("word-trailing-tab-at-a-right-stop-past-the-margin-takes-no-line") }
+                if !hangsRight, !explicitPast, !rightClampedTab, stop > ownLeft + textWidth + 0.5 + cellRoom {
                     if pictureTabs {
                         var mark = p.style.mark ?? p.runs.first?.style ?? CharStyle()
                         mark.inlineImage = nil
