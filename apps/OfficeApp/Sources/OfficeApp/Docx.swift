@@ -3508,7 +3508,7 @@ enum DocxFormat {
                 // after it one late.)
                 let opensOnItsPage = start > 0 && para.style.sectionXML.flatMap { XNode.parse(Data($0.utf8)) }?
                     .descendant("w:type")?["w:val"] == "continuous"
-                guard para.style.sectionBreaksPage == false || final || opensOnItsPage, let sx = para.style.sectionXML ?? finalColumns,
+                guard !RichTextTheme.sectionColumnsFlow, para.style.sectionBreaksPage == false || final || opensOnItsPage, let sx = para.style.sectionXML ?? finalColumns,
                       let gaps = _sectionColumns(sx, final ? finalPage : para.style.sectionPage), gaps.count > 1,
                       paragraphs[start ... i].allSatisfy({ $0.cell == nil }) else { continue }
                 var columns: [[RichParagraph]] = [[]]
@@ -3598,7 +3598,7 @@ enum DocxFormat {
                 tableColumns[id] = widths
                 var ts = TableStyle()
                 ts.borders = false
-                ts.sectionColumns = true
+                ts.sectionColumns = true; RuleTrace.hit("section-columns-as-row")
                 ts.cellMarginTop = 0; ts.cellMarginLeft = 0; ts.cellMarginBottom = 0; ts.cellMarginRight = 0
                 tableStyles[id] = ts
                 var xml = "", kept: [KeptRel] = []

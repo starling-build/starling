@@ -119,6 +119,10 @@ public final class RichTextTheme {
     /// Word for Mac (OFFICE_WORD_FONTS=windows): an "at least" line that
     /// stands at its minimum ties on the foot as an exact line does.
     public nonisolated(unsafe) static var wordWindowsPages = false
+    /// OFFICE_SECTION_COLUMNS=flow: a multi-column section is laid out as real columns by the
+    /// paginator, not turned into a one-row table by the importer (docs/plans/section-columns.md, P1).
+    /// Off by default; read once.
+    public static let sectionColumnsFlow: Bool = getenv("OFFICE_SECTION_COLUMNS").map { String(cString: $0) == "flow" } ?? false
     /// Taken off every paragraph's line spacing: PowerPoint's shrink-to-fit
     /// reduces the spacing of a whole body (`lnSpcReduction`) without
     /// touching what the paragraphs say — 90% less 20% is 70%, not 72.
