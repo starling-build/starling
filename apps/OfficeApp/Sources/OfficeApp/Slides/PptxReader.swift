@@ -34,6 +34,8 @@ struct PptxPackage: Equatable {
     var parts: [String: Data]
     var overrides: [String: String] = [:]
     var defaults: [String: String] = [:]
+    /// The part names by lower case: PowerPoint finds a part whatever the case of the name a relationship gives.
+    var lowerNames: [String: String] = [:]
 
     static func == (a: PptxPackage, b: PptxPackage) -> Bool { a.parts == b.parts }
 
@@ -41,6 +43,7 @@ struct PptxPackage: Equatable {
         var parts: [String: Data] = [:]
         for e in entries { parts[e.name] = e.data }
         self.parts = parts
+        for name in parts.keys { lowerNames[name.lowercased()] = lowerNames[name.lowercased()] ?? name }
         if let ct = parts["[Content_Types].xml"].flatMap(XNode.parse) {
             for o in ct.all("Override") {
                 if let name = o["PartName"], let type = o["ContentType"] {
@@ -64,8 +67,10 @@ struct PptxPackage: Equatable {
         return root.all("Relationship").compactMap { r in
             guard let id = r["Id"], let type = r["Type"], let target = r["Target"] else { return nil }
             let external = r["TargetMode"] == "External"
-            return PptxRel(id: id, type: type, target: external ? target : Pptx.resolve(target, from: part),
-                           external: external)
+            var resolved = external ? target : Pptx.resolve(target, from: part)
+            // (ppt/Media/image1.png named as ../media/image1.png: ko-68695d7a's slides, all pictures, print blank without it.)
+            if !external, parts[resolved] == nil, let actual = lowerNames[resolved.lowercased()] { resolved = actual }
+            return PptxRel(id: id, type: type, target: resolved, external: external)
         }
     }
 
