@@ -206,6 +206,12 @@ enum SlideFonts {
         case "microsoft yahei": return 536.0 / 2703
         case "malgun gothic", "맑은 고딕": return 495.0 / 2724
         case "simsun", "宋体", "nsimsun", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝", "ms pgothic", "ｍｓ ｐゴシック": return 36.0 / 256
+        case "ms gothic", "ｍｓ ゴシック", "ms ui gothic", "ｍｓ ｕｉ ゴシック", "hgゴシックe", "hgｺﾞｼｯｸe", "hg gothic e", "hg丸ゴシックm-pro", "hg丸ｺﾞｼｯｸm-pro",
+             "hgmarugothicmpro", "hg明朝e", "hg mincho e", "hgp明朝e", "hgp mincho e", "hgp創英角ゴシックub", "hgp創英角ｺﾞｼｯｸub", "hgpsoeikakugothicub": return 288.0 / 2048
+        case "meiryo ui": return 430.0 / 2601
+        case "yu gothic ui": return 514.0 / 2724
+        case "yu gothic light", "游ゴシック light": return 610.0 / 2636
+        case "yu gothic medium", "游ゴシック medium": return 608.0 / 2636
         case "meiryo", "メイリオ": return 1 - 0.847 / 1.2
         case "yu gothic", "游ゴシック": return 1 - 0.921 / 1.2
         default: break
