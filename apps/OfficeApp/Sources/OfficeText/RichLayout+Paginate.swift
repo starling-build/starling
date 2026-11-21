@@ -1595,7 +1595,7 @@ extension RichLayout {
                 // off it, not only the line's top: zh-10eab555's contents
                 // line 17, which would reach into the issuing table, goes
                 // under it — and so to page 3 — in Word's print.)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, !pgs.narrowBands.isEmpty, _cells[pgs.i] == nil, document.paragraphs[pgs.i].image == nil {
+                if theme.wordRules, RichTextTheme.wordWindowsPages, !pgs.narrowBands.isEmpty, _cells[pgs.i] == nil, document.paragraphs[pgs.i].image.map({ $0.float != nil }) ?? true {
                     let q = document.paragraphs[pgs.i]
                     let size = _px(q.runs.first?.style.fontSize ?? theme.fontSize)
                     let opens = q.text.first.map { "（(【《「『〈［｛".contains($0) } ?? false
@@ -1606,10 +1606,15 @@ extension RichLayout {
                     let lineBottoms = Self._lineBottoms(geometry(pgs.i).painter)
                     let step = (lineBottoms.first ?? _heights[pgs.i]) + (geometry(pgs.i).textTop - geometry(pgs.i).top)
                     var guardNarrow = 0
+                    let noGrid = RichTextTheme.wordWindowsPages && _grid(pgs.i, document).pitch == nil
                     while step > 0.5, guardNarrow < 40,
                           let band = pgs.narrowBands.first(where: { $0.owner < pgs.i && $0.top < pgs.y + step - 0.01 && $0.bottom > pgs.y + 0.01 && $0.left - _px(first) < unit }) {
                         RuleTrace.hit("word-line-with-no-room-beside-a-centred-picture-stands-under-it")
-                        pgs.y += max(1, ((band.bottom - pgs.y) / step - 0.001).rounded(.up)) * step
+                        // (Without a line grid Word lands the pushed line exactly at the pictures' foot, not a step of its own height
+                        // past it: dx2 es ebe45609's Símbolos line, 711.70 in Word's print; with a grid the steps stay, 817e3a79.)
+                        if noGrid { pgs.y = max(pgs.y, band.bottom) } else {
+                            pgs.y += max(1, ((band.bottom - pgs.y) / step - 0.001).rounded(.up)) * step
+                        }
                         guardNarrow += 1
                     }
                 }
