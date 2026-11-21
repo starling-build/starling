@@ -2096,7 +2096,8 @@ enum ChartXML {
         if type == .scatter, let categoryAxis { c.scatterXGrid = categoryAxis.first("c:majorGridlines") != nil }
         if type != .scatter, let categoryAxis { c.categoryGrid = categoryAxis.first("c:majorGridlines") != nil }
         if let run = categoryAxis?.first("c:txPr")?.descendant("a:defRPr") {
-            if let sz = run["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 { c.categoryLabelSize = sz / 100 }
+            // (A file that says 12 pt outright keeps it where the chart's plain default is 10: espt-174ab0c2's category names.)
+            if let sz = run["sz"].flatMap(Double.init), sz > 0, (sz != 1200 && sz != 1197) || c.baseTextSize != 12 { c.categoryLabelSize = sz / 100 }
             c.categoryLabelBold = ["1", "true"].contains(run["b"] ?? "")
             if let f = run.first("a:solidFill") { c.categoryLabelColor = color(f) }
         }
