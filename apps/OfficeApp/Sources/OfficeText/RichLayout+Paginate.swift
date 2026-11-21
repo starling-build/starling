@@ -2230,6 +2230,7 @@ extension RichLayout {
                     let textOnly = (document.compatibilityMode ?? 12) >= 15 && st.lineSpacing > 1.001 && st.lineHeightPoints == nil
                     var prev = g.textTop + lift
                     var firstRemaining: Int? = nil
+                    var restartOnNewPage = false
                     for (k, c) in lines.enumerated() {
                         defer { prev = c }
                         if c <= cursor + 0.01 { continue }
@@ -2246,16 +2247,29 @@ extension RichLayout {
                         while let below = probe(back, measure), steps < 20 { back = below; steps += 1 }
                         // (One line left above the picture while the rest goes on to the next page is an orphan, which
                         // widow control forbids: lab pwsplit2 foot r2, the three-line item goes whole to page 2.)
-                        if st.widowControl, !document.widowControlSuspended, pgs.resumeCursor == nil, k - (firstRemaining ?? k) == 1, lines.count >= 3,
-                           back + (lines[lines.count - 1] - lines[k - 1]) > pgs.contentH + 0.01 {
-                            RuleTrace.hit("word-orphan-line-above-a-picture-takes-its-paragraph-to-the-next-page")
-                            _pg_newPage(&pgs, document)
-                            break
+                        // (Lab pwsplit4, compat 15: widow control or keep-lines on, a split that spills lines below the
+                        // picture onto the next page and leaves one line above it, or one line spilled, takes the
+                        // whole paragraph to the next page; keep-lines takes it whole whatever the counts.)
+                        if pgs.resumeCursor == nil {
+                            let above = k - (firstRemaining ?? k)
+                            var fit = 0
+                            for j in k..<lines.count where back + (lines[j] - lines[k - 1]) <= pgs.contentH + 0.01 { fit += 1 }
+                            let spill = lines.count - k - fit
+                            let wc = st.widowControl && !document.widowControlSuspended
+                            if spill > 0, st.keepLines || (wc && (above == 1 || spill == 1 || (above == 0 && lines.count >= 2))) {
+                                RuleTrace.hit("word-widow-or-keep-lines-takes-a-paragraph-parted-by-a-picture-to-the-next-page")
+                                _pg_newPage(&pgs, document)
+                                restartOnNewPage = true
+                                break
+                            }
                         }
                         RuleTrace.hit("word-paragraph-parts-around-a-picture")
                         pgs.floatHold = .init(limit: lineTop + 0.05, back: back, source: .picture)
                         break
                     }
+                    // (The paragraph went whole to the next page: its space before at that page's top goes by the
+                    // page-top rules above, so run the loop again from the top.)
+                    if restartOnNewPage { continue }
                 }
                 let available = (pgs.floatHold?.limit ?? pgs.contentH) - pgs.y
                 let rest = bottom - cursor
