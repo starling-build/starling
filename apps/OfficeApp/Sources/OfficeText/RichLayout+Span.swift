@@ -1852,19 +1852,24 @@ extension RichLayout {
                         // (Lab shadow2, Word's print, Calibri, blur 4 dist 3 at 45 degrees (full reach 8 pt): the line grows by 2.28 pt at 12, 3.72 at 24,
                         // 4.92 at 36, 6.72 at 55, 8.04 at 72, the same for a style's shadow and a direct one, 1.15 spacing multiplying it;
                         // blur 3 dist 1.8 at 55 grows 5.04 = 0.84 of its reach 6. So the reach counts by a fraction of the size, whole from 72 pt.)
-                        let sizes = [0.0, 12, 24, 36, 55, 72], fracs = [0.0, 0.285, 0.465, 0.615, 0.84, 1.0]
-                        var frac = 1.0
-                        if pt < 72, let i = sizes.lastIndex(where: { $0 <= pt }) {
-                            frac = fracs[i] + (fracs[i + 1] - fracs[i]) * (pt - sizes[i]) / (sizes[i + 1] - sizes[i])
-                        }
-                        let above = max(0, sh.blur - sh.dy) * k * frac, below = max(0, sh.blur + sh.dy) * k * frac
+                        let (aboveReach, belowReach) = Self._shadowReach(sh, pt: pt)
+                        let above = aboveReach * k, below = belowReach * k
+                        // (Lab shadow3: when every run of the paragraph is raised, the line takes the whole reach, above and below; see the paragraph pass.)
+                        let allRaised: Bool = {
+                            let u = Array(p.text.utf16); var at = 0
+                            for r in p.runs where r.length > 0 {
+                                defer { at += r.length }
+                                guard at < u.count else { break }
+                                if u[at ..< min(u.count, at + r.length)].contains(where: { $0 > 0x20 }), (r.style.raised ?? 0) == 0 { return false }
+                            }
+                            return true }()
                         let up = s.ascentOverride ?? asc * size, down = (s.descentOverride ?? (line - asc) * size) + above + below
                         // (A raised or lowered run's box takes no line of its own: its shadow's reach above it is carried in the label for the
                         // line pass, `_strut`, which grows the line by it. Lab hdr3 v1 against v2: the body 1.85 pt lower for the shadow on the
                         // raised run alone, the reach 4 - 3 sin 45 = 1.88.)
                         let raisedRun = s.baselineShift != nil
                         s = s.copyWith(baselineShift: (s.baselineShift ?? 0) + above, ascentOverride: up, descentOverride: down, height: (up + down) * max(1, p.style.lineSpacing) / size,
-                                       leadingDistribution: .even, debugLabel: (s.debugLabel ?? "") + (raisedRun ? " shadow-line@\(above)" : " shadow-line"))
+                                       leadingDistribution: .even, debugLabel: (s.debugLabel ?? "") + (raisedRun ? " shadow-line@\(allRaised ? above + below : above)" : " shadow-line"))
                     }
                 }
                 // (A run of tabs alone takes no line of its own in a paragraph of
@@ -6081,5 +6086,17 @@ extension RichLayout {
         for n in names where l.containsSubstring(n) { named1 = true }
         guard named1 else { return false }
         return theme.faceResolver?(name, false)?.fixedHalfLatin == true
+    }
+}
+
+extension RichLayout {
+    /// The reach of a text shadow above and below its run, in points (lab shadow2): the blur radius past the offset, a fraction of it by size.
+    static func _shadowReach(_ sh: CharShadow, pt: Double) -> (above: Double, below: Double) {
+        let sizes = [0.0, 12, 24, 36, 55, 72], fracs = [0.0, 0.285, 0.465, 0.615, 0.84, 1.0]
+        var frac = 1.0
+        if pt < 72, let i = sizes.lastIndex(where: { $0 <= pt }) {
+            frac = fracs[i] + (fracs[i + 1] - fracs[i]) * (pt - sizes[i]) / (sizes[i + 1] - sizes[i])
+        }
+        return (max(0, sh.blur - sh.dy) * frac, max(0, sh.blur + sh.dy) * frac)
     }
 }

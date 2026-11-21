@@ -3838,6 +3838,7 @@ extension RichLayout {
             if metrics.count == bottoms.count, starts.count == metrics.count {
                 var above = [Double](repeating: 0, count: metrics.count), below = above
                 var tallest = [Double](repeating: 0, count: metrics.count)
+                var unraised = [Bool](repeating: false, count: metrics.count)
                 var at = 0
                 let text = Array(p.text.utf16)
                 for run in p.runs where run.length > 0 {
@@ -3847,6 +3848,7 @@ extension RichLayout {
                     guard text[at ..< end].contains(where: { $0 > 0x20 }) else { continue }
                     let line = max(0, (starts.lastIndex(where: { $0 <= at }) ?? 0))
                     tallest[line] = max(tallest[line], run.style.fontSize ?? 0)
+                    if abs(raisedOf(run)) < 0.01 || raisedOf(run) < 0 { unraised[line] = true }
                 }
                 // Lines whose every text run is lowered by one same amount, in a top-aligned paragraph: that amount (px), else 0.
                 var topLine = [Double](repeating: 0, count: metrics.count)
@@ -3894,6 +3896,30 @@ extension RichLayout {
                         if grown > above[line] { RuleTrace.hit("word-top-aligned-lowered-text-line-is-ink-box-plus-lowering"); above[line] = grown }
                         // (The glyphs keep the lowering the text style gives them; they stand `grown` below the unlowered line, so take it back.)
                         glyphAdj[line] = -topLine[line]
+                        continue
+                    }
+                    if pos > 0, !unraised[line] {
+                        // (Lab shadow3, Word's print, Calibri: a line whose every run is raised stands on its baseline alone, so the raise grows it
+                        // only by what passes the descent below the baseline: 12 pt raised 6 pt grows 2.76 (6 - 0.2686 x 12), raised 1 or 3 pt
+                        // nothing, and at 24 and 55 pt raised 6 pt nothing. A shadow's reach below the run counts with the descent.)
+                        RuleTrace.hit("word-a-line-of-raised-runs-only-grows-by-the-raise-past-its-descent")
+                        // (Without a shadow the engine's own line already stands the raised run on its baseline: nothing to add.)
+                        guard run.style.shadow != nil else { continue }
+                        var reachBelow = 0.0, reachAll = 0.0
+                        if let sh = run.style.shadow, !sh.glow, sh.blur > 0 {
+                            let r = Self._shadowReach(sh, pt: run.style.fontSize ?? 0)
+                            reachBelow = r.below * _px(1); reachAll = (r.above + r.below) * _px(1)
+                        }
+                        // (The line's descent holds the shadow's whole reach under the run; the face's own is what is left.)
+                        var descFace = m.descent * ratio - reachAll
+                        do {
+                            var single = style; single.lineSpacing = 1
+                            let fam = run.style.fontFamily ?? _named(p, document)?.char.fontFamily ?? theme.fontFamily
+                            let sz = max(1, run.style.fontSize ?? _named(p, document)?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize)
+                            if let boxEm = theme.winLineBox?(fam),
+                               let b = theme.baseline(for: run.style, in: single, named: _named(p, document), eastAsian: false, gridPitch: nil, centresInLine: false), b / sz < boxEm { descFace = (boxEm - b / sz) * sz * _px(1) }
+                        }
+                        above[line] = max(above[line], pos - descFace - reachBelow)
                         continue
                     }
                     above[line] = max(above[line], m.ascent * ratio + pos - m.ascent)
