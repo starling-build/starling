@@ -246,6 +246,13 @@ enum SlideFonts {
         case "nanumgothic", "나눔고딕": return 198.0 / 1083
         case "nunito", "nunito light", "nunito black": return 300.0 / 1377
         case "baskerville old face": return 531.0 / 2336
+        case "hgpゴシックe", "hgpｺﾞｼｯｸe", "hgpgothice", "hgsゴシックe", "hgsｺﾞｼｯｸe", "hgsgothice", "hg創英角ゴシックub", "hg創英角ｺﾞｼｯｸub", "hgsoeikakugothicub",
+             "hgs創英角ゴシックub", "hgs創英角ｺﾞｼｯｸub", "hgssoeikakugothicub": return 288.0 / 2048
+        case "ud デジタル 教科書体 nk-b", "ud digi kyokasho nk-b", "ud デジタル 教科書体 np-b", "ud digi kyokasho np-b": return 567.0 / 2369
+        case "microsoft jhenghei", "微軟正黑體": return 521.0 / 2724
+        case "tw cen mt": return 477.0 / 2230
+        case "noto sans": return 600.0 / 2789
+        case "comic sans ms": return 597.0 / 2854
         case "meiryo ui": return 430.0 / 2601
         case "yu gothic ui": return 514.0 / 2724
         case "yu gothic light", "游ゴシック light": return 610.0 / 2636
