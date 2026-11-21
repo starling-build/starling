@@ -1728,7 +1728,7 @@ extension RichLayout {
                         } else if bottoms[k] - saved > band.top + 0.01, before - saved < band.bottom - 0.01 {
                             next.append(LineIndent(left: 0, right: max(textWidth - (_besideLeftAt[i]?(before - saved, bottoms[k] - saved) ?? leftRoom), 0)))
                             if k + 1 < bottoms.count {
-                                next.append(LineIndent(left: besideIndent, right: 0))
+                                next.append(LineIndent(left: _besideStartAt[i]?(before - saved, bottoms[k] - saved) ?? besideIndent, right: 0))
                                 saved += min(bottoms[k + 1] - bottoms[k], bottoms[k] - before)
                             }
                             k += 2

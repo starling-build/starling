@@ -1729,6 +1729,16 @@ public final class RichLayout {
         }
         return m == .infinity ? nil : m
     }
+    /// The outline's rightmost x (a fraction of the picture's width) over rows ya...yb, or nil if none lie there.
+    static func _outlineMaxX(_ poly: [WrapPoint], _ ya: Double, _ yb: Double) -> Double? {
+        var m = -Double.infinity
+        for k in 0 ..< poly.count {
+            let p0 = poly[k], p1 = poly[(k + 1) % poly.count]
+            if p0.y >= ya, p0.y <= yb { m = max(m, p0.x) }
+            for yy in [ya, yb] where (p0.y - yy) * (p1.y - yy) < 0 { m = max(m, p0.x + (p1.x - p0.x) * (yy - p0.y) / (p1.y - p0.y)) }
+        }
+        return m == -Double.infinity ? nil : m
+    }
     var _stripPassing = false
     var _besideSeq: [Int: [ColWrapBox]] = [:]
     /// A table floating by the text whose room above it (`w:topFromText`) reaches the text
@@ -1770,6 +1780,8 @@ public final class RichLayout {
     /// The same for a picture at the right: the indent a line spanning (top, bottom) takes from the column's right.
     var _besideRightAt: [Int: (Double, Double) -> Double] = [:]
     var _besideLeftAt: [Int: (Double, Double) -> Double] = [:]
+    /// The right piece of a line beside a tight picture starts at the outline's rightmost edge over the line's rows (indent from the column's edge).
+    var _besideStartAt: [Int: (Double, Double) -> Double] = [:]
     var _besideBoxes: [Int: [(top: Double, bottom: Double, left: Double, right: Double)]] = [:]
     /// A box standing at the line start of a paragraph whose other box is at its right: how far its lines start in, and its band.
     var _besideStartLeft: [Int: (indent: Double, band: (top: Double, bottom: Double))] = [:]
