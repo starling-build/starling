@@ -755,11 +755,12 @@ enum WriterMath {
                 // (Cambria Math, beside: the superscript's baseline 460/2048 em under the
                 // sign's top, the subscript's 320/2048 em under its foot; zh-c2c92639's
                 // sums at 10.6pt: 10.7 up, 8.7 down.)
-                // (The inline sign: its limits' baselines 0.349 em over and 0.292 em under the line,
-                // read from zh-c2c92639's inline sum in Word's print: the face's 0.70 em
-                // ink top less 0.35, the 0.21 em it hangs plus 0.08.)
+                // (The inline sign: its limits' baselines 0.44 em over and 0.195 em under the equation
+                // baseline, fitted to lab frac4 (compat 12, 10.5pt sum: limits about 0.40 em over and
+                // 0.24 em under the text baseline, which ours' equation baseline sits 0.3pt under).
+                // The earlier pair was swapped.)
                 let fixed: (Double, Double)? = big ? (op.ascent - s * 0.282, op.descent + s * 0.222)
-                    : chr == "\u{2211}" ? (s * 0.292, s * 0.359)
+                    : chr == "\u{2211}" ? (s * 0.44, s * 0.195)
                     // (A display integral's limits, beside the sign: jpn-z22855378-6fca0f's ∬ at 14pt in
                     // Word's print has the upper limit's baseline 16.0pt over the line and the lower's
                     // 13.3pt under it, at 10pt; the stand-in's default put them 12.1 and 7.1.)
