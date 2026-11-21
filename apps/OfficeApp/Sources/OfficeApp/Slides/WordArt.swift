@@ -132,6 +132,8 @@ enum WordArt {
         var color = Color(0xFF000000)
         /// The font family the glyph was asked for (a slide's circle text stands in from its metrics).
         var face = ""
+        /// The pair kerning between this glyph and the next one of its run (negative closes up).
+        var kernAfter = 0.0
         var width: Double { advance ?? painter.width }
     }
 
@@ -217,6 +219,11 @@ enum WordArt {
                     defer { offset += String(ch).utf16.count }
                     guard ch != "\n" else { continue }
                     line.glyphs.append(_glyph(String(ch), base, look(at: offset), family: run.style.fontFamily))
+                }
+                // PowerPoint kerns a run by its `kern` size where it says one, every pair where it says none.
+                if run.style.kerningFrom.map({ $0 > 0 && (base.fontSize ?? 0) / scale >= $0 }) ?? true, text.count > 1 {
+                    let n = line.glyphs.count, m = min(n, text.filter { $0 != "\n" }.count)
+                    if m > 1 { for j in (n - m) ..< (n - 1) { line.glyphs[j].kernAfter = _pairKern(line.glyphs[j], line.glyphs[j + 1]) } }
                 }
             }
             // A wrapping box trims the spaces that end a line (lab wordart-fit2: "Happy "
@@ -362,6 +369,16 @@ enum WordArt {
 
     /// One character as WordArt measures and draws it: at `base`'s face and
     /// size on a line one em high.
+    /// What the font's kerning takes off the advance of `a` before `b`, from shaping the two together.
+    private static func _pairKern(_ a: Glyph, _ b: Glyph) -> Double {
+        guard a.width > 0, b.width > 0, a.advance == nil, b.advance == nil, a.text != " ", b.text != " " else { return 0 }
+        let fill = Paint(); fill.style = .fill
+        let tp = TextPainter(text: TextSpan(text: a.text + b.text, style: a.style(fill)), textDirection: .ltr)
+        tp.layout(minWidth: 0, maxWidth: Double.infinity)
+        let k = tp.width - a.painter.width - b.painter.width
+        return abs(k) < 1e-6 ? 0 : k
+    }
+
     private static func _glyph(_ ch: String, _ base: Flutter.TextStyle, _ look: RunLook?, family: String? = nil) -> Glyph {
         func style(_ paint: Paint) -> Flutter.TextStyle {
             Flutter.TextStyle(fontSize: base.fontSize, fontWeight: base.fontWeight, fontStyle: base.fontStyle, letterSpacing: base.letterSpacing, height: 1.0,
@@ -1051,7 +1068,7 @@ enum WordArt {
                 }
                 return (pts, lens)
             }
-            let widest = lines.map(\.width).max() ?? 0
+            let widest = lines.map { $0.glyphs.reduce(0) { $0 + $1.width + $1.kernAfter } }.max() ?? 0
             let path0 = curve(0).lens[steps]
             guard widest > 0, path0 > 0 else { return }
             let f = min(1, path0 / widest)
@@ -1063,7 +1080,7 @@ enum WordArt {
                 let inset: Double = SheetPrintMetrics.descent(family: face).flatMap { d in SheetPrintMetrics.ascent(family: face).map { 0.418 - 1.2 * d / ($0 + d) } } ?? 0.19
                 let (pts, lens) = curve(1.2 * Double(ring) * size * f)
                 let total = lens[steps]
-                let w = l.width * f
+                let w = l.glyphs.reduce(0) { $0 + $1.width + $1.kernAfter } * f
                 var s0 = 0.0
                 if l.alignment == .center {
                     // the path's middle, by parameter
@@ -1087,7 +1104,7 @@ enum WordArt {
                 for g in l.glyphs {
                     let adv = g.width * f
                     let (p, t) = at(s + adv / 2)
-                    s += adv
+                    s += adv + g.kernAfter * f
                     guard g.width > 0 else { continue }
                     let n = Offset(t.dy, -t.dx)
                     let q = Offset(p.dx - n.dx * inset * size * f, p.dy - n.dy * inset * size * f)
