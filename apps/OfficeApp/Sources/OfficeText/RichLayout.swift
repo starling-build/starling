@@ -941,7 +941,11 @@ public final class RichTextTheme {
                 : scriptSizeWholeUp ? (size * 0.65 - 1e-6).rounded(.up) * widen * pixelsPerPoint * scale
                 : jpScript ? jpScriptPt * widen * pixelsPerPoint * scale
                 : malgunScript ? malgunScriptPt * widen * pixelsPerPoint * scale
-                : meiryoScript ? (size * 0.65 * 2 - 1e-6).rounded(.up) / 2 * widen * pixelsPerPoint * scale : px * scriptRatio,
+                : meiryoScript ? (size * 0.65 * 2 - 1e-6).rounded(.up) / 2 * widen * pixelsPerPoint * scale
+                // (A Latin script run is two thirds of the size in half points, cut to a whole half point: 8pt Arial prints 5.0, not 5.2;
+                // lo/dx2 99cfc555's "600C" kept "phút" on the line it did not fit.)
+                : scriptRatio == 0.65 && wordRules && RichTextTheme.wordWindowsPages ? (size * 2 * 2 / 3 + 1e-6).rounded(.down) / 2 * widen * pixelsPerPoint * scale
+                : px * scriptRatio,
             fontWeight: bold ? .bold : .normal,
             fontStyle: italic ? .italic : .normal,
             letterSpacing: {

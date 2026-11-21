@@ -1507,7 +1507,10 @@ extension RichLayout {
         // stood half its tab — 101pt — right of Word's.)
         var leadTab = false
         if theme.markersAtHang || theme.wordRules, p.text.utf16.first == 0x09, let e = tabs[0], e != 0 {
-            lead += e
+            // (A leading tab that carries a right stop to the margin: the tab's own width and the text after it
+            // add up to the line's width exactly, and a rounding error in the sum sent the page number to a second
+            // line. lo/dx2 99cfc555's even header, "<tab>2", stop at the margin; Word sets it on one line.)
+            lead += theme.wordRules && lead + e > textWidth * 0.9 ? e - 0.01 : e
             tabs[0] = nil
             _leadWidth[i] = lead
             leadTab = true
