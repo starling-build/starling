@@ -70,7 +70,7 @@ extension RichLayout {
                 sides = (left: sides.right + max(0, -first), right: sides.left + first)
             }
         }
-        let ownLeft = listLeft.map { _px($0) } ?? _px(sides.left)
+        var ownLeft = listLeft.map { _px($0) } ?? _px(sides.left)
         var left = wordList != nil ? ownLeft
             : ownLeft + (style.list != nil ? _px(_listIndents(p, document)?.left ?? theme.listIndent * Double(style.listLevel + 1)) : 0)
         var right = _px(sides.right)
@@ -80,8 +80,8 @@ extension RichLayout {
         // of start 170.1 and hanging 56.7, ends 170.1pt short of the right
         // margin with its bullet 56.7 further in, in Word's print; ours set
         // the bullet 113 in from the left and the text against the margin.)
-        if theme.wordRules, RichTextTheme.wordWindowsPages, style.rightToLeft, p.cell == nil, !_mirrored.contains(i) {
-            swap(&left, &right)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, style.rightToLeft, !_mirrored.contains(i) {
+            swap(&left, &right); if p.cell != nil { ownLeft = left }
         }
         if style.bulletAtEnd, style.list != nil { swap(&left, &right) }
         var width = _flowWidth(i)

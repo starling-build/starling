@@ -1571,7 +1571,7 @@ extension RichLayout {
                 }
                 // (A right-to-left paragraph's number stands at its right: its right edge
                 // is the first line's start, the text's right edge and the hang.)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.rightToLeft, p.cell == nil, !_mirrored.contains(i) {
+                if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.rightToLeft, !_mirrored.contains(i) {
                     at = g.textLeft + g.textWidth - _px(wl.first) - marker.width
                     marker.paint(canvas, Offset(at, g.inkTop))
                     marker.dispose()
