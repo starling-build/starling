@@ -3733,6 +3733,19 @@ private struct SlideContext {
                             continue
                         }
                     }
+                    if piece.script == nil, utf16[at ..< at + piece.length].contains(0x3000), utf16[at ..< at + piece.length].allSatisfy({ $0 == 0x3000 || $0 == 0x20 }) {
+                        // An ideographic space is East Asian wherever it stands, also in a run of spaces alone
+                        // (505a93a9 p1: 30 of them ahead of 西部教育事務所, 0.664 em of MS PGothic each, not a full em).
+                        var m = at
+                        while m < at + piece.length {
+                            var e = m + 1
+                            while e < at + piece.length, (utf16[e] == 0x3000) == (utf16[m] == 0x3000) { e += 1 }
+                            split.append((e - m, utf16[m] == 0x3000 ? "ea" : nil))
+                            m = e
+                        }
+                        at += piece.length
+                        continue
+                    }
                     split.append(piece)
                     at += piece.length
                 }
