@@ -7894,14 +7894,15 @@ enum DocxFormat {
                 let complex = complexSize || tamilOnly
                 let indicOnly = !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A }
                     && runText.unicodeScalars.contains { (0x0900...0x0B7F).contains($0.value) }
+                let rtlLettersOnly = !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A } && runText.unicodeScalars.contains { (0x0590...0x05FF).contains($0.value) || (0x0600...0x06FF).contains($0.value) }
                 // (Not the Hyperlink character style inside a table of contents:
                 // Word prints its entries in the TOC paragraph's own look, black
                 // and plain, whatever the runs name.)
                 let inContents = notes.fields.contains { $0.instr.uppercased().trimmingWhitespace(newlines: true).hasPrefix("TOC") }
                 if let id = rPr.first("w:rStyle")?["w:val"], let chain = notes.charStyleChains[id], !(inContents && id.lowercased() == "hyperlink") {
-                    for styled in chain { cs = _charStyle(styled, base: cs, complexText: complex, complexSize: complexSize, indicOnly: indicOnly) }
+                    for styled in chain { cs = _charStyle(styled, base: cs, complexText: complex, complexSize: complexSize, indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly) }
                 }
-                cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize, indicOnly: indicOnly)
+                cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize, indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly)
                 // (Only a webHidden run in a header or footer, or any body run, as in a contents list: the PAGE results of the footers of 7d58f74e, b9164bf3 and fcd0d58c, with just rtl, stay complex and print in Arial.)
                 // (A run of ASCII digits flagged w:rtl with no szCs or cs font of its own is a plain Latin run to Word: 47480880's PAGEREF results.)
                 // (Arabic: the same for a PAGE result in a footer, whose face is the style's ascii one at the szCs: xb ara-z5177238's "2" under cs Simplified Arabic, an installed face, is Times New Roman 14.04 in two Word prints, sz 12 / szCs 14.)
@@ -9097,7 +9098,7 @@ enum DocxFormat {
         if took.contains("color"), named.color != nil || named.off.contains(.autoColor) { cell.color = nil }
     }
 
-    private static func _charStyle(_ rPr: XNode, base: CharStyle, complexText: Bool? = nil, complexSize: Bool? = nil, indicOnly: Bool = false) -> CharStyle {
+    private static func _charStyle(_ rPr: XNode, base: CharStyle, complexText: Bool? = nil, complexSize: Bool? = nil, indicOnly: Bool = false, rtlLettersOnly: Bool = false) -> CharStyle {
         var cs = base
         // Complex-script bold, italic and size (w:bCs, w:iCs, w:szCs) are
         // what a right-to-left run is set in; rtl.docx's Arabic headings
@@ -9252,7 +9253,9 @@ enum DocxFormat {
             if let b = bCs { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }
             // (A run of Devanagari, Bengali, Gurmukhi or Gujarati letters only that carries the w:cs flag and states b with no bCs keeps the weight it inherited (a run without the flag, as in xd 77d6ca49's Nirmala UI, is bold): Word
             // prints dx2-class xd 745490897f9f's bold-marked Kokila words in regular Kokila.)
-            else if indicOnly, cs.bold, sawB ? !base.bold : cs.boldWithoutBCs, _on(rPr.first("w:cs")) { cs.bold = false; if base.off.contains(.bold) { cs.off.insert(.bold) } else { cs.off.remove(.bold) } }
+            // (A Hebrew or Arabic run of letters only, w:rtl with w:b and no bCs, is regular as well: xd 7d58f74e's Arial Hebrew paragraph, b without bCs, prints in ArialMT
+            // at 11 pt, the words 2 pt narrower than our bold and a line one word shorter.)
+            else if (indicOnly && _on(rPr.first("w:cs"))) || (rtlLettersOnly && _on(rPr.first("w:rtl"))), cs.bold, sawB ? !base.bold : cs.boldWithoutBCs { cs.bold = false; if base.off.contains(.bold) { cs.off.insert(.bold) } else { cs.off.remove(.bold) } }
             if !sawI, let i = iCs { cs.italic = i; if i { cs.off.remove(.italic) } else { cs.off.insert(.italic) } }
             // (The same for the slant: dx2 f0001d05's w:i + w:cs Kokila words (no iCs) print in upright Kokila, the face's regular widths.)
             else if indicOnly, sawI, iCs == nil, cs.italic, !base.italic, _on(rPr.first("w:cs")) { cs.italic = false; if base.off.contains(.italic) { cs.off.insert(.italic) } else { cs.off.remove(.italic) } }
