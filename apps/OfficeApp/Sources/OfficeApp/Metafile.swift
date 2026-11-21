@@ -41,6 +41,11 @@ final class Metafile {
         var align: Int
         /// Clockwise, radians.
         var angle: Double
+        /// The baseline's drop below the run's reference point (top aligned, positive) or its rise above it
+        /// (bottom aligned, negative), from Windows' whole-pixel ascent or descent, where GDI's table has the face.
+        var baselineDrop: Double? = nil
+        /// One device pixel in output units, where the face is not in GDI's table: its own ascent (descent) is rounded to whole pixels.
+        var pixel: Double? = nil
 
         /// Its style in `color`, set in `family` — with the documents'
         /// fallback faces: tika-3388's icon caption, "約翰的測試文件" in
@@ -155,8 +160,14 @@ final class Metafile {
                                      textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
                 let dx = run.align & 6 == 6 ? -tp.width / 2 : run.align & 6 == 2 ? -tp.width : 0
-                let dy = run.align & 24 == 24 ? -tp.computeDistanceToActualBaseline(.alphabetic)
-                    : run.align & 24 == 8 ? -tp.height : 0
+                let base = tp.computeDistanceToActualBaseline(.alphabetic)
+                var drop = run.baselineDrop
+                if drop == nil, let px = run.pixel, px > 0, run.align & 24 != 24 {
+                    drop = run.align & 24 == 8 ? -((tp.height - base) / px).rounded() * px : (base / px).rounded() * px
+                }
+                let dy = run.align & 24 == 24 ? -base
+                    : run.align & 24 == 8 ? (drop.map { $0 - base } ?? -tp.height)
+                    : (drop.map { $0 - base } ?? 0)
                 canvas.save()
                 canvas.translate(run.at.dx, run.at.dy)
                 if run.angle != 0 { canvas.rotate(run.angle) }
@@ -427,10 +438,21 @@ private struct Player {
             steps.append(.fill(disc, dc.textColor))
             return
         }
+        // (Word's print of an EMF's text: a top-aligned run's baseline is the record's y plus Windows' whole-pixel ascent for the
+        // font at the picture's own pixel size, a bottom-aligned one's the y less the pixel descent; ours was the face's own
+        // unrounded ascent, a whole pixel off either way. sa1 58f4b75d and its kin; metrics from GDI GetTextMetrics.)
+        var drop: Double? = nil, pixel: Double? = nil
+        if !isWMF, dc.textAlign & 24 != 24, dc.font.escapement == 0, abs(turn) < 1e-9, RichTextTheme.wordWindowsPages {
+            let ky = dc.scales && dc.winExt.height != 0 ? abs(dc.vpExt.height / dc.winExt.height) : 1
+            let px = Int((h * ky).rounded())
+            if ky > 0, let m = MetafileGDIMetrics.metrics(face: dc.font.face, bold: dc.font.bold, height: px) {
+                drop = Double(dc.textAlign & 24 == 8 ? -m.descent : m.ascent) * scaleY / ky
+            } else if ky > 0 { pixel = scaleY / ky }
+        }
         steps.append(.text(Metafile.TextRun(
             text: shown, at: map(ref), size: size, face: dc.font.face, bold: dc.font.bold, italic: dc.font.italic,
             underline: dc.font.underline, color: dc.textColor, align: dc.textAlign,
-            angle: turn - dc.font.escapement / 10 * .pi / 180)))
+            angle: turn - dc.font.escapement / 10 * .pi / 180, baselineDrop: drop, pixel: pixel)))
     }
 
     /// Text in a symbol face as the Unicode glyphs it shows: the bullets,
