@@ -1635,6 +1635,13 @@ extension RichLayout {
                 }
                 out[k] -= room; over -= room
             }
+            // (Every column down to its narrowest content and the room still short: all are scaled by one
+            // factor to the room, as for twip cells, lab pctfit: sa2 be63fe36's eleven columns, narrowest
+            // 44/47/39/34/46/43/44/46/44/44/55 pt in 482.8, are 43.7/47.0/39.0/34.5/45.3/42.5/44.2/45.5/43.3/43.5/54.3.)
+            if over > 0.5, out.indices.allSatisfy({ out[$0] <= narrow[$0] + 0.01 }) {
+                let sum = out.reduce(0, +)
+                if sum > 0 { out = out.map { $0 * total / sum }; over = 0 }
+            }
             if over <= 0.5 {
                 RuleTrace.hit("pct-cells-over-100-last-columns-first")
                 return out.indices.map { out[$0] <= narrow[$0] + 0.01 ? out[$0].rounded(.up) : out[$0].rounded(.down) }
