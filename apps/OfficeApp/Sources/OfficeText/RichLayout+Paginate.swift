@@ -2591,6 +2591,12 @@ extension RichLayout {
                 if same, let lay = _columnNoteLayout(phys, ids, document) {
                     for (c, h) in lay.colHeights.enumerated() where h > 0 { needed[phys * _columns + c] = h + lay.separator }
                 }
+                // (A page of sections that differ holds its notes' room off every column too: the notes stand
+                // at the page's foot whole, so a line that would cross their rule goes on. sa1 978697fd's page 5,
+                // a one-line note at 702pt, parts "Para el 2013" whole to page 6 in Word's print.)
+                else if !same, theme.wordRules, let lay = _columnNoteLayout(phys, ids, document), lay.height > 0 {
+                    for c in 0 ..< _columns { needed[phys * _columns + c] = lay.height + lay.separator }
+                }
             }
             // (Shortening a column moves marks, and with them notes, to
             // other columns, so the rooms can chase each other; from the

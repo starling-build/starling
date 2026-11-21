@@ -2382,7 +2382,7 @@ extension RichLayout {
         // as wide as they came out: a contents line typed with its own
         // dots takes its page number by what its commas give.)
         var fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs, leftTabs: leftTabs, runsPast: runsPast, beyond: beyond, tieShort: tieShort,
-                                     lineIndents: besideLeftRoom != nil || _besideRightAt[i] != nil || _setup(ofParagraph: i).headerWrapLeft > 0 || !(colWrapBoxes?.isEmpty ?? true) ? besideLineIndents : [])
+                                     lineIndents: besideLeftRoom != nil || _besideRightAt[i] != nil || (theme.wordRules && besideLineIndents.contains(where: { $0.right > 0 })) || _setup(ofParagraph: i).headerWrapLeft > 0 || !(colWrapBoxes?.isEmpty ?? true) ? besideLineIndents : [])
         if !fit.isEmpty {
             painter.dispose()
             painter = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit, held: tabsHeld).0)
@@ -3989,7 +3989,7 @@ extension RichLayout {
                 let x: Double
                 switch float.horizontalAlign {
                 case "center": x = (column - w) / 2
-                case "right", "outside": x = column - w
+                case "right", "outside": x = column - w - (theme.wordRules && float.horizontalAlign == "right" ? _px(float.effectRight) : 0)
                 case "left", "inside": x = 0
                 default: x = _px(float.x) - (float.horizontalFrom == "page" ? _px(frameMargins.left) : 0)
                 }

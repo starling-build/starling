@@ -472,7 +472,7 @@ extension RichLayout {
                         let x0: Double
                         switch float.horizontalAlign {
                         case "center": x0 = left + (across - w) / 2
-                        case "right": x0 = left + across - w
+                        case "right": x0 = left + across - w - (theme.wordRules && float.wraps ? _px(float.effectRight) : 0)
                         case "left": x0 = left
                         default: x0 = left + _px(float.x)
                         }
@@ -516,7 +516,7 @@ extension RichLayout {
                                 let x0: Double
                                 switch float.horizontalAlign {
                                 case "center": x0 = left + (across - w) / 2
-                                case "right": x0 = left + across - w
+                                case "right": x0 = left + across - w - (theme.wordRules && float.wraps ? _px(float.effectRight) : 0)
                                 case "left": x0 = left
                                 default: x0 = left + _px(float.x)
                                 }
