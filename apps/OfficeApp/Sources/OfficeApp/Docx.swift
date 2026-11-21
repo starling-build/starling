@@ -4713,6 +4713,58 @@ enum DocxFormat {
     }
 
     /// A lone VML shape's text rectangle, as fractions of its box: its
+    /// The four numbers of a `textboxrect` that names `v:formulas` entries (`@n`) or handles (`#n`), read
+    /// through the type's formulas (`val sum prod mid abs min max sqrt if`) with the shape's `adj` over the type's.
+    static func _vmlFormulaRect(_ raw: String, type: XNode, shape: XNode, coord: (Double, Double)) -> [Double]? {
+        let adjRaw = (shape["adj"] ?? "").split(separator: ",", omittingEmptySubsequences: false)
+        let typeAdj = (type["adj"] ?? "").split(separator: ",", omittingEmptySubsequences: false)
+        var adjs: [Double] = []
+        for i in 0..<max(adjRaw.count, typeAdj.count) {
+            let a = i < adjRaw.count ? Double(adjRaw[i].trimmingWhitespace()) : nil
+            let t = i < typeAdj.count ? Double(typeAdj[i].trimmingWhitespace()) : nil
+            adjs.append(a ?? t ?? 0)
+        }
+        let eqns = (type.first("v:formulas")?.all("v:f") ?? []).compactMap { $0["eqn"] }
+        var memo: [Int: Double] = [:]
+        func arg(_ t: String, _ depth: Int) -> Double? {
+            let t = t.trimmingWhitespace()
+            if let d = Double(t) { return d }
+            if t == "width" { return coord.0 }
+            if t == "height" { return coord.1 }
+            if t == "xcenter" { return coord.0 / 2 }
+            if t == "ycenter" { return coord.1 / 2 }
+            if t.hasPrefix("#"), let i = Int(t.dropFirst()), i < adjs.count { return adjs[i] }
+            if t.hasPrefix("@"), let i = Int(t.dropFirst()), i < eqns.count, depth < 12 { return eval(i, depth + 1) }
+            return nil
+        }
+        func eval(_ i: Int, _ depth: Int) -> Double? {
+            if let m = memo[i] { return m }
+            let parts = eqns[i].split(separator: " ").map(String.init)
+            guard let op = parts.first else { return nil }
+            let a = parts.dropFirst().map { arg($0, depth) }
+            if a.contains(where: { $0 == nil }) { return nil }
+            let x = a.map { $0! }
+            var r: Double?
+            switch op {
+            case "val" where x.count == 1: r = x[0]
+            case "sum" where x.count == 3: r = x[0] + x[1] - x[2]
+            case "prod" where x.count == 3: r = x[2] == 0 ? nil : x[0] * x[1] / x[2]
+            case "mid" where x.count == 2: r = (x[0] + x[1]) / 2
+            case "abs" where x.count == 1: r = Swift.abs(x[0])
+            case "min" where x.count == 2: r = Swift.min(x[0], x[1])
+            case "max" where x.count == 2: r = Swift.max(x[0], x[1])
+            case "sqrt" where x.count == 1: r = x[0] >= 0 ? x[0].squareRoot() : nil
+            case "if" where x.count == 3: r = x[0] > 0 ? x[1] : x[2]
+            default: r = nil
+            }
+            if let r { memo[i] = r }
+            return r
+        }
+        let vals = raw.split(separator: ",").map { arg(String($0), 0) }
+        guard vals.count == 4, !vals.contains(where: { $0 == nil }) else { return nil }
+        return vals.map { $0! }
+    }
+
     /// `v:shapetype`'s `textboxrect` (among `types`, by id) where that
     /// is plain numbers, else VML's own for the type (`o:spt`) — nil for
     /// a rectangle or a type not known here. The rounded ones inset by
@@ -4728,8 +4780,12 @@ enum DocxFormat {
         let typeId = shape["type"].map { $0.hasPrefix("#") ? String($0.dropFirst()) : $0 }
         if let id = typeId, let type = types.first(where: { $0["id"] == id }),
            let raw = type.first("v:path")?["textboxrect"]?.split(separator: ";").first {
-            let v = raw.split(separator: ",").compactMap { Double($0.trimmingWhitespace()) }
             let cs = (type["coordsize"] ?? "21600,21600").split(separator: ",").compactMap { Double($0.trimmingWhitespace()) }
+            var v = raw.split(separator: ",").compactMap { Double($0.trimmingWhitespace()) }
+            if v.count != 4, cs.count == 2 {
+                // (A textboxrect named by the type's formulas, as the right arrow's `0,@1,@6,@2`.)
+                v = Self._vmlFormulaRect(String(raw), type: type, shape: shape, coord: (cs[0], cs[1])) ?? v
+            }
             guard v.count == 4, cs.count == 2, cs[0] > 0, cs[1] > 0, v[2] > v[0], v[3] > v[1] else { return nil }
             return Rect.fromLTRB(v[0] / cs[0], v[1] / cs[1], v[2] / cs[0], v[3] / cs[1])
         }
