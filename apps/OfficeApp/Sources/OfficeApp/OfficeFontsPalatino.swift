@@ -544,20 +544,11 @@ extension OfficeFonts {
         0x2026: 1.0000, 0x2030: 1.0000, 0x2039: 0.3330, 0x203A: 0.3330, 0x20AC: 0.5000, 0x2116: 1.0864,
         0x2122: 0.9980,
     ]
-    /// A character a face lacks is measured, and drawn, in the face Word falls back to: the stand-in's own glyph
-    /// fallback draws it (the sans that stands in for Segoe UI), these are the widths it has in Word's print.
-    /// (Palatino Linotype has no U+04D4/04D5, the Ossetic Ae and ae: dx2 00f02cff's print draws them in Segoe UI.)
-    static let segoeUIFallbackOther: [UInt32: Double] = [0x4D4: 0.8604, 0x4D5: 0.8320]
-    static let segoeUIFallbackBoldOther: [UInt32: Double] = [0x4D4: 0.9351, 0x4D5: 0.8281]
-    /// A face's own table, with the fallback's widths for the code points it has none for.
-    static func fillingMissing(_ own: [UInt32: Double], from fallback: [UInt32: Double]) -> [UInt32: Double] {
-        own.merging(fallback) { a, _ in a }
-    }
     static func applyPalatinoLinotype(to face: inout RichResolvedFace) {
         face.advances = palatino_linotypeAdv
-        face.otherAdvances = fillingMissing(palatino_linotypeOther, from: segoeUIFallbackOther)
+        face.otherAdvances = palatino_linotypeOther; face.completeCoverage = true
         face.boldAdvances = palatino_linotypeBoldAdv
-        face.boldOtherAdvances = fillingMissing(palatino_linotypeBoldOther, from: segoeUIFallbackBoldOther)
+        face.boldOtherAdvances = palatino_linotypeBoldOther
         face.italicAdvances = palatino_linotypeItalicAdv
         face.italicOtherAdvances = palatino_linotypeItalicOther
         face.boldItalicOtherAdvances = palatino_linotypeBoldItalicOther

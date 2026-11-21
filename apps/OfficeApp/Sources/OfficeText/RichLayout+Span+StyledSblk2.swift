@@ -127,6 +127,13 @@ extension _StyledFrame {
         let w = kerns && following != nil ? _pairAdvance(s, ch, following!) : _glyphWidth(s, ch)
         let g = grid * theme.pixelsPerPoint * scale
         if g > 0, w > 0 { extra += (w / g).rounded() * g - w }
+    } else if !ea, theme.wordRules, RichTextTheme.wordWindowsPages, ch.unicodeScalars.count == 1, let u = ch.unicodeScalars.first?.value, u >= 0x180,
+              let own = latinFace, own.completeCoverage, own.otherAdvances?[u] == nil,
+              let fbName = RichResolvedFace._scriptFallbackFace(u, sans: own.sansClass),
+              let fw = ScriptFallbackWidths.table(fbName, bold: style(kind).fontWeight == .bold)?[u] {
+        // (A character the face lacks is drawn, and measured, in the face Word falls back to for its script.)
+        RuleTrace.hit("missing-character-takes-script-fallback-face-width")
+        extra += fw * em - _glyphWidth(style(kind), ch)
     } else if !ea, !nbspHAnsi, let u = ch.unicodeScalars.first?.value,
               let face = (u >= 0x80 && highFace?.otherAdvances?[u] != nil ? highFace : nil) ?? latinFace, face.otherAdvances != nil,
               // (A letter with its marks, where the table has each:
