@@ -408,7 +408,7 @@ extension RichLayout {
             if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, !emptyBidiOwnLine, p.style.list == nil, p.style.lineHeightPoints == nil,
                mark.rightToLeft, look.ascentOverride == nil, let px = look.fontSize, px > 0.5,
                case let cs = mark.complexFontFamily ?? markNamed?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily,
-               let f = theme.complexFace(cs, latin: mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily, letters: true), f.arialStandIn || cs?.trimmingWhitespace().lowercased() == "arial" {
+               let f = theme.complexFace(cs, latin: mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily, letters: true), f.arialStandIn {
                 RuleTrace.hit("word-empty-mark-arial-stand-in-keeps-arials-line")
                 let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
                 let sp = Self._multipleSplit(ascent: 0.905, descent: 1.149 - 0.905, multiple: multiple)

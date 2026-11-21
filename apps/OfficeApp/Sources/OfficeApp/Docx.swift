@@ -7894,7 +7894,7 @@ enum DocxFormat {
                 let complex = complexSize || tamilOnly
                 let indicOnly = !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A }
                     && runText.unicodeScalars.contains { (0x0900...0x0B7F).contains($0.value) }
-                let rtlLettersOnly = !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A } && runText.unicodeScalars.contains { (0x0590...0x05FF).contains($0.value) || (0x0600...0x06FF).contains($0.value) }
+                let rtlLettersOnly = !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A } && runText.unicodeScalars.contains { (0x0590...0x05FF).contains($0.value) }
                 // (Not the Hyperlink character style inside a table of contents:
                 // Word prints its entries in the TOC paragraph's own look, black
                 // and plain, whatever the runs name.)
