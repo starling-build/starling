@@ -162,6 +162,21 @@ final class SlideTextCache {
         return out
     }
 
+    private var _recoloured: [String: Image] = [:]
+    /// `image` redrawn at its own size through the colour filter of `imagePaint` (alpha, duotone, levels).
+    func recoloured(_ image: Image, alpha: Double, duotone: [Color]?, levels: [Double]?) -> Image? {
+        let key = "\(ObjectIdentifier(image).hashValue)/\(alpha)/\(duotone?.map { $0.value } ?? [])/\(levels ?? [])"
+        if let known = _recoloured[key] { return known }
+        let recorder = NativePictureRecorder()
+        let w = Double(image.width), h = Double(image.height)
+        let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, w, h))
+        canvas.drawImageRect(image, Rect.fromLTWH(0, 0, w, h), Rect.fromLTWH(0, 0, w, h),
+                             SlidePainter.imagePaint(alpha: alpha, duotone: duotone, levels: levels))
+        guard let baked = recorder.endRecording().toImageSync(width: image.width, height: image.height) else { return nil }
+        _recoloured[key] = baked
+        return baked
+    }
+
     private var _withAlpha: [String: Image] = [:]
     /// `image` redrawn at its own size with `alpha` applied to its pixels.
     func withAlpha(_ image: Image, _ alpha: Double) -> Image? {
@@ -1770,12 +1785,17 @@ final class SlidePainter: CustomPainter {
             // the transparency in its pixels, as PowerPoint writes it (a new
             // picture in the PDF, with an alpha channel, not the JPEG).
             let baked = fill.imageAlpha < 1 && fill.duotone == nil && fill.imageLevels == nil ? cache.withAlpha(drawn, fill.imageAlpha) : nil
-            var decoded = baked ?? drawn
+            // A recoloured picture (duotone, levels) is recoloured once, here, and drawn plain: the PDF
+            // writer redoes a colour filter's pixels for every draw, so a theme background with a
+            // duotone wrote a 1.7 MB copy on each slide (es-ba0a6310: 98 MB for 31 slides).
+            let recoloured = baked == nil && (fill.duotone != nil || fill.imageLevels != nil) && !fill.isPattern
+                ? cache.recoloured(drawn, alpha: fill.imageAlpha, duotone: fill.duotone, levels: fill.imageLevels) : nil
+            var decoded = baked ?? recoloured ?? drawn
             // (A tiled PNG with its own transparency is written as a colour
             // picture with a mask and marked smooth, as a JPEG is: lo-page_transparent_bitmap's
             // brick tile, PowerPoint's PDF; a lone PNG with alpha stays lossless and sharp.)
             if let b = baked, fill.tiled, !fill.isPattern { let k = UInt64(b.width) << 32 | UInt64(b.height); SlideTextCache.jpegSizes.insert(k); SlideTextCache.alphaSmooth.insert(k) }
-            let paint = baked != nil ? imagePaint(alpha: 1, duotone: nil) : imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone, levels: fill.imageLevels)
+            let paint = baked != nil || recoloured != nil ? imagePaint(alpha: 1, duotone: nil) : imagePaint(alpha: fill.imageAlpha, duotone: fill.duotone, levels: fill.imageLevels)
             let tw = max(1, Double(decoded.width) * 0.75 * fill.tileScale * pxPerPt)
             let th = max(1, Double(decoded.height) * 0.75 * fill.tileScaleY * pxPerPt)
             // PowerPoint's PDF holds a tiled picture shrunk to 200 pixels an
