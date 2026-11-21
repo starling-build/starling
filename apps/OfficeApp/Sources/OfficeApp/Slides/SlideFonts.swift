@@ -80,6 +80,14 @@ enum SlideFonts {
             face.otherAdvances = OfficeFonts.lucidaSansUnicodeOtherAdvances
             face.boldOtherAdvances = OfficeFonts.lucidaSansUnicodeOtherAdvances
             return face
+        case "aptos":
+            // (Aptos at its own measured widths, Regular and Bold, Latin-1 and beyond: Word's table, not the stand-in's.)
+            var face = RichResolvedFace(family: resolve(family))
+            face.advances = OfficeFonts.aptosAdvances
+            face.boldAdvances = OfficeFonts.aptosBoldAdvances
+            face.otherAdvances = OfficeFonts.aptosOtherAdvances
+            face.boldOtherAdvances = OfficeFonts.aptosBoldOtherAdvances
+            return face
         case "verdana":
             // (Verdana in DejaVu Sans, at Verdana's widths: its space is
             // 0.35 em to DejaVu's 0.32, and pptx2svg's words stood closer
@@ -186,6 +194,17 @@ enum SlideFonts {
     static func ownDescentShare(_ family: String) -> Double? {
         guard OfficeFonts.installed(family) == nil else { return nil }
         let n = windowsName(family)
+        // (East Asian faces by PowerPoint's print, lab slides-cjk-lines: a line is 1.2 em at every face and size, its
+        // baseline at 1.2 em x winAscent / (winAscent + winDescent): YaHei 2167+536 of 2048, Malgun 2229+495, SimSun and
+        // MS Mincho/Gothic 220+36 of 256; Meiryo and Yu Gothic from their first baselines, .847 and .921 em at 18 pt.)
+        switch n {
+        case "microsoft yahei": return 536.0 / 2703
+        case "malgun gothic", "맑은 고딕": return 495.0 / 2724
+        case "simsun", "宋体", "nsimsun", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝", "ms pgothic", "ｍｓ ｐゴシック": return 36.0 / 256
+        case "meiryo", "メイリオ": return 1 - 0.847 / 1.2
+        case "yu gothic", "游ゴシック": return 1 - 0.921 / 1.2
+        default: break
+        }
         // (PowerPoint's print, lab verdana-ls: the foot of a Verdana line is 0.202 em at every size and spacing, of 1.2 em: not hhea's 430 of 2489.)
         if n == "verdana" { return 0.202 / 1.2 }
         if n.hasPrefix("tahoma") { return 423.0 / 2472 }
