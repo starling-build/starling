@@ -4316,7 +4316,7 @@ enum ChartPainter {
             guard !c.onSlide, !c.onSheet, !c.chartex, !horizontal, c.type != .scatter, !c.type.isPie else { return nil }
             let catLine = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k
             var room = area0.height - (0.61 * labelSize * k + catLine + 3.2 * k)
-            if c.categoryAxisTitle != nil { room -= (1.22 * (c.axisTitleSize ?? 13.3) + 4) * k }
+            if c.categoryAxisTitle != nil { room -= (1.22 * (c.axisTitleSize ?? (c.onSlide ? c.categoryAxisTitleSize : nil) ?? 13.3) + 4) * k }
             // (A plot the file places by hand still has its step chosen on the room an automatic layout would leave it, the
             // legend's row at the top or bottom taken out: sa1 67e19017's charts of 51.7, 95.6 and 100.85pt of room go by 1, 2 and 5 steps
             // in Word's print, the first two where ours ran 2 and 5; 23.2 is the room a top legend takes elsewhere in this file.)
@@ -4545,7 +4545,9 @@ enum ChartPainter {
                 deferredCategoryTitle = (tp, -1)
             } else {
                 // (A bare title, 20 pt in Excel, stands 6 pt up from the chart's foot: tdf119138's.)
-                let up = c.onSheet && c.bareAxisTitle ? 6 * k : 0
+                // (On a slide, with the size the file states, it stands about 4 pt higher: 458870cc p11's title 5.0 pt and bab9be95
+                // p4's 3.1 pt under where ours was set, against PowerPoint's print.)
+                let up = c.onSheet && c.bareAxisTitle ? 6 * k : (c.onSlide && c.categoryAxisTitleSize != nil ? 4 * k : 0)
                 tp.paint(canvas, Offset(area.center.dx - tp.width / 2, area.bottom - tp.height - up))
                 area = Rect.fromLTRB(area.left, area.top, area.right, area.bottom - tp.height - 4 * k - up)
             }
@@ -4664,6 +4666,12 @@ enum ChartPainter {
                     if slot < catSize * k {
                         slant = .pi / 2
                         every = Int((catSize * k / slot).rounded(.up))
+                    }
+                    // (On a slide PowerPoint turns them right up when a slot is thinner than a line
+                    // over sin 45°, as the labels would run into each other aslant: ce626c34 p5's
+                    // 30 names in 14.7 pt slots at 10 pt.)
+                    else if c.onSlide, slot < 1.22 * catSize * k / sin(Double.pi / 4) {
+                        slant = .pi / 2
                     }
                 }
             }
