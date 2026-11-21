@@ -3840,6 +3840,67 @@ extension RichLayout {
                 }
             }
         }
+        // (A raised or lowered picture or object in a line of "at least" spacing: Word's line is the text's ascent or the
+        // object's top, over the text's descent or the object's foot, and the minimum only when that is less. The engine's
+        // strut had added the minimum's extra over the text's own line above the baseline first, so a line already taller
+        // than the minimum stood that extra too tall. sa1 7de651e7 p6: a 15 pt object at -5 pt in 11 pt Calibri at least
+        // 14 pt, 0.57 pt, every line after it that far low in Word's print.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, _columns <= 1, !style.rightToLeft,
+           style.lineHeightIsMinimum, let least = style.lineHeightPoints, least > 0, keepClear == nil, besideLineIndents.isEmpty,
+           Self._paired(painter) == nil, !p.text.isEmpty, let boxes = painter.inlinePlaceholderBoxes, boxes.count == inline.count, !boxes.isEmpty {
+            let bottoms = Self._rawLineBottoms(painter)
+            let metrics = painter.computeLineMetrics()
+            var root = painter.text as? TextSpan
+            func firstStyle(_ span: TextSpan, _ inherited: Flutter.TextStyle) -> Flutter.TextStyle? {
+                let own = inherited.merge(span.style)
+                if let tx = span.text, tx.contains(where: { !$0.isWhitespace && $0 != "\u{FFFC}" }) { return own }
+                for c in span.children ?? [] { if let t = c as? TextSpan, let f = firstStyle(t, own) { return f } }
+                return nil
+            }
+            if bottoms.count == metrics.count, !bottoms.isEmpty, let rootSpan = root, let ts = firstStyle(rootSpan, Flutter.TextStyle()) {
+                root = nil
+                let probe = TextPainter(text: TextSpan(text: "x", style: ts.copyWith(height: nil)), textDirection: .ltr)
+                probe.layout(minWidth: 0, maxWidth: 10000)
+                let own = probe.computeLineMetrics().first
+                probe.dispose()
+                let faceName = ts.debugLabel.flatMap { label -> String? in
+                    label.split(separator: "(").compactMap { part -> String? in
+                        guard let end = part.firstIndex(of: ")") else { return nil }
+                        let n = String(part[part.startIndex ..< end])
+                        return n.isEmpty || n == "unknown" ? nil : n
+                    }.last
+                }
+                if let own, own.height > 0.5, let name = faceName, let share = theme.winDescent?(name) {
+                    // (Word's own line of the face is its win line; the engine's probe line can differ)
+                    let wordLine = theme.winLineBox?(name).flatMap { b in ts.fontSize.map { $0 * b } } ?? own.height
+                    let tD = wordLine * share, tA = wordLine - tD
+                    var above = [Double](repeating: -1, count: bottoms.count), below = above
+                    for (k, box) in boxes.enumerated() {
+                        guard let img = inline[k].image, img.float == nil, img.textBox == nil, img.name != "m:oMath" else { continue }
+                        let pos = p.runs.first(where: { $0.style.inlineImage == img.id }).flatMap { $0.style.raised } ?? Self._runPosition(img.sourceRunPropertiesXML) ?? 0
+                        guard abs(pos) > 0.01 else { continue }
+                        let r = box.toRect()
+                        guard let line = bottoms.firstIndex(where: { r.top + r.height / 2 < $0 }) else { continue }
+                        above[line] = max(above[line], metrics[line].baseline - r.top)
+                        below[line] = max(below[line], r.bottom - metrics[line].baseline)
+                    }
+                    var shifts = [Double](repeating: 0, count: bottoms.count)
+                    var acc = 0.0
+                    for line in 0 ..< bottoms.count {
+                        if above[line] >= 0 {
+                            let advance = bottoms[line] - (line == 0 ? 0 : bottoms[line - 1])
+                            let word = max(_px(least), max(tA, above[line]) + max(tD, below[line]))
+                            if advance > word + 0.01, advance - word < _px(least) * 0.1 { acc -= advance - word }
+                        }
+                        shifts[line] = acc
+                    }
+                    if acc < -0.01 {
+                        RuleTrace.hit("word-a-lowered-object-in-at-least-spacing-takes-no-extra-over-the-minimum")
+                        Self._pairedLines[ObjectIdentifier(painter)] = _PairedLines(painter: painter, shifts: shifts, saving: -acc)
+                    }
+                }
+            }
+        }
         // (A line of Latin letters alone in a paragraph on a line grid at a multiple: Word's box is the multiple of the
         // pitch it fits in, 27 pt for 14 pt Times in an 18 pt grid at 1.5 lines, where the line holding any East Asian
         // letter is the strut's two pitches (36). The text stays centred in its box, as in the strut's. Lab head2line
