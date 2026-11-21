@@ -1776,7 +1776,7 @@ extension RichLayout {
                 // (A run with a text shadow (w14:shadow) makes its line taller by the shadow's reach: the blur radius past the offset,
                 // below and above the face's own line. Lab hdrsup v7 against v10, 72 pt Copperplate Gothic Light, shadow 3 pt out at 45 degrees
                 // blurred 4 pt: the baseline falls 1.92 pt (4 - 3 sin 45 = 1.88) and the body 8.04 (4 + 3 sin 45 = 6.12 more below).)
-                if theme.wordRules, RichTextTheme.wordWindowsPages, let sh = run.shadow ?? named?.char.shadow, !sh.glow, sh.blur > 0,
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let sh = run.shadow ?? named?.char.shadow, !sh.glow, sh.blur > 0, sh.scale > 0,
                    let size = s.fontSize, size > 0.5, !(index.map { _verticalBody($0) } ?? false),
                    let latin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)?.trimmingWhitespace(),
                    let face = theme.faceResolver?(latin, false),

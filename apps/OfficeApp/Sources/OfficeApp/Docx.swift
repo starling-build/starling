@@ -8928,6 +8928,9 @@ enum DocxFormat {
                     let dist = (Double(child["w14:dist"] ?? "") ?? 0) / 12700, dir = (Double(child["w14:dir"] ?? "") ?? 0) / 60000 * Double.pi / 180
                     cs.shadow = CharShadow(color: Color(argb: Int((alpha * 255).rounded()), rgb.0, rgb.1, rgb.2),
                                            dx: dist * cos(dir), dy: dist * sin(dir), blur: (Double(child["w14:blurRad"] ?? "") ?? 0) / 12700)
+                    // (A shadow scaled to nothing both ways, `sx` and `sy` 0, is no shadow: dx2 fa1598ff's headings carry one and Word's
+                    // print keeps their lines at the face's own height.)
+                    if child["w14:sx"] == "0", child["w14:sy"] == "0" { cs.shadow?.scale = 0 }
                 }
             case "w14:textFill":
                 // (A solid fill with an alpha: Word draws the text at the OPPOSITE opacity, `w14:alpha` being a transparency there.
