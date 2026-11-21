@@ -145,6 +145,14 @@ extension _StyledFrame {
         flush(i)
         spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
         ctx.inserts.append(offset)
+    } else if !theme.wordRules, theme.officeLatinBreaks, p.style.eastAsian["a:latinLnBrk"] == "0",
+              let b = ctx.before, let bv = b.unicodeScalars.first?.value, let v = ch.unicodeScalars.first?.value,
+              bv >= 0xAC00, bv <= 0xD7A3, v >= 0xAC00, v <= 0xD7A3 {
+        // (PowerPoint breaks Korean at spaces only where the paragraph's latinLnBrk is 0:
+        // 225 of 227 breaks of the decks that say so, ko-2fd3de28.)
+        flush(i)
+        spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+        ctx.inserts.append(offset)
     } else if theme.wordRules || theme.officeLatinBreaks, let b = ctx.before,
               RichLayout.joinsLatin(b, ch, eastAsian: document.usesEastAsianLayout) {
         flush(i)
