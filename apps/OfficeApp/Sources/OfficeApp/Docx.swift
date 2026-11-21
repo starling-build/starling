@@ -660,6 +660,24 @@ enum DocxFormat {
             RuleTrace.hit("docx-frame-in-content-control")
             return content.children
         }
+        // (Tables with no paragraph between them are ONE table in Word: dx2 8afcc2c4's TARIFAS,
+        // Impuestos and SUPLEMENTOS, whose price column is cut down and whose header row repeats as
+        // one table's. Joined when their properties and grids are the same.)
+        if RichTextTheme.wordWindowsPages {
+            var joined: [XNode] = []
+            for n in body.children {
+                if n.name == "w:tbl", let prev = joined.last, prev.name == "w:tbl",
+                   let pr = prev.first("w:tblPr"), let pn = n.first("w:tblPr"), pr.first("w:tblpPr") == nil, pn.first("w:tblpPr") == nil,
+                   let gp = prev.first("w:tblGrid"), let gn = n.first("w:tblGrid"),
+                   signature(pr) == signature(pn), signature(gp) == signature(gn) {
+                    RuleTrace.hit("docx-adjacent-tables-are-one-table")
+                    prev.children.append(contentsOf: n.children.filter { $0.name == "w:tr" })
+                    continue
+                }
+                joined.append(n)
+            }
+            body.children = joined
+        }
         var out: [XNode] = []
         let kids = body.children
         var i = 0
