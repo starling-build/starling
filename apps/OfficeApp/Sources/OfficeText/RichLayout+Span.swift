@@ -2091,7 +2091,7 @@ extension RichLayout {
                 // (The Hebrew-context table, with the punctuation and Latin around the letters, serves only words with a Hebrew letter or a number in a right-to-left run; an underscore line or Latin word in Arial keeps the stand-in's: lo-015dbec5.)
                 let hebrewContext = word.unicodeScalars.contains(where: { $0.value >= 0x5D0 && $0.value <= 0x5EA }) || (joinedFace != nil && word.unicodeScalars.contains(where: { (0x30...0x39).contains($0.value) }))
                 let numberInComplexFace = joinedFace != nil && word.unicodeScalars.contains(where: { (0x30...0x39).contains($0.value) })
-                if let hebrewFace = joinedFace ?? complexFaceOfRun, numberInComplexFace || word.unicodeScalars.contains(where: { $0.value >= 0x5D0 && $0.value <= 0x5EA }) || word.unicodeScalars.allSatisfy({ $0.value == 0x5F }), let px = s.fontSize, px > 0.5,
+                if let hebrewFace = joinedFace ?? complexFaceOfRun, numberInComplexFace || word.unicodeScalars.contains(where: { $0.value >= 0x5D0 && $0.value <= 0x5EA }) || (word.unicodeScalars.contains(where: { $0.value == 0x5F }) && word.unicodeScalars.allSatisfy({ $0.value == 0x5F || $0.value == 0x20 })), let px = s.fontSize, px > 0.5,
                    let table = s.fontWeight == .bold ? ((hebrewContext ? hebrewFace.boldHebrewAdvances : nil) ?? hebrewFace.boldOtherAdvances) : ((hebrewContext ? hebrewFace.hebrewAdvances : nil) ?? hebrewFace.otherAdvances),
                    word.unicodeScalars.allSatisfy({ table[$0.value] != nil || $0.value == 0x200E || $0.value == 0x200F }) {
                     let ems = word.unicodeScalars.reduce(0.0) { $0 + (table[$1.value] ?? 0) }
