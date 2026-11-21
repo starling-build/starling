@@ -143,6 +143,25 @@ final class SlideTextCache {
         return out
     }
 
+    private var _repeated: [String: Image] = [:]
+    /// `image` laid `kx` by `ky` times side by side in one picture, so a tiny tile is one draw per few dozen points
+    /// and not one per couple of points (a 5 px newsprint texture at half size wrote 150,000 tiles a slide: 560 MB).
+    func repeated(_ image: Image, _ kx: Int, _ ky: Int) -> Image? {
+        let key = "\(ObjectIdentifier(image).hashValue)/\(kx)x\(ky)"
+        if let known = _repeated[key] { return known }
+        let w = image.width * kx, h = image.height * ky
+        let recorder = NativePictureRecorder()
+        let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, Double(w), Double(h)))
+        let paint = Paint()
+        let src = Rect.fromLTWH(0, 0, Double(image.width), Double(image.height))
+        for j in 0..<ky { for i in 0..<kx {
+            canvas.drawImageRect(image, src, Rect.fromLTWH(Double(i * image.width), Double(j * image.height), Double(image.width), Double(image.height)), paint)
+        } }
+        guard let out = recorder.endRecording().toImageSync(width: w, height: h) else { return nil }
+        _repeated[key] = out
+        return out
+    }
+
     private var _withAlpha: [String: Image] = [:]
     /// `image` redrawn at its own size with `alpha` applied to its pixels.
     func withAlpha(_ image: Image, _ alpha: Double) -> Image? {
@@ -1784,6 +1803,15 @@ final class SlidePainter: CustomPainter {
                     canvas.translate(-c.dx, -c.dy)
                     let w = abs(r.width * cos(a)) + abs(r.height * sin(a)), h = abs(r.width * sin(a)) + abs(r.height * cos(a))
                     r = Rect.fromLTWH(c.dx - w / 2, c.dy - h / 2, w, h)
+                }
+                var tw = tw, th = th, decoded = decoded, src = src
+                // A tile under 24 pt (in tiles of the page's points) is drawn as a block of them, at most 64 a side.
+                if tw / pxPerPt < 24 || th / pxPerPt < 24 {
+                    let kx = min(64, max(1, Int((24 * pxPerPt / tw).rounded(.up)))), ky = min(64, max(1, Int((24 * pxPerPt / th).rounded(.up))))
+                    if kx * ky > 1, decoded.width * kx <= 4096, decoded.height * ky <= 4096, let big = cache.repeated(decoded, kx, ky) {
+                        decoded = big; tw *= Double(kx); th *= Double(ky)
+                        src = Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height))
+                    }
                 }
                 let x0 = fill.tileAnchored ? 0 : r.left + (r.width - tw) * fill.tileAlign.dx + fill.tileOffset.dx * pxPerPt
                 let y0 = fill.tileAnchored ? 0 : r.top + (r.height - th) * fill.tileAlign.dy + fill.tileOffset.dy * pxPerPt
