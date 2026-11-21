@@ -40,9 +40,9 @@ P
 rc=$?
 # The line score beside the pixel mean (docs/plans/slides-corpus.md §5): PowerPoint's text lines matched per deck
 # (test/pptx-line-match.py), combined with the visual score for decks whose print has no text (test/tools/pptx-combine.py),
-# against test/corpus/pptx/baseline-lines-win.tsv. A deck more than LTOL (default 1 pt) worse, or newly an error, blocks.
+# against baseline-lines-win.tsv in the corpus cache (not in git). A deck more than LTOL (default 1 pt) worse, or newly an error, blocks.
 PY=${PYTHON:-$( [ -x "$HOME/venv-word/bin/python" ] && echo "$HOME/venv-word/bin/python" || echo python3)}
-LB=$ROOT/test/corpus/pptx/baseline-lines-win.tsv
+LB=$CC/baseline-lines-win.tsv
 if [ -s "$LB" ]; then
   PPT_REFS=$PPT PPT_MATCH_JOBS=$JOBS "$PY" "$ROOT/test/pptx-line-match.py" "$W" > "$W/lines.txt" 2> "$W/lines.err"
   "$PY" -I "$ROOT/test/tools/pptx-combine.py" "$W/lines.txt" "$W/render.tsv" "$W/combined.tsv" "$DECKS" "$PPT" | head -1
