@@ -1335,7 +1335,7 @@ extension RichLayout {
                 // the line, the dots running on to it. The line stays inside the margin for the
                 // engine — the number's last character gives the overshoot up — and its ink
                 // ends at the stop. zh-875759ff's contents, stop 105 twips out.)
-                if theme.wordRules, !style.rightToLeft, style.alignment != .justify, stop.alignment == .right, let lead = stop.leader, lead != "none", !lead.isEmpty,
+                if theme.wordRules, style.alignment != .justify, stop.alignment == .right, let lead = stop.leader, lead != "none", !lead.isEmpty,
                    stop.x > ownLeft + textWidth + 0.5, stop.x <= ownLeft + textWidth + _px(Self._tabPastMargin) + 0.5,
                    x + own < stop.x - 0.01, hangs[t + 1] == nil,
                    let last = (t + 1 ..< end).last(where: { units[$0] != 0x20 }), hangs[last] == nil {
