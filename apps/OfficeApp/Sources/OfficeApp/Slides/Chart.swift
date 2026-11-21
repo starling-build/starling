@@ -290,6 +290,8 @@ struct Chart: Equatable {
     /// as a disc seen from above at that angle, its rim showing below. nil
     /// is a flat pie.
     var pieTilt: Double? = nil
+    /// A 3-D pie's `c:view3D/c:hPercent`, nil where the file states none.
+    var pieHeightPercent: Double? = nil
     /// A 3-D pie's turn (`c:view3D/c:rotY`, degrees): its first slice
     /// starts that far clockwise from twelve o'clock. Lab p3dfit (Word for
     /// Mac, zh-27a874b7's chart 2): a slice turned by it to three or nine
@@ -1972,6 +1974,7 @@ enum ChartXML {
             c.pieTilt = chart.first("c:view3D")?.first("c:rotX")?["val"].flatMap(Double.init) ?? 15
             c.pieTurn = chart.first("c:view3D")?.first("c:rotY")?["val"].flatMap(Double.init) ?? 0
             c.piePerspective = chart.first("c:view3D")?.first("c:perspective")?["val"].flatMap(Double.init)
+            c.pieHeightPercent = chart.first("c:view3D")?.first("c:hPercent")?["val"].flatMap(Double.init)
             let pulls = el.all("c:ser").flatMap { ser in
                 ([ser.first("c:explosion")] + ser.all("c:dPt").map { $0.first("c:explosion") }).compactMap { $0?["val"].flatMap(Double.init) }
             }
@@ -6864,7 +6867,11 @@ extension ChartPainter {
         let sum = values.reduce(0, +)
         guard sum > 0 else { return }
         let al = max(5, min(90, tilt)) * .pi / 180
-        let eye30 = 4.8, deep = 0.275
+        // (In a Word document a stated hPercent thins the rim: lab pie3r1/pie3r2 (Word for Windows, f84c295b's chart, hPercent 50,
+        // rotX 25 and 40, perspective 0): the pie box 93.3 and 133.0 pt high, which a rim of 0.154 of the radius fits (H = 2R sin rotX
+        // + D cos rotX, 2R 189.5) where 0.275 gave 99 at 25. Straight through 0.56 at 50 and 1 at 100: one stated value only.)
+        let eye30 = 4.8
+        let deep = 0.275 * (!c.onSlide && !c.onSheet ? 0.12 + 0.88 * min(1, max(0, (c.pieHeightPercent ?? 100) / 100)) : 1)
         let flat = c.piePerspective == 0
         // (The eye stands as far as the file's perspective says, a field of view in half
         // degrees: K = c / tan(perspective / 4°), lab proj (Word for Windows, 61 views of a
