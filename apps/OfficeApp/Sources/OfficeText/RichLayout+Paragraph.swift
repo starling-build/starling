@@ -3179,6 +3179,16 @@ extension RichLayout {
                         target = stand
                     }
                 }
+                // (A Wingdings bullet over Latin text at single spacing stands the first line on its own ascent, laid out so in `_span`
+                // ("word-wingdings-bullet-at-single-stands-the-first-line-on-its-ascent"): the ink goes with it, in a one-line item as in a
+                // wrapped one. The one-line items stood 0.8pt high, rows 0.6 to 0.8 above Word's print (sa1 5393bae9's 12pt bullets over 10pt Century Gothic).)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, style.lineHeightPoints == nil, style.lineSpacing <= 1.001,
+                   p.style.list == .bullet, !p.style.rightToLeft, _levelNumberFonts(p, document).latin?.lowercased() == "wingdings",
+                   let ms = _markerChar(p, document).fontSize ?? lead.0.fontSize, ms > 0.5, ms * 1841.0 / 2048 > target + 0.01,
+                   !p.text.unicodeScalars.contains(where: { ($0.value >= 0x590 && $0.value <= 0x8FF) || Self._isIndic($0.value) || ($0.value >= 0x2E80 && $0.value <= 0xFFEF) }) {
+                    RuleTrace.hit("word-wingdings-bullet-at-single-ink-stands-on-the-bullet-ascent")
+                    target = ms * 1841.0 / 2048
+                }
                 if _symbolBulletOnNaturalLine(p, painter: painter, style: style, document: document),
                    let ms = _markerChar(p, document).fontSize ?? lead.0.fontSize, ms * 1.005 > target {
                     RuleTrace.hit("word-symbol-bullet-line-at-a-line-multiple-stands-on-symbols-ascent")
