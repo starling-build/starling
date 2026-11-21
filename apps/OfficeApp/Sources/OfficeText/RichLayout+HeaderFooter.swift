@@ -3171,7 +3171,15 @@ extension RichLayout {
                         let outdentR = manyColumns && theme.wordRules && RichTextTheme.wordWindowsPages
                             ? _px(max(0, -document.paragraphs[piece.paragraph].style.indentRight)) : 0
                         let clipL = across ? 0 : columnClipL - outdentL
-                        let clipR = across ? _pxPageW(p) : columnClipR + outdentR
+                        // (An indent wider than the column sets the text past it, one character a line:
+                        // Word draws it there, colindent labs.)
+                        let indentPast: Double = {
+                            guard manyColumns, theme.wordRules, RichTextTheme.wordWindowsPages else { return 0 }
+                            let para = document.paragraphs[piece.paragraph]
+                            let textLeft = _px(_wordList(para, document)?.left ?? para.style.indentLeft)
+                            return textLeft >= columnW ? textLeft : 0
+                        }()
+                        let clipR = across ? _pxPageW(p) : columnClipR + outdentR + indentPast
                         let top = pageTop + piece.pageY + (verticalShifts?[slot * 1_000_000 + pieceIndex] ?? 0)
                         let bottom = top + piece.height
                         if bottom < visible.top || top > visible.bottom { continue }

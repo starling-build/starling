@@ -5409,6 +5409,16 @@ final class DocxTests: XCTestCase {
         xml.replaceSubrange(a.upperBound ..< b.lowerBound, with: body)
         entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
         let back = try DocxFormat.read(try Zip.write(entries)).document
+        if RichTextTheme.sectionColumnsFlow {
+            // (Columns flow by default: no one-row table, the column break and the section stay.)
+            XCTAssertFalse(back.paragraphs.contains { $0.cell != nil })
+            XCTAssertTrue(back.paragraphs.contains { $0.text == "right" })
+            XCTAssertTrue(back.paragraphs.contains { $0.style.columnBreak }, "the column break stays")
+            let saved = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+            XCTAssertFalse(saved.contains("<w:tbl"), saved)
+            XCTAssertTrue(saved.contains("w:type=\"column\"") && saved.contains("w:num=\"2\"") && saved.contains(">right<"), saved)
+            return
+        }
         let cells = back.paragraphs.filter { $0.cell != nil }
         let table = try XCTUnwrap(cells.first?.cell?.table)
         XCTAssertEqual(back.tableColumns[table]?.count, 3, "two columns and the gap between them")
@@ -5472,6 +5482,16 @@ final class DocxTests: XCTestCase {
         let columns = "<w:p><w:r><w:t>left</w:t></w:r></w:p><w:p><w:r><w:br w:type=\"column\"/></w:r></w:p><w:p><w:r><w:t>right</w:t></w:r></w:p>"
         let last = "<w:sectPr><w:type w:val=\"continuous\"/>\(page)<w:cols w:num=\"2\" w:space=\"720\"/></w:sectPr>"
         let back = try read("<w:p><w:r><w:t>before</w:t></w:r></w:p><w:p><w:pPr><w:sectPr>\(page)<w:cols w:space=\"720\"/></w:sectPr></w:pPr></w:p>" + columns + last)
+        if RichTextTheme.sectionColumnsFlow {
+            // (Columns flow by default: no one-row table, the column break and the section stay.)
+            XCTAssertFalse(back.paragraphs.contains { $0.cell != nil })
+            XCTAssertTrue(back.paragraphs.contains { $0.text == "right" })
+            XCTAssertTrue(back.paragraphs.contains { $0.style.columnBreak }, "the column break stays")
+            let saved = String(decoding: try Zip.read(try DocxFormat.write(back, pageSetup: .letter)).first { $0.name == "word/document.xml" }!.data, as: UTF8.self)
+            XCTAssertFalse(saved.contains("<w:tbl"), saved)
+            XCTAssertTrue(saved.contains("w:type=\"column\"") && saved.contains(">right<"), saved)
+            return
+        }
         let cells = back.paragraphs.filter { $0.cell != nil }
         XCTAssertEqual(cells.first { $0.text == "left" }?.cell?.column, 0)
         XCTAssertEqual(cells.first { $0.text == "right" }?.cell?.column, 2)
