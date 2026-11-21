@@ -1722,6 +1722,7 @@ enum DocxFormat {
         var listRestarts: [String: [Int: Int]] = [:]
         if let numData = part("word/numbering.xml"), let numbering = XNode.parse(numData) {
             _resolveThemeFonts(numbering, theme)
+            _followThaiAlternates(numbering, thaiAlternates)
             var abstract: [String: [Int: ListKind]] = [:]
             var abstractFormats: [String: [Int: ListLevelFormat]] = [:]
             func readLevel(_ lvl: XNode, _ levels: inout [Int: ListKind], _ formats: inout [Int: ListLevelFormat]) {
@@ -3688,6 +3689,7 @@ enum DocxFormat {
                     + "</w:\(path.hasSuffix("header") ? "hdr" : "ftr")>").utf8) : nil
                 guard let data = phantom ?? part(path), let node = XNode.parse(data) else { return [] }
                 _inheritSpace(node)
+                _followThaiAlternates(node, thaiAlternates)
                 _bindCoreProperties(node, part: part)
                 // (Their theme font references too: zh-a4b0f6ea's page
                 // numbers are `majorEastAsia`, 宋体, in a footer.)
