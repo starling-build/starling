@@ -2614,6 +2614,10 @@ extension RichLayout {
         if a == 0x2D, b == 0x2D { return true }
         // (1.5, 1,000, 10:30, 2024-10, -5)
         if digit(b), a == 0x2E || a == 0x2C || a == 0x3A || a == 0x2D || a == 0x2F { return true }
+        // (A plus-minus sign between digits keeps them one piece, a number's prefix and suffix both: lo/dx2 99cfc555's
+        // "1,3±0,42" + a superscript letter is 40.1 pt whole in Word's print, which widens the 39.6 pt column to its 41.2 grid; ours parted
+        // it at the sign, 20.4 pt, and wrapped the letter to a second line.)
+        if a == 0xB1 && digit(b) || digit(a) && b == 0xB1 { return true }
         return false
     }
 
