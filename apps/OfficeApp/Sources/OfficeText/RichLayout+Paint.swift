@@ -1076,6 +1076,7 @@ extension RichLayout {
             lines.painter.paint(canvas, at)
             _paintScripts(lines.paragraph, lines.painter, at: at, canvas, document, leading: false)
             _paintRuby(lines.paragraph, lines.painter, at: at, canvas, document, index: i)
+            _paintOutlineStrokes(lines.paragraph, lines.painter, at: at, canvas)
             _paintOverlay(lines.paragraph, lines.painter, at: at, canvas, document)
             _paintEmphasis(lines.paragraph, lines.painter, at: at, canvas, document, index: i)
             return
@@ -1774,6 +1775,8 @@ extension RichLayout {
                       map: lines == nil ? _map(i) : nil, leading: false)
         _paintRuby(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
                    map: lines == nil ? _map(i) : nil, index: i)
+        _paintOutlineStrokes(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas,
+                             map: lines == nil ? _map(i) : nil)
         _paintOverlay(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
                       map: lines == nil ? _map(i) : nil)
         _paintEmphasis(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
