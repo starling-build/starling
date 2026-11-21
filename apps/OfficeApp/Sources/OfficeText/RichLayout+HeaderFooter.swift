@@ -1784,6 +1784,30 @@ extension RichLayout {
         return _textLeft[i]
     }
 
+    /// The number format a PAGE field's own `\\*` switch asks for (`\\* ArabicDash`,
+    /// `\\* roman`, `\\* ROMAN`, `\\* alphabetic`, `\\* ALPHABETIC`): it wins over the
+    /// section's page number format. The roman and alphabetic switches are
+    /// case-sensitive (the case of the switch is the case of the result).
+    static func _pageFieldFormat(_ field: String) -> String? {
+        let parts = field.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        var i = 0
+        while i + 1 < parts.count {
+            if parts[i] == "\\*" {
+                switch parts[i + 1] {
+                case "ArabicDash", "ARABICDASH", "arabicdash": return "numberInDash"
+                case "roman": return "lowerRoman"
+                case "ROMAN": return "upperRoman"
+                case "alphabetic": return "lowerLetter"
+                case "ALPHABETIC": return "upperLetter"
+                case "Arabic", "ARABIC": return "decimal"
+                default: break
+                }
+            }
+            i += 1
+        }
+        return nil
+    }
+
     /// A page number as the document writes them.
     func _pageNumber(_ n: Int, _ document: RichDocument, format: String? = nil) -> String {
         switch format ?? document.pageNumberFormat {
@@ -2049,7 +2073,7 @@ extension RichLayout {
                             // p14's empty paragraph over the table's title no longer
                             // fits above it.)
                             let wide = !piece.isEmpty && piece.unicodeScalars.allSatisfy { $0.value >= 0xFF10 && $0.value <= 0xFF19 }
-                            piece = lastField == field ? "" : (word == "PAGE" ? shown : count)
+                            piece = lastField == field ? "" : (word == "PAGE" ? (Self._pageFieldFormat(field).map { _chapterPrefix(p, document) + _pageNumber(number, document, format: $0) } ?? shown) : count)
                             if wide { piece = String(piece.unicodeScalars.map { $0.value >= 0x30 && $0.value <= 0x39 ? Character(Unicode.Scalar($0.value - 0x30 + 0xFF10)!) : Character($0) }) }
                             // (A field's result is one piece: Word parts
                             // "- 10 -" (numberInDash) at none of its spaces
