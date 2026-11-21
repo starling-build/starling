@@ -1197,6 +1197,8 @@ enum DocxFormat {
         let theme = _themeFonts(entries)
         _themeColors = _themePalette(entries)
         _resolveThemeFonts(root, theme)
+        let thaiAlternates = _thaiAlternates(entries)
+        _followThaiAlternates(root, thaiAlternates)
 
         // Styles: which paragraph styles are ours (headings, Title, Quote…),
         // and what they look like in this package — Word's Heading 1 is
@@ -1261,6 +1263,7 @@ enum DocxFormat {
         var keptCharacterStyleIds: [String: String] = [:]
         if let styles = styleTree() {
             _resolveThemeFonts(styles, theme)
+            _followThaiAlternates(styles, thaiAlternates)
             _normaliseStyleIds(styles)
             // A styles part with NO w:pPrDefault at all (WPS writes them
             // so: six of a sample of 68 Chinese government documents, every
@@ -1655,6 +1658,7 @@ enum DocxFormat {
             // (the writer's defaults), and every line wrapped elsewhere.
             if let styles = styleTree() {
                 _resolveThemeFonts(styles, theme)
+                _followThaiAlternates(styles, _thaiAlternates(entries))
                 _normaliseStyleIds(styles)
                 var cs = CharStyle()
                 if let rPr = styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr") { cs = _charStyle(rPr, base: cs) }
@@ -6404,6 +6408,33 @@ enum DocxFormat {
         if !paragraphStyles.contains(where: { $0.attrs["w:default"] == "1" }),
            let normal = paragraphStyles.first(where: { $0.first("w:name")?["w:val"] == "Normal" }), normal.attrs["w:styleId"] != "Normal" {
             normal.attrs["w:default"] = "1"
+        }
+    }
+
+    /// The Thai faces Word for Windows lacks (TH SarabunIT๙, TH Sarabun New) whose font-table entry names TH SarabunPSK as the alternate:
+    /// Word prints them in that face (xd a0570757: "TH SarabunIT๙", altName "TH SarabunPSK", the print's fonts are TH SarabunPSK, a 16 pt Thai
+    /// line 21.0 pt where Browallia's is 20.0). An entry with no alternate, or Browallia New as it, stays Browallia (21 docs, 3a493613).
+    private static func _thaiAlternates(_ entries: [ZipEntry]) -> Set<String> {
+        guard wordOnWindows, let table = entries.first(where: { $0.name == "word/fontTable.xml" }).flatMap({ XNode.parse($0.data) }) else { return [] }
+        var out = Set<String>()
+        for font in table.all("w:font") {
+            guard let name = font["w:name"], ["th sarabunit๙", "th sarabun new"].contains(name.trimmingWhitespace().lowercased()),
+                  let alt = font.first("w:altName")?["w:val"], alt.trimmingWhitespace().lowercased() == "th sarabunpsk" else { continue }
+            out.insert(name.trimmingWhitespace().lowercased())
+        }
+        return out
+    }
+
+    private static func _followThaiAlternates(_ root: XNode, _ names: Set<String>) {
+        guard !names.isEmpty else { return }
+        var stack = [root]
+        while let node = stack.popLast() {
+            if node.name == "w:rFonts" {
+                for attr in ["w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"] {
+                    if let v = node.attrs[attr], names.contains(v.trimmingWhitespace().lowercased()) { node.attrs[attr] = "TH SarabunPSK" }
+                }
+            }
+            stack.append(contentsOf: node.children)
         }
     }
 
