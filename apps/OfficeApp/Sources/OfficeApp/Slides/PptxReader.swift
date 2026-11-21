@@ -3343,7 +3343,11 @@ private struct SlideContext {
         let owners: [String?] = ph == nil ? [part, nil, masterPart] : [part, layoutPart, masterPart, masterPart, nil]
         var s = LevelStyle()
         for (k, layer) in layers.enumerated() {
-            s = s.filled(from: LevelStyle.paragraph(layer, colors, picture: pictures(k < owners.count ? owners[k] : nil)))
+            var one = LevelStyle.paragraph(layer, colors, picture: pictures(k < owners.count ? owners[k] : nil))
+            // (A text box's size is the deck's default or 18 pt, never the master's `otherStyle` one: 65a1be73's second
+            // master says 12 pt there and PowerPoint prints its slide-number text boxes at 18.)
+            if ph == nil, k == 2 { one.size = nil }
+            s = s.filled(from: one)
         }
         // (A text box's tab distance is the deck's default text style's, an inch where that says none: the master's `otherStyle`
         // 36 pt is not read for it. ko-439a1778 p16's boxes put their tabbed lines at 72 pt steps in PowerPoint's print.)
