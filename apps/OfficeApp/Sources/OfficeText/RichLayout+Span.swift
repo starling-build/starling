@@ -1833,7 +1833,8 @@ extension RichLayout {
         let named = _named(p, document)
         return _rubyGroups(p).compactMap { g in
             guard let h = theme.rubyLine(for: g.style, in: p.style, named: named, eastAsian: true, gridPitch: _grid(i, document).pitch, vertical: true), h.raise != 0 else { return nil }
-            return (g.from, g.to, -h.raise * theme.pixelsPerPoint * scale)
+            let map = _map(i)  // (the painter's offsets: list markers and inserts stand in its text)
+            return (map.painter(g.from), map.painter(g.to), -h.raise * theme.pixelsPerPoint * scale)
         }
     }
     func _rubyGroups(_ p: RichParagraph) -> [(from: Int, to: Int, ruby: RubyText, style: CharStyle)] {

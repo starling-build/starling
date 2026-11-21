@@ -378,6 +378,18 @@ extension _StyledFrame {
             // (The rest of a one-line paragraph moves with its ruby's base.)
             s = s.copyWith(baselineShift: (s.baselineShift ?? 0) - mixedRubyRaise * theme.pixelsPerPoint * scale)
         }
+        // (A vertical ruby paragraph on a grid has no strut, so a space in another face (a full-width space, a Latin blank) would set its
+        // own deeper line: every plain run takes the ascent and descent its ideographs have. lab a_ruby: plain column 18.75, was 19.77.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, run.ruby == nil, s.fontSize ?? 0 > 0.5, pitch != nil, p.style.lineHeightPoints == nil,
+           s.ascentOverride == nil, index.map({ _verticalBody($0) }) == true, p.runs.contains(where: { $0.style.ruby != nil }) {
+            if let ref = _vrubyPlain {
+                s = s.copyWith(ascentOverride: ref.ascent * (s.fontSize ?? 1) / ref.size, descentOverride: ref.descent * (s.fontSize ?? 1) / ref.size, leadingDistribution: .even)
+            } else if kind < 0, let size = s.fontSize {
+                let tp = TextPainter(text: TextSpan(text: "山", style: s), textDirection: .ltr)
+                tp.layout(minWidth: 0, maxWidth: Double.infinity)
+                if let m = tp.computeLineMetrics().first { _vrubyPlain = (m.ascent, m.descent, size) }
+            }
+        }
         // (A run with a text shadow (w14:shadow) makes its line taller by the shadow's reach: the blur radius past the offset,
         // below and above the face's own line. Lab hdrsup v7 against v10, 72 pt Copperplate Gothic Light, shadow 3 pt out at 45 degrees
         // blurred 4 pt: the baseline falls 1.92 pt (4 - 3 sin 45 = 1.88) and the body 8.04 (4 + 3 sin 45 = 6.12 more below).)

@@ -1933,6 +1933,8 @@ public final class RichLayout {
     /// Top-aligned paragraph with a mixed-size line: per line, the biggest run size on it (set by the probe layout in _layoutParagraphOnce).
     var _topLift: [(from: Int, to: Int, big: Double)]? = nil
     var _topLiftBig: Double? = nil
+    /// A vertical ruby paragraph on a grid: the ascent and descent (px) of its ideographs, which its other runs take (set while its runs are styled).
+    var _vrubyPlain: (ascent: Double, descent: Double, size: Double)? = nil
     /// The same for an explicit LEFT stop past the margin, which the clamped pass wraps (so no one-line test).
     var _pastLeft: [Int: Double] = [:]
     struct ListSig: Equatable {
