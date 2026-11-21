@@ -4335,7 +4335,9 @@ extension RichLayout {
                 if step > 1 {
                     let lineH = step - before
                     var k = 0.0
-                    while k < 60 {
+                    // (Compatibility mode 14 and below: the empty line stays where it stands and the body is not pushed, whatever the pictures leave beside it:
+                    // lab hdrbox, 827a8947's header, a text box and a tight picture, the body at the top margin in Word's print for six variants, a 60 pt box and a picture 47 pt down among them; the mode 15 lab hdrpoly stepped.)
+                    while k < 60, (document.compatibilityMode ?? 12) >= 15 {
                         let t = first.top + k * step
                         let hit = boxes.filter { $0.2 < t + lineH - 0.01 && $0.3 > t + 0.01 }.sorted { $0.0 < $1.0 }
                         var widest = 0.0, edge = lo
@@ -5547,7 +5549,7 @@ extension RichLayout {
                         let end = min(start + run.length, firstEnd, units.count)
                         guard start < end, run.style.inlineImage == nil else { continue }
                         let text = String(decoding: units[start ..< end], as: UTF16.self)
-                        guard text.unicodeScalars.contains(where: { Self._isIndic($0.value) || ($0.value >= 0x0D00 && $0.value <= 0x0D7F) }) else {
+                        guard text.unicodeScalars.contains(where: { Self._isIndic($0.value) || ($0.value >= 0x0D00 && $0.value <= 0x0DFF) }) else {
                             // (A Latin run of Arial Unicode MS with no w:cs flag in a Devanagari paragraph is drawn in Yu Gothic, which stands the first line on its own
                             // 1.18 em ascent: lab aumsy2, Word's step into such a line 12.8 pt against 12.0 for a Nirmala one; fb94294e.)
                             if document.readFromFile, document.fontCharsets["arial unicode ms"] == "80",
