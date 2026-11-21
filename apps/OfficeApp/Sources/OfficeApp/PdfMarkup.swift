@@ -26,6 +26,9 @@ struct PdfMarkup {
         /// sets its balloon text in from them, at a quarter (lab ctdel).
         var indentLeft = 0.0
         var indentRight = 0.0
+        /// Set on a balloon of a header's or footer's change: which one (an index into `headerFooters`).
+        var runningKind: KeptHeaderFooter.Kind? = nil
+        var runningIndex = -1
         /// The deleted pictures standing in its text, one to each U+FFFC, as (width, height) in points.
         var pictures: [(Double, Double)] = []
         var isComment: Bool { label.hasPrefix("Commented") }
@@ -44,6 +47,7 @@ struct PdfMarkup {
         // and "Formatted: Font color: Auto").
         var places: [Note] = []
         var gone: [Note] = []
+        var runningNotes: [Note] = []
         // (Where a deleted run that carried a formatting change stood, and what it said:
         // the "Formatted" stretch goes on through it. Lab bal5, Word for Windows.)
         var formatsDeleted: [String: String] = [:]
@@ -286,12 +290,16 @@ struct PdfMarkup {
         // (A header or footer prints as the body does: its deleted text taken out, so
         // it stands shorter and the page's body takes the room — 2335cfd7's footer.)
         if !source.headerFooters.isEmpty {
-            printed.headerFooters = source.headerFooters.map { hf in
+            printed.headerFooters = source.headerFooters.enumerated().map { (k, hf) in
                 var sub = source
                 sub.headerFooters = []
                 sub.paragraphs = hf.paragraphs
                 var out = hf
-                if PdfExport.hasMarkup(sub) { out.paragraphs = PdfMarkup(sub).document.paragraphs }
+                if PdfExport.hasMarkup(sub) {
+                    let inner = PdfMarkup(sub)
+                    out.paragraphs = inner.document.paragraphs
+                    runningNotes += inner.notes.map { var n = $0; n.runningKind = hf.kind; n.runningIndex = k; return n }
+                }
                 return out
             }
         }
@@ -320,7 +328,7 @@ struct PdfMarkup {
             .sorted { a, b in
                 let ka = (line(a.element), rank(a.element), a.element.anchor, a.offset), kb = (line(b.element), rank(b.element), b.element.anchor, b.offset)
                 return ka < kb
-            }.map(\.element)
+            }.map(\.element) + runningNotes
     }
 
     /// What Word calls the section break that ends the section at `index`: by
@@ -627,6 +635,15 @@ struct PdfMarkup {
                 }
                 if parts.count == 4 { extra.append("Border: " + parts.joined(separator: ", ")); RuleTrace.hit("formatted-balloon-border") }
             }
+            if let b0 = old.rangeOfSubstring("<w:pBdr>"), let b1 = old.rangeOfSubstring("</w:pBdr>"), cur.rangeOfSubstring("<w:pBdr") == nil {
+                // (A border the old paragraph had and the new one has not: "Border: Bottom: (No border)". lab 2335cfd7 header/footer.)
+                let box = String(old[b0.upperBound ..< b1.lowerBound])
+                var gone: [String] = []
+                for (el, name) in [("w:top", "Top"), ("w:bottom", "Bottom"), ("w:left", "Left"), ("w:right", "Right")] where att(box, el, "w:val").map({ $0 != "nil" && $0 != "none" }) ?? false {
+                    gone.append("\(name): (No border)")
+                }
+                if !gone.isEmpty { extra.append("Border: " + gone.joined(separator: ", ")); RuleTrace.hit("formatted-balloon-border-removed") }
+            }
             if att(cur, "w:shd", "w:val") == "clear", let c = accent(cur, "w:shd", "w:themeFill"),
                att(old, "w:shd", "w:themeFill") != att(cur, "w:shd", "w:themeFill") {
                 extra.append("Pattern: Clear (\(c))"); RuleTrace.hit("formatted-balloon-pattern")
@@ -653,8 +670,10 @@ struct PdfMarkup {
         }
         if oldHang > 0 && old.rangeOfSubstring("<w:numPr>") == nil { oldTabs.append(oldLeft) }
         let newTabs = style.tabStops.filter { $0.rawKind != "num" && $0.rawKind != "bar" }
+        // (Tab stops the style supplies, with none stated in the new paragraph properties, are not "now there".)
+        let styleOnlyTabs = DocxFormat.wordOnWindows && !fc.newPPrXML.isEmpty && fc.newPPrXML.rangeOfSubstring("<w:tabs>") == nil
         var tabSaid: [String] = []
-        for t in newTabs where !oldTabs.contains(where: { abs($0 - t.position) < 0.6 }) {
+        for t in newTabs where !styleOnlyTabs && !oldTabs.contains(where: { abs($0 - t.position) < 0.6 }) {
             let kind: String
             switch t.alignment { case .center: kind = "Centered"; case .right: kind = "Right"; case .decimal: kind = "Decimal"; default: kind = "Left" }
             tabSaid.append(inches(t.position) + ", " + kind)
@@ -913,9 +932,15 @@ struct PdfMarkup {
         let plainEllipsis = TextStyle(color: Color(0xFF000000), fontSize: balloon.size, fontFamily: balloon.family)
         var entries: [(note: Note, anchor: Rect, tp: TextPainter, indent: Double, want: Double)] = []
         for note in notes {
-            let caret = layout.caretRect(note.anchor, document)
-            guard let rect = layout.canvasRects(caret).first, layout.page(atCanvasY: rect.top) == p else { continue }
-            let anchor = Rect.fromLTWH(rect.left / px, (rect.top - page.top) / px, rect.width / px, rect.height / px)
+            let anchor: Rect
+            if let kind = note.runningKind {
+                guard let r = layout.headerFooterCaret(kind, page: p, index: note.runningIndex, at: note.anchor, document) else { continue }
+                anchor = Rect.fromLTWH(r.left / px, r.top / px, r.width / px, r.height / px)
+            } else {
+                let caret = layout.caretRect(note.anchor, document)
+                guard let rect = layout.canvasRects(caret).first, layout.page(atCanvasY: rect.top) == p else { continue }
+                anchor = Rect.fromLTWH(rect.left / px, (rect.top - page.top) / px, rect.width / px, rect.height / px)
+            }
             // The balloon's text: its label in bold, then its paragraphs.
             // (In the document's Balloon Text — delins's Tahoma 8pt,
             // 58067's Lucida Grande 9pt, testComment's 宋体 — else in Word
