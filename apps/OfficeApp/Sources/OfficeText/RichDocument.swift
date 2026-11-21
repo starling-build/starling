@@ -205,6 +205,8 @@ public struct CharStyle: Hashable, Codable, Sendable {
     /// The run's text holds Arabic or Hebrew letters (set where the reader builds the run): Calibri, which has none, cannot be the face it is drawn in.
     public var csLetters: Bool = false
     public var complexFontFamily: String? = nil
+    /// Set by the reader on runs after one that names Raavi as its Latin face: a Gurmukhi run with a Times New Roman complex face is then drawn in Raavi.
+    public var gurmukhiRaavi: Bool = false
     public var eastAsiaFontFamily: String? = nil
     /// The face for the rest of the Latin range (`w:hAnsi`) when the file
     /// names another than `fontFamily` (its `w:ascii`), and `w:hint`:
@@ -2624,7 +2626,6 @@ public struct RichDocument: Hashable, Codable, Sendable {
     public var hasIndicText = false
     /// Whether the first run holding Devanagari names Mangal; Word then draws all Devanagari in Mangal (see the importer).
     public var devanagariFirstRunMangal = false
-    public var gurmukhiFirstRunRaavi = false
     /// The font table's charset code for each face name (lower-cased): "80" is the Japanese one, which decides Word's fallback for Arial Unicode MS.
     public var fontCharsets: [String: String] = [:]
     /// Faces (lowercased) whose font-table entry carries the Thaana mark (Unicode-range bit 72, `w:usb2` 0x100): Word sets a run of one in MV Boli whole when the face is missing.

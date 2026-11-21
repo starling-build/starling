@@ -517,7 +517,6 @@ extension RichLayout {
         sub.fontAlternates = document.fontAlternates
         sub.hasIndicText = document.hasIndicText
         sub.devanagariFirstRunMangal = document.devanagariFirstRunMangal
-        sub.gurmukhiFirstRunRaavi = document.gurmukhiFirstRunRaavi
         // (A page break inside a note starts nothing new — the note is one
         // paragraph to Word, its line following at a line's pitch, none of
         // the paragraph's space between: lo-ccca8bf3's second endnote sets

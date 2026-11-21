@@ -3942,6 +3942,12 @@ enum DocxFormat {
         document.keptCharacterStyles = keptCharacterStyles
         document.keptCharacterStyleIds = keptCharacterStyleIds
         document.readFromFile = true
+        // Word draws a Gurmukhi run whose complex face it lacks (Times New Roman) in Raavi, not Nirmala UI, through the whole document when the first Gurmukhi paragraph has a run naming Raavi as its Latin face
+        // (labs punjabi-raavi prints: Raavi in the first Gurmukhi paragraph flips every run, first run Arial or not; theme and default language do not; none named stays Nirmala UI; dx2 60aa1e5d names Raavi once, late, and stays Nirmala UI)
+        if let first = document.paragraphs.firstIndex(where: { $0.text.unicodeScalars.contains { $0.value >= 0x0A00 && $0.value <= 0x0A7F } }),
+           document.paragraphs[first].runs.contains(where: { $0.style.fontFamily?.trimmingWhitespace().lowercased() == "raavi" }) {
+            for pi in document.paragraphs.indices { for ri in document.paragraphs[pi].runs.indices { document.paragraphs[pi].runs[ri].style.gurmukhiRaavi = true } }
+        }
         document.docDefaultParagraph = docBase
         document.fileFonts = _declaredFonts(docData).union(_declaredFonts(part("word/styles.xml")))
         document.listFormats = listFormats
@@ -4109,7 +4115,6 @@ enum DocxFormat {
             OfficeFonts.noteFontEntries(entries)
             document.hasIndicText = Self._hasIndicBytes(docData)
             document.devanagariFirstRunMangal = Self._firstDevanagariRunNamesMangal(docData)
-            document.gurmukhiFirstRunRaavi = Self._firstGurmukhiRunNamesRaavi(docData)
             OfficeFonts.noteIndicText(document.hasIndicText)
         } else {
             OfficeFonts.noteEmbedded([])
@@ -9289,9 +9294,6 @@ enum DocxFormat {
     /// Whether the first run holding Devanagari names Mangal itself (ascii, hAnsi or cs): Word then draws every Devanagari run of the document in Mangal,
     /// even runs whose complex face is one Windows lacks (Arial), which would otherwise fall to Nirmala UI (dx2 88e26672; labs dpitch5-9).
     private static func _firstDevanagariRunNamesMangal(_ data: Data) -> Bool { _firstRunNames(data, leads: [0xA4, 0xA5], face: "\"mangal\"") }
-    /// The same test for Gurmukhi (E0 A8, E0 A9) and Raavi: a document whose first Gurmukhi run names Raavi has its Times New Roman complex-face
-    /// Gurmukhi runs drawn in Raavi, not Nirmala UI (dx2 53342b69 against 60aa1e5d, whose first Gurmukhi run is Arial and whose body is Nirmala UI).
-    static func _firstGurmukhiRunNamesRaavi(_ data: Data) -> Bool { _firstRunNames(data, leads: [0xA8, 0xA9], face: "\"raavi\"") }
     private static func _firstRunNames(_ data: Data, leads: [UInt8], face: String) -> Bool {
         let bytes = [UInt8](data)
         var i = 0
