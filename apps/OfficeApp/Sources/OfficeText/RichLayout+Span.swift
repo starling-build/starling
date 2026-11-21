@@ -297,7 +297,7 @@ extension RichLayout {
             for run in p.runs {
                 let end = p.text.utf16.index(at, offsetBy: run.length, limitedBy: p.text.utf16.endIndex) ?? p.text.utf16.endIndex
                 defer { at = end }
-                guard run.style.script == .normal, (run.style.raised ?? 0) == 0, p.text.utf16[at ..< end].contains(where: { ($0 >= 0x41 && $0 <= 0x5A) || ($0 >= 0x61 && $0 <= 0x7A) || ($0 >= 0xC0 && $0 < 0x250) }) else { continue }
+                guard run.style.script == .normal, (run.style.raised ?? 0) == 0, p.text.utf16[at ..< end].contains(where: { ($0 >= 0x41 && $0 <= 0x5A) || ($0 >= 0x61 && $0 <= 0x7A) || ($0 >= 0xC0 && $0 < 0x250) || ($0 > 0x20 && $0 < 0x7F) }) else { continue }
                 let n = (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
                 // (A symbol face's letters draw as other glyphs: not Latin text in a second face.)
                 if theme.isSymbolFace?(n) == true { continue }
@@ -1800,7 +1800,7 @@ extension RichLayout {
                 }
                 if mixedLatinFaces, kind >= 0, pitch == nil, s.ascentOverride == nil, p.style.lineSpacing > 0, run.ruby == nil, run.emphasis == nil,
                    let size = s.fontSize, size > 0.5, s.height != nil, !(index.map { _verticalBody($0) } ?? false),
-                   !text.isEmpty, text.unicodeScalars.allSatisfy({ $0.value < 0x250 || ($0.value >= 0xFB00 && $0.value <= 0xFB06) }),
+                   !text.isEmpty, text.unicodeScalars.allSatisfy({ $0.value < 0x250 || ($0.value >= 0x2000 && $0.value <= 0x2BFF) || ($0.value >= 0xFB00 && $0.value <= 0xFB06) }),
                    !((run.fontFamily ?? named?.char.fontFamily).map { theme.isSymbolFace?($0.trimmingWhitespace()) ?? false } ?? false) {
                     let bold = run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold))
                     let italic = run.italic || ((named?.char.italic ?? false) && !run.off.contains(.italic))
