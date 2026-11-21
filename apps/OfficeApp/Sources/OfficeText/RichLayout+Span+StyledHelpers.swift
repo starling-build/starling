@@ -640,6 +640,27 @@ extension _StyledFrame {
             start = end
             return
         }
+        // (A Hebrew word a line break (w:br) runs through: each part at the face's own advances, the break between them as it is; the whole
+        // piece skipped the table for the break and kept the stand-in's widths: xd 7d58f74e and fcd0d58c.)
+        if RichTextTheme.wordWindowsPages, joinedFace != nil, text[start ..< end].unicodeScalars.contains(where: { $0.value == 0x0A }),
+           text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0x5D0 && $0.value <= 0x5EA }) {
+            let base = style(kind)
+            var parts: [Substring] = []
+            var from = start
+            var i = start
+            while i < end {
+                if text[i] == "\n" { if from < i { parts.append(text[from ..< i]) }; parts.append(text[i ... i]); from = text.index(after: i) }
+                i = text.index(after: i)
+            }
+            if from < end { parts.append(text[from ..< end]) }
+            for p in parts {
+                if p == "\n" { spans.append(TextSpan(text: "\n", style: zeroWidth(kind))) }
+                else { spans.append(contentsOf: capped(p, run, joinedScaled(p, base))) }
+            }
+            RuleTrace.hit("word-hebrew-word-split-at-break")
+            start = end
+            return
+        }
         if joinedFace != nil, text[start ..< end].unicodeScalars.contains(where: { $0.value == 0x200C }) {
             // (The mark at no width, between two words each at its
             // own: Word's print has it so, the stand-in 3pt.)
