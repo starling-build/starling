@@ -424,6 +424,32 @@ extension RichLayout {
                 ensureLaidOut(document)
             }
         }
+        // A paragraph parted around a picture, its carried lines beside a second one: laid out again with the jump.
+        if theme.wordRules, RichTextTheme.wordWindowsPages, pageSetup != nil, !_besidePassing, !(_lineDropWant.isEmpty && _lineDrop.isEmpty) {
+            _besidePassing = true
+            defer { _besidePassing = false }
+            for _ in 0 ..< 3 {
+                var changes: [RichChange] = []
+                for k in Set(_lineDropWant.keys).union(_lineDrop.keys) {
+                    // (The band a paragraph's piece gets is from the piece's own start in the flow: the lines carried past the
+                    // picture stand at that offset from the paragraph's top, `X`, and the paragraph's line bottoms are counted
+                    // from its text, so the carried lines are tested `X` less the bottom of the line before them lower.)
+                    var a = _lineDropWant[k]
+                    let mine = _allPieces.filter { $0.paragraph == k }
+                    if let w = a, k < _tops.count, mine.count > 1 {
+                        a = (w.from, mine[1].flowTop - _tops[k])
+                    } else { a = nil; _ = a }
+                    let b = _lineDrop[k]
+                    if let a, let b, a.from == b.from, abs(a.dy - b.dy) < 0.5 { continue }
+                    if a == nil, b == nil { continue }
+                    _lineDrop[k] = a
+                    changes.append(.changed(k))
+                }
+                if changes.isEmpty { break }
+                apply(changes, paragraphCount: document.paragraphs.count)
+                ensureLaidOut(document)
+            }
+        }
         // The text round what the page fixes: a style's frame, centred and aligned on the
         // margins (lo special_styles), or a box that wraps the text, aligned on the page or
         // its margins (lo tdf36117's centred ones). Their place does not depend on the flow.

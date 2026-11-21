@@ -1748,8 +1748,10 @@ extension RichLayout {
                     for k in 0 ..< bottoms.count {
                         var top = k == 0 ? 0 : bottoms[k - 1]
                         if let textLine { top = max(top, bottoms[k] - textLine) }
-                        let beside = (bottoms[k] > band.top + 0.01 && top < band.bottom - 0.01)
-                            || (_besideMoreBands[i] ?? []).contains { bottoms[k] > $0.top + _px(3) && top < $0.bottom - _px(3) }
+                        // (Lines carried past a picture stand where the jump puts them: see `_lineDrop`.)
+                        let drop = _lineDrop[i].flatMap { k >= $0.from && $0.from >= 1 && $0.from <= bottoms.count ? $0.dy - bottoms[$0.from - 1] : nil } ?? 0
+                        let beside = (bottoms[k] + drop > band.top + 0.01 && top + drop < band.bottom - 0.01)
+                            || (_besideMoreBands[i] ?? []).contains { bottoms[k] + drop > $0.top + _px(3) && top + drop < $0.bottom - _px(3) }
                         // (The beside-box indent counts from the column's edge, not from the width cut to whole
                         // cells: efbb06c2's lines beside a picture hold 22 characters of 11 in Word's print,
                         // 246.2 of room, where the cut column less the indent held 21.)
