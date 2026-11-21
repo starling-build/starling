@@ -2409,6 +2409,7 @@ extension RichLayout {
                     }
                 }
                 var stack: [Int: Double] = [:]
+                var cellBands: [Int: [(top: Double, bottom: Double)]] = [:]
                 var rowHeight = 0.0
                 var ruled = 0.0
                 var padded = 0.0
@@ -2429,12 +2430,33 @@ extension RichLayout {
                         paddedBelow = max(paddedBelow, cell.pad.bottom - cell.ruleBelow)
                     }
                     let offset = stack[cell.column].map { $0 - shared(k) } ?? 0
+                    // (An empty line that meets the band of a top-and-bottom picture an earlier paragraph of the cell anchors stands at its
+                    // foot, as the lines in the body: `cellBands`.)
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, cell.rowSpan == 1, let bands = cellBands[cell.column], !bands.isEmpty,
+                       document.paragraphs[k].text.unicodeScalars.allSatisfy({ $0 == "\u{FFFC}" || $0 == " " || $0 == "\n" }) {
+                        var top = offset + _spaceBefore[k]
+                        let line = _markLineHeight(k, document)
+                        var push = 0.0
+                        var steps = 0
+                        while steps < 20, let b = bands.first(where: { $0.top < top + line - 0.01 && $0.bottom > top + 0.01 }) { push += b.bottom - top; top = b.bottom; steps += 1 }
+                        if push > 0.01 {
+                            RuleTrace.hit("word-cell-empty-line-meeting-a-picture-band-stands-at-its-foot")
+                            _spaceBefore[k] += push; _heights[k] += push
+                        }
+                    }
                     _tops[k] = y + ruleAbove + cell.pad.top + offset
                     if RichTextTheme.wordWindowsPages, let image = document.paragraphs[k].image, image.float == nil, image.textBox?.growsToFit == true {
                         _blockPush[k] = _textBox(image, document).map { $0.layout._avoidPush }.flatMap { $0 > 0.01 ? $0 : nil }
                     }
                     _rowTops[k] = y
                     stack[cell.column] = offset + _heights[k]
+                    if theme.wordRules, RichTextTheme.wordWindowsPages, cell.rowSpan == 1 {
+                        for image in document.paragraphs[k].inlineImages.inOrder + [document.paragraphs[k].image].compactMap({ $0 }) {
+                            guard let f = image.float, f.takesRoom || f.bandsPage, !f.wraps, f.verticalAlign == nil, f.verticalFrom == "paragraph", f.wrapSide == nil,
+                                  image.height > 0, _px(f.y) >= _spaceBefore[k] + _markLineHeight(k, document) - 0.01 else { continue }
+                            cellBands[cell.column, default: []].append((top: offset + _px(f.y) - _px(f.distanceTop), bottom: offset + _px(f.y + image.height + f.effectBottom + f.distanceBottom)))
+                        }
+                    }
                     // A spanning cell's content counts against the rows it
                     // spans, below; a turned cell's against the placed height.
                     // (An empty cell whose end mark the file hides

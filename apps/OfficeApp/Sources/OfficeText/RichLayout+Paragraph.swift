@@ -4788,6 +4788,9 @@ extension RichLayout {
                 if let float = image.float, float.takesRoom || float.bandsPage, !float.wraps, float.verticalFrom == "paragraph",
                    float.wrapSide == nil, !image.data.isEmpty || Self.drawsObject?(image) == true {
                     let y = float.verticalAlign == nil ? _px(float.y) : 0
+                    // (One that starts below the paragraph's own line leaves the line where it is: the lines after it meet the picture,
+                    // `_cellBandPush`. dx2 9d7e8c61's three small pictures 13 to 58pt under an empty 11pt line.)
+                    if RichTextTheme.wordWindowsPages, float.verticalAlign == nil, y >= before + _markLineHeight(i, document) - 0.01 { RuleTrace.hit("word-cell-picture-below-its-own-line-leaves-the-line"); continue }
                     under = max(under, y + _bodyBoxHeight(image, document) + _px(float.effectBottom) + _px(float.distanceBottom))
                     continue
                 }
