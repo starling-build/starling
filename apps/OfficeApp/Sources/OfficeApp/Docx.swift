@@ -6723,7 +6723,7 @@ enum DocxFormat {
         var runRaised: Double? = nil          // its `w:position`, for a picture or object in it
         var runRevision: RevisionMark? = nil  // the change it is in (`w:del`, `w:ins`), for a picture or object in it
         var runFrame: BorderLine? = nil   // ... and its character border, a line of one
-        func addInline(_ att: ImageAttachment) {
+        func addInline(_ att: ImageAttachment, run base: CharStyle? = nil) {
             var att = att
             att.sourceRunPropertiesXML = runPropertiesXML
             // (A picture in the code of `IF PAGE = NUMPAGES` is its "then" text: the last page's.)
@@ -6735,7 +6735,8 @@ enum DocxFormat {
             }
             if att.float == nil, att.sourceXML?.containsSubstring("<wp:anchor") != true { att.frame = runFrame }
             inlineImages[att.id] = att
-            var cs = CharStyle()
+            // (An embedded object keeps its run's look: the size of the text its line is set by.)
+            var cs = base ?? CharStyle()
             cs.inlineImage = att.id
             cs.raised = runRaised
             cs.revision = runRevision
@@ -6744,8 +6745,8 @@ enum DocxFormat {
         /// A drawing that is not a picture (a chart, a shape, a diagram), an
         /// embedded object, a VML picture: kept as the file wrote it, with
         /// the parts it names, and shown as an empty box of its size.
-        func addObject(_ node: XNode) {
-            if var att = objectAttachment(node) { att.inset = Self._canvasInset(node); addInline(att) }
+        func addObject(_ node: XNode, run base: CharStyle? = nil) {
+            if var att = objectAttachment(node) { att.inset = Self._canvasInset(node); addInline(att, run: base) }
         }
         /// The kept-verbatim attachment for `node`, or nil when a part it
         /// names is missing.
@@ -8080,7 +8081,7 @@ enum DocxFormat {
                     // "1. Introduction" stands a line below its rule in Word's print.)
                     if DocxFormat.wordOnWindows, child.name == "w:pict", child.descendant("v:rect")?["o:hr"] == "t" { ruleOpen = true }
                 case "w:object":
-                    addObject(child)
+                    addObject(child, run: cs)
                 case "mc:AlternateContent":
                     // A Choice this app cannot draw — Word 2016's charts,
                     // `cx` — is the picture of it the Fallback holds:
