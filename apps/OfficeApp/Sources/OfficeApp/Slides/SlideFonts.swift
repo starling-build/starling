@@ -92,6 +92,8 @@ enum SlideFonts {
     /// stand-in's: Lucida Sans Unicode, drawn in Liberation Sans, at its
     /// own widths — 9% wider (GeomLec1's lines wrapped a word late).
     /// Its bold and italic are made from the regular, as wide.
+    private static let eastAsianLock = RegistryLock()
+    nonisolated(unsafe) private static var eastAsianMade: [String: RichResolvedFace] = [:]
     static func face(_ family: String?, _ eastAsian: Bool) -> RichResolvedFace? {
         // (None of a stand-in's widths for the machine's own face.)
         guard let family, OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil else { return nil }
@@ -99,6 +101,9 @@ enum SlideFonts {
         guard !eastAsian || windowsName(family) == "malgun gothic" || windowsName(family) == "맑은 고딕" || missingKoreanGothic(family) else { return nil }
         if let cuts = SlideEastAsianWidths.lookup(windowsName(family)) ?? (missingKoreanGothic(family) ? SlideEastAsianWidths.malgun : nil) {
             // (An East Asian face at its own measured widths, Latin and the rest past ASCII: PowerPoint sets it by itself, not by a stand-in's.)
+            // (Built once per family: parsing its advance table for every run made a 560-slide deck take over ten minutes.)
+            eastAsianLock.lock(); defer { eastAsianLock.unlock() }
+            if let made = eastAsianMade[family] { return made }
             var face = RichResolvedFace(family: resolve(family))
             let regular = SlideEastAsianWidths.parse(cuts.regular.other)
             let bold = cuts.bold.map { SlideEastAsianWidths.parse($0.other) } ?? regular
@@ -114,6 +119,7 @@ enum SlideFonts {
                 face.italicOtherAdvances = SlideEastAsianWidths.parse(it.regular.other)
                 face.boldItalicOtherAdvances = it.bold.map { SlideEastAsianWidths.parse($0.other) } ?? face.italicOtherAdvances
             }
+            eastAsianMade[family] = face
             return face
         }
         switch windowsName(family) {
