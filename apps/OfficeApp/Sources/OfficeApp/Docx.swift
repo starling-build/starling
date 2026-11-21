@@ -1492,7 +1492,10 @@ enum DocxFormat {
                 if let id = style["w:styleId"] { paragraphStyles[id] = style }
             }
             for style in styles.all("w:style") {
-                if let name = style.first("w:name")?["w:val"] { notes.styleNames.insert(name.lowercased()) }
+                if let name = style.first("w:name")?["w:val"] {
+                    notes.styleNames.insert(name.lowercased())
+                    if let id = style["w:styleId"] { notes.styleDisplayNames[id] = name }
+                }
             }
             var charNodes: [String: XNode] = [:]
             for style in styles.all("w:style") where style["w:type"] == "character" {
@@ -5786,6 +5789,7 @@ enum DocxFormat {
         /// error has been written: a STYLEREF naming no style prints Word's
         /// error, not the result it was saved with.
         var styleNames = Set<String>()
+        var styleDisplayNames: [String: String] = [:]
         var styleRefShown = Set<Int>()
         /// The reference fields whose result is already Word's error text (`REF` to a name not in the file).
         var referenceErrors = Set<Int>()
@@ -6511,7 +6515,13 @@ enum DocxFormat {
             }
             if let change = pPr.first("w:pPrChange") {
                 style.propertyChange = FormatChange(author: change["w:author"] ?? "", date: change["w:date"] ?? "",
-                                                    oldRPrXML: change.first("w:pPr").map { PptxXML.serialize($0) } ?? "")
+                                                    oldRPrXML: change.first("w:pPr").map { PptxXML.serialize($0) } ?? "",
+                                                    newPPrXML: {
+                                                        var x = PptxXML.serialize(pPr)
+                                                        if let a = x.rangeOfSubstring("<w:pPrChange"), let b = x.rangeOfSubstring("</w:pPrChange>") { x.removeSubrange(a.lowerBound ..< b.upperBound) }
+                                                        return x
+                                                    }(),
+                                                    styleName: pPr.first("w:pStyle")?["w:val"].flatMap { notes.styleDisplayNames[$0] } ?? "")
             }
             if let rPr = pPr.first("w:rPr") {
                 // (The mark's character style first, then its own properties, as a run's:

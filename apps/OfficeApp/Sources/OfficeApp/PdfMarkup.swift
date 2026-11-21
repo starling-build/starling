@@ -419,7 +419,7 @@ struct PdfMarkup {
             // where ours said "Centered, Left: 0\"".)
             let finalDeleted = DocxFormat.wordOnWindows && i == document.paragraphs.count - 1 && p.style.markRevision?.kind == .deleted
             if let change = p.style.propertyChange, !finalDeleted {
-                let said = Self._describe(paragraph: p.style, was: change.oldRPrXML)
+                let said = Self._describe(paragraph: p.style, was: change.oldRPrXML, change: change)
                 if said.isEmpty { paragraphLast = nil } else if paragraphLast != said {
                     out.append(Note(anchor: RichPosition(paragraph: i, offset: 0), label: "Formatted:", paragraphs: [said], author: change.author))
                     paragraphLast = said
@@ -498,7 +498,7 @@ struct PdfMarkup {
         }
     }
 
-    static func _describe(paragraph style: RichParagraphStyle, was old: String) -> String {
+    static func _describe(paragraph style: RichParagraphStyle, was old: String, change fc: FormatChange = FormatChange(author: "", date: "", oldRPrXML: "")) -> String {
         func attribute(_ element: String, _ name: String) -> String? {
             guard let r = old.rangeOfSubstring("<\(element) ") ?? old.rangeOfSubstring("<\(element)/") else { return nil }
             let tail = old[r.upperBound...]
@@ -512,6 +512,10 @@ struct PdfMarkup {
             return (v == v.rounded() ? String(Int(v)) : String(v)) + "\""
         }
         var said: [String] = []
+        if DocxFormat.wordOnWindows, !fc.styleName.isEmpty, !fc.newPPrXML.isEmpty, attribute("w:pStyle", "w:val") != {
+            guard let r = fc.newPPrXML.rangeOfSubstring("<w:pStyle w:val=\"") else { return nil as String? }
+            return String(fc.newPPrXML[r.upperBound...].prefix { $0 != "\"" })
+        }() { said.append(fc.styleName.prefix(1).uppercased() + fc.styleName.dropFirst()) }
         let oldAlign: ParagraphAlignment = {
             switch attribute("w:jc", "w:val") {
             case "center": return .center
@@ -570,6 +574,52 @@ struct PdfMarkup {
             }
             let oldKeep = attribute("w:keepNext", "w:val").map { $0 != "0" && $0 != "false" } ?? (old.rangeOfSubstring("<w:keepNext") != nil)
             if style.keepNext != oldKeep { said.append(style.keepNext ? "Keep with next" : "Don't keep with next"); RuleTrace.hit("formatted-balloon-keep-with-next") }
+        }
+        // (Words read from the paragraph's current pPr, Word for Windows, 2335cfd7 p1: the style's name leads;
+        // "Line spacing:  Multiple 1.15 li" when the new line is stated and differs; the two "Adjust space"
+        // words when the old pPr switched autoSpaceDE/DN off and the new one does not; four-side borders;
+        // the fill's pattern.)
+        if DocxFormat.wordOnWindows, !fc.newPPrXML.isEmpty {
+            let cur = fc.newPPrXML
+            func att(_ xml: String, _ element: String, _ name: String) -> String? {
+                guard let r = xml.rangeOfSubstring("<\(element) ") ?? xml.rangeOfSubstring("<\(element)/") else { return nil }
+                let tail = xml[r.upperBound...]
+                guard let end = tail.firstIndex(of: ">") else { return nil }
+                let tag = String(tail[..<end])
+                guard let a = tag.rangeOfSubstring(" " + name + "=\"") ?? tag.rangeOfSubstring(name + "=\"") else { return nil }
+                return String(tag[a.upperBound...].prefix { $0 != "\"" })
+            }
+            func accent(_ xml: String, _ element: String, _ n: String) -> String? {
+                if let t = att(xml, element, n), t.hasPrefix("accent"), let k = Int(t.dropFirst(6)) { return "Accent \(k)" }
+                return nil
+            }
+            var extra: [String] = []
+            if let nl = att(cur, "w:spacing", "w:line").flatMap({ Double($0) }), (att(cur, "w:spacing", "w:lineRule") ?? "auto") == "auto",
+               abs(nl / 240 - (att(old, "w:spacing", "w:line").flatMap { Double($0) } ?? 0) / 240) > 0.001 {
+                let v = (nl / 240 * 100).rounded() / 100
+                extra.append("Line spacing:  Multiple " + (v == v.rounded() ? String(Int(v)) : String(v)) + " li"); RuleTrace.hit("formatted-balloon-line-spacing")
+            }
+            for (el, words) in [("w:autoSpaceDE", "Adjust space between Latin and Asian text"), ("w:autoSpaceDN", "Adjust space between Asian text and numbers")] {
+                let was = att(old, el, "w:val").map { $0 != "0" && $0 != "false" } ?? true
+                let now = att(cur, el, "w:val").map { $0 != "0" && $0 != "false" } ?? true
+                if now && !was { extra.append(words); RuleTrace.hit("formatted-balloon-adjust-space") }
+            }
+            if old.rangeOfSubstring("<w:pBdr") == nil, let b0 = cur.rangeOfSubstring("<w:pBdr>"), let b1 = cur.rangeOfSubstring("</w:pBdr>") {
+                let box = String(cur[b0.upperBound ..< b1.lowerBound])
+                var parts: [String] = []
+                for (el, name) in [("w:top", "Top"), ("w:bottom", "Bottom"), ("w:left", "Left"), ("w:right", "Right")] {
+                    guard att(box, el, "w:val") == "single", let sz = att(box, el, "w:sz").flatMap({ Double($0) }),
+                          let c = accent(box, el, "w:themeColor") else { parts = []; break }
+                    let w = sz / 8
+                    parts.append("\(name): (Single solid line, \(c),  " + (w == w.rounded() ? String(Int(w)) : String(w)) + " pt Line width)")
+                }
+                if parts.count == 4 { extra.append("Border: " + parts.joined(separator: ", ")); RuleTrace.hit("formatted-balloon-border") }
+            }
+            if att(cur, "w:shd", "w:val") == "clear", let c = accent(cur, "w:shd", "w:themeFill"),
+               att(old, "w:shd", "w:themeFill") != att(cur, "w:shd", "w:themeFill") {
+                extra.append("Pattern: Clear (\(c))"); RuleTrace.hit("formatted-balloon-pattern")
+            }
+            said.append(contentsOf: extra)
         }
         // (Tab stops now there that were not, "0.69", Left", then those gone, "Not at 0.75"". A hanging indent
         // is a tab stop at its left indent; a list's own "num" tab at or before the indent is the list's.

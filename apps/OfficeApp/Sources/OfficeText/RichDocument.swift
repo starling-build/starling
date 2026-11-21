@@ -50,8 +50,13 @@ public struct FormatChange: Hashable, Codable, Sendable {
     public var author: String
     public var date: String
     public var oldRPrXML: String
-    public init(author: String, date: String, oldRPrXML: String) {
+    /// A paragraph change's current `w:pPr` (without the change itself) and its style's display name, which
+    /// Word's "Formatted:" balloon words (style, line spacing, borders, shading) are read from.
+    public var newPPrXML: String = ""
+    public var styleName: String = ""
+    public init(author: String, date: String, oldRPrXML: String, newPPrXML: String = "", styleName: String = "") {
         self.author = author; self.date = date; self.oldRPrXML = oldRPrXML
+        self.newPPrXML = newPPrXML; self.styleName = styleName
     }
 }
 
