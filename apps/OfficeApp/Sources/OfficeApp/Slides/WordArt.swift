@@ -600,6 +600,7 @@ enum WordArt {
             // outer curve in to one at `inner` of its radius (or out, when the
             // letters' feet are on the outside).
             var pour: ((Double, Double) -> Offset)? = nil
+            var farPour: ((Double, Double) -> Offset)? = nil   // a ring's second half, on the far side
             func poured(start: Double, sweep: Double, feetOut: Bool) {
                 // (Arch Down Pour's ring is thinner at 25000: PowerPoint's print of warps2, overlap .36 at 50000, .91 at 25000.)
                 let inner = (warp.adjust.count > 1 ? warp.adjust[1] : (warp.preset == "textArchDownPour" ? 25000 : 50000)) / 100_000
@@ -691,19 +692,42 @@ enum WordArt {
                 var near = Line(), far = Line()
                 near.glyphs = Array(all.glyphs[..<half])
                 far.glyphs = Array(all.glyphs[half...])
-                // A shallow arc and a band a third of the box, as PowerPoint's
-                // default (adjust 60%) comes out: the ends of the two halves
-                // cross where the ring turns away.
-                let adjust = (warp.adjust.first ?? 60000) / 100_000
-                let depth = 0.5 * (1 - adjust), t = 0.55 * adjust
-                // Nearly level across the middle and turning down sharply at
-                // the ends, as the edge of a ring does.
-                func dip(_ u: Double) -> Double { depth * 1.5 * (1 - (1 - 0.97 * bow(u)).squareRoot()) }
-                let top: Envelope = { u in (dip(u), dip(u) + t) }
-                let bottom: Envelope = { u in (1 - dip(u) - t, 1 - dip(u)) }
+                // The preset's own geometry (presetTextWarpDefinitions): two full
+                // ellipses of the box's width, each `a` of its height tall, one
+                // hung from the top and one from the foot. A letter's top follows
+                // the first and its foot the second, at the same angle, so each
+                // column stands straight. The first half of the text goes round
+                // the upper half of the ellipses (the lower one, outside), the
+                // second back along the other side, reading the other way.
+                let a = max(0.5, min(0.99, (warp.adjust.first ?? 60000) / 100_000))
+                let r = a * area.height / 2, rx = area.width / 2
+                let top = area.top + r, foot = area.bottom - r
+                // The text runs along the ellipse by its length, not its angle.
+                var arc = [0.0]
+                for k in 1 ... 360 {
+                    let p0 = Double(k - 1) * .pi / 360, p1 = Double(k) * .pi / 360
+                    let dx = rx * (cos(p1) - cos(p0)), dy = r * (sin(p1) - sin(p0))
+                    arc.append(arc[k - 1] + (dx * dx + dy * dy).squareRoot())
+                }
+                func phi(_ u: Double) -> Double {
+                    let want = max(0, min(1, u)) * (arc.last ?? 1)
+                    var lo = 0, hi = 360
+                    while hi - lo > 1 { let mid = (lo + hi) / 2; if arc[mid] <= want { lo = mid } else { hi = mid } }
+                    let span = arc[hi] - arc[lo], t = span > 0 ? (want - arc[lo]) / span : 0
+                    return (Double(lo) + t) * .pi / 360
+                }
+                func side(_ sign: Double) -> (Double, Double) -> Offset {
+                    { u, v in
+                        let p = phi(u)
+                        let y0 = top + sign * r * sin(p), y1 = foot + sign * r * sin(p)
+                        return Offset(area.center.dx - rx * cos(p), y0 + (y1 - y0) * v)
+                    }
+                }
                 let inside = warp.preset == "textRingInside"
-                bands = [([near], inside ? top : bottom, false, nil)]
-                if !far.glyphs.isEmpty { bands.append(([far], inside ? bottom : top, true, nil)) }
+                pour = side(inside ? -1 : 1)
+                farPour = side(inside ? 1 : -1)
+                bands = [([near], { _ in (0, 1) }, false, nil)]
+                if !far.glyphs.isEmpty { bands.append(([far], { _ in (0, 1) }, true, nil)) }
             case "textArchUpPour", "textButtonPour":
                 poured(start: 180, sweep: 180, feetOut: false)
                 bands = [(lines, { _ in (0, 1) }, false, nil)]
@@ -780,7 +804,7 @@ enum WordArt {
                     }
                 }
                 func point(_ u: Double, _ v: Double) -> Offset {
-                    if let pour { return pour(u, v) }
+                    if let pour { return band.mirrored ? (farPour ?? pour)(1 - u, v) : pour(u, v) }
                     let u = band.mirrored ? 1 - u : u
                     let e = band.env(u)
                     let shift = slant >= 0 ? slant * v : -slant * (1 - v)
