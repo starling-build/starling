@@ -234,6 +234,7 @@ extension _ParaFrame {
            p.text.utf16.contains(where: { $0 == 0x3001 || $0 == 0x3002 || $0 == 0xFF0C || $0 == 0xFF0E }) {
             let units = Array(p.text.utf16)
             func isMark(_ k: Int) -> Bool { k < units.count && (units[k] == 0x3001 || units[k] == 0x3002 || units[k] == 0xFF0C || units[k] == 0xFF0E) }
+            var stays = Set<Int>()
             for _ in 0 ..< 3 {
                 let map = _map(i)
                 let starts = _lineStarts(painter, map, count: units.count)
@@ -241,13 +242,22 @@ extension _ParaFrame {
                 for s0 in starts.dropFirst() where s0 > 0 {
                     // (The mark opens the line, or follows its one first character: that character comes up with it.)
                     let m = isMark(s0) ? s0 : (isMark(s0 + 1) ? s0 + 1 : -1)
-                    guard m >= 0, adj[m] == nil else { continue }
+                    guard m >= 0, adj[m] == nil, !stays.contains(m) else { continue }
                     let boxes = painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(m), extentOffset: map.painter(m) + 1))
                     if let b = boxes.first { adj[m] = -max(0, b.right - b.left - _px(0.5)) }
                 }
                 if adj.count == fit.count { break }
                 let trial = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: adj, held: tabsHeld).0)
-                if _lineStarts(trial, map, count: units.count) == starts { trial.dispose(); break }
+                let after = _lineStarts(trial, map, count: units.count)
+                if after == starts { trial.dispose(); break }
+                // (A mark set narrow stands at its line's end. Where the line took more and it no longer does, it keeps its width, and
+                // the paragraph is laid out again as it was: 44a22c19 p15 "…読む。（異なる…" breaks after the 。 in the print.)
+                let loose = adj.keys.filter { fit[$0] == nil && $0 + 1 < units.count && !after.contains($0 + 1) }
+                if !loose.isEmpty {
+                    trial.dispose()
+                    stays.formUnion(loose)
+                    continue
+                }
                 painter.dispose(); painter = trial; fit = adj
             }
         }
