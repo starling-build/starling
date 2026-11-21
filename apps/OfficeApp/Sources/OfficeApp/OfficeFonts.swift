@@ -862,36 +862,35 @@ enum OfficeFonts {
 
     /// An embedded variable font saves with its default instance (often the
     /// lightest, wght 200) whatever face it was embedded as: Nunito Black
-    /// drew as ExtraLight. Sets the weight axis' default to the weight the
-    /// face's own name says (Black 900, Bold 700, Light 300 ...), clamped to
-    /// the axis; a font with no weight axis, or a name with no weight word,
-    /// comes back unchanged.
-    static func pinnedWeight(_ data: Data, named name: String) -> Data {
+    /// drew as ExtraLight. The weight its name says (Black 900, Bold 700,
+    /// Light 300 ...), clamped to the weight axis, to set as the text's
+    /// `wght` variation (the glyphs stored are the default instance's, so
+    /// moving the axis' default alone changes nothing); nil for a font with
+    /// no weight axis or a name with no weight word.
+    static func variableWeight(_ data: Data, named name: String) -> Double? {
         let n = name.lowercased()
         let words: [(String, Double)] = [("extralight", 200), ("ultralight", 200), ("extrabold", 800), ("ultrabold", 800), ("semibold", 600), ("demibold", 600), ("black", 900), ("heavy", 900), ("thin", 100), ("light", 300), ("medium", 500), ("bold", 700)]
-        guard let want = words.first(where: { n.containsSubstring($0.0) })?.1 else { return data }
-        var d = [UInt8](data)
+        guard let want = words.first(where: { n.containsSubstring($0.0) })?.1 else { return nil }
+        let d = [UInt8](data)
         func u16(_ at: Int) -> Int { at + 2 <= d.count ? Int(d[at]) << 8 | Int(d[at + 1]) : 0 }
         func u32(_ at: Int) -> Int { u16(at) << 16 | u16(at + 2) }
-        guard d.count > 12 else { return data }
+        guard d.count > 12 else { return nil }
         var fvar: Int? = nil
         for k in 0 ..< u16(4) {
             let e = 12 + 16 * k
-            guard e + 16 <= d.count else { return data }
+            guard e + 16 <= d.count else { return nil }
             if Array(d[e ..< e + 4]) == Array("fvar".utf8) { fvar = u32(e + 8) }
         }
-        guard let f = fvar else { return data }
+        guard let f = fvar else { return nil }
         let first = f + u16(f + 4), count = u16(f + 8), size = u16(f + 10)
         for a in 0 ..< count {
             let at = first + a * size
             guard at + 16 <= d.count, Array(d[at ..< at + 4]) == Array("wght".utf8) else { continue }
             let lo = Double(Int32(bitPattern: UInt32(u32(at + 4)))) / 65536
             let hi = Double(Int32(bitPattern: UInt32(u32(at + 12)))) / 65536
-            let fixed = UInt32(bitPattern: Int32(min(max(want, lo), hi) * 65536))
-            for b in 0 ..< 4 { d[at + 8 + b] = UInt8((fixed >> UInt32(24 - 8 * b)) & 255) }
-            return Data(d)
+            return min(max(want, lo), hi)
         }
-        return data
+        return nil
     }
 
     /// Loads one embedded face (`word/fonts/*.odttf`, already
