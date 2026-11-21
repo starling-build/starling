@@ -1,0 +1,1 @@
+CLAIM amd-11: sa1/sa2 a7044bb8 (0 of 31 lines), 92c84270 (2 of 57), 831e523c (10 of 226), lowest first. Sweep of all 287 sa1+sa2 docs at tip 1032-era main 2026-11-21; 6f0b70eb 77/84, 5e813226 1032/1102 (after #648 and #643), 462c594f 1783/1808, af8615a0 115/115, 8e800da4 51/51.
