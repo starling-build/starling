@@ -2124,7 +2124,7 @@ extension RichLayout {
                         case let g = geometry(pgs.i), case let cs = Self._lineBottoms(g.painter).map({ g.textTop + $0 + (pgs.i < _firstLineLift.count ? _firstLineLift[pgs.i] : 0) }),
                         cs.count >= 2, cs[0] - top <= tf.down + 0.01 {
                     pgs.frameReturn = (pgs.y, pgs.page)
-                    pgs.floatHold = (tf.y + tf.down, pgs.y)
+                    pgs.floatHold = .init(limit: tf.y + tf.down, back: pgs.y, source: .table)
                     pgs.y = tf.y
                 }
                 // (Held in by a header picture's strip, a line under a floating table is
@@ -2241,7 +2241,7 @@ extension RichLayout {
                             break
                         }
                         RuleTrace.hit("word-paragraph-parts-around-a-picture")
-                        pgs.floatHold = (lineTop + 0.05, back)
+                        pgs.floatHold = .init(limit: lineTop + 0.05, back: back, source: .picture)
                         break
                     }
                 }
