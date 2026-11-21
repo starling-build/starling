@@ -2328,7 +2328,11 @@ private struct SlideContext {
         guard let tbl = el.descendant("a:tbl"), var frame = el.first("p:xfrm").flatMap(_xfrmRect) else { return nil }
         if let t = transform { frame = t(frame) }
         let tableId = UUID().uuidString
-        let widths = (tbl.first("a:tblGrid")?.all("a:gridCol") ?? []).compactMap { $0["w"].flatMap(Double.init).map { $0 / Pptx.emu } }
+        // (A right-to-left table, `a:tblPr rtl="1"`, runs its columns from the right: its first column is the rightmost, as
+        // PowerPoint prints rtl/cc66a30f p18's "نوع شکست".)
+        let rtlTable = tbl.first("a:tblPr")?["rtl"] == "1"
+        var widths = (tbl.first("a:tblGrid")?.all("a:gridCol") ?? []).compactMap { $0["w"].flatMap(Double.init).map { $0 / Pptx.emu } }
+        if rtlTable { widths.reverse() }
         // A frame narrower than its columns (Google's export writes 3000000 EMU whatever the table is): PowerPoint draws the
         // grid, not the frame (e2a1fcdb p8 print: 908 pt wide on a 236 pt frame).
         let gridSum = widths.reduce(0, +)
@@ -2381,7 +2385,7 @@ private struct SlideContext {
                 // columns with none after it, and PowerPoint wraps it in one.
                 var span = 1
                 while span < (tc["gridSpan"].flatMap(Int.init) ?? 1), c + span < cells.count, cells[c + span]["hMerge"] == "1" { span += 1 }
-                var cell = CellRef(table: tableId, row: r, column: column,
+                var cell = CellRef(table: tableId, row: r, column: rtlTable ? max(0, columnCount - column - span) : column,
                                    span: span, rowSpan: tc["rowSpan"].flatMap(Int.init) ?? 1)
                 // The style's regional looks, the later ones over the earlier
                 // (a corner cell of the header row looks like the header).
