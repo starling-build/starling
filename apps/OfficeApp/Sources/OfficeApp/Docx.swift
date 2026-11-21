@@ -1248,6 +1248,7 @@ enum DocxFormat {
         // down to the default table style, then Word's own (0, 5.4pt).
         var tableMargins: [String: _Margins] = [:]
         var defaultMargins = _Margins()
+        var noDefaultTableStyle = false
         // Whether a table style draws borders (Table Grid does, Normal Table
         // does not): a table that says nothing itself takes its style's word.
         var tableBorders: [String: _Borders] = [:]
@@ -1402,6 +1403,7 @@ enum DocxFormat {
             // mode — a table is set out by its left cell margin, here 0.)
             if !tableNodes.values.contains(where: { Self._isDefaultTableStyle($0) }) {
                 RuleTrace.hit("no-default-table-style-no-margin")
+                noDefaultTableStyle = true
                 defaultMargins = _Margins(top: 0, left: 0, bottom: 0, right: 0)
             }
             for id in tableNodes.keys {
@@ -2815,6 +2817,13 @@ enum DocxFormat {
                 style.textOutdent = own.left ?? base.left ?? 5.4
                 style.textOutdentRight = own.right ?? base.right ?? 5.4
                 style.tableOwnMarginLeft = own.left ?? base.left ?? 5.4
+                // (A styles part with no default table style: the table stands on the margin and its text 0.5pt in, rules or none, in
+                // every mode: lab tblx, Word for Windows, compat 12 and 15; dx2 8afcc2c4's tables at 72.5.)
+                if Self.wordOnWindows, noDefaultTableStyle, own.left == nil, styled.left == nil, (margins.left ?? 0) == 0, node.first("w:tblPr")?.first("w:tblBorders")?.first("w:left") == nil {
+                    RuleTrace.hit("no-default-table-style-text-half-point-in")
+                    style.cellMarginLeft = 0.5
+                    style.textOutdent = 0
+                }
                 // (… unless its first cell states its own: the table is set
                 // out by the margin of the cell whose text it lines up.
                 // zh-6143e5f0's plans, cells of zero margin in a table of
