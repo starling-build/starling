@@ -206,6 +206,11 @@ extension RichLayout {
                 } else if !lines.isEmpty {
                     lines.removeLast()
                 }
+                // (A paragraph's own end is a place to part as well, where the next paragraph of the cell follows: Word's print of
+                // sa1 03f63881, the "Criterios de participación" cell of bullets, keeps whole bullets of two and three lines on
+                // page 14 to its foot; ours parted only inside the long ones and took the rest over, five lines short.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, let end = all.last, m + 1 < inside.document.paragraphs.count,
+                   let next = inside.layout._cells[m + 1], next.table == c.table, next.row == c.row, next.column == c.column { lines.append(end) }
                 pieces.append(InnerPiece(row: c.row, column: c.column, cuts: lines, bottom: all.last ?? (top + g2.textTop)))
             }
             for piece in pieces {
