@@ -2286,8 +2286,14 @@ private struct SlideContext {
         // A table's text takes the master's other-text style over the
         // presentation's default: tdf135843_insideH's empty rows are
         // 10.13 pt lines (the master's), not 13.5 (the default's).
+        // (The deck's default line and paragraph spacing do not reach a table's cells: 65a1be73's defaults say 120% and
+        // 20% before, its rows print at their stated height, 33.5 pt over 16 pt lines.)
+        var fromDefaults = LevelStyle.paragraph(defaults?.first("a:lvl1pPr"), colors)
+        fromDefaults.lineMultiple = nil; fromDefaults.linePoints = nil
+        fromDefaults.beforePoints = nil; fromDefaults.beforePercent = nil
+        fromDefaults.afterPoints = nil; fromDefaults.afterPercent = nil
         var base = LevelStyle.paragraph(master?.first("p:txStyles")?.first("p:otherStyle")?.first("a:lvl1pPr"), colors)
-            .filled(from: LevelStyle.paragraph(defaults?.first("a:lvl1pPr"), colors))
+            .filled(from: fromDefaults)
         // The style the id names, when the deck defines it: the look of the
         // whole table, its header row, bands, and (when the table's flags
         // ask) its first and last columns and last row.
