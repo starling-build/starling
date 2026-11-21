@@ -64,7 +64,10 @@ extension RichLayout {
         // Restart on the page where the first changed paragraph begins,
         // from that page's first piece; the pages before it are kept.
         if pgs.start > 0, pgs.start < count, _pieceStart.count == count + 1, _pieceStart[pgs.start] < _allPieces.count,
-           case let p = _allPieces[_pieceStart[pgs.start]].page, p > 0, p < _pages.count,
+           case let p0 = _allPieces[_pieceStart[pgs.start]].page,
+           // (Columns flowed by the paginator restart on their physical page's first column: the floor
+           // a section's columns start at, and the balanced blocks, belong to the page, not to the column.)
+           case let p = RichTextTheme.sectionColumnsFlow && _columns > 1 ? p0 - p0 % _columns : p0, p > 0, p < _pages.count,
            let first = _pages[p].first(where: { !$0.repeated }), first.part == .all {
             pgs.page = p
             pgs.i = first.paragraph
@@ -1660,7 +1663,7 @@ extension RichLayout {
                         // lo-eb12e7d4's p13) — 4.3 stands at column 2's top with the picture
                         // up to 72pt higher and 95pt of column 1 free under it, and a line of
                         // 4.2 the picture would be over goes with it.)
-                        if theme.wordRules, RichTextTheme.wordWindowsPages, _columns > 1, pgs.page % _columns < _columns - 1,
+                        if theme.wordRules, RichTextTheme.wordWindowsPages, _columns > 1, !RichTextTheme.sectionColumnsFlow || _columnsOf(paragraph: pgs.i) > 1, pgs.page % _columns < _columns - 1,
                            band.owner >= 0, band.owner < pgs.i, !_anchorsOnly(band.owner, document), pgs.resumeCursor == nil, pgs.y > 0.01 {
                             RuleTrace.hit("word-column-text-meeting-a-band-goes-to-the-next-column")
                             _pg_newPage(&pgs, document)
