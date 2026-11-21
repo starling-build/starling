@@ -2967,7 +2967,12 @@ enum ChartPainter {
                 // half of its extra lines higher: c11d31f3's "Questões relacionadas à COVID-19" in two lines, keys 6.4 pt
                 // higher in Word's print than centred, the pitch the same.)
                 if pie, lines.count > 1, let one = entries.map({ $0.tp.height }).min() {
-                    let extra = entries.reduce(0.0) { $0 + max(0, $1.tp.height - one) }
+                    // (Only a name that really wraps adds a line: an entry with a blank name is shorter than the rest, not
+                    // a wrapped one — dx2/sa1 f84c295b's six blank entries moved its legend block 25 pt up.)
+                    let extra = entries.reduce(0.0) { acc, e in
+                        let n = e.tp.computeLineMetrics().count
+                        return n > 1 ? acc + max(0, e.tp.height - one) : acc
+                    }
                     if extra > 0.5 * one {
                         RuleTrace.hit("word-pie-legend-block-stands-half-its-wrapped-lines-higher")
                         y -= extra / 2
