@@ -3507,7 +3507,9 @@ extension RichLayout {
             let ownMark = _markerChar(p, document).fontSize
             let styleSize = named?.char.fontSize ?? _normalChar(document)?.fontSize
             let larger = ownMark == nil && p.style.mark != nil && (styleSize ?? 0) > (p.runs[0].style.fontSize ?? .infinity) + 0.01
-            let markerSize = ownMark ?? (larger ? styleSize : nil) ?? p.runs[0].style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+            // (A mark of no size under a style SMALLER than the text is the style's too: lab bullet-mark, 9pt bullets over 12pt text, the first row 0.92pt low.)
+            let smaller = ownMark == nil && p.style.mark != nil && (styleSize ?? .infinity) < (p.runs[0].style.fontSize ?? 0) - 0.01
+            let markerSize = ownMark ?? ((larger || smaller) ? styleSize : nil) ?? p.runs[0].style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
             let need = _px(markerSize * (larger ? 1.125 : 1.005)) - line.baseline
             // (At a line multiple the text's own shift may already stand the extra UNDER the text, up from the painter's baseline; Symbol's ascent
             // is then judged against that stood baseline: Calibri 12pt at 1.15 stands 11.43, Symbol 12.06, and sa1 5e813226 p37's first bullet was 0.63pt high.)
