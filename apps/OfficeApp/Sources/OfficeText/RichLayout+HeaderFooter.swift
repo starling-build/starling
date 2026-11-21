@@ -3247,6 +3247,11 @@ extension RichLayout {
                                 || (RichTextTheme.wordWindowsPages && !whole && piece.part == .text && _cells[i] != nil))
                             && ((i < _floatImages.count && _floatImages[i] != nil)
                                 || (i < _inline.count && _inline[i].contains { $0.float.map { !$0.takesRoom } ?? false }))
+                        // (The first piece of a paragraph that parts draws its text in its own range only and its floating pictures
+                        // whole: the lines of the paragraph that stand in a picture's rect on the first piece's page are not Word's.)
+                        let picturesApart = opensWithFloats && theme.wordRules && RichTextTheme.wordWindowsPages && piece.part == .all
+                            && _cells[i] == nil && piece.flowBottom < _tops[i] + _heights[i] - 0.5
+                        var picturesWindow: Path? = nil
                         // (A cell's text past its row of exact height, where
                         // nothing stands under the row on the page: Word draws
                         // it on, down the page. zh-340d52e9's "其他里內公共區域
@@ -3298,10 +3303,12 @@ extension RichLayout {
                             window.addRect(Rect.fromLTRB(clipL, top - 1_000_000, clipR, piece.part == .text ? bottom + 1_000_000 : bottom + _baselineShift(i, document)))
                             if theme.wordRules, i < _inline.count {
                                 let g = geometry(i)
+                                let apart = picturesApart ? Path() : nil
                                 for image in _inline[i] {
                                     guard let float = image.float, !float.takesRoom else { continue }
-                                    window.addRect(_floatRect(float, image, g, i).shift(Offset(left, top - piece.flowTop)))
+                                    (apart ?? window).addRect(_floatRect(float, image, g, i).shift(Offset(left, top - piece.flowTop)))
                                 }
+                                picturesWindow = apart
                             }
                             canvas.clipPath(window, doAntiAlias: false)
                         } else {
@@ -3330,7 +3337,23 @@ extension RichLayout {
                         canvas.translate(left, top - piece.flowTop)
                         if shading { _shadingFloats = floats; _paintShading(piece.paragraph, canvas, document, part: piece.part); _shadingFloats = false } else {
                             _floatColumnShift = (manyColumns && RichTextTheme.wordWindowsPages && _cells[piece.paragraph] == nil) ? left - _pxMarginLeft(p) : 0
-                            if _dropCapPass == 2 { _paintDropCaps(piece.paragraph, canvas, document) } else { _paintParagraph(piece.paragraph, canvas, document, part: piece.part, lines: lines) }
+                            if _dropCapPass == 2 { _paintDropCaps(piece.paragraph, canvas, document) } else {
+                                _paintMode = picturesWindow != nil ? 1 : 0
+                                _pieceContinuesFrom = theme.wordRules && RichTextTheme.wordWindowsPages && !shading && piece.part == .all && lines == nil && _cells[piece.paragraph] == nil && piece.flowTop > _tops[piece.paragraph] + 0.5 ? piece.flowTop : nil
+                                _paintParagraph(piece.paragraph, canvas, document, part: piece.part, lines: lines)
+                                _pieceContinuesFrom = nil
+                                _paintMode = 0
+                                if let apart = picturesWindow {
+                                    RuleTrace.hit("word-a-parted-paragraphs-first-piece-draws-its-text-in-its-range-and-its-pictures-whole")
+                                    canvas.restore()
+                                    canvas.save()
+                                    canvas.clipPath(apart, doAntiAlias: false)
+                                    canvas.translate(left, top - piece.flowTop)
+                                    _paintMode = 2
+                                    _paintParagraph(piece.paragraph, canvas, document, part: piece.part, lines: lines)
+                                    _paintMode = 0
+                                }
+                            }
                             _floatColumnShift = 0
                             if _dropCapPass != 2 { _paintPartedRules(piece, canvas, document) }
                             // (Word's print keeps the text an exact-height row
