@@ -2458,7 +2458,8 @@ private struct SlideContext {
                     default:
                         // A plain cell paragraph keeps its own left edge, first-line offset and right margin
                         // (marL, indent, marR): espt 174ab0c2's table labels stand 7.2 pt in and break 13.6 pt short.
-                        if level.marL != nil || level.indent != nil {
+                        // (Not a hanging one, a negative indent: aptia's centred "Group" cell, marL 91.7 over indent -77.5, sat worse.)
+                        if (level.marL != nil || level.indent != nil), (level.indent ?? 0) >= 0 {
                             style.indentLeft = level.marL ?? 0
                             style.firstLineIndent = level.indent ?? 0
                         }
