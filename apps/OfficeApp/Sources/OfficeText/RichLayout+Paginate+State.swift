@@ -43,7 +43,15 @@ struct _PState {
     // The paragraph set over a floating table's offset that does not fit
     // in what is left of it: its lines that do stand above the table (to
     // `limit`, on the page), the rest where the flow went on (`back`).
-    var floatHold: (limit: Double, back: Double)? = nil
+    /// A paragraph parted mid-page: its lines above `limit` are placed, then the flow goes on at `back`.
+    /// `source` says what made the hold (a floating table, or a picture band).
+    struct FloatHold {
+        enum Source { case table, picture }
+        var limit: Double
+        var back: Double
+        var source: Source
+    }
+    var floatHold: FloatHold? = nil
     // The text place the last text-anchored floating table hung from.
     var floatRunBase: (table: String, page: Int, y: Double)? = nil
     // A table held at its `_floatPin` above where the text before it now ends: that end.
