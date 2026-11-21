@@ -141,6 +141,7 @@ FPID=
 if [ -z "${BPID:-}" ]; then BASEBIN=$BC/$BSHA/release/OfficeApp; ( fill_rows ) > "$W/fillrows.out" 2>&1 & FPID=$!; fi
 PREV=$(cat "$W/build.rev" 2>/dev/null); TB=$(date +%s)
 test/tools/build-office-fast.sh "$W/build" > "$W/build.log" 2>&1 || { echo "render-gate: BUILD FAILED"; tail -15 "$W/build.log" | cut -c1-200; exit 1; }
+echo "render-gate: PR build $(( $(date +%s)-TB )) s"   # the build alone; "build step" below also waits for the base rows/base build
 [ "${GATE_PREBUILD:-0}" = 1 ] && { echo "render-gate: PR build alone $(( $(date +%s)-TB )) s; changed since this scratch's last build: $( [ -n "$PREV" ] && git diff --name-only "$PREV" HEAD 2>/dev/null | wc -l || echo unknown) files (prev ${PREV:0:9})"; git rev-parse HEAD > "$W/build.rev"
 [ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; exit 1; }
   BASEBIN=$BC/$BSHA/release/OfficeApp; fill_rows; chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; echo "render-gate: base $BSHA cached"; exit 0; }
