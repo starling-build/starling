@@ -5087,7 +5087,7 @@ enum DocxFormat {
                     let c = s.split(separator: ",")
                     return c.count == 2 ? _length(String(c[1]).trimmingWhitespace()) : nil
                 }
-                if let a = point(from), let b = point(to) { f.y = min(a, b); f.effectBottom = _length(shape["strokeweight"] ?? "") ?? 0.75 }
+                if let a = point(from), let b = point(to) { f.y = min(a, b); f.fromVMLLine = true; f.effectBottom = _length(shape["strokeweight"] ?? "") ?? 0.75 }
             }
             f.wraps = ["square", "tight", "through"].contains(shape.first("w10:wrap")?["type"] ?? "")
             if let side = shape.first("w10:wrap")?["side"], side == "left" || side == "right" { f.wrapSide = side }

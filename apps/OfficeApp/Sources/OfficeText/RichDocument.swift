@@ -394,6 +394,8 @@ public struct ImageFloat: Hashable, Codable, Sendable {
     /// `b`, points): its outline's and shadow's share of the room Word
     /// gives it.
     public var effectBottom = 0.0
+    /// Set for a VML straight line (`v:line`) given by its end points: the only float whose own `y` and height stand its line down.
+    public var fromVMLLine = false
     /// What `wp:effectExtent` adds on the left and right (points): Word centres a box aligned "center" with these counted, so its box stands
     /// (left - right) / 2 from the middle (lab tbx1: r 2.25 pt moves a 504.8 pt box 1.1 pt left; l = r does not move it).
     public var effectLeft = 0.0
