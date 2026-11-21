@@ -150,6 +150,9 @@ enum SlideFonts {
             return face
         }
         switch windowsName(family) {
+        case "traditional arabic", "sakkal majalla", "majalla ui":
+            if let face = OfficeFonts.slidesArabicFace(family) { return face }
+            return RichResolvedFace(family: resolve(family))
         case "lucida sans unicode":
             var face = RichResolvedFace(family: resolve(family))
             face.advances = OfficeFonts.lucidaSansUnicodeAdvances
