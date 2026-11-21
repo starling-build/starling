@@ -4290,6 +4290,14 @@ static let sylfaenAdvances: [Double] = [
                     var boldDigits = face.boldOtherAdvances ?? [:]
                     for d in 0x30...0x39 { digits[UInt32(d)] = 0.5; boldDigits[UInt32(d)] = 0.5 }
                     face.otherAdvances = digits; face.boldOtherAdvances = boldDigits
+                case "dubai":
+                    // (Dubai's own Arabic: advances, init/medi/fina forms and ligatures from the face's hmtx and GSUB; no kerning.)
+                    face.joinedAdvances = WindowsArabicAdvances.dubai
+                    face.boldJoinedAdvances = WindowsArabicAdvances.dubaiBold
+                    face.joinedSpaceEm = 0.24
+                    face.joinedClusters = WindowsArabicAdvances.dubaiClusters
+                    face.boldJoinedClusters = WindowsArabicAdvances.dubaiBoldClusters
+                    RuleTrace.hit("dubai-complex-face-has-its-own-arabic-advances")
                 case "sakkal majalla":
                     face.joinedAdvances = WindowsArabicAdvances.sakkal
                     face.boldJoinedAdvances = WindowsArabicAdvances.sakkalBold
