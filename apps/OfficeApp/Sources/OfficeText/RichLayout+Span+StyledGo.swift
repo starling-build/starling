@@ -505,6 +505,16 @@ extension _StyledFrame {
                         RuleTrace.hit("word-sinhala-letters-are-a-nirmala-ui-line")
                         return ("nirmala ui", 1)
                     }
+                    // (A paragraph of a Tamil-language document with no Tamil letter, its run a complex-script one (w:cs) whose face is Arial Unicode MS
+                    // (missing on Windows): Word sets its line as Nirmala UI's, 1.079 + 0.251 em, with no Leelawadee surplus; dx2 a347c3b3's "00 month 20XX"
+                    // stands 1.64 pt lower than the Latin stand-in's line and the next line 0.33 further.)
+                    if document.defaultLangXML?.containsSubstring("ta-IN") == true,
+                       run.keptXML.map({ $0.containsSubstring("<w:cs/>") || $0.containsSubstring("<w:cs ") }) == true,
+                       (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms",
+                       !p.text.unicodeScalars.contains(where: { RichLayout._tamil.contains($0.value) }) {
+                        RuleTrace.hit("word-tamil-doc-latin-cs-run-is-a-nirmala-ui-line")
+                        return ("nirmala ui", 1)
+                    }
                     // (Tamil: the line of Nirmala UI, 1.079 + 0.251 em, in the prints of tam-* and four of the xd Tamil documents.)
                     // (Width: set per word in flush() from TamilAdvances, a per-codepoint regression fit of Word's word widths
                     // (2864 words, four documents); our PDF embeds no Tamil face, so it cannot be read from glyph hmtx. No scale here.)
