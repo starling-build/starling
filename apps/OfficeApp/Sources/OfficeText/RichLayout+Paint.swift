@@ -1668,6 +1668,14 @@ extension RichLayout {
                     // at the box's edge, 104.)
                     var along = 0.0
                     if p.style.alignment == .center || p.style.alignment == .right, let first = g.painter.computeLineMetrics().first { along = first.left }
+                    // (A justified paragraph whose first line holds nothing but a line break, or spaces then one, has that line, the
+                    // bullet and nothing, centred as a whole in PowerPoint: espt ab07bcf5 slide 13's "\v" and " \v" first lines have
+                    // the bullet at 448.1 in a 27.5 to 886.8 box: the 18pt hang-and-bullet slot, centred.)
+                    else if p.style.alignment == .justify, let nl = p.text.firstIndex(of: "\n"), !p.text[..<nl].contains(where: { $0 != " " }),
+                            hang < g.textLeft - 0.01 {
+                        along = g.textWidth / 2
+                        RuleTrace.hit("slide-justified-break-only-first-line-is-centred")
+                    }
                     // (A bullet wider than its hang stays at the hang, the text pushed past it: `lead`.)
                     let wide = marker.width > g.textLeft - hang + 0.01
                     marker.paint(canvas, Offset((wide ? hang : min(hang, g.textLeft - marker.width - 4)) + along, top()))
