@@ -265,7 +265,7 @@ extension _ParaFrame {
                         // and the cell margin, 74.40, in Word's print, where ours stood 1.07 in.)
                         let laterRowRule = c.column == 0 && c.row > 0 && _tableOwnLeft[c.table] == nil
                         let shift = laterRowRule ? l / 2 : _edgeShift(c.table, document)
-                        let half = RichTextTheme.wordWindowsPages && document.compatibilityMode == 14   // (lab tbl14 is mode 14; mode 12 keeps the whole line)
+                        let half = RichTextTheme.wordWindowsPages && (document.compatibilityMode == 14 || document.compatibilityMode == nil)   // (lab tbl14 is mode 14; mode 12 keeps the whole line)
                         if modern, shift > 0 || inside {
                             pad = EdgeInsets(left: max(pad.left, l / 2) + (inside ? 0 : max(0, l / 2 - shift)), top: pad.top,
                                              right: max(pad.right, r / 2), bottom: pad.bottom)

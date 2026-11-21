@@ -2143,6 +2143,15 @@ extension RichLayout {
                 }
             }
             let em = (p.runs.first?.style.fontSize ?? named?.char.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
+            // (A face with its own measured Thai advances sets the stretch at them, as `_span`'s break test does: xd 28fa7f69's
+            // "ประกันสังคม" is 47.33pt in TH SarabunPSK 14, fits its 47.35pt cell in Word's print, and at 0.42 em a letter (52.9)
+            // was broken at any letter, "ประกันสังค|ม".)
+            let firstRun = p.runs.first
+            let thaiFace = firstRun.flatMap { r in theme.faceResolver?(r.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily
+                                                                    ?? r.style.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, false) }
+            let boldThai = (firstRun?.style.bold ?? named?.char.bold) == true
+            let thaiTable = boldThai ? thaiFace?.boldOtherAdvances : thaiFace?.otherAdvances
+            let useTable = RichTextTheme.wordWindowsPages && (thaiFace?.sizeScale ?? 0) > 0 && thaiTable != nil
             var k = 0
             while k < units.count {
                 guard units[k] != 0x20, units[k] != 0x3000, units[k] != 0x0A else { k += 1; continue }
@@ -2151,7 +2160,9 @@ extension RichLayout {
                     let u = units[end]
                     if (0x0E01 ... 0x0E5B).contains(u) {
                         thai = true
+                        if useTable, let t = thaiTable, let f = thaiFace, let adv = t[UInt32(u)] { width += adv * em / f.sizeScale } else {
                         width += [0x0E31, 0x0E34, 0x0E35, 0x0E36, 0x0E37, 0x0E38, 0x0E39, 0x0E3A, 0x0E47, 0x0E48, 0x0E49, 0x0E4A, 0x0E4B, 0x0E4C, 0x0E4D, 0x0E4E].contains(u) ? 0 : 0.42 * em
+                        }
                     } else { width += 0.5 * em }
                     end += 1
                 }
