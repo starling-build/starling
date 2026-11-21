@@ -4911,7 +4911,11 @@ enum ChartPainter {
             plot = Rect.fromLTRB(left, head, right, top)
             table = (top, rows, plot.left - column, size)
         }
-        if let placed, c.plotLayoutInner { plot = placed }
+        if let placed, c.plotLayoutInner {
+            // (A laid plot that runs past the chart's right edge is cut there by PowerPoint, its categories
+            // spread over what is left: 7bf37d72 p10's 5 bands of 99.3 pt, not 103.)
+            plot = c.onSlide && placed.right > frame.right ? Rect.fromLTRB(placed.left, placed.top, frame.right, placed.bottom) : placed
+        }
         // Word keeps room at the right of a laid plot for the second value axis's labels: 16.55 pt and 0.821 of the
         // widest label (23.2 pt for "-5", 33.3 for "-500".."1000"). Where the file leaves less, the whole plot moves
         // left by the shortfall, its width kept, up to 9.4 pt (lab chart2x, Windows 01QbbApP: room 8..32 pt;
