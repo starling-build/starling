@@ -39,7 +39,7 @@ enum WordArt {
         case "textPlain": return { _ in (0, 1) }
         case "textInflate": let a = adj(18750); return { (a * bow($0), 1 - a * bow($0)) }   // a parabola (lab wordart-fit2: 14.2 pt at a fifth of the way in)
         case "textDeflate": let a = adj(18750); return { (a * (1 - bow($0)), 1 - a * (1 - bow($0))) }
-        case "textInflateTop": let a = adj(40000); return { (a * bow($0), 1) }
+        case "textInflateTop": let a = adj(40000); return { (a * (0.5 + 0.5 * bow($0)), 1) }   // spec: quad from (l,t+dy) via (hc,t)
         case "textInflateBottom": let a = adj(60000); return { (0, 1 - (1 - a) * bow($0)) }
         case "textDeflateTop": let a = adj(50000); return { (a * (1 - bow($0)), 1) }
         case "textDeflateBottom": let a = adj(50000); return { (0, a + (1 - a) * bow($0)) }
