@@ -6804,7 +6804,12 @@ enum DocxFormat {
         /// embedded object, a VML picture: kept as the file wrote it, with
         /// the parts it names, and shown as an empty box of its size.
         func addObject(_ node: XNode, run base: CharStyle? = nil) {
-            if var att = objectAttachment(node) { att.inset = Self._canvasInset(node); addInline(att, run: base) }
+            if var att = objectAttachment(node) {
+                att.inset = Self._canvasInset(node)
+                // (Only an ActiveX control keeps its run's look: an embedded OLE picture, an equation, is placed as before — lo f225432f.)
+                att.isActiveXControl = node.descendant("w:control") != nil
+                addInline(att, run: att.isActiveXControl ? base : nil)
+            }
         }
         /// The kept-verbatim attachment for `node`, or nil when a part it
         /// names is missing.
