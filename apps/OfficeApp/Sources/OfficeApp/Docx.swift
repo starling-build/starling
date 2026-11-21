@@ -6162,6 +6162,7 @@ enum DocxFormat {
         case "pa": "Guru"
         case "te": "Telu"
         case "bn": "Beng"
+        case "th": "Thai"   // (xd 4d02d27f: bidi th-TH, majorBidi runs print in the theme's Thai face, Angsana New)
         default: nil
         }
         var hebrewOnly = false   // Hebrew letters in the body and no Arabic ones (the Hebrew-glyph coverage below only helps Hebrew)
