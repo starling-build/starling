@@ -130,6 +130,8 @@ enum WordArt {
         var clear = false
         /// The glyph's plain colour.
         var color = Color(0xFF000000)
+        /// The font family the glyph was asked for (a slide's circle text stands in from its metrics).
+        var face = ""
         var width: Double { advance ?? painter.width }
     }
 
@@ -372,6 +374,7 @@ enum WordArt {
         tp.layout(minWidth: 0, maxWidth: Double.infinity)
         var g = Glyph(painter: tp, text: ch, style: style, look: look)
         g.size = base.fontSize ?? 14
+        g.face = base.fontFamily ?? family ?? ""
         g.color = base.color ?? Color(0xFF000000)
         g.clear = (base.color?.alpha ?? 255) == 0 && !(look?.fill != nil)
         if RichTextTheme.wordWindowsPages, family?.lowercased() == "georgia", base.fontWeight == nil || base.fontWeight == .normal,
@@ -1030,6 +1033,70 @@ enum WordArt {
                 draw(g, o, ax, ay)
             }
         }
+        /// A slide's Circle text as PowerPoint prints it (lab circle2): the preset's own path from the adjust angle,
+        /// the letters rigid on it with their advances laid by arc length, the baseline of the last line a face-specific
+        /// share of the size inside the box's ellipse and each earlier line 1.2 sizes further out; text longer than the
+        /// path is scaled whole (size, advances, pitch, inset) down to it.
+        func circleSlide(_ a: Double) {
+            let sweep: Double = a > 180 && a < 360 ? 2 * (360 - a) : a > 0 && a < 180 ? 2 * (180 - a) : 360
+            let mid = (a + sweep / 2) * .pi / 180
+            let steps = 720
+            func curve(_ off: Double) -> (pts: [Offset], lens: [Double]) {
+                var pts: [Offset] = [], lens = [0.0]
+                for i in 0 ... steps {
+                    let t = (a + sweep * Double(i) / Double(steps)) * .pi / 180
+                    let nx = ry0 * cos(t), ny = rx0 * sin(t), nl = max(1e-9, hypot(nx, ny))
+                    pts.append(Offset(c.dx + rx0 * cos(t) + off * nx / nl, c.dy + ry0 * sin(t) + off * ny / nl))
+                    if i > 0 { lens.append(lens[i - 1] + hypot(pts[i].dx - pts[i - 1].dx, pts[i].dy - pts[i - 1].dy)) }
+                }
+                return (pts, lens)
+            }
+            let widest = lines.map(\.width).max() ?? 0
+            let path0 = curve(0).lens[steps]
+            guard widest > 0, path0 > 0 else { return }
+            let f = min(1, path0 / widest)
+            for (i, l) in lines.enumerated() {
+                let ring = lines.count - 1 - i
+                let size = l.glyphs.map(\.size).max() ?? 0
+                let face = l.glyphs.first { $0.width > 0 }?.face ?? ""
+                // Inset of the baseline: 0.418 - 1.2 x (win descent share of the win line); Arial .190, Times .183, Calibri .152 (lab).
+                let inset: Double = SheetPrintMetrics.descent(family: face).flatMap { d in SheetPrintMetrics.ascent(family: face).map { 0.418 - 1.2 * d / ($0 + d) } } ?? 0.19
+                let (pts, lens) = curve(1.2 * Double(ring) * size * f)
+                let total = lens[steps]
+                let w = l.width * f
+                var s0 = 0.0
+                if l.alignment == .center {
+                    // the path's middle, by parameter
+                    var best = 0, bd = Double.infinity
+                    for j in 0 ... steps {
+                        let t = (a + sweep * Double(j) / Double(steps)) * .pi / 180
+                        let dd = abs(atan2(sin(t - mid), cos(t - mid)))
+                        if dd < bd { bd = dd; best = j }
+                    }
+                    s0 = lens[best] - w / 2
+                } else if l.alignment == .right { s0 = total - w }
+                func at(_ d: Double) -> (Offset, Offset) {
+                    let d = max(0, min(total, d))
+                    let j = max(1, lens.firstIndex { $0 >= d } ?? steps)
+                    let u = (d - lens[j - 1]) / max(1e-9, lens[j] - lens[j - 1])
+                    let p = Offset(pts[j - 1].dx + (pts[j].dx - pts[j - 1].dx) * u, pts[j - 1].dy + (pts[j].dy - pts[j - 1].dy) * u)
+                    let len = max(1e-9, hypot(pts[j].dx - pts[j - 1].dx, pts[j].dy - pts[j - 1].dy))
+                    return (p, Offset((pts[j].dx - pts[j - 1].dx) / len, (pts[j].dy - pts[j - 1].dy) / len))
+                }
+                var s = s0
+                for g in l.glyphs {
+                    let adv = g.width * f
+                    let (p, t) = at(s + adv / 2)
+                    s += adv
+                    guard g.width > 0 else { continue }
+                    let n = Offset(t.dy, -t.dx)
+                    let q = Offset(p.dx - n.dx * inset * size * f, p.dy - n.dy * inset * size * f)
+                    let base = g.painter.computeDistanceToActualBaseline(.alphabetic) * f
+                    let o = Offset(q.dx - t.dx * adv / 2 + n.dx * base, q.dy - t.dy * adv / 2 + n.dy * base)
+                    draw(g, o, Offset(t.dx * f, t.dy * f), Offset(-t.dy * f, t.dx * f))
+                }
+            }
+        }
         func angle(_ d: Double) -> Double { (warp.adjust.first ?? d) / 60000 }
         switch warp.preset {
         case "textArchUp":
@@ -1045,6 +1112,7 @@ enum WordArt {
             for (i, l) in lines.enumerated() { along(l, start: start, sweep: -sweep, ring: i) }
         case "textCircle":
             let a = angle(10_800_000)
+            if slide { circleSlide(a); return }
             // A slide's circle text that is centred or right-aligned sits in a half circle,
             // the left half (from the bottom) or the right half (from the top) — whichever
             // the start angle is nearer, the right at a tie (lab prints, test/labs/textcircle:
