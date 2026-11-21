@@ -952,7 +952,7 @@ extension RichLayout {
         var startLeft: (indent: Double, band: (top: Double, bottom: Double))?
         defer { if best?.right == true, best?.leftRoom == nil, let sl = startLeft, theme.wordRules, RichTextTheme.wordWindowsPages { _besideStartLeft[i] = sl } }
         _besideIndentOnTop.remove(i)
-        _besideListEarlier.remove(i); _besideTightTop[i] = nil
+        _besideListEarlier.remove(i); _besideTightTop[i] = nil; _besideLeftAt[i] = nil; _besideRightAt[i] = nil
         defer { if boxes.count >= 2, best?.leftRoom != nil { _besideBoxes[i] = boxes } }
         let hang = max(0, -_px(firstLineIndent(p, at: i, document)))
         var offset = 0.0
@@ -1054,7 +1054,20 @@ extension RichLayout {
                         let band = (top: _px(float.y) + h * pt - _px(float.distanceTop) - offset,
                                     bottom: _px(float.y) + h * pb + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
                         if band.bottom > 0.01 { boxes.append((band.top, band.bottom, leftEdge - own, rightEdge - own)) }
-                        if band.bottom > 0.01, best == nil || rightEdge - own > best!.indent { best = (rightEdge - own, band, false, leftEdge - own) }
+                        if band.bottom > 0.01, best == nil || rightEdge - own > best!.indent {
+                            best = (rightEdge - own, band, false, leftEdge - own)
+                            // (Word sets each line against the outline's edge over that line's rows, not the whole outline's extreme:
+                            // the line at the narrowing top or foot of an oval reaches nearer the picture's box.)
+                            if polyOn, h > 0 {
+                                let poly = float.wrapPolygon, fy0 = _px(float.y), off = offset, gl = _px(float.distanceLeft ?? 9)
+                                _besideLeftAt[i] = { a, b in
+                                    let ya = (a + off - fy0) / h, yb = (b + off - fy0) / h
+                                    guard let m = Self._outlineMinX(poly, ya, yb) else { return leftEdge - own }
+                                    return max(x + w * m - gl - own, leftEdge - own)
+                                }
+                                RuleTrace.hit("word-tight-wrap-line-meets-the-outline-over-its-own-rows")
+                            }
+                        }
                         continue
                     }
                     // (A thin box standing at the line start, in a paragraph with several boxes (the other one mid-column, so only one wins best):
@@ -1143,7 +1156,20 @@ extension RichLayout {
                     let band = (top: _px(float.y) - _px(float.distanceTop) - offset,
                                 bottom: _px(float.y) + h + _px(float.effectBottom) + _px(float.distanceBottom) - offset)
                     guard band.bottom > 0.01 else { continue }
-                    if best == nil || narrow > best!.indent { best = (narrow, band, true, nil) }
+                    if best == nil || narrow > best!.indent {
+                        best = (narrow, band, true, nil)
+                        // (A tight wrap's lines each end at the outline's edge over their own rows; see the picture at the middle.)
+                        let polyOn = theme.wordRules && RichTextTheme.wordWindowsPages && float.wrapsTight && float.wrapPolygon.count >= 3 && h > 0
+                        if polyOn {
+                            let poly = float.wrapPolygon, fy0 = _px(float.y), off = offset, gl = _px(float.distanceLeft ?? 9)
+                            _besideRightAt[i] = { a, b in
+                                let ya = (a + off - fy0) / h, yb = (b + off - fy0) / h
+                                guard let m = Self._outlineMinX(poly, ya, yb) else { return narrow }
+                                return max(column - rightGap - (x + w * m - gl), 0)
+                            }
+                            RuleTrace.hit("word-tight-wrap-line-meets-the-outline-over-its-own-rows")
+                        }
+                    }
                     continue
                 }
                 // (Not with room at its left for text: that stands round it on

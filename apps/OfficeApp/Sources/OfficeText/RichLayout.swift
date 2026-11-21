@@ -1709,7 +1709,22 @@ public final class RichLayout {
     /// paragraph's top) it covers there. Set by the pass after pagination.
     var _colWrap: [Int: [ColWrapBox]] = [:]
     var _colWrapPassing = false
-    struct ColWrapBox: Equatable { var top: Double; var bottom: Double; var left: Double; var right: Double; var byStart = false }
+    struct ColWrapBox: Equatable {
+        var top: Double; var bottom: Double; var left: Double; var right: Double; var byStart = false
+        /// A tight wrap's outline (fractions of its picture), and where the picture stands: x from the column's left, its width,
+        /// the gap, its height, and its top from the paragraph piece's top. A line takes the outline's edge over its own rows.
+        var outline: [WrapPoint] = []; var outX = 0.0, outW = 0.0, outGap = 0.0, outH = 0.0, outTop = 0.0, outBase = 0.0
+    }
+    /// The outline's leftmost x (a fraction of the picture's width) over rows ya...yb (fractions of its height), or nil if none lie there.
+    static func _outlineMinX(_ poly: [WrapPoint], _ ya: Double, _ yb: Double) -> Double? {
+        var m = Double.infinity
+        for k in 0 ..< poly.count {
+            let p0 = poly[k], p1 = poly[(k + 1) % poly.count]
+            if p0.y >= ya, p0.y <= yb { m = min(m, p0.x) }
+            for yy in [ya, yb] where (p0.y - yy) * (p1.y - yy) < 0 { m = min(m, p0.x + (p1.x - p0.x) * (yy - p0.y) / (p1.y - p0.y)) }
+        }
+        return m == .infinity ? nil : m
+    }
     var _stripPassing = false
     /// A table floating by the text whose room above it (`w:topFromText`) reaches the text
     /// before it: the place in the flow it is held at, by table, once that text wraps beside it.
@@ -1746,6 +1761,10 @@ public final class RichLayout {
     var _besideIndentOnTop = Set<Int>()
     var _besideListEarlier = Set<Int>()
     var _besideTightTop: [Int: Double] = [:]
+    /// A tight-wrap picture's left room for a line spanning (top, bottom) of its paragraph: the outline's own left edge over those rows.
+    /// The same for a picture at the right: the indent a line spanning (top, bottom) takes from the column's right.
+    var _besideRightAt: [Int: (Double, Double) -> Double] = [:]
+    var _besideLeftAt: [Int: (Double, Double) -> Double] = [:]
     var _besideBoxes: [Int: [(top: Double, bottom: Double, left: Double, right: Double)]] = [:]
     /// A box standing at the line start of a paragraph whose other box is at its right: how far its lines start in, and its band.
     var _besideStartLeft: [Int: (indent: Double, band: (top: Double, bottom: Double))] = [:]

@@ -744,7 +744,13 @@ extension RichLayout {
                                     if rightRoom >= leftRoom {
                                         want.append(ColWrapBox(top: top, bottom: bottom, left: floatR - left - own, right: 0))
                                     } else {
-                                        want.append(ColWrapBox(top: top, bottom: bottom, left: 0, right: colW - rightGap - (floatL - left)))
+                                        var wb = ColWrapBox(top: top, bottom: bottom, left: 0, right: colW - rightGap - (floatL - left))
+                                        // (A tight wrap's lines each end at the outline's edge over their own rows.)
+                                        if RichTextTheme.wordWindowsPages, float.wrapsTight, float.wrapPolygon.count >= 3 {
+                                            wb.outline = float.wrapPolygon; wb.outX = anchorLeft + _px(float.x) - left; wb.outW = w; wb.outGap = _px(float.distanceLeft ?? 9)
+                                            wb.outH = h; wb.outTop = top + _px(float.distanceTop); wb.outBase = colW - rightGap
+                                        }
+                                        want.append(wb)
                                     }
                                 }
                             }
