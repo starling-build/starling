@@ -320,7 +320,10 @@ enum WriterMetafiles {
         let played = entries[attachment.id]
         lock.unlock()
         guard let played else { return false }
-        played.paint(canvas, in: rect, image: { image($0) }, font: OfficeFonts.drawn)
+        // (An embedded picture's text in "MS Sans Serif", the raster face of Windows' controls, has no outline
+        // face in a PDF: Word's print of dx2 00b709dd's check boxes sets their captions, 8.25pt, in Calibri,
+        // and Microsoft Sans Serif's letters ran 5% wider.)
+        played.paint(canvas, in: rect, image: { image($0) }, font: { $0.lowercased() == "ms sans serif" ? OfficeFonts.drawn("Calibri") : OfficeFonts.drawn($0) })
         return true
     }
 }
