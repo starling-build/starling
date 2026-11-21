@@ -2021,13 +2021,22 @@ extension RichLayout {
                 // higher in Word's print than ours. The line's height is the bigger run's, unchanged.)
                 if kind >= 0, theme.wordRules, RichTextTheme.wordWindowsPages, p.style.lineHeightPoints == nil,
                    p.style.eastAsian["w:textAlignment"] == "top", let size = s.fontSize, size > 0.5 {
-                    func ascentPt(_ r: CharStyle) -> Double {
-                        let pt = r.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
-                        let fam = r.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily
-                        return pt * (theme.faceResolver?(fam, false)?.baseline ?? 0.8)
+                    // (Only the size differs: the same face's ascent at the paragraph's biggest size against its own.)
+                    func sizePt(_ r: CharStyle) -> Double { r.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize }
+                    let fam = run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily
+                    let ratio = theme.faceResolver?(fam, false)?.baseline ?? 0.8
+                    let own = sizePt(run) * ratio
+                    // (A run of only tabs is skipped: its size is not carried into the run style, so it would read as the Normal size.)
+                    let u16 = Array(p.text.utf16)
+                    var at = 0
+                    var big = sizePt(run)
+                    for r in p.runs {
+                        defer { at += r.length }
+                        guard r.length > 0, r.style.script == .normal, at + r.length <= u16.count,
+                              u16[at..<(at + r.length)].contains(where: { $0 != 9 }) else { continue }
+                        big = max(big, sizePt(r.style))
                     }
-                    let own = ascentPt(run)
-                    let most = p.runs.filter { $0.length > 0 && $0.style.script == .normal }.map { ascentPt($0.style) }.max() ?? own
+                    let most = big * ratio
                     if most - own > 0.05 {
                         RuleTrace.hit("word-top-aligned-runs-stand-on-their-own-ascent")
                         s = s.copyWith(baselineShift: (s.baselineShift ?? 0) - (most - own) * theme.pixelsPerPoint * scale)
