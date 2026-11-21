@@ -2225,6 +2225,10 @@ private struct SlideContext {
         if let t = transform { frame = t(frame) }
         let tableId = UUID().uuidString
         let widths = (tbl.first("a:tblGrid")?.all("a:gridCol") ?? []).compactMap { $0["w"].flatMap(Double.init).map { $0 / Pptx.emu } }
+        // A frame narrower than its columns (Google's export writes 3000000 EMU whatever the table is): PowerPoint draws the
+        // grid, not the frame (e2a1fcdb p8 print: 908 pt wide on a 236 pt frame).
+        let gridSum = widths.reduce(0, +)
+        if gridSum > 0, frame.width < gridSum * 0.99 { frame = Rect.fromLTWH(frame.left, frame.top, gridSum, frame.height) }
         let pr = tbl.first("a:tblPr")
         let firstRow = pr?["firstRow"] == "1"
         let banded = pr?["bandRow"] == "1"
