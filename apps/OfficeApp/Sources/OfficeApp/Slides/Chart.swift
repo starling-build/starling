@@ -5581,12 +5581,12 @@ enum ChartPainter {
                             labelAt = Offset(labelAt.dx, min(p0, p1) + 1.065 * size * k)
                             RuleTrace.hit("word-column-label-inside-end")
                         }
-                        // (A Word column's label past its top (outEnd, the default) stands with its baseline 0.568 of its size over the
-                        // top, whatever face draws it: c11d31f3's chart 8, 12 pt Verdana, baseline 6.82 over bars in Word's print; ours
-                        // set the label's centre 8 over, which put a 12 pt line's baseline 4.0 over, 2.9 low.)
+                        // (A Word column's label past its top (outEnd, the default) stands with its baseline its face's descent plus 4.2 pt
+                        // over the top (the box's 1.5 pt inset and a 2.8 pt gap): c11d31f3's chart 8, 12 pt Verdana, baseline 6.82 over
+                        // bars in Word's print; sa1 7f30fc29's 9 pt Calibri 6.46 over (was 0.568 of the size: 1.35 low).)
                         if raw >= 0, p1 <= p0, !c.stacked, !c.onSlide, !c.onSheet, !c.chartex, c.barView == nil, c.series[safe: j]?.labelParts[i] == nil,
                            [nil, "outEnd"].contains(c.barLabelPos) {
-                            wordColumnLabelBase[labels.count] = 0.568 * size * k
+                            wordColumnLabelBase[labels.count] = 4.2 * k
                             RuleTrace.hit("word-column-label-baseline")
                         }
                         labels.append((shown, labelAt, j))
@@ -5935,7 +5935,7 @@ enum ChartPainter {
                 // lines in Word's print: sa1 06706f28's twenty "100.00%;" over "10,150,000.00" labels, 1.5 pt low in ours.)
                 if wrapLabels.contains(li), lineCount > 1, wrapAt.isFinite { origin = Offset(origin.dx, origin.dy - (ser.labelSize ?? c.baseTextSize) / 6 * k) }
                 if let b = wordColumnLabelBase[li], lineCount == 1, let line = tp.computeLineMetrics().first {
-                    origin = Offset(origin.dx, at.dy + 8 * k - b - line.baseline)
+                    origin = Offset(origin.dx, at.dy + 8 * k - b - line.descent - line.baseline)
                 }
                 if insideEnd.contains(li) { origin = Offset(at.dx - 3 * k - 6.8 * k - tp.width, origin.dy + 1.9 * k) }
                 // (Word draws the leader from the bar's top to the label's bottom middle, the box
