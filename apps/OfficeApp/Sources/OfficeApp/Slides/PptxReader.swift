@@ -3567,7 +3567,8 @@ private struct SlideContext {
             }
             // (Nor in points: bnc904423's centred boxes, 11.5 pt after their
             // one paragraph, stood 5.75 high.)
-            if p === allParagraphs.last { style.spaceAfter = 0 }
+            // (`spcFirstLastPara="1"` keeps it: SlidePainter's anchor counts it.)
+            if p === allParagraphs.last, !(["1", "true"].contains(attr("spcFirstLastPara") ?? "")) { style.spaceAfter = 0 }
             paragraphLevels.append(lvl)
             if paragraphDefTab == nil { paragraphDefTab = level.defTab }
             numbering.append(level.bullet == .number ? (level.autoNumType ?? "arabicPeriod", level.autoNumStart ?? 1) : nil)
