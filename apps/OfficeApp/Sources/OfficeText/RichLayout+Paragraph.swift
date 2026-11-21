@@ -3568,19 +3568,6 @@ extension RichLayout {
             _numberLiftShift[i] = extra
             segoeLift += extra / _px(1)
         }
-        // (A list number in a face that stands taller above its baseline than the text's, over a line at a multiple: Word draws the first line on the
-        // text's own unscaled ascent, the multiple's extra under it, and adds the number's excess over the text's ascent ABOVE it, not multiplied
-        // by the multiple. Lab lblcal1/lblcal2 A (Calibri 11 "1)" over Times New Roman 11 at 1.079 lines): items 13.9 apart where plain ones are 13.68,
-        // the first baseline 21.7 under the line above, 21.6 for a plain one. The engine, its strut dropped for the number's box, drew the baseline
-        // at the multiple's scaled ascent, 0.7 pt low, and grew nothing.)
-        if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.list != nil, p.image == nil, !p.text.isEmpty, painter.strutStyle == nil,
-           style.lineHeightPoints == nil, style.lineSpacing > 1.001, _inkShift[i] == 0, numberLift == 0,
-           let g = _labelFaceGrowth(p, named: _named(p, document), document: document, style: style),
-           let line = painter.computeLineMetrics().first {
-            RuleTrace.hit("word-number-face-taller-over-a-multiple-adds-its-excess-above-the-unscaled-text-ascent")
-            _inkShift[i] = _px(g.target) - line.baseline + _px(g.growth)
-            segoeLift += g.growth
-        }
         @inline(never) func _blk7() {
         if i < _overhang.count {
             _overhang[i] = 0
@@ -5500,22 +5487,4 @@ extension RichLayout {
         return out
     }
 
-}
-
-extension RichLayout {
-    /// The unscaled first-line baseline of the text and the excess of a list number's face over it (points), for a number in a taller face at its own size.
-    func _labelFaceGrowth(_ p: RichParagraph, named: RichNamedStyle?, document: RichDocument, style: RichParagraphStyle) -> (target: Double, growth: Double)? {
-        guard !p.runs.isEmpty, let firstRun = p.runs.first(where: { $0.length > 0 }),
-              let xml = p.style.listId.flatMap({ document.listFormats[$0]?[min(max(0, p.style.listLevel), 8)]?.numberRPrXML }),
-              let r = xml.rangeOfSubstring("w:ascii=\"") else { return nil }
-        let family = String(xml[r.upperBound...].prefix { $0 != "\"" })
-        let textFace = firstRun.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily
-        let size = firstRun.style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
-        let numberSize = _levelNumberSize(p, document) ?? size
-        guard !family.isEmpty, numberSize <= size + 0.01,
-              let nb = theme.faceResolver?(family, false)?.baseline, let tb = theme.faceResolver?(textFace, false)?.baseline,
-              nb * numberSize - tb * size > 0.02,
-              let target = theme.baseline(for: firstRun.style, in: style, named: named, eastAsian: false, gridPitch: nil, centresInLine: document.spacesForUnderline) else { return nil }
-        return (target, nb * numberSize - tb * size)
-    }
 }
