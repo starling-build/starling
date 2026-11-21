@@ -2361,7 +2361,7 @@ extension RichLayout {
         // as wide as they came out: a contents line typed with its own
         // dots takes its page number by what its commas give.)
         var fit = _fitEastAsianLines(p, at: i, document, textWidth: textWidth, first: painter, leadWidth: lead, tabs: tabs, leftTabs: leftTabs, runsPast: runsPast, beyond: beyond, tieShort: tieShort,
-                                     lineIndents: besideLeftRoom != nil || _setup(ofParagraph: i).headerWrapLeft > 0 || !(colWrapBoxes?.isEmpty ?? true) ? besideLineIndents : [])
+                                     lineIndents: besideLeftRoom != nil || _besideRightAt[i] != nil || _setup(ofParagraph: i).headerWrapLeft > 0 || !(colWrapBoxes?.isEmpty ?? true) ? besideLineIndents : [])
         if !fit.isEmpty {
             painter.dispose()
             painter = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: fit, held: tabsHeld).0)
