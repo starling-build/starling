@@ -1767,7 +1767,8 @@ extension RichLayout {
             // print of lab b80-step stands the title 1.8..3.5pt under the box's foot,
             // not 3.6pt (its distance below) further.)
             let tightBelow = float.wrapsTight && RichTextTheme.wordWindowsPages
-            out.append((image.id, r, _px(tightBelow ? 0 : float.distanceTop), _px((tightBelow ? 0 : float.distanceBottom) + (theme.wordRules ? float.effectBottom : 0))))
+            if tightBelow, float.wrapBottomShare < 1 { r = Rect.fromLTRB(r.left, r.top, r.right, r.top + (r.bottom - r.top) * float.wrapBottomShare) }
+            out.append((image.id, r, _px(tightBelow ? 0 : float.distanceTop), _px(tightBelow ? float.distanceBottom : float.distanceBottom + (theme.wordRules ? float.effectBottom : 0))))
         }
         return out
     }

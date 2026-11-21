@@ -5042,7 +5042,7 @@ enum DocxFormat {
             // reach a few points down, and a line over that stretch is held in by less than the
             // box. lo tdf163575: 1072 of 21600 down on a 181pt picture, Word's first line at 190.4
             // over a picture ending at 199.9.)
-            if let tight = anchor.first("wp:wrapTight"), let polygon = tight.first("wp:wrapPolygon"), let ext = anchor.first("wp:extent"),
+            if let tight = anchor.first("wp:wrapTight") ?? anchor.first("wp:wrapThrough"), let polygon = tight.first("wp:wrapPolygon"), let ext = anchor.first("wp:extent"),
                let cy = Double(ext["cy"] ?? "") {
                 let pts = ([polygon.first("wp:start")] + polygon.all("wp:lineTo").map { Optional($0) }).compactMap { $0 }
                     .compactMap { n -> (Double, Double)? in
