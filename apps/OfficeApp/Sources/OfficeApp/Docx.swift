@@ -8965,7 +8965,13 @@ enum DocxFormat {
                     // print keeps their lines at the face's own height.)
                     if child["w14:sx"] == "0", child["w14:sy"] == "0" { cs.shadow?.scale = 0 }
                 }
+            case "w14:textOutline":
+                if let w = Double(child["w14:w"] ?? ""), w > 0,
+                   let c = child.first("w14:solidFill")?.children.first(where: { $0.name == "w14:srgbClr" || $0.name == "w14:schemeClr" }), let rgb = _w14Color(c) {
+                    cs.textLine = CharOutline(color: Color(argb: 0xFF, rgb.0, rgb.1, rgb.2), width: w / 12700)
+                }
             case "w14:textFill":
+                if child.first("w14:noFill") != nil { cs.noFill = true }
                 // (A solid fill with an alpha: Word draws the text at the OPPOSITE opacity, `w14:alpha` being a transparency there.
                 // dx2 f22ada3a's NOTAT, 383838 at 87000, prints as pixel 230 grey, 13% ink, not 87%.)
                 if let c = child.first("w14:solidFill")?.children.first(where: { $0.name == "w14:srgbClr" || $0.name == "w14:schemeClr" }),

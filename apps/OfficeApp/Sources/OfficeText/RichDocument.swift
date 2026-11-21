@@ -219,6 +219,9 @@ public struct CharStyle: Hashable, Codable, Sendable {
     /// An outline round the letters (PowerPoint's `a:ln` on a run): colour and width in points; nil for none.
     /// Drawn as a ring of the colour's copies behind the letters.
     public var outline: CharOutline? = nil
+    /// Word's `w14:textOutline` (colour, width in points) and `w14:textFill` noFill: with no fill the letters print as hollow outlines.
+    public var textLine: CharOutline? = nil
+    public var noFill = false
     /// Run properties the editor does not draw by, as the file wrote
     /// them (`w:w` character scale, `w:position`, `w:bdr`, `w:lang`,
     /// `w:em`, `w:fitText`, `w:snapToGrid`): written back with the run.
