@@ -65,7 +65,9 @@ elif [ "$(uname)" = Linux ] || [ -n "$PPTX_DIFF" ]; then
   if [ -n "$WANT" ] && [ "$MUPDF" != "$WANT" ] && [ -z "$MUPDF_ANY" ]; then
     echo "MuPDF is '$MUPDF' here and the baseline was scored with '$WANT': scores are not comparable. Use PYTHON=$HOME/venv-word/bin/python, or MUPDF_ANY=1." >&2; exit 3
   fi
-  [ -n "$OFFICE_APP" ] || [ -x "$APP" ] || APP="$ROOT/.build-shared/x86_64-unknown-linux-gnu/release/OfficeApp"
+  # No default binary: a stale apps/OfficeApp/.build one silently ran old code in sweeps (amd-9, 2026-11-21).
+  [ -n "$OFFICE_APP" ] || { echo "OFFICE_APP is not set: export OFFICE_APP=\$PWD/.build-shared/x86_64-unknown-linux-gnu/release/OfficeApp (the binary you just built)" >&2; exit 2; }
+  [ -x "$OFFICE_APP" ] || { echo "OFFICE_APP=$OFFICE_APP is not executable" >&2; exit 2; }
 else
   DIFF=(python "$HERE/pdf-diff.py")
   [ -n "$OFFICE_APP" ] || [ -x "$APP" ] || APP="$ROOT/apps/OfficeApp/.build/x86_64-unknown-windows-msvc/release/OfficeApp.exe"
