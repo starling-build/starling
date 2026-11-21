@@ -1174,10 +1174,24 @@ public struct RichResolvedFace: Sendable {
     public var otherAdvances: [UInt32: Double]? = nil
     /// A missing Korean face Word draws in Batang: its quotes, circles and circled digits come from Malgun Gothic, and a line holding one is Malgun's height.
     public var malgunSymbols = false
+    /// The face's own tables hold EVERY character it has (a full cmap read from the Windows metrics): a character they lack is one the face lacks, and Word draws it in a fallback face picked by the character's script and the face's class (`sansClass`: Verdana-like, else serif).
+    public var completeCoverage = false
+    public var sansClass = false
     public var boldOtherAdvances: [UInt32: Double]? = nil
     /// Italic's and bold italic's, where the face's differ from the regular's (nil: those are used).
     public var italicOtherAdvances: [UInt32: Double]? = nil
     public var boldItalicOtherAdvances: [UInt32: Double]? = nil
+    /// The face Word falls back to for a character the run's face lacks (lab fb, fallback-lab and fallback-lab15, identical at compat 12 and 15):
+    /// Latin Extended-B, Greek, Cyrillic and Latin Extended Additional in Cambria (a sans face: Calibri); the IPA and Greek Extended in Times New Roman (sans: Arial);
+    /// Armenian and Georgian in Sylfaen.
+    static func _scriptFallbackFace(_ u: UInt32, sans: Bool) -> String? {
+        switch u {
+        case 0x180..<0x250, 0x370..<0x530, 0x1E00..<0x1F00: return sans ? "Calibri" : "Cambria"
+        case 0x250..<0x2B0, 0x1F00..<0x2000: return sans ? "Arial" : "Times New Roman"
+        case 0x530..<0x590, 0x10A0..<0x1100: return "Sylfaen"
+        default: return nil
+        }
+    }
     func otherTable(bold: Bool, italic: Bool) -> [UInt32: Double]? {
         if italic, bold, let t = boldItalicOtherAdvances ?? italicOtherAdvances { return t }
         if italic, !bold, let t = italicOtherAdvances { return t }

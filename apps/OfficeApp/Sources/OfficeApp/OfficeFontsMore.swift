@@ -798,7 +798,7 @@ extension OfficeFonts {
 
         case "bookman old style":
             face.advances = bookman_old_styleAdv
-            face.otherAdvances = bookman_old_styleOther
+            face.otherAdvances = bookman_old_styleOther; face.completeCoverage = true
             face.boldAdvances = bookman_old_styleBoldAdv
             face.boldOtherAdvances = bookman_old_styleBoldOther
             face.italicAdvances = bookman_old_styleItalicAdv
