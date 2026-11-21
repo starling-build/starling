@@ -19,6 +19,12 @@ extension _StyledFrame {
         spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(ctx.heldKind ?? current ?? kind)))
         ctx.inserts.append(offset)
         ctx.afterHeld = false
+    } else if !theme.wordRules, theme.officeLatinBreaks, p.style.eastAsian["a:eaLnBrk"] != "0", let b = ctx.before, RichLayout._slidesBreaksBetween(b, ch) {
+        // (PowerPoint, with East Asian line breaking on (eaLnBrk, the default), may wrap between any two ideographs or kana
+        // unless kinsoku forbids it: 44a22c19 p15 wraps 収|入, 財|産, でしょ|うか. The engine's dictionary keeps a word whole.)
+        flush(i)
+        spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
+        ctx.inserts.append(offset)
     } else if theme.wordRules, (ctx.before == "\u{2014}" && ch.isASCII && ch.isNumber && ctx.beforeBefore.map { $0.isASCII && $0.isNumber || RichLayout._closingMarks.contains($0) } == true)
                 || (ch == "\u{2014}" && !ea && ctx.before.map { $0.isASCII && $0.isNumber } == true && following.map { $0.isASCII && $0.isNumber } == true)
                 || (RichTextTheme.wordWindowsPages && ch == "\u{2014}" && !ea && ctx.before.map { $0.isASCII && $0.isLetter } == true) {
