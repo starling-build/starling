@@ -160,7 +160,7 @@ extension _StyledFrame {
         if kind >= 0, let indic, indic.scale != 1, !latinNoScale { s = s.copyWith(scaleX: indic.scale) }
         // (The run's own line is the face's, not the stand-in's, where the face's is the shorter: Aparajita's 1.18 em (a516bfe9: 2.7 to 92.9) where Noto
         // Sans Devanagari's is taller; the joiner above only raises a line.)
-        if kind >= 0, let indic, (indic.face == "kokila" && (kokilaLatin || text.unicodeScalars.contains(where: { RichLayout._isIndic($0.value) }))) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "malgun gothic" && malgunLatin) || (indic.face == "yu gothic" && (aumsLatin || aumsYuInIndic)) || indic.face == "vijaya" || indic.face == "latha" || indic.face == "shonar bangla" || indic.face == "leelawadee ui" || (namedFace != nil && (namedFace != "mangal" || namedKalimati)) || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { RichLayout._tamil.contains($0.value) })), let m = RichLayout._indicLines[(indic.face == "shonar bangla" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? "shonar bangla bold" : indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
+        if kind >= 0, let indic, (indic.face == "kokila" && (kokilaLatin || text.unicodeScalars.contains(where: { RichLayout._isIndic($0.value) }))) || (indic.face == "utsaah" && utsaahLatin) || (indic.face == "malgun gothic" && malgunLatin) || (indic.face == "yu gothic" && (aumsLatin || aumsYuInIndic)) || indic.face == "vijaya" || indic.face == "mv boli" || indic.face == "latha" || indic.face == "shonar bangla" || indic.face == "leelawadee ui" || (namedFace != nil && (namedFace != "mangal" || namedKalimati)) || (indic.face == "nirmala ui" && !plainPiece && !p.text.unicodeScalars.contains(where: { RichLayout._tamil.contains($0.value) })), let m = RichLayout._indicLines[(indic.face == "shonar bangla" && (run.bold || ((named?.char.bold ?? false) && !run.off.contains(.bold)))) ? "shonar bangla bold" : indic.face], p.style.lineHeightPoints == nil, let size = s.fontSize, size > 0.5 {
             // (Kokila's line: its own ascent and descent, above and below the baseline, for every run on the line: the stand-ins'
             // (Carlito's, Noto's) are taller above and set the line 2-3 pt low and 1.4 pt per line too far apart.)
             // (A multiple under single too: dx2 hin-z20740649's 0.9 lines are 13.5 pt apart in Word's print, Kokila's 15.0 x 0.9.)
@@ -598,6 +598,13 @@ extension _StyledFrame {
            word.unicodeScalars.contains(where: { $0.value >= 0xD80 && $0.value <= 0xDFF }), let ems = SinhalaAdvances.sum(word, bold: s.fontWeight == .bold) {
             let shaped = _wordWidth(s, String(word))
             RuleTrace.hit("word-sinhala-letters-at-nirmala-ui-advances")
+            return shaped > 0.01 ? s.copyWith(scaleX: ems * px / shaped) : s
+        }
+        // (Thaana letters, word by word, at MV Boli's advances: Word draws them in it, the stand-in's glyphs are wider.)
+        if theme.wordRules, document.readFromFile, RichTextTheme.wordWindowsPages, let px = s.fontSize, px > 0.5,
+           word.unicodeScalars.contains(where: { $0.value >= 0x0780 && $0.value <= 0x07BF }), let ems = ThaanaAdvances.sum(word) {
+            let shaped = _wordWidth(s, String(word))
+            RuleTrace.hit("word-thaana-letters-at-mv-boli-advances")
             return shaped > 0.01 ? s.copyWith(scaleX: ems * px / shaped) : s
         }
         // (Ethiopic letters, word by word, at Nyala's own advances: the stand-in has no Ethiopic glyph and sets each at 0.75 em, where Nyala's run 0.35 to 1.03; a letter we have not read takes the median. Other characters of the word keep their own width.)
