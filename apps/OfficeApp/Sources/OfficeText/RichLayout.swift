@@ -944,6 +944,8 @@ public final class RichTextTheme {
                 : meiryoScript ? (size * 0.65 * 2 - 1e-6).rounded(.up) / 2 * widen * pixelsPerPoint * scale
                 // (A Latin script run is two thirds of the size in half points, cut to a whole half point: 8pt Arial prints 5.0, not 5.2;
                 // lo/dx2 99cfc555's "600C" kept "phút" on the line it did not fit.)
+                // (Palatino Linotype: OS/2 ySuperscriptYSize 0.6006 em, to the nearest half point; lab palsup 8-20 pt.)
+                : scriptRatio == 0.65 && wordRules && RichTextTheme.wordWindowsPages && familyName?.lowercased() == "palatino linotype" ? (size * 0.6006 * 2 + 0.5 - 1e-6).rounded(.down) / 2 * widen * pixelsPerPoint * scale
                 : scriptRatio == 0.65 && wordRules && RichTextTheme.wordWindowsPages ? (size * 2 * 2 / 3 + 1e-6).rounded(.down) / 2 * widen * pixelsPerPoint * scale
                 : px * scriptRatio,
             fontWeight: bold ? .bold : .normal,
@@ -974,6 +976,7 @@ public final class RichTextTheme {
                     : jpScript && style.script == .superscript ? -(size - jpScriptPt) * pixelsPerPoint * scale
                     : malgunScript && style.script == .superscript ? -(size - malgunScriptPt) * pixelsPerPoint * scale
                     : scriptRatio < 0.6 && style.script == .superscript ? -(1 - scriptRatio) * size * pixelsPerPoint * scale
+                    : style.script == .superscript && wordRules && RichTextTheme.wordWindowsPages && familyName?.lowercased() == "palatino linotype" ? -(size * 0.2734 * 2 + 0.5 - 1e-6).rounded(.down) / 2 * pixelsPerPoint * scale // lab palsup: raise to the half point
                     : (style.script == .superscript ? -Self.superscriptRaise(familyName) : (wordRules ? 0.09 : 0.2)) * px
                 let raised = wordRules && NativeParagraphBuilder.supportsBaselineShift ? (style.raised ?? named?.char.raised ?? 0) : 0
                 let shift = script - raised * pixelsPerPoint * scale
