@@ -3071,7 +3071,7 @@ enum ChartPainter {
             // lab legbox in PowerPoint's print, five box widths and three sizes, pitch within 1 pt, 5864 slide 11's two 12 pt
             // entries 95.6 apart in a 250 pt box where ours stood 45 apart.)
             let wordColumnW: Double? = box != nil && wordBoxPie && lines.allSatisfy { $0.count == 1 }
-                ? lines.map { $0.reduce(0.0) { $0 + lead + $1.tp.width } }.max() : nil
+                ? lines.map { $0.reduce(0.0) { $0 + lead + ($1.tp.computeLineMetrics().map { $0.width }.max() ?? $1.tp.width) } }.max() : nil
             var slideRowStart: Double? = nil
             if let b = box, c.onSlide, !pie, lines.count == 1, let only = lines.first, only.count > 1 {
                 let room = b.width - only.reduce(0.0) { $0 + lead + $1.tp.width }
