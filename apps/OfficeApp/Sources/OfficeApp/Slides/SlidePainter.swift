@@ -1188,6 +1188,13 @@ final class SlidePainter: CustomPainter {
                     outline.addRect(r)
                 }
                 canvas.drawPath(Self.dashed(outline, dash, width: p.strokeWidth, capped: shape.outlineCap == "rnd" || shape.outlineCap == "sq"), p)
+                // (A dashed line has its arrowheads too: ko-4f5289a9 p11's dotted connectors, drawn without them.)
+                if shape.preset?.isLine == true, shape.headEnd != nil || shape.tailEnd != nil {
+                    let a0 = Offset(r.left, r.top), b0 = Offset(r.right, r.bottom), base = max(shape.outlineWidth, 2) * px
+                    let solid = Paint(); solid.style = .stroke; solid.isAntiAlias = true; solid.strokeWidth = p.strokeWidth; solid.color = line
+                    if let e = shape.headEnd { Self.lineEnd(e, tip: a0, from: b0, base: base, paint: solid, canvas) }
+                    if let e = shape.tailEnd { Self.lineEnd(e, tip: b0, from: a0, base: base, paint: solid, canvas) }
+                }
             } else if shape.preset?.isLine == true {
                 // From its start to its end, stopping inside a filled head.
                 var a = Offset(r.left, r.top), b = Offset(r.right, r.bottom)
