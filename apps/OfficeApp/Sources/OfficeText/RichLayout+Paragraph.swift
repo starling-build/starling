@@ -3416,7 +3416,7 @@ extension RichLayout {
             // 10pt lines under Normal's 11pt, 12.33pt to the baseline in Word's print where 10pt ones are 11.39.)
             let ownMark = _markerChar(p, document).fontSize
             let styleSize = named?.char.fontSize ?? _normalChar(document)?.fontSize
-            let larger = ownMark == nil && (styleSize ?? 0) > (p.runs[0].style.fontSize ?? .infinity) + 0.01
+            let larger = ownMark == nil && p.style.mark != nil && (styleSize ?? 0) > (p.runs[0].style.fontSize ?? .infinity) + 0.01
             let markerSize = ownMark ?? (larger ? styleSize : nil) ?? p.runs[0].style.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
             let need = _px(markerSize * (larger ? 1.125 : 1.005)) - line.baseline
             // (At a line multiple the text's own shift may already stand the extra UNDER the text, up from the painter's baseline; Symbol's ascent
