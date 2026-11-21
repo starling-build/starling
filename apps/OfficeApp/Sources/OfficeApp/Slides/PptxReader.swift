@@ -681,6 +681,8 @@ struct PptxReader {
         }
         let defaults = presentation.first("p:defaultTextStyle")
         let unsaidKern: Double = defaults != nil ? 0 : 12
+        // (`p:presentation strictFirstAndLastChars` is on unless the file says "0": strict kinsoku keeps small kana and ー from opening a line.)
+        let looseKinsoku = presentation["strictFirstAndLastChars"] == "0"
         // The deck's table styles, by id: what each table's `tableStyleId`
         // names (PowerPoint writes every style a deck uses into the part).
         var tableStyles: [String: XNode] = [:]
@@ -723,7 +725,7 @@ struct PptxReader {
             let ctx = SlideContext(package: package, part: part, slide: slide, layout: layout, master: master,
                                    colors: colors, theme: theme, defaults: defaults, slideSize: size, images: images,
                                    tableStyles: tableStyles, foreignTheme: n > 0 && themePart != deckThemePart,
-                                   unsaidKern: unsaidKern)
+                                   unsaidKern: unsaidKern, looseKinsoku: looseKinsoku)
             var shapes: [ShapeState] = []
             // A shape whose `p:cNvPr` has no `id` breaks the schema (id is
             // required): PowerPoint prints that slide as a blank page, its
@@ -747,7 +749,7 @@ struct PptxReader {
                     let octx = SlideContext(package: package, part: ownerPart, slide: xml, layout: layout, master: master,
                                             colors: colors, theme: theme, defaults: defaults, slideSize: size, images: images,
                                             foreignTheme: n > 0 && themePart != deckThemePart,
-                                            unsaidKern: unsaidKern)
+                                            unsaidKern: unsaidKern, looseKinsoku: looseKinsoku)
                     var found: [ShapeState] = []
                     octx.shapes(in: tree, transform: nil, into: &found, id: id)
                     // (A slide-number field in a shape the layout or master draws (not a placeholder, so the slide holds no copy of it) shows the number of
@@ -1306,6 +1308,7 @@ private struct SlideContext {
     /// which say `kern` nowhere but have the style; lo-open-as-read-only's
     /// "read-only," is 2.7 pt short of plain.
     var unsaidKern: Double? = nil
+    var looseKinsoku = false
 
     // MARK: Placeholders
 
@@ -2576,6 +2579,7 @@ private struct SlideContext {
                         if s.caps == "all" { runs[runs.count - 1].style.caps = true } else if s.caps == "small" { runs[runs.count - 1].style.smallCaps = true }
                     }
                     var style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
+                    if looseKinsoku { style.eastAsian["a:looseKinsoku"] = "1" }
                     switch level.algn { case "ctr": style.alignment = .center; case "r": style.alignment = .right; default: break }
                     // Its spacing, as a text box's paragraph has it (aptia's
                     // cells, 6 pt before each paragraph, sat that much high).
@@ -3040,7 +3044,7 @@ private struct SlideContext {
         }
         let ctx = SlideContext(package: package, part: drawingPart, slide: slide, layout: layout, master: master,
                                colors: colors, theme: theme, defaults: defaults, slideSize: slideSize, images: images,
-                               unsaidKern: unsaidKern)
+                               unsaidKern: unsaidKern, looseKinsoku: looseKinsoku)
         var out: [ShapeState] = []
         ctx.shapes(in: tree, transform: { r in r.shift(Offset(frame.left, frame.top)) }, into: &out, id: id)
         out = out.flatMap { s -> [ShapeState] in
@@ -3617,6 +3621,7 @@ private struct SlideContext {
             }
             if (p.first("a:pPr")?["hangingPunct"] ?? level.hangingPunct) == "0" { style.eastAsian["a:hangingPunct"] = "0" }
             if let b = level.latinLnBrk { style.eastAsian["a:latinLnBrk"] = b }
+            if looseKinsoku { style.eastAsian["a:looseKinsoku"] = "1" }
             if let m = level.lineMultiple { style.lineSpacing = m } else if let pts = level.linePoints {
                 // Exactly that many points, whatever the runs' sizes.
                 style.lineHeightPoints = whole(pts)
