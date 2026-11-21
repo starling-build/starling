@@ -763,6 +763,19 @@ extension OfficeFonts {
             // (win 2054+442 over hhea 1764+284: sa1 a7044bb8's 26pt run raised 23pt stands its baseline 49.04 under the header top, 23 + 26 x 2054/2048.)
             face.naturalHeight = 2496.0 / 2048; face.baseline = 2054.0 / 2048
 
+        case "trebuchet ms":
+            // (Windows measuring run of all four styles; every style's line is hhea 1923+455 of 2048, 2f747ec3's 12 pt line
+            // steps 13.92 in Word where the sans stand-in's 1.15 ran 13.8.)
+            face.advances = trebuchet_msAdv
+            face.otherAdvances = trebuchet_msOther
+            face.boldAdvances = trebuchet_msBoldAdv
+            face.boldOtherAdvances = trebuchet_msBoldOther
+            face.italicAdvances = trebuchet_msItalicAdv
+            face.italicOtherAdvances = trebuchet_msItalicOther
+            face.boldItalicAdvances = trebuchet_msBoldItalicAdv
+            face.boldItalicOtherAdvances = trebuchet_msBoldItalicOther
+            face.naturalHeight = 2378.0 / 2048; face.baseline = 1923.0 / 2048
+
         case "lucida sans":
             face.advances = lucidaSansAdvances
             // (Windows line: the taller of hhea 1980+432 and win 1900+432 -- hhea; 92c84270's 11pt header baseline stands 10.68 under its top, 1980/2048 x 11.)
