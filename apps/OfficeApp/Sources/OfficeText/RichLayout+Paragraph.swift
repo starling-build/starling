@@ -3726,7 +3726,8 @@ extension RichLayout {
         // times the text's. Word's print of jpn-z22855378-6fca0f: a line with a 17.0 over 7.9pt fraction is 36pt,
         // the others 27. The lines are held to the strut here and the taller one is drawn lower, with those
         // after it: the extra above the baseline is what the equation stands higher than the text's own.)
-        if equationLinesGrowAfterLayout, painter.strutStyle?.forceStrutHeight == true, keepClear == nil, Self._paired(painter) == nil,
+        let wholePitchEquation = inline.contains { $0.image?.name == "m:oMath" && $0.image?.float == nil && _pageFill[$0.image?.id ?? ""] != nil }
+        if equationLinesGrowAfterLayout, !wholePitchEquation, painter.strutStyle?.forceStrutHeight == true, keepClear == nil, Self._paired(painter) == nil,
            let boxes = painter.inlinePlaceholderBoxes, boxes.count == inline.count, !boxes.isEmpty {
             let bottoms = Self._rawLineBottoms(painter)
             let metrics = painter.computeLineMetrics()
@@ -3752,6 +3753,35 @@ extension RichLayout {
                 for k in 0 ..< bottoms.count {
                     shifts[k] = acc + above[k]
                     acc += extra[k]
+                }
+                Self._pairedLines[ObjectIdentifier(painter)] = _PairedLines(painter: painter, shifts: shifts, saving: -acc)
+            }
+        }
+        // (A tall equation on a line grid: Word's line is the equation's whole pitches (20d9968b's (1-r^n)/(1-r)^2 is two pitches, 36pt,
+        // with the baseline 23.7 down it); the forced strut holds ours to one pitch and the box stands above the paragraph.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, !style.rightToLeft, _columns <= 1, painter.strutStyle?.forceStrutHeight == true,
+           keepClear == nil, besideLineIndents.isEmpty, Self._paired(painter) == nil,
+           let boxes = painter.inlinePlaceholderBoxes, boxes.count == inline.count, !boxes.isEmpty {
+            let bottoms = Self._rawLineBottoms(painter)
+            var above = [Double](repeating: 0, count: bottoms.count), below = above
+            for (k, box) in boxes.enumerated() {
+                guard let image = inline[k].image, image.name == "m:oMath", image.float == nil, _pageFill[image.id] != nil else { continue }
+                let r = box.toRect()
+                let mid = r.top + r.height / 2
+                guard let line = bottoms.firstIndex(where: { mid < $0 }) else { continue }
+                let before = line == 0 ? 0 : bottoms[line - 1]
+                // (The extra is shared evenly above and below the strut's own line: the baseline stands half the extra lower, 21.8pt down a 36pt line.)
+                let grow = max(0, r.height - (bottoms[line] - before)) / 2
+                above[line] = max(above[line], grow)
+                below[line] = max(below[line], grow)
+            }
+            if above.contains(where: { $0 > 0.01 }) || below.contains(where: { $0 > 0.01 }) {
+                RuleTrace.hit("word-a-tall-equation-line-on-a-grid-is-its-whole-pitches")
+                var shifts = [Double](repeating: 0, count: bottoms.count)
+                var acc = 0.0
+                for k in 0 ..< bottoms.count {
+                    shifts[k] = acc + max(0, above[k])
+                    acc += max(0, above[k]) + max(0, below[k])
                 }
                 Self._pairedLines[ObjectIdentifier(painter)] = _PairedLines(painter: painter, shifts: shifts, saving: -acc)
             }
