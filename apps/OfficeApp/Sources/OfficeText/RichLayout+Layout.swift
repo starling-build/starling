@@ -1014,6 +1014,10 @@ extension RichLayout {
             // 4cac8c37's 2-column cost table, whose second cell says gridSpan 3, keeps the grid's
             // 115 + 410, where ours counted 4 columns, lost the grid and set the first at 131.)
             if theme.wordRules, _columnPreview[c.table] == nil, let grid = document.tableColumns[c.table], !grid.isEmpty, grid.count < cols { cols = grid.count }
+            // (Trailing grid columns no row reaches are still the grid: a one-row table of a cell over 2 of 3 columns, 100% wide,
+            // stands where its three-column grid puts it, half the rim in from the share, 0.5 pt right of an equal split; lab fltrow T2, T3.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, _columnPreview[c.table] == nil, let grid = document.tableColumns[c.table], grid.count > cols,
+               document.tableStyles[c.table]?.widthPercent != nil { cols = grid.count; RuleTrace.hit("word-grid-columns-past-the-last-cell-kept") }
             // (The table's section's column.)
             let width = _flowWidth(i)
             _tableFlowWidth[c.table] = width
