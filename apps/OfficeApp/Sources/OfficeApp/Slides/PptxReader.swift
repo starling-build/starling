@@ -4162,7 +4162,7 @@ private struct SlideContext {
                 if let inline { cs.inlineImage = inline }
                 // (A 、。，． in a run tagged with a language that is not East Asian (an untagged run inherits the deck's) does not hang:
                 // 505a93a9 p14's untagged 。 opens the next line alone.)
-                if let l = (s.lang ?? defaults?.first("a:defPPr")?.first("a:defRPr")?["lang"])?.lowercased(), !l.isEmpty, !["ja", "ko", "zh"].contains(where: { l.hasPrefix($0) }) {
+                if let l = (s.lang ?? defaults?.first("a:defPPr")?.first("a:defRPr")?["lang"])?.lowercased(), !l.isEmpty, !["ja", "ko", "zh"].contains(where: { l.hasPrefix($0) }), !(s.altLang ?? "").lowercased().hasPrefix("zh") {
                     var at = text.utf16.count
                     for u in t.utf16 { if u == 0x3001 || u == 0x3002 || u == 0xFF0C || u == 0xFF0E { plainMarks.append(at) }; at += 1 }
                 }
