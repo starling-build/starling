@@ -518,7 +518,7 @@ struct Chart: Equatable {
     /// A funnel's category axis ticks (`majorTickMarks` not none): a short mark inward at each slot's edge.
     var funnelTicks = false
     /// A funnel's data labels as the file sets them: the series' own, and each point's where it differs.
-    struct CxLabel: Equatable { var series = false, category = false, value = true; var separator = ", "; var format: String? = nil; var hidden = false }
+    struct CxLabel: Equatable { var series = false, category = false, value = true; var separator = ", "; var format: String? = nil; var hidden = false; var pos: String? = nil }
     var cxLabel = CxLabel()
     var cxLabelPoints: [Int: CxLabel] = [:]
     /// An Excel 2016 sunburst (`layoutId="sunburst"`): its points as a
@@ -1133,6 +1133,7 @@ enum ChartXML {
                     if let a = v["value"] { l.value = a == "1" }
                 }
                 if let sep = n.first("cx:separator") { l.separator = sep.text }
+                if let p = n["pos"] { l.pos = p }
             }
             apply(dl, to: &c.cxLabel)
             for p in dl.all("cx:dataLabel") {
@@ -4397,7 +4398,17 @@ enum ChartPainter {
                     color: Color(0xFFFFFFFF), fontSize: max(3, c.baseTextSize * k),
                     fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
-                tp.paint(canvas, Offset(r.center.dx - tp.width / 2, cy - tp.height / 2))
+                // (A funnel label set "t" sits on the bar's top edge, its text's foot at the edge; "b" just under the
+                // bottom, a pen's 2 pt clear; both held within the first bar's top and the last bar's foot, 2 pt out:
+                // chartex-lab2 p27, p28, 9 pt text.)
+                var y = cy
+                let fs = max(3, c.baseTextSize * k)
+                if spec.pos == "t" { y = r.top - 0.5 * fs } else if spec.pos == "b" { y = r.bottom + 0.72 * fs }
+                if spec.pos == "t" || spec.pos == "b" {
+                    let top = plot.top + (slot - bar) / 2 - 2 * k + 0.5 * fs, foot = plot.top + slot * Double(n - 1) + (slot - bar) / 2 + bar + 2 * k - 0.5 * fs
+                    y = min(max(y, top), foot)
+                }
+                tp.paint(canvas, Offset(r.center.dx - tp.width / 2, y - tp.height / 2))
                 tp.dispose()
             }
         }
