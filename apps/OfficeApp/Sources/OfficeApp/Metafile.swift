@@ -936,9 +936,14 @@ private struct Player {
                         let rt = Int(bytes[r]) | Int(bytes[r + 1]) << 8, fl = Int(bytes[r + 2]) | Int(bytes[r + 3]) << 8
                         let rs = u32(r + 4), ds = u32(r + 8)
                         guard rs >= 12, r + rs <= stop, ds <= rs - 12 else { break }
+                        plus!.bitmapBase = bitmaps.count
                         plus!.record(bytes, type: rt, flags: fl, at: r + 12, size: ds)
                         r += rs
                     }
+                    for d in plus!.newBitmaps {
+                        bitmaps.append(ImageAttachment(data: d, width: 0, height: 0, name: "metafile-\(bitmaps.count).img"))
+                    }
+                    plus!.newBitmaps = []
                     steps.append(contentsOf: plus!.steps)
                     plus!.steps = []
                     p += size
