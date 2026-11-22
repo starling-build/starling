@@ -2833,6 +2833,14 @@ private struct SlideContext {
                         func share(_ f: String?) -> Double { f.flatMap { SlideFonts.windowsDescentShare($0) } ?? SlideFonts.arialDescentShare }
                         para.style.cellDescentShare = max(share(big?.style.fontFamily), share(end?.font.map { _font($0) }))
                     }
+                    if !text.isEmpty, let algn = p.first("a:pPr")?["fontAlgn"], algn == "t" || algn == "ctr" || algn == "b",
+                       let face = runs.max(by: { ($0.style.fontSize ?? 0) < ($1.style.fontSize ?? 0) })?.style.fontFamily,
+                       let m = SlideFonts.windowsAscentDescent(face) {
+                        // (The default stands the baseline 1.2 x (1 - share) down; these stand the glyph box in the 1.2 line.)
+                        let target: Double
+                        switch algn { case "t": target = m.ascent; case "ctr": target = (1.2 - (m.ascent + m.descent)) / 2 + m.ascent; default: target = 1.2 - m.descent }
+                        para.style.cellFontAlignDrop = target - 1.2 * (1 - m.descent / (m.ascent + m.descent))
+                    }
                     cellParas.append(para)
                 }
                 if cellParas.isEmpty {
