@@ -414,6 +414,7 @@ private struct LevelStyle {
     /// `a:ea`: the face for East Asian text; `lang` picks the theme's script face when it is empty.
     var eaFont: String?
     var lang: String?
+    var altLang: String?
     var color: Color?
     var baseline: Double?
     /// Character spacing in points (`spc`, hundredths of a point).
@@ -469,6 +470,7 @@ private struct LevelStyle {
         s.csFont = s.csFont ?? lower.csFont
         s.eaFont = s.eaFont ?? lower.eaFont
         s.lang = s.lang ?? lower.lang
+        s.altLang = s.altLang ?? lower.altLang
         s.color = s.color ?? lower.color
         s.baseline = s.baseline ?? lower.baseline
         s.spc = s.spc ?? lower.spc
@@ -639,6 +641,7 @@ private struct LevelStyle {
         s.csFont = r.first("a:cs")?["typeface"].flatMap { $0.isEmpty ? nil : $0 }
         s.eaFont = r.first("a:ea")?["typeface"].flatMap { $0.isEmpty ? nil : $0 }
         s.lang = r["lang"].flatMap { $0.isEmpty ? nil : $0 }
+        s.altLang = r["altLang"].flatMap { $0.isEmpty ? nil : $0 }
         if let fill = r.first("a:solidFill") { s.color = colors.color(in: fill) }
         // Text filled with a gradient is drawn as such in WordArt (its run
         // looks); elsewhere in the gradient's middle colour, not the black
@@ -2691,10 +2694,12 @@ private struct SlideContext {
                     }
                     cellNumbering.append(level.bullet == .number ? (level.autoNumType ?? "arabicPeriod", level.autoNumStart ?? 1) : nil)
                     var text = "", runs: [Run] = []
+                    var cellKoParens: [Int] = []
                     for child in p.children where child.name == "a:r" || child.name == "a:br" || child.name == "a:fld" {
                         let t = child.name == "a:br" ? "\n" : (child.first("a:t")?.text ?? "")
                         guard !t.isEmpty else { continue }
                         let s = (child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle()).filled(from: level)
+                        cellKoParens += Self.koParenOffsets(s, t, before: text)
                         text += t
                         // (East Asian letters in the East Asian face, the rest in the Latin one, as a text box's runs: PowerPoint sets
                         // a cell's kana and fullwidth forms in MS PGothic where the Latin slot says Tahoma or Arial.)
@@ -2833,6 +2838,7 @@ private struct SlideContext {
                         func share(_ f: String?) -> Double { f.flatMap { SlideFonts.windowsDescentShare($0) } ?? SlideFonts.arialDescentShare }
                         para.style.cellDescentShare = max(share(big?.style.fontFamily), share(end?.font.map { _font($0) }))
                     }
+                    if !cellKoParens.isEmpty { para.style.eastAsian["a:hangParens"] = cellKoParens.map(String.init).joined(separator: ",") }
                     cellParas.append(para)
                 }
                 if cellParas.isEmpty {
@@ -3652,6 +3658,15 @@ private struct SlideContext {
 
     static let latinOnlyOfficeFaces: Set<String> = ["Calibri", "Arial", "Times New Roman", "Cambria", "Verdana", "Tahoma", "Georgia", "Trebuchet MS"]
 
+    /// Offsets (in the paragraph's UTF-16) of a ")" after a Latin letter in a run whose language or alternate language is Korean:
+    /// PowerPoint hangs it past the margin like one after Hangul (ko-4f5289a9 p6 "(전류원 DB, CB Counter)" keeps its ")" 0.8 pt past the cell).
+    static func koParenOffsets(_ s: LevelStyle, _ t: String, before text: String) -> [Int] {
+        guard [s.lang, s.altLang].contains(where: { ($0 ?? "").lowercased().hasPrefix("ko") }) else { return [] }
+        var out: [Int] = [], at = text.utf16.count, prev: UInt16 = text.utf16.last ?? 0
+        for u in t.utf16 { if u == 0x29, (prev >= 0x41 && prev <= 0x5A) || (prev >= 0x61 && prev <= 0x7A) { out.append(at) }; prev = u; at += 1 }
+        return out
+    }
+
     static func isEastAsian(_ v: UInt32) -> Bool {
         switch v {
         case 0x1100 ... 0x11FF, 0x2E80 ... 0x303F, 0x3040 ... 0x30FF, 0x3130 ... 0x318F, 0x31F0 ... 0x31FF,
@@ -3992,6 +4007,7 @@ private struct SlideContext {
             var runs: [Run] = []
             var looks: [RunLook] = []
             var plainMarks: [Int] = []
+            var koParens: [Int] = []
             var mathImages: [String: ImageAttachment] = [:]
             func add(_ t0: String, _ r: LevelStyle, _ rPr: XNode? = nil, inline: String? = nil) {
                 guard !t0.isEmpty else { return }
@@ -4036,6 +4052,9 @@ private struct SlideContext {
                     var at = text.utf16.count
                     for u in t.utf16 { if u == 0x3001 || u == 0x3002 || u == 0xFF0C || u == 0xFF0E { plainMarks.append(at) }; at += 1 }
                 }
+                // (A ")" after a Latin letter in a run tagged Korean hangs like one after Hangul: ko-4f5289a9 p6 keeps "(전류원 DB, CB Counter)"
+                // whole in PowerPoint's print, its ")" 0.8 pt past the cell. In a ja run it does not (lab hang3 slide 6).)
+                koParens += Self.koParenOffsets(s, t, before: text)
                 text += t
                 // Hebrew, Arabic and Thai letters in the complex-script
                 // face, as PowerPoint sets them: tdf98603's Hebrew title is
@@ -4257,6 +4276,7 @@ private struct SlideContext {
                 }
                 var made = RichParagraph(text: text, runs: runs, style: style)
                 made.inlineImages = mathImages
+                if !koParens.isEmpty { made.style.eastAsian["a:hangParens"] = koParens.map(String.init).joined(separator: ",") }
                 if !plainMarks.isEmpty { made.style.eastAsian["a:noHangMarks"] = plainMarks.map(String.init).joined(separator: ",") }
                 // (A display equation sits by its own `m:jc` (centred by default), whatever the paragraph says.)
                 if !mathImages.isEmpty, let para = p.all("a14:m").first?.first("m:oMathPara"), p.all("a:r").isEmpty {

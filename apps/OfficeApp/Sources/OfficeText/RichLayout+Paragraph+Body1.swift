@@ -251,7 +251,10 @@ extension _ParaFrame {
             let units = Array(p.text.utf16)
             func isMark(_ k: Int) -> Bool {
                 // (A ")" that closes a Hangul or ideograph hangs the same way: ko-4f5289 p6 keeps "(실부하)" whole in a narrow cell.)
-                if k > 0, k < units.count, units[k] == 0x29 { return units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 }
+                if k > 0, k < units.count, units[k] == 0x29 {
+                    if units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 { return true }
+                    return p.style.eastAsian["a:hangParens"]?.split(separator: ",").contains { Int($0) == k } ?? false
+                }
                 if zhHang, k < units.count, _closingBrackets.contains(units[k]) { return true }
                 // (A ” after kanji or kana is full width in the East Asian face and never hangs: lab hang3 slide 7 breaks "課|程”" below its width.)
                 if k > 0, k < units.count, units[k] == 0x201D, units[k - 1] >= 0x3040, units[k - 1] <= 0x9FFF { return false }
@@ -264,6 +267,13 @@ extension _ParaFrame {
                 for s0 in starts.dropFirst() where s0 > 0 {
                     // (The mark opens the line, or follows its one first character: that character comes up with it.)
                     var m = isMark(s0) ? s0 : (isMark(s0 + 1) ? s0 + 1 : (s0 + 2 < units.count && units[s0 + 1] == 0x20 && units[s0 + 2] == 0x201D ? s0 + 2 : -1))
+                    if m < 0, let hp = p.style.eastAsian["a:hangParens"], !hp.isEmpty {
+                        // (A Latin word ending in a hanging ")" that does not fit: the word and its mark go down together, so the mark is
+                        // the end of the word that opens the line: ko-4f5289a9 p6 "…CB Counter)".)
+                        var j = s0
+                        while j < units.count, (units[j] < 0x80 && units[j] > 0x29) || units[j] == 0x28 { j += 1 }
+                        if j > s0, j < units.count, units[j] == 0x29, isMark(j) { m = j }
+                    }
                     if m < 0, zhHang {
                         // (A Latin word held between an opening bracket and a closing one, （Orientation）: the line that cannot take the
                         // closing mark leaves the whole of it for the next, so the mark is the end of that word: 2175d386 p5.)
