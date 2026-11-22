@@ -9,6 +9,7 @@ import Foundation
 
 extension _StyledFrame {
     @inline(never) func _sblk2() {
+    let extra0 = extra
     if ctx.wideSpaces.contains(offset) {
         // (Half an em and the run's own spacing once more,
         // as Word measures it: 8.31pt at 16pt spaced 0.15.
@@ -183,6 +184,14 @@ extension _StyledFrame {
             }
             extra += target - _glyphWidth(s, ch)
         }
+    }
+    // (PowerPoint sets the font at a size on a grid of 1/600 in: 32 pt prints at 32.04, so every advance is that much wider; the line's
+    // height is the unrounded size's. `fontSizeGrid`.)
+    if theme.fontSizeGrid > 0, !ch.isNewline, !ea, latinFace?.kernsReplaceShaped == true {
+        var pt = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
+        if fontScale != 1 { pt = max(1, (pt * fontScale).rounded()) }
+        let q = (pt / theme.fontSizeGrid).rounded() * theme.fontSizeGrid
+        if pt > 0, q > 0, q != pt { extra += (_glyphWidth(style(kind), ch) + extra - extra0) * (q / pt - 1) }
     }
     }
 }

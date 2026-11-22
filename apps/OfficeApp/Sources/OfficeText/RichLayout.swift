@@ -172,6 +172,8 @@ public final class RichTextTheme {
     public var advanceGrid: Double? = nil
     /// A face with its own width table snaps each glyph to a thousandth of an em, not to `advanceGrid` points.
     public var advanceGridOfFaceTables = false
+    /// PowerPoint sets a font at a size on a grid of device pixels (1/600 in = 0.12 pt): 32 pt prints at 32.04, 16 at 15.96, 13.5 at 13.56. 0 = off.
+    public var fontSizeGrid = 0.0
 
     /// Each face's natural line height as a multiple of its size (ascent,
     /// descent and line gap — Calibri's 1.22, Arial's 1.15), measured once:
