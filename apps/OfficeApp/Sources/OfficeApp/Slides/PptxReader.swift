@@ -2997,6 +2997,12 @@ private struct SlideContext {
             if let ln = pr.first("a:ln"), !ln.has("a:noFill"), let f = ln.first("a:solidFill"), let c = colors.color(in: f) {
                 st.outline = c
                 st.outlineWidth = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75
+            } else if chartex, let ln = pr.first("a:ln"), let g = ln.first("a:gradFill"), let f = PptxReader.gradient(g, colors: colors),
+                      f.stops.count >= 2 {
+                // (A chartex chart area's gradient edge, red to blue across the frame: chartex-lab2 waterfall.)
+                st.outline = f.stops[0].color
+                st.outlineFill = f
+                st.outlineWidth = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75
             }
         }
         // The chart's own drawing (`c:userShapes`): shapes placed in the
