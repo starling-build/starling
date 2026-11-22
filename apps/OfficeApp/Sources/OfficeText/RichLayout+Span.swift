@@ -2107,6 +2107,13 @@ extension RichLayout {
                            _ canvas: any Canvas, map: _OffsetMap? = nil) {
         guard RichTextTheme.shadowsAsPaths, !Self._hasEmptyLine(p) else { return }
         var at = 0
+        // PowerPoint draws a text shadow with its offset and blur shrunk by the line's largest text size:
+        // f = 0.0503 * S^0.687 (S in points after autofit; MEASURED on the textshadow3 lab's 11 sizes, within 0.06 pt, not derived).
+        // The paragraph's largest run stands in for the line's. Shape shadows are unscaled; Word's text shadows keep the full distance.
+        var shrink = 1.0
+        if !theme.wordRules, let big = p.runs.compactMap({ $0.style.fontSize }).max(), big > 0 {
+            shrink = 0.0503 * pow(max(1, (big * fontScale).rounded()), 0.687)
+        }
         for run in p.runs {
             defer { at += run.length }
             guard run.length > 0, let sh = run.style.shadow, !sh.glow || RichTextTheme.shadowBlurDeviceScale != nil, sh.ground == nil,
@@ -2124,11 +2131,17 @@ extension RichLayout {
                 for _ in 0 ..< 10 { canvas.drawPath(at0, paint) }
                 continue
             }
-            let moved = path.shift(Offset(origin.dx + sh.dx * k, origin.dy + sh.dy * k))
+            let moved = path.shift(Offset(origin.dx + sh.dx * k * shrink, origin.dy + sh.dy * k * shrink))
             if sh.blur > 0, RichTextTheme.shadowBlurDeviceScale != nil {
+                if !theme.wordRules {
+                    // (PowerPoint: alpha as given, Gaussian sigma = the shrunk radius / 3.)
+                    paint.color = Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, Double(sh.color.alpha) / 255)
+                    paint.maskFilter = MaskFilter(blur: .normal, sh.blur * shrink / 3 * k)
+                } else {
                 // (The engine's blurred text shadow, as it draws it in a PDF: 55% strength, sigma 0.4 of the radius.)
                 paint.color = Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, Double(sh.color.alpha) / 255 * 0.55)
                 paint.maskFilter = MaskFilter(blur: .normal, sh.blur * 0.4 * k)
+                }
                 canvas.drawPath(moved, paint)
             } else {
                 // (Where nothing blurs, as in Word's PDF, the engine draws a blurred shadow sharp at 45%.)
