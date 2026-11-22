@@ -291,6 +291,31 @@ extension RichLayout {
 
     // MARK: Laying out
 
+    /// What a percent line spacing above 100% adds to a Slides cell's first line, in the row's height, less than the full
+    /// (m-1) x 1.2 x size: see the notes at the row loop. Anchoring (centre, bottom) takes the block less it too (lab5:
+    /// the baseline at the foot is where 100% put it, at the centre half the first line's extra lower, at the top all of it).
+    func _slidesCellFirstLineTrim(_ k: Int, _ document: RichDocument) -> Double {
+        var trim = 0.0
+        if theme.wordRules { return 0 }
+        let q = document.paragraphs[k]
+        let m = q.style.lineSpacing
+        // (Arabic script loses nothing of the first line's extra to the face (k = 0): cc66a30f p18's 18 pt B Nazanin rows at 150%
+        // are 29.7 pt in PowerPoint's print = 1.2 x size + 0.9 x size x 0.5, and 7854f160 p13's 14 pt rows at 115% 19.3.)
+        let arabic = q.text.unicodeScalars.contains { (0x0600 ... 0x06FF).contains($0.value) || (0x0750 ... 0x077F).contains($0.value)
+            || (0x08A0 ... 0x08FF).contains($0.value) || (0xFB50 ... 0xFDFF).contains($0.value) || (0xFE70 ... 0xFEFF).contains($0.value) }
+        if m > 1.0, q.style.lineHeightPoints == nil, !q.text.isEmpty {
+            let big = q.runs.max { ($0.style.fontSize ?? 0) < ($1.style.fontSize ?? 0) }
+            let sz = big?.style.fontSize ?? theme.fontSize
+            // (Lab tbl-lnspc2: the first line adds 0.9 x size x (m-1), less k x size. Lab tbl-rows3, 30 faces: k is
+            // 0.3 less 1.2 times the share of the face's Windows line below the baseline (Arial 0.072, Calibri 0.036,
+            // MS Gothic 0.13, Meiryo none), the larger share of the text's face and the end mark's.)
+            let k = arabic ? 0 : max(0, 0.3 - 1.2 * (q.style.cellDescentShare ?? 0.1897))
+            let add = max(0, 0.9 * sz * (m - 1) - k * sz)
+            trim = _px(max(0, (m - 1) * 1.2 * sz - add))
+        }
+        return trim
+    }
+
     func _px(_ points: Double) -> Double { points * theme.pixelsPerPoint * scale }
 
     /// Lay out every invalidated paragraph and recompute the tops.
@@ -2587,25 +2612,7 @@ extension RichLayout {
                         // FIRST line of a cell's paragraph only about (m-1) x size - 0.083 x size, not the full
                         // (m-1) x 1.2 x size: 18pt at 115% is a row 37.15pt, 150% 43.24pt, 24pt 2 lines 115%
                         // 77.84pt; later lines pitch at m x 1.2 x size as here. The text sits where it did.)
-                        var trim = 0.0
-                        if !theme.wordRules {
-                            let q = document.paragraphs[k]
-                            let m = q.style.lineSpacing
-                            // (Arabic script loses nothing of the first line's extra to the face (k = 0): cc66a30f p18's 18 pt B Nazanin rows at 150%
-                            // are 29.7 pt in PowerPoint's print = 1.2 x size + 0.9 x size x 0.5, and 7854f160 p13's 14 pt rows at 115% 19.3.)
-                            let arabic = q.text.unicodeScalars.contains { (0x0600 ... 0x06FF).contains($0.value) || (0x0750 ... 0x077F).contains($0.value)
-                                || (0x08A0 ... 0x08FF).contains($0.value) || (0xFB50 ... 0xFDFF).contains($0.value) || (0xFE70 ... 0xFEFF).contains($0.value) }
-                            if m > 1.0, q.style.lineHeightPoints == nil, !q.text.isEmpty {
-                                let big = q.runs.max { ($0.style.fontSize ?? 0) < ($1.style.fontSize ?? 0) }
-                                let sz = big?.style.fontSize ?? theme.fontSize
-                                // (Lab tbl-lnspc2: the first line adds 0.9 x size x (m-1), less k x size. Lab tbl-rows3, 30 faces: k is
-                                // 0.3 less 1.2 times the share of the face's Windows line below the baseline (Arial 0.072, Calibri 0.036,
-                                // MS Gothic 0.13, Meiryo none), the larger share of the text's face and the end mark's.)
-                                let k = arabic ? 0 : max(0, 0.3 - 1.2 * (q.style.cellDescentShare ?? 0.1897))
-                                let add = max(0, 0.9 * sz * (m - 1) - k * sz)
-                                trim = _px(max(0, (m - 1) * 1.2 * sz - add))
-                            }
-                        }
+                        let trim = _slidesCellFirstLineTrim(k, document)
                         rowHeight = max(rowHeight, offset + _heights[k] - trim + cell.pad.top + cell.pad.bottom)
                         bareHeight = max(bareHeight, offset + _heights[k] - trim + cell.pad.top + cell.pad.bottom - cell.rules)
                         // (And as tall as a float its text wraps round reaches,
@@ -3005,7 +3012,9 @@ extension RichLayout {
                         if q.text.isEmpty, q.image == nil, q.inlineImages.isEmpty,
                            q.cell?.keptPropertiesXML?.containsSubstring("w:hideMark") ?? false { spare = _heights[k] }
                     }
-                    content[column] = (content[column].map { $0 - shared(k) } ?? 0) + _heights[k] - spare
+                    var anchorTrim = 0.0
+                    if !theme.wordRules, _cells[k]!.rowSpan == 1, !_cells[k]!.vertical { anchorTrim = _slidesCellFirstLineTrim(k, document) }
+                    content[column] = (content[column].map { $0 - shared(k) } ?? 0) + _heights[k] - spare - anchorTrim
                 }
                 // (… which reaches to the foot of a box floating over the
                 // text from one of its paragraphs: Word centres
