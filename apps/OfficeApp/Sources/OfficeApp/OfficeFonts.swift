@@ -4269,6 +4269,7 @@ static let sylfaenAdvances: [Double] = [
             face.boldJoinedAdvances = WindowsArabicAdvances.arabicTypesetting
             face.baseline = 1435.0 / 2048; face.ownLineBaseline = true
         } else {
+            face.advances = sakkalLatinAdvances; face.boldAdvances = sakkalLatinBoldAdvances   // (Sakkal Majalla's own Latin and digit widths, 2023 = 87.4 pt at 54 pt bold)
             face.joinedAdvances = WindowsArabicAdvances.sakkal
             face.boldJoinedAdvances = WindowsArabicAdvances.sakkalBold
             face.joinedSpaceEm = 0.151
