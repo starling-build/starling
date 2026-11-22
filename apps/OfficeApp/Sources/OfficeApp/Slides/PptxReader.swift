@@ -2708,10 +2708,12 @@ private struct SlideContext {
                     cellNumbering.append(level.bullet == .number ? (level.autoNumType ?? "arabicPeriod", level.autoNumStart ?? 1) : nil)
                     var text = "", runs: [Run] = []
                     var cellKoParens: [Int] = []
-                    for child in p.children where child.name == "a:r" || child.name == "a:br" || child.name == "a:fld" {
-                        let t = child.name == "a:br" ? "\n" : (child.first("a:t")?.text ?? "")
+                    for child in p.children where child.name == "a:r" || child.name == "a:br" || child.name == "a:fld" || child.name == "a14:m" {
+                        // (An equation in a cell is its letters in Cambria Math, as PowerPoint prints them: 3c1f2c4d820b p6's "(𝑎≥6)" was "()" here.)
+                        let isMath = child.name == "a14:m"
+                        let t = child.name == "a:br" ? "\n" : isMath ? child.descendants("m:t").map { $0.text }.joined() : (child.first("a:t")?.text ?? "")
                         guard !t.isEmpty else { continue }
-                        let s = (child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle()).filled(from: level)
+                        let s = ((isMath ? child.descendants("m:r").first?.first("a:rPr") : child.first("a:rPr")).map { LevelStyle.run($0, colors) } ?? LevelStyle()).filled(from: level)
                         cellKoParens += Self.koParenOffsets(s, t, before: text)
                         text += t
                         // (East Asian letters in the East Asian face, the rest in the Latin one, as a text box's runs: PowerPoint sets
@@ -2735,6 +2737,7 @@ private struct SlideContext {
                                 else { segments.append((ch.utf16.count, face)); segFace = .some(face) }
                             }
                         }
+                        if isMath { segments = [(t.utf16.count, "Cambria Math")] }
                         if segments.isEmpty { segments = [(t.utf16.count, nil)] }
                         let firstRun = runs.count
                         for seg in segments {
