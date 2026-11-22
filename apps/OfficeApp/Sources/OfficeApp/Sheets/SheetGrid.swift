@@ -2684,7 +2684,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
         }
         let pad = 2 * zoom   // Excel's cell margin
-        let wrapLess = 0.5 * zoom
+        let wrapLess = 0.15 * zoom
         // Wrapped text: lines within the cell's width, never spilling.
         let wraps = st.wrap && cell.value.isText
         let lineAlign: TextAlign = align == .center ? .center : align == .right ? .right : .left
