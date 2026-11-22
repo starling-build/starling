@@ -2583,8 +2583,21 @@ extension RichLayout {
                         && document.paragraphs[k].image == nil && document.paragraphs[k].inlineImages.isEmpty
                         && (document.paragraphs[k].cell?.keptPropertiesXML?.containsSubstring("w:hideMark") ?? false)
                     if cell.rowSpan == 1, !cell.vertical, !hidden {
-                        rowHeight = max(rowHeight, offset + _heights[k] + cell.pad.top + cell.pad.bottom)
-                        bareHeight = max(bareHeight, offset + _heights[k] + cell.pad.top + cell.pad.bottom - cell.rules)
+                        // (PowerPoint's print, lab tbl-lnspc: a percent line spacing above 100% adds to the
+                        // FIRST line of a cell's paragraph only about (m-1) x size - 0.083 x size, not the full
+                        // (m-1) x 1.2 x size: 18pt at 115% is a row 37.15pt, 150% 43.24pt, 24pt 2 lines 115%
+                        // 77.84pt; later lines pitch at m x 1.2 x size as here. The text sits where it did.)
+                        var trim = 0.0
+                        if !theme.wordRules {
+                            let q = document.paragraphs[k]
+                            let m = q.style.lineSpacing
+                            if m > 1.0834, q.style.lineHeightPoints == nil, !q.text.isEmpty {
+                                let sz = q.runs.compactMap { $0.style.fontSize }.max() ?? theme.fontSize
+                                trim = _px((m - 1) * 1.2 * sz - ((m - 1) * sz - 0.083 * sz))
+                            }
+                        }
+                        rowHeight = max(rowHeight, offset + _heights[k] - trim + cell.pad.top + cell.pad.bottom)
+                        bareHeight = max(bareHeight, offset + _heights[k] - trim + cell.pad.top + cell.pad.bottom - cell.rules)
                         // (And as tall as a float its text wraps round reaches,
                         // where it stands in the cell (`_floatRect`, no higher
                         // than the row's top): zh-ab9cbe66's flow charts, 632pt
