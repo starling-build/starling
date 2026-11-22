@@ -471,6 +471,12 @@ def same_start(a, b):
             return "".join(c for c in unicodedata.normalize("NFKC", t)
                            if unicodedata.category(c).startswith("L") and c not in "\u0627\u0644")
         p, q = core(a), core(b)
+        # (Our PDF's lam-alef ligature glyph extracts as the lam alone under its ActualText "لا", where PowerPoint's
+        # extracts the pair, so the alef counts differ between the prints, and PowerPoint's lines run in visual order
+        # with whole words reversed. The same letters, with alef and lam left out on BOTH sides, are the same line
+        # whatever the order: amd-8, 2026-11-22, rtl 898f62b7.)
+        if len(p) >= 4 and sorted(p) == sorted(q):
+            return True
         if len(p) >= 3 and len(q) >= 3:
             for x in (q, q[::-1]):
                 if p[:3] == x[:3] or p[-3:] == x[-3:]:
