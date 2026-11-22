@@ -26,6 +26,8 @@ final class SlideTextCache {
         let layout: RichLayout
     }
     private var _entries: [ObjectIdentifier: Entry] = [:]
+    /// The same bodies laid out in clear ink (`layout(_:pxPerPt:clear:)`).
+    private var _clearEntries: [ObjectIdentifier: Entry] = [:]
     private var _images: [String: Image] = [:]
     /// The pixel sizes (width << 32 | height) of the pictures decoded from a
     /// JPEG: the ones PowerPoint for Windows marks smooth in its PDF.
@@ -323,20 +325,37 @@ final class SlideTextCache {
         return widest
     }
 
+    /// `doc` with every letter's ink made clear (alpha 1 of 255, which the PDF writes as invisible text): what is drawn
+    /// to leave the words in the page's text layer where the letters themselves are drawn as outlines.
+    static func clearDocument(_ doc: RichDocument) -> RichDocument {
+        var d = doc
+        for i in d.paragraphs.indices {
+            for j in d.paragraphs[i].runs.indices {
+                d.paragraphs[i].runs[j].style.color = Color(0x01000000)
+                d.paragraphs[i].runs[j].style.highlight = nil
+                d.paragraphs[i].runs[j].style.shadow = nil
+            }
+        }
+        return d
+    }
+
     /// The body of `shape` laid out at `pxPerPt` device pixels per point.
-    func layout(_ shape: SlideShape, pxPerPt: Double) -> RichLayout? {
+    /// `clear` lays out the same lines with every letter in a clear ink, for the invisible text layer under a bent
+    /// WordArt (`clearDocument`); its lines break where the body's do.
+    func layout(_ shape: SlideShape, pxPerPt: Double, clear: Bool = false) -> RichLayout? {
         guard let text = shape.text, let theme = shape.textTheme else { return nil }
+        let document = clear ? Self.clearDocument(text.document) : text.document
         let width = max(1, (shape.frame.width - shape.drawInsets.left - shape.drawInsets.right) * pxPerPt)
         // The fitted size scales the letters alone: the indents and the box
         // stay the file's.
         let scale = pxPerPt / theme.pixelsPerPoint
         let key = ObjectIdentifier(text)
-        if let e = _entries[key], e.revision == text.revision, e.width == width, e.scale == scale, e.fontScale == shape.fontScale,
+        if let e = (clear ? _clearEntries : _entries)[key], e.revision == text.revision, e.width == width, e.scale == scale, e.fontScale == shape.fontScale,
            e.theme == ObjectIdentifier(theme) {
             return e.layout
         }
         func laidOut(_ w: Double) -> RichLayout {
-            let l = RichLayout(theme: theme, paragraphCount: text.document.paragraphs.count)
+            let l = RichLayout(theme: theme, paragraphCount: document.paragraphs.count)
             l.scale = scale
             l.fontScale = shape.fontScale
             l.verticalColumn = shape.textTurn != 0
@@ -357,7 +376,7 @@ final class SlideTextCache {
                 l.pageSetup = page
                 l.width = max(1, (w - shape.columnGap * pxPerPt * Double(shape.columns - 1)) / Double(shape.columns))
             }
-            l.ensureLaidOut(text.document)
+            l.ensureLaidOut(document)
             return l
         }
         var layout = laidOut(width)
@@ -376,8 +395,9 @@ final class SlideTextCache {
                 layout = laidOut(w)
             }
         }
-        _entries[key] = Entry(revision: text.revision, width: width, scale: scale, fontScale: shape.fontScale, theme: ObjectIdentifier(theme),
-                              layout: layout)
+        let entry = Entry(revision: text.revision, width: width, scale: scale, fontScale: shape.fontScale, theme: ObjectIdentifier(theme),
+                          layout: layout)
+        if clear { _clearEntries[key] = entry } else { _entries[key] = entry }
         return layout
     }
 
@@ -530,6 +550,7 @@ final class SlideTextCache {
     /// (same revision 0, same width) and be drawn with those line breaks.
     func reset() {
         _entries.removeAll()
+        _clearEntries.removeAll()
         _metafiles.removeAll()
         _images.removeAll()
         _decoding.removeAll()
@@ -537,7 +558,7 @@ final class SlideTextCache {
     }
 
     func forget(_ shapes: [SlideShape]) {
-        for s in shapes { if let t = s.text { _entries[ObjectIdentifier(t)] = nil } }
+        for s in shapes { if let t = s.text { _entries[ObjectIdentifier(t)] = nil; _clearEntries[ObjectIdentifier(t)] = nil } }
     }
 }
 
@@ -1432,6 +1453,7 @@ final class SlidePainter: CustomPainter {
             // Stacked text (`wordArtVert`): every character upright, one to a square place down the box.
         } else if text, !shape.isEmptyText, shape.warp != nil, WordArt.paint(shape, tr, canvas, pxPerPt: px, cache: cache) {
             // WordArt: fitted to the box and bent, not laid out in it.
+            WordArt.paintTextLayer(shape, tr, canvas, pxPerPt: px, cache: cache)
         } else if text, !shape.isEmptyText || shape.kind == .table, let layout = cache.layout(shape, pxPerPt: px), let doc = shape.text?.document {
             let ox = tr.left + cache.textLeft(shape, pxPerPt: px), oy = tr.top + cache.textTop(shape, pxPerPt: px)
             canvas.translate(ox, oy)

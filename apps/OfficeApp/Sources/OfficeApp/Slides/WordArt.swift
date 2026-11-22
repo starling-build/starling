@@ -188,7 +188,26 @@ enum WordArt {
 
     /// Draws `shape`'s text in its bend, in the shape's own space (`r` is
     /// its frame). False when the preset is not one this draws.
+    /// Letters drawn as real text (not outlines) since the count was last reset: their words are in the page's text
+    /// layer already, so no invisible copy is written for them.
+    private static var flatLetters = 0
+
+    /// The words of a bent WordArt, for the page's text layer. A letter bent point by point is drawn as an outline,
+    /// which holds no text; PowerPoint writes the body once more as invisible text, in its ordinary lines at their
+    /// natural size and place, as if the shape were not warped (lo-ShapePlusImage, lo-ShapeTextInflateTop,
+    /// lo-tdf125573_FontWorkScaleX, oox-tdf139618, oox-tdf155327: whole lines, never a glyph per row).
+    static func paintTextLayer(_ shape: SlideShape, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, cache: SlideTextCache) {
+        guard flatLetters == 0, shape.warp != nil, !shape.isEmptyText, shape.textSpin == 0,
+              let doc = shape.text?.document, let layout = cache.layout(shape, pxPerPt: px, clear: true) else { return }
+        let clearDoc = SlideTextCache.clearDocument(doc)
+        canvas.save()
+        canvas.translate(r.left + cache.textLeft(shape, pxPerPt: px), r.top + cache.textTop(shape, pxPerPt: px))
+        layout.paint(canvas, visible: Rect.fromLTWH(0, -10_000, layout.width, layout.totalHeight + 20_000), document: clearDoc, selection: nil, caret: nil)
+        canvas.restore()
+    }
+
     static func paint(_ shape: SlideShape, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, cache: SlideTextCache) -> Bool {
+        flatLetters = 0
         guard let warp = shape.warp, draws(warp), let doc = shape.text?.document, let theme = shape.textTheme else { return false }
         // Text on a path keeps the body's insets; text fitted to the box
         // is fitted to all of it.
@@ -475,24 +494,9 @@ enum WordArt {
                     g.painter.paint(canvas, .zero)
                 }
             }
+            if warped == nil, g.text != " " { Self.flatLetters += 1 }
             canvas.save()
             if warped == nil { canvas.transform(m) }
-            // A letter bent point by point is drawn as an outline, which holds
-            // no text. PowerPoint keeps the text (search, copy), so the letter
-            // is written once more under the outline, in a clear paint, at its
-            // own flat place.
-            if warped != nil, shadowPaint == nil, !g.clear, g.text != " " {
-                let clear = Paint()
-                clear.style = .fill
-                clear.color = Color(0x01000000)
-                canvas.save()
-                canvas.transform(m)
-                let tp = TextPainter(text: TextSpan(text: g.text, style: g.style(clear)), textDirection: .ltr)
-                tp.layout(minWidth: 0, maxWidth: Double.infinity)
-                tp.paint(canvas, .zero)
-                tp.dispose()
-                canvas.restore()
-            }
             if let shadowPaint {
                 // The letters' silhouette, outline and all.
                 if !(g.look?.noFill ?? false) { drawn(shadowPaint) }
