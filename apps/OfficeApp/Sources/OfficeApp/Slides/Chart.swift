@@ -6944,7 +6944,16 @@ enum ChartPainter {
                     if c.type == .line, c.onSlide, !c.chartex, let n = c.series[j].labelNudges[i] { x += n.dx * frame.width; y += n.dy * frame.height }
                     if c.type == .line, c.onSlide, c.series[j].labelDeleted.contains(i) { continue }
                     if c.type == .line, !c.series[j].labelsShown, !c.series[j].labelPointsOn.contains(i) { continue }
-                    labels.append((dataLabel(c, raw, series: j), Offset(x, y), j))
+                    var shownLine = dataLabel(c, raw, series: j)
+                    // (A line point's label written out in the file: its own paragraphs, the value where it has a value field.)
+                    if c.type == .line, c.onSlide, let paras = c.series[j].labelRich[i] {
+                        shownLine = paras.map { $0 ?? shownLine }.joined(separator: "\n")
+                    }
+                    if c.type == .line, c.onSlide, let parts = c.series[j].labelParts[i] {
+                        let value = shownLine
+                        shownLine = parts.map { $0 == ChartSeries.labelValueMark ? value : $0 == ChartSeries.labelCellMark ? c.series[j].cellLabels[i] ?? "" : $0 }.joined()
+                    }
+                    labels.append((shownLine, Offset(x, y), j))
                 }
                 if c.stacked { for i in 0 ..< n { base[i] = row[i] ?? base[i] } }
                 tops.append(row)
@@ -7163,7 +7172,7 @@ enum ChartPainter {
                     : { () -> TextPainter in
                         let ls = Flutter.TextStyle(
                             color: ser.labelColor ?? c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65)),
-                            fontSize: max(3, (ser.labelSize ?? c.baseTextSize) * k), fontWeight: boldHere ? .bold : .normal, height: jaFace != nil ? 1.3 : nil,
+                            fontSize: max(3, (ser.labelSize ?? c.baseTextSize) * k), fontWeight: boldHere ? .bold : .normal, height: jaFace != nil ? 1.3 : (c.onSlide && ["微軟正黑體", "microsoft jhenghei"].contains((ser.labelFace ?? c.font ?? theme.bodyFont ?? "").lowercased()) ? 1.73 : nil),
                             fontFamily: OfficeFonts.substitute(ownFace ?? c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))
                         // (A Latin face the machine lacks is spaced to its own advances: see `latinChartFace`.)
                         let lspan = c.onSlide && c.font == nil ? Self.latinChartFace(c.partFaces["label"] ?? c.axisFont ?? theme.bodyFont ?? "").map { Self.metricSpan(s, ls, $0, bold: boldHere) } : nil
@@ -7177,7 +7186,8 @@ enum ChartPainter {
                 let lineCount = max(1, tp.computeLineMetrics().count)
                 // (A slide's stacked column's label is centred in its segment whole, its lines on either side of the middle: d776ec3f p23's
                 // two-line "１２７９" over "（２９．４％）" has its baselines 7.5 pt lower than the grown-upward form.)
-                let grown = lineCount > 1 && !(c.onSlide && c.stacked && jaFace != nil) ? tp.height - tp.height / Double(lineCount) : 0
+                let jhengLine = c.onSlide && ["微軟正黑體", "microsoft jhenghei"].contains((ser.labelFace ?? c.font ?? theme.bodyFont ?? "").lowercased())
+                let grown = lineCount > 1 && !jhengLine && !(c.onSlide && c.stacked && jaFace != nil) ? tp.height - tp.height / Double(lineCount) : 0
                 var origin = Offset(at.dx - dx, at.dy - tp.height / 2 - rise - grown / 2)
                 // (A written-out label that wraps stands 1.5 pt (a sixth of its 9 pt size) higher than a plain one's
                 // lines in Word's print: sa1 06706f28's twenty "100.00%;" over "10,150,000.00" labels, 1.5 pt low in ours.)
