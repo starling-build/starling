@@ -6894,8 +6894,8 @@ extension ChartPainter {
             }
             if !c.onSheet {
                 // PowerPoint (chartex-lab2 treemap pages): items largest first, laid in strips along the shorter side,
-                // a strip growing while its worst aspect ratio does not get worse (squarified). Matches 9 of 12
-                // single-level lab pages; on a near-square box PowerPoint sometimes stops one item early.
+                // a strip growing while the aspect ratio of its last item does not get worse. Matches 11 of 13
+                // single-level lab pages (p4, p8 still differ: PowerPoint stops earlier, rule unknown).
                 let order = values.indices.sorted { values[$0] != values[$1] ? values[$0] > values[$1] : $0 < $1 }
                 let vs = order.map { values[$0] }
                 var out = [Rect](repeating: .zero, count: values.count)
@@ -6903,14 +6903,14 @@ extension ChartPainter {
                 while i < vs.count {
                     let w = box.right - l, h = box.bottom - t
                     let horiz = w >= h, short = min(w, h)
-                    func worst(_ k: Int) -> Double {
+                    // aspect of the item last added to the strip (not the worst in it)
+                    func lastAspect(_ k: Int) -> Double {
                         let s = vs[i ..< i + k].reduce(0, +), thick = s / rem * (horiz ? w : h)
-                        var m = 0.0
-                        for v in vs[i ..< i + k] { let len = v / s * short; m = max(m, max(thick / len, len / thick)) }
-                        return m
+                        let len = vs[i + k - 1] / s * short
+                        return max(thick / len, len / thick)
                     }
                     var k = 1
-                    while i + k < vs.count, worst(k + 1) <= worst(k) + 1e-9 { k += 1 }
+                    while i + k < vs.count, lastAspect(k + 1) <= lastAspect(k) + 1e-9 { k += 1 }
                     let s = vs[i ..< i + k].reduce(0, +), thick = s / rem * (horiz ? w : h)
                     var pos = 0.0
                     for j in 0 ..< k {
