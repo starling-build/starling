@@ -2439,6 +2439,47 @@ enum ChartXML {
         }
         c.dateAxis = axes.contains { $0.name == "c:dateAx" }
         c.monthNamesSparse = axes.contains { $0.name == "c:dateAx" && $0.first("c:majorTimeUnit")?["val"] == "months" && $0.first("c:auto")?["val"] == "0" }
+        // A date axis with its own major unit (`majorUnit` of `majorTimeUnit`: 3 months) names the dates a step apart from the
+        // first one, in the axis' own format, not every point (b3af6b818144 p34: 2022/1, 2022/4, 2022/7, 2022/10 across the
+        // width, flat; ours named each day, turned). Each name stands at the first point on or after its date.
+        if let da = axes.first(where: { $0.name == "c:dateAx" }), !yearsAxis,
+           let step = da.first("c:majorUnit")?["val"].flatMap(Int.init), step > 0,
+           let unit = da.first("c:majorTimeUnit")?["val"], ["days", "months", "years"].contains(unit),
+           let code = da.first("c:numFmt").flatMap({ ["0", "false"].contains($0["sourceLinked"] ?? "1") ? $0["formatCode"] : nil }), !code.isEmpty,
+           let cache = plot.descendant("c:ser")?.first("c:cat"), cache.descendant("c:numCache") != nil {
+            let serials = _points(cache).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
+            if serials.count == categories.count, serials.count > 1, serials.allSatisfy({ $0 != nil }) {
+                let days = serials.map { $0! }
+                // Excel's day number to a civil date, and back (days from 1970-01-01 = number - 25569).
+                func civil(_ n: Double) -> (y: Int, m: Int, d: Int) {
+                    let z = Int(n) - 25569 + 719468, era = (z >= 0 ? z : z - 146096) / 146097, doe = z - era * 146097
+                    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365, doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+                    let mp = (5 * doy + 2) / 153, d = doy - (153 * mp + 2) / 5 + 1, m = mp < 10 ? mp + 3 : mp - 9
+                    return (yoe + era * 400 + (m <= 2 ? 1 : 0), m, d)
+                }
+                func serial(_ y0: Int, _ m: Int, _ d: Int) -> Double {
+                    let y = m <= 2 ? y0 - 1 : y0, era = (y >= 0 ? y : y - 399) / 400, yoe = y - era * 400
+                    let doy = (153 * (m > 2 ? m - 3 : m + 9) + 2) / 5 + d - 1, doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
+                    return Double(era * 146097 + doe - 719468 + 25569)
+                }
+                var labels = Array(repeating: "", count: days.count)
+                let first = civil(days[0])
+                var k = 0, idx = 0
+                while idx < days.count, k < 400 {
+                    let at: Double
+                    switch unit {
+                    case "days": at = days[0] + Double(k * step)
+                    case "months": let t = first.m - 1 + k * step; at = serial(first.y + t / 12, t % 12 + 1, first.d)
+                    default: at = serial(first.y + k * step, first.m, first.d)
+                    }
+                    guard let i = days.firstIndex(where: { $0 >= at }) else { break }
+                    if i >= idx { labels[i] = chartNumberText(at, code); idx = i + 1 }
+                    k += 1
+                }
+                c.categories = labels
+                c.categoryLabelsSparse = true
+            }
+        }
         c.valueAxisTitle = axisTitle(titledValue)
         if let t = titledValue?.first("c:title") ?? titledCategory?.first("c:title"), Self._bare(t, in: space) { c.axisTitleSize = 20; c.bareAxisTitle = true }
         if let t = titledValue?.first("c:title") ?? titledCategory?.first("c:title") {
