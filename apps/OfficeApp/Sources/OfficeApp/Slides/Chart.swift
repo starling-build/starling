@@ -5514,7 +5514,7 @@ enum ChartPainter {
             // (A plain 2007-style slide bar chart with ticks out: the names stand off the plot by 0.927 of their size, and the value
             // labels' tops by 0.927 of theirs over a digit's height, as the column chart's value labels do. A 21-slide Windows print,
             // 6, 10 and 18 pt: plot left 60.8, 66.9, 79.3 and plot bottom 368.2, 360.8, 345.9; ours had a fixed 17.3 and 7.7.)
-            let plainBarGap = c.onSlide && (!c.legend || c.legendPosition == "r") && !c.styled2013 && !word && !libre && !c.chartex && c.barView == nil && c.categoryTicksOut && c.valueTicksOut && levelBand == 0 && !revCat && !slideLaidBar
+            let plainBarGap = c.onSlide && (!c.legend || c.legendPosition == "r") && !c.styled2013 && c.valueAxisTitle == nil && c.categoryAxisTitle == nil && !word && !libre && !c.chartex && c.barView == nil && c.categoryTicksOut && c.valueTicksOut && levelBand == 0 && !revCat && !slideLaidBar
             let left: Double = plainBarGap ? leafWidth + 0.927 * labelSize * k - (area.left - frame.left - 6.5 * k) : leafWidth + nameGap + besideOut + levelBand
             // (A 2013-style chart's top stands off the title as a column
             // chart's does, half a label line, though no label overhangs
@@ -5547,7 +5547,7 @@ enum ChartPainter {
             if c.styled2013, valGap > 8.5 { valueLabelsBack = -(valGap - 8.5) * k; RuleTrace.hit("slide-value-labels-stand-off-by-their-line-height") }
             // (A 2007-style chart on a slide: its value labels stand off the plot by 0.927 of their size, whether or not the axis has ticks or a
             // line: PowerPoint's print of a 27-chart lab, 6 pt 5.5 off, 8 pt 7.4, 10 pt 9.3, 12 pt 11.1, 18 pt 16.7, with ticks out or none, line or none.)
-            let barePlainL = c.onSlide && (!c.legend || c.legendPosition == "r") && !c.styled2013 && !word && !libre && !c.chartex && c.barView == nil && !horizontal
+            let barePlainL = c.onSlide && (!c.legend || c.legendPosition == "r") && !c.styled2013 && c.valueAxisTitle == nil && c.categoryAxisTitle == nil && !word && !libre && !c.chartex && c.barView == nil && !horizontal
             let barePlain = barePlainL && !c.legend
             let bareGap = 0.927 * labelSize * k
             var left = (valueLabels.map(\.width).max() ?? 0) - padTail + (barePlainL ? bareGap - (area.left - frame.left - 6.5 * k) : valGap * k + besideOut) - (c.chartex && c.onSlide ? 4.5 * k : 0) - (word ? 2.5 * k : libre ? 2.4 * k : 0)
@@ -6277,7 +6277,7 @@ enum ChartPainter {
                 // (On a slide 10 pt: es/3df36ff6 p4's labels at 24 in PowerPoint's print, ours at 14.)
                 // (Where the rule above pushed the plot off the chart's left edge, the labels stay at the edge 1.5 pt in, and the plot stands their
                 // size-scaled clearance past them: lab p12-lab3, 8 pt labels' left at 37.5 and 18 pt's at 37.5, where ours followed the plot.)
-                let labelRight = pushedLabelGap != nil ? frame.left + 1.5 * k + tp.width : (c.onSlide && (!c.legend || c.legendPosition == "r") && !c.styled2013 && !word && !libre && !c.chartex && c.barView == nil && !horizontal) ? plot.left - 0.927 * labelSize * k : slideLaidColumnAxis && c.valueTicksOut ? plot.left - 9.0 * k : plot.left - (c.chartex && c.onSlide ? (c.waterfallTotals != nil ? 5 : 4) : 8.5) * k - besideOut - further + wall3D + wall3DAuto + valueLabelsBack
+                let labelRight = pushedLabelGap != nil ? frame.left + 1.5 * k + tp.width : (c.onSlide && (!c.legend || c.legendPosition == "r") && !c.styled2013 && c.valueAxisTitle == nil && c.categoryAxisTitle == nil && !word && !libre && !c.chartex && c.barView == nil && !horizontal) ? plot.left - 0.927 * labelSize * k : slideLaidColumnAxis && c.valueTicksOut ? plot.left - 9.0 * k : plot.left - (c.chartex && c.onSlide ? (c.waterfallTotals != nil ? 5 : 4) : 8.5) * k - besideOut - further + wall3D + wall3DAuto + valueLabelsBack
                 if pushedLabelGap != nil { RuleTrace.hit("slide-laid-plot-pushed-keeps-value-labels-at-the-edge") }
                 if !swapSides { tp.paint(canvas, Offset(labelRight - tp.width, p - tp.height / 2 - lift + (wall3DAuto > 0 ? 2.6 * k : 0))) }
             }
