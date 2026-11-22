@@ -16,11 +16,11 @@ P
 )
 [ -n "$D" ] || exit 0
 PRS=
-for c in $(git rev-list --first-parent "$PREV..$SHA"); do
+for c in $(git rev-list "$PREV..$SHA"); do
   n=$(curl -s -m 20 -H "Authorization: Bearer ${GH_TOKEN:-}" "https://api.github.com/repos/${GITHUB_REPOSITORY:-starling-build/starling}/commits/$c/pulls" 2>/dev/null | python3 -c 'import sys,json
 try: print(" ".join("#%d"%x["number"] for x in json.load(sys.stdin)))
 except Exception: pass' 2>/dev/null)
-  PRS="$PRS ${n:-$(git log -1 --format='%h' "$c")}"
+  PRS="$PRS $(git log -1 --format='%h' "$c")${n:+($n)}"
 done
-{ echo "MERGE-WATCH $SHA $(date -u +%FT%TZ): Slides decks that dropped more than 1 point against $PREV; merged in between:$PRS"; echo "$D"; } >> "$LOG" 2>/dev/null
+{ echo "MERGE-WATCH $SHA $(date -u +%FT%TZ): Slides decks that dropped more than 1 point against $PREV; $(git rev-list --count "$PREV..$SHA") commits in between (hash, PR):$PRS"; echo "$D"; } >> "$LOG" 2>/dev/null
 exit 0
