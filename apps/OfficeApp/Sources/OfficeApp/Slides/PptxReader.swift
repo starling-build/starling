@@ -4188,6 +4188,28 @@ private struct SlideContext {
                     split.append(piece)
                     at += piece.length
                 }
+                // (A Korean run's ○ □ ① and the other symbols Malgun Gothic sets an em wide are East Asian characters: PowerPoint draws them
+                // in the East Asian face, a full circle, not in the Latin stand-in's smaller one. ko-ca2dc787 p18's "○ " in HY헤드라인M
+                // is Malgun's 18.0 pt circle in the print, the Liberation Sans one 10.9 pt.)
+                if (s.lang ?? "").lowercased().hasPrefix("ko"), OfficeFonts.cjkFallback.first != nil,
+                   t.unicodeScalars.contains(where: { SlideFonts.malgunEmSymbolSet.contains($0.value) }) {
+                    var out: [(length: Int, script: String?)] = []
+                    var pos = 0
+                    for piece in split {
+                        let slice = String(decoding: utf16[pos ..< pos + piece.length], as: UTF16.self)
+                        pos += piece.length
+                        guard piece.script == nil || piece.script == "ea", slice.unicodeScalars.contains(where: { SlideFonts.malgunEmSymbolSet.contains($0.value) }) else { out.append(piece); continue }
+                        var run = 0
+                        var runIsSymbol = false
+                        for u in slice.unicodeScalars {
+                            let isSym = SlideFonts.malgunEmSymbolSet.contains(u.value)
+                            if run > 0, isSym != runIsSymbol { out.append((run, runIsSymbol ? "sym" : piece.script)); run = 0 }
+                            runIsSymbol = isSym; run += u.utf16.count
+                        }
+                        if run > 0 { out.append((run, runIsSymbol ? "sym" : piece.script)) }
+                    }
+                    split = out
+                }
                 pieces = split
                 var consumed = 0
                 for piece in pieces {
@@ -4196,7 +4218,11 @@ private struct SlideContext {
                     // (Not where the complex face is one the deck embeds: its own line already holds the paragraph as PowerPoint draws it, and the
                     // Latin mark would lower it 1.3 pt: 7854f160 p1, 5a8cce85 p1 and p2 in B Nazanin and B Titr stand where the print has them.)
                     arabicTailFace = piece.script == "Arab" && !SlideFonts.isEmbedded(_csFont(s.csFont, script: "Arab", lang: s.lang, arabicCharset: s.csArabicCharset) ?? "") ? plain.fontFamily : nil
-                    if piece.script == "ea" {
+                    if piece.script == "sym", let cjk = OfficeFonts.cjkFallback.first {
+                        c = plain
+                        c.fontFamily = cjk
+                        c.shadow = cs.shadow; c.outline = cs.outline; c.highlight = cs.highlight; c.caps = cs.caps; c.smallCaps = cs.smallCaps
+                    } else if piece.script == "ea" {
                         // (The first letter of the piece names its script.)
                         let slice = String(decoding: utf16[consumed ..< min(utf16.count, consumed + piece.length)], as: UTF16.self)
                         let first = slice.unicodeScalars.first { Self.isEastAsian($0.value) }?.value ?? 0x4E00

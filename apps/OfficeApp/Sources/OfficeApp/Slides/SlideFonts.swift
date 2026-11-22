@@ -106,6 +106,11 @@ enum SlideFonts {
         return !["궁서", "신명", "필기", "손글씨", "펜"].contains(where: { n.containsSubstring($0) })
     }
 
+    /// The symbols Malgun Gothic sets an em wide (and draws itself): East Asian characters, so a Korean run's are drawn from the East Asian stand-in.
+    static let malgunEmSymbols: [UInt32] = Array(0x2460...0x246F) + [0x24D2, 0x2500, 0x2592, 0x25A0, 0x25A1, 0x25B2, 0x25B3, 0x25BD, 0x25C6, 0x25C7, 0x25CB, 0x25CE, 0x25CF, 0x2606, 0x261E, 0x2664,
+                                                                    0xFF02, 0xFF07, 0xFF08, 0xFF09, 0xFF0A, 0xFF1C, 0xFF1E, 0xFF21, 0xFF22, 0xFF3A, 0xFF5E]
+    static let malgunEmSymbolSet = Set(malgunEmSymbols)
+
     static func koreanOwnFace(_ family: String) -> Bool {
         ["굴림", "굴림체", "바탕", "바탕체", "돋움", "돋움체", "궁서", "궁서체", "gulim", "gulimche", "batang", "batangche", "dotum", "dotumche", "gungsuh", "gungsuhche"].contains(windowsName(family))
     }
@@ -115,6 +120,8 @@ enum SlideFonts {
         // `OfficeFonts.installed`.)
         if let own = OfficeFonts.installed(family) { return own }
         if let mine = embeddedFamily(family) { return mine }
+        // (The bundled CJK face by its own name, for the East Asian symbols a Korean run's Latin stand-in would draw small.)
+        if let cjk = OfficeFonts.cjkFallback.first, family == cjk { return cjk }
         if windowsName(family) == "palatino linotype", family.trimmingWhitespace().lowercased() != "palatino linotype" { return resolve("Palatino Linotype") }
         if windowsName(family) == "arial" && family.trimmingWhitespace().lowercased() != "arial" { return resolve("Arial") }
         if let free = freeFaces[family.trimmingWhitespace().lowercased()] { return free }
@@ -172,8 +179,7 @@ enum SlideFonts {
             // for Windows printed in it across the Korean pilot decks, ① to ⑮, ⓒ, ─ ▒ ■ □ ▲ △ ▽ ◆ ◇ ○ ◎ ● ☆ ☞ ♤ and the fullwidth ＂ ＇ （ ） ＊ ＜ ＞ Ａ Ｂ Ｚ ～, 1.000 em
             // at 18 pt (ko-ca2dc787 p7's "□ " steps 24.3, where the Latin stand-in's □ stepped 17.7 and the line held a syllable more).)
             if cuts.regular.ascii == SlideEastAsianWidths.malgun.regular.ascii {
-                let em: [UInt32] = Array(0x2460...0x246F) + [0x24D2, 0x2500, 0x2592, 0x25A0, 0x25A1, 0x25B2, 0x25B3, 0x25BD, 0x25C6, 0x25C7, 0x25CB, 0x25CE, 0x25CF, 0x2606, 0x261E, 0x2664,
-                                                              0xFF02, 0xFF07, 0xFF08, 0xFF09, 0xFF0A, 0xFF1C, 0xFF1E, 0xFF21, 0xFF22, 0xFF3A, 0xFF5E]
+                let em = Self.malgunEmSymbols
                 for c in em where face.otherAdvances?[c] == nil { face.otherAdvances?[c] = 1.0; face.boldOtherAdvances?[c] = 1.0 }
             }
             // (The Japanese faces do the same: PowerPoint's prints of Meiryo, Meiryo UI, Yu Gothic, MS Gothic and HG Maru Gothic set ① ② ⇒ → ○ ■ ◆ ▶ 1.000 em
