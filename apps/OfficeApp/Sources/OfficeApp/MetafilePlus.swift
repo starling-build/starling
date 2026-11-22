@@ -233,11 +233,11 @@ extension EmfPlus {
         default: return 1
         }
     }
-    /// Device units per page unit: the page unit and its scale, the frame's origin less half a device unit (GDI+ puts a pixel's centre on the whole
+    /// Device units per page unit: the page unit and its scale, the EMF device origin (not the frame's) less half a device unit (GDI+ puts a pixel's centre on the whole
     /// coordinate; the picture's chart and node decks sit 0.5 unit left and up of the print without it).
     var pageToDevice: Matrix {
         let k = pageScale * perUnit(pageUnit)
-        return Matrix(a: k, d: k, e: bounds.left - 0.5, f: bounds.top - 0.5)
+        return Matrix(a: k, d: k, e: -0.5, f: -0.5)
     }
     /// World units to device units.
     var toDevice: Matrix { world.then(pageToDevice) }
