@@ -643,6 +643,8 @@ public struct RichParagraphStyle: Hashable, Codable, Sendable {
     public var lineSpacingUnstated = false
     /// Slides: the face the paragraph's end mark names when it is not the last run's. PowerPoint counts it in the depth of the line that ends the paragraph.
     public var endMarkFace: String? = nil
+    /// Slides table cells: the line height (em) of the taller of the text's biggest run's face and the end mark's face (lab tbl-rows2: a taller face lessens the first-line loss of a percent line spacing; the mark's size does not matter).
+    public var cellFaceHeight: Double? = nil
     /// Exact line height in points ("exactly 20 pt"), which then wins over
     /// `lineSpacing`; nil for a multiple.
     public var lineHeightPoints: Double? = nil

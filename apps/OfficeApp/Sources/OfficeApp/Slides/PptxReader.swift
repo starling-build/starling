@@ -2827,6 +2827,15 @@ private struct SlideContext {
                                                                                           fontSize: end?.size ?? look.size ?? 18, color: look.color))], style: style)
                         : RichParagraph(text: text, runs: runs, style: style)
                     para.cell = cell
+                    if !text.isEmpty, style.lineSpacing > 1.0 {
+                        // (A face's own line: Calibri 2500/2048, as the faces SlideFonts knows; any other 1.149 em.)
+                        func faceH(_ f: String?) -> Double {
+                            guard let f else { return 1.149 }
+                            return SlideFonts.windowsName(f) == "calibri" ? 2500.0 / 2048 : (SlideFonts.ownNaturalHeight(f) ?? 1.149)
+                        }
+                        let big = runs.max { ($0.style.fontSize ?? 0) < ($1.style.fontSize ?? 0) }
+                        para.style.cellFaceHeight = max(faceH(big?.style.fontFamily), faceH(end?.font.map { _font($0) }))
+                    }
                     cellParas.append(para)
                 }
                 if cellParas.isEmpty {
