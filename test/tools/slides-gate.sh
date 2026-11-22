@@ -50,7 +50,7 @@ fi
 if [ -s "$PB" ] && ! ls "$PILOT"/baseline-*lines*.tsv >/dev/null 2>&1; then MISS="$MISS $PILOT/baseline-lines-pilot-win.tsv"; fi
 [ -z "$MISS" ] || { [ -n "${BASE_BIN:-}" ] && echo "slides-gate: note, fixed-baseline inputs missing (base mode, not needed):$MISS" || { echo "slides-gate: FAILED, missing:$MISS"; exit 1; }; }
 DECKS=$W/in; PPT=$W/ppt
-PDFDIFF_NO_PAIRS=1 OFFICE_APP=$BIN "$ROOT/test/pptx-app-render.sh" -j "$JOBS" "$DECKS" "$PPT" "$W" $(ls -SL "$DECKS" | grep '\.pptx$') > "$W/run.log" 2>&1
+[ -n "${BASE_ONLY:-}" ] || PDFDIFF_NO_PAIRS=1 OFFICE_APP=$BIN "$ROOT/test/pptx-app-render.sh" -j "$JOBS" "$DECKS" "$PPT" "$W" $(ls -SL "$DECKS" | grep '\.pptx$') > "$W/run.log" 2>&1
 PY=${PYTHON:-$( [ -x "$HOME/venv-word/bin/python" ] && echo "$HOME/venv-word/bin/python" || echo python3)}
 SCORE_LINES() {   # SCORE_LINES DIR: lines.txt + combined.tsv in DIR (renders already there)
   PPT_REFS=$PPT PPT_MATCH_JOBS=$JOBS "$PY" "$ROOT/test/pptx-line-match.py" "$1" > "$1/lines.txt" 2> "$1/lines.err"
@@ -73,6 +73,8 @@ if [ -n "${BASE_BIN:-}" ]; then
   fi
   BASEALL=$W/base/render.tsv; BASELBL=$W/base/combined.tsv
 fi
+# BASE_ONLY=1 (the prebuild after a main push): only the base render above, cached for the PR gates; nothing to judge.
+[ -n "${BASE_ONLY:-}" ] && { [ -n "${BASEMODE:-}" ] && [ -n "${BASE_CACHE:-}" ] && [ -s "$BASE_CACHE/combined.tsv" ] && { echo "slides-gate: base cached ($BASE_CACHE) in $(( $(date +%s)-T )) s"; exit 0; }; echo "slides-gate: base-only run left no cache"; exit 2; }
 [ -s "$W/render.tsv" ] || { echo "slides-gate: no scores produced"; tail -3 "$W/run.log" | cut -c1-200; exit 1; }
 PXEX=$ROOT/test/corpus/pptx/pixel-excluded.txt python3 - "$BASEALL" "$W/render.tsv" "$TOL" "${LQ:-/data/landq}/approved.txt" <<'P'
 import re,sys
