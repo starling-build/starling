@@ -7212,7 +7212,13 @@ enum ChartPainter {
         }
         if let l = c.pieLabels {
             _pieLabels(c, l, canvas, frame: frame ?? area, slices: placed, centre: centre, rx: radius, ry: radius, inner: hole,
-                       k: k, theme: theme, ink: ink ?? theme.text)
+                       k: k, theme: theme, ink: ink ?? theme.text,
+                       // (A slide's slice pulled out takes its label with it, rigidly: lab pie, PowerPoint for Windows.)
+                       pulled: c.onSlide && c.type == .pie && hole == 0 && (c.pieSeriesPull > 0 || c.pieExplosion > 0) ? { i in
+                           guard let m = placed.first(where: { $0.index == i })?.mid else { return .zero }
+                           let pull = c.piePulls[i] ?? c.pieSeriesPull
+                           return Offset(cos(m) * pull * radius, sin(m) * pull * radius)
+                       } : nil)
         } else if c.dataLabels {
             for (s, at, wedge) in labels {
                 // Inside the wedge: white on a dark one, ink on a light one.
@@ -8859,6 +8865,19 @@ extension ChartPainter {
                 }
                 let f = inner > 0 ? (1 + inner / max(rx, 1)) / 2 : point != nil ? (l.position == "ctr" && !c.onSlide && !c.onSheet ? 0.5 : 0.9) : (wordFlat && (l.position == "ctr" || (l.position == "inEnd" && tp.computeLineMetrics().count > 1)) ? 0.5 : 0.7)
                 if point != nil, l.position == "ctr", !c.onSlide, !c.onSheet { RuleTrace.hit("word-pie3d-centre-label-at-half-radius") }
+                // (A slide's flat pie, labels centred on the slice's middle: "ctr" half the radius out; "inEnd" as far
+                // out that the label's box just touches the circle 0.9375 of the radius out, along the middle
+                // (lab pie, PowerPoint for Windows, R 145.4: 24 prints at 12 and 18 pt, 3 lines, slices 10-50%,
+                // exploded or not; distance = D - min(w/2/|sin a|, h/2/|cos a|), a the middle's angle from vertical.)
+                if c.onSlide, !c.onSheet, !c.chartex, point == nil, inner == 0, c.ofPie == nil, abs(rx - ry) < 0.5,
+                   let pos = l.pointPositions[s.index] ?? l.position, pos == "ctr" || pos == "inEnd" {
+                    if pos == "ctr" { inEndAt = on(s.mid, 0.5) } else {
+                        let w = tp.width + pad * 2, h = tp.height + pad * 2
+                        let tx = abs(dx) < 1e-9 ? Double.infinity : (w / 2) / abs(dx)
+                        let ty = abs(dy) < 1e-9 ? Double.infinity : (h / 2) / abs(dy)
+                        inEndAt = on(s.mid, max(0.05, 0.9375 - min(tx, ty) / max(rx, 1)))
+                    }
+                }
                 at = inEndAt ?? on(s.mid, f)
             }
             // (A pie of pie's bar's labels in Word stand with their right edge 42 pt past the bar,
