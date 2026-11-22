@@ -154,7 +154,7 @@ extension _StyledFrame {
         if kind == -2 { s = s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + _spaceWidth(style(classed ? RichResolvedFace.characterClass(" ") : 0)) - _spaceWidth(s), height: RichLayout.shadeShows(run.highlight) ? s.height : 0.01) }
         // (Set to the original's widths, the stand-in's own
         // kerning is no part of them: Arial's pair of ones.)
-        if kind >= 0, latinFace?.advances != nil || (latinFace?.boldAdvances != nil && s.fontWeight == .bold) { s = s.copyWith(fontFeatures: [FontFeature("kern", 0)]) }
+        if kind >= 0, latinFace?.advances != nil || (latinFace?.boldAdvances != nil && s.fontWeight == .bold) { s = s.copyWith(fontFeatures: (s.fontFeatures ?? []) + [FontFeature("kern", 0)]) }
         // (Yu Gothic's Latin, where Word's box lacks the Hangul-named face, carries no pair kerning in the print; 22de7d.)
         if kind >= 0, yuOfMissingHangul, !aumsLatin { s = s.copyWith(fontFeatures: (s.fontFeatures ?? []) + [FontFeature("kern", 0)]) }
         if kind >= 0, let indic, indic.scale != 1, !latinNoScale { s = s.copyWith(scaleX: indic.scale) }
