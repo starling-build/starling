@@ -3661,7 +3661,9 @@ enum ChartPainter {
                     // (The plot ends where it did with the 7 pt keys and 4 pt
                     // gap these gaps were measured with: its edge is
                     // PowerPoint's, the column's keys moved within it.)
-                    let measured = (entries.map { tightW($0.tp) }.max() ?? 0) + 11 * k * m
+                    // (On a sheet a scatter whose series draw lines has a line with its mark for a key, 21.2 pt wide, not a 7 pt square and 4 pt gap: Excel's print of chart-axis_title_default_rotation ends the plot 15.4 pt further in.)
+                    let sheetScatterKeys = c.onSheet && c.type == .scatter && c.series.contains { !$0.lineHidden } ? 10.2 * k : 0
+                    let measured = (entries.map { tightW($0.tp) }.max() ?? 0) + 11 * k * m + sheetScatterKeys
                     // (A Word pie's legend at the right takes at most a third of the frame and 9 pt (129 pt of 360,
                     // 169 of 480): names past 28 characters move the pie no further, lab piesize4's legr docs.)
                     let word = c.type == .pie && box == nil && !c.onSlide && !c.onSheet
