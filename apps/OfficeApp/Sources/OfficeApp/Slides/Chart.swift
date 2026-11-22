@@ -5477,6 +5477,18 @@ enum ChartPainter {
             // (A laid plot that runs past the chart's right edge is cut there by PowerPoint, its categories
             // spread over what is left: 7bf37d72 p10's 5 bands of 99.3 pt, not 103.)
             plot = c.onSlide && placed.right > frame.right ? Rect.fromLTRB(placed.left, placed.top, frame.right, placed.bottom) : placed
+            // (A laid plot whose names, set under the axis, would run past the chart's foot has its foot lifted by all but one of the
+            // lines of the tallest name, so that the last line stands where a one-line name's does: lab p12-2 of 7bf37d72, line pitch
+            // 1.15 x the size, a name of 3 lines at 12 pt lifts the foot 27.6 pt, 5 lines at 12 pt 55.2, 2 lines at 16 pt 18.4, 2 at 8 pt 9.2;
+            // 2 lines at 12 pt and 3 at 8 pt fit and lift nothing. Where the names fit no further than that, as a plot laid down to the chart's
+            // own foot, the lab does not say.)
+            if c.onSlide, !horizontal, c.barView == nil, let one = catLabels.map(\.height).filter({ $0 > 0 }).min(), let tall = catLabels.map(\.height).max(), tall > 1.5 * one {
+                let gap = 0.773 * one - 2.35 * k
+                if plot.bottom + gap + tall > frame.bottom {
+                    plot = Rect.fromLTRB(plot.left, plot.top, plot.right, max(plot.top + 1, plot.bottom - (tall - one)))
+                    RuleTrace.hit("slide-laid-plot-foot-lifts-by-the-name-lines")
+                }
+            }
             // (The table hangs from the laid plot's foot, its rows under the axis wherever the file put it: PowerPoint's print of
             // es/e365f9b4 p7 has the axis at the layout's y + h, 326.0, and the table's foot 5 pt above the chart's, not on it.)
             // (A 3-D chart's table stays at the chart's foot where it was put: 3f8a480a p4's rows at 400.1 to 462.4, the frame's foot
