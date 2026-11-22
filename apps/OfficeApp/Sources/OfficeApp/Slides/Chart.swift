@@ -5282,7 +5282,13 @@ enum ChartPainter {
             // (A 2007-style chart's plot starts 2.6 pt further off its
             // value labels — line- and scatter-chart's at 152.3, the
             // labels where ours are.)
-            var left = (valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k + besideOut - (c.chartex && c.onSlide ? 4.5 * k : 0) - (word ? 2.5 * k : libre ? 2.4 * k : 0)
+            // (A 2013-style slide chart with no value-axis ticks: the value labels end off the axis by 0.773 of their line
+            // height, as a bar chart's names do (#1606), not a fixed 8.5 pt: PowerPoint's print of 6de30c85 p3, Calibri 18 pt,
+            // 16.7 pt off, plot at 175.0, where ours stood 11.0 off at 169.3. The labels move out with the plot.)
+            let valGap: Double = (c.onSlide && c.styled2013 && !c.chartex && !c.valueTicksOut && !word && !libre && (valueLabels.first?.height ?? 0) > 0)
+                ? max(8.5, 0.773 * (valueLabels.first?.height ?? 0) / k - 2.9) : (c.styled2013 ? 8.5 : 11.1)
+            if c.styled2013, valGap > 8.5 { valueLabelsBack = -(valGap - 8.5) * k; RuleTrace.hit("slide-value-labels-stand-off-by-their-line-height") }
+            var left = (valueLabels.map(\.width).max() ?? 0) + valGap * k + besideOut - (c.chartex && c.onSlide ? 4.5 * k : 0) - (word ? 2.5 * k : libre ? 2.4 * k : 0)
             // (A 2007-style slide chart with no tick marks: its labels stand off the plot by their size, not a
             // fixed gap, and the category labels' gap grows with theirs. Windows' prints of 5864 slide 8
             // in 15 variants, bare of ticks: value labels 8.97 pt off at 10 pt, 14.56 at 16, 21.73 at 24;
