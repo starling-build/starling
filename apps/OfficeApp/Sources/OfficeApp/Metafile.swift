@@ -265,6 +265,7 @@ private struct Player {
     var stack: [DC] = []
     var objects: [Int: Object] = [:]
     var steps: [Metafile.Step] = []
+    var lastInvert: (key: [Double], count: Int, color: Color)? = nil
     var bitmaps: [ImageAttachment] = []
     var bounds: Rect? = nil
     /// WMF: the first window, which later ones are mapped into.
@@ -636,7 +637,13 @@ private struct Player {
         switch rop & 0xFFFFFF {
         case 0x000042: steps.append(.fill(box, Color(0xFF000000)))   // BLACKNESS
         case 0xFF0062: steps.append(.fill(box, Color(0xFFFFFFFF)))   // WHITENESS
-        case 0xF00021, 0x5A0049: fill(box)                           // PATCOPY, PATINVERT
+        case 0xF00021: fill(box)                                     // PATCOPY
+        case 0x5A0049:                                               // PATINVERT: an XOR, so the same rectangle inverted twice in a row with the
+            // same brush is the page again (2175d386 p6's org chart draws each node's box twice; PowerPoint's print leaves the node white).
+            let key = [dest.left, dest.top, dest.right, dest.bottom], color = dc.brush.color
+            if let last = lastInvert, last.key == key, last.count == steps.count, last.color == color {
+                steps.removeLast(); lastInvert = nil
+            } else { fill(box); lastInvert = (key, steps.count, color) }
         case 0xAA0029, 0x550009: break                               // no-op, DSTINVERT
         default:
             guard let image else { return }
