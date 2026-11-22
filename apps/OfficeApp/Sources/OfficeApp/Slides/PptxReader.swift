@@ -4197,6 +4197,12 @@ private struct SlideContext {
                     // the edge as at any wrap (cooper's slide 11 title, the
                     // same XML in a wrapping box, stands where trimmed).
                     if noWrapBody, text.hasSuffix(" ") { text = String(text.dropLast()) + "\u{00A0}" }
+                    // (A break that opens a line holding nothing else is that line's whole height: an empty line has no glyph to
+                    // give the engine its size, so it is given a zero-width one in the break's run. 2b078099 p3's title opens on
+                    // a 28 pt break; PowerPoint's print has that blank line 30 pt tall, ours was 3.8 and the title 14.5 pt high.)
+                    if text.isEmpty || text.hasSuffix("\n") {
+                        add("\u{200B}", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle())
+                    }
                     add("\n", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle())
                 case "a:fld": add(child.first("a:t")?.text ?? "", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle(), child.first("a:rPr"))
                 case "a14:m":
