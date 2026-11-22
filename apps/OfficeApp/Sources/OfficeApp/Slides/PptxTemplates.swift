@@ -237,7 +237,7 @@ struct PptxTemplates {
         // Medium Style 1: dark rules round the table and between its
         // rows, none between columns (tdf135843_insideH's).
         "{793D81CF-94F2-401A-BA57-92F5A7B2D0C5}": "<a:tblStyle xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" styleId=\"{793D81CF-94F2-401A-BA57-92F5A7B2D0C5}\" styleName=\"Medium Style 1\"><a:wholeTbl><a:tcTxStyle><a:fontRef idx=\"minor\"><a:prstClr val=\"black\"/></a:fontRef><a:schemeClr val=\"dk1\"/></a:tcTxStyle><a:tcStyle><a:tcBdr><a:left><a:ln w=\"12700\" cmpd=\"sng\"><a:solidFill><a:schemeClr val=\"dk1\"/></a:solidFill></a:ln></a:left><a:right><a:ln w=\"12700\" cmpd=\"sng\"><a:solidFill><a:schemeClr val=\"dk1\"/></a:solidFill></a:ln></a:right><a:top><a:ln w=\"12700\" cmpd=\"sng\"><a:solidFill><a:schemeClr val=\"dk1\"/></a:solidFill></a:ln></a:top><a:bottom><a:ln w=\"12700\" cmpd=\"sng\"><a:solidFill><a:schemeClr val=\"dk1\"/></a:solidFill></a:ln></a:bottom><a:insideH><a:ln w=\"12700\" cmpd=\"sng\"><a:solidFill><a:schemeClr val=\"dk1\"/></a:solidFill></a:ln></a:insideH><a:insideV><a:ln><a:noFill/></a:ln></a:insideV></a:tcBdr><a:fill><a:solidFill><a:schemeClr val=\"lt1\"></a:schemeClr></a:solidFill></a:fill></a:tcStyle></a:wholeTbl><a:band1H><a:tcStyle><a:tcBdr/><a:fill><a:solidFill><a:schemeClr val=\"dk1\"><a:tint val=\"20000\"/></a:schemeClr></a:solidFill></a:fill></a:tcStyle></a:band1H><a:band1V><a:tcStyle><a:tcBdr/><a:fill><a:solidFill><a:schemeClr val=\"dk1\"><a:tint val=\"20000\"/></a:schemeClr></a:solidFill></a:fill></a:tcStyle></a:band1V><a:lastCol><a:tcTxStyle b=\"on\"/><a:tcStyle><a:tcBdr/></a:tcStyle></a:lastCol><a:firstCol><a:tcTxStyle b=\"on\"/><a:tcStyle><a:tcBdr/></a:tcStyle></a:firstCol><a:lastRow><a:tcTxStyle b=\"on\"/><a:tcStyle><a:tcBdr><a:top><a:ln w=\"50800\" cmpd=\"dbl\"><a:solidFill><a:schemeClr val=\"dk1\"/></a:solidFill></a:ln></a:top></a:tcBdr><a:fill><a:solidFill><a:schemeClr val=\"lt1\"></a:schemeClr></a:solidFill></a:fill></a:tcStyle></a:lastRow><a:firstRow><a:tcTxStyle b=\"on\"><a:fontRef idx=\"minor\"><a:prstClr val=\"black\"/></a:fontRef><a:schemeClr val=\"lt1\"/></a:tcTxStyle><a:tcStyle><a:tcBdr/><a:fill><a:solidFill><a:schemeClr val=\"dk1\"></a:schemeClr></a:solidFill></a:fill></a:tcStyle></a:firstRow></a:tblStyle>",
-    ].merging(mediumStyle2, uniquingKeysWith: { a, _ in a }).merging(builtinTableStylesMore, uniquingKeysWith: { a, _ in a })
+    ].merging(mediumStyle2, uniquingKeysWith: { a, _ in a }).merging(builtinTableStylesMore, uniquingKeysWith: { a, _ in a }).merging(builtinTableStyleFamilies, uniquingKeysWith: { a, _ in a })
 
     /// Medium Style 2 in each colour PowerPoint offers it in: a deck that
     /// names one and does not define it is drawn in that colour, not the
@@ -251,7 +251,7 @@ struct PptxTemplates {
         let variants = [
             "{073A0DAA-6AF3-43AB-8588-CEC1D06C72B9}": ("Medium Style 2", "dk1"),
             "{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}": ("Medium Style 2 - Accent 1", "accent1"),
-            "{21E4AEA4-8DFA-4A89-87EB-49C32662AFE8}": ("Medium Style 2 - Accent 2", "accent2"),
+            "{21E4AEA4-8DFA-4A89-87EB-49C32662AFE0}": ("Medium Style 2 - Accent 2", "accent2"),
             "{F5AB1C69-6EDB-4FF4-983F-18BD219EF322}": ("Medium Style 2 - Accent 3", "accent3"),
             "{00A15C55-8517-42AA-B614-E9B94910E393}": ("Medium Style 2 - Accent 4", "accent4"),
             "{7DF18680-E054-41AD-8BC1-D1AEF772440D}": ("Medium Style 2 - Accent 5", "accent5"),
