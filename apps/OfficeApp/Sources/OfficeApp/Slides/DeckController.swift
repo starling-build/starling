@@ -1336,6 +1336,7 @@ final class DeckController: ChangeNotifier {
         // (The emboldened ideograph's 0.983 step is a column's: along a horizontal line it steps a full em, lab vk against 1892a5a76df6 p207.)
         if st.textTurn == 0, st.textStacked == 0 { theme?.faceResolver = { var f = SlideFonts.face($0, $1); f?.boldIdeographScale = nil; return f } }
         if st.naturalLines, let theme { Self.naturalLines(theme, font: st.font ?? self.theme.bodyFont, doc: st.text) }
+        if st.textTurn > 0, !st.uprightIdeographs, let theme { let own = theme.ownDescentShare; theme.ownDescentShare = { SlideFonts.sidewaysColumnShare($0) ?? own?($0) } }
         let shape = SlideShape(id: st.id, name: st.name, kind: st.kind, frame: st.frame,
                                text: st.text.map(_textController), textTheme: theme,
                                anchor: st.anchor, prompt: st.prompt)
