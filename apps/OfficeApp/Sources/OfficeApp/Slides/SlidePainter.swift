@@ -921,7 +921,8 @@ final class SlidePainter: CustomPainter {
                 // prints it: a cut copy is sampled from another origin,
                 // and customGeo's 138 dpi screenshots of small print
                 // came out a different grey in every letter.
-                let paint = imagePaint(alpha: shape.pictureAlpha, duotone: shape.pictureDuotone, levels: shape.pictureLevels)
+                let paint = imagePaint(alpha: shape.pictureAlpha, duotone: shape.pictureDuotone, levels: shape.pictureLevels,
+                                       keyed: (shape.pictureColorChange?.last?.alpha ?? 1) == 0 ? shape.pictureColorChange?.first : nil)
                 if src.width > 0, src.height > 0, src.width < w || src.height < h {
                     let sx = r.width / src.width, sy = r.height / src.height
                     canvas.clipRect(r)
@@ -931,7 +932,7 @@ final class SlidePainter: CustomPainter {
                     // PowerPoint's PDF holds an uncropped picture shrunk to 200 pixels an inch
                     // (a 3508 px picture over 841.6 pt is 2337; 1890 over 204.1 pt is 567).
                     var shown = decoded
-                    if shape.pictureInset == .zero, shape.pictureDuotone == nil, shape.pictureLevels == nil, shape.pictureAlpha >= 1, !Self.pngHasAlpha(image.data),
+                    if shape.pictureInset == .zero, shape.pictureDuotone == nil, shape.pictureLevels == nil, shape.pictureAlpha >= 1, shape.pictureColorChange == nil, !Self.pngHasAlpha(image.data),
                        c.left == 0, c.right == 0, c.top == 0, c.bottom == 0, px > 0 {
                         let nw = Int((r.width / px * 200 / 72).rounded(.down)), nh = Int((r.height / px * 200 / 72).rounded(.down))
                         if nw >= 1, nh >= 1, nw < decoded.width, nh < decoded.height, let small = cache.scaled(decoded, nw, nh) { shown = small }
@@ -1901,7 +1902,7 @@ final class SlidePainter: CustomPainter {
 
     /// The paint for a picture: its transparency, and a duotone as a colour
     /// matrix (luminance maps from the first colour to the second).
-    static func imagePaint(alpha: Double, duotone: [Color]?, levels: [Double]? = nil) -> Paint {
+    static func imagePaint(alpha: Double, duotone: [Color]?, levels: [Double]? = nil, keyed: Color? = nil) -> Paint {
         let p = Paint()
         p.filterQuality = .medium
         if alpha < 1 { p.color = Color(0xFFFFFFFF).withOpacity(alpha) }
@@ -1916,6 +1917,16 @@ final class SlidePainter: CustomPainter {
             m += [0, 0, 0, 1, 0]
             // The levels first, then the duotone over what they give.
             matrix = levels.map { Self.compose(m, $0) } ?? m
+        }
+        // Set Transparent Color (`a:clrChange`) on white or black: a pixel exactly that colour becomes clear, one level off
+        // stays whole (the alpha row is 255 times the distance, clamped). Other colours are not a linear filter.
+        if let k = keyed {
+            let v = k.value & 0xFFFFFF
+            if v == 0xFFFFFF || v == 0 {
+                let w: Double = v == 0 ? 255 : -255
+                let key: [Double] = [1, 0, 0, 0, 0,  0, 1, 0, 0, 0,  0, 0, 1, 0, 0,  w, w, w, 0, v == 0 ? 0 : 255 * 765]
+                matrix = matrix.map { Self.compose($0, key) } ?? key
+            }
         }
         if let matrix { p.colorFilter = ColorFilter(matrix: matrix) }
         return p
