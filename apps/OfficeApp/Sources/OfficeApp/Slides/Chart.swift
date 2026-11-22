@@ -5552,16 +5552,25 @@ enum ChartPainter {
                 RuleTrace.hit("slide-laid-plot-keeps-clear-of-its-value-labels")
             }
             plot = c.onSlide && laid.right > frame.right ? Rect.fromLTRB(laid.left, laid.top, frame.right, laid.bottom) : laid
-            // (A laid plot whose names, set under the axis, would run past the chart's foot has its foot lifted by all but one of the
-            // lines of the tallest name, so that the last line stands where a one-line name's does: lab p12-2 of 7bf37d72, line pitch
-            // 1.15 x the size, a name of 3 lines at 12 pt lifts the foot 27.6 pt, 5 lines at 12 pt 55.2, 2 lines at 16 pt 18.4, 2 at 8 pt 9.2;
-            // 2 lines at 12 pt and 3 at 8 pt fit and lift nothing. Where the names fit no further than that, as a plot laid down to the chart's
-            // own foot, the lab does not say.)
-            if c.onSlide, !horizontal, c.barView == nil, let one = catLabels.map(\.height).filter({ $0 > 0 }).min(), let tall = catLabels.map(\.height).max(), tall > 1.5 * one {
-                let gap = 0.773 * one - 2.35 * k
-                if plot.bottom + gap + tall > frame.bottom {
-                    plot = Rect.fromLTRB(plot.left, plot.top, plot.right, max(plot.top + 1, plot.bottom - (tall - one)))
-                    RuleTrace.hit("slide-laid-plot-foot-lifts-by-the-name-lines")
+            // (A laid plot whose names, set under the axis, would run past the chart's foot has its foot lifted: by all but one of the
+            // lines of the tallest name (the last line then stands where a one-line name's does), or, if that still leaves the names past
+            // the foot, until the block of names ends 1.5 pt above the chart's foot, whichever lifts less. The block is the first line's
+            // 1.52 x the size under the axis, then the line pitch (1.15 x the size) for each further line, and 0.20 x the size below the
+            // last baseline. Lab p12-2 of 7bf37d72, all 20 pages: a name of 3 lines at 12 pt lifts 27.6 pt, 5 lines 55.2, 2 lines at 16 pt
+            // 18.4, 2 at 8 pt 9.2; 2 lines at 12 pt and 3 at 8 pt fit and lift nothing; a plot laid down to the foot has its names' block end
+            // 1.5 pt above it.)
+            if c.onSlide, !horizontal, c.barView == nil, let tallLabel = catLabels.max(by: { $0.height < $1.height }) {
+                let lines = max(1, tallLabel.computeLineMetrics().count)
+                if lines >= 2 {
+                    let size = catSize * k
+                    let pitch = tallLabel.height / Double(lines)
+                    let block = 1.52 * size + Double(lines - 1) * pitch + 0.20 * size
+                    if plot.bottom + block > frame.bottom - 1.5 * k {
+                        let byLines = plot.bottom - Double(lines - 1) * pitch
+                        let byFoot = frame.bottom - 1.5 * k - block
+                        plot = Rect.fromLTRB(plot.left, plot.top, plot.right, max(plot.top + 1, min(byLines, byFoot)))
+                        RuleTrace.hit("slide-laid-plot-foot-lifts-by-the-name-lines")
+                    }
                 }
             }
             // (The table hangs from the laid plot's foot, its rows under the axis wherever the file put it: PowerPoint's print of
