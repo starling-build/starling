@@ -2078,7 +2078,7 @@ enum ChartXML {
         }
         func statedSize(_ ax: XNode?) -> Double? {
             guard let t = ax?.first("c:title") else { return nil }
-            return (t.descendant("a:rPr")?["sz"] ?? t.descendant("a:defRPr")?["sz"]).flatMap(Double.init).map { $0 / 100 }
+            return (t.descendant("a:rPr")?["sz"] ?? t.descendant("a:defRPr")?["sz"]).flatMap(Double.init).map { $0 / 100 }.flatMap { $0 == 13.3 ? nil : $0 }   // (13.3 is the default the writer states: not a stated size)
         }
         c.valueAxisTitleSize = statedSize(titledValue)
         c.categoryAxisTitleSize = statedSize(titledCategory)
