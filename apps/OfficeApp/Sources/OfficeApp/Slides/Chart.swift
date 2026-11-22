@@ -2987,19 +2987,6 @@ enum ChartPainter {
         return TextSpan(children: runs.map { TextSpan(text: $0.0, style: $0.1.map { Flutter.TextStyle(height: $0) }) }, style: style)
     }
 
-    nonisolated(unsafe) private static var _malgunSpacing: [String: Double] = [:]
-    /// The em the stand-in's advance of an ASCII character falls short of Malgun Gothic's (negative where it is wider), nil off ASCII.
-    static func malgunLatinSpacing(_ u: Unicode.Scalar, face: String, bold: Bool) -> Double? {
-        guard let want = OfficeFonts.malgunLatinAdvance(u.value, bold: bold) else { return nil }
-        let key = "\(OfficeFonts.substitute(face))|\(bold)|\(u.value)"
-        if let v = _malgunSpacing[key] { return v }
-        let tp = TextPainter(text: TextSpan(text: "\u{2060}" + String(u) + "\u{2060}", style: Flutter.TextStyle(fontSize: 100, fontWeight: bold ? .bold : nil, fontFamily: OfficeFonts.substitute(face))), textAlign: .left, textDirection: .ltr)
-        tp.layout(minWidth: 0, maxWidth: 10000)
-        let v = want - tp.width / 100
-        _malgunSpacing[key] = v
-        return v
-    }
-
     static func glyphFallback(_ c: Chart, traditional: Bool = false) -> [String]? {
         guard let face = (traditional ? c.macTraditionalFace : nil) ?? c.macSimplifiedFace else { return glyphFallback }
         return [face] + RichTextTheme.glyphFallback
@@ -8524,23 +8511,10 @@ extension ChartPainter {
                     fontFamily: OfficeFonts.substitute(labelFace),
                     fontFamilyFallback: Self.glyphFallback(c, traditional: l.traditional.contains(s.index)))
                 var labelText = Self.labelSpan(c, Self.keepHangulWords(shown ?? sheetText), labelStyle, traditional: l.traditional.contains(s.index))
-                if c.onSlide, ["맑은 고딕", "malgun gothic"].contains(labelFace.lowercased()),
-                   (shown ?? sheetText).unicodeScalars.contains(where: { (0xAC00 ... 0xD7A3).contains($0.value) }) {
-                    // (A Korean face's Hangul syllable is an em wide; the stand-in's is 0.92 em, so each is spaced out by the rest.)
-                    var kids: [TextSpan] = []
-                    for u in (shown ?? sheetText).unicodeScalars {
-                        let h = (0xAC00 ... 0xD7A3).contains(u.value)
-                        let t = String(u)
-                        if h { kids.append(TextSpan(text: t, style: Flutter.TextStyle(letterSpacing: 0.08 * size))) }
-                        else if let more = Self.malgunLatinSpacing(u, face: labelFace, bold: labelWeight == .bold) {
-                            // (Its spaces, digits and signs are the face's too: "항목 4" 34.8 pt at 12 pt in PowerPoint's print, 34.0 in the stand-in's.)
-                            kids.append(TextSpan(text: t, style: Flutter.TextStyle(letterSpacing: more * size)))
-                        }
-                        else if let last = kids.last, last.style?.letterSpacing == nil { kids[kids.count - 1] = TextSpan(text: (last.text ?? "") + t) }
-                        else { kids.append(TextSpan(text: t)) }
-                        if h { kids.append(TextSpan(text: "\u{2060}")) }
-                    }
-                    labelText = TextSpan(children: kids, style: labelStyle)
+                if c.onSlide, let face = Self.eastAsianChartFace(labelFace) {
+                    // (A Korean or Japanese face the machine lacks: each character is spaced to the face's own measured advance, the
+                    // one path the legend and the axes take: "항목 4" 34.8 pt at 12 pt in PowerPoint's print, 34.0 in the stand-in's.)
+                    labelText = Self.metricSpan(Self.keepHangulWords(shown ?? sheetText), labelStyle, face, bold: labelWeight == .bold)
                 }
                 return TextPainter(text: labelText, textAlign: .center, textDirection: .ltr,
                     maxLines: maxLines, ellipsis: maxLines == nil ? nil : "\u{2026}")
