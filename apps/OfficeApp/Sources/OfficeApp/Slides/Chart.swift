@@ -4919,7 +4919,7 @@ enum ChartPainter {
                 }
                 return out
             }
-            catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : holdWords($0), catSize, horizontal ? (c.categoryLevels.isEmpty && !(c.valueReversed && c.onSlide) ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : max(slot * Double(max(1, c.categoryLabelSkip)) - (c.onSlide ? 7.2 : 2) * k, 8 * k)) }
+            catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : holdWords($0), catSize, horizontal ? (c.categoryLevels.isEmpty && !(c.valueReversed && c.onSlide) ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : max(slot * Double(max(1, c.categoryLabelSkip)) - (c.onSlide ? 4.5 : 2) * k, 8 * k)) }
             if !horizontal, c.type != .area, !c.categoryAxisDeleted, let turn = c.categoryLabelTurn {
                 // As the file says: turned (up to a quarter, either way) or
                 // level.
