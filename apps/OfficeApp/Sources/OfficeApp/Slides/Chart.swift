@@ -123,6 +123,8 @@ struct ChartSeries: Equatable {
     /// growth rates over its columns in Word's print.
     var valueLabels = false
     var labelNudges: [Int: Offset] = [:]
+    /// A point's own `c:dLblPos`, where it differs from the series'.
+    var labelPointPos: [Int: String] = [:]
     /// A moved bar label's leader line (`c15:showLeaderLines` 1 in the series' `c:dLbls`), its colour and width.
     var labelLeader = false
     var labelLeaderColor: Color? = nil
@@ -1578,6 +1580,7 @@ enum ChartXML {
                         }
                     }
                 }
+                if let i = one.first("c:idx")?["val"].flatMap(Int.init), let p = one.first("c:dLblPos")?["val"] { s.labelPointPos[i] = p }
                 guard let i = one.first("c:idx")?["val"].flatMap(Int.init), let m = one.first("c:layout")?.first("c:manualLayout"),
                       let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) else { continue }
                 s.labelNudges[i] = Offset(x, y)
@@ -2881,8 +2884,12 @@ enum ChartPainter {
             // (A Word pie's legend at a side wraps a name wider than 108.5 pt of a 360 frame (a third of it less 11.5) within that, at
             // any letter, the lines 10.97 apart and the entries 5.8 apart after the last: lab piesize4's legr docs, 34 to 60 characters.)
             let wordSidePie = c.type == .pie && beside && box == nil && !c.onSlide && !c.onSheet && !libreLegend
-            if wordSidePie {
-                let wrapW = r.width / 3 - 11.5 * k + 5
+            // (A slide pie's legend at a side wraps a name wider than a quarter of the frame less the key's room, and every entry
+            // then takes one slot as tall as the tallest, 5.8 pt apart: espt c249abc3 p6, "Sector Público del nivel Nacional" in two
+            // lines, the three keys 42.2 pt apart in PowerPoint's print, ours 24.3.)
+            let slideSidePie = c.type == .pie && beside && box == nil && c.onSlide
+            if wordSidePie || slideSidePie {
+                let wrapW = slideSidePie ? 0.25 * r.width - lead : r.width / 3 - 11.5 * k + 5
                 entries = entries.map { e in
                     guard e.tp.width > wrapW + 0.01 else { return e }
                     RuleTrace.hit("word-pie-side-legend-name-wraps-at-a-third-of-the-frame")
@@ -3005,9 +3012,19 @@ enum ChartPainter {
                     lines = Array(lines[..<rows])
                 }
             }
-            let wrappedSide = wordSidePie && entries.contains { $0.tp.height > 1.5 * textH }
+            let wrappedSide = (wordSidePie || slideSidePie) && entries.contains { $0.tp.height > 1.5 * textH }
+            // (A legend a slide's file places in a box too short for one line of its names stands empty: es-ce626c34 p3's "Ranking"
+            // in a box 18 pt tall at 18 pt text, drawn in no legend at all in PowerPoint's print, ours one letter to a line.)
+            if c.onSlide, let box, !entries.isEmpty, box.height + 0.01 < textH {
+                RuleTrace.hit("slide-legend-box-shorter-than-a-line-shows-no-entries")
+                for e in entries { e.tp.dispose() }
+                entries = []
+                lines = []
+            }
+            let slotH = slideSidePie ? (entries.map { $0.tp.height }.max() ?? 0) : 0
             var lineHs = lines.map { line in
                 let tall = line.map { $0.tp.height }.max() ?? 0
+                if slideSidePie, slotH > 1.5 * textH { return slotH + 5.8 * k }
                 return wordSidePie && tall > 1.5 * textH ? tall + 5.8 * k : max(lineH, tall)
             }
             // (A Word pie's side legend too tall for the chart drops its last entries: lab piesize4's 60-character names, three lines
@@ -3034,7 +3051,11 @@ enum ChartPainter {
                 lineHs = lines.map { _ in box.height / Double(lines.count) }
             }
             let linesH = lineHs.reduce(0, +)
-            let columnW = (entries.map(\.tp.width).max() ?? 0) + lead
+            // (A name wrapped on a slide takes the width of its longest line, not of the room it wrapped in.)
+            let tightW: (TextPainter) -> Double = { tp in
+                slideSidePie ? (tp.computeLineMetrics().map(\.width).max() ?? tp.width) : tp.width
+            }
+            let columnW = (entries.map { tightW($0.tp) }.max() ?? 0) + lead
             var y: Double, columnX = 0.0
             if let box {
                 // In its own place, the plot's room untouched — unless the
@@ -3077,7 +3098,7 @@ enum ChartPainter {
                 RuleTrace.hit("word-legend-placed-by-its-corner-keeps-its-size-over-the-plot")
                 y = r.top + at.dy * r.height + 2.5 * k
             } else if beside {
-                y = c.legendPosition == "tr" ? area.top : area.center.dy - titleDrop / 2 - (wrappedSide ? linesH - 5.8 * k : lineH * Double(lines.count)) / 2 + (wrappedSide ? 1.3 * k : 0)
+                y = c.legendPosition == "tr" ? area.top : area.center.dy - titleDrop / 2 - (wrappedSide ? linesH - 5.8 * k : lineH * Double(lines.count)) / 2 + (wrappedSide ? (slideSidePie ? -4.1 : 1.3) * k : 0)
                 // (A Word chart with a title, its plot left where the file puts it (manual layout) and
                 // the legend at the right: the legend's middle stands 4.1 pt lower than the middle of
                 // the room under the title — lo-c4c60fcb's two entries, 14 pt title, in Word's print.)
@@ -3104,7 +3125,7 @@ enum ChartPainter {
                     // (The plot ends where it did with the 7 pt keys and 4 pt
                     // gap these gaps were measured with: its edge is
                     // PowerPoint's, the column's keys moved within it.)
-                    let measured = (entries.map(\.tp.width).max() ?? 0) + 11 * k * m
+                    let measured = (entries.map { tightW($0.tp) }.max() ?? 0) + 11 * k * m
                     // (A Word pie's legend at the right takes at most a third of the frame and 9 pt (129 pt of 360,
                     // 169 of 480): names past 28 characters move the pie no further, lab piesize4's legr docs.)
                     let word = c.type == .pie && box == nil && !c.onSlide && !c.onSheet
@@ -3264,7 +3285,9 @@ enum ChartPainter {
                         canvas.drawCircle(Offset(x + key / 2, y + lineH / 2), 2.5 * k, p)
                     } else {
                         let high = wideKeys ? 4.9 * k : key
-                        canvas.drawRect(Rect.fromLTWH(x, y + (lineH - high) / 2 + keyDrop, key, high), p)
+                        // (A slide pie's wrapped column: the key and the name's first line at the top of the slot, as in PowerPoint's print.)
+                        let keyMid = slideSidePie && wrappedSide ? y + (lineH - slotH) / 2 + textH / 2 : y + lineH / 2
+                        canvas.drawRect(Rect.fromLTWH(x, keyMid - high / 2 + keyDrop, key, high), p)
                         // (On a sheet the key wears the series' own outline, as the bars do: WithChartSheet's pivot chart.)
                         if c.onSheet, !byPoint, e.i < c.series.count, let o = c.series[e.i].outline {
                             let q = Paint()
@@ -3283,6 +3306,7 @@ enum ChartPainter {
                         RuleTrace.hit("word-pie-box-legend-wrapped-entry-hangs-from-its-slots-line")
                         textDrop = (lineH - textH) / 2
                     }
+                    if slideSidePie, wrappedSide { textDrop = (lineH - slotH) / 2 }
                     e.tp.paint(canvas, Offset(x + lead, y + textDrop))
                     x += slideGridW ?? (lead + e.tp.width + spacing)
                 }
@@ -5522,6 +5546,7 @@ enum ChartPainter {
         var wrapLabels = Set<Int>()
         // Labels that end at their point instead of starting there: a Word bar's `dLblPos inEnd`.
         var endAtPoint = Set<Int>()
+        var startAtPoint = Set<Int>()
         let fill = Paint()
         fill.style = .fill
         fill.isAntiAlias = true
@@ -5917,8 +5942,22 @@ enum ChartPainter {
                     row.append(v)
                     // (An area's stand in the middle of the area under the point, over the axis' foot
                     // or the series below: lo-60124a3f's 5 and 6 over 4.4 to 6.2 in Word's print.)
-                    let y = c.type == .area ? (vpos(v) + min(vpos(c.stacked && j > 0 ? (tops[j - 1][i] ?? 0) : 0), plot.bottom)) / 2 : vpos(v) - 9 * k
-                    labels.append((dataLabel(c, raw), Offset(xAt(i), y), j))
+                    var y = c.type == .area ? (vpos(v) + min(vpos(c.stacked && j > 0 ? (tops[j - 1][i] ?? 0) : 0), plot.bottom)) / 2 : vpos(v) - 9 * k
+                    var x = xAt(i)
+                    // A slide line's labels where the file puts them (`dLblPos`), in PowerPoint's print of en/7bf37d72 p10 (12 pt):
+                    // under the point, the text's centre 14.25 pt below it; left or right, its end or start 8.4 pt off the point,
+                    // centred on it. Ours stood over the point whatever the file said.
+                    if c.type == .line, c.onSlide, !c.chartex {
+                        let size = (c.series[j].labelSize ?? c.baseTextSize) * k
+                        switch c.series[j].labelPointPos[i] ?? c.series[j].labelPos {
+                        case "b": y = vpos(v) + 14.25 / 11.97 * size; x += 1.6 * k
+                        case "l": y = vpos(v) + 0.3 * size / 11.97; x -= 8.4 * k; endAtPoint.insert(labels.count)
+                        case "r": y = vpos(v) + 0.3 * size / 11.97; x += 8.4 * k; startAtPoint.insert(labels.count)
+                        default: break
+                        }
+                    }
+                    if c.type == .line, c.onSlide, !c.chartex, let n = c.series[j].labelNudges[i] { x += n.dx * frame.width; y += n.dy * frame.height }
+                    labels.append((dataLabel(c, raw), Offset(x, y), j))
                 }
                 if c.stacked { for i in 0 ..< n { base[i] = row[i] ?? base[i] } }
                 tops.append(row)
@@ -6091,7 +6130,7 @@ enum ChartPainter {
                         t.layout(minWidth: 0, maxWidth: wrapAt)
                         return t
                     }()
-                let dx = endAtPoint.contains(li) ? tp.width : horizontal && !c.stacked ? 0 : tp.width / 2
+                let dx = endAtPoint.contains(li) ? tp.width : startAtPoint.contains(li) ? 0 : horizontal && !c.stacked ? 0 : tp.width / 2
                 let rise = horizontal ? 0 : Self._wordLabelRise(c, ser.labelSize ?? c.baseTextSize) * k
                 // (A label of several lines keeps its last line where a single one stood and grows upward.)
                 let lineCount = max(1, tp.computeLineMetrics().count)

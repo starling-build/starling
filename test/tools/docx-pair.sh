@@ -30,7 +30,7 @@
 #   ENGINE_OUT   the engine out dir the binaries were built against (default: the
 #                first of engine/src/out/host_release_arm64, host_release)
 # Priority (amd-perf, 2026-11-21): hand-run pairs are niced so the render gate (RENDER_GATE=1) keeps the CPU; children inherit it.
-if [ -z "${RENDER_GATE:-}" ] && [ -z "${STARLING_NICED:-}" ]; then export STARLING_NICED=1; exec nice -n 10 "$0" "$@"; fi
+if [ -z "${RENDER_GATE:-}" ] && [ -z "${STARLING_NICED:-}" ]; then export STARLING_NICED=1; exec nice -n 10 $(command -v ionice >/dev/null && echo ionice -c3) "$0" "$@"; fi
 set -u
 BASE_SWEPT=0; NEEDBASE=""; BASE_SWEPT_SETS=""
 SEED=0; [ "${1:-}" = "--seed" ] && { SEED=1; shift; }
