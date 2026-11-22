@@ -533,6 +533,7 @@ private struct LevelStyle {
         case 0xA7: return [1, 0.0845, 0.2168, 0.3735, 0.5059]
         case 0x75: return [2, 0.0845, -0.0474, 0.9023, 0.7705]
         case 0xD8: return [3, 0.0845, 0.0, 0.7104, 0.7227]
+        case 0xA2: return [5, 0.0845, 0.0, 0.8071, 0.7227]
         case 0xFC: return [4, 0.0723, 0.1226, 0.7495, 0.7656]
         default: return nil
         }

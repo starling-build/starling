@@ -1656,6 +1656,14 @@ extension RichLayout {
                     let d = Path(), w = r.right - r.left, cy = (r.top + r.bottom) / 2
                     d.moveTo(r.left, r.top); d.lineTo(r.right, cy); d.lineTo(r.left, r.bottom); d.lineTo(r.left + w * 0.3, cy); d.close()
                     canvas.drawPath(d, paint)
+                case 5:
+                    // The ring (Wingdings A2): a thick round outline, its hole about 0.55 of the ink box (measured on PowerPoint's print).
+                    let dia = min(r.right - r.left, r.bottom - r.top), sw = dia * 0.21
+                    let ring = Rect.fromLTRB((r.left + r.right) / 2 - dia / 2 + sw / 2, (r.top + r.bottom) / 2 - dia / 2 + sw / 2,
+                                             (r.left + r.right) / 2 + dia / 2 - sw / 2, (r.top + r.bottom) / 2 + dia / 2 - sw / 2)
+                    paint.style = .stroke
+                    paint.strokeWidth = sw
+                    canvas.drawOval(ring, paint)
                 case 4:
                     // The check mark (Wingdings FC): a short stroke down, a long one up.
                     let d = Path(), w = r.right - r.left, h = r.bottom - r.top
