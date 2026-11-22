@@ -344,6 +344,8 @@ def mupdf_glyphs(pdf, drop=None):
                             for c in s["chars"]:
                                 if len(c["c"]) == 1 and ord(c["c"]) in _SYMBOL:
                                     c["c"] = _SYMBOL[ord(c["c"])]
+                                elif len(c["c"]) == 1 and 0x25A0 <= ord(c["c"]) <= 0x25FF:   # a square or triangle bullet: one shape, whichever size form a face stores it as (■ and ◼)
+                                    c["c"] = "\u25a0"
                     inked = [(c, s["size"]) for s in l["spans"] for c in s["chars"] if not _inkless(c["c"])]
                     if OFFPAGE:   # Slides (pptx-line-match.py): a glyph whose origin lies outside the page is not drawn on it, on either side
                         R = page.rect
