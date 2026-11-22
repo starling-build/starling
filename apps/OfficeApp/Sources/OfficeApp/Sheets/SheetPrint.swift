@@ -494,6 +494,7 @@ extension SheetGridState {
         let hfStyle = book.style(0)
         let hfFont = GridTextStyle(family: OfficeFonts.sheetFace(book.fontName(hfStyle)),
                                    size: book.fontSize(hfStyle), color: Int64(0xFF000000))
+        let rtl = ws.viewAttrs["rightToLeft"] == "1" || ws.viewAttrs["rightToLeft"] == "true"
         for (pages, s) in jobs {
             printTextScale = s
             defer { printTextScale = 0 }
@@ -529,6 +530,8 @@ extension SheetGridState {
                 var ox = setup.left + insetX, oy = setup.top + insetY
                 let availW = size.width - setup.left - setup.right, availH = size.height - setup.top - setup.bottom
                 if setup.centerHorizontally { ox += max(0, (availW - bandW * s) / 2) }
+                // (A right-to-left sheet's page starts at the right margin: Excel's p1 and p3 stand 34 and 127 pt right of a left-set page.)
+                else if rtl { ox += max(0, availW - bandW * s) }
                 if setup.centerVertically { oy += max(0, (availH - bandH * s) / 2) }
                 canvas.save()
                 canvas.translate(ox, oy)
@@ -539,6 +542,10 @@ extension SheetGridState {
                     scrollX = ca.start(bc0) - x
                     scrollY = ra.start(br0) - y
                     let clip = Rect.fromLTWH(x, y, ca.start(bc1) + ca.size(bc1) - ca.start(bc0), ra.start(br1) + ra.size(br1) - ra.start(br0))
+                    if rtl {
+                        printMirror = (x, clip.width, bc0)
+                    }
+                    defer { printMirror = nil }
                     let view = CellRange(top: br0, left: bc0, bottom: br1, right: bc1)
                     var covered: Set<CellAddress> = []
                     var merges: [CellRange] = []

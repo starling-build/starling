@@ -273,6 +273,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// The sheet prints in black and white (`pageSetup@blackAndWhite`): no
     /// fills, its text and rules black.
     var printMono = false
+    /// A right-to-left sheet's page band: the columns stand mirrored across it (left edge, width, first column).
+    var printMirror: (x: Double, w: Double, c0: Int)? = nil
     /// The page's scale while its cells are painted, 0 otherwise: what
     /// a cell's font is sized for on the printer (`_paintCell`).
     var printTextScale = 0.0
@@ -570,6 +572,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// A column's left edge in local coordinates (frozen ones never move).
     func colX(_ c: Int) -> Double {
         let ca = cols
+        if let m = printMirror { return m.x + m.w - (ca.start(c) - ca.start(m.c0)) - ca.size(c) }
         return headerWidth + ca.start(c) - (c >= frozenCols ? scrollX : 0)
     }
 
@@ -590,7 +593,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     func rect(_ r: CellRange) -> Rect {
         let a = rect(r.topLeft), b = rect(r.bottomRight)
-        return Rect.fromLTRB(a.left, a.top, b.right, b.bottom)
+        return Rect.fromLTRB(min(a.left, b.left), a.top, max(a.right, b.right), b.bottom)
     }
 
     /// The picture or chart under a local point, topmost first, and which
@@ -2635,7 +2638,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // text would: lo-tdf153767's postal codes.)
             case .number: align = NumberFormat.isText(st.numberFormat) ? .left : .right
             case .bool, .error: align = .center
-            default: align = .left
+            // (Text in a right-to-left sheet starts at the right edge of its cell.)
+            default: align = printing && printMirror != nil ? .right : .left
             }
         }
         let pad = 2 * zoom   // Excel's cell margin
