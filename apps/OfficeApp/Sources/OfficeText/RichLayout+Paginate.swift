@@ -3394,7 +3394,9 @@ extension RichLayout {
     /// first stretched). Where a paragraph's last lines start inside that run, it is set again with
     /// the run from the first such line on at no width.
     @inline(never) func _cutTrailingSpaces(_ i: Int, _ p: RichParagraph, _ document: RichDocument) {
-        guard theme.wordRules, RichTextTheme.wordWindowsPages, let painter = _painters[i], i < _inserts.count else { return }
+        // (PowerPoint hangs a closing run of ideographic spaces the same way: 99f6ddd1 p12's table title "主な金融商品の特徴まとめ" + 15 U+3000 is
+        // one line in its print, 295 pt in a 296.8 pt cell, where the spaces made the last character wrap here.)
+        guard !theme.wordRules || RichTextTheme.wordWindowsPages, let painter = _painters[i], i < _inserts.count else { return }
         let units = Array(p.text.utf16)
         var run = units.count
         while run > 0, units[run - 1] == 0xFFFC { run -= 1 }
@@ -3402,7 +3404,8 @@ extension RichLayout {
         while run > 0, units[run - 1] == 0x3000 { run -= 1 }
         guard run > 0, units[..<run].contains(where: { $0 != 0x20 && $0 != 0x09 && $0 != 0x0A }) else { return }
         let starts = _lineStarts(painter, _OffsetMap(lead: _lead(i), inserts: _inserts[i]), count: units.count)
-        guard starts.contains(where: { $0 > run }) else { return }
+        // (In Slides the last visible character may itself be the one pushed down by the spaces behind it, so any second line counts.)
+        guard starts.contains(where: { $0 > run }) || (!theme.wordRules && starts.count > 1 && starts.last! < run) else { return }
         _trailCut[i] = run
         _layoutParagraphOnce(i, p, document)
     }
