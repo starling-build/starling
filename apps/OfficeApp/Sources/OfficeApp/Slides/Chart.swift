@@ -415,6 +415,8 @@ struct Chart: Equatable {
         var second: Set<Int> = []
         /// Its size, a share of the main pie's (`c:secondPieSize`, 75%).
         var size = 0.75
+        /// The gap between the two plots, in main pie radii (`c:gapWidth`, 150% when absent).
+        var gapRadii = 1.5
         /// Its slices carry no outline (`a:ln` of `noFill` on its points), and
         /// whether it draws the lines joining the plots (`c:serLines`).
         var noEdge = false, joined = false
@@ -2337,6 +2339,7 @@ enum ChartXML {
         o.noEdge = el.first("c:ser")?.first("c:dPt")?.first("c:spPr")?.first("a:ln")?.first("a:noFill") != nil
         o.joined = el.first("c:serLines") != nil
         if let size = el.first("c:secondPieSize")?["val"].flatMap(Double.init) { o.size = max(0.05, min(2, size / 100)) }
+        if let g = el.first("c:gapWidth")?["val"].flatMap(Double.init) { o.gapRadii = max(0, min(5, g / 100)) }
         let n = values.count
         let at = el.first("c:splitPos")?["val"].flatMap(Double.init)
         let sum = values.reduce(0) { $0 + max(0, $1 ?? 0) }
@@ -6368,7 +6371,11 @@ enum ChartPainter {
         // On a slide too: a flat pie whose labels stand outside it and whose plot the file leaves to PowerPoint has radius 0.902 of the room less 4 pt (R = 0.4375 of the frame's shorter side less 10.5), whatever the labels' size, count or place (lab pie-lab2: frames 250 to 802 wide, R 98.9, 120.7, 164.5, 203.0; independent of 12 or 24 pt labels; lab pie-lab1, PowerPoint for Windows: R 203.1 at 9, 12, 18
         // and 24 pt, outside end and best fit, 3 to 12 slices, from a room of 229.5; legend at the foot 191.2 from 217.8; the labels
         // that do not fit stand over the pie. espt-c249abc3 p6, 15 pt labels: 159.45 in PowerPoint's print from 185.3.)
-        if values.contains(where: { $0 > 0 }), c.onSlide, c.type == .pie, c.pieLabelsAround, c.plotLayout == nil, c.pieLabels?.outside == true, c.ofPie == nil, c.pieTilt == nil {
+        // (A doughnut, labels anywhere on its ring, has the labelled pie's radius too: pie-lab2 p19 and p20, lab1 p23 and p24, PowerPoint for
+        // Windows, 164.0 at 400 x 400 and 202.5 at 802 x 488, from 185.3 and 229.0.)
+        let slideRingLabelled = c.type == .doughnut && (c.dataLabels || c.pieLabels != nil)
+        if values.contains(where: { $0 > 0 }), c.onSlide, c.plotLayout == nil, c.ofPie == nil, c.pieTilt == nil,
+           slideRingLabelled || (c.type == .pie && c.pieLabelsAround && c.pieLabels?.outside == true) {
             RuleTrace.hit("slide-pie-with-outside-labels-leaves-room-for-them")
             radius = max(radius / 2, radius * 0.902 - 4.0 * k)
         }
@@ -6725,11 +6732,23 @@ extension ChartPainter {
         let moved = values.indices.filter { o.second.contains($0) }
         let other = moved.reduce(0.0) { $0 + values[$1] }
         guard sum > 0 else { return }
-        let width2 = o.bar ? o.size / 2 : o.size, gap = 0.65 * width2
+        let width2 = o.bar ? o.size / 2 : o.size
+        var gap = 0.65 * width2
         // (0.87 of what a pie alone would take of the room, across or
         // down: both prints' pies, the bar of pie's held by the height
         // and the pie of pie's by the width.)
-        let d = 0.87 * min(area.height * 0.97, area.width / (1 + width2 + gap))
+        var d = 0.87 * min(area.height * 0.97, area.width / (1 + width2 + gap))
+        // (On a slide a pie of pie's two plots and the gap between them (gapWidth of the main radius) fill the width of the labelled
+        // pie's box, or its height: PowerPoint for Windows' prints at 400 x 400 (R 72.89, 4.5 radii across), 802 x 488 (151.06) and with a
+        // legend at the right (126.7), the gap 1.00 x R at gapWidth 100 and the second pie 0.75 R.)
+        if c.onSlide, !o.bar, c.plotLayout == nil {
+            func pieR(_ span: Double) -> Double { max(span / 4, span / 2 * 0.97 * 0.902 - 4.0 * k) }
+            let across = 2 + o.gapRadii + 2 * o.size
+            let r = min(pieR(area.height), 2 * pieR(area.width) / across)
+            d = 2 * r
+            gap = o.gapRadii / 2
+            RuleTrace.hit("slide-pie-of-pie-fits-the-labelled-pie-box")
+        }
         let left = area.center.dx - d * (1 + width2 + gap) / 2
         let centre = Offset(left + d / 2, area.center.dy)
         let fill = Paint()
@@ -6827,8 +6846,20 @@ extension ChartPainter {
                 rule.strokeWidth = max(0.5, 0.75 * k)
                 rule.color = o.lineColor ?? Color(0xFFA6A6A6)
                 let r = d / 2
-                canvas.drawLine(Offset(centre.dx + r * cos(half), centre.dy - r * sin(half)), Offset(x2 + r2, centre.dy - r2), rule)
-                canvas.drawLine(Offset(centre.dx + r * cos(half), centre.dy + r * sin(half)), Offset(x2 + r2, centre.dy + r2), rule)
+                // (Each ends where it touches the second pie, not at its top and bottom: 0338b5a8 p5, the upper one's end at
+                // (746.2, 202.3), where the tangent from the rim point (585.9, 264.4) to the circle at (775.0, 277.4), r 80.6, is.)
+                let c2 = Offset(x2 + r2, centre.dy)
+                for sign in [-1.0, 1.0] as [Double] {
+                    let pt = Offset(centre.dx + r * cos(half), centre.dy + sign * r * sin(half))
+                    let dist = hypot(pt.dx - c2.dx, pt.dy - c2.dy)
+                    var end = Offset(c2.dx, c2.dy + sign * r2)
+                    if dist > r2 {
+                        let base = atan2(pt.dy - c2.dy, pt.dx - c2.dx), off = acos(r2 / dist)
+                        let cands: [Offset] = [base + off, base - off].map { (t: Double) -> Offset in Offset(c2.dx + r2 * cos(t), c2.dy + r2 * sin(t)) }
+                        end = sign < 0 ? (cands[0].dy < cands[1].dy ? cands[0] : cands[1]) : (cands[0].dy > cands[1].dy ? cands[0] : cands[1])
+                    }
+                    canvas.drawLine(pt, end, rule)
+                }
             }
             var a = half
             var second: [(index: Int, mid: Double, value: Double, color: Color)] = []
@@ -8152,7 +8183,11 @@ extension ChartPainter {
                     && hypot(min(max(centre.dx, box.left), box.right) - centre.dx, min(max(centre.dy, box.top), box.bottom) - centre.dy) <= rx
                 // (Word draws a flat best-fit label's leader only where its own search moved the box, never nearer than
                 // 7.8 pt to the rim point in 312 prints; labels its rule places are not moved.)
-                if !touches, hypot(to.dx - from.dx, to.dy - from.dy) > (hugsRim ? 9 : 2) * k {
+                // (On a slide a pie's label left at its own place outside gets no tick: PowerPoint for Windows' lab pie-lab1 and pie-lab2
+                // draw none on any outside-end page, and on best fit one only for a label that stands well away, 20 pt or more.)
+                let slideTick = c.onSlide && point == nil && moved == nil && !spreadMoved
+                let leaderMin = slideTick ? (c.pieLabels?.position == "bestFit" || c.pieLabels?.position == nil ? 20.0 : .infinity) : (hugsRim ? 9 : 2)
+                if !touches, hypot(to.dx - from.dx, to.dy - from.dy) > leaderMin * k {
                     let p = Paint()
                     p.style = .stroke
                     p.isAntiAlias = true
