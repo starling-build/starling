@@ -994,7 +994,7 @@ final class SlidePainter: CustomPainter {
                     // PowerPoint's PDF holds an uncropped picture shrunk to 200 pixels an inch
                     // (a 3508 px picture over 841.6 pt is 2337; 1890 over 204.1 pt is 567).
                     var shown = bakedPic
-                    if shape.pictureInset == .zero, shape.pictureDuotone == nil, shape.pictureLevels == nil, shape.pictureAlpha >= 1, shape.pictureColorChange == nil, 
+                    if shape.pictureInset == .zero, shape.pictureDuotone == nil, shape.pictureLevels == nil, shape.pictureAlpha >= 1, shape.pictureColorChange == nil, !Self.pngHasAlpha(image.data),
                        c.left == 0, c.right == 0, c.top == 0, c.bottom == 0, px > 0 {
                         let nw = Int((r.width / px * 200 / 72).rounded(.down)), nh = Int((r.height / px * 200 / 72).rounded(.down))
                         if nw >= 1, nh >= 1, nw < bakedPic.width, nh < bakedPic.height, let small = cache.scaled(bakedPic, nw, nh) { shown = small }
