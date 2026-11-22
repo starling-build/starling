@@ -342,6 +342,8 @@ struct Chart: Equatable {
     var surfaceValuesRight = false
     /// A horizontal bar chart whose category axis runs maxMin: category 1 at the top, the value axis along the top.
     var categoryReversed = false
+    /// A horizontal bar chart whose value axis runs maxMin: the bars grow leftward from the right edge and the names stand at the right.
+    var valueReversed = false
     /// Whether the 3-D chart's series axis (`c:serAx`) is deleted: its names are not drawn.
     var seriesAxisDeleted = false
     /// A 3-D chart's series axis (`c:serAx`) is in the file and not deleted: its series names stand along the floor's right edge.
@@ -2210,6 +2212,7 @@ enum ChartXML {
             if hy.first("c:majorGridlines") != nil { c.valueGrid = true }
         }
         c.surfaceValuesRight = valueAxis?.first("c:axPos")?["val"] == "r"
+        c.valueReversed = valueAxis?.first("c:scaling")?.first("c:orientation")?["val"] == "maxMin"
         c.categoryReversed = categoryAxis?.first("c:scaling")?.first("c:orientation")?["val"] == "maxMin"
         c.seriesAxisDeleted = ["1", "true"].contains(plot.children.first { $0.name == "c:serAx" }?.first("c:delete")?["val"] ?? "")
         c.seriesAxisShown = plot.children.contains { $0.name == "c:serAx" } && !c.seriesAxisDeleted
@@ -4666,7 +4669,7 @@ enum ChartPainter {
             let barNameWidth = (!c.onSlide && !c.onSheet ? 0.2 : 0.3) * area.width
             // (Under a multi-level axis the names are not wrapped: lo tdf126244's
             // "Categoria 1 Categoria 1 Categoria 4" is one line in Word's print.)
-            catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, horizontal ? (c.categoryLevels.isEmpty ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : max(slot * Double(max(1, c.categoryLabelSkip)) - 2 * k, 8 * k)) }
+            catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, horizontal ? (c.categoryLevels.isEmpty && !(c.valueReversed && c.onSlide) ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : max(slot * Double(max(1, c.categoryLabelSkip)) - 2 * k, 8 * k)) }
             if !horizontal, c.type != .area, !c.categoryAxisDeleted, let turn = c.categoryLabelTurn {
                 // As the file says: turned (up to a quarter, either way) or
                 // level.
@@ -4968,6 +4971,12 @@ enum ChartPainter {
             // (A laid plot that runs past the chart's right edge is cut there by PowerPoint, its categories
             // spread over what is left: 7bf37d72 p10's 5 bands of 99.3 pt, not 103.)
             plot = c.onSlide && placed.right > frame.right ? Rect.fromLTRB(placed.left, placed.top, frame.right, placed.bottom) : placed
+            // (A bar chart whose value axis runs right to left keeps its names at the right: a plot that leaves them no
+            // room inside the chart moves left, its width kept. 7d329933 p8: names 60 pt wide, plot right 481.7 to 432.)
+            if horizontal, c.valueReversed, c.onSlide, !c.categoryAxisDeleted {
+                let over = plot.right + 8.4 * k + (catLabels.map(\.width).max() ?? 0) - frame.right
+                if over > 0 { plot = Rect.fromLTRB(plot.left - over, plot.top, plot.right - over, plot.bottom) }
+            }
         }
         // Word keeps room at the right of a laid plot for the second value axis's labels: 16.55 pt and 0.821 of the
         // widest label (23.2 pt for "-5", 33.3 for "-500".."1000"). Where the file leaves less, the whole plot moves
@@ -5268,6 +5277,7 @@ enum ChartPainter {
         }
         func vpos(_ v: Double) -> Double {
             let t = (v - sc.lo) / (sc.hi - sc.lo)
+            if horizontal, c.valueReversed, c.onSlide { return plot.right - t * plot.width }
             return horizontal ? plot.left + t * plot.width : plot.bottom - t * plot.height
         }
         // A 2007-style chart on a slide, as Office 2007 draws one the file
@@ -5442,6 +5452,12 @@ enum ChartPainter {
                 // (In a Word document a bar chart's names stand beside the axis, at its
                 // zero where the bars run both ways: lo tdf128996's end 8.5 pt before it.)
                 let side = word && sc.lo < 0 && !c.categoryLabelsLow && !c.categoryAxisDeleted ? zero : plot.left
+                if c.valueReversed, c.onSlide {
+                    // (Names of a bar chart whose values run right to left stand at the right, left-aligned 8.4 pt off the plot:
+                    // ja/7d329933 p8's six countries, in PowerPoint's print.)
+                    tp.paint(canvas, Offset(plot.right + 8.4 * k, cy - tp.height / 2))
+                    continue
+                }
                 tp.paint(canvas, Offset(side - (plainBarWord ? 6.8 : 8.5) * k - besideOut - tp.width, cy - tp.height / 2))
             }
             // The outer levels of a multi-level axis: each group's name turned up
@@ -5716,7 +5732,9 @@ enum ChartPainter {
                             insideEnd.insert(labels.count)
                             RuleTrace.hit("word-horizontal-bar-label-inside-end")
                         }
-                        labels.append((dataLabel(c, raw), Offset(c.stacked ? rect.center.dx : max(p0, p1) + 3 * k, rect.center.dy) + nudge(j, i), j))
+                        let reversedValues = c.valueReversed && c.onSlide && !c.stacked
+                        if reversedValues { endAtPoint.insert(labels.count) }
+                        labels.append((dataLabel(c, raw), Offset(c.stacked ? rect.center.dx : reversedValues ? min(p0, p1) - 3 * k : max(p0, p1) + 3 * k, rect.center.dy) + nudge(j, i), j))
                     } else {
                         let left = centre - group / 2 + Double(j) * step
                         rect = Rect.fromLTRB(left, min(p0, p1), left + bar, max(p0, p1))
