@@ -7,6 +7,23 @@ import FlutterSwiftBridge
 /// LittleCMS profile-to-sRGB transform within 0.3 on average; a plain picture prints its pixels raw).
 /// Only matrix and curve RGB profiles are read; a profile that is sRGB itself, or any other kind, changes nothing.
 enum IccConvert {
+    /// A PNG without its colour-space chunks (`iCCP`, `sRGB`, `gAMA`, `cHRM`): the codec then reads the pixels raw, as
+    /// PowerPoint prints a plain picture (lab iccplain: Display, Generic, +cHRM and none all print the raw pixels; the codec would convert from the profile or from cHRM/gAMA).
+    static func rawPng(_ b: [UInt8]) -> [UInt8] {
+        guard Png.isPng(b) else { return b }
+        var out = Array(b[0 ..< 8])
+        var p = 8
+        while p + 12 <= b.count {
+            let n = Int(b[p]) << 24 | Int(b[p + 1]) << 16 | Int(b[p + 2]) << 8 | Int(b[p + 3])
+            guard n >= 0, p + 12 + n <= b.count else { return b }
+            let type = String(decoding: b[p + 4 ..< p + 8], as: UTF8.self)
+            if type == "IDAT" { out += b[p...]; return out }
+            if !["iCCP", "sRGB", "gAMA", "cHRM"].contains(type) { out += b[p ..< p + 12 + n] }
+            p += 12 + n
+        }
+        return b
+    }
+
     /// The embedded profile: a PNG's `iCCP`, or a JPEG's `ICC_PROFILE` segments in order.
     static func profile(in b: [UInt8]) -> [UInt8]? {
         if Png.isPng(b) {
