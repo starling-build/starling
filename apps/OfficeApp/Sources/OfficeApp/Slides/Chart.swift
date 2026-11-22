@@ -3347,7 +3347,8 @@ enum ChartPainter {
             }
             // (On a Word page a legend given an exact box is framed and filled as that box: sa1 f84c295b's white one with a hairline
             // black frame over the navy plot, which Word prints and our entries sat unframed on.)
-            if RichTextTheme.wordWindowsPages, !c.onSlide, !c.onSheet, let b = box, c.legendFill != nil || c.legendLine != nil, !lines.isEmpty {
+            // (On a slide too: 81d28d42 p29's legend, filled and framed in PowerPoint's print.)
+            if c.onSlide || (RichTextTheme.wordWindowsPages && !c.onSheet), let b = box, c.legendFill != nil || c.legendLine != nil, !lines.isEmpty {
                 let p = Paint()
                 p.isAntiAlias = true
                 if let f = c.legendFill { p.style = .fill; p.color = f; canvas.drawRect(b, p) }
