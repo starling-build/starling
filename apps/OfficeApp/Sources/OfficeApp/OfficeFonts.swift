@@ -43,6 +43,8 @@ enum OfficeFonts {
     static let cambria = "Caladea"
     /// Caladea's regular alone, under a name of its own: a bold asked of it is the engine's fake bold, as Word draws a face with no bold.
     static let cambriaNoBold = "Caladea NoBold"
+    /// Carlito's regular file under a name with no bold, so the engine emboldens it (fill and stroke) as PowerPoint does a face with no bold: Calibri Light.
+    static let carlitoNoBold = "Carlito NoBold"
     /// DejaVu Sans, for Verdana: not a metric clone, but of the same
     /// family (both grew out of Bitstream Vera's design) and within a
     /// hundredth of its widths word for word, where Liberation Sans set
@@ -6218,6 +6220,7 @@ static let sylfaenAdvances: [Double] = [
         }
         _gapAboveLoaded = !gapAboveFailed
         _ = flutter.swift_bridge.LoadFontFromFile(resources.appendingPathComponent("fonts/Caladea-Regular.ttf").path, cambriaNoBold)
+        _ = flutter.swift_bridge.LoadFontFromFile(resources.appendingPathComponent("fonts/Carlito-Regular.ttf").path, carlitoNoBold)
         // 仿宋's ideographs in a 仿宋 face (`fangSongFamily`).
         let fangSong = resources.appendingPathComponent("fonts/StarlingFangSong-Regular.ttf").path
         if FileManager.default.fileExists(atPath: fangSong) {

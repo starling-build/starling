@@ -19,7 +19,7 @@ extension _StyledFrame {
             let eaFace = theme.faceResolver?(rs.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                              ?? rs.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true)
             if u >= 0xAC00 && u <= 0xD7A3 {
-                let hEm = eaFace?.otherAdvances?[0xAC00].map { $0 * em * wScale } ?? em * wScale
+                let hEm = ((style(-1).fontWeight == .bold ? eaFace?.boldOtherAdvances?[0xAC00] : nil) ?? eaFace?.otherAdvances?[0xAC00]).map { $0 * em * wScale } ?? em * wScale
                 return (hEm < em * wScale ? abs(g - hEm) > 0.01 : g < hEm - 0.01) ? hEm - g : 0
             }
             // (A symbol of a Korean face is an em wide in Word, stretched by w:w like the Hangul: 10.44 at 12 pt w:w 87.)

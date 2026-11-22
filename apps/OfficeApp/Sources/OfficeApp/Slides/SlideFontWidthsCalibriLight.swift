@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 extension SlideFontWidths {
+    /// PowerPoint's simulated bold sets every advance at this share of the regular's (Windows lab clbold, same 12 to 72 pt).
+    static let syntheticBoldAdvance = 0.9845
     /// Calibri Light's bold as PowerPoint sets it: the face has no bold, so Windows emboldens the regular outline (fill and stroke,
     /// 0.0286 em wide) and sets each glyph at 0.9845 of the Light advance (clbold lab, 121 glyphs, ratio 0.980 to 0.992, the same at 12 to 72 pt).
     /// Calibri_Light_Regular.tsv x 0.9845; U+0020-007E, em.

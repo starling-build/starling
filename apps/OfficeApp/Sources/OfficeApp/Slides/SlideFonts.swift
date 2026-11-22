@@ -87,6 +87,10 @@ enum SlideFonts {
         return !["궁서", "신명", "필기", "손글씨", "펜"].contains(where: { n.containsSubstring($0) })
     }
 
+    static func koreanOwnFace(_ family: String) -> Bool {
+        ["굴림", "굴림체", "바탕", "바탕체", "돋움", "돋움체", "궁서", "궁서체", "gulim", "gulimche", "batang", "batangche", "dotum", "dotumche", "gungsuh", "gungsuhche"].contains(windowsName(family))
+    }
+
     static func resolve(_ family: String) -> String {
         // (The machine's own face, where it has it and the user takes it:
         // `OfficeFonts.installed`.)
@@ -115,7 +119,7 @@ enum SlideFonts {
         // (None of a stand-in's widths for the machine's own face.)
         guard let family, OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil else { return nil }
         // (An East Asian query is answered for Malgun Gothic only, whose Hangul em the layout asks for by it.)
-        guard !eastAsian || windowsName(family) == "malgun gothic" || windowsName(family) == "맑은 고딕" || missingKoreanGothic(family) else { return nil }
+        guard !eastAsian || windowsName(family) == "malgun gothic" || windowsName(family) == "맑은 고딕" || missingKoreanGothic(family) || koreanOwnFace(family) else { return nil }
         if let cuts = SlideEastAsianWidths.lookup(windowsName(family)) ?? (missingKoreanGothic(family) ? SlideEastAsianWidths.malgun : nil) {
             // (An East Asian face at its own measured widths, Latin and the rest past ASCII: PowerPoint sets it by itself, not by a stand-in's.)
             // (Built once per family: parsing its advance table for every run made a 560-slide deck take over ten minutes.)
@@ -123,11 +127,15 @@ enum SlideFonts {
             if let made = eastAsianMade[family] { return made }
             var face = RichResolvedFace(family: resolve(family))
             let regular = SlideEastAsianWidths.parse(cuts.regular.other)
-            let bold = cuts.bold.map { SlideEastAsianWidths.parse($0.other) } ?? regular
+            // (A face with no real bold is emboldened by PowerPoint itself: the regular outline filled and stroked, each advance
+            // 0.9845 of the regular's; Windows labs clbold (Calibri Light) and Gulim.)
+            let k = SlideFontWidths.syntheticBoldAdvance
+            let bold = cuts.bold.map { SlideEastAsianWidths.parse($0.other) } ?? regular.mapValues { $0 * k }
             face.advances = cuts.regular.ascii
-            face.boldAdvances = cuts.bold?.ascii ?? cuts.regular.ascii
+            face.boldAdvances = cuts.bold?.ascii ?? cuts.regular.ascii.map { $0 * k }
             face.otherAdvances = regular
             face.boldOtherAdvances = bold
+            if koreanOwnFace(family) { face.otherAdvances?[0xAC00] = 1.0; face.boldOtherAdvances?[0xAC00] = cuts.bold == nil ? k : 1.0 }
             // (Malgun Gothic's Hangul is an em, which the table of advances that are not one does not hold.)
             if cuts.regular.ascii == SlideEastAsianWidths.malgun.regular.ascii { face.otherAdvances?[0xAC00] = 1.0; face.boldOtherAdvances?[0xAC00] = 1.0 }
             // (Malgun Gothic sets its circled numbers, geometric shapes, box line and fullwidth forms an em wide: every one that PowerPoint
@@ -238,6 +246,7 @@ enum SlideFonts {
             // advance (clbold lab), not at Carlito Bold's widths, which are wider and wrapped 6d178027's 48 pt title a word early.)
             var face = RichResolvedFace(family: resolve(family))
             face.boldAdvances = SlideFontWidths.calibriLightBoldLatin
+            face.fakeBoldFamily = OfficeFonts.carlitoNoBold
             face.otherAdvances = SlideFontWidths.calibriHebrew
             face.boldOtherAdvances = SlideFontWidths.calibriHebrew.merging(SlideFontWidths.calibriLightBoldOther) { a, _ in a }
             return face
