@@ -3981,6 +3981,11 @@ private struct SlideContext {
             }
             if let hp = p.first("a:pPr")?["hangingPunct"] ?? level.hangingPunct, hp == "0" || hp == "1" { style.eastAsian["a:hangingPunct"] = hp }
             if let b = level.latinLnBrk { style.eastAsian["a:latinLnBrk"] = b }
+            else if p.all("a:r").contains(where: { ($0.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("ko") }) {
+                // (Lab ko-latinlnbrk round 2: with latinLnBrk stated nowhere, a run that names Korean holds its Hangul words whole at
+                // the line end, one that names no language parts them mid-word.)
+                style.eastAsian["a:latinLnBrk"] = "0"
+            }
             // (PowerPoint hangs every closing mark, ) ] and the like, a full em past the margin in Chinese text: lab zhhang, four
             // faces in zh-TW and zh-CN. It follows the language of the run that holds the mark.)
             if p.all("a:r").contains(where: { r in
