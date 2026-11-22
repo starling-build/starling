@@ -1381,7 +1381,7 @@ extension RichLayout {
     /// print. A vertical cell's too: zh-74b34f3b's tbRlV "東引鄉活動中心
     /// 2樓" keeps its ideographs upright and lays the "2" on its side,
     /// where its "2" had turned ours whole.)
-    func _paintUpright(_ painter: TextPainter, at origin: Offset, _ canvas: Canvas, distribute: Bool = false, justify: Bool = false, mixed: Bool = false, centred: Bool = false, rubyShifts: [(from: Int, to: Int, shift: Double)] = []) -> Bool {
+    func _paintUpright(_ painter: TextPainter, at origin: Offset, _ canvas: Canvas, distribute: Bool = false, justify: Bool = false, mixed: Bool = false, centred: Bool = false, rubyShifts: [(from: Int, to: Int, shift: Double)] = [], baselineShift: Double = 0) -> Bool {
         guard let root = painter.text else { return false }
         let text = Array(root.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
         // (※ ☆ ★ stand upright in a Japanese face's column — dx2 934bd3e5's Meiryo — and lie on their side in
@@ -1579,17 +1579,17 @@ extension RichLayout {
             }
             var columnAcross = acrossC(box, em, k)
             if let column {
-                // (The column stands (win ascent + descent + 0.2 em) wide from the line's top edge, with the line spacing's own share, (percent - 1) em, as
+                // (The column stands (win ascent + descent + 0.2 em) wide from the frame's edge, which the paragraph's own baseline move (`baselineShift`, the face's descent share) must not shift: SimSun and MS Gothic stood 1.4 pt, DFKai 0.5 pt, Yu -0.8 pt off it in lab vface; with the line spacing's own share, with the line spacing's own share, (percent - 1) em, as
                 // leading that PowerPoint leaves on the far side (negative under 100%, zh-9047d9e7 p6 at 80%): lab vface (single spacing), and the 140%
                 // columns of zh-2eea3e9832c7 p5 and zh-6cb9bf676218 p10, where leading kept on the near side set them 13 pt too far.)
                 let mid = (box.top + box.bottom) / 2
                 if let line = lineMetrics.first(where: { mid >= $0.baseline - $0.ascent - 0.5 && mid <= $0.baseline + $0.descent + 0.5 }) {
                     let leading = (line.ascent + line.descent) / 1.2 - em
-                    columnAcross = line.baseline - line.ascent + leading + (column.line + 0.2) / 2 * em + (styles[k]?.baselineShift ?? 0)
+                    columnAcross = line.baseline - line.ascent + leading + (column.line + 0.2) / 2 * em + (styles[k]?.baselineShift ?? 0) - baselineShift
                 }
             }
             let yuAlong = column.map { $0.ascent - 0.876 } ?? 0
-            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em + yuAlong * em, origin.dy + columnAcross + rubyColumnShift(k) + (plain ? 0.085 * em : 0) + sharedShift(k))
+            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em + yuAlong * em, origin.dy + columnAcross + rubyColumnShift(k) + (plain && column == nil ? 0.085 * em : 0) + sharedShift(k))
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
             canvas.restore()
