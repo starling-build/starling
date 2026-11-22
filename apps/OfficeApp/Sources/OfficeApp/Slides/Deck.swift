@@ -571,6 +571,8 @@ final class SlideShape {
     /// `normAutofit lnSpcReduction`: the share PowerPoint took off the
     /// line spacing to fit (0.2 = lines at 80%); the theme carries it.
     var lineReduction = 0.0
+    /// `normAutofit` with no `fontScale`: PowerPoint fits the text itself when it draws.
+    var fitUnstated = false
     /// The insets as drawn: scaled with the text when they follow it.
     var drawInsets: EdgeInsets { insets(atFontScale: fontScale) }
     /// The insets with the text at `k` of its size: the margins that follow

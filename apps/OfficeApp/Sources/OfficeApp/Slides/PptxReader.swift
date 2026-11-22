@@ -1852,6 +1852,7 @@ private struct SlideContext {
         st.autofit = text.autofit
         st.fontScale = text.fontScale
         st.lineReduction = text.lineReduction
+        st.fitUnstated = text.fitUnstated
         st.insetsFollowFont = text.insetsFollowFont
         st.sizeGroup = text.sizeGroup
         st.keepsSize = text.keepsSize
@@ -3337,6 +3338,7 @@ private struct SlideContext {
         var autofit = false
         var fontScale = 1.0
         var lineReduction = 0.0
+        var fitUnstated = false
         /// The insets are fractions of the font size (a diagram's margins)
         /// and shrink with it.
         var insetsFollowFont = false
@@ -4095,6 +4097,7 @@ private struct SlideContext {
                         columns: max(1, min(16, attr("numCol").flatMap(Int.init) ?? 1)),
                         columnGap: attr("spcCol").flatMap(Double.init).map { $0 / Pptx.emu } ?? 0,
                         warp: warp, runLooks: runLooks)
+        body0.fitUnstated = fitRule == "a:normAutofit" && body?.first("a:bodyPr")?.first("a:normAutofit")?["fontScale"] == nil
         body0.sizeGroup = body?.first("a:bodyPr")?["starling:sizeGroup"]
         body0.keepsSize = body?.first("a:bodyPr")?["starling:keepsSize"] == "1"
         body0.generatedHang = body?.first("a:bodyPr")?["starling:generatedHang"] == "1"

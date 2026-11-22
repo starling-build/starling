@@ -96,6 +96,7 @@ struct ShapeState: Equatable {
     var runLooks: [[RunLook]] = []
     var scene3d: Scene3D? = nil
     var lineReduction = 0.0
+    var fitUnstated = false
     var keptLook: KeptLook? = nil
     /// Set for a text shape read from a file: see `ReadShape`.
     var readShape: ReadShape? = nil
@@ -1164,6 +1165,7 @@ final class DeckController: ChangeNotifier {
                    keptPicture: s.keptPicture, autofit: s.autofit, fontScale: s.fontScale,
                    insetsFollowFont: s.insetsFollowFont, keptLook: s.keptLook)
         st.lineReduction = s.lineReduction
+        st.fitUnstated = s.fitUnstated
         st.pictureLevels = s.pictureLevels
         st.sizeGroup = s.sizeGroup
         st.generatedHang = s.generatedHang
@@ -1317,6 +1319,7 @@ final class DeckController: ChangeNotifier {
         shape.runLooks = st.runLooks
         shape.scene3d = st.scene3d
         shape.lineReduction = st.lineReduction
+        shape.fitUnstated = st.fitUnstated
         shape.textTheme?.lineSpacingReduction = st.lineReduction
         shape.keptLook = st.keptLook
         if let doc = st.text, let c = shape.text, c.document != doc { c.load(doc) }
@@ -1331,6 +1334,9 @@ final class DeckController: ChangeNotifier {
                                text: st.text.map(_textController), textTheme: theme,
                                anchor: st.anchor, prompt: st.prompt)
         _apply(st, to: shape)
+        // `normAutofit` without a `fontScale`: the file was never fitted by PowerPoint,
+        // which fits the text when it draws.
+        if st.fitUnstated, shape.autofit, shape.fontScale == 1, !shape.insetsFollowFont { shape.fontScale = SlideTextCache.autofitScale(shape) }
         return shape
     }
 
