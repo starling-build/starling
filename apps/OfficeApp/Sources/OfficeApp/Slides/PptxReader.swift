@@ -511,6 +511,20 @@ private struct LevelStyle {
     /// The bullet as a Unicode glyph: the file's character, or what a
     /// symbol face (Wingdings, Symbol) shows for that code; nil for a code
     /// in such a face this app does not know, which draws the level's own.
+    /// Wingdings' common bullets as our own shapes, from the face's measured
+    /// ink box (metrics only): kind (0 round, 1 square, 2 diamond), x0, y0, x1, y1 in ems.
+    var bulletInk: [Double]? {
+        guard let ch = bulletChar, let scalar = ch.unicodeScalars.first, (bulletFont ?? "").lowercased() == "wingdings" else { return nil }
+        let code = (0xF000 ... 0xF0FF).contains(scalar.value) ? scalar.value - 0xF000 : scalar.value
+        switch code {
+        case 0x6C: return [0, 0.0845, 0.0723, 0.6631, 0.6504]
+        case 0x6E: return [1, 0.0845, 0.0723, 0.6626, 0.6504]
+        case 0xA7: return [1, 0.0845, 0.2168, 0.3735, 0.5059]
+        case 0x75: return [2, 0.0845, -0.0474, 0.9023, 0.7705]
+        default: return nil
+        }
+    }
+
     var bulletGlyph: String? {
         guard let ch = bulletChar, let scalar = ch.unicodeScalars.first else { return nil }
         // Symbol faces are often spelled in the private range (U+F0xx).
@@ -2620,7 +2634,7 @@ private struct SlideContext {
                         // The cell's own bullet, as a shape's: the AES
                         // tables' "•" at every level, where the layout's
                         // own drew "◦" below the first.
-                        if level.bullet == .char { style.bulletText = level.bulletGlyph }
+                        if level.bullet == .char { style.bulletText = level.bulletGlyph; style.bulletInk = level.bulletInk }
                         style.bulletColor = level.bulletColor
                         style.bulletScale = level.bulletScale
                         // In its own face, as a shape's: AES 2011's Arial
@@ -3681,7 +3695,7 @@ private struct SlideContext {
             case .char?, .number?:
                 style.list = level.bullet == .char ? .bullet : .numbered
                 style.listLevel = lvl
-                if level.bullet == .char { style.bulletText = level.bulletGlyph }
+                if level.bullet == .char { style.bulletText = level.bulletGlyph; style.bulletInk = level.bulletInk }
                 if level.bullet == .char { style.bulletPicture = level.bulletPicture }
                 style.bulletColor = level.bulletColor
                 style.bulletScale = level.bulletScale

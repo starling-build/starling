@@ -693,6 +693,10 @@ public struct RichParagraphStyle: Hashable, Codable, Sendable {
     /// `bulletFontFamily` and `bulletScale` stay the file's.
     public var bulletStandInFamily: String? = nil
     public var bulletStandInScale: Double? = nil
+    /// A symbol-face bullet drawn as our own shape from the face's measured
+    /// ink box (metrics only, no outlines): kind (0 round, 1 square, 2 diamond),
+    /// then x0, y0, x1, y1 in ems, y up from the baseline.
+    public var bulletInk: [Double]? = nil
     /// A picture bullet (PowerPoint's `buBlip`): drawn by the slide in the
     /// bullet's place, the marker itself left empty.
     public var bulletPicture: ImageAttachment? = nil
