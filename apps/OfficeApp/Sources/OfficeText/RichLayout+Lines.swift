@@ -1402,7 +1402,7 @@ extension RichLayout {
 
     func _glyphWidth(_ style: TextStyle, _ ch: Character) -> Double {
         let key = "\(ch)|\(style.fontFamily ?? "")|\(style.fontSize ?? 0)|\(style.fontWeight == .bold)|\(style.fontStyle == .italic)"
-            + (style.fontFeatures?.isEmpty ?? true ? "" : "|f")
+            + (style.fontFeatures?.isEmpty ?? true ? "" : "|f" + style.fontFeatures!.map { "\($0.feature)\($0.value)" }.joined())
             // (The width is the style's own, scale included: a cached width of a
             // stretched "a" served an unstretched one, xd 77d6ca49's Aptos Bold
             // letters set 7% narrow.)
