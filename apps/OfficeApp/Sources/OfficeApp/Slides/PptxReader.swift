@@ -4197,6 +4197,10 @@ private struct SlideContext {
                         // (A run that names its own Latin face sets the space between East Asian words in it, not in the East Asian face:
                         // ko-3d95d35b's Times New Roman runs, 5.0 pt a space at 20 pt in PowerPoint's print, Malgun's is 7.0.)
                         pieces.append((n, nil))
+                    } else if ch.value < 0x80, !letter, pieces[pieces.count - 1].script == "ea", ch.value != 0x20 || explicitLatin {
+                        // (An ASCII character is set in the Latin slot's face, between Hangul too: the "(" and ")" of a run naming Batang
+                        // as Latin only are Batang's 4.50 pt at 12, not the theme Hangul face's 3.62; ko-d8f0a8af p5.)
+                        if pieces[pieces.count - 1].script == nil { pieces[pieces.count - 1].length += n } else { pieces.append((n, nil)) }
                     } else if letter, !sawLetter {
                         // The first letter claims what came before it.
                         pieces[pieces.count - 1].script = script
