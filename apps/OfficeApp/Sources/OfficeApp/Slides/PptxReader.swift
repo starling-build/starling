@@ -2768,6 +2768,7 @@ private struct SlideContext {
         let rowHeights = tbl.all("a:tr").map { ($0["h"].flatMap(Double.init) ?? 0) / Pptx.emu }
         let accent = theme.colors["accent1"] ?? Color(0xFF4472C4)
         var tableGradient: SlideFill? = nil
+        var tableShadow: CharShadow? = nil
         var ts = plain
             ? TableStyle(borders: styleId.isEmpty || styleId.hasPrefix("{5940675A"), headerRow: false, borderColor: colors.scheme("tx1"))
             : TableStyle(borders: true, headerRow: firstRow, headerFill: accent,
@@ -2784,6 +2785,13 @@ private struct SlideContext {
             // style's gradient, by its middle colour) when the cells say
             // none — and the whole table's rules.
             let b1 = _tablePart(style, "a:band1H"), b2 = _tablePart(style, "a:band2H")
+            // The style's own effect (a themed style's `effectRef`: the theme's soft shadow) falls from the table.
+            if let ref = style.first("a:tblBg")?.first("a:effectRef"), let idx = ref["idx"].flatMap(Int.init), idx > 0,
+               theme.effectStyles.indices.contains(idx - 1) {
+                var c = colors
+                c.placeholder = colors.color(in: ref)
+                tableShadow = LevelStyle.outerShadow(theme.effectStyles[idx - 1].first("a:effectLst"), c)
+            }
             var under = whole?.fill
             if under == nil || under == Color(0x00000000), let bg = style.first("a:tblBg") {
                 if let ref = bg.first("a:fillRef"), ref["idx"] != "0" {
@@ -2791,6 +2799,7 @@ private struct SlideContext {
                        theme.fillStyles[idx - 1].name == "a:gradFill" {
                         var c = colors
                         c.placeholder = colors.color(in: ref)
+                        c.pageBackground = true  // a table's gradient mixes its tints in linear light (Word's print, tstyles2)
                         // The theme's gradient runs over the whole table,
                         // under its cells, and a band's tint lies on it as
                         // it is: bnc480256's "Themed Style" tables shade
@@ -2841,6 +2850,7 @@ private struct SlideContext {
                             font: _font(base.font), size: base.size ?? 18, color: base.color ?? colors.scheme("tx1") ?? Color(0xFF000000),
                             listIndent: 18)
         st.fillStyle = tableGradient
+        st.shadow = tableShadow
         // The table's own fill (a fill in `a:tblPr`), behind every cell:
         // tdf127237's cells all say no fill, and stand on the table's blue.
         if let pr = tbl.first("a:tblPr") {
