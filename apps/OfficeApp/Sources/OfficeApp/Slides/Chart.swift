@@ -7961,10 +7961,25 @@ extension ChartPainter {
                 // ko-e114b968 p11's 9 pt labels step 15.5 pt, ours 13.)
                 let malgunLine: Double? = c.onSlide && ["맑은 고딕", "malgun gothic"].contains(labelFace.lowercased())
                     && (shown ?? sheetText).unicodeScalars.contains(where: { (0xAC00 ... 0xD7A3).contains($0.value) }) ? 1.73 : nil
-                return TextPainter(text: Self.labelSpan(c, Self.keepHangulWords(shown ?? sheetText), Flutter.TextStyle(
+                let labelStyle = Flutter.TextStyle(
                     color: colour, fontSize: size, fontWeight: labelWeight, height: malgunLine,
                     fontFamily: OfficeFonts.substitute(labelFace),
-                    fontFamilyFallback: Self.glyphFallback(c, traditional: l.traditional.contains(s.index))), traditional: l.traditional.contains(s.index)), textAlign: .center, textDirection: .ltr,
+                    fontFamilyFallback: Self.glyphFallback(c, traditional: l.traditional.contains(s.index)))
+                var labelText = Self.labelSpan(c, Self.keepHangulWords(shown ?? sheetText), labelStyle, traditional: l.traditional.contains(s.index))
+                if c.onSlide, (shown ?? sheetText).unicodeScalars.contains(where: { (0xAC00 ... 0xD7A3).contains($0.value) }) {
+                    // (A Korean face's Hangul syllable is an em wide; the stand-in's is 0.92 em, so each is spaced out by the rest.)
+                    var kids: [TextSpan] = []
+                    for u in (shown ?? sheetText).unicodeScalars {
+                        let h = (0xAC00 ... 0xD7A3).contains(u.value)
+                        let t = String(u)
+                        if h { kids.append(TextSpan(text: t, style: Flutter.TextStyle(letterSpacing: 0.08 * size))) }
+                        else if let last = kids.last, last.style?.letterSpacing == nil { kids[kids.count - 1] = TextSpan(text: (last.text ?? "") + t) }
+                        else { kids.append(TextSpan(text: t)) }
+                        if h { kids.append(TextSpan(text: "\u{2060}")) }
+                    }
+                    labelText = TextSpan(children: kids, style: labelStyle)
+                }
+                return TextPainter(text: labelText, textAlign: .center, textDirection: .ltr,
                     maxLines: maxLines, ellipsis: maxLines == nil ? nil : "\u{2026}")
             }
             var tp = makeLabel(nil)
