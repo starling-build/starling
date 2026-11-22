@@ -309,6 +309,8 @@ enum WriterMath {
         /// The size at a script level: 0.73 of the one above, to half.
         func scriptSize(_ size: Double, _ level: Int) -> Double {
             // (Word's print of a 12pt equation: a fraction's parts 8.5pt, a script in them 7.0 — half points.)
+            // (A slide's equation: PowerPoint's print sets a first-level script at 0.73 of its size and a second at 0.6, unrounded: 18 pt gives 13.2 and 10.8, 20 gives 14.6, 24 gives 17.5 in the prints of 9fdd4dd8, b935eceab, ef0041dd.)
+            if WriterMath.slideScope, level >= 1 { return level == 1 ? size * 0.73 : size * 0.6 }
             if WriterMath.windows, level >= 1 {
                 // Word's prints: 10pt -> 7.0, 11 -> 8.0, 12 -> 8.5 (first level rounds UP to the half point); second level 0.6, nearest.
                 if level == 1 { return (size * 0.7 * 2 - 1e-9).rounded(.up) / 2 }
@@ -461,8 +463,11 @@ enum WriterMath {
                 piece = ""
             }
             var firstChar = true
-            for ch in s {
+            let sChars = Array(s)
+            for (ci, ch) in sChars.enumerated() {
                 let leads = firstChar && leadRuns.ids.contains(ObjectIdentifier(r)) && inlineText && WriterMath.windows && "+−-±∓".contains(ch)
+                // (A slide equation that opens with a relation, PowerPoint's print of 9fdd4dd8 "= 107,7 mca": nothing stands on its left, so the sign starts at the equation's own edge and only its right gap is kept.)
+                let leadsRelation = firstChar && leadRuns.ids.contains(ObjectIdentifier(r)) && inlineText && WriterMath.slideScope && level == 0 && "=<>≤≥≈≠→←⇒∈∉⊂⊃".contains(ch)
                 firstChar = false
                 if "=+−-±×÷<>≤≥≈≠∓→←⇒∈∉⊂⊃∪∩".contains(ch) {
                     flush()
@@ -483,13 +488,15 @@ enum WriterMath {
                             }
                         }
                     }
-                    if !leads { parts.append(space(gap)) }
+                    if !leads && !leadsRelation { parts.append(space(gap)) }
                     parts.append(glyph)
                     // (A sign leading its row, Word's exp[−(Δx+d0)²/4σ²]: ink to ink 2.0 pt of 12 to the bracket; our bracket carries 1.0 pt of side space, so 1/12 em, after it.)
                     parts.append(space(leads ? own / 12 : gap))
                     continue
                 }
-                if ch == ",", level == 0, inlineText, WriterMath.windows {
+                // (A comma between two digits is a decimal mark and takes no space: PowerPoint's print of 9fdd4dd8 sets "107,7" solid.)
+                let decimalMark = ch == "," && ci > 0 && ci + 1 < sChars.count && sChars[ci - 1].isASCII && sChars[ci - 1].isNumber && sChars[ci + 1].isASCII && sChars[ci + 1].isNumber
+                if ch == ",", level == 0, inlineText, WriterMath.windows, !(decimalMark && WriterMath.slideScope) {
                     // (Word sets a thin space, 1/6 em, after a comma.)
                     flush()
                     parts.append(text(",", size: own, italic: false))
