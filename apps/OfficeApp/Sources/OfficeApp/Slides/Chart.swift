@@ -2177,6 +2177,10 @@ enum ChartXML {
             if c.textColor == nil { c.textColor = Color(0xFFFFFFFF) }
             if c.gridColor == nil { c.gridColor = Color(0xFF3A3A3A) }
         }
+        // (Styles 33-40 give a plain white area and a light grey plot area where the file sets none: 1c1295c3 p18.)
+        if plot.first("c:spPr") == nil, let st = styleNode?["val"].flatMap(Int.init), (33 ... 40).contains(st), c.plotFill == nil {
+            c.plotFill = Color(0xFFE7E7E7)
+        }
         if let ln = plot.first("c:spPr")?.first("a:ln"), let f = ln.first("a:solidFill") {
             c.plotBorder = color(f)
             c.plotBorderWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
