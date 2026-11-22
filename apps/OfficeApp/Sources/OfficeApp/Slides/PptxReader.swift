@@ -1383,6 +1383,8 @@ private struct SlideContext {
     /// which say `kern` nowhere but have the style; lo-open-as-read-only's
     /// "read-only," is 2.7 pt short of plain.
     var unsaidKern: Double? = nil
+    /// The text is a SmartArt drawing's: an East Asian face stands on Word's line there (`SlideFonts.diagramEastAsianLine`).
+    var inDiagram = false
     var looseKinsoku = false
 
     // MARK: Placeholders
@@ -3211,9 +3213,10 @@ private struct SlideContext {
             sp.children = [nv, spPr]
             tree.children.insert(sp, at: 0)
         }
-        let ctx = SlideContext(package: package, part: drawingPart, slide: slide, layout: layout, master: master,
+        var ctx = SlideContext(package: package, part: drawingPart, slide: slide, layout: layout, master: master,
                                colors: colors, theme: theme, defaults: defaults, slideSize: slideSize, images: images,
                                unsaidKern: unsaidKern, looseKinsoku: looseKinsoku)
+        ctx.inDiagram = true
         var out: [ShapeState] = []
         ctx.shapes(in: tree, transform: { r in r.shift(Offset(frame.left, frame.top)) }, into: &out, id: id)
         out = out.flatMap { s -> [ShapeState] in
@@ -3709,6 +3712,14 @@ private struct SlideContext {
         return _font(f)
     }
 
+    /// A percent of spacing is of the line: 1.2 em, or in a SmartArt paragraph in an East Asian face Word's line of it.
+    private func _spacingLine(_ p: XNode) -> Double {
+        guard inDiagram, let r = p.first("a:r")?.first("a:rPr") else { return 1.2 }
+        let lang = r["lang"]
+        let f = r.first("a:ea")?["typeface"].map { _font($0, lang: lang) } ?? r.first("a:latin")?["typeface"].map { _font($0, lang: lang) }
+        return f.flatMap { SlideFonts.diagramEastAsianLine($0)?.height } ?? 1.2
+    }
+
     private func _font(_ f: String?) -> String {
         switch f {
         case nil, "+mn-lt", "+mn-ea", "+mn-cs": return theme.minor
@@ -3841,13 +3852,13 @@ private struct SlideContext {
             // (PowerPoint draws a shrunk run at a whole number of points, so the percentage is of that size: 60810's 20% before
             // its 16 pt items at 92.5% is 3.6 pt in the print, 0.2 * 1.2 * 15, ours was 3.55.)
             let drawnSize = scale == 1 ? size : max(1, (size * scale).rounded())
-            style.spaceBefore = level.beforePoints.map(whole) ?? (level.beforePercent.map { $0 * drawnSize * 1.2 } ?? 0)
+            style.spaceBefore = level.beforePoints.map(whole) ?? (level.beforePercent.map { $0 * drawnSize * _spacingLine(p) } ?? 0)
             // A percentage after, as before: of the line, taken as 1.2 of the
             // size — but not under the last paragraph, where PowerPoint adds
             // nothing: counted there, a one-line SmartArt label (35% after,
             // every one) measured taller than its box and was shrunk to fit.
             if level.afterPoints == nil, let pct = level.afterPercent, p !== allParagraphs.last {
-                style.spaceAfter = pct * drawnSize * 1.2
+                style.spaceAfter = pct * drawnSize * _spacingLine(p)
             }
             // (Nor in points: bnc904423's centred boxes, 11.5 pt after their
             // one paragraph, stood 5.75 high.)
