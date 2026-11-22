@@ -245,6 +245,7 @@ extension _ParaFrame {
                 // (A ")" that closes a Hangul or ideograph hangs the same way: ko-4f5289 p6 keeps "(실부하)" whole in a narrow cell.)
                 if k > 0, k < units.count, units[k] == 0x29 {
                     if units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 { return true }
+                    if zhHang, units[k - 1] >= 0x2E80 { return true }  // (a Chinese run's ")" after an ideograph, 15 zh line ends: 18335072f11e p55)
                     return p.style.eastAsian["a:hangParens"]?.split(separator: ",").contains { Int($0) == k } ?? false
                 }
                 // (A "," or "." that follows a Hangul syllable hangs too: ko-70afa6ad p5 "…정치, 경제," keeps 경제 on a line that ends at the margin, PowerPoint's print.)
