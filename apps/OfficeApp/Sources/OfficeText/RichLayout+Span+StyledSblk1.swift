@@ -56,7 +56,8 @@ extension _StyledFrame {
         spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
         ctx.inserts.append(offset)
     } else if !theme.wordRules, theme.officeLatinBreaks, ctx.before == "-", ch.isASCII, ch.isNumber,
-              ctx.beforeBefore.map({ $0.isASCII && ($0.isLetter || $0.isNumber) }) == true {
+              ctx.beforeBefore.map({ $0.isASCII && ($0.isLetter || $0.isNumber) || ($0.unicodeScalars.count == 1 && (0x3400 ... 0x9FFF).contains($0.unicodeScalars.first!.value)) }) == true {
+        // (And after an ideograph, "年-105": 3c1f2c4d820b p8's "從102年-105年至今" prints "…從102年-" and "105年至今", not "年-105" whole.)
         // (PowerPoint ends a line after a hyphen that stands between a letter or digit and a digit: ba4b81b7's
         // "IDs 1M-2M" and "14M-15M" print "1M-" and "2M" on two lines. The engine's rules (UAX 14) keep "-" and a digit together.)
         flush(i)
