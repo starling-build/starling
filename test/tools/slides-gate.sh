@@ -3,7 +3,7 @@
 # Draws every deck of test/corpus/pptx (cache copy) with BIN (`--deck-pdf`), scores each against PowerPoint's print with
 # test/pptx-app-render.sh and compares the deck MEAN (% of pixels differing) with test/corpus/pptx/baseline-win.tsv.
 # A deck whose mean is more than TOL (default 0.05 pt) worse than the baseline, or that no longer renders, fails the step
-# (a stem listed in $LQ/approved.txt is waived). ~70 s for 561 decks at 32 jobs. Exit 0 clean, 1 blocked, 2 not runnable.
+# (a deck in $LQ/approved.txt is waived only for a PR whose own commit message names its full id). ~70 s for 561 decks at 32 jobs. Exit 0 clean, 1 blocked, 2 not runnable.
 # BASE MODE (2026-11-22, amd-8): with BASE_BIN set (render-gate passes the merge-base binary) the PR is compared with a render of the BASE
 # drawn on the same runner and engine (cached per main sha + engine in $BASE_CACHE: render.tsv + combined.tsv), so only the PR's own change
 # is judged; main's drift no longer blocks later PRs. The fixed baseline files are then only the drift report (hourly round).
@@ -13,6 +13,12 @@ DECKS=$ROOT/test/corpus/pptx/decks; [ -n "$(ls "$DECKS" 2>/dev/null | head -1)" 
 PPT=$CC/powerpoint-win; BASE=$ROOT/test/corpus/pptx/baseline-win.tsv
 [ -d "$DECKS" ] && [ -d "$PPT" ] && { [ -s "$BASE" ] || [ -n "${BASE_BIN:-}" ]; } || { echo "slides-gate: no deck corpus or baseline here; skipped"; exit 2; }
 W=${SLIDES_SCRATCH:-${GATE_SCRATCH:-$HOME/scratch/gate}/slides}; rm -rf "$W"; mkdir -p "$W"
+# A waiver in $LQ/approved.txt (starling-bd approves a drop by full doc id) holds ONLY for the PR that names the id in one of its
+# own commit messages (amd-8, 2026-11-22): the list is permanent, and espt/174ab0c2 sat on it from an old approval, so 39f4a0e5c
+# dropped it 100.0 to 87.6 and the gate said "0 worse" (found by the DRIFT line). No commit message naming the id, no waiver.
+ACC=$W/accepted.txt; : > "$ACC"
+MSGS=$(git -C "$ROOT" log --format=%B "$(git -C "$ROOT" merge-base HEAD origin/main 2>/dev/null || echo HEAD)..HEAD" 2>/dev/null || true)
+for t in $(cat "${LQ:-/data/landq}/approved.txt" 2>/dev/null); do case "$MSGS" in *"$t"*) echo "$t" >> "$ACC";; esac; done
 T=$(date +%s)
 # The pilot decks (real decks of 20-60 slides, ja and ko; amd-8's baseline rows name them) join the SAME sweep so they share the job
 # pool; every deck is launched largest first so the longest one never starts last. Without a pilot baseline the sweep is the corpus alone.
@@ -76,7 +82,7 @@ fi
 # BASE_ONLY=1 (the prebuild after a main push): only the base render above, cached for the PR gates; nothing to judge.
 [ -n "${BASE_ONLY:-}" ] && { [ -n "${BASEMODE:-}" ] && [ -n "${BASE_CACHE:-}" ] && [ -s "$BASE_CACHE/combined.tsv" ] && { echo "slides-gate: base cached ($BASE_CACHE) in $(( $(date +%s)-T )) s"; exit 0; }; echo "slides-gate: base-only run left no cache"; exit 2; }
 [ -s "$W/render.tsv" ] || { echo "slides-gate: no scores produced"; tail -3 "$W/run.log" | cut -c1-200; exit 1; }
-PXEX=$ROOT/test/corpus/pptx/pixel-excluded.txt python3 - "$BASEALL" "$W/render.tsv" "$TOL" "${LQ:-/data/landq}/approved.txt" <<'P'
+PXEX=$ROOT/test/corpus/pptx/pixel-excluded.txt python3 - "$BASEALL" "$W/render.tsv" "$TOL" "$ACC" <<'P'
 import re,sys
 base,new,tol,appr=sys.argv[1],sys.argv[2],float(sys.argv[3]),sys.argv[4]
 def rd(f):
@@ -114,7 +120,7 @@ if [ -n "$FX" ] && [ -s "$LB" ]; then { cat "$LB"; grep -F -f <(sed 's/\.pptx$//
 [ -n "$BASEMODE" ] && LB=$BASELBL
 if [ -s "$LB" ]; then
   SCORE_LINES "$W"
-  "$PY" - "$LB" "$W/combined.tsv" "${LTOL:-1}" "${LQ:-/data/landq}/approved.txt" <<'Q' || rc=1
+  "$PY" - "$LB" "$W/combined.tsv" "${LTOL:-1}" "$ACC" <<'Q' || rc=1
 import sys
 def rd(f): return {l.split('\t')[0]:(float(l.split('\t')[1]),l.split('\t')[2].strip()) for l in open(f) if l.strip()}
 b,n=rd(sys.argv[1]),rd(sys.argv[2]); tol=float(sys.argv[3])
