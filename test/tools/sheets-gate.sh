@@ -1,7 +1,7 @@
 #!/bin/bash
 # sheets-gate.sh BIN BASE_BIN BASE_CACHE [JOBS] — the Sheets step of the render gate (amd-8, 2026-11-22).
 # Draws every workbook Excel printed (cache copy of test/corpus/xlsx, 757 books, ~40 s at 32 jobs) with BIN and with BASE_BIN (the merge base;
-# the base side is cached per main sha in BASE_CACHE/per-book.tsv) and compares the two per BOOK (test/tools/sheets-sweep.py: pixels and
+# the base side is cached per main sha in BASE_CACHE/per-book.tsv, with score-cache.tsv: a PR book whose PDF is byte-identical to the base's takes the base's score, no rescoring) and compares the two per BOOK (test/tools/sheets-sweep.py: pixels and
 # text lines against Excel's print). A book blocks when its pixel mean is more than TOL (0.05 pt) worse, its line match drops more than
 # LTOL (0.5 pt), or it printed before and now does not. A book in $LQ/approved.txt is waived only for a PR whose own commit message or body
 # names its full name (as for Slides decks). Exit 0 clean, 1 blocked, 2 not runnable. BASE_ONLY=1 renders and caches the base only.
@@ -12,13 +12,14 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd); CC=${CORPUS_CACHE:-/data/corpus-cache
 PY=${PYTHON:-$( [ -x "$HOME/venv-word/bin/python" ] && echo "$HOME/venv-word/bin/python" || echo python3)}
 W=${SHEETS_SCRATCH:-${GATE_SCRATCH:-$HOME/scratch/gate}/sheets}; rm -rf "$W"; mkdir -p "$W"; T=$(date +%s)
 export OFFICE_FONT_SOURCE=bundled PDFDIFF_NO_PAIRS=1
-SWEEP() { "$PY" "$ROOT/test/tools/sheets-sweep.py" "$1" "$2" -j "$JOBS" > "$2.log" 2>&1; [ -s "$2/per-book.tsv" ]; }
-if [ -n "$BC" ] && [ -s "$BC/per-book.tsv" ]; then echo "sheets-gate: base render from the cache ($BC)"; cp "$BC/per-book.tsv" "$W/base.tsv"
+REUSE=
+SWEEP() { SHEETS_REUSE=$REUSE "$PY" "$ROOT/test/tools/sheets-sweep.py" "$1" "$2" -j "$JOBS" > "$2.log" 2>&1; [ -s "$2/per-book.tsv" ]; }
+if [ -n "$BC" ] && [ -s "$BC/per-book.tsv" ]; then echo "sheets-gate: base render from the cache ($BC)"; cp "$BC/per-book.tsv" "$W/base.tsv"; REUSE=$BC
 else
   [ -x "$BASEBIN" ] || { echo "sheets-gate: no base binary; not runnable"; exit 2; }
   SWEEP "$BASEBIN" "$W/b" || { echo "sheets-gate: base render produced nothing"; tail -3 "$W/b.log" | cut -c1-200; exit 2; }
-  cp "$W/b/per-book.tsv" "$W/base.tsv"
-  if [ -n "$BC" ]; then mkdir -p "$BC.tmp$$" 2>/dev/null && cp "$W/b/per-book.tsv" "$W/b/per-page.tsv" "$BC.tmp$$/" && { rm -rf "$BC"; mv "$BC.tmp$$" "$BC"; } 2>/dev/null; fi
+  cp "$W/b/per-book.tsv" "$W/base.tsv"; REUSE=$W/b
+  if [ -n "$BC" ]; then mkdir -p "$BC.tmp$$" 2>/dev/null && cp "$W/b/per-book.tsv" "$W/b/per-page.tsv" "$W/b/score-cache.tsv" "$BC.tmp$$/" && { rm -rf "$BC"; mv "$BC.tmp$$" "$BC"; } 2>/dev/null; fi
 fi
 [ -n "${BASE_ONLY:-}" ] && { echo "sheets-gate: base cached ($BC) in $(( $(date +%s)-T )) s"; exit 0; }
 SWEEP "$BIN" "$W/p" || { echo "sheets-gate: no scores produced"; tail -3 "$W/p.log" | cut -c1-200; exit 1; }
