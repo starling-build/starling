@@ -149,7 +149,7 @@ build_base() {   # builds BSHA into the shared cache once: the sha lock makes a 
   mkdir -p "$BC/$BSHA"; rm -rf "$BC/$BSHA/release"; mv "$BC/$BSHA.tmp/release" "$BC/$BSHA/release"; rmdir "$BC/$BSHA.tmp"
   chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; flock -u 8
 }
-if [ ! -x "$BC/$BSHA/release/OfficeApp" ]; then
+if [ ! -x "$BC/$BSHA/release/OfficeApp" ] && [ "${GATE_WARM:-0}" != 1 ]; then   # GATE_WARM=1 (gate-warm.sh): warm the PR scratch only, no base
   # normally the prebuild (GATE_PREBUILD=1 render-gate.sh <sha>, after each main push) has filled the cache and this is skipped
   build_base & BPID=$!
 fi
@@ -171,7 +171,7 @@ if [ "$MODE" = full ] && [ "${GATE_SLIDES:-1}" = 1 ] && [ "${GATE_PREBUILD:-0}" 
     LQ=$LQ BASE_BIN=$BC/$BSHA/release/OfficeApp BASE_CACHE=$BC/$BSHA/slides test/tools/slides-gate.sh "$(ls "$W"/build/*/release/OfficeApp | head -1)" 32 > "$W/slides.out" 2>&1 & SLPID=$!
   fi
 fi
-[ "${GATE_PREBUILD:-0}" = 1 ] && { echo "render-gate: PR build alone $(( $(date +%s)-TB )) s; changed since this scratch's last build: $( [ -n "$PREV" ] && git diff --name-only "$PREV" HEAD 2>/dev/null | wc -l || echo unknown) files (prev ${PREV:0:9})"; git rev-parse HEAD > "$W/build.rev"
+[ "${GATE_PREBUILD:-0}" = 1 ] && { echo "render-gate: PR build alone $(( $(date +%s)-TB )) s; changed since this scratch's last build: $( [ -n "$PREV" ] && git diff --name-only "$PREV" HEAD 2>/dev/null | wc -l || echo unknown) files (prev ${PREV:0:9})"; git rev-parse HEAD > "$W/build.rev"; [ "${GATE_WARM:-0}" = 1 ] && { echo "render-gate: scratch warm on $(git rev-parse --short HEAD)"; exit 0; }
 [ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; exit 1; }
   BASEBIN=$BC/$BSHA/release/OfficeApp; fill_rows; chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; echo "render-gate: base $BSHA cached"; exit 0; }
 [ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; tail -15 "$W/base-build.log" | cut -c1-200; exit 1; }
