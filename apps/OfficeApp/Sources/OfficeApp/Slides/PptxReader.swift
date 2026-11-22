@@ -2690,6 +2690,10 @@ private struct SlideContext {
                             style.bulletStandInFamily = OfficeFonts.calibri
                             style.bulletStandInScale = 0.565 / 0.46
                         }
+                        if level.bullet == .char, level.bulletFont?.lowercased().hasPrefix("symbol") == true, style.bulletText == "∗" {
+                            style.bulletStandInScale = 0.36 / 0.58
+                            style.bulletStandInRaise = 0.28
+                        }
                     default:
                         // A plain cell paragraph keeps its own left edge, first-line offset and right margin
                         // (marL, indent, marR): espt 174ab0c2's table labels stand 7.2 pt in and break 13.6 pt short.
@@ -3766,6 +3770,12 @@ private struct SlideContext {
                 if level.bullet == .char, level.bulletFont?.lowercased() == "wingdings", style.bulletText == "●" {
                     style.bulletStandInFamily = OfficeFonts.calibri
                     style.bulletStandInScale = 0.565 / 0.46
+                }
+                // The Symbol face's asterisk (code 2A) is 0.36 of an em across and 0.40 high, while the stand-in "∗" is 0.58 across
+                // and stands 0.28 em (of the smaller marker) low (3c310d53 p8, 28 pt: PowerPoint's ink 10.0 x 11.3 pt, 176.9 to 188.0).
+                if level.bullet == .char, level.bulletFont?.lowercased().hasPrefix("symbol") == true, style.bulletText == "∗" {
+                    style.bulletStandInScale = 0.36 / 0.58
+                    style.bulletStandInRaise = 0.28
                 }
                 // The file's own text edge (marL) and bullet offset (indent):
                 // the text placed where the file puts it, both written back

@@ -1672,6 +1672,7 @@ extension RichLayout {
             func top() -> Double {
                 g.textTop + _baselineShift(i, document) + g.painter.computeDistanceToActualBaseline(.alphabetic)
                     - marker.computeDistanceToActualBaseline(.alphabetic)
+                    - (p.style.bulletStandInRaise ?? 0) * (markerChar.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
             }
             if !theme.markersAtHang, let own = _listIndents(p, document), own.hanging > 0 {
                 // Where the file hangs it: the number starts that far

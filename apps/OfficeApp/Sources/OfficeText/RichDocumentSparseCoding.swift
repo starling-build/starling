@@ -39,6 +39,7 @@ extension RichParagraphStyle {
         case bulletFontFamily
         case bulletStandInFamily
         case bulletStandInScale
+        case bulletStandInRaise
         case bulletInk
         case bulletPicture
         case listId
@@ -101,6 +102,7 @@ extension RichParagraphStyle {
         bulletFontFamily = try c.decodeIfPresent(String.self, forKey: .bulletFontFamily) ?? d.bulletFontFamily
         bulletStandInFamily = try c.decodeIfPresent(String.self, forKey: .bulletStandInFamily) ?? d.bulletStandInFamily
         bulletStandInScale = try c.decodeIfPresent(Double.self, forKey: .bulletStandInScale) ?? d.bulletStandInScale
+        bulletStandInRaise = try c.decodeIfPresent(Double.self, forKey: .bulletStandInRaise) ?? d.bulletStandInRaise
         bulletInk = try c.decodeIfPresent([Double].self, forKey: .bulletInk) ?? d.bulletInk
         bulletPicture = try c.decodeIfPresent(ImageAttachment.self, forKey: .bulletPicture) ?? d.bulletPicture
         listId = try c.decodeIfPresent(String.self, forKey: .listId) ?? d.listId
@@ -162,6 +164,7 @@ extension RichParagraphStyle {
         if bulletFontFamily != d.bulletFontFamily, let v = bulletFontFamily { try c.encode(v, forKey: .bulletFontFamily) }
         if bulletStandInFamily != d.bulletStandInFamily, let v = bulletStandInFamily { try c.encode(v, forKey: .bulletStandInFamily) }
         if bulletStandInScale != d.bulletStandInScale, let v = bulletStandInScale { try c.encode(v, forKey: .bulletStandInScale) }
+        if bulletStandInRaise != d.bulletStandInRaise, let v = bulletStandInRaise { try c.encode(v, forKey: .bulletStandInRaise) }
         if bulletInk != d.bulletInk, let v = bulletInk { try c.encode(v, forKey: .bulletInk) }
         if bulletPicture != d.bulletPicture, let v = bulletPicture { try c.encode(v, forKey: .bulletPicture) }
         if listId != d.listId, let v = listId { try c.encode(v, forKey: .listId) }
