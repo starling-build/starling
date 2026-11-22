@@ -1816,6 +1816,7 @@ private struct SlideContext {
         st.lineReduction = text.lineReduction
         st.insetsFollowFont = text.insetsFollowFont
         st.sizeGroup = text.sizeGroup
+        st.keepsSize = text.keepsSize
         st.generatedHang = text.generatedHang
         st.noWrap = text.noWrap
         st.anchorCentred = text.anchorCentred
@@ -3080,7 +3081,7 @@ private struct SlideContext {
         // to the shapes afresh, so every text shrinks to fit here too —
         // but for one at a size its author set, which PowerPoint leaves
         // alone (tdf125551's 32 pt labels run out of their bars).
-        for i in out.indices where out[i].text != nil && out[i].fileId != Self.customTextId { out[i].autofit = true }
+        for i in out.indices where out[i].text != nil && out[i].fileId != Self.customTextId && !out[i].keepsSize { out[i].autofit = true }
         for i in out.indices where out[i].text != nil { out[i].naturalLines = true }
         return out.filter { s in
             if case .geometry(let p) = s.kind {
@@ -3275,6 +3276,8 @@ private struct SlideContext {
         var insetsFollowFont = false
         /// A diagram laid out here: the shapes that end at one size.
         var sizeGroup: String? = nil
+        /// A diagram's text box that grows to its text: the text keeps its size.
+        var keepsSize = false
         var generatedHang = false
         /// `bodyPr wrap="none"`.
         var noWrap = false
@@ -4013,6 +4016,7 @@ private struct SlideContext {
                         columnGap: attr("spcCol").flatMap(Double.init).map { $0 / Pptx.emu } ?? 0,
                         warp: warp, runLooks: runLooks)
         body0.sizeGroup = body?.first("a:bodyPr")?["starling:sizeGroup"]
+        body0.keepsSize = body?.first("a:bodyPr")?["starling:keepsSize"] == "1"
         body0.generatedHang = body?.first("a:bodyPr")?["starling:generatedHang"] == "1"
         body0.anchorCentred = ["1", "true"].contains(attr("anchorCtr") ?? "")
         body0.keepsFirstSpace = ["1", "true"].contains(attr("spcFirstLastPara") ?? "")
