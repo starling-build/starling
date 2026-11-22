@@ -2822,7 +2822,9 @@ private struct SlideContext {
                         // A plain cell paragraph keeps its own left edge, first-line offset and right margin
                         // (marL, indent, marR): espt 174ab0c2's table labels stand 7.2 pt in and break 13.6 pt short.
                         // (Only a real offset, marL above 0 and no hanging indent: explicit zeros and aptia's centred hanging cell sat worse.)
-                        if (level.marL ?? 0) > 0 || (level.indent ?? 0) > 0, (level.indent ?? 0) >= 0 {
+                        // (A hanging indent holds in a left-aligned cell: 3c1f2c4d820b p4's marL 24.25, indent -24.25 lines break at the 24 pt hang in PowerPoint's print.)
+                        let hangs = (level.indent ?? 0) < 0 && (level.marL ?? 0) > 0 && level.algn != "ctr" && level.algn != "r"
+                        if (level.marL ?? 0) > 0 || (level.indent ?? 0) > 0, (level.indent ?? 0) >= 0 || hangs {
                             style.indentLeft = level.marL ?? 0
                             style.firstLineIndent = level.indent ?? 0
                         }
