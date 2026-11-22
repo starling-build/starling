@@ -3082,14 +3082,14 @@ enum ChartPainter {
             // (A Word pie's legend at a side wraps a name wider than 108.5 pt of a 360 frame (a third of it less 11.5) within that, at
             // any letter, the lines 10.97 apart and the entries 5.8 apart after the last: lab piesize4's legr docs, 34 to 60 characters.)
             let wordSidePie = c.type == .pie && beside && box == nil && !c.onSlide && !c.onSheet && !libreLegend
-            // (A slide pie's legend at a side wraps a name wider than a quarter of the frame less the key's room, and every entry
+            // (A slide pie's legend at a side wraps a name wider than 0.325 of the frame less the key's room, and every entry
             // then takes one slot as tall as the tallest, 5.8 pt apart: espt c249abc3 p6, "Sector Público del nivel Nacional" in two
             // lines, the three keys 42.2 pt apart in PowerPoint's print, ours 24.3.)
-            let slideSidePie = c.type == .pie && beside && box == nil && c.onSlide
-            // (A slide doughnut's legend wraps at about 0.315 of the frame less the key (bracket 0.304..0.327 from one print, no lab yet): pt-6de30c85 p4, 513 pt frame, 'Atendidos pela Funasa' (164) wraps, 'ou sem informação' (141) stays.)
+            let slideSidePie = (c.type == .pie || c.type == .doughnut) && beside && box == nil && c.onSlide
+            // (A slide pie's or doughnut's legend wraps at 0.325 of the frame less the key (lab pie-lab4, 20 slides: pie and doughnut alike, 300-700 pt frames, 10 and 14 pt names; 0.32 and 0.33 each miss 6 slides, 0.325 misses 2 by 0.6 pt); earlier pt-6de30c85 p4: pt-6de30c85 p4, 513 pt frame, 'Atendidos pela Funasa' (164) wraps, 'ou sem informação' (141) stays.)
             let slideSideRing = c.type == .doughnut && beside && box == nil && c.onSlide
             if wordSidePie || slideSidePie || slideSideRing {
-                let wrapW = slideSideRing ? 0.315 * r.width - lead : slideSidePie ? 0.25 * r.width - lead : r.width / 3 - 11.5 * k + 5
+                let wrapW = (slideSideRing || slideSidePie) ? 0.325 * r.width - lead : r.width / 3 - 11.5 * k + 5
                 entries = entries.map { e in
                     guard e.tp.width > wrapW + 0.01 else { return e }
                     RuleTrace.hit("word-pie-side-legend-name-wraps-at-a-third-of-the-frame")
