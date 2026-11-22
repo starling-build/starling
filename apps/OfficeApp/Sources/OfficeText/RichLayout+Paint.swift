@@ -1080,6 +1080,7 @@ extension RichLayout {
             _paintOutlineStrokes(lines.paragraph, lines.painter, at: at, canvas)
             _paintOverlay(lines.paragraph, lines.painter, at: at, canvas, document)
             _paintEmphasis(lines.paragraph, lines.painter, at: at, canvas, document, index: i)
+            _paintRules(lines.paragraph, lines.painter, at: at, canvas, document)
             return
         }
         if part != .text, let c = _cells[i], c.firstInRow {
@@ -1790,6 +1791,8 @@ extension RichLayout {
                       map: lines == nil ? _map(i) : nil)
         _paintEmphasis(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
                        map: lines == nil ? _map(i) : nil, index: i)
+        _paintRules(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
+                    map: lines == nil ? _map(i) : nil)
         if lines == nil { _paintClosingUnderline(i, g, at: textAt, canvas, document) }
         if !leadersPainted, i < _leaders.count, !_leaders[i].isEmpty {
             // A leader fills its tab: the character over and over, up to
