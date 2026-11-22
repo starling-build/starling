@@ -176,9 +176,6 @@ extension RichLayout {
         func mayFallBack(_ s: String, named: String) -> Bool {
             return s.unicodeScalars.contains { u in
                 guard u.value >= 0x250 else { return false }
-                // (East Asian text a missing face asks for is drawn by the East Asian fallback whose line the layout already sets as PowerPoint
-                // does: 7fc5fcbcda59 p31, a title in an absent face, stood 5 pt above PowerPoint's print under the hold.)
-                if (0x2E80 ... 0xD7AF).contains(u.value) || (0xF900 ... 0xFAFF).contains(u.value) || (0xFF00 ... 0xFFEF).contains(u.value) || (0x3000 ... 0x30FF).contains(u.value) { return false }
                 return RichLayout._latinFaceLacks(named, u.value) ?? true
             }
         }
