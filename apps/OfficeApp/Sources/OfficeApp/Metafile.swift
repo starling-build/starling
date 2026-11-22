@@ -1178,8 +1178,15 @@ private struct Player {
                 let head = u32(a + 40), headLength = u32(a + 44), bits = u32(a + 48), bitsLength = u32(a + 52)
                 let rop = u32(a + 60), w = Double(i32(a + 64)), h = Double(i32(a + 68))
                 let image = headLength > 0 ? bitmap(header: p + head, headerLength: headLength, bits: p + bits, bitsLength: bitsLength) : nil
-                let source = image.map { Rect.fromLTWH(sx, $0.height - sy - sh, sw, sh) }
-                blit(rop: rop, dest: Rect.fromLTWH(x, y, w > 1 ? w - 1 : w, h > 1 ? h - 1 : h), source: source, image: image)
+                // (A source rectangle wider or taller than the bitmap is cut to it and the destination shrinks in proportion, as GDI
+                // does: ko-dcc7e p37's 1253 px bitmap with a 1256 px source draws 1253 units wide, 600.63 pt in the print, not the frame's 602.06.)
+                var sw2 = sw, sh2 = sh, dw = w > 1 ? w - 1 : w, dh = h > 1 ? h - 1 : h
+                if let im = image {
+                    if sw > 0, sx >= 0, sx + sw > im.width, im.width > sx { dw *= (im.width - sx) / sw; sw2 = im.width - sx }
+                    if sh > 0, sy >= 0, sy + sh > im.height, im.height > sy { dh *= (im.height - sy) / sh; sh2 = im.height - sy }
+                }
+                let source = image.map { Rect.fromLTWH(sx, $0.height - sy - sh2, sw2, sh2) }
+                blit(rop: rop, dest: Rect.fromLTWH(x, y, dw, dh), source: source, image: image)
             default:
                 break
             }
