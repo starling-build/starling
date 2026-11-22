@@ -21,6 +21,8 @@ struct ShapeRun: Equatable {
     var size: Double          // points
     var bold = false, italic = false, underline = false
     var color: Color? = nil
+    /// `a:latin@typeface` when it names a face (not a theme slot such as +mn-lt).
+    var face: String? = nil
 }
 
 struct ShapeParagraph: Equatable {
@@ -188,6 +190,7 @@ struct SheetShape: Equatable {
                     var run = ShapeRun(text: t.text, size: attr("sz").flatMap(Double.init).map { $0 / 100 } ?? 11)
                     run.bold = attr("b") == "1"; run.italic = attr("i") == "1"
                     run.underline = (attr("u") ?? "none") != "none"
+                    if let f = rp?.child("latin")?["typeface"], !f.isEmpty, !f.hasPrefix("+") { run.face = f }
                     run.color = color(rp?.child("solidFill") ?? defaults?.child("solidFill"))
                     para.runs.append(run)
                 }
@@ -287,8 +290,8 @@ struct SheetShape: Equatable {
             let spans = (para.runs.isEmpty ? [ShapeRun(text: " ", size: para.endSize ?? 11)] : para.runs).map { run -> InlineSpan in
                 TextSpan(text: run.text, style: Flutter.TextStyle(
                     color: run.color ?? textColor ?? Color(0xFF000000), fontSize: max(3, run.size * k) * over,
-                    fontWeight: run.bold ? .bold : .normal, fontStyle: run.italic ? .italic : .normal, height: lineHeight,
-                    decoration: run.underline ? .underline : nil, fontFamily: font))
+                    fontWeight: run.bold ? .bold : .normal, fontStyle: run.italic ? .italic : .normal, height: run.face.flatMap { lineHeight == nil ? nil : SheetPrintMetrics.lineEm(family: $0) } ?? lineHeight,
+                    decoration: run.underline ? .underline : nil, fontFamily: run.face.map { OfficeFonts.drawn($0) } ?? font))
             }
             let align: TextAlign = para.align == "ctr" ? .center : para.align == "r" ? .right : para.align == "just" ? .justify : .left
             let tp = TextPainter(text: TextSpan(children: spans), textAlign: align, textDirection: .ltr)
