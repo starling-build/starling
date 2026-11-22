@@ -286,6 +286,8 @@ struct Chart: Equatable {
     var categoryLabelBold = false
     /// The category axis is a date axis (`c:dateAx`): Word prints its aslant labels as outlines.
     var dateAxis = false
+    /// The date axis counts in months, so its names are blank but at each period's first date (every one that is shown is shown).
+    var monthNamesSparse = false
     /// The turn the file gives the category labels (`c:txPr/a:bodyPr rot`),
     /// degrees, anticlockwise positive: 45 for aascu 5864's country names.
     /// nil where it gives none, and the labels are set aslant only when
@@ -1658,8 +1660,23 @@ enum ChartXML {
                 let axis = space.descendant("c:catAx")?.first("c:numFmt") ?? space.descendant("c:dateAx")?.first("c:numFmt")
                 let own = axis.flatMap { ["0", "false"].contains($0["sourceLinked"] ?? "1") ? $0["formatCode"] : nil }
                 if let code = own ?? cache.first("c:formatCode")?.text, !code.isEmpty, code.lowercased() != "general" {
+                    let raw = names
                     names = names.map { name in
                         name.flatMap { Double($0.trimmingWhitespace()) }.map { chartNumberText($0, code) } ?? name
+                    }
+                    // (A date axis counted in months, `c:majorTimeUnit` months by `c:majorUnit`: its names stand at the first date of each
+                    // period, not at every date: b3af6b818144 p8's 264 days print as 12 month numbers, 1 to 12, in PowerPoint.)
+                    if let dax = space.descendant("c:dateAx"), dax.first("c:majorTimeUnit")?["val"] == "months", dax.first("c:auto")?["val"] == "0" {
+                        let step = max(1, dax.first("c:majorUnit")?["val"].flatMap(Int.init) ?? 1)
+                        var last = Int.min
+                        names = zip(raw, names).map { r, shown in
+                            guard let serial = r.flatMap({ Double($0.trimmingWhitespace()) }) else { return shown }
+                            let ym = chartNumberText(serial, "yyyy-mm").split(separator: "-").compactMap { Int($0) }
+                            guard ym.count == 2 else { return shown }
+                            let period = (ym[0] * 12 + ym[1] - 1) / step
+                            defer { last = period }
+                            return period == last ? "" : shown
+                        }
                     }
                 }
             }
@@ -2414,6 +2431,7 @@ enum ChartXML {
             if let t = hx.first("c:title") { let text = _titleTexts(t).joined(); if !text.isEmpty { c.categoryAxisTitle = text } }
         }
         c.dateAxis = axes.contains { $0.name == "c:dateAx" }
+        c.monthNamesSparse = axes.contains { $0.name == "c:dateAx" && $0.first("c:majorTimeUnit")?["val"] == "months" && $0.first("c:auto")?["val"] == "0" }
         c.valueAxisTitle = axisTitle(titledValue)
         if let t = titledValue?.first("c:title") ?? titledCategory?.first("c:title"), Self._bare(t, in: space) { c.axisTitleSize = 20; c.bareAxisTitle = true }
         if let t = titledValue?.first("c:title") ?? titledCategory?.first("c:title") {
@@ -5450,6 +5468,7 @@ enum ChartPainter {
             }
         }
         every = max(every, c.categoryLabelSkip)
+        if c.monthNamesSparse { every = 1 }
         // An aslant label's drop below its tick.
         func drop(_ t: TextPainter) -> Double { t.width * sin(slant) + t.height * cos(slant) }
         let lineH = valueLabels.first?.height ?? 12 * k
