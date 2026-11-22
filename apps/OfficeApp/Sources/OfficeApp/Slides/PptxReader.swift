@@ -1744,7 +1744,11 @@ private struct SlideContext {
         let own: Rect? = xfrm.flatMap { _xfrmRect($0) }
         let fromLayout: Rect? = inherited.layout?.first("p:spPr")?.first("a:xfrm").flatMap { _xfrmRect($0) }
         let fromMaster: Rect? = inherited.master?.first("p:spPr")?.first("a:xfrm").flatMap { _xfrmRect($0) }
-        guard var frame = own ?? fromLayout ?? fromMaster else { return nil }
+        // A date, footer or slide-number placeholder the layout has but no frame stands anywhere (layout, master, slide): PowerPoint sets its text
+        // at the page's corner, on one line and without insets (c991b42e p25's "Página 25" starts at x 0, 64547fb24d29's "10" the same).
+        let frameless = own == nil && fromLayout == nil && fromMaster == nil && inherited.layout != nil
+            && ["dt", "ftr", "sldNum"].contains(ph?["type"] ?? "")
+        guard var frame = own ?? fromLayout ?? fromMaster ?? (frameless ? Rect.fromLTWH(0, 0, 0, 0) : nil) else { return nil }
         // A date, footer or slide-number placeholder with no frame of its
         // own and none on the layout is not on the slide for PowerPoint,
         // whatever the master has (the file keeps it; a save does too).
@@ -1933,10 +1937,12 @@ private struct SlideContext {
             }
         }
         let text = _text(sp, ph: ph, inherited: inherited, kind: kind)
+        var textInsets = text.insets
+        if frameless { textInsets = EdgeInsets(left: 0, top: 0, right: 0, bottom: 0) }
         let rotation = (xfrm?["rot"].flatMap(Double.init) ?? 0) / 60000
         var st = ShapeState(id: id(), name: name, kind: kind, frame: frame, rotation: rotation,
                             fill: fill, outline: outline, outlineWidth: outlineWidth,
-                            anchor: text.anchor, insets: text.insets, prompt: nil,
+                            anchor: text.anchor, insets: textInsets, prompt: nil,
                             text: text.document, font: text.font, size: text.size, color: text.color,
                             listIndent: text.listIndent, phType: phRead?["type"], phIdx: phRead?["idx"],
                             fillScheme: fillScheme)
@@ -1948,7 +1954,7 @@ private struct SlideContext {
         st.sizeGroup = text.sizeGroup
         st.keepsSize = text.keepsSize
         st.generatedHang = text.generatedHang
-        st.noWrap = text.noWrap
+        st.noWrap = text.noWrap || frameless
         st.anchorCentred = text.anchorCentred
         st.keepsFirstSpace = text.keepsFirstSpace
         st.textTurn = text.textTurn
