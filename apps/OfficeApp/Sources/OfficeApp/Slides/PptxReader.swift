@@ -2858,6 +2858,13 @@ private struct SlideContext {
                         para.style.cellDescentShare = max(share(big?.style.fontFamily), share(end?.font.map { _font($0) }))
                     }
                     if !cellKoParens.isEmpty { para.style.eastAsian["a:hangParens"] = cellKoParens.map(String.init).joined(separator: ",") }
+                    // (A closing mark, ) ] and the like, in a zh run of a cell hangs past the margin as it does in a text box: 1892a5a76df6 p70's
+                    // "（複數決標屬採購策略）" stays on one line in a 149 pt cell, PowerPoint's print; lab zhhang.)
+                    if p.all("a:r").contains(where: { r in
+                        (r.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("zh")
+                            && (r.first("a:t")?.text ?? "").unicodeScalars.contains(where: { [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009].contains($0.value) }) }) {
+                        para.style.eastAsian["a:hangClosingZh"] = "1"
+                    }
                     if !text.isEmpty, let algn = p.first("a:pPr")?["fontAlgn"], algn == "t" || algn == "ctr" || algn == "b",
                        let face = runs.max(by: { ($0.style.fontSize ?? 0) < ($1.style.fontSize ?? 0) })?.style.fontFamily,
                        let m = SlideFonts.windowsAscentDescent(face) {
