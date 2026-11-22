@@ -5221,7 +5221,8 @@ enum ChartPainter {
             // the rest: both of cooper's charts in PowerPoint's print, top
             // gridline 10.5 pt under the frame's top, ours 14.5.)
             let bare2007 = c.onSlide && c.plainText && !c.styled2013 && c.officeStyled && c.title == nil
-            let lower = c.onSlide ? (c.styled2013 ? 1.5 : c.title != nil ? 1.0 : bare2007 ? -4.0 : 0) * k
+            // (A box-and-whisker chart on a slide: PowerPoint's plot top stands 1.3 pt higher than the shared column rule: lab-2's value axis top at 88.3, ours 89.6.)
+            let lower = c.onSlide ? ((c.styled2013 ? 1.5 : c.title != nil ? 1.0 : bare2007 ? -4.0 : 0) - (c.boxes != nil ? 1.3 : 0)) * k
                 : c.onSheet ? (titled ? (c.chartex ? 0.45 : c.styled2013 ? 2.57 : 2.05) : (c.styled2013 ? -1.25 : -1.62)) * pt
                 : (word && c.barView == nil && (c.title ?? "").isEmpty && c.titleAt == nil ? (deleted2013Column ? 1.6 : untitledWordRise) * k : plainUntitledWord ? (c.valueAxisDeleted ? 1.5 : libre ? -3.75 : -3) * k
                    // (A titled 3-D column chart: its front plane starts 5.4 pt lower than ours at any title size —
