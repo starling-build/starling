@@ -228,7 +228,7 @@ final class SlideTextCache {
             // was fitted to a box wider than its inscribed one, 53 pt where
             // PowerPoint's is 49.)
             let ins = shape.insets(atFontScale: scale)
-            let room = shape.frame.height - ins.top - ins.bottom
+            let room = shape.frame.height - ins.top - (shape.insetsFollowFont ? ins.bottom : 0)
             let width = max(1, shape.frame.width - ins.left - ins.right)
             // Measured at a twentieth of a point: lines laid out in whole
             // points round 64.8 down to 64, and a diagram's text came out
@@ -242,7 +242,13 @@ final class SlideTextCache {
             layout.spacingFollowsFont = shape.insetsFollowFont
             layout.width = width * res
             layout.ensureLaidOut(text.document)
-            let height = layout.totalHeight / res
+            var height = layout.totalHeight / res
+            // A last paragraph with no text (the Enter at the end of a list) is not counted:
+            // PowerPoint's fit leaves it out (lo-NumberedList: 336 pt with it, 305 without,
+            // the box 335, and the print keeps the size).
+            if text.document.paragraphs.count > 1, text.document.paragraphs.last?.text.isEmpty == true {
+                height -= layout.geometry(layout.count - 1).height / res
+            }
             return height <= room + 0.5 / res && (!wholeWords || widestWord(text.document, theme, scale: scale) <= width + 0.5)
         }
         // A diagram laid out here (its margins follow its font) shrinks by
