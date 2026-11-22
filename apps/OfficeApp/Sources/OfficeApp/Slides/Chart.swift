@@ -293,6 +293,8 @@ struct Chart: Equatable {
     /// nil where it gives none, and the labels are set aslant only when
     /// they do not fit.
     var categoryLabelTurn: Double? = nil
+    /// The category labels' `a:bodyPr vert` stacks them upright (wordArtVertRtl), not one of the horizontal kinds.
+    var categoryLabelsStacked = false
     /// `c:tickLblSkip`: only every so many category names shown (the first of each run).
     var categoryLabelSkip = 1
     /// The axes' label colours where the file gives them, and whether the
@@ -2473,6 +2475,7 @@ enum ChartXML {
         }
         if let skip = categoryAxis?.first("c:tickLblSkip")?["val"].flatMap(Int.init), skip > 1 { c.categoryLabelSkip = skip }
         // (-60000000 is the charts' "automatic", PowerPoint's own default.)
+        if let vert = categoryAxis?.first("c:txPr")?.first("a:bodyPr")?["vert"], vert != "horz" { c.categoryLabelsStacked = true }
         if let rot = categoryAxis?.first("c:txPr")?.first("a:bodyPr")?["rot"].flatMap(Double.init), abs(rot) <= 5_400_000 {
             c.categoryLabelTurn = -rot / 60000
         }
@@ -5400,6 +5403,9 @@ enum ChartPainter {
             // (A Latin name with no space to break at stays whole on its line, wider than its slot: PowerPoint's print of zh b3af6b818144 p15
             // keeps "2022/1~9" on one line, 2 pt past the slot's width, where ours broke it after the "~".)
             func slotName(_ n: String, _ w: Double) -> Double {
+                // (A name of ideographs with no space stays whole on its line, wider than its slot: PowerPoint's print of zh f06692fd370c p5 and
+                // p8 sets "教育暨專業科學" and "資訊暨通訊傳播" (8 at 14 pt, 112 pt in a 101.5 pt slot) on one line, where ours broke them after seven.)
+                if c.onSlide, !horizontal, !c.categoryLabelsStacked, w.isFinite, !n.isEmpty, n.unicodeScalars.allSatisfy({ (0x4E00 ... 0x9FFF).contains($0.value) || (0x3000 ... 0x303F).contains($0.value) }) { return .infinity }
                 guard c.onSlide, !horizontal, w.isFinite, n.unicodeScalars.allSatisfy({ $0.isASCII }) else { return w }
                 var out = w
                 for word in n.split(separator: " ") {
