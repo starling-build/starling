@@ -5322,6 +5322,8 @@ enum ChartPainter {
             let shown = chartNumberText(v, code)
             return shown.isEmpty ? tickLabel(v) : shown
         }
+        // (On a sheet the right-hand axis' labels stand 0.927 x their size off the plot, as the slide rule has the left's: chart-axis_title_default_rotation's 10 pt labels 9.4 pt off in Excel's print, ours 4.5.)
+        let sheetSecondGap = 0.927 * labelSize
         let valueLabelsRaw = ticks.map { valueText(c.valueAxisDeleted ? "" : valueLabel($0), labelSize, .infinity) }
         // The second axis' labels, in its own format ("60.00%").
         let secondTicks = secondScale.map { s2 in Array(stride(from: s2.lo, through: s2.hi + s2.step * 1e-6, by: s2.step)) } ?? []
@@ -5639,7 +5641,7 @@ enum ChartPainter {
             }
             // (The second axis' labels take a band at the right, as the
             // first's do at the left.)
-            if !secondLabels.isEmpty { right = barePlain ? (secondLabels.map(\.width).max() ?? 0) + bareGap - 2.5 * k : max(right, (secondLabels.map(\.width).max() ?? 0) + 10 * k) }
+            if !secondLabels.isEmpty { right = barePlain ? (secondLabels.map(\.width).max() ?? 0) + bareGap - 2.5 * k : max(right, (secondLabels.map(\.width).max() ?? 0) + 10 * k + (c.onSheet ? sheetSecondGap - 6 * k : 0)) }
             else if barePlain, !edges { right = 2 * k }
             // (A title the file places on a slide keeps its own column in PowerPoint's layout of the plot: b7d6faa9 p16's
             // "Top 5 Error rate" at 4.3% and "# Prams" at 83.3% of the chart, the left labels starting where the first
@@ -6325,7 +6327,7 @@ enum ChartPainter {
             let tp = secondLabelsRaw[i]
             // (Word for Windows stands them 10.1pt off the plot's edge: zh-61aaad09's
             // and zh-2a241df1's "60.00%" labels print 4pt right of where 6 put them.)
-            if !swapSides { tp.paint(canvas, Offset(plot.right + (c.onSlide && !c.legend && !c.styled2013 && !libre && !c.chartex && c.barView == nil && !horizontal ? 0.927 * labelSize : !c.onSlide && !c.onSheet && !c.chartex ? (libre && c.plotLayoutInner ? 10.1 - 2.41 : 10.1) : 6) * k, vpos2(v) - tp.height / 2 - lift2)) }
+            if !swapSides { tp.paint(canvas, Offset(plot.right + (c.onSlide && !c.legend && !c.styled2013 && !libre && !c.chartex && c.barView == nil && !horizontal ? 0.927 * labelSize : !c.onSlide && !c.onSheet && !c.chartex ? (libre && c.plotLayoutInner ? 10.1 - 2.41 : 10.1) : c.onSheet ? sheetSecondGap / k : 6) * k, vpos2(v) - tp.height / 2 - lift2)) }
         }
         if swapSides {
             // The columns' labels at the right, the lines' at the left, each on its own scale.
