@@ -37,7 +37,8 @@ def job(name):
     d = subprocess.run([sys.executable, os.path.join(TEST, "pdf-diff.py"), ref, pdf, f"{OUT}/pairs/{base}", "1"], capture_output=True, text=True, timeout=600).stdout
     px = {int(m.group(1)): float(m.group(2)) for m in re.finditer(r"^page\s+(\d+)\s+([\d.]+)% pixels differ", d, re.M)}
     try:
-        a = M.lines(None, ref, {}); b = M.lines(None, pdf, {})
+        dw, do = M._unseen_pairs(ref, pdf)   # glyphs a clip hides and no ink shows (49156 p1: 28 digits outside the clip) are not text either print shows
+        a = M.lines(None, ref, dw); b = M.lines(None, pdf, do)
     except Exception as e:
         a = b = []
     ap, bp = {}, {}
