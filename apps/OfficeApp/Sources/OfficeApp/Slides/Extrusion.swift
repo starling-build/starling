@@ -564,7 +564,7 @@ enum Extrusion {
                 let seen = turn(local)
                 if seen.x * n.x + seen.y * n.y + seen.z * n.z < 0 { local = P3(x: -local.x, y: -local.y, z: 0) }
                 quads.append(((a.z + b.z + a2.z + b2.z) / 4, [flat(a), flat(b), flat(b2), flat(a2)],
-                              litLocal(side, pageAxes(local))))
+                              (scene.legacy && n0.z < 0.9 && spin == 0 ? lit(side, n) : litLocal(side, pageAxes(local)))))
             }
         }
         for q in quads.sorted(by: { $0.z < $1.z }) { polygon(q.pts, q.color) }
