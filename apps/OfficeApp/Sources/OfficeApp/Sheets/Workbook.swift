@@ -350,6 +350,8 @@ final class Worksheet {
 
 final class Workbook {
     var sheets: [Worksheet]
+    /// Some sheet is a chart sheet (it moves the printer measure of Verdana 10).
+    var hasChartSheet: Bool { sheets.contains { $0.isChartSheet } }
     var styles: [CellStyle] = [.plain]
     /// The file's default font (its first one, the Normal style's) where
     /// that is not Calibri 11: a style whose `fontName`/`fontSize` is nil

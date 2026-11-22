@@ -455,7 +455,7 @@ extension SheetGridState {
         guard setup.headings else { return Size(0, 0) }
         let book = controller.book
         let size = book.defaultFontSize ?? 11
-        let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: size, bold: book.defaultFontBold)
+        let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: size, bold: book.defaultFontBold, chartBook: book.hasChartSheet)
         return Size(Double(max(3, String(lastRow + 1).count)) * m.digit + 0.42 * size, m.defaultRow)
     }
 
