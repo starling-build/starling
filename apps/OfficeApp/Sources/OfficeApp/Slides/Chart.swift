@@ -5237,7 +5237,12 @@ enum ChartPainter {
             // label line and 9.2 pt across, left of the names.)
             let leafWidth: Double = catLabels.map(\.width).max() ?? 0
             let levelBand: Double = Double(c.categoryLevels.count) * ((catLabels.first?.height ?? 12 * k) + 9.2 * k)
-            let left: Double = leafWidth + (old2007 ? 7.9 : 6) * k + besideOut + levelBand
+            // (A slide's bar chart with no category ticks: the names end off the axis by a share of their own line, 0.773 of the face's
+            // line height — Malgun 24 pt 24.67, Calibri 22.2, Arial 40 pt 34.5, Times 34.1, Verdana 37.7, Tahoma 37.5 in PowerPoint's
+            // print, 6 faces at 2 or 4 sizes, within 0.4 pt — not a fixed 8.4 pt. ko-ab1bf295 p6.)
+            let nameGap: Double = (c.onSlide && !old2007 && besideOut == 0 && levelBand == 0 && !slideLaidBar && (catLabels.first?.height ?? 0) > 0)
+                ? 0.773 * (catLabels.first?.height ?? 0) - 2.35 * k : (old2007 ? 7.9 : 6) * k
+            let left: Double = leafWidth + nameGap + besideOut + levelBand
             // (A 2013-style chart's top stands off the title as a column
             // chart's does, half a label line, though no label overhangs
             // it: 61745's bar chart's plot is 17 pt under its title's
