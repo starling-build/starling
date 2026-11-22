@@ -165,4 +165,46 @@ final class MetafilePlusTests: XCTestCase {
         b[8] = 0x8   // blend factors: not drawn
         XCTAssertNil(EmfPlus.readLinear(b, 0, b.count))
     }
+
+    func testAPathGradientBrushShadesFromItsCentreToItsBoundary() throws {
+        var b: [UInt8] = []
+        for v in [0xDBC01002, 3, 1, 4, 0xFFF0F0F0] { b += le32(v) }   // version, path gradient, boundary path, wrap, centre colour
+        b += f32(30) + f32(40) + le32(1) + le32(0xFF303030)             // centre point, one surround colour
+        var path = le32(0xDBC01002) + le32(4) + le32(0)
+        for p in [(10.0, 20.0), (50, 20), (50, 60), (10, 60)] { path += f32(p.0) + f32(p.1) }
+        path += [0, 1, 1, 0x81]
+        b += le32(path.count) + path
+        let g = try XCTUnwrap(EmfPlus.readPathGradient(b, 0, b.count))
+        XCTAssertEqual(g.center, Offset(30, 40))
+        XCTAssertEqual(g.surroundARGB, 0xFF303030)
+        XCTAssertEqual(g.boundary.points.count, 4)
+        var two = b; two[8] = 0x4   // preset colours: not played
+        XCTAssertNil(EmfPlus.readPathGradient(two, 0, two.count))
+    }
+
+    func testAFillWithAPathGradientIsBandsOfTheBoundaryScaledAboutTheCentre() throws {
+        var brush: [UInt8] = []
+        for v in [0xDBC01002, 3, 1, 4, 0xFFFFFFFF] { brush += le32(v) }
+        brush += f32(30) + f32(40) + le32(1) + le32(0xFF000000)
+        var path = le32(0xDBC01002) + le32(4) + le32(0)
+        for p in [(10.0, 20.0), (50, 20), (50, 60), (10, 60)] { path += f32(p.0) + f32(p.1) }
+        path += [0, 1, 1, 0x81]
+        brush += le32(path.count) + path
+        let head = plus(0x4001, 1, le32(0xDBC01002) + le32(1) + le32(96) + le32(96))
+        let fillRect = plus(0x400A, 0x0001, le32(1) + le32(1) + f32(10) + f32(20) + f32(40) + f32(40))
+        let m = try XCTUnwrap(Metafile(Data(header() + comment(head + plus(0x4008, 0x0101, brush) + fillRect) + fallback() + end()), id: "p"))
+        XCTAssertGreaterThan(m.steps.count, 8, "one surround fill and a band per colour step")
+        guard case .fill(_, let first) = m.steps[0], case .fill(_, let last) = m.steps[m.steps.count - 1] else { return XCTFail("fills") }
+        XCTAssertEqual(first, Color(0xFF000000), "the surround colour first")
+        XCTAssertGreaterThan(last.r, 0.9, "the centre is nearly white")
+    }
+
+    func testAHatchBrushIsItsTilesMeanColour() throws {
+        var b: [UInt8] = []
+        for v in [0xDBC01002, 1, 12, 0xFF000000, 0xFFFFFFFF] { b += le32(v) }   // 50 percent: black on white
+        let c = try XCTUnwrap(EmfPlus.readHatch(b, 0, b.count))
+        XCTAssertEqual(c, Color(0xFF808080))
+        b[8] = 40   // a style whose tile is not a plain share
+        XCTAssertNil(EmfPlus.readHatch(b, 0, b.count))
+    }
 }
