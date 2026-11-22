@@ -1547,7 +1547,16 @@ extension _ParaFrame {
             // (Slides: a line of so many points is that many whatever faces it mixes. Without a strut each run's box is that tall about
             // its own face's ascent and descent, and a line of ideographs beside digits in another face stacks to 0.5 pt more than
             // PowerPoint's 30: 6cb9bf676218 p11's third column steps 30.5 for its 30.0. The line is held by the first run's face.)
-            if strut == nil, !theme.wordRules, theme.exactLinesAsPowerPoint, !pil, style.lineHeightPoints != nil, !style.lineHeightIsMinimum,
+            // (Only where the runs DO mix faces: a line of one face keeps the engine's own split of it, 7fc5fcbcda59 p31's JhengHei title
+            // stood 5 pt above PowerPoint's print under the even strut.)
+            func faces(_ a: InlineSpan, _ into: inout Set<String>) {
+                guard let t = a as? TextSpan else { return }
+                if let tx = t.text, tx.contains(where: { !$0.isWhitespace }), let st = t.style { into.insert(String((st.debugLabel ?? st.fontFamily ?? "").split(separator: ".").first ?? "").filter { $0 != "(" && $0 != ")" }) }
+                for c in t.children ?? [] { faces(c, &into) }
+            }
+            var leafFaces = Set<String>()
+            if strut == nil, !theme.wordRules, theme.exactLinesAsPowerPoint, !pil, style.lineHeightPoints != nil { faces(span, &leafFaces) }
+            if strut == nil, leafFaces.count > 1, !style.lineHeightIsMinimum,
                let lead = _firstLeafStyle(span), let size = lead.fontSize, size > 0.5, let h = lead.height, h > 0.05 {
                 strut = StrutStyle(fontFamily: lead.fontFamily, fontFamilyFallback: lead.fontFamilyFallback, fontSize: size, height: h,
                                    leadingDistribution: .even, fontWeight: lead.fontWeight, forceStrutHeight: true)
