@@ -4547,7 +4547,13 @@ private struct SlideContext {
                 let text = t.hasSuffix("parenboth") ? "(\(counter))" : t.hasSuffix("parenr") ? "\(counter))"
                     : t.hasSuffix("plain") ? counter : "\(counter)."
                 var levelsOf: [Int: ListLevelFormat] = [:]
-                levelsOf[lvl] = ListLevelFormat(text: text, format: format)
+                var levelFormat = ListLevelFormat(text: text, format: format)
+                // East Asian schemes: PowerPoint counts 一. 二. 三. (ea1Cht/ea1Chs), ① (circleNumDb), １． (arabicDb).
+                if t.hasPrefix("ea1cht") || t.hasPrefix("ea1chs") { levelFormat.rawFormat = "taiwaneseCountingThousand" }
+                else if t.hasPrefix("ea1jpnchsdb") { levelFormat.rawFormat = "japaneseCounting" }
+                else if t.hasPrefix("circlenumdbplain") { levelFormat.rawFormat = "decimalEnclosedCircle" }
+                else if t.hasPrefix("arabicdb") { levelFormat.rawFormat = "decimalFullWidth" }
+                levelsOf[lvl] = levelFormat
                 doc.listFormats[id] = levelsOf
                 if n.start != 1 { doc.listRestarts[id] = [lvl: n.start] }
             }
