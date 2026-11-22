@@ -4881,6 +4881,14 @@ enum ChartPainter {
             let legendBeside = c.legend && !c.legendPlaced && ["r", "l", "tr"].contains(c.legendPosition)
             var right = edges ? (catLabels.last?.width ?? 0) / 2 : ((c.onSlide || word) && c.styled2013 && !legendBeside ? 2.1 : c.onSlide && c.plainText && !c.styled2013 && c.officeStyled && c.title == nil ? 2 : 4) * k
             if edges { left = max(left, (catLabels.first?.width ?? 0) / 2); right = max(right, 4 * k) }
+            // (A bar chart on a slide whose value axis is deleted and whose plot is left to PowerPoint: with no value
+            // labels the plot starts 11.0 pt inside the frame, not 24.2, and ends 10.6 in, not 12.7: PowerPoint's
+            // prints of ko-e114b968 slide 23 and ko-c03ed80e slides 19, 21 and 34, the first bar 12 to 13 pt left of ours.)
+            if c.onSlide, c.valueAxisDeleted, c.plotLayout == nil, c.barView != nil || c.type == .column, !edges, valueLabels.allSatisfy({ $0.width == 0 }) {
+                RuleTrace.hit("slide-bar-chart-without-value-axis-plot-hugs-the-frame")
+                left -= 13.2 * k
+                right -= 2.1 * k
+            }
             // (An area chart's first date, turned, reaches its horizontal extent left of the plot's
             // edge, and Word keeps it clear of the frame, fitted on one witness: lo-c996762f's plot starts
             // 35.0 in where ours stood 26.8, the values with it.)
