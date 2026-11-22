@@ -5833,7 +5833,10 @@ enum ChartPainter {
                 // (A newer one's on a slide, 1.25 pt above theirs: its plot
                 // stands 1.5 pt lower there, and chart-slide-bg's labels
                 // print 1.1 to 1.5 above where that put them.)
-                let lift = libreLaid ? (0.15 - 1.24) * k : libre ? 0.15 * k : c.chartex && c.onSlide ? -2.05 * k : c.styled2013 ? (c.onSlide ? 1.25 * k : 0) : wordClassicLaid ? 0.55 * k : 1.45 * k
+                // (A walled 3-D column chart laid on a slide: the scale's names 1.3 pt lower than a flat chart's, as the
+                // same chart's ticks: es 3df36ff6 p4 and p10 print them at 429.2 and 429.0 where ours stood 428.0 and 427.8.)
+                let slide3DLaid = c.onSlide && c.barView?.walled == true && c.plotLayoutInner
+                let lift = libreLaid ? (0.15 - 1.24) * k : libre ? 0.15 * k : c.chartex && c.onSlide ? -2.05 * k : slide3DLaid ? 0.15 * k : c.styled2013 ? (c.onSlide ? 1.25 * k : 0) : wordClassicLaid ? 0.55 * k : 1.45 * k
                 // (Word's walled 3-D columns: 8 pt nearer the plot, lo-1bd2003e's labels ending at 142.)
                 let wall3D = (inWord || c.onSlide) && c.barView?.walled == true && c.plotLayoutInner ? (inWord ? 8 : 10) * k : 0
                 // (On a slide 10 pt: es/3df36ff6 p4's labels at 24 in PowerPoint's print, ours at 14.)
