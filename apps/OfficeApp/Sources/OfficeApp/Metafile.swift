@@ -20,6 +20,8 @@ final class Metafile {
     static let macReference = ProcessInfo.processInfo.environment["STARLING_PPT_MAC"] != nil
     enum Step {
         case fill(Path, Color)
+        /// A fill that shades from `from` to `to` through the colours at the stops (EMF+ linear gradient brushes).
+        case gradient(Path, from: Offset, to: Offset, colors: [Color], stops: [Double])
         /// A stroke `width` metafile units wide; 0 is GDI's one-pixel pen.
         case stroke(Path, Color, Double)
         case text(TextRun)
@@ -166,6 +168,14 @@ final class Metafile {
                 p.strokeWidth = max(width, hairline)
                 p.strokeJoin = .round
                 p.color = color
+                canvas.drawPath(path, p)
+            case .gradient(let path, let from, let to, let colors, let stops):
+                let drawnColors = colors.compactMap { drawn($0) }
+                guard drawnColors.count == colors.count, drawnColors.count >= 2 else { continue }
+                let p = Paint()
+                p.style = .fill
+                p.isAntiAlias = true
+                p.shader = Gradient(linear: from, to: to, colors: drawnColors, colorStops: stops)
                 canvas.drawPath(path, p)
             case .clip(let path):
                 canvas.restore()

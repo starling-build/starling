@@ -111,4 +111,20 @@ final class MetafilePlusTests: XCTestCase {
         let dashed = EmfPlus.dashed(line, [3, 1], 2, 0)
         XCTAssertEqual(Array(dashed.computeMetrics()).count, 13, "6 on, 2 off over 100 units: 12 whole dashes and a 4 long one")
     }
+
+    func testALinearGradientBrushIsReadWithItsPresetColours() throws {
+        var b: [UInt8] = []
+        for v in [0xDBC01002, 4, 0x4, 0] { b += le32(v) }          // version, linear, preset colours, wrap mode
+        for v in [10.0, 20.0, 100.0, 50.0] { b += f32(v) }         // rectangle
+        for v in [0xFFFF0000, 0xFF0000FF, 0, 0] { b += le32(v) }   // start, end, reserved
+        b += le32(3)
+        for v in [0.0, 0.5, 1.0] { b += f32(v) }
+        for v in [0xFFFF0000, 0xFF00FF00, 0xFF0000FF] { b += le32(v) }
+        let g = try XCTUnwrap(EmfPlus.readLinear(b, 0, b.count))
+        XCTAssertEqual(g.stops, [0, 0.5, 1])
+        XCTAssertEqual(g.colors[1], Color(0xFF00FF00))
+        XCTAssertEqual(g.rect, Rect.fromLTWH(10, 20, 100, 50))
+        b[8] = 0x8   // blend factors: not drawn
+        XCTAssertNil(EmfPlus.readLinear(b, 0, b.count))
+    }
 }

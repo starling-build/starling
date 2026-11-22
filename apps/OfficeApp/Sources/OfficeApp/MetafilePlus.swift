@@ -33,7 +33,9 @@ struct EmfPlus {
         /// On/off lengths in pen widths (GDI+'s dash, dot, dash-dot styles or a custom array), nil for a solid line, and the offset into it.
         var dash: [Double]? = nil, dashOffset = 0.0 }
     struct Font { var size = 12.0, unit = 0, family = "Arial", bold = false, italic = false, underline = false }
-    enum Object { case brush(Color?), pen(Pen), path(PlusPath), region(Region), font(Font), image(Int), other }
+    /// A linear gradient brush: its gradient line (left to right through the middle of `rect`), its colours and stops, and the brush's own transform.
+    struct Linear { var rect: Rect, colors: [Color], stops: [Double], transform: Matrix }
+    enum Object { case brush(Color?), linear(Linear), pen(Pen), path(PlusPath), region(Region), font(Font), image(Int), other }
 
     static let ident: Int64 = 0x2B46_4D45   // "EMF+"
 
@@ -81,7 +83,9 @@ struct EmfPlus {
                         let kind = (fl >> 8) & 0x7F
                         guard fl & 0x8000 == 0 else { return false }
                         switch kind {
-                        case 1: if u32(q + 12 + 4) != 0 { return false }
+                        case 1:
+                            let type = u32(q + 12 + 4)
+                            if type == 4 { if readLinear(bytes, q + 12, q + 12 + ds) == nil { return false } } else if type != 0 { return false }
                         case 2: if !plainPen(bytes, q + 12, ds) { return false }
                         case 3, 4, 6, 7, 8: break
                         case 5: if u32(q + 12 + 4) != 1 || u32(q + 12 + 24) != 1 { return false }   // only a compressed bitmap
@@ -99,6 +103,32 @@ struct EmfPlus {
     }
 
     /// A pen this draws: a solid brush, no dash, no compound lines, no custom caps (a dashed line drawn solid is worse than the EMF's).
+    /// A linear gradient brush's data (version, type 4, flags, wrap mode, rectangle, two colours, two reserved words, then the optional
+    /// transform and preset colours); nil with a blend-factor or a bell/triangle shape, which this does not draw.
+    static func readLinear(_ b: [UInt8], _ at: Int, _ end: Int) -> Linear? {
+        func u32(_ o: Int) -> Int { o + 4 <= b.count ? Int(b[o]) | Int(b[o + 1]) << 8 | Int(b[o + 2]) << 16 | Int(b[o + 3]) << 24 : 0 }
+        func f32(_ o: Int) -> Double { Double(Float(bitPattern: UInt32(truncatingIfNeeded: u32(o)))) }
+        guard end - at >= 48, end <= b.count else { return nil }
+        let flags = u32(at + 8)
+        if flags & 0x8 != 0 { return nil }
+        var g = Linear(rect: Rect.fromLTWH(f32(at + 16), f32(at + 20), f32(at + 24), f32(at + 28)),
+                       colors: [Color(Int64(u32(at + 32))), Color(Int64(u32(at + 36)))], stops: [0, 1], transform: Matrix())
+        var o = at + 48
+        if flags & 0x2 != 0 {
+            guard o + 24 <= end else { return nil }
+            g.transform = Matrix(a: f32(o), b: f32(o + 4), c: f32(o + 8), d: f32(o + 12), e: f32(o + 16), f: f32(o + 20))
+            o += 24
+        }
+        if flags & 0x4 != 0 {
+            let n = u32(o)
+            guard n >= 2, n < 256, o + 4 + 8 * n <= end else { return nil }
+            g.stops = (0..<n).map { f32(o + 4 + 4 * $0) }
+            g.colors = (0..<n).map { Color(Int64(u32(o + 4 + 4 * n + 4 * $0))) }
+        }
+        guard g.rect.width > 0 else { return nil }
+        return g
+    }
+
     static func plainPen(_ b: [UInt8], _ at: Int, _ ds: Int) -> Bool {
         guard let p = Self.readPen(b, at, ds) else { return false }
         return p.solid && p.plain
@@ -308,7 +338,11 @@ extension EmfPlus {
         let id = flags & 0xFF, kind = (flags >> 8) & 0x7F, end = at + size
         switch kind {
         case 1:
-            objects[id] = Self.u32(b, at + 4) == 0 ? .brush(Color(Int64(Self.u32(b, at + 8)))) : .brush(nil)
+            switch Self.u32(b, at + 4) {
+            case 0: objects[id] = .brush(Color(Int64(Self.u32(b, at + 8))))
+            case 4: objects[id] = Self.readLinear(b, at, end).map { .linear($0) } ?? .brush(nil)
+            default: objects[id] = .brush(nil)
+            }
         case 2:
             objects[id] = Self.readPen(b, at, size).map { .pen($0) } ?? .other
         case 3: objects[id] = .path(Self.readPath(b, at, end))
@@ -339,6 +373,15 @@ extension EmfPlus {
         if flags & 0x8000 != 0 { return Color(Int64(id)) }
         if case .brush(let c)? = objects[id & 0xFF] { return c }
         return nil
+    }
+
+    /// Fills `p` with the brush a record names: a gradient brush as a gradient, anything else as its colour.
+    mutating func paint(_ p: Path, _ flags: Int, _ id: Int) {
+        if flags & 0x8000 == 0, case .linear(let g)? = objects[id & 0xFF] {
+            let m = g.transform.then(toDevice), y = g.rect.top + g.rect.height / 2
+            let a = m.apply(g.rect.left, y), c = m.apply(g.rect.right, y)
+            steps.append(.gradient(p, from: Offset(a.dx, a.dy), to: Offset(c.dx, c.dy), colors: g.colors, stops: g.stops))
+        } else { fill(p, brush(flags, id)) }
     }
 
     mutating func fill(_ p: Path, _ c: Color?) {
@@ -404,7 +447,7 @@ extension EmfPlus {
         case 0x4009:
             fill(quad(Matrix(), bounds.left, bounds.top, bounds.width, bounds.height), Color(Int64(u(0))))
         case 0x4014:
-            if case .path(let p)? = objects[flags & 0xFF] { fill(device(toDevice, p), brush(flags, u(0))) }
+            if case .path(let p)? = objects[flags & 0xFF] { paint(device(toDevice, p), flags, u(0)) }
         case 0x4015:
             if case .path(let p)? = objects[flags & 0xFF], case .pen(let pen)? = objects[u(0) & 0xFF] {
                 let m = toDevice
@@ -412,12 +455,12 @@ extension EmfPlus {
                 steps.append(.stroke(pen.dash.map { Self.dashed(line, $0, width, pen.dashOffset) } ?? line, pen.color, width))
             }
         case 0x400A:
-            let count = u(4), packed = flags & 0x4000 != 0, c = brush(flags, u(0)), m = toDevice
+            let count = u(4), packed = flags & 0x4000 != 0, m = toDevice
             var o = 8
             for _ in 0..<min(count, 100_000) {
                 guard at + o + (packed ? 8 : 16) <= end else { break }
-                if packed { fill(quad(m, Self.i16(b, at + o), Self.i16(b, at + o + 2), Self.i16(b, at + o + 4), Self.i16(b, at + o + 6)), c); o += 8 }
-                else { fill(quad(m, f(o), f(o + 4), f(o + 8), f(o + 12)), c); o += 16 }
+                if packed { paint(quad(m, Self.i16(b, at + o), Self.i16(b, at + o + 2), Self.i16(b, at + o + 4), Self.i16(b, at + o + 6)), flags, u(0)); o += 8 }
+                else { paint(quad(m, f(o), f(o + 4), f(o + 8), f(o + 12)), flags, u(0)); o += 16 }
             }
         case 0x400C:
             let count = u(4), packed = flags & 0x4000 != 0, m = toDevice
@@ -429,7 +472,7 @@ extension EmfPlus {
                 pts.types.append(i == 0 ? 0 : 1)
             }
             if !pts.types.isEmpty { pts.types[pts.types.count - 1] |= 0x80 }
-            fill(device(m, pts), brush(flags, u(0)))
+            paint(device(m, pts), flags, u(0))
         case 0x4036: driverString(b, flags: flags, at: at, size: size)
         default: break
         }
