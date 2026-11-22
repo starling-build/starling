@@ -266,6 +266,8 @@ private struct Player {
     var objects: [Int: Object] = [:]
     var steps: [Metafile.Step] = []
     var lastInvert: (key: [Double], count: Int, color: Color)? = nil
+    /// The EMF+ player of a dual file whose EMF+ records are all ones it plays.
+    var plus: EmfPlus? = nil
     var bitmaps: [ImageAttachment] = []
     var bounds: Rect? = nil
     /// WMF: the first window, which later ones are mapped into.
@@ -914,12 +916,36 @@ private struct Player {
         } else {
             bounds = box
         }
+        if devW > 0, devH > 0, mmW > 0, mmH > 0, EmfPlus.plays(bytes) {
+            var e = EmfPlus()
+            e.perMMX = devW / mmW; e.perMMY = devH / mmH
+            e.bounds = bounds ?? .zero
+            plus = e
+        }
         var p = 0
         while p + 8 <= bytes.count {
             let type = u32(p), size = u32(p + 4)
             guard size >= 8, size <= bytes.count, p + size <= bytes.count else { break }
             if type == 14 { break }
             let a = p + 8
+            if plus != nil {
+                if type == 70, size >= 16, u32(a + 4) == Int(EmfPlus.ident) {
+                    var r = a + 8
+                    let stop = min(p + size, a + 4 + u32(a))
+                    while r + 12 <= stop {
+                        let rt = Int(bytes[r]) | Int(bytes[r + 1]) << 8, fl = Int(bytes[r + 2]) | Int(bytes[r + 3]) << 8
+                        let rs = u32(r + 4), ds = u32(r + 8)
+                        guard rs >= 12, r + rs <= stop, ds <= rs - 12 else { break }
+                        plus!.record(bytes, type: rt, flags: fl, at: r + 12, size: ds)
+                        r += rs
+                    }
+                    steps.append(contentsOf: plus!.steps)
+                    plus!.steps = []
+                    p += size
+                    continue
+                }
+                if type != 1, type != 70, !plus!.getDC { p += size; continue }
+            }
             switch type {
             case 9: dc.winExt = Size(Double(i32(a)), Double(i32(a + 4)))
             case 10: dc.winOrg = Offset(Double(i32(a)), Double(i32(a + 4)))
