@@ -34,6 +34,8 @@ enum SlideFonts {
         // strokes as heavy, where Liberation Sans Bold's letters stood thin
         // and apart at Arial Black's widths: ThemeColorTransparency.)
         "arial black": "Archivo Black",
+        // (Franklin Gothic Heavy, drawn by PowerPoint in the real face: Archivo Black is the closest heavy grotesque we carry, set at the face's own measured widths.)
+        "franklin gothic heavy": "Archivo Black",
         // (Lucida Sans Unicode in Liberation Sans's regular and bold under a
         // name of their own, with no italic: PowerPoint slants the regular,
         // and so does the engine. aascu 5864's p34 quote, `i="1"`, is the
