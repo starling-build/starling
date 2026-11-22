@@ -348,6 +348,12 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(eval(c, "=INDEX(A1:B4,2,2)"), .text("three"))
         XCTAssertEqual(eval(c, "=INDEX(B1:B4,MATCH(7,A1:A4,0))"), .text("seven"))
         XCTAssertEqual(num(c, "=SUM(INDEX(A1:B4,0,1))"), 16)                  // a whole column of the range
+        // INDEX of an array with the row left out is the whole array, and trapped
+        // (es-87ce277a4c: INDEX(COUNTIF(...),) under MATCH(0,...)).
+        XCTAssertEqual(num(c, "=MATCH(0,INDEX(COUNTIF(A1:A4,D1:D3),),)"), 1)
+        XCTAssertEqual(num(c, "=INDEX(5,)"), 5)
+        XCTAssertEqual(num(c, "=INDEX(5,0)"), 5)
+        XCTAssertEqual(eval(c, "=INDEX(5,2)"), .error(.ref))
         XCTAssertEqual(eval(c, "=XLOOKUP(3,A1:A4,B1:B4)"), .text("three"))
         XCTAssertEqual(eval(c, "=XLOOKUP(4,A1:A4,B1:B4,\"none\")"), .text("none"))
         XCTAssertEqual(eval(c, "=XLOOKUP(4,A1:A4,B1:B4,,-1)"), .text("three"))

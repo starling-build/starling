@@ -495,6 +495,9 @@ enum SheetFunctions {
             guard case .success(let r) = _n(a[1], c) else { return .error(.value) }
             let col: Double
             if a.count >= 3 { guard case .success(let x) = _n(a[2], c) else { return .error(.value) }; col = x } else { col = 0 }
+            // (A row or column that is no whole number in range — NaN, infinite or
+            // past a million — is #REF!, as Excel's is; Int() of it traps.)
+            guard r.isFinite, col.isFinite, abs(r) < 1e9, abs(col) < 1e9 else { return .error(.ref) }
             if case .range(let s, let rg) = src {
                 // INDEX of a range is a reference — INDEX(A:A,3):B5 works.
                 var row = Int(r), cc = Int(col)
@@ -507,10 +510,15 @@ enum SheetFunctions {
                 return .scalar(c.engine.value(s, CellAddress(row: rg.top + row - 1, col: rg.left + cc - 1)))
             }
             let g = c.engine.grid(src, c)
+            // (No row and no column — INDEX(array,0) or INDEX(array,) — is the whole
+            // array; it fell through to g[0][-1] and trapped: es-87ce277a4c.)
+            if Int(r) == 0 && Int(col) == 0 { return src }
             var row = Int(r), cc = max(1, Int(col))
             // One row and no column given: the number picks the column, as for a range.
             if g.count == 1 && a.count < 3 { cc = row; row = 1 }
-            guard row >= 1, row <= g.count, cc <= (g.first?.count ?? 0) else { return .error(.ref) }
+            // (A ragged array — rows of unequal length — is checked against the row
+            // asked for, not the first: g[row - 1][cc - 1] trapped on the others.)
+            guard row >= 1, row <= g.count, cc >= 1, cc <= g[row - 1].count else { return .error(.ref) }
             return .scalar(g[row - 1][cc - 1])
         }
         t["MATCH"] = { a, c in
