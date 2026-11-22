@@ -6304,11 +6304,13 @@ enum ChartPainter {
         if c.onSheet, c.pieLabelsAround, c.plotLayout == nil {
             radius = max(radius / 2, radius - 1.25 * (c.series[0].labelSize ?? c.baseTextSize) * k)
         }
-        // On a slide too: a flat pie whose labels stand outside it and whose plot the file leaves to PowerPoint is 1.6 of
-        // the labels' size smaller in the radius (espt-c249abc3 p6, 15 pt labels: 161 pt in PowerPoint's print, ours 185 with the labels clipped).
+        // On a slide too: a flat pie whose labels stand outside it and whose plot the file leaves to PowerPoint is 26.4 pt
+        // smaller in the radius, whatever the labels' size, count or place (lab pie-lab1, PowerPoint for Windows: R 203.1 at 9, 12, 18
+        // and 24 pt, outside end and best fit, 3 to 12 slices, from a room of 229.5; legend at the foot 191.2 from 217.8; the labels
+        // that do not fit stand over the pie. espt-c249abc3 p6, 15 pt labels: 159.45 in PowerPoint's print from 185.3.)
         if values.contains(where: { $0 > 0 }), c.onSlide, c.type == .pie, c.pieLabelsAround, c.plotLayout == nil, c.pieLabels?.outside == true, c.ofPie == nil, c.pieTilt == nil {
             RuleTrace.hit("slide-pie-with-outside-labels-leaves-room-for-them")
-            radius = max(radius / 2, radius - 1.6 * (c.series[0].labelSize ?? c.baseTextSize) * k)
+            radius = max(radius / 2, radius - 26.4 * k)
         }
         // In a Word document the same: a pie whose labels stand outside it
         // and whose plot the file leaves to Word is 15.3pt smaller a side at
@@ -7856,7 +7858,10 @@ extension ChartPainter {
                 // 14 of 102 with the old 4pt and the step at 0.15, 57 with these).)
                 let tuneFlat = point == nil && l.fitted && !c.onSlide && !c.onSheet && !c.chartex && l.moves[s.index] == nil
                 if tuneFlat { RuleTrace.hit("word-flat-pie-best-fit-label-outside-hugs-the-rim") }
-                let gap = (tuneFlat ? 0 : 4) * k
+                // (On a slide a flat pie's outside label the file leaves in place stands 10.7 pt from the rim, not 4: lab pie-lab1,
+                // PowerPoint for Windows, outside end at 9, 12 and 18 pt, 6 to 12 slices, the labels' radial places 6.5 to 8 pt beyond ours.)
+                let slideGap = point == nil && c.onSlide && l.outside && l.moves[s.index] == nil && c.ofPie == nil && inner == 0
+                let gap = (tuneFlat ? 0 : slideGap ? 10.7 : 4) * k
                 // (Where the file moves it, from `movedEdge`'s point when
                 // given: a 3-D pie's.)
                 let edge = l.moves[s.index] != nil ? movedEdge.map { Offset($0(s.mid).dx + lift.dx, $0(s.mid).dy + lift.dy) } ?? on(s.mid, 1) : on(s.mid, 1)
