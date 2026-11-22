@@ -263,6 +263,7 @@ struct Chart: Equatable {
     var plotBorderWidth = 0.75
     var gridColor: Color? = nil
     var gridWidth: Double? = nil
+    /// A slide chart's category gridlines (`c:majorGridlines` on its category axis) and a log axis' minor ones, as the file colours them.
     /// The value axis's number format, an Excel format code ("#,##0"),
     /// where the file gives one other than General: the axis's own, or —
     /// "linked to source" — the one its first series' numbers came with.
@@ -1864,6 +1865,12 @@ enum ChartXML {
             var second = SecondValueAxis()
             second.deleted = ["1", "true"].contains(axis.first("c:delete")?["val"] ?? "")
             if let t = axis.first("c:title") { let text = _titleTexts(t).joined(); if !text.isEmpty { second.title = text } }
+            if let t = axis.first("c:title"), let m = t.first("c:layout")?.first("c:manualLayout"),
+               (m.first("c:xMode")?["val"] ?? "factor") == "edge", (m.first("c:yMode")?["val"] ?? "factor") == "edge",
+               let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) {
+                second.titleAt = Offset(x, y)
+                second.titleSize = (t.descendant("a:rPr")?["sz"] ?? t.descendant("a:defRPr")?["sz"]).flatMap(Double.init).map { $0 / 100 }
+            }
             if let fmt = axis.first("c:numFmt") {
                 let linked = ["1", "true"].contains(fmt["sourceLinked"] ?? "")
                 let source = overlay?.descendant("c:val")?.descendant("c:formatCode")?.text
@@ -1877,6 +1884,10 @@ enum ChartXML {
             if let u = axis.first("c:dispUnits")?.first("c:builtInUnit")?["val"],
                let d = ["hundreds": 1e2, "thousands": 1e3, "tenThousands": 1e4, "hundredThousands": 1e5, "millions": 1e6,
                         "tenMillions": 1e7, "hundredMillions": 1e8, "billions": 1e9, "trillions": 1e12][u] { second.unitDivisor = d }
+            if let lbl = axis.first("c:dispUnits")?.first("c:dispUnitsLbl"), second.unitDivisor > 1 {
+                second.unitSize = lbl.descendant("a:defRPr")?["sz"].flatMap(Double.init).map { $0 / 100 }
+                second.unitLabel = "x " + String(Int(second.unitDivisor))
+            }
             second.step = axis.first("c:majorUnit")?["val"].flatMap(Double.init).flatMap { $0 > 0 ? $0 : nil }
             c.secondValueAxis = second
         }
@@ -5173,6 +5184,21 @@ enum ChartPainter {
             // (The second axis' labels take a band at the right, as the
             // first's do at the left.)
             if !secondLabels.isEmpty { right = max(right, (secondLabels.map(\.width).max() ?? 0) + 10 * k) }
+            // (A title the file places on a slide keeps its own column in PowerPoint's layout of the plot: b7d6faa9 p16's
+            // "Top 5 Error rate" at 4.3% and "# Prams" at 83.3% of the chart, the left labels starting where the first
+            // title ends and the widest right label ending 6.2 pt before the second's left edge.)
+            if c.onSlide, c.plotLayout == nil, !c.chartex {
+                if let t = c.valueAxisTitle, let placed = c.valueAxisTitleAt, placed.turned, !placed.assumedTurn {
+                    let tp = text(t, placed.size ?? c.valueAxisTitleSize ?? 18.6, .infinity)
+                    let reserve = frame.left + placed.at.dx * frame.width + 0.2 * k + tp.height - area.left
+                    if reserve > 0 { left += reserve }
+                    tp.dispose()
+                }
+                if let sec = c.secondValueAxis, sec.deleted != true, sec.title != nil, let at = sec.titleAt, !secondLabels.isEmpty {
+                    let edge = frame.left + at.dx * frame.width + 0.2 * k - 6.2 * k
+                    right = max(right, area.right - edge + (secondLabels.map(\.width).max() ?? 0) + 10 * k)
+                }
+            }
             // (Lines on a deleted second axis in a 2007-style Word chart: the plot still stands off the plot's right edge: lo-1e6077df's plot ends
             // 14.2 pt in from its frame's right in Word for Windows' print, ours 10.3.)
             if !c.onSlide, !c.onSheet, !c.chartex, !c.styled2013, c.plotLayout == nil, c.valueAxisDeleted, !c.lineSeries.isEmpty, secondLabels.isEmpty {
@@ -5713,6 +5739,26 @@ enum ChartPainter {
             canvas.restore()
             tp.dispose()
         }
+        if c.onSlide, c.plotLayout == nil, let t = c.secondValueAxis?.title, let at = c.secondValueAxis?.titleAt, c.secondValueAxis?.deleted != true {
+            let tp = text(t, c.secondValueAxis?.titleSize ?? c.valueAxisTitleSize ?? 18.6, .infinity)
+            canvas.save()
+            canvas.translate(frame.left + at.dx * frame.width + 0.2 * k, frame.top + at.dy * frame.height + 3.1 * k + tp.width)
+            canvas.rotate(-.pi / 2)
+            tp.paint(canvas, .zero)
+            canvas.restore()
+            tp.dispose()
+        }
+        // (Its display unit's label, turned, 20.9 pt right of the labels' left edge and over the plot's middle:
+        // b7d6faa9 p16's "x 100000000", a 16 pt label PowerPoint prints at 916.8 where the labels start at 885.7.)
+        if c.onSlide, let u = c.secondValueAxis?.unitLabel, c.secondValueAxis?.deleted != true {
+            let tp = text(u, c.secondValueAxis?.unitSize ?? c.axisTitleSize ?? 10, .infinity)
+            canvas.save()
+            canvas.translate(c.secondValueAxis?.titleAt.map { frame.left + $0.dx * frame.width + 4.8 * k } ?? plot.right + 10.1 * k + 20.9 * k, plot.center.dy + tp.width / 2)
+            canvas.rotate(-.pi / 2)
+            tp.paint(canvas, .zero)
+            canvas.restore()
+            tp.dispose()
+        }
         for t in secondLabels { t.dispose() }
         // The category axis line, at zero.
         let zero = vpos(max(sc.lo, min(sc.hi, 0)))
@@ -5752,9 +5798,13 @@ enum ChartPainter {
         }
         // (Between the categories, as Word draws them: zh-b8de3ae2's line chart.)
         if c.categoryGrid, inWord, c.type != .scatter, !horizontal, n > 1 {
+            let catGrid = Paint()
+            catGrid.style = .stroke
+            catGrid.strokeWidth = gridPaint.strokeWidth
+            catGrid.color = gridPaint.color
             for i in 1 ..< n {
                 let x = plot.left + plot.width * Double(i) / Double(n)
-                canvas.drawLine(Offset(x, plot.top), Offset(x, plot.bottom), gridPaint)
+                canvas.drawLine(Offset(x, plot.top), Offset(x, plot.bottom), catGrid)
             }
         }
         if c.type == .scatter {
@@ -8682,4 +8732,10 @@ struct SecondValueAxis: Equatable {
     var sameScale = false
     /// `c:dispUnits`: the labels show the values divided by this (hundredMillions 1e8).
     var unitDivisor = 1.0
+    /// The display unit's own label (`c:dispUnitsLbl`): shown turned beside the axis, as "x 100000000".
+    var unitLabel: String? = nil
+    var unitSize: Double? = nil
+    /// The title's placed top left (fractions of the chart) and size, where the file places it.
+    var titleAt: Offset? = nil
+    var titleSize: Double? = nil
 }
