@@ -472,12 +472,19 @@ enum OfficeFonts {
         "yu gothic ui semilight", "yu mincho", "yu mincho demibold", "yu mincho light", "zapf dingbats",
         "zapfino",
     ]
+    /// DejaVu Sans and Bitstream Vera Sans: installed nowhere on Windows, so Excel draws them in
+    /// Arial (52348, Excel 20527's print), not in DejaVu. (Verdana, which Windows has, stays.)
+    private static func isLinuxOnlySans(_ family: String) -> Bool {
+        let n = family.trimmingWhitespace().lowercased()
+        return n == "dejavu sans" || n == "bitstream vera sans"
+    }
     /// The shipped face for a workbook's font name. A workbook has no font
     /// table, so `substitute`'s guesses for a name Word on a Mac has no
     /// face for — Cambria, for one the table does not hold — are not
     /// Excel's: chart-tdf150434's "Open Sans" prints sans, where ours was
     /// Caladea and its long text ran a page short.
     static func sheetFace(_ family: String) -> String {
+        if isLinuxOnlySans(family) { return sans }
         if let own = installed(family) { return own }
         #if os(Windows)
         // A face Windows has and this app has no clone of is the face, for
@@ -513,6 +520,7 @@ enum OfficeFonts {
     /// was Cambria: HelveticaNeue LightExt (47862), Frutiger 45 Light,
     /// Clear Sans, FreeSans, lo-tdf171828's header in BernhardFashion BT.
     static func sheetClone(_ family: String) -> String {
+        if isLinuxOnlySans(family) { return sans }
         let face = substitute(family)
         let n = family.trimmingWhitespace().lowercased()
         // (Monospaced in Excel's prints, 0.6 em: the number-format books' Lucida Sans Typewriter cells. Only a cell's own face: as a
