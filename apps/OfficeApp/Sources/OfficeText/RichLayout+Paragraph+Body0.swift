@@ -223,6 +223,22 @@ extension _ParaFrame {
             if marker.width > hang + 0.01 { lead = marker.width - hang }
             marker.dispose()
         }
+        // A blank bullet (the master's " ", whose slot PowerPoint keeps) puts the first line's text F = max(7.09 pt,
+        // 0.3 em) in from the margin at least, mirrors a hang past the margin (|indent| in), and sets a positive
+        // marL + indent at F beyond it, never left of marL. PowerPoint's print of 17 marL/indent pairs, labs indent1 and
+        // indent2 (hanglang2a, 505a93a9 p14), sizes 14 to 32 pt, within 0.1 pt.
+        if theme.markersAtHang, style.list != nil, !p.text.isEmpty, let label = listLabel(i, document),
+           !label.isEmpty, label.allSatisfy({ $0 == " " }) {
+            let size = p.runs.first?.style.fontSize ?? _named(p, document)?.char.fontSize ?? theme.fontSize
+            let f = max(7.09, 0.3 * size)
+            let marL = style.indentLeft + theme.listIndent * Double(style.listLevel + 1)
+            let ind = style.firstLineIndent - theme.listIndent
+            let first: Double
+            if ind >= 0 { first = marL + max(f, ind) }
+            else if marL + ind < 0 { first = max(f, -ind) }
+            else { first = max(marL, f + marL + ind) }
+            lead = _px(first - marL)
+        }
         _blk2()
         _leadWidth[i] = lead
         // Tabs, as Word sets them: each takes the text to the next stop —
