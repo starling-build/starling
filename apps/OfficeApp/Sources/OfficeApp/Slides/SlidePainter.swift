@@ -92,7 +92,7 @@ final class SlideTextCache {
         let id = attachment.id
         Task { @MainActor [weak self] in
             var decoded: Image? = nil
-            if let codec = try? await instantiateImageCodec(bytes) {
+            if let codec = try? await instantiateImageCodec(attachment.colourManaged == true ? bytes : IccConvert.rawPng(bytes)) {
                 decoded = (try? await codec.getNextFrame())?.image
                 codec.dispose()
             }
@@ -137,7 +137,7 @@ final class SlideTextCache {
         var failure = "no codec"
         for attempt in 0 ..< 2 {
             do {
-                let codec = try await instantiateImageCodec(bytes)
+                let codec = try await instantiateImageCodec(attachment.colourManaged == true ? bytes : IccConvert.rawPng(bytes))
                 decoded = try await codec.getNextFrame().image
                 codec.dispose()
             } catch { failure = "\(error)" }
