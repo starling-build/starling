@@ -2853,10 +2853,13 @@ private struct SlideContext {
                         let target: Double
                         switch algn { case "t": target = m.ascent; case "ctr": target = (1.2 - (m.ascent + m.descent)) / 2 + m.ascent; default: target = 1.2 - m.descent }
                         para.style.cellFontAlignDrop = target - 1.2 * (1 - m.descent / (m.ascent + m.descent))
-                        // (Lab tblrow2 and 99f6ddd1 p12 at 150%, PowerPoint's print: with fontAlgn ctr the baseline stands 0.22 em lower than the
-                        // glyph-box target alone gives (Arial 24 pt 0.221, MS PGothic 36 pt 0.217, Meiryo UI 24 pt 0.258), 0.37 of the spacing's
-                        // extra, (m-1) x 1.2. Only 150% is measured; the rest is taken as proportional.)
-                        if para.style.cellFullFirstLine { para.style.cellFontAlignDrop! += (style.lineSpacing - 1) * 1.2 * 0.37 }
+                        // (With fontAlgn ctr the first line keeps the whole of its extra (cellFullFirstLine), where other rows trim it by
+                        // (m-1) x 0.3 + k em, k = 0.3 - 1.2 x the face's share below the baseline: the baseline stands that much lower, within 0.1 pt
+                        // of lab tblrow2 and 99f6ddd1 p12's 150% print for Arial 24 (0.221 em), MS PGothic 36 (0.217) and Meiryo UI 24 (0.258).)
+                        if para.style.cellFullFirstLine {
+                            let k = max(0, 0.3 - 1.2 * (para.style.cellDescentShare ?? 0.1897))
+                            para.style.cellFontAlignDrop! += (style.lineSpacing - 1) * 0.3 + k
+                        }
                     }
                     cellParas.append(para)
                 }
