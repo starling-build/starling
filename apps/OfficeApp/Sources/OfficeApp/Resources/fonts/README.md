@@ -198,12 +198,17 @@ lists it for DejaVu (Bitstream Vera terms); the TeX Gyre side originates with th
 
 Kai names (標楷體, DFKai-SB, DFKaiShu-SB-Estd-BF, 全真楷書, 楷体, KaiTi, STKaiti, 华文楷体) draw their
 ideographs in `LXGWWenKaiTC-Regular.ttf`, **LXGW WenKai TC** v1.530
-(github.com/lxgw/LxgwWenKaiTC releases; SIL OFL 1.1, bundled unmodified;
-LXGWWenKaiTC-LICENSE.txt), a brush hand like the Kai faces. It replaces Noto Serif CJK
-for these names (Ming, Song and Mincho keep the serif). The release has no Bold cut: bold
-is simulated. 15 MB, listed in fonts.tsv, so the web build fetches it lazily. It covers all
-of GB2312 and 18,531 of the 21,093 characters DFKai-SB has; the rest fall to the glyph
-chain. Layout never uses its widths: DFKai-SB's measured metrics do.
+(github.com/lxgw/LxgwWenKaiTC releases; SIL OFL 1.1, LXGWWenKaiTC-LICENSE.txt; the licence
+declares no Reserved Font Name, so the subset keeps the name), a brush hand like the Kai faces.
+It replaces Noto Serif CJK for these names (Ming, Song and Mincho keep the serif). The release
+has no Bold cut: bold is simulated. Subset by `build/tools/starling-wenkai-subset.py` (fontTools;
+GSUB/GPOS kept whole): the ideographs of Big5 level 1 and GB2312 level 1, every other character
+of Big5 and GB2312, ASCII, Latin-1, general and CJK punctuation, kana, Bopomofo, fullwidth
+forms: 7,930 characters, 4.8 MB (the full font is 15 MB, 25,694 characters). Measured on the
+corpus's Kai runs (dev decks and Word docs, 1.03 M ideographs): 99.96 % of the ideograph
+occurrences, 99.97 % of all characters the full font can draw. The rest fall to the glyph
+chain. Layout never uses its widths: DFKai-SB's measured metrics do. Listed in fonts.tsv, so
+the web build fetches it lazily.
 
 ## STIX Two Math
 
