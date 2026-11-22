@@ -1638,7 +1638,7 @@ extension RichLayout {
                 let base = at.dy + marker.computeDistanceToActualBaseline(.alphabetic)
                 let r = Rect.fromLTRB(at.dx + ink[1] * size, base - ink[4] * size, at.dx + ink[3] * size, base - ink[2] * size)
                 // (The glyph stays in the page's text, unseen, as in PowerPoint's print, where the bullet is a letter of the line.)
-                let unseen = TextPainter(text: TextSpan(text: label, style: markerStyle.copyWith(color: Color(0x01000000))),
+                let unseen = TextPainter(text: TextSpan(text: label, style: markerStyle.copyWith(color: Color(0x01000000), fontWeight: .w400)),
                                          textAlign: .right, textDirection: .ltr, strutStyle: g.painter.strutStyle)
                 unseen.textAlign = marker.textAlign
                 unseen.layout(minWidth: 0, maxWidth: max(1, marker.width))
@@ -1672,6 +1672,33 @@ extension RichLayout {
                     paint.style = .stroke
                     paint.strokeWidth = max(1, h * 0.16)
                     canvas.drawPath(d, paint)
+                case 5:
+                    // The shadowed square (Wingdings 71): a square with its top-right and bottom-left corners cut, a window in it.
+                    let d = Path(), w = r.right - r.left, h = r.bottom - r.top
+                    func pt(_ x: Double, _ y: Double) -> (Double, Double) { (r.left + w * x, r.top + h * y) }
+                    var q = pt(0, 0); d.moveTo(q.0, q.1)
+                    q = pt(0.89, 0); d.lineTo(q.0, q.1)
+                    q = pt(1, 0.11); d.lineTo(q.0, q.1)
+                    q = pt(1, 1); d.lineTo(q.0, q.1)
+                    q = pt(0.11, 1); d.lineTo(q.0, q.1)
+                    q = pt(0, 0.89); d.lineTo(q.0, q.1)
+                    d.close()
+                    d.moveTo(pt(0.083, 0.073).0, pt(0.083, 0.073).1)
+                    d.lineTo(pt(0.80, 0.073).0, pt(0.80, 0.073).1)
+                    d.lineTo(pt(0.80, 0.82).0, pt(0.80, 0.82).1)
+                    d.lineTo(pt(0.083, 0.82).0, pt(0.083, 0.82).1)
+                    d.close()
+                    d.fillType = .evenOdd
+                    canvas.drawPath(d, paint)
+                case 6:
+                    // Four diamonds (Wingdings 76): top, left, right, bottom.
+                    let w = r.right - r.left, h = r.bottom - r.top
+                    for (fx, fy) in [(0.5, 0.196), (0.202, 0.494), (0.798, 0.494), (0.5, 0.792)] {
+                        let d = Path()
+                        let cx = r.left + w * fx, cy = r.top + h * fy, a = w * 0.2025
+                        d.moveTo(cx, cy - a); d.lineTo(cx + a, cy); d.lineTo(cx, cy + a); d.lineTo(cx - a, cy); d.close()
+                        canvas.drawPath(d, paint)
+                    }
                 default: canvas.drawRect(r, paint)
                 }
             }
