@@ -411,6 +411,7 @@ private struct LevelStyle {
     var font: String?
     /// `a:cs`: the face for complex-script (Hebrew, Arabic, Thai) text.
     var csFont: String?
+    var csArabicCharset = false   // the cs face is declared with charset -78 (Arabic)
     /// `a:ea`: the face for East Asian text; `lang` picks the theme's script face when it is empty.
     var eaFont: String?
     var lang: String?
@@ -467,6 +468,7 @@ private struct LevelStyle {
         s.underline = s.underline ?? lower.underline
         s.strike = s.strike ?? lower.strike
         s.font = s.font ?? lower.font
+        if s.csFont == nil { s.csArabicCharset = lower.csArabicCharset }
         s.csFont = s.csFont ?? lower.csFont
         s.eaFont = s.eaFont ?? lower.eaFont
         s.lang = s.lang ?? lower.lang
@@ -639,6 +641,7 @@ private struct LevelStyle {
         s.kern = r["kern"].flatMap(Double.init).map { $0 / 100 }
         s.font = r.first("a:latin")?["typeface"]
         s.csFont = r.first("a:cs")?["typeface"].flatMap { $0.isEmpty ? nil : $0 }
+        s.csArabicCharset = r.first("a:cs")?["charset"] == "-78"
         s.eaFont = r.first("a:ea")?["typeface"].flatMap { $0.isEmpty ? nil : $0 }
         s.lang = r["lang"].flatMap { $0.isEmpty ? nil : $0 }
         s.altLang = r["altLang"].flatMap { $0.isEmpty ? nil : $0 }
@@ -2713,7 +2716,7 @@ private struct SlideContext {
                                 var face: String? = ea ? _eaFont(s.eaFont ?? s.font, scalar: ch.value, lang: s.lang, latin: s.font) : nil
                                 // (A complex script's letters are set in the run's `a:cs` face, as a text box's are: cc66a30f p18's Persian
                                 // table, B Nazanin embedded, was drawn in Calibri's fallback; the spaces and digits after them go with them.)
-                                if !ea, let script = Self.complexScript(ch.value), let cf = _csFont(s.csFont, script: script, lang: s.lang) { csFace = cf; face = cf }
+                                if !ea, let script = Self.complexScript(ch.value), let cf = _csFont(s.csFont, script: script, lang: s.lang, arabicCharset: s.csArabicCharset) { csFace = cf; face = cf }
                                 else if !ea, let cf = csFace, !ch.properties.isAlphabetic { face = cf }
                                 else if !ea { csFace = nil }
                                 if let last = segFace, last == face, !segments.isEmpty { segments[segments.count - 1].length += ch.utf16.count }
@@ -3682,7 +3685,7 @@ private struct SlideContext {
     /// The face a complex script's letters are set in: the run's `a:cs`,
     /// a theme reference's complex-script face, else the theme's face for
     /// that script — nil where nothing names one (the Latin face serves).
-    private func _csFont(_ f: String?, script: String, lang: String? = nil) -> String? {
+    private func _csFont(_ f: String?, script: String, lang: String? = nil, arabicCharset: Bool = false) -> String? {
         // (The theme's Arabic face is the one for runs tagged with an Arabic-script language. An untagged run, which takes the
         // deck's en-US, draws its Arabic letters in Arial whatever the theme names: rtl/e08da366's titles, theme major "Majalla UI",
         // ArialMT 44 pt in PowerPoint's print, while the ar-SA runs of f355b7fc and eb7ab2c5 draw "Majalla UI" as Sakkal Majalla.)
@@ -3693,7 +3696,12 @@ private struct SlideContext {
         switch f {
         case nil, "+mn-cs", "+mn-lt", "+mn-ea": return theme.minorScript["cs"] ?? theme.minorScript[script]
         case "+mj-cs", "+mj-lt", "+mj-ea": return theme.majorScript["cs"] ?? theme.majorScript[script]
-        default: return f
+        default:
+            // (A complex-script face the machine lacks, declared with the Arabic charset, not the deck's own: PowerPoint draws its Arabic letters in Arial. d04ef266's
+            // "B Lotus", "B Zar" and "B Mitra" are ArialMT in the print; ours were DejaVu Sans, 4% narrower, so a line took a word more.)
+            if script == "Arab", arabicCharset, let f, !f.isEmpty, !SlideFonts.isEmbedded(f), !OfficeFonts.isWindowsComplexFace(f),
+               OfficeFonts.installed(f) == nil { return "Arial" }
+            return f
         }
     }
 
@@ -4100,8 +4108,8 @@ private struct SlideContext {
                    // (Digits too where the complex face is an installed one that keeps them: 6f97f2ee p9's "(1689-1755)" in an ar-IQ run
                    // is set in Sakkal Majalla Bold in PowerPoint's print, 216 pt wide, not in the Latin face, 241. "Majalla UI" is that face.)
                    !t.unicodeScalars.contains(where: { $0.value >= 0x30 && $0.value <= 0x39 })
-                    || ["majalla ui"].contains((_csFont(s.csFont, script: "Arab", lang: s.lang) ?? "").lowercased())
-                    || OfficeFonts.complexFaceKeepsDigits(_csFont(s.csFont, script: "Arab", lang: s.lang) ?? "") {
+                    || ["majalla ui"].contains((_csFont(s.csFont, script: "Arab", lang: s.lang, arabicCharset: s.csArabicCharset) ?? "").lowercased())
+                    || OfficeFonts.complexFaceKeepsDigits(_csFont(s.csFont, script: "Arab", lang: s.lang, arabicCharset: s.csArabicCharset) ?? "") {
                     let l = (s.lang ?? "").lowercased()
                     if ["ar", "fa", "ur", "ps", "sd", "ug", "ku"].contains(where: { l.hasPrefix($0) }) { pieces[0].script = "Arab" }
                     else if l.hasPrefix("he") || l.hasPrefix("yi") { pieces[0].script = "Hebr" }
@@ -4152,7 +4160,7 @@ private struct SlideContext {
                     var c = cs
                     // (Not where the complex face is one the deck embeds: its own line already holds the paragraph as PowerPoint draws it, and the
                     // Latin mark would lower it 1.3 pt: 7854f160 p1, 5a8cce85 p1 and p2 in B Nazanin and B Titr stand where the print has them.)
-                    arabicTailFace = piece.script == "Arab" && !SlideFonts.isEmbedded(_csFont(s.csFont, script: "Arab", lang: s.lang) ?? "") ? plain.fontFamily : nil
+                    arabicTailFace = piece.script == "Arab" && !SlideFonts.isEmbedded(_csFont(s.csFont, script: "Arab", lang: s.lang, arabicCharset: s.csArabicCharset) ?? "") ? plain.fontFamily : nil
                     if piece.script == "ea" {
                         // (The first letter of the piece names its script.)
                         let slice = String(decoding: utf16[consumed ..< min(utf16.count, consumed + piece.length)], as: UTF16.self)
@@ -4163,7 +4171,7 @@ private struct SlideContext {
                             c.fontFamily = face
                             c.shadow = cs.shadow; c.outline = cs.outline; c.highlight = cs.highlight; c.caps = cs.caps; c.smallCaps = cs.smallCaps
                         }
-                    } else if let script = piece.script, let face = _csFont(s.csFont, script: script, lang: s.lang), face != plain.fontFamily {
+                    } else if let script = piece.script, let face = _csFont(s.csFont, script: script, lang: s.lang, arabicCharset: s.csArabicCharset), face != plain.fontFamily {
                         c = plain
                         c.fontFamily = face
                         c.shadow = cs.shadow; c.outline = cs.outline; c.highlight = cs.highlight; c.caps = cs.caps; c.smallCaps = cs.smallCaps
