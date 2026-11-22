@@ -596,7 +596,8 @@ private struct LevelStyle {
             s.shadowSet = true
             s.shadow = outerShadow(effects, colors, text: true)
             // (A glow on the run, with no shadow of its own: the letters haloed.)
-            if s.shadow == nil, let g = effects.first("a:glow"), let c = colors.color(in: g) {
+            // (With both, the halo is what shows: a91e3e82 p20's orange title glows in PowerPoint where ours kept only the shadow, red.)
+            if let g = effects.first("a:glow"), let c = colors.color(in: g) {
                 var glow = CharShadow(color: c, dx: 0, dy: 0, blur: (g["rad"].flatMap(Double.init) ?? 0) / Pptx.emu)
                 glow.glow = true
                 s.shadow = glow
