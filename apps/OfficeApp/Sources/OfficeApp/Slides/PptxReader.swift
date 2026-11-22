@@ -3869,7 +3869,12 @@ private struct SlideContext {
             let l = (lang ?? "").lowercased().hasPrefix("ja") || (altLang ?? "").lowercased().hasPrefix("ja") ? "ja" : (lang ?? "").lowercased()
             if (table["ea"] ?? "").isEmpty, l.hasPrefix("ja"), let j = table["Jpan"], !j.isEmpty { return j }
             // (Not a Japanese run: PowerPoint prints the Latin slot's +mj-ea over a theme with an empty East Asian face in Arial, not the theme's Latin face: 1892a5a76df6 p201's bold digits are Arial's 8.9 pt at 16 pt, Constantia's 7.3 in ours.)
-            if (table["ea"] ?? "").isEmpty, !l.hasPrefix("ja") { return "Arial" }
+            // (A run tagged en-US over altLang zh-TW, a digit run in Traditional Chinese text, is the theme's Hant face: 3c1f2c4d820b p7's "4" after "總人次：" is PMingLiU's 4.0 pt at 8 pt in the print, so it fits the line where Arial's 4.4 wrapped.)
+            if (table["ea"] ?? "").isEmpty, !l.hasPrefix("ja") {
+                let alt = (altLang ?? "").lowercased()
+                if alt == "zh-tw" || alt == "zh-hk" || alt == "zh-mo", let h = table["Hant"], !h.isEmpty { return h }
+                return "Arial"
+            }
         }
         return _font(f)
     }
