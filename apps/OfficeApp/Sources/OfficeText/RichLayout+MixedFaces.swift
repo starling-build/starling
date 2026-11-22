@@ -70,11 +70,14 @@ extension RichLayout {
         }
         let total = length(span)
         while at < total, lines.count < 200 {
-            let r = painter.getLineBoundary(TextPosition(offset: at))
+            var r = painter.getLineBoundary(TextPosition(offset: at))
+            // (The first offset of the line after a line break answers with the line before it: ask one letter in.)
+            if r.end <= at, at + 1 < total { r = painter.getLineBoundary(TextPosition(offset: at + 1)) }
             guard r.end > at else { return nil }
             lines.append((at, r.end)); at = r.end
         }
         guard lines.count > 1 else { return nil }
+        guard lines.count == painter.computeLineMetrics().count else { return nil }
         func lineOf(_ o: Int) -> Int { lines.lastIndex(where: { $0.0 <= o }) ?? 0 }
         func faceName(_ x: TextStyle) -> String {
             var name = x.debugLabel ?? x.fontFamily ?? ""
