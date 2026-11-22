@@ -666,7 +666,10 @@ final class SlidePainter: CustomPainter {
             all.addPath(gp.shift(Offset(g.textLeft, g.inkTop)), .zero); any = true
         }
         guard any else { return false }
-        let area = Rect.fromLTWH(0, 0, layout.width, layout.totalHeight)
+        // The camera turns the word about the middle of its letters, not the middle of the text box
+        // (lab wa3d p9: Word's print of left-set text in a wide box keeps the word where it stood).
+        let ink = all.getBounds()
+        let area = Rect.fromLTRB(ink.left, 0, ink.right, layout.totalHeight)
         let face = doc.paragraphs.lazy.flatMap({ $0.runs }).compactMap({ $0.style.color }).first ?? Color(0xFF808080)
         return Extrusion.solid(scene: scene, fill: face, line: scene.contourW > 0 ? scene.contourColor : nil, lineWidth: scene.contourW, outline: all, area, canvas, pxPerPt: px,
                                onFront: { layout.paint(canvas, visible: visible, document: doc, selection: nil, caret: nil) }, wallEdge: scene.contourW > 0 ? scene.contourColor : nil)
