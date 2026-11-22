@@ -14,10 +14,10 @@ PPT=$CC/powerpoint-win; BASE=$ROOT/test/corpus/pptx/baseline-win.tsv
 [ -d "$DECKS" ] && [ -d "$PPT" ] && { [ -s "$BASE" ] || [ -n "${BASE_BIN:-}" ]; } || { echo "slides-gate: no deck corpus or baseline here; skipped"; exit 2; }
 W=${SLIDES_SCRATCH:-${GATE_SCRATCH:-$HOME/scratch/gate}/slides}; rm -rf "$W"; mkdir -p "$W"
 # A waiver in $LQ/approved.txt (starling-bd approves a drop by full doc id) holds ONLY for the PR that names the id in one of its
-# own commit messages (amd-8, 2026-11-22): the list is permanent, and espt/174ab0c2 sat on it from an old approval, so 39f4a0e5c
+# own commit messages or PR body, PR_BODY env (amd-8, 2026-11-22): the list is permanent, and espt/174ab0c2 sat on it from an old approval, so 39f4a0e5c
 # dropped it 100.0 to 87.6 and the gate said "0 worse" (found by the DRIFT line). No commit message naming the id, no waiver.
 ACC=$W/accepted.txt; : > "$ACC"
-MSGS=$(git -C "$ROOT" log --format=%B "$(git -C "$ROOT" merge-base HEAD origin/main 2>/dev/null || echo HEAD)..HEAD" 2>/dev/null || true)
+MSGS="${PR_BODY:-}"$'\n'$(git -C "$ROOT" log --format=%B "$(git -C "$ROOT" merge-base HEAD origin/main 2>/dev/null || echo HEAD)..HEAD" 2>/dev/null || true)
 for t in $(cat "${LQ:-/data/landq}/approved.txt" 2>/dev/null); do case "$MSGS" in *"$t"*) echo "$t" >> "$ACC";; esac; done
 T=$(date +%s)
 # The pilot decks (real decks of 20-60 slides, ja and ko; amd-8's baseline rows name them) join the SAME sweep so they share the job
