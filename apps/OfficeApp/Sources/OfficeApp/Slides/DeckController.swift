@@ -1429,7 +1429,7 @@ final class DeckController: ChangeNotifier {
         theme.faceResolver = SlideFonts.face                 // and sets Lucida Sans Unicode at its own widths
         theme.setsFaceAdvances = true
         theme.symbolAdvance = Metafile.symbolAdvance   // and sets a Symbol run's glyphs at the face's own advances
-        theme.scriptSizeWholeUp = true      // and sets a raised run at 65% rounded up to a whole point
+        theme.scriptSizeWholeUp = true      // and sets a raised run at two thirds of its size
         theme.scalesGlyphsToTables = true
         theme.measuresShownCaps = true      // and fits a run in capitals by its capitals
         theme.kernsByRun = true             // and kerns a run only from its `kern` size up
