@@ -2972,6 +2972,17 @@ private struct SlideContext {
             if let w = whole?.borderWidth { ts.borderWidth = w }
         }
         for (r, h) in rowHeights.enumerated() where h > 0 { ts.rowHeights[r] = h }
+        // A row holding rowSpan continuation cells, set shorter than 2.0 pt plus the top margin of the cells
+        // that start in it, still occupies that much (labs tbl-rows12/13/14: 2.75 pt with marT 0.75, 5.60 pt
+        // with marT 3.6; insets of the continuation cells, face, size and empty paragraph do not move it).
+        for (r, tr) in tbl.all("a:tr").enumerated() {
+            let cells = tr.all("a:tc")
+            guard cells.contains(where: { $0["vMerge"] == "1" }) else { continue }
+            let starts = cells.filter { $0["vMerge"] != "1" && $0["hMerge"] != "1" }
+            guard !starts.isEmpty else { continue }
+            let marT = starts.map { ($0.first("a:tcPr")?["marT"].flatMap(Double.init) ?? 45720) / Pptx.emu }.max() ?? 0
+            if rowHeights[r] < 2 + marT { ts.rowHeights[r] = 2 + marT }
+        }
         doc.tableStyles[tableId] = ts
         // PowerPoint sets a table as wide as its grid, whatever width the graphic frame states (a Google Slides export states 3000000
         // EMU on every table; e2a1fcdb p8's two columns, 268 + 692 pt, were squeezed into 236 pt here and wrapped a character a line).
