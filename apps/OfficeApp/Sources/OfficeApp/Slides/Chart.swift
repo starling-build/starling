@@ -4066,7 +4066,7 @@ enum ChartPainter {
         }
         // Open ends rounded out to the step; at most a hundred marks.
         if lo0 == nil { lo = floor(lo / step + 1e-9) * step }
-        if hi0 == nil { hi = ceil(hi / step - 1e-9) * step }
+        if hi0 == nil { hi = lo0 != nil && lo0! > 0 ? lo + ceil((hi - lo) / step - 1e-9) * step : ceil(hi / step - 1e-9) * step }
         if (hi - lo) / step > 100 { step = (hi - lo) / 10 }
         return (lo, hi, step)
     }
@@ -4802,6 +4802,12 @@ enum ChartPainter {
         // its data, not a twentieth: chart-tdf140489's 75,887 reaches $90,000, where the 5% rule stops at 80,000; the same file
         // without the scatter, or with it on the other group, stops at 80,000 too — the Windows lab wip/lab-tdf140489.
         // Only the one file says how far; 10% is the nearest round share that does.)
+        // (A minimum the file sets above zero, the far end left open: PowerPoint's headroom is 5% of the run from that minimum, and
+        // its marks count from it: lab p12 of 7bf37d72, 230 to a top of 342.8, runs 230 to 350 by 20; ours ran to 390.)
+        if c.onSlide, let m = c.valueMin, c.valueMax == nil, c.valueStep == nil, m > 0, m < hi, !c.percent, c.barView == nil, !c.line3D {
+            valueScale.hi = hi + 0.05 * (hi - m)
+            RuleTrace.hit("slide-axis-minimum-headroom-counts-from-the-minimum")
+        }
         if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
             valueScale = fixedScale(auto: valueScale, min: c.valueMin, max: c.valueMax, step: c.valueStep)
         }
@@ -5444,6 +5450,18 @@ enum ChartPainter {
             // (A laid plot that runs past the chart's right edge is cut there by PowerPoint, its categories
             // spread over what is left: 7bf37d72 p10's 5 bands of 99.3 pt, not 103.)
             plot = c.onSlide && placed.right > frame.right ? Rect.fromLTRB(placed.left, placed.top, frame.right, placed.bottom) : placed
+            // (A laid plot cut at the right whose first name wraps to 3 lines or more has its foot lifted so that the names end
+            // 23.2 pt above the chart's foot: lab p12 of 7bf37d72, a 3-line name lifts the foot 27.5 pt, a 5-line one 55.0; one-line
+            // names leave it at 465.09 of a chart ending 502.07, and 2 lines lift nothing (7bf37d72 p10). Not yet known: why the
+            // lab's plot also moved left by the overflow, 16.6 pt, up to what the value labels leave: the gap of 11.7 pt is fitted to that one lab.)
+            if c.onSlide, !horizontal, placed.right > frame.right {
+                let tall = catLabels.map(\.height).max() ?? 0
+                if tall > 2.5 * lineH {
+                    let limit = frame.left + (valueLabels.map(\.width).max() ?? 0) + 11.7 * k
+                    let left = placed.left - min(placed.right - frame.right, max(0, placed.left - limit))
+                    plot = Rect.fromLTRB(left, plot.top, plot.right, max(plot.top + 1, min(plot.bottom, frame.bottom - tall - 23.2 * k)))
+                }
+            }
             // (The table hangs from the laid plot's foot, its rows under the axis wherever the file put it: PowerPoint's print of
             // es/e365f9b4 p7 has the axis at the layout's y + h, 326.0, and the table's foot 5 pt above the chart's, not on it.)
             if c.onSlide, let t = table { table = (plot.bottom, t.1, t.2, t.3) }
