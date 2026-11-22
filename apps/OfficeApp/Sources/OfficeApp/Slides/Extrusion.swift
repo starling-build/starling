@@ -463,7 +463,7 @@ enum Extrusion {
         func lit(_ base: Color, _ n: P3) -> Color {
             // A legacy camera under a measured rig takes the rig's table (b3255e9d p41: the red cylinders' top 0.65 and
             // sides 0.80 of the fill in PowerPoint's print, where the single light below gave 0.07 and 0.89).
-            if let table = Extrusion.rigs[scene.rig], scene.rigRot == nil { return Extrusion.lit(base, n, rig: table, turn: scene.rigTurn) }
+            if scene.rig.hasPrefix("legacy"), let table = Extrusion.rigs[scene.rig], scene.rigRot == nil { return Extrusion.lit(base, n, rig: table, turn: scene.rigTurn) }
             // One light, in front and a little to the left and below — the
             // side PowerPoint's default rig leaves a top face darkest.
             let l = P3(x: -0.45, y: 0.25, z: 0.86)
