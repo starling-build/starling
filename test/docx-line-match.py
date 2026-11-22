@@ -179,7 +179,23 @@ def _unseen_pairs(ref_pdf, our_pdf):
     return dw, do
 
 
-def _columns(singles, total):
+def _runs(singles):
+    """Slides: the upright single glyphs that stand in a run of three or more, each the next an em along (0.9 to 1.1)
+    and within 0.3 em across: one column of upright text among a slide's horizontal boxes (a bullet or a number a line
+    apart steps 1.2 em or more)."""
+    ordered = sorted(singles, key=lambda g: (round(g[1] / max(g[3], 1) / 0.6), g[2]))
+    keep, run = [], []
+    for g in ordered + [None]:
+        if g is not None and run and abs(g[1] - run[-1][1]) <= 0.3 * g[3] and 0.9 <= (g[2] - run[-1][2]) / g[3] <= 1.1:
+            run.append(g)
+            continue
+        if len(run) >= 3:
+            keep += run
+        run = [g] if g is not None else []
+    return keep
+
+
+def _columns(singles, total, mixed=False):
     """Rows for the columns of a page of vertical writing, or [] where the page
     is not one. A glyph set upright in a column reads as a line of one glyph in
     the print, so the page is vertical where most of its glyphs are such lines
@@ -188,6 +204,9 @@ def _columns(singles, total):
     Its columns are grouped by their glyphs' em centres across (within 0.3 em
     of the column's first) and each is a row: its height is the centre
     across, its start and end the glyphs' along it."""
+    if mixed:
+        keep = _runs(singles)
+        return _columns(keep, len(keep)) if keep else []
     if len(singles) < 8 or len(singles) < 0.5 * total:
         return []
     def stacked(g):
@@ -332,8 +351,13 @@ def mupdf_glyphs(pdf, drop=None):
             # (A page of vertical writing: its upright glyphs are a line each
             # in the print, one per column cell. See `_columns`.)
             cols = _columns(singles, len(glyphs))
+            kept = singles
+            if not cols and OFFPAGE:
+                cols = _columns(singles, len(glyphs), True)
+                if cols:
+                    kept = _runs(singles)
             if cols:
-                gone = {n for n, *_ in singles}
+                gone = {n for n, *_ in kept}
                 glyphs = [g for g in glyphs if g[6] not in gone]
                 out += [f"p{i + 1}\t{r}" for r in cols]
             glyphs.sort()
