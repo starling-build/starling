@@ -6317,6 +6317,7 @@ enum ChartPainter {
         // size: Windows lab wip/lab-doughnut, sizes 200 to 640 pt, ring radius 115 of 133 at 480 x 288.)
         if c.type == .doughnut, c.onSheet, c.dataLabels || c.pieLabels != nil { radius *= 0.8655 }
         // (Pulled slices leave room: the pie is that much smaller, as the 3-D pie's.)
+        // (On a slide a point's own pull counts without the series', the pie not made smaller for it: 3c310d53 p7's "Gasto Corriente" at 12 stands off, the pie at its full size, in PowerPoint's print.)
         if c.type == .pie, c.pieSeriesPull > 0, !c.chartex { radius /= 1 + c.pieExplosion }
         var centre = libre ? Offset(area.center.dx, area.center.dy - 1.3 * k) : area.center
         // (Word's room for the pie is centred where its own title and legend bands leave it, not where ours: lab piesize's prints,
@@ -6388,7 +6389,7 @@ enum ChartPainter {
             let color = c.pointColor(i, accents: theme.accents)
             fill.color = color
             // (A slice pulled out stands off along its middle, by its own pull or the series'.)
-            let pull = c.type == .pie && !c.chartex && c.pieSeriesPull > 0 ? (c.piePulls[i] ?? c.pieSeriesPull) : 0
+            let pull = c.type == .pie && !c.chartex && (c.pieSeriesPull > 0 || (c.onSlide && c.pieExplosion > 0)) ? (c.piePulls[i] ?? c.pieSeriesPull) : 0
             let oval = pull > 0 ? oval.shift(Offset(cos(angle + sweep / 2) * pull * radius, sin(angle + sweep / 2) * pull * radius)) : oval
             if hole > 0 {
                 let ring = Path()
@@ -7523,7 +7524,7 @@ extension ChartPainter {
             // (", " where the chart's text is Chinese, Japanese or Korean:
             // zh-b8de3ae2's "其他收入, 16.39%" in Word's print; and in a Word document's chart
             // whatever its text: lo-f9b9a8fc47c97aa6's "datalabel1, 2".)
-            } ?? parts.joined(separator: l.separator ?? (parts.count > 1 ? (c.eastAsianText || (!c.onSlide && !c.onSheet) ? ", " : "; ") : ""))
+            } ?? parts.joined(separator: l.separator ?? (parts.count > 1 ? (c.onSlide && c.type == .pie ? "\n" : c.eastAsianText || (!c.onSlide && !c.onSheet) ? ", " : "; ") : ""))
             let dark = { () -> Bool in
                 let v = s.color.value
                 return 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF) < 150
