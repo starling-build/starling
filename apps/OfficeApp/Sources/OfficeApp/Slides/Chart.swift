@@ -447,6 +447,9 @@ struct Chart: Equatable {
     }
     /// A pie's slices in their own colours (`c:dPt`), by index.
     var pointColors: [Int: Color] = [:]
+    /// The outline the first slice's `c:dPt` gives (colour, width in pt): a pie's legend keys wear it.
+    var pointRim: Color? = nil
+    var pointRimWidth = 0.75
     struct GradientStop: Equatable { var pos: Double; var color: Color }
     /// A pie of pie's slices that stand in a vertical gradient (a point's `a:gradFill` with `a:lin` at 90 degrees): its stops, top to bottom.
     var pointGradients: [Int: [Chart.GradientStop]] = [:]
@@ -1547,6 +1550,8 @@ enum ChartXML {
         var categories: [String] = []
         var series: [ChartSeries] = []
         var pointColors: [Int: Color] = [:]
+        var pointRim: Color? = nil
+        var pointRimWidth = 0.75
         var pointGradients: [Int: [Chart.GradientStop]] = [:]
         var pointPatterns: [Int: PatternInk] = [:]
         var levels: [[ChartLevelGroup]] = []
@@ -1660,6 +1665,10 @@ enum ChartXML {
             }
             if series.isEmpty {
                 for pt in ser.all("c:dPt") {
+                    if pointRim == nil, let ln = pt.first("c:spPr")?.first("a:ln"), let f = ln.first("a:solidFill"), let rc = color(f) {
+                        pointRim = rc
+                        pointRimWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
+                    }
                     // (The theme's own cycle is left to follow the theme.)
                     if let i = pt.first("c:idx")?["val"].flatMap(Int.init),
                        let f = pt.first("c:spPr")?.first("a:solidFill"),
@@ -2357,6 +2366,8 @@ enum ChartXML {
             c.categoryLabelTurn = -rot / 60000
         }
         c.pointColors = pointColors
+        c.pointRim = pointRim
+        c.pointRimWidth = pointRimWidth
         c.pointGradients = pointGradients
         c.pointPatterns = pointPatterns
         if el.name == "c:ofPieChart", let values = c.series.first?.values {
@@ -3233,7 +3244,12 @@ enum ChartPainter {
             // 10.5 — 0.653 and 0.293 of the legend's size over 9: zh-b8de3ae2 p9/12/15/18, zh-547fc43c, chartex, 61745.)
             let wordRowKeys = !c.onSlide && !c.onSheet && !c.chartex && !beside && !wideKeys && !libreLegend && !bareLegend
                 && !(c.type == .line || c.type == .radar || c.type == .scatter)
-            let key = wideKeys ? 19.2 * k : libreLegend ? 6.12 * k * m : bareLegend ? 3.7 * k * m : wordRowKeys ? 6.53 * k * m : (c.onSlide ? 6.57 : 7) * k * m, gap = libreLegend ? 2.64 * k * m : bareLegend ? 4.5 * k * m : wordRowKeys ? 2.93 * k * m : (c.onSlide ? 2.92 : 4) * k * m
+            // (A 2013-style slide pie's legend: the key 0.449 of the legend's line, 3.2 pt at Malgun 9 pt's 12 -> the name 0.2 of it
+            // after, in PowerPoint's print of ko-ab1bf295 p7: 7.17 and 3.25 pt; Calibri's 0.449 x 14.6 matches its 6.57.)
+            let pieKeyLine = printed && c.styled2013 && pie && c.pointRim != nil
+                ? max(styled("X", size, .infinity, bold: c.legendBold, color: c.legendColor, part: "legend").height,
+                      ["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased()) ? 1.3301 * size * k : 0) : 0
+            let key = pieKeyLine > 0 ? 0.449 * pieKeyLine : wideKeys ? 19.2 * k : libreLegend ? 6.12 * k * m : bareLegend ? 3.7 * k * m : wordRowKeys ? 6.53 * k * m : (c.onSlide ? 6.57 : 7) * k * m, gap = pieKeyLine > 0 ? 0.2 * pieKeyLine : libreLegend ? 2.64 * k * m : bareLegend ? 4.5 * k * m : wordRowKeys ? 2.93 * k * m : (c.onSlide ? 2.92 : 4) * k * m
             var spacing = (printed ? (c.styled2013 ? 11.2 : bareLegend ? 11.8 : 13.9) : c.styled2013 ? 9.5 : 12) * k * m + (wideKeys ? 1.3 * k : 0)
             // (Names in Latin letters only stand 1.4 pt further apart at 9 pt than CJK ones do: chartex's and 61745's "Series 1" pitch 44.05 against 42.65.)
             if wordRowKeys, names.allSatisfy({ $0.unicodeScalars.allSatisfy { $0.isASCII } }) { spacing += 1.87 * k * m }
@@ -3686,6 +3702,14 @@ enum ChartPainter {
                         // (A slide pie's wrapped column: the key and the name's first line at the top of the slot, as in PowerPoint's print.)
                         let keyMid = slideSidePie && wrappedSide ? y + (lineH - slotH) / 2 + textH / 2 : y + lineH / 2
                         canvas.drawRect(Rect.fromLTWH(x, keyMid - high / 2 + keyDrop, key, high), p)
+                        if pieKeyLine > 0, let rim = c.pointRim {
+                            let q = Paint()
+                            q.style = .stroke
+                            q.isAntiAlias = true
+                            q.strokeWidth = c.pointRimWidth * k
+                            q.color = rim
+                            canvas.drawRect(Rect.fromLTWH(x, keyMid - high / 2 + keyDrop, key, high), q)
+                        }
                         // (On a sheet the key wears the series' own outline, as the bars do: WithChartSheet's pivot chart.)
                         if c.onSheet, !byPoint, e.i < c.series.count, let o = c.series[e.i].outline {
                             let q = Paint()
