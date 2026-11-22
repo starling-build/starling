@@ -3673,6 +3673,9 @@ private struct SlideContext {
             // (A text box's size is the deck's default or 18 pt, never the master's `otherStyle` one: 65a1be73's second
             // master says 12 pt there and PowerPoint prints its slide-number text boxes at 18.)
             if ph == nil, k == 2 { one.size = nil }
+            // (A date, footer or slide-number placeholder the master has no placeholder for takes the deck's default size, not
+            // `otherStyle`'s: ko-ca2dc787 p35-37's number is 14 pt bold in PowerPoint's print, 18 in ours.)
+            if let t = ph?["type"], ["dt", "ftr", "sldNum"].contains(t), inherited.master == nil, k == 3 { one.size = nil }
             s = s.filled(from: one)
         }
         // (A text box's tab distance is the deck's default text style's, an inch where that says none: the master's `otherStyle`
