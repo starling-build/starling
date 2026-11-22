@@ -5136,8 +5136,11 @@ enum ChartPainter {
             let foot = c.legend && !c.legendPlaced && c.legendPosition == "b" ? area.bottom : frame.bottom - (manual != nil ? 0 : 4.9 * k)
             // (On a sheet, in points: Excel's print of chart-DataTable-
             // Multiple…'s table 4.2 pt further in than 17 px.)
-            let left = max(plot.left, frame.left + (manual != nil ? 12 : 17) * (c.onSheet ? 1 : k) + column)
-            let right = manual.map { min(plot.right + 5 * k, left + $0.width * frame.width) } ?? plot.right
+            // (A walled 3-D column chart on a slide, its plot left to PowerPoint, stands its table 15.5 pt further in on the left and 16 on
+            // the right: 3f8a480a p7 and p11, the table's edges at 42.3 and 725.8, 40.3 and 734.0 in its print, ours 15 to 17 pt out.)
+            let wallIn = c.onSlide && manual == nil && c.barView?.walled == true
+            let left = max(plot.left, frame.left + (manual != nil ? 12 : 17) * (c.onSheet ? 1 : k) + column + (wallIn ? 15.5 * k : 0))
+            let right = manual.map { min(plot.right + 5 * k, left + $0.width * frame.width) } ?? plot.right - (wallIn ? 16 * k : 0)
             let rows = Self._tableRows(c, size: size, k: k, slot: (right - left) / Double(max(1, n)), minLine: SlideFonts.windowsName(c.font ?? theme.bodyFont).hasPrefix("aptos") ? 1.2207 * size * k : 0, text: text)
             let top = foot - rows.reduce(0, +)
             // (Its plot's top 11.1pt under the frame's in both, where ours
