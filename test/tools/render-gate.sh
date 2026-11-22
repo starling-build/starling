@@ -209,8 +209,11 @@ DN=$(awk '/^== /{v2=($0 ~ / v2$/)} v2 && /^up .* down [1-9]/{n++} END{print n+0}
 # v2 drops: lines "  DOWN <stem> ..." inside "== <set> v2" sections
 awk '/^== /{v2=($0 ~ / v2$/)} v2 && /^ *DOWN /{print}' "$W/pair.log" > "$W/down.txt"
 DROPS=""
+# a waiver holds only for the PR that names the doc in its PR body (PR_BODY env) or a commit message (amd-8, 2026-11-22): approved.txt is permanent
+MSGS="${PR_BODY:-}"$'\n'$(git -C "$ROOT" log --format=%B "$(git -C "$ROOT" merge-base HEAD origin/main 2>/dev/null || echo HEAD)..HEAD" 2>/dev/null || true)
 while read -r line; do
-  stem=${line##* }; s=$(basename "${stem%.docx}"); grep -qE "^${s}[ .]" "$LQ/approved.txt" 2>/dev/null || DROPS="$DROPS $s"
+  stem=${line##* }; s=$(basename "${stem%.docx}")
+  if grep -qE "^${s}[ .]" "$LQ/approved.txt" 2>/dev/null && case "$MSGS" in *"$s"*) true;; *) false;; esac; then :; else DROPS="$DROPS $s"; fi
 done < "$W/down.txt"
 if [ -n "$DROPS" ] && [ -n "$EXACTB" ]; then echo "render-gate: drops against the cached ancestor ($DROPS ); rerunning against the exact base"; [ -n "$SLPID" ] && kill "$SLPID" 2>/dev/null; exec env GATE_EXACT_BASE=1 "$SELF" "$BASE_SHA"; fi
 if [ -n "$DROPS" ]; then echo "render-gate: BLOCKED, v2 drops not approved:$DROPS"; exit 1; fi
