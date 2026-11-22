@@ -56,7 +56,23 @@ enum SlideFonts {
         // (Arial's PostScript name, "ArialMT" or "Arial MT", is Arial in the print: 5ddc3269 sets "Arial MT" 20pt at Arial's widths, where
         // ours drew Carlito and broke "intercambiar ideas y" a word early.)
         if (n == "arialmt" || n == "arial mt") && OfficeFonts.installed(family) == nil && embeddedFamily(family) == nil { return "arial" }
+        // (A Japanese face PowerPoint for Windows lacks (HGｺﾞｼｯｸM, HG教科書体, HGP創英角ﾎﾟｯﾌﾟ体, 游明朝, ヒラギノ角ゴ, ＤＨＰ平成ゴシックW5,
+        // BIZ UDP明朝): its print draws it in Yu Gothic, regular or bold, whatever the name. Property: a name with kana, or an HG/游 name with
+        // ideographs, that our East Asian width table does not know. The theme's "本文"/"見出し" aliases are not this.)
+        if OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil, isMissingJapaneseName(n) { return "yu gothic" }
         return n == "dejavu sans" && OfficeFonts.installed(family) == nil ? "verdana" : n
+    }
+
+    static func isMissingJapaneseName(_ n: String) -> Bool {
+        guard !n.containsSubstring("本文"), !n.containsSubstring("見出し") else { return false }
+        var kana = false, ideograph = false
+        for u in n.unicodeScalars {
+            let v = u.value
+            if (v >= 0x3041 && v <= 0x30FF) || (v >= 0x31F0 && v <= 0x31FF) || (v >= 0xFF66 && v <= 0xFF9F) { kana = true }
+            else if (v >= 0x4E00 && v <= 0x9FFF) { ideograph = true }
+        }
+        guard kana || (ideograph && (n.hasPrefix("hg") || n.hasPrefix("游"))) else { return false }
+        return SlideEastAsianWidths.lookup(n) == nil
     }
 
     /// Roman faces the deck names with PANOSE 02 05 (a Garamond/Caslon-type serif), pitchFamily roman and charset 0 that PowerPoint's machine
