@@ -31,7 +31,11 @@ struct EmfPlus {
     indirect enum Region { case rect(Rect), path(PlusPath), infinite, empty, combine(Int, Region, Region) }
     struct Pen { var width = 1.0, unit = 0, color = Color(0xFF000000), solid = true, plain = true
         /// On/off lengths in pen widths (GDI+'s dash, dot, dash-dot styles or a custom array), nil for a solid line, and the offset into it.
-        var dash: [Double]? = nil, dashOffset = 0.0 }
+        var dash: [Double]? = nil, dashOffset = 0.0
+        /// Custom line caps at the line's start and end.
+        var startCap: Cap? = nil, endCap: Cap? = nil }
+    /// A custom line cap: a path in pen widths (x across the line, y along it, the line's end at 0), drawn filled or stroked.
+    struct Cap { var path: PlusPath, fill: Bool, scale: Double }
     struct Font { var size = 12.0, unit = 0, family = "Arial", bold = false, italic = false, underline = false }
     /// A linear gradient brush: its gradient line (left to right through the middle of `rect`), its colours and stops, and the brush's own transform.
     struct Linear { var rect: Rect, colors: [Color], stops: [Double], transform: Matrix }
@@ -54,6 +58,7 @@ struct EmfPlus {
     var steps: [Metafile.Step] = []
     /// Compressed pictures (PNG, JPEG...) the image objects held, for the player to add to its bitmaps; a step's index counts from `bitmapBase`.
     var newBitmaps: [Data] = []
+    var continuedObjects: [Int: [UInt8]] = [:]
     var bitmapBase = 0
     var bounds = Rect.zero
 
@@ -63,7 +68,7 @@ struct EmfPlus {
     static func plays(_ bytes: [UInt8]) -> Bool {
         func u32(_ at: Int) -> Int { at + 4 <= bytes.count ? Int(bytes[at]) | Int(bytes[at + 1]) << 8 | Int(bytes[at + 2]) << 16 | Int(bytes[at + 3]) << 24 : 0 }
         func u16(_ at: Int) -> Int { at + 2 <= bytes.count ? Int(bytes[at]) | Int(bytes[at + 1]) << 8 : 0 }
-        var p = 0, seen = false, dualFile = false
+        var p = 0, seen = false, dualFile = false, continued = 0
         while p + 8 <= bytes.count {
             let type = u32(p), size = u32(p + 4)
             guard size >= 8, p + size <= bytes.count else { break }
@@ -81,7 +86,17 @@ struct EmfPlus {
                     case 0x4008:
                         // An object: a brush must be solid, a pen plain, nothing an image or a custom cap.
                         let kind = (fl >> 8) & 0x7F
-                        guard fl & 0x8000 == 0 else { return false }
+                        // A continued object (an image too big for one record): each piece repeats the whole size, then its bytes.
+                        if fl & 0x8000 != 0 {
+                            guard kind == 5 else { return false }
+                            if continued == 0 {
+                                guard u32(q + 12 + 8) == 1, u32(q + 12 + 28) == 1 else { return false }   // a compressed bitmap
+                                continued = u32(q + 12)
+                            }
+                            continued -= ds - 4
+                            if continued < 0 { continued = 0 }
+                            break
+                        }
                         switch kind {
                         case 1:
                             let type = u32(q + 12 + 4)
@@ -134,6 +149,19 @@ struct EmfPlus {
         return p.solid && p.plain
     }
 
+    /// A custom line cap object: version, type (0 default), flags (1 fill path, 2 line path), then the strokes' details, width scale and hot spots,
+    /// and the path with its length. nil for the adjustable arrow and for both paths at once.
+    static func readCap(_ b: [UInt8], _ at: Int, _ end: Int) -> Cap? {
+        func u32(_ o: Int) -> Int { o + 4 <= b.count ? Int(b[o]) | Int(b[o + 1]) << 8 | Int(b[o + 2]) << 16 | Int(b[o + 3]) << 24 : 0 }
+        guard end - at >= 64, u32(at + 4) == 0 else { return nil }
+        let flags = u32(at + 8)
+        guard flags == 1 || flags == 2 else { return nil }
+        let scale = Double(Float(bitPattern: UInt32(truncatingIfNeeded: u32(at + 36))))
+        let len = u32(at + 56)
+        guard len > 12, at + 60 + len <= end else { return nil }
+        return Cap(path: readPath(b, at + 60, at + 60 + len), fill: flags == 1, scale: scale > 0 ? scale : 1)
+    }
+
     static func readPen(_ b: [UInt8], _ at: Int, _ ds: Int) -> Pen? {
         func u32(_ o: Int) -> Int { o + 4 <= b.count ? Int(b[o]) | Int(b[o + 1]) << 8 | Int(b[o + 2]) << 16 | Int(b[o + 3]) << 24 : 0 }
         func f32(_ o: Int) -> Double { Double(Float(bitPattern: UInt32(truncatingIfNeeded: u32(o)))) }
@@ -169,8 +197,12 @@ struct EmfPlus {
         }
         if flags & 0x200 != 0 { o += 4 }     // alignment
         if flags & 0x400 != 0 { pen.plain = false; o += 4 + 4 * u32(o) }
-        if flags & 0x800 != 0 { pen.plain = false; return pen }
-        if flags & 0x1000 != 0 { pen.plain = false; return pen }
+        for (bit, isEnd) in [(0x800, false), (0x1000, true)] where flags & bit != 0 {
+            let size = u32(o)
+            guard let cap = readCap(b, o + 4, min(o + 4 + size, at + ds)) else { pen.plain = false; return pen }
+            if isEnd { pen.endCap = cap } else { pen.startCap = cap }
+            o += 4 + size
+        }
         guard o + 12 <= at + ds else { return nil }
         // The pen's brush: version, type (solid 0), colour.
         if u32(o + 4) != 0 { pen.solid = false; return pen }
@@ -436,7 +468,16 @@ extension EmfPlus {
                 savedIndex = savedIndex.filter { $0.value < i }
                 if had != nil || clip != nil { steps.append(.clip(clip)) }
             }
-        case 0x4008: object(b, flags: flags, at: at, size: size)
+        case 0x4008:
+            if flags & 0x8000 != 0 {
+                let id = flags & 0xFF
+                var have = continuedObjects[id] ?? []
+                have += b[(at + 4)..<(at + size)]
+                if have.count >= Self.u32(b, at) {
+                    continuedObjects[id] = nil
+                    object(have, flags: flags & 0x7FFF, at: 0, size: have.count)
+                } else { continuedObjects[id] = have }
+            } else { object(b, flags: flags, at: at, size: size) }
         case 0x4031: combineClip(nil, mode: 0)
         case 0x4032:
             combineClip(quad(toDevice, f(0), f(4), f(8), f(12)), mode: (flags >> 8) & 0xF)
@@ -453,6 +494,17 @@ extension EmfPlus {
                 let m = toDevice
                 let width = penWidth(pen), line = device(m, p)
                 steps.append(.stroke(pen.dash.map { Self.dashed(line, $0, width, pen.dashOffset) } ?? line, pen.color, width))
+                for (cap, atEnd) in [(pen.startCap, false), (pen.endCap, true)] {
+                    let metrics = Array(line.computeMetrics())
+                    guard let cap = cap, let metric = atEnd ? metrics.last : metrics.first,
+                          let tan = metric.getTangentForOffset(atEnd ? metric.length : 0) else { continue }
+                    // The cap points away from the line: forward at the end, backward at the start.
+                    let sign = atEnd ? 1.0 : -1.0, s = width * cap.scale
+                    let dx = tan.vector.dx * sign, dy = tan.vector.dy * sign
+                    let cm = Matrix(a: -dy * s, b: dx * s, c: dx * s, d: dy * s, e: tan.position.dx, f: tan.position.dy)
+                    let shape = device(cm, cap.path)
+                    steps.append(cap.fill ? .fill(shape, pen.color) : .stroke(shape, pen.color, s))
+                }
             }
         case 0x400A:
             let count = u(4), packed = flags & 0x4000 != 0, m = toDevice
