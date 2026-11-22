@@ -461,6 +461,9 @@ enum Extrusion {
             return Color(argb: base.alpha, ch(base.red), ch(base.green), ch(base.blue))
         }
         func lit(_ base: Color, _ n: P3) -> Color {
+            // A legacy camera under a measured rig takes the rig's table (b3255e9d p41: the red cylinders' top 0.65 and
+            // sides 0.80 of the fill in PowerPoint's print, where the single light below gave 0.07 and 0.89).
+            if let table = Extrusion.rigs[scene.rig], scene.rigRot == nil { return Extrusion.lit(base, n, rig: table, turn: scene.rigTurn) }
             // One light, in front and a little to the left and below — the
             // side PowerPoint's default rig leaves a top face darkest.
             let l = P3(x: -0.45, y: 0.25, z: 0.86)
@@ -580,7 +583,9 @@ enum Extrusion {
         // A legacy camera that turns the face well away darkens it with the
         // tilt: twoPt at 60 degrees prints 0.39 of the fill (legacyCamera).
         let tilted = scene.legacy && n0.z > 0 && n0.z < 0.9
-        let tiltK = (Extrusion.rigs[scene.rig]?.front.0 ?? 1) * pow(max(0, n0.z), 1.3)
+        // (legacyFlat3 has its measured table and no tilt darkening: b3255e9d p41's face turned 80 degrees (lat 280) prints 0.65
+        // of the fill, not 0.08.)
+        let tiltK = (Extrusion.rigs[scene.rig]?.front.0 ?? 1) * (scene.rig == "legacyFlat3" ? 1 : pow(max(0, n0.z), 1.3))
         let shown = !frontShows ? (scene.rig == "twoPt" || (scene.rig == "threePt" && !scene.material.isEmpty) ? { () -> Color in
             let b = Extrusion.backFace(scene.material, threePt: scene.rig == "threePt")
             func ch(_ v: Int) -> Int { max(0, min(255, Int((Double(v) * b.share + 255 * b.white).rounded()))) }
