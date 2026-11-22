@@ -39,7 +39,9 @@ struct EmfPlus {
     struct Font { var size = 12.0, unit = 0, family = "Arial", bold = false, italic = false, underline = false }
     /// A linear gradient brush: its gradient line (left to right through the middle of `rect`), its colours and stops, and the brush's own transform.
     struct Linear { var rect: Rect, colors: [Color], stops: [Double], transform: Matrix }
-    enum Object { case brush(Color?), linear(Linear), pen(Pen), path(PlusPath), region(Region), font(Font), image(Int), other }
+    /// A path gradient brush: the colour at `center` shades to one surround colour at the boundary path (ARGB words), in the brush's own transform.
+    struct PathGradient { var center: Offset, centerARGB: Int, surroundARGB: Int, boundary: PlusPath, transform: Matrix }
+    enum Object { case brush(Color?), linear(Linear), pathGradient(PathGradient), pen(Pen), path(PlusPath), region(Region), font(Font), image(Int), other }
 
     static let ident: Int64 = 0x2B46_4D45   // "EMF+"
 
@@ -100,7 +102,7 @@ struct EmfPlus {
                         switch kind {
                         case 1:
                             let type = u32(q + 12 + 4)
-                            if type == 4 { if readLinear(bytes, q + 12, q + 12 + ds) == nil { return false } } else if type != 0 { return false }
+                            if type == 4 { if readLinear(bytes, q + 12, q + 12 + ds) == nil { return false } } else if type == 3 { if readPathGradient(bytes, q + 12, q + 12 + ds) == nil { return false } } else if type == 1 { if readHatch(bytes, q + 12, q + 12 + ds) == nil { return false } } else if type != 0 { return false }
                         case 2: if !plainPen(bytes, q + 12, ds) { return false }
                         case 3, 4, 6, 7, 8: break
                         case 5: if u32(q + 12 + 4) != 1 || u32(q + 12 + 24) != 1 { return false }   // only a compressed bitmap
@@ -142,6 +144,47 @@ struct EmfPlus {
         }
         guard g.rect.width > 0 else { return nil }
         return g
+    }
+
+    /// A path gradient brush's data (version, type 3, flags, wrap mode, centre colour, centre point, surround colours, the boundary path, then
+    /// an optional transform). Only one surround colour and the path and transform flags are played; anything else is nil.
+    static func readPathGradient(_ b: [UInt8], _ at: Int, _ end: Int) -> PathGradient? {
+        guard at + 36 <= end, end <= b.count else { return nil }
+        let flags = u32(b, at + 8)
+        guard flags & 1 != 0, flags & ~3 == 0 else { return nil }
+        let n = u32(b, at + 28)
+        guard n >= 1, n <= 64, at + 32 + 4 * n + 4 <= end else { return nil }
+        let surround = u32(b, at + 32)
+        for i in 1..<n where u32(b, at + 32 + 4 * i) != surround { return nil }
+        var o = at + 32 + 4 * n
+        let size = u32(b, o)
+        guard size > 12, o + 4 + size <= end else { return nil }
+        let boundary = readPath(b, o + 4, o + 4 + size)
+        guard boundary.points.count >= 3 else { return nil }
+        o += 4 + size
+        var m = Matrix()
+        if flags & 2 != 0 {
+            guard o + 24 <= end else { return nil }
+            m = Matrix(a: f32(b, o), b: f32(b, o + 4), c: f32(b, o + 8), d: f32(b, o + 12), e: f32(b, o + 16), f: f32(b, o + 20))
+        }
+        return PathGradient(center: Offset(f32(b, at + 20), f32(b, at + 24)), centerARGB: u32(b, at + 16), surroundARGB: surround, boundary: boundary, transform: m)
+    }
+
+    /// A hatch brush (version, type 1, style, foreground, background) as the mean colour of its 8 by 8 pixel tile: the foreground
+    /// at the share of the tile it covers (the percent styles, single lines, crosses), the background elsewhere. Other styles are nil.
+    static func readHatch(_ b: [UInt8], _ at: Int, _ end: Int) -> Color? {
+        guard at + 20 <= end, end <= b.count else { return nil }
+        let style = u32(b, at + 8)
+        let share: [Double] = [0.125, 0.125, 0.125, 0.125, 15.0 / 64, 14.0 / 64,
+                               0.05, 0.10, 0.20, 0.25, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80, 0.90]
+        guard share.indices.contains(style) else { return nil }
+        let fore = u32(b, at + 12), back = u32(b, at + 16)
+        var argb = 0
+        for shift in [0, 8, 16, 24] {
+            let f = Double((fore >> shift) & 0xFF), k = Double((back >> shift) & 0xFF)
+            argb |= Int((k + share[style] * (f - k)).rounded()) << shift
+        }
+        return Color(Int64(argb))
     }
 
     static func plainPen(_ b: [UInt8], _ at: Int, _ ds: Int) -> Bool {
@@ -372,6 +415,8 @@ extension EmfPlus {
         case 1:
             switch Self.u32(b, at + 4) {
             case 0: objects[id] = .brush(Color(Int64(Self.u32(b, at + 8))))
+            case 1: objects[id] = .brush(Self.readHatch(b, at, end))
+            case 3: objects[id] = Self.readPathGradient(b, at, end).map { .pathGradient($0) } ?? .brush(nil)
             case 4: objects[id] = Self.readLinear(b, at, end).map { .linear($0) } ?? .brush(nil)
             default: objects[id] = .brush(nil)
             }
@@ -413,6 +458,31 @@ extension EmfPlus {
             let m = g.transform.then(toDevice), y = g.rect.top + g.rect.height / 2
             let a = m.apply(g.rect.left, y), c = m.apply(g.rect.right, y)
             steps.append(.gradient(p, from: Offset(a.dx, a.dy), to: Offset(c.dx, c.dy), colors: g.colors, stops: g.stops))
+        } else if flags & 0x8000 == 0, case .pathGradient(let g)? = objects[id & 0xFF] {
+            // Equal colours lie on copies of the boundary scaled about the centre: fill the rings between successive copies, in as
+            // many rings as the colours have 8-bit steps between them (rings do not overlap, so a translucent brush does not stack).
+            func channel(_ v: Int, _ shift: Int) -> Int { (v >> shift) & 0xFF }
+            let diff = [0, 8, 16, 24].map { abs(channel(g.centerARGB, $0) - channel(g.surroundARGB, $0)) }.max() ?? 0
+            let bands = min(64, max(1, diff))
+            func copy(_ k: Int) -> Path {
+                let s = 1 - Double(k) / Double(bands)
+                let m = Matrix(a: s, d: s, e: g.center.dx * (1 - s), f: g.center.dy * (1 - s)).then(g.transform).then(toDevice)
+                return device(m, g.boundary)
+            }
+            var outer = copy(0)
+            fill(Path.combine(.difference, p, outer), Color(Int64(g.surroundARGB)))
+            for k in 0..<bands {
+                let t = (Double(k) + 0.5) / Double(bands)
+                let inner: Path? = k + 1 < bands ? copy(k + 1) : nil
+                let ring = inner.map { Path.combine(.difference, outer, $0) } ?? outer
+                var argb = 0
+                for shift in [0, 8, 16, 24] {
+                    let v = Double(channel(g.surroundARGB, shift)) + t * Double(channel(g.centerARGB, shift) - channel(g.surroundARGB, shift))
+                    argb |= Int(v.rounded()) << shift
+                }
+                fill(Path.combine(.intersect, p, ring), Color(Int64(argb)))
+                if let inner { outer = inner }
+            }
         } else { fill(p, brush(flags, id)) }
     }
 
