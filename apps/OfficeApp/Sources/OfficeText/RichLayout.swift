@@ -1130,9 +1130,10 @@ public final class RichTextTheme {
             }(),
             fontVariations: family.flatMap { Self.variableWeights[$0] }.map { [FontVariation("wght", $0)] },
             // (Slides draws a rule of a face it has a table for itself, `_paintRules`: the engine's is the stand-in's.)
-            decoration: decorations.isEmpty || (!wordRules && Self.ruleMetrics(latinName, bold: bold, italic: italic) != nil)
+            decoration: decorations.isEmpty
                 ? TextDecoration.none : TextDecoration.combine(decorations),
-            decorationColor: color,
+            // (Kept, not dropped, with the colour clear: a run without its decoration lays out its tab and spaces differently.)
+            decorationColor: !wordRules && !decorations.isEmpty && Self.ruleMetrics(latinName, bold: bold, italic: italic) != nil ? Color(0x00000000) : color,
             debugLabel: familyName,
             fontFamily: bold && face?.family == family ? face?.fakeBoldFamily ?? family : family,
             fontFamilyFallback: {
