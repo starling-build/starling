@@ -247,7 +247,7 @@ extension _ParaFrame {
         let zhHang = p.style.eastAsian["a:hangClosingZh"] == "1"
         let _closingBrackets: Set<UInt16> = [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009]
         if _hangsLineEndMarks(p),
-           p.text.utf16.contains(where: { $0 == 0x3001 || $0 == 0x3002 || $0 == 0xFF0C || $0 == 0xFF0E || $0 == 0x201D || $0 == 0x29 || (zhHang && _closingBrackets.contains($0)) }) {
+           p.text.utf16.contains(where: { $0 == 0x3001 || $0 == 0x3002 || $0 == 0xFF0C || $0 == 0xFF0E || $0 == 0x201D || $0 == 0x29 || $0 == 0x2C || (zhHang && _closingBrackets.contains($0)) }) {
             let units = Array(p.text.utf16)
             func isMark(_ k: Int) -> Bool {
                 // (A ")" that closes a Hangul or ideograph hangs the same way: ko-4f5289 p6 keeps "(실부하)" whole in a narrow cell.)
@@ -255,6 +255,8 @@ extension _ParaFrame {
                     if units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 { return true }
                     return p.style.eastAsian["a:hangParens"]?.split(separator: ",").contains { Int($0) == k } ?? false
                 }
+                // (A "," that follows a Hangul syllable hangs too: ko-70afa6ad p5 "…정치, 경제," keeps 경제 on a line that ends at the margin, PowerPoint's print.)
+                if k > 0, k < units.count, units[k] == 0x2C, units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 { return true }
                 if zhHang, k < units.count, _closingBrackets.contains(units[k]) { return true }
                 // (A ” after kanji or kana is full width in the East Asian face and never hangs: lab hang3 slide 7 breaks "課|程”" below its width.)
                 if k > 0, k < units.count, units[k] == 0x201D, units[k - 1] >= 0x3040, units[k - 1] <= 0x9FFF { return false }
@@ -291,7 +293,8 @@ extension _ParaFrame {
                 if after == starts { trial.dispose(); break }
                 // (A mark set narrow stands at its line's end. Where the line took more and it no longer does, it keeps its width, and
                 // the paragraph is laid out again as it was: 44a22c19 p15 "…読む。（異なる…" breaks after the 。 in the print.)
-                let loose = adj.keys.filter { fit[$0] == nil && $0 + 1 < units.count && !after.contains($0 + 1) }
+                // (A mark followed by a space ends its line when the next line opens after that space: "…경제, 종교".)
+                let loose = adj.keys.filter { fit[$0] == nil && $0 + 1 < units.count && !after.contains($0 + 1) && !(units[$0 + 1] == 0x20 && after.contains($0 + 2)) }
                 if !loose.isEmpty {
                     trial.dispose()
                     stays.formUnion(loose)
