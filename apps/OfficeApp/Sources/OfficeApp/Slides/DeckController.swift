@@ -1222,6 +1222,7 @@ final class DeckController: ChangeNotifier {
             || (st.keepsFirstSpace && tt.omitsLeadingSpace) {
             let fresh = _textTheme(font: st.font ?? theme.bodyFont, size: st.size, color: st.color)
             fresh.listIndent = st.listIndent
+            if st.textTurn == 0, st.textStacked == 0 { fresh.faceResolver = { var f = SlideFonts.face($0, $1); f?.boldIdeographScale = nil; return f } }
             if st.keepsFirstSpace { fresh.omitsLeadingSpace = false }
             if st.naturalLines { Self.naturalLines(fresh, font: st.font ?? theme.bodyFont, doc: st.text) }
             shape.textTheme = fresh
@@ -1332,7 +1333,8 @@ final class DeckController: ChangeNotifier {
     private func _make(_ st: ShapeState) -> SlideShape {
         let theme = st.text == nil ? nil : _textTheme(font: st.font ?? self.theme.bodyFont, size: st.size, color: st.color)
         theme?.listIndent = st.listIndent
-        if st.keepsFirstSpace { theme?.omitsLeadingSpace = false }
+        // (The emboldened ideograph's 0.983 step is a column's: along a horizontal line it steps a full em, lab vk against 1892a5a76df6 p207.)
+        if st.textTurn == 0, st.textStacked == 0 { theme?.faceResolver = { var f = SlideFonts.face($0, $1); f?.boldIdeographScale = nil; return f } }
         if st.naturalLines, let theme { Self.naturalLines(theme, font: st.font ?? self.theme.bodyFont, doc: st.text) }
         let shape = SlideShape(id: st.id, name: st.name, kind: st.kind, frame: st.frame,
                                text: st.text.map(_textController), textTheme: theme,

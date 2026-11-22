@@ -60,7 +60,9 @@ extension RichLayout {
     /// the span, or nil where no line holds two faces.
     func _mixedFaceLinesSpan(_ span: TextSpan, _ p: RichParagraph, _ painter: TextPainter) -> TextSpan? {
         guard theme.exactLinesAsPowerPoint, let single = theme.singleLineHeight, p.style.lineHeightPoints == nil,
-              abs(max(0.1, p.style.lineSpacing - theme.lineSpacingReduction) - 1) < 1e-9 else { return nil }
+              p.style.lineSpacing > 0 else { return nil }
+        // (A proportional line, 90% of the single line: the pieces' line scales with it.)
+        let factor = max(0.1, p.style.lineSpacing - theme.lineSpacingReduction)
         // The lines, as ranges of the painter's text.
         var lines: [(Int, Int)] = []
         var at = 0
@@ -121,7 +123,7 @@ extension RichLayout {
             guard !pieces.isEmpty else { return nil }
             let a = pieces.map { $0.size * (single - $0.depth) }.max() ?? 0
             let d = pieces.map { $0.size * $0.depth }.max() ?? 0
-            let h = single * (pieces.map(\.size).max() ?? 0)
+            let h = single * factor * (pieces.map(\.size).max() ?? 0)
             guard a + d > 0 else { return nil }
             return (h * a / (a + d), h * d / (a + d), h)
         }
