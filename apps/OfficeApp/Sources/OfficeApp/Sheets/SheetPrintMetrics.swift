@@ -234,6 +234,23 @@ struct SheetPrintMetrics {
         guard let a = ascent(family: family), let d = descent(family: family) else { return nil }
         return a + d
     }
+    /// What Excel's print takes of a face for where a cell's text stands in
+    /// it (GDI's ascent and descent at the page's dots): `ascent` and
+    /// `descent` where the two agree, these where they do not. Lucida Sans
+    /// Unicode's Windows line (1.0967 over, 0.4399 under, as Word sets it)
+    /// is not what a cell takes: its text stands about a tenth of an em
+    /// higher in the baseline lab (Excel 16, 9 to 12 pt: head-aligned 0.8 to
+    /// 1.2 pt, middle 0.6 to 0.8, from ascent 1.0 and descent 0.2).
+    static func printAscent(family: String) -> Double? {
+        let n = family.trimmingWhitespace().lowercased()
+        return gdiAscents[aliases[n] ?? n] ?? ascent(family: family)
+    }
+    static func printDescent(family: String) -> Double? {
+        let n = family.trimmingWhitespace().lowercased()
+        return gdiDescents[aliases[n] ?? n] ?? descent(family: family)
+    }
+    private static let gdiAscents: [String: Double] = ["lucida sans unicode": 1.0]
+    private static let gdiDescents: [String: Double] = ["lucida sans unicode": 0.2]
     private static let ascents: [String: Double] = [
         "calibri": 0.9521, "arial": 0.9053, "verdana": 1.0054, "times new roman": 0.8911, "courier new": 0.8325,
         "tahoma": 1.0005, "cambria": 0.9502, "microsoft sans serif": 0.9219, "segoe ui": 1.0791, "century gothic": 1.0059,
