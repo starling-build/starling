@@ -621,6 +621,8 @@ struct Chart: Equatable {
     var eastAsianText = false
     /// The chart part says `c:lang` ja-*: its East Asian letters are Japanese (the theme's `japaneseFace`).
     var japaneseLang = false
+    /// The Japanese face of the chart's own theme override (its `a:minorFont` Jpan, where its East Asian slot is empty), over the deck's.
+    var japaneseFaceOverride: String?
     /// Its East Asian text is set as Word for Windows sets a theme with no
     /// East Asian face: in MS Mincho, and Microsoft JhengHei for what
     /// Mincho lacks (`OfficeFonts.windowsMinchoCovers`) — so a data
@@ -3032,7 +3034,7 @@ enum ChartPainter {
             // advance, as PowerPoint's print sets it, not the stand-in's: Meiryo's labels are wider than Carlito's.)
             if (!windowsLines || (span.children ?? []).isEmpty), family == nil, case let raw = ownFace ?? c.font ?? (c.onSheet ? nil : c.axisFont) ?? theme.bodyFont, let face = Self.eastAsianChartFace(raw) ?? (c.onSlide ? Self.latinChartFace(raw) : nil) {
                 span = Self.metricSpan(s, style, face, bold: bold)
-            } else if (!windowsLines || (span.children ?? []).isEmpty), family == nil, c.japaneseLang, let jf = theme.japaneseFace, Self.eastAsianChartFace(ownFace ?? c.font ?? (c.onSheet ? nil : c.axisFont) ?? theme.bodyFont) == nil,
+            } else if (!windowsLines || (span.children ?? []).isEmpty), family == nil, c.japaneseLang, let jf = c.japaneseFaceOverride ?? theme.japaneseFace, Self.eastAsianChartFace(ownFace ?? c.font ?? (c.onSheet ? nil : c.axisFont) ?? theme.bodyFont) == nil,
                       s.unicodeScalars.contains(where: { $0.value >= 0x3040 }), let face = Self.eastAsianChartFace(jf) {
                 span = Self.metricSpan(s, style, face, bold: bold, eastAsianOnly: true)
             }
@@ -7031,15 +7033,21 @@ enum ChartPainter {
                 let wrapAt = wrapLabels.contains(li) && !c.onSlide && !c.onSheet ? max(20 * k, frame.width * 0.2 - 7.7 * k) : Double.infinity
                 let ownFace = c.onSlide || c.onSheet ? nil : ser.labelFace
                 let boldHere = ser.labelBold || boldLabels.contains(li)
+                // (A ja slide's label with a size of its own is set as its other text is, in the theme's Japanese face's widths: d776ec3f p23's
+                // 12 pt "１２７９" in MS PGothic is 32.7 pt wide, not 48.)
+                // (A ja slide's label with a look of its own is set as its other text is, in the theme's Japanese face's widths: d776ec3f p23's
+                // 12 pt "１２７９" in MS PGothic is 32.7 pt wide, not 48.)
+                let jaFace: RichResolvedFace? = c.onSlide && c.japaneseLang && ownFace == nil && Self.eastAsianChartFace(c.font ?? theme.bodyFont) == nil
+                    && s.unicodeScalars.contains(where: { $0.value >= 0x3040 }) ? (c.japaneseFaceOverride ?? theme.japaneseFace).flatMap { Self.eastAsianChartFace($0) } : nil
                 let tp = ser.labelSize == nil && !boldHere && ser.labelColor == nil && ownFace == nil ? text(s, c.baseTextSize, wrapAt)
                     : { () -> TextPainter in
                         let ls = Flutter.TextStyle(
                             color: ser.labelColor ?? c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65)),
-                            fontSize: max(3, (ser.labelSize ?? c.baseTextSize) * k), fontWeight: boldHere ? .bold : .normal,
+                            fontSize: max(3, (ser.labelSize ?? c.baseTextSize) * k), fontWeight: boldHere ? .bold : .normal, height: jaFace != nil ? 1.3 : nil,
                             fontFamily: OfficeFonts.substitute(ownFace ?? c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))
                         // (A Latin face the machine lacks is spaced to its own advances: see `latinChartFace`.)
                         let lspan = c.onSlide && c.font == nil ? Self.latinChartFace(c.partFaces["label"] ?? c.axisFont ?? theme.bodyFont ?? "").map { Self.metricSpan(s, ls, $0, bold: boldHere) } : nil
-                        let t = TextPainter(text: lspan ?? TextSpan(text: s, style: ls), textAlign: .center, textDirection: .ltr)
+                        let t = TextPainter(text: jaFace.map { Self.metricSpan(s, ls, $0, bold: boldHere, eastAsianOnly: true) } ?? lspan ?? TextSpan(text: s, style: ls), textAlign: .center, textDirection: .ltr)
                         t.layout(minWidth: 0, maxWidth: wrapAt)
                         return t
                     }()
@@ -7047,7 +7055,9 @@ enum ChartPainter {
                 let rise = horizontal ? 0 : Self._wordLabelRise(c, ser.labelSize ?? c.baseTextSize) * k
                 // (A label of several lines keeps its last line where a single one stood and grows upward.)
                 let lineCount = max(1, tp.computeLineMetrics().count)
-                let grown = lineCount > 1 ? tp.height - tp.height / Double(lineCount) : 0
+                // (A slide's stacked column's label is centred in its segment whole, its lines on either side of the middle: d776ec3f p23's
+                // two-line "１２７９" over "（２９．４％）" has its baselines 7.5 pt lower than the grown-upward form.)
+                let grown = lineCount > 1 && !(c.onSlide && c.stacked && jaFace != nil) ? tp.height - tp.height / Double(lineCount) : 0
                 var origin = Offset(at.dx - dx, at.dy - tp.height / 2 - rise - grown / 2)
                 // (A written-out label that wraps stands 1.5 pt (a sixth of its 9 pt size) higher than a plain one's
                 // lines in Word's print: sa1 06706f28's twenty "100.00%;" over "10,150,000.00" labels, 1.5 pt low in ours.)
