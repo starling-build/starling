@@ -1134,6 +1134,7 @@ struct PptxReader {
                 // A focus outside the shape (t 150%, b -50%) is drawn by
                 // Windows PowerPoint at the centre, not beyond the edge
                 // where the Mac's print has it (tdf94238).
+                f.fillToExact = Rect.fromLTRB(v("l"), v("t"), 1 - v("r"), 1 - v("b"))
                 if ["l", "t", "r", "b"].contains(where: { v($0) < 0 || v($0) > 1 }) {
                     f.fillTo = Rect.fromLTRB(0.5, 0.5, 0.5, 0.5)
                 } else {
@@ -1914,6 +1915,9 @@ private struct SlideContext {
             if let soft = effects.first("a:softEdge")?["rad"].flatMap(Double.init), soft > 0 { st.softEdge = soft / Pptx.emu }
         }
         st.fillStyle = fillStyle
+        if var fs = st.fillStyle, fs.path == .circle, let ex = fs.fillToExact, spPr?.first("a:sp3d")?.first("a:bevelT") != nil {
+            fs.fillTo = ex; fs.exactFocus = true; st.fillStyle = fs
+        }
         if let o = spPr?.first("a:effectLst")?.first("a:fillOverlay"),
            var base = fillStyle ?? fill.map({ SlideFill(color: $0) }) {
             var over: SlideFill? = nil

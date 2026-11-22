@@ -1492,7 +1492,7 @@ final class SlidePainter: CustomPainter {
             _ = path
             let f = fill.fillTo
             // (A circle from the middle of its tile rectangle: lab gradpath.)
-            if path == .circle, fill.tile != nil || Self.cornerFocus(f) {
+            if path == .circle, fill.tile != nil || (!fill.exactFocus && Self.cornerFocus(f)) {
                 let t = fill.tile ?? Rect.fromLTRB(0, 0, 1, 1)
                 let area = Rect.fromLTRB(r.left + t.left * r.width, r.top + t.top * r.height,
                                          r.left + t.right * r.width, r.top + t.bottom * r.height)
