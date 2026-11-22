@@ -4152,8 +4152,12 @@ private struct SlideContext {
             if text.isEmpty {
                 let end = p.first("a:endParaRPr").map { LevelStyle.run($0, colors) } ?? LevelStyle()
                 let s = end.filled(from: level)
+                // (A mark whose Latin slot names the theme's East Asian face (+mj-ea, +mn-ea) is set in that face, as its
+                // text would be: PowerPoint's print of a SmartArt node's empty paragraphs, 5c820695 and lab sa5c, has them a
+                // full East Asian line tall, where Calibri's was 2.2 pt short.)
+                let markFace: String = (s.font?.hasSuffix("-ea") ?? false) ? (_eaFont(s.font, scalar: 0x3042, lang: s.lang, latin: nil) ?? _font(s.font)) : _font(s.font)
                 paragraphs.append(RichParagraph(text: "", runs: [Run(length: 0, style: CharStyle(
-                    bold: s.bold ?? false, italic: s.italic ?? false, fontFamily: _font(s.font),
+                    bold: s.bold ?? false, italic: s.italic ?? false, fontFamily: markFace,
                     fontSize: ((s.size ?? 18) * 10).rounded() / 10, color: s.color ?? tx1))],
                     style: style))
             } else {
