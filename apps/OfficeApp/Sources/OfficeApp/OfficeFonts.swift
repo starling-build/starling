@@ -4243,6 +4243,9 @@ static let sylfaenAdvances: [Double] = [
     /// An installed complex-script face of its own (David, Simplified Arabic, Urdu Typesetting...): Word's prints draw a
     /// right-to-left run of digits in it. Arial, Times New Roman and Tahoma are the Latin faces too, and a name Windows
     /// lacks (B Nazanin) is not here: their digits take the run's Latin face (dx2 79a15231; xd David docs keep David).
+    /// A face Windows ships for complex scripts (Arial, Times New Roman, Tahoma, Traditional Arabic...).
+    static func isWindowsComplexFace(_ name: String) -> Bool { windowsComplexFaces.contains(name.trimmingWhitespace().lowercased()) }
+
     static func complexFaceKeepsDigits(_ name: String) -> Bool {
         let n = name.trimmingWhitespace().lowercased()
         return windowsComplexFaces.contains(n) && !["arial", "times new roman", "tahoma", "segoe ui", "microsoft sans serif"].contains(n)
