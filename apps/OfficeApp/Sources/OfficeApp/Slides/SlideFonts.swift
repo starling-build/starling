@@ -79,7 +79,7 @@ enum SlideFonts {
         case "microsoft jhenghei", "微軟正黑體": return (2203.0 / 2048, 2724.0 / 2048, 1)
         case "microsoft yahei", "微软雅黑": return (2167.0 / 2048, 2703.0 / 2048, 1)
         case "malgun gothic", "맑은 고딕": return (2229.0 / 2048, 2724.0 / 2048, 2176.0 / 2048)
-        case "yu gothic", "游ゴシック": return ((bold ? 2024.0 : 2017.0) / 2048, 2636.0 / 2048, 1)
+        case "yu gothic", "游ゴシック": return ((bold ? 2024.0 : 2017.0) / 2048, 2636.0 / 2048 + 0.08, 1)
         case "simsun", "宋体", "simhei", "黑体", "nsimsun", "ms gothic", "ｍｓ ゴシック", "ms pgothic", "ｍｓ ｐゴシック", "ms ui gothic", "ｍｓ ｕｉ ゴシック": return (220.0 / 256, 1, 1)
         case "mingliu", "細明體", "pmingliu", "新細明體", "dfkai-sb", "標楷體": return (820.0 / 1024, 1, 1)
         default: return nil
