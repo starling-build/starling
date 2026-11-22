@@ -7,7 +7,7 @@ One PDF (or two for `diff`), one page range; every row is plain text, tab-free e
   pdf-probe.py fonts  PDF [PAGES]                  per font: glyph count, sizes seen, flags (italic/bold/mono/serif), embedded
   pdf-probe.py trace  PDF [PAGES]                  text render mode and opacity per span run, flags invisible (mode 3 / opacity 0) and off-page text
   pdf-probe.py images PDF [PAGES]                  per image: page, bbox, pixel size, colour space, bits, bytes
-  pdf-probe.py draws  PDF [PAGES]                  per filled/stroked path: rect, fill, stroke, width (rules, table borders, bars)
+  pdf-probe.py draws  PDF [PAGES]                  per filled/stroked path: true bbox (curve extents, not Bezier control points), fill, stroke, width
   pdf-probe.py diff   A.pdf B.pdf PAGE [--out PNG] [--clip x0,y0,x1,y1] [--dpi N]
                                                    % of pixels differing on one page (crop optional); --out writes a red/blue overlay
 
@@ -116,12 +116,46 @@ def cmd_images(argv):
                 print("p%d\txref=%d\tbbox=%s\t%dx%d px\t%s\tbpc=%s\t%d bytes\t%s" % (pn + 1, xr, tuple(round(v, 1) for v in r) if r else "-", im[2], im[3], im[5], im[4], len(info.get("image", b"")), info.get("ext", "")))
 
 
+def cubic_extrema(p0, c1, c2, p3):
+    """True x/y extents of a cubic Bezier: end points plus the roots of the derivative (control points are NOT on the curve)."""
+    xs, ys = [p0[0], p3[0]], [p0[1], p3[1]]
+    for k, out in ((0, xs), (1, ys)):
+        a0, a1, a2, a3 = p0[k], c1[k], c2[k], p3[k]
+        a = -a0 + 3 * a1 - 3 * a2 + a3; b = 2 * (a0 - 2 * a1 + a2); c = a1 - a0   # derivative / 3 = a t^2 + b t + c
+        ts = []
+        if abs(a) < 1e-12:
+            if abs(b) > 1e-12:
+                ts = [-c / b]
+        else:
+            disc = b * b - 4 * a * c
+            if disc >= 0:
+                r = disc ** 0.5; ts = [(-b + r) / (2 * a), (-b - r) / (2 * a)]
+        for t in ts:
+            if 0 < t < 1:
+                m = 1 - t; out.append(m**3 * a0 + 3 * m * m * t * a1 + 3 * m * t * t * a2 + t**3 * a3)
+    return xs, ys
+
+
+def true_rect(items):
+    """Bounding box of the drawn shape itself, not of its Bezier control points (pymupdf's path['rect'] includes them)."""
+    xs, ys = [], []
+    for it in items:
+        if it[0] == "c":
+            cx, cy = cubic_extrema(*[(q.x, q.y) for q in it[1:5]]); xs += cx; ys += cy
+        elif it[0] in ("re", "qu"):
+            r = it[1].rect if it[0] == "qu" else it[1]; xs += [r.x0, r.x1]; ys += [r.y0, r.y1]
+        else:
+            for q in it[1:3]:
+                xs.append(q.x); ys.append(q.y)
+    return (min(xs), min(ys), max(xs), max(ys)) if xs else None
+
+
 def cmd_draws(argv):
     d = pymupdf.open(argv[0])
     for pn in pages(argv[1] if len(argv) > 1 else None, len(d)):
         for p in d[pn].get_drawings():
-            r = p["rect"]
-            print("p%d\t%s\t(%.1f,%.1f,%.1f,%.1f)\tfill=%s\tstroke=%s\tw=%s" % (pn + 1, p["type"], r.x0, r.y0, r.x1, r.y1,
+            r = true_rect(p["items"]) or tuple(p["rect"])
+            print("p%d\t%s\t(%.1f,%.1f,%.1f,%.1f)\tfill=%s\tstroke=%s\tw=%s" % (pn + 1, p["type"], r[0], r[1], r[2], r[3],
                   tuple(round(v, 2) for v in p["fill"]) if p.get("fill") else "-", tuple(round(v, 2) for v in p["color"]) if p.get("color") else "-", p.get("width")))
 
 
