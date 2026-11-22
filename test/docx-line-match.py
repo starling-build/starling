@@ -267,9 +267,17 @@ def mupdf_glyphs(pdf, drop=None):
                         # ... and neither is text set invisible (render mode 3, or opacity 0: a shadow copy PowerPoint writes in the text layer, es 21eed05e's contents list)
                         if ghost is None:
                             ghost = set()
+                            # ... except where it sits on ink drawn by a vector shape (amd-8, 2026-11-22, amd-4's finding): our Wingdings
+                            # bullets are SHAPES with the glyph kept as invisible text, where PowerPoint writes the bullet as visible text
+                            # (ko-30dac1f5, lo-tdf126234). Invisible text over nothing (a ghost copy) still counts on neither side.
+                            shapes = [dr["rect"] for dr in page.get_drawings()
+                                      if (dr.get("fill") or dr.get("color")) and dr["rect"].width * dr["rect"].height < 0.5 * page.rect.width * page.rect.height]
                             for t in page.get_texttrace():
                                 if t["type"] == 3 or t["opacity"] == 0:
-                                    ghost.update((round(ch[2][0], 1), round(ch[2][1], 1)) for ch in t["chars"])
+                                    for ch in t["chars"]:
+                                        bb = pymupdf.Rect(ch[3])
+                                        if not any(bb.intersects(r) and not r.is_empty for r in shapes):
+                                            ghost.add((round(ch[2][0], 1), round(ch[2][1], 1)))
                         inked = [(c, z) for c, z in inked if (round(c["origin"][0], 1), round(c["origin"][1], 1)) not in ghost]
                     if OFFPAGE and abs(l["dir"][0]) > 0.02 and abs(l["dir"][1]) > 0.02:
                         continue   # Slides: text turned off the axes (a 45-degree chart label) counts on neither side: PowerPoint's print keeps no text layer for it (es ce626c34, amd-10)
