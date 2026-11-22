@@ -1873,6 +1873,8 @@ final class SlidePainter: CustomPainter {
                     r = Rect.fromLTWH(c.dx - w / 2, c.dy - h / 2, w, h)
                 }
                 var tw = tw, th = th, decoded = decoded, src = src
+                // (The alignment and offset place ONE tile, not the block: PowerPoint centres the single tile, so the grid keeps its phase.)
+                let tile1w = tw, tile1h = th
                 // A tile under 24 pt (in tiles of the page's points) is drawn as a block of them, at most 64 a side.
                 if tw / pxPerPt < 24 || th / pxPerPt < 24 {
                     let kx = min(64, max(1, Int((24 * pxPerPt / tw).rounded(.up)))), ky = min(64, max(1, Int((24 * pxPerPt / th).rounded(.up))))
@@ -1881,8 +1883,8 @@ final class SlidePainter: CustomPainter {
                         src = Rect.fromLTWH(0, 0, Double(decoded.width), Double(decoded.height))
                     }
                 }
-                let x0 = fill.tileAnchored ? 0 : r.left + (r.width - tw) * fill.tileAlign.dx + fill.tileOffset.dx * pxPerPt
-                let y0 = fill.tileAnchored ? 0 : r.top + (r.height - th) * fill.tileAlign.dy + fill.tileOffset.dy * pxPerPt
+                let x0 = fill.tileAnchored ? 0 : r.left + (r.width - tile1w) * fill.tileAlign.dx + fill.tileOffset.dx * pxPerPt
+                let y0 = fill.tileAnchored ? 0 : r.top + (r.height - tile1h) * fill.tileAlign.dy + fill.tileOffset.dy * pxPerPt
                 var y = y0 - ((y0 - r.top) / th).rounded(.up) * th
                 // Many tiles of one picture are one repeating shader: a
                 // drawImageRect per tile writes the picture into the PDF

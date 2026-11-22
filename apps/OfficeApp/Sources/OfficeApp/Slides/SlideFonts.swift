@@ -104,6 +104,8 @@ enum SlideFonts {
         // (Century Schoolbook is a serif face: PowerPoint's print of es/66517aeb sets its text in a serif, at the face's own widths
         // from the table below; the generic stand-in is a sans, which draws the same widths as wide-spaced sans.)
         if windowsName(family) == "century schoolbook" { return OfficeFonts.serif }
+        // (Rockwell, a slab serif: PowerPoint's print of es/eb013aed sets its body in a serif; the sans stand-in drew it as sans.)
+        if windowsName(family) == "rockwell" { return OfficeFonts.serif }
         let face = OfficeFonts.substitute(family)
         guard face == OfficeFonts.cambria else { return face }
         let n = family.trimmingWhitespace().lowercased()
