@@ -1763,6 +1763,11 @@ enum ChartXML {
             }
             if let d = ser.first("c:dLbls"), d.first("c:showVal")?["val"] == "1", let f = d.first("c:numFmt"),
                !["1", "true"].contains(f["sourceLinked"] ?? ""), let code = f["formatCode"], !code.isEmpty, code.lowercased() != "general" { s.labelCode = code }
+            // (Labels linked to their source show each series' numbers in its own cache's format, not the first series': zh 18335072f11e p10's
+            // 2,432 and 1,503 over 855 and 641 in one chart, whose caches say #,##0 for two series and General for the rest.)
+            else if let d = ser.first("c:dLbls"), d.first("c:showVal")?["val"] == "1", d.first("c:numFmt").map({ ["1", "true"].contains($0["sourceLinked"] ?? "") }) ?? true {
+                s.labelCode = Self._format(ser.first("c:val")) ?? "General"
+            }
             for one in ser.first("c:dLbls")?.all("c:dLbl") ?? [] {
                 if let i = one.first("c:idx")?["val"].flatMap(Int.init), one.first("c:tx") == nil,
                    let run = one.first("c:txPr")?.descendant("a:defRPr"), ["1", "true"].contains(run["b"] ?? "") { s.labelBoldPoints.insert(i) }
@@ -4173,7 +4178,7 @@ enum ChartPainter {
         let v = v0 / c.valueUnitDivisor
         // (A series' own `dLbls` number format wins over the chart's, which is the first series': 81d28d42 p4's third series
         // "79.5%" in PowerPoint's print, the first series without labels and the cache 0.000, which ours printed 0.795.)
-        guard let code = j.flatMap({ c.series[safe: $0]?.labelCode }) ?? c.labelFormat else { return label(v, percent: false) }
+        guard let code = j.flatMap({ c.series[safe: $0]?.labelCode }) ?? c.labelFormat, code != "General" else { return label(v, percent: false) }
         let shown = chartNumberText(v, code)
         return shown.isEmpty ? label(v, percent: false) : shown
     }
