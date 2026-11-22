@@ -2838,7 +2838,11 @@ private struct SlideContext {
         let chartex = space.name == "cx:chartSpace"
         guard var chart = chartex ? ChartXML.readChartex(space, color: { colors.color(in: $0) }) : ChartXML.read(space, color: { colors.color(in: $0) }),
               var frame = el.first("p:xfrm").flatMap(_xfrmRect) else { return nil }
-        if chartex { chart.waterfallLegendTotal = true }
+        if chartex {
+            chart.waterfallLegendTotal = true
+            // (PowerPoint joins a waterfall's columns unless the file turns the lines off: lo-forum-mso-de-138303's.)
+            if chart.waterfallTotals != nil, space.descendant("cx:layoutPr")?.first("cx:visibility")?["connectorLines"] != "0" { chart.waterfallConnectors = true }
+        }
         // A chart that names no face is in its own slide's theme font — a
         // deck of several masters (aascu 5864's census charts, Calibri;
         // cooper's, Verdana) was drawn in the first master's.

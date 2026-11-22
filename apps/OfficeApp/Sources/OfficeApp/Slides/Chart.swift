@@ -2678,7 +2678,7 @@ enum ChartPainter {
         // chart-slide-bg's labels where PowerPoint's are.)
         let foot = c.onSlide && !(c.legend && c.legendPosition == "b") ? 6.9 : 9.0
         var area = Rect.fromLTRB(r.left + (old ? 6.5 : 9) * k, r.top + (c.chartex ? 6.8 : 9) * k, r.right - (c.chartex && c.onSlide ? 4 : 9) * k,
-                                 r.bottom - (old ? (c.onSlide && c.legend && c.legendPosition == "b" ? 8.2 : 6.5) : c.chartex ? (c.onSlide ? 0.6 : 4.6) : foot) * k)
+                                 r.bottom - (old ? (c.onSlide && c.legend && c.legendPosition == "b" ? 8.2 : 6.5) : c.chartex ? (c.onSlide ? 4.1 : 4.6) : foot) * k)
 
         let titled = !(c.title ?? "").isEmpty
         var placed: (TextPainter, Offset)? = nil
@@ -3152,7 +3152,7 @@ enum ChartPainter {
                 // top 60.6 under the frame's.)
                 let sheetCx = titled && (c.onSheet || c.onSlide) && c.chartex ? k / 0.75 : 0
                 y = area.top + (titled ? 4.3 * k : 0) + 3.71 * sheetCx
-                area = Rect.fromLTRB(area.left, y + lineH * Double(lines.count) + 6 * k + (c.onSlide ? 2.37 : 6.37) * sheetCx, area.right, area.bottom)
+                area = Rect.fromLTRB(area.left, y + lineH * Double(lines.count) + 6 * k + (c.onSlide ? 0.67 : 6.37) * sheetCx, area.right, area.bottom)
             } else {
                 // (A 2007-style chart's on a slide 8.2 pt off the frame's
                 // foot, not 6.5, and its plot 9.55 above it: cooper's two
@@ -4799,7 +4799,7 @@ enum ChartPainter {
             // (A 2007-style chart's plot starts 2.6 pt further off its
             // value labels — line- and scatter-chart's at 152.3, the
             // labels where ours are.)
-            var left = (valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k + besideOut - (word ? 2.5 * k : libre ? 2.4 * k : 0)
+            var left = (valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k + besideOut - (c.chartex && c.onSlide ? 4.5 * k : 0) - (word ? 2.5 * k : libre ? 2.4 * k : 0)
             // (A 2007-style slide chart with no tick marks: its labels stand off the plot by their size, not a
             // fixed gap, and the category labels' gap grows with theirs. Windows' prints of 5864 slide 8
             // in 15 variants, bare of ticks: value labels 8.97 pt off at 10 pt, 14.56 at 16, 21.73 at 24;
@@ -5333,10 +5333,10 @@ enum ChartPainter {
                 // (A newer one's on a slide, 1.25 pt above theirs: its plot
                 // stands 1.5 pt lower there, and chart-slide-bg's labels
                 // print 1.1 to 1.5 above where that put them.)
-                let lift = libreLaid ? (0.15 - 1.24) * k : libre ? 0.15 * k : c.styled2013 ? (c.onSlide ? 1.25 * k : 0) : wordClassicLaid ? 0.55 * k : 1.45 * k
+                let lift = libreLaid ? (0.15 - 1.24) * k : libre ? 0.15 * k : c.chartex && c.onSlide ? -2.05 * k : c.styled2013 ? (c.onSlide ? 1.25 * k : 0) : wordClassicLaid ? 0.55 * k : 1.45 * k
                 // (Word's walled 3-D columns: 8 pt nearer the plot, lo-1bd2003e's labels ending at 142.)
                 let wall3D = inWord && c.barView?.walled == true && c.plotLayoutInner ? 8 * k : 0
-                tp.paint(canvas, Offset(plot.left - 8.5 * k - besideOut - further - tp.width + wall3D + valueLabelsBack, p - tp.height / 2 - lift))
+                tp.paint(canvas, Offset(plot.left - (c.chartex && c.onSlide ? 4 : 8.5) * k - besideOut - further - tp.width + wall3D + valueLabelsBack, p - tp.height / 2 - lift))
             }
         }
         // The second axis' labels, beside the plot's right edge.
@@ -5502,7 +5502,7 @@ enum ChartPainter {
                     // 11.8: Windows' prints of 5864 slide 8 in 15 variants, 1.4 pt at 14 pt and 5.1 at 20, at the foot or the zero
                     // line alike; 10 pt names stay where they are (cooper's charts match).)
                     let slideNames = c.onSlide && !c.styled2013 && !c.categoryTicksOut ? max(0, 0.62 * (catSize - 11.8)) * k : 0
-                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : c.chartex && c.onSlide ? 4.6 : 7.6) * k - placedOverAutoFoot + (widenedPlain ? 0 : belowOut) - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k - legendFootRise + slideNames))
+                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : c.chartex && c.onSlide ? 8.1 : 7.6) * k - placedOverAutoFoot + (widenedPlain ? 0 : belowOut) - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k - legendFootRise + slideNames))
                 }
             }
             // The outer levels of a multi-level axis: each group's name under the names it
