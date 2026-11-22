@@ -159,7 +159,10 @@ extension RichLayout {
     /// asked for. Each such piece is held to the split of its own style's face, by the descent share of the face the run is set in
     /// (the substitute for a missing face), not by drawing a probe, which a fallback draws too.
     static func _holdingFallbackSplit(_ span: TextSpan, theme: RichTextTheme) -> TextSpan {
-        func mayFallBack(_ s: String) -> Bool { s.unicodeScalars.contains { $0.value >= 0x250 } }
+        // (Past Latin, but not the Latin faces' own punctuation and extended letters: quotes, dashes and ellipses are in every face.)
+        func mayFallBack(_ s: String) -> Bool {
+            s.unicodeScalars.contains { $0.value >= 0x250 && !(0x1E00...0x1EFF).contains($0.value) && !(0x2000...0x206F).contains($0.value) }
+        }
         func walk(_ s: InlineSpan) -> InlineSpan {
             guard let t = s as? TextSpan else { return s }
             var st = t.style
