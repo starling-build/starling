@@ -4543,6 +4543,13 @@ enum ChartPainter {
         // Lab xl-unit, Excel's prints of one column or line chart at five heights, 2-D and 3-D: spacing 13.8pt and up
         // stands, 12.3pt and under does not; a 51pt plot goes 0 to 15000 by 5000 and 0 to 60 by 20, a 94pt one 0 to 12000
         // by 2000 and 0 to 50 by tens, a 138pt one 0 to 50 by fives.)
+        // (A slide's column chart with its value axis hidden still rounds the axis up to a step, and takes one step per 34 pt of
+        // plot: ko-e114b968 p23's 25.1 and 64.65 in a 69 pt plot reach 40 and 100, two steps each, in PowerPoint's print.)
+        let hiddenSlideSteps: Int? = {
+            guard c.onSlide, c.valueAxisDeleted, !c.valueGrid, !c.percent, c.plotLayout == nil, c.type == .column, c.barView == nil, !horizontal else { return nil }
+            RuleTrace.hit("slide-column-chart-without-value-axis-rounds-to-a-step")
+            return max(2, min(10, Int((area0.height / k - 60) / 34)))
+        }()
         let sheetSteps: Int? = {
             guard c.onSheet, !c.chartex, !horizontal, c.type != .scatter, !c.type.isPie else { return nil }
             // (The axis spans 0.968 of the chart's height less 36pt flat, 0.455 of it less 21pt in a 3-D chart: the labels' own rows.)
@@ -4550,7 +4557,7 @@ enum ChartPainter {
             let span = c.barView != nil || c.line3D ? 0.455 * h - 20.8 : 0.968 * h - 36.1
             return max(2, min(10, Int(span / 13)))
         }()
-        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? acrossSteps ?? writerSteps ?? sheetSteps ?? 10,
+        var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? acrossSteps ?? writerSteps ?? sheetSteps ?? hiddenSlideSteps ?? 10,
                                                                           headroom: c.barView != nil || c.line3D ? 0 : c.secondValueAxis?.sameScale == true ? 0.10 : 0.05)
         // (Excel's axis for a hidden scatter's visible $ axis with the area and line on the group left without one runs a tenth past
         // its data, not a twentieth: chart-tdf140489's 75,887 reaches $90,000, where the 5% rule stops at 80,000; the same file
@@ -4565,7 +4572,7 @@ enum ChartPainter {
         // 14.7 in PowerPoint's print, where ours stopped at 6 of 7.
         // (But not a slide's 3-D bars: PowerPoint rounds those up to a step like a shown axis, 13 to 14, 26 to 30, 130 to 140:
         // lab bar3dbox, the longest bar of x2 values 17 pt shorter than the original's and x10 values identical to it.)
-        if c.valueAxisDeleted, !c.valueGrid, !c.percent, !(c.onSlide && c.barView != nil), !(c.onSlide == false && c.onSheet == false && !c.chartex && c.barView == nil && c.areaView == nil && !c.line3D && c.type == .column && !horizontal) {
+        if c.valueAxisDeleted, !c.valueGrid, !c.percent, hiddenSlideSteps == nil, !(c.onSlide && c.barView != nil), !(c.onSlide == false && c.onSheet == false && !c.chartex && c.barView == nil && c.areaView == nil && !c.line3D && c.type == .column && !horizontal) {
             let lo0 = min(0, lo), hi0 = max(0, hi), span = hi0 - lo0
             if span > 0 {
                 if c.valueMax == nil { valueScale.hi = hi0 + (hi0 > 0 ? span * 0.05 : 0) }
