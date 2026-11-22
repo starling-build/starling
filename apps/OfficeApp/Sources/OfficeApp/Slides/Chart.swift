@@ -5446,7 +5446,8 @@ enum ChartPainter {
                 // print 1.1 to 1.5 above where that put them.)
                 let lift = libreLaid ? (0.15 - 1.24) * k : libre ? 0.15 * k : c.chartex && c.onSlide ? -2.05 * k : c.styled2013 ? (c.onSlide ? 1.25 * k : 0) : wordClassicLaid ? 0.55 * k : 1.45 * k
                 // (Word's walled 3-D columns: 8 pt nearer the plot, lo-1bd2003e's labels ending at 142.)
-                let wall3D = inWord && c.barView?.walled == true && c.plotLayoutInner ? 8 * k : 0
+                let wall3D = (inWord || c.onSlide) && c.barView?.walled == true && c.plotLayoutInner ? (inWord ? 8 : 10) * k : 0
+                // (On a slide 10 pt: es/3df36ff6 p4's labels at 24 in PowerPoint's print, ours at 14.)
                 tp.paint(canvas, Offset(plot.left - (c.chartex && c.onSlide ? 4 : 8.5) * k - besideOut - further - tp.width + wall3D + valueLabelsBack, p - tp.height / 2 - lift))
             }
         }
