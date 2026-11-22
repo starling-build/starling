@@ -30,6 +30,19 @@ if [ -s "$PB" ]; then
   done
   { cat "$BASE"; awk -F'\t' 'BEGIN{OFS="\t"} {sub(/.*\//,"",$1); print}' "$PB"; } > "$W/base.tsv"; BASEALL=$W/base.tsv
 fi
+# The full-corpus subset (amd-8, 2026-11-22): gate-subset.txt in pptx-full (cache) lists ~70 decks, ~1,490 slides over ja ko es pt en rtl, drawn
+# with the same sweep and scored against baseline-full-win.tsv / baseline-lines-full-win.tsv (rows named lang/stem; the lang folder is dropped
+# as for the pilot). A listed deck, print or baseline row that is missing FAILS the step. FULL_SUBSET=0 turns it off.
+FULL=${FULL_DIR:-$CC-full}; FX=""
+if [ "${FULL_SUBSET:-1}" != 0 ] && [ -s "$FULL/gate-subset.txt" ]; then
+  for rel in $(cat "$FULL/gate-subset.txt"); do
+    n=${rel##*/}; s=${n%.pptx}
+    [ -f "$FULL/decks/$rel" ] && ln -sf "$FULL/decks/$rel" "$W/in/$n" || MISS="$MISS deck:$rel"
+    [ -f "$FULL/powerpoint-win/$s-orig.pdf" ] && ln -sf "$FULL/powerpoint-win/$s-orig.pdf" "$W/ppt/" || MISS="$MISS print:$rel"
+    grep -q "^$rel	" "$FULL/baseline-full-win.tsv" && grep -q "^${rel%.pptx}	" "$FULL/baseline-lines-full-win.tsv" || MISS="$MISS baseline:$rel"
+  done
+  [ -z "$MISS" ] && { FX=1; { cat "$BASEALL"; grep -F -f "$FULL/gate-subset.txt" "$FULL/baseline-full-win.tsv" | awk -F'\t' 'BEGIN{OFS="\t"} {sub(/.*\//,"",$1); print}'; } > "$W/base-all.tsv"; BASEALL=$W/base-all.tsv; }
+fi
 [ -s "$CC/baseline-lines-win.tsv" ] || MISS="$MISS $CC/baseline-lines-win.tsv"
 if [ -s "$PB" ] && ! ls "$PILOT"/baseline-*lines*.tsv >/dev/null 2>&1; then MISS="$MISS $PILOT/baseline-lines-pilot-win.tsv"; fi
 [ -z "$MISS" ] || { echo "slides-gate: FAILED, missing:$MISS"; exit 1; }
@@ -67,6 +80,7 @@ rc=$?
 PY=${PYTHON:-$( [ -x "$HOME/venv-word/bin/python" ] && echo "$HOME/venv-word/bin/python" || echo python3)}
 LB=$CC/baseline-lines-win.tsv
 PLB=$(ls "$PILOT"/baseline-*lines*.tsv 2>/dev/null | head -1); [ -s "$LB" ] && [ -s "$PLB" ] && { { cat "$LB"; awk -F'\t' 'BEGIN{OFS="\t"} {sub(/.*\//,"",$1); print}' "$PLB"; } > "$W/lines-base.tsv"; LB=$W/lines-base.tsv; }
+if [ -n "$FX" ] && [ -s "$LB" ]; then { cat "$LB"; grep -F -f <(sed 's/\.pptx$//' "$FULL/gate-subset.txt") "$FULL/baseline-lines-full-win.tsv" | awk -F'\t' 'BEGIN{OFS="\t"} {sub(/.*\//,"",$1); print}'; } > "$W/lines-base2.tsv"; LB=$W/lines-base2.tsv; fi
 if [ -s "$LB" ]; then
   PPT_REFS=$PPT PPT_MATCH_JOBS=$JOBS "$PY" "$ROOT/test/pptx-line-match.py" "$W" > "$W/lines.txt" 2> "$W/lines.err"
   "$PY" -I "$ROOT/test/tools/pptx-combine.py" "$W/lines.txt" "$W/render.tsv" "$W/combined.tsv" "$DECKS" "$PPT" | head -1
