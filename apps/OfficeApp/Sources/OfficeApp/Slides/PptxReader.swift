@@ -1368,8 +1368,9 @@ private struct SlideContext {
             if group?.hidden == true || el.descendant("p:cNvPr")?["hidden"] == "1" { s.invisible = true }
             // A member filled by its group (`a:grpFill`): drawn in the
             // group's colour; still the shape that was read, so a save
-            // keeps its element (and the group's fill with it).
-            if s.fill == nil, let groupFill, el.first("p:spPr")?.has("a:grpFill") == true {
+            // keeps its element (and the group's fill with it). Not a picture: PowerPoint
+            // draws the image there, not the group colour over it (es ba0a6310 p1).
+            if s.fill == nil, el.name != "p:pic", let groupFill, el.first("p:spPr")?.has("a:grpFill") == true {
                 s.fill = groupFill
                 s.keptLook?.readFill = groupFill
                 if s.readShape != nil { s.readShape = ReadShape(s) }
