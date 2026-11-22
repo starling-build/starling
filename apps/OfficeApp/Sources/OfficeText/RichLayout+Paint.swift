@@ -1633,12 +1633,14 @@ extension RichLayout {
             // (A symbol-face bullet as our own shape, from the face's measured ink box in ems: its left
             // at the advance box's, its baseline the marker's.)
             func paintBullet(_ at: Offset) {
-                guard let ink = p.style.bulletInk, ink.count == 5, !label.isEmpty else { marker.paint(canvas, at); return }
+                guard let ink = p.style.bulletInk, ink.count >= 5, !label.isEmpty else { marker.paint(canvas, at); return }
                 let size = _px(markerChar.fontSize ?? _named(p, document)?.char.fontSize ?? theme.fontSize) / (p.style.bulletStandInScale ?? 1) * fontScale
                 let base = at.dy + marker.computeDistanceToActualBaseline(.alphabetic)
                 let r = Rect.fromLTRB(at.dx + ink[1] * size, base - ink[4] * size, at.dx + ink[3] * size, base - ink[2] * size)
                 // (The glyph stays in the page's text, unseen, as in PowerPoint's print, where the bullet is a letter of the line.)
-                let unseen = TextPainter(text: TextSpan(text: label, style: markerStyle.copyWith(color: Color(0x01000000), fontWeight: .w400)),
+                // (The character PowerPoint writes there, so copied text matches its print.)
+                let written = ink.count > 5 ? Unicode.Scalar(UInt32(ink[5])).map { String(Character($0)) } ?? label : label
+                let unseen = TextPainter(text: TextSpan(text: written, style: markerStyle.copyWith(color: Color(0x01000000), fontWeight: .w400)),
                                          textAlign: .right, textDirection: .ltr, strutStyle: g.painter.strutStyle)
                 unseen.textAlign = marker.textAlign
                 unseen.layout(minWidth: 0, maxWidth: max(1, marker.width))
