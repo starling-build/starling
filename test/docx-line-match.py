@@ -216,6 +216,9 @@ def _columns(singles, total):
     return rows
 
 
+OFFPAGE = False
+
+
 def mupdf_glyphs(pdf, drop=None):
     """v2's rows, from the page's glyphs rather than the reader's lines.
     Each line of text set across is the inked glyphs on one baseline:
@@ -241,6 +244,7 @@ def mupdf_glyphs(pdf, drop=None):
             turned = []
             singles = []
             line_no = 0
+            ghost = None
             # (Clipped glyphs too, as v1 reads them: the reader drops a
             # glyph the clip does not wholly hold, and Word's footer boxes
             # clip their page numbers — zh-f47b8a74's "10" read "1", and our
@@ -257,6 +261,18 @@ def mupdf_glyphs(pdf, drop=None):
                     line_no += 1
                     across = tuple(round(v, 3) for v in l["dir"]) == (1, 0)
                     inked = [(c, s["size"]) for s in l["spans"] for c in s["chars"] if not _inkless(c["c"])]
+                    if OFFPAGE:   # Slides (pptx-line-match.py): a glyph whose origin lies outside the page is not drawn on it, on either side
+                        R = page.rect
+                        inked = [(c, z) for c, z in inked if R.x0 <= c["origin"][0] <= R.x1 and R.y0 <= c["origin"][1] <= R.y1]
+                        # ... and neither is text set invisible (render mode 3, or opacity 0: a shadow copy PowerPoint writes in the text layer, es 21eed05e's contents list)
+                        if ghost is None:
+                            ghost = set()
+                            for t in page.get_texttrace():
+                                if t["type"] == 3 or t["opacity"] == 0:
+                                    ghost.update((round(ch[2][0], 1), round(ch[2][1], 1)) for ch in t["chars"])
+                        inked = [(c, z) for c, z in inked if (round(c["origin"][0], 1), round(c["origin"][1], 1)) not in ghost]
+                    if OFFPAGE and abs(l["dir"][0]) > 0.02 and abs(l["dir"][1]) > 0.02:
+                        continue   # Slides: text turned off the axes (a 45-degree chart label) counts on neither side: PowerPoint's print keeps no text layer for it (es ce626c34, amd-10)
                     if not inked:
                         continue
                     if across:
