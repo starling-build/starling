@@ -679,19 +679,41 @@ extension SheetGridState {
             guard !text.isEmpty else { return }
             let sections = HeaderFooterText.parse(text)
             for (i, items) in [sections.left, sections.center, sections.right].enumerated() where !items.isEmpty {
-                let tp = TextPainter(text: span(HeaderFooterText.runs(items, fields: fields)),
-                                     textAlign: i == 0 ? .left : i == 1 ? .center : .right, textDirection: .ltr)
-                tp.layout(minWidth: 0, maxWidth: .infinity)
-                let x = i == 0 ? inL : i == 1 ? inL + (innerW - tp.width) / 2 : size.width - inR - tp.width
+                // A line break inside a section starts a new line, each aligned
+                // on its own (lo-tdf124525's footer, lo-tdf58243's centre).
+                var lines: [[HeaderFooterText.Run]] = [[]]
+                for r in HeaderFooterText.runs(items, fields: fields) {
+                    let parts = r.text.replacingAll("\r", with: "").split(separator: "\n", omittingEmptySubsequences: false)
+                    for (j, part) in parts.enumerated() {
+                        if j > 0 { lines.append([]) }
+                        if !part.isEmpty { var rr = r; rr.text = String(part); lines[lines.count - 1].append(rr) }
+                    }
+                }
+                // Blank lines at either end are not drawn (lo-tdf124525's
+                // "&L\nGrSA 6.0\nGenerado...\n" is two lines in Excel's print).
+                while let f = lines.first, f.isEmpty, lines.count > 1 { lines.removeFirst() }
+                while let l = lines.last, l.isEmpty, lines.count > 1 { lines.removeLast() }
+                var painters: [TextPainter] = []
+                for line in lines {
+                    let tp = TextPainter(text: span(line.isEmpty ? [HeaderFooterText.Run(text: " ", style: HeaderFooterText.RunStyle())] : line),
+                                         textAlign: i == 0 ? .left : i == 1 ? .center : .right, textDirection: .ltr)
+                    tp.layout(minWidth: 0, maxWidth: .infinity)
+                    painters.append(tp)
+                }
+                let total = painters.reduce(0) { $0 + $1.height }
                 // Excel's header stands 1.2 pt below its margin's line, its
                 // footer 1.75 above: on the first pages of the corpus a header
                 // at Times 12 is 12.18 under the header margin (ours 11.0),
                 // Arial 9.96 10.14 (ours 9.0); a footer's baseline 4.64 over
                 // the footer margin at Times 12 (ours 3.05), 3.92 at Arial
                 // 9.96 (2.05), 4.8 at Calibri 11.04 (3.0).
-                let y = top.map { $0 + 1.2 } ?? (bottom! - tp.height - 1.75)
-                tp.paint(canvas, Offset(x, y))
-                tp.dispose()
+                var y = top.map { $0 + 1.2 } ?? (bottom! - total - 1.75)
+                for tp in painters {
+                    let x = i == 0 ? inL : i == 1 ? inL + (innerW - tp.width) / 2 : size.width - inR - tp.width
+                    tp.paint(canvas, Offset(x, y))
+                    y += tp.height
+                    tp.dispose()
+                }
             }
         }
         paint(hf.header(page: position), top: setup.headerMargin, bottom: nil)
