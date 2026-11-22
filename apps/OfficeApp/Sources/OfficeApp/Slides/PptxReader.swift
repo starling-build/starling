@@ -300,8 +300,10 @@ struct ColorContext {
                 // diagram boxes). A milder boost's stays linear (GeomLec1's
                 // blue band, tint 86%, satMod 149%), as do a grey's (its
                 // dark backgrounds, which the boost leaves grey) and a
-                // picture's duotone (Treck's background).
-                let sRGBTint = tint && !duotone && _hsl(r, g, b).1 > 0.1
+                // picture's duotone (Treck's background). A pale colour's (SmartArt
+                // boxes of a purple theme, HSL saturation 0.25) is linear too: it prints
+                // (201,181,232) at tint 50%, satMod 300%, where sRGB gives (189,146,240).
+                let sRGBTint = tint && !duotone && _hsl(r, g, b).1 > 0.5
                     && kids.indices.contains(k + 1) && kids[k + 1].name == "a:satMod"
                     && (kids[k + 1]["val"].flatMap(Double.init) ?? 0) >= 250000 && v <= 0.6
                 func apply(_ c: Double) -> Double {
