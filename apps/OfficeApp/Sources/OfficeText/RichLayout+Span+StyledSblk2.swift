@@ -102,7 +102,7 @@ extension _StyledFrame {
             // where its advance is 9.17, and its line took "秘".)
             let kernsFrom: Double? = run.kerningFrom ?? named?.char.kerningFrom ?? _normalChar(document)?.kerningFrom
             let points: Double = run.fontSize ?? named?.char.fontSize ?? theme.fontSize
-            let pairs: [UInt32: Double]? = s.fontWeight == .bold ? face.boldKerns : face.kerns
+            let pairs: [UInt32: Double]? = face.kernPairs(bold: s.fontWeight == .bold, italic: s.fontStyle == .italic)
             if theme.wordRules || face.kernsOutsideWord, let from = kernsFrom, from > 0, points >= from, let pairs, after < text.endIndex,
                let v0 = shown(text[after]).unicodeScalars.first?.value, case let v = v0 == 0xA0 ? 0x20 : v0, v >= 0x20, v <= 0x7E, let pair = pairs[(u == 0xA0 ? 0x20 : u) << 8 | v] {
                 target += pair * px / (face.sizeScale * classScale)
@@ -120,14 +120,14 @@ extension _StyledFrame {
             }
             extra += target - _glyphWidth(s, ch)
         }
-    } else if !ea, !ch.isNewline, let face = latinFace, face.kernsReplaceShaped, style(kind).fontStyle != .italic, ch.unicodeScalars.count == 1,
+    } else if !ea, !ch.isNewline, let face = latinFace, face.kernsReplaceShaped, style(kind).fontStyle != .italic || face.italicKerns != nil, ch.unicodeScalars.count == 1,
               let u = ch.unicodeScalars.first?.value, u > 0x20, u <= 0xFF, u != 0xA0, let px = style(kind).fontSize, px > 0.5,
               let from = run.kerningFrom ?? named?.char.kerningFrom ?? _normalChar(document)?.kerningFrom, from > 0,
               (run.fontSize ?? named?.char.fontSize ?? theme.fontSize) >= from, after < text.endIndex,
               let nx = shown(text[after]).unicodeScalars.first?.value, nx > 0x20, nx <= 0xFF, nx != 0xA0 {
         // (Calibri's own kern pairs in place of the stand-in's: PowerPoint's print kerns re, ra, te, st... by the font's table, pair by pair.)
         let s = style(kind)
-        let pairs: [UInt32: Double]? = s.fontWeight == .bold ? face.boldKerns : face.kerns
+        let pairs: [UInt32: Double]? = face.kernPairs(bold: s.fontWeight == .bold, italic: s.fontStyle == .italic)
         extra += (pairs?[u << 8 | nx] ?? 0) * px - _pairKern(s, ch, shown(text[after]))
     } else if !ea, theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, u == 0x2266 || u == 0x2267,
               ch.unicodeScalars.count == 1, let w = RichLayout._cambriaMathOpeners2[u],
