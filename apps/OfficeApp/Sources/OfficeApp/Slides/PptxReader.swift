@@ -523,7 +523,7 @@ private struct LevelStyle {
     /// symbol face (Wingdings, Symbol) shows for that code; nil for a code
     /// in such a face this app does not know, which draws the level's own.
     /// Wingdings' common bullets as our own shapes, from the face's measured
-    /// ink box (metrics only): kind (0 round, 1 square, 2 diamond), x0, y0, x1, y1 in ems.
+    /// ink box (metrics only): kind (0 round, 1 square, 2 diamond), x0, y0, x1, y1 in ems, then (optional) the character PowerPoint writes for the bullet in its text layer (its print: Wingdings 6C is U+26AB, A7 U+25AA; Wingdings 2/3 keep their private-use code).
     var bulletInk: [Double]? {
         guard let ch = bulletChar, let scalar = ch.unicodeScalars.first else { return nil }
         let face = (bulletFont ?? "").lowercased()
@@ -532,24 +532,24 @@ private struct LevelStyle {
         // square, a diamond; two right triangles (kind 6).
         if face == "wingdings 2" {
             switch code {
-            case 0x96: return [0, 0.0870, 0.2660, 0.2800, 0.4580]
-            case 0xA0: return [1, 0.0870, 0.2650, 0.2800, 0.4575]
-            case 0xAE: return [2, 0.0870, 0.0880, 0.6310, 0.6315]
+            case 0x96: return [0, 0.0870, 0.2660, 0.2800, 0.4580, 0xF096]
+            case 0xA0: return [1, 0.0870, 0.2650, 0.2800, 0.4575, 0xF0A0]
+            case 0xAE: return [2, 0.0870, 0.0880, 0.6310, 0.6315, 0xF0AE]
             default: return nil
             }
         }
         if face == "wingdings 3" {
             switch code {
-            case 0x75: return [6, 0.0870, -0.0555, 0.8085, 0.7780]
-            case 0x84: return [6, 0.2188, 0.0495, 0.7595, 0.6730]
+            case 0x75: return [6, 0.0870, -0.0555, 0.8085, 0.7780, 0xF075]
+            case 0x84: return [6, 0.2188, 0.0495, 0.7595, 0.6730, 0xF084]
             default: return nil
             }
         }
         guard face == "wingdings" else { return nil }
         switch code {
-        case 0x6C: return [0, 0.0845, 0.0723, 0.6631, 0.6504]
+        case 0x6C: return [0, 0.0845, 0.0723, 0.6631, 0.6504, 0x26AB]
         case 0x6E: return [1, 0.0845, 0.0723, 0.6626, 0.6504]
-        case 0xA7: return [1, 0.0845, 0.2168, 0.3735, 0.5059]
+        case 0xA7: return [1, 0.0845, 0.2168, 0.3735, 0.5059, 0x25AA]
         case 0x75: return [2, 0.0845, -0.0474, 0.9023, 0.7705]
         case 0x71: return [5, 0.0845, 0.0, 0.8071, 0.7227]
         case 0x76: return [6, 0.0845, 0.0, 0.8071, 0.7227]
