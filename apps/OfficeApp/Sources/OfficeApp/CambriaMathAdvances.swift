@@ -8,6 +8,7 @@
 // math letters, so a fallback draws them; Word sets them at these widths.
 extension OfficeFonts {
     static let cambriaMathAdvances: [UInt32: Double] = [
+        0x23B2: 1.4878, 0x23B3: 1.4878, 0x23B7: 0.6431,
         0x1D400: 0.6787, 0x1D401: 0.666, 0x1D402: 0.5879, 0x1D403: 0.7192, 0x1D404: 0.5923, 0x1D405: 0.5659, 0x1D406: 0.6611, 0x1D407: 0.7363,
         0x1D408: 0.3643, 0x1D409: 0.3555, 0x1D40A: 0.6963, 0x1D40B: 0.5654, 0x1D40C: 0.8608, 0x1D40D: 0.6938, 0x1D40E: 0.71, 0x1D40F: 0.6284,
         0x1D410: 0.71, 0x1D411: 0.6807, 0x1D412: 0.5278, 0x1D413: 0.6538, 0x1D414: 0.6909, 0x1D415: 0.6465, 0x1D416: 0.9736, 0x1D417: 0.6187,
