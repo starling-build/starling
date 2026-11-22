@@ -3402,6 +3402,9 @@ private struct SlideContext {
             return f
         }
         if let named = table["ea"], !named.isEmpty { return named }
+        // (An East Asian slot that names nothing, the theme's too, is set in the run's Latin face where that is an East Asian face:
+        // ja 505a93a9 p14's runs name MS UI Gothic as Latin only, and PowerPoint sets their kanji and （） in it, brackets half an em.)
+        if let latin, Self.eastAsianOfficeFaces.contains(latin) { return latin }
         let l = (lang ?? "").lowercased()
         // (PowerPoint's print, bug64693, a theme whose East Asian slot is empty: Chinese letters of a run that names
         // that slot (+mn-ea) are SimSun, of a run that names none are Microsoft YaHei, not the theme's Hans face.)
@@ -3422,6 +3425,9 @@ private struct SlideContext {
         }
         return table[script]
     }
+
+    static let eastAsianOfficeFaces: Set<String> = ["MS UI Gothic", "MS PGothic", "MS Gothic", "MS Mincho", "MS PMincho", "ＭＳ Ｐゴシック", "ＭＳ ゴシック", "ＭＳ 明朝", "ＭＳ Ｐ明朝",
+        "Malgun Gothic", "Gulim", "Dotum", "Batang", "Gungsuh", "SimSun", "SimHei", "NSimSun", "Microsoft YaHei", "Microsoft JhengHei", "PMingLiU", "MingLiU", "DFKai-SB"]
 
     static let latinOnlyOfficeFaces: Set<String> = ["Calibri", "Arial", "Times New Roman", "Cambria", "Verdana", "Tahoma", "Georgia", "Trebuchet MS"]
 
