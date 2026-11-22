@@ -58,13 +58,16 @@ def text_of(s):
 
 
 def cmd_lines(argv):
-    g = take(argv, "--grep"); pdf = argv[0]; d = pymupdf.open(pdf)
+    g = take(argv, "--grep"); by_font = "--by-font" in argv
+    if by_font:
+        argv.remove("--by-font")  # one row per face: faces sharing a baseline (sideways columns side by side) stay apart
+    pdf = argv[0]; d = pymupdf.open(pdf)
     for pn in pages(argv[1] if len(argv) > 1 else None, len(d)):
         rows = {}
         for l, s in spans_of(d[pn]):
             if s["chars"]:
-                rows.setdefault((round(s["origin"][1], 1), tuple(round(v) for v in l["dir"])), []).append(s)
-        for (y, _), ss in sorted(rows.items(), key=lambda kv: (kv[0][0], min(s["bbox"][0] for s in kv[1]))):
+                rows.setdefault((round(s["origin"][1], 1), tuple(round(v) for v in l["dir"]), s["font"] if by_font else ""), []).append(s)
+        for (y, _, _f), ss in sorted(rows.items(), key=lambda kv: (kv[0][0], min(s["bbox"][0] for s in kv[1]))):
             ss.sort(key=lambda s: s["bbox"][0]); t = "".join(text_of(s) for s in ss)
             if g and g not in t:
                 continue
