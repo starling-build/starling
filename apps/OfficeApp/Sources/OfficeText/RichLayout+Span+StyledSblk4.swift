@@ -91,7 +91,9 @@ extension _StyledFrame {
         flush(i)
         let s = style(kind)
         // (A no-break space: the box is no place to part a line.)
-        spans.append(TextSpan(text: String(ch), style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + w * em - _glyphWidth(s, ch), height: 0.01)))
+        // (A paragraph of boxes alone, a barcode face's text with the face missing, keeps its own line: only among other text does the box leave the line to the glyphs around it. 1cd66ed4's footer, 28 pt.)
+        let boxOnly = !p.text.unicodeScalars.contains { $0.properties.isAlphabetic || $0.properties.numericType != nil }
+        spans.append(TextSpan(text: String(ch), style: s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra + w * em - _glyphWidth(s, ch), height: boxOnly ? s.height : 0.01)))
         start = after
     } else if theme.wordRules, !ea, let u = ch.unicodeScalars.first?.value, u >= 0x25A0, u <= 0x25FF,
               (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)?.lowercased() == "times new roman" {
