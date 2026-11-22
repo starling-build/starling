@@ -6590,7 +6590,9 @@ enum ChartPainter {
         let libre = !c.onSlide && !c.onSheet && !c.chartex && !c.styled2013 && c.axisFont != nil && c.plotLayout == nil
         // (Where a Word chart's file places the plot itself, the pie fills that box: lo-9fa3dedd's 107 pt
         // across a plot 107 high, where 0.97 made 103.7.)
-        let fills = !c.onSlide && !c.onSheet && !c.chartex && c.plotLayout != nil
+        // (A slide's pie or ring in a plot the file places itself (inner) fills it too: ja-a91e3e82 p3's 106.6 pt across a plot
+        // 213.2 wide in PowerPoint's print, where 0.97 made 103.4; ko-e114b968 p54's pies 113.4 across, ours 109.9.)
+        let fills = !c.onSheet && !c.chartex && c.plotLayout != nil && (!c.onSlide || c.plotLayoutInner)
         var radius = min(area.width, area.height) / 2 * (libre ? 0.823 : fills ? 1.0 : 0.97)
         // (A Word pie with no labels at all is sized by the same room as one with centred labels: lab pie3, Word for Windows, 5 and 8
         // equal slices, labels off, legend at the foot: R 70.65 and 62.96 (arcs measured by their on-curve points) where ours took
@@ -8278,7 +8280,7 @@ extension ChartPainter {
                 if tuneFlat { RuleTrace.hit("word-flat-pie-best-fit-label-outside-hugs-the-rim") }
                 // (On a slide a flat pie's outside label the file leaves in place stands 10.7 pt from the rim, not 4: lab pie-lab1,
                 // PowerPoint for Windows, outside end at 9, 12 and 18 pt, 6 to 12 slices, the labels' radial places 6.5 to 8 pt beyond ours.)
-                let slideGap = point == nil && c.onSlide && l.outside && l.moves[s.index] == nil && c.ofPie == nil && inner == 0
+                let slideGap = point == nil && c.onSlide && l.outside && c.ofPie == nil && inner == 0
                 let gap = (tuneFlat ? 0 : slideGap ? 10.7 : 4) * k
                 // (Where the file moves it, from `movedEdge`'s point when
                 // given: a 3-D pie's.)
@@ -8444,6 +8446,12 @@ extension ChartPainter {
                     let w = c.ofPie != nil && !l.fitted ? (tp.computeLineMetrics().map(\.width).max() ?? tp.width) + pad : w
                     at = Offset(min(max(at.dx, frame.left + w / 2), frame.right - w / 2),
                                 min(max(at.dy, frame.top + h / 2), frame.bottom - h / 2))
+                }
+                // (A slide pie's label the file moves starts from its outside-end place, kept in the frame as an unmoved one is,
+                // and the file's share is added to that: lab pie-lab5, PowerPoint for Windows, a pie of 5 labels, moved and unmoved
+                // prints: moved = outside end + move for all five, the lowest held 20 pt up by the frame's foot first.)
+                if c.onSlide, c.type == .pie, point == nil, c.ofPie == nil, l.outside {
+                    at = Offset(min(max(at.dx, frame.left + w / 2), frame.right - w / 2), min(max(at.dy, frame.top + h / 2), frame.bottom - h / 2))
                 }
                 at = Offset(at.dx + m[0] * frame.width, at.dy + m[1] * frame.height)
             }
