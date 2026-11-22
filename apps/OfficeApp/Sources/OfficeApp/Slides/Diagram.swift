@@ -172,6 +172,8 @@ final class DgmPresNode {
     var rect = Rect.zero
     var rotation = 0.0
     var heldSlot = false
+    /// The author's move of this shape (`custLinFact*`), applied after the tree is fitted to its frame.
+    var move = Offset.zero
     var laidOut = false
     /// A shape the algorithm draws itself (a pyramid's level), as a
     /// polygon in absolute points.
@@ -372,6 +374,18 @@ struct DiagramLayout {
             }
         }
         engine.fit(root, into: box, alongOnly: squeezeAlong)
+        func moveByAuthor(_ n: DgmPresNode) {
+            for c in n.children {
+                // (A shape stays inside the diagram's frame: lo-smartart-composite-infer-right's box, asked to go
+                // half its height up, stands where it was in PowerPoint's print.)
+                let r = c.rect
+                func clamp(_ d: Double, _ lo: Double, _ hi: Double) -> Double { lo > hi ? 0 : min(max(d, lo), hi) }
+                let d = Offset(clamp(c.move.dx, box.left - r.left, box.right - r.right), clamp(c.move.dy, box.top - r.top, box.bottom - r.bottom))
+                if abs(d.dx) > 0.01 || abs(d.dy) > 0.01 { engine.shift(c, d) }
+                moveByAuthor(c)
+            }
+        }
+        moveByAuthor(root)
         if word { engine.placeProcessCircles(root) }
         if word { engine.fitWordText(root); engine.growForText(root) }
         #if !os(WASI)
@@ -1101,6 +1115,7 @@ struct DiagramLayout {
         for c in node.children {
             var w = measure(c, "w", avail: node.rect.width), h = measure(c, "h", avail: node.rect.height)
             var x = 0.0, y = 0.0
+            var w0 = 0.0, h0 = 0.0
             // Two edges given size it between them (l and r: w = r - l).
             if let l = c.vals["l"], let r = c.vals["r"], c.vals["w"] == nil { w = r - l }
             if let t = c.vals["t"], let b = c.vals["b"], c.vals["h"] == nil { h = b - t }
@@ -1128,12 +1143,20 @@ struct DiagramLayout {
             // PowerPoint, not the rest of the column.)
             if unbounded("h"), !nominalH, c.vals["h"] == nil { h = max(h, min(c.caps["h"] ?? .infinity, node.rect.height - y)) }
             if unbounded("w"), c.vals["w"] == nil { w = max(w, min(c.caps["w"] ?? .infinity, node.rect.width - x)) }
+            w0 = w; h0 = h
             // The author's own resizing (`custScaleX`/`Y`), about the
             // box's middle and after the constraints: composite-infer-right's
             // picture is 70.8% of its fifth, its text where it was.
             if !(wordLayout && c.algType == "tx"), let pr = model.pres[c.point.id + "|" + c.name] {
                 if let sx = pr["custScaleX"].flatMap(Double.init), sx > 0 { x += w * (1 - sx / 100_000) / 2; w *= sx / 100_000 }
                 if let sy = pr["custScaleY"].flatMap(Double.init), sy > 0 { y += h * (1 - sy / 100_000) / 2; h *= sy / 100_000 }
+            }
+            // The author's own move (`custLinFactX`/`Y` and the neighbour ones, in 1/100000 of the box's
+            // own unscaled width and height): the funnel1 print, every shape of it, to 0.1 pt.
+            var moved = Offset.zero
+            if !(wordLayout && c.algType == "tx"), let pr = model.pres[c.point.id + "|" + c.name] {
+                func f(_ k: String) -> Double { pr[k].flatMap(Double.init) ?? 0 }
+                moved = Offset((f("custLinFactX") + f("custLinFactNeighborX")) / 100_000 * w0, (f("custLinFactY") + f("custLinFactNeighborY")) / 100_000 * h0)
             }
             c.rect = Rect.fromLTWH(node.rect.left + x, node.rect.top + y, w, h)
             layoutNode(c)
@@ -1148,6 +1171,7 @@ struct DiagramLayout {
                 else if c.vals["t"] == nil, let b = c.vals["b"] { d = Offset(d.dx, node.rect.top + b - box.bottom) }
                 if abs(d.dx) > 0.01 || abs(d.dy) > 0.01 { shift(c, d) }
             }
+            c.move = moved
         }
         // A composite is as big as what it holds (its slot stays where its
         // parent put it; the size is for alignment).
@@ -1772,7 +1796,7 @@ struct DiagramLayout {
         visit(root)
     }
 
-    private func shift(_ node: DgmPresNode, _ d: Offset) {
+    fileprivate func shift(_ node: DgmPresNode, _ d: Offset) {
         node.rect = node.rect.shift(d)
         for c in node.children { shift(c, d) }
     }
@@ -1924,6 +1948,11 @@ struct DiagramLayout {
         var r = n.rect
         var rot = n.shapeRot + n.rotation
         var flipH = false, flipV = false
+        // The author's own turn and mirror (`custAng`, `custFlipHor`/`Vert`).
+        if let pr = model.pres[n.point.id + "|" + n.name] {
+            if let a = pr["custAng"].flatMap(Double.init) { rot += a / 60000 }
+            flipH = pr["custFlipHor"] == "1"; flipV = pr["custFlipVert"] == "1"
+        }
         if abs(abs(n.shapeRot) - 180) < 0.01 {
             // Turned round: mirrored instead, so its text stays upright.
             // (Both ways: one mirror is not a half turn — cycleMatrix's third
