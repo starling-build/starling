@@ -4224,6 +4224,11 @@ private struct SlideContext {
                     // so hand it the opposite pair.)
                     if style.alignment == .left { style.alignment = .right } else if style.alignment == .right { style.alignment = .left }
                     if style.list != nil { style.bulletAtEnd = true }
+                    // (A right-to-left paragraph's marL is its margin at the START edge, the right: PowerPoint's print stands eb7ab2c5's
+                    // algn="r" lines marL 6.48 pt in from the box's inset, 690 pt, ours 696.)
+                    if style.list == nil, own == "1", style.indentLeft != 0 || style.indentRight != 0 {
+                        swap(&style.indentLeft, &style.indentRight)
+                    }
                 }
                 // A master level that says rtl="1" moves the bullet and the
                 // list indent to the right and nothing else (GeomLec1's body:
