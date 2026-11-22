@@ -484,14 +484,22 @@ def _fold_strays(out):
     متر) as a line of its own, a few points off the baseline, and the line it left reads short: eb7ab2c5 p14, p20, f355b7fc,
     8a5ae557 p12. A line of up to three Arabic letters within 6pt of a longer line on its page, and horizontally inside that
     line's extent, is part of that line; both prints are read the same way. (amd-8, 2026-11-22.)"""
+    def ar(c):
+        return "\u0600" <= c <= "\u06ff" or "\u0750" <= c <= "\u077f" or "\ufb50" <= c <= "\ufeff"
     def arabic(t):
-        return 0 < len(t) <= 3 and all("\u0600" <= c <= "\u06ff" or "\u0750" <= c <= "\u077f" or "\ufb50" <= c <= "\ufeff" for c in t)
+        # up to FIVE Arabic letters, and any non-letters (a list bullet) with them; a row holding a bullet is the first piece of
+        # its line wherever it sits (the bullet stands at the line's start, past the end of the letters): 8a5ae557 p2, p4, p13,
+        # where PowerPoint's layer sets "➢يع", "لتعلأ", "جملأ" as rows of their own and the host line reads short.
+        letters = [c for c in t if unicodedata.category(c).startswith("L")]
+        return 0 < len(letters) <= 5 and all(ar(c) for c in letters) and len(t) <= 8
+    def bullet(t):
+        return any(unicodedata.category(c) == "So" or c == "\u2022" for c in t)
     rows = [l.split("\t") for l in out]
     keep = []
     for r in rows:
         if arabic(r[3]):
-            host = [h for h in rows if h is not r and h[0] == r[0] and len(h[3]) > 3 and abs(int(h[1]) - int(r[1])) <= 6
-                    and int(h[2]) - 2 <= int(r[2]) <= int(h[5]) + 2]
+            host = [h for h in rows if h is not r and h[0] == r[0] and len(h[3]) > len(r[3]) and abs(int(h[1]) - int(r[1])) <= 6
+                    and (bullet(r[3]) or int(h[2]) - 2 <= int(r[2]) <= int(h[5]) + 2)]
             if host:
                 min(host, key=lambda h: abs(int(h[1]) - int(r[1])))[3] += r[3]
                 continue
