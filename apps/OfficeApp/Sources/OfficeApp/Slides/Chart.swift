@@ -5998,6 +5998,22 @@ enum ChartPainter {
                 canvas.drawLine(Offset(plot.right, zero), Offset(plot.right + box.dx, zero - box.dy), gridPaint)
                 canvas.drawLine(Offset(plot.left + box.dx, zero - box.dy), Offset(plot.right + box.dx, zero - box.dy), gridPaint)
             }
+            // (A 3-D column chart's axes on a slide, drawn in the axis colour as a flat one's are: the value axis up the
+            // front of the left wall with its ticks out, the category axis along the floor's front edge and the floor's left edge
+            // with a tick under each category's end: es 3df36ff6 p4's gray lines, in PowerPoint's print.)
+            if c.onSlide, !c.styled2013, box != .zero, c.barView?.walled != false {
+                if c.valueLine, !c.valueAxisDeleted {
+                    canvas.drawLine(Offset(plot.left, plot.top), Offset(plot.left, plot.bottom), axisPaint)
+                    if c.valueTicksOut { for v in ticks { canvas.drawLine(Offset(plot.left - 2.9 * k, vpos(v)), Offset(plot.left, vpos(v)), axisPaint) } }
+                }
+                if c.categoryLine, !c.categoryAxisDeleted {
+                    canvas.drawLine(Offset(plot.left, zero), Offset(plot.right, zero), axisPaint)
+                    canvas.drawLine(Offset(plot.left, zero), Offset(plot.left + box.dx, zero - box.dy), axisPaint)
+                    if c.categoryTicksOut {
+                        for i in 0 ... n { canvas.drawLine(Offset(plot.left + Double(i) * plot.width / Double(n), zero), Offset(plot.left + Double(i) * plot.width / Double(n), zero + 3.2 * k), axisPaint) }
+                    }
+                }
+            }
             let slot = plot.width / Double(n)
             // (Word's walled 3-D columns: the names 6 pt higher, lo-1bd2003e's at 272 and 284.)
             let foot = (atZero ? zero : plot.bottom) - (inWord && c.barView?.walled == true && c.plotLayoutInner ? 6 * k : 0)
