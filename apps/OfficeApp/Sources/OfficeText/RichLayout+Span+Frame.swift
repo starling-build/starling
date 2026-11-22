@@ -142,6 +142,7 @@ final class _StyledFrame {
     var blankShown: Double = 0
     var led: Bool = false
     var extra: Double = 0
+    var glyphSqueeze: Double = 0   // (and what the squeeze takes off the glyph's own advance, put back as spacing when it is drawn: the fit counts the measured advance)
     var glyphScale: Double = 1   // (Slides: the stand-in glyph drawn at the measured advance, `RichTextTheme.scalesGlyphsToTables`)
     var nbspHAnsi: Bool = false
     var malgunDigit: Bool = false

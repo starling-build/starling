@@ -298,7 +298,7 @@ extension _StyledFrame {
                (u >= 0x0E00 && u < 0x0E80 && ch.unicodeScalars.count > 1) || (u >= 0x80 && !(0x0E00 ..< 0x0E80).contains(u)) {
                 spacing /= Double(_glyphCount(s, ch))
             }
-            spans.append(contentsOf: capped(text[i ..< after], run, glyphScale != 1 ? s.copyWith(letterSpacing: spacing, scaleX: (s.scaleX ?? 1) * glyphScale) : s.copyWith(letterSpacing: spacing)))
+            spans.append(contentsOf: capped(text[i ..< after], run, glyphScale != 1 ? s.copyWith(letterSpacing: spacing + glyphSqueeze, scaleX: (s.scaleX ?? 1) * glyphScale) : s.copyWith(letterSpacing: spacing)))
         }
         start = after
     }

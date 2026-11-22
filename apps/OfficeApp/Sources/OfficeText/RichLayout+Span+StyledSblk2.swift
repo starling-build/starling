@@ -207,9 +207,9 @@ extension _StyledFrame {
             let natural = _glyphWidth(s, ch)
             // (A kana or CJK mark of a proportional face with a table: the stand-in's one-em glyph drawn at the face's narrower advance by a
             // horizontal scale, as the Latin glyphs are above (brackets keep their own placement: their ink sits to one side of the slot), not crowded into the next slot.)
-            if theme.scalesGlyphsToTables, own, ch.unicodeScalars.count == 1, u >= 0x3000, u < 0xFFF0, ch.unicodeScalars.first?.properties.generalCategory != .openPunctuation, ch.unicodeScalars.first?.properties.generalCategory != .closePunctuation, natural > 0.5, !(s.letterSpacing != nil && s.letterSpacing != 0), target > 0 {
+            if theme.scalesGlyphsToTables, own, ch.unicodeScalars.count == 1, u >= 0x3000, u < 0xFFF0, ch.unicodeScalars.first?.properties.generalCategory != .openPunctuation, ch.unicodeScalars.first?.properties.generalCategory != .closePunctuation, ch.unicodeScalars.first?.properties.generalCategory != .otherPunctuation, natural > 0.5, !(s.letterSpacing != nil && s.letterSpacing != 0), target > 0 {
                 let r = (w * px / (face.sizeScale * classScale)) / natural
-                if r > 0.5, r < 0.98 { RuleTrace.hit("cjk-glyph-scaled-to-proportional-advance"); glyphScale = r; extra += target - w * px / (face.sizeScale * classScale); return_scaled = true }
+                if r > 0.5, r < 0.98 { RuleTrace.hit("cjk-glyph-scaled-to-proportional-advance"); glyphScale = r; glyphSqueeze = natural - w * px / (face.sizeScale * classScale); extra += target - natural; return_scaled = true }
             }
             if !return_scaled { extra += target - natural }
         }
