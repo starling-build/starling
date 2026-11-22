@@ -551,7 +551,7 @@ private struct LevelStyle {
             return map[code]
         }
         if face.hasPrefix("symbol") {
-            let map: [UInt32: String] = [0xB7: "•", 0x2D: "–", 0x3E: ">", 0xB2: "″", 0xA8: "♦", 0xA7: "♣", 0xAE: "→", 0xDE: "⇒"]
+            let map: [UInt32: String] = [0xB7: "•", 0x2A: "∗", 0x2D: "–", 0x3E: ">", 0xB2: "″", 0xA8: "♦", 0xA7: "♣", 0xAE: "→", 0xDE: "⇒"]
             return map[code]
         }
         if face.hasPrefix("webdings") { return nil }
