@@ -4303,6 +4303,9 @@ private struct SlideContext {
                 guard let f = gd["fmla"], f.hasPrefix("val ") else { return nil }
                 return Double(f.dropFirst(4))
             }
+            // (PowerPoint's print sets the wave presets' text flat, as ordinary text: lo-tdf114848 p2 (textDoubleWave1), lo-tdf125573 p2
+            // (textWave1) and 6de30c85 p3's 28 pt title all print on one straight baseline; the arch and circle presets do print bent.)
+            if preset.hasPrefix("textWave") || preset == "textDoubleWave1" { return nil }
             // (A plain, unslanted warp on text that wraps in its box (no wrap="none") is no WordArt: PowerPoint sets it as ordinary text,
             // letter spacing and all; KYWA's header boxes (textPlain, no adjust) wrapped a word early when fitted as WordArt.)
             if preset == "textPlain", adjust.first.map({ $0 == 50000 }) ?? true, (body?.first("a:bodyPr")?["wrap"] ?? "square") != "none" { return nil }
