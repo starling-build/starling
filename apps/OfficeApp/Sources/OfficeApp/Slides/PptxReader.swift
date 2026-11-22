@@ -1574,6 +1574,14 @@ private struct SlideContext {
                     out.append(ink)
                     continue
                 }
+                // A chartex chart in the choice is drawn from its part, never from the fallback picture (which is a bitmap).
+                if let gf = el.first("mc:Choice")?.first("p:graphicFrame"),
+                   gf.descendant("a:graphicData")?["uri"]?.containsSubstring("chartex") == true,
+                   var c = _chart(gf, transform, id: id) {
+                    c.sourceXML = PptxXML.serialize(el)
+                    add(c, el)
+                    continue
+                }
                 // The fallback is what an older reader would draw: keep the
                 // whole thing — and draw it as that fallback's shapes (or the
                 // choice's, where the fallback holds nothing this app reads:
@@ -2792,7 +2800,7 @@ private struct SlideContext {
     /// A chart this app draws, from its part's cached values; kept as read
     /// too, and written back through that part while it is unchanged.
     private func _chart(_ el: XNode, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {
-        guard let ref = el.descendant("c:chart")?["r:id"],
+        guard let ref = (el.descendant("c:chart") ?? el.descendant("cx:chart"))?["r:id"],
               let rel = package.rels(part).first(where: { $0.id == ref && !$0.external }),
               let space = package.xml(rel.target).map(ChartXML.canonical) else { return nil }
         // A chart pasted from another file brings that file's colours with
@@ -2825,8 +2833,12 @@ private struct SlideContext {
         // slide swaps bg1 for dark, its chart keeps bg1 light, and its
         // `bg1 lumMod 85%` slice is light grey in PowerPoint's print.
         if let map = space.first("c:clrMapOvr") { for (k, v) in map.attrs { colors.map[k] = v } }
-        guard var chart = ChartXML.read(space, color: { colors.color(in: $0) }),
+        // (An Excel 2016 chart, `cx:chartSpace` — waterfall, funnel, histogram, box and whisker, sunburst, treemap — comes
+        // through the choice of an mc:AlternateContent; the fallback picture is what an older reader draws.)
+        let chartex = space.name == "cx:chartSpace"
+        guard var chart = chartex ? ChartXML.readChartex(space, color: { colors.color(in: $0) }) : ChartXML.read(space, color: { colors.color(in: $0) }),
               var frame = el.first("p:xfrm").flatMap(_xfrmRect) else { return nil }
+        if chartex { chart.waterfallLegendTotal = true }
         // A chart that names no face is in its own slide's theme font — a
         // deck of several masters (aascu 5864's census charts, Calibri;
         // cooper's, Verdana) was drawn in the first master's.
