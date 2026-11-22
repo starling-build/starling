@@ -46,9 +46,11 @@ jobs:
           git -C "$C" cat-file -e "$GITHUB_SHA^{tree}" || { echo "pushed sha missing after fetch"; exit 1; }
           gfetch -q --no-tags --depth=200 origin "$(git -C "$C" rev-parse "$GITHUB_SHA^" 2>/dev/null || echo "$GITHUB_SHA")" 2>/dev/null || true   # its parent too
           git -C "$C" clean -fdq
-          # a sha that is already 3+ commits behind main is not worth a build: no gate will use it as its base
+          # the prebuild now also draws 670 Slides decks per sha (amd-8, 2026-11-22), so the dedicated runner skips to the NEWEST main sha (any newer commit on main: skip); starling2 keeps 3
+          AHEAD=${{ matrix.thin && 3 || 1 }}
+          # a sha that is already behind main is not worth a build: no gate will use it as its base
           gfetch -q --no-tags --depth=200 origin main 2>/dev/null || true
-          if [ "$(git -C "$C" rev-list --count "$GITHUB_SHA..FETCH_HEAD" 2>/dev/null || echo 0)" -ge 3 ]; then echo "SKIP_PREBUILD=1" >> "$GITHUB_ENV"; echo "main is 3+ commits ahead; skipping this prebuild"; fi
+          if [ "$(git -C "$C" rev-list --count "$GITHUB_SHA..FETCH_HEAD" 2>/dev/null || echo 0)" -ge "$AHEAD" ]; then echo "SKIP_PREBUILD=1" >> "$GITHUB_ENV"; echo "main is $AHEAD+ commits ahead; skipping this prebuild (a newer sha builds; gates pair with the nearest cached ancestor)"; fi
       - name: Prebuild
         if: env.SKIP_PREBUILD != '1'
         run: |
