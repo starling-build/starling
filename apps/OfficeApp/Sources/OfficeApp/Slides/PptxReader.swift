@@ -3073,6 +3073,12 @@ private struct SlideContext {
         // A chart that names no face is in its own slide's theme font — a
         // deck of several masters (aascu 5864's census charts, Calibri;
         // cooper's, Verdana) was drawn in the first master's.
+        // (Its Japanese face too: d776ec3f p23's override says MS PGothic where the deck's theme says Yu Gothic, and the print's 12 pt labels are PGothic.)
+        if let over = package.rels(rel.target).first(where: { $0.kind == "themeOverride" && !$0.external }),
+           let minor = package.xml(over.target)?.descendant("a:minorFont"), (minor.first("a:ea")?["typeface"] ?? "").isEmpty,
+           let j = minor.all("a:font").first(where: { $0["script"] == "Jpan" })?["typeface"], !j.isEmpty {
+            chart.japaneseFaceOverride = j
+        }
         if chart.font == nil, let face = overrideFont ?? (foreignTheme ? theme.minor : nil) {
             chart.font = face
             if chart.titleFont == nil { chart.titleFont = chart.font }
