@@ -19,6 +19,20 @@ extension _ParaFrame {
             _leadWidth[i] = lead
             leadTab = true
         }
+        // (Slides: a paragraph that opens with spaces and a tab, " <tab>Referendado" in 4c5084ff p17 (pt): PowerPoint sets
+        // the text at the next stop whatever the justifying does; the engine's justifying took the tab's widening with the
+        // blanks, the text at the indent. The widening goes into the first line's indent box, as a leading tab's does.)
+        var leadSpaces: Set<Int> = []
+        if !theme.wordRules, theme.markersAtHang, style.alignment == .justify {
+            let u = Array(p.text.utf16)
+            if let t = u.firstIndex(where: { $0 != 0x20 }), t > 0, u[t] == 0x09, let e = tabs[t], e != 0 {
+                lead += e
+                tabs[t] = nil
+                _leadWidth[i] = lead
+                leadTab = true
+                leadSpaces = Set(0 ... t)
+            }
+        }
         // (Not one set at the margin: it ends its line, which is not
         // justified after it, and a held space is a little wider than
         // the tab it stands for — enough, at the margin, to send the
@@ -75,7 +89,7 @@ extension _ParaFrame {
             ? Set(tabs.keys.filter { t in (t > 0 && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t - 1)] == 0x09) || (t + 1 < p.text.utf16.count && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t + 1)] == 0x09) }).subtracting(atMargin)
             : []
         if !tabRuns.isEmpty { RuleTrace.hit("tab-runs-do-not-hang-past-the-margin") }
-        tabsHeld = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(leadTab && style.alignment == .justify ? [0] : []).union(underHeld).union(beforeTabs).union(tabRuns).union(lonePastTabs).union(afterTabWraps)
+        tabsHeld = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(leadTab && style.alignment == .justify ? (leadSpaces.isEmpty ? [0] : leadSpaces) : []).union(underHeld).union(beforeTabs).union(tabRuns).union(lonePastTabs).union(afterTabWraps)
             .union(theme.wordRules && RichTextTheme.wordWindowsPages ? RichLayout._underlinedClosingCounted(p) : [])
         // A line exactly as wide as its room fits or not as Word's sum of
         // the room comes out: each measure in twips goes to the sixteenth
