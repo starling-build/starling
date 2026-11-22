@@ -88,6 +88,8 @@ struct ChartSeries: Equatable {
     var name: String
     /// A line of a combination that stands on the columns' own value axis though another line group has an axis of its own at the right.
     var onMainAxis = false
+    /// A scatter series on the value axis of its own at the right (a second scatter group, chart-axis_title_default_rotation).
+    var onSecondAxis = false
     /// One per category; nil is a blank cell (a gap).
     var values: [Double?]
     /// The numbers' own format (`c:val`'s `c:formatCode`) where it is
@@ -1482,6 +1484,7 @@ enum ChartXML {
         var secondAxis: XNode? = nil
         var main = kinds.first
         var merged: [XNode] = []
+        var secondScatterFrom: Int? = nil
         var columnsOnRight = false
         var mainLines: [XNode] = []
         if kinds.count == 3, let bar = kinds.first(where: { $0.name == "c:barChart" }), kinds.filter({ $0.name == "c:lineChart" }).count == 2,
@@ -1533,6 +1536,21 @@ enum ChartXML {
             // series and a plain one apart (lo's c4c60fcb: a response curve
             // and its -3dB line): one group of all their series.
             merged = Array(kinds.dropFirst())
+        } else if kinds.count == 2, kinds.allSatisfy({ $0.name == "c:scatterChart" }) {
+            // A second scatter group on a value axis of its own at the right, its x axis deleted so the first's serves both
+            // (chart-axis_title_default_rotation). A second x axis that shows is not read: the chart stays unread, as before.
+            let firstAxes = Set(kinds[0].all("c:axId").compactMap { $0["val"] })
+            let secondIds = kinds[1].all("c:axId").compactMap { $0["val"] }
+            let ownAxes = plot.all("c:valAx").filter { secondIds.contains($0.first("c:axId")?["val"] ?? "") && !firstAxes.contains($0.first("c:axId")?["val"] ?? "") }
+            guard ownAxes.count == 2,
+                  let y = ownAxes.first(where: { ["l", "r"].contains($0.first("c:axPos")?["val"] ?? "") }),
+                  let x = ownAxes.first(where: { ["b", "t"].contains($0.first("c:axPos")?["val"] ?? "") }),
+                  ["1", "true"].contains(x.first("c:delete")?["val"] ?? "0"),
+                  y.first("c:axPos")?["val"] == "r" || y.first("c:crosses")?["val"] == "max"
+            else { return nil }
+            secondAxis = y
+            merged = [kinds[1]]
+            secondScatterFrom = kinds[0].all("c:ser").count
         } else if kinds.count == 2, kinds.allSatisfy({ $0.name == "c:lineChart" }) {
             // Lines over lines, the second group on a value axis of its own
             // at the right (chart-add_series_secondary_axis): drawn as a
@@ -2008,6 +2026,7 @@ enum ChartXML {
         }
         let spaceRun = space.first("c:txPr")?.descendant("a:defRPr")
         var c = Chart(type: type, title: title, categories: categories, series: series)
+        if let from = secondScatterFrom { for i in c.series.indices where i >= from { c.series[i].onSecondAxis = true } }
         c.categoryLevels = levels
         c.lineSeries = lines.map { l in
             var l = l
@@ -4853,9 +4872,9 @@ enum ChartPainter {
                 hi = max(hi, pos); lo = min(lo, neg)
             }
         } else {
-            var all = c.series.flatMap { $0.values.compactMap { $0 } }
+            var all = c.series.filter { !$0.onSecondAxis }.flatMap { $0.values.compactMap { $0 } }
             // (Error bars reach the axis' range: bab9be95 p15's values 0.65 to 0.81 with bars of up to 0.018 print 60% to 85%.)
-            for ser in c.series {
+            for ser in c.series where !ser.onSecondAxis {
                 guard let eb = ser.errBars else { continue }
                 for (i, v) in ser.values.enumerated() {
                     guard let v else { continue }
@@ -5051,7 +5070,7 @@ enum ChartPainter {
         if let second = c.secondValueAxis, second.sameScale, !horizontal {
             secondScale = sc
         } else if let second = c.secondValueAxis, !sharesFirst, !horizontal {
-            let all = c.lineSeries.filter { !$0.onMainAxis }.flatMap { $0.values.compactMap { $0 } }
+            let all = c.lineSeries.filter { !$0.onMainAxis }.flatMap { $0.values.compactMap { $0 } } + c.series.filter(\.onSecondAxis).flatMap { $0.values.compactMap { $0 } }
             var s2 = scale(all.min() ?? 0, max(all.max() ?? 1, second.max ?? -Double.infinity), intervals: tableSteps ?? 10)
             if second.min != nil || second.max != nil || second.step != nil {
                 s2 = fixedScale(auto: s2, min: second.min, max: second.max, step: second.step)
@@ -7052,6 +7071,7 @@ enum ChartPainter {
             if c.type == .line || (c.type == .area && !c.lineSeries.isEmpty), !horizontal { paintOverlayLines() }
         case .scatter:
             for j in 0 ..< s {
+                let vpj: (Double) -> Double = c.series[j].onSecondAxis ? vpos2 : vpos
                 fill.color = c.color(series: j, accents: theme.accents)
                 if c.series[j].joined {
                     // The series' line under its points, broken at a blank.
@@ -7067,7 +7087,7 @@ enum ChartPainter {
                     for i in 0 ..< n {
                         guard let v = c.series[j].values[safe: i] ?? nil else { pen = false; continue }
                         let x = plot.left + (xt(c.x(j, i)) - xs.lo) / (xs.hi - xs.lo) * plot.width
-                        if pen { path.lineTo(x, vpos(v)) } else { path.moveTo(x, vpos(v)); pen = true }
+                        if pen { path.lineTo(x, vpj(v)) } else { path.moveTo(x, vpj(v)); pen = true }
                     }
                     canvas.drawPath(path, p)
                 }
@@ -7088,7 +7108,7 @@ enum ChartPainter {
                             tp.color = t.color ?? fill.color
                             let path = Path()
                             for (m, xv) in [x0, x1].enumerated() {
-                                let px = plot.left + (xt(xv) - xs.lo) / (xs.hi - xs.lo) * plot.width, py = vpos(b0 + b1 * xv)
+                                let px = plot.left + (xt(xv) - xs.lo) / (xs.hi - xs.lo) * plot.width, py = vpj(b0 + b1 * xv)
                                 if m == 0 { path.moveTo(px, py) } else { path.lineTo(px, py) }
                             }
                             canvas.drawPath(path, tp)
@@ -7107,23 +7127,23 @@ enum ChartPainter {
                         for (amount, sign) in [(eb.plus[safe: i] ?? nil, 1.0), (eb.minus[safe: i] ?? nil, -1.0)] {
                             guard let amount, amount != 0 else { continue }
                             if vertical {
-                                canvas.drawPath(chartErrBarPath(eb, k: k, vertical: true, at: x, from: vpos(v), end: vpos(v + sign * abs(amount))), ln)
+                                canvas.drawPath(chartErrBarPath(eb, k: k, vertical: true, at: x, from: vpj(v), end: vpj(v + sign * abs(amount))), ln)
                             } else {
                                 let ex = plot.left + (xt(c.x(j, i) + sign * abs(amount)) - xs.lo) / (xs.hi - xs.lo) * plot.width
-                                canvas.drawPath(chartErrBarPath(eb, k: k, vertical: false, at: vpos(v), from: x, end: ex), ln)
+                                canvas.drawPath(chartErrBarPath(eb, k: k, vertical: false, at: vpj(v), from: x, end: ex), ln)
                             }
                         }
                     }
-                    canvas.drawCircle(Offset(x, vpos(v)), max(1.5, 2.5 * k), fill)
+                    canvas.drawCircle(Offset(x, vpj(v)), max(1.5, 2.5 * k), fill)
                     if c.onSlide, !c.styled2013, c.officeStyled {
                         let rim = Paint()
                         rim.style = .stroke
                         rim.isAntiAlias = true
                         rim.strokeWidth = max(0.25, 0.75 * k)
                         rim.color = c.lineColor(series: j, accents: theme.accents)
-                        canvas.drawCircle(Offset(x, vpos(v)), max(1.5, 2.5 * k), rim)
+                        canvas.drawCircle(Offset(x, vpj(v)), max(1.5, 2.5 * k), rim)
                     }
-                    labels.append((dataLabel(c, v, series: j), Offset(x, vpos(v) - 9 * k), j))
+                    labels.append((dataLabel(c, v, series: j), Offset(x, vpj(v) - 9 * k), j))
                 }
             }
         case .pie, .doughnut, .radar:
