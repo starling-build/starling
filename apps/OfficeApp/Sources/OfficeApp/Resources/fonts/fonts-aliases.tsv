@@ -12,13 +12,13 @@ SimSun-ExtB	Noto Serif CJK SC
 创艺简标宋	Noto Serif CJK SC
 STSong	Noto Serif CJK SC
 华文宋体	Noto Serif CJK SC
-KaiTi	Noto Serif CJK SC
-KaiTi_GB2312	Noto Serif CJK SC
-楷体	Noto Serif CJK SC
-楷体_GB2312	Noto Serif CJK SC
-STKaiti	Noto Serif CJK SC
-华文楷体	Noto Serif CJK SC
-DFKai-SB	Noto Serif CJK SC
+KaiTi	LXGW WenKai TC
+KaiTi_GB2312	LXGW WenKai TC
+楷体	LXGW WenKai TC
+楷体_GB2312	LXGW WenKai TC
+STKaiti	LXGW WenKai TC
+华文楷体	LXGW WenKai TC
+DFKai-SB	LXGW WenKai TC
 SimHei	Noto Sans CJK SC
 黑体	Noto Sans CJK SC
 Microsoft YaHei	Noto Sans CJK SC
@@ -45,9 +45,9 @@ MingLiU	Noto Serif CJK TC
 新細明體	Noto Serif CJK TC
 PMingLiU-ExtB	Noto Serif CJK TC
 MingLiU-ExtB	Noto Serif CJK TC
-標楷體	Noto Serif CJK TC
-DFKaiShu-SB-Estd-BF	Noto Serif CJK TC
-全真楷書	Noto Serif CJK TC
+標楷體	LXGW WenKai TC
+DFKaiShu-SB-Estd-BF	LXGW WenKai TC
+全真楷書	LXGW WenKai TC
 Microsoft JhengHei	Noto Sans CJK TC
 Microsoft JhengHei UI	Noto Sans CJK TC
 微軟正黑體	Noto Sans CJK TC

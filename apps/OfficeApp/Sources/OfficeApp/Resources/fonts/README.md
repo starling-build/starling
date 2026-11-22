@@ -194,3 +194,14 @@ sha256:
 `DejaVuMathTeXGyre.ttf` (fallback_order 9, family "DejaVu Math TeX Gyre", the name WriterMath
 asks for) is the maths face; it keeps the pi in lo-6e71a4d5. Added by amd-4. Licence as Debian
 lists it for DejaVu (Bitstream Vera terms); the TeX Gyre side originates with the GUST e-foundry.
+
+## 楷体 / 標楷體: LXGW WenKai TC (2026-11-22)
+
+Kai names (標楷體, DFKai-SB, DFKaiShu-SB-Estd-BF, 全真楷書, 楷体, KaiTi, STKaiti, 华文楷体) draw their
+ideographs in `LXGWWenKaiTC-Regular.ttf`, **LXGW WenKai TC** v1.530
+(github.com/lxgw/LxgwWenKaiTC releases; SIL OFL 1.1, bundled unmodified;
+LXGWWenKaiTC-LICENSE.txt), a brush hand like the Kai faces. It replaces Noto Serif CJK
+for these names (Ming, Song and Mincho keep the serif). The release has no Bold cut: bold
+is simulated. 15 MB, listed in fonts.tsv, so the web build fetches it lazily. It covers all
+of GB2312 and 18,531 of the 21,093 characters DFKai-SB has; the rest fall to the glyph
+chain. Layout never uses its widths: DFKai-SB's measured metrics do.
