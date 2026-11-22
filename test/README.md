@@ -367,6 +367,6 @@ are in `/data/corpus-cache/staging/<set>` (`corpus-cache.sh check|sync`).
 
 `test/tools/pdf-probe.py` replaces the throwaway PyMuPDF scripts. Subcommands (pages are 1-based, `3`, `2-5` or `1,4,7-9`):
 `lines PDF [PAGES] [--grep TXT]` (baseline, x range, size, font, text), `glyphs PDF PAGE [--line N|--grep TXT]` (per-glyph origin and advance),
-`fonts PDF [PAGES]`, `trace PDF [PAGES]` (render mode/opacity; flags INVISIBLE and OFFPAGE text), `images`, `draws` (rules, borders, fills),
+`fonts PDF [PAGES]`, `trace PDF [PAGES]` (render mode/opacity; flags INVISIBLE and OFFPAGE text), `images`, `draws` (rules, borders, fills; bbox is the true curve extent, not Bezier control points),
 `diff A.pdf B.pdf PAGE [--clip x0,y0,x1,y1] [--dpi N] [--out PNG]` (% of pixels differing, red/blue overlay).
 For Word-vs-ours line and glyph comparison use `wordcmp.py`; this tool reads a single PDF. It re-runs itself in `~/venv-word` if PyMuPDF is missing.
