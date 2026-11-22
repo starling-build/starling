@@ -1561,6 +1561,12 @@ public final class RichLayout {
     public var fontScale: Double = 1.0 {
         didSet { if fontScale != oldValue { invalidateAll() } }
     }
+    /// A column of vertical text (`bodyPr vert`): PowerPoint's print does not set its glyphs on the eighth of a point (Courier New 18 pt
+    /// down an eaVert column steps 10.80, 10.80, 10.67 pt), so the theme's `advanceGrid` is not applied.
+    public var verticalColumn = false {
+        didSet { if verticalColumn != oldValue { invalidateAll() } }
+    }
+    var activeAdvanceGrid: Double? { verticalColumn ? nil : theme.advanceGrid }
     /// The space before and after paragraphs shrinks with `fontScale` too:
     /// a SmartArt shape's spacing is a share of its line, and PowerPoint
     /// sets it smaller with the text it fits (an office diagram's list).
