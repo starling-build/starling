@@ -55,6 +55,8 @@ struct FormControl: Equatable {
     var underline = false
     /// "Left", "Center", "Right" — the caption inside its room.
     var align = "Left"
+    /// `x:TextVAlign` ("Center", "Bottom"); empty is the top.
+    var vAlign = ""
     /// Flat, as on paper; a 3-D one has a sunken box.
     var flat = false
 }
@@ -136,6 +138,7 @@ enum SheetObjectsXML {
         c.fontSize = s.fontSize; c.fontFace = s.fontFace
         c.bold = s.bold; c.italic = s.italic; c.underline = s.underline
         if let a = s.align { c.align = a }
+        if let v = s.vAlign { c.vAlign = v }
     }
 
     private static func _control(_ props: XNode, shape: _VmlShape?) -> FormControl? {
@@ -158,6 +161,7 @@ enum SheetObjectsXML {
         var fontFace: String? = nil
         var bold = false, italic = false, underline = false
         var align: String? = nil
+        var vAlign: String? = nil
         var hidden = false
         /// `x:ClientData@ObjectType` ("Checkbox", "Note", "Pict"…) and
         /// `x:Checked` (1, or 2 for mixed).
@@ -247,6 +251,7 @@ enum SheetObjectsXML {
             }
             shape.checked = _between(body, "<x:Checked>", "</x:Checked>").flatMap { Int($0.trimmingWhitespace()) } ?? 0
             if let h = _between(body, "<x:TextHAlign>", "</x:TextHAlign>") { shape.align = h.trimmingWhitespace() }
+            if let v = _between(body, "<x:TextVAlign>", "</x:TextVAlign>") { shape.vAlign = v.trimmingWhitespace() }
             out[String(id[s.upperBound...])] = shape
         }
         return out
@@ -317,14 +322,25 @@ extension FormControl {
         fill.style = .fill
         var style = GridTextStyle(family: OfficeFonts.drawn(fontFace ?? "Segoe UI"), size: (fontSize ?? 9) * pt, color: Int64(ink.value))
         style.bold = bold; style.italic = italic; style.underline = underline
-        func caption(in room: Rect, align: String, clip: Bool = true) {
+        func caption(in room: Rect, align: String, clip: Bool = true, standing: Bool = false) {
             guard !text.isEmpty, room.width > 1 else { return }
             let tp = TextPainter(text: TextSpan(text: text, style: style.flutter), textAlign: .left, textDirection: .ltr)
             tp.layout(minWidth: 0, maxWidth: .infinity)
             let x = align == "Right" ? room.right - tp.width : align == "Center" ? room.left + (room.width - tp.width) / 2 : room.left
             canvas.save()
             if clip { canvas.clipRect(r) }
-            tp.paint(canvas, Offset(x, room.top + (room.height - tp.height) / 2))
+            var y = room.top + (room.height - tp.height) / 2
+            if standing && vAlign != "Center", let asc = SheetPrintMetrics.ascent(family: fontFace ?? "Tahoma"),
+               let desc = SheetPrintMetrics.descent(family: fontFace ?? "Tahoma") {
+                // Excel (lab radio): a check box or radio caption is not centred in
+                // its box; its baseline stands 2.6 pt of its line below the top (or the
+                // descent and 2.6 pt above the bottom for TextVAlign Bottom: 10.2 pt top to baseline, Tahoma 8),
+                // at any box height.
+                let inset = 2.6 * pt, em = style.size
+                let base = vAlign == "Bottom" ? room.bottom - inset - desc * em : room.top + inset + asc * em
+                y = base - tp.computeDistanceToActualBaseline(.alphabetic)
+            }
+            tp.paint(canvas, Offset(x, y))
             canvas.restore()
             tp.dispose()
         }
@@ -353,7 +369,7 @@ extension FormControl {
                     canvas.drawPath(tick, p)
                 }
             }
-            caption(in: Rect.fromLTRB(mark.right + 4 * pt, r.top, r.right - pt, r.bottom), align: align)
+            caption(in: Rect.fromLTRB(mark.right + 4 * pt, r.top, r.right - pt, r.bottom), align: align, standing: true)
         case .button:
             fill.color = Color(0xFFF0F0F0)
             canvas.drawRect(r, fill)
@@ -365,8 +381,12 @@ extension FormControl {
         case .groupBox:
             // The rule runs through the caption's middle and breaks for it.
             let top = r.top + style.size * 0.6
-            line.color = Color(0xFFA0A0A0)
+            // Excel (lab radio) draws the frame black, 1 pt.
+            line.color = Color(0xFF000000)
+            let keep = line.strokeWidth
+            line.strokeWidth = 1 * pt
             canvas.drawRect(Rect.fromLTRB(r.left + 0.5, top, r.right - 0.5, r.bottom - 0.5), line)
+            line.strokeWidth = keep
             if !text.isEmpty {
                 let tp = TextPainter(text: TextSpan(text: text, style: style.flutter), textAlign: .left, textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
