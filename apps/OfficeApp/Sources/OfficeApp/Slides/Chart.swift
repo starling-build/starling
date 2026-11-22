@@ -5586,6 +5586,36 @@ enum ChartPainter {
             // (A laid plot stands no nearer the chart's left edge than its value labels leave, 0.86 x their size past their right edge (lab p12-lab3: 8 pt 6.86, 12 pt 10.3, 18 pt 15.49): its width
             // kept, it moves right to that, and one that runs past the right edge moves left, as far as that allows, before the cut.
             // Lab p12-2 of 7bf37d72: a plot laid at x .02 stood at 74.4, not 47.1; one cut 33.0 pt at the right moved left 16.6.)
+            // (Names a laid plot turns 45 degrees on a slide stop at half the chart's height, ending in an ellipsis, and the plot
+            // makes room for them: lab p12-lab2 of 7bf37d72 p12/p20, 16 pt, a chart 348 pt tall: "FY 2020 = $232 per SCH..." 172.7 pt
+            // long, its left end at the chart's left edge (the plot moved right 65 pt, left 138.5 where ours stood 73.0) and the plot's
+            // foot at 343.0, the names' block 24.0 pt (the name gap and 12.1 pt more) above the chart's foot. One chart, two pages.)
+            var turnedFoot: Double? = nil
+            var turnedLeft: Double? = nil
+            if c.onSlide, !horizontal, aslant, c.categoryLabelTurn == nil, abs(slant - .pi / 4) < 0.01, case let pl = placed, !catLabels.isEmpty {
+                let cap = 0.5 * frame.height
+                for i in catLabels.indices where catLabels[i].width > cap {
+                    let chars = Array(c.categories[i])
+                    var lo = 0, hi = chars.count
+                    while lo < hi {
+                        let mid = (lo + hi + 1) / 2
+                        let t = categoryText(String(chars[0 ..< mid]) + "\u{2026}", catSize, .infinity)
+                        if t.width <= cap { lo = mid } else { hi = mid - 1 }
+                        t.dispose()
+                    }
+                    catLabels[i].dispose()
+                    catLabels[i] = categoryText(String(chars[0 ..< lo]) + "\u{2026}", catSize, .infinity)
+                }
+                if let first = catLabels.first, let tall = catLabels.max(by: { drop($0) < drop($1) }) {
+                    let nC = Double(c.categories.count)
+                    let right = min(pl.right, frame.right)
+                    let x = frame.left + first.width * cos(slant) + 0.5 * first.height * sin(slant)
+                    let left = (x - right / (2 * nC)) / (1 - 1 / (2 * nC))
+                    turnedLeft = left
+                    turnedFoot = frame.bottom - drop(tall) - (0.773 * tall.height - 2.35 * k) - 12.1 * k
+                    RuleTrace.hit("slide-laid-plot-turned-names-stop-at-half-the-chart-and-the-plot-makes-room")
+                }
+            }
             var laid = placed
             if c.onSlide, !horizontal, c.barView == nil, !c.valueAxisDeleted, let widest = valueLabels.map(\.width).max() {
                 let limit = frame.left + widest + 0.86 * (c.valueLabelSize ?? c.baseTextSize) * k
@@ -5598,6 +5628,8 @@ enum ChartPainter {
                 }
                 RuleTrace.hit("slide-laid-plot-keeps-clear-of-its-value-labels")
             }
+            if let tl = turnedLeft, tl > laid.left { laid = Rect.fromLTRB(tl, laid.top, laid.right + (tl - laid.left), laid.bottom) }
+            if let tf = turnedFoot, tf < laid.bottom { laid = Rect.fromLTRB(laid.left, laid.top, laid.right, tf) }
             // (A laid plot stands no nearer the chart's top edge than half a value label: the top label is centred on the plot's
             // top line and PowerPoint keeps it inside the chart, the plot moving down, its height kept. 99f6ddd1 p23, lab plotln2:
             // laid at 145.7 under a frame top of 139.7, with 12 pt labels, it stood at 147.35, half of 15.2; lab C (frame 1.5x) and
