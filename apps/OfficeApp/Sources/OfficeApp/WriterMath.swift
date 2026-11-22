@@ -34,6 +34,8 @@ enum WriterMath {
         /// What plain math runs at the base level of the row stand on (Cambria's 0.95 em over, 0.222 em under the baseline): Word's line holds them whole; every other part counts by its ink.
         var baseA: Double = 0
         var baseD: Double = 0
+        /// The MATH italic correction (pt) of its last glyph: a superscript beside it starts that much later (slides).
+        var ic: Double = 0
         var draw: (any Canvas, Offset) -> Void
         var iu: Double { inkUp ?? ascent }
         var idn: Double { inkDown ?? descent }
@@ -373,6 +375,29 @@ enum WriterMath {
                 }))
                 italic = false
             }
+            // (A slide's math text: each glyph at Cambria Math's own advance, the script-style variant's at a script level —
+            // PowerPoint's print of 9fdd4dd8 p21 sets a 13.2 pt subscript 12% wider than the base glyphs — and the last glyph's italic correction kept for a superscript.)
+            if WriterMath.slideScope, !s.isEmpty {
+                let tab = OfficeFonts.cambriaMathScript
+                if s.unicodeScalars.allSatisfy({ tab[$0.value] != nil }) {
+                    let ps = s.unicodeScalars.map { Painter(String($0), size: size, italic: italic, color: ink, family: family?.family, height: family?.naturalHeight) }
+                    let us = Array(s.unicodeScalars)
+                    var xs: [Double] = [], x = 0.0
+                    for u in s.unicodeScalars { xs.append(x); let g = tab[u.value]!; x += Double(script ? g.1 : g.0) * size }
+                    let lg = tab[s.unicodeScalars.last!.value]!
+                    var box = Box(width: x, ascent: cam(ps.map(\.ascent).max() ?? 0, size, 0.95), descent: cam(ps.map(\.descent).max() ?? 0, size, 0.22), inkUp: glyphInk(s, size, script).0, inkDown: glyphInk(s, size, script).1, baseA: size * 0.95, baseD: size * 0.222) { canvas, at in
+                        for (i, q) in ps.enumerated() {
+                            // (A sign or symbol stands centred in Cambria Math's advance, as the fallback face's is narrower.)
+                            let u = us[i]
+                            let adv = Double(script ? tab[u.value]!.1 : tab[u.value]!.0) * size
+                            let off = u.properties.isAlphabetic || u.properties.numericType != nil || u.value == 0x2C ? 0 : (adv - q.tp.width) / 2
+                            q.tp.paint(canvas, Offset(at.dx + xs[i] + off, at.dy - q.baseline))
+                        }
+                    }
+                    box.ic = Double(script ? lg.3 : lg.2) * size
+                    return box
+                }
+            }
             // Each math-alphanumeric letter stands at Cambria Math's advance, not the fallback face's own
             // (the bold ones too: Word's bold-italic ψ(x) is 10.9pt, DejaVu's 14).
             if WriterMath.windows, !italic, s.unicodeScalars.allSatisfy({ !$0.isASCII && $0.value >= 0x1D400 }) {
@@ -401,9 +426,11 @@ enum WriterMath {
             var xs: [Double] = []
             var x = 0.0
             for b in parts { xs.append(x); x += b.width }
-            return Box(width: x, ascent: parts.map(\.ascent).max() ?? 0, descent: parts.map(\.descent).max() ?? 0, inkUp: parts.map(\.iu).max() ?? 0, inkDown: parts.map(\.idn).max() ?? 0, baseA: parts.map(\.baseA).max() ?? 0, baseD: parts.map(\.baseD).max() ?? 0) { canvas, at in
+            var hb = Box(width: x, ascent: parts.map(\.ascent).max() ?? 0, descent: parts.map(\.descent).max() ?? 0, inkUp: parts.map(\.iu).max() ?? 0, inkDown: parts.map(\.idn).max() ?? 0, baseA: parts.map(\.baseA).max() ?? 0, baseD: parts.map(\.baseD).max() ?? 0) { canvas, at in
                 for (b, dx) in zip(parts, xs) { b.draw(canvas, Offset(at.dx + dx, at.dy)) }
             }
+            hb.ic = parts.last?.ic ?? 0
+            return hb
         }
 
         /// A gap of `w` points.
@@ -605,7 +632,8 @@ enum WriterMath {
             case "m:f":
                 // (Its parts in the inline style: zh-c2c92639's ∑ over A has
                 // its limits beside it in Word's print, the sign unenlarged.)
-                let inner = Layout(display: false, inlineText: inlineText)
+                // (Slides: a fraction in a display fraction's numerator or denominator stays a display fraction at full size: PowerPoint's print of 9fdd4dd8 p21 sets the nested 31,48/1000 at 18 pt.)
+                let inner = Layout(display: WriterMath.slideScope && display, inlineText: inlineText)
                 // (A skewed fraction, <m:type val="skw">, is no stack: Word's print of a969ba6c's exponent 1/3
                 // sets numerator, fraction slash and denominator at the exponent's own size, the numerator 0.35 em
                 // over the slash's baseline and the denominator 0.35 em under it: 6.0 pt apart at 8.5 pt.)
@@ -711,7 +739,11 @@ enum WriterMath {
             let cap = size * 0.73 * 0.85
             func capped(_ b: Box) -> Box { Box(width: b.width, ascent: min(b.ascent, cap), descent: b.descent, inkUp: min(b.iu, cap), inkDown: b.idn, draw: b.draw) }
             if let sub { parts.append(raised(capped(sub), -down)) }
-            if let sup { parts.append(raised(sub != nil ? capped(sup) : sup, up)) }
+            if let sup {
+                let s0 = sub != nil ? capped(sup) : sup
+                // (Slides: a superscript starts after the base glyph's italic correction.)
+                parts.append(raised(WriterMath.slideScope && base.ic > 0 ? hbox([space(base.ic), s0]) : s0, up))
+            }
             guard !parts.isEmpty else { return .empty }
             let w = parts.map(\.width).max() ?? 0
             return Box(width: w + size * 0.05, ascent: parts.map(\.ascent).max() ?? 0, descent: WriterMath.windows && !inlineText && !heldGrid ? parts.map(\.idn).max() ?? 0 : parts.map(\.descent).max() ?? 0, inkUp: parts.map(\.iu).max() ?? 0, inkDown: parts.map(\.idn).max() ?? 0) { canvas, at in
@@ -828,8 +860,9 @@ enum WriterMath {
             // they hold; a taller numerator or denominator is pushed clear of the rule.)
             let wd = WriterMath.windows && !inlineText
             let dRule = size * 0.317
-            let dNum = max(size * 0.758, dRule + rule / 2 + gap + min(num.descent, size * 0.3))
-            let dDen = max(size * 0.675, rule / 2 + gap + min(den.ascent, size * 0.75) - dRule)
+            // (Slides: a nested fraction in the denominator is cleared whole: 9fdd4dd8 p21's den baseline is 22.9 pt under the line at 18 pt.)
+            let dNum = max(size * 0.758, dRule + rule / 2 + gap + (WriterMath.slideScope ? num.idn : min(num.descent, size * 0.3)))
+            let dDen = max(size * 0.675, rule / 2 + gap + (WriterMath.slideScope ? den.iu : min(den.ascent, size * 0.75)) - dRule)
             let ascent = wd ? dNum + num.ascent : text ? numUp + num.ascent : axis + rule / 2 + gap + num.descent + num.ascent
             let descent = wd ? dDen + den.descent : text ? denDown + den.descent : max(0, gap + rule / 2 - axis + den.ascent + den.descent)
             let ruleUp = wd ? dRule : text ? size * 0.2875 : axis
