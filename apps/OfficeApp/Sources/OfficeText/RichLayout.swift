@@ -261,7 +261,11 @@ public final class RichTextTheme {
             // (the face's depth of its 1.2 size) — Arial's has no lift, Calibri's
             // is under 90%, Courier New's at every spacing.
             let family = name.map { fontFamilyResolver?($0) ?? $0 }
-            let drawn = forced ?? descentShare(family: family, bold: style.bold, italic: style.italic)
+            // (A face of the MS Mincho/Gothic and SimSun cut, 36 of 256 below its baseline, under single: its kana
+            // and ideographs are drawn by a stand-in that stands the line where the face does, not where the
+            // Latin stand-in's depth, which `descentShare` gives, would. 505a93a9 p2/p3 at 85-90%: lines 3-5 pt low,
+            // 82.9% to 87.3% of PowerPoint's lines.)
+            let drawn = forced ?? (multiple < 1 && own == 36.0 / 256 ? 36.0 / 256 : descentShare(family: family, bold: style.bold, italic: style.italic))
             let depth = own ?? drawn
             let line = multiple * single
             let natural = single * depth
