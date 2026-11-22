@@ -117,7 +117,7 @@ if [ "${GATE_PREBUILD:-0}" != 1 ] && [ "${GATE_EXACT_BASE:-0}" != 1 ] && [ ! -x 
 fi
 mkdir -p "$BC"; chmod 1777 "$BC" 2>/dev/null
 find "$BC" -mindepth 1 -maxdepth 1 -user "$(id -u)" -mmin +240 -exec rm -rf {} + 2>/dev/null   # prune what this user wrote more than 4 h ago
-touch "$BC/$BSHA.lock" 2>/dev/null; exec 8>>"$BC/$BSHA.lock"   # fd 8: one writer per base sha across runners (binary publish and score rows)
+touch "$BC/$BSHA.lock" 2>/dev/null; chmod g+w "$BC/$BSHA.lock" 2>/dev/null; exec 8>>"$BC/$BSHA.lock" || exec 8>>"$BC/$BSHA.$(id -u).lock"   # a lock another runner user made without group write (run 44992081171: Permission denied, exit 1) falls back to a lock of our own   # fd 8: one writer per base sha across runners (binary publish and score rows)
 
 # base scores cached per (base sha, document): $BC/$BSHA/rows/<set>.{v2,v1} + REFS + tried.txt. A document the cache lacks is
 # rendered once with the base binary (docx-pair --seed) and kept; the prebuild does that for the sample, so a gate renders only HEAD.
