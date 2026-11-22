@@ -4207,6 +4207,12 @@ private struct SlideContext {
                         style.mark = cs
                     }
                 }
+                // (A diagram paragraph with no end mark of its own, ending in East Asian letters, ends in the East Asian face as well:
+                // PowerPoint's print of lab sa5c sets its last line as the lines that have an end mark.)
+                else if inDiagram, let last = text.unicodeScalars.last(where: { $0.value != 0x0A && $0.value != 0x0B }), Self.isEastAsian(last.value), last.value != 0x3000,
+                        let ea = _eaFont(level.eaFont ?? level.font, scalar: last.value, lang: level.lang, latin: level.font), ea != runs.last?.style.fontFamily {
+                    style.endMarkFace = ea
+                }
                 var made = RichParagraph(text: text, runs: runs, style: style)
                 made.inlineImages = mathImages
                 if !plainMarks.isEmpty { made.style.eastAsian["a:noHangMarks"] = plainMarks.map(String.init).joined(separator: ",") }
