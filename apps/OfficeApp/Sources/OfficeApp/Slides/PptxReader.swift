@@ -4005,7 +4005,11 @@ private struct SlideContext {
                 // "the usual" and a file's indent="0" survives as itself.
                 // A bullet that would stand left of the text area (marL + indent below 0) stands at the area's edge:
                 // PowerPoint's print of pt ca992b5b p4 (marL 0, indent -18) puts it at the box's text edge, the text after it.
-                if let indent = level.indent { style.firstLineIndent = max(indent, -(level.marL ?? 0)) + shapeIndent }
+                // (A blank bullet, the master's " ", is left to the layout's slot rule, which mirrors a hang past the margin.)
+                if let indent = level.indent {
+                    let blank = style.bulletText.map { !$0.isEmpty && $0.allSatisfy { $0 == " " } } ?? false
+                    style.firstLineIndent = (blank ? indent : max(indent, -(level.marL ?? 0))) + shapeIndent
+                }
                 // A text edge with no offset said anywhere is offset 0, as
                 // the format's default: aascu 5864's text boxes' "•" at
                 // marL 0 stands at the edge with its text after it, where
