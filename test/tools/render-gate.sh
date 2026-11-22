@@ -221,6 +221,8 @@ if [ -n "$DROPS" ]; then echo "render-gate: BLOCKED, v2 drops not approved:$DROP
 # Slides step result (started before the Word pair, see SLPID): block on decks worse than the BASE render (same runner and engine; the fixed baselines are the drift report only)
 if [ -n "${SLPID:-}" ]; then
   wait "$SLPID"; src=$?; tail -20 "$W/slides.out"
+  # the Slides base was the newest cached ANCESTOR (EXACTB set): decks other PRs changed on main since are charged to this PR, so rerun against the exact base like the Word drops above (amd-8, 2026-11-22: 3 PRs blocked on eb013aed/3f8a480a)
+  [ "$src" = 1 ] && [ -n "$EXACTB" ] && { echo "render-gate: Slides decks worse against the cached ancestor; rerunning against the exact base ${EXACTB:0:9}"; exec env GATE_EXACT_BASE=1 "$SELF" "$BASE_SHA"; }
   [ "$src" = 1 ] && { echo "render-gate: BLOCKED, Slides decks worse than the base (above)"; exit 1; }
 fi
 echo "render-gate: BASE-CACHE word=$([ -n "$BSD" ] && echo cache || echo own) slides=$(if grep -qs "base render from the cache" "$W/slides.out"; then echo cache; elif [ -s "$W/slides-base.out" ]; then echo own; else echo none; fi)"
