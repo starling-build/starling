@@ -1808,6 +1808,15 @@ private struct SlideContext {
             // is a gradient (oox-gradient-multistep-transparency).
             fill = colors.color(in: ref)
             fillScheme = Self._accentSlot(ref)
+            // A solid fill style's own modifiers on the referring colour
+            // (a theme whose second fill is phClr tint 69%, satMod 105%,
+            // lumMod 110%: a91e3e82 p13's callouts print light lavender).
+            if let idx = ref["idx"].flatMap(Int.init), theme.fillStyles.indices.contains(idx - 1),
+               theme.fillStyles[idx - 1].name == "a:solidFill",
+               let mods = theme.fillStyles[idx - 1].first("a:schemeClr"), mods["val"] == "phClr",
+               !mods.children.isEmpty, let f = fill {
+                fill = ColorContext.modify(f, mods)
+            }
             if let idx = ref["idx"].flatMap(Int.init), theme.fillStyles.indices.contains(idx - 1),
                theme.fillStyles[idx - 1].name == "a:gradFill" {
                 var c = colors
