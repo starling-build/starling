@@ -294,6 +294,8 @@ private struct Player {
     /// WMF: the first window, which later ones are mapped into.
     var frame: Rect? = nil
     var isWMF = false
+    /// The far corner of the bitmaps a metafile blits (a picture that fills its window shows whole in its frame).
+    var blitRight = -Double.infinity, blitBottom = -Double.infinity
     /// EMF: the path a BEGINPATH…ENDPATH bracket is building.
     var path: Path? = nil
     var building = false
@@ -674,6 +676,7 @@ private struct Player {
     /// A blit: the bitmap drawn into a rectangle, or — with no bitmap, or a
     /// pattern operation — the rectangle filled.
     mutating func blit(rop: Int, dest: Rect, source: Rect?, image: (index: Int, width: Double, height: Double)?) {
+        if image != nil { blitRight = max(blitRight, dest.right); blitBottom = max(blitBottom, dest.bottom) }
         let a = map(dest.left, dest.top), b = map(dest.right, dest.bottom)
         let at = Rect.fromLTRB(min(a.dx, b.dx), min(a.dy, b.dy), max(a.dx, b.dx), max(a.dy, b.dy))
         let box = rect(dest.left, dest.top, dest.right, dest.bottom)
@@ -934,7 +937,9 @@ private struct Player {
         // A window's last unit lands on the frame's edge, and what is drawn
         // in it falls outside: a control's picture of 175 by 114 is drawn
         // 174 by 113 across its frame, its right and bottom rules left out.
-        if let f = frame, f.width > 1, f.height > 1 {
+        // (Not where a bitmap fills the window: ko-dcc7e p38's 644 x 485 window holds one 645 x 485 bitmap, and PowerPoint's print
+        // shows it 652.3 x 413.6 pt in its 652.0 x 413.4 pt frame, not stretched 2 pt past it.)
+        if let f = frame, f.width > 1, f.height > 1, !(blitRight >= f.right && blitBottom >= f.bottom) {
             bounds = Rect.fromLTWH(f.left, f.top, f.width - 1, f.height - 1)
         }
     }
