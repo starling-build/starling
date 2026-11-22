@@ -4547,7 +4547,10 @@ private struct SlideContext {
                 let text = t.hasSuffix("parenboth") ? "(\(counter))" : t.hasSuffix("parenr") ? "\(counter))"
                     : t.hasSuffix("plain") ? counter : "\(counter)."
                 var levelsOf: [Int: ListLevelFormat] = [:]
-                levelsOf[lvl] = ListLevelFormat(text: text, format: format)
+                var levelFormat = ListLevelFormat(text: text, format: format)
+                // Traditional Chinese schemes count in ideographs (一 二 三), as PowerPoint prints them (zh-3c1f2c4d820b: "四." not "4.").
+                if t.hasPrefix("ea1cht") { levelFormat.rawFormat = "chineseCounting" }
+                levelsOf[lvl] = levelFormat
                 doc.listFormats[id] = levelsOf
                 if n.start != 1 { doc.listRestarts[id] = [lvl: n.start] }
             }
