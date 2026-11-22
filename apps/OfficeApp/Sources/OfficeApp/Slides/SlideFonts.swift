@@ -50,11 +50,18 @@ enum SlideFonts {
     /// PowerPoint for Windows has no DejaVu Sans and prints it as Verdana
     /// (Matrix's theme face, tdf134862's runs: the print's face is Verdana);
     /// its metrics and widths are Verdana's.
-    /// Faces whose vertical header (vhea) has a NEGATIVE descent: PowerPoint sets an eaVert column in them as one sideways (turned) run,
-    /// where MS Gothic, MS PGothic, MS Mincho, Yu Gothic and Malgun (positive descent) stand upright. Lab rt (2026-11-22): Meiryo,
-    /// Meiryo UI and HG Maru Gothic M-PRO print sideways, short or long; the others upright. Metrics only, no font files.
+    /// PowerPoint (Windows) sets an eaVert column in a CLOUD-delivered face as one sideways (turned) run, and in a face installed with
+    /// Windows upright. Lab vface (2026-11-22, print box): sideways exactly MS Mincho, Batang, Gulim, Meiryo (cloud-only there); upright
+    /// SimHei (its system copy wins over the cloud one), MingLiU, PMingLiU, JhengHei, YaHei, SimSun, DFKai-SB, Yu Gothic, Malgun, MS Gothic.
+    /// The origin of each face is DATA measured on that box (cjk-vertical-features-20261122.tsv): it reflects that box, not Office.
+    /// A face with no entry is taken as installed (upright). Metrics only, no font files.
+    static let cloudOnlyFaces: Set<String> = [
+        "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝", "batang", "바탕", "batangche", "바탕체", "gulim", "굴림", "gulimche", "굴림체",
+        "meiryo", "meiryo ui", "メイリオ", "hg丸ゴシックm-pro", "hg丸ｺﾞｼｯｸm-pro", "hgmarugothicmpro",
+    ]
+
     static func setsEastAsianVerticalSideways(_ family: String) -> Bool {
-        ["meiryo", "meiryo ui", "メイリオ", "hg丸ゴシックm-pro", "hg丸ｺﾞｼｯｸm-pro", "hgmarugothicmpro"].contains(family.trimmingWhitespace().lowercased())
+        cloudOnlyFaces.contains(family.trimmingWhitespace().lowercased())
     }
 
     static func windowsName(_ family: String) -> String {
