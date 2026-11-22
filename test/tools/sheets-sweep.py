@@ -37,6 +37,9 @@ def job(name):
     d = subprocess.run([sys.executable, os.path.join(TEST, "pdf-diff.py"), ref, pdf, f"{OUT}/pairs/{base}", "1"], capture_output=True, text=True, timeout=600).stdout
     px = {int(m.group(1)): float(m.group(2)) for m in re.finditer(r"^page\s+(\d+)\s+([\d.]+)% pixels differ", d, re.M)}
     try:
+        # LIMIT (2026-11-22): the ink test misfires on warped or gradient text (WordArt): the text layer holds it
+        # unwarped, so the glyph box has no ink and its edge letters read as hidden. Slides lo-tdf114848 p2 fell
+        # 9 of 9 to 4 of 9 on this, so Slides does not use the rule. A Sheets WordArt shape would hit it too.
         dw, do = M._unseen_pairs(ref, pdf)   # glyphs a clip hides and no ink shows (49156 p1: 28 digits outside the clip) are not text either print shows
         a = M.lines(None, ref, dw); b = M.lines(None, pdf, do)
     except Exception as e:
