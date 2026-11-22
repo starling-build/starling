@@ -2541,8 +2541,10 @@ private struct SlideContext {
                 var cellParas: [RichParagraph] = []
                 var cellLevels: [Int] = [], cellNumbering: [(type: String, start: Int)?] = []
                 for p in tc.first("a:txBody")?.all("a:p") ?? [] {
-                    var level = LevelStyle.paragraph(p.first("a:pPr"), colors).filled(from: look)
                     let cellLevel = p.first("a:pPr")?["lvl"].flatMap(Int.init) ?? 0
+                    // (The cell's own list style stands between its paragraph and the table's: 65a1be73-class decks name Tahoma and MS PGothic there.)
+                    let cellList = LevelStyle.paragraph(tc.first("a:txBody")?.first("a:lstStyle")?.first("a:lvl\(min(cellLevel, 8) + 1)pPr"), colors)
+                    var level = LevelStyle.paragraph(p.first("a:pPr"), colors).filled(from: cellList).filled(from: look)
                     cellLevels.append(cellLevel)
                     // A deeper level's text edge and hang, where the
                     // paragraph says neither, are its level's in the
@@ -2564,23 +2566,41 @@ private struct SlideContext {
                         guard !t.isEmpty else { continue }
                         let s = (child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle()).filled(from: level)
                         text += t
-                        runs.append(Run(length: t.utf16.count, style: CharStyle(
-                            bold: s.bold ?? false, italic: s.italic ?? false, underline: s.underline ?? false,
-                            fontFamily: _font(s.font, lang: s.lang), fontSize: s.size ?? 18,
-                            color: s.color ?? colors.scheme("tx1"), letterSpacing: s.spc.flatMap { $0 != 0 ? $0 : nil })))
+                        // (East Asian letters in the East Asian face, the rest in the Latin one, as a text box's runs: PowerPoint sets
+                        // a cell's kana and fullwidth forms in MS PGothic where the Latin slot says Tahoma or Arial.)
+                        var segments: [(length: Int, face: String?)] = []
+                        if child.name != "a:br" {
+                            var segFace: String?? = nil
+                            for ch in t.unicodeScalars {
+                                let ea = Self.isEastAsian(ch.value)
+                                let face: String? = ea ? _eaFont(s.eaFont ?? s.font, scalar: ch.value, lang: s.lang, latin: s.font) : nil
+                                if let last = segFace, last == face, !segments.isEmpty { segments[segments.count - 1].length += ch.utf16.count }
+                                else { segments.append((ch.utf16.count, face)); segFace = .some(face) }
+                            }
+                        }
+                        if segments.isEmpty { segments = [(t.utf16.count, nil)] }
+                        let firstRun = runs.count
+                        for seg in segments {
+                            runs.append(Run(length: seg.length, style: CharStyle(
+                                bold: s.bold ?? false, italic: s.italic ?? false, underline: s.underline ?? false,
+                                fontFamily: seg.face ?? _font(s.font, lang: s.lang), fontSize: s.size ?? 18,
+                                color: s.color ?? colors.scheme("tx1"), letterSpacing: s.spc.flatMap { $0 != 0 ? $0 : nil })))
+                        }
+                        for k in firstRun ..< runs.count {
                         // (Kerned from the size `kern` says up, as a text box's runs.)
-                        if Self._unkerned(_font(s.font), bold: s.bold ?? false) {
-                            runs[runs.count - 1].style.kerningFrom = 0
-                        } else { runs[runs.count - 1].style.kerningFrom = s.kern ?? unsaidKern }
-                        Self.faceSpacing(&runs[runs.count - 1].style)
+                        if Self._unkerned(runs[k].style.fontFamily, bold: s.bold ?? false) {
+                            runs[k].style.kerningFrom = 0
+                        } else { runs[k].style.kerningFrom = s.kern ?? unsaidKern }
+                        Self.faceSpacing(&runs[k].style)
                         // (And what a text box's run carries besides: highlight-
                         // test-case's green and yellow in its table's first
                         // cell, drawn plain.)
-                        runs[runs.count - 1].style.strikethrough = s.strike ?? false
-                        if let b = s.baseline { runs[runs.count - 1].style.script = b > 0 ? .superscript : b < 0 ? .subscript : .normal }
-                        runs[runs.count - 1].style.highlight = s.highlight
-                        runs[runs.count - 1].style.shadow = s.shadow
-                        if s.caps == "all" { runs[runs.count - 1].style.caps = true } else if s.caps == "small" { runs[runs.count - 1].style.smallCaps = true }
+                        runs[k].style.strikethrough = s.strike ?? false
+                        if let b = s.baseline { runs[k].style.script = b > 0 ? .superscript : b < 0 ? .subscript : .normal }
+                        runs[k].style.highlight = s.highlight
+                        runs[k].style.shadow = s.shadow
+                        if s.caps == "all" { runs[k].style.caps = true } else if s.caps == "small" { runs[k].style.smallCaps = true }
+                        }
                     }
                     var style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
                     if looseKinsoku { style.eastAsian["a:looseKinsoku"] = "1" }

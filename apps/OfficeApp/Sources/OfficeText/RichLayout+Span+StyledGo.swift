@@ -1431,10 +1431,10 @@ extension _StyledFrame {
                         extra -= spacing
                     }
                 }
-                if ea || (ch == "\u{B7}" && (run.loneDot || tcFit) && theme.wordRules), let u = ch.unicodeScalars.first?.value, u < 0x2E80 || (u >= 0x3000 && u < 0x3100) || (u >= 0xFF00 && u < 0xFF60),
+                if ea || (!theme.wordRules && !ch.isASCII) || (ch == "\u{B7}" && (run.loneDot || tcFit) && theme.wordRules), let u = ch.unicodeScalars.first?.value, u < 0x2E80 || (u >= 0x3000 && u < 0x3100) || (u >= 0xFF00 && u < 0xFF60),
                    let eaFace = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                                     ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true),
-                   ea || eaFace.malgunSymbols,
+                   ea || eaFace.malgunSymbols || (!theme.wordRules && eaFace.proportionalEastAsia && u >= 0x3000),
                    var w = (style(kind).fontWeight == .bold ? eaFace.boldOtherAdvances : eaFace.otherAdvances)?[u] {
                     // (A run holding ONLY the middle dot has no Hangul to take Batang from, so Word draws it in Malgun
                     // Gothic: 0.2188 em (bold 0.2617), where a dot inside a Hangul run is Batang's 0.333. 28dd0ac0's title.)
