@@ -281,6 +281,20 @@ def mupdf_glyphs(pdf, drop=None):
             # clip their page numbers — zh-f47b8a74's "10" read "1", and our
             # Thai, drawn inside a clip, read as nothing.)
             blocks = page.get_text("rawdict", flags=pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_CLIP)["blocks"]
+            # A run squeezed across (Tz, or a matrix whose x scale is not its y scale) is sized by the reader as the geometric mean of the
+            # two scales in the text dict and by the x scale in the trace: the y scale, the real size, is mean^2 / x (amd-8, 2026-11-22).
+            xsz = {}
+            for t in page.get_texttrace():
+                if t["size"] > 0:
+                    for ch in t["chars"]:
+                        xsz[(round(ch[2][0], 1), round(ch[2][1], 1))] = t["size"]
+            for b in blocks:
+                for l in b.get("lines", []):
+                    for sp in l["spans"]:
+                        if sp["chars"]:
+                            tx = xsz.get((round(sp["chars"][0]["origin"][0], 1), round(sp["chars"][0]["origin"][1], 1)))
+                            if tx and abs(tx - sp["size"]) > 0.01 * sp["size"]:
+                                sp["size"] = sp["size"] ** 2 / tx
             gone = drop.get(i) if drop else None
             if gone:
                 for b in blocks:
