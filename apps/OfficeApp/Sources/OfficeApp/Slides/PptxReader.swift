@@ -2607,9 +2607,15 @@ private struct SlideContext {
                         var segments: [(length: Int, face: String?)] = []
                         if child.name != "a:br" {
                             var segFace: String?? = nil
+                            var csFace: String? = nil
                             for ch in t.unicodeScalars {
                                 let ea = Self.isEastAsian(ch.value)
-                                let face: String? = ea ? _eaFont(s.eaFont ?? s.font, scalar: ch.value, lang: s.lang, latin: s.font) : nil
+                                var face: String? = ea ? _eaFont(s.eaFont ?? s.font, scalar: ch.value, lang: s.lang, latin: s.font) : nil
+                                // (A complex script's letters are set in the run's `a:cs` face, as a text box's are: cc66a30f p18's Persian
+                                // table, B Nazanin embedded, was drawn in Calibri's fallback; the spaces and digits after them go with them.)
+                                if !ea, let script = Self.complexScript(ch.value), let cf = _csFont(s.csFont, script: script) { csFace = cf; face = cf }
+                                else if !ea, let cf = csFace, !ch.properties.isAlphabetic { face = cf }
+                                else if !ea { csFace = nil }
                                 if let last = segFace, last == face, !segments.isEmpty { segments[segments.count - 1].length += ch.utf16.count }
                                 else { segments.append((ch.utf16.count, face)); segFace = .some(face) }
                             }
