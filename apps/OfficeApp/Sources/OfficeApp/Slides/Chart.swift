@@ -1761,6 +1761,8 @@ enum ChartXML {
                     s.labelLeaderWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
                 }
             }
+            if let d = ser.first("c:dLbls"), d.first("c:showVal")?["val"] == "1", let f = d.first("c:numFmt"),
+               !["1", "true"].contains(f["sourceLinked"] ?? ""), let code = f["formatCode"], !code.isEmpty, code.lowercased() != "general" { s.labelCode = code }
             for one in ser.first("c:dLbls")?.all("c:dLbl") ?? [] {
                 if let i = one.first("c:idx")?["val"].flatMap(Int.init), one.first("c:tx") == nil,
                    let run = one.first("c:txPr")?.descendant("a:defRPr"), ["1", "true"].contains(run["b"] ?? "") { s.labelBoldPoints.insert(i) }
@@ -2513,9 +2515,11 @@ enum ChartXML {
             // espt-e365f9b4 p14's accounting whole numbers on an empty chart, "1" to "0" and "-", in PowerPoint's print.)
             // (An axis that is General and linked follows the first point's own format over the cache's: 9fdd4dd8 p27's
             // axis "15", "25", "45" in PowerPoint's print, points General under a cache of 0.00.)
+            // (Point 0's, not the first point stored: espt-e365f9b4 p17's series name formats on points 2, 5, 8 only, point 0 an
+            // empty cell, and PowerPoint's axis stays General, 1 and 0.9 to 0.)
             let ownCode = (fmt["formatCode"] ?? "").lowercased()
             if linked, ownCode.isEmpty || ownCode == "general" || (source ?? "").isEmpty || source?.lowercased() == "general",
-               let pf = plot.descendant("c:val")?.descendant("c:pt")?["formatCode"], !pf.isEmpty { source = pf }
+               let pf = plot.descendant("c:val")?.descendants("c:pt").first(where: { $0["idx"] == "0" })?["formatCode"], !pf.isEmpty { source = pf }
             // (A linked axis that names a format of its own, not General, is drawn in it in Word: sa1 67e19017's third chart, axis "0%"
             // over series of 0.00%, 0.00% and 0%, runs 0%, 50%, 100% in Word's print, where ours took the first series' 0.00%.)
             let own = fmt["formatCode"] ?? ""
@@ -4165,9 +4169,11 @@ enum ChartPainter {
 
     /// A data label: the value in the labels' number format where they
     /// have one ("0": 80, where the plain number is 79.63).
-    static func dataLabel(_ c: Chart, _ v0: Double) -> String {
+    static func dataLabel(_ c: Chart, _ v0: Double, series j: Int? = nil) -> String {
         let v = v0 / c.valueUnitDivisor
-        guard let code = c.labelFormat else { return label(v, percent: false) }
+        // (A series' own `dLbls` number format wins over the chart's, which is the first series': 81d28d42 p4's third series
+        // "79.5%" in PowerPoint's print, the first series without labels and the cache 0.000, which ours printed 0.795.)
+        guard let code = j.flatMap({ c.series[safe: $0]?.labelCode }) ?? c.labelFormat else { return label(v, percent: false) }
         let shown = chartNumberText(v, code)
         return shown.isEmpty ? label(v, percent: false) : shown
     }
@@ -6543,7 +6549,7 @@ enum ChartPainter {
                         }
                         let reversedValues = c.valueReversed && c.onSlide && !c.stacked
                         if reversedValues { endAtPoint.insert(labels.count) }
-                        labels.append((dataLabel(c, raw), Offset(c.stacked ? rect.center.dx : reversedValues ? min(p0, p1) - 3 * k : max(p0, p1) + 3 * k, rect.center.dy) + nudge(j, i), j))
+                        labels.append((dataLabel(c, raw, series: j), Offset(c.stacked ? rect.center.dx : reversedValues ? min(p0, p1) - 3 * k : max(p0, p1) + 3 * k, rect.center.dy) + nudge(j, i), j))
                     } else {
                         let left = centre - group / 2 + Double(j) * step
                         rect = Rect.fromLTRB(left, min(p0, p1), left + bar, max(p0, p1))
@@ -6830,7 +6836,9 @@ enum ChartPainter {
                     // centred on it. Ours stood over the point whatever the file said.
                     if c.type == .line, c.onSlide, !c.chartex {
                         let size = (c.series[j].labelSize ?? c.baseTextSize) * k
-                        switch c.series[j].labelPointPos[i] ?? c.series[j].labelPos {
+                        // (No `dLblPos` at all is "right", a line's default: 81d28d42 p4's labels, each moved by a layout offset from the right-hand
+                        // place, stand 8.4 pt off the point plus half the text, ours were 23 pt left and 9 pt high from the old "over".)
+                        switch c.series[j].labelPointPos[i] ?? c.series[j].labelPos ?? "r" {
                         case "b": y = vpos(v) + 14.25 / 11.97 * size; x += 1.6 * k
                         case "l": y = vpos(v) + 0.3 * size / 11.97; x -= 8.4 * k; endAtPoint.insert(labels.count)
                         case "r": y = vpos(v) + 0.3 * size / 11.97; x += 8.4 * k; startAtPoint.insert(labels.count)
@@ -6842,7 +6850,7 @@ enum ChartPainter {
                     }
                     if c.type == .line, c.onSlide, !c.chartex, let n = c.series[j].labelNudges[i] { x += n.dx * frame.width; y += n.dy * frame.height }
                     if c.type == .line, c.onSlide, c.series[j].labelDeleted.contains(i) { continue }
-                    labels.append((dataLabel(c, raw), Offset(x, y), j))
+                    labels.append((dataLabel(c, raw, series: j), Offset(x, y), j))
                 }
                 if c.stacked { for i in 0 ..< n { base[i] = row[i] ?? base[i] } }
                 tops.append(row)
@@ -7021,7 +7029,7 @@ enum ChartPainter {
                         rim.color = c.lineColor(series: j, accents: theme.accents)
                         canvas.drawCircle(Offset(x, vpos(v)), max(1.5, 2.5 * k), rim)
                     }
-                    labels.append((dataLabel(c, v), Offset(x, vpos(v) - 9 * k), j))
+                    labels.append((dataLabel(c, v, series: j), Offset(x, vpos(v) - 9 * k), j))
                 }
             }
         case .pie, .doughnut, .radar:
