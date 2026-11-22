@@ -3889,7 +3889,7 @@ enum ChartPainter {
         // (lo-forum-mso-de-104083: plot 99.7-525.4 and left 472.0 in a frame from 68.9 and 419.4,
         // ours 79.9-545.0 and 463.8 without).
         if c.pivotButtons.count == 2 {
-            area = Rect.fromLTRB(area.left + 10.9 * k, area.top + 26.4 * k, area.right, area.bottom - 26.1 * k)
+            area = Rect.fromLTRB(area.left + 10.9 * k - 6.1, area.top + 26.4 * k, area.right, area.bottom - 26.1 * k)
         }
         if c.surface {
             _surface(c, canvas, area, k: k, theme: theme, grid: c.gridColor ?? grid,
@@ -3955,7 +3955,7 @@ enum ChartPainter {
                 line.strokeWidth = 0.75 * k
                 line.color = Color(0xFFD9D9D9)
                 canvas.drawRect(box, line)
-                tp.paint(canvas, Offset(box.left + 1.5 * k, box.top + (18.4 * k - tp.height) / 2 + 0.7 * k))
+                tp.paint(canvas, Offset(box.left + 0.1, box.top + (18.4 * k - tp.height) / 2 + 0.7 * k + 2.7))
                 tp.dispose()
             }
         }
