@@ -3202,7 +3202,8 @@ enum ChartPainter {
             // baseline in Word's print of chartex's, a `c:` chart's 14.9.)
             // (A pie on a slide stands 7 under it: pie-chart's, its top
             // 2.75 pt lower in PowerPoint's print and the pie 3.25 smaller.)
-            let pieOnSlide = c.onSlide && c.type == .pie && c.ofPie == nil && c.pieTilt == nil
+            // (A slide's ring with its labels on it too: lab dnlab's titled frames, the ring's top 3.35 pt lower than ours and its centre 1.67, R 1.42 smaller.)
+            let pieOnSlide = c.onSlide && (c.type == .pie || (c.type == .doughnut && (c.dataLabels || c.pieLabels != nil))) && c.ofPie == nil && c.pieTilt == nil
             let beforeTitle = area.top
             if !(c.onSheet && c.titleOverlay) {
                 // (A title Word was told where to stand, over a plot it lays out itself, leaves the plot 1.4 pt lower:
@@ -7237,6 +7238,23 @@ enum ChartPainter {
                 centre = box.center
             }
         }
+        // (A slide's ring with labels on it, the plot left to PowerPoint, is centred in that same box and has 7/8 of the pie's radius less 1.42 pt:
+        // lab dnlab, PowerPoint for Windows, the 24 frames of lab pie2, ring R 68.20 to 156.00 against pie 79.56 to 179.88, R = 0.8751 r - 1.418 to 0.03 pt on
+        // every page, and 0.5 R for the hole. Narrow frames: 98.38 and 71.65 from 114.03 and 83.50.)
+        if c.onSlide, c.type == .doughnut, slideRingLabelled, !c.onSheet, !c.chartex, c.plotLayout == nil, c.pieTilt == nil, let fr = frame,
+           !c.legendOverlay, !c.legend || ["b", "r"].contains(c.legendPosition) {
+            let titled = !(c.title ?? "").isEmpty && c.titleAt == nil
+            let foot = c.legend && c.legendPosition == "b", side = c.legend && c.legendPosition == "r"
+            let top = titled ? area.top - fr.top - 9 * k + 7.3 * k : 0
+            let low = foot ? fr.bottom - area.bottom - 6.9 * k + 2.35 * k : 0
+            let wide = side ? fr.right - area.right - 9 * k + 3.3 * k : 0
+            let box = Rect.fromLTRB(fr.left + 11 * k, fr.top + 11 * k + top, fr.right - 11 * k - wide, fr.bottom - 11 * k - low)
+            if box.width > 0, box.height > 0 {
+                RuleTrace.hit("slide-ring-with-labels-is-seven-eighths-of-its-box")
+                radius = 0.8751 * min(box.width, box.height) / 2 - 1.418 * k
+                centre = box.center
+            }
+        }
         // (Word's room for the pie is centred where its own title and legend bands leave it, not where ours: lab piesize's prints,
         // centre against ours 1.55 pt lower under a title with the legend at the foot, 2.69 with no legend or one at a side, 3.47
         // with it on top; with no title 2.68 higher than those.)
@@ -8589,8 +8607,9 @@ extension ChartPainter {
             func makeLabel(_ maxLines: Int?, _ shown: String? = nil) -> TextPainter {
                 // (PowerPoint sets a pie label's Malgun Gothic Hangul on a 1.73 em line, every line of the label:
                 // ko-e114b968 p11's 9 pt labels step 15.5 pt, ours 13.)
-                let malgunLine: Double? = c.onSlide && ["맑은 고딕", "malgun gothic"].contains(labelFace.lowercased())
-                    && (shown ?? sheetText).unicodeScalars.contains(where: { (0xAC00 ... 0xD7A3).contains($0.value) }) ? 1.73 : nil
+                let malgunLine: Double? = c.onSlide && ["맑은 고딕", "malgun gothic"].contains(labelFace.lowercased()) ? 1.73 : nil
+                // (Digits and signs alone take that line too: ko-ab1bf295 p7's 16 pt "29%" inside-end labels, four slices, stand where a box
+                // 31 pt high (1.73 em plus 3.6) puts them, 3 to 5 pt further in than the stand-in's own 18 pt line did.)
                 let labelStyle = Flutter.TextStyle(
                     color: colour, fontSize: size, fontWeight: labelWeight, height: malgunLine,
                     fontFamily: OfficeFonts.substitute(labelFace),
