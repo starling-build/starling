@@ -385,6 +385,8 @@ struct Chart: Equatable {
     var line3D = false
     /// A pivot chart's field buttons: the value field's name (top left) and the category field's (bottom left).
     var pivotButtons: [String] = []
+    /// A pivot chart's series field buttons, stacked over the legend at its right.
+    var pivotSeries: [String] = []
     /// A 3-D column's shape (`c:shape`): box, cylinder, cone, coneToMax, pyramid, pyramidToMax.
     var barShape = "box"
     /// A surface chart (`c:surface3DChart`, `c:surfaceChart`): its series'
@@ -3175,6 +3177,7 @@ enum ChartPainter {
         // 2.1 pt lower than 9 put them; one with a legend there keeps 9,
         // chart-slide-bg's labels where PowerPoint's are.)
         let foot = c.onSlide && !(c.legend && c.legendPosition == "b") ? 6.9 : 9.0
+        var seriesButtons: (x: Double, y: Double, w: Double)? = nil
         var area = Rect.fromLTRB(r.left + (old ? 6.5 : 9) * k, r.top + (c.chartex ? 6.8 : 9) * k, r.right - (c.chartex && c.onSlide ? 4 : 9) * k,
                                  r.bottom - (old ? (c.onSlide && c.legend && c.legendPosition == "b" ? 8.2 : 6.5) : c.chartex ? (c.onSlide ? 4.1 : 4.6) : foot) * k)
 
@@ -3675,6 +3678,18 @@ enum ChartPainter {
                     // the names end 9.8 and 10.2 pt short of the frame in
                     // tdf149985's and aascu 5864's columns.)
                     columnX = area.right - columnW - (c.onSlide ? 1 : libreLegend ? 1.3 : 0) * k - (c.onSheet ? 1.7 : 0)
+                    // (A pivot chart's series field buttons: a column of them, 13.8 pt high, 6.4 pt in from the frame, with the legend
+                    // under them and the two centred as one block; the plot ends 11.7 pt short of the column. lo-forum-mso-de-104083
+                    // in Excel's print: buttons from 256.3, 47.3 wide, in a frame ending 310.3; the plot ending 244.6.)
+                    if c.onSheet, c.legendPosition == "r", !c.pivotSeries.isEmpty {
+                        let bw = (c.pivotSeries.map { n -> Double in let t = text(n, 13.3); defer { t.dispose() }; return t.width }.max() ?? 0) + 11.8
+                        let left = r.right - 6.7 - bw
+                        let stack = 13.8 * Double(c.pivotSeries.count)
+                        let top = area.center.dy - titleDrop / 2 - (stack + lineH * Double(lines.count)) / 2 + 0.3
+                        seriesButtons = (left, top, bw)
+                        y = top + stack + 0.9
+                        columnX = left + 2.9
+                    }
                     // (17.3 to the legend's keys: the 2007-style line,
                     // scatter, radar and bar charts' plots end 5.3 pt
                     // short of where 12 left them, in PowerPoint's print.)
@@ -3690,6 +3705,7 @@ enum ChartPainter {
                     let word = c.type == .pie && box == nil && !c.onSlide && !c.onSheet
                     let taken = word ? min(measured + (apart + 1.64) * k, r.width / 3 + 9 * k) : measured + apart * k
                     area = Rect.fromLTRB(area.left, area.top, area.right - taken, area.bottom)
+                    if let sb = seriesButtons { area = Rect.fromLTRB(area.left, area.top, sb.x - 7.4, area.bottom) }
                 }
             } else if c.legendPosition == "t" {
                 // (Under a title, 4.3 further off it than a plot would
@@ -3959,6 +3975,23 @@ enum ChartPainter {
                 line.color = Color(0xFFD9D9D9)
                 canvas.drawRect(box, line)
                 tp.paint(canvas, Offset(box.left + 0.1, box.top + (18.4 * k - tp.height) / 2 + 0.7 * k + 2.7))
+                tp.dispose()
+            }
+        }
+        if let sb = seriesButtons {
+            for (i, name) in c.pivotSeries.enumerated() {
+                let tp = text(name, 13.3)
+                let box = Rect.fromLTWH(sb.x, sb.y + 13.8 * Double(i), sb.w, 13.8)
+                let fill = Paint()
+                fill.style = .fill
+                fill.color = Color(0xFFFFFFFF)
+                canvas.drawRect(box, fill)
+                let line = Paint()
+                line.style = .stroke
+                line.strokeWidth = 0.75 * k
+                line.color = Color(0xFFD9D9D9)
+                canvas.drawRect(box, line)
+                tp.paint(canvas, Offset(box.left + 0.1, box.top + (13.8 - tp.height) / 2 + 0.7 * k + 2.7))
                 tp.dispose()
             }
         }
