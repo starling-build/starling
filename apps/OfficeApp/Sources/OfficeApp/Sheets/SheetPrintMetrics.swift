@@ -228,6 +228,12 @@ struct SheetPrintMetrics {
         let n = family.trimmingWhitespace().lowercased()
         return ascents[aliases[n] ?? n]
     }
+    /// A face's line as Windows stands it (ascent plus descent, in ems): what a shape's
+    /// text lines step by in Excel's print (Calibri 11: 13.43 pt, where the painter's whole-point 10 + 3 gives 13).
+    static func lineEm(family: String) -> Double? {
+        guard let a = ascent(family: family), let d = descent(family: family) else { return nil }
+        return a + d
+    }
     private static let ascents: [String: Double] = [
         "calibri": 0.9521, "arial": 0.9053, "verdana": 1.0054, "times new roman": 0.8911, "courier new": 0.8325,
         "tahoma": 1.0005, "cambria": 0.9502, "microsoft sans serif": 0.9219, "segoe ui": 1.0791, "century gothic": 1.0059,
