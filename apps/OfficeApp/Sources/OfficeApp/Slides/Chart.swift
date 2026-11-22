@@ -1858,7 +1858,7 @@ enum ChartXML {
             c.legendPosition = l.first("c:legendPos")?["val"] ?? "r"
             c.legendOverlay = (l.first("c:overlay")?["val"] ?? "0") == "1" || l.first("c:overlay")?["val"] == "true"
             c.legendSized = l.first("c:txPr")?.descendant("a:defRPr")?["sz"] != nil
-            if let sz = l.first("c:txPr")?.descendant("a:defRPr")?["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 {
+            if let sz = l.first("c:txPr")?.descendant("a:defRPr")?["sz"].flatMap(Double.init), sz > 0, sz != 1200 || c.plainText, sz != 1197 {
                 c.legendSize = sz / 100
             }
             if let f = l.first("c:txPr")?.descendant("a:defRPr")?.first("a:solidFill") { c.legendColor = color(f) }
