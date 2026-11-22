@@ -3895,7 +3895,7 @@ enum ChartPainter {
     /// name from `left`, its numbers centred under their categories — in
     /// grey rules.
     private static func _dataTable(_ c: Chart, _ dt: DataTable, _ canvas: any Canvas, plot: Rect, top: Double, rows heights: [Double], left: Double,
-                                   size: Double, n: Int, k: Double, theme: DeckTheme, text: (String, Double, Double) -> TextPainter) {
+                                   size: Double, n: Int, k: Double, theme: DeckTheme, rightTrim: Double = 0, text: (String, Double, Double) -> TextPainter) {
         var rows = c.series.map { ($0, c.type == .line) } + c.lineSeries.map { ($0, true) }
         // (A stacked column's table lists the series from the top of the stack down: PowerPoint's print of
         // es/3f8a480a's three stacked tables, the last series first.)
@@ -3982,17 +3982,17 @@ enum ChartPainter {
         // Across: under the categories' row and between the series'; the
         // categories' row starts at the plot, the series' at their names.
         if dt.horizontalRules {
-            for j in 1 ... rows.count + levels { canvas.drawLine(Offset(left, rowTop(j)), Offset(plot.right, rowTop(j)), rule) }
+            for j in 1 ... rows.count + levels { canvas.drawLine(Offset(left, rowTop(j)), Offset(plot.right - rightTrim, rowTop(j)), rule) }
         }
         if dt.verticalRules {
             for i in 1 ..< max(1, n) { canvas.drawLine(Offset(plot.left + Double(i) * slot, top), Offset(plot.left + Double(i) * slot, bottom), rule) }
             canvas.drawLine(Offset(plot.left, top), Offset(plot.left, bottom), rule)
         }
         if dt.outline {
-            canvas.drawLine(Offset(plot.left, top), Offset(plot.right, top), rule)
-            canvas.drawLine(Offset(plot.right, top), Offset(plot.right, bottom), rule)
+            canvas.drawLine(Offset(plot.left, top), Offset(plot.right - rightTrim, top), rule)
+            canvas.drawLine(Offset(plot.right - rightTrim, top), Offset(plot.right - rightTrim, bottom), rule)
             canvas.drawLine(Offset(left, rowTop(1)), Offset(left, bottom), rule)
-            canvas.drawLine(Offset(left, bottom), Offset(plot.right, bottom), rule)
+            canvas.drawLine(Offset(left, bottom), Offset(plot.right - rightTrim, bottom), rule)
         }
     }
 
@@ -5424,13 +5424,16 @@ enum ChartPainter {
             // zh-61aaad09's chart (Windows 01QbbApP): its x, y and h moved
             // nothing; with no layout the sides are as below.)
             let manual = c.plotLayout
-            let foot = c.legend && !c.legendPlaced && c.legendPosition == "b" ? area.bottom : frame.bottom - (manual != nil ? 0 : 4.9 * k)
+            // (A walled 3-D column chart on a slide whose file places its plot: the table's foot 1.9 pt above the chart's, its edges 11.6 in
+            // at the left and 5.7 at the right: 3f8a480a p4's rules at 23.6 to 759.3 and 467.5 in PowerPoint's print, ours 12.0 to 765.0 and 469.4.)
+            let wallLaid = c.onSlide && manual != nil && c.barView?.walled == true
+            let foot = c.legend && !c.legendPlaced && c.legendPosition == "b" ? area.bottom : frame.bottom - (manual != nil ? (wallLaid ? 1.9 * k : 0) : 4.9 * k)
             // (On a sheet, in points: Excel's print of chart-DataTable-
             // Multiple…'s table 4.2 pt further in than 17 px.)
             // (A walled 3-D column chart on a slide, its plot left to PowerPoint, stands its table 15.5 pt further in on the left and 16 on
             // the right: 3f8a480a p7 and p11, the table's edges at 42.3 and 725.8, 40.3 and 734.0 in its print, ours 15 to 17 pt out.)
             let wallIn = c.onSlide && manual == nil && c.barView?.walled == true
-            let left = max(plot.left, frame.left + (manual != nil ? 12 : 17) * (c.onSheet ? 1 : k) + column + (wallIn ? 15.5 * k : 0))
+            let left = max(plot.left, frame.left + (manual != nil ? 12 : 17) * (c.onSheet ? 1 : k) + column + (wallIn ? 15.5 * k : 0) + (wallLaid ? 11.6 * k : 0))
             let right = manual.map { min(plot.right + 5 * k, left + $0.width * frame.width) } ?? plot.right - (wallIn ? 16 * k : 0)
             let rows = Self._tableRows(c, size: size, k: k, slot: (right - left) / Double(max(1, n)), minLine: SlideFonts.windowsName(c.font ?? theme.bodyFont).hasPrefix("aptos") ? 1.2207 * size * k : 0, text: text)
             let top = foot - rows.reduce(0, +)
@@ -5449,7 +5452,9 @@ enum ChartPainter {
             plot = c.onSlide && placed.right > frame.right ? Rect.fromLTRB(placed.left, placed.top, frame.right, placed.bottom) : placed
             // (The table hangs from the laid plot's foot, its rows under the axis wherever the file put it: PowerPoint's print of
             // es/e365f9b4 p7 has the axis at the layout's y + h, 326.0, and the table's foot 5 pt above the chart's, not on it.)
-            if c.onSlide, let t = table { table = (plot.bottom, t.1, t.2, t.3) }
+            // (A 3-D chart's table stays at the chart's foot where it was put: 3f8a480a p4's rows at 400.1 to 462.4, the frame's foot
+            // 469.4, not hung from the plot's.)
+            if c.onSlide, c.barView == nil, let t = table { table = (plot.bottom, t.1, t.2, t.3) }
             // (A bar chart whose value axis runs right to left keeps its names at the right: a plot that leaves them no
             // room inside the chart moves left, its width kept. 7d329933 p8: names 60 pt wide, plot right 481.7 to 432.)
             if horizontal, c.valueReversed, c.onSlide, !c.categoryAxisDeleted {
@@ -6079,7 +6084,7 @@ enum ChartPainter {
         for t in valueLabels + catLabels { t.dispose() }
         if let table, let dt = c.dataTable {
             Self._dataTable(c, dt, canvas, plot: plot, top: table.top, rows: table.rows, left: table.left, size: table.size,
-                            n: n, k: k, theme: theme, text: text)
+                            n: n, k: k, theme: theme, rightTrim: c.onSlide && c.plotLayout != nil && c.barView?.walled == true ? 5.7 * k : 0, text: text)
         }
 
         var labels: [(String, Offset, Int)] = []
