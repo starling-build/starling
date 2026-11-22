@@ -20,12 +20,19 @@ spec = importlib.util.spec_from_file_location("d", os.path.join(TEST, "docx-line
 M = importlib.util.module_from_spec(spec); spec.loader.exec_module(M)
 M.WORD = XL; M.ignored = lambda: set(); M.OFFPAGE = True
 BIN = OUT = None
+# A second set (xlsx2: 480 xlsx + 100 xls, 2026-11-22, amd-9's dev set; only books whose export.tsv verdict is "pdf" have a complete print). SHEETS_SETS names the sets.
+CC2 = os.environ.get("CORPUS_CACHE", "/data/corpus-cache") + "/test/corpus/xlsx2"
+BOOKS2, XL2 = CC2 + "/books", CC2 + "/" + os.environ.get("SHEETS_EXCEL", "excel-20261122")
 
-def job(name):
-    base = name[:-5]; pdf = f"{OUT}/pdf/{base}.pdf"; ref = f"{XL}/{base}-orig.pdf"
+def stem(name): return name[:-5] if name.endswith(".xlsx") else name   # an .xls book keeps its extension: it prints to NAME.xls-orig.pdf
+
+def job(item):
+    name, books, xl = item
+    base = stem(name); pdf = f"{OUT}/pdf/{base}.pdf"; ref = f"{xl}/{base}-orig.pdf"
+    M.WORD = xl
     env = dict(os.environ, SHEET_PDF_MAX_PAGES="20", OFFICE_FONT_SOURCE=os.environ.get("OFFICE_FONT_SOURCE", "bundled"))
     try:
-        p = subprocess.run([BIN, "--sheet-pdf", f"{BOOKS}/{name}", pdf], capture_output=True, text=True, timeout=300, env=env)
+        p = subprocess.run([BIN, "--sheet-pdf", f"{books}/{name}", pdf], capture_output=True, text=True, timeout=300, env=env)
         out = (p.stdout + p.stderr)
     except subprocess.TimeoutExpired:
         return name, [], "ERROR timeout"
@@ -60,15 +67,23 @@ def main():
     if "-j" in args: i = args.index("-j"); jobs = int(args[i + 1]); del args[i:i + 2]
     BIN, OUT = os.path.realpath(args[0]), args[1]; names = args[2:]
     os.makedirs(OUT + "/pdf", exist_ok=True); os.makedirs(OUT + "/pairs", exist_ok=True)
+    items = [(n, BOOKS, XL) for n in names]
     if not names:
-        names = sorted(f for f in os.listdir(BOOKS) if f.endswith(".xlsx") and os.path.exists(f"{XL}/{f[:-5]}-orig.pdf"))
-    names.sort(key=lambda f: -os.path.getsize(f"{BOOKS}/{f}"))
-    with multiprocessing.get_context("fork").Pool(jobs) as pool: res = {n: (r, s) for n, r, s in pool.imap_unordered(job, names, chunksize=1)}
+        sets = os.environ.get("SHEETS_SETS", "xlsx,xlsx2").split(",")
+        if "xlsx" in sets:
+            items += [(f, BOOKS, XL) for f in sorted(os.listdir(BOOKS)) if f.endswith(".xlsx") and os.path.exists(f"{XL}/{f[:-5]}-orig.pdf")]
+        if "xlsx2" in sets and os.path.exists(f"{XL2}/export.tsv"):
+            ok = {l.split("\t")[0] for l in open(f"{XL2}/export.tsv") if l.rstrip("\n").endswith("\tpdf")}
+            items += [(f, BOOKS2, XL2) for f in sorted(os.listdir(BOOKS2)) if f in ok and os.path.exists(f"{XL2}/{stem(f)}-orig.pdf")]
+    items.sort(key=lambda t: -os.path.getsize(f"{t[1]}/{t[0]}"))
+    res = {}
+    with multiprocessing.get_context("fork").Pool(jobs) as pool:
+        for n, r, s in pool.imap_unordered(job, items, chunksize=1): res[n] = (r, s)
     pp, pb = open(OUT + "/per-page.tsv.tmp", "w"), open(OUT + "/per-book.tsv.tmp", "w")
     pp.write("book\tpage\tpixel_pct\tmatched\txl_lines\tours_lines\tline_pct\n")
     pb.write("book\tpages_xl\tpages_ours\tpixel_mean\tpixel_worst\tline_pct\tstatus\n")
     for n in sorted(res):
-        rows, st = res[n]; b = n[:-5]
+        rows, st = res[n]; b = stem(n)
         for pg, px, m, t, u in rows: pp.write(f"{b}\t{pg}\t{px:.2f}\t{m}\t{t}\t{u}\t{100*m/t if t else 100:.1f}\n")
         if st == "ok-empty": pb.write(f"{b}\t0\t0\t0.00\t0.00\t-\t{st}\n"); continue
         if not rows: pb.write(f"{b}\t-\t-\t-\t-\t-\t{st}\n"); continue

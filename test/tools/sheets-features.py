@@ -115,15 +115,17 @@ def assign(sheets, pages):
 def pagewords(book, nm):
     try:
         import pymupdf
-        XL = os.environ.get("CORPUS_CACHE", "/data/corpus-cache") + "/test/corpus/xlsx/" + os.environ.get("SHEETS_EXCEL", "excel-20261122")
-        d = pymupdf.open("%s/%s-orig.pdf" % (XL, nm))
+        R = os.environ.get("CORPUS_CACHE", "/data/corpus-cache") + "/test/corpus/%s/" + os.environ.get("SHEETS_EXCEL", "excel-20261122")
+        f = "%s/%s-orig.pdf" % (R % "xlsx", nm)
+        d = pymupdf.open(f if os.path.exists(f) else "%s/%s-orig.pdf" % (R % "xlsx2", nm))
         return [set(re.findall(r"\w+", pg.get_text())) for pg in d]
     except Exception:
         return None
 
 def main():
     fs = sys.argv[1:] or sys.exit(__doc__)
-    ix = {os.path.basename(p)[:-5]: p for p in glob.glob(CC + "/*.xlsx")}
+    ix = {os.path.basename(p)[:-5]: p for p in glob.glob(CC.replace("/xlsx/", "/xlsx2/") + "/*.xlsx")}   # the second set (xlsx2) first, then the first set wins on a clash
+    ix.update({os.path.basename(p)[:-5]: p for p in glob.glob(CC + "/*.xlsx")})
     cache = {}
     def book_info(nm):
         if nm not in cache:
