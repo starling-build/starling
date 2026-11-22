@@ -157,7 +157,7 @@ enum SlideFonts {
             face.boldOtherAdvances = bold
             if koreanOwnFace(family) { face.otherAdvances?[0xAC00] = 1.0; face.boldOtherAdvances?[0xAC00] = cuts.bold == nil ? k : 1.0 }
             // (Malgun Gothic's Hangul is an em, which the table of advances that are not one does not hold.)
-            if cuts.regular.ascii == SlideEastAsianWidths.malgun.regular.ascii { face.otherAdvances?[0xAC00] = 1.0; face.boldOtherAdvances?[0xAC00] = 1.0 }
+            if cuts.regular.ascii == SlideEastAsianWidths.malgun.regular.ascii { for u in UInt32(0xAC00) ... 0xD7A3 { face.otherAdvances?[u] = 1.0; face.boldOtherAdvances?[u] = 1.0 } }
             // (Malgun Gothic sets its circled numbers, geometric shapes, box line and fullwidth forms an em wide: every one that PowerPoint
             // for Windows printed in it across the Korean pilot decks, ① to ⑮, ⓒ, ─ ▒ ■ □ ▲ △ ▽ ◆ ◇ ○ ◎ ● ☆ ☞ ♤ and the fullwidth ＂ ＇ （ ） ＊ ＜ ＞ Ａ Ｂ Ｚ ～, 1.000 em
             // at 18 pt (ko-ca2dc787 p7's "□ " steps 24.3, where the Latin stand-in's □ stepped 17.7 and the line held a syllable more).)
