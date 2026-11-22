@@ -5650,6 +5650,11 @@ enum ChartPainter {
                                      plot.right - 7.4 * k, plot.bottom - (inWord ? 0.7 : 1.7) * k)
             }
             var whole = plot
+            let slideBox = c.onSlide && v.rightAngles && horizontal && c.plotLayoutInner && v.x >= 0 && v.x <= 30 && v.y <= 20 && c.series.count >= 2 && placed != nil && plot.width >= 150 * k
+            if slideBox {
+                RuleTrace.hit("slide-3d-bars-stand-in-their-laid-plot-less-a-margin-and-rise-by-sin-cos")
+                whole = Rect.fromLTRB(whole.left, whole.top + 2.7 * k, whole.right, whole.bottom - 1.7 * k)
+            }
             // (Excel's 3-D columns at right angles on a sheet leave the right of the chart to the series names beside the floor's
             // edge: 10.8 pt and 18.6 a series, or 19.7 with none (Windows lab view3d: 409.5, 437.8 and 372.3 pt of room in 480.)
             let labelledRows = c.onSheet && v.rightAngles && v.rows && !c.stacked && c.plotLayout == nil && !horizontal
@@ -5719,6 +5724,11 @@ enum ChartPainter {
                     // chart-tdf111824's two series, Excel's print, the second 43 pt right and 32 up.)
                     zThick = (c.onSheet && rowsDeep ? slot : bar * (1 + v.gapDepth)) * v.depth * (rowsDeep ? Double(max(1, c.series.count)) : 1)
                     box = depthAt(zThick)
+                    // (PowerPoint's 3-D bars at right angles on a slide, in the plot the file places: the depth's rise is zThick * sin(rotX) * cos(rotX),
+                    // and the box stands 2.7 pt under the plot's top and 1.7 over its foot (4.4 in all: the lab print's own pads are 5.4 and its front-height fit 6.9, but LIBRE_OFFICE-100610-0 p2 to p10, 2 to 4 series, then print 1.0 to 2.0 pt short). Lab bar3d-series, 24 prints (1 to 6 series, gapDepth 0 / 150,
+                    // depthPercent 100 / 200, plot 222.1 pt high): front height h per series fits 222.06 = 6.9 + n h + (1 + gapDepth) depth h 0.25 within 0.8 pt
+                    // (ours was 1.2 to 6.6 pt too high a front a series count of 1 to 6: 3.6 pt on the 4-series p8 of LIBRE_OFFICE-100610-0.)
+                    if slideBox { box = Offset(box.dx, box.dy * cos(abs(v.x) * .pi / 180)) }
                     if let wall {
                         plot = Rect.fromLTRB(wall.left - box.dx, whole.top + box.dy, wall.right - box.dx, whole.bottom + box.dy)
                     } else {
