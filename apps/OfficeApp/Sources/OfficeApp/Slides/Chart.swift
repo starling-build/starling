@@ -6413,7 +6413,10 @@ enum ChartPainter {
                         let off = c.onSlide ? (p1 > p0 ? 0.94 : -0.79) * size * k : p1 > p0 ? 0.94 * size * k : -8 * k
                         // (A flat slide column's label past its top stands 3.3 pt higher than that: ce626c34 p7's 7 pt labels, 3.1 low
                         // in ours, and the 9 to 12 pt ones of 107dae42 p8, 81d28d42 p8 and b986e846 p19, 3.4 to 3.6.)
-                        let flatColumnLift = c.onSlide && !c.chartex && !c.stacked && c.barView == nil && p1 <= p0 && [nil, "outEnd"].contains(c.barLabelPos) && c.series[safe: j]?.labelParts[i] == nil ? 3.3 * k : 0
+                        let flatColumnLift = c.onSlide && !c.chartex && !c.stacked && c.barView == nil && p1 <= p0 && [nil, "outEnd"].contains(c.barLabelPos) && c.series[safe: j]?.labelParts[i] == nil
+                            ? (3.3 + (["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased()) ? 0.11 * size : 0)) * k : 0
+                        // (In Malgun Gothic's taller line the baseline stands 0.11 em higher in the label's box: ko-e114b968 p9 and p51's
+                        // 10 pt labels, every one 1.1 pt low in ours.)
                         // (A label written out over the value: lines of its own below or above the value's.)
                         var shown = c.series[safe: j]?.labelRich[i].map { $0.map { $0 ?? dataLabel(c, raw) }.joined(separator: "\n") } ?? dataLabel(c, raw)
                         if let parts = c.series[safe: j]?.labelParts[i] {
