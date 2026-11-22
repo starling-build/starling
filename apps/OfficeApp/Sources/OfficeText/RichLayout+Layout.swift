@@ -1246,7 +1246,7 @@ extension RichLayout {
                 // as wide as "Transform", lost a pixel and wrapped it.)
                 // (A twip-celled 100% table keeps its stated widths here: _autofit scales them to the room, after the narrowest content; lab pctfit.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, document.tableStyles[c.table]?.twipScale == true { scale = 1 }
-                widths[c.table] = pts.map { (_px($0) * scale + 0.001).rounded(.down) }
+                widths[c.table] = pts.map { theme.fontSizeGrid > 0 ? _px($0) * scale : (_px($0) * scale + 0.001).rounded(.down) }
                 // (An autofit table of no stated width whose grid outgrows the room is
                 // shrunk by each column's share of what it has over its narrowest —
                 // its text's longest unbreakable piece and its margins — not by one
