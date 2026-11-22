@@ -1199,6 +1199,13 @@ public struct RichResolvedFace: Sendable {
     /// stand-in's own kerning is off, its pairs not the original's.
     public var kerns: [UInt32: Double]? = nil
     public var boldKerns: [UInt32: Double]? = nil
+    /// The italic's and bold italic's own pairs; nil falls back to the upright ones.
+    public var italicKerns: [UInt32: Double]? = nil
+    public var boldItalicKerns: [UInt32: Double]? = nil
+    public func kernPairs(bold: Bool, italic: Bool) -> [UInt32: Double]? {
+        if italic, let k = bold ? (boldItalicKerns ?? italicKerns) : italicKerns { return k }
+        return bold ? boldKerns : kerns
+    }
     /// Kern outside Word's rules too (Slides: PowerPoint kerns Aptos).
     public var kernsOutsideWord = false
     /// The stand-in's own kerning is replaced by `kerns` (the original's pairs), pair by pair.

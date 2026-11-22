@@ -173,6 +173,7 @@ enum SlideFonts {
             }
             // (Rockwell and Tw Cen MT kern, as PowerPoint prints them, by the pairs of the font's own kern table.)
             if let k = SlideLatinKerns.lookup(windowsName(family)) { face.kerns = k.regular; face.boldKerns = k.bold ?? k.regular; face.kernsOutsideWord = true }
+            if let k = SlideLatinItalicKerns.lookup(windowsName(family)) { face.italicKerns = k.italic; face.boldItalicKerns = k.boldItalic ?? k.italic }
             eastAsianMade[family] = face
             return face
         }
@@ -232,6 +233,7 @@ enum SlideFonts {
             face.boldAdvances = t.1
             // (Trebuchet MS kerns as PowerPoint prints it, by the pairs of the font's own tables, measured on Windows.)
             if let k = SlideLatinKerns.lookup(n) { face.kerns = k.regular; face.boldKerns = k.bold ?? k.regular; face.kernsOutsideWord = true }
+            if let k = SlideLatinItalicKerns.lookup(n) { face.italicKerns = k.italic; face.boldItalicKerns = k.boldItalic ?? k.italic }
             if n == "tahoma" {
                 // (Tahoma's own Arabic, as the Word path sets it.)
                 face.joinedAdvances = WindowsArabicAdvances.tahoma
@@ -276,7 +278,8 @@ enum SlideFonts {
             let hebrew = family.trimmingWhitespace().lowercased() == "calibri" ? SlideFontWidths.calibriHebrew : SlideFontWidths.timesHebrew
             face.otherAdvances = hebrew
             face.boldOtherAdvances = hebrew
-            if family.trimmingWhitespace().lowercased() == "calibri" { face.kerns = SlideCalibriKerns.regular; face.boldKerns = SlideCalibriKerns.bold; face.kernsReplaceShaped = true }
+            if family.trimmingWhitespace().lowercased() == "calibri" { face.kerns = SlideCalibriKerns.regular; face.boldKerns = SlideCalibriKerns.bold; face.kernsReplaceShaped = true
+                if let k = SlideLatinItalicKerns.lookup("calibri") { face.italicKerns = k.italic; face.boldItalicKerns = k.boldItalic ?? k.italic } }
             if family.trimmingWhitespace().lowercased() == "times new roman" {
                 face.joinedAdvances = WindowsArabicAdvances.times
                 face.boldJoinedAdvances = WindowsArabicAdvances.timesBold
