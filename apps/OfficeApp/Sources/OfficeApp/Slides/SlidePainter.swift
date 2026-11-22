@@ -867,7 +867,9 @@ final class SlidePainter: CustomPainter {
             // hid the text behind the frame.
             let filled = shape.fill != nil || shape.fillStyle != nil || shape.picture != nil
             if !filled { p.strokeWidth = (rad * 2 + shape.outlineWidth) * px }
-            canvas.drawPath(outline, p)
+            // A shape with neither fill nor line has no glow to draw (its text
+            // keeps its own): cb3c046d p13's empty subtitle frame.
+            if filled || shape.outline != nil { canvas.drawPath(outline, p) }
             if filled {
                 p.style = .fill
                 canvas.drawPath(outline, p)
