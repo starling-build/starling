@@ -3098,6 +3098,12 @@ enum ChartPainter {
                 // have had (lo-a14e916b's legend, at the right, with
                 // `legendPos` b: Word's plot ends 18pt higher than ours).
                 y = box.center.dy - linesH / 2
+                // (A slide's pie left to PowerPoint's layout, its legend placed at the right: the pie is centred in what is left of the
+                // frame left of the legend's box, not in the whole frame: es-3df36ff6 p2's pie at 216 px, the legend's box at 333.)
+                if c.type == .pie, c.onSlide, c.plotLayout == nil, c.legendPosition == "r", box.left > r.left + r.width / 2 {
+                    RuleTrace.hit("slide-pie-with-a-placed-right-legend-stands-left-of-it")
+                    area = Rect.fromLTRB(area.left, area.top, min(area.right, box.left), area.bottom)
+                }
                 // (A pie's entry that wraps takes one slot of the even share all the same, and the block stands
                 // half of its extra lines higher: c11d31f3's "Questões relacionadas à COVID-19" in two lines, keys 6.4 pt
                 // higher in Word's print than centred, the pitch the same.)
