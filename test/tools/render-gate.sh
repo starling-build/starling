@@ -158,6 +158,17 @@ if [ -z "${BPID:-}" ]; then BASEBIN=$BC/$BSHA/release/OfficeApp; ( fill_rows ) >
 PREV=$(cat "$W/build.rev" 2>/dev/null); TB=$(date +%s)
 test/tools/build-office-fast.sh "$W/build" > "$W/build.log" 2>&1 || { echo "render-gate: BUILD FAILED"; tail -15 "$W/build.log" | cut -c1-200; exit 1; }
 echo "render-gate: PR build $(( $(date +%s)-TB )) s, load $(cut -d" " -f1-3 /proc/loadavg), -j ${BUILD_JOBS:-default}; compiled: $(grep -aoE "[A-Za-z0-9+_]+\.swift" "$W/build.log" | sort -u | head -12 | tr "\n" " ")"   # the build alone; "build step" below also waits for the base rows/base build
+# Slides step (full gate), started the moment the PR binary links (2026-11-22, amd-perf): it needs only that binary, so it no longer waits for the base build/base rows; it runs alongside them and the Word pair. every deck drawn by the PR binary, deck means vs baseline-win.tsv (test/tools/slides-gate.sh, ~80 s), run
+# alongside the Word pair (different documents). Skipped when the change is Word-reader-only (Docx.swift, WordWindowsFaces.swift):
+# shared text/layout code (OfficeText, Slides, sdk, build files) still runs it.
+SLPID=""
+if [ "$MODE" = full ] && [ "${GATE_SLIDES:-1}" = 1 ] && [ "${GATE_PREBUILD:-0}" != 1 ]; then
+  if [ -n "${CH:-}" ] && ! echo "$CH" | grep -vE '^(docs/|test/(tools|corpus)/|apps/OfficeApp/Sources/OfficeApp/Docx\.swift$|apps/OfficeApp/Sources/(OfficeApp|OfficeText)/WordWindowsFaces\.swift$)' | grep -q .; then
+    echo "render-gate: Slides step skipped (Word-reader-only change)"
+  else
+    LQ=$LQ test/tools/slides-gate.sh "$(ls "$W"/build/*/release/OfficeApp | head -1)" 32 > "$W/slides.out" 2>&1 & SLPID=$!
+  fi
+fi
 [ "${GATE_PREBUILD:-0}" = 1 ] && { echo "render-gate: PR build alone $(( $(date +%s)-TB )) s; changed since this scratch's last build: $( [ -n "$PREV" ] && git diff --name-only "$PREV" HEAD 2>/dev/null | wc -l || echo unknown) files (prev ${PREV:0:9})"; git rev-parse HEAD > "$W/build.rev"
 [ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; exit 1; }
   BASEBIN=$BC/$BSHA/release/OfficeApp; fill_rows; chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; echo "render-gate: base $BSHA cached"; exit 0; }
@@ -176,17 +187,6 @@ if [ "${GATE_FULL:-0}" != 1 ]; then
     for f in "$RC"/*.v2 "$RC"/*.v1; do [ -f "$f" ] && awk 'NR==FNR{k[$1]=1;next} ($NF in k)' "$ids" "$f" > "$BSD/$(basename "$f")"; done; fi; flock -u 8
 fi
 [ -n "$BSD" ] && echo "render-gate: base scores from the cache ($BSD)"
-# Slides step (full gate): every deck drawn by the PR binary, deck means vs baseline-win.tsv (test/tools/slides-gate.sh, ~80 s), run
-# alongside the Word pair (different documents). Skipped when the change is Word-reader-only (Docx.swift, WordWindowsFaces.swift):
-# shared text/layout code (OfficeText, Slides, sdk, build files) still runs it.
-SLPID=""
-if [ "$MODE" = full ] && [ "${GATE_SLIDES:-1}" = 1 ]; then
-  if [ -n "${CH:-}" ] && ! echo "$CH" | grep -vE '^(docs/|test/(tools|corpus)/|apps/OfficeApp/Sources/OfficeApp/Docx\.swift$|apps/OfficeApp/Sources/(OfficeApp|OfficeText)/WordWindowsFaces\.swift$)' | grep -q .; then
-    echo "render-gate: Slides step skipped (Word-reader-only change)"
-  else
-    LQ=$LQ test/tools/slides-gate.sh "$BIN" 32 > "$W/slides.out" 2>&1 & SLPID=$!
-  fi
-fi
 BASE_PARTIAL=${BSD:+1} CANARY=${BSD:+0} ENGINE_OUT=$EO STAGE=$W/pair BASE_SCORES=$BSD BASE_REV=$BASE_SHA SCORES_BASE=/nonexistent test/tools/docx-pair.sh "$BASEBIN" "$BIN" "$JOBS" > "$W/pair.log" 2>&1
 rc=$?; echo "render-gate: render+compare step $(( $(date +%s)-T1 )) s"
 if [ $rc != 0 ]; then echo "render-gate: pair failed (exit $rc)"; grep -aE "ABORT|failed|no engine" "$W/pair.log" | head -5 | cut -c1-200; exit 1; fi
