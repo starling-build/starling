@@ -3213,6 +3213,13 @@ enum ChartPainter {
                         y -= extra / 2
                     }
                 }
+                // (A slide's column or bar chart left to PowerPoint's layout, its legend at the top in a box of its
+                // own: the plot still gives up the legend's row, as with no box: ko-e114b968 p23's two charts stand
+                // 43 pt high in PowerPoint's print, 90 in ours, which ran up under the legend.)
+                if !pie, c.onSlide, !c.onSheet, c.plotLayout == nil, c.legendPosition == "t", !c.legendOverlay {
+                    RuleTrace.hit("slide-placed-top-legend-keeps-its-row-above-the-plot")
+                    area = Rect.fromLTRB(area.left, area.top + lineH * Double(lines.count) + 6 * k, area.right, area.bottom)
+                }
                 if !pie, !c.onSlide, !c.onSheet, c.plotLayout == nil, c.legendPosition == "b" {
                     RuleTrace.hit("legend-box-keeps-its-row-below-the-plot")
                     area = Rect.fromLTRB(area.left, area.top, area.right,
