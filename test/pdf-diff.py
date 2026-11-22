@@ -11,6 +11,11 @@ this one and not with a sweep made on a Mac.
 import os
 import sys
 
+# One thread per process: numpy/BLAS start a thread per core (192 here) that spin, and a sweep runs this script once per deck at -j 16..32,
+# so the diff cost 6x its work in CPU (amd-perf, 2026-11-22: 2607 s to 427 s over the 676 gate decks, same scores).
+for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_v, "1")
+
 import numpy as np
 import pymupdf
 from PIL import Image
