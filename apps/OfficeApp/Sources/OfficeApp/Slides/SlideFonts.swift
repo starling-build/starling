@@ -376,6 +376,19 @@ enum SlideFonts {
     static let arialDescentShare = 0.1897
     static func windowsDescentShare(_ family: String) -> Double? { descentShares[windowsName(family)] }
     private static let descentShares: [String: Double] = ["arial": 0.1897, "ｍｓ ｐゴシック": 36.0 / 256, "ｍｓ ゴシック": 36.0 / 256, "ｍｓ 明朝": 36.0 / 256, "ｍｓ ｐ明朝": 36.0 / 256, "consolas": 0.2143, "times new roman": 0.1953, "calibri": 0.2200, "calibri light": 0.2200, "cambria": 0.1895, "verdana": 0.1728, "tahoma": 0.1711, "segoe ui": 0.1887, "trebuchet ms": 0.1913, "courier new": 0.2651, "franklin gothic book": 0.1916, "palatino linotype": 0.2219, "gill sans mt": 0.1987, "candara": 0.2200, "georgia": 0.1930, "corbel": 0.2200, "constantia": 0.2200, "malgun gothic": 0.1817, "meiryo": 0.2933, "meiryo ui": 0.1653, "ms gothic": 0.1406, "ms pgothic": 0.1406, "ms mincho": 0.1406, "ms pmincho": 0.1406, "yu gothic": 0.2348, "microsoft yahei": 0.1983, "simsun": 0.1406, "lucida sans unicode": 0.2863, "comic sans ms": 0.2092, "impact": 0.1729, "garamond": 0.2339, "arial narrow": 0.1859]
+    /// A face's Windows ascent and descent in ems (lab tbl-rows7: a table cell's fontAlgn t, ctr and b stand the glyph box, these two, in the 1.2 em line).
+    static func windowsAscentDescent(_ family: String) -> (ascent: Double, descent: Double)? {
+        switch windowsName(family) {
+        case "arial": return (0.905, 0.212)
+        case "times new roman": return (0.891, 0.216)
+        case "calibri": return (1950.0 / 2048, 550.0 / 2048)
+        case "malgun gothic", "맑은 고딕": return (2229.0 / 2048, 495.0 / 2048)
+        case "meiryo": return (2171.0 / 2048, 901.0 / 2048)
+        case "yu gothic": return (2017.0 / 2048, 619.0 / 2048)
+        case "ms gothic", "ms pgothic": return (220.0 / 256, 36.0 / 256)
+        default: return nil
+        }
+    }
 
     /// The share of the line below the baseline for a face we draw with
     /// a stand-in of other proportions — its Windows ascent and descent
