@@ -95,12 +95,7 @@ extension _StyledFrame {
                 if abs(unitsV - n / upm) <= 0.00006 { unitsV = n / upm; break }
             }
             var target = unitsV * px / (face.sizeScale * classScale)
-            var glyphOnGrid = false
-            if theme.advanceGridOfFaceTables, let grid = rl.activeAdvanceGrid, grid > 0 {
-                // (Each glyph rounds to the eighth of a point, a half-step up; a pair's kern comes on top unrounded: lab fit2.)
-                let g = grid * theme.pixelsPerPoint * scale
-                if g > 0 { target = (target / g + 0.5 + 1e-7).rounded(.down) * g; glyphOnGrid = true }
-            }
+            let glyphOnGrid = false   // (a Latin face with a table keeps its rounding below: Century Schoolbook and Malgun at the eighth, 66517aeb and ko-87d15438 5 to 5.2 worse)
             // (Kerned with the next of the run by the original's
             // pair, where the run kerns at its size: zh-d89c3840's
             // "（TC）" in YaHei at 16pt, "T" 8.4 in Word's print
