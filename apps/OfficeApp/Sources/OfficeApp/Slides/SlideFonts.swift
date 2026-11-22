@@ -225,6 +225,15 @@ enum SlideFonts {
             // (Trebuchet MS kerns as PowerPoint prints it, by the pairs of the font's own tables, measured on Windows.)
             if let k = SlideLatinKerns.lookup(n) { face.kerns = k.regular; face.boldKerns = k.bold ?? k.regular; face.kernsOutsideWord = true }
             return face
+        case "open sans":
+            // (A cloud face PowerPoint prints from its own copy, not installed on the Windows box: Open Sans's measured widths, the same
+            // tables Word uses, set in the sans stand-in; PowerPoint's prints of the decks that name it draw "Open Sans" and "Open Sans,Bold".)
+            var face = RichResolvedFace(family: resolve(family))
+            face.advances = OfficeFonts.openSansAdvances
+            face.boldAdvances = OfficeFonts.openSansBoldAdvances
+            face.otherAdvances = OfficeFonts.openSansOtherAdvances
+            face.boldOtherAdvances = OfficeFonts.openSansBoldOtherAdvances
+            return face
         case "nunito sans", "nunito sans light":
             // (Nunito Sans's own widths. Plain Nunito is not here: a deck that does not carry it is printed by PowerPoint in
             // Calibri (pilot 617866bf's Nunito Medium box held 'Actúo siempre con'); a deck that carries it is measured by
