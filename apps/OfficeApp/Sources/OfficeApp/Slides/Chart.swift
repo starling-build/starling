@@ -4069,7 +4069,7 @@ enum ChartPainter {
         }
         // Open ends rounded out to the step; at most a hundred marks.
         if lo0 == nil { lo = floor(lo / step + 1e-9) * step }
-        if hi0 == nil { hi = ceil(hi / step - 1e-9) * step }
+        if hi0 == nil { hi = lo0 != nil && lo0! > 0 ? lo + ceil((hi - lo) / step - 1e-9) * step : ceil(hi / step - 1e-9) * step }
         if (hi - lo) / step > 100 { step = (hi - lo) / 10 }
         return (lo, hi, step)
     }
@@ -4805,6 +4805,12 @@ enum ChartPainter {
         // its data, not a twentieth: chart-tdf140489's 75,887 reaches $90,000, where the 5% rule stops at 80,000; the same file
         // without the scatter, or with it on the other group, stops at 80,000 too — the Windows lab wip/lab-tdf140489.
         // Only the one file says how far; 10% is the nearest round share that does.)
+        // (A minimum the file sets above zero, the far end left open: PowerPoint's headroom is 5% of the run from that minimum, and
+        // its marks count from it: lab p12 of 7bf37d72, 230 to a top of 342.8, runs 230 to 350 by 20; ours ran to 390.)
+        if c.onSlide, let m = c.valueMin, c.valueMax == nil, c.valueStep == nil, m > 0, m < hi, !c.percent, c.barView == nil, !c.line3D {
+            valueScale.hi = hi + 0.05 * (hi - m)
+            RuleTrace.hit("slide-axis-minimum-headroom-counts-from-the-minimum")
+        }
         if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
             valueScale = fixedScale(auto: valueScale, min: c.valueMin, max: c.valueMax, step: c.valueStep)
         }
