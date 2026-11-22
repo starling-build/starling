@@ -1170,7 +1170,9 @@ final class SlidePainter: CustomPainter {
             let p = Paint()
             p.style = .fill
             p.isAntiAlias = true
-            p.color = ish.color
+            // (As an outer shadow's, it shows through a translucent fill only as much as the fill does.)
+            let through = shape.fillStyle == nil ? Double(shape.fill?.alpha ?? 255) / 255 : 1
+            p.color = ish.color.withOpacity(Double(ish.color.alpha) / 255 * through)
             if ish.blur > 0 { p.maskFilter = MaskFilter(blur: .normal, ish.blur * px / 2) }
             canvas.save()
             canvas.clipPath(inside)
@@ -1221,7 +1223,7 @@ final class SlidePainter: CustomPainter {
         } else if let bevel = shape.bevel, bevel.material != "dkEdge", let fill = shape.fill, shape.fillStyle == nil,
            shape.picture == nil, shape.preset?.isOpenPath != true {
             let outline = path ?? { let q = Path(); q.addRect(area); return q }()
-            if bevel.material == "translucentPowder" || !Extrusion.paintBevel(bevel, outline, area, canvas, pxPerPt: px, fill: fill) {
+            if bevel.material == "translucentPowder" || !Extrusion.paintBevel(bevel, outline, area, canvas, pxPerPt: px, fill: fill, face: fill.alpha == 255) {
                 Self.paintBevel(bevel, outline, area, canvas, pxPerPt: px, fill: fill)
             }
         }
