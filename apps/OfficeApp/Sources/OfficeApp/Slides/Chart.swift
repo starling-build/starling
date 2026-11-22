@@ -565,6 +565,8 @@ struct Chart: Equatable {
     /// properties): Word sets such a chart's labels higher
     /// (`_wordLabelRise`).
     var eastAsianText = false
+    /// The chart part says `c:lang` ja-*: its East Asian letters are Japanese (the theme's `japaneseFace`).
+    var japaneseLang = false
     /// Its East Asian text is set as Word for Windows sets a theme with no
     /// East Asian face: in MS Mincho, and Microsoft JhengHei for what
     /// Mincho lacks (`OfficeFonts.windowsMinchoCovers`) — so a data
@@ -1910,6 +1912,7 @@ enum ChartXML {
             return n.children.contains { eastAsian($0) }
         }
         c.eastAsianText = eastAsian(space)
+        c.japaneseLang = (space.first("c:lang")?["val"] ?? "").lowercased().hasPrefix("ja")
         c.titleFont = face(titleFace) ?? c.font
         c.legend = chart.first("c:legend") != nil
         // (Absent, the schema's default is the right.)
@@ -2725,14 +2728,15 @@ enum ChartPainter {
     }
     nonisolated(unsafe) private static var naturalAdvanceCache: [String: Double] = [:]
     /// `s` one character a span, each spaced to the face's own advance (ems of the size) less what the stand-in draws it.
-    static func metricSpan(_ s: String, _ style: Flutter.TextStyle, _ face: RichResolvedFace, bold: Bool) -> TextSpan {
+    static func metricSpan(_ s: String, _ style: Flutter.TextStyle, _ face: RichResolvedFace, bold: Bool, eastAsianOnly: Bool = false) -> TextSpan {
         let size = style.fontSize ?? 12
         var kids: [TextSpan] = []
         for ch in s {
             let u = ch.unicodeScalars.first!.value
             var target: Double? = nil
             if ch.unicodeScalars.count == 1 {
-                if u >= 0x20 && u <= 0x7E { target = (bold ? face.boldAdvances : face.advances).map { $0[Int(u) - 0x20] } }
+                if eastAsianOnly && u < 0x80 { target = nil }
+                else if u >= 0x20 && u <= 0x7E { target = (bold ? face.boldAdvances : face.advances).map { $0[Int(u) - 0x20] } }
                 else { target = (bold ? face.boldOtherAdvances : face.otherAdvances)?[u] }
             }
             guard let t = target else { kids.append(TextSpan(text: String(ch), style: style)); continue }
@@ -2808,6 +2812,9 @@ enum ChartPainter {
             // advance, as PowerPoint's print sets it, not the stand-in's: Meiryo's labels are wider than Carlito's.)
             if (!windowsLines || (span.children ?? []).isEmpty), family == nil, case let raw = c.font ?? (c.onSheet ? nil : c.axisFont) ?? theme.bodyFont, let face = Self.eastAsianChartFace(raw) {
                 span = Self.metricSpan(s, style, face, bold: bold)
+            } else if (!windowsLines || (span.children ?? []).isEmpty), family == nil, c.japaneseLang, let jf = theme.japaneseFace, Self.eastAsianChartFace(c.font ?? (c.onSheet ? nil : c.axisFont) ?? theme.bodyFont) == nil,
+                      s.unicodeScalars.contains(where: { $0.value >= 0x3040 }), let face = Self.eastAsianChartFace(jf) {
+                span = Self.metricSpan(s, style, face, bold: bold, eastAsianOnly: true)
             }
             let tp = TextPainter(text: span,
                 textAlign: align, textDirection: .ltr, maxLines: maxLines, ellipsis: maxLines == nil ? nil : "\u{2026}")   // (a label broken in two centres each line)

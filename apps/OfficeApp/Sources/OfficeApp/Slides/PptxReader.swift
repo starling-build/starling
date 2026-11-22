@@ -1311,6 +1311,12 @@ struct PptxReader {
         d.name = "From file"
         d.headingFont = t.major
         d.bodyFont = t.minor
+        // (A theme whose East Asian slot is empty names its Japanese face in the Jpan script entry, else in the complex-script slot where
+        // that is a Japanese Office face: PowerPoint's print sets a ja chart's kana and kanji in it, ja 7d329933 p23 and 81d28d42 p29.)
+        if (t.minorScript["ea"] ?? "").isEmpty {
+            if let j = t.minorScript["Jpan"], !j.isEmpty { d.japaneseFace = j }
+            else if let cs = t.minorScript["cs"], SlideEastAsianWidths.lookup(SlideFonts.windowsName(cs)) != nil { d.japaneseFace = cs }
+        }
         d.background = c.scheme("bg1") ?? d.background
         d.text = c.scheme("tx1") ?? d.text
         let accents = (1 ... 6).compactMap { t.colors["accent\($0)"] }
