@@ -1409,10 +1409,13 @@ extension RichLayout {
             return ["meiryo", "メイリオ", "ms mincho", "ms gothic", "ＭＳ", "yu mincho", "yu gothic", "游"].contains { f.containsSubstring($0) }
         }
         let shown = text.indices.filter { wide(text[$0]) }
+        // (PowerPoint's one or two digits beside an ideograph stand upright, side by side, in a place laid in `_span`: painted last.)
+        let digitRuns = theme.wordRules ? [] : Self.uprightDigitRuns(text)
+        let inDigitRun = Set(digitRuns.flatMap { Array($0) })
         if mixed {
             // The rest on its side, where the line set it, on its baseline.
             let lines = painter.computeLineMetrics()
-            for k in text.indices where !wide(text[k]) && !blank(text[k]) && !(text[k] >= 0xD800 && text[k] <= 0xDBFF && k + 1 < text.count && wide(text[k + 1])) {
+            for k in text.indices where !wide(text[k]) && !blank(text[k]) && !inDigitRun.contains(k) && !(text[k] >= 0xD800 && text[k] <= 0xDBFF && k + 1 < text.count && wide(text[k + 1])) {
                 guard let box = painter.getBoxesForSelection(TextSelection(baseOffset: k, extentOffset: k + 1)).first else { continue }
                 let unit = text[k]
                 let end = (unit >= 0xD800 && unit <= 0xDBFF && k + 1 < text.count) ? k + 2 : k + 1
@@ -1592,6 +1595,26 @@ extension RichLayout {
             canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em + yuAlong * em, origin.dy + columnAcross + rubyColumnShift(k) + (plain ? 0.085 * em : 0) + sharedShift(k))
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
+            canvas.restore()
+            glyph.dispose()
+        }
+        for g in digitRuns {
+            let k = g.lowerBound
+            var nb = g.lowerBound - 1, na = g.upperBound
+            while nb >= 0, text[nb] == 0x200B { nb -= 1 }
+            while na < text.count, text[na] == 0x200B { na += 1 }
+            let near = nb >= 0 && wide(text[nb]) ? nb : na
+            guard styles.indices.contains(k), near < text.count, wide(text[near]), let side = styles[near], let em = side.fontSize,
+                  let box = painter.getBoxesForSelection(TextSelection(baseOffset: k, extentOffset: k + 1)).first else { continue }
+            let glyph = TextPainter(text: TextSpan(text: String(decoding: text[g], as: UTF16.self), style: styles[k]?.copyWith(letterSpacing: 0)), textDirection: .ltr)
+            glyph.layout()
+            let family = side.debugLabel ?? side.fontFamily ?? ""
+            let plain = family.containsSubstring("楷") || family.lowercased().containsSubstring("dfkai") || family.lowercased().containsSubstring("kaiti")
+            // (The place's start, a square's half along it, on the baseline an ideograph's square has in its own place.)
+            canvas.save()
+            canvas.translate(origin.dx + box.left + em / 2 + lead(k), origin.dy + acrossC(box, em, near) + rubyColumnShift(k) + (plain ? 0.085 * em : 0) + sharedShift(k))
+            canvas.rotate(-Double.pi / 2)
+            glyph.paint(canvas, Offset(-glyph.width / 2, 0.38 * em - glyph.computeDistanceToActualBaseline(.alphabetic)))
             canvas.restore()
             glyph.dispose()
         }
