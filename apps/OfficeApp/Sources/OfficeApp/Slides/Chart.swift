@@ -879,9 +879,13 @@ struct Chart: Equatable {
         // series is flat; from six on the first round is shaded, so 6 series print 76.67%: 3f8a480a p7 and p14, FFC000 to
         // E2AA00. Planner spec, opus-puzzles.log 2026-11-22T11:27Z.)
         guard onSlide, officeStyled else { return base }
-        let n = series.count + lineSeries.count, pos = s?.autoIndex ?? i
+        // (N is the chart's highest c:idx plus one, bars and lines together: lab c3d3 printed idx 1-5 shaded, idx 6-11 flat,
+        // a combo of 3 and 3 shaded.)
+        let n = (series.enumerated().map { $0.element.autoIndex ?? $0.offset }
+            + lineSeries.enumerated().map { $0.element.autoIndex ?? series.count + $0.offset }).max().map { $0 + 1 } ?? 0
+        let pos = s?.autoIndex ?? i
         let v = Double(pos / 6 + 1) / Double(n / 6 + 2) * 1.4 - 0.7
-        if abs(v) < 1e-9 { return base }
+        if abs(v) < 1e-9 { return accents[pos % accents.count] }
         func lin(_ c: Double) -> Double { c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
         func srgb(_ l: Double) -> Int { Int(((l <= 0.0031308 ? l * 12.92 : 1.055 * pow(l, 1 / 2.4) - 0.055) * 255).rounded()) }
         func ch(_ shift: Int64) -> Int {
