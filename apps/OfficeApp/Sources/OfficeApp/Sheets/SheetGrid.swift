@@ -129,6 +129,15 @@ final class SheetGrid: StatefulWidget {
 }
 
 final class SheetGridState: State<StatefulWidget>, TextInputClient {
+    /// Screen pixels (192 dpi) of a wrapped cell's column that Excel does not fit text into:
+    /// a fixed part and a share of the column (the text lays out about 1.5% wider than its
+    /// whole-pixel advances sum to). Fitted to Excel's print of the wrap-room lab, rows in
+    /// columns of 105 to 600 px, whose pad runs 9, 10, 11, 12, 14, 16.5 px, and to
+    /// no_drawing_patriarch's 416 px URLs (room 397-402).
+    static let screenFitPad = 7.5
+    /// The least pad: 52716's rows and CVLKRA-KYC's remarks, in columns of 105-160 px, fit at 11 where the lab's rows fit at 10.
+    static let screenFitFloor = 11.0
+    static let screenFitShare = 0.0145
     let focus = FocusNode(debugLabel: "sheet grid")
     private let _chords = KeyChordTracker()
     /// The platform's text-input plugin, for composed input (Chinese…),
@@ -432,14 +441,21 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     // (CVLKRA-KYC's 7-character remarks break "alphan|umeric"
                     // in Excel's print, 36.0 pt wide where ours was 36.4).
                     let pad = (2 * (m.screenDigit / 4).rounded(.up) + 1) * 72 / 192
-                    let width = (m.screenColumn(chars) - pad) * scale
+                    var width = (m.screenColumn(chars) - pad) * scale
                     guard width > 4 else { continue }
                     let text = NumberFormat.display(cell.value, st.numberFormat, width: 255).text
                     // (An empty string is its font's one line, given above:
                     // measured, it made two, and bug66675's spacer rows of
                     // empty wrapping cells printed nearly twice as tall.)
                     guard !text.isEmpty else { continue }
-                    let style = _textStyle(st, color: nil, ink: Color(0xFF00_0000))
+                    var style = _textStyle(st, color: nil, ink: Color(0xFF00_0000))
+                    do {
+                        // (Excel's wrap room is the column less 7.4 px and 1.5%, at 192 dpi, Calibri 11: see screenFitPad.)
+                        style.screen = 72 / 192 * scale
+                        style.screenEm = (book.fontSize(st) * 192 / 72).rounded()
+                        let column = (chars * m.screenDigit).rounded(.down)
+                        width = (column - max(Self.screenFitFloor, Self.screenFitPad + Self.screenFitShare * column)).rounded(.down) * style.screen
+                    }
                     // (Line breaks at the end draw nothing but are lines to the
                     // fit: LIBRE_OFFICE-116306-0's rows keep theirs.)
                     let one = texts.painter("X", style).height
@@ -3173,6 +3189,11 @@ struct GridTextStyle: Hashable {
     /// The face whose own widths it is set to, where Excel's face has none
     /// in the stand-in that draws it ("aptos narrow", lower case); "" for none.
     var own = ""
+    /// The screen's pixels an em, where the text is fitted as Excel's
+    /// screen does: each character a whole pixel wide; 0 for none.
+    var screen = 0.0
+    /// The screen's pixels an em of it (the font size rounded), where `screen` is a pixel.
+    var screenEm = 0.0
 
     var flutter: Flutter.TextStyle {
         var decorations: [TextDecoration] = []
@@ -3212,7 +3233,7 @@ final class _TextCache {
         if _cache.count > 4000 { clear() }
         let lines = maxWidth.isFinite ? _breakLines(NumberFormat.unpad(text), style, maxWidth) : text
         let tp = TextPainter(text: _span(lines, style), textAlign: align, textDirection: .ltr)
-        tp.layout(minWidth: 0, maxWidth: maxWidth)
+        tp.layout(minWidth: 0, maxWidth: style.screen > 0 ? .infinity : maxWidth)
         _cache[k] = tp
         return tp
     }
@@ -3369,6 +3390,13 @@ final class _TextCache {
     /// The width `s` is set to: each character's advance, where it is
     /// set character by character.
     private func _width(_ s: String, _ style: GridTextStyle) -> Double {
+        if style.screen > 0 {
+            // (Screen fit: each character a whole pixel of the 192-dpi screen,
+            // `screen` the layout units of one.)
+            var plain = style; plain.screen = 0
+            let space = s.containsSubstring(" ") ? _measure("a a", plain) - _measure("aa", plain) : 0
+            return s.reduce(0) { $0 + (($1 == " " ? space : _measure(String($1), plain)) / style.size * style.screenEm).rounded() * style.screen }
+        }
         guard _spaces(s, style) else { return _measure(s, style) }
         let space = s.containsSubstring(" ") ? _measure("a a", style) - _measure("aa", style) : 0
         return s.reduce(0) { $0 + _advance($1, $1 == " " ? space : _measure(String($1), style), style) }
