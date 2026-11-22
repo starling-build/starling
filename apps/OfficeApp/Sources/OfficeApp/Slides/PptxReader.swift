@@ -1189,10 +1189,11 @@ struct PptxReader {
         let contrast = (l["contrast"].flatMap(Double.init) ?? 0) / 100000
         guard bright != 0 || contrast != 0 else { return nil }
         let cf = contrast < 0 ? 1 + contrast : 1 / max(0.01, 1 - contrast)
-        // c' = cf·x + 127.5·(1 − cf); then toward white: c'·(1 − b) + 255·b.
-        var scale = cf, offset = 127.5 * (1 - cf)
-        if bright > 0 { scale *= 1 - bright; offset = offset * (1 - bright) + 255 * bright }
-        else if bright < 0 { scale *= 1 + bright; offset *= 1 + bright }
+        // PowerPoint print fit (lab lum3, 48 bright/contrast pairs, worst
+        // error 1 level, same on every channel): the contrast slope pivots
+        // at mid grey, and brightness adds 255·b scaled by (1 + slope)/2.
+        let scale = cf
+        let offset = 127.5 * (1 - cf) + 127.5 * bright * (1 + cf)
         var m: [Double] = []
         for ch in 0 ..< 3 {
             var row = [0.0, 0, 0, 0, offset]
