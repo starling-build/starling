@@ -3266,6 +3266,17 @@ private struct SlideContext {
             // PowerPoint's own drawing of the diagram. (LibreOffice writes
             // the part with nothing in it; that counts as none.)
             tree = renamed(t)
+            // (A SmartArt's text is set at single spacing whatever its `lnSpc` percent below 100 says: the lab cline2 prints 7c3069f9808a's
+            // slide 8 body (12 pt, lnSpc 90%, spcAft 15%) 16.4 pt from paragraph to paragraph, where the same text in a plain box with the
+            // same properties stands 15.1 and with lnSpc removed 16.5 (12 pt at 100% is 14.4; spcAft 2.2).)
+            func singleSpaced(_ n: XNode) {
+                n.children.removeAll { c in
+                    guard c.name == "a:lnSpc", let v = c.first("a:spcPct")?["val"].flatMap(Double.init) else { return false }
+                    return v < 100000
+                }
+                for c in n.children { singleSpaced(c) }
+            }
+            if let tree { singleSpaced(tree) }
             drawingPart = dp
             // The drawing's `fontRef` is the quick style's, whatever the
             // colour scheme says: a white node of an outlined scheme
