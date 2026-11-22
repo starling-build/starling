@@ -7126,6 +7126,7 @@ enum ChartPainter {
             }
             return
         }
+        let angle0 = angle
         for (i, v) in values.enumerated() where v > 0 {
             let sweep = v / sum * 2 * .pi
             let color = c.pointColor(i, accents: theme.accents)
@@ -7158,6 +7159,16 @@ enum ChartPainter {
                            Offset(centre.dx + cos(mid) * at, centre.dy + sin(mid) * at), color))
             placed.append((i, mid, v, color))
             angle += sweep
+        }
+        // (A doughnut's point of value 0 draws no ring but keeps its label, at the ring's middle where the slice before it
+        // ends: 6de30c85 p5's "0" at the top of a one-ring doughnut in PowerPoint's print.)
+        if c.type == .doughnut, hole > 0, c.pieLabels == nil, c.dataLabels, c.series.count == 1 {
+            var a = angle0
+            for (i, v) in values.enumerated() {
+                if v > 0 { a += v / sum * 2 * .pi; continue }
+                let at = (radius + hole) / 2
+                labels.append((dataLabel(c, c.series[0].values[i] ?? 0), Offset(centre.dx + cos(a) * at, centre.dy + sin(a) * at), c.pointColor(i, accents: theme.accents)))
+            }
         }
         if let l = c.pieLabels {
             _pieLabels(c, l, canvas, frame: frame ?? area, slices: placed, centre: centre, rx: radius, ry: radius, inner: hole,
