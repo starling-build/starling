@@ -3015,9 +3015,18 @@ enum ChartPainter {
             // (A part with a face of its own beats the chart-wide default too: 99f6ddd1 p19's axes say Meiryo under a chart-wide MS PGothic, and PowerPoint sets the labels in Meiryo.)
             let ownFace = part != nil && c.onSlide && c.font != nil ? c.partFaces[part!] : nil
             let partFont = part != nil && c.onSlide && c.font == nil && c.axisFont != nil ? OfficeFonts.substitute(c.partFaces[part!] ?? theme.bodyFont) : ownFace.map { OfficeFonts.substitute($0) } ?? font
+            // (A slide label set in a Japanese face whose Windows line is measured, taller than the Latin 1.15 (Meiryo UI 1.270, Meiryo
+            // 1.500, Yu Gothic 1.290): its line is the face's own, ascent + descent. 99f6ddd1 p23's 12 pt Meiryo UI percent labels are
+            // 15.24 pt tall in PowerPoint's print, so a laid plot keeps half of that, 7.62, below the chart's top.)
+            let measuredLine: Double? = {
+                guard c.onSlide, family == nil, let face = part.flatMap({ c.partFaces[$0] }) ?? c.font ?? c.axisFont,
+                      !["맑은 고딕", "malgun gothic"].contains(face.lowercased()),
+                      let m = SlideFonts.windowsAscentDescent(face), m.ascent + m.descent > 1.25 else { return nil }
+                return m.ascent + m.descent
+            }()
             let style = Flutter.TextStyle(
                 color: color ?? ink, fontSize: max(3, size * k), fontWeight: bold ? .bold : .normal,
-                height: family == nil ? (tall && c.onSlide && ["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased()) ? 1.3301 * 1.3 : nil) : 24.4 / 18, fontFeatures: plain, fontFamily: family.map { OfficeFonts.substitute($0) } ?? partFont, fontFamilyFallback: Self.glyphFallback(c))
+                height: measuredLine ?? (family == nil ? (tall && c.onSlide && ["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased()) ? 1.3301 * 1.3 : nil) : 24.4 / 18), fontFeatures: plain, fontFamily: family.map { OfficeFonts.substitute($0) } ?? partFont, fontFamilyFallback: Self.glyphFallback(c))
             var span = windowsLines ? Self.labelSpan(c, s, style, mixedLine: mixedLine) : TextSpan(text: s, style: style)
             // (A Japanese or Korean face the machine lacks (Meiryo, Yu Gothic, MS Gothic...): each character is spaced out or in to the face's own
             // advance, as PowerPoint's print sets it, not the stand-in's: Meiryo's labels are wider than Carlito's.)
