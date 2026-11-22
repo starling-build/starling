@@ -235,7 +235,9 @@ extension _ParaFrame {
             let units = Array(p.text.utf16)
             func isMark(_ k: Int) -> Bool {
                 // (A ")" that closes a Hangul or ideograph hangs the same way: ko-4f5289 p6 keeps "(실부하)" whole in a narrow cell.)
-                if k > 0, k < units.count, units[k] == 0x29 { return units[k - 1] >= 0x3040 && units[k - 1] < 0xD7B0 || units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 }
+                if k > 0, k < units.count, units[k] == 0x29 { return units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 }
+                // (A ” after kanji or kana is full width in the East Asian face and never hangs: lab hang3 slide 7 breaks "課|程”" below its width.)
+                if k > 0, k < units.count, units[k] == 0x201D, units[k - 1] >= 0x3040, units[k - 1] <= 0x9FFF { return false }
                 return k < units.count && (units[k] == 0x3001 || units[k] == 0x3002 || units[k] == 0xFF0C || units[k] == 0xFF0E || units[k] == 0x201D) }
             var stays = Set<Int>()
             for _ in 0 ..< 3 {
@@ -247,7 +249,7 @@ extension _ParaFrame {
                     let m = isMark(s0) ? s0 : (isMark(s0 + 1) ? s0 + 1 : (s0 + 2 < units.count && units[s0 + 1] == 0x20 && units[s0 + 2] == 0x201D ? s0 + 2 : -1))
                     guard m >= 0, adj[m] == nil, !stays.contains(m) else { continue }
                     let boxes = painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(m), extentOffset: map.painter(m) + 1))
-                    if let b = boxes.first { adj[m] = -max(0, b.right - b.left - _px(0.5)) }
+                    if let b = boxes.first { adj[m] = -max(0, b.right - b.left) }
                 }
                 if adj.count == fit.count { break }
                 let trial = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: adj, held: tabsHeld).0)

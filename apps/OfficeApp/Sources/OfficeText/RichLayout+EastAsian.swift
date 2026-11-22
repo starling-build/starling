@@ -1037,7 +1037,7 @@ extension RichLayout {
                          && !Self._pauseMarks.contains(units[tail]) && units[tail] != 0xFF0E)
                     && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf || macComma || halfStop)
                     // (PowerPoint does not hang a closing corner bracket 」』 past the margin: it goes down with the character before it. ja ae6c89bb p2 sends "グ」" to line 2, where 」 would end 5.5 pt over.)
-                    && !(_hangsLineEndMarks(p) && Self._slidesStandingUnits.contains(units[tail]))
+                    && !(_hangsLineEndMarks(p) && (Self._slidesStandingUnits.contains(units[tail]) || units[tail] == 0x201D && tail > 0 && units[tail - 1] >= 0x3040 && units[tail - 1] <= 0x9FFF))
                     && !runRulesOff(tail) && !afterLatin
                     // (Nor a 、 or 。 with text after it where the pause rule holds: lab `sqreal`
                     // (jpn-z19433747's abstract, 65 right indents in 0.25pt steps) opens the next
@@ -2726,8 +2726,8 @@ extension RichLayout {
     }
 
     static let _hangingUnits = _closingUnits.union("？”’％′″﹚﹜﹞".utf16)
-    /// The closing corner brackets 」』, which PowerPoint does not let stand past a Slides line's end (ja ae6c89bb); it does hang ）】 (505a93a9 p14, p16).
-    static let _slidesStandingUnits: Set<UInt16> = [0x300D, 0x300F]
+    /// The closing brackets 」』）】 and the like, which PowerPoint never lets stand past a Slides line's end (ja ae6c89bb; lab hang3 slides 1-5: they go down with the character before them).
+    static let _slidesStandingUnits: Set<UInt16> = [0x300D, 0x300F, 0xFF09, 0x3011, 0x3015, 0x300B, 0x3009, 0xFF3D, 0xFF5D]
 
     /// Punctuation whose ink keeps to the left half of its em, and to
     /// the right half: Word takes half an em off the first of two that

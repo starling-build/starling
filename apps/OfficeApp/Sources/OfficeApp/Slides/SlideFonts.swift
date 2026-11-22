@@ -157,6 +157,12 @@ enum SlideFonts {
                                                               0x2605, 0x2606, 0xFE0E, 0xFE0F].map { $0 }
                 for c in em where face.otherAdvances?[c] == nil { let w: Double = c >= 0xFE0E ? 0 : 1; face.otherAdvances?[c] = w; face.boldOtherAdvances?[c] = w }
             }
+            // (MS Gothic and MS Mincho, the fixed-width faces, set the curly double quotes full width, an em; the proportional P faces keep them narrow, ja a91e3e82's “思い”: lab hang3 slide 7's ” after a kanji in MS Gothic broke "課|程”" where
+            // the Latin stand-in's narrow ” kept it on the line.)
+            let japaneseMS = [SlideEastAsianWidths.msGothic, SlideEastAsianWidths.msMincho]
+            if japaneseMS.contains(where: { $0.regular.ascii == cuts.regular.ascii }) {
+                for c: UInt32 in [0x201C, 0x201D] where face.otherAdvances?[c] == nil { face.otherAdvances?[c] = 1.0; face.boldOtherAdvances?[c] = 1.0 }
+            }
             if let it = SlideEastAsianWidths.lookupItalic(windowsName(family)) {
                 face.italicAdvances = it.regular.ascii
                 face.boldItalicAdvances = it.bold?.ascii ?? it.regular.ascii
