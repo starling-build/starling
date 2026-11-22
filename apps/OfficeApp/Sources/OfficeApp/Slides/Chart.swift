@@ -1439,6 +1439,17 @@ enum ChartXML {
 
     static func read(_ space: XNode, allowEmpty: Bool = false, color: (XNode) -> Color?) -> Chart? {
         guard let chart = space.first("c:chart"), let plot = chart.first("c:plotArea") else { return nil }
+        // (A chart-wide text style with a baseline shift prints every text of the chart at two thirds of its size, as a sub- or
+        // superscript does: zh 18335072f11e p10's lower chart, sizes 12, 16 and 18 pt with baseline -20%, drawn at 8.04, 10.68 and 12 pt
+        // in PowerPoint's print.)
+        if space["textScaled"] == nil, let base = space.first("c:txPr")?.descendant("a:defRPr"), let b = base["baseline"].flatMap(Int.init), b != 0 {
+            space.attrs["textScaled"] = "1"
+            func scale(_ n: XNode) {
+                if n.name == "a:defRPr" || n.name == "a:rPr", let sz = n["sz"].flatMap(Double.init) { n.attrs["sz"] = String(Int((sz * 2 / 3).rounded())) }
+                n.children.forEach(scale)
+            }
+            scale(space)
+        }
         // (A scatter group none of whose series draws anything — no line, no marks — is a sizing aid Excel keeps on
         // a pair of axes of its own, chart-tdf140489's "YearSizing": it and those axes are left out, and the rest is
         // plotted against its own.)
