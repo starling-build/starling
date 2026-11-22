@@ -65,7 +65,15 @@ enum SheetObjectsXML {
     /// The objects and controls of one sheet.
     static func read(sheetPath: String, parts: [String: Data], sheet: XNode? = nil) -> [SheetObject] {
         guard let sheet = sheet ?? parts[sheetPath].flatMap({ XNode.parse($0) }) else { return [] }
-        let lists = ["oleObjects", "controls"].compactMap { sheet.child($0) }
+        // The controls list can sit inside an mc:AlternateContent of its own.
+        func find(_ name: String, in n: XNode) -> XNode? {
+            if let c = n.child(name) { return c }
+            for c in n.children where c.name.hasSuffix("AlternateContent") || c.name.hasSuffix("Choice") {
+                if let f = find(name, in: c) { return f }
+            }
+            return nil
+        }
+        let lists = ["oleObjects", "controls"].compactMap { find($0, in: sheet) }
         guard !lists.isEmpty || sheet.child("legacyDrawing") != nil else { return [] }
         let rels = SheetDrawingsXML._relTargets(parts, of: sheetPath)
         // The legacy drawing's shapes, by id.
@@ -123,7 +131,15 @@ enum SheetObjectsXML {
             c.checked = shape.checked == 1
             c.mixed = shape.checked == 2
             _caption(&c, shape)
-            out.append(SheetObject(anchor: anchor, kind: .control(c), screenOnly: !shape.printed))
+            // Only the pixel offsets of a control with no entry on the sheet are
+            // taken at half size: the Excel lab (off2) put such a control's dx 13 px
+            // at 4.9 pt, while the entries that carry their own EMU anchor sit exactly.
+            var placed = anchor
+            if case .twoCell(var f, var t) = anchor, shape.vmlPixelAnchor {
+                f.colOff *= 0.5; f.rowOff *= 0.5; t.colOff *= 0.5; t.rowOff *= 0.5
+                placed = .twoCell(from: f, to: t)
+            }
+            out.append(SheetObject(anchor: placed, kind: .control(c), screenOnly: !shape.printed))
         }
         return out
     }
@@ -162,6 +178,7 @@ enum SheetObjectsXML {
         var bold = false, italic = false, underline = false
         var align: String? = nil
         var vAlign: String? = nil
+        var vmlPixelAnchor = false
         var hidden = false
         /// `x:ClientData@ObjectType` ("Checkbox", "Note", "Pict"…) and
         /// `x:Checked` (1, or 2 for mixed).
@@ -213,6 +230,7 @@ enum SheetObjectsXML {
                 // corner the same way; the offsets are screen pixels.
                 let n = a.split(separator: ",").compactMap { Double($0.trimmingWhitespace()) }
                 if n.count == 8 {
+                    shape.vmlPixelAnchor = true
                     shape.anchor = .twoCell(from: SheetMarker(col: Int(n[0]), colOff: n[1] * 0.75, row: Int(n[2]), rowOff: n[3] * 0.75),
                                             to: SheetMarker(col: Int(n[4]), colOff: n[5] * 0.75, row: Int(n[6]), rowOff: n[7] * 0.75))
                 }
