@@ -11,6 +11,13 @@ One PDF (or two for `diff`), one page range; every row is plain text, tab-free e
   pdf-probe.py diff   A.pdf B.pdf PAGE [--out PNG] [--clip x0,y0,x1,y1] [--dpi N]
                                                    % of pixels differing on one page (crop optional); --out writes a red/blue overlay
 
+  pdf-probe.py words  PDF [PAGES] [--grep TXT]     one row per word box
+  pdf-probe.py crop   PDF PAGE x0,y0,x1,y1 OUT.png [--dpi N]   render one region to look at it
+  pdf-probe.py borders PDF [PAGES] [--max-w PT]    table/cell rulings: stroked lines and thin filled rects, h/v, position, extent, width, colour
+  pdf-probe.py imgdraw PDF [PAGES]                 per image DRAW: bbox and the 6-number matrix (scale, flip, rotation)
+  pdf-probe.py labels PDF [PAGES] [--min-lines N]  multi-line text blocks (two-line labels): bbox, baseline gaps, each line
+  pdf-probe.py CMD --help                          the one-line help of a subcommand
+
 PAGES is "3", "2-5" or "1,4,7-9" (default: all). Needs PyMuPDF; re-runs itself in ~/venv-word when the system python lacks it."""
 import os, sys, warnings
 warnings.filterwarnings("ignore")
@@ -179,8 +186,73 @@ def cmd_diff(argv):
         pymupdf.Pixmap(pymupdf.csRGB, pa.width, pa.height, bytes(ov), False).save(out); print("wrote", out)
 
 
+def cmd_words(argv):
+    """words PDF [PAGES] [--grep TXT]: one row per word: page, bbox, text (PyMuPDF word boxes, reading order)."""
+    g = take(argv, "--grep"); d = pymupdf.open(argv[0])
+    for pn in pages(argv[1] if len(argv) > 1 else None, len(d)):
+        for w in d[pn].get_text("words"):
+            if not g or g in w[4]:
+                print("p%d\t(%.1f,%.1f,%.1f,%.1f)\t%s" % (pn + 1, w[0], w[1], w[2], w[3], w[4]))
+
+
+def cmd_crop(argv):
+    """crop PDF PAGE x0,y0,x1,y1 OUT.png [--dpi N]: render one region of one page (points) to a PNG, to look at it."""
+    dpi = int(take(argv, "--dpi", 144)); d = pymupdf.open(argv[0]); pg = d[int(argv[1]) - 1]
+    clip = pymupdf.Rect(*[float(v) for v in argv[2].split(",")])
+    pg.get_pixmap(dpi=dpi, clip=clip).save(argv[3]); print("%s: %s at %d dpi" % (argv[3], tuple(clip), dpi))
+
+
+def cmd_borders(argv):
+    """borders PDF [PAGES] [--max-w PT]: every ruling: a stroked line, or a filled rect thinner than --max-w (default 2 pt).
+    Rows: page, h or v, position (y for h, x for v), from-to, thickness, colour. For table and cell borders."""
+    mw = float(take(argv, "--max-w", 2)); d = pymupdf.open(argv[0])
+    for pn in pages(argv[1] if len(argv) > 1 else None, len(d)):
+        for p in d[pn].get_drawings():
+            segs = []
+            for it in p["items"]:
+                if it[0] == "l" and p.get("color") is not None and "s" in p["type"]:
+                    segs.append((it[1], it[2], p.get("width") or 0, p.get("color")))
+                elif it[0] == "re":
+                    r = it[1]
+                    if min(r.width, r.height) <= mw and p.get("fill"):
+                        segs.append((pymupdf.Point(r.x0, (r.y0 + r.y1) / 2), pymupdf.Point(r.x1, (r.y0 + r.y1) / 2), r.height, p["fill"]) if r.width >= r.height else
+                                    (pymupdf.Point((r.x0 + r.x1) / 2, r.y0), pymupdf.Point((r.x0 + r.x1) / 2, r.y1), r.width, p["fill"]))
+            for a, b, w, c in segs:
+                col = tuple(round(v, 2) for v in c) if c else "-"
+                if abs(a.y - b.y) < 0.01:
+                    print("p%d\th\ty=%.2f\tx %.1f-%.1f\tw=%.2f\t%s" % (pn + 1, a.y, min(a.x, b.x), max(a.x, b.x), w, col))
+                elif abs(a.x - b.x) < 0.01:
+                    print("p%d\tv\tx=%.2f\ty %.1f-%.1f\tw=%.2f\t%s" % (pn + 1, a.x, min(a.y, b.y), max(a.y, b.y), w, col))
+
+
+def cmd_imgdraw(argv):
+    """imgdraw PDF [PAGES]: every image DRAW (an image drawn twice shows twice): page, xref, bbox, the 6 numbers of its matrix
+    (a b c d e f, as placed), pixel size. Shows scale, flip, rotation and crop that `images` does not."""
+    d = pymupdf.open(argv[0])
+    for pn in pages(argv[1] if len(argv) > 1 else None, len(d)):
+        for i in d[pn].get_image_info(xrefs=True):
+            print("p%d\txref=%s\tbbox=(%.1f,%.1f,%.1f,%.1f)\tmatrix=(%s)\t%dx%d px" % (pn + 1, i.get("xref"), *i["bbox"],
+                  ",".join("%.3f" % v for v in i["transform"]), i["width"], i["height"]))
+
+
+def cmd_labels(argv):
+    """labels PDF [PAGES] [--min-lines N]: text blocks of N or more lines (default 2): page, block bbox, line count,
+    baseline gap between lines, then each line's text. For two-line labels and wrapped captions."""
+    mn = int(take(argv, "--min-lines", 2)); d = pymupdf.open(argv[0])
+    for pn in pages(argv[1] if len(argv) > 1 else None, len(d)):
+        for b in d[pn].get_text("dict")["blocks"]:
+            ls = [l for l in b.get("lines", []) if any(s["text"].strip() for s in l["spans"])]
+            if len(ls) >= mn:
+                ys = [l["spans"][0]["origin"][1] for l in ls]
+                print("p%d\t(%.1f,%.1f,%.1f,%.1f)\t%d lines\tgap %s" % (pn + 1, *b["bbox"], len(ls), ",".join("%.1f" % (b2 - a) for a, b2 in zip(ys, ys[1:]))))
+                for l in ls:
+                    print("\t\t" + "".join(s["text"] for s in l["spans"]))
+
+
 CMDS = {k[4:]: v for k, v in globals().items() if k.startswith("cmd_")}
 if __name__ == "__main__":
+    if len(sys.argv) >= 3 and sys.argv[1] in CMDS and sys.argv[2] in ("-h", "--help"):
+        print(CMDS[sys.argv[1]].__doc__ or "no help"); sys.exit(0)
     if len(sys.argv) < 3 or sys.argv[1] not in CMDS:
         print(__doc__); sys.exit(2)
     CMDS[sys.argv[1]](sys.argv[2:])
