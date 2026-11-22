@@ -5255,7 +5255,19 @@ enum ChartPainter {
                 }
                 return out
             }
-            catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : holdWords($0), catSize, horizontal ? (c.categoryLevels.isEmpty && !(c.valueReversed && c.onSlide) ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : c.onEdges && c.type == .line ? slot * Double(c.categories.count) / Double(c.categories.count - 1) * Double(max(1, c.categoryLabelSkip)) : max(slot * Double(max(1, c.categoryLabelSkip)) - (c.onSlide ? 4.5 : 2) * k, 8 * k)) }
+            // (A Latin name with no space to break at stays whole on its line, wider than its slot: PowerPoint's print of zh b3af6b818144 p15
+            // keeps "2022/1~9" on one line, 2 pt past the slot's width, where ours broke it after the "~".)
+            func slotName(_ n: String, _ w: Double) -> Double {
+                guard c.onSlide, !horizontal, w.isFinite, n.unicodeScalars.allSatisfy({ $0.isASCII }) else { return w }
+                var out = w
+                for word in n.split(separator: " ") {
+                    let t = categoryText(String(word), catSize, .infinity)
+                    out = max(out, t.width + 0.5)
+                    t.dispose()
+                }
+                return out
+            }
+            catLabels = c.categories.map { n in categoryText(c.categoryAxisDeleted ? "" : holdWords(n), catSize, slotName(n, horizontal ? (c.categoryLevels.isEmpty && !(c.valueReversed && c.onSlide) ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : c.onEdges && c.type == .line ? slot * Double(c.categories.count) / Double(c.categories.count - 1) * Double(max(1, c.categoryLabelSkip)) : max(slot * Double(max(1, c.categoryLabelSkip)) - (c.onSlide ? 4.5 : 2) * k, 8 * k))) }
             if !horizontal, c.type != .area, !c.categoryAxisDeleted, let turn = c.categoryLabelTurn {
                 // As the file says: turned (up to a quarter, either way) or
                 // level.
