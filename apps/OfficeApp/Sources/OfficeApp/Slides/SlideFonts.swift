@@ -449,6 +449,12 @@ enum SlideFonts {
         case "ud デジタル 教科書体 nk-b", "ud digi kyokasho nk-b", "ud デジタル 教科書体 np-b", "ud digi kyokasho np-b": return 567.0 / 2369
         case "microsoft jhenghei", "微軟正黑體": return 521.0 / 2724
         case "tw cen mt": return 477.0 / 2230
+        // (Arabic faces, the same way from the span boxes of PowerPoint's print (rtl): Simplified Arabic 2416+979 of 2048 (eb7ab2c5: the first
+        // baseline 34.2 pt below a 40 pt line's top, ours 38.9), Traditional Arabic 1.023+0.51 em, Sakkal Majalla .884+.319, Arabic Typesetting .701+.342.)
+        case "simplified arabic": return 979.0 / 3395
+        case "traditional arabic": return 0.51 / 1.533
+        case "sakkal majalla", "majalla ui": return 0.319 / 1.203
+        case "arabic typesetting": return 0.342 / 1.043
         case "noto sans": return 600.0 / 2789
         case "comic sans ms": return 597.0 / 2854
         case "gungsuh", "궁서", "gungsuhche", "궁서체": return 145.0 / 1024

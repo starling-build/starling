@@ -599,6 +599,12 @@ extension _StyledFrame {
         return theme.wordRules && s.fontSize ?? 0 > 0.5 && !(kind >= 0 && latinFace?.setsMath == true) ? s.copyWith(height: 0.01) : s
     }
     func isArabic(_ c: Character) -> Bool { c.unicodeScalars.first.map { ArabicForms.isArabic($0.value) || $0.value == 0x200C } ?? false }
+    // (A word of an Arabic run the table cannot measure still stands on the flat line: with the stand-in's own 1.42 em height every line
+    // holding one is 8.8 pt too tall at 40 pt. rtl/eb7ab2c5 p4, justified: PowerPoint's lines step 48.)
+    func unjoinedArabicWord(_ word: Substring, _ s: TextStyle) -> TextStyle {
+        guard let joinedFace, let h = joinedFace.joinedHeight, word.contains(where: { isArabic($0) }) else { return s }
+        return s.copyWith(height: h)
+    }
     func joinedScaled(_ word: Substring, _ s: TextStyle) -> TextStyle {
         // (Myanmar letters, word by word, at Myanmar Text's own advances: the stand-in has no Myanmar glyph and runs the line 12% wide.)
         if theme.wordRules, document.readFromFile, let px = s.fontSize, px > 0.5,
@@ -659,7 +665,7 @@ extension _StyledFrame {
         }
         guard let joinedFace, let first = word.first, isArabic(first), first != "\u{200C}", word.allSatisfy(isArabic),
               let table = s.fontWeight == .bold ? joinedFace.boldJoinedAdvances : joinedFace.joinedAdvances, let px = s.fontSize, px > 0.5
-        else { return s }
+        else { return unjoinedArabicWord(word, s) }
         // (A word the face's shaped table holds: its own advance, not the sum over letters; xb fas-3a9879's title.)
         if let words = s.fontWeight == .bold ? joinedFace.boldJoinedWords : joinedFace.joinedWords, let e = words[String(word)] {
             let shaped = _wordWidth(s, String(word))
@@ -679,7 +685,7 @@ extension _StyledFrame {
             }
             let after: UInt32? = atEnd && word.endIndex == text.endIndex ? next?.unicodeScalars.first?.value : nil
             let clusters = s.fontWeight == .bold ? joinedFace.boldJoinedClusters : joinedFace.joinedClusters
-            guard let e = ArabicForms.width(part.map { $0.value }, table, before: before, after: after, clusters: clusters) else { return s }
+            guard let e = ArabicForms.width(part.map { $0.value }, table, before: before, after: after, clusters: clusters) else { return unjoinedArabicWord(word, s) }
             ems += e
             shaped += _wordWidth(s, String(String.UnicodeScalarView(part)))
         }
