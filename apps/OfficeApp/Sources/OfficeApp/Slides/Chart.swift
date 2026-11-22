@@ -3506,20 +3506,21 @@ enum ChartPainter {
     /// (A multi-level category axis adds a row under the categories for each
     /// outer level: PowerPoint's e365f9b4 p17 table sets the years in a row of
     /// their own under Nación / Propios / Total.)
-    static func _tableRows(_ c: Chart, size: Double, k: Double, slot: Double, text: (String, Double, Double) -> TextPainter) -> [Double] {
-        var rows = _tableRowsBase(c, size: size, k: k, slot: slot, text: text)
+    static func _tableRows(_ c: Chart, size: Double, k: Double, slot: Double, minLine: Double = 0, text: (String, Double, Double) -> TextPainter) -> [Double] {
+        var rows = _tableRowsBase(c, size: size, k: k, slot: slot, minLine: minLine, text: text)
         if let first = rows.first, !c.categoryLevels.isEmpty { rows.insert(contentsOf: Array(repeating: first, count: c.categoryLevels.count), at: 1) }
         return rows
     }
 
-    private static func _tableRowsBase(_ c: Chart, size: Double, k: Double, slot: Double, text: (String, Double, Double) -> TextPainter) -> [Double] {
+    private static func _tableRowsBase(_ c: Chart, size: Double, k: Double, slot: Double, minLine: Double, text: (String, Double, Double) -> TextPainter) -> [Double] {
         let count = c.series.count + c.lineSeries.count + 1
         // (PowerPoint's print of es/3f8a480a p4's table: a row is its text's line and 3.4 pt, 15.57 at 10 pt, and
         // the categories' row stands as deep as its longest label wraps in a column less 2 pt, a word
         // broken wherever it runs out: "Cundinamarca" in five lines of 18.2 pt columns.)
         if c.onSlide, !c.windowsMinchoText, c.macSimplifiedFace == nil {
             let probe = text("Ag", size, .infinity)
-            let line = probe.height
+            // (A face whose line is taller than its stand-in's: Aptos 1.2207 em to Liberation Sans's 1.149; PowerPoint's print of es/e365f9b4 p7 steps 14.4 pt at 9 pt.)
+            let line = max(probe.height, minLine)
             probe.dispose()
             let lines = c.categories.map { s -> Int in
                 let tp = text(s, size, max(1, slot - 2 * k))
@@ -4667,12 +4668,13 @@ enum ChartPainter {
         // Where the file places the plot: itself (`inner`), or a box the
         // plot and its labels share — aascu 5864's census chart stands at
         // 9%/3%, 91% × 76% of its frame, ours under a title band.
+        // (PowerPoint does place it, es/e365f9b4 p7: the axis at the layout's y + h.)
         // (Not a plot placed itself over a data table: Word lays that one
         // out as if unplaced — zh-61aaad09's columns, "inner" at 17%/9%,
         // 71% × 70% of a 415 × 137pt frame, stand 164.8-450.6 × 281.9-326.9
         // in its print, the table's rows to the frame's foot under them,
         // where the placed rect ran the plot down over the table.)
-        let placed = c.dataTable != nil && c.plotLayoutInner ? nil : c.plotLayout.map {
+        let placed = c.dataTable != nil && c.plotLayoutInner && !c.onSlide ? nil : c.plotLayout.map {
             Rect.fromLTWH(frame.left + $0.left * frame.width, frame.top + $0.top * frame.height,
                           $0.width * frame.width, $0.height * frame.height)
         }
@@ -5025,7 +5027,7 @@ enum ChartPainter {
             // Multiple…'s table 4.2 pt further in than 17 px.)
             let left = max(plot.left, frame.left + (manual != nil ? 12 : 17) * (c.onSheet ? 1 : k) + column)
             let right = manual.map { min(plot.right + 5 * k, left + $0.width * frame.width) } ?? plot.right
-            let rows = Self._tableRows(c, size: size, k: k, slot: (right - left) / Double(max(1, n)), text: text)
+            let rows = Self._tableRows(c, size: size, k: k, slot: (right - left) / Double(max(1, n)), minLine: SlideFonts.windowsName(c.font ?? theme.bodyFont).hasPrefix("aptos") ? 1.2207 * size * k : 0, text: text)
             let top = foot - rows.reduce(0, +)
             // (Its plot's top 11.1pt under the frame's in both, where ours
             // stood half a label line under the area's, 4.3 lower: so
@@ -5040,6 +5042,9 @@ enum ChartPainter {
             // (A laid plot that runs past the chart's right edge is cut there by PowerPoint, its categories
             // spread over what is left: 7bf37d72 p10's 5 bands of 99.3 pt, not 103.)
             plot = c.onSlide && placed.right > frame.right ? Rect.fromLTRB(placed.left, placed.top, frame.right, placed.bottom) : placed
+            // (The table hangs from the laid plot's foot, its rows under the axis wherever the file put it: PowerPoint's print of
+            // es/e365f9b4 p7 has the axis at the layout's y + h, 326.0, and the table's foot 5 pt above the chart's, not on it.)
+            if c.onSlide, let t = table { table = (plot.bottom, t.1, t.2, t.3) }
             // (A bar chart whose value axis runs right to left keeps its names at the right: a plot that leaves them no
             // room inside the chart moves left, its width kept. 7d329933 p8: names 60 pt wide, plot right 481.7 to 432.)
             if horizontal, c.valueReversed, c.onSlide, !c.categoryAxisDeleted {
