@@ -165,21 +165,26 @@ extension RichLayout {
 }
 
 extension RichLayout {
-    /// An Arabic-script piece takes its glyphs from whatever face has them, and the engine sets a line to the tallest ascent plus
-    /// the deepest descent of the faces on it, so one line of a paragraph came out taller than the next (ce81583c p1's 72 pt title at
-    /// 200%: 175.8 pt and 172.8). PowerPoint's line is the style's own. Each such piece is held to the split of its own style's face.
-    static func _holdingArabicSplit(_ span: TextSpan) -> TextSpan {
-        func isArabic(_ s: String) -> Bool {
-            s.unicodeScalars.contains { (0x600 ... 0x6FF).contains($0.value) || (0x750 ... 0x77F).contains($0.value) || (0xFB50 ... 0xFDFF).contains($0.value) || (0xFE70 ... 0xFEFF).contains($0.value) }
-        }
+    /// A piece the run's own face may not have the letters of (any script past Latin) is drawn by whatever face has them, and the
+    /// engine sets a line to the tallest ascent plus the deepest descent of the faces on it, so one line of a paragraph came out
+    /// taller than the next (ce81583c p1's 72 pt Arabic title at 200%: 175.8 pt and 172.8). PowerPoint's line is the face the run
+    /// asked for. Each such piece is held to the split of its own style's face.
+    static func _holdingFallbackSplit(_ span: TextSpan) -> TextSpan {
+        func mayFallBack(_ s: String) -> Bool { s.unicodeScalars.contains { $0.value >= 0x250 } }
+        var cache: [String: (Double, Double)] = [:]
         func walk(_ s: InlineSpan) -> InlineSpan {
             guard let t = s as? TextSpan else { return s }
             var st = t.style
-            if let x = st, let text = t.text, x.ascentOverride == nil, let fs = x.fontSize, fs > 0.5, x.height != nil, isArabic(text) {
-                let pr = TextPainter(text: TextSpan(text: "x", style: x), textDirection: .ltr)
-                pr.layout(minWidth: 0, maxWidth: 100_000)
-                if let m = pr.computeLineMetrics().first, m.height > 1 { st = x.copyWith(ascentOverride: m.ascent, descentOverride: m.descent, height: x.height) }
-                pr.dispose()
+            if let x = st, let text = t.text, x.ascentOverride == nil, let fs = x.fontSize, fs > 0.5, let h = x.height, mayFallBack(text) {
+                let key = "\(x.fontFamily ?? "")|\(x.debugLabel ?? "")|\(fs)|\(h)|\(x.fontWeight == .bold)|\(x.fontStyle == .italic)"
+                var split = cache[key]
+                if split == nil {
+                    let pr = TextPainter(text: TextSpan(text: "x", style: x), textDirection: .ltr)
+                    pr.layout(minWidth: 0, maxWidth: 100_000)
+                    if let m = pr.computeLineMetrics().first, m.height > 1 { split = (m.ascent, m.descent); cache[key] = split }
+                    pr.dispose()
+                }
+                if let (a, d) = split { st = x.copyWith(ascentOverride: a, descentOverride: d, height: h) }
             }
             return TextSpan(text: t.text, children: t.children?.map { walk($0) }, style: st, recognizer: t.recognizer, locale: t.locale)
         }
