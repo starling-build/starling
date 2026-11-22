@@ -967,11 +967,23 @@ final class SlidePainter: CustomPainter {
                 if shape.pictureAlpha >= 1, shape.pictureColorChange == nil, shape.pictureDuotone != nil || shape.pictureLevels != nil, SlideTextCache.jpegQualities[ObjectIdentifier(decoded)] != nil,
                    let baked = cache.recoloured(decoded, alpha: 1, duotone: shape.pictureDuotone, levels: shape.pictureLevels) { bakedPic = baked }
                 if bakedPic !== decoded { paint = imagePaint(alpha: 1, duotone: nil) }
+                // (Levels that clamp — black and white — then a duotone: the clamp sits between them, so a single composed matrix is wrong; the levels are baked first.)
+                if bakedPic === decoded, shape.pictureLevels != nil, shape.pictureDuotone != nil, shape.pictureColorChange == nil,
+                   let lev = cache.recoloured(decoded, alpha: 1, duotone: nil, levels: shape.pictureLevels) {
+                    bakedPic = lev
+                    paint = imagePaint(alpha: shape.pictureAlpha, duotone: shape.pictureDuotone)
+                }
+                // Set Transparent Color on a colour other than white or black: not a linear filter, drawn by `drawKeyed`.
+                var exactKey: Color? = nil
+                if let k = shape.pictureColorChange?.first, (shape.pictureColorChange?.last?.alpha ?? 1) == 0 {
+                    let v = k.value & 0xFFFFFF
+                    if v != 0xFFFFFF, v != 0 { exactKey = k }
+                }
                 if src.width > 0, src.height > 0, src.width < w || src.height < h {
                     let sx = r.width / src.width, sy = r.height / src.height
                     canvas.clipRect(r)
-                    canvas.drawImageRect(bakedPic, Rect.fromLTWH(0, 0, w, h),
-                                         Rect.fromLTWH(r.left - src.left * sx, r.top - src.top * sy, w * sx, h * sy), paint)
+                    let dst = Rect.fromLTWH(r.left - src.left * sx, r.top - src.top * sy, w * sx, h * sy)
+                    Self.drawKeyed(canvas, bakedPic, Rect.fromLTWH(0, 0, w, h), dst, paint, key: exactKey)
                 } else {
                     // PowerPoint's PDF holds an uncropped picture shrunk to 200 pixels an inch
                     // (a 3508 px picture over 841.6 pt is 2337; 1890 over 204.1 pt is 567).
@@ -981,7 +993,7 @@ final class SlidePainter: CustomPainter {
                         let nw = Int((r.width / px * 200 / 72).rounded(.down)), nh = Int((r.height / px * 200 / 72).rounded(.down))
                         if nw >= 1, nh >= 1, nw < bakedPic.width, nh < bakedPic.height, let small = cache.scaled(bakedPic, nw, nh) { shown = small }
                     }
-                    canvas.drawImageRect(shown, shown === bakedPic ? src : Rect.fromLTWH(0, 0, Double(shown.width), Double(shown.height)), r, paint)
+                    Self.drawKeyed(canvas, shown, shown === bakedPic ? src : Rect.fromLTWH(0, 0, Double(shown.width), Double(shown.height)), r, paint, key: exactKey)
                 }
                 canvas.restore()
             } else {
@@ -1985,6 +1997,36 @@ final class SlidePainter: CustomPainter {
         }
         if let matrix { p.colorFilter = ColorFilter(matrix: matrix) }
         return p
+    }
+
+    /// The picture drawn with every pixel of exactly the colour `key` made clear (`a:clrChange`): the picture first,
+    /// then a mask erases it (blend mode dstOut). The mask is the product of six passes, each opaque where one channel is on
+    /// one side of the key's (≤ or ≥), so it is opaque only where all three channels equal the key.
+    static func drawKeyed(_ canvas: any Canvas, _ image: Image, _ src: Rect, _ dst: Rect, _ paint: Paint, key: Color?) {
+        guard let key else { canvas.drawImageRect(image, src, dst, paint); return }
+        canvas.saveLayer(dst, Paint())
+        canvas.drawImageRect(image, src, dst, paint)
+        let erase = Paint()
+        erase.blendMode = .dstOut
+        canvas.saveLayer(dst, erase)
+        var first = true
+        let big = 512.0
+        for ch in 0 ..< 3 {
+            let k = Double((key.value >> [16, 8, 0][ch]) & 0xFF)
+            for side in [-1.0, 1.0] {
+                var m: [Double] = [1, 0, 0, 0, 0,  0, 1, 0, 0, 0,  0, 0, 1, 0, 0,  0, 0, 0, 0, 0]
+                m[15 + ch] = side * big
+                m[19] = side < 0 ? big * (k + 0.5) : big * (0.5 - k)
+                let p = Paint()
+                p.filterQuality = paint.filterQuality
+                p.colorFilter = ColorFilter(matrix: m)
+                if !first { p.blendMode = .dstIn }
+                first = false
+                canvas.drawImageRect(image, src, dst, p)
+            }
+        }
+        canvas.restore()
+        canvas.restore()
     }
 
     /// The 4×5 colour matrix that applies `b`, then `a`.
