@@ -3091,6 +3091,11 @@ static let sylfaenAdvances: [Double] = [
         0.5059, 0.2461, 0.8799, 0.5781, 0.5991, 0.6006, 0.6021, 0.3535, 0.4331, 0.3447, 0.5781, 0.4873, 0.7363, 0.4648, 0.4927,
         0.4619, 0.3047, 0.2393, 0.3047, 0.7007
     ]
+    /// Malgun Gothic's own advance of an ASCII character (U+0020 to U+007E), in ems.
+    static func malgunLatinAdvance(_ u: UInt32, bold: Bool) -> Double? {
+        guard (0x20 ... 0x7E).contains(u) else { return nil }
+        return (bold ? malgunBoldAdvances : malgunAdvances)[Int(u - 0x20)]
+    }
     private static let malgunBoldAdvances: [Double] = [
         0.3516, 0.3232, 0.4761, 0.6079, 0.5796, 0.8755, 0.8569, 0.2817, 0.3579, 0.3579, 0.4561, 0.7192, 0.2617, 0.4136, 0.2617,
         0.4390, 0.5796, 0.5796, 0.5796, 0.5796, 0.5796, 0.5796, 0.5796, 0.5796, 0.5796, 0.5796, 0.2617, 0.2617, 0.7192, 0.7192,
