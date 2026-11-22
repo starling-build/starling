@@ -5093,13 +5093,13 @@ enum ChartPainter {
                 // 5.5, 6.2 and 5.1 pt right of ours in tdf119138, 57362 and tdf100084, their plots' left 5.3.)
                 // (On a slide too, 5.4: en/bab9be95's two y titles, 14 pt in two lines and 11 pt in one, stand 5.7 pt
                 // right of ours in PowerPoint's print, their plots' left 5.1.)
-                let inset = c.onSheet ? 5.8 * k : c.onSlide && c.type == .scatter ? 5.4 * k : 0
+                let inset = c.onSheet ? 5.8 * k : c.onSlide && c.type == .scatter ? 5.4 * k : c.onSlide && c.valueAxisTitleSize != nil ? 3.7 * k : 0
                 canvas.save()
                 canvas.translate(area.left + inset, area.center.dy - lift + tp.width / 2)
                 canvas.rotate(-.pi / 2)
                 tp.paint(canvas, .zero)
                 canvas.restore()
-                area = Rect.fromLTRB(area.left + inset + tp.height + 4 * k, area.top, area.right, area.bottom)
+                area = Rect.fromLTRB(area.left + inset + tp.height + (c.onSlide && c.type != .scatter && c.valueAxisTitleSize != nil ? 7.9 : 4) * k, area.top, area.right, area.bottom)
             }
             if deferredValueTitle !== tp { tp.dispose() }
         }
@@ -5113,12 +5113,14 @@ enum ChartPainter {
                 tp.paint(canvas, .zero)
                 canvas.restore()
                 area = Rect.fromLTRB(area.left + tp.height + 4 * k, area.top, area.right, area.bottom)
-            } else if !c.onSlide, !c.onSheet, c.plotLayout == nil {
+            } else if !c.onSheet, c.plotLayout == nil {
                 // (In a Word document the title's box is centred over the plot, not the chart:
                 // lo-948cd424's, 295.4 in Word's print over a plot 97.1 to 491.9, ours 286.9
                 // over the chart's middle, and 3.5 pt higher. Painted once the plot is known.)
-                deferredCategoryTitle = (tp, area.bottom - tp.height - 3.5 * k)  // (baselines 295.5 and 307.7 in Word's print, ours 299.0 and 311.1)
-                area = Rect.fromLTRB(area.left, area.top, area.right, area.bottom - tp.height - 4 * k)
+                // (A slide's too, 458870cc p11: PowerPoint centres it over the plot, ours stood 25 pt left over the chart.)
+                let up = c.onSlide ? (c.categoryAxisTitleSize != nil ? 4 * k : 0) : -0.5 * k
+                deferredCategoryTitle = (tp, area.bottom - tp.height - (c.onSlide ? up : 3.5 * k))  // (baselines 295.5 and 307.7 in Word's print, ours 299.0 and 311.1)
+                area = Rect.fromLTRB(area.left, area.top, area.right, area.bottom - tp.height - 4 * k - (c.onSlide ? up : 0))
             } else if (!c.onSlide && !c.onSheet && c.type == .scatter) || c.categoryLabelsSparse, c.plotLayoutInner {
                 // (A plot the file places leaves the title under the numbers, not at the
                 // chart's foot: lo-c4c60fcb's, 15 pt under their line in Word's print.)
