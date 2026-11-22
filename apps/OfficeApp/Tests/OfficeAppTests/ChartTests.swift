@@ -123,6 +123,32 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(c.highLowLines, HighLowLines(color: Color(0xFF404040), width: 0.75))
     }
 
+    /// bab9be95 p15: error bars (`c:errBars`) are read by kind, and they reach the value axis' range (60% to 85%, not 64% to 82%).
+    func testErrorBarsAreReadByKindAndWidenTheAxis() throws {
+        let ns = "xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\""
+        func lit(_ v: [Double]) -> String {
+            "<c:numLit><c:ptCount val=\"\(v.count)\"/>" + v.enumerated().map { "<c:pt idx=\"\($0.offset)\"><c:v>\($0.element)</c:v></c:pt>" }.joined() + "</c:numLit>"
+        }
+        func chart(_ bars: String) throws -> Chart {
+            let xml = "<c:chartSpace \(ns)><c:chart><c:plotArea><c:barChart><c:barDir val=\"col\"/><c:ser><c:idx val=\"0\"/><c:order val=\"0\"/>"
+                + bars + "<c:val>\(lit([10, 20, 30]))</c:val></c:ser><c:axId val=\"1\"/><c:axId val=\"2\"/></c:barChart>"
+                + "<c:catAx><c:axId val=\"1\"/><c:axPos val=\"b\"/></c:catAx><c:valAx><c:axId val=\"2\"/><c:axPos val=\"l\"/></c:valAx></c:plotArea></c:chart></c:chartSpace>"
+            return try XCTUnwrap(ChartXML.read(XCTUnwrap(XNode.parse(Data(xml.utf8))), color: { _ in Color(0xFF404040) }))
+        }
+        let cust = try chart("<c:errBars><c:errBarType val=\"both\"/><c:errValType val=\"cust\"/><c:noEndCap val=\"1\"/><c:plus>\(lit([1, 2, 3]))</c:plus><c:minus>\(lit([0.5, 0, 1]))</c:minus></c:errBars>")
+        XCTAssertEqual(cust.series[0].errBars?.plus, [1, 2, 3])
+        XCTAssertEqual(cust.series[0].errBars?.minus, [0.5, 0, 1])
+        XCTAssertEqual(cust.series[0].errBars?.noCap, true)
+        let pct = try chart("<c:errBars><c:errBarType val=\"plus\"/><c:errValType val=\"percentage\"/><c:val val=\"10\"/></c:errBars>")
+        XCTAssertEqual(pct.series[0].errBars?.plus, [1, 2, 3])
+        XCTAssertEqual(pct.series[0].errBars?.minus, [])
+        let fixed = try chart("<c:errBars><c:errBarType val=\"both\"/><c:errValType val=\"fixedVal\"/><c:val val=\"4\"/></c:errBars>")
+        XCTAssertEqual(fixed.series[0].errBars?.minus, [4, 4, 4])
+        let sd = try chart("<c:errBars><c:errBarType val=\"both\"/><c:errValType val=\"stdDev\"/><c:val val=\"1\"/></c:errBars>")
+        XCTAssertEqual(try XCTUnwrap(sd.series[0].errBars?.plus[0]), 10, accuracy: 1e-9)
+        XCTAssertNil(try chart("").series[0].errBars)
+    }
+
     /// zh-547fc43c's charts: the unit over the columns is the category
     /// axis's title, placed at the chart's top left and read across; the
     /// line of rates over them shows its values, one moved.
