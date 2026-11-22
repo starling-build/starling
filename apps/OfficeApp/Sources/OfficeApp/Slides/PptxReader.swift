@@ -3764,6 +3764,13 @@ private struct SlideContext {
             }
             if (p.first("a:pPr")?["hangingPunct"] ?? level.hangingPunct) == "0" { style.eastAsian["a:hangingPunct"] = "0" }
             if let b = level.latinLnBrk { style.eastAsian["a:latinLnBrk"] = b }
+            // (PowerPoint hangs every closing mark, ) ] and the like, a full em past the margin in Chinese text: lab zhhang, four
+            // faces in zh-TW and zh-CN. It follows the language of the run that holds the mark.)
+            if p.all("a:r").contains(where: { r in
+                (r.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("zh")
+                    && (r.first("a:t")?.text ?? "").unicodeScalars.contains(where: { [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009].contains($0.value) }) }) {
+                style.eastAsian["a:hangClosingZh"] = "1"
+            }
             if looseKinsoku { style.eastAsian["a:looseKinsoku"] = "1" }
             if let m = level.lineMultiple { style.lineSpacing = m } else if let pts = level.linePoints {
                 // Exactly that many points, whatever the runs' sizes.
