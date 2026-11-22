@@ -5167,9 +5167,16 @@ enum ChartPainter {
             return shown.isEmpty ? tickLabel(v) : shown
         }
         let valueLabels = ticks.map { valueText(c.valueAxisDeleted ? "" : valueLabel($0), labelSize, .infinity) }
+        // (A format's last pad, `_)`, is part of the gap to the plot, not of the labels' width: lo-tdf149985's
+        // plot stands 157.8 in PowerPoint's print, the padded labels' right edge 149.5 and its gap 8.3, not 11.1.)
+        let padTail: Double = {
+            guard c.valueFormat != nil, !c.percent, !c.valueAxisDeleted,
+                  ticks.contains(where: { valueLabel($0).hasSuffix("\u{00A0}") }) else { return 0 }
+            return valueText("\u{00A0}", labelSize, .infinity).width
+        }()
         if let tp = deferredValueTitle {
             if let plotRect = placed {
-                let right = plotRect.left - ((valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k) - 2.6 * k
+                let right = plotRect.left - ((valueLabels.map(\.width).max() ?? 0) - padTail + (c.styled2013 ? 8.5 : 11.1) * k) - 2.6 * k
                 canvas.save()
                 canvas.translate(right - tp.height, plotRect.center.dy + tp.width / 2)
                 canvas.rotate(-.pi / 2)
@@ -5210,7 +5217,7 @@ enum ChartPainter {
             // nine names in 71.75 pt slots, "전력소모가 적은" on one line in PowerPoint's print, ours broke it after "전력소모가".)
             let besideNone = c.onSlide && c.valueAxisDeleted && c.plotLayout == nil && valueLabels.allSatisfy { $0.width == 0 }
             let beside = horizontal || (placed != nil && c.plotLayoutInner) || besideNone ? 0
-                : (valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k + 4 * k
+                : (valueLabels.map(\.width).max() ?? 0) - padTail + (c.styled2013 ? 8.5 : 11.1) * k + 4 * k
             let slot = ((horizontal ? along.height : along.width) - beside) / Double(n)
             // (A bar chart's category names in a Word document wrap at a fifth of the
             // chart: lo tdf128996's "A very long category name 4" is two lines in Word's
@@ -5387,7 +5394,7 @@ enum ChartPainter {
             let valGap: Double = (c.onSlide && c.styled2013 && !c.chartex && !c.valueTicksOut && !word && !libre && (valueLabels.first?.height ?? 0) > 0)
                 ? max(8.5, 0.773 * (valueLabels.first?.height ?? 0) / k - 2.9) : (c.styled2013 ? 8.5 : 11.1)
             if c.styled2013, valGap > 8.5 { valueLabelsBack = -(valGap - 8.5) * k; RuleTrace.hit("slide-value-labels-stand-off-by-their-line-height") }
-            var left = (valueLabels.map(\.width).max() ?? 0) + valGap * k + besideOut - (c.chartex && c.onSlide ? 4.5 * k : 0) - (word ? 2.5 * k : libre ? 2.4 * k : 0)
+            var left = (valueLabels.map(\.width).max() ?? 0) - padTail + valGap * k + besideOut - (c.chartex && c.onSlide ? 4.5 * k : 0) - (word ? 2.5 * k : libre ? 2.4 * k : 0)
             // (A 2007-style slide chart with no tick marks: its labels stand off the plot by their size, not a
             // fixed gap, and the category labels' gap grows with theirs. Windows' prints of 5864 slide 8
             // in 15 variants, bare of ticks: value labels 8.97 pt off at 10 pt, 14.56 at 16, 21.73 at 24;
