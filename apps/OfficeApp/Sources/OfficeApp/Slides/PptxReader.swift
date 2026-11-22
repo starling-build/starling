@@ -4116,6 +4116,7 @@ private struct SlideContext {
                     // algn="r" rtl="1" at the right. The layout swaps them for a right-to-left paragraph as Word's jc start/end,
                     // so hand it the opposite pair.)
                     if style.alignment == .left { style.alignment = .right } else if style.alignment == .right { style.alignment = .left }
+                    if style.list != nil { style.bulletAtEnd = true }
                 }
                 // A master level that says rtl="1" moves the bullet and the
                 // list indent to the right and nothing else (GeomLec1's body:
