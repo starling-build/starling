@@ -50,7 +50,7 @@ final class MetafilePlusTests: XCTestCase {
         XCTAssertEqual(m.steps.count, 1, "\(m.steps)")
         guard case .fill(let path, let color) = m.steps[0] else { return XCTFail("a fill") }
         XCTAssertEqual(color, Color(0xFFFF0000), "the EMF+ brush, not the fallback's blue")
-        XCTAssertEqual(path.getBounds(), Rect.fromLTRB(10, 20, 60, 70))
+        XCTAssertEqual(path.getBounds(), Rect.fromLTRB(9.5, 19.5, 59.5, 69.5))
     }
 
     func testAFileThatIsNotDualPlaysItsEMFRecords() throws {
@@ -74,6 +74,6 @@ final class MetafilePlusTests: XCTestCase {
         XCTAssertEqual(m.steps.count, 1)
         guard case .fill(let path, let color) = m.steps[0] else { return XCTFail("a fill") }
         XCTAssertEqual(color, Color(0xFF00FF00))
-        XCTAssertEqual(path.getBounds(), Rect.fromLTRB(3, 5, 9, 13), "x' = 2x + 1")
+        XCTAssertEqual(path.getBounds(), Rect.fromLTRB(2.5, 4.5, 8.5, 12.5), "x' = 2x + 1, less the half unit")
     }
 }
