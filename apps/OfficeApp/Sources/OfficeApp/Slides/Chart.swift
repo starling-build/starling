@@ -3410,7 +3410,7 @@ enum ChartPainter {
             // (A slide chart set in Malgun Gothic: the legend's line is the face's, 1.3301 em, not the Latin 1.15, so the
             // row stands higher over the frame's foot, the plot's foot where it was: ko-ab1bf295 p6, legend baseline 459.2
             // against PowerPoint's 458.8, ours 461.4 before.)
-            let malgun = c.onSlide && !["r", "l", "tr"].contains(c.legendPosition) && c.legendBox == nil
+            let malgun = c.onSlide && !["l", "tr"].contains(c.legendPosition) && c.legendBox == nil
                 && ["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased())
             let latinH = entries.isEmpty ? size * k : latin.height
             let textH = max(latinH, malgun ? 1.3301 * size * k : 0)
