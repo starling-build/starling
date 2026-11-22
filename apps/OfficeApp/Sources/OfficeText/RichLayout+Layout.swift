@@ -2598,15 +2598,10 @@ extension RichLayout {
                             if m > 1.0, q.style.lineHeightPoints == nil, !q.text.isEmpty {
                                 let big = q.runs.max { ($0.style.fontSize ?? 0) < ($1.style.fontSize ?? 0) }
                                 let sz = big?.style.fontSize ?? theme.fontSize
-                                // (Lab tbl-lnspc2, 15 slides: the first line adds 0.9 x size x (m-1), less 0.0717 x size
-                                // for Latin text (Arial; es 92ee258e's face too); East Asian text (Meiryo) loses nothing.)
-                                let ea = q.text.unicodeScalars.contains { Self._isEastAsianScalar($0.value) }
-                                // (The loss shrinks with the face's own line height: Arial (1.149 em) 0.0717, Calibri (1.22 em)
-                                // 0.041 from es 92ee258e's print; a taller face loses less, none from about 1.31 em.)
-                                // (Lab tbl-rows2: the end mark's face counts too, the taller of the two: Times text with a
-                                // Calibri end mark takes Calibri's smaller loss; the mark's size makes no difference.)
-                                let h = q.style.cellFaceHeight ?? theme.naturalLineHeight(family: big?.style.fontFamily, bold: false, italic: false)
-                                let k = arabic ? 0 : max(0, 0.0717 - 0.437 * (h - 1.149))
+                                // (Lab tbl-lnspc2: the first line adds 0.9 x size x (m-1), less k x size. Lab tbl-rows3, 30 faces: k is
+                                // 0.3 less 1.2 times the share of the face's Windows line below the baseline (Arial 0.072, Calibri 0.036,
+                                // MS Gothic 0.13, Meiryo none), the larger share of the text's face and the end mark's.)
+                                let k = arabic ? 0 : max(0, 0.3 - 1.2 * (q.style.cellDescentShare ?? 0.1897))
                                 let add = max(0, 0.9 * sz * (m - 1) - k * sz)
                                 trim = _px(max(0, (m - 1) * 1.2 * sz - add))
                             }
