@@ -287,8 +287,7 @@ enum Extrusion {
             s.oblique = s.depth > 0 ? oblique(name) : nil
             if let c = cameras[name] { (s.lat, s.lon, s.rev) = c }
             s.legacy = name.hasPrefix("legacy")
-            // (A legacy oblique camera turned about the vertical only (lat 0, lon 30 or 300) prints as the plain oblique: es b3255e9d p40's bars; one tipped in latitude, its coils, is turned.)
-            if let rot = camera.first("a:rot"), !(name.hasPrefix("legacyOblique") && (rot["lat"].flatMap(Double.init) ?? 0) == 0) {
+            if let rot = camera.first("a:rot") {
                 func deg(_ a: String) -> Double { let v = (rot[a].flatMap(Double.init) ?? 0) / 60000; return abs(v) < 0.05 ? 0 : v }
                 (s.lat, s.lon, s.rev) = (deg("lat"), deg("lon"), deg("rev"))
             }
