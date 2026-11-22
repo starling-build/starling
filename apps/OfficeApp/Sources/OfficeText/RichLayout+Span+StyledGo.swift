@@ -1461,6 +1461,26 @@ extension _StyledFrame {
                     }
                     if document.balancesSpaceWidth, let g = grid, g != 0 { extra -= _px(g) / 2 }
                 }
+                // (A Japanese face with no bold cut is emboldened by PowerPoint with one design unit more per advance, then the eighth of a
+                // point (Slides' em is 20 units to the point: an eighth is 2.5): 24.125 for a kanji of MS Gothic at 24 pt, where the regular's is 24; 90 of 90 runs of lab sbold / kanji-adv2 within 0.05 pt.)
+                if !theme.wordRules, style(kind).fontWeight == .bold, ch.unicodeScalars.count == 1, em > 0, let u = ch.unicodeScalars.first?.value {
+                    let isAscii = u >= 0x20 && u <= 0x7E
+                    let isEa = (u >= 0x3000 && u < 0x3100) || (u >= 0x3400 && u <= 0x9FFF) || (u >= 0xFF00 && u < 0xFF60)
+                    if isAscii || isEa {
+                        let latinName: String = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily) ?? ""
+                        let eaName: String = run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? latinName
+                        if let jf = theme.faceResolver?(isAscii ? latinName : eaName, false), let upem = jf.boldUnitsPerEm {
+                            var tw: Double? = nil
+                            if isAscii { if let adv = jf.advances, Int(u) - 0x20 < adv.count { tw = adv[Int(u) - 0x20] } } else { tw = jf.boldOtherAdvances?[u] }
+                            let w: Double = tw ?? 1.0
+                            let units: Double = (w * upem).rounded() + 1
+                            let target: Double = (units / upem * em / 2.5).rounded(.toNearestOrAwayFromZero) * 2.5
+                            let base: Double = tw != nil ? w * em : _glyphWidth(style(kind), ch)
+                            extra += target - base
+                            RuleTrace.hit("japanese-face-synthetic-bold-is-one-unit-wider")
+                        }
+                    }
+                }
                 // (Fit text: Word gives the middle dot only HALF a gap after it, labs dot1 and mar2: 7.2 pt after a Malgun dot
                 // at 24 pt where a full gap is 11.7; the gap before it is the full one, from the letter ahead.)
                 if ch == "\u{B7}", tcFit, fitGroup != nil, let f = fitSpacing() { extra -= f / 2 }

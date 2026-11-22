@@ -165,6 +165,14 @@ enum SlideFonts {
             if japaneseMS.contains(where: { $0.regular.ascii == cuts.regular.ascii }) {
                 for c: UInt32 in [0x201C, 0x201D] where face.otherAdvances?[c] == nil { face.otherAdvances?[c] = 1.0; face.boldOtherAdvances?[c] = 1.0 }
             }
+            // (Rule A, lab sbold: a Japanese face with no bold cut is emboldened by one design unit per advance, in every run language; the
+            // regular's table above stays the bold's here, the unit and the eighth of a point come per size in the layout.)
+            if cuts.bold == nil, jn.hasPrefix("ms ") || jn.hasPrefix("ｍｓ") || jn.hasPrefix("hg") {
+                let upem: Double = jn.hasPrefix("hg") ? 2048 : 256
+                                face.boldUnitsPerEm = upem
+                face.boldAdvances = cuts.regular.ascii
+                face.boldOtherAdvances = face.otherAdvances
+            }
             if let it = SlideEastAsianWidths.lookupItalic(windowsName(family)) {
                 face.italicAdvances = it.regular.ascii
                 face.boldItalicAdvances = it.bold?.ascii ?? it.regular.ascii

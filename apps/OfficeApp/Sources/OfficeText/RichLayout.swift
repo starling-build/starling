@@ -1214,6 +1214,9 @@ public struct RichResolvedFace: Sendable {
     public var completeCoverage = false
     public var sansClass = false
     public var boldOtherAdvances: [UInt32: Double]? = nil
+    /// A face PowerPoint emboldens by itself with ONE DESIGN UNIT more per advance (lab sbold, kanji-adv2: MS Gothic and MS PGothic 256 units per em, HG Maru Gothic 2048):
+    /// the bold advance is (the regular's units + 1) / this, then the eighth of a point. nil: the face does not.
+    public var boldUnitsPerEm: Double? = nil
     /// Italic's and bold italic's, where the face's differ from the regular's (nil: those are used).
     public var italicOtherAdvances: [UInt32: Double]? = nil
     public var boldItalicOtherAdvances: [UInt32: Double]? = nil
