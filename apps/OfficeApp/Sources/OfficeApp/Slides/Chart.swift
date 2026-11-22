@@ -1490,6 +1490,14 @@ enum ChartXML {
                 let own = plot.children.filter { ["c:valAx", "c:catAx", "c:dateAx"].contains($0.name) && firstAxes.contains($0.first("c:axId")?["val"] ?? "") && !secondAxes.contains($0.first("c:axId")?["val"] ?? "") }
                 plot.children.removeAll { n in own.contains { $0 === n } }
                 plot.children.append(contentsOf: own)
+                // (The category axis that shows its names may be the right group's: b7d6faa9 p16's years stand under the plot on
+                // the axis of the 1e8-unit series, the left group's own axis deleted. Read that one.)
+                let isDeleted: (XNode) -> Bool = { ["1", "true"].contains($0.first("c:delete")?["val"] ?? "") }
+                if let at = plot.children.firstIndex(where: { $0.name == "c:catAx" }), isDeleted(plot.children[at]),
+                   let shown = plot.children.firstIndex(where: { $0.name == "c:catAx" && !isDeleted($0) }) {
+                    let node = plot.children.remove(at: shown)
+                    plot.children.insert(node, at: at)
+                }
             }
         } else if kinds.count != 1 {
             return nil
