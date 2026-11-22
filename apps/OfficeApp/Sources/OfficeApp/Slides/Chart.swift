@@ -3336,7 +3336,13 @@ enum ChartPainter {
             // print — Calibri's line and the gap — where the CJK fallback's
             // taller line set ours 19.05 apart.)
             let latin = styled("X", size, .infinity, bold: c.legendBold, color: c.legendColor, part: "legend")
-            let textH = entries.isEmpty ? size * k : latin.height
+            // (A slide chart set in Malgun Gothic: the legend's line is the face's, 1.3301 em, not the Latin 1.15, so the
+            // row stands higher over the frame's foot, the plot's foot where it was: ko-ab1bf295 p6, legend baseline 459.2
+            // against PowerPoint's 458.8, ours 461.4 before.)
+            let malgun = c.onSlide && !["r", "l", "tr"].contains(c.legendPosition) && c.legendBox == nil
+                && ["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased())
+            let latinH = entries.isEmpty ? size * k : latin.height
+            let textH = max(latinH, malgun ? 1.3301 * size * k : 0)
             latin.dispose()
             // (On a sheet a legend beside the plot sets its entries 1.2213 x the size + 5.88 pt apart: Excel's
             // COM readback of the lab legend, 8, 10 and 14 pt at 15.67, 18.08, 22.92 — ours 14.5, 16.5, 21.5.)
@@ -3517,7 +3523,7 @@ enum ChartPainter {
                 // (A Word pie's legend takes no more room from it past seven rows: lab piesize3's eight
                 // 40-character entries leave it as seven do, R 16.80 and centre 128.71 in both.)
                 let roomRows = c.type == .pie && box == nil && !c.onSlide && !c.onSheet ? min(lines.count, 7) : lines.count
-                let yRoom = y + lineH * Double(lines.count - roomRows)
+                let yRoom = y + lineH * Double(lines.count - roomRows) + (textH - latinH) * Double(lines.count)
                 area = Rect.fromLTRB(area.left, area.top, area.right, yRoom - (printed && old ? 9.55 : 8.4) * k - 2.23 * pt)
                 if bareLegend { y += 1.2 * k }
                 // (A grid's last row has no 6 pt gap under it: 0338b5a8 p5's rows stand 6 pt lower in PowerPoint's print.)
