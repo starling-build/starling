@@ -2862,7 +2862,7 @@ private struct SlideContext {
                     // "（複數決標屬採購策略）" stays on one line in a 149 pt cell, PowerPoint's print; lab zhhang.)
                     if p.all("a:r").contains(where: { r in
                         (r.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("zh")
-                            && (r.first("a:t")?.text ?? "").unicodeScalars.contains(where: { [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009].contains($0.value) }) }) {
+                            && (r.first("a:t")?.text ?? "").unicodeScalars.contains(where: { [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009, 0xFF1A, 0xFF1B, 0xFF01, 0xFF1F].contains($0.value) }) }) {
                         para.style.eastAsian["a:hangClosingZh"] = "1"
                     }
                     if !text.isEmpty, let algn = p.first("a:pPr")?["fontAlgn"], algn == "t" || algn == "ctr" || algn == "b",
@@ -3998,7 +3998,7 @@ private struct SlideContext {
             // faces in zh-TW and zh-CN. It follows the language of the run that holds the mark.)
             if p.all("a:r").contains(where: { r in
                 (r.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("zh")
-                    && (r.first("a:t")?.text ?? "").unicodeScalars.contains(where: { [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009].contains($0.value) }) }) {
+                    && (r.first("a:t")?.text ?? "").unicodeScalars.contains(where: { [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009, 0xFF1A, 0xFF1B, 0xFF01, 0xFF1F].contains($0.value) }) }) {
                 style.eastAsian["a:hangClosingZh"] = "1"
             }
             if (p.first("a:pPr")?["eaLnBrk"] ?? level.eaLnBrk) == "0" { style.eastAsian["a:eaLnBrk"] = "0" }
