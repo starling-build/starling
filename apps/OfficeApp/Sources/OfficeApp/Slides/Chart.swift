@@ -611,6 +611,8 @@ struct Chart: Equatable {
     /// The face the axes' or legend's own text properties name, where the chart
     /// as a whole names none (LibreOffice's: `a:latin` Arial on each).
     var axisFont: String? = nil
+    /// On a slide, the face a part's own txPr names ("val", "cat", "legend"), when the chart has no face of its own.
+    var partFaces: [String: String] = [:]
     var boxInclusive = false
     var boxMeans = true
     var boxOutliers = true
@@ -1951,6 +1953,11 @@ enum ChartXML {
         func face(_ f: String?) -> String? { f.flatMap { $0.hasPrefix("+") || $0.isEmpty ? nil : $0 } }
         c.font = face(spaceRun?.first("a:latin")?["typeface"])
         c.axisFont = c.font == nil ? (plot.children.filter { ["c:catAx", "c:valAx"].contains($0.name) }.map { $0.first("c:txPr") } + [chart.first("c:legend")?.first("c:txPr")]).lazy.compactMap { face($0?.descendant("a:latin")?["typeface"]) }.first : nil
+        if c.font == nil {
+            for (key, node) in [("val", plot.children.first { $0.name == "c:valAx" }), ("cat", plot.children.first { $0.name == "c:catAx" }), ("legend", chart.first("c:legend"))] {
+                if let f = face(node?.first("c:txPr")?.descendant("a:latin")?["typeface"]) { c.partFaces[key] = f }
+            }
+        }
         func eastAsian(_ n: XNode) -> Bool {
             if n.name == "a:defRPr" || n.name == "a:rPr", let l = n["lang"]?.lowercased(),
                l.hasPrefix("zh") || l.hasPrefix("ja") || l.hasPrefix("ko") { return true }
@@ -2864,10 +2871,13 @@ enum ChartPainter {
         let font = OfficeFonts.substitute(c.font ?? (c.onSheet ? nil : c.axisFont) ?? theme.bodyFont)
         // Letters one by one, as PowerPoint sets them: no "ﬁ" in "Defined".
         let plain = [FontFeature("liga", 0), FontFeature("clig", 0)]
-        func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil, align: TextAlign = .center, maxLines: Int? = nil, windowsLines: Bool = false, mixedLine: Double = 1.3301 * 1.3, family: String? = nil, tall: Bool = false) -> TextPainter {
+        func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil, part: String? = nil, align: TextAlign = .center, maxLines: Int? = nil, windowsLines: Bool = false, mixedLine: Double = 1.3301 * 1.3, family: String? = nil, tall: Bool = false) -> TextPainter {
+            // (A part's face is its own txPr's: PowerPoint sets a value axis or legend with no face of its own in the theme's, not in the face
+            // the category axis names. es 3df36ff6 p5: Trebuchet on the categories and labels, Calibri on the percent axis and the legend.)
+            let partFont = part != nil && c.onSlide && c.font == nil && c.axisFont != nil ? OfficeFonts.substitute(c.partFaces[part!] ?? theme.bodyFont) : font
             let style = Flutter.TextStyle(
                 color: color ?? ink, fontSize: max(3, size * k), fontWeight: bold ? .bold : .normal,
-                height: family == nil ? (tall && c.onSlide && ["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased()) ? 1.3301 * 1.3 : nil) : 24.4 / 18, fontFeatures: plain, fontFamily: family.map { OfficeFonts.substitute($0) } ?? font, fontFamilyFallback: Self.glyphFallback(c))
+                height: family == nil ? (tall && c.onSlide && ["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased()) ? 1.3301 * 1.3 : nil) : 24.4 / 18, fontFeatures: plain, fontFamily: family.map { OfficeFonts.substitute($0) } ?? partFont, fontFamilyFallback: Self.glyphFallback(c))
             var span = windowsLines ? Self.labelSpan(c, s, style, mixedLine: mixedLine) : TextSpan(text: s, style: style)
             // (A Japanese or Korean face the machine lacks (Meiryo, Yu Gothic, MS Gothic...): each character is spaced out or in to the face's own
             // advance, as PowerPoint's print sets it, not the stand-in's: Meiryo's labels are wider than Carlito's.)
@@ -3066,7 +3076,7 @@ enum ChartPainter {
             // In the legend's own size, its keys and gaps in proportion.
             let size = c.legendSize ?? c.baseTextSize, m = size / 12
             var entries = names.enumerated().filter { !c.hiddenLegendEntries.contains($0.offset) }
-                .map { (i: $0.offset, tp: styled($0.element, size, .infinity, bold: c.legendBold, color: c.legendColor)) }
+                .map { (i: $0.offset, tp: styled($0.element, size, .infinity, bold: c.legendBold, color: c.legendColor, part: "legend")) }
             // (9.5 between a row's entries on a newer chart: chart-slide-bg's
             // legend pitches 58.6 pt in PowerPoint's print, ours 60.9 at 12.)
             // Beside the plot (`legendPos` r, l, tr): a column, an entry to
@@ -3134,7 +3144,7 @@ enum ChartPainter {
                     guard e.tp.width > wrapW + 0.01 else { return e }
                     RuleTrace.hit("word-pie-side-legend-name-wraps-at-a-third-of-the-frame")
                     e.tp.dispose()
-                    return (i: e.i, tp: styled(names[e.i], size, wrapW, bold: c.legendBold, color: c.legendColor, align: .left, windowsLines: true))
+                    return (i: e.i, tp: styled(names[e.i], size, wrapW, bold: c.legendBold, color: c.legendColor, part: "legend", align: .left, windowsLines: true))
                 }
             }
             // (A Word pie's legend in a box of its own: the names wrap in the box less the key's room and 0.65 of the size,
@@ -3147,7 +3157,7 @@ enum ChartPainter {
                     guard lead + inset + e.tp.width > box.width + 0.01 else { return e }
                     RuleTrace.hit("word-pie-box-legend-name-wraps-inside-the-box")
                     e.tp.dispose()
-                    return (i: e.i, tp: styled(names[e.i], size, max(size * k, box.width - lead - inset), bold: c.legendBold, color: c.legendColor, align: .left, windowsLines: true))
+                    return (i: e.i, tp: styled(names[e.i], size, max(size * k, box.width - lead - inset), bold: c.legendBold, color: c.legendColor, part: "legend", align: .left, windowsLines: true))
                 }
             } else if let box {
                 entries = entries.map { e in
@@ -3156,7 +3166,7 @@ enum ChartPainter {
                     // (Word's box holds the lines its height allows, the last ending in an
                     // ellipsis: lo long_legendentry's name, in a box two lines tall, is
                     // "Data series" over "with a…".)
-                    let wrapped = styled(names[e.i], size, max(size * k, box.width - lead), bold: c.legendBold, color: c.legendColor, align: .left, windowsLines: true)
+                    let wrapped = styled(names[e.i], size, max(size * k, box.width - lead), bold: c.legendBold, color: c.legendColor, part: "legend", align: .left, windowsLines: true)
                     let each = wrapped.height / Double(max(1, wrapped.computeLineMetrics().count))
                     let room = Int((box.height / each).rounded(.down))
                     guard !c.onSlide, !c.onSheet, room >= 1 else { return (i: e.i, tp: wrapped) }
@@ -3165,13 +3175,13 @@ enum ChartPainter {
                     // "Data series with" fits the box and not the room after that inset, so
                     // the name is three lines in two, "Data series" over "with a…".)
                     let inset = 0.65 * size * k
-                    let narrowed = styled(names[e.i], size, max(size * k, box.width - lead - inset), bold: c.legendBold, color: c.legendColor, align: .left, windowsLines: true)
+                    let narrowed = styled(names[e.i], size, max(size * k, box.width - lead - inset), bold: c.legendBold, color: c.legendColor, part: "legend", align: .left, windowsLines: true)
                     let overfull = narrowed.computeLineMetrics().count > room
                     narrowed.dispose()
                     guard overfull else { return (i: e.i, tp: wrapped) }
                     wrapped.dispose()
                     RuleTrace.hit("word-legend-name-ends-in-an-ellipsis-where-its-box-is-full")
-                    return (i: e.i, tp: styled(names[e.i], size, max(size * k, box.width - lead - inset), bold: c.legendBold, color: c.legendColor, align: .left, maxLines: room, windowsLines: true))
+                    return (i: e.i, tp: styled(names[e.i], size, max(size * k, box.width - lead - inset), bold: c.legendBold, color: c.legendColor, part: "legend", align: .left, maxLines: room, windowsLines: true))
                 }
             }
             // A column beside stacked columns (or areas) reads as the stack
@@ -3235,7 +3245,7 @@ enum ChartPainter {
             // zh-37b6536f's Chinese entries, 9pt, stand 16.8 apart in Word's
             // print — Calibri's line and the gap — where the CJK fallback's
             // taller line set ours 19.05 apart.)
-            let latin = styled("X", size, .infinity, bold: c.legendBold, color: c.legendColor)
+            let latin = styled("X", size, .infinity, bold: c.legendBold, color: c.legendColor, part: "legend")
             let textH = entries.isEmpty ? size * k : latin.height
             latin.dispose()
             // (On a sheet a legend beside the plot sets its entries 1.2213 x the size + 5.88 pt apart: Excel's
@@ -3599,7 +3609,7 @@ enum ChartPainter {
         } else if c.type == .radar {
             _radar(c, canvas, area, k: k, theme: theme, grid: c.gridColor ?? (c.onSlide && !c.styled2013 && c.officeStyled ? Color(0xFF868686) : grid),
                    text: { styled($0, $1, $2, bold: false, color: c.valueLabelColor) },
-                   categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor) })
+                   categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor, part: "cat") })
         } else if pie, let tilt = c.pieTilt {
             // A 3-D pie's plot is the box the tilted disc stands in, a
             // little inside the room left to it (LIBRE_OFFICE-100610-0's
@@ -3629,8 +3639,8 @@ enum ChartPainter {
         } else {
             _axes(c, canvas, area, frame: r, k: k, theme: theme, titleLines: titleLines, grid: c.gridColor ?? grid, text: text,
                    titleText: { styled($0, c.onSheet && c.bareAxisTitle ? $1 * 0.9 : $1, $2, bold: false, color: c.onSlide || c.onSheet ? nil : c.axisTitleColor, family: c.onSheet && c.bareAxisTitle ? "Arial" : nil) },
-                  categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor, windowsLines: true, mixedLine: 1.494) },
-                  valueText: { styled($0, $1, $2, bold: c.valueLabelBold, color: c.valueLabelColor, tall: true) })
+                  categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor, part: "cat", windowsLines: true, mixedLine: 1.494) },
+                  valueText: { styled($0, $1, $2, bold: c.valueLabelBold, color: c.valueLabelColor, part: "val", tall: true) })
         }
         if c.pivotButtons.count == 2 {
             // (White, ruled in the grid's grey, 13.8 pt high: the value field's over the plot's
