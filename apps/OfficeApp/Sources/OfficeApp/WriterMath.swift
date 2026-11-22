@@ -725,9 +725,13 @@ enum WriterMath {
             // the scripts' own heights, ours went 6.9 down and its line
             // took a second grid pitch.)
             let both = sub != nil && sup != nil ? size * 0.1 : 0
-            let up = fixed?.0 ?? max(size * 0.38, base.ascent - size * 0.95 + size * 0.38) + both
+            // (Slides, Cambria Math: PowerPoint's print of 92ee258e p6 (18 pt) lifts a lone superscript 0.30 em, and with a subscript beside it
+            // 0.367 em while the subscript stays where it is alone: 6.6 pt up and 3.7 down, ours were 8.2 and 5.6.)
+            let slideTight = WriterMath.slideScope && WriterMath.windows && fixed == nil
+            let upEm = slideTight ? (sub != nil ? 0.367 : 0.30) : 0.38
+            let up = fixed?.0 ?? max(size * upEm, base.ascent - size * 0.95 + size * upEm) + (slideTight ? 0 : both)
             let baseDepth = base.descent
-            let down = fixed?.1 ?? max(size * 0.18, baseDepth - size * 0.22 + size * 0.18) + both
+            let down = fixed?.1 ?? max(size * 0.18, baseDepth - size * 0.22 + size * 0.18) + (slideTight ? 0 : both)
             var parts: [Box] = []
             // (Drawn subscript first, as Word's print sets them: its glyphs come out base,
             // subscript with its own scripts, then the superscript — lo-4aa628bd's
