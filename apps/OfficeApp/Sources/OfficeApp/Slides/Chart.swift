@@ -57,6 +57,16 @@ struct PatternInk: Equatable {
 
 struct ChartTrendline: Equatable { var color: Color?; var width: Double }
 
+/// A series' error bars (`c:errBars`), by point: how far each reaches above (plus) and below (minus) its value, in the
+/// value's own units; nil or 0 draws none. The line is the file's (`c:spPr/a:ln`), the cap its `c:noEndCap`.
+struct ChartErrBars: Equatable {
+    var plus: [Double?]
+    var minus: [Double?]
+    var noCap = false
+    var color: Color? = nil
+    var width = 0.75
+}
+
 struct ChartSeries: Equatable {
     static let labelValueMark = "\u{1}V"
     static let labelCellMark = "\u{1}C"
@@ -109,6 +119,7 @@ struct ChartSeries: Equatable {
     struct SegmentDash: Equatable { var dash: String; var width: Double? }
     /// A linear trendline (`c:trendline`): its colour (nil follows the series') and width in points.
     var trendline: ChartTrendline? = nil
+    var errBars: ChartErrBars? = nil
     var lineHidden = false
     /// A line's ends drawn as dots (`a:ln/a:headEnd`, `a:tailEnd` of type oval): their diameter in line widths (sm 2, med 3,
     /// lg 5), 0 for none. Word draws them on the line's first and last points and on the legend's key.
@@ -1710,6 +1721,10 @@ enum ChartXML {
                 s.labelNudges[i] = Offset(x, y)
             }
             s.labelPos = ser.first("c:dLbls")?.first("c:dLblPos")?["val"]
+            // Error bars in the value's direction (a scatter's x bars are not drawn).
+            if let eb = ser.all("c:errBars").first(where: { ($0.first("c:errDir")?["val"] ?? "y") == "y" }) {
+                s.errBars = Self._errBars(eb, values: values, color: color)
+            }
             s.cellLabelsOnly = !s.cellLabels.isEmpty && !["1", "true"].contains(ser.first("c:dLbls")?.first("c:delete")?["val"] ?? "")
             if let d = ser.first("c:dLbls"), !["1", "true"].contains(d.first("c:delete")?["val"] ?? "") {
                 func on(_ n: XNode?) -> Bool { n?.first("c:showVal")?["val"] == "1" || n?.first("c:showPercent")?["val"] == "1" }
@@ -2492,6 +2507,39 @@ enum ChartXML {
         }
         guard let code = val?.descendant("c:formatCode")?.text.trimmingWhitespace(), !code.isEmpty, code.lowercased() != "general" else { return nil }
         return code
+    }
+
+    /// How far a series' error bars reach (`c:errBars`): a fixed amount, a percentage of each value, a multiple of the series'
+    /// standard deviation or standard error, or the file's own lists (`c:plus`, `c:minus`).
+    static func _errBars(_ eb: XNode, values: [Double?], color: (XNode) -> Color?) -> ChartErrBars? {
+        let type = eb.first("c:errBarType")?["val"] ?? "both"
+        let kind = eb.first("c:errValType")?["val"] ?? "fixedVal"
+        let amount = eb.first("c:val")?["val"].flatMap(Double.init) ?? 1
+        let nums = values.compactMap { $0 }
+        func list(_ n: XNode?) -> [Double?] { n.map(_points)?.map { $0.flatMap { Double($0.trimmingWhitespace()) } } ?? [] }
+        var plus = [Double?](), minus = [Double?]()
+        switch kind {
+        case "cust":
+            plus = list(eb.first("c:plus")); minus = list(eb.first("c:minus"))
+        case "percentage":
+            plus = values.map { $0.map { abs($0) * amount / 100 } }; minus = plus
+        case "stdDev", "stdErr":
+            guard nums.count > 1 else { return nil }
+            let mean = nums.reduce(0, +) / Double(nums.count)
+            let sd = (nums.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / Double(nums.count - 1)).squareRoot()
+            let d = kind == "stdDev" ? sd * amount : sd / Double(nums.count).squareRoot()
+            plus = values.map { $0 == nil ? nil : d }; minus = plus
+        default:
+            plus = values.map { $0 == nil ? nil : amount }; minus = plus
+        }
+        if type == "plus" { minus = [] } else if type == "minus" { plus = [] }
+        guard plus.contains(where: { ($0 ?? 0) != 0 }) || minus.contains(where: { ($0 ?? 0) != 0 }) else { return nil }
+        var out = ChartErrBars(plus: plus, minus: minus)
+        out.noCap = ["1", "true"].contains(eb.first("c:noEndCap")?["val"] ?? "0")
+        let ln = eb.first("c:spPr")?.first("a:ln")
+        out.color = ln?.first("a:solidFill").flatMap { color($0) }
+        out.width = ln?["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
+        return out
     }
 
     private static func _points(_ node: XNode) -> [String?] {
@@ -4578,7 +4626,15 @@ enum ChartPainter {
                 hi = max(hi, pos); lo = min(lo, neg)
             }
         } else {
-            let all = c.series.flatMap { $0.values.compactMap { $0 } }
+            var all = c.series.flatMap { $0.values.compactMap { $0 } }
+            // (Error bars reach the axis' range: bab9be95 p15's values 0.65 to 0.81 with bars of up to 0.018 print 60% to 85%.)
+            for ser in c.series {
+                guard let eb = ser.errBars else { continue }
+                for (i, v) in ser.values.enumerated() {
+                    guard let v else { continue }
+                    all.append(v + ((eb.plus[safe: i] ?? nil) ?? 0)); all.append(v - ((eb.minus[safe: i] ?? nil) ?? 0))
+                }
+            }
             lo = all.min() ?? 0; hi = all.max() ?? 1
         }
         // (The lines over a combination's columns share the axis — unless
@@ -6285,6 +6341,32 @@ enum ChartPainter {
                         line.strokeWidth = max(0.25, c.series[j].outlineWidth * k)
                         line.color = o
                         canvas.drawRect(rect, line)
+                    }
+                    if let eb = c.series[j].errBars {
+                        // Error bars from the bar's end: a line each way, a cap across each (PowerPoint's caps are 5 pt wide).
+                        let ln = Paint()
+                        ln.style = .stroke
+                        ln.strokeWidth = max(0.25, eb.width * k)
+                        ln.color = eb.color ?? Color(0xFF595959)
+                        let from = vpos(c.stacked ? b : v)
+                        let cap = (eb.noCap ? 0 : 2.5) * k
+                        func errLine(_ amount: Double?, _ sign: Double) {
+                            guard let amount, amount != 0 else { return }
+                            let end = vpos((c.stacked ? b : v) + sign * scaled(abs(amount), i))
+                            let q = Path()
+                            if horizontal {
+                                let y = rect.center.dy
+                                q.moveTo(from, y); q.lineTo(end, y)
+                                if cap > 0 { q.moveTo(end, y - cap); q.lineTo(end, y + cap) }
+                            } else {
+                                let x = rect.center.dx
+                                q.moveTo(x, from); q.lineTo(x, end)
+                                if cap > 0 { q.moveTo(x - cap, end); q.lineTo(x + cap, end) }
+                            }
+                            canvas.drawPath(q, ln)
+                        }
+                        // (A negative value's "plus" runs up the page all the same: the file's plus is on the value axis' positive side.)
+                        errLine(eb.plus[safe: i] ?? nil, 1); errLine(eb.minus[safe: i] ?? nil, -1)
                     }
                     // (A point's own label, written out, takes the place of the cell-range text drawn inside the bar.)
                     if c.series[j].labelParts[i] == nil, let t = c.series[j].cellLabels[i] { cellLabels.append((t, rect, c.series[j])) }
