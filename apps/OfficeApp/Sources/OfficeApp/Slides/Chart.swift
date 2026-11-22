@@ -1439,6 +1439,17 @@ enum ChartXML {
 
     static func read(_ space: XNode, allowEmpty: Bool = false, color: (XNode) -> Color?) -> Chart? {
         guard let chart = space.first("c:chart"), let plot = chart.first("c:plotArea") else { return nil }
+        // (A chart-wide text style with a baseline shift prints every text of the chart at two thirds of its size, as a sub- or
+        // superscript does: zh 18335072f11e p10's lower chart, sizes 12, 16 and 18 pt with baseline -20%, drawn at 8.04, 10.68 and 12 pt
+        // in PowerPoint's print.)
+        if space["textScaled"] == nil, let base = space.first("c:txPr")?.descendant("a:defRPr"), let b = base["baseline"].flatMap(Int.init), b != 0 {
+            space.attrs["textScaled"] = "1"
+            func scale(_ n: XNode) {
+                if n.name == "a:defRPr" || n.name == "a:rPr", let sz = n["sz"].flatMap(Double.init) { n.attrs["sz"] = String(Int((sz * 2 / 3).rounded())) }
+                n.children.forEach(scale)
+            }
+            scale(space)
+        }
         // (A scatter group none of whose series draws anything — no line, no marks — is a sizing aid Excel keeps on
         // a pair of axes of its own, chart-tdf140489's "YearSizing": it and those axes are left out, and the rest is
         // plotted against its own.)
@@ -3531,6 +3542,13 @@ enum ChartPainter {
                     // (The plot stands clear of the legend's row and of its box, whichever ends lower: ko-c03ed80e p21's box ends
                     // 239.8 and PowerPoint's plot starts at 239.6, ours 9.6 pt higher on the row alone; ko-e114b968 p23's row ends lower.)
                     area = Rect.fromLTRB(area.left, max(area.top + lineH * Double(lines.count) + 6 * k, c.legendBox.map { r.top + ($0.top + $0.height) * r.height } ?? 0), area.right, area.bottom)
+                }
+                // (A slide's chart left to PowerPoint's layout, its legend below in a box of its own: the plot and its labels end where
+                // the no-box legend's row would start, above the box: zh 18335072f11e p10's box starts 282.5 pt, PowerPoint's category
+                // labels end 276, ours ran down to 294 over the legend.)
+                if !pie, c.onSlide, !c.onSheet, c.plotLayout == nil, c.legendPosition == "b", !c.legendOverlay, let box = c.legendBox {
+                    RuleTrace.hit("slide-placed-bottom-legend-keeps-its-row-below-the-plot")
+                    area = Rect.fromLTRB(area.left, area.top, area.right, min(area.bottom, r.top + box.top * r.height - 8.4 * k - 2.23))
                 }
                 if !pie, !c.onSlide, !c.onSheet, c.plotLayout == nil, c.legendPosition == "b" {
                     RuleTrace.hit("legend-box-keeps-its-row-below-the-plot")
