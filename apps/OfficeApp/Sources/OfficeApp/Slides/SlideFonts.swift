@@ -50,11 +50,33 @@ enum SlideFonts {
     /// PowerPoint for Windows has no DejaVu Sans and prints it as Verdana
     /// (Matrix's theme face, tdf134862's runs: the print's face is Verdana);
     /// its metrics and widths are Verdana's.
-    /// Faces whose vertical header (vhea) has a NEGATIVE descent: PowerPoint sets an eaVert column in them as one sideways (turned) run,
-    /// where MS Gothic, MS PGothic, MS Mincho, Yu Gothic and Malgun (positive descent) stand upright. Lab rt (2026-11-22): Meiryo,
-    /// Meiryo UI and HG Maru Gothic M-PRO print sideways, short or long; the others upright. Metrics only, no font files.
+    /// PowerPoint (Windows) sets an eaVert column in a CLOUD-delivered face as one sideways (turned) run, and in a face installed with
+    /// Windows upright. Lab vface (2026-11-22, print box): sideways exactly MS Mincho, Batang, Gulim, Meiryo (cloud-only there); upright
+    /// SimHei (its system copy wins over the cloud one), MingLiU, PMingLiU, JhengHei, YaHei, SimSun, DFKai-SB, Yu Gothic, Malgun, MS Gothic.
+    /// The origin of each face is DATA measured on that box (cjk-vertical-features-20261122.tsv): it reflects that box, not Office.
+    /// A face with no entry is taken as installed (upright). Metrics only, no font files.
+    static let cloudOnlyFaces: Set<String> = [
+        "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝", "batang", "바탕", "batangche", "바탕체", "gulim", "굴림", "gulimche", "굴림체",
+        "meiryo", "meiryo ui", "メイリオ", "hg丸ゴシックm-pro", "hg丸ｺﾞｼｯｸm-pro", "hgmarugothicmpro",
+    ]
+
     static func setsEastAsianVerticalSideways(_ family: String) -> Bool {
-        ["meiryo", "meiryo ui", "メイリオ", "hg丸ゴシックm-pro", "hg丸ｺﾞｼｯｸm-pro", "hgmarugothicmpro"].contains(family.trimmingWhitespace().lowercased())
+        cloudOnlyFaces.contains(family.trimmingWhitespace().lowercased())
+    }
+
+    /// An upright eaVert column's line in PowerPoint's print (lab vface): the glyph is centred in a column of (win ascent + win descent)
+    /// plus 0.2 em, from the column's right edge, and stands (win ascent - 0.8 em) down from the column's top. Win metrics over em by face
+    /// (vertical tables, cjk-line-20261122; Yu Gothic's descent from its measured column).
+    static func uprightColumn(_ family: String, bold: Bool) -> (ascent: Double, line: Double)? {
+        switch windowsName(family) {
+        case "microsoft jhenghei", "微軟正黑體": return (2203.0 / 2048, 2724.0 / 2048)
+        case "microsoft yahei", "微软雅黑": return (2167.0 / 2048, 2703.0 / 2048)
+        case "malgun gothic", "맑은 고딕": return (2229.0 / 2048, 2724.0 / 2048)
+        case "yu gothic", "游ゴシック": return ((bold ? 2024.0 : 2017.0) / 2048, 2632.0 / 2048)
+        case "simsun", "宋体", "simhei", "黑体", "nsimsun", "ms gothic", "ｍｓ ゴシック", "ms pgothic", "ｍｓ ｐゴシック", "ms ui gothic", "ｍｓ ｕｉ ゴシック": return (220.0 / 256, 1)
+        case "mingliu", "細明體", "pmingliu", "新細明體", "dfkai-sb", "標楷體": return (820.0 / 1024, 1)
+        default: return nil
+        }
     }
 
     static func windowsName(_ family: String) -> String {

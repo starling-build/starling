@@ -333,6 +333,8 @@ public final class RichTextTheme {
     /// line's baseline by the face it names: Verdana's at 0.83 of the
     /// line, where DejaVu Sans, drawing it, has 0.80.
     public var ownDescentShare: ((String) -> Double?)? = nil
+    /// Slides: an upright East Asian column's own line, in em, by face and weight: usWinAscent and usWinAscent + usWinDescent (nil: unknown).
+    public var uprightColumn: ((String, Bool) -> (ascent: Double, line: Double)?)? = nil
     /// Slides: a face whose first baseline scales with a shrink's line spacing, with no floor under it (see `baselineShift`).
     public var baselineScalesWithSpacing: ((String) -> Bool)? = nil
     /// Slides: the share of a spacing over single's extra that stands

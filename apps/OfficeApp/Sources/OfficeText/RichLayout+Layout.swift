@@ -1569,15 +1569,22 @@ extension RichLayout {
             // Yu Gothic is the face with both: hhea lineGap 1024/2048 and win ascent 2017 (Regular) / 2024 (Bold) over hhea 1802, so 0.25 em
             // across and 0.105 / 0.108 em along. Meiryo, MS Gothic/PGothic/Mincho, HGMaruGothicMPRO and Malgun have win = hhea and no gap, so
             // zero, as printed (vertical tables cjk-vertical-20261122; 9047d9e7 p6, 5df7b42e, 998cb8cc, b993c440, 5bdba90e).)
-            let yuSlide = !theme.wordRules && uprightIdeographs && (styles[k].map { st in
-                var f = (st.debugLabel ?? st.fontFamily ?? "").lowercased()
+            // (Slides: the column's own line, `theme.uprightColumn`: the glyph is centred in win ascent + descent + 0.2 em from the column's
+            // right edge and stands (win ascent - 0.876 em) lower than the engine's unshifted place, as printed in lab vface 2026-11-22.)
+            let column: (ascent: Double, line: Double)? = theme.wordRules || !uprightIdeographs ? nil : styles[k].flatMap { st in
+                var f = (st.debugLabel ?? st.fontFamily ?? "")
                 while f.hasSuffix(".copyWith") { f = String(f.dropLast(9)); if f.hasPrefix("("), f.hasSuffix(")") { f = String(f.dropFirst().dropLast()) } }
-                return f.containsSubstring("yu gothic") || f.containsSubstring("游ゴシック")
-            } ?? false)
-            let yuBold = styles[k].map { ($0.fontWeight?.value ?? 400) >= 600 } ?? false
-            let yuAlong = yuSlide ? (yuBold ? 222.0 : 215.0) / 2048 : 0
-            let yuAcross = yuSlide ? 0.5 / 2 : 0
-            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em + yuAlong * em, origin.dy + acrossC(box, em, k) + rubyColumnShift(k) + (plain ? 0.085 * em : 0) + sharedShift(k) + yuAcross * em)
+                return theme.uprightColumn?(f, (st.fontWeight?.value ?? 400) >= 600)
+            }
+            var columnAcross = acrossC(box, em, k)
+            if let column {
+                let mid = (box.top + box.bottom) / 2
+                if let line = lineMetrics.first(where: { mid >= $0.baseline - $0.ascent - 0.5 && mid <= $0.baseline + $0.descent + 0.5 }) {
+                    columnAcross = line.baseline - line.ascent + (column.line + 0.2) / 2 * em + (styles[k]?.baselineShift ?? 0)
+                }
+            }
+            let yuAlong = column.map { $0.ascent - 0.876 } ?? 0
+            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em + yuAlong * em, origin.dy + columnAcross + rubyColumnShift(k) + (plain ? 0.085 * em : 0) + sharedShift(k))
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
             canvas.restore()
