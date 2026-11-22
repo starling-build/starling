@@ -2563,7 +2563,7 @@ private struct SlideContext {
                         text += t
                         runs.append(Run(length: t.utf16.count, style: CharStyle(
                             bold: s.bold ?? false, italic: s.italic ?? false, underline: s.underline ?? false,
-                            fontFamily: _font(s.font), fontSize: s.size ?? 18,
+                            fontFamily: _font(s.font, lang: s.lang), fontSize: s.size ?? 18,
                             color: s.color ?? colors.scheme("tx1"), letterSpacing: s.spc.flatMap { $0 != 0 ? $0 : nil })))
                         // (Kerned from the size `kern` says up, as a text box's runs.)
                         if Self._unkerned(_font(s.font), bold: s.bold ?? false) {
@@ -3520,6 +3520,18 @@ private struct SlideContext {
         return false
     }
 
+    /// A run's Latin face. A Latin slot that points at the theme's East Asian face (+mn-ea) where that names nothing is
+    /// the theme's face for the run's language script, as for its East Asian letters: ja 24b61c69 p8's runs (lang ja-JP,
+    /// latin and ea both +mn-ea over a theme with an empty ea and Jpan MS PGothic) set their digits and （，） in MS PGothic.
+    private func _font(_ f: String?, lang: String?) -> String {
+        if f == "+mn-ea" || f == "+mj-ea" {
+            let table = f == "+mj-ea" ? theme.majorScript : theme.minorScript
+            let l = (lang ?? "").lowercased()
+            if (table["ea"] ?? "").isEmpty, l.hasPrefix("ja"), let j = table["Jpan"], !j.isEmpty { return j }
+        }
+        return _font(f)
+    }
+
     private func _font(_ f: String?) -> String {
         switch f {
         case nil, "+mn-lt", "+mn-ea", "+mn-cs": return theme.minor
@@ -3750,7 +3762,7 @@ private struct SlideContext {
                 let s = r.filled(from: level)
                 var cs = CharStyle(bold: s.bold ?? false, italic: s.italic ?? false,
                                    underline: s.underline ?? false, strikethrough: s.strike ?? false,
-                                   fontFamily: _font(s.font), fontSize: ((s.size ?? 18) * 10).rounded() / 10,
+                                   fontFamily: _font(s.font, lang: s.lang), fontSize: ((s.size ?? 18) * 10).rounded() / 10,
                                    color: s.color ?? tx1)
                 if let b = s.baseline { cs.script = b > 0 ? .superscript : b < 0 ? .subscript : .normal }
                 if let spc = s.spc, spc != 0 { cs.letterSpacing = spc }
