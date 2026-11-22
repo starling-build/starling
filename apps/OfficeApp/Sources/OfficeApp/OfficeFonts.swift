@@ -4274,6 +4274,9 @@ static let sylfaenAdvances: [Double] = [
         face.joinedHeight = 0.5
         if asked == "traditional arabic" {
             face.joinedAdvances = WindowsArabicAdvances.tradArabic
+            face.joinedSpaceEm = 0.2441
+            face.joinedWords = TraditionalArabicShapedWords.regular
+            face.boldJoinedWords = TraditionalArabicShapedWords.bold
             face.boldJoinedAdvances = WindowsArabicAdvances.tradArabicBold
             face.joinedClusters = WindowsArabicAdvances.tradArabicClusters
             face.boldJoinedClusters = WindowsArabicAdvances.tradArabicBoldClusters
@@ -4283,16 +4286,21 @@ static let sylfaenAdvances: [Double] = [
             face.joinedAdvances = WindowsArabicAdvances.simplifiedArabic
             face.boldJoinedAdvances = WindowsArabicAdvances.simplifiedArabicBold
             face.joinedSpaceEm = 0.3174
+            face.joinedWords = SimplifiedArabicShapedWords.regular
+            face.boldJoinedWords = SimplifiedArabicShapedWords.bold
             face.baseline = 2416.0 / 2048; face.ownLineBaseline = true
         } else if asked == "arabic typesetting" {
             face.joinedAdvances = WindowsArabicAdvances.arabicTypesetting
+            face.joinedSpaceEm = 0.2017
+            face.joinedWords = ArabicTypesettingShapedWords.regular
+            face.boldJoinedWords = ArabicTypesettingShapedWords.regular
             face.boldJoinedAdvances = WindowsArabicAdvances.arabicTypesetting
             face.baseline = 1435.0 / 2048; face.ownLineBaseline = true
         } else {
             face.advances = sakkalLatinAdvances; face.boldAdvances = sakkalLatinBoldAdvances   // (Sakkal Majalla's own Latin and digit widths, 2023 = 87.4 pt at 54 pt bold)
             face.joinedAdvances = WindowsArabicAdvances.sakkal
             face.boldJoinedAdvances = WindowsArabicAdvances.sakkalBold
-            face.joinedSpaceEm = 0.151
+            face.joinedSpaceEm = 0.1514
             face.joinedWords = SakkalShapedWords.regular
             face.boldJoinedWords = SakkalShapedWords.bold
             face.joinedClusters = WindowsArabicAdvances.sakkalClusters
