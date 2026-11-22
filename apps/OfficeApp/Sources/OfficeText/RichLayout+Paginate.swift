@@ -2225,6 +2225,13 @@ extension RichLayout {
             }
             while cursor < bottom - 0.01 {
                 if leavesLead, pgs.pageFresh, pgs.y < 0.01, pgs.page > 0, cursor <= top + 0.01 { cursor = min(bottom, top + lead) }
+                // (Slides: a paragraph at the top of the second column of a text box starts at the box's top, without its space
+                // before: PowerPoint's print of zh 227cb064 p3 and pt 7eeaa0d9 p17, p18 puts column 2's first line level with column 1's.)
+                else if !theme.wordRules, _columns > 1, pgs.page % _columns != 0, pgs.pageFresh, pgs.y < 0.01, pgs.resumeCursor == nil,
+                        lead > 0.01, cursor <= top + 0.01, _cells[pgs.i] == nil {
+                    RuleTrace.hit("slides-column-top-drops-its-space-before")
+                    cursor = min(bottom, top + lead)
+                }
                 // (A paragraph at the top of a column, by a column break or by the flow,
                 // in a section that starts in the middle of the page, holds none of its
                 // space before there: lo/dx2 99cfc555's Abstract, and "2. Nguyên liệu", 3pt.)
