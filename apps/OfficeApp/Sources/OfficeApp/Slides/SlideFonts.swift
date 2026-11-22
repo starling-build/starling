@@ -307,6 +307,8 @@ enum SlideFonts {
             if family.trimmingWhitespace().lowercased() == "times new roman" {
                 face.joinedAdvances = WindowsArabicAdvances.times
                 face.boldJoinedAdvances = WindowsArabicAdvances.timesBold
+                // (A serif run face draws its Arabic in a serif naskh: Noto Naskh Arabic stands in, not the sans DejaVu.)
+                face.fallback = ["Liberation Serif", "Noto Naskh Arabic", OfficeFonts.emojiPictographs, "DejaVu Sans"]
                 face.joinedHeight = 0.5   // (as Arial's: rtl 2185f496's lines stood 1.4 pt too far apart on the fallback's height)
             }
             return face
