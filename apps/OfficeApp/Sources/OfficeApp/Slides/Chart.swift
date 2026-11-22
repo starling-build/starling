@@ -5093,13 +5093,14 @@ enum ChartPainter {
                 // 5.5, 6.2 and 5.1 pt right of ours in tdf119138, 57362 and tdf100084, their plots' left 5.3.)
                 // (On a slide too, 5.4: en/bab9be95's two y titles, 14 pt in two lines and 11 pt in one, stand 5.7 pt
                 // right of ours in PowerPoint's print, their plots' left 5.1.)
-                let inset = c.onSheet ? 5.8 * k : c.onSlide && c.type == .scatter ? 5.4 * k : c.onSlide && c.valueAxisTitleSize != nil ? 3.7 * k : 0
+                // (A slide's turned title, size stated, stands 3.6 pt in (a text box's 45720-EMU inset, as the scatter's 5.4 is one and a half of it) and its labels 3.6 pt further on: 458870cc p11 and 6 pages of e365f9b4, 10 pt titles, labels exact on two, titles within 1.2 pt.)
+                let inset = c.onSheet ? 5.8 * k : c.onSlide && c.type == .scatter ? 5.4 * k : c.onSlide && c.valueAxisTitleSize != nil ? 3.6 * k : 0
                 canvas.save()
                 canvas.translate(area.left + inset, area.center.dy - lift + tp.width / 2)
                 canvas.rotate(-.pi / 2)
                 tp.paint(canvas, .zero)
                 canvas.restore()
-                area = Rect.fromLTRB(area.left + inset + tp.height + (c.onSlide && c.type != .scatter && c.valueAxisTitleSize != nil ? 7.9 : 4) * k, area.top, area.right, area.bottom)
+                area = Rect.fromLTRB(area.left + inset + tp.height + (c.onSlide && c.type != .scatter && c.valueAxisTitleSize != nil ? 7.6 : 4) * k, area.top, area.right, area.bottom)
             }
             if deferredValueTitle !== tp { tp.dispose() }
         }
