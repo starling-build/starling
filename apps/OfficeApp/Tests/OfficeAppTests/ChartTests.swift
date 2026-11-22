@@ -149,6 +149,27 @@ final class ChartTests: XCTestCase {
         XCTAssertNil(try chart("").series[0].errBars)
     }
 
+    func testScatterAndLineErrorBarsAreReadAlongTheirDirection() throws {
+        let ns = "xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\""
+        func lit(_ v: [Double]) -> String {
+            "<c:numLit><c:ptCount val=\"\(v.count)\"/>" + v.enumerated().map { "<c:pt idx=\"\($0.offset)\"><c:v>\($0.element)</c:v></c:pt>" }.joined() + "</c:numLit>"
+        }
+        func eb(_ dir: String, _ v: Int) -> String {
+            "<c:errBars>\(dir)<c:errBarType val=\"both\"/><c:errValType val=\"fixedVal\"/><c:val val=\"\(v)\"/></c:errBars>"
+        }
+        let scatter = "<c:chartSpace \(ns)><c:chart><c:plotArea><c:scatterChart><c:scatterStyle val=\"lineMarker\"/><c:ser><c:idx val=\"0\"/><c:order val=\"0\"/>"
+            + eb("<c:errDir val=\"x\"/>", 3) + eb("<c:errDir val=\"y\"/>", 5) + "<c:xVal>\(lit([1, 2, 3]))</c:xVal><c:yVal>\(lit([10, 20, 30]))</c:yVal></c:ser>"
+            + "<c:axId val=\"1\"/><c:axId val=\"2\"/></c:scatterChart><c:valAx><c:axId val=\"1\"/><c:axPos val=\"b\"/></c:valAx><c:valAx><c:axId val=\"2\"/><c:axPos val=\"l\"/></c:valAx></c:plotArea></c:chart></c:chartSpace>"
+        let c = try XCTUnwrap(ChartXML.read(XCTUnwrap(XNode.parse(Data(scatter.utf8))), color: { _ in nil }))
+        XCTAssertEqual(c.series[0].xErrBars?.plus, [3, 3, 3])
+        XCTAssertEqual(c.series[0].errBars?.plus, [5, 5, 5])
+        let line = "<c:chartSpace \(ns)><c:chart><c:plotArea><c:lineChart><c:ser><c:idx val=\"0\"/><c:order val=\"0\"/>" + eb("", 2)
+            + "<c:val>\(lit([1, 2, 3]))</c:val></c:ser><c:axId val=\"1\"/><c:axId val=\"2\"/></c:lineChart><c:catAx><c:axId val=\"1\"/><c:axPos val=\"b\"/></c:catAx><c:valAx><c:axId val=\"2\"/><c:axPos val=\"l\"/></c:valAx></c:plotArea></c:chart></c:chartSpace>"
+        let l = try XCTUnwrap(ChartXML.read(XCTUnwrap(XNode.parse(Data(line.utf8))), color: { _ in nil }))
+        XCTAssertEqual(l.series[0].errBars?.minus, [2, 2, 2])
+        XCTAssertNil(l.series[0].xErrBars)
+    }
+
     /// zh-547fc43c's charts: the unit over the columns is the category
     /// axis's title, placed at the chart's top left and read across; the
     /// line of rates over them shows its values, one moved.

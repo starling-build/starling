@@ -67,6 +67,21 @@ struct ChartErrBars: Equatable {
     var width = 0.75
 }
 
+/// One error bar's stroke from `from` to `end` across `at` (vertical along y, else along x), with PowerPoint's 5 pt caps.
+func chartErrBarPath(_ eb: ChartErrBars, k: Double, vertical: Bool, at: Double, from: Double, end: Double) -> Path {
+    let cap = (eb.noCap ? 0 : 2.5) * k
+    let q = Path()
+    if vertical {
+        q.moveTo(at, from); q.lineTo(at, end)
+        if cap > 0 { q.moveTo(at - cap, end); q.lineTo(at + cap, end) }
+    } else {
+        q.moveTo(from, at); q.lineTo(end, at)
+        if cap > 0 { q.moveTo(end, at - cap); q.lineTo(end, at + cap) }
+    }
+    return q
+}
+
+
 struct ChartSeries: Equatable {
     static let labelValueMark = "\u{1}V"
     static let labelCellMark = "\u{1}C"
@@ -120,6 +135,8 @@ struct ChartSeries: Equatable {
     /// A linear trendline (`c:trendline`): its colour (nil follows the series') and width in points.
     var trendline: ChartTrendline? = nil
     var errBars: ChartErrBars? = nil
+    /// A scatter series' error bars along x (`c:errDir x`), by point.
+    var xErrBars: ChartErrBars? = nil
     var lineHidden = false
     /// A line's ends drawn as dots (`a:ln/a:headEnd`, `a:tailEnd` of type oval): their diameter in line widths (sm 2, med 3,
     /// lg 5), 0 for none. Word draws them on the line's first and last points and on the legend's key.
@@ -1727,9 +1744,17 @@ enum ChartXML {
                 s.labelNudges[i] = Offset(x, y)
             }
             s.labelPos = ser.first("c:dLbls")?.first("c:dLblPos")?["val"]
-            // Error bars in the value's direction (a scatter's x bars are not drawn).
+            // Error bars in the value's direction, and a scatter's along x.
             if let eb = ser.all("c:errBars").first(where: { ($0.first("c:errDir")?["val"] ?? "y") == "y" }) {
                 s.errBars = Self._errBars(eb, values: values, color: color)
+            }
+            if let eb = ser.all("c:errBars").first(where: { $0.first("c:errDir")?["val"] == "x" }) {
+                let own = ser.first("c:xVal").map { Self._points($0).map { $0.flatMap { Double($0.trimmingWhitespace()) } } } ?? []
+                let xv: [Double?] = (0 ..< values.count).map { i in
+                    if let v = own[safe: i] ?? nil { return v }
+                    return categories.indices.contains(i) ? Double(categories[i].trimmingWhitespace()) ?? Double(i + 1) : Double(i + 1)
+                }
+                s.xErrBars = Self._errBars(eb, values: xv, color: color)
             }
             s.cellLabelsOnly = !s.cellLabels.isEmpty && !["1", "true"].contains(ser.first("c:dLbls")?.first("c:delete")?["val"] ?? "")
             if let d = ser.first("c:dLbls"), !["1", "true"].contains(d.first("c:delete")?["val"] ?? "") {
@@ -4845,7 +4870,16 @@ enum ChartPainter {
                 let lo = c.xMin.map(xt) ?? (x.min() ?? 0).rounded(.down), hi = c.xMax.map(xt) ?? (x.max() ?? 1).rounded(.up)
                 xScale = (lo: lo, hi: max(hi, lo + 1), step: 1)
             } else {
-                xScale = scale(x.min() ?? 0, x.max() ?? 1, intervals: 8)
+                var xAll = x
+                // (Error bars along x reach the axis' range, as those along y do.)
+                for (j, ser) in c.series.enumerated() {
+                    guard let eb = ser.xErrBars else { continue }
+                    for i in 0 ..< n where (ser.values[safe: i] ?? nil) != nil {
+                        let v = xt(c.x(j, i))
+                        xAll.append(v + ((eb.plus[safe: i] ?? nil) ?? 0)); xAll.append(v - ((eb.minus[safe: i] ?? nil) ?? 0))
+                    }
+                }
+                xScale = scale(xAll.min() ?? 0, xAll.max() ?? 1, intervals: 8)
                 if c.xMin != nil || c.xMax != nil { xScale = fixedScale(auto: xScale, min: c.xMin, max: c.xMax, step: nil) }
             }
         }
@@ -6563,6 +6597,22 @@ enum ChartPainter {
                     }
                 }
             }
+            if c.type == .line {
+                for j in 0 ..< s {
+                    guard let eb = c.series[j].errBars else { continue }
+                    let ln = Paint()
+                    ln.style = .stroke
+                    ln.strokeWidth = max(0.25, eb.width * k)
+                    ln.color = eb.color ?? Color(0xFF595959)
+                    for i in 0 ..< n {
+                        guard let v = tops[j][i], c.series[j].values[safe: i] ?? nil != nil else { continue }
+                        for (amount, sign) in [(eb.plus[safe: i] ?? nil, 1.0), (eb.minus[safe: i] ?? nil, -1.0)] {
+                            guard let amount, amount != 0 else { continue }
+                            canvas.drawPath(chartErrBarPath(eb, k: k, vertical: true, at: xAt(i), from: vpos(v), end: vpos(v + sign * abs(amount))), ln)
+                        }
+                    }
+                }
+            }
             if c.type == .line || (c.type == .area && !c.lineSeries.isEmpty), !horizontal { paintOverlayLines() }
         case .scatter:
             for j in 0 ..< s {
@@ -6612,6 +6662,22 @@ enum ChartPainter {
                 for i in 0 ..< n {
                     guard let v = c.series[j].values[safe: i] ?? nil else { continue }
                     let x = plot.left + (xt(c.x(j, i)) - xs.lo) / (xs.hi - xs.lo) * plot.width
+                    for (eb, vertical) in [(c.series[j].errBars, true), (c.series[j].xErrBars, false)] {
+                        guard let eb else { continue }
+                        let ln = Paint()
+                        ln.style = .stroke
+                        ln.strokeWidth = max(0.25, eb.width * k)
+                        ln.color = eb.color ?? Color(0xFF595959)
+                        for (amount, sign) in [(eb.plus[safe: i] ?? nil, 1.0), (eb.minus[safe: i] ?? nil, -1.0)] {
+                            guard let amount, amount != 0 else { continue }
+                            if vertical {
+                                canvas.drawPath(chartErrBarPath(eb, k: k, vertical: true, at: x, from: vpos(v), end: vpos(v + sign * abs(amount))), ln)
+                            } else {
+                                let ex = plot.left + (xt(c.x(j, i) + sign * abs(amount)) - xs.lo) / (xs.hi - xs.lo) * plot.width
+                                canvas.drawPath(chartErrBarPath(eb, k: k, vertical: false, at: vpos(v), from: x, end: ex), ln)
+                            }
+                        }
+                    }
                     canvas.drawCircle(Offset(x, vpos(v)), max(1.5, 2.5 * k), fill)
                     if c.onSlide, !c.styled2013, c.officeStyled {
                         let rim = Paint()
