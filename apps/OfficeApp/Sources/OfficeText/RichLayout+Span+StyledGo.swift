@@ -1264,7 +1264,7 @@ extension _StyledFrame {
                 // line fitting asked of this one.
                 // (What the joiner could not give, the quote gives.)
                 extra = led ? min(0, blankShown + (adjust[offset] ?? 0)) : adjust[offset] ?? 0
-                glyphScale = 1
+                glyphScale = 1; glyphSqueeze = 0
                 if quote, !led { extra += blankShown }
                 // (Balanced, a half-width character takes half of the
                 // grid's addition, whatever follows it: on a grid of
