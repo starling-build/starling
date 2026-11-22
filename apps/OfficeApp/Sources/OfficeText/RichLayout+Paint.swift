@@ -1636,6 +1636,12 @@ extension RichLayout {
                 let size = _px(markerChar.fontSize ?? _named(p, document)?.char.fontSize ?? theme.fontSize) / (p.style.bulletStandInScale ?? 1) * fontScale
                 let base = at.dy + marker.computeDistanceToActualBaseline(.alphabetic)
                 let r = Rect.fromLTRB(at.dx + ink[1] * size, base - ink[4] * size, at.dx + ink[3] * size, base - ink[2] * size)
+                // (The glyph stays in the page's text, unseen, as in PowerPoint's print, where the bullet is a letter of the line.)
+                let unseen = TextPainter(text: TextSpan(text: label, style: markerStyle.copyWith(color: Color(0x01000000))),
+                                         textAlign: .right, textDirection: .ltr, strutStyle: g.painter.strutStyle)
+                unseen.textAlign = marker.textAlign
+                unseen.layout(minWidth: 0, maxWidth: max(1, marker.width))
+                unseen.paint(canvas, at)
                 let paint = Paint()
                 paint.color = markerStyle.color ?? Color(0xFF000000)
                 switch Int(ink[0]) {
