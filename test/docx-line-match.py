@@ -291,6 +291,9 @@ def mupdf_glyphs(pdf, drop=None):
                             # (ko-30dac1f5, lo-tdf126234). Invisible text over nothing (a ghost copy) still counts on neither side.
                             shapes = [dr["rect"] for dr in page.get_drawings()
                                       if (dr.get("fill") or dr.get("color")) and dr["rect"].width * dr["rect"].height < 0.5 * page.rect.width * page.rect.height]
+                            # (A picture is ink too: PowerPoint fills a text with a 2x2-pixel picture stretched over it, under invisible
+                            # text, where ours draws the text itself: pt 96dcb877 p5's bullets lines. Only a swatch of a few pixels: a photograph under text is not the text's ink.)
+                            shapes += [pymupdf.Rect(im["bbox"]) for im in page.get_image_info() if im["width"] <= 8 and im["height"] <= 8]
                             for t in page.get_texttrace():
                                 if t["type"] == 3 or t["opacity"] == 0:
                                     for ch in t["chars"]:
