@@ -2163,20 +2163,27 @@ extension RichLayout {
                 // is 1.375 alpha * 2Q(d / sigma), Q the normal tail (fitted to PowerPoint's print of an 18 pt glow, alpha 40%: 0.55, 0.31, 0.07 at 0, 2, 4 pt).)
                 let at0 = path.shift(Offset(origin.dx, origin.dy))
                 let sigma = sh.blur * 0.155 * k
-                let base = Double(sh.color.alpha) / 255 * 1.375
-                func tail(_ z: Double) -> Double { 0.5 * erfc(z / 2.0.squareRoot()) }
-                let steps = 14, reach = 3.0
-                var outer = 0.0
-                let stroke = Paint(); stroke.style = .stroke; stroke.strokeJoin = .round; stroke.strokeCap = .round
-                for n in stride(from: steps, through: 1, by: -1) {
-                    let z = reach * Double(n) / Double(steps)
-                    let target = min(0.95, base * 2 * tail(z - 0.5 * reach / Double(steps)))
-                    let a = 1 - (1 - target) / (1 - outer)
-                    outer = target
-                    guard a > 0.002 else { continue }
-                    stroke.strokeWidth = 2 * z * sigma
-                    stroke.color = Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, a)
-                    canvas.drawPath(at0, stroke)
+                let alpha = Double(sh.color.alpha) / 255
+                // PowerPoint's glow in a PDF is an RGBA picture with a soft mask (print of ko-ca2dc787 p1: 2.8 px a point,
+                // edge opacity 0.55 for a 40% glow, 0.31 and 0.07 at 2 and 4 pt). The blur is drawn into a picture
+                // here and the picture placed, so the PDF holds an image too, not a blur it would drop.
+                let ink = at0.getBounds().inflate(3 * sigma)
+                let px = 2.8 / k
+                let w = max(1, Int((ink.width * px).rounded(.up))), h = max(1, Int((ink.height * px).rounded(.up)))
+                if w * h < 4_000_000 {
+                    let recorder = NativePictureRecorder()
+                    let layer = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, Double(w), Double(h)))
+                    layer.scale(px, px)
+                    layer.translate(-ink.left, -ink.top)
+                    let glow = Paint(); glow.style = .fill
+                    glow.color = Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, min(1, alpha * 2))
+                    glow.maskFilter = MaskFilter(blur: .normal, sigma)
+                    layer.drawPath(at0, glow)
+                    glow.style = .stroke; glow.strokeWidth = sigma; glow.strokeJoin = .round
+                    layer.drawPath(at0, glow)
+                    if let img = recorder.endRecording().toImageSync(width: w, height: h) {
+                        canvas.drawImageRect(img, Rect.fromLTWH(0, 0, Double(w), Double(h)), Rect.fromLTWH(ink.left, ink.top, Double(w) / px, Double(h) / px), Paint())
+                    }
                 }
                 continue
             }
