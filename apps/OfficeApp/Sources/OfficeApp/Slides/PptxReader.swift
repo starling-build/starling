@@ -3482,7 +3482,7 @@ private struct SlideContext {
         // (Archivo Black is heavy as it stands: asked for bold it was
         // thickened again by a stroke, which a translucent fill shows as a
         // darker ring: ThemeColorTransparency.)
-        if cs.fontFamily?.lowercased() == "arial black" {
+        if let f = cs.fontFamily?.lowercased(), f == "arial black" || f == "franklin gothic heavy" {
             cs.bold = !SlideFonts.hasHeavyStandIn
         }
         // (Aptos is no longer tightened by a spacing: it is set at its own measured widths and kern pairs, `SlideFonts.face`.)
