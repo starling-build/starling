@@ -431,6 +431,8 @@ struct Chart: Equatable {
     /// line from each column's end to the next one's start.
     var waterfallTotals: Set<Int>? = nil
     var waterfallConnectors = false
+    /// PowerPoint's legend always lists Total; Excel's only with subtotals.
+    var waterfallLegendTotal = false
     /// An Excel 2016 histogram (clustered columns, binned): its one
     /// series' samples counted into bins, the bins its categories.
     var histogram: HistogramBins? = nil
@@ -2675,8 +2677,8 @@ enum ChartPainter {
         // 2.1 pt lower than 9 put them; one with a legend there keeps 9,
         // chart-slide-bg's labels where PowerPoint's are.)
         let foot = c.onSlide && !(c.legend && c.legendPosition == "b") ? 6.9 : 9.0
-        var area = Rect.fromLTRB(r.left + (old ? 6.5 : 9) * k, r.top + (c.chartex ? 6.8 : 9) * k, r.right - 9 * k,
-                                 r.bottom - (old ? (c.onSlide && c.legend && c.legendPosition == "b" ? 8.2 : 6.5) : c.chartex ? 4.6 : foot) * k)
+        var area = Rect.fromLTRB(r.left + (old ? 6.5 : 9) * k, r.top + (c.chartex ? 6.8 : 9) * k, r.right - (c.chartex && c.onSlide ? 4 : 9) * k,
+                                 r.bottom - (old ? (c.onSlide && c.legend && c.legendPosition == "b" ? 8.2 : 6.5) : c.chartex ? (c.onSlide ? 0.6 : 4.6) : foot) * k)
 
         let titled = !(c.title ?? "").isEmpty
         var placed: (TextPainter, Offset)? = nil
@@ -2820,7 +2822,7 @@ enum ChartPainter {
         let pie = c.type.isPie
         if c.legend {
             // (A waterfall's: its rises, falls and totals.)
-            let waterfall = c.waterfallTotals.map { ["Increase", "Decrease"] + ($0.isEmpty ? [] : ["Total"]) }
+            let waterfall = c.waterfallTotals.map { ["Increase", "Decrease"] + ($0.isEmpty && !c.waterfallLegendTotal ? [] : ["Total"]) }
             let byPoint = (pie || c.variedPoints || waterfall != nil) && !c.surface
             // (A surface's legend is its value bands: "0-4", "4-8"…)
             let names = c.surface ? Self._surfaceBands(c).map { "\(label($0.lo, percent: false))-\(label($0.hi, percent: false))" }
@@ -3148,9 +3150,9 @@ enum ChartPainter {
                 // clusteredColumn's and chart-waterfall's in Excel's print,
                 // the legend's baseline 23.06 under the title's, the plot's
                 // top 60.6 under the frame's.)
-                let sheetCx = titled && c.onSheet && c.chartex ? k / 0.75 : 0
+                let sheetCx = titled && (c.onSheet || c.onSlide) && c.chartex ? k / 0.75 : 0
                 y = area.top + (titled ? 4.3 * k : 0) + 3.71 * sheetCx
-                area = Rect.fromLTRB(area.left, y + lineH * Double(lines.count) + 6 * k + 6.37 * sheetCx, area.right, area.bottom)
+                area = Rect.fromLTRB(area.left, y + lineH * Double(lines.count) + 6 * k + (c.onSlide ? 2.37 : 6.37) * sheetCx, area.right, area.bottom)
             } else {
                 // (A 2007-style chart's on a slide 8.2 pt off the frame's
                 // foot, not 6.5, and its plot 9.55 above it: cooper's two
@@ -5299,7 +5301,7 @@ enum ChartPainter {
                 // plot ends 7.8 pt over them, and they stay at the frame's
                 // foot — bar-chart's at 401.4 in PowerPoint's print, where
                 // ours had risen with the plot to 397.8.)
-                let under = (plainBarWord ? 4.57 : c.plainText && !c.styled2013 && c.officeStyled ? 7.8 : 4) * k
+                let under = (plainBarWord ? 4.57 : c.plainText && !c.styled2013 && c.officeStyled ? 7.8 : c.chartex && c.onSlide ? 1 : 4) * k
                 tp.paint(canvas, Offset(p - tp.width / 2, revCat ? plot.top - under - belowOut - tp.height : plot.bottom + under + belowOut))
             } else {
                 if c.valueGrid {
@@ -5415,7 +5417,7 @@ enum ChartPainter {
                 if c.scatterXGrid { canvas.drawLine(Offset(x, plot.top), Offset(x, plot.bottom), gridPaint) }
                 // (A 2007-style one's 7.6 pt under, as a line chart's:
                 // scatter-chart's printed 3.5 pt lower than 4 put them.)
-                let under = (classic ? 7.6 : 4) * k
+                let under = (classic ? 7.6 : c.chartex && c.onSlide ? 1 : 4) * k
                 if i < catLabels.count { catLabels[i].paint(canvas, Offset(x - catLabels[i].width / 2, plot.bottom + under + belowOut)) }
             }
         } else if horizontal {
@@ -5500,7 +5502,7 @@ enum ChartPainter {
                     // 11.8: Windows' prints of 5864 slide 8 in 15 variants, 1.4 pt at 14 pt and 5.1 at 20, at the foot or the zero
                     // line alike; 10 pt names stay where they are (cooper's charts match).)
                     let slideNames = c.onSlide && !c.styled2013 && !c.categoryTicksOut ? max(0, 0.62 * (catSize - 11.8)) * k : 0
-                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : 7.6) * k - placedOverAutoFoot + (widenedPlain ? 0 : belowOut) - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k - legendFootRise + slideNames))
+                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : c.chartex && c.onSlide ? 4.6 : 7.6) * k - placedOverAutoFoot + (widenedPlain ? 0 : belowOut) - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k - legendFootRise + slideNames))
                 }
             }
             // The outer levels of a multi-level axis: each group's name under the names it

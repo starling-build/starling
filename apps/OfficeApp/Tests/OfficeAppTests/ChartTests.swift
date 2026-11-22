@@ -269,6 +269,19 @@ final class ChartTests: XCTestCase {
         XCTAssertTrue(fresh.values.first!.contains("<c:v>9</c:v>"))
     }
 
+    /// A waterfall with an empty subtotals element reads as steps, its legend
+    /// without a Total until a slide asks for PowerPoint's.
+    func testAWaterfallChartSurvivesItsXML() {
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><cx:chartData><cx:data id="0"><cx:strDim type="cat"><cx:lvl ptCount="3"><cx:pt idx="0">A</cx:pt><cx:pt idx="1">B</cx:pt><cx:pt idx="2">C</cx:pt></cx:lvl></cx:strDim><cx:numDim type="val"><cx:lvl ptCount="3"><cx:pt idx="0">13</cx:pt><cx:pt idx="1">2</cx:pt><cx:pt idx="2">-5</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="waterfall"><cx:dataId val="0"/><cx:layoutPr><cx:subtotals/></cx:layoutPr></cx:series></cx:plotAreaRegion></cx:plotArea><cx:legend pos="t"/></cx:chart></cx:chartSpace>
+        """
+        guard let c = ChartXML.readChartex(XNode.parse(Data(xml.utf8))!) else { return XCTFail("not read") }
+        XCTAssertEqual(c.categories, ["A", "B", "C"])
+        XCTAssertEqual(c.waterfallTotals, [])
+        XCTAssertTrue(c.chartex)
+        XCTAssertFalse(c.waterfallLegendTotal)
+    }
+
     /// A chartex box-and-whisker chart reads as its samples by category,
     /// its quartiles Excel's exclusive ones: chartex's first box runs
     /// -24 to 23.5 about -7 in Word's print.
