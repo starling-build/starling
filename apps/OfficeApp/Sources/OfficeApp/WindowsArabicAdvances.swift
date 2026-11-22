@@ -805,8 +805,9 @@ enum WindowsArabicAdvances {
     // "letters|joinsBefore|joinsAfter" -> em width: medians over the batch B prints' clusters
     // (zero-width follow-on letters), groups seen four or more times with a spread under 0.03 em.
     static let tradArabicClusters: [String: Double] = [
-        // (PowerPoint prints measure the letter after a reh 0.088 em in on Bold, 0.12 on Regular; the alef 0.108 on Bold.)
+        // (The face's own kern for the letter after a reh, shaped in the real face (GPOS), em by that letter's form code: Regular 0.12 for most, Bold 0.088; PowerPoint's print of f355b7fc agrees.)
         "reh+*": -0.1200,
+        "reh+FE80": -0.1196, "reh+FEF5": -0.1196, "reh+FEF7": -0.1196, "reh+FE85": -0.0928, "reh+FEF9": -0.0708, "reh+FE89": -0.1318, "reh+FE8B": -0.1196, "reh+FEFB": -0.1196, "reh+FE8F": -0.1196, "reh+FE91": -0.1196, "reh+FE93": -0.1318, "reh+FE95": -0.1196, "reh+FE97": -0.1196, "reh+FE99": -0.1196, "reh+FE9B": -0.1196, "reh+FE9D": -0.2099, "reh+FE9F": -0.1464, "reh+FEA1": -0.2099, "reh+FEA3": -0.1464, "reh+FEA5": -0.2099, "reh+FEA7": -0.1464, "reh+FEA9": -0.1196, "reh+FEAB": -0.1196, "reh+FEAD": -0.0927, "reh+FEAF": -0.0927, "reh+FEB1": -0.0757, "reh+FEB3": -0.1196, "reh+FEB5": -0.0756, "reh+FEB7": -0.1196, "reh+FEB9": -0.0757, "reh+FEBB": -0.1196, "reh+FEBD": -0.0756, "reh+FEBF": -0.1196, "reh+FEC1": -0.1196, "reh+FEC3": -0.1196, "reh+FEC5": -0.1196, "reh+FEC7": -0.1196, "reh+FEC9": -0.2441, "reh+FECB": -0.1196, "reh+FECD": -0.2441, "reh+FECF": -0.1196, "reh+FED1": -0.1196, "reh+FED3": -0.1196, "reh+FED5": -0.1196, "reh+FED7": -0.1196, "reh+FED9": -0.1196, "reh+FEDB": -0.3198, "reh+FEDD": -0.1196, "reh+FEDF": -0.1318, "reh+FEE1": -0.1196, "reh+FEE3": -0.1196, "reh+FEE5": -0.1196, "reh+FEE7": -0.1196, "reh+FEE9": -0.3496, "reh+FEEB": -0.1318, "reh+FEED": -0.0928, "reh+FEEF": -0.1318, "reh+FBE8": -0.1196, "reh+FEF1": -0.1318, "reh+FEF3": -0.1196,
         // (A waw at the start of a word kerns the letter after it, in ems added to the sum, by that
         // letter's shaped form: lab arabgroups, Word 14/15 prints, 31 followers; flat followers such as ba, meem,
         // noon measure -0.067, "waw+*" is the default; the overhanging ones (hah, ain, kaf, heh) more.)
@@ -833,8 +834,9 @@ enum WindowsArabicAdvances {
     ]
 
     static let tradArabicBoldClusters: [String: Double] = [
-        // (PowerPoint prints measure the letter after a reh 0.088 em in on Bold, 0.12 on Regular; the alef 0.108 on Bold.)
-        "reh+*": -0.0880, "reh+FE8D": -0.1080,
+        // (The face's own kern for the letter after a reh, shaped in the real face (GPOS), em by that letter's form code: Regular 0.12 for most, Bold 0.088; PowerPoint's print of f355b7fc agrees.)
+        "reh+*": -0.0880,
+        "reh+FE80": -0.0976, "reh+FEF5": -0.1074, "reh+FEF7": -0.1074, "reh+FE85": -0.0781, "reh+FEF9": -0.0488, "reh+FE89": -0.0977, "reh+FE8B": -0.0879, "reh+FEFB": -0.1074, "reh+FE8F": -0.0878, "reh+FE91": -0.0879, "reh+FE93": -0.0976, "reh+FE95": -0.0878, "reh+FE97": -0.0879, "reh+FE99": -0.0878, "reh+FE9B": -0.0879, "reh+FE9D": -0.1465, "reh+FE9F": -0.1221, "reh+FEA1": -0.1465, "reh+FEA3": -0.1221, "reh+FEA5": -0.1465, "reh+FEA7": -0.1221, "reh+FEA9": -0.0879, "reh+FEAB": -0.0879, "reh+FEAD": -0.0781, "reh+FEAF": -0.0781, "reh+FEB1": -0.0757, "reh+FEB3": -0.0879, "reh+FEB5": -0.0757, "reh+FEB7": -0.0879, "reh+FEB9": -0.0757, "reh+FEBB": -0.0879, "reh+FEBD": -0.0757, "reh+FEBF": -0.0879, "reh+FEC1": -0.0879, "reh+FEC3": -0.0879, "reh+FEC5": -0.0879, "reh+FEC7": -0.0879, "reh+FEC9": -0.1953, "reh+FECB": -0.0976, "reh+FECD": -0.1953, "reh+FECF": -0.0976, "reh+FED1": -0.0879, "reh+FED3": -0.0879, "reh+FED5": -0.0879, "reh+FED7": -0.0879, "reh+FED9": -0.0878, "reh+FEDB": -0.2441, "reh+FEDD": -0.0879, "reh+FEDF": -0.1221, "reh+FEE1": -0.0879, "reh+FEE3": -0.0879, "reh+FEE5": -0.0879, "reh+FEE7": -0.0879, "reh+FEE9": -0.3515, "reh+FEEB": -0.0977, "reh+FEED": -0.0781, "reh+FEEF": -0.0977, "reh+FBE8": -0.0879, "reh+FEF1": -0.0977, "reh+FEF3": -0.0879,
         // (Seen, ba, waw in Word's bold prints: س+ب measures 0.586 em from the seen's origin to the waw's, six prints over the corpus, plus the final waw 0.381; the letter sum is 0.685 and wrapped the week-column title of dx2 8a0e0087.)
         "سبو|0|0": 0.9670, "سبو|1|0": 0.9670,
         "الل|0|1": 0.6910, "الله|0|0": 0.6910, "بأ|0|0": 0.3900, "بإ|0|0": 0.3900,
