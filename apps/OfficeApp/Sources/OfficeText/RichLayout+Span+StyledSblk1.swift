@@ -178,6 +178,12 @@ extension _StyledFrame {
         flush(i)
         spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
         ctx.inserts.append(offset)
+    } else if !theme.wordRules, ch == ")", let b = ctx.before, let v = b.unicodeScalars.first?.value, v >= 0x3040, v <= 0x9FFF {
+        // (PowerPoint lets an ASCII ")" after kanji or kana open a line, where after Hangul it hangs: lab hang3 slide 6 keeps
+        // "学校教育課程" and moves the ")" down below 127.03 pt; Unicode's no-break before it carried the kanji down with it.)
+        flush(i)
+        spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
+        ctx.inserts.append(offset)
     } else if pausesOpenLines, ch == "\u{3001}" || ch == "\u{3002}" || ch == "\u{FF09}", let b = ctx.before, !RichLayout._closingMarks.contains(b) {
         // (A full-width ")" too: 8787f4 p8 ends "…（ドーシ, 1982" and opens the next line with "）。".)
         // (Where the pause rule holds Word opens a line with 、 or 。 rather than
