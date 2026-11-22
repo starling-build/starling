@@ -375,6 +375,7 @@ private enum Bullet: Equatable { case none, char, number }
 private struct LevelStyle {
     var algn: String?
     var latinLnBrk: String?
+    var eaLnBrk: String?
     /// `hangingPunct` as some layer of the chain states it (a master's title style says "0"; a slide's paragraph then inherits it).
     var hangingPunct: String?
     var rtl: String?
@@ -444,6 +445,7 @@ private struct LevelStyle {
         var s = self
         s.algn = s.algn ?? lower.algn
         s.latinLnBrk = s.latinLnBrk ?? lower.latinLnBrk
+        s.eaLnBrk = s.eaLnBrk ?? lower.eaLnBrk
         s.hangingPunct = s.hangingPunct ?? lower.hangingPunct
         s.rtl = s.rtl ?? lower.rtl
         s.marL = s.marL ?? lower.marL
@@ -486,6 +488,7 @@ private struct LevelStyle {
         guard let p else { return s }
         s.algn = p["algn"]
         s.latinLnBrk = p["latinLnBrk"]
+        s.eaLnBrk = p["eaLnBrk"]
         s.hangingPunct = p["hangingPunct"]
         s.rtl = p["rtl"]
         s.marL = p["marL"].flatMap(Double.init).map { $0 / Pptx.emu }
@@ -3855,6 +3858,7 @@ private struct SlideContext {
                     && (r.first("a:t")?.text ?? "").unicodeScalars.contains(where: { [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009].contains($0.value) }) }) {
                 style.eastAsian["a:hangClosingZh"] = "1"
             }
+            if (p.first("a:pPr")?["eaLnBrk"] ?? level.eaLnBrk) == "0" { style.eastAsian["a:eaLnBrk"] = "0" }
             if looseKinsoku { style.eastAsian["a:looseKinsoku"] = "1" }
             if let m = level.lineMultiple { style.lineSpacing = m } else if let pts = level.linePoints {
                 // Exactly that many points, whatever the runs' sizes.
