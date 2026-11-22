@@ -470,6 +470,8 @@ struct RunLook: Equatable {
     /// `a:ln/a:prstDash` (nil solid) and `cap="rnd"` of the text's outline.
     var outlineDash: String? = nil
     var outlineRound = false
+    /// The outline's join (`a:round`, `a:bevel`, `a:miter`); nil names none (round).
+    var outlineJoin: String? = nil
 
     var isPlain: Bool { fill == nil && !noFill && outline == nil }
 }

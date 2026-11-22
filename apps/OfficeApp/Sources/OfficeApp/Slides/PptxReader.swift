@@ -4453,6 +4453,7 @@ private struct SlideContext {
             look.outlineWidth = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75
             look.outlineDash = PptxReader.dash(ln)
             look.outlineRound = ln["cap"] == "rnd"
+            look.outlineJoin = PptxReader.join(ln)
             any = true
         }
         return any ? look : nil

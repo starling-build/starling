@@ -499,7 +499,7 @@ enum WordArt {
                 if g.look?.outline != nil {
                     let stroke = Paint()
                     stroke.style = .stroke
-                    stroke.strokeJoin = .round
+                    stroke.strokeJoin = SlidePainter.join(g.look?.outlineJoin ?? "round")
                     stroke.color = shadowPaint.color
                     if let outlinePath = g.painter.glyphPath() {
                         canvas.restore()
@@ -564,7 +564,7 @@ enum WordArt {
                 stroke.style = .stroke
                 // The line's width is the page's, not the stretched glyph's.
                 stroke.strokeWidth = max(0.25, (g.look?.outlineWidth ?? 0.75) * px) / max(1e-6, abs(det).squareRoot())
-                stroke.strokeJoin = .round
+                stroke.strokeJoin = SlidePainter.join(g.look?.outlineJoin ?? "round")
                 stroke.color = o
                 if g.look?.outlineDash != nil, let outlinePath = warped ?? g.painter.glyphPath() {
                     // A dashed line is cut from the letter's own outline, in its
