@@ -818,7 +818,14 @@ enum Extrusion {
         canvas.clipPath(outline)
         let p = Paint()
         p.style = .fill
-        p.color = tint(share(P3(x: 0, y: 0, z: 1)))
+        // Under a three-point rig with no a:rot the flat top stands at 1.04 of its fill plus 4.5 levels
+        // (lab bev2: fills 44 80 C0 print 4b 8a cc; the rotated model's 1.016 left every face 2-3% dark).
+        if b.rig == "threePt" && b.rot == [0, 0, 0] {
+            func ch(_ v: Int) -> Int { max(0, min(255, Int((Double(v) * 1.04 + 4.5).rounded()))) }
+            p.color = Color(argb: fill.alpha, ch(fill.red), ch(fill.green), ch(fill.blue))
+        } else {
+            p.color = tint(share(P3(x: 0, y: 0, z: 1)))
+        }
         // (Text keeps the face the solid already drew.)
         if face { canvas.drawRect(box, p) }
         let steps = 15
