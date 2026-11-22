@@ -4093,7 +4093,12 @@ private struct SlideContext {
                 // (A run of spaces and punctuation alone, tagged with a right-to-left language, is set in that script's face, not the
                 // Latin one: 7854f160's " (" and ")" runs (fa-IR) take B Nazanin's stand-in, 14 pt for the pair, where Georgia's took 19.6.)
                 if pieces.count == 1, pieces[0].script == nil, !sawLetter,
-                   !t.unicodeScalars.contains(where: { ($0.value >= 0x30 && $0.value <= 0x39) || $0.properties.isAlphabetic }) {
+                   !t.unicodeScalars.contains(where: { $0.properties.isAlphabetic }),
+                   // (Digits too where the complex face is an installed one that keeps them: 6f97f2ee p9's "(1689-1755)" in an ar-IQ run
+                   // is set in Sakkal Majalla Bold in PowerPoint's print, 216 pt wide, not in the Latin face, 241. "Majalla UI" is that face.)
+                   !t.unicodeScalars.contains(where: { $0.value >= 0x30 && $0.value <= 0x39 })
+                    || ["majalla ui"].contains((_csFont(s.csFont, script: "Arab", lang: s.lang) ?? "").lowercased())
+                    || OfficeFonts.complexFaceKeepsDigits(_csFont(s.csFont, script: "Arab", lang: s.lang) ?? "") {
                     let l = (s.lang ?? "").lowercased()
                     if ["ar", "fa", "ur", "ps", "sd", "ug", "ku"].contains(where: { l.hasPrefix($0) }) { pieces[0].script = "Arab" }
                     else if l.hasPrefix("he") || l.hasPrefix("yi") { pieces[0].script = "Hebr" }
