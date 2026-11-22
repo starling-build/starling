@@ -24,20 +24,24 @@ enum NumberFormat {
     /// is one space, as TEXT() shows it.
     static func display(_ v: CellValue, _ code: String, width: Int = 11, pads: Bool = false) -> (text: String, color: UInt32?) {
         let r = _display(v, code, width: width)
-        return pads ? r : (unpad(r.text), r.color)
+        return pads ? (r.text.replacingDigitPads(" "), r.color) : (unpad(r.text), r.color)
     }
 
     /// The mark before a pad's character (`_x`) in what `display` and
     /// `format` give with `pads`.
     static let padMark: Character = "\u{2}"
 
+    /// What a `?` placeholder with no digit left to show is while the format runs: a space as wide as a digit.
+    /// `display` and `format` turn it into a plain space, or with `figure` into U+2007 (a chart's label).
+    static let digitPadMark: Character = "\u{3}"
+
     /// `s` with each pad as one space.
     static func unpad(_ s: String) -> String {
-        guard s.contains(padMark) else { return s }
+        guard s.contains(padMark) || s.contains(digitPadMark) else { return s }
         var out = "", skip = false
         for ch in s {
             if skip { skip = false; continue }
-            if ch == padMark { out.append(" "); skip = true } else { out.append(ch) }
+            if ch == padMark { out.append(" "); skip = true } else if ch == digitPadMark { out.append(" ") } else { out.append(ch) }
         }
         return out
     }
@@ -99,9 +103,9 @@ enum NumberFormat {
 
     /// `inText`: TEXT() shows a negative elapsed time ([h]:mm) with a minus
     /// where a cell shows ########.
-    static func format(_ n: Double, _ code: String, width: Int = 11, inText: Bool = false, pads: Bool = false) -> (text: String, color: UInt32?) {
+    static func format(_ n: Double, _ code: String, width: Int = 11, inText: Bool = false, pads: Bool = false, figure: Bool = false) -> (text: String, color: UInt32?) {
         let r = _format(n, code, width: width, inText: inText)
-        return pads ? r : (unpad(r.text), r.color)
+        return pads ? (r.text.replacingDigitPads(figure ? "\u{2007}" : " "), r.color) : (unpad(r.text), r.color)
     }
 
     private static func _format(_ n: Double, _ code: String, width: Int = 11, inText: Bool = false) -> (text: String, color: UInt32?) {
@@ -550,7 +554,7 @@ enum NumberFormat {
             case .digit(let d):
                 if let ch = digits.popLast() { emit(ch) }
                 else if d == "0" { emit("0") }
-                else if d == "?" { out.append(" ") }
+                else if d == "?" { out.append(String(digitPadMark)) }
                 if k == firstDigit { while let ch = digits.popLast() { emit(ch) } }
             }
         }
@@ -563,7 +567,7 @@ enum NumberFormat {
                 switch item {
                 case .lit(let t): fr += t
                 case .digit(let d):
-                    if j <= lastSignificant || d == "0" { fr.append(frac[j]) } else if d == "?" { fr += " " }
+                    if j <= lastSignificant || d == "0" { fr.append(frac[j]) } else if d == "?" { fr += String(digitPadMark) }
                     j += 1
                 }
             }
@@ -1032,5 +1036,15 @@ enum ExcelDate {
     static func now() -> Double {
         let t = Date().timeIntervalSince1970 + Double(TimeZone.current.secondsFromGMT())
         return t / 86400 - Double(system1904 ? _epoch1904 : _epoch)
+    }
+}
+
+extension String {
+    /// Each `NumberFormat.digitPadMark` as `with`.
+    fileprivate func replacingDigitPads(_ with: String) -> String {
+        guard contains(NumberFormat.digitPadMark) else { return self }
+        var out = ""
+        for ch in self { if ch == NumberFormat.digitPadMark { out += with } else { out.append(ch) } }
+        return out
     }
 }

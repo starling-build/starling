@@ -1347,7 +1347,7 @@ enum ChartXML {
                 categories = (0 ..< values.count).map {
                     if let c = d.cats[safe: $0] ?? nil { return c }
                     guard let code = axisFmt, d.cats.isEmpty else { return String($0 + 1) }
-                    let shown = NumberFormat.format(Double($0 + 1), code, width: 40).text.trimmingWhitespace()
+                    let shown = chartNumberText(Double($0 + 1), code)
                     return shown.isEmpty ? String($0 + 1) : shown
                 }
             }
@@ -1585,7 +1585,7 @@ enum ChartXML {
                 let own = axis.flatMap { ["0", "false"].contains($0["sourceLinked"] ?? "1") ? $0["formatCode"] : nil }
                 if let code = own ?? cache.first("c:formatCode")?.text, !code.isEmpty, code.lowercased() != "general" {
                     names = names.map { name in
-                        name.flatMap { Double($0.trimmingWhitespace()) }.map { NumberFormat.format($0, code, width: 40).text.trimmingWhitespace() } ?? name
+                        name.flatMap { Double($0.trimmingWhitespace()) }.map { chartNumberText($0, code) } ?? name
                     }
                 }
             }
@@ -4058,7 +4058,7 @@ enum ChartPainter {
             name.dispose()
             for i in 0 ..< n {
                 guard let v = s.values[safe: i] ?? nil else { continue }
-                let shown = s.format.map { NumberFormat.format(v, $0, width: 40).text.trimmingWhitespace() } ?? ""
+                let shown = s.format.map { chartNumberText(v, $0) } ?? ""
                 centred(shown.isEmpty ? label(v, percent: false) : shown, plot.left + (Double(i) + 0.5) * slot, j + 1)
             }
         }
@@ -4168,7 +4168,7 @@ enum ChartPainter {
     static func dataLabel(_ c: Chart, _ v0: Double) -> String {
         let v = v0 / c.valueUnitDivisor
         guard let code = c.labelFormat else { return label(v, percent: false) }
-        let shown = NumberFormat.format(v, code, width: 40).text.trimmingWhitespace()
+        let shown = chartNumberText(v, code)
         return shown.isEmpty ? label(v, percent: false) : shown
     }
 
@@ -4695,7 +4695,7 @@ enum ChartPainter {
                 // PowerPoint counts dates from 1899-12-30 (the OLE day), so before 1 March 1900 a serial prints one day
                 // earlier than Excel's (chartex-lab2: 31 is 30/01/1900, 59 is 27/02, 60 is 28/02, 61 the same 01/03).
                 let day = (v >= 1 && v < 61 && NumberFormat.isDateTime(code)) ? v - 1 : v
-                let f = NumberFormat.format(day, code, width: 40).text.trimmingWhitespace()
+                let f = chartNumberText(day, code)
                 if !f.isEmpty { shown = f }
             }
             let parts = [spec.series ? s.name : nil, spec.category ? c.categories[safe: i] : nil, spec.value ? shown : nil].compactMap { $0 }
@@ -5017,7 +5017,7 @@ enum ChartPainter {
         let xs = xScale
         let xLabel: (Double) -> String = { v in
             let real = c.xLogBase.map { pow($0, v) } ?? v
-            if let code = c.xFormat { return NumberFormat.format(real, code, width: 40).text.trimmingWhitespace() }
+            if let code = c.xFormat { return chartNumberText(real, code) }
             return Self.label(real, percent: false)
         }
         var area = area0
@@ -5163,7 +5163,7 @@ enum ChartPainter {
         func valueLabel(_ shownAt: Double) -> String {
             let v = (c.valueLogBase.map { pow($0, shownAt) } ?? shownAt) / c.valueUnitDivisor
             guard let code = c.valueFormat, !c.percent else { return c.percent ? label(v, percent: true) : tickLabel(v) }
-            let shown = NumberFormat.format(v, code, width: 40).text.trimmingWhitespace()
+            let shown = chartNumberText(v, code)
             return shown.isEmpty ? tickLabel(v) : shown
         }
         let valueLabels = ticks.map { valueText(c.valueAxisDeleted ? "" : valueLabel($0), labelSize, .infinity) }
@@ -5183,7 +5183,7 @@ enum ChartPainter {
         let secondLabels: [TextPainter] = secondTicks.map { v in
             let code = c.secondValueAxis?.format
             let v = v / (c.secondValueAxis?.unitDivisor ?? 1)
-            let shown = code.map { NumberFormat.format(v, $0, width: 40).text.trimmingWhitespace() } ?? label(v, percent: false)
+            let shown = code.map { chartNumberText(v, $0) } ?? label(v, percent: false)
             return valueText(c.secondValueAxis?.deleted == true ? "" : (shown.isEmpty ? label(v, percent: false) : shown), labelSize, .infinity)
         }
         let catSize = c.categoryLabelSize ?? c.baseTextSize
@@ -6430,7 +6430,7 @@ enum ChartPainter {
                         // rates are General, 92.05 in Word's print, under columns
                         // in "#,##0" that made ours "92".)
                         let code = l.labelCode ?? l.format
-                        let shown = code.map { NumberFormat.format(v, $0, width: 40).text.trimmingWhitespace() } ?? ""
+                        let shown = code.map { chartNumberText(v, $0) } ?? ""
                         let tp = TextPainter(text: TextSpan(text: shown.isEmpty ? label(v, percent: false) : shown, style: Flutter.TextStyle(
                             color: l.labelColor ?? c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65)),
                             fontSize: max(3, (l.labelSize ?? c.baseTextSize) * k), fontWeight: l.labelBold ? .bold : .normal,
@@ -8625,7 +8625,7 @@ extension ChartPainter {
             if l.percent {
                 let share = s.value / sum
                 if let code = c.labelFormat, code.containsSubstring("%") {
-                    parts.append(NumberFormat.format(share, code, width: 40).text.trimmingWhitespace())
+                    parts.append(chartNumberText(share, code))
                 } else { parts.append("\(whole[s.index] ?? Int((share * 100).rounded()))%") }
             }
             guard !parts.isEmpty || l.texts[s.index] != nil else { continue }
@@ -9339,4 +9339,20 @@ struct SecondValueAxis: Equatable {
     /// The title's placed top left (fractions of the chart) and size, where the file places it.
     var titleAt: Offset? = nil
     var titleSize: Double? = nil
+}
+
+
+/// A number as a chart label shows it in format `code`: `_x` stands x's width blank (a space, or a figure space where x is a
+/// digit) and a `?` with no digit left a digit's width, both kept in the text so the label is as wide as PowerPoint's and a
+/// right-aligned axis label ends where its print does (458870cc p11: the accounting format's `_)` and the `"-"??_)` zero).
+/// `*x` fill is nothing in a label.
+func chartNumberText(_ v: Double, _ code: String) -> String {
+    let r = NumberFormat.format(v, code, width: 40, pads: true, figure: true).text
+    guard r.contains(NumberFormat.padMark) else { return r }
+    var out = "", pendingPad = false
+    for ch in r {
+        if pendingPad { pendingPad = false; out.append(ch.isNumber ? "\u{2007}" : "\u{00A0}"); continue }
+        if ch == NumberFormat.padMark { pendingPad = true } else { out.append(ch) }
+    }
+    return out
 }
