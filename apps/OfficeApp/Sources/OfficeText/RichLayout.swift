@@ -1131,6 +1131,8 @@ public final class RichTextTheme {
             fontVariations: family.flatMap { Self.variableWeights[$0] }.map { [FontVariation("wght", $0)] },
             decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
             decorationColor: color,
+            decorationThickness: wordRules ? nil : Self.ruleScale(named: familyName, drawn: family,
+                                                                   bold: bold, italic: italic, strikeOnly: !decorations.contains(.underline)),
             debugLabel: familyName,
             fontFamily: bold && face?.family == family ? face?.fakeBoldFamily ?? family : family,
             fontFamilyFallback: {
@@ -1154,6 +1156,9 @@ public struct RichResolvedFace: Sendable {
     public var ownLineBaseline = false
     /// A complex face Word's machine lacks, drawn in Arial: its line is Arial's own, 1.149 em.
     public var arialStandIn = false
+    /// A small height (ems) for Arabic words set at `joinedAdvances` in a face drawn by a taller Arabic fallback (Noto Sans Arabic, 1.36 em): the words then
+    /// leave the line at the paragraph's own height, as in PowerPoint's print, where Arabic in Arial or Times stands on the 1.2 em line.
+    public var joinedHeight: Double?
     public var boldSpread: Double
     /// A face Word has no bold of: the family to draw its bold in, a face with no bold of its own, so the engine emboldens it as Word does
     /// (fill and stroke, stroke 0.0285 of the size in Word's print, lab oetbold).
@@ -2232,4 +2237,21 @@ public final class RichLayout {
     /// 1 while the page's body is painted without its drop caps, 2 while only they are.
     var _dropCapPass = 0
     var _headerFooterSource: [RichHeaderFooter] = []
+}
+
+extension RichTextTheme {
+    /// The scale that makes the engine's underline (or strikeout) rule, which it takes from the face it draws
+    /// with, as thick as the face the run NAMES draws it: PowerPoint's Candara rule is 0.0098 em, the
+    /// Liberation Sans stand-in's 0.0732. Nil where either face's thickness is not known, or already equal.
+    static func ruleScale(named: String?, drawn: String?, bold: Bool, italic: Bool, strikeOnly: Bool) -> Double? {
+        guard let named, let drawn else { return nil }
+        let style = (bold ? " bold" : "") + (italic ? " italic" : "")
+        let n = named.lowercased().trimmingWhitespace()
+        guard let want = UnderlineMetrics.named[n + style] ?? UnderlineMetrics.named[n] else { return nil }
+        let stem = String(drawn.lowercased().filter { $0 != " " }) + "-" + (bold && italic ? "bolditalic" : bold ? "bold" : italic ? "italic" : "regular")
+        guard let have = UnderlineMetrics.standIn[stem] else { return nil }
+        let w = strikeOnly ? want.1 : want.0, h = strikeOnly ? have.1 : have.0
+        guard w > 0, h > 0, abs(w - h) > 0.0005 else { return nil }
+        return w / h
+    }
 }

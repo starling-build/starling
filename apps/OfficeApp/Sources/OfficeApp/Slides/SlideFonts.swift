@@ -157,6 +157,12 @@ enum SlideFonts {
                                                               0x2605, 0x2606, 0xFE0E, 0xFE0F].map { $0 }
                 for c in em where face.otherAdvances?[c] == nil { let w: Double = c >= 0xFE0E ? 0 : 1; face.otherAdvances?[c] = w; face.boldOtherAdvances?[c] = w }
             }
+            // (MS Gothic and MS Mincho, the fixed-width faces, set the curly double quotes full width, an em; the proportional P faces keep them narrow, ja a91e3e82's “思い”: lab hang3 slide 7's ” after a kanji in MS Gothic broke "課|程”" where
+            // the Latin stand-in's narrow ” kept it on the line.)
+            let japaneseMS = [SlideEastAsianWidths.msGothic, SlideEastAsianWidths.msMincho]
+            if japaneseMS.contains(where: { $0.regular.ascii == cuts.regular.ascii }) {
+                for c: UInt32 in [0x201C, 0x201D] where face.otherAdvances?[c] == nil { face.otherAdvances?[c] = 1.0; face.boldOtherAdvances?[c] = 1.0 }
+            }
             if let it = SlideEastAsianWidths.lookupItalic(windowsName(family)) {
                 face.italicAdvances = it.regular.ascii
                 face.boldItalicAdvances = it.bold?.ascii ?? it.regular.ascii
@@ -169,7 +175,7 @@ enum SlideFonts {
             return face
         }
         switch windowsName(family) {
-        case "traditional arabic", "sakkal majalla", "majalla ui":
+        case "traditional arabic", "sakkal majalla", "majalla ui", "simplified arabic", "arabic typesetting":
             if let face = OfficeFonts.slidesArabicFace(family) { return face }
             return RichResolvedFace(family: resolve(family))
         case "lucida sans unicode":
@@ -224,6 +230,20 @@ enum SlideFonts {
             face.boldAdvances = t.1
             // (Trebuchet MS kerns as PowerPoint prints it, by the pairs of the font's own tables, measured on Windows.)
             if let k = SlideLatinKerns.lookup(n) { face.kerns = k.regular; face.boldKerns = k.bold ?? k.regular; face.kernsOutsideWord = true }
+            if n == "tahoma" {
+                // (Tahoma's own Arabic, as the Word path sets it.)
+                face.joinedAdvances = WindowsArabicAdvances.tahoma
+                face.boldJoinedAdvances = WindowsArabicAdvances.tahomaBold
+            }
+            return face
+        case "open sans":
+            // (A cloud face PowerPoint prints from its own copy, not installed on the Windows box: Open Sans's measured widths, the same
+            // tables Word uses, set in the sans stand-in; PowerPoint's prints of the decks that name it draw "Open Sans" and "Open Sans,Bold".)
+            var face = RichResolvedFace(family: resolve(family))
+            face.advances = OfficeFonts.openSansAdvances
+            face.boldAdvances = OfficeFonts.openSansBoldAdvances
+            face.otherAdvances = OfficeFonts.openSansOtherAdvances
+            face.boldOtherAdvances = OfficeFonts.openSansBoldOtherAdvances
             return face
         case "open sans":
             // (A cloud face PowerPoint prints from its own copy, not installed on the Windows box: Open Sans's measured widths, the same
@@ -254,6 +274,22 @@ enum SlideFonts {
             let hebrew = family.trimmingWhitespace().lowercased() == "calibri" ? SlideFontWidths.calibriHebrew : SlideFontWidths.timesHebrew
             face.otherAdvances = hebrew
             face.boldOtherAdvances = hebrew
+            if family.trimmingWhitespace().lowercased() == "times new roman" {
+                face.joinedAdvances = WindowsArabicAdvances.times
+                face.boldJoinedAdvances = WindowsArabicAdvances.timesBold
+                face.joinedHeight = 0.5   // (as Arial's: rtl 2185f496's lines stood 1.4 pt too far apart on the fallback's height)
+            }
+            return face
+        case "arial":
+            // (Arial's own Arabic advances, as the Word path sets it: rtl/8c48d77a's body lines, 27 pt, took the DejaVu Sans stand-in's
+            // widths and broke two words early.)
+            var face = RichResolvedFace(family: resolve(family))
+            face.fallback = ["Liberation Sans", "Noto Sans Arabic", "Noto Naskh Arabic", OfficeFonts.emojiPictographs, "DejaVu Sans"]
+            face.joinedAdvances = WindowsArabicAdvances.arial
+            face.boldJoinedAdvances = WindowsArabicAdvances.arialBold
+            // (PowerPoint's print sets Arabic in Arial on a 1.2 em line: rtl 8c48d77a 25 pt lines 27.0 apart at 90%, 24.0 at 80%, 27 pt 32.4;
+            // e08da366 18 pt 21.6. The paragraph's own line is already that; Noto Sans Arabic's taller words raised it to 31.)
+            face.joinedHeight = 0.5
             return face
         case "rockwell condensed":
             // (PowerPoint's print of 6e9fe27b sets it a third narrower than the Arial it was drawn in: lines ran a third over.)
@@ -285,6 +321,10 @@ enum SlideFonts {
             var face = RichResolvedFace(family: OfficeFonts.calibri)
             face.otherAdvances = SlideFontWidths.calibriHebrew
             face.boldOtherAdvances = SlideFontWidths.calibriHebrew
+            // (Its Arabic is Arial's: PowerPoint's print of rtl/6f97f2ee sets the title, cs "PT Bold Heading" which the machine does not
+            // have, in ArialMT at Arial's own Arabic advances.)
+            face.joinedAdvances = WindowsArabicAdvances.arial
+            face.boldJoinedAdvances = WindowsArabicAdvances.arialBold
             return face
         }
     }
@@ -412,7 +452,7 @@ enum SlideFonts {
         case "yu gothic light", "游ゴシック light": return 610.0 / 2636
         case "yu gothic medium", "游ゴシック medium": return 608.0 / 2636
         case "meiryo", "メイリオ": return 1 - 0.847 / 1.2
-        case "yu gothic", "游ゴシック", "ar pゴシック体m", "ar pゴシック体e", "ar pゴシック体l", "ar pゴシック体b", "ar pゴシック体h", "ar p丸ゴシック体m", "ar p丸ゴシック体e", "ar丸ゴシック体m", "ar丸ゴシック体e", "biz udpゴシック": return 1 - 0.921 / 1.2
+        case "yu gothic", "游ゴシック", "adobe fan heiti std b", "ar pゴシック体m", "ar pゴシック体e", "ar pゴシック体l", "ar pゴシック体b", "ar pゴシック体h", "ar p丸ゴシック体m", "ar p丸ゴシック体e", "ar丸ゴシック体m", "ar丸ゴシック体e", "biz udpゴシック": return 1 - 0.921 / 1.2
         default: break
         }
         // (PowerPoint's print, lab verdana-ls: the foot of a Verdana line is 0.202 em at every size and spacing, of 1.2 em: not hhea's 430 of 2489.)

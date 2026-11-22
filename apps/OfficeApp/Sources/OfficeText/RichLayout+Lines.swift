@@ -513,7 +513,7 @@ extension RichLayout {
         // one, as a master's body hangs every level (ecodesign's quotes) —
         // where this returned nothing outside Word.
         if !theme.wordRules {
-            guard p.style.list == nil, !p.text.isEmpty, p.image == nil, p.cell == nil else { return 0 }
+            guard p.style.list == nil, !p.text.isEmpty, p.image == nil, p.cell == nil || p.style.firstLineIndent > 0 else { return 0 }
             return p.style.firstLineIndent
         }
         // (Nor the rest of a paragraph a page break split: zh-694447ca's

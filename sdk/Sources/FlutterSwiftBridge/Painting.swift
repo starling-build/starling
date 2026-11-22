@@ -5497,6 +5497,25 @@ public class Image {
     return result
   }
 
+  /// A copy of this image held as JPEG bytes (decoded when drawn), so a PDF export writes a JPEG
+  /// instead of raw pixels. Nil when the image has any transparency or cannot be read back.
+  public func jpegCopy(quality: Int) -> Image? {
+    assert(!_disposed && !bridge.IsDisposed())
+    // Looked up at run time: an engine built before JpegCopy existed lacks the symbol, and a direct call
+    // would fail to link. Without it the image simply stays as it is (written lossless).
+    guard let fn = Image.jpegCopyFunction else { return nil }
+    let me = unsafeBitCast(bridge, to: UnsafeRawPointer.self)
+    guard let raw = fn(me, Int32(quality)) else { return nil }
+    return Image.wrap(unsafeBitCast(raw, to: flutter.swift_bridge.ImageBridge.self))
+  }
+
+  // ImageBridge::JpegCopy(int) const, by its Itanium-mangled name.
+  private typealias JpegCopyFn = @convention(c) (UnsafeRawPointer, Int32) -> UnsafeMutableRawPointer?
+  private static let jpegCopyFunction: JpegCopyFn? = {
+    guard let sym = dlsym(UnsafeMutableRawPointer(bitPattern: 0), "_ZNK7flutter12swift_bridge11ImageBridge8JpegCopyEi") else { return nil }
+    return unsafeBitCast(sym, to: JpegCopyFn.self)
+  }()
+
   /// Whether this reference to the underlying image is `dispose`d.
   ///
   /// **Dart Source:** `painting.dart:2005-2013`

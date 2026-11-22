@@ -513,6 +513,8 @@ struct Chart: Equatable {
     /// An Excel 2016 funnel (`layoutId="funnel"`): its one series' values
     /// as bars centred across the plot, top first, with no value axis.
     var funnel = false
+    /// A funnel's category axis ticks (`majorTickMarks` not none): a short mark inward at each slot's edge.
+    var funnelTicks = false
     /// An Excel 2016 sunburst (`layoutId="sunburst"`): its points as a
     /// tree, a ring to each level of it, each node the sum of the points
     /// under it. nil for any other chart.
@@ -1002,7 +1004,15 @@ enum ChartXML {
             }
             return out
         }
-        let levels = (d.all("cx:strDim").first { $0["type"] == "cat" } ?? d.first("cx:strDim"))?.all("cx:lvl").map(points) ?? []
+        var levels = (d.all("cx:strDim").first { $0["type"] == "cat" } ?? d.first("cx:strDim"))?.all("cx:lvl").map(points) ?? []
+        // (A group's name stands once, on its first row: the levels above the leaves run on down the rows it covers. PowerPoint's
+        // print of chartex-lab treemap: Best over rows 0 to 6, Worst over 7 to 10, First over 0 to 4.)
+        for l in levels.indices.dropFirst() {
+            var last: String? = nil
+            for i in levels[l].indices {
+                if let n = levels[l][i], !n.isEmpty { last = n } else { levels[l][i] = last }
+            }
+        }
         let sizes = points((d.all("cx:numDim").first { $0["type"] == "size" } ?? d.first("cx:numDim"))?.first("cx:lvl"))
         var paths: [[String]] = [], values: [Double] = []
         for (i, raw) in sizes.enumerated() {
@@ -1014,7 +1024,7 @@ enum ChartXML {
             }
             paths.append(path); values.append(v)
         }
-        let roots = sunburstTree(paths: paths, values: values)
+        let roots = sunburstTree(paths: paths, values: values, laterFirst: !treemap || ser["layoutId"] != "treemap")
         guard !roots.isEmpty || allowEmpty else { return nil }
         var title: String? = nil
         if let t = chart.first("cx:title") {
@@ -1053,7 +1063,9 @@ enum ChartXML {
     /// first, each node the sum of the points under it; the larger first,
     /// as Word lays the wedges out (chartex's 258, 165, 154 clockwise from
     /// twelve), a tie in the file's order.
-    static func sunburstTree(paths: [[String]], values: [Double]) -> [Chart.SunburstNode] {
+    /// `laterFirst`: equal sizes run later row first (a sunburst's rings in PowerPoint's print of chartex-lab: E before B, D
+    /// before A, Fifth before Third; its treemap keeps them in row order).
+    static func sunburstTree(paths: [[String]], values: [Double], laterFirst: Bool = false) -> [Chart.SunburstNode] {
         func add(_ path: ArraySlice<String>, _ v: Double, to nodes: inout [Chart.SunburstNode]) {
             guard let name = path.first else { return }
             let i = nodes.firstIndex { $0.name == name } ?? nodes.count
@@ -1064,7 +1076,7 @@ enum ChartXML {
         var roots: [Chart.SunburstNode] = []
         for (path, v) in zip(paths, values) where v.isFinite && v > 0 { add(path[...], v, to: &roots) }
         func sorted(_ nodes: [Chart.SunburstNode]) -> [Chart.SunburstNode] {
-            nodes.enumerated().sorted { $0.element.value > $1.element.value || ($0.element.value == $1.element.value && $0.offset < $1.offset) }
+            nodes.enumerated().sorted { $0.element.value > $1.element.value || ($0.element.value == $1.element.value && (laterFirst ? $0.offset > $1.offset : $0.offset < $1.offset)) }
                 .map { var n = $0.element; n.children = sorted(n.children); return n }
         }
         return sorted(roots)
@@ -1098,6 +1110,12 @@ enum ChartXML {
         guard var c = readClusteredColumn(space, layout: "funnel") else { return nil }
         c.funnel = true
         c.legend = false
+        // (Its axis ticks where the axis asks for them: funnel1's "in".)
+        c.funnelTicks = space.first("cx:chart")?.first("cx:plotArea")?.all("cx:axis").contains {
+            $0.first("cx:majorTickMarks").map { $0["type"] != "none" } ?? false } ?? false
+        // (A data label with no visibility says shows the value.)
+        if let dl = space.first("cx:chart")?.first("cx:plotArea")?.first("cx:plotAreaRegion")?.first("cx:series")?.first("cx:dataLabels"),
+           dl.first("cx:visibility") == nil { c.dataLabels = true }
         return c
     }
 
@@ -1187,7 +1205,20 @@ enum ChartXML {
         for (j, ser) in all.enumerated() {
             guard let d = data[ser.first("cx:dataId")?["val"] ?? ""] else { return nil }
             let values = d.vals.map { $0.flatMap { Double($0.trimmingWhitespace()) } }
-            if categories.isEmpty { categories = (0 ..< values.count).map { (d.cats[safe: $0] ?? nil) ?? String($0 + 1) } }
+            if categories.isEmpty {
+                // (No category cells: the points are counted 1, 2, 3…, shown in the category axis's own number
+                // format where it sets one, "0.00E+00" printing 1.00E+00: PowerPoint's print of a funnel.)
+                let axisFmt = chart.first("cx:plotArea")?.all("cx:axis").compactMap { a -> String? in
+                    guard let f = a.first("cx:numFmt"), f["sourceLinked"] != "1" else { return nil }
+                    return f["formatCode"]
+                }.first
+                categories = (0 ..< values.count).map {
+                    if let c = d.cats[safe: $0] ?? nil { return c }
+                    guard let code = axisFmt, d.cats.isEmpty else { return String($0 + 1) }
+                    let shown = NumberFormat.format(Double($0 + 1), code, width: 40).text.trimmingWhitespace()
+                    return shown.isEmpty ? String($0 + 1) : shown
+                }
+            }
             series.append(ChartSeries(name: ser.first("cx:tx")?.descendant("cx:v")?.text ?? "Series\(j + 1)", values: values))
         }
         // (No points cached is a chart still, its cells read live:
@@ -3343,8 +3374,10 @@ enum ChartPainter {
             _surface(c, canvas, area, k: k, theme: theme, grid: c.gridColor ?? grid,
                      text: { styled($0, $1, $2, bold: false, color: c.valueLabelColor) })
         } else if let nodes = c.sunburst, c.treemap {
+            // (On a slide PowerPoint rules nothing between the boxes and sets the names in the grey of its other labels,
+            // 0x595959: chartex-lab's treemap; a sheet's Excel rules them in the background and sets the names in it.)
             _treemap(c, nodes, canvas, area, k: k, theme: theme,
-                     text: { styled($0, $1, $2, bold: false, color: theme.background) })
+                     text: { styled($0, $1, $2, bold: false, color: c.onSheet ? theme.background : c.valueLabelColor) })
         } else if let nodes = c.sunburst {
             _sunburst(c, nodes, canvas, area, k: k, theme: theme,
                       text: { styled($0, $1, $2, bold: false, color: theme.background) })
@@ -4232,6 +4265,13 @@ enum ChartPainter {
         let edge = Paint()
         edge.style = .stroke
         edge.strokeWidth = max(0.25, s.outlineWidth * k)
+        // (The axis: a light grey line down the plot's left, its ticks inward at the slots' edges.)
+        let axis = Paint()
+        axis.style = .stroke
+        axis.strokeWidth = 0.75 * k
+        axis.color = Color(0xFFD9D9D9)
+        canvas.drawLine(Offset(plot.left, plot.top), Offset(plot.left, plot.bottom), axis)
+        if c.funnelTicks { for i in 0 ... n { let y = plot.top + Double(i) * slot; canvas.drawLine(Offset(plot.left, y), Offset(plot.left + 3 * k, y), axis) } }
         for i in 0 ..< n {
             let cy = plot.top + (Double(i) + 0.5) * slot
             labels[i].paint(canvas, Offset(left - 6 * k - labels[i].width, cy - labels[i].height / 2))
@@ -4239,7 +4279,7 @@ enum ChartPainter {
             let w = abs(v) / widest * plot.width
             let r = Rect.fromLTWH(plot.center.dx - w / 2, cy - bar / 2, w, bar)
             canvas.drawRect(r, fill)
-            if let o = s.outline { edge.color = o; canvas.drawRect(r.deflate(edge.strokeWidth / 2), edge) }
+            if let o = s.outline, s.outlineWidth > 0 { edge.color = o; canvas.drawRect(r.deflate(edge.strokeWidth / 2), edge) }
             if c.dataLabels {
                 let tp = TextPainter(text: TextSpan(text: dataLabel(c, v), style: Flutter.TextStyle(
                     color: Color(0xFFFFFFFF), fontSize: max(3, c.baseTextSize * k),
@@ -4581,7 +4621,9 @@ enum ChartPainter {
                 }
                 // (On a sheet it stands 5.8 pt further in, and the plot with it: Excel's turned titles' baselines
                 // 5.5, 6.2 and 5.1 pt right of ours in tdf119138, 57362 and tdf100084, their plots' left 5.3.)
-                let inset = c.onSheet ? 5.8 * k : 0
+                // (On a slide too, 5.4: en/bab9be95's two y titles, 14 pt in two lines and 11 pt in one, stand 5.7 pt
+                // right of ours in PowerPoint's print, their plots' left 5.1.)
+                let inset = c.onSheet ? 5.8 * k : c.onSlide && c.type == .scatter ? 5.4 * k : 0
                 canvas.save()
                 canvas.translate(area.left + inset, area.center.dy - lift + tp.width / 2)
                 canvas.rotate(-.pi / 2)
@@ -4689,7 +4731,11 @@ enum ChartPainter {
             // (A bar chart's category names in a Word document wrap at a fifth of the
             // chart: lo tdf128996's "A very long category name 4" is two lines in Word's
             // print, "A very long category" over "name 4", ours one line a third wide.)
-            let barNameWidth = (!c.onSlide && !c.onSheet ? 0.2 : 0.3) * area.width
+            // (On a slide the names keep to the room left of a placed plot, up to the frame's edge: ja 81d28d42 p29's chart 6 wraps
+            // them at 195 pt in a 200.5 pt room; with the plot left to the layout they run up to half the area, ja 805ac359 p10's
+            // 180 pt names on one line in a 402 pt frame, where we wrapped them at 0.3.)
+            let barNameWidth = c.onSlide ? (c.plotLayoutInner && placed != nil ? max(0.3 * area.width, placed!.left - frame.left) : 0.5 * area.width)
+                : (!c.onSheet ? 0.2 : 0.3) * area.width
             // (Under a multi-level axis the names are not wrapped: lo tdf126244's
             // "Categoria 1 Categoria 1 Categoria 4" is one line in Word's print.)
             catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, horizontal ? (c.categoryLevels.isEmpty && !(c.valueReversed && c.onSlide) ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : max(slot * Double(max(1, c.categoryLabelSkip)) - 2 * k, 8 * k)) }
@@ -6563,41 +6609,36 @@ extension ChartPainter {
         // (The boxes 5.8 pt inside the frame at the sides and foot, and
         // 0.67 lower than the room under the title: Excel's print of
         // chart-treemap, where ours stood 6.75 in and 3.45 off its foot.)
-        let area = c.onSheet ? Rect.fromLTRB(area.left - 0.95 * pt, area.top + 0.67 * pt, area.right + 0.95 * pt, area.bottom - 2.43 * pt) : area
-        func aspect(_ areas: ArraySlice<Double>, across width: Double) -> Double {
-            let h = areas.reduce(0, +) / width
-            guard h > 0 else { return .infinity }
-            return areas.reduce(0) { $0 + max($1 / h / h, h * h / max($1, 1e-9)) } / Double(areas.count)
-        }
+        // (On a slide the boxes stand 3.1 pt left, 1.8 right, 0.9 below and 1.8 above where the room under the title puts them:
+        // PowerPoint's print of chartex-lab's treemap, 166.1 to 745.1 by 87.0 to 453.1 where ours stood 169.2 to 746.9 by 86.1 to 454.9.)
+        let area = c.onSheet ? Rect.fromLTRB(area.left - 0.95 * pt, area.top + 0.67 * pt, area.right + 0.95 * pt, area.bottom - 2.43 * pt)
+            : Rect.fromLTRB(area.left - 3.1 * pt, area.top + 0.9 * pt, area.right - 1.8 * pt, area.bottom - 1.8 * pt)
+        // (Halved, as PowerPoint prints chartex-lab's treemap: the larger first, the list cut where the two halves' sums
+        // are nearest equal, the box cut across its longer side, each half the same again. Best 27 and Worst 16 side by
+        // side; First's B and E over A beside D over C; Worst's F and E over Fifth and Fourth. A box within 1% of square
+        // is cut as the wider: Best, 363.6 by 366.1 pt, is cut into columns.)
         func strips(_ values: [Double], in box: Rect) -> [Rect] {
-            let total = values.reduce(0, +)
-            guard total > 0, box.width > 0, box.height > 0 else { return values.map { _ in .zero } }
-            let areas = values.map { $0 / total * box.width * box.height }
-            func grow(_ i: Int) -> Int {
-                var j = i + 1
-                while j < areas.count, aspect(areas[i ... j], across: box.width) <= aspect(areas[i ..< j], across: box.width) { j += 1 }
-                return j
-            }
-            var out: [Rect] = [], i = 0, y = box.top
-            while i < areas.count {
-                var j = grow(i)
-                while j < areas.count {
-                    let next = grow(j)
-                    let apart = (aspect(areas[i ..< j], across: box.width) * Double(j - i)
-                        + aspect(areas[j ..< next], across: box.width) * Double(next - j)) / Double(next - i)
-                    guard aspect(areas[i ..< next], across: box.width) < apart else { break }
-                    j = next
+            guard values.reduce(0, +) > 0, box.width > 0, box.height > 0 else { return values.map { _ in .zero } }
+            func lay(_ r: ArraySlice<Double>, _ box: Rect) -> [Rect] {
+                if r.count == 1 { return [box] }
+                let total = r.reduce(0, +)
+                guard total > 0 else { return r.map { _ in box } }
+                var cut = r.startIndex + 1, best = Double.infinity, run = 0.0
+                for k in r.startIndex ..< r.endIndex - 1 {
+                    run += r[k]
+                    let diff = abs(total - 2 * run)
+                    if diff < best - 1e-9 { best = diff; cut = k + 1 }
                 }
-                let h = areas[i ..< j].reduce(0, +) / box.width
-                var x = box.left
-                for a in areas[i ..< j] {
-                    out.append(Rect.fromLTWH(x, y, a / h, h))
-                    x += a / h
+                let a = r[r.startIndex ..< cut], b = r[cut ..< r.endIndex]
+                let f = a.reduce(0, +) / total
+                if box.width >= box.height * 0.99 {
+                    let x = box.left + box.width * f
+                    return lay(a, Rect.fromLTRB(box.left, box.top, x, box.bottom)) + lay(b, Rect.fromLTRB(x, box.top, box.right, box.bottom))
                 }
-                y += h
-                i = j
+                let y = box.top + box.height * f
+                return lay(a, Rect.fromLTRB(box.left, box.top, box.right, y)) + lay(b, Rect.fromLTRB(box.left, y, box.right, box.bottom))
             }
-            return out
+            return lay(values[...], box)
         }
         let fill = Paint()
         fill.style = .fill
@@ -6615,7 +6656,7 @@ extension ChartPainter {
                 if n.children.isEmpty {
                     fill.color = theme.accents.isEmpty ? Color(0xFF808080) : theme.accents[accent % theme.accents.count]
                     canvas.drawRect(r, fill)
-                    canvas.drawRect(r, edge)
+                    if c.onSheet { canvas.drawRect(r, edge) }
                     labels.append((n.name, r, false))
                 } else {
                     draw(n.children, in: r, level: level + 1, color: accent)
@@ -8073,8 +8114,9 @@ extension ChartPainter {
                 // (A doughnut's leader ends in the middle of its ring: tdf161607's, Excel's print.)
                 let from = on(s.mid, c.type == .doughnut ? (1 + Double(c.holeSize) / 100) / 2 : 1)
                 let to = Offset(min(max(from.dx, box.left), box.right), min(max(from.dy, box.top), box.bottom))
-                // (None where the label already touches the ring: tdf161607's "Category 4".)
-                let touches = c.type == .doughnut && point == nil
+                // (None where the label already touches the ring: tdf161607's "Category 4"; and on a slide a pie's moved label that stands
+                // on the pie: 3f8a480a p2's four labels, leaders on in the file, none in PowerPoint's print.)
+                let touches = (c.type == .doughnut || (c.onSlide && c.type == .pie && moved != nil)) && point == nil
                     && hypot(min(max(centre.dx, box.left), box.right) - centre.dx, min(max(centre.dy, box.top), box.bottom) - centre.dy) <= rx
                 // (Word draws a flat best-fit label's leader only where its own search moved the box, never nearer than
                 // 7.8 pt to the rim point in 312 prints; labels its rule places are not moved.)

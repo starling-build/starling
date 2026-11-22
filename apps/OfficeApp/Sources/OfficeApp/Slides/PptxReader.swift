@@ -522,6 +522,22 @@ private struct LevelStyle {
     /// The bullet as a Unicode glyph: the file's character, or what a
     /// symbol face (Wingdings, Symbol) shows for that code; nil for a code
     /// in such a face this app does not know, which draws the level's own.
+    /// Wingdings' common bullets as our own shapes, from the face's measured
+    /// ink box (metrics only): kind (0 round, 1 square, 2 diamond), x0, y0, x1, y1 in ems.
+    var bulletInk: [Double]? {
+        guard let ch = bulletChar, let scalar = ch.unicodeScalars.first, (bulletFont ?? "").lowercased() == "wingdings" else { return nil }
+        let code = (0xF000 ... 0xF0FF).contains(scalar.value) ? scalar.value - 0xF000 : scalar.value
+        switch code {
+        case 0x6C: return [0, 0.0845, 0.0723, 0.6631, 0.6504]
+        case 0x6E: return [1, 0.0845, 0.0723, 0.6626, 0.6504]
+        case 0xA7: return [1, 0.0845, 0.2168, 0.3735, 0.5059]
+        case 0x75: return [2, 0.0845, -0.0474, 0.9023, 0.7705]
+        case 0xD8: return [3, 0.0845, 0.0, 0.7104, 0.7227]
+        case 0xFC: return [4, 0.0723, 0.1226, 0.7495, 0.7656]
+        default: return nil
+        }
+    }
+
     var bulletGlyph: String? {
         guard let ch = bulletChar, let scalar = ch.unicodeScalars.first else { return nil }
         // Symbol faces are often spelled in the private range (U+F0xx).
@@ -551,7 +567,7 @@ private struct LevelStyle {
             return map[code]
         }
         if face.hasPrefix("symbol") {
-            let map: [UInt32: String] = [0xB7: "•", 0x2D: "–", 0x3E: ">", 0xB2: "″", 0xA8: "♦", 0xA7: "♣", 0xAE: "→", 0xDE: "⇒"]
+            let map: [UInt32: String] = [0xB7: "•", 0x2A: "∗", 0x2D: "–", 0x3E: ">", 0xB2: "″", 0xA8: "♦", 0xA7: "♣", 0xAE: "→", 0xDE: "⇒"]
             return map[code]
         }
         if face.hasPrefix("webdings") { return nil }
@@ -1189,10 +1205,11 @@ struct PptxReader {
         let contrast = (l["contrast"].flatMap(Double.init) ?? 0) / 100000
         guard bright != 0 || contrast != 0 else { return nil }
         let cf = contrast < 0 ? 1 + contrast : 1 / max(0.01, 1 - contrast)
-        // c' = cf·x + 127.5·(1 − cf); then toward white: c'·(1 − b) + 255·b.
-        var scale = cf, offset = 127.5 * (1 - cf)
-        if bright > 0 { scale *= 1 - bright; offset = offset * (1 - bright) + 255 * bright }
-        else if bright < 0 { scale *= 1 + bright; offset *= 1 + bright }
+        // PowerPoint print fit (lab lum3, 48 bright/contrast pairs, worst
+        // error 1 level, same on every channel): the contrast slope pivots
+        // at mid grey, and brightness adds 255·b scaled by (1 + slope)/2.
+        let scale = cf
+        let offset = 127.5 * (1 - cf) + 127.5 * bright * (1 + cf)
         var m: [Double] = []
         for ch in 0 ..< 3 {
             var row = [0.0, 0, 0, 0, offset]
@@ -2560,8 +2577,10 @@ private struct SlideContext {
                 var cellParas: [RichParagraph] = []
                 var cellLevels: [Int] = [], cellNumbering: [(type: String, start: Int)?] = []
                 for p in tc.first("a:txBody")?.all("a:p") ?? [] {
-                    var level = LevelStyle.paragraph(p.first("a:pPr"), colors).filled(from: look)
                     let cellLevel = p.first("a:pPr")?["lvl"].flatMap(Int.init) ?? 0
+                    // (The cell's own list style stands between its paragraph and the table's: 65a1be73-class decks name Tahoma and MS PGothic there.)
+                    let cellList = LevelStyle.paragraph(tc.first("a:txBody")?.first("a:lstStyle")?.first("a:lvl\(min(cellLevel, 8) + 1)pPr"), colors)
+                    var level = LevelStyle.paragraph(p.first("a:pPr"), colors).filled(from: cellList).filled(from: look)
                     cellLevels.append(cellLevel)
                     // A deeper level's text edge and hang, where the
                     // paragraph says neither, are its level's in the
@@ -2583,23 +2602,41 @@ private struct SlideContext {
                         guard !t.isEmpty else { continue }
                         let s = (child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle()).filled(from: level)
                         text += t
-                        runs.append(Run(length: t.utf16.count, style: CharStyle(
-                            bold: s.bold ?? false, italic: s.italic ?? false, underline: s.underline ?? false,
-                            fontFamily: _font(s.font, lang: s.lang), fontSize: s.size ?? 18,
-                            color: s.color ?? colors.scheme("tx1"), letterSpacing: s.spc.flatMap { $0 != 0 ? $0 : nil })))
+                        // (East Asian letters in the East Asian face, the rest in the Latin one, as a text box's runs: PowerPoint sets
+                        // a cell's kana and fullwidth forms in MS PGothic where the Latin slot says Tahoma or Arial.)
+                        var segments: [(length: Int, face: String?)] = []
+                        if child.name != "a:br" {
+                            var segFace: String?? = nil
+                            for ch in t.unicodeScalars {
+                                let ea = Self.isEastAsian(ch.value)
+                                let face: String? = ea ? _eaFont(s.eaFont ?? s.font, scalar: ch.value, lang: s.lang, latin: s.font) : nil
+                                if let last = segFace, last == face, !segments.isEmpty { segments[segments.count - 1].length += ch.utf16.count }
+                                else { segments.append((ch.utf16.count, face)); segFace = .some(face) }
+                            }
+                        }
+                        if segments.isEmpty { segments = [(t.utf16.count, nil)] }
+                        let firstRun = runs.count
+                        for seg in segments {
+                            runs.append(Run(length: seg.length, style: CharStyle(
+                                bold: s.bold ?? false, italic: s.italic ?? false, underline: s.underline ?? false,
+                                fontFamily: seg.face ?? _font(s.font, lang: s.lang), fontSize: s.size ?? 18,
+                                color: s.color ?? colors.scheme("tx1"), letterSpacing: s.spc.flatMap { $0 != 0 ? $0 : nil })))
+                        }
+                        for k in firstRun ..< runs.count {
                         // (Kerned from the size `kern` says up, as a text box's runs.)
-                        if Self._unkerned(_font(s.font), bold: s.bold ?? false) {
-                            runs[runs.count - 1].style.kerningFrom = 0
-                        } else { runs[runs.count - 1].style.kerningFrom = s.kern ?? unsaidKern }
-                        Self.faceSpacing(&runs[runs.count - 1].style)
+                        if Self._unkerned(runs[k].style.fontFamily, bold: s.bold ?? false) {
+                            runs[k].style.kerningFrom = 0
+                        } else { runs[k].style.kerningFrom = s.kern ?? unsaidKern }
+                        Self.faceSpacing(&runs[k].style)
                         // (And what a text box's run carries besides: highlight-
                         // test-case's green and yellow in its table's first
                         // cell, drawn plain.)
-                        runs[runs.count - 1].style.strikethrough = s.strike ?? false
-                        if let b = s.baseline { runs[runs.count - 1].style.script = b > 0 ? .superscript : b < 0 ? .subscript : .normal }
-                        runs[runs.count - 1].style.highlight = s.highlight
-                        runs[runs.count - 1].style.shadow = s.shadow
-                        if s.caps == "all" { runs[runs.count - 1].style.caps = true } else if s.caps == "small" { runs[runs.count - 1].style.smallCaps = true }
+                        runs[k].style.strikethrough = s.strike ?? false
+                        if let b = s.baseline { runs[k].style.script = b > 0 ? .superscript : b < 0 ? .subscript : .normal }
+                        runs[k].style.highlight = s.highlight
+                        runs[k].style.shadow = s.shadow
+                        if s.caps == "all" { runs[k].style.caps = true } else if s.caps == "small" { runs[k].style.smallCaps = true }
+                        }
                     }
                     var style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
                     if looseKinsoku { style.eastAsian["a:looseKinsoku"] = "1" }
@@ -2639,7 +2676,7 @@ private struct SlideContext {
                         // The cell's own bullet, as a shape's: the AES
                         // tables' "•" at every level, where the layout's
                         // own drew "◦" below the first.
-                        if level.bullet == .char { style.bulletText = level.bulletGlyph }
+                        if level.bullet == .char { style.bulletText = level.bulletGlyph; style.bulletInk = level.bulletInk }
                         style.bulletColor = level.bulletColor
                         style.bulletScale = level.bulletScale
                         // In its own face, as a shape's: AES 2011's Arial
@@ -2653,11 +2690,15 @@ private struct SlideContext {
                             style.bulletStandInFamily = OfficeFonts.calibri
                             style.bulletStandInScale = 0.565 / 0.46
                         }
+                        if level.bullet == .char, level.bulletFont?.lowercased().hasPrefix("symbol") == true, style.bulletText == "∗" {
+                            style.bulletStandInScale = 0.36 / 0.58
+                            style.bulletStandInRaise = 0.28
+                        }
                     default:
                         // A plain cell paragraph keeps its own left edge, first-line offset and right margin
                         // (marL, indent, marR): espt 174ab0c2's table labels stand 7.2 pt in and break 13.6 pt short.
                         // (Only a real offset, marL above 0 and no hanging indent: explicit zeros and aptia's centred hanging cell sat worse.)
-                        if (level.marL ?? 0) > 0, (level.indent ?? 0) >= 0 {
+                        if (level.marL ?? 0) > 0 || (level.indent ?? 0) > 0, (level.indent ?? 0) >= 0 {
                             style.indentLeft = level.marL ?? 0
                             style.firstLineIndent = level.indent ?? 0
                         }
@@ -3708,7 +3749,7 @@ private struct SlideContext {
             case .char?, .number?:
                 style.list = level.bullet == .char ? .bullet : .numbered
                 style.listLevel = lvl
-                if level.bullet == .char { style.bulletText = level.bulletGlyph }
+                if level.bullet == .char { style.bulletText = level.bulletGlyph; style.bulletInk = level.bulletInk }
                 if level.bullet == .char { style.bulletPicture = level.bulletPicture }
                 style.bulletColor = level.bulletColor
                 style.bulletScale = level.bulletScale
@@ -3729,6 +3770,12 @@ private struct SlideContext {
                 if level.bullet == .char, level.bulletFont?.lowercased() == "wingdings", style.bulletText == "●" {
                     style.bulletStandInFamily = OfficeFonts.calibri
                     style.bulletStandInScale = 0.565 / 0.46
+                }
+                // The Symbol face's asterisk (code 2A) is 0.36 of an em across and 0.40 high, while the stand-in "∗" is 0.58 across
+                // and stands 0.28 em (of the smaller marker) low (3c310d53 p8, 28 pt: PowerPoint's ink 10.0 x 11.3 pt, 176.9 to 188.0).
+                if level.bullet == .char, level.bulletFont?.lowercased().hasPrefix("symbol") == true, style.bulletText == "∗" {
+                    style.bulletStandInScale = 0.36 / 0.58
+                    style.bulletStandInRaise = 0.28
                 }
                 // The file's own text edge (marL) and bullet offset (indent):
                 // the text placed where the file puts it, both written back

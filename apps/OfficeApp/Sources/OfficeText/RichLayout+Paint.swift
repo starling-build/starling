@@ -1629,12 +1629,50 @@ extension RichLayout {
             // is the text's.)
             let marker = TextPainter(text: TextSpan(text: label, style: markerStyle),
                                      textAlign: .right, textDirection: .ltr, strutStyle: g.painter.strutStyle)
+            // (A symbol-face bullet as our own shape, from the face's measured ink box in ems: its left
+            // at the advance box's, its baseline the marker's.)
+            func paintBullet(_ at: Offset) {
+                guard let ink = p.style.bulletInk, ink.count == 5, !label.isEmpty else { marker.paint(canvas, at); return }
+                let size = _px(markerChar.fontSize ?? _named(p, document)?.char.fontSize ?? theme.fontSize) / (p.style.bulletStandInScale ?? 1) * fontScale
+                let base = at.dy + marker.computeDistanceToActualBaseline(.alphabetic)
+                let r = Rect.fromLTRB(at.dx + ink[1] * size, base - ink[4] * size, at.dx + ink[3] * size, base - ink[2] * size)
+                // (The glyph stays in the page's text, unseen, as in PowerPoint's print, where the bullet is a letter of the line.)
+                let unseen = TextPainter(text: TextSpan(text: label, style: markerStyle.copyWith(color: Color(0x01000000))),
+                                         textAlign: .right, textDirection: .ltr, strutStyle: g.painter.strutStyle)
+                unseen.textAlign = marker.textAlign
+                unseen.layout(minWidth: 0, maxWidth: max(1, marker.width))
+                unseen.paint(canvas, at)
+                let paint = Paint()
+                paint.color = markerStyle.color ?? Color(0xFF000000)
+                switch Int(ink[0]) {
+                case 0: canvas.drawOval(r, paint)
+                case 2:
+                    let d = Path()
+                    let cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2
+                    d.moveTo(cx, r.top); d.lineTo(r.right, cy); d.lineTo(cx, r.bottom); d.lineTo(r.left, cy); d.close()
+                    canvas.drawPath(d, paint)
+                case 3:
+                    // The arrowhead (Wingdings D8): a dart, its tip at the right middle, a notch in its tail.
+                    let d = Path(), w = r.right - r.left, cy = (r.top + r.bottom) / 2
+                    d.moveTo(r.left, r.top); d.lineTo(r.right, cy); d.lineTo(r.left, r.bottom); d.lineTo(r.left + w * 0.3, cy); d.close()
+                    canvas.drawPath(d, paint)
+                case 4:
+                    // The check mark (Wingdings FC): a short stroke down, a long one up.
+                    let d = Path(), w = r.right - r.left, h = r.bottom - r.top
+                    d.moveTo(r.left + w * 0.04, r.top + h * 0.58); d.lineTo(r.left + w * 0.34, r.bottom - h * 0.04); d.lineTo(r.right - w * 0.02, r.top + h * 0.02)
+                    paint.style = .stroke
+                    paint.strokeWidth = max(1, h * 0.16)
+                    canvas.drawPath(d, paint)
+                default: canvas.drawRect(r, paint)
+                }
+            }
             let slot = _px(theme.listIndent)
             // On the first line's baseline: a marker of another size (a
             // bullet at 80%) has its own, higher or lower than the text's.
             func top() -> Double {
                 g.textTop + _baselineShift(i, document) + g.painter.computeDistanceToActualBaseline(.alphabetic)
                     - marker.computeDistanceToActualBaseline(.alphabetic)
+                    - (p.style.bulletStandInRaise ?? 0) * (markerChar.fontSize ?? theme.fontSize) * theme.pixelsPerPoint * scale
             }
             if !theme.markersAtHang, let own = _listIndents(p, document), own.hanging > 0 {
                 // Where the file hangs it: the number starts that far
@@ -1642,7 +1680,7 @@ extension RichLayout {
                 marker.textAlign = .left
                 marker.layout(minWidth: 0, maxWidth: max(1, slot * 8))
                 let hang = g.textLeft - _px(own.hanging)
-                marker.paint(canvas, Offset(min(hang, g.textLeft - marker.width), top()))
+                paintBullet( Offset(min(hang, g.textLeft - marker.width), top()))
             } else if theme.markersAtHang {
                 // At the hang, and never over the text — or, with no hang at
                 // all, at the first line's start, the text after it (its
@@ -1653,11 +1691,11 @@ extension RichLayout {
                     // Mirrored: the text's right edge, the hang's distance out.
                     marker.textAlign = .left
                     marker.layout(minWidth: 0, maxWidth: max(1, slot * 4))
-                    marker.paint(canvas, Offset(g.textLeft + g.textWidth + (g.textLeft - hang) - marker.width, top()))
+                    paintBullet( Offset(g.textLeft + g.textWidth + (g.textLeft - hang) - marker.width, top()))
                 } else if hang >= g.textLeft - 0.01, !p.text.isEmpty {
                     marker.textAlign = .left
                     marker.layout(minWidth: 0, maxWidth: max(1, slot * 4))
-                    marker.paint(canvas, Offset(hang, top()))
+                    paintBullet( Offset(hang, top()))
                 } else {
                     // On the first line's baseline, as PowerPoint sets it: from
                     // the line's top, a bullet at 80% stood four points high
@@ -1678,17 +1716,17 @@ extension RichLayout {
                     }
                     // (A bullet wider than its hang stays at the hang, the text pushed past it: `lead`.)
                     let wide = marker.width > g.textLeft - hang + 0.01
-                    marker.paint(canvas, Offset((wide ? hang : min(hang, g.textLeft - marker.width - 4)) + along, top()))
+                    paintBullet( Offset((wide ? hang : min(hang, g.textLeft - marker.width - 4)) + along, top()))
                 }
             } else if theme.wordRules, !document.readFromFile {
                 // No level of its own yet: where the file it is saved to
                 // will hang it, half the indent back from the text.
                 marker.textAlign = .left
                 marker.layout(minWidth: 0, maxWidth: max(1, slot * 8))
-                marker.paint(canvas, Offset(min(g.textLeft - slot / 2, g.textLeft - marker.width), top()))
+                paintBullet( Offset(min(g.textLeft - slot / 2, g.textLeft - marker.width), top()))
             } else {
                 marker.layout(minWidth: slot - 8, maxWidth: slot - 8)
-                marker.paint(canvas, Offset(g.textLeft - slot, g.inkTop))
+                paintBullet( Offset(g.textLeft - slot, g.inkTop))
             }
             marker.dispose()
             }

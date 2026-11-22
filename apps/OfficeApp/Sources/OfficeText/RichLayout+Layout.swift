@@ -2591,9 +2591,18 @@ extension RichLayout {
                         if !theme.wordRules {
                             let q = document.paragraphs[k]
                             let m = q.style.lineSpacing
-                            if m > 1.0834, q.style.lineHeightPoints == nil, !q.text.isEmpty {
-                                let sz = q.runs.compactMap { $0.style.fontSize }.max() ?? theme.fontSize
-                                trim = _px((m - 1) * 1.2 * sz - ((m - 1) * sz - 0.083 * sz))
+                            if m > 1.0, q.style.lineHeightPoints == nil, !q.text.isEmpty {
+                                let big = q.runs.max { ($0.style.fontSize ?? 0) < ($1.style.fontSize ?? 0) }
+                                let sz = big?.style.fontSize ?? theme.fontSize
+                                // (Lab tbl-lnspc2, 15 slides: the first line adds 0.9 x size x (m-1), less 0.0717 x size
+                                // for Latin text (Arial; es 92ee258e's face too); East Asian text (Meiryo) loses nothing.)
+                                let ea = q.text.unicodeScalars.contains { Self._isEastAsianScalar($0.value) }
+                                // (The loss shrinks with the face's own line height: Arial (1.149 em) 0.0717, Calibri (1.22 em)
+                                // 0.041 from es 92ee258e's print; a taller face loses less, none from about 1.31 em.)
+                                let h = theme.naturalLineHeight(family: big?.style.fontFamily, bold: false, italic: false)
+                                let k = max(0, 0.0717 - 0.437 * (h - 1.149))
+                                let add = max(0, 0.9 * sz * (m - 1) - k * sz)
+                                trim = _px(max(0, (m - 1) * 1.2 * sz - add))
                             }
                         }
                         rowHeight = max(rowHeight, offset + _heights[k] - trim + cell.pad.top + cell.pad.bottom)

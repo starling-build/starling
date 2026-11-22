@@ -19,6 +19,20 @@ extension _ParaFrame {
             _leadWidth[i] = lead
             leadTab = true
         }
+        // (Slides: a paragraph that opens with spaces and a tab, " <tab>Referendado" in 4c5084ff p17 (pt): PowerPoint sets
+        // the text at the next stop whatever the justifying does; the engine's justifying took the tab's widening with the
+        // blanks, the text at the indent. The widening goes into the first line's indent box, as a leading tab's does.)
+        var leadSpaces: Set<Int> = []
+        if !theme.wordRules, theme.markersAtHang, style.alignment == .justify {
+            let u = Array(p.text.utf16)
+            if let t = u.firstIndex(where: { $0 != 0x20 }), t > 0, u[t] == 0x09, let e = tabs[t], e != 0 {
+                lead += e
+                tabs[t] = nil
+                _leadWidth[i] = lead
+                leadTab = true
+                leadSpaces = Set(0 ... t)
+            }
+        }
         // (Not one set at the margin: it ends its line, which is not
         // justified after it, and a held space is a little wider than
         // the tab it stands for — enough, at the margin, to send the
@@ -75,7 +89,7 @@ extension _ParaFrame {
             ? Set(tabs.keys.filter { t in (t > 0 && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t - 1)] == 0x09) || (t + 1 < p.text.utf16.count && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t + 1)] == 0x09) }).subtracting(atMargin)
             : []
         if !tabRuns.isEmpty { RuleTrace.hit("tab-runs-do-not-hang-past-the-margin") }
-        tabsHeld = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(leadTab && style.alignment == .justify ? [0] : []).union(underHeld).union(beforeTabs).union(tabRuns).union(lonePastTabs).union(afterTabWraps)
+        tabsHeld = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(leadTab && style.alignment == .justify ? (leadSpaces.isEmpty ? [0] : leadSpaces) : []).union(underHeld).union(beforeTabs).union(tabRuns).union(lonePastTabs).union(afterTabWraps)
             .union(theme.wordRules && RichTextTheme.wordWindowsPages ? RichLayout._underlinedClosingCounted(p) : [])
         // A line exactly as wide as its room fits or not as Word's sum of
         // the room comes out: each measure in twips goes to the sixteenth
@@ -235,7 +249,9 @@ extension _ParaFrame {
             let units = Array(p.text.utf16)
             func isMark(_ k: Int) -> Bool {
                 // (A ")" that closes a Hangul or ideograph hangs the same way: ko-4f5289 p6 keeps "(실부하)" whole in a narrow cell.)
-                if k > 0, k < units.count, units[k] == 0x29 { return units[k - 1] >= 0x3040 && units[k - 1] < 0xD7B0 || units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 }
+                if k > 0, k < units.count, units[k] == 0x29 { return units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 }
+                // (A ” after kanji or kana is full width in the East Asian face and never hangs: lab hang3 slide 7 breaks "課|程”" below its width.)
+                if k > 0, k < units.count, units[k] == 0x201D, units[k - 1] >= 0x3040, units[k - 1] <= 0x9FFF { return false }
                 return k < units.count && (units[k] == 0x3001 || units[k] == 0x3002 || units[k] == 0xFF0C || units[k] == 0xFF0E || units[k] == 0x201D) }
             var stays = Set<Int>()
             for _ in 0 ..< 3 {
@@ -247,7 +263,7 @@ extension _ParaFrame {
                     let m = isMark(s0) ? s0 : (isMark(s0 + 1) ? s0 + 1 : (s0 + 2 < units.count && units[s0 + 1] == 0x20 && units[s0 + 2] == 0x201D ? s0 + 2 : -1))
                     guard m >= 0, adj[m] == nil, !stays.contains(m) else { continue }
                     let boxes = painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(m), extentOffset: map.painter(m) + 1))
-                    if let b = boxes.first { adj[m] = -max(0, b.right - b.left - _px(0.5)) }
+                    if let b = boxes.first { adj[m] = -max(0, b.right - b.left) }
                 }
                 if adj.count == fit.count { break }
                 let trial = laidOut(_span(for: p, at: i, document, textWidth: textWidth, lead: lead, adjust: adj, held: tabsHeld).0)
