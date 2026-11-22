@@ -544,6 +544,18 @@ enum SlideFonts {
         ["traditional arabic", "sakkal majalla", "majalla ui", "simplified arabic", "arabic typesetting"].contains(family.trimmingWhitespace().lowercased())
     }
 
+    /// A sideways run in a turned frame (vert, eaVert's cloud faces): the column is the face's win ascent + descent plus 0.2 em split
+    /// evenly, 0.1 em each side, so its baseline stands (win ascent + 0.1 em) from the column's edge on the 1.2 em line, not 1.2 em x the
+    /// ascent share (lab vface, from the frame: MS Mincho 0.9585 em, Batang 0.952, Gulim 0.9515 against 0.959 and 0.958 here, ours was 1.031).
+    static func sidewaysColumnShare(_ family: String) -> Double? {
+        guard OfficeFonts.installed(family) == nil else { return nil }
+        switch windowsName(family) {
+        case "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝": return 1 - (220.0 / 256 + 0.1) / 1.2
+        case "gulim", "굴림", "gulimche", "굴림체", "batang", "바탕", "batangche", "바탕체": return 1 - (879.0 / 1024 + 0.1) / 1.2
+        default: return nil
+        }
+    }
+
     static func ownDescentShare(_ family: String) -> Double? {
         guard OfficeFonts.installed(family) == nil else { return nil }
         let n = windowsName(family)
