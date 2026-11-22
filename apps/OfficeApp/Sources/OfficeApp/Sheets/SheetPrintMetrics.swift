@@ -291,6 +291,9 @@ struct SheetPrintMetrics {
         // measure (47813, Excel 20527, lab b47r4: with the chart sheet 105 dots
         // a row and a 53.2 dot digit, without it 108 and 53; any chart sheet,
         // any page orientation or position). Calibri 11 books show no shift.
+        // A FIT, not a mechanism (OPEN): the screen's 192 dpi pixels at printer resolution give a
+        // digit of 17 px = 53.1 dots (fits Verdana), but a row of 33 px = 103.1 dots (not 105),
+        // and Calibri 11's 14 px = 43.75 dots against its 42: one formula does not fit both.
         if chartBook, plain == "verdana", size == 10 { digit = 53.2; row = 105 }
         let screenRow = max(1, f.offTable[size] ?? (hinted ? f.hinted[size] : nil) ?? (otherBook ? f.plainBook[size] : nil) ?? at(f.screenRow, size).rounded())
         // The default column, as that Excel's screen made it: the digit there
