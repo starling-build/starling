@@ -138,6 +138,15 @@ enum SlideFonts {
                                                               0xFF02, 0xFF07, 0xFF08, 0xFF09, 0xFF0A, 0xFF1C, 0xFF1E, 0xFF21, 0xFF22, 0xFF3A, 0xFF5E]
                 for c in em where face.otherAdvances?[c] == nil { face.otherAdvances?[c] = 1.0; face.boldOtherAdvances?[c] = 1.0 }
             }
+            // (The Japanese faces do the same: PowerPoint's prints of Meiryo, Meiryo UI, Yu Gothic, MS Gothic and HG Maru Gothic set ① ② ⇒ → ○ ■ ◆ ▶ 1.000 em
+            // across the Japanese pilot decks. 81d28d42 p32's "▶︎女性従業員本人に加え、" breaks after 加え、, where the DejaVu ▶ (0.77 em) took 上 on the line.)
+            let jn = windowsName(family)
+            if jn.hasPrefix("meiryo") || jn == "メイリオ" || jn.hasPrefix("yu gothic") || jn.hasPrefix("游ゴシック") || jn.hasPrefix("ms ") || jn.hasPrefix("ｍｓ")
+                || jn.hasPrefix("hg") {
+                let em: [UInt32] = Array(0x2460...0x2473) + [0x2192, 0x21D2, 0x25A0, 0x25A1, 0x25B2, 0x25B3, 0x25B6, 0x25BC, 0x25BD, 0x25C0, 0x25C6, 0x25C7, 0x25CB, 0x25CE, 0x25CF,
+                                                              0x2605, 0x2606, 0xFE0E, 0xFE0F].map { $0 }
+                for c in em where face.otherAdvances?[c] == nil { let w: Double = c >= 0xFE0E ? 0 : 1; face.otherAdvances?[c] = w; face.boldOtherAdvances?[c] = w }
+            }
             if let it = SlideEastAsianWidths.lookupItalic(windowsName(family)) {
                 face.italicAdvances = it.regular.ascii
                 face.boldItalicAdvances = it.bold?.ascii ?? it.regular.ascii
