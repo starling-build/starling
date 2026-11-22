@@ -295,6 +295,19 @@ final class ChartTests: XCTestCase {
         XCTAssertTrue(c.dataLabels)
     }
 
+    /// A funnel's data labels: the series' own (category and value, ", " between), a point's own format, and a hidden one.
+    func testAFunnelReadsItsPointLabels() {
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><cx:chartData><cx:data id="0"><cx:numDim type="val"><cx:lvl ptCount="2"><cx:pt idx="0">6</cx:pt><cx:pt idx="1">5</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="funnel"><cx:dataLabels pos="ctr"><cx:visibility seriesName="0" categoryName="1" value="1"/><cx:separator>, </cx:separator><cx:dataLabel idx="0"><cx:numFmt formatCode="0.00%" sourceLinked="0"/><cx:visibility seriesName="0" categoryName="0" value="1"/></cx:dataLabel><cx:dataLabelHidden idx="1"/></cx:dataLabels><cx:dataId val="0"/></cx:series></cx:plotAreaRegion></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        guard let c = ChartXML.readChartex(XNode.parse(Data(xml.utf8))!) else { return XCTFail("not read") }
+        XCTAssertTrue(c.dataLabels)
+        XCTAssertTrue(c.cxLabel.category)
+        XCTAssertEqual(c.cxLabelPoints[0]?.format, "0.00%")
+        XCTAssertEqual(c.cxLabelPoints[0]?.category, false)
+        XCTAssertEqual(c.cxLabelPoints[1]?.hidden, true)
+    }
+
     /// A chartex box-and-whisker chart reads as its samples by category,
     /// its quartiles Excel's exclusive ones: chartex's first box runs
     /// -24 to 23.5 about -7 in Word's print.
