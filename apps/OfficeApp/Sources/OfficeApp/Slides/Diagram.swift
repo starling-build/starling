@@ -2162,9 +2162,14 @@ struct DiagramLayout {
         if authored, points.allSatisfy({ $0.prSet?["custT"] == "1" }) {
             bodyPr.children = []
         } else {
-            if let g = n.sizeGroup { bodyPr.attrs["starling:sizeGroup"] = g }
             if generatedHang { bodyPr.attrs["starling:generatedHang"] = "1" }
-            bodyPr.children = [XNode(name: "a:normAutofit", attrs: [:])]
+            // A text box the layout lets grow to its text (`rule type="h" val="INF"`) and holds under a cap
+            // (hProcess3's parTx, at 0.2 of its frame's width) grows in PowerPoint: the text keeps its size
+            // from the box's top (lo-smartart-linear-rule: 50 pt, where it was shrunk to 41).
+            let grows = !wordLayout && n.rules.contains { $0["type"] == "h" && $0["val"] == "INF" } && n.heightCappedByWidth == false
+                && n.caps["h"] != nil && n.vals["h"].map { $0 > (n.caps["h"] ?? .infinity) + 0.5 } == true
+            if !grows, let g = n.sizeGroup { bodyPr.attrs["starling:sizeGroup"] = g }
+            if grows { bodyPr.attrs["anchor"] = "t"; bodyPr.attrs["starling:keepsSize"] = "1"; bodyPr.children = [XNode(name: "a:noAutofit", attrs: [:])] } else { bodyPr.children = [XNode(name: "a:normAutofit", attrs: [:])] }
         }
         // (PictureStrips' left margin is a distance from the picture, not a
         // share of the font: it stays when the text shrinks.)
