@@ -545,6 +545,8 @@ struct Chart: Equatable {
     /// An Excel 2016 treemap (`layoutId="treemap"`): the `sunburst` tree
     /// drawn as nested rectangles instead of rings.
     var treemap = false
+    /// A slide treemap's data labels show the value too ("item1, 5"), as PowerPoint prints chartex-lab2's.
+    var treemapValues = false
 
     /// A waterfall's columns, by point: where each starts and ends.
     var waterfallSpans: [(from: Double, to: Double)] {
@@ -1073,6 +1075,7 @@ enum ChartXML {
         c.chartex = true
         c.legend = chart.first("cx:legend") != nil
         c.dataLabels = ser.first("cx:dataLabels").map { $0.first("cx:visibility")?["categoryName"] != "0" } ?? false
+        c.treemapValues = ser.first("cx:dataLabels")?.first("cx:visibility")?["value"] == "1"
         c.textSize = 9
         c.titleSize = 14
         return c
@@ -6897,7 +6900,7 @@ extension ChartPainter {
         // are nearest equal, the box cut across its longer side, each half the same again. Best 27 and Worst 16 side by
         // side; First's B and E over A beside D over C; Worst's F and E over Fifth and Fourth. A box within 1% of square
         // is cut as the wider: Best, 363.6 by 366.1 pt, is cut into columns.)
-        func strips(_ values: [Double], in box: Rect) -> [Rect] {
+        func strips(_ values: [Double], in box: Rect, grouped: Bool = false) -> [Rect] {
             guard values.reduce(0, +) > 0, box.width > 0, box.height > 0 else { return values.map { _ in .zero } }
             func lay(_ r: ArraySlice<Double>, _ box: Rect) -> [Rect] {
                 if r.count == 1 { return [box] }
@@ -6911,14 +6914,18 @@ extension ChartPainter {
                 }
                 let a = r[r.startIndex ..< cut], b = r[cut ..< r.endIndex]
                 let f = a.reduce(0, +) / total
-                if box.width >= box.height * 0.99 {
+                // (On a slide a box 3% narrower than tall is still cut into columns: chartex-lab2 p9's 316 by 325 pt; one 207 by 299 is cut
+                // into rows. Between the two is all the data there is: a lab would pin the ratio.)
+                if box.width >= box.height * (c.onSheet ? 0.99 : 0.9) {
                     let x = box.left + box.width * f
                     return lay(a, Rect.fromLTRB(box.left, box.top, x, box.bottom)) + lay(b, Rect.fromLTRB(x, box.top, box.right, box.bottom))
                 }
                 let y = box.top + box.height * f
                 return lay(a, Rect.fromLTRB(box.left, box.top, box.right, y)) + lay(b, Rect.fromLTRB(box.left, y, box.right, box.bottom))
             }
-            if !c.onSheet {
+            // (Boxes that hold groups are halved on a slide too: chartex-lab2's 4-group and 6-group pages, every group box exact;
+            // the items inside a group are strips.)
+            if !c.onSheet && !grouped {
                 // PowerPoint (chartex-lab2 treemap pages): items largest first, laid in strips along the shorter side,
                 // a strip growing while the aspect ratio of its last item does not get worse. Matches 11 of 13
                 // single-level lab pages (p4, p8 still differ: PowerPoint stops earlier, rule unknown).
@@ -6963,14 +6970,14 @@ extension ChartPainter {
         var labels: [(name: String, box: Rect, top: Bool)] = []
         func draw(_ nodes: [Chart.SunburstNode], in box: Rect, level: Int, color: Int?) {
             let shown = nodes.filter { $0.value > 0 }
-            for (n, r) in zip(shown, strips(shown.map(\.value), in: box)) {
+            for (n, r) in zip(shown, strips(shown.map(\.value), in: box, grouped: shown.contains { !$0.children.isEmpty })) {
                 let accent = color ?? n.color
                 if n.children.isEmpty {
                     fill.color = theme.accents.isEmpty ? Color(0xFF808080) : theme.accents[accent % theme.accents.count]
                     if c.onSlide, !theme.accents.isEmpty { fill.color = ColorContext.chartexVariation(fill.color, cycle: accent / theme.accents.count) }
                     canvas.drawRect(r, fill)
                     if c.onSheet { canvas.drawRect(r, edge) }
-                    labels.append((n.name, r, false))
+                    labels.append((c.onSlide && c.treemapValues ? n.name + ", " + _boxLabelText(n.value) : n.name, r, false))
                 } else {
                     draw(n.children, in: r, level: level + 1, color: accent)
                     if level == 0 { labels.append((n.name, r, true)) }
