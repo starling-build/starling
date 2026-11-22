@@ -98,4 +98,17 @@ final class MetafilePlusTests: XCTestCase {
         XCTAssertEqual(at, Rect.fromLTRB(-0.5, -0.5, 49.5, 19.5))
         XCTAssertEqual(source, Rect.fromLTWH(0.5, 0.5, 10, 4))
     }
+
+    func testADashedPenIsReadAndCutIntoDashes() throws {
+        var b: [UInt8] = []
+        for v in [0xDBC01002, 0, 0x20, 2] { b += le32(v) }       // version, type, flags (line style), unit pixel
+        b += f32(2); b += le32(1)                                  // width 2, style dash
+        for v in [0xDBC01002, 0, 0xFF000000] { b += le32(v) }      // the brush: solid black
+        let pen = try XCTUnwrap(EmfPlus.readPen(b, 0, b.count))
+        XCTAssertEqual(pen.dash ?? [], [3, 1])
+        XCTAssertTrue(pen.plain)
+        let line = Path(); line.moveTo(0, 0); line.lineTo(100, 0)
+        let dashed = EmfPlus.dashed(line, [3, 1], 2, 0)
+        XCTAssertEqual(Array(dashed.computeMetrics()).count, 13, "6 on, 2 off over 100 units: 12 whole dashes and a 4 long one")
+    }
 }
