@@ -871,7 +871,15 @@ struct Chart: Equatable {
             return accents[n - 1]
         }
         if let k = monochromeAccent { return Self.monochrome(i, of: series.count, accents[k - 1]) }
-        return Self.cycle(s?.autoIndex ?? i, accents)
+        let base = Self.cycle(s?.autoIndex ?? i, accents)
+        // (A chart with a style on a slide with six automatic series prints every one shaded to 76% in linear light, Office's
+        // own second-round shade: es/3f8a480a p7 and p14, all six accents exact (FFC000 prints E2AA00, 5B9BD5 5089BC); the
+        // same deck's five-series charts, and every other chart in the corpus, print the plain accents.)
+        guard onSlide, officeStyled, series.count + lineSeries.count == 6 else { return base }
+        func lin(_ c: Double) -> Double { c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+        func srgb(_ l: Double) -> Int { Int(((l <= 0.0031308 ? l * 12.92 : 1.055 * pow(l, 1 / 2.4) - 0.055) * 255).rounded()) }
+        func ch(_ shift: Int64) -> Int { srgb(lin(Double((base.value >> shift) & 0xFF) / 255) * 0.76) }
+        return Color(0xFF00_0000 | Int64((ch(16) << 16) | (ch(8) << 8) | ch(0)))
     }
 
     /// Series `i`'s line where the file gives it no colour of its own: in
