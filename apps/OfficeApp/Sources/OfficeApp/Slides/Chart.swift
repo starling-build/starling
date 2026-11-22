@@ -3142,6 +3142,12 @@ enum ChartPainter {
                 // have had (lo-a14e916b's legend, at the right, with
                 // `legendPos` b: Word's plot ends 18pt higher than ours).
                 y = box.center.dy - linesH / 2
+                // (A slide's pie left to PowerPoint's layout, its legend placed at the right: the pie is centred in what is left of the
+                // frame left of the legend's box, not in the whole frame: es-3df36ff6 p2's pie at 216 px, the legend's box at 333.)
+                if c.type == .pie, c.onSlide, c.plotLayout == nil, c.legendPosition == "r", box.left > r.left + r.width / 2 {
+                    RuleTrace.hit("slide-pie-with-a-placed-right-legend-stands-left-of-it")
+                    area = Rect.fromLTRB(area.left, area.top, min(area.right, box.left), area.bottom)
+                }
                 // (A pie's entry that wraps takes one slot of the even share all the same, and the block stands
                 // half of its extra lines higher: c11d31f3's "Questões relacionadas à COVID-19" in two lines, keys 6.4 pt
                 // higher in Word's print than centred, the pitch the same.)
@@ -4749,11 +4755,7 @@ enum ChartPainter {
             // (A bar chart's category names in a Word document wrap at a fifth of the
             // chart: lo tdf128996's "A very long category name 4" is two lines in Word's
             // print, "A very long category" over "name 4", ours one line a third wide.)
-            // (On a slide the names keep to the room left of a placed plot, up to the frame's edge: ja 81d28d42 p29's chart 6 wraps
-            // them at 195 pt in a 200.5 pt room; with the plot left to the layout they run up to half the area, ja 805ac359 p10's
-            // 180 pt names on one line in a 402 pt frame, where we wrapped them at 0.3.)
-            let barNameWidth = c.onSlide ? (c.plotLayoutInner && placed != nil ? max(0.3 * area.width, placed!.left - frame.left) : 0.5 * area.width)
-                : (!c.onSheet ? 0.2 : 0.3) * area.width
+            let barNameWidth = (!c.onSlide && !c.onSheet ? 0.2 : 0.3) * area.width
             // (Under a multi-level axis the names are not wrapped: lo tdf126244's
             // "Categoria 1 Categoria 1 Categoria 4" is one line in Word's print.)
             catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, horizontal ? (c.categoryLevels.isEmpty && !(c.valueReversed && c.onSlide) ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : max(slot * Double(max(1, c.categoryLabelSkip)) - 2 * k, 8 * k)) }
@@ -6363,11 +6365,12 @@ enum ChartPainter {
         if c.onSheet, c.pieLabelsAround, c.plotLayout == nil {
             radius = max(radius / 2, radius - 1.25 * (c.series[0].labelSize ?? c.baseTextSize) * k)
         }
-        // On a slide too: a flat pie whose labels stand outside it and whose plot the file leaves to PowerPoint is 1.6 of
-        // the labels' size smaller in the radius (espt-c249abc3 p6, 15 pt labels: 161 pt in PowerPoint's print, ours 185 with the labels clipped).
+        // On a slide too: a flat pie whose labels stand outside it and whose plot the file leaves to PowerPoint has radius 0.902 of the room less 4 pt (R = 0.4375 of the frame's shorter side less 10.5), whatever the labels' size, count or place (lab pie-lab2: frames 250 to 802 wide, R 98.9, 120.7, 164.5, 203.0; independent of 12 or 24 pt labels; lab pie-lab1, PowerPoint for Windows: R 203.1 at 9, 12, 18
+        // and 24 pt, outside end and best fit, 3 to 12 slices, from a room of 229.5; legend at the foot 191.2 from 217.8; the labels
+        // that do not fit stand over the pie. espt-c249abc3 p6, 15 pt labels: 159.45 in PowerPoint's print from 185.3.)
         if values.contains(where: { $0 > 0 }), c.onSlide, c.type == .pie, c.pieLabelsAround, c.plotLayout == nil, c.pieLabels?.outside == true, c.ofPie == nil, c.pieTilt == nil {
             RuleTrace.hit("slide-pie-with-outside-labels-leaves-room-for-them")
-            radius = max(radius / 2, radius - 1.6 * (c.series[0].labelSize ?? c.baseTextSize) * k)
+            radius = max(radius / 2, radius * 0.902 - 4.0 * k)
         }
         // In a Word document the same: a pie whose labels stand outside it
         // and whose plot the file leaves to Word is 15.3pt smaller a side at
@@ -7910,7 +7913,10 @@ extension ChartPainter {
                 // 14 of 102 with the old 4pt and the step at 0.15, 57 with these).)
                 let tuneFlat = point == nil && l.fitted && !c.onSlide && !c.onSheet && !c.chartex && l.moves[s.index] == nil
                 if tuneFlat { RuleTrace.hit("word-flat-pie-best-fit-label-outside-hugs-the-rim") }
-                let gap = (tuneFlat ? 0 : 4) * k
+                // (On a slide a flat pie's outside label the file leaves in place stands 10.7 pt from the rim, not 4: lab pie-lab1,
+                // PowerPoint for Windows, outside end at 9, 12 and 18 pt, 6 to 12 slices, the labels' radial places 6.5 to 8 pt beyond ours.)
+                let slideGap = point == nil && c.onSlide && l.outside && l.moves[s.index] == nil && c.ofPie == nil && inner == 0
+                let gap = (tuneFlat ? 0 : slideGap ? 10.7 : 4) * k
                 // (Where the file moves it, from `movedEdge`'s point when
                 // given: a 3-D pie's.)
                 let edge = l.moves[s.index] != nil ? movedEdge.map { Offset($0(s.mid).dx + lift.dx, $0(s.mid).dy + lift.dy) } ?? on(s.mid, 1) : on(s.mid, 1)
