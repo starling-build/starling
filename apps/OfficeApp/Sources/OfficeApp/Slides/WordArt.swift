@@ -477,6 +477,22 @@ enum WordArt {
             }
             canvas.save()
             if warped == nil { canvas.transform(m) }
+            // A letter bent point by point is drawn as an outline, which holds
+            // no text. PowerPoint keeps the text (search, copy), so the letter
+            // is written once more under the outline, in a clear paint, at its
+            // own flat place.
+            if warped != nil, shadowPaint == nil, !g.clear, g.text != " " {
+                let clear = Paint()
+                clear.style = .fill
+                clear.color = Color(0x01000000)
+                canvas.save()
+                canvas.transform(m)
+                let tp = TextPainter(text: TextSpan(text: g.text, style: g.style(clear)), textDirection: .ltr)
+                tp.layout(minWidth: 0, maxWidth: Double.infinity)
+                tp.paint(canvas, .zero)
+                tp.dispose()
+                canvas.restore()
+            }
             if let shadowPaint {
                 // The letters' silhouette, outline and all.
                 if !(g.look?.noFill ?? false) { drawn(shadowPaint) }
