@@ -654,6 +654,24 @@ final class SlidePainter: CustomPainter {
     /// snap them (au.asn.aes p8: 16.80 pt between every Verdana 14 line).
     nonisolated(unsafe) static var snapsLinesToPoints = false
 
+
+    /// Plain text under a camera with depth: the glyph outlines of every paragraph swept into a solid
+    /// (walls in the extrusion colour, the contour outline) with the text painted on the front.
+    static func paintSolidText(_ layout: RichLayout, _ doc: RichDocument, _ scene: Scene3D, _ canvas: any Canvas, pxPerPt px: Double, visible: Rect) -> Bool {
+        let all = Path()
+        var any = false
+        for i in 0 ..< layout.count {
+            let g = layout.geometry(i)
+            guard let gp = g.painter.glyphPath() else { continue }
+            all.addPath(gp.shift(Offset(g.textLeft, g.inkTop)), .zero); any = true
+        }
+        guard any else { return false }
+        let area = Rect.fromLTWH(0, 0, layout.width, layout.totalHeight)
+        let face = doc.paragraphs.lazy.flatMap({ $0.runs }).compactMap({ $0.style.color }).first ?? Color(0xFF808080)
+        return Extrusion.solid(scene: scene, fill: face, line: scene.contourW > 0 ? scene.contourColor : nil, lineWidth: scene.contourW, outline: all, area, canvas, pxPerPt: px,
+                               onFront: { layout.paint(canvas, visible: visible, document: doc, selection: nil, caret: nil) }, wallEdge: scene.contourW > 0 ? scene.contourColor : nil)
+    }
+
     static func paintOnWholePoints(_ layout: RichLayout, _ doc: RichDocument, _ canvas: any Canvas, pxPerPt px: Double,
                                    visible: Rect) {
         var baselines: [Double] = []
@@ -1525,6 +1543,10 @@ final class SlidePainter: CustomPainter {
                         draw()
                     }
                 }
+            } else if shape.warp == nil, shape.textSpin == 0, shape.textRev == 0, shape.kind != .table, let scene = shape.textScene, scene.depth > 0, !scene.isFlatTurn,
+                      Self.paintSolidText(layout, doc, scene, canvas, pxPerPt: px, visible: visible) {
+                // Plain text with an extrusion (`a:sp3d extrusionH` on the body): the letters swept back into a solid, the text itself on its front.
+                RuleTrace.hit("slide-text-3d-is-the-letters-swept")
             } else if Self.snapsLinesToPoints, shape.kind != .table, shape.columns <= 1, shape.textSpin == 0, shape.textRev == 0,
                       abs(shape.rotation.truncatingRemainder(dividingBy: 90)) < 0.01 {
                 // (Not in a box turned other than by quarters: under such a

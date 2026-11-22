@@ -337,7 +337,7 @@ enum Extrusion {
 
     /// `paint` for anything with an outline: the scene, the face's colour,
     /// and the line (colour, width in points) round it.
-    static func solid(scene: Scene3D, fill: Color, line: Color?, lineWidth: Double, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, onFront: (() -> Void)? = nil, rim: Bool = false, spin: Double = 0) -> Bool {
+    static func solid(scene: Scene3D, fill: Color, line: Color?, lineWidth: Double, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, onFront: (() -> Void)? = nil, rim: Bool = false, spin: Double = 0, wallEdge: Color? = nil) -> Bool {
         let rings = contours(outline)
         guard !rings.isEmpty else { return false }
         let c = r.center
@@ -571,6 +571,25 @@ enum Extrusion {
             }
         }
         for q in quads.sorted(by: { $0.z < $1.z }) { polygon(q.pts, q.color) }
+        if let wallEdge, frontShows {
+            // (Text with a contour colour: the contour runs round the back and along the silhouette's corners as well as round the face, lab b932b8d6 p1.)
+            let p = Paint()
+            p.style = .stroke; p.isAntiAlias = true; p.color = wallEdge
+            p.strokeWidth = max(0.5, lineWidth * px)
+            p.strokeJoin = .round
+            for (ri, ring) in front.enumerated() {
+                let path = Path()
+                path.addPolygon(back[ri].map(flat), true)
+                for i in ring.indices {
+                    let a = ring[(i + ring.count - 1) % ring.count], b = ring[i], d = ring[(i + 1) % ring.count]
+                    let u = Offset(b.x - a.x, b.y - a.y), v = Offset(d.x - b.x, d.y - b.y)
+                    if atan2(abs(u.dx * v.dy - u.dy * v.dx), u.dx * v.dx + u.dy * v.dy) > 0.5 {
+                        path.moveTo(flat(b).dx, flat(b).dy); path.lineTo(flat(back[ri][i]).dx, flat(back[ri][i]).dy)
+                    }
+                }
+                canvas.drawPath(path, p)
+            }
+        }
         // The face itself is in full light, a touch over the flat colour.
         func bright(_ c: Color) -> Color {
             func ch(_ v: Int) -> Int { min(255, Int((Double(v) * 1.1).rounded())) }
