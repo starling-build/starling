@@ -847,6 +847,8 @@ struct Chart: Equatable {
     /// default) they stand by the axis, at zero: chart-invertIfNeg_bar's
     /// under its zero line, mid-plot, where ours were at the foot.
     var categoryLabelsLow = false
+    /// `c:catAx/c:crossesAt`: the value on the value axis where the category axis stands (nil: at zero). One at or below the scale's foot leaves the axis and its names at the foot: chart-tdf142351's -50 under a scale from -40 (Excel's print: names under the plot, ours were at the -20 line).
+    var categoryCrossesAt: Double? = nil
     /// A combination whose columns stand on the right-hand value axis and
     /// its lines on the left (chart-testCombinedChartAxis): the category
     /// axis crosses the lines' axis, whose scale this app does not keep.
@@ -2558,6 +2560,7 @@ enum ChartXML {
         c.seriesAxisShown = plot.children.contains { $0.name == "c:serAx" } && !c.seriesAxisDeleted
         c.categoryLine = categoryAxis?.first("c:spPr")?.first("a:ln")?.first("a:noFill") == nil
         c.categoryLabelsLow = categoryAxis?.first("c:tickLblPos")?["val"] == "low"
+        c.categoryCrossesAt = categoryAxis?.first("c:crossesAt")?["val"].flatMap { Double($0) }
         c.columnsOnRight = columnsOnRight
         if let scaling = valueAxis?.first("c:scaling") {
             c.valueMin = scaling.first("c:min")?["val"].flatMap(Double.init)
@@ -5107,7 +5110,7 @@ enum ChartPainter {
         // (Not where the columns stand on the other axis: chart-
         // testCombinedChartAxis' go below their zero, and its labels stay
         // at the foot of the lines' axis.)
-        let atZero = !c.categoryLabelsLow && !c.categoryAxisDeleted && c.type != .scatter && !horizontal && sc.lo < 0
+        let atZero = !c.categoryLabelsLow && !c.categoryAxisDeleted && c.type != .scatter && !horizontal && sc.lo < (c.categoryCrossesAt ?? 0)
             && c.dataTable == nil && !c.columnsOnRight && !c.chartex
         // The lines' own axis, scaled as the first is, by their values.
         var secondScale: (lo: Double, hi: Double, step: Double)? = nil
@@ -6337,7 +6340,7 @@ enum ChartPainter {
         }
         for t in secondLabels { t.dispose() }
         // The category axis line, at zero.
-        let zero = vpos(max(sc.lo, min(sc.hi, 0)))
+        let zero = vpos(max(sc.lo, min(sc.hi, c.categoryCrossesAt ?? 0)))
         if classic {
             // The category ticks: at a scatter's x steps, else between
             // the categories and at both ends.
