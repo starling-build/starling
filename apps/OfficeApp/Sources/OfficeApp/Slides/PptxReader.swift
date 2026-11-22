@@ -4018,6 +4018,11 @@ private struct SlideContext {
             }
             // (PowerPoint hangs every closing mark, ) ] and the like, a full em past the margin in Chinese text: lab zhhang, four
             // faces in zh-TW and zh-CN. It follows the language of the run that holds the mark.)
+            // (PowerPoint prints an East Asian face it does not have as Microsoft JhengHei when the run says Traditional Chinese; its
+            // exact lines stand on that face's metrics: 7fc5fcbcda59 p31, 80 pt lines of 辰宇落雁體.)
+            if p.all("a:r").contains(where: { r in ["lang", "altLang"].contains { ["zh-tw", "zh-hk", "zh-mo", "zh-hant"].contains((r.first("a:rPr")?[$0] ?? "").lowercased()) } }) {
+                style.eastAsian["a:missingFaceJhenghei"] = "1"
+            }
             if p.all("a:r").contains(where: { r in
                 (r.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("zh")
                     && (r.first("a:t")?.text ?? "").unicodeScalars.contains(where: { [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009, 0xFF1A, 0xFF1B, 0xFF01, 0xFF1F].contains($0.value) }) }) {
