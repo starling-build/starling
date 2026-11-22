@@ -127,7 +127,8 @@ enum SlideEastAsianWidths {
         case "sitka heading semibold": return sitkaHeadingSemibold
         case "meiryo", "メイリオ": return meiryo
         case "meiryo ui": return meiryoUI
-        case "yu gothic", "游ゴシック": return yuGothic
+        // (PowerPoint draws the AR P / AR Maru / BIZ UDP gothics it lacks in Yu Gothic: ja-64f938d1 p10's "AR Pゴシック体M" has a full-em ，.)
+        case "yu gothic", "游ゴシック", "ar pゴシック体m", "ar pゴシック体e", "ar pゴシック体l", "ar pゴシック体b", "ar pゴシック体h", "ar p丸ゴシック体m", "ar p丸ゴシック体e", "ar丸ゴシック体m", "ar丸ゴシック体e", "biz udpゴシック": return yuGothic
         case "yu gothic light", "游ゴシック light": return yuGothicLight
         case "yu gothic medium", "游ゴシック medium": return yuGothicMedium
         case "yu gothic ui": return yuGothicUI
