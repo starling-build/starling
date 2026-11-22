@@ -196,6 +196,7 @@ extension _StyledFrame {
         let table = face.otherTable(bold: s.fontWeight == .bold, italic: s.fontStyle == .italic)
         let each = ch.unicodeScalars.map { table?[$0.value] }
         if !each.contains(where: { $0 == nil }), let w = Optional(each.reduce(0) { $0 + ($1 ?? 0) }), let px = s.fontSize, px > 0.5 {
+            var return_scaled = false
             let classScale = classed ? face.classScales.flatMap { kind >= 0 && kind < $0.count ? $0[kind] : nil } ?? 1 : 1
             var target = own ? w * px / (face.sizeScale * classScale) : w * em
             // (On the print's grid, where the theme has one.)
@@ -203,7 +204,14 @@ extension _StyledFrame {
                 let g = grid * theme.pixelsPerPoint * scale
                 if g > 0 { target = (target / g + 0.5 + 1e-7).rounded(.down) * g }
             }
-            extra += target - _glyphWidth(s, ch)
+            let natural = _glyphWidth(s, ch)
+            // (A kana or CJK mark of a proportional face with a table: the stand-in's one-em glyph drawn at the face's narrower advance by a
+            // horizontal scale, as the Latin glyphs are above (brackets keep their own placement: their ink sits to one side of the slot), not crowded into the next slot.)
+            if theme.scalesGlyphsToTables, own, ch.unicodeScalars.count == 1, u >= 0x3000, u < 0xFFF0, ch.unicodeScalars.first?.properties.generalCategory != .openPunctuation, ch.unicodeScalars.first?.properties.generalCategory != .closePunctuation, natural > 0.5, !(s.letterSpacing != nil && s.letterSpacing != 0), target > 0 {
+                let r = (w * px / (face.sizeScale * classScale)) / natural
+                if r > 0.5, r < 0.98 { RuleTrace.hit("cjk-glyph-scaled-to-proportional-advance"); glyphScale = r; extra += target - w * px / (face.sizeScale * classScale); return_scaled = true }
+            }
+            if !return_scaled { extra += target - natural }
         }
     }
     // (PowerPoint sets the font at a size on a grid of 1/600 in: 32 pt prints at 32.04, so every advance is that much wider; the line's
