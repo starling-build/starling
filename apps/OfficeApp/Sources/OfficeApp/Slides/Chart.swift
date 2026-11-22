@@ -5996,7 +5996,11 @@ enum ChartPainter {
         axisPaint.style = .stroke
         axisPaint.strokeWidth = max(0.5, 0.75 * k)
         axisPaint.color = Color(0xFF868686)
-        let tick = 5.7 * k
+        // (A column chart laid on a slide in the 2007 styles, no line set in the file: PowerPoint's axis lines are 0.5 pt #898989 with
+        // 3.17 pt ticks, not 0.75 pt #868686 and 5.7: ce626c34 p7's value and category axes, measured from the print.)
+        let slideLaidColumnAxis = c.onSlide && !horizontal && c.plotLayoutInner && !c.styled2013 && !libre && box == .zero
+        if slideLaidColumnAxis { axisPaint.strokeWidth = 0.5 * k; axisPaint.color = Color(0xFF898989); RuleTrace.hit("slide-laid-column-axis-0.5pt-3.17-ticks") }
+        let tick = (slideLaidColumnAxis ? 3.17 : 5.7) * k
         // (A 3-D chart's back wall filled on a slide, behind the gridlines: 3f8a480a p11's pale green, in PowerPoint's print.)
         if c.onSlide, !horizontal, box != .zero, let wf = c.barView?.wallFill {
             let wp = Paint()
@@ -6062,7 +6066,7 @@ enum ChartPainter {
                 // (On a slide 10 pt: es/3df36ff6 p4's labels at 24 in PowerPoint's print, ours at 14.)
                 // (Where the rule above pushed the plot off the chart's left edge, the labels stay at the edge 1.5 pt in, and the plot stands their
                 // size-scaled clearance past them: lab p12-lab3, 8 pt labels' left at 37.5 and 18 pt's at 37.5, where ours followed the plot.)
-                let labelRight = pushedLabelGap != nil ? frame.left + 1.5 * k + tp.width : plot.left - (c.chartex && c.onSlide ? 4 : 8.5) * k - besideOut - further + wall3D + valueLabelsBack
+                let labelRight = pushedLabelGap != nil ? frame.left + 1.5 * k + tp.width : slideLaidColumnAxis && c.valueTicksOut ? plot.left - 9.0 * k : plot.left - (c.chartex && c.onSlide ? 4 : 8.5) * k - besideOut - further + wall3D + valueLabelsBack
                 if pushedLabelGap != nil { RuleTrace.hit("slide-laid-plot-pushed-keeps-value-labels-at-the-edge") }
                 tp.paint(canvas, Offset(labelRight - tp.width, p - tp.height / 2 - lift))
             }
