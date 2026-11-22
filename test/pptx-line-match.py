@@ -32,6 +32,7 @@ def refs():
 
 M.WORD = refs()
 M.ignored = lambda: set()
+M.OFFPAGE = True
 _CTX = None
 
 def _job(f):
