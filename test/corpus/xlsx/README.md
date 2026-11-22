@@ -7,6 +7,7 @@ baseline of how far this app's printing is from it.
 
     books/         the workbooks, as downloaded
     SHA256SUMS     of books/, to tell a changed workbook from a changed painter
+    excel-20261122/  the current reference (below). excel/ is the older set, 2026-10-11.
     excel/         NAME-orig.pdf — Excel's print of books/NAME.xlsx, and export.tsv
     baseline-mupdf.tsv   each workbook's score at sweep 14 (2026-10-16, Windows, MuPDF's page diff)
     matched-mupdf.txt, others-mupdf.txt   the two groups of that baseline
@@ -165,3 +166,11 @@ here only as inputs to a test, as they are upstream. The `clusterfuzz-*`,
 If you hold the rights to one of these and want it gone, removing the
 workbook (and its PDF and baseline row, once there are any) is all it
 takes; no gate depends on any one of them.
+
+## Current reference: excel-20261122/
+
+Reprinted 2026-11-22 by Excel for Windows 16.0 (build 20527), Microsoft Print to PDF,
+same script. Display scale 200% per the registry (not checked with a control row).
+755 PDFs; 51 refused (fuzz/corrupt), 1 export error (58616), 3 hung; see export.tsv.
+Against excel/: same page count in every book, lines 91.7 to 91.2, pixel 0.62 to 0.64.
+test/tools/sheets-sweep.py and sheets-gate.sh read it by default (SHEETS_EXCEL overrides).

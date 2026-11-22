@@ -8,7 +8,7 @@
 BIN=$(readlink -f "${1:?usage: sheets-gate.sh BIN BASE_BIN BASE_CACHE [JOBS]}"); BASEBIN=$(readlink -f "$2"); BC=$3; JOBS=${4:-32}
 TOL=${TOL:-0.05}; LTOL=${LTOL:-0.5}
 ROOT=$(cd "$(dirname "$0")/../.." && pwd); CC=${CORPUS_CACHE:-/data/corpus-cache}/test/corpus/xlsx
-[ -d "$CC/books" ] && [ -d "$CC/excel" ] || { echo "sheets-gate: no xlsx corpus here; skipped"; exit 2; }
+[ -d "$CC/books" ] && [ -d "$CC/${SHEETS_EXCEL:-excel-20261122}" ] || { echo "sheets-gate: no xlsx corpus here; skipped"; exit 2; }
 PY=${PYTHON:-$( [ -x "$HOME/venv-word/bin/python" ] && echo "$HOME/venv-word/bin/python" || echo python3)}
 W=${SHEETS_SCRATCH:-${GATE_SCRATCH:-$HOME/scratch/gate}/sheets}; rm -rf "$W"; mkdir -p "$W"; T=$(date +%s)
 export OFFICE_FONT_SOURCE=bundled PDFDIFF_NO_PAIRS=1
