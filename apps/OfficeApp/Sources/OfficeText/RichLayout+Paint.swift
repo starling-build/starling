@@ -640,7 +640,7 @@ extension RichLayout {
                 var holes: [(Double, Double)] = []
                 var j = i
                 while j < count, j < document.paragraphs.count, let cj = _cells[j], cj.table == c.table, cj.row == c.row {
-                    if let own = document.paragraphs[j].cell?.fill, own.alpha == 0 {
+                    if let own = document.paragraphs[j].cell?.fill, own.alpha == 0 || (!theme.wordRules && own.a < 0.999) {
                         holes.append((cj.colLeft, cj.colLeft + cj.colWidth))
                     }
                     j += 1
