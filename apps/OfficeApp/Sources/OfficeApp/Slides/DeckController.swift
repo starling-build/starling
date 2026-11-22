@@ -76,6 +76,7 @@ struct ShapeState: Equatable {
     var textScene: Scene3D? = nil
     var naturalLines = false
     var shadow: CharShadow? = nil
+    var reflection: Reflection? = nil
     var innerShadow: CharShadow? = nil
     var glowRadius: Double? = nil
     var glowColor: Color? = nil
@@ -1182,6 +1183,7 @@ final class DeckController: ChangeNotifier {
         st.textScene = s.textScene
         st.naturalLines = s.naturalLines
         st.shadow = s.shadow
+        st.reflection = s.reflection
         st.innerShadow = s.innerShadow
         st.glowRadius = s.glowRadius
         st.glowColor = s.glowColor
@@ -1304,6 +1306,7 @@ final class DeckController: ChangeNotifier {
         shape.naturalLines = st.naturalLines
         shape.shadow = st.shadow
         shape.innerShadow = st.innerShadow
+        shape.reflection = st.reflection
         shape.glowRadius = st.glowRadius
         shape.glowColor = st.glowColor
         shape.softEdge = st.softEdge
