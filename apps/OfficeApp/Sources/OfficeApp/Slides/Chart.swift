@@ -685,6 +685,7 @@ struct Chart: Equatable {
         var traditional: Set<Int> = []
         /// A point's own text look from its label's `c:txPr` (Word: size, bold, face, colour).
         var own: [Int: OwnText] = [:]
+        var richColor: [Int: Color] = [:]
         struct OwnText: Equatable { var size: Double?; var bold: Bool?; var face: String?; var color: Color? }
         var fill: Color? = nil
         var line: Color? = nil
@@ -1987,6 +1988,11 @@ enum ChartXML {
                                                        bold: d["b"].map { $0 == "1" || $0 == "true" },
                                                        face: d.first("a:latin")?["typeface"].flatMap { $0.hasPrefix("+") || $0.isEmpty ? nil : $0 },   // (a theme slot, "+mn-lt", names no face of its own: ab55f8b0's four small labels came out in Cambria's stand-in)
                                                        color: d.first("a:solidFill").flatMap { color($0) })
+                }
+                // (A slide pie's custom-text label says its colour on its runs: ko-e114b968's white "매우 긍정적으로 변화했다" in its dark slice.)
+                if l.own[i] == nil, let rp = one.first("c:tx")?.first("c:rich")?.descendant("a:rPr") ?? one.first("c:tx")?.first("c:rich")?.descendant("a:defRPr"),
+                   let f = rp.first("a:solidFill") {
+                    l.richColor[i] = color(f)
                 }
                 if let rich = one.first("c:tx")?.first("c:rich") {
                     // (A field — the category's name, the value — kept as a
@@ -7749,7 +7755,7 @@ extension ChartPainter {
                 let v = s.color.value
                 return 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF) < 150
             }()
-            let colour = own?.color ?? c.series[0].labelColor ?? (l.outside || l.fitted || l.fill != nil ? ink : dark ? Color(0xFFFFFFFF) : Color(0xFF404040))
+            let colour = (own?.color ?? (c.onSlide ? l.richColor[s.index] ?? l.own[s.index]?.color : nil)) ?? c.series[0].labelColor ?? (l.outside || l.fitted || l.fill != nil ? ink : dark ? Color(0xFFFFFFFF) : Color(0xFF404040))
             let labelBold: Bool = own?.bold ?? c.series[0].labelBold
             let labelWeight: FontWeight = labelBold ? .bold : .normal
             let labelFace: String = own?.face ?? c.font ?? theme.bodyFont
