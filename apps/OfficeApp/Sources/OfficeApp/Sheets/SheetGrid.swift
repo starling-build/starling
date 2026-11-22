@@ -450,7 +450,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     guard !text.isEmpty else { continue }
                     var style = _textStyle(st, color: nil, ink: Color(0xFF00_0000))
                     do {
-                        // (Excel's wrap room is the column less 7.4 px and 1.5%, at 192 dpi, Calibri 11: see screenFitPad.)
+                        // FIT, not a derived rule: room = column less max(11, 7.5 + 1.45% of the column) px, fitted to the wrap-room lab (5 widths, 105-600 px) and 3 books; see screenFitPad.
                         style.screen = 72 / 192 * scale
                         style.screenEm = (book.fontSize(st) * 192 / 72).rounded()
                         let column = (chars * m.screenDigit).rounded(.down)
