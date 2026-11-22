@@ -75,6 +75,11 @@ extension _StyledFrame {
         // character Word wraps.)
         if let grid, grid != 0 { extra -= 1.5 * _px(grid) }
     // (A space in a right-to-left run whose complex-script face differs from its Latin one is the complex face's: b514c2's Arial 3.34 pt in Word's print, ours the Latin default's 2.4. Same family in both keeps the Latin table: dx2 Tahoma fa/ur docs.)
+    } else if ch == " ", let em = joinedFace?.joinedSpaceEm, !theme.wordRules, let px = style(kind).fontSize, px > 0.5 {
+        // (A space of a right-to-left run set in a face with its own space, Simplified Arabic 0.3174 em, Sakkal Majalla 0.1514: the face's
+        // width, where the stand-in's Latin space is 0.22 em.)
+        RuleTrace.hit("word-rtl-joined-face-space-is-own-width")
+        extra += em * px - _glyphWidth(style(kind), " ")
     } else if !ea, let face = (narrowLatinInRTL ? nil : (ch == " " && complexSpaceFace != nil && theme.wordRules && RichTextTheme.wordWindowsPages ? complexSpaceFace : latinFace)), (face.advances != nil || (face.boldAdvances != nil && style(kind).fontWeight == .bold)), ch.unicodeScalars.count == 1,
               let u = ch.unicodeScalars.first?.value, u >= 0x20, u <= 0x7E {
         // The width the original face gives this character
