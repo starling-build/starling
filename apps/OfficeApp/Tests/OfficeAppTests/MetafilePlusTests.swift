@@ -247,4 +247,10 @@ final class MetafilePlusTests: XCTestCase {
         XCTAssertEqual(box.top, 0, accuracy: 0.01)
         XCTAssertEqual(box.left, 50, accuracy: 0.01, "a quarter turn, right to top: it ends above the centre")
     }
+
+    func testCodePage949DecodesHangulPairs() {
+        XCTAssertEqual(CodePage949.decode(lead: 0xB1, trail: 0xBC), 0xAD74)   // 굴
+        XCTAssertEqual(CodePage949.decode(lead: 0xB8, trail: 0xB2), 0xB9BC)   // 림
+        XCTAssertNil(CodePage949.decode(lead: 0x41, trail: 0x41))
+    }
 }
