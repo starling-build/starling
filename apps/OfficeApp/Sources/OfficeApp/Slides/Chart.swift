@@ -5476,7 +5476,21 @@ enum ChartPainter {
         if let placed, c.plotLayoutInner {
             // (A laid plot that runs past the chart's right edge is cut there by PowerPoint, its categories
             // spread over what is left: 7bf37d72 p10's 5 bands of 99.3 pt, not 103.)
-            plot = c.onSlide && placed.right > frame.right ? Rect.fromLTRB(placed.left, placed.top, frame.right, placed.bottom) : placed
+            // (A laid plot stands no nearer the chart's left edge than its value labels leave, 11.7 pt past their right edge: its width
+            // kept, it moves right to that, and one that runs past the right edge moves left, as far as that allows, before the cut.
+            // Lab p12-2 of 7bf37d72: a plot laid at x .02 stood at 74.4, not 47.1; one cut 33.0 pt at the right moved left 16.6.)
+            var laid = placed
+            if c.onSlide, !horizontal, c.barView == nil, !c.valueAxisDeleted, let widest = valueLabels.map(\.width).max() {
+                let limit = frame.left + widest + 11.7 * k
+                if laid.left < limit {
+                    laid = Rect.fromLTRB(limit, laid.top, laid.right + (limit - laid.left), laid.bottom)
+                } else if laid.right > frame.right {
+                    let by = min(laid.right - frame.right, laid.left - limit)
+                    laid = Rect.fromLTRB(laid.left - by, laid.top, laid.right - by, laid.bottom)
+                }
+                RuleTrace.hit("slide-laid-plot-keeps-clear-of-its-value-labels")
+            }
+            plot = c.onSlide && laid.right > frame.right ? Rect.fromLTRB(laid.left, laid.top, frame.right, laid.bottom) : laid
             // (A laid plot whose names, set under the axis, would run past the chart's foot has its foot lifted by all but one of the
             // lines of the tallest name, so that the last line stands where a one-line name's does: lab p12-2 of 7bf37d72, line pitch
             // 1.15 x the size, a name of 3 lines at 12 pt lifts the foot 27.6 pt, 5 lines at 12 pt 55.2, 2 lines at 16 pt 18.4, 2 at 8 pt 9.2;
