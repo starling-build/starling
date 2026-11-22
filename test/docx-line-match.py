@@ -238,6 +238,28 @@ def _columns(singles, total, mixed=False):
 OFFPAGE = False
 
 
+def _image_infos(page):
+    """page.get_image_info(xrefs=True) without decoding every picture of the page again on every page: PyMuPDF finds an image's xref by
+    the digest of each picture's pixmap, and a deck repeats its master's pictures on every slide, so the digests are kept per document."""
+    import pymupdf
+    doc = page.parent
+    info = page.get_image_info(hashes=True)
+    if not doc.is_pdf:
+        return info
+    seen = doc.__dict__.setdefault("_xref_digests", {})
+    digests = {}
+    for item in page.get_images():
+        xref = item[0]
+        if xref not in seen:
+            pix = pymupdf.Pixmap(doc, xref)
+            seen[xref] = pix.digest
+            del pix
+        digests[seen[xref]] = xref
+    for item in info:
+        item["xref"] = digests.get(item["digest"], 0)
+    return info
+
+
 def _one_colour(doc, im):
     """Whether the picture `im` (a `get_image_info` entry) is a single colour throughout: a solid fill drawn as a picture."""
     import pymupdf
@@ -319,7 +341,7 @@ def mupdf_glyphs(pdf, drop=None):
                                       if (dr.get("fill") or dr.get("color")) and dr["rect"].width * dr["rect"].height < 0.5 * page.rect.width * page.rect.height]
                             # (A picture is ink too: PowerPoint fills a text with a 2x2-pixel picture stretched over it, under invisible
                             # text, where ours draws the text itself: pt 96dcb877 p5's bullets lines. Only a picture of ONE colour, the solid fill of the text: a photograph under text is not the text's ink. The source: a run set in a variable face (Bahnschrift, Inter) that PowerPoint cannot write as text.)
-                            shapes += [pymupdf.Rect(im["bbox"]) for im in page.get_image_info(xrefs=True) if _one_colour(page.parent, im)]
+                            shapes += [pymupdf.Rect(im["bbox"]) for im in _image_infos(page) if _one_colour(page.parent, im)]
                             for t in page.get_texttrace():
                                 if t["type"] == 3 or t["opacity"] == 0:
                                     for ch in t["chars"]:
