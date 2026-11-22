@@ -140,7 +140,8 @@ extension _StyledFrame {
               let face = (u >= 0x80 && highFace?.otherAdvances?[u] != nil ? highFace : nil) ?? latinFace, face.otherAdvances != nil,
               // (A letter with its marks, where the table has each:
               // Thai's "ต่", "คำ" — `OfficeFonts.browalliaAdvances`.)
-              ch.unicodeScalars.count == 1 || (u >= 0x0E00 && u < 0x0E80 && ch.unicodeScalars.allSatisfy { face.otherAdvances?[$0.value] != nil }),
+              ch.unicodeScalars.count == 1 || (u >= 0x0E00 && u < 0x0E80 && ch.unicodeScalars.allSatisfy { face.otherAdvances?[$0.value] != nil })
+                  || (ch.unicodeScalars.count == 2 && ch.unicodeScalars.last?.value == 0xFE0E && face.otherAdvances?[0xFE0E] != nil),
               // (Not a no-break space after an ordinary one, through
               // others: that is the Latin text's, the space's half
               // em — zh-f3802561's "第一条" + U+00A0, U+0020, U+00A0,

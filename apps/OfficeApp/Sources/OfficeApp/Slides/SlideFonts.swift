@@ -87,6 +87,10 @@ enum SlideFonts {
         return !["궁서", "신명", "필기", "손글씨", "펜"].contains(where: { n.containsSubstring($0) })
     }
 
+    static func koreanOwnFace(_ family: String) -> Bool {
+        ["굴림", "굴림체", "바탕", "바탕체", "돋움", "돋움체", "궁서", "궁서체", "gulim", "gulimche", "batang", "batangche", "dotum", "dotumche", "gungsuh", "gungsuhche"].contains(windowsName(family))
+    }
+
     static func resolve(_ family: String) -> String {
         // (The machine's own face, where it has it and the user takes it:
         // `OfficeFonts.installed`.)
@@ -115,7 +119,7 @@ enum SlideFonts {
         // (None of a stand-in's widths for the machine's own face.)
         guard let family, OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil else { return nil }
         // (An East Asian query is answered for Malgun Gothic only, whose Hangul em the layout asks for by it.)
-        guard !eastAsian || windowsName(family) == "malgun gothic" || windowsName(family) == "맑은 고딕" || missingKoreanGothic(family) else { return nil }
+        guard !eastAsian || windowsName(family) == "malgun gothic" || windowsName(family) == "맑은 고딕" || missingKoreanGothic(family) || koreanOwnFace(family) else { return nil }
         if let cuts = SlideEastAsianWidths.lookup(windowsName(family)) ?? (missingKoreanGothic(family) ? SlideEastAsianWidths.malgun : nil) {
             // (An East Asian face at its own measured widths, Latin and the rest past ASCII: PowerPoint sets it by itself, not by a stand-in's.)
             // (Built once per family: parsing its advance table for every run made a 560-slide deck take over ten minutes.)
@@ -123,11 +127,15 @@ enum SlideFonts {
             if let made = eastAsianMade[family] { return made }
             var face = RichResolvedFace(family: resolve(family))
             let regular = SlideEastAsianWidths.parse(cuts.regular.other)
-            let bold = cuts.bold.map { SlideEastAsianWidths.parse($0.other) } ?? regular
+            // (A face with no real bold is emboldened by PowerPoint itself: the regular outline filled and stroked, each advance
+            // 0.9845 of the regular's; Windows labs clbold (Calibri Light) and Gulim.)
+            let k = SlideFontWidths.syntheticBoldAdvance
+            let bold = cuts.bold.map { SlideEastAsianWidths.parse($0.other) } ?? regular.mapValues { $0 * k }
             face.advances = cuts.regular.ascii
-            face.boldAdvances = cuts.bold?.ascii ?? cuts.regular.ascii
+            face.boldAdvances = cuts.bold?.ascii ?? cuts.regular.ascii.map { $0 * k }
             face.otherAdvances = regular
             face.boldOtherAdvances = bold
+            if koreanOwnFace(family) { face.otherAdvances?[0xAC00] = 1.0; face.boldOtherAdvances?[0xAC00] = cuts.bold == nil ? k : 1.0 }
             // (Malgun Gothic's Hangul is an em, which the table of advances that are not one does not hold.)
             if cuts.regular.ascii == SlideEastAsianWidths.malgun.regular.ascii { face.otherAdvances?[0xAC00] = 1.0; face.boldOtherAdvances?[0xAC00] = 1.0 }
             // (Malgun Gothic sets its circled numbers, geometric shapes, box line and fullwidth forms an em wide: every one that PowerPoint
@@ -137,6 +145,15 @@ enum SlideFonts {
                 let em: [UInt32] = Array(0x2460...0x246F) + [0x24D2, 0x2500, 0x2592, 0x25A0, 0x25A1, 0x25B2, 0x25B3, 0x25BD, 0x25C6, 0x25C7, 0x25CB, 0x25CE, 0x25CF, 0x2606, 0x261E, 0x2664,
                                                               0xFF02, 0xFF07, 0xFF08, 0xFF09, 0xFF0A, 0xFF1C, 0xFF1E, 0xFF21, 0xFF22, 0xFF3A, 0xFF5E]
                 for c in em where face.otherAdvances?[c] == nil { face.otherAdvances?[c] = 1.0; face.boldOtherAdvances?[c] = 1.0 }
+            }
+            // (The Japanese faces do the same: PowerPoint's prints of Meiryo, Meiryo UI, Yu Gothic, MS Gothic and HG Maru Gothic set ① ② ⇒ → ○ ■ ◆ ▶ 1.000 em
+            // across the Japanese pilot decks. 81d28d42 p32's "▶︎女性従業員本人に加え、" breaks after 加え、, where the DejaVu ▶ (0.77 em) took 上 on the line.)
+            let jn = windowsName(family)
+            if jn.hasPrefix("meiryo") || jn == "メイリオ" || jn.hasPrefix("yu gothic") || jn.hasPrefix("游ゴシック") || jn.hasPrefix("ms ") || jn.hasPrefix("ｍｓ")
+                || jn.hasPrefix("hg") {
+                let em: [UInt32] = Array(0x2460...0x2473) + [0x2192, 0x21D2, 0x25A0, 0x25A1, 0x25B2, 0x25B3, 0x25B6, 0x25BC, 0x25BD, 0x25C0, 0x25C6, 0x25C7, 0x25CB, 0x25CE, 0x25CF,
+                                                              0x2605, 0x2606, 0xFE0E, 0xFE0F].map { $0 }
+                for c in em where face.otherAdvances?[c] == nil { let w: Double = c >= 0xFE0E ? 0 : 1; face.otherAdvances?[c] = w; face.boldOtherAdvances?[c] = w }
             }
             if let it = SlideEastAsianWidths.lookupItalic(windowsName(family)) {
                 face.italicAdvances = it.regular.ascii
@@ -240,6 +257,7 @@ enum SlideFonts {
             // advance (clbold lab), not at Carlito Bold's widths, which are wider and wrapped 6d178027's 48 pt title a word early.)
             var face = RichResolvedFace(family: resolve(family))
             face.boldAdvances = SlideFontWidths.calibriLightBoldLatin
+            face.fakeBoldFamily = OfficeFonts.carlitoNoBold
             face.otherAdvances = SlideFontWidths.calibriHebrew
             face.boldOtherAdvances = SlideFontWidths.calibriHebrew.merging(SlideFontWidths.calibriLightBoldOther) { a, _ in a }
             return face
@@ -313,7 +331,8 @@ enum SlideFonts {
         switch n {
         case "microsoft yahei": return 536.0 / 2703
         case "malgun gothic", "맑은 고딕": return 495.0 / 2724
-        case "simsun", "宋体", "nsimsun", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝", "ms pgothic", "ｍｓ ｐゴシック": return 36.0 / 256
+        case "simsun", "宋体", "nsimsun", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝": return 36.0 / 256
+        case "ms pgothic", "ｍｓ ｐゴシック": return 52.0 / 256
         case "ms gothic", "ｍｓ ゴシック", "ms ui gothic", "ｍｓ ｕｉ ゴシック", "hgゴシックe", "hgｺﾞｼｯｸe", "hg gothic e", "hg丸ゴシックm-pro", "hg丸ｺﾞｼｯｸm-pro",
              "hgmarugothicmpro", "hg明朝e", "hg mincho e", "hgp明朝e", "hgp mincho e", "hgp創英角ゴシックub", "hgp創英角ｺﾞｼｯｸub", "hgpsoeikakugothicub": return 288.0 / 2048
         case "gulim", "굴림", "gulimche", "굴림체", "dotum", "돋움", "dotumche", "돋움체", "batang", "바탕", "batangche", "바탕체": return 145.0 / 1024
@@ -382,7 +401,7 @@ enum SlideFonts {
         case "yu gothic light", "游ゴシック light": return 610.0 / 2636
         case "yu gothic medium", "游ゴシック medium": return 608.0 / 2636
         case "meiryo", "メイリオ": return 1 - 0.847 / 1.2
-        case "yu gothic", "游ゴシック": return 1 - 0.921 / 1.2
+        case "yu gothic", "游ゴシック", "ar pゴシック体m", "ar pゴシック体e", "ar pゴシック体l", "ar pゴシック体b", "ar pゴシック体h", "ar p丸ゴシック体m", "ar p丸ゴシック体e", "ar丸ゴシック体m", "ar丸ゴシック体e", "biz udpゴシック": return 1 - 0.921 / 1.2
         default: break
         }
         // (PowerPoint's print, lab verdana-ls: the foot of a Verdana line is 0.202 em at every size and spacing, of 1.2 em: not hhea's 430 of 2489.)
