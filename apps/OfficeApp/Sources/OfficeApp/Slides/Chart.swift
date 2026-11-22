@@ -2929,7 +2929,9 @@ enum ChartPainter {
             }
             // A column beside stacked columns (or areas) reads as the stack
             // does, the last series — the top of it — first.
-            if beside, c.stacked, c.type == .column || c.type == .area { entries.reverse() }
+            // (A legend the file places itself, still at a side, lists them so as well, whatever its box: es-3df36ff6 p5, II Bimestre over I.)
+            let columnBox = box.map { _ in c.onSlide && ["r", "l", "tr"].contains(c.legendPosition) } ?? false
+            if beside || columnBox, c.stacked, c.type == .column || c.type == .area { entries.reverse() }
             // And a bar chart's, at any side, as its bars run: series 1 at
             // the bottom, listed last (LIBRE_OFFICE-100610-0's five).
             if c.type == .bar, !c.stacked { entries.reverse() }
