@@ -8344,7 +8344,9 @@ extension ChartPainter {
                 let down = !stepped ? dy * upright * (gapY + h / 2)
                     : tp.computeLineMetrics().count > 2 ? (dy < 0 ? -1 : 1) * min(reach, 26 * k * abs(dy))
                     : abs(dy) > (dy < 0 ? 0.3 : 0.4) ? (dy < 0 ? -1 : 1) * reach : 0
-                                                let halfW = tuneFlat ? min(1, abs(dx) / 0.5) * w / 2 : (abs(dx) < 0.15 ? 0 : w / 2)
+                                                // (On a slide the box slides across the same way, not in one step at 0.15: lab pie-lab5 C, PowerPoint's outside ends, the
+                // slices 9° and 13.5° off upright stand 12 and 11 pt nearer upright than the step puts them.)
+                let halfW = tuneFlat || (c.onSlide && c.type == .pie && point == nil && c.ofPie == nil) ? min(1, abs(dx) / 0.5) * w / 2 : (abs(dx) < 0.15 ? 0 : w / 2)
                 at = Offset(edge.dx + dx * gapX + (dx >= 0 ? halfW : -halfW), edge.dy + down - outsideUp)
                 if tuneFlat {
                     // (Word's own placing, lab pie1 (Word for Windows, 2026-11-07: lo-f9b9a8fc's pie with one label alone at 159
