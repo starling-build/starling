@@ -498,6 +498,11 @@ private struct Player {
     /// The advance, in ems, a symbol face gives the glyph `symbols` drew,
     /// where the stand-in's is otherwise: Wingdings 2's boxes and ticks.
     static func symbolAdvance(_ face: String?, _ glyph: Character) -> Double? {
+        if face?.lowercased() == "symbol" {
+            // (Symbol's own advances, em units from its cmap (3,0) hmtx: PowerPoint sets the phi in b3255e9d's "Suponiendo carga inductiva" 9.7 pt at 16.)
+            let t: [Character: Double] = ["•": 0.4600, "→": 0.9868, "←": 0.9868, "↑": 0.6030, "↓": 0.6030, "≤": 0.5488, "≥": 0.5488, "≠": 0.5488, "α": 0.6309, "β": 0.5488, "γ": 0.4111, "δ": 0.4941, "π": 0.5488, "μ": 0.5762, "σ": 0.6030, "θ": 0.5210, "λ": 0.5488, "ω": 0.6860, "Δ": 0.6118, "Σ": 0.5918, "Ω": 0.7681, "∞": 0.7129, "√": 0.5488, "≈": 0.5488, "∑": 0.7129, "⇒": 0.9868, "⇔": 1.0420, "⇐": 0.9868, "↔": 1.0420, "∈": 0.7129, "∉": 0.7129, "∩": 0.7681, "∪": 0.7681, "⊂": 0.7129, "⊆": 0.7129, "⊃": 0.7129, "⊇": 0.7129, "∇": 0.7129, "∂": 0.4941, "∧": 0.6030, "∨": 0.6030, "≡": 0.5488, "∝": 0.7129, "⊥": 0.6582, "∠": 0.7681, "φ": 0.5210, "ε": 0.4390, "ρ": 0.5488, "τ": 0.4390, "χ": 0.5488, "ψ": 0.6860, "η": 0.6030, "ζ": 0.4941, "ξ": 0.4932, "ν": 0.5210, "κ": 0.5488, "ι": 0.3291, "υ": 0.5762, "ο": 0.5488, "ϕ": 0.6030, "Φ": 0.7632, "Γ": 0.6030, "Λ": 0.6860, "Π": 0.7681, "Θ": 0.7412, "Ψ": 0.7949, "Ξ": 0.6450, "∫": 0.2739]
+            return t[glyph]
+        }
         guard face?.lowercased() == "wingdings 2" else { return nil }
         // (Its box: 10.68pt at 12pt in Word for Windows' print of zh-d0a207ac.)
         return ["☐": 0.89, "☑": 0.89, "☒": 0.89][glyph]

@@ -179,6 +179,8 @@ public struct CharStyle: Hashable, Codable, Sendable {
     /// Extra space between characters in points (Word's w:spacing on a
     /// run); negative condenses.
     public var letterSpacing: Double? = nil
+    /// The run is set in a symbol face (PowerPoint's `a:sym`) whose glyphs were already mapped to Unicode: the layout takes the face's own advance.
+    public var symbolFace: String? = nil
     /// Word's run-level right-to-left flag (w:rtl), which decides how
     /// neutral characters and digits sit in a right-to-left paragraph.
     public var rightToLeft = false
