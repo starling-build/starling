@@ -2714,6 +2714,9 @@ private struct SlideContext {
                             for ch in t.unicodeScalars {
                                 let ea = Self.isEastAsian(ch.value)
                                 var face: String? = ea ? _eaFont(s.eaFont ?? s.font, scalar: ch.value, lang: s.lang, latin: s.font) : nil
+                                // (A Korean run's ① and the other em-wide symbols are East Asian characters, as in a text box's runs.)
+                                if SlideFonts.malgunEmSymbolSet.contains(ch.value), [s.lang, s.altLang].contains(where: { ($0 ?? "").lowercased().hasPrefix("ko") }),
+                                   let cjk = OfficeFonts.cjkFallback.first { face = cjk }
                                 // (A complex script's letters are set in the run's `a:cs` face, as a text box's are: cc66a30f p18's Persian
                                 // table, B Nazanin embedded, was drawn in Calibri's fallback; the spaces and digits after them go with them.)
                                 if !ea, let script = Self.complexScript(ch.value), let cf = _csFont(s.csFont, script: script, lang: s.lang, arabicCharset: s.csArabicCharset) { csFace = cf; face = cf }
@@ -4191,7 +4194,7 @@ private struct SlideContext {
                 // (A Korean run's ○ □ ① and the other symbols Malgun Gothic sets an em wide are East Asian characters: PowerPoint draws them
                 // in the East Asian face, a full circle, not in the Latin stand-in's smaller one. ko-ca2dc787 p18's "○ " in HY헤드라인M
                 // is Malgun's 18.0 pt circle in the print, the Liberation Sans one 10.9 pt.)
-                if (s.lang ?? "").lowercased().hasPrefix("ko"), OfficeFonts.cjkFallback.first != nil,
+                if [s.lang, s.altLang].contains(where: { ($0 ?? "").lowercased().hasPrefix("ko") }), OfficeFonts.cjkFallback.first != nil,
                    t.unicodeScalars.contains(where: { SlideFonts.malgunEmSymbolSet.contains($0.value) }) {
                     var out: [(length: Int, script: String?)] = []
                     var pos = 0
