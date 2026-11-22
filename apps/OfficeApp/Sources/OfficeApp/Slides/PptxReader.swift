@@ -201,6 +201,9 @@ struct ColorContext {
     /// gives and sRGB's (1,101,226) does not; the shapes' of the same
     /// theme styles print as sRGB's).
     var pageBackground = false
+    /// A table's themed gradient (tint then satMod 300%) keeps the saturation boost unclamped, as Word's print
+    /// of Themed Style 1 on an Office 2007 theme does (ca992b5bf p16: bottom stop prints 255,190,134, a clamped boost gives 255,210,189).
+    var tableGradient = false
 
     func scheme(_ name: String) -> Color? {
         if name == "phClr" { return placeholder }
@@ -232,7 +235,7 @@ struct ColorContext {
             default: continue
             }
             guard let b = base else { continue }
-            return Self.modify(b, child, duotone: duotone || pageBackground)
+            return Self.modify(b, child, duotone: duotone || pageBackground, unclampedSat: tableGradient)
         }
         return nil
     }
@@ -246,7 +249,7 @@ struct ColorContext {
     /// lumMod/lumOff, satMod/satOff and hueMod/hueOff (in HSL), tint,
     /// shade and alpha, as DrawingML applies them. (satMod is what makes a
     /// theme's near-grey `lt2` the warm cream of its radial backgrounds.)
-    static func modify(_ c: Color, _ node: XNode, duotone: Bool = false) -> Color {
+    static func modify(_ c: Color, _ node: XNode, duotone: Bool = false, unclampedSat: Bool = false) -> Color {
         var r = Double((c.value >> 16) & 0xFF) / 255, g = Double((c.value >> 8) & 0xFF) / 255, b = Double(c.value & 0xFF) / 255
         var alpha = 1.0
         // Between `a:gamma` and `a:invGamma` (how a converted .ppt spells
@@ -269,7 +272,7 @@ struct ColorContext {
                 // PowerPoint leaves saturation above 100% unclamped and clamps the
                 // channels instead (hueoff lab: accent3 + satOff 100% is FFEB00).
                 let achromatic = _hsl(r, g, b).1 == 0
-                (r, g, b) = _rgb(h, m.name == "a:satMod" ? min(1, max(0, s)) : max(0, s), l)   // (only satOff was measured unclamped; satMod keeps its clamp: table styles' satMod 300% decks matched with it)
+                (r, g, b) = _rgb(h, m.name == "a:satMod" ? (unclampedSat ? max(0, s) : min(1, max(0, s))) : max(0, s), l)   // (only satOff was measured unclamped; satMod keeps its clamp: table styles' satMod 300% decks matched with it)
                 // A grey given saturation takes hue 0, and its blue comes out of
                 // the hue ramp unwrapped (3p - 2q, so 0 once saturated): the
                 // grey lab's A5A5A5 + satOff 100% prints FF4B00, +50% D27800.
@@ -2827,6 +2830,7 @@ private struct SlideContext {
                        theme.fillStyles[idx - 1].name == "a:gradFill" {
                         var c = colors
                         c.placeholder = colors.color(in: ref)
+                        c.tableGradient = true
                         c.pageBackground = true  // a table's gradient mixes its tints in linear light (Word's print, tstyles2)
                         // The theme's gradient runs over the whole table,
                         // under its cells, and a band's tint lies on it as
