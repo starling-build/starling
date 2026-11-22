@@ -1093,6 +1093,7 @@ final class SlidePainter: CustomPainter {
                     p.style = .fill
                     p.isAntiAlias = true
                     p.color = FreeformGeometry.toned(fill, sub.tone)
+                    if shape.innerShadow != nil, shape.picture == nil { p.color = Self.innerShadowed(p.color, shape) }
                     canvas.drawPath(path, p)
                 }
             }
@@ -1171,6 +1172,11 @@ final class SlidePainter: CustomPainter {
             p.style = .fill
             p.isAntiAlias = true
             p.color = fill
+            // (An inner shadow is cast by the shape's own alpha: black where the shape is
+            // clear, so a translucent fill is darkened all through by what it lets
+            // pass. The Fundicion theme's panel, fill 65%, shadow 100%: PowerPoint's
+            // print is the fill's colour times 0.65 laid at 65%; 472822ba, eb013aed.)
+            if shape.innerShadow != nil, shape.picture == nil { p.color = Self.innerShadowed(p.color, shape) }
             if let path { canvas.drawPath(path, p) } else { canvas.drawRect(area, p) }
         }
         if let ish = shape.innerShadow, shape.fill != nil || shape.fillStyle != nil, shape.picture == nil,
@@ -1588,6 +1594,14 @@ final class SlidePainter: CustomPainter {
     /// round where it names none — 223 of PowerPoint's thick strokes in
     /// the prints are joined round, most of them in lines that say nothing
     /// (the diagrams' boxes, tdf114848's), and ours were all mitred.
+    /// A translucent fill under an inner shadow: the shadow is cast by the shape's own alpha, black
+    /// where the shape is clear, so the fill is darkened all through by what it lets pass.
+    static func innerShadowed(_ c: Color, _ shape: SlideShape) -> Color {
+        guard let ish = shape.innerShadow, ish.dx == 0, ish.dy == 0, c.alpha < 255 else { return c }
+        let k = 1 - Double(ish.color.alpha) / 255 * (1 - Double(c.alpha) / 255)
+        return Color(argb: c.alpha, Int(Double(c.red) * k), Int(Double(c.green) * k), Int(Double(c.blue) * k))
+    }
+
     static func join(_ name: String?) -> StrokeJoin {
         switch name {
         case "round": return .round
