@@ -4018,6 +4018,12 @@ private struct SlideContext {
             }
             // (PowerPoint hangs every closing mark, ) ] and the like, a full em past the margin in Chinese text: lab zhhang, four
             // faces in zh-TW and zh-CN. It follows the language of the run that holds the mark.)
+            // (A Latin ")" in an en-US run that closes a Chinese phrase hangs as well when the paragraph names Chinese: 1d619a8046f0 p2
+            // title "…課題(一)" holds on one 604 pt line with the ")" 11 pt past the margin.)
+            let paraZh = p.all("a:r").contains(where: { ($0.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("zh") || ($0.first("a:rPr")?["altLang"] ?? "").lowercased().hasPrefix("zh") })
+            if paraZh, p.all("a:r").contains(where: { ($0.first("a:t")?.text ?? "") == ")" }) {
+                style.eastAsian["a:hangClosingZh"] = "1"
+            }
             if p.all("a:r").contains(where: { r in
                 (r.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("zh")
                     && (r.first("a:t")?.text ?? "").unicodeScalars.contains(where: { [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009, 0xFF1A, 0xFF1B, 0xFF01, 0xFF1F].contains($0.value) }) }) {
