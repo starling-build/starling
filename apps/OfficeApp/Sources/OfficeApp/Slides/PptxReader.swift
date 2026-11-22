@@ -574,7 +574,7 @@ private struct LevelStyle {
         guard face == "wingdings" else { return nil }
         switch code {
         case 0x6C: return [0, 0.0845, 0.0723, 0.6631, 0.6504, 0x26AB]
-        case 0x6E: return [1, 0.0845, 0.0723, 0.6626, 0.6504]
+        case 0x6E: return [1, 0.0845, 0.0723, 0.6626, 0.6504, 0x25FC]
         case 0xA7: return [1, 0.0845, 0.2168, 0.3735, 0.5059, 0x25AA]
         case 0x75: return [2, 0.0845, -0.0474, 0.9023, 0.7705]
         case 0x71: return [5, 0.0845, 0.0, 0.8071, 0.7227]
