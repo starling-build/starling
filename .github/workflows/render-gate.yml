@@ -53,7 +53,7 @@ jobs:
           pgrep -u "$(id -u)" -x git >/dev/null || find "$C/.git" -maxdepth 2 -name "*.lock" -delete 2>/dev/null || true   # stale locks from a cancelled run, only if no git of ours is running
           # a warm build of main left running by the last job (gate-warm.sh) reads this clone: stop it before the checkout changes the files
           OP=; OR=; read -r OP OR < "$HOME/scratch/gate/lock.owner" 2>/dev/null || true
-          if [ "$OR" = prebuild ] && [ -n "$OP" ] && kill -0 "$OP" 2>/dev/null; then kt() { local c; for c in $(pgrep -P "$1" 2>/dev/null); do kt "$c"; done; kill -TERM "$1" 2>/dev/null; }; kt "$OP"; fi
+          if [ "$OR" = prebuild ] && [ -n "$OP" ] && kill -0 "$OP" 2>/dev/null; then kt() { local c; for c in $(pgrep -P "$1" 2>/dev/null); do kt "$c"; done; kill -TERM "$1" 2>/dev/null || true; }; kt "$OP"; fi
           [ -d "$C/.git" ] || { git init -q "$C"; git -C "$C" remote add origin "https://github.com/${{ github.repository }}.git"; }
           AUTH="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           # the token goes through the environment of the one git process (never the command line: ps shows that); a hung fetch is killed after 300 s and retried once
