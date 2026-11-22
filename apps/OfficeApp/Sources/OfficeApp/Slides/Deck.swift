@@ -380,6 +380,8 @@ struct SlideFill: Equatable {
     /// area, as fractions inset from each edge (negative: beyond it, and
     /// clipped).
     var imageInset = EdgeInsets.zero
+    /// A picture fill that stays upright when its shape turns (`rotWithShape` off).
+    var imageStays = false
 
     enum GradientPath: String { case circle, rect, shape }
 

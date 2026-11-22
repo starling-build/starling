@@ -1078,6 +1078,12 @@ final class SlidePainter: CustomPainter {
                     paintFill(circle, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
                 } else if style.path == .shape, style.stops.count >= 2, style.overlay == nil {
                     Self.paintShapePath(style, outline, r, canvas, ellipse: named == "ellipse")
+                } else if style.imageStays, style.image != nil, shape.rotation != 0 {
+                    // Upright on the page, within the turned outline.
+                    canvas.translate(r.center.dx, r.center.dy)
+                    canvas.rotate(-shape.rotation * .pi / 180)
+                    canvas.translate(-r.center.dx, -r.center.dy)
+                    paintFill(style, r, canvas, cache: cache, pxPerPt: px)
                 } else {
                     paintFill(style, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
                 }
@@ -1163,6 +1169,12 @@ final class SlidePainter: CustomPainter {
                 paintFill(circle, area, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
             } else if style.path == .shape, let path, preset?.rawValue != "rect", style.stops.count >= 2, style.overlay == nil {
                 Self.paintShapePath(style, path, area, canvas, ellipse: preset?.rawValue == "ellipse")
+            } else if style.imageStays, style.image != nil, shape.rotation != 0 {
+                // Upright on the page, within the turned outline.
+                canvas.translate(area.center.dx, area.center.dy)
+                canvas.rotate(-shape.rotation * .pi / 180)
+                canvas.translate(-area.center.dx, -area.center.dy)
+                paintFill(style, area, canvas, cache: cache, pxPerPt: px)
             } else {
                 paintFill(style, area, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
             }
