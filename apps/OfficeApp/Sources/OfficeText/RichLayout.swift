@@ -1146,8 +1146,8 @@ public final class RichTextTheme {
             // (Slides draws a rule of a face it has a table for itself, `_paintRules`: the engine's is the stand-in's.)
             decoration: decorations.isEmpty
                 ? TextDecoration.none : TextDecoration.combine(decorations),
-            // (Kept, not dropped, with the colour clear: a run without its decoration lays out its tab and spaces differently.)
-            decorationColor: !wordRules && !decorations.isEmpty && Self.ruleMetrics(latinName, bold: bold, italic: italic) != nil ? Color(0x00000000) : color,
+            // (Kept, not dropped, with the colour all but clear: a run without its decoration lays out its tab and spaces differently. Fully clear is the engine's "use the text colour", which drew a second rule over `_paintRules`'.)
+            decorationColor: !wordRules && !decorations.isEmpty && Self.ruleMetrics(latinName, bold: bold, italic: italic) != nil ? Color(0x01000000) : color,
             debugLabel: familyName,
             fontFamily: bold && face?.family == family ? face?.fakeBoldFamily ?? family : family,
             fontFamilyFallback: {
