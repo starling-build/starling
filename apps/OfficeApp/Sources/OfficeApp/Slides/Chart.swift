@@ -7839,7 +7839,7 @@ extension ChartPainter {
     /// sum is 100 — ties to the smaller value. Word's prints of zh-d62da4dd's
     /// pies: 50 of 400 is "12%" (12.5, the rest going to three 0.75s), and
     /// of seven slices at x.75 with six points to give, 103's 25.75 is the
-    /// one left "25%". (Smaller value or later point: the file cannot tell.)
+    /// one left "25%". Ties go to the LATER point: ja-a91e3e82 p3's 3 and 5 of 40 (7.5, 12.5) print "7%" and "13%" in PowerPoint.
     static func wholePercents(_ points: [(key: Int, value: Double)]) -> [Int: Int] {
         let sum = points.reduce(0) { $0 + max(0, $1.value) }
         guard sum > 0 else { return [:] }
@@ -7853,7 +7853,7 @@ extension ChartPainter {
         var left = 100 - out.values.reduce(0, +)
         let ordered = rest.sorted { a, b in
             if abs(a.frac - b.frac) > 1e-9 { return a.frac > b.frac }
-            return a.value != b.value ? a.value < b.value : a.order < b.order
+            return a.order > b.order
         }
         for r in ordered where left > 0 {
             out[r.key, default: 0] += 1
