@@ -349,6 +349,10 @@ enum SlideFonts {
             var face = RichResolvedFace(family: resolve(family))
             face.advances = OfficeFonts.arialBlackAdvances
             face.boldAdvances = OfficeFonts.arialBlackAdvances
+            // (Past ASCII too, at Arial Black's own measured advances: its accented capitals are the base letter's width, and the
+            // stand-in's are wider; 4c5084ff's 20 pt caps heading with Á, Ç, Ã.)
+            face.otherAdvances = OfficeFonts.arialBlackOtherAdvances
+            face.boldOtherAdvances = OfficeFonts.arialBlackOtherAdvances
             return face
         default:
             // (A face no one knows is Calibri in PowerPoint's print, its
