@@ -66,6 +66,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           # no merge queue any more: every PR runs the full gate (named documents + sample) against its base.
           GATE_TARGETS_ONLY: '0'
         run: |
