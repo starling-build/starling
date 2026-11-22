@@ -7102,6 +7102,26 @@ enum ChartPainter {
         // (On a slide a point's own pull counts without the series', the pie not made smaller for it: 3c310d53 p7's "Gasto Corriente" at 12 stands off, the pie at its full size, in PowerPoint's print.)
         if c.type == .pie, c.pieSeriesPull > 0, !c.chartex { radius /= 1 + c.pieExplosion }
         var centre = libre ? Offset(area.center.dx, area.center.dy - 1.3 * k) : area.center
+        // (A slide's flat pie with its labels inside, the plot left to PowerPoint: the pie is the whole of its box, centred in it, the
+        // box the chart less 11 pt a side, less the title above and the legend at the foot or the right. Lab pie2, PowerPoint for
+        // Windows, 24 charts 250 to 382 pt high, 250 and 777 wide, 18.62 pt title, 11.97 pt legend: title 41.2 pt, a foot legend 27.8,
+        // a right one 61 pt wide; R = (height - 22 - those) / 2 to 0.1 pt at every height, and (width - 22 - 61) / 2 where narrower.
+        // The titles' and legends' own heights are ours' plus 7.3, 2.35 and 3.3 pt.)
+        if c.onSlide, c.type == .pie, !c.onSheet, !c.chartex, c.ofPie == nil, c.plotLayout == nil, c.pieTilt == nil, let fr = frame,
+           let pl = c.pieLabels, !pl.outside, !c.pieLabelsAround, ["ctr", "inEnd"].contains(pl.position ?? ""), !c.legendOverlay,
+           !c.legend || ["b", "r"].contains(c.legendPosition) {
+            let titled = !(c.title ?? "").isEmpty && c.titleAt == nil
+            let foot = c.legend && c.legendPosition == "b", side = c.legend && c.legendPosition == "r"
+            let top = titled ? area.top - fr.top - 9 * k + 7.3 * k : 0
+            let low = foot ? fr.bottom - area.bottom - 6.9 * k + 2.35 * k : 0
+            let wide = side ? fr.right - area.right - 9 * k + 3.3 * k : 0
+            let box = Rect.fromLTRB(fr.left + 11 * k, fr.top + 11 * k + top, fr.right - 11 * k - wide, fr.bottom - 11 * k - low)
+            if box.width > 0, box.height > 0 {
+                RuleTrace.hit("slide-pie-with-inside-labels-fills-its-box")
+                radius = min(box.width, box.height) / 2
+                centre = box.center
+            }
+        }
         // (Word's room for the pie is centred where its own title and legend bands leave it, not where ours: lab piesize's prints,
         // centre against ours 1.55 pt lower under a title with the legend at the foot, 2.69 with no legend or one at a side, 3.47
         // with it on top; with no title 2.68 higher than those.)
