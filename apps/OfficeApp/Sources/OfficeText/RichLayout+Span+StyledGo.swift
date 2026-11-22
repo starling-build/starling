@@ -1494,7 +1494,8 @@ extension _StyledFrame {
                 }
                 // (An ideograph of a Traditional Chinese face with no bold cut, emboldened by PowerPoint, steps 0.983 of an em: a 44 pt column of
                 // DFKai-SB bold stands 43.14 apart, 36 pt 35.37, MingLiU 32 pt 31.35, where the regular and the real bold step 1.000; lab vk.)
-                if !theme.wordRules, style(kind).fontWeight == .bold, ch.unicodeScalars.count == 1, em > 0, let u = ch.unicodeScalars.first?.value {
+                // (Down a vertical column only: set along a horizontal line the bold ideograph steps a full em, 3c1f2c4d820b p4's 20 pt title 140.06 wide in PowerPoint's print, not 137.96.)
+                if !theme.wordRules, rl.verticalColumn, style(kind).fontWeight == .bold, ch.unicodeScalars.count == 1, em > 0, let u = ch.unicodeScalars.first?.value {
                     let isIdeo: Bool = (u >= 0x3400 && u <= 0x9FFF) || (u >= 0x3000 && u < 0x3040) || (u >= 0xFF00 && u < 0xFF60)
                     let lat: String = run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily ?? ""
                     let nm: String = run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? lat
