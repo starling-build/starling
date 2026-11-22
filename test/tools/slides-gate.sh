@@ -56,6 +56,9 @@ fi
 if [ -s "$PB" ] && ! ls "$PILOT"/baseline-*lines*.tsv >/dev/null 2>&1; then MISS="$MISS $PILOT/baseline-lines-pilot-win.tsv"; fi
 [ -z "$MISS" ] || { [ -n "${BASE_BIN:-}" ] && echo "slides-gate: note, fixed-baseline inputs missing (base mode, not needed):$MISS" || { echo "slides-gate: FAILED, missing:$MISS"; exit 1; }; }
 DECKS=$W/in; PPT=$W/ppt
+# SLIDES_ONLY=FILE (amd-8, 2026-11-22): the exact-base RE-CHECK after a block against a cached ancestor judges only the decks that were blocked
+# (stems, one per line), not all ~670: only those are drawn (PR side and base side) and compared; nothing partial is written to the base cache.
+if [ -n "${SLIDES_ONLY:-}" ]; then for f in "$W/in"/*.pptx; do s=$(basename "$f" .pptx); grep -qxF "$s" "$SLIDES_ONLY" || rm -f "$f"; done; echo "slides-gate: re-check of $(ls "$W/in" | wc -l) deck(s) only"; fi
 [ -n "${BASE_ONLY:-}" ] || PDFDIFF_NO_PAIRS=1 OFFICE_APP=$BIN "$ROOT/test/pptx-app-render.sh" -j "$JOBS" "$DECKS" "$PPT" "$W" $(ls -SL "$DECKS" | grep '\.pptx$') > "$W/run.log" 2>&1
 PY=${PYTHON:-$( [ -x "$HOME/venv-word/bin/python" ] && echo "$HOME/venv-word/bin/python" || echo python3)}
 SCORE_LINES() {   # SCORE_LINES DIR: lines.txt + combined.tsv in DIR (renders already there)
@@ -76,10 +79,10 @@ if [ -n "${BASE_BIN:-}" ]; then
     SCORE_LINES "$W/base" >/dev/null
     # The round file (amd-8, 2026-11-22): per-page line scores of this main sha, written INTO the base cache (the runners are on other
     # machines; /data/gate/cache is the one place everyone sees). test/tools/slides-round.sh copies the newest to /data/s/amd-8/sg/round.
-    if [ -n "$BC" ]; then
+    if [ -n "$BC" ] && [ -z "${SLIDES_ONLY:-}" ]; then
       PPT_MATCH_JOBS=$JOBS "$PY" "$ROOT/test/tools/slides-per-page.py" "$W/base" "$PPT" "$W/base/per-page.tsv" "$(basename "$(dirname "$BC")")" 2>>"$W/base/lines.err" || rm -f "$W/base/per-page.tsv"
     fi
-    if [ -n "$BC" ] && [ -s "$W/base/combined.tsv" ]; then mkdir -p "$BC.tmp$$" 2>/dev/null && cp "$W/base/render.tsv" "$W/base/combined.tsv" "$BC.tmp$$/" && { [ ! -s "$W/base/per-page.tsv" ] || cp "$W/base/per-page.tsv" "$BC.tmp$$/"; } && { rm -rf "$BC"; mv "$BC.tmp$$" "$BC"; chmod -R g+rwX,o+rX "$BC" 2>/dev/null; }; fi
+    if [ -n "$BC" ] && [ -z "${SLIDES_ONLY:-}" ] && [ -s "$W/base/combined.tsv" ]; then mkdir -p "$BC.tmp$$" 2>/dev/null && cp "$W/base/render.tsv" "$W/base/combined.tsv" "$BC.tmp$$/" && { [ ! -s "$W/base/per-page.tsv" ] || cp "$W/base/per-page.tsv" "$BC.tmp$$/"; } && { rm -rf "$BC"; mv "$BC.tmp$$" "$BC"; chmod -R g+rwX,o+rX "$BC" 2>/dev/null; }; fi
     BASEMODE=1
   fi
   BASEALL=$W/base/render.tsv; BASELBL=$W/base/combined.tsv
@@ -97,6 +100,10 @@ def rd(f):
         d[p[0]]=float(m.group(1)) if m else None
     return d
 b,n=rd(base),rd(new)
+import os
+try: only=set(open(os.environ['SLIDES_ONLY']).read().split())
+except (KeyError,OSError): only=None
+if only is not None: b={k:v for k,v in b.items() if k[:-5] in only}
 try: ok=set(open(appr).read().split())
 except OSError: ok=set()
 bad=[];gone=[]
@@ -113,6 +120,8 @@ bad.sort(reverse=True)
 print("slides-gate: %d decks scored, %d worse than the base by over %.2f pt, %d no longer render"%(sum(1 for v in n.values() if v is not None),len(bad),tol,len(gone)))
 for d,k,v,x in bad[:15]: print("slides-gate:   WORSE %s %.2f -> %.2f"%(k[:-5],v,x))
 for k in gone: print("slides-gate:   NO-RENDER",k[:-5])
+for d,k,v,x in bad: print("slides-gate: BLOCKED-DECK",k[:-5])
+for k in gone: print("slides-gate: BLOCKED-DECK",k[:-5])
 sys.exit(1 if bad or gone else 0)
 P
 rc=$?
@@ -129,11 +138,16 @@ if [ -s "$LB" ]; then
 import sys
 def rd(f): return {l.split('\t')[0]:(float(l.split('\t')[1]),l.split('\t')[2].strip()) for l in open(f) if l.strip()}
 b,n=rd(sys.argv[1]),rd(sys.argv[2]); tol=float(sys.argv[3])
+import os
+try: only=set(open(os.environ['SLIDES_ONLY']).read().split())
+except (KeyError,OSError): only=None
+if only is not None: b={k:v for k,v in b.items() if k in only}
 try: ok=set(open(sys.argv[4]).read().split())
 except OSError: ok=set()
 bad=sorted(((v[0]-n[k][0],k,v[0],n[k][0]) for k,v in b.items() if k in n and v[1]!='unscoreable' and n[k][1]!='unscoreable' and v[0]-n[k][0]>tol and k not in ok),reverse=True)
 print("slides-gate: line score: %d decks worse than the base by over %g pt"%(len(bad),tol))
 for d,k,x,y in bad[:15]: print("  LINES %s %.1f -> %.1f"%(k,x,y))
+for d,k,x,y in bad: print("slides-gate: BLOCKED-DECK",k)
 sys.exit(1 if bad else 0)
 Q
 fi
