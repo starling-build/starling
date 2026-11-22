@@ -6300,6 +6300,9 @@ enum ChartPainter {
                         // "-10,160,557" under their columns' feet in Word's print,
                         // where ours set them all over the axis line.)
                         let off = c.onSlide ? (p1 > p0 ? 0.94 : -0.79) * size * k : p1 > p0 ? 0.94 * size * k : -8 * k
+                        // (A flat slide column's label past its top stands 3.3 pt higher than that: ce626c34 p7's 7 pt labels, 3.1 low
+                        // in ours, and the 9 to 12 pt ones of 107dae42 p8, 81d28d42 p8 and b986e846 p19, 3.4 to 3.6.)
+                        let flatColumnLift = c.onSlide && !c.chartex && !c.stacked && c.barView == nil && p1 <= p0 && [nil, "outEnd"].contains(c.barLabelPos) && c.series[safe: j]?.labelParts[i] == nil ? 3.3 * k : 0
                         // (A label written out over the value: lines of its own below or above the value's.)
                         var shown = c.series[safe: j]?.labelRich[i].map { $0.map { $0 ?? dataLabel(c, raw) }.joined(separator: "\n") } ?? dataLabel(c, raw)
                         if let parts = c.series[safe: j]?.labelParts[i] {
@@ -6307,7 +6310,7 @@ enum ChartPainter {
                             wrapLabels.insert(labels.count)
                         }
                         var labelAt = Offset(rect.center.dx, c.stacked ? rect.center.dy
-                            : (off > 0 ? max(p0, p1) : min(p0, p1)) + off) + (raw < 0 && !c.onSlide && !c.onSheet && !c.stacked ? lowered(j, i) : nudge(j, i))
+                            : (off > 0 ? max(p0, p1) : min(p0, p1)) + off - flatColumnLift) + (raw < 0 && !c.onSlide && !c.onSheet && !c.stacked ? lowered(j, i) : nudge(j, i))
                         // (A falling bar's label stands clear below the row of names where the names hang from the zero
                         // line: zh-b8de3ae2's chart 8 has "-960,118" and "-474,492", their bars ending 17 and 9 pt
                         // under the axis, on one line under the names in Word's print.)
