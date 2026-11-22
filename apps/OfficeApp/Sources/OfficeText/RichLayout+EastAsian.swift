@@ -636,12 +636,19 @@ extension RichLayout {
             // Windows' print to keep "月" on the line.)
             // (A full-width "！" gives nothing for what follows, as "？" does not, in Word for Windows:
             // zh-ae3d78ee's "…沒差啦！" leaves "也" 4.7pt over with only it to give, its "！" a whole em.)
-            let own = (a ..< last).filter {
-                (Self._closingUnits.contains(units[$0]) || Self._openingUnits.contains(units[$0]) || wideQuote($0) || wideDot($0)) && !closesUp($0)
-                    && !(RichTextTheme.wordWindowsPages && units[$0] == 0xFF01)
-                    // (Japanese text, kana in the paragraph: a full stop or comma inside a line, beside no bracket,
-                    // gives nothing. jpn-z19433747's Word print holds 34 characters on every line; the zh set squeezes them.)
-                    && !(squeezesPauseRule && $0 + 1 < units.count && (units[$0] == 0x3002 || units[$0] == 0x3001 || units[$0] == 0xFF1B) && !Self._openingUnits.contains(units[$0 + 1]) && !Self._closingUnits.contains(units[$0 + 1]))
+            let own = (a ..< last).filter { (k: Int) -> Bool in
+                // (split into typed steps: this one expression took seconds to type-check)
+                let isMark: Bool = Self._closingUnits.contains(units[k]) || Self._openingUnits.contains(units[k]) || wideQuote(k) || wideDot(k)
+                if !isMark || closesUp(k) { return false }
+                if RichTextTheme.wordWindowsPages && units[k] == 0xFF01 { return false }
+                // (Japanese text, kana in the paragraph: a full stop or comma inside a line, beside no bracket,
+                // gives nothing. jpn-z19433747's Word print holds 34 characters on every line; the zh set squeezes them.)
+                if squeezesPauseRule && k + 1 < units.count {
+                    let u: UInt32 = UInt32(units[k])
+                    let pause: Bool = u == 0x3002 || u == 0x3001 || u == 0xFF1B
+                    if pause && !Self._openingUnits.contains(units[k + 1]) && !Self._closingUnits.contains(units[k + 1]) { return false }
+                }
+                return true
             }
             let em = a < ems.count ? ems[a] : 0
             // (Less than nothing on a line whose room Word's sum puts a hair
@@ -715,8 +722,10 @@ extension RichLayout {
             // its 118.2pt line by ours (lab lef cf8: Word's cut and ours fall in the same 0.2pt step); ours sent
             // the "%" down and nine lines after it. Not unspaced text: zh-633792eb's cell leaves a character
             // 0.004 over, and the edge's 0.045 for every Latin line cost 14 documents.)
-            let spacedPiece = (a ..< last).contains { k in
-                k < runOf.count && (p.runs[runOf[k]].style.letterSpacing ?? lineStyle?.char.letterSpacing ?? _normalChar(document)?.letterSpacing ?? 0) != 0
+            let spacedPiece = (a ..< last).contains { (k: Int) -> Bool in
+                if k >= runOf.count { return false }
+                let ls: Double = p.runs[runOf[k]].style.letterSpacing ?? lineStyle?.char.letterSpacing ?? _normalChar(document)?.letterSpacing ?? 0
+                return ls != 0
             }
             let pieceHangul = (a ..< last).contains { (0xAC00 ... 0xD7AF).contains(Int(units[$0])) || (0x1100 ... 0x11FF).contains(Int(units[$0])) || (0x3130 ... 0x318F).contains(Int(units[$0])) }
             let latinSlack = (pieceLatin || lineLatin && !pieceHangul) && spacedPiece && !onCharacterGrid && !(onFirstLine ? tieShort.first : tieShort.rest) ? max(hair, _px(0.01)) : hair
@@ -1360,7 +1369,9 @@ extension RichLayout {
                     // "秒）" a line down in Word's print, where the set width
                     // took it. Why, not found.)
                     func condensed(_ k: Int) -> Bool {
-                        k < runOf.count && (p.runs[runOf[k]].style.letterSpacing ?? lineStyle?.char.letterSpacing ?? _normalChar(document)?.letterSpacing ?? 0) < 0
+                        if k >= runOf.count { return false }
+                        let ls: Double = p.runs[runOf[k]].style.letterSpacing ?? lineStyle?.char.letterSpacing ?? _normalChar(document)?.letterSpacing ?? 0
+                        return ls < 0
                     }
                     // (Under `w:kinsoku` 0, before 2013's layout, a closing mark that is a piece of its own
                     // stands over by its half alone, the half that gives: zh-b00fef0d's "…的模式" takes "，"
