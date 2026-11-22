@@ -6513,10 +6513,10 @@ enum ChartPainter {
                         let slideRise = c.onSlide && !c.stacked && !horizontal ? (5.0 - 2.3 * sin(abs(v.x) * .pi / 180)) * k : 0
                         // (A horizontal bar's label on a slide stands level with the front's middle, no rise: LIBRE_OFFICE-100610 p8's four bars in
                         // PowerPoint's print, where the column rise stood 4.4 pt high.)
-                        // (And across, centred in the bar's side face, not 3 pt from the front's end: the same print, the labels' middles 8.4 pt past the
-                        // front's end in a side face 16.4 pt deep, within 0.2 pt for 3, 4 and 6.)
+                        // (And across, the label's left edge 6.3 pt past the front face's end (the point stands 3 pt past it) whatever the depth, gap depth or series count: the 24-chart lab
+                        // lab-bar3d-series2 print, within 0.5 pt; not centred in the side face.)
                         var across = 0.0
-                        if c.onSlide, !c.stacked, horizontal, !c.valueReversed { sideCentred.insert(labels.count); across = d.dx / 2 - 3 * k }
+                        if c.onSlide, !c.stacked, horizontal, !c.valueReversed { sideCentred.insert(labels.count); across = 3.3 * k }
                         labels.append((last.0, Offset(last.1.dx + back.dx + across, last.1.dy - back.dy - slideRise), last.2)) }
                     }
                     if c.series[j].labelLeader, !horizontal, !c.onSlide, nudge(j, i) != .zero, !labels.isEmpty, labels[labels.count - 1].2 == j {
@@ -6953,7 +6953,7 @@ enum ChartPainter {
                         t.layout(minWidth: 0, maxWidth: wrapAt)
                         return t
                     }()
-                let dx = sideCentred.contains(li) ? tp.width / 2 : endAtPoint.contains(li) ? tp.width : startAtPoint.contains(li) ? 0 : horizontal && !c.stacked ? 0 : tp.width / 2
+                let dx = sideCentred.contains(li) ? 0 : endAtPoint.contains(li) ? tp.width : startAtPoint.contains(li) ? 0 : horizontal && !c.stacked ? 0 : tp.width / 2
                 let rise = horizontal ? 0 : Self._wordLabelRise(c, ser.labelSize ?? c.baseTextSize) * k
                 // (A label of several lines keeps its last line where a single one stood and grows upward.)
                 let lineCount = max(1, tp.computeLineMetrics().count)
