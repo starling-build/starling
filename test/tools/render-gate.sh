@@ -237,6 +237,12 @@ if [ -n "${SLPID:-}" ]; then
   [ "$src" = 1 ] && [ -n "$EXACTB" ] && [ -z "${GATE_RECHECK_DECKS:-}" ] && { echo "render-gate: Slides decks worse against the cached ancestor; rerunning against the exact base ${EXACTB:0:9}, only the blocked decks"; dk=$W/recheck-decks.txt; sed -n 's/^slides-gate: BLOCKED-DECK //p' "$W/slides.out" | sort -u > "$dk"; [ -s "$dk" ] || dk=""; exec env GATE_RECHECK_DECKS="$dk" GATE_EXACT_BASE=1 "$SELF" "$BASE_SHA"; }
   [ "$src" = 1 ] && { echo "render-gate: BLOCKED, Slides decks worse than the base (above)"; exit 1; }
 fi
+# Sheets step (amd-8, 2026-11-22): every workbook Excel printed, drawn by the PR binary and by the base (base cached per main sha in $BC/$BSHA/sheets),
+# compared per book on pixels and text lines (test/tools/sheets-gate.sh, ~40 s a side). GATE_SHEETS=0 turns it off. Skipped for Word-reader-only changes, as Slides.
+if [ "$MODE" = full ] && [ "${GATE_SHEETS:-1}" = 1 ] && [ "${GATE_PREBUILD:-0}" != 1 ] && ! { [ -n "${CH:-}" ] && ! echo "$CH" | grep -vE '^(docs/|test/(tools|corpus)/|apps/OfficeApp/Sources/OfficeApp/Docx\.swift$|apps/OfficeApp/Sources/(OfficeApp|OfficeText)/WordWindowsFaces\.swift$)' | grep -q .; }; then
+  LQ=$LQ test/tools/sheets-gate.sh "$BIN" "$BASEBIN" "$BC/$BSHA/sheets" "${JOBS:-32}" > "$W/sheets.out" 2>&1; shrc=$?; tail -8 "$W/sheets.out" | cut -c1-200
+  [ "$shrc" = 1 ] && { echo "render-gate: BLOCKED, Sheets books worse than the base (above)"; exit 1; }
+fi
 echo "render-gate: BASE-CACHE word=$([ -n "$BSD" ] && echo cache || echo own) slides=$(if grep -qs "base render from the cache" "$W/slides.out"; then echo cache; elif [ -s "$W/slides-base.out" ]; then echo own; else echo none; fi)"
 echo "render-gate: $NCMP sets compared; clean ($(wc -l < "$W/down.txt") approved drops)"
 [ "$MODE" = full ] && [ "${GATE_BLAME:-1}" = 1 ] && { W=$W LQ=$LQ BC=$BC BASE_SHA=$BSHA EO=$EO JOBS=$JOBS timeout 1500 test/tools/render-gate-blame.sh 2>&1 | tail -5 | cut -c1-250 || true; }
