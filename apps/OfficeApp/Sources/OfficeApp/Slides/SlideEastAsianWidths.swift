@@ -179,7 +179,7 @@ enum SlideEastAsianWidths {
         case "gungsuhche", "궁서체": return gungsuhChe
         case "pmingliu", "新細明體": return pMingLiU
         case "mingliu", "細明體": return mingLiU
-        case "dfkai-sb", "標楷體", "dfkai": return dfKaiSB
+        case "dfkai-sb", "標楷體", "dfkai": return (regular: dfKaiSB.regular, bold: dfKaiSB.regular)  // DFKai-SB bold is drawn at the regular advances (print: 9.00 pt Latin at 18 pt bold)
         case "georgia": return georgia
         case "raleway": return raleway
         case "rockwell": return rockwell
