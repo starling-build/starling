@@ -63,6 +63,8 @@ extension RichLayout {
               p.style.lineSpacing > 0 else { return nil }
         // (A proportional line, 90% of the single line: the pieces' line scales with it.)
         let factor = max(0.1, p.style.lineSpacing - theme.lineSpacingReduction)
+        // (Above single spacing the plain path already sets the pitch as PowerPoint does; the split gave 27.5 pt for 28.8 at 120%.)
+        guard factor <= 1.001 else { return nil }
         // The lines, as ranges of the painter's text.
         var lines: [(Int, Int)] = []
         var at = 0
