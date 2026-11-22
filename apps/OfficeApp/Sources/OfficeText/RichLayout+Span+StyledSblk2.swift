@@ -187,7 +187,7 @@ extension _StyledFrame {
     }
     // (PowerPoint sets the font at a size on a grid of 1/600 in: 32 pt prints at 32.04, so every advance is that much wider; the line's
     // height is the unrounded size's. `fontSizeGrid`.)
-    if theme.fontSizeGrid > 0, !ch.isNewline, !ea, latinFace?.kernsReplaceShaped == true {
+    if theme.fontSizeGrid > 0, !ch.isNewline, !ea, latinFace?.kerns != nil {
         var pt = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
         if fontScale != 1 { pt = max(1, (pt * fontScale).rounded()) }
         let q = (pt / theme.fontSizeGrid).rounded() * theme.fontSizeGrid
