@@ -50,6 +50,13 @@ enum SlideFonts {
     /// PowerPoint for Windows has no DejaVu Sans and prints it as Verdana
     /// (Matrix's theme face, tdf134862's runs: the print's face is Verdana);
     /// its metrics and widths are Verdana's.
+    /// Faces whose vertical header (vhea) has a NEGATIVE descent: PowerPoint sets an eaVert column in them as one sideways (turned) run,
+    /// where MS Gothic, MS PGothic, MS Mincho, Yu Gothic and Malgun (positive descent) stand upright. Lab rt (2026-11-22): Meiryo,
+    /// Meiryo UI and HG Maru Gothic M-PRO print sideways, short or long; the others upright. Metrics only, no font files.
+    static func setsEastAsianVerticalSideways(_ family: String) -> Bool {
+        ["meiryo", "meiryo ui", "メイリオ", "hg丸ゴシックm-pro", "hg丸ｺﾞｼｯｸm-pro", "hgmarugothicmpro"].contains(family.trimmingWhitespace().lowercased())
+    }
+
     static func windowsName(_ family: String) -> String {
         let n = family.trimmingWhitespace().lowercased()
         if missingRoman.contains(n), OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil { return "palatino linotype" }
