@@ -6755,6 +6755,38 @@ extension ChartPainter {
                 let y = box.top + box.height * f
                 return lay(a, Rect.fromLTRB(box.left, box.top, box.right, y)) + lay(b, Rect.fromLTRB(box.left, y, box.right, box.bottom))
             }
+            if !c.onSheet {
+                // PowerPoint (chartex-lab2 treemap pages): items largest first, laid in strips along the shorter side,
+                // a strip growing while its worst aspect ratio does not get worse (squarified). Matches 9 of 12
+                // single-level lab pages; on a near-square box PowerPoint sometimes stops one item early.
+                let order = values.indices.sorted { values[$0] != values[$1] ? values[$0] > values[$1] : $0 < $1 }
+                let vs = order.map { values[$0] }
+                var out = [Rect](repeating: .zero, count: values.count)
+                var l = box.left, t = box.top, i = 0, rem = vs.reduce(0, +)
+                while i < vs.count {
+                    let w = box.right - l, h = box.bottom - t
+                    let horiz = w >= h, short = min(w, h)
+                    func worst(_ k: Int) -> Double {
+                        let s = vs[i ..< i + k].reduce(0, +), thick = s / rem * (horiz ? w : h)
+                        var m = 0.0
+                        for v in vs[i ..< i + k] { let len = v / s * short; m = max(m, max(thick / len, len / thick)) }
+                        return m
+                    }
+                    var k = 1
+                    while i + k < vs.count, worst(k + 1) <= worst(k) + 1e-9 { k += 1 }
+                    let s = vs[i ..< i + k].reduce(0, +), thick = s / rem * (horiz ? w : h)
+                    var pos = 0.0
+                    for j in 0 ..< k {
+                        let len = vs[i + j] / s * short
+                        out[order[i + j]] = horiz ? Rect.fromLTRB(l, t + pos, l + thick, t + pos + len)
+                                                  : Rect.fromLTRB(l + pos, t, l + pos + len, t + thick)
+                        pos += len
+                    }
+                    if horiz { l += thick } else { t += thick }
+                    rem -= s; i += k
+                }
+                return out
+            }
             return lay(values[...], box)
         }
         let fill = Paint()
