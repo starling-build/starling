@@ -269,7 +269,7 @@ struct ColorContext {
                 // PowerPoint leaves saturation above 100% unclamped and clamps the
                 // channels instead (hueoff lab: accent3 + satOff 100% is FFEB00).
                 let achromatic = _hsl(r, g, b).1 == 0
-                (r, g, b) = _rgb(h, max(0, s), l)
+                (r, g, b) = _rgb(h, m.name == "a:satMod" ? min(1, max(0, s)) : max(0, s), l)   // (only satOff was measured unclamped; satMod keeps its clamp: table styles' satMod 300% decks matched with it)
                 // A grey given saturation takes hue 0, and its blue comes out of
                 // the hue ramp unwrapped (3p - 2q, so 0 once saturated): the
                 // grey lab's A5A5A5 + satOff 100% prints FF4B00, +50% D27800.
