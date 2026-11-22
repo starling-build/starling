@@ -1217,7 +1217,9 @@ final class DeckController: ChangeNotifier {
         // The text's look: a new theme object when it differs (undoing a
         // theme), never an edit in place.
         if st.text != nil, let tt = shape.textTheme,
-           tt.fontFamily != st.font || tt.fontSize != st.size || tt.textColor != st.color || tt.listIndent != st.listIndent {
+           tt.fontFamily != st.font || tt.fontSize != st.size || tt.textColor != st.color || tt.listIndent != st.listIndent
+            // (spcFirstLastPara="1" keeps the first paragraph's space before whatever the look: e01f56c5361e p35's box, space before 6 pt, sat 6 pt high.)
+            || (st.keepsFirstSpace && tt.omitsLeadingSpace) {
             let fresh = _textTheme(font: st.font ?? theme.bodyFont, size: st.size, color: st.color)
             fresh.listIndent = st.listIndent
             if st.keepsFirstSpace { fresh.omitsLeadingSpace = false }
