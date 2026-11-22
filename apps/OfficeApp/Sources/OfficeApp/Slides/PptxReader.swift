@@ -4509,6 +4509,16 @@ private struct SlideContext {
         var bodyDocument = RichDocument(paragraphs: paragraphs)
         Self._numberRuns(&bodyDocument, levels: paragraphLevels, numbering: numbering)
         bodyDocument.defaultTabStop = paragraphDefTab ?? level0.defTab ?? 72
+        // (An eaVert column's places are the face's vmtx advance, not an em: Malgun Gothic 2176/2048 = 21.25 pt at 20 pt, printed 21.24 in lab vface;
+        // set as the spacing after each ideograph, which stands centred in its place.)
+        if attr("vert") == "eaVert" {
+            for pi in bodyDocument.paragraphs.indices { for ri in bodyDocument.paragraphs[pi].runs.indices {
+                let st = bodyDocument.paragraphs[pi].runs[ri].style
+                if let m = SlideFonts.uprightMetrics(st.fontFamily ?? "", bold: st.bold == true), m.step != 1, let size = st.fontSize {
+                    bodyDocument.paragraphs[pi].runs[ri].style.letterSpacing = (st.letterSpacing ?? 0) + (m.step - 1) * size
+                }
+            } }
+        }
         var body0 = TextBody(document: bodyDocument, anchor: anchor, insets: insets,
                         font: _font(level0.font), size: level0.size ?? 18,
                         color: level0.color ?? tx1 ?? Color(0xFF000000),
