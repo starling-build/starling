@@ -225,6 +225,7 @@ enum SlideFonts {
                 let b = lat.bold.map { SlideEastAsianWidths.parse($0) }
                 for (c, w) in r where face.otherAdvances?[c] == nil { face.otherAdvances?[c] = w; face.boldOtherAdvances?[c] = b?[c] ?? w * kk }
             }
+            if let k = SlideEastAsianKerns.lookup(windowsName(family)) { face.kerns = k.regular; face.boldKerns = k.bold ?? k.regular; face.kernsOutsideWord = true }
             if koreanOwnFace(family) { face.otherAdvances?[0xAC00] = 1.0; face.boldOtherAdvances?[0xAC00] = cuts.bold == nil ? k : 1.0 }
             // (Malgun Gothic's Hangul is an em, which the table of advances that are not one does not hold.)
             if cuts.regular.ascii == SlideEastAsianWidths.malgun.regular.ascii { for u in UInt32(0xAC00) ... 0xD7A3 { face.otherAdvances?[u] = 1.0; face.boldOtherAdvances?[u] = 1.0 } }
