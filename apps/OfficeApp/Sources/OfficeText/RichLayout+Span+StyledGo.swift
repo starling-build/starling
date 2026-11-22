@@ -1372,7 +1372,7 @@ extension _StyledFrame {
                 // own advance: Wingdings 2's box is 0.89 em in Word's print
                 // of zh-d0a207ac, 10.68 at 12pt, where the stand-in's is an
                 // em, and its "☐鲁班杯" line lost its "杯".)
-                if symbolsShown, let w = theme.symbolAdvance?(run.fontFamily ?? named?.char.fontFamily, ch) { extra += w * em - _glyphWidth(style(kind), ch) }
+                if symbolsShown || run.symbolFace != nil, let w = theme.symbolAdvance?(run.symbolFace ?? run.fontFamily ?? named?.char.fontFamily, ch) { extra += w * em - _glyphWidth(style(kind), ch) }
                 // (The ballot box with check ☑, U+2611, in a SimSun run is Segoe
                 // UI Symbol's in Word's print — 1758/2048 = 0.858 em — where the
                 // fallback face here sets it 0.89 and zh-a7a889eb's

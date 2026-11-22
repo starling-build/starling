@@ -3761,6 +3761,7 @@ private struct SlideContext {
                         return shown == String(ch) ? ch : (shown.first ?? ch)
                     })
                 }
+                let symbolRun = t != t0 && (rPr?.first("a:sym")?["typeface"] ?? "").lowercased() == "symbol"
                 var look = _runLook(rPr) ?? RunLook()
                 look.length = t.utf16.count
                 looks.append(look)
@@ -3774,6 +3775,7 @@ private struct SlideContext {
                 // Kerned from the size `kern` says up (PowerPoint's own
                 // masters say 12 pt); none where it says nothing.
                 if Self._unkerned(cs.fontFamily, bold: cs.bold) { cs.kerningFrom = 0 } else { cs.kerningFrom = s.kern ?? unsaidKern }
+                if symbolRun { cs.symbolFace = "Symbol" }
                 let plain = cs
                 Self.faceSpacing(&cs)
                 cs.shadow = s.shadow
