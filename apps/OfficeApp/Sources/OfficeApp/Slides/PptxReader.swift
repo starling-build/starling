@@ -4151,7 +4151,8 @@ private struct SlideContext {
                    // is set in Sakkal Majalla Bold in PowerPoint's print, 216 pt wide, not in the Latin face, 241. "Majalla UI" is that face.)
                    !t.unicodeScalars.contains(where: { $0.value >= 0x30 && $0.value <= 0x39 })
                     || ["majalla ui"].contains((_csFont(s.csFont, script: "Arab", lang: s.lang, arabicCharset: s.csArabicCharset) ?? "").lowercased())
-                    || OfficeFonts.complexFaceKeepsDigits(_csFont(s.csFont, script: "Arab", lang: s.lang, arabicCharset: s.csArabicCharset) ?? "") {
+                    || OfficeFonts.complexFaceKeepsDigits(_csFont(s.csFont, script: "Arab", lang: s.lang, arabicCharset: s.csArabicCharset) ?? "")
+                    || SlideFonts.embeddedFaceKeepsDigits(_csFont(s.csFont, script: "Arab", lang: s.lang, arabicCharset: s.csArabicCharset) ?? "") {
                     let l = (s.lang ?? "").lowercased()
                     if ["ar", "fa", "ur", "ps", "sd", "ug", "ku"].contains(where: { l.hasPrefix($0) }) { pieces[0].script = "Arab" }
                     else if l.hasPrefix("he") || l.hasPrefix("yi") { pieces[0].script = "Hebr" }

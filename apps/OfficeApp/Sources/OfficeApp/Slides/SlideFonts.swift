@@ -92,6 +92,13 @@ enum SlideFonts {
         embedded = Dictionary(faces.map { ($0.key.trimmingWhitespace().lowercased(), $0.value) }, uniquingKeysWith: { a, _ in a })
     }
     static func isEmbedded(_ family: String) -> Bool { embeddedFamily(family) != nil }
+    /// Whether `family` is a face the deck embeds and that has the ASCII digits: a run of digits alone, tagged with a right-to-left
+    /// language, is then set in it (cc66a30f's slide-number field, fa-IR, B Nazanin embedded: 8.5 pt wide in PowerPoint's print, on
+    /// the baseline of the Persian footer beside it, where Georgia's 8 was 10.7 wide and 3 pt low).
+    static func embeddedFaceKeepsDigits(_ family: String) -> Bool {
+        guard let registered = embeddedFamily(family) else { return false }
+        return OfficeFonts.registeredFaceHasDigits(registered)
+    }
     private static func embeddedFamily(_ family: String) -> String? {
         return embedded.isEmpty ? nil : embedded[family.trimmingWhitespace().lowercased()]
     }

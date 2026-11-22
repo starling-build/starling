@@ -856,6 +856,11 @@ enum OfficeFonts {
         defer { declaredLock.unlock() }
         return embeddedFaces.isEmpty ? nil : embeddedFaces[family.trimmingWhitespace().lowercased()]
     }
+    /// Whether an embedded face (by the family it is loaded as) has all the ASCII digits.
+    static func registeredFaceHasDigits(_ registered: String) -> Bool {
+        guard let covered = embeddedCovers(registered) else { return false }
+        return (0x30 ... 0x39).allSatisfy { covered.contains($0) }
+    }
     private static func embeddedCovers(_ registered: String) -> Set<UInt32>? {
         declaredLock.lock()
         defer { declaredLock.unlock() }
