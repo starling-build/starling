@@ -2514,8 +2514,8 @@ enum ChartXML {
             plot += "<c:lineChart><c:grouping val=\"standard\"/><c:varyColors val=\"0\"/>\(lsers)<c:marker val=\"1\"/>\(ax)</c:lineChart>"
         }
         if c.type.hasAxes {
-            let catTitle = c.categoryAxisTitle.map { _rich($0, size: 1330, rotated: c.type == .bar) } ?? ""
-            let valTitle = c.valueAxisTitle.map { _rich($0, size: 1330, rotated: c.type != .bar) } ?? ""
+            let catTitle = c.categoryAxisTitle.map { _rich($0, size: c.categoryAxisTitleSize.map { Int(($0 * 100).rounded()) }, rotated: c.type == .bar) } ?? ""
+            let valTitle = c.valueAxisTitle.map { _rich($0, size: c.valueAxisTitleSize.map { Int(($0 * 100).rounded()) }, rotated: c.type != .bar) } ?? ""
             let catPos = c.type == .bar ? "l" : "b", valPos = c.type == .bar ? "b" : "l"
             let tail = "<c:majorTickMark val=\"none\"/><c:minorTickMark val=\"none\"/><c:tickLblPos val=\"nextTo\"/>"
             let format = c.percent ? "0%" : "General"
