@@ -241,6 +241,8 @@ private struct Player {
         var bold = false
         var italic = false
         var underline = false
+        /// The LOGFONT's charset: 129 is HANGUL, whose ANSI strings are code page 949.
+        var charset = 0
         /// Tenths of a degree, anticlockwise.
         var escapement = 0.0
     }
@@ -700,8 +702,21 @@ private struct Player {
         objects[slot] = o
     }
 
-    func ansi(_ at: Int, _ count: Int) -> String {
+    func ansi(_ at: Int, _ count: Int, charset: Int = 0) -> String {
         guard at >= 0, count > 0, at + count <= bytes.count else { return "" }
+        if charset == 129 {
+            var s = String.UnicodeScalarView()
+            var i = at
+            while i < at + count {
+                let b = bytes[i]
+                if b >= 0x81, i + 1 < at + count, let u = CodePage949.decode(lead: b, trail: bytes[i + 1]), let sc = Unicode.Scalar(u) {
+                    s.append(sc); i += 2
+                } else {
+                    s.append(Unicode.Scalar(b < 0x80 ? b : UInt8(0x3F))); i += 1
+                }
+            }
+            return String(s)
+        }
         // Windows-1252, whose 0x80…0x9F differ from Latin-1.
         let high: [UInt32] = [0x20AC, 0x81, 0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021, 0x02C6, 0x2030, 0x0160, 0x2039, 0x0152,
                               0x8D, 0x017D, 0x8F, 0x90, 0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014, 0x02DC, 0x2122,
@@ -769,10 +784,11 @@ private struct Player {
                 f.bold = u16(a + 8) >= 600
                 f.italic = a + 10 < bytes.count && bytes[a + 10] != 0
                 f.underline = a + 11 < bytes.count && bytes[a + 11] != 0
+                f.charset = a + 13 < bytes.count ? Int(bytes[a + 13]) : 0
                 let nameAt = a + 18
                 var n = 0
                 while nameAt + n < p + size, n < 32, bytes[nameAt + n] != 0 { n += 1 }
-                let face = ansi(nameAt, n)
+                let face = ansi(nameAt, n, charset: f.charset)
                 if !face.isEmpty { f.face = face }
                 addObject(.font(f))
             case 0x0142:   // DibCreatePatternBrush: style, usage, bitmap
@@ -845,7 +861,7 @@ private struct Player {
                 blit(rop: u32(a), dest: Rect.fromLTWH(x, y, w, h), source: nil, image: nil)
             case 0x0521:   // TextOut: length, string, y, x
                 let n = u16(a), after = a + 2 + (n + 1) / 2 * 2
-                text(ansi(a + 2, n), at: Offset(Double(i16(after + 2)), Double(i16(after))), opaque: nil)
+                text(ansi(a + 2, n, charset: dc.font.charset), at: Offset(Double(i16(after + 2)), Double(i16(after))), opaque: nil)
             case 0x0A32:   // ExtTextOut: y, x, length, options, [rectangle], string
                 let y = Double(i16(a)), x = Double(i16(a + 2)), n = u16(a + 4), options = u16(a + 6)
                 var at = a + 8
@@ -862,7 +878,7 @@ private struct Player {
                 // mode: STARLING_PPT_MAC=1, which the sweep sets against test/
                 // corpus/pptx/powerpoint (the retired Mac prints), keeps that.)
                 let fills = options & 2 != 0 && (n > 0 || dc.bkOpaque || !Metafile.macReference)
-                text(ansi(at, n), at: Offset(x, y), opaque: fills ? box : nil)
+                text(ansi(at, n, charset: dc.font.charset), at: Offset(x, y), opaque: fills ? box : nil)
             case 0x0940:   // DibBitBlt: rop, ySrc, xSrc, height, width, yDest, xDest, bitmap
                 if size == 6 + 18 {   // no bitmap: rop, ySrc, xSrc, (unused), height, width, yDest, xDest
                     let h = Double(i16(a + 10)), w = Double(i16(a + 12)), y = Double(i16(a + 14)), x = Double(i16(a + 16))
