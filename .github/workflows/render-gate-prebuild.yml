@@ -27,8 +27,10 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Thin
-        if: ${{ matrix.thin && github.run_number % matrix.thin != 0 }}
-        run: echo "SKIP_PREBUILD=1" >> "$GITHUB_ENV"; echo "thinned prebuild on this runner"
+        # (GitHub expressions have no % operator: "github.run_number % matrix.thin" made the whole workflow invalid, so NO prebuild ran from 2026-11-21 02:52Z; the modulo is shell arithmetic now)
+        env:
+          THIN: ${{ matrix.thin }}
+        run: if [ -n "$THIN" ] && [ $((GITHUB_RUN_NUMBER % THIN)) -ne 0 ]; then echo "SKIP_PREBUILD=1" >> "$GITHUB_ENV"; echo "thinned prebuild on this runner"; fi
       - name: Update persistent clone
         if: env.SKIP_PREBUILD != '1'
         env:
