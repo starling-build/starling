@@ -365,6 +365,15 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(c.axisTitleSize, 9)
     }
 
+    /// A pareto's labels set "inEnd" stand inside the columns' tops (PowerPoint's print of chartex-lab pareto-gapwidth).
+    func testAChartexColumnLabelsSetInEndAreRead() {
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex"><cx:chartData><cx:data id="0"><cx:strDim type="cat"><cx:lvl ptCount="2"><cx:pt idx="0">a</cx:pt><cx:pt idx="1">b</cx:pt></cx:lvl></cx:strDim><cx:numDim type="val"><cx:lvl ptCount="2"><cx:pt idx="0">4</cx:pt><cx:pt idx="1">3</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="clusteredColumn"><cx:dataLabels pos="inEnd"><cx:visibility value="1"/></cx:dataLabels><cx:dataId val="0"/></cx:series></cx:plotAreaRegion></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        guard let c = ChartXML.readClusteredColumn(XNode.parse(Data(xml.utf8))!) else { return XCTFail("not read") }
+        XCTAssertEqual(c.barLabelPos, "inEnd")
+    }
+
     /// A chart this app cannot draw reads as nothing, so the frame keeps
     /// its own picture. (Every single kind is drawn since surfaces were,
     /// 5c5d43a4. An area under a line on one pair of axes is drawn too, since
