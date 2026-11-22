@@ -110,6 +110,8 @@ struct ChartSeries: Equatable {
     /// them; and the size, weight and colour the series' labels are set in.
     var cellLabels: [Int: String] = [:]
     var labelSize: Double? = nil
+    /// Its value labels turned up (`bodyPr rot="-5400000"`), read bottom to top.
+    var labelTurned = false
     var labelBold = false
     var labelColor: Color? = nil
     /// The face the series' labels name (`a:latin typeface`, a theme's "+mn-lt" not one).
@@ -1626,6 +1628,7 @@ enum ChartXML {
                     if let f = run.first("a:solidFill") { s.labelColor = color(f) }
                 }
             }
+            if let rot = (ser.first("c:dLbls") ?? el.first("c:dLbls"))?.first("c:txPr")?.first("a:bodyPr")?["rot"].flatMap(Int.init), rot == -5_400_000 { s.labelTurned = true }
             // The labels' own look where they give one (aascu 5864's
             // census chart: 14 pt bold), the chart type's labels' else.
             if s.labelSize == nil, let run = (ser.first("c:dLbls") ?? el.first("c:dLbls"))?.first("c:txPr")?.descendant("a:defRPr") {
@@ -1822,6 +1825,7 @@ enum ChartXML {
                     s.labelLeaderWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
                 }
             }
+            if let rot = (own ?? group)?.first("c:txPr")?.first("a:bodyPr")?["rot"].flatMap(Int.init), rot == -5_400_000 { s.labelTurned = true }
             s.valueLabels = (own?.first("c:showVal") ?? group?.first("c:showVal"))?["val"] == "1"
                 && own?.first("c:delete")?["val"] != "1"
             s.labelPos = (own?.first("c:dLblPos") ?? group?.first("c:dLblPos"))?["val"]
@@ -6202,6 +6206,13 @@ enum ChartPainter {
                         // left.)
                         if (l.labelPos ?? "r") == "r", let line = tp.computeLineMetrics().first {
                             tp.paint(canvas, Offset(q.dx + 8.45 * k + nudge.dx, q.dy + 3.03 / 9 * max(3, (l.labelSize ?? c.baseTextSize) * k) - line.baseline + nudge.dy))
+                        } else if l.labelTurned, c.onSlide {
+                            // (Turned up: the text's end 6.5 pt over its point, centred on it.)
+                            canvas.save()
+                            canvas.translate(q.dx + nudge.dx, q.dy - 6.5 * k - tp.width / 2 + nudge.dy)
+                            canvas.rotate(-.pi / 2)
+                            tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2))
+                            canvas.restore()
                         } else {
                             tp.paint(canvas, Offset(q.dx - tp.width / 2 + nudge.dx, q.dy - 6.5 * k - tp.height + nudge.dy))
                         }
@@ -6816,7 +6827,14 @@ enum ChartPainter {
                         canvas.drawLine(from, to, lp)
                     }
                 }
-                tp.paint(canvas, origin)
+                if ser.labelTurned, c.onSlide {
+                    // (Turned up about its centre: 458870cc p11's segment labels, centred in their segments in PowerPoint's print.)
+                    canvas.save()
+                    canvas.translate(origin.dx + tp.width / 2, origin.dy + tp.height / 2)
+                    canvas.rotate(-.pi / 2)
+                    tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2))
+                    canvas.restore()
+                } else { tp.paint(canvas, origin) }
                 tp.dispose()
             }
         }
