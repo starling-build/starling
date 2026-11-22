@@ -2341,7 +2341,8 @@ enum ChartXML {
         c.valueAxisTitleAcross = c.valueAxisTitle != nil && c.valueAxisTitleAt == nil && titledValue?.first("c:title")?.descendant("a:bodyPr")?["rot"] == "0"
         let valueAxis = type == .scatter ? axes.first { ["l", "r"].contains($0.first("c:axPos")?["val"] ?? "") }
             : axes.first { $0.name == "c:valAx" }
-        if let sz = valueAxis?.first("c:txPr")?.descendant("a:defRPr")?["sz"].flatMap(Double.init), sz > 0, (sz != 1200 && sz != 1197) || (c.textSize ?? 12) != 12 {
+        if let sz = valueAxis?.first("c:txPr")?.descendant("a:defRPr")?["sz"].flatMap(Double.init), sz > 0, (sz != 1200 && sz != 1197) || c.baseTextSize != 12 {
+            // (A plain 2007 chart's text is 10 pt, so a stated 12 pt is a size of its own: 99f6ddd1 p23's value axis, sz 1200, is 12 pt in PowerPoint's print, 10 here.)
             c.valueLabelSize = sz / 100
         }
         let categoryAxis = type == .scatter ? axes.first { ["b", "t"].contains($0.first("c:axPos")?["val"] ?? "") }
@@ -4881,6 +4882,14 @@ enum ChartPainter {
         if c.onSlide, let m = c.valueMin, c.valueMax == nil, c.valueStep == nil, m > 0, m < hi, !c.percent, c.barView == nil, !c.line3D {
             valueScale.hi = hi + 0.05 * (hi - m)
             RuleTrace.hit("slide-axis-minimum-headroom-counts-from-the-minimum")
+        }
+        // (A major unit the file sets, both ends open: PowerPoint rounds the 5% headroom to that unit, not to the step the automatic
+        // axis would pick. 99f6ddd1 p23, data -0.069 to 1.001 and a unit of 0.1, runs -20% to 110% in its print, ours to 120%.)
+        if c.onSlide, let u = c.valueStep, c.valueMin == nil, c.valueMax == nil, !c.percent, hi > 0, lo <= 0, c.barView == nil, !c.line3D, valueScale.step > u {
+            let run = hi - lo
+            valueScale.hi = ceil((hi + 0.05 * run) / u - 1e-9) * u
+            valueScale.lo = lo < 0 ? floor((lo - 0.05 * run) / u + 1e-9) * u : 0
+            RuleTrace.hit("slide-axis-major-unit-rounds-the-headroom")
         }
         if c.valueMin != nil || c.valueMax != nil || c.valueStep != nil {
             valueScale = fixedScale(auto: valueScale, min: c.valueMin, max: c.valueMax, step: c.valueStep)
