@@ -6054,7 +6054,8 @@ enum ChartPainter {
                 for j in (rowsDeep ? Array((0 ..< s).reversed()) : Array(0 ..< s)) {
                     guard let raw = c.series[j].values[safe: i] ?? nil else { continue }
                     let v = scaled(raw, i)
-                    var a = 0.0, b = v
+                    // (A bar rises from the axis' floor where the scale starts above zero: bab9be95 p15's 60% to 85%.)
+                    var a = min(max(0, sc.lo), sc.hi), b = v
                     if c.stacked {
                         if v >= 0 { a = pos; pos += v; b = pos } else { a = neg; neg += v; b = neg }
                     }
