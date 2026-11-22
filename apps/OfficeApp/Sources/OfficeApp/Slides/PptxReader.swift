@@ -1963,6 +1963,10 @@ private struct SlideContext {
         st.textTurn = text.textTurn
         st.textStacked = text.textStacked
         st.uprightIdeographs = text.uprightIdeographs
+        // An eaVert column in a frame turned to 270 degrees reads as one upright horizontal line in
+        // PowerPoint's print (the frame's turn cancels the column's quarter turn; ideographs are not
+        // kept upright against it): b3af6b818144 layout bar, b7cbab02dccf p9, d8cbc61e1a24.
+        if text.textTurn > 0, text.uprightIdeographs, abs(((st.rotation.truncatingRemainder(dividingBy: 360)) + 360).truncatingRemainder(dividingBy: 360) - 270) < 0.01 { st.uprightIdeographs = false }
         st.textSpin = text.textSpin
         st.textRev = text.textRev
         st.textScene = text.textScene
