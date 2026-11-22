@@ -25,6 +25,11 @@ extension _StyledFrame {
         flush(i)
         spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
         ctx.inserts.append(offset)
+    } else if !theme.wordRules, theme.officeLatinBreaks, ch == "？", p.style.eastAsian["a:eaLnBrk"] != "0", let b = ctx.before, b.unicodeScalars.count == 1, let bv = b.unicodeScalars.first?.value, bv >= 0x3041 && bv <= 0x9FFF {
+        // (PowerPoint lets a full-width "？" begin a line after kana or an ideograph: e89e63a8 p6's title "…体制は？" in a 675pt box ends its line on "は" and prints the "？" alone on the next, where the engine's rules kept "は？" together.)
+        flush(i)
+        spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
+        ctx.inserts.append(offset)
     } else if !theme.wordRules, theme.officeLatinBreaks, let b = ctx.before, ch.unicodeScalars.count == 1, "ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶー".contains(ch), p.style.eastAsian["a:looseKinsoku"] != "1",
               b.unicodeScalars.count == 1, let bv = b.unicodeScalars.first?.value, bv >= 0x3041 && bv <= 0x9FFF {
         // (PowerPoint keeps small kana and the prolonged sound mark with the kana or ideograph before them under strict kinsoku, the default (a deck with strictFirstAndLastChars 0 opens lines with them: ff27a386 p8 "ウ" | "ェールズ"): e89e63a8 p6's
