@@ -91,6 +91,7 @@ enum SlideFonts {
     static func noteEmbedded(_ faces: [String: String]) {
         embedded = Dictionary(faces.map { ($0.key.trimmingWhitespace().lowercased(), $0.value) }, uniquingKeysWith: { a, _ in a })
     }
+    static func isEmbedded(_ family: String) -> Bool { embeddedFamily(family) != nil }
     private static func embeddedFamily(_ family: String) -> String? {
         return embedded.isEmpty ? nil : embedded[family.trimmingWhitespace().lowercased()]
     }
