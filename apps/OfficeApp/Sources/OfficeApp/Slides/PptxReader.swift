@@ -4478,7 +4478,10 @@ private struct SlideContext {
         body0.keepsFirstSpace = ["1", "true"].contains(attr("spcFirstLastPara") ?? "")
         switch attr("vert") {
         case "vert", "mongolianVert": body0.textTurn = 1
-        case "eaVert": body0.textTurn = 1; body0.uprightIdeographs = true
+        case "eaVert":
+            body0.textTurn = 1
+            // (A column in a face whose vertical header has a negative descent (Meiryo...) is one sideways run in PowerPoint's print.)
+            body0.uprightIdeographs = !bodyDocument.paragraphs.contains { $0.runs.contains { $0.length > 0 && SlideFonts.setsEastAsianVerticalSideways($0.style.fontFamily ?? "") } }
         case "vert270": body0.textTurn = -1
         case "wordArtVert": body0.textStacked = 1
         case "wordArtVertRtl": body0.textStacked = -1
