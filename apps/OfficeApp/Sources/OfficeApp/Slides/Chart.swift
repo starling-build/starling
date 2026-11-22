@@ -2727,6 +2727,17 @@ enum ChartPainter {
         }
         return TextSpan(children: kids, style: style)
     }
+    /// PowerPoint wraps Hangul at its spaces, a word whole; the line breaker would split a word between syllables.
+    static func keepHangulWords(_ text: String) -> String {
+        var out = String.UnicodeScalarView()
+        var prev: UInt32 = 0
+        for u in text.unicodeScalars {
+            let h = (0xAC00 ... 0xD7A3).contains(u.value)
+            if h, (0xAC00 ... 0xD7A3).contains(prev) { out.append("\u{2060}") }
+            out.append(u); prev = u.value
+        }
+        return String(out)
+    }
     static func labelSpan(_ c: Chart, _ text: String, _ style: Flutter.TextStyle, traditional: Bool = false, mixedLine: Double = 1.3301 * 1.3) -> TextSpan {
         // (Word for Windows' bold Chinese labels where the theme's East Asian
         // face is no Mincho: a label of its own rich text in Traditional
@@ -7815,8 +7826,12 @@ extension ChartPainter {
             let sheetText = c.onSheet && !c.chartex && text.containsSubstring("/")
                 ? String(text.flatMap { $0 == "/" ? ["/", "\u{2060}"] : [$0] }) : text
             func makeLabel(_ maxLines: Int?, _ shown: String? = nil) -> TextPainter {
-                TextPainter(text: Self.labelSpan(c, shown ?? sheetText, Flutter.TextStyle(
-                    color: colour, fontSize: size, fontWeight: labelWeight,
+                // (PowerPoint sets a pie label's Malgun Gothic Hangul on a 1.73 em line, every line of the label:
+                // ko-e114b968 p11's 9 pt labels step 15.5 pt, ours 13.)
+                let malgunLine: Double? = c.onSlide && ["맑은 고딕", "malgun gothic"].contains(labelFace.lowercased())
+                    && (shown ?? sheetText).unicodeScalars.contains(where: { (0xAC00 ... 0xD7A3).contains($0.value) }) ? 1.73 : nil
+                return TextPainter(text: Self.labelSpan(c, Self.keepHangulWords(shown ?? sheetText), Flutter.TextStyle(
+                    color: colour, fontSize: size, fontWeight: labelWeight, height: malgunLine,
                     fontFamily: OfficeFonts.substitute(labelFace),
                     fontFamilyFallback: Self.glyphFallback(c, traditional: l.traditional.contains(s.index))), traditional: l.traditional.contains(s.index)), textAlign: .center, textDirection: .ltr,
                     maxLines: maxLines, ellipsis: maxLines == nil ? nil : "\u{2026}")
@@ -7832,7 +7847,11 @@ extension ChartPainter {
             // (Excel's own print wraps a little sooner, past 0.19 of the chart: 45544's 525.8pt chart keeps
             // "Finance - Company" (99.7pt) on a line and breaks "Investment Banking" (102.6) and "Finance - Sales
             // and" (100.8).)
-            let wordLabelRoom = !c.onSlide && !c.onSheet && !c.chartex && !c.eastAsianText ? 7.7 * k
+            // (On a slide PowerPoint's print wraps a pie label at a fifth of the frame's width less 5.75 pt, whatever its
+            // size or script: lab pie-lab3, 25 charts 280..640 wide, 10-14 pt Latin and 12 pt Hangul, brackets the
+            // 5.75 between 4.8 and 6.7; ko-e114b968 p11's 281 pt chart wraps "별 차이 없다" (51 pt) and keeps "긍정적으로" (45).)
+            let wordLabelRoom = c.onSlide && !c.chartex ? 5.75 * k
+                : !c.onSlide && !c.onSheet && !c.chartex && !c.eastAsianText ? 7.7 * k
                 : c.onSheet && !c.chartex ? frame.width * 0.01 : 0
             tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2 - wordLabelRoom))
             // (And a one-line label a little narrower: past 0.1857 of the
