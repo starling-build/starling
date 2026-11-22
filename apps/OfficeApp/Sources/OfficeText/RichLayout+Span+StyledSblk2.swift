@@ -126,7 +126,7 @@ extension _StyledFrame {
                 // (A face PowerPoint has measured widths for sets its glyphs on a thousandth of an em, as its print shows: Aptos digits
                 // 9.612 at 18 pt, not the eighth of a point's 9.625; the stand-in faces keep the eighth.)
                 let g = theme.advanceGridOfFaceTables ? 0.001 * px : grid * theme.pixelsPerPoint * scale
-                if theme.fontSizeGrid > 0, !ea, u < 0x0590 {
+                if theme.fontSizeGrid > 0, !ea, u < 0x0590, !face.thousandthEmAdvances {
                     // (576 dpi: the bare advance and the pair kern each round to an eighth of a point at ppem = round(size x 8).)
                     var pt = points
                     if fontScale != 1 { pt = max(1, (pt * fontScale).rounded()) }
@@ -139,6 +139,7 @@ extension _StyledFrame {
                     }
                 } else if g > 0, !glyphOnGrid { target = (target / g).rounded() * g }
             }
+            if theme.fontSizeGrid > 0, !ea, u < 0x0590 { done576 = true }
             let natural = _glyphWidth(s, ch)
             var break_scaled = false
             if theme.scalesGlyphsToTables, natural > 0.5, kind >= 0, !(s.letterSpacing != nil && s.letterSpacing != 0) {

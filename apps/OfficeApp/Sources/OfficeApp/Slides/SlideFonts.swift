@@ -239,6 +239,7 @@ enum SlideFonts {
         case "aptos":
             // (Word's measured Aptos widths are unkerned and PowerPoint kerns Aptos, so the GPOS pairs go with them.)
             var face = RichResolvedFace(family: resolve(family))
+            face.thousandthEmAdvances = true
             face.advances = OfficeFonts.aptosAdvances
             face.boldAdvances = OfficeFonts.aptosBoldAdvances
             face.otherAdvances = OfficeFonts.aptosOtherAdvances
