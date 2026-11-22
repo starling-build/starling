@@ -1005,6 +1005,18 @@ extension _ParaFrame {
                     measure(wraps)
                     return
                 }
+                // (Slides: a tab whose default stop lies past the right edge, with nothing after it but tabs and spaces, goes down
+                // to the next line, where the stops start again; PowerPoint's print of 2c8349fa p15 ends a title in "<tab><tab> ", the
+                // tabs on a line of their own, which the centred block counts: its text stands half that line higher.)
+                if !theme.wordRules, theme.officeLatinBreaks, !style.rightToLeft, stop.alignment == .left, t > 0,
+                   stop.x > ownLeft + textWidth + 0.5, x <= ownLeft + textWidth + 0.5, !wraps.contains(t), !afterTabWraps.contains(t),
+                   (wraps.last(where: { $0 <= t }) ?? 0) < t, units[t...].allSatisfy({ $0 == 0x09 || $0 == 0x20 }),
+                   units[t - 1] != 0x0A, units[t - 1] != 0x2028 {
+                    afterTabWraps.insert(t)
+                    RuleTrace.hit("slides-trailing-tab-past-the-edge-opens-the-next-line")
+                    measure(wraps)
+                    return
+                }
                 if theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, t > 0, x > ownLeft + textWidth + 0.5, units[t - 1] == 0x09,
                    units[t...].allSatisfy({ $0 == 0x09 }), !wraps.contains(t), !afterTabWraps.contains(t) {
                     afterTabWraps.insert(t)

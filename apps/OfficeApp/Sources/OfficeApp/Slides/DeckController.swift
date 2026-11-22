@@ -59,6 +59,7 @@ struct ShapeState: Equatable {
     var chartDrawing: [ShapeState] = []
     var insetsFollowFont = false
     var sizeGroup: String? = nil
+    var keepsSize = false
     var generatedHang = false
     var outlineDash: String? = nil
     var outlineJoin: String? = nil

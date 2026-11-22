@@ -280,6 +280,14 @@ extension _StyledFrame {
             // 0.5pt it wanted made zh-6a4fc013's every "คำ"
             // 1.5 wider; "คำถามที่ 4 ：" ran a point long and
             // sent its question to the next line.)
+            if extra < 0, let px = s.fontSize, px > 0.5, let u = ch.unicodeScalars.first?.value, u >= 0x3000, u < 0xFF60, !(u >= 0x3130 && u < 0x3190), !(u >= 0xAC00 && u <= 0xD7A3) {
+                let g = _glyphWidth(s, ch)
+                if g > 0.9 * px, g + extra < 0.6 * px {
+                    let h = s.copyWith(fontFeatures: (s.fontFeatures ?? []) + [FontFeature("halt", 1)])
+                    let gh = _glyphWidth(h, ch)
+                    if gh < 0.6 * px { extra += g - gh; s = h }
+                }
+            }
             var spacing = (s.letterSpacing ?? 0) + extra
             // (And any character past ASCII the face draws in
             // pieces: on the Mac the fallback for zh-d97c5474's
