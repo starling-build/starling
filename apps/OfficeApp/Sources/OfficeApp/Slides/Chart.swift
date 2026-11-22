@@ -7247,9 +7247,17 @@ enum ChartPainter {
             let oval = pull > 0 ? oval.shift(Offset(cos(angle + sweep / 2) * pull * radius, sin(angle + sweep / 2) * pull * radius)) : oval
             if hole > 0 {
                 let ring = Path()
-                ring.arcTo(oval, angle, sweep, true)
-                ring.arcTo(inner, angle + sweep, -sweep, false)
-                ring.close()
+                if sweep >= 2 * .pi - 1e-9 {
+                    // (One slice that is the whole ring: a full-turn arc draws nothing, so it is the two circles, the hole cut out
+                    // evenly; 6de30c85 p5's "45" and "0" over a ring PowerPoint prints in full.)
+                    ring.fillType = .evenOdd
+                    ring.addOval(oval)
+                    ring.addOval(inner)
+                } else {
+                    ring.arcTo(oval, angle, sweep, true)
+                    ring.arcTo(inner, angle + sweep, -sweep, false)
+                    ring.close()
+                }
                 canvas.drawPath(ring, fill)
                 canvas.drawPath(ring, edge)
             } else {
