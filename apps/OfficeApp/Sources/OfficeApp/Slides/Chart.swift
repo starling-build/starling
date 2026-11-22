@@ -1169,6 +1169,16 @@ enum ChartXML {
                 c.series[j].outlineWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
             }
         }
+        // (A chartex title's own box, filled and edged as a c: title's is: chartex-lab2 waterfall.)
+        if let sp = space.first("cx:chart")?.first("cx:title")?.first("cx:spPr") {
+            c.titleFill = sp.first("a:solidFill").flatMap(color)
+            if let ln = sp.first("a:ln"), let f = ln.first("a:solidFill") {
+                c.titleLine = color(f)
+                c.titleLineWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
+                c.titleLineDash = PptxReader.dash(ln)
+                c.titleLineRound = ln["cap"] == "rnd"
+            }
+        }
         if let sp = space.first("cx:spPr") {
             if let f = sp.first("a:solidFill") { c.areaFill = color(f) } else if sp.first("a:noFill") != nil { c.areaNoFill = true }
             else if let g = sp.first("a:gradFill") {
