@@ -8215,7 +8215,10 @@ extension ChartPainter {
             }
             // (Kept inside the frame: Word's labels over a 3-D pie's top
             // stand under the frame's edge in lab p3d, where ours were cut.)
-            if l.fitted || (!c.onSlide && !c.onSheet && !c.chartex && h > frame.height * 0.4) {
+            // (PowerPoint, a slide pie's label left in place: its box is kept in the chart frame, lab pie-lab1
+            // p4/p8 at 24 pt, where "Zeta long name here" over the pie's top is held 42 pt down, not above it.)
+            if l.fitted || (!c.onSlide && !c.onSheet && !c.chartex && h > frame.height * 0.4)
+                || (c.onSlide && c.type == .pie && point == nil && moved == nil) {
                 // (A 3-D pie's label the file leaves in place keeps its text 3.9pt inside the frame in a
                 // Word document: lab pie7 (Word for Windows, 32 pies, 352 labels) has 96 of them on the
                 // frame's top, their text 3.8 under it, and the furthest left and right 3.9 and 4.4 in;
