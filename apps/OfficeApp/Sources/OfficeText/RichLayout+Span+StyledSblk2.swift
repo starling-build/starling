@@ -10,6 +10,8 @@ import Foundation
 extension _StyledFrame {
     @inline(never) func _sblk2() {
     let extra0 = extra
+    var done576 = false
+    var kernTrue = 0.0, kernEngine = 0.0   // (the pair kern in px: the face's own, and the stand-in's that the engine adds)
     if ctx.wideSpaces.contains(offset) {
         // (Half an em and the run's own spacing once more,
         // as Word measures it: 8.31pt at 16pt spaced 0.15.
@@ -108,10 +110,12 @@ extension _StyledFrame {
             // where its advance is 9.17, and its line took "秘".)
             let kernsFrom: Double? = run.kerningFrom ?? named?.char.kerningFrom ?? _normalChar(document)?.kerningFrom
             let points: Double = run.fontSize ?? named?.char.fontSize ?? theme.fontSize
+            var kernUnits: Double? = nil
             let pairs: [UInt32: Double]? = face.kernPairs(bold: s.fontWeight == .bold, italic: s.fontStyle == .italic)
             if theme.wordRules || face.kernsOutsideWord, let from = kernsFrom, from > 0, points >= from, let pairs, after < text.endIndex,
                let v0 = shown(text[after]).unicodeScalars.first?.value, case let v = v0 == 0xA0 ? 0x20 : v0, v >= 0x20, v <= 0x7E, let pair = pairs[(u == 0xA0 ? 0x20 : u) << 8 | v] {
                 target += pair * px / (face.sizeScale * classScale)
+                kernUnits = pair
             }
             // (On the print's grid too, kerned as the stand-in
             // kerns, where the theme has one: `advanceGrid`.)
@@ -122,7 +126,18 @@ extension _StyledFrame {
                 // (A face PowerPoint has measured widths for sets its glyphs on a thousandth of an em, as its print shows: Aptos digits
                 // 9.612 at 18 pt, not the eighth of a point's 9.625; the stand-in faces keep the eighth.)
                 let g = theme.advanceGridOfFaceTables ? 0.001 * px : grid * theme.pixelsPerPoint * scale
-                if g > 0, !glyphOnGrid { target = (target / g).rounded() * g }
+                if theme.fontSizeGrid > 0, !ea, u < 0x0590 {
+                    // (576 dpi: the bare advance and the pair kern each round to an eighth of a point at ppem = round(size x 8).)
+                    var pt = points
+                    if fontScale != 1 { pt = max(1, (pt * fontScale).rounded()) }
+                    let ppem = (pt * 8).rounded()
+                    if pt > 0, ppem >= 8 {
+                        let k = px / (face.sizeScale * classScale) / pt
+                        var t = (unitsV * ppem).rounded() / 8 * k
+                        if let kk = kernUnits { t += (kk * ppem).rounded() / 8 * k }
+                        target = t; done576 = true
+                    }
+                } else if g > 0, !glyphOnGrid { target = (target / g).rounded() * g }
             }
             let natural = _glyphWidth(s, ch)
             var break_scaled = false
@@ -142,7 +157,9 @@ extension _StyledFrame {
         // (Calibri's own kern pairs in place of the stand-in's: PowerPoint's print kerns re, ra, te, st... by the font's table, pair by pair.)
         let s = style(kind)
         let pairs: [UInt32: Double]? = face.kernPairs(bold: s.fontWeight == .bold, italic: s.fontStyle == .italic)
-        extra += (pairs?[u > 0xFF || nx > 0xFF ? u << 16 | nx : u << 8 | nx] ?? 0) * px - _pairKern(s, ch, shown(text[after]))
+        kernEngine = _pairKern(s, ch, shown(text[after]))
+        kernTrue = (pairs?[u > 0xFF || nx > 0xFF ? u << 16 | nx : u << 8 | nx] ?? 0) * px
+        extra += kernTrue - kernEngine
     } else if !ea, theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, u == 0x2266 || u == 0x2267,
               ch.unicodeScalars.count == 1, let w = RichLayout._cambriaMathOpeners2[u],
               text[..<i].last.map({ $0.isASCII && ($0.isLetter || $0.isNumber) }) == true {
@@ -214,14 +231,18 @@ extension _StyledFrame {
             if !return_scaled { extra += target - natural }
         }
     }
-    // (PowerPoint sets the font at a size on a grid of 1/600 in: 32 pt prints at 32.04, so every advance is that much wider; the line's
-    // height is the unrounded size's. `fontSizeGrid`.)
-    if theme.fontSizeGrid > 0, !ch.isNewline, !ea, latinFace?.kerns != nil {
+    // (PowerPoint lays the text out on a 576 dpi device: the font is at ppem = round(size x 8) and every glyph advances round(em x ppem) eighths of a point, for every face and size
+    // (planner spec v3, 2026-11-22). 32 pt prints at 32.04, 16 pt at 15.96. The line's height is the unrounded size's.)
+    if theme.fontSizeGrid > 0, !done576, !ch.isNewline, !ea, ch.unicodeScalars.count == 1, ch.unicodeScalars.first!.value < 0x0590, latinFace?.kerns != nil, let st = Optional(style(kind)), let fpx = st.fontSize, fpx > 0.5 {
         var pt = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
         if fontScale != 1 { pt = max(1, (pt * fontScale).rounded()) }
-        let q = (pt / theme.fontSizeGrid).rounded() * theme.fontSizeGrid
-        // (A face whose hinting may alter advances (`hintedAdvances`) is only widened: Calibri's 16 pt prints at 15.96 but a line is as wide as at 16 (es c249abc3 p7: a URL line one "=" short); Open Sans at 28 and 16 is narrower by the grid (es 3a3f59a1 p8).)
-        if pt > 0, q > 0, q != pt, q > pt || !(latinFace?.hintedAdvances ?? false) { extra += (_glyphWidth(style(kind), ch) + extra - extra0) * (q / pt - 1) }
+        let ppem = Int((pt * 8).rounded())
+        if pt > 0, ppem >= 8 {
+            // (The bare advance and the pair kern round separately, each to an eighth of a point.)
+            let bare = (abs(extra - extra0 - (kernTrue - kernEngine)) < 1e-9 ? _bareAdvance(st, ch) : _glyphWidth(st, ch)) + (extra - extra0) - (kernTrue - kernEngine)
+            func r8(_ v: Double) -> Double { let ss = max(0.1, latinFace?.sizeScale ?? 1); return Double((v / fpx * ss * Double(ppem)).rounded()) / 8 * (fpx / (pt * ss)) }
+            if bare > 0 { extra += r8(bare) - bare + (kernTrue != 0 ? r8(kernTrue) - kernTrue : 0) }
+        }
     }
     }
 }
