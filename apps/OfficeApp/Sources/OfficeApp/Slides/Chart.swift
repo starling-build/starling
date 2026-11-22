@@ -3010,6 +3010,14 @@ enum ChartPainter {
                 }
             }
             let wrappedSide = (wordSidePie || slideSidePie) && entries.contains { $0.tp.height > 1.5 * textH }
+            // (A legend a slide's file places in a box too short for one line of its names stands empty: es-ce626c34 p3's "Ranking"
+            // in a box 18 pt tall at 18 pt text, drawn in no legend at all in PowerPoint's print, ours one letter to a line.)
+            if c.onSlide, let box, !entries.isEmpty, box.height + 0.01 < textH {
+                RuleTrace.hit("slide-legend-box-shorter-than-a-line-shows-no-entries")
+                for e in entries { e.tp.dispose() }
+                entries = []
+                lines = []
+            }
             let slotH = slideSidePie ? (entries.map { $0.tp.height }.max() ?? 0) : 0
             var lineHs = lines.map { line in
                 let tall = line.map { $0.tp.height }.max() ?? 0
