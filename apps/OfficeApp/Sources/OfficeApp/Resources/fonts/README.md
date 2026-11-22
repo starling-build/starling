@@ -120,7 +120,6 @@ every page count are as before, but for a few documents whose table rows
 the PDF reader now groups otherwise (zh-998727df 100 to 98.4; five others
 up by half a point).
 
-
 ## Noto CJK and script faces (2026-11-01)
 
 The faces a document's East Asian, Arabic, Hebrew, Thai, Devanagari and Bengali text is drawn
@@ -205,3 +204,12 @@ for these names (Ming, Song and Mincho keep the serif). The release has no Bold 
 is simulated. 15 MB, listed in fonts.tsv, so the web build fetches it lazily. It covers all
 of GB2312 and 18,531 of the 21,093 characters DFKai-SB has; the rest fall to the glyph
 chain. Layout never uses its widths: DFKai-SB's measured metrics do.
+
+## STIX Two Math
+
+`STIXTwoMath-Regular.otf` (family "STIX Two Math", fallback_order 0: WriterMath and the slides'
+equations ask for it by name, it is not in the general glyph chain) is the equation face, taken
+unchanged from the official stipub/stixfonts v2.13 release (`fonts/static_otf/`). Licence: SIL Open
+Font License 1.1 (`STIXTwoMath-LICENSE.txt`, the repository's OFL.txt). 838,652 bytes. Added by amd-2.
+
+    f2076b9f1676438439dd41e23676f5ab99056e83d6b8f8c27841591ef2ccfa72  STIXTwoMath-Regular.otf
