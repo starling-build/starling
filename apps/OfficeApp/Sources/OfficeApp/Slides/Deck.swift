@@ -426,6 +426,8 @@ struct TextWarp: Equatable {
     var preset: String
     var adjust: [Double] = []
     var xml: String
+    /// bodyPr fromWordArt="1": PowerPoint fits the text to the warp's path, the run's size ignored (lab fwa1).
+    var fromWordArt = false
 }
 
 /// `a:scene3d` and `a:sp3d`: a shape pushed back into a solid and looked

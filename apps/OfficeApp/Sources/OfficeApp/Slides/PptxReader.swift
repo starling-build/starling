@@ -4450,7 +4450,9 @@ private struct SlideContext {
             // (A plain warp on one unwrapped line in a box that sizes itself to its text (spAutoFit) still fits the text to the stored box:
             // PowerPoint's print of ko-e114b968 and ko-c03ed80e's layout footers (18 pt text in a 7.8 pt tall box) sets them small,
             // not at 18 pt running off the page; an earlier rule set them as plain text for the text layer's sake and was wrong on the page.)
-            return TextWarp(preset: preset, adjust: adjust, xml: PptxXML.serialize(w))
+            var tw = TextWarp(preset: preset, adjust: adjust, xml: PptxXML.serialize(w))
+            tw.fromWordArt = ["1", "true"].contains(body?.first("a:bodyPr")?["fromWordArt"] ?? "")
+            return tw
         }
         if paragraphs.isEmpty {
             var style = RichParagraphStyle(spaceAfter: 0, lineSpacing: level0.lineMultiple ?? 1.0)
