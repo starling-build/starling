@@ -1484,7 +1484,7 @@ enum ChartXML {
         var secondAxis: XNode? = nil
         var main = kinds.first
         var merged: [XNode] = []
-        var secondScatterFrom: Int? = nil
+        var secondScatterRanges: [Range<Int>] = []
         var columnsOnRight = false
         var mainLines: [XNode] = []
         if kinds.count == 3, let bar = kinds.first(where: { $0.name == "c:barChart" }), kinds.filter({ $0.name == "c:lineChart" }).count == 2,
@@ -1536,21 +1536,30 @@ enum ChartXML {
             // series and a plain one apart (lo's c4c60fcb: a response curve
             // and its -3dB line): one group of all their series.
             merged = Array(kinds.dropFirst())
-        } else if kinds.count == 2, kinds.allSatisfy({ $0.name == "c:scatterChart" }) {
-            // A second scatter group on a value axis of its own at the right, its x axis deleted so the first's serves both
-            // (chart-axis_title_default_rotation). A second x axis that shows is not read: the chart stays unread, as before.
+        } else if kinds.count > 1, kinds.allSatisfy({ $0.name == "c:scatterChart" }) {
+            // Scatter groups on any axes: those on the first group's pair, or on a pair whose value axis stands with the first's,
+            // join its scale; those whose own value axis stands at the right (axPos r, or crossing at the max) are drawn against a
+            // right-hand scale, whether or not their x axis shows (chart-axis_title_default_rotation: x deleted). The x axis of a
+            // later group is not drawn: the first group's serves.
             let firstAxes = Set(kinds[0].all("c:axId").compactMap { $0["val"] })
-            let secondIds = kinds[1].all("c:axId").compactMap { $0["val"] }
-            let ownAxes = plot.all("c:valAx").filter { secondIds.contains($0.first("c:axId")?["val"] ?? "") && !firstAxes.contains($0.first("c:axId")?["val"] ?? "") }
-            guard ownAxes.count == 2,
-                  let y = ownAxes.first(where: { ["l", "r"].contains($0.first("c:axPos")?["val"] ?? "") }),
-                  let x = ownAxes.first(where: { ["b", "t"].contains($0.first("c:axPos")?["val"] ?? "") }),
-                  ["1", "true"].contains(x.first("c:delete")?["val"] ?? "0"),
-                  y.first("c:axPos")?["val"] == "r" || y.first("c:crosses")?["val"] == "max"
-            else { return nil }
-            secondAxis = y
-            merged = [kinds[1]]
-            secondScatterFrom = kinds[0].all("c:ser").count
+            func ownY(_ k: XNode) -> XNode? {
+                let ids = k.all("c:axId").compactMap { $0["val"] }
+                return plot.all("c:valAx").first { ids.contains($0.first("c:axId")?["val"] ?? "") && !firstAxes.contains($0.first("c:axId")?["val"] ?? "")
+                    && ["l", "r"].contains($0.first("c:axPos")?["val"] ?? "") }
+            }
+            var rightFrom = Int.max
+            var count = 0
+            for (n, k) in kinds.enumerated() {
+                let sers = k.all("c:ser").count
+                if n > 0, let y = ownY(k), y.first("c:axPos")?["val"] == "r" || y.first("c:crosses")?["val"] == "max" {
+                    if secondAxis == nil { secondAxis = y }
+                    rightFrom = min(rightFrom, count)
+                    secondScatterRanges.append(count ..< count + sers)
+                }
+                count += sers
+            }
+            merged = Array(kinds.dropFirst())
+            if rightFrom == Int.max { secondScatterRanges = [] }
         } else if kinds.count == 2, kinds.allSatisfy({ $0.name == "c:lineChart" }) {
             // Lines over lines, the second group on a value axis of its own
             // at the right (chart-add_series_secondary_axis): drawn as a
@@ -1582,6 +1591,9 @@ enum ChartXML {
                     plot.children.insert(node, at: at)
                 }
             }
+        } else if kinds.count > 1, Set(kinds.map(\.name)).count == 1, kinds[0].name != "c:pieChart" {
+            // Groups of one kind on axes of their own, in any layout not read above: their series are drawn on the first group's axes.
+            merged = Array(kinds.dropFirst())
         } else if kinds.count != 1 {
             return nil
         }
@@ -2026,7 +2038,7 @@ enum ChartXML {
         }
         let spaceRun = space.first("c:txPr")?.descendant("a:defRPr")
         var c = Chart(type: type, title: title, categories: categories, series: series)
-        if let from = secondScatterFrom { for i in c.series.indices where i >= from { c.series[i].onSecondAxis = true } }
+        for r in secondScatterRanges { for i in r where i < c.series.count { c.series[i].onSecondAxis = true } }
         c.categoryLevels = levels
         c.lineSeries = lines.map { l in
             var l = l
