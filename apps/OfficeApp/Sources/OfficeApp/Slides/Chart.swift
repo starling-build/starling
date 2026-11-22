@@ -3592,6 +3592,22 @@ enum ChartPainter {
 
     private static func _tableRowsBase(_ c: Chart, size: Double, k: Double, slot: Double, text: (String, Double, Double) -> TextPainter) -> [Double] {
         let count = c.series.count + c.lineSeries.count + 1
+        // (PowerPoint's print of es/3f8a480a p4's table: a row is its text's line and 3.4 pt, 15.57 at 10 pt, and
+        // the categories' row stands as deep as its longest label wraps in a column less 2 pt, a word
+        // broken wherever it runs out: "Cundinamarca" in five lines of 18.2 pt columns.)
+        if c.onSlide, !c.windowsMinchoText, c.macSimplifiedFace == nil {
+            let probe = text("Ag", size, .infinity)
+            let line = probe.height
+            probe.dispose()
+            let lines = c.categories.map { s -> Int in
+                let tp = text(s, size, max(1, slot - 2 * k))
+                defer { tp.dispose() }
+                return max(1, tp.computeLineMetrics().count)
+            }.max() ?? 1
+            var rows = Array(repeating: 3.4 * k + line, count: count)
+            rows[0] = 3.4 * k + Double(lines) * line
+            return rows
+        }
         // (Word for Mac wraps a category as Word for Windows does, each
         // line past the first its face's East Asian line deeper: zh-
         // 61aaad09's 11pt "投诉举报总" / "量" in SimSun, 14.4 apart in its print.)
@@ -3640,7 +3656,13 @@ enum ChartPainter {
     /// grey rules.
     private static func _dataTable(_ c: Chart, _ dt: DataTable, _ canvas: any Canvas, plot: Rect, top: Double, rows heights: [Double], left: Double,
                                    size: Double, n: Int, k: Double, theme: DeckTheme, text: (String, Double, Double) -> TextPainter) {
-        let rows = c.series.map { ($0, c.type == .line) } + c.lineSeries.map { ($0, true) }
+        var rows = c.series.map { ($0, c.type == .line) } + c.lineSeries.map { ($0, true) }
+        // (A stacked column's table lists the series from the top of the stack down: PowerPoint's print of
+        // es/3f8a480a's three stacked tables, the last series first.)
+        let stackedDown = c.onSlide && c.stacked && c.type == .column && c.lineSeries.isEmpty
+        let order = stackedDown ? Array(rows.indices.reversed()) : Array(rows.indices)
+        if stackedDown { rows.reverse() }
+        let squareKeys = dt.squareKeys || c.onSlide
         /// Row `j`'s top (0 the categories') and height.
         func rowTop(_ j: Int) -> Double { top + heights.prefix(j).reduce(0, +) }
         func rowHeight(_ j: Int) -> Double { heights[safe: j] ?? heights.last ?? 0 }
@@ -3654,12 +3676,13 @@ enum ChartPainter {
         // (Under Word for Windows' faces, a label of several lines
         // centred as a block: zh-61aaad09's wrapped categories.)
         func textTop(_ tp: TextPainter, _ j: Int) -> Double {
+            if c.onSlide, j == 0, !c.windowsMinchoText { return rowTop(0) + 1.7 * k }
             let lines = c.windowsMinchoText || c.macSimplifiedFace != nil ? tp.computeLineMetrics().count : 1
             return rowTop(j) + rowHeight(j) / 2 + 0.27 * size * k - tp.computeDistanceToActualBaseline(.alphabetic)
                 - (tp.height - tp.height / Double(max(1, lines))) / 2
         }
         func centred(_ s: String, _ cx: Double, _ j: Int) {
-            let tp = text(s, size, j == 0 && (c.windowsMinchoText || c.macSimplifiedFace != nil) ? max(1, slot - 7.2 * k) : slot)
+            let tp = text(s, size, j == 0 && (c.windowsMinchoText || c.macSimplifiedFace != nil) ? max(1, slot - 7.2 * k) : j == 0 && c.onSlide ? max(1, slot - 2 * k) : slot)
             tp.paint(canvas, Offset(cx - tp.width / 2, textTop(tp, j)))
             tp.dispose()
         }
@@ -3681,12 +3704,12 @@ enum ChartPainter {
         // in Word are 5.49, 3.5 and 11.4.)
         // (A line's key is as long in points on a sheet: chart-
         // ChartDataTable's names 24.5 pt in, in Excel's print.)
-        let e = dt.squareKeys ? size / 10 * k : k, u = c.onSheet ? 1 : k
+        let e = squareKeys ? size / 10 * k : k, u = c.onSheet ? 1 : k
         for (j, (s, line)) in rows.enumerated() {
             let j = j + levels
             let y = rowTop(j + 1), row = rowHeight(j + 1)
-            let colour = s.color ?? c.color(series: j - levels, accents: theme.accents)
-            var x = left + (dt.squareKeys && !line ? 3.5 * e : 3.2 * u)
+            let colour = s.color ?? c.color(series: order[j - levels], accents: theme.accents)
+            var x = left + (squareKeys && !line ? 3.5 * e : 3.2 * u)
             if dt.keys {
                 if line {
                     let p = Paint()
@@ -3697,9 +3720,9 @@ enum ChartPainter {
                     canvas.drawLine(Offset(x, y + row / 2), Offset(x + 19.2 * u, y + row / 2), p)
                 } else {
                     fill.color = colour
-                    canvas.drawRect(Rect.fromLTWH(x, y + row / 2 - 2.75 * e, (dt.squareKeys ? 5.5 : 19.2) * e, 5.5 * e), fill)
+                    canvas.drawRect(Rect.fromLTWH(x, y + row / 2 - 2.75 * e, (squareKeys ? 5.5 : 19.2) * e, 5.5 * e), fill)
                 }
-                x += dt.squareKeys && !line ? 7.9 * e : 21.2 * u
+                x += squareKeys && !line ? 7.9 * e : 21.2 * u
             }
             let name = text(s.name, size, .infinity)
             name.paint(canvas, Offset(x, textTop(name, j + 1)))
@@ -5073,7 +5096,7 @@ enum ChartPainter {
         if let dt = c.dataTable, !horizontal, c.type != .scatter, !c.type.isPie {
             let size = dt.size ?? c.baseTextSize
             let names = (c.series + c.lineSeries).map { text($0.name, size, .infinity) }
-            let square = dt.squareKeys && c.type != .line && c.lineSeries.isEmpty
+            let square = (dt.squareKeys || c.onSlide) && c.type != .line && c.lineSeries.isEmpty
             let e = size / 10 * k, u = c.onSheet ? 1 : k
             let column = (dt.keys ? (square ? 11.4 * e : 24.4 * u) : 3.2 * u) + (names.map(\.width).max() ?? 0) + (square ? 2.4 * e : 2.5 * u)
             for t in names { t.dispose() }
