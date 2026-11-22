@@ -540,6 +540,12 @@ enum Extrusion {
         let n0 = turn(P3(x: 0, y: 0, z: 1))
         let frontShows = n0.z + n0.x * (scene.oblique?.dx ?? 0) + n0.y * (scene.oblique?.dy ?? 0) >= 0
         face(frontShows ? back : front, scene.legacy && n0.z < 0.9 ? lit(side, P3(x: -n0.x, y: -n0.y, z: -abs(n0.z))) : litLocal(side, P3(x: 0, y: 0, z: frontShows ? -1 : 1)), edge: nil)
+        // (A legacy camera's lights stand in the slide, not on the shape: lab legshade, a shape turned 0, 45 or 90 on the page takes the same colour on the face that looks up, or right: the walls are lit by their direction on the page.)
+        func pageAxes(_ v: P3) -> P3 {
+            guard scene.legacy, spin != 0 else { return v }
+            let (sc, sn) = (cos(spin * .pi / 180), sin(spin * .pi / 180))
+            return P3(x: v.x * sc - v.y * sn, y: v.x * sn + v.y * sc, z: v.z)
+        }
         // The sides, far ones first.
         var quads: [(z: Double, pts: [Offset], color: Color)] = []
         for (ri, ring) in front.enumerated() {
@@ -558,7 +564,7 @@ enum Extrusion {
                 let seen = turn(local)
                 if seen.x * n.x + seen.y * n.y + seen.z * n.z < 0 { local = P3(x: -local.x, y: -local.y, z: 0) }
                 quads.append(((a.z + b.z + a2.z + b2.z) / 4, [flat(a), flat(b), flat(b2), flat(a2)],
-                              scene.legacy && n0.z < 0.9 ? lit(side, n) : litLocal(side, local)))
+                              litLocal(side, pageAxes(local))))
             }
         }
         for q in quads.sorted(by: { $0.z < $1.z }) { polygon(q.pts, q.color) }
