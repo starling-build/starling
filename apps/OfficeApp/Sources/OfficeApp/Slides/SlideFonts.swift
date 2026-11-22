@@ -367,6 +367,10 @@ enum SlideFonts {
             // stand-in's are wider; 4c5084ff's 20 pt caps heading with Á, Ç, Ã.)
             face.otherAdvances = OfficeFonts.arialBlackOtherAdvances
             face.boldOtherAdvances = OfficeFonts.arialBlackOtherAdvances
+            // (PowerPoint kerns Arial Black by the pairs of its own table.)
+            face.kerns = SlideArialBlackKerns.regular
+            face.boldKerns = SlideArialBlackKerns.regular
+            face.kernsOutsideWord = true
             return face
         default:
             // (A face no one knows is Calibri in PowerPoint's print, its
