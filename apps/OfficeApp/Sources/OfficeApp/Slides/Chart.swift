@@ -396,6 +396,8 @@ struct Chart: Equatable {
         /// LIBRE_OFFICE-100610's survey bars stand in no box at all in
         /// PowerPoint's print.
         var walled = true
+        /// The view states its own turn (`c:rotX`): PowerPoint lights the faces of a colour left automatic.
+        var turned = false
         /// `c:backWall`'s solid fill.
         var wallFill: Color? = nil
         /// `c:rAngAx`: the axes stand at right angles (an oblique box); not set, Word turns
@@ -2185,6 +2187,7 @@ enum ChartXML {
                                       depth: (v?.first("c:depthPercent")?["val"].flatMap(Double.init) ?? 100) / 100,
                                       gapDepth: (el.first("c:gapDepth")?["val"].flatMap(Double.init) ?? 150) / 100)
             func unlined(_ tag: String) -> Bool { chart.first(tag)?.first("c:spPr")?.first("a:ln")?.first("a:noFill") != nil }
+            c.barView?.turned = v?.first("c:rotX") != nil
             c.barView?.walled = !(unlined("c:floor") && unlined("c:backWall"))
             c.barView?.wallFill = chart.first("c:backWall")?.first("c:spPr")?.first("a:solidFill").flatMap(color)
             if let ra = v?.first("c:rAngAx") { c.barView?.rightAngles = (ra["val"] ?? "1") != "0" && (ra["val"] ?? "1") != "false" }
@@ -3948,7 +3951,8 @@ enum ChartPainter {
         for (j, (s, line)) in rows.enumerated() {
             let j = j + levels
             let y = rowTop(j + 1), row = rowHeight(j + 1)
-            let colour = s.color ?? c.color(series: order[j - levels], accents: theme.accents)
+            var colour = s.color ?? c.color(series: order[j - levels], accents: theme.accents)
+            if c.onSlide, c.barView?.turned == true, s.color == nil { colour = Self._scaled(colour, 0.88) }
             var x = left + (squareKeys && !line ? 3.5 * e : 3.2 * u)
             if dt.keys {
                 if line {
@@ -6253,6 +6257,12 @@ enum ChartPainter {
                     // as chart-DataTable-Multiple…'s six bars are.
                     fill.color = c.variedPoints ? c.pointColor(i, accents: theme.accents)
                         : (j == 0 ? c.pointColors[i] : nil) ?? c.color(series: j, accents: theme.accents)
+                    // (A 3-D column on a slide whose view states its turn and whose colour the file leaves automatic is lit to 0.88 of it, faces and the
+                    // table's keys alike: PowerPoint's print of es/3f8a480a p7 has 98/153/62 for 112/173/71, 211/110/42 for
+                    // 237/125/49; one with a colour of its own, LibreOffice's LIBRE_OFFICE-100610-0, is printed as stated, and so is aascu 5864's, a view with no turn.)
+                    if c.onSlide, c.barView?.turned == true, c.series[j].color == nil, c.pointColors[i] == nil, !c.variedPoints {
+                        fill.color = Self._scaled(fill.color, 0.88)
+                    }
                     let p0 = vpos(a), p1 = vpos(b)
                     var rect: Rect
                     if horizontal {
