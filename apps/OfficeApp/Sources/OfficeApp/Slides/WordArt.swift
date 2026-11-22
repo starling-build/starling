@@ -846,7 +846,9 @@ enum WordArt {
                             var x = line.alignment == .center ? spare / 2 : line.alignment == .right ? spare : 0
                             for g in line.glyphs {
                                 if let k = g.ink, !k.isEmpty, g.painter.height > 0 {
-                                    l = min(l, x + k.left); r = max(r, x + k.right)
+                                    var kl = k.left, kr = k.right
+                                    if let side = WordArtInk.horizontal(face: g.asked, bold: g.bold, g.text) { kl = side.0 * g.size; kr = side.1 * g.size }
+                                    l = min(l, x + kl); r = max(r, x + kr)
                                     var kt = k.top, kb = k.bottom
                                     // The stand-in's letters differ in height from the real face's (its "d" outgrows its capitals,
                                     // Arial Black's does not): take the real letter's foot and top about the same baseline.

@@ -2162,12 +2162,18 @@ extension RichLayout {
                 // the outlines, outermost first, each thinner and laid so that the opacity at distance d from the edge
                 // is 1.375 alpha * 2Q(d / sigma), Q the normal tail (fitted to PowerPoint's print of an 18 pt glow, alpha 40%: 0.55, 0.31, 0.07 at 0, 2, 4 pt).)
                 let at0 = path.shift(Offset(origin.dx, origin.dy))
-                let sigma = sh.blur * 0.155 * k
+                // (PowerPoint's glow, from its prints of radius x alpha and radius x size grids: the letters grown by
+                // radius x 0.028 x size^0.7 (the glow stays near the letters at small sizes: 50% point 2.9 pt at 12 pt and 9.7 pt at 60 pt
+                // for radius 20; the same at every alpha and with or without a filled shape), the edge blurred with sigma 0.32 x that growth,
+                // the opacity there being the alpha itself.)
+                let glowSize = Double(run.style.fontSize ?? 18)
+                let grow = sh.blur * 0.028 * pow(max(glowSize, 1), 0.7) * k
+                let sigma = 0.32 * grow
                 let alpha = Double(sh.color.alpha) / 255
                 // PowerPoint's glow in a PDF is an RGBA picture with a soft mask (print of ko-ca2dc787 p1: 2.8 px a point,
                 // edge opacity 0.55 for a 40% glow, 0.31 and 0.07 at 2 and 4 pt). The blur is drawn into a picture
                 // here and the picture placed, so the PDF holds an image too, not a blur it would drop.
-                let ink = at0.getBounds().inflate(3 * sigma)
+                let ink = at0.getBounds().inflate(grow + 3 * sigma)
                 let px = 2.8 / k
                 let w = max(1, Int((ink.width * px).rounded(.up))), h = max(1, Int((ink.height * px).rounded(.up)))
                 if w * h < 4_000_000 {
@@ -2176,10 +2182,10 @@ extension RichLayout {
                     layer.scale(px, px)
                     layer.translate(-ink.left, -ink.top)
                     let glow = Paint(); glow.style = .fill
-                    glow.color = Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, min(1, alpha * 2))
+                    glow.color = Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, alpha)
                     glow.maskFilter = MaskFilter(blur: .normal, sigma)
-                    layer.drawPath(at0, glow)
-                    glow.style = .stroke; glow.strokeWidth = sigma; glow.strokeJoin = .round
+                    // (A stroke alone: the letters cover what its middle would fill, and two layers would add their alphas.)
+                    glow.style = .stroke; glow.strokeWidth = 2 * grow; glow.strokeJoin = .round
                     layer.drawPath(at0, glow)
                     if let img = recorder.endRecording().toImageSync(width: w, height: h) {
                         canvas.drawImageRect(img, Rect.fromLTWH(0, 0, Double(w), Double(h)), Rect.fromLTWH(ink.left, ink.top, Double(w) / px, Double(h) / px), Paint())
