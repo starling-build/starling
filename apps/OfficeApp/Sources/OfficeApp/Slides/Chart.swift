@@ -3973,7 +3973,8 @@ enum ChartPainter {
         }
         let rule = Paint()
         rule.style = .stroke
-        rule.strokeWidth = max(0.5, 0.75 * k)
+        // (A slide chart's table that states no line is ruled at 0.5 pt: PowerPoint's print of es/3f8a480a's three tables.)
+        rule.strokeWidth = max(0.5, (c.onSlide ? 0.5 : 0.75) * k)
         rule.color = dt.lineColor ?? _mix(theme.text, theme.background, 0.46)
         if let w = dt.lineWidth { rule.strokeWidth = max(0.5, w * k) }
         // Across: under the categories' row and between the series'; the
