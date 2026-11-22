@@ -2283,7 +2283,7 @@ extension RichTextTheme {
     /// The underline and strikeout rule of the face a run NAMES (position of the rule's top over the baseline and
     /// thickness, in em), from the measured table: PowerPoint draws it so whatever face stands in. Nil where the
     /// face is not in the table.
-    static func ruleMetrics(_ name: String?, bold: Bool, italic: Bool) -> (up: Double, ut: Double, sp: Double, st: Double)? {
+    public static func ruleMetrics(_ name: String?, bold: Bool, italic: Bool) -> (up: Double, ut: Double, sp: Double, st: Double)? {
         guard let name else { return nil }
         let style = (bold ? " bold" : "") + (italic ? " italic" : "")
         let n = name.lowercased().trimmingWhitespace()
