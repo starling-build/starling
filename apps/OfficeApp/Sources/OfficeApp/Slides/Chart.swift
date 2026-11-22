@@ -515,6 +515,10 @@ struct Chart: Equatable {
     var funnel = false
     /// A funnel's category axis ticks (`majorTickMarks` not none): a short mark inward at each slot's edge.
     var funnelTicks = false
+    /// A funnel's data labels as the file sets them: the series' own, and each point's where it differs.
+    struct CxLabel: Equatable { var series = false, category = false, value = true; var separator = ", "; var format: String? = nil; var hidden = false }
+    var cxLabel = CxLabel()
+    var cxLabelPoints: [Int: CxLabel] = [:]
     /// An Excel 2016 sunburst (`layoutId="sunburst"`): its points as a
     /// tree, a ring to each level of it, each node the sum of the points
     /// under it. nil for any other chart.
@@ -1114,8 +1118,31 @@ enum ChartXML {
         c.funnelTicks = space.first("cx:chart")?.first("cx:plotArea")?.all("cx:axis").contains {
             $0.first("cx:majorTickMarks").map { $0["type"] != "none" } ?? false } ?? false
         // (A data label with no visibility says shows the value.)
-        if let dl = space.first("cx:chart")?.first("cx:plotArea")?.first("cx:plotAreaRegion")?.first("cx:series")?.first("cx:dataLabels"),
-           dl.first("cx:visibility") == nil { c.dataLabels = true }
+        if let dl = space.first("cx:chart")?.first("cx:plotArea")?.first("cx:plotAreaRegion")?.first("cx:series")?.first("cx:dataLabels") {
+            if dl.first("cx:visibility") == nil { c.dataLabels = true }
+            func apply(_ n: XNode, to l: inout Chart.CxLabel) {
+                if let f = n.first("cx:numFmt"), f["sourceLinked"] != "1" { l.format = f["formatCode"] }
+                if let v = n.first("cx:visibility") {
+                    if let a = v["seriesName"] { l.series = a == "1" }
+                    if let a = v["categoryName"] { l.category = a == "1" }
+                    if let a = v["value"] { l.value = a == "1" }
+                }
+                if let sep = n.first("cx:separator") { l.separator = sep.text }
+            }
+            apply(dl, to: &c.cxLabel)
+            for p in dl.all("cx:dataLabel") {
+                guard let i = p["idx"].flatMap(Int.init) else { continue }
+                var l = c.cxLabel
+                apply(p, to: &l)
+                c.cxLabelPoints[i] = l
+            }
+            for p in dl.all("cx:dataLabelHidden") {
+                guard let i = p["idx"].flatMap(Int.init) else { continue }
+                var l = c.cxLabelPoints[i] ?? c.cxLabel
+                l.hidden = true
+                c.cxLabelPoints[i] = l
+            }
+        }
         return c
     }
 
@@ -4257,8 +4284,15 @@ enum ChartPainter {
             let r = Rect.fromLTWH(plot.center.dx - w / 2, cy - bar / 2, w, bar)
             canvas.drawRect(r, fill)
             if let o = s.outline, s.outlineWidth > 0 { edge.color = o; canvas.drawRect(r.deflate(edge.strokeWidth / 2), edge) }
-            if c.dataLabels {
-                let tp = TextPainter(text: TextSpan(text: dataLabel(c, v), style: Flutter.TextStyle(
+            let spec = c.cxLabelPoints[i] ?? c.cxLabel
+            var shown = dataLabel(c, v)
+            if let code = spec.format {
+                let f = NumberFormat.format(v, code, width: 40).text.trimmingWhitespace()
+                if !f.isEmpty { shown = f }
+            }
+            let parts = [spec.series ? s.name : nil, spec.category ? c.categories[safe: i] : nil, spec.value ? shown : nil].compactMap { $0 }
+            if c.dataLabels, !spec.hidden, !parts.isEmpty {
+                let tp = TextPainter(text: TextSpan(text: parts.joined(separator: spec.separator), style: Flutter.TextStyle(
                     color: Color(0xFFFFFFFF), fontSize: max(3, c.baseTextSize * k),
                     fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
