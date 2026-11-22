@@ -137,6 +137,8 @@ extension _StyledFrame {
         RuleTrace.hit("missing-character-takes-script-fallback-face-width")
         extra += fw * em - _glyphWidth(style(kind), ch)
     } else if !ea, !nbspHAnsi, let u = ch.unicodeScalars.first?.value,
+              // (A Hangul syllable in Slides already took its Malgun em from the rule in the main loop: not added again, which stepped 1.08 em, lab fit1.)
+              !(!theme.wordRules && u >= 0xAC00 && u <= 0xD7A3),
               let face = (u >= 0x80 && highFace?.otherAdvances?[u] != nil ? highFace : nil) ?? latinFace, face.otherAdvances != nil,
               // (A letter with its marks, where the table has each:
               // Thai's "ต่", "คำ" — `OfficeFonts.browalliaAdvances`.)
