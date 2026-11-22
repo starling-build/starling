@@ -2644,6 +2644,35 @@ enum ChartPainter {
     /// its first baseline 12.48 over the second (ours 12.9), the label
     /// 1.1pt shorter than ours and so inside its 11% slice, where ours
     /// stood outside.
+    /// The measured widths of an East Asian face the machine lacks, where a chart's text is set in it.
+    static func eastAsianChartFace(_ family: String) -> RichResolvedFace? {
+        guard SlideEastAsianWidths.lookup(SlideFonts.windowsName(family)) != nil else { return nil }
+        return SlideFonts.face(family, false)
+    }
+    nonisolated(unsafe) private static var naturalAdvanceCache: [String: Double] = [:]
+    /// `s` one character a span, each spaced to the face's own advance (ems of the size) less what the stand-in draws it.
+    static func metricSpan(_ s: String, _ style: Flutter.TextStyle, _ face: RichResolvedFace, bold: Bool) -> TextSpan {
+        let size = style.fontSize ?? 12
+        var kids: [TextSpan] = []
+        for ch in s {
+            let u = ch.unicodeScalars.first!.value
+            var target: Double? = nil
+            if ch.unicodeScalars.count == 1 {
+                if u >= 0x20 && u <= 0x7E { target = (bold ? face.boldAdvances : face.advances).map { $0[Int(u) - 0x20] } }
+                else { target = (bold ? face.boldOtherAdvances : face.otherAdvances)?[u] }
+            }
+            guard let t = target else { kids.append(TextSpan(text: String(ch), style: style)); continue }
+            let key = "\(style.fontFamily ?? "")|\(bold)|\(u)"
+            var nat = naturalAdvanceCache[key]
+            if nat == nil {
+                let m = TextPainter(text: TextSpan(text: String(ch), style: style.copyWith(fontSize: 100, letterSpacing: 0)), textDirection: .ltr)
+                m.layout(); nat = m.width / 100
+                naturalAdvanceCache[key] = nat!
+            }
+            kids.append(TextSpan(text: String(ch), style: style.copyWith(letterSpacing: (t - nat!) * size)))
+        }
+        return TextSpan(children: kids, style: style)
+    }
     static func labelSpan(_ c: Chart, _ text: String, _ style: Flutter.TextStyle, traditional: Bool = false, mixedLine: Double = 1.3301 * 1.3) -> TextSpan {
         // (Word for Windows' bold Chinese labels where the theme's East Asian
         // face is no Mincho: a label of its own rich text in Traditional
@@ -2682,14 +2711,20 @@ enum ChartPainter {
         let grid = _mix(theme.text, theme.background, 0.15)
         // (LIBRE_OFFICE-100610's charts say Calibri in an Arial theme, and
         // PowerPoint sets them in Calibri.)
-        let font = OfficeFonts.substitute(c.font ?? (c.onSlide || c.onSheet ? nil : c.axisFont) ?? theme.bodyFont)
+        let font = OfficeFonts.substitute(c.font ?? (c.onSheet ? nil : c.axisFont) ?? theme.bodyFont)
         // Letters one by one, as PowerPoint sets them: no "ﬁ" in "Defined".
         let plain = [FontFeature("liga", 0), FontFeature("clig", 0)]
         func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil, align: TextAlign = .center, maxLines: Int? = nil, windowsLines: Bool = false, mixedLine: Double = 1.3301 * 1.3, family: String? = nil) -> TextPainter {
             let style = Flutter.TextStyle(
                 color: color ?? ink, fontSize: max(3, size * k), fontWeight: bold ? .bold : .normal,
                 height: family == nil ? nil : 24.4 / 18, fontFeatures: plain, fontFamily: family.map { OfficeFonts.substitute($0) } ?? font, fontFamilyFallback: Self.glyphFallback(c))
-            let tp = TextPainter(text: windowsLines ? Self.labelSpan(c, s, style, mixedLine: mixedLine) : TextSpan(text: s, style: style),
+            var span = windowsLines ? Self.labelSpan(c, s, style, mixedLine: mixedLine) : TextSpan(text: s, style: style)
+            // (A Japanese or Korean face the machine lacks (Meiryo, Yu Gothic, MS Gothic...): each character is spaced out or in to the face's own
+            // advance, as PowerPoint's print sets it, not the stand-in's: Meiryo's labels are wider than Carlito's.)
+            if (!windowsLines || (span.children ?? []).isEmpty), family == nil, case let raw = c.font ?? (c.onSheet ? nil : c.axisFont) ?? theme.bodyFont, let face = Self.eastAsianChartFace(raw) {
+                span = Self.metricSpan(s, style, face, bold: bold)
+            }
+            let tp = TextPainter(text: span,
                 textAlign: align, textDirection: .ltr, maxLines: maxLines, ellipsis: maxLines == nil ? nil : "\u{2026}")   // (a label broken in two centres each line)
             tp.layout(minWidth: 0, maxWidth: max(1, maxWidth))
             return tp
