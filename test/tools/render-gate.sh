@@ -99,7 +99,8 @@ EO=$(readlink -f engine)/src/out/host_release
 umask 002
 if [ -n "${GATE_BASECACHE:-}" ]; then BC=$GATE_BASECACHE; elif [ -d /data/gate/cache ] && [ -w /data/gate/cache ]; then BC=/data/gate/cache; else BC=$HOME/scratch/basecache; fi
 # The cache is keyed by the ENGINE commit too (amd-8, 2026-11-22): a base rendered on the old engine must never be compared with a PR rendered on the new one.
-ENGSTAMP=$(git -C "$ENGINE_DIR" rev-parse --short=10 HEAD 2>/dev/null || echo noengine); BC=$BC/eng-$ENGSTAMP
+# (amd-8, 2026-11-22) safe.directory: the engine checkout belongs to another user, so a plain git refused ("dubious ownership") and every runner keyed its cache "eng-noengine".
+ENGSTAMP=$(git -c safe.directory='*' -C "$ENGINE_DIR" rev-parse --short=10 HEAD 2>/dev/null || echo noengine); BC=$BC/eng-$ENGSTAMP
 BSHA=$(git rev-parse "$BASE_SHA")
 # pull_request checks out the merge of the PR into the CURRENT main: its first parent is what the prebuild cached. The PR's own
 # base.sha is usually older (a second build per gate). BASE_SHA stays for the path classification and the named documents.
