@@ -2009,7 +2009,7 @@ enum ChartXML {
         c.font = face(spaceRun?.first("a:latin")?["typeface"])
         c.axisFont = c.font == nil ? (plot.children.filter { ["c:catAx", "c:valAx"].contains($0.name) }.map { $0.first("c:txPr") } + [chart.first("c:legend")?.first("c:txPr")]).lazy.compactMap { face($0?.descendant("a:latin")?["typeface"]) }.first : nil
         if c.font == nil {
-            for (key, node) in [("val", plot.children.first { $0.name == "c:valAx" }), ("cat", plot.children.first { $0.name == "c:catAx" }), ("legend", chart.first("c:legend"))] {
+            for (key, node) in [("label", plot.descendant("c:dLbls")), ("val", plot.children.first { $0.name == "c:valAx" }), ("cat", plot.children.first { $0.name == "c:catAx" }), ("legend", chart.first("c:legend"))] {
                 if let f = face(node?.first("c:txPr")?.descendant("a:latin")?["typeface"]) { c.partFaces[key] = f }
             }
         }
@@ -2882,6 +2882,13 @@ enum ChartPainter {
         guard SlideEastAsianWidths.lookup(SlideFonts.windowsName(family)) != nil else { return nil }
         return SlideFonts.face(family, false)
     }
+    /// The measured widths of a Latin face the machine lacks and the stand-in does not match (Trebuchet MS, Tahoma, Verdana...), where a slide
+    /// chart's text is set in it: es 3df36ff6's chart title "RESULTADO CUMPLIMIENTO PLAN DE ACCION II BIMESTRE" in Trebuchet bold 10 pt is
+    /// 265 pt wide in PowerPoint's print, 295 in the stand-in, which broke it in two.
+    static func latinChartFace(_ family: String) -> RichResolvedFace? {
+        guard ["trebuchet ms", "tahoma", "verdana", "segoe ui", "franklin gothic book", "century gothic", "gill sans mt", "candara", "palatino linotype"].contains(family.trimmingWhitespace().lowercased()) else { return nil }
+        return SlideFonts.face(family, false)
+    }
     nonisolated(unsafe) private static var naturalAdvanceCache: [String: Double] = [:]
     /// `s` one character a span, each spaced to the face's own advance (ems of the size) less what the stand-in draws it.
     static func metricSpan(_ s: String, _ style: Flutter.TextStyle, _ face: RichResolvedFace, bold: Bool, eastAsianOnly: Bool = false) -> TextSpan {
@@ -2969,7 +2976,7 @@ enum ChartPainter {
             var span = windowsLines ? Self.labelSpan(c, s, style, mixedLine: mixedLine) : TextSpan(text: s, style: style)
             // (A Japanese or Korean face the machine lacks (Meiryo, Yu Gothic, MS Gothic...): each character is spaced out or in to the face's own
             // advance, as PowerPoint's print sets it, not the stand-in's: Meiryo's labels are wider than Carlito's.)
-            if (!windowsLines || (span.children ?? []).isEmpty), family == nil, case let raw = c.font ?? (c.onSheet ? nil : c.axisFont) ?? theme.bodyFont, let face = Self.eastAsianChartFace(raw) {
+            if (!windowsLines || (span.children ?? []).isEmpty), family == nil, case let raw = c.font ?? (c.onSheet ? nil : c.axisFont) ?? theme.bodyFont, let face = Self.eastAsianChartFace(raw) ?? (c.onSlide ? Self.latinChartFace(raw) : nil) {
                 span = Self.metricSpan(s, style, face, bold: bold)
             } else if (!windowsLines || (span.children ?? []).isEmpty), family == nil, c.japaneseLang, let jf = theme.japaneseFace, Self.eastAsianChartFace(c.font ?? (c.onSheet ? nil : c.axisFont) ?? theme.bodyFont) == nil,
                       s.unicodeScalars.contains(where: { $0.value >= 0x3040 }), let face = Self.eastAsianChartFace(jf) {
@@ -3027,7 +3034,9 @@ enum ChartPainter {
             // (A line in a size of its own, as its own span.)
             let span: TextSpan
             if c.titleLineSizes.isEmpty {
-                span = TextSpan(text: title, style: titleStyle)
+                // (A Latin face the machine lacks is spaced to its own advances: see `latinChartFace`.)
+                if c.onSlide, let face = Self.latinChartFace(c.titleFont ?? theme.bodyFont ?? "") { span = Self.metricSpan(title, titleStyle, face, bold: c.titleBold) }
+                else { span = TextSpan(text: title, style: titleStyle) }
             } else {
                 let lines = title.components(separatedBy: "\n")
                 span = TextSpan(children: lines.enumerated().map { i, line in
@@ -6737,10 +6746,13 @@ enum ChartPainter {
                 let ownFace = c.onSlide || c.onSheet ? nil : ser.labelFace
                 let tp = ser.labelSize == nil && !ser.labelBold && ser.labelColor == nil && ownFace == nil ? text(s, c.baseTextSize, wrapAt)
                     : { () -> TextPainter in
-                        let t = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
+                        let ls = Flutter.TextStyle(
                             color: ser.labelColor ?? c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65)),
                             fontSize: max(3, (ser.labelSize ?? c.baseTextSize) * k), fontWeight: ser.labelBold ? .bold : .normal,
-                            fontFamily: OfficeFonts.substitute(ownFace ?? c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textAlign: .center, textDirection: .ltr)
+                            fontFamily: OfficeFonts.substitute(ownFace ?? c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))
+                        // (A Latin face the machine lacks is spaced to its own advances: see `latinChartFace`.)
+                        let lspan = c.onSlide && c.font == nil ? Self.latinChartFace(c.partFaces["label"] ?? c.axisFont ?? theme.bodyFont ?? "").map { Self.metricSpan(s, ls, $0, bold: ser.labelBold) } : nil
+                        let t = TextPainter(text: lspan ?? TextSpan(text: s, style: ls), textAlign: .center, textDirection: .ltr)
                         t.layout(minWidth: 0, maxWidth: wrapAt)
                         return t
                     }()
