@@ -2644,7 +2644,7 @@ private struct SlideContext {
                                 var face: String? = ea ? _eaFont(s.eaFont ?? s.font, scalar: ch.value, lang: s.lang, latin: s.font) : nil
                                 // (A complex script's letters are set in the run's `a:cs` face, as a text box's are: cc66a30f p18's Persian
                                 // table, B Nazanin embedded, was drawn in Calibri's fallback; the spaces and digits after them go with them.)
-                                if !ea, let script = Self.complexScript(ch.value), let cf = _csFont(s.csFont, script: script) { csFace = cf; face = cf }
+                                if !ea, let script = Self.complexScript(ch.value), let cf = _csFont(s.csFont, script: script, lang: s.lang) { csFace = cf; face = cf }
                                 else if !ea, let cf = csFace, !ch.properties.isAlphabetic { face = cf }
                                 else if !ea { csFace = nil }
                                 if let last = segFace, last == face, !segments.isEmpty { segments[segments.count - 1].length += ch.utf16.count }
@@ -3564,7 +3564,14 @@ private struct SlideContext {
     /// The face a complex script's letters are set in: the run's `a:cs`,
     /// a theme reference's complex-script face, else the theme's face for
     /// that script — nil where nothing names one (the Latin face serves).
-    private func _csFont(_ f: String?, script: String) -> String? {
+    private func _csFont(_ f: String?, script: String, lang: String? = nil) -> String? {
+        // (The theme's Arabic face is the one for runs tagged with an Arabic-script language. An untagged run, which takes the
+        // deck's en-US, draws its Arabic letters in Arial whatever the theme names: rtl/e08da366's titles, theme major "Majalla UI",
+        // ArialMT 44 pt in PowerPoint's print, while the ar-SA runs of f355b7fc and eb7ab2c5 draw "Majalla UI" as Sakkal Majalla.)
+        if f == nil || f!.hasPrefix("+"), script == "Arab" {
+            let l = (lang ?? "").lowercased()
+            if !["ar", "fa", "ur", "ps", "sd", "ug", "ku"].contains(where: { l.hasPrefix($0) }) { return "Arial" }
+        }
         switch f {
         case nil, "+mn-cs", "+mn-lt", "+mn-ea": return theme.minorScript["cs"] ?? theme.minorScript[script]
         case "+mj-cs", "+mj-lt", "+mj-ea": return theme.majorScript["cs"] ?? theme.majorScript[script]
@@ -4007,7 +4014,7 @@ private struct SlideContext {
                             c.fontFamily = face
                             c.shadow = cs.shadow; c.outline = cs.outline; c.highlight = cs.highlight; c.caps = cs.caps; c.smallCaps = cs.smallCaps
                         }
-                    } else if let script = piece.script, let face = _csFont(s.csFont, script: script), face != plain.fontFamily {
+                    } else if let script = piece.script, let face = _csFont(s.csFont, script: script, lang: s.lang), face != plain.fontFamily {
                         c = plain
                         c.fontFamily = face
                         c.shadow = cs.shadow; c.outline = cs.outline; c.highlight = cs.highlight; c.caps = cs.caps; c.smallCaps = cs.smallCaps
