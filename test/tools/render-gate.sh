@@ -213,10 +213,14 @@ DN=$(awk '/^== /{v2=($0 ~ / v2$/)} v2 && /^up .* down [1-9]/{n++} END{print n+0}
 awk '/^== /{v2=($0 ~ / v2$/)} v2 && /^ *DOWN /{print}' "$W/pair.log" > "$W/down.txt"
 DROPS=""
 # a waiver holds only for the PR that names the doc in its PR body (PR_BODY env) or a commit message (amd-8, 2026-11-22): approved.txt is permanent
+# a re-run replays the ORIGINAL event payload, so PR_BODY can be stale: read the current body through the API when a PR number is known (fall back to PR_BODY)
+if [ -n "${PR_NUMBER:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && command -v gh >/dev/null 2>&1; then
+  CUR_BODY=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .body 2>/dev/null || true); [ -n "$CUR_BODY" ] && PR_BODY=$CUR_BODY
+fi
 MSGS="${PR_BODY:-}"$'\n'$(git -C "$ROOT" log --format=%B "$(git -C "$ROOT" merge-base HEAD origin/main 2>/dev/null || echo HEAD)..HEAD" 2>/dev/null || true)
 while read -r line; do
   stem=${line##* }; s=$(basename "${stem%.docx}")
-  if grep -qE "^${s}[ .]" "$LQ/approved.txt" 2>/dev/null && case "$MSGS" in *"$s"*) true;; *) false;; esac; then :; else DROPS="$DROPS $s"; fi
+  if grep -qE "^${s}([ .]|$)" "$LQ/approved.txt" 2>/dev/null && case "$MSGS" in *"$s"*) true;; *) false;; esac; then :; else DROPS="$DROPS $s"; fi
 done < "$W/down.txt"
 # the rerun re-renders only what was blocked: the Word drops, and the Slides decks that were blocked in this same pass (the Slides step is waited for, not killed;
 # a Slides step that passed is not run again). GATE_RECHECK_DOCS and GATE_RECHECK_DECKS are not inherited from an earlier re-check (a re-check never re-checks).
