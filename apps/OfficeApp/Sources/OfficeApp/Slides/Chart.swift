@@ -5541,7 +5541,11 @@ enum ChartPainter {
             let valGap: Double = (c.onSlide && c.styled2013 && !c.chartex && !c.valueTicksOut && !word && !libre && (valueLabels.first?.height ?? 0) > 0)
                 ? max(8.5, 0.773 * (valueLabels.first?.height ?? 0) / k - 2.9) : (c.styled2013 ? 8.5 : 11.1)
             if c.styled2013, valGap > 8.5 { valueLabelsBack = -(valGap - 8.5) * k; RuleTrace.hit("slide-value-labels-stand-off-by-their-line-height") }
-            var left = (valueLabels.map(\.width).max() ?? 0) - padTail + valGap * k + besideOut - (c.chartex && c.onSlide ? 4.5 * k : 0) - (word ? 2.5 * k : libre ? 2.4 * k : 0)
+            // (A 2007-style chart on a slide: its value labels stand off the plot by 0.927 of their size, whether or not the axis has ticks or a
+            // line: PowerPoint's print of a 27-chart lab, 6 pt 5.5 off, 8 pt 7.4, 10 pt 9.3, 12 pt 11.1, 18 pt 16.7, with ticks out or none, line or none.)
+            let barePlain = c.onSlide && !c.styled2013 && !word && !libre && !c.chartex && c.barView == nil && !horizontal
+            let bareGap = 0.927 * labelSize * k
+            var left = (valueLabels.map(\.width).max() ?? 0) - padTail + (barePlain ? bareGap - 2.5 * k : valGap * k + besideOut) - (c.chartex && c.onSlide ? 4.5 * k : 0) - (word ? 2.5 * k : libre ? 2.4 * k : 0)
             // (A 2007-style slide chart with no tick marks: its labels stand off the plot by their size, not a
             // fixed gap, and the category labels' gap grows with theirs. Windows' prints of 5864 slide 8
             // in 15 variants, bare of ticks: value labels 8.97 pt off at 10 pt, 14.56 at 16, 21.73 at 24;
@@ -5549,7 +5553,7 @@ enum ChartPainter {
             // 10 pt charts match as they are, so nothing is taken off small labels); with labels at the
             // zero line it stands 4.1 further up, at any size.)
             let slideBare = c.onSlide && !c.styled2013
-            if slideBare, !c.valueTicksOut { left += max(0, 0.91 * labelSize - 12.2) * k }
+            if slideBare, !c.valueTicksOut, !barePlain { left += max(0, 0.91 * labelSize - 12.2) * k }
             let slideFoot = slideBare && !c.categoryTicksOut ? max(0, 0.64 * (catSize - 12.25)) * k : 0
             let tallest = aslant ? (catLabels.map(drop).max() ?? lineH) : (catLabels.map(\.height).max() ?? lineH)
             // (Malgun Gothic's category names on a slide: PowerPoint's print puts the first baseline 15.2 pt under the axis and the frame's
@@ -5600,7 +5604,8 @@ enum ChartPainter {
             }
             // (The second axis' labels take a band at the right, as the
             // first's do at the left.)
-            if !secondLabels.isEmpty { right = max(right, (secondLabels.map(\.width).max() ?? 0) + 10 * k) }
+            if !secondLabels.isEmpty { right = barePlain ? (secondLabels.map(\.width).max() ?? 0) + bareGap - 2.5 * k : max(right, (secondLabels.map(\.width).max() ?? 0) + 10 * k) }
+            else if barePlain, !edges { right = 2 * k }
             // (A title the file places on a slide keeps its own column in PowerPoint's layout of the plot: b7d6faa9 p16's
             // "Top 5 Error rate" at 4.3% and "# Prams" at 83.3% of the chart, the left labels starting where the first
             // title ends and the widest right label ending 6.2 pt before the second's left edge.)
@@ -6266,7 +6271,7 @@ enum ChartPainter {
                 // (On a slide 10 pt: es/3df36ff6 p4's labels at 24 in PowerPoint's print, ours at 14.)
                 // (Where the rule above pushed the plot off the chart's left edge, the labels stay at the edge 1.5 pt in, and the plot stands their
                 // size-scaled clearance past them: lab p12-lab3, 8 pt labels' left at 37.5 and 18 pt's at 37.5, where ours followed the plot.)
-                let labelRight = pushedLabelGap != nil ? frame.left + 1.5 * k + tp.width : slideLaidColumnAxis && c.valueTicksOut ? plot.left - 9.0 * k : plot.left - (c.chartex && c.onSlide ? (c.waterfallTotals != nil ? 5 : 4) : 8.5) * k - besideOut - further + wall3D + wall3DAuto + valueLabelsBack
+                let labelRight = pushedLabelGap != nil ? frame.left + 1.5 * k + tp.width : (c.onSlide && !c.styled2013 && !word && !libre && !c.chartex && c.barView == nil && !horizontal) ? plot.left - 0.927 * labelSize * k : slideLaidColumnAxis && c.valueTicksOut ? plot.left - 9.0 * k : plot.left - (c.chartex && c.onSlide ? (c.waterfallTotals != nil ? 5 : 4) : 8.5) * k - besideOut - further + wall3D + wall3DAuto + valueLabelsBack
                 if pushedLabelGap != nil { RuleTrace.hit("slide-laid-plot-pushed-keeps-value-labels-at-the-edge") }
                 if !swapSides { tp.paint(canvas, Offset(labelRight - tp.width, p - tp.height / 2 - lift + (wall3DAuto > 0 ? 2.6 * k : 0))) }
             }
@@ -6284,7 +6289,7 @@ enum ChartPainter {
             let tp = secondLabelsRaw[i]
             // (Word for Windows stands them 10.1pt off the plot's edge: zh-61aaad09's
             // and zh-2a241df1's "60.00%" labels print 4pt right of where 6 put them.)
-            if !swapSides { tp.paint(canvas, Offset(plot.right + (!c.onSlide && !c.onSheet && !c.chartex ? (libre && c.plotLayoutInner ? 10.1 - 2.41 : 10.1) : 6) * k, vpos2(v) - tp.height / 2 - lift2)) }
+            if !swapSides { tp.paint(canvas, Offset(plot.right + (c.onSlide && !c.styled2013 && !libre && !c.chartex && c.barView == nil && !horizontal ? 0.927 * labelSize : !c.onSlide && !c.onSheet && !c.chartex ? (libre && c.plotLayoutInner ? 10.1 - 2.41 : 10.1) : 6) * k, vpos2(v) - tp.height / 2 - lift2)) }
         }
         if swapSides {
             // The columns' labels at the right, the lines' at the left, each on its own scale.
