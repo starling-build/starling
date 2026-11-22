@@ -4147,7 +4147,9 @@ private struct SlideContext {
                 for piece in pieces {
                     defer { consumed += piece.length }
                     var c = cs
-                    arabicTailFace = piece.script == "Arab" ? plain.fontFamily : nil
+                    // (Not where the complex face is one the deck embeds: its own line already holds the paragraph as PowerPoint draws it, and the
+                    // Latin mark would lower it 1.3 pt: 7854f160 p1, 5a8cce85 p1 and p2 in B Nazanin and B Titr stand where the print has them.)
+                    arabicTailFace = piece.script == "Arab" && !SlideFonts.isEmbedded(_csFont(s.csFont, script: "Arab", lang: s.lang) ?? "") ? plain.fontFamily : nil
                     if piece.script == "ea" {
                         // (The first letter of the piece names its script.)
                         let slice = String(decoding: utf16[consumed ..< min(utf16.count, consumed + piece.length)], as: UTF16.self)
