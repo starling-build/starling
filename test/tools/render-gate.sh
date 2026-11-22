@@ -174,7 +174,13 @@ if [ "$MODE" = full ] && [ "${GATE_SLIDES:-1}" = 1 ] && [ "${GATE_PREBUILD:-0}" 
 fi
 [ "${GATE_PREBUILD:-0}" = 1 ] && { echo "render-gate: PR build alone $(( $(date +%s)-TB )) s; changed since this scratch's last build: $( [ -n "$PREV" ] && git diff --name-only "$PREV" HEAD 2>/dev/null | wc -l || echo unknown) files (prev ${PREV:0:9})"; git rev-parse HEAD > "$W/build.rev"; [ "${GATE_WARM:-0}" = 1 ] && { echo "render-gate: scratch warm on $(git rev-parse --short HEAD)"; exit 0; }
 [ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; exit 1; }
-  BASEBIN=$BC/$BSHA/release/OfficeApp; fill_rows; chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; echo "render-gate: base $BSHA cached"; exit 0; }
+  BASEBIN=$BC/$BSHA/release/OfficeApp; fill_rows; chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; echo "render-gate: base $BSHA cached"
+  # the Slides BASE render too (amd-8, 2026-11-22): the same sweep the PR gate would otherwise draw for its base, cached per main sha + engine, so the PR gate draws only its own side
+  if [ "${GATE_SLIDES:-1}" = 1 ] && [ "${GATE_WARM:-0}" != 1 ] && [ -x "$BASEBIN" ]; then
+    S0=$(date +%s); BASE_ONLY=1 LQ=$LQ BASE_BIN=$BASEBIN BASE_CACHE=$BC/$BSHA/slides test/tools/slides-gate.sh "$BASEBIN" "${JOBS:-32}" > "$W/slides-base.out" 2>&1; echo "render-gate: slides base $BSHA rendered in $(( $(date +%s)-S0 )) s ($(tail -1 "$W/slides-base.out" | cut -c1-120))"
+    chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null
+  fi
+  exit 0; }
 [ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; tail -15 "$W/base-build.log" | cut -c1-200; exit 1; }
 BASEBIN=$BC/$BSHA/release/OfficeApp
 [ -z "$FPID" ] || { wait $FPID; cat "$W/fillrows.out"; echo "render-gate: base rows ready at $(( $(date +%s)-T0 )) s"; }
