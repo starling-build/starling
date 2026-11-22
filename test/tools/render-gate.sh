@@ -79,6 +79,9 @@ ids=$W/ids.txt
 if [ "$MODE" = selftest ]; then head -2 "$LQ/sample.txt" > "$ids"; echo "render-gate: gate tooling changed: self-test on 2 documents"
 elif [ "${GATE_TARGETS_ONLY:-0}" = 1 ] && [ -s "$W/named.txt" ]; then sort -u "$W/named.txt" > "$ids"
 else { cat "$W/named.txt"; [ -s "$LQ/sample.txt" ] && cat "$LQ/sample.txt"; } | sort -u > "$ids"; fi
+# RE-CHECK (amd-8, 2026-11-22): the exact-base rerun after a block against a cached ancestor judges only what was blocked: GATE_RECHECK_DOCS = the Word
+# documents that dropped (their stems), GATE_RECHECK_DECKS = file of the Slides decks that were blocked (see the two rerun lines below).
+[ -n "${GATE_RECHECK_DOCS:-}" ] && { printf '%s\n' $GATE_RECHECK_DOCS | sort -u > "$ids"; echo "render-gate: re-check of $(wc -l < "$ids") dropped document(s) only"; }
 # named ids are prefixes (8 hex) or set-prefixed names; the sweep matches whole stems, so expand each to the corpus stems it names
 # (a commit SHA in a message matches nothing and is dropped)
 CC=${STARLING_CORPUS:-/data/corpus-cache}
@@ -169,7 +172,7 @@ if [ "$MODE" = full ] && [ "${GATE_SLIDES:-1}" = 1 ] && [ "${GATE_PREBUILD:-0}" 
   if [ -n "${CH:-}" ] && ! echo "$CH" | grep -vE '^(docs/|test/(tools|corpus)/|apps/OfficeApp/Sources/OfficeApp/Docx\.swift$|apps/OfficeApp/Sources/(OfficeApp|OfficeText)/WordWindowsFaces\.swift$)' | grep -q .; then
     echo "render-gate: Slides step skipped (Word-reader-only change)"
   else
-    LQ=$LQ BASE_BIN=$BC/$BSHA/release/OfficeApp BASE_CACHE=$BC/$BSHA/slides test/tools/slides-gate.sh "$(ls "$W"/build/*/release/OfficeApp | head -1)" 32 > "$W/slides.out" 2>&1 & SLPID=$!
+    SLIDES_ONLY=${GATE_RECHECK_DECKS:-} LQ=$LQ BASE_BIN=$BC/$BSHA/release/OfficeApp BASE_CACHE=$BC/$BSHA/slides test/tools/slides-gate.sh "$(ls "$W"/build/*/release/OfficeApp | head -1)" 32 > "$W/slides.out" 2>&1 & SLPID=$!
   fi
 fi
 [ "${GATE_PREBUILD:-0}" = 1 ] && { echo "render-gate: PR build alone $(( $(date +%s)-TB )) s; changed since this scratch's last build: $( [ -n "$PREV" ] && git diff --name-only "$PREV" HEAD 2>/dev/null | wc -l || echo unknown) files (prev ${PREV:0:9})"; git rev-parse HEAD > "$W/build.rev"; [ "${GATE_WARM:-0}" = 1 ] && { echo "render-gate: scratch warm on $(git rev-parse --short HEAD)"; exit 0; }
@@ -215,14 +218,19 @@ while read -r line; do
   stem=${line##* }; s=$(basename "${stem%.docx}")
   if grep -qE "^${s}[ .]" "$LQ/approved.txt" 2>/dev/null && case "$MSGS" in *"$s"*) true;; *) false;; esac; then :; else DROPS="$DROPS $s"; fi
 done < "$W/down.txt"
-if [ -n "$DROPS" ] && [ -n "$EXACTB" ]; then echo "render-gate: drops against the cached ancestor ($DROPS ); rerunning against the exact base"; [ -n "$SLPID" ] && kill "$SLPID" 2>/dev/null; exec env GATE_EXACT_BASE=1 "$SELF" "$BASE_SHA"; fi
+# the rerun re-renders only what was blocked: the Word drops, and the Slides decks that were blocked in this same pass (the Slides step is waited for, not killed;
+# a Slides step that passed is not run again). GATE_RECHECK_DOCS and GATE_RECHECK_DECKS are not inherited from an earlier re-check (a re-check never re-checks).
+RECHK() { dk=""; src=0; if [ -n "${SLPID:-}" ]; then wait "$SLPID"; src=$?; if [ "$src" = 1 ]; then dk=$W/recheck-decks.txt; sed -n 's/^slides-gate: BLOCKED-DECK //p' "$W/slides.out" | sort -u > "$dk"; [ -s "$dk" ] || dk=""; fi; fi
+  echo "render-gate: re-check: Slides $([ -z "${SLPID:-}" ] && echo "not run" || { [ "$src" != 1 ] && echo "clean, not run again" || { [ -n "$dk" ] && echo "$(wc -l < "$dk") blocked deck(s) only" || echo "blocked, no decks named: all"; }; })"
+  exec env GATE_RECHECK_DOCS="$1" GATE_RECHECK_DECKS="$dk" GATE_SLIDES=$([ "$src" = 1 ] && echo 1 || echo 0) GATE_EXACT_BASE=1 "$SELF" "$BASE_SHA"; }
+if [ -n "$DROPS" ] && [ -n "$EXACTB" ]; then echo "render-gate: drops against the cached ancestor ($DROPS ); rerunning against the exact base"; RECHK "$(echo $DROPS)"; fi
 if [ -n "$DROPS" ]; then echo "render-gate: BLOCKED, v2 drops not approved:$DROPS"; exit 1; fi
 [ "$DN" = 0 ] || [ -s "$W/down.txt" ] || { echo "render-gate: drops reported but not parsed"; exit 1; }
 # Slides step result (started before the Word pair, see SLPID): block on decks worse than the BASE render (same runner and engine; the fixed baselines are the drift report only)
 if [ -n "${SLPID:-}" ]; then
   wait "$SLPID"; src=$?; tail -20 "$W/slides.out"
   # the Slides base was the newest cached ANCESTOR (EXACTB set): decks other PRs changed on main since are charged to this PR, so rerun against the exact base like the Word drops above (amd-8, 2026-11-22: 3 PRs blocked on eb013aed/3f8a480a)
-  [ "$src" = 1 ] && [ -n "$EXACTB" ] && { echo "render-gate: Slides decks worse against the cached ancestor; rerunning against the exact base ${EXACTB:0:9}"; exec env GATE_EXACT_BASE=1 "$SELF" "$BASE_SHA"; }
+  [ "$src" = 1 ] && [ -n "$EXACTB" ] && [ -z "${GATE_RECHECK_DECKS:-}" ] && { echo "render-gate: Slides decks worse against the cached ancestor; rerunning against the exact base ${EXACTB:0:9}, only the blocked decks"; dk=$W/recheck-decks.txt; sed -n 's/^slides-gate: BLOCKED-DECK //p' "$W/slides.out" | sort -u > "$dk"; [ -s "$dk" ] || dk=""; exec env GATE_RECHECK_DECKS="$dk" GATE_EXACT_BASE=1 "$SELF" "$BASE_SHA"; }
   [ "$src" = 1 ] && { echo "render-gate: BLOCKED, Slides decks worse than the base (above)"; exit 1; }
 fi
 echo "render-gate: BASE-CACHE word=$([ -n "$BSD" ] && echo cache || echo own) slides=$(if grep -qs "base render from the cache" "$W/slides.out"; then echo cache; elif [ -s "$W/slides-base.out" ]; then echo own; else echo none; fi)"
