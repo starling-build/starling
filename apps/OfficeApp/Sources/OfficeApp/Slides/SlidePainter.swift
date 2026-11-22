@@ -102,10 +102,12 @@ final class SlideTextCache {
                 codec.dispose()
             }
             if decoded != nil, let c = await CmykJpeg.decoded(bytes) { decoded?.dispose(); decoded = c }
+            var converted = false
+            if attachment.colourManaged == true, let d = decoded, let c = await IccConvert.converted(d, bytes: bytes) { d.dispose(); decoded = c; converted = true }
             guard let self else { decoded?.dispose(); return }
             self._decoding.remove(id)
             if let decoded {
-                Self.noteJpeg(bytes, decoded)
+                if !converted { Self.noteJpeg(bytes, decoded) }
                 if self._images[id] == nil { self._images[id] = decoded } else { decoded.dispose() }
                 self.onImageDecoded?()
             } else if self._images[id] == nil {
@@ -147,6 +149,8 @@ final class SlideTextCache {
             if attempt == 0 { try? await Task.sleep(nanoseconds: 200_000_000) }
         }
         if decoded != nil, let c = await CmykJpeg.decoded(bytes) { decoded?.dispose(); decoded = c }
+        var converted = false
+        if attachment.colourManaged == true, let d = decoded, let c = await IccConvert.converted(d, bytes: bytes) { d.dispose(); decoded = c; converted = true }
         #if !os(WASI)
         if decoded == nil {
             let head = bytes.prefix(8).map { String($0, radix: 16) }.joined(separator: " ")
@@ -154,7 +158,7 @@ final class SlideTextCache {
         }
         #endif
         if let decoded {
-            Self.noteJpeg(bytes, decoded)
+            if !converted { Self.noteJpeg(bytes, decoded) }
             if _images[id] == nil { _images[id] = decoded; onImageDecoded?() } else { decoded.dispose() }
         } else if _images[id] == nil {
             _undecodable.insert(id)
