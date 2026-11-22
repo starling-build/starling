@@ -123,6 +123,8 @@ struct ChartSeries: Equatable {
     /// growth rates over its columns in Word's print.
     var valueLabels = false
     var labelNudges: [Int: Offset] = [:]
+    /// A point's own `c:dLblPos`, where it differs from the series'.
+    var labelPointPos: [Int: String] = [:]
     /// A moved bar label's leader line (`c15:showLeaderLines` 1 in the series' `c:dLbls`), its colour and width.
     var labelLeader = false
     var labelLeaderColor: Color? = nil
@@ -1578,6 +1580,7 @@ enum ChartXML {
                         }
                     }
                 }
+                if let i = one.first("c:idx")?["val"].flatMap(Int.init), let p = one.first("c:dLblPos")?["val"] { s.labelPointPos[i] = p }
                 guard let i = one.first("c:idx")?["val"].flatMap(Int.init), let m = one.first("c:layout")?.first("c:manualLayout"),
                       let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) else { continue }
                 s.labelNudges[i] = Offset(x, y)
@@ -5543,6 +5546,7 @@ enum ChartPainter {
         var wrapLabels = Set<Int>()
         // Labels that end at their point instead of starting there: a Word bar's `dLblPos inEnd`.
         var endAtPoint = Set<Int>()
+        var startAtPoint = Set<Int>()
         let fill = Paint()
         fill.style = .fill
         fill.isAntiAlias = true
@@ -5938,8 +5942,22 @@ enum ChartPainter {
                     row.append(v)
                     // (An area's stand in the middle of the area under the point, over the axis' foot
                     // or the series below: lo-60124a3f's 5 and 6 over 4.4 to 6.2 in Word's print.)
-                    let y = c.type == .area ? (vpos(v) + min(vpos(c.stacked && j > 0 ? (tops[j - 1][i] ?? 0) : 0), plot.bottom)) / 2 : vpos(v) - 9 * k
-                    labels.append((dataLabel(c, raw), Offset(xAt(i), y), j))
+                    var y = c.type == .area ? (vpos(v) + min(vpos(c.stacked && j > 0 ? (tops[j - 1][i] ?? 0) : 0), plot.bottom)) / 2 : vpos(v) - 9 * k
+                    var x = xAt(i)
+                    // A slide line's labels where the file puts them (`dLblPos`), in PowerPoint's print of en/7bf37d72 p10 (12 pt):
+                    // under the point, the text's centre 14.25 pt below it; left or right, its end or start 8.4 pt off the point,
+                    // centred on it. Ours stood over the point whatever the file said.
+                    if c.type == .line, c.onSlide, !c.chartex {
+                        let size = (c.series[j].labelSize ?? c.baseTextSize) * k
+                        switch c.series[j].labelPointPos[i] ?? c.series[j].labelPos {
+                        case "b": y = vpos(v) + 14.25 / 11.97 * size; x += 1.6 * k
+                        case "l": y = vpos(v) + 0.3 * size / 11.97; x -= 8.4 * k; endAtPoint.insert(labels.count)
+                        case "r": y = vpos(v) + 0.3 * size / 11.97; x += 8.4 * k; startAtPoint.insert(labels.count)
+                        default: break
+                        }
+                    }
+                    if c.type == .line, c.onSlide, !c.chartex, let n = c.series[j].labelNudges[i] { x += n.dx * frame.width; y += n.dy * frame.height }
+                    labels.append((dataLabel(c, raw), Offset(x, y), j))
                 }
                 if c.stacked { for i in 0 ..< n { base[i] = row[i] ?? base[i] } }
                 tops.append(row)
@@ -6112,7 +6130,7 @@ enum ChartPainter {
                         t.layout(minWidth: 0, maxWidth: wrapAt)
                         return t
                     }()
-                let dx = endAtPoint.contains(li) ? tp.width : horizontal && !c.stacked ? 0 : tp.width / 2
+                let dx = endAtPoint.contains(li) ? tp.width : startAtPoint.contains(li) ? 0 : horizontal && !c.stacked ? 0 : tp.width / 2
                 let rise = horizontal ? 0 : Self._wordLabelRise(c, ser.labelSize ?? c.baseTextSize) * k
                 // (A label of several lines keeps its last line where a single one stood and grows upward.)
                 let lineCount = max(1, tp.computeLineMetrics().count)
