@@ -6523,6 +6523,9 @@ enum ChartPainter {
                         case "b": y = vpos(v) + 14.25 / 11.97 * size; x += 1.6 * k
                         case "l": y = vpos(v) + 0.3 * size / 11.97; x -= 8.4 * k; endAtPoint.insert(labels.count)
                         case "r": y = vpos(v) + 0.3 * size / 11.97; x += 8.4 * k; startAtPoint.insert(labels.count)
+                        // (Over it, `dLblPos t`: the text's centre 1.107 x the size above the point, PowerPoint's print of 9fdd4dd8 p27 at 14 pt, 15.5 pt;
+                        // ours stood 9 pt over it, the text touching the line.)
+                        case "t": y = vpos(v) - 1.107 * size
                         default: break
                         }
                     }
