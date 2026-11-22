@@ -446,7 +446,7 @@ private struct Player {
         // replacement mark: tika-3388's attachment caption carries one at
         // the end of one line and the start of the next, and Word draws
         // neither.)
-        let shown = Self.symbols(string.filter { $0 != "\0" && $0 != "\u{FFFD}" }, face: dc.font.face)
+        let shown = Self.symbols(string.filter { $0 != "\0" && $0 != "\u{FFFD}" }, face: dc.font.face, equationMarks: true)
         guard !shown.isEmpty, !shown.allSatisfy({ $0 == " " }) else { return }
         // lfHeight below zero is the character height; above, the cell's
         // (ascent and descent, a sixth or so more than the size).
@@ -503,9 +503,9 @@ private struct Player {
         return ["☐": 0.89, "☑": 0.89, "☒": 0.89][glyph]
     }
 
-    static func symbols(_ text: String, face: String) -> String {
+    static func symbols(_ text: String, face: String, equationMarks: Bool = false) -> String {
         let name = face.lowercased()
-        let map: [Character: Character]
+        var map: [Character: Character]
         if name == "wingdings 2" {
             // (Wingdings 2's boxes, ticks and crosses: forms tick "£" and "R"
             // — zh-d0a207ac's 双龙杯 / 钱江杯 / 鲁班杯 boxes.)
@@ -527,14 +527,15 @@ private struct Player {
                    "Ì": "⊂", "Í": "⊆", "É": "⊃", "Ê": "⊇", "\"": "∀", "$": "∃", "Ñ": "∇", "¶": "∂", "Ø": "¬", "Ù": "∧",
                    "Ú": "∨", "º": "≡", "µ": "∝", "^": "⊥", "Ð": "∠", "f": "φ", "e": "ε", "r": "ρ", "t": "τ", "c": "χ",
                    "y": "ψ", "h": "η", "z": "ζ", "x": "ξ", "n": "ν", "k": "κ", "i": "ι", "u": "υ", "o": "ο", "j": "ϕ",
-                   "F": "Φ", "G": "Γ", "L": "Λ", "P": "Π", "Q": "Θ", "Y": "Ψ", "X": "Ξ", "ò": "∫",
-                   // The equation editor's own marks: the dot operator, the minus, the primes, and the
-                   // pieces that stack into a tall bracket (Symbol 0xE6-0xFE).
-                   "×": "⋅", "-": "−", "*": "∗", "@": "≅", "~": "∼", "¢": "′", "²": "″", "¼": "…", "Õ": "∏",
+                   "F": "Φ", "G": "Γ", "L": "Λ", "P": "Π", "Q": "Θ", "Y": "Ψ", "X": "Ξ", "ò": "∫"]
+            // The equation editor's own marks, for a picture's text only (a Word document's Symbol
+            // cells keep their codes' shapes, dx4j-a94b4fd3b1): the dot operator, the minus, the
+            // primes, and the pieces that stack into a tall bracket (Symbol 0xE6-0xFE).
+            if equationMarks { map.merge(["×": "⋅", "-": "−", "*": "∗", "@": "≅", "~": "∼", "¢": "′", "²": "″", "¼": "…", "Õ": "∏",
                    "Å": "⊕", "Ä": "⊗", "Æ": "∅", "À": "ℵ", "Â": "ℑ", "Ã": "ℜ", "Ë": "⊄",
                    "ó": "⌠", "ô": "⎮", "õ": "⌡", "æ": "⎛", "ç": "⎜", "è": "⎝", "é": "⎡", "ê": "⎢", "ë": "⎣",
                    "ì": "⎧", "í": "⎨", "î": "⎩", "ï": "⎪", "ö": "⎞", "÷": "⎟", "ø": "⎠", "ù": "⎤", "ú": "⎥", "û": "⎦",
-                   "ü": "⎫", "ý": "⎬", "þ": "⎭"]
+                   "ü": "⎫", "ý": "⎬", "þ": "⎭"]) { $1 } }
         } else {
             return text
         }
