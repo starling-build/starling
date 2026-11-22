@@ -1651,6 +1651,18 @@ extension RichLayout {
                     let cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2
                     d.moveTo(cx, r.top); d.lineTo(r.right, cy); d.lineTo(cx, r.bottom); d.lineTo(r.left, cy); d.close()
                     canvas.drawPath(d, paint)
+                case 3:
+                    // The arrowhead (Wingdings D8): a dart, its tip at the right middle, a notch in its tail.
+                    let d = Path(), w = r.right - r.left, cy = (r.top + r.bottom) / 2
+                    d.moveTo(r.left, r.top); d.lineTo(r.right, cy); d.lineTo(r.left, r.bottom); d.lineTo(r.left + w * 0.3, cy); d.close()
+                    canvas.drawPath(d, paint)
+                case 4:
+                    // The check mark (Wingdings FC): a short stroke down, a long one up.
+                    let d = Path(), w = r.right - r.left, h = r.bottom - r.top
+                    d.moveTo(r.left + w * 0.04, r.top + h * 0.58); d.lineTo(r.left + w * 0.34, r.bottom - h * 0.04); d.lineTo(r.right - w * 0.02, r.top + h * 0.02)
+                    paint.style = .stroke
+                    paint.strokeWidth = max(1, h * 0.16)
+                    canvas.drawPath(d, paint)
                 default: canvas.drawRect(r, paint)
                 }
             }
