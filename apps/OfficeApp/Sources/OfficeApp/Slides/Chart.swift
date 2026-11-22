@@ -6295,7 +6295,9 @@ enum ChartPainter {
                         rect = rect.shift(Offset(back.dx, -back.dy))
                         if let last = labels.popLast() { // (On a slide, PowerPoint stands the label higher still: 5.0 less 2.3 a unit of sin(rotX) pt, at any size, gap
                         // depth or depth: Windows' lab b3dlabels, 9 variants of 5864 slide 5, within 0.2 pt.)
-                        let slideRise = c.onSlide ? (5.0 - 2.3 * sin(abs(v.x) * .pi / 180)) * k : 0
+                        // (Not a stacked column's: its label stands at the segment's centre, as the front face's, in PowerPoint's print: es 3df36ff6 p5, four stacked
+                        // 3-D charts, 11% in a 77 pt segment centred at 407.35, PowerPoint's 407.1, ours 4.4 high.)
+                        let slideRise = c.onSlide && !c.stacked ? (5.0 - 2.3 * sin(abs(v.x) * .pi / 180)) * k : 0
                         labels.append((last.0, Offset(last.1.dx + back.dx, last.1.dy - back.dy - slideRise), last.2)) }
                     }
                     if c.series[j].labelLeader, !horizontal, !c.onSlide, nudge(j, i) != .zero, !labels.isEmpty, labels[labels.count - 1].2 == j {
