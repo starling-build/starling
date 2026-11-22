@@ -1493,9 +1493,11 @@ enum ChartXML {
             let a0 = Set(lineKinds[0].all("c:axId").compactMap { $0["val"] }), a1 = Set(lineKinds[1].all("c:axId").compactMap { $0["val"] })
             let sharing = a0 == barAxes ? 0 : a1 == barAxes ? 1 : nil
             if let sharing, [a0, a1][1 - sharing] != barAxes,
-               let own = plot.all("c:valAx").first(where: { ax in [a0, a1][1 - sharing].contains(ax.first("c:axId")?["val"] ?? "") && !barAxes.contains(ax.first("c:axId")?["val"] ?? "") }),
-               own.first("c:crosses")?["val"] == "max" || own.first("c:axPos")?["val"] == "r" {
+               let own = plot.all("c:valAx").first(where: { ax in [a0, a1][1 - sharing].contains(ax.first("c:axId")?["val"] ?? "") && !barAxes.contains(ax.first("c:axId")?["val"] ?? "") }) {
                 secondAxis = own
+                columnsOnRight = plot.all("c:valAx").contains { ax in
+                    barAxes.contains(ax.first("c:axId")?["val"] ?? "") && (ax.first("c:axPos")?["val"] == "r" || ax.first("c:crosses")?["val"] == "max")
+                }
                 main = bar
                 overlay = lineKinds[1 - sharing]
                 mainLines = [lineKinds[sharing]]
@@ -1564,6 +1566,14 @@ enum ChartXML {
             }
         } else if kinds.count != 1 {
             return nil
+        }
+        if columnsOnRight, let bar = main, bar.name == "c:barChart" {
+            // (Columns on the value axis at the right: that axis is the columns' own, read first.)
+            let ids = Set(bar.all("c:axId").compactMap { $0["val"] })
+            let own = plot.children.filter { ["c:valAx", "c:catAx", "c:dateAx"].contains($0.name) && ids.contains($0.first("c:axId")?["val"] ?? "") }
+            plot.children.removeAll { n in own.contains { $0 === n } }
+            let first = plot.children.firstIndex { ["c:valAx", "c:catAx", "c:dateAx"].contains($0.name) } ?? plot.children.count
+            plot.children.insert(contentsOf: own, at: first)
         }
         guard let el = main else { return nil }
         let type: ChartType
@@ -5223,7 +5233,20 @@ enum ChartPainter {
             let shown = chartNumberText(v, code)
             return shown.isEmpty ? tickLabel(v) : shown
         }
-        let valueLabels = ticks.map { valueText(c.valueAxisDeleted ? "" : valueLabel($0), labelSize, .infinity) }
+        let valueLabelsRaw = ticks.map { valueText(c.valueAxisDeleted ? "" : valueLabel($0), labelSize, .infinity) }
+        // The second axis' labels, in its own format ("60.00%").
+        let secondTicks = secondScale.map { s2 in Array(stride(from: s2.lo, through: s2.hi + s2.step * 1e-6, by: s2.step)) } ?? []
+        let secondLabelsRaw: [TextPainter] = secondTicks.map { v in
+            let code = c.secondValueAxis?.format
+            let v = v / (c.secondValueAxis?.unitDivisor ?? 1)
+            let shown = code.map { chartNumberText(v, $0) } ?? label(v, percent: false)
+            return valueText(c.secondValueAxis?.deleted == true ? "" : (shown.isEmpty ? label(v, percent: false) : shown), labelSize, .infinity)
+        }
+        // (Columns on the value axis at the right, lines on one at the left: PowerPoint's b3af6b818144 p26 and p29 print each axis' labels
+        // on its own side, so the layout reads the left set as the lines' and the right as the columns'.)
+        let swapSides = c.onSlide && c.columnsOnRight && !horizontal && c.type == .column && !secondLabelsRaw.isEmpty
+        let valueLabels = swapSides ? secondLabelsRaw : valueLabelsRaw
+        let secondLabels = swapSides ? valueLabelsRaw : secondLabelsRaw
         // (A format's last pad, `_)`, is part of the gap to the plot, not of the labels' width: lo-tdf149985's
         // plot stands 157.8 in PowerPoint's print, the padded labels' right edge 149.5 and its gap 8.3, not 11.1.)
         let padTail: Double = {
@@ -5241,14 +5264,6 @@ enum ChartPainter {
                 canvas.restore()
             }
             tp.dispose()
-        }
-        // The second axis' labels, in its own format ("60.00%").
-        let secondTicks = secondScale.map { s2 in Array(stride(from: s2.lo, through: s2.hi + s2.step * 1e-6, by: s2.step)) } ?? []
-        let secondLabels: [TextPainter] = secondTicks.map { v in
-            let code = c.secondValueAxis?.format
-            let v = v / (c.secondValueAxis?.unitDivisor ?? 1)
-            let shown = code.map { chartNumberText(v, $0) } ?? label(v, percent: false)
-            return valueText(c.secondValueAxis?.deleted == true ? "" : (shown.isEmpty ? label(v, percent: false) : shown), labelSize, .infinity)
         }
         let catSize = c.categoryLabelSize ?? c.baseTextSize
         var catLabels: [TextPainter]
@@ -6118,7 +6133,7 @@ enum ChartPainter {
         }
         for (i, v) in ticks.enumerated() {
             let p = vpos(v)
-            let tp = valueLabels[i]
+            let tp = valueLabelsRaw[i]
             if horizontal {
                 if c.valueGrid {
                     if box != .zero {
@@ -6179,7 +6194,7 @@ enum ChartPainter {
                 // size-scaled clearance past them: lab p12-lab3, 8 pt labels' left at 37.5 and 18 pt's at 37.5, where ours followed the plot.)
                 let labelRight = pushedLabelGap != nil ? frame.left + 1.5 * k + tp.width : slideLaidColumnAxis && c.valueTicksOut ? plot.left - 9.0 * k : plot.left - (c.chartex && c.onSlide ? (c.waterfallTotals != nil ? 5 : 4) : 8.5) * k - besideOut - further + wall3D + wall3DAuto + valueLabelsBack
                 if pushedLabelGap != nil { RuleTrace.hit("slide-laid-plot-pushed-keeps-value-labels-at-the-edge") }
-                tp.paint(canvas, Offset(labelRight - tp.width, p - tp.height / 2 - lift + (wall3DAuto > 0 ? 2.6 * k : 0)))
+                if !swapSides { tp.paint(canvas, Offset(labelRight - tp.width, p - tp.height / 2 - lift + (wall3DAuto > 0 ? 2.6 * k : 0))) }
             }
         }
         // The second axis' labels, beside the plot's right edge.
@@ -6192,10 +6207,15 @@ enum ChartPainter {
         // "60.00%" on the line of "500000", where ours stood 1.5pt lower.)
         let lift2 = c.styled2013 ? 0 : (libre && inWord && c.plotLayoutInner ? 1.45 - 1.24 : 1.45) * k
         for (i, v) in secondTicks.enumerated() {
-            let tp = secondLabels[i]
+            let tp = secondLabelsRaw[i]
             // (Word for Windows stands them 10.1pt off the plot's edge: zh-61aaad09's
             // and zh-2a241df1's "60.00%" labels print 4pt right of where 6 put them.)
-            tp.paint(canvas, Offset(plot.right + (!c.onSlide && !c.onSheet && !c.chartex ? (libre && c.plotLayoutInner ? 10.1 - 2.41 : 10.1) : 6) * k, vpos2(v) - tp.height / 2 - lift2))
+            if !swapSides { tp.paint(canvas, Offset(plot.right + (!c.onSlide && !c.onSheet && !c.chartex ? (libre && c.plotLayoutInner ? 10.1 - 2.41 : 10.1) : 6) * k, vpos2(v) - tp.height / 2 - lift2)) }
+        }
+        if swapSides {
+            // The columns' labels at the right, the lines' at the left, each on its own scale.
+            for (i, v) in ticks.enumerated() { let tp = valueLabelsRaw[i]; tp.paint(canvas, Offset(plot.right + 6 * k, vpos(v) - tp.height / 2 - lift2)) }
+            for (i, v) in secondTicks.enumerated() { let tp = secondLabelsRaw[i]; tp.paint(canvas, Offset(plot.left - (c.styled2013 ? 8.5 : 11.1) * k - tp.width, vpos2(v) - tp.height / 2 - lift2)) }
         }
         // (Its title, turned, 4.6 pt past the widest label and over the plot's middle: zh-b8de3ae2's
         // "%" at 534.6 where the labels end 530, in a Word document whose file places the plot.)
