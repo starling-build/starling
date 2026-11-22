@@ -1424,6 +1424,7 @@ final class DeckController: ChangeNotifier {
         let theme = RichTextTheme(fontFamily: font, fontSize: size, textColor: color, caretColor: color,
                                   headingColor: nil, listIndent: 18)
         theme.fontFamilyResolver = SlideFonts.resolve
+        theme.baselineScalesWithSpacing = SlideFonts.isArabicLineFace
         theme.ownDescentShare = SlideFonts.ownDescentShare   // and sets a baseline by the face named
         theme.faceResolver = SlideFonts.face                 // and sets Lucida Sans Unicode at its own widths
         theme.setsFaceAdvances = true

@@ -453,6 +453,10 @@ enum SlideFonts {
         return (1.3 * units / upem, (descent / units + 0.15) / 1.3)
     }
 
+    static func isArabicLineFace(_ family: String) -> Bool {
+        ["traditional arabic", "sakkal majalla", "majalla ui", "simplified arabic", "arabic typesetting"].contains(family.trimmingWhitespace().lowercased())
+    }
+
     static func ownDescentShare(_ family: String) -> Double? {
         guard OfficeFonts.installed(family) == nil else { return nil }
         let n = windowsName(family)
