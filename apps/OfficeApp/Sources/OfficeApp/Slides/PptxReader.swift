@@ -525,8 +525,27 @@ private struct LevelStyle {
     /// Wingdings' common bullets as our own shapes, from the face's measured
     /// ink box (metrics only): kind (0 round, 1 square, 2 diamond), x0, y0, x1, y1 in ems.
     var bulletInk: [Double]? {
-        guard let ch = bulletChar, let scalar = ch.unicodeScalars.first, (bulletFont ?? "").lowercased() == "wingdings" else { return nil }
+        guard let ch = bulletChar, let scalar = ch.unicodeScalars.first else { return nil }
+        let face = (bulletFont ?? "").lowercased()
         let code = (0xF000 ... 0xF0FF).contains(scalar.value) ? scalar.value - 0xF000 : scalar.value
+        // Wingdings 2 and 3 (lab wing2, measured on PowerPoint's print at 18/28/40 pt): a small dot, a small
+        // square, a diamond; two right triangles (kind 6).
+        if face == "wingdings 2" {
+            switch code {
+            case 0x96: return [0, 0.0870, 0.2660, 0.2800, 0.4580]
+            case 0xA0: return [1, 0.0870, 0.2650, 0.2800, 0.4575]
+            case 0xAE: return [2, 0.0870, 0.0880, 0.6310, 0.6315]
+            default: return nil
+            }
+        }
+        if face == "wingdings 3" {
+            switch code {
+            case 0x75: return [6, 0.0870, -0.0555, 0.8085, 0.7780]
+            case 0x84: return [6, 0.2188, 0.0495, 0.7595, 0.6730]
+            default: return nil
+            }
+        }
+        guard face == "wingdings" else { return nil }
         switch code {
         case 0x6C: return [0, 0.0845, 0.0723, 0.6631, 0.6504]
         case 0x6E: return [1, 0.0845, 0.0723, 0.6626, 0.6504]
@@ -556,7 +575,10 @@ private struct LevelStyle {
         // prints (GeomLec1's and aascu 5864's bullets) — the one code of
         // that face the corpus shows printed.
         if face == "wingdings 3" {
-            return [0x7D: "▸"][code]
+            return [0x7D: "▸", 0x75: "▸", 0x84: "▸"][code]
+        }
+        if face == "wingdings 2" {
+            return [0x96: "•", 0xA0: "▪", 0xAE: "◆"][code]
         }
         if face.hasPrefix("wingdings") {
             let map: [UInt32: String] = [

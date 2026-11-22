@@ -1652,6 +1652,11 @@ extension RichLayout {
                     let cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2
                     d.moveTo(cx, r.top); d.lineTo(r.right, cy); d.lineTo(cx, r.bottom); d.lineTo(r.left, cy); d.close()
                     canvas.drawPath(d, paint)
+                case 6:
+                    // The right-pointing triangle (Wingdings 3 75, 84).
+                    let d = Path(), cy = (r.top + r.bottom) / 2
+                    d.moveTo(r.left, r.top); d.lineTo(r.right, cy); d.lineTo(r.left, r.bottom); d.close()
+                    canvas.drawPath(d, paint)
                 case 3:
                     // The arrowhead (Wingdings D8): a dart, its tip at the right middle, a notch in its tail.
                     let d = Path(), w = r.right - r.left, cy = (r.top + r.bottom) / 2
