@@ -4247,7 +4247,8 @@ private struct SlideContext {
                 let s = (p.first("a:endParaRPr").map { LevelStyle.run($0, colors) } ?? LevelStyle()).filled(from: level)
                 let mark = CharStyle(
                     bold: s.bold ?? false, italic: s.italic ?? false, fontFamily: _font(s.font),
-                    fontSize: ((s.size ?? 18) * 10).rounded() / 10, color: s.color ?? tx1)
+                    fontSize: ((s.size ?? 18) * ((s.baseline ?? 0) != 0 ? 2.0 / 3 : 1) * 10).rounded() / 10, color: s.color ?? tx1)
+                // (A raised or lowered mark is two thirds of its size: bab9be95 p14's 14 pt mark over a break stands its next paragraph 28.1 pt on, not 33.6.)
                 if runs.last != nil {
                     text += "\u{200B}"
                     runs.append(Run(length: 1, style: mark))
