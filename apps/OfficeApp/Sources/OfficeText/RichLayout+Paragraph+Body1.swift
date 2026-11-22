@@ -252,7 +252,7 @@ extension _ParaFrame {
                 if k > 0, k < units.count, units[k] == 0x29 { return units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 }
                 // (A ” after kanji or kana is full width in the East Asian face and never hangs: lab hang3 slide 7 breaks "課|程”" below its width.)
                 if k > 0, k < units.count, units[k] == 0x201D, units[k - 1] >= 0x3040, units[k - 1] <= 0x9FFF { return false }
-                return k < units.count && (units[k] == 0x3001 || units[k] == 0x3002 || units[k] == 0xFF0C || units[k] == 0xFF0E || units[k] == 0x201D) }
+                return k < units.count && (units[k] == 0x3001 || units[k] == 0x3002 || units[k] == 0xFF0C || units[k] == 0xFF0E || units[k] == 0x201D) && _markHangs(p, k) }
             var stays = Set<Int>()
             for _ in 0 ..< 3 {
                 let map = _map(i)

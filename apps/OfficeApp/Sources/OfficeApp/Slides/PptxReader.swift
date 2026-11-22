@@ -3827,6 +3827,7 @@ private struct SlideContext {
             var text = ""
             var runs: [Run] = []
             var looks: [RunLook] = []
+            var plainMarks: [Int] = []
             var mathImages: [String: ImageAttachment] = [:]
             func add(_ t0: String, _ r: LevelStyle, _ rPr: XNode? = nil, inline: String? = nil) {
                 guard !t0.isEmpty else { return }
@@ -3865,6 +3866,12 @@ private struct SlideContext {
                 if body?.first("a:bodyPr")?.first("a:prstTxWarp") == nil, (cs.color?.alpha ?? 255) == 255 { cs.outline = s.outline; cs.noFill = s.noFill && s.outline != nil }
                 if s.caps == "all" { cs.caps = true } else if s.caps == "small" { cs.smallCaps = true }
                 if let inline { cs.inlineImage = inline }
+                // (A 、。，． in a run tagged with a language that is not East Asian (an untagged run inherits the deck's) does not hang:
+                // 505a93a9 p14's untagged 。 opens the next line alone.)
+                if let l = (s.lang ?? defaults?.first("a:defPPr")?.first("a:defRPr")?["lang"])?.lowercased(), !l.isEmpty, !["ja", "ko", "zh"].contains(where: { l.hasPrefix($0) }) {
+                    var at = text.utf16.count
+                    for u in t.utf16 { if u == 0x3001 || u == 0x3002 || u == 0xFF0C || u == 0xFF0E { plainMarks.append(at) }; at += 1 }
+                }
                 text += t
                 // Hebrew, Arabic and Thai letters in the complex-script
                 // face, as PowerPoint sets them: tdf98603's Hebrew title is
@@ -4062,6 +4069,7 @@ private struct SlideContext {
                 }
                 var made = RichParagraph(text: text, runs: runs, style: style)
                 made.inlineImages = mathImages
+                if !plainMarks.isEmpty { made.style.eastAsian["a:noHangMarks"] = plainMarks.map(String.init).joined(separator: ",") }
                 // (A display equation sits by its own `m:jc` (centred by default), whatever the paragraph says.)
                 if !mathImages.isEmpty, let para = p.all("a14:m").first?.first("m:oMathPara"), p.all("a:r").isEmpty {
                     switch para.first("m:oMathParaPr")?.first("m:jc")?["m:val"] {
