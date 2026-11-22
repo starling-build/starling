@@ -2591,7 +2591,7 @@ extension RichLayout {
                         if !theme.wordRules {
                             let q = document.paragraphs[k]
                             let m = q.style.lineSpacing
-                            if m > 1.0834, q.style.lineHeightPoints == nil, !q.text.isEmpty {
+                            if m > 1.0, q.style.lineHeightPoints == nil, !q.text.isEmpty {
                                 let big = q.runs.max { ($0.style.fontSize ?? 0) < ($1.style.fontSize ?? 0) }
                                 let sz = big?.style.fontSize ?? theme.fontSize
                                 // (Lab tbl-lnspc2, 15 slides: the first line adds 0.9 x size x (m-1), less 0.0717 x size
