@@ -1415,6 +1415,17 @@ extension RichLayout {
         return w
     }
 
+    /// `ch` alone, with no neighbour's kerning in it (`_glyphWidth` is measured between two x's, the stand-in's kern with them included).
+    func _bareAdvance(_ style: TextStyle, _ ch: Character) -> Double {
+        let key = "\(ch)|bare|\(style.fontFamily ?? "")|\(style.fontSize ?? 0)|\(style.fontWeight == .bold)|\(style.fontStyle == .italic)"
+            + (style.scaleX.map { $0 == 1 ? "" : "|x\($0)" } ?? "")
+        if let w = _spaceWidths[key] { return w }
+        let t = TextPainter(text: TextSpan(text: String(ch), style: style.copyWith(letterSpacing: 0)), textDirection: .ltr)
+        t.layout(minWidth: 0, maxWidth: 100_000)
+        defer { t.dispose() }
+        _spaceWidths[key] = t.width
+        return t.width
+    }
     func _glyphWidth(_ style: TextStyle, _ ch: Character) -> Double {
         let key = "\(ch)|\(style.fontFamily ?? "")|\(style.fontSize ?? 0)|\(style.fontWeight == .bold)|\(style.fontStyle == .italic)"
             + (style.fontFeatures?.isEmpty ?? true ? "" : "|f" + style.fontFeatures!.map { "\($0.feature)\($0.value)" }.joined())
