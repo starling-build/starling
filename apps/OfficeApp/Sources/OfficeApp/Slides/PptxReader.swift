@@ -4344,6 +4344,9 @@ private struct SlideContext {
                     case "right": made.style.alignment = .right
                     default: made.style.alignment = .center
                     }
+                    // (A display equation paragraph stands no space before: 51f605f6 p22's equation, under a 10 pt space-before, has
+                    // its baseline 24 pt under the line above in PowerPoint's print, one line of the text, where ours stood 34.)
+                    made.style.spaceBefore = 0
                 }
                 paragraphs.append(made)
             }
