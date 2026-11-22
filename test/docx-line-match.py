@@ -216,6 +216,9 @@ def _columns(singles, total):
     return rows
 
 
+OFFPAGE = False
+
+
 def mupdf_glyphs(pdf, drop=None):
     """v2's rows, from the page's glyphs rather than the reader's lines.
     Each line of text set across is the inked glyphs on one baseline:
@@ -257,6 +260,9 @@ def mupdf_glyphs(pdf, drop=None):
                     line_no += 1
                     across = tuple(round(v, 3) for v in l["dir"]) == (1, 0)
                     inked = [(c, s["size"]) for s in l["spans"] for c in s["chars"] if not _inkless(c["c"])]
+                    if OFFPAGE:   # Slides (pptx-line-match.py): a glyph whose origin lies outside the page is not drawn on it, on either side
+                        R = page.rect
+                        inked = [(c, z) for c, z in inked if R.x0 <= c["origin"][0] <= R.x1 and R.y0 <= c["origin"][1] <= R.y1]
                     if not inked:
                         continue
                     if across:
