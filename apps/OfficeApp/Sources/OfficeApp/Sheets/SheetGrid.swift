@@ -2684,10 +2684,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
         }
         let pad = 2 * zoom   // Excel's cell margin
+        let wrapLess = 0.5 * zoom
         // Wrapped text: lines within the cell's width, never spilling.
         let wraps = st.wrap && cell.value.isText
         let lineAlign: TextAlign = align == .center ? .center : align == .right ? .right : .left
-        var tp = texts.painter(text, style, maxWidth: wraps ? max(1, width - pad * 2) : .infinity, align: wraps ? lineAlign : .left)
+        var tp = texts.painter(text, style, maxWidth: wraps ? max(1, width - pad * 2 - wrapLess) : .infinity, align: wraps ? lineAlign : .left)
         // A number too wide for its cell is ####, never cut.
         if case .number = cell.value, lead + tp.width > width - pad * 2 {
             let hashes = max(1, Int((width - pad * 2) / max(1, texts.painter("#", style).width)))
@@ -2807,7 +2808,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // the first at the head, the middle in the centre — stands where
         // one line would (52716's last lines with their rows' numbers).
         if printing && wraps {
-            let lines = texts._breakLines(NumberFormat.unpad(text), style, max(1, width - pad * 2))
+            let lines = texts._breakLines(NumberFormat.unpad(text), style, max(1, width - pad * 2 - wrapLess))
                 .split(separator: "\n", omittingEmptySubsequences: false)
             if lines.count > 1 {
                 let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
@@ -3336,7 +3337,12 @@ final class _TextCache {
     private func _advance(_ ch: Character, _ natural: Double, _ style: GridTextStyle) -> Double {
         let a = _own(ch, style).map { $0 * style.size } ?? natural
         guard style.dots > 0, style.size > 0 else { return a }
-        let em = (style.size * style.dots).rounded()
+        // (A font of exactly half a dot goes to the even dot: Calibri 11
+        // at 66 % is 60.5 dots and Excel's print sets it in 60 — 7.2 pt,
+        // digits 3.60 — where 61 put CVLKRA-KYC's "01/01/2" in a line of
+        // 36 pt it breaks.)
+        let exact = (style.size * style.dots * 1e6).rounded() / 1e6
+        let em = exact.rounded(.toNearestOrEven)
         let hinted = style.hint.isEmpty ? 0 : SheetHinting.departure(style.hint, em: Int(em), ch)
         return ((a / style.size * em).rounded() + Double(hinted)) / style.dots
     }
