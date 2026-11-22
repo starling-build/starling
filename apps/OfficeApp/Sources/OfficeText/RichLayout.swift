@@ -1203,7 +1203,6 @@ public struct RichResolvedFace: Sendable {
     /// draws them, and the line is set by the original's widths (Times
     /// New Roman's Roman numerals, Ⅳ wider than an em).
     public var otherAdvances: [UInt32: Double]? = nil
-    public var proportionalEastAsia = false
     /// A missing Korean face Word draws in Batang: its quotes, circles and circled digits come from Malgun Gothic, and a line holding one is Malgun's height.
     public var malgunSymbols = false
     /// The face's own tables hold EVERY character it has (a full cmap read from the Windows metrics): a character they lack is one the face lacks, and Word draws it in a fallback face picked by the character's script and the face's class (`sansClass`: Verdana-like, else serif).

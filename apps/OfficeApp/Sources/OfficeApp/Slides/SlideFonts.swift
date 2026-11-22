@@ -121,12 +121,12 @@ enum SlideFonts {
         // (None of a stand-in's widths for the machine's own face.)
         guard let family, OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil else { return nil }
         // (An East Asian query is answered for Malgun Gothic only, whose Hangul em the layout asks for by it.)
-        guard !eastAsian || windowsName(family) == "ms pgothic" || windowsName(family) == "ｍｓ ｐゴシック" || windowsName(family) == "malgun gothic" || windowsName(family) == "맑은 고딕" || missingKoreanGothic(family) || koreanOwnFace(family) else { return nil }
+        guard !eastAsian || windowsName(family) == "malgun gothic" || windowsName(family) == "맑은 고딕" || missingKoreanGothic(family) || koreanOwnFace(family) else { return nil }
         if let cuts = SlideEastAsianWidths.lookup(windowsName(family)) ?? (missingKoreanGothic(family) ? SlideEastAsianWidths.malgun : nil) {
             // (An East Asian face at its own measured widths, Latin and the rest past ASCII: PowerPoint sets it by itself, not by a stand-in's.)
             // (Built once per family: parsing its advance table for every run made a 560-slide deck take over ten minutes.)
             eastAsianLock.lock(); defer { eastAsianLock.unlock() }
-            if let made = eastAsianMade[family + (eastAsian ? "|ea" : "")] { return made }
+            if let made = eastAsianMade[family] { return made }
             var face = RichResolvedFace(family: resolve(family))
             let regular = SlideEastAsianWidths.parse(cuts.regular.other)
             // (A face with no real bold is emboldened by PowerPoint itself: the regular outline filled and stroked, each advance
@@ -136,7 +136,6 @@ enum SlideFonts {
             face.advances = cuts.regular.ascii
             face.boldAdvances = cuts.bold?.ascii ?? cuts.regular.ascii.map { $0 * k }
             face.otherAdvances = regular
-            face.proportionalEastAsia = eastAsian
             face.boldOtherAdvances = bold
             if koreanOwnFace(family) { face.otherAdvances?[0xAC00] = 1.0; face.boldOtherAdvances?[0xAC00] = cuts.bold == nil ? k : 1.0 }
             // (Malgun Gothic's Hangul is an em, which the table of advances that are not one does not hold.)
@@ -172,7 +171,7 @@ enum SlideFonts {
             }
             // (Rockwell and Tw Cen MT kern, as PowerPoint prints them, by the pairs of the font's own kern table.)
             if let k = SlideLatinKerns.lookup(windowsName(family)) { face.kerns = k.regular; face.boldKerns = k.bold ?? k.regular; face.kernsOutsideWord = true }
-            eastAsianMade[family + (eastAsian ? "|ea" : "")] = face
+            eastAsianMade[family] = face
             return face
         }
         switch windowsName(family) {
