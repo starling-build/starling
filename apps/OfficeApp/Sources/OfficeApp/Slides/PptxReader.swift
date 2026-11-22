@@ -2740,6 +2740,19 @@ private struct SlideContext {
                             style.firstLineIndent = level.indent ?? 0
                         }
                     }
+                    // (A cell paragraph that says rtl="1" over Arabic or Hebrew letters, or a list, is right to left as a text box's:
+                    // its bullet and hanging indent at the right, algn's page sides swapped for the layout. rtl/7854f160 p13's table:
+                    // the "-" bullet stands at the right of the text in PowerPoint's print, 508.4 pt, we drew it at the left end.)
+                    if p.first("a:pPr")?["rtl"] == "1",
+                       text.unicodeScalars.contains(where: { u in
+                           (0x0590 ... 0x08FF ~= u.value || 0xFB1D ... 0xFDFF ~= u.value || 0xFE70 ... 0xFEFF ~= u.value) && u.properties.isAlphabetic })
+                        || (p.first("a:pPr")?["rtl"] == "1" && style.list != nil) {
+                        style.rightToLeft = true
+                        // (The layout adds the list's own 18 pt slot to the start edge; the file's marL and indent are the whole of it:
+                        // marL 27, indent -27 puts the text 27 pt in and the bullet at the edge, as PowerPoint prints it.)
+                        if style.list != nil { style.bulletAtEnd = true; if level.marL != nil || level.indent != nil { style.indentLeft -= 18 } }
+                        if style.alignment == .left { style.alignment = .right } else if style.alignment == .right { style.alignment = .left }
+                    }
                     if let marR = level.marR, marR > 0 { style.indentRight = marR }
                     // An empty paragraph is as tall as its end mark says
                     // (`endParaRPr`): a row grows for 96 pt of nothing
