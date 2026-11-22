@@ -41,11 +41,9 @@ struct EmfPlus {
     struct Linear { var rect: Rect, colors: [Color], stops: [Double], transform: Matrix }
     /// A path gradient brush: the colour at `center` shades to one surround colour at the boundary path (ARGB words), in the brush's own transform.
     struct PathGradient { var center: Offset, centerARGB: Int, surroundARGB: Int, boundary: PlusPath, transform: Matrix }
-    /// A hatch brush: families of one pixel wide lines in device units, the foreground colour on the background.
-    struct Hatch {
-        struct Line { enum Kind { case horizontal, vertical, forward, backward }; var kind: Kind, pitch: Int }
-        var lines: [Line], fore: Color, back: Color
-    }
+    /// A hatch brush: PowerPoint prints it as a tiling pattern of a 32 x 32 pixel one-bit cell, every style an 8 x 8 pixel period (`bits`: row 0 in the
+    /// top byte, the leftmost pixel the byte's top bit, a set bit the foreground), a pixel 4/3 device pixels, on a grid from the picture's top left.
+    struct Hatch { var bits: UInt64, fore: Color, back: Color }
     enum Object { case brush(Color?), hatch(Hatch), linear(Linear), pathGradient(PathGradient), pen(Pen), path(PlusPath), region(Region), font(Font), image(Int), other }
 
     static let ident: Int64 = 0x2B46_4D45   // "EMF+"
@@ -185,56 +183,56 @@ struct EmfPlus {
         return PathGradient(center: Offset(f32(b, at + 20), f32(b, at + 24)), centerARGB: u32(b, at + 16), surroundARGB: surround, boundary: boundary, transform: m)
     }
 
-    /// A hatch brush (version, type 1, style, foreground, background): its style as families of one device pixel wide lines on an
-    /// 8 pixel pitch. Horizontal, vertical, the two diagonals, the cross and the diagonal cross, and 50 percent (a checkerboard, which at
-    /// one pixel is diagonal lines two pixels apart). A style whose tile is not one of these is nil, unless the two colours are the
-    /// same (then any style is that colour).
+    /// The 8 x 8 cell of each GDI+ hatch style 0 to 52, decoded from the tiling patterns PowerPoint printed for them (lab hatch, 2026-11-22).
+    static let hatchCells: [UInt64] = [
+        0xFF00000000000000, 0x8080808080808080, 0x8040201008040201, 0x0102040810204080, 0xFF80808080808080, 0x8142241818244281,
+        0x8000000008000000, 0x8000080080000800, 0x8800220088002200, 0x8822882288228822, 0xAA44AA11AA44AA11, 0xAA55AA51AA55AA15,
+        0xAA55AA55AA55AA55, 0xEE55BB55EE55BB55, 0x77DD77DD77DD77DD, 0x77FFDDFF77FFDDFF, 0xEFFFFEFFEFFFFEFF, 0xFFFFFFF7FFFFFF7F,
+        0x8844221188442211, 0x1122448811224488, 0xCC663399CC663399, 0x3366CC993366CC99, 0xC1E070381C0E0783, 0x83070E1C3870E0C1,
+        0x8888888888888888, 0xFF000000FF000000, 0x5555555555555555, 0xFF00FF00FF00FF00, 0xCCCCCCCCCCCCCCCC, 0xFFFF0000FFFF0000,
+        0x0000884422110000, 0x0000112244880000, 0xF00000000F000000, 0x8080808008080808, 0x8008400210012004, 0xB130031BD8C00C8D,
+        0x8142241881422418, 0x001825C0001825C0, 0x0102040818244281, 0xFF808080FF080808, 0x8854224588142251, 0xAA55AA55F0F0F0F0,
+        0x0010081000800180, 0xAA00800080008000, 0x8000220008002200, 0x038448300C020101, 0xFF66FF99FF66FF99, 0x77898F8F7798F8F8,
+        0xFF888888FF888888, 0x9966669999666699, 0xF0F0F0F00F0F0F0F, 0x8244281028448201, 0x10387CFE7C381000]
+    /// A device pixel count of one hatch cell pixel (a point at the picture's natural size, the device 96 to the inch).
+    static let hatchPixel = 4.0 / 3.0
+
+    /// A hatch brush (version, type 1, style, foreground, background): its style's cell, or nil for a style GDI+ does not have, unless
+    /// the two colours are the same (then any style is that colour).
     static func readHatch(_ b: [UInt8], _ at: Int, _ end: Int) -> Object? {
         guard at + 20 <= end, end <= b.count else { return nil }
         let style = u32(b, at + 8), fore = u32(b, at + 12), back = u32(b, at + 16)
         if fore == back { return .brush(Color(Int64(fore))) }
-        let lines: [Hatch.Line]
-        switch style {
-        case 0: lines = [.init(kind: .horizontal, pitch: 8)]
-        case 1: lines = [.init(kind: .vertical, pitch: 8)]
-        case 2: lines = [.init(kind: .forward, pitch: 8)]
-        case 3: lines = [.init(kind: .backward, pitch: 8)]
-        case 4: lines = [.init(kind: .horizontal, pitch: 8), .init(kind: .vertical, pitch: 8)]
-        case 5: lines = [.init(kind: .forward, pitch: 8), .init(kind: .backward, pitch: 8)]
-        case 12: lines = [.init(kind: .backward, pitch: 2)]
-        default: return nil
-        }
-        return .hatch(Hatch(lines: lines, fore: Color(Int64(fore)), back: Color(Int64(back))))
+        guard style >= 0, style < hatchCells.count else { return nil }
+        return .hatch(Hatch(bits: hatchCells[style], fore: Color(Int64(fore)), back: Color(Int64(back))))
     }
 
-    /// The hatch's lines over `r`, as one path in device units.
+    /// The hatch's foreground cells over `r`, as one path in device units (rows alike in the cell merged, runs of cells in a row merged).
     static func hatchLines(_ h: Hatch, _ r: Rect) -> Path {
         let out = Path()
-        func strip(_ pts: [(Double, Double)]) {
-            out.moveTo(pts[0].0, pts[0].1)
-            for q in pts.dropFirst() { out.lineTo(q.0, q.1) }
-            out.close()
-        }
-        for l in h.lines {
-            let k = Double(l.pitch)
-            switch l.kind {
-            case .horizontal:
-                var y = (r.top / k).rounded(.down) * k
-                while y < r.bottom { strip([(r.left, y), (r.right, y), (r.right, y + 1), (r.left, y + 1)]); y += k }
-            case .vertical:
-                var x = (r.left / k).rounded(.down) * k
-                while x < r.right { strip([(x, r.top), (x + 1, r.top), (x + 1, r.bottom), (x, r.bottom)]); x += k }
-            case .forward:   // upper left to lower right: x - y is constant
-                var c = ((r.left - r.bottom) / k).rounded(.down) * k
-                while c < r.right - r.top {
-                    strip([(c + r.top, r.top), (c + 1 + r.top, r.top), (c + 1 + r.bottom, r.bottom), (c + r.bottom, r.bottom)]); c += k
-                }
-            case .backward:  // upper right to lower left: x + y is constant
-                var c = ((r.left + r.top) / k).rounded(.down) * k
-                while c < r.right + r.bottom {
-                    strip([(c - r.top, r.top), (c + 1 - r.top, r.top), (c + 1 - r.bottom, r.bottom), (c - r.bottom, r.bottom)]); c += k
+        let k = hatchPixel
+        let x0 = Int((r.left / k).rounded(.down)), x1 = Int((r.right / k).rounded(.up))
+        let y0 = Int((r.top / k).rounded(.down)), y1 = Int((r.bottom / k).rounded(.up))
+        guard x1 > x0, y1 > y0, (x1 - x0) * (y1 - y0) < 4_000_000 else { return out }
+        func row(_ y: Int) -> UInt8 { UInt8(truncatingIfNeeded: h.bits >> UInt64((7 - ((y % 8) + 8) % 8) * 8)) }
+        var y = y0
+        while y < y1 {
+            let byte = row(y)
+            var e = y + 1
+            while e < y1, row(e) == byte { e += 1 }
+            if byte != 0 {
+                var x = x0
+                while x < x1 {
+                    func on(_ x: Int) -> Bool { byte >> UInt8(7 - ((x % 8) + 8) % 8) & 1 == 1 }
+                    guard on(x) else { x += 1; continue }
+                    var f = x + 1
+                    while f < x1, on(f) { f += 1 }
+                    let l = Double(x) * k, rt = Double(f) * k, t = Double(y) * k, bt = Double(e) * k
+                    out.moveTo(l, t); out.lineTo(rt, t); out.lineTo(rt, bt); out.lineTo(l, bt); out.close()
+                    x = f
                 }
             }
+            y = e
         }
         return out
     }
