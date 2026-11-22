@@ -4199,6 +4199,12 @@ private struct SlideContext {
                         // (An ASCII character is set in the Latin slot's face, between Hangul too: the "(" and ")" of a run naming Batang
                         // as Latin only are Batang's 4.50 pt at 12, not the theme Hangul face's 3.62; ko-d8f0a8af p5.)
                         if pieces[pieces.count - 1].script == nil { pieces[pieces.count - 1].length += n } else { pieces.append((n, nil)) }
+                    } else if letter, !sawLetter, script == "ea", pieces[pieces.count - 1].script == nil,
+                              Array(t.utf16.prefix(pieces[pieces.count - 1].length)).allSatisfy({ $0 < 0x80 }) {
+                        // (An ASCII mark ahead of the first East Asian letter keeps the Latin slot too: the "(" of "(一)封面" is 8.2 pt at 25.56 in
+                        // PowerPoint's print, not the East Asian face's 12.8; zh dcf0f34a8d3a p11.)
+                        pieces.append((n, script))
+                        sawLetter = true
                     } else if letter, !sawLetter {
                         // The first letter claims what came before it.
                         pieces[pieces.count - 1].script = script
