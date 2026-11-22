@@ -68,13 +68,20 @@ enum SlideFonts {
     /// plus 0.2 em, from the column's right edge, and stands (win ascent - 0.8 em) down from the column's top. Win metrics over em by face
     /// (vertical tables, cjk-line-20261122; Yu Gothic's descent from its measured column).
     static func uprightColumn(_ family: String, bold: Bool) -> (ascent: Double, line: Double)? {
+        // (Its places are wider than an em by the spacing set after each ideograph, half of which leads the glyph: taken off the along shift.)
+        uprightMetrics(family, bold: bold).map { ($0.ascent - ($0.step - 1) / 2, $0.line) }
+    }
+
+    /// An upright column's face: win ascent and line, and the vmtx advance of an ideograph, all in em (vertical tables cjk-vertical-20261122).
+    // (Yu Gothic: the line is win ascent + descent 2636/2048 plus 0.08 em, the one column printed in lab vface: 24.63 pt from the box left at 20 pt, 0.8 pt left of the bare sum; fitted, no table value explains it.)
+    static func uprightMetrics(_ family: String, bold: Bool) -> (ascent: Double, line: Double, step: Double)? {
         switch windowsName(family) {
-        case "microsoft jhenghei", "微軟正黑體": return (2203.0 / 2048, 2724.0 / 2048)
-        case "microsoft yahei", "微软雅黑": return (2167.0 / 2048, 2703.0 / 2048)
-        case "malgun gothic", "맑은 고딕": return (2229.0 / 2048, 2724.0 / 2048)
-        case "yu gothic", "游ゴシック": return ((bold ? 2024.0 : 2017.0) / 2048, 2632.0 / 2048)
-        case "simsun", "宋体", "simhei", "黑体", "nsimsun", "ms gothic", "ｍｓ ゴシック", "ms pgothic", "ｍｓ ｐゴシック", "ms ui gothic", "ｍｓ ｕｉ ゴシック": return (220.0 / 256, 1)
-        case "mingliu", "細明體", "pmingliu", "新細明體", "dfkai-sb", "標楷體": return (820.0 / 1024, 1)
+        case "microsoft jhenghei", "微軟正黑體": return (2203.0 / 2048, 2724.0 / 2048, 1)
+        case "microsoft yahei", "微软雅黑": return (2167.0 / 2048, 2703.0 / 2048, 1)
+        case "malgun gothic", "맑은 고딕": return (2229.0 / 2048, 2724.0 / 2048, 2176.0 / 2048)
+        case "yu gothic", "游ゴシック": return ((bold ? 2024.0 : 2017.0) / 2048, 2636.0 / 2048 + 0.08, 1)
+        case "simsun", "宋体", "simhei", "黑体", "nsimsun", "ms gothic", "ｍｓ ゴシック", "ms pgothic", "ｍｓ ｐゴシック", "ms ui gothic", "ｍｓ ｕｉ ゴシック": return (220.0 / 256, 1, 1)
+        case "mingliu", "細明體", "pmingliu", "新細明體", "dfkai-sb", "標楷體": return (820.0 / 1024, 1, 1)
         default: return nil
         }
     }
