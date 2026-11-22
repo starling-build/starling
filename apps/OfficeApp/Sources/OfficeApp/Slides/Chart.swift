@@ -5179,6 +5179,7 @@ enum ChartPainter {
             return valueText(c.secondValueAxis?.deleted == true ? "" : (shown.isEmpty ? label(v, percent: false) : shown), labelSize, .infinity)
         }
         let catSize = c.categoryLabelSize ?? c.baseTextSize
+        var namesDropped = false
         var catLabels: [TextPainter]
         // Categories too long for their slot even word by word are set
         // aslant, a quarter of a right angle up to the right and ending
@@ -5225,6 +5226,21 @@ enum ChartPainter {
                 return out
             }
             catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : holdWords($0), catSize, horizontal ? (c.categoryLevels.isEmpty && !(c.valueReversed && c.onSlide) ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : c.onEdges && c.type == .line ? slot * Double(c.categories.count) / Double(c.categories.count - 1) * Double(max(1, c.categoryLabelSkip)) : max(slot * Double(max(1, c.categoryLabelSkip)) - (c.onSlide ? 4.5 : 2) * k, 8 * k)) }
+            // (A laid plot's category names are not drawn at all where one WORD of a name is wider than its slot, the plot's width over
+            // the categories, PowerPoint never breaking inside a word: lab p12-lab2 of 7bf37d72, "enrollment" at 16 pt 74.7 pt in a
+            // 57.4 pt slot (the layout's 59.2 before the cut at the chart's edge) dropped every name, at 12 pt 56.0 drawn; explicit line breaks split a name into words first (lab p12-lab3).
+            // The edge is bracketed, 56.0 drawn and 74.7 dropped.)
+            if c.onSlide, !horizontal, c.type == .column || c.type == .line, let laid = placed, c.plotLayoutInner, !c.categoryAxisDeleted, n > 0, (c.categoryLabelTurn ?? 0) == 0 {
+                let slotWide = laid.width / Double(n)
+                let widestWord = c.categories.flatMap { $0.split(whereSeparator: { $0 == " " || $0 == "\n" }).map(String.init) }
+                    .map { w -> Double in let t = categoryText(w, catSize, .infinity); defer { t.dispose() }; return t.width }.max() ?? 0
+                if widestWord > slotWide {
+                    for t in catLabels { t.dispose() }
+                    catLabels = c.categories.map { _ in categoryText("", catSize, .infinity) }
+                    namesDropped = true
+                    RuleTrace.hit("slide-laid-plot-names-dropped-when-a-word-is-wider-than-its-slot")
+                }
+            }
             if !horizontal, c.type != .area, !c.categoryAxisDeleted, let turn = c.categoryLabelTurn {
                 // As the file says: turned (up to a quarter, either way) or
                 // level.
@@ -5243,7 +5259,7 @@ enum ChartPainter {
                     let upright = abs(turn) >= 90 && !c.onSlide && !c.onSheet
                     catLabels = c.categories.map { categoryText($0, catSize, upright ? 0.5 * area.height : .infinity) }
                 }
-            } else if !horizontal, !c.categoryLabelsSparse, c.type != .area || (!c.onSlide && !c.onSheet), !c.categoryAxisDeleted {
+            } else if !horizontal, !c.categoryLabelsSparse, c.type != .area || (!c.onSlide && !c.onSheet), !c.categoryAxisDeleted, !namesDropped {
                 // (An area chart's date labels in a Word document are turned a
                 // quarter right angle, like the columns', when they do not fit
                 // their slots: lo-c996762f20bf4f32's five dates in a 217pt chart;
@@ -5809,7 +5825,7 @@ enum ChartPainter {
                     // (Names that do not fit their slots of the wall as Word sets it turn
                     // a quarter: lab set B, seven CJK names in 63 pt slots are turned
                     // and in 70 pt slots level.)
-                    if !aslant, c.categoryLabelTurn == nil, !c.categoryAxisDeleted, n > 0 {
+                    if !aslant, c.categoryLabelTurn == nil, !c.categoryAxisDeleted, n > 0, !namesDropped {
                         let room = (fit.right - fit.left) / Double(n)
                         let widest = c.categories.flatMap { $0.split(separator: " ").map(String.init) }.map { w -> Double in
                             let t = categoryText(w, catSize, .infinity)
