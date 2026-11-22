@@ -74,6 +74,12 @@ if [ -n "${BASE_BIN:-}" ]; then
     PDFDIFF_NO_PAIRS=1 OFFICE_APP=$(readlink -f "$BASE_BIN") "$ROOT/test/pptx-app-render.sh" -j "$JOBS" "$DECKS" "$PPT" "$W/base" $(ls -SL "$DECKS" | grep '\.pptx$') > "$W/base/run.log" 2>&1
     [ -s "$W/base/render.tsv" ] || { echo "slides-gate: base render produced no scores"; tail -3 "$W/base/run.log" | cut -c1-200; exit 2; }
     SCORE_LINES "$W/base" >/dev/null
+    # The round file (amd-8, 2026-11-22): per-deck and per-page scores of this main sha, kept current for workers to rank from.
+    RO=${SLIDES_ROUND_OUT:-/data/s/amd-8/sg/round}; BSHA2=$(basename "$(dirname "${BC:-/x/unknown/y}")")
+    if [ -d "$RO" ] && [ -n "$BC" ]; then
+      PPT_MATCH_JOBS=$JOBS "$PY" "$ROOT/test/tools/slides-per-page.py" "$W/base" "$PPT" "$RO/per-page.tsv" "$BSHA2" 2>>"$W/base/lines.err" \
+        && { { echo "# main $BSHA2 $(date -u +%FT%TZ)"; cat "$W/base/combined.tsv"; } > "$RO/combined.tsv.tmp$$" && mv "$RO/combined.tsv.tmp$$" "$RO/combined.tsv"; }
+    fi
     if [ -n "$BC" ] && [ -s "$W/base/combined.tsv" ]; then mkdir -p "$BC.tmp$$" 2>/dev/null && cp "$W/base/render.tsv" "$W/base/combined.tsv" "$BC.tmp$$/" && { rm -rf "$BC"; mv "$BC.tmp$$" "$BC"; chmod -R g+rwX,o+rX "$BC" 2>/dev/null; }; fi
     BASEMODE=1
   fi
