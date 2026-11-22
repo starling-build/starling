@@ -5869,7 +5869,8 @@ enum ChartPainter {
         if c.onSlide, let u = c.secondValueAxis?.unitLabel, c.secondValueAxis?.deleted != true {
             let tp = text(u, c.secondValueAxis?.unitSize ?? c.axisTitleSize ?? 10, .infinity)
             canvas.save()
-            canvas.translate(c.secondValueAxis?.titleAt.map { frame.left + $0.dx * frame.width + 4.8 * k } ?? plot.right + 10.1 * k + 20.9 * k, plot.center.dy + tp.width / 2)
+            // (At the top of the axis, its far end 3.3 pt under the plot's top: b7d6faa9 p16's print, 173.2 against a plot top of 169.9.)
+            canvas.translate(c.secondValueAxis?.titleAt.map { frame.left + $0.dx * frame.width + 6.1 * k } ?? plot.right + 10.1 * k + 20.9 * k, plot.top + 3.3 * k + tp.width)
             canvas.rotate(-.pi / 2)
             tp.paint(canvas, .zero)
             canvas.restore()
