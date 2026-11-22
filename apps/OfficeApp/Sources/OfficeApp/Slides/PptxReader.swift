@@ -3973,7 +3973,7 @@ private struct SlideContext {
             case "just", "dist": style.alignment = .justify
             default: style.alignment = .left
             }
-            if (p.first("a:pPr")?["hangingPunct"] ?? level.hangingPunct) == "0" { style.eastAsian["a:hangingPunct"] = "0" }
+            if let hp = p.first("a:pPr")?["hangingPunct"] ?? level.hangingPunct, hp == "0" || hp == "1" { style.eastAsian["a:hangingPunct"] = hp }
             if let b = level.latinLnBrk { style.eastAsian["a:latinLnBrk"] = b }
             // (PowerPoint hangs every closing mark, ) ] and the like, a full em past the margin in Chinese text: lab zhhang, four
             // faces in zh-TW and zh-CN. It follows the language of the run that holds the mark.)

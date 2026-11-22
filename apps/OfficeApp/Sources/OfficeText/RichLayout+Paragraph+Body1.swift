@@ -247,7 +247,7 @@ extension _ParaFrame {
         let zhHang = p.style.eastAsian["a:hangClosingZh"] == "1"
         let _closingBrackets: Set<UInt16> = [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009]
         if _hangsLineEndMarks(p),
-           p.text.utf16.contains(where: { $0 == 0x3001 || $0 == 0x3002 || $0 == 0xFF0C || $0 == 0xFF0E || $0 == 0x201D || $0 == 0x29 || $0 == 0x2C || (zhHang && _closingBrackets.contains($0)) }) {
+           p.text.utf16.contains(where: { $0 == 0x3001 || $0 == 0x3002 || $0 == 0xFF0C || $0 == 0xFF0E || $0 == 0x201D || $0 == 0x29 || ($0 == 0x2C || $0 == 0x2E) && p.style.eastAsian["a:hangingPunct"] == "1" || (zhHang && _closingBrackets.contains($0)) }) {
             let units = Array(p.text.utf16)
             func isMark(_ k: Int) -> Bool {
                 // (A ")" that closes a Hangul or ideograph hangs the same way: ko-4f5289 p6 keeps "(실부하)" whole in a narrow cell.)
@@ -255,8 +255,8 @@ extension _ParaFrame {
                     if units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 { return true }
                     return p.style.eastAsian["a:hangParens"]?.split(separator: ",").contains { Int($0) == k } ?? false
                 }
-                // (A "," that follows a Hangul syllable hangs too: ko-70afa6ad p5 "…정치, 경제," keeps 경제 on a line that ends at the margin, PowerPoint's print.)
-                if k > 0, k < units.count, units[k] == 0x2C, units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 { return true }
+                // (A "," or "." that follows a Hangul syllable hangs too: ko-70afa6ad p5 "…정치, 경제," keeps 경제 on a line that ends at the margin, PowerPoint's print.)
+                if k > 0, k < units.count, p.style.eastAsian["a:hangingPunct"] == "1", (units[k] == 0x2C || units[k] == 0x2E), units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 { return true }
                 if zhHang, k < units.count, _closingBrackets.contains(units[k]) { return true }
                 // (A ” after kanji or kana is full width in the East Asian face and never hangs: lab hang3 slide 7 breaks "課|程”" below its width.)
                 if k > 0, k < units.count, units[k] == 0x201D, units[k - 1] >= 0x3040, units[k - 1] <= 0x9FFF { return false }
@@ -282,6 +282,11 @@ extension _ParaFrame {
                         var j = s0
                         while j < units.count, (units[j] < 0x80 && units[j] > 0x20) || units[j] == 0xFF08 { j += 1 }
                         if j > s0 + 1, j < units.count, _closingBrackets.contains(units[j]) { m = j }
+                    }
+                    if m < 0, s0 + 2 < units.count, units[s0 + 2] < 0x80, isMark(s0 + 2), units[s0] >= 0xAC00, units[s0] <= 0xD7A3, units[s0 + 1] >= 0xAC00, units[s0 + 1] <= 0xD7A3 {
+                        // (A Hangul word of two syllables and a hanging "." or ",": the mark goes down with them, though only the mark hangs:
+                        // ko-2fd3de28 p153 "…계산한다." keeps 한다 on a line that ends at the margin.)
+                        m = s0 + 2
                     }
                     guard m >= 0, adj[m] == nil, !stays.contains(m) else { continue }
                     let boxes = painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(m), extentOffset: map.painter(m) + 1))
