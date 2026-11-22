@@ -348,6 +348,10 @@ enum SlideFonts {
                 face.italicAdvances = SlideCalibriItalic.italicAscii; face.boldItalicAdvances = SlideCalibriItalic.boldItalicAscii
                 face.italicOtherAdvances = hebrew.merging(SlideCalibriItalic.italicOther) { a, _ in a }
                 face.boldItalicOtherAdvances = hebrew.merging(SlideCalibriItalic.boldItalicOther) { a, _ in a } }
+            if family.trimmingWhitespace().lowercased() == "calibri" {
+                // (A sans run face draws its Arabic in the sans Arabic face, regular and bold cuts, not DejaVu Sans with a faux bold.)
+                face.fallback = ["Carlito", "Noto Sans Arabic", "Noto Naskh Arabic", OfficeFonts.emojiPictographs, "DejaVu Sans"]
+            }
             if family.trimmingWhitespace().lowercased() == "times new roman" {
                 face.joinedAdvances = WindowsArabicAdvances.times
                 face.boldJoinedAdvances = WindowsArabicAdvances.timesBold
@@ -416,6 +420,8 @@ enum SlideFonts {
             // have, in ArialMT at Arial's own Arabic advances.)
             face.joinedAdvances = WindowsArabicAdvances.arial
             face.boldJoinedAdvances = WindowsArabicAdvances.arialBold
+            // (Drawn in the sans Arabic face, both cuts, not DejaVu Sans with a faux bold.)
+            face.fallback = ["Carlito", "Noto Sans Arabic", "Noto Naskh Arabic", OfficeFonts.emojiPictographs, "DejaVu Sans"]
             return face
         }
     }
