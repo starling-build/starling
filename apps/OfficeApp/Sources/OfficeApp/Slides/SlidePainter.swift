@@ -1514,6 +1514,13 @@ final class SlidePainter: CustomPainter {
                             matrix4: mul(pre, [1, 0, 0, 0, 0, 1 / sy, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]))
         } else {
             let a = fill.angle * .pi / 180
+            // A linear gradient's `a:tileRect` is the rectangle the ramp is laid out in (a negative inset
+            // reaches beyond the area, which clips it): the ramp then covers only the part of it the area shows.
+            var r = r
+            if let t = fill.tile {
+                r = Rect.fromLTRB(r.left + t.left * r.width, r.top + t.top * r.height,
+                                  r.left + t.right * r.width, r.top + t.bottom * r.height)
+            }
             if fill.scaled, r.width > 0, r.height > 0 {
                 // Laid out in the unit square and stretched onto the
                 // area with it.
