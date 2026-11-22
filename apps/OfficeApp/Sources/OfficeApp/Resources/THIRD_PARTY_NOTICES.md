@@ -38,6 +38,10 @@ Copyright (c) 2023, Zhejiang JadeFoci Technology Co. LTD. SIL Open Font License 
 Modified (re-metricked to FangSong's widths, subset) and renamed Starling FangSong;
 the face 仿宋 text is drawn in. Full text: fonts/StarlingFangSong-LICENSE.txt.
 
+## LXGW WenKai TC
+Copyright 2022-2026 The LXGW WenKai Project Authors; derived from Klee (Copyright 2020 The Klee Project Authors). SIL Open Font License 1.1.
+Bundled unmodified (v1.530, Regular) as the face Kai names (標楷體, DFKai-SB, 楷体, KaiTi) draw their ideographs in. Full text: fonts/LXGWWenKaiTC-LICENSE.txt.
+
 ## Caladea
 Copyright (c) 2012 Huerta Tipografica. Apache License 2.0.
 Document face standing in for Cambria.

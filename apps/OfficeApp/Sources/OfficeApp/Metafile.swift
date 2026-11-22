@@ -60,7 +60,7 @@ final class Metafile {
             var family = family
             // (An East Asian serif name, Ming, Song, Mincho or the Kai hand, draws its ideographs in a serif as PowerPoint's print does,
             // 2175d386 p6's 新細明體 nodes.)
-            if let serif = OfficeFonts.balloonIdeographFace(face) ?? (["dfkai-sb", "標楷體", "dfkai"].contains(face.lowercased()) ? "Noto Serif CJK TC" : nil) {
+            if let serif = OfficeFonts.balloonIdeographFace(face) ?? (["dfkai-sb", "標楷體", "dfkai"].contains(face.lowercased()) ? OfficeFonts.kaiFamily : nil) {
                 family = serif
             }
             return Flutter.TextStyle(

@@ -4186,6 +4186,9 @@ static let sylfaenAdvances: [Double] = [
     /// same baseline, 0.062-0.076 em at 9 to 32 pt in seven documents. Advances, metrics and the PDF's
     /// text layer are the stand-in's own. An engine without the prefix draws the face unmoved.
     static let pmingliuInkFamily = "Ink+0.07 Noto Serif CJK TC"
+    /// LXGW WenKai TC (OFL): the brush hand a Kai name (標楷體, DFKai-SB, 楷体, KaiTi) draws its ideographs in
+    /// (Resources/fonts/README.md). Its widths are not used: the name's measured metrics are.
+    static let kaiFamily = "LXGW WenKai TC"
 
     /// The face a margin balloon sets a Mincho, Song or Ming name's ideographs and kana in, a full em each.
     static func balloonIdeographFace(_ family: String) -> String? { serifIdeographs(family, eastAsianFace(family)) }
