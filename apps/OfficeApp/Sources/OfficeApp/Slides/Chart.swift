@@ -5790,6 +5790,14 @@ enum ChartPainter {
                     // (Standard grouping: one row of that depth per series, one behind another —
                     // chart-tdf111824's two series, Excel's print, the second 43 pt right and 32 up.)
                     zThick = (c.onSheet && rowsDeep ? slot : bar * (1 + v.gapDepth)) * v.depth * (rowsDeep ? Double(max(1, c.series.count)) : 1)
+                    // (A one-series 3-D bar on a slide, in the plot the file places: its depth is its front height times the depth share, the front
+                    // 222.06 = 6.9 + n h + (1 + gapDepth) depth h 0.25 of lab bar3d-series2, where the slot's own height gave a depth 16% too deep
+                    // for one series, 2.9% for two.)
+                    if c.onSlide, v.rightAngles, horizontal, c.plotLayoutInner, !c.stacked, c.series.count == 1, v.x >= 0, v.x <= 30, v.y <= 20 {
+                        RuleTrace.hit("slide-3d-bar-of-one-series-is-as-deep-as-its-fitted-front-height")
+                        let h = (222.06 - 6.9) / (1 + 0.25 * (1 + v.gapDepth) * v.depth)
+                        zThick = h * (1 + v.gapDepth) * v.depth * k
+                    }
                     box = depthAt(zThick)
                     // (PowerPoint's 3-D bars at right angles on a slide, in the plot the file places: the depth's rise is zThick * sin(rotX) * cos(rotX),
                     // and the box stands 2.7 pt under the plot's top and 1.7 over its foot (4.4 in all: the lab print's own pads are 5.4 and its front-height fit 6.9, but LIBRE_OFFICE-100610-0 p2 to p10, 2 to 4 series, then print 1.0 to 2.0 pt short). Lab bar3d-series, 24 prints (1 to 6 series, gapDepth 0 / 150,
@@ -5894,7 +5902,7 @@ enum ChartPainter {
             // plot at x 0.02, plots 243 to 347 pt wide: axis + Z = 340.8, 340.1, 339.5, 337.8, 339.3 pt for 1 to 5 series, and the
             // axis keeps a tick to every 37.5 pt (13 runs to 14 by twos at 279 pt and to 15 by fives at 207 and 258). Not
             // modelled, so left on the old way: one series (Word's depth is 0.79 of ours, 134.6 pt against 170), rotX 0 or 30, rotY 30 (14 pt short), a plot narrower than 240 pt; h40 is 20 px out.)
-            if c.onSlide, v.rightAngles, horizontal, c.plotLayoutInner, v.x >= 0, v.x <= 30, v.y <= 20, (c.series.count >= 2 || v.gapDepth == 0), let raw = placed, raw.width >= 150 * k, zThick > 0 {
+            if c.onSlide, v.rightAngles, horizontal, c.plotLayoutInner, v.x >= 0, v.x <= 30, v.y <= 20, let raw = placed, raw.width >= 150 * k, zThick > 0 {
                 RuleTrace.hit("slide-3d-bars-share-the-laid-plot-between-axis-and-depth-and-centre-the-box")
                 // (A bar's own depth, a 1 + gapDepth share of the box's.)
                 let own = 1 / (1 + v.gapDepth)
@@ -5936,7 +5944,7 @@ enum ChartPainter {
                     plot = Rect.fromLTRB(l, plot.top, r, plot.bottom)
                 }
                 if c.valueMax == nil, c.valueStep == nil, !c.percent, c.valueAxisDeleted, !c.valueGrid {
-                    sc = Self.scale(lo, max(hi, c.valueMax ?? hi), intervals: max(2, Int(axis / (37.5 * k))), headroom: 0)
+                    sc = Self.scale(lo, max(hi, c.valueMax ?? hi), intervals: max(2, Int(plot.width / (37.5 * k))), headroom: 0)
                 }
             }
             // (Excel's 3-D columns at right angles, one row of depth per series (Windows lab view3d, 480 x 288 and 320 x 400 pt, one to
