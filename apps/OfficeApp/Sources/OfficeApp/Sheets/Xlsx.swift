@@ -378,7 +378,9 @@ enum Xlsx {
                 case "str": value = .text(vText ?? "")
                 case "b": value = .bool(vText == "1")
                 case "e": value = .error(ExcelError(rawValue: vText ?? "") ?? .value)
-                default: value = vText.flatMap { Double($0) }.map { .number($0) } ?? .empty
+                // (Excel reads a number stored with blanks around it: lo-tdf124525's
+                // "    0.0402000000" cells print as 0.0402, not as nothing.)
+                default: value = vText.flatMap { Double($0.drop(while: { $0 == " " || $0 == "\n" || $0 == "\t" })) }.map { .number($0) } ?? .empty
                 }
                 var cell = Cell(input: "")
                 cell.style = styleIndex < book.styles.count ? styleIndex : 0
