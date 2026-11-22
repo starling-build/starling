@@ -681,7 +681,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         switch d.kind {
         case .other: return
         case .shape(let shape):
-            shape.paint(canvas, in: shape.unturned(r), pxPerPt: scale, font: OfficeFonts.drawn(theme.bodyFont))
+            shape.paint(canvas, in: shape.unturned(r), pxPerPt: scale, font: OfficeFonts.drawn(theme.bodyFont),
+                        lineHeight: SheetPrintMetrics.lineEm(family: theme.bodyFont))
         case .picture(let path, let data):
             // A turned picture: its anchor holds the turned box, its sides
             // swapped between 45° and 135° (lo-twoCellAnchor_editAs_oneCell's
