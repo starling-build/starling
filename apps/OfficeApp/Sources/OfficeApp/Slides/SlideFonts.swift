@@ -397,6 +397,7 @@ enum SlideFonts {
         case "calibri": return (1950.0 / 2048, 550.0 / 2048)
         case "malgun gothic", "맑은 고딕": return (2229.0 / 2048, 495.0 / 2048)
         case "meiryo": return (2171.0 / 2048, 901.0 / 2048)
+        case "meiryo ui", "meiryo ui bold": return (2171.0 / 2048, 430.0 / 2048)
         case "yu gothic": return (2017.0 / 2048, 619.0 / 2048)
         case "ms gothic", "ms pgothic": return (220.0 / 256, 36.0 / 256)
         default: return nil
