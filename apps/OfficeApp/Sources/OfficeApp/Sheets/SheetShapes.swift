@@ -44,6 +44,8 @@ struct SheetShape: Equatable {
     var line: Color?
     var lineWidth: Double     // points
     var paragraphs: [ShapeParagraph] = []
+    /// `bodyPr@upright`: the shape turns, its text stays upright.
+    var upright = false
     var anchor = "t"          // bodyPr@anchor: t, ctr, b
     var insets = (left: 7.2, top: 3.6, right: 7.2, bottom: 3.6)
     var textColor: Color? = nil
@@ -72,7 +74,7 @@ struct SheetShape: Equatable {
     static func == (a: SheetShape, b: SheetShape) -> Bool {
         a.geometry == b.geometry && a.fill == b.fill && a.line == b.line && a.lineWidth == b.lineWidth
             && a.paragraphs == b.paragraphs && a.anchor == b.anchor && a.textColor == b.textColor
-            && a.rotation == b.rotation && a.children == b.children && a.headArrow == b.headArrow && a.tailArrow == b.tailArrow
+            && a.rotation == b.rotation && a.upright == b.upright && a.children == b.children && a.headArrow == b.headArrow && a.tailArrow == b.tailArrow
     }
 
     /// A group (`grpSp`): its members placed by its child coordinate space
@@ -156,6 +158,7 @@ struct SheetShape: Equatable {
         if let body = sp.child("txBody") {
             if let b = body.child("bodyPr") {
                 s.anchor = b["anchor"] ?? "t"
+                s.upright = b["upright"] == "1"
                 func emu(_ k: String, _ d: Double) -> Double { b[k].flatMap(Double.init).map { $0 / 12700 } ?? d }
                 s.insets = (emu("lIns", 7.2), emu("tIns", 3.6), emu("rIns", 7.2), emu("bIns", 3.6))
             }
@@ -264,7 +267,9 @@ struct SheetShape: Equatable {
             }
         }
         guard paragraphs.contains(where: { !$0.runs.isEmpty || $0.math != nil }) else { return }
-        let box = Rect.fromLTRB(r.left + insets.left * k, r.top + insets.top * k, r.right - insets.right * k, r.bottom - insets.bottom * k)
+        // (An upright text of a shape turned a quarter lies in the box as it stands on the page.)
+        let tr = upright && rotation != 0 ? unturned(r) : r
+        let box = Rect.fromLTRB(tr.left + insets.left * k, tr.top + insets.top * k, tr.right - insets.right * k, tr.bottom - insets.bottom * k)
         guard box.width > 2 else { return }
         // Excel's line steps by the face's own line (13.43 pt for Calibri 11); the painter lays a line out in whole
         // units, so a sheet's text is laid out `over` times larger and drawn back at 1/over.
@@ -289,7 +294,13 @@ struct SheetShape: Equatable {
         let height = painters.indices.reduce(0) { $0 + tall($1) }
         var y = anchor == "ctr" ? box.center.dy - height / 2 : anchor == "b" ? box.bottom - height : box.top
         canvas.save()
-        canvas.clipRect(r)
+        if upright, rotation != 0 {
+            let c = r.center
+            canvas.translate(c.dx, c.dy)
+            canvas.rotate(-rotation * .pi / 180)
+            canvas.translate(-c.dx, -c.dy)
+        }
+        canvas.clipRect(tr)
         for (i, tp) in painters.enumerated() {
             if let eq = equations[i] {
                 let w = eq.width * k
