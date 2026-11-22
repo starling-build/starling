@@ -1245,7 +1245,9 @@ final class DeckController: ChangeNotifier {
                 // lays it out; the drawing part's size is only a cache.
                 // (Laid out here, a diagram's words stay whole, as PowerPoint
                 // fits them; a drawing part's text was fitted by PowerPoint.)
-                for r in shape.rendered where r.autofit && r.fontScale == 1 {
+                // (A text box inside an AlternateContent branch (an equation's) is no diagram: its normAutofit with no fontScale means
+                // PowerPoint printed it at full size, as 51f605f6 p22's body does, overflowing its box by design.)
+                for r in shape.rendered where r.autofit && r.fontScale == 1 && !o.fromAlternate {
                     r.fontScale = SlideTextCache.autofitScale(r, wholeWords: r.insetsFollowFont)
                 }
                 // Laid out here, the shapes that start from one size end at
