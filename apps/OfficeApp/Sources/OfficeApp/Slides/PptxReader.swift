@@ -3876,6 +3876,18 @@ private struct SlideContext {
                 default: continue
                 }
             }
+            // (The empty line after a trailing break is the paragraph mark's, in the size it states or the level's, not the break's:
+            // 3a3f59a1 p1's box ends in an 18 pt break over an 8 pt mark, and PowerPoint's print stands its text 6 pt lower.)
+            if text.hasSuffix("\n") {
+                let s = (p.first("a:endParaRPr").map { LevelStyle.run($0, colors) } ?? LevelStyle()).filled(from: level)
+                let mark = CharStyle(
+                    bold: s.bold ?? false, italic: s.italic ?? false, fontFamily: _font(s.font),
+                    fontSize: ((s.size ?? 18) * 10).rounded() / 10, color: s.color ?? tx1)
+                if let last = runs.last, last.style.fontSize != mark.fontSize {
+                    text += "\u{200B}"
+                    runs.append(Run(length: 1, style: mark))
+                }
+            }
             if text.isEmpty {
                 let end = p.first("a:endParaRPr").map { LevelStyle.run($0, colors) } ?? LevelStyle()
                 let s = end.filled(from: level)
