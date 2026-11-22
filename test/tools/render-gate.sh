@@ -98,6 +98,8 @@ EO=$(readlink -f engine)/src/out/host_release
 # the base cache (binary + base scores per sha) is SHARED by every runner on the machine when /data/gate/cache exists (mode 1777); else per runner
 umask 002
 if [ -n "${GATE_BASECACHE:-}" ]; then BC=$GATE_BASECACHE; elif [ -d /data/gate/cache ] && [ -w /data/gate/cache ]; then BC=/data/gate/cache; else BC=$HOME/scratch/basecache; fi
+# The cache is keyed by the ENGINE commit too (amd-8, 2026-11-22): a base rendered on the old engine must never be compared with a PR rendered on the new one.
+ENGSTAMP=$(git -C "$ENGINE_DIR" rev-parse --short=10 HEAD 2>/dev/null || echo noengine); BC=$BC/eng-$ENGSTAMP
 BSHA=$(git rev-parse "$BASE_SHA")
 # pull_request checks out the merge of the PR into the CURRENT main: its first parent is what the prebuild cached. The PR's own
 # base.sha is usually older (a second build per gate). BASE_SHA stays for the path classification and the named documents.
@@ -112,7 +114,7 @@ if [ "${GATE_PREBUILD:-0}" != 1 ] && [ "${GATE_EXACT_BASE:-0}" != 1 ] && [ ! -x 
     if [ -x "$BC/$a/release/OfficeApp" ]; then EXACTB=$BSHA; BSHA=$a; echo "render-gate: base ${EXACTB:0:9} not cached; scoring against the cached ancestor ${a:0:9}"; break; fi
   done
 fi
-mkdir -p "$BC"
+mkdir -p "$BC"; chmod 1777 "$BC" 2>/dev/null
 find "$BC" -mindepth 1 -maxdepth 1 -user "$(id -u)" -mmin +240 -exec rm -rf {} + 2>/dev/null   # prune what this user wrote more than 4 h ago
 touch "$BC/$BSHA.lock" 2>/dev/null; exec 8>>"$BC/$BSHA.lock"   # fd 8: one writer per base sha across runners (binary publish and score rows)
 
