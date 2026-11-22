@@ -2881,8 +2881,12 @@ enum ChartPainter {
             // (A Word pie's legend at a side wraps a name wider than 108.5 pt of a 360 frame (a third of it less 11.5) within that, at
             // any letter, the lines 10.97 apart and the entries 5.8 apart after the last: lab piesize4's legr docs, 34 to 60 characters.)
             let wordSidePie = c.type == .pie && beside && box == nil && !c.onSlide && !c.onSheet && !libreLegend
-            if wordSidePie {
-                let wrapW = r.width / 3 - 11.5 * k + 5
+            // (A slide pie's legend at a side wraps a name wider than a quarter of the frame less the key's room, and every entry
+            // then takes one slot as tall as the tallest, 5.8 pt apart: espt c249abc3 p6, "Sector Público del nivel Nacional" in two
+            // lines, the three keys 42.2 pt apart in PowerPoint's print, ours 24.3.)
+            let slideSidePie = c.type == .pie && beside && box == nil && c.onSlide
+            if wordSidePie || slideSidePie {
+                let wrapW = slideSidePie ? 0.25 * r.width - lead : r.width / 3 - 11.5 * k + 5
                 entries = entries.map { e in
                     guard e.tp.width > wrapW + 0.01 else { return e }
                     RuleTrace.hit("word-pie-side-legend-name-wraps-at-a-third-of-the-frame")
@@ -3005,9 +3009,11 @@ enum ChartPainter {
                     lines = Array(lines[..<rows])
                 }
             }
-            let wrappedSide = wordSidePie && entries.contains { $0.tp.height > 1.5 * textH }
+            let wrappedSide = (wordSidePie || slideSidePie) && entries.contains { $0.tp.height > 1.5 * textH }
+            let slotH = slideSidePie ? (entries.map { $0.tp.height }.max() ?? 0) : 0
             var lineHs = lines.map { line in
                 let tall = line.map { $0.tp.height }.max() ?? 0
+                if slideSidePie, slotH > 1.5 * textH { return slotH + 5.8 * k }
                 return wordSidePie && tall > 1.5 * textH ? tall + 5.8 * k : max(lineH, tall)
             }
             // (A Word pie's side legend too tall for the chart drops its last entries: lab piesize4's 60-character names, three lines
@@ -3034,7 +3040,11 @@ enum ChartPainter {
                 lineHs = lines.map { _ in box.height / Double(lines.count) }
             }
             let linesH = lineHs.reduce(0, +)
-            let columnW = (entries.map(\.tp.width).max() ?? 0) + lead
+            // (A name wrapped on a slide takes the width of its longest line, not of the room it wrapped in.)
+            let tightW: (TextPainter) -> Double = { tp in
+                slideSidePie ? (tp.computeLineMetrics().map(\.width).max() ?? tp.width) : tp.width
+            }
+            let columnW = (entries.map { tightW($0.tp) }.max() ?? 0) + lead
             var y: Double, columnX = 0.0
             if let box {
                 // In its own place, the plot's room untouched — unless the
@@ -3077,7 +3087,7 @@ enum ChartPainter {
                 RuleTrace.hit("word-legend-placed-by-its-corner-keeps-its-size-over-the-plot")
                 y = r.top + at.dy * r.height + 2.5 * k
             } else if beside {
-                y = c.legendPosition == "tr" ? area.top : area.center.dy - titleDrop / 2 - (wrappedSide ? linesH - 5.8 * k : lineH * Double(lines.count)) / 2 + (wrappedSide ? 1.3 * k : 0)
+                y = c.legendPosition == "tr" ? area.top : area.center.dy - titleDrop / 2 - (wrappedSide ? linesH - 5.8 * k : lineH * Double(lines.count)) / 2 + (wrappedSide ? (slideSidePie ? -4.1 : 1.3) * k : 0)
                 // (A Word chart with a title, its plot left where the file puts it (manual layout) and
                 // the legend at the right: the legend's middle stands 4.1 pt lower than the middle of
                 // the room under the title — lo-c4c60fcb's two entries, 14 pt title, in Word's print.)
@@ -3104,7 +3114,7 @@ enum ChartPainter {
                     // (The plot ends where it did with the 7 pt keys and 4 pt
                     // gap these gaps were measured with: its edge is
                     // PowerPoint's, the column's keys moved within it.)
-                    let measured = (entries.map(\.tp.width).max() ?? 0) + 11 * k * m
+                    let measured = (entries.map { tightW($0.tp) }.max() ?? 0) + 11 * k * m
                     // (A Word pie's legend at the right takes at most a third of the frame and 9 pt (129 pt of 360,
                     // 169 of 480): names past 28 characters move the pie no further, lab piesize4's legr docs.)
                     let word = c.type == .pie && box == nil && !c.onSlide && !c.onSheet
@@ -3264,7 +3274,9 @@ enum ChartPainter {
                         canvas.drawCircle(Offset(x + key / 2, y + lineH / 2), 2.5 * k, p)
                     } else {
                         let high = wideKeys ? 4.9 * k : key
-                        canvas.drawRect(Rect.fromLTWH(x, y + (lineH - high) / 2 + keyDrop, key, high), p)
+                        // (A slide pie's wrapped column: the key and the name's first line at the top of the slot, as in PowerPoint's print.)
+                        let keyMid = slideSidePie && wrappedSide ? y + (lineH - slotH) / 2 + textH / 2 : y + lineH / 2
+                        canvas.drawRect(Rect.fromLTWH(x, keyMid - high / 2 + keyDrop, key, high), p)
                         // (On a sheet the key wears the series' own outline, as the bars do: WithChartSheet's pivot chart.)
                         if c.onSheet, !byPoint, e.i < c.series.count, let o = c.series[e.i].outline {
                             let q = Paint()
@@ -3283,6 +3295,7 @@ enum ChartPainter {
                         RuleTrace.hit("word-pie-box-legend-wrapped-entry-hangs-from-its-slots-line")
                         textDrop = (lineH - textH) / 2
                     }
+                    if slideSidePie, wrappedSide { textDrop = (lineH - slotH) / 2 }
                     e.tp.paint(canvas, Offset(x + lead, y + textDrop))
                     x += slideGridW ?? (lead + e.tp.width + spacing)
                 }
