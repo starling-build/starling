@@ -552,6 +552,7 @@ enum SlideFonts {
         switch windowsName(family) {
         case "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝": return 1 - (220.0 / 256 + 0.1) / 1.2
         case "gulim", "굴림", "gulimche", "굴림체", "batang", "바탕", "batangche", "바탕체": return 1 - (879.0 / 1024 + 0.1) / 1.2
+        case "meiryo", "メイリオ": return 1 - 0.9075 / 1.2  // measured from the print (lab vface): baseline 0.9075 em from the column's edge
         default: return nil
         }
     }
