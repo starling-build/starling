@@ -398,6 +398,24 @@ enum SlideFonts {
         }
     }
 
+    /// A diagram's text in an East Asian face stands on Word's line, not the flat 1.2 em of a plain box (PowerPoint's prints
+    /// of the SmartArt in ja b7d6faa9, bc6071ca, ff27a386, 5c820695 and en 2175d386, amd-opus puzzle 12): 1.3 of the face's
+    /// win ascent and descent, the 0.3 split evenly above and below. Its height in ems and its share below the baseline.
+    static func diagramEastAsianLine(_ family: String) -> (height: Double, share: Double)? {
+        let n = windowsName(family)
+        let units: Double, upem: Double, descent: Double
+        switch n {
+        case "meiryo ui": (units, upem, descent) = (2601, 2048, 430)
+        case "meiryo", "メイリオ": (units, upem, descent) = (3072, 2048, 901)
+        case "ms gothic", "ｍｓ ゴシック", "ms pgothic", "ｍｓ ｐゴシック", "ms ui gothic", "ｍｓ ｕｉ ゴシック", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝":
+            (units, upem, descent) = (256, 256, n.contains("pgothic") || n.contains("ｐゴシック") ? 52 : 36)
+        default:
+            guard n.contains("dfkai") || n.contains("標楷") else { return nil }
+            (units, upem, descent) = (1024, 1024, 204)
+        }
+        return ((1.3 * units).rounded(.down) / upem, (descent / units + 0.15) / 1.3)
+    }
+
     static func ownDescentShare(_ family: String) -> Double? {
         guard OfficeFonts.installed(family) == nil else { return nil }
         let n = windowsName(family)

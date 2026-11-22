@@ -1219,7 +1219,7 @@ final class DeckController: ChangeNotifier {
             let fresh = _textTheme(font: st.font ?? theme.bodyFont, size: st.size, color: st.color)
             fresh.listIndent = st.listIndent
             if st.keepsFirstSpace { fresh.omitsLeadingSpace = false }
-            if st.naturalLines { Self.naturalLines(fresh, font: st.font ?? theme.bodyFont) }
+            if st.naturalLines { Self.naturalLines(fresh, font: st.font ?? theme.bodyFont, doc: st.text) }
             shape.textTheme = fresh
         }
         shape.crop = st.crop
@@ -1326,7 +1326,7 @@ final class DeckController: ChangeNotifier {
         let theme = st.text == nil ? nil : _textTheme(font: st.font ?? self.theme.bodyFont, size: st.size, color: st.color)
         theme?.listIndent = st.listIndent
         if st.keepsFirstSpace { theme?.omitsLeadingSpace = false }
-        if st.naturalLines, let theme { Self.naturalLines(theme, font: st.font ?? self.theme.bodyFont) }
+        if st.naturalLines, let theme { Self.naturalLines(theme, font: st.font ?? self.theme.bodyFont, doc: st.text) }
         let shape = SlideShape(id: st.id, name: st.name, kind: st.kind, frame: st.frame,
                                text: st.text.map(_textController), textTheme: theme,
                                anchor: st.anchor, prompt: st.prompt)
@@ -1401,13 +1401,18 @@ final class DeckController: ChangeNotifier {
     /// customGeo's 17 pt bullets at 90% stand 18.66 apart in PowerPoint's
     /// print, 0.9 of Calibri's line, and tdf149551's Courier ones 0.9 of
     /// Courier's.
-    static func naturalLines(_ theme: RichTextTheme, font: String) {
+    static func naturalLines(_ theme: RichTextTheme, font: String, doc: RichDocument? = nil) {
         // (Run by run, by the face each is drawn in; the box's own face
         // for what reads the theme's single line.)
         theme.faceLineHeight = SlideFonts.drawnNaturalHeight
         theme.naturalLinesPerFace = true
         let family = theme.fontFamilyResolver?(font) ?? font
-        theme.singleLineHeight = SlideFonts.ownNaturalHeight(font) ?? theme.naturalLineHeight(family: family, bold: false, italic: false)
+        theme.namedLineHeight = { SlideFonts.diagramEastAsianLine($0)?.height }
+        theme.ownDescentShare = { SlideFonts.diagramEastAsianLine($0)?.share ?? SlideFonts.ownDescentShare($0) }
+        // (A box whose own text names an East Asian face stands on that face's line, whatever the box's default.)
+        let named = doc?.paragraphs.lazy.flatMap { $0.runs }.filter { $0.length > 0 }
+            .compactMap { r in [r.style.eastAsiaFontFamily, r.style.fontFamily].compactMap { $0 }.first { SlideFonts.diagramEastAsianLine($0) != nil } }.first
+        theme.singleLineHeight = (named ?? font).flatMap { SlideFonts.diagramEastAsianLine($0)?.height } ?? SlideFonts.ownNaturalHeight(font) ?? theme.naturalLineHeight(family: family, bold: false, italic: false)
     }
 
     private func _textTheme(font: String, size: Double, color: Color) -> RichTextTheme {

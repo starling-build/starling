@@ -401,6 +401,9 @@ public final class RichTextTheme {
     /// otherwise it is measured. Off by default.
     public var naturalLinesPerFace = false
     public var faceLineHeight: ((String) -> Double?)? = nil
+    /// Slides, a diagram's text: a face PowerPoint sets by Word's East Asian line (1.3 of its win ascent and descent) there,
+    /// by the name the run asks for. It beats the drawn face's own height.
+    public var namedLineHeight: ((String) -> Double?)? = nil
 
     /// The drawn face's own ascent and descent in ems (the engine's line metrics at a large size), the face Word's win metrics stand in for.
     public func faceAscentDescent(family: String, bold: Bool, italic: Bool) -> (Double, Double)? {
@@ -1009,7 +1012,7 @@ public final class RichTextTheme {
                 // (The engine's `height` is of the drawn size, and a
                 // stand-in drawn larger or smaller keeps the line of the
                 // size the document names.)
-                let natural = (ownScale != 1 ? face?.scaledHeight : nil) ?? (bold ? face?.boldHeight : nil) ?? face?.naturalHeight
+                let natural = familyName.flatMap { namedLineHeight?($0) } ?? (ownScale != 1 ? face?.scaledHeight : nil) ?? (bold ? face?.boldHeight : nil) ?? face?.naturalHeight
                     ?? naturalLineHeight(family: family, bold: bold, italic: italic)
                 guard size > 0 else { return max(0.1, paragraph.lineSpacing - lineSpacingReduction) * natural / widen }
                 return lineBox(size: size, natural: natural, baseline: nil, in: paragraph, gridPitch: gridPitch).height / (size * widen)
