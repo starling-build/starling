@@ -64,7 +64,6 @@ extension RichLayout {
         // (A proportional line, 90% of the single line: the pieces' line scales with it.)
         let factor = max(0.1, p.style.lineSpacing - theme.lineSpacingReduction)
         // (Above single spacing the plain path already sets the pitch as PowerPoint does; the split gave 27.5 pt for 28.8 at 120%.)
-        guard factor <= 1.001 else { return nil }
         // The lines, as ranges of the painter's text.
         var lines: [(Int, Int)] = []
         var at = 0
@@ -121,10 +120,19 @@ extension RichLayout {
         }
         guard Set(perLine.flatMap { $0.map(\.name) }).count > 1 else { return nil }
         // Each line's (ascent, descent, height) in the style's units.
+        // (PowerPoint's lines of one paragraph step by one pitch, so where every line is as tall as the others they share ONE split
+        // of it: the tallest ascent and deepest depth of the whole paragraph. A split of its own per line made the step between two
+        // lines down(1) + up(2), 27.5 pt for 28.8 at 120% in d46fe10bdc99 p12, where one line held a SimSun piece and the next did not.)
+        let heights = perLine.map { pcs in single * factor * (pcs.map(\.size).max() ?? 0) }
+        let uniform = Set(heights.filter { $0 > 0 }.map { ($0 * 100).rounded() }).count == 1
+        let allA = perLine.flatMap { $0 }.map { $0.size * (single - $0.depth) }.max() ?? 0
+        let allD = perLine.flatMap { $0 }.map { $0.size * $0.depth }.max() ?? 0
+        RichLayout._mixedLinesShare = nil
+        if uniform, allA + allD > 0 { RichLayout._mixedLinesShare = (allD / (allA + allD), (perLine.flatMap { $0 }.map(\.size).max() ?? 0)) }
         let splits: [(up: Double, down: Double, height: Double)?] = perLine.map { pieces in
             guard !pieces.isEmpty else { return nil }
-            let a = pieces.map { $0.size * (single - $0.depth) }.max() ?? 0
-            let d = pieces.map { $0.size * $0.depth }.max() ?? 0
+            let a = uniform ? allA : (pieces.map { $0.size * (single - $0.depth) }.max() ?? 0)
+            let d = uniform ? allD : (pieces.map { $0.size * $0.depth }.max() ?? 0)
             let h = single * factor * (pieces.map(\.size).max() ?? 0)
             guard a + d > 0 else { return nil }
             return (h * a / (a + d), h * d / (a + d), h)

@@ -1501,7 +1501,7 @@ extension _ParaFrame {
                 let again = laidOutPlain(split)
                 RichLayout._mixedOfPainter[ObjectIdentifier(again)] = nil
                 if again.computeLineMetrics().count == painter.computeLineMetrics().count {
-                    painter.dispose(); painter = again; RichLayout._mixedOfPainter[ObjectIdentifier(painter)] = (0, 0)
+                    painter.dispose(); painter = again; RichLayout._mixedOfPainter[ObjectIdentifier(painter)] = RichLayout._mixedLinesShare.map { ($0.depth, $0.size / _px(1)) } ?? (0, 0)
                 } else { again.dispose() }
             }
             return painter

@@ -1658,6 +1658,8 @@ public final class RichLayout {
     /// Paragraphs laid out on `_mixedFaceSpan`'s line, which sets their baseline itself.
     var _mixedFace: [Int: (depth: Double, size: Double)] = [:]
     nonisolated(unsafe) static var _mixing = false
+    /// (depth share, size) of the last uniform multi-line split, for the baseline shift of its paragraph.
+    nonisolated(unsafe) static var _mixedLinesShare: (depth: Double, size: Double)? = nil
     nonisolated(unsafe) static var _mixedOfPainter: [ObjectIdentifier: (depth: Double, size: Double)] = [:]
     var _inlineBoxes: [[Int]] = []
     /// An inline object's own height where its box is a page tall (`_span`), by id.
