@@ -87,7 +87,20 @@ extension _StyledFrame {
         let k = Int(u) - 0x20
         if let table = face.advanceTable(bold: s.fontWeight == .bold, italic: s.fontStyle == .italic), k < table.count, table[k] > 0, let px = s.fontSize, px > 0.5 {
             let classScale = classed ? face.classScales.flatMap { own >= 0 && own < $0.count ? $0[own] : nil } ?? 1 : 1
-            var target = table[k] * px / (face.sizeScale * classScale)
+            // (Snapped to the face's font units: the tables carry four decimals, which turn an exact half-step of the eighth-point grid
+            // into the wrong side, 64f938d1 p4's 401.875 against a 401.725 box.)
+            var unitsV = table[k]
+            for upm in [256.0, 2048.0, 1000.0, 1024.0] {
+                let n = (unitsV * upm).rounded()
+                if abs(unitsV - n / upm) <= 0.00006 { unitsV = n / upm; break }
+            }
+            var target = unitsV * px / (face.sizeScale * classScale)
+            var glyphOnGrid = false
+            if theme.advanceGridOfFaceTables, let grid = theme.advanceGrid, grid > 0 {
+                // (Each glyph rounds to the eighth of a point, a half-step up; a pair's kern comes on top unrounded: lab fit2.)
+                let g = grid * theme.pixelsPerPoint * scale
+                if g > 0 { target = (target / g + 0.5 + 1e-7).rounded(.down) * g; glyphOnGrid = true }
+            }
             // (Kerned with the next of the run by the original's
             // pair, where the run kerns at its size: zh-d89c3840's
             // "（TC）" in YaHei at 16pt, "T" 8.4 in Word's print
@@ -108,7 +121,7 @@ extension _StyledFrame {
                 // (A face PowerPoint has measured widths for sets its glyphs on a thousandth of an em, as its print shows: Aptos digits
                 // 9.612 at 18 pt, not the eighth of a point's 9.625; the stand-in faces keep the eighth.)
                 let g = theme.advanceGridOfFaceTables ? 0.001 * px : grid * theme.pixelsPerPoint * scale
-                if g > 0 { target = (target / g).rounded() * g }
+                if g > 0, !glyphOnGrid { target = (target / g).rounded() * g }
             }
             extra += target - _glyphWidth(s, ch)
         }
@@ -137,7 +150,7 @@ extension _StyledFrame {
         let kerns = (run.kerningFrom ?? named?.char.kerningFrom).map { $0 > 0 && size >= $0 } ?? false
         let w = kerns && following != nil ? _pairAdvance(s, ch, following!) : _glyphWidth(s, ch)
         let g = grid * theme.pixelsPerPoint * scale
-        if g > 0, w > 0 { extra += (w / g).rounded() * g - w }
+        if g > 0, w > 0 { extra += (w / g + 0.5 + 1e-7).rounded(.down) * g - w }
     } else if !ea, theme.wordRules, RichTextTheme.wordWindowsPages, ch.unicodeScalars.count == 1, let u = ch.unicodeScalars.first?.value, u >= 0x180,
               let own = latinFace, own.completeCoverage, own.otherAdvances?[u] == nil,
               let fbName = RichResolvedFace._scriptFallbackFace(u, sans: own.sansClass),
@@ -179,7 +192,7 @@ extension _StyledFrame {
             // (On the print's grid, where the theme has one.)
             if let grid = theme.advanceGrid, grid > 0 {
                 let g = grid * theme.pixelsPerPoint * scale
-                if g > 0 { target = (target / g).rounded() * g }
+                if g > 0 { target = (target / g + 0.5 + 1e-7).rounded(.down) * g }
             }
             extra += target - _glyphWidth(s, ch)
         }
