@@ -177,6 +177,8 @@ struct ChartSeries: Equatable {
     /// for the value, `labelCellMark` for the point's cell-range text, and
     /// "\n" between paragraphs.
     var labelParts: [Int: [String]] = [:]
+    /// Points whose own `c:dLbl` text properties say bold where the series' labels do not (ko-e114b968 p9's "61.7").
+    var labelBoldPoints: Set<Int> = []
     /// Whether this series' labels show at all: a chart whose group says
     /// "no values" shows only the series that say so themselves.
     var labelsShown = true
@@ -1746,6 +1748,8 @@ enum ChartXML {
                 }
             }
             for one in ser.first("c:dLbls")?.all("c:dLbl") ?? [] {
+                if let i = one.first("c:idx")?["val"].flatMap(Int.init), one.first("c:tx") == nil,
+                   let run = one.first("c:txPr")?.descendant("a:defRPr"), ["1", "true"].contains(run["b"] ?? "") { s.labelBoldPoints.insert(i) }
                 if let i = one.first("c:idx")?["val"].flatMap(Int.init), let rich = one.first("c:tx")?.first("c:rich") {
                     var paras: [String?] = []
                     var plain = true
@@ -6192,6 +6196,7 @@ enum ChartPainter {
         // Labels from cells, each with the bar it stands in the end of.
         var cellLabels: [(text: String, bar: Rect, series: ChartSeries)] = []
         var wrapLabels = Set<Int>()
+        var boldLabels = Set<Int>()
         // Labels that end at their point instead of starting there: a Word bar's `dLblPos inEnd`.
         var endAtPoint = Set<Int>()
         var startAtPoint = Set<Int>()
@@ -6421,6 +6426,7 @@ enum ChartPainter {
                             wordColumnLabelBase[labels.count] = 4.2 * k
                             RuleTrace.hit("word-column-label-baseline")
                         }
+                        if c.onSlide, c.series[safe: j]?.labelBoldPoints.contains(i) == true { boldLabels.insert(labels.count) }
                         labels.append((shown, labelAt, j))
                     }
                     // In a 3-D box, the bar stands in the middle of its
@@ -6862,11 +6868,12 @@ enum ChartPainter {
                 // space: sa1 06706f28's "100.00%; 10,150,000.00" is "100.00%;" over "10,150,000.00".)
                 let wrapAt = wrapLabels.contains(li) && !c.onSlide && !c.onSheet ? max(20 * k, frame.width * 0.2 - 7.7 * k) : Double.infinity
                 let ownFace = c.onSlide || c.onSheet ? nil : ser.labelFace
-                let tp = ser.labelSize == nil && !ser.labelBold && ser.labelColor == nil && ownFace == nil ? text(s, c.baseTextSize, wrapAt)
+                let boldHere = ser.labelBold || boldLabels.contains(li)
+                let tp = ser.labelSize == nil && !boldHere && ser.labelColor == nil && ownFace == nil ? text(s, c.baseTextSize, wrapAt)
                     : { () -> TextPainter in
                         let t = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
                             color: ser.labelColor ?? c.textColor ?? (c.plainText ? theme.text : _mix(theme.text, theme.background, 0.65)),
-                            fontSize: max(3, (ser.labelSize ?? c.baseTextSize) * k), fontWeight: ser.labelBold ? .bold : .normal,
+                            fontSize: max(3, (ser.labelSize ?? c.baseTextSize) * k), fontWeight: boldHere ? .bold : .normal,
                             fontFamily: OfficeFonts.substitute(ownFace ?? c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textAlign: .center, textDirection: .ltr)
                         t.layout(minWidth: 0, maxWidth: wrapAt)
                         return t
