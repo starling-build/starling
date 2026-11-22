@@ -805,6 +805,8 @@ enum WindowsArabicAdvances {
     // "letters|joinsBefore|joinsAfter" -> em width: medians over the batch B prints' clusters
     // (zero-width follow-on letters), groups seen four or more times with a spread under 0.03 em.
     static let tradArabicClusters: [String: Double] = [
+        // (PowerPoint prints measure the letter after a reh 0.088 em in on Bold, 0.12 on Regular; the alef 0.108 on Bold.)
+        "reh+*": -0.1200,
         // (A waw at the start of a word kerns the letter after it, in ems added to the sum, by that
         // letter's shaped form: lab arabgroups, Word 14/15 prints, 31 followers; flat followers such as ba, meem,
         // noon measure -0.067, "waw+*" is the default; the overhanging ones (hah, ain, kaf, heh) more.)
@@ -831,6 +833,8 @@ enum WindowsArabicAdvances {
     ]
 
     static let tradArabicBoldClusters: [String: Double] = [
+        // (PowerPoint prints measure the letter after a reh 0.088 em in on Bold, 0.12 on Regular; the alef 0.108 on Bold.)
+        "reh+*": -0.0880, "reh+FE8D": -0.1080,
         // (Seen, ba, waw in Word's bold prints: س+ب measures 0.586 em from the seen's origin to the waw's, six prints over the corpus, plus the final waw 0.381; the letter sum is 0.685 and wrapped the week-column title of dx2 8a0e0087.)
         "سبو|0|0": 0.9670, "سبو|1|0": 0.9670,
         "الل|0|1": 0.6910, "الله|0|0": 0.6910, "بأ|0|0": 0.3900, "بإ|0|0": 0.3900,
