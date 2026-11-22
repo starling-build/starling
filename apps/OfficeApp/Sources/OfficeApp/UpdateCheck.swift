@@ -158,7 +158,9 @@ final class UpdateCheck {
     /// `found` on the main queue only when there is something to announce.
     /// Nothing happens in the browser build or a development build.
     static func start(found: @escaping (OfficeRelease) -> Void) {
-        #if !os(WASI)
+        // Not on iOS either: the App Store (or TestFlight) updates the app, and
+        // there is no curl to ask with.
+        #if !os(WASI) && !os(iOS)
         guard OfficeVersion.isCheckable(OfficeVersion.current) else { return }
         let current = OfficeVersion.current
         DispatchQueue.global(qos: .utility).async {

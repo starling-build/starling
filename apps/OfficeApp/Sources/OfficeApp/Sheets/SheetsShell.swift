@@ -156,6 +156,12 @@ final class SheetsShellState: State<StatefulWidget> {
                 self._open(picked.name, data: picked.data)
             }
             #else
+            // A host with its own document browser (the iPad's) takes Open;
+            // unsaved edits still get Backstage's prompt first.
+            if OfficeHost.openRequested != nil {
+                self.session.replacing { _ = OfficeHost.openRequested?() }
+                return
+            }
             self.setState { self._backstage = .open }
             #endif
         }
@@ -311,6 +317,7 @@ final class SheetsShellState: State<StatefulWidget> {
             WebFiles.download(data, as: path.lastPathComponent)
             #else
             try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+            OfficeHost.documentSaved?(path)
             #endif
             session.path = path
             wb.markSaved()

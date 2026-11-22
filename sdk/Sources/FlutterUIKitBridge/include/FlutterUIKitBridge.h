@@ -65,6 +65,32 @@ int32_t fluikit_host_run(const char* title,
 // than passing one in.
 void fluikit_host_window_size(double* out_width, double* out_height);
 
+// MARK: - Embedding: an app's own native screens around the Flutter view
+//
+// By default the Flutter view IS the app: the root view controller is the
+// host's own, a FlutterViewController pinned to the safe area. An app that
+// wants native UIKit around its widget tree — a document browser, a settings
+// screen, native toolbars — installs a root factory before fluikit_host_run.
+//
+// The factory is handed the "editor" view controller (the host's wrapper
+// around the Flutter view, not yet loaded: do not touch its `view`, or the
+// engine is asked for a frame before anything is ready to show it) and returns
+// the app's real root, which presents or embeds the editor when it likes. The
+// returned UIViewController* is a +1 reference (CFBridgingRetain); the editor
+// pointer is borrowed.
+//
+// All pointers are UIViewController*, passed as void* because UIKit stays
+// behind this header.
+typedef void* (*FlUIKitRootFactory)(void* editor_view_controller, void* user);
+void fluikit_host_set_root_factory(FlUIKitRootFactory factory, void* user);
+
+// A file or URL handed to the app from outside — "Open in…", a Files tap, the
+// share sheet, `xcrun simctl openurl`. `url` is the absolute URL string as
+// UTF-8 (a file: URL for documents). Return true if handled. Called on the main
+// thread. Without a handler the host ignores it.
+typedef bool (*FlUIKitOpenURLCallback)(void* user, const char* url);
+void fluikit_host_set_open_url_handler(FlUIKitOpenURLCallback handler, void* user);
+
 // MARK: - Software keyboard
 //
 // See fluikit_keyboard.m for why this exists at all: iOS emits key events only

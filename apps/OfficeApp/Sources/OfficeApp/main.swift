@@ -20,6 +20,7 @@ import FlutterWin32
 import FlutterCocoa
 #elseif os(iOS)
 import FlutterUIKit
+import OfficeUIKit
 #elseif STARLING_GTK
 import FlutterGTK
 #elseif os(WASI)
@@ -785,6 +786,20 @@ let siteArg: String? = {
     guard let i = CommandLine.arguments.firstIndex(of: "--site"), i + 1 < CommandLine.arguments.count else { return nil }
     return CommandLine.arguments[i + 1]
 }()
+
+#if os(iOS)
+// On iPad the file browser is the platform's (UIDocumentBrowserViewController),
+// with the editor presented over it. A path on the command line still opens
+// that file straight into the editor, as before — the way the simulator is
+// driven without a touch route.
+if initialPath == nil && siteArg == nil && wikiBase == nil {
+    OfficeNativeShell.install()
+    OfficeNativeShell.onOpenDocument = { OfficeHost.openPath?($0) }
+    OfficeNativeShell.makeBlank = { OfficeHost.writeBlank(kind: $0, to: $1) }
+    OfficeHost.documentSaved = { OfficeNativeShell.documentSaved($0) }
+    OfficeHost.openRequested = { OfficeNativeShell.showBrowser(); return true }
+}
+#endif
 
 runStarlingApp(title: siteArg != nil ? "Site" : wikiBase != nil ? "Wiki" : initialKind.appName,
                width: windowMetric("STARLING_WINDOW_W", 1440),
