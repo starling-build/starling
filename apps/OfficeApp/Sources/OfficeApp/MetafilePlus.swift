@@ -41,7 +41,12 @@ struct EmfPlus {
     struct Linear { var rect: Rect, colors: [Color], stops: [Double], transform: Matrix }
     /// A path gradient brush: the colour at `center` shades to one surround colour at the boundary path (ARGB words), in the brush's own transform.
     struct PathGradient { var center: Offset, centerARGB: Int, surroundARGB: Int, boundary: PlusPath, transform: Matrix }
-    enum Object { case brush(Color?), linear(Linear), pathGradient(PathGradient), pen(Pen), path(PlusPath), region(Region), font(Font), image(Int), other }
+    /// A hatch brush: families of one pixel wide lines in device units, the foreground colour on the background.
+    struct Hatch {
+        struct Line { enum Kind { case horizontal, vertical, forward, backward }; var kind: Kind, pitch: Int }
+        var lines: [Line], fore: Color, back: Color
+    }
+    enum Object { case brush(Color?), hatch(Hatch), linear(Linear), pathGradient(PathGradient), pen(Pen), path(PlusPath), region(Region), font(Font), image(Int), other }
 
     static let ident: Int64 = 0x2B46_4D45   // "EMF+"
 
@@ -70,7 +75,7 @@ struct EmfPlus {
     static func plays(_ bytes: [UInt8]) -> Bool {
         func u32(_ at: Int) -> Int { at + 4 <= bytes.count ? Int(bytes[at]) | Int(bytes[at + 1]) << 8 | Int(bytes[at + 2]) << 16 | Int(bytes[at + 3]) << 24 : 0 }
         func u16(_ at: Int) -> Int { at + 2 <= bytes.count ? Int(bytes[at]) | Int(bytes[at + 1]) << 8 : 0 }
-        var p = 0, seen = false, dualFile = false, continued = 0
+        var p = 0, seen = false, dualFile = false, continued = 0, unplayed: Set<Int> = []
         while p + 8 <= bytes.count {
             let type = u32(p), size = u32(p + 4)
             guard size >= 8, p + size <= bytes.count else { break }
@@ -80,6 +85,7 @@ struct EmfPlus {
                     let rt = u16(q), fl = u16(q + 2), sz = u32(q + 4), ds = u32(q + 8)
                     guard sz >= 12, q + sz <= p + size else { return false }
                     seen = true
+                    if rt == 0x400A || rt == 0x400C || rt == 0x4014, fl & 0x8000 == 0, unplayed.contains(u32(q + 12) & 0xFF) { return false }
                     switch rt {
                     case 0x4001: dualFile = fl & 1 == 1
                     case 0x4002, 0x4004, 0x401D...0x4024, 0x4025, 0x4026, 0x402A...0x402F, 0x4030, 0x4031...0x4034, 0x4014, 0x4015,
@@ -101,8 +107,17 @@ struct EmfPlus {
                         }
                         switch kind {
                         case 1:
-                            let type = u32(q + 12 + 4)
-                            if type == 4 { if readLinear(bytes, q + 12, q + 12 + ds) == nil { return false } } else if type == 3 { if readPathGradient(bytes, q + 12, q + 12 + ds) == nil { return false } } else if type == 1 { if readHatch(bytes, q + 12, q + 12 + ds) == nil { return false } } else if type != 0 { return false }
+                            // A brush this does not play is harmless until a fill names it.
+                            let type = u32(q + 12 + 4), end = q + 12 + ds
+                            let plays: Bool
+                            switch type {
+                            case 0: plays = true
+                            case 1: plays = readHatch(bytes, q + 12, end) != nil
+                            case 3: plays = readPathGradient(bytes, q + 12, end) != nil
+                            case 4: plays = readLinear(bytes, q + 12, end) != nil
+                            default: plays = false
+                            }
+                            if plays { unplayed.remove(fl & 0xFF) } else { unplayed.insert(fl & 0xFF) }
                         case 2: if !plainPen(bytes, q + 12, ds) { return false }
                         case 3, 4, 6, 7, 8: break
                         case 5: if u32(q + 12 + 4) != 1 || u32(q + 12 + 24) != 1 { return false }   // only a compressed bitmap
@@ -170,21 +185,58 @@ struct EmfPlus {
         return PathGradient(center: Offset(f32(b, at + 20), f32(b, at + 24)), centerARGB: u32(b, at + 16), surroundARGB: surround, boundary: boundary, transform: m)
     }
 
-    /// A hatch brush (version, type 1, style, foreground, background) as the mean colour of its 8 by 8 pixel tile: the foreground
-    /// at the share of the tile it covers (the percent styles, single lines, crosses), the background elsewhere. Other styles are nil.
-    static func readHatch(_ b: [UInt8], _ at: Int, _ end: Int) -> Color? {
+    /// A hatch brush (version, type 1, style, foreground, background): its style as families of one device pixel wide lines on an
+    /// 8 pixel pitch. Horizontal, vertical, the two diagonals, the cross and the diagonal cross, and 50 percent (a checkerboard, which at
+    /// one pixel is diagonal lines two pixels apart). A style whose tile is not one of these is nil, unless the two colours are the
+    /// same (then any style is that colour).
+    static func readHatch(_ b: [UInt8], _ at: Int, _ end: Int) -> Object? {
         guard at + 20 <= end, end <= b.count else { return nil }
-        let style = u32(b, at + 8)
-        let share: [Double] = [0.125, 0.125, 0.125, 0.125, 15.0 / 64, 14.0 / 64,
-                               0.05, 0.10, 0.20, 0.25, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80, 0.90]
-        guard share.indices.contains(style) else { return nil }
-        let fore = u32(b, at + 12), back = u32(b, at + 16)
-        var argb = 0
-        for shift in [0, 8, 16, 24] {
-            let f = Double((fore >> shift) & 0xFF), k = Double((back >> shift) & 0xFF)
-            argb |= Int((k + share[style] * (f - k)).rounded()) << shift
+        let style = u32(b, at + 8), fore = u32(b, at + 12), back = u32(b, at + 16)
+        if fore == back { return .brush(Color(Int64(fore))) }
+        let lines: [Hatch.Line]
+        switch style {
+        case 0: lines = [.init(kind: .horizontal, pitch: 8)]
+        case 1: lines = [.init(kind: .vertical, pitch: 8)]
+        case 2: lines = [.init(kind: .forward, pitch: 8)]
+        case 3: lines = [.init(kind: .backward, pitch: 8)]
+        case 4: lines = [.init(kind: .horizontal, pitch: 8), .init(kind: .vertical, pitch: 8)]
+        case 5: lines = [.init(kind: .forward, pitch: 8), .init(kind: .backward, pitch: 8)]
+        case 12: lines = [.init(kind: .backward, pitch: 2)]
+        default: return nil
         }
-        return Color(Int64(argb))
+        return .hatch(Hatch(lines: lines, fore: Color(Int64(fore)), back: Color(Int64(back))))
+    }
+
+    /// The hatch's lines over `r`, as one path in device units.
+    static func hatchLines(_ h: Hatch, _ r: Rect) -> Path {
+        let out = Path()
+        func strip(_ pts: [(Double, Double)]) {
+            out.moveTo(pts[0].0, pts[0].1)
+            for q in pts.dropFirst() { out.lineTo(q.0, q.1) }
+            out.close()
+        }
+        for l in h.lines {
+            let k = Double(l.pitch)
+            switch l.kind {
+            case .horizontal:
+                var y = (r.top / k).rounded(.down) * k
+                while y < r.bottom { strip([(r.left, y), (r.right, y), (r.right, y + 1), (r.left, y + 1)]); y += k }
+            case .vertical:
+                var x = (r.left / k).rounded(.down) * k
+                while x < r.right { strip([(x, r.top), (x + 1, r.top), (x + 1, r.bottom), (x, r.bottom)]); x += k }
+            case .forward:   // upper left to lower right: x - y is constant
+                var c = ((r.left - r.bottom) / k).rounded(.down) * k
+                while c < r.right - r.top {
+                    strip([(c + r.top, r.top), (c + 1 + r.top, r.top), (c + 1 + r.bottom, r.bottom), (c + r.bottom, r.bottom)]); c += k
+                }
+            case .backward:  // upper right to lower left: x + y is constant
+                var c = ((r.left + r.top) / k).rounded(.down) * k
+                while c < r.right + r.bottom {
+                    strip([(c - r.top, r.top), (c + 1 - r.top, r.top), (c + 1 - r.bottom, r.bottom), (c - r.bottom, r.bottom)]); c += k
+                }
+            }
+        }
+        return out
     }
 
     static func plainPen(_ b: [UInt8], _ at: Int, _ ds: Int) -> Bool {
@@ -415,7 +467,7 @@ extension EmfPlus {
         case 1:
             switch Self.u32(b, at + 4) {
             case 0: objects[id] = .brush(Color(Int64(Self.u32(b, at + 8))))
-            case 1: objects[id] = .brush(Self.readHatch(b, at, end))
+            case 1: objects[id] = Self.readHatch(b, at, end) ?? .brush(nil)
             case 3: objects[id] = Self.readPathGradient(b, at, end).map { .pathGradient($0) } ?? .brush(nil)
             case 4: objects[id] = Self.readLinear(b, at, end).map { .linear($0) } ?? .brush(nil)
             default: objects[id] = .brush(nil)
@@ -483,6 +535,9 @@ extension EmfPlus {
                 fill(Path.combine(.intersect, p, ring), Color(Int64(argb)))
                 if let inner { outer = inner }
             }
+        } else if flags & 0x8000 == 0, case .hatch(let h)? = objects[id & 0xFF] {
+            fill(p, h.back)
+            fill(Path.combine(.intersect, p, Self.hatchLines(h, p.getBounds())), h.fore)
         } else { fill(p, brush(flags, id)) }
     }
 
