@@ -3543,6 +3543,13 @@ enum ChartPainter {
                     // 239.8 and PowerPoint's plot starts at 239.6, ours 9.6 pt higher on the row alone; ko-e114b968 p23's row ends lower.)
                     area = Rect.fromLTRB(area.left, max(area.top + lineH * Double(lines.count) + 6 * k, c.legendBox.map { r.top + ($0.top + $0.height) * r.height } ?? 0), area.right, area.bottom)
                 }
+                // (A slide's chart left to PowerPoint's layout, its legend below in a box of its own: the plot and its labels end where
+                // the no-box legend's row would start, above the box: zh 18335072f11e p10's box starts 282.5 pt, PowerPoint's category
+                // labels end 276, ours ran down to 294 over the legend.)
+                if !pie, c.onSlide, !c.onSheet, c.plotLayout == nil, c.legendPosition == "b", !c.legendOverlay, let box = c.legendBox {
+                    RuleTrace.hit("slide-placed-bottom-legend-keeps-its-row-below-the-plot")
+                    area = Rect.fromLTRB(area.left, area.top, area.right, min(area.bottom, r.top + box.top * r.height - 8.4 * k - 2.23))
+                }
                 if !pie, !c.onSlide, !c.onSheet, c.plotLayout == nil, c.legendPosition == "b" {
                     RuleTrace.hit("legend-box-keeps-its-row-below-the-plot")
                     area = Rect.fromLTRB(area.left, area.top, area.right,
