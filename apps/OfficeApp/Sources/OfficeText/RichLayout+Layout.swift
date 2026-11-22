@@ -2938,7 +2938,7 @@ extension RichLayout {
                         if q.text.isEmpty, q.image == nil, q.inlineImages.isEmpty,
                            q.cell?.keptPropertiesXML?.containsSubstring("w:hideMark") ?? false { spareEnd = _heights[k] }
                     }
-                    stackByColumn[cell.column, default: 0] += _heights[k] - (stackByColumn[cell.column] == nil ? 0 : shared(k)) - spareEnd
+                    stackByColumn[cell.column, default: 0] += _heights[k] - (stackByColumn[cell.column] == nil ? 0 : shared(k)) - spareEnd - _slidesCellFirstLineTrim(k, document)
                     let need = stackByColumn[cell.column]! + cell.pad.top + cell.pad.bottom
                     spanning.append((r, min(rows.count - 1, r + cell.rowSpan - 1), need))
                 }
@@ -3026,7 +3026,11 @@ extension RichLayout {
                            q.cell?.keptPropertiesXML?.containsSubstring("w:hideMark") ?? false { spare = _heights[k] }
                     }
                     var anchorTrim = 0.0
-                    if !theme.wordRules, _cells[k]!.rowSpan == 1, !_cells[k]!.vertical { anchorTrim = _slidesCellFirstLineTrim(k, document) }
+                    // (Only the cell's FIRST line: the lab's cells were one paragraph, and ko-e114b968 p79's nine
+                    // paragraphs at 150% centre where the full block puts them, 7.8 pt lower with a trim for each.)
+                    if !theme.wordRules, _cells[k]!.rowSpan == 1, !_cells[k]!.vertical, k == row.first || _cells[k - 1]!.column != column {
+                        anchorTrim = _slidesCellFirstLineTrim(k, document)
+                    }
                     content[column] = (content[column].map { $0 - shared(k) } ?? 0) + _heights[k] - spare - anchorTrim
                 }
                 // (… which reaches to the foot of a box floating over the
