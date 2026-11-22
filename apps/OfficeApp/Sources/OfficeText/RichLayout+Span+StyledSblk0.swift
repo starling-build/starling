@@ -153,6 +153,14 @@ extension _StyledFrame {
         flush(i)
         spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
         ctx.inserts.append(offset)
+    } else if !theme.wordRules, theme.officeLatinBreaks, p.style.eastAsian["a:cellLatinLnBrk"] == "1",
+              let b = ctx.before, b.isASCII, b.isLetter, ch.isASCII, ch.isLetter {
+        // (A paragraph whose latinLnBrk is 1 parts a Latin word where the line runs out: ko-2fd3de28 p136's table cell
+        // ends a line "...Prepare" and starts the next with "dStatement".)
+        RuleTrace.hit("latin-word-parts-latinLnBrk1")
+        flush(i)
+        spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind)))
+        ctx.inserts.append(offset)
     } else if theme.wordRules || theme.officeLatinBreaks, let b = ctx.before,
               RichLayout.joinsLatin(b, ch, eastAsian: document.usesEastAsianLayout) {
         flush(i)

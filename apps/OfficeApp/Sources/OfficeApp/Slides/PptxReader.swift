@@ -2752,6 +2752,7 @@ private struct SlideContext {
                     }
                     var style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1.0)
                     if looseKinsoku { style.eastAsian["a:looseKinsoku"] = "1" }
+                    if let b = level.latinLnBrk { style.eastAsian["a:latinLnBrk"] = b; style.eastAsian["a:cellLatinLnBrk"] = b }
                     // (A justified cell paragraph is justified, as a text box's: 458870cc p25's cells end every full line at the cell's edge.)
                     switch level.algn { case "ctr": style.alignment = .center; case "r": style.alignment = .right; case "just": style.alignment = .justify; default: break }
                     // Its spacing, as a text box's paragraph has it (aptia's
