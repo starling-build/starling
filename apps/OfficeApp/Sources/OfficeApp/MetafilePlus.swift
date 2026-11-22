@@ -29,7 +29,9 @@ struct EmfPlus {
 
     struct PlusPath { var points: [Offset] = []; var types: [UInt8] = [] }
     indirect enum Region { case rect(Rect), path(PlusPath), infinite, empty, combine(Int, Region, Region) }
-    struct Pen { var width = 1.0, unit = 0, color = Color(0xFF000000), solid = true, plain = true }
+    struct Pen { var width = 1.0, unit = 0, color = Color(0xFF000000), solid = true, plain = true
+        /// On/off lengths in pen widths (GDI+'s dash, dot, dash-dot styles or a custom array), nil for a solid line, and the offset into it.
+        var dash: [Double]? = nil, dashOffset = 0.0 }
     struct Font { var size = 12.0, unit = 0, family = "Arial", bold = false, italic = false, underline = false }
     enum Object { case brush(Color?), pen(Pen), path(PlusPath), region(Region), font(Font), image(Int), other }
 
@@ -116,13 +118,25 @@ struct EmfPlus {
         if flags & 0x4 != 0 { o += 4 }       // end cap
         if flags & 0x8 != 0 { o += 4 }       // join
         if flags & 0x10 != 0 { o += 4 }      // miter limit
-        if flags & 0x20 != 0 {               // line style: solid 0 only
-            if u32(o) != 0 { pen.plain = false }
-            o += 4
-        }
+        var style = 0
+        if flags & 0x20 != 0 { style = u32(o); o += 4 }   // line style
         if flags & 0x40 != 0 { o += 4 }      // dashed line cap
-        if flags & 0x80 != 0 { o += 4 }      // dash offset
-        if flags & 0x100 != 0 { pen.plain = false; o += 4 + 4 * u32(o) }
+        if flags & 0x80 != 0 { pen.dashOffset = f32(o); o += 4 }      // dash offset
+        var custom: [Double] = []
+        if flags & 0x100 != 0 {              // dash array
+            let n = u32(o)
+            if n > 0, n < 64, o + 4 + 4 * n <= at + ds { for i in 0..<n { custom.append(f32(o + 4 + 4 * i)) } }
+            o += 4 + 4 * n
+        }
+        switch style {
+        case 0: break
+        case 1: pen.dash = [3, 1]
+        case 2: pen.dash = [1, 1]
+        case 3: pen.dash = [3, 1, 1, 1]
+        case 4: pen.dash = [3, 1, 1, 1, 1, 1]
+        case 5: if custom.count >= 2, custom.allSatisfy({ $0 >= 0 }), custom.reduce(0, +) > 0 { pen.dash = custom } else { pen.plain = false }
+        default: pen.plain = false
+        }
         if flags & 0x200 != 0 { o += 4 }     // alignment
         if flags & 0x400 != 0 { pen.plain = false; o += 4 + 4 * u32(o) }
         if flags & 0x800 != 0 { pen.plain = false; return pen }
@@ -394,7 +408,8 @@ extension EmfPlus {
         case 0x4015:
             if case .path(let p)? = objects[flags & 0xFF], case .pen(let pen)? = objects[u(0) & 0xFF] {
                 let m = toDevice
-                steps.append(.stroke(device(m, p), pen.color, penWidth(pen)))
+                let width = penWidth(pen), line = device(m, p)
+                steps.append(.stroke(pen.dash.map { Self.dashed(line, $0, width, pen.dashOffset) } ?? line, pen.color, width))
             }
         case 0x400A:
             let count = u(4), packed = flags & 0x4000 != 0, c = brush(flags, u(0)), m = toDevice
@@ -421,6 +436,25 @@ extension EmfPlus {
     }
 
     /// A pen's width in device units: world units scale with the whole transform, the others by their unit alone.
+    /// `path` cut into dashes: `pattern` is on/off lengths in pen widths, `offset` how far into it the line starts.
+    static func dashed(_ path: Path, _ pattern: [Double], _ width: Double, _ offset: Double) -> Path {
+        let lens = pattern.map { max($0 * width, 0.01) }
+        let total = lens.reduce(0, +), out = Path()
+        guard total > 0, !lens.isEmpty else { return path }
+        for metric in path.computeMetrics() {
+            var pos = -(offset * width).truncatingRemainder(dividingBy: total), i = 0
+            while pos < metric.length, i < 100_000 {
+                let len = lens[i % lens.count]
+                if i % 2 == 0 {
+                    let a = max(pos, 0), b = min(pos + len, metric.length)
+                    if b > a { out.addPath(metric.extractPath(a, b), Offset.zero) }
+                }
+                pos += len; i += 1
+            }
+        }
+        return out
+    }
+
     func penWidth(_ pen: Pen) -> Double {
         pen.unit == 0 ? pen.width * toDevice.scale : pen.width * perUnit(pen.unit)
     }
