@@ -496,7 +496,7 @@ enum WriterMath {
                 // (A slide equation that opens with a relation, PowerPoint's print of 9fdd4dd8 "= 107,7 mca": nothing stands on its left, so the sign starts at the equation's own edge and only its right gap is kept.)
                 let leadsRelation = firstChar && leadRuns.ids.contains(ObjectIdentifier(r)) && inlineText && WriterMath.slideScope && level == 0 && "=<>≤≥≈≠→←⇒∈∉⊂⊃".contains(ch)
                 firstChar = false
-                if "=+−-±×÷∗<>≤≥≈≠∓→←⇒∈∉⊂⊃∪∩".contains(ch) {
+                if "=+−-±×÷<>≤≥≈≠∓→←⇒∈∉⊂⊃∪∩".contains(ch) || (ch == "∗" && WriterMath.slideScope) {
                     flush()
                     // (A relation or a binary operator stands a fifth of
                     // an em off what is beside it, in scripts less.)
@@ -582,7 +582,7 @@ enum WriterMath {
             func flush() { if !piece.isEmpty { parts.append(text(boldText(piece, r), size: own, italic: pieceItalic && boldText(piece, r) == piece, family: wide(piece) ? ea : nil)) }; piece = "" }
             func close() { flush(); if !parts.isEmpty { out.append((hbox(parts), opens)) }; parts = []; opens = false }
             for ch in s {
-                if "=+−-±×÷∗<>≤≥≈≠∓→←⇒∈∉⊂⊃∪∩".contains(ch) {
+                if "=+−-±×÷<>≤≥≈≠∓→←⇒∈∉⊂⊃∪∩".contains(ch) || (ch == "∗" && WriterMath.slideScope) {
                     close()
                     opens = true
                     let gap = own * 0.22
