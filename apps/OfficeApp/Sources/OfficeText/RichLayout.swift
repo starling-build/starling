@@ -1657,6 +1657,8 @@ public final class RichLayout {
     var _inline: [[ImageAttachment]] = []
     /// Paragraphs laid out on `_mixedFaceSpan`'s line, which sets their baseline itself.
     var _mixedFace: [Int: (depth: Double, size: Double)] = [:]
+    nonisolated(unsafe) static var _mixing = false
+    nonisolated(unsafe) static var _mixedOfPainter: [ObjectIdentifier: (depth: Double, size: Double)] = [:]
     var _inlineBoxes: [[Int]] = []
     /// An inline object's own height where its box is a page tall (`_span`), by id.
     var _pageFill: [String: Double] = [:]

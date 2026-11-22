@@ -158,6 +158,7 @@ extension _ParaFrame {
             RichLayout._registerPairs(painter, besideLeftRoom != nil ? besideLineIndents : [], push: keepClear)
         }
         _painters[i] = painter
+        _mixedFace[i] = RichLayout._mixedOfPainter[ObjectIdentifier(painter)]
         _textLeft[i] = left
         _textWidth[i] = textWidth
         // An object that floats over the paragraph's head with text
