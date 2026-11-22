@@ -198,6 +198,9 @@ enum SlideFonts {
             // (Rockwell and Tw Cen MT kern, as PowerPoint prints them, by the pairs of the font's own kern table.)
             if let k = SlideLatinKerns.lookup(windowsName(family)) { face.kerns = k.regular; face.boldKerns = k.bold ?? k.regular; face.kernsOutsideWord = true }
             if let k = SlideLatinItalicKerns.lookup(windowsName(family)) { face.italicKerns = k.italic; face.boldItalicKerns = k.boldItalic ?? k.italic }
+            // (A Ming, Song or Mincho name draws its ideographs in a serif, as Word's print does: PowerPoint's print of 新細明體 is a serif.
+            // The Kai face, a brush hand, is nearer the serif than the sans.)
+            if let serif = OfficeFonts.balloonIdeographFace(family) ?? (["dfkai-sb", "標楷體", "dfkai"].contains(windowsName(family)) ? "Noto Serif CJK TC" : nil) { face.fallback = [serif] }
             eastAsianMade[family] = face
             return face
         }
