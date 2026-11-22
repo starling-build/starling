@@ -2592,8 +2592,16 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let key = name + (st.bold ? " bold" : "") + (st.italic ? " italic" : "")
             if SheetHinting.has(key), name == "arial" || name == "times new roman" || OfficeFonts.sheetFaceIsOwn(name) { hint = key }
         }
+        // (On a page Excel scales the size in whole twips, then draws it at
+        // whole dots: 11 pt at 66% is 145 twips, 60 dots, not 60.5 dots.)
+        var size = book.fontSize(st) * scale * (printing ? 1 : Self.excelTextScale)
+        if dots > 0 {
+            let twips = (book.fontSize(st) * 20 * printTextScale + 0.5 + 1e-9).rounded(.down)
+            let em = (twips * 600 / 1440 + 0.5 + 1e-9).rounded(.down)
+            if em > 0, em != (size * dots).rounded() { size = em / dots }
+        }
         var style = GridTextStyle(family: face,
-                             size: book.fontSize(st) * scale * (printing ? 1 : Self.excelTextScale), bold: st.bold, italic: st.italic,
+                             size: size, bold: st.bold, italic: st.italic,
                              underline: st.underline, strike: st.strike, color: c, dots: dots, hint: hint)
         let lower = book.fontName(st).trimmingWhitespace().lowercased()
         if lower == "aptos narrow" || OfficeFonts.tabledNames.contains(lower) { style.own = lower }
@@ -2944,7 +2952,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // workbooks and its Arial 10 0.15 high in 40; cut, 3.96 and 3.24.)
         // (And the ascent so cut: the box's part over its baseline.)
         func box(_ s: CellStyle, _ p: @autoclosure () -> TextPainter) -> (below: Double, above: Double) {
-            let a = SheetPrintMetrics.ascent(family: book.fontName(s)).map { $0 * book.fontSize(s) }
+            let a = SheetPrintMetrics.printAscent(family: book.fontName(s)).map { $0 * book.fontSize(s) }
                 ?? p().computeDistanceToActualBaseline(.alphabetic) / scale
             let up = (a * 600 / 72).rounded(.up) * 72 / 600
             return ((Self._fittedLine(s, m, book) - up) * scale, up * scale)
@@ -2991,7 +2999,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // stood 6 pt low by the row's box.
         case .center:
             let size = book.fontSize(st)
-            if let a = SheetPrintMetrics.ascent(family: book.fontName(st)), let d = SheetPrintMetrics.descent(family: book.fontName(st)) {
+            if let a = SheetPrintMetrics.printAscent(family: book.fontName(st)), let d = SheetPrintMetrics.printDescent(family: book.fontName(st)) {
                 func dots(_ v: Double) -> Double { (v * size * 600 / 72 - 1e-6).rounded(.up) * 72 / 600 }
                 baseline = (top + bottom) / 2 + (dots(a) - dots(d)) / 2 * scale
             } else {
