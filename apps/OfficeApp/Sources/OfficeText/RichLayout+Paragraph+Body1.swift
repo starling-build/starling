@@ -236,7 +236,8 @@ extension _ParaFrame {
         // PowerPoint hangs a line-end 、 or 。 past the margin (its hangingPunct, on by default): where one would open the next line, it
         // is set no wider than a point, so the line takes it and the character before it (befe9f6b p6 "…明記する。").
         let zhHang = p.style.eastAsian["a:hangClosingZh"] == "1"
-        let _closingBrackets: Set<UInt16> = [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009]
+        // (The full-width ： ； ！ ？ hang the same way in Chinese: 1892a5a76df6 p250 "…得以下列方式處理之：" holds 之 on a 289 pt line, the ： past it.)
+        let _closingBrackets: Set<UInt16> = [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009, 0xFF1A, 0xFF1B, 0xFF01, 0xFF1F]
         if _hangsLineEndMarks(p),
            p.text.utf16.contains(where: { $0 == 0x3001 || $0 == 0x3002 || $0 == 0xFF0C || $0 == 0xFF0E || $0 == 0x201D || $0 == 0x29 || ($0 == 0x2C || $0 == 0x2E) && p.style.eastAsian["a:hangingPunct"] == "1" || (zhHang && _closingBrackets.contains($0)) }) {
             let units = Array(p.text.utf16)
