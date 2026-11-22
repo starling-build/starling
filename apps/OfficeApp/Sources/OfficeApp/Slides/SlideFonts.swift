@@ -423,7 +423,7 @@ enum SlideFonts {
             guard n.contains("dfkai") || n.contains("標楷") else { return nil }
             (units, upem, descent) = (1024, 1024, 204)
         }
-        return ((1.3 * units).rounded(.down) / upem, (descent / units + 0.15) / 1.3)
+        return (1.3 * units / upem, (descent / units + 0.15) / 1.3)
     }
 
     static func ownDescentShare(_ family: String) -> Double? {
