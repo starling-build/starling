@@ -3391,7 +3391,7 @@ private struct SlideContext {
     /// reference's East Asian face, else the theme's face for the script
     /// the letter is of (the run's language picks Han's) — nil where
     /// nothing names one (the Latin face serves, as before).
-    private func _eaFont(_ f: String?, scalar: UInt32, lang: String?) -> String? {
+    private func _eaFont(_ f: String?, scalar: UInt32, lang: String?, latin: String? = nil) -> String? {
         let major = f == "+mj-ea" || f == "+mj-lt" || f == "+mj-cs"
         let table = major ? theme.majorScript : theme.minorScript
         // A Latin-only face named for the East Asian slot of a run that is not marked Japanese (Google Slides exports
@@ -3414,6 +3414,10 @@ private struct SlideContext {
         case 0x3040 ... 0x30FF, 0x31F0 ... 0x31FF, 0xFF66 ... 0xFF9F: script = "Jpan"
         case 0xAC00 ... 0xD7AF, 0x1100 ... 0x11FF, 0x3130 ... 0x318F: script = "Hang"
         default:
+            // (A mark of a run that names no language and whose Latin face is a Korean one is set in that face, not in the theme's Hans
+            // face: ko-d8f0a8af p90's "【상표 유형】" in 함초롬바탕, a theme with an empty East Asian slot and Hans 宋体, is Malgun Gothic's
+            // 0.518 em in PowerPoint's print.)
+            if l.isEmpty, let latin, latin.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 }) { return latin }
             script = l.hasPrefix("ja") ? "Jpan" : l.hasPrefix("ko") ? "Hang" : (l == "zh-tw" || l == "zh-hk" || l == "zh-mo") ? "Hant" : l.hasPrefix("zh") ? "Hans" : "Hans"
         }
         return table[script]
@@ -3835,7 +3839,7 @@ private struct SlideContext {
                         // (The first letter of the piece names its script.)
                         let slice = String(decoding: utf16[consumed ..< min(utf16.count, consumed + piece.length)], as: UTF16.self)
                         let first = slice.unicodeScalars.first { Self.isEastAsian($0.value) }?.value ?? 0x4E00
-                        if let face = _eaFont(s.eaFont ?? s.font, scalar: first, lang: s.lang),
+                        if let face = _eaFont(s.eaFont ?? s.font, scalar: first, lang: s.lang, latin: s.font),
                            face != plain.fontFamily {
                             c = plain
                             c.fontFamily = face
@@ -3933,7 +3937,7 @@ private struct SlideContext {
                     // (A paragraph that ends in East Asian letters has its end mark in the East Asian face the same way.)
                     var mark = _font(e.font)
                     if let last = text.unicodeScalars.last(where: { $0.value != 0x0A && $0.value != 0x0B }), Self.isEastAsian(last.value), last.value != 0x3000,
-                       let ea = _eaFont(e.eaFont ?? e.font, scalar: last.value, lang: e.lang) { mark = ea }
+                       let ea = _eaFont(e.eaFont ?? e.font, scalar: last.value, lang: e.lang, latin: e.font) { mark = ea }
                     if mark != runs.last?.style.fontFamily { style.endMarkFace = mark }
                     // (A paragraph that ends in a line break ends with an empty line of its end mark's size, not the last run's:
                     // efe520c1 p4's title, 36 pt lines ending in a break over a 32 pt mark at 90%, stands 3.7 pt lower in PowerPoint's print.)
