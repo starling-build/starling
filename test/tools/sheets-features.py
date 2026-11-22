@@ -76,7 +76,7 @@ def parse(path):
         if "<conditionalFormatting" in x: f.add("condfmt")
         if "sparklineGroup" in x: f.add("sparkline")
         if 'rightToLeft="1"' in x: f.add("rtl")
-        if "fitToPage" in x: f.add("fit")
+        if re.search(r'<pageSetUpPr\b[^>]*\bfitToPage="(1|true)"', x): f.add("fit")   # fitToPage="0" is not fit-to-page
         if "<headerFooter" in x: f.add("header")
         text = ""
         for m in re.finditer(r"<c\b([^>]*?)(?:/>|>(.*?)</c>)", x, re.S):
