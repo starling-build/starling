@@ -246,6 +246,19 @@ struct ColorContext {
         "gray": Color(0xFF808080), "grey": Color(0xFF808080), "orange": Color(0xFFFFA500),
     ]
 
+    /// The chart colour style's (`cs:colorStyle meth="cycle"`, the colourful one) nth cycle of the six accents: the plain accent,
+    /// then lumMod 60%, 80% + 20%, 80%, 60% + 40%, 50%, 70% + 30%, 70%, 50% + 50% (chartex-lab2 treemap: item 7 is accent1 at 60%,
+    /// item 13 at 80% + 20%, item 19 at 80%). nil lumMod/lumOff: the cycle after the ninth variation starts again.
+    static func chartexVariation(_ c: Color, cycle: Int) -> Color {
+        let steps: [(Double, Double)] = [(1, 0), (0.6, 0), (0.8, 0.2), (0.8, 0), (0.6, 0.4), (0.5, 0), (0.7, 0.3), (0.7, 0), (0.5, 0.5)]
+        let (mod, off) = steps[cycle % steps.count]
+        if mod == 1 { return c }
+        let (h, s, l) = _hsl(Double((c.value >> 16) & 0xFF) / 255, Double((c.value >> 8) & 0xFF) / 255, Double(c.value & 0xFF) / 255)
+        let (r, g, b) = _rgb(h, s, min(1, max(0, l * mod + off)))
+        func ch(_ v: Double) -> Int64 { Int64(min(255, max(0, (v * 255).rounded()))) }
+        return Color(Int64(0xFF00_0000) | ch(r) << 16 | ch(g) << 8 | ch(b))
+    }
+
     /// lumMod/lumOff, satMod/satOff and hueMod/hueOff (in HSL), tint,
     /// shade and alpha, as DrawingML applies them. (satMod is what makes a
     /// theme's near-grey `lt2` the warm cream of its radial backgrounds.)
