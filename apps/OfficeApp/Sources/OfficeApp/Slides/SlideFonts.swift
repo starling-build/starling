@@ -467,7 +467,7 @@ enum SlideFonts {
         // baseline 34.2 pt below a 40 pt line's top, ours 38.9), Traditional Arabic 1.023+0.51 em, Sakkal Majalla .884+.319, Arabic Typesetting .701+.342.)
         case "simplified arabic": return 979.0 / 3395
         case "traditional arabic": return 0.51 / 1.533
-        case "sakkal majalla", "majalla ui": return 0.319 / 1.203
+        case "sakkal majalla", "majalla ui": return 0.319   // (a flat 1.2 em line with the baseline at 1.2 x the typo ascender, 1395/2048 = 0.817 em)
         case "arabic typesetting": return 1.0 - (1435.0 / 2048) / 1.2   // (first baseline 0.7007 em below the line top on a flat 1.2 em line: 8a5ae557 title 89.9 pt at 36 pt, ours was 3.7 low)
         case "noto sans": return 600.0 / 2789
         case "comic sans ms": return 597.0 / 2854
