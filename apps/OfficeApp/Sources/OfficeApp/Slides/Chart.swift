@@ -103,6 +103,9 @@ struct ChartSeries: Equatable {
     /// points; nil is none.
     var outline: Color? = nil
     var outlineWidth = 0.75
+    /// A filled radar's own line (PowerPoint draws it round the fill; the other apps' prints do not).
+    var radarLine: Color? = nil
+    var radarLineWidth = 0.75
     /// A line series' marks (`c:marker`): the symbol ("circle", "square",
     /// "diamond", "triangle"…; nil or "none" is none), its size in points
     /// and colours, the points that show none (`c:dPt` with symbol none),
@@ -1539,6 +1542,10 @@ enum ChartXML {
             if type != .line, type != .scatter, type != .radar, let ln = pr?.first("a:ln"), let f = ln.first("a:solidFill") {
                 s.outline = color(f)
                 s.outlineWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
+            }
+            if type == .radar, el.first("c:radarStyle")?["val"] == "filled", let ln = pr?.first("a:ln"), let f = ln.first("a:solidFill") {
+                s.radarLine = color(f)
+                s.radarLineWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 } ?? 0.75
             }
             if type == .scatter {
                 let style = el.first("c:scatterStyle")?["val"] ?? "marker"
@@ -3655,7 +3662,9 @@ enum ChartPainter {
             _sunburst(c, nodes, canvas, area, k: k, theme: theme,
                       text: { styled($0, $1, $2, bold: false, color: theme.background) })
         } else if c.type == .radar {
-            _radar(c, canvas, area, k: k, theme: theme, grid: c.gridColor ?? (c.onSlide && !c.styled2013 && c.officeStyled ? Color(0xFF868686) : grid),
+            _radar(c, canvas, area,
+                   inner: c.onSlide && c.plotLayoutInner ? c.plotLayout.map { Rect.fromLTWH(r.left + $0.left * r.width, r.top + $0.top * r.height, $0.width * r.width, $0.height * r.height) } : nil,
+                   k: k, theme: theme, grid: c.gridColor ?? (c.onSlide && !c.styled2013 && c.officeStyled ? Color(0xFF868686) : grid),
                    text: { styled($0, $1, $2, bold: false, color: c.valueLabelColor) },
                    categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor, part: "cat") })
         } else if pie, let tilt = c.pieTilt {
@@ -7533,14 +7542,18 @@ extension ChartPainter {
     /// the value axis's steps joining the spokes, and each series a closed
     /// line (or a filled shape) through its values, category 1 at the top
     /// and the rest clockwise — POI's radar-chart as PowerPoint draws it.
-    static func _radar(_ c: Chart, _ canvas: any Canvas, _ area: Rect, k: Double, theme: DeckTheme, grid: Color,
+    static func _radar(_ c: Chart, _ canvas: any Canvas, _ area: Rect, inner: Rect? = nil, k: Double, theme: DeckTheme, grid: Color,
                        text: (String, Double, Double) -> TextPainter,
                        categoryText: (String, Double, Double) -> TextPainter) {
         let n = c.categories.count
         guard n >= 3 else { return }
         let values = c.series.flatMap { $0.values.compactMap { $0 } }
         let auto = scale(min(0, values.min() ?? 0), values.max() ?? 1, intervals: 8)
-        let sc = fixedScale(auto: auto, min: c.valueMin, max: c.valueMax, step: c.valueStep)
+        var sc = fixedScale(auto: auto, min: c.valueMin, max: c.valueMax, step: c.valueStep)
+        // (PowerPoint's radar axis ends at the largest value rounded up to the step, with no headroom over it: a91e3e82 p12's values 5, 4, 3 end at 5, not 6.)
+        if c.onSlide, c.valueMax == nil, let top = values.max(), top > sc.lo {
+            sc.hi = max(sc.lo + sc.step, (top / sc.step - 1e-9).rounded(.up) * sc.step)
+        }
         let labelSize = c.valueLabelSize ?? c.baseTextSize
         let catSize = c.categoryLabelSize ?? c.baseTextSize
         let catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, .infinity) }
@@ -7554,8 +7567,9 @@ extension ChartPainter {
         let lineH = catLabels.map(\.height).max() ?? 12 * k
         let over = 1.2 * lineH + 3 * k, under = 1.2 * lineH - (c.styled2013 ? 2.5 * k : 0)
         let wide = (catLabels.map(\.width).max() ?? 0) + 4 * k
-        let radius = max(4, min(area.width / 2 - wide, (area.height - over - under) / 2))
-        let centre = Offset(area.center.dx, area.top + over + radius)
+        // (A plot the file places itself, `inner`: the circle fills its width, centred in it, as in a91e3e82 p12's print: box 213.4 x 225.3, radius 106.7.)
+        let radius = inner.map { max(4, min($0.width, $0.height) / 2) } ?? max(4, min(area.width / 2 - wide, (area.height - over - under) / 2))
+        let centre = inner.map { $0.center } ?? Offset(area.center.dx, area.top + over + radius)
         func point(_ i: Int, _ r: Double) -> Offset {
             let a = -Double.pi / 2 + Double(i) * 2 * .pi / Double(n)
             return Offset(centre.dx + cos(a) * r, centre.dy + sin(a) * r)
@@ -7623,6 +7637,15 @@ extension ChartPainter {
                 p.strokeJoin = .round
             }
             canvas.drawPath(path, p)
+            if c.onSlide, c.radarFilled, let o = series.radarLine {
+                let q = Paint()
+                q.isAntiAlias = true
+                q.style = .stroke
+                q.color = o
+                q.strokeWidth = max(0.5, series.radarLineWidth * k)
+                q.strokeJoin = .round
+                canvas.drawPath(path, q)
+            }
         }
     }
 
