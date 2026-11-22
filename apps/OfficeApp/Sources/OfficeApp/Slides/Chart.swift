@@ -375,6 +375,8 @@ struct Chart: Equatable {
     /// A scatter's X axis: its log base (`c:logBase`), fixed bounds, and
     /// number format where it is not General.
     var xLogBase: Double? = nil
+    /// A value axis on a log scale: the series hold exponents of this base.
+    var valueLogBase: Double? = nil
     var xMin: Double? = nil
     var xMax: Double? = nil
     var xFormat: String? = nil
@@ -1850,6 +1852,9 @@ enum ChartXML {
                 second.min = scaling.first("c:min")?["val"].flatMap(Double.init)
                 second.max = scaling.first("c:max")?["val"].flatMap(Double.init)
             }
+            if let u = axis.first("c:dispUnits")?.first("c:builtInUnit")?["val"],
+               let d = ["hundreds": 1e2, "thousands": 1e3, "tenThousands": 1e4, "hundredThousands": 1e5, "millions": 1e6,
+                        "tenMillions": 1e7, "hundredMillions": 1e8, "billions": 1e9, "trillions": 1e12][u] { second.unitDivisor = d }
             second.step = axis.first("c:majorUnit")?["val"].flatMap(Double.init).flatMap { $0 > 0 ? $0 : nil }
             c.secondValueAxis = second
         }
@@ -2341,6 +2346,19 @@ enum ChartXML {
             }
         }
         c.valueStep = valueAxis?.first("c:majorUnit")?["val"].flatMap(Double.init).flatMap { $0 > 0 ? $0 : nil }
+        // A logarithmic value axis (`c:logBase`): the points stand at their exponents, on an axis that runs a whole power of the base
+        // under the data to one over it (b7d6faa9 p16's error rates 1.2 to 26.2 on 1 to 100); its labels are the powers.
+        if type != .scatter, c.barView == nil, let base = valueAxis?.first("c:scaling")?.first("c:logBase")?["val"].flatMap(Double.init), base > 1,
+           c.valueMin == nil, c.valueMax == nil, c.valueStep == nil {
+            let all = c.series.flatMap { $0.values.compactMap { $0 } }
+            if let lo = all.min(), let hi = all.max(), lo > 0 {
+                let e = { (v: Double) in log(v) / log(base) }
+                c.valueLogBase = base
+                for i in c.series.indices { c.series[i].values = c.series[i].values.map { $0.map(e) } }
+                let flo = floor(e(lo) + 1e-9), fhi = ceil(e(hi) - 1e-9)
+                c.valueMin = flo; c.valueMax = max(fhi, flo + 1); c.valueStep = 1
+            }
+        }
         if let fmt = valueAxis?.first("c:numFmt") {
             let linked = ["1", "true"].contains(fmt["sourceLinked"] ?? "")
             var source = plot.descendant("c:val")?.descendant("c:formatCode")?.text
@@ -4851,7 +4869,8 @@ enum ChartPainter {
         let ticks = Array(stride(from: sc.lo, through: sc.hi + sc.step * 1e-6, by: sc.step))
         // In the axis's own number format where it has one: "1,600", and
         // an accounting format's "-" for nought. (Its padding is a cell's.)
-        func valueLabel(_ v: Double) -> String {
+        func valueLabel(_ shownAt: Double) -> String {
+            let v = c.valueLogBase.map { pow($0, shownAt) } ?? shownAt
             guard let code = c.valueFormat, !c.percent else { return c.percent ? label(v, percent: true) : tickLabel(v) }
             let shown = NumberFormat.format(v, code, width: 40).text.trimmingWhitespace()
             return shown.isEmpty ? tickLabel(v) : shown
@@ -4872,6 +4891,7 @@ enum ChartPainter {
         let secondTicks = secondScale.map { s2 in Array(stride(from: s2.lo, through: s2.hi + s2.step * 1e-6, by: s2.step)) } ?? []
         let secondLabels: [TextPainter] = secondTicks.map { v in
             let code = c.secondValueAxis?.format
+            let v = v / (c.secondValueAxis?.unitDivisor ?? 1)
             let shown = code.map { NumberFormat.format(v, $0, width: 40).text.trimmingWhitespace() } ?? label(v, percent: false)
             return valueText(c.secondValueAxis?.deleted == true ? "" : (shown.isEmpty ? label(v, percent: false) : shown), labelSize, .infinity)
         }
@@ -8543,4 +8563,6 @@ struct SecondValueAxis: Equatable {
     var step: Double? = nil
     /// Stands on the first axis's scale (the file's visible axis belongs to a group left out).
     var sameScale = false
+    /// `c:dispUnits`: the labels show the values divided by this (hundredMillions 1e8).
+    var unitDivisor = 1.0
 }
