@@ -2603,7 +2603,9 @@ extension RichLayout {
                                 let ea = q.text.unicodeScalars.contains { Self._isEastAsianScalar($0.value) }
                                 // (The loss shrinks with the face's own line height: Arial (1.149 em) 0.0717, Calibri (1.22 em)
                                 // 0.041 from es 92ee258e's print; a taller face loses less, none from about 1.31 em.)
-                                let h = theme.naturalLineHeight(family: big?.style.fontFamily, bold: false, italic: false)
+                                // (Lab tbl-rows2: the end mark's face counts too, the taller of the two: Times text with a
+                                // Calibri end mark takes Calibri's smaller loss; the mark's size makes no difference.)
+                                let h = q.style.cellFaceHeight ?? theme.naturalLineHeight(family: big?.style.fontFamily, bold: false, italic: false)
                                 let k = arabic ? 0 : max(0, 0.0717 - 0.437 * (h - 1.149))
                                 let add = max(0, 0.9 * sz * (m - 1) - k * sz)
                                 trim = _px(max(0, (m - 1) * 1.2 * sz - add))
