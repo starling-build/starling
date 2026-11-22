@@ -3896,7 +3896,7 @@ private struct SlideContext {
                 let mark = CharStyle(
                     bold: s.bold ?? false, italic: s.italic ?? false, fontFamily: _font(s.font),
                     fontSize: ((s.size ?? 18) * 10).rounded() / 10, color: s.color ?? tx1)
-                if let last = runs.last, last.style.fontSize != mark.fontSize {
+                if runs.last != nil {
                     text += "\u{200B}"
                     runs.append(Run(length: 1, style: mark))
                 }
