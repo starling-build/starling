@@ -57,6 +57,17 @@ struct SlideField: Equatable {
 
     var isSlideNumber: Bool { type == "slidenum" }
 
+    /// A type this app recomputes: the slide number, or a date/time
+    /// ("datetime", "datetime1"…"datetime13", "datetimeFigureOut"). Any other
+    /// type string is not a field PowerPoint updates; it prints the text the
+    /// file stored (lo-tdf126324's malformed type prints its "17").
+    static func isKnownType(_ type: String) -> Bool {
+        if type == "slidenum" { return true }
+        guard type.hasPrefix("datetime") else { return false }
+        let rest = type.dropFirst("datetime".count)
+        return rest.isEmpty || rest == "FigureOut" || rest.allSatisfy { $0.isASCII && $0.isNumber }
+    }
+
     /// The text the field shows on slide `number` (1-based) today.
     func value(slide number: Int, date: Date = SlideField.fieldNow()) -> String {
         if isSlideNumber { return "\(number)" }
