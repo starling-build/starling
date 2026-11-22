@@ -3340,12 +3340,7 @@ final class _TextCache {
                     var cut = rest.index(after: rest.startIndex)
                     while cut < rest.endIndex {
                         let next = rest.index(after: cut)
-                        // (A hyphen the line ends on hangs past the room as a
-                        // trailing space does: 52716's "ders@rz.uni-" is 153.7
-                        // of the screen's 151 px and stands on one line in
-                        // Excel's print, where "christian.and" at 154.5 does not.)
-                        if _width(String(rest[..<next]), style) > maxWidth,
-                           !(rest[cut] == "-" && _width(String(rest[..<cut]), style) <= maxWidth) { break }
+                        if _width(String(rest[..<next]), style) > maxWidth { break }
                         cut = next
                     }
                     out.append(String(rest[..<cut])); rest = rest[cut...]
