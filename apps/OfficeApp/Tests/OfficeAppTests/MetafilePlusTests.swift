@@ -199,14 +199,18 @@ final class MetafilePlusTests: XCTestCase {
         XCTAssertGreaterThan(last.r, 0.9, "the centre is nearly white")
     }
 
-    func testAHatchBrushIsLinesOnAnEightPixelPitch() throws {
+    func testAHatchBrushIsTheTiledCellPowerPointPrints() throws {
         var b: [UInt8] = []
         for v in [0xDBC01002, 1, 0, 0xFF000000, 0xFFFFFFFF] { b += le32(v) }   // horizontal: black lines on white
         guard case .hatch(let h)? = EmfPlus.readHatch(b, 0, b.count) else { return XCTFail("a hatch") }
         XCTAssertEqual(h.fore, Color(0xFF000000))
         let lines = EmfPlus.hatchLines(h, Rect.fromLTRB(0, 0, 20, 20))
-        XCTAssertEqual(Array(lines.computeMetrics()).count, 3, "rows 0, 8 and 16")
-        b[8] = 40   // a style that is not played
+        XCTAssertEqual(Array(lines.computeMetrics()).count, 2, "tile rows 0 and 8: 0 and 10.67 device pixels, 8 tile pixels of 4/3 apart")
+        XCTAssertEqual(lines.getBounds().bottom, 10.6667 + 1.3333, accuracy: 0.001, "a row is one tile pixel (4/3) high")
+        b[8] = 16   // 80 percent: 60 of the 64 cells
+        guard case .hatch(let dense)? = EmfPlus.readHatch(b, 0, b.count) else { return XCTFail("80 percent") }
+        XCTAssertEqual(dense.bits.nonzeroBitCount, 60)
+        b[8] = 53   // a style GDI+ does not have
         XCTAssertNil(EmfPlus.readHatch(b, 0, b.count))
         b[8] = 0; b.replaceSubrange(16..<20, with: le32(0xFF000000))   // the same colour twice: solid
         guard case .brush(let c)? = EmfPlus.readHatch(b, 0, b.count) else { return XCTFail("solid") }
@@ -215,7 +219,7 @@ final class MetafilePlusTests: XCTestCase {
 
     func testABrushItDoesNotPlayLeavesTheFileToItsFallbackOnlyWhenAFillNamesIt() throws {
         var hatch: [UInt8] = []
-        for v in [0xDBC01002, 1, 40, 0xFF000000, 0xFFFFFFFF] { hatch += le32(v) }   // style 40: not played
+        for v in [0xDBC01002, 1, 53, 0xFF000000, 0xFFFFFFFF] { hatch += le32(v) }   // style 53: not played
         let object = plus(0x4008, 0x0101, hatch)
         let head = plus(0x4001, 1, le32(0xDBC01002) + le32(1) + le32(96) + le32(96))
         let unused = try XCTUnwrap(Metafile(build(dual: true, extra: object), id: "p"))
