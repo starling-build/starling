@@ -1764,6 +1764,8 @@ private struct SlideContext {
             (f.imageAlpha, f.duotone) = PptxReader.blipEffects(blip, colors: colors)
             f.imageLevels = PptxReader.blipLevels(blip)
             f.imageInset = PptxReader.stretchInset(b)
+            // (A picture that stays upright in a shape turned: 8bef769d p69's clouds, PowerPoint's print keeps the illustrations square to the page.)
+            f.imageStays = (spPr?.first("a:xfrm")?["rot"].flatMap(Double.init) ?? 0) != 0 && ["0", "false"].contains(b["rotWithShape"] ?? "")
             if b.first("a:tile") != nil || b.first("a:stretch") == nil {
                 PptxReader.tile(b.first("a:tile"), image: package.parts[rel.target], into: &f)
             }
