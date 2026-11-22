@@ -2982,6 +2982,9 @@ private struct SlideContext {
                 if chart.series[i].color != nil { chart.series[i].scheme = nil }
             }
         }
+        if space.first("c:spPr") == nil, chart.textColor == nil, let sv = space.first("c:style")?["val"].flatMap(Int.init), (33 ... 40).contains(sv) {
+            chart.textColor = Color(0xFF000000)
+        }
         if let t = transform { frame = t(frame) }
         var st = ShapeState(id: id(), name: el.descendant("p:cNvPr")?["name"] ?? "Chart", kind: .chart(chart), frame: frame,
                             rotation: 0, fill: nil, outline: nil, outlineWidth: 0, anchor: .top,
@@ -3023,6 +3026,12 @@ private struct SlideContext {
                 st.outlineFill = f
                 st.outlineWidth = ln["w"].flatMap(Double.init).map { $0 / Pptx.emu } ?? 0.75
             }
+        }
+        // (Where the file gives the area no fill, its Office 2007 style does: 33-40 white, 41-48 black.)
+        if st.fillStyle == nil, space.first("c:spPr") == nil, let a = chart.areaFill, !chart.areaNoFill { st.fillStyle = SlideFill(color: a) }
+        // (Styles 33-40: a plain white area and dark text, where the file sets neither: 1c1295c3 p18. The text is dk1, not the slide's tx1.)
+        if st.fillStyle == nil, space.first("c:spPr") == nil, let sv = space.first("c:style")?["val"].flatMap(Int.init), (33 ... 40).contains(sv) {
+            st.fillStyle = SlideFill(color: Color(0xFFFFFFFF))
         }
         // The chart's own drawing (`c:userShapes`): shapes placed in the
         // chart's frame by fractions of it, or by an offset and size —
