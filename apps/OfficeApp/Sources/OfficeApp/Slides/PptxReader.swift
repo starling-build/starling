@@ -4326,6 +4326,13 @@ private struct SlideContext {
                         let ea = _eaFont(level.eaFont ?? level.font, scalar: last.value, lang: level.lang, latin: level.font), ea != runs.last?.style.fontFamily {
                     style.endMarkFace = ea
                 }
+                // (A right-aligned paragraph in a box that does not wrap keeps its closing spaces in the line, as PowerPoint right-aligns it:
+                // ko-4f5289a9 p8-10's "①" + 30 spaces is drawn from x 485 to the margin at 672.6 in its print, the digit at the left of the
+                // run; ours hung the spaces and set it at the margin. Kept as no-break spaces, as wide, which the engine keeps.)
+                var text = text
+                if noWrapBody, style.alignment == .right, text.hasSuffix(" "), let at = text.lastIndex(where: { $0 != " " }) {
+                    text = String(text[...at]) + String(repeating: "\u{00A0}", count: text.distance(from: at, to: text.endIndex) - 1)
+                }
                 var made = RichParagraph(text: text, runs: runs, style: style)
                 made.inlineImages = mathImages
                 if !koParens.isEmpty { made.style.eastAsian["a:hangParens"] = koParens.map(String.init).joined(separator: ",") }
