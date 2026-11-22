@@ -1539,16 +1539,20 @@ extension RichLayout {
             // "東引鄉活動中心2樓" 1.8pt: windows' measurement.)
             let higher = centred && abs((styles[k]?.height ?? 0) - 1.3) < 0.001 ? 0.11 * em : 0
             let along = box.left + min(box.right - box.left, glyph.width) / 2 + lead(k) - higher
-            // (PowerPoint sets a Yu Gothic ideograph in an eaVert box (slides, where the face table holds no baseline for it) 0.25 em
-            // further toward the column's left and 0.11 em further down it than the square centred in its box: 9047d9e7 p6 (12 and
-            // 16 pt, bold, spacing 80%), 5df7b42e (90%), e89e63a8, 44a86430, 5bdba90e, a91e3e82: 0.23 to 0.27 em across, 0.10 to 0.12 along
-            // at every size from 10.5 to 48 pt and every line spacing.)
+            // (Slides, where the face table holds no baseline for the face: PowerPoint sets an upright ideograph half the face's hhea
+            // lineGap further toward the column's left than the square centred in its box, and (win ascent - hhea ascent) further down it.
+            // Yu Gothic is the face with both: hhea lineGap 1024/2048 and win ascent 2017 (Regular) / 2024 (Bold) over hhea 1802, so 0.25 em
+            // across and 0.105 / 0.108 em along. Meiryo, MS Gothic/PGothic/Mincho, HGMaruGothicMPRO and Malgun have win = hhea and no gap, so
+            // zero, as printed (vertical tables cjk-vertical-20261122; 9047d9e7 p6, 5df7b42e, 998cb8cc, b993c440, 5bdba90e).)
             let yuSlide = !theme.wordRules && uprightIdeographs && (styles[k].map { st in
                 var f = (st.debugLabel ?? st.fontFamily ?? "").lowercased()
                 while f.hasSuffix(".copyWith") { f = String(f.dropLast(9)); if f.hasPrefix("("), f.hasSuffix(")") { f = String(f.dropFirst().dropLast()) } }
                 return f.containsSubstring("yu gothic") || f.containsSubstring("游ゴシック")
             } ?? false)
-            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em + (yuSlide ? 0.11 * em : 0), origin.dy + acrossC(box, em, k) + rubyColumnShift(k) + (plain ? 0.085 * em : 0) + sharedShift(k) + (yuSlide ? 0.25 * em : 0))
+            let yuBold = styles[k].map { ($0.fontWeight?.value ?? 400) >= 600 } ?? false
+            let yuAlong = yuSlide ? (yuBold ? 222.0 : 215.0) / 2048 : 0
+            let yuAcross = yuSlide ? 0.5 / 2 : 0
+            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em + yuAlong * em, origin.dy + acrossC(box, em, k) + rubyColumnShift(k) + (plain ? 0.085 * em : 0) + sharedShift(k) + yuAcross * em)
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
             canvas.restore()
