@@ -165,6 +165,13 @@ extension ArabicForms {
             let shaped = letters[u]?[form] ?? 0
             guard let w = advances[shaped != 0 ? shaped : u] else { return nil }
             total += w
+            // (Traditional Arabic kerns the letter after a reh in toward it: "reh+<hex>" holds the
+            // adjustment by that letter's isolated code, "reh+*" the rest.)
+            if u == 0x0631, let clusters, k + 1 < shown.count, letters[shown[k + 1]] != nil {
+                let f = shown[k + 1]
+                let iso = letters[f]?[0] ?? 0
+                if let d = clusters["reh+" + String(iso != 0 ? iso : f, radix: 16, uppercase: true)] ?? clusters["reh+*"] { total += d }
+            }
             prevJoinsLeft = joinsBoth(u)
             k += 1
         }
