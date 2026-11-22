@@ -32,8 +32,39 @@ final class SlideTextCache {
     nonisolated(unsafe) static var jpegSizes: Set<UInt64> = []
     /// Sizes of tiled pictures with an alpha mask that PowerPoint still marks smooth.
     nonisolated(unsafe) static var alphaSmooth: Set<UInt64> = []
+    /// Decoded JPEG pictures by identity, with the quality they were saved at: a resampled or recoloured copy
+    /// is written back as a JPEG of that quality (PowerPoint's PDF does), not as lossless pixels.
+    nonisolated(unsafe) static var jpegQualities: [ObjectIdentifier: Int] = [:]
+    /// Below this many pixels a copy stays lossless: the smallest picture PowerPoint writes as JPEG in its PDFs of the corpus is 2,600 px; a 5x5 tile source it writes as Flate.
+    nonisolated(unsafe) static let jpegMinPixels = 2_600
     static func noteJpeg(_ bytes: [UInt8], _ image: Image) {
-        if bytes.starts(with: [0xFF, 0xD8]) { jpegSizes.insert(UInt64(image.width) << 32 | UInt64(image.height)) }
+        if bytes.starts(with: [0xFF, 0xD8]) {
+            jpegSizes.insert(UInt64(image.width) << 32 | UInt64(image.height))
+            if let q = jpegQuality(bytes) { jpegQualities[ObjectIdentifier(image)] = q }
+        }
+    }
+    /// The IJG quality a JPEG was saved at, read from its first (luminance) quantisation table; nil when it has none
+    /// or a 16-bit one.
+    static func jpegQuality(_ b: [UInt8]) -> Int? {
+        let std: [Int] = [16, 11, 10, 16, 24, 40, 51, 61, 12, 12, 14, 19, 26, 58, 60, 55, 14, 13, 16, 24, 40, 57, 69, 56, 14, 17, 22, 29, 51, 87, 80, 62,
+                          18, 22, 37, 56, 68, 109, 103, 77, 24, 35, 55, 64, 81, 104, 113, 92, 49, 64, 78, 87, 103, 121, 120, 101, 72, 92, 95, 98, 112, 100, 103, 99]
+        let zigzag: [Int] = [0, 1, 8, 16, 9, 2, 3, 10, 17, 24, 32, 25, 18, 11, 4, 5, 12, 19, 26, 33, 40, 48, 41, 34, 27, 20, 13, 6, 7, 14, 21, 28,
+                             35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51, 58, 59, 52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63]
+        var i = 2
+        while i + 4 < b.count {
+            guard b[i] == 0xFF else { return nil }
+            let marker = b[i + 1], len = Int(b[i + 2]) << 8 | Int(b[i + 3])
+            if marker == 0xDB, i + 4 + 65 <= b.count, b[i + 4] >> 4 == 0 {
+                var sum = 0.0
+                for k in 0 ..< 64 { sum += Double(b[i + 5 + k]) * 100 / Double(std[zigzag[k]]) }
+                let scale = sum / 64
+                let q = scale <= 100 ? (200 - scale) / 2 : 5000 / scale
+                return max(30, min(98, Int(q.rounded())))
+            }
+            if marker == 0xDA || len < 2 { return nil }
+            i += 2 + len
+        }
+        return nil
     }
     private var _decoding: Set<String> = []
     /// Called when a picture finishes decoding: repaint.
@@ -140,7 +171,10 @@ final class SlideTextCache {
         let paint = Paint()
         paint.filterQuality = .medium
         canvas.drawImageRect(image, Rect.fromLTWH(0, 0, Double(image.width), Double(image.height)), Rect.fromLTWH(0, 0, Double(w), Double(h)), paint)
-        guard let out = recorder.endRecording().toImageSync(width: w, height: h) else { return nil }
+        guard var out = recorder.endRecording().toImageSync(width: w, height: h) else { return nil }
+        if out.width * out.height >= SlideTextCache.jpegMinPixels, let q = Self.jpegQualities[ObjectIdentifier(image)], let j = out.jpegCopy(quality: q) {
+            out.dispose(); out = j; Self.jpegQualities[ObjectIdentifier(out)] = q
+        }
         _scaled[key] = out
         return out
     }
@@ -174,7 +208,10 @@ final class SlideTextCache {
         let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, w, h))
         canvas.drawImageRect(image, Rect.fromLTWH(0, 0, w, h), Rect.fromLTWH(0, 0, w, h),
                              SlidePainter.imagePaint(alpha: alpha, duotone: duotone, levels: levels))
-        guard let baked = recorder.endRecording().toImageSync(width: image.width, height: image.height) else { return nil }
+        guard var baked = recorder.endRecording().toImageSync(width: image.width, height: image.height) else { return nil }
+        if alpha >= 1, baked.width * baked.height >= SlideTextCache.jpegMinPixels, let q = Self.jpegQualities[ObjectIdentifier(image)], let j = baked.jpegCopy(quality: q) {
+            baked.dispose(); baked = j; Self.jpegQualities[ObjectIdentifier(baked)] = q
+        }
         _recoloured[key] = baked
         return baked
     }
@@ -921,23 +958,28 @@ final class SlidePainter: CustomPainter {
                 // prints it: a cut copy is sampled from another origin,
                 // and customGeo's 138 dpi screenshots of small print
                 // came out a different grey in every letter.
-                let paint = imagePaint(alpha: shape.pictureAlpha, duotone: shape.pictureDuotone, levels: shape.pictureLevels,
+                var paint = imagePaint(alpha: shape.pictureAlpha, duotone: shape.pictureDuotone, levels: shape.pictureLevels,
                                        keyed: (shape.pictureColorChange?.last?.alpha ?? 1) == 0 ? shape.pictureColorChange?.first : nil)
+                // (A JPEG recoloured — grayscale, duotone, levels — is baked once and written back as a JPEG, as PowerPoint's PDF holds it.)
+                var bakedPic = decoded
+                if shape.pictureAlpha >= 1, shape.pictureColorChange == nil, shape.pictureDuotone != nil || shape.pictureLevels != nil, SlideTextCache.jpegQualities[ObjectIdentifier(decoded)] != nil,
+                   let baked = cache.recoloured(decoded, alpha: 1, duotone: shape.pictureDuotone, levels: shape.pictureLevels) { bakedPic = baked }
+                if bakedPic !== decoded { paint = imagePaint(alpha: 1, duotone: nil) }
                 if src.width > 0, src.height > 0, src.width < w || src.height < h {
                     let sx = r.width / src.width, sy = r.height / src.height
                     canvas.clipRect(r)
-                    canvas.drawImageRect(decoded, Rect.fromLTWH(0, 0, w, h),
+                    canvas.drawImageRect(bakedPic, Rect.fromLTWH(0, 0, w, h),
                                          Rect.fromLTWH(r.left - src.left * sx, r.top - src.top * sy, w * sx, h * sy), paint)
                 } else {
                     // PowerPoint's PDF holds an uncropped picture shrunk to 200 pixels an inch
                     // (a 3508 px picture over 841.6 pt is 2337; 1890 over 204.1 pt is 567).
-                    var shown = decoded
+                    var shown = bakedPic
                     if shape.pictureInset == .zero, shape.pictureDuotone == nil, shape.pictureLevels == nil, shape.pictureAlpha >= 1, shape.pictureColorChange == nil, !Self.pngHasAlpha(image.data),
                        c.left == 0, c.right == 0, c.top == 0, c.bottom == 0, px > 0 {
                         let nw = Int((r.width / px * 200 / 72).rounded(.down)), nh = Int((r.height / px * 200 / 72).rounded(.down))
-                        if nw >= 1, nh >= 1, nw < decoded.width, nh < decoded.height, let small = cache.scaled(decoded, nw, nh) { shown = small }
+                        if nw >= 1, nh >= 1, nw < bakedPic.width, nh < bakedPic.height, let small = cache.scaled(bakedPic, nw, nh) { shown = small }
                     }
-                    canvas.drawImageRect(shown, shown === decoded ? src : Rect.fromLTWH(0, 0, Double(shown.width), Double(shown.height)), r, paint)
+                    canvas.drawImageRect(shown, shown === bakedPic ? src : Rect.fromLTWH(0, 0, Double(shown.width), Double(shown.height)), r, paint)
                 }
                 canvas.restore()
             } else {
