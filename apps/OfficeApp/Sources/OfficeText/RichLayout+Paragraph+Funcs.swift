@@ -688,7 +688,7 @@ extension _ParaFrame {
             }
             let units = Array(p.text.utf16)
             let stops = style.tabStops.sorted { $0.position < $1.position }
-            let step = _px(document.defaultTabStop ?? 36)
+            let step = _px(style.defaultTab ?? document.defaultTabStop ?? 36)
             // `wraps`: where the lines the column wraps the paragraph into
             // start (PowerPoint's, measured below); a tab on such a line
             // is measured from the line's own start, at the indent.
