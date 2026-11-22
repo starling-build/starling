@@ -356,6 +356,8 @@ struct Chart: Equatable {
         /// LIBRE_OFFICE-100610's survey bars stand in no box at all in
         /// PowerPoint's print.
         var walled = true
+        /// `c:backWall`'s solid fill.
+        var wallFill: Color? = nil
         /// `c:rAngAx`: the axes stand at right angles (an oblique box); not set, Word turns
         /// the chart's box in perspective (`c:perspective`, in half degrees).
         var rightAngles = true
@@ -2057,6 +2059,7 @@ enum ChartXML {
                                       gapDepth: (el.first("c:gapDepth")?["val"].flatMap(Double.init) ?? 150) / 100)
             func unlined(_ tag: String) -> Bool { chart.first(tag)?.first("c:spPr")?.first("a:ln")?.first("a:noFill") != nil }
             c.barView?.walled = !(unlined("c:floor") && unlined("c:backWall"))
+            c.barView?.wallFill = chart.first("c:backWall")?.first("c:spPr")?.first("a:solidFill").flatMap(color)
             if let ra = v?.first("c:rAngAx") { c.barView?.rightAngles = (ra["val"] ?? "1") != "0" && (ra["val"] ?? "1") != "false" }
             c.barView?.rows = (el.first("c:grouping")?["val"] ?? "clustered") == "standard"
             c.barView?.heightPercent = v?.first("c:hPercent")?["val"].flatMap(Double.init)
@@ -5522,6 +5525,13 @@ enum ChartPainter {
         axisPaint.strokeWidth = max(0.5, 0.75 * k)
         axisPaint.color = Color(0xFF868686)
         let tick = 5.7 * k
+        // (A 3-D chart's back wall filled on a slide, behind the gridlines: 3f8a480a p11's pale green, in PowerPoint's print.)
+        if c.onSlide, !horizontal, box != .zero, let wf = c.barView?.wallFill {
+            let wp = Paint()
+            wp.style = .fill
+            wp.color = wf
+            canvas.drawRect(Rect.fromLTRB(plot.left + box.dx, plot.top - box.dy, plot.right + box.dx, vpos(max(sc.lo, min(sc.hi, 0))) - box.dy), wp)
+        }
         for (i, v) in ticks.enumerated() {
             let p = vpos(v)
             let tp = valueLabels[i]
