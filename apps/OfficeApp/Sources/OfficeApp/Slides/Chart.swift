@@ -3794,7 +3794,7 @@ enum ChartPainter {
         } else {
             _axes(c, canvas, area, frame: r, k: k, theme: theme, titleLines: titleLines, grid: c.gridColor ?? grid, text: text,
                    titleText: { styled($0, c.onSheet && c.bareAxisTitle ? $1 * 0.9 : $1, $2, bold: false, color: c.onSlide || c.onSheet ? nil : c.axisTitleColor, family: c.onSheet && c.bareAxisTitle ? "Arial" : nil) },
-                  categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor, part: "cat", windowsLines: true, mixedLine: 1.494) },
+                  categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor, part: "cat", windowsLines: true, mixedLine: 1.494, tall: true) },
                   valueText: { styled($0, $1, $2, bold: c.valueLabelBold, color: c.valueLabelColor, part: "val", tall: true) })
         }
         if c.pivotButtons.count == 2 {
@@ -5169,7 +5169,10 @@ enum ChartPainter {
             // (Across, the room the value labels take beside the plot is
             // not the categories': cooper's "African American" breaks in
             // two in PowerPoint's print, in a slot a fifth of the plot.)
-            let beside = horizontal || (placed != nil && c.plotLayoutInner) ? 0
+            // (A slide chart with its value axis deleted has no value labels beside the plot, and the plot takes the room: ko-c03ed80e p21's
+            // nine names in 71.75 pt slots, "전력소모가 적은" on one line in PowerPoint's print, ours broke it after "전력소모가".)
+            let besideNone = c.onSlide && c.valueAxisDeleted && c.plotLayout == nil && valueLabels.allSatisfy { $0.width == 0 }
+            let beside = horizontal || (placed != nil && c.plotLayoutInner) || besideNone ? 0
                 : (valueLabels.map(\.width).max() ?? 0) + (c.styled2013 ? 8.5 : 11.1) * k + 4 * k
             let slot = ((horizontal ? along.height : along.width) - beside) / Double(n)
             // (A bar chart's category names in a Word document wrap at a fifth of the
@@ -5354,6 +5357,10 @@ enum ChartPainter {
             if slideBare, !c.valueTicksOut { left += max(0, 0.91 * labelSize - 12.2) * k }
             let slideFoot = slideBare && !c.categoryTicksOut ? max(0, 0.64 * (catSize - 12.25)) * k : 0
             let tallest = aslant ? (catLabels.map(drop).max() ?? lineH) : (catLabels.map(\.height).max() ?? lineH)
+            // (Malgun Gothic's category names on a slide: PowerPoint's print puts the first baseline 15.2 pt under the axis and the frame's
+            // foot 10.4 under the last, 9 pt, 3 charts alike; the face's taller line needs a fixed 4.7 pt less (4.8 at 9 pt, 4.6 at 10 pt: ko-e114b968 p9) between the axis and the names than
+            // the Latin line's 7.6 + its ascent, ours 20.0 and 4.4 pt too much: ko-c03ed80e p21.)
+            let malgunCatLift = c.onSlide && !horizontal && !aslant && !c.categoryLabelsSparse && ["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased()) ? 4.7 * k : 0
             // (Labels by an axis above the foot take no room below it.)
             // (A `cx:` chart's on a sheet 2.53 pt higher, its labels with
             // it: their baselines 7.98 pt over the frame's foot in Excel's
@@ -5361,7 +5368,7 @@ enum ChartPainter {
             // Not a box plot's, already higher than Excel's.)
             // (Each outer level of a multi-level axis takes a row of its own under the names.)
             let levelRows = c.categoryLevels.isEmpty ? 0 : Double(c.categoryLevels.count) * ((catLabels.first?.height ?? 12 * k) + 8.2 * k) + 4.5 * k
-            let bottom = levelRows - legendFootRise + (atZero ? (slideBare ? 8.1 : 4) * k : tallest + 7.6 * k + belowOut + slideFoot) - (wordFoot ? 4.4 * k : 0) - placedOverAutoFoot + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (deletedAxis2013 ? 1.7 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
+            let bottom = levelRows - legendFootRise + (atZero ? (slideBare ? 8.1 : 4) * k : tallest + 7.6 * k + belowOut + slideFoot - malgunCatLift) - (wordFoot ? 4.4 * k : 0) - placedOverAutoFoot + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (deletedAxis2013 ? 1.7 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
             let edges = c.type == .scatter || c.type == .area
@@ -6152,6 +6159,7 @@ enum ChartPainter {
             let slot = plot.width / Double(n)
             // (Word's walled 3-D columns: the names 6 pt higher, lo-1bd2003e's at 272 and 284.)
             let foot = (atZero ? zero : plot.bottom) - (inWord && c.barView?.walled == true && c.plotLayoutInner ? 6 * k : 0)
+            let malgunCatLift = c.onSlide && !horizontal && !aslant && !c.categoryLabelsSparse && ["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased()) ? 4.7 * k : 0
             for (i, tp) in catLabels.enumerated() where table == nil && i % every == 0 {
                 let cx = c.type == .area && n > 1 ? plot.left + Double(i) * plot.width / Double(n - 1) : plot.left + (Double(i) + 0.5) * slot
                 if aslant {
@@ -6181,7 +6189,7 @@ enum ChartPainter {
                     // 11.8: Windows' prints of 5864 slide 8 in 15 variants, 1.4 pt at 14 pt and 5.1 at 20, at the foot or the zero
                     // line alike; 10 pt names stay where they are (cooper's charts match).)
                     let slideNames = c.onSlide && !c.styled2013 && !c.categoryTicksOut ? max(0, 0.62 * (catSize - 11.8)) * k : 0
-                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : c.chartex && c.onSlide ? 8.1 : 7.6) * k - placedOverAutoFoot + (widenedPlain ? 0 : belowOut) - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k - legendFootRise + slideNames))
+                    tp.paint(canvas, Offset(cx - tp.width / 2, foot + (wordFoot ? 5.7 : c.chartex && c.onSlide ? 8.1 : 7.6) * k - placedOverAutoFoot + (widenedPlain ? 0 : belowOut) - (libre ? 1.3 * k : 0) - Self._wordLabelRise(c, catSize) * k - legendFootRise + slideNames - malgunCatLift))
                 }
             }
             // The outer levels of a multi-level axis: each group's name under the names it
