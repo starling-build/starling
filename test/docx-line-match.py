@@ -272,6 +272,18 @@ def _one_colour(doc, im):
         return False
 
 
+# The Symbol font's code page: a text layer that names a Symbol glyph by its private-use code U+F000 + the font's byte (the sum sign is
+# U+F0E5) says the same character as Unicode's own (U+2211). The Adobe Symbol encoding, published; both prints are folded alike.
+_SYM_UP = "ΑΒΧΔΕΦΓΗΙϑΚΛΜΝΟΠΘΡΣΤΥςΩΞΨΖ"
+_SYM_LO = "αβχδεφγηιϕκλμνοπθρστυϖωξψζ"
+_SYM_HI = ("€ϒ′≤⁄∞ƒ♣♦♥♠↔←↑→↓°±″≥×∝∂•÷≠≡≈…⏐⎯↵ℵℑℜ℘⊗⊕∅∩∪⊃⊇⊄⊂⊆∈∉∠∇®©™∏√⋅¬∧∨⇔⇐⇑⇒⇓◊〈®©™∑")
+_SYMBOL = {0xF022: "∀", 0xF024: "∃", 0xF027: "∋", 0xF02A: "∗", 0xF02D: "−", 0xF040: "≅", 0xF05C: "∴", 0xF05E: "⊥", 0xF07E: "∼", 0xF0F1: "〉", 0xF0F2: "∫"}
+for _i, _c in enumerate(_SYM_UP): _SYMBOL[0xF041 + _i] = _c
+for _i, _c in enumerate(_SYM_LO): _SYMBOL[0xF061 + _i] = _c
+for _i, _c in enumerate(_SYM_HI): _SYMBOL[0xF0A0 + _i] = _c
+_SYMBOL = {k: v for k, v in _SYMBOL.items() if not (0xF0E6 <= k <= 0xF0F0)}
+
+
 def mupdf_glyphs(pdf, drop=None):
     """v2's rows, from the page's glyphs rather than the reader's lines.
     Each line of text set across is the inked glyphs on one baseline:
@@ -327,6 +339,11 @@ def mupdf_glyphs(pdf, drop=None):
                 for l in b.get("lines", []):
                     line_no += 1
                     across = tuple(round(v, 3) for v in l["dir"]) == (1, 0)
+                    if OFFPAGE:   # Slides: a Symbol private-use code reads as the Unicode character it stands for
+                        for s in l["spans"]:
+                            for c in s["chars"]:
+                                if len(c["c"]) == 1 and ord(c["c"]) in _SYMBOL:
+                                    c["c"] = _SYMBOL[ord(c["c"])]
                     inked = [(c, s["size"]) for s in l["spans"] for c in s["chars"] if not _inkless(c["c"])]
                     if OFFPAGE:   # Slides (pptx-line-match.py): a glyph whose origin lies outside the page is not drawn on it, on either side
                         R = page.rect
@@ -455,7 +472,29 @@ def mupdf_glyphs(pdf, drop=None):
                     out.append(f"p{i + 1}\t{round(-max(r[3][3] for r in run))}\t{round(min(r[3][0] for r in run))}\t{text}"
                                f"\t\t{round(max(r[3][2] for r in run))}")
                 run = [g] if g is not None else []
+    if os.environ.get("PPT_RTL_NORM"):
+        out = _fold_strays(out)
     return out
+
+
+def _fold_strays(out):
+    """(Slides) PowerPoint's print sets a letter or a short word it has pulled out of an Arabic line (a ر, ي or ن, a unit such as
+    متر) as a line of its own, a few points off the baseline, and the line it left reads short: eb7ab2c5 p14, p20, f355b7fc,
+    8a5ae557 p12. A line of up to three Arabic letters within 6pt of a longer line on its page, and horizontally inside that
+    line's extent, is part of that line; both prints are read the same way. (amd-8, 2026-11-22.)"""
+    def arabic(t):
+        return 0 < len(t) <= 3 and all("\u0600" <= c <= "\u06ff" or "\u0750" <= c <= "\u077f" or "\ufb50" <= c <= "\ufeff" for c in t)
+    rows = [l.split("\t") for l in out]
+    keep = []
+    for r in rows:
+        if arabic(r[3]):
+            host = [h for h in rows if h is not r and h[0] == r[0] and len(h[3]) > 3 and abs(int(h[1]) - int(r[1])) <= 6
+                    and int(h[2]) - 2 <= int(r[2]) <= int(h[5]) + 2]
+            if host:
+                min(host, key=lambda h: abs(int(h[1]) - int(r[1])))[3] += r[3]
+                continue
+        keep.append(r)
+    return ["\t".join(r) for r in keep]
 
 
 def lines(tool, pdf, drop=None):
