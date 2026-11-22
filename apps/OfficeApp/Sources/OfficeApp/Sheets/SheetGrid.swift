@@ -2591,12 +2591,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let paint = Paint()
         paint.style = .fill
         paint.color = Color(s.color)
-        for line in tp.computeLineMetrics() where line.width > 0 {
+        let lines = tp.computeLineMetrics()
+        guard let first = lines.first?.baseline else { return }
+        let base = tp.computeDistanceToActualBaseline(.alphabetic)
+        for line in lines where line.width > 0 {
             if s.underline {
-                canvas.drawRect(Rect.fromLTWH(o.dx + line.left, o.dy + line.baseline - m[0] * s.size, line.width, m[1] * s.size), paint)
+                canvas.drawRect(Rect.fromLTWH(o.dx + line.left, o.dy + base + line.baseline - first - m[0] * s.size, line.width, m[1] * s.size), paint)
             }
             if s.strike {
-                canvas.drawRect(Rect.fromLTWH(o.dx + line.left, o.dy + line.baseline - m[2] * s.size, line.width, m[3] * s.size), paint)
+                canvas.drawRect(Rect.fromLTWH(o.dx + line.left, o.dy + base + line.baseline - first - m[2] * s.size, line.width, m[3] * s.size), paint)
             }
         }
     }
