@@ -4549,7 +4549,9 @@ enum ChartPainter {
                 }
                 // (On a sheet it stands 5.8 pt further in, and the plot with it: Excel's turned titles' baselines
                 // 5.5, 6.2 and 5.1 pt right of ours in tdf119138, 57362 and tdf100084, their plots' left 5.3.)
-                let inset = c.onSheet ? 5.8 * k : 0
+                // (On a slide too, 5.4: en/bab9be95's two y titles, 14 pt in two lines and 11 pt in one, stand 5.7 pt
+                // right of ours in PowerPoint's print, their plots' left 5.1.)
+                let inset = c.onSheet ? 5.8 * k : c.onSlide && c.type == .scatter ? 5.4 * k : 0
                 canvas.save()
                 canvas.translate(area.left + inset, area.center.dy - lift + tp.width / 2)
                 canvas.rotate(-.pi / 2)
