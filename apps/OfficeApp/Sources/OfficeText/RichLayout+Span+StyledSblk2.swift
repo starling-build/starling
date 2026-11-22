@@ -119,7 +119,15 @@ extension _StyledFrame {
                 let g = theme.advanceGridOfFaceTables ? 0.001 * px : grid * theme.pixelsPerPoint * scale
                 if g > 0, !glyphOnGrid { target = (target / g).rounded() * g }
             }
-            extra += target - _glyphWidth(s, ch)
+            let natural = _glyphWidth(s, ch)
+            var break_scaled = false
+            if theme.scalesGlyphsToTables, natural > 0.5, kind >= 0, !(s.letterSpacing != nil && s.letterSpacing != 0) {
+                // (The glyph's own advance by a scale, the kerning and the grid by the spacing.)
+                let own = unitsV * px / (face.sizeScale * classScale)
+                let r = own / natural
+                if r > 0.5, r < 2, abs(r - 1) > 0.005 { glyphScale = r; extra += target - own; break_scaled = true }
+            }
+            if !break_scaled { extra += target - natural }
         }
     } else if !ea, !ch.isNewline, let face = latinFace, face.kernsReplaceShaped, style(kind).fontStyle != .italic || face.italicKerns != nil, ch.unicodeScalars.count == 1,
               let u = ch.unicodeScalars.first?.value, u > 0x20, u <= 0xFF, u != 0xA0, let px = style(kind).fontSize, px > 0.5,

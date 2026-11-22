@@ -1427,6 +1427,7 @@ final class DeckController: ChangeNotifier {
         theme.setsFaceAdvances = true
         theme.symbolAdvance = Metafile.symbolAdvance   // and sets a Symbol run's glyphs at the face's own advances
         theme.scriptSizeWholeUp = true      // and sets a raised run at 65% rounded up to a whole point
+        theme.scalesGlyphsToTables = true
         theme.measuresShownCaps = true      // and fits a run in capitals by its capitals
         theme.kernsByRun = true             // and kerns a run only from its `kern` size up
         // (No `cellLineShift`: PowerPoint for Windows keeps a cell's lines at their pitch, as it does a box's.)
