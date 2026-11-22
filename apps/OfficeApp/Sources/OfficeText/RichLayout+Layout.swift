@@ -2595,7 +2595,7 @@ extension RichLayout {
                             // are 29.7 pt in PowerPoint's print = 1.2 x size + 0.9 x size x 0.5, and 7854f160 p13's 14 pt rows at 115% 19.3.)
                             let arabic = q.text.unicodeScalars.contains { (0x0600 ... 0x06FF).contains($0.value) || (0x0750 ... 0x077F).contains($0.value)
                                 || (0x08A0 ... 0x08FF).contains($0.value) || (0xFB50 ... 0xFDFF).contains($0.value) || (0xFE70 ... 0xFEFF).contains($0.value) }
-                            if m > 1.0, q.style.lineHeightPoints == nil, !q.text.isEmpty {
+                            if m > 1.0, q.style.lineHeightPoints == nil, !q.text.isEmpty, !q.style.cellFullFirstLine {
                                 let big = q.runs.max { ($0.style.fontSize ?? 0) < ($1.style.fontSize ?? 0) }
                                 let sz = big?.style.fontSize ?? theme.fontSize
                                 // (Lab tbl-lnspc2: the first line adds 0.9 x size x (m-1), less k x size. Lab tbl-rows3, 30 faces: k is
