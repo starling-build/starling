@@ -1251,6 +1251,13 @@ enum ChartXML {
         c.categoryLabelsLow = true
         // (Excel's own frame: white, a light grey edge.)
         c.areaNoFill = false; c.areaNoLine = false
+        // (The axes' own titles: the category axis's under the plot, the value axis's up its side; lab waterfall2's
+        // "Entry" and "Cumulative change", 9 pt as their runs say.)
+        for ax in chart.first("cx:plotArea")?.all("cx:axis") ?? [] {
+            guard let t = ax.first("cx:title"), let txt = t.descendant("cx:v")?.text, !txt.isEmpty else { continue }
+            if ax.first("cx:catScaling") != nil { c.categoryAxisTitle = txt } else if ax.first("cx:valScaling") != nil { c.valueAxisTitle = txt }
+            if let sz = t.descendant("a:rPr")?["sz"].flatMap(Double.init) { c.axisTitleSize = sz / 100 }
+        }
         if let gap = chart.first("cx:plotArea")?.all("cx:axis").compactMap({ $0.first("cx:catScaling")?["gapWidth"] }).first,
            let g = Double(gap), g >= 0 { c.gapWidth = Int(g * 100) }
         return c

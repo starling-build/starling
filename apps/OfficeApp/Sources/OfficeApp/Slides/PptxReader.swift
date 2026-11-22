@@ -2926,7 +2926,7 @@ private struct SlideContext {
         st.sourceChart = chart
         // The chart area's own picture or gradient fill (chart-picture-bg),
         // drawn under the plot.
-        if let pr = space.first("c:spPr") {
+        if let pr = space.first("c:spPr") ?? space.first("cx:spPr") {
             if let b = pr.first("a:blipFill"), let blip = b.first("a:blip"), let rid = blip["r:embed"],
                let img = package.rels(rel.target).first(where: { $0.id == rid }), !img.external,
                package.parts[img.target] != nil {
