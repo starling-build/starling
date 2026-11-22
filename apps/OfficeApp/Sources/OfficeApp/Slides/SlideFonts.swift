@@ -551,6 +551,25 @@ enum SlideFonts {
         ["traditional arabic", "sakkal majalla", "majalla ui", "simplified arabic", "arabic typesetting"].contains(family.trimmingWhitespace().lowercased())
     }
 
+    /// A sideways run in a turned frame (vert, eaVert's cloud faces): the column is the face's win ascent + descent plus 0.2 em split
+    /// evenly, 0.1 em each side, so its baseline stands (win ascent + 0.1 em) from the column's edge on the 1.2 em line, not 1.2 em x the
+    /// ascent share (lab vface, from the frame: MS Mincho 0.9585 em, Batang 0.952, Gulim 0.9515 against 0.959 and 0.958 here, ours was 1.031).
+    static func sidewaysColumnShare(_ family: String) -> Double? {
+        guard OfficeFonts.installed(family) == nil else { return nil }
+        // The face's win ascent and descent (em); Batang and Gulim fill their em (win ascent + win descent = 1 em).
+        let ad: (Double, Double)
+        switch windowsName(family) {
+        case "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝": ad = (220.0 / 256, 36.0 / 256)
+        case "gulim", "굴림", "gulimche", "굴림체", "batang", "바탕", "batangche", "바탕체": ad = (879.0 / 1024, 145.0 / 1024)
+        case "meiryo", "メイリオ": ad = (2171.0 / 2048, 901.0 / 2048)
+        default: return nil
+        }
+        // One rule for every face: the glyph box (win ascent + win descent) is centred in the 1.2 em line, so the baseline
+        // stands 0.6 em + (ascent - descent) / 2 from the column's edge. For a face that fills its em this is win ascent + 0.1 em.
+        // (Lab vface, sideways baseline against the print: MS Mincho 0.03 pt, Batang 0.14, Gulim 0.15, Meiryo 0.05 at 20 pt.)
+        return 1 - (0.6 + (ad.0 - ad.1) / 2) / 1.2
+    }
+
     static func ownDescentShare(_ family: String) -> Double? {
         if let w = embeddedWinShares[family.trimmingWhitespace().lowercased()], embeddedFamily(family) != nil { return w }
         guard OfficeFonts.installed(family) == nil else { return nil }
