@@ -82,7 +82,7 @@ extension _StyledFrame {
         // width, where the stand-in's Latin space is 0.22 em.)
         RuleTrace.hit("word-rtl-joined-face-space-is-own-width")
         extra += em * px - _glyphWidth(style(kind), " ")
-    } else if !ea, let face = (narrowLatinInRTL ? nil : (ch == " " && complexSpaceFace != nil && theme.wordRules && RichTextTheme.wordWindowsPages ? complexSpaceFace : latinFace)), (face.advances != nil || (face.boldAdvances != nil && style(kind).fontWeight == .bold)), ch.unicodeScalars.count == 1,
+    } else if !ea, let face = (narrowLatinInRTL ? nil : (ch == " " && complexSpaceFace != nil && theme.wordRules && RichTextTheme.wordWindowsPages ? complexSpaceFace : latinFace)), (face.advances != nil || (face.boldAdvances != nil && style(kind).fontWeight == .bold) || (face.italicAdvances != nil && style(kind).fontStyle == .italic)), ch.unicodeScalars.count == 1,
               let u = ch.unicodeScalars.first?.value, u >= 0x20, u <= 0x7E {
         // The width the original face gives this character
         // (`RichResolvedFace.advances`), at the size the
@@ -112,7 +112,7 @@ extension _StyledFrame {
             let points: Double = run.fontSize ?? named?.char.fontSize ?? theme.fontSize
             var kernUnits: Double? = nil
             let pairs: [UInt32: Double]? = face.kernPairs(bold: s.fontWeight == .bold, italic: s.fontStyle == .italic)
-            if theme.wordRules || face.kernsOutsideWord, let from = kernsFrom, from > 0, points >= from, let pairs, after < text.endIndex,
+            if theme.wordRules || face.kernsOutsideWord || (face.kernsReplaceShaped && face.advances == nil), let from = kernsFrom, from > 0, points >= from, let pairs, after < text.endIndex,
                let v0 = shown(text[after]).unicodeScalars.first?.value, case let v = v0 == 0xA0 ? 0x20 : v0, v >= 0x20, v <= 0x7E, let pair = pairs[(u == 0xA0 ? 0x20 : u) << 8 | v] {
                 target += pair * px / (face.sizeScale * classScale)
                 kernUnits = pair
@@ -122,7 +122,7 @@ extension _StyledFrame {
             if let grid = rl.activeAdvanceGrid, grid > 0 {
                 let size = run.fontSize ?? named?.char.fontSize ?? theme.fontSize
                 let kerns = (run.kerningFrom ?? named?.char.kerningFrom).map { $0 > 0 && size >= $0 } ?? false
-                if kerns, let following { target += _pairAdvance(s, ch, following) - _glyphWidth(s, ch) }
+                if kerns, !(face.kernsReplaceShaped && face.advances == nil), let following { target += _pairAdvance(s, ch, following) - _glyphWidth(s, ch) }
                 // (A face PowerPoint has measured widths for sets its glyphs on a thousandth of an em, as its print shows: Aptos digits
                 // 9.612 at 18 pt, not the eighth of a point's 9.625; the stand-in faces keep the eighth.)
                 let g = theme.advanceGridOfFaceTables ? 0.001 * px : grid * theme.pixelsPerPoint * scale
@@ -141,7 +141,15 @@ extension _StyledFrame {
             }
             let natural = _glyphWidth(s, ch)
             var break_scaled = false
-            if theme.scalesGlyphsToTables, natural > 0.5, kind >= 0, !(s.letterSpacing != nil && s.letterSpacing != 0) {
+            if face.kernsReplaceShaped, face.advances == nil, kind >= 0, !(s.letterSpacing != nil && s.letterSpacing != 0) {
+                // (A face whose own kern pairs replace the stand-in's: the glyph's advance in the text is the stand-in's pair advance, kern
+                // and all, not `natural`, which is measured between two x's and carries their kerning. Calibri Italic, same metrics as Carlito
+                // Italic bar a few font units: the width the print gives is the table's, kerned by its own pairs.)
+                let inText = after < text.endIndex ? _pairAdvance(s, ch, shown(text[after])) : natural
+                extra += target - inText
+                break_scaled = true
+            }
+            if !break_scaled, theme.scalesGlyphsToTables, natural > 0.5, kind >= 0, !(s.letterSpacing != nil && s.letterSpacing != 0) {
                 // (The glyph's own advance by a scale, the kerning and the grid by the spacing.)
                 let own = unitsV * px / (face.sizeScale * classScale)
                 let r = own / natural

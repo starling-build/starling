@@ -343,7 +343,11 @@ enum SlideFonts {
             face.otherAdvances = hebrew
             face.boldOtherAdvances = hebrew
             if family.trimmingWhitespace().lowercased() == "calibri" { face.hintedAdvances = true; face.kerns = SlideCalibriKerns.regular; face.boldKerns = SlideCalibriKerns.bold; face.kernsReplaceShaped = true
-                if let k = SlideLatinItalicKerns.lookup("calibri") { face.italicKerns = k.italic; face.boldItalicKerns = k.boldItalic ?? k.italic } }
+                if let k = SlideLatinItalicKerns.lookup("calibri") { face.italicKerns = k.italic; face.boldItalicKerns = k.boldItalic ?? k.italic }
+                // (Calibri Italic's own advances, not Carlito Italic's, whose space and several letters run 0.04 pt narrower at 24 pt.)
+                face.italicAdvances = SlideCalibriItalic.italicAscii; face.boldItalicAdvances = SlideCalibriItalic.boldItalicAscii
+                face.italicOtherAdvances = hebrew.merging(SlideCalibriItalic.italicOther) { a, _ in a }
+                face.boldItalicOtherAdvances = hebrew.merging(SlideCalibriItalic.boldItalicOther) { a, _ in a } }
             if family.trimmingWhitespace().lowercased() == "times new roman" {
                 face.joinedAdvances = WindowsArabicAdvances.times
                 face.boldJoinedAdvances = WindowsArabicAdvances.timesBold
@@ -382,6 +386,10 @@ enum SlideFonts {
             face.kerns = SlideCalibriKerns.light
             face.hintedAdvances = true
             face.kernsReplaceShaped = true
+            face.italicAdvances = SlideCalibriItalic.lightItalicAscii
+            face.boldItalicAdvances = SlideCalibriItalic.lightItalicAscii.map { $0 * 0.9845 }
+            face.italicOtherAdvances = SlideFontWidths.calibriHebrew.merging(SlideCalibriItalic.lightItalicOther) { a, _ in a }
+            face.boldItalicOtherAdvances = face.italicOtherAdvances?.mapValues { $0 * 0.9845 }
             return face
         case "arial black":
             var face = RichResolvedFace(family: resolve(family))
