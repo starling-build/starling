@@ -486,6 +486,7 @@ enum SlideFonts {
         switch n {
         case "meiryo ui": (units, upem, descent) = (2601, 2048, 430)
         case "meiryo", "メイリオ": (units, upem, descent) = (3072, 2048, 901)
+        case "microsoft yahei", "微软雅黑": (units, upem, descent) = (2703, 2048, 536)   // (zh c00f1ec0d573 p12: 12 pt lines at 90% stand 18.55 apart, 0.9 of 1.3 x (2167+536)/2048)
         case "ms gothic", "ｍｓ ゴシック", "ms pgothic", "ｍｓ ｐゴシック", "ms ui gothic", "ｍｓ ｕｉ ゴシック", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝":
             (units, upem, descent) = (256, 256, n.contains("pgothic") || n.contains("ｐゴシック") ? 52 : 36)
         default:
