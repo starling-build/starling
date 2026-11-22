@@ -5567,6 +5567,17 @@ enum ChartPainter {
                 }
                 RuleTrace.hit("slide-laid-plot-keeps-clear-of-its-value-labels")
             }
+            // (A laid plot stands no nearer the chart's top edge than half a value label: the top label is centred on the plot's
+            // top line and PowerPoint keeps it inside the chart, the plot moving down, its height kept. 99f6ddd1 p23, lab plotln2:
+            // laid at 145.7 under a frame top of 139.7, with 12 pt labels, it stood at 147.35, half of 15.2; lab C (frame 1.5x) and
+            // every other laid plot with room are exactly where the file puts them.)
+            if c.onSlide, !horizontal, c.barView == nil, !c.valueAxisDeleted, let tick = valueLabels.map(\.height).max() {
+                let limit = frame.top + tick / 2
+                if laid.top < limit {
+                    laid = Rect.fromLTRB(laid.left, limit, laid.right, laid.bottom + (limit - laid.top))
+                    RuleTrace.hit("slide-laid-plot-keeps-its-top-label-inside")
+                }
+            }
             plot = c.onSlide && laid.right > frame.right ? Rect.fromLTRB(laid.left, laid.top, frame.right, laid.bottom) : laid
             // (A laid plot whose names, set under the axis, would run past the chart's foot has its foot lifted: by all but one of the
             // lines of the tallest name (the last line then stands where a one-line name's does), or, if that still leaves the names past
