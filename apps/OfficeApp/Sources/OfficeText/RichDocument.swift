@@ -647,6 +647,8 @@ public struct RichParagraphStyle: Hashable, Codable, Sendable {
     public var cellDescentShare: Double? = nil
     /// Slides table cells: fontAlgn ctr takes the full m x 1.2 x size first line, no trim (lab tblrow2).
     public var cellFullFirstLine = false
+    /// Slides table cells: how far, in ems of the font size, fontAlgn t, ctr or b moves the first baseline from where the default puts it (lab tbl-rows7).
+    public var cellFontAlignDrop: Double? = nil
     /// Exact line height in points ("exactly 20 pt"), which then wins over
     /// `lineSpacing`; nil for a multiple.
     public var lineHeightPoints: Double? = nil

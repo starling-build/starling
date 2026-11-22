@@ -772,6 +772,14 @@ extension RichLayout {
     }
 
     func _baselineShift(_ i: Int, _ document: RichDocument) -> Double {
+        let base = _baselineShiftBase(i, document)
+        guard let drop = document.paragraphs[i].style.cellFontAlignDrop, !theme.wordRules else { return base }
+        let run = document.paragraphs[i].runs.first
+        var size = run?.style.fontSize ?? document.styles.resolve(document.paragraphs[i].style)?.char.fontSize ?? theme.fontSize
+        if fontScale != 1 { size = max(1, (size * fontScale).rounded()) }
+        return base + drop * _px(size)
+    }
+    func _baselineShiftBase(_ i: Int, _ document: RichDocument) -> Double {
         guard theme.singleLineHeight != nil else { return 0 }
         let p = document.paragraphs[i]
         guard let run = p.runs.first else { return 0 }
