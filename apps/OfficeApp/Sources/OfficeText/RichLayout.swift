@@ -964,7 +964,9 @@ public final class RichTextTheme {
             // Commented text carries Word's balloon tint.
             backgroundColor: style.highlight ?? (style.comments.isEmpty ? nil : Color(0x40FFD966)),
             fontSize: style.script == .normal ? px
-                : scriptSizeWholeUp ? (size * 0.65 - 1e-6).rounded(.up) * widen * pixelsPerPoint * scale
+                : // (PowerPoint's raised or lowered run is two thirds of the size, not cut to a whole point: bab9be95 p14's Arial 14 and 16 pt marks
+                // print 9.4 and 10.7 pt, ours were 10 and 11; its Calibri 16 prints 10.6.)
+                scriptSizeWholeUp ? size * 2 / 3 * widen * pixelsPerPoint * scale
                 : jpScript ? jpScriptPt * widen * pixelsPerPoint * scale
                 : malgunScript ? malgunScriptPt * widen * pixelsPerPoint * scale
                 : meiryoScript ? (size * 0.65 * 2 - 1e-6).rounded(.up) / 2 * widen * pixelsPerPoint * scale
