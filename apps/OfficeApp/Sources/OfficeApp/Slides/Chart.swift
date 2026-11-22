@@ -4868,7 +4868,18 @@ enum ChartPainter {
             let barNameWidth = max((!c.onSlide && !c.onSheet ? 0.2 : 0.3) * area.width, laidRoom ?? 0)
             // (Under a multi-level axis the names are not wrapped: lo tdf126244's
             // "Categoria 1 Categoria 1 Categoria 4" is one line in Word's print.)
-            catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, horizontal ? (c.categoryLevels.isEmpty && !(c.valueReversed && c.onSlide) ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : max(slot * Double(max(1, c.categoryLabelSkip)) - 2 * k, 8 * k)) }
+            // (PowerPoint wraps a Hangul category name only at its spaces, never inside a word: a word joiner between
+            // the syllables keeps each word whole. ko-e114b968 p23's "적당한 간판의 크기" is "적당한 간판의" over "크기".)
+            func holdWords(_ n: String) -> String {
+                guard c.onSlide, !horizontal else { return n }
+                var out = "", prev: Character? = nil
+                for ch in n {
+                    if let p = prev, p.unicodeScalars.allSatisfy({ (0xAC00 ... 0xD7A3).contains($0.value) }), ch.unicodeScalars.allSatisfy({ (0xAC00 ... 0xD7A3).contains($0.value) }) { out += "\u{2060}" }
+                    out.append(ch); prev = ch
+                }
+                return out
+            }
+            catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : holdWords($0), catSize, horizontal ? (c.categoryLevels.isEmpty && !(c.valueReversed && c.onSlide) ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : max(slot * Double(max(1, c.categoryLabelSkip)) - (c.onSlide ? 7.2 : 2) * k, 8 * k)) }
             if !horizontal, c.type != .area, !c.categoryAxisDeleted, let turn = c.categoryLabelTurn {
                 // As the file says: turned (up to a quarter, either way) or
                 // level.
