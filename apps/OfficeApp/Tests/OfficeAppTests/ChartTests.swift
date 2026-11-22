@@ -354,6 +354,17 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(tree.sunburst?[0].children[0].children.map(\.name), ["A", "B", "C"])
     }
 
+    /// A waterfall's axis titles are read: the category axis's under the plot, the value axis's up its side (PowerPoint's print).
+    func testAWaterfallReadsItsAxisTitles() {
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><cx:chartData><cx:data id="0"><cx:strDim type="cat"><cx:lvl ptCount="2"><cx:pt idx="0">a</cx:pt><cx:pt idx="1">b</cx:pt></cx:lvl></cx:strDim><cx:numDim type="val"><cx:lvl ptCount="2"><cx:pt idx="0">4</cx:pt><cx:pt idx="1">-3</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="waterfall"><cx:dataId val="0"/></cx:series></cx:plotAreaRegion><cx:axis id="0"><cx:catScaling gapWidth="0"/><cx:title><cx:tx><cx:txData><cx:v>Entry</cx:v></cx:txData></cx:tx><cx:txPr><a:p><a:r><a:rPr sz="900"/><a:t>Entry</a:t></a:r></a:p></cx:txPr></cx:title></cx:axis><cx:axis id="1"><cx:valScaling/><cx:title><cx:tx><cx:txData><cx:v>Change</cx:v></cx:txData></cx:tx></cx:title></cx:axis></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        guard let c = ChartXML.readWaterfall(XNode.parse(Data(xml.utf8))!) else { return XCTFail("not read") }
+        XCTAssertEqual(c.categoryAxisTitle, "Entry")
+        XCTAssertEqual(c.valueAxisTitle, "Change")
+        XCTAssertEqual(c.axisTitleSize, 9)
+    }
+
     /// A chart this app cannot draw reads as nothing, so the frame keeps
     /// its own picture. (Every single kind is drawn since surfaces were,
     /// 5c5d43a4. An area under a line on one pair of axes is drawn too, since
