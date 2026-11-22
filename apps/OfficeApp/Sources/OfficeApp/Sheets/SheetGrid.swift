@@ -3169,6 +3169,14 @@ struct GridTextStyle: Hashable {
     /// in the stand-in that draws it ("aptos narrow", lower case); "" for none.
     var own = ""
 
+    /// Excel draws an underline or strike with the NAMED face's post-table
+    /// thickness (Calibri 0.0654 em, 0.72 pt at 11), the stand-in draws it
+    /// with its own (Carlito 194/2048 = 0.0947 em, 1.04 pt). The scale is
+    /// the first over the second; faces not measured keep the stand-in's.
+    var decorationThicknessScale: Double? {
+        family.lowercased() == "calibri" ? 0.0654 / (194.0 / 2048.0) : nil
+    }
+
     var flutter: Flutter.TextStyle {
         var decorations: [TextDecoration] = []
         if underline { decorations.append(.underline) }
@@ -3183,6 +3191,7 @@ struct GridTextStyle: Hashable {
                                  fontWeight: bold ? .bold : .normal, fontStyle: italic ? .italic : .normal,
                                  fontFeatures: [FontFeature("kern", 0), FontFeature("liga", 0), FontFeature("clig", 0)],
                                  decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
+                                 decorationThickness: decorations.isEmpty ? nil : decorationThicknessScale,
                                  fontFamily: family, fontFamilyFallback: RichTextTheme.glyphFallback)
     }
 }
