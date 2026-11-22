@@ -132,6 +132,8 @@ enum WordArt {
         var color = Color(0xFF000000)
         /// The font family the glyph was asked for (a slide's circle text stands in from its metrics).
         var face = ""
+        /// The family the file asked for (`face` may be the stand-in it resolved to) and whether it is bold.
+        var asked = "", bold = false
         /// The pair kerning between this glyph and the next one of its run (negative closes up).
         var kernAfter = 0.0
         var width: Double { advance ?? painter.width }
@@ -403,6 +405,8 @@ enum WordArt {
         var g = Glyph(painter: tp, text: ch, style: style, look: look)
         g.size = base.fontSize ?? 14
         g.face = base.fontFamily ?? family ?? ""
+        g.asked = family ?? base.fontFamily ?? ""
+        g.bold = base.fontWeight == .bold || (base.fontWeight.map { $0.value >= 600 } ?? false)
         g.color = base.color ?? Color(0xFF000000)
         g.clear = (base.color?.alpha ?? 255) == 0 && !(look?.fill != nil)
         if RichTextTheme.wordWindowsPages, family?.lowercased() == "georgia", base.fontWeight == nil || base.fontWeight == .normal,
@@ -839,8 +843,15 @@ enum WordArt {
                             for g in line.glyphs {
                                 if let k = g.ink, !k.isEmpty, g.painter.height > 0 {
                                     l = min(l, x + k.left); r = max(r, x + k.right)
-                                    t = min(t, Double(li) * linePitch + k.top / g.painter.height)
-                                    b = max(b, Double(li) * linePitch + k.bottom / g.painter.height)
+                                    var kt = k.top, kb = k.bottom
+                                    // The stand-in's letters differ in height from the real face's (its "d" outgrows its capitals,
+                                    // Arial Black's does not): take the real letter's foot and top about the same baseline.
+                                    if let real = WordArtInk.vertical(face: g.asked, bold: g.bold, g.text) {
+                                        let base = g.painter.computeDistanceToActualBaseline(.alphabetic)
+                                        kt = base - real.1 * g.size; kb = base - real.0 * g.size
+                                    }
+                                    t = min(t, Double(li) * linePitch + kt / g.painter.height)
+                                    b = max(b, Double(li) * linePitch + kb / g.painter.height)
                                 }
                                 else if g.width > 0 { l = min(l, x); r = max(r, x + g.width) }  // a space counts by its advance
                                 x += g.width
@@ -903,6 +914,18 @@ enum WordArt {
                         if let (l, r) = inkU { u0 = (u0 - l) / (r - l); u1 = (u1 - l) / (r - l) }
                         x += g.width
                         guard g.width > 0, g.painter.height > 0 else { continue }
+                        // Each stand-in letter stood on the real letter's foot and top (its capitals are not
+                        // the real capitals' height): stretched between them, so a warp that tops out on the real
+                        // letters meets the drawn ones.
+                        var v0 = v0, v1 = v1
+                        if cache != nil, let k = g.ink, !k.isEmpty, k.bottom - k.top > 0.5,
+                           let real = WordArtInk.vertical(face: g.asked, bold: g.bold, g.text) {
+                            let h = g.painter.height, base = g.painter.computeDistanceToActualBaseline(.alphabetic)
+                            func vAt(_ y: Double) -> Double { (Double(li) * pitch + y / h - top) / span }
+                            let rt = vAt(base - real.1 * g.size), rb = vAt(base - real.0 * g.size)
+                            let per = (rb - rt) / (k.bottom - k.top)
+                            v0 = rt + (0 - k.top) * per; v1 = rt + (h - k.top) * per
+                        }
                         let p00 = point(u0, v0), p10 = point(u1, v0), p01 = point(u0, v1), p11 = point(u1, v1)
                         let ax = Offset((p10.dx - p00.dx + p11.dx - p01.dx) / 2 / g.width, (p10.dy - p00.dy + p11.dy - p01.dy) / 2 / g.width)
                         let ay = Offset((p01.dx - p00.dx + p11.dx - p10.dx) / 2 / g.painter.height,
