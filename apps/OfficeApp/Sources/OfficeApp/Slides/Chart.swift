@@ -104,6 +104,9 @@ struct ChartSeries: Equatable {
     var markerFill: Color? = nil
     var markerLine: Color? = nil
     var unmarked: Set<Int> = []
+    /// A line's own segments (`c:dPt` with a dashed `a:ln`): the segment that ends at the point, its dash and width in points.
+    var segmentDash: [Int: SegmentDash] = [:]
+    struct SegmentDash: Equatable { var dash: String; var width: Double? }
     /// A linear trendline (`c:trendline`): its colour (nil follows the series') and width in points.
     var trendline: ChartTrendline? = nil
     var lineHidden = false
@@ -125,6 +128,8 @@ struct ChartSeries: Equatable {
     var labelNudges: [Int: Offset] = [:]
     /// A point's own `c:dLblPos`, where it differs from the series'.
     var labelPointPos: [Int: String] = [:]
+    /// Points whose own label the file deletes (`c:dLbl` with `c:delete`).
+    var labelDeleted: Set<Int> = []
     /// A moved bar label's leader line (`c15:showLeaderLines` 1 in the series' `c:dLbls`), its colour and width.
     var labelLeader = false
     var labelLeaderColor: Color? = nil
@@ -1696,6 +1701,7 @@ enum ChartXML {
                     }
                 }
                 if let i = one.first("c:idx")?["val"].flatMap(Int.init), let p = one.first("c:dLblPos")?["val"] { s.labelPointPos[i] = p }
+                if let i = one.first("c:idx")?["val"].flatMap(Int.init), ["1", "true"].contains(one.first("c:delete")?["val"] ?? "") { s.labelDeleted.insert(i) }
                 guard let i = one.first("c:idx")?["val"].flatMap(Int.init), let m = one.first("c:layout")?.first("c:manualLayout"),
                       let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) else { continue }
                 s.labelNudges[i] = Offset(x, y)
@@ -1734,6 +1740,11 @@ enum ChartXML {
                 s.markerSize = m.first("c:size")?["val"].flatMap(Double.init) ?? 5
                 if let f = m.first("c:spPr")?.first("a:solidFill") { s.markerFill = color(f) }
                 if let f = m.first("c:spPr")?.first("a:ln")?.first("a:solidFill") { s.markerLine = color(f) }
+            }
+            for pt in ser.all("c:dPt") {
+                if let i = pt.first("c:idx")?["val"].flatMap(Int.init), let ln = pt.first("c:spPr")?.first("a:ln"), let d = PptxReader.dash(ln) {
+                    s.segmentDash[i] = ChartSeries.SegmentDash(dash: d, width: ln["w"].flatMap(Double.init).map { $0 / 12700 })
+                }
             }
             for pt in ser.all("c:dPt") where pt.first("c:marker")?.first("c:symbol")?["val"] == "none" {
                 if let i = pt.first("c:idx")?["val"].flatMap(Int.init) { s.unmarked.insert(i) }
@@ -6299,6 +6310,7 @@ enum ChartPainter {
                         }
                     }
                     if c.type == .line, c.onSlide, !c.chartex, let n = c.series[j].labelNudges[i] { x += n.dx * frame.width; y += n.dy * frame.height }
+                    if c.type == .line, c.onSlide, c.series[j].labelDeleted.contains(i) { continue }
                     labels.append((dataLabel(c, raw), Offset(x, y), j))
                 }
                 if c.stacked { for i in 0 ..< n { base[i] = row[i] ?? base[i] } }
@@ -6363,6 +6375,18 @@ enum ChartPainter {
                     var pen = false
                     for i in 0 ..< n {
                         guard let v = tops[j][i] else { pen = false; continue }
+                        if pen, c.type == .line, c.onSlide, c.series[j].segmentDash[i] != nil, let before = tops[j][safe: i - 1] ?? nil {
+                            // (3f8a480a-style dashed first stretch: 5f748a0e p8's segment into the second point, sysDash 3 pt in PowerPoint's print.)
+                            let seg = Paint()
+                            seg.style = .stroke; seg.isAntiAlias = true; seg.strokeJoin = .round
+                            seg.strokeWidth = max(1, (c.series[j].segmentDash[i]?.width ?? p.strokeWidth / k) * k)
+                            seg.color = p.color
+                            let one = Path()
+                            one.moveTo(xAt(i - 1), vpos(before)); one.lineTo(xAt(i), vpos(v))
+                            canvas.drawPath(SlidePainter.dashed(one, c.series[j].segmentDash[i]?.dash, width: seg.strokeWidth), seg)
+                            path.moveTo(xAt(i), vpos(v))
+                            continue
+                        }
                         if pen { path.lineTo(xAt(i), vpos(v)) } else { path.moveTo(xAt(i), vpos(v)); pen = true }
                     }
                     canvas.drawPath(path, p)
