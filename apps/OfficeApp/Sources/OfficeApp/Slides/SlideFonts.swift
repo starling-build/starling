@@ -203,6 +203,8 @@ enum SlideFonts {
             var face = RichResolvedFace(family: resolve(family))
             face.advances = t.0
             face.boldAdvances = t.1
+            // (Trebuchet MS kerns as PowerPoint prints it, by the pairs of the font's own tables, measured on Windows.)
+            if let k = SlideLatinKerns.lookup(n) { face.kerns = k.regular; face.boldKerns = k.bold ?? k.regular; face.kernsOutsideWord = true }
             return face
         case "nunito sans", "nunito sans light":
             // (Nunito Sans's own widths. Plain Nunito is not here: a deck that does not carry it is printed by PowerPoint in
