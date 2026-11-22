@@ -26,6 +26,8 @@ struct ShapeRun: Equatable {
 struct ShapeParagraph: Equatable {
     var align = "l"           // l, ctr, r, just
     var runs: [ShapeRun] = []
+    /// `a:endParaRPr@sz`: the size of an empty paragraph's line.
+    var endSize: Double? = nil
     /// An equation the paragraph holds (`a14:m`'s `m:oMathPara` or
     /// `m:oMath`, in mc:Choice), drawn through WriterMath, and its size.
     var math: ShapeMath? = nil
@@ -165,6 +167,7 @@ struct SheetShape: Equatable {
             for p in body.kids("p") {
                 var para = ShapeParagraph(align: p.child("pPr")?["algn"] ?? "l")
                 let defaults = p.child("pPr")?.child("defRPr")
+                para.endSize = p.child("endParaRPr")?["sz"].flatMap(Double.init).map { $0 / 100 }
                 for r in p.children {
                     let local = r.name.split(separator: ":").last ?? ""
                     if local == "br" { para.runs.append(ShapeRun(text: "\n", size: 11)); continue }
@@ -279,7 +282,7 @@ struct SheetShape: Equatable {
         var equations: [Int: WriterMath.Box] = [:]
         for (i, para) in paragraphs.enumerated() {
             if para.runs.isEmpty, let m = para.math, let eq = WriterMath.box(m.node, size: m.size) { equations[i] = eq }
-            let spans = (para.runs.isEmpty ? [ShapeRun(text: " ", size: 11)] : para.runs).map { run -> InlineSpan in
+            let spans = (para.runs.isEmpty ? [ShapeRun(text: " ", size: para.endSize ?? 11)] : para.runs).map { run -> InlineSpan in
                 TextSpan(text: run.text, style: Flutter.TextStyle(
                     color: run.color ?? textColor ?? Color(0xFF000000), fontSize: max(3, run.size * k) * over,
                     fontWeight: run.bold ? .bold : .normal, fontStyle: run.italic ? .italic : .normal, height: lineHeight,
