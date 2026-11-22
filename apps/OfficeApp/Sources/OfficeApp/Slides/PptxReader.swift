@@ -4078,9 +4078,9 @@ private struct SlideContext {
             // (A plain, unslanted warp on text that wraps in its box (no wrap="none") is no WordArt: PowerPoint sets it as ordinary text,
             // letter spacing and all; KYWA's header boxes (textPlain, no adjust) wrapped a word early when fitted as WordArt.)
             if preset == "textPlain", adjust.first.map({ $0 == 50000 }) ?? true, (body?.first("a:bodyPr")?["wrap"] ?? "square") != "none" { return nil }
-            // (A plain warp on one unwrapped line in a box that sizes itself to its text (spAutoFit) has nothing to stretch to: the box is the text's own,
-            // and PowerPoint prints it as text, a real text layer: ko-c03ed80e's layout footer, 35 lines.)
-            if preset == "textPlain", adjust.first.map({ $0 == 50000 }) ?? true, body?.first("a:bodyPr")?.first("a:spAutoFit") != nil { return nil }
+            // (A plain warp on one unwrapped line in a box that sizes itself to its text (spAutoFit) still fits the text to the stored box:
+            // PowerPoint's print of ko-e114b968 and ko-c03ed80e's layout footers (18 pt text in a 7.8 pt tall box) sets them small,
+            // not at 18 pt running off the page; an earlier rule set them as plain text for the text layer's sake and was wrong on the page.)
             return TextWarp(preset: preset, adjust: adjust, xml: PptxXML.serialize(w))
         }
         if paragraphs.isEmpty {
