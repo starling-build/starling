@@ -279,14 +279,19 @@ struct SheetPrintMetrics {
 
     /// The metrics of a workbook whose default font is `family` at `size`;
     /// `baseColWidth` is the sheet's (8 digits unless it says otherwise).
-    static func of(family: String, size: Double, bold: Bool = false, baseColWidth: Double = 8, hinted: Bool = false, otherBook: Bool = false) -> SheetPrintMetrics {
+    static func of(family: String, size: Double, bold: Bool = false, baseColWidth: Double = 8, hinted: Bool = false, otherBook: Bool = false, chartBook: Bool = false) -> SheetPrintMetrics {
         let plain = aliases[family.trimmingWhitespace().lowercased()] ?? family.trimmingWhitespace().lowercased()
         let f = (bold ? faces[plain + " bold"] : nil) ?? face(family)
         // (A printer's line between the sizes measured is the next whole
         // dot up: 49609's Microsoft Sans Serif 8.25 is 87 of 84 and 93,
         // its set 15 pt rows 124 dots in Excel's print where 86 made 122.)
         let between = size > sizes[0] && size < sizes[sizes.count - 1]
-        let digit = at(f.digit, size).rounded(), row = at(f.row, size).rounded(between ? .up : .toNearestOrAwayFromZero)
+        var digit = at(f.digit, size).rounded(), row = at(f.row, size).rounded(between ? .up : .toNearestOrAwayFromZero)
+        // A book with a chart sheet prints Verdana 10 on a different printer
+        // measure (47813, Excel 20527, lab b47r4: with the chart sheet 105 dots
+        // a row and a 53.2 dot digit, without it 108 and 53; any chart sheet,
+        // any page orientation or position). Calibri 11 books show no shift.
+        if chartBook, plain == "verdana", size == 10 { digit = 53.2; row = 105 }
         let screenRow = max(1, f.offTable[size] ?? (hinted ? f.hinted[size] : nil) ?? (otherBook ? f.plainBook[size] : nil) ?? at(f.screenRow, size).rounded())
         // The default column, as that Excel's screen made it: the digit there
         // in whole pixels, its padding, and the sum up to a multiple of 8.
