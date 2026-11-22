@@ -5804,7 +5804,9 @@ enum ChartPainter {
             // (A slide's category row stops, its last line ending in an ellipsis, where the plot, from the title's foot to the table, would be
             // left under about 0.385 of the chart's height: PowerPoint's print of zh 201942c286a1 p19's chart at 179, 239 and 299 pt tall (lab
             // zh-dtable-cap) sets 3, 5 and 7 lines; the kept lines leave the plot 0.395, 0.416 and 0.428 of the height, one more 0.308, 0.35
-            // and 0.376, so the limit lies in 0.376 to 0.395; 0.385 is the middle of that, not measured.)
+            // and 0.376, so the limit lies in 0.376 to 0.395; 0.385 is the middle of that, a FIT FROM ONE BRACKET of one chart, not a measured value.
+            // Only a table of CJK categories is capped, because that is the only family printed: the cap's pitch is the CJK face's line, and
+            // a Latin table's wrap was never printed at this height, so it is left as it was until a lab measures it.)
             let base = Self._tableRows(c, size: size, k: k, slot: (right - left) / Double(max(1, n)), minLine: SlideFonts.windowsName(c.font ?? theme.bodyFont).hasPrefix("aptos") ? 1.2207 * size * k : 0, categoryLine: (Self._tableEastAsianLine(c, theme: theme) ?? 0) * size * k, text: text)
             var maxLines = Int.max
             if c.onSlide, c.plotLayout == nil, base.count > 0, Self._tableEastAsianLine(c, theme: theme) != nil {
