@@ -250,6 +250,11 @@ struct DiagramLayout {
     /// Word relays a diagram out from its definition (no cached drawing) without
     /// the author's width scale on text, and keeps a step as tall as its line.
     private var wordLayout = false
+    /// The height PowerPoint grows the text boxes of an `h` INF rule to for their text (set by `render` once a size is chosen).
+    private var slideGrow: Double? = nil
+    /// A line was too long for its slot and no rule let its steps shrink: PowerPoint's text rule runs on to its floor first.
+    private final class Flag { var on = false }
+    private let squeezedUnruled = Flag()
 
     init?(data: XNode, layout: XNode, colors: XNode?, style: XNode?) {
         guard let model = DgmModel(data) else { return nil }
@@ -272,9 +277,10 @@ struct DiagramLayout {
         guard let first = DiagramLayout(data: data, layout: layout, colors: colors, style: style),
               let rootDef = layout.first("dgm:layoutNode") else { return nil }
         let box = Rect.fromLTWH(0, 0, frame.width, frame.height)
-        func laidOut(fontCap: Double) -> (DiagramLayout, DgmPresNode) {
+        func laidOut(fontCap: Double, grow: Double? = nil) -> (DiagramLayout, DgmPresNode) {
             var engine = first
             engine.fontCap = fontCap
+            engine.slideGrow = grow
             engine.wordLayout = word
             let root = engine.build(rootDef, point: engine.model.root, iter: (0, 1), parent: nil)
             root.rect = box
@@ -327,17 +333,45 @@ struct DiagramLayout {
         // (hList1 at 31 pt, hProcess3 at 50 — both PowerPoint's). If no
         // size fits, the sizes do not decide the fit (an org chart drawn
         // at ten times its frame), and the tree is scaled as before.
-        if !fits(root), let floor = Self.fontFloor(layout) {
-            var lo = Int(floor.rounded(.up)), hi = 64
+        // (Slides: PowerPoint's own text check as well, `slideTextFit`: a word wider than its box, or lines taller than
+        // the box may grow to, fail a size too, and a box grown for its text takes the row with it.)
+        // (A hierarchy is defined at many times its frame and brought down by `fit`; only a line of steps runs its text to the floor first.)
+        var isTree = false
+        func scan(_ n: XNode) { if n.name == "dgm:alg", let t = n["type"], t.hasPrefix("hier") { isTree = true }; n.children.forEach(scan) }
+        scan(layout)
+        func settled(_ a: (DiagramLayout, DgmPresNode), cap: Double) -> (DiagramLayout, DgmPresNode)? {
+            var a = a
+            if !word {
+                if a.0.squeezedUnruled.on, !isTree, cap.isFinite, cap > (Self.fontFloor(layout) ?? 5).rounded(.up) { return nil }
+                guard let g = a.0.slideTextFit(a.1, cap: cap) else { return nil }
+                if g > 0 { a = laidOut(fontCap: cap, grow: g) }
+            }
+            let ok = fits(a.1, cap: cap)
+            return ok ? a : nil
+        }
+        var squeezeAlong = false
+        if settled((engine, root), cap: .infinity) == nil, let floor = Self.fontFloor(layout) {
             var best: (DiagramLayout, DgmPresNode)? = nil
-            while lo <= hi {
-                let mid = (lo + hi) / 2
-                let attempt = laidOut(fontCap: Double(mid))
-                if fits(attempt.1, cap: Double(mid)) { best = attempt; lo = mid + 1 } else { hi = mid - 1 }
+            var size = 64
+            while size >= Int(floor.rounded(.up)) {
+                if word {
+                    let attempt = laidOut(fontCap: Double(size))
+                    if fits(attempt.1, cap: Double(size)) { best = attempt; break }
+                } else if let a = settled(laidOut(fontCap: Double(size)), cap: Double(size)) { best = a; break }
+                size -= 1
             }
             if let best { (engine, root) = best }
+            else if !word {
+                // No size fits (the row is too wide whatever the size): PowerPoint runs the text rule to its floor, then
+                // scales a row that overflows along its direction only (the boxes narrower, not shorter).
+                let low = laidOut(fontCap: floor.rounded(.up))
+                if low.0.squeezedUnruled.on, let u = low.0.union(of: low.1.children), u.height <= box.height + 0.5 {
+                    (engine, root) = low
+                    squeezeAlong = true
+                }
+            }
         }
-        engine.fit(root, into: box)
+        engine.fit(root, into: box, alongOnly: squeezeAlong)
         if word { engine.placeProcessCircles(root) }
         if word { engine.fitWordText(root); engine.growForText(root) }
         #if !os(WASI)
@@ -365,6 +399,62 @@ struct DiagramLayout {
         if ProcessInfo.processInfo.environment["STARLING_DIAGRAM_XML"] != nil { FileHandle.standardError.write(Data((PptxXML.serialize(emitted) + "\n").utf8)) }
         #endif
         return emitted
+    }
+
+    // MARK: - PowerPoint's text fit (Slides)
+
+    /// A word's width as PowerPoint's print has it: each glyph's advance on an eighth of a point, the face's kerning
+    /// pairs at 12 pt and up.
+    private func slideWordWidth(_ w: String, size: Double, bold: Bool, face: String) -> Double {
+        let style = Flutter.TextStyle(fontSize: size, fontWeight: bold ? .bold : nil, fontFamily: SlideFonts.resolve(face))
+        func measure(_ t: String) -> Double {
+            let tp = TextPainter(text: TextSpan(text: t, style: style), textDirection: .ltr)
+            tp.layout(minWidth: 0, maxWidth: Double.infinity)
+            defer { tp.dispose() }
+            return tp.width
+        }
+        let pairs = size >= 12 ? SlideLatinKerns.lookup(SlideFonts.windowsName(face)).map { bold ? ($0.bold ?? $0.regular) : $0.regular } : nil
+        let chars = Array(w)
+        let xx = measure("xx")
+        var total = 0.0
+        for (i, c) in chars.enumerated() {
+            total += ((measure("x\(c)x") - xx) * 8).rounded() / 8
+            if let pairs, i + 1 < chars.count, let a = c.unicodeScalars.first?.value, let b = chars[i + 1].unicodeScalars.first?.value,
+               let k = pairs[a << 8 | b] { total += k * size }
+        }
+        return total
+    }
+
+    /// PowerPoint's check of a text box whose height may grow (`h` INF) at a font cap: every word whole in the box's
+    /// width, the lines (Calibri's 1.2207 at the 90% line spacing of SmartArt text) and the margins grown to no more
+    /// than the box's bound. nil when it fails; else the height the boxes grow to (0 when none needs to). Lab
+    /// sa-linear-lab: 32, 20, 29, 18, 23, 14, 13 and 8 pt, one size for every box, as PowerPoint prints.
+    func slideTextFit(_ root: DgmPresNode, cap: Double) -> Double? {
+        var grow = 0.0
+        for n in root.descendants where n.algType == "tx" && n.shapeType != nil && !n.hideGeom && n.rect.width > 0
+            && n.rules.contains(where: { $0["type"] == "h" && $0["val"] == "INF" }) && !n.heightCappedByWidth {
+            let t = wordParagraphs(n)
+            guard !t.words.isEmpty, let h0 = n.vals["h"] else { continue }
+            let size = min(n.value("primFontSz") ?? 65, cap)
+            guard size > 0, size.isFinite else { continue }
+            let width = n.rect.width - (n.value("lMarg") ?? 0) - (n.value("rMarg") ?? 0)
+            let space = slideWordWidth(" ", size: size, bold: t.bold, face: t.face)
+            var lines = 0
+            for para in t.words {
+                var used = 0.0
+                lines += 1
+                for (i, w) in para.enumerated() {
+                    let ww = slideWordWidth(w, size: size, bold: t.bold, face: t.face)
+                    if ww > width { return nil }
+                    if i == 0 { used = ww } else if used + space + ww <= width { used += space + ww } else { lines += 1; used = ww }
+                }
+            }
+            let need = Double(lines) * 0.9 * 1.2207 * size + (n.value("tMarg") ?? 0) + (n.value("bMarg") ?? 0)
+            if need <= h0 + 1e-6 { continue }
+            if need > (n.caps["h"] ?? .infinity) + 1e-6 { return nil }
+            grow = max(grow, need)
+        }
+        return grow
     }
 
     // MARK: - Word's text fit
@@ -854,6 +944,7 @@ struct DiagramLayout {
                 let need = Double(lines) * 1.1046 * prim + tm + bm
                 if need > h { node.vals["h"] = need }
             }
+            if let g = slideGrow, g > (node.vals["h"] ?? 0) { node.vals["h"] = g }
         }
     }
 
@@ -1170,7 +1261,7 @@ struct DiagramLayout {
             var flexible = node.children.indices.filter {
                 shrinkable.contains(node.children[$0].name) || shrinkable.contains(node.children[$0].sizeRef[P] ?? "")
             }
-            if flexible.isEmpty { flexible = Array(node.children.indices) }
+            if flexible.isEmpty { flexible = Array(node.children.indices); if !node.children.contains(where: { $0.fontSized.contains(P) }) { squeezedUnruled.on = true } }
             let fixed = node.children.indices.filter { !flexible.contains($0) }.map { primary[$0] }.reduce(0, +)
             let flex = flexible.map { primary[$0] }.reduce(0, +)
             let k = flex > 0 ? max(0, (availP - fixed) / flex) : 1
@@ -1688,8 +1779,18 @@ struct DiagramLayout {
 
     /// Scales a tree laid out at its natural size into the frame, centred
     /// (hierarchies; anything that grew past the frame).
-    private func fit(_ root: DgmPresNode, into frame: Rect) {
+    private func fit(_ root: DgmPresNode, into frame: Rect, alongOnly: Bool = false) {
         guard let u = union(of: root.children), u.width > 0, u.height > 0 else { return }
+        if alongOnly, u.width > frame.width, u.height <= frame.height {
+            let kx = frame.width / u.width
+            let dy = frame.top + (frame.height - u.height) / 2 - u.top
+            func squeeze(_ n: DgmPresNode) {
+                n.rect = Rect.fromLTWH(frame.left + (n.rect.left - u.left) * kx, n.rect.top + dy, n.rect.width * kx, n.rect.height)
+                for c in n.children { squeeze(c) }
+            }
+            for c in root.children { squeeze(c) }
+            return
+        }
         let k = min(frame.width / u.width, frame.height / u.height)
         if abs(k - 1) < 1e-6 && frame.contains(u.center) && u.left >= frame.left - 0.01 && u.top >= frame.top - 0.01 { return }
         let scale = min(1, k)

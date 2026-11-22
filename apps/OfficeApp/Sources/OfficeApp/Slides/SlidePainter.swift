@@ -280,7 +280,9 @@ final class SlideTextCache {
             layout.width = width * res
             layout.ensureLaidOut(text.document)
             let height = layout.totalHeight / res
-            return height <= room + 0.5 / res && (!wholeWords || widestWord(text.document, theme, scale: scale) <= width + 0.5)
+            // (A diagram's line height is 0.9 x 1.2207 x the size, 19.775 pt at 18; laid out on a twentieth it is 19.8, and two lines
+            // came to 0.05 over a box PowerPoint fills exactly. Its own fit is on the exact figure, so a diagram gets the rounding.)
+            return height <= room + (wholeWords ? 2.0 : 0.5) / res && (!wholeWords || widestWord(text.document, theme, scale: scale) <= width + 0.5)
         }
         // A diagram laid out here (its margins follow its font) shrinks by
         // whole points down to its rule's 5 pt, as PowerPoint sets its
