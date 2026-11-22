@@ -6471,7 +6471,9 @@ enum ChartPainter {
                         // depth or depth: Windows' lab b3dlabels, 9 variants of 5864 slide 5, within 0.2 pt.)
                         // (Not a stacked column's: its label stands at the segment's centre, as the front face's, in PowerPoint's print: es 3df36ff6 p5, four stacked
                         // 3-D charts, 11% in a 77 pt segment centred at 407.35, PowerPoint's 407.1, ours 4.4 high.)
-                        let slideRise = c.onSlide && !c.stacked ? (5.0 - 2.3 * sin(abs(v.x) * .pi / 180)) * k : 0
+                        let slideRise = c.onSlide && !c.stacked && !horizontal ? (5.0 - 2.3 * sin(abs(v.x) * .pi / 180)) * k : 0
+                        // (A horizontal bar's label on a slide stands level with the front's middle, no rise: LIBRE_OFFICE-100610 p8's four bars in
+                        // PowerPoint's print, where the column rise stood 4.4 pt high.)
                         labels.append((last.0, Offset(last.1.dx + back.dx, last.1.dy - back.dy - slideRise), last.2)) }
                     }
                     if c.series[j].labelLeader, !horizontal, !c.onSlide, nudge(j, i) != .zero, !labels.isEmpty, labels[labels.count - 1].2 == j {
