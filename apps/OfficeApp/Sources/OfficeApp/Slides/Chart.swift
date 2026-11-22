@@ -3512,7 +3512,9 @@ enum ChartPainter {
                 // 43 pt high in PowerPoint's print, 90 in ours, which ran up under the legend.)
                 if !pie, c.onSlide, !c.onSheet, c.plotLayout == nil, c.legendPosition == "t", !c.legendOverlay {
                     RuleTrace.hit("slide-placed-top-legend-keeps-its-row-above-the-plot")
-                    area = Rect.fromLTRB(area.left, area.top + lineH * Double(lines.count) + 6 * k, area.right, area.bottom)
+                    // (The plot stands clear of the legend's row and of its box, whichever ends lower: ko-c03ed80e p21's box ends
+                    // 239.8 and PowerPoint's plot starts at 239.6, ours 9.6 pt higher on the row alone; ko-e114b968 p23's row ends lower.)
+                    area = Rect.fromLTRB(area.left, max(area.top + lineH * Double(lines.count) + 6 * k, c.legendBox.map { r.top + ($0.top + $0.height) * r.height } ?? 0), area.right, area.bottom)
                 }
                 if !pie, !c.onSlide, !c.onSheet, c.plotLayout == nil, c.legendPosition == "b" {
                     RuleTrace.hit("legend-box-keeps-its-row-below-the-plot")
