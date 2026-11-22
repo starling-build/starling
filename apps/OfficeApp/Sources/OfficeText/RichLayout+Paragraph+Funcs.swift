@@ -1507,7 +1507,7 @@ extension _ParaFrame {
             return painter
         }
         func laidOutPlain(_ span0: TextSpan) -> TextPainter {
-            let span = theme.exactLinesAsPowerPoint ? RichLayout._holdingFallbackSplit(span0) : span0
+            let span = theme.exactLinesAsPowerPoint ? RichLayout._holdingFallbackSplit(span0, theme: theme) : span0
             let rises = RichLayout._risesForNumber(inline)
             numberLift = 0
             // (A number larger than its text lifts the first line alone;
