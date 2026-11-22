@@ -2833,6 +2833,9 @@ private struct SlideContext {
                                                                                           fontSize: end?.size ?? look.size ?? 18, color: look.color))], style: style)
                         : RichParagraph(text: text, runs: runs, style: style)
                     para.cell = cell
+                    // (Lab tblrow2, PowerPoint's print: a cell paragraph with fontAlgn="ctr" has no first-line loss at a percent spacing,
+                    // its row is the full m x 1.2 x size (MS PGothic 28 pt 150% 50.40, Arial 24 43.20); without fontAlgn the loss stays.)
+                    if !text.isEmpty, style.lineSpacing > 1.0, p.first("a:pPr")?["fontAlgn"] == "ctr" { para.style.cellFullFirstLine = true }
                     if !text.isEmpty, style.lineSpacing > 1.0 {
                         // (The face's share of the line below the baseline, Windows metrics; a face we hold none for is taken as Arial.)
                         let big = runs.max { ($0.style.fontSize ?? 0) < ($1.style.fontSize ?? 0) }

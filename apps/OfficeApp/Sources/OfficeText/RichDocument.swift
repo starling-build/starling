@@ -645,6 +645,8 @@ public struct RichParagraphStyle: Hashable, Codable, Sendable {
     public var endMarkFace: String? = nil
     /// Slides table cells: the share of the line below the baseline (Windows descent over ascent plus descent) of the face with the most of it, the biggest run's or the end mark's (lab tbl-rows3: it sets the first-line loss of a percent line spacing above 100%).
     public var cellDescentShare: Double? = nil
+    /// Slides table cells: fontAlgn ctr takes the full m x 1.2 x size first line, no trim (lab tblrow2).
+    public var cellFullFirstLine = false
     /// Exact line height in points ("exactly 20 pt"), which then wins over
     /// `lineSpacing`; nil for a multiple.
     public var lineHeightPoints: Double? = nil
