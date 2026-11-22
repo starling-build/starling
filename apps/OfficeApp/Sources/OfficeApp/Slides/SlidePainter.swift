@@ -1079,11 +1079,12 @@ final class SlidePainter: CustomPainter {
                 } else if style.path == .shape, style.stops.count >= 2, style.overlay == nil {
                     Self.paintShapePath(style, outline, r, canvas, ellipse: named == "ellipse")
                 } else if style.imageStays, style.image != nil, shape.rotation != 0 {
-                    // Upright on the page, within the turned outline.
+                    // Upright on the page, stretched to the turned outline's bounds, within the outline.
+                    let box = Self.turnedBounds(outline, r, shape.rotation)
                     canvas.translate(r.center.dx, r.center.dy)
                     canvas.rotate(-shape.rotation * .pi / 180)
                     canvas.translate(-r.center.dx, -r.center.dy)
-                    paintFill(style, r, canvas, cache: cache, pxPerPt: px)
+                    paintFill(style, box, canvas, cache: cache, pxPerPt: px)
                 } else {
                     paintFill(style, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
                 }
@@ -1170,11 +1171,12 @@ final class SlidePainter: CustomPainter {
             } else if style.path == .shape, let path, preset?.rawValue != "rect", style.stops.count >= 2, style.overlay == nil {
                 Self.paintShapePath(style, path, area, canvas, ellipse: preset?.rawValue == "ellipse")
             } else if style.imageStays, style.image != nil, shape.rotation != 0 {
-                // Upright on the page, within the turned outline.
+                // Upright on the page, stretched to the turned outline's bounds, within the outline.
+                let box = Self.turnedBounds(path, area, shape.rotation)
                 canvas.translate(area.center.dx, area.center.dy)
                 canvas.rotate(-shape.rotation * .pi / 180)
                 canvas.translate(-area.center.dx, -area.center.dy)
-                paintFill(style, area, canvas, cache: cache, pxPerPt: px)
+                paintFill(style, box, canvas, cache: cache, pxPerPt: px)
             } else {
                 paintFill(style, area, canvas, cache: cache, pxPerPt: px, turn: shape.rotation)
             }
@@ -2101,6 +2103,15 @@ final class SlidePainter: CustomPainter {
     }
 
     /// Every filled subpath of a freeform as one path (its holes cut).
+    /// The page-frame bounds of an outline turned by `degrees` about the centre of `r` (the box a picture fill that stays
+    /// upright is stretched to: PowerPoint's print of rotWithShape=0, picrot lab, 2026-11-22). The unturned `r` when no outline.
+    static func turnedBounds(_ outline: Path?, _ r: Rect, _ degrees: Double) -> Rect {
+        guard let outline else { return r }
+        let a = degrees * .pi / 180, c = cos(a), sn = sin(a), cx = r.center.dx, cy = r.center.dy
+        let turned = outline.transform([c, sn, 0, 0, -sn, c, 0, 0, 0, 0, 1, 0, cx - c * cx + sn * cy, cy - sn * cx - c * cy, 0, 1])
+        return turned.getBounds()
+    }
+
     static func combinedPath(_ g: FreeformGeometry, _ r: Rect) -> Path {
         let path = Path()
         path.fillType = .evenOdd
