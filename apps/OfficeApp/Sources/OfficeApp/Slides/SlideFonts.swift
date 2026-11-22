@@ -206,6 +206,7 @@ enum SlideFonts {
                 face.boldItalicOtherAdvances = it.bold.map { SlideEastAsianWidths.parse($0.other) } ?? face.italicOtherAdvances
             }
             // (Rockwell and Tw Cen MT kern, as PowerPoint prints them, by the pairs of the font's own kern table.)
+            face.hintedAdvances = ["arial", "rockwell", "tw cen mt", "trebuchet ms"].contains(windowsName(family))
             if let k = SlideLatinKerns.lookup(windowsName(family)) { face.kerns = k.regular; face.boldKerns = k.bold ?? k.regular; face.kernsOutsideWord = true }
             if let k = SlideLatinItalicKerns.lookup(windowsName(family)) { face.italicKerns = k.italic; face.boldItalicKerns = k.boldItalic ?? k.italic }
             // (A Ming, Song or Mincho name draws its ideographs in a serif, as Word's print does: PowerPoint's print of 新細明體 is a serif.
@@ -269,6 +270,8 @@ enum SlideFonts {
             face.advances = t.0
             face.boldAdvances = t.1
             // (Trebuchet MS kerns as PowerPoint prints it, by the pairs of the font's own tables, measured on Windows.)
+            // (head.flags bit 4 of the Windows fonts, read 2026-11-22: set in Calibri, Calibri Light, Arial, Rockwell, Tw Cen MT, Trebuchet MS; clear in the cloud Aptos and Open Sans.)
+            face.hintedAdvances = ["arial", "rockwell", "tw cen mt", "trebuchet ms"].contains(n)
             if let k = SlideLatinKerns.lookup(n) { face.kerns = k.regular; face.boldKerns = k.bold ?? k.regular; face.kernsOutsideWord = true }
             if let k = SlideLatinItalicKerns.lookup(n) { face.italicKerns = k.italic; face.boldItalicKerns = k.boldItalic ?? k.italic }
             if n == "tahoma" {
@@ -315,7 +318,7 @@ enum SlideFonts {
             let hebrew = family.trimmingWhitespace().lowercased() == "calibri" ? SlideFontWidths.calibriHebrew : SlideFontWidths.timesHebrew
             face.otherAdvances = hebrew
             face.boldOtherAdvances = hebrew
-            if family.trimmingWhitespace().lowercased() == "calibri" { face.kerns = SlideCalibriKerns.regular; face.boldKerns = SlideCalibriKerns.bold; face.kernsReplaceShaped = true
+            if family.trimmingWhitespace().lowercased() == "calibri" { face.hintedAdvances = true; face.kerns = SlideCalibriKerns.regular; face.boldKerns = SlideCalibriKerns.bold; face.kernsReplaceShaped = true
                 if let k = SlideLatinItalicKerns.lookup("calibri") { face.italicKerns = k.italic; face.boldItalicKerns = k.boldItalic ?? k.italic } }
             if family.trimmingWhitespace().lowercased() == "times new roman" {
                 face.joinedAdvances = WindowsArabicAdvances.times
@@ -353,6 +356,7 @@ enum SlideFonts {
             face.otherAdvances = SlideFontWidths.calibriHebrew
             face.boldOtherAdvances = SlideFontWidths.calibriHebrew.merging(SlideFontWidths.calibriLightBoldOther) { a, _ in a }
             face.kerns = SlideCalibriKerns.light
+            face.hintedAdvances = true
             face.kernsReplaceShaped = true
             return face
         case "arial black":
