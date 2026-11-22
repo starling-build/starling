@@ -23,7 +23,7 @@ final class Metafile {
         /// A fill that shades from `from` to `to` through the colours at the stops (EMF+ linear gradient brushes).
         case gradient(Path, from: Offset, to: Offset, colors: [Color], stops: [Double])
         /// A stroke `width` metafile units wide; 0 is GDI's one-pixel pen.
-        case stroke(Path, Color, Double)
+        case stroke(Path, Color, Double, yStretch: Double = 1)
         case text(TextRun)
         case image(Int, source: Rect?, at: Rect, blend: BlendMode?)
         case clip(Path?)
@@ -160,7 +160,7 @@ final class Metafile {
                 p.isAntiAlias = true
                 p.color = color
                 canvas.drawPath(path, p)
-            case .stroke(let path, let color, let width):
+            case .stroke(let path, let color, let width, let yStretch):
                 guard let color = drawn(color) else { continue }
                 let p = Paint()
                 p.style = .stroke
@@ -168,7 +168,15 @@ final class Metafile {
                 p.strokeWidth = max(width, hairline)
                 p.strokeJoin = .round
                 p.color = color
-                canvas.drawPath(path, p)
+                if yStretch != 1, yStretch > 0 {
+                    // (A pen taller than it is wide: the path drawn at 1/yStretch of its height under a canvas stretched by it.)
+                    canvas.save()
+                    canvas.scale(1, yStretch)
+                    canvas.drawPath(path.transform([1, 0, 0, 0, 0, 1 / yStretch, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]), p)
+                    canvas.restore()
+                } else {
+                    canvas.drawPath(path, p)
+                }
             case .gradient(let path, let from, let to, let colors, let stops):
                 let drawnColors = colors.compactMap { drawn($0) }
                 guard drawnColors.count == colors.count, drawnColors.count >= 2 else { continue }
@@ -233,6 +241,7 @@ final class Metafile {
 /// leave. Coordinates are mapped as each record is played, so a step is in
 /// the picture's own space whatever window or transform was in force.
 private struct Player {
+    var penStretchY = 1.0
     struct Pen { var color = Color(0xFF000000); var width = 0.0; var null = false }
     struct Brush { var color = Color(0xFFFFFFFF); var null = false }
     struct Font {
@@ -392,7 +401,7 @@ private struct Player {
         if !dc.brush.null { steps.append(.fill(p, dc.brush.color)) }
     }
     mutating func stroke(_ p: Path) {
-        if !dc.pen.null { steps.append(.stroke(p, dc.pen.color, dc.pen.width * (scaleX + scaleY) / 2)) }
+        if !dc.pen.null { steps.append(.stroke(p, dc.pen.color, dc.pen.width * (scaleX + scaleY) / 2, yStretch: penStretchY)) }
     }
     mutating func shape(_ p: Path) {
         if building { path?.addPath(p, Offset.zero); return }
@@ -733,9 +742,11 @@ private struct Player {
         isWMF = true
         var p = 0
         var placeable: Rect? = nil
+        var headerless = true
         if bytes.count > 22, bytes[0] == 0xD7, bytes[1] == 0xCD {
             placeable = Rect.fromLTRB(Double(i16(6)), Double(i16(8)), Double(i16(10)), Double(i16(12)))
             p = 22
+            headerless = false
         }
         p += u16(p + 2) * 2
         var org: Offset? = nil
@@ -759,6 +770,14 @@ private struct Player {
                     // −1824 — maps into it upside down, and a frame of
                     // negative height drew nothing.)
                     frame = Rect.fromLTWH(o.dx, o.dy, abs(dc.winExt.width), abs(dc.winExt.height))
+                    // (PowerPoint prints a WMF with no placeable header into a form as wide and tall as the window's extent less
+                    // its origin, reading the extent as a far corner; the pen, set by the width scale, then comes out that much
+                    // taller than it is wide: ko-ca2dc787 p32's origin (518, 2006) and extent 4772 x 2084 make a form 4254 by 78,
+                    // and the frame's 16-unit pen a band 24 times thick; lab wmf32b's taller window and placeable header agree.)
+                    let fw = dc.winExt.width - o.dx, fh = dc.winExt.height - o.dy
+                    if headerless, dc.winExt.width > 0, dc.winExt.height > 0, fw > 0, fh > 0 {
+                        penStretchY = (fw / fh) * (dc.winExt.height / dc.winExt.width)
+                    }
                 }
             case 0x0412:   // ScaleWindowExt: yDenom, yNum, xDenom, xNum (1c3bb90e's map prints at 2165/2313 across, 2337/2395 down)
                 if i16(a) != 0, i16(a + 4) != 0 {
