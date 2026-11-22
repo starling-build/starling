@@ -86,6 +86,8 @@ struct ChartSeries: Equatable {
     static let labelValueMark = "\u{1}V"
     static let labelCellMark = "\u{1}C"
     var name: String
+    /// A line of a combination that stands on the columns' own value axis though another line group has an axis of its own at the right.
+    var onMainAxis = false
     /// One per category; nil is a blank cell (a gap).
     var values: [Double?]
     /// The numbers' own format (`c:val`'s `c:formatCode`) where it is
@@ -1481,7 +1483,24 @@ enum ChartXML {
         var main = kinds.first
         var merged: [XNode] = []
         var columnsOnRight = false
-        if kinds.count == 2, let bar = kinds.first(where: { $0.name == "c:barChart" || $0.name == "c:areaChart" }),
+        var mainLines: [XNode] = []
+        if kinds.count == 3, let bar = kinds.first(where: { $0.name == "c:barChart" }), kinds.filter({ $0.name == "c:lineChart" }).count == 2,
+           bar.first("c:barDir")?["val"] != "bar" {
+            // Columns, a line group on their axes and a second line group on a value axis of its own at the right
+            // (b3af6b818144 p29's chart 18): the first lines stand on the columns' scale, the others on the right one.
+            let lineKinds = kinds.filter { $0.name == "c:lineChart" }
+            let barAxes = Set(bar.all("c:axId").compactMap { $0["val"] })
+            let a0 = Set(lineKinds[0].all("c:axId").compactMap { $0["val"] }), a1 = Set(lineKinds[1].all("c:axId").compactMap { $0["val"] })
+            let sharing = a0 == barAxes ? 0 : a1 == barAxes ? 1 : nil
+            if let sharing, [a0, a1][1 - sharing] != barAxes,
+               let own = plot.all("c:valAx").first(where: { ax in [a0, a1][1 - sharing].contains(ax.first("c:axId")?["val"] ?? "") && !barAxes.contains(ax.first("c:axId")?["val"] ?? "") }),
+               own.first("c:crosses")?["val"] == "max" || own.first("c:axPos")?["val"] == "r" {
+                secondAxis = own
+                main = bar
+                overlay = lineKinds[1 - sharing]
+                mainLines = [lineKinds[sharing]]
+            } else { return nil }
+        } else if kinds.count == 2, let bar = kinds.first(where: { $0.name == "c:barChart" || $0.name == "c:areaChart" }),
            let line = kinds.first(where: { $0.name == "c:lineChart" }) {
             let barAxes = Set(bar.all("c:axId").compactMap { $0["val"] })
             let lineAxes = Set(line.all("c:axId").compactMap { $0["val"] })
@@ -1844,10 +1863,12 @@ enum ChartXML {
         guard !series.isEmpty || allowEmpty else { return nil }
         // The lines over the columns, with their marks.
         var lines: [ChartSeries] = []
-        for ser in overlay?.all("c:ser") ?? [] {
+        let overlaySeries: [(ser: XNode, onMain: Bool)] = mainLines.flatMap { $0.all("c:ser").map { ($0, true) } } + (overlay?.all("c:ser") ?? []).map { ($0, false) }
+        for (ser, onMain) in overlaySeries {
             let name = ser.first("c:tx").map { _texts($0, "c:v").joined() } ?? "Series\(series.count + lines.count + 1)"
             let values = (ser.first("c:val").map(_points) ?? []).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
             var s = ChartSeries(name: name, values: values)
+            s.onMainAxis = onMain
             s.format = Self._format(ser.first("c:val"))
             if let k = ser.first("c:idx")?["val"].flatMap(Int.init), k != series.count + lines.count { s.autoIndex = k }
             let ln = ser.first("c:spPr")?.first("a:ln")
@@ -4845,6 +4866,8 @@ enum ChartPainter {
         if c.secondValueAxis == nil || sharesFirst || c.secondValueAxis?.sameScale == true {
             if sharesFirst { RuleTrace.hit("word-lines-on-a-deleted-second-axis-stand-on-the-first") }
             for v in c.lineSeries.flatMap({ $0.values.compactMap { $0 } }) { lo = min(lo, v); hi = max(hi, v) }
+        } else {
+            for v in c.lineSeries.filter(\.onMainAxis).flatMap({ $0.values.compactMap { $0 } }) { lo = min(lo, v); hi = max(hi, v) }
         }
         // (A box chart's axis spans every sample, its outliers too.)
         for v in (c.boxes ?? []).joined().joined() { lo = min(lo, v); hi = max(hi, v) }
@@ -5018,7 +5041,7 @@ enum ChartPainter {
         if let second = c.secondValueAxis, second.sameScale, !horizontal {
             secondScale = sc
         } else if let second = c.secondValueAxis, !sharesFirst, !horizontal {
-            let all = c.lineSeries.flatMap { $0.values.compactMap { $0 } }
+            let all = c.lineSeries.filter { !$0.onMainAxis }.flatMap { $0.values.compactMap { $0 } }
             var s2 = scale(all.min() ?? 0, max(all.max() ?? 1, second.max ?? -Double.infinity), intervals: tableSteps ?? 10)
             if second.min != nil || second.max != nil || second.step != nil {
                 s2 = fixedScale(auto: s2, min: second.min, max: second.max, step: second.step)
@@ -6454,7 +6477,7 @@ enum ChartPainter {
                     guard let v = l.values[safe: i] ?? nil else { return nil }
                     // (An area's points sit on the edges, so lines over it do.)
                     let x = c.onEdges ? plot.left + Double(i) * plot.width / Double(n - 1) : plot.left + (Double(i) + 0.5) * slot
-                    return Offset(x, vpos2(v))
+                    return Offset(x, l.onMainAxis ? vpos(v) : vpos2(v))
                 }
                 if !l.lineHidden {
                     let path = Path()
