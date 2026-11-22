@@ -4936,7 +4936,10 @@ enum ChartPainter {
         // not, sa1 67e19017's Spanish column charts.)
         let placedOverAutoFoot = inWord && !c.styled2013 && c.titleAt != nil && c.plotLayout == nil && c.type == .column ? 1.25 * k : 0
         let wordFoot = word && !(c.legend && c.legendPosition == "b") && c.categoryAxisTitle == nil && c.categoryAxisTitleAt == nil
-        let besideOut = ticksPush && (horizontal ? c.categoryTicksOut : c.valueTicksOut) ? (horizontal ? 8.8 : 5.6) * k : 0
+        // (A bar chart's laid-out plot on a slide: PowerPoint's category ticks are 3.2 pt long and the names end 9.7 pt off the
+        // axis, 1.2 pt more than with no ticks — 7d329933 p23 and 81d28d42 p29, where ours ended 17.5 pt off with 5.7 pt ticks.)
+        let slideLaidBar = horizontal && c.onSlide && c.plotLayoutInner
+        let besideOut = ticksPush && (horizontal ? c.categoryTicksOut : c.valueTicksOut) ? (slideLaidBar ? 1.2 : horizontal ? 8.8 : 5.6) * k : 0
         let revCat = horizontal && c.categoryReversed
         let belowOut = ticksPush && (horizontal ? c.valueTicksOut : c.categoryTicksOut) ? 3.7 * k : 0
         var valueLabelsBack = 0.0
@@ -5593,7 +5596,7 @@ enum ChartPainter {
                     if c.valueTicksOut { for v in ticks { canvas.drawLine(Offset(vpos(v), ay), Offset(vpos(v), revCat ? ay - tick : ay + tick), axisPaint) } }
                 }
                 if c.categoryLine, !c.categoryAxisDeleted, c.categoryTicksOut {
-                    for y in cats { canvas.drawLine(Offset(zero - tick, y), Offset(zero, y), axisPaint) }
+                    for y in cats { canvas.drawLine(Offset(zero - (slideLaidBar ? 3.2 * k : tick), y), Offset(zero, y), axisPaint) }
                 }
             } else {
                 if c.valueLine, !c.valueAxisDeleted {
