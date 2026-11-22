@@ -76,4 +76,26 @@ final class MetafilePlusTests: XCTestCase {
         XCTAssertEqual(color, Color(0xFF00FF00))
         XCTAssertEqual(path.getBounds(), Rect.fromLTRB(2.5, 4.5, 8.5, 12.5), "x' = 2x + 1, less the half unit")
     }
+
+    func testADrawnCompressedImageIsAStepAtItsCorners() throws {
+        func i16(_ v: Int) -> [UInt8] { [UInt8(v & 0xFF), UInt8((v >> 8) & 0xFF)] }
+        let head = plus(0x4001, 1, le32(0xDBC01002) + le32(1) + le32(96) + le32(96))
+        // A bitmap object (id 1): version, type 1, width, height, stride, format 0, data type 1, then the file's bytes.
+        var body: [UInt8] = []
+        for v in [0xDBC01002, 1, 0, 0, 0, 0, 1] { body += le32(v) }
+        body += [1, 2, 3, 4]
+        let object = plus(0x4008, 0x0501, body)
+        // DrawImagePoints, compressed points: attributes, pixel unit, source rect, 3 points (0,0) (50,0) (0,20).
+        var d: [UInt8] = le32(0) + le32(2)
+        for v in [0.0, 0.0, 10.0, 4.0] { d += f32(v) }
+        d += le32(3)
+        for v in [0, 0, 50, 0, 0, 20] { d += i16(v) }
+        let draw = plus(0x401B, 0x4001, d)
+        let m = try XCTUnwrap(Metafile(Data(header() + comment(head + object + draw) + fallback() + end()), id: "p"))
+        XCTAssertEqual(m.steps.count, 1)
+        guard case .image(let index, let source, let at, _) = m.steps[0] else { return XCTFail("an image") }
+        XCTAssertEqual(m.bitmaps[index].data, Data([1, 2, 3, 4]))
+        XCTAssertEqual(at, Rect.fromLTRB(-0.5, -0.5, 49.5, 19.5))
+        XCTAssertEqual(source, Rect.fromLTWH(0.5, 0.5, 10, 4))
+    }
 }

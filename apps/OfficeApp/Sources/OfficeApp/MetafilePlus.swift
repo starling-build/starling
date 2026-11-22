@@ -31,7 +31,7 @@ struct EmfPlus {
     indirect enum Region { case rect(Rect), path(PlusPath), infinite, empty, combine(Int, Region, Region) }
     struct Pen { var width = 1.0, unit = 0, color = Color(0xFF000000), solid = true, plain = true }
     struct Font { var size = 12.0, unit = 0, family = "Arial", bold = false, italic = false, underline = false }
-    enum Object { case brush(Color?), pen(Pen), path(PlusPath), region(Region), font(Font), other }
+    enum Object { case brush(Color?), pen(Pen), path(PlusPath), region(Region), font(Font), image(Int), other }
 
     static let ident: Int64 = 0x2B46_4D45   // "EMF+"
 
@@ -48,6 +48,9 @@ struct EmfPlus {
     /// Device units per millimetre, across and down (the EMF header's device size over its size in millimetres).
     var perMMX = 1.0, perMMY = 1.0
     var steps: [Metafile.Step] = []
+    /// Compressed pictures (PNG, JPEG...) the image objects held, for the player to add to its bitmaps; a step's index counts from `bitmapBase`.
+    var newBitmaps: [Data] = []
+    var bitmapBase = 0
     var bounds = Rect.zero
 
     // MARK: Reading
@@ -69,7 +72,7 @@ struct EmfPlus {
                     switch rt {
                     case 0x4001: dualFile = fl & 1 == 1
                     case 0x4002, 0x4004, 0x401D...0x4024, 0x4025, 0x4026, 0x402A...0x402F, 0x4030, 0x4031...0x4034, 0x4014, 0x4015,
-                         0x400A, 0x4009, 0x400C, 0x4036, 0x4003:
+                         0x400A, 0x4009, 0x400C, 0x4036, 0x4003, 0x401B:
                         break
                     case 0x4008:
                         // An object: a brush must be solid, a pen plain, nothing an image or a custom cap.
@@ -79,6 +82,7 @@ struct EmfPlus {
                         case 1: if u32(q + 12 + 4) != 0 { return false }
                         case 2: if !plainPen(bytes, q + 12, ds) { return false }
                         case 3, 4, 6, 7, 8: break
+                        case 5: if u32(q + 12 + 4) != 1 || u32(q + 12 + 24) != 1 { return false }   // only a compressed bitmap
                         default: return false
                         }
                     default: return false
@@ -304,6 +308,12 @@ extension EmfPlus {
             for i in 0..<min(len, 128) where at + 24 + 2 * i + 2 <= end { u.append(UInt16(b[at + 24 + 2 * i]) | UInt16(b[at + 25 + 2 * i]) << 8) }
             f.family = String(decoding: u, as: UTF16.self)
             objects[id] = .font(f)
+        case 5:
+            // A bitmap object: version, type 1, width, height, stride, pixel format, then data type 1 (compressed: PNG, JPEG...) and the file.
+            if Self.u32(b, at + 4) == 1, Self.u32(b, at + 24) == 1, at + 28 < end {
+                newBitmaps.append(Data(b[(at + 28)..<end]))
+                objects[id] = .image(bitmapBase + newBitmaps.count - 1)
+            } else { objects[id] = .other }
         default: objects[id] = .other
         }
     }
@@ -332,6 +342,20 @@ extension EmfPlus {
             dual = flags & 1 == 1
             dpiX = max(1, Double(u(8))); dpiY = max(1, Double(u(12)))
         case 0x4004: getDC = true
+        case 0x401B:
+            // DrawImagePoints: the image, its source rectangle, and three corners of the parallelogram it goes to (16-bit when flag C).
+            guard case .image(let index)? = objects[flags & 0xFF], u(24) == 3 else { break }
+            let compressed = flags & 0x4000 != 0
+            var pts: [(Double, Double)] = []
+            for i in 0..<3 {
+                if compressed { pts.append((Self.i16(b, at + 28 + 4 * i), Self.i16(b, at + 30 + 4 * i))) }
+                else { pts.append((f(28 + 8 * i), f(32 + 8 * i))) }
+            }
+            let m = toDevice
+            let a = m.apply(pts[0].0, pts[0].1), c = m.apply(pts[1].0, pts[1].1), d = m.apply(pts[2].0, pts[2].1)
+            let at = Rect.fromLTRB(min(a.dx, c.dx, d.dx), min(a.dy, c.dy, d.dy), max(a.dx, c.dx, d.dx), max(a.dy, c.dy, d.dy))
+            let source: Rect? = u(4) == 2 ? Rect.fromLTWH(f(8) + 0.5, f(12) + 0.5, f(16), f(20)) : nil
+            steps.append(.image(index, source: source, at: at, blend: nil))
         case 0x4030: pageUnit = flags & 0xFF; pageScale = f(0)
         case 0x402A: world = Matrix(a: f(0), b: f(4), c: f(8), d: f(12), e: f(16), f: f(20))
         case 0x402B: world = Matrix()
