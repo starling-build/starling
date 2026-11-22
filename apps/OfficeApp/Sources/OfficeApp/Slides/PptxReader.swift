@@ -3255,6 +3255,30 @@ private struct SlideContext {
                     font.children = [color]
                 }
             }
+            // PowerPoint lays the diagram out afresh from the data, so a
+            // paragraph's spacing the data states stands over the cached
+            // drawing's (5c820695 p12: the data's 12 pt before the two paragraphs
+            // above "普及者" moves the centred text 12.5 pt down in the print,
+            // the stale drawing has none). Only where the paragraphs pair up.
+            do {
+                var texts: [String: XNode] = [:], shownBy: [String: String] = [:]
+                for pt in data.first("dgm:ptLst")?.all("dgm:pt") ?? [] { if let id = pt["modelId"], let t = pt.first("dgm:t") { texts[id] = t } }
+                for cxn in data.first("dgm:cxnLst")?.all("dgm:cxn") ?? [] where cxn["type"] == "presOf" {
+                    if let src = cxn["srcId"], let dst = cxn["destId"] { shownBy[dst] = src }
+                }
+                for sp in tree?.all("p:sp") ?? [] {
+                    guard let id = sp["modelId"], let src = shownBy[id], let dt = texts[src], let tx = sp.first("p:txBody") else { continue }
+                    let dparas = dt.all("a:p"), tparas = tx.all("a:p")
+                    guard dparas.count == tparas.count else { continue }
+                    for (dp, tp) in zip(dparas, tparas) {
+                        guard let dpr = dp.first("a:pPr"), let tpr = tp.first("a:pPr") else { continue }
+                        for name in ["a:spcBef", "a:spcAft"] {
+                            guard let d = dpr.first(name) else { continue }
+                            if let i = tpr.children.firstIndex(where: { $0.name == name }) { tpr.children[i] = d } else { tpr.children.insert(d, at: 0) }
+                        }
+                    }
+                }
+            }
             // A point whose text size the author set (`custT`): its shape is
             // marked here (the drawing's ids are all 0) and keeps that size
             // below, overflowing or not.
