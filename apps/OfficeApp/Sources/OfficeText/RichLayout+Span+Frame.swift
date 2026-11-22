@@ -207,6 +207,7 @@ final class _StyledFrame {
     func _yuLatinOfMissingHangulFace(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument) -> Bool { rl._yuLatinOfMissingHangulFace(run, named, document) }
     func _shonarLatinRunFace(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument, _ paragraphText: String) -> String? { rl._shonarLatinRunFace(run, named, document, paragraphText) }
     func _pairAdvance(_ style: TextStyle, _ ch: Character, _ next: Character) -> Double { rl._pairAdvance(style, ch, next) }
+    func _pairKern(_ style: TextStyle, _ ch: Character, _ next: Character) -> Double { rl._pairKern(style, ch, next) }
     var _narrowQuoteMemo: [String: Bool] { get { rl._narrowQuoteMemo } set { rl._narrowQuoteMemo = newValue } }
     func _namedMetricFace(_ run: CharStyle, _ named: RichNamedStyle?, _ document: RichDocument, _ text: Substring) -> String? { rl._namedMetricFace(run, named, document, text) }
     func _kokilaLatinStyle(_ seg: Substring, base: TextStyle, px: Double) -> TextStyle { rl._kokilaLatinStyle(seg, base: base, px: px) }

@@ -1400,6 +1400,21 @@ extension RichLayout {
         return w
     }
 
+    /// The kerning the stand-in's shaper applies between `ch` and `next`, in pixels.
+    func _pairKern(_ style: TextStyle, _ ch: Character, _ next: Character) -> Double {
+        let key = "\(ch)\(next)|kern|\(style.fontFamily ?? "")|\(style.fontSize ?? 0)|\(style.fontWeight == .bold)|\(style.fontStyle == .italic)"
+        if let w = _spaceWidths[key] { return w }
+        func width(_ text: String) -> Double {
+            let t = TextPainter(text: TextSpan(text: text, style: style.copyWith(letterSpacing: 0)), textDirection: .ltr)
+            t.layout(minWidth: 0, maxWidth: 100_000)
+            defer { t.dispose() }
+            return t.width
+        }
+        let w = width("\(ch)\(next)") - width("\(ch)") - width("\(next)")
+        _spaceWidths[key] = w
+        return w
+    }
+
     func _glyphWidth(_ style: TextStyle, _ ch: Character) -> Double {
         let key = "\(ch)|\(style.fontFamily ?? "")|\(style.fontSize ?? 0)|\(style.fontWeight == .bold)|\(style.fontStyle == .italic)"
             + (style.fontFeatures?.isEmpty ?? true ? "" : "|f" + style.fontFeatures!.map { "\($0.feature)\($0.value)" }.joined())

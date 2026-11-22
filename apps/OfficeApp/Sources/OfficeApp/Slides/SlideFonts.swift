@@ -274,6 +274,7 @@ enum SlideFonts {
             let hebrew = family.trimmingWhitespace().lowercased() == "calibri" ? SlideFontWidths.calibriHebrew : SlideFontWidths.timesHebrew
             face.otherAdvances = hebrew
             face.boldOtherAdvances = hebrew
+            if family.trimmingWhitespace().lowercased() == "calibri" { face.kerns = SlideCalibriKerns.regular; face.boldKerns = SlideCalibriKerns.bold; face.kernsReplaceShaped = true }
             if family.trimmingWhitespace().lowercased() == "times new roman" {
                 face.joinedAdvances = WindowsArabicAdvances.times
                 face.boldJoinedAdvances = WindowsArabicAdvances.timesBold
@@ -307,6 +308,8 @@ enum SlideFonts {
             face.fakeBoldFamily = OfficeFonts.carlitoNoBold
             face.otherAdvances = SlideFontWidths.calibriHebrew
             face.boldOtherAdvances = SlideFontWidths.calibriHebrew.merging(SlideFontWidths.calibriLightBoldOther) { a, _ in a }
+            face.kerns = SlideCalibriKerns.light
+            face.kernsReplaceShaped = true
             return face
         case "arial black":
             var face = RichResolvedFace(family: resolve(family))
