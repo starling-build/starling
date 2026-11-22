@@ -5988,6 +5988,19 @@ enum ChartPainter {
                         plot = Rect.fromLTRB(wall.left - box.dx, whole.top + box.dy, wall.right - box.dx, whole.bottom + box.dy)
                     } else {
                         plot = Rect.fromLTRB(whole.left, whole.top + box.dy, whole.right - box.dx, whole.bottom + (wordAuto3D ? box.dy : 0))
+                        // (PowerPoint's 3-D columns on a slide, no plot laid by the file: the value labels, the plot and the box behind it stand as one block
+                        // that starts 8.3 pt in from the frame's left and ends 11.0 in from its right, no wider than 1.834 of the frame's height, centred in
+                        // what that leaves; the labels at its left, the axis 0.927 of their size past them, the box's back at its right. Lab lg3, a frame
+                        // 626.8 by 314.9 pt, 6 to 18 pt labels: the block 577.6 pt at every size, 15.1 pt in at each side; the same frame half as wide,
+                        // 8.3 and 11.1 in. The cap's one frame height is the one measured.)
+                        if c.onSlide, !horizontal, v.rightAngles, v.walled, c.plotLayout == nil, !c.styled2013, !c.legend {
+                            RuleTrace.hit("slide-3d-columns-stand-as-one-block-centred-under-a-cap")
+                            let availL = frame.left + 8.3 * k, availR = frame.right - 11 * k
+                            let block = min(availR - availL, 1.834 * frame.height)
+                            let start = availL + (availR - availL - block) / 2
+                            let lw = valueLabels.map(\.width).max() ?? 0
+                            plot = Rect.fromLTRB(start + lw + 0.927 * labelSize * k, plot.top, start + block - box.dx, plot.bottom)
+                        }
                     }
                 }
                 if pass == 0, wordAuto3D {
@@ -6282,7 +6295,7 @@ enum ChartPainter {
                 // (On a slide 10 pt: es/3df36ff6 p4's labels at 24 in PowerPoint's print, ours at 14.)
                 // (Where the rule above pushed the plot off the chart's left edge, the labels stay at the edge 1.5 pt in, and the plot stands their
                 // size-scaled clearance past them: lab p12-lab3, 8 pt labels' left at 37.5 and 18 pt's at 37.5, where ours followed the plot.)
-                let labelRight = pushedLabelGap != nil ? frame.left + 1.5 * k + tp.width : (c.onSlide && (!c.legend || c.legendPosition == "r") && !c.styled2013 && c.valueAxisTitle == nil && c.categoryAxisTitle == nil && !word && !libre && !c.chartex && c.barView == nil && !horizontal) ? plot.left - 0.927 * labelSize * k : slideLaidColumnAxis && c.valueTicksOut ? plot.left - 9.0 * k : plot.left - (c.chartex && c.onSlide ? (c.waterfallTotals != nil ? 5 : 4) : 8.5) * k - besideOut - further + wall3D + wall3DAuto + valueLabelsBack
+                let labelRight = pushedLabelGap != nil ? frame.left + 1.5 * k + tp.width : (c.onSlide && (!c.legend || c.legendPosition == "r") && !c.styled2013 && c.valueAxisTitle == nil && c.categoryAxisTitle == nil && !word && !libre && !c.chartex && c.barView == nil && !horizontal) || (c.onSlide && !horizontal && c.plotLayout == nil && !c.styled2013 && !c.legend && c.barView?.walled == true && c.barView?.rightAngles == true) ? plot.left - 0.927 * labelSize * k : slideLaidColumnAxis && c.valueTicksOut ? plot.left - 9.0 * k : plot.left - (c.chartex && c.onSlide ? (c.waterfallTotals != nil ? 5 : 4) : 8.5) * k - besideOut - further + wall3D + wall3DAuto + valueLabelsBack
                 if pushedLabelGap != nil { RuleTrace.hit("slide-laid-plot-pushed-keeps-value-labels-at-the-edge") }
                 if !swapSides { tp.paint(canvas, Offset(labelRight - tp.width, p - tp.height / 2 - lift + (wall3DAuto > 0 ? 2.6 * k : 0))) }
             }
