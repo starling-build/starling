@@ -4281,6 +4281,9 @@ static let sylfaenAdvances: [Double] = [
             face.joinedClusters = WindowsArabicAdvances.tradArabicClusters
             face.boldJoinedClusters = WindowsArabicAdvances.tradArabicBoldClusters
             face.baseline = 0.997; face.ownLineBaseline = true
+            // (Its "/" is 0.278 em in PowerPoint's print, bold and regular: 6f97f2ee p10's title "السلطة التشريعية/ مجلس النواب" is 342.2 pt
+            // wide at 40 pt, the slash 11.1 pt; the Latin stand-in's is 0.505 em, 20.2 pt.)
+            face.otherAdvances = [0x2F: 0.278]; face.boldOtherAdvances = [0x2F: 0.278]
         } else if asked == "simplified arabic" {
             // (hhea 2416 + 979 over 2048 regular, 989 bold, from Word's print; rtl/eb7ab2c5.)
             face.joinedAdvances = WindowsArabicAdvances.simplifiedArabic
