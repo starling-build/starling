@@ -238,6 +238,18 @@ def _columns(singles, total, mixed=False):
 OFFPAGE = False
 
 
+def _one_colour(doc, im):
+    """Whether the picture `im` (a `get_image_info` entry) is a single colour throughout: a solid fill drawn as a picture."""
+    import pymupdf
+    try:
+        px = pymupdf.Pixmap(doc, im["xref"])
+        n = px.n
+        b = px.samples
+        return len(b) >= n and all(b[i:i + n] == b[:n] for i in range(0, len(b), n))
+    except Exception:
+        return False
+
+
 def mupdf_glyphs(pdf, drop=None):
     """v2's rows, from the page's glyphs rather than the reader's lines.
     Each line of text set across is the inked glyphs on one baseline:
@@ -291,6 +303,9 @@ def mupdf_glyphs(pdf, drop=None):
                             # (ko-30dac1f5, lo-tdf126234). Invisible text over nothing (a ghost copy) still counts on neither side.
                             shapes = [dr["rect"] for dr in page.get_drawings()
                                       if (dr.get("fill") or dr.get("color")) and dr["rect"].width * dr["rect"].height < 0.5 * page.rect.width * page.rect.height]
+                            # (A picture is ink too: PowerPoint fills a text with a 2x2-pixel picture stretched over it, under invisible
+                            # text, where ours draws the text itself: pt 96dcb877 p5's bullets lines. Only a picture of ONE colour, the solid fill of the text: a photograph under text is not the text's ink. The source: a run set in a variable face (Bahnschrift, Inter) that PowerPoint cannot write as text.)
+                            shapes += [pymupdf.Rect(im["bbox"]) for im in page.get_image_info(xrefs=True) if _one_colour(page.parent, im)]
                             for t in page.get_texttrace():
                                 if t["type"] == 3 or t["opacity"] == 0:
                                     for ch in t["chars"]:
