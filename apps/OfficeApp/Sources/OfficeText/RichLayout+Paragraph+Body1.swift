@@ -244,12 +244,15 @@ extension _ParaFrame {
         }
         // PowerPoint hangs a line-end 、 or 。 past the margin (its hangingPunct, on by default): where one would open the next line, it
         // is set no wider than a point, so the line takes it and the character before it (befe9f6b p6 "…明記する。").
+        let zhHang = p.style.eastAsian["a:hangClosingZh"] == "1"
+        let _closingBrackets: Set<UInt16> = [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009]
         if _hangsLineEndMarks(p),
-           p.text.utf16.contains(where: { $0 == 0x3001 || $0 == 0x3002 || $0 == 0xFF0C || $0 == 0xFF0E || $0 == 0x201D || $0 == 0x29 }) {
+           p.text.utf16.contains(where: { $0 == 0x3001 || $0 == 0x3002 || $0 == 0xFF0C || $0 == 0xFF0E || $0 == 0x201D || $0 == 0x29 || (zhHang && _closingBrackets.contains($0)) }) {
             let units = Array(p.text.utf16)
             func isMark(_ k: Int) -> Bool {
                 // (A ")" that closes a Hangul or ideograph hangs the same way: ko-4f5289 p6 keeps "(실부하)" whole in a narrow cell.)
                 if k > 0, k < units.count, units[k] == 0x29 { return units[k - 1] >= 0xAC00 && units[k - 1] <= 0xD7A3 }
+                if zhHang, k < units.count, _closingBrackets.contains(units[k]) { return true }
                 // (A ” after kanji or kana is full width in the East Asian face and never hangs: lab hang3 slide 7 breaks "課|程”" below its width.)
                 if k > 0, k < units.count, units[k] == 0x201D, units[k - 1] >= 0x3040, units[k - 1] <= 0x9FFF { return false }
                 return k < units.count && (units[k] == 0x3001 || units[k] == 0x3002 || units[k] == 0xFF0C || units[k] == 0xFF0E || units[k] == 0x201D) && _markHangs(p, k) }
@@ -260,7 +263,14 @@ extension _ParaFrame {
                 var adj = fit
                 for s0 in starts.dropFirst() where s0 > 0 {
                     // (The mark opens the line, or follows its one first character: that character comes up with it.)
-                    let m = isMark(s0) ? s0 : (isMark(s0 + 1) ? s0 + 1 : (s0 + 2 < units.count && units[s0 + 1] == 0x20 && units[s0 + 2] == 0x201D ? s0 + 2 : -1))
+                    var m = isMark(s0) ? s0 : (isMark(s0 + 1) ? s0 + 1 : (s0 + 2 < units.count && units[s0 + 1] == 0x20 && units[s0 + 2] == 0x201D ? s0 + 2 : -1))
+                    if m < 0, zhHang {
+                        // (A Latin word held between an opening bracket and a closing one, （Orientation）: the line that cannot take the
+                        // closing mark leaves the whole of it for the next, so the mark is the end of that word: 2175d386 p5.)
+                        var j = s0
+                        while j < units.count, (units[j] < 0x80 && units[j] > 0x20) || units[j] == 0xFF08 { j += 1 }
+                        if j > s0 + 1, j < units.count, _closingBrackets.contains(units[j]) { m = j }
+                    }
                     guard m >= 0, adj[m] == nil, !stays.contains(m) else { continue }
                     let boxes = painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(m), extentOffset: map.painter(m) + 1))
                     if let b = boxes.first { adj[m] = -max(0, b.right - b.left) }
