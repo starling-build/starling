@@ -4062,6 +4062,14 @@ private struct SlideContext {
                         pieces[pieces.count - 1].length += n
                     }
                 }
+                // (A run of spaces and punctuation alone, tagged with a right-to-left language, is set in that script's face, not the
+                // Latin one: 7854f160's " (" and ")" runs (fa-IR) take B Nazanin's stand-in, 14 pt for the pair, where Georgia's took 19.6.)
+                if pieces.count == 1, pieces[0].script == nil, !sawLetter,
+                   !t.unicodeScalars.contains(where: { ($0.value >= 0x30 && $0.value <= 0x39) || $0.properties.isAlphabetic }) {
+                    let l = (s.lang ?? "").lowercased()
+                    if ["ar", "fa", "ur", "ps", "sd", "ug", "ku"].contains(where: { l.hasPrefix($0) }) { pieces[0].script = "Arab" }
+                    else if l.hasPrefix("he") || l.hasPrefix("yi") { pieces[0].script = "Hebr" }
+                }
                 let utf16 = Array(t.utf16)
                 // Ordinary spaces ahead of East Asian letters stay in the Latin face (5c820695 p2: an ideographic space and 57
                 // spaces before 予防が重要; the spaces step Calibri's 0.226 em, not the East Asian face's 0.305, and the
