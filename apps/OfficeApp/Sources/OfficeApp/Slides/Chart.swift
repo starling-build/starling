@@ -2087,7 +2087,7 @@ enum ChartXML {
         c.valueAxisTitleAcross = c.valueAxisTitle != nil && c.valueAxisTitleAt == nil && titledValue?.first("c:title")?.descendant("a:bodyPr")?["rot"] == "0"
         let valueAxis = type == .scatter ? axes.first { ["l", "r"].contains($0.first("c:axPos")?["val"] ?? "") }
             : axes.first { $0.name == "c:valAx" }
-        if let sz = valueAxis?.first("c:txPr")?.descendant("a:defRPr")?["sz"].flatMap(Double.init), sz > 0, sz != 1200, sz != 1197 {
+        if let sz = valueAxis?.first("c:txPr")?.descendant("a:defRPr")?["sz"].flatMap(Double.init), sz > 0, (sz != 1200 && sz != 1197) || (c.textSize ?? 12) != 12 {
             c.valueLabelSize = sz / 100
         }
         let categoryAxis = type == .scatter ? axes.first { ["b", "t"].contains($0.first("c:axPos")?["val"] ?? "") }
