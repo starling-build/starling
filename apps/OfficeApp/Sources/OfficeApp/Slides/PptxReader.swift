@@ -1006,7 +1006,7 @@ struct PptxReader {
         if let b = pr.first("a:blipFill"), let blip = b.first("a:blip"), let rid = blip["r:embed"],
            let rel = package.rels(owner).first(where: { $0.id == rid }), !rel.external,
            package.parts[rel.target] != nil {
-            var f = SlideFill(image: images.attachment(rel.target, package))
+            var f = SlideFill(image: images.attachment(rel.target, package, blip: blip))
             (f.imageAlpha, f.duotone) = Self.blipEffects(blip, colors: colors)
             f.imageLevels = Self.blipLevels(blip)
             // Tiled when it says so — and when it says neither that nor
@@ -1755,7 +1755,7 @@ private struct SlideContext {
             // tiled, as a background's is: when it says `a:tile`, and when
             // it says neither that nor `a:stretch` (tdf128596's sheet of
             // ticks, which was one tick stretched).
-            var f = SlideFill(image: images.attachment(rel.target, package))
+            var f = SlideFill(image: images.attachment(rel.target, package, blip: blip))
             (f.imageAlpha, f.duotone) = PptxReader.blipEffects(blip, colors: colors)
             f.imageLevels = PptxReader.blipLevels(blip)
             f.imageInset = PptxReader.stretchInset(b)
@@ -1797,7 +1797,7 @@ private struct SlideContext {
                 if let blip = b.first("a:blip"), let rid = blip["r:embed"],
                    let rel = package.rels(tp).first(where: { $0.id == rid }), !rel.external,
                    package.parts[rel.target] != nil {
-                    var f = SlideFill(image: images.attachment(rel.target, package))
+                    var f = SlideFill(image: images.attachment(rel.target, package, blip: blip))
                     (f.imageAlpha, f.duotone) = PptxReader.blipEffects(blip, colors: c)
                     f.imageLevels = PptxReader.blipLevels(blip)
                     f.imageInset = PptxReader.stretchInset(b)
@@ -2348,7 +2348,7 @@ private struct SlideContext {
             return o
         }
         if let t = transform { frame = t(frame) }
-        let image = images.attachment(target.target, package)
+        let image = images.attachment(target.target, package, blip: el.first("p:blipFill")?.first("a:blip"))
         let rotation = (el.first("p:spPr")?.first("a:xfrm")?["rot"].flatMap(Double.init) ?? 0) / 60000
         // The crop: fractions of the picture cut from each edge.
         var crop: EdgeInsets? = nil
@@ -2977,7 +2977,7 @@ private struct SlideContext {
             if let b = pr.first("a:blipFill"), let blip = b.first("a:blip"), let rid = blip["r:embed"],
                let img = package.rels(rel.target).first(where: { $0.id == rid }), !img.external,
                package.parts[img.target] != nil {
-                var f = SlideFill(image: images.attachment(img.target, package))
+                var f = SlideFill(image: images.attachment(img.target, package, blip: blip))
                 (f.imageAlpha, f.duotone) = PptxReader.blipEffects(blip, colors: colors)
                 f.imageLevels = PptxReader.blipLevels(blip)
                 f.imageInset = PptxReader.stretchInset(b)
@@ -4252,7 +4252,7 @@ private struct SlideContext {
         } else if let b = rPr.first("a:blipFill"), let blip = b.first("a:blip"), let rid = blip["r:embed"],
                   let rel = package.rels(part).first(where: { $0.id == rid }), !rel.external,
                   package.parts[rel.target] != nil {
-            var f = SlideFill(image: images.attachment(rel.target, package))
+            var f = SlideFill(image: images.attachment(rel.target, package, blip: blip))
             (f.imageAlpha, f.duotone) = PptxReader.blipEffects(blip, colors: colors)
             f.imageLevels = PptxReader.blipLevels(blip)
             if b.first("a:tile") != nil || b.first("a:stretch") == nil {
@@ -4297,10 +4297,16 @@ private struct SlideContext {
 final class PptxImages {
     private var _byPart: [String: ImageAttachment] = [:]
 
-    func attachment(_ part: String, _ package: PptxPackage) -> ImageAttachment {
-        if let a = _byPart[part] { return a }
-        let a = ImageAttachment(data: package.parts[part] ?? Data(), width: 0, height: 0, name: part.lastPathComponent)
-        _byPart[part] = a
+    func attachment(_ part: String, _ package: PptxPackage, blip: XNode? = nil) -> ImageAttachment {
+        // A blip with `a:alphaModFix` takes PowerPoint's transparency path, which converts the pixels from the
+        // file's colour profile to sRGB (lab icc-lab2: PNG and JPEG, Generic RGB and Display; a plain blip, or a
+        // file with no profile, prints raw). That use is its own attachment: the same media part is decoded twice.
+        let managed = blip?.has("a:alphaModFix") ?? false
+        let key = managed ? part + "\u{0}managed" : part
+        if let a = _byPart[key] { return a }
+        var a = ImageAttachment(data: package.parts[part] ?? Data(), width: 0, height: 0, name: part.lastPathComponent)
+        if managed { a.colourManaged = true }
+        _byPart[key] = a
         return a
     }
 }

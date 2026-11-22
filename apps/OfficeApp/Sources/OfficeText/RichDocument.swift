@@ -1126,6 +1126,9 @@ public struct ImageAttachment: Hashable, Codable, Sendable {
     /// "Original Size" restores. nil for a picture from a file format.
     public var naturalWidth: Double? = nil
     public var naturalHeight: Double? = nil
+    /// Slides: the picture's pixels are converted from the file's own colour profile to sRGB when decoded,
+    /// as PowerPoint does for a picture with `a:alphaModFix` (`IccConvert`).
+    public var colourManaged: Bool? = nil
     /// For an object the editor cannot show (a chart, a shape, an embedded
     /// file): the file's own markup for it, kept verbatim and written back
     /// as it was, with `sourceRels` for the parts and links it names. Such
