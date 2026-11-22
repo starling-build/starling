@@ -4190,6 +4190,11 @@ private struct SlideContext {
                         // (A run that names its own Latin face sets the space between East Asian words in it, not in the East Asian face:
                         // ko-3d95d35b's Times New Roman runs, 5.0 pt a space at 20 pt in PowerPoint's print, Malgun's is 7.0.)
                         pieces.append((n, nil))
+                    } else if letter, !sawLetter, script == "ea", t.unicodeScalars.prefix(while: { $0 != ch }).contains(where: { $0.value > 0x20 && $0.value < 0x7F }) {
+                        // (Digits and ASCII punctuation ahead of the first East Asian letter stay in the Latin face, with its proportional
+                        // widths: a5c9d9bd1a43 p55's "([1, -3, -4])  # 以列表…" took SimSun's half-em pitch and wrapped a word early.)
+                        pieces.append((n, script))
+                        sawLetter = true
                     } else if letter, !sawLetter {
                         // The first letter claims what came before it.
                         pieces[pieces.count - 1].script = script
