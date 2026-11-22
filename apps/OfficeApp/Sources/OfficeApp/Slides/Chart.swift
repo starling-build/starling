@@ -2977,11 +2977,15 @@ enum ChartPainter {
             // 0338b5a8 p5's ten entries, 207.8 pt a column and two of them where three would take 623 of a 640 pt frame, in
             // PowerPoint's print.)
             var slideGridW: Double? = nil
-            if !beside, box == nil, lines.count > 1, c.onSlide {
+            var slideGridPad = 0.0
+            if !beside, lines.count > 1, c.onSlide, box == nil || !pie {
                 let colW = entries.map { lead + $0.tp.width }.max() ?? 0
-                let cols = max(1, min(entries.count, Int((area.width - 2 * lead) / max(1, colW))))
+                let cols = max(1, min(entries.count, Int(((box?.width ?? area.width) - 2 * lead) / max(1, colW))))
                 if colW > 0, cols > 1 {
                     slideGridW = colW
+                    // (In a box the file lays out, the columns share its width and each entry stands centred in its column:
+                    // ja/7d329933 p7's three columns 224.1 pt apart in a 672.3 pt box, in PowerPoint's print.)
+                    if let box { slideGridW = box.width / Double(cols); slideGridPad = (box.width / Double(cols) - colW) / 2 }
                     lines = stride(from: 0, to: entries.count, by: cols).map { Array(entries[$0 ..< min($0 + cols, entries.count)]) }
                 }
             }
@@ -3239,7 +3243,7 @@ enum ChartPainter {
                 // frame's middle: chart-slide-bg's 12 pt legend 2.37 pt in
                 // PowerPoint's print, cooper's 10 pt ones 1.76 and 1.74 —
                 // theirs a 2007-style chart's, whose area is not centred.)
-                var x = startX(w)
+                var x = startX(w) + slideGridPad
                 for e in line {
                     let p = Paint()
                     p.style = .fill
