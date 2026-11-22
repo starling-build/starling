@@ -1408,9 +1408,9 @@ extension _StyledFrame {
                     let g = _glyphWidth(style(kind), ch)
                     // (A face may carry its own Hangul em under U+AC00 of otherAdvances: NanumGothic 0.94.)
                     let hEm = (theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
-                                                   ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true).flatMap { (style(kind).fontWeight == .bold ? $0.boldOtherAdvances?[0xAC00] : nil) ?? $0.otherAdvances?[0xAC00] }).map { $0 * em * wScale } ?? em * wScale
+                                                   ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true).flatMap { (style(kind).fontWeight == .bold ? $0.boldOtherAdvances?[0xAC00] : nil) ?? $0.otherAdvances?[0xAC00] }).map { $0 * em * wScale * fontScale } ?? em * wScale
                     // (A character scale, w:w, narrows the syllable too: dx2 211f43df's 95% Gulim 11 pt is 10.44 in Word's print, 11.04 here.)
-                    if g > 0.5, hEm < em * wScale ? abs(g - hEm) > 0.01 : g < hEm - 0.01 {
+                    if g > 0.5, hEm < em * wScale * fontScale ? abs(g - hEm) > 0.01 : g < hEm - 0.01 {
                         RuleTrace.hit("hangul-syllable-is-an-em")
                         extra += hEm - g
                     }
