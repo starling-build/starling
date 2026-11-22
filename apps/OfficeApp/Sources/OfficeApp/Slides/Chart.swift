@@ -873,7 +873,22 @@ struct Chart: Equatable {
             return accents[n - 1]
         }
         if let k = monochromeAccent { return Self.monochrome(i, of: series.count, accents[k - 1]) }
-        return Self.cycle(s?.autoIndex ?? i, accents)
+        let base = Self.cycle(s?.autoIndex ?? i, accents)
+        // (Office's colour rounds, whole-number division on the series count: accent (i mod 6 + 1) varied by
+        // v = (i/6 + 1) / (N/6 + 2) x 1.4 - 0.7, negative a shade, positive a tint, in linear light. A chart of up to five
+        // series is flat; from six on the first round is shaded, so 6 series print 76.67%: 3f8a480a p7 and p14, FFC000 to
+        // E2AA00. Planner spec, opus-puzzles.log 2026-11-22T11:27Z.)
+        guard onSlide, officeStyled else { return base }
+        let n = series.count + lineSeries.count, pos = s?.autoIndex ?? i
+        let v = Double(pos / 6 + 1) / Double(n / 6 + 2) * 1.4 - 0.7
+        if abs(v) < 1e-9 { return base }
+        func lin(_ c: Double) -> Double { c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+        func srgb(_ l: Double) -> Int { Int(((l <= 0.0031308 ? l * 12.92 : 1.055 * pow(l, 1 / 2.4) - 0.055) * 255).rounded()) }
+        func ch(_ shift: Int64) -> Int {
+            let l = lin(Double((accents[pos % accents.count].value >> shift) & 0xFF) / 255)
+            return srgb(v < 0 ? l * (1 + v) : 1 - (1 - l) * (1 - v))
+        }
+        return Color(0xFF00_0000 | Int64((ch(16) << 16) | (ch(8) << 8) | ch(0)))
     }
 
     /// Series `i`'s line where the file gives it no colour of its own: in
