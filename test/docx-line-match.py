@@ -342,7 +342,7 @@ def mupdf_glyphs(pdf, drop=None):
                     if OFFPAGE:   # Slides: a Symbol private-use code reads as the Unicode character it stands for
                         for s in l["spans"]:
                             for c in s["chars"]:
-                                if len(c["c"]) == 1 and ord(c["c"]) in _SYMBOL:
+                                if len(c["c"]) == 1 and ord(c["c"]) in _SYMBOL and "symbol" in s["font"].lower() and "wingdings" not in s["font"].lower():
                                     c["c"] = _SYMBOL[ord(c["c"])]
                                 elif len(c["c"]) == 1 and 0x25A0 <= ord(c["c"]) <= 0x25FF:   # a square or triangle bullet: one shape, whichever size form a face stores it as (■ and ◼)
                                     c["c"] = "\u25a0"
