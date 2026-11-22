@@ -269,7 +269,9 @@ struct SheetShape: Equatable {
         guard paragraphs.contains(where: { !$0.runs.isEmpty || $0.math != nil }) else { return }
         // (An upright text of a shape turned a quarter lies in the box as it stands on the page.)
         let tr = upright && rotation != 0 ? unturned(r) : r
-        let box = Rect.fromLTRB(tr.left + insets.left * k, tr.top + insets.top * k, tr.right - insets.right * k, tr.bottom - insets.bottom * k)
+        // (A rounded rectangle's text lies inside its corners: its preset's text rectangle is inset by 0.29289 of the radius.)
+        let corner = geometry == "roundRect" ? min(tr.width, tr.height) * 0.1667 * 0.29289 : 0
+        let box = Rect.fromLTRB(tr.left + corner + insets.left * k, tr.top + corner + insets.top * k, tr.right - corner - insets.right * k, tr.bottom - corner - insets.bottom * k)
         guard box.width > 2 else { return }
         // Excel's line steps by the face's own line (13.43 pt for Calibri 11); the painter lays a line out in whole
         // units, so a sheet's text is laid out `over` times larger and drawn back at 1/over.
