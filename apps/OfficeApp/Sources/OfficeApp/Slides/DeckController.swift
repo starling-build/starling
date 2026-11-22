@@ -1436,6 +1436,7 @@ final class DeckController: ChangeNotifier {
         theme.officeLatinBreaks = true      // and parts Latin text at spaces and hyphens, not after "/"
         theme.advanceGrid = 0.125           // and sets each glyph on an eighth of a point, as its print does
         theme.advanceGridOfFaceTables = true
+        theme.fontSizeGrid = 0.12           // at a size on 1/600 in, as its print shows (32 pt is 32.04)
         theme.tableRulesTakeRoom = false    // and draws a table's lines over its rows
         theme.collapsesParagraphSpacing = false   // and sets the space after AND the space before
         return theme
