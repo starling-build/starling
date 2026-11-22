@@ -1238,6 +1238,8 @@ public struct RichResolvedFace: Sendable {
     public var completeCoverage = false
     public var sansClass = false
     public var boldOtherAdvances: [UInt32: Double]? = nil
+    /// A Traditional Chinese face with no bold cut (DFKai-SB, MingLiU, PMingLiU): PowerPoint emboldens it by stroking the regular outline and each ideograph's step is this fraction of the regular's (lab vk: 44 pt 43.14, 36 pt 35.37, 28 pt 27.51; the real bold JhengHei and every regular box step 1.000). nil: the face does not.
+    public var boldIdeographScale: Double? = nil
     /// A face PowerPoint emboldens by itself with ONE DESIGN UNIT more per advance (lab sbold, kanji-adv2: MS Gothic and MS PGothic 256 units per em, HG Maru Gothic 2048):
     /// the bold advance is (the regular's units + 1) / this, then the eighth of a point. nil: the face does not.
     public var boldUnitsPerEm: Double? = nil

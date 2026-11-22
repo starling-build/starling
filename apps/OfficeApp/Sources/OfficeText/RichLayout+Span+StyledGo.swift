@@ -1492,6 +1492,17 @@ extension _StyledFrame {
                         }
                     }
                 }
+                // (An ideograph of a Traditional Chinese face with no bold cut, emboldened by PowerPoint, steps 0.983 of an em: a 44 pt column of
+                // DFKai-SB bold stands 43.14 apart, 36 pt 35.37, MingLiU 32 pt 31.35, where the regular and the real bold step 1.000; lab vk.)
+                if !theme.wordRules, style(kind).fontWeight == .bold, ch.unicodeScalars.count == 1, em > 0, let u = ch.unicodeScalars.first?.value {
+                    let isIdeo: Bool = (u >= 0x3400 && u <= 0x9FFF) || (u >= 0x3000 && u < 0x3040) || (u >= 0xFF00 && u < 0xFF60)
+                    let lat: String = run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily ?? ""
+                    let nm: String = run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily ?? lat
+                    if isIdeo, let k = theme.faceResolver?(nm, true)?.boldIdeographScale {
+                        RuleTrace.hit("traditional-chinese-synthetic-bold-ideograph-is-narrower")
+                        extra += (k - 1) * em
+                    }
+                }
                 // (Fit text: Word gives the middle dot only HALF a gap after it, labs dot1 and mar2: 7.2 pt after a Malgun dot
                 // at 24 pt where a full gap is 11.7; the gap before it is the full one, from the letter ahead.)
                 if ch == "\u{B7}", tcFit, fitGroup != nil, let f = fitSpacing() { extra -= f / 2 }

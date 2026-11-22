@@ -147,6 +147,10 @@ enum SlideFonts {
         // (None of a stand-in's widths for the machine's own face.)
         guard let family, OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil else { return nil }
         // (An East Asian query is answered for Malgun Gothic only, whose Hangul em the layout asks for by it.)
+        // (A Traditional Chinese face PowerPoint emboldens itself: a bold ideograph steps 0.983 of the regular's, ideographs being a full em; lab vk.)
+        if eastAsian, ["dfkai-sb", "標楷體", "mingliu", "pmingliu", "新細明體", "細明體"].contains(windowsName(family)) {
+            var f = RichResolvedFace(family: resolve(family)); f.boldIdeographScale = SlideFontWidths.syntheticBoldAdvance; return f
+        }
         guard !eastAsian || windowsName(family) == "malgun gothic" || windowsName(family) == "맑은 고딕" || missingKoreanGothic(family) || koreanOwnFace(family) else { return nil }
         if let cuts = SlideEastAsianWidths.lookup(windowsName(family)) ?? (missingKoreanGothic(family) ? SlideEastAsianWidths.malgun : nil) {
             // (An East Asian face at its own measured widths, Latin and the rest past ASCII: PowerPoint sets it by itself, not by a stand-in's.)
