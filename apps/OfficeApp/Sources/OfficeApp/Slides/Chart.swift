@@ -934,7 +934,8 @@ enum ChartXML {
             var by: [String: [Double]] = [:]
             for (i, raw) in d.vals.enumerated() {
                 guard let v = raw.flatMap({ Double($0.trimmingWhitespace()) }), v.isFinite else { continue }
-                let name = (d.cats[safe: i] ?? nil) ?? ""
+                // (Samples with no category column are one category, which PowerPoint labels "1": chartex-lab box-whisker.)
+                let name = (d.cats[safe: i] ?? nil) ?? (d.cats.isEmpty ? "1" : "")
                 if !categories.contains(name) { categories.append(name) }
                 by[name, default: []].append(v)
             }
@@ -7268,11 +7269,13 @@ extension ChartPainter {
         let line = Paint()
         line.style = .stroke
         line.isAntiAlias = true
-        line.strokeWidth = max(0.25, 0.75 * k)
+        // (PowerPoint's print of chartex-lab box-whisker: every stroke 2.25pt in the series' own colour, the caps 0.3 of the box wide,
+        // the box edged only along its top and bottom, the mean's cross 6pt.)
+        line.strokeWidth = max(0.25, 2.25 * k)
         for (j, cats) in boxes.enumerated() {
             let colour = c.color(series: j, accents: theme.accents)
             fill.color = colour
-            line.color = Self._scaled(colour, 0.8)
+            line.color = colour
             for (i, xs) in cats.enumerated() where !xs.isEmpty {
                 let q1 = ChartXML.quartile(xs, 0.25, inclusive: c.boxInclusive)
                 let q2 = ChartXML.quartile(xs, 0.5, inclusive: c.boxInclusive)
@@ -7280,7 +7283,7 @@ extension ChartPainter {
                 let reach = 1.5 * (q3 - q1)
                 let inside = xs.filter { $0 >= q1 - reach && $0 <= q3 + reach }
                 let left = plot.left + (Double(i) + 0.5) * slot - group / 2 + Double(j) * pitch
-                let mid = left + w / 2, cap = 3 * k
+                let mid = left + w / 2, cap = 0.15 * w, cross = 3 * k
                 if let lo = inside.first, let hi = inside.last {
                     canvas.drawLine(Offset(mid, vpos(q1)), Offset(mid, vpos(lo)), line)
                     canvas.drawLine(Offset(mid - cap, vpos(lo)), Offset(mid + cap, vpos(lo)), line)
@@ -7289,12 +7292,13 @@ extension ChartPainter {
                 }
                 let box = Rect.fromLTRB(left, vpos(q3), left + w, vpos(q1))
                 canvas.drawRect(box, fill)
-                canvas.drawRect(box, line)
+                canvas.drawLine(Offset(left, vpos(q3)), Offset(left + w, vpos(q3)), line)
+                canvas.drawLine(Offset(left, vpos(q1)), Offset(left + w, vpos(q1)), line)
                 canvas.drawLine(Offset(left, vpos(q2)), Offset(left + w, vpos(q2)), line)
                 if c.boxMeans {
                     let m = vpos(xs.reduce(0, +) / Double(xs.count))
-                    canvas.drawLine(Offset(mid - cap, m - cap), Offset(mid + cap, m + cap), line)
-                    canvas.drawLine(Offset(mid - cap, m + cap), Offset(mid + cap, m - cap), line)
+                    canvas.drawLine(Offset(mid - cross, m - cross), Offset(mid + cross, m + cross), line)
+                    canvas.drawLine(Offset(mid - cross, m + cross), Offset(mid + cross, m - cross), line)
                 }
                 if c.boxOutliers {
                     for v in xs where v < q1 - reach || v > q3 + reach {
