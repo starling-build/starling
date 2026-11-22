@@ -2977,7 +2977,8 @@ enum ChartPainter {
                 // 18.76 under the frame's top in chart-sunburst's. Not 2.4
                 // lower, as the glyphs' tops measured against our box's
                 // once had it: 2.83 under Excel's, all twelve.)
-                let o = Offset(area.center.dx - tp.width / 2, area.top - 2 * k + (drop ?? grown / 2) + (c.onSheet && c.chartex ? -0.43 * k / 0.75 : 0))
+                // (A chartex title on a slide is centred in the frame, not the plot area's 9 pt / 4 pt margins: chartex-lab2's titles stand 2.5 pt left of ours.)
+                let o = Offset((c.chartex && c.onSlide ? r.center.dx : area.center.dx) - tp.width / 2, area.top - 2 * k + (drop ?? grown / 2) + (c.onSheet && c.chartex ? -0.43 * k / 0.75 : 0))
                 Self._titleBox(c, canvas, around: Rect.fromLTWH(o.dx, o.dy, tp.width, tp.height), k: k)
                 tp.paint(canvas, o)
             }
@@ -6927,6 +6928,7 @@ extension ChartPainter {
                 let accent = color ?? n.color
                 if n.children.isEmpty {
                     fill.color = theme.accents.isEmpty ? Color(0xFF808080) : theme.accents[accent % theme.accents.count]
+                    if c.onSlide, !theme.accents.isEmpty { fill.color = ColorContext.chartexVariation(fill.color, cycle: accent / theme.accents.count) }
                     canvas.drawRect(r, fill)
                     if c.onSheet { canvas.drawRect(r, edge) }
                     labels.append((n.name, r, false))
