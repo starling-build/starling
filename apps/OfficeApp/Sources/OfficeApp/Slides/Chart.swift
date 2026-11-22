@@ -7951,7 +7951,9 @@ extension ChartPainter {
                 // (A lone slice, the whole disc, holds it as far out as the rim lets it:
                 // lo tdf134866's "Cusom label" 0.82 out at six o'clock, where the
                 // measured 0.6 left it 22pt high.)
-                let top = share > 0.99 && !c.onSlide && !c.onSheet ? 0.95 : 0.6
+                // (PowerPoint, a pie on a slide at bestFit: the box stands as far out along the slice's middle
+                // as it fits slice and disc, 0.86-0.94 of the radius: lab pie-lab1, 9 pt labels.)
+                let top = (share > 0.99 || c.onSlide) && !c.onSheet ? 0.95 : 0.6
                 return stride(from: top, through: 0.3, by: top > 0.6 ? -0.01 : -0.05).first(where: { f in
                     let c0 = on(s.mid, f)
                     return [(-bw / 2, -bh / 2), (bw / 2, -bh / 2), (-bw / 2, bh / 2), (bw / 2, bh / 2)].allSatisfy { cx, cy in
