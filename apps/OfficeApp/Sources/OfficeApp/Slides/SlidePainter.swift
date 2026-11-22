@@ -276,6 +276,7 @@ final class SlideTextCache {
             let layout = RichLayout(theme: theme, paragraphCount: text.document.paragraphs.count)
             layout.scale = res / theme.pixelsPerPoint
             layout.fontScale = scale
+            layout.verticalColumn = shape.textTurn != 0
             layout.spacingFollowsFont = shape.insetsFollowFont
             layout.width = width * res
             layout.ensureLaidOut(text.document)
@@ -334,6 +335,7 @@ final class SlideTextCache {
             let l = RichLayout(theme: theme, paragraphCount: text.document.paragraphs.count)
             l.scale = scale
             l.fontScale = shape.fontScale
+            l.verticalColumn = shape.textTurn != 0
             l.uprightIdeographs = shape.uprightIdeographs
             l.spacingFollowsFont = shape.insetsFollowFont
             l.width = w

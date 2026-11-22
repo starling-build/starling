@@ -96,7 +96,7 @@ extension _StyledFrame {
             }
             var target = unitsV * px / (face.sizeScale * classScale)
             var glyphOnGrid = false
-            if theme.advanceGridOfFaceTables, let grid = theme.advanceGrid, grid > 0 {
+            if theme.advanceGridOfFaceTables, let grid = rl.activeAdvanceGrid, grid > 0 {
                 // (Each glyph rounds to the eighth of a point, a half-step up; a pair's kern comes on top unrounded: lab fit2.)
                 let g = grid * theme.pixelsPerPoint * scale
                 if g > 0 { target = (target / g + 0.5 + 1e-7).rounded(.down) * g; glyphOnGrid = true }
@@ -114,7 +114,7 @@ extension _StyledFrame {
             }
             // (On the print's grid too, kerned as the stand-in
             // kerns, where the theme has one: `advanceGrid`.)
-            if let grid = theme.advanceGrid, grid > 0 {
+            if let grid = rl.activeAdvanceGrid, grid > 0 {
                 let size = run.fontSize ?? named?.char.fontSize ?? theme.fontSize
                 let kerns = (run.kerningFrom ?? named?.char.kerningFrom).map { $0 > 0 && size >= $0 } ?? false
                 if kerns, let following { target += _pairAdvance(s, ch, following) - _glyphWidth(s, ch) }
@@ -140,7 +140,7 @@ extension _StyledFrame {
         // (Cambria has no "≦" or "≧": Word for Windows sets them in Cambria Math, 0.7471 em wide;
         // after a Latin letter or digit; after an ideograph it stays the East Asian face's full width (lab c2301a p3 "で≦2fm"). The fallback face's 0.84 pushed jpn-z21601833-c2301a's "…CHSH≦2、完" a character over.)
         extra += w * em - _glyphWidth(style(kind), ch)
-    } else if !ea, let grid = theme.advanceGrid, grid > 0, latinFace?.advances == nil, ch != "\t", !ch.isNewline, !(!theme.wordRules && joinedFace != nil && isArabic(ch)),
+    } else if !ea, let grid = rl.activeAdvanceGrid, grid > 0, latinFace?.advances == nil, ch != "\t", !ch.isNewline, !(!theme.wordRules && joinedFace != nil && isArabic(ch)),
               latinFace?.otherAdvances.flatMap({ t in ch.unicodeScalars.first.flatMap { t[$0.value] } }) == nil,
               ch.unicodeScalars.first.map({ $0.value >= 0x20 && $0.value < 0x2E80 }) ?? false {
         // On the print's grid (`advanceGrid`) — kerned with the
@@ -190,7 +190,7 @@ extension _StyledFrame {
             let classScale = classed ? face.classScales.flatMap { kind >= 0 && kind < $0.count ? $0[kind] : nil } ?? 1 : 1
             var target = own ? w * px / (face.sizeScale * classScale) : w * em
             // (On the print's grid, where the theme has one.)
-            if let grid = theme.advanceGrid, grid > 0 {
+            if let grid = rl.activeAdvanceGrid, grid > 0 {
                 let g = grid * theme.pixelsPerPoint * scale
                 if g > 0 { target = (target / g + 0.5 + 1e-7).rounded(.down) * g }
             }
