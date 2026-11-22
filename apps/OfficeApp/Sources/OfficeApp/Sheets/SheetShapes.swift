@@ -204,7 +204,7 @@ struct SheetShape: Equatable {
     }
 
     /// Draw it into `r` at `k` pixels per point.
-    func paint(_ canvas: any Canvas, in r: Rect, pxPerPt k: Double, font: String) {
+    func paint(_ canvas: any Canvas, in r: Rect, pxPerPt k: Double, font: String, lineHeight: Double? = nil) {
         canvas.save()
         defer { canvas.restore() }
         if rotation != 0 {
@@ -226,7 +226,7 @@ struct SheetShape: Equatable {
                 let w = native ? nativeExtent.width * k * fit : r.width, h = native ? nativeExtent.height * k * fit : r.height
                 let cr = Rect.fromLTWH(r.left + f.left * w, r.top + f.top * h, f.width * w, f.height * h)
                 guard cr.width > 0.5 || cr.height > 0.5 else { continue }
-                child.shape.paint(canvas, in: cr, pxPerPt: k, font: font)
+                child.shape.paint(canvas, in: cr, pxPerPt: k, font: font, lineHeight: lineHeight)
             }
             return
         }
@@ -266,6 +266,9 @@ struct SheetShape: Equatable {
         guard paragraphs.contains(where: { !$0.runs.isEmpty || $0.math != nil }) else { return }
         let box = Rect.fromLTRB(r.left + insets.left * k, r.top + insets.top * k, r.right - insets.right * k, r.bottom - insets.bottom * k)
         guard box.width > 2 else { return }
+        // Excel's line steps by the face's own line (13.43 pt for Calibri 11); the painter lays a line out in whole
+        // units, so a sheet's text is laid out `over` times larger and drawn back at 1/over.
+        let over: Double = lineHeight == nil ? 1 : 8
         var painters: [TextPainter] = []
         // An equation's box in place of its paragraph's text, by index.
         var equations: [Int: WriterMath.Box] = [:]
@@ -273,16 +276,16 @@ struct SheetShape: Equatable {
             if para.runs.isEmpty, let m = para.math, let eq = WriterMath.box(m.node, size: m.size) { equations[i] = eq }
             let spans = (para.runs.isEmpty ? [ShapeRun(text: " ", size: 11)] : para.runs).map { run -> InlineSpan in
                 TextSpan(text: run.text, style: Flutter.TextStyle(
-                    color: run.color ?? textColor ?? Color(0xFF000000), fontSize: max(3, run.size * k),
-                    fontWeight: run.bold ? .bold : .normal, fontStyle: run.italic ? .italic : .normal,
+                    color: run.color ?? textColor ?? Color(0xFF000000), fontSize: max(3, run.size * k) * over,
+                    fontWeight: run.bold ? .bold : .normal, fontStyle: run.italic ? .italic : .normal, height: lineHeight,
                     decoration: run.underline ? .underline : nil, fontFamily: font))
             }
             let align: TextAlign = para.align == "ctr" ? .center : para.align == "r" ? .right : para.align == "just" ? .justify : .left
             let tp = TextPainter(text: TextSpan(children: spans), textAlign: align, textDirection: .ltr)
-            tp.layout(minWidth: box.width, maxWidth: box.width)
+            tp.layout(minWidth: box.width * over, maxWidth: box.width * over)
             painters.append(tp)
         }
-        func tall(_ i: Int) -> Double { equations[i].map { ($0.ascent + $0.descent) * k } ?? painters[i].height }
+        func tall(_ i: Int) -> Double { equations[i].map { ($0.ascent + $0.descent) * k } ?? painters[i].height / over }
         let height = painters.indices.reduce(0) { $0 + tall($1) }
         var y = anchor == "ctr" ? box.center.dy - height / 2 : anchor == "b" ? box.bottom - height : box.top
         canvas.save()
@@ -297,7 +300,11 @@ struct SheetShape: Equatable {
                 eq.draw(canvas, Offset(0, eq.ascent))
                 canvas.restore()
             } else {
-                tp.paint(canvas, Offset(box.left, y))
+                canvas.save()
+                canvas.translate(box.left, y)
+                canvas.scale(1 / over, 1 / over)
+                tp.paint(canvas, Offset(0, 0))
+                canvas.restore()
             }
             y += tall(i)
             tp.dispose()
