@@ -211,7 +211,16 @@ extension _StyledFrame {
             // danda alone below. The engine hangs a trailing space, so it is set as a no-break space with a break after it.)
             spaceBeforeDanda = theme.wordRules && RichTextTheme.wordWindowsPages && rawText.last == " " && (next == "\u{0964}" || next == "\u{0965}")
                 && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value <= 0x97F })
-            text0 = (spaceBeforeDanda ? Substring(String((hung ?? stackHung ?? moved ?? String(rawText)).dropLast()) + "\u{00A0}") : (hung ?? stackHung).map { Substring($0) } ?? moved.map { Substring($0) } ?? rawText)
+            if spaceBeforeDanda {
+                let whole: String = hung ?? stackHung ?? moved ?? String(rawText)
+                text0 = Substring(String(whole.dropLast()) + "\u{00A0}")
+            } else if let h = hung ?? stackHung {
+                text0 = Substring(h)
+            } else if let m = moved {
+                text0 = Substring(m)
+            } else {
+                text0 = rawText
+            }
             // (A space + U+00A0 gap after an Indic letter is not a place to part the line: Word moves the word before it down with
             // the gap and the word after, one unit. Lab nbsp4 (dx2 6dcc4527 p2): "ਵਿਚ" + SP + NBSP + "ਭਾਰਤ" returns to the line only when
             // the edge holds the whole unit (+31 pt), never when just "ਵਿਚ" + SP would fit; NBSP alone parts at +28, SP+NBSP+NBSP at
@@ -315,7 +324,14 @@ extension _StyledFrame {
             classed = latinFace?.classScales != nil
             // (A right-to-left run whose Latin face is Arial Narrow: its spaces, digits and marks are the Arabic text's, in Arial, not at the
             // narrow face's widths: the Urdu forms 8963bef7, f98daa05 and 0de57755.)
-            narrowLatinInRTL = theme.wordRules && run.rightToLeft && (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily)?.trimmingWhitespace().lowercased() == "arial narrow"
+            if theme.wordRules && run.rightToLeft {
+                // (split into typed steps: one expression took seconds to type-check)
+                let fam0: String? = run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? theme.fontFamily
+                let fam1: String? = fam0?.trimmingWhitespace().lowercased()
+                narrowLatinInRTL = fam1 == "arial narrow"
+            } else {
+                narrowLatinInRTL = false
+            }
             styles = [:]
             // (The grid's addition to each character, unless the run opts
             // out — or its paragraph: zh-268f8d15's footer, "- 1 -" in a
