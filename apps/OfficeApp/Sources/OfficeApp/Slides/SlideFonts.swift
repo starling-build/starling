@@ -251,6 +251,7 @@ enum SlideFonts {
             if family.trimmingWhitespace().lowercased() == "times new roman" {
                 face.joinedAdvances = WindowsArabicAdvances.times
                 face.boldJoinedAdvances = WindowsArabicAdvances.timesBold
+                face.joinedHeight = 0.5   // (as Arial's: rtl 2185f496's lines stood 1.4 pt too far apart on the fallback's height)
             }
             return face
         case "arial":
@@ -260,6 +261,9 @@ enum SlideFonts {
             face.fallback = ["Liberation Sans", "Noto Sans Arabic", "Noto Naskh Arabic", OfficeFonts.emojiPictographs, "DejaVu Sans"]
             face.joinedAdvances = WindowsArabicAdvances.arial
             face.boldJoinedAdvances = WindowsArabicAdvances.arialBold
+            // (PowerPoint's print sets Arabic in Arial on a 1.2 em line: rtl 8c48d77a 25 pt lines 27.0 apart at 90%, 24.0 at 80%, 27 pt 32.4;
+            // e08da366 18 pt 21.6. The paragraph's own line is already that; Noto Sans Arabic's taller words raised it to 31.)
+            face.joinedHeight = 0.5
             return face
         case "rockwell condensed":
             // (PowerPoint's print of 6e9fe27b sets it a third narrower than the Arial it was drawn in: lines ran a third over.)

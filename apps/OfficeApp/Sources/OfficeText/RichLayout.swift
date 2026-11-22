@@ -1154,6 +1154,9 @@ public struct RichResolvedFace: Sendable {
     public var ownLineBaseline = false
     /// A complex face Word's machine lacks, drawn in Arial: its line is Arial's own, 1.149 em.
     public var arialStandIn = false
+    /// A small height (ems) for Arabic words set at `joinedAdvances` in a face drawn by a taller Arabic fallback (Noto Sans Arabic, 1.36 em): the words then
+    /// leave the line at the paragraph's own height, as in PowerPoint's print, where Arabic in Arial or Times stands on the 1.2 em line.
+    public var joinedHeight: Double?
     public var boldSpread: Double
     /// A face Word has no bold of: the family to draw its bold in, a face with no bold of its own, so the engine emboldens it as Word does
     /// (fill and stroke, stroke 0.0285 of the size in Word's print, lab oetbold).
