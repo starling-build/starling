@@ -293,7 +293,9 @@ extension _ParaFrame {
                 let loose = adj.keys.filter { fit[$0] == nil && $0 + 1 < units.count && !after.contains($0 + 1) && !(units[$0 + 1] == 0x20 && after.contains($0 + 2)) }
                 if !loose.isEmpty {
                     trial.dispose()
-                    stays.formUnion(loose)
+                    // (Marks that fail together may fail for one another's sake: a 」 that cannot be taken up with its 多 changed the line
+                    // ends the 、 after it was judged against. The first alone stays, the others get another pass: 051b5d0980a2 p18.)
+                    if loose.count > 1, let first = loose.min() { stays.insert(first) } else { stays.formUnion(loose) }
                     continue
                 }
                 painter.dispose(); painter = trial; fit = adj
