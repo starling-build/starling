@@ -2899,6 +2899,8 @@ private struct SlideContext {
               var frame = el.first("p:xfrm").flatMap(_xfrmRect) else { return nil }
         if chartex {
             chart.waterfallLegendTotal = true
+            // (A pareto's cumulative line has no legend entry in PowerPoint's print, only the columns' series: chartex-lab pareto-gapwidth.)
+            if chart.pareto { chart.hiddenLegendEntries.insert(chart.series.count) }
             // (PowerPoint joins a waterfall's columns unless the file turns the lines off: lo-forum-mso-de-138303's.)
             if chart.waterfallTotals != nil, space.descendant("cx:layoutPr")?.first("cx:visibility")?["connectorLines"] != "0" { chart.waterfallConnectors = true }
         }

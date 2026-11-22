@@ -1271,6 +1271,11 @@ enum ChartXML {
         c.textSize = 9
         c.titleSize = 14
         c.dataLabels = all.contains { $0.first("cx:dataLabels")?.first("cx:visibility")?["value"] == "1" }
+        // (Labels set "inEnd" stand inside the column's top, in white: PowerPoint's print of chartex-lab pareto-gapwidth.)
+        if let pos = all.first?.first("cx:dataLabels")?["pos"], pos == "inEnd", c.dataLabels {
+            c.barLabelPos = pos
+            for j in c.series.indices { c.series[j].labelColor = Color(0xFFFFFFFF) }
+        }
         // (Its legend where it says, chart-clusteredColumn's at the top;
         // its category labels at the plot's foot, below its columns under
         // zero, as Excel prints a `cx:` chart's.)
@@ -5867,6 +5872,9 @@ enum ChartPainter {
                         if raw > 0, !c.stacked, !c.onSlide, !c.onSheet, !c.chartex, c.barLabelPos == "inEnd", p0 - p1 > 2.5 * size * k {
                             labelAt = Offset(labelAt.dx, min(p0, p1) + 1.065 * size * k)
                             RuleTrace.hit("word-column-label-inside-end")
+                        }
+                        if raw > 0, !c.stacked, c.onSlide, c.chartex, c.barLabelPos == "inEnd", p0 - p1 > 2.5 * size * k {
+                            labelAt = Offset(labelAt.dx, min(p0, p1) + 1.0125 * size * k)
                         }
                         // (A slide's stacked column whose label says "inEnd" stands under its segment's top: lo-tdf149985's 12 pt
                         // "16.1%" and "16.7%" have their baselines 16.3 pt under the top in PowerPoint's print, ours stood in the middle.)
