@@ -2962,16 +2962,18 @@ enum ChartPainter {
         func styled(_ s: String, _ size: Double, _ maxWidth: Double, bold: Bool, color: Color? = nil, part: String? = nil, align: TextAlign = .center, maxLines: Int? = nil, windowsLines: Bool = false, mixedLine: Double = 1.3301 * 1.3, family: String? = nil, tall: Bool = false) -> TextPainter {
             // (A part's face is its own txPr's: PowerPoint sets a value axis or legend with no face of its own in the theme's, not in the face
             // the category axis names. es 3df36ff6 p5: Trebuchet on the categories and labels, Calibri on the percent axis and the legend.)
-            let partFont = part != nil && c.onSlide && c.font == nil && c.axisFont != nil ? OfficeFonts.substitute(c.partFaces[part!] ?? theme.bodyFont) : font
+            // (A part with a face of its own beats the chart-wide default too: 99f6ddd1 p19's axes say Meiryo under a chart-wide MS PGothic, and PowerPoint sets the labels in Meiryo.)
+            let ownFace = part != nil && c.onSlide && c.font != nil ? c.partFaces[part!] : nil
+            let partFont = part != nil && c.onSlide && c.font == nil && c.axisFont != nil ? OfficeFonts.substitute(c.partFaces[part!] ?? theme.bodyFont) : ownFace.map { OfficeFonts.substitute($0) } ?? font
             let style = Flutter.TextStyle(
                 color: color ?? ink, fontSize: max(3, size * k), fontWeight: bold ? .bold : .normal,
                 height: family == nil ? (tall && c.onSlide && ["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased()) ? 1.3301 * 1.3 : nil) : 24.4 / 18, fontFeatures: plain, fontFamily: family.map { OfficeFonts.substitute($0) } ?? partFont, fontFamilyFallback: Self.glyphFallback(c))
             var span = windowsLines ? Self.labelSpan(c, s, style, mixedLine: mixedLine) : TextSpan(text: s, style: style)
             // (A Japanese or Korean face the machine lacks (Meiryo, Yu Gothic, MS Gothic...): each character is spaced out or in to the face's own
             // advance, as PowerPoint's print sets it, not the stand-in's: Meiryo's labels are wider than Carlito's.)
-            if (!windowsLines || (span.children ?? []).isEmpty), family == nil, case let raw = c.font ?? (c.onSheet ? nil : c.axisFont) ?? theme.bodyFont, let face = Self.eastAsianChartFace(raw) {
+            if (!windowsLines || (span.children ?? []).isEmpty), family == nil, case let raw = ownFace ?? c.font ?? (c.onSheet ? nil : c.axisFont) ?? theme.bodyFont, let face = Self.eastAsianChartFace(raw) {
                 span = Self.metricSpan(s, style, face, bold: bold)
-            } else if (!windowsLines || (span.children ?? []).isEmpty), family == nil, c.japaneseLang, let jf = theme.japaneseFace, Self.eastAsianChartFace(c.font ?? (c.onSheet ? nil : c.axisFont) ?? theme.bodyFont) == nil,
+            } else if (!windowsLines || (span.children ?? []).isEmpty), family == nil, c.japaneseLang, let jf = theme.japaneseFace, Self.eastAsianChartFace(ownFace ?? c.font ?? (c.onSheet ? nil : c.axisFont) ?? theme.bodyFont) == nil,
                       s.unicodeScalars.contains(where: { $0.value >= 0x3040 }), let face = Self.eastAsianChartFace(jf) {
                 span = Self.metricSpan(s, style, face, bold: bold, eastAsianOnly: true)
             }
