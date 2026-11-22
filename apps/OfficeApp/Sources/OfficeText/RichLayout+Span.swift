@@ -2107,12 +2107,37 @@ extension RichLayout {
                            _ canvas: any Canvas, map: _OffsetMap? = nil) {
         guard RichTextTheme.shadowsAsPaths, !Self._hasEmptyLine(p) else { return }
         var at = 0
-        // PowerPoint draws a text shadow with its offset and blur shrunk by the line's largest text size:
+        // PowerPoint draws a text shadow with its offset and blur shrunk by the LINE's largest text size:
         // f = 0.0503 * S^0.687 (S in points after autofit; MEASURED on the textshadow3 lab's 11 sizes, within 0.06 pt, not derived).
-        // The paragraph's largest run stands in for the line's. Shape shadows are unscaled; Word's text shadows keep the full distance.
-        var shrink = 1.0
-        if !theme.wordRules, let big = p.runs.compactMap({ $0.style.fontSize }).max(), big > 0 {
-            shrink = 0.0503 * pow(max(1, (big * fontScale).rounded()), 0.687)
+        // A run beside a bigger one on its line takes the bigger run's factor. Shape shadows are unscaled; Word's text shadows keep the full distance.
+        var spans: [(a: Int, b: Int, size: Double)] = []
+        do {
+            var pos = 0
+            for run in p.runs {
+                defer { pos += run.length }
+                guard run.length > 0 else { continue }
+                spans.append((map?.painter(pos) ?? pos, (map?.painter(pos + run.length - 1) ?? pos + run.length - 1) + 1, (run.style.fontSize ?? 0) * fontScale))
+            }
+        }
+        var lineEnds: [Int] = []
+        if !theme.wordRules, let last = spans.map({ $0.b }).max() {
+            var q = 0
+            while q < last {
+                let r = painter.getLineBoundary(TextPosition(offset: q))
+                let e = max(r.end, q + 1)
+                lineEnds.append(e); q = e
+            }
+        }
+        func shrinkFor(_ a: Int, _ b: Int) -> Double {
+            guard !lineEnds.isEmpty else { return 1 }
+            var big = 0.0
+            var from = 0
+            for e in lineEnds {
+                defer { from = e }
+                guard from < b, e > a else { continue }
+                for sp in spans where sp.a < e && sp.b > from { big = max(big, sp.size) }
+            }
+            return big > 0 ? 0.0503 * pow(max(1, big.rounded()), 0.687) : 1
         }
         for run in p.runs {
             defer { at += run.length }
@@ -2120,7 +2145,14 @@ extension RichLayout {
                   run.style.script == .normal, !run.style.noFill else { continue }
             let a = map?.painter(at) ?? at, b = (map?.painter(at + run.length - 1) ?? at + run.length - 1) + 1
             // (A run the offset map folds away, such as a line break beside empty runs, can map to a backwards range: draw nothing for it.)
-            guard b > a, let path = painter.glyphPath(range: a..<b) else { continue }
+            guard b > a else { continue }
+            var pieces: [(Int, Int)] = []
+            var from = a
+            for e in lineEnds where e > from && from < b { pieces.append((from, min(e, b))); from = min(e, b) }
+            if from < b { pieces.append((from, b)) }
+            for (pa, pb) in pieces {
+            guard let path = painter.glyphPath(range: pa..<pb) else { continue }
+            let shrink = shrinkFor(pa, pb)
             let k = _px(1)
             let paint = Paint(); paint.style = .fill
             if sh.glow {
@@ -2147,6 +2179,7 @@ extension RichLayout {
                 // (Where nothing blurs, as in Word's PDF, the engine draws a blurred shadow sharp at 45%.)
                 paint.color = sh.blur > 0 ? Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, Double(sh.color.alpha) / 255 * 0.45) : sh.color
                 canvas.drawPath(moved, paint)
+            }
             }
         }
     }
