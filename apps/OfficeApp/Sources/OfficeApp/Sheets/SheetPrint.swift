@@ -140,6 +140,11 @@ enum SheetPrintLayout {
             // (Not one that is wholly in hidden rows or columns.)
             guard (m.top ... m.bottom).contains(where: { !ws.isRowHidden($0) }),
                   (m.left ... m.right).contains(where: { !ws.isColHidden($0) }) else { continue }
+            // (One that runs to the sheet's last column is a whole-row merge,
+            // like a row formatted as a whole: it prints across the columns
+            // in use, not the 16,384 it spans: es-3837fc2e1e's A2:XFD2 made
+            // two hundred blank pages where Excel prints one.)
+            if m.right == CellAddress.maxCols - 1 { take(m.top, m.left); take(m.bottom, m.left); continue }
             take(m.top, m.left); take(m.bottom, m.right)
         }
         // A drawing prints whole, however it is anchored: every cell its
