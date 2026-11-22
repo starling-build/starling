@@ -4375,7 +4375,10 @@ enum ChartPainter {
             let spec = c.cxLabelPoints[i] ?? c.cxLabel
             var shown = dataLabel(c, v)
             if let code = spec.format {
-                let f = NumberFormat.format(v, code, width: 40).text.trimmingWhitespace()
+                // PowerPoint counts dates from 1899-12-30 (the OLE day), so before 1 March 1900 a serial prints one day
+                // earlier than Excel's (chartex-lab2: 31 is 30/01/1900, 59 is 27/02, 60 is 28/02, 61 the same 01/03).
+                let day = (v >= 1 && v < 61 && NumberFormat.isDateTime(code)) ? v - 1 : v
+                let f = NumberFormat.format(day, code, width: 40).text.trimmingWhitespace()
                 if !f.isEmpty { shown = f }
             }
             let parts = [spec.series ? s.name : nil, spec.category ? c.categories[safe: i] : nil, spec.value ? shown : nil].compactMap { $0 }
