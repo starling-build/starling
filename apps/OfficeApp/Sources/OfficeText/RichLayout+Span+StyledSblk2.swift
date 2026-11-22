@@ -96,7 +96,7 @@ extension _StyledFrame {
             let points: Double = run.fontSize ?? named?.char.fontSize ?? theme.fontSize
             let pairs: [UInt32: Double]? = s.fontWeight == .bold ? face.boldKerns : face.kerns
             if theme.wordRules || face.kernsOutsideWord, let from = kernsFrom, from > 0, points >= from, let pairs, after < text.endIndex,
-               let v = shown(text[after]).unicodeScalars.first?.value, v >= 0x20, v <= 0x7E, let pair = pairs[u << 8 | v] {
+               let v0 = shown(text[after]).unicodeScalars.first?.value, case let v = v0 == 0xA0 ? 0x20 : v0, v >= 0x20, v <= 0x7E, let pair = pairs[(u == 0xA0 ? 0x20 : u) << 8 | v] {
                 target += pair * px / (face.sizeScale * classScale)
             }
             // (On the print's grid too, kerned as the stand-in
