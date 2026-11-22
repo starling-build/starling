@@ -2591,6 +2591,10 @@ extension RichLayout {
                         if !theme.wordRules {
                             let q = document.paragraphs[k]
                             let m = q.style.lineSpacing
+                            // (Arabic script loses nothing of the first line's extra to the face (k = 0): cc66a30f p18's 18 pt B Nazanin rows at 150%
+                            // are 29.7 pt in PowerPoint's print = 1.2 x size + 0.9 x size x 0.5, and 7854f160 p13's 14 pt rows at 115% 19.3.)
+                            let arabic = q.text.unicodeScalars.contains { (0x0600 ... 0x06FF).contains($0.value) || (0x0750 ... 0x077F).contains($0.value)
+                                || (0x08A0 ... 0x08FF).contains($0.value) || (0xFB50 ... 0xFDFF).contains($0.value) || (0xFE70 ... 0xFEFF).contains($0.value) }
                             if m > 1.0, q.style.lineHeightPoints == nil, !q.text.isEmpty {
                                 let big = q.runs.max { ($0.style.fontSize ?? 0) < ($1.style.fontSize ?? 0) }
                                 let sz = big?.style.fontSize ?? theme.fontSize
@@ -2600,7 +2604,7 @@ extension RichLayout {
                                 // (The loss shrinks with the face's own line height: Arial (1.149 em) 0.0717, Calibri (1.22 em)
                                 // 0.041 from es 92ee258e's print; a taller face loses less, none from about 1.31 em.)
                                 let h = theme.naturalLineHeight(family: big?.style.fontFamily, bold: false, italic: false)
-                                let k = max(0, 0.0717 - 0.437 * (h - 1.149))
+                                let k = arabic ? 0 : max(0, 0.0717 - 0.437 * (h - 1.149))
                                 let add = max(0, 0.9 * sz * (m - 1) - k * sz)
                                 trim = _px(max(0, (m - 1) * 1.2 * sz - add))
                             }
