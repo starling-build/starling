@@ -360,7 +360,11 @@ enum Extrusion {
             // 0.22 pt left per point; the depth below the face is placed as if z were 0.
             let lifted = scene.perspective && scene.oblique != nil
             let lz = lifted ? scene.lift * px : 0
-            var q = turn(P3(x: p.dx - c.dx, y: p.dy - c.dy, z: z - lz))
+            // (A legacy camera stands in the slide, not on the shape: a shape turned on the page has the camera turn applied in page axes, lab legobl2: a bar turned 90 deg stays upright and its depth shows as a wide side face, not a tilt. So the points go to page axes, are viewed, and come back.)
+            let sp = scene.cameraName.lowercased().hasPrefix("legacy") ? spin * .pi / 180 : 0
+            let (sc, sn) = (cos(sp), sin(sp))
+            let px0 = p.dx - c.dx, py0 = p.dy - c.dy
+            var q = turn(P3(x: px0 * sc - py0 * sn, y: px0 * sn + py0 * sc, z: z - lz))
             // An oblique camera: what lies behind slides aside as it recedes
             // — and, in perspective, draws in toward a point as it goes.
             if scene.oblique == nil, scene.cameraName.hasPrefix("perspective") {
@@ -372,11 +376,12 @@ enum Extrusion {
             if let o = scene.oblique {
                 // (A legacy camera stands in the slide, not on the shape (the plain oblique ones turn with it, oox-Scene3d_obliqueTopRight): a shape turned on the page, as the
                 // bars of es b3255e9d's core, still has its depth recede up and to the right.)
-                let o = spin == 0 || !scene.cameraName.lowercased().hasPrefix("legacy") ? o : Offset(o.dx * cos(spin * .pi / 180) + o.dy * sin(spin * .pi / 180), -o.dx * sin(spin * .pi / 180) + o.dy * cos(spin * .pi / 180))
+                let o = o
                 let f = scene.perspective ? 250 * px / (250 * px + max(0, -q.z)) : 1
                 q.x = q.x * f - o.dx * q.z * f
                 q.y = q.y * f - o.dy * q.z * f
             }
+            if sp != 0 { (q.x, q.y) = (q.x * sc + q.y * sn, -q.x * sn + q.y * sc) }
             if lifted, lz != 0 {
                 let g = 650 * px / (650 * px - lz)
                 q.x = q.x * g - 0.22 * lz; q.y *= g
