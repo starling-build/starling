@@ -2614,12 +2614,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let lines = tp.computeLineMetrics()
         guard let first = lines.first?.baseline else { return }
         let base = tp.computeDistanceToActualBaseline(.alphabetic)
+        // The glyphs sit at base less the half-leading (first - base) the painter adds: 59775's Calibri 12 link rule was 0.44 pt low from the baseline.
         for line in lines where line.width > 0 {
             if s.underline {
-                canvas.drawRect(Rect.fromLTWH(o.dx + line.left, o.dy + base + line.baseline - first - m[0] * s.size, line.width, m[1] * s.size), paint)
+                canvas.drawRect(Rect.fromLTWH(o.dx + line.left, o.dy + 2 * base - first + line.baseline - first - m[0] * s.size, line.width, m[1] * s.size), paint)
             }
             if s.strike {
-                canvas.drawRect(Rect.fromLTWH(o.dx + line.left, o.dy + base + line.baseline - first - m[2] * s.size, line.width, m[3] * s.size), paint)
+                canvas.drawRect(Rect.fromLTWH(o.dx + line.left, o.dy + 2 * base - first + line.baseline - first - m[2] * s.size, line.width, m[3] * s.size), paint)
             }
         }
     }
