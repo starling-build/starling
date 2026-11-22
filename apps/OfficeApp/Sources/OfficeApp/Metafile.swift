@@ -366,6 +366,26 @@ private struct Player {
         return p
     }
 
+    /// An elliptical arc, counterclockwise on the page from the ray through
+    /// (sx, sy) to the ray through (ex, ey) out of the centre, as GDI draws
+    /// it, in short chords so that it turns and skews with the mapping.
+    func arc(_ l: Double, _ t: Double, _ r: Double, _ b: Double, _ sx: Double, _ sy: Double, _ ex: Double, _ ey: Double) -> Path {
+        let cx = (l + r) / 2, cy = (t + b) / 2, rx = (r - l) / 2, ry = (b - t) / 2
+        let p = Path()
+        guard rx != 0, ry != 0 else { return p }
+        let a0 = atan2((sy - cy) / ry, (sx - cx) / rx)
+        let a1 = atan2((ey - cy) / ry, (ex - cx) / rx)
+        var sweep = a1 - a0
+        if sweep >= 0 { sweep -= 2 * Double.pi }
+        let n = max(2, Int((abs(sweep) / (Double.pi / 24)).rounded(.up)))
+        for i in 0 ... n {
+            let a = a0 + sweep * Double(i) / Double(n)
+            let m = map(cx + rx * cos(a), cy + ry * sin(a))
+            if i == 0 { p.moveTo(m.dx, m.dy) } else { p.lineTo(m.dx, m.dy) }
+        }
+        return p
+    }
+
     mutating func fill(_ p: Path) {
         if !dc.brush.null { steps.append(.fill(p, dc.brush.color)) }
     }
@@ -813,6 +833,11 @@ private struct Player {
                 shape(rect(Double(i16(a + 10)), Double(i16(a + 8)), Double(i16(a + 6)), Double(i16(a + 4))))
             case 0x0418:   // Ellipse
                 shape(ellipse(Double(i16(a + 6)), Double(i16(a + 4)), Double(i16(a + 2)), Double(i16(a))))
+            case 0x012C: setClip(nil)   // SelectClipRegion: the region is one we do not keep (a brush, a null handle), so no clip: GDI lifts it
+            case 0x0817:   // Arc: yEnd, xEnd, yStart, xStart, bottom, right, top, left
+                let l = Double(i16(a + 14)), t = Double(i16(a + 12)), r = Double(i16(a + 10)), b = Double(i16(a + 8))
+                let path = arc(l, t, r, b, Double(i16(a + 6)), Double(i16(a + 4)), Double(i16(a + 2)), Double(i16(a)))
+                if building { self.path?.addPath(path, Offset.zero) } else { stroke(path) }
             case 0x0416:   // IntersectClipRect
                 intersectClip(rect(Double(i16(a + 6)), Double(i16(a + 4)), Double(i16(a + 2)), Double(i16(a))))
             case 0x061D:   // PatBlt: rop, height, width, y, x
