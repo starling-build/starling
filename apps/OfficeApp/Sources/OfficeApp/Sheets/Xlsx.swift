@@ -99,9 +99,9 @@ enum Xlsx {
             }
         }
         // (No font at all and no theme — 47889's empty styleSheet, 56278
-        // with no styles part — is Excel's own default, Aptos Narrow 11:
-        // all four such books print in it, their rows at 15.24.)
-        if themeless, xml("xl/styles.xml").flatMap(_defaultFont) == nil { book.defaultFontName = "Aptos Narrow" }
+        // with no styles part — prints in Calibri 11, rows at 14.52, in the
+        // 200% Excel prints (build 20527); the older prints showed Aptos
+        // Narrow 15.24 for these books.)
         if let raw = _part(parts, "xl/styles.xml") {
             let split = RawXML.split([UInt8](raw))
             for (name, text) in split.children where ["dxfs", "tableStyles", "colors", "extLst"].contains(name) {
@@ -518,7 +518,7 @@ enum Xlsx {
         run.underline = pr.child("u").map { $0["val"] != "none" } ?? false
         run.size = pr.child("sz").flatMap { Double($0["val"] ?? "") }
         let named = pr.child("rFont")?["val"]
-        let builtin = themeless && pr.child("charset") == nil
+        let builtin = false
         switch pr.child("scheme")?["val"] {
         case "minor": run.fontName = themeFonts.minor ?? (builtin ? "Aptos Narrow" : named)
         case "major": run.fontName = themeFonts.major ?? (builtin ? "Aptos Display" : named)
@@ -581,13 +581,11 @@ enum Xlsx {
     /// "宋体" in Calibri — its columns, rows and Latin text — and a dozen
     /// other East Asian workbooks' fonts the same way (their names are the
     /// writer's locale's face, their themes Calibri). A book with no theme
-    /// part has Excel's own, Aptos: lo-tdf82984_zip64XLSXImport's and nine
-    /// other such books' "Calibri" of the minor scheme print in Aptos Narrow
-    /// (and their rows at its 15.24 pt) — save where the font names a
-    /// character set, as 64508's and 64667's do, which print in Calibri.
+    /// part prints its minor-scheme "Calibri" in Calibri (the 200% prints,
+    /// build 20527; the older prints showed Aptos Narrow 15.24 pt rows).
     static func _fontName(_ f: XNode, _ themeFonts: (minor: String?, major: String?), themeless: Bool = false) -> String? {
         let named = f.child("name")?["val"]
-        let builtin = themeless && f.child("charset") == nil
+        let builtin = false
         switch f.child("scheme")?["val"] {
         case "minor": return themeFonts.minor ?? (builtin ? "Aptos Narrow" : named)
         case "major": return themeFonts.major ?? (builtin ? "Aptos Display" : named)
