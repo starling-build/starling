@@ -1107,17 +1107,36 @@ struct DiagramLayout {
         return r
     }
 
+    /// The author's width scale (`custScaleX`) of the first node inside `c` that has one, as a factor.
+    private func customScale(_ c: DgmPresNode) -> Double? {
+        for d in c.children {
+            if let sx = model.pres[d.point.id + "|" + d.name]?["custScaleX"].flatMap(Double.init), sx > 0 { return sx / 100_000 }
+            if let sx = customScale(d) { return sx }
+        }
+        return nil
+    }
+
+    private func narrow(_ c: DgmPresNode, _ sx: Double) {
+        for d in c.children {
+            if let k = model.pres[d.point.id + "|" + d.name]?["custScaleX"].flatMap(Double.init), k > 0, d.rect.width > 0 {
+                d.rect = Rect.fromLTWH(d.rect.left + d.rect.width * (1 - sx) / 2, d.rect.top, d.rect.width * sx, d.rect.height)
+                return
+            }
+            narrow(d, sx)
+        }
+    }
+
     private func layoutLinear(_ node: DgmPresNode, forceDir: String? = nil) {
         let dir = forceDir ?? node.params["linDir"] ?? "fromL"
         let horizontal = dir == "fromL" || dir == "fromR"
         let P = horizontal ? "w" : "h", S = horizontal ? "h" : "w"
         let availP = horizontal ? node.rect.width : node.rect.height
         let availS = horizontal ? node.rect.height : node.rect.width
-        var primary: [Double] = [], secondary: [Double] = []
+        var primary: [Double] = [], secondary: [Double] = [], baseP: [Double] = []
         for c in node.children {
             if c.shapeType == nil && c.children.isEmpty && !c.isSpace && !c.isConnector {
                 // A container with nothing in it (a leaf's children row).
-                primary.append(0); secondary.append(0)
+                primary.append(0); secondary.append(0); baseP.append(0)
                 continue
             }
             var p = size(c, P, within: availP)
@@ -1132,8 +1151,14 @@ struct DiagramLayout {
             // frame 144 high, not of the frame's 432 (Word's print of lab sa1a: nodes 113.5, gaps 45.4).
             if wordLayout, c.isSpace || c.isConnector, let name = c.sizeRef[P], let fact = c.sizeFact[P],
                let at = node.children.indices.first(where: { $0 < primary.count && node.children[$0].name == name && !node.children[$0].isSpace && !node.children[$0].isConnector }) {
-                p = primary[at] * fact
+                p = baseP[at] * fact
             }
+            baseP.append(p)
+            // A step its author made wider (`custScaleX` over 1 on the text inside it) takes that much more of
+            // the line, the gaps staying a share of the step as constrained: Word's print of lab sa-lin
+            // (hProcess3, three steps, the third 1.42454 wide: steps 120.7, 120.7, 172.0 and gaps 24.1 where
+            // fit alike). A narrower one keeps its slot and draws centred in it (below).
+            if !c.isSpace, !c.isConnector, horizontal, let sx = customScale(c), sx > 1 { p *= sx }
             primary.append(p); secondary.append(s)
         }
         // Too long for the slot: everything shrinks together, spaces too —
@@ -1189,6 +1214,8 @@ struct DiagramLayout {
             cursor += p
             endP = max(endP, cursor)
             layoutNode(c)
+            // A step the author made narrower draws so, centred in the slot it kept.
+            if !c.isSpace, !c.isConnector, horizontal, let sx = customScale(c), sx < 1 { narrow(c, sx) }
             // A connector keeps its begin and end pads (a share of the gap it spans) clear of the nodes it joins:
             // Word's print of lab sa1a, gap 45.4, has the arrow 24.1 wide from 11.4 in (0.25 and 0.22).
             if wordLayout, c.isConnector, horizontal, c.shapeType != nil {
