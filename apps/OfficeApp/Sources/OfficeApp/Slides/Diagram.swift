@@ -434,7 +434,7 @@ struct DiagramLayout {
         for (i, c) in chars.enumerated() {
             total += ((measure("x\(c)x") - xx) * 8).rounded() / 8
             if let pairs, i + 1 < chars.count, let a = c.unicodeScalars.first?.value, let b = chars[i + 1].unicodeScalars.first?.value,
-               let k = pairs[a << 8 | b] { total += k * size }
+               let k = pairs[a > 0xFF || b > 0xFF ? a << 16 | b : a << 8 | b] { total += k * size }
         }
         return total
     }

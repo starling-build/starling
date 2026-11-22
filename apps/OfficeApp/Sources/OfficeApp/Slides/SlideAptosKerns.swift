@@ -5,7 +5,7 @@ enum SlideAptosKerns {
         var d: [UInt32: Double] = [:]
         for e in s.split(separator: ";") {
             let p = e.split(separator: ":")
-            if p.count == 3, let a = UInt32(p[0], radix: 16), let b = UInt32(p[1], radix: 16), let v = Int(p[2]) { d[a << 8 | b] = Double(v) / 10000 }
+            if p.count == 3, let a = UInt32(p[0], radix: 16), let b = UInt32(p[1], radix: 16), let v = Int(p[2]) { d[a > 0xFF || b > 0xFF ? a << 16 | b : a << 8 | b] = Double(v) / 10000 }
         }
         return d
     }
