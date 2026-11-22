@@ -3027,8 +3027,6 @@ enum ChartPainter {
                 if slideSidePie, slotH > 1.5 * textH { return slotH + 5.8 * k }
                 return wordSidePie && tall > 1.5 * textH ? tall + 5.8 * k : max(lineH, tall)
             }
-            // (On a slide every row of a pie's side legend is as tall as the tallest: 3f8a480a p2's four entries, two of them
-            // wrapped, stand 30.2 pt apart in PowerPoint's print, one line 12.2 + 5.8 under the wrapped ones' two.)
             // (A Word pie's side legend too tall for the chart drops its last entries: lab piesize4's 60-character names, three lines
             // each, stand four of five in a 212 pt frame; the room taken as 0.82 of the frame less 5 pt, as on a sheet.)
             if wordSidePie, lines.count > 1 {
