@@ -895,6 +895,26 @@ enum OfficeFonts {
         return nil
     }
 
+    /// PowerPoint ignores a deck's embedded VARIABLE font (fvar table): the run takes the ordinary missing-font path (96dcb877: Inter and League
+    /// Spartan, printed Calibri; lab embuse: Inter, Figtree, League Spartan Black, Nunito Medium italic all Calibri, static Rambla, Paytone One used).
+    /// CFF files are NOT ignored as a class: ko-e98651ff's Ridibatang (CFF) is a numbered, used font in the print, though Labil Grotesk (CFF) printed Calibri.
+    /// A family Office also has as a cloud font (Nunito: e3e0b3e0's Nunito Black prints under its real name, from the cloud) is the exception:
+    /// its embedded variable file stands in for the cloud copy.
+    static func embeddedFileIsIgnored(_ data: Data, named name: String) -> Bool {
+        let d = [UInt8](data)
+        guard d.count > 12 else { return false }
+        let n = Int(d[4]) << 8 | Int(d[5])
+        var tables: Set<String> = []
+        for k in 0 ..< n {
+            let e = 12 + 16 * k
+            guard e + 4 <= d.count else { break }
+            tables.insert(String(decoding: d[e ..< e + 4], as: UTF8.self))
+        }
+        let unused = tables.contains("fvar")
+        guard unused else { return false }
+        return !name.lowercased().hasPrefix("nunito")
+    }
+
     /// Loads one embedded face (`word/fonts/*.odttf`, already
     /// de-obfuscated) and returns the family it is drawn as. Named by its
     /// bytes, not by the file's name for it: a file saves a SUBSET of the
