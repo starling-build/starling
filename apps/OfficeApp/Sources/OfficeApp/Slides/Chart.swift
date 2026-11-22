@@ -513,6 +513,8 @@ struct Chart: Equatable {
     /// An Excel 2016 funnel (`layoutId="funnel"`): its one series' values
     /// as bars centred across the plot, top first, with no value axis.
     var funnel = false
+    /// A funnel's category axis ticks (`majorTickMarks` not none): a short mark inward at each slot's edge.
+    var funnelTicks = false
     /// An Excel 2016 sunburst (`layoutId="sunburst"`): its points as a
     /// tree, a ring to each level of it, each node the sum of the points
     /// under it. nil for any other chart.
@@ -1098,6 +1100,12 @@ enum ChartXML {
         guard var c = readClusteredColumn(space, layout: "funnel") else { return nil }
         c.funnel = true
         c.legend = false
+        // (Its axis ticks where the axis asks for them: funnel1's "in".)
+        c.funnelTicks = space.first("cx:chart")?.first("cx:plotArea")?.all("cx:axis").contains {
+            $0.first("cx:majorTickMarks").map { $0["type"] != "none" } ?? false } ?? false
+        // (A data label with no visibility says shows the value.)
+        if let dl = space.first("cx:chart")?.first("cx:plotArea")?.first("cx:plotAreaRegion")?.first("cx:series")?.first("cx:dataLabels"),
+           dl.first("cx:visibility") == nil { c.dataLabels = true }
         return c
     }
 
@@ -1187,7 +1195,20 @@ enum ChartXML {
         for (j, ser) in all.enumerated() {
             guard let d = data[ser.first("cx:dataId")?["val"] ?? ""] else { return nil }
             let values = d.vals.map { $0.flatMap { Double($0.trimmingWhitespace()) } }
-            if categories.isEmpty { categories = (0 ..< values.count).map { (d.cats[safe: $0] ?? nil) ?? String($0 + 1) } }
+            if categories.isEmpty {
+                // (No category cells: the points are counted 1, 2, 3…, shown in the category axis's own number
+                // format where it sets one, "0.00E+00" printing 1.00E+00: PowerPoint's print of a funnel.)
+                let axisFmt = chart.first("cx:plotArea")?.all("cx:axis").compactMap { a -> String? in
+                    guard let f = a.first("cx:numFmt"), f["sourceLinked"] != "1" else { return nil }
+                    return f["formatCode"]
+                }.first
+                categories = (0 ..< values.count).map {
+                    if let c = d.cats[safe: $0] ?? nil { return c }
+                    guard let code = axisFmt, d.cats.isEmpty else { return String($0 + 1) }
+                    let shown = NumberFormat.format(Double($0 + 1), code, width: 40).text.trimmingWhitespace()
+                    return shown.isEmpty ? String($0 + 1) : shown
+                }
+            }
             series.append(ChartSeries(name: ser.first("cx:tx")?.descendant("cx:v")?.text ?? "Series\(j + 1)", values: values))
         }
         // (No points cached is a chart still, its cells read live:
@@ -4209,6 +4230,13 @@ enum ChartPainter {
         let edge = Paint()
         edge.style = .stroke
         edge.strokeWidth = max(0.25, s.outlineWidth * k)
+        // (The axis: a light grey line down the plot's left, its ticks inward at the slots' edges.)
+        let axis = Paint()
+        axis.style = .stroke
+        axis.strokeWidth = 0.75 * k
+        axis.color = Color(0xFFD9D9D9)
+        canvas.drawLine(Offset(plot.left, plot.top), Offset(plot.left, plot.bottom), axis)
+        if c.funnelTicks { for i in 0 ... n { let y = plot.top + Double(i) * slot; canvas.drawLine(Offset(plot.left, y), Offset(plot.left + 3 * k, y), axis) } }
         for i in 0 ..< n {
             let cy = plot.top + (Double(i) + 0.5) * slot
             labels[i].paint(canvas, Offset(left - 6 * k - labels[i].width, cy - labels[i].height / 2))
@@ -4216,7 +4244,7 @@ enum ChartPainter {
             let w = abs(v) / widest * plot.width
             let r = Rect.fromLTWH(plot.center.dx - w / 2, cy - bar / 2, w, bar)
             canvas.drawRect(r, fill)
-            if let o = s.outline { edge.color = o; canvas.drawRect(r.deflate(edge.strokeWidth / 2), edge) }
+            if let o = s.outline, s.outlineWidth > 0 { edge.color = o; canvas.drawRect(r.deflate(edge.strokeWidth / 2), edge) }
             if c.dataLabels {
                 let tp = TextPainter(text: TextSpan(text: dataLabel(c, v), style: Flutter.TextStyle(
                     color: Color(0xFFFFFFFF), fontSize: max(3, c.baseTextSize * k),

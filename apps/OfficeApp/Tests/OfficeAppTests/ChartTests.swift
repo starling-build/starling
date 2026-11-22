@@ -282,6 +282,19 @@ final class ChartTests: XCTestCase {
         XCTAssertFalse(c.waterfallLegendTotal)
     }
 
+    /// A funnel with no category cells counts its points 1, 2, 3… in the category axis's own number format
+    /// ("0.00E+00" prints 1.00E+00 in PowerPoint), its ticks inward, its value labels on without a visibility.
+    func testAFunnelCountsItsCategoriesInTheAxisFormat() {
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><cx:chartData><cx:data id="0"><cx:numDim type="val"><cx:lvl ptCount="2"><cx:pt idx="0">4</cx:pt><cx:pt idx="1">5</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="funnel"><cx:dataLabels/><cx:dataId val="0"/></cx:series></cx:plotAreaRegion><cx:axis id="0"><cx:majorTickMarks type="in"/><cx:numFmt formatCode="0.00E+00" sourceLinked="0"/></cx:axis></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        guard let c = ChartXML.readChartex(XNode.parse(Data(xml.utf8))!) else { return XCTFail("not read") }
+        XCTAssertEqual(c.categories, ["1.00E+00", "2.00E+00"])
+        XCTAssertTrue(c.funnel)
+        XCTAssertTrue(c.funnelTicks)
+        XCTAssertTrue(c.dataLabels)
+    }
+
     /// A chartex box-and-whisker chart reads as its samples by category,
     /// its quartiles Excel's exclusive ones: chartex's first box runs
     /// -24 to 23.5 about -7 in Word's print.
