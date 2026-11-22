@@ -49,7 +49,7 @@ if [ -s "$PB" ] && ! ls "$PILOT"/baseline-*lines*.tsv >/dev/null 2>&1; then MISS
 DECKS=$W/in; PPT=$W/ppt
 PDFDIFF_NO_PAIRS=1 OFFICE_APP=$BIN "$ROOT/test/pptx-app-render.sh" -j "$JOBS" "$DECKS" "$PPT" "$W" $(ls -SL "$DECKS" | grep '\.pptx$') > "$W/run.log" 2>&1
 [ -s "$W/render.tsv" ] || { echo "slides-gate: no scores produced"; tail -3 "$W/run.log" | cut -c1-200; exit 1; }
-python3 - "$BASEALL" "$W/render.tsv" "$TOL" "${LQ:-/data/landq}/approved.txt" <<'P'
+PXEX=$ROOT/test/corpus/pptx/pixel-excluded.txt python3 - "$BASEALL" "$W/render.tsv" "$TOL" "${LQ:-/data/landq}/approved.txt" <<'P'
 import re,sys
 base,new,tol,appr=sys.argv[1],sys.argv[2],float(sys.argv[3]),sys.argv[4]
 def rd(f):
@@ -62,9 +62,13 @@ b,n=rd(base),rd(new)
 try: ok=set(open(appr).read().split())
 except OSError: ok=set()
 bad=[];gone=[]
+import os
+try: px=set(l.split('\t')[0].strip() for l in open(os.environ['PXEX']) if l.strip() and l[0]!='#')
+except OSError: px=set()
 for k,v in b.items():
     if v is None: continue
     s=k[:-5]
+    if s in px: continue   # scored on lines only (pixel-excluded.txt: PowerPoint had to repair the deck)
     if n.get(k) is None: gone.append(k) if s not in ok else None
     elif n[k]>v+tol and s not in ok: bad.append((n[k]-v,k,v,n[k]))
 bad.sort(reverse=True)

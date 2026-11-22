@@ -1,0 +1,2 @@
+# Decks scored on LINES only: the pixel mean is not compared. One stem per line, then the reason (starling-bd, 2026-11-22).
+Divino_Revelado	truncated zip; PowerPoint repairs it and prints pages 1-11 blank (one white rectangle each), only page 12 has content; ours recovers more
