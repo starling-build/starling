@@ -1539,7 +1539,16 @@ extension RichLayout {
             // "東引鄉活動中心2樓" 1.8pt: windows' measurement.)
             let higher = centred && abs((styles[k]?.height ?? 0) - 1.3) < 0.001 ? 0.11 * em : 0
             let along = box.left + min(box.right - box.left, glyph.width) / 2 + lead(k) - higher
-            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em, origin.dy + acrossC(box, em, k) + rubyColumnShift(k) + (plain ? 0.085 * em : 0) + sharedShift(k))
+            // (PowerPoint sets a Yu Gothic ideograph in an eaVert box (slides, where the face table holds no baseline for it) 0.25 em
+            // further toward the column's left and 0.11 em further down it than the square centred in its box: 9047d9e7 p6 (12 and
+            // 16 pt, bold, spacing 80%), 5df7b42e (90%), e89e63a8, 44a86430, 5bdba90e, a91e3e82: 0.23 to 0.27 em across, 0.10 to 0.12 along
+            // at every size from 10.5 to 48 pt and every line spacing.)
+            let yuSlide = !theme.wordRules && uprightIdeographs && (styles[k].map { st in
+                var f = (st.debugLabel ?? st.fontFamily ?? "").lowercased()
+                while f.hasSuffix(".copyWith") { f = String(f.dropLast(9)); if f.hasPrefix("("), f.hasSuffix(")") { f = String(f.dropFirst().dropLast()) } }
+                return f.containsSubstring("yu gothic") || f.containsSubstring("游ゴシック")
+            } ?? false)
+            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em + (yuSlide ? 0.11 * em : 0), origin.dy + acrossC(box, em, k) + rubyColumnShift(k) + (plain ? 0.085 * em : 0) + sharedShift(k) + (yuSlide ? 0.25 * em : 0))
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
             canvas.restore()
