@@ -3033,7 +3033,13 @@ enum ChartPainter {
             // (A line in a size of its own, as its own span.)
             let span: TextSpan
             if c.titleLineSizes.isEmpty {
-                span = TextSpan(text: title, style: titleStyle)
+                // (A slide's title in an East Asian face the machine lacks is spaced to the face's own advances, as the labels
+                // are: ko-ab1bf295 p7's 18.6 pt "차트 제목" in Malgun Gothic Bold, 81.0 pt in PowerPoint's print, 72.6 here.)
+                if c.onSlide, !title.contains("\n"), case let raw = c.titleFont ?? c.font ?? c.axisFont ?? theme.bodyFont, let face = Self.eastAsianChartFace(raw) {
+                    span = Self.metricSpan(title, titleStyle, face, bold: c.titleBold)
+                } else {
+                    span = TextSpan(text: title, style: titleStyle)
+                }
             } else {
                 let lines = title.components(separatedBy: "\n")
                 span = TextSpan(children: lines.enumerated().map { i, line in
