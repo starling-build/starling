@@ -775,9 +775,9 @@ enum WriterMath {
             let w = rows.map(\.width).max() ?? 0
             if WriterMath.slideScope && WriterMath.windows {
                 // (Slides: PowerPoint's print of an array of fraction rows (lab mathrows, 18 and 28 pt, the same in em) stands the first
-                // row where a lone display fraction stands, and each row 2.447 em under the one above: the rows' ink, 0.3 em between.)
+                // row where a lone display fraction stands, and each row 2.447 em under the one above: the rows' ink and Cambria Math's StackDisplayStyleGapMin, 0.3223 em, between.)
                 var base = [0.0]
-                for k in 1 ..< rows.count { base.append(base[k - 1] + rows[k - 1].idn + size * 0.3 + rows[k].iu) }
+                for k in 1 ..< rows.count { base.append(base[k - 1] + rows[k - 1].idn + size * 0.3223 + rows[k].iu) }
                 let ascent = rows[0].ascent
                 let descent = (base.last ?? 0) + rows[rows.count - 1].descent
                 return Box(width: w, ascent: ascent, descent: descent, inkUp: rows[0].iu, inkDown: (base.last ?? 0) + rows[rows.count - 1].idn) { canvas, at in
