@@ -2196,7 +2196,7 @@ private struct SlideContext {
         // date) stays that field.
         let paras = sp.first("p:txBody")?.all("a:p").filter { !$0.all("a:r").isEmpty || !$0.all("a:fld").isEmpty || !$0.all("a14:m").isEmpty } ?? []
         if paras.count == 1, paras[0].all("a:r").isEmpty, paras[0].all("a:fld").count == 1,
-           let fld = paras[0].first("a:fld"), let type = fld["type"], let fid = fld["id"] {
+           let fld = paras[0].first("a:fld"), let type = fld["type"], let fid = fld["id"], SlideField.isKnownType(type) {
             st.field = SlideField(type: type, id: fid)
         }
         if ph != nil, text.document.paragraphs.allSatisfy({ $0.text.isEmpty }) {
