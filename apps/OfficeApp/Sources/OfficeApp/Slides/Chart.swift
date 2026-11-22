@@ -3040,6 +3040,8 @@ enum ChartPainter {
                 if slideSidePie, slotH > 1.5 * textH { return slotH + 5.8 * k }
                 return wordSidePie && tall > 1.5 * textH ? tall + 5.8 * k : max(lineH, tall)
             }
+            // (On a slide every row of a pie's side legend is as tall as the tallest: 3f8a480a p2's four entries, two of them
+            // wrapped, stand 30.2 pt apart in PowerPoint's print, one line 12.2 + 5.8 under the wrapped ones' two.)
             // (A Word pie's side legend too tall for the chart drops its last entries: lab piesize4's 60-character names, three lines
             // each, stand four of five in a 212 pt frame; the room taken as 0.82 of the frame less 5 pt, as on a sheet.)
             if wordSidePie, lines.count > 1 {
@@ -8050,8 +8052,9 @@ extension ChartPainter {
                 // (A doughnut's leader ends in the middle of its ring: tdf161607's, Excel's print.)
                 let from = on(s.mid, c.type == .doughnut ? (1 + Double(c.holeSize) / 100) / 2 : 1)
                 let to = Offset(min(max(from.dx, box.left), box.right), min(max(from.dy, box.top), box.bottom))
-                // (None where the label already touches the ring: tdf161607's "Category 4".)
-                let touches = c.type == .doughnut && point == nil
+                // (None where the label already touches the ring: tdf161607's "Category 4"; and on a slide a pie's moved label that stands
+                // on the pie: 3f8a480a p2's four labels, leaders on in the file, none in PowerPoint's print.)
+                let touches = (c.type == .doughnut || (c.onSlide && c.type == .pie && moved != nil)) && point == nil
                     && hypot(min(max(centre.dx, box.left), box.right) - centre.dx, min(max(centre.dy, box.top), box.bottom) - centre.dy) <= rx
                 // (Word draws a flat best-fit label's leader only where its own search moved the box, never nearer than
                 // 7.8 pt to the rim point in 312 prints; labels its rule places are not moved.)
