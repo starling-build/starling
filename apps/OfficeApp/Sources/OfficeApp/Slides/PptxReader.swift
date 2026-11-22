@@ -3865,6 +3865,8 @@ private struct SlideContext {
             // (A run tagged en-US over altLang ja-JP, a digit run in Japanese text, is the same: 5f748a0e p5's "466" in +mj-ea is HGPGothicE in the print, not the theme's Latin face.)
             let l = (lang ?? "").lowercased().hasPrefix("ja") || (altLang ?? "").lowercased().hasPrefix("ja") ? "ja" : (lang ?? "").lowercased()
             if (table["ea"] ?? "").isEmpty, l.hasPrefix("ja"), let j = table["Jpan"], !j.isEmpty { return j }
+            // (Not a Japanese run: PowerPoint prints the Latin slot's +mj-ea over a theme with an empty East Asian face in Arial, not the theme's Latin face: 1892a5a76df6 p201's bold digits are Arial's 8.9 pt at 16 pt, Constantia's 7.3 in ours.)
+            if (table["ea"] ?? "").isEmpty, !l.hasPrefix("ja") { return "Arial" }
         }
         return _font(f)
     }
