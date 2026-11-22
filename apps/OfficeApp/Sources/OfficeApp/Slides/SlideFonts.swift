@@ -127,6 +127,12 @@ enum SlideFonts {
     static func noteEmbedded(_ faces: [String: String]) {
         embedded = Dictionary(faces.map { ($0.key.trimmingWhitespace().lowercased(), $0.value) }, uniquingKeysWith: { a, _ in a })
     }
+    /// Each embedded face's Windows descent share (OS/2 winDescent over winAscent + winDescent), by lower-case typeface name. PowerPoint
+    /// sets a line's baseline by it (e01f56c5361e p5: Reem Kufi, hhea 1100/400 but win 1000/500, "01" in a bottom-anchored box stood 4.7 pt low).
+    nonisolated(unsafe) private static var embeddedWinShares: [String: Double] = [:]
+    static func noteEmbeddedWindowsShares(_ shares: [String: Double]) {
+        embeddedWinShares = Dictionary(shares.map { ($0.key.trimmingWhitespace().lowercased(), $0.value) }, uniquingKeysWith: { a, _ in a })
+    }
     static func isEmbedded(_ family: String) -> Bool { embeddedFamily(family) != nil }
     /// Whether `family` is a face the deck embeds and that has the ASCII digits: a run of digits alone, tagged with a right-to-left
     /// language, is then set in it (cc66a30f's slide-number field, fa-IR, B Nazanin embedded: 8.5 pt wide in PowerPoint's print, on
@@ -545,6 +551,7 @@ enum SlideFonts {
     }
 
     static func ownDescentShare(_ family: String) -> Double? {
+        if let w = embeddedWinShares[family.trimmingWhitespace().lowercased()], embeddedFamily(family) != nil { return w }
         guard OfficeFonts.installed(family) == nil else { return nil }
         let n = windowsName(family)
         // (East Asian faces by PowerPoint's print, lab slides-cjk-lines: a line is 1.2 em at every face and size, its

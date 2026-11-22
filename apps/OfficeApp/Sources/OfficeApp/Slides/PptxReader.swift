@@ -753,6 +753,7 @@ struct PptxReader {
         let rels = package.rels(pres)
         // The fonts the deck carries (EOT, usually MicroType Express packed).
         var embeddedFaces: [String: String] = [:]
+        var embeddedWinShares: [String: Double] = [:]
         for font in presentation.first("p:embeddedFontLst")?.all("p:embeddedFont") ?? [] {
             guard let name = font.first("p:font")?["typeface"] else { continue }
             for style in ["p:regular", "p:bold", "p:italic", "p:boldItalic"] {
@@ -762,9 +763,11 @@ struct PptxReader {
                       let family = OfficeFonts.loadEmbedded(sfnt, sharedFamily: "Starling Embedded " + name) else { continue }
                 if let w = OfficeFonts.variableWeight(sfnt, named: name) { RichTextTheme.variableWeights["Starling Embedded " + name] = w }
                 embeddedFaces[name] = family
+                if style == "p:regular" || embeddedWinShares[name] == nil, let share = OfficeFonts.sfntWindowsDescentShare(sfnt) { embeddedWinShares[name] = share }
             }
         }
         SlideFonts.noteEmbedded(embeddedFaces)
+        SlideFonts.noteEmbeddedWindowsShares(embeddedWinShares)
         var missingRoman: Set<String> = []
         for (name, data) in package.parts where name.hasPrefix("ppt/") && name.hasSuffix(".xml") {
             let text = String(decoding: data, as: UTF8.self)

@@ -874,6 +874,31 @@ enum OfficeFonts {
     /// `wght` variation (the glyphs stored are the default instance's, so
     /// moving the axis' default alone changes nothing); nil for a font with
     /// no weight axis or a name with no weight word.
+    /// A font file's Windows descent over its Windows ascent plus descent (OS/2 usWinAscent, usWinDescent); nil without that table.
+    static func sfntWindowsDescentShare(_ data: Data) -> Double? {
+        let d = [UInt8](data)
+        func u16(_ at: Int) -> Int { at + 2 <= d.count ? Int(d[at]) << 8 | Int(d[at + 1]) : 0 }
+        func u32(_ at: Int) -> Int { u16(at) << 16 | u16(at + 2) }
+        guard d.count > 12 else { return nil }
+        for k in 0 ..< u16(4) {
+            let e = 12 + 16 * k
+            guard e + 16 <= d.count else { return nil }
+            if Array(d[e ..< e + 4]) == Array("OS/2".utf8) {
+                let o = u32(e + 8)
+                guard o + 78 <= d.count else { return nil }
+                var asc = u16(o + 74), desc = u16(o + 76)
+                // (A face that sets USE_TYPO_METRICS (fsSelection bit 7) is read by its typographic pair: 201942c286a1's Lexend, win 1200 + 390
+                // against typo 1000 + 250, stands on the typo one in PowerPoint's print; Reem Kufi, bit clear, on win.)
+                if u16(o + 62) & 0x80 != 0 {
+                    let ta = u16(o + 68), td = Int(Int16(truncatingIfNeeded: u16(o + 70)))
+                    if ta > 0 { (asc, desc) = (ta, abs(td)) }
+                }
+                return asc + desc > 0 ? Double(desc) / Double(asc + desc) : nil
+            }
+        }
+        return nil
+    }
+
     static func variableWeight(_ data: Data, named name: String) -> Double? {
         let n = name.lowercased()
         let words: [(String, Double)] = [("extralight", 200), ("ultralight", 200), ("extrabold", 800), ("ultrabold", 800), ("semibold", 600), ("demibold", 600), ("black", 900), ("heavy", 900), ("thin", 100), ("light", 300), ("medium", 500), ("bold", 700)]
