@@ -13,6 +13,14 @@ private struct _UnstackedLeaf { var range: Range<Int>; var size: Double; var box
 
 extension RichLayout {
 
+    /// The style of the first run of the span that has text, or nil.
+    func _firstLeafStyle(_ s: InlineSpan) -> TextStyle? {
+        guard let t = s as? TextSpan else { return nil }
+        if let tx = t.text, tx.contains(where: { !$0.isWhitespace }), let st = t.style { return st }
+        for c in t.children ?? [] { if let r = _firstLeafStyle(c) { return r } }
+        return nil
+    }
+
     func _strut(_ span: TextSpan, tallest: Bool = false, near nearCounts: Bool = false, wide: Bool = false, joiners: Bool = true) -> StrutStyle? {
         guard theme.wordRules else { return nil }
         var first: TextStyle? = nil

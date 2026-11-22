@@ -312,6 +312,7 @@ extension _ParaFrame {
     func _stripBesideLeftTable(_ a0: String, _ a1: Int, _ a2: RichDocument) -> Bool { rl._stripBesideLeftTable(a0, a1, a2) }
     var _stripUse: [Int : (indent: Double, band: (top: Double, bottom: Double), right: Bool)] { get { rl._stripUse } set { rl._stripUse = newValue } }
     func _strut(_ a0: TextSpan, tallest a1: Bool = false, near a2: Bool = false, wide a3: Bool = false, joiners a4: Bool = true) -> StrutStyle? { rl._strut(a0, tallest: a1, near: a2, wide: a3, joiners: a4) }
+    func _firstLeafStyle(_ a0: InlineSpan) -> TextStyle? { rl._firstLeafStyle(a0) }
     func _tableLeft(_ a0: String, _ a1: RichDocument) -> Double { rl._tableLeft(a0, a1) }
     var _tableMerged: [String : [Int]] { get { rl._tableMerged } set { rl._tableMerged = newValue } }
     var _tableOwnLeft: [String : (style: String, width: Double)] { get { rl._tableOwnLeft } set { rl._tableOwnLeft = newValue } }
