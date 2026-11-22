@@ -267,6 +267,9 @@ struct Chart: Equatable {
     /// where the file gives one other than General: the axis's own, or —
     /// "linked to source" — the one its first series' numbers came with.
     var valueFormat: String? = nil
+    /// `c:dispUnits` on the value axis: its tick labels and the data labels show the values divided by this
+    /// (hundreds 100: 11,194 labelled 112, in PowerPoint's print of ja b7d6faa9 p7).
+    var valueUnitDivisor = 1.0
     /// A bar chart's spacing as the file set it, in percent of a bar:
     /// the gap between categories and the overlap of a category's bars.
     /// Nil is PowerPoint's default (219 and -27; 150 and 100 stacked).
@@ -2382,6 +2385,9 @@ enum ChartXML {
                 c.valueMin = flo; c.valueMax = max(fhi, flo + 1); c.valueStep = 1
             }
         }
+        if let u = valueAxis?.first("c:dispUnits")?.first("c:builtInUnit")?["val"],
+           let d = ["hundreds": 1e2, "thousands": 1e3, "tenThousands": 1e4, "hundredThousands": 1e5, "millions": 1e6,
+                    "tenMillions": 1e7, "hundredMillions": 1e8, "billions": 1e9, "trillions": 1e12][u] { c.valueUnitDivisor = d }
         if let fmt = valueAxis?.first("c:numFmt") {
             let linked = ["1", "true"].contains(fmt["sourceLinked"] ?? "")
             var source = plot.descendant("c:val")?.descendant("c:formatCode")?.text
@@ -3956,7 +3962,8 @@ enum ChartPainter {
 
     /// A data label: the value in the labels' number format where they
     /// have one ("0": 80, where the plain number is 79.63).
-    static func dataLabel(_ c: Chart, _ v: Double) -> String {
+    static func dataLabel(_ c: Chart, _ v0: Double) -> String {
+        let v = v0 / c.valueUnitDivisor
         guard let code = c.labelFormat else { return label(v, percent: false) }
         let shown = NumberFormat.format(v, code, width: 40).text.trimmingWhitespace()
         return shown.isEmpty ? label(v, percent: false) : shown
@@ -4909,7 +4916,7 @@ enum ChartPainter {
         // In the axis's own number format where it has one: "1,600", and
         // an accounting format's "-" for nought. (Its padding is a cell's.)
         func valueLabel(_ shownAt: Double) -> String {
-            let v = c.valueLogBase.map { pow($0, shownAt) } ?? shownAt
+            let v = (c.valueLogBase.map { pow($0, shownAt) } ?? shownAt) / c.valueUnitDivisor
             guard let code = c.valueFormat, !c.percent else { return c.percent ? label(v, percent: true) : tickLabel(v) }
             let shown = NumberFormat.format(v, code, width: 40).text.trimmingWhitespace()
             return shown.isEmpty ? tickLabel(v) : shown
