@@ -248,7 +248,7 @@ struct ColorContext {
 
     /// The chart colour style's (`cs:colorStyle meth="cycle"`, the colourful one) nth cycle of the six accents: the plain accent,
     /// then lumMod 60%, 80% + 20%, 80%, 60% + 40%, 50%, 70% + 30%, 70%, 50% + 50% (chartex-lab2 treemap: item 7 is accent1 at 60%,
-    /// item 13 at 80% + 20%, item 19 at 80%). nil lumMod/lumOff: the cycle after the ninth variation starts again.
+    /// item 13 at 80% + 20%, item 19 at 80%). The ninth variation is followed by the first again.
     static func chartexVariation(_ c: Color, cycle: Int) -> Color {
         let steps: [(Double, Double)] = [(1, 0), (0.6, 0), (0.8, 0.2), (0.8, 0), (0.6, 0.4), (0.5, 0), (0.7, 0.3), (0.7, 0), (0.5, 0.5)]
         let (mod, off) = steps[cycle % steps.count]
