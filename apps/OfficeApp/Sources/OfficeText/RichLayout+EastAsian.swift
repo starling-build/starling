@@ -2744,8 +2744,8 @@ extension RichLayout {
     }
 
     static let _hangingUnits = _closingUnits.union("？”’％′″﹚﹜﹞".utf16)
-    /// The closing brackets 」』）】 and the like, which PowerPoint never lets stand past a Slides line's end (ja ae6c89bb; lab hang3 slides 1-5: they go down with the character before them).
-    static let _slidesStandingUnits: Set<UInt16> = [0x300D, 0x300F, 0xFF09, 0x3011, 0x3015, 0x300B, 0x3009, 0xFF3D, 0xFF5D]
+    /// The closing brackets 」』）】 and the like, and ？ (ja 5c600b44 p28: "…たの" / "か？" at 43 pt in a 658 pt box), which PowerPoint never lets stand past a Slides line's end (ja ae6c89bb; lab hang3 slides 1-5: they go down with the character before them).
+    static let _slidesStandingUnits: Set<UInt16> = [0x300D, 0x300F, 0xFF09, 0x3011, 0x3015, 0x300B, 0x3009, 0xFF3D, 0xFF5D, 0xFF1F]
 
     /// Punctuation whose ink keeps to the left half of its em, and to
     /// the right half: Word takes half an em off the first of two that
