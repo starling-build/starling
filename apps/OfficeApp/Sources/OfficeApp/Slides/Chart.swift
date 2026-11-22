@@ -1983,6 +1983,7 @@ enum ChartXML {
             if let scaling = axis.first("c:scaling") {
                 second.min = scaling.first("c:min")?["val"].flatMap(Double.init)
                 second.max = scaling.first("c:max")?["val"].flatMap(Double.init)
+                second.reversed = scaling.first("c:orientation")?["val"] == "maxMin"
             }
             if let u = axis.first("c:dispUnits")?.first("c:builtInUnit")?["val"],
                let d = ["hundreds": 1e2, "thousands": 1e3, "tenThousands": 1e4, "hundredThousands": 1e5, "millions": 1e6,
@@ -6122,7 +6123,8 @@ enum ChartPainter {
         // The second axis' labels, beside the plot's right edge.
         func vpos2(_ v: Double) -> Double {
             guard let s2 = secondScale else { return vpos(v) }
-            return plot.bottom - (v - s2.lo) / (s2.hi - s2.lo) * plot.height
+            let t = (v - s2.lo) / (s2.hi - s2.lo)
+            return c.secondValueAxis?.reversed == true ? plot.top + t * plot.height : plot.bottom - t * plot.height
         }
         // (Raised as the first axis' are: Word's print of zh-2a241df1 sets
         // "60.00%" on the line of "500000", where ours stood 1.5pt lower.)
@@ -9355,6 +9357,8 @@ struct SecondValueAxis: Equatable {
     var step: Double? = nil
     /// Stands on the first axis's scale (the file's visible axis belongs to a group left out).
     var sameScale = false
+    /// The axis counts downward (`c:orientation maxMin`): its smallest value at the plot's top.
+    var reversed = false
     /// `c:dispUnits`: the labels show the values divided by this (hundredMillions 1e8).
     var unitDivisor = 1.0
     /// The display unit's own label (`c:dispUnitsLbl`): shown turned beside the axis, as "x 100000000".
