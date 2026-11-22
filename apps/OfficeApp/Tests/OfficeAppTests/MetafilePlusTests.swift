@@ -245,7 +245,7 @@ final class MetafilePlusTests: XCTestCase {
         let m = try XCTUnwrap(Metafile(Data(b), id: "w"))
         guard case .clip(let clip) = m.steps.last(where: { if case .clip = $0 { return true } else { return false } }) else { return XCTFail("a clip") }
         XCTAssertEqual(clip?.getBounds(), Rect.fromLTRB(0, 0, 100, 100), "the empty clip was lifted before the real one")
-        guard case .stroke(let path, _, _) = m.steps.last else { return XCTFail("a stroke: \(m.steps)") }
+        guard case .stroke(let path, _, _, _) = m.steps.last else { return XCTFail("a stroke: \(m.steps)") }
         let box = path.getBounds()
         XCTAssertEqual(box.right, 100, accuracy: 0.01)
         XCTAssertEqual(box.top, 0, accuracy: 0.01)
