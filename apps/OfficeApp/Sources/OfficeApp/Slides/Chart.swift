@@ -5870,7 +5870,7 @@ enum ChartPainter {
             // plot at x 0.02, plots 243 to 347 pt wide: axis + Z = 340.8, 340.1, 339.5, 337.8, 339.3 pt for 1 to 5 series, and the
             // axis keeps a tick to every 37.5 pt (13 runs to 14 by twos at 279 pt and to 15 by fives at 207 and 258). Not
             // modelled, so left on the old way: one series (Word's depth is 0.79 of ours, 134.6 pt against 170), rotX 0 or 30, rotY 30 (14 pt short), a plot narrower than 240 pt; h40 is 20 px out.)
-            if c.onSlide, v.rightAngles, horizontal, c.plotLayoutInner, v.x >= 0, v.x <= 30, v.y <= 20, c.series.count >= 2, let raw = placed, raw.width >= 150 * k, zThick > 0 {
+            if c.onSlide, v.rightAngles, horizontal, c.plotLayoutInner, v.x >= 0, v.x <= 30, v.y <= 20, (c.series.count >= 2 || v.gapDepth == 0), let raw = placed, raw.width >= 150 * k, zThick > 0 {
                 RuleTrace.hit("slide-3d-bars-share-the-laid-plot-between-axis-and-depth-and-centre-the-box")
                 // (A bar's own depth, a 1 + gapDepth share of the box's.)
                 let own = 1 / (1 + v.gapDepth)
@@ -5901,6 +5901,16 @@ enum ChartPainter {
                 let stop = frame.right - (17.4 - 0.14 * (404.7 - raw.width / k)) * k
                 if left + axis + box.dx > stop { left = stop - axis - box.dx }
                 plot = Rect.fromLTRB(left, plot.top, left + axis, plot.bottom)
+                // (Bars with no gap depth, a plot 347 pt wide, rotX 15, rotY 20: the front starts 8.2 pt in from the plot and ends 5.1 pt short of its right
+                // less 0.369 of one series' front height times the depth share, where that height is the room of 222.06 less 6.9 over the series plus a quarter
+                // of the depth; lab bar3d-series2 (gap width 0, 1 to 6 series, depth 100 / 200), all 12 gap-depth-0 fronts within 0.2 pt of PowerPoint's print.
+                // The old rule above held for gap depth 150 and stays for it.)
+                if v.gapDepth == 0, abs(raw.width / k - 346.7) < 20 {
+                    RuleTrace.hit("slide-3d-bars-without-gap-depth-end-short-of-the-plot-by-the-depth-share-of-a-front-height")
+                    let front = (222.06 - 6.9) / (Double(max(1, c.series.count)) + 0.25 * v.depth)
+                    let l = raw.left + 8.2 * k, r = raw.right - (5.1 + 0.3688 * front * v.depth) * k
+                    plot = Rect.fromLTRB(l, plot.top, r, plot.bottom)
+                }
                 if c.valueMax == nil, c.valueStep == nil, !c.percent, c.valueAxisDeleted, !c.valueGrid {
                     sc = Self.scale(lo, max(hi, c.valueMax ?? hi), intervals: max(2, Int(axis / (37.5 * k))), headroom: 0)
                 }
