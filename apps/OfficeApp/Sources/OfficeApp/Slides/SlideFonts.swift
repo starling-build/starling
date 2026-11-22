@@ -156,6 +156,15 @@ enum SlideFonts {
             face.boldAdvances = cuts.bold?.ascii ?? cuts.regular.ascii.map { $0 * k }
             face.otherAdvances = regular
             face.boldOtherAdvances = bold
+            // (The face's own measured advances for Latin-1, General Punctuation and Arrows, a full em ones too: a character PowerPoint finds in the
+            // face it draws there at that advance, not at a stand-in's. 44a86430 p10's ¹ in HG Maru Gothic is 0.5 em, the stand-in's 0.333.
+            // A value already measured from a print stays.)
+            if let lat = SlideEastAsianLatin.lookup(windowsName(family)) {
+                let kk = SlideFontWidths.syntheticBoldAdvance
+                let r = SlideEastAsianWidths.parse(lat.regular)
+                let b = lat.bold.map { SlideEastAsianWidths.parse($0) }
+                for (c, w) in r where face.otherAdvances?[c] == nil { face.otherAdvances?[c] = w; face.boldOtherAdvances?[c] = b?[c] ?? w * kk }
+            }
             if koreanOwnFace(family) { face.otherAdvances?[0xAC00] = 1.0; face.boldOtherAdvances?[0xAC00] = cuts.bold == nil ? k : 1.0 }
             // (Malgun Gothic's Hangul is an em, which the table of advances that are not one does not hold.)
             if cuts.regular.ascii == SlideEastAsianWidths.malgun.regular.ascii { for u in UInt32(0xAC00) ... 0xD7A3 { face.otherAdvances?[u] = 1.0; face.boldOtherAdvances?[u] = 1.0 } }
