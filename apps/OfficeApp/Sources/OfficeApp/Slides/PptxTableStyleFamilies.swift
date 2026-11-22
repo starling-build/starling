@@ -130,15 +130,17 @@ extension PptxTemplates {
                         + part("lastRow", bold, "<a:top>\(ln(50800, "dk1", "dbl"))</a:top>", "")
                         + part("firstRow", txt("lt1", bold: true), "", solid(c2))
                 case "Themed Style 1":
-                    // Accent rules, white rows; PowerPoint also gives the table a soft
-                    // gradient and shadow from the theme's effect styles, drawn here as flat tints.
-                    let acc = ln(12700, c)
-                    body = "<a:wholeTbl>\(txt("dk1"))<a:tcStyle>" + bdr(acc, acc, acc, acc, ln(12700, "lt1"), acc) + solid(c, "<a:tint val=\"40000\"/>") + "</a:tcStyle></a:wholeTbl>"
-                        + part("band1H", "", "", solid(c, "<a:tint val=\"60000\"/>"))
-                        + part("band1V", "", "", solid(c, "<a:tint val=\"60000\"/>"))
+                    // As PowerPoint stores it: the table's background is the theme's second fill
+                    // (a gradient) and second effect (a soft shadow), the colour as the reference;
+                    // the cells carry no fill, bands lie 40% over the gradient (Word's print, tstyles2).
+                    let acc = ln(9525, c)
+                    body = "<a:tblBg><a:fillRef idx=\"2\">\(clr(c))</a:fillRef><a:effectRef idx=\"1\">\(clr(c))</a:effectRef></a:tblBg>"
+                        + "<a:wholeTbl>\(txt("dk1"))<a:tcStyle>" + bdr(acc, acc, acc, acc, acc, acc) + none + "</a:tcStyle></a:wholeTbl>"
+                        + part("band1H", "", "", solid(c, "<a:alpha val=\"40000\"/>"))
+                        + part("band1V", "", "", solid(c, "<a:alpha val=\"40000\"/>"))
                         + part("lastCol", bold, "", "") + part("firstCol", bold, "<a:right>\(ln(25400, c))</a:right>", "")
-                        + part("lastRow", bold, "<a:top>\(ln(25400, c))</a:top>", solid(c, "<a:tint val=\"40000\"/>"))
-                        + part("firstRow", txt("lt1", bold: true), "", solid(c))
+                        + part("lastRow", bold, "<a:top>\(ln(25400, c))</a:top><a:bottom>\(ln(25400, c))</a:bottom>", "")
+                        + part("firstRow", txt("lt1", bold: true), "<a:bottom>\(ln(25400, "lt1"))</a:bottom>", solid(c))
                 default: // Themed Style 2: white rules over dark tints of the colour
                     let w = ln(12700, "lt1")
                     body = "<a:wholeTbl>\(txt("lt1"))<a:tcStyle>" + bdr(noLn, noLn, noLn, noLn, w, noLn) + solid(c, "<a:shade val=\"75000\"/>") + "</a:tcStyle></a:wholeTbl>"
