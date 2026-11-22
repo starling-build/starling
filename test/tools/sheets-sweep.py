@@ -14,7 +14,7 @@ for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEST = os.path.dirname(HERE)
 CC = os.environ.get("CORPUS_CACHE", "/data/corpus-cache") + "/test/corpus/xlsx"
-BOOKS, XL = CC + "/books", CC + "/excel"
+BOOKS, XL = CC + "/books", CC + "/" + os.environ.get("SHEETS_EXCEL", "excel-20261122")   # SHEETS_EXCEL names the prints folder under xlsx/
 os.environ["DOCX_LINE_MATCH"] = "v2"
 spec = importlib.util.spec_from_file_location("d", os.path.join(TEST, "docx-line-match.py"))
 M = importlib.util.module_from_spec(spec); spec.loader.exec_module(M)
