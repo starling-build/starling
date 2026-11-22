@@ -1383,6 +1383,14 @@ extension RichLayout {
             let f = (s?.debugLabel ?? s?.fontFamily ?? "").lowercased()
             return ["meiryo", "メイリオ", "ms mincho", "ms gothic", "ＭＳ", "yu mincho", "yu gothic", "游"].contains { f.containsSubstring($0) }
         }
+        // (PowerPoint prints a Meiryo, Meiryo UI or HG丸ｺﾞｼｯｸM-PRO column on its side, the way `vert` sets it:
+        // pilot ja d776ec3f p16 "独立行政法人", 81d28d42 p24 "ワーク・ライフ・バランス", 107dae42 p16 — the faces
+        // carry no upright vertical forms; MS PGothic, Yu Gothic and BIZ UDP columns stand upright.)
+        if !theme.wordRules, text.indices.contains(where: { k in
+            guard wide(text[k]) else { return false }
+            let f = (styles[k]?.debugLabel ?? styles[k]?.fontFamily ?? "").lowercased()
+            return ["meiryo", "メイリオ", "hg丸", "hgmaru"].contains { f.containsSubstring($0) }
+        }) { return false }
         let shown = text.indices.filter { wide(text[$0]) }
         if mixed {
             // The rest on its side, where the line set it, on its baseline.
