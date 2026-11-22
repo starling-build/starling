@@ -6039,6 +6039,10 @@ enum ChartPainter {
         axisPaint.color = Color(0xFF868686)
         // (A column chart laid on a slide in the 2007 styles, no line set in the file: PowerPoint's axis lines are 0.5 pt #898989 with
         // 3.17 pt ticks, not 0.75 pt #868686 and 5.7: ce626c34 p7's value and category axes, measured from the print.)
+        // (A 3-D column chart on a slide with no plot placed by the file and ticks out: PowerPoint's plot, its axis and its names stand
+        // 2.9 pt lower than ours, the scale's names 2.6 more, the data labels 2 more: ce626c34 p9, the axis 236.6 to 421.4 against ours 233.1 to 418.6.)
+        let slide3DAuto = c.onSlide && !horizontal && box != .zero && c.barView != nil && c.plotLayout == nil && c.valueTicksOut
+        if slide3DAuto { plot = plot.shift(Offset(0, 2.9 * k)) }
         let slideLaidColumnAxis = c.onSlide && !horizontal && c.plotLayoutInner && !c.styled2013 && !libre && box == .zero
         if slideLaidColumnAxis { axisPaint.strokeWidth = 0.5 * k; axisPaint.color = Color(0xFF898989); RuleTrace.hit("slide-laid-column-axis-0.5pt-3.17-ticks") }
         let tick = (slideLaidColumnAxis ? 3.17 : 5.7) * k
@@ -6104,12 +6108,15 @@ enum ChartPainter {
                 let lift = libreLaid ? (0.15 - 1.24) * k : libre ? 0.15 * k : c.chartex && c.onSlide ? -2.05 * k : slide3DLaid ? 0.15 * k : c.styled2013 ? (c.onSlide ? 1.25 * k : 0) : wordClassicLaid ? 0.55 * k : 1.45 * k
                 // (Word's walled 3-D columns: 8 pt nearer the plot, lo-1bd2003e's labels ending at 142.)
                 let wall3D = (inWord || c.onSlide) && c.barView?.walled == true && c.plotLayoutInner ? (inWord ? 8 : 10) * k : 0
+                // (A 3-D column chart on a slide with no plot placed by the file and ticks out: the labels end 9.2 pt left of the axis line, not 16.8:
+                // ce626c34 p9, labels at 217 to 234 against ours 209 to 226; 3f8a480a's, with no ticks, stand right already.)
+                let wall3DAuto = c.onSlide && c.barView != nil && c.plotLayout == nil && wall3D == 0 && c.valueTicksOut ? 7.6 * k : 0
                 // (On a slide 10 pt: es/3df36ff6 p4's labels at 24 in PowerPoint's print, ours at 14.)
                 // (Where the rule above pushed the plot off the chart's left edge, the labels stay at the edge 1.5 pt in, and the plot stands their
                 // size-scaled clearance past them: lab p12-lab3, 8 pt labels' left at 37.5 and 18 pt's at 37.5, where ours followed the plot.)
-                let labelRight = pushedLabelGap != nil ? frame.left + 1.5 * k + tp.width : slideLaidColumnAxis && c.valueTicksOut ? plot.left - 9.0 * k : plot.left - (c.chartex && c.onSlide ? (c.waterfallTotals != nil ? 5 : 4) : 8.5) * k - besideOut - further + wall3D + valueLabelsBack
+                let labelRight = pushedLabelGap != nil ? frame.left + 1.5 * k + tp.width : slideLaidColumnAxis && c.valueTicksOut ? plot.left - 9.0 * k : plot.left - (c.chartex && c.onSlide ? (c.waterfallTotals != nil ? 5 : 4) : 8.5) * k - besideOut - further + wall3D + wall3DAuto + valueLabelsBack
                 if pushedLabelGap != nil { RuleTrace.hit("slide-laid-plot-pushed-keeps-value-labels-at-the-edge") }
-                tp.paint(canvas, Offset(labelRight - tp.width, p - tp.height / 2 - lift))
+                tp.paint(canvas, Offset(labelRight - tp.width, p - tp.height / 2 - lift + (wall3DAuto > 0 ? 2.6 * k : 0)))
             }
         }
         // The second axis' labels, beside the plot's right edge.
@@ -6292,7 +6299,9 @@ enum ChartPainter {
             }
             let slot = plot.width / Double(n)
             // (Word's walled 3-D columns: the names 6 pt higher, lo-1bd2003e's at 272 and 284.)
-            let foot = (atZero ? zero : plot.bottom) - (inWord && c.barView?.walled == true && c.plotLayoutInner ? 6 * k : 0)
+            let foot0 = (atZero ? zero : plot.bottom) - (inWord && c.barView?.walled == true && c.plotLayoutInner ? 6 * k : 0)
+            // (The names stay where they stood: the 2.9 pt the plot's lowered does not carry them down; ce626c34 p5, 33 turned names, p9.)
+            let foot = foot0 - (slide3DAuto ? 2.9 * k : 0)
             let malgunCatLift = c.onSlide && !horizontal && !aslant && !c.categoryLabelsSparse && ["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased()) ? 4.7 * k : 0
             for (i, tp) in catLabels.enumerated() where table == nil && i % every == 0 {
                 let cx = c.onEdges ? plot.left + Double(i) * plot.width / Double(n - 1) : plot.left + (Double(i) + 0.5) * slot
@@ -6626,7 +6635,7 @@ enum ChartPainter {
                         // depth or depth: Windows' lab b3dlabels, 9 variants of 5864 slide 5, within 0.2 pt.)
                         // (Not a stacked column's: its label stands at the segment's centre, as the front face's, in PowerPoint's print: es 3df36ff6 p5, four stacked
                         // 3-D charts, 11% in a 77 pt segment centred at 407.35, PowerPoint's 407.1, ours 4.4 high.)
-                        let slideRise = c.onSlide && !c.stacked && !horizontal ? (5.0 - 2.3 * sin(abs(v.x) * .pi / 180)) * k : 0
+                        let slideRise = c.onSlide && !c.stacked && !horizontal ? (5.0 - 2.3 * sin(abs(v.x) * .pi / 180) - (slide3DAuto ? 2.0 : 0)) * k : 0
                         // (A horizontal bar's label on a slide stands level with the front's middle, no rise: LIBRE_OFFICE-100610 p8's four bars in
                         // PowerPoint's print, where the column rise stood 4.4 pt high.)
                         // (And across, the label's left edge 6.3 pt past the front face's end (the point stands 3 pt past it) whatever the depth, gap depth or series count: the 24-chart lab
