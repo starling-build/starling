@@ -808,7 +808,10 @@ extension RichLayout {
                     var foot = depth
                     if points > single { foot += 0.072 * size + 0.255 * (points - single) }
                     foot = min(foot, points + depth - 0.755 * size) - 0.012 * size
-                    return _px(points * drawn - foot)
+                    // (The line is held by a forced strut set evenly about its face — see `_strut`'s Slides stand-in in the paragraph's
+                    // painter — where `drawn` shares the line out by the face's proportions: the difference of the two baselines.)
+                    let evenly = (points - single) * (0.5 - drawn)
+                    return _px(points * drawn - foot + evenly)
                 }
             }
             return _px(points * (drawn - below))
