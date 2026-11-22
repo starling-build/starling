@@ -276,7 +276,7 @@ public final class RichTextTheme {
             let shift = line * drawn - foot
             // (Unsaid spacing under a reduction keeps its floor: three fifths of
             // a single line down.)
-            if multiple < 1, paragraph.lineSpacingUnstated, lineSpacingReduction > 0 {
+            if multiple < 1, paragraph.lineSpacingUnstated, lineSpacingReduction > 0, !(name.map { baselineScalesWithSpacing?($0) ?? false } ?? false) {
                 return max(shift, single * (0.6 - multiple * (1 - drawn)))
             }
             return shift
@@ -318,7 +318,9 @@ public final class RichTextTheme {
         // 10% off, 0.816, is above the floor. A stated 100% takes it all
         // off above, lo-font-scale's lines where PowerPoint's are so, and
         // so does a spacing under single with no reduction, tdf157740's.)
-        if multiple < 1, paragraph.lineSpacingUnstated, lineSpacingReduction > 0 {
+        // (Not an Arabic face with a line of its own: Arabic Typesetting under a 20% reduction stands its first baseline at
+        // 0.56 em, 0.8 of its 0.70, in 8a5ae557 p9; the floor would put it at 0.72.)
+        if multiple < 1, paragraph.lineSpacingUnstated, lineSpacingReduction > 0, !(name.map { baselineScalesWithSpacing?($0) ?? false } ?? false) {
             return max(single * (multiple * drawn - below), single * (0.6 - multiple * (1 - drawn)))
         }
         if multiple < 1 { return single * (multiple * drawn - below) }
@@ -331,6 +333,8 @@ public final class RichTextTheme {
     /// line's baseline by the face it names: Verdana's at 0.83 of the
     /// line, where DejaVu Sans, drawing it, has 0.80.
     public var ownDescentShare: ((String) -> Double?)? = nil
+    /// Slides: a face whose first baseline scales with a shrink's line spacing, with no floor under it (see `baselineShift`).
+    public var baselineScalesWithSpacing: ((String) -> Bool)? = nil
     /// Slides: the share of a spacing over single's extra that stands
     /// above a paragraph's lines (`baselineShift`), whatever the face:
     /// PowerPoint's 0.70 at 150% in tdf137367's 40 pt Calibri, where the
