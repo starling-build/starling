@@ -10,6 +10,17 @@ final class ChartTests: XCTestCase {
         return try XCTUnwrap(ChartXML.read(node, color: { _ in nil }))
     }
 
+    /// An axis title's size is written only when it was stated, so a stated 13.3 pt survives a round trip and an unstated one stays unstated.
+    func testAStatedAxisTitleSizeSurvivesARoundTripAndAnUnstatedOneStaysUnstated() throws {
+        var c = Chart.sample(.column)
+        c.valueAxisTitle = "Units"
+        c.categoryAxisTitle = "Quarter"
+        c.valueAxisTitleSize = 13.3
+        let back = try reread(c)
+        XCTAssertEqual(back.valueAxisTitleSize, 13.3)
+        XCTAssertNil(back.categoryAxisTitleSize)
+    }
+
     func testEveryKindSurvivesItsOwnXML() throws {
         for type in ChartType.allCases {
             var c = Chart.sample(type)
