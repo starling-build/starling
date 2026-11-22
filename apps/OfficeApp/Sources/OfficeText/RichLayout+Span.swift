@@ -2158,9 +2158,26 @@ extension RichLayout {
             if sh.glow {
                 // (A glow, as the engine draws it in a PDF: ten blurred copies, sigma a fifth of the radius, 85% strength.)
                 paint.color = Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, Double(sh.color.alpha) / 255 * 0.85)
-                paint.maskFilter = MaskFilter(blur: .normal, sh.blur * 0.2 * k)
+                // (A PDF canvas drops both a path's blur and a layer's, so the halo is drawn as nested strokes on
+                // the outlines, outermost first, each thinner and laid so that the opacity at distance d from the edge
+                // is 1.375 alpha * 2Q(d / sigma), Q the normal tail (fitted to PowerPoint's print of an 18 pt glow, alpha 40%: 0.55, 0.31, 0.07 at 0, 2, 4 pt).)
                 let at0 = path.shift(Offset(origin.dx, origin.dy))
-                for _ in 0 ..< 10 { canvas.drawPath(at0, paint) }
+                let sigma = sh.blur * 0.155 * k
+                let base = Double(sh.color.alpha) / 255 * 1.375
+                func tail(_ z: Double) -> Double { 0.5 * erfc(z / 2.0.squareRoot()) }
+                let steps = 14, reach = 3.0
+                var outer = 0.0
+                let stroke = Paint(); stroke.style = .stroke; stroke.strokeJoin = .round; stroke.strokeCap = .round
+                for n in stride(from: steps, through: 1, by: -1) {
+                    let z = reach * Double(n) / Double(steps)
+                    let target = min(0.95, base * 2 * tail(z - 0.5 * reach / Double(steps)))
+                    let a = 1 - (1 - target) / (1 - outer)
+                    outer = target
+                    guard a > 0.002 else { continue }
+                    stroke.strokeWidth = 2 * z * sigma
+                    stroke.color = Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, a)
+                    canvas.drawPath(at0, stroke)
+                }
                 continue
             }
             let moved = path.shift(Offset(origin.dx + sh.dx * k * shrink, origin.dy + sh.dy * k * shrink))

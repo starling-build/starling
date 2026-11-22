@@ -672,7 +672,7 @@ final class SlidePainter: CustomPainter {
         let area = Rect.fromLTRB(ink.left, 0, ink.right, layout.totalHeight)
         let face = doc.paragraphs.lazy.flatMap({ $0.runs }).compactMap({ $0.style.color }).first ?? Color(0xFF808080)
         return Extrusion.solid(scene: scene, fill: face, line: scene.contourW > 0 ? scene.contourColor : nil, lineWidth: scene.contourW, outline: all, area, canvas, pxPerPt: px,
-                               onFront: { layout.paint(canvas, visible: visible, document: doc, selection: nil, caret: nil) }, wallEdge: scene.contourW > 0 ? scene.contourColor : nil)
+                               onFront: { layout.paint(canvas, visible: visible, document: doc, selection: nil, caret: nil) }, wallEdge: scene.contourW > 0 ? scene.contourColor : nil, clipFront: false)
     }
 
     static func paintOnWholePoints(_ layout: RichLayout, _ doc: RichDocument, _ canvas: any Canvas, pxPerPt px: Double,
