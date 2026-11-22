@@ -1424,6 +1424,18 @@ enum ChartXML {
             else { return nil }
             secondAxis = own
             overlay = kinds[1]
+            // (The group whose value axis crosses at the max stands at the right whichever the file lists first: b7d6faa9 p16's
+            // 1e8-unit series are the first group, its error rates on the left log axis the second.)
+            let atRight: (XNode) -> Bool = { $0.first("c:crosses")?["val"] == "max" }
+            if atRight(own) == false, let firstOwn = plot.all("c:valAx").first(where: { firstAxes.contains($0.first("c:axId")?["val"] ?? "") && !secondAxes.contains($0.first("c:axId")?["val"] ?? "") }), atRight(firstOwn) {
+                secondAxis = firstOwn
+                overlay = kinds[0]
+                main = kinds[1]
+                // Its axes stand last, so the first of each kind is the left group's.
+                let own = plot.children.filter { ["c:valAx", "c:catAx", "c:dateAx"].contains($0.name) && firstAxes.contains($0.first("c:axId")?["val"] ?? "") && !secondAxes.contains($0.first("c:axId")?["val"] ?? "") }
+                plot.children.removeAll { n in own.contains { $0 === n } }
+                plot.children.append(contentsOf: own)
+            }
         } else if kinds.count != 1 {
             return nil
         }
