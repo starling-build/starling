@@ -1129,10 +1129,10 @@ public final class RichTextTheme {
                 return features.isEmpty ? nil : features
             }(),
             fontVariations: family.flatMap { Self.variableWeights[$0] }.map { [FontVariation("wght", $0)] },
-            decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
+            // (Slides draws a rule of a face it has a table for itself, `_paintRules`: the engine's is the stand-in's.)
+            decoration: decorations.isEmpty || (!wordRules && Self.ruleMetrics(latinName, bold: bold, italic: italic) != nil)
+                ? TextDecoration.none : TextDecoration.combine(decorations),
             decorationColor: color,
-            decorationThickness: wordRules ? nil : Self.ruleScale(named: familyName, drawn: family,
-                                                                   bold: bold, italic: italic, strikeOnly: !decorations.contains(.underline)),
             debugLabel: familyName,
             fontFamily: bold && face?.family == family ? face?.fakeBoldFamily ?? family : family,
             fontFamilyFallback: {
@@ -2242,18 +2242,14 @@ public final class RichLayout {
 }
 
 extension RichTextTheme {
-    /// The scale that makes the engine's underline (or strikeout) rule, which it takes from the face it draws
-    /// with, as thick as the face the run NAMES draws it: PowerPoint's Candara rule is 0.0098 em, the
-    /// Liberation Sans stand-in's 0.0732. Nil where either face's thickness is not known, or already equal.
-    static func ruleScale(named: String?, drawn: String?, bold: Bool, italic: Bool, strikeOnly: Bool) -> Double? {
-        guard let named, let drawn else { return nil }
+    /// The underline and strikeout rule of the face a run NAMES (position of the rule's top over the baseline and
+    /// thickness, in em), from the measured table: PowerPoint draws it so whatever face stands in. Nil where the
+    /// face is not in the table.
+    static func ruleMetrics(_ name: String?, bold: Bool, italic: Bool) -> (up: Double, ut: Double, sp: Double, st: Double)? {
+        guard let name else { return nil }
         let style = (bold ? " bold" : "") + (italic ? " italic" : "")
-        let n = named.lowercased().trimmingWhitespace()
-        guard let want = UnderlineMetrics.named[n + style] ?? UnderlineMetrics.named[n] else { return nil }
-        let stem = String(drawn.lowercased().filter { $0 != " " }) + "-" + (bold && italic ? "bolditalic" : bold ? "bold" : italic ? "italic" : "regular")
-        guard let have = UnderlineMetrics.standIn[stem] else { return nil }
-        let w = strikeOnly ? want.1 : want.0, h = strikeOnly ? have.1 : have.0
-        guard w > 0, h > 0, abs(w - h) > 0.0005 else { return nil }
-        return w / h
+        let n = name.lowercased().trimmingWhitespace()
+        guard let m = UnderlineMetrics.named[n + style] ?? UnderlineMetrics.named[n] else { return nil }
+        return (m.0, m.1, m.2, m.3)
     }
 }

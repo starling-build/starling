@@ -2009,6 +2009,47 @@ extension RichLayout {
     /// space, centred on it, over its baseline (under it for underDot).
     /// Word sets them as a "．" glyph; measured at 11 pt: centre 1.08 em
     /// over / 0.29 em under the baseline, 0.12 / 0.13 em across.
+    /// Slides' underline and strikeout, drawn here at the place and thickness of the face the run names (the engine's
+    /// rule is the stand-in's): one rectangle a line segment, as wide as the run's characters there.
+    func _paintRules(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
+                     _ canvas: any Canvas, _ document: RichDocument, map: _OffsetMap? = nil) {
+        guard !theme.wordRules, !p.runs.isEmpty else { return }
+        let named = _named(p, document)
+        let normal = _normalChar(document)
+        let lines = painter.computeLineMetrics()
+        var at = 0
+        for run in p.runs {
+            defer { at += run.length }
+            guard run.length > 0 else { continue }
+            let st = run.style
+            let under = st.underline || ((st.link != nil || (named?.char.underline ?? false)) && !st.off.contains(.underline))
+            let strike = st.strikethrough || ((named?.char.strikethrough ?? false) && !st.off.contains(.strikethrough))
+            guard under || strike else { continue }
+            let bold = st.bold || ((named?.char.bold ?? false) && !st.off.contains(.bold))
+            let italic = st.italic || ((named?.char.italic ?? false) && !st.off.contains(.italic))
+            let latin = st.fontFamily ?? named?.char.fontFamily ?? normal?.fontFamily ?? theme.fontFamily
+            guard let m = RichTextTheme.ruleMetrics(latin, bold: bold, italic: italic) else { continue }
+            let s = theme.textStyle(for: st, in: p.style, named: named, normal: normal, scale: scale, fontScale: fontScale)
+            let size = s.fontSize ?? 10
+            let paint = Paint()
+            paint.style = .fill
+            paint.color = s.color ?? Color(0xFF000000)
+            let a = map?.painter(at) ?? at
+            let z = (map?.painter(at + run.length - 1)).map { $0 + 1 } ?? (at + run.length)
+            for box in painter.getBoxesForSelection(TextSelection(baseOffset: a, extentOffset: max(a, z))).map({ $0.toRect() }) where box.width > 0 {
+                guard let line = lines.min(by: { abs($0.baseline - box.bottom) < abs($1.baseline - box.bottom) }) else { continue }
+                if under {
+                    let t = m.ut * size
+                    canvas.drawRect(Rect.fromLTWH(origin.dx + box.left, origin.dy + line.baseline - m.up * size, box.width, t), paint)
+                }
+                if strike {
+                    let t = m.st * size
+                    canvas.drawRect(Rect.fromLTWH(origin.dx + box.left, origin.dy + line.baseline - m.sp * size, box.width, t), paint)
+                }
+            }
+        }
+    }
+
     func _paintEmphasis(_ p: RichParagraph, _ painter: TextPainter, at origin: Offset,
                         _ canvas: any Canvas, _ document: RichDocument, map: _OffsetMap? = nil, index: Int? = nil) {
         guard theme.wordRules, p.runs.contains(where: { $0.style.emphasis != nil }) else { return }

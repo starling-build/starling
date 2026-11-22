@@ -356,6 +356,7 @@ enum SlideFonts {
         case "tahoma": return 2472.0 / 2048
         case "trebuchet ms": return 2378.0 / 2048
         case "gill sans mt": return 2375.0 / 2048
+        case "candara": return 2500.0 / 2048   // (hhea 1484+564+452 = win 1950+550 = 2500 of 2048)
         case "lucida sans unicode": return 3147.0 / 2048
         default: return nil
         }
@@ -384,6 +385,7 @@ enum SlideFonts {
         // MS Mincho/Gothic 220+36 of 256; Meiryo and Yu Gothic from their first baselines, .847 and .921 em at 18 pt.)
         switch n {
         case "microsoft yahei": return 536.0 / 2703
+        case "candara": return 550.0 / 2500   // (win ascent 1950, descent 550)
         case "malgun gothic", "맑은 고딕": return 495.0 / 2724
         case "simsun", "宋体", "nsimsun", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝": return 36.0 / 256
         case "ms pgothic", "ｍｓ ｐゴシック": return 52.0 / 256
