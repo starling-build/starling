@@ -6084,7 +6084,7 @@ enum ChartPainter {
                 // (On a slide 10 pt: es/3df36ff6 p4's labels at 24 in PowerPoint's print, ours at 14.)
                 // (Where the rule above pushed the plot off the chart's left edge, the labels stay at the edge 1.5 pt in, and the plot stands their
                 // size-scaled clearance past them: lab p12-lab3, 8 pt labels' left at 37.5 and 18 pt's at 37.5, where ours followed the plot.)
-                let labelRight = pushedLabelGap != nil ? frame.left + 1.5 * k + tp.width : slideLaidColumnAxis && c.valueTicksOut ? plot.left - 9.0 * k : plot.left - (c.chartex && c.onSlide ? 4 : 8.5) * k - besideOut - further + wall3D + valueLabelsBack
+                let labelRight = pushedLabelGap != nil ? frame.left + 1.5 * k + tp.width : slideLaidColumnAxis && c.valueTicksOut ? plot.left - 9.0 * k : plot.left - (c.chartex && c.onSlide ? (c.waterfallTotals != nil ? 5 : 4) : 8.5) * k - besideOut - further + wall3D + valueLabelsBack
                 if pushedLabelGap != nil { RuleTrace.hit("slide-laid-plot-pushed-keeps-value-labels-at-the-edge") }
                 tp.paint(canvas, Offset(labelRight - tp.width, p - tp.height / 2 - lift))
             }
@@ -6463,13 +6463,16 @@ enum ChartPainter {
             let bar = slot / (1 + c.gap)
             let spans = c.waterfallSpans
             let totals = c.waterfallTotals ?? []
+            // (A slide's waterfall value stands 0.39 of its size over a rise's top and 0.86 under a fall's foot, not 9 pt: lo-forum-mso-de-138303 p1, ours 5.5 high over a rise and 1.3 low under a fall.)
+            let waterSize = c.series.first?.labelSize ?? c.baseTextSize
+            let waterUp = (c.onSlide ? 0.39 * waterSize : 9) * k, waterDown = (c.onSlide ? 0.86 * waterSize : 9) * k
             for (i, s) in spans.enumerated() {
                 let x = plot.left + Double(i) * slot + (slot - bar) / 2
                 let top = vpos(max(s.from, s.to)), foot = vpos(min(s.from, s.to))
                 fill.color = c.color(series: totals.contains(i) ? 2 : s.to >= s.from ? 0 : 1, accents: theme.accents)
                 canvas.drawRect(Rect.fromLTRB(x, top, x + bar, max(top + 0.5, foot)), fill)
                 if c.dataLabels, let v = c.series.first?.values[safe: i] ?? nil {
-                    labels.append((dataLabel(c, v), Offset(x + bar / 2, s.to >= s.from ? top - 9 * k : foot + 9 * k), 0))
+                    labels.append((dataLabel(c, v), Offset(x + bar / 2, s.to >= s.from ? top - waterUp : foot + waterDown), 0))
                 }
                 if c.waterfallConnectors, i + 1 < spans.count {
                     let line = Paint()
