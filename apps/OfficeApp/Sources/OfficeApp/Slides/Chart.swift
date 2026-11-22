@@ -3503,7 +3503,7 @@ enum ChartPainter {
             // PowerPoint's print.)
             var slideGridW: Double? = nil
             var slideGridPad = 0.0
-            if !beside, lines.count > 1, c.onSlide, box == nil || !pie {
+            if !beside, lines.count > 1, c.onSlide {
                 let colW = entries.map { lead + $0.tp.width }.max() ?? 0
                 let cols = max(1, min(entries.count, Int(((box?.width ?? area.width) - 2 * lead) / max(1, colW))))
                 if colW > 0, cols > 1 {
