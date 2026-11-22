@@ -3686,6 +3686,9 @@ private struct SlideContext {
             if l.isEmpty, let latin, latin.unicodeScalars.contains(where: { $0.value >= 0xAC00 && $0.value <= 0xD7A3 }) { return latin }
             script = l.hasPrefix("ja") ? "Jpan" : l.hasPrefix("ko") ? "Hang" : (l == "zh-tw" || l == "zh-hk" || l == "zh-mo") ? "Hant" : l.hasPrefix("zh") ? "Hans" : "Hans"
         }
+        // (A theme with an empty East Asian slot and no Hang entry: PowerPoint sets Hangul in Malgun Gothic, the Korean UI face
+        // (ko-dcc7e p38's layout header, bold 16 pt, Hangul 16.0 pt advance in the print, ours 14.72 in the stand-in).)
+        if script == "Hang", table[script] == nil { return "Malgun Gothic" }
         return table[script]
     }
 
