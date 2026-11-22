@@ -975,6 +975,8 @@ enum ChartXML {
         c.boxInclusive = layout?.first("cx:statistics")?["quartileMethod"] == "inclusive"
         c.boxMeans = layout?.first("cx:visibility")?["meanMarker"] != "0"
         c.boxOutliers = layout?.first("cx:visibility")?["outliers"] != "0"
+        // (Gridlines only where the value axis names them: PowerPoint's print of a box-whisker with none has none.)
+        c.valueGrid = chart.first("cx:plotArea")?.all("cx:axis").contains { $0.first("cx:valScaling") != nil && $0.first("cx:majorGridlines") != nil } ?? false
         return c
     }
 
