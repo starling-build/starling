@@ -1431,7 +1431,7 @@ extension RichLayout {
         // the middle in Word's print, every character 79.4pt across;
         // ours set the 16pt ones 1.6pt to the side of the "樓".)
         let ownBoxes = shown.map { painter.getBoxesForSelection(TextSelection(baseOffset: $0, extentOffset: $0 + 1)).first }
-        func across(_ box: TextBox) -> Double {
+        func tallestBox(_ box: TextBox) -> TextBox {
             var tallest = box
             // (Overlapping by more than half, and taller by more than
             // rounding: exact-height lines overlap their neighbours by a
@@ -1440,8 +1440,9 @@ extension RichLayout {
             let half = (box.bottom - box.top) / 2
             for case let other? in ownBoxes where min(other.bottom, box.bottom) - max(other.top, box.top) > half
                 && other.bottom - other.top > tallest.bottom - tallest.top + 0.01 { tallest = other }
-            return (tallest.top + tallest.bottom) / 2
+            return tallest
         }
+        func across(_ box: TextBox) -> Double { let t = tallestBox(box); return (t.top + t.bottom) / 2 }
         // (Each column on by half its first character's letter spacing, as
         // the engine set lines until skia-no-line-spacing-shift took that
         // out — what the places below were measured against: zh-b0401810's
@@ -1569,15 +1570,26 @@ extension RichLayout {
             // Yu Gothic is the face with both: hhea lineGap 1024/2048 and win ascent 2017 (Regular) / 2024 (Bold) over hhea 1802, so 0.25 em
             // across and 0.105 / 0.108 em along. Meiryo, MS Gothic/PGothic/Mincho, HGMaruGothicMPRO and Malgun have win = hhea and no gap, so
             // zero, as printed (vertical tables cjk-vertical-20261122; 9047d9e7 p6, 5df7b42e, 998cb8cc, b993c440, 5bdba90e).)
-            let yuSlide = !theme.wordRules && uprightIdeographs && (styles[k].map { st in
-                var f = (st.debugLabel ?? st.fontFamily ?? "").lowercased()
+            // (Slides: the column's own line, `theme.uprightColumn`: the glyph is centred in win ascent + descent + 0.2 em from the column's
+            // right edge and stands (win ascent - 0.876 em) lower than the engine's unshifted place, as printed in lab vface 2026-11-22.)
+            let column: (ascent: Double, line: Double)? = theme.wordRules || !uprightIdeographs ? nil : styles[k].flatMap { st in
+                var f = (st.debugLabel ?? st.fontFamily ?? "")
                 while f.hasSuffix(".copyWith") { f = String(f.dropLast(9)); if f.hasPrefix("("), f.hasSuffix(")") { f = String(f.dropFirst().dropLast()) } }
-                return f.containsSubstring("yu gothic") || f.containsSubstring("游ゴシック")
-            } ?? false)
-            let yuBold = styles[k].map { ($0.fontWeight?.value ?? 400) >= 600 } ?? false
-            let yuAlong = yuSlide ? (yuBold ? 222.0 : 215.0) / 2048 : 0
-            let yuAcross = yuSlide ? 0.5 / 2 : 0
-            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em + yuAlong * em, origin.dy + acrossC(box, em, k) + rubyColumnShift(k) + (plain ? 0.085 * em : 0) + sharedShift(k) + yuAcross * em)
+                return theme.uprightColumn?(f, (st.fontWeight?.value ?? 400) >= 600)
+            }
+            var columnAcross = acrossC(box, em, k)
+            if let column {
+                // (The column stands (win ascent + descent + 0.2 em) wide from the line's top edge, with the line spacing's own share, (percent - 1) em, as
+                // leading that PowerPoint leaves on the far side (negative under 100%, zh-9047d9e7 p6 at 80%): lab vface (single spacing), and the 140%
+                // columns of zh-2eea3e9832c7 p5 and zh-6cb9bf676218 p10, where leading kept on the near side set them 13 pt too far.)
+                let mid = (box.top + box.bottom) / 2
+                if let line = lineMetrics.first(where: { mid >= $0.baseline - $0.ascent - 0.5 && mid <= $0.baseline + $0.descent + 0.5 }) {
+                    let leading = (line.ascent + line.descent) / 1.2 - em
+                    columnAcross = line.baseline - line.ascent + leading + (column.line + 0.2) / 2 * em + (styles[k]?.baselineShift ?? 0)
+                }
+            }
+            let yuAlong = column.map { $0.ascent - 0.876 } ?? 0
+            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em + yuAlong * em, origin.dy + columnAcross + rubyColumnShift(k) + (plain ? 0.085 * em : 0) + sharedShift(k))
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
             canvas.restore()
