@@ -3042,8 +3042,10 @@ enum ChartPainter {
             // then takes one slot as tall as the tallest, 5.8 pt apart: espt c249abc3 p6, "Sector Público del nivel Nacional" in two
             // lines, the three keys 42.2 pt apart in PowerPoint's print, ours 24.3.)
             let slideSidePie = c.type == .pie && beside && box == nil && c.onSlide
-            if wordSidePie || slideSidePie {
-                let wrapW = slideSidePie ? 0.25 * r.width - lead : r.width / 3 - 11.5 * k + 5
+            // (A slide doughnut's legend wraps at about 0.315 of the frame less the key (bracket 0.304..0.327 from one print, no lab yet): pt-6de30c85 p4, 513 pt frame, 'Atendidos pela Funasa' (164) wraps, 'ou sem informação' (141) stays.)
+            let slideSideRing = c.type == .doughnut && beside && box == nil && c.onSlide
+            if wordSidePie || slideSidePie || slideSideRing {
+                let wrapW = slideSideRing ? 0.315 * r.width - lead : slideSidePie ? 0.25 * r.width - lead : r.width / 3 - 11.5 * k + 5
                 entries = entries.map { e in
                     guard e.tp.width > wrapW + 0.01 else { return e }
                     RuleTrace.hit("word-pie-side-legend-name-wraps-at-a-third-of-the-frame")
@@ -6717,8 +6719,12 @@ enum ChartPainter {
                 // Inside the wedge: white on a dark one, ink on a light one.
                 let v = wedge.value
                 let luma = 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF)
+                // (A label whose text properties the file states, a size and no colour, is the chart's text colour, not
+                // the contrast pick: pt-6de30c85 p4's 22 pt bold doughnut figures are black on the blue and the red.)
+                let stated = c.onSlide ? c.series.first?.labelSize : nil
                 let tp = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
-                    color: luma < 150 ? Color(0xFFFFFFFF) : Color(0xFF404040), fontSize: max(3, (c.baseTextSize) * k),
+                    color: stated != nil ? (c.series[0].labelColor ?? ink ?? theme.text) : luma < 150 ? Color(0xFFFFFFFF) : Color(0xFF404040),
+                    fontSize: max(3, (stated ?? c.baseTextSize) * k), fontWeight: stated != nil && c.series[0].labelBold ? .bold : .normal,
                     fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textDirection: .ltr)
                 tp.layout(minWidth: 0, maxWidth: .infinity)
                 tp.paint(canvas, Offset(at.dx - tp.width / 2, at.dy - tp.height / 2))
