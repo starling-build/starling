@@ -3994,13 +3994,22 @@ enum ChartPainter {
     /// (A multi-level category axis adds a row under the categories for each
     /// outer level: PowerPoint's e365f9b4 p17 table sets the years in a row of
     /// their own under Nación / Propios / Total.)
-    static func _tableRows(_ c: Chart, size: Double, k: Double, slot: Double, minLine: Double = 0, text: (String, Double, Double) -> TextPainter) -> [Double] {
-        var rows = _tableRowsBase(c, size: size, k: k, slot: slot, minLine: minLine, text: text)
+    /// A slide's data table whose categories hold East Asian characters sets their lines on the face's Windows line, 1.3 of its ascent and descent
+    /// (PowerPoint's print of zh 201942c286a1 p19: 9 pt JhengHei categories 15.57 pt apart, 1.729 em, where a Latin line is 1.15): the line in em.
+    static func _tableEastAsianLine(_ c: Chart, theme: DeckTheme) -> Double? {
+        guard c.onSlide, !c.windowsMinchoText, c.macSimplifiedFace == nil,
+              c.categories.contains(where: { $0.unicodeScalars.contains { (0x2E80 ... 0x9FFF).contains($0.value) } }),
+              case let face = c.font ?? c.axisFont ?? theme.bodyFont else { return nil }
+        return SlideFonts.diagramEastAsianLine(face)?.height
+    }
+
+    static func _tableRows(_ c: Chart, size: Double, k: Double, slot: Double, minLine: Double = 0, categoryLine: Double = 0, maxLines: Int = .max, text: (String, Double, Double) -> TextPainter) -> [Double] {
+        var rows = _tableRowsBase(c, size: size, k: k, slot: slot, minLine: minLine, categoryLine: categoryLine, maxLines: maxLines, text: text)
         if let first = rows.first, !c.categoryLevels.isEmpty { rows.insert(contentsOf: Array(repeating: first, count: c.categoryLevels.count), at: 1) }
         return rows
     }
 
-    private static func _tableRowsBase(_ c: Chart, size: Double, k: Double, slot: Double, minLine: Double, text: (String, Double, Double) -> TextPainter) -> [Double] {
+    private static func _tableRowsBase(_ c: Chart, size: Double, k: Double, slot: Double, minLine: Double, categoryLine: Double = 0, maxLines: Int = .max, text: (String, Double, Double) -> TextPainter) -> [Double] {
         let count = c.series.count + c.lineSeries.count + 1
         // (PowerPoint's print of es/3f8a480a p4's table: a row is its text's line and 3.4 pt, 15.57 at 10 pt, and
         // the categories' row stands as deep as its longest label wraps in a column less 2 pt, a word
@@ -4014,9 +4023,9 @@ enum ChartPainter {
                 let tp = text(s, size, max(1, slot - 2 * k))
                 defer { tp.dispose() }
                 return max(1, tp.computeLineMetrics().count)
-            }.max() ?? 1
+            }.max().map { min($0, maxLines) } ?? 1
             var rows = Array(repeating: 3.4 * k + line, count: count)
-            rows[0] = 3.4 * k + Double(lines) * line
+            rows[0] = 3.4 * k + Double(lines) * max(line, categoryLine)
             return rows
         }
         // (Word for Mac wraps a category as Word for Windows does, each
@@ -4092,7 +4101,30 @@ enum ChartPainter {
             return rowTop(j) + rowHeight(j) / 2 + 0.27 * size * k - tp.computeDistanceToActualBaseline(.alphabetic)
                 - (tp.height - tp.height / Double(max(1, lines))) / 2
         }
+        let eaLine = Self._tableEastAsianLine(c, theme: theme).map { $0 * size * k }
         func centred(_ s: String, _ cx: Double, _ j: Int) {
+            if j == 0, let pitch = eaLine {
+                // (Its lines on that pitch, the block centred in the row: 7 lines from 262.0, 6 from 269.8, 3 from 293.2 in the print.)
+                let whole = text(s, size, max(1, slot - 2 * k))
+                let units = Array(s.utf16)
+                var lines: [String] = [], start = 0
+                repeat {
+                    let end = max(start + 1, min(units.count, whole.getLineBoundary(TextPosition(offset: start)).end))
+                    lines.append(String(decoding: units[start ..< end], as: UTF16.self).trimmingWhitespace())
+                    start = end
+                } while start < units.count
+                let maxLines = max(1, Int(((heights[0] - 3.4 * k) / pitch).rounded()))
+                if lines.count > maxLines { lines = Array(lines[0 ..< maxLines]); lines[maxLines - 1] += "…" }
+                whole.dispose()
+                var y = rowTop(0) + (rowHeight(0) - Double(lines.count) * pitch) / 2
+                for l in lines {
+                    let tp = text(l, size, .infinity)
+                    tp.paint(canvas, Offset(cx - tp.width / 2, y + (pitch - tp.height) / 2))
+                    tp.dispose()
+                    y += pitch
+                }
+                return
+            }
             let tp = text(s, size, j == 0 && (c.windowsMinchoText || c.macSimplifiedFace != nil) ? max(1, slot - 7.2 * k) : j == 0 && c.onSlide ? max(1, slot - 2 * k) : slot)
             tp.paint(canvas, Offset(cx - tp.width / 2, textTop(tp, j)))
             tp.dispose()
@@ -5681,14 +5713,25 @@ enum ChartPainter {
             let wallIn = c.onSlide && manual == nil && c.barView?.walled == true
             let left = max(plot.left, frame.left + (manual != nil ? 12 : 17) * (c.onSheet ? 1 : k) + column + (wallIn ? 15.5 * k : 0) + (wallLaid ? 11.6 * k : 0))
             let right = manual.map { min(plot.right + 5 * k, left + $0.width * frame.width) } ?? plot.right - (wallIn ? 16 * k : 0)
-            let rows = Self._tableRows(c, size: size, k: k, slot: (right - left) / Double(max(1, n)), minLine: SlideFonts.windowsName(c.font ?? theme.bodyFont).hasPrefix("aptos") ? 1.2207 * size * k : 0, text: text)
+            let head = c.title?.isEmpty == false ? plot.top : frame.top + (manual != nil ? 6.7 : 11.1) * (c.onSheet ? 1 : k)
+            // (A slide's category row stops, its last line ending in an ellipsis, where the plot, from the title's foot to the table, would be
+            // left under about 0.385 of the chart's height: PowerPoint's print of zh 201942c286a1 p19's chart at 179, 239 and 299 pt tall (lab
+            // zh-dtable-cap) sets 3, 5 and 7 lines; the kept lines leave the plot 0.395, 0.416 and 0.428 of the height, one more 0.308, 0.35
+            // and 0.376, so the limit lies in 0.376 to 0.395; 0.385 is the middle of that, not measured.)
+            let base = Self._tableRows(c, size: size, k: k, slot: (right - left) / Double(max(1, n)), minLine: SlideFonts.windowsName(c.font ?? theme.bodyFont).hasPrefix("aptos") ? 1.2207 * size * k : 0, categoryLine: (Self._tableEastAsianLine(c, theme: theme) ?? 0) * size * k, text: text)
+            var maxLines = Int.max
+            if c.onSlide, c.plotLayout == nil, base.count > 0, Self._tableEastAsianLine(c, theme: theme) != nil {
+                let pitch = max((Self._tableEastAsianLine(c, theme: theme) ?? 0) * size * k, text("Ag", size, .infinity).height)
+                let room = (foot - head) - 0.385 * frame.height - (base.reduce(0, +) - base[0]) - 3.4 * k
+                maxLines = max(1, Int((room / pitch).rounded(.down)))
+            }
+            let rows = Self._tableRows(c, size: size, k: k, slot: (right - left) / Double(max(1, n)), minLine: SlideFonts.windowsName(c.font ?? theme.bodyFont).hasPrefix("aptos") ? 1.2207 * size * k : 0, categoryLine: (Self._tableEastAsianLine(c, theme: theme) ?? 0) * size * k, maxLines: maxLines, text: text)
             let top = foot - rows.reduce(0, +)
             // (Its plot's top 11.1pt under the frame's in both, where ours
             // stood half a label line under the area's, 4.3 lower: so
             // measured only with a table.)
             // (On a sheet too, 11.1 pt: chart-ChartDataTable's in Excel's
             // print, where 11.1 px stood 2.6 pt high.)
-            let head = c.title?.isEmpty == false ? plot.top : frame.top + (manual != nil ? 6.7 : 11.1) * (c.onSheet ? 1 : k)
             plot = Rect.fromLTRB(left, head, right, top)
             table = (top, rows, plot.left - column, size)
         }
