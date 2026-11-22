@@ -11,8 +11,34 @@ concurrency:
   group: render-gate-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 jobs:
-  render-gate:
+  # (2026-11-22, amd-8) Three jobs so that a PR with no render-relevant change never waits for a self-hosted runner:
+  #  classify    (ubuntu-latest)  decides from the PR's file list, with test/tools/render-paths.txt and the gate-tooling pattern of render-gate.sh
+  #  render-gate-run (self-hosted) the heavy gate; skipped when classify says "no render-relevant change"
+  #  render-gate (ubuntu-latest)  the REQUIRED check (the ruleset names "render-gate"): green when the run job passed or was skipped
+  classify:
     if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      heavy: ${{ steps.c.outputs.heavy }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: test/tools/render-paths.txt
+          sparse-checkout-cone-mode: false
+      - id: c
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh api --paginate "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" -q '.[]|.filename, (.previous_filename // empty)' | sort -u > files.txt
+          n=$(wc -l < files.txt); echo "changed files: $n"; head -5 files.txt
+          PAT=$(grep -vE '^#|^$' test/tools/render-paths.txt | paste -sd'|')
+          TOOL='^\.github/workflows/render-gate|^test/tools/(render-gate|docx-pair|docx-combine|docx-line-match|docx-line-sweep|gen-render-paths|slides-gate|pptx-combine)|^test/docx-line-match\.py|^test/pptx-line-match\.py|^test/tools/render-paths\.txt'
+          if [ "$n" -eq 0 ] || grep -qE "$PAT|$TOOL" files.txt; then echo heavy=1 >> "$GITHUB_OUTPUT"; echo "render-relevant: the gate runs"; else echo heavy=0 >> "$GITHUB_OUTPUT"; echo "no render-relevant change: no runner needed"; fi
+  render-gate-run:
+    needs: classify
+    if: needs.classify.outputs.heavy == '1'
     runs-on: [self-hosted, linux, starling-render]
     timeout-minutes: 90
     steps:
@@ -44,3 +70,13 @@ jobs:
           export JOBS=${GATE_JOBS:-$(cat "$HOME/.gate-jobs" 2>/dev/null || nproc)}; [ -n "$BUILD_JOBS" ] || { BUILD_JOBS=$(( JOBS / 2 )); [ "$BUILD_JOBS" -lt 30 ] && BUILD_JOBS=30; }; export BUILD_JOBS
           [ "$JOBS" -gt 170 ] && JOBS=170
           test/tools/render-gate.sh "$BASE_SHA" 2>&1 | tail -40 | cut -c1-200
+  render-gate:
+    needs: [classify, render-gate-run]
+    if: always() && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: |
+          echo "classify=${{ needs.classify.result }} run=${{ needs.render-gate-run.result }}"
+          [ "${{ needs.classify.result }}" = success ] || exit 1
+          case "${{ needs.render-gate-run.result }}" in success|skipped) ;; *) exit 1;; esac
