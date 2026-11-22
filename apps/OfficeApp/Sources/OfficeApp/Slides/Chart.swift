@@ -4696,7 +4696,11 @@ enum ChartPainter {
             // (A bar chart's category names in a Word document wrap at a fifth of the
             // chart: lo tdf128996's "A very long category name 4" is two lines in Word's
             // print, "A very long category" over "name 4", ours one line a third wide.)
-            let barNameWidth = (!c.onSlide && !c.onSheet ? 0.2 : 0.3) * area.width
+            // (On a slide the names keep to the room left of a placed plot, up to the frame's edge: ja 81d28d42 p29's chart 6 wraps
+            // them at 195 pt in a 200.5 pt room; with the plot left to the layout they run up to half the area, ja 805ac359 p10's
+            // 180 pt names on one line in a 402 pt frame, where we wrapped them at 0.3.)
+            let barNameWidth = c.onSlide ? (c.plotLayoutInner && placed != nil ? max(0.3 * area.width, placed!.left - frame.left) : 0.5 * area.width)
+                : (!c.onSheet ? 0.2 : 0.3) * area.width
             // (Under a multi-level axis the names are not wrapped: lo tdf126244's
             // "Categoria 1 Categoria 1 Categoria 4" is one line in Word's print.)
             catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : $0, catSize, horizontal ? (c.categoryLevels.isEmpty && !(c.valueReversed && c.onSlide) ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : max(slot * Double(max(1, c.categoryLabelSkip)) - 2 * k, 8 * k)) }
