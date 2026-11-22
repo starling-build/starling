@@ -7233,7 +7233,8 @@ enum ChartPainter {
         }
         // (A slide's ring with labels on it, the plot left to PowerPoint, is centred in that same box and has 7/8 of the pie's radius less 1.42 pt:
         // lab dnlab, PowerPoint for Windows, the 24 frames of lab pie2, ring R 68.20 to 156.00 against pie 79.56 to 179.88, R = 0.8751 r - 1.418 to 0.03 pt on
-        // every page, and 0.5 R for the hole. Narrow frames: 98.38 and 71.65 from 114.03 and 83.50.)
+        // every page, and 0.5 R for the hole. Narrow frames: 98.38 and 71.65 from 114.03 and 83.50. A MEASURED CURVE, no property found for 7/8 or 1.418
+        // (= 0.875 x 1.62): do not read them as a rule about labels.)
         if c.onSlide, c.type == .doughnut, slideRingLabelled, !c.onSheet, !c.chartex, c.plotLayout == nil, c.pieTilt == nil, let fr = frame,
            !c.legendOverlay, !c.legend || ["b", "r"].contains(c.legendPosition) {
             let titled = !(c.title ?? "").isEmpty && c.titleAt == nil
