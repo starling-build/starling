@@ -735,6 +735,34 @@ final class SlidePainter: CustomPainter {
         if shape.invisible { return }
         let f = shape.frame
         let r = Rect.fromLTWH(f.left * px, f.top * px, f.width * px, f.height * px)
+        if let rf = shape.reflection, !rf.onText, shape.rotation == 0 {
+            // The shape mirrored about its bottom edge, faded: drawn in a layer, then the fade laid over it (dstIn).
+            let h = r.height, top = r.bottom + rf.dist * px
+            let area = Rect.fromLTRB(r.left - 40 * px, top - 2, r.right + 40 * px, top + h * abs(rf.scaleY) + 40 * px)
+            let layer = Paint()
+            if rf.blur > 0 { layer.imageFilter = ImageFilterFactory.blur(sigmaX: rf.blur * px / 2, sigmaY: rf.blur * px / 2) }
+            canvas.saveLayer(area, layer)
+            canvas.save()
+            canvas.clipRect(area)
+            canvas.translate(0, 2 * r.bottom + rf.dist * px)
+            canvas.scale(1, -1)
+            let (sh, ref) = (shape.shadow, shape.reflection)
+            shape.shadow = nil; shape.reflection = nil
+            paintShape(shape, canvas, pxPerPt: px, cache: cache, theme: theme, text: text, paragraphs: paragraphs,
+                       slide: slide, backdrop: backdrop, placeholders: placeholders)
+            shape.shadow = sh; shape.reflection = ref
+            canvas.restore()
+            let mask = Paint()
+            mask.blendMode = .dstIn
+            canvas.saveLayer(area, mask)
+            let fade = Paint()
+            let a0 = Color(0xFF000000).withOpacity(rf.startAlpha), a1 = Color(0xFF000000).withOpacity(rf.endAlpha)
+            let y0 = top + rf.startPos * h, y1 = top + rf.endPos * h
+            fade.shader = Gradient(linear: Offset(0, y0), to: Offset(0, max(y1, y0 + 0.01)), colors: [a0, a1], colorStops: [0, 1])
+            canvas.drawRect(area, fade)
+            canvas.restore()
+            canvas.restore()
+        }
         canvas.save()
         if shape.rotation != 0 {
             let c = r.center
@@ -1440,6 +1468,40 @@ final class SlidePainter: CustomPainter {
                         canvas.restore()
                     }
                 }
+                canvas.restore()
+            }
+            if let rf = shape.reflection, rf.onText, shape.textSpin == 0 {
+                // The text mirrored about the foot of its block, faded (a:reflection on the runs).
+                RuleTrace.hit("slide-text-reflection-is-the-letters-flipped")
+                // (About the last line's baseline, where the glyphs end: a descent below it, as the line box has, left a gap PowerPoint does not.)
+                var first = Double.infinity, foot = 0.0
+                for pi in 0 ..< layout.count {
+                    let g = layout.geometry(pi)
+                    for m in g.painter.computeLineMetrics() where m.width > 0 {
+                        first = min(first, g.top + m.baseline - m.ascent); foot = max(foot, g.top + m.baseline)
+                    }
+                }
+                if first == .infinity { first = 0; foot = layout.totalHeight }
+                let h = foot - first, top = foot + rf.dist * px
+                let area = Rect.fromLTRB(-ox - 2000, top - 2, tr.width + 2000, top + h * abs(rf.scaleY) + 40 * px)
+                let layer = Paint()
+                if rf.blur > 0 { layer.imageFilter = ImageFilterFactory.blur(sigmaX: rf.blur * px / 2, sigmaY: rf.blur * px / 2) }
+                canvas.saveLayer(area, layer)
+                canvas.save()
+                canvas.clipRect(area)
+                canvas.translate(0, 2 * foot + rf.dist * px)
+                canvas.scale(1, -1)
+                layout.paint(canvas, visible: visible, document: doc, selection: nil, caret: nil)
+                canvas.restore()
+                let mask = Paint()
+                mask.blendMode = .dstIn
+                canvas.saveLayer(area, mask)
+                let fade = Paint()
+                let a0 = Color(0xFF000000).withOpacity(rf.startAlpha), a1 = Color(0xFF000000).withOpacity(rf.endAlpha)
+                let y0 = top + rf.startPos * h, y1 = top + rf.endPos * h
+                fade.shader = Gradient(linear: Offset(0, y0), to: Offset(0, max(y1, y0 + 0.01)), colors: [a0, a1], colorStops: [0, 1])
+                canvas.drawRect(area, fade)
+                canvas.restore()
                 canvas.restore()
             }
             if let paragraphs, !paragraphs.isEmpty {

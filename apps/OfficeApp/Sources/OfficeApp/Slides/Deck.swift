@@ -477,6 +477,17 @@ enum TextAnchor: String {
 }
 
 /// One object on a slide.
+/// `a:reflection`: the shape mirrored about its bottom edge (`dist` pt below it), faded from `startAlpha` at the shape
+/// to `endAlpha` at `endPos` of its height, and blurred by `blur` pt.
+struct Reflection: Equatable {
+    var blur = 0.0, dist = 0.0
+    var startAlpha = 1.0, endAlpha = 0.0, startPos = 0.0, endPos = 1.0
+    /// The scale (sy / 100000): -1 for the usual flip.
+    var scaleY = -1.0
+    /// The reflection is of the text (set on its runs), not of the shape.
+    var onText = false
+}
+
 final class SlideShape {
     let id: Int
     var name: String
@@ -548,6 +559,8 @@ final class SlideShape {
     /// `a:effectLst/a:outerShdw` (or the theme's, through `effectRef`):
     /// a blurred copy of the outline cast under the shape.
     var shadow: CharShadow? = nil
+    /// `a:effectLst/a:reflection`: a faded, mirrored copy below the shape.
+    var reflection: Reflection? = nil
     /// `a:effectLst/a:innerShdw`: a shadow cast inward, round the inside
     /// of the outline.
     var innerShadow: CharShadow? = nil

@@ -677,6 +677,23 @@ private struct LevelStyle {
         return s
     }
 
+    /// An effect list's `a:reflection`.
+    static func reflection(_ effects: XNode?) -> Reflection? {
+        guard let r = effects?.first("a:reflection") else { return nil }
+        func v(_ k: String, _ d: Double) -> Double { r[k].flatMap(Double.init) ?? d }
+        var out = Reflection()
+        out.blur = v("blurRad", 0) / Pptx.emu
+        out.dist = v("dist", 0) / Pptx.emu
+        out.startAlpha = v("stA", 100000) / 100000
+        out.endAlpha = v("endA", 0) / 100000
+        out.startPos = v("stPos", 0) / 100000
+        out.endPos = v("endPos", 100000) / 100000
+        out.scaleY = v("sy", 100000) / 100000
+        // Only the flip straight down (dir 90°, sy negative) is drawn.
+        guard v("dir", 5400000) == 5400000, out.scaleY < 0 else { return nil }
+        return out
+    }
+
     /// An effect list's outer shadow: `dist` along `dir` (60000ths of a
     /// degree, clockwise from the right), blurred by `blurRad`. One cast
     /// on the ground — scaled or skewed — is nil: drawn as a copy of the
@@ -1977,6 +1994,11 @@ private struct SlideContext {
             }
             if let soft = effects.first("a:softEdge")?["rad"].flatMap(Double.init), soft > 0 { st.softEdge = soft / Pptx.emu }
         }
+        st.reflection = LevelStyle.reflection(spPr?.first("a:effectLst"))
+        if st.reflection == nil, var r = sp.first("p:txBody")?.descendants("a:rPr").lazy.compactMap({ LevelStyle.reflection($0.first("a:effectLst")) }).first {
+            r.onText = true
+            st.reflection = r
+        }
         st.fillStyle = fillStyle
         if var fs = st.fillStyle, fs.path == .circle, let ex = fs.fillToExact, spPr?.first("a:sp3d")?.first("a:bevelT") != nil {
             fs.fillTo = ex; fs.exactFocus = true; st.fillStyle = fs
@@ -2435,6 +2457,7 @@ private struct SlideContext {
             }
         }
         s.shadow = _shapeShadow(el.first("p:spPr"), el.first("p:style"))
+        s.reflection = LevelStyle.reflection(el.first("p:spPr")?.first("a:effectLst"))
         // (Its edge faded as a shape's is: croppedTo0's rounded picture,
         // its 10 pt `softEdge` drawn sharp before. Not one in 3-D, a
         // bevel on it: tdf170095's prints whole, unfaded.)
