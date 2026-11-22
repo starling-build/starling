@@ -1703,6 +1703,7 @@ private struct SlideContext {
                         guard let b = el.first(branch) else { continue }
                         var inner: [ShapeState] = []
                         shapes(in: b, transform: transform, into: &inner, id: id, group: nil, groupFill: groupFill)
+                        obj.fromAlternate = true
                         obj.rendering = inner.flatMap { m -> [ShapeState] in
                             if case .opaque(let x) = m.kind { return x.rendering }
                             return [m]
