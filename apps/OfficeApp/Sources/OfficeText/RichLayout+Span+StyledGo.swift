@@ -211,16 +211,7 @@ extension _StyledFrame {
             // danda alone below. The engine hangs a trailing space, so it is set as a no-break space with a break after it.)
             spaceBeforeDanda = theme.wordRules && RichTextTheme.wordWindowsPages && rawText.last == " " && (next == "\u{0964}" || next == "\u{0965}")
                 && p.text.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value <= 0x97F })
-            if spaceBeforeDanda {
-                let whole: String = hung ?? stackHung ?? moved ?? String(rawText)
-                text0 = Substring(String(whole.dropLast()) + "\u{00A0}")
-            } else if let h = hung ?? stackHung {
-                text0 = Substring(h)
-            } else if let m = moved {
-                text0 = Substring(m)
-            } else {
-                text0 = rawText
-            }
+            text0 = (spaceBeforeDanda ? Substring(String((hung ?? stackHung ?? moved ?? String(rawText)).dropLast()) + "\u{00A0}") : (hung ?? stackHung).map { Substring($0) } ?? moved.map { Substring($0) } ?? rawText)
             // (A space + U+00A0 gap after an Indic letter is not a place to part the line: Word moves the word before it down with
             // the gap and the word after, one unit. Lab nbsp4 (dx2 6dcc4527 p2): "ਵਿਚ" + SP + NBSP + "ਭਾਰਤ" returns to the line only when
             // the edge holds the whole unit (+31 pt), never when just "ਵਿਚ" + SP would fit; NBSP alone parts at +28, SP+NBSP+NBSP at
