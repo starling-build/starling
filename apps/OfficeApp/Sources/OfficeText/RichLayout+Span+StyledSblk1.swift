@@ -30,6 +30,17 @@ extension _StyledFrame {
         flush(i)
         spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
         ctx.inserts.append(offset)
+    } else if !theme.wordRules, theme.officeLatinBreaks, ctx.before == "+", let v = ch.unicodeScalars.first?.value, v >= 0xAC00, v <= 0xD7A3 {
+        // (PowerPoint parts a line after a "+" before a Hangul syllable, where the engine kept the sign with what it prefixes: ko-e114b968 p20's
+        // header "매우그렇다+그렇다(%)" in a narrow cell is "매우" | "그렇다+" | "그렇다(%)" in the print, ours "+그렇다" down.)
+        flush(i)
+        spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
+        ctx.inserts.append(offset)
+    } else if !theme.wordRules, theme.officeLatinBreaks, ch == "(", let b = ctx.before, let v = b.unicodeScalars.first?.value, v >= 0xAC00, v <= 0xD7A3 {
+        // (And keeps an ASCII "(" with the Hangul syllable before it: the same header's "그렇다(%)" stays whole.)
+        flush(i)
+        spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+        ctx.inserts.append(offset)
     } else if !theme.wordRules, theme.officeLatinBreaks, let b = ctx.before, ch.unicodeScalars.count == 1, "ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶー".contains(ch), p.style.eastAsian["a:looseKinsoku"] != "1",
               b.unicodeScalars.count == 1, let bv = b.unicodeScalars.first?.value, bv >= 0x3041 && bv <= 0x9FFF {
         // (PowerPoint keeps small kana and the prolonged sound mark with the kana or ideograph before them under strict kinsoku, the default (a deck with strictFirstAndLastChars 0 opens lines with them: ff27a386 p8 "ウ" | "ェールズ"): e89e63a8 p6's
