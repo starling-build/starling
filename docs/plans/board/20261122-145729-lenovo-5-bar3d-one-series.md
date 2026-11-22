@@ -1,0 +1,3 @@
+# HANDOFF (lenovo-5, 2026-11-22): one-series 3-D bar charts fitted
+Lab bar3d-series2 pages 1, 7, 13, 19 (one series): the bar's axis was cut to a wrong scale (a narrow axis chose 10 as the top, the bar filled 60%) and its depth came from the slot height (16% too deep). Now: scale intervals use the final plot width; a one-series bar's depth is its fitted front height times the depth share. Label positions across all 24 pages: x within 1.4 pt (was 10-91 pt out for one series). ChartTests 38/38.
+Left: nothing known for this lab. Multi-series depth is 2.9% over the fitted front for two series (labels still match within 0.2 pt).
