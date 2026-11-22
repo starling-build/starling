@@ -4804,7 +4804,15 @@ enum ChartPainter {
         // (A slide's column chart with its value axis hidden still rounds the axis up to a step, and takes one step per 34 pt of
         // plot: ko-e114b968 p23's 25.1 and 64.65 in a 69 pt plot reach 40 and 100, two steps each, in PowerPoint's print.)
         let hiddenSlideSteps: Int? = {
-            guard c.onSlide, c.valueAxisDeleted, !c.valueGrid, !c.percent, c.plotLayout == nil, c.type == .column, c.barView == nil, !horizontal else { return nil }
+            guard c.onSlide, c.valueAxisDeleted, !c.valueGrid, !c.percent, c.type == .column, c.barView == nil, !horizontal else { return nil }
+            // (A plot the file lays out itself, inner: the same rounding, a step to each 26.6 pt of the plot's own height, not of the
+            // frame's. ko-e114b968's 83.4 pt plots take three steps (data 54.9 reaches 60) and its 75.7 pt plot two (56.25 reaches
+            // 100, 25.2 pt a step being too few, 27.8 enough): p57's two charts, p51's.)
+            if let l = c.plotLayout {
+                guard c.plotLayoutInner else { return nil }
+                RuleTrace.hit("slide-column-chart-without-value-axis-rounds-to-a-step-in-its-laid-plot")
+                return max(2, min(10, Int(l.height * frame.height / k / 26.6)))
+            }
             RuleTrace.hit("slide-column-chart-without-value-axis-rounds-to-a-step")
             return max(2, min(10, Int((area0.height / k - 60) / 34)))
         }()
