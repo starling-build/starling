@@ -295,6 +295,10 @@ enum SlideFonts {
             var face = RichResolvedFace(family: OfficeFonts.calibri)
             face.otherAdvances = SlideFontWidths.calibriHebrew
             face.boldOtherAdvances = SlideFontWidths.calibriHebrew
+            // (Its Arabic is Arial's: PowerPoint's print of rtl/6f97f2ee sets the title, cs "PT Bold Heading" which the machine does not
+            // have, in ArialMT at Arial's own Arabic advances.)
+            face.joinedAdvances = WindowsArabicAdvances.arial
+            face.boldJoinedAdvances = WindowsArabicAdvances.arialBold
             return face
         }
     }
