@@ -416,6 +416,9 @@ struct Chart: Equatable {
     var valueMin: Double? = nil
     var valueMax: Double? = nil
     var valueStep: Double? = nil
+    /// The value axis crosses at the category marks (`c:crossBetween` midCat): a slide line's points stand on them, the first on the axis.
+    var pointsOnTicks = false
+    var onEdges: Bool { categories.count > 1 && (type == .area || (type == .line && onSlide && pointsOnTicks)) }
     /// A scatter's X axis: its log base (`c:logBase`), fixed bounds, and
     /// number format where it is not General.
     var xLogBase: Double? = nil
@@ -2483,6 +2486,7 @@ enum ChartXML {
                 if !code.isEmpty, code.lowercased() != "general" { c.xFormat = code }
             }
         }
+        c.pointsOnTicks = c.type == .line && valueAxis?.first("c:crossBetween")?["val"] == "midCat"
         c.valueStep = valueAxis?.first("c:majorUnit")?["val"].flatMap(Double.init).flatMap { $0 > 0 ? $0 : nil }
         // A logarithmic value axis (`c:logBase`): the points stand at their exponents, on an axis that runs a whole power of the base
         // under the data to one over it (b7d6faa9 p16's error rates 1.2 to 26.2 on 1 to 100); its labels are the powers.
@@ -5208,7 +5212,7 @@ enum ChartPainter {
                 }
                 return out
             }
-            catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : holdWords($0), catSize, horizontal ? (c.categoryLevels.isEmpty && !(c.valueReversed && c.onSlide) ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : max(slot * Double(max(1, c.categoryLabelSkip)) - (c.onSlide ? 4.5 : 2) * k, 8 * k)) }
+            catLabels = c.categories.map { categoryText(c.categoryAxisDeleted ? "" : holdWords($0), catSize, horizontal ? (c.categoryLevels.isEmpty && !(c.valueReversed && c.onSlide) ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : c.onEdges && c.type == .line ? slot * Double(c.categories.count) / Double(c.categories.count - 1) * Double(max(1, c.categoryLabelSkip)) : max(slot * Double(max(1, c.categoryLabelSkip)) - (c.onSlide ? 4.5 : 2) * k, 8 * k)) }
             if !horizontal, c.type != .area, !c.categoryAxisDeleted, let turn = c.categoryLabelTurn {
                 // As the file says: turned (up to a quarter, either way) or
                 // level.
@@ -5235,7 +5239,10 @@ enum ChartPainter {
                 // (Where the file shows only every 60th name (`tickLblSkip`), each shown one has that many slots: ja-7c77f08b's years,
                 // level in PowerPoint's print, ours turned upright.)
                 let skip = max(1, c.categoryLabelSkip)
-                let room = max(slot * Double(skip) - 2 * k, 8 * k)
+                // (A slide line on the marks: a label has the distance between two marks, nothing taken off, 17.8 pt of Meiryo "02" in
+                // an 18.4 pt pitch stands level in 99f6ddd1 p23's print.)
+                let room = c.onEdges && c.type == .line ? slot * Double(c.categories.count) / Double(c.categories.count - 1) * Double(skip)
+                    : max(slot * Double(skip) - 2 * k, 8 * k)
                 let words = c.categories.enumerated().filter { $0.offset % skip == 0 }.flatMap { $0.element.split(separator: " ").map(String.init) }
                 let widest = words.map { w -> Double in
                     let t = categoryText(w, catSize, .infinity)
@@ -6169,7 +6176,7 @@ enum ChartPainter {
             // (Word's walled 3-D columns: the names 6 pt higher, lo-1bd2003e's at 272 and 284.)
             let foot = (atZero ? zero : plot.bottom) - (inWord && c.barView?.walled == true && c.plotLayoutInner ? 6 * k : 0)
             for (i, tp) in catLabels.enumerated() where table == nil && i % every == 0 {
-                let cx = c.type == .area && n > 1 ? plot.left + Double(i) * plot.width / Double(n - 1) : plot.left + (Double(i) + 0.5) * slot
+                let cx = c.onEdges ? plot.left + Double(i) * plot.width / Double(n - 1) : plot.left + (Double(i) + 0.5) * slot
                 if aslant {
                     // Its end's middle at the tick, the rest down to the left
                     // — or, turned clockwise, its start's middle there and
@@ -6277,7 +6284,7 @@ enum ChartPainter {
                 func at(_ i: Int) -> Offset? {
                     guard let v = l.values[safe: i] ?? nil else { return nil }
                     // (An area's points sit on the edges, so lines over it do.)
-                    let x = c.type == .area && n > 1 ? plot.left + Double(i) * plot.width / Double(n - 1) : plot.left + (Double(i) + 0.5) * slot
+                    let x = c.onEdges ? plot.left + Double(i) * plot.width / Double(n - 1) : plot.left + (Double(i) + 0.5) * slot
                     return Offset(x, vpos2(v))
                 }
                 if !l.lineHidden {
@@ -6685,7 +6692,7 @@ enum ChartPainter {
             if !horizontal { paintOverlayLines() }
         case .line, .area:
             // An area's points sit on the category edges, a line's mid-slot.
-            let onEdges = c.type == .area && n > 1
+            let onEdges = c.onEdges
             func xAt(_ i: Int) -> Double {
                 let t: Double = onEdges ? Double(i) / Double(n - 1) : (Double(i) + 0.5) / Double(n)
                 return plot.left + t * plot.width
@@ -6775,7 +6782,7 @@ enum ChartPainter {
                     let p = Paint()
                     p.style = .stroke
                     p.isAntiAlias = true
-                    p.strokeWidth = max(1, (c.onSlide || c.onSheet ? 2.25 : c.series[j].lineW ?? 2.25) * k)
+                    p.strokeWidth = max(1, (c.onSheet ? 2.25 : c.series[j].lineW ?? 2.25) * k)
                     p.strokeCap = .round
                     p.strokeJoin = .round
                     p.color = c.lineColor(series: j, accents: theme.accents)
