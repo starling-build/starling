@@ -752,6 +752,8 @@ struct DeckTheme: Equatable {
     var name = "Starling"
     var headingFont = "Calibri Light"
     var bodyFont = "Calibri"
+    /// The face of Japanese letters where the theme's East Asian slot is empty (see `_deckTheme`).
+    var japaneseFace: String?
     var background = Color(0xFFFFFFFF)
     /// A gradient behind every slide, top to bottom, when the theme has one.
     var backgroundStops: [Color] = []
