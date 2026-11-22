@@ -16,8 +16,20 @@ if [ -z "${RENDER_GATE:-}" ] && [ -z "${STARLING_NICED:-}" ]; then export STARLI
 set -e
 cd "$(dirname "$0")/../.."
 SCR="${1:-$PWD/.build-shared}"
+# Engine stamp (amd-perf, 2026-11-22): the engine library is rebuilt in place and its path is baked into the link, but
+# neither -incremental nor SwiftPM notices a changed engine. A scratch built before an engine update (or against another
+# engine path) kept stale objects and linked an OfficeApp that segfaulted on every deck, while a plain build was fine.
+# When the engine library's path, size or mtime differs from the one the scratch was built with, drop the object state.
+ENG="${STARLING_ENGINE_OUT:-}/libflutter_engine.so"
+STAMP="$SCR/.engine-stamp"
+NOW="$(readlink -f "$ENG" 2>/dev/null) $(stat -c '%s %Y' "$ENG" 2>/dev/null)"
+if [ -f "$STAMP" ] && [ "$(cat "$STAMP")" != "$NOW" ]; then
+  echo "build-office-fast: engine changed since this scratch was built; wiping object state (full rebuild)" >&2
+  rm -rf "$SCR"/x86_64-unknown-linux-gnu/release/*.build "$SCR"/release.yaml "$SCR"/build.db
+fi
 swift build ${BUILD_JOBS:+-j $BUILD_JOBS} -c release --package-path apps/OfficeApp --scratch-path "${1:-$PWD/.build-shared}" \
   --product OfficeApp -Xswiftc -no-whole-module-optimization ${BUILD_INCREMENTAL:+-Xswiftc -incremental}
+echo "$NOW" > "$STAMP"
 # Smoke test (amd-perf, 2026-11-22): an incremental build once produced an OfficeApp that segfaulted on every deck
 # while a plain build was fine. Run one small deck through the fresh binary; a crash fails the build loudly and
 # removes the incremental state so the next build is clean. Skipped when no corpus deck is present.
