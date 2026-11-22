@@ -664,7 +664,7 @@ extension _StyledFrame {
         if let words = s.fontWeight == .bold ? joinedFace.boldJoinedWords : joinedFace.joinedWords, let e = words[String(word)] {
             let shaped = _wordWidth(s, String(word))
             RuleTrace.hit("word-rtl-sakkal-shaped-word-advance")
-            return shaped > 0.01 ? s.copyWith(scaleX: e * px / shaped) : s
+            return shaped > 0.01 ? s.copyWith(scaleX: e * px / shaped, height: joinedFace.joinedHeight ?? s.height) : s
         }
         var ems = 0.0, shaped = 0.0
         // (The mark is a grapheme extender: it is one Character with the
@@ -683,7 +683,7 @@ extension _StyledFrame {
             ems += e
             shaped += _wordWidth(s, String(String.UnicodeScalarView(part)))
         }
-        return shaped > 0.01 ? s.copyWith(scaleX: ems * px / shaped) : s
+        return shaped > 0.01 ? s.copyWith(scaleX: ems * px / shaped, height: joinedFace.joinedHeight ?? s.height) : s
     }
     func flush(_ end: Substring.Index) {
         guard let kind = current, start < end else { return }
