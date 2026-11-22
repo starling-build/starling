@@ -1640,11 +1640,12 @@ extension RichLayout {
                 // (The glyph stays in the page's text, unseen, as in PowerPoint's print, where the bullet is a letter of the line.)
                 // (The character PowerPoint writes there, so copied text matches its print.)
                 let written = ink.count > 5 ? Unicode.Scalar(UInt32(ink[5])).map { String(Character($0)) } ?? label : label
-                let unseen = TextPainter(text: TextSpan(text: written, style: markerStyle.copyWith(color: Color(0x01000000), fontWeight: .w400)),
+                let unseen = TextPainter(text: TextSpan(text: written, style: markerStyle.copyWith(color: Color(0x01000000), fontSize: size / fontScale, fontWeight: .w400)),
                                          textAlign: .right, textDirection: .ltr, strutStyle: g.painter.strutStyle)
                 unseen.textAlign = marker.textAlign
                 unseen.layout(minWidth: 0, maxWidth: max(1, marker.width))
-                unseen.paint(canvas, at)
+                // (Its baseline on the marker's, so the line reads as one line, as in PowerPoint's print.)
+                unseen.paint(canvas, Offset(at.dx, at.dy + base - at.dy - unseen.computeDistanceToActualBaseline(.alphabetic)))
                 let paint = Paint()
                 paint.color = markerStyle.color ?? Color(0xFF000000)
                 switch Int(ink[0]) {
