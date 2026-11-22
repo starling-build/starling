@@ -163,6 +163,8 @@ struct ChartSeries: Equatable {
     var labelPointPos: [Int: String] = [:]
     /// Points whose own label the file deletes (`c:dLbl` with `c:delete`).
     var labelDeleted: Set<Int> = []
+    /// A line series' points whose own `dLbl` shows a value while the series' labels are off.
+    var labelPointsOn: Set<Int> = []
     /// A moved bar label's leader line (`c15:showLeaderLines` 1 in the series' `c:dLbls`), its colour and width.
     var labelLeader = false
     var labelLeaderColor: Color? = nil
@@ -1801,6 +1803,7 @@ enum ChartXML {
                 }
                 if let i = one.first("c:idx")?["val"].flatMap(Int.init), let p = one.first("c:dLblPos")?["val"] { s.labelPointPos[i] = p }
                 if let i = one.first("c:idx")?["val"].flatMap(Int.init), ["1", "true"].contains(one.first("c:delete")?["val"] ?? "") { s.labelDeleted.insert(i) }
+                if type == .line, let i = one.first("c:idx")?["val"].flatMap(Int.init), one.first("c:showVal")?["val"] == "1", one.first("c:delete") == nil { s.labelPointsOn.insert(i) }
                 guard let i = one.first("c:idx")?["val"].flatMap(Int.init), let m = one.first("c:layout")?.first("c:manualLayout"),
                       let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) else { continue }
                 s.labelNudges[i] = Offset(x, y)
@@ -2127,7 +2130,8 @@ enum ChartXML {
             return d.first("c:showVal") == nil && d.first("c:showPercent") == nil ? shows(el.first("c:dLbls")) : shows(d)
         }
         // (Only where some series shows labels does a series that does not go without: else the flag is moot.)
-        if !c.dataLabels || c.series.allSatisfy({ !$0.labelsShown }) { for i in c.series.indices { c.series[i].labelsShown = true } }
+        if c.series.contains(where: { !$0.labelPointsOn.isEmpty }) { c.dataLabels = true }
+        else if !c.dataLabels || c.series.allSatisfy({ !$0.labelsShown }) { for i in c.series.indices { c.series[i].labelsShown = true } }
         if type == .column || type == .bar { c.barLabelPos = (el.first("c:ser")?.first("c:dLbls")?.first("c:dLblPos") ?? el.first("c:dLbls")?.first("c:dLblPos"))?["val"] }
         if type == .doughnut, let hole = el.first("c:holeSize")?["val"].flatMap(Int.init) { c.holeSize = hole }
         if type == .pie || type == .doughnut, let ser = el.first("c:ser"), let d = ser.first("c:dLbls") ?? el.first("c:dLbls") {
@@ -6866,6 +6870,7 @@ enum ChartPainter {
                     }
                     if c.type == .line, c.onSlide, !c.chartex, let n = c.series[j].labelNudges[i] { x += n.dx * frame.width; y += n.dy * frame.height }
                     if c.type == .line, c.onSlide, c.series[j].labelDeleted.contains(i) { continue }
+                    if c.type == .line, !c.series[j].labelsShown, !c.series[j].labelPointsOn.contains(i) { continue }
                     labels.append((dataLabel(c, raw, series: j), Offset(x, y), j))
                 }
                 if c.stacked { for i in 0 ..< n { base[i] = row[i] ?? base[i] } }
@@ -7069,7 +7074,7 @@ enum ChartPainter {
             for (li, (s, at, j)) in labels.enumerated() {
                 // In the series' own label look where it has one.
                 let ser = c.series[j]
-                if !ser.labelsShown { continue }
+                if !ser.labelsShown && ser.labelPointsOn.isEmpty { continue }
                 // (Word wraps a written-out label at a fifth of the chart's width less the box's 7.7 pt, after a
                 // space: sa1 06706f28's "100.00%; 10,150,000.00" is "100.00%;" over "10,150,000.00".)
                 let wrapAt = wrapLabels.contains(li) && !c.onSlide && !c.onSheet ? max(20 * k, frame.width * 0.2 - 7.7 * k) : Double.infinity
