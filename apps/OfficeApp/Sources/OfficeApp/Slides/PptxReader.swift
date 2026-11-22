@@ -2497,6 +2497,9 @@ private struct SlideContext {
         return s
     }
 
+    /// An XML boolean attribute: "1" or "true" (444a89c2af21's merged cells say hMerge="true", which "1" alone left unmerged, a 354 pt cell laid out 18 pt wide).
+    private func _xmlOn(_ v: String?) -> Bool { v == "1" || v == "true" }
+
     /// `a:tbl` as an editable table: grid widths, merged cells (gridSpan,
     /// rowSpan; the hMerge/vMerge stand-ins dropped), cell text, and the
     /// look approximated from the table's flags in this deck's first accent.
@@ -2556,12 +2559,12 @@ private struct SlideContext {
             let columnCount = cells.count
             for (c, tc) in cells.enumerated() {
                 defer { column += 1 }
-                if tc["hMerge"] == "1" || tc["vMerge"] == "1" { continue }
+                if _xmlOn(tc["hMerge"]) || _xmlOn(tc["vMerge"]) { continue }
                 // A span reaches over the merged cells that follow it and no
                 // further: LIBRE_OFFICE-100610's "Vermelho" says three
                 // columns with none after it, and PowerPoint wraps it in one.
                 var span = 1
-                while span < (tc["gridSpan"].flatMap(Int.init) ?? 1), c + span < cells.count, cells[c + span]["hMerge"] == "1" { span += 1 }
+                while span < (tc["gridSpan"].flatMap(Int.init) ?? 1), c + span < cells.count, _xmlOn(cells[c + span]["hMerge"]) { span += 1 }
                 var cell = CellRef(table: tableId, row: r, column: rtlTable ? max(0, columnCount - column - span) : column,
                                    span: span, rowSpan: tc["rowSpan"].flatMap(Int.init) ?? 1)
                 // The style's regional looks, the later ones over the earlier
@@ -3003,8 +3006,8 @@ private struct SlideContext {
         // with marT 3.6; insets of the continuation cells, face, size and empty paragraph do not move it).
         for (r, tr) in tbl.all("a:tr").enumerated() {
             let cells = tr.all("a:tc")
-            guard cells.contains(where: { $0["vMerge"] == "1" }) else { continue }
-            let starts = cells.filter { $0["vMerge"] != "1" && $0["hMerge"] != "1" }
+            guard cells.contains(where: { _xmlOn($0["vMerge"]) }) else { continue }
+            let starts = cells.filter { !_xmlOn($0["vMerge"]) && !_xmlOn($0["hMerge"]) }
             guard !starts.isEmpty else { continue }
             let marT = starts.map { ($0.first("a:tcPr")?["marT"].flatMap(Double.init) ?? 45720) / Pptx.emu }.max() ?? 0
             if rowHeights[r] < 2 + marT { ts.rowHeights[r] = 2 + marT }
