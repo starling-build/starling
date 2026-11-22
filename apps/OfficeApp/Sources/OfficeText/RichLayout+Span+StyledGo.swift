@@ -1176,7 +1176,10 @@ extension _StyledFrame {
                 // joiner between them makes each space a gap, stretched as
                 // its neighbour is, as PowerPoint's print of Divino_Revelado
                 // p12 sets them — 12.9pt for two where ours had 7.)
-                else if !theme.wordRules, ch == " ", ctx.before == " ", p.style.alignment == .justify {
+                // (Not in the paragraph's closing run of spaces: those hang past the margin as in PowerPoint's print, where
+                // a justified line of text and sixty trailing spaces stays one line; the joiners made the run unbreakable and a
+                // blank line of spaces followed. pt 9061c86e p8.)
+                else if !theme.wordRules, ch == " ", ctx.before == " ", p.style.alignment == .justify, offset < trailingSpaces {
                     flush(i)
                     spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
                     ctx.inserts.append(offset)
