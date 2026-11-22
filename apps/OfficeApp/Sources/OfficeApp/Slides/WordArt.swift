@@ -1113,7 +1113,8 @@ enum WordArt {
             let widest = lines.map { $0.glyphs.reduce(0) { $0 + $1.width + $1.kernAfter } }.max() ?? 0
             let path0 = curve(0).lens[steps]
             guard widest > 0, path0 > 0 else { return }
-            let f = min(1, path0 / widest)
+            // fromWordArt text is grown to the path as well (lab fwa1: a circle prints at 73.8 pt, twice the arch's 36.9).
+            let f = warp.fromWordArt ? path0 / widest : min(1, path0 / widest)
             for (i, l) in lines.enumerated() {
                 let ring = lines.count - 1 - i
                 let size = l.glyphs.map(\.size).max() ?? 0
