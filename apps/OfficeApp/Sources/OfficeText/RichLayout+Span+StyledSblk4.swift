@@ -223,7 +223,7 @@ extension _StyledFrame {
         let s = style(kind)
         spans.append(TextSpan(text: String(ch), style: (extra != 0 ? s.copyWith(letterSpacing: (s.letterSpacing ?? 0) + extra) : s).copyWith(fontFamily: cjk)))
         start = after
-    } else if extra != 0 {
+    } else if extra != 0 || glyphScale != 1 {
         flush(i)
         // (A space the fit cut out of its run is set at the size the run's other spaces take: a Windows Latin face's own, not the Indic stand-in's, 4% wider. The fit loop counts 3.33 pt and the engine set 3.6, so a squeeze of 0.59 pt delivered 0.31 and 1116b68d's last word never fitted.)
         var s: TextStyle
@@ -298,7 +298,7 @@ extension _StyledFrame {
                (u >= 0x0E00 && u < 0x0E80 && ch.unicodeScalars.count > 1) || (u >= 0x80 && !(0x0E00 ..< 0x0E80).contains(u)) {
                 spacing /= Double(_glyphCount(s, ch))
             }
-            spans.append(contentsOf: capped(text[i ..< after], run, s.copyWith(letterSpacing: spacing)))
+            spans.append(contentsOf: capped(text[i ..< after], run, glyphScale != 1 ? s.copyWith(letterSpacing: spacing, scaleX: (s.scaleX ?? 1) * glyphScale) : s.copyWith(letterSpacing: spacing)))
         }
         start = after
     }

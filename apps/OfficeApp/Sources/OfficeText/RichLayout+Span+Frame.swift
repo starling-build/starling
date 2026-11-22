@@ -142,6 +142,7 @@ final class _StyledFrame {
     var blankShown: Double = 0
     var led: Bool = false
     var extra: Double = 0
+    var glyphScale: Double = 1   // (Slides: the stand-in glyph drawn at the measured advance, `RichTextTheme.scalesGlyphsToTables`)
     var nbspHAnsi: Bool = false
     var malgunDigit: Bool = false
     var jisLatin1: Bool = false

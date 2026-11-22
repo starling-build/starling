@@ -379,6 +379,9 @@ public final class RichTextTheme {
     /// by the capitals it shows rather than the letters it holds, as
     /// PowerPoint fits a title in caps. Off for Word.
     public var measuresShownCaps = false
+    /// A character of a face with measured advances is drawn at that advance by a horizontal scale of its own glyph (SkFont scaleX), where
+    /// the stand-in is wider or narrower, not crowded or spaced out by letter spacing. Off for Word.
+    public var scalesGlyphsToTables = false
     /// A run that names a `kerningFrom` is kerned only from that size up
     /// (0: not at all), where the engine kerns every pair; one that
     /// names none is kerned as the engine kerns it. PowerPoint kerns by a
