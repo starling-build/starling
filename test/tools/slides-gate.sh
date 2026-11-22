@@ -52,6 +52,17 @@ if [ "${FULL_SUBSET:-1}" != 0 ] && [ -s "$FULL/gate-subset.txt" ]; then
   done
   [ -z "$MISS" ] && { FX=1; { cat "$BASEALL"; grep -F -f "$FULL/gate-subset.txt" "$FULL/baseline-full-win.tsv" | awk -F'\t' 'BEGIN{OFS="\t"} {sub(/.*\//,"",$1); print}'; } > "$W/base-all.tsv"; BASEALL=$W/base-all.tsv; }
 fi
+# The Chinese set (amd-8, 2026-11-22): pptx-zh (cache) holds decks/<stem>.pptx, powerpoint-win/<stem>-orig.pdf (a deck with no print is left out),
+# baseline-zh-win.tsv (pixel summary rows) and baseline-lines-zh-win.tsv (line scores), both made by a main render. ZH_SET=0 turns it off.
+ZH=${ZH_DIR:-$CC-zh}; ZX=""
+if [ "${ZH_SET:-1}" != 0 ] && [ -s "$ZH/baseline-zh-win.tsv" ] && [ -s "$ZH/baseline-lines-zh-win.tsv" ]; then
+  for f in "$ZH"/decks/*.pptx; do
+    n=${f##*/}; s=${n%.pptx}; [ -f "$ZH/powerpoint-win/$s-orig.pdf" ] || continue
+    ln -sf "$f" "$W/in/$n"; ln -sf "$ZH/powerpoint-win/$s-orig.pdf" "$W/ppt/"
+    grep -q "^$n	" "$ZH/baseline-zh-win.tsv" && grep -q "^$s	" "$ZH/baseline-lines-zh-win.tsv" || MISS="$MISS baseline:zh/$n"
+  done
+  [ -z "$MISS" ] && { ZX=1; { cat "$BASEALL"; cat "$ZH/baseline-zh-win.tsv"; } > "$W/base-all-zh.tsv"; BASEALL=$W/base-all-zh.tsv; }
+fi
 [ -s "$CC/baseline-lines-win.tsv" ] || MISS="$MISS $CC/baseline-lines-win.tsv"
 if [ -s "$PB" ] && ! ls "$PILOT"/baseline-*lines*.tsv >/dev/null 2>&1; then MISS="$MISS $PILOT/baseline-lines-pilot-win.tsv"; fi
 [ -z "$MISS" ] || { [ -n "${BASE_BIN:-}" ] && echo "slides-gate: note, fixed-baseline inputs missing (base mode, not needed):$MISS" || { echo "slides-gate: FAILED, missing:$MISS"; exit 1; }; }
@@ -131,6 +142,7 @@ rc=$?
 LB=$CC/baseline-lines-win.tsv
 PLB=$(ls "$PILOT"/baseline-*lines*.tsv 2>/dev/null | head -1); [ -s "$LB" ] && [ -s "$PLB" ] && { { cat "$LB"; awk -F'\t' 'BEGIN{OFS="\t"} {sub(/.*\//,"",$1); print}' "$PLB"; } > "$W/lines-base.tsv"; LB=$W/lines-base.tsv; }
 if [ -n "$FX" ] && [ -s "$LB" ]; then { cat "$LB"; grep -F -f <(sed 's/\.pptx$//' "$FULL/gate-subset.txt") "$FULL/baseline-lines-full-win.tsv" | awk -F'\t' 'BEGIN{OFS="\t"} {sub(/.*\//,"",$1); print}'; } > "$W/lines-base2.tsv"; LB=$W/lines-base2.tsv; fi
+if [ -n "$ZX" ] && [ -s "$LB" ]; then { cat "$LB"; cat "$ZH/baseline-lines-zh-win.tsv"; } > "$W/lines-base3.tsv"; LB=$W/lines-base3.tsv; fi
 [ -n "$BASEMODE" ] && LB=$BASELBL
 if [ -s "$LB" ]; then
   SCORE_LINES "$W"
