@@ -542,6 +542,7 @@ private struct LevelStyle {
             switch code {
             case 0x75: return [6, 0.0870, -0.0555, 0.8085, 0.7780, 0xF075]
             case 0x84: return [6, 0.2188, 0.0495, 0.7595, 0.6730, 0xF084]
+            case 0x7D: return [6, 0.0852, 0.0, 0.4455, 0.7200, 0xF07D]
             default: return nil
             }
         }
