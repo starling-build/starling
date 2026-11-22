@@ -15,5 +15,18 @@
 if [ -z "${RENDER_GATE:-}" ] && [ -z "${STARLING_NICED:-}" ]; then export STARLING_NICED=1; exec nice -n 10 $(command -v ionice >/dev/null && echo ionice -c3) "$0" "$@"; fi
 set -e
 cd "$(dirname "$0")/../.."
-exec swift build ${BUILD_JOBS:+-j $BUILD_JOBS} -c release --package-path apps/OfficeApp --scratch-path "${1:-$PWD/.build-shared}" \
+SCR="${1:-$PWD/.build-shared}"
+swift build ${BUILD_JOBS:+-j $BUILD_JOBS} -c release --package-path apps/OfficeApp --scratch-path "${1:-$PWD/.build-shared}" \
   --product OfficeApp -Xswiftc -no-whole-module-optimization ${BUILD_INCREMENTAL:+-Xswiftc -incremental}
+# Smoke test (amd-perf, 2026-11-22): an incremental build once produced an OfficeApp that segfaulted on every deck
+# while a plain build was fine. Run one small deck through the fresh binary; a crash fails the build loudly and
+# removes the incremental state so the next build is clean. Skipped when no corpus deck is present.
+APP="$SCR/x86_64-unknown-linux-gnu/release/OfficeApp"
+SMOKE=$(ls test/corpus/pptx-wordart/*.pptx /data/corpus-cache/test/corpus/pptx-wordart/*.pptx 2>/dev/null | head -1)
+if [ -n "$SMOKE" ] && [ -x "$APP" ]; then
+  if ! "$APP" --deck-pdf "$SMOKE" "$(mktemp -u)".pdf >/dev/null 2>&1; then
+    echo "build-office-fast: SMOKE TEST FAILED: the new OfficeApp crashes on $SMOKE. Wiping its incremental state; rebuild (a clean build is slower)." >&2
+    rm -rf "$SCR"/x86_64-unknown-linux-gnu/release/OfficeApp.build "$SCR"/x86_64-unknown-linux-gnu/release/OfficeApp
+    exit 1
+  fi
+fi
