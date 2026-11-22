@@ -337,7 +337,7 @@ enum Extrusion {
 
     /// `paint` for anything with an outline: the scene, the face's colour,
     /// and the line (colour, width in points) round it.
-    static func solid(scene: Scene3D, fill: Color, line: Color?, lineWidth: Double, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, onFront: (() -> Void)? = nil, rim: Bool = false, spin: Double = 0, wallEdge: Color? = nil) -> Bool {
+    static func solid(scene: Scene3D, fill: Color, line: Color?, lineWidth: Double, outline: Path, _ r: Rect, _ canvas: any Canvas, pxPerPt px: Double, onFront: (() -> Void)? = nil, rim: Bool = false, spin: Double = 0, wallEdge: Color? = nil, clipFront: Bool = true) -> Bool {
         let rings = contours(outline)
         guard !rings.isEmpty else { return false }
         let c = r.center
@@ -718,7 +718,8 @@ enum Extrusion {
             canvas.save()
             let clip = Path()
             for ring in front { clip.addPolygon(ring.map(flat), true) }
-            canvas.clipPath(clip)
+            // (Text is not clipped to its own face: its glow and shadow lie outside the letters.)
+            if clipFront { canvas.clipPath(clip) }
             canvas.transform([a, b, 0, 0, cc, d, 0, 0, 0, 0, 1, 0, e, f, 0, 1])
             onFront()
             canvas.restore()

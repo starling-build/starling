@@ -2158,9 +2158,33 @@ extension RichLayout {
             if sh.glow {
                 // (A glow, as the engine draws it in a PDF: ten blurred copies, sigma a fifth of the radius, 85% strength.)
                 paint.color = Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, Double(sh.color.alpha) / 255 * 0.85)
-                paint.maskFilter = MaskFilter(blur: .normal, sh.blur * 0.2 * k)
+                // (A PDF canvas drops both a path's blur and a layer's, so the halo is drawn as nested strokes on
+                // the outlines, outermost first, each thinner and laid so that the opacity at distance d from the edge
+                // is 1.375 alpha * 2Q(d / sigma), Q the normal tail (fitted to PowerPoint's print of an 18 pt glow, alpha 40%: 0.55, 0.31, 0.07 at 0, 2, 4 pt).)
                 let at0 = path.shift(Offset(origin.dx, origin.dy))
-                for _ in 0 ..< 10 { canvas.drawPath(at0, paint) }
+                let sigma = sh.blur * 0.155 * k
+                let alpha = Double(sh.color.alpha) / 255
+                // PowerPoint's glow in a PDF is an RGBA picture with a soft mask (print of ko-ca2dc787 p1: 2.8 px a point,
+                // edge opacity 0.55 for a 40% glow, 0.31 and 0.07 at 2 and 4 pt). The blur is drawn into a picture
+                // here and the picture placed, so the PDF holds an image too, not a blur it would drop.
+                let ink = at0.getBounds().inflate(3 * sigma)
+                let px = 2.8 / k
+                let w = max(1, Int((ink.width * px).rounded(.up))), h = max(1, Int((ink.height * px).rounded(.up)))
+                if w * h < 4_000_000 {
+                    let recorder = NativePictureRecorder()
+                    let layer = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, Double(w), Double(h)))
+                    layer.scale(px, px)
+                    layer.translate(-ink.left, -ink.top)
+                    let glow = Paint(); glow.style = .fill
+                    glow.color = Color(rgbo: sh.color.red, sh.color.green, sh.color.blue, min(1, alpha * 2))
+                    glow.maskFilter = MaskFilter(blur: .normal, sigma)
+                    layer.drawPath(at0, glow)
+                    glow.style = .stroke; glow.strokeWidth = sigma; glow.strokeJoin = .round
+                    layer.drawPath(at0, glow)
+                    if let img = recorder.endRecording().toImageSync(width: w, height: h) {
+                        canvas.drawImageRect(img, Rect.fromLTWH(0, 0, Double(w), Double(h)), Rect.fromLTWH(ink.left, ink.top, Double(w) / px, Double(h) / px), Paint())
+                    }
+                }
                 continue
             }
             let moved = path.shift(Offset(origin.dx + sh.dx * k * shrink, origin.dy + sh.dy * k * shrink))
