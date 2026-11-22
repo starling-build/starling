@@ -4009,6 +4009,7 @@ private struct SlideContext {
                 if let indent = level.indent {
                     let blank = style.bulletText.map { !$0.isEmpty && $0.allSatisfy { $0 == " " } } ?? false
                     style.firstLineIndent = (blank ? indent : max(indent, -(level.marL ?? 0))) + shapeIndent
+                    if !blank, let marL = level.marL ?? Optional(0.0), marL + indent < 0 { style.firstTextLead = -indent - marL }
                 }
                 // A text edge with no offset said anywhere is offset 0, as
                 // the format's default: aascu 5864's text boxes' "•" at

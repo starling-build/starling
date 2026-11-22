@@ -223,6 +223,9 @@ extension _ParaFrame {
             if marker.width > hang + 0.01 { lead = marker.width - hang }
             marker.dispose()
         }
+        // A hang past the margin (marL + indent below 0): the bullet stands at the edge and the text |indent| in, as
+        // PowerPoint prints pt ca992b5b p4 (marL 0, indent -18: bullet at 411.4, text at 429.4, continuation lines at 411.4).
+        if theme.markersAtHang, style.list != nil, !p.text.isEmpty, let t = style.firstTextLead { lead = _px(t) }
         // A blank bullet (the master's " ", whose slot PowerPoint keeps) puts the first line's text F = max(7.09 pt,
         // 0.3 em) in from the margin at least, mirrors a hang past the margin (|indent| in), and sets a positive
         // marL + indent at F beyond it, never left of marL. PowerPoint's print of 17 marL/indent pairs, labs indent1 and
