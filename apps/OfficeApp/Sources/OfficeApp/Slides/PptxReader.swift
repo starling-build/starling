@@ -3935,6 +3935,7 @@ private struct SlideContext {
             if p === allParagraphs.last, !(["1", "true"].contains(attr("spcFirstLastPara") ?? "")) { style.spaceAfter = 0 }
             paragraphLevels.append(lvl)
             if paragraphDefTab == nil { paragraphDefTab = level.defTab }
+            if let t = level.defTab, t != (paragraphDefTab ?? level0.defTab ?? 72) { style.defaultTab = t }
             numbering.append(level.bullet == .number ? (level.autoNumType ?? "arabicPeriod", level.autoNumStart ?? 1) : nil)
             switch level.bullet {
             case .char?, .number?:

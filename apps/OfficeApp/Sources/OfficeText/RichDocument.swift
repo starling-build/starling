@@ -854,6 +854,8 @@ public struct RichParagraphStyle: Hashable, Codable, Sendable {
     /// Custom tab stops (Word's w:tabs), kept through a save; the layout
     /// still uses the default tab width.
     public var tabStops: [TabStop] = []
+    /// This paragraph's own default tab distance in points (PowerPoint's `defTabSz`), over the document's.
+    public var defaultTab: Double? = nil
     /// Positional tabs (Word's w:ptab), by the paragraph's count of tabs
     /// before them: each goes to its place on the margins (left, centre,
     /// right), past whatever stops lie between.
