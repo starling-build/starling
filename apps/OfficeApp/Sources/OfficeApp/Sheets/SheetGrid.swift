@@ -2577,7 +2577,28 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                              underline: st.underline, strike: st.strike, color: c, dots: dots, hint: hint)
         let lower = book.fontName(st).trimmingWhitespace().lowercased()
         if lower == "aptos narrow" || OfficeFonts.tabledNames.contains(lower) { style.own = lower }
+        if st.underline || st.strike, let m = RichTextTheme.ruleMetrics(book.fontName(st), bold: st.bold, italic: st.italic) {
+            style.rule = [m.up, m.ut, m.sp, m.st]
+        }
         return style
+    }
+
+    /// An underline and a strike, drawn at the place and thickness of the face the cell names (its post table),
+    /// a rule a line, as Slides draws them: the stand-in's own is Carlito's 1.04 pt, 0.1 pt under the baseline,
+    /// where Excel's Calibri 11 is 0.72 pt, 1.2 pt under.
+    func _drawRules(_ tp: TextPainter, _ s: GridTextStyle, at o: Offset, _ canvas: any Canvas) {
+        guard let m = s.rule, s.underline || s.strike else { return }
+        let paint = Paint()
+        paint.style = .fill
+        paint.color = Color(s.color)
+        for line in tp.computeLineMetrics() where line.width > 0 {
+            if s.underline {
+                canvas.drawRect(Rect.fromLTWH(o.dx + line.left, o.dy + line.baseline - m[0] * s.size, line.width, m[1] * s.size), paint)
+            }
+            if s.strike {
+                canvas.drawRect(Rect.fromLTWH(o.dx + line.left, o.dy + line.baseline - m[2] * s.size, line.width, m[3] * s.size), paint)
+            }
+        }
     }
 
     private func _paintCell(_ canvas: any Canvas, _ a: CellAddress, _ cell: Cell, in r: Rect, spill: Bool,
@@ -2785,6 +2806,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     default: x = left + margin + inset + lead
                     }
                     lp.paint(canvas, Offset(x, y0 + Double(i) * pitch))
+                    _drawRules(lp, style, at: Offset(x, y0 + Double(i) * pitch), canvas)
                 }
                 canvas.restore()
                 return
@@ -2811,7 +2833,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 default: line = tx
                 }
                 let base = ty + plain.computeDistanceToActualBaseline(.alphabetic)
-                let parts = runs.map { run -> (TextPainter, Double) in
+                let parts = runs.map { run -> (TextPainter, Double, GridTextStyle) in
                     var rs = st
                     if run.bold != nil {
                         rs.bold = run.bold ?? false; rs.italic = run.italic ?? false
@@ -2825,7 +2847,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     if script != 0 { s.size = em * 2 / 3 }
                     let rp = texts.painter(run.text, s)
                     let shift = script > 0 ? em / 2 : script < 0 ? -em * 0.14 : 0
-                    return (rp, base - rp.computeDistanceToActualBaseline(.alphabetic) - shift)
+                    return (rp, base - rp.computeDistanceToActualBaseline(.alphabetic) - shift, s)
                 }
                 let total = parts.reduce(0) { $0 + $1.0.width }
                 var x: Double
@@ -2834,8 +2856,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 case .right: x = line + plain.width - total
                 default: x = line
                 }
-                for (rp, y) in parts {
-                    rp.paint(canvas, printing ? Offset(x, y) : Offset(x.rounded(), y.rounded()))
+                for (rp, y, rstyle) in parts {
+                    let o = printing ? Offset(x, y) : Offset(x.rounded(), y.rounded())
+                    rp.paint(canvas, o)
+                    _drawRules(rp, rstyle, at: o, canvas)
                     x += rp.width
                 }
                 canvas.restore()
@@ -2843,6 +2867,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
         }
         tp.paint(canvas, at(tx))
+        _drawRules(tp, style, at: at(tx), canvas)
         canvas.restore()
     }
 
@@ -3154,6 +3179,9 @@ struct GridTextStyle: Hashable {
     var italic = false
     var underline = false
     var strike = false
+    /// The face's rule table (position, thickness, strike position, thickness, em) where the cell draws its own
+    /// underline and strike (`_drawRules`), the named face's as Slides does; nil leaves them to the engine.
+    var rule: [Double]? = nil
     var color: Int64
     /// On a page, the printer's dots in a unit of its layout; 0 on a
     /// screen. Excel prints a font a whole number of 600-dpi dots an em
@@ -3169,18 +3197,10 @@ struct GridTextStyle: Hashable {
     /// in the stand-in that draws it ("aptos narrow", lower case); "" for none.
     var own = ""
 
-    /// Excel draws an underline or strike with the NAMED face's post-table
-    /// thickness (Calibri 0.0654 em, 0.72 pt at 11), the stand-in draws it
-    /// with its own (Carlito 194/2048 = 0.0947 em, 1.04 pt). The scale is
-    /// the first over the second; faces not measured keep the stand-in's.
-    var decorationThicknessScale: Double? {
-        family.lowercased() == "calibri" ? 0.0654 / (194.0 / 2048.0) : nil
-    }
-
     var flutter: Flutter.TextStyle {
         var decorations: [TextDecoration] = []
-        if underline { decorations.append(.underline) }
-        if strike { decorations.append(.lineThrough) }
+        if rule == nil, underline { decorations.append(.underline) }
+        if rule == nil, strike { decorations.append(.lineThrough) }
         // Unkerned, as Excel sets a cell: kerned, Calibri's "UPDATE" fit
         // a line of CVLKRA's Remarks column that Excel's (36.3 pt, the
         // column less 3) is 0.3 pt too narrow for, and wraps as "UPDAT".
@@ -3191,7 +3211,6 @@ struct GridTextStyle: Hashable {
                                  fontWeight: bold ? .bold : .normal, fontStyle: italic ? .italic : .normal,
                                  fontFeatures: [FontFeature("kern", 0), FontFeature("liga", 0), FontFeature("clig", 0)],
                                  decoration: decorations.isEmpty ? TextDecoration.none : TextDecoration.combine(decorations),
-                                 decorationThickness: decorations.isEmpty ? nil : decorationThicknessScale,
                                  fontFamily: family, fontFamilyFallback: RichTextTheme.glyphFallback)
     }
 }
