@@ -159,14 +159,26 @@ extension RichLayout {
     /// asked for. Each such piece is held to the split of its own style's face, by the descent share of the face the run is set in
     /// (the substitute for a missing face), not by drawing a probe, which a fallback draws too.
     static func _holdingFallbackSplit(_ span: TextSpan, theme: RichTextTheme) -> TextSpan {
-        // (Past Latin, but not the Latin faces' own punctuation and extended letters: quotes, dashes and ellipses are in every face.)
-        func mayFallBack(_ s: String) -> Bool {
-            s.unicodeScalars.contains { $0.value >= 0x250 && !(0x1E00...0x1EFF).contains($0.value) && !(0x2000...0x206F).contains($0.value) }
+        // (A piece the NAMED face has every glyph of is drawn by it, so no fallback line is in play: the named face's own cmap decides
+        // where it is measured (RichLayout._latinFaceLacks, U+2010-2BFF); past that range and past Latin a Latin-class face lacks the glyph.)
+        func mayFallBack(_ s: String, named: String) -> Bool {
+            s.unicodeScalars.contains { u in
+                guard u.value >= 0x250 else { return false }
+                return RichLayout._latinFaceLacks(named, u.value) ?? true
+            }
+        }
+        func faceName(_ x: TextStyle) -> String {
+            var name = x.debugLabel ?? x.fontFamily ?? ""
+            while name.hasSuffix(".copyWith") || name.hasPrefix("(") {
+                name = name.hasSuffix(".copyWith") ? String(name.dropLast(9)) : name
+                if name.hasPrefix("(") && name.hasSuffix(")") { name = String(name.dropFirst().dropLast()) } else { break }
+            }
+            return name.trimmingWhitespace().lowercased()
         }
         func walk(_ s: InlineSpan) -> InlineSpan {
             guard let t = s as? TextSpan else { return s }
             var st = t.style
-            if let x = st, let text = t.text, x.ascentOverride == nil, let fs = x.fontSize, fs > 0.5, let h = x.height, mayFallBack(text) {
+            if let x = st, let text = t.text, x.ascentOverride == nil, let fs = x.fontSize, fs > 0.5, let h = x.height, mayFallBack(text, named: faceName(x)) {
                 let share = theme.descentShare(family: x.fontFamily, bold: x.fontWeight == .bold, italic: x.fontStyle == .italic)
                 if share > 0, share < 1 {
                     let total = h * fs
