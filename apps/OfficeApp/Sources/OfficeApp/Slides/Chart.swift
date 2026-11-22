@@ -9164,7 +9164,10 @@ extension ChartPainter {
                 p.color = line
                 canvas.drawRect(box, p)
             }
-            tp.paint(canvas, Offset(box.left + pad, box.top + pad / 2))
+            // (A Malgun Gothic label's text stands 0.092 em higher in its 1.73 em line than the stand-in's: pielab2's 12 pt labels are all
+            // 1.1 pt low on 18 pages, ko-ab1bf295 p7's 16 pt ones 1.2 to 1.9.)
+            let malgunRaise = c.onSlide && ["맑은 고딕", "malgun gothic"].contains(labelFace.lowercased()) ? 0.092 * size : 0
+            tp.paint(canvas, Offset(box.left + pad, box.top + pad / 2 - malgunRaise))
             tp.dispose()
         }
         return anyOutside
