@@ -999,18 +999,23 @@ enum WordArt {
             // box's ellipse, down to that length, and a line longer than the path runs past its ends.
             var archFit: Double?
             var spaced: [Double]?
-            if slide, ring == 0, line.alignment == .center, line.width > 0, warp.preset == "textArchUp" || warp.preset == "textArchDown" || warp.preset == "textButton" {
+            if slide, ring == 0 || warp.fromWordArt, line.alignment == .center || warp.fromWordArt, line.width > 0, warp.preset == "textArchUp" || warp.preset == "textArchDown" || warp.preset == "textButton" {
                 var per = 0.0, prev = Offset(rx0 * cos(start * .pi / 180), ry0 * sin(start * .pi / 180))
                 for i in 1 ... 360 {
                     let a = (start + sweep * Double(i) / 360) * .pi / 180
                     let q = Offset(rx0 * cos(a), ry0 * sin(a))
                     per += hypot(q.dx - prev.dx, q.dy - prev.dy); prev = q
                 }
-                let f = min(1, per / line.width)
+                var f = min(1, per / line.width)
+                // fromWordArt text is fitted to the box's own ellipse path, grown as well as shrunk, the run's size ignored
+                // (lab fwa1: arch down 3.45x at 49 chars, "Hi" 45x, a circle twice an arch; the print's size is the path
+                // length over the line's advance to 0.3%).
+                if warp.fromWordArt, warp.preset != "textButton" { f = per / max(line.width, lines.map(\.width).max() ?? 0) }
                 archFit = f
                 lift = (warp.preset == "textArchDown" || bottom ? 1 : -1) * Self.archInset * size * f
                 // Button, four lines (lab warplab2): the first line stands a line pitch (1.2 of its size) outside the second, on the same arc.
                 lift += Double(outer) * 1.2 * size
+                if warp.fromWordArt { lift += (warp.preset == "textArchDown" ? 1 : -1) * Double(ring) * 1.2 * size * f }
                 sx = 1; c = area.center
                 let ext = 60.0, dir = sweep < 0 ? -1.0 : 1.0
                 let (st, sw) = (start - dir * ext, sweep + dir * 2 * ext)
@@ -1054,6 +1059,12 @@ enum WordArt {
             let used = line.width * k
             let free = arc * (slide ? room : 1) - used
             var s = line.alignment == .center ? free / 2 : line.alignment == .right ? free : 0
+            if warp.fromWordArt, archFit != nil {
+                // The path runs past the arc's ends; the text's own span is the arc between them, where its alignment holds.
+                let ls = spaced ?? lens, i0 = min(steps / 2, Int((Double(steps) * 60 / max(1, abs(sweep) + 120)).rounded()))
+                let span = ls[steps - i0] - ls[i0]
+                s = ls[i0] + (line.alignment == .center ? (span - used) / 2 : line.alignment == .right ? span - used : 0)
+            }
             func at(_ d: Double) -> (Offset, Offset) {
                 let d = max(0, min(arc, d))
                 let ls = spaced ?? lens
