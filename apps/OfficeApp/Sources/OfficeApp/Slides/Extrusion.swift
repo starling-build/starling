@@ -194,6 +194,27 @@ enum Extrusion {
         return max(0, k)
     }
 
+    /// A three-point rig's bevel slopes (planner fit to lab bev, 12 prints; within 2 levels
+    /// on circle and angle in 24 directions): ambient, then three lights (key up-left, fill
+    /// low right, back behind and below), each a diffuse share of the fill plus a white
+    /// highlight, `255 * s * (n . H)^p`, H halfway between the light and the viewer.
+    /// (elevation, azimuth in degrees with 0 right and 90 up, diffuse, highlight, exponent.)
+    static let threePtSlopeLights: [(Double, Double, Double, Double, Double)] = [
+        (-48.3, 243.6, 1.741, 0.090, 12.2), (26.9, 286.6, 0.429, 0.135, 23.9), (46.0, 112.3, 1.048, 0.342, 29.9)]
+    static func threePtSlope(_ n: P3, rot: [Double]) -> (diffuse: Double, white: Double) {
+        let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
+        var k = 0.0665, white = 0.0
+        for (el, az, c, s, p) in threePtSlopeLights {
+            let (e, a) = (el * .pi / 180, az * .pi / 180)
+            let l = turned(P3(x: cos(e) * cos(a), y: -cos(e) * sin(a), z: sin(e)), lat: rot[0], lon: rot[1], rev: rot[2])
+            k += c * max(0, (n.x * l.x + n.y * l.y + n.z * l.z) / len)
+            let hx = l.x, hy = l.y, hz = l.z + 1
+            let hl = max(1e-9, (hx * hx + hy * hy + hz * hz).squareRoot())
+            white += s * pow(max(0, (n.x * hx + n.y * hy + n.z * hz) / (len * hl)), p)
+        }
+        return (k, white)
+    }
+
     static func lit(_ base: Color, _ n: P3, rig: Rig, turn: Double, material m: Material? = nil, threePt: Bool = false, whiteShare: Double = 0.5) -> Color {
         let len = max(1e-9, (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot())
         let lean = min(1, abs(n.z) / len)
@@ -885,13 +906,18 @@ enum Extrusion {
                 let g = tan(th) * slopeScale
                 for i in 0 ..< n {
                     let o = outward[i]
-                    let k = share(P3(x: g * o.dx, y: g * o.dy, z: 1))
+                    let nrm = P3(x: g * o.dx, y: g * o.dy, z: 1)
+                    let slope = b.rig == "threePt" ? threePtSlope(nrm, rot: rot) : nil
+                    let k = slope?.diffuse ?? share(nrm)
                     let q = Path()
                     let i2 = (i + 1) % n
                     q.addPolygon([prev[i], prev[i2], cur[i2], cur[i]], true)
                     // A slope facing up catches a glint on a glossy material.
                     let up = max(0, -o.dy) * g / (1 + g * g).squareRoot()
-                    p.color = tint(k, up)
+                    if let sl = slope {
+                        func ch(_ v: Int) -> Int { max(0, min(255, Int((Double(v) * k + 255 * sl.white).rounded()))) }
+                        p.color = Color(argb: fill.alpha, ch(fill.red), ch(fill.green), ch(fill.blue))
+                    } else { p.color = tint(k, up) }
                     canvas.drawPath(q, p)
                     p.style = .stroke
                     p.strokeWidth = 0.5
