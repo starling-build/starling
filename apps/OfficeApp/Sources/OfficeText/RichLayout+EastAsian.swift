@@ -35,12 +35,19 @@ extension RichLayout {
         !theme.wordRules && theme.officeLatinBreaks && !p.style.rightToLeft && p.style.eastAsian["a:hangingPunct"] != "0"
     }
 
+    /// Whether the 、。，． at `k` may hang: not where its run is tagged with a language that is not East Asian (Slides reader's
+    /// `a:noHangMarks` offsets).
+    func _markHangs(_ p: RichParagraph, _ k: Int) -> Bool {
+        guard let list = p.style.eastAsian["a:noHangMarks"] else { return true }
+        return !list.split(separator: ",").contains { Int($0) == k }
+    }
+
     /// A Slides paragraph whose last character is a 、。，． that may hang past the margin.
     func _lastLineHangsMark(_ p: RichParagraph, _ fit: [Int: Double]) -> Bool {
         guard _hangsLineEndMarks(p) else { return false }
         let units = Array(p.text.utf16)
         guard let m = units.lastIndex(where: { ![0x20, 0x09, 0x0A, 0x0B, 0x3000].contains($0) }) else { return false }
-        return [0x3001, 0x3002, 0xFF0C, 0xFF0E].contains(units[m])
+        return [0x3001, 0x3002, 0xFF0C, 0xFF0E].contains(units[m]) && _markHangs(p, m)
     }
 
     func _fitEastAsianLines(_ p: RichParagraph, at i: Int, _ document: RichDocument, textWidth baseWidth: Double,
@@ -1038,7 +1045,7 @@ extension RichLayout {
                     && (Self._hangingUnits.contains(units[tail]) || latinComma) && (squeezes || !document.hangsHalf || macComma || halfStop)
                     // (PowerPoint does not hang a closing corner bracket 」』 past the margin: it goes down with the character before it. ja ae6c89bb p2 sends "グ」" to line 2, where 」 would end 5.5 pt over.)
                     && !(_hangsLineEndMarks(p) && (Self._slidesStandingUnits.contains(units[tail]) || units[tail] == 0x201D && tail > 0 && units[tail - 1] >= 0x3040 && units[tail - 1] <= 0x9FFF))
-                    && !runRulesOff(tail) && !afterLatin
+                    && !runRulesOff(tail) && !afterLatin && _markHangs(p, tail)
                     // (Nor a 、 or 。 with text after it where the pause rule holds: lab `sqreal`
                     // (jpn-z19433747's abstract, 65 right indents in 0.25pt steps) opens the next
                     // line with it at every indent, where it would hang 4.7 to 7.7 pt over.)
