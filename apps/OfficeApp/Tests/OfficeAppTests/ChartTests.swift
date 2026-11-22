@@ -316,6 +316,31 @@ final class ChartTests: XCTestCase {
         XCTAssertNil(ChartXML.readBoxWhisker(XNode.parse(Data(funnel.utf8))!), "another chartex kind keeps its picture")
     }
 
+    /// Samples with no category column are one category PowerPoint labels "1".
+    func testBoxWhiskerSamplesWithNoCategoriesAreCategoryOne() {
+        let xml = """
+        <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex"><cx:chartData><cx:data id="0"><cx:numDim type="val"><cx:lvl ptCount="3"><cx:pt idx="0">1</cx:pt><cx:pt idx="1">2</cx:pt><cx:pt idx="2">9</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="boxWhisker"><cx:dataId val="0"/></cx:series></cx:plotAreaRegion></cx:plotArea></cx:chart></cx:chartSpace>
+        """
+        guard let c = ChartXML.readBoxWhisker(XNode.parse(Data(xml.utf8))!) else { return XCTFail("not read") }
+        XCTAssertEqual(c.categories, ["1"])
+        XCTAssertEqual(c.boxes?[0][0], [1, 2, 9])
+    }
+
+    /// A group's name stands once, on its first row, and covers the rows below it; a sunburst runs equal sizes later row first.
+    func testASunburstGroupNameCoversItsRows() {
+        func xml(_ kind: String) -> String {
+            """
+            <cx:chartSpace xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex"><cx:chartData><cx:data id="0"><cx:strDim type="cat"><cx:lvl ptCount="4"><cx:pt idx="0">A</cx:pt><cx:pt idx="1">B</cx:pt><cx:pt idx="2">C</cx:pt></cx:lvl><cx:lvl ptCount="4"><cx:pt idx="0">First</cx:pt><cx:pt idx="3">Fourth</cx:pt></cx:lvl><cx:lvl ptCount="4"><cx:pt idx="0">Best</cx:pt></cx:lvl></cx:strDim><cx:numDim type="size"><cx:lvl ptCount="4"><cx:pt idx="0">3</cx:pt><cx:pt idx="1">3</cx:pt><cx:pt idx="2">2</cx:pt><cx:pt idx="3">1</cx:pt></cx:lvl></cx:numDim></cx:data></cx:chartData><cx:chart><cx:plotArea><cx:plotAreaRegion><cx:series layoutId="\(kind)"><cx:dataId val="0"/></cx:series></cx:plotAreaRegion></cx:plotArea></cx:chart></cx:chartSpace>
+            """
+        }
+        guard let sun = ChartXML.readSunburst(XNode.parse(Data(xml("sunburst").utf8))!),
+              let tree = ChartXML.readSunburst(XNode.parse(Data(xml("treemap").utf8))!, treemap: true) else { return XCTFail("not read") }
+        XCTAssertEqual(sun.sunburst?.map(\.name), ["Best"])
+        XCTAssertEqual(sun.sunburst?[0].children.map(\.name), ["First", "Fourth"])
+        XCTAssertEqual(sun.sunburst?[0].children[0].children.map(\.name), ["B", "A", "C"])
+        XCTAssertEqual(tree.sunburst?[0].children[0].children.map(\.name), ["A", "B", "C"])
+    }
+
     /// A chart this app cannot draw reads as nothing, so the frame keeps
     /// its own picture. (Every single kind is drawn since surfaces were,
     /// 5c5d43a4. An area under a line on one pair of axes is drawn too, since

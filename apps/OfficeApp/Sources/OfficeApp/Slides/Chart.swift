@@ -1004,7 +1004,15 @@ enum ChartXML {
             }
             return out
         }
-        let levels = (d.all("cx:strDim").first { $0["type"] == "cat" } ?? d.first("cx:strDim"))?.all("cx:lvl").map(points) ?? []
+        var levels = (d.all("cx:strDim").first { $0["type"] == "cat" } ?? d.first("cx:strDim"))?.all("cx:lvl").map(points) ?? []
+        // (A group's name stands once, on its first row: the levels above the leaves run on down the rows it covers. PowerPoint's
+        // print of chartex-lab treemap: Best over rows 0 to 6, Worst over 7 to 10, First over 0 to 4.)
+        for l in levels.indices.dropFirst() {
+            var last: String? = nil
+            for i in levels[l].indices {
+                if let n = levels[l][i], !n.isEmpty { last = n } else { levels[l][i] = last }
+            }
+        }
         let sizes = points((d.all("cx:numDim").first { $0["type"] == "size" } ?? d.first("cx:numDim"))?.first("cx:lvl"))
         var paths: [[String]] = [], values: [Double] = []
         for (i, raw) in sizes.enumerated() {
@@ -1016,7 +1024,7 @@ enum ChartXML {
             }
             paths.append(path); values.append(v)
         }
-        let roots = sunburstTree(paths: paths, values: values)
+        let roots = sunburstTree(paths: paths, values: values, laterFirst: !treemap || ser["layoutId"] != "treemap")
         guard !roots.isEmpty || allowEmpty else { return nil }
         var title: String? = nil
         if let t = chart.first("cx:title") {
@@ -1055,7 +1063,9 @@ enum ChartXML {
     /// first, each node the sum of the points under it; the larger first,
     /// as Word lays the wedges out (chartex's 258, 165, 154 clockwise from
     /// twelve), a tie in the file's order.
-    static func sunburstTree(paths: [[String]], values: [Double]) -> [Chart.SunburstNode] {
+    /// `laterFirst`: equal sizes run later row first (a sunburst's rings in PowerPoint's print of chartex-lab: E before B, D
+    /// before A, Fifth before Third; its treemap keeps them in row order).
+    static func sunburstTree(paths: [[String]], values: [Double], laterFirst: Bool = false) -> [Chart.SunburstNode] {
         func add(_ path: ArraySlice<String>, _ v: Double, to nodes: inout [Chart.SunburstNode]) {
             guard let name = path.first else { return }
             let i = nodes.firstIndex { $0.name == name } ?? nodes.count
@@ -1066,7 +1076,7 @@ enum ChartXML {
         var roots: [Chart.SunburstNode] = []
         for (path, v) in zip(paths, values) where v.isFinite && v > 0 { add(path[...], v, to: &roots) }
         func sorted(_ nodes: [Chart.SunburstNode]) -> [Chart.SunburstNode] {
-            nodes.enumerated().sorted { $0.element.value > $1.element.value || ($0.element.value == $1.element.value && $0.offset < $1.offset) }
+            nodes.enumerated().sorted { $0.element.value > $1.element.value || ($0.element.value == $1.element.value && (laterFirst ? $0.offset > $1.offset : $0.offset < $1.offset)) }
                 .map { var n = $0.element; n.children = sorted(n.children); return n }
         }
         return sorted(roots)
@@ -3364,8 +3374,10 @@ enum ChartPainter {
             _surface(c, canvas, area, k: k, theme: theme, grid: c.gridColor ?? grid,
                      text: { styled($0, $1, $2, bold: false, color: c.valueLabelColor) })
         } else if let nodes = c.sunburst, c.treemap {
+            // (On a slide PowerPoint rules nothing between the boxes and sets the names in the grey of its other labels,
+            // 0x595959: chartex-lab's treemap; a sheet's Excel rules them in the background and sets the names in it.)
             _treemap(c, nodes, canvas, area, k: k, theme: theme,
-                     text: { styled($0, $1, $2, bold: false, color: theme.background) })
+                     text: { styled($0, $1, $2, bold: false, color: c.onSheet ? theme.background : c.valueLabelColor) })
         } else if let nodes = c.sunburst {
             _sunburst(c, nodes, canvas, area, k: k, theme: theme,
                       text: { styled($0, $1, $2, bold: false, color: theme.background) })
@@ -6574,41 +6586,36 @@ extension ChartPainter {
         // (The boxes 5.8 pt inside the frame at the sides and foot, and
         // 0.67 lower than the room under the title: Excel's print of
         // chart-treemap, where ours stood 6.75 in and 3.45 off its foot.)
-        let area = c.onSheet ? Rect.fromLTRB(area.left - 0.95 * pt, area.top + 0.67 * pt, area.right + 0.95 * pt, area.bottom - 2.43 * pt) : area
-        func aspect(_ areas: ArraySlice<Double>, across width: Double) -> Double {
-            let h = areas.reduce(0, +) / width
-            guard h > 0 else { return .infinity }
-            return areas.reduce(0) { $0 + max($1 / h / h, h * h / max($1, 1e-9)) } / Double(areas.count)
-        }
+        // (On a slide the boxes stand 3.1 pt left, 1.8 right, 0.9 below and 1.8 above where the room under the title puts them:
+        // PowerPoint's print of chartex-lab's treemap, 166.1 to 745.1 by 87.0 to 453.1 where ours stood 169.2 to 746.9 by 86.1 to 454.9.)
+        let area = c.onSheet ? Rect.fromLTRB(area.left - 0.95 * pt, area.top + 0.67 * pt, area.right + 0.95 * pt, area.bottom - 2.43 * pt)
+            : Rect.fromLTRB(area.left - 3.1 * pt, area.top + 0.9 * pt, area.right - 1.8 * pt, area.bottom - 1.8 * pt)
+        // (Halved, as PowerPoint prints chartex-lab's treemap: the larger first, the list cut where the two halves' sums
+        // are nearest equal, the box cut across its longer side, each half the same again. Best 27 and Worst 16 side by
+        // side; First's B and E over A beside D over C; Worst's F and E over Fifth and Fourth. A box within 1% of square
+        // is cut as the wider: Best, 363.6 by 366.1 pt, is cut into columns.)
         func strips(_ values: [Double], in box: Rect) -> [Rect] {
-            let total = values.reduce(0, +)
-            guard total > 0, box.width > 0, box.height > 0 else { return values.map { _ in .zero } }
-            let areas = values.map { $0 / total * box.width * box.height }
-            func grow(_ i: Int) -> Int {
-                var j = i + 1
-                while j < areas.count, aspect(areas[i ... j], across: box.width) <= aspect(areas[i ..< j], across: box.width) { j += 1 }
-                return j
-            }
-            var out: [Rect] = [], i = 0, y = box.top
-            while i < areas.count {
-                var j = grow(i)
-                while j < areas.count {
-                    let next = grow(j)
-                    let apart = (aspect(areas[i ..< j], across: box.width) * Double(j - i)
-                        + aspect(areas[j ..< next], across: box.width) * Double(next - j)) / Double(next - i)
-                    guard aspect(areas[i ..< next], across: box.width) < apart else { break }
-                    j = next
+            guard values.reduce(0, +) > 0, box.width > 0, box.height > 0 else { return values.map { _ in .zero } }
+            func lay(_ r: ArraySlice<Double>, _ box: Rect) -> [Rect] {
+                if r.count == 1 { return [box] }
+                let total = r.reduce(0, +)
+                guard total > 0 else { return r.map { _ in box } }
+                var cut = r.startIndex + 1, best = Double.infinity, run = 0.0
+                for k in r.startIndex ..< r.endIndex - 1 {
+                    run += r[k]
+                    let diff = abs(total - 2 * run)
+                    if diff < best - 1e-9 { best = diff; cut = k + 1 }
                 }
-                let h = areas[i ..< j].reduce(0, +) / box.width
-                var x = box.left
-                for a in areas[i ..< j] {
-                    out.append(Rect.fromLTWH(x, y, a / h, h))
-                    x += a / h
+                let a = r[r.startIndex ..< cut], b = r[cut ..< r.endIndex]
+                let f = a.reduce(0, +) / total
+                if box.width >= box.height * 0.99 {
+                    let x = box.left + box.width * f
+                    return lay(a, Rect.fromLTRB(box.left, box.top, x, box.bottom)) + lay(b, Rect.fromLTRB(x, box.top, box.right, box.bottom))
                 }
-                y += h
-                i = j
+                let y = box.top + box.height * f
+                return lay(a, Rect.fromLTRB(box.left, box.top, box.right, y)) + lay(b, Rect.fromLTRB(box.left, y, box.right, box.bottom))
             }
-            return out
+            return lay(values[...], box)
         }
         let fill = Paint()
         fill.style = .fill
@@ -6626,7 +6633,7 @@ extension ChartPainter {
                 if n.children.isEmpty {
                     fill.color = theme.accents.isEmpty ? Color(0xFF808080) : theme.accents[accent % theme.accents.count]
                     canvas.drawRect(r, fill)
-                    canvas.drawRect(r, edge)
+                    if c.onSheet { canvas.drawRect(r, edge) }
                     labels.append((n.name, r, false))
                 } else {
                     draw(n.children, in: r, level: level + 1, color: accent)
