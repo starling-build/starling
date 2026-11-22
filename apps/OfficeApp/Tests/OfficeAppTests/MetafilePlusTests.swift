@@ -199,12 +199,31 @@ final class MetafilePlusTests: XCTestCase {
         XCTAssertGreaterThan(last.r, 0.9, "the centre is nearly white")
     }
 
-    func testAHatchBrushIsItsTilesMeanColour() throws {
+    func testAHatchBrushIsLinesOnAnEightPixelPitch() throws {
         var b: [UInt8] = []
-        for v in [0xDBC01002, 1, 12, 0xFF000000, 0xFFFFFFFF] { b += le32(v) }   // 50 percent: black on white
-        let c = try XCTUnwrap(EmfPlus.readHatch(b, 0, b.count))
-        XCTAssertEqual(c, Color(0xFF808080))
-        b[8] = 40   // a style whose tile is not a plain share
+        for v in [0xDBC01002, 1, 0, 0xFF000000, 0xFFFFFFFF] { b += le32(v) }   // horizontal: black lines on white
+        guard case .hatch(let h)? = EmfPlus.readHatch(b, 0, b.count) else { return XCTFail("a hatch") }
+        XCTAssertEqual(h.fore, Color(0xFF000000))
+        let lines = EmfPlus.hatchLines(h, Rect.fromLTRB(0, 0, 20, 20))
+        XCTAssertEqual(Array(lines.computeMetrics()).count, 3, "rows 0, 8 and 16")
+        b[8] = 40   // a style that is not played
         XCTAssertNil(EmfPlus.readHatch(b, 0, b.count))
+        b[8] = 0; b.replaceSubrange(16..<20, with: le32(0xFF000000))   // the same colour twice: solid
+        guard case .brush(let c)? = EmfPlus.readHatch(b, 0, b.count) else { return XCTFail("solid") }
+        XCTAssertEqual(c, Color(0xFF000000))
+    }
+
+    func testABrushItDoesNotPlayLeavesTheFileToItsFallbackOnlyWhenAFillNamesIt() throws {
+        var hatch: [UInt8] = []
+        for v in [0xDBC01002, 1, 40, 0xFF000000, 0xFFFFFFFF] { hatch += le32(v) }   // style 40: not played
+        let object = plus(0x4008, 0x0101, hatch)
+        let head = plus(0x4001, 1, le32(0xDBC01002) + le32(1) + le32(96) + le32(96))
+        let unused = try XCTUnwrap(Metafile(build(dual: true, extra: object), id: "p"))
+        guard case .fill(_, let c) = unused.steps[0] else { return XCTFail("a fill") }
+        XCTAssertEqual(c, Color(0xFFFF0000), "the file is played: nothing fills with the hatch")
+        let used = plus(0x4014, 0x0000, le32(1))   // FillPath, path 0, brush object 1
+        let m = try XCTUnwrap(Metafile(Data(header() + comment(head + pathObject(id: 0) + object + used) + fallback() + end()), id: "p"))
+        guard case .fill(_, let color) = m.steps.last else { return XCTFail("a fill") }
+        XCTAssertEqual(color, Color(0xFF0000FF), "a fill with it leaves the file to its EMF fallback")
     }
 }
