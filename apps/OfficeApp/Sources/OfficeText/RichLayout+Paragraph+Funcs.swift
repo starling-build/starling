@@ -1486,7 +1486,27 @@ extension _ParaFrame {
         }
         }
         func lines1(_ t: TextPainter) -> Bool { t.computeLineMetrics().count == 1 }
+        // (A line holding two faces is the tallest piece's single line. Every layout of the paragraph is laid so, trials and re-fits
+        // included, and the painter that is kept brings its baseline with it: see `_mixedOfPainter`.)
         func laidOut(_ span: TextSpan) -> TextPainter {
+            var painter = laidOutPlain(span)
+            RichLayout._mixedOfPainter[ObjectIdentifier(painter)] = nil
+            guard !RichLayout._mixing else { return painter }
+            RichLayout._mixing = true; defer { RichLayout._mixing = false }
+            if lines1(painter), let mixed = _mixedFaceSpan(span, p) {
+                let again = laidOutPlain(mixed.span)
+                RichLayout._mixedOfPainter[ObjectIdentifier(again)] = nil
+                if lines1(again) { painter.dispose(); painter = again; RichLayout._mixedOfPainter[ObjectIdentifier(painter)] = (mixed.depth, mixed.size / _px(1)) } else { again.dispose() }
+            } else if !lines1(painter), inline.isEmpty, let split = _mixedFaceLinesSpan(span, p, painter) {
+                let again = laidOutPlain(split)
+                RichLayout._mixedOfPainter[ObjectIdentifier(again)] = nil
+                if again.computeLineMetrics().count == painter.computeLineMetrics().count {
+                    painter.dispose(); painter = again; RichLayout._mixedOfPainter[ObjectIdentifier(painter)] = (0, 0)
+                } else { again.dispose() }
+            }
+            return painter
+        }
+        func laidOutPlain(_ span: TextSpan) -> TextPainter {
             let rises = RichLayout._risesForNumber(inline)
             numberLift = 0
             // (A number larger than its text lifts the first line alone;

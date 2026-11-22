@@ -216,17 +216,8 @@ extension _ParaFrame {
         _inlineBoxes[i] = inline.indices.filter { inline[$0].image != nil }
         _floats[i] = p.image?.float
         _floatImages[i] = p.image?.float != nil ? p.image : nil
-        painter = laidOut(span)
         _mixedFace[i] = nil
-        if lines1(painter), let mixed = _mixedFaceSpan(span, p) {
-            let again = laidOut(mixed.span)
-            if lines1(again) { painter.dispose(); painter = again; _mixedFace[i] = (mixed.depth, mixed.size / _px(1)) } else { again.dispose() }
-        } else if !lines1(painter), inline.isEmpty, let split = _mixedFaceLinesSpan(span, p, painter) {
-            let again = laidOut(split)
-            if again.computeLineMetrics().count == painter.computeLineMetrics().count {
-                painter.dispose(); painter = again; _mixedFace[i] = (0, 0)
-            } else { again.dispose() }
-        }
+        painter = laidOut(span)
         // East Asian line ends, as Word sets them: a closing mark that
         // would start a line hangs past the margin instead, and a line
         // half an em too long for its last character takes it anyway,
