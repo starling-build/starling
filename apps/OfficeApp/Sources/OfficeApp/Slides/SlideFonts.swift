@@ -437,7 +437,7 @@ enum SlideFonts {
         case "yu gothic light", "游ゴシック light": return 610.0 / 2636
         case "yu gothic medium", "游ゴシック medium": return 608.0 / 2636
         case "meiryo", "メイリオ": return 1 - 0.847 / 1.2
-        case "yu gothic", "游ゴシック", "ar pゴシック体m", "ar pゴシック体e", "ar pゴシック体l", "ar pゴシック体b", "ar pゴシック体h", "ar p丸ゴシック体m", "ar p丸ゴシック体e", "ar丸ゴシック体m", "ar丸ゴシック体e", "biz udpゴシック": return 1 - 0.921 / 1.2
+        case "yu gothic", "游ゴシック", "adobe fan heiti std b", "ar pゴシック体m", "ar pゴシック体e", "ar pゴシック体l", "ar pゴシック体b", "ar pゴシック体h", "ar p丸ゴシック体m", "ar p丸ゴシック体e", "ar丸ゴシック体m", "ar丸ゴシック体e", "biz udpゴシック": return 1 - 0.921 / 1.2
         default: break
         }
         // (PowerPoint's print, lab verdana-ls: the foot of a Verdana line is 0.202 em at every size and spacing, of 1.2 em: not hhea's 430 of 2489.)
