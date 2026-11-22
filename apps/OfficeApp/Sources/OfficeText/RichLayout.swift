@@ -1158,6 +1158,9 @@ public struct RichResolvedFace: Sendable {
     public var family: String
     public var sizeScale: Double
     public var naturalHeight: Double?
+    /// The face's `head.flags` bit 4 is set (hinting instructions may alter advance widths: Calibri, Arial, Rockwell, Tw Cen MT, Trebuchet MS; clear in the cloud Aptos and Open Sans).
+    /// PowerPoint's font size grid then only widens its lines (16 pt prints at 15.96 and is as wide as at 16); a face without it scales linearly.
+    public var hintedAdvances = false
     /// A face whose own line baseline was read from Word's prints (FrankRuehl, David): a right-to-left run stands on it.
     public var ownLineBaseline = false
     /// A complex face Word's machine lacks, drawn in Arial: its line is Arial's own, 1.149 em.

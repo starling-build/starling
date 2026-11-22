@@ -199,7 +199,8 @@ extension _StyledFrame {
         var pt = run.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize
         if fontScale != 1 { pt = max(1, (pt * fontScale).rounded()) }
         let q = (pt / theme.fontSizeGrid).rounded() * theme.fontSizeGrid
-        if pt > 0, q > 0, q != pt { extra += (_glyphWidth(style(kind), ch) + extra - extra0) * (q / pt - 1) }
+        // (A face whose hinting may alter advances (`hintedAdvances`) is only widened: Calibri's 16 pt prints at 15.96 but a line is as wide as at 16 (es c249abc3 p7: a URL line one "=" short); Open Sans at 28 and 16 is narrower by the grid (es 3a3f59a1 p8).)
+        if pt > 0, q > 0, q != pt, q > pt || !(latinFace?.hintedAdvances ?? false) { $0.family.hasPrefix("Calibri") || $0.family.hasPrefix("Carlito") } ?? false) { extra += (_glyphWidth(style(kind), ch) + extra - extra0) * (q / pt - 1) }
     }
     }
 }
