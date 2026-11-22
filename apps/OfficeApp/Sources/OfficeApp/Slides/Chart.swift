@@ -5292,6 +5292,7 @@ enum ChartPainter {
         let revCat = horizontal && c.categoryReversed
         let belowOut = ticksPush && (horizontal ? c.valueTicksOut : c.categoryTicksOut) ? 3.7 * k : 0
         var valueLabelsBack = 0.0
+        var pushedLabelGap: Double? = nil
         let widenedPlain = plainUntitledWord && c.valueTicksOut && c.type == .column
         let plainBarWord = horizontal && inWord && !c.styled2013 && c.barView == nil && (c.title ?? "").isEmpty && c.titleAt == nil && !c.legend
             && c.plotLayout == nil && c.dataTable == nil && c.categoryLevels.isEmpty
@@ -5537,13 +5538,14 @@ enum ChartPainter {
         if let placed, c.plotLayoutInner {
             // (A laid plot that runs past the chart's right edge is cut there by PowerPoint, its categories
             // spread over what is left: 7bf37d72 p10's 5 bands of 99.3 pt, not 103.)
-            // (A laid plot stands no nearer the chart's left edge than its value labels leave, 11.7 pt past their right edge: its width
+            // (A laid plot stands no nearer the chart's left edge than its value labels leave, 0.86 x their size past their right edge (lab p12-lab3: 8 pt 6.86, 12 pt 10.3, 18 pt 15.49): its width
             // kept, it moves right to that, and one that runs past the right edge moves left, as far as that allows, before the cut.
             // Lab p12-2 of 7bf37d72: a plot laid at x .02 stood at 74.4, not 47.1; one cut 33.0 pt at the right moved left 16.6.)
             var laid = placed
             if c.onSlide, !horizontal, c.barView == nil, !c.valueAxisDeleted, let widest = valueLabels.map(\.width).max() {
-                let limit = frame.left + widest + 11.7 * k
+                let limit = frame.left + widest + 0.86 * (c.valueLabelSize ?? c.baseTextSize) * k
                 if laid.left < limit {
+                    pushedLabelGap = 0.86 * (c.valueLabelSize ?? c.baseTextSize) * k
                     laid = Rect.fromLTRB(limit, laid.top, laid.right + (limit - laid.left), laid.bottom)
                 } else if laid.right > frame.right {
                     let by = min(laid.right - frame.right, laid.left - limit)
@@ -5968,7 +5970,11 @@ enum ChartPainter {
                 // (Word's walled 3-D columns: 8 pt nearer the plot, lo-1bd2003e's labels ending at 142.)
                 let wall3D = (inWord || c.onSlide) && c.barView?.walled == true && c.plotLayoutInner ? (inWord ? 8 : 10) * k : 0
                 // (On a slide 10 pt: es/3df36ff6 p4's labels at 24 in PowerPoint's print, ours at 14.)
-                tp.paint(canvas, Offset(plot.left - (c.chartex && c.onSlide ? 4 : 8.5) * k - besideOut - further - tp.width + wall3D + valueLabelsBack, p - tp.height / 2 - lift))
+                // (Where the rule above pushed the plot off the chart's left edge, the labels stay at the edge 1.5 pt in, and the plot stands their
+                // size-scaled clearance past them: lab p12-lab3, 8 pt labels' left at 37.5 and 18 pt's at 37.5, where ours followed the plot.)
+                let labelRight = pushedLabelGap != nil ? frame.left + 1.5 * k + tp.width : plot.left - (c.chartex && c.onSlide ? 4 : 8.5) * k - besideOut - further + wall3D + valueLabelsBack
+                if pushedLabelGap != nil { RuleTrace.hit("slide-laid-plot-pushed-keeps-value-labels-at-the-edge") }
+                tp.paint(canvas, Offset(labelRight - tp.width, p - tp.height / 2 - lift))
             }
         }
         // The second axis' labels, beside the plot's right edge.
