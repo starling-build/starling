@@ -99,6 +99,44 @@ final class MetafilePlusTests: XCTestCase {
         XCTAssertEqual(source, Rect.fromLTWH(0.5, 0.5, 10, 4))
     }
 
+    func testAnImageObjectSplitOverTwoRecordsIsJoined() throws {
+        let head = plus(0x4001, 1, le32(0xDBC01002) + le32(1) + le32(96) + le32(96))
+        var body: [UInt8] = []
+        for v in [0xDBC01002, 1, 0, 0, 0, 0, 1] { body += le32(v) }
+        body += [1, 2, 3, 4, 5, 6, 7, 8]
+        let cut = 32
+        let first = plus(0x4008, 0x8501, le32(body.count) + Array(body[..<cut]))
+        let second = plus(0x4008, 0x8501, le32(body.count) + Array(body[cut...]))
+        var d: [UInt8] = le32(0) + le32(2)
+        for v in [0.0, 0.0, 10.0, 4.0] { d += f32(v) }
+        d += le32(3)
+        for v in [0.0, 0.0, 50.0, 0.0, 0.0, 20.0] { d += f32(v) }
+        let draw = plus(0x401B, 0x0001, d)
+        let m = try XCTUnwrap(Metafile(Data(header() + comment(head + first + second + draw) + fallback() + end()), id: "p"))
+        guard case .image(let index, _, _, _) = m.steps.first else { return XCTFail("an image: \(m.steps)") }
+        XCTAssertEqual(m.bitmaps[index].data, Data([1, 2, 3, 4, 5, 6, 7, 8]))
+    }
+
+    func testAPenWithACustomEndCapIsReadAndDrawsTheCap() throws {
+        var cap: [UInt8] = []
+        for v in [0xDBC01002, 0, 2, 2] { cap += le32(v) }                 // version, default, line path, base cap
+        cap += f32(1); cap += le32(2) + le32(2) + le32(0) + f32(10) + f32(1)   // inset, caps, join, miter, width scale
+        cap += f32(0) + f32(0) + f32(0) + f32(0)                           // hot spots
+        var path = le32(0xDBC01002) + le32(3) + le32(0x2000)
+        for p in [(1.75, -4.0), (0.0, -1.0), (-1.75, -4.0)] { path += f32(p.0) + f32(p.1) }
+        path += [0, 1, 1, 0]
+        cap += le32(path.count) + path
+        var b: [UInt8] = []
+        for v in [0xDBC01002, 0, 0x1004, 2] { b += le32(v) }
+        b += f32(2) + le32(255) + le32(cap.count) + cap
+        for v in [0xDBC01002, 0, 0xFF000000] { b += le32(v) }
+        let pen = try XCTUnwrap(EmfPlus.readPen(b, 0, b.count))
+        XCTAssertTrue(pen.plain)
+        let c = try XCTUnwrap(pen.endCap)
+        XCTAssertEqual(c.path.points.count, 3)
+        XCTAssertFalse(c.fill)
+    }
+
     func testADashedPenIsReadAndCutIntoDashes() throws {
         var b: [UInt8] = []
         for v in [0xDBC01002, 0, 0x20, 2] { b += le32(v) }       // version, type, flags (line style), unit pixel
