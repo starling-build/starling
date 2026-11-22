@@ -223,6 +223,7 @@ if [ -n "${SLPID:-}" ]; then
   wait "$SLPID"; src=$?; tail -20 "$W/slides.out"
   [ "$src" = 1 ] && { echo "render-gate: BLOCKED, Slides decks worse than the base (above)"; exit 1; }
 fi
+echo "render-gate: BASE-CACHE word=$([ -n "$BSD" ] && echo cache || echo own) slides=$(if grep -qs "base render from the cache" "$W/slides.out"; then echo cache; elif [ -s "$W/slides-base.out" ]; then echo own; else echo none; fi)"
 echo "render-gate: $NCMP sets compared; clean ($(wc -l < "$W/down.txt") approved drops)"
 [ "$MODE" = full ] && [ "${GATE_BLAME:-1}" = 1 ] && { W=$W LQ=$LQ BC=$BC BASE_SHA=$BSHA EO=$EO JOBS=$JOBS timeout 1500 test/tools/render-gate-blame.sh 2>&1 | tail -5 | cut -c1-250 || true; }
 exit 0
