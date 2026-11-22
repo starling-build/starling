@@ -141,14 +141,18 @@ extension PptxTemplates {
                         + part("lastCol", bold, "", "") + part("firstCol", bold, "<a:right>\(ln(25400, c))</a:right>", "")
                         + part("lastRow", bold, "<a:top>\(ln(25400, c))</a:top><a:bottom>\(ln(25400, c))</a:bottom>", "")
                         + part("firstRow", txt("lt1", bold: true), "<a:bottom>\(ln(25400, "lt1"))</a:bottom>", solid(c))
-                default: // Themed Style 2: white rules over dark tints of the colour
-                    let w = ln(12700, "lt1")
-                    body = "<a:wholeTbl>\(txt("lt1"))<a:tcStyle>" + bdr(noLn, noLn, noLn, noLn, w, noLn) + solid(c, "<a:shade val=\"75000\"/>") + "</a:tcStyle></a:wholeTbl>"
-                        + part("band1H", "", "", solid(c, "<a:tint val=\"90000\"/>"))
-                        + part("band1V", "", "", solid(c, "<a:tint val=\"90000\"/>"))
-                        + part("lastCol", bold, "", "") + part("firstCol", bold, "<a:right>\(ln(25400, "lt1"))</a:right>", "")
-                        + part("lastRow", bold, "<a:top>\(ln(25400, "lt1"))</a:top>", solid(c, "<a:shade val=\"65000\"/>"))
-                        + part("firstRow", txt("lt1", bold: true), "<a:bottom>\(ln(25400, "lt1"))</a:bottom>", solid(c, "<a:shade val=\"90000\"/>"))
+                default: // Themed Style 2, as Word prints it: the theme's third fill behind white text,
+                    // white 2 pt / 3 pt rules after the first column and row, bands of 20% white,
+                    // a hairline of the colour's tint down each side
+                    let side = "<a:ln w=\"9525\" cmpd=\"sng\"><a:solidFill>\(clr(c, "<a:tint val=\"40000\"/>"))</a:solidFill></a:ln>"
+                    let w = ln(38100, "lt1"), w2 = ln(25400, "lt1")
+                    body = "<a:tblBg><a:fillRef idx=\"3\">\(clr(c))</a:fillRef><a:effectRef idx=\"1\">\(clr(c))</a:effectRef></a:tblBg>"
+                        + "<a:wholeTbl>\(txt("lt1"))<a:tcStyle>" + bdr(side, side, noLn, noLn, noLn, noLn) + none + "</a:tcStyle></a:wholeTbl>"
+                        + part("band1H", "", "", solid("lt1", "<a:alpha val=\"20000\"/>"))
+                        + part("band1V", "", "", solid("lt1", "<a:alpha val=\"20000\"/>"))
+                        + part("lastCol", bold, "", "") + part("firstCol", bold, "<a:right>\(w2)</a:right>", "")
+                        + part("lastRow", bold, "", "")
+                        + part("firstRow", txt("lt1", bold: true), "<a:bottom>\(w)</a:bottom>", "")
                 }
                 out[id] = wrap(id, name, body)
             }
