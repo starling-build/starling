@@ -266,7 +266,17 @@ struct ColorContext {
             case "a:satMod", "a:satOff":
                 var (h, s, l) = _hsl(r, g, b)
                 s = m.name == "a:satMod" ? s * v : s + v
-                (r, g, b) = _rgb(h, min(1, max(0, s)), l)
+                // PowerPoint leaves saturation above 100% unclamped and clamps the
+                // channels instead (hueoff lab: accent3 + satOff 100% is FFEB00).
+                let achromatic = _hsl(r, g, b).1 == 0
+                (r, g, b) = _rgb(h, max(0, s), l)
+                // A grey given saturation takes hue 0, and its blue comes out of
+                // the hue ramp unwrapped (3p - 2q, so 0 once saturated): the
+                // grey lab's A5A5A5 + satOff 100% prints FF4B00, +50% D27800.
+                if achromatic && s > 0 {
+                    let q = l < 0.5 ? l * (1 + s) : l + s - l * s
+                    b = min(1, max(0, 3 * (2 * l - q) - 2 * q))
+                }
                 h = 0; l = 0
             case "a:hueMod", "a:hueOff":
                 // Hues are in 60000ths of a degree; the HSL here is 0...1.
@@ -333,7 +343,8 @@ struct ColorContext {
         }
         let q = l < 0.5 ? l * (1 + s) : l + s - l * s
         let p = 2 * l - q
-        return (hue(p, q, h + 1.0 / 3), hue(p, q, h), hue(p, q, h - 1.0 / 3))
+        func c(_ x: Double) -> Double { min(1, max(0, x)) }
+        return (c(hue(p, q, h + 1.0 / 3)), c(hue(p, q, h)), c(hue(p, q, h - 1.0 / 3)))
     }
 }
 
