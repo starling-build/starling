@@ -597,6 +597,9 @@ struct Chart: Equatable {
     var boxInclusive = false
     var boxMeans = true
     var boxOutliers = true
+    /// The box-whisker's data labels (a series' `cx:dataLabels` showing the value): 1 = the five-number summary and the mean,
+    /// 2 = where the chart shows its non-outlier points, each distinct sample value instead of the whiskers' ends.
+    var boxLabels = 0
     /// The chart's own text size (`c:chartSpace/c:txPr`) where it is not
     /// the usual 12: what its labels and legend are set in when they say
     /// nothing, and an unsized title 1.2 times it.
@@ -976,6 +979,9 @@ enum ChartXML {
         c.boxInclusive = layout?.first("cx:statistics")?["quartileMethod"] == "inclusive"
         c.boxMeans = layout?.first("cx:visibility")?["meanMarker"] != "0"
         c.boxOutliers = layout?.first("cx:visibility")?["outliers"] != "0"
+        if all.contains(where: { $0.first("cx:dataLabels")?.first("cx:visibility")?["value"] == "1" }) {
+            c.boxLabels = layout?.first("cx:visibility")?["nonoutliers"] == "1" ? 2 : 1
+        }
         // (Gridlines only where the value axis names them: PowerPoint's print of a box-whisker with none has none.)
         c.valueGrid = chart.first("cx:plotArea")?.all("cx:axis").contains { $0.first("cx:valScaling") != nil && $0.first("cx:majorGridlines") != nil } ?? false
         return c
@@ -7426,8 +7432,37 @@ extension ChartPainter {
                         canvas.drawCircle(Offset(mid, vpos(v)), 1.5 * k, line)
                     }
                 }
+                if c.boxLabels > 0 {
+                    // (PowerPoint's print of chartex-lab2 p17, p18: a value label stands centred on its value's own height and
+                    // the box's middle, whatever its position setting says, over the whisker cap or the box's edge. Plain:
+                    // the whiskers' ends and the three quartiles, then the mean (10 significant digits); with the non-outlier
+                    // points shown, every distinct sample value and the three quartiles, then the mean.)
+                    var vals = [q1, q2, q3]
+                    if c.boxLabels == 2 { var seen: [Double] = []; for v in xs where !seen.contains(v) { seen.append(v) }; vals += seen }
+                    else if let lo = inside.first, let hi = inside.last { vals += [lo, hi] }
+                    vals.append(xs.reduce(0, +) / Double(xs.count))
+                    for v in vals {
+                        let tp = TextPainter(text: TextSpan(text: Self._boxLabelText(v), style: Flutter.TextStyle(
+                            color: c.textColor ?? Color(0xFF595959), fontSize: max(3, c.baseTextSize * k),
+                            fontFamily: OfficeFonts.substitute(c.font ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textDirection: .ltr)
+                        tp.layout(minWidth: 0, maxWidth: .infinity)
+                        tp.paint(canvas, Offset(mid - tp.width / 2, vpos(v) - tp.height / 2 + (c.onSlide ? 2.05 * k : 0)))  // (the axis labels' own 2.05 pt)
+                        tp.dispose()
+                    }
+                }
             }
         }
+    }
+
+    /// A box-whisker label's number as the General format prints it: up to 10 significant digits.
+    static func _boxLabelText(_ v: Double) -> String {
+        if v == v.rounded(), abs(v) < 1e15 { return String(Int64(v)) }
+        var digits = 9 - Int(max(0, floor(log10(abs(v)))))
+        digits = max(0, min(15, digits))
+        var s = NumberFormat.format(v, "0." + String(repeating: "0", count: digits), width: 40).text.trimmingWhitespace()
+        while s.hasSuffix("0") { s.removeLast() }
+        if s.hasSuffix(".") { s.removeLast() }
+        return s
     }
 
     static func _scaled(_ c: Color, _ f: Double) -> Color {
