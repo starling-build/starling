@@ -26,6 +26,8 @@
 # (Starling's own fonts, whatever this machine has: a harness pins them so no
 # baseline moves with the machine — see OfficeFonts.fontSource.)
 export OFFICE_FONT_SOURCE="${OFFICE_FONT_SOURCE:-bundled}"
+# A deck with a DATE/TIME field is drawn at the moment PowerPoint printed it (test/corpus/pptx/clock.tsv), not at the wall clock: lo-numfmt scored 55.6 or 44.4 by when the gate ran (amd-8, 2026-11-22)
+export OFFICE_NOW_TABLE="${OFFICE_NOW_TABLE:-$(cd "$(dirname "$0")" && pwd)/corpus/pptx/clock.tsv}"
 JOBS=1
 if [ "${1:-}" = -j ]; then JOBS=${2:?-j wants a number}; shift 2; fi
 HERE=$(cd "$(dirname "$0")" && pwd)

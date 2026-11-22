@@ -58,7 +58,7 @@ struct SlideField: Equatable {
     var isSlideNumber: Bool { type == "slidenum" }
 
     /// The text the field shows on slide `number` (1-based) today.
-    func value(slide number: Int, date: Date = Date()) -> String {
+    func value(slide number: Int, date: Date = SlideField.fieldNow()) -> String {
         if isSlideNumber { return "\(number)" }
         let pattern: String
         switch type {
@@ -78,6 +78,17 @@ struct SlideField: Equatable {
     }
 
     static func newId() -> String { "{" + UUID().uuidString + "}" }
+
+    /// The moment a DATE/TIME field shows: the real clock, or OFFICE_NOW (FieldClock) when a test pins it to the
+    /// moment PowerPoint's print was made, so a deck with a clock field scores the same whenever it is drawn.
+    static func fieldNow() -> Date {
+        if let c = FieldClock.current(), getenv("OFFICE_NOW") != nil {
+            var dc = DateComponents(); dc.year = c.year; dc.month = c.month; dc.day = c.day
+            dc.hour = c.hour; dc.minute = c.minute; dc.second = c.second
+            if let d = Calendar(identifier: .gregorian).date(from: dc) { return d }
+        }
+        return Date()
+    }
 }
 
 /// The group (`p:grpSp`) a shape was read from. The deck edits group
