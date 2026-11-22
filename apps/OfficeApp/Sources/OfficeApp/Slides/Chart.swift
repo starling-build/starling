@@ -2903,7 +2903,8 @@ enum ChartPainter {
             // Word's print of fdo78474's "Sales" and the rest of its text.)
             let titleStyle = Flutter.TextStyle(
                 color: c.titleColor ?? ink, fontSize: max(3, (c.titleSize ?? (c.autoTitle && !c.onSlide && !c.onSheet && !c.chartex ? 18 : nil) ?? c.textSize.map { ($0 * 1.2).rounded() } ?? (!c.onSlide && !c.onSheet && !c.chartex ? 10 : 18.6)) * k),
-                fontWeight: c.titleBold ? .bold : .normal, letterSpacing: c.titleSpacing.map { $0 * k }, fontFeatures: plain,
+                fontWeight: c.titleBold ? .bold : .normal, letterSpacing: c.titleSpacing.map { $0 * k },
+                fontFeatures: plain,
                 fontFamily: OfficeFonts.substitute(c.titleFont ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c, traditional: c.titleTraditional))
             // (A line in a size of its own, as its own span.)
             let span: TextSpan
@@ -2966,6 +2967,14 @@ enum ChartPainter {
                     grown += line.height * size - m.height
                     if i == 0 { drop = line.baseline * size - m.ascent }
                 }
+            }
+            // (A slide chart set in Malgun Gothic: the title's text on the face's own line, its baseline under the
+            // line's top as the face's ascent puts it, the band the plot stands under left as it was.)
+            if drop == nil, c.onSlide, c.titleFont == nil, c.titleAt == nil,
+               ["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased()),
+               let first = tp.computeLineMetrics().first {
+                let size = c.titleLineSizes.isEmpty ? titleStyle.fontSize ?? 0 : c.titleLineSizes.values.max()! * k
+                drop = 1.3301 * size - first.ascent
             }
             // (Word for Windows' Traditional Chinese title stands 3.2 to 3.7 pt higher than the Latin face's line puts it:
             // zh-b8de3ae2's 18 pt "圖1、本區108、109年歲入預算概況" and its ten sisters, baselines 0.98 em under our line's
