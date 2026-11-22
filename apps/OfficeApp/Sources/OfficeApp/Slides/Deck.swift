@@ -194,6 +194,8 @@ struct OpaqueObject: Equatable {
     var rendering: [ShapeState] = []
     /// The drawing is cut to the object's frame (a broken picture's box).
     var clipsRendering = false
+    /// The drawing is an AlternateContent branch's shapes (an equation's text box): ordinary shapes, whose autofit the file already states.
+    var fromAlternate = false
 }
 
 /// An arrowhead (`a:headEnd`/`a:tailEnd`): its kind ("triangle",
