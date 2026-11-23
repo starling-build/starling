@@ -5274,6 +5274,17 @@ enum ChartPainter {
                     }
                 }
                 xScale = scale(xAll.min() ?? 0, xAll.max() ?? 1, intervals: 8)
+                if c.onSheet, c.xMin == nil, c.xMax == nil {
+                    // (On a sheet Excel takes the finest step that keeps its ticks 36.4 pt apart or more (between the 34.4 pt that
+                    // chart-tdf135184RoundLineCap's 0.5 steps would stand, which it refuses, and the 38.4 of chart-trendline's, which it keeps).)
+                    let room = area0.width - 20
+                    for n in [16, 12, 8, 6, 4, 3, 2] {
+                        let t = scale(xAll.min() ?? 0, xAll.max() ?? 1, intervals: n)
+                        // (Finer than the usual eight only by halves: chart-tdf126033's 0 to 2.5 keeps its 0.5, not 0.2.)
+                        if t.step < xScale.step - 1e-12, abs(t.step / pow(10, floor(log10(t.step))) - 5) > 1e-6 { continue }
+                        if (t.hi - t.lo) / t.step * 36.4 <= room || n == 2 { xScale = t; break }
+                    }
+                }
                 if c.xMin != nil || c.xMax != nil { xScale = fixedScale(auto: xScale, min: c.xMin, max: c.xMax, step: nil) }
             }
         }
