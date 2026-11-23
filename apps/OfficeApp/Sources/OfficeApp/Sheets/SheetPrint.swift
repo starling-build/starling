@@ -140,6 +140,11 @@ enum SheetPrintLayout {
             // (Not one that is wholly in hidden rows or columns.)
             guard (m.top ... m.bottom).contains(where: { !ws.isRowHidden($0) }),
                   (m.left ... m.right).contains(where: { !ws.isColHidden($0) }) else { continue }
+            // (One that runs to the sheet's last column is a whole-row merge,
+            // like a row formatted as a whole: it prints across the columns
+            // in use, not the 16,384 it spans: es-3837fc2e1e's A2:XFD2 made
+            // two hundred blank pages where Excel prints one.)
+            if m.right == CellAddress.maxCols - 1 { take(m.top, m.left); take(m.bottom, m.left); continue }
             take(m.top, m.left); take(m.bottom, m.right)
         }
         // A drawing prints whole, however it is anchored: every cell its
@@ -509,6 +514,8 @@ extension SheetGridState {
                 let bandH = ra.start(r1) + ra.size(r1) - ra.start(r0) + ty
                 let recorder = NativePictureRecorder()
                 let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, size.width, size.height))
+                // (The header's pictures lie under the cells: they show through the unfilled ones.)
+                _paintHeaderFooter(canvas, setup: setup, fields: fields, position: out.count + 1, base: hfFont, size: size, scale: s, ws: ws, pictures: true)
                 // (The cells four printer dots, 0.48 pt, in from the margins
                 // and down from them, the drawings not: Excel's first fills
                 // at (+0.48, +0.48) from ours in 140 of the 210 workbooks
@@ -628,7 +635,7 @@ extension SheetGridState {
                 }
                 canvas.restore()
                 fields.page = setup.firstPageNumber + out.count
-                _paintHeaderFooter(canvas, setup: setup, fields: fields, position: out.count + 1, base: hfFont, size: size, scale: s)
+                _paintHeaderFooter(canvas, setup: setup, fields: fields, position: out.count + 1, base: hfFont, size: size, scale: s, ws: ws)
                 out.append(PdfDocument.Page(picture: recorder.endRecording(), width: size.width, height: size.height))
             }
         }
@@ -654,7 +661,7 @@ extension SheetGridState {
         fields.page = setup.firstPageNumber + out.count
         let st = book.style(0)
         let font = GridTextStyle(family: OfficeFonts.sheetFace(book.fontName(st)), size: book.fontSize(st), color: Int64(0xFF000000))
-        _paintHeaderFooter(canvas, setup: setup, fields: fields, position: out.count + 1, base: font, size: size)
+        _paintHeaderFooter(canvas, setup: setup, fields: fields, position: out.count + 1, base: font, size: size, ws: ws)
         out.append(PdfDocument.Page(picture: recorder.endRecording(), width: size.width, height: size.height))
     }
 
@@ -663,7 +670,7 @@ extension SheetGridState {
     /// is the page's place in the job, from 1, which picks the first/even
     /// variant; `fields.page` is the number printed.
     private func _paintHeaderFooter(_ canvas: any Canvas, setup: SheetPrintSetup, fields: HeaderFooterText.Fields,
-                                    position: Int, base: GridTextStyle, size: Size, scale: Double = 1) {
+                                    position: Int, base: GridTextStyle, size: Size, scale: Double = 1, ws: Worksheet? = nil, pictures: Bool = false) {
         let hf = setup.headerFooter
         guard !hf.isEmpty else { return }
         let k = hf.scaleWithDoc ? scale : 1
@@ -685,6 +692,24 @@ extension SheetGridState {
         func paint(_ text: String, top: Double?, bottom: Double?) {
             guard !text.isEmpty else { return }
             let sections = HeaderFooterText.parse(text)
+            if pictures {
+            // A picture (`&G`) stands in its section on the margin's line:
+            // a header's from the header margin down, a footer's up to the
+            // footer margin (ar-82457ecd08: 196.5 x 106.5 pt, centred, its
+            // top 21.6 = the header margin, in Excel's print).
+            for i in Set(sections.pictures) {
+                let key = (i == 0 ? "L" : i == 1 ? "C" : "R") + (top != nil ? "H" : "F")
+                guard let pic = ws?.headerPictures[key] else { continue }
+                // (Its height follows the picture's own proportions from the
+                // width: Excel's print 108.5 high for the VML's 106.5.)
+                let w = pic.width * k
+                let h = _image(pic.path, pic.data).map { w * Double($0.height) / Double($0.width) } ?? pic.height * k
+                let x = i == 0 ? inL : i == 1 ? inL + (innerW - w) / 2 : size.width - inR - w
+                let y = top ?? (bottom! - h)
+                _paintPicture(canvas, pic.path, pic.data, in: Rect.fromLTWH(x, y, w, h))
+            }
+                return
+            }
             for (i, items) in [sections.left, sections.center, sections.right].enumerated() where !items.isEmpty {
                 // A line break inside a section starts a new line, each aligned
                 // on its own (lo-tdf124525's footer, lo-tdf58243's centre).
@@ -736,6 +761,7 @@ extension SheetGridState {
             if case .picture(let key, let data) = d.kind { return (key, data) }
             return nil
         }
+        pictures += ws.headerPictures.values.map { ($0.path, $0.data) }
         pictures += ws.objects.compactMap { o in
             if case .preview(let key, let data) = o.kind { return (key, data) }
             return nil

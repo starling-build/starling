@@ -775,7 +775,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     /// A picture's bytes into `r`: a bitmap through the codec, a metafile
     /// (WMF, EMF — what an embedded object's picture usually is) played.
-    private func _paintPicture(_ canvas: any Canvas, _ path: String, _ data: Data, in r: Rect, crop: [Double]? = nil) {
+    func _paintPicture(_ canvas: any Canvas, _ path: String, _ data: Data, in r: Rect, crop: [Double]? = nil) {
         if let played = _metafile(path, data) {
             played.paint(canvas, in: r, image: { self._image($0.id, $0.data) }, font: { OfficeFonts.drawn($0) })
         } else if !Metafile.isMetafile(data), let image = _image(path, data) {
@@ -2532,8 +2532,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let m = merges.isEmpty ? nil : merges.first { $0.contains(a) }
             if b.top, m.map({ $0.top == a.row }) ?? true { line("top", Offset(l, t), Offset(rr, t), inward: Offset(0, 1)) }
             if b.bottom, m.map({ $0.bottom == a.row }) ?? true { line("bottom", Offset(l, bt), Offset(rr, bt), inward: Offset(0, -1)) }
-            if b.left, m.map({ $0.left == a.col }) ?? true { line("left", Offset(l, t), Offset(l, bt), inward: Offset(1, 0)) }
-            if b.right, m.map({ $0.right == a.col }) ?? true { line("right", Offset(rr, t), Offset(rr, bt), inward: Offset(-1, 0)) }
+            // (A mirrored page has the area's last column on its left.)
+            let flip = printMirror != nil
+            if b.left, m.map({ (flip ? $0.right : $0.left) == a.col }) ?? true { line("left", Offset(l, t), Offset(l, bt), inward: Offset(1, 0)) }
+            if b.right, m.map({ (flip ? $0.left : $0.right) == a.col }) ?? true { line("right", Offset(rr, t), Offset(rr, bt), inward: Offset(-1, 0)) }
         }
         // Filter dropdowns: ▾, or a funnel on a column that filters.
         if !printing, let af = ws.autoFilter, rs.contains(af.range.top) {
@@ -2592,8 +2594,16 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let key = name + (st.bold ? " bold" : "") + (st.italic ? " italic" : "")
             if SheetHinting.has(key), name == "arial" || name == "times new roman" || OfficeFonts.sheetFaceIsOwn(name) { hint = key }
         }
+        // (On a page Excel scales the size in whole twips, then draws it at
+        // whole dots: 11 pt at 66% is 145 twips, 60 dots, not 60.5 dots.)
+        var size = book.fontSize(st) * scale * (printing ? 1 : Self.excelTextScale)
+        if dots > 0 {
+            let twips = (book.fontSize(st) * 20 * printTextScale + 0.5 + 1e-9).rounded(.down)
+            let em = (twips * 600 / 1440 + 0.5 + 1e-9).rounded(.down)
+            if em > 0, em != (size * dots).rounded() { size = em / dots }
+        }
         var style = GridTextStyle(family: face,
-                             size: book.fontSize(st) * scale * (printing ? 1 : Self.excelTextScale), bold: st.bold, italic: st.italic,
+                             size: size, bold: st.bold, italic: st.italic,
                              underline: st.underline, strike: st.strike, color: c, dots: dots, hint: hint)
         let lower = book.fontName(st).trimmingWhitespace().lowercased()
         if lower == "aptos narrow" || OfficeFonts.tabledNames.contains(lower) { style.own = lower }
@@ -2657,7 +2667,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             chars = max(1, Int(width / (7 * zoom)))
         }
         var (text, color) = NumberFormat.display(cell.value, st.numberFormat, width: chars, pads: true)
-        if cell.value.isText { text = Self.shown(text) }
+        if cell.value.isText, !st.wrap { text = Self.shown(text) }
         let style = _textStyle(st, color: color, ink: ink)
         // Pads before the text (`_W0`, Accounting's `_(@_)`) are a gap of
         // their characters' width ahead of it. (Spaced out as `_TextCache`
@@ -2684,10 +2694,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
         }
         let pad = 2 * zoom   // Excel's cell margin
+        let wrapLess = 0.15 * zoom
         // Wrapped text: lines within the cell's width, never spilling.
         let wraps = st.wrap && cell.value.isText
         let lineAlign: TextAlign = align == .center ? .center : align == .right ? .right : .left
-        var tp = texts.painter(text, style, maxWidth: wraps ? max(1, width - pad * 2) : .infinity, align: wraps ? lineAlign : .left)
+        var tp = texts.painter(text, style, maxWidth: wraps ? max(1, width - pad * 2 - wrapLess) : .infinity, align: wraps ? lineAlign : .left)
         // A number too wide for its cell is ####, never cut.
         if case .number = cell.value, lead + tp.width > width - pad * 2 {
             let hashes = max(1, Int((width - pad * 2) / max(1, texts.painter("#", style).width)))
@@ -2807,7 +2818,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // the first at the head, the middle in the centre — stands where
         // one line would (52716's last lines with their rows' numbers).
         if printing && wraps {
-            let lines = texts._breakLines(NumberFormat.unpad(text), style, max(1, width - pad * 2))
+            let lines = texts._breakLines(NumberFormat.unpad(text), style, max(1, width - pad * 2 - wrapLess))
                 .split(separator: "\n", omittingEmptySubsequences: false)
             if lines.count > 1 {
                 let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
@@ -2944,7 +2955,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // workbooks and its Arial 10 0.15 high in 40; cut, 3.96 and 3.24.)
         // (And the ascent so cut: the box's part over its baseline.)
         func box(_ s: CellStyle, _ p: @autoclosure () -> TextPainter) -> (below: Double, above: Double) {
-            let a = SheetPrintMetrics.ascent(family: book.fontName(s)).map { $0 * book.fontSize(s) }
+            let a = SheetPrintMetrics.printAscent(family: book.fontName(s)).map { $0 * book.fontSize(s) }
                 ?? p().computeDistanceToActualBaseline(.alphabetic) / scale
             let up = (a * 600 / 72).rounded(.up) * 72 / 600
             return ((Self._fittedLine(s, m, book) - up) * scale, up * scale)
@@ -2991,7 +3002,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // stood 6 pt low by the row's box.
         case .center:
             let size = book.fontSize(st)
-            if let a = SheetPrintMetrics.ascent(family: book.fontName(st)), let d = SheetPrintMetrics.descent(family: book.fontName(st)) {
+            if let a = SheetPrintMetrics.printAscent(family: book.fontName(st)), let d = SheetPrintMetrics.printDescent(family: book.fontName(st)) {
                 func dots(_ v: Double) -> Double { (v * size * 600 / 72 - 1e-6).rounded(.up) * 72 / 600 }
                 baseline = (top + bottom) / 2 + (dots(a) - dots(d)) / 2 * scale
             } else {
@@ -3074,9 +3085,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         canvas.restore()
     }
 
-    /// What a cell shows of its text: the first 1,024 characters, as
-    /// Excel's grid does (the formula bar has the rest). lo-cell-value's
-    /// 2,472 run over ten printed pages to the 1,024th and stop there.
+    /// What a cell shows of its text when it is not wrapped: the first 1,024
+    /// characters, as Excel's grid does (the formula bar has the rest).
+    /// lo-cell-value's 2,472 run over ten printed pages to the 1,024th and
+    /// stop there. A wrapped cell prints all of it (ar-d7e763fe3f A5:J5).
     static func shown(_ text: String) -> String {
         text.count > 1024 ? String(text.prefix(1024)) : text
     }
@@ -3336,7 +3348,12 @@ final class _TextCache {
     private func _advance(_ ch: Character, _ natural: Double, _ style: GridTextStyle) -> Double {
         let a = _own(ch, style).map { $0 * style.size } ?? natural
         guard style.dots > 0, style.size > 0 else { return a }
-        let em = (style.size * style.dots).rounded()
+        // (A font of exactly half a dot goes to the even dot: Calibri 11
+        // at 66 % is 60.5 dots and Excel's print sets it in 60 — 7.2 pt,
+        // digits 3.60 — where 61 put CVLKRA-KYC's "01/01/2" in a line of
+        // 36 pt it breaks.)
+        let exact = (style.size * style.dots * 1e6).rounded() / 1e6
+        let em = exact.rounded(.toNearestOrEven)
         let hinted = style.hint.isEmpty ? 0 : SheetHinting.departure(style.hint, em: Int(em), ch)
         return ((a / style.size * em).rounded() + Double(hinted)) / style.dots
     }
@@ -3376,6 +3393,12 @@ final class _TextCache {
                 } while !rest.isEmpty
             }
             var line = "", lineWidth = 0.0
+            // A hyphen a line ends on hangs past the room: the piece fits when
+            // everything before its hyphen does (52716's "holz@zv.uni-").
+            func hangFits(_ text: String, _ used: Double) -> Bool {
+                guard text.hasSuffix("-"), text.count > 1 else { return false }
+                return used + _width(String(text.dropLast()), style) <= maxWidth
+            }
             // (Spaces where a line breaks are not carried to the next: chart-
             // tdf159450's "Lion …… dd …… XYZ" starts its second line at XYZ.)
             var broken = false
@@ -3384,7 +3407,7 @@ final class _TextCache {
                     if piece.text.isEmpty { continue }
                 } else if k > 0 {
                     let w = _width(piece.sep + piece.text, style)
-                    if lineWidth + w <= maxWidth { line += piece.sep + piece.text; lineWidth += w; continue }
+                    if lineWidth + w <= maxWidth || hangFits(piece.sep + piece.text, lineWidth) { line += piece.sep + piece.text; lineWidth += w; continue }
                     if !line.isEmpty { out.append(line) }
                     line = ""; lineWidth = 0; broken = true
                     if piece.text.isEmpty { continue }
@@ -3392,7 +3415,7 @@ final class _TextCache {
                 var rest = piece.text
                 while !rest.isEmpty {
                     let w = _width(String(rest), style)
-                    if lineWidth + w <= maxWidth { line += rest; lineWidth += w; break }
+                    if lineWidth + w <= maxWidth || hangFits(String(rest), lineWidth) { line += rest; lineWidth += w; break }
                     if !line.isEmpty { out.append(line); line = ""; lineWidth = 0; continue }
                     // Longer than a line: as many characters as fit, one at least.
                     var cut = rest.index(after: rest.startIndex)

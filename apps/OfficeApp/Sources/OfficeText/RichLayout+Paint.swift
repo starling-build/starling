@@ -790,6 +790,9 @@ extension RichLayout {
             let name = run.style.fontFamily ?? theme.fontFamily
             let family = name.map { theme.fontFamilyResolver?($0) ?? $0 }
             let drawn = theme.descentShare(family: family, bold: run.style.bold, italic: run.style.italic)
+            // (A Han run in a face PowerPoint does not have is drawn in Microsoft JhengHei there: 2724 units a line, 521 below.)
+            let jheng = p.style.eastAsian["a:missingFaceJhenghei"] == "1" && theme.faceMissingOnWindows?(name ?? "") == true
+                && (p.text.unicodeScalars.first.map { $0.value >= 0x4E00 && $0.value <= 0x9FFF } ?? false)
             var below = share
             if let least = theme.exactLineDescentOfSize, points > 0 {
                 var size = run.style.fontSize ?? document.styles.resolve(p.style)?.char.fontSize
@@ -804,10 +807,17 @@ extension RichLayout {
                 // line's top. Whatever the size and the face.)
                 if let natural = theme.singleLineHeight, theme.exactLinesAsPowerPoint {
                     let single = natural * size
-                    let depth = drawn * single
+                    // (The foot stands on the face PowerPoint draws; the strut below on the stand-in this engine draws.)
+                    let printed = jheng ? 1.2 * size : single
+                    let depth = jheng ? 521.0 / 2724 * printed : drawn * single
                     var foot = depth
-                    if points > single { foot += 0.072 * size + 0.255 * (points - single) }
-                    foot = min(foot, points + depth - 0.755 * size) - 0.012 * size
+                    if points > printed { foot += 0.072 * size + 0.255 * (points - printed) }
+                    // (Up to single's height the foot is a quarter of the line or the natural depth, whichever is
+                    // less: PowerPoint for Windows, lab exactsmall, 44 pt Arial and DFKai-SB in exact lines of 12-30 pt
+                    // put the first baseline 0.75 of the line under the top, in either face; lab p3ls at 18-36 pt, the
+                    // lines from 0.69 of the size up, where the 0.755-size floor below came from, agrees.)
+                    if points <= printed { foot = min(depth, 0.25 * points) } else { foot = min(foot, points + depth - 0.755 * size) }
+                    foot -= 0.012 * size
                     // (The line is held by a forced strut set evenly about its face — see `_strut`'s Slides stand-in in the paragraph's
                     // painter — where `drawn` shares the line out by the face's proportions: the difference of the two baselines.)
                     let evenly = (points - single) * (0.5 - drawn)

@@ -1431,6 +1431,7 @@ final class DeckController: ChangeNotifier {
         theme.fontFamilyResolver = SlideFonts.resolve
         theme.baselineScalesWithSpacing = SlideFonts.isArabicLineFace
         theme.ownDescentShare = SlideFonts.ownDescentShare   // and sets a baseline by the face named
+        theme.faceMissingOnWindows = { OfficeFonts.installed($0) == nil && SlideFonts.ownDescentShare($0) == nil && SlideFonts.diagramEastAsianLine($0) == nil }
         theme.uprightColumn = { SlideFonts.uprightColumn($0, bold: $1) }
         theme.faceResolver = SlideFonts.face                 // and sets Lucida Sans Unicode at its own widths
         theme.setsFaceAdvances = true

@@ -204,18 +204,22 @@ struct SheetPrintMetrics {
         "바탕": "malgun gothic", "batang": "malgun gothic",
     ]
 
-    private static func face(_ family: String) -> Face {
+    private static func face(_ family: String) -> Face { faces[faceKey(family)]! }
+
+    /// The key of the table face a family is measured as: its own, or the
+    /// one this app would draw it with. (Its bold is that key's "bold".)
+    private static func faceKey(_ family: String) -> String {
         let n = family.trimmingWhitespace().lowercased()
-        if let f = faces[aliases[n] ?? n] { return f }
+        if faces[aliases[n] ?? n] != nil { return aliases[n] ?? n }
         // A face nobody measured: an East Asian one by its name, the rest by
         // the clone this app would draw it with.
-        if n.unicodeScalars.contains(where: { $0.value > 0x2E7F }) { return faces["ms pgothic"]! }
+        if n.unicodeScalars.contains(where: { $0.value > 0x2E7F }) { return "ms pgothic" }
         let clone = OfficeFonts.sheetClone(family)
-        if clone == OfficeFonts.substitute("Times New Roman") { return faces["times new roman"]! }
-        if clone == OfficeFonts.substitute("Courier New") { return faces["courier new"]! }
-        if clone == OfficeFonts.substitute("Cambria") { return faces["cambria"]! }
-        if clone == OfficeFonts.substitute("Calibri") { return faces["calibri"]! }
-        return faces["arial"]!
+        if clone == OfficeFonts.substitute("Times New Roman") { return "times new roman" }
+        if clone == OfficeFonts.substitute("Courier New") { return "courier new" }
+        if clone == OfficeFonts.substitute("Cambria") { return "cambria" }
+        if clone == OfficeFonts.substitute("Calibri") { return "calibri" }
+        return "arial"
     }
 
     /// A face's ascent as Windows has it (OS/2 usWinAscent, or hhea's where
@@ -234,6 +238,13 @@ struct SheetPrintMetrics {
         guard let a = ascent(family: family), let d = descent(family: family) else { return nil }
         return a + d
     }
+    /// Where a cell's text stands: the face's own ascent and descent. No
+    /// face-specific entries: Lucida Sans Unicode stands about a tenth of
+    /// an em higher in Excel's print than its Windows line gives, and no
+    /// rule over the measured metric fields fits it with the other faces
+    /// (OPEN, baseline lab round 2).
+    static func printAscent(family: String) -> Double? { ascent(family: family) }
+    static func printDescent(family: String) -> Double? { descent(family: family) }
     private static let ascents: [String: Double] = [
         "calibri": 0.9521, "arial": 0.9053, "verdana": 1.0054, "times new roman": 0.8911, "courier new": 0.8325,
         "tahoma": 1.0005, "cambria": 0.9502, "microsoft sans serif": 0.9219, "segoe ui": 1.0791, "century gothic": 1.0059,
@@ -280,8 +291,7 @@ struct SheetPrintMetrics {
     /// The metrics of a workbook whose default font is `family` at `size`;
     /// `baseColWidth` is the sheet's (8 digits unless it says otherwise).
     static func of(family: String, size: Double, bold: Bool = false, baseColWidth: Double = 8, hinted: Bool = false, otherBook: Bool = false) -> SheetPrintMetrics {
-        let plain = aliases[family.trimmingWhitespace().lowercased()] ?? family.trimmingWhitespace().lowercased()
-        let f = (bold ? faces[plain + " bold"] : nil) ?? face(family)
+        let f = (bold ? faces[faceKey(family) + " bold"] : nil) ?? face(family)
         // (A printer's line between the sizes measured is the next whole
         // dot up: 49609's Microsoft Sans Serif 8.25 is 87 of 84 and 93,
         // its set 15 pt rows 124 dots in Excel's print where 86 made 122.)

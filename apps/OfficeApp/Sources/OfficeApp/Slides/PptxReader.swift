@@ -4029,6 +4029,17 @@ private struct SlideContext {
             }
             // (PowerPoint hangs every closing mark, ) ] and the like, a full em past the margin in Chinese text: lab zhhang, four
             // faces in zh-TW and zh-CN. It follows the language of the run that holds the mark.)
+            // (A Latin ")" in an en-US run that closes a Chinese phrase hangs as well when the paragraph names Chinese: 1d619a8046f0 p2
+            // title "…課題(一)" holds on one 604 pt line with the ")" 11 pt past the margin.)
+            let paraZh = p.all("a:r").contains(where: { ($0.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("zh") || ($0.first("a:rPr")?["altLang"] ?? "").lowercased().hasPrefix("zh") })
+            if paraZh, p.all("a:r").contains(where: { ($0.first("a:t")?.text ?? "") == ")" }) {
+                style.eastAsian["a:hangClosingZh"] = "1"
+            }
+            // (PowerPoint prints an East Asian face it does not have as Microsoft JhengHei when the run says Traditional Chinese; its
+            // exact lines stand on that face's metrics: 7fc5fcbcda59 p31, 80 pt lines of 辰宇落雁體.)
+            if p.all("a:r").contains(where: { r in ["lang", "altLang"].contains { ["zh-tw", "zh-hk", "zh-mo", "zh-hant"].contains((r.first("a:rPr")?[$0] ?? "").lowercased()) } }) {
+                style.eastAsian["a:missingFaceJhenghei"] = "1"
+            }
             if p.all("a:r").contains(where: { r in
                 (r.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("zh")
                     && (r.first("a:t")?.text ?? "").unicodeScalars.contains(where: { [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009, 0xFF1A, 0xFF1B, 0xFF01, 0xFF1F].contains($0.value) }) }) {
@@ -4207,9 +4218,13 @@ private struct SlideContext {
                 var pieces: [(length: Int, script: String?)] = []
                 let explicitLatin = rPr?.first("a:latin")?["typeface"].map { !$0.isEmpty && !$0.hasPrefix("+") } ?? false
                 var sawLetter = false
+                let calibriLatin = (plain.fontFamily ?? "").lowercased().hasPrefix("calibri")
                 for ch in t.unicodeScalars {
                     let n = ch.utf16.count
-                    let script = Self.complexScript(ch.value) ?? (Self.isEastAsian(ch.value) && ch.value != 0x3000 ? "ea" : nil)
+                    var script = Self.complexScript(ch.value) ?? (Self.isEastAsian(ch.value) && ch.value != 0x3000 ? "ea" : nil)
+                    // (A symbol Calibri lacks (℃ ℉ № and the like) that Cambria Math holds is drawn in Cambria Math, as PowerPoint's print
+                    // does: 998cb8 p9's "65℃" step is 0.906 em, the fallback face's 1.125.)
+                    if script == nil, calibriLatin, RichLayout._latinFaceLacks("calibri", ch.value) == true, OfficeFonts.cambriaMathScript[ch.value] != nil { script = "cmath" }
                     let letter = script != nil || ch.properties.isAlphabetic
                     if pieces.isEmpty {
                         pieces.append((n, script))
@@ -4322,7 +4337,11 @@ private struct SlideContext {
                     // (Not where the complex face is one the deck embeds: its own line already holds the paragraph as PowerPoint draws it, and the
                     // Latin mark would lower it 1.3 pt: 7854f160 p1, 5a8cce85 p1 and p2 in B Nazanin and B Titr stand where the print has them.)
                     arabicTailFace = piece.script == "Arab" && !SlideFonts.isEmbedded(_csFont(s.csFont, script: "Arab", lang: s.lang, arabicCharset: s.csArabicCharset) ?? "") ? plain.fontFamily : nil
-                    if piece.script == "sym", let cjk = OfficeFonts.cjkFallback.first {
+                    if piece.script == "cmath" {
+                        c = plain
+                        c.fontFamily = "Cambria Math"
+                        c.shadow = cs.shadow; c.outline = cs.outline; c.highlight = cs.highlight; c.caps = cs.caps; c.smallCaps = cs.smallCaps
+                    } else if piece.script == "sym", let cjk = OfficeFonts.cjkFallback.first {
                         c = plain
                         c.fontFamily = cjk
                         c.shadow = cs.shadow; c.outline = cs.outline; c.highlight = cs.highlight; c.caps = cs.caps; c.smallCaps = cs.smallCaps
