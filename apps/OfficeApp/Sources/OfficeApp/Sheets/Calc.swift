@@ -113,8 +113,14 @@ final class CalcEngine {
             }
             spillsChanged = false
             _reentered.removeAll()
+            // What the pass starts from (spill ranges and the values they hold): when it ends in the same state,
+            // the next round would start from the same state and compute the same cells again.
+            let startSpills = round > 0 ? book.sheets.map { $0.spilled } : []
+            let startKnown = round > 0 ? _spillSignature(_knownSpills) : []
             _pass()
             if !spillsChanged || round == 3 { break }
+            if round > 0, _spillSignature(_collectSpills()) == startKnown,
+               zip(book.sheets, startSpills).allSatisfy({ $0.spilled == $1 }) { break }
         }
         if book.iterate, !_reentered.isEmpty { _iterate() }
     }
@@ -1020,6 +1026,14 @@ final class CalcEngine {
     }
 
     private var _knownSpills: [Int: [(CellAddress, CellRange)]] = [:]
+
+    private func _spillSignature(_ spills: [Int: [(CellAddress, CellRange)]]) -> [Int] {
+        var sig: [Int] = []
+        for (si, l) in spills.sorted(by: { $0.key < $1.key }) {
+            for (a, r) in l.sorted(by: { ($0.0.row, $0.0.col) < ($1.0.row, $1.0.col) }) { sig += [si, a.row, a.col, r.top, r.left, r.bottom, r.right] }
+        }
+        return sig
+    }
 
     private func _collectSpills() -> [Int: [(CellAddress, CellRange)]] {
         var out: [Int: [(CellAddress, CellRange)]] = [:]
