@@ -167,6 +167,25 @@ final class XlsContainerTests: XCTestCase {
         XCTAssertTrue(page(0x40).containsSubstring("orientation=\"portrait\""))
     }
 
+    func testConditionalFormatsBecomeRulesWithDifferentialFormats() throws {
+        let bof = rec(0x809, cat(u16(0x600), [UInt8](repeating: 0, count: 14)))
+        let globals = cat(bof, rec(0x85, cat(le32(0), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        let at = globals.count
+        let g = cat(bof, rec(0x85, cat(le32(UInt32(at)), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        // CONDFMT: one rule, bounding range A1:A3, one range A1:A3.
+        let cf = rec(0x1B0, cat(u16(1), u16(0), u16(0), u16(2), u16(0), u16(0), u16(1), u16(0), u16(2), u16(0), u16(0)))
+        // CF: cell value, greater than, a formula of one integer (30), a pattern block with a red background.
+        let rule = rec(0x1B1, cat([1, 5], u16(3), u16(0), le32(0xA03B_FFFF), u16(0x0280), u16(0), u16(0x0540), [0x1E, 30, 0]))
+        let sheet = cat(bof, cf, rule, rec(0x0A, []))
+        let parts = try XCTUnwrap(XlsBuild.parts(BiffReader.records(g + sheet)))
+        func text(_ n: String) -> String { String(decoding: parts.first { $0.name == n }!.data, as: UTF8.self) }
+        let ws = text("xl/worksheets/sheet1.xml")
+        XCTAssertTrue(ws.containsSubstring("<conditionalFormatting sqref=\"A1:A3\">"))
+        XCTAssertTrue(ws.containsSubstring("operator=\"greaterThan\""))
+        XCTAssertTrue(ws.containsSubstring("<formula>30</formula>"))
+        XCTAssertTrue(text("xl/styles.xml").containsSubstring("<dxfs count=\"1\"><dxf><fill><patternFill><bgColor rgb=\"FFFF0000\"/>"))
+    }
+
     func testFormulaTokensBecomeFormulaText() {
         let ctx = XlsFormulaContext(xtis: [], internalBooks: [], sheetNames: [], names: [])
         // A1+B2*3 : ref A1, ref B2, int 3, mul, add
