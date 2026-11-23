@@ -3463,7 +3463,12 @@ final class _TextCache {
         // MS PMincho and MS PGothic are proportional in Excel's print (full-width brackets half an em, "１" 0.62), as
         // their measured tables have them; the stand-in sets every ideograph-block character a whole em.
         if style.own == "ms pmincho" || style.own == "ms pgothic", ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value {
-            if v < 0x80 { return nil }
+            if v < 0x80 {
+                // (Latin letters keep their stand-in widths; the figures and their marks take the face's own, by which a number's fit in its cell is judged.)
+                guard (v >= 0x30 && v <= 0x39) || "(),.-+%/: ".unicodeScalars.contains(where: { $0.value == v }) else { return nil }
+                let t = style.own == "ms pmincho" ? SlideEastAsianWidths.msPMincho.regular.ascii : SlideEastAsianWidths.msPGothic.regular.ascii
+                return t.indices.contains(Int(v) - 32) ? t[Int(v) - 32] : nil
+            }
             return Self._eastAsianTables[style.own]?[v]
         }
         if style.own == "aptos narrow", ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value, v >= 0x20, v <= 0x7E {
