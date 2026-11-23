@@ -194,6 +194,7 @@ if [ -d "$REPO/$PACKAGE/Sources/$TARGET/Resources/fonts" ]; then
                 LiberationMono-*) family="Liberation Mono?" ;;
                 DejaVuSans-*) family="DejaVu Sans?" ;;
                 NotoSans-*) family="Noto Sans?" ;;
+                OpenSans-*) family="Open Sans?" ;;
                 Lato-Black*) family="Lato Black?" ;;
                 Lato-Light*) family="Lato Light?" ;;
                 Lato-*) family="Lato?" ;;

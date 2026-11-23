@@ -58,6 +58,15 @@ real face). Regular, Bold, Italic, Bold Italic; Black and Light as their own fam
 (2000 upem, ascent 1974, descent 426, no line gap). Licence: OFL 1.1 (Lato-LICENSE.txt). Loaded with the
 extra faces; `OfficeFonts.substitute` maps the names.
 
+## Open Sans (2026-11-23)
+
+A document that names "Open Sans" is drawn with Open Sans itself (the user agreed to bundle it). Regular, Bold,
+Italic, Bold Italic, version 3.003 (2048 upem, hhea 2189/-600), cut as static instances (wdth 100, wght 400/700,
+fontTools instancer) from the upstream release in github.com/google/fonts, ofl/opensans (OpenSans[wdth,wght].ttf and
+OpenSans-Italic[wdth,wght].ttf; pinned upstream googlefonts/opensans commit bd7e3763). Not the Windows cloud copy.
+Licence: OFL 1.1, that directory's OFL.txt (OpenSans-LICENSE.txt). Word on Windows keeps its own Open Sans widths and
+line height (OfficeFontsOpenSans.swift); the advances match the file's, checked glyph by glyph.
+
 ## Slides' free faces (2026-10-17)
 
 Families PowerPoint decks name that none of the six clones draws well,
