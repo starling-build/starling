@@ -3552,7 +3552,9 @@ enum ChartPainter {
             var slideGridPad = 0.0
             if !beside, lines.count > 1, c.onSlide {
                 let colW = entries.map { lead + $0.tp.width }.max() ?? 0
-                let cols = max(1, min(entries.count, Int(((box?.width ?? area.width) - 2 * lead) / max(1, colW))))
+                // (A box the file lays out is all the columns' room, no key's room taken at its ends: 75bf2dcbbd98 p5's legends, 290 pt wide, stand four
+                // columns 72.5 apart in PowerPoint's print, 11 and 12 names of 8 pt, ours three.)
+                let cols = max(1, min(entries.count, Int(((box?.width ?? (area.width - 2 * lead))) / max(1, colW))))
                 if colW > 0, cols > 1 {
                     slideGridW = colW
                     // (In a box the file lays out, the columns share its width and each entry stands centred in its column:
