@@ -308,7 +308,7 @@ enum SlideFonts {
             face.boldOtherAdvances = OfficeFonts.verdanaBoldOtherAdvances
             return face
         case "segoe ui", "segoe ui light", "segoe ui semilight", "tahoma", "trebuchet ms", "franklin gothic book",
-             "franklin gothic medium", "century gothic", "gill sans mt", "candara", "palatino linotype":
+             "franklin gothic medium", "century gothic", "gill sans mt", "candara", "palatino linotype", "corbel":
             // (Windows' own widths, `SlideFontWidths`: the bold where the
             // face has one, else the stand-in's bold.)
             let n = family.trimmingWhitespace().lowercased()
@@ -323,6 +323,7 @@ enum SlideFonts {
                 "century gothic": (SlideFontWidths.centuryGothic, SlideFontWidths.centuryGothicBold),
                 "gill sans mt": (SlideFontWidths.gillSans, SlideFontWidths.gillSansBold),
                 "candara": (SlideFontWidths.candara, SlideFontWidths.candaraBold),
+                "corbel": (OfficeFonts.corbelAdvances, OfficeFonts.corbelBoldAdvances),
                 "palatino linotype": (SlideFontWidths.palatino, SlideFontWidths.palatinoBold),
             ]
             guard let t = tables[n] else { return nil }
@@ -334,6 +335,14 @@ enum SlideFonts {
             face.hintedAdvances = ["arial", "rockwell", "tw cen mt", "trebuchet ms"].contains(n)
             if let k = SlideLatinKerns.lookup(n) { face.kerns = k.regular; face.boldKerns = k.bold ?? k.regular; face.kernsOutsideWord = true }
             if let k = SlideLatinItalicKerns.lookup(n) { face.italicKerns = k.italic; face.boldItalicKerns = k.boldItalic ?? k.italic }
+            if n == "corbel" {
+                // (Corbel's own widths, measured on Windows, as the Word path sets it: a ja deck's title in it fits "FEATURES OF ESCAPE PANIC"
+                // on one line at 40.5 pt bold caps in PowerPoint's print, the stand-in's wider letters did not.)
+                face.otherAdvances = OfficeFonts.corbelOtherAdvances
+                face.boldOtherAdvances = OfficeFonts.corbelBoldOtherAdvances
+                face.italicAdvances = OfficeFonts.corbelItalicAdvances
+                face.boldItalicAdvances = OfficeFonts.corbelBoldItalicAdvances
+            }
             if n == "tahoma" {
                 // (Tahoma's own Arabic, as the Word path sets it.)
                 face.joinedAdvances = WindowsArabicAdvances.tahoma
