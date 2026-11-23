@@ -384,7 +384,7 @@ extension SheetGridState {
             // dropped below as before.)
             let setup = SheetPrintSetup.read(ws)
             let fitsTall = (setup.fitHeight ?? 0) > 0
-            let areas = names.areas.isEmpty ? [used] : names.areas.map { a in
+            var areas = names.areas.isEmpty ? [used] : names.areas.map { a in
                 CellRange(top: a.top, left: a.left, bottom: fitsTall || a.bottom < CellAddress.maxRows - 1 ? a.bottom : min(a.bottom, max(a.top, used.bottom)),
                           right: a.right == CellAddress.maxCols - 1 ? max(a.left, used.right) : a.right)
             }
@@ -393,6 +393,17 @@ extension SheetGridState {
             printMono = setup.blackAndWhite
             printColumnMax = setup.fitWidth == nil && setup.fitHeight == nil ? setup.printableWidth / (setup.scale / 100) : 0
             let ca = cols, ra = rows   // in points while printing
+            // (Text running on past the last used column prints on a page of its
+            // own, as far as it runs: Excel's pt-ab21143732, the Indice of one
+            // column of 677 pt, cut to the page's 494, has the tails of its
+            // longer lines on two more pages, where ours stopped at the column.)
+            if names.areas.isEmpty, setup.fitWidth == nil, areas.count == 1 {
+                var right = areas[0].right
+                for (a, cell) in ws.cells where cell.value.isText && a.row >= areas[0].top && a.row <= areas[0].bottom && a.col <= areas[0].right {
+                    if let reach = textReach(a, cell, ws: ws, book: book) { right = max(right, reach.upperBound) }
+                }
+                areas[0].right = min(right, CellAddress.maxCols - 1)
+            }
             let head = _headingSize(setup, lastRow: areas.map(\.bottom).max() ?? 0)
             let titleH = (names.titleRows.map { $0.reduce(0) { $0 + ra.size($1) } } ?? 0) + head.height
             let titleW = (names.titleCols.map { $0.reduce(0) { $0 + ca.size($1) } } ?? 0) + head.width
