@@ -95,4 +95,56 @@ final class XlsContainerTests: XCTestCase {
             if let f = try? CompoundFile(bad) { _ = f.streamPaths; _ = f.stream("Workbook").map(BiffReader.records) }
         }
     }
+
+    private func u16(_ v: Int) -> [UInt8] { [UInt8(v & 255), UInt8(v >> 8 & 255)] }
+
+    /// A book with a string split across CONTINUE (1 byte per character, then 2), numbers in RK, MULRK and plain form, a boolean, an error and a merge.
+    private func cat(_ parts: [UInt8]...) -> [UInt8] { parts.flatMap { $0 } }
+
+    private func valuesBook() -> [UInt8] {
+        func globals(_ sheetAt: Int) -> [UInt8] {
+            let bof = rec(0x809, cat(u16(0x600), [UInt8](repeating: 0, count: 14)))
+            let sstBody = cat(le32(2), le32(2), u16(2), [0, 0x61, 0x62], u16(4), [0, 0x63, 0x64])
+            let sst = cat(rec(0xFC, sstBody), rec(0x3C, [1, 0x65, 0, 0x66, 0]))
+            let sheet = rec(0x85, cat(le32(UInt32(sheetAt)), [0, 0, 1, 0, 0x53]))
+            return cat(bof, sst, sheet, rec(0x0A, []))
+        }
+        let at = globals(0).count
+        let bof = rec(0x809, cat(u16(0x600), [UInt8](repeating: 0, count: 14)))
+        let bits = (2.5).bitPattern
+        let lo = UInt32(bits & 0xFFFF_FFFF), hi = UInt32(bits >> 32)
+        let a1 = rec(0xFD, cat(u16(0), u16(0), u16(0), le32(1)))
+        let b1 = rec(0x27E, cat(u16(0), u16(1), u16(0), le32(314 << 2 | 3)))
+        let row2 = rec(0xBD, cat(u16(1), u16(0), u16(0), le32(7 << 2 | 2), u16(0), le32(25 << 2 | 2), u16(1)))
+        let a3 = rec(0x203, cat(u16(2), u16(0), u16(0), le32(lo), le32(hi)))
+        let b3 = rec(0x205, cat(u16(2), u16(1), u16(0), [1, 0]))
+        let c3 = rec(0x205, cat(u16(2), u16(2), u16(0), [0x07, 1]))
+        let merge = rec(0xE5, cat(u16(1), u16(3), u16(4), u16(0), u16(1)))
+        return cat(globals(at), bof, a1, b1, row2, a3, b3, c3, merge, rec(0x0A, []))
+    }
+
+    func testValuesComeThroughWhateverTheirRecordKind() throws {
+        let wb = try Xls.read(Data(compound(stream: "Workbook", valuesBook())))
+        let s = try XCTUnwrap(wb.sheets.first)
+        XCTAssertEqual(s.name, "S")
+        func v(_ r: Int, _ c: Int) -> CellValue? { s.cells[CellAddress(row: r, col: c)]?.value }
+        XCTAssertEqual(v(0, 0), .text("cdef"))
+        XCTAssertEqual(v(0, 1), .number(3.14))
+        XCTAssertEqual(v(1, 0), .number(7))
+        XCTAssertEqual(v(1, 1), .number(25))
+        XCTAssertEqual(v(2, 0), .number(2.5))
+        XCTAssertEqual(v(2, 1), .bool(true))
+        XCTAssertEqual(s.merges, [CellRange(top: 3, left: 0, bottom: 4, right: 1)])
+    }
+
+    func testADamagedBookStillReadsOrThrowsNeverTraps() {
+        let good = compound(stream: "Workbook", valuesBook())
+        var seed: UInt64 = 99
+        for _ in 0 ..< 600 {
+            var bad = good
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            bad[512 + Int(seed >> 33) % 1024] ^= UInt8(truncatingIfNeeded: seed >> 20) | 1
+            _ = try? Xls.read(Data(bad))
+        }
+    }
 }
