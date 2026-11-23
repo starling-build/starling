@@ -72,6 +72,21 @@ public enum OfficeNativeShell {
     /// browser had the bar in its view.
     nonisolated(unsafe) fileprivate static var latestToolbar: [OfficeToolbarButton]?
 
+    /// The system print dialog over a PDF the editor rendered. The file is a
+    /// temporary one; it goes when the dialog is done.
+    public static func printPDF(_ path: String) {
+        let url = URL(fileURLWithPath: path)
+        let controller = UIPrintInteractionController.shared
+        let info = UIPrintInfo(dictionary: nil)
+        info.outputType = .general
+        info.jobName = url.deletingPathExtension().lastPathComponent
+        controller.printInfo = info
+        controller.printingItem = url
+        controller.present(animated: true) { _, _, _ in
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
     /// Whether a document is being edited right now.
     public static var isEditing: Bool { shared?.session != nil }
 
