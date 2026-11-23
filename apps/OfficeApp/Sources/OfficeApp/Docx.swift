@@ -4028,7 +4028,9 @@ enum DocxFormat {
         }
         if let table = part("word/fontTable.xml").flatMap(XNode.parse) {
             for font in table.all("w:font") {
-                if let name = font["w:name"], let usb2 = font.first("w:sig")?["w:usb2"], let v = UInt32(usb2, radix: 16), v & 0x100 != 0 {
+                if let name = font["w:name"], let usb2 = font.first("w:sig")?["w:usb2"], let v = UInt32(usb2, radix: 16), v & 0x100 != 0,
+                   // (Only a face Windows lacks: Sakkal Majalla's own table carries the Thaana bit and Word draws it in Sakkal Majalla, a 1.40 em line, not MV Boli's 1.611: dx2 be31e911's body 25.8 pt a line against 22.4 in Word.)
+                   name.trimmingWhitespace().lowercased() == "mv boli" || !WordWindowsFaces.names.contains(name.trimmingWhitespace().lowercased()) {
                     document.thaanaFaces.insert(name.trimmingWhitespace().lowercased())
                 }
             }
