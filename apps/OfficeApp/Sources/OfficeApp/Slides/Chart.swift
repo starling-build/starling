@@ -5713,7 +5713,8 @@ enum ChartPainter {
             // prints of histograms, Pareto charts and waterfalls, ours 5.45.
             // Not a box plot's, already higher than Excel's.)
             // (Each outer level of a multi-level axis takes a row of its own under the names.)
-            let levelRows = c.categoryLevels.isEmpty ? 0 : Double(c.categoryLevels.count) * ((catLabels.first?.height ?? 12 * k) + 8.2 * k) + 4.5 * k
+            // (On a sheet the rows stand 17.9 pt apart and the block takes 3.7 pt less than elsewhere: WithChartSheet's print, ours 17.2 and 3.0 low.)
+            let levelRows = c.categoryLevels.isEmpty ? 0 : Double(c.categoryLevels.count) * ((catLabels.first?.height ?? 12 * k) + (c.onSheet ? 9.13 : 8.2) * k) + (c.onSheet ? -1.6 : 4.5) * k
             let bottom = levelRows - legendFootRise + (atZero ? (slideBare ? 8.1 : 4) * k : tallest + 7.6 * k + belowOut + slideFoot - malgunCatLift) - (wordFoot ? 4.4 * k : 0) - placedOverAutoFoot + (libre ? 4.4 * k : 0) - (plainUntitledWord ? 6 * k : 0) + (deletedAxis2013 ? 1.7 * k : 0) + (c.onSheet && c.chartex && c.boxes == nil ? 2.53 * k / 0.75 : 0)
             // Labels centred on the plot's edges (an area's first and last
             // categories, a scatter's end ticks) need half their width free.
@@ -6690,7 +6691,7 @@ enum ChartPainter {
             // The outer levels of a multi-level axis: each group's name under the names it
             // covers, with a divider between groups from the axis down through the rows.
             if !c.categoryLevels.isEmpty, !c.categoryAxisDeleted, !aslant, c.type != .area, table == nil {
-                let row = (catLabels.first?.height ?? 12 * k) + 8.2 * k
+                let row = (catLabels.first?.height ?? 12 * k) + (c.onSheet ? 9.13 : 8.2) * k
                 let names = catLabels.isEmpty ? 0 : (catLabels.map(\.height).max() ?? 0)
                 let top = foot + 7.6 * k + belowOut
                 for (li, level) in c.categoryLevels.enumerated() {
