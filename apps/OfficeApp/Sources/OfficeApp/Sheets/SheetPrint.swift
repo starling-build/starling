@@ -661,7 +661,12 @@ extension SheetGridState {
         let size = setup.pageSize
         var inset = 0.0
         if case .absolute(let x, _, _, _) = d.anchor { inset = min(18, max(0, x)) }
-        let r = Rect.fromLTRB(setup.left + inset, setup.top + inset, size.width - setup.right - inset, size.height - setup.bottom - inset)
+        var r = Rect.fromLTRB(setup.left + inset, setup.top + inset, size.width - setup.right - inset, size.height - setup.bottom - inset)
+        // (Excel prints a chart sheet's chart at the size its drawing states, from the margins plus its position: 47813, 56557,
+        // 60255, lo-tdf107586, WithChartSheet's frames are the extents to 0.1 pt, even past the right margin.)
+        if case .absolute(let x, let y, let w, let h) = d.anchor, w > 0, h > 0 {
+            r = Rect.fromLTWH(setup.left + x, setup.top + y, w, h)
+        }
         let recorder = NativePictureRecorder()
         let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, size.width, size.height))
         _paintDrawing(canvas, d, chart: controller.liveChart(sc), in: r, theme: book.chartTheme)
