@@ -9797,12 +9797,22 @@ extension ChartPainter {
                 let bh = tp.height + pad
                 let rim = centre.dy + (dy > 0 ? 1 : -1) * ry
                 let room = dy > 0 ? frame.bottom - rim : rim - frame.top
-                let lines = max(1, tp.computeLineMetrics().count)
-                if bh - room > tp.height / Double(lines) {
+                // (Under the rim while the box, text and 3.6 pt above and below, stands whole inside the frame 4.1 pt below the rim's
+                // point: pie-lab13, 32 prints, 9 pt fits at 50 pt of room and not 40, 12 pt at 90 and not 75. Else beside the pie with its
+                // text's foot 5.6 pt above the frame's edge.)
+                if bh + 4.15 * k > room {
                     // (Beside the pie on the slice's own side, the right on a tie: pie-lab13 at 12 and 9 pt, middles 170 and 175 degrees clockwise from the top
                     // stand right of the pie, 185 and 190 left, the straight-down slice right.)
                     let side: Double = cos(s.mid) > -1e-9 ? 1 : -1
-                    at = Offset(centre.dx + side * 1.09 * rx, dy > 0 ? frame.bottom - 4.7 * k - bh / 2 : frame.top + 4.7 * k + bh / 2)
+                    // (Its line's box, not its glyphs, ends 0.25 em lower than the 5.6 pt the glyphs stand above the edge: 3 pt at 12 pt, 2.2 at 9.)
+                    let foot = 5.6 * k - 0.25 * size
+                    let ty = dy > 0 ? frame.bottom - foot - tp.height / 2 : frame.top + foot + tp.height / 2
+                    // (Its inner top corner 3.2 pt off the pie's circle at that height: pie-lab13's 12 pt prints stand 3.6, 2.4, 3.8, 3.4 and 2.6 pt
+                    // off at 30 to 75 pt of room, the text sliding in as the room under the rim grows.)
+                    let cornerY = dy > 0 ? ty - tp.height / 2 : ty + tp.height / 2
+                    let u = max(-1, min(1, (cornerY - centre.dy) / ry))
+                    let hw = rx * (1 - u * u).squareRoot()
+                    at = Offset(centre.dx + side * (hw + 3.2 * k + (keptWidth - 1) / 2), ty)
                     roomMoved = true
                 } else {
                     tp.layout(minWidth: 0, maxWidth: keptWidth)
