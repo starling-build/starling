@@ -72,6 +72,29 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(v(c, "C1"), .number(10))
     }
 
+    /// Editing an input of a spill that keeps its shape must refresh the cells reading the spilled cells.
+    func testSpilledValuesRefreshOnEditWhenShapeStays() {
+        let c = book(["E1": "2", "A1": "=SEQUENCE(3)*$E$1", "C1": "=SUM(A2:A3)", "C2": "=A3+1", "Z10": "1"])
+        XCTAssertEqual(v(c, "C1"), .number(10))
+        c.setInputs([(CellAddress("E1")!, "5")])
+        XCTAssertEqual(c.book.sheets[0].spilled[CellAddress("A3")!], .number(15))
+        XCTAssertEqual(v(c, "C1"), .number(25))
+        XCTAssertEqual(v(c, "C2"), .number(16))
+    }
+
+    /// A defined name that is an OFFSET / INDIRECT range makes the cells using it volatile.
+    func testNamedOffsetIsVolatileOnEdit() {
+        let c = book(["A1": "1", "A2": "2", "A3": "3", "B1": "1", "C1": "=SUM(Win)"])
+        c.book.names["WIN"] = "OFFSET(Sheet1!$A$1,0,0,Sheet1!$B$1,1)"
+        c.setInputs([(CellAddress("C1")!, "=SUM(Win)+0")])
+        XCTAssertEqual(v(c, "C1"), .number(1))
+        c.setInputs([(CellAddress("B1")!, "3")])
+        XCTAssertEqual(v(c, "C1"), .number(6))
+        // A3 is read only through what OFFSET reaches, not named by the formula.
+        c.setInputs([(CellAddress("A3")!, "10")])
+        XCTAssertEqual(v(c, "C1"), .number(13))
+    }
+
     func testLambdaThroughDefinedNames() {
         let c = book(["A1": "4", "B1": "10"])
         c.book.names["DOUBLE"] = "_xlfn.LAMBDA(_xlpm.x,_xlpm.x*2)"
