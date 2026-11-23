@@ -302,6 +302,22 @@ enum SheetPrintLayout {
             let foot = 8.0 * 72 / 600
             rowBands = bands(rows, height, availH - foot, fitting && setup.fitHeight != 0 ? [] : setup.rowBreaks,
                              own: (titleRowsEnd, max(18, availH0 - headHeight * s) - foot), wholeDots: fitting)
+            // (A manual break's page that holds only hidden rows is still a page, blank
+            // but for its header and footer, ahead of the visible ones that follow:
+            // ja-5563bee92c's rows 1-75, hidden, between breaks after 15, 30, 45, 60
+            // and 75, are five blank pages in Excel's print before the first month.)
+            if !(fitting && setup.fitHeight != 0), !setup.rowBreaks.isEmpty, let lastShown = rowBands.last?.first {
+                let bounds = [area.top] + setup.rowBreaks.filter { $0 > area.top && $0 <= area.bottom }.sorted()
+                var empties: [Int] = []
+                for (k, start) in bounds.enumerated() where start < lastShown {
+                    let end = (k + 1 < bounds.count ? bounds[k + 1] : area.bottom + 1) - 1
+                    if !rows.contains(where: { $0 >= start && $0 <= end }) { empties.append(start) }
+                }
+                for start in empties.reversed() {
+                    let at = rowBands.firstIndex(where: { ($0.first ?? Int.max) > start }) ?? rowBands.count
+                    rowBands.insert([], at: at)
+                }
+            }
             // Rows and columns do not split, so the arithmetic's scale can
             // still be a page over: a percent less until it is not.
             let over = (setup.fitWidth.map { $0 > 0 && colBands.count > $0 } ?? false)
@@ -538,6 +554,16 @@ extension SheetGridState {
             defer { printTextScale = 0 }
             for page in pages {
                 if let maxPages, out.count >= maxPages { return }
+                // (A page of hidden rows only: the header and footer, no cells.)
+                if page.rows.isEmpty, !page.cols.isEmpty {
+                    let recorder = NativePictureRecorder()
+                    let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, size.width, size.height))
+                    fields.page = setup.firstPageNumber + out.count
+                    _paintHeaderFooter(canvas, setup: setup, fields: fields, position: out.count + 1, base: hfFont, size: size, scale: s, ws: ws, pictures: true)
+                    _paintHeaderFooter(canvas, setup: setup, fields: fields, position: out.count + 1, base: hfFont, size: size, scale: s, ws: ws)
+                    out.append(PdfDocument.Page(picture: recorder.endRecording(), width: size.width, height: size.height))
+                    continue
+                }
                 guard let c0 = page.cols.first, let c1 = page.cols.last, let r0 = page.rows.first, let r1 = page.rows.last else { continue }
                 // Titles repeat on pages that do not already show them.
                 let tRows = titleRows.last.map { r0 > $0 } ?? false ? titleRows : []
