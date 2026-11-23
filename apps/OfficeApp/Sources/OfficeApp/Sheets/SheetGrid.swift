@@ -530,12 +530,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     if let runs = ws.richText[a], case .text(let raw) = cell.value, raw == text,
                        runs.map(\.text).joined() == text, runs.contains(where: { $0.size != nil || $0.fontName != nil }) {
                         var segs: [(String, CellStyle, Double)] = [("", st, Self._fittedLine(st, m, book))]
+                        var dominant = (st, 0)   // the face of the run with most characters
                         for run in runs {
                             var rs = st
                             if run.bold != nil { rs.bold = run.bold ?? false }
                             if let f = run.fontName { rs.fontName = f }
                             if let z = run.size { rs.fontSize = z }
                             let line = Self._fittedLine(rs, m, book)
+                            if run.text.count > dominant.1 { dominant = (rs, run.text.count) }
                             for (i, part) in run.text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
                                 if i > 0 { segs.append(("", st, Self._fittedLine(st, m, book))) }
                                 segs[segs.count - 1].0 += part
@@ -543,12 +545,16 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                             }
                         }
                         var total = 0.0
-                        // (A string of one line-run is wrapped as the cell is, by its own mix of faces: en-3cbcd9ce60's bold "Configuration:" + plain
+                        // (A string of one line-run is wrapped in the face most of its text is in, not the cell's (en-0d2926cfb2's 12 pt Times runs in an Arial 10 cell: 3 lines for 4): en-3cbcd9ce60's bold "Configuration:" + plain
                         // 12 pt text wrapped in the bold face alone took 7 lines for Excel's 6.)
-                        if segs.count == 1 { total = Double(wrapped.computeLineMetrics().count + Int(trailing)) * segs[0].2 }
+                        if segs.count == 1 {
+                            var ss = _textStyle(dominant.0, color: nil, ink: Color(0xFF00_0000))
+                            ss.screen = style.screen; ss.screenEm = (book.fontSize(dominant.0) * 192 / 72).rounded()
+                            total = Double(texts.painter(segs[0].0, ss, maxWidth: width).computeLineMetrics().count + Int(trailing)) * segs[0].2
+                        }
                         else {
                         for (i, seg) in segs.enumerated() {
-                            if seg.0.isEmpty { total += seg.2; continue }
+                            if seg.0.isEmpty { if i < segs.count - 1 || segs.count == 1 { total += seg.2 }; continue }
                             var ss = _textStyle(seg.1, color: nil, ink: Color(0xFF00_0000))
                             ss.screen = style.screen; ss.screenEm = (book.fontSize(seg.1) * 192 / 72).rounded()
                             total += Double(texts.painter(seg.0, ss, maxWidth: width).computeLineMetrics().count) * seg.2
