@@ -299,10 +299,12 @@ enum DocRead {
         }
         var extra: [ZipEntry] = [], rels = "", types = ""
         func e(_ name: String, _ s: String) -> ZipEntry { ZipEntry(name: name, data: Data(s.utf8)) }
-        let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\" xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\""
+        let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\" xmlns:wpg=\"http://schemas.microsoft.com/office/word/2010/wordprocessingGroup\" xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\""
         let head = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
         let relBase = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/"
         let ctBase = "application/vnd.openxmlformats-officedocument.wordprocessingml."
+        // The shapes and pictures of a header or footer story [a, b): set once the drawings are read (below).
+        var headerDrawings: (Int, Int) -> (shapes: [Int: (xml: String, behind: Bool)], rels: String, picture: (Int) -> String?) = { _, _ in ([:], "", { _ in nil }) }
         // Headers and footers: six stories per section after the six note separators.
         let hdd = fib.range(DocFib.fcPlcfHdd).flatMap { DocProps.plex(tbl, at: $0.fc, count: $0.lcb, size: 0) }
         func refs(section k: Int) -> String {
@@ -317,7 +319,10 @@ enum DocRead {
                 guard b > a, b <= hddEnd else { continue }
                 let id = "rIdH\(k)_\(j)"
                 let part = "\(tag)\(k)_\(j).xml"
-                extra.append(e("word/" + part, head + "<w:\(tag == "header" ? "hdr" : "ftr") \(ns)>" + story(a, b) + "</w:\(tag == "header" ? "hdr" : "ftr")>"))
+                let hd = headerDrawings(a, b)
+                var hc = StoryContext(); hc.shapes = hd.shapes; hc.picture = hd.picture
+                extra.append(e("word/" + part, head + "<w:\(tag == "header" ? "hdr" : "ftr") \(ns)>" + story(a, b, hc) + "</w:\(tag == "header" ? "hdr" : "ftr")>"))
+                if !hd.rels.isEmpty { extra.append(e("word/_rels/" + part + ".rels", head + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" + hd.rels + "</Relationships>")) }
                 rels += "<Relationship Id=\"\(id)\" Type=\"\(relBase)\(tag)\" Target=\"\(part)\"/>"
                 types += "<Override PartName=\"/word/\(part)\" ContentType=\"\(ctBase)\(tag).xml\"/>"
                 x += "<w:\(tag)Reference w:type=\"\(type)\" r:id=\"\(id)\"/>"
@@ -377,11 +382,16 @@ enum DocRead {
         // Drawings: pictures in the line (Data stream), and shapes the text anchors (PlcSpaMom), with their text boxes.
         var media: [ZipEntry] = []
         var imageTypes = Set<String>()
-        func addImage(_ b: ArtBlip) -> String {
+        func addMedia(_ b: ArtBlip) -> Int {
             let n = media.count + 1
             media.append(ZipEntry(name: "word/media/image\(n).\(b.ext)", data: Data(b.data)))
             imageTypes.insert(b.ext)
-            rels += "<Relationship Id=\"rIdImg\(n)\" Type=\"\(relBase)image\" Target=\"media/image\(n).\(b.ext)\"/>"
+            return n
+        }
+        func imageRel(_ n: Int, _ ext: String) -> String { "<Relationship Id=\"rIdImg\(n)\" Type=\"\(relBase)image\" Target=\"media/image\(n).\(ext)\"/>" }
+        func addImage(_ b: ArtBlip) -> String {
+            let n = addMedia(b)
+            rels += imageRel(n, b.ext)
             return "rIdImg\(n)"
         }
         let dataStream = cf.stream("Data") ?? []
@@ -392,25 +402,64 @@ enum DocRead {
             inlineCache[off] = r
             return r
         }
-        var shapeRuns: [Int: (xml: String, behind: Bool)] = [:]
-        if let sr = fib.range(40), let dg = fib.range(50) {
-            let art = DocArt.art(t: tbl, w: w, at: dg.fc, count: dg.lcb)
-            let boxes = fib.range(56).flatMap { DocProps.plex(tbl, at: $0.fc, count: $0.lcb, size: 22) }
-            let boxStart = hddEnd + fib.ccpAtn + fib.ccpEdn
-            for (k, sp) in DocArt.spas(tbl, at: sr.fc, count: sr.lcb).enumerated() {
+        // The drawing runs of the shapes in `spas`, by the character each is anchored at (`shift` moves a story's own
+        // positions into the document's), with the pictures added through `add` and text box text from `boxes`.
+        func shapeRuns(_ spas: [DocArt.Spa], shift: Int, art: DocArt.Art, boxes: (cps: [Int], at: Int)?, boxStart: Int, add: (ArtBlip) -> String, pic: @escaping (Int) -> String?) -> [Int: (xml: String, behind: Bool)] {
+            var out: [Int: (xml: String, behind: Bool)] = [:]
+            for (k, sp) in spas.enumerated() {
                 let shape = art.shapes[sp.spid]
+                if let shape, shape.flags & 1 != 0, shape.groupRect != nil {
+                    // a group: its members are drawn inside it, in its own coordinate space
+                    let cx = DocArt.emu(max(0, sp.right - sp.left)), cy = DocArt.emu(max(0, sp.bottom - sp.top))
+                    let g = DocArt.group(shape, art: art, cx: cx, cy: cy) { m in
+                        var rid: String?
+                        if m.pib > 0, m.pib <= art.blips.count, let b = art.blips[m.pib - 1] { rid = add(b) }
+                        var content: String?
+                        if rid == nil, let tx = m.props[0x80], let boxes, (tx >> 16) - 1 >= 0, (tx >> 16) - 1 < boxes.cps.count - 1 {
+                            var c = StoryContext(); c.picture = pic
+                            content = story(boxStart + boxes.cps[(tx >> 16) - 1], boxStart + boxes.cps[(tx >> 16)], c)
+                        }
+                        return (rid, content)
+                    }
+                    if let g { out[shift + sp.cp] = (DocArt.floating(sp, shape: shape, rid: nil, content: nil, order: k, group: g), sp.behind) }
+                    continue
+                }
                 var rid: String?
-                if let pib = shape?.pib, pib > 0, pib <= art.blips.count, let b = art.blips[pib - 1] { rid = addImage(b) }
+                if let pib = shape?.pib, pib > 0, pib <= art.blips.count, let b = art.blips[pib - 1] { rid = add(b) }
                 var content: String?
                 if rid == nil, let shape, let tx = shape.props[0x80], let boxes {
                     let i = (tx >> 16) - 1
                     if i >= 0, i < boxes.cps.count - 1 {
-                        var c = StoryContext(); c.picture = picture
+                        var c = StoryContext(); c.picture = pic
                         content = story(boxStart + boxes.cps[i], boxStart + boxes.cps[i + 1], c)
                     }
                 }
-                if rid == nil, content == nil, shape == nil { continue }
-                shapeRuns[sp.cp] = (DocArt.floating(sp, shape: shape, rid: rid, content: content, order: k), sp.behind)
+                if rid == nil, content == nil, shape.flatMap({ DocArt.geometry($0.type) }) == nil { continue }
+                out[shift + sp.cp] = (DocArt.floating(sp, shape: shape, rid: rid, content: content, order: k), sp.behind)
+            }
+            return out
+        }
+        var mainShapes: [Int: (xml: String, behind: Bool)] = [:]
+        if let dg = fib.range(50) {
+            let art = DocArt.art(t: tbl, w: w, at: dg.fc, count: dg.lcb)
+            let boxStart = hddEnd + fib.ccpAtn + fib.ccpEdn
+            if let sr = fib.range(40) {
+                let boxes = fib.range(56).flatMap { DocProps.plex(tbl, at: $0.fc, count: $0.lcb, size: 22) }
+                mainShapes = shapeRuns(DocArt.spas(tbl, at: sr.fc, count: sr.lcb), shift: 0, art: art, boxes: boxes, boxStart: boxStart, add: addImage, pic: picture)
+            }
+            if let hr = fib.range(41) {
+                let hspas = DocArt.spas(tbl, at: hr.fc, count: hr.lcb)
+                let hboxes = fib.range(58).flatMap { DocProps.plex(tbl, at: $0.fc, count: $0.lcb, size: 22) }
+                let hStart = fib.ccpText + fib.ccpFtn
+                headerDrawings = { a, b in
+                    // each header part has its own relationships, so its pictures are added to its own list
+                    var hrels = ""
+                    func add(_ bl: ArtBlip) -> String { let n = addMedia(bl); hrels += imageRel(n, bl.ext); return "rIdImg\(n)" }
+                    let mine = hspas.filter { hStart + $0.cp >= a && hStart + $0.cp < b }
+                    let pic: (Int) -> String? = { off in DocArt.inline(data: dataStream, at: off, rid: { bl in add(bl) }) }
+                    let runs = shapeRuns(mine, shift: hStart, art: art, boxes: hboxes, boxStart: boxStart + fib.ccpTxbx, add: add, pic: pic)
+                    return (runs, hrels, pic)
+                }
             }
         }
         // Sections: each ends at a section mark; the last one's properties close the body.
@@ -427,7 +476,7 @@ enum DocRead {
             }
         }
         if last.isEmpty { last = DocProps.sectPr([], refs: "") }
-        var ctx = StoryContext(); ctx.sectEnds = ends; ctx.footnotes = fnMap; ctx.endnotes = enMap; ctx.comments = cmMap; ctx.shapes = shapeRuns; ctx.picture = picture
+        var ctx = StoryContext(); ctx.sectEnds = ends; ctx.footnotes = fnMap; ctx.endnotes = enMap; ctx.comments = cmMap; ctx.shapes = mainShapes; ctx.picture = picture
         let body = story(0, fib.ccpText, ctx)
         for x in imageTypes.sorted() {
             let ct = ["png": "image/png", "jpeg": "image/jpeg", "bmp": "image/bmp", "emf": "image/x-emf", "wmf": "image/x-wmf", "tiff": "image/tiff", "pict": "image/pict"][x] ?? "application/octet-stream"
