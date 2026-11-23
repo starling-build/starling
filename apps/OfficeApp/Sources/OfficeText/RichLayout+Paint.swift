@@ -807,7 +807,12 @@ extension RichLayout {
                     let depth = drawn * single
                     var foot = depth
                     if points > single { foot += 0.072 * size + 0.255 * (points - single) }
-                    foot = min(foot, points + depth - 0.755 * size) - 0.012 * size
+                    // (Up to single's height the foot is a quarter of the line or the natural depth, whichever is
+                    // less: PowerPoint for Windows, lab exactsmall, 44 pt Arial and DFKai-SB in exact lines of 12-30 pt
+                    // put the first baseline 0.75 of the line under the top, in either face; lab p3ls at 18-36 pt, the
+                    // lines from 0.69 of the size up, where the 0.755-size floor below came from, agrees.)
+                    if points <= single { foot = min(depth, 0.25 * points) } else { foot = min(foot, points + depth - 0.755 * size) }
+                    foot -= 0.012 * size
                     // (The line is held by a forced strut set evenly about its face — see `_strut`'s Slides stand-in in the paragraph's
                     // painter — where `drawn` shares the line out by the face's proportions: the difference of the two baselines.)
                     let evenly = (points - single) * (0.5 - drawn)
