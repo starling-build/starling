@@ -4599,6 +4599,26 @@ private struct SlideContext {
                     bodyDocument.paragraphs[pi].runs[ri].style.letterSpacing = (st.letterSpacing ?? 0) + (m.step - 1) * size
                 }
             } }
+            // (MS PGothic's places are its vmtx advances, kana and marks narrower than an em: each such character takes the spacing that
+            // sets its place, as its own run; ja-4d99f560bb p14 steps 15-17 pt at 18 pt where an em set 18.)
+            for pi in bodyDocument.paragraphs.indices {
+                let units = Array(bodyDocument.paragraphs[pi].text.utf16)
+                var out: [Run] = [], at = 0
+                for r in bodyDocument.paragraphs[pi].runs {
+                    guard SlideFonts.proportionalUprightFace(r.style.fontFamily ?? ""), let size = r.style.fontSize else { out.append(r); at += r.length; continue }
+                    var k = at
+                    while k < at + r.length {
+                        let v = SlideVerticalAdvances.pgothicAdvance(units[k])
+                        var j = k + 1
+                        while j < at + r.length, SlideVerticalAdvances.pgothicAdvance(units[j]) == v { j += 1 }
+                        var piece = r; piece.length = j - k
+                        if let v { piece.style.letterSpacing = (r.style.letterSpacing ?? 0) + (Double(v) / 256 - 1) * size }
+                        out.append(piece); k = j
+                    }
+                    at += r.length
+                }
+                bodyDocument.paragraphs[pi].runs = out
+            }
         }
         var body0 = TextBody(document: bodyDocument, anchor: anchor, insets: insets,
                         font: _font(level0.font), size: level0.size ?? 18,

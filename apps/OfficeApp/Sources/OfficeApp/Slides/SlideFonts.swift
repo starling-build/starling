@@ -86,6 +86,11 @@ enum SlideFonts {
         }
     }
 
+    /// A face whose upright column steps by each character's own vmtx advance (`SlideVerticalAdvances`).
+    static func proportionalUprightFace(_ family: String) -> Bool {
+        ["ms pgothic", "ｍｓ ｐゴシック"].contains(windowsName(family))
+    }
+
     static func windowsName(_ family: String) -> String {
         let n = family.trimmingWhitespace().lowercased()
         if missingRoman.contains(n), OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil { return "palatino linotype" }
