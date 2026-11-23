@@ -33,6 +33,7 @@ extension IndicAdvancesTests {
         check("ಕ್ಕ", 0.928, 0.01, "kn conjunct (the print's, not the shaper's)")
         check("ಅ", 0.960, 0.01, "kn vowel")
         check("ತ್ಕಾ", 1.4863, 0.07, "kn conjunct + sign, built")
-        XCTAssertNil(IndicAdvances.ems("ಕ್ಕ್ಡ"), "a three-consonant Kannada conjunct is not guessed")
+        XCTAssertEqual(IndicAdvances.ems("ಕ್ಕ್ಕ")!, 1.35, accuracy: 0.001, "a three-consonant conjunct is the print's own")
+        XCTAssertEqual(IndicAdvances.ems("ಕ್ಕ್ಡ")!, 0.928 + 0.488, accuracy: 0.01, "outside the table: first pair plus the mean third-letter add")
     }
 }

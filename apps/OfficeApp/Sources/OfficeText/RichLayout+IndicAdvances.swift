@@ -58,7 +58,13 @@ public enum IndicAdvances {
         guard c.count > 2 else { return nil }
         // A conjunct of more than two consonants: the first pair, then the rest less the letter they share.
         let vs = c.indices.filter { $0 > 0 && isVirama(c[$0].value) }
-        // (Kannada stacks the later consonants under the base: the sum does not hold there, so such a cluster is left unset.)
+        // (Kannada stacks the later consonants under the base: the sum does not hold there, so the measured three-consonant table
+        // (indic3 lab print) is used, and for a letter outside it the first pair plus the mean the third letter added there:
+        // 0.488 em regular, 0.532 bold, spread about 0.08 em.)
+        if c[0].value >> 7 == 0x19, c.count == 5, isVirama(c[1].value), isVirama(c[3].value),
+           let x = cluster(Array(c[0...2]), bold: bold) {
+            return x + (bold ? 0.5319 : 0.4882) * 2048 / (bold ? boldScale : regularScale)
+        }
         if vs.count >= 2, let vi = vs.first, c[0].value >> 7 != 0x19 {
             let a = Array(c[...(vi + 1)]), rest = Array(c[(vi + 1)...])
             if let x = cluster(a, bold: bold), let y = cluster(rest, bold: bold), let z = cluster([c[vi + 1]], bold: bold) { return x + y - z }
