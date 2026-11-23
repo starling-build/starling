@@ -1735,7 +1735,8 @@ extension RichLayout {
                   ["paragraph", "line"].contains(float.verticalFrom),
                   // (A picture placed from the page that is as wide as the column or wider leaves no room at either side: Word's
                   // print of dx2 f15415f0's cover, a 619pt picture 1102pt tall wrapped square, sets the body from page 2.)
-                  float.horizontalFrom != "page" || (RichTextTheme.wordWindowsPages && float.wrapSide == nil && !image.data.isEmpty && _px(image.width) >= _flowWidth(i)),
+                  float.horizontalFrom != "page" || (RichTextTheme.wordWindowsPages && float.wrapSide == nil && (!image.data.isEmpty || image.textBox != nil || image.sourceXML?.containsSubstring("txbxContent") == true) && _px(image.width) >= _flowWidth(i)),
+                  // (A text box too: dx2 4b53bd2f's 543pt title box from the page, wrapped square both sides, has the body from 210 pt in Word's print; ours ran the text through it.)
                   // (A chart, drawn or not, takes its room like a picture:
                   // zh-37b6536f's caption stands under its 145pt chart; so
                   // does any object the app draws, `drawsObject`, and a
