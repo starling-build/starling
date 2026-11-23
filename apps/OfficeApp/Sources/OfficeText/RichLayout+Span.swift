@@ -307,7 +307,7 @@ extension RichLayout {
                        held: Set<Int> = [], spread: [Int: Double] = [:], fitProbe: Bool = false, autoSpaces: ((Int, Double) -> Void)? = nil)
         -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) {
         var r = _spanBase(for: p, at: index, document, textWidth: textWidth, lead: lead, adjust: adjust, held: held, spread: spread, fitProbe: fitProbe, autoSpaces: autoSpaces)
-        guard !theme.wordRules, uprightIdeographs else { return r }
+        guard !theme.wordRules, uprightIdeographs || sidewaysDigits else { return r }
         // (The tree's own text: the layout put zero-width spaces between its ideographs, which the paint finds in the painter's text.)
         let units = Array(r.0.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
         let groups = Self.uprightDigitRuns(units)
@@ -342,11 +342,12 @@ extension RichLayout {
                 var tail: [Int: Double] = [:]
                 for g in groups where g.upperBound > lo && g.lowerBound < hi {
                     // (The run's last digit carries the extra: the digits may sit in leaves of their own.)
-                    guard g.upperBound - 1 >= lo, g.upperBound - 1 < hi, let em = nearEm(g) else { continue }
+                    guard g.upperBound - 1 >= lo, g.upperBound - 1 < hi, let em = uprightIdeographs ? nearEm(g) : own?.fontSize else { continue }
                     let digits = String(decoding: units[g], as: UTF16.self)
                     let probe = TextPainter(text: TextSpan(text: digits, style: own?.copyWith(letterSpacing: 0)), textDirection: .ltr)
                     probe.layout()
-                    let extra = 1.0957 * em - probe.width
+                    // (In a sideways column the digit's place is its own em, not the ideograph's 1.0957: the print of 44a86430c67f p10 sets an 11 pt digit and a 14 pt 月 in 25 pt.)
+                    let extra = (uprightIdeographs ? 1.0957 : 1.0) * em - probe.width
                     probe.dispose()
                     if abs(extra) > 0.01 { cuts.append(g.upperBound - 1); cuts.append(min(g.upperBound, hi)); tail[g.upperBound - 1] = extra }
                 }

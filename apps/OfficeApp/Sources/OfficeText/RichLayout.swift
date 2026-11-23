@@ -1608,6 +1608,8 @@ public final class RichLayout {
     /// sets it smaller with the text it fits (an office diagram's list).
     /// A turned text body (`eaVert`) whose ideographs stand upright, as a vertical section's do.
     public var uprightIdeographs = false
+    /// An `eaVert` column whose ideographs are set sideways (not `uprightIdeographs`): its digit runs still stand upright (see `uprightDigitRuns`).
+    public var sidewaysDigits = false
     public var spacingFollowsFont = false {
         didSet { if spacingFollowsFont != oldValue { invalidateAll() } }
     }
