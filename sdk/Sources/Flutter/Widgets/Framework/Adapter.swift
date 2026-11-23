@@ -96,6 +96,15 @@ public class RenderObjectToWidgetElement: RenderTreeRootElement, RootElementMixi
         _rebuild()
     }
 
+    /// Upstream `RenderObjectToWidgetElement.update` is `super.update(newWidget); _rebuild()`
+    /// (binding.dart). Without it a new adapter widget — notably the nil-child one that tears a
+    /// removed view down — changed the root's widget and nothing else: the child tree was never
+    /// deactivated or unmounted, so every removed view's elements, render objects and layers lived on.
+    public override func update(_ newWidget: Widget) {
+        super.update(newWidget)
+        _rebuild()
+    }
+
     private func _rebuild() {
         _child = updateChild(
             _child,
@@ -419,6 +428,13 @@ func _setupWidgetBinding(_ app: Widget) {
                 if let sp = secondaryPipelines.removeValue(forKey: id) {
                     _ = RenderObjectToWidgetAdapter(child: nil, container: sp.renderView)
                         .attachToRenderTree(buildOwner, sp.rootElement)
+                    // Break the cycle that outlives the view: every render object's _owner is this
+                    // PipelineOwner, and its dirty-node lists hold render objects back (the nil-child
+                    // update above just dirtied the RenderView). Dart's GC reclaims such a cycle; ARC never does.
+                    sp.renderView.detach()
+                    sp.pipelineOwner._nodesNeedingLayout.removeAll()
+                    sp.pipelineOwner._nodesNeedingPaint.removeAll()
+                    sp.pipelineOwner.onNeedVisualUpdate = nil
                     // try? — see the config-change write below: a failed
                     // diagnostic write must not be fatal.
                     try? FileHandle.standardError.write(contentsOf: Data(

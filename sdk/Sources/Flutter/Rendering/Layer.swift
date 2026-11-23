@@ -312,7 +312,10 @@ open class Layer: DiagnosticableTreeMixin {
     /// imply that it has been removed from its parent.
     ///
     /// **Dart Source:** `layer.dart:271`
-    internal let _parentHandle: LayerHandle<Layer> = LayerHandle<Layer>()
+    ///
+    /// Weak (the handle's layer is this very layer, so a strong handle is a self-cycle:
+    /// every layer in a tree kept itself alive until it was explicitly removed).
+    internal let _parentHandle: LayerHandle<Layer> = LayerHandle<Layer>(weak: true)
 
     /// Incremented by `LayerHandle`.
     ///
@@ -364,7 +367,11 @@ open class Layer: DiagnosticableTreeMixin {
     /// Internal storage for the parent reference.
     ///
     /// **Dart Source:** `layer.dart:349`
-    internal var _parent: ContainerLayer?
+    ///
+    /// Weak: the parent holds its children (`_firstChild`/`_nextSibling`), so a strong
+    /// back-pointer is a retain cycle under ARC that Dart's GC never had; a dropped
+    /// layer tree was never freed.
+    internal weak var _parent: ContainerLayer?
 
     // MARK: - Scene Management (needsAddToScene)
 
@@ -527,7 +534,11 @@ open class Layer: DiagnosticableTreeMixin {
     /// Internal storage for the owner.
     ///
     /// **Dart Source:** `layer.dart:506`
-    internal var _owner: AnyObject?
+    ///
+    /// Weak: the owner (a `RenderView`) holds its root layer, so a strong back-reference is a
+    /// retain cycle under ARC — a removed view's whole render tree and layers were never freed.
+    /// The owner outlives every layer it attaches (it detaches them when it goes).
+    internal weak var _owner: AnyObject?
 
     /// Whether the layer tree containing this layer is attached to an owner.
     ///
@@ -852,16 +863,31 @@ public class LayerHandle<T: Layer> {
     ///
     /// **Dart Source:** `layer.dart:785-789`
     public init(_ layer: T? = nil) {
-        _layer = layer
-        if _layer != nil {
-            _layer!._refCount += 1
+        _strong = layer
+        isWeak = false
+        if layer != nil {
+            layer!._refCount += 1
         }
     }
+
+    /// A handle that counts a reference without owning the layer, for a layer's handle to itself.
+    internal init(weak: Bool) {
+        isWeak = weak
+    }
+
+    private let isWeak: Bool
+    private var _strong: T?
+    private weak var _weakLayer: T?
 
     /// Internal storage for the referenced layer.
     ///
     /// **Dart Source:** `layer.dart:791`
-    private var _layer: T?
+    private var _layer: T? {
+        get { _strong ?? _weakLayer }
+        set {
+            if isWeak { _weakLayer = newValue } else { _strong = newValue }
+        }
+    }
 
     /// The `Layer` whose resources this object keeps alive.
     ///
