@@ -109,6 +109,8 @@ struct ChartSeries: Equatable {
     /// A scatter series' own x values (`c:xVal`), where it has them; the
     /// chart's first series' list is the x of one that has none.
     var xValues: [Double]? = nil
+    /// A bubble chart's third range: each point's size (`c:bubbleSize`).
+    var bubbleSizes: [Double?]? = nil
     /// Labels whose text is another row of the sheet's ("Value From
     /// Cells": `c15:datalabelsRange`), by point, as the file last had
     /// them; and the size, weight and colour the series' labels are set in.
@@ -314,6 +316,9 @@ struct Chart: Equatable {
     /// The plot area's border and the value gridlines' colour and width
     /// (points), where the file gives them.
     var plotBorder: Color? = nil
+    /// A bubble chart's `c:bubbleScale` (percent) and whether sizes are widths (`c:sizeRepresents val="w"`) rather than areas.
+    var bubbleScale = 100.0
+    var bubbleByWidth = false
     var plotBorderWidth = 0.75
     var gridColor: Color? = nil
     var gridWidth: Double? = nil
@@ -1725,6 +1730,7 @@ enum ChartXML {
                 let style = el.first("c:scatterStyle")?["val"] ?? "marker"
                 let ln = pr?.first("a:ln")
                 s.joined = ln.map { $0.first("a:noFill") == nil } ?? (style != "marker" && style != "none")
+                if let bz = ser.first("c:bubbleSize") { s.bubbleSizes = _points(bz).map { $0.flatMap { Double($0.trimmingWhitespace()) } } }
                 if let xv = ser.first("c:xVal") {
                     let pts = _points(xv).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
                     // (The first series' list is the shared one; a later one that repeats it needs none.)
@@ -2550,6 +2556,10 @@ enum ChartXML {
                 ? axes.first { $0.name != "c:valAx" && !["1", "true"].contains($0.first("c:delete")?["val"] ?? "") } ?? axes.first { $0.name != "c:valAx" }
             : axes.first { $0.name != "c:valAx" }
         c.categoryTicksOut = ["out", "cross"].contains(categoryAxis?.first("c:majorTickMark")?["val"] ?? "")
+        if el.name == "c:bubbleChart" {
+            c.bubbleScale = el.first("c:bubbleScale")?["val"].flatMap(Double.init) ?? 100
+            c.bubbleByWidth = el.first("c:sizeRepresents")?["val"] == "w"
+        }
         if type == .scatter, let categoryAxis { c.scatterXGrid = categoryAxis.first("c:majorGridlines") != nil }
         if type != .scatter, let categoryAxis { c.categoryGrid = categoryAxis.first("c:majorGridlines") != nil }
         if let run = categoryAxis?.first("c:txPr")?.descendant("a:defRPr") {
@@ -7481,6 +7491,17 @@ enum ChartPainter {
                                 canvas.drawPath(chartErrBarPath(eb, k: k, vertical: false, at: vpj(v), from: x, end: ex), ln)
                             }
                         }
+                    }
+                    if let zs = c.series[j].bubbleSizes {
+                        // (A bubble: its size is the area, or the width, of a disc that is at most a quarter of the plot's
+                        // shorter side at scale 100, the largest size of the whole chart being that one: Excel's print.)
+                        let top = c.series.compactMap { $0.bubbleSizes?.compactMap { $0 }.max() }.max() ?? 1
+                        if let z = zs[safe: i] ?? nil, z > 0, top > 0 {
+                            let full = 0.25 * min(plot.width, plot.height) * c.bubbleScale / 100
+                            let d = c.bubbleByWidth ? full * z / top : full * (z / top).squareRoot()
+                            canvas.drawCircle(Offset(x, vpj(v)), d / 2, fill)
+                        }
+                        continue
                     }
                     canvas.drawCircle(Offset(x, vpj(v)), max(1.5, 2.5 * k), fill)
                     if c.onSlide, !c.styled2013, c.officeStyled {
