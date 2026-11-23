@@ -444,8 +444,8 @@ if let i = CommandLine.arguments.firstIndex(of: "--doc-parts"), i + 2 < CommandL
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         let cf = try CompoundFile([UInt8](data))
         guard let ps = DocRead.parts(cf) else {
-            if let w = cf.stream("WordDocument"), let f = DocFib(w) { print("nFib=\(f.nFib) encrypted=\(f.encrypted) table=\(f.tableStream) hasTable=\(cf.stream(f.tableStream) != nil) clx=\(String(describing: f.range(DocFib.fcClx))) ccpText=\(f.ccpText)") }
-            else { print("no WordDocument or FIB") }
+            if let w = cf.stream("WordDocument"), let f = DocFib(w) { fputs("nFib=\(f.nFib) encrypted=\(f.encrypted) table=\(f.tableStream) hasTable=\(cf.stream(f.tableStream) != nil) clx=\(String(describing: f.range(DocFib.fcClx))) ccpText=\(f.ccpText)" + "\n", stderr) }
+            else { fputs("no WordDocument or FIB" + "\n", stderr) }
             exit(1)
         }
         for e in ps { try e.data.write(to: URL(fileURLWithPath: dir + "/" + e.name.split(separator: "/").joined(separator: "_"))) }
