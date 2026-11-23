@@ -369,7 +369,7 @@ extension RichLayout {
             guard !cur.isEmpty else { return }
             if curBlank {
                 let ink = own?.color
-                pieces.append(TextSpan(text: cur, style: (t.style ?? TextStyle()).merge(TextStyle(color: Color(0x00000000), decorationColor: own?.decorationColor ?? ink))))
+                pieces.append(TextSpan(text: cur, style: (t.style ?? TextStyle()).merge(TextStyle(color: Color(0x00000000), decorationColor: own?.decorationColor ?? ink)).copyWith(debugLabel: t.style?.debugLabel)))
             } else { pieces.append(TextSpan(text: cur, style: t.style)) }
             cur = ""
         }
@@ -386,8 +386,8 @@ extension RichLayout {
                        held: Set<Int> = [], spread: [Int: Double] = [:], fitProbe: Bool = false, autoSpaces: ((Int, Double) -> Void)? = nil)
         -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) {
         var r = _spanUnhidden(for: p, at: index, document, textWidth: textWidth, lead: lead, adjust: adjust, held: held, spread: spread, fitProbe: fitProbe, autoSpaces: autoSpaces)
-        // Word only: in a deck the lone blank run takes another face's line (PowerPoint titles 2-4 pt off, pptx-pilot c0c961a37b2a473a 100 to 98.8), so Slides keeps the blank in its text.
-        if theme.wordRules, Self._hasBlank(r.0) { r.0 = Self._hideBlanks(r.0, nil) }
+        // (merge() rewrites the style's debugLabel, which the layout reads as the face's name: the blank run keeps the run's own label.)
+        if Self._hasBlank(r.0) { r.0 = Self._hideBlanks(r.0, nil) }
         return r
     }
 
