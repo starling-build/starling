@@ -448,7 +448,7 @@ enum XlsBuild {
             case 0x99 where rec.body.count >= 2: stdWidth = c.u16()
             case 0x225 where rec.body.count >= 4:
                 let g = c.u16(), h = c.u16()
-                defRowHeight = (h, g & 2 != 0)
+                defRowHeight = (h, g & 1 != 0)
             case 0x1B0 where rec.body.count >= 18:
                 // CONDFMT: ccf, grbit, bounding range, then the ranges the rules apply to.
                 c.skip(4); let bound = (c.u16(), c.u16(), c.u16(), c.u16())
