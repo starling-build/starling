@@ -12,6 +12,11 @@ import XCTest
 @testable import Flutter
 import FlutterSwiftBridge
 
+#if !canImport(ObjectiveC)
+/// Linux has no autorelease pools: objects are freed as soon as the last reference goes.
+private func autoreleasepool<T>(invoking body: () throws -> T) rethrows -> T { try body() }
+#endif
+
 final class LayerLifetimeTests: XCTestCase {
     func testADroppedLayerTreeIsFreed() {
         weak var root: ContainerLayer?
