@@ -567,7 +567,7 @@ enum SlideFonts {
         case "ms gothic", "ｍｓ ゴシック", "ms pgothic", "ｍｓ ｐゴシック", "ms ui gothic", "ｍｓ ｕｉ ゴシック", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝":
             (units, upem, descent) = (256, 256, n.contains("pgothic") || n.contains("ｐゴシック") ? 52 : 36)
         default:
-            guard n.contains("dfkai") || n.contains("標楷") else { return nil }
+            guard n.contains("dfkai") || n.contains("標楷") || n.contains("mingliu") || n.contains("細明體") else { return nil }   // (PMingLiU / MingLiU: 7c3069f9808a slide 8, 12 pt at 90% stands 14.1 apart = 0.9 x 1.306 em)
             (units, upem, descent) = (1024, 1024, 204)
         }
         return (1.3 * units / upem, (descent / units + 0.15) / 1.3)
