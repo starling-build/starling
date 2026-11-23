@@ -36,6 +36,8 @@ enum WriterMath {
         var baseD: Double = 0
         /// The MATH italic correction (pt) of its last glyph: a superscript beside it starts that much later (slides).
         var ic: Double = 0
+        /// The space an operator piece carries before its sign (a line broken before it sets the sign at the margin: slides).
+        var lead: Double = 0
         var draw: (any Canvas, Offset) -> Void
         var iu: Double { inkUp ?? ascent }
         var idn: Double { inkDown ?? descent }
@@ -186,11 +188,19 @@ enum WriterMath {
                 while j < pieces.count, !pieces[j].breaksBefore { run += pieces[j].box.width; j += 1 }
                 if x + run > limit + 0.01 { lines.append([]); x = 0 }
             }
-            lines[lines.count - 1].append(piece.box)
-            x += piece.box.width
+            var box = piece.box
+            if slideScope, box.lead > 0, lines[lines.count - 1].isEmpty, lines.count > 1 {
+                // (PowerPoint's print of lo-tdf131553 "A / = πr²": the line broken before the sign starts with the sign itself at the margin.)
+                let inner = box, cut = box.lead
+                box = Box(width: inner.width - cut, ascent: inner.ascent, descent: inner.descent, inkUp: inner.inkUp, inkDown: inner.inkDown, baseA: inner.baseA, baseD: inner.baseD) { canvas, at in
+                    inner.draw(canvas, Offset(at.dx - cut, at.dy))
+                }
+            }
+            lines[lines.count - 1].append(box)
+            x += box.width
         }
         guard lines.count > 1 else { return nil }
-        let boxes = lines.map { layout.hbox($0) }
+        var boxes = lines.map { layout.hbox($0) }
         // (A line after the first that fills the line is not set an inch in: Word's print of sa1 5393bae9's
         // cell "PA =MAPRA*f_F" stands both lines at the cell's left edge; ours stood the second 32 pt in.)
         if let widest = boxes.dropFirst().map({ $0.width }).max() { indent = max(0, min(indent, width - widest)) }
@@ -202,9 +212,17 @@ enum WriterMath {
         let gap = node.descendants("m:f").isEmpty ? 0 : entry.size * 0.3
         var tops: [Double] = []
         var y = 0.0
+        // (A slide equation's broken lines are counted from their ink: PowerPoint's print of lo-tdf131553 stands the second line 64.5 pt under the first at 60 pt,
+        // the first's depth (0.222 em) and the second's ink height, 51.2: no leading over it.)
+        if slideScope && windows {
+            boxes = boxes.map { b in
+                var c = b; c.ascent = b.iu; c.descent = max(b.idn, entry.size * 0.222); return c
+            }
+        }
         for b in boxes { tops.append(y); y += b.ascent + b.descent + gap }
         let height = y - gap
-        let wide = boxes.enumerated().map { ($0.offset == 0 ? 0 : indent) + $0.element.width }.max() ?? 0
+        // (A slide equation broken to its box stands its lines at the box's left edge, not centred on the widest: PowerPoint's print of lo-tdf131553.)
+        let wide = slideScope ? width : (boxes.enumerated().map { ($0.offset == 0 ? 0 : indent) + $0.element.width }.max() ?? 0)
         let first = boxes[0].ascent
         let broken = Box(width: wide, ascent: first, descent: height - first) { canvas, at in
             for (k, b) in boxes.enumerated() {
@@ -586,14 +604,16 @@ enum WriterMath {
             var piece = ""
             var pieceItalic = false
             var opens = false
+            var lead = 0.0
             let ea = eastAsianFamily(r)
             func flush() { if !piece.isEmpty { parts.append(text(boldText(piece, r), size: own, italic: pieceItalic && boldText(piece, r) == piece, family: wide(piece) ? ea : nil)) }; piece = "" }
-            func close() { flush(); if !parts.isEmpty { out.append((hbox(parts), opens)) }; parts = []; opens = false }
+            func close() { flush(); if !parts.isEmpty { var b = hbox(parts); if opens { b.lead = lead }; out.append((b, opens)) }; parts = []; opens = false }
             for ch in s {
                 if "=+−-±×÷<>≤≥≈≠∓→←⇒∈∉⊂⊃∪∩".contains(ch) || (ch == "∗" && WriterMath.slideScope) {
                     close()
                     opens = true
                     let gap = own * 0.22
+                    lead = gap
                     parts.append(space(gap))
                     parts.append(text(String(ch == "-" ? "−" : ch), size: own, italic: false))
                     parts.append(space(gap))
