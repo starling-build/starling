@@ -434,7 +434,7 @@ enum DocRead {
                         content = story(boxStart + boxes.cps[i], boxStart + boxes.cps[i + 1], c)
                     }
                 }
-                if rid == nil, content == nil, shape.flatMap({ DocArt.geometry($0.type) }) == nil { continue }
+                if rid == nil, content == nil, !(shape.map({ DocArt.drawable($0) }) ?? false) { continue }
                 out[shift + sp.cp] = (DocArt.floating(sp, shape: shape, rid: rid, content: content, order: k), sp.behind)
             }
             return out
