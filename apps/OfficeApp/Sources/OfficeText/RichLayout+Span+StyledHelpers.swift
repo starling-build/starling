@@ -749,6 +749,42 @@ extension _StyledFrame {
         }
         // (A Tamil run whose complex face Windows lacks (Arial Unicode MS): its Latin, digits and punctuation Word draws in Leelawadee UI.)
         let leelawadeeLatin = (run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "arial unicode ms"
+        if kind >= 0, indic?.face == "khmer ui", text[start ..< end].unicodeScalars.contains(where: { $0.value >= 0x1780 && $0.value <= 0x17FF }) {
+            // (Khmer word by word, at Khmer UI's cluster advances: `KhmerUIClusters`. As spacing over the glyphs the engine draws, as Thai is.)
+            let base = style(kind)
+            var wordStart = start
+            func putWord(_ a: Substring.Index, _ b: Substring.Index) {
+                guard a < b else { return }
+                let w = text[a ..< b]
+                var st = base
+                if let px = base.fontSize, px > 0.5, let split = KhmerUIClusters.split(w, bold: base.fontWeight == .bold) {
+                    func measure(_ str: String, _ ls: Double) -> Double {
+                        let t = TextPainter(text: TextSpan(text: str, style: base.copyWith(letterSpacing: ls)), textDirection: .ltr)
+                        t.layout(minWidth: 0, maxWidth: 100_000)
+                        defer { t.dispose() }
+                        return t.width
+                    }
+                    let whole = String(w)
+                    let w0 = measure(whole, 0)
+                    let n = max(1, Int((measure(whole, 10) - w0) / 10 + 0.5))
+                    let other = split.other.isEmpty ? 0 : measure(split.other, 0)
+                    if w0 > 0.01 { st = base.copyWith(letterSpacing: (base.letterSpacing ?? 0) + (split.ems * px + other - w0) / Double(n)) }
+                }
+                spans.append(contentsOf: capped(w, run, st))
+            }
+            var k = start
+            while k < end {
+                if text[k] == " " || text[k] == "\u{00A0}" {
+                    putWord(wordStart, k)
+                    spans.append(contentsOf: capped(text[k ..< text.index(after: k)], run, base))
+                    wordStart = text.index(after: k)
+                }
+                k = text.index(after: k)
+            }
+            putWord(wordStart, end)
+            start = end
+            return
+        }
         if kind >= 0, indic?.face == "leelawadee ui", text[start ..< end].unicodeScalars.contains(where: { ($0.value >= 0x0E01 && $0.value <= 0x0E5B) || ($0.value >= 0x0E81 && $0.value <= 0x0EDF) }) {
             // (Thai without w:cs, word by word, at Leelawadee UI's advances: `ThaiAdvances`.)
             let base = style(kind)

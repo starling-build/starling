@@ -89,6 +89,8 @@ extension RichLayout {
         "malgun gothic": (1.088 + 0.2, 0.242 + 0.2), "leelawadee ui": (1.08, 0.28),
         // (Myanmar Text: win ascent 2122, descent 1689 over 2048. Word sets a Myanmar-letter line at 1.861 em: dx2 2dbfc1a8, 22 pt a line at 11 pt on 259, ours 16.)
         "myanmar text": (2122.0 / 2048, 1689.0 / 2048),
+        // (Khmer UI: win ascent 1888, descent 430 over 2048.)
+        "khmer ui": (1888.0 / 2048, 430.0 / 2048),
         // (MV Boli, which Word draws Thaana in: win ascent 2333, descent 967 over 2048; dx2 3a5235d0.)
         "mv boli": (2333.0 / 2048, 967.0 / 2048)]
     /// Width of each face's letters against the Noto stand-in's, per script (D Devanagari, B Bengali, T Telugu, P Gurmukhi, G Gujarati):
