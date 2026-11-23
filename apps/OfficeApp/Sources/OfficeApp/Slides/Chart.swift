@@ -6055,7 +6055,7 @@ enum ChartPainter {
                         // what that leaves; the labels at its left, the axis 0.927 of their size past them, the box's back at its right. Lab lg3, a frame
                         // 626.8 by 314.9 pt, 6 to 18 pt labels: the block 577.6 pt at every size, 15.1 pt in at each side; the same frame half as wide,
                         // 8.3 and 11.1 in. The cap's one frame height is the one measured.)
-                        if c.onSlide, !horizontal, v.rightAngles, v.walled, c.plotLayout == nil, !c.styled2013, !c.legend {
+                        if c.onSlide, !horizontal, v.rightAngles, v.walled, c.plotLayout == nil, c.dataTable == nil, !c.styled2013, !c.legend {
                             RuleTrace.hit("slide-3d-columns-stand-as-one-block-centred-under-a-cap")
                             let availL = frame.left + 8.3 * k, availR = frame.right - 11 * k
                             let block = min(availR - availL, 1.834 * frame.height)
