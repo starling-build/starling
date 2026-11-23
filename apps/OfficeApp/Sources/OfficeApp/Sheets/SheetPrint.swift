@@ -264,8 +264,8 @@ enum SheetPrintLayout {
             s = 1
             let totalW = cols.reduce(0) { $0 + width($1) }, totalH = rows.reduce(0) { $0 + height($1) }
             if let n = setup.fitWidth, n > 0 { s = min(s, availW0 * Double(n) / (totalW + titleWidth * Double(n))) }
-            // Excel counts the repeated title rows once more than the page count when fitting the height (fr-c8df50734c, 2 pages: 92%, not 94%).
-            if let n = setup.fitHeight, n > 0 { s = min(s, availH0 * Double(n) / (totalH + titleHeight * Double(n + 1))) }
+            // Excel holds the title rows on every page, the first too, so the first page's rows (which include them) count them twice (fit-titles lab, Excel 2026-11-23, 12 sheets of 1 page: rows x dots <= page less 8 dots). With 2 pages it is 3 times (fr-c8df50734c: 92%, not 94%), so 2n-1: two measurements, n=1 and n=2.
+            if let n = setup.fitHeight, n > 0 { s = min(s, availH0 * Double(n) / (totalH + titleHeight * Double(2 * n - 1))) }
             // Excel's fit is a whole percent, the largest at which the pages
             // asked for hold everything.
             s = max(0.1, (s * 100).rounded(.down) / 100)
@@ -308,7 +308,7 @@ enum SheetPrintLayout {
             // a row fewer than ours did.)
             let foot = 8.0 * 72 / 600
             rowBands = bands(rows, height, availH - foot, fitting && setup.fitHeight != 0 ? [] : setup.rowBreaks,
-                             own: (titleRowsEnd, max(18, availH0 - headHeight * s) - foot), wholeDots: fitting)
+                             own: (titleRowsEnd, (fitting && (setup.fitHeight ?? 0) > 0 ? availH : max(18, availH0 - headHeight * s)) - foot), wholeDots: fitting)
             // (A manual break's page that holds only hidden rows is still a page, blank
             // but for its header and footer, ahead of the visible ones that follow:
             // ja-5563bee92c's rows 1-75, hidden, between breaks after 15, 30, 45, 60

@@ -32,6 +32,19 @@ final class SheetsPrintTests: XCTestCase {
         XCTAssertEqual(pages.map(\.rows.count), [0, 0, 10, 10])
     }
 
+    /// Excel's print of a fit-to-one-page sheet with two title rows and 200 more
+    /// (fit-titles lab, 2026-11-23): 15 pt rows are 3.24 pt apart (21%), not 3.36 (22%).
+    func testFitHeightCountsTitleRowsTwice() {
+        let area = CellRange(top: 0, left: 0, bottom: 201, right: 2)
+        var setup = SheetPrintSetup()
+        setup.fitWidth = 1
+        setup.fitHeight = 1
+        let (pages, s) = SheetPrintLayout.pages(area: area, setup: setup, titleHeight: 30, titleRowsEnd: 1,
+                                                width: { _ in 64 }, height: { _ in 15 })
+        XCTAssertEqual(pages.count, 1)
+        XCTAssertEqual(s, 0.21, accuracy: 0.0001)  // 22% before: the first page held the titles once
+    }
+
     func testHiddenRowsAndFitToWidth() {
         let area = CellRange(top: 0, left: 0, bottom: 9, right: 11)
         let hidden: Set<Int> = [3, 4]
