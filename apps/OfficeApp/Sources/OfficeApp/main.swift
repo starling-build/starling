@@ -450,6 +450,10 @@ if let i = CommandLine.arguments.firstIndex(of: "--doc-info"), i + 1 < CommandLi
             }
             print("tablesize=\(tb.count) w=\(w.count)"); if let b = f.range(56), let pl = DocProps.plex(tb, at: b.fc, count: b.lcb, size: 22) { print("txbx cps=\(pl.cps)") }
         }
+        if let tb = cf.stream(f.tableStream), let c = f.range(DocFib.fcClx), c.fc >= 0, c.fc + c.lcb <= tb.count {
+            let ps = DocRead.pieces(clx: Array(tb[c.fc ..< c.fc + c.lcb]))
+            print("pieces=\(ps.count) comp=\(ps.filter { $0.compressed }.count) prm0=\(ps.filter { $0.prm != 0 && $0.prm & 1 == 0 }.map { $0.prm >> 1 & 0x7F }) prm1=\(ps.filter { $0.prm & 1 != 0 }.count) fComplex=\(OfficeArt.u16(w, 10) >> 2 & 1)")
+        }
         print(f.fcLcb.enumerated().filter { $0.element.lcb > 0 }.map { "\($0.offset):\($0.element.fc)+\($0.element.lcb)" }.joined(separator: " "))
     }
     exit(0)
