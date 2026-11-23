@@ -88,6 +88,8 @@ enum Xlsx {
             // The default font: the one a cell with no style of its own has.
             if let f = _defaultFont(st) {
                 if let n = _fontName(f, themeFonts, themeless: themeless), !n.isEmpty, n != OfficeFonts.defaultFamily { book.defaultFontName = n }
+                // (A Normal font named for a face of its own but set in the theme's: its name is the face Excel fitted the rows in.)
+                if f.child("scheme")?["val"] != nil, let named = f.child("name")?["val"], !named.isEmpty, named != book.defaultFontName ?? OfficeFonts.defaultFamily, SheetPrintMetrics.fitsRowsInOwnFace(named) { book.defaultFontOwnName = named }
                 book.defaultFontBold = f.child("b").map { $0["val"] != "0" && $0["val"] != "false" } ?? false
                 if let z = f.child("sz").flatMap({ Double($0["val"] ?? "") }), z > 0, z != 11 { book.defaultFontSize = z }
             }
