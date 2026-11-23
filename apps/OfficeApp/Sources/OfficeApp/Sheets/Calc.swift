@@ -296,6 +296,14 @@ final class CalcEngine {
         // a blocked FILTER left it empty, where it is #SPILL!.)
         for a in changed where g.formulaCells.contains(SheetCell(sheet: sheet, cell: a)) { dirty.insert(SheetCell(sheet: sheet, cell: a)) }
         while let x = queue.popLast() {
+            // A spill's other cells take new values with its anchor, and cells read them as their own.
+            if let sr = book.sheets[x.sheet].cells[x.cell]?.spillRange, !sr.isSingle, g.formulaCells.contains(x) {
+                for row in sr.top ... sr.bottom {
+                    for col in sr.left ... sr.right where !(row == x.cell.row && col == x.cell.col) {
+                        queue.append(SheetCell(sheet: x.sheet, cell: CellAddress(row: row, col: col)))
+                    }
+                }
+            }
             var readers = g.cellReaders[x] ?? []
             var candidates = g.wide
             if let cols = g.byColumn[x.sheet], let list = cols[x.cell.col] { candidates += list }
@@ -408,6 +416,7 @@ final class CalcEngine {
                     let nk = "\(k.sheet)|\(n)"
                     if nameParsed[nk] == nil { nameParsed[nk] = .some(book.nameText(n, sheet: k.sheet).flatMap { try? Formula.parse($0) }) }
                     if let e = nameParsed[nk]! {
+                        if Formula.isVolatile(e) { graph.volatile.insert(k) }
                         Formula.references(Formula.shifted(e, rows: k.cell.row, cols: k.cell.col, wrapping: true), into: &refs, indexed: &indexed)
                     }
                 }
