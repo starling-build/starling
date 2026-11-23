@@ -114,8 +114,10 @@ final class EditorToolbar: UIView {
         // A docked soft keyboard is tall; a hardware keyboard's floating
         // assistant bar is a strip, and gets no toolbar of ours.
         var keyboardTop: CGFloat?
-        if let end = keyboardFrame, view.window != nil {
-            let local = view.convert(end, from: nil)
+        if let end = keyboardFrame, let window = view.window {
+            // The system gives the keyboard's frame in the SCREEN's space, which is the window's
+            // only when the window fills the screen: a Slide Over or Split View window is offset.
+            let local = view.convert(end, from: window.screen.coordinateSpace)
             if local.height > 150, local.minY < view.bounds.height { keyboardTop = local.minY }
         }
         isHidden = keyboardTop == nil || buttons.isEmpty

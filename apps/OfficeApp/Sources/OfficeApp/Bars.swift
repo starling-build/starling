@@ -11,7 +11,11 @@ import FlutterSwiftBridge
 import FluentSystemIcons
 import Foundation
 
-final class TitleRow: StatelessWidget {
+/// The title row, fitted to the width it is given: a window that shares the
+/// iPad's screen (Split View, Slide Over, a Stage Manager window) is a third
+/// as wide as the row's fixed pieces, so the search box, then the app's name and
+/// the AutoSave button, give way in turn rather than crushing the file name.
+final class TitleRow: StatefulWidget {
     let session: OfficeSession
     let searchController: TextEditingController
     let onSearch: (String) -> Void
@@ -21,6 +25,37 @@ final class TitleRow: StatelessWidget {
         self.session = session
         self.searchController = searchController
         self.onSearch = onSearch
+        super.init()
+    }
+
+    override func createState() -> State<StatefulWidget> { TitleRowState() }
+}
+
+final class TitleRowState: State<StatefulWidget> {
+    private var _width = Double.infinity
+    private var _w: TitleRow { widget as! TitleRow }
+
+    override func build(_ context: any BuildContext) -> Widget {
+        SizeReporter(onSize: { [weak self] size in
+            guard let self, self.mounted, abs(size.width - self._width) > 0.5 else { return }
+            self.setState { self._width = size.width }
+        }, child: TitleRowBar(session: _w.session, searchController: _w.searchController,
+                              onSearch: _w.onSearch, width: _width))
+    }
+}
+
+final class TitleRowBar: StatelessWidget {
+    let session: OfficeSession
+    let searchController: TextEditingController
+    let onSearch: (String) -> Void
+    let width: Double
+
+    init(session: OfficeSession, searchController: TextEditingController,
+         onSearch: @escaping (String) -> Void, width: Double) {
+        self.session = session
+        self.searchController = searchController
+        self.onSearch = onSearch
+        self.width = width
         super.init()
     }
 
@@ -52,6 +87,9 @@ final class TitleRow: StatelessWidget {
                 Chrome.gap(12),
             ]
         }
+        // What fits: all of it from about 700 pt; no search box under that; and under
+        // 460 pt neither the app's name nor the AutoSave button.
+        let roomy = width >= 700, snug = width >= 460
         return ColoredBox(color: OfficeAppearance.titleBar,
             child: Padding(padding: EdgeInsets(left: 16, top: 10, right: 16, bottom: 10), child: Row(
                 crossAxisAlignment: .center, children: leading + [
@@ -60,8 +98,10 @@ final class TitleRow: StatelessWidget {
                     SizedBox(width: 32, height: 32, child: CustomPaint(
                         painter: OfficeLogoPainter(kind: session.kind), child: SizedBox(expand: ()))),
                     Chrome.gap(10),
+                ] + (snug ? [
                     Text(session.kind.appName, style: titleStyle),
                     Chrome.gap(24),
+                ] : []) + [
                     command(FluentSystemIcons.save, "Save (⌘S)".keys) { [session] in session.onSave?() },
                     command(FluentSystemIcons.undo, "Undo (⌘Z)".keys, enabled: s.canUndo) { [session] in
                         if let undo = session.onUndo { undo() } else { c.undo() }
@@ -71,17 +111,19 @@ final class TitleRow: StatelessWidget {
                     },
                     Expanded(child: Padding(padding: EdgeInsets(left: 16, top: 0, right: 16, bottom: 0),
                         child: Center(child: Text(name, style: titleStyle, softWrap: false, overflow: .ellipsis)))),
+                ] + (snug ? [
                     FlatButton(child: Padding(padding: EdgeInsets(left: 9, top: 0, right: 9, bottom: 0),
                         child: Text(session.autoSave ? "AutoSave on" : "AutoSave off", style: captionStyle)),
                         tip: "Toggle automatic recovery copies", checked: session.autoSave,
                         width: nil, height: 30, onAccent: true,
                         action: { [session] in session.onToggleAutoSave?() }),
+                ] : []) + (roomy ? [
                     Chrome.gap(16),
                     SizedBox(width: 230, height: 32, child: FluentTextBox(
                         controller: searchController,
                         placeholderText: session.kind == .document ? "Find in document (⌘F)".keys : session.kind == .workbook ? "Find in workbook (⌘F)".keys : "Find in presentation (⌘F)".keys,
                         onSubmitted: { [onSearch] q in onSearch(q) })),
-                ])))
+                ] : []))))
     }
 }
 
