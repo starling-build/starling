@@ -85,6 +85,24 @@ struct CellEdit {
     var caret: Int
     /// Typing replaced the cell: the arrows commit and move on.
     var enterMode: Bool
+    /// The other end of a selection that runs from here to the caret (nil: none).
+    var anchor: Int? = nil
+
+    /// The selected characters, if any.
+    var selection: Range<Int>? {
+        guard let a = anchor, a != caret else { return nil }
+        let lo = min(a, caret, text.count), hi = min(max(a, caret), text.count)
+        return lo < hi ? lo ..< hi : nil
+    }
+
+    /// Removes the selection and puts the caret where it was; false if none.
+    mutating func deleteSelection() -> Bool {
+        defer { anchor = nil }
+        guard let r = selection else { return false }
+        text.removeSubrange(r)
+        caret = r.lowerBound
+        return true
+    }
 }
 
 /// Where a right click landed: the menu differs for headers.
@@ -154,7 +172,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// Scroll offset of the cell area, in logical pixels.
     var scrollX = 0.0
     var scrollY = 0.0
-    private(set) var edit: CellEdit? = nil
+    private(set) var edit: CellEdit? = nil {
+        didSet {
+            if edit == nil, oldValue != nil { _touchEditing = false; _dismissEditMenu() }
+        }
+    }
+    /// A finger is editing the cell: the caret and selection carry handles.
+    private var _touchEditing = false
+    private var _editMenuUp = false
+    private var _editPress = 0
     private var _drag: _Drag? = nil
     private var _lastClick: (cell: CellAddress, at: Double)? = nil
     /// The noted cell under the pointer: its note shows beside it.
@@ -172,6 +198,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     private enum _Drag {
         case cells
+        /// A finger in the open cell editor: where it landed (a character index),
+        /// whether it has moved (a drag then selects), and where the caret was.
+        case editTouch(index: Int, moved: Bool, caretBefore: Int)
+        /// A selection or caret knob under a finger.
+        case editHandle
         /// A finger on a plain cell: a drag scrolls the sheet, a tap (no movement) selects.
         case touchScroll(start: Offset, last: Offset, moved: Bool, cell: CellAddress)
         case columns(anchor: Int)
@@ -1081,7 +1112,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         get {
             guard let e = edit else { return TextEditingValue(text: "", selection: TextSelection(offset: 0)) }
             let c = _composing.map { TextRange(start: $0.lowerBound, end: $0.upperBound) } ?? TextRange.empty
-            return TextEditingValue(text: String(e.text), selection: TextSelection(offset: e.caret), composing: c)
+            return TextEditingValue(text: String(e.text),
+                                    selection: TextSelection(baseOffset: e.selection == nil ? e.caret : e.anchor ?? e.caret, extentOffset: e.caret),
+                                    composing: c)
         }
         set {
             if edit == nil {
@@ -1095,6 +1128,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             e.text = Array(newValue.text)
             let sel = newValue.selection
             e.caret = sel.isValid ? min(max(0, sel.extentOffset), e.text.count) : e.text.count
+            e.anchor = sel.isValid && !sel.isCollapsed ? min(max(0, sel.baseOffset), e.text.count) : nil
+            _dismissEditMenu()
             edit = e
             let c = newValue.composing
             _composing = c.isValid && !c.isCollapsed ? max(0, c.start) ..< min(c.end, e.text.count) : nil
@@ -1107,9 +1142,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     private func _insert(_ s: String) {
         guard var e = edit else { return }
         let chars = Array(s)
+        _ = e.deleteSelection()
         e.text.insert(contentsOf: chars, at: e.caret)
         e.caret += chars.count
         edit = e
+        _dismissEditMenu()
         _w.onEditText(String(e.text))
         _repaint.notifyListeners()
     }
@@ -1237,10 +1274,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             case .escape:
                 cancelEdit(); return true
             case .backspace:
-                if e.caret > 0 { e.text.remove(at: e.caret - 1); e.caret -= 1 }
+                if e.deleteSelection() {} else if e.caret > 0 { e.text.remove(at: e.caret - 1); e.caret -= 1 }
                 edit = e; _w.onEditText(String(e.text)); _repaint.notifyListeners(); return true
             case .delete:
-                if e.caret < e.text.count { e.text.remove(at: e.caret) }
+                if e.deleteSelection() {} else if e.caret < e.text.count { e.text.remove(at: e.caret) }
                 edit = e; _w.onEditText(String(e.text)); _repaint.notifyListeners(); return true
             case .left, .right, .up, .down:
                 if e.enterMode && (pointing || _pointRef != nil) {
@@ -1252,11 +1289,16 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     _move(named)
                     return true
                 }
-                if named == .left { e.caret = max(0, e.caret - 1) }
-                if named == .right { e.caret = min(e.text.count, e.caret + 1) }
+                if let r = e.selection, named == .left || named == .right {
+                    e.caret = named == .left ? r.lowerBound : r.upperBound
+                } else {
+                    if named == .left { e.caret = max(0, e.caret - 1) }
+                    if named == .right { e.caret = min(e.text.count, e.caret + 1) }
+                }
+                e.anchor = nil
                 edit = e; _repaint.notifyListeners(); return true
-            case .home: e.caret = 0; edit = e; _repaint.notifyListeners(); return true
-            case .end: e.caret = e.text.count; edit = e; _repaint.notifyListeners(); return true
+            case .home: e.caret = 0; e.anchor = nil; edit = e; _repaint.notifyListeners(); return true
+            case .end: e.caret = e.text.count; e.anchor = nil; edit = e; _repaint.notifyListeners(); return true
             case .function(2): e.enterMode.toggle(); edit = e; return true
             default:
                 if let t = _chords.typedText(k) {
@@ -1442,6 +1484,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         focus.requestFocus()
         let p = _local(e)
         let c = controller
+        if e.kind == .touch, e.buttons & kSecondaryMouseButton == 0, _touchEditDown(p) { return }
         if e.buttons & kSecondaryMouseButton != 0 {
             _secondaryDown(e, at: p)
             return
@@ -1716,6 +1759,28 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let p = _local(e)
         let c = controller
         switch d {
+        case .editTouch(let index, let moved, let before):
+            guard var ed = edit else { return }
+            let m = _editorMetrics(ed)
+            let at = _editIndex(atX: p.dx, m)
+            let far = moved || at != index
+            if far {
+                ed.anchor = index
+                ed.caret = at
+                edit = ed
+                _dismissEditMenu()
+                _w.onEditText(String(ed.text))
+                _ime?.sync()
+                _repaint.notifyListeners()
+            }
+            _drag = .editTouch(index: index, moved: far, caretBefore: before)
+        case .editHandle:
+            guard var ed = edit else { return }
+            ed.caret = _editIndex(atX: p.dx, _editorMetrics(ed))
+            edit = ed
+            _dismissEditMenu()
+            _ime?.sync()
+            _repaint.notifyListeners()
         case .touchScroll(let start, let last, let moved, let cell):
             let far = moved || abs(p.dx - start.dx) > 8 || abs(p.dy - start.dy) > 8
             if far { _scroll(by: last.dx - p.dx, last.dy - p.dy) }
@@ -1802,6 +1867,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     private func _up(_ e: PointerEvent) {
         _move(e)
         if case .touchScroll(_, _, let moved, let cell)? = _drag, !moved { _cellPress(cell) }
+        if case .editTouch(_, let moved, let before)? = _drag, let ed = edit {
+            // A tap on the caret where it already was brings the menu; one that
+            // moved it, or a drag that selected, shows it over the selection.
+            if moved || before == ed.caret { _showEditMenu() }
+        }
+        if case .editHandle? = _drag { _showEditMenu() }
         if case .drawing(let index, _, _, let old, _)? = _drag {
             let ws = controller.sheet
             if ws.drawings.indices.contains(index) {
@@ -3263,6 +3334,12 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let ty = box.bottom - tp.height - 1
         canvas.save()
         canvas.clipRect(box.deflate(1))
+        if let r = e.selection {
+            let x0 = r.lowerBound == 0 ? 0 : texts.painter(String(e.text[0 ..< r.lowerBound]), style).width
+            let x1 = texts.painter(String(e.text[0 ..< r.upperBound]), style).width
+            p.color = accent.withAlpha(90)
+            canvas.drawRect(Rect.fromLTWH(box.left + pad + x0, ty, x1 - x0, tp.height), p)
+        }
         if !text.isEmpty { tp.paint(canvas, Offset(box.left + pad, ty.rounded())) }
         // The input method's marked text, underlined.
         if let c = _composing, c.upperBound <= e.text.count, c.lowerBound < c.upperBound {
@@ -3276,11 +3353,203 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         p.color = ink
         canvas.drawRect(Rect.fromLTWH((box.left + pad + before).rounded(), ty + 1, 1.5, max(1, tp.height - 2)), p)
         canvas.restore()
+        // A finger's handles: one knob on a caret, one at each end of a selection.
+        if _touchEditing {
+            p.color = accent
+            for k in _editKnobs(e, box: box, pad: pad, style: style, bottom: ty + tp.height) {
+                canvas.drawCircle(k, Self.knobRadius, p)
+            }
+        }
         // Where the caret is, for the input method's candidate window.
         if let ime = _ime, ime.isAttached, let rb = _box ?? (context?.findRenderObject() as? RenderBox) {
             ime.setCaretRect(Rect.fromLTWH(box.left + pad + before, ty, 1.5, tp.height),
                              editableSize: size, transform: rb.getTransformTo(nil as RenderObject?))
         }
+    }
+}
+
+// MARK: A finger in the cell editor
+
+extension SheetGridState {
+    static var knobRadius: Double { 7 }
+
+    /// The open editor's box, text inset, style and the line's top and height.
+    fileprivate struct EditorMetrics {
+        var box: Rect
+        var pad: Double
+        var style: GridTextStyle
+        var top: Double
+        var height: Double
+    }
+
+    fileprivate func _editorMetrics(_ e: CellEdit) -> EditorMetrics {
+        let r = rect(e.cell)
+        let st = controller.style(at: e.cell)
+        var style = _textStyle(st, color: nil, ink: Color(0xFF000000))
+        if e.text.first == "=" { style.family = OfficeFonts.drawn("Calibri") }
+        let text = String(e.text)
+        let tp = texts.painter(text.isEmpty ? " " : text, style)
+        let pad = 2 * zoom
+        let w = max(r.width, min(size.width - r.left - 2, tp.width + pad * 2 + 4))
+        let box = Rect.fromLTWH(r.left, r.top, w, r.height)
+        return EditorMetrics(box: box, pad: pad, style: style, top: (box.bottom - tp.height - 1).rounded(), height: tp.height)
+    }
+
+    fileprivate func _textWidth(_ e: CellEdit, _ upTo: Int, _ style: GridTextStyle) -> Double {
+        upTo <= 0 ? 0 : texts.painter(String(e.text[0 ..< min(upTo, e.text.count)]), style).width
+    }
+
+    /// The character boundary nearest `x` (grid coordinates).
+    fileprivate func _editIndex(atX x: Double, _ m: EditorMetrics) -> Int {
+        guard let e = edit, !e.text.isEmpty else { return 0 }
+        let local = x - m.box.left - m.pad
+        var lo = 0, hi = e.text.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if _textWidth(e, mid, m.style) < local { lo = mid + 1 } else { hi = mid }
+        }
+        if lo > 0, abs(_textWidth(e, lo - 1, m.style) - local) < abs(_textWidth(e, lo, m.style) - local) { lo -= 1 }
+        return lo
+    }
+
+    /// Knob centres: one at a caret, two (start, end) at a selection.
+    fileprivate func _editKnobs(_ e: CellEdit, box: Rect, pad: Double, style: GridTextStyle, bottom: Double) -> [Offset] {
+        let y = max(bottom, box.bottom - 2) + Self.knobRadius
+        if let r = e.selection {
+            return [Offset(box.left + pad + _textWidth(e, r.lowerBound, style), y),
+                    Offset(box.left + pad + _textWidth(e, r.upperBound, style), y)]
+        }
+        return [Offset(box.left + pad + _textWidth(e, e.caret, style), y)]
+    }
+
+    /// A touch while a cell is open. True when it landed in the editor or on a
+    /// knob (the grid's own handling is then skipped); false to fall through
+    /// to committing and selecting what is under the finger.
+    fileprivate func _touchEditDown(_ p: Offset) -> Bool {
+        guard var e = edit, !pointing, _pointRef == nil else { return false }
+        let m = _editorMetrics(e)
+        if _touchEditing {
+            let knobs = _editKnobs(e, box: m.box, pad: m.pad, style: m.style, bottom: m.top + m.height)
+            for (i, k) in knobs.enumerated() where abs(p.dx - k.dx) <= 22 && abs(p.dy - k.dy) <= 22 {
+                if let r = e.selection {
+                    e.anchor = i == 0 ? r.upperBound : r.lowerBound
+                    e.caret = i == 0 ? r.lowerBound : r.upperBound
+                    edit = e
+                }
+                _dismissEditMenu()
+                _drag = .editHandle
+                return true
+            }
+        }
+        guard m.box.contains(p) else { return false }
+        let index = _editIndex(atX: p.dx, m)
+        let before = e.caret
+        e.caret = index
+        e.anchor = nil
+        edit = e
+        _touchEditing = true
+        _dismissEditMenu()
+        _drag = .editTouch(index: index, moved: false, caretBefore: before)
+        _w.onEditText(String(e.text))
+        _ime?.sync()
+        _repaint.notifyListeners()
+        // A finger held still on the text selects the word under it.
+        _editPress += 1
+        let gen = _editPress
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self, gen == self._editPress, case .editTouch(_, false, _)? = self._drag,
+                  var ed = self.edit else { return }
+            func word(_ c: Character) -> Bool { c.isLetter || c.isNumber || c == "_" || c == "$" }
+            var lo = min(ed.caret, ed.text.count), hi = lo
+            while lo > 0, word(ed.text[lo - 1]) { lo -= 1 }
+            while hi < ed.text.count, word(ed.text[hi]) { hi += 1 }
+            if lo == hi, ed.caret < ed.text.count { hi = ed.caret + 1 }
+            if lo == hi, ed.caret > 0 { lo = ed.caret - 1 }
+            guard lo < hi else { return }
+            ed.anchor = lo
+            ed.caret = hi
+            self.edit = ed
+            self._drag = .editTouch(index: lo, moved: true, caretBefore: hi)
+            self._ime?.sync()
+            self._repaint.notifyListeners()
+            self._showEditMenu()
+        }
+        return true
+    }
+
+    fileprivate func _dismissEditMenu() {
+        guard _editMenuUp else { return }
+        _editMenuUp = false
+        OfficeHost.editMenuDismissed?()
+    }
+
+    private func _editChanged() {
+        guard let e = edit else { return }
+        _w.onEditText(String(e.text))
+        _ime?.sync()
+        _repaint.notifyListeners()
+    }
+
+    /// The host's edit menu over the editor's selection or caret.
+    fileprivate func _showEditMenu() {
+        guard let show = OfficeHost.editMenuRequested, let e = edit,
+              let rb = _box ?? (context?.findRenderObject() as? RenderBox) else { return }
+        let m = _editorMetrics(e)
+        let lo = e.selection?.lowerBound ?? e.caret, hi = e.selection?.upperBound ?? e.caret
+        let x0 = m.box.left + m.pad + _textWidth(e, lo, m.style)
+        let x1 = m.box.left + m.pad + _textWidth(e, hi, m.style)
+        let o = rb.localToGlobal(Offset(x0, m.box.top))
+        var items: [OfficeHost.EditMenuItem] = []
+        if let r = e.selection {
+            items.append(.init(title: "Cut", symbol: "scissors") { [weak self] in
+                guard let self, var ed = self.edit, let r = ed.selection else { return }
+                Clipboard.setData(ClipboardData(text: String(ed.text[r])))
+                _ = ed.deleteSelection()
+                self.edit = ed
+                self._editChanged()
+            })
+            items.append(.init(title: "Copy", symbol: "doc.on.doc") { [weak self] in
+                guard let self, let ed = self.edit, let r = ed.selection else { return }
+                Clipboard.setData(ClipboardData(text: String(ed.text[r])))
+            })
+            _ = r
+        } else if !e.text.isEmpty {
+            items.append(.init(title: "Select", symbol: "character.cursor.ibeam") { [weak self] in
+                guard let self, var ed = self.edit, !ed.text.isEmpty else { return }
+                let i = min(ed.caret, ed.text.count - 1)
+                func word(_ c: Character) -> Bool { c.isLetter || c.isNumber || c == "_" || c == "$" }
+                var a = i, b = i + 1
+                if word(ed.text[i]) {
+                    while a > 0, word(ed.text[a - 1]) { a -= 1 }
+                    while b < ed.text.count, word(ed.text[b]) { b += 1 }
+                }
+                ed.anchor = a
+                ed.caret = b
+                self.edit = ed
+                self._editChanged()
+                self._showEditMenu()
+            })
+        }
+        items.append(.init(title: "Paste", symbol: "doc.on.clipboard") { [weak self] in
+            Clipboard.getData(Clipboard.kTextPlain) { data in
+                guard let self, let t = data?.text, !t.isEmpty else { return }
+                DispatchQueue.main.async {
+                    let one = t.replacingAll("\r\n", with: " ").replacingAll("\n", with: " ")
+                    self._insert(one)
+                }
+            }
+        })
+        items.append(.init(title: "Select All", symbol: "selection.pin.in.out") { [weak self] in
+            guard let self, var ed = self.edit else { return }
+            ed.anchor = 0
+            ed.caret = ed.text.count
+            self.edit = ed
+            self._editChanged()
+            self._showEditMenu()
+        })
+        _editMenuUp = true
+        show(o.dx, o.dy, max(x1 - x0, 2), m.box.height, items,
+             e.selection.map { String(e.text[$0]) })
     }
 }
 
