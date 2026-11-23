@@ -185,8 +185,36 @@ enum DocRead {
         var sym: (String, String)?
         var curG: [UInt8] = []
         var front = "", back = ""     // shapes of the paragraph: behind the text come first, in front of it last (the order they are painted in)
-        var tbl = "", rowCells: [String] = [], cellXml = ""
-        func endTable() { if !tbl.isEmpty { xml += tbl + "</w:tbl>"; tbl = "" } }
+        var rowCells: [String] = [], cellXml = ""
+        var tblRows: [(g: [UInt8], cells: [String])] = []
+        func endTable() {
+            guard !tblRows.isEmpty else { return }
+            defer { tblRows = [] }
+            var recs = tblRows.compactMap { t in DocProps.row(t.g).map { (t, $0) } }
+            // Rows that do not share their column edges are stated against the union of them (snapped within 3 twips), when they share the left edge.
+            var union: [Int]? = nil
+            if let f = recs.first?.1.edges.first, recs.allSatisfy({ abs(($0.1.edges.first ?? f) - f) <= 3 }) {
+                var u: [Int] = []
+                for e in recs.flatMap({ $0.1.edges }).sorted() where u.isEmpty || e - u[u.count - 1] > 3 { u.append(e) }
+                if recs.contains(where: { $0.1.edges.count != u.count }) { union = u }
+            }
+            if let u = union { recs = tblRows.compactMap { t in DocProps.row(t.g, union: u).map { (t, $0) } } }
+            guard let r0 = recs.first?.1 else { return }
+            var tbl = "<w:tbl>" + r0.tblPr + "<w:tblGrid>" + r0.grid.map { "<w:gridCol w:w=\"\($0)\"/>" }.joined() + "</w:tblGrid>"
+            for (t, r) in recs {
+                let all = t.cells.count == r.cells.count
+                var n = 0
+                tbl += "<w:tr>" + r.trPr
+                for cl in r.cells {
+                    let body = n < t.cells.count ? t.cells[n] : ""
+                    if !cl.merged || all { n += 1 }
+                    if cl.merged { continue }
+                    tbl += "<w:tc>" + cl.pr + (body.isEmpty ? "<w:p/>" : body) + "</w:tc>"
+                }
+                tbl += "</w:tr>"
+            }
+            xml += tbl + "</w:tbl>"
+        }
         for (k, c) in t.enumerated() {
             let cp = ctx.base + k
             if !chp.isEmpty {
@@ -206,19 +234,7 @@ enum DocRead {
                 if tf.inTable, tf.rowEnd, c == 0x07 {
                     // the mark that ends a table row carries the row's table properties
                     runs = ""
-                    if let r = DocProps.row(pr?.grpprl ?? []) {
-                        if tbl.isEmpty { tbl = "<w:tbl>" + r.tblPr + "<w:tblGrid>" + r.grid.map { "<w:gridCol w:w=\"\($0)\"/>" }.joined() + "</w:tblGrid>" }
-                        let all = rowCells.count == r.cells.count
-                        var n = 0
-                        tbl += "<w:tr>" + r.trPr
-                        for cl in r.cells {
-                            let body = n < rowCells.count ? rowCells[n] : ""
-                            if !cl.merged || all { n += 1 }
-                            if cl.merged { continue }
-                            tbl += "<w:tc>" + cl.pr + (body.isEmpty ? "<w:p/>" : body) + "</w:tc>"
-                        }
-                        tbl += "</w:tr>"
-                    }
+                    if let g = pr?.grpprl, DocProps.row(g) != nil { tblRows.append((g, rowCells)) }
                     rowCells = []; cellXml = ""
                     break
                 }
@@ -274,7 +290,7 @@ enum DocRead {
             }
         }
         flush()
-        if !tbl.isEmpty { endTable(); xml += "<w:p/>" }
+        if !tblRows.isEmpty { endTable(); xml += "<w:p/>" }
         if !runs.isEmpty || !back.isEmpty || !front.isEmpty { xml += "<w:p>" + back + runs + front + "</w:p>" }
         return xml
     }
