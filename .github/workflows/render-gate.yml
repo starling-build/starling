@@ -54,6 +54,16 @@ jobs:
     runs-on: [self-hosted, linux, starling-render]
     timeout-minutes: 90
     steps:
+      # (amd-8, 2026-11-23, coordinator) the queue rebuilds a group's ref when an earlier entry changes; the old group's run keeps its place in line and would
+      # render a commit nobody will merge. A merge_group run whose queue ref is gone stops here, before it takes the runner for anything.
+      - name: Stop if this group was rebuilt
+        if: github.event_name == 'merge_group'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GROUP_REF: ${{ github.event.merge_group.head_ref }}
+        run: |
+          R="${GROUP_REF#refs/}"
+          if ! gh api "repos/${{ github.repository }}/git/ref/${R}" >/dev/null 2>&1; then echo "queue ref ${GROUP_REF} is gone (the queue rebuilt this group): nothing to test"; exit 1; fi
       # One persistent clone per runner ($HOME/clone): fetch the two commits into it instead of a fresh checkout every run.
       - name: Update persistent clone
         env:
