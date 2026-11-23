@@ -204,8 +204,11 @@ enum OfficeFonts {
                 }
                 // (An alternate "Courier": Windows has only Courier New, so Word does not follow it. xa gv-0de3e9bcf1's
                 // Sabon (roman) and Frutiger 55 (swiss), alternate Courier, PANOSE zeros, print as Cambria and Calibri.)
-                if !wordMacFamilies.contains(n), let e = fontEntry(family), let alt = e.alt, !alt.isEmpty,
+                // (A Mac face the print box lacks (Luminari) is no face there: dx2 7d7592a1's title, alternate Times New Roman, is Times
+                // in Word's print, not the sans stand-in.)
+                if !wordMacFamilies.contains(n) || !WordWindowsFaces.names.contains(n), let e = fontEntry(family), let alt = e.alt, !alt.isEmpty,
                    alt.trimmingWhitespace().lowercased() != n, alt.trimmingWhitespace().lowercased() != "courier" {
+                    RuleTrace.hit("windows-missing-mac-face-follows-table-alternate")
                     return substitute(alt)
                 }
                 if !wordMacFamilies.contains(n), let by = windowsSigFace(family) { return by == "ebrima" ? sans : substitute(by) }
