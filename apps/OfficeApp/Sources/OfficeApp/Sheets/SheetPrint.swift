@@ -126,6 +126,15 @@ enum SheetPrintLayout {
         }
         // (A cell in a hidden row or column is not there to print, and does
         // not stretch the sheet to where it is.)
+        // (A far corner that lands on the edge of hidden columns walks on
+        // through all of them to the sheet's last: the drawing ends at the
+        // last visible column before them, as Excel's pages do. pt-734a1b506b's
+        // Índice, hidden J to XFD, made 200 blank pages.)
+        func hiddenBack(_ c: Int) -> Int {
+            var c = c
+            while c > 0, ws.isColHidden(c) { c -= 1 }
+            return c
+        }
         for (a, c) in ws.cells where !ws.isRowHidden(a.row) && !ws.isColHidden(a.col) {
             if !c.value.isEmpty { take(a.row, a.col); continue }
             let st = book.style(c.style)
@@ -162,7 +171,7 @@ enum SheetPrintLayout {
                 f = (max(0, r.center.dx - w / 2), max(0, r.center.dy - h / 2), w, h)
             }
             let a = ws.marker(x: f.x, y: f.y), b = ws.marker(x: f.x + f.width, y: f.y + f.height)
-            take(a.row, a.col); take(b.row, b.col)
+            take(a.row, a.col); take(b.row, hiddenBack(b.col))
         }
         for o in ws.objects where !o.screenOnly {
             let f = ws.frame(o.anchor)
