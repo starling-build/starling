@@ -23,6 +23,9 @@ private struct XlsSer {
     var points: [Int: String] = [:]      // data point index → fill colour
     var showVal = false, showCat = false, showPct = false
     var smooth = false
+    var parent = -1                      // a trendline's own pseudo-series: the series it belongs to
+    var trend: (type: Int, order: Int, fwd: Double, back: Double, eq: Bool, rsq: Bool)? = nil
+    var trends: [XlsSer] = []
 }
 
 private struct XlsGrp {
@@ -129,6 +132,10 @@ enum XlsChart {
             case 0x1027 where pendingText != nil:
                 if let t = pendingText, !t.isEmpty { titles[u16(b, 0)] = (t, pendingFont) }
                 pendingText = nil
+            case 0x104A where curSeries >= 0: series[curSeries].parent = u16(b, 0) - 1
+            case 0x104B where curSeries >= 0 && b.count >= 28:
+                func f64(_ k: Int) -> Double { var v: UInt64 = 0; for j in 0 ..< 8 { v |= UInt64(b[k + j]) << UInt64(8 * j) }; return Double(bitPattern: v) }
+                series[curSeries].trend = (Int(b[0]), Int(b[1]), f64(12), f64(20), b[10] != 0, b[11] != 0)
             case 0x1045: if curSeries >= 0 { series[curSeries].group = u16(b, 0) }
             case 0x1014:
                 groups.append(XlsGrp()); inGroup = true; curSeries = -1
@@ -182,6 +189,9 @@ enum XlsChart {
             default: break
             }
         }
+        for i in series.indices.reversed() where series[i].parent >= 0 && series[i].parent < series.count && series[i].parent != i && series[i].trend != nil {
+            series[series[i].parent].trends.insert(series[i], at: 0)
+        }
         guard !series.isEmpty, !groups.isEmpty else { return nil }
         let supported: Set<Int> = [0x1017, 0x1018, 0x1019, 0x101A, 0x101B]
         guard groups.allSatisfy({ supported.contains($0.type) }) else { return nil }
@@ -223,7 +233,7 @@ enum XlsChart {
         let catAxId = 111_111, valAxId = 222_222
         var usesAxes = false
         for (gi, g) in groups.enumerated() {
-            let members = series.enumerated().filter { $0.element.group == gi }
+            let members = series.enumerated().filter { $0.element.group == gi && !($0.element.parent >= 0 && $0.element.trend != nil) }
             guard !members.isEmpty else { continue }
             let isPie = g.type == 0x1019, isScatter = g.type == 0x101B, isLine = g.type == 0x1018, isBar = g.type == 0x1017
             var sers = ""
@@ -247,6 +257,17 @@ enum XlsChart {
                 for p in s.points.keys.sorted() { x += "<c:dPt><c:idx val=\"\(p)\"/><c:bubble3D val=\"0\"/><c:spPr>\(solid(s.points[p] ?? "000000"))</c:spPr></c:dPt>" }
                 if s.showVal || s.showCat || s.showPct {
                     x += "<c:dLbls><c:showLegendKey val=\"0\"/><c:showVal val=\"\(s.showVal ? 1 : 0)\"/><c:showCatName val=\"\(s.showCat ? 1 : 0)\"/><c:showSerName val=\"0\"/><c:showPercent val=\"\(s.showPct ? 1 : 0)\"/><c:showBubbleSize val=\"0\"/></c:dLbls>"
+                }
+                for t in s.trends {
+                    guard let tr = t.trend else { continue }
+                    let kind = ["poly", "exp", "log", "power", "movingAvg"][min(tr.type, 4)]
+                    x += "<c:trendline>" + (t.line.map { "<c:spPr>" + lineProps($0) + "</c:spPr>" } ?? "")
+                    x += "<c:trendlineType val=\"\(kind == "poly" && tr.order <= 1 ? "linear" : kind)\"/>"
+                    if kind == "poly" && tr.order > 1 { x += "<c:order val=\"\(tr.order)\"/>" }
+                    if kind == "movingAvg" { x += "<c:period val=\"\(max(2, tr.order))\"/>" }
+                    if tr.fwd.isFinite && tr.fwd != 0 { x += "<c:forward val=\"\(tr.fwd)\"/>" }
+                    if tr.back.isFinite && tr.back != 0 { x += "<c:backward val=\"\(tr.back)\"/>" }
+                    x += "<c:dispRSqr val=\"\(tr.rsq ? 1 : 0)\"/><c:dispEq val=\"\(tr.eq ? 1 : 0)\"/></c:trendline>"
                 }
                 if isScatter {
                     if let c = s.cats { x += "<c:xVal>" + ref(c, numeric: true) + "</c:xVal>" }
