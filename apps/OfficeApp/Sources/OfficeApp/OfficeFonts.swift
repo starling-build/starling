@@ -38,6 +38,7 @@ enum OfficeFonts {
     /// Noto Sans, the face a document names when it names it (bundled; v1.04, Apache 2.0).
     static let notoSans = "Noto Sans"
     static let lato = "Lato"
+    static let openSans = "Open Sans"
     static let latoBlack = "Lato Black"
     static let latoLight = "Lato Light"
     static let cambria = "Caladea"
@@ -96,7 +97,7 @@ enum OfficeFonts {
         }
         switch n {
         case "liberation sans", "arial", "arial bold", "arial italic", "arial bold italic", "helvetica", "helvetica neue", "tahoma", "raavi",
-             "segoe ui", "aptos", "arimo", "arial black", "montserrat", "open sans":
+             "segoe ui", "aptos", "arimo", "arial black", "montserrat":
             return sans
         case "verdana", "dejavu sans", "bitstream vera sans":
             // (Windows has no DejaVu Sans: Word takes the font table's alternate. lo-9eaf41a6's entry says Times New
@@ -126,6 +127,9 @@ enum OfficeFonts {
             return calibri
         case "caladea", "cambria":
             return cambria
+        case "open sans":
+            // (Open Sans, bundled: its own letters, as Word and Excel print the cloud face.)
+            return openSans
         case "lato", "lato black", "lato light":
             // (Lato, bundled, is its own face: Word's print of gv-dbc3c03efc sets it in the real one.)
             return n == "lato black" ? latoBlack : n == "lato light" ? latoLight : lato
@@ -6175,6 +6179,7 @@ static let sylfaenAdvances: [Double] = [
         faces += [("ArchivoBlack-Regular.ttf", "Archivo Black")]
         faces += ["Regular", "Bold", "Italic", "BoldItalic"].map { ("NotoSans-\($0).ttf", "Noto Sans") }
         faces += ["Regular", "Bold", "Italic", "BoldItalic"].map { ("Lato-\($0).ttf", "Lato") }
+        faces += ["Regular", "Bold", "Italic", "BoldItalic"].map { ("OpenSans-\($0).ttf", "Open Sans") }
         faces += [("Lato-Black.ttf", "Lato Black"), ("Lato-Light.ttf", "Lato Light")]
         // (Lucida Sans Unicode's stand-in, Liberation Sans's regular and
         // bold with no italic: the face has none, and PowerPoint's print
