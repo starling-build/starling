@@ -670,6 +670,19 @@ if let i = CommandLine.arguments.firstIndex(of: "--sheet-pdf"), i + 2 < CommandL
     }
 }
 
+// `--xlsx-scan-stats <in.xlsx>...`: per book, how many cells the sheet reader took on its fast path and how
+// many it read as a tree (the share the scanner gave up on).
+if let i = CommandLine.arguments.firstIndex(of: "--xlsx-scan-stats") {
+    for src in CommandLine.arguments[(i + 1)...] {
+        MiniXML.scanFast = 0; MiniXML.scanTree = 0
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: src)), (try? Workbook.open(data, name: src.lastPathComponent)) != nil else {
+            print("\(src.lastPathComponent) unreadable"); continue
+        }
+        print("\(src.lastPathComponent) fast=\(MiniXML.scanFast) tree=\(MiniXML.scanTree)")
+    }
+    exit(0)
+}
+
 // `--xlsx-roundtrip <in> <out>`: read a workbook and write it back, for
 // checking our .xlsx against Excel's importers (qlmanage) and its parts.
 if let i = CommandLine.arguments.firstIndex(of: "--xlsx-roundtrip"), i + 2 < CommandLine.arguments.count {
