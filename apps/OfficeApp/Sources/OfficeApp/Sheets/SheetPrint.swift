@@ -256,13 +256,18 @@ enum SheetPrintLayout {
             s = max(0.1, (s * 100).rounded(.down) / 100)
         }
         func bands(_ items: [Int], _ size: (Int) -> Double, _ avail: Double, _ breaks: Set<Int>,
-                   own: (end: Int?, room: Double)) -> [[Int]] {
+                   own: (end: Int?, room: Double), wholeDots: Bool = false) -> [[Int]] {
             var out: [[Int]] = [[]]
             var used = 0.0
             // (The room of a band that starts on or before the last title.)
             func room(_ first: Int) -> Double { own.end.map { first <= $0 } ?? false ? own.room : avail }
             for i in items {
-                let w = size(i) * s
+                // (A fitted sheet's rows are whole dots at the scale, as they are
+                // drawn: en-667ad9b0a5's 15 pt rows at 34% are 42 dots, 5.04 pt,
+                // 100 to a page in Excel where unrounded 5.1 held 98. Not yet with
+                // repeated title rows: other-041c26c70a's, 114 pt of mixed heights,
+                // fit its pages' rows exactly unrounded and one over rounded.)
+                let w = wholeDots ? (size(i) * s * 600 / 72).rounded() * 72 / 600 : size(i) * s
                 if let first = out[out.count - 1].first, used + w > room(first) + 0.01 || breaks.contains(i) { out.append([]); used = 0 }
                 out[out.count - 1].append(i)
                 used += w
@@ -286,7 +291,7 @@ enum SheetPrintLayout {
             // a row fewer than ours did.)
             let foot = 8.0 * 72 / 600
             rowBands = bands(rows, height, availH - foot, fitting ? [] : setup.rowBreaks,
-                             own: (titleRowsEnd, max(18, availH0 - headHeight * s) - foot))
+                             own: (titleRowsEnd, max(18, availH0 - headHeight * s) - foot), wholeDots: fitting && titleRowsEnd == nil)
             // Rows and columns do not split, so the arithmetic's scale can
             // still be a page over: a percent less until it is not.
             let over = (setup.fitWidth.map { $0 > 0 && colBands.count > $0 } ?? false)
