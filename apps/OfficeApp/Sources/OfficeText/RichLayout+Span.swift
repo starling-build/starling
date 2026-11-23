@@ -348,7 +348,7 @@ extension RichLayout {
 
     /// A space with no ink (U+3000 and the other non-ASCII blanks) is not drawn by Word or PowerPoint, and their PDF text layer has none of
     /// them (0 of 756 Word prints; Excel prints DO keep them, 4563 in the 62 xlsx2 prints, so Sheets does not use this path). It is laid out as before, but painted clear, which the PDF leaves out.
-    static func _isInklessBlank(_ u: UInt32) -> Bool { u == 0x3000 || u == 0x2003 || u == 0x2002 || u == 0x2009 || u == 0x200A || u == 0x2005 || u == 0x2006 || u == 0x2007 || u == 0x2008 || u == 0x2004 }
+    static func _isInklessBlank(_ u: UInt32) -> Bool { u == 0x3000 || u == 0xFFFC || u == 0x2003 || u == 0x2002 || u == 0x2009 || u == 0x200A || u == 0x2005 || u == 0x2006 || u == 0x2007 || u == 0x2008 || u == 0x2004 }
 
     static func _hasBlank(_ t: TextSpan) -> Bool {
         if let x = t.text, x.unicodeScalars.contains(where: { _isInklessBlank($0.value) }) { return true }
