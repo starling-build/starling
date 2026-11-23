@@ -472,7 +472,8 @@ extension RichLayout {
         if p.text.isEmpty {
             // (The mark under a nested table at half a point:
             // `RichParagraphStyle.markUnderNestedTable`.)
-            var mark = p.runs[0].style
+            // (A text body with no paragraph at all is one runless empty paragraph: its mark takes the defaults.)
+            var mark = p.runs.first?.style ?? CharStyle()
             if theme.wordRules, p.style.markUnderNestedTable { mark.fontSize = 0.5 }
             // (A raised or lowered mark is its whole size to the line: lab
             // `sup` (macOS-doc, Word for Mac) — zh-4a2ab598's empty
