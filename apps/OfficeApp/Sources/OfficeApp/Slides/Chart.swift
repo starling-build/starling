@@ -9147,7 +9147,9 @@ extension ChartPainter {
                 // Windows, a 32 x 17.7 pt label, 180-300° slices at bestFit): centres (+32.0,+0.3), (+27.6,+13.8),
                 // (+24.6,+18.4), (+22.3,+20.6) for middles 0, 20, 45, 60° below the horizontal, R 53.4.)
                 let ownBox = !c.onSlide && !c.onSheet && !c.chartex && l.own[s.index] != nil
-                let (bw, bh) = ownBox ? (tp.width, tp.height) : (w, h)
+                // (A wrapped label is as wide as its longest line, not the width it was laid out in.)
+                let lineW = c.onSlide && c.type == .pie ? (tp.computeLineMetrics().map { $0.width }.max() ?? tp.width) : tp.width
+                let (bw, bh) = ownBox ? (tp.width, tp.height) : (c.onSlide && c.type == .pie ? lineW + pad * 2 : w, h)
                 if !c.onSlide, !c.onSheet, !c.chartex, share >= 0.23, share < 0.99, tp.computeLineMetrics().count == 1, let big = Self._bigSliceLabel(share: share, dx: dx, dy: dy, rx: rx, ry: ry, centre: centre, bw: bw, bh: bh) { return big }
                 // (Word, a flat pie's best fit: inside where the label's box, 2pt taller each way, fits the slice
                 // and the disc ANYWHERE — not only on the slice's middle — else wrapped at its last space if that
@@ -9227,17 +9229,34 @@ extension ChartPainter {
                 // (PowerPoint, a pie on a slide at bestFit: the box stands as far out along the slice's middle
                 // as it fits slice and disc, 0.86-0.94 of the radius: lab pie-lab1, 9 pt labels.)
                 let top = (share > 0.99 || c.onSlide) && !c.onSheet ? 0.95 : 0.6
-                return stride(from: top, through: 0.3, by: top > 0.6 ? -0.01 : -0.05).first(where: { f in
-                    let c0 = on(s.mid, f)
-                    return [(-bw / 2, -bh / 2), (bw / 2, -bh / 2), (-bw / 2, bh / 2), (bw / 2, bh / 2)].allSatisfy { cx, cy in
-                        let x = (c0.dx + cx - centre.dx) / max(rx, 1), y = (c0.dy + cy - centre.dy) / max(ry, 1)
-                        guard hypot(x, y) < 1 else { return false }
-                        var d = atan2(y, x) - s.mid
-                        while d > .pi { d -= 2 * .pi }
-                        while d < -.pi { d += 2 * .pi }
-                        return abs(d) < half
+                func place(_ bw: Double, _ bh: Double) -> Offset? {
+                    let step: Double = top > 0.6 ? -0.01 : -0.05
+                    let corners: [(Double, Double)] = [(-bw / 2, -bh / 2), (bw / 2, -bh / 2), (-bw / 2, bh / 2), (bw / 2, bh / 2)]
+                    for f in stride(from: top, through: 0.3, by: step) {
+                        let c0 = on(s.mid, f)
+                        var ok = true
+                        for (cx, cy) in corners {
+                            let x = (c0.dx + cx - centre.dx) / max(rx, 1), y = (c0.dy + cy - centre.dy) / max(ry, 1)
+                            if hypot(x, y) >= 1 { ok = false; break }
+                            var d = atan2(y, x) - s.mid
+                            while d > .pi { d -= 2 * .pi }
+                            while d < -.pi { d += 2 * .pi }
+                            if abs(d) >= half { ok = false; break }
+                        }
+                        if ok { return c0 }
                     }
-                }).map { on(s.mid, $0) }
+                    return nil
+                }
+                if let p = place(bw, bh) { return p }
+                // (PowerPoint, a pie on a slide at bestFit: a label too wide for its slice wraps at its last space and stands inside
+                // when that fits: ja-2089008cf3 p4's "女性, 28%" as two lines in a 100° slice, ours one line outside.)
+                if c.onSlide, c.type == .pie, tp.computeLineMetrics().count == 1 {
+                    let one = tp.width
+                    tp.layout(minWidth: 0, maxWidth: one - 1)
+                    if tp.computeLineMetrics().count > 1, let p = place(tp.width, tp.height) { return p }
+                    tp.layout(minWidth: 0, maxWidth: one + 1)
+                }
+                return nil
             }()
             let fitsInside = insideAt != nil
             // (Set where Word's flat best-fit rule below placed the box: its leader is drawn only from 9 pt away.)
