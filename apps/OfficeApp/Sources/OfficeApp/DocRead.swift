@@ -144,9 +144,9 @@ enum DocRead {
         var rpr = ""
         var ci = 0, pi = 0
         // The property list covering `cp` (runs are sorted; the pointer only moves forward).
-        func cover(_ r: [DocPropRun], _ k: inout Int, _ cp: Int) -> [UInt8] {
+        func cover(_ r: [DocPropRun], _ k: inout Int, _ cp: Int) -> DocPropRun? {
             while k < r.count, r[k].cpEnd <= cp { k += 1 }
-            return k < r.count && r[k].cp <= cp ? r[k].grpprl : []
+            return k < r.count && r[k].cp <= cp ? r[k] : nil
         }
         func flush() {
             if !cur.isEmpty { runs += "<w:r>" + rpr + "<w:t xml:space=\"preserve\">" + esc(cur) + "</w:t></w:r>"; cur = [] }
@@ -154,12 +154,12 @@ enum DocRead {
         var cache: [UInt8] = [], cacheValid = false
         for (cp, c) in t.enumerated() {
             if !chp.isEmpty {
-                let g = cover(chp, &ci, cp)
+                let g = cover(chp, &ci, cp)?.grpprl ?? []
                 if !cacheValid || g != cache { flush(); cache = g; cacheValid = true; rpr = DocProps.rPr(g, fonts: fonts) }
             }
             if let h = hiding.last, h, c != 0x14, c != 0x15, c != 0x13 { continue }
             switch c {
-            case 0x0D, 0x07: flush(); xml += "<w:p>" + DocProps.pPr(cover(pap, &pi, cp)) + runs + "</w:p>"; runs = ""
+            case 0x0D, 0x07: flush(); xml += "<w:p>" + DocProps.pPr(cover(pap, &pi, cp)?.grpprl ?? [], istd: cover(pap, &pi, cp)?.istd ?? 0) + runs + "</w:p>"; runs = ""
             case 0x0B: flush(); runs += "<w:r><w:br/></w:r>"
             case 0x0C: flush(); runs += "<w:r><w:br w:type=\"page\"/></w:r>"
             case 0x09: flush(); runs += "<w:r><w:tab/></w:r>"
@@ -186,14 +186,17 @@ enum DocRead {
         let chp = fib.range(DocFib.fcPlcfBteChpx).map { DocProps.runs(w: w, t: tbl, at: $0.fc, count: $0.lcb, pieces: pcs, paragraph: false) } ?? []
         let pap = fib.range(DocFib.fcPlcfBtePapx).map { DocProps.runs(w: w, t: tbl, at: $0.fc, count: $0.lcb, pieces: pcs, paragraph: true) } ?? []
         let fonts = fib.range(DocFib.fcSttbfFfn).map { DocProps.fonts(tbl, at: $0.fc, count: $0.lcb) } ?? []
+        let st = fib.range(DocFib.fcStshf).map { DocProps.styles(tbl, at: $0.fc, count: $0.lcb, fonts: fonts) }
         let body = paragraphs(text(w, pieces: pcs, count: fib.ccpText), chp: chp, pap: pap, fonts: fonts)
+        let df = st.flatMap { $0.font < fonts.count ? fonts[$0.font] : nil } ?? "Times New Roman"
+        let dflt = "<w:rFonts w:ascii=\"\(df)\" w:hAnsi=\"\(df)\" w:eastAsia=\"\(df)\" w:cs=\"\(df)\"/>"
         func e(_ name: String, _ s: String) -> ZipEntry { ZipEntry(name: name, data: Data(s.utf8)) }
         let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\""
         return [
             e("[Content_Types].xml", "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/><Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/></Types>"),
             e("_rels/.rels", "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/></Relationships>"),
             e("word/_rels/document.xml.rels", "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/></Relationships>"),
-            e("word/styles.xml", "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:styles \(ns)><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\" w:eastAsia=\"Times New Roman\" w:cs=\"Times New Roman\"/><w:sz w:val=\"20\"/><w:szCs w:val=\"20\"/></w:rPr></w:rPrDefault><w:pPrDefault/></w:docDefaults><w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/></w:style></w:styles>"),
+            e("word/styles.xml", "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:styles \(ns)><w:docDefaults><w:rPrDefault><w:rPr>\(dflt)<w:sz w:val=\"20\"/><w:szCs w:val=\"20\"/></w:rPr></w:rPrDefault><w:pPrDefault/></w:docDefaults>" + ((st?.xml.isEmpty ?? true) ? "<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"S0\"><w:name w:val=\"Normal\"/></w:style>" : st!.xml) + "</w:styles>"),
             e("word/document.xml", "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:document \(ns)><w:body>" + body + "<w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:pgMar w:top=\"1440\" w:right=\"1800\" w:bottom=\"1440\" w:left=\"1800\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/></w:sectPr></w:body></w:document>"),
         ]
     }
