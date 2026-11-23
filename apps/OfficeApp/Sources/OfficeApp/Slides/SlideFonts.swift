@@ -96,6 +96,9 @@ enum SlideFonts {
         // BIZ UDP明朝): its print draws it in Yu Gothic, regular or bold, whatever the name. Property: a name with kana, or an HG/游 name with
         // ideographs, that our East Asian width table does not know. The theme's "本文"/"見出し" aliases are not this.)
         if OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil, isMissingJapaneseName(n) { return "yu gothic" }
+        // (隶书 (LiSu) is not on the machine PowerPoint printed on: its print draws it in Microsoft YaHei, quotes and all, e9180c676efa p13's
+        // 20 pt title line and p11's 14 pt column, whose “ ” are YaHei's full em, not a narrow stand-in's.)
+        if (n == "隶书" || n == "lisu"), OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil { return "microsoft yahei" }
         return n == "dejavu sans" && OfficeFonts.installed(family) == nil ? "verdana" : n
     }
 
