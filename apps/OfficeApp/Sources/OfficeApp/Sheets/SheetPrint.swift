@@ -92,8 +92,7 @@ struct SheetPrintSetup: Equatable {
             if let v = Double(p["scale"] ?? ""), v >= 10, v <= 400 { s.scale = v }
             s.overThenDown = p["pageOrder"] == "overThenDown"
             s.blackAndWhite = yes(p["blackAndWhite"])
-            if p["useFirstPageNumber"] == "1" || p["useFirstPageNumber"] == "true",
-               let n = Int(p["firstPageNumber"] ?? "") { s.firstPageNumber = n }
+            if p["useFirstPageNumber"] == "1" || p["useFirstPageNumber"] == "true" { s.firstPageNumber = Int(p["firstPageNumber"] ?? "") ?? 1 }  // (Set and unnumbered: page 1, the schema's default.)
             if fit {
                 s.fitWidth = Int(p["fitToWidth"] ?? "") ?? 1
                 s.fitHeight = Int(p["fitToHeight"] ?? "") ?? 1
@@ -240,6 +239,15 @@ enum SheetPrintLayout {
                 parts.append(n.text[start...])
             }
             for part in parts {
+                // (A name that is INDIRECT of a cell holding the area's text: de-48adcf794a's Formblatt 5 and 6, "$A$1:$AE$21".)
+                var part = part
+                if part.hasPrefix("INDIRECT("), part.hasSuffix(")"),
+                   case .ref(let c)? = try? Formula.parse("=" + part.dropFirst(9).dropLast()), c.isCell,
+                   let si = c.sheet.flatMap({ book.sheet(named: $0) }) ?? Optional(sheet),
+                   si < book.sheets.count, let row = c.start.row, let col = c.start.col,
+                   case .text(let t)? = book.sheets[si].cells[CellAddress(row: row, col: col)]?.value {
+                    part = Substring(t)
+                }
                 guard let e = try? Formula.parse("=" + part), case .ref(let r) = e else { continue }
                 let end = r.end ?? r.start
                 if n.name == "_xlnm.Print_Area" {
