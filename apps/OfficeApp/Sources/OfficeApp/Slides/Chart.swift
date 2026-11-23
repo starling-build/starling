@@ -633,7 +633,7 @@ struct Chart: Equatable {
     var eastAsianText = false
     /// The chart part says `c:lang` ja-*: its East Asian letters are Japanese (the theme's `japaneseFace`).
     var japaneseLang = false
-    /// The chart's c:lang is an East Asian locale (ja, ko, zh): its default label separator is ", ", others use a new line.
+    /// The chart's c:lang is an East Asian locale (ja, zh): its default label separator is ", ", others a new line (ko-KR too: lab pie-lab6, a ko-KR pie with Hangul names prints a new line; no ko-KR corpus pie to say otherwise).
     var eastAsianLocale = false
     /// The Japanese face of the chart's own theme override (its `a:minorFont` Jpan, where its East Asian slot is empty), over the deck's.
     var japaneseFaceOverride: String?
@@ -2176,7 +2176,7 @@ enum ChartXML {
         }
         c.eastAsianText = eastAsian(space)
         c.japaneseLang = (space.first("c:lang")?["val"] ?? "").lowercased().hasPrefix("ja")
-        c.eastAsianLocale = ["ja", "ko", "zh"].contains { (space.first("c:lang")?["val"] ?? "").lowercased().hasPrefix($0) }
+        c.eastAsianLocale = ["ja", "zh"].contains { (space.first("c:lang")?["val"] ?? "").lowercased().hasPrefix($0) }
         c.titleFont = face(titleFace) ?? c.font
         c.legend = chart.first("c:legend") != nil
         // (Absent, the schema's default is the right.)
@@ -9030,7 +9030,7 @@ extension ChartPainter {
             // (", " where the chart's text is Chinese, Japanese or Korean:
             // zh-b8de3ae2's "其他收入, 16.39%" in Word's print; and in a Word document's chart
             // whatever its text: lo-f9b9a8fc47c97aa6's "datalabel1, 2".)
-            } ?? parts.joined(separator: l.separator ?? (parts.count > 1 ? (((c.onSlide && !c.eastAsianText && !c.eastAsianLocale) || (c.onSheet && l.position == "outEnd")) && c.type == .pie ? "\n" : c.eastAsianText || !c.onSlide || (c.type == .pie && c.eastAsianLocale) ? ", " : "; ") : ""))
+            } ?? parts.joined(separator: l.separator ?? (parts.count > 1 ? (((c.onSlide && !c.eastAsianLocale) || (c.onSheet && l.position == "outEnd")) && c.type == .pie ? "\n" : c.eastAsianText || !c.onSlide || (c.type == .pie && c.eastAsianLocale) ? ", " : "; ") : ""))
             let dark = { () -> Bool in
                 let v = s.color.value
                 return 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF) < 150
