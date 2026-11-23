@@ -1821,7 +1821,7 @@ extension _ParaFrame {
             // and tabs set to 8pt it matches Word's print to 0.1. Only where the text is smaller than the spaces does
             // this change anything.)
             let textTail = !_inlinePictureOnly(i, document) && document.paragraphs[i].inlineImages.count == 1
-            if pil, theme.wordRules, RichTextTheme.wordWindowsPages, !style.rightToLeft, _inlinePictureOnly(i, document) || textTail,
+            if pil, theme.wordRules, RichTextTheme.wordWindowsPages, _inlinePictureOnly(i, document) || textTail,
                document.paragraphs[i].text.containsSubstring(" "),
                // (Pictures, not equations, all on one line: a first line of spaces that the picture then wraps from keeps
                // its own text line — dx2 pl fa1371a3.)
