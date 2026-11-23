@@ -187,15 +187,13 @@ final class OfficeShellState: State<StatefulWidget> {
         let c = controller
         let style = c.currentCharStyle
         let list = c.document.paragraphs[min(c.selection.focus.paragraph, c.document.paragraphs.count - 1)].style.list
-        OfficeHost.publishToolbar([
-            .init(id: "undo", title: "Undo", symbol: "arrow.uturn.backward", isEnabled: c.canUndo) { c.undo() },
-            .init(id: "redo", title: "Redo", symbol: "arrow.uturn.forward", isEnabled: c.canRedo) { c.redo() },
-            .init(id: "bold", title: "Bold", symbol: "bold", isOn: style.bold) { c.toggleBold() },
-            .init(id: "italic", title: "Italic", symbol: "italic", isOn: style.italic) { c.toggleItalic() },
-            .init(id: "underline", title: "Underline", symbol: "underline", isOn: style.underline) { c.toggleUnderline() },
-            .init(id: "bullets", title: "Bullets", symbol: "list.bullet", isOn: list == .bullet) { c.toggleList(.bullet) },
-            .init(id: "numbering", title: "Numbering", symbol: "list.number", isOn: list == .numbered) { c.toggleList(.numbered) },
-        ], owner: self)
+        OfficeHost.publishToolbar(.init(
+            canUndo: c.canUndo, canRedo: c.canRedo,
+            bold: style.bold, italic: style.italic, underline: style.underline,
+            hasLists: true, list: list,
+            undo: { c.undo() }, redo: { c.redo() },
+            toggleBold: { c.toggleBold() }, toggleItalic: { c.toggleItalic() },
+            toggleUnderline: { c.toggleUnderline() }, toggleList: { c.toggleList($0) }), owner: self)
     }
 
     override func dispose() {
