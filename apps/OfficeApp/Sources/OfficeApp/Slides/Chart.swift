@@ -3419,7 +3419,7 @@ enum ChartPainter {
             // and under it (chart-tdf161607's black box ruled in red round
             // its 40 pt title, in Excel's print).
             if let at = c.titleAt {
-                placed = (tp, Offset(r.left + at.dx * r.width + 3 * k, r.top + at.dy * r.height + 1.5 * k + (c.windowsHantTitle ? drop ?? 0 : 0)))
+                placed = (tp, Offset(r.left + at.dx * r.width + 3 * k, r.top + at.dy * r.height + (c.type == .pie && !c.onSlide && !c.onSheet && !c.styled2013 && !c.chartex && c.ofPie == nil && c.pieTilt == nil ? 3.9 : 1.5) * k + (c.windowsHantTitle ? drop ?? 0 : 0)))
             } else {
                 // (On a sheet 2.5 pt lower, and the plot under it with it:
                 // Excel's prints of eight titled charts, 13 to 40 pt, stand
