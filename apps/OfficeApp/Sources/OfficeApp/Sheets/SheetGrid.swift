@@ -361,7 +361,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // NumberFormatTests' gaps under its Lucida Sans Typewriter
             // columns at that face's 13.32.
             let unsized = ws.customDefaultRowHeight ? SheetPrintMetrics.setRow(ws.defaultRowHeightPt, scale: m.rowScale)
-                : max(blank, ownRow)
+                : (ownFace ? max(blank, ownRow) : blank)
             // A merged cell that wraps is no part of its rows' fit:
             // bug66675's dates of Arial 12, merged across A:D, sit in rows
             // of 14.52, and their rows grow to Arial's 15.24 once Wrap Text
