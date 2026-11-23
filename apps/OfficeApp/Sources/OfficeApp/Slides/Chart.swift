@@ -2695,6 +2695,31 @@ enum ChartXML {
         c.surfaceValuesRight = valueAxis?.first("c:axPos")?["val"] == "r"
         c.valueReversed = valueAxis?.first("c:scaling")?.first("c:orientation")?["val"] == "maxMin"
         c.categoryReversed = categoryAxis?.first("c:scaling")?.first("c:orientation")?["val"] == "maxMin"
+        // (A column, line or area chart whose category axis runs maxMin draws its first category at the RIGHT and the last at the left:
+        // Word's print of the Arabic report 9f8856f2cae0 p5, categories 2022 first, 2017 stands at the left. Stored reversed, the
+        // chart then lays out like any other; the per-point settings follow their points.)
+        if c.categoryReversed, [.column, .line, .area].contains(c.type), c.categoryLevels.isEmpty, c.categories.count > 1,
+           c.series.allSatisfy({ $0.xValues == nil && $0.values.count == c.categories.count }) {
+            RuleTrace.hit("column-or-line-chart-with-a-reversed-category-axis-runs-right-to-left")
+            let last = c.categories.count - 1
+            c.categories.reverse()
+            func flip<V>(_ d: [Int: V]) -> [Int: V] { Dictionary(uniqueKeysWithValues: d.map { (last - $0.key, $0.value) }) }
+            for i in c.series.indices {
+                c.series[i].values.reverse()
+                c.series[i].cellLabels = flip(c.series[i].cellLabels)
+                c.series[i].unmarked = Set(c.series[i].unmarked.map { last - $0 })
+                c.series[i].segmentDash = flip(c.series[i].segmentDash)
+                c.series[i].labelNudges = flip(c.series[i].labelNudges)
+                c.series[i].labelPointPos = flip(c.series[i].labelPointPos)
+                c.series[i].labelDeleted = Set(c.series[i].labelDeleted.map { last - $0 })
+                c.series[i].labelPointsOn = Set(c.series[i].labelPointsOn.map { last - $0 })
+                c.series[i].labelRich = flip(c.series[i].labelRich)
+                c.series[i].labelParts = flip(c.series[i].labelParts)
+                c.series[i].labelBoldPoints = Set(c.series[i].labelBoldPoints.map { last - $0 })
+            }
+            c.pointColors = flip(c.pointColors)
+            c.categoryReversed = false
+        }
         c.seriesAxisDeleted = ["1", "true"].contains(plot.children.first { $0.name == "c:serAx" }?.first("c:delete")?["val"] ?? "")
         c.seriesAxisShown = plot.children.contains { $0.name == "c:serAx" } && !c.seriesAxisDeleted
         c.categoryLine = categoryAxis?.first("c:spPr")?.first("a:ln")?.first("a:noFill") == nil
