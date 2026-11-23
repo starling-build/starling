@@ -228,6 +228,16 @@ enum DocProps {
         return x.isEmpty ? "" : "<w:pPr>" + x + "</w:pPr>"
     }
 
+    /// A symbol character (font name, code as hex) set by the symbol sprm, or nil.
+    static func symbol(_ g: [UInt8], fonts: [String]) -> (String, String)? {
+        for s in sprms(g) where s.op == 0x6A09 && s.operand.count >= 4 {
+            let f = s.u16, ch = OfficeArt.u16(s.operand, 2)
+            guard f < fonts.count, !fonts[f].isEmpty else { return nil }
+            return (attr(fonts[f]), hex(UInt8(ch >> 8)) + hex(UInt8(ch & 255)))
+        }
+        return nil
+    }
+
     // MARK: tables
 
     /// Whether a paragraph's properties put it in a table, and whether its mark ends a row.

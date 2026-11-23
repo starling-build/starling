@@ -141,6 +141,7 @@ enum DocRead {
         var base = 0
         var sectEnds: [Int: String] = [:]
         var footnotes: [Int: Int] = [:]
+        var comments: [Int: Int] = [:]
         var endnotes: [Int: Int] = [:]
         var noteKind = ""            // "footnote" or "endnote" inside a note's own text
     }
@@ -169,13 +170,14 @@ enum DocRead {
         }
         func instrRun(_ f: Field) -> String { "<w:r>" + rpr + "<w:instrText xml:space=\"preserve\">" + esc(f.instr) + "</w:instrText></w:r>" }
         var cache: [UInt8] = [], cacheValid = false
+        var sym: (String, String)?
         var tbl = "", rowCells: [String] = [], cellXml = ""
         func endTable() { if !tbl.isEmpty { xml += tbl + "</w:tbl>"; tbl = "" } }
         for (k, c) in t.enumerated() {
             let cp = ctx.base + k
             if !chp.isEmpty {
                 let g = cover(chp, &ci, cp)?.grpprl ?? []
-                if !cacheValid || g != cache { flush(); cache = g; cacheValid = true; rpr = DocProps.rPr(g, fonts: fonts) }
+                if !cacheValid || g != cache { flush(); cache = g; cacheValid = true; rpr = DocProps.rPr(g, fonts: fonts); sym = DocProps.symbol(g, fonts: fonts) }
             }
             if let f = fields.last, f.inInstr, c != 0x14, c != 0x15, c != 0x13 {
                 if c >= 0x20 { fields[fields.count - 1].instr.append(c) }
@@ -228,6 +230,8 @@ enum DocRead {
                 if !ctx.noteKind.isEmpty, k == 0 { runs += "<w:r>" + rpr + "<w:\(ctx.noteKind)Ref/></w:r>" }
                 else if let id = ctx.footnotes[cp] { runs += "<w:r><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr><w:footnoteReference w:id=\"\(id)\"/></w:r>" }
                 else if let id = ctx.endnotes[cp] { runs += "<w:r><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr><w:endnoteReference w:id=\"\(id)\"/></w:r>" }
+            case 0x05:
+                if let id = ctx.comments[cp] { flush(); runs += "<w:r><w:commentReference w:id=\"\(id)\"/></w:r>" }
             case 0x13: fields.append(Field())
             case 0x14:
                 if !fields.isEmpty {
@@ -243,7 +247,11 @@ enum DocRead {
                     if f.live { runs += fld("end") }
                     else if f.inInstr, instrLive(f) { runs += fld("begin") + instrRun(f) + fld("end") }
                 }
-            default: if c >= 0x20 { cur.append(c) }
+            default:
+                if c >= 0x20 {
+                    if let sy = sym, c == 0x28 { flush(); runs += "<w:r>" + rpr + "<w:sym w:font=\"\(sy.0)\" w:char=\"\(sy.1)\"/></w:r>" }
+                    else { cur.append(c) }
+                }
             }
         }
         flush()
@@ -317,6 +325,36 @@ enum DocRead {
         }
         let fnMap = notes(2, 3, storyStart: fib.ccpText, kind: "footnote")
         let enMap = notes(46, 47, storyStart: hddEnd + fib.ccpAtn, kind: "endnote")
+        // Comments: the reference marks in the text, each comment's text and its author and initials.
+        var cmMap: [Int: Int] = [:]
+        if fib.ccpAtn > 0, let rr = fib.range(4), let tr = fib.range(5),
+           let rf = DocProps.plex(tbl, at: rr.fc, count: rr.lcb, size: 30), let tx = DocProps.plex(tbl, at: tr.fc, count: tr.lcb, size: 0) {
+            var owners: [String] = []
+            if let og = fib.range(35) {
+                var q = og.fc
+                while q + 2 <= min(og.fc + og.lcb, tbl.count) {
+                    let n = OfficeArt.u16(tbl, q); q += 2
+                    guard q + 2 * n <= tbl.count else { break }
+                    owners.append(esc((0 ..< n).map { OfficeArt.u16(tbl, q + 2 * $0) }.map { UInt16($0) }))
+                    q += 2 * n
+                }
+            }
+            var body = ""
+            for k in 0 ..< min(rf.cps.count - 1, tx.cps.count - 1) {
+                cmMap[rf.cps[k]] = k
+                let a = rf.at + 30 * k
+                let ni = min(OfficeArt.u16(tbl, a), 9)
+                let initials = esc((0 ..< ni).map { UInt16(OfficeArt.u16(tbl, a + 2 + 2 * $0)) })
+                let ib = OfficeArt.u16(tbl, a + 20)
+                let author = ib < owners.count ? owners[ib] : ""
+                body += "<w:comment w:id=\"\(k)\" w:author=\"\(author)\" w:initials=\"\(initials)\">" + story(hddEnd + tx.cps[k], hddEnd + tx.cps[k + 1]) + "</w:comment>"
+            }
+            if !body.isEmpty {
+                extra.append(e("word/comments.xml", head + "<w:comments \(ns)>" + body + "</w:comments>"))
+                rels += "<Relationship Id=\"rId_cm\" Type=\"\(relBase)comments\" Target=\"comments.xml\"/>"
+                types += "<Override PartName=\"/word/comments.xml\" ContentType=\"\(ctBase)comments+xml\"/>"
+            }
+        }
         // Sections: each ends at a section mark; the last one's properties close the body.
         var ends: [Int: String] = [:]
         var last = "", lastEnd = fib.ccpText
@@ -331,7 +369,7 @@ enum DocRead {
             }
         }
         if last.isEmpty { last = DocProps.sectPr([], refs: "") }
-        var ctx = StoryContext(); ctx.sectEnds = ends; ctx.footnotes = fnMap; ctx.endnotes = enMap
+        var ctx = StoryContext(); ctx.sectEnds = ends; ctx.footnotes = fnMap; ctx.endnotes = enMap; ctx.comments = cmMap
         let body = story(0, fib.ccpText, ctx)
         _ = lastEnd
         let df = st.flatMap { $0.font < fonts.count && !fonts[$0.font].isEmpty ? fonts[$0.font] : nil } ?? "Times New Roman"
