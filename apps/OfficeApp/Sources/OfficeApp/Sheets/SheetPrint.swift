@@ -175,7 +175,12 @@ enum SheetPrintLayout {
         // too, which is the cell Excel's anchor names for that corner.
         for d in ws.drawings where !d.hidden && !d.screenOnly {
             var f = ws.frame(d.anchor)
-            guard f.width > 0, f.height > 0 else { continue }
+            // (A straight line lying along a row or column has no height or width, and still prints
+            // where it lies, so its far end reaches the next cell: 0453e2c911's title rule ends at
+            // column C's edge, and Excel's second page is that one rule.)
+            var isLine = false
+            if case .shape(let shape) = d.kind, SheetShape.lineGeometries.contains(shape.geometry) { isLine = true }
+            guard isLine ? max(f.width, f.height) > 0 : f.width > 0 && f.height > 0 else { continue }
             // A turned shape covers what its turned outline covers, which is
             // not what its anchor spans.
             if case .shape(let shape) = d.kind, shape.rotation != 0 {
@@ -501,13 +506,17 @@ extension SheetGridState {
             // (A whole-column merge is on the pages of the rows in use, over its columns.)
             if m.bottom == CellAddress.maxRows - 1, m.cols <= 1000, let lastRow = rowBand.keys.max() { fill(CellRange(top: m.top, left: m.left, bottom: max(m.top, lastRow), right: m.right)) }
         }
-        func cover(_ anchor: SheetAnchor) {
+        func cover(_ anchor: SheetAnchor, line: Bool = false) {
             let f = ws.frame(anchor)
-            guard f.width > 0, f.height > 0 else { return }
+            guard line ? max(f.width, f.height) > 0 : f.width > 0 && f.height > 0 else { return }
             let a = ws.marker(x: f.x, y: f.y), b = ws.marker(x: f.x + f.width, y: f.y + f.height)
             fill(CellRange(top: a.row, left: a.col, bottom: b.row, right: b.col))
         }
-        for d in ws.drawings where !d.hidden && !d.screenOnly { cover(d.anchor) }
+        for d in ws.drawings where !d.hidden && !d.screenOnly {
+            var isLine = false
+            if case .shape(let shape) = d.kind, SheetShape.lineGeometries.contains(shape.geometry) { isLine = true }
+            cover(d.anchor, line: isLine)
+        }
         for o in ws.objects where !o.screenOnly { cover(o.anchor) }
         // Only from the end: a blank page with a printed one after it stays.
         var kept = pages
