@@ -346,7 +346,46 @@ extension RichLayout {
         return out
     }
 
+    /// A space with no ink (U+3000 and the other non-ASCII blanks) is not drawn by Word or PowerPoint, and their PDF text layer has none of
+    /// them (0 of 756 Word prints, 0 of 2073 Excel prints). It is laid out as before, but painted clear, which the PDF leaves out.
+    static func _isInklessBlank(_ u: UInt32) -> Bool { u == 0x3000 || u == 0x2003 || u == 0x2002 || u == 0x2009 || u == 0x200A || u == 0x2005 || u == 0x2006 || u == 0x2007 || u == 0x2008 || u == 0x2004 }
+
+    static func _hideBlanks(_ t: TextSpan, _ inherited: TextStyle?) -> TextSpan {
+        let own = inherited.map { $0.merge(t.style) } ?? t.style
+        var kids = t.children
+        if let c = kids { kids = c.map { ($0 as? TextSpan).map { _hideBlanks($0, own) } ?? $0 } }
+        guard let x = t.text, x.unicodeScalars.contains(where: { _isInklessBlank($0.value) }) else {
+            return kids == nil || t.children == nil ? t : TextSpan(text: t.text, children: kids, style: t.style, recognizer: t.recognizer, semanticsLabel: t.semanticsLabel, semanticsIdentifier: t.semanticsIdentifier, locale: t.locale, spellOut: t.spellOut)
+        }
+        // Split into runs of the same kind; blanks become children painted clear (the line and background keep their colour).
+        var pieces: [InlineSpan] = []
+        var cur = ""; var curBlank = false
+        func flush() {
+            guard !cur.isEmpty else { return }
+            if curBlank {
+                let ink = own?.color
+                pieces.append(TextSpan(text: cur, style: (t.style ?? TextStyle()).merge(TextStyle(color: Color(0x00000000), decorationColor: own?.decorationColor ?? ink))))
+            } else { pieces.append(TextSpan(text: cur, style: t.style)) }
+            cur = ""
+        }
+        for u in x.unicodeScalars {
+            let b = _isInklessBlank(u.value)
+            if b != curBlank { flush(); curBlank = b }
+            cur.unicodeScalars.append(u)
+        }
+        flush()
+        return TextSpan(text: nil, children: pieces + (kids ?? []), style: t.style, recognizer: t.recognizer, semanticsLabel: nil, semanticsIdentifier: t.semanticsIdentifier, locale: t.locale, spellOut: t.spellOut)
+    }
+
     func _span(for p: RichParagraph, at index: Int?, _ document: RichDocument, textWidth: Double, lead: Double = 0, adjust: [Int: Double] = [:],
+                       held: Set<Int> = [], spread: [Int: Double] = [:], fitProbe: Bool = false, autoSpaces: ((Int, Double) -> Void)? = nil)
+        -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) {
+        var r = _spanUnhidden(for: p, at: index, document, textWidth: textWidth, lead: lead, adjust: adjust, held: held, spread: spread, fitProbe: fitProbe, autoSpaces: autoSpaces)
+        r.0 = Self._hideBlanks(r.0, nil)
+        return r
+    }
+
+    func _spanUnhidden(for p: RichParagraph, at index: Int?, _ document: RichDocument, textWidth: Double, lead: Double = 0, adjust: [Int: Double] = [:],
                        held: Set<Int> = [], spread: [Int: Double] = [:], fitProbe: Bool = false, autoSpaces: ((Int, Double) -> Void)? = nil)
         -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) {
         var r = _spanBase(for: p, at: index, document, textWidth: textWidth, lead: lead, adjust: adjust, held: held, spread: spread, fitProbe: fitProbe, autoSpaces: autoSpaces)
