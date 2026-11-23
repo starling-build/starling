@@ -104,6 +104,8 @@ enum XlsChart {
 
         for r in recs {
             let b = r.body
+            // (A data format ends where the groups, axes, legend or plot begin: their own line records are not the series'.)
+            if r.type == 0x1014 || r.type == 0x101D || r.type == 0x1015 || r.type == 0x1035 { dfSeries = -1; dfPoint = -1 }
             switch r.type {
             case 0x1003:
                 var s = XlsSer()
