@@ -86,6 +86,11 @@ enum SlideFonts {
         }
     }
 
+    /// A face whose upright column steps by each character's own vmtx advance (`SlideVerticalAdvances`).
+    static func proportionalUprightFace(_ family: String) -> Bool {
+        ["ms pgothic", "ｍｓ ｐゴシック"].contains(windowsName(family))
+    }
+
     static func windowsName(_ family: String) -> String {
         let n = family.trimmingWhitespace().lowercased()
         if missingRoman.contains(n), OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil { return "palatino linotype" }
@@ -107,6 +112,8 @@ enum SlideFonts {
     nonisolated(unsafe) private static var simplifiedDeck = false
     static func noteSimplifiedChinese(_ v: Bool) { simplifiedDeck = v }
 
+    private static let windowsIdeographFaces: Set<String> = ["hgp創英角ｺﾞｼｯｸub", "hgp明朝e", "hgs創英角ｺﾞｼｯｸub", "hgs明朝e", "hg丸ｺﾞｼｯｸm-pro", "hg創英角ｺﾞｼｯｸub", "hg明朝e", "ud デジタル 教科書体 n-b", "ud デジタル 教科書体 nk-b", "ud デジタル 教科書体 np-b", "仿宋", "华文中宋", "华文仿宋", "华文新魏", "华文楷体", "华文琥珀", "华文细黑", "华文行楷", "宋体", "微軟正黑體", "微軟正黑體 light", "微软雅黑", "微软雅黑 light", "新宋体", "新細明體", "新細明體-extb", "楷体", "標楷體", "游ゴシック", "游ゴシック light", "游ゴシック medium", "游明朝", "游明朝 demibold", "等线", "等线 light", "細明體", "細明體-extb", "細明體_hkscs", "細明體_hkscs-extb", "細明體_mscs", "細明體_mscs-extb", "黑体", "ｍｓ 明朝", "ｍｓ ｐ明朝"]
+
     static func isMissingChineseName(_ n: String) -> Bool {
         var ideograph = false
         for u in n.unicodeScalars {
@@ -115,9 +122,8 @@ enum SlideFonts {
             if v >= 0x4E00 && v <= 0x9FFF { ideograph = true }
         }
         guard ideograph, SlideEastAsianWidths.lookup(n) == nil else { return false }
-        // Faces Windows or Office installs (宋体, 新宋体, 黑体, 楷体, 仿宋, 等线, 微软雅黑, the 华文 set, the Traditional MingLiU, DFKai and JhengHei).
-        let shipped = ["宋体", "黑体", "楷体", "仿宋", "等线", "雅黑", "华文", "細明體", "标楷体", "標楷體", "正黑體", "正黑体", "宋體", "黑體", "楷體", "仿宋體"]
-        return !shipped.contains(where: { n.containsSubstring($0) })
+        // The faces the print's machine has installed (measured: installed-font-aliases-20261123.tsv, every name with ideographs, localized names included).
+        return !windowsIdeographFaces.contains(n)
     }
 
     static func isMissingJapaneseName(_ n: String) -> Bool {

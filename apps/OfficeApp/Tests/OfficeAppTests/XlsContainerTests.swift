@@ -251,6 +251,28 @@ final class XlsContainerTests: XCTestCase {
         XCTAssertTrue(d.containsSubstring("<xdr:col>1</xdr:col>") && d.containsSubstring("<xdr:row>2</xdr:row>"))
     }
 
+    func testChartBecomesChartPart() throws {
+        func art(_ ver: Int, _ inst: Int, _ type: Int, _ body: [UInt8]) -> [UInt8] {
+            cat(u16(ver | inst << 4), u16(type), le32(UInt32(body.count)), body)
+        }
+        let bof = rec(0x809, cat(u16(0x600), [UInt8](repeating: 0, count: 14)))
+        let cbof = rec(0x809, cat(u16(0x600), u16(0x20), [UInt8](repeating: 0, count: 12)))
+        let g0 = cat(bof, rec(0x85, cat(le32(0), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        let g = cat(bof, rec(0x85, cat(le32(UInt32(g0.count)), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        let sp = art(2, 201, 0xF00A, cat(le32(1025), le32(0xA00)))
+        let anchor = art(0, 0, 0xF010, cat(u16(0), u16(1), u16(0), u16(2), u16(0), u16(6), u16(0), u16(12), u16(0)))
+        let drawing = art(0xF, 0, 0xF002, art(0xF, 0, 0xF004, cat(sp, anchor)))
+        let cmo = cat(u16(0x15), u16(18), u16(5), u16(1), u16(0x2011), [UInt8](repeating: 0, count: 12))
+        let ser = rec(0x1003, cat(u16(3), u16(1), u16(1), u16(1)))
+        let chart = cat(cbof, rec(0x1002, [UInt8](repeating: 0, count: 16)), ser,
+                        rec(0x1014, [UInt8](repeating: 0, count: 20)), rec(0x1017, cat(u16(0), u16(150), u16(0))), rec(0x0A, []))
+        let sheet = cat(bof, rec(0xEC, drawing), rec(0x5D, cmo), chart, rec(0x0A, []))
+        let parts = try XCTUnwrap(XlsBuild.parts(BiffReader.records(g + sheet)))
+        let cp = parts.first { $0.name.hasPrefix("xl/charts/chart") }
+        let c = String(decoding: cp?.data ?? Data(), as: UTF8.self)
+        XCTAssertTrue(c.containsSubstring("barChart"))
+    }
+
     func testFormulaTokensBecomeFormulaText() {
         let ctx = XlsFormulaContext(xtis: [], internalBooks: [], sheetNames: [], names: [])
         // A1+B2*3 : ref A1, ref B2, int 3, mul, add

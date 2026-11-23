@@ -60,6 +60,10 @@ struct XlsXF {
 struct XlsDrawingOut {
     var pics: [Int] = []
     var anchors: [String] = []
+    /// The chart substreams of the sheet; an anchor holds "@CHARTk@" where chart k's relationship id goes.
+    var charts: [[BiffRecord]] = []
+    /// The cached values of the sheet's cells (text, is a number), for the chart caches.
+    var values: [Int: [Int: (String, Bool)]] = [:]
 }
 
 enum XlsBuild {
@@ -233,21 +237,49 @@ enum XlsBuild {
         var blips: [ArtBlip?] = []
         if let g = recs.first(where: { $0.type == 0xEB }) { blips = OfficeArt.blips(group: g.body) }
 
+        var built: [(links: [String], drawing: XlsDrawingOut)] = []
         for (n, e) in kept.enumerated() {
             var links: [String] = []
             var drawing = XlsDrawingOut()
             let xml = sheetXML(recs, from: e.element.position, sst: sst, xfCount: max(1, xfs.count), ctx: ctx, palette: palette, dxfs: &dxfs, links: &links, blips: blips, drawing: &drawing)
             add("xl/worksheets/sheet\(n + 1).xml", xml)
+            built.append((links, drawing))
+        }
+        var chartCount = 0
+        var keptValues: [Int: [Int: [Int: (String, Bool)]]] = [:]
+        for (n, e) in kept.enumerated() { keptValues[e.offset] = built[n].drawing.values }
+        func swapText(_ s: String, _ a: String, _ b: String) -> String {
+            guard let r = s.rangeOfSubstring(a) else { return s }
+            return String(s[s.startIndex ..< r.lowerBound]) + b + String(s[r.upperBound...])
+        }
+        for (n, b) in built.enumerated() {
+            let links = b.links
+            var drawing = b.drawing
             var srels = links.enumerated().map { "<Relationship Id=\"rIdL\($0.offset + 1)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink\" Target=\"\(esc($0.element))\" TargetMode=\"External\"/>" }.joined()
-            if !drawing.pics.isEmpty {
+            var drels = ""
+            for (k, bi) in drawing.pics.enumerated() {
+                guard let bl = blips[bi] else { continue }
+                drels += "<Relationship Id=\"rId\(k + 1)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"../media/image\(bi + 1).\(bl.ext)\"/>"
+                if !out.contains(where: { $0.name == "xl/media/image\(bi + 1).\(bl.ext)" }) { out.append(ZipEntry(name: "xl/media/image\(bi + 1).\(bl.ext)", data: Data(bl.data))) }
+            }
+            // Charts: each substream becomes a chart part; an anchor whose chart is not supported is dropped.
+            for (k, cr) in drawing.charts.enumerated() {
+                let marker = "r:id=\"@CHART\(k)@\""
+                let xml = XlsChart.build(cr, ctx: ctx, fontHeights: fonts.map { $0.height }, cell: { sh, r, c in
+                    keptValues[sh]?[r]?[c]
+                })
+                if let xml = xml {
+                    chartCount += 1
+                    add("xl/charts/chart\(chartCount).xml", xml)
+                    drels += "<Relationship Id=\"rIdC\(k + 1)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart\" Target=\"../charts/chart\(chartCount).xml\"/>"
+                    drawing.anchors = drawing.anchors.map { swapText($0, marker, "r:id=\"rIdC\(k + 1)\"") }
+                } else {
+                    drawing.anchors.removeAll { $0.containsSubstring(marker) }
+                }
+            }
+            if !drawing.anchors.isEmpty {
                 srels += "<Relationship Id=\"rIdD1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing\" Target=\"../drawings/drawing\(n + 1).xml\"/>"
                 add("xl/drawings/drawing\(n + 1).xml", "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><xdr:wsDr xmlns:xdr=\"http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">" + drawing.anchors.joined() + "</xdr:wsDr>")
-                var drels = ""
-                for (k, bi) in drawing.pics.enumerated() {
-                    guard let bl = blips[bi] else { continue }
-                    drels += "<Relationship Id=\"rId\(k + 1)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"../media/image\(bi + 1).\(bl.ext)\"/>"
-                    if !out.contains(where: { $0.name == "xl/media/image\(bi + 1).\(bl.ext)" }) { out.append(ZipEntry(name: "xl/media/image\(bi + 1).\(bl.ext)", data: Data(bl.data))) }
-                }
                 add("xl/drawings/_rels/drawing\(n + 1).xml.rels", "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" + drels + "</Relationships>")
             }
             if !srels.isEmpty {
@@ -308,17 +340,27 @@ enum XlsBuild {
         var hBreaks: [(Int, Int, Int)] = [], vBreaks: [(Int, Int, Int)] = []
         var hdrFtrMargins: (Double, Double)? = nil
         var depth = 0
+        var inChart = false
+        var objTypes: [Int] = []
         func style(_ x: Int) -> String { x > 0 && x < xfCount ? " s=\"\(x)\"" : "" }
+        func keep(_ r: Int, _ c: Int, _ v: String, _ isNum: Bool) { if drawing.values.count < 1_000_000 { drawing.values[r, default: [:]][c] = (v, isNum) } }
         func put(_ r: Int, _ c: Int, _ xml: String) { if r < 1_048_576, c < 16384 { cells[r, default: [:]][c] = xml } }
         func ref(_ r: Int, _ c: Int) -> String { colName(c) + String(r + 1) }
         while i < recs.count {
             let rec = recs[i]
             i += 1
-            if rec.type == 0x809 { depth += 1; if depth > 1 { continue } }
-            if rec.type == 0x0A { depth -= 1; if depth <= 0 { break } }
-            if depth != 1 { continue }
+            if rec.type == 0x809 {
+                depth += 1
+                if depth > 1 {
+                    if depth == 2, rec.body.count >= 4, rec.body[2] == 0x20 { drawing.charts.append([]); inChart = true }
+                    continue
+                }
+            }
+            if rec.type == 0x0A { depth -= 1; if depth <= 0 { break }; if depth == 1 { inChart = false } }
+            if depth != 1 { if inChart, !drawing.charts.isEmpty { drawing.charts[drawing.charts.count - 1].append(rec) }; continue }
             var c = BiffCursor(rec)
             switch rec.type {
+            case 0x5D where rec.body.count >= 6 && rec.body[0] == 0x15: objTypes.append(Int(rec.body[4]) | Int(rec.body[5]) << 8)
             case 0xA1 where rec.body.count >= 34:
                 for k in 0 ..< 6 { setup[k] = c.u16() }
                 c.skip(4)
@@ -348,21 +390,23 @@ enum XlsBuild {
                 if rec.type == 0x1B { hBreaks = list } else { vBreaks = list }
             case 0xFD where rec.body.count >= 10:
                 let r = c.u16(), col = c.u16(), x = c.u16(), k = Int(c.u32())
-                if k < sst.count { put(r, col, "<c r=\"\(ref(r, col))\"\(style(x)) t=\"s\"><v>\(k)</v></c>") }
+                if k < sst.count { put(r, col, "<c r=\"\(ref(r, col))\"\(style(x)) t=\"s\"><v>\(k)</v></c>"); keep(r, col, sst[k], false) }
             case 0x203 where rec.body.count >= 14:
                 let r = c.u16(), col = c.u16(), x = c.u16()
                 let d = Double(bitPattern: UInt64(c.u32()) | UInt64(c.u32()) << 32)
-                if d.isFinite { put(r, col, "<c r=\"\(ref(r, col))\"\(style(x))><v>\(num(d))</v></c>") }
+                if d.isFinite { put(r, col, "<c r=\"\(ref(r, col))\"\(style(x))><v>\(num(d))</v></c>"); keep(r, col, num(d), true) }
             case 0x27E where rec.body.count >= 10:
                 let r = c.u16(), col = c.u16(), x = c.u16()
-                put(r, col, "<c r=\"\(ref(r, col))\"\(style(x))><v>\(num(rk(c.u32())))</v></c>")
+                let v = num(rk(c.u32()))
+                put(r, col, "<c r=\"\(ref(r, col))\"\(style(x))><v>\(v)</v></c>"); keep(r, col, v, true)
             case 0xBD where rec.body.count >= 6:
                 let r = c.u16(), first = c.u16()
                 let last = Int(rec.body[rec.body.count - 2]) | Int(rec.body[rec.body.count - 1]) << 8
                 var col = first
                 while col <= last, c.pos + 6 <= rec.body.count - 2 {
                     let x = c.u16()
-                    put(r, col, "<c r=\"\(ref(r, col))\"\(style(x))><v>\(num(rk(c.u32())))</v></c>")
+                    let v = num(rk(c.u32()))
+                    put(r, col, "<c r=\"\(ref(r, col))\"\(style(x))><v>\(v)</v></c>"); keep(r, col, v, true)
                     col += 1
                 }
             case 0x201 where rec.body.count >= 6:
@@ -384,7 +428,7 @@ enum XlsBuild {
             case 0x204 where rec.body.count >= 8:
                 let r = c.u16(), col = c.u16(), x = c.u16()
                 let s = c.unicodeString16()
-                put(r, col, "<c r=\"\(ref(r, col))\"\(style(x)) t=\"inlineStr\"><is><t xml:space=\"preserve\">\(esc(s))</t></is></c>")
+                put(r, col, "<c r=\"\(ref(r, col))\"\(style(x)) t=\"inlineStr\"><is><t xml:space=\"preserve\">\(esc(s))</t></is></c>"); keep(r, col, s, false)
             case 0x06 where rec.body.count >= 22:
                 let r = c.u16(), col = c.u16(), x = c.u16()
                 let b = Array(rec.body[6 ..< 14])
@@ -413,12 +457,12 @@ enum XlsBuild {
                     }
                 } else {
                     let d = Double(bitPattern: b.enumerated().reduce(UInt64(0)) { $0 | UInt64($1.element) << UInt64($1.offset * 8) })
-                    if d.isFinite { put(r, col, "<c r=\"\(ref(r, col))\"\(style(x))>\(f)<v>\(num(d))</v></c>") }
+                    if d.isFinite { put(r, col, "<c r=\"\(ref(r, col))\"\(style(x))>\(f)<v>\(num(d))</v></c>"); keep(r, col, num(d), true) }
                 }
             case 0x207:
                 if let (r, col, x, f) = pendingFormula {
                     let s = c.unicodeString16()
-                    put(r, col, "<c r=\"\(ref(r, col))\"\(style(x)) t=\"str\">\(f)<v>\(esc(s))</v></c>")
+                    put(r, col, "<c r=\"\(ref(r, col))\"\(style(x)) t=\"str\">\(f)<v>\(esc(s))</v></c>"); keep(r, col, s, false)
                     pendingFormula = nil
                 }
             case 0x208 where rec.body.count >= 16:
@@ -448,7 +492,7 @@ enum XlsBuild {
             case 0x99 where rec.body.count >= 2: stdWidth = c.u16()
             case 0x225 where rec.body.count >= 4:
                 let g = c.u16(), h = c.u16()
-                defRowHeight = (h, g & 2 != 0)
+                defRowHeight = (h, g & 1 != 0)
             case 0x1B0 where rec.body.count >= 18:
                 // CONDFMT: ccf, grbit, bounding range, then the ranges the rules apply to.
                 c.skip(4); let bound = (c.u16(), c.u16(), c.u16(), c.u16())
@@ -673,18 +717,30 @@ enum XlsBuild {
             func colPx(_ c: Int) -> Double { if let sp = colSpans.last(where: { $0.0 <= c && c <= $0.1 }) { return Double(sp.2) / 256 * 7 }; return dw }
             func rowPt(_ r: Int) -> Double { if let t = rowTwips[r], t >= 0 { return Double(t) / 20 }; return dh }
             func emu(_ v: Double) -> Int { Int(v.rounded()) }
-            for sh in OfficeArt.shapes(drawing: art) where sh.pib > 0 && sh.pib <= blips.count && blips[sh.pib - 1] != nil {
+            var chartNo = 0
+            for (k, sh) in OfficeArt.shapes(drawing: art).filter({ $0.anchor != nil }).enumerated() {
                 guard let a = sh.anchor else { continue }
-                let slot = drawing.pics.firstIndex(of: sh.pib - 1) ?? { drawing.pics.append(sh.pib - 1); return drawing.pics.count - 1 }()
+                let isChart = k < objTypes.count && objTypes[k] == 5
+                var slot = 0
+                if isChart { guard chartNo < drawing.charts.count else { continue }; chartNo += 1 }
+                else {
+                    guard sh.pib > 0, sh.pib <= blips.count, blips[sh.pib - 1] != nil else { continue }
+                    slot = drawing.pics.firstIndex(of: sh.pib - 1) ?? { drawing.pics.append(sh.pib - 1); return drawing.pics.count - 1 }()
+                }
                 var w = 0.0, h = 0.0
                 if a[4] >= a[0] { for c in a[0] ... a[4] { w += colPx(c) } }
                 if a[6] >= a[2] { for r in a[2] ... a[6] { h += rowPt(r) } }
                 let x0 = colPx(a[0]) * Double(a[1]) / 1024, x1 = colPx(a[4]) * Double(a[5]) / 1024
                 let y0 = rowPt(a[2]) * Double(a[3]) / 256, y1 = rowPt(a[6]) * Double(a[7]) / 256
                 let cx = emu((w - x0 - (colPx(a[4]) - x1)) * 9525), cy = emu((h - y0 - (rowPt(a[6]) - y1)) * 12700)
-                drawing.anchors.append("<xdr:twoCellAnchor editAs=\"oneCell\"><xdr:from><xdr:col>\(a[0])</xdr:col><xdr:colOff>\(emu(x0 * 9525))</xdr:colOff><xdr:row>\(a[2])</xdr:row><xdr:rowOff>\(emu(y0 * 12700))</xdr:rowOff></xdr:from><xdr:to><xdr:col>\(a[4])</xdr:col><xdr:colOff>\(emu(x1 * 9525))</xdr:colOff><xdr:row>\(a[6])</xdr:row><xdr:rowOff>\(emu(y1 * 12700))</xdr:rowOff></xdr:to><xdr:pic><xdr:nvPicPr><xdr:cNvPr id=\"\(sh.id)\" name=\"Picture \(drawing.anchors.count + 1)\"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip r:embed=\"rId\(slot + 1)\"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:twoCellAnchor>")
+                let head = "<xdr:twoCellAnchor editAs=\"oneCell\"><xdr:from><xdr:col>\(a[0])</xdr:col><xdr:colOff>\(emu(x0 * 9525))</xdr:colOff><xdr:row>\(a[2])</xdr:row><xdr:rowOff>\(emu(y0 * 12700))</xdr:rowOff></xdr:from><xdr:to><xdr:col>\(a[4])</xdr:col><xdr:colOff>\(emu(x1 * 9525))</xdr:colOff><xdr:row>\(a[6])</xdr:row><xdr:rowOff>\(emu(y1 * 12700))</xdr:rowOff></xdr:to>"
+                if isChart {
+                    drawing.anchors.append(head + "<xdr:graphicFrame macro=\"\"><xdr:nvGraphicFramePr><xdr:cNvPr id=\"\(sh.id)\" name=\"Chart \(chartNo)\"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></xdr:xfrm><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" r:id=\"@CHART\(chartNo - 1)@\"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor>")
+                } else {
+                    drawing.anchors.append(head + "<xdr:pic><xdr:nvPicPr><xdr:cNvPr id=\"\(sh.id)\" name=\"Picture \(drawing.anchors.count + 1)\"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip r:embed=\"rId\(slot + 1)\"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:twoCellAnchor>")
+                }
             }
-            if !drawing.pics.isEmpty { x += "<drawing r:id=\"rIdD1\"/>" }
+            if !drawing.pics.isEmpty || !drawing.anchors.isEmpty { x += "<drawing r:id=\"rIdD1\"/>" }
         }
         return x + "</worksheet>"
     }
@@ -783,6 +839,8 @@ enum XlsBuild {
                 switch builtin { case 6: name = "_xlnm.Print_Area"; case 7: name = "_xlnm.Print_Titles"; case 0xD: name = "_xlnm._FilterDatabase"; default: continue }
             } else {
                 let f = c.u8(); name = c.chars(cch, wide: f & 1 == 1)
+                // A plain name spelled like a built-in one is that built-in (Excel's own conversion does the same).
+                for b in ["Print_Area", "Print_Titles", "_FilterDatabase"] where name.lowercased() == b.lowercased() { name = "_xlnm." + b }
             }
             let end = min(r.body.count, c.pos + cce)
             guard let text = formulaRanges(Array(r.body[c.pos ..< end]), xtis: xtis, sheetNames: sheetNames), !text.isEmpty else { continue }
