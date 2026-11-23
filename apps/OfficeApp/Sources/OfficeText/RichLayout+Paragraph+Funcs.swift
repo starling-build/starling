@@ -1622,6 +1622,26 @@ extension _ParaFrame {
                 }
             }
             painter.layout(minWidth: lineWidth + slack, maxWidth: lineWidth + slack)
+            // (Text that fits its line laid out unconstrained is one line. The engine does not trim the last glyph's letter
+            // spacing at a line's end when it tests a fit, and the stand-in's Thai is spaced negative to the face's advances,
+            // so a word as wide as its cell (an autofit column is sized to it) was parted by half of that spacing: dx2
+            // a3710694's "หมายเหตุ", 952.38 of 953, was set 961.08 and went on two lines, the table's header a line taller
+            // and every row after it 21 pt late. The line is laid out wider by the excess, so it is at most half that
+            // spacing wider than its cell.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, p.text.utf16.count <= 160,
+               p.text.unicodeScalars.contains(where: { (0x0E01 ... 0x0E5B).contains($0.value) }),
+               !p.text.unicodeScalars.contains(where: { [0x0A, 0x0B, 0x09, 0x2028, 0xFFFC].contains($0.value) }),
+               painter.lineIndents.isEmpty || painter.lineIndents.allSatisfy({ $0.left == 0 && $0.right == 0 }),
+               painter.computeLineMetrics().count > 1, painter.maxIntrinsicWidth < lineWidth * 1.02 + _px(2) {
+                let narrowed = painter.maxIntrinsicWidth
+                painter.layout(minWidth: 0, maxWidth: 1_000_000)
+                let whole = painter.maxIntrinsicWidth
+                let wider = max(lineWidth, narrowed) + slack
+                painter.layout(minWidth: wider, maxWidth: wider)
+                if whole <= lineWidth + slack, painter.computeLineMetrics().count == 1 {
+                    RuleTrace.hit("thai-word-that-fits-unconstrained-stays-one-line")
+                } else { painter.layout(minWidth: lineWidth + slack, maxWidth: lineWidth + slack) }
+            }
             // (A paragraph of spaces alone is one line, its spaces hung
             // past the edge as a line's last ones are: zh-cfb32050's form
             // opens with a 14pt cell holding fifteen spaces under a
