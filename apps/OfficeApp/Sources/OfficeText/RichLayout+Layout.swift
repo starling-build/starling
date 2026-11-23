@@ -1035,6 +1035,8 @@ extension RichLayout {
             // (Its indent is not read, and one wider than the text stands at the left margin: xd 38d880e8's 440pt table, tblInd 80,
             // 425pt of text, its text 4.0 and 5.3pt left of where ours put it, exactly where the table of no indent puts it.)
             // (One that fits reads its indent from the right margin like the older modes: xd 7d58f74e's 415pt table, tblInd 720, stands 36pt left of the margin edge.)
+            // (One of no indent and wider than the text keeps its right edge at the right margin and overhangs the left: dx2 968500c3's 478.8pt table in 468pt, lines 60.5 to 539.4 in Word's print.)
+            if (style?.indent ?? 0) == 0 { return width - sum + right }
             return max(0, width - sum + right - _px(style?.indent ?? 0))
         case .center where theme.wordRules && RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 0) >= 15 && style?.bidiVisual == true && style?.floatX == nil && sum > width + 0.01:
             // (A centred right-to-left table wider than the text stands at the left margin too, not overhanging both sides:
