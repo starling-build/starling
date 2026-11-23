@@ -825,6 +825,7 @@ if initialPath == nil && siteArg == nil && wikiBase == nil {
     OfficeNativeShell.makeBlank = { OfficeHost.writeBlank(kind: $0, to: $1) }
     OfficeHost.documentSaved = { OfficeNativeShell.documentSaved($0) }
     OfficeHost.openRequested = { OfficeNativeShell.showBrowser(); return true }
+    hostPrintPDF = { path in DispatchQueue.main.async { OfficeNativeShell.printPDF(path) } }
     OfficeHost.exportRequested = { name, prepare, thenOpen, done in
         OfficeNativeShell.export(name: name, prepare: prepare, thenOpen: thenOpen, done: done)
     }

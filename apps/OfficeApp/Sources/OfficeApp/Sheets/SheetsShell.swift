@@ -195,11 +195,13 @@ final class SheetsShellState: State<StatefulWidget> {
         }
         session.onExport = { [weak self] ext in self?._export(ext) }
         #if os(iOS)
-        // OFFICE_DRIVE_EXPORT=pdf: File → Export → PDF a few seconds after the
+        // OFFICE_DRIVE_EXPORT=pdf (or print): File → Export → PDF (File → Print) a few seconds after the
         // document opens, so a driven run can reach the export picker
         // without a tile tap.
         if let ext = ProcessInfo.processInfo.environment["OFFICE_DRIVE_EXPORT"], !ext.isEmpty {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in self?.session.onExport?(ext) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+                if ext == "print" { self?.session.onPrint?() } else { self?.session.onExport?(ext) }
+            }
         }
         #endif
         session.onPrint = { [weak self] in self?._print() }
