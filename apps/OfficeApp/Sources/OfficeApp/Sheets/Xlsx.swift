@@ -138,6 +138,7 @@ enum Xlsx {
             if let path = ws.origin {
                 (ws.drawings, ws.drawingPart, ws.drawingRoot) = SheetDrawingsXML.read(sheetPath: path, parts: parts, colors: colors, sheet: sheetRoots[path])
                 ws.objects = SheetObjectsXML.read(sheetPath: path, parts: parts, sheet: sheetRoots[path])
+                ws.headerPictures = SheetDrawingsXML.readHeaderPictures(sheetPath: path, parts: parts, sheet: sheetRoots[path])
                 // (A legacy shape placed in points, not cells, held to the
                 // cells under it, so that it prints where they print.)
                 for i in ws.objects.indices {

@@ -775,7 +775,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     /// A picture's bytes into `r`: a bitmap through the codec, a metafile
     /// (WMF, EMF — what an embedded object's picture usually is) played.
-    private func _paintPicture(_ canvas: any Canvas, _ path: String, _ data: Data, in r: Rect, crop: [Double]? = nil) {
+    func _paintPicture(_ canvas: any Canvas, _ path: String, _ data: Data, in r: Rect, crop: [Double]? = nil) {
         if let played = _metafile(path, data) {
             played.paint(canvas, in: r, image: { self._image($0.id, $0.data) }, font: { OfficeFonts.drawn($0) })
         } else if !Metafile.isMetafile(data), let image = _image(path, data) {
