@@ -1,14 +1,49 @@
 // The formula tokenizer on UTF-8 bytes. A formula is nearly always plain
 // ASCII, and reading it as Characters (grapheme breaking on every step) was
 // the biggest part of opening a workbook with a formula in every row. This
-// reads the same tokens, and only for text that is all ASCII with no CR:
-// anything else goes to the Character reading (`_tokenizeCharacters`).
+// reads the same tokens, for text where bytes and Characters agree (see
+// `bytesSafe`): anything else goes to the Character reading (`_tokenizeCharacters`).
 
 extension Formula {
     static func _tokenize(_ s: Substring) throws -> [Token] {
         let b = Array(s.utf8)
-        for x in b where x >= 0x80 || x == 0x0D { return try _tokenizeCharacters(s) }
+        guard bytesSafe(b) else { return try _tokenizeCharacters(s) }
         return try _tokenizeBytes(b)
+    }
+
+    /// Whether the bytes read the same as Characters would: no CR (it joins a following LF into one Character), and
+    /// no non-ASCII byte except inside a string, a quoted sheet name or a bracket (where only ASCII delimiters
+    /// matter), and not right after the closing delimiter of a string or a quoted name (a combining mark would join it).
+    private static func bytesSafe(_ b: [UInt8]) -> Bool {
+        var i = 0
+        let n = b.count
+        var depth = 0
+        while i < n {
+            let c = b[i]
+            if c == 0x0D { return false }
+            if c >= 0x80 { if depth == 0 { return false }; i += 1; continue }
+            if depth > 0 {
+                if c == 0x27 { i += 2; continue }
+                if c == 0x5B { depth += 1 } else if c == 0x5D { depth -= 1 }
+                i += 1; continue
+            }
+            if c == 0x5B { depth = 1; i += 1; continue }
+            if c == 0x22 || c == 0x27 {
+                i += 1
+                while i < n {
+                    if b[i] == 0x0D { return false }
+                    if b[i] == c {
+                        let doubled = i + 1 < n && b[i + 1] == c
+                        if i + (doubled ? 2 : 1) < n, b[i + (doubled ? 2 : 1)] >= 0x80 { return false }
+                        if doubled { i += 2; continue }
+                        break
+                    }
+                    i += 1
+                }
+            }
+            i += 1
+        }
+        return true
     }
 
     @inline(__always) private static func isLetter(_ a: UInt8) -> Bool { (a >= 65 && a <= 90) || (a >= 97 && a <= 122) }

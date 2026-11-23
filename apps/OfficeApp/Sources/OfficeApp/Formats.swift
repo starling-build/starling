@@ -44,6 +44,9 @@ enum OfficeFormats {
             if let converted = DocRead.docx(data), let d = try? DocxFormat.read(converted) {
                 return OpenedDocument(document: d.document, pageSetup: d.pageSetup)
             }
+            if let cf = try? CompoundFile([UInt8](data)), cf.stream("WordDocument") == nil, cf.stream("FileHeader") != nil {
+                throw FormatError.unsupported("a Hancom HWP file, which is not a Word file")
+            }
             throw FormatError.unsupported("an encrypted or binary Word file")
         }
         // A zip starts with "PK": a .docx whatever it is called.

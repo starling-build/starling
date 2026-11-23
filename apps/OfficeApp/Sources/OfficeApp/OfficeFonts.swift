@@ -52,7 +52,12 @@ enum OfficeFonts {
     /// Verdana's lines an eighth short.
     static let verdana = "DejaVu Sans"
     /// The colour-emoji face (U+1F000 and up), first in the glyph fallback; web hosts use the same name.
+    #if os(iOS)
+    /// (On iOS the bundled CBDT faces cannot load, so the colour emoji are the system's, named here for every fallback list.)
+    static let emojiPictographs = "Apple Color Emoji"
+    #else
     static let emojiPictographs = "Noto Color Emoji Pictographs"
+    #endif
     /// Liberation Sans and Serif as a Word document's lines take them:
     /// the same faces with their line gap moved over the ascent (see
     /// `_gapAbove`), registered under these names beside the plain ones.
@@ -1459,13 +1464,14 @@ enum OfficeFonts {
         0x78: 0.3579,
     ]
 // (Calibri's own Georgian letters, read from the Windows box's font: Word draws Georgian in Calibri where the run names Calibri as its complex-script face, dx2 4b53bd2f8f3a.)
+    // Word prints Calibri Georgian at 11 pt with each advance rounded to the 600 dpi pixel (ppem 92, 0.12 pt per px); these are hmtx advances rounded that way.
     static let calibriRegularGeorgian: [UInt32: Double] = [
-        0x10D0: 0.4521, 0x10D1: 0.5371, 0x10D2: 0.4834, 0x10D3: 0.7783, 0x10D4: 0.4639, 0x10D5: 0.4570, 0x10D6: 0.6440, 0x10D7: 0.8013,
-        0x10D8: 0.5049, 0x10D9: 0.4150, 0x10DA: 0.9683, 0x10DB: 0.5142, 0x10DC: 0.5142, 0x10DD: 0.7051, 0x10DE: 0.4570, 0x10DF: 0.4858,
-        0x10E0: 0.7061, 0x10E1: 0.4980, 0x10E2: 0.7168, 0x10E3: 0.5454, 0x10E4: 0.7642, 0x10E5: 0.4639, 0x10E6: 0.7051, 0x10E7: 0.5024,
-        0x10E8: 0.5142, 0x10E9: 0.5049, 0x10EA: 0.5347, 0x10EB: 0.5142, 0x10EC: 0.4858, 0x10ED: 0.4678, 0x10EE: 0.5142, 0x10EF: 0.6089,
-        0x10F0: 0.4292, 0x10F1: 0.5288, 0x10F2: 0.5376, 0x10F3: 0.4028, 0x10F4: 0.4028, 0x10F5: 0.4707, 0x10F6: 0.8257, 0x10F7: 0.4614,
-        0x10F8: 0.5024, 0x10F9: 0.5273, 0x10FA: 0.5361, 0x10FB: 0.4985, 0x10FC: 0.3340, 0x10FD: 0.4468, 0x10FE: 0.5278, 0x10FF: 0.5371,
+        0x10D0: 0.4582, 0x10D1: 0.5345, 0x10D2: 0.4800, 0x10D3: 0.7855, 0x10D4: 0.4691, 0x10D5: 0.4582, 0x10D6: 0.6436, 0x10D7: 0.8073,
+        0x10D8: 0.5018, 0x10D9: 0.4145, 0x10DA: 0.9709, 0x10DB: 0.5127, 0x10DC: 0.5127, 0x10DD: 0.7091, 0x10DE: 0.4582, 0x10DF: 0.4909,
+        0x10E0: 0.7091, 0x10E1: 0.5018, 0x10E2: 0.7200, 0x10E3: 0.5455, 0x10E4: 0.7636, 0x10E5: 0.4691, 0x10E6: 0.7091, 0x10E7: 0.5018,
+        0x10E8: 0.5127, 0x10E9: 0.5018, 0x10EA: 0.5345, 0x10EB: 0.5127, 0x10EC: 0.4909, 0x10ED: 0.4691, 0x10EE: 0.5127, 0x10EF: 0.6109,
+        0x10F0: 0.4255, 0x10F1: 0.5345, 0x10F2: 0.5345, 0x10F3: 0.4036, 0x10F4: 0.4036, 0x10F5: 0.4691, 0x10F6: 0.8291, 0x10F7: 0.4582,
+        0x10F8: 0.5018, 0x10F9: 0.5345, 0x10FA: 0.5345, 0x10FB: 0.5018, 0x10FC: 0.3382, 0x10FD: 0.4473, 0x10FE: 0.5345, 0x10FF: 0.5345,
     ]
     static let calibriBoldGeorgian: [UInt32: Double] = [
         0x10D0: 0.4824, 0x10D1: 0.5498, 0x10D2: 0.5181, 0x10D3: 0.7842, 0x10D4: 0.4839, 0x10D5: 0.4795, 0x10D6: 0.6606, 0x10D7: 0.8125,
@@ -4122,6 +4128,9 @@ enum OfficeFonts {
                     face.naturalHeight = 1.40; face.boldHeight = 1.40
                     RuleTrace.hit("sakkal-latin-run-has-the-faces-own-line")
                 case "comic sans ms": face.advances = comicSansAdvances; face.boldAdvances = comicSansBoldAdvances; face.otherAdvances = comicSansOtherAdvances; face.boldOtherAdvances = comicSansBoldOtherAdvances; face.naturalHeight = 1.3936; face.baseline = 1.1021
+                // (DokChampa's own line, from its file (upem 2048, USE_TYPO_METRICS set): typo 1999 + 555 + gap 200 above the ascent. dx2 2cddf540's
+                // three empty paragraphs with a DokChampa mark stood 1 pt short; row 8 dy -0.85 to -0.05, mean |dy| 15.6 to 6.2 pt.)
+                case "dokchampa": face.naturalHeight = 1.3447; face.baseline = 1.0737
                 case "mystical woods smooth script": face.advances = mysticalWoodsAdvances; face.otherAdvances = mysticalWoodsOtherAdvances; face.naturalHeight = 1.7; face.baseline = 1.3
                 case "garamond": face.advances = garamondAdvances; face.boldAdvances = garamondBoldAdvances; face.italicAdvances = garamondItalicAdvances; face.naturalHeight = 1.1250; face.baseline = 0.8618
                 case "georgia": face.advances = georgiaAdvances; face.boldAdvances = georgiaBoldAdvances; face.italicAdvances = georgiaItalicAdvances; face.boldItalicAdvances = georgiaBoldItalicAdvances; face.otherAdvances = georgiaOtherAdvances.merging(georgiaCyrillicAdvances) { $1 }; face.boldOtherAdvances = georgiaBoldOtherAdvances.merging(georgiaBoldCyrillicAdvances) { $1 }; face.naturalHeight = 1.1362; face.baseline = 0.9170
@@ -4608,6 +4617,17 @@ enum OfficeFonts {
     /// Word's line and baseline for it but none of the widths, scales or
     /// substitutes that make a stand-in pass for it.
     static func face(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
+        guard var f = faceUncentred(family, eastAsian: eastAsian) else { return nil }
+        // (Where Word centres a line in an exact one — `w:textAlignment` "center" — lab ctr-exact (Word for Windows, 12 and 16pt
+        // in 27 and 22.5pt exact lines): Times' line box for it leaves out the line gap its baseline stands under, 0.021 em
+        // (ours stood 0.25-0.38pt low); Microsoft JhengHei's stands 0.037 em lower than half its 1.729 (0.40-0.65pt low).
+        // DFKai-SB, SimSun and YaHei matched.)
+        if f.family == wordSerif { f.centreLift = 0.021 }
+        else if let n = family?.lowercased(), (n.containsSubstring("jhenghei") || n.containsSubstring("微軟正黑")), !n.containsSubstring(" ui") { f.centreLift = 0.037 }
+        return f
+    }
+
+    private static func faceUncentred(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
         let face = standInFace(family, eastAsian: eastAsian)
         guard let family, let face else { return face }
         guard let own = installed(family) ?? installedOriginal(of: face.family, for: family, math: face.setsMath) else { return face }
@@ -6373,6 +6393,12 @@ enum OfficeFonts {
             for line in table.split(separator: "\n").dropFirst() {
                 let c = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
                 guard c.count >= 7, let index = Int32(c[1]), let order = Int(c[6]) else { continue }
+                #if os(iOS)
+                // The colour emoji are CBDT bitmaps, which CoreText (iOS's only font manager) cannot
+                // read, so they never load here. Apple Color Emoji, through CoreText's own fallback,
+                // draws them (seen in Writer, Slides and Sheets), so leave them to it.
+                if c[4] == "emoji" { continue }
+                #endif
                 let path = resources.appendingPathComponent("fonts/\(c[0])").path
                 guard FileManager.default.fileExists(atPath: path) else { continue }
                 let loaded = index < 0 ? flutter.swift_bridge.LoadFontFromFile(path, c[2])
@@ -6411,6 +6437,14 @@ enum OfficeFonts {
                 RichTextTheme.glyphFallback.insert(OfficeFonts.emojiPictographs, at: 0)
             }
         }
+        #if os(iOS)
+        // Colour emoji are the system's on iOS (the bundled CBDT faces cannot load, see above), and its face
+        // goes FIRST: behind DejaVu Sans, which has U+1F600 and kin as black outlines, a slide's smiley was one.
+        RichTextTheme.glyphFallback.removeAll { $0 == "Apple Color Emoji" }
+        RichTextTheme.glyphFallback.insert("Apple Color Emoji", at: 0)
+        RichLayout.emojiPictographFamily = "Apple Color Emoji"
+        RichLayout.emojiVariationFamily = "Apple Color Emoji"
+        #endif
         if let table = try? String(contentsOf: resources.appendingPathComponent("fonts/fonts-aliases.tsv"), encoding: .utf8) {
             var aliases: [String: String] = [:]
             for line in table.split(separator: "\n").dropFirst() {

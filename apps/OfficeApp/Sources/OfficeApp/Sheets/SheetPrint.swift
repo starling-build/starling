@@ -273,8 +273,17 @@ enum SheetPrintLayout {
     /// has only `headWidth`/`headHeight` (the printed headings) kept free.
     /// lo-tdf113271's first page holds row 1, its title, once: 42 rows
     /// under it, as every page has, where ours kept room for it twice.
+    /// A repeated title block whose last row has a thick bottom border stands
+    /// 8 printer dots taller on the pages after the first of a fitted sheet
+    /// (ja-f96922b5cf: Excel's rows start 0.96 pt below ours, 59 rows to a page
+    /// where ours held 60).
+    static func titleGap(_ ws: Worksheet, _ rows: ClosedRange<Int>?, _ setup: SheetPrintSetup) -> Double {
+        guard let r = rows?.upperBound, setup.fitWidth != nil || setup.fitHeight != nil else { return 0 }
+        return ["1", "true"].contains(ws.rowAttrs[r]?["thickBot"] ?? "") ? 8.0 * 72 / 600 : 0
+    }
+
     static func pages(area: CellRange, setup: SheetPrintSetup, titleWidth: Double = 0, titleHeight: Double = 0,
-                      titleColsEnd: Int? = nil, titleRowsEnd: Int? = nil, headWidth: Double = 0, headHeight: Double = 0,
+                      titleColsEnd: Int? = nil, titleRowsEnd: Int? = nil, titleGap: Double = 0, headWidth: Double = 0, headHeight: Double = 0,
                       width: (Int) -> Double, height: (Int) -> Double) -> (pages: [SheetPage], scale: Double) {
         let page = setup.pageSize
         let availW0 = max(36, page.width - setup.left - setup.right)
@@ -315,7 +324,7 @@ enum SheetPrintLayout {
         }
         var colBands: [[Int]] = [], rowBands: [[Int]] = []
         while true {
-            let availW = max(18, availW0 - titleWidth * s), availH = max(18, availH0 - titleHeight * s)
+            let availW = max(18, availW0 - titleWidth * s), availH = max(18, availH0 - titleHeight * s - titleGap)
             // (Fitting ignores manual breaks: they are for the unfitted sheet. Not
             // the rows' where the pages tall are left automatic (fitToHeight 0):
             // pt-84f1d99f8e's break after row 41 is a page in Excel's print.)
@@ -459,11 +468,12 @@ extension SheetGridState {
             let jobs = areas.map { area -> (pages: [SheetPage], scale: Double) in
                 let job = SheetPrintLayout.pages(area: area, setup: setup, titleWidth: titleW, titleHeight: titleH,
                                                  titleColsEnd: names.titleCols?.upperBound, titleRowsEnd: names.titleRows?.upperBound,
+                                                 titleGap: SheetPrintLayout.titleGap(ws, names.titleRows, setup),
                                                  headWidth: head.width, headHeight: head.height,
                                                  width: { ca.size($0) }, height: { ra.size($0) })
                 // (With titles repeating, no page is blank: Excel prints them all.)
                 if names.titleRows != nil || names.titleCols != nil { return job }
-                return (_withoutTrailingBlanks(job.pages, ws: ws, book: book, overThenDown: setup.overThenDown, styledBlanks: !names.areas.isEmpty), job.scale)
+                return (_withoutTrailingBlanks(job.pages, ws: ws, book: book, overThenDown: setup.overThenDown, styledBlanks: !names.areas.isEmpty, usedRows: names.areas.isEmpty ? nil : used.top ... used.bottom), job.scale)
             }
             parts.append(Part(sheet: si, setup: setup, names: names, jobs: jobs))
         }
@@ -483,7 +493,7 @@ extension SheetGridState {
     /// last page that has anything on it — a value, a fill or border, a
     /// merged area, a drawing, text running in from a neighbour. A blank
     /// page between printed ones stays, and the first always does.
-    private func _withoutTrailingBlanks(_ pages: [SheetPage], ws: Worksheet, book: Workbook, overThenDown: Bool, styledBlanks: Bool = false) -> [SheetPage] {
+    private func _withoutTrailingBlanks(_ pages: [SheetPage], ws: Worksheet, book: Workbook, overThenDown: Bool, styledBlanks: Bool = false, usedRows: ClosedRange<Int>? = nil) -> [SheetPage] {
         guard pages.count > 1 else { return pages }
         // Each row and column to the band it prints in.
         var rowBands: [[Int]] = [], colBands: [[Int]] = []
@@ -537,6 +547,9 @@ extension SheetGridState {
             cover(d.anchor, line: isLine)
         }
         for o in ws.objects where !o.screenOnly { cover(o.anchor) }
+        // (Inside a print area, a page whose rows lie within the sheet's used rows is printed even if the
+        // area holds nothing there: en-7e987a08ce's A1:A86 with its text in column B is six pages in Excel.)
+        if let ur = usedRows { for r in rowBands.indices where rowBands[r].contains(where: { ur.contains($0) }) { for c in colBands.indices { filled.insert([r, c]) } } }
         // Only from the end: a blank page with a printed one after it stays.
         var kept = pages
         while kept.count > 1, let last = kept.last,
@@ -616,7 +629,7 @@ extension SheetGridState {
                 // Titles repeat on pages that do not already show them.
                 let tRows = titleRows.last.map { r0 > $0 } ?? false ? titleRows : []
                 let tCols = titleCols.last.map { c0 > $0 } ?? false ? titleCols : []
-                let tx = (tCols.isEmpty ? 0 : titleW) + head.width, ty = (tRows.isEmpty ? 0 : titleH) + head.height
+                let tx = (tCols.isEmpty ? 0 : titleW) + head.width, ty = (tRows.isEmpty ? 0 : titleH + SheetPrintLayout.titleGap(ws, names.titleRows, setup) / s) + head.height
                 let bandW = ca.start(c1) + ca.size(c1) - ca.start(c0) + tx
                 let bandH = ra.start(r1) + ra.size(r1) - ra.start(r0) + ty
                 let recorder = NativePictureRecorder()

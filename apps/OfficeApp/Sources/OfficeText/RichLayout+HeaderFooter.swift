@@ -1459,7 +1459,12 @@ extension RichLayout {
            i < _cells.count, let d = _cells[i], !d.vertical {
             // (Its floor is the cell's edge plus the TABLE's side margin, not the cell's own tcMar: lab-less, dx2 e86e26f7; as in _besideOwn.)
             let back = float.horizontalFrom == "column" ? d.tableMarginLeft.map { max(0, d.pad.left - $0) } ?? 0 : 0
-            if x < d.colLeft + d.pad.left - back + _px(image.effectLeft) { x = d.colLeft + d.pad.left - back + _px(image.effectLeft) }
+            // (A table floating in a cell from the margin has its floor at the cell's own edge, not its text, plus the half border it shares:
+            // lo-9fa3dedd's Table1 (tblpX -426) and Table3 (tblpX +426) in the right cell of its outer table stand 4.9 pt left of ours in Word's
+            // print, left rule at the cell's 329.7 and not 335.1; the same 4.9 as lab fltpos's page-anchored one.)
+            let nestedTable = RichTextTheme.wordWindowsPages && image.textBox?.growsToFit == true && float.fromCellText && !float.fromCellTop
+            let floor = nestedTable ? d.colLeft + 0.5 : d.colLeft + d.pad.left - back + _px(image.effectLeft)
+            if x < floor { x = floor; if nestedTable { RuleTrace.hit("nested-table-margin-anchor-floor-is-the-cell-edge") } }
         }
         // (An anchor in a cell, `layoutInCell`, set from the page at both
         // offsets, is set from the cell's own corner: zh-d8247da5's two 14pt

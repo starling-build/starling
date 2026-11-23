@@ -60,9 +60,18 @@ extension RichLayout {
                     if !plain.isEmpty { pieces.append((String(plain), 0)); plain = String.UnicodeScalarView() }
                     var piece = String.UnicodeScalarView()
                     piece.append(scalars[i]); piece.append(scalars[i + 1])
+                    i += 2
+                    if kind == 1 {
+                        // (A ZWJ sequence after the pair is one piece with it - ZWJ, the next character, its own U+FE0F, and so on:
+                        // U+1F3F3 U+FE0F U+200D U+1F308 is the rainbow flag, one glyph, not a white flag and a rainbow.)
+                        while i + 1 < scalars.count, scalars[i].value == 0x200D {
+                            piece.append(scalars[i]); piece.append(scalars[i + 1])
+                            i += 2
+                            if i < scalars.count, scalars[i].value == 0xFE0F { piece.append(scalars[i]); i += 1 }
+                        }
+                    }
                     pieces.append((String(piece), kind))
                     found = true
-                    i += 2
                     continue
                 }
             }

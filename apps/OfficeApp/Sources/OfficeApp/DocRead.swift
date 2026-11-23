@@ -61,6 +61,8 @@ struct DocPiece {
     var cpEnd: Int
     var fc: Int
     var compressed: Bool
+    var prm = 0            // the piece's property modifier (Prm1: an index into the CLX's grpprl list; Prm0, one sprm by index, is not read: no dev file has one)
+    var grpprl: [UInt8] = []   // the sprms that modifier stands for
 }
 
 enum DocRead {
@@ -73,7 +75,12 @@ enum DocRead {
     /// The piece table out of the CLX (a run of grpprl "Prc"s, then the "Pcdt" holding the PlcPcd).
     static func pieces(clx: [UInt8]) -> [DocPiece] {
         var p = 0
-        while p < clx.count, clx[p] == 0x01 { p += 3 + OfficeArt.u16(clx, p + 1) }
+        var prcs: [[UInt8]] = []
+        while p < clx.count, clx[p] == 0x01 {
+            let n = OfficeArt.u16(clx, p + 1)
+            if p + 3 + n <= clx.count { prcs.append(Array(clx[p + 3 ..< p + 3 + n])) }
+            p += 3 + n
+        }
         guard p + 5 <= clx.count, clx[p] == 0x02 else { return [] }
         let lcb = OfficeArt.u32(clx, p + 1)
         let plc = p + 5
@@ -88,7 +95,10 @@ enum DocRead {
             let compressed = raw & 0x4000_0000 != 0
             let fc = raw & 0x3FFF_FFFF
             guard end > cp else { continue }
-            out.append(DocPiece(cp: cp, cpEnd: end, fc: compressed ? fc / 2 : fc, compressed: compressed))
+            let prm = OfficeArt.u16(clx, d + 6)
+            var g: [UInt8] = []
+            if prm & 1 != 0 { let i = prm >> 1; if i < prcs.count { g = prcs[i] } }
+            out.append(DocPiece(cp: cp, cpEnd: end, fc: compressed ? fc / 2 : fc, compressed: compressed, prm: prm, grpprl: g))
         }
         return out
     }
@@ -135,32 +145,137 @@ enum DocRead {
         return String(s)
     }
 
+    /// Where a story sits and what hangs off its characters: the first character's position in the document,
+    /// the section properties ending a paragraph, the notes referenced, and whether it is a note's own text.
+    struct StoryContext {
+        var base = 0
+        var sectEnds: [Int: String] = [:]
+        var footnotes: [Int: Int] = [:]
+        var comments: [Int: Int] = [:]
+        var endnotes: [Int: Int] = [:]
+        var noteKind = ""            // "footnote" or "endnote" inside a note's own text
+        var shapes: [Int: (xml: String, behind: Bool)] = [:]   // character position of a shape anchor -> its drawing run
+        var picture: ((Int) -> String?)?         // the run of the inline picture whose data sits at an offset of the Data stream
+    }
+
     /// The paragraphs of a story as `w:p` elements: a paragraph mark (0D, or 07 for a cell or row end)
-    /// ends one; a field's instruction (between 13 and 14) is dropped and its result kept.
-    static func paragraphs(_ t: [UInt16]) -> String {
+    /// ends one. A PAGE or NUMPAGES field stays a field; any other keeps its result and drops its instruction.
+    static func paragraphs(_ t: [UInt16], chp: [DocPropRun] = [], pap: [DocPropRun] = [], fonts: [String] = [], ctx: StoryContext = StoryContext()) -> String {
         var xml = ""
         var runs = "", cur: [UInt16] = []
-        var fieldDepth = 0, hiding: [Bool] = []
-        func flush() {
-            if !cur.isEmpty { runs += "<w:r><w:t xml:space=\"preserve\">" + esc(cur) + "</w:t></w:r>"; cur = [] }
+        struct Field { var instr: [UInt16] = []; var inInstr = true; var live = false }
+        var fields: [Field] = []
+        var rpr = ""
+        var ci = 0, pi = 0
+        // The property list covering `cp` (runs are sorted; the pointer only moves forward).
+        func cover(_ r: [DocPropRun], _ k: inout Int, _ cp: Int) -> DocPropRun? {
+            while k < r.count, r[k].cpEnd <= cp { k += 1 }
+            return k < r.count && r[k].cp <= cp ? r[k] : nil
         }
-        for c in t {
-            if let h = hiding.last, h, c != 0x14, c != 0x15, c != 0x13 { continue }
+        func flush() {
+            if !cur.isEmpty { runs += "<w:r>" + rpr + "<w:t xml:space=\"preserve\">" + esc(cur) + "</w:t></w:r>"; cur = [] }
+        }
+        func fld(_ type: String) -> String { "<w:r>" + rpr + "<w:fldChar w:fldCharType=\"\(type)\"/></w:r>" }
+        func instrLive(_ f: Field) -> Bool {
+            let n = String(decoding: f.instr, as: UTF16.self).uppercased().split(separator: " ").first.map(String.init) ?? ""
+            return n == "PAGE" || n == "NUMPAGES"
+        }
+        func instrRun(_ f: Field) -> String { "<w:r>" + rpr + "<w:instrText xml:space=\"preserve\">" + esc(f.instr) + "</w:instrText></w:r>" }
+        var cache: [UInt8] = [], cacheValid = false
+        var sym: (String, String)?
+        var curG: [UInt8] = []
+        var front = "", back = ""     // shapes of the paragraph: behind the text come first, in front of it last (the order they are painted in)
+        var tbl = "", rowCells: [String] = [], cellXml = ""
+        func endTable() { if !tbl.isEmpty { xml += tbl + "</w:tbl>"; tbl = "" } }
+        for (k, c) in t.enumerated() {
+            let cp = ctx.base + k
+            if !chp.isEmpty {
+                let g = cover(chp, &ci, cp)?.grpprl ?? []
+                curG = g
+                if !cacheValid || g != cache { flush(); cache = g; cacheValid = true; rpr = DocProps.rPr(g, fonts: fonts); sym = DocProps.symbol(g, fonts: fonts) }
+            }
+            if let f = fields.last, f.inInstr, c != 0x14, c != 0x15, c != 0x13 {
+                if c >= 0x20 { fields[fields.count - 1].instr.append(c) }
+                continue
+            }
             switch c {
-            case 0x0D, 0x07: flush(); xml += "<w:p>" + runs + "</w:p>"; runs = ""
+            case 0x0D, 0x07:
+                flush()
+                let pr = cover(pap, &pi, cp)
+                let tf = DocProps.tableFlags(pr?.grpprl ?? [])
+                if tf.inTable, tf.rowEnd, c == 0x07 {
+                    // the mark that ends a table row carries the row's table properties
+                    runs = ""
+                    if let r = DocProps.row(pr?.grpprl ?? []) {
+                        if tbl.isEmpty { tbl = "<w:tbl>" + r.tblPr + "<w:tblGrid>" + r.grid.map { "<w:gridCol w:w=\"\($0)\"/>" }.joined() + "</w:tblGrid>" }
+                        let all = rowCells.count == r.cells.count
+                        var n = 0
+                        tbl += "<w:tr>" + r.trPr
+                        for cl in r.cells {
+                            let body = n < rowCells.count ? rowCells[n] : ""
+                            if !cl.merged || all { n += 1 }
+                            if cl.merged { continue }
+                            tbl += "<w:tc>" + cl.pr + (body.isEmpty ? "<w:p/>" : body) + "</w:tc>"
+                        }
+                        tbl += "</w:tr>"
+                    }
+                    rowCells = []; cellXml = ""
+                    break
+                }
+                var pp = DocProps.pPr(pr?.grpprl ?? [], istd: pr?.istd ?? 0)
+                if let sp = ctx.sectEnds[cp] { pp = pp.isEmpty ? "<w:pPr>" + sp + "</w:pPr>" : String(pp.dropLast(8)) + sp + "</w:pPr>" }
+                let para = "<w:p>" + pp + back + runs + front + "</w:p>"; runs = ""; back = ""; front = ""
+                if tf.inTable {
+                    cellXml += para
+                    if c == 0x07 { rowCells.append(cellXml); cellXml = "" }
+                } else {
+                    endTable()
+                    xml += para
+                }
             case 0x0B: flush(); runs += "<w:r><w:br/></w:r>"
-            case 0x0C: flush(); runs += "<w:r><w:br w:type=\"page\"/></w:r>"
+            case 0x0C:
+                flush()
+                if let sp = ctx.sectEnds[cp] { xml += "<w:p><w:pPr>" + sp + "</w:pPr>" + runs + "</w:p>"; runs = "" }
+                else { runs += "<w:r><w:br w:type=\"page\"/></w:r>" }
             case 0x09: flush(); runs += "<w:r><w:tab/></w:r>"
             case 0x1E: cur.append(0x2011)
             case 0x1F: break
-            case 0x13: fieldDepth += 1; hiding.append(true)
-            case 0x14: if !hiding.isEmpty { hiding[hiding.count - 1] = false }
-            case 0x15: if !hiding.isEmpty { hiding.removeLast(); fieldDepth -= 1 }
-            default: if c >= 0x20 { cur.append(c) }
+            case 0x02:
+                flush()
+                if !ctx.noteKind.isEmpty, k == 0 { runs += "<w:r>" + rpr + "<w:\(ctx.noteKind)Ref/></w:r>" }
+                else if let id = ctx.footnotes[cp] { runs += "<w:r><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr><w:footnoteReference w:id=\"\(id)\"/></w:r>" }
+                else if let id = ctx.endnotes[cp] { runs += "<w:r><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr><w:endnoteReference w:id=\"\(id)\"/></w:r>" }
+            case 0x08:
+                if let x = ctx.shapes[cp] { if x.behind { back += x.xml } else { front += x.xml } }
+            case 0x01:
+                if let f = ctx.picture, let o = DocProps.sprms(curG).last(where: { $0.op == 0x6A03 }), let x = f(OfficeArt.u32(o.operand, 0)) { flush(); runs += x }
+            case 0x05:
+                if let id = ctx.comments[cp] { flush(); runs += "<w:r><w:commentReference w:id=\"\(id)\"/></w:r>" }
+            case 0x13: fields.append(Field())
+            case 0x14:
+                if !fields.isEmpty {
+                    fields[fields.count - 1].inInstr = false
+                    if instrLive(fields[fields.count - 1]) {
+                        fields[fields.count - 1].live = true
+                        flush(); runs += fld("begin") + instrRun(fields[fields.count - 1]) + fld("separate")
+                    }
+                }
+            case 0x15:
+                if let f = fields.popLast() {
+                    flush()
+                    if f.live { runs += fld("end") }
+                    else if f.inInstr, instrLive(f) { runs += fld("begin") + instrRun(f) + fld("end") }
+                }
+            default:
+                if c >= 0x20 {
+                    if let sy = sym, c == 0x28 { flush(); runs += "<w:r>" + rpr + "<w:sym w:font=\"\(sy.0)\" w:char=\"\(sy.1)\"/></w:r>" }
+                    else { cur.append(c) }
+                }
             }
         }
         flush()
-        if !runs.isEmpty { xml += "<w:p>" + runs + "</w:p>" }
+        if !tbl.isEmpty { endTable(); xml += "<w:p/>" }
+        if !runs.isEmpty || !back.isEmpty || !front.isEmpty { xml += "<w:p>" + back + runs + front + "</w:p>" }
         return xml
     }
 
@@ -171,16 +286,226 @@ enum DocRead {
         guard let tbl = cf.stream(fib.tableStream), let clxRange = fib.range(DocFib.fcClx),
               clxRange.fc >= 0, clxRange.fc + clxRange.lcb <= tbl.count else { return nil }
         let pcs = pieces(clx: Array(tbl[clxRange.fc ..< clxRange.fc + clxRange.lcb]))
-        let body = paragraphs(text(w, pieces: pcs, count: fib.ccpText))
+        let chp = fib.range(DocFib.fcPlcfBteChpx).map { DocProps.runs(w: w, t: tbl, at: $0.fc, count: $0.lcb, pieces: pcs, paragraph: false) } ?? []
+        let pap = fib.range(DocFib.fcPlcfBtePapx).map { DocProps.runs(w: w, t: tbl, at: $0.fc, count: $0.lcb, pieces: pcs, paragraph: true) } ?? []
+        let fonts = fib.range(DocFib.fcSttbfFfn).map { DocProps.fonts(tbl, at: $0.fc, count: $0.lcb) } ?? []
+        let st = fib.range(DocFib.fcStshf).map { DocProps.styles(tbl, at: $0.fc, count: $0.lcb, fonts: fonts) }
+        let hddEnd = fib.ccpText + fib.ccpFtn + fib.ccpHdd
+        let all = text(w, pieces: pcs, count: hddEnd + fib.ccpAtn + fib.ccpEdn + fib.ccpTxbx + fib.ccpHdrTxbx)
+        func slice(_ a: Int, _ b: Int) -> [UInt16] { (a >= 0 && b <= all.count && a < b) ? Array(all[a ..< b]) : [] }
+        func story(_ a: Int, _ b: Int, _ ctx: StoryContext = StoryContext()) -> String {
+            var c = ctx; c.base = a
+            return paragraphs(slice(a, b), chp: chp, pap: pap, fonts: fonts, ctx: c)
+        }
+        var extra: [ZipEntry] = [], rels = "", types = ""
         func e(_ name: String, _ s: String) -> ZipEntry { ZipEntry(name: name, data: Data(s.utf8)) }
-        let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\""
+        let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\" xmlns:wpg=\"http://schemas.microsoft.com/office/word/2010/wordprocessingGroup\" xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\""
+        let head = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+        let relBase = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/"
+        let ctBase = "application/vnd.openxmlformats-officedocument.wordprocessingml."
+        // The shapes and pictures of a header or footer story [a, b): set once the drawings are read (below).
+        var headerDrawings: (Int, Int) -> (shapes: [Int: (xml: String, behind: Bool)], rels: String, picture: (Int) -> String?) = { _, _ in ([:], "", { _ in nil }) }
+        // Headers and footers: six stories per section after the six note separators.
+        let hdd = fib.range(DocFib.fcPlcfHdd).flatMap { DocProps.plex(tbl, at: $0.fc, count: $0.lcb, size: 0) }
+        func refs(section k: Int) -> String {
+            guard let hdd else { return "" }
+            var x = ""
+            // even header, odd header, even footer, odd footer, first header, first footer
+            let kinds = [("header", "even"), ("header", "default"), ("footer", "even"), ("footer", "default"), ("header", "first"), ("footer", "first")]
+            for (j, (tag, type)) in kinds.enumerated() {
+                let n = 6 + 6 * k + j
+                guard n + 1 < hdd.cps.count else { continue }
+                let a = fib.ccpText + fib.ccpFtn + hdd.cps[n], b = fib.ccpText + fib.ccpFtn + hdd.cps[n + 1]
+                guard b > a, b <= hddEnd else { continue }
+                let id = "rIdH\(k)_\(j)"
+                let part = "\(tag)\(k)_\(j).xml"
+                let hd = headerDrawings(a, b)
+                var hc = StoryContext(); hc.shapes = hd.shapes; hc.picture = hd.picture
+                extra.append(e("word/" + part, head + "<w:\(tag == "header" ? "hdr" : "ftr") \(ns)>" + story(a, b, hc) + "</w:\(tag == "header" ? "hdr" : "ftr")>"))
+                if !hd.rels.isEmpty { extra.append(e("word/_rels/" + part + ".rels", head + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" + hd.rels + "</Relationships>")) }
+                rels += "<Relationship Id=\"\(id)\" Type=\"\(relBase)\(tag)\" Target=\"\(part)\"/>"
+                types += "<Override PartName=\"/word/\(part)\" ContentType=\"\(ctBase)\(tag).xml\"/>"
+                x += "<w:\(tag)Reference w:type=\"\(type)\" r:id=\"\(id)\"/>"
+            }
+            return x
+        }
+        // Notes: the reference marks in the text, and each note's own text.
+        func notes(_ refIdx: Int, _ txtIdx: Int, storyStart: Int, kind: String) -> [Int: Int] {
+            guard let rr = fib.range(refIdx), let tr = fib.range(txtIdx),
+                  let rf = DocProps.plex(tbl, at: rr.fc, count: rr.lcb, size: 2), let tx = DocProps.plex(tbl, at: tr.fc, count: tr.lcb, size: 0) else { return [:] }
+            var map: [Int: Int] = [:], body = ""
+            for k in 0 ..< min(rf.cps.count - 1, tx.cps.count - 1) {
+                let id = k + 2
+                map[rf.cps[k]] = id
+                var c = StoryContext(); c.noteKind = kind
+                body += "<w:\(kind) w:id=\"\(id)\">" + story(storyStart + tx.cps[k], storyStart + tx.cps[k + 1], c) + "</w:\(kind)>"
+            }
+            let sep = "<w:\(kind) w:type=\"separator\" w:id=\"0\"><w:p><w:r><w:separator/></w:r></w:p></w:\(kind)><w:\(kind) w:type=\"continuationSeparator\" w:id=\"1\"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:\(kind)>"
+            let part = kind + "s.xml"
+            extra.append(e("word/" + part, head + "<w:\(kind)s \(ns)>" + sep + body + "</w:\(kind)s>"))
+            rels += "<Relationship Id=\"rId_\(kind)\" Type=\"\(relBase)\(kind)s\" Target=\"\(part)\"/>"
+            types += "<Override PartName=\"/word/\(part)\" ContentType=\"\(ctBase)\(kind)s+xml\"/>"
+            return map
+        }
+        let fnMap = notes(2, 3, storyStart: fib.ccpText, kind: "footnote")
+        let enMap = notes(46, 47, storyStart: hddEnd + fib.ccpAtn, kind: "endnote")
+        // Comments: the reference marks in the text, each comment's text and its author and initials.
+        var cmMap: [Int: Int] = [:]
+        if fib.ccpAtn > 0, let rr = fib.range(4), let tr = fib.range(5),
+           let rf = DocProps.plex(tbl, at: rr.fc, count: rr.lcb, size: 30), let tx = DocProps.plex(tbl, at: tr.fc, count: tr.lcb, size: 0) {
+            var owners: [String] = []
+            if let og = fib.range(35) {
+                var q = og.fc
+                while q + 2 <= min(og.fc + og.lcb, tbl.count) {
+                    let n = OfficeArt.u16(tbl, q); q += 2
+                    guard q + 2 * n <= tbl.count else { break }
+                    owners.append(esc((0 ..< n).map { OfficeArt.u16(tbl, q + 2 * $0) }.map { UInt16($0) }))
+                    q += 2 * n
+                }
+            }
+            var body = ""
+            for k in 0 ..< min(rf.cps.count - 1, tx.cps.count - 1) {
+                cmMap[rf.cps[k]] = k
+                let a = rf.at + 30 * k
+                let ni = min(OfficeArt.u16(tbl, a), 9)
+                let initials = esc((0 ..< ni).map { UInt16(OfficeArt.u16(tbl, a + 2 + 2 * $0)) })
+                let ib = OfficeArt.u16(tbl, a + 20)
+                let author = ib < owners.count ? owners[ib] : ""
+                body += "<w:comment w:id=\"\(k)\" w:author=\"\(author)\" w:initials=\"\(initials)\">" + story(hddEnd + tx.cps[k], hddEnd + tx.cps[k + 1]) + "</w:comment>"
+            }
+            if !body.isEmpty {
+                extra.append(e("word/comments.xml", head + "<w:comments \(ns)>" + body + "</w:comments>"))
+                rels += "<Relationship Id=\"rId_cm\" Type=\"\(relBase)comments\" Target=\"comments.xml\"/>"
+                types += "<Override PartName=\"/word/comments.xml\" ContentType=\"\(ctBase)comments+xml\"/>"
+            }
+        }
+        // Drawings: pictures in the line (Data stream), and shapes the text anchors (PlcSpaMom), with their text boxes.
+        var media: [ZipEntry] = []
+        var imageTypes = Set<String>()
+        func addMedia(_ b: ArtBlip) -> Int {
+            let n = media.count + 1
+            media.append(ZipEntry(name: "word/media/image\(n).\(b.ext)", data: Data(b.data)))
+            imageTypes.insert(b.ext)
+            return n
+        }
+        func imageRel(_ n: Int, _ ext: String) -> String { "<Relationship Id=\"rIdImg\(n)\" Type=\"\(relBase)image\" Target=\"media/image\(n).\(ext)\"/>" }
+        func addImage(_ b: ArtBlip) -> String {
+            let n = addMedia(b)
+            rels += imageRel(n, b.ext)
+            return "rIdImg\(n)"
+        }
+        let dataStream = cf.stream("Data") ?? []
+        var inlineCache: [Int: String?] = [:]
+        let picture: (Int) -> String? = { off in
+            if let c = inlineCache[off] { return c }
+            let r = DocArt.inline(data: dataStream, at: off, rid: addImage)
+            inlineCache[off] = r
+            return r
+        }
+        // The drawing runs of the shapes in `spas`, by the character each is anchored at (`shift` moves a story's own
+        // positions into the document's), with the pictures added through `add` and text box text from `boxes`.
+        func shapeRuns(_ spas: [DocArt.Spa], shift: Int, art: DocArt.Art, boxes: (cps: [Int], at: Int)?, boxStart: Int, add: (ArtBlip) -> String, pic: @escaping (Int) -> String?) -> [Int: (xml: String, behind: Bool)] {
+            var out: [Int: (xml: String, behind: Bool)] = [:]
+            for (k, sp) in spas.enumerated() {
+                let shape = art.shapes[sp.spid]
+                if let shape, shape.flags & 1 != 0, shape.groupRect != nil {
+                    // a group: its members are drawn inside it, in its own coordinate space
+                    let cx = DocArt.emu(max(0, sp.right - sp.left)), cy = DocArt.emu(max(0, sp.bottom - sp.top))
+                    let g = DocArt.group(shape, art: art, cx: cx, cy: cy) { m in
+                        var rid: String?
+                        if m.pib > 0, m.pib <= art.blips.count, let b = art.blips[m.pib - 1] { rid = add(b) }
+                        var content: String?
+                        if rid == nil, let tx = m.props[0x80], let boxes, (tx >> 16) - 1 >= 0, (tx >> 16) - 1 < boxes.cps.count - 1 {
+                            var c = StoryContext(); c.picture = pic
+                            content = story(boxStart + boxes.cps[(tx >> 16) - 1], boxStart + boxes.cps[(tx >> 16)], c)
+                        }
+                        return (rid, content)
+                    }
+                    if let g { out[shift + sp.cp] = (DocArt.floating(sp, shape: shape, rid: nil, content: nil, order: k, group: g), sp.behind) }
+                    continue
+                }
+                var rid: String?
+                if let pib = shape?.pib, pib > 0, pib <= art.blips.count, let b = art.blips[pib - 1] { rid = add(b) }
+                var content: String?
+                if rid == nil, let shape, let tx = shape.props[0x80], let boxes {
+                    let i = (tx >> 16) - 1
+                    if i >= 0, i < boxes.cps.count - 1 {
+                        var c = StoryContext(); c.picture = pic
+                        content = story(boxStart + boxes.cps[i], boxStart + boxes.cps[i + 1], c)
+                    }
+                }
+                if rid == nil, content == nil, !(shape.map({ DocArt.drawable($0) }) ?? false) { continue }
+                out[shift + sp.cp] = (DocArt.floating(sp, shape: shape, rid: rid, content: content, order: k), sp.behind)
+            }
+            return out
+        }
+        var mainShapes: [Int: (xml: String, behind: Bool)] = [:]
+        if let dg = fib.range(50) {
+            let art = DocArt.art(t: tbl, w: w, at: dg.fc, count: dg.lcb)
+            let boxStart = hddEnd + fib.ccpAtn + fib.ccpEdn
+            if let sr = fib.range(40) {
+                let boxes = fib.range(56).flatMap { DocProps.plex(tbl, at: $0.fc, count: $0.lcb, size: 22) }
+                mainShapes = shapeRuns(DocArt.spas(tbl, at: sr.fc, count: sr.lcb), shift: 0, art: art, boxes: boxes, boxStart: boxStart, add: addImage, pic: picture)
+            }
+            if let hr = fib.range(41) {
+                let hspas = DocArt.spas(tbl, at: hr.fc, count: hr.lcb)
+                let hboxes = fib.range(58).flatMap { DocProps.plex(tbl, at: $0.fc, count: $0.lcb, size: 22) }
+                let hStart = fib.ccpText + fib.ccpFtn
+                headerDrawings = { a, b in
+                    // each header part has its own relationships, so its pictures are added to its own list
+                    var hrels = ""
+                    func add(_ bl: ArtBlip) -> String { let n = addMedia(bl); hrels += imageRel(n, bl.ext); return "rIdImg\(n)" }
+                    let mine = hspas.filter { hStart + $0.cp >= a && hStart + $0.cp < b }
+                    let pic: (Int) -> String? = { off in DocArt.inline(data: dataStream, at: off, rid: { bl in add(bl) }) }
+                    let runs = shapeRuns(mine, shift: hStart, art: art, boxes: hboxes, boxStart: boxStart + fib.ccpTxbx, add: add, pic: pic)
+                    return (runs, hrels, pic)
+                }
+            }
+        }
+        // Sections: each ends at a section mark; the last one's properties close the body.
+        var ends: [Int: String] = [:]
+        var last = "", lastEnd = fib.ccpText
+        if let sed = fib.range(DocFib.fcPlcfSed).flatMap({ DocProps.plex(tbl, at: $0.fc, count: $0.lcb, size: 12) }), sed.cps.count > 1 {
+            for k in 0 ..< sed.cps.count - 1 {
+                let fc = OfficeArt.u32(tbl, sed.at + 12 * k + 2)
+                var g: [UInt8] = []
+                if fc != 0xFFFF_FFFF, fc + 2 <= w.count { let n = OfficeArt.u16(w, fc); if fc + 2 + n <= w.count { g = Array(w[fc + 2 ..< fc + 2 + n]) } }
+                let sp = DocProps.sectPr(g, refs: refs(section: k))
+                let end = min(sed.cps[k + 1], fib.ccpText)
+                if k == sed.cps.count - 2 { last = sp; lastEnd = end } else if end > 0 { ends[end - 1] = sp }
+            }
+        }
+        if last.isEmpty { last = DocProps.sectPr([], refs: "") }
+        var ctx = StoryContext(); ctx.sectEnds = ends; ctx.footnotes = fnMap; ctx.endnotes = enMap; ctx.comments = cmMap; ctx.shapes = mainShapes; ctx.picture = picture
+        let body = story(0, fib.ccpText, ctx)
+        for x in imageTypes.sorted() {
+            let ct = ["png": "image/png", "jpeg": "image/jpeg", "bmp": "image/bmp", "emf": "image/x-emf", "wmf": "image/x-wmf", "tiff": "image/tiff", "pict": "image/pict"][x] ?? "application/octet-stream"
+            types += "<Default Extension=\"\(x)\" ContentType=\"\(ct)\"/>"
+        }
+        _ = lastEnd
+        let df = st.flatMap { $0.font < fonts.count && !fonts[$0.font].isEmpty ? fonts[$0.font] : nil } ?? "Times New Roman"
+        let dflt = "<w:rFonts w:ascii=\"\(df)\" w:hAnsi=\"\(df)\" w:eastAsia=\"\(df)\" w:cs=\"\(df)\"/>"
+        // Odd and even pages have their own headers when the document properties say so (the first flag of the DOP).
+        let facing = fib.range(31).map { $0.fc < tbl.count && tbl[$0.fc] & 1 != 0 } ?? false
+        var settings: [ZipEntry] = []
+        if facing {
+            settings = [e("word/settings.xml", head + "<w:settings \(ns)><w:evenAndOddHeaders/></w:settings>")]
+            rels += "<Relationship Id=\"rIdSet\" Type=\"\(relBase)settings\" Target=\"settings.xml\"/>"
+            types += "<Override PartName=\"/word/settings.xml\" ContentType=\"\(ctBase)settings+xml\"/>"
+        }
+        if let ls = fib.range(73), let nx = DocProps.numbering(tbl, lst: ls, lfo: fib.range(74), fonts: fonts) {
+            extra.append(e("word/numbering.xml", head + "<w:numbering \(ns)>" + nx + "</w:numbering>"))
+            rels += "<Relationship Id=\"rIdNum\" Type=\"\(relBase)numbering\" Target=\"numbering.xml\"/>"
+            types += "<Override PartName=\"/word/numbering.xml\" ContentType=\"\(ctBase)numbering+xml\"/>"
+        }
+        let styleXml = (st?.xml.isEmpty ?? true) ? "<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"S0\"><w:name w:val=\"Normal\"/></w:style>" : st!.xml
         return [
-            e("[Content_Types].xml", "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/><Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/></Types>"),
-            e("_rels/.rels", "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/></Relationships>"),
-            e("word/_rels/document.xml.rels", "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/></Relationships>"),
-            e("word/styles.xml", "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:styles \(ns)><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii=\"Times New Roman\" w:hAnsi=\"Times New Roman\" w:eastAsia=\"Times New Roman\" w:cs=\"Times New Roman\"/><w:sz w:val=\"20\"/><w:szCs w:val=\"20\"/></w:rPr></w:rPrDefault><w:pPrDefault/></w:docDefaults><w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/></w:style></w:styles>"),
-            e("word/document.xml", "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><w:document \(ns)><w:body>" + body + "<w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/><w:pgMar w:top=\"1440\" w:right=\"1800\" w:bottom=\"1440\" w:left=\"1800\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/></w:sectPr></w:body></w:document>"),
-        ]
+            e("[Content_Types].xml", head + "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"\(ctBase)document.main+xml\"/><Override PartName=\"/word/styles.xml\" ContentType=\"\(ctBase)styles+xml\"/>" + types + "</Types>"),
+            e("_rels/.rels", head + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"\(relBase)officeDocument\" Target=\"word/document.xml\"/></Relationships>"),
+            e("word/_rels/document.xml.rels", head + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"\(relBase)styles\" Target=\"styles.xml\"/>" + rels + "</Relationships>"),
+            e("word/styles.xml", head + "<w:styles \(ns)><w:docDefaults><w:rPrDefault><w:rPr>\(dflt)<w:sz w:val=\"20\"/><w:szCs w:val=\"20\"/></w:rPr></w:rPrDefault><w:pPrDefault/></w:docDefaults>" + styleXml + "</w:styles>"),
+            e("word/document.xml", head + "<w:document \(ns)><w:body>" + body + last + "</w:body></w:document>"),
+        ] + extra + settings + media
     }
 
     /// A binary Word document as a .docx package, or nil.

@@ -115,7 +115,7 @@ extension RichLayout {
         func nestedGap(_ column: _SplitColumn) -> Double {
             let r = nestedRepeat(column)
             guard r > 0 else { return 0 }
-            return r + max(0, _cells[column.members[0]]!.pad.top - _pg_ruleUnder(&pgs, document, c, parted: true)) + 0.3 * _cells[column.members[0]]!.pad.top
+            return r + max(0, _cells[column.members[0]]!.pad.top - (_pg_partedOpensUnderNoLine(document, c) ? max(0, c.rules - c.ruleBelow) : _pg_ruleUnder(&pgs, document, c, parted: true))) + 0.3 * _cells[column.members[0]]!.pad.top
         }
         // (A flattened row, a floating table's, is no shorter than its least height on EACH page its part stands on:
         // lab nf1, Word for Windows — the last part of lo-c7082c66's float row, six lines on page 4, stands 169.6pt

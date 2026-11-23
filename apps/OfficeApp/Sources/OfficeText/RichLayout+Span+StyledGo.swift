@@ -518,6 +518,11 @@ extension _StyledFrame {
                         RuleTrace.hit("word-myanmar-letters-are-a-myanmar-text-line")
                         return ("myanmar text", 1)
                     }
+                    // (Khmer letters, in any run: Noto Sans Khmer and the rest are missing on Windows and Word draws them in Khmer UI, its line 1.1318 em; dx2 5a4c85e0.)
+                    if text.unicodeScalars.contains(where: { $0.value >= 0x1780 && $0.value <= 0x17FF }) {
+                        RuleTrace.hit("word-khmer-letters-are-khmer-ui")
+                        return ("khmer ui", 1)
+                    }
                     // (Sinhala letters, in any run: Word draws them in Nirmala UI, whose line is 1.079 + 0.251 em; dx2 827a8947.)
                     if text.unicodeScalars.contains(where: { $0.value >= 0xD80 && $0.value <= 0xDFF }) {
                         RuleTrace.hit("word-sinhala-letters-are-a-nirmala-ui-line")
@@ -792,6 +797,14 @@ extension _StyledFrame {
                     // 標楷體's half em, 8.5, and the line "…672％)，然上開「允建樓地板面"
                     // took the "積" Word sends down.)
                     && !(latinDash && RichTextTheme.wordWindowsPages && (ch == "\u{00D7}" || ch == "\u{00F7}"))
+                // (A space beside an em dash, in a document whose East Asian text is Chinese, is the East Asian face's half em: dx2 817e3a79fcd7's
+                // footer "— 1 —", 9 pt Calibri over 宋体, Word's print puts the digit 12.72 and the closing dash 9.12 after the first, spaces of
+                // 4.5 where Calibri's are 2.0.)
+                // (Not in a run hinted East Asian: zh-4e5fe46f's footer "— 10 —", its runs hinted, 12pt Times over 宋体, has Word's digit 17.76 after
+                // the dash, the space the Latin face's 3.3; the unhinted runs of dx2 817e3a79fcd7 take the half em.)
+                var emDashSpace = false
+                if ch == " ", !ea, theme.wordRules, RichTextTheme.wordWindowsPages, document.eastAsiaLanguage?.hasPrefix("zh") == true, !hinted,
+                   following == "\u{2014}" || ctx.before == "\u{2014}" { ea = true; emDashSpace = true }
                 kind = ea ? -1 : (classed ? RichResolvedFace.characterClass(ch) : 0)
                 // (Circles, squares and stars in an East Asian run are the East Asian face's glyph
                 // — an em wide, 0.86 across — not the Latin stand-in's small one: kind -4.)
@@ -1105,6 +1118,7 @@ extension _StyledFrame {
                 insideWide = !wideIndicWords.isEmpty && wideIndicWords.contains { offset > $0.lowerBound && offset < $0.upperBound }
                 // (Myanmar: the line joiner goes before each consonant, so every line that holds Myanmar letters has Myanmar Text's line.)
                 myanmarJoin = indic?.face == "myanmar text" && (ch.unicodeScalars.first.map { $0.value >= 0x1000 && $0.value <= 0x1021 } ?? false)
+                    || (indic?.face == "khmer ui" && ctx.before?.unicodeScalars.last?.value != 0x17D2 && (ch.unicodeScalars.first.map { $0.value >= 0x1780 && $0.value <= 0x17A2 } ?? false))
                 if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, RichLayout._isIndic(u) || myanmarJoin,
                    myanmarJoin || insideWide || !(ctx.before?.unicodeScalars.first.map { RichLayout._isIndic($0.value) || $0.value == 0x200D || $0.value == 0x200C } ?? false) {
                     let face0 = indic?.face
@@ -1449,7 +1463,7 @@ extension _StyledFrame {
                    let eaFace = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                                     ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true),
                    ea || eaFace.malgunSymbols,
-                   var w = (style(kind).fontWeight == .bold ? eaFace.boldOtherAdvances : eaFace.otherAdvances)?[u] {
+                   var w = (style(kind).fontWeight == .bold ? eaFace.boldOtherAdvances : eaFace.otherAdvances)?[u] ?? (emDashSpace ? 0.5 : nil) {
                     // (A run holding ONLY the middle dot has no Hangul to take Batang from, so Word draws it in Malgun
                     // Gothic: 0.2188 em (bold 0.2617), where a dot inside a Hangul run is Batang's 0.333. 28dd0ac0's title.)
                     if u == 0xB7, eaFace.malgunSymbols, theme.wordRules, RichTextTheme.wordWindowsPages, run.loneDot || tcFit {

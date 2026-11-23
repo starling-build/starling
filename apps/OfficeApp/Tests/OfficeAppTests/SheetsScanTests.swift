@@ -107,7 +107,7 @@ final class SheetsScanTests: XCTestCase {
                    "[1]!A1", "[]", "[1", "TRUE", "false", "True(", "foo", "foo.bar", "IF(A1<=1,A1<>2,A1>=3)", "A1&\"x\"", "-A1^2%", "@A1",
                    "Hitab!Divisor", "Hitab!Divisor(", "x!", "1 2", "A1  (B1)", "SUM (A1)", "name (A1)", "A1\t B1", "\n", "A$", "$$1", "$1", "A0",
                    "XFE1", "XFD1048576", "XFD1048577", "AAAA1", "A1048577", "é1", "A1é", "\"é\"", "日本!A1", "A1\u{301}", "a\r\nb", "~", "'", "\\x",
-                   "Sheet1!", "Sheet1!3:5", "Sheet1!A:A", "A1:B", "A:B2", "1:2:3", "R1C1", "LOG10(10)", "A1.5", "1..2", "."]
+                   "IF(A1=\"No ▲\",\"✓\",\"é\")", "\"a\"é", "\"a\"\u{301}", "\"a\"\"\u{301}\"", "'日本'!A1", "'日本'!A1+\"é\"", "'日本'é!A1", "Table1[Ünï]", "Table1[Ünï'[x']]+\"é\"", "A1+é", "\"x\"&é", "Sheet1!",  "Sheet1!3:5", "Sheet1!A:A", "A1:B", "A:B2", "1:2:3", "R1C1", "LOG10(10)", "A1.5", "1..2", "."]
         for s in odd { assertTokensMatch(s) }
         let dir = "/data/corpus-cache/test/corpus/xlsx2/books"
         let names = ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).filter { $0.hasSuffix(".xlsx") }.sorted()

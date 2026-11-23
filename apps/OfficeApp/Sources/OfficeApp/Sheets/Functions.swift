@@ -1256,15 +1256,27 @@ enum SheetFunctions {
             let rgOf: (Int) -> CellRange = { k in
                 let a = areas[k]; return CellRange(top: a.1.top, left: a.1.left, bottom: a.1.top + r - 1, right: a.1.left + cc - 1)
             }
-            // Indexable criteria: exact text or number, no wildcard or operator. Walk the shortest list of matching positions.
-            var best: [Int]? = nil
+            // Indexable criteria: exact text or number, no wildcard or operator. Walk the positions every one of them
+            // allows: the shortest list, kept to the positions found in all the others (each list is ascending, so a
+            // cell's own check below sees the same cells in the same order as before, only fewer of them).
+            var lists: [[Int]] = []
             for k in 0 ..< crits.count where crits[k].op == .eq && crits[k].glob == nil && blocks[k].count > 64
                 && rgOf(k).bottom < CellAddress.maxRows && rgOf(k).right < CellAddress.maxCols {
                 guard CalcEngine.indexKey(crits[k].value) != nil else { continue }
-                let l = c.engine.candidates(areas[k].0, rgOf(k), crits[k].value)
-                if best == nil || l.count < best!.count { best = l }
+                lists.append(c.engine.candidates(areas[k].0, rgOf(k), crits[k].value))
             }
-            if let best {
+            if let shortest = lists.indices.min(by: { lists[$0].count < lists[$1].count }) {
+                var best = lists[shortest]
+                if lists.count > 1 && !best.isEmpty {
+                    for (j, l) in lists.enumerated() where j != shortest {
+                        best = best.filter { i in
+                            var lo = 0, hi = l.count
+                            while lo < hi { let m = (lo + hi) / 2; if l[m] < i { lo = m + 1 } else { hi = m } }
+                            return lo < l.count && l[lo] == i
+                        }
+                        if best.isEmpty { break }
+                    }
+                }
                 for i in best { visit(i) }
             } else {
                 for i in 0 ..< r * cc { visit(i) }
@@ -1374,6 +1386,23 @@ enum SheetFunctions {
             // Only the one matching cell is read, and through value(): never a cached column, so a formula there is calculated first
             // (and a result column reading another lookup is no false cycle).
             return .scalar(c.engine.cellValue(s, CellAddress(row: rg.top + i, col: rg.left + k - 1)))
+        }
+        // A table range: only its key column (or row) is read to find the match, then the one cell asked for, not every cell of
+        // the table (the clip to the used extent is the same as `grid`'s).
+        if case .range(let s, let rg) = tableEv, s >= 0, s < c.engine.book.sheets.count {
+            let used = c.engine.usedExtent(s)
+            let bottom = min(rg.bottom, max(used.row, rg.top)), right = min(rg.right, max(used.col, rg.left))
+            let n = vertical ? bottom - rg.top + 1 : right - rg.left + 1
+            let width = vertical ? right - rg.left + 1 : bottom - rg.top + 1
+            func at(_ i: Int, _ j: Int) -> CellValue {
+                vertical ? c.engine.value(s, CellAddress(row: rg.top + i, col: rg.left + j))
+                         : c.engine.value(s, CellAddress(row: rg.top + j, col: rg.left + i))
+            }
+            let keys = (0 ..< n).map { at($0, 0) }
+            let found = exact ? keys.firstIndex { _wildcard(key, $0) && !$0.isEmpty } : _binary(key, keys, descending: false)
+            guard let i = found else { return .error(.na) }
+            guard k <= width else { return .error(.ref) }
+            return .scalar(at(i, k - 1))
         }
         var g = c.engine.grid(tableEv, c)
         if !vertical {
