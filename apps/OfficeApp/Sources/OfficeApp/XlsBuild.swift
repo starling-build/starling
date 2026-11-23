@@ -223,21 +223,26 @@ enum XlsBuild {
         if fonts.isEmpty { fonts = [XlsFont()] }
         let xfs = resolveXFs(xfRecs)
         st += styleBody(fonts: fonts, xfs: xfs, palette: palette, xfExt: xfExt)
-        add("xl/styles.xml", st + "</styleSheet>")
+        var dxfs: [String] = []
 
         for (n, e) in kept.enumerated() {
-            let xml = sheetXML(recs, from: e.element.position, sst: sst, xfCount: max(1, xfs.count), ctx: ctx)
+            let xml = sheetXML(recs, from: e.element.position, sst: sst, xfCount: max(1, xfs.count), ctx: ctx, palette: palette, dxfs: &dxfs)
             add("xl/worksheets/sheet\(n + 1).xml", xml)
         }
+        // styles.xml last: the conditional formats' differential formats are collected by the sheets.
+        out.removeAll { $0.name == "xl/styles.xml" }
+        add("xl/styles.xml", st + (dxfs.isEmpty ? "" : "<dxfs count=\"\(dxfs.count)\">" + dxfs.joined() + "</dxfs>") + "</styleSheet>")
         return out
     }
 
-    private static func sheetXML(_ recs: [BiffRecord], from position: Int, sst: [String], xfCount: Int, ctx: XlsFormulaContext) -> String {
+    private static func sheetXML(_ recs: [BiffRecord], from position: Int, sst: [String], xfCount: Int, ctx: XlsFormulaContext, palette: [(Int, Int, Int)], dxfs: inout [String]) -> String {
         guard var i = recs.firstIndex(where: { $0.offset == position && $0.type == 0x809 }) else { return emptySheet }
         var cells: [Int: [Int: String]] = [:]
         var rows: [Int: String] = [:]
         var cols: [String] = []
         var merges: [String] = []
+        var cfGroups: [(sqref: String, base: (Int, Int), rules: [String])] = []
+        var cfPriority = 0
         var defColWidth: Int? = nil, stdWidth: Int? = nil
         var defRowHeight: (Int, Bool)? = nil
         var pendingFormula: (Int, Int, Int, String)? = nil
@@ -412,6 +417,74 @@ enum XlsBuild {
             case 0x225 where rec.body.count >= 4:
                 let g = c.u16(), h = c.u16()
                 defRowHeight = (h, g & 2 != 0)
+            case 0x1B0 where rec.body.count >= 18:
+                // CONDFMT: ccf, grbit, bounding range, then the ranges the rules apply to.
+                c.skip(4); let bound = (c.u16(), c.u16(), c.u16(), c.u16())
+                let n = c.u16()
+                var refs: [String] = []
+                var k = 0
+                while k < n, c.pos + 8 <= rec.body.count {
+                    let r1 = c.u16(), r2 = c.u16(), c1 = c.u16(), c2 = c.u16()
+                    if r1 <= r2, c1 <= c2 { refs.append(cellRange(r1, c1, r2, c2)) }
+                    k += 1
+                }
+                cfGroups.append((refs.joined(separator: " "), (bound.0, bound.2), []))
+            case 0x1B1 where rec.body.count >= 12 && !cfGroups.isEmpty:
+                let ct = c.u8(), op = c.u8(), n1 = c.u16(), n2 = c.u16()
+                let fl = c.u32(); c.skip(2)
+                var font = "", border = "", fill = ""
+                if fl & 0x0400_0000 != 0, c.pos + 118 <= rec.body.count {
+                    let b = Array(rec.body[c.pos ..< c.pos + 118]); c.skip(118)
+                    func u32(_ o: Int) -> Int { Int(b[o]) | Int(b[o + 1]) << 8 | Int(b[o + 2]) << 16 | Int(b[o + 3]) << 24 }
+                    let style = u32(68), weight = Int(b[72]) | Int(b[73]) << 8, ul = Int(b[76]), color = u32(80), opt = u32(88)
+                    if opt & 2 == 0 {
+                        if weight >= 700 { font += "<b/>" }
+                        font += style & 2 != 0 ? "<i/>" : "<i val=\"0\"/>"
+                    }
+                    if opt & 0x80 == 0, style & 0x80 != 0 { font += "<strike/>" }
+                    if opt & 0x10 == 0, ul != 0, ul != 0xFF { font += ul == 2 ? "<u val=\"double\"/>" : "<u/>" }
+                    if color != 0xFFFF_FFFF, color != 0x7FFF, let hex = rgb(color, palette) { font += "<color rgb=\"FF\(hex)\"/>" }
+                }
+                if fl & 0x1000_0000 != 0, c.pos + 8 <= rec.body.count {
+                    let ls = c.u16(), cl = Int(c.u32()); c.skip(2)
+                    func side(_ tag: String, _ st: Int, _ icv: Int) -> String {
+                        guard st > 0, st < lineStyles.count else { return "" }
+                        return "<\(tag) style=\"\(lineStyles[st])\">" + colorTag("color", icv, palette) + "</\(tag)>"
+                    }
+                    border = side("left", ls & 0xF, cl & 0x7F) + side("right", ls >> 4 & 0xF, cl >> 7 & 0x7F)
+                        + side("top", ls >> 8 & 0xF, cl >> 16 & 0x7F) + side("bottom", ls >> 12 & 0xF, cl >> 23 & 0x7F)
+                }
+                if fl & 0x2000_0000 != 0, c.pos + 4 <= rec.body.count {
+                    let pt = c.u16(), cl = c.u16()
+                    let pat = pt >> 10 & 0x3F, fg = cl & 0x7F, bg = cl >> 7 & 0x7F
+                    if pat > 0, pat < patterns.count {
+                        // In a differential format a solid fill's colour is its background colour.
+                        if pat == 1 { fill = "<patternFill patternType=\"solid\">" + colorTag("bgColor", bg, palette) + "</patternFill>" }
+                        else { fill = "<patternFill patternType=\"\(patterns[pat])\">" + (fg == 64 ? "" : colorTag("fgColor", fg, palette)) + (bg == 65 ? "" : colorTag("bgColor", bg, palette)) + "</patternFill>" }
+                    } else if pat == 0, bg != 65 { fill = "<patternFill>" + colorTag("bgColor", bg, palette) + "</patternFill>" }
+                }
+                let t1 = c.pos + n1 <= rec.body.count ? Array(rec.body[c.pos ..< c.pos + n1]) : []
+                c.skip(n1)
+                let t2 = c.pos + n2 <= rec.body.count ? Array(rec.body[c.pos ..< c.pos + n2]) : []
+                let base = cfGroups[cfGroups.count - 1].base
+                let f1 = n1 > 0 ? XlsFormula.decompile(t1, row: base.0, col: base.1, relative: true, ctx: ctx) : nil
+                let f2 = n2 > 0 ? XlsFormula.decompile(t2, row: base.0, col: base.1, relative: true, ctx: ctx) : nil
+                let ops = ["", "between", "notBetween", "equal", "notEqual", "greaterThan", "lessThan", "greaterThanOrEqual", "lessThanOrEqual"]
+                guard let f1v = f1, ct == 1 || ct == 2 else { break }
+                var d = "<dxf>"
+                if !font.isEmpty { d += "<font>" + font + "</font>" }
+                if !fill.isEmpty { d += "<fill>" + fill + "</fill>" }
+                if !border.isEmpty { d += "<border>" + border + "</border>" }
+                d += "</dxf>"
+                let id: Int
+                if let k = dxfs.firstIndex(of: d) { id = k } else { dxfs.append(d); id = dxfs.count - 1 }
+                cfPriority += 1
+                var rule = "<cfRule type=\"\(ct == 1 ? "cellIs" : "expression")\" dxfId=\"\(id)\" priority=\"\(cfPriority)\" stopIfTrue=\"1\""
+                if ct == 1 { rule += " operator=\"\(op < ops.count && op > 0 ? ops[op] : "equal")\"" }
+                rule += "><formula>\(esc(f1v))</formula>"
+                if ct == 1, op == 1 || op == 2, let f2v = f2 { rule += "<formula>\(esc(f2v))</formula>" }
+                rule += "</cfRule>"
+                cfGroups[cfGroups.count - 1].rules.append(rule)
             case 0xE5 where rec.body.count >= 2:
                 let n = c.u16()
                 var k = 0
@@ -463,6 +536,9 @@ enum XlsBuild {
         }
         x += "</sheetData>"
         if !merges.isEmpty { x += "<mergeCells count=\"\(merges.count)\">" + merges.joined() + "</mergeCells>" }
+        for g in cfGroups where !g.rules.isEmpty && !g.sqref.isEmpty {
+            x += "<conditionalFormatting sqref=\"\(g.sqref)\">" + g.rules.joined() + "</conditionalFormatting>"
+        }
         x += pageXML(setup: setup, margins: margins, hdrFtr: hdrFtr, margin2: hdrFtrMargins, grid: printGrid, heads: printHeads, hc: hCenter, vc: vCenter, hBreaks: hBreaks, vBreaks: vBreaks)
         return x + "</worksheet>"
     }

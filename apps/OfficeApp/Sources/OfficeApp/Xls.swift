@@ -93,6 +93,12 @@ enum Xls {
         let sh = sheets(recs)
         text += "sheets: \(sh.count)\n"
         for s in sh { text += "  \(s.name) kind=\(s.kind) hidden=\(s.hidden)\n" }
+        // STARLING_XLS_HEX=0x1b1 lists the bytes of every record of that type.
+        if let h = ProcessInfo.processInfo.environment["STARLING_XLS_HEX"], let want = UInt16(h.dropFirst(2), radix: 16) {
+            for r in recs where r.type == want {
+                text += "rec 0x" + String(want, radix: 16) + ": " + r.body.map { String($0, radix: 16).count == 1 ? "0" + String($0, radix: 16) : String($0, radix: 16) }.joined() + "\n"
+            }
+        }
         return text
     }
 
