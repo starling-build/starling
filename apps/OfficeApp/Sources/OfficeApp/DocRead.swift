@@ -344,6 +344,11 @@ enum DocRead {
             rels += "<Relationship Id=\"rIdSet\" Type=\"\(relBase)settings\" Target=\"settings.xml\"/>"
             types += "<Override PartName=\"/word/settings.xml\" ContentType=\"\(ctBase)settings+xml\"/>"
         }
+        if let ls = fib.range(73), let nx = DocProps.numbering(tbl, lst: ls, lfo: fib.range(74), fonts: fonts) {
+            extra.append(e("word/numbering.xml", head + "<w:numbering \(ns)>" + nx + "</w:numbering>"))
+            rels += "<Relationship Id=\"rIdNum\" Type=\"\(relBase)numbering\" Target=\"numbering.xml\"/>"
+            types += "<Override PartName=\"/word/numbering.xml\" ContentType=\"\(ctBase)numbering+xml\"/>"
+        }
         let styleXml = (st?.xml.isEmpty ?? true) ? "<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"S0\"><w:name w:val=\"Normal\"/></w:style>" : st!.xml
         return [
             e("[Content_Types].xml", head + "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"\(ctBase)document.main+xml\"/><Override PartName=\"/word/styles.xml\" ContentType=\"\(ctBase)styles+xml\"/>" + types + "</Types>"),
