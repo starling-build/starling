@@ -57,7 +57,7 @@ final class SheetsPrintTests: XCTestCase {
         ]
         let s = SheetPrintSetup.read(ws)
         XCTAssertTrue(s.landscape)
-        XCTAssertEqual(s.pageSize.width, 841.89, accuracy: 0.01)    // A4 on its side
+        XCTAssertEqual(s.pageSize.width, 841.92, accuracy: 0.01)    // A4 on its side: 7016 dots of 600 dpi
         XCTAssertEqual(s.left, 18, accuracy: 1e-9)
         XCTAssertEqual(s.fitWidth, 1)
         XCTAssertEqual(s.fitHeight, 0)
