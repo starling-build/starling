@@ -2775,10 +2775,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // 0.34 to 0.43 under the left, against cells that stood 0.48 left
         // of Excel's (SheetPrint's inset) — with the cells in place,
         // bug62181's right-aligned numbers stood 0.45 right of Excel's.
-        let margin = printing
+        // (Four printer dots more at the left, whatever the scale: the cells' first rule now stands where Excel's does, not four dots right of it — the column lab's text starts 20 18 17 14 12 10 dots in at six scales, 4 + 16 x scale.)
+        let fixed4 = printing && printTextScale > 0 ? 4 * 72 / 600 * scale / printTextScale : 0
+        let rightMargin0 = printing
             ? 0.48 + SheetPrintMetrics.of(family: book.fontName(st), size: book.fontSize(st), bold: st.bold).digit / 4
             : pad
-        let rightMargin = margin
+        let margin = rightMargin0 + fixed4
+        // (Right-aligned text stands 12 12 11 10 8 7 dots in at the six scales: 4 + 8 x scale, 8 x scale dots under the left's.)
+        let rightMargin = printing && printTextScale > 0 ? rightMargin0 - 0.96 * scale + fixed4 : rightMargin0
         // And centred text four printer dots right of the middle: 0.45 pt
         // on the median in Excel's prints of 56 workbooks, merged or not, at
         // page scales 53% to 100% alike, and of a General TRUE or #N/A in 27
