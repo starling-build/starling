@@ -142,6 +142,10 @@ public final class RichEditableState: State<StatefulWidget> {
     private var _selHandle: (fixed: RichPosition?, grabDY: Double, moved: Bool)? = nil
     /// A knob under the caret to drag it, after a finger placed it.
     private var _caretHandleShown = false
+    /// Where the finger is while a handle is dragged: the magnifier follows it.
+    private var _loupeAt: Offset? = nil
+    static let loupeRadius = 52.0
+    static let loupeZoom = 1.6
     private var _longPressGen = 0
     private var _longPressed = false
     private var _lastTap: (at: Double, pos: Offset) = (0, Offset(-100, -100))
@@ -780,6 +784,7 @@ public final class RichEditableState: State<StatefulWidget> {
         _dragging = false
         _touchScroll = nil
         _selHandle = nil
+        _loupeAt = nil
         _longPressed = false
         _longPressGen += 1
         _unitDrag = nil
@@ -919,6 +924,7 @@ public final class RichEditableState: State<StatefulWidget> {
                 _controller.moveTo(pos, extend: false)
             }
             _selHandle?.moved = true
+            _loupeAt = event.localPosition
             _repaint.notifyListeners()
             return
         }
@@ -1020,6 +1026,7 @@ public final class RichEditableState: State<StatefulWidget> {
     private func _pointerUp(_ event: PointerEvent) {
         if let h = _selHandle {
             _selHandle = nil
+            _loupeAt = nil
             _w.onSelectionGestureEnd?()
             _repaint.notifyListeners()
             // A dragged caret just stays; a tap on its knob, or a range handle, asks for the menu.
@@ -1200,19 +1207,20 @@ public final class RichEditableState: State<StatefulWidget> {
         let focused = _focus.hasFocus
         let caretRect = _layout.count > 0 ? _layout.canvasCaretRect(_controller.caret, _controller.document) : nil
         let pageColor = _w.pageColor
+        let pageBackground: (Int, Rect) -> Void = { _, rect in
+            let shadow = Paint()
+            shadow.color = Color(0x22000000)
+            shadow.style = .fill
+            canvas.drawRect(rect.shift(Offset(0, 2)).inflate(1), shadow)
+            let paper = Paint()
+            paper.color = pageColor
+            paper.style = .fill
+            canvas.drawRect(rect, paper)
+        }
         _layout.paint(canvas, visible: visible, document: _controller.document,
                       selection: _controller.selection,
                       caret: (focused && _caretVisible && _controller.selection.isCollapsed) ? caretRect : nil,
-                      pageBackground: { _, rect in
-                          let shadow = Paint()
-                          shadow.color = Color(0x22000000)
-                          shadow.style = .fill
-                          canvas.drawRect(rect.shift(Offset(0, 2)).inflate(1), shadow)
-                          let paper = Paint()
-                          paper.color = pageColor
-                          paper.style = .fill
-                          canvas.drawRect(rect, paper)
-                      })
+                      pageBackground: pageBackground)
         // Paragraphs shown for the first time get checked after an idle,
         // not in the paint: NSSpellChecker takes milliseconds on a bad one.
         if !_layout.pendingSpellChecks.isEmpty, !_spellScheduled {
@@ -1307,6 +1315,43 @@ public final class RichEditableState: State<StatefulWidget> {
                 canvas.drawRRect(knob, fill)
                 canvas.drawRRect(knob, rim)
             }
+        }
+
+        // The magnifier over a dragged handle: the same text again, larger, in a
+        // circle above the line (below it when the line is at the top edge).
+        if let finger = _loupeAt, _selHandle != nil, size.width > 0, _layout.count > 0 {
+            let r = Self.loupeRadius, z = Self.loupeZoom
+            // What it shows: the caret being dragged, in view coordinates.
+            let cb = _layout.canvasCaretRect(_controller.caret, _controller.document)
+            let src = Offset(cb.left + _originX, cb.top + cb.height / 2 + pad.top - _scrollY)
+            let cx = min(max(finger.dx, r + 4), size.width - r - 4)
+            var cy = src.dy - r - 46
+            if cy - r < 4 { cy = src.dy + r + 70 }
+            let circle = RRect(fromRectAndRadius: Rect.fromLTWH(cx - r, cy - r, r * 2, r * 2), Radius(circular: r))
+            let shade = Paint()
+            shade.style = .fill
+            shade.color = Color(0x30000000)
+            canvas.drawCircle(Offset(cx, cy + 2), r + 1, shade)
+            canvas.save()
+            canvas.clipRRect(circle)
+            let back = Paint()
+            back.style = .fill
+            back.color = _w.backgroundColor ?? Color(0xFFFFFFFF)
+            canvas.drawRect(Rect.fromLTWH(cx - r, cy - r, r * 2, r * 2), back)
+            canvas.translate(cx, cy)
+            canvas.scale(z, z)
+            canvas.translate(-src.dx, -src.dy)
+            canvas.translate(_originX, pad.top - _scrollY)
+            let half = r / z
+            let around = Rect.fromLTWH(src.dx - _originX - half, src.dy - pad.top + _scrollY - half, half * 2, half * 2)
+            _layout.paint(canvas, visible: around, document: _controller.document,
+                          selection: _controller.selection, caret: nil, pageBackground: pageBackground)
+            canvas.restore()
+            let rim = Paint()
+            rim.style = .stroke
+            rim.strokeWidth = 2
+            rim.color = _layout.theme.selectionColor.withOpacity(1)
+            canvas.drawCircle(Offset(cx, cy), r, rim)
         }
 
         // Scrollbar thumb.
