@@ -25,6 +25,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       heavy: ${{ steps.c.outputs.heavy }}
+      tool: ${{ steps.c.outputs.tool }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,13 +44,26 @@ jobs:
           n=$(wc -l < files.txt); echo "changed files: $n"; head -5 files.txt
           PAT=$(grep -vE '^#|^$' test/tools/render-paths.txt | paste -sd'|')
           TOOL='^\.github/workflows/render-gate|^test/tools/(render-gate|docx-pair|docx-combine|docx-line-match|docx-line-sweep|gen-render-paths|slides-gate|pptx-combine)|^test/docx-line-match\.py|^test/pptx-line-match\.py|^test/tools/render-paths\.txt'
+          # a change to the gate tooling itself still builds/self-tests in its pull_request run (a broken gate would fail every group)
+          if grep -qE "$TOOL" files.txt; then echo tool=1 >> "$GITHUB_OUTPUT"; else echo tool=0 >> "$GITHUB_OUTPUT"; fi
           if [ "$n" -eq 0 ] || grep -qE "$PAT|$TOOL" files.txt; then echo heavy=1 >> "$GITHUB_OUTPUT"; echo "render-relevant: the gate runs"; else echo heavy=0 >> "$GITHUB_OUTPUT"; echo "no render-relevant change: no runner needed"; fi
   render-gate-run:
     needs: classify
-    if: needs.classify.outputs.heavy == '1'
+    # (amd-8, 2026-11-23, coordinator) with a merge queue the pull_request run takes NO self-hosted runner unless it changes the gate tooling: the group run builds and renders
+    if: needs.classify.outputs.heavy == '1' && (github.event_name == 'merge_group' || needs.classify.outputs.tool == '1')
     runs-on: [self-hosted, linux, starling-render]
     timeout-minutes: 90
     steps:
+      # (amd-8, 2026-11-23, coordinator) the queue rebuilds a group's ref when an earlier entry changes; the old group's run keeps its place in line and would
+      # render a commit nobody will merge. A merge_group run whose queue ref is gone stops here, before it takes the runner for anything.
+      - name: Stop if this group was rebuilt
+        if: github.event_name == 'merge_group'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GROUP_REF: ${{ github.event.merge_group.head_ref }}
+        run: |
+          R="${GROUP_REF#refs/}"
+          if ! gh api "repos/${{ github.repository }}/git/ref/${R}" >/dev/null 2>&1; then echo "queue ref ${GROUP_REF} is gone (the queue rebuilt this group): nothing to test"; exit 1; fi
       # One persistent clone per runner ($HOME/clone): fetch the two commits into it instead of a fresh checkout every run.
       - name: Update persistent clone
         env:
