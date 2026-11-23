@@ -1754,7 +1754,9 @@ private struct SlideContext {
                 // whole thing — and draw it as that fallback's shapes (or the
                 // choice's, where the fallback holds nothing this app reads:
                 // tdf131553's diagram sits in one of each).
-                var o = _opaque(el, label: "Object", transform, id: id)
+                let x0 = el.first("p:xfrm") ?? el.first("p:spPr")?.first("a:xfrm") ?? el.first("p:grpSpPr")?.first("a:xfrm")
+                    ?? el.descendant("a:xfrm") ?? el.descendant("p:xfrm")
+                var o = _opaque(el, label: "Object", transform, id: id, framed: false)
                 if case .opaque(var obj)? = o?.kind {
                     // An equation the math engine can lay out is drawn as text from the choice; the fallback picture only where it cannot.
                     let mathChoice = el.first("mc:Choice").map { c in
@@ -1773,6 +1775,8 @@ private struct SlideContext {
                         }
                     }
                     o?.kind = .opaque(obj)
+                    // A placeholder with no xfrm of its own (the layout gives the frame) has no box in the file: the drawn shape's is the object's.
+                    if x0 == nil, let f = obj.rendering.first?.frame { o?.frame = f }
                 }
                 add(o, el)
             default: continue
@@ -3625,11 +3629,11 @@ private struct SlideContext {
         return "Object"
     }
 
-    private func _opaque(_ el: XNode, label: String, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {
+    private func _opaque(_ el: XNode, label: String, _ transform: ((Rect) -> Rect)?, id: () -> Int, framed: Bool = true) -> ShapeState? {
         let x = el.first("p:xfrm") ?? el.first("p:spPr")?.first("a:xfrm") ?? el.first("p:grpSpPr")?.first("a:xfrm")
             ?? el.descendant("a:xfrm") ?? el.descendant("p:xfrm")
-        guard var frame = x.flatMap(_xfrmRect) else { return nil }
-        if let t = transform { frame = t(frame) }
+        guard var frame = x.flatMap(_xfrmRect) ?? (framed ? nil : Rect.fromLTWH(0, 0, 0, 0)) else { return nil }
+        if x != nil, let t = transform { frame = t(frame) }
         let name = el.descendant("p:cNvPr")?["name"] ?? label
         return ShapeState(id: id(), name: name,
                           kind: .opaque(OpaqueObject(xml: PptxXML.serialize(el), label: label, sourcePart: part)),
