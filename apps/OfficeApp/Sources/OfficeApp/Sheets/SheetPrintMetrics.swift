@@ -64,6 +64,14 @@ struct SheetPrintMetrics {
         (h * scale * 600 / 72 + 0.12).rounded(.down) * 72 / 600
     }
 
+    /// A row of a face the print box has but the tables lack: its stored height
+    /// is a whole number of 96-dpi screen pixels, and Excel prints each pixel as
+    /// 6.35 printer dots, rounded to a whole dot (Noto Sans 11: 16.5 pt = 22 px
+    /// = 140 dots; Roboto 10: 12.75 pt = 17 px = 108 dots).
+    static func screenPixelRow(_ pt: Double) -> Double {
+        ((pt * 96 / 72).rounded() * 6.35).rounded() * 72 / 600
+    }
+
     func fittedRow(_ font: SheetPrintMetrics) -> Double {
         font.screenRow * 72 / 192 * rowScale
     }
