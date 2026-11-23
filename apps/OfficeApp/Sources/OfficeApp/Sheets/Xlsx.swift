@@ -330,6 +330,7 @@ enum Xlsx {
                bytes[k + 2] == UInt8(ascii: " ") || bytes[k + 2] == UInt8(ascii: ">") { cellTags += 1; k += 3 } else { k += 1 }
         }
         cells.reserveCapacity(cellTags)
+        var rowsSeen: Set<Int> = []
         part.forEach { row in
             rowIndex = Int(row["r"] ?? "").map { $0 - 1 } ?? rowIndex
             let rowExtra = row.attrs.filter { !["r", "ht", "customHeight", "hidden", "spans"].contains($0.key) }
@@ -357,6 +358,7 @@ enum Xlsx {
             // not the fitted 14.52 — a page more than ours).
             // (xsd:boolean: LibreOffice writes "true" where Excel writes "1".)
             let rowHidden = row["hidden"] == "1" || row["hidden"] == "true"
+            rowsSeen.insert(rowIndex)
             if rowHidden, let af = ws.autoFilter, rowIndex > af.range.top, rowIndex <= af.range.bottom {
                 ws.filteredRows.insert(rowIndex)
                 if let h = Double(row["ht"] ?? ""), setHeight || abs(h - ws.defaultRowHeightPt) > 0.01 { ws.rowHeights[rowIndex] = h }
@@ -451,6 +453,12 @@ enum Xlsx {
                 cells[a] = cell
             }
             rowIndex += 1
+        }
+        // A sheet whose rows are hidden by default (zeroHeight): only the rows
+        // the file lists show. pt-734a1b506b's Índice lists rows 1-35 and
+        // 48-53, and Excel prints 621 pt of it, not the 800 of all 53.
+        if ["1", "true"].contains(format?["zeroHeight"] ?? ""), let last = rowsSeen.max(), last < 20000 {
+            for r in 0 ..< last where !rowsSeen.contains(r) { ws.hiddenRows.insert(r) }
         }
         // The spill values an array formula left in the file go: computing it
         // puts them back (where the formula cannot be computed, they stay).
@@ -706,6 +714,7 @@ enum Xlsx {
                 default: break
                 }
                 s.wrap = al["wrapText"] == "1" || al["wrapText"] == "true" || justified
+                s.readingOrder = Int(al["readingOrder"] ?? "") ?? 0
                 s.indent = max(0, min(250, Int(al["indent"] ?? "") ?? 0))
                 s.rotation = Int(al["textRotation"] ?? "") ?? 0
             }

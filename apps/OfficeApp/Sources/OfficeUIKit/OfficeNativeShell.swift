@@ -61,6 +61,32 @@ public enum OfficeNativeShell {
         shell.presentExport(name: name, prepare: prepare, thenOpen: thenOpen, done: done)
     }
 
+    /// The buttons of the bar over the keyboard (nil: none). Safe to call on
+    /// the main thread only.
+    public static func setToolbar(_ buttons: [OfficeToolbarButton]?) {
+        latestToolbar = buttons
+        shared?.toolbar.update(buttons)
+    }
+
+    /// The last buttons published, kept for an editor that mounted before the
+    /// browser had the bar in its view.
+    nonisolated(unsafe) fileprivate static var latestToolbar: [OfficeToolbarButton]?
+
+    /// The system print dialog over a PDF the editor rendered. The file is a
+    /// temporary one; it goes when the dialog is done.
+    public static func printPDF(_ path: String) {
+        let url = URL(fileURLWithPath: path)
+        let controller = UIPrintInteractionController.shared
+        let info = UIPrintInfo(dictionary: nil)
+        info.outputType = .general
+        info.jobName = url.deletingPathExtension().lastPathComponent
+        controller.printInfo = info
+        controller.printingItem = url
+        controller.present(animated: true) { _, _, _ in
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
     /// Whether a document is being edited right now.
     public static var isEditing: Bool { shared?.session != nil }
 
@@ -124,11 +150,13 @@ private final class EditingSession {
 
 final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocumentBrowserViewControllerDelegate {
     private let editor: UIViewController
+    fileprivate let toolbar: EditorToolbar
     fileprivate var session: EditingSession?
     private let queue = DispatchQueue(label: "office.writeback")
 
     init(editor: UIViewController) {
         self.editor = editor
+        self.toolbar = EditorToolbar(host: editor)
         let types = [
             "org.openxmlformats.wordprocessingml.document",
             "org.openxmlformats.presentationml.presentation",
@@ -203,7 +231,11 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
             // The document is handed over once the editor is on screen: the
             // engine only takes a frame request while its view is attached,
             // and a setState before that is a frame that is never drawn.
-            present(editor, animated: true) { OfficeNativeShell.onOpenDocument?(path) }
+            present(editor, animated: true) {
+                self.toolbar.attach()
+                self.toolbar.update(OfficeNativeShell.latestToolbar)
+                OfficeNativeShell.onOpenDocument?(path)
+            }
         } else {
             OfficeNativeShell.onOpenDocument?(path)
         }

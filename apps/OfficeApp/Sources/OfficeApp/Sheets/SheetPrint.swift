@@ -257,7 +257,8 @@ enum SheetPrintLayout {
             s = 1
             let totalW = cols.reduce(0) { $0 + width($1) }, totalH = rows.reduce(0) { $0 + height($1) }
             if let n = setup.fitWidth, n > 0 { s = min(s, availW0 * Double(n) / (totalW + titleWidth * Double(n))) }
-            if let n = setup.fitHeight, n > 0 { s = min(s, availH0 * Double(n) / (totalH + titleHeight * Double(n))) }
+            // Excel counts the repeated title rows once more than the page count when fitting the height (fr-c8df50734c, 2 pages: 92%, not 94%).
+            if let n = setup.fitHeight, n > 0 { s = min(s, availH0 * Double(n) / (totalH + titleHeight * Double(n + 1))) }
             // Excel's fit is a whole percent, the largest at which the pages
             // asked for hold everything.
             s = max(0.1, (s * 100).rounded(.down) / 100)
@@ -284,7 +285,9 @@ enum SheetPrintLayout {
         var colBands: [[Int]] = [], rowBands: [[Int]] = []
         while true {
             let availW = max(18, availW0 - titleWidth * s), availH = max(18, availH0 - titleHeight * s)
-            // (Fitting ignores manual breaks: they are for the unfitted sheet.)
+            // (Fitting ignores manual breaks: they are for the unfitted sheet. Not
+            // the rows' where the pages tall are left automatic (fitToHeight 0):
+            // pt-84f1d99f8e's break after row 41 is a page in Excel's print.)
             let fitting = setup.fitWidth != nil || setup.fitHeight != nil
             // (Columns leave the same at a page's side: a lab of 230-dot columns
             // fits 18 with 12 dots to spare, 17 with 6 or none.)
@@ -297,7 +300,7 @@ enum SheetPrintLayout {
             // lo-tdf113271's pages after the first, 5 dots short of that, hold
             // a row fewer than ours did.)
             let foot = 8.0 * 72 / 600
-            rowBands = bands(rows, height, availH - foot, fitting ? [] : setup.rowBreaks,
+            rowBands = bands(rows, height, availH - foot, fitting && setup.fitHeight != 0 ? [] : setup.rowBreaks,
                              own: (titleRowsEnd, max(18, availH0 - headHeight * s) - foot), wholeDots: fitting)
             // Rows and columns do not split, so the arithmetic's scale can
             // still be a page over: a percent less until it is not.
@@ -332,6 +335,7 @@ extension SheetGridState {
         printing = true
         defer {
             printing = false
+            _clearReachMemo()
             printRowScale = 0
             printColumnMax = 0
             printMono = false
@@ -562,7 +566,8 @@ extension SheetGridState {
                 let inset = 0.48
                 // (Down a centred page likewise, as if 0.96 taller: AverageTaxRates'
                 // rules, centred both ways, stand 0.48 above plain centring's.)
-                let insetX = setup.centerHorizontally ? -inset : inset, insetY = setup.centerVertically ? -inset : inset
+                // (Excel's first rule stands 5 x (1 - scale) printer dots right of the margin, 0 at 100%: the column lab of 2026-11-23, six scales, rules at 420 421 421 422 422 423 dots; the cells' text stands 4 dots further in than it did when the rules stood 4 dots right.)
+                let insetX = setup.centerHorizontally ? -inset - 0.48 : 0.6 * (1 - s), insetY = setup.centerVertically ? -inset : inset
                 var ox = setup.left + insetX, oy = setup.top + insetY
                 let availW = size.width - setup.left - setup.right, availH = size.height - setup.top - setup.bottom
                 if setup.centerHorizontally { ox += max(0, (availW - bandW * s) / 2) }

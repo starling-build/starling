@@ -103,24 +103,9 @@ enum Pptx {
 
     static func read(_ data: Data) throws -> (DeckState, DeckTheme, PptxPackage) {
         let package = PptxPackage(try Zip.read(data))
-        #if os(WASI)
+        // The reader recurses through nested groups: keep ShapeState small (Boxed), or a deep deck overflows the
+        // stack (ja-85c85cb794, 8 levels at 375 KB each).
         return try PptxReader(package).read()
-        #else
-        // The shape reader recurses through nested groups and its frame is large (about 375 KB a level in
-        // a release build), so a deck nesting groups 8 deep overflowed the main thread's 8 MB stack
-        // (ja-85c85cb794: Signal 11). Read on a thread with a stack that depth cannot exhaust.
-        final class Box: @unchecked Sendable { var result: Result<(DeckState, DeckTheme, PptxPackage), Error>? }
-        let box = Box()
-        let done = DispatchSemaphore(value: 0)
-        let worker = Thread {
-            box.result = Result { try PptxReader(package).read() }
-            done.signal()
-        }
-        worker.stackSize = 1 << 30
-        worker.start()
-        done.wait()
-        return try box.result!.get()
-        #endif
     }
 }
 
@@ -755,6 +740,48 @@ struct PptxReader {
 
     init(_ package: PptxPackage) { self.package = package }
 
+
+    /// A line feed inside a run's text (`<a:t>` holding "\n") ends the paragraph in PowerPoint's print, with the paragraph's space after and
+    /// its own line spacing (0be73c557ee1 p3: three LF-joined lines stand 34 pt apart, the 26 pt line plus the 8 pt after; an `a:br` is the
+    /// soft break that stays in the paragraph). The paragraph is split here, each piece keeping the paragraph's properties.
+    static func splitParagraphsAtLineFeeds(_ node: XNode) {
+        var out: [XNode] = []
+        var changed = false
+        for child in node.children {
+            if child.name == "a:p", child.children.contains(where: { $0.name == "a:r" && ($0.first("a:t")?.text ?? "").firstIndex(of: "\n") != nil }) {
+                changed = true
+                let pPr = child.first("a:pPr"), end = child.first("a:endParaRPr")
+                var cur = XNode(name: "a:p", attrs: child.attrs)
+                if let pPr { cur.children.append(pPr) }
+                for piece in child.children where piece.name != "a:pPr" && piece.name != "a:endParaRPr" {
+                    guard piece.name == "a:r", let t = piece.first("a:t"), t.text.firstIndex(of: "\n") != nil else { cur.children.append(piece); continue }
+                    let parts = t.text.split(separator: "\n", omittingEmptySubsequences: false)
+                    for (i, part) in parts.enumerated() {
+                        if i > 0 {
+                            if let end { cur.children.append(end) }
+                            out.append(cur)
+                            cur = XNode(name: "a:p", attrs: child.attrs)
+                            if let pPr { cur.children.append(pPr) }
+                        }
+                        if part.isEmpty { continue }
+                        let r = XNode(name: "a:r", attrs: piece.attrs)
+                        r.children = piece.children.map { c in
+                            guard c === t else { return c }
+                            let nt = XNode(name: "a:t", attrs: t.attrs); nt.text = String(part); return nt
+                        }
+                        cur.children.append(r)
+                    }
+                }
+                if let end { cur.children.append(end) }
+                out.append(cur)
+            } else {
+                splitParagraphsAtLineFeeds(child)
+                out.append(child)
+            }
+        }
+        if changed { node.children = out }
+    }
+
     func read() throws -> (DeckState, DeckTheme, PptxPackage) {
         guard let root = package.xml("_rels/.rels"),
               let presPart = root.all("Relationship").first(where: { ($0["Type"] ?? "").hasSuffix("/officeDocument") })?["Target"]
@@ -795,6 +822,18 @@ struct PptxReader {
             }
         }
         SlideFonts.noteMissingRoman(missingRoman)
+        var hans = 0, hant = 0
+        for (name, data) in package.parts where name.hasPrefix("ppt/slides/") && name.hasSuffix(".xml") {
+            let text = String(decoding: data, as: UTF8.self)
+            guard text.containsSubstring("lang=\"zh-") else { continue }
+            for piece in text.split(separator: "<") {
+                if piece.hasPrefix("a:rPr ") || piece.hasPrefix("a:endParaRPr ") || piece.hasPrefix("a:fld ") {
+                    if piece.containsSubstring("lang=\"zh-CN\"") || piece.containsSubstring("lang=\"zh-SG\"") { hans += 1 }
+                    else if piece.containsSubstring("lang=\"zh-TW\"") || piece.containsSubstring("lang=\"zh-HK\"") || piece.containsSubstring("lang=\"zh-MO\"") { hant += 1 }
+                }
+            }
+        }
+        SlideFonts.noteSimplifiedChinese(hans > hant)
         var slideParts: [String] = []
         for id in presentation.first("p:sldIdLst")?.all("p:sldId") ?? [] {
             if let rid = id["r:id"], let r = rels.first(where: { $0.id == rid }) { slideParts.append(r.target) }
@@ -825,6 +864,7 @@ struct PptxReader {
             // (clusterfuzz 4986 lost four).
             let slide = package.xml(part)
                 ?? XNode.parse(Data("<p:sld><p:cSld><p:spTree></p:spTree></p:cSld></p:sld>".utf8))!
+            Self.splitParagraphsAtLineFeeds(slide)
             let layoutPart = package.rel(part, kind: "slideLayout")?.target
             let layout = layoutPart.flatMap(package.xml)
             let masterPart = layoutPart.flatMap { package.rel($0, kind: "slideMaster")?.target }
@@ -1714,7 +1754,9 @@ private struct SlideContext {
                 // whole thing — and draw it as that fallback's shapes (or the
                 // choice's, where the fallback holds nothing this app reads:
                 // tdf131553's diagram sits in one of each).
-                var o = _opaque(el, label: "Object", transform, id: id)
+                let x0 = el.first("p:xfrm") ?? el.first("p:spPr")?.first("a:xfrm") ?? el.first("p:grpSpPr")?.first("a:xfrm")
+                    ?? el.descendant("a:xfrm") ?? el.descendant("p:xfrm")
+                var o = _opaque(el, label: "Object", transform, id: id, framed: false)
                 if case .opaque(var obj)? = o?.kind {
                     // An equation the math engine can lay out is drawn as text from the choice; the fallback picture only where it cannot.
                     let mathChoice = el.first("mc:Choice").map { c in
@@ -1733,6 +1775,8 @@ private struct SlideContext {
                         }
                     }
                     o?.kind = .opaque(obj)
+                    // A placeholder with no xfrm of its own (the layout gives the frame) has no box in the file: the drawn shape's is the object's.
+                    if x0 == nil, let f = obj.rendering.first?.frame { o?.frame = f }
                 }
                 add(o, el)
             default: continue
@@ -3585,11 +3629,11 @@ private struct SlideContext {
         return "Object"
     }
 
-    private func _opaque(_ el: XNode, label: String, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {
+    private func _opaque(_ el: XNode, label: String, _ transform: ((Rect) -> Rect)?, id: () -> Int, framed: Bool = true) -> ShapeState? {
         let x = el.first("p:xfrm") ?? el.first("p:spPr")?.first("a:xfrm") ?? el.first("p:grpSpPr")?.first("a:xfrm")
             ?? el.descendant("a:xfrm") ?? el.descendant("p:xfrm")
-        guard var frame = x.flatMap(_xfrmRect) else { return nil }
-        if let t = transform { frame = t(frame) }
+        guard var frame = x.flatMap(_xfrmRect) ?? (framed ? nil : Rect.fromLTWH(0, 0, 0, 0)) else { return nil }
+        if x != nil, let t = transform { frame = t(frame) }
         let name = el.descendant("p:cNvPr")?["name"] ?? label
         return ShapeState(id: id(), name: name,
                           kind: .opaque(OpaqueObject(xml: PptxXML.serialize(el), label: label, sourcePart: part)),
@@ -4596,12 +4640,36 @@ private struct SlideContext {
         // (An eaVert column's places are the face's vmtx advance, not an em: Malgun Gothic 2176/2048 = 21.25 pt at 20 pt, printed 21.24 in lab vface;
         // set as the spacing after each ideograph, which stands centred in its place.)
         if attr("vert") == "eaVert" {
+            // (A Japanese column hangs its closing full-width marks past the column end; a horizontal Japanese line does not, 9 ja decks.)
+            for pi in bodyDocument.paragraphs.indices where bodyDocument.paragraphs[pi].text.unicodeScalars.contains(where: { [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009, 0xFF1A, 0xFF1B, 0xFF01, 0xFF1F].contains($0.value) }) {
+                bodyDocument.paragraphs[pi].style.eastAsian["a:hangClosingZh"] = "1"
+            }
             for pi in bodyDocument.paragraphs.indices { for ri in bodyDocument.paragraphs[pi].runs.indices {
                 let st = bodyDocument.paragraphs[pi].runs[ri].style
                 if let m = SlideFonts.uprightMetrics(st.fontFamily ?? "", bold: st.bold == true), m.step != 1, let size = st.fontSize {
                     bodyDocument.paragraphs[pi].runs[ri].style.letterSpacing = (st.letterSpacing ?? 0) + (m.step - 1) * size
                 }
             } }
+            // (MS PGothic's places are its vmtx advances, kana and marks narrower than an em: each such character takes the spacing that
+            // sets its place, as its own run; ja-4d99f560bb p14 steps 15-17 pt at 18 pt where an em set 18.)
+            for pi in bodyDocument.paragraphs.indices {
+                let units = Array(bodyDocument.paragraphs[pi].text.utf16)
+                var out: [Run] = [], at = 0
+                for r in bodyDocument.paragraphs[pi].runs {
+                    guard SlideFonts.proportionalUprightFace(r.style.fontFamily ?? ""), let size = r.style.fontSize else { out.append(r); at += r.length; continue }
+                    var k = at
+                    while k < at + r.length {
+                        let v = SlideVerticalAdvances.pgothicAdvance(units[k])
+                        var j = k + 1
+                        while j < at + r.length, SlideVerticalAdvances.pgothicAdvance(units[j]) == v { j += 1 }
+                        var piece = r; piece.length = j - k
+                        if let v { piece.style.letterSpacing = (r.style.letterSpacing ?? 0) + (Double(v) / 256 - 1) * size }
+                        out.append(piece); k = j
+                    }
+                    at += r.length
+                }
+                bodyDocument.paragraphs[pi].runs = out
+            }
         }
         var body0 = TextBody(document: bodyDocument, anchor: anchor, insets: insets,
                         font: _font(level0.font), size: level0.size ?? 18,

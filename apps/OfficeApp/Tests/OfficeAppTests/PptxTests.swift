@@ -351,6 +351,12 @@ final class GroupAndConnectorTests: XCTestCase {
 }
 
 final class DeepGroupTests: XCTestCase {
+    /// The shape reader recurses through groups with several ShapeStates in a frame: at 27 KB each a
+    /// group level cost 375 KB of stack (ja-85c85cb794 overflowed 8 MB at 8 levels). Keep the value small.
+    func testShapeStateStaysSmall() {
+        XCTAssertLessThan(MemoryLayout<ShapeState>.size, 4096)
+    }
+
     /// Groups nested deeper than the main thread's stack allows (the shape reader's frame is
     /// hundreds of KB a level): reading must finish, with the innermost shape kept.
     /// ja-85c85cb794 (8 deep) was Signal 11.
@@ -370,5 +376,27 @@ final class DeepGroupTests: XCTestCase {
         let zipped = try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) })
         let (state, _, _) = try Pptx.read(zipped)
         XCTAssertTrue(state.slides[0].shapes.contains { $0.fileId == 999 })
+    }
+
+    func testMissingChineseFaceIsYaHeiInSimplifiedDecks() {
+        XCTAssertTrue(SlideFonts.isMissingChineseName("隶书"))
+        XCTAssertTrue(SlideFonts.isMissingChineseName("方正兰亭黑简体"))
+        XCTAssertFalse(SlideFonts.isMissingChineseName("宋体"))
+        XCTAssertFalse(SlideFonts.isMissingChineseName("微軟正黑體"))
+        XCTAssertFalse(SlideFonts.isMissingChineseName("ｍｓ ｐ明朝"))
+        XCTAssertFalse(SlideFonts.isMissingChineseName("Arial"))
+    }
+
+    func testLineFeedInRunTextSplitsTheParagraph() {
+        let root = XNode(name: "a:txBody", attrs: [:])
+        let p = XNode(name: "a:p", attrs: [:])
+        let pPr = XNode(name: "a:pPr", attrs: [:])
+        let r = XNode(name: "a:r", attrs: [:])
+        let t = XNode(name: "a:t", attrs: [:]); t.text = "one\ntwo"
+        r.children = [t]; p.children = [pPr, r]; root.children = [p]
+        PptxReader.splitParagraphsAtLineFeeds(root)
+        XCTAssertEqual(root.children.count, 2)
+        XCTAssertEqual(root.children[1].first("a:r")?.first("a:t")?.text, "two")
+        XCTAssertNotNil(root.children[1].first("a:pPr"))
     }
 }

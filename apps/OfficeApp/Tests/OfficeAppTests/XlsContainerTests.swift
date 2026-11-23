@@ -229,6 +229,50 @@ final class XlsContainerTests: XCTestCase {
         XCTAssertTrue(ws.containsSubstring("<tabColor rgb=\"FF00B0F0\"/>"))
     }
 
+    func testPictureBecomesDrawingWithMedia() throws {
+        func art(_ ver: Int, _ inst: Int, _ type: Int, _ body: [UInt8]) -> [UInt8] {
+            cat(u16(ver | inst << 4), u16(type), le32(UInt32(body.count)), body)
+        }
+        let bof = rec(0x809, cat(u16(0x600), [UInt8](repeating: 0, count: 14)))
+        let g0 = cat(bof, rec(0x85, cat(le32(0), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        let png: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 1, 2, 3, 4]
+        let blip = art(0, 0x6E0, 0xF01E, cat([UInt8](repeating: 0, count: 17), png))
+        let fbse = art(2, 6, 0xF007, cat([UInt8](repeating: 0, count: 36), blip))
+        let group = art(0xF, 0, 0xF000, art(0xF, 1, 0xF001, fbse))
+        let sp = art(2, 75, 0xF00A, cat(le32(1025), le32(0xA00)))
+        let opt = art(3, 1, 0xF00B, cat(u16(0x4104), le32(1)))
+        let anchor = art(0, 0, 0xF010, cat(u16(0), u16(1), u16(0), u16(2), u16(0), u16(3), u16(0), u16(4), u16(0)))
+        let drawing = art(0xF, 0, 0xF002, art(0xF, 0, 0xF004, cat(sp, opt, anchor)))
+        let wb = cat(bof, rec(0x85, cat(le32(UInt32(g0.count) + UInt32(4 + group.count)), [0, 0, 1, 0, 0x53])), rec(0xEB, group), rec(0x0A, []))
+        let parts = try XCTUnwrap(XlsBuild.parts(BiffReader.records(wb + cat(bof, rec(0xEC, drawing), rec(0x0A, [])))))
+        XCTAssertEqual(parts.first { $0.name.hasPrefix("xl/media/") }.map { [UInt8]($0.data) }, png)
+        let dp = parts.first { $0.name.hasPrefix("xl/drawings/drawing") && !$0.name.containsSubstring("_rels") }
+        let d = String(decoding: dp?.data ?? Data(), as: UTF8.self)
+        XCTAssertTrue(d.containsSubstring("<xdr:col>1</xdr:col>") && d.containsSubstring("<xdr:row>2</xdr:row>"))
+    }
+
+    func testChartBecomesChartPart() throws {
+        func art(_ ver: Int, _ inst: Int, _ type: Int, _ body: [UInt8]) -> [UInt8] {
+            cat(u16(ver | inst << 4), u16(type), le32(UInt32(body.count)), body)
+        }
+        let bof = rec(0x809, cat(u16(0x600), [UInt8](repeating: 0, count: 14)))
+        let cbof = rec(0x809, cat(u16(0x600), u16(0x20), [UInt8](repeating: 0, count: 12)))
+        let g0 = cat(bof, rec(0x85, cat(le32(0), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        let g = cat(bof, rec(0x85, cat(le32(UInt32(g0.count)), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        let sp = art(2, 201, 0xF00A, cat(le32(1025), le32(0xA00)))
+        let anchor = art(0, 0, 0xF010, cat(u16(0), u16(1), u16(0), u16(2), u16(0), u16(6), u16(0), u16(12), u16(0)))
+        let drawing = art(0xF, 0, 0xF002, art(0xF, 0, 0xF004, cat(sp, anchor)))
+        let cmo = cat(u16(0x15), u16(18), u16(5), u16(1), u16(0x2011), [UInt8](repeating: 0, count: 12))
+        let ser = rec(0x1003, cat(u16(3), u16(1), u16(1), u16(1)))
+        let chart = cat(cbof, rec(0x1002, [UInt8](repeating: 0, count: 16)), ser,
+                        rec(0x1014, [UInt8](repeating: 0, count: 20)), rec(0x1017, cat(u16(0), u16(150), u16(0))), rec(0x0A, []))
+        let sheet = cat(bof, rec(0xEC, drawing), rec(0x5D, cmo), chart, rec(0x0A, []))
+        let parts = try XCTUnwrap(XlsBuild.parts(BiffReader.records(g + sheet)))
+        let cp = parts.first { $0.name.hasPrefix("xl/charts/chart") }
+        let c = String(decoding: cp?.data ?? Data(), as: UTF8.self)
+        XCTAssertTrue(c.containsSubstring("barChart"))
+    }
+
     func testFormulaTokensBecomeFormulaText() {
         let ctx = XlsFormulaContext(xtis: [], internalBooks: [], sheetNames: [], names: [])
         // A1+B2*3 : ref A1, ref B2, int 3, mul, add
