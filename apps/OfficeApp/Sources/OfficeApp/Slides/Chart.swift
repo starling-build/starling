@@ -5378,8 +5378,10 @@ enum ChartPainter {
                     let room = area0.width - 20
                     for n in [16, 12, 8, 6, 4, 3, 2] {
                         let t = scale(xAll.min() ?? 0, xAll.max() ?? 1, intervals: n)
-                        // (Finer than the usual eight only by halves: chart-tdf126033's 0 to 2.5 keeps its 0.5, not 0.2.)
-                        if t.step < xScale.step - 1e-12, abs(t.step / pow(10, floor(log10(t.step))) - 5) > 1e-6 { continue }
+                        // (Never more than ten steps along the axis: lab textx1's x = 1 to 5 stand 0 to 6 by 1 in Excel's print, not 0 to 5.5
+                        // by 0.5 (eleven, 40.9 pt apart), 1 to 10 stand 0 to 12 by 2, not by 1 (twelve), and 1 to 9 stand by 1 (ten);
+                        // chart-tdf126033's 0 to 2.5 keeps its 0.5, not 0.2 (thirteen).)
+                        if (t.hi - t.lo) / t.step > 10 + 1e-9 { continue }
                         if (t.hi - t.lo) / t.step * 36.4 <= room || n == 2 { xScale = t; break }
                     }
                 }
