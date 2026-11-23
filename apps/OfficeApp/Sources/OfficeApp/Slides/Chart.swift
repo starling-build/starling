@@ -3138,18 +3138,28 @@ enum ChartPainter {
     }
     nonisolated(unsafe) private static var naturalAdvanceCache: [String: Double] = [:]
     /// `s` one character a span, each spaced to the face's own advance (ems of the size) less what the stand-in draws it.
-    static func metricSpan(_ s: String, _ style: Flutter.TextStyle, _ face: RichResolvedFace, bold: Bool, eastAsianOnly: Bool = false) -> TextSpan {
+    static func metricSpan(_ s: String, _ style: Flutter.TextStyle, _ face: RichResolvedFace, bold: Bool, eastAsianOnly: Bool = false, kanjiHeight: Double? = nil) -> TextSpan {
         let size = style.fontSize ?? 12
         var kids: [TextSpan] = []
+        var paraKanji = false
+        // (The paragraph's last kanji line carries its mark on the label face's line: a pitch of 1.64 em into it, 14.8 pt at 9, 19.7 at 12; lab pie-lab12.)
+        func endPara() {
+            if paraKanji, kanjiHeight != nil { kids.append(TextSpan(text: "\u{200B}", style: style.copyWith(height: 1.73))) }
+            paraKanji = false
+        }
         for ch in s {
             let u = ch.unicodeScalars.first!.value
+            if ch == "\n" { endPara() }
+            if kanjiHeight != nil, (0x4E00 ... 0x9FFF).contains(u) { paraKanji = true }
             var target: Double? = nil
             if ch.unicodeScalars.count == 1 {
                 if eastAsianOnly && u < 0x80 { target = nil }
                 else if u >= 0x20 && u <= 0x7E { target = (bold ? face.boldAdvances : face.advances).map { $0[Int(u) - 0x20] } }
                 else { target = (bold ? face.boldOtherAdvances : face.otherAdvances)?[u] }
             }
-            guard let t = target else { kids.append(TextSpan(text: String(ch), style: style)); continue }
+            // (A line of kanji alone is on the fallback face's 1.3 em, a line with Latin or digits on the label face's.)
+            let own: Flutter.TextStyle = kanjiHeight != nil && (0x4E00 ... 0x9FFF).contains(u) ? style.copyWith(height: kanjiHeight) : style
+            guard let t = target else { kids.append(TextSpan(text: String(ch), style: own)); continue }
             let key = "\(style.fontFamily ?? "")|\(bold)|\(u)"
             var nat = naturalAdvanceCache[key]
             if nat == nil {
@@ -3157,8 +3167,9 @@ enum ChartPainter {
                 m.layout(); nat = m.width / 100
                 naturalAdvanceCache[key] = nat!
             }
-            kids.append(TextSpan(text: String(ch), style: style.copyWith(letterSpacing: (t - nat!) * size)))
+            kids.append(TextSpan(text: String(ch), style: own.copyWith(letterSpacing: (t - nat!) * size)))
         }
+        endPara()
         return TextSpan(children: kids, style: style)
     }
     /// PowerPoint wraps Hangul at its spaces, a word whole; the line breaker would split a word between syllables.
@@ -9112,7 +9123,8 @@ extension ChartPainter {
                 if c.onSlide, let face = Self.eastAsianChartFace(labelFace) {
                     // (A Korean or Japanese face the machine lacks: each character is spaced to the face's own measured advance, the
                     // one path the legend and the axes take: "항목 4" 34.8 pt at 12 pt in PowerPoint's print, 34.0 in the stand-in's.)
-                    labelText = Self.metricSpan(Self.keepHangulWords(shown ?? sheetText), labelStyle, face, bold: labelWeight == .bold)
+                    labelText = Self.metricSpan(Self.keepHangulWords(shown ?? sheetText), labelStyle, face, bold: labelWeight == .bold,
+                        kanjiHeight: malgunLine != nil ? 1.3 : nil)
                 }
                 return TextPainter(text: labelText, textAlign: .center, textDirection: .ltr,
                     maxLines: maxLines, ellipsis: maxLines == nil ? nil : "\u{2026}")
@@ -9386,7 +9398,8 @@ extension ChartPainter {
                     let ms = tp.computeLineMetrics()
                     let n = ms.count
                     guard n > 0, tp.height > 0 else { return nil }
-                    let drawn = tp.height / Double(n)
+                    // (The tallest line: a kanji-only line is drawn tighter than the face's own, the single-spaced box is the face's.)
+                    let drawn = ms.map { $0.height }.max() ?? tp.height / Double(n)
                     let single = (drawn / k / 1.3 / 0.75).rounded() * 0.75 * k
                     let ws = ms.map { $0.width }
                     let bw = ws.max() ?? 0, bh = single * Double(n)
