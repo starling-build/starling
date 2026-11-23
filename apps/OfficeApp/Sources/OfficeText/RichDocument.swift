@@ -2742,6 +2742,9 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// ja/zh/ko — 0d8cbc, which states none, has no such space): Word still sets the automatic space between ideograph and Latin letter or digit there
     /// (xb jpn-z19126474-754366: "AI エージェント", "2026 年3 月" in its print).
     public var autoSpacesWithoutFELayout = false
+    /// The docDefaults' own w:lang names a non-CJK East Asian language (en-US) though Normal may state a CJK one: Word then sets no automatic
+    /// ideograph/Latin space without useFELayout (zh-d97c5474: Normal zh-CN over defaults en-US, no gap in Word's print).
+    public var defaultsEastAsiaNotCJK = false
     /// Whether the body text holds kana (hiragana or katakana): the text says the
     /// document is Japanese when its language tag does not (en-US on Japanese text).
     public var hasKana = false
