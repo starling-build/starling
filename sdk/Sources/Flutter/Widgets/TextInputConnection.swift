@@ -30,6 +30,12 @@ public enum TextInputChannel {
     public nonisolated(unsafe) static var enabled: Bool = false
     #elseif os(macOS)
     public nonisolated(unsafe) static var enabled: Bool = ProcessInfo.processInfo.environment["STARLING_IME"] != "0"
+    #elseif os(iOS)
+    /// On by default: the engine's own text-input view is a real UITextInput
+    /// (autocorrect, dictation, composed input, the selection loupe), which
+    /// the key bar the Terminal uses is not. The Terminal never opens a
+    /// client, so nothing changes for it. STARLING_IME=0 turns it off.
+    public nonisolated(unsafe) static var enabled: Bool = ProcessInfo.processInfo.environment["STARLING_IME"] != "0"
     #else
     public nonisolated(unsafe) static var enabled: Bool = ProcessInfo.processInfo.environment["STARLING_IME"] != nil
     #endif

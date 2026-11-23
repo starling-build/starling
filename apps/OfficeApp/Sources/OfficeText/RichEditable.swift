@@ -240,8 +240,9 @@ public final class RichEditableState: State<StatefulWidget> {
             guard let self else { return }
             if !focused { self._chords.reset() }
             if focused { self._textInput?.attach() } else { self._textInput?.detach() }
-            // A phone has to be asked for its keyboard (see TextBox).
-            if focused, !self._controller.readOnly { SoftKeyboard.show() }
+            // A phone has to be asked for its keyboard (see TextBox) — unless the
+            // platform's text-input view has the editor, which raises its own.
+            if focused, !self._controller.readOnly, self._textInput?.isAttached != true { SoftKeyboard.show() }
             self._caretVisible = true
             self._restartBlink()
             self._repaint.notifyListeners()
