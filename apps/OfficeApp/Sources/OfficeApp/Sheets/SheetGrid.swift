@@ -379,7 +379,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 // LIBRE_OFFICE-128382-0's date of Calibri 14 in D22:D23
                 // leaves both rows at Calibri 11's 14.52 in Excel's print.)
                 if let g = merged[a.row]?.first(where: { $0.contains(a) }),
-                   g.top != g.bottom || book.style(ws.cells[g.topLeft]?.style ?? cell.style).wrap { continue }
+                   g.top != g.bottom || (a == g.topLeft && book.style(cell.style).wrap) { continue }
                 let l = cell.style == 0 && cell.value.isEmpty ? m.defaultRow : line(cell.style)
                 if l > fit[a.row] ?? 0 { fit[a.row] = l; fitSize[a.row] = book.fontSize(book.style(cell.style)) }
                 let acc = book.style(cell.style).accounting
