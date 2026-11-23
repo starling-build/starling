@@ -460,13 +460,17 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     // fit: LIBRE_OFFICE-116306-0's rows keep theirs.)
                     let one = texts.painter("X", style).height
                     let trailing = Double(text.reversed().prefix { $0 == "\n" }.count)
-                    let lines = texts.painter(text, style, maxWidth: width).height + trailing * one
+                    let wrapped = texts.painter(text, style, maxWidth: width)
+                    let lines = wrapped.height + trailing * one
                     // (Text that wraps to one line is its font's line, which the
                     // fonts above have given the row: lo-pivottable_invalid_formats'
                     // wrapping one-line rows print at Arial 10's 12.36, where
                     // this measure made them 12.5 and lost a row a page.)
                     guard lines > one * 1.5 else { continue }
-                    let tall = (lines / one).rounded() * Self._fittedLine(st, m, book)
+                    // (Counted by its lines, not its height: a line that holds a
+                    // full-width bracket stands taller in a fallback face, and
+                    // 3.69 lines' height is three lines, not four.)
+                    let tall = Double(wrapped.computeLineMetrics().count + Int(trailing)) * Self._fittedLine(st, m, book)
                     if tall > heights[a.row] ?? m.defaultRow { heights[a.row] = tall }
                 }
                 // A wrapped, bottom-aligned text of a font smaller than the default's in a
