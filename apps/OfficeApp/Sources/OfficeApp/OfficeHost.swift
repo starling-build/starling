@@ -22,6 +22,21 @@ enum OfficeHost {
     /// document at `path`, whatever its kind.
     static var openPath: ((String) -> Void)?
 
+    /// The host's own "put a copy somewhere" panel (the iPad's document
+    /// picker, which can reach iCloud Drive and other apps' folders the way an
+    /// in-app file list over the sandbox cannot). `name` is the suggested file
+    /// name; `prepare` writes the file to the path it is given and calls its
+    /// completion with whether that worked (it may finish later: a PDF is
+    /// made asynchronously); `thenOpen` is Save As — the editor carries on in
+    /// the copy — against Export, which leaves the document as it is. `done`
+    /// gets the chosen file's name, or nil if the user cancelled or it failed.
+    /// Set by a host that has such a panel; nil elsewhere, where the Backstage
+    /// panels stay.
+    static var exportRequested: ((_ name: String,
+                                  _ prepare: @escaping (_ path: String, _ finished: @escaping (Bool) -> Void) -> Void,
+                                  _ thenOpen: Bool,
+                                  _ done: @escaping (String?) -> Void) -> Void)?
+
     /// Writes an empty document of `kind` to `path`. Used by the host's own
     /// "New" so a blank file exists before the editor opens it.
     static func writeBlank(kind: String, to path: String) -> Bool {
