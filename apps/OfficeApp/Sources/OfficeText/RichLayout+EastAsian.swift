@@ -2698,7 +2698,8 @@ extension RichLayout {
         // 13 inside lines; zh-e51c31a7's "…以為共同遵守︰" sends "守︰" down where ours opened a line with it.)
         .union("\u{FE30}".utf16)
     static let _noEnd = _openingUnits.union("([{$#￥＄£".utf16)
-    static let _quotes = Set("\"'“”‘’".utf16)
+    // (The low quotes „ ‚ too: fb068d84 sets "„Principi" whole, and the line takes the mark alone by a squeeze that its word cannot make; Word breaks before "„".)
+    static let _quotes = Set("\"'“”‘’„‚".utf16)
 
     /// The closing brackets alone (the pair table of JIS X 4051 treats 。、 and the like as their own class).
     static let _closingBracketMarks: Set<Character> = ["）", "》", "」", "』", "】", "〕", "〉", "｝", "］"]
