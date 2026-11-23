@@ -74,6 +74,8 @@ jobs:
           cd "$HOME/clone"
           export JOBS=${GATE_JOBS:-$(cat "$HOME/.gate-jobs" 2>/dev/null || nproc)}; [ -n "$BUILD_JOBS" ] || { BUILD_JOBS=$(( JOBS / 2 )); [ "$BUILD_JOBS" -lt 30 ] && BUILD_JOBS=30; }; export BUILD_JOBS
           [ "$JOBS" -gt 170 ] && JOBS=170
+          # (amd-8, 2026-11-23, starling-bd) the AMD box (192 threads) runs 5 gates plus prebuilds beside the workers' builds: load ~950. 24 render jobs per run there; starling2 (48 threads) keeps its own setting.
+          [ "$(nproc)" -ge 128 ] && [ "$JOBS" -gt 24 ] && JOBS=24
           test/tools/render-gate.sh "$BASE_SHA" 2>&1 | tail -40 | cut -c1-200
       - name: Warm this runner's scratch on current main
         if: always() && github.event_name == 'pull_request'

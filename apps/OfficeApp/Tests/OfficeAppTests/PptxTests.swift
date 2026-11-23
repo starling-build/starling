@@ -323,3 +323,26 @@ final class GroupAndConnectorTests: XCTestCase {
                       out.components(separatedBy: "buAutoNum").dropFirst().map { String($0.prefix(40)) }.joined(separator: " | "))
     }
 }
+
+final class DeepGroupTests: XCTestCase {
+    /// Groups nested deeper than the main thread's stack allows (the shape reader's frame is
+    /// hundreds of KB a level): reading must finish, with the innermost shape kept.
+    /// ja-85c85cb794 (8 deep) was Signal 11.
+    func testDeeplyNestedGroupsRead() throws {
+        var package = PptxPackage(try Zip.read(try Pptx.write(SlidesSample.make())))
+        var slide = String(data: package.parts["ppt/slides/slide1.xml"]!, encoding: .utf8)!
+        let depth = 40
+        let xfrm = "<p:grpSpPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"914400\" cy=\"914400\"/><a:chOff x=\"0\" y=\"0\"/><a:chExt cx=\"914400\" cy=\"914400\"/></a:xfrm></p:grpSpPr>"
+        var open = "", close = ""
+        for i in 0..<depth {
+            open += "<p:grpSp><p:nvGrpSpPr><p:cNvPr id=\"\(900 + i)\" name=\"G\(i)\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>\(xfrm)"
+            close += "</p:grpSp>"
+        }
+        let leaf = "<p:sp><p:nvSpPr><p:cNvPr id=\"999\" name=\"Leaf\"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"914400\" cy=\"914400\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:sp>"
+        slide = slide.replacingOccurrences(of: "</p:spTree>", with: open + leaf + close + "</p:spTree>")
+        package.parts["ppt/slides/slide1.xml"] = Data(slide.utf8)
+        let zipped = try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) })
+        let (state, _, _) = try Pptx.read(zipped)
+        XCTAssertTrue(state.slides[0].shapes.contains { $0.fileId == 999 })
+    }
+}

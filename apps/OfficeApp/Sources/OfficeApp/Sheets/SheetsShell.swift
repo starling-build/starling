@@ -271,13 +271,9 @@ final class SheetsShellState: State<StatefulWidget> {
     /// `path` is a file on disk natively, the picked file's name in a tab:
     /// what the window is called and what a save is named after.
     private func _load(_ data: Data, from path: String) {
-        if path.pathExtension.lowercased() == "xlsx" {
-            do { wb.load(try Xlsx.read(data)) } catch {
-                _flash("Could not open \(path.lastPathComponent): it isn't a workbook Sheets can read")
-                return
-            }
-        } else {
-            wb.load(Csv.read(String(decoding: data, as: UTF8.self), name: path.lastPathComponent.deletingPathExtension))
+        do { wb.load(try Workbook.open(data, name: path.lastPathComponent)) } catch {
+            _flash("Could not open \(path.lastPathComponent): it isn't a workbook Sheets can read")
+            return
         }
         session.path = path
         session.dirty = false

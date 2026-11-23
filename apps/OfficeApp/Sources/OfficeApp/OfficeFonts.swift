@@ -472,12 +472,19 @@ enum OfficeFonts {
         "yu gothic ui semilight", "yu mincho", "yu mincho demibold", "yu mincho light", "zapf dingbats",
         "zapfino",
     ]
+    /// DejaVu Sans and Bitstream Vera Sans: installed nowhere on Windows, so Excel draws them in
+    /// Arial (52348, Excel 20527's print), not in DejaVu. (Verdana, which Windows has, stays.)
+    private static func isLinuxOnlySans(_ family: String) -> Bool {
+        let n = family.trimmingWhitespace().lowercased()
+        return n == "dejavu sans" || n == "bitstream vera sans"
+    }
     /// The shipped face for a workbook's font name. A workbook has no font
     /// table, so `substitute`'s guesses for a name Word on a Mac has no
     /// face for — Cambria, for one the table does not hold — are not
     /// Excel's: chart-tdf150434's "Open Sans" prints sans, where ours was
     /// Caladea and its long text ran a page short.
     static func sheetFace(_ family: String) -> String {
+        if isLinuxOnlySans(family) { return sans }
         if let own = installed(family) { return own }
         #if os(Windows)
         // A face Windows has and this app has no clone of is the face, for
@@ -513,6 +520,7 @@ enum OfficeFonts {
     /// was Cambria: HelveticaNeue LightExt (47862), Frutiger 45 Light,
     /// Clear Sans, FreeSans, lo-tdf171828's header in BernhardFashion BT.
     static func sheetClone(_ family: String) -> String {
+        if isLinuxOnlySans(family) { return sans }
         let face = substitute(family)
         let n = family.trimmingWhitespace().lowercased()
         // (Monospaced in Excel's prints, 0.6 em: the number-format books' Lucida Sans Typewriter cells. Only a cell's own face: as a
@@ -874,6 +882,31 @@ enum OfficeFonts {
     /// `wght` variation (the glyphs stored are the default instance's, so
     /// moving the axis' default alone changes nothing); nil for a font with
     /// no weight axis or a name with no weight word.
+    /// A font file's Windows descent over its Windows ascent plus descent (OS/2 usWinAscent, usWinDescent); nil without that table.
+    static func sfntWindowsDescentShare(_ data: Data) -> Double? {
+        let d = [UInt8](data)
+        func u16(_ at: Int) -> Int { at + 2 <= d.count ? Int(d[at]) << 8 | Int(d[at + 1]) : 0 }
+        func u32(_ at: Int) -> Int { u16(at) << 16 | u16(at + 2) }
+        guard d.count > 12 else { return nil }
+        for k in 0 ..< u16(4) {
+            let e = 12 + 16 * k
+            guard e + 16 <= d.count else { return nil }
+            if Array(d[e ..< e + 4]) == Array("OS/2".utf8) {
+                let o = u32(e + 8)
+                guard o + 78 <= d.count else { return nil }
+                var asc = u16(o + 74), desc = u16(o + 76)
+                // (A face that sets USE_TYPO_METRICS (fsSelection bit 7) is read by its typographic pair: 201942c286a1's Lexend, win 1200 + 390
+                // against typo 1000 + 250, stands on the typo one in PowerPoint's print; Reem Kufi, bit clear, on win.)
+                if u16(o + 62) & 0x80 != 0 {
+                    let ta = u16(o + 68), td = Int(Int16(truncatingIfNeeded: u16(o + 70)))
+                    if ta > 0 { (asc, desc) = (ta, abs(td)) }
+                }
+                return asc + desc > 0 ? Double(desc) / Double(asc + desc) : nil
+            }
+        }
+        return nil
+    }
+
     static func variableWeight(_ data: Data, named name: String) -> Double? {
         let n = name.lowercased()
         let words: [(String, Double)] = [("extralight", 200), ("ultralight", 200), ("extrabold", 800), ("ultrabold", 800), ("semibold", 600), ("demibold", 600), ("black", 900), ("heavy", 900), ("thin", 100), ("light", 300), ("medium", 500), ("bold", 700)]
