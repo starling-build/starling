@@ -2796,10 +2796,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// (lab col-wrap, Excel prints at 100/90/83/66/50/40%, Calibri 11 and Arial 10: the margin that breaks 7 and 8 digits per
     /// column is 26.5-27+, 22.5-25.5, 22.5-23.4, 17.5-18.4, 14.5-15, 12.5-13.4 dots; 354 columns, 27 mismatches with 26 x scale, 6 with this); the row's
     /// HEIGHT stays the screen-grid fit.
-    func wrapRoom(_ width: Double, _ less: Double) -> Double {
-        guard printing, printTextScale > 0, printRowScale > 0 else { return max(1, width - less) }
+    /// An indent takes its width off the room (Excel's 4-step indent in Times 12 wraps 43 pt in: en-6fc78951d5).
+    func wrapRoom(_ width: Double, _ less: Double, indent: Double = 0) -> Double {
+        guard printing, printTextScale > 0, printRowScale > 0 else { return max(1, width - less - indent) }
         let dpu = printTextScale / scale * 600 / 72
-        return max(1, ((width * dpu + 1e-6 - (3 + 23.5 * printRowScale)).rounded(.down)) / dpu)
+        return max(1, (((width - indent) * dpu + 1e-6 - (3 + 23.5 * printRowScale)).rounded(.down)) / dpu)
     }
     func _textStyle(_ st: CellStyle, color: UInt32?, ink: Color) -> GridTextStyle {
         let c = printing && printMono ? Int64(0xFF00_0000) : (color ?? st.color).map { Int64(0xFF00_0000) | Int64($0) } ?? Int64(ink.value)
@@ -2931,7 +2932,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let wraps = st.wrap && cell.value.isText
         let lineAlign: TextAlign = align == .center ? .center : align == .right ? .right : st.justify && wraps ? .justify : .left
         style.rtl = cell.value.isText && _cellIsRTL(st, text)
-        var tp = texts.painter(text, style, maxWidth: wraps ? wrapRoom(width, pad * 2 + wrapLess) : .infinity, align: wraps ? lineAlign : .left)
+        // An indent: so many three-space steps of the workbook's default
+        // font, in from the side the text is aligned to (a lab of indents 1-4
+        // in Calibri 11, Arial 10 and Times 9: 7.56, 8.28 and 6.84 pt a step). A wrapped line has that much less room.
+        var inset = 0.0
+        if st.indent > 0, st.hAlign == .left || st.hAlign == .right {
+            let base = _textStyle(book.style(0), color: nil, ink: ink)
+            inset = Double(st.indent) * max(0, texts.painter("X   X", base).width - texts.painter("XX", base).width)
+        }
+        var tp = texts.painter(text, style, maxWidth: wraps ? wrapRoom(width, pad * 2 + wrapLess, indent: inset) : .infinity, align: wraps ? lineAlign : .left)
         // A wrapped rich string: its runs' own fonts on the lines the paragraph's wrap gives.
         var richParts: [(text: String, style: GridTextStyle)] = [], richLns: [[(String, GridTextStyle)]] = []
         if wraps, !style.rtl, let rr = ws.richText[a], case .text(let raw) = cell.value, raw == text, rr.map(\.text).joined() == text,
@@ -2950,7 +2959,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 return (run.text, gs)
             }
             richParts = parts
-            let room = wrapRoom(width, pad * 2 + wrapLess)
+            let room = wrapRoom(width, pad * 2 + wrapLess, indent: inset)
             let ls = texts.richLines(text, runs: parts, maxWidth: room)
             richLns = ls
             tp = texts.richLine(ls.enumerated().flatMap { i, l in (i > 0 ? [("\n", parts[0].style)] : []) + l }, align: lineAlign, maxWidth: room)
@@ -2966,11 +2975,6 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // An indent: so many three-space steps of the workbook's default
         // font, in from the side the text is aligned to (a lab of indents 1-4
         // in Calibri 11, Arial 10 and Times 9: 7.56, 8.28 and 6.84 pt a step).
-        var inset = 0.0
-        if st.indent > 0, st.hAlign == .left || st.hAlign == .right {
-            let base = _textStyle(book.style(0), color: nil, ink: ink)
-            inset = Double(st.indent) * max(0, texts.painter("X   X", base).width - texts.painter("XX", base).width)
-        }
         // Text spills over empty neighbours, as far as it reaches from its
         // indent (chart-tdf140489's "Deferred Tax", in two steps from A1's
         // edge, was cut at the last column its width alone needed).
@@ -3075,7 +3079,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // the first at the head, the middle in the centre — stands where
         // one line would (52716's last lines with their rows' numbers).
         if printing && wraps {
-            let lines = richLns.isEmpty ? texts._breakLines(NumberFormat.unpad(text), style, wrapRoom(width, pad * 2 + wrapLess))
+            let lines = richLns.isEmpty ? texts._breakLines(NumberFormat.unpad(text), style, wrapRoom(width, pad * 2 + wrapLess, indent: inset))
                 .split(separator: "\n", omittingEmptySubsequences: false) : richLns.map { Substring($0.map(\.0).joined()) }
             if lines.count > 1 {
                 let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
