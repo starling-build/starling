@@ -516,10 +516,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                         let covered = text.unicodeScalars.allSatisfy { $0.value == 10 || $0.value == 13 || GdiAdvances.advance(gdiName, bold: st.bold, em: 27, $0.value) != nil }
                         if !st.italic, covered, GdiAdvances.faces.contains(gdiName) { style.gdi = gdiName }
                         let column = (chars * m.screenDigit).rounded(.down)
-                        // (Measured by GDI advances the pad is the same fit as the scaled measure's up to an em of 29 px and grows with the em past it:
-                        // pad needed 13 px at a 207 px column of Arial 12 bold (em 32), 28+ at 1238 of Times 12, against 12.6 and 25 for the fit.)
-                        let grow = style.gdi.isEmpty ? 1.0 : max(1.0, style.screenEm / 29)
-                        let dp = Self.screenFitPad * grow, dfl = Self.screenFitFloor * grow, dsh = Self.screenFitShare * grow
+                        let dp = Self.screenFitPad, dfl = Self.screenFitFloor, dsh = Self.screenFitShare
                         width = (column - max(dfl, dp + dsh * column)).rounded(.down) * style.screen
                     }
                     // (Line breaks at the end draw nothing but are lines to the
