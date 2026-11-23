@@ -797,6 +797,12 @@ extension _StyledFrame {
                     // 標楷體's half em, 8.5, and the line "…672％)，然上開「允建樓地板面"
                     // took the "積" Word sends down.)
                     && !(latinDash && RichTextTheme.wordWindowsPages && (ch == "\u{00D7}" || ch == "\u{00F7}"))
+                // (A space beside an em dash, in a document whose East Asian text is Chinese, is the East Asian face's half em: dx2 817e3a79fcd7's
+                // footer "— 1 —", 9 pt Calibri over 宋体, Word's print puts the digit 12.72 and the closing dash 9.12 after the first, spaces of
+                // 4.5 where Calibri's are 2.0.)
+                var emDashSpace = false
+                if ch == " ", !ea, theme.wordRules, RichTextTheme.wordWindowsPages, document.eastAsiaLanguage?.hasPrefix("zh") == true,
+                   following == "\u{2014}" || ctx.before == "\u{2014}" { ea = true; emDashSpace = true }
                 kind = ea ? -1 : (classed ? RichResolvedFace.characterClass(ch) : 0)
                 // (Circles, squares and stars in an East Asian run are the East Asian face's glyph
                 // — an em wide, 0.86 across — not the Latin stand-in's small one: kind -4.)
@@ -1455,7 +1461,7 @@ extension _StyledFrame {
                    let eaFace = theme.faceResolver?(run.eastAsiaFontFamily ?? named?.char.eastAsiaFontFamily ?? _normalChar(document)?.eastAsiaFontFamily
                                                     ?? run.fontFamily ?? named?.char.fontFamily ?? theme.fontFamily, true),
                    ea || eaFace.malgunSymbols,
-                   var w = (style(kind).fontWeight == .bold ? eaFace.boldOtherAdvances : eaFace.otherAdvances)?[u] {
+                   var w = (style(kind).fontWeight == .bold ? eaFace.boldOtherAdvances : eaFace.otherAdvances)?[u] ?? (emDashSpace ? 0.5 : nil) {
                     // (A run holding ONLY the middle dot has no Hangul to take Batang from, so Word draws it in Malgun
                     // Gothic: 0.2188 em (bold 0.2617), where a dot inside a Hangul run is Batang's 0.333. 28dd0ac0's title.)
                     if u == 0xB7, eaFace.malgunSymbols, theme.wordRules, RichTextTheme.wordWindowsPages, run.loneDot || tcFit {
