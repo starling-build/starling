@@ -2606,6 +2606,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                              size: size, bold: st.bold, italic: st.italic,
                              underline: st.underline, strike: st.strike, color: c, dots: dots, hint: hint)
         let lower = book.fontName(st).trimmingWhitespace().lowercased()
+        if printing, face == OfficeFonts.sans || face == "Arial" { style.arabicArial = true }
         if lower == "aptos narrow" || OfficeFonts.tabledNames.contains(lower) { style.own = lower }
         if st.underline || st.strike, let m = RichTextTheme.ruleMetrics(book.fontName(st), bold: st.bold, italic: st.italic) {
             style.rule = [m.up, m.ut, m.sp, m.st]
@@ -3233,6 +3234,8 @@ struct GridTextStyle: Hashable {
     /// The face whose own widths it is set to, where Excel's face has none
     /// in the stand-in that draws it ("aptos narrow", lower case); "" for none.
     var own = ""
+    /// Whether Excel draws this cell's Arabic letters in Arial (its face is Arial, or one Excel lacks): at Arial's advances.
+    var arabicArial = false
     /// The screen's pixels an em, where the text is fitted as Excel's
     /// screen does: each character a whole pixel wide; 0 for none.
     var screen = 0.0
@@ -3287,6 +3290,7 @@ final class _TextCache {
     /// blank on the page and nothing in its text but the space.
     private func _span(_ text: String, _ style: GridTextStyle) -> TextSpan {
         guard text.contains(NumberFormat.padMark) else {
+            if let arabic = _arabicSpans(text, style) { return TextSpan(children: arabic) }
             return _spaces(text, style) ? TextSpan(children: _spaced(text, style)) : TextSpan(text: text, style: style.flutter)
         }
         // (A lone space measures as its advance only between letters.)
@@ -3452,9 +3456,56 @@ final class _TextCache {
             let space = s.containsSubstring(" ") ? _measure("a a", plain) - _measure("aa", plain) : 0
             return s.reduce(0) { $0 + (($1 == " " ? space : _measure(String($1), plain)) / style.size * style.screenEm).rounded() * style.screen }
         }
+        if let parts = _arabicParts(s, style) {
+            var plain = style; plain.arabicArial = false
+            return parts.reduce(0) { $0 + ($1.ems.map { $0 * style.size } ?? _width($1.text, plain)) }
+        }
         guard _spaces(s, style) else { return _measure(s, style) }
         let space = s.containsSubstring(" ") ? _measure("a a", style) - _measure("aa", style) : 0
         return s.reduce(0) { $0 + _advance($1, $1 == " " ? space : _measure(String($1), style), style) }
+    }
+
+    /// A text split into its stretches of Arabic-script letters (with their width in Arial's own advances, ems) and the rest, where
+    /// the style is one Excel draws in Arial (`GridTextStyle.arabicArial`); nil where there is no Arabic letter to set so. A joined
+    /// word is wider in the stand-in's Arabic (DejaVu) than in Arial's.
+    private func _arabicParts(_ s: String, _ style: GridTextStyle) -> [(text: String, ems: Double?)]? {
+        guard style.arabicArial, s.unicodeScalars.contains(where: { ArabicRunWidth.isArabic($0.value) }) else { return nil }
+        let table = style.bold ? WindowsArabicAdvances.arialBold : WindowsArabicAdvances.arial
+        var parts: [(text: String, ems: Double?)] = []
+        var run = "", other = ""
+        func close() {
+            guard !run.isEmpty else { return }
+            let ems = ArabicRunWidth.ems(run.unicodeScalars.map { $0.value }, advances: table)
+            parts.append((run, ems)); run = ""
+        }
+        for ch in s {
+            let arabic = ch.unicodeScalars.allSatisfy { ArabicRunWidth.isArabic($0.value) && $0.value != 0x200C }
+            if arabic {
+                if !other.isEmpty { parts.append((other, nil)); other = "" }
+                run.append(ch)
+            } else {
+                close(); other.append(ch)
+            }
+        }
+        close()
+        if !other.isEmpty { parts.append((other, nil)) }
+        return parts
+    }
+
+    /// The spans of such a text: each Arabic word stretched or squeezed (a horizontal scale of its glyphs) to Arial's width of it.
+    private func _arabicSpans(_ s: String, _ style: GridTextStyle) -> [InlineSpan]? {
+        guard let parts = _arabicParts(s, style) else { return nil }
+        var plain = style; plain.arabicArial = false
+        var spans: [InlineSpan] = []
+        for p in parts {
+            if let ems = p.ems {
+                let have = _measure(p.text, plain)
+                spans.append(TextSpan(text: p.text, style: have > 0.01 ? plain.flutter.copyWith(scaleX: ems * style.size / have) : plain.flutter))
+            } else {
+                spans += _spaced(p.text, plain)
+            }
+        }
+        return spans
     }
     /// The stand-in's own width of `s`.
     private func _measure(_ s: String, _ style: GridTextStyle) -> Double {
