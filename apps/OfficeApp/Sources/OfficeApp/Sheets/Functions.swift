@@ -1346,17 +1346,20 @@ enum SheetFunctions {
         }
         // Exact VLOOKUP of a plain text or number key in a big range: the first row holding it comes from the first column's
         // index (shared by every lookup into that range this pass), not from copying and scanning the whole table each time.
-        if exact, vertical, case .range(let s, let rg) = tableEv, rg.rows > 64, rg.rows <= 200_000,
-           rg.bottom < CellAddress.maxRows, rg.right < CellAddress.maxCols,
+        // (A whole-row or whole-column table is clipped to the sheet's used extent: beyond it every cell is empty.)
+        if exact, vertical, case .range(let s, let rg0) = tableEv,
+           case let rg = CellRange(top: rg0.top, left: rg0.left, bottom: min(rg0.bottom, max(rg0.top, c.engine.usedExtent(s).row)), right: rg0.right),
+           rg.rows > 64, rg.rows <= 200_000, rg.left < CellAddress.maxCols,
            let ik = CalcEngine.indexKey(key), { () -> Bool in
                if case .text(let t) = key { return !(t.containsSubstring("*") || t.containsSubstring("?") || t.containsSubstring("~")) }
                return true }() {
             let col = CellRange(top: rg.top, left: rg.left, bottom: rg.bottom, right: rg.left)
             let firstCol = c.engine.rangeValues(s, col)
             guard let i = c.engine.candidates(s, col, key).first(where: { CalcEngine.compare(key, firstCol[$0]) == 0 }) else { return .error(.na) }
-            guard k <= rg.cols else { return .error(.ref) }
-            let resCol = CellRange(top: rg.top, left: rg.left + k - 1, bottom: rg.bottom, right: rg.left + k - 1)
-            return .scalar(c.engine.rangeValues(s, resCol)[i])
+            guard k <= rg0.cols else { return .error(.ref) }
+            // Only the one matching cell is read, and through value(): never a cached column, so a formula there is calculated first
+            // (and a result column reading another lookup is no false cycle).
+            return .scalar(c.engine.cellValue(s, CellAddress(row: rg.top + i, col: rg.left + k - 1)))
         }
         var g = c.engine.grid(tableEv, c)
         if !vertical {

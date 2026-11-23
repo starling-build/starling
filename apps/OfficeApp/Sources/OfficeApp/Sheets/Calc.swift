@@ -233,6 +233,18 @@ final class CalcEngine {
         return e
     }
 
+    /// One cell as a range read sees it: a formula is calculated first; a spill's cell holds the spilled value.
+    func cellValue(_ sheet: Int, _ a: CellAddress) -> CellValue {
+        let ws = book.sheets[sheet]
+        if let cell = ws.cells[a] {
+            if cell.formula != nil { return value(sheet, a) }
+            // (An empty styled cell under a spill holds no value of its own: the spilled one shows.)
+            if cell.value == .empty, let sp = ws.spilled[a] { return sp }
+            return cell.value
+        }
+        return ws.spilled[a] ?? .empty
+    }
+
     func rangeValues(_ sheet: Int, _ r: CellRange) -> [CellValue] {
         let key = _RangeKey(sheet: sheet, range: r)
         if let v = _rangeCache[key] { return v }
@@ -244,7 +256,7 @@ final class CalcEngine {
                 let a = CellAddress(row: row, col: col)
                 // (A cell another formula spills into holds that value:
                 // SUM(A1:C11) over SEQUENCE(2)'s second cell left it out.)
-                if let cell = ws.cells[a] { out.append(cell.formula == nil ? cell.value : value(sheet, a)) } else { out.append(ws.spilled[a] ?? .empty) }
+                out.append(cellValue(sheet, a))
             }
         }
         // Not kept while a cycle is being walked: its cells are not final.

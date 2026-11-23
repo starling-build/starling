@@ -19,6 +19,19 @@ final class SheetsPrintTests: XCTestCase {
         XCTAssertEqual(pages[2].cols, Array(7 ... 11))
     }
 
+    /// A manual break's page of hidden rows only is a blank page ahead of the visible ones
+    /// (ja-5563bee92c: five of them before the first month in Excel's print).
+    func testHiddenBreakSegmentsPrintBlank() {
+        let area = CellRange(top: 0, left: 0, bottom: 39, right: 2)
+        var setup = SheetPrintSetup()
+        setup.fitWidth = 1
+        setup.fitHeight = 0
+        setup.rowBreaks = [10, 20, 30]
+        let (pages, _) = SheetPrintLayout.pages(area: area, setup: setup, width: { _ in 64 },
+                                                height: { $0 < 20 ? 0 : 15 })
+        XCTAssertEqual(pages.map(\.rows.count), [0, 0, 10, 10])
+    }
+
     func testHiddenRowsAndFitToWidth() {
         let area = CellRange(top: 0, left: 0, bottom: 9, right: 11)
         let hidden: Set<Int> = [3, 4]
