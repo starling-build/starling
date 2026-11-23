@@ -5268,8 +5268,8 @@ enum ChartPainter {
         // (Not where the columns stand on the other axis: chart-
         // testCombinedChartAxis' go below their zero, and its labels stay
         // at the foot of the lines' axis.)
-        let atZero = !c.categoryLabelsLow && !c.categoryAxisDeleted && c.type != .scatter && !horizontal && sc.lo < (c.categoryCrossesAt ?? 0)
-            && c.dataTable == nil && !c.columnsOnRight && !c.chartex
+        var atZero = !c.categoryLabelsLow && !c.categoryAxisDeleted && c.type != .scatter && !horizontal && sc.lo < (c.categoryCrossesAt ?? 0)
+            && c.dataTable == nil && !c.chartex && !c.columnsOnRight
         // The lines' own axis, scaled as the first is, by their values.
         var secondScale: (lo: Double, hi: Double, step: Double)? = nil
         if let second = c.secondValueAxis, second.sameScale, !horizontal {
@@ -5282,6 +5282,10 @@ enum ChartPainter {
             }
             secondScale = s2
         }
+        // (Where the columns stand on the right-hand axis the category axis crosses the lines' axis, at that scale's zero: chart-
+        // combined_chart_secondary_axis' names stand on its 0 line; chart-testCombinedChartAxis' lines all above zero keep them at the foot.)
+        if c.columnsOnRight, !c.categoryLabelsLow, !c.categoryAxisDeleted, c.type != .scatter, !horizontal, c.dataTable == nil, !c.chartex,
+           let s2 = secondScale, s2.lo < (c.categoryCrossesAt ?? 0) { atZero = true }
         // (A log axis is laid out in powers: the base's log of each x.)
         let xt: (Double) -> Double = { v in c.xLogBase.map { log(max(v, 1e-300)) / log($0) } ?? v }
         var xScale = (lo: 0.0, hi: Double(n), step: 1.0)
@@ -6571,7 +6575,7 @@ enum ChartPainter {
         }
         for t in secondLabels { t.dispose() }
         // The category axis line, at zero.
-        let zero = vpos(max(sc.lo, min(sc.hi, c.categoryCrossesAt ?? 0)))
+        let zero = c.columnsOnRight && atZero ? vpos2(max(secondScale?.lo ?? 0, min(secondScale?.hi ?? 0, c.categoryCrossesAt ?? 0))) : vpos(max(sc.lo, min(sc.hi, c.categoryCrossesAt ?? 0)))
         if classic {
             // The category ticks: at a scatter's x steps, else between
             // the categories and at both ends.
