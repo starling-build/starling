@@ -124,6 +124,8 @@ final class SheetGrid: StatefulWidget {
     let onFilterMenu: (Offset, Int) -> Void
     /// A validation list's arrow was pressed: where (global), the cell, its choices.
     let onListMenu: (Offset, CellAddress, [String]) -> Void
+    /// Two fingers pinch: the factor to multiply the zoom by.
+    let onZoom: (Double) -> Void
 
     init(key: (any Key)? = nil, controller: WorkbookController, zoom: Double,
          onEditText: @escaping (String?) -> Void,
@@ -131,7 +133,8 @@ final class SheetGrid: StatefulWidget {
          onStatus: @escaping (String) -> Void,
          onContextMenu: @escaping (Offset, GridMenuArea) -> Void = { _, _ in },
          onFilterMenu: @escaping (Offset, Int) -> Void = { _, _ in },
-         onListMenu: @escaping (Offset, CellAddress, [String]) -> Void = { _, _, _ in }) {
+         onListMenu: @escaping (Offset, CellAddress, [String]) -> Void = { _, _, _ in },
+         onZoom: @escaping (Double) -> Void = { _ in }) {
         self.controller = controller
         self.zoom = zoom
         self.onEditText = onEditText
@@ -140,6 +143,7 @@ final class SheetGrid: StatefulWidget {
         self.onContextMenu = onContextMenu
         self.onFilterMenu = onFilterMenu
         self.onListMenu = onListMenu
+        self.onZoom = onZoom
         super.init(key: key)
     }
 
@@ -182,6 +186,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     private var _editMenuUp = false
     private var _editPress = 0
     private var _drag: _Drag? = nil
+    /// Fingers down, by pointer id, for a pinch; and the last distance between two.
+    private var _fingers: [Int: Offset] = [:]
+    private var _pinchLast: Double? = nil
+    /// A pinch is under way or just ended: the fingers lifting select nothing.
+    private var _pinched = false
     private var _lastClick: (cell: CellAddress, at: Double)? = nil
     /// The noted cell under the pointer: its note shows beside it.
     private var _hoverNote: CellAddress? = nil
@@ -1514,10 +1523,39 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     private func _local(_ e: PointerEvent) -> Offset { _box?.globalToLocal(e.position) ?? e.position }
 
+    /// The distance between the first two fingers down, or nil with fewer.
+    private func _fingerDistance() -> Double? {
+        let pts = _fingers.sorted { $0.key < $1.key }.map(\.value)
+        guard pts.count >= 2 else { return nil }
+        let dx = pts[0].dx - pts[1].dx, dy = pts[0].dy - pts[1].dy
+        return (dx * dx + dy * dy).squareRoot()
+    }
+
+    /// A zoom change keeps the cell at the top left of the view where it was.
+    override func didUpdateWidget(_ oldWidget: StatefulWidget) {
+        super.didUpdateWidget(oldWidget)
+        if let old = oldWidget as? SheetGrid, old.zoom > 0, old.zoom != _w.zoom {
+            let f = _w.zoom / old.zoom
+            scrollX *= f
+            scrollY *= f
+        }
+    }
+
     private func _down(_ e: PointerEvent) {
         focus.requestFocus()
         let p = _local(e)
         let c = controller
+        if e.kind == .touch {
+            _fingers[e.pointer] = e.position
+            if _fingers.count >= 2 {
+                // A second finger: whatever the first began is abandoned, and the pair pinches.
+                _drag = nil
+                _pinched = true
+                _pinchLast = _fingerDistance()
+                return
+            }
+            _pinched = false
+        }
         if e.kind == .touch, e.buttons & kSecondaryMouseButton == 0, _touchEditDown(p) { return }
         if e.buttons & kSecondaryMouseButton != 0 {
             _secondaryDown(e, at: p)
@@ -1789,6 +1827,16 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     }
 
     private func _move(_ e: PointerEvent) {
+        if e.kind == .touch, _fingers[e.pointer] != nil {
+            _fingers[e.pointer] = e.position
+            if _pinched {
+                if _fingers.count >= 2, let last = _pinchLast, last > 0, let now = _fingerDistance(), now > 0 {
+                    let f = now / last
+                    if abs(f - 1) > 0.002 { _w.onZoom(f); _pinchLast = now }
+                }
+                return
+            }
+        }
         guard let d = _drag else { return }
         let p = _local(e)
         let c = controller
@@ -1899,6 +1947,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     }
 
     private func _up(_ e: PointerEvent) {
+        if e.kind == .touch, _fingers[e.pointer] != nil {
+            _fingers[e.pointer] = nil
+            if _pinched {
+                _pinchLast = _fingers.count >= 2 ? _fingerDistance() : nil
+                if _fingers.isEmpty { _pinched = false }
+                _drag = nil
+                return
+            }
+        }
         _move(e)
         if case .touchScroll(_, _, let moved, let cell)? = _drag, !moved { _cellPress(cell) }
         if case .editTouch(_, let moved, let before)? = _drag, let ed = edit {

@@ -715,7 +715,8 @@ final class SheetsShellState: State<StatefulWidget> {
                 onStatus: { [weak self] m in self?._flash(m) },
                 onContextMenu: { [weak self] point, area in self?._showContextMenu(at: point, area) },
                 onFilterMenu: { [weak self] point, col in self?._showFilterMenu(at: point, col: col) },
-                onListMenu: { [weak self] point, cell, choices in self?._showListMenu(at: point, cell: cell, choices) })),
+                onListMenu: { [weak self] point, cell, choices in self?._showListMenu(at: point, cell: cell, choices) },
+                onZoom: { [weak self] f in self?.setState { self?._zoom = max(0.25, min(4, (self?._zoom ?? 1) * f)) } })),
             _sheetTabs(fluent),
             _statusBar(fluent),
         ]
