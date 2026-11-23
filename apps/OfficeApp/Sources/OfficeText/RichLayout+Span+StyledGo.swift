@@ -795,8 +795,10 @@ extension _StyledFrame {
                 // (A space beside an em dash, in a document whose East Asian text is Chinese, is the East Asian face's half em: dx2 817e3a79fcd7's
                 // footer "— 1 —", 9 pt Calibri over 宋体, Word's print puts the digit 12.72 and the closing dash 9.12 after the first, spaces of
                 // 4.5 where Calibri's are 2.0.)
+                // (Not in a run hinted East Asian: zh-4e5fe46f's footer "— 10 —", its runs hinted, 12pt Times over 宋体, has Word's digit 17.76 after
+                // the dash, the space the Latin face's 3.3; the unhinted runs of dx2 817e3a79fcd7 take the half em.)
                 var emDashSpace = false
-                if ch == " ", !ea, theme.wordRules, RichTextTheme.wordWindowsPages, document.eastAsiaLanguage?.hasPrefix("zh") == true,
+                if ch == " ", !ea, theme.wordRules, RichTextTheme.wordWindowsPages, document.eastAsiaLanguage?.hasPrefix("zh") == true, !hinted,
                    following == "\u{2014}" || ctx.before == "\u{2014}" { ea = true; emDashSpace = true }
                 kind = ea ? -1 : (classed ? RichResolvedFace.characterClass(ch) : 0)
                 // (Circles, squares and stars in an East Asian run are the East Asian face's glyph
