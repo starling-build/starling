@@ -1627,8 +1627,8 @@ extension RichLayout {
         for g in digitRuns {
             let k = g.lowerBound
             var nb = g.lowerBound - 1, na = g.upperBound
-            while nb >= 0, text[nb] == 0x200B { nb -= 1 }
-            while na < text.count, text[na] == 0x200B { na += 1 }
+            while nb >= 0, text[nb] == 0x200B || (text[nb] >= 0x30 && text[nb] <= 0x39) { nb -= 1 }
+            while na < text.count, text[na] == 0x200B || (text[na] >= 0x30 && text[na] <= 0x39) { na += 1 }
             let near = nb >= 0 && wide(text[nb]) ? nb : na
             guard styles.indices.contains(k), near < text.count, wide(text[near]), let side = styles[near], let em = side.fontSize,
                   let box = painter.getBoxesForSelection(TextSelection(baseOffset: k, extentOffset: k + 1)).first else { continue }
@@ -1671,8 +1671,8 @@ extension RichLayout {
             glyph.layout()
             // (Across the column it stands where the ideograph beside it does: the digit's own stand-in face has a line box of its own.)
             var nb = g.lowerBound - 1, na = g.upperBound
-            while nb >= 0, text[nb] == 0x200B { nb -= 1 }
-            while na < text.count, text[na] == 0x200B { na += 1 }
+            while nb >= 0, text[nb] == 0x200B || (text[nb] >= 0x30 && text[nb] <= 0x39) { nb -= 1 }
+            while na < text.count, text[na] == 0x200B || (text[na] >= 0x30 && text[na] <= 0x39) { na += 1 }
             let near = nb >= 0 && text[nb] >= 0x2E80 ? nb : na
             let across = near < text.count ? painter.getBoxesForSelection(TextSelection(baseOffset: near, extentOffset: near + 1)).first : nil
             canvas.save()
