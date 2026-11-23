@@ -651,6 +651,9 @@ enum Xlsx {
     }
 
     static func _styles(_ st: XNode, theme: [UInt32], themeFonts: (minor: String?, major: String?) = (nil, nil), themeless: Bool = false) -> [CellStyle] {
+        // (A palette of the book's own: indexed colours are its entries, de-48adcf794a's input-cell fill indexed 43 is FFFFCC there, FFFF99 in the default.)
+        let own = st.child("colors")?.child("indexedColors")?.kids("rgbColor").compactMap { $0["rgb"].flatMap { UInt32($0.suffix(6), radix: 16) } } ?? []
+        customIndexed = own.count >= 56 ? own : nil
         var formats = builtinFormats
         for nf in st.child("numFmts")?.kids("numFmt") ?? [] {
             if let id = Int(nf["numFmtId"] ?? ""), let code = nf["formatCode"] { formats[id] = code }
@@ -770,7 +773,7 @@ enum Xlsx {
         // prints lo-tdf113271's `<color theme="1" rgb="FFFFFF"/>` black.
         if let t = c["theme"].flatMap({ Int($0) }), t < theme.count { rgb = theme[t] }
         else if let s = c["rgb"], let v = UInt32(s.suffix(6), radix: 16) { rgb = v }
-        else if let i = c["indexed"].flatMap({ Int($0) }), i < _indexed.count { rgb = _indexed[i] }
+        else if let i = c["indexed"].flatMap({ Int($0) }), i < _indexed.count { rgb = customIndexed.flatMap { i < $0.count ? $0[i] : nil } ?? _indexed[i] }
         guard var v = rgb else { return nil }
         if let tint = c["tint"].flatMap({ Double($0) }), tint != 0 { v = _tinted(v, tint) }
         return v
@@ -822,6 +825,8 @@ enum Xlsx {
         return order.enumerated().map { val($0.element) ?? office[$0.offset] }
     }
 
+    /// The palette the book being read gives (`indexedColors`), set as its styles are read.
+    nonisolated(unsafe) static var customIndexed: [UInt32]? = nil
     static let _indexed: [UInt32] = [
         0x000000, 0xFFFFFF, 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF, 0x00FFFF,
         0x000000, 0xFFFFFF, 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF, 0x00FFFF,
