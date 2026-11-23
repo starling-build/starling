@@ -205,3 +205,10 @@ extension ArabicForms {
         return total
     }
 }
+
+/// What other modules may ask of `ArabicForms`: the width of a run of Arabic-script letters in a face's own advances (Sheets sets an
+/// Arabic cell in Arial's, as Excel does).
+public enum ArabicRunWidth {
+    public static func isArabic(_ u: UInt32) -> Bool { ArabicForms.isArabic(u) }
+    public static func ems(_ units: [UInt32], advances: [UInt32: Double]) -> Double? { ArabicForms.width(units, advances) }
+}

@@ -98,7 +98,7 @@ SR=$(date +%s); test/tools/corpus-cache.sh restore 2>&1 | tail -3 | cut -c1-200 
 export PATH=$TH/.local/share/swiftly/toolchains/6.2.4/usr/bin:$PATH
 export OFFICE_WORD_FONTS=windows OFFICE_FONT_SOURCE=bundled
 EO=$(readlink -f engine)/src/out/host_release
-# the base cache (binary + base scores per sha) is SHARED by every runner on the machine when /data/gate/cache exists (mode 1777); else per runner
+# the base cache (binary + base scores per sha) is SHARED by every runner on the machine when /data/gate/cache exists (mode 2775, group gatecache, setgid: NOT world-writable or sticky, which makes the kernel refuse another user's lock files (fs.protected_regular)); else per runner
 umask 002
 if [ -n "${GATE_BASECACHE:-}" ]; then BC=$GATE_BASECACHE; elif [ -d /data/gate/cache ] && [ -w /data/gate/cache ]; then BC=/data/gate/cache; else BC=$HOME/scratch/basecache; fi
 # The cache is keyed by the ENGINE commit too (amd-8, 2026-11-22): a base rendered on the old engine must never be compared with a PR rendered on the new one.
@@ -118,7 +118,7 @@ if [ "${GATE_PREBUILD:-0}" != 1 ] && [ "${GATE_EXACT_BASE:-0}" != 1 ] && [ ! -x 
     if [ -x "$BC/$a/release/OfficeApp" ]; then EXACTB=$BSHA; BSHA=$a; echo "render-gate: base ${EXACTB:0:9} not cached; scoring against the cached ancestor ${a:0:9}"; break; fi
   done
 fi
-mkdir -p "$BC"; chmod 1777 "$BC" 2>/dev/null
+mkdir -p "$BC"; chmod 2775 "$BC" 2>/dev/null
 find "$BC" -mindepth 1 -maxdepth 1 -user "$(id -u)" -mmin +240 -exec rm -rf {} + 2>/dev/null   # prune what this user wrote more than 4 h ago
 touch "$BC/$BSHA.lock" 2>/dev/null; chmod g+w "$BC/$BSHA.lock" 2>/dev/null; exec 8>>"$BC/$BSHA.lock" || exec 8>>"$BC/$BSHA.$(id -u).lock"   # a lock another runner user made without group write (run 44992081171: Permission denied, exit 1) falls back to a lock of our own   # fd 8: one writer per base sha across runners (binary publish and score rows)
 

@@ -189,7 +189,7 @@ extension _ParaFrame {
         // Word's prints "適用考試名稱" 57.22pt apart across a 309pt cell,
         // "總計" one at each side of its cell, a cover's "山东省地方标准"
         // across the page. (The lines before it are justified.)
-        if theme.wordRules, style.alignment == .justify, style.eastAsian["w:jc"] == "distribute",
+        if style.alignment == .justify, style.eastAsian["w:jc"] == "distribute",
            (p.cell?.textDirection ?? .horizontal) == .horizontal, textWidth < 50_000, !p.text.isEmpty {
             let units = Array(p.text.utf16)
             let map = _OffsetMap(lead: _lead(i), inserts: _inserts[i])

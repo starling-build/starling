@@ -13,7 +13,7 @@ CC = os.environ.get("CORPUS_CACHE", "/data/corpus-cache") + "/test/corpus"
 
 def index():
     ix = {}
-    for pat in ("pptx/decks/**/*.pptx", "pptx-full/decks/**/*.pptx", "pptx-pilot/decks/**/*.pptx", "pptx-zh/decks/**/*.pptx"):
+    for pat in ("pptx/decks/**/*.pptx", "pptx-full/decks/**/*.pptx", "pptx-pilot/decks/**/*.pptx", "pptx-zh/decks/**/*.pptx", "pptx-cjk-r1/decks/**/*.pptx"):
         for f in glob.glob(CC + "/" + pat, recursive=True):
             ix.setdefault(os.path.basename(f)[:-5], f)
             if "/pptx-zh/" in f: ix.setdefault("zh-" + os.path.basename(f)[:-5], f)   # round ids of the zh set

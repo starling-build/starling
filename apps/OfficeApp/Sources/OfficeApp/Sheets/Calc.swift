@@ -74,7 +74,7 @@ final class CalcEngine {
     /// formulas that read them.
     func recalculate() {
         _graph = nil
-        _rangeCache.removeAll(keepingCapacity: true)
+        _rangeCache.removeAll(keepingCapacity: true); _textIndexCache.removeAll(keepingCapacity: true)
         _extents.removeAll()
         _done.removeAll(keepingCapacity: true)
         _visiting.removeAll()
@@ -106,7 +106,7 @@ final class CalcEngine {
                 _knownSpills = _collectSpills()
                 _graph = nil
                 _done.removeAll(keepingCapacity: true)
-                _rangeCache.removeAll(keepingCapacity: true)
+                _rangeCache.removeAll(keepingCapacity: true); _textIndexCache.removeAll(keepingCapacity: true)
                 _extents.removeAll()
                 circular.removeAll()
             }
@@ -129,7 +129,7 @@ final class CalcEngine {
         for _ in 1 ..< max(1, book.iterateCount) {
             let before = loop.map { book.sheets[$0.sheet].cells[$0.cell]?.value ?? .empty }
             _done.removeAll(keepingCapacity: true)
-            _rangeCache.removeAll(keepingCapacity: true)
+            _rangeCache.removeAll(keepingCapacity: true); _textIndexCache.removeAll(keepingCapacity: true)
             _pass()
             var moved = 0.0
             for (k, old) in zip(loop, before) {
@@ -183,6 +183,41 @@ final class CalcEngine {
     /// order says so), so all its readers can share one copy.
     private struct _RangeKey: Hashable { let sheet: Int; let range: CellRange }
     private var _rangeCache: [_RangeKey: [CellValue]] = [:]
+    /// Per range: its text cells by case-folded text -> their positions in rangeValues' order (ascending). Lets SUMIFS/COUNTIFS
+    /// with an exact text criterion visit only the matching cells instead of scanning the whole column for every formula.
+    /// Dropped with _rangeCache; not kept while a cycle is being walked.
+    private var _textIndexCache: [_RangeKey: [String: [Int]]] = [:]
+    /// The key two cells share exactly when compare() calls them equal: text folded to lower case; a number to 15 significant digits.
+    static func indexKey(_ v: CellValue) -> String? {
+        switch v {
+        case .text(let s): return s.isEmpty ? nil : "t" + s.lowercased()
+        case .number(let x):
+            guard x.isFinite else { return nil }
+            if x == 0 { return "n0" }
+            let e = Double(Int(floor(log10(abs(x)))))
+            return "n" + String(Int64((x * pow(10.0, 14 - e)).rounded()), radix: 10) + "e" + String(Int(e))
+        default: return nil
+        }
+    }
+    /// Positions (ascending) of every cell in the range that could equal `v` under compare(): a superset (a number's own 15-digit
+    /// bucket and the two beside it, since compare's tolerance does not follow the bucket edges); callers check each with compare().
+    func candidates(_ sheet: Int, _ r: CellRange, _ v: CellValue) -> [Int] {
+        guard let k = CalcEngine.indexKey(v) else { return [] }
+        let idx = textIndex(sheet, r)
+        guard case .number(let x) = v, x != 0 else { return idx[k] ?? [] }
+        let e = Double(Int(floor(log10(abs(x))))), m = Int64((x * pow(10.0, 14 - e)).rounded())
+        var out: [Int] = []
+        for d in [Int64(-1), 0, 1] { if let l = idx["n" + String(m + d) + "e" + String(Int(e))] { out.append(contentsOf: l) } }
+        return out.sorted()
+    }
+    func textIndex(_ sheet: Int, _ r: CellRange) -> [String: [Int]] {
+        let key = _RangeKey(sheet: sheet, range: r)
+        if let v = _textIndexCache[key] { return v }
+        var out: [String: [Int]] = [:]
+        for (i, v) in rangeValues(sheet, r).enumerated() { if let k = CalcEngine.indexKey(v) { out[k, default: []].append(i) } }
+        if _visiting.count <= 1 { _textIndexCache[key] = out }
+        return out
+    }
 
     /// A sheet's used extent, for one pass (and after it while no cell is
     /// added or removed): writing computed values back would otherwise make
@@ -230,7 +265,7 @@ final class CalcEngine {
             recalculate(); return
         }
         now = ExcelDate.now()
-        _rangeCache.removeAll(keepingCapacity: true)
+        _rangeCache.removeAll(keepingCapacity: true); _textIndexCache.removeAll(keepingCapacity: true)
         _extents.removeAll()
         var dirty = Set<SheetCell>()
         var queue = changed.map { SheetCell(sheet: sheet, cell: $0) } + Array(g.volatile)
@@ -750,6 +785,31 @@ final class CalcEngine {
     /// Excel's ordering for comparisons and sorting: numbers < text <
     /// booleans, text case-insensitively; an empty cell is 0, "" or FALSE
     /// to match the other side.
+    /// Case-insensitive order of two all-ASCII strings with no allocation (the same order as comparing their
+    /// lowercased() forms); nil when either holds a non-ASCII byte, so the caller takes the Unicode path.
+    static func asciiCompareFolded(_ x: String, _ y: String) -> Int? {
+        var x = x, y = y
+        return x.withUTF8 { a in y.withUTF8 { b -> Int? in
+            let n = min(a.count, b.count)
+            var i = 0
+            while i < n {
+                var p = a[i], q = b[i]
+                if p >= 0x80 || q >= 0x80 { return nil }
+                if p >= 0x41 && p <= 0x5A { p += 32 }
+                if q >= 0x41 && q <= 0x5A { q += 32 }
+                if p != q {
+                    // a later non-ASCII byte cannot change an already decided order
+                    return p < q ? -1 : 1
+                }
+                i += 1
+            }
+            // equal prefix: any non-ASCII byte in the tails needs the Unicode path
+            for j in n..<a.count where a[j] >= 0x80 { return nil }
+            for j in n..<b.count where b[j] >= 0x80 { return nil }
+            return a.count == b.count ? 0 : (a.count < b.count ? -1 : 1)
+        } }
+    }
+
     static func compare(_ a: CellValue, _ b: CellValue) -> Int {
         func rank(_ v: CellValue) -> Int {
             switch v {
@@ -774,6 +834,7 @@ final class CalcEngine {
             if x == y || abs(x - y) <= max(abs(x), abs(y)) * 1e-15 { return 0 }
             return x < y ? -1 : 1
         case (.text(let x), .text(let y)):
+            if let r = CalcEngine.asciiCompareFolded(x, y) { return r }
             let lx = x.lowercased(), ly = y.lowercased()
             return lx < ly ? -1 : (lx > ly ? 1 : 0)
         case (.bool(let x), .bool(let y)): return x == y ? 0 : (!x ? -1 : 1)

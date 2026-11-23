@@ -7,7 +7,7 @@ Draws every workbook of the corpus (books/*.xlsx, cache copy) with `BIN --sheet-
 OUT/per-page.tsv: book, page, pixel_pct, matched, xl_lines, ours_lines, line_pct   (page = Excel's page number; a page only one side has
 scores 100 pixels and 0 lines).  OUT/per-book.tsv: book, pages_xl, pages_ours, pixel_mean, pixel_worst, line_pct (lines matched / Excel lines, "-" without text), status.
 A book Excel printed nothing of and we also print nothing is a match (status ok-empty); one we cannot read is status ERROR."""
-import importlib.util, multiprocessing, os, re, subprocess, sys, time
+import hashlib, importlib.util, json, multiprocessing, os, re, subprocess, sys, time
 
 for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_v, "1")
@@ -20,24 +20,56 @@ spec = importlib.util.spec_from_file_location("d", os.path.join(TEST, "docx-line
 M = importlib.util.module_from_spec(spec); spec.loader.exec_module(M)
 M.WORD = XL; M.ignored = lambda: set(); M.OFFPAGE = True
 BIN = OUT = None
+REUSE = {}   # stem -> (pdf sha1, rows, seconds) from a previous sweep's score-cache.tsv (see load_reuse)
 
-def job(name):
-    base = name[:-5]; pdf = f"{OUT}/pdf/{base}.pdf"; ref = f"{XL}/{base}-orig.pdf"
+def scorer_sha():
+    # the scoring code: a cached score is valid only for the same scorer
+    h = hashlib.sha1()
+    for f in (os.path.abspath(__file__), os.path.join(TEST, "pdf-diff.py"), os.path.join(TEST, "docx-line-match.py")): h.update(open(f, "rb").read())
+    return h.hexdigest()
+
+def load_reuse(d):
+    # SHEETS_REUSE=DIR (a previous sweep's OUT): a book whose PDF is byte-identical to the one scored there takes that score.
+    # Exact, not approximate: the same PDF and the same scorer give the same rows. Ignored when the scorer differs.
+    f = (d or "") + "/score-cache.tsv"
+    if not d or not os.path.exists(f): return {}
+    L = open(f).read().splitlines()
+    if not L or L[0] != "#scorer\t" + scorer_sha(): return {}
+    r = {}
+    for l in L[1:]:
+        k, sha, sec, js = l.split("\t", 3); r[k] = (sha, [tuple(x) for x in json.loads(js)], float(sec))
+    return r
+# A second set (xlsx2: 480 xlsx + 100 xls, 2026-11-22, amd-9's dev set; only books whose export.tsv verdict is "pdf" have a complete print). SHEETS_SETS names the sets.
+CC2 = os.environ.get("CORPUS_CACHE", "/data/corpus-cache") + "/test/corpus/xlsx2"
+BOOKS2, XL2 = CC2 + "/books", CC2 + "/" + os.environ.get("SHEETS_EXCEL", "excel-20261122")
+
+def stem(name): return name[:-5] if name.endswith(".xlsx") else name   # an .xls book keeps its extension: it prints to NAME.xls-orig.pdf
+
+def job(item):
+    name, books, xl = item
+    base = stem(name); pdf = f"{OUT}/pdf/{base}.pdf"; ref = f"{xl}/{base}-orig.pdf"; t0 = time.time()
+    M.WORD = xl
     env = dict(os.environ, SHEET_PDF_MAX_PAGES="20", OFFICE_FONT_SOURCE=os.environ.get("OFFICE_FONT_SOURCE", "bundled"))
     try:
-        p = subprocess.run([BIN, "--sheet-pdf", f"{BOOKS}/{name}", pdf], capture_output=True, text=True, timeout=300, env=env)
+        p = subprocess.run([BIN, "--sheet-pdf", f"{books}/{name}", pdf], capture_output=True, text=True, timeout=300, env=env)
         out = (p.stdout + p.stderr)
     except subprocess.TimeoutExpired:
-        return name, [], "ERROR timeout"
+        return name, [], "ERROR timeout", "", time.time() - t0
     xl_pages = len(re.findall(rb"/Type\s*/Page\b", open(ref, "rb").read()))
     if p.returncode != 0:
         if "nothing to print" in out and xl_pages == 0:
-            return name, [], "ok-empty"
-        return name, [], "ERROR " + (out.strip().splitlines() or [""])[-1][:100]
+            return name, [], "ok-empty", "", time.time() - t0
+        return name, [], "ERROR " + (out.strip().splitlines() or [""])[-1][:100], "", time.time() - t0
+    sha = hashlib.sha1(open(pdf, "rb").read()).hexdigest()
+    if base in REUSE and REUSE[base][0] == sha: return name, REUSE[base][1], "ok", sha, time.time() - t0
     d = subprocess.run([sys.executable, os.path.join(TEST, "pdf-diff.py"), ref, pdf, f"{OUT}/pairs/{base}", "1"], capture_output=True, text=True, timeout=600).stdout
     px = {int(m.group(1)): float(m.group(2)) for m in re.finditer(r"^page\s+(\d+)\s+([\d.]+)% pixels differ", d, re.M)}
     try:
-        a = M.lines(None, ref, {}); b = M.lines(None, pdf, {})
+        # LIMIT (2026-11-22): the ink test misfires on warped or gradient text (WordArt): the text layer holds it
+        # unwarped, so the glyph box has no ink and its edge letters read as hidden. Slides lo-tdf114848 p2 fell
+        # 9 of 9 to 4 of 9 on this, so Slides does not use the rule. A Sheets WordArt shape would hit it too.
+        dw, do = M._unseen_pairs(ref, pdf)   # glyphs a clip hides and no ink shows (49156 p1: 28 digits outside the clip) are not text either print shows
+        a = M.lines(None, ref, dw); b = M.lines(None, pdf, do)
     except Exception as e:
         a = b = []
     ap, bp = {}, {}
@@ -48,7 +80,7 @@ def job(name):
     for pg in pages:
         t = len(ap.get(pg, [])); miss = len(M.unmatched(ap[pg], bp.get(pg, []))) if t else 0
         rows.append((pg, px.get(pg, 100.0), t - miss, t, len(bp.get(pg, []))))
-    return name, rows, "ok"
+    return name, rows, "ok", sha, time.time() - t0
 
 def main():
     global BIN, OUT
@@ -56,15 +88,33 @@ def main():
     if "-j" in args: i = args.index("-j"); jobs = int(args[i + 1]); del args[i:i + 2]
     BIN, OUT = os.path.realpath(args[0]), args[1]; names = args[2:]
     os.makedirs(OUT + "/pdf", exist_ok=True); os.makedirs(OUT + "/pairs", exist_ok=True)
+    items = [(n, BOOKS, XL) for n in names]
     if not names:
-        names = sorted(f for f in os.listdir(BOOKS) if f.endswith(".xlsx") and os.path.exists(f"{XL}/{f[:-5]}-orig.pdf"))
-    names.sort(key=lambda f: -os.path.getsize(f"{BOOKS}/{f}"))
-    with multiprocessing.get_context("fork").Pool(jobs) as pool: res = {n: (r, s) for n, r, s in pool.imap_unordered(job, names, chunksize=1)}
+        sets = os.environ.get("SHEETS_SETS", "xlsx,xlsx2").split(",")
+        if "xlsx" in sets:
+            items += [(f, BOOKS, XL) for f in sorted(os.listdir(BOOKS)) if f.endswith(".xlsx") and os.path.exists(f"{XL}/{f[:-5]}-orig.pdf")]
+        if "xlsx2" in sets and os.path.exists(f"{XL2}/export.tsv"):
+            ok = {l.split("\t")[0] for l in open(f"{XL2}/export.tsv") if l.rstrip("\n").endswith("\tpdf")}
+            items += [(f, BOOKS2, XL2) for f in sorted(os.listdir(BOOKS2)) if f in ok and os.path.exists(f"{XL2}/{stem(f)}-orig.pdf")]
+    # slowest first (seconds from the reused sweep when there is one, else file size): the few heavy books must not start last
+    global REUSE
+    REUSE = load_reuse(os.environ.get("SHEETS_REUSE"))
+    items.sort(key=lambda t: (-REUSE[stem(t[0])][2] if stem(t[0]) in REUSE else 0, -os.path.getsize(f"{t[1]}/{t[0]}")))
+    res = {}; cache = {}
+    with multiprocessing.get_context("fork").Pool(jobs) as pool:
+        for n, r, s, sha, sec in pool.imap_unordered(job, items, chunksize=1):
+            res[n] = (r, s)
+            if s == "ok" and sha: cache[stem(n)] = (sha, r, sec)
+    with open(OUT + "/score-cache.tsv.tmp", "w") as f:
+        f.write("#scorer\t" + scorer_sha() + "\n")
+        for k in sorted(cache): f.write(f"{k}\t{cache[k][0]}\t{cache[k][2]:.2f}\t{json.dumps(cache[k][1])}\n")
+    os.replace(OUT + "/score-cache.tsv.tmp", OUT + "/score-cache.tsv")
+    print(f"sheets-sweep: {len(items)} books, {sum(1 for k, v in cache.items() if k in REUSE and REUSE[k][0] == v[0])} scored from the reused sweep", flush=True)
     pp, pb = open(OUT + "/per-page.tsv.tmp", "w"), open(OUT + "/per-book.tsv.tmp", "w")
     pp.write("book\tpage\tpixel_pct\tmatched\txl_lines\tours_lines\tline_pct\n")
     pb.write("book\tpages_xl\tpages_ours\tpixel_mean\tpixel_worst\tline_pct\tstatus\n")
     for n in sorted(res):
-        rows, st = res[n]; b = n[:-5]
+        rows, st = res[n]; b = stem(n)
         for pg, px, m, t, u in rows: pp.write(f"{b}\t{pg}\t{px:.2f}\t{m}\t{t}\t{u}\t{100*m/t if t else 100:.1f}\n")
         if st == "ok-empty": pb.write(f"{b}\t0\t0\t0.00\t0.00\t-\t{st}\n"); continue
         if not rows: pb.write(f"{b}\t-\t-\t-\t-\t-\t{st}\n"); continue

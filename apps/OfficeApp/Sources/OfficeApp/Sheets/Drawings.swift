@@ -62,6 +62,8 @@ struct SheetChart: Equatable {
     var pivot = false
     /// A pivot chart's field buttons (`c14:dropZonesVisible`): Excel prints them in the chart.
     var pivotButtons = false
+    /// The pivot's column fields, the names on the series buttons at the chart's right.
+    var pivotSeries: [String] = []
 
     static func == (a: SheetChart, b: SheetChart) -> Bool {
         a.chart == b.chart && a.path == b.path && a.formulas == b.formulas && a.refs.count == b.refs.count
@@ -160,6 +162,9 @@ enum SheetDrawingsXML {
                 let axis = space.descendant("c:catAx")?.first("c:numFmt") ?? space.descendant("c:dateAx")?.first("c:numFmt")
                 sc.pivot = space.descendant("c:pivotSource") != nil
                 sc.pivotButtons = sc.pivot && space.descendant("c14:dropZonesVisible")?["val"] == "1"
+                if sc.pivotButtons, let src = space.descendant("c:pivotSource")?.first("c:name")?.text {
+                    sc.pivotSeries = _pivotColumnFields(parts, pivotName: src.split(separator: "!").last.map(String.init) ?? src)
+                }
                 sc.categoryFormat = axis.flatMap { ["0", "false"].contains($0["sourceLinked"] ?? "1") ? $0["formatCode"] : nil }
                 for f in _formulas(space) { sc.formulas[f] = f }
                 d.kind = .chart(sc)
@@ -295,6 +300,18 @@ enum SheetDrawingsXML {
         return SheetMarker(col: col, colOff: _emu(n.child("colOff")?.text), row: row, rowOff: _emu(n.child("rowOff")?.text))
     }
 
+    /// The names of a pivot table's column fields (its series), from the cache's field names.
+    static func _pivotColumnFields(_ parts: [String: Data], pivotName: String) -> [String] {
+        for path in parts.keys.sorted() where path.hasPrefix("xl/pivotTables/pivotTable") && path.hasSuffix(".xml") {
+            guard let root = parts[path].flatMap({ XNode.parse($0) }), root["name"] == pivotName else { continue }
+            let xs = (root.child("colFields")?.all("field") ?? []).compactMap { Int($0["x"] ?? "") }
+            guard let cache = _relTargets(parts, of: path).values.first(where: { $0.containsSubstring("pivotCacheDefinition") }),
+                  let def = parts[cache].flatMap({ XNode.parse($0) }), let fields = def.child("cacheFields")?.all("cacheField") else { return [] }
+            return xs.compactMap { $0 >= 0 && $0 < fields.count ? fields[$0]["name"] : nil }
+        }
+        return []
+    }
+
     private static func _emu(_ s: String?) -> Double { (Double(s ?? "") ?? 0) / emuPerPt }
 
     /// A part's relationships: id → resolved part path.
@@ -350,6 +367,7 @@ extension SheetChart {
                 if let (si, cr) = cell(cf), let (_, nr) = cell(nf),
                    let top = text(si, nr.top, cr.left), let bottom = text(si, cr.top - 1, cr.left), !top.isEmpty, !bottom.isEmpty {
                     c.pivotButtons = [top, bottom]
+                    c.pivotSeries = pivotSeries
                 }
             }
             return c
@@ -832,5 +850,41 @@ extension WorkbookController {
             ws.drawingsEdited = true
         }
         selectedDrawing = index
+    }
+}
+
+/// A picture the header or footer shows (`&G`): its bytes and the size the VML gives it, in points.
+struct HeaderPicture: Equatable {
+    var path: String
+    var data: Data
+    var width: Double
+    var height: Double
+}
+
+extension SheetDrawingsXML {
+    private static func _all(_ n: XNode, _ local: String) -> [XNode] {
+        n.children.flatMap { ($0.name.split(separator: ":").last.map(String.init) == local ? [$0] : []) + _all($0, local) }
+    }
+
+    /// The header/footer pictures a sheet's `legacyDrawingHF` part holds.
+    static func readHeaderPictures(sheetPath: String, parts: [String: Data], sheet: XNode?) -> [String: HeaderPicture] {
+        guard let sheet = sheet ?? parts[sheetPath].flatMap({ XNode.parse($0) }),
+              let rid = sheet.child("legacyDrawingHF")?["r:id"], let vmlPath = _relTargets(parts, of: sheetPath)[rid],
+              let bytes = parts[vmlPath], let root = XNode.parse(bytes) else { return [:] }
+        let rels = _relTargets(parts, of: vmlPath)
+        var out: [String: HeaderPicture] = [:]
+        for shape in _all(root, "shape") {
+            guard let id = shape["id"], ["LH", "CH", "RH", "LF", "CF", "RF"].contains(id),
+                  let image = _all(shape, "imagedata").first, let rel = image["o:relid"], let path = rels[rel], let data = parts[path] else { continue }
+            var width = 0.0, height = 0.0
+            for item in (shape["style"] ?? "").split(separator: ";") {
+                let kv = item.split(separator: ":", maxSplits: 1).map { String($0).trimmingWhitespace() }
+                guard kv.count == 2 else { continue }
+                let v = Double(kv[1].replacingAll("pt", with: "")) ?? 0
+                if kv[0] == "width" { width = v } else if kv[0] == "height" { height = v }
+            }
+            if width > 0, height > 0 { out[id] = HeaderPicture(path: path, data: data, width: width, height: height) }
+        }
+        return out
     }
 }

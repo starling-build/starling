@@ -316,6 +316,32 @@ extension RichLayout {
         return trim
     }
 
+    /// Slides: how much of paragraph `i`'s last line's foot, over what a single line keeps below its baseline, does not count
+    /// toward the text's height when the lines are EXACT points over single's height (PowerPoint's prints, ja 18 pt lines on
+    /// 11 pt text: every table row 2.6 pt shorter than the n x 18 + margins ours made, 2 lines and 3 alike; ja 6e4294a735's 90 pt
+    /// lines on 54 pt in a centred box stand 5 pt lower). It is the foot `_baselineShiftBase` models (0.072 of the size and 0.255
+    /// of the spacing over single, less 0.012 of the size) less the natural depth. In pixels; 0 elsewhere.
+    func _exactFootExtra(_ i: Int, _ document: RichDocument) -> Double {
+        guard theme.exactLinesAsPowerPoint, !theme.wordRules, let natural = theme.singleLineHeight else { return 0 }
+        let p = document.paragraphs[i]
+        guard let points = p.style.lineHeightPoints, !p.style.lineHeightIsMinimum, !p.text.isEmpty, let run = p.runs.last else { return 0 }
+        var size = run.style.fontSize ?? document.styles.resolve(p.style)?.char.fontSize
+            ?? document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize
+        if fontScale != 1 { size = max(1, (size * fontScale).rounded()) }
+        let face = run.style.eastAsiaFontFamily ?? run.style.fontFamily
+        let single = (face.flatMap { theme.exactSingleLineEm?($0) } ?? natural) * size
+        guard points > single else { return 0 }
+        let extra = min(0.072 * size + 0.255 * (points - single), points - 0.755 * size) - 0.012 * size
+        return _px(max(0, extra))
+    }
+
+    /// `_exactFootExtra` for a cell's paragraph `k` when it is the last of its column in the row (else 0).
+    func _slidesCellLastLineTrim(_ k: Int, _ document: RichDocument) -> Double {
+        guard let c = _cells[k], !c.vertical else { return 0 }
+        if k + 1 < _cells.count, let n = _cells[k + 1], n.row == c.row, n.table == c.table, n.column == c.column { return 0 }
+        return _exactFootExtra(k, document)
+    }
+
     func _px(_ points: Double) -> Double { points * theme.pixelsPerPoint * scale }
 
     /// Lay out every invalidated paragraph and recompute the tops.
@@ -1381,7 +1407,7 @@ extension RichLayout {
     /// print. A vertical cell's too: zh-74b34f3b's tbRlV "東引鄉活動中心
     /// 2樓" keeps its ideographs upright and lays the "2" on its side,
     /// where its "2" had turned ours whole.)
-    func _paintUpright(_ painter: TextPainter, at origin: Offset, _ canvas: Canvas, distribute: Bool = false, justify: Bool = false, mixed: Bool = false, centred: Bool = false, rubyShifts: [(from: Int, to: Int, shift: Double)] = []) -> Bool {
+    func _paintUpright(_ painter: TextPainter, at origin: Offset, _ canvas: Canvas, distribute: Bool = false, justify: Bool = false, mixed: Bool = false, centred: Bool = false, rubyShifts: [(from: Int, to: Int, shift: Double)] = [], baselineShift: Double = 0) -> Bool {
         guard let root = painter.text else { return false }
         let text = Array(root.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
         // (※ ☆ ★ stand upright in a Japanese face's column — dx2 934bd3e5's Meiryo — and lie on their side in
@@ -1409,10 +1435,13 @@ extension RichLayout {
             return ["meiryo", "メイリオ", "ms mincho", "ms gothic", "ＭＳ", "yu mincho", "yu gothic", "游"].contains { f.containsSubstring($0) }
         }
         let shown = text.indices.filter { wide(text[$0]) }
+        // (PowerPoint's one or two digits beside an ideograph stand upright, side by side, in a place laid in `_span`: painted last.)
+        let digitRuns = theme.wordRules ? [] : Self.uprightDigitRuns(text)
+        let inDigitRun = Set(digitRuns.flatMap { Array($0) })
         if mixed {
             // The rest on its side, where the line set it, on its baseline.
             let lines = painter.computeLineMetrics()
-            for k in text.indices where !wide(text[k]) && !blank(text[k]) && !(text[k] >= 0xD800 && text[k] <= 0xDBFF && k + 1 < text.count && wide(text[k + 1])) {
+            for k in text.indices where !wide(text[k]) && !blank(text[k]) && !inDigitRun.contains(k) && !(text[k] >= 0xD800 && text[k] <= 0xDBFF && k + 1 < text.count && wide(text[k + 1])) {
                 guard let box = painter.getBoxesForSelection(TextSelection(baseOffset: k, extentOffset: k + 1)).first else { continue }
                 let unit = text[k]
                 let end = (unit >= 0xD800 && unit <= 0xDBFF && k + 1 < text.count) ? k + 2 : k + 1
@@ -1431,7 +1460,7 @@ extension RichLayout {
         // the middle in Word's print, every character 79.4pt across;
         // ours set the 16pt ones 1.6pt to the side of the "樓".)
         let ownBoxes = shown.map { painter.getBoxesForSelection(TextSelection(baseOffset: $0, extentOffset: $0 + 1)).first }
-        func across(_ box: TextBox) -> Double {
+        func tallestBox(_ box: TextBox) -> TextBox {
             var tallest = box
             // (Overlapping by more than half, and taller by more than
             // rounding: exact-height lines overlap their neighbours by a
@@ -1440,8 +1469,9 @@ extension RichLayout {
             let half = (box.bottom - box.top) / 2
             for case let other? in ownBoxes where min(other.bottom, box.bottom) - max(other.top, box.top) > half
                 && other.bottom - other.top > tallest.bottom - tallest.top + 0.01 { tallest = other }
-            return (tallest.top + tallest.bottom) / 2
+            return tallest
         }
+        func across(_ box: TextBox) -> Double { let t = tallestBox(box); return (t.top + t.bottom) / 2 }
         // (Each column on by half its first character's letter spacing, as
         // the engine set lines until skia-no-line-spacing-shift took that
         // out — what the places below were measured against: zh-b0401810's
@@ -1569,17 +1599,48 @@ extension RichLayout {
             // Yu Gothic is the face with both: hhea lineGap 1024/2048 and win ascent 2017 (Regular) / 2024 (Bold) over hhea 1802, so 0.25 em
             // across and 0.105 / 0.108 em along. Meiryo, MS Gothic/PGothic/Mincho, HGMaruGothicMPRO and Malgun have win = hhea and no gap, so
             // zero, as printed (vertical tables cjk-vertical-20261122; 9047d9e7 p6, 5df7b42e, 998cb8cc, b993c440, 5bdba90e).)
-            let yuSlide = !theme.wordRules && uprightIdeographs && (styles[k].map { st in
-                var f = (st.debugLabel ?? st.fontFamily ?? "").lowercased()
+            // (Slides: the column's own line, `theme.uprightColumn`: the glyph is centred in win ascent + descent + 0.2 em from the column's
+            // right edge and stands (win ascent - 0.876 em) lower than the engine's unshifted place, as printed in lab vface 2026-11-22.)
+            let column: (ascent: Double, line: Double)? = theme.wordRules || !uprightIdeographs ? nil : styles[k].flatMap { st in
+                var f = (st.debugLabel ?? st.fontFamily ?? "")
                 while f.hasSuffix(".copyWith") { f = String(f.dropLast(9)); if f.hasPrefix("("), f.hasSuffix(")") { f = String(f.dropFirst().dropLast()) } }
-                return f.containsSubstring("yu gothic") || f.containsSubstring("游ゴシック")
-            } ?? false)
-            let yuBold = styles[k].map { ($0.fontWeight?.value ?? 400) >= 600 } ?? false
-            let yuAlong = yuSlide ? (yuBold ? 222.0 : 215.0) / 2048 : 0
-            let yuAcross = yuSlide ? 0.5 / 2 : 0
-            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em + yuAlong * em, origin.dy + acrossC(box, em, k) + rubyColumnShift(k) + (plain ? 0.085 * em : 0) + sharedShift(k) + yuAcross * em)
+                return theme.uprightColumn?(f, (st.fontWeight?.value ?? 400) >= 600)
+            }
+            var columnAcross = acrossC(box, em, k)
+            if let column {
+                // (The column stands (win ascent + descent + 0.2 em) wide from the frame's edge, which the paragraph's own baseline move (`baselineShift`, the face's descent share) must not shift: SimSun and MS Gothic stood 1.4 pt, DFKai 0.5 pt, Yu -0.8 pt off it in lab vface; with the line spacing's own share, with the line spacing's own share, (percent - 1) em, as
+                // leading that PowerPoint leaves on the far side (negative under 100%, zh-9047d9e7 p6 at 80%): lab vface (single spacing), and the 140%
+                // columns of zh-2eea3e9832c7 p5 and zh-6cb9bf676218 p10, where leading kept on the near side set them 13 pt too far.)
+                let mid = (box.top + box.bottom) / 2
+                if let line = lineMetrics.first(where: { mid >= $0.baseline - $0.ascent - 0.5 && mid <= $0.baseline + $0.descent + 0.5 }) {
+                    let leading = (line.ascent + line.descent) / 1.2 - em
+                    columnAcross = line.baseline - line.ascent + leading + (column.line + 0.2) / 2 * em + (styles[k]?.baselineShift ?? 0) - baselineShift
+                }
+            }
+            let yuAlong = column.map { $0.ascent - 0.876 } ?? 0
+            canvas.translate(origin.dx + along + (japanese ? 0 : (Self._verticalFormDrop[form] ?? 0)) * em + yuAlong * em, origin.dy + columnAcross + rubyColumnShift(k) + (plain && column == nil ? 0.085 * em : 0) + sharedShift(k))
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, -middle))
+            canvas.restore()
+            glyph.dispose()
+        }
+        for g in digitRuns {
+            let k = g.lowerBound
+            var nb = g.lowerBound - 1, na = g.upperBound
+            while nb >= 0, text[nb] == 0x200B { nb -= 1 }
+            while na < text.count, text[na] == 0x200B { na += 1 }
+            let near = nb >= 0 && wide(text[nb]) ? nb : na
+            guard styles.indices.contains(k), near < text.count, wide(text[near]), let side = styles[near], let em = side.fontSize,
+                  let box = painter.getBoxesForSelection(TextSelection(baseOffset: k, extentOffset: k + 1)).first else { continue }
+            let glyph = TextPainter(text: TextSpan(text: String(decoding: text[g], as: UTF16.self), style: styles[k]?.copyWith(letterSpacing: 0)), textDirection: .ltr)
+            glyph.layout()
+            let family = side.debugLabel ?? side.fontFamily ?? ""
+            let plain = family.containsSubstring("楷") || family.lowercased().containsSubstring("dfkai") || family.lowercased().containsSubstring("kaiti")
+            // (The place's start, a square's half along it, on the baseline an ideograph's square has in its own place.)
+            canvas.save()
+            canvas.translate(origin.dx + box.left + em / 2 + lead(k), origin.dy + acrossC(box, em, near) + rubyColumnShift(k) + (plain ? 0.085 * em : 0) + sharedShift(k))
+            canvas.rotate(-Double.pi / 2)
+            glyph.paint(canvas, Offset(-glyph.width / 2, 0.38 * em - glyph.computeDistanceToActualBaseline(.alphabetic)))
             canvas.restore()
             glyph.dispose()
         }
@@ -2626,8 +2687,9 @@ extension RichLayout {
                         // (m-1) x 1.2 x size: 18pt at 115% is a row 37.15pt, 150% 43.24pt, 24pt 2 lines 115%
                         // 77.84pt; later lines pitch at m x 1.2 x size as here. The text sits where it did.)
                         let trim = _slidesCellFirstLineTrim(k, document)
-                        rowHeight = max(rowHeight, offset + _heights[k] - trim + cell.pad.top + cell.pad.bottom)
-                        bareHeight = max(bareHeight, offset + _heights[k] - trim + cell.pad.top + cell.pad.bottom - cell.rules)
+                        let lastTrim = _slidesCellLastLineTrim(k, document)
+                        rowHeight = max(rowHeight, offset + _heights[k] - trim - lastTrim + cell.pad.top + cell.pad.bottom)
+                        bareHeight = max(bareHeight, offset + _heights[k] - trim - lastTrim + cell.pad.top + cell.pad.bottom - cell.rules)
                         // (And as tall as a float its text wraps round reaches,
                         // where it stands in the cell (`_floatRect`, no higher
                         // than the row's top): zh-ab9cbe66's flow charts, 632pt
@@ -3031,7 +3093,7 @@ extension RichLayout {
                     if !theme.wordRules, _cells[k]!.rowSpan == 1, !_cells[k]!.vertical, k == row.first || _cells[k - 1]!.column != column {
                         anchorTrim = _slidesCellFirstLineTrim(k, document)
                     }
-                    content[column] = (content[column].map { $0 - shared(k) } ?? 0) + _heights[k] - spare - anchorTrim
+                    content[column] = (content[column].map { $0 - shared(k) } ?? 0) + _heights[k] - spare - anchorTrim - (_cells[k]!.rowSpan == 1 ? _slidesCellLastLineTrim(k, document) : 0)
                 }
                 // (… which reaches to the foot of a box floating over the
                 // text from one of its paragraphs: Word centres

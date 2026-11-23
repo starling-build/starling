@@ -27,8 +27,24 @@ if [ -f "$STAMP" ] && [ "$(cat "$STAMP")" != "$NOW" ]; then
   echo "build-office-fast: engine changed since this scratch was built; wiping object state (full rebuild)" >&2
   rm -rf "$SCR"/x86_64-unknown-linux-gnu/release/*.build "$SCR"/release.yaml "$SCR"/build.db
 fi
-swift build ${BUILD_JOBS:+-j $BUILD_JOBS} -c release --package-path apps/OfficeApp --scratch-path "${1:-$PWD/.build-shared}" \
-  --product OfficeApp -Xswiftc -no-whole-module-optimization ${BUILD_INCREMENTAL:+-Xswiftc -incremental}
+build() {
+  swift build ${BUILD_JOBS:+-j $BUILD_JOBS} -c release --package-path apps/OfficeApp --scratch-path "${1:-$PWD/.build-shared}" \
+    --product OfficeApp -Xswiftc -no-whole-module-optimization ${BUILD_INCREMENTAL:+-Xswiftc -incremental}
+}
+# Self-heal (amd-8, 2026-11-23): -incremental sometimes keeps a stale object after an interface change (a Chart initialiser
+# gained parameters; Drawings.swift.o called the new one, a stale Chart.swift.o had only the old: "undefined reference to
+# OfficeApp.Chart.init(type:title:...)", on the starling2 gate runner for PRs 1960-1965). The failure is in the LINK and is
+# not in the PR. On an undefined reference, drop the object state and build once more, clean.
+LOG="$(mktemp)"
+build "$@" 2>&1 | tee "$LOG"; RC=${PIPESTATUS[0]}
+if [ "$RC" != 0 ]; then
+  if grep -q "undefined reference to" "$LOG"; then
+    echo "build-office-fast: link error from a stale incremental object; wiping object state and rebuilding clean" >&2
+    rm -rf "$SCR"/x86_64-unknown-linux-gnu/release/*.build "$SCR"/release.yaml "$SCR"/build.db
+    build "$@"
+  else rm -f "$LOG"; exit 1; fi
+fi
+rm -f "$LOG"
 echo "$NOW" > "$STAMP"
 # Smoke test (amd-perf, 2026-11-22): an incremental build once produced an OfficeApp that segfaulted on every deck
 # while a plain build was fine. Run one small deck through the fresh binary; a crash fails the build loudly and
