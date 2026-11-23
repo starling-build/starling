@@ -3459,7 +3459,7 @@ enum ChartPainter {
             // (A column chart with a line over it, in Word: every key a bar 19.2 pt long and 4.9
             // high or a stroke as long with its mark in the middle, the entries 1.3 pt further
             // apart: zh-b8de3ae2's "預算", "決算", "執行率" keys at 220.9, 269.6, 318.4.)
-            let wideKeys = !c.onSlide && !c.onSheet && !c.chartex && !c.lineSeries.isEmpty && c.type != .line && !beside
+            let wideKeys = !c.onSlide && !c.chartex && !c.lineSeries.isEmpty && c.type != .line && !beside
             // (A LibreOffice chart in a Word document: keys 5.1 square at 10 pt and 2.2 before
             // the names, the legend ending 10.3 inside the frame: lo-ccd9da4b's.)
             let libreLegend = !c.onSlide && !c.onSheet && !c.chartex && !c.styled2013 && c.axisFont != nil && beside
@@ -3479,7 +3479,7 @@ enum ChartPainter {
             // (An Excel legend row under a chart: key 0.5 of the size square, 0.22 to its name, 0.41 between entries — chart-tdf140489's print at 9 pt: 4.5, 2.0, 3.7.)
             let sheetRow = c.onSheet && !beside && !printed && !c.styled2013 && !wideKeys
             let key = pieKeyLine > 0 ? 0.449 * pieKeyLine : wideKeys ? 19.2 * k : libreLegend ? 6.12 * k * m : bareLegend ? 3.7 * k * m : wordRowKeys ? 6.53 * k * m : sheetRow ? 6 * k * m : (c.onSlide ? 6.57 : 7) * k * m, gap = pieKeyLine > 0 ? 0.2 * pieKeyLine : libreLegend ? 2.64 * k * m : bareLegend ? 4.5 * k * m : wordRowKeys ? 2.93 * k * m : sheetRow ? 2.67 * k * m : (c.onSlide ? 2.92 : 4) * k * m
-            var spacing = (printed ? (c.styled2013 ? 11.2 : bareLegend ? 11.8 : 13.9) : c.styled2013 ? 9.5 : 12) * k * m + (wideKeys ? 1.3 * k : 0)
+            var spacing = (printed ? (c.styled2013 ? 11.2 : bareLegend ? 11.8 : 13.9) : c.styled2013 ? 9.5 : 12) * k * m + (wideKeys ? (c.onSheet ? 5.1 : 1.3) * k : 0)
             if sheetRow { spacing = 4.93 * k * m }
             // (Names in Latin letters only stand 1.4 pt further apart at 9 pt than CJK ones do: chartex's and 61745's "Series 1" pitch 44.05 against 42.65.)
             if wordRowKeys, names.allSatisfy({ $0.unicodeScalars.allSatisfy { $0.isASCII } }) { spacing += 1.87 * k * m }
