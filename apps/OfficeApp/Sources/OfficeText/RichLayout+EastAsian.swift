@@ -2049,7 +2049,13 @@ extension RichLayout {
                         let markShare = given.isEmpty || markRoom <= 0 ? share : min(1, (need + 0.02) / markRoom)
                         let spaceShare = given.isEmpty || markRoom <= 0 ? share
                             : min(1, max(0, need + 0.02 - markRoom) / max(0.001, room - markRoom))
-                        for mark in all { adjust[mark, default: 0] -= half(mark) * markShare }
+                        // (Taken on the other marks' room, the kept last mark still gives its share of a line that holds a pause mark mid-text:
+                        // zh-27a874b7 (zh-TW, mode 14) takes "作、" 15.07 over on two marks' 16, and Word's three marks give 4.95 to 5.04 each.)
+                        let tailJoins = centredEnd && !paragraphEnd && !alone && kept && markRoom > 0 && [0xFF0C, 0x3001, 0x3002].contains(units[tail])
+                        let tailHalf = tailJoins ? half(tail) : 0
+                        let giveShare = tailJoins ? min(1, (need + 0.02) / (markRoom + tailHalf)) : markShare
+                        if tailJoins { adjust[tail, default: 0] -= tailHalf * giveShare }
+                        for mark in all { adjust[mark, default: 0] -= half(mark) * giveShare }
                         for mark in all where leadOpeners[mark] != nil { leadOpeners[mark] = last }
                         for k in given { adjust[k, default: 0] -= (gaps[k] ?? 0) / 2 * spaceShare }
                         // (What the marks cannot give of that fiftieth —
