@@ -843,6 +843,9 @@ struct Chart: Equatable {
     var categoryAxisDeleted = false
     /// The categories are sparse tick names on edges (a scatter's years), each set on one line.
     var categoryLabelsSparse = false
+    /// The area group's own category axis stood at the top (`c:axPos` t, not deleted) while a hidden scatter's years name the foot: its names, drawn standing, over the plot's top edge.
+    var topAxisLabels: [String] = []
+    var topAxisColor: Color? = nil
     /// The axes' own lines are drawn (no `a:ln/a:noFill` in their
     /// `c:spPr`). Not the value axis' of a new chart, which is written
     /// without one.
@@ -2470,7 +2473,13 @@ enum ChartXML {
             c.categoryLabelBold = ["1", "true"].contains(run["b"] ?? "")
             if let f = run.first("a:solidFill") { c.categoryLabelColor = color(f) }
         }
-        if yearsAxis { c.categoryLabelColor = nil }
+        if yearsAxis {
+            if let ax = categoryAxis, ax.first("c:axPos")?["val"] == "t", ax.first("c:delete")?["val"] != "1", ax.first("c:tickLblPos")?["val"] != "none" {
+                c.topAxisLabels = categories
+                c.topAxisColor = c.categoryLabelColor
+            }
+            c.categoryLabelColor = nil
+        }
         if let run = valueAxis?.first("c:txPr")?.descendant("a:defRPr") {
             c.valueLabelBold = ["1", "true"].contains(run["b"] ?? "")
             if let f = run.first("a:solidFill") { c.valueLabelColor = color(f) }
@@ -6243,6 +6252,32 @@ enum ChartPainter {
             let under = (c.type == .scatter || c.categoryLabelsSparse) && top < 0 ? plot.bottom + (c.styled2013 || !c.officeStyled ? 4 : 7.6) * k + belowOut + 14.5 * k : top
             tp.paint(canvas, Offset((plot.left + plot.right) / 2 - tp.width / 2, under))
             tp.dispose()
+        }
+        if c.topAxisLabels.count > 1 {
+            let n = c.topAxisLabels.count
+            let size = c.categoryLabelSize ?? c.baseTextSize
+            let spacing = plot.width / Double(n - 1)
+            func topText(_ s: String) -> TextPainter {
+                let tp = TextPainter(text: TextSpan(text: s, style: Flutter.TextStyle(
+                    color: c.topAxisColor ?? c.textColor ?? theme.text, fontSize: max(3, size * k),
+                    fontFamily: OfficeFonts.substitute(c.font ?? c.axisFont ?? theme.bodyFont), fontFamilyFallback: Self.glyphFallback(c))), textDirection: .ltr)
+                tp.layout(minWidth: 0, maxWidth: .infinity)
+                return tp
+            }
+            let probe = topText("1")
+            let skip = max(1, Int((probe.height / spacing).rounded(.up)) - 1)
+            probe.dispose()
+            var i = 0
+            while i < n {
+                let tp = topText(c.topAxisLabels[i])
+                canvas.save()
+                canvas.translate(plot.left + Double(i) * spacing - tp.height / 2, plot.top - 7.5 * k)
+                canvas.rotate(-.pi / 2)
+                tp.paint(canvas, .zero)
+                canvas.restore()
+                tp.dispose()
+                i += skip + 1
+            }
         }
         if let f = c.plotFill {
             let p = Paint()
