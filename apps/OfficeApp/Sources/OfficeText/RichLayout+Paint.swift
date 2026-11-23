@@ -1882,6 +1882,8 @@ extension RichLayout {
                 onlyRest.paint(canvas, textAt)
             } else if shifts.isEmpty, _verticalBody(i) || uprightIdeographs, _paintUpright(g.painter, at: textAt, canvas, mixed: true, rubyShifts: _rubyColumnShifts(i, document), baselineShift: _baselineShift(i, document)) {
                 // (A vertical section's lines: each ideograph upright down its column, as Word prints them.)
+            } else if shifts.isEmpty, sidewaysDigits, !uprightIdeographs, _paintSidewaysDigits(g.painter, at: textAt, canvas) {
+                // (A sideways eaVert column: its runs of digits upright, the rest turned with the column.)
             } else if shifts.isEmpty { if _paintMode != 2 { _paintShadowPaths(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, map: lines == nil ? _map(i) : nil); g.painter.paint(canvas, _unseenShift[i].map { Offset(textAt.dx + $0, textAt.dy) } ?? textAt) } } else { _paintShiftedLines(g.painter, at: textAt, shifts, canvas) }
         }
         _paintScripts(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,

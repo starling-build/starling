@@ -1647,6 +1647,44 @@ extension RichLayout {
         return true
     }
 
+    /// A sideways eaVert column's line: the text drawn as laid out, turned with the canvas, except its runs of digits, which are drawn
+    /// upright, centred in the place `_span` made for them (the canvas is turned a quarter here: x runs down the column).
+    func _paintSidewaysDigits(_ painter: TextPainter, at origin: Offset, _ canvas: Canvas) -> Bool {
+        guard !theme.wordRules, let root = painter.text else { return false }
+        let text = Array(root.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
+        var styles: [TextStyle?] = []
+        func walk(_ span: InlineSpan, _ inherited: TextStyle?) {
+            guard let t = span as? TextSpan else { styles.append(inherited); return }
+            let own = inherited.map { $0.merge(t.style) } ?? t.style
+            if let s = t.text { styles.append(contentsOf: repeatElement(own, count: s.utf16.count)) }
+            for child in t.children ?? [] { walk(child, own) }
+        }
+        walk(root, nil)
+        guard styles.count == text.count else { return false }
+        let runs = Self.uprightDigitRuns(text)
+        guard !runs.isEmpty, let rest = _clearedPainter(painter, runs, key: 7) else { return false }
+        rest.paint(canvas, origin)
+        for g in runs {
+            guard let first = painter.getBoxesForSelection(TextSelection(baseOffset: g.lowerBound, extentOffset: g.lowerBound + 1)).first,
+                  let last = painter.getBoxesForSelection(TextSelection(baseOffset: g.upperBound - 1, extentOffset: g.upperBound)).first else { continue }
+            let glyph = TextPainter(text: TextSpan(text: String(decoding: text[g], as: UTF16.self), style: styles[g.lowerBound]?.copyWith(letterSpacing: 0)), textDirection: .ltr)
+            glyph.layout()
+            // (Across the column it stands where the ideograph beside it does: the digit's own stand-in face has a line box of its own.)
+            var nb = g.lowerBound - 1, na = g.upperBound
+            while nb >= 0, text[nb] == 0x200B { nb -= 1 }
+            while na < text.count, text[na] == 0x200B { na += 1 }
+            let near = nb >= 0 && text[nb] >= 0x2E80 ? nb : na
+            let across = near < text.count ? painter.getBoxesForSelection(TextSelection(baseOffset: near, extentOffset: near + 1)).first : nil
+            canvas.save()
+            canvas.translate(origin.dx + (first.left + last.right) / 2, origin.dy + ((across ?? first).top + (across ?? first).bottom) / 2)
+            canvas.rotate(-Double.pi / 2)
+            glyph.paint(canvas, Offset(-glyph.width / 2, -glyph.height / 2))
+            canvas.restore()
+            glyph.dispose()
+        }
+        return true
+    }
+
     /// A cell's paragraph stacked (PowerPoint's `wordArtVert`): every character upright, one to a square place
     /// 1.414 em on a side, down the cell and then on to the next column to its right when the cell's height
     /// is spent. PowerPoint's print of lo-tcPr-vert-roundtrip: 18pt "Stacked text" in a 173pt row is six

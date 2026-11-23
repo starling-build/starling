@@ -1980,10 +1980,12 @@ private struct SlideContext {
         st.textTurn = text.textTurn
         st.textStacked = text.textStacked
         st.uprightIdeographs = text.uprightIdeographs
+        st.sidewaysDigits = text.sidewaysDigits
         // An eaVert column in a frame turned to 270 degrees reads as one upright horizontal line in
         // PowerPoint's print (the frame's turn cancels the column's quarter turn; ideographs are not
         // kept upright against it): b3af6b818144 layout bar, b7cbab02dccf p9, d8cbc61e1a24.
         if text.textTurn > 0, text.uprightIdeographs, abs(((st.rotation.truncatingRemainder(dividingBy: 360)) + 360).truncatingRemainder(dividingBy: 360) - 270) < 0.01 { st.uprightIdeographs = false }
+        if text.textTurn > 0, text.sidewaysDigits, abs(((st.rotation.truncatingRemainder(dividingBy: 360)) + 360).truncatingRemainder(dividingBy: 360) - 270) < 0.01 { st.sidewaysDigits = false }
         st.textSpin = text.textSpin
         st.textRev = text.textRev
         st.textScene = text.textScene
@@ -3628,6 +3630,7 @@ private struct SlideContext {
         var textTurn = 0
         var textStacked = 0
         var uprightIdeographs = false
+        var sidewaysDigits = false
         /// The text's camera turned about its axis (`scene3d/camera/rot
         /// rev`), degrees clockwise.
         var textSpin = 0.0
@@ -4588,6 +4591,8 @@ private struct SlideContext {
             body0.textTurn = 1
             // (A column in a face whose vertical header has a negative descent (Meiryo...) is one sideways run in PowerPoint's print.)
             body0.uprightIdeographs = !bodyDocument.paragraphs.contains { $0.runs.contains { $0.length > 0 && SlideFonts.setsEastAsianVerticalSideways($0.style.fontFamily ?? "") } }
+            // (The column's ideographs are one sideways run there, but its one or two digits beside one still stand upright: 44a86430c67f p10.)
+            body0.sidewaysDigits = !body0.uprightIdeographs
         case "vert270": body0.textTurn = -1
         case "wordArtVert": body0.textStacked = 1
         case "wordArtVertRtl": body0.textStacked = -1
