@@ -562,7 +562,8 @@ extension SheetGridState {
                 let inset = 0.48
                 // (Down a centred page likewise, as if 0.96 taller: AverageTaxRates'
                 // rules, centred both ways, stand 0.48 above plain centring's.)
-                let insetX = setup.centerHorizontally ? -inset : inset, insetY = setup.centerVertically ? -inset : inset
+                // (Excel's first rule stands 5 x (1 - scale) printer dots right of the margin, 0 at 100%: the column lab of 2026-11-23, six scales, rules at 420 421 421 422 422 423 dots; the cells' text stands 4 dots further in than it did when the rules stood 4 dots right.)
+                let insetX = setup.centerHorizontally ? -inset - 0.48 : 0.6 * (1 - s), insetY = setup.centerVertically ? -inset : inset
                 var ox = setup.left + insetX, oy = setup.top + insetY
                 let availW = size.width - setup.left - setup.right, availH = size.height - setup.top - setup.bottom
                 if setup.centerHorizontally { ox += max(0, (availW - bandW * s) / 2) }
