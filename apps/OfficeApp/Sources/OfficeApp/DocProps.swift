@@ -53,7 +53,7 @@ enum DocProps {
     static func fonts(_ t: [UInt8], at fc: Int, count lcb: Int) -> [String] {
         guard fc >= 0, fc + lcb <= t.count, lcb >= 2 else { return [] }
         var out: [String] = []
-        var p = fc + 2
+        var p = fc + 4              // cData and cbExtra (2 bytes each) come first
         let end = fc + lcb
         while p < end {
             let cb = Int(t[p])
@@ -269,5 +269,44 @@ enum DocProps {
             xml += pp + rp + "</w:style>"
         }
         return (xml, font)
+    }
+
+    /// The character positions and the n entries of a plex (n + 1 positions, then n entries of `size` bytes).
+    static func plex(_ t: [UInt8], at fc: Int, count lcb: Int, size: Int) -> (cps: [Int], at: Int)? {
+        guard fc >= 0, fc + lcb <= t.count, lcb >= 4 else { return nil }
+        let n = (lcb - 4) / (4 + size)
+        return ((0 ... n).map { OfficeArt.u32(t, fc + 4 * $0) }, fc + 4 * (n + 1))
+    }
+
+    /// `w:sectPr` for a section's property list (`refs` = its header and footer references).
+    static func sectPr(_ g: [UInt8], refs: String) -> String {
+        var w = 12240, h = 15840, l = 1800, r = 1800, tp = 1440, bt = 1440, hd = 720, ft = 720, gut = 0
+        var landscape = false, title = false, cols = 1, space = 720, bkc = 2
+        for s in sprms(g) where s.sgc == 4 {
+            switch s.op {
+            case 0xB01F: w = s.u16
+            case 0xB020: h = s.u16
+            case 0xB021: l = s.u16
+            case 0xB022: r = s.u16
+            case 0x9023: tp = s.i16
+            case 0x9024: bt = s.i16
+            case 0xB025: gut = s.u16
+            case 0xB017: hd = s.u16
+            case 0xB018: ft = s.u16
+            case 0x301D: landscape = s.u8 == 2
+            case 0x300A: title = s.u8 == 1
+            case 0x500B: cols = s.u16 + 1
+            case 0x900C: space = s.u16
+            case 0x3009: bkc = s.u8
+            default: break
+            }
+        }
+        var x = refs
+        x += "<w:type w:val=\"" + ["continuous", "nextColumn", "nextPage", "evenPage", "oddPage"][min(bkc, 4)] + "\"/>"
+        x += "<w:pgSz w:w=\"\(w)\" w:h=\"\(h)\"" + (landscape ? " w:orient=\"landscape\"" : "") + "/>"
+        x += "<w:pgMar w:top=\"\(tp)\" w:right=\"\(r)\" w:bottom=\"\(bt)\" w:left=\"\(l)\" w:header=\"\(hd)\" w:footer=\"\(ft)\" w:gutter=\"\(gut)\"/>"
+        if cols > 1 { x += "<w:cols w:num=\"\(cols)\" w:space=\"\(space)\"/>" }
+        if title { x += "<w:titlePg/>" }
+        return "<w:sectPr>" + x + "</w:sectPr>"
     }
 }
