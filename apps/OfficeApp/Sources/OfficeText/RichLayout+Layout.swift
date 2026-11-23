@@ -1265,7 +1265,7 @@ extension RichLayout {
                     // outdent and a cell margin to the margin and the
                     // other — where ours, scaled to the column, wrapped
                     // "物业服务企业".)
-                    else if theme.wordRules,
+                    else if theme.wordRules, !(ts.bidiVisual && (document.compatibilityMode ?? 0) >= 15),
                             _px(sum) <= width + _px((ts.cellMarginLeft ?? 5.4) + (ts.cellMarginRight ?? 5.4) + max(0, -ts.indent)) + 1 { scale = 1 }
                 }
                 // (Whole pixels, down — from a hair over: 63.5pt is 1270px
