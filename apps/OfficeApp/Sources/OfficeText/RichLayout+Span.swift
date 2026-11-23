@@ -1694,7 +1694,9 @@ extension RichLayout {
                 }
                 var clearLift = false
                 // (A floating object takes no room in the line.)
-                if theme.wordRules, let float = image.float, !float.takesRoom { w = 0; h = 0
+                // (A top-and-bottom band set from a line takes no room in the line either: the band is kept clear by `keepClear`, from the top of
+                // the line its anchor is in. dx2 7d7592a1's squiggle sat as a 17.8pt line of its own under the title, the lines after it 18pt low.)
+                if theme.wordRules, let float = image.float, !float.takesRoom || (RichTextTheme.wordWindowsPages && float.verticalFrom == "line" && float.verticalAlign == nil && float.y > 0 && !float.wraps && _columns <= 1) { w = 0; h = 0
                     // (The first line, which ends in a line break that clears, is as tall as the floats reach: Word's
                     // print of xd 07356df9, "Source" at the foot of its figure, 0 pt of distance under it.)
                     if theme.wordRules, RichTextTheme.wordWindowsPages, p.style.clearsFirstLine, float.wraps, float.verticalFrom == "paragraph",

@@ -5055,10 +5055,6 @@ enum DocxFormat {
                 f.verticalAlign = v.first("wp:align")?.text
             }
             f.takesRoom = anchor.first("wp:wrapTopAndBottom") != nil
-            // (A top-and-bottom band set from the anchor's line is kept from the paragraph, as the line an object is anchored in is
-            // the paragraph's first for the usual one-line title: dx2 7d7592a1's squiggle, 46.4pt under "AuerbachsKellertheaterStaufen",
-            // bands the page there in Word's print and sends the line under it.)
-            if f.takesRoom, f.verticalFrom == "line", f.verticalAlign == nil { f.verticalFrom = "paragraph" }
             f.wraps = ["wp:wrapSquare", "wp:wrapTight", "wp:wrapThrough"].contains { anchor.first($0) != nil }
             f.wrapsTight = anchor.first("wp:wrapTight") != nil || anchor.first("wp:wrapThrough") != nil
             if let w = ["wp:wrapSquare", "wp:wrapTight", "wp:wrapThrough"].lazy.compactMap({ anchor.first($0) }).first,
