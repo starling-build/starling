@@ -172,6 +172,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     private enum _Drag {
         case cells
+        /// A finger on a plain cell: a drag scrolls the sheet, a tap (no movement) selects.
+        case touchScroll(start: Offset, last: Offset, moved: Bool, cell: CellAddress)
         case columns(anchor: Int)
         case rows(anchor: Int)
         case resizeColumn(col: Int, startX: Double, startWidth: Double)
@@ -1565,6 +1567,18 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             }
             return
         }
+        // A finger scrolls; it selects only when it lands and lifts in place.
+        if e.kind == .touch {
+            _drag = .touchScroll(start: p, last: p, moved: false, cell: a)
+            return
+        }
+        _cellPress(a)
+        _drag = .cells
+    }
+
+    /// A press on cell `a`: a second one within 0.4 s edits it, else it selects.
+    private func _cellPress(_ a: CellAddress) {
+        let c = controller
         // Double click, detected by hand (onDoubleTap kills taps on DRM).
         let now = Date().timeIntervalSince1970
         if let last = _lastClick, last.cell == a, now - last.at < 0.4 {
@@ -1575,7 +1589,6 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
         _lastClick = (a, now)
         c.select(a, extend: _chords.shift)
-        _drag = .cells
     }
 
     private func _isBorderDoubleClick(_ axis: WorkbookController.Axis, _ index: Int) -> Bool {
@@ -1692,6 +1705,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let p = _local(e)
         let c = controller
         switch d {
+        case .touchScroll(let start, let last, let moved, let cell):
+            let far = moved || abs(p.dx - start.dx) > 8 || abs(p.dy - start.dy) > 8
+            if far { _scroll(by: last.dx - p.dx, last.dy - p.dy) }
+            _drag = .touchScroll(start: start, last: p, moved: far, cell: cell)
         case .cells:
             let a = cell(atLocal: p)
             if a != c._extentEnd { c.select(a, extend: true); _autoScroll(p) }
@@ -1773,6 +1790,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     private func _up(_ e: PointerEvent) {
         _move(e)
+        if case .touchScroll(_, _, let moved, let cell)? = _drag, !moved { _cellPress(cell) }
         if case .drawing(let index, _, _, let old, _)? = _drag {
             let ws = controller.sheet
             if ws.drawings.indices.contains(index) {

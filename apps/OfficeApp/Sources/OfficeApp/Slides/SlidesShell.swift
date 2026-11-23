@@ -123,6 +123,7 @@ final class SlidesShellState: State<StatefulWidget> {
         _recent = OfficeRecent.load()
         _wire()
         deck.addListener({ [weak self] in self?._deckChanged() }, owner: self)
+        _publishToolbar()
         _cache.onImageDecoded = { [weak self] in
             guard let self, self.mounted else { return }
             self.setState {}
@@ -154,6 +155,7 @@ final class SlidesShellState: State<StatefulWidget> {
     }
 
     override func dispose() {
+        OfficeHost.publishToolbar(nil, owner: self)
         deck.removeListeners(owner: self)
         session.controller.removeListeners(owner: self)
         _deckFocus.dispose()
@@ -344,6 +346,23 @@ final class SlidesShellState: State<StatefulWidget> {
         }
         if let theme { session.theme = theme }
         session.summary = _summarize()
+        _publishToolbar()
+    }
+
+    /// The keyboard's toolbar: the text being typed in, with undo and redo
+    /// reaching the deck as well (the same questions the ribbon asks).
+    private func _publishToolbar() {
+        guard OfficeHost.toolbarChanged != nil else { return }
+        let s = session.summary
+        OfficeHost.publishToolbar(.init(
+            canUndo: s.canUndo, canRedo: s.canRedo,
+            bold: s.bold, italic: s.italic, underline: s.underline,
+            hasLists: true, list: s.list,
+            undo: { [weak self] in self?._undo() }, redo: { [weak self] in self?._redo() },
+            toggleBold: { [weak self] in self?.session.controller.toggleBold() },
+            toggleItalic: { [weak self] in self?.session.controller.toggleItalic() },
+            toggleUnderline: { [weak self] in self?.session.controller.toggleUnderline() },
+            toggleList: { [weak self] in self?.session.controller.toggleList($0) }), owner: self)
     }
 
     /// The ribbon's summary, with undo and redo covering the deck as well
@@ -493,6 +512,7 @@ final class SlidesShellState: State<StatefulWidget> {
         let s = _summarize()
         guard s != session.summary else { return }
         setState { session.summary = s }
+        _publishToolbar()
     }
 
     private func _undo() {
@@ -570,6 +590,7 @@ final class SlidesShellState: State<StatefulWidget> {
         }
         session.dirty = deck.edits != _savedEdits
         session.summary = _summarize()
+        _publishToolbar()
         if session.dirty && deck.edits != _lastAutosaveEdits {
             _lastAutosaveEdits = deck.edits
             _scheduleAutosave()

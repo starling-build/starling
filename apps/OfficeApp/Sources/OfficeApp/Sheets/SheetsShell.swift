@@ -80,6 +80,7 @@ final class SheetsShellState: State<StatefulWidget> {
         _recent = OfficeRecent.load()
         _wire()
         wb.addListener({ [weak self] in self?._changed() }, owner: self)
+        _publishToolbar()
         wb.onCommand = { [weak self] cmd in self?._command(cmd) }
         session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
         // `starling.debug('sheet')` from the browser's console or a script:
@@ -127,6 +128,7 @@ final class SheetsShellState: State<StatefulWidget> {
     }
 
     override func dispose() {
+        OfficeHost.publishToolbar(nil, owner: self)
         wb.removeListeners(owner: self)
         _formula.dispose()
         _nameBox.dispose()
@@ -214,7 +216,22 @@ final class SheetsShellState: State<StatefulWidget> {
         guard mounted else { return }
         session.dirty = wb.edits != 0
         _syncBars()
+        _publishToolbar()
         setState {}
+    }
+
+    /// The keyboard's toolbar while a cell is being typed in: undo and redo,
+    /// and the active cell's bold, italic and underline (a cell has no lists).
+    private func _publishToolbar() {
+        guard OfficeHost.toolbarChanged != nil else { return }
+        let wb = self.wb
+        let st = wb.style(at: wb.active)
+        OfficeHost.publishToolbar(.init(
+            canUndo: wb.canUndo, canRedo: wb.canRedo,
+            bold: st.bold, italic: st.italic, underline: st.underline,
+            undo: { wb.undo() }, redo: { wb.redo() },
+            toggleBold: { wb.toggleStyle(\.bold) }, toggleItalic: { wb.toggleStyle(\.italic) },
+            toggleUnderline: { wb.toggleStyle(\.underline) }), owner: self)
     }
 
     /// The name box shows the active cell (or the selection's size while
