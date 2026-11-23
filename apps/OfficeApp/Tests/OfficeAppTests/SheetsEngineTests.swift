@@ -646,4 +646,17 @@ extension SheetsEngineTests {
         defer { ExcelDate.system1904 = was }
         return ExcelDate.serial(y, m, d)
     }
+
+    /// A big table whose key column is a spill, with an empty styled cell under it: the lookup sees the spilled key.
+    func testVlookupKeyOverSpillWithStyledCell() {
+        var t: [String: String] = ["A1": "=SEQUENCE(100)"]
+        for i in 1 ... 100 { t["B\(i)"] = "v\(i)" }
+        let c = book(["C1": "=VLOOKUP(5,T!A1:B100,2,FALSE)", "C2": "=VLOOKUP(7,T!A1:B100,2,FALSE)"], sheets: ["T": t])
+        let ti = c.book.sheet(named: "T")!
+        XCTAssertNotNil(c.book.sheets[ti].spilled[CellAddress("A5")!])
+        c.book.sheets[ti].cells[CellAddress("A5")!] = Cell(input: "", style: 1)
+        c.engine.recalculate()
+        XCTAssertEqual(v(c, "C1"), .text("v5"))
+        XCTAssertEqual(v(c, "C2"), .text("v7"))
+    }
 }
