@@ -68,6 +68,46 @@ enum OfficeHost {
     /// so a deck or a workbook shows none.
     static var toolbarChanged: (([ToolbarButton]?) -> Void)?
 
+    /// What an editor tells the native toolbar about itself: the state of its
+    /// buttons and what each one does. Writer fills it from its text, Slides from
+    /// the text box being typed in (undo reaching the deck too), Sheets from the
+    /// active cell's format — so the toolbar's list and look live here once.
+    /// `list` is nil where an editor has no lists (a cell), and then the two list
+    /// buttons are left out.
+    struct EditorCommands {
+        var canUndo = false
+        var canRedo = false
+        var bold = false
+        var italic = false
+        var underline = false
+        var hasLists = false
+        var list: ListKind? = nil
+        var undo: () -> Void
+        var redo: () -> Void
+        var toggleBold: () -> Void
+        var toggleItalic: () -> Void
+        var toggleUnderline: () -> Void
+        var toggleList: (ListKind) -> Void = { _ in }
+    }
+
+    /// Publish the buttons for `commands` as `owner`'s toolbar.
+    static func publishToolbar(_ commands: EditorCommands, owner: AnyObject) {
+        guard toolbarChanged != nil else { return }
+        let c = commands
+        var buttons: [ToolbarButton] = [
+            .init(id: "undo", title: "Undo", symbol: "arrow.uturn.backward", isEnabled: c.canUndo) { c.undo() },
+            .init(id: "redo", title: "Redo", symbol: "arrow.uturn.forward", isEnabled: c.canRedo) { c.redo() },
+            .init(id: "bold", title: "Bold", symbol: "bold", isOn: c.bold) { c.toggleBold() },
+            .init(id: "italic", title: "Italic", symbol: "italic", isOn: c.italic) { c.toggleItalic() },
+            .init(id: "underline", title: "Underline", symbol: "underline", isOn: c.underline) { c.toggleUnderline() },
+        ]
+        if c.hasLists {
+            buttons.append(.init(id: "bullets", title: "Bullets", symbol: "list.bullet", isOn: c.list == .bullet) { c.toggleList(.bullet) })
+            buttons.append(.init(id: "numbering", title: "Numbering", symbol: "list.number", isOn: c.list == .numbered) { c.toggleList(.numbered) })
+        }
+        publishToolbar(buttons, owner: owner)
+    }
+
     private nonisolated(unsafe) static var toolbarOwner: ObjectIdentifier?
 
     /// Publish `buttons` for `owner`, or withdraw them (nil). A new editor
