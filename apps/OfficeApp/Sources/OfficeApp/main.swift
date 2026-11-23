@@ -416,6 +416,21 @@ if let i = CommandLine.arguments.firstIndex(of: "--page-roundtrip"), i + 1 < Com
     }
 }
 
+// `--xls-parts <file.xls> <dir>`: the .xlsx parts the reader builds from a legacy workbook, written as files.
+if let i = CommandLine.arguments.firstIndex(of: "--xls-parts"), i + 2 < CommandLine.arguments.count {
+    do {
+        let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+        let dir = CommandLine.arguments[i + 2]
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let cf = try CompoundFile([UInt8](data))
+        guard let wbs = Xls.workbookStream(cf) else { exit(1) }
+        for e in XlsBuild.parts(BiffReader.records(wbs)) ?? [] {
+            try e.data.write(to: URL(fileURLWithPath: dir + "/" + e.name.split(separator: "/").joined(separator: "_")))
+        }
+        exit(0)
+    } catch { exit(1) }
+}
+
 // `--xls-dump <file.xls>`: the streams, record counts and sheets of a legacy workbook.
 if let i = CommandLine.arguments.firstIndex(of: "--xls-dump"), i + 1 < CommandLine.arguments.count {
     do {

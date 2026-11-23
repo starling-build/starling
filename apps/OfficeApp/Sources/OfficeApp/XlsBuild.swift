@@ -118,6 +118,8 @@ enum XlsBuild {
         var xfRecs: [XlsXF] = []
         var palette = defaultPalette
         var sheets: [Xls.SheetInfo] = []
+        var xtis: [(Int, Int)] = []
+        var nameRecs: [BiffRecord] = []
         // Globals end at the first EOF.
         var i = 0
         var depth = 0
@@ -150,6 +152,10 @@ enum XlsBuild {
                     palette[k] = (c.u8(), c.u8(), c.u8()); c.skip(1)
                     k += 1
                 }
+            case 0x17:
+                let n = c.u16()
+                for _ in 0 ..< n where c.pos + 6 <= r.body.count { c.skip(2); let a = c.u16(); _ = c.u16(); xtis.append((a, 0)) }
+            case 0x18: nameRecs.append(r)
             case 0xFC:
                 c.skip(8)
                 while !c.atEnd { sst.append(c.unicodeString16()) }
@@ -172,7 +178,9 @@ enum XlsBuild {
             wb += "<sheet name=\"\(esc(e.element.name))\" sheetId=\"\(n + 1)\"\(state) r:id=\"rId\(n + 1)\"/>"
             rels += "<Relationship Id=\"rId\(n + 1)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet\(n + 1).xml\"/>"
         }
-        wb += "</sheets></workbook>"
+        wb += "</sheets>"
+        wb += definedNamesXML(nameRecs, xtis: xtis, sheetNames: sheets.map { $0.name }, kept: kept.map { $0.offset })
+        wb += "</workbook>"
         rels += "</Relationships>"
         add("xl/workbook.xml", wb)
         add("xl/_rels/workbook.xml.rels", rels)
@@ -207,6 +215,14 @@ enum XlsBuild {
         var defColWidth: Int? = nil, stdWidth: Int? = nil
         var defRowHeight: (Int, Bool)? = nil
         var pendingFormula: (Int, Int, Int)? = nil
+        var setup: [Int: Int] = [:]
+        var margins: [Double?] = [nil, nil, nil, nil]
+        var hdrFtr: [String?] = [nil, nil]
+        var fitToPage = false
+        var win2: Int? = nil
+        var printGrid = false, printHeads = false, hCenter = false, vCenter = false
+        var hBreaks: [(Int, Int, Int)] = [], vBreaks: [(Int, Int, Int)] = []
+        var hdrFtrMargins: (Double, Double)? = nil
         var depth = 0
         func style(_ x: Int) -> String { x > 0 && x < xfCount ? " s=\"\(x)\"" : "" }
         func put(_ r: Int, _ c: Int, _ xml: String) { if r < 1_048_576, c < 16384 { cells[r, default: [:]][c] = xml } }
@@ -219,6 +235,29 @@ enum XlsBuild {
             if depth != 1 { continue }
             var c = BiffCursor(rec)
             switch rec.type {
+            case 0xA1 where rec.body.count >= 34:
+                for k in 0 ..< 6 { setup[k] = c.u16() }
+                c.skip(4)
+                func dbl() -> Double { let lo = UInt64(c.u32()); return Double(bitPattern: lo | UInt64(c.u32()) << 32) }
+                let hd = dbl(), ft = dbl()
+                hdrFtrMargins = (hd, ft)
+            case 0x26, 0x27, 0x28, 0x29 where rec.body.count >= 8:
+                let lo = UInt64(c.u32()); let d = Double(bitPattern: lo | UInt64(c.u32()) << 32)
+                if d.isFinite { margins[Int(rec.type) - 0x26] = d }
+            case 0x14, 0x15 where rec.body.count >= 3:
+                let cch = c.u16()
+                if cch > 0 { let f = c.u8(); hdrFtr[Int(rec.type) - 0x14] = c.chars(cch, wide: f & 1 == 1) }
+            case 0x81 where rec.body.count >= 2: fitToPage = c.u16() & 0x100 != 0
+            case 0x23E where rec.body.count >= 2: win2 = c.u16()
+            case 0x2A: printHeads = c.u16() != 0
+            case 0x2B: printGrid = c.u16() != 0
+            case 0x83: hCenter = c.u16() != 0
+            case 0x84: vCenter = c.u16() != 0
+            case 0x1B, 0x1A:
+                let n = c.u16()
+                var list: [(Int, Int, Int)] = []
+                for _ in 0 ..< n where c.pos + 6 <= rec.body.count { let a = c.u16(), b = c.u16(), d = c.u16(); list.append((a, b, d)) }
+                if rec.type == 0x1B { hBreaks = list } else { vBreaks = list }
             case 0xFD where rec.body.count >= 10:
                 let r = c.u16(), col = c.u16(), x = c.u16(), k = Int(c.u32())
                 if k < sst.count { put(r, col, "<c r=\"\(ref(r, col))\"\(style(x)) t=\"s\"><v>\(k)</v></c>") }
@@ -283,7 +322,7 @@ enum XlsBuild {
                 let h = c.u16(); c.skip(4)
                 let flags = c.u16(), x = c.u16()
                 var a = ""
-                if flags & 0x40 != 0 && h & 0x8000 == 0 { a += " ht=\"\(Double(h & 0x7FFF) / 20)\" customHeight=\"1\"" }
+                if h & 0x8000 == 0, h > 0 { a += " ht=\"\(Double(h & 0x7FFF) / 20)\"" + (flags & 0x40 != 0 ? " customHeight=\"1\"" : "") }
                 if flags & 0x20 != 0 { a += " hidden=\"1\"" }
                 if flags & 0x80 != 0, x & 0xFFF > 0, Int(x & 0xFFF) < xfCount { a += " s=\"\(x & 0xFFF)\" customFormat=\"1\"" }
                 if !a.isEmpty { rows[r] = a }
@@ -312,6 +351,7 @@ enum XlsBuild {
             }
         }
         var x = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">"
+        if fitToPage { x += "<sheetPr><pageSetUpPr fitToPage=\"1\"/></sheetPr>" }
         var fmt = ""
         if let s = stdWidth { fmt += " defaultColWidth=\"\(Double(s) / 256)\"" }
         else if let d = defColWidth, d != 8 {
@@ -319,6 +359,12 @@ enum XlsBuild {
             let w: Double = Double(units) / 256
             fmt += " defaultColWidth=\"\(w)\""
         }
+        var view = "<sheetViews><sheetView"
+        if let w = win2 {
+            if w & 0x02 == 0 { view += " showGridLines=\"0\"" }
+            if w & 0x04 == 0 { view += " showRowColHeaders=\"0\"" }
+        }
+        x += view + " workbookViewId=\"0\"/></sheetViews>"
         if let (h, custom) = defRowHeight, h > 0 { fmt += " defaultRowHeight=\"\(Double(h) / 20)\"" + (custom ? " customHeight=\"1\"" : "") }
         if !fmt.isEmpty { x += "<sheetFormatPr\(fmt)/>" }
         if !cols.isEmpty { x += "<cols>" + cols.joined() + "</cols>" }
@@ -330,7 +376,138 @@ enum XlsBuild {
         }
         x += "</sheetData>"
         if !merges.isEmpty { x += "<mergeCells count=\"\(merges.count)\">" + merges.joined() + "</mergeCells>" }
+        x += pageXML(setup: setup, margins: margins, hdrFtr: hdrFtr, margin2: hdrFtrMargins, grid: printGrid, heads: printHeads, hc: hCenter, vc: vCenter, hBreaks: hBreaks, vBreaks: vBreaks)
         return x + "</worksheet>"
+    }
+
+    // MARK: Page setup and defined names
+
+    static func pageXML(setup: [Int: Int], margins: [Double?], hdrFtr: [String?], margin2: (Double, Double)?, grid: Bool, heads: Bool, hc: Bool, vc: Bool,
+                        hBreaks: [(Int, Int, Int)], vBreaks: [(Int, Int, Int)]) -> String {
+        var x = ""
+        var po = ""
+        if hc { po += " horizontalCentered=\"1\"" }
+        if vc { po += " verticalCentered=\"1\"" }
+        if heads { po += " headings=\"1\"" }
+        if grid { po += " gridLines=\"1\"" }
+        if !po.isEmpty { x += "<printOptions\(po)/>" }
+        let m: [Double] = [margins[0] ?? 0.75, margins[1] ?? 0.75, margins[2] ?? 1.0, margins[3] ?? 1.0]
+        let h = margin2?.0 ?? 0.5, f = margin2?.1 ?? 0.5
+        x += "<pageMargins left=\"\(num(m[0]))\" right=\"\(num(m[1]))\" top=\"\(num(m[2]))\" bottom=\"\(num(m[3]))\" header=\"\(num(h))\" footer=\"\(num(f))\"/>"
+        if let g = setup[5] {
+            var a = ""
+            // fNoPls: the printer settings are not valid, so paper, scale and fit counts mean nothing.
+            let noPls = g & 4 != 0
+            let paper = noPls ? 0 : (setup[0] ?? 0)
+            if paper != 0 { a += " paperSize=\"\(paper)\"" }
+            let scale = noPls ? 100 : (setup[1] ?? 100)
+            if scale != 100, scale >= 10, scale <= 400 { a += " scale=\"\(scale)\"" }
+            if g & 0x80 != 0 {
+                let n = Int16(truncatingIfNeeded: setup[2] ?? 1)
+                if n != 1 { a += " firstPageNumber=\"\(n)\"" }
+                a += " useFirstPageNumber=\"1\""
+            }
+            if !noPls, setup[3] ?? 1 != 1 { a += " fitToWidth=\"\(setup[3] ?? 1)\"" }
+            if !noPls, setup[4] ?? 1 != 1 { a += " fitToHeight=\"\(setup[4] ?? 1)\"" }
+            if g & 1 != 0 { a += " pageOrder=\"overThenDown\"" }
+            if g & 4 == 0 { a += " orientation=\"\(g & 2 != 0 ? "portrait" : "landscape")\"" } else { a += " orientation=\"portrait\"" }
+            if g & 8 != 0 { a += " blackAndWhite=\"1\"" }
+            if g & 0x10 != 0 { a += " draft=\"1\"" }
+            x += "<pageSetup\(a)/>"
+        }
+        if hdrFtr[0] != nil || hdrFtr[1] != nil {
+            x += "<headerFooter>"
+            if let t = hdrFtr[0] { x += "<oddHeader>\(esc(t))</oddHeader>" }
+            if let t = hdrFtr[1] { x += "<oddFooter>\(esc(t))</oddFooter>" }
+            x += "</headerFooter>"
+        }
+        if !hBreaks.isEmpty {
+            x += "<rowBreaks count=\"\(hBreaks.count)\" manualBreakCount=\"\(hBreaks.count)\">" + hBreaks.map { "<brk id=\"\($0.0)\" min=\"\($0.1)\" max=\"\($0.2)\" man=\"1\"/>" }.joined() + "</rowBreaks>"
+        }
+        if !vBreaks.isEmpty {
+            x += "<colBreaks count=\"\(vBreaks.count)\" manualBreakCount=\"\(vBreaks.count)\">" + vBreaks.map { "<brk id=\"\($0.0)\" min=\"\($0.1)\" max=\"\($0.2)\" man=\"1\"/>" }.joined() + "</colBreaks>"
+        }
+        return x
+    }
+
+    private static func quotedSheet(_ n: String) -> String {
+        let plain = !n.isEmpty && n.unicodeScalars.allSatisfy { $0.properties.isAlphabetic || $0 == "_" || ("0" ... "9").contains($0) } && !(("0" ... "9").contains(n.unicodeScalars.first!))
+        if plain { return n }
+        var q = ""
+        for ch in n { q += ch == "'" ? "''" : String(ch) }
+        return "'" + q + "'"
+    }
+
+    /// Print areas, print titles and filter ranges: the ranges of a NAME formula (BIFF8 ptg tokens 0x3A/0x3B reference an EXTERNSHEET entry).
+    static func definedNamesXML(_ recs: [BiffRecord], xtis: [(Int, Int)], sheetNames: [String], kept: [Int], xtiSheets: [(Int, Int)]? = nil) -> String {
+        var out = ""
+        for r in recs where r.body.count >= 14 {
+            var c = BiffCursor(r)
+            let flags = c.u16(); c.skip(1)
+            let cch = c.u8(), cce = c.u16()
+            c.skip(2)
+            let itab = c.u16()
+            c.skip(4)
+            var name = ""
+            var builtin = -1
+            if flags & 0x20 != 0 {
+                c.skip(1); builtin = c.u8()
+                switch builtin { case 6: name = "_xlnm.Print_Area"; case 7: name = "_xlnm.Print_Titles"; case 0xD: name = "_xlnm._FilterDatabase"; default: continue }
+            } else {
+                let f = c.u8(); name = c.chars(cch, wide: f & 1 == 1)
+            }
+            let end = min(r.body.count, c.pos + cce)
+            guard let text = formulaRanges(Array(r.body[c.pos ..< end]), xtis: xtis, sheetNames: sheetNames), !text.isEmpty else { continue }
+            var a = ""
+            if itab > 0 {
+                guard let k = kept.firstIndex(of: itab - 1) else { continue }
+                a += " localSheetId=\"\(k)\""
+            }
+            if flags & 1 != 0 { a += " hidden=\"1\"" }
+            out += "<definedName name=\"\(esc(name))\"\(a)>\(esc(text))</definedName>"
+        }
+        return out.isEmpty ? "" : "<definedNames>" + out + "</definedNames>"
+    }
+
+    private static func cellRef(_ r: Int, _ c: Int, rowAbs: Bool, colAbs: Bool) -> String {
+        (colAbs ? "$" : "") + colName(c & 0x3FFF) + (rowAbs ? "$" : "") + String(r + 1)
+    }
+
+    /// A formula made only of 3-D area/reference tokens and unions; nil for anything else.
+    static func formulaRanges(_ t: [UInt8], xtis: [(Int, Int)], sheetNames: [String]) -> String? {
+        var out: [String] = []
+        var i = 0
+        func u16(_ k: Int) -> Int { k + 1 < t.count ? Int(t[k]) | Int(t[k + 1]) << 8 : 0 }
+        func sheetPrefix(_ ixti: Int) -> String? {
+            guard ixti < xtis.count else { return nil }
+            let n = xtis[ixti].0
+            guard n < sheetNames.count else { return nil }
+            return quotedSheet(sheetNames[n]) + "!"
+        }
+        while i < t.count {
+            switch t[i] & 0x7F {
+            case 0x3B where i + 11 <= t.count:
+                guard let pre = sheetPrefix(u16(i + 1)) else { return nil }
+                let r1 = u16(i + 3), r2 = u16(i + 5), c1 = u16(i + 7), c2 = u16(i + 9)
+                let a = cellRef(r1, c1, rowAbs: c1 & 0x8000 == 0, colAbs: c1 & 0x4000 == 0)
+                let b = cellRef(r2, c2, rowAbs: c2 & 0x8000 == 0, colAbs: c2 & 0x4000 == 0)
+                if r1 == 0, r2 == 0xFFFF {
+                    out.append(pre + "$" + colName(c1 & 0x3FFF) + ":$" + colName(c2 & 0x3FFF))
+                } else if c1 & 0x3FFF == 0, c2 & 0x3FFF == 0xFF {
+                    out.append(pre + "$" + String(r1 + 1) + ":$" + String(r2 + 1))
+                } else { out.append(pre + a + ":" + b) }
+                i += 11
+            case 0x3A where i + 7 <= t.count:
+                guard let pre = sheetPrefix(u16(i + 1)) else { return nil }
+                let c1 = u16(i + 5)
+                out.append(pre + cellRef(u16(i + 3), c1, rowAbs: c1 & 0x8000 == 0, colAbs: c1 & 0x4000 == 0))
+                i += 7
+            case 0x10: i += 1
+            case 0x29: i += 1
+            default: return nil
+            }
+        }
+        return out.joined(separator: ",")
     }
 
     // MARK: Styles

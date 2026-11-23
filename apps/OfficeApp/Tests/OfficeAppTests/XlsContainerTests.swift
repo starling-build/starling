@@ -147,4 +147,21 @@ final class XlsContainerTests: XCTestCase {
             _ = try? Xls.read(Data(bad))
         }
     }
+
+    func testPageSetupFollowsTheSetupRecord() {
+        func page(_ grbit: Int, scale: Int = 100, paper: Int = 9) -> String {
+            XlsBuild.pageXML(setup: [0: paper, 1: scale, 2: 1, 3: 1, 4: 1, 5: grbit], margins: [nil, nil, nil, nil],
+                             hdrFtr: [nil, nil], margin2: nil, grid: false, heads: false, hc: false, vc: false,
+                             hBreaks: [], vBreaks: [])
+        }
+        let landscape = page(0, scale: 80)
+        XCTAssertTrue(landscape.containsSubstring("orientation=\"landscape\""))
+        XCTAssertTrue(landscape.containsSubstring("scale=\"80\""))
+        XCTAssertTrue(landscape.containsSubstring("paperSize=\"9\""))
+        // fNoPls: the printer settings are invalid, so paper and scale mean nothing.
+        let noPls = page(4, scale: 330)
+        XCTAssertFalse(noPls.containsSubstring("scale="))
+        XCTAssertFalse(noPls.containsSubstring("paperSize"))
+        XCTAssertTrue(noPls.containsSubstring("orientation=\"portrait\""))
+    }
 }
