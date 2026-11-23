@@ -1122,7 +1122,7 @@ extension RichLayout {
                         pgs.bandPushLast = pgs.i
                     }
                     var onPage = mine ? pgs.y - carried + _px(f.y) : _px(f.y) - (f.verticalFrom == "margin" ? 0 : insetTop)
-                    var top = onPage - _px(f.distanceTop), bottom = onPage + _px(image.height + f.distanceBottom)
+                    var top = onPage - _px(f.distanceTop), bottom = onPage + _px(image.height + f.effectBottom + f.distanceBottom)
                     // (A picture the text goes over and under, set from its paragraph, whose foot would pass the
                     // page's foot while it would fit whole on a page of its own: Word sets the paragraph and the
                     // picture on the next page, the text after it under the picture there. sa2 0278f198's page 3,
@@ -1134,7 +1134,7 @@ extension RichLayout {
                         RuleTrace.hit("word-top-and-bottom-picture-past-the-foot-goes-with-its-paragraph-to-the-next-page")
                         _pg_newPage(&pgs, document)
                         onPage = pgs.y + _px(f.y)
-                        top = onPage - _px(f.distanceTop); bottom = onPage + _px(image.height + f.distanceBottom)
+                        top = onPage - _px(f.distanceTop); bottom = onPage + _px(image.height + f.effectBottom + f.distanceBottom)
                     }
                     guard bottom > 0.01, top < pgs.contentH - 0.01, !(mine && image.height <= 0) else { continue }
                     // (Its own paragraph keeps its place: the band is under
