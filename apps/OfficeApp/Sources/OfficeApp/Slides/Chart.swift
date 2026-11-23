@@ -293,6 +293,8 @@ struct Chart: Equatable {
     var categoryLabelBold = false
     /// The category axis is a date axis (`c:dateAx`): Word prints its aslant labels as outlines.
     var dateAxis = false
+    /// The date axis counts months with no unit of its own (`c:baseTimeUnit` months): its names stand at each month's first date.
+    var monthBaseDates = false
     /// The date axis counts in months, so its names are blank but at each period's first date (every one that is shown is shown).
     var monthNamesSparse = false
     /// The turn the file gives the category labels (`c:txPr/a:bodyPr rot`),
@@ -2471,6 +2473,7 @@ enum ChartXML {
             if let t = hx.first("c:title") { let text = _titleTexts(t).joined(); if !text.isEmpty { c.categoryAxisTitle = text } }
         }
         c.dateAxis = axes.contains { $0.name == "c:dateAx" }
+        c.monthBaseDates = axes.contains { $0.name == "c:dateAx" && $0.first("c:baseTimeUnit")?["val"] == "months" && $0.first("c:majorTimeUnit") == nil }
         c.monthNamesSparse = axes.contains { $0.name == "c:dateAx" && $0.first("c:majorTimeUnit")?["val"] == "months" && $0.first("c:auto")?["val"] == "0" }
         // A date axis with its own major unit (`majorUnit` of `majorTimeUnit`: 3 months) names the dates a step apart from the
         // first one, in the axis' own format, not every point (b3af6b818144 p34: 2022/1, 2022/4, 2022/7, 2022/10 across the

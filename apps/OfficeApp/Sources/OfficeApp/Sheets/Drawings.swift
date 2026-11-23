@@ -390,16 +390,23 @@ extension SheetChart {
         // Excel (its cache says so) and 1-53 by ours.
         // (A scatter chart's x are numbers, read back from these; an axis
         // with its own format shows them in that, as the cache path does.)
-        func shownCells(_ formula: String, own: String? = nil) -> [String]? {
+        func shownCells(_ formula: String, own: String? = nil, monthStarts: Bool = false) -> [String]? {
             guard let (si, range) = resolve(formula) else { return nil }
             if c.type == .scatter { return engine.values(si, range, includeEmpty: true).map(shown) }
             let ws = book.sheets[si]
             let cells = engine.values(si, range, includeEmpty: true)
-            var out: [String] = [], k = 0
+            var out: [String] = [], k = 0, lastMonth = ""
             for row in range.top ... range.bottom {
                 for col in range.left ... range.right where k < cells.count {
                     let a = CellAddress(row: row, col: col)
                     let code = own ?? book.style(ws.cells[a]?.style ?? ws.defaultStyle(at: a)).numberFormat
+                    if monthStarts, let serial = cells[k].number {
+                        // (A date axis on a month base unit names each month once, at its first date: chart-tdf134118's 1-May 1-Jun 1-Jul.)
+                        let ym = chartNumberText(serial, "yyyy-mm")
+                        let day = Double(chartNumberText(serial, "d")) ?? 1
+                        out.append(ym == lastMonth ? "" : NumberFormat.display(.number(serial - (day - 1)), code, width: 255).text.trimmingWhitespace())
+                        lastMonth = ym; k += 1; continue
+                    }
                     out.append(NumberFormat.display(cells[k], code, width: 255).text.trimmingWhitespace())
                     k += 1
                 }
@@ -468,7 +475,7 @@ extension SheetChart {
         for (i, ref) in refs.enumerated() where i < c.series.count {
             if let f = ref.val, let cells = values(f) { c.series[i].values = cells.map { $0.number } }
             if let f = ref.name, let cells = shownCells(f), let first = cells.first { c.series[i].name = first }
-            if i == 0, let f = ref.cat, let cells = shownCells(f, own: categoryFormat) { c.categories = cells }
+            if i == 0, let f = ref.cat, let cells = shownCells(f, own: categoryFormat, monthStarts: c.monthBaseDates) { c.categories = cells }
         }
         let n = max(c.categories.count, c.series.map(\.values.count).max() ?? 0)
         if c.categories.count < n { c.categories += (c.categories.count ..< n).map { "\($0 + 1)" } }
