@@ -435,535 +435,536 @@ enum WordArt {
         }
         return g
     }
+    /// One WordArt paint: the letters drawn through `draw`, every letter once in `pass`. The shadow
+    /// runs it first, with `shadowPaint` set (every letter in it, filled).
+    private struct _PaintPass {
+        let lines: [Line], warp: TextWarp, area: Rect, canvas: any Canvas
+        let px: Double, cache: SlideTextCache?, shadow: Shadow?, fitsPath: Bool, fitsInk: Bool, collect: PathBag?
+        var shadowPaint: Paint? = nil
+        // Text on a path is filled letter by letter, each with the whole
+        // gradient; text fitted to the box shares one across it.
+        let fillsEachGlyph: Bool
+
+    func draw(_ g: Glyph, origin: Offset, x: Offset, y: Offset, map: ((Double, Double) -> Offset)? = nil) {
+        var warped: Path? = nil
+        if let map, let outline = g.painter.glyphPath() {
+            let bent = Path()
+            bent.fillType = outline.fillType
+            for metric in outline.computeMetrics() {
+                let n = max(8, min(900, Int(metric.length / 1.0)))
+                var started = false
+                for i in 0 ..< n {
+                    guard let t = metric.getTangentForOffset(metric.length * Double(i) / Double(n)) else { continue }
+                    let p = map(t.position.dx, t.position.dy)
+                    if started { bent.lineTo(p.dx, p.dy) } else { bent.moveTo(p.dx, p.dy); started = true }
+                }
+                if started { bent.close() }
+            }
+            warped = bent
+        }
+        let m = [x.dx, x.dy, 0, 0, y.dx, y.dy, 0, 0, 0, 0, 1, 0, origin.dx, origin.dy, 0, 1]
+        let det = warped != nil ? 1.0 : x.dx * y.dy - x.dy * y.dx
+        guard abs(det) > 1e-9 else { return }
+        // (A shadow follows its letter's fill: none under a clear one.)
+        if shadowPaint != nil, g.clear { return }
+        // Collecting the letters' outlines, as the page sees them, to be drawn as a solid.
+        if let collect {
+            if let warped { collect.path.addPath(warped, .zero); collect.count += 1 }
+            else if let outline = g.painter.glyphPath() { collect.path.addPath(outline.transform(m), .zero); collect.count += 1 }
+            return
+        }
+        /// The glyph again with another paint, through the same map.
+        func drawn(_ paint: Paint) {
+            if let warped { canvas.drawPath(warped, paint); return }
+            let tp = TextPainter(text: TextSpan(text: g.text, style: g.style(paint)), textDirection: .ltr)
+            tp.layout(minWidth: 0, maxWidth: Double.infinity)
+            tp.paint(canvas, .zero)
+            tp.dispose()
+        }
+        /// The letter in its own colour.
+        func plain() {
+            if let warped {
+                let paint = Paint()
+                paint.style = .fill
+                paint.color = g.color
+                canvas.drawPath(warped, paint)
+            } else {
+                g.painter.paint(canvas, .zero)
+            }
+        }
+        if warped == nil, g.text != " " { WordArt.flatLetters += 1 }
+        canvas.save()
+        if warped == nil { canvas.transform(m) }
+        if let shadowPaint {
+            // The letters' silhouette, outline and all.
+            if !(g.look?.noFill ?? false) { drawn(shadowPaint) }
+            if g.look?.outline != nil {
+                let stroke = Paint()
+                stroke.style = .stroke
+                stroke.strokeJoin = SlidePainter.join(g.look?.outlineJoin ?? "round")
+                stroke.color = shadowPaint.color
+                if let outlinePath = g.painter.glyphPath() {
+                    canvas.restore()
+                    stroke.strokeWidth = max(0.25, (g.look?.outlineWidth ?? 0.75) * px)
+                    canvas.drawPath(warped ?? outlinePath.transform(m), stroke)
+                    return
+                }
+                stroke.strokeWidth = max(0.25, (g.look?.outlineWidth ?? 0.75) * px) / max(1e-6, abs(det).squareRoot())
+                drawn(stroke)
+            }
+            canvas.restore()
+            return
+        }
+        if let fill = g.look?.fill {
+            // The fill is the whole area's — one gradient across the
+            // word, not one a letter — so its shader is set in the
+            // area's space: under the inverse of the glyph's map.
+            let inv = warped != nil ? nil : [y.dy / det, -x.dy / det, 0, 0, -y.dx / det, x.dx / det, 0, 0, 0, 0, 1, 0,
+                       (y.dx * origin.dy - y.dy * origin.dx) / det, (x.dy * origin.dx - x.dx * origin.dy) / det, 0, 1]
+            let paint = Paint()
+            paint.style = .fill
+            paint.color = Color(0xFFFFFFFF)
+            if fill.path != nil, fill.stops.contains(where: { $0.color.alpha == 0 }),
+               let solid = fill.stops.max(by: { $0.color.alpha < $1.color.alpha })?.color {
+                // A path gradient that runs up from a fully clear stop is
+                // printed flat by PowerPoint for Windows, in its most opaque
+                // stop's colour (ImportWordArtGradient's third "Happy
+                // Birthday": plain accent1 where it fades out to nothing).
+                paint.color = solid
+                drawn(paint)
+            } else if fillsEachGlyph, let shader = SlidePainter.gradientShader(fill, Rect.fromLTWH(0, 0, g.width, g.painter.height)) {
+                paint.shader = shader
+                drawn(paint)
+            } else if let shader = SlidePainter.gradientShader(fill, area, pre: inv) {
+                paint.shader = shader
+                drawn(paint)
+            } else if let image = fill.image, let decoded = cache?.image(image) {
+                // A picture: tiled at its own size, or stretched over the area.
+                let w = Double(decoded.width), h = Double(decoded.height)
+                let sx = fill.tiled ? 0.75 * fill.tileScale * px : area.width / max(1, w)
+                let sy = fill.tiled ? 0.75 * fill.tileScaleY * px : area.height / max(1, h)
+                // A tile's grid starts where its alignment and offset put one tile.
+                let ox = fill.tiled ? (area.width - w * sx) * fill.tileAlign.dx + fill.tileOffset.dx * px : 0
+                let oy = fill.tiled ? (area.height - h * sy) * fill.tileAlign.dy + fill.tileOffset.dy * px : 0
+                let own = [sx, 0, 0, 0, 0, sy, 0, 0, 0, 0, 1, 0, area.left + ox, area.top + oy, 0, 1]
+                var local = [Double](repeating: 0, count: 16)
+                if let inv { for c in 0 ..< 4 { for r in 0 ..< 4 { for k in 0 ..< 4 { local[c * 4 + r] += inv[k * 4 + r] * own[c * 4 + k] } } } } else { local = own }
+                if let shader = try? ImageShader(decoded, .repeated, .repeated, local, filterQuality: .medium) {
+                    paint.shader = shader
+                    drawn(paint)
+                } else {
+                    plain()
+                }
+            } else {
+                plain()
+            }
+        } else if !(g.look?.noFill ?? false) {
+            plain()
+        }
+        if let o = g.look?.outline {
+            let stroke = Paint()
+            stroke.style = .stroke
+            // The line's width is the page's, not the stretched glyph's.
+            stroke.strokeWidth = max(0.25, (g.look?.outlineWidth ?? 0.75) * px) / max(1e-6, abs(det).squareRoot())
+            stroke.strokeJoin = SlidePainter.join(g.look?.outlineJoin ?? "round")
+            stroke.color = o
+            if g.look?.outlineDash != nil, let outlinePath = warped ?? g.painter.glyphPath() {
+                // A dashed line is cut from the letter's own outline, in its
+                // unwarped space: the pattern scales with the line's width,
+                // not the letter (PowerPoint's sysDot is 1 wide on, 1 off).
+                let round = g.look?.outlineRound ?? false
+                if round { stroke.strokeCap = .round }
+                canvas.drawPath(SlidePainter.dashed(outlinePath, g.look?.outlineDash, width: stroke.strokeWidth, capped: round), stroke)
+            } else if let outlinePath = g.painter.glyphPath() {
+                // The letter's outline is carried to the page first and
+                // stroked there: a line as wide on every side, where a
+                // stroke inside the stretched glyph is thick across the
+                // stretch and thin along it (PowerPoint's is even).
+                canvas.restore()
+                stroke.strokeWidth = max(0.25, (g.look?.outlineWidth ?? 0.75) * px)
+                // (Where the letter was bent point by point, the line follows the bent outline the fill does.)
+                canvas.drawPath(warped ?? outlinePath.transform(m), stroke)
+                return
+            } else {
+                drawn(stroke)
+            }
+        }
+        canvas.restore()
+    }
+
+    /// One drawing of every letter, through `draw`.
+    func pass() {
+        // DrawingML WordArt fits the visible letters into the text
+        // rectangle. Advance bearings and a font's line leading are
+        // not part of that rectangle (especially CJK parentheses).
+        if fitsInk, let envelope = envelope(warp) {
+            let leaning = WordArt.lean(warp)
+            let width = lines.map(\.width).max() ?? 0
+            let height = lines.map(\.height).max() ?? 0
+            var placed: [(glyph: Glyph, origin: Offset)] = []
+            var ink: Rect?
+            for (index, line) in lines.enumerated() {
+                let baseline = line.glyphs.map { $0.painter.computeDistanceToActualBaseline(.alphabetic) }.max() ?? 0
+                let spare = width - line.width
+                var x = line.alignment == .center ? spare / 2 : line.alignment == .right ? spare : 0
+                for glyph in line.glyphs {
+                    let origin = Offset(x, Double(index) * height * linePitch + baseline - glyph.painter.computeDistanceToActualBaseline(.alphabetic))
+                    placed.append((glyph, origin))
+                    if let bounds = glyph.ink?.shift(origin), !bounds.isEmpty {
+                        ink = ink.map { $0.expandToInclude(bounds) } ?? bounds
+                    }
+                    x += glyph.width
+                }
+            }
+            if let ink, ink.width > 0, ink.height > 0 {
+                func point(_ x: Double, _ y: Double) -> Offset {
+                    let u = (x - ink.left) / ink.width, v = (y - ink.top) / ink.height
+                    let edge = envelope(u)
+                    return Offset(area.left + (u + (leaning?(u) ?? 0) * v) * area.width, area.top + (edge.top + (edge.bottom - edge.top) * v) * area.height)
+                }
+                for (glyph, origin) in placed where glyph.width > 0 && glyph.painter.height > 0 {
+                    let p00 = point(origin.dx, origin.dy)
+                    let p10 = point(origin.dx + glyph.width, origin.dy)
+                    let p01 = point(origin.dx, origin.dy + glyph.painter.height)
+                    let p11 = point(origin.dx + glyph.width, origin.dy + glyph.painter.height)
+                    let x = Offset((p10.dx - p00.dx + p11.dx - p01.dx) / (2 * glyph.width),
+                                   (p10.dy - p00.dy + p11.dy - p01.dy) / (2 * glyph.width))
+                    let y = Offset((p01.dx - p00.dx + p11.dx - p10.dx) / (2 * glyph.painter.height),
+                                   (p01.dy - p00.dy + p11.dy - p10.dy) / (2 * glyph.painter.height))
+                    let center = Offset((p00.dx + p10.dx + p01.dx + p11.dx) / 4, (p00.dy + p10.dy + p01.dy + p11.dy) / 4)
+                    draw(glyph, origin: Offset(center.dx - x.dx * glyph.width / 2 - y.dx * glyph.painter.height / 2,
+                                              center.dy - x.dy * glyph.width / 2 - y.dy * glyph.painter.height / 2), x: x, y: y)
+                }
+                return
+            }
+            // A host without the optional ink query keeps the existing
+            // advance-box fit instead of losing the shape's text.
+        }
+        if followsPath.contains(warp.preset) {
+            _paintAlongEllipse(lines, warp, area, fits: fitsPath, narrow: fitsInk, slide: cache != nil, pxPerPt: px, { draw($0, origin: $1, x: $2, y: $3) })
+            return
+        }
+        // The bands: one for the whole text, or several — deflate-inflate's
+        // first line squeezed above a curve and the rest swelling below it,
+        // a ring's two halves. A mirrored band runs right to left, its
+        // letters seen from behind; `sides` narrows a band toward its top
+        // or bottom.
+        typealias Envelope = (Double) -> (top: Double, bottom: Double)
+        var bands: [(lines: [Line], env: Envelope, mirrored: Bool, sides: ((Double) -> (Double, Double))?)] = []
+        // A pour: the text poured between two arcs of the box's ellipse —
+        // across the arc from `start` through `sweep` degrees, from the
+        // outer curve in to one at `inner` of its radius (or out, when the
+        // letters' feet are on the outside).
+        var pour: ((Double, Double) -> Offset)? = nil
+        var farPour: ((Double, Double) -> Offset)? = nil   // a ring's second half, on the far side
+        func poured(start: Double, sweep: Double, feetOut: Bool) {
+            // (Arch Down Pour's ring is thinner at 25000: PowerPoint's print of warps2, overlap .36 at 50000, .91 at 25000.)
+            let inner = (warp.adjust.count > 1 ? warp.adjust[1] : (warp.preset == "textArchDownPour" ? 25000 : 50000)) / 100_000
+            // (The text runs along the outer ellipse by its length, not by its angle: the two differ on
+            // a box wider than tall.)
+            let rx = area.width / 2, ry = area.height / 2, steps = 360
+            var arc = [0.0]
+            for k in 1...steps {
+                let a0 = (start + sweep * Double(k - 1) / Double(steps)) * .pi / 180, a1 = (start + sweep * Double(k) / Double(steps)) * .pi / 180
+                arc.append(arc[k - 1] + ((rx * (cos(a1) - cos(a0))) * (rx * (cos(a1) - cos(a0))) + (ry * (sin(a1) - sin(a0))) * (ry * (sin(a1) - sin(a0)))).squareRoot())
+            }
+            func angle(_ u: Double) -> Double {
+                let want = max(0, min(1, u)) * (arc.last ?? 1)
+                var lo = 0, hi = steps
+                while hi - lo > 1 { let mid = (lo + hi) / 2; if arc[mid] <= want { lo = mid } else { hi = mid } }
+                let span = arc[hi] - arc[lo], t = span > 0 ? (want - arc[lo]) / span : 0
+                return (start + sweep * (Double(lo) + t) / Double(steps)) * .pi / 180
+            }
+            pour = { u, v in
+                let a = angle(u)
+                let rho = feetOut ? inner + (1 - inner) * v : 1 - (1 - inner) * v
+                return Offset(area.center.dx + area.width / 2 * rho * cos(a), area.center.dy + area.height / 2 * rho * sin(a))
+            }
+        }
+        func bow(_ u: Double) -> Double { (2 * u - 1) * (2 * u - 1) }
+        // Every line stands as tall as the fullest band makes it: a band
+        // with fewer lines keeps that height and sits in the middle of its
+        // envelope (lab wordart-banded: 3 lines of a deflate-inflate leave
+        // the lone last line unstretched; 1 + 1 stretches both).
+        func centreShortBands() {
+            let most = bands.map { $0.lines.count }.max() ?? 1
+            for i in bands.indices where bands[i].lines.count < most {
+                let env = bands[i].env, share = Double(bands[i].lines.count) / Double(most)
+                bands[i].env = { u in
+                    let (t, b) = env(u), c = (t + b) / 2, h = (b - t) * share
+                    return (c - h / 2, c + h / 2)
+                }
+            }
+        }
+        switch warp.preset {
+        case "textDeflateInflate":
+            let a = (warp.adjust.first ?? 35000) / 100_000
+            func mid(_ u: Double) -> Double { 0.5 - (0.5 - a) * (1 - bow(u)) }
+            if lines.count == 1 {
+                // One line has the upper band alone.
+                bands = [(lines, { u in (0, mid(u) - 0.05) }, false, nil)]   // spec: the first curve runs 0.05 above the adjust point
+            } else {
+                // The lines shared between the two bands, the upper one
+                // taking the odd one (lab wordart-banded: 3 lines stand
+                // 2 + 1, 4 stand 2 + 2, 5 stand 3 + 2).
+                let top = (lines.count + 1) / 2
+                bands = [(Array(lines[..<top]), { u in (0, mid(u) - 0.045) }, false, nil),
+                         (Array(lines[top...]), { u in (mid(u) + 0.06, 1) }, false, nil)]
+                centreShortBands()
+            }
+        case "textDeflateInflateDeflate":
+            // Three bands: pinched, swollen, pinched.
+            // The pinch stops short of the middle: at the largest adjusts
+            // the upper band reaches 0.59 of the box and the lower one
+            // starts 0.07 below it, so the middle band stays a thin strip
+            // instead of the curves crossing (lab wordart-banded, adjust
+            // 80000: Happy 0-148 pt, Birthday a thin strip, To from 168).
+            let a = min((warp.adjust.first ?? 25000) / 100_000, 0.59)
+            func upper(_ u: Double) -> Double { 1.0 / 3 - (1.0 / 3 - a) * (1 - bow(u)) }
+            func lower(_ u: Double) -> Double { max(1 - upper(u), upper(u) + 0.07) }
+            if lines.count < 3 {
+                // Fewer lines than bands: the bands from the top down.
+                bands = [([lines[0]], { u in (0, upper(u) - (lines.count == 1 ? 0.03 : 0.02)) }, false, nil)]
+                if lines.count == 2 { bands.append(([lines[1]], { u in (upper(u) + 0.02, lower(u) - 0.02) }, false, nil)) }
+            } else {
+                // Shared out from the top, the extra lines to the upper
+                // bands first (lab wordart-banded: 4 lines stand 2 + 1 + 1,
+                // 5 stand 2 + 2 + 1).
+                let n = lines.count, each = n / 3, extra = n % 3
+                let first = each + (extra > 0 ? 1 : 0), second = each + (extra > 1 ? 1 : 0)
+                bands = [(Array(lines[..<first]), { u in (0, upper(u) - 0.02) }, false, nil),
+                         (Array(lines[first ..< first + second]), { u in (upper(u) + 0.02, lower(u) - 0.02) }, false, nil),
+                         (Array(lines[(first + second)...]), { u in (lower(u) + 0.02, 1) }, false, nil)]
+                centreShortBands()
+            }
+        case "textRingInside", "textRingOutside":
+            // The text round a ring seen from the front: its first half
+            // across the near side, the second coming back across the far
+            // side, mirrored. Inside the ring the near side is the upper
+            // arc; outside it, the lower.
+            var all = Line()
+            all.glyphs = lines.flatMap(\.glyphs)
+            let half = (all.glyphs.count + 1) / 2
+            var near = Line(), far = Line()
+            near.glyphs = Array(all.glyphs[..<half])
+            far.glyphs = Array(all.glyphs[half...])
+            // The preset's own geometry (presetTextWarpDefinitions): two full
+            // ellipses of the box's width, each `a` of its height tall, one
+            // hung from the top and one from the foot. A letter's top follows
+            // the first and its foot the second, at the same angle, so each
+            // column stands straight. The first half of the text goes round
+            // the upper half of the ellipses (the lower one, outside), the
+            // second back along the other side, reading the other way.
+            let a = max(0.5, min(0.99, (warp.adjust.first ?? 60000) / 100_000))
+            let r = a * area.height / 2, rx = area.width / 2
+            let top = area.top + r, foot = area.bottom - r
+            // The text runs along the ellipse by its length, not its angle.
+            var arc = [0.0]
+            for k in 1 ... 360 {
+                let p0 = Double(k - 1) * .pi / 360, p1 = Double(k) * .pi / 360
+                let dx = rx * (cos(p1) - cos(p0)), dy = r * (sin(p1) - sin(p0))
+                arc.append(arc[k - 1] + (dx * dx + dy * dy).squareRoot())
+            }
+            func phi(_ u: Double) -> Double {
+                let want = max(0, min(1, u)) * (arc.last ?? 1)
+                var lo = 0, hi = 360
+                while hi - lo > 1 { let mid = (lo + hi) / 2; if arc[mid] <= want { lo = mid } else { hi = mid } }
+                let span = arc[hi] - arc[lo], t = span > 0 ? (want - arc[lo]) / span : 0
+                return (Double(lo) + t) * .pi / 360
+            }
+            func side(_ sign: Double) -> (Double, Double) -> Offset {
+                { u, v in
+                    let p = phi(u)
+                    let y0 = top + sign * r * sin(p), y1 = foot + sign * r * sin(p)
+                    return Offset(area.center.dx - rx * cos(p), y0 + (y1 - y0) * v)
+                }
+            }
+            let inside = warp.preset == "textRingInside"
+            pour = side(inside ? -1 : 1)
+            farPour = side(inside ? 1 : -1)
+            bands = [([near], { _ in (0, 1) }, false, nil)]
+            if !far.glyphs.isEmpty { bands.append(([far], { _ in (0, 1) }, true, nil)) }
+        case "textArchUpPour", "textButtonPour":
+            poured(start: 180, sweep: 180, feetOut: false)
+            bands = [(lines, { _ in (0, 1) }, false, nil)]
+        case "textArchDownPour":
+            poured(start: 180, sweep: -180, feetOut: true)
+            bands = [(lines, { _ in (0, 1) }, false, nil)]
+        case "textCirclePour":
+            poured(start: 180, sweep: 360, feetOut: false)
+            bands = [(lines, { _ in (0, 1) }, false, nil)]
+        default:
+            if let env = envelope(warp) {
+                var sides: ((Double) -> (Double, Double))? = nil
+                let a = (warp.adjust.first ?? 33333) / 100_000
+                if warp.preset == "textFadeUp" { sides = { v in (a * (1 - v), 1 - a * (1 - v)) } }
+                if warp.preset == "textFadeDown" { sides = { v in (a * v, 1 - a * v) } }
+                bands = [(lines, env, false, sides)]
+            }
+        }
+        // textPlain's adjust slants the block: its top and bottom edges slide
+        // apart by twice the adjust's distance from the middle, and the
+        // text is that much narrower.
+        // A wave's second adjust does the same (its `dx`, ±10%): the top
+        // edge slides right of the bottom one by twice it when negative
+        // (FontWorkScaleX's −5661, its lines leaning right in PowerPoint's
+        // print), left when positive.
+        let waves: Set<String> = ["textWave1", "textWave2", "textDoubleWave1", "textWave4"]
+        let slant = warp.preset == "textPlain" ? 2 * ((warp.adjust.first ?? 50000) / 100_000 - 0.5)
+            : waves.contains(warp.preset) && warp.adjust.count >= 2 ? 2 * max(-0.1, min(0.1, warp.adjust[1] / 100_000)) : 0
+        // Fitted to the letters there are: with nothing hanging below the
+        // line, the line itself is the foot of the band.
+        let descends = lines.contains { $0.glyphs.contains { "gjpqyQ,;".containsSubstring($0.text) } }
+        // Every line at the widest one's scale, whichever band it is in —
+        // but a ring's two halves each go the whole way across.
+        let ring = warp.preset.hasPrefix("textRing")
+        // (textInflate's two lines stand 1.24 of a line box apart in PowerPoint's print, the
+        // inked parts as measured on ImportWordArtGradient's three blocks: ours, at 1.3,
+        // 6 pt too far apart with each line 3 to 7% too short.)
+        let linePitch = warp.preset == "textInflate" ? 1.24 : WordArt.linePitch
+        let widestOfAll = max(1e-6, bands.flatMap(\.lines).map(\.width).max() ?? 1)
+        for band in bands {
+            let n = Double(band.lines.count)
+            let widest = ring ? max(1e-6, band.lines.map(\.width).max() ?? 1) : widestOfAll
+            // PowerPoint fits the VISIBLE letters to the box (lab prints,
+            // wordart-fit: first letter's ink on the left edge, last one's
+            // on the right, capitals on the top, foot on the bottom,
+            // whatever the side bearings). Horizontal ink extent over the
+            // band's lines, in units of `widest`; vertical, in line boxes.
+            var inkU: (Double, Double)? = nil, inkV: (Double, Double)? = nil
+            if cache != nil, !ring {
+                func extent(_ ls: [Line], _ total: Double) -> (l: Double, r: Double, t: Double, b: Double) {
+                    var l = Double.infinity, r = -Double.infinity, t = Double.infinity, b = -Double.infinity
+                    for (li, line) in ls.enumerated() {
+                        let spare = total - line.width
+                        var x = line.alignment == .center ? spare / 2 : line.alignment == .right ? spare : 0
+                        for g in line.glyphs {
+                            if let k = g.ink, !k.isEmpty, g.painter.height > 0 {
+                                var kl = k.left, kr = k.right
+                                if let side = WordArtInk.horizontal(face: g.asked, bold: g.bold, g.text) { kl = side.0 * g.size; kr = side.1 * g.size }
+                                l = min(l, x + kl); r = max(r, x + kr)
+                                var kt = k.top, kb = k.bottom
+                                // The stand-in's letters differ in height from the real face's (its "d" outgrows its capitals,
+                                // Arial Black's does not): take the real letter's foot and top about the same baseline.
+                                if let real = WordArtInk.vertical(face: g.asked, bold: g.bold, g.text) {
+                                    let base = g.painter.computeDistanceToActualBaseline(.alphabetic)
+                                    kt = base - real.1 * g.size; kb = base - real.0 * g.size
+                                }
+                                t = min(t, Double(li) * linePitch + kt / g.painter.height)
+                                b = max(b, Double(li) * linePitch + kb / g.painter.height)
+                            }
+                            else if g.width > 0 { l = min(l, x); r = max(r, x + g.width) }  // a space counts by its advance
+                            x += g.width
+                        }
+                    }
+                    return (l, r, t, b)
+                }
+                // Horizontal: every band's lines together (a short first
+                // line stays short); vertical: this band's own lines.
+                let all = extent(bands.flatMap(\.lines), widest), mine = extent(band.lines, widest)
+                if all.r > all.l, mine.b > mine.t {
+                    inkU = (all.l / widest, all.r / widest)
+                    // Every band is fitted by its own letters' ink.
+                    inkV = (mine.t, mine.b)
+                }
+            }
+            func point(_ u: Double, _ v: Double) -> Offset {
+                if let pour { return band.mirrored ? (farPour ?? pour)(1 - u, v) : pour(u, v) }
+                let u = band.mirrored ? 1 - u : u
+                let e = band.env(u)
+                let shift = slant >= 0 ? slant * v : -slant * (1 - v)
+                var x = u * (1 - abs(slant)) + shift
+                if let sides = band.sides { let (l, r) = sides(max(0, min(1, v))); x = l + (r - l) * u }
+                return Offset(area.left + x * area.width, area.top + (e.top + (e.bottom - e.top) * v) * area.height)
+            }
+            for (li, line) in band.lines.enumerated() {
+                let total = widest
+                let spare = widest - line.width
+                var x = line.alignment == .center ? spare / 2 : line.alignment == .right ? spare : 0
+                // A line's share of the band is its letters', capital top
+                // to descender, not its whole box: what is above the
+                // capitals goes outside.
+                // Lines stand a line's pitch apart (`pitch`, in heights of
+                // a line's box), the gaps between them kept: the band is
+                // the first line's capitals to the last one's foot, all of
+                // it scaled to fit (ImportWordArtGradient's two lines,
+                // 27 pt apart in PowerPoint's print, where squeezed
+                // together they ran into each other).
+                // (Fitted over the corpus's WordArt, 2026-10-22: the box is
+                // one em, so the capitals' top sits only a few hundredths
+                // in, and a descender hangs past its foot — Archivo Black's
+                // "y" 0.017 em. At 0.13 and 0.03 the letters stood past
+                // WordArtBitmapFill's frame top and foot; 20 decks 75.6 →
+                // 70.1 in sum, ImportWordArtGradient's two lines 0.9 worse.)
+                let above = 0.04, below = descends ? -0.02 : 0.15
+                let pitch = linePitch
+                var span = (n - 1) * pitch + 1 - above - below
+                var top = above
+                if let (t, b) = inkV {
+                    span = b - t; top = t
+                    // Two lines or more stand 0.975 of the box, centred: ink to ink,
+                    // ImportWordArtGradient's three blocks end 2 pt in at the top and
+                    // 2.3 at the foot in PowerPoint's print (a single line fills it; textPlain's
+                    // two lines do not stand in: WordArtDefaultColor and FontText got worse).
+                    if n > 1.5, warp.preset == "textInflate" { let pad = span * (1 / 0.975 - 1) / 2; top -= pad; span += 2 * pad }
+                }
+                let v0 = (Double(li) * pitch - top) / span, v1 = (Double(li) * pitch + 1 - top) / span
+                for g in line.glyphs {
+                    var u0 = x / total, u1 = (x + g.width) / total
+                    if let (l, r) = inkU { u0 = (u0 - l) / (r - l); u1 = (u1 - l) / (r - l) }
+                    x += g.width
+                    guard g.width > 0, g.painter.height > 0 else { continue }
+                    // Each stand-in letter stood on the real letter's foot and top (its capitals are not
+                    // the real capitals' height): stretched between them, so a warp that tops out on the real
+                    // letters meets the drawn ones.
+                    var v0 = v0, v1 = v1
+                    if cache != nil, let k = g.ink, !k.isEmpty, k.bottom - k.top > 0.5,
+                       let real = WordArtInk.vertical(face: g.asked, bold: g.bold, g.text) {
+                        let h = g.painter.height, base = g.painter.computeDistanceToActualBaseline(.alphabetic)
+                        func vAt(_ y: Double) -> Double { (Double(li) * pitch + y / h - top) / span }
+                        let rt = vAt(base - real.1 * g.size), rb = vAt(base - real.0 * g.size)
+                        let per = (rb - rt) / (k.bottom - k.top)
+                        v0 = rt + (0 - k.top) * per; v1 = rt + (h - k.top) * per
+                    }
+                    let p00 = point(u0, v0), p10 = point(u1, v0), p01 = point(u0, v1), p11 = point(u1, v1)
+                    let ax = Offset((p10.dx - p00.dx + p11.dx - p01.dx) / 2 / g.width, (p10.dy - p00.dy + p11.dy - p01.dy) / 2 / g.width)
+                    let ay = Offset((p01.dx - p00.dx + p11.dx - p10.dx) / 2 / g.painter.height,
+                                    (p01.dy - p00.dy + p11.dy - p10.dy) / 2 / g.painter.height)
+                    let c = Offset((p00.dx + p10.dx + p01.dx + p11.dx) / 4, (p00.dy + p10.dy + p01.dy + p11.dy) / 4)
+                    let o = Offset(c.dx - ax.dx * g.width / 2 - ay.dx * g.painter.height / 2,
+                                   c.dy - ax.dy * g.width / 2 - ay.dy * g.painter.height / 2)
+                    draw(g, origin: o, x: ax, y: ay, map: cache == nil ? nil : { gx, gy in
+                        point(u0 + (u1 - u0) * gx / g.width, v0 + (v1 - v0) * gy / g.painter.height)
+                    })
+                }
+            }
+        }
+    }
+    }
+
 
     /// The lines fitted into `area` and drawn: the shadow first, if any,
     /// then the letters.
     private static func _paint(_ lines: [Line], _ warp: TextWarp, _ area: Rect, _ canvas: any Canvas,
                                pxPerPt px: Double, cache: SlideTextCache?, shadow: Shadow?, fitsPath: Bool = false, fitsInk: Bool = false, frontless: Bool = false, collect: PathBag? = nil) {
-        /// Set while the shadow is drawn: every letter in it, filled.
-        var shadowPaint: Paint? = nil
-        /// One glyph through the map of its cell: `origin` its top left,
-        /// `x` and `y` where a unit step along and down it lands.
-        // Text on a path is filled letter by letter, each with the whole
-        // gradient; text fitted to the box shares one across it.
-        let fillsEachGlyph = followsPath.contains(warp.preset)
-        // `map`, when given, takes a point of the letter's own box to the page:
-        // PowerPoint bends the outline point by point (a letter's top and foot
-        // lean apart where the box curves), which one flat map per letter
-        // cannot do. Letters without an outline keep the flat map.
-        func draw(_ g: Glyph, origin: Offset, x: Offset, y: Offset, map: ((Double, Double) -> Offset)? = nil) {
-            var warped: Path? = nil
-            if let map, let outline = g.painter.glyphPath() {
-                let bent = Path()
-                bent.fillType = outline.fillType
-                for metric in outline.computeMetrics() {
-                    let n = max(8, min(900, Int(metric.length / 1.0)))
-                    var started = false
-                    for i in 0 ..< n {
-                        guard let t = metric.getTangentForOffset(metric.length * Double(i) / Double(n)) else { continue }
-                        let p = map(t.position.dx, t.position.dy)
-                        if started { bent.lineTo(p.dx, p.dy) } else { bent.moveTo(p.dx, p.dy); started = true }
-                    }
-                    if started { bent.close() }
-                }
-                warped = bent
-            }
-            let m = [x.dx, x.dy, 0, 0, y.dx, y.dy, 0, 0, 0, 0, 1, 0, origin.dx, origin.dy, 0, 1]
-            let det = warped != nil ? 1.0 : x.dx * y.dy - x.dy * y.dx
-            guard abs(det) > 1e-9 else { return }
-            // (A shadow follows its letter's fill: none under a clear one.)
-            if shadowPaint != nil, g.clear { return }
-            // Collecting the letters' outlines, as the page sees them, to be drawn as a solid.
-            if let collect {
-                if let warped { collect.path.addPath(warped, .zero); collect.count += 1 }
-                else if let outline = g.painter.glyphPath() { collect.path.addPath(outline.transform(m), .zero); collect.count += 1 }
-                return
-            }
-            /// The glyph again with another paint, through the same map.
-            func drawn(_ paint: Paint) {
-                if let warped { canvas.drawPath(warped, paint); return }
-                let tp = TextPainter(text: TextSpan(text: g.text, style: g.style(paint)), textDirection: .ltr)
-                tp.layout(minWidth: 0, maxWidth: Double.infinity)
-                tp.paint(canvas, .zero)
-                tp.dispose()
-            }
-            /// The letter in its own colour.
-            func plain() {
-                if let warped {
-                    let paint = Paint()
-                    paint.style = .fill
-                    paint.color = g.color
-                    canvas.drawPath(warped, paint)
-                } else {
-                    g.painter.paint(canvas, .zero)
-                }
-            }
-            if warped == nil, g.text != " " { Self.flatLetters += 1 }
-            canvas.save()
-            if warped == nil { canvas.transform(m) }
-            if let shadowPaint {
-                // The letters' silhouette, outline and all.
-                if !(g.look?.noFill ?? false) { drawn(shadowPaint) }
-                if g.look?.outline != nil {
-                    let stroke = Paint()
-                    stroke.style = .stroke
-                    stroke.strokeJoin = SlidePainter.join(g.look?.outlineJoin ?? "round")
-                    stroke.color = shadowPaint.color
-                    if let outlinePath = g.painter.glyphPath() {
-                        canvas.restore()
-                        stroke.strokeWidth = max(0.25, (g.look?.outlineWidth ?? 0.75) * px)
-                        canvas.drawPath(warped ?? outlinePath.transform(m), stroke)
-                        return
-                    }
-                    stroke.strokeWidth = max(0.25, (g.look?.outlineWidth ?? 0.75) * px) / max(1e-6, abs(det).squareRoot())
-                    drawn(stroke)
-                }
-                canvas.restore()
-                return
-            }
-            if let fill = g.look?.fill {
-                // The fill is the whole area's — one gradient across the
-                // word, not one a letter — so its shader is set in the
-                // area's space: under the inverse of the glyph's map.
-                let inv = warped != nil ? nil : [y.dy / det, -x.dy / det, 0, 0, -y.dx / det, x.dx / det, 0, 0, 0, 0, 1, 0,
-                           (y.dx * origin.dy - y.dy * origin.dx) / det, (x.dy * origin.dx - x.dx * origin.dy) / det, 0, 1]
-                let paint = Paint()
-                paint.style = .fill
-                paint.color = Color(0xFFFFFFFF)
-                if fill.path != nil, fill.stops.contains(where: { $0.color.alpha == 0 }),
-                   let solid = fill.stops.max(by: { $0.color.alpha < $1.color.alpha })?.color {
-                    // A path gradient that runs up from a fully clear stop is
-                    // printed flat by PowerPoint for Windows, in its most opaque
-                    // stop's colour (ImportWordArtGradient's third "Happy
-                    // Birthday": plain accent1 where it fades out to nothing).
-                    paint.color = solid
-                    drawn(paint)
-                } else if fillsEachGlyph, let shader = SlidePainter.gradientShader(fill, Rect.fromLTWH(0, 0, g.width, g.painter.height)) {
-                    paint.shader = shader
-                    drawn(paint)
-                } else if let shader = SlidePainter.gradientShader(fill, area, pre: inv) {
-                    paint.shader = shader
-                    drawn(paint)
-                } else if let image = fill.image, let decoded = cache?.image(image) {
-                    // A picture: tiled at its own size, or stretched over the area.
-                    let w = Double(decoded.width), h = Double(decoded.height)
-                    let sx = fill.tiled ? 0.75 * fill.tileScale * px : area.width / max(1, w)
-                    let sy = fill.tiled ? 0.75 * fill.tileScaleY * px : area.height / max(1, h)
-                    // A tile's grid starts where its alignment and offset put one tile.
-                    let ox = fill.tiled ? (area.width - w * sx) * fill.tileAlign.dx + fill.tileOffset.dx * px : 0
-                    let oy = fill.tiled ? (area.height - h * sy) * fill.tileAlign.dy + fill.tileOffset.dy * px : 0
-                    let own = [sx, 0, 0, 0, 0, sy, 0, 0, 0, 0, 1, 0, area.left + ox, area.top + oy, 0, 1]
-                    var local = [Double](repeating: 0, count: 16)
-                    if let inv { for c in 0 ..< 4 { for r in 0 ..< 4 { for k in 0 ..< 4 { local[c * 4 + r] += inv[k * 4 + r] * own[c * 4 + k] } } } } else { local = own }
-                    if let shader = try? ImageShader(decoded, .repeated, .repeated, local, filterQuality: .medium) {
-                        paint.shader = shader
-                        drawn(paint)
-                    } else {
-                        plain()
-                    }
-                } else {
-                    plain()
-                }
-            } else if !(g.look?.noFill ?? false) {
-                plain()
-            }
-            if let o = g.look?.outline {
-                let stroke = Paint()
-                stroke.style = .stroke
-                // The line's width is the page's, not the stretched glyph's.
-                stroke.strokeWidth = max(0.25, (g.look?.outlineWidth ?? 0.75) * px) / max(1e-6, abs(det).squareRoot())
-                stroke.strokeJoin = SlidePainter.join(g.look?.outlineJoin ?? "round")
-                stroke.color = o
-                if g.look?.outlineDash != nil, let outlinePath = warped ?? g.painter.glyphPath() {
-                    // A dashed line is cut from the letter's own outline, in its
-                    // unwarped space: the pattern scales with the line's width,
-                    // not the letter (PowerPoint's sysDot is 1 wide on, 1 off).
-                    let round = g.look?.outlineRound ?? false
-                    if round { stroke.strokeCap = .round }
-                    canvas.drawPath(SlidePainter.dashed(outlinePath, g.look?.outlineDash, width: stroke.strokeWidth, capped: round), stroke)
-                } else if let outlinePath = g.painter.glyphPath() {
-                    // The letter's outline is carried to the page first and
-                    // stroked there: a line as wide on every side, where a
-                    // stroke inside the stretched glyph is thick across the
-                    // stretch and thin along it (PowerPoint's is even).
-                    canvas.restore()
-                    stroke.strokeWidth = max(0.25, (g.look?.outlineWidth ?? 0.75) * px)
-                    // (Where the letter was bent point by point, the line follows the bent outline the fill does.)
-                    canvas.drawPath(warped ?? outlinePath.transform(m), stroke)
-                    return
-                } else {
-                    drawn(stroke)
-                }
-            }
-            canvas.restore()
-        }
-
-        /// One drawing of every letter, through `draw`.
-        func pass() {
-            // DrawingML WordArt fits the visible letters into the text
-            // rectangle. Advance bearings and a font's line leading are
-            // not part of that rectangle (especially CJK parentheses).
-            if fitsInk, let envelope = envelope(warp) {
-                let leaning = Self.lean(warp)
-                let width = lines.map(\.width).max() ?? 0
-                let height = lines.map(\.height).max() ?? 0
-                var placed: [(glyph: Glyph, origin: Offset)] = []
-                var ink: Rect?
-                for (index, line) in lines.enumerated() {
-                    let baseline = line.glyphs.map { $0.painter.computeDistanceToActualBaseline(.alphabetic) }.max() ?? 0
-                    let spare = width - line.width
-                    var x = line.alignment == .center ? spare / 2 : line.alignment == .right ? spare : 0
-                    for glyph in line.glyphs {
-                        let origin = Offset(x, Double(index) * height * linePitch + baseline - glyph.painter.computeDistanceToActualBaseline(.alphabetic))
-                        placed.append((glyph, origin))
-                        if let bounds = glyph.ink?.shift(origin), !bounds.isEmpty {
-                            ink = ink.map { $0.expandToInclude(bounds) } ?? bounds
-                        }
-                        x += glyph.width
-                    }
-                }
-                if let ink, ink.width > 0, ink.height > 0 {
-                    func point(_ x: Double, _ y: Double) -> Offset {
-                        let u = (x - ink.left) / ink.width, v = (y - ink.top) / ink.height
-                        let edge = envelope(u)
-                        return Offset(area.left + (u + (leaning?(u) ?? 0) * v) * area.width, area.top + (edge.top + (edge.bottom - edge.top) * v) * area.height)
-                    }
-                    for (glyph, origin) in placed where glyph.width > 0 && glyph.painter.height > 0 {
-                        let p00 = point(origin.dx, origin.dy)
-                        let p10 = point(origin.dx + glyph.width, origin.dy)
-                        let p01 = point(origin.dx, origin.dy + glyph.painter.height)
-                        let p11 = point(origin.dx + glyph.width, origin.dy + glyph.painter.height)
-                        let x = Offset((p10.dx - p00.dx + p11.dx - p01.dx) / (2 * glyph.width),
-                                       (p10.dy - p00.dy + p11.dy - p01.dy) / (2 * glyph.width))
-                        let y = Offset((p01.dx - p00.dx + p11.dx - p10.dx) / (2 * glyph.painter.height),
-                                       (p01.dy - p00.dy + p11.dy - p10.dy) / (2 * glyph.painter.height))
-                        let center = Offset((p00.dx + p10.dx + p01.dx + p11.dx) / 4, (p00.dy + p10.dy + p01.dy + p11.dy) / 4)
-                        draw(glyph, origin: Offset(center.dx - x.dx * glyph.width / 2 - y.dx * glyph.painter.height / 2,
-                                                  center.dy - x.dy * glyph.width / 2 - y.dy * glyph.painter.height / 2), x: x, y: y)
-                    }
-                    return
-                }
-                // A host without the optional ink query keeps the existing
-                // advance-box fit instead of losing the shape's text.
-            }
-            if followsPath.contains(warp.preset) {
-                _paintAlongEllipse(lines, warp, area, fits: fitsPath, narrow: fitsInk, slide: cache != nil, pxPerPt: px, { draw($0, origin: $1, x: $2, y: $3) })
-                return
-            }
-            // The bands: one for the whole text, or several — deflate-inflate's
-            // first line squeezed above a curve and the rest swelling below it,
-            // a ring's two halves. A mirrored band runs right to left, its
-            // letters seen from behind; `sides` narrows a band toward its top
-            // or bottom.
-            typealias Envelope = (Double) -> (top: Double, bottom: Double)
-            var bands: [(lines: [Line], env: Envelope, mirrored: Bool, sides: ((Double) -> (Double, Double))?)] = []
-            // A pour: the text poured between two arcs of the box's ellipse —
-            // across the arc from `start` through `sweep` degrees, from the
-            // outer curve in to one at `inner` of its radius (or out, when the
-            // letters' feet are on the outside).
-            var pour: ((Double, Double) -> Offset)? = nil
-            var farPour: ((Double, Double) -> Offset)? = nil   // a ring's second half, on the far side
-            func poured(start: Double, sweep: Double, feetOut: Bool) {
-                // (Arch Down Pour's ring is thinner at 25000: PowerPoint's print of warps2, overlap .36 at 50000, .91 at 25000.)
-                let inner = (warp.adjust.count > 1 ? warp.adjust[1] : (warp.preset == "textArchDownPour" ? 25000 : 50000)) / 100_000
-                // (The text runs along the outer ellipse by its length, not by its angle: the two differ on
-                // a box wider than tall.)
-                let rx = area.width / 2, ry = area.height / 2, steps = 360
-                var arc = [0.0]
-                for k in 1...steps {
-                    let a0 = (start + sweep * Double(k - 1) / Double(steps)) * .pi / 180, a1 = (start + sweep * Double(k) / Double(steps)) * .pi / 180
-                    arc.append(arc[k - 1] + ((rx * (cos(a1) - cos(a0))) * (rx * (cos(a1) - cos(a0))) + (ry * (sin(a1) - sin(a0))) * (ry * (sin(a1) - sin(a0)))).squareRoot())
-                }
-                func angle(_ u: Double) -> Double {
-                    let want = max(0, min(1, u)) * (arc.last ?? 1)
-                    var lo = 0, hi = steps
-                    while hi - lo > 1 { let mid = (lo + hi) / 2; if arc[mid] <= want { lo = mid } else { hi = mid } }
-                    let span = arc[hi] - arc[lo], t = span > 0 ? (want - arc[lo]) / span : 0
-                    return (start + sweep * (Double(lo) + t) / Double(steps)) * .pi / 180
-                }
-                pour = { u, v in
-                    let a = angle(u)
-                    let rho = feetOut ? inner + (1 - inner) * v : 1 - (1 - inner) * v
-                    return Offset(area.center.dx + area.width / 2 * rho * cos(a), area.center.dy + area.height / 2 * rho * sin(a))
-                }
-            }
-            func bow(_ u: Double) -> Double { (2 * u - 1) * (2 * u - 1) }
-            // Every line stands as tall as the fullest band makes it: a band
-            // with fewer lines keeps that height and sits in the middle of its
-            // envelope (lab wordart-banded: 3 lines of a deflate-inflate leave
-            // the lone last line unstretched; 1 + 1 stretches both).
-            func centreShortBands() {
-                let most = bands.map { $0.lines.count }.max() ?? 1
-                for i in bands.indices where bands[i].lines.count < most {
-                    let env = bands[i].env, share = Double(bands[i].lines.count) / Double(most)
-                    bands[i].env = { u in
-                        let (t, b) = env(u), c = (t + b) / 2, h = (b - t) * share
-                        return (c - h / 2, c + h / 2)
-                    }
-                }
-            }
-            switch warp.preset {
-            case "textDeflateInflate":
-                let a = (warp.adjust.first ?? 35000) / 100_000
-                func mid(_ u: Double) -> Double { 0.5 - (0.5 - a) * (1 - bow(u)) }
-                if lines.count == 1 {
-                    // One line has the upper band alone.
-                    bands = [(lines, { u in (0, mid(u) - 0.05) }, false, nil)]   // spec: the first curve runs 0.05 above the adjust point
-                } else {
-                    // The lines shared between the two bands, the upper one
-                    // taking the odd one (lab wordart-banded: 3 lines stand
-                    // 2 + 1, 4 stand 2 + 2, 5 stand 3 + 2).
-                    let top = (lines.count + 1) / 2
-                    bands = [(Array(lines[..<top]), { u in (0, mid(u) - 0.045) }, false, nil),
-                             (Array(lines[top...]), { u in (mid(u) + 0.06, 1) }, false, nil)]
-                    centreShortBands()
-                }
-            case "textDeflateInflateDeflate":
-                // Three bands: pinched, swollen, pinched.
-                // The pinch stops short of the middle: at the largest adjusts
-                // the upper band reaches 0.59 of the box and the lower one
-                // starts 0.07 below it, so the middle band stays a thin strip
-                // instead of the curves crossing (lab wordart-banded, adjust
-                // 80000: Happy 0-148 pt, Birthday a thin strip, To from 168).
-                let a = min((warp.adjust.first ?? 25000) / 100_000, 0.59)
-                func upper(_ u: Double) -> Double { 1.0 / 3 - (1.0 / 3 - a) * (1 - bow(u)) }
-                func lower(_ u: Double) -> Double { max(1 - upper(u), upper(u) + 0.07) }
-                if lines.count < 3 {
-                    // Fewer lines than bands: the bands from the top down.
-                    bands = [([lines[0]], { u in (0, upper(u) - (lines.count == 1 ? 0.03 : 0.02)) }, false, nil)]
-                    if lines.count == 2 { bands.append(([lines[1]], { u in (upper(u) + 0.02, lower(u) - 0.02) }, false, nil)) }
-                } else {
-                    // Shared out from the top, the extra lines to the upper
-                    // bands first (lab wordart-banded: 4 lines stand 2 + 1 + 1,
-                    // 5 stand 2 + 2 + 1).
-                    let n = lines.count, each = n / 3, extra = n % 3
-                    let first = each + (extra > 0 ? 1 : 0), second = each + (extra > 1 ? 1 : 0)
-                    bands = [(Array(lines[..<first]), { u in (0, upper(u) - 0.02) }, false, nil),
-                             (Array(lines[first ..< first + second]), { u in (upper(u) + 0.02, lower(u) - 0.02) }, false, nil),
-                             (Array(lines[(first + second)...]), { u in (lower(u) + 0.02, 1) }, false, nil)]
-                    centreShortBands()
-                }
-            case "textRingInside", "textRingOutside":
-                // The text round a ring seen from the front: its first half
-                // across the near side, the second coming back across the far
-                // side, mirrored. Inside the ring the near side is the upper
-                // arc; outside it, the lower.
-                var all = Line()
-                all.glyphs = lines.flatMap(\.glyphs)
-                let half = (all.glyphs.count + 1) / 2
-                var near = Line(), far = Line()
-                near.glyphs = Array(all.glyphs[..<half])
-                far.glyphs = Array(all.glyphs[half...])
-                // The preset's own geometry (presetTextWarpDefinitions): two full
-                // ellipses of the box's width, each `a` of its height tall, one
-                // hung from the top and one from the foot. A letter's top follows
-                // the first and its foot the second, at the same angle, so each
-                // column stands straight. The first half of the text goes round
-                // the upper half of the ellipses (the lower one, outside), the
-                // second back along the other side, reading the other way.
-                let a = max(0.5, min(0.99, (warp.adjust.first ?? 60000) / 100_000))
-                let r = a * area.height / 2, rx = area.width / 2
-                let top = area.top + r, foot = area.bottom - r
-                // The text runs along the ellipse by its length, not its angle.
-                var arc = [0.0]
-                for k in 1 ... 360 {
-                    let p0 = Double(k - 1) * .pi / 360, p1 = Double(k) * .pi / 360
-                    let dx = rx * (cos(p1) - cos(p0)), dy = r * (sin(p1) - sin(p0))
-                    arc.append(arc[k - 1] + (dx * dx + dy * dy).squareRoot())
-                }
-                func phi(_ u: Double) -> Double {
-                    let want = max(0, min(1, u)) * (arc.last ?? 1)
-                    var lo = 0, hi = 360
-                    while hi - lo > 1 { let mid = (lo + hi) / 2; if arc[mid] <= want { lo = mid } else { hi = mid } }
-                    let span = arc[hi] - arc[lo], t = span > 0 ? (want - arc[lo]) / span : 0
-                    return (Double(lo) + t) * .pi / 360
-                }
-                func side(_ sign: Double) -> (Double, Double) -> Offset {
-                    { u, v in
-                        let p = phi(u)
-                        let y0 = top + sign * r * sin(p), y1 = foot + sign * r * sin(p)
-                        return Offset(area.center.dx - rx * cos(p), y0 + (y1 - y0) * v)
-                    }
-                }
-                let inside = warp.preset == "textRingInside"
-                pour = side(inside ? -1 : 1)
-                farPour = side(inside ? 1 : -1)
-                bands = [([near], { _ in (0, 1) }, false, nil)]
-                if !far.glyphs.isEmpty { bands.append(([far], { _ in (0, 1) }, true, nil)) }
-            case "textArchUpPour", "textButtonPour":
-                poured(start: 180, sweep: 180, feetOut: false)
-                bands = [(lines, { _ in (0, 1) }, false, nil)]
-            case "textArchDownPour":
-                poured(start: 180, sweep: -180, feetOut: true)
-                bands = [(lines, { _ in (0, 1) }, false, nil)]
-            case "textCirclePour":
-                poured(start: 180, sweep: 360, feetOut: false)
-                bands = [(lines, { _ in (0, 1) }, false, nil)]
-            default:
-                if let env = envelope(warp) {
-                    var sides: ((Double) -> (Double, Double))? = nil
-                    let a = (warp.adjust.first ?? 33333) / 100_000
-                    if warp.preset == "textFadeUp" { sides = { v in (a * (1 - v), 1 - a * (1 - v)) } }
-                    if warp.preset == "textFadeDown" { sides = { v in (a * v, 1 - a * v) } }
-                    bands = [(lines, env, false, sides)]
-                }
-            }
-            // textPlain's adjust slants the block: its top and bottom edges slide
-            // apart by twice the adjust's distance from the middle, and the
-            // text is that much narrower.
-            // A wave's second adjust does the same (its `dx`, ±10%): the top
-            // edge slides right of the bottom one by twice it when negative
-            // (FontWorkScaleX's −5661, its lines leaning right in PowerPoint's
-            // print), left when positive.
-            let waves: Set<String> = ["textWave1", "textWave2", "textDoubleWave1", "textWave4"]
-            let slant = warp.preset == "textPlain" ? 2 * ((warp.adjust.first ?? 50000) / 100_000 - 0.5)
-                : waves.contains(warp.preset) && warp.adjust.count >= 2 ? 2 * max(-0.1, min(0.1, warp.adjust[1] / 100_000)) : 0
-            // Fitted to the letters there are: with nothing hanging below the
-            // line, the line itself is the foot of the band.
-            let descends = lines.contains { $0.glyphs.contains { "gjpqyQ,;".containsSubstring($0.text) } }
-            // Every line at the widest one's scale, whichever band it is in —
-            // but a ring's two halves each go the whole way across.
-            let ring = warp.preset.hasPrefix("textRing")
-            // (textInflate's two lines stand 1.24 of a line box apart in PowerPoint's print, the
-            // inked parts as measured on ImportWordArtGradient's three blocks: ours, at 1.3,
-            // 6 pt too far apart with each line 3 to 7% too short.)
-            let linePitch = warp.preset == "textInflate" ? 1.24 : Self.linePitch
-            let widestOfAll = max(1e-6, bands.flatMap(\.lines).map(\.width).max() ?? 1)
-            for band in bands {
-                let n = Double(band.lines.count)
-                let widest = ring ? max(1e-6, band.lines.map(\.width).max() ?? 1) : widestOfAll
-                // PowerPoint fits the VISIBLE letters to the box (lab prints,
-                // wordart-fit: first letter's ink on the left edge, last one's
-                // on the right, capitals on the top, foot on the bottom,
-                // whatever the side bearings). Horizontal ink extent over the
-                // band's lines, in units of `widest`; vertical, in line boxes.
-                var inkU: (Double, Double)? = nil, inkV: (Double, Double)? = nil
-                if cache != nil, !ring {
-                    func extent(_ ls: [Line], _ total: Double) -> (l: Double, r: Double, t: Double, b: Double) {
-                        var l = Double.infinity, r = -Double.infinity, t = Double.infinity, b = -Double.infinity
-                        for (li, line) in ls.enumerated() {
-                            let spare = total - line.width
-                            var x = line.alignment == .center ? spare / 2 : line.alignment == .right ? spare : 0
-                            for g in line.glyphs {
-                                if let k = g.ink, !k.isEmpty, g.painter.height > 0 {
-                                    var kl = k.left, kr = k.right
-                                    if let side = WordArtInk.horizontal(face: g.asked, bold: g.bold, g.text) { kl = side.0 * g.size; kr = side.1 * g.size }
-                                    l = min(l, x + kl); r = max(r, x + kr)
-                                    var kt = k.top, kb = k.bottom
-                                    // The stand-in's letters differ in height from the real face's (its "d" outgrows its capitals,
-                                    // Arial Black's does not): take the real letter's foot and top about the same baseline.
-                                    if let real = WordArtInk.vertical(face: g.asked, bold: g.bold, g.text) {
-                                        let base = g.painter.computeDistanceToActualBaseline(.alphabetic)
-                                        kt = base - real.1 * g.size; kb = base - real.0 * g.size
-                                    }
-                                    t = min(t, Double(li) * linePitch + kt / g.painter.height)
-                                    b = max(b, Double(li) * linePitch + kb / g.painter.height)
-                                }
-                                else if g.width > 0 { l = min(l, x); r = max(r, x + g.width) }  // a space counts by its advance
-                                x += g.width
-                            }
-                        }
-                        return (l, r, t, b)
-                    }
-                    // Horizontal: every band's lines together (a short first
-                    // line stays short); vertical: this band's own lines.
-                    let all = extent(bands.flatMap(\.lines), widest), mine = extent(band.lines, widest)
-                    if all.r > all.l, mine.b > mine.t {
-                        inkU = (all.l / widest, all.r / widest)
-                        // Every band is fitted by its own letters' ink.
-                        inkV = (mine.t, mine.b)
-                    }
-                }
-                func point(_ u: Double, _ v: Double) -> Offset {
-                    if let pour { return band.mirrored ? (farPour ?? pour)(1 - u, v) : pour(u, v) }
-                    let u = band.mirrored ? 1 - u : u
-                    let e = band.env(u)
-                    let shift = slant >= 0 ? slant * v : -slant * (1 - v)
-                    var x = u * (1 - abs(slant)) + shift
-                    if let sides = band.sides { let (l, r) = sides(max(0, min(1, v))); x = l + (r - l) * u }
-                    return Offset(area.left + x * area.width, area.top + (e.top + (e.bottom - e.top) * v) * area.height)
-                }
-                for (li, line) in band.lines.enumerated() {
-                    let total = widest
-                    let spare = widest - line.width
-                    var x = line.alignment == .center ? spare / 2 : line.alignment == .right ? spare : 0
-                    // A line's share of the band is its letters', capital top
-                    // to descender, not its whole box: what is above the
-                    // capitals goes outside.
-                    // Lines stand a line's pitch apart (`pitch`, in heights of
-                    // a line's box), the gaps between them kept: the band is
-                    // the first line's capitals to the last one's foot, all of
-                    // it scaled to fit (ImportWordArtGradient's two lines,
-                    // 27 pt apart in PowerPoint's print, where squeezed
-                    // together they ran into each other).
-                    // (Fitted over the corpus's WordArt, 2026-10-22: the box is
-                    // one em, so the capitals' top sits only a few hundredths
-                    // in, and a descender hangs past its foot — Archivo Black's
-                    // "y" 0.017 em. At 0.13 and 0.03 the letters stood past
-                    // WordArtBitmapFill's frame top and foot; 20 decks 75.6 →
-                    // 70.1 in sum, ImportWordArtGradient's two lines 0.9 worse.)
-                    let above = 0.04, below = descends ? -0.02 : 0.15
-                    let pitch = linePitch
-                    var span = (n - 1) * pitch + 1 - above - below
-                    var top = above
-                    if let (t, b) = inkV {
-                        span = b - t; top = t
-                        // Two lines or more stand 0.975 of the box, centred: ink to ink,
-                        // ImportWordArtGradient's three blocks end 2 pt in at the top and
-                        // 2.3 at the foot in PowerPoint's print (a single line fills it; textPlain's
-                        // two lines do not stand in: WordArtDefaultColor and FontText got worse).
-                        if n > 1.5, warp.preset == "textInflate" { let pad = span * (1 / 0.975 - 1) / 2; top -= pad; span += 2 * pad }
-                    }
-                    let v0 = (Double(li) * pitch - top) / span, v1 = (Double(li) * pitch + 1 - top) / span
-                    for g in line.glyphs {
-                        var u0 = x / total, u1 = (x + g.width) / total
-                        if let (l, r) = inkU { u0 = (u0 - l) / (r - l); u1 = (u1 - l) / (r - l) }
-                        x += g.width
-                        guard g.width > 0, g.painter.height > 0 else { continue }
-                        // Each stand-in letter stood on the real letter's foot and top (its capitals are not
-                        // the real capitals' height): stretched between them, so a warp that tops out on the real
-                        // letters meets the drawn ones.
-                        var v0 = v0, v1 = v1
-                        if cache != nil, let k = g.ink, !k.isEmpty, k.bottom - k.top > 0.5,
-                           let real = WordArtInk.vertical(face: g.asked, bold: g.bold, g.text) {
-                            let h = g.painter.height, base = g.painter.computeDistanceToActualBaseline(.alphabetic)
-                            func vAt(_ y: Double) -> Double { (Double(li) * pitch + y / h - top) / span }
-                            let rt = vAt(base - real.1 * g.size), rb = vAt(base - real.0 * g.size)
-                            let per = (rb - rt) / (k.bottom - k.top)
-                            v0 = rt + (0 - k.top) * per; v1 = rt + (h - k.top) * per
-                        }
-                        let p00 = point(u0, v0), p10 = point(u1, v0), p01 = point(u0, v1), p11 = point(u1, v1)
-                        let ax = Offset((p10.dx - p00.dx + p11.dx - p01.dx) / 2 / g.width, (p10.dy - p00.dy + p11.dy - p01.dy) / 2 / g.width)
-                        let ay = Offset((p01.dx - p00.dx + p11.dx - p10.dx) / 2 / g.painter.height,
-                                        (p01.dy - p00.dy + p11.dy - p10.dy) / 2 / g.painter.height)
-                        let c = Offset((p00.dx + p10.dx + p01.dx + p11.dx) / 4, (p00.dy + p10.dy + p01.dy + p11.dy) / 4)
-                        let o = Offset(c.dx - ax.dx * g.width / 2 - ay.dx * g.painter.height / 2,
-                                       c.dy - ax.dy * g.width / 2 - ay.dy * g.painter.height / 2)
-                        draw(g, origin: o, x: ax, y: ay, map: cache == nil ? nil : { gx, gy in
-                            point(u0 + (u1 - u0) * gx / g.width, v0 + (v1 - v0) * gy / g.painter.height)
-                        })
-                    }
-                }
-            }
-        }
-
+        var run = _PaintPass(lines: lines, warp: warp, area: area, canvas: canvas, px: px, cache: cache, shadow: shadow, fitsPath: fitsPath, fitsInk: fitsInk, collect: collect, fillsEachGlyph: followsPath.contains(warp.preset))
         if let shadow {
             let p = Paint()
             p.style = .fill
             p.color = shadow.color
             if shadow.blur > 0 { p.maskFilter = MaskFilter(blur: .normal, shadow.blur * px / 2) }
-            shadowPaint = p
+            run.shadowPaint = p
             let o = Offset(area.center.dx + shadow.origin.dx * area.width, area.center.dy + shadow.origin.dy * area.height)
             let k = shadow.matrix
             canvas.save()
             canvas.translate(shadow.offset.dx * px, shadow.offset.dy * px)
             canvas.transform([k.sxx, k.syx, 0, 0, k.sxy, k.syy, 0, 0, 0, 0, 1, 0,
                               o.dx - k.sxx * o.dx - k.sxy * o.dy, o.dy - k.syx * o.dx - k.syy * o.dy, 0, 1])
-            pass()
+            run.pass()
             canvas.restore()
-            shadowPaint = nil
+            run.shadowPaint = nil
         }
-        if !frontless { pass() }
+        if !frontless { run.pass() }
     }
 
     /// Arch, circle and button: each line at its own size along the
