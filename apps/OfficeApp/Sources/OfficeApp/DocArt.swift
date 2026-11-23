@@ -115,7 +115,19 @@ enum DocArt {
 
     /// Whether a shape has something to draw: a preset outline, a freeform's own path, or WordArt text.
     static func drawable(_ s: ArtShape) -> Bool {
-        geometry(s.type) != nil || (s.type == 136 && wordArtText(s) != nil) || (s.type == 0 && freeform(s) != nil)
+        geometry(s.type) != nil || (wordArtPreset(s.type) != nil && wordArtText(s) != nil) || (s.type == 0 && freeform(s) != nil)
+    }
+
+    /// The text warp of a WordArt shape type (136 to 175, in the order of the OfficeArt shape list).
+    static func wordArtPreset(_ type: Int) -> String? {
+        let names = ["textPlain", "textStop", "textTriangle", "textTriangleInverted", "textChevron", "textChevronInverted",
+                     "textRingInside", "textRingOutside", "textArchUp", "textArchDown", "textCircle", "textButton",
+                     "textArchUpPour", "textArchDownPour", "textCirclePour", "textButtonPour", "textCurveUp", "textCurveDown",
+                     "textCascadeUp", "textCascadeDown", "textWave1", "textWave2", "textDoubleWave1", "textWave4",
+                     "textInflate", "textDeflate", "textInflateBottom", "textDeflateBottom", "textInflateTop", "textDeflateTop",
+                     "textDeflateInflate", "textDeflateInflateDeflate", "textFadeRight", "textFadeLeft", "textFadeUp", "textFadeDown",
+                     "textSlantUp", "textSlantDown", "textCanUp", "textCanDown"]
+        return type >= 136 && type - 136 < names.count ? names[type - 136] : nil
     }
 
     /// The text of a WordArt shape.
@@ -220,13 +232,13 @@ enum DocArt {
         if let rid {
             return ("<pic:pic><pic:nvPicPr><pic:cNvPr id=\"\(id)\" name=\"Picture \(id)\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"\(rid)\"/>\(crop(s))<a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr>\(xfrm)<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>", true)
         }
-        let wa = s?.type == 136 ? s.flatMap { wordArtContent($0) } : nil
+        let wa = wordArtPreset(s?.type ?? 0) != nil ? s.flatMap { wordArtContent($0) } : nil
         let content = content ?? wa
         let isBox = content != nil
         let ins = [(0x81, 91440), (0x82, 45720), (0x83, 91440), (0x84, 45720)].map { s?.props[$0.0] ?? $0.1 }
         let body = isBox ? "<wps:txbx><w:txbxContent>\(content!.isEmpty ? "<w:p/>" : content!)</w:txbxContent></wps:txbx>" : ""
         let sp = s ?? ArtShape()
-        return ("<wps:wsp><wps:cNvSpPr\(isBox ? " txBox=\"1\"" : "")/><wps:spPr>\(xfrm)\(sp.type == 0 ? (freeform(sp) ?? "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom>") : "<a:prstGeom prst=\"\(geometry(sp.type) ?? "rect")\"><a:avLst/></a:prstGeom>")\(wa != nil ? "<a:noFill/><a:ln><a:noFill/></a:ln>" : fillLine(sp, isBox: isBox, freeform: sp.type == 0))</wps:spPr>\(body)<wps:bodyPr \(wa != nil ? "fromWordArt=\"1\" " : "")wrap=\"square\" lIns=\"\(ins[0])\" tIns=\"\(ins[1])\" rIns=\"\(ins[2])\" bIns=\"\(ins[3])\" anchor=\"t\">\(wa != nil ? "<a:prstTxWarp prst=\"textPlain\"><a:avLst/></a:prstTxWarp>" : "")<a:noAutofit/></wps:bodyPr></wps:wsp>", false)
+        return ("<wps:wsp><wps:cNvSpPr\(isBox ? " txBox=\"1\"" : "")/><wps:spPr>\(xfrm)\(sp.type == 0 ? (freeform(sp) ?? "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom>") : "<a:prstGeom prst=\"\(geometry(sp.type) ?? "rect")\"><a:avLst/></a:prstGeom>")\(wa != nil ? "<a:noFill/><a:ln><a:noFill/></a:ln>" : fillLine(sp, isBox: isBox, freeform: sp.type == 0))</wps:spPr>\(body)<wps:bodyPr \(wa != nil ? "fromWordArt=\"1\" " : "")wrap=\"square\" lIns=\"\(ins[0])\" tIns=\"\(ins[1])\" rIns=\"\(ins[2])\" bIns=\"\(ins[3])\" anchor=\"t\">\(wa != nil ? "<a:prstTxWarp prst=\"\(wordArtPreset(sp.type) ?? "textPlain")\"><a:avLst/></a:prstTxWarp>" : "")<a:noAutofit/></wps:bodyPr></wps:wsp>", false)
     }
 
     static func graphic(shape s: ArtShape?, rid: String?, content: String?, cx: Int, cy: Int, id: Int) -> String {
