@@ -4098,7 +4098,7 @@ private struct SlideContext {
                 style.eastAsian["a:missingFaceJhenghei"] = "1"
             }
             if p.all("a:r").contains(where: { r in
-                (r.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("zh") || (r.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("ja")
+                (r.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("zh")
                     && (r.first("a:t")?.text ?? "").unicodeScalars.contains(where: { [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009, 0xFF1A, 0xFF1B, 0xFF01, 0xFF1F].contains($0.value) }) }) {
                 style.eastAsian["a:hangClosingZh"] = "1"
             }
@@ -4640,6 +4640,10 @@ private struct SlideContext {
         // (An eaVert column's places are the face's vmtx advance, not an em: Malgun Gothic 2176/2048 = 21.25 pt at 20 pt, printed 21.24 in lab vface;
         // set as the spacing after each ideograph, which stands centred in its place.)
         if attr("vert") == "eaVert" {
+            // (A Japanese column hangs its closing full-width marks past the column end; a horizontal Japanese line does not, 9 ja decks.)
+            for pi in bodyDocument.paragraphs.indices where bodyDocument.paragraphs[pi].text.unicodeScalars.contains(where: { [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009, 0xFF1A, 0xFF1B, 0xFF01, 0xFF1F].contains($0.value) }) {
+                bodyDocument.paragraphs[pi].style.eastAsian["a:hangClosingZh"] = "1"
+            }
             for pi in bodyDocument.paragraphs.indices { for ri in bodyDocument.paragraphs[pi].runs.indices {
                 let st = bodyDocument.paragraphs[pi].runs[ri].style
                 if let m = SlideFonts.uprightMetrics(st.fontFamily ?? "", bold: st.bold == true), m.step != 1, let size = st.fontSize {
