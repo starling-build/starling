@@ -25,7 +25,7 @@ extension _StyledFrame {
         flush(i)
         spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
         ctx.inserts.append(offset)
-    } else if !theme.wordRules, theme.officeLatinBreaks, p.style.eastAsian["a:eaLnBrk"] == "0", p.style.eastAsian["a:zhText"] != "1", ch == "、" || ch == "。" || ch == "，" || ch == "．", offset > 1,
+    } else if !theme.wordRules, theme.officeLatinBreaks, p.style.eastAsian["a:eaLnBrk"] == "0", p.style.eastAsian["a:zhText"] != "1", ch == "、" || ch == "。" || ch == "，" || ch == "．" || ch == "」" || ch == "』" || ch == "）" || ch == "】", offset > 1,
               !rl._hangsLineEndMarks(p) || !rl._markHangs(p, offset), let b = ctx.before, b.unicodeScalars.count == 1, let bv = b.unicodeScalars.first?.value, bv >= 0x3041 && bv <= 0x9FFF,
               !p.runs.dropLast().reduce(into: (0, false)) { acc, r in acc.0 += r.length; if acc.0 == offset - 1 { acc.1 = true } }.1 {
         // (PowerPoint with East Asian line breaking off (eaLnBrk 0) and the mark not hanging (hangingPunct 0, or a mark in a non-East-Asian run) sets the mark alone at the line start: lab hanglang2 slides 2, 4 and 8 print "。" alone where ours took the character before it down. Not where that character begins its own run: 7d329933 p29 "決ま|り、" prints the run's first character with its mark, merged into one run "決まり|、".)
