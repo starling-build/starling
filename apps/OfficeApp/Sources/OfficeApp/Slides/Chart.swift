@@ -188,6 +188,9 @@ struct ChartSeries: Equatable {
     /// Whether this series' labels show at all: a chart whose group says
     /// "no values" shows only the series that say so themselves.
     var labelsShown = true
+    /// The series' name in each label (`showSerName`), set before the value after the separator.
+    var labelSeriesName = false
+    var labelSeparator = ", "
     /// A series that shows labels only through the cells it takes their text from (`c15:showDataLabelsRange`), the value
     /// and percent switches off: PowerPoint draws those texts all the same (lo-tdf149985's "19.8%" over 2017's column).
     var cellLabelsOnly = false
@@ -1928,6 +1931,10 @@ enum ChartXML {
             } else if ser.first("c:dLbls") != nil { s.labelsShown = false }
             else { s.labelsShown = el.first("c:dLbls")?.first("c:showVal")?["val"] == "1" || el.first("c:dLbls")?.first("c:showPercent")?["val"] == "1" }
             if s.cellLabelsOnly { s.labelsShown = true }
+            if let d = ser.first("c:dLbls") ?? el.first("c:dLbls"), d.first("c:showSerName")?["val"] == "1", d.first("c:showVal")?["val"] == "1" {
+                s.labelSeriesName = true
+                if let sep = d.first("c:separator")?.text { s.labelSeparator = sep }
+            }
             series.append(s)
         }
         guard !series.isEmpty || allowEmpty else { return nil }
@@ -7424,7 +7431,7 @@ enum ChartPainter {
                         rim.color = c.lineColor(series: j, accents: theme.accents)
                         canvas.drawCircle(Offset(x, vpj(v)), max(1.5, 2.5 * k), rim)
                     }
-                    labels.append((dataLabel(c, v, series: j), Offset(x, vpj(v) - 9 * k), j))
+                    labels.append(((c.series[j].labelSeriesName ? c.series[j].name + c.series[j].labelSeparator : "") + dataLabel(c, v, series: j), Offset(x, vpj(v) - (c.onSheet ? 9 * k + 4 : 9 * k)), j))
                 }
             }
         case .pie, .doughnut, .radar:
