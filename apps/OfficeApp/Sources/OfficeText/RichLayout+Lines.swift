@@ -1553,8 +1553,12 @@ extension RichLayout {
                 let bottom = n == lines.count - 1 ? 100_000 : line.baseline + line.descent
                 let left = box.left <= min(line.left, firstLeft[n] ?? line.left) + 0.5 ? -100_000 : box.left
                 let right = box.right >= line.left + line.width - 0.5 ? 100_000 : box.right
-                if let last = pieces.last, last.k == k, last.baseline == line.baseline, left - last.rect.right < (box.bottom - box.top) / 2 {
-                    pieces[pieces.count - 1].rect = Rect.fromLTRB(last.rect.left, top, right, bottom)
+                // (The next stretch follows to the right in left-to-right text and to the left in right-to-left text, so the pieces
+                // join as a union: a join that kept the first one's left edge cut an Arabic stretch's earlier part out of its clip,
+                // and the words vanished: dx2 2f95cc62.)
+                if let last = pieces.last, last.k == k, last.baseline == line.baseline,
+                   max(left - last.rect.right, last.rect.left - right) < (box.bottom - box.top) / 2 {
+                    pieces[pieces.count - 1].rect = Rect.fromLTRB(min(last.rect.left, left), top, max(last.rect.right, right), bottom)
                 } else {
                     pieces.append((Rect.fromLTRB(left, top, right, bottom), line.baseline, k))
                 }
