@@ -242,6 +242,9 @@ enum Xlsx {
         return af
     }
 
+    /// OFFICE_XLSX_SCAN=0 reads every sheet row as a tree again (A/B switch).
+    nonisolated(unsafe) static var scanCells = ProcessInfo.processInfo.environment["OFFICE_XLSX_SCAN"] != "0"
+
     /// Returns the part's root with `sheetData` left out (see `sheetRoots`).
     @discardableResult
     private static func _readSheet(_ raw: Data, into ws: Worksheet, sst: [String], sstScripts: Set<Int> = [], sstRuns: [Int: [RichRun]] = [:],
@@ -333,7 +336,7 @@ enum Xlsx {
         }
         cells.reserveCapacity(cellTags)
         var rowsSeen: Set<Int> = []
-        part.forEach { row in
+        func rowSetup(_ row: XNode) {
             rowIndex = Int(row["r"] ?? "").map { $0 - 1 } ?? rowIndex
             let rowExtra = row.attrs.filter { !["r", "ht", "customHeight", "hidden", "spans"].contains($0.key) }
             if !rowExtra.isEmpty { ws.rowAttrs[rowIndex] = rowExtra }
@@ -370,13 +373,14 @@ enum Xlsx {
                 if let h = Double(row["ht"] ?? ""), setHeight || abs(h - ws.defaultRowHeightPt) > 0.01 { ws.rowHeights[rowIndex] = h }
             }
             else if let h = Double(row["ht"] ?? ""), setHeight || abs(h - ws.defaultRowHeightPt) > 0.01 { ws.rowHeights[rowIndex] = h }
-            var colIndex = 0
-            for c in row.kids("c") {
-                let a = c["r"].flatMap { CellAddress($0) } ?? CellAddress(row: rowIndex, col: colIndex)
+        }
+        var colIndex = 0
+        func cellBody(_ c: MiniXML.XlsxCell) {
+                let a = c.r.flatMap { CellAddress($0) } ?? CellAddress(row: rowIndex, col: colIndex)
                 colIndex = a.col + 1
-                let styleIndex = Int(c["s"] ?? "0") ?? 0
-                let t = c["t"] ?? "n"
-                let vText = c.child("v")?.text
+                let styleIndex = Int(c.s ?? "0") ?? 0
+                let t = c.t ?? "n"
+                let vText: String? = c.hasV ? c.v : nil
                 var value: CellValue = .empty
                 switch t {
                 case "s":
@@ -385,7 +389,7 @@ enum Xlsx {
                     if let i = Int(vText ?? ""), let runs = sstRuns[i] { ws.richText[a] = runs }
                 // (An inline string with nothing in it is still a string, the empty
                 // one: a cell with a value, which Excel prints the sheet as far as.)
-                case "inlineStr": value = .text(c.child("is").map { _text($0) } ?? "")
+                case "inlineStr": value = .text(c.inlineNode.map { _text($0) } ?? "")
                 case "str": value = .text(vText ?? "")
                 case "b": value = .bool(vText == "1")
                 case "e": value = .error(ExcelError(rawValue: vText ?? "") ?? .value)
@@ -398,33 +402,35 @@ enum Xlsx {
                 // (Turned text is fitted by its length, which only the file's
                 // fit has: lo-forum-mso-en4-134670's headings' 196.5 pt.)
                 if book.styles[cell.style].rotation != 0, !value.isEmpty { ws.scriptRows.insert(a.row) }
-                if c.attrs.count > 1 {
-                    for (k, v) in c.attrs where k == "vm" || k == "cm" || k == "ph" { cell.keptAttrs[k] = v }
-                }
-                if let f = c.child("f") {
+                for (k, v) in c.kept { cell.keptAttrs[k] = v }
+                if c.hasF {
                     // As the file wrote it, for when it cannot be read.
                     // (Made only for a formula that cannot be: one in a
                     // thousand, and this was a string built for every one.)
                     func rawF() -> String {
                         var s = "<f"
-                        for (k, v) in f.attrs.sorted(by: { $0.key < $1.key }) { s += " \(k)=\"\(_esc(v))\"" }
-                        return f.text.isEmpty ? s + "/>" : s + ">" + _esc(f.text) + "</f>"
+                        var attrs = c.fExtra
+                        if let v = c.fT { attrs.append(("t", v)) }
+                        if let v = c.fSi { attrs.append(("si", v)) }
+                        if let v = c.fRef { attrs.append(("ref", v)) }
+                        for (k, v) in attrs.sorted(by: { $0.0 < $1.0 }) { s += " \(k)=\"\(_esc(v))\"" }
+                        return c.fText.isEmpty ? s + "/>" : s + ">" + _esc(c.fText) + "</f>"
                     }
                     var expr: FormulaExpr? = nil
-                    if f["t"] == "shared", let si = f["si"] {
-                        if !f.text.isEmpty, let e = try? Formula.parse(f.text) {
+                    if c.fT == "shared", let si = c.fSi {
+                        if !c.fText.isEmpty, let e = try? Formula.parse(c.fText) {
                             expr = _unprefix(e)
                             shared[si] = (a, expr!)
                         } else if let (anchor, master) = shared[si] {
                             expr = Formula.shifted(master, rows: a.row - anchor.row, cols: a.col - anchor.col)
                         }
-                    } else if !f.text.isEmpty {
-                        expr = (try? Formula.parse(f.text)).map(_unprefix)
-                        if f["t"] == "array" { cell.arrayRef = f["ref"] ?? a.a1 }
+                    } else if !c.fText.isEmpty {
+                        expr = (try? Formula.parse(c.fText)).map(_unprefix)
+                        if c.fT == "array" { cell.arrayRef = c.fRef ?? a.a1 }
                     }
                     if let expr {
                         cell.formula = expr
-                        cell.cached = c.child("v") == nil ? nil : value
+                        cell.cached = c.hasV ? value : nil
                         cell.value = value
                         // An array formula computes here: a dynamic one, whose
                         // range's other cells are its last spill (recomputed).
@@ -435,7 +441,7 @@ enum Xlsx {
                     } else {
                         // A formula we cannot parse (or a shared one built on
                         // one): its result stays, and its <f> goes back as it was.
-                        cell.input = f.text.isEmpty ? NumberFormat.display(value, "General", width: 255).text : "=" + f.text
+                        cell.input = c.fText.isEmpty ? NumberFormat.display(value, "General", width: 255).text : "=" + c.fText
                         cell.value = value
                         cell.cached = value
                         cell.rawFormula = rawF()
@@ -443,10 +449,28 @@ enum Xlsx {
                 } else {
                     cell.value = value
                 }
-                if cell.value.isEmpty && cell.formula == nil && cell.style == 0 && cell.input.isEmpty { continue }
+                if cell.value.isEmpty && cell.formula == nil && cell.style == 0 && cell.input.isEmpty { return }
                 cells[a] = cell
             }
-            rowIndex += 1
+        // The cells are read straight from the part's bytes (MiniXML.scanCells), a cell it does not recognise as a
+        // tree, in its place; OFFICE_XLSX_SCAN=0 reads every row as a tree, as before.
+        if Self.scanCells, let raw = part.bytes {
+            MiniXML.scanRows(named: "row", ofRootChild: "sheetData", in: raw) { row, element, inside in
+                // (The span test reads every <c>, the bare ones too: that row is read as a tree.)
+                let full: XNode? = ["1", "true"].contains(row["customFormat"] ?? "") ? MiniXML.parse(Array(raw[element])) : nil
+                rowSetup(full ?? row)
+                colIndex = 0
+                if let full { for c in full.kids("c") { cellBody(MiniXML.XlsxCell(node: c)) } }
+                else { MiniXML.scanCells(in: raw, body: inside, cellBody) }
+                rowIndex += 1
+            }
+        } else {
+            part.forEach { row in
+                rowSetup(row)
+                colIndex = 0
+                for c in row.kids("c") { cellBody(MiniXML.XlsxCell(node: c)) }
+                rowIndex += 1
+            }
         }
         // A sheet whose rows are hidden by default (zeroHeight): only the rows
         // the file lists show. pt-734a1b506b's Índice lists rows 1-35 and
@@ -627,6 +651,9 @@ enum Xlsx {
     }
 
     static func _styles(_ st: XNode, theme: [UInt32], themeFonts: (minor: String?, major: String?) = (nil, nil), themeless: Bool = false) -> [CellStyle] {
+        // (A palette of the book's own: indexed colours are its entries, de-48adcf794a's input-cell fill indexed 43 is FFFFCC there, FFFF99 in the default.)
+        let own = st.child("colors")?.child("indexedColors")?.kids("rgbColor").compactMap { $0["rgb"].flatMap { UInt32($0.suffix(6), radix: 16) } } ?? []
+        customIndexed = own.count >= 56 ? own : nil
         var formats = builtinFormats
         for nf in st.child("numFmts")?.kids("numFmt") ?? [] {
             if let id = Int(nf["numFmtId"] ?? ""), let code = nf["formatCode"] { formats[id] = code }
@@ -746,7 +773,7 @@ enum Xlsx {
         // prints lo-tdf113271's `<color theme="1" rgb="FFFFFF"/>` black.
         if let t = c["theme"].flatMap({ Int($0) }), t < theme.count { rgb = theme[t] }
         else if let s = c["rgb"], let v = UInt32(s.suffix(6), radix: 16) { rgb = v }
-        else if let i = c["indexed"].flatMap({ Int($0) }), i < _indexed.count { rgb = _indexed[i] }
+        else if let i = c["indexed"].flatMap({ Int($0) }), i < _indexed.count { rgb = customIndexed.flatMap { i < $0.count ? $0[i] : nil } ?? _indexed[i] }
         guard var v = rgb else { return nil }
         if let tint = c["tint"].flatMap({ Double($0) }), tint != 0 { v = _tinted(v, tint) }
         return v
@@ -798,6 +825,8 @@ enum Xlsx {
         return order.enumerated().map { val($0.element) ?? office[$0.offset] }
     }
 
+    /// The palette the book being read gives (`indexedColors`), set as its styles are read.
+    nonisolated(unsafe) static var customIndexed: [UInt32]? = nil
     static let _indexed: [UInt32] = [
         0x000000, 0xFFFFFF, 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF, 0x00FFFF,
         0x000000, 0xFFFFFF, 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF, 0x00FFFF,

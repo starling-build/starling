@@ -810,14 +810,21 @@ extension RichLayout {
                 // columns' even length in Word's print.)
                 let wide = Set(seq.compactMap { _cells[$0.paragraph] }.filter { $0.column > 0 || $0.span > 1 }.map(\.table))
                 let oneColumnTables = Set(seq.compactMap { _cells[$0.paragraph]?.table }).subtracting(wide)
+                // (A table of several columns whose rows stand whole in the block: its rows part between
+                // the columns as one unit each, the row that starts before the even length ending the
+                // column. dx2 2bcb3f6c's ten one-line rows, five and five in Word's print.)
+                let rowTables = theme.wordRules ? wide.filter { t in
+                    document.tableStyles[t]?.floatsOverText != true
+                        && seq.allSatisfy { p in _cells[p.paragraph].map { $0.table != t || (!head.contains(p) && $0.rowSpan == 1) } ?? true }
+                } : Set<String>()
                 let tail = Array(_allPieces.suffix(seq.count))
                 if !ownBreaks, seq.count > head.count, tail == seq || Set(tail.map(\.paragraph)) == Set(seq.map(\.paragraph)),
-                   seq.allSatisfy({ head.contains($0) || ((_cells[$0.paragraph].map { document.tableStyles[$0.table]?.floatsOverText == true || oneColumnTables.contains($0.table) } ?? true) && !$0.repeated && $0.part == .all) }) {
+                   seq.allSatisfy({ head.contains($0) || ((_cells[$0.paragraph].map { document.tableStyles[$0.table]?.floatsOverText == true || oneColumnTables.contains($0.table) || rowTables.contains($0.table) } ?? true) && !$0.repeated && $0.part == .all) }) {
                     // (A floating table in the block stands where it is, a band the
                     // columns run around: lo-a998edda's A1–A4 in two columns are 2
                     // and 2 in Word's print, the table across both, the fourth
                     // line under it.)
-                    let bandsHere = seq.filter { _cells[$0.paragraph] != nil && !oneColumnTables.contains(_cells[$0.paragraph]!.table) }
+                    let bandsHere = seq.filter { _cells[$0.paragraph] != nil && !oneColumnTables.contains(_cells[$0.paragraph]!.table) && !rowTables.contains(_cells[$0.paragraph]!.table) }
                     let total = (first ... lastPage).reduce(0.0) { acc, s in acc + ((_pages[s].filter { p in !head.contains(where: { $0 == p }) }).map { $0.pageY + $0.height }.max().map { $0 - base } ?? 0) }
                     // (The space after the block's last paragraph is not a column's length:
                     // sa1 978697fd's three one-line items, 1+1+1 in Word's print, were
@@ -827,7 +834,23 @@ extension RichLayout {
                     var out: [[PagePiece]] = Array(repeating: [], count: nb)
                     var c = 0, cy = 0.0
                     var lastBottom: [Int: Double] = [:]
-                    for piece in seq where !head.contains(where: { $0 == piece }) && (_cells[piece.paragraph] == nil || oneColumnTables.contains(_cells[piece.paragraph]!.table)) {
+                    var doneRows = Set<String>()
+                    for piece in seq where !head.contains(where: { $0 == piece }) && (_cells[piece.paragraph] == nil || oneColumnTables.contains(_cells[piece.paragraph]!.table) || rowTables.contains(_cells[piece.paragraph]!.table)) {
+                        if let cg = _cells[piece.paragraph], rowTables.contains(cg.table) {
+                            let key = "\(cg.table)#\(cg.row)"
+                            if !doneRows.insert(key).inserted { continue }
+                            let mates = seq.filter { m in _cells[m.paragraph].map { $0.table == cg.table && $0.row == cg.row } ?? false }
+                            let rowY = mates.map(\.pageY).min() ?? piece.pageY
+                            let h = mates.map { $0.pageY + $0.height }.max().map { $0 - rowY } ?? piece.height
+                            let gap = max(0, rowY - (lastBottom[piece.page] ?? base))
+                            lastBottom[piece.page] = rowY + h
+                            var top = cy > 0.01 ? cy + gap : 0
+                            if c < nb - 1, top > 0.01, top >= target - 0.5 { c += 1; top = 0; cy = 0 }
+                            RuleTrace.hit("column-balance-parts-table-rows")
+                            for m in mates { out[c].append(PagePiece(paragraph: m.paragraph, flowTop: m.flowTop, flowBottom: m.flowBottom, page: first + c, pageY: base + top + (m.pageY - rowY))) }
+                            cy = top + h
+                            continue
+                        }
                         let gap = max(0, piece.pageY - (lastBottom[piece.page] ?? base))
                         lastBottom[piece.page] = piece.pageY + piece.height
                         var top = cy > 0.01 ? cy + gap : 0
@@ -2238,7 +2261,10 @@ extension RichLayout {
                 // (Not in a legacy-mode document, no compatibilityMode: there a paragraph after a table at a page's top keeps its space before;
                 // xb jpn-z21601833's heading, 1104 of 1143 lines to 417 under this rule. dx2 fb068d84's empty marks after a table in mode 15 drop it; 99cfc555 is mode 14: 503 to 1712 of 2523.)
                 else if theme.wordRules, RichTextTheme.wordWindowsPages, document.compatibilityMode != nil, pgs.pageFresh, pgs.page > 0, pgs.resumeCursor == nil, lead > 0.01, cursor <= top + 0.01,
-                        pgs.y >= 0.01, _cells[pgs.i] == nil {
+                        pgs.y >= 0.01, _cells[pgs.i] == nil, pgs.i == 0 || _cells[pgs.i - 1] == nil || _pages[pgs.page].isEmpty,
+                        // (A heading with text under a table that stands on the page keeps its space before: xb jpn-z22306877's Heading1 under
+                        // a table 190 pt tall at the top of page 3, 24 pt in Word's print, ours 0 and every line after it 24 pt high.)
+                        !(pgs.i > 0 && _cells[pgs.i - 1] != nil && !document.paragraphs[pgs.i].text.isEmpty) {
                     RuleTrace.hit("column-break-paragraph-drops-its-space-before-at-column-top")
                     cursor = min(bottom, top + lead)
                 }
@@ -3100,7 +3126,11 @@ extension RichLayout {
             guard theme.wordRules, RichTextTheme.wordWindowsPages, j >= 0, j < document.paragraphs.count,
                   document.paragraphs[j].keptTable == nil, p.keptTable == nil,
                   let a = p.cell, let b = document.paragraphs[j].cell else { return false }
-            return a.table == b.table && b.row >= a.row + a.rowSpan
+            // (Nor does it keep it before the next CELL of its own row:
+            // zh-1a3c7aa0's header row, three cells of one contextual
+            // exact 12pt line over Normal's 8pt after, is 12.0pt in
+            // Word's print, ours 20: only its last cell gave the space up.)
+            return a.table == b.table && (b.row >= a.row + a.rowSpan || b.row == a.row && a != b)
         }
         // (Word for Windows, mode 14, xd 80c852b0 p2: a contextual list item over a table whose first cell's paragraph
         // is the same style gives its space after up too, 8pt, though the cell paragraph is no list item.)

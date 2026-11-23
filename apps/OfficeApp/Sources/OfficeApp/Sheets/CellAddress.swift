@@ -143,7 +143,56 @@ enum CellRefText {
         var rest: Substring
     }
 
+    /// The same reading as `parseCharacters`, on the UTF-8 bytes (a formula's references are read by the
+    /// hundred thousand). A byte past ASCII where the reference ends could join the last letter or digit into one
+    /// Character (a combining mark), so that case is left to the Character reading.
     static func parse(_ s: Substring) -> Parsed? {
+        let u = s.utf8
+        var i = u.startIndex
+        let end = u.endIndex
+        var colAbs = false, rowAbs = false
+        if i < end, u[i] == 0x24 { colAbs = true; i = u.index(after: i) }
+        var n = 0, letterCount = 0
+        while i < end {
+            let a = u[i]
+            let up = a >= 97 ? a &- 32 : a
+            guard up >= 65 && up <= 90 else { break }
+            letterCount += 1
+            if letterCount <= 3 { n = n * 26 + Int(up - 64) }
+            i = u.index(after: i)
+        }
+        var col: Int? = nil
+        if letterCount > 0 {
+            guard letterCount <= 3, n - 1 < CellAddress.maxCols else { return nil }
+            col = n - 1
+        } else if colAbs {
+            colAbs = false
+            rowAbs = true
+        }
+        if i < end, u[i] == 0x24 {
+            guard !rowAbs else { return nil }
+            rowAbs = true
+            i = u.index(after: i)
+        }
+        var digitCount = 0, r = 0
+        while i < end, u[i] >= 48 && u[i] <= 57 {
+            digitCount += 1
+            if digitCount <= 7 { r = r * 10 + Int(u[i] - 48) }
+            i = u.index(after: i)
+        }
+        if i < end, u[i] >= 0x80 { return parseCharacters(s) }
+        var row: Int? = nil
+        if digitCount > 0 {
+            guard digitCount <= 7, r >= 1, r <= CellAddress.maxRows else { return nil }
+            row = r - 1
+        } else if rowAbs && col != nil && letterCount > 0 {
+            return nil  // "A$" alone
+        }
+        if row == nil && col == nil { return nil }
+        return Parsed(row: row, col: col, rowAbs: rowAbs, colAbs: colAbs, rest: s[i...])
+    }
+
+    static func parseCharacters(_ s: Substring) -> Parsed? {
         var i = s.startIndex
         var colAbs = false, rowAbs = false
         if i < s.endIndex, s[i] == "$" { colAbs = true; i = s.index(after: i) }

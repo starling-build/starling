@@ -89,6 +89,8 @@ extension RichLayout {
         "malgun gothic": (1.088 + 0.2, 0.242 + 0.2), "leelawadee ui": (1.08, 0.28),
         // (Myanmar Text: win ascent 2122, descent 1689 over 2048. Word sets a Myanmar-letter line at 1.861 em: dx2 2dbfc1a8, 22 pt a line at 11 pt on 259, ours 16.)
         "myanmar text": (2122.0 / 2048, 1689.0 / 2048),
+        // (Khmer UI: win ascent 1888, descent 430 over 2048.)
+        "khmer ui": (1888.0 / 2048, 430.0 / 2048),
         // (MV Boli, which Word draws Thaana in: win ascent 2333, descent 967 over 2048; dx2 3a5235d0.)
         "mv boli": (2333.0 / 2048, 967.0 / 2048)]
     /// Width of each face's letters against the Noto stand-in's, per script (D Devanagari, B Bengali, T Telugu, P Gurmukhi, G Gujarati):
@@ -348,7 +350,7 @@ extension RichLayout {
 
     /// A space with no ink (U+3000 and the other non-ASCII blanks) is not drawn by Word or PowerPoint, and their PDF text layer has none of
     /// them (0 of 756 Word prints; Excel prints DO keep them, 4563 in the 62 xlsx2 prints, so Sheets does not use this path). It is laid out as before, but painted clear, which the PDF leaves out.
-    static func _isInklessBlank(_ u: UInt32) -> Bool { u == 0x3000 || u == 0x2003 || u == 0x2002 || u == 0x2009 || u == 0x200A || u == 0x2005 || u == 0x2006 || u == 0x2007 || u == 0x2008 || u == 0x2004 }
+    static func _isInklessBlank(_ u: UInt32) -> Bool { u == 0x3000 || u == 0xFFFC || u == 0x2003 || u == 0x2002 || u == 0x2009 || u == 0x200A || u == 0x2005 || u == 0x2006 || u == 0x2007 || u == 0x2008 || u == 0x2004 }
 
     static func _hasBlank(_ t: TextSpan) -> Bool {
         if let x = t.text, x.unicodeScalars.contains(where: { _isInklessBlank($0.value) }) { return true }
@@ -615,6 +617,21 @@ extension RichLayout {
                 let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
                 let sp = Self._multipleSplit(ascent: 0.905, descent: 1.149 - 0.905, multiple: multiple)
                 look = look.copyWith(ascentOverride: px * sp.0, descentOverride: px * sp.1, height: 1.149 * multiple, leadingDistribution: .even)
+            }
+            // (An empty paragraph whose mark is w:rtl and whose complex face is Arial or Times New Roman, which Word has: the mark's line is that face's
+            // own 1.149 em, not the Latin face's. dx2 1ba3a908's Hebrew letter, Calibri Latin over a cs Arial (theme minorBidi), its empty marks 12 pt:
+            // 13.8 pt apart in Word's print, ours 14.65 on Calibri's line, so the first text line stood 3.4 pt low and the page 4.9 by its fourth.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, !emptyBidiOwnLine, p.style.list == nil, p.style.lineHeightPoints == nil,
+               mark.rightToLeft, look.ascentOverride == nil, let px = look.fontSize, px > 0.5,
+               case let cs = (mark.complexFontFamily ?? markNamed?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased(),
+               cs == "arial" || cs == "times new roman",
+               case let latinFace = (mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased(),
+               latinFace != cs {
+                RuleTrace.hit("word-empty-rtl-mark-in-arial-or-times-complex-face-is-its-own-line")
+                let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+                let asc = cs == "arial" ? 0.905 : 0.891, tall = cs == "arial" ? 1.149 : 1.1499
+                let sp = Self._multipleSplit(ascent: asc, descent: tall - asc, multiple: multiple)
+                look = look.copyWith(ascentOverride: px * sp.0, descentOverride: px * sp.1, height: tall * multiple, leadingDistribution: .even)
             }
             // (An empty paragraph whose mark is w:rtl in a complex face Word lacks and names an alternate for (B YAGOT, alternate Times New
             // Roman), the face itself with no line of ours: the mark's line is the Latin face's at that size, as without w:rtl. dx2 6e7a3d11's

@@ -43,11 +43,18 @@ def load_reuse(d):
 CC2 = os.environ.get("CORPUS_CACHE", "/data/corpus-cache") + "/test/corpus/xlsx2"
 BOOKS2, XL2 = CC2 + "/books", CC2 + "/" + os.environ.get("SHEETS_EXCEL", "excel-20261122")
 
+# Third set (xlsx-cjk-r3, 2026-11-23: ko xlsx/xls, zh, ja; 6 folders, Excel prints in <folder>/excel-win/<id>-orig.pdf, an .xls book prints to <id>-orig.pdf too).
+CC3 = os.environ.get("CORPUS_CACHE", "/data/corpus-cache") + "/test/corpus/xlsx-cjk-r3"
+def refpdf(xl, name):
+    for b in (stem(name), name.rsplit(".", 1)[0]):
+        if os.path.exists(f"{xl}/{b}-orig.pdf"): return f"{xl}/{b}-orig.pdf"
+    return f"{xl}/{stem(name)}-orig.pdf"
+
 def stem(name): return name[:-5] if name.endswith(".xlsx") else name   # an .xls book keeps its extension: it prints to NAME.xls-orig.pdf
 
 def job(item):
     name, books, xl = item
-    base = stem(name); pdf = f"{OUT}/pdf/{base}.pdf"; ref = f"{xl}/{base}-orig.pdf"; t0 = time.time()
+    base = stem(name); pdf = f"{OUT}/pdf/{base}.pdf"; ref = refpdf(xl, name); t0 = time.time()
     M.WORD = xl
     env = dict(os.environ, SHEET_PDF_MAX_PAGES="20", OFFICE_FONT_SOURCE=os.environ.get("OFFICE_FONT_SOURCE", "bundled"))
     try:
@@ -88,14 +95,18 @@ def main():
     if "-j" in args: i = args.index("-j"); jobs = int(args[i + 1]); del args[i:i + 2]
     BIN, OUT = os.path.realpath(args[0]), args[1]; names = args[2:]
     os.makedirs(OUT + "/pdf", exist_ok=True); os.makedirs(OUT + "/pairs", exist_ok=True)
-    items = [(n, BOOKS, XL) for n in names]
+    items = [(n, BOOKS2, XL2) if os.path.exists(f"{BOOKS2}/{n}") else (n, BOOKS, XL) for n in names]
     if not names:
-        sets = os.environ.get("SHEETS_SETS", "xlsx,xlsx2").split(",")
+        sets = os.environ.get("SHEETS_SETS", "xlsx,xlsx2,r3").split(",")
         if "xlsx" in sets:
             items += [(f, BOOKS, XL) for f in sorted(os.listdir(BOOKS)) if f.endswith(".xlsx") and os.path.exists(f"{XL}/{f[:-5]}-orig.pdf")]
         if "xlsx2" in sets and os.path.exists(f"{XL2}/export.tsv"):
             ok = {l.split("\t")[0] for l in open(f"{XL2}/export.tsv") if l.rstrip("\n").endswith("\tpdf")}
             items += [(f, BOOKS2, XL2) for f in sorted(os.listdir(BOOKS2)) if f in ok and os.path.exists(f"{XL2}/{stem(f)}-orig.pdf")]
+    if not names and "r3" in os.environ.get("SHEETS_SETS", "xlsx,xlsx2,r3").split(","):
+        for d in sorted(os.listdir(CC3)) if os.path.isdir(CC3) else []:
+            bk, xl = f"{CC3}/{d}", f"{CC3}/{d}/excel-win"
+            items += [(f, bk, xl) for f in sorted(os.listdir(bk)) if f.endswith((".xlsx", ".xls")) and os.path.exists(refpdf(xl, f))]
     # slowest first (seconds from the reused sweep when there is one, else file size): the few heavy books must not start last
     global REUSE
     REUSE = load_reuse(os.environ.get("SHEETS_REUSE"))

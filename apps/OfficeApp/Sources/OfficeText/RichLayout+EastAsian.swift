@@ -2049,7 +2049,13 @@ extension RichLayout {
                         let markShare = given.isEmpty || markRoom <= 0 ? share : min(1, (need + 0.02) / markRoom)
                         let spaceShare = given.isEmpty || markRoom <= 0 ? share
                             : min(1, max(0, need + 0.02 - markRoom) / max(0.001, room - markRoom))
-                        for mark in all { adjust[mark, default: 0] -= half(mark) * markShare }
+                        // (Taken on the other marks' room, the kept last mark still gives its share of a line that holds a pause mark mid-text:
+                        // zh-27a874b7 (zh-TW, mode 14) takes "作、" 15.07 over on two marks' 16, and Word's three marks give 4.95 to 5.04 each.)
+                        let tailJoins = centredEnd && !paragraphEnd && !alone && kept && markRoom > 0 && need * 2 > markRoom && [0xFF0C, 0x3001, 0x3002].contains(units[tail])
+                        let tailHalf = tailJoins ? half(tail) : 0
+                        let giveShare = tailJoins ? min(1, (need + 0.02) / (markRoom + tailHalf)) : markShare
+                        if tailJoins { adjust[tail, default: 0] -= tailHalf * giveShare }
+                        for mark in all { adjust[mark, default: 0] -= half(mark) * giveShare }
                         for mark in all where leadOpeners[mark] != nil { leadOpeners[mark] = last }
                         for k in given { adjust[k, default: 0] -= (gaps[k] ?? 0) / 2 * spaceShare }
                         // (What the marks cannot give of that fiftieth —
@@ -2698,7 +2704,8 @@ extension RichLayout {
         // 13 inside lines; zh-e51c31a7's "…以為共同遵守︰" sends "守︰" down where ours opened a line with it.)
         .union("\u{FE30}".utf16)
     static let _noEnd = _openingUnits.union("([{$#￥＄£".utf16)
-    static let _quotes = Set("\"'“”‘’".utf16)
+    // (The low quotes „ ‚ too: fb068d84 sets "„Principi" whole, and the line takes the mark alone by a squeeze that its word cannot make; Word breaks before "„".)
+    static let _quotes = Set("\"'“”‘’„‚".utf16)
 
     /// The closing brackets alone (the pair table of JIS X 4051 treats 。、 and the like as their own class).
     static let _closingBracketMarks: Set<Character> = ["）", "》", "」", "』", "】", "〕", "〉", "｝", "］"]

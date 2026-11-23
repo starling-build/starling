@@ -129,6 +129,8 @@ public struct CharStyle: Hashable, Codable, Sendable {
     public var bold = false
     /// Bold that came from w:b with no w:bCs on the style or run that set it (a complex-script run does not take it).
     public var boldWithoutBCs = false
+    /// The complex-script weight (w:bCs) a style or run set, kept apart from w:b so a later style that only turns w:b off does not undo it.
+    public var bCsFromStyle: Bool? = nil
     public var italic = false
     public var underline = false
     public var strikethrough = false
@@ -2742,6 +2744,9 @@ public struct RichDocument: Hashable, Codable, Sendable {
     /// ja/zh/ko — 0d8cbc, which states none, has no such space): Word still sets the automatic space between ideograph and Latin letter or digit there
     /// (xb jpn-z19126474-754366: "AI エージェント", "2026 年3 月" in its print).
     public var autoSpacesWithoutFELayout = false
+    /// The docDefaults' own w:lang names a non-CJK East Asian language (en-US) though Normal may state a CJK one: Word then sets no automatic
+    /// ideograph/Latin space without useFELayout (zh-d97c5474: Normal zh-CN over defaults en-US, no gap in Word's print).
+    public var defaultsEastAsiaNotCJK = false
     /// Whether the body text holds kana (hiragana or katakana): the text says the
     /// document is Japanese when its language tag does not (en-US on Japanese text).
     public var hasKana = false
