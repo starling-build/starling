@@ -291,7 +291,7 @@ enum SheetPrintLayout {
             // a row fewer than ours did.)
             let foot = 8.0 * 72 / 600
             rowBands = bands(rows, height, availH - foot, fitting ? [] : setup.rowBreaks,
-                             own: (titleRowsEnd, max(18, availH0 - headHeight * s) - foot), wholeDots: fitting && titleRowsEnd == nil)
+                             own: (titleRowsEnd, max(18, availH0 - headHeight * s) - foot), wholeDots: fitting)
             // Rows and columns do not split, so the arithmetic's scale can
             // still be a page over: a percent less until it is not.
             let over = (setup.fitWidth.map { $0 > 0 && colBands.count > $0 } ?? false)
