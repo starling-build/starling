@@ -9426,8 +9426,11 @@ extension ChartPainter {
                     // (PowerPoint's print, pie-lab9's 66 slides and ja-16be16fa31 p4: a label that does not fit inside is set again in one of three
                     // narrower fixed widths, 0.8, 0.64 and 0.512 of a fifth of the chart's width (67 and 54 pt in a 420 pt chart), whatever
                     // its text or size; the first that stands inside wins, never an in-between width.)
-                    for f in [0.16, 0.128, 0.1024] {
-                        tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * f))
+                    // (The padded rungs, 0.8 and 0.64 of the natural width less 5.75 pt, are the only ones tried inside; a
+                    // narrower one stands outside only: lab11's same 36 pt box is taken inside at 40 degrees on a 300 and a 340 pt chart,
+                    // refused on 420 where it would be the fourth.)
+                    for j in 1...2 {
+                        tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2 * pow(0.8, Double(j)) - 5.75 * k))
                         // (A step that would cut a word in two is not taken, pie-lab10: a 9-digit word in a 60 degree slice stays in
                         // its natural wrap outside, where the 5 + 4 digit cut would have stood inside.)
                         let chars = Array(text)
