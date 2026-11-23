@@ -157,6 +157,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// columns of 105 to 600 px, whose pad runs 9, 10, 11, 12, 14, 16.5 px, and to
     /// no_drawing_patriarch's 416 px URLs (room 397-402).
     static let screenFitPad = 7.5
+    static let screenFitPadGdi = 9.5
+    static let screenFitFloorGdi = 11.0
+    static let screenFitShareGdi = 0.015
     /// The least pad: 52716's rows and CVLKRA-KYC's remarks, in columns of 105-160 px, fit at 11 where the lab's rows fit at 10.
     static let screenFitFloor = 11.0
     static let screenFitShare = 0.0145
@@ -506,8 +509,18 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                         // FIT, not a derived rule: room = column less max(11, 7.5 + 1.45% of the column) px, fitted to the wrap-room lab (5 widths, 105-600 px) and 3 books; see screenFitPad.
                         style.screen = 72 / 192 * scale
                         style.screenEm = (book.fontSize(st) * 192 / 72).rounded()
+                        // (Excel's screen sets each character a whole pixel of the face's GDI advance at the screen em: es-944be98d95's
+                        // "PLAN AUTOMOTOR ECUATORIANO S.A. PLANAUTOMOTOR" is 770 px of Arial 10, in a room of 769.)
+                        var gdiName = book.fontName(st).trimmingWhitespace().lowercased()
+                        if GdiAdvances.notInstalled.contains(gdiName) { gdiName = "arial" }
+                        // (Only where the dump covers every character of the cell: a string part GDI and part scaled outline sets rows by neither.)
+                        let covered = text.unicodeScalars.allSatisfy { $0.value == 10 || $0.value == 13 || GdiAdvances.advance(gdiName, bold: st.bold, em: 27, $0.value) != nil }
+                        if !st.italic, covered, GdiAdvances.faces.contains(gdiName) { style.gdi = gdiName }
                         let column = (chars * m.screenDigit).rounded(.down)
-                        width = (column - max(Self.screenFitFloor, Self.screenFitPad + Self.screenFitShare * column)).rounded(.down) * style.screen
+                        // (GDI-measured rows are a width the dump gives whole; the older fit below belongs to the scaled-outline measure.)
+                        let gdi = !style.gdi.isEmpty
+                        let dp = gdi ? Self.screenFitPadGdi : Self.screenFitPad, dfl = gdi ? Self.screenFitFloorGdi : Self.screenFitFloor, dsh = gdi ? Self.screenFitShareGdi : Self.screenFitShare
+                        width = (column - max(dfl, dp + dsh * column)).rounded(.down) * style.screen
                     }
                     // (Line breaks at the end draw nothing but are lines to the
                     // fit: LIBRE_OFFICE-116306-0's rows keep theirs.)
@@ -4082,7 +4095,11 @@ final class _TextCache {
             }
             var plain = style; plain.screen = 0
             let space = s.containsSubstring(" ") ? _measure("a a", plain) - _measure("aa", plain) : 0
-            return s.reduce(0) { $0 + (($1 == " " ? space : _measure(String($1), plain)) / style.size * style.screenEm).rounded() * style.screen }
+            return s.reduce(0) { sum, ch in
+                if !style.gdi.isEmpty, ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value,
+                   let g = GdiAdvances.advance(style.gdi, bold: style.bold, em: Int(style.screenEm), v) { return sum + Double(g) * style.screen }
+                return sum + ((ch == " " ? space : _measure(String(ch), plain)) / style.size * style.screenEm).rounded() * style.screen
+            }
         }
         if let parts = _arabicParts(s, style) {
             var plain = style; plain.arabicArial = false; plain.myanmar = false; plain.kannada = false
