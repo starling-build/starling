@@ -4207,13 +4207,13 @@ private struct SlideContext {
                 var pieces: [(length: Int, script: String?)] = []
                 let explicitLatin = rPr?.first("a:latin")?["typeface"].map { !$0.isEmpty && !$0.hasPrefix("+") } ?? false
                 var sawLetter = false
-                let calibriLatin = (plain.fontFamily ?? "").lowercased().hasPrefix("calibri")
+                let latinName = plain.fontFamily ?? ""
                 for ch in t.unicodeScalars {
                     let n = ch.utf16.count
                     var script = Self.complexScript(ch.value) ?? (Self.isEastAsian(ch.value) && ch.value != 0x3000 ? "ea" : nil)
-                    // (A symbol Calibri lacks (℃ ℉ № and the like) that Cambria Math holds is drawn in Cambria Math, as PowerPoint's print
+                    // (A symbol the run's Latin face lacks (by its measured coverage: ℃ ℉ № and the like, in the letterlike, arrow and math blocks) that Cambria Math holds is drawn in Cambria Math, as PowerPoint's print
                     // does: 998cb8 p9's "65℃" step is 0.906 em, the fallback face's 1.125.)
-                    if script == nil, calibriLatin, RichLayout._latinFaceLacks("calibri", ch.value) == true, OfficeFonts.cambriaMathScript[ch.value] != nil { script = "cmath" }
+                    if script == nil, ch.value >= 0x2100, ch.value < 0x2400, RichLayout._latinFaceLacks(latinName, ch.value) == true, OfficeFonts.cambriaMathScript[ch.value] != nil { script = "cmath" }
                     let letter = script != nil || ch.properties.isAlphabetic
                     if pieces.isEmpty {
                         pieces.append((n, script))
