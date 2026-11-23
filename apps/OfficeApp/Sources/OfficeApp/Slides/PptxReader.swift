@@ -3252,10 +3252,22 @@ private struct SlideContext {
             // (A SmartArt's text is set at single spacing whatever its `lnSpc` percent below 100 says: the lab cline2 prints 7c3069f9808a's
             // slide 8 body (12 pt, lnSpc 90%, spcAft 15%) 16.4 pt from paragraph to paragraph, where the same text in a plain box with the
             // same properties stands 15.1 and with lnSpc removed 16.5 (12 pt at 100% is 14.4; spcAft 2.2).)
+            // (Only a paragraph of East Asian text: the print of lo-tdf149551_SmartArt_Pie's Courier New text keeps its 90% (10.2 pt pitch at 10 pt).)
             func singleSpaced(_ n: XNode) {
-                n.children.removeAll { c in
-                    guard c.name == "a:lnSpc", let v = c.first("a:spcPct")?["val"].flatMap(Double.init) else { return false }
-                    return v < 100000
+                if n.name == "a:p" {
+                    var ea = false
+                    func scan(_ m: XNode) {
+                        if m.name == "a:t" { ea = ea || m.text.unicodeScalars.contains { Self.isEastAsian($0.value) } }
+                        for c in m.children { scan(c) }
+                    }
+                    scan(n)
+                    if ea, let pPr = n.first("a:pPr") {
+                        pPr.children.removeAll { c in
+                            guard c.name == "a:lnSpc", let v = c.first("a:spcPct")?["val"].flatMap(Double.init) else { return false }
+                            return v < 100000
+                        }
+                    }
+                    return
                 }
                 for c in n.children { singleSpaced(c) }
             }
