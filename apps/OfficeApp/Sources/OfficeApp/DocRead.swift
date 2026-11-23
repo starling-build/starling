@@ -169,6 +169,8 @@ enum DocRead {
         }
         func instrRun(_ f: Field) -> String { "<w:r>" + rpr + "<w:instrText xml:space=\"preserve\">" + esc(f.instr) + "</w:instrText></w:r>" }
         var cache: [UInt8] = [], cacheValid = false
+        var tbl = "", rowCells: [String] = [], cellXml = ""
+        func endTable() { if !tbl.isEmpty { xml += tbl + "</w:tbl>"; tbl = "" } }
         for (k, c) in t.enumerated() {
             let cp = ctx.base + k
             if !chp.isEmpty {
@@ -182,9 +184,37 @@ enum DocRead {
             switch c {
             case 0x0D, 0x07:
                 flush()
-                var pp = DocProps.pPr(cover(pap, &pi, cp)?.grpprl ?? [], istd: cover(pap, &pi, cp)?.istd ?? 0)
+                let pr = cover(pap, &pi, cp)
+                let tf = DocProps.tableFlags(pr?.grpprl ?? [])
+                if tf.inTable, tf.rowEnd, c == 0x07 {
+                    // the mark that ends a table row carries the row's table properties
+                    runs = ""
+                    if let r = DocProps.row(pr?.grpprl ?? []) {
+                        if tbl.isEmpty { tbl = "<w:tbl>" + r.tblPr + "<w:tblGrid>" + r.grid.map { "<w:gridCol w:w=\"\($0)\"/>" }.joined() + "</w:tblGrid>" }
+                        let all = rowCells.count == r.cells.count
+                        var n = 0
+                        tbl += "<w:tr>" + r.trPr
+                        for cl in r.cells {
+                            let body = n < rowCells.count ? rowCells[n] : ""
+                            if !cl.merged || all { n += 1 }
+                            if cl.merged { continue }
+                            tbl += "<w:tc>" + cl.pr + (body.isEmpty ? "<w:p/>" : body) + "</w:tc>"
+                        }
+                        tbl += "</w:tr>"
+                    }
+                    rowCells = []; cellXml = ""
+                    break
+                }
+                var pp = DocProps.pPr(pr?.grpprl ?? [], istd: pr?.istd ?? 0)
                 if let sp = ctx.sectEnds[cp] { pp = pp.isEmpty ? "<w:pPr>" + sp + "</w:pPr>" : String(pp.dropLast(8)) + sp + "</w:pPr>" }
-                xml += "<w:p>" + pp + runs + "</w:p>"; runs = ""
+                let para = "<w:p>" + pp + runs + "</w:p>"; runs = ""
+                if tf.inTable {
+                    cellXml += para
+                    if c == 0x07 { rowCells.append(cellXml); cellXml = "" }
+                } else {
+                    endTable()
+                    xml += para
+                }
             case 0x0B: flush(); runs += "<w:r><w:br/></w:r>"
             case 0x0C:
                 flush()
@@ -217,6 +247,7 @@ enum DocRead {
             }
         }
         flush()
+        if !tbl.isEmpty { endTable(); xml += "<w:p/>" }
         if !runs.isEmpty { xml += "<w:p>" + runs + "</w:p>" }
         return xml
     }
