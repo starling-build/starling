@@ -370,3 +370,10 @@ are in `/data/corpus-cache/staging/<set>` (`corpus-cache.sh check|sync`).
 `fonts PDF [PAGES]`, `trace PDF [PAGES]` (render mode/opacity; flags INVISIBLE and OFFPAGE text), `images`, `draws` (rules, borders, fills; bbox is the true curve extent, not Bezier control points),
 `diff A.pdf B.pdf PAGE [--clip x0,y0,x1,y1] [--dpi N] [--out PNG]` (% of pixels differing, red/blue overlay).
 For Word-vs-ours line and glyph comparison use `wordcmp.py`; this tool reads a single PDF. It re-runs itself in `~/venv-word` if PyMuPDF is missing.
+
+## Slides line score: tiny text is ignored (amd-8, 2026-11-23)
+
+`test/pptx-line-match.py` and `test/tools/slides-per-page.py` set `PPT_MIN_PT=3`: text spans under 3 pt are dropped from BOTH PDFs
+(ours and PowerPoint's), by size only. PowerPoint prints an invisible second copy of the text under hyperlinked shapes at 1.0-1.4 pt
+(22 decks; 4cc69f8d4a9b has 5,203 such spans). Scores after this date are not comparable with older rounds: pptx set mean 97.81 to 98.10,
+pptx-zh 97.51 to 97.57, no deck worse. `PPT_MIN_PT=0` restores the old reading.
