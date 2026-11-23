@@ -8903,6 +8903,7 @@ extension ChartPainter {
             }
             let own = !c.onSlide && !c.onSheet ? l.own[s.index] : nil
             let size = max(3, (l.sizes[s.index] ?? own?.size ?? c.series[0].labelSize ?? c.baseTextSize) * k)
+            let cjkText = (c.eastAsianText || c.categories.contains { $0.unicodeScalars.contains { (0x3040 ... 0x9FFF).contains($0.value) || (0xAC00 ... 0xD7A3).contains($0.value) } })  // PowerPoint joins a CJK deck's pie name and percent with ", " on one line
             var parts: [String] = []
             if l.series { parts.append(c.series[0].name) }
             if l.category, s.index < c.categories.count { parts.append(c.categories[s.index]) }
@@ -8924,7 +8925,7 @@ extension ChartPainter {
             // (", " where the chart's text is Chinese, Japanese or Korean:
             // zh-b8de3ae2's "其他收入, 16.39%" in Word's print; and in a Word document's chart
             // whatever its text: lo-f9b9a8fc47c97aa6's "datalabel1, 2".)
-            } ?? parts.joined(separator: l.separator ?? (parts.count > 1 ? ((c.onSlide || (c.onSheet && l.position == "outEnd")) && c.type == .pie ? "\n" : c.eastAsianText || !c.onSlide ? ", " : "; ") : ""))
+            } ?? parts.joined(separator: l.separator ?? (parts.count > 1 ? ((c.onSlide || (c.onSheet && l.position == "outEnd")) && c.type == .pie && !(c.onSlide && cjkText) ? "\n" : cjkText || !c.onSlide ? ", " : "; ") : ""))
             let dark = { () -> Bool in
                 let v = s.color.value
                 return 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF) < 150
