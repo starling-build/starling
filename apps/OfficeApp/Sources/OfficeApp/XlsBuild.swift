@@ -120,6 +120,7 @@ enum XlsBuild {
         var sheets: [Xls.SheetInfo] = []
         var xtis: [(Int, Int)] = []
         var nameRecs: [BiffRecord] = []
+        var internalBooks: Set<Int> = [], supBooks = 0
         // Globals end at the first EOF.
         var i = 0
         var depth = 0
@@ -154,7 +155,11 @@ enum XlsBuild {
                 }
             case 0x17:
                 let n = c.u16()
-                for _ in 0 ..< n where c.pos + 6 <= r.body.count { c.skip(2); let a = c.u16(); _ = c.u16(); xtis.append((a, 0)) }
+                for _ in 0 ..< n where c.pos + 6 <= r.body.count { let sup = c.u16(); let a = c.u16(); c.skip(2); xtis.append((a, sup)) }
+            case 0x1AE:
+                // An internal SUPBOOK (this workbook) is 4 bytes ending 0x0401.
+                if r.body.count == 4, r.body[2] == 0x01, r.body[3] == 0x04 { internalBooks.insert(supBooks) }
+                supBooks += 1
             case 0x18: nameRecs.append(r)
             case 0xFC:
                 c.skip(8)
@@ -168,6 +173,8 @@ enum XlsBuild {
         func add(_ n: String, _ s: String) { out.append(ZipEntry(name: n, data: Data(s.utf8))) }
 
         let kept = sheets.enumerated().filter { $0.element.kind == 0 || $0.element.kind == 2 }
+        var ctx = XlsFormulaContext(xtis: xtis, internalBooks: internalBooks, sheetNames: sheets.map { $0.name }, names: [])
+        ctx.names = nameRecs.map { nameText($0) }
         var wb = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">"
         // (activeTab counts every BOUNDSHEET; our parts drop the module sheets.)
         let active = kept.firstIndex(where: { $0.offset == activeTab }) ?? 0
@@ -200,13 +207,13 @@ enum XlsBuild {
         add("xl/styles.xml", st + "</styleSheet>")
 
         for (n, e) in kept.enumerated() {
-            let xml = sheetXML(recs, from: e.element.position, sst: sst, xfCount: max(1, xfs.count))
+            let xml = sheetXML(recs, from: e.element.position, sst: sst, xfCount: max(1, xfs.count), ctx: ctx)
             add("xl/worksheets/sheet\(n + 1).xml", xml)
         }
         return out
     }
 
-    private static func sheetXML(_ recs: [BiffRecord], from position: Int, sst: [String], xfCount: Int) -> String {
+    private static func sheetXML(_ recs: [BiffRecord], from position: Int, sst: [String], xfCount: Int, ctx: XlsFormulaContext) -> String {
         guard var i = recs.firstIndex(where: { $0.offset == position && $0.type == 0x809 }) else { return emptySheet }
         var cells: [Int: [Int: String]] = [:]
         var rows: [Int: String] = [:]
@@ -214,7 +221,28 @@ enum XlsBuild {
         var merges: [String] = []
         var defColWidth: Int? = nil, stdWidth: Int? = nil
         var defRowHeight: (Int, Bool)? = nil
-        var pendingFormula: (Int, Int, Int)? = nil
+        var pendingFormula: (Int, Int, Int, String)? = nil
+        // Shared and array formulas, by their first cell, found before the cells that use them.
+        var shared: [Int: [UInt8]] = [:], arrays: [Int: (String, [UInt8])] = [:]
+        do {
+            var k = i, d = 0
+            while k < recs.count {
+                let q = recs[k]; k += 1
+                if q.type == 0x809 { d += 1 }
+                if q.type == 0x0A { d -= 1; if d <= 0 { break } }
+                if d != 1 { continue }
+                var bc = BiffCursor(q)
+                if q.type == 0x4BC, q.body.count >= 10 {
+                    let r1 = bc.u16(); bc.skip(2); let c1 = bc.u8()
+                    let n = Int(q.body[8]) | Int(q.body[9]) << 8
+                    if 10 + n <= q.body.count { shared[r1 << 8 | c1] = Array(q.body[10 ..< 10 + n]) }
+                } else if q.type == 0x221, q.body.count >= 14 {
+                    let r1 = bc.u16(), r2 = bc.u16(), c1 = bc.u8(), c2 = bc.u8()
+                    let n = Int(q.body[12]) | Int(q.body[13]) << 8
+                    if 14 + n <= q.body.count { arrays[r1 << 8 | c1] = (cellRange(r1, c1, r2, c2), Array(q.body[14 ..< 14 + n])) }
+                }
+            }
+        }
         var setup: [Int: Int] = [:]
         var margins: [Double?] = [nil, nil, nil, nil]
         var hdrFtr: [String?] = [nil, nil]
@@ -297,24 +325,40 @@ enum XlsBuild {
                 let r = c.u16(), col = c.u16(), x = c.u16()
                 let s = c.unicodeString16()
                 put(r, col, "<c r=\"\(ref(r, col))\"\(style(x)) t=\"inlineStr\"><is><t xml:space=\"preserve\">\(esc(s))</t></is></c>")
-            case 0x06 where rec.body.count >= 20:
+            case 0x06 where rec.body.count >= 22:
                 let r = c.u16(), col = c.u16(), x = c.u16()
                 let b = Array(rec.body[6 ..< 14])
+                let cce = Int(rec.body[20]) | Int(rec.body[21]) << 8
+                let rg = Array(rec.body[22 ..< min(rec.body.count, 22 + cce)])
+                var f = ""
+                if rg.count == 5, rg[0] == 0x01 {
+                    let key = (Int(rg[1]) | Int(rg[2]) << 8) << 8 | (Int(rg[3]) | Int(rg[4]) << 8)
+                    let fr = Int(rg[1]) | Int(rg[2]) << 8, fc = Int(rg[3]) | Int(rg[4]) << 8
+                    if let (rng, ar) = arrays[key] {
+                        if fr == r, fc == col, let t = XlsFormula.decompile(ar, row: r, col: col, relative: false, ctx: ctx) {
+                            f = "<f t=\"array\" ref=\"\(rng)\">\(esc(t))</f>"
+                        }
+                    } else if let sh = shared[key], let t = XlsFormula.decompile(sh, row: r, col: col, relative: true, ctx: ctx) {
+                        f = "<f>\(esc(t))</f>"
+                    }
+                } else if let t = XlsFormula.decompile(rg, row: r, col: col, relative: false, ctx: ctx) {
+                    f = "<f>\(esc(t))</f>"
+                }
                 if b[6] == 0xFF, b[7] == 0xFF {
                     switch b[0] {
-                    case 0: pendingFormula = (r, col, x)
-                    case 1: put(r, col, "<c r=\"\(ref(r, col))\"\(style(x)) t=\"b\"><v>\(b[2] == 0 ? 0 : 1)</v></c>")
-                    case 2: put(r, col, "<c r=\"\(ref(r, col))\"\(style(x)) t=\"e\"><v>\(errorText(Int(b[2])))</v></c>")
-                    default: put(r, col, "<c r=\"\(ref(r, col))\"\(style(x)) t=\"str\"><v></v></c>")
+                    case 0: pendingFormula = (r, col, x, f)
+                    case 1: put(r, col, "<c r=\"\(ref(r, col))\"\(style(x)) t=\"b\">\(f)<v>\(b[2] == 0 ? 0 : 1)</v></c>")
+                    case 2: put(r, col, "<c r=\"\(ref(r, col))\"\(style(x)) t=\"e\">\(f)<v>\(errorText(Int(b[2])))</v></c>")
+                    default: put(r, col, "<c r=\"\(ref(r, col))\"\(style(x)) t=\"str\">\(f)<v></v></c>")
                     }
                 } else {
                     let d = Double(bitPattern: b.enumerated().reduce(UInt64(0)) { $0 | UInt64($1.element) << UInt64($1.offset * 8) })
-                    if d.isFinite { put(r, col, "<c r=\"\(ref(r, col))\"\(style(x))><v>\(num(d))</v></c>") }
+                    if d.isFinite { put(r, col, "<c r=\"\(ref(r, col))\"\(style(x))>\(f)<v>\(num(d))</v></c>") }
                 }
             case 0x207:
-                if let (r, col, x) = pendingFormula {
+                if let (r, col, x, f) = pendingFormula {
                     let s = c.unicodeString16()
-                    put(r, col, "<c r=\"\(ref(r, col))\"\(style(x)) t=\"str\"><v>\(esc(s))</v></c>")
+                    put(r, col, "<c r=\"\(ref(r, col))\"\(style(x)) t=\"str\">\(f)<v>\(esc(s))</v></c>")
                     pendingFormula = nil
                 }
             case 0x208 where rec.body.count >= 16:
@@ -430,7 +474,7 @@ enum XlsBuild {
         return x
     }
 
-    private static func quotedSheet(_ n: String) -> String {
+    static func quotedSheet(_ n: String) -> String {
         let plain = !n.isEmpty && n.unicodeScalars.allSatisfy { $0.properties.isAlphabetic || $0 == "_" || ("0" ... "9").contains($0) } && !(("0" ... "9").contains(n.unicodeScalars.first!))
         if plain { return n }
         var q = ""
@@ -439,6 +483,25 @@ enum XlsBuild {
     }
 
     /// Print areas, print titles and filter ranges: the ranges of a NAME formula (BIFF8 ptg tokens 0x3A/0x3B reference an EXTERNSHEET entry).
+    static func nameText(_ r: BiffRecord) -> String {
+        guard r.body.count >= 14 else { return "" }
+        var c = BiffCursor(r)
+        let flags = c.u16(); c.skip(1)
+        let cch = c.u8()
+        c.skip(10)
+        if flags & 0x20 != 0 {
+            c.skip(1)
+            switch c.u8() { case 6: return "_xlnm.Print_Area"; case 7: return "_xlnm.Print_Titles"; case 0xD: return "_xlnm._FilterDatabase"; default: return "" }
+        }
+        let f = c.u8()
+        return c.chars(cch, wide: f & 1 == 1)
+    }
+
+    static func cellRange(_ r1: Int, _ c1: Int, _ r2: Int, _ c2: Int) -> String {
+        let a = colName(c1) + String(r1 + 1)
+        return r1 == r2 && c1 == c2 ? a : a + ":" + colName(c2) + String(r2 + 1)
+    }
+
     static func definedNamesXML(_ recs: [BiffRecord], xtis: [(Int, Int)], sheetNames: [String], kept: [Int], xtiSheets: [(Int, Int)]? = nil) -> String {
         var out = ""
         for r in recs where r.body.count >= 14 {

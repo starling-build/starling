@@ -164,4 +164,20 @@ final class XlsContainerTests: XCTestCase {
         XCTAssertFalse(noPls.containsSubstring("paperSize"))
         XCTAssertTrue(noPls.containsSubstring("orientation=\"portrait\""))
     }
+
+    func testFormulaTokensBecomeFormulaText() {
+        let ctx = XlsFormulaContext(xtis: [], internalBooks: [], sheetNames: [], names: [])
+        // A1+B2*3 : ref A1, ref B2, int 3, mul, add
+        let t: [UInt8] = [0x24, 0, 0, 0, 0xC0, 0x24, 1, 0, 1, 0xC0, 0x1E, 3, 0, 0x05, 0x03]
+        XCTAssertEqual(XlsFormula.decompile(t, row: 5, col: 5, relative: false, ctx: ctx), "A1+B2*3")
+        // SUM(A1:B2): area, SUM with one argument
+        let s: [UInt8] = [0x25, 0, 0, 1, 0, 0, 0xC0, 1, 0xC0, 0x22, 1, 4, 0]
+        XCTAssertEqual(XlsFormula.decompile(s, row: 0, col: 3, relative: false, ctx: ctx), "SUM(A1:B2)")
+        // A shared formula's relative reference is an offset from the cell.
+        let r: [UInt8] = [0x2C, 0xFF, 0xFF, 0xFF, 0xC0]
+        XCTAssertEqual(XlsFormula.decompile(r, row: 4, col: 2, relative: true, ctx: ctx), "B4")
+        // A function this reader does not know leaves the cell on its cached value.
+        let u: [UInt8] = [0x21, 0xFF, 0x7F]
+        XCTAssertNil(XlsFormula.decompile(u, row: 0, col: 0, relative: false, ctx: ctx))
+    }
 }
