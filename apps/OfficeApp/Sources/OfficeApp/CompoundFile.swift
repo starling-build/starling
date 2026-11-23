@@ -85,8 +85,10 @@ struct CompoundFile {
         var seen = 0
         while s < 0xFFFF_FFFA, Int(s) < fat.count, seen <= fat.count {
             let base = (Int(s) + 1) * sectorSize
-            guard base + sectorSize <= bytes.count else { break }
-            out += bytes[base ..< base + sectorSize]
+            guard base < bytes.count else { break }
+            // (A file cut short inside its last sector still reads: Word pads that sector with zeros.)
+            out += bytes[base ..< min(bytes.count, base + sectorSize)]
+            if base + sectorSize > bytes.count { out += [UInt8](repeating: 0, count: base + sectorSize - bytes.count) }
             s = fat[Int(s)]
             seen += 1
         }
