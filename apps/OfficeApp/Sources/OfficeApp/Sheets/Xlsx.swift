@@ -393,7 +393,7 @@ enum Xlsx {
                 // "    0.0402000000" cells print as 0.0402, not as nothing.)
                 default: value = vText.flatMap { Double($0.drop(while: { $0 == " " || $0 == "\n" || $0 == "\t" })) }.map { .number($0) } ?? .empty
                 }
-                var cell = Cell(input: "")
+                var cell = Cell(input: nil)
                 cell.style = styleIndex < book.styles.count ? styleIndex : 0
                 // (Turned text is fitted by its length, which only the file's
                 // fit has: lo-forum-mso-en4-134670's headings' 196.5 pt.)
@@ -424,7 +424,6 @@ enum Xlsx {
                     }
                     if let expr {
                         cell.formula = expr
-                        cell.input = Formula.text(expr)
                         cell.cached = c.child("v") == nil ? nil : value
                         cell.value = value
                         // An array formula computes here: a dynamic one, whose
@@ -443,13 +442,6 @@ enum Xlsx {
                     }
                 } else {
                     cell.value = value
-                    switch value {
-                    case .text(let s): cell.input = s
-                    case .bool(let b): cell.input = b ? "TRUE" : "FALSE"
-                    case .error(let e): cell.input = e.rawValue
-                    case .number(let n): cell.input = NumberFormat.full(n)
-                    case .empty: break
-                    }
                 }
                 if cell.value.isEmpty && cell.formula == nil && cell.style == 0 && cell.input.isEmpty { continue }
                 cells[a] = cell

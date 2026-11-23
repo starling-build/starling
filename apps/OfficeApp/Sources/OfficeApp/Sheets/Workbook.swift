@@ -99,11 +99,32 @@ struct RichRun: Hashable, Sendable {
 
 struct Cell: Sendable {
     /// What was typed, as shown in the formula bar: "12", "=A1*2", "Total".
-    var input: String
+    var input: String {
+        get {
+            if let i = _input { return i }
+            // Not stored by the loader (a string for every number cell and every formula was most of its allocations): made on demand.
+            if let f = formula { return Formula.text(f) }
+            return Cell.text(of: value)
+        }
+        set { _input = newValue }
+    }
+    /// nil until set: a loaded formula's text is its parsed formula's, a loaded constant's is its value's.
+    private var _input: String?
+    static func text(of v: CellValue) -> String {
+        switch v {
+        case .text(let s): return s
+        case .bool(let b): return b ? "TRUE" : "FALSE"
+        case .error(let e): return e.rawValue
+        case .number(let n): return NumberFormat.full(n)
+        case .empty: return ""
+        }
+    }
     /// Parsed when `input` starts with "=".
     var formula: FormulaExpr? = nil
     /// The current value: the constant, or the formula's last result.
-    var value: CellValue = .empty
+    var value: CellValue = .empty {
+        willSet { if _input == nil, formula == nil, !value.isEmpty { _input = Cell.text(of: value) } }
+    }
     var style: Int = 0
     /// The value a file carried for this formula. Kept when our engine
     /// cannot compute it (a function we do not have), so the cell shows
@@ -126,6 +147,12 @@ struct Cell: Sendable {
     /// The file's vm / cm / ph on this cell — an image in the cell, a
     /// linked data type, other metadata — written back until it is edited.
     var keptAttrs: [String: String] = [:]
+
+    init(input: String? = "", formula: FormulaExpr? = nil, value: CellValue = .empty, style: Int = 0, cached: CellValue? = nil,
+         arrayRef: String? = nil, rawFormula: String? = nil, dynamic: Bool = false, spillRange: CellRange? = nil, keptAttrs: [String: String] = [:]) {
+        self._input = input; self.formula = formula; self.value = value; self.style = style; self.cached = cached
+        self.arrayRef = arrayRef; self.rawFormula = rawFormula; self.dynamic = dynamic; self.spillRange = spillRange; self.keptAttrs = keptAttrs
+    }
 
     var isFormula: Bool { formula != nil || input.hasPrefix("=") }
 }
