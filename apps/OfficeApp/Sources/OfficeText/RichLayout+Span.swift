@@ -1623,6 +1623,9 @@ extension RichLayout {
         // round each such stretch does that.)
         let embeds = theme.wordRules && RichTextTheme.wordWindowsPages && p.style.rightToLeft
         var isolated = false
+        var rtlLatinOpen = false
+        var rtlLatinClosed = false
+        var isolateOpen = false
         // (In a left-to-right paragraph two or more adjacent runs marked `w:rtl` are one right-to-left embedding, reversed as a
         // unit: dx2 9baed400 p32, "१०" + "," + "०००" with the last two marked prints "१००००," in Word's print, not "१०,०००".)
         let rtlStretch = theme.wordRules && RichTextTheme.wordWindowsPages && document.readFromFile && !p.style.rightToLeft
@@ -1659,14 +1662,40 @@ extension RichLayout {
                     if opens { RuleTrace.hit("word-adjacent-rtl-runs-in-a-ltr-paragraph-are-one-embedding") }
                 }
             }
+            // (A Latin-only run marked `w:rtl` in a right-to-left paragraph, followed by a plain run, is a right-to-left embedding of
+            // its own: its letters stay left to right, the neutral mark that ends it stands at its left, and the plain run after it
+            // (a number) stands left of it, not chained on to its letters: dx2 b02602d2 "IRAS ID:" + " 284320" prints "284320 :IRAS ID".)
+            if embeds, rtlLatinOpen {
+                let look = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                           gridPitch: pitch, scriptHidden: true)
+                children.append(TextSpan(text: "\u{202C}", style: look))
+                ctx.inserts.append(pos - run.length)
+                rtlLatinOpen = false
+                rtlLatinClosed = true
+            } else { rtlLatinClosed = false }
             if embeds, run.style.inlineImage == nil {
                 let plain = !(run.style.rightToLeft || (named?.char.rightToLeft ?? false))
                 if plain != isolated {
                     let look = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
                                                gridPitch: pitch, scriptHidden: true)
-                    children.append(TextSpan(text: plain ? "\u{202A}" : "\u{202C}", style: look))
+                    // (After such an embedding the plain run is an isolate: ICU puts its leading space left of its digits, as Word's print does.)
+                    let isolate = plain ? rtlLatinClosed : isolateOpen
+                    children.append(TextSpan(text: plain ? (isolate ? "\u{2066}" : "\u{202A}") : (isolate ? "\u{2069}" : "\u{202C}"), style: look))
+                    isolateOpen = plain && isolate
                     ctx.inserts.append(pos - run.length)
                     isolated = plain
+                }
+                if run.style.rightToLeft, runNumber + 1 < flatRuns.count, !_isRtlRun(flatRuns[runNumber + 1]), flatRuns[runNumber + 1].style.inlineImage == nil {
+                    let text = p.text[a..<b]
+                    if text.contains(where: { $0.isASCII && $0.isLetter }),
+                       !text.unicodeScalars.contains(where: { (0x590...0x8FF).contains($0.value) || (0xFB1D...0xFEFF).contains($0.value) }) {
+                        let look = theme.textStyle(for: run.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
+                                                   gridPitch: pitch, scriptHidden: true)
+                        children.append(TextSpan(text: "\u{202B}", style: look))
+                        ctx.inserts.append(pos - run.length)
+                        rtlLatinOpen = true
+                        RuleTrace.hit("word-latin-rtl-run-before-a-plain-run-in-an-rtl-paragraph-is-an-embedding")
+                    }
                 }
             }
             if let id = run.style.inlineImage, let image = p.inlineImages[id] {
@@ -2022,7 +2051,7 @@ extension RichLayout {
         if isolated, let last = p.runs.last {
             let look = theme.textStyle(for: last.style, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale,
                                        gridPitch: pitch, scriptHidden: true)
-            children.append(TextSpan(text: "\u{202C}", style: look))
+            children.append(TextSpan(text: isolateOpen ? "\u{2069}" : "\u{202C}", style: look))
             ctx.inserts.append(p.text.utf16.count)
         }
         if roomyTrail, let last = p.runs.last {
