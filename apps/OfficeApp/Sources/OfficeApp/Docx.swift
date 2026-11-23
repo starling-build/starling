@@ -4237,6 +4237,7 @@ enum DocxFormat {
             document.defaultFontSize = (styles.all("w:style").first { $0["w:type"] == "paragraph" && ($0["w:default"] == "1" || $0["w:styleId"] == "Normal") }?
                 .first("w:rPr")?.first("w:sz")?["w:val"]
                 ?? styles.first("w:docDefaults")?.first("w:rPrDefault")?.first("w:rPr")?.first("w:sz")?["w:val"]).flatMap { Double($0) }.map { $0 / 2 }
+            if let ea = defaults?["w:eastAsia"] { document.defaultsEastAsiaNotCJK = !["zh", "ja", "ko"].contains(String(ea.prefix(2)).lowercased()) }
             if let own, let defaults {
                 document.defaultLangXML = PptxXML.serialize(XNode(name: own.name, attrs: defaults.attrs.merging(own.attrs) { _, mine in mine }))
             } else if let lang = own ?? defaults {
