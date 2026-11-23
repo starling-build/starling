@@ -182,7 +182,21 @@ final class CalcEngine {
     /// in a range is computed before anything that reads the range (the
     /// order says so), so all its readers can share one copy.
     private struct _RangeKey: Hashable { let sheet: Int; let range: CellRange }
-    private var _rangeCache: [_RangeKey: [CellValue]] = [:]
+    private var _rangeCache: [_RangeKey: [CellValue]] = [:] { didSet { if _rangeCache.isEmpty { _indexCache.removeAll() } } }
+    private var _indexCache: [_RangeKey: [String: [Int]]] = [:]
+
+    /// Where each text lies in `rangeValues(sheet, r)` (its position in that
+    /// list), by the text folded to lower case: the table a SUMIFS/COUNTIF
+    /// over a column of thousands of cells looks its criterion up in, instead
+    /// of folding every cell for every formula.
+    func textIndex(_ sheet: Int, _ r: CellRange) -> [String: [Int]] {
+        let key = _RangeKey(sheet: sheet, range: r)
+        if let d = _indexCache[key] { return d }
+        var d: [String: [Int]] = [:]
+        for (i, v) in rangeValues(sheet, r).enumerated() { if case .text(let t) = v { d[t.lowercased(), default: []].append(i) } }
+        if _visiting.count <= 1 { _indexCache[key] = d }
+        return d
+    }
 
     /// A sheet's used extent, for one pass (and after it while no cell is
     /// added or removed): writing computed values back would otherwise make

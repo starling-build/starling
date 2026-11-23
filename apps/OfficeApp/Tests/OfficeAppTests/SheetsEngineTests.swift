@@ -322,6 +322,12 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(num(c, "=COUNTIF(C1:C4,\"x\")"), 3)
         XCTAssertEqual(num(c, "=SUMIFS(B1:B4,C1:C4,\"x\",B1:B4,\">10\")"), 70)
         XCTAssertEqual(num(c, "=COUNTIFS(C1:C4,\"x\",A1:A4,\"a*\")"), 2)
+        // A text criterion is found through a table of the range's texts: case never matters, and non-ASCII texts fold too.
+        XCTAssertEqual(num(c, "=COUNTIF(C1:C4,\"X\")"), 3)
+        XCTAssertEqual(num(c, "=SUMIFS(B1:B4,A1:A4,\"BANANA\",C1:C4,\"y\")"), 20)
+        XCTAssertEqual(num(c, "=COUNTIF(C1:C4,\"z\")"), 0)
+        let u = book(["A1": "Éclair", "A2": "éclair", "A3": "tea", "B1": "1", "B2": "2", "B3": "4"])
+        XCTAssertEqual(num(u, "=SUMIF(A1:A3,\"ÉCLAIR\",B1:B3)"), 3)
         XCTAssertEqual(num(c, "=AVERAGEIF(C1:C4,\"x\",B1:B4)"), 80.0 / 3)
         XCTAssertEqual(num(c, "=COUNTIF(D1:D4,\"\")"), 4)
     }
