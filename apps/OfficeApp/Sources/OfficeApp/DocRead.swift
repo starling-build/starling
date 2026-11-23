@@ -137,17 +137,29 @@ enum DocRead {
 
     /// The paragraphs of a story as `w:p` elements: a paragraph mark (0D, or 07 for a cell or row end)
     /// ends one; a field's instruction (between 13 and 14) is dropped and its result kept.
-    static func paragraphs(_ t: [UInt16]) -> String {
+    static func paragraphs(_ t: [UInt16], chp: [DocPropRun] = [], pap: [DocPropRun] = [], fonts: [String] = []) -> String {
         var xml = ""
         var runs = "", cur: [UInt16] = []
         var fieldDepth = 0, hiding: [Bool] = []
-        func flush() {
-            if !cur.isEmpty { runs += "<w:r><w:t xml:space=\"preserve\">" + esc(cur) + "</w:t></w:r>"; cur = [] }
+        var rpr = ""
+        var ci = 0, pi = 0
+        // The property list covering `cp` (runs are sorted; the pointer only moves forward).
+        func cover(_ r: [DocPropRun], _ k: inout Int, _ cp: Int) -> [UInt8] {
+            while k < r.count, r[k].cpEnd <= cp { k += 1 }
+            return k < r.count && r[k].cp <= cp ? r[k].grpprl : []
         }
-        for c in t {
+        func flush() {
+            if !cur.isEmpty { runs += "<w:r>" + rpr + "<w:t xml:space=\"preserve\">" + esc(cur) + "</w:t></w:r>"; cur = [] }
+        }
+        var cache: [UInt8] = [], cacheValid = false
+        for (cp, c) in t.enumerated() {
+            if !chp.isEmpty {
+                let g = cover(chp, &ci, cp)
+                if !cacheValid || g != cache { flush(); cache = g; cacheValid = true; rpr = DocProps.rPr(g, fonts: fonts) }
+            }
             if let h = hiding.last, h, c != 0x14, c != 0x15, c != 0x13 { continue }
             switch c {
-            case 0x0D, 0x07: flush(); xml += "<w:p>" + runs + "</w:p>"; runs = ""
+            case 0x0D, 0x07: flush(); xml += "<w:p>" + DocProps.pPr(cover(pap, &pi, cp)) + runs + "</w:p>"; runs = ""
             case 0x0B: flush(); runs += "<w:r><w:br/></w:r>"
             case 0x0C: flush(); runs += "<w:r><w:br w:type=\"page\"/></w:r>"
             case 0x09: flush(); runs += "<w:r><w:tab/></w:r>"
@@ -171,7 +183,10 @@ enum DocRead {
         guard let tbl = cf.stream(fib.tableStream), let clxRange = fib.range(DocFib.fcClx),
               clxRange.fc >= 0, clxRange.fc + clxRange.lcb <= tbl.count else { return nil }
         let pcs = pieces(clx: Array(tbl[clxRange.fc ..< clxRange.fc + clxRange.lcb]))
-        let body = paragraphs(text(w, pieces: pcs, count: fib.ccpText))
+        let chp = fib.range(DocFib.fcPlcfBteChpx).map { DocProps.runs(w: w, t: tbl, at: $0.fc, count: $0.lcb, pieces: pcs, paragraph: false) } ?? []
+        let pap = fib.range(DocFib.fcPlcfBtePapx).map { DocProps.runs(w: w, t: tbl, at: $0.fc, count: $0.lcb, pieces: pcs, paragraph: true) } ?? []
+        let fonts = fib.range(DocFib.fcSttbfFfn).map { DocProps.fonts(tbl, at: $0.fc, count: $0.lcb) } ?? []
+        let body = paragraphs(text(w, pieces: pcs, count: fib.ccpText), chp: chp, pap: pap, fonts: fonts)
         func e(_ name: String, _ s: String) -> ZipEntry { ZipEntry(name: name, data: Data(s.utf8)) }
         let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\""
         return [
