@@ -141,6 +141,11 @@ enum SlideFonts {
         return !windowsIdeographFaces.contains(n)
     }
 
+    /// A face name (ideographs in it, any script) the print's machine has under that name, by the measured table of installed names.
+    static func printBoxHasIdeographName(_ n: String) -> Bool {
+        SlideEastAsianWidths.lookup(n) != nil || windowsIdeographFaces.contains(n)
+    }
+
     static func isMissingJapaneseName(_ n: String) -> Bool {
         guard !n.containsSubstring("本文"), !n.containsSubstring("見出し") else { return false }
         var kana = false, ideograph = false

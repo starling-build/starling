@@ -650,13 +650,14 @@ struct LevelStyle {
         // (An East Asian face PowerPoint does not have, named in a Traditional Chinese run and declared with the Big5 charset (-120), is
         // drawn in Microsoft JhengHei, Latin letters and ideographs alike, at JhengHei's advances: lab tcfall2, 5 faces x 4 attribute
         // variants, lines within 0.5 pt. With no charset the Latin letters are narrower (JhengHei UI's, not yet measured), and the GB2312,
-        // Shift-JIS and Hangul charsets draw yet other Latin: those are left as they were. A face the print box has under its local name
-        // (標楷體 = DFKai-SB, 新細明體 = PMingLiU, 細明體, 微軟正黑體), as pptx-zh 76f3dc44cb00 names, stays: PowerPoint drew DFKaiShu there.)
+        // Shift-JIS and Hangul charsets draw yet other Latin: those are left as they were. A face the print box has under ANY of its names, local ones included
+        // (標楷體 = DFKai-SB, as pptx-zh 76f3dc44cb00 names: PowerPoint drew DFKaiShu there), stays: SlideFonts.printBoxHasIdeographName reads the
+        // measured table of installed names, kana names included.)
         if let lang = (s.lang ?? s.altLang)?.lowercased(), ["zh-tw", "zh-hk", "zh-mo", "zh-hant"].contains(lang),
            r.first("a:ea")?["charset"] == "-120", let ea = s.eaFont,
            ea.unicodeScalars.contains(where: { $0.value >= 0x4E00 && $0.value <= 0x9FFF }),
            !WordWindowsFaces.names.contains(ea.trimmingWhitespace().lowercased()),
-           !["標楷體", "新細明體", "細明體", "微軟正黑體", "微軟正黑體 light"].contains(ea.trimmingWhitespace().lowercased()), !SlideFonts.isEmbedded(ea) {
+           !SlideFonts.printBoxHasIdeographName(ea.trimmingWhitespace().lowercased()), !SlideFonts.isEmbedded(ea) {
             if s.font == ea { s.font = "Microsoft JhengHei" }
             s.eaFont = "Microsoft JhengHei"
         }
