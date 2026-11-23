@@ -129,7 +129,7 @@ enum DocProps {
     static func rPr(_ g: [UInt8], fonts: [String]) -> String {
         var ascii: Int?, fe: Int?, other: Int?
         var flags: [Int: Bool] = [:]
-        var size: Int?, color: String?, hl = "", ul = "", va = ""
+        var size: Int?, color: String?, hl = "", ul = "", va = "", rstyle = -1
         for s in sprms(g) where s.sgc == 2 {
             switch s.op {
             case 0x0835, 0x0836, 0x0837, 0x0838, 0x0839, 0x083A, 0x083B, 0x083C:
@@ -140,6 +140,7 @@ enum DocProps {
             case 0x4A43: size = s.u16
             case 0x2A0C: if s.u8 > 0, s.u8 < highlight.count { hl = highlight[s.u8] }
             case 0x2A48: va = s.u8 == 1 ? "superscript" : s.u8 == 2 ? "subscript" : "baseline"
+            case 0x4A30: rstyle = s.u16
             case 0x4A4F: ascii = s.u16
             case 0x4A50: fe = s.u16
             case 0x4A51: other = s.u16
@@ -147,7 +148,7 @@ enum DocProps {
             }
         }
         func name(_ i: Int?) -> String? { i.flatMap { $0 < fonts.count && !fonts[$0].isEmpty ? attr(fonts[$0]) : nil } }
-        var x = ""
+        var x = rstyle > 0 ? "<w:rStyle w:val=\"S\(rstyle)\"/>" : ""
         let a = name(ascii), f = name(fe), o = name(other)
         if a != nil || f != nil || o != nil {
             x += "<w:rFonts"
@@ -177,8 +178,8 @@ enum DocProps {
     }
 
     /// `<w:pPr>` for a paragraph property list ("" when it sets nothing).
-    static func pPr(_ g: [UInt8]) -> String {
-        var x = ""
+    static func pPr(_ g: [UInt8], istd: Int = 0) -> String {
+        var x = istd > 0 ? "<w:pStyle w:val=\"S\(istd)\"/>" : ""
         var keepNext = false, keepLines = false, pageBreak = false, widow: Bool?
         var before: Int?, after: Int?, line: (Int, Int)?
         var left: Int?, right: Int?, first: Int?, jc: String?
@@ -221,5 +222,52 @@ enum DocProps {
         }
         if let jc { x += "<w:jc w:val=\"\(jc)\"/>" }
         return x.isEmpty ? "" : "<w:pPr>" + x + "</w:pPr>"
+    }
+
+    /// The styles of the STSH as `w:style` elements, and the document's default font number.
+    static func styles(_ t: [UInt8], at fc: Int, count lcb: Int, fonts: [String]) -> (xml: String, font: Int) {
+        guard fc >= 0, fc + lcb <= t.count, lcb >= 4 else { return ("", 0) }
+        let end = fc + lcb
+        let cbStshi = OfficeArt.u16(t, fc)
+        let h = fc + 2
+        let cstd = OfficeArt.u16(t, h), cbBase = OfficeArt.u16(t, h + 2)
+        let font = cbStshi >= 14 ? OfficeArt.u16(t, h + 12) : 0
+        var p = h + cbStshi
+        var xml = ""
+        for istd in 0 ..< cstd {
+            guard p + 2 <= end else { break }
+            let cb = OfficeArt.u16(t, p)
+            let at = p + 2
+            p = at + cb + (cb & 1)
+            guard cb >= cbBase, cbBase >= 10, at + cb <= end else { continue }
+            let w1 = OfficeArt.u16(t, at + 2), w2 = OfficeArt.u16(t, at + 4)
+            let stk = w1 & 15, base = w1 >> 4, cupx = w2 & 15, next = w2 >> 4
+            guard stk == 1 || stk == 2 else { continue }
+            var k = at + cbBase
+            let cch = OfficeArt.u16(t, k)
+            var u: [UInt16] = []
+            for i in 0 ..< cch where k + 2 + 2 * i + 2 <= at + cb { u.append(UInt16(t[k + 2 + 2 * i]) | UInt16(t[k + 3 + 2 * i]) << 8) }
+            k += 2 + 2 * cch + 2
+            k += k & 1 == (at & 1) ? 0 : 1
+            var upx: [[UInt8]] = []
+            for _ in 0 ..< cupx {
+                guard k + 2 <= at + cb else { break }
+                let n = OfficeArt.u16(t, k)
+                guard k + 2 + n <= at + cb else { break }
+                upx.append(Array(t[k + 2 ..< k + 2 + n]))
+                k += 2 + n + (n & 1)
+            }
+            var pp = "", rp = ""
+            if stk == 1 {
+                if upx.count > 0, upx[0].count > 2 { pp = pPr(Array(upx[0][2...])) }
+                if upx.count > 1 { rp = rPr(upx[1], fonts: fonts) }
+            } else if let c = upx.first { rp = rPr(c, fonts: fonts) }
+            let name = attr(String(decoding: u, as: UTF16.self))
+            xml += "<w:style w:type=\"\(stk == 1 ? "paragraph" : "character")\" w:styleId=\"S\(istd)\"\(istd == 0 ? " w:default=\"1\"" : "")><w:name w:val=\"\(name)\"/>"
+            if base != 0xFFF, base != istd, base < cstd { xml += "<w:basedOn w:val=\"S\(base)\"/>" }
+            if stk == 1, next != istd, next < cstd { xml += "<w:next w:val=\"S\(next)\"/>" }
+            xml += pp + rp + "</w:style>"
+        }
+        return (xml, font)
     }
 }
