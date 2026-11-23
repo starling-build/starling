@@ -5342,7 +5342,7 @@ enum ChartPainter {
         }
         // (On a sheet, columns on the right axis leave the category axis on the lines' axis, at that axis' zero: a lines' axis from
         // -3 to 8 puts the names under its zero, chart-combined_chart_secondary_axis; one from 900 up keeps them at the foot.)
-        let atZero = !c.categoryLabelsLow && !c.categoryAxisDeleted && c.type != .scatter && !horizontal
+        let atZero = !c.categoryLabelsLow && !c.categoryAxisDeleted && (c.type != .scatter || c.onSheet) && !horizontal
             && (c.columnsOnRight && c.onSheet ? (secondScale?.lo ?? sc.lo) : sc.lo) < (c.categoryCrossesAt ?? 0)
             && c.dataTable == nil && !(c.columnsOnRight && !c.onSheet) && !c.chartex
         // (A log axis is laid out in powers: the base's log of each x.)
@@ -6699,8 +6699,8 @@ enum ChartPainter {
                 if c.scatterXGrid { canvas.drawLine(Offset(x, plot.top), Offset(x, plot.bottom), gridPaint) }
                 // (A 2007-style one's 7.6 pt under, as a line chart's:
                 // scatter-chart's printed 3.5 pt lower than 4 put them.)
-                let under = (classic ? 7.6 : c.chartex && c.onSlide ? 1 : 4) * k
-                if i < catLabels.count { catLabels[i].paint(canvas, Offset(x - catLabels[i].width / 2, plot.bottom + under + belowOut)) }
+                let under = (classic ? 7.6 : c.chartex && c.onSlide ? 1 : atZero ? 8 : 4) * k
+                if i < catLabels.count { catLabels[i].paint(canvas, Offset(x - catLabels[i].width / 2, (atZero ? zero : plot.bottom) + under + belowOut)) }
             }
         } else if horizontal {
             // (Not where the file deletes the axis: LIBRE_OFFICE-100610's.)
