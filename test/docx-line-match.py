@@ -329,6 +329,16 @@ def mupdf_glyphs(pdf, drop=None):
                             tx = xsz.get((round(sp["chars"][0]["origin"][0], 1), round(sp["chars"][0]["origin"][1], 1)))
                             if tx and abs(tx - sp["size"]) > 0.01 * sp["size"]:
                                 sp["size"] = sp["size"] ** 2 / tx
+            # Slides (PPT_MIN_PT, amd-8 2026-11-23): PowerPoint prints an invisible second copy of the text under a hyperlinked
+            # shape at 1.0-1.4 pt (4cc69f8d4a9b: 5,203 such spans). Spans under the size are no text either print shows: dropped
+            # from BOTH PDFs, by size only.
+            minpt = float(os.environ.get("PPT_MIN_PT") or 0)
+            if minpt:
+                for b in blocks:
+                    for l in b.get("lines", []):
+                        for sp in l["spans"]:
+                            if sp["size"] < minpt:
+                                sp["chars"] = []
             gone = drop.get(i) if drop else None
             if gone:
                 for b in blocks:

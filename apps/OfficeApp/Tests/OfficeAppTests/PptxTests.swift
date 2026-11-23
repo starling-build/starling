@@ -386,4 +386,17 @@ final class DeepGroupTests: XCTestCase {
         XCTAssertFalse(SlideFonts.isMissingChineseName("ｍｓ ｐ明朝"))
         XCTAssertFalse(SlideFonts.isMissingChineseName("Arial"))
     }
+
+    func testLineFeedInRunTextSplitsTheParagraph() {
+        let root = XNode(name: "a:txBody", attrs: [:])
+        let p = XNode(name: "a:p", attrs: [:])
+        let pPr = XNode(name: "a:pPr", attrs: [:])
+        let r = XNode(name: "a:r", attrs: [:])
+        let t = XNode(name: "a:t", attrs: [:]); t.text = "one\ntwo"
+        r.children = [t]; p.children = [pPr, r]; root.children = [p]
+        PptxReader.splitParagraphsAtLineFeeds(root)
+        XCTAssertEqual(root.children.count, 2)
+        XCTAssertEqual(root.children[1].first("a:r")?.first("a:t")?.text, "two")
+        XCTAssertNotNil(root.children[1].first("a:pPr"))
+    }
 }

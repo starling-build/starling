@@ -874,6 +874,8 @@ struct Chart: Equatable {
     /// its lines on the left (chart-testCombinedChartAxis): the category
     /// axis crosses the lines' axis, whose scale this app does not keep.
     var columnsOnRight = false
+    /// The only value axis crosses the category axis at its max (`c:crosses` max): its line, ticks and names stand at the plot's right (PowerPoint's print of a 12-slide lab).
+    var valueAxisAtRight = false
 
     var gap: Double { Double(gapWidth ?? (stacked ? 150 : 219)) / 100 }
     var overlapFraction: Double { Double(overlap ?? (stacked ? 100 : -27)) / 100 }
@@ -2669,6 +2671,7 @@ enum ChartXML {
         c.categoryLabelsLow = categoryAxis?.first("c:tickLblPos")?["val"] == "low"
         c.categoryCrossesAt = categoryAxis?.first("c:crossesAt")?["val"].flatMap { Double($0) }
         c.columnsOnRight = columnsOnRight
+        c.valueAxisAtRight = !columnsOnRight && valueAxis?.first("c:crosses")?["val"] == "max"
         if let scaling = valueAxis?.first("c:scaling") {
             c.valueMin = scaling.first("c:min")?["val"].flatMap(Double.init)
             c.valueMax = scaling.first("c:max")?["val"].flatMap(Double.init)
@@ -6499,7 +6502,7 @@ enum ChartPainter {
                 // size-scaled clearance past them: lab p12-lab3, 8 pt labels' left at 37.5 and 18 pt's at 37.5, where ours followed the plot.)
                 let labelRight = pushedLabelGap != nil ? frame.left + 1.5 * k + tp.width : (c.onSlide && (!c.legend || c.legendPosition == "r") && !c.styled2013 && c.valueAxisTitle == nil && c.categoryAxisTitle == nil && !word && !libre && !c.chartex && c.barView == nil && !horizontal) || (c.onSlide && !horizontal && c.plotLayout == nil && !c.styled2013 && !c.legend && c.barView?.walled == true && c.barView?.rightAngles == true) ? plot.left - 0.927 * labelSize * k : slideLaidColumnAxis && c.valueTicksOut ? plot.left - max(9.0 * k, 0.773 * (valueLabels.first?.height ?? 0) - 0.1 * k) : plot.left - (c.chartex && c.onSlide ? (c.waterfallTotals != nil ? 5 : 4) : 8.5) * k - besideOut - further + wall3D + wall3DAuto + valueLabelsBack
                 if pushedLabelGap != nil { RuleTrace.hit("slide-laid-plot-pushed-keeps-value-labels-at-the-edge") }
-                if !swapSides { tp.paint(canvas, Offset(labelRight - tp.width, p - tp.height / 2 - lift + (wall3DAuto > 0 ? 2.6 * k : 0))) }
+                if c.onSlide && c.valueAxisAtRight && !horizontal { tp.paint(canvas, Offset(plot.right + (plot.left - labelRight), p - tp.height / 2 - lift)) } else if !swapSides { tp.paint(canvas, Offset(labelRight - tp.width, p - tp.height / 2 - lift + (wall3DAuto > 0 ? 2.6 * k : 0))) }
             }
         }
         // The second axis' labels, beside the plot's right edge.
@@ -6595,8 +6598,10 @@ enum ChartPainter {
                 }
             } else {
                 if c.valueLine, !c.valueAxisDeleted {
-                    canvas.drawLine(Offset(plot.left, plot.top), Offset(plot.left, plot.bottom), axisPaint)
-                    if c.valueTicksOut { for v in ticks { canvas.drawLine(Offset(plot.left - tick, vpos(v)), Offset(plot.left, vpos(v)), axisPaint) } }
+                    let atRight = c.onSlide && c.valueAxisAtRight
+                    let ax = atRight ? plot.right : plot.left
+                    canvas.drawLine(Offset(ax, plot.top), Offset(ax, plot.bottom), axisPaint)
+                    if c.valueTicksOut { for v in ticks { canvas.drawLine(Offset(ax - (atRight ? -tick : tick), vpos(v)), Offset(ax, vpos(v)), axisPaint) } }
                 }
                 if c.categoryLine, !c.categoryAxisDeleted, c.categoryTicksOut {
                     for x in cats { canvas.drawLine(Offset(x, zero), Offset(x, zero + tick), axisPaint) }
@@ -9421,8 +9426,11 @@ extension ChartPainter {
                     // (PowerPoint's print, pie-lab9's 66 slides and ja-16be16fa31 p4: a label that does not fit inside is set again in one of three
                     // narrower fixed widths, 0.8, 0.64 and 0.512 of a fifth of the chart's width (67 and 54 pt in a 420 pt chart), whatever
                     // its text or size; the first that stands inside wins, never an in-between width.)
-                    for f in [0.16, 0.128, 0.1024] {
-                        tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * f))
+                    // (The padded rungs, 0.8 and 0.64 of the natural width less 5.75 pt, are the only ones tried inside; a
+                    // narrower one stands outside only: lab11's same 36 pt box is taken inside at 40 degrees on a 300 and a 340 pt chart,
+                    // refused on 420 where it would be the fourth.)
+                    for j in 1...2 {
+                        tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2 * pow(0.8, Double(j)) - 5.75 * k))
                         // (A step that would cut a word in two is not taken, pie-lab10: a 9-digit word in a 60 degree slice stays in
                         // its natural wrap outside, where the 5 + 4 digit cut would have stood inside.)
                         let chars = Array(text)
