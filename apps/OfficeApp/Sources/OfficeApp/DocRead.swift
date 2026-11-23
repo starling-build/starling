@@ -61,6 +61,8 @@ struct DocPiece {
     var cpEnd: Int
     var fc: Int
     var compressed: Bool
+    var prm = 0            // the piece's property modifier (Prm1: an index into the CLX's grpprl list; Prm0, one sprm by index, is not read: no dev file has one)
+    var grpprl: [UInt8] = []   // the sprms that modifier stands for
 }
 
 enum DocRead {
@@ -73,7 +75,12 @@ enum DocRead {
     /// The piece table out of the CLX (a run of grpprl "Prc"s, then the "Pcdt" holding the PlcPcd).
     static func pieces(clx: [UInt8]) -> [DocPiece] {
         var p = 0
-        while p < clx.count, clx[p] == 0x01 { p += 3 + OfficeArt.u16(clx, p + 1) }
+        var prcs: [[UInt8]] = []
+        while p < clx.count, clx[p] == 0x01 {
+            let n = OfficeArt.u16(clx, p + 1)
+            if p + 3 + n <= clx.count { prcs.append(Array(clx[p + 3 ..< p + 3 + n])) }
+            p += 3 + n
+        }
         guard p + 5 <= clx.count, clx[p] == 0x02 else { return [] }
         let lcb = OfficeArt.u32(clx, p + 1)
         let plc = p + 5
@@ -88,7 +95,10 @@ enum DocRead {
             let compressed = raw & 0x4000_0000 != 0
             let fc = raw & 0x3FFF_FFFF
             guard end > cp else { continue }
-            out.append(DocPiece(cp: cp, cpEnd: end, fc: compressed ? fc / 2 : fc, compressed: compressed))
+            let prm = OfficeArt.u16(clx, d + 6)
+            var g: [UInt8] = []
+            if prm & 1 != 0 { let i = prm >> 1; if i < prcs.count { g = prcs[i] } }
+            out.append(DocPiece(cp: cp, cpEnd: end, fc: compressed ? fc / 2 : fc, compressed: compressed, prm: prm, grpprl: g))
         }
         return out
     }
