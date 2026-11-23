@@ -139,7 +139,9 @@ public final class RichEditableState: State<StatefulWidget> {
     // Touch selection: a long press selects the word under the finger, a double
     // tap does too, and a selection shows a handle at each end to drag.
     private var _touchMode = false
-    private var _selHandle: (fixed: RichPosition, grabDY: Double)? = nil
+    private var _selHandle: (fixed: RichPosition?, grabDY: Double, moved: Bool)? = nil
+    /// A knob under the caret to drag it, after a finger placed it.
+    private var _caretHandleShown = false
     private var _longPressGen = 0
     private var _longPressed = false
     private var _lastTap: (at: Double, pos: Offset) = (0, Offset(-100, -100))
@@ -393,6 +395,7 @@ public final class RichEditableState: State<StatefulWidget> {
     // MARK: Keyboard
 
     private func _handleKey(_ keyData: KeyData) -> Bool {
+        _caretHandleShown = false
         let shiftWas = _chords.shift
         if _chords.track(keyData) {
             // Shift let go after a keyboard selection: that selection has
@@ -628,6 +631,22 @@ public final class RichEditableState: State<StatefulWidget> {
         return (box(sel.start), box(sel.end))
     }
 
+    /// The caret's box when its knob is showing (a finger placed it).
+    private func _caretHandleBox() -> Rect? {
+        guard _touchMode, _caretHandleShown, _focus.hasFocus, !_controller.readOnly, _layout.width > 0, _layout.count > 0 else { return nil }
+        let sel = _controller.selection
+        guard sel.isCollapsed, sel.block == nil, _controller.selectedImageIndex == nil else { return nil }
+        _syncLayoutIfNeeded()
+        let c = _layout.canvasCaretRect(sel.focus, _controller.document)
+        return Rect.fromLTWH(c.left + _originX, c.top + _w.padding.top - _scrollY, max(c.width, 2), c.height)
+    }
+
+    private func _caretHandleHit(_ p: Offset) -> Bool {
+        guard let r = _caretHandleBox() else { return false }
+        let c = Offset(r.left, r.bottom + Self.knobRadius)
+        return abs(p.dx - c.dx) <= 22 && p.dy >= r.top && p.dy <= c.dy + 22
+    }
+
     /// Which end a finger at `p` is holding: 0 the start, 1 the end. The
     /// reach is a fingertip, below the caret where the knob hangs.
     private func _selectionHandleHit(_ p: Offset) -> Int? {
@@ -787,7 +806,14 @@ public final class RichEditableState: State<StatefulWidget> {
                 // A selection handle: the far end stays, the finger moves this one.
                 let sel = _controller.selection
                 let grabbed = k == 0 ? ends.start : ends.end
-                _selHandle = (k == 0 ? sel.end : sel.start, event.localPosition.dy - (grabbed.top + grabbed.height / 2))
+                _selHandle = (k == 0 ? sel.end : sel.start, event.localPosition.dy - (grabbed.top + grabbed.height / 2), false)
+                _touchScroll = nil
+                _dragging = false
+                return
+            }
+            if _caretHandleHit(event.localPosition), let box = _caretHandleBox() {
+                // The caret's own knob: the finger moves the caret.
+                _selHandle = (nil, event.localPosition.dy - (box.top + box.height / 2), false)
                 _touchScroll = nil
                 _dragging = false
                 return
@@ -887,7 +913,12 @@ public final class RichEditableState: State<StatefulWidget> {
             if y < 30 { _scrollY -= 12 } else if y > _viewport.height - 30 { _scrollY += 12 }
             _clampScroll()
             let pos = _layout.canvasPosition(at: _canvasPoint(Offset(event.localPosition.dx, y - h.grabDY)), _controller.document)
-            _controller.selection = RichSelection(anchor: h.fixed, focus: pos)
+            if let fixed = h.fixed {
+                _controller.selection = RichSelection(anchor: fixed, focus: pos)
+            } else {
+                _controller.moveTo(pos, extend: false)
+            }
+            _selHandle?.moved = true
             _repaint.notifyListeners()
             return
         }
@@ -987,11 +1018,12 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerUp(_ event: PointerEvent) {
-        if _selHandle != nil {
+        if let h = _selHandle {
             _selHandle = nil
             _w.onSelectionGestureEnd?()
             _repaint.notifyListeners()
-            _touchMenu(true)
+            // A dragged caret just stays; a tap on its knob, or a range handle, asks for the menu.
+            if h.fixed != nil || !h.moved { _touchMenu(true) }
             return
         }
         if let t = _touchScroll {
@@ -1027,6 +1059,7 @@ public final class RichEditableState: State<StatefulWidget> {
                     // A tap on the caret itself asks for the menu, as on iOS text.
                     let onCaret = _controller.selection.isCollapsed && _controller.caret == pos
                     _controller.moveTo(pos, extend: false)
+                    _caretHandleShown = true
                     if onCaret { _touchMenu(true) }
                 }
             }
@@ -1241,6 +1274,21 @@ public final class RichEditableState: State<StatefulWidget> {
                 canvas.drawRect(h, fill)
                 canvas.drawRect(h, line)
             }
+        }
+
+        // A placed caret: a knob under it, to drag.
+        if let r = _caretHandleBox() {
+            let fill = Paint()
+            fill.style = .fill
+            fill.color = _layout.theme.selectionColor.withOpacity(1)
+            let rim = Paint()
+            rim.style = .stroke
+            rim.strokeWidth = 1.5
+            rim.color = Color(0xFFFFFFFF)
+            let k = Self.knobRadius
+            let knob = RRect(fromRectAndRadius: Rect.fromLTWH(r.left + r.width / 2 - k, r.bottom, k * 2, k * 2), Radius(circular: k))
+            canvas.drawRRect(knob, fill)
+            canvas.drawRRect(knob, rim)
         }
 
         // A touch selection: a stem and a knob at each end, to drag.
