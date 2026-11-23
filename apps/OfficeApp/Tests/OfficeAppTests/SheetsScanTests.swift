@@ -66,4 +66,73 @@ final class SheetsScanTests: XCTestCase {
             try assertSame(data, name)
         }
     }
+
+    /// A1-style text read on bytes (CellRefText.parse) against the Character reading, on every shape and a few thousand mixes.
+    func testCellRefTextBytesMatchCharacters() {
+        var samples = ["A1", "$A$1", "A$1", "$A1", "$1", "$3:$5", "3:5", "A", "$A", "A$", "$$A1", "XFD1048576", "XFE1", "A1048577", "A0", "a1", "abcd1",
+                       "A1:B2", "A1B", "A1.5", "Á1", "A\u{301}1", "A1\u{301}", "$\u{301}A1", "A1é", "É1", "A$1$", "1A", "12345678", "A12345678", "AAA1", "", "$", "é"]
+        let alphabet = Array("Aa$1:Zz9 .é\u{301}_(")
+        var seed: UInt64 = 12345
+        for _ in 0 ..< 4000 {
+            var t = ""
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            for k in 0 ..< Int(seed >> 60) % 7 + 1 {
+                seed = seed &* 6364136223846793005 &+ 1442695040888963407
+                t.append(alphabet[Int(seed >> 33) % alphabet.count]); _ = k
+            }
+            samples.append(t)
+        }
+        for t in samples {
+            let a = CellRefText.parse(Substring(t)), b = CellRefText.parseCharacters(Substring(t))
+            XCTAssertEqual(a?.row, b?.row, t); XCTAssertEqual(a?.col, b?.col, t)
+            XCTAssertEqual(a?.rowAbs, b?.rowAbs, t); XCTAssertEqual(a?.colAbs, b?.colAbs, t)
+            XCTAssertEqual(a.map { String($0.rest) }, b.map { String($0.rest) }, t)
+        }
+    }
+
+    // MARK: Formula tokenizer: bytes against Characters
+
+    private func tokens(_ f: (Substring) throws -> [Formula.Token], _ s: String) -> String {
+        do { return "\(try f(Substring(s)))" } catch let e as FormulaError { return "error: \(e.message)" } catch { return "other" }
+    }
+
+    private func assertTokensMatch(_ s: String, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertEqual(tokens(Formula._tokenize, s), tokens(Formula._tokenizeCharacters, s), s, file: file, line: line)
+    }
+
+    func testFormulaTokenizerBytesMatchCharacters() throws {
+        let odd = ["SUM(A1:B2)", "$A$1+B$2*$C3", "A1 B2", "A1:B2 C3:D4", "Sheet1!A1", "'My Sheet'!$A$1:$B$2", "'it''s'!A1",
+                   "3:5", "$3:$5", "A:C", "$A:$C", "1.5e3+.5", "1e", "1e+", "2E-4", "#REF!", "#ref!", "#N/A", "#NAME?", "#bad",
+                   "\"a\"\"b\"", "\"open", "{1,2;3,4}", "A1#", "Table1[Col]", "Table1[[#Data],[A 'b]]]", "[@Qty]*2", "[1]Sheet1!A1",
+                   "[1]!A1", "[]", "[1", "TRUE", "false", "True(", "foo", "foo.bar", "IF(A1<=1,A1<>2,A1>=3)", "A1&\"x\"", "-A1^2%", "@A1",
+                   "Hitab!Divisor", "Hitab!Divisor(", "x!", "1 2", "A1  (B1)", "SUM (A1)", "name (A1)", "A1\t B1", "\n", "A$", "$$1", "$1", "A0",
+                   "XFE1", "XFD1048576", "XFD1048577", "AAAA1", "A1048577", "é1", "A1é", "\"é\"", "日本!A1", "A1\u{301}", "a\r\nb", "~", "'", "\\x",
+                   "Sheet1!", "Sheet1!3:5", "Sheet1!A:A", "A1:B", "A:B2", "1:2:3", "R1C1", "LOG10(10)", "A1.5", "1..2", "."]
+        for s in odd { assertTokensMatch(s) }
+        let dir = "/data/corpus-cache/test/corpus/xlsx2/books"
+        let names = ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).filter { $0.hasSuffix(".xlsx") }.sorted()
+        try XCTSkipIf(names.isEmpty, "corpus cache not present")
+        var count = 0
+        for (n, name) in names.enumerated() where n % 20 == 0 {
+            guard let data = FileManager.default.contents(atPath: dir + "/" + name), data.count < 1_500_000 else { continue }
+            for (_, part) in try sheetParts(data, scan: true) {
+                let xml = String(decoding: part, as: UTF8.self)
+                var rest = xml[...]
+                while let open = rest.range(of: "<f") {
+                    rest = rest[open.upperBound...]
+                    guard let gt = rest.firstIndex(of: ">"), gt == rest.startIndex || rest[rest.index(before: gt)] != "/",
+                          let close = rest.range(of: "</f>") else { continue }
+                    let text = rest[rest.index(after: gt) ..< close.lowerBound]
+                        .replacingOccurrences(of: "&lt;", with: "<").replacingOccurrences(of: "&gt;", with: ">")
+                        .replacingOccurrences(of: "&quot;", with: "\"").replacingOccurrences(of: "&apos;", with: "'")
+                        .replacingOccurrences(of: "&amp;", with: "&")
+                    assertTokensMatch(text)
+                    count += 1
+                    if count > 200_000 { return }
+                    rest = rest[close.upperBound...]
+                }
+            }
+        }
+        XCTAssertGreaterThan(count, 0)
+    }
 }
