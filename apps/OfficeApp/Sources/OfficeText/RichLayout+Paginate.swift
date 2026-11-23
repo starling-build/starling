@@ -2238,7 +2238,7 @@ extension RichLayout {
                 // (Not in a legacy-mode document, no compatibilityMode: there a paragraph after a table at a page's top keeps its space before;
                 // xb jpn-z21601833's heading, 1104 of 1143 lines to 417 under this rule. dx2 fb068d84's empty marks after a table in mode 15 drop it; 99cfc555 is mode 14: 503 to 1712 of 2523.)
                 else if theme.wordRules, RichTextTheme.wordWindowsPages, document.compatibilityMode != nil, pgs.pageFresh, pgs.page > 0, pgs.resumeCursor == nil, lead > 0.01, cursor <= top + 0.01,
-                        pgs.y >= 0.01, _cells[pgs.i] == nil {
+                        pgs.y >= 0.01, _cells[pgs.i] == nil, pgs.i == 0 || _cells[pgs.i - 1] == nil || _pages[pgs.page].isEmpty {
                     RuleTrace.hit("column-break-paragraph-drops-its-space-before-at-column-top")
                     cursor = min(bottom, top + lead)
                 }
