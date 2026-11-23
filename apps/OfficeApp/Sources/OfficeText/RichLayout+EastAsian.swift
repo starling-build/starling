@@ -3190,6 +3190,28 @@ extension RichLayout {
                 // (After a full-width opening bracket the bracket goes with the word: zh-15f60bac's "（https://www.moea.gov.tw/…"
                 // opens a line in Word's print, the "（" with it, as an opener may not end a line; ours ended
                 // the line before with "（" and parted the address from its first letter.)
+                // (A word that runs on into a run of another face is the sum of its parts, each in its own: 47afbfd491's
+                // bold Arial "SOTTOSCRITTO" and its 78 Times underscores are 468 pt of a 482 pt line, and measured all in
+                // Arial's wide underscores, 512, they were sent to a line of their own with "IL" left alone above.)
+                do {
+                    var at = 0
+                    var parts: [(String, CharStyle)] = []
+                    for r in p.runs {
+                        let lo = max(k, at), hi = min(part, at + r.length)
+                        if lo < hi { parts.append((String(decoding: units[lo ..< hi], as: UTF16.self), r.style)) }
+                        at += r.length
+                        if at >= part { break }
+                    }
+                    if parts.count > 1, !word.unicodeScalars.contains(where: { (0x0E01 ... 0x0E5B).contains($0.value) }) {
+                        width = parts.reduce(0.0) { sum, part in
+                            let st = theme.textStyle(for: part.1, in: p.style, named: named, normal: _normalChar(document), scale: scale, fontScale: fontScale, gridPitch: pitch)
+                            let pt = TextPainter(text: TextSpan(text: part.0, style: st), textDirection: .ltr)
+                            pt.layout(minWidth: 0, maxWidth: 1_000_000)
+                            defer { pt.dispose() }
+                            return sum + pt.width
+                        }
+                    }
+                }
                 if width > textWidth {
                     out.insert(k > 0 && afterIdeograph && Self._openingUnits.contains(units[k - 1]) ? k - 1 : afterSpaceTab ? k - 1 : k)
                 }
