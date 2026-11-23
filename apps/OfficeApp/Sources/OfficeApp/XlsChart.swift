@@ -113,8 +113,8 @@ enum XlsChart {
                 let ref = decodeRef(Array(b[8 ..< 8 + cce]), ctx: ctx)
                 switch id {
                 case 0: series[curSeries].name = ref
-                case 1: series[curSeries].cats = ref
-                case 2: series[curSeries].vals = ref
+                case 2: series[curSeries].cats = ref
+                case 1: series[curSeries].vals = ref
                 default: break
                 }
             case 0x100D:
@@ -140,7 +140,10 @@ enum XlsChart {
             case 0x1014:
                 groups.append(XlsGrp()); inGroup = true; curSeries = -1
             case 0x1017 where !groups.isEmpty:
-                groups[groups.count - 1].type = 0x1017; groups[groups.count - 1].overlap = i16(b, 0); groups[groups.count - 1].gap = u16(b, 2); groups[groups.count - 1].flags = u16(b, 4)
+                groups[groups.count - 1].type = 0x1017; groups[groups.count - 1].overlap = i16(b, 0); groups[groups.count - 1].gap = u16(b, 2)
+                // Bar flags: bit 0 horizontal, bit 1 stacked, bit 2 100%; the emitter reads stacked as bit 0, 100% as bit 1, horizontal as bit 2.
+                let raw = u16(b, 4)
+                groups[groups.count - 1].flags = (raw & 1) << 2 | (raw >> 1) & 3
             case 0x1018 where !groups.isEmpty, 0x101A where !groups.isEmpty:
                 groups[groups.count - 1].type = Int(r.type); groups[groups.count - 1].flags = u16(b, 0)
             case 0x1019 where !groups.isEmpty:
@@ -174,6 +177,17 @@ enum XlsChart {
                 legend = (Int(b[16]), [u16(b, 0) | u16(b, 2) << 16, u16(b, 4) | u16(b, 6) << 16, u16(b, 8) | u16(b, 10) << 16, u16(b, 12) | u16(b, 14) << 16])
             case 0x1006 where b.count >= 4:
                 dfPoint = u16(b, 0) == 0xFFFF ? -1 : u16(b, 0); dfSeries = u16(b, 2)
+            case 0x1066 where dfSeries >= 0 && dfSeries < series.count && dfPoint < 0 && b.count >= 8:
+                // The 2007 shape properties: their fill colour (pid 0x181) is the one Excel draws, over the palette colour of the area record.
+                for rec in OfficeArt.records(b, in: 0 ..< b.count) where rec.type == 0xF00B {
+                    for k in 0 ..< rec.inst {
+                        let o = rec.body.lowerBound + 6 * k
+                        guard o + 6 <= rec.body.upperBound else { break }
+                        if OfficeArt.u16(b, o) & 0x3FFF == 0x181, let f = series[dfSeries].fill {
+                            series[dfSeries].fill = (hex(b, o + 2), f.1, f.2)
+                        }
+                    }
+                }
             case 0x1007 where dfSeries >= 0 && dfSeries < series.count && dfPoint < 0:
                 series[dfSeries].line = (hex(b, 0), u16(b, 4), i16(b, 6), u16(b, 8) & 1 == 1)
             case 0x100A where dfSeries >= 0 && dfSeries < series.count:
