@@ -796,25 +796,7 @@ final class OfficeShellState: State<StatefulWidget> {
     /// The host's edit menu for a finger's selection or caret (iPad: the system
     /// menu). Nothing happens on a host that draws none.
     private func _showTouchMenu(_ rect: Rect?) {
-        #if !os(WASI)
-        guard let show = OfficeHost.editMenuRequested else { return }
-        guard let r = rect else { OfficeHost.editMenuDismissed?(); return }
-        let c = controller
-        var items: [OfficeHost.EditMenuItem] = []
-        if c.hasSelection {
-            if !c.readOnly {
-                items.append(.init(title: "Cut", symbol: "scissors") { if let d = c.cutSelectionData() { Clipboard.setData(d) } })
-            }
-            items.append(.init(title: "Copy", symbol: "doc.on.doc") { if let d = c.copySelectionData() { Clipboard.setData(d) } })
-        } else if !c.readOnly {
-            items.append(.init(title: "Select", symbol: "character.cursor.ibeam") { c.selectWord(at: c.caret) })
-        }
-        if !c.readOnly {
-            items.append(.init(title: "Paste", symbol: "doc.on.clipboard") { [weak self] in self?._paste(plain: false) })
-        }
-        items.append(.init(title: "Select All", symbol: "selection.pin.in.out") { c.selectAll() })
-        show(r.left, r.top, r.width, r.height, items, c.hasSelection ? c.selectedText : nil)
-        #endif
+        OfficeHost.showTouchMenu(rect, controller: controller)
     }
 
     private func _paste(plain: Bool) {

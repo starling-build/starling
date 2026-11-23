@@ -1486,6 +1486,9 @@ final class SlidesShellState: State<StatefulWidget> {
                 padding: EdgeInsets(left: 14, top: 10, right: 14, bottom: 10),
                 focusNode: _notesFocus, autofocus: false, backgroundColor: nil,
                 onShortcut: { [weak self] key, mods in self?._shortcut(key, mods) ?? false },
+                onTouchMenu: { [weak notes = slide.notes] rect in
+                    if let notes { OfficeHost.showTouchMenu(rect, controller: notes) }
+                },
                 spellChecker: session.checkSpelling ? _spelling : nil))))
         return SizedBox(width: nil, height: 104, child: DecoratedBox(
             decoration: BoxDecoration(

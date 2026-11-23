@@ -6,6 +6,8 @@
 // need no knowledge of UIKit and every other platform leaves them nil — the
 // Backstage panels keep working exactly as before.
 
+import Flutter
+import FlutterSwiftBridge
 import Foundation
 import OfficeText
 
@@ -106,6 +108,37 @@ enum OfficeHost {
             buttons.append(.init(id: "numbering", title: "Numbering", symbol: "list.number", isOn: c.list == .numbered) { c.toggleList(.numbered) })
         }
         publishToolbar(buttons, owner: owner)
+    }
+
+    /// The host's edit menu (Cut, Copy, Paste, Select All) for a finger's
+    /// selection or caret in `controller`'s text, at `rect` in the editor's
+    /// coordinates; nil withdraws it. Every editor of rich text - Writer's page,
+    /// a slide's text box or its notes - asks here, so the menu is one thing.
+    /// Nothing happens on a host that draws none.
+    static func showTouchMenu(_ rect: Rect?, controller c: RichDocumentController) {
+        #if !os(WASI)
+        guard let show = editMenuRequested else { return }
+        guard let r = rect else { editMenuDismissed?(); return }
+        var items: [EditMenuItem] = []
+        if c.hasSelection {
+            if !c.readOnly {
+                items.append(.init(title: "Cut", symbol: "scissors") { if let d = c.cutSelectionData() { Clipboard.setData(d) } })
+            }
+            items.append(.init(title: "Copy", symbol: "doc.on.doc") { if let d = c.copySelectionData() { Clipboard.setData(d) } })
+        } else if !c.readOnly {
+            items.append(.init(title: "Select", symbol: "character.cursor.ibeam") { c.selectWord(at: c.caret) })
+        }
+        if !c.readOnly {
+            items.append(.init(title: "Paste", symbol: "doc.on.clipboard") {
+                Clipboard.getData(Clipboard.kAll) { data in
+                    guard let data, !data.isEmpty else { return }
+                    DispatchQueue.main.async { c.paste(data: data) }
+                }
+            })
+        }
+        items.append(.init(title: "Select All", symbol: "selection.pin.in.out") { c.selectAll() })
+        show(r.left, r.top, r.width, r.height, items, c.hasSelection ? c.selectedText : nil)
+        #endif
     }
 
     private nonisolated(unsafe) static var toolbarOwner: ObjectIdentifier?
