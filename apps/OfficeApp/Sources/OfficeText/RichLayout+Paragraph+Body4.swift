@@ -358,10 +358,14 @@ extension _ParaFrame {
                             shiftsOwn[line] = 0
                         }
                     }
+                    for line in wrappedPlain where above[line] < 0 {
+                        extra[line] = (multiple - 1) * bottoms[0] / multiple
+                        shiftsOwn[line] = 0
+                    }
                     if !wrappedPlain.isEmpty {
                         // (the text lines before the picture: the multiple's extra goes under them, not above)
                         RuleTrace.hit("word-a-wrapped-plain-picture-line-takes-the-multiples-extra-under-it-and-the-text-above-it")
-                        for k in 0 ..< bottoms.count where above[k] < 0 {
+                        for k in 0 ..< bottoms.count where above[k] < 0 && !wrappedPlain.contains(k) {
                             let before = k == 0 ? 0 : bottoms[k - 1]
                             shiftsOwn[k] = -(metrics[k].baseline - before) * (multiple - 1) / multiple
                         }
