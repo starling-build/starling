@@ -96,11 +96,14 @@ enum Xls {
         return text
     }
 
-    /// A workbook with the sheets of the file. (M0: names and order only.)
+    /// The workbook of a BIFF8 file: its records turned into SpreadsheetML
+    /// parts and read by the xlsx reader. A BIFF5 file gives its sheets empty (M7).
     static func read(_ data: Data) throws -> Workbook {
         let file = try CompoundFile([UInt8](data))
         guard let wb = workbookStream(file) else { throw ReadError.notAnXls }
-        let sh = sheets(BiffReader.records(wb))
+        let recs = BiffReader.records(wb)
+        if let parts = XlsBuild.parts(recs) { return try Xlsx.read(entries: parts) }
+        let sh = sheets(recs)
         guard !sh.isEmpty else { throw ReadError.truncated }
         return Workbook(sheets: sh.map { Worksheet(name: $0.name) })
     }
