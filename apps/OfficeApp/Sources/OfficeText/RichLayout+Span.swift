@@ -283,7 +283,7 @@ extension RichLayout {
     /// PowerPoint's prints (lab vdig2, 28 pt and 14 pt agree): from the ideographic em top (0.88 em over the baseline) down to
     /// the face's win descent, which fits MS Gothic, HG Maru Gothic, Meiryo, Arial and Calibri to 0.01 em (amd-opus, 2026-11-23);
     /// SimSun, MingLiU, YaHei, JhengHei, Malgun and Yu Gothic stand longer and are measured per face (rule not named yet).
-    static func digitSlotEm(_ family: String) -> Double {
+    static func digitSlotEm(_ family: String, ascent: Double? = nil) -> Double {
         var f = ""
         for u in family.unicodeScalars {
             if u.value >= 0xFF01 && u.value <= 0xFF5E, let h = Unicode.Scalar(u.value - 0xFEE0) { f.unicodeScalars.append(h) }
@@ -293,6 +293,13 @@ extension RichLayout {
         func has(_ names: String...) -> Bool { names.contains { f.containsSubstring($0) } }
         // (Print of lab vdig3, 28 pt: Segoe UI, Verdana, Cambria, Times New Roman and Arial digits; the digit's own face sets the slot, not the ideograph beside it.)
         if has("segoe ui") { return 1.293 }
+        // (Print of lab vdig4, 28 pt, the digits' own Latin face with MS Gothic as the East Asian face: the face named for the digits sets the slot.)
+        if has("tahoma") { return 1.200 }
+        if has("georgia") { return 1.106 }
+        if has("impact") { return 1.208 }
+        if has("consolas") { return 1.114 }
+        if has("candara") { return 1.157 }
+        if has("century gothic") { return 1.166 }
         if has("verdana") { return 1.207 }
         if has("cambria") { return 1.139 }
         if has("times new roman") { return 1.079 }
@@ -305,6 +312,8 @@ extension RichLayout {
         if has("meiryo", "メイリオ") { return 1.320 }
         if has("calibri") { return 1.149 }
         if has("arial") { return 1.092 }
+        // (A face not listed: 1.2 x its Windows ascent, at least 1.0206 em: exact on six measured faces, 0.1 to 0.4 pt off on six more, vdig3 and vdig4.)
+        if let a = ascent { return max(1.2 * a, 1.0206) }
         return 1.0206
     }
 
@@ -348,10 +357,11 @@ extension RichLayout {
         guard !groups.isEmpty else { return r }
         // The size of the ideograph nearest each run: the place is set by it, the digits' own face being a stand-in at another size.
         var sizes: [Double?] = []
+        var unitStyles: [TextStyle?] = []
         func collect(_ t: TextSpan, _ inh: TextStyle?) {
             let own = inh.map { $0.merge(t.style) } ?? t.style
-            if let x = t.text { sizes.append(contentsOf: repeatElement(own?.fontSize, count: x.utf16.count)) }
-            for c in t.children ?? [] { if let ct = c as? TextSpan { collect(ct, own) } else { sizes.append(nil) } }
+            if let x = t.text { sizes.append(contentsOf: repeatElement(own?.fontSize, count: x.utf16.count)); unitStyles.append(contentsOf: repeatElement(own, count: x.utf16.count)) }
+            for c in t.children ?? [] { if let ct = c as? TextSpan { collect(ct, own) } else { sizes.append(nil); unitStyles.append(nil) } }
         }
         collect(r.0, nil)
         guard sizes.count == units.count else { return r }
@@ -378,11 +388,19 @@ extension RichLayout {
                     // (The run's last digit carries the extra: the digits may sit in leaves of their own.)
                     guard g.upperBound - 1 >= lo, g.upperBound - 1 < hi, let em = uprightIdeographs ? nearEm(g) : own?.fontSize else { continue }
                     let digits = String(decoding: units[g], as: UTF16.self)
-                    let probe = TextPainter(text: TextSpan(text: digits, style: own?.copyWith(letterSpacing: 0)), textDirection: .ltr)
-                    probe.layout()
+                    // (The group's width as the layout has set it: each digit with its own leaf's spacing, which carries the face's table advance, so a face whose stand-in digits differ from its own, Georgia's, gets the gap its print has.)
+                    var natural = 0.0
+                    if uprightIdeographs, unitStyles.count == units.count {
+                        for u in g {
+                            let pr = TextPainter(text: TextSpan(text: String(decoding: [units[u]], as: UTF16.self), style: unitStyles[u]), textDirection: .ltr)
+                            pr.layout(); natural += pr.width; pr.dispose()
+                        }
+                    } else {
+                        let probe = TextPainter(text: TextSpan(text: digits, style: own?.copyWith(letterSpacing: 0)), textDirection: .ltr)
+                        probe.layout(); natural = probe.width; probe.dispose()
+                    }
                     // (In a sideways column the digit's place is its own em, not the ideograph's 1.0957: the print of 44a86430c67f p10 sets an 11 pt digit and a 14 pt 月 in 25 pt.)
-                    let extra = (uprightIdeographs ? Self.digitSlotEm(own?.debugLabel ?? own?.fontFamily ?? "") : 1.0) * em - probe.width
-                    probe.dispose()
+                    let extra = (uprightIdeographs ? Self.digitSlotEm(own?.debugLabel ?? own?.fontFamily ?? "", ascent: theme.uprightDigitAscent?(own?.fontFamily ?? "", (own?.fontWeight?.value ?? 400) >= 600)) : 1.0) * em - natural
                     if abs(extra) > 0.01 { cuts.append(g.upperBound - 1); cuts.append(min(g.upperBound, hi)); tail[g.upperBound - 1] = extra }
                 }
                 cuts.append(hi)
