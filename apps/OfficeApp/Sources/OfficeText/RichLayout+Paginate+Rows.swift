@@ -121,6 +121,12 @@ extension RichLayout {
               (i ..< j).contains(where: { k in
                   document.paragraphs[k].cell.map { d in !(d.bordersXML ?? "").containsSubstring("<w:top ") && d.edges?.top == nil } ?? false
               }) || Self._rowHasContinuedTopUnsaid(i, document) else { return 0 }
+        // (A table that states its cell spacing, even none, rules each cell on its own: the table's top line framing the row opening a
+        // page stands over the row's own top line, not in place of it. zh-15f60bacd's tables, cell spacing 0 over 0.5pt lines: every
+        // page they go on over opens 0.5pt lower in Word's print than ours.)
+        if ts.cellSpacing != nil, !ts.rowsUnspaced.contains(c.row) {
+            return _px(Self._ruleRoom(ts.edgeStyles["top"] ?? ts.borderStyle, ts.edgeWidths["top"] ?? ts.borderWidth ?? 0.5))
+        }
         return max(0, _px(Self._ruleRoom(ts.edgeStyles["top"] ?? ts.borderStyle, ts.edgeWidths["top"] ?? ts.borderWidth ?? 0.5)) - max(0, c.rules - c.ruleBelow))
     }
 
