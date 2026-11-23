@@ -405,7 +405,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // (A default face the print box has installed that the tables lack — Noto Sans 11 stored at 16.5, Roboto 10 at 12.75 — prints its
             // rows at the stored height in the printer's dots: 16.8 and 12.95 in Excel.)
             let installed = !ws.customDefaultRowHeight && ws.defaultRowHeightPt > 0 && SheetPrintMetrics.isInstalledUnmeasured(book.defaultFontName ?? OfficeFonts.defaultFamily)
-            let unsized = ws.customDefaultRowHeight || installed ? SheetPrintMetrics.setRow(ws.defaultRowHeightPt, scale: m.rowScale)
+            let unsized = installed ? SheetPrintMetrics.screenPixelRow(ws.defaultRowHeightPt)
+            : ws.customDefaultRowHeight ? SheetPrintMetrics.setRow(ws.defaultRowHeightPt, scale: m.rowScale)
                 : (ownFace ? max(blank, ownRow) : blank)
             // A merged cell that wraps is no part of its rows' fit:
             // bug66675's dates of Arial 12, merged across A:D, sit in rows
