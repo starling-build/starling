@@ -2035,7 +2035,7 @@ enum ChartXML {
             // (A lone series titles its chart by its name — and one with
             // no name gives "Chart Title": zh-37b6536f's pie in Word's
             // print, where ours read "Series 1".)
-            title = text.isEmpty ? (series.count == 1 && named ? series[0].name : "Chart Title") : text
+            title = text.isEmpty ? (series.count == 1 && lines.isEmpty && named ? series[0].name : "Chart Title") : text
             if let m = t.first("c:layout")?.first("c:manualLayout"),
                (m.first("c:xMode")?["val"] ?? "factor") == "edge", (m.first("c:yMode")?["val"] ?? "factor") == "edge",
                let x = m.first("c:x")?["val"].flatMap(Double.init), let y = m.first("c:y")?["val"].flatMap(Double.init) {
