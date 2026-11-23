@@ -485,6 +485,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     guard ws.fittedRows.contains(a.row) || ws.customDefaultRowHeight || ws.fittedRows.isEmpty else { continue }
                     let st = book.style(cell.style)
                     guard st.wrap, st.vAlign == .bottom, Self._fittedLine(st, m, book) < m.defaultRow - 0.01, (st.fontSize ?? 11) < (book.defaultFontSize ?? 11), ws.merges.contains(where: { $0.contains(a) && $0.top == a.row && $0.left == a.col && $0.bottom == $0.top }) else { continue }
+                    // (Nor in a row whose own style is of a small font: that is its floor.)
+                    if let rs = ws.rowStyle(a.row), Self._fittedLine(book.style(rs), m, book) < m.defaultRow - 0.01 { continue }
                     let up = m.defaultRow + 2 * 72 / 192 * m.rowScale
                     if (heights[a.row] ?? m.defaultRow) < up { heights[a.row] = up }
                 }
