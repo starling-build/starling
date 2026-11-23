@@ -759,6 +759,9 @@ struct Chart: Equatable {
         var pointPositions: [Int: String] = [:]
         /// The points whose own label the file deletes (`c:dLbl/c:delete`): Word draws none for them.
         var deleted: Set<Int> = []
+        /// A point's own label box says `a:bodyPr wrap` "none" (one line) or "square" (wraps at the box's width).
+        var wrapNone: Set<Int> = []
+        var wrapSquare: Set<Int> = []
         /// A point's own text size, from its label's own rich text.
         var sizes: [Int: Double] = [:]
         /// A point's label as the file writes it (`c:dLbl/c:tx/c:rich`),
@@ -2287,6 +2290,11 @@ enum ChartXML {
                                                        bold: d["b"].map { $0 == "1" || $0 == "true" },
                                                        face: d.first("a:latin")?["typeface"].flatMap { $0.hasPrefix("+") || $0.isEmpty ? nil : $0 },   // (a theme slot, "+mn-lt", names no face of its own: ab55f8b0's four small labels came out in Cambria's stand-in)
                                                        color: d.first("a:solidFill").flatMap { color($0) })
+                }
+                switch one.first("c:txPr")?.first("a:bodyPr")?["wrap"] {
+                case "none": l.wrapNone.insert(i)
+                case "square": l.wrapSquare.insert(i)
+                default: break
                 }
                 // (A slide pie's custom-text label says its colour on its runs: ko-e114b968's white "매우 긍정적으로 변화했다" in its dark slice.)
                 if l.own[i] == nil, let rp = one.first("c:tx")?.first("c:rich")?.descendant("a:rPr") ?? one.first("c:tx")?.first("c:rich")?.descendant("a:defRPr"),
@@ -9109,7 +9117,14 @@ extension ChartPainter {
             let wordLabelRoom = c.onSlide && !c.chartex ? 5.75 * k
                 : !c.onSlide && !c.onSheet && !c.chartex && !c.eastAsianText ? 7.7 * k
                 : c.onSheet && !c.chartex ? frame.width * 0.01 : 0
-            tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2 - wordLabelRoom))
+            // (On a sheet Excel's print keeps a label whose box says wrap="none" on one line, and wraps one that says
+            // wrap="square" at a fifth of the chart less 7.7 pt: chart-tdf133190's "Datapoint with" / "word wrap, 2, 1.5".)
+            let sheetOwnWrap = c.onSheet && !c.chartex && (l.wrapNone.contains(s.index) || l.wrapSquare.contains(s.index))
+            if sheetOwnWrap, l.wrapNone.contains(s.index) {
+                tp.layout(minWidth: 0, maxWidth: .infinity)
+            } else {
+                tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2 - (sheetOwnWrap ? 7.7 * k : wordLabelRoom)))
+            }
             // (And a one-line label a little narrower: past 0.1857 of the
             // chart's width it wraps too. zh-b8de3ae2's bar of pie, 538.5pt
             // wide, keeps "補助及協助收入, 2.35%" (99.9pt at 10pt) on one line in
