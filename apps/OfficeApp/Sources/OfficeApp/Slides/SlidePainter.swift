@@ -1087,6 +1087,7 @@ final class SlidePainter: CustomPainter {
             if let style = shape.fillStyle { paintFill(style, r, canvas, cache: cache, pxPerPt: px, turn: shape.rotation) }
             var onSlide = chart
             onSlide.onSlide = true
+            if let l = chart.slideDateLabels { onSlide.categories = l; onSlide.categoryLabelsSparse = true }
             ChartPainter.paint(onSlide, canvas, r, pxPerPt: px, theme: theme)
         }
         if shape.chart != nil {

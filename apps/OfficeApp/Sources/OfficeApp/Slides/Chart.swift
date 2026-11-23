@@ -827,6 +827,7 @@ struct Chart: Equatable {
     /// Painted on a slide (set by the slide painter), where a few of
     /// PowerPoint's measures differ from Word's and Excel's.
     var onSlide = false
+    var slideDateLabels: [String]? = nil
     /// Printed on a sheet (set by the sheet's painter), where Excel's
     /// measures are its own.
     var onSheet = false
@@ -2451,8 +2452,7 @@ enum ChartXML {
                     if i >= idx { labels[i] = chartNumberText(at, code); idx = i + 1 }
                     k += 1
                 }
-                c.categories = labels
-                c.categoryLabelsSparse = true
+                c.slideDateLabels = labels   // (a slide's; a sheet's chart keeps naming each point, as Excel's print did there)
             }
         }
         c.valueAxisTitle = axisTitle(titledValue)
