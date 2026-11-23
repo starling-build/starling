@@ -3000,7 +3000,9 @@ extension RichLayout {
                         if q.text.isEmpty, q.image == nil, q.inlineImages.isEmpty,
                            q.cell?.keptPropertiesXML?.containsSubstring("w:hideMark") ?? false { spareEnd = _heights[k] }
                     }
-                    stackByColumn[cell.column, default: 0] += _heights[k] - (stackByColumn[cell.column] == nil ? 0 : shared(k)) - spareEnd - _slidesCellFirstLineTrim(k, document)
+                    stackByColumn[cell.column, default: 0] += _heights[k] - (stackByColumn[cell.column] == nil ? 0 : shared(k)) - spareEnd
+                        - (stackByColumn[cell.column] == nil ? _slidesCellFirstLineTrim(k, document) : 0)
+                        - (cell.rowSpan > 1 ? _slidesCellLastLineTrim(k, document) : 0)
                     let need = stackByColumn[cell.column]! + cell.pad.top + cell.pad.bottom
                     spanning.append((r, min(rows.count - 1, r + cell.rowSpan - 1), need))
                 }
