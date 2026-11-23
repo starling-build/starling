@@ -66,6 +66,10 @@ func initializeHeadlessText() {
     for framework in Bundle.allFrameworks where framework.bundlePath.hasSuffix("FlutterMacOS.framework") {
         candidates.append(framework.bundlePath + "/Resources/icudtl.dat")
     }
+    #elseif os(iOS)
+    // (The app's own Flutter.framework: with none of these the iOS bridge's
+    // ICU stayed empty and no run had a line break inside it.)
+    if let frameworks = Bundle.main.privateFrameworksPath { candidates.append(frameworks + "/Flutter.framework/icudtl.dat") }
     #endif
     for candidate in candidates where FileManager.default.fileExists(atPath: candidate) {
         _ = flutter.swift_bridge.InitializeICU(candidate)
