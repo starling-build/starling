@@ -585,7 +585,7 @@ enum WindowsArabicAdvances {
         0xFE8D: 0.1850, 0xFE8E: 0.2080, 0xFE8F: 0.7030, 0xFE90: 0.7210, 0xFE91: 0.1850, 0xFE92: 0.2050,
         0xFE93: 0.2780, 0xFE94: 0.2960, 0xFE95: 0.7030, 0xFE96: 0.7030, 0xFE97: 0.1850, 0xFE98: 0.2050,
         0xFE99: 0.7030, 0xFE9A: 0.7210, 0xFE9B: 0.1850, 0xFE9C: 0.2050, 0xFE9D: 0.5550, 0xFE9E: 0.5370,
-        0xFE9F: 0.4800, 0xFEA0: 0.5370, 0xFEA1: 0.5550, 0xFEA2: 0.5370, 0xFEA3: 0.0000, 0xFEA4: 0.5370,
+        0xFE9F: 0.4800, 0xFEA0: 0.5370, 0xFEA1: 0.5550, 0xFEA2: 0.5370, 0xFEA3: 0.4800, 0xFEA4: 0.5370,
         0xFEA5: 0.4925, 0xFEA6: 0.5370, 0xFEA7: 0.4800, 0xFEA8: 0.5370, 0xFEA9: 0.3520, 0xFEAA: 0.4070,
         0xFEAB: 0.3520, 0xFEAC: 0.4070, 0xFEAD: 0.3330, 0xFEAE: 0.3520, 0xFEAF: 0.3330, 0xFEB0: 0.3520,
         0xFEB1: 0.6840, 0xFEB2: 0.7710, 0xFEB3: 0.4800, 0xFEB4: 0.5570, 0xFEB5: 0.7675, 0xFEB6: 0.7710,
@@ -836,6 +836,10 @@ enum WindowsArabicAdvances {
     static let tradArabicBoldClusters: [String: Double] = [
         // (The face's own kern for the letter after a reh, shaped in the real face (GPOS), em by that letter's form code: Regular 0.12 for most, Bold 0.088; PowerPoint's print of f355b7fc agrees.)
         "reh+*": -0.0880,
+        // (A waw at the start of a word kerns the letter after it in the bold face too, in ems added to the sum by that letter's shaped form: Word 16 pt
+        // bold prints of xb ara-z11030406-663296, medians over every word that starts with a waw and is unique on its page; flat followers -0.069,
+        // the overhanging ones (jeem, hah, kaf, heh initial) less than the regular face's, alef -0.074.)
+        "waw+*": -0.0690, "waw+FE8D": -0.0740, "waw+FE87": -0.0430, "waw+FE9F": -0.1010, "waw+FEA3": -0.1010, "waw+FEDB": -0.2400, "waw+FEEB": -0.0460,
         "reh+FE80": -0.0976, "reh+FEF5": -0.1074, "reh+FEF7": -0.1074, "reh+FE85": -0.0781, "reh+FEF9": -0.0488, "reh+FE89": -0.0977, "reh+FE8B": -0.0879, "reh+FEFB": -0.1074, "reh+FE8F": -0.0878, "reh+FE91": -0.0879, "reh+FE93": -0.0976, "reh+FE95": -0.0878, "reh+FE97": -0.0879, "reh+FE99": -0.0878, "reh+FE9B": -0.0879, "reh+FE9D": -0.1465, "reh+FE9F": -0.1221, "reh+FEA1": -0.1465, "reh+FEA3": -0.1221, "reh+FEA5": -0.1465, "reh+FEA7": -0.1221, "reh+FEA9": -0.0879, "reh+FEAB": -0.0879, "reh+FEAD": -0.0781, "reh+FEAF": -0.0781, "reh+FEB1": -0.0757, "reh+FEB3": -0.0879, "reh+FEB5": -0.0757, "reh+FEB7": -0.0879, "reh+FEB9": -0.0757, "reh+FEBB": -0.0879, "reh+FEBD": -0.0757, "reh+FEBF": -0.0879, "reh+FEC1": -0.0879, "reh+FEC3": -0.0879, "reh+FEC5": -0.0879, "reh+FEC7": -0.0879, "reh+FEC9": -0.1953, "reh+FECB": -0.0976, "reh+FECD": -0.1953, "reh+FECF": -0.0976, "reh+FED1": -0.0879, "reh+FED3": -0.0879, "reh+FED5": -0.0879, "reh+FED7": -0.0879, "reh+FED9": -0.0878, "reh+FEDB": -0.2441, "reh+FEDD": -0.0879, "reh+FEDF": -0.1221, "reh+FEE1": -0.0879, "reh+FEE3": -0.0879, "reh+FEE5": -0.0879, "reh+FEE7": -0.0879, "reh+FEE9": -0.3515, "reh+FEEB": -0.0977, "reh+FEED": -0.0781, "reh+FEEF": -0.0977, "reh+FBE8": -0.0879, "reh+FEF1": -0.0977, "reh+FEF3": -0.0879,
         // (Seen, ba, waw in Word's bold prints: س+ب measures 0.586 em from the seen's origin to the waw's, six prints over the corpus, plus the final waw 0.381; the letter sum is 0.685 and wrapped the week-column title of dx2 8a0e0087.)
         "سبو|0|0": 0.9670, "سبو|1|0": 0.9670,
