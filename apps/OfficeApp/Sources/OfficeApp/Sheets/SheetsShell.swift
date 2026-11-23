@@ -156,6 +156,12 @@ final class SheetsShellState: State<StatefulWidget> {
                 self._open(picked.name, data: picked.data)
             }
             #else
+            // A host with its own document browser (the iPad's) takes Open;
+            // unsaved edits still get Backstage's prompt first.
+            if OfficeHost.openRequested != nil {
+                self.session.replacing { _ = OfficeHost.openRequested?() }
+                return
+            }
             self.setState { self._backstage = .open }
             #endif
         }
@@ -166,10 +172,36 @@ final class SheetsShellState: State<StatefulWidget> {
             // The browser names and places a download; "save as" is save.
             self._save()
             #else
+            if let ask = OfficeHost.exportRequested {
+                _ = self._grid?.commitEdit()
+                self.wb.stashViewState()
+                let name = self.session.path.map { $0.lastPathComponent }
+                    ?? self.session.title.deletingPathExtension + ".xlsx"
+                ask(name, { [weak self] path, finished in
+                    guard let self else { finished(false); return }
+                    let ext = path.pathExtension.lowercased()
+                    let data: Data?
+                    if ext == "csv" || ext == "tsv" {
+                        data = Data(Csv.write(self.wb.sheet, book: self.wb.book, separator: ext == "tsv" ? "\t" : ",").utf8)
+                    } else {
+                        data = try? Xlsx.write(self.wb.book)
+                    }
+                    finished((try? data?.write(to: URL(fileURLWithPath: path))) != nil)
+                }, true) { _ in }
+                return
+            }
             self.setState { self._backstage = .saveAs }
             #endif
         }
         session.onExport = { [weak self] ext in self?._export(ext) }
+        #if os(iOS)
+        // OFFICE_DRIVE_EXPORT=pdf: File → Export → PDF a few seconds after the
+        // document opens, so a driven run can reach the export picker
+        // without a tile tap.
+        if let ext = ProcessInfo.processInfo.environment["OFFICE_DRIVE_EXPORT"], !ext.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in self?.session.onExport?(ext) }
+        }
+        #endif
         session.onPrint = { [weak self] in self?._print() }
         session.onStatus = { [weak self] m in self?._flash(m) }
         session.onUndo = { [weak self] in self?.wb.undo() }
@@ -265,13 +297,9 @@ final class SheetsShellState: State<StatefulWidget> {
     /// `path` is a file on disk natively, the picked file's name in a tab:
     /// what the window is called and what a save is named after.
     private func _load(_ data: Data, from path: String) {
-        if path.pathExtension.lowercased() == "xlsx" {
-            do { wb.load(try Xlsx.read(data)) } catch {
-                _flash("Could not open \(path.lastPathComponent): it isn't a workbook Sheets can read")
-                return
-            }
-        } else {
-            wb.load(Csv.read(String(decoding: data, as: UTF8.self), name: path.lastPathComponent.deletingPathExtension))
+        do { wb.load(try Workbook.open(data, name: path.lastPathComponent)) } catch {
+            _flash("Could not open \(path.lastPathComponent): it isn't a workbook Sheets can read")
+            return
         }
         session.path = path
         session.dirty = false
@@ -311,6 +339,7 @@ final class SheetsShellState: State<StatefulWidget> {
             WebFiles.download(data, as: path.lastPathComponent)
             #else
             try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+            OfficeHost.documentSaved?(path)
             #endif
             session.path = path
             wb.markSaved()
@@ -350,6 +379,24 @@ final class SheetsShellState: State<StatefulWidget> {
         #else
         let base = session.path.map { $0.deletingPathExtension } ?? homeDirectory() + "/Documents/" + session.title.deletingPathExtension
         let target = base + "." + ext
+        if let ask = OfficeHost.exportRequested {
+            setState { _backstage = nil }
+            ask(target.lastPathComponent, { [weak self] path, finished in
+                guard let self else { finished(false); return }
+                if ext == "csv" {
+                    finished((try? Data(Csv.write(self.wb.sheet, book: self.wb.book).utf8)
+                        .write(to: URL(fileURLWithPath: path))) != nil)
+                } else {
+                    Task { @MainActor [weak self] in
+                        guard let self, let grid = self._grid else { finished(false); return }
+                        finished(await grid.writePdf(to: path, title: self.session.title, filePath: self.session.path))
+                    }
+                }
+            }, false) { [weak self] picked in
+                if let picked { self?._flash("Exported \(picked)") }
+            }
+            return
+        }
         if ext == "csv" {
             // The active sheet, as Excel's CSV export (a copy: the workbook stays the document).
             setState { _backstage = nil }

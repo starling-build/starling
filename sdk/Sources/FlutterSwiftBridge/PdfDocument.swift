@@ -29,6 +29,13 @@ public enum PdfDocument {
     public static func write(to path: String, pages: [Page], title: String? = nil,
                              author: String? = nil) -> Bool {
         guard !pages.isEmpty else { return false }
+        #if os(iOS)
+        // The iOS engine draws text through Impeller, whose DlText carries no
+        // Skia text blob; the PDF backend's Skia canvas then aborts the whole
+        // process (FML_CHECK in DlSkCanvasDispatcher::drawText). Until the PDF
+        // path has a text route of its own, say no rather than crash.
+        return false
+        #else
         var lists: [UnsafeRawPointer?] = []
         for page in pages {
             guard let native = page.picture as? NativePictureProvider else { return false }
@@ -44,5 +51,6 @@ public enum PdfDocument {
                 }
             }
         }
+        #endif
     }
 }

@@ -279,7 +279,7 @@ extension RichLayout {
         return nil
     }
 
-    /// Runs of one or two ASCII digits beside an ideograph, in a PowerPoint vertical (eaVert) box: PowerPoint sets them upright
+    /// Runs of ASCII digits beside an ideograph, cut into pieces of two, in a PowerPoint vertical (eaVert) box: PowerPoint sets them upright
     /// side by side, not on their side as the Latin letters and the marks are, each run in a place 1.0957 em long whatever
     /// its length. (Print of 6cb9bf676218 p10, p15, p24: "16", "8" and "13" at 28 pt each take 30.68 pt of the column.)
     static func uprightDigitRuns(_ u: [UInt16]) -> [Range<Int>] {
@@ -297,7 +297,11 @@ extension RichLayout {
             while a < u.count, u[a] == 0x200B { a += 1 }
             let before = b >= 0 ? u[b] : 0x20
             let after = a < u.count ? u[a] : 0x20
-            if j - i <= 2, !letter(before), !letter(after), wide(before) || wide(after) { out.append(i ..< j) }
+            if !letter(before), !letter(after), wide(before) || wide(after) {
+                // (A longer run goes by twos from its start, the last one possibly alone: vdig print, "123" is "12" then "3", "1234" is "12" then "34", each in a place of its own.)
+                var k = i
+                while k < j { out.append(k ..< min(k + 2, j)); k += 2 }
+            }
             i = j
         }
         return out
@@ -307,7 +311,7 @@ extension RichLayout {
                        held: Set<Int> = [], spread: [Int: Double] = [:], fitProbe: Bool = false, autoSpaces: ((Int, Double) -> Void)? = nil)
         -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) {
         var r = _spanBase(for: p, at: index, document, textWidth: textWidth, lead: lead, adjust: adjust, held: held, spread: spread, fitProbe: fitProbe, autoSpaces: autoSpaces)
-        guard !theme.wordRules, uprightIdeographs else { return r }
+        guard !theme.wordRules, uprightIdeographs || sidewaysDigits else { return r }
         // (The tree's own text: the layout put zero-width spaces between its ideographs, which the paint finds in the painter's text.)
         let units = Array(r.0.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
         let groups = Self.uprightDigitRuns(units)
@@ -324,8 +328,8 @@ extension RichLayout {
         func nearEm(_ g: Range<Int>) -> Double? {
             func wide(_ c: UInt16) -> Bool { c >= 0x2E80 && !(c >= 0xD800 && c <= 0xDFFF) && c != 0xFFFC }
             var b = g.lowerBound - 1, a = g.upperBound
-            while b >= 0, units[b] == 0x200B { b -= 1 }
-            while a < units.count, units[a] == 0x200B { a += 1 }
+            while b >= 0, units[b] == 0x200B || (units[b] >= 0x30 && units[b] <= 0x39) { b -= 1 }
+            while a < units.count, units[a] == 0x200B || (units[a] >= 0x30 && units[a] <= 0x39) { a += 1 }
             if b >= 0, wide(units[b]) { return sizes[b] }
             if a < units.count, wide(units[a]) { return sizes[a] }
             return nil
@@ -342,11 +346,12 @@ extension RichLayout {
                 var tail: [Int: Double] = [:]
                 for g in groups where g.upperBound > lo && g.lowerBound < hi {
                     // (The run's last digit carries the extra: the digits may sit in leaves of their own.)
-                    guard g.upperBound - 1 >= lo, g.upperBound - 1 < hi, let em = nearEm(g) else { continue }
+                    guard g.upperBound - 1 >= lo, g.upperBound - 1 < hi, let em = uprightIdeographs ? nearEm(g) : own?.fontSize else { continue }
                     let digits = String(decoding: units[g], as: UTF16.self)
                     let probe = TextPainter(text: TextSpan(text: digits, style: own?.copyWith(letterSpacing: 0)), textDirection: .ltr)
                     probe.layout()
-                    let extra = 1.0957 * em - probe.width
+                    // (In a sideways column the digit's place is its own em, not the ideograph's 1.0957: the print of 44a86430c67f p10 sets an 11 pt digit and a 14 pt 月 in 25 pt.)
+                    let extra = (uprightIdeographs ? 1.0957 : 1.0) * em - probe.width
                     probe.dispose()
                     if abs(extra) > 0.01 { cuts.append(g.upperBound - 1); cuts.append(min(g.upperBound, hi)); tail[g.upperBound - 1] = extra }
                 }
@@ -1765,6 +1770,12 @@ extension RichLayout {
                         placeOffset = upper
                         size = Size(size.width, upper + max(0, lower))
                     }
+                }
+                // (PowerPoint scales an equation's line by a percent line spacing below 100%, as it does the text's.)
+                if !theme.wordRules, image.float == nil, image.name.hasPrefix("m:o"), p.style.lineHeightPoints == nil, p.style.lineSpacing < 0.999,
+                   p.style.lineSpacing > 0.5, size.height > 0 {
+                    placeOffset *= p.style.lineSpacing
+                    size = Size(size.width, size.height * p.style.lineSpacing)
                 }
                 inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic, baselineOffset: placeOffset)))
                 // (Before 2013's layout a space after a picture wider than

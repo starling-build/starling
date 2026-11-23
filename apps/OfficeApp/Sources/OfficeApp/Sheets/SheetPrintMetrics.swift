@@ -157,7 +157,7 @@ struct SheetPrintMetrics {
             screenDigit: [13, 15, 17, 18, 18, 20, 23, 27, 30]),
         "palatino linotype": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [101, 113, 123, 130, 137, 147, 171, 194, 216], screenRow: [30, 34, 38, 39, 40, 47, 53, 61, 67],
             screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
-        "pmingliu": Face(digit: [31, 35, 39, 41, 43, 47, 55, 62, 70], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [26, 30, 33, 35, 36, 39, 45, 53, 59],
+        "pmingliu": Face(digit: [31, 35, 39, 41, 43, 47, 55, 62, 70], row: [77, 85, 93, 98, 102, 130, 127, 143, 160], screenRow: [26, 30, 33, 35, 36, 39, 45, 53, 59],
             screenDigit: [10, 11, 13, 13, 14, 15, 17, 20, 23]),
         "lucida sans typewriter": Face(digit: [40, 45, 50, 53, 55, 60, 70, 80, 90], row: [87, 96, 105, 112, 116, 126, 146, 164, 184], screenRow: [26, 30, 34, 35, 36, 40, 46, 53, 59],
             screenDigit: [13, 14, 16, 17, 17, 19, 22, 26, 29]),
@@ -209,6 +209,23 @@ struct SheetPrintMetrics {
     /// The key of the table face a family is measured as: its own, or the
     /// one this app would draw it with. (Its bold is that key's "bold".)
     private static func faceKey(_ family: String) -> String {
+        // Asked for every measured string, always with the same few family names; the answer follows from the name alone
+        // while a sheet prints (the stand-in lookups below cost more than the measure itself).
+        faceKeyLock.lock(); let known = faceKeyMemo[family]; faceKeyLock.unlock()
+        if let known { return known }
+        let key = _faceKey(family)
+        faceKeyLock.lock(); faceKeyMemo[family] = key; faceKeyLock.unlock()
+        return key
+    }
+    #if os(WASI)
+    // One thread in the browser, and no NSLock in its Foundation.
+    private struct _NoLock { func lock() {}; func unlock() {} }
+    private static let faceKeyLock = _NoLock()
+    #else
+    private static let faceKeyLock = NSLock()
+    #endif
+    nonisolated(unsafe) private static var faceKeyMemo: [String: String] = [:]
+    private static func _faceKey(_ family: String) -> String {
         let n = family.trimmingWhitespace().lowercased()
         if faces[aliases[n] ?? n] != nil { return aliases[n] ?? n }
         // A face nobody measured: an East Asian one by its name, the rest by

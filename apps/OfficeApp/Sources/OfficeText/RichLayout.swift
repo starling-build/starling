@@ -186,6 +186,9 @@ public final class RichTextTheme {
     /// pages have Arial (1.15 by its metrics), Consolas (1.17) and Lucida
     /// Sans Unicode (1.47) all at 1.2; Word's is the face's.
     public var singleLineHeight: Double? = nil
+    /// Slides: a face whose own single line (ascent + descent, ems) differs from `singleLineHeight`'s flat 1.2: what an exact
+    /// line's trailing foot is measured against (`_exactFootExtra`).
+    public var exactSingleLineEm: ((String) -> Double?)? = nil
     /// Whether letters are set one by one, the face's ligatures (Calibri's
     /// "tt", "ti") left out: PowerPoint sets "formatting" 0.6 pt wider
     /// than the engine does with them, and breaks its lines by that.
@@ -1605,6 +1608,8 @@ public final class RichLayout {
     /// sets it smaller with the text it fits (an office diagram's list).
     /// A turned text body (`eaVert`) whose ideographs stand upright, as a vertical section's do.
     public var uprightIdeographs = false
+    /// An `eaVert` column whose ideographs are set sideways (not `uprightIdeographs`): its digit runs still stand upright (see `uprightDigitRuns`).
+    public var sidewaysDigits = false
     public var spacingFollowsFont = false {
         didSet { if spacingFollowsFont != oldValue { invalidateAll() } }
     }

@@ -25,7 +25,13 @@ enum Xlsx {
     // MARK: Reading
 
     static func read(_ data: Data) throws -> Workbook {
-        let entries = try Zip.read(data).map { e -> ZipEntry in
+        try read(entries: try Zip.read(data))
+    }
+
+    /// The same reader over parts already unpacked (a zip's entries, or parts
+    /// the .xls reader built from BIFF records).
+    static func read(entries zipEntries: [ZipEntry]) throws -> Workbook {
+        let entries = zipEntries.map { e -> ZipEntry in
             var d = _unprefixMain(e.data)
             // Style tables are read by position; a font or xf wrapped in
             // mc:AlternateContent (Hancom's HCell) would otherwise vanish and

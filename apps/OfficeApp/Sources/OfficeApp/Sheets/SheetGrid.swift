@@ -460,13 +460,18 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     // fit: LIBRE_OFFICE-116306-0's rows keep theirs.)
                     let one = texts.painter("X", style).height
                     let trailing = Double(text.reversed().prefix { $0 == "\n" }.count)
-                    let lines = texts.painter(text, style, maxWidth: width).height + trailing * one
+                    let wrapped = texts.painter(text, style, maxWidth: width)
+                    let lines = wrapped.height + trailing * one
                     // (Text that wraps to one line is its font's line, which the
                     // fonts above have given the row: lo-pivottable_invalid_formats'
                     // wrapping one-line rows print at Arial 10's 12.36, where
                     // this measure made them 12.5 and lost a row a page.)
                     guard lines > one * 1.5 else { continue }
-                    let tall = (lines / one).rounded() * Self._fittedLine(st, m, book)
+                    // (Counted by its lines, not its height: a line that holds a
+                    // full-width bracket stands taller in a fallback face, and
+                    // 3.69 lines' height is three lines, not four.)
+                    // (Excel's rows stop at 409.5 pt: CVLKRA-KYC's 38-line Remark cell is a row of 409.5 on its page, its text cut there.)
+                    let tall = min(409.5, Double(wrapped.computeLineMetrics().count + Int(trailing)) * Self._fittedLine(st, m, book))
                     if tall > heights[a.row] ?? m.defaultRow { heights[a.row] = tall }
                 }
                 // A wrapped, bottom-aligned text of a font smaller than the default's in a
@@ -474,11 +479,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 // two screen pixels taller than the default font's line, though
                 // the merge is left out of the fit: bug66675's row 12 prints
                 // 15.24 for 14.52 (windows lab xl66675: centred or unwrapped
-                // it stays 14.52).
+                // it stays 14.52). Only in a merge of one row: fr-84839731a2's
+                // A12:B13, merged down, keeps its 9 pt rows in Excel's print.
                 for (a, cell) in ws.cells where cell.style != 0 && refits(a.row) && cell.value.isText {
                     guard ws.fittedRows.contains(a.row) || ws.customDefaultRowHeight || ws.fittedRows.isEmpty else { continue }
                     let st = book.style(cell.style)
-                    guard st.wrap, st.vAlign == .bottom, Self._fittedLine(st, m, book) < m.defaultRow - 0.01, (st.fontSize ?? 11) < (book.defaultFontSize ?? 11), ws.merges.contains(where: { $0.contains(a) && $0.top == a.row && $0.left == a.col }) else { continue }
+                    guard st.wrap, st.vAlign == .bottom, Self._fittedLine(st, m, book) < m.defaultRow - 0.01, (st.fontSize ?? 11) < (book.defaultFontSize ?? 11), ws.merges.contains(where: { $0.contains(a) && $0.top == a.row && $0.left == a.col && $0.bottom == $0.top }) else { continue }
+                    // (Nor in a row whose own style is of a small font: that is its floor.)
+                    if let rs = ws.rowStyle(a.row), Self._fittedLine(book.style(rs), m, book) < m.defaultRow - 0.01 { continue }
                     let up = m.defaultRow + 2 * 72 / 192 * m.rowScale
                     if (heights[a.row] ?? m.defaultRow) < up { heights[a.row] = up }
                 }
@@ -758,7 +766,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // Excel's print, ours 7.5).
             var stated = chart.statedTextScaled(by: 4.0 / 3)
             stated.onSheet = true
-            if stated.textSize == nil, stated.plainText, !stated.styled2013 {
+            if stated.textSize == nil, stated.plainText || stated.sizeUnstated, !stated.styled2013 {
                 stated.textSize = 10 * 4.0 / 3
                 if stated.titleSize == nil { stated.titleSize = 18 * 4.0 / 3 }
             }
@@ -2578,6 +2586,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     static let excelTextScale = 7.0 / 7.43
 
     /// The text style a cell draws with.
+    /// The room a printed wrapped line has: on the print grid, the column's whole dots less 26 x the print scale
+    /// (Excel's prints at 4 scales: margin windows 24.5-27.5 at 100%, 19.5-22 at 81%, 13-13.75 at 50%); the row's
+    /// HEIGHT stays the screen-grid fit.
+    func wrapRoom(_ width: Double, _ less: Double) -> Double {
+        guard printing, printTextScale > 0, printRowScale > 0 else { return max(1, width - less) }
+        let dpu = printTextScale / scale * 600 / 72
+        return max(1, ((width * dpu + 1e-6 - 26 * printRowScale).rounded(.down)) / dpu)
+    }
     func _textStyle(_ st: CellStyle, color: UInt32?, ink: Color) -> GridTextStyle {
         let c = printing && printMono ? Int64(0xFF00_0000) : (color ?? st.color).map { Int64(0xFF00_0000) | Int64($0) } ?? Int64(ink.value)
         let book = controller.book
@@ -2606,6 +2622,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                              size: size, bold: st.bold, italic: st.italic,
                              underline: st.underline, strike: st.strike, color: c, dots: dots, hint: hint)
         let lower = book.fontName(st).trimmingWhitespace().lowercased()
+        if printing { style.myanmar = true }
+        if printing, face == OfficeFonts.sans || face == "Arial" || lower == "calibri" { style.arabicArial = true }
         if lower == "aptos narrow" || OfficeFonts.tabledNames.contains(lower) { style.own = lower }
         if st.underline || st.strike, let m = RichTextTheme.ruleMetrics(book.fontName(st), bold: st.bold, italic: st.italic) {
             style.rule = [m.up, m.ut, m.sp, m.st]
@@ -2698,7 +2716,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // Wrapped text: lines within the cell's width, never spilling.
         let wraps = st.wrap && cell.value.isText
         let lineAlign: TextAlign = align == .center ? .center : align == .right ? .right : st.justify && wraps ? .justify : .left
-        var tp = texts.painter(text, style, maxWidth: wraps ? max(1, width - pad * 2 - wrapLess) : .infinity, align: wraps ? lineAlign : .left)
+        var tp = texts.painter(text, style, maxWidth: wraps ? wrapRoom(width, pad * 2 + wrapLess) : .infinity, align: wraps ? lineAlign : .left)
         // A number too wide for its cell is ####, never cut.
         if case .number = cell.value, lead + tp.width > width - pad * 2 {
             let hashes = max(1, Int((width - pad * 2) / max(1, texts.painter("#", style).width)))
@@ -2818,7 +2836,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // the first at the head, the middle in the centre — stands where
         // one line would (52716's last lines with their rows' numbers).
         if printing && wraps {
-            let lines = texts._breakLines(NumberFormat.unpad(text), style, max(1, width - pad * 2 - wrapLess))
+            let lines = texts._breakLines(NumberFormat.unpad(text), style, wrapRoom(width, pad * 2 + wrapLess))
                 .split(separator: "\n", omittingEmptySubsequences: false)
             if lines.count > 1 {
                 let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
@@ -2830,7 +2848,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let y0: Double
                 switch st.vAlign {
                 case .top: y0 = _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .top)
-                case .center: y0 = _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .center) - n / 2 * pitch - lift
+                case .center:
+                    // (Text taller than the longest row Excel has (409.5 pt) starts at the row's head, not centred past it; a text only a little over its row stays centred, 49273: CVLKRA-KYC's 38 lines in a row of 409.5 pt, Excel's first at the row's top + 0.8 pt.)
+                    let over = n * pitch + one > 409.5 * scale
+                    y0 = over ? _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .top)
+                        : _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .center) - n / 2 * pitch - lift
                 case .bottom: y0 = _footTop(st, book, ws, row: a.row, texts.painter("X", style), bottom: bottom) - n * pitch
                 }
                 let hardEnds = st.justify ? texts._paragraphEnds(text, style, max(1, width - pad * 2 - wrapLess)) : []
@@ -3234,6 +3256,10 @@ struct GridTextStyle: Hashable {
     /// The face whose own widths it is set to, where Excel's face has none
     /// in the stand-in that draws it ("aptos narrow", lower case); "" for none.
     var own = ""
+    /// Whether Excel draws this cell's Arabic letters in Arial (its face is Arial, or one Excel lacks): at Arial's advances.
+    var arabicArial = false
+    /// Whether the print draws this cell's Myanmar letters in Myanmar Text (Excel links to it from any face): at its advances.
+    var myanmar = false
     /// The screen's pixels an em, where the text is fitted as Excel's
     /// screen does: each character a whole pixel wide; 0 for none.
     var screen = 0.0
@@ -3318,6 +3344,7 @@ final class _TextCache {
     /// blank on the page and nothing in its text but the space.
     private func _span(_ text: String, _ style: GridTextStyle) -> TextSpan {
         guard text.contains(NumberFormat.padMark) else {
+            if let arabic = _arabicSpans(text, style) { return TextSpan(children: arabic) }
             return _spaces(text, style) ? TextSpan(children: _spaced(text, style)) : TextSpan(text: text, style: style.flutter)
         }
         // (A lone space measures as its advance only between letters.)
@@ -3420,6 +3447,9 @@ final class _TextCache {
     /// column wrapped to other lines and other heights than Excel's.
     func _breakLines(_ text: String, _ style: GridTextStyle, _ maxWidth: Double) -> String {
         var out: [String] = []
+        // (On the grid of whole dots or pixels the widths are whole counts times the unit: compare the counts, so a line exactly
+        // the room is not lost to a float tie. CVLKRA-KYC's "same as" is 198 dots in a room of 198, as Excel sets it on one line.)
+        func le(_ a: Double, _ b: Double) -> Bool { style.screen > 0 ? (a / style.screen).rounded() <= (b / style.screen).rounded() : a <= b }
         for paragraph in text.split(separator: "\n", omittingEmptySubsequences: false) {
             // The places a line may end: at a space, and after a hyphen
             // ("Non-" / "Individual").
@@ -3438,7 +3468,7 @@ final class _TextCache {
             // everything before its hyphen does (52716's "holz@zv.uni-").
             func hangFits(_ text: String, _ used: Double) -> Bool {
                 guard text.hasSuffix("-"), text.count > 1 else { return false }
-                return used + _width(String(text.dropLast()), style) <= maxWidth
+                return le(used + _width(String(text.dropLast()), style), maxWidth)
             }
             // (Spaces where a line breaks are not carried to the next: chart-
             // tdf159450's "Lion …… dd …… XYZ" starts its second line at XYZ.)
@@ -3448,7 +3478,7 @@ final class _TextCache {
                     if piece.text.isEmpty { continue }
                 } else if k > 0 {
                     let w = _width(piece.sep + piece.text, style)
-                    if lineWidth + w <= maxWidth || hangFits(piece.sep + piece.text, lineWidth) { line += piece.sep + piece.text; lineWidth += w; continue }
+                    if le(lineWidth + w, maxWidth) || hangFits(piece.sep + piece.text, lineWidth) { line += piece.sep + piece.text; lineWidth += w; continue }
                     if !line.isEmpty { out.append(line) }
                     line = ""; lineWidth = 0; broken = true
                     if piece.text.isEmpty { continue }
@@ -3456,7 +3486,7 @@ final class _TextCache {
                 var rest = piece.text
                 while !rest.isEmpty {
                     let w = _width(String(rest), style)
-                    if lineWidth + w <= maxWidth || hangFits(String(rest), lineWidth) { line += rest; lineWidth += w; break }
+                    if le(lineWidth + w, maxWidth) || hangFits(String(rest), lineWidth) { line += rest; lineWidth += w; break }
                     if !line.isEmpty { out.append(line); line = ""; lineWidth = 0; continue }
                     // Longer than a line: as many characters as fit, one at least.
                     var cut = rest.index(after: rest.startIndex)
@@ -3466,8 +3496,8 @@ final class _TextCache {
                         // trailing space does: 52716's "ders@rz.uni-" is 153.7
                         // of the screen's 151 px and stands on one line in
                         // Excel's print, where "christian.and" at 154.5 does not.)
-                        if _width(String(rest[..<next]), style) > maxWidth,
-                           !(rest[cut] == "-" && _width(String(rest[..<cut]), style) <= maxWidth) { break }
+                        if !le(_width(String(rest[..<next]), style), maxWidth),
+                           !(rest[cut] == "-" && le(_width(String(rest[..<cut]), style), maxWidth)) { break }
                         cut = next
                     }
                     out.append(String(rest[..<cut])); rest = rest[cut...]
@@ -3489,13 +3519,73 @@ final class _TextCache {
         if style.screen > 0 {
             // (Screen fit: each character a whole pixel of the 192-dpi screen,
             // `screen` the layout units of one.)
+            if let parts = _arabicParts(s, style) {
+                // (An Arabic word is one shaped width, not its letters' isolated forms: a whole pixel count of its own.)
+                return parts.reduce(0) { $0 + ($1.ems.map { ($0 * style.screenEm).rounded() * style.screen } ?? _width($1.text, { var p = style; p.arabicArial = false; p.myanmar = false; return p }())) }
+            }
             var plain = style; plain.screen = 0
             let space = s.containsSubstring(" ") ? _measure("a a", plain) - _measure("aa", plain) : 0
             return s.reduce(0) { $0 + (($1 == " " ? space : _measure(String($1), plain)) / style.size * style.screenEm).rounded() * style.screen }
         }
+        if let parts = _arabicParts(s, style) {
+            var plain = style; plain.arabicArial = false; plain.myanmar = false
+            return parts.reduce(0) { $0 + ($1.ems.map { $0 * style.size } ?? _width($1.text, plain)) }
+        }
         guard _spaces(s, style) else { return _measure(s, style) }
         let space = s.containsSubstring(" ") ? _measure("a a", style) - _measure("aa", style) : 0
         return s.reduce(0) { $0 + _advance($1, $1 == " " ? space : _measure(String($1), style), style) }
+    }
+
+    /// A text split into its stretches of Arabic-script letters (with their width in Arial's own advances, ems) and the rest, where
+    /// the style is one Excel draws in Arial (`GridTextStyle.arabicArial`); nil where there is no Arabic letter to set so. A joined
+    /// word is wider in the stand-in's Arabic (DejaVu) than in Arial's.
+    private func _arabicParts(_ s: String, _ style: GridTextStyle) -> [(text: String, ems: Double?)]? {
+        func isMy(_ v: UInt32) -> Bool { v >= 0x1000 && v <= 0x109F }
+        let arab = style.arabicArial && s.unicodeScalars.contains(where: { ArabicRunWidth.isArabic($0.value) })
+        let my = style.myanmar && s.unicodeScalars.contains(where: { isMy($0.value) })
+        guard arab || my else { return nil }
+        let table = style.bold ? WindowsArabicAdvances.arialBold : WindowsArabicAdvances.arial
+        let myTable = style.bold ? MyanmarAdvances.bold : MyanmarAdvances.regular
+        var parts: [(text: String, ems: Double?)] = []
+        var run = "", other = "", runMy = false
+        func close() {
+            guard !run.isEmpty else { return }
+            let sc = run.unicodeScalars.map { $0.value }
+            let ems: Double? = runMy ? (sc.allSatisfy { myTable[$0] != nil } ? sc.reduce(0.0) { $0 + (myTable[$1] ?? 0) } : nil)
+                                     : ArabicRunWidth.ems(sc, advances: table)
+            parts.append((run, ems)); run = ""
+        }
+        for ch in s {
+            let a = arab && ch.unicodeScalars.allSatisfy { ArabicRunWidth.isArabic($0.value) && $0.value != 0x200C }
+            let m = my && ch.unicodeScalars.allSatisfy { isMy($0.value) }
+            if a || m {
+                if !other.isEmpty { parts.append((other, nil)); other = "" }
+                if !run.isEmpty && runMy != m { close() }
+                runMy = m
+                run.append(ch)
+            } else {
+                close(); other.append(ch)
+            }
+        }
+        close()
+        if !other.isEmpty { parts.append((other, nil)) }
+        return parts
+    }
+
+    /// The spans of such a text: each Arabic word stretched or squeezed (a horizontal scale of its glyphs) to Arial's width of it.
+    private func _arabicSpans(_ s: String, _ style: GridTextStyle) -> [InlineSpan]? {
+        guard let parts = _arabicParts(s, style) else { return nil }
+        var plain = style; plain.arabicArial = false; plain.myanmar = false
+        var spans: [InlineSpan] = []
+        for p in parts {
+            if let ems = p.ems {
+                let have = _measure(p.text, plain)
+                spans.append(TextSpan(text: p.text, style: have > 0.01 ? plain.flutter.copyWith(scaleX: ems * style.size / have) : plain.flutter))
+            } else {
+                spans += _spaced(p.text, plain)
+            }
+        }
+        return spans
     }
     /// The stand-in's own width of `s`.
     private func _measure(_ s: String, _ style: GridTextStyle) -> Double {

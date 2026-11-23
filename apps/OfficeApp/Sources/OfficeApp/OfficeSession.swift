@@ -124,8 +124,20 @@ final class OfficeSession {
     var checkSpelling = true
     /// AutoSave: on, a titled document writes itself after every pause in
     /// editing. Off by default — a file opened to read must not change on
-    /// disk — while every document keeps a recovery copy beside it.
-    var autoSave = false
+    /// disk — while every document keeps a recovery copy beside it. On by
+    /// default on iPad, where documents save themselves (Pages, Keynote) and
+    /// there is no Cmd+S habit to lean on; the toggle stays. It writes only
+    /// after an edit, so a document opened to read is still left alone.
+    /// OFFICE_AUTOSAVE=1 / 0 forces it either way, so a test can watch a file
+    /// change without finding the toggle.
+    var autoSave: Bool = {
+        if let forced = ProcessInfo.processInfo.environment["OFFICE_AUTOSAVE"], !forced.isEmpty { return forced == "1" }
+        #if os(iOS)
+        return true
+        #else
+        return false
+        #endif
+    }()
     /// Format Painter: the character style picked up, applied to the next
     /// selection and then dropped.
     var paintedStyle: FormatSample? = nil

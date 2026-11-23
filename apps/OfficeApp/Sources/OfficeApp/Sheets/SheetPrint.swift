@@ -126,6 +126,15 @@ enum SheetPrintLayout {
         }
         // (A cell in a hidden row or column is not there to print, and does
         // not stretch the sheet to where it is.)
+        // (A far corner that lands on the edge of hidden columns walks on
+        // through all of them to the sheet's last: the drawing ends at the
+        // last visible column before them, as Excel's pages do. pt-734a1b506b's
+        // Índice, hidden J to XFD, made 200 blank pages.)
+        func hiddenBack(_ c: Int) -> Int {
+            var c = c
+            while c > 0, ws.isColHidden(c) { c -= 1 }
+            return c
+        }
         for (a, c) in ws.cells where !ws.isRowHidden(a.row) && !ws.isColHidden(a.col) {
             if !c.value.isEmpty { take(a.row, a.col); continue }
             let st = book.style(c.style)
@@ -136,7 +145,14 @@ enum SheetPrintLayout {
         for (a, v) in ws.spilled where !v.isEmpty { take(a.row, a.col) }
         // A merged area is something to print though its cells are empty:
         // Excel gives a sheet of nothing but merges its page.
-        for m in ws.merges where m.rows * m.cols <= 100_000 {
+        for m in ws.merges {
+            // (One that runs to the sheet's last row is a whole-column merge, the counterpart: it prints down the rows in use, over the
+            // columns it spans: ar-9da079ade9's H1:AW1048576 is four blank pages across in Excel's print.)
+            if m.bottom == CellAddress.maxRows - 1, m.right != CellAddress.maxCols - 1, m.cols <= 1000,
+               (m.left ... m.right).contains(where: { !ws.isColHidden($0) }) {
+                take(m.top, m.left); take(m.top, m.right); continue
+            }
+            guard m.rows * m.cols <= 100_000 else { continue }
             // (Not one that is wholly in hidden rows or columns.)
             guard (m.top ... m.bottom).contains(where: { !ws.isRowHidden($0) }),
                   (m.left ... m.right).contains(where: { !ws.isColHidden($0) }) else { continue }
@@ -162,7 +178,7 @@ enum SheetPrintLayout {
                 f = (max(0, r.center.dx - w / 2), max(0, r.center.dy - h / 2), w, h)
             }
             let a = ws.marker(x: f.x, y: f.y), b = ws.marker(x: f.x + f.width, y: f.y + f.height)
-            take(a.row, a.col); take(b.row, b.col)
+            take(a.row, a.col); take(b.row, hiddenBack(b.col))
         }
         for o in ws.objects where !o.screenOnly {
             let f = ws.frame(o.anchor)
@@ -247,13 +263,18 @@ enum SheetPrintLayout {
             s = max(0.1, (s * 100).rounded(.down) / 100)
         }
         func bands(_ items: [Int], _ size: (Int) -> Double, _ avail: Double, _ breaks: Set<Int>,
-                   own: (end: Int?, room: Double)) -> [[Int]] {
+                   own: (end: Int?, room: Double), wholeDots: Bool = false) -> [[Int]] {
             var out: [[Int]] = [[]]
             var used = 0.0
             // (The room of a band that starts on or before the last title.)
             func room(_ first: Int) -> Double { own.end.map { first <= $0 } ?? false ? own.room : avail }
             for i in items {
-                let w = size(i) * s
+                // (A fitted sheet's rows are whole dots at the scale, as they are
+                // drawn: en-667ad9b0a5's 15 pt rows at 34% are 42 dots, 5.04 pt,
+                // 100 to a page in Excel where unrounded 5.1 held 98. Not yet with
+                // repeated title rows: other-041c26c70a's, 114 pt of mixed heights,
+                // fit its pages' rows exactly unrounded and one over rounded.)
+                let w = wholeDots ? (size(i) * s * 600 / 72).rounded() * 72 / 600 : size(i) * s
                 if let first = out[out.count - 1].first, used + w > room(first) + 0.01 || breaks.contains(i) { out.append([]); used = 0 }
                 out[out.count - 1].append(i)
                 used += w
@@ -277,7 +298,7 @@ enum SheetPrintLayout {
             // a row fewer than ours did.)
             let foot = 8.0 * 72 / 600
             rowBands = bands(rows, height, availH - foot, fitting ? [] : setup.rowBreaks,
-                             own: (titleRowsEnd, max(18, availH0 - headHeight * s) - foot))
+                             own: (titleRowsEnd, max(18, availH0 - headHeight * s) - foot), wholeDots: fitting)
             // Rows and columns do not split, so the arithmetic's scale can
             // still be a page over: a percent less until it is not.
             let over = (setup.fitWidth.map { $0 > 0 && colBands.count > $0 } ?? false)
@@ -352,11 +373,15 @@ extension SheetGridState {
             // K and L, at Excel's 65% where ours left them out and made 75%.
             // (Fitted to a number of pages tall, the area is the whole height
             // that is fitted, empty rows too: lo-tdf148820's A1:I35 is
-            // Excel's 74%, where the used rows alone gave 91%.)
+            // Excel's 74%, where the used rows alone gave 91%. A print area
+            // runs to its own last row, empty rows too, unless it is whole
+            // columns: fr-6f58bbeee7's A1:M152 over a sheet used to 144 is a
+            // fifth row band in Excel's print; blank pages at the end are
+            // dropped below as before.)
             let setup = SheetPrintSetup.read(ws)
             let fitsTall = (setup.fitHeight ?? 0) > 0
             let areas = names.areas.isEmpty ? [used] : names.areas.map { a in
-                CellRange(top: a.top, left: a.left, bottom: fitsTall ? a.bottom : min(a.bottom, max(a.top, used.bottom)),
+                CellRange(top: a.top, left: a.left, bottom: fitsTall || a.bottom < CellAddress.maxRows - 1 ? a.bottom : min(a.bottom, max(a.top, used.bottom)),
                           right: a.right == CellAddress.maxCols - 1 ? max(a.left, used.right) : a.right)
             }
             await _preloadPictures(ws)
@@ -431,7 +456,11 @@ extension SheetGridState {
             let st = book.style(style)
             if st.fill != nil || st.borders != CellStyle.Borders() { for c in colBands.indices { filled.insert([r, c]) } }
         }
-        for m in ws.merges where m.rows * m.cols <= 100_000 { fill(m) }
+        for m in ws.merges {
+            if m.rows * m.cols <= 100_000 { fill(m); continue }
+            // (A whole-column merge is on the pages of the rows in use, over its columns.)
+            if m.bottom == CellAddress.maxRows - 1, m.cols <= 1000, let lastRow = rowBand.keys.max() { fill(CellRange(top: m.top, left: m.left, bottom: max(m.top, lastRow), right: m.right)) }
+        }
         func cover(_ anchor: SheetAnchor) {
             let f = ws.frame(anchor)
             guard f.width > 0, f.height > 0 else { return }
@@ -652,7 +681,12 @@ extension SheetGridState {
         let size = setup.pageSize
         var inset = 0.0
         if case .absolute(let x, _, _, _) = d.anchor { inset = min(18, max(0, x)) }
-        let r = Rect.fromLTRB(setup.left + inset, setup.top + inset, size.width - setup.right - inset, size.height - setup.bottom - inset)
+        var r = Rect.fromLTRB(setup.left + inset, setup.top + inset, size.width - setup.right - inset, size.height - setup.bottom - inset)
+        // (Excel prints a chart sheet's chart at the size its drawing states, from the margins plus its position: 47813, 56557,
+        // 60255, lo-tdf107586, WithChartSheet's frames are the extents to 0.1 pt, even past the right margin.)
+        if case .absolute(let x, let y, let w, let h) = d.anchor, w > 0, h > 0 {
+            r = Rect.fromLTWH(setup.left + x, setup.top + y, w, h)
+        }
         let recorder = NativePictureRecorder()
         let canvas = NativeCanvas(recorder: recorder, cullRect: Rect.fromLTWH(0, 0, size.width, size.height))
         _paintDrawing(canvas, d, chart: controller.liveChart(sc), in: r, theme: book.chartTheme)

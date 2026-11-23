@@ -308,7 +308,7 @@ enum SlideFonts {
             face.boldOtherAdvances = OfficeFonts.verdanaBoldOtherAdvances
             return face
         case "segoe ui", "segoe ui light", "segoe ui semilight", "tahoma", "trebuchet ms", "franklin gothic book",
-             "franklin gothic medium", "century gothic", "gill sans mt", "candara", "palatino linotype":
+             "franklin gothic medium", "century gothic", "gill sans mt", "candara", "palatino linotype", "corbel":
             // (Windows' own widths, `SlideFontWidths`: the bold where the
             // face has one, else the stand-in's bold.)
             let n = family.trimmingWhitespace().lowercased()
@@ -323,6 +323,7 @@ enum SlideFonts {
                 "century gothic": (SlideFontWidths.centuryGothic, SlideFontWidths.centuryGothicBold),
                 "gill sans mt": (SlideFontWidths.gillSans, SlideFontWidths.gillSansBold),
                 "candara": (SlideFontWidths.candara, SlideFontWidths.candaraBold),
+                "corbel": (OfficeFonts.corbelAdvances, OfficeFonts.corbelBoldAdvances),
                 "palatino linotype": (SlideFontWidths.palatino, SlideFontWidths.palatinoBold),
             ]
             guard let t = tables[n] else { return nil }
@@ -334,6 +335,14 @@ enum SlideFonts {
             face.hintedAdvances = ["arial", "rockwell", "tw cen mt", "trebuchet ms"].contains(n)
             if let k = SlideLatinKerns.lookup(n) { face.kerns = k.regular; face.boldKerns = k.bold ?? k.regular; face.kernsOutsideWord = true }
             if let k = SlideLatinItalicKerns.lookup(n) { face.italicKerns = k.italic; face.boldItalicKerns = k.boldItalic ?? k.italic }
+            if n == "corbel" {
+                // (Corbel's own widths, measured on Windows, as the Word path sets it: a ja deck's title in it fits "FEATURES OF ESCAPE PANIC"
+                // on one line at 40.5 pt bold caps in PowerPoint's print, the stand-in's wider letters did not.)
+                face.otherAdvances = OfficeFonts.corbelOtherAdvances
+                face.boldOtherAdvances = OfficeFonts.corbelBoldOtherAdvances
+                face.italicAdvances = OfficeFonts.corbelItalicAdvances
+                face.boldItalicAdvances = OfficeFonts.corbelBoldItalicAdvances
+            }
             if n == "tahoma" {
                 // (Tahoma's own Arabic, as the Word path sets it.)
                 face.joinedAdvances = WindowsArabicAdvances.tahoma
@@ -486,6 +495,9 @@ enum SlideFonts {
         case "meiryo ui", "meiryo ui bold": return (2171.0 / 2048, 430.0 / 2048)
         case "yu gothic": return (2017.0 / 2048, 619.0 / 2048)
         case "ms gothic", "ms pgothic": return (220.0 / 256, 36.0 / 256)
+        // (Lab mixrun, 35 pt lines of fontAlgn t, ctr and b: Book Antiqua 0.96 and 0.277, PMingLiU and DFKai-SB 0.803 and 0.231.)
+        case "book antiqua": return (0.96, 0.277)
+        case "pmingliu", "新細明體", "dfkai-sb", "標楷體": return (0.803, 0.231)
         default: return nil
         }
     }
@@ -520,6 +532,15 @@ enum SlideFonts {
         }
     }
 
+    /// Faces whose single line is exactly 1.0 em (hhea = typo = win 1760 + 288 of 2048, no gap: every HG face; measured in
+    /// /data/corpus-cache/metrics/cjk-line-20261122), where the flat 1.2 em would overstate it. ja f3a3058d2e's 18 pt lines on
+    /// 11 pt in HGPGothicE: rows 2.6 pt under n x 18 + margins.
+    static func exactSingleLineEm(_ family: String) -> Double? {
+        let n = windowsName(family)
+        let ms = ["ms gothic", "ｍｓ ゴシック", "ms pgothic", "ｍｓ ｐゴシック", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝"].contains(n)
+        return ms || n.hasPrefix("hgp") || n.hasPrefix("hgs") || n.hasPrefix("hgm") ? 1.0 : nil
+    }
+
     /// The same by the face that draws it (what the layout knows a run
     /// by): a stand-in answers for the face it stands for.
     static func drawnNaturalHeight(_ drawn: String) -> Double? {
@@ -549,7 +570,7 @@ enum SlideFonts {
         case "ms gothic", "ｍｓ ゴシック", "ms pgothic", "ｍｓ ｐゴシック", "ms ui gothic", "ｍｓ ｕｉ ゴシック", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝":
             (units, upem, descent) = (256, 256, n.contains("pgothic") || n.contains("ｐゴシック") ? 52 : 36)
         default:
-            guard n.contains("dfkai") || n.contains("標楷") else { return nil }
+            guard n.contains("dfkai") || n.contains("標楷") || n.contains("mingliu") || n.contains("細明體") else { return nil }   // (PMingLiU / MingLiU: 7c3069f9808a slide 8, 12 pt at 90% stands 14.1 apart = 0.9 x 1.306 em)
             (units, upem, descent) = (1024, 1024, 204)
         }
         return (1.3 * units / upem, (descent / units + 0.15) / 1.3)

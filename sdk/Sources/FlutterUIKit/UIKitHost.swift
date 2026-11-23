@@ -54,6 +54,12 @@ public final class UIKitHost {
         let box = Unmanaged.passRetained(Box(builder)).toOpaque()
         _ = fluikit_host_run(title, UnsafeRawPointer(callbacks), { userData in
             guard let userData else { return }
+            // The bridge dylib has its own ICU, and it starts empty: until it is
+            // given the data Flutter.framework carries, no paragraph has a line
+            // break inside a run — text breaks only where the style changes and
+            // otherwise runs on past the margin. (sdk/CLAUDE.md; CocoaHost does
+            // the same.) Before the tree, so no paragraph is built without it.
+            UIKitHost.initializeBridgeICU()
             // Before the tree is mounted: a widget's initState may already want
             // to know whether this host has a keyboard to offer.
             UIKitSoftKeyboard.install()
@@ -63,6 +69,24 @@ public final class UIKitHost {
         // UIApplicationMain only returns on a failure to launch at all, and the
         // glue has already said why on stderr.
         exit(1)
+    }
+
+    /// Where the engine's ICU data is: inside the app's Flutter.framework.
+    public static var icuDataPath: String? {
+        Bundle.main.privateFrameworksPath.map { $0 + "/Flutter.framework/icudtl.dat" }
+            .flatMap { FileManager.default.fileExists(atPath: $0) ? $0 : nil }
+    }
+
+    /// Gives the Swift bridge's own ICU the data. Safe to call more than once.
+    public static func initializeBridgeICU() {
+        guard let path = icuDataPath else {
+            FileHandle.standardError.write(
+                "[UIKitHost] no icudtl.dat in Flutter.framework; paragraphs will not wrap at word boundaries\n".data(using: .utf8)!)
+            return
+        }
+        if !flutter.swift_bridge.InitializeICU(path) {
+            FileHandle.standardError.write("[UIKitHost] could not load ICU data for the Swift bridge: \(path)\n".data(using: .utf8)!)
+        }
     }
 
     /// The window iOS gave the app, in logical pixels. Valid once the tree has

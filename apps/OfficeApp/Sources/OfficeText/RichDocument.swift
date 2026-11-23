@@ -139,6 +139,9 @@ public struct CharStyle: Hashable, Codable, Sendable {
     public var highlight: Color? = nil
     public var link: String? = nil
     public var script: ScriptPosition = .normal
+    /// Slides fontAlgn t, ctr or b on a line that mixes faces or sizes: where this run's baseline stands below the line's top, and where the engine's own line puts it, in ems of the run's size (nil: the paragraph is moved as a whole).
+    public var alignTop: Double? = nil
+    public var alignNatural: Double? = nil
     /// Set on the run that is a footnote/endnote reference mark.
     public var note: NoteReference? = nil
     /// Set on a one-character run (U+FFFC) that is a picture inline with
@@ -649,6 +652,8 @@ public struct RichParagraphStyle: Hashable, Codable, Sendable {
     public var cellFullFirstLine = false
     /// Slides table cells: how far, in ems of the font size, fontAlgn t, ctr or b moves the first baseline from where the default puts it (lab tbl-rows7).
     public var cellFontAlignDrop: Double? = nil
+    /// Slides fontAlgn t, ctr or b on a paragraph whose runs differ in face or size: each run is set on its own baseline (`CharStyle.alignTop`).
+    public var alignPerRun = false
     /// Exact line height in points ("exactly 20 pt"), which then wins over
     /// `lineSpacing`; nil for a multiple.
     public var lineHeightPoints: Double? = nil
