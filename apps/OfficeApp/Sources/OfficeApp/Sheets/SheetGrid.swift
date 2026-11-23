@@ -511,7 +511,33 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     // full-width bracket stands taller in a fallback face, and
                     // 3.69 lines' height is three lines, not four.)
                     // (Excel's rows stop at 409.5 pt: CVLKRA-KYC's 38-line Remark cell is a row of 409.5 on its page, its text cut there.)
-                    let tall = min(409.5, Double(wrapped.computeLineMetrics().count + Int(trailing)) * Self._fittedLine(st, m, book))
+                    var tall = min(409.5, Double(wrapped.computeLineMetrics().count + Int(trailing)) * Self._fittedLine(st, m, book))
+                    // (A rich string's lines are each as tall as the tallest run on them: Excel's Tablero row of "% Avance" in
+                    // Candara 36 and "(Respecto a meta…)" in 24 is two lines of their own sizes, not three of the cell's.)
+                    if let runs = ws.richText[a], case .text(let raw) = cell.value, raw == text,
+                       runs.map(\.text).joined() == text, runs.contains(where: { $0.size != nil || $0.fontName != nil }) {
+                        var segs: [(String, CellStyle, Double)] = [("", st, Self._fittedLine(st, m, book))]
+                        for run in runs {
+                            var rs = st
+                            if run.bold != nil { rs.bold = run.bold ?? false }
+                            if let f = run.fontName { rs.fontName = f }
+                            if let z = run.size { rs.fontSize = z }
+                            let line = Self._fittedLine(rs, m, book)
+                            for (i, part) in run.text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+                                if i > 0 { segs.append(("", st, Self._fittedLine(st, m, book))) }
+                                segs[segs.count - 1].0 += part
+                                if line > segs[segs.count - 1].2 || segs[segs.count - 1].0.count == part.count { segs[segs.count - 1].1 = rs; segs[segs.count - 1].2 = max(line, segs[segs.count - 1].0.count == part.count ? line : segs[segs.count - 1].2) }
+                            }
+                        }
+                        var total = 0.0
+                        for (i, seg) in segs.enumerated() {
+                            if seg.0.isEmpty { if i < segs.count - 1 || segs.count == 1 { total += seg.2 }; continue }
+                            var ss = _textStyle(seg.1, color: nil, ink: Color(0xFF00_0000))
+                            ss.screen = style.screen; ss.screenEm = (book.fontSize(seg.1) * 192 / 72).rounded()
+                            total += Double(texts.painter(seg.0, ss, maxWidth: width).computeLineMetrics().count) * seg.2
+                        }
+                        tall = min(409.5, total)
+                    }
                     if tall > heights[a.row] ?? m.defaultRow { heights[a.row] = tall }
                 }
                 // A wrapped, bottom-aligned text of a font smaller than the default's in a
