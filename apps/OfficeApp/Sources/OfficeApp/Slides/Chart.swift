@@ -3631,8 +3631,8 @@ enum ChartPainter {
                 }
                 // (A slide's chart left to PowerPoint's layout, its legend below in a box of its own: the plot and its labels end where
                 // the no-box legend's row would start, above the box: zh 18335072f11e p10's box starts 282.5 pt, PowerPoint's category
-                // labels end 276, ours ran down to 294 over the legend.)
-                if !pie, c.onSlide, !c.onSheet, c.plotLayout == nil, c.legendPosition == "b", !c.legendOverlay, let box = c.legendBox {
+                // labels end 276, ours ran down to 294 over the legend.; a pie too: zh aeba94bd0446 p4's pies, box from 399.5, ran to 4 pt under it at 270 pt across where PowerPoint's print has 211.)
+                if c.onSlide, !c.onSheet, c.plotLayout == nil, c.legendPosition == "b", !c.legendOverlay, let box = c.legendBox {
                     RuleTrace.hit("slide-placed-bottom-legend-keeps-its-row-below-the-plot")
                     area = Rect.fromLTRB(area.left, area.top, area.right, min(area.bottom, r.top + box.top * r.height - 8.4 * k - 2.23))
                 }
