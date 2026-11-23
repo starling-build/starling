@@ -3650,7 +3650,11 @@ enum ChartPainter {
             let malgun = c.onSlide && !["l", "tr"].contains(c.legendPosition) && c.legendBox == nil
                 && ["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased())
             let latinH = entries.isEmpty ? size * k : latin.height
-            let textH = max(latinH, malgun ? 1.3301 * size * k : 0)
+            // (A slide legend in an MS Gothic / Mincho face stands on the face's own 1 em line (win ascent + descent), not the
+            // Latin 1.15: pie-lab14's MS PGothic column 14.93 pt apart at 9 pt and 17.88 at 12 (1.0 em + 6), ours 16.33 and 19.8.)
+            let fullEmFace = c.onSlide && c.legendBox == nil && ["ms pgothic", "ｍｓ ｐゴシック", "ms gothic", "ｍｓ ゴシック", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝", "ms ui gothic"]
+                .contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased())
+            let textH = fullEmFace ? size * k : max(latinH, malgun ? 1.3301 * size * k : 0)
             latin.dispose()
             // (On a sheet a legend beside the plot sets its entries 1.2213 x the size + 5.88 pt apart: Excel's
             // COM readback of the lab legend, 8, 10 and 14 pt at 15.67, 18.08, 22.92 — ours 14.5, 16.5, 21.5.)
