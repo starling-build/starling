@@ -2663,7 +2663,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 while col >= max(0, first - (printing ? 255 : 8)) {
                     let a = CellAddress(row: row, col: col)
                     if let cell = ws.cells[a], !cell.value.isEmpty {
-                        if cell.value.isText && !covered.contains(a) {
+                        // (A merged area's text is its own, drawn above clipped to the area: it never runs on.)
+                        if cell.value.isText && !covered.contains(a) && !merges.contains(where: { $0.topLeft == a }) {
                             _paintCell(canvas, a, cell, in: rect(a), spill: true, ws: ws, book: book, ink: colors.ink)
                         }
                         break
