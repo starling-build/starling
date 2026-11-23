@@ -11,6 +11,8 @@ SELF=$(readlink -f "$0")
 export RENDER_GATE=1   # a gate (and a prebuild) runs at normal priority; hand-run builds and A/B runs are niced (build-office-fast.sh, docx-pair.sh)
 S0=$(date +%s)   # gate start, to report the setup time before the build
 BASE_SHA=${1:?usage: render-gate.sh BASE_SHA}
+# merge-queue group run: the group's PR bodies (written by the workflow) stand in for PR_BODY, so ACCEPT lines in a PR body still waive (amd-8, 2026-11-23)
+if [ "${GITHUB_EVENT_NAME:-}" = merge_group ] && ls "$HOME/scratch/group"/*.body >/dev/null 2>&1; then export GATE_GROUP_DIR=$HOME/scratch/group; export PR_BODY=$(cat "$GATE_GROUP_DIR"/*.body); fi
 # On a pull_request run HEAD is GitHub's test merge (main tip + the PR). The event's base.sha is main as it was when the PR was
 # opened, so BASE_SHA..HEAD also holds everything that landed on main since (a board-only PR then looked like code, and drops
 # from other PRs were blamed on it). The PR's own change is HEAD^1..HEAD: use the merge's first parent as the base.
@@ -155,7 +157,7 @@ build_base() {   # builds BSHA into the shared cache once: the sha lock makes a 
   mkdir -p "$BC/$BSHA"; rm -rf "$BC/$BSHA/release"; mv "$BC/$BSHA.tmp/release" "$BC/$BSHA/release"; rmdir "$BC/$BSHA.tmp"
   chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; flock -u 8
 }
-if [ ! -x "$BC/$BSHA/release/OfficeApp" ] && [ "${GATE_WARM:-0}" != 1 ]; then   # GATE_WARM=1 (gate-warm.sh): warm the PR scratch only, no base
+if [ ! -x "$BC/$BSHA/release/OfficeApp" ] && [ "${GATE_WARM:-0}" != 1 ] && [ "${GATE_LIGHT:-0}" != 1 ]; then   # GATE_WARM=1 (gate-warm.sh): warm the PR scratch only, no base
   # normally the prebuild (GATE_PREBUILD=1 render-gate.sh <sha>, after each main push) has filled the cache and this is skipped
   # (amd-8, 2026-11-23, design D of amd-opus) base FIRST, then the PR: two wide builds at once on a loaded box (-j 30 each) made the 1302 s and 1689 s gate builds
   build_base & BPID=$!; wait $BPID; BRC=$?
@@ -163,10 +165,12 @@ fi
 # base cached: render+score the uncached base documents WHILE the PR builds (the base pass needs only the base binary; the
 # build is mostly one thread, so the two overlap). Measured 2026-11-20: the base pass ran after the build and took ~3-4 min.
 FPID=
-if [ -z "${BPID:-}" ]; then BASEBIN=$BC/$BSHA/release/OfficeApp; ( fill_rows ) > "$W/fillrows.out" 2>&1 & FPID=$!; fi
+if [ -z "${BPID:-}" ] && [ "${GATE_LIGHT:-0}" != 1 ]; then BASEBIN=$BC/$BSHA/release/OfficeApp; ( fill_rows ) > "$W/fillrows.out" 2>&1 & FPID=$!; fi
 PREV=$(cat "$W/build.rev" 2>/dev/null); TB=$(date +%s)
 test/tools/build-office-fast.sh "$W/build" > "$W/build.log" 2>&1 || { echo "render-gate: BUILD FAILED"; tail -15 "$W/build.log" | cut -c1-200; exit 1; }
 echo "render-gate: PR build $(( $(date +%s)-TB )) s, load $(cut -d" " -f1-3 /proc/loadavg), -j ${BUILD_JOBS:-default}; compiled: $(grep -aoE "[A-Za-z0-9+_]+\.swift" "$W/build.log" | sort -u | head -12 | tr "\n" " ")"   # the build alone; "build step" below also waits for the base rows/base build
+# LIGHT (the pull_request run under a merge queue, amd-8, 2026-11-23): the PR builds, nothing renders; the full render runs once per merge_group
+if [ "${GATE_LIGHT:-0}" = 1 ]; then echo "render-gate: light run: the PR builds; the full render runs in the merge queue's group run"; exit 0; fi
 # Slides step (full gate), started the moment the PR binary links (2026-11-22, amd-perf): it needs only that binary, so it no longer waits for the base build/base rows; it runs alongside them and the Word pair. every deck drawn by the PR binary, deck means vs baseline-win.tsv (test/tools/slides-gate.sh, ~80 s), run
 # alongside the Word pair (different documents). Skipped when the change is Word-reader-only (Docx.swift, WordWindowsFaces.swift):
 # shared text/layout code (OfficeText, Slides, sdk, build files) still runs it.
@@ -241,6 +245,10 @@ if [ -n "$DROPS" ]; then
   # (amd-8, 2026-11-23, #2426: a block that printed no numbers could not be checked) every blocking doc with its v2 before/after and line counts, and the base it was compared with
   echo "render-gate: v2 drops (base ${BSHA:0:9}$([ -n "$EXACTB" ] && echo ", the cached ancestor of ${EXACTB:0:9}" || echo ", exact") binary $BC/$BSHA/release/OfficeApp; each line is the pair's own: v2 base -> PR, lines matched/total):"
   for d in $DROPS; do grep -hE "(^| |/)${d}([ .]|$)" "$W/down.txt" | head -2 | cut -c1-220 | sed 's/^/render-gate:   /'; grep -hE "(^| |/)${d}([ .]|$)" "$W"/pair.log 2>/dev/null | grep -vE '^ *DOWN' | head -2 | cut -c1-220 | sed 's/^/render-gate:   pair: /'; done
+  if [ -n "${GATE_GROUP_DIR:-}" ] && ls "$GATE_GROUP_DIR"/*.body >/dev/null 2>&1; then
+    echo "render-gate: this is a merge-queue group of PRs: $(ls "$GATE_GROUP_DIR" | sed -n 's/\.body$//p' | tr '\n' ' ')"
+    for d in $DROPS; do echo "render-gate:   $d: PR(s) whose commit or body names it: $(for f in "$GATE_GROUP_DIR"/*.body; do grep -qF "$d" "$f" && basename "$f" .body; done | tr '\n' ' ')(none named: any PR of the group; the queue removes the failing one and retries the rest)"; done
+  fi
   echo "render-gate: BLOCKED, v2 drops not approved:$DROPS"; exit 1; fi
 [ "$DN" = 0 ] || [ -s "$W/down.txt" ] || { echo "render-gate: drops reported but not parsed"; exit 1; }
 # Slides step result (started before the Word pair, see SLPID): block on decks worse than the BASE render (same runner and engine; the fixed baselines are the drift report only)
