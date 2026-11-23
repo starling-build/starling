@@ -68,12 +68,7 @@ public final class UIKitHost {
             // STARLING_SPIKE_SECOND_VIEW set, the host adds a second view in a corner of
             // the window (fluikit_host.m) and this is the tree it shows.
             if ProcessInfo.processInfo.environment["STARLING_SPIKE_SECOND_VIEW"] != nil {
-                multiViewContentBuilder = { view in
-                    Directionality(textDirection: .ltr, child:
-                        ColoredBox(color: Color(0xFF2E7D32), child:
-                            Center(child: Text("view \(view.viewId)",
-                                               style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 28)))))
-                }
+                multiViewContentBuilder = { view in SpikeTapTile(viewId: view.viewId) }
             }
             runApp(box.builder())
         }, box)
@@ -116,3 +111,30 @@ public final class UIKitHost {
     }
 }
 #endif
+
+// The second-surface spike's tree: a tile that counts the taps it gets and changes colour on each,
+// so a touch routed to the second view shows on screen and in the log.
+private final class SpikeTapTile: StatefulWidget {
+    let viewId: Int
+    init(viewId: Int) {
+        self.viewId = viewId
+        super.init(key: nil)
+    }
+    override func createState() -> State<StatefulWidget> { SpikeTapTileState() }
+}
+
+private final class SpikeTapTileState: State<StatefulWidget> {
+    private var taps = 0
+    override func build(_ context: any BuildContext) -> Widget {
+        let id = (widget as! SpikeTapTile).viewId
+        return Directionality(textDirection: .ltr, child:
+            GestureDetector(onTap: { [weak self] in
+                guard let self else { return }
+                self.setState { self.taps += 1 }
+                fputs("[spike] view \(id) tap \(self.taps)\n", stderr)
+            }, child:
+                ColoredBox(color: taps % 2 == 0 ? Color(0xFF2E7D32) : Color(0xFFEF6C00), child:
+                    Center(child: Text("view \(id): \(taps) taps",
+                                       style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 28))))))
+    }
+}

@@ -6,6 +6,7 @@
 #import <Metal/Metal.h>
 #import <QuartzCore/QuartzCore.h>
 #import <UIKit/UIKit.h>
+#include <mach/mach.h>
 
 // The process's real argc/argv. UIApplicationMain declares both _Nonnull and
 // forwards them to the app; Swift's `main` has already consumed them by the
@@ -104,6 +105,30 @@ static void* g_open_url_user = NULL;
                          size:(CGSize)size
                    pixelRatio:(double)pixelRatio
                          done:(void (^)(BOOL added))done;
+- (void)starlingResizeViewWithId:(int64_t)viewId size:(CGSize)size pixelRatio:(double)pixelRatio;
+- (void)starlingRemoveViewWithId:(int64_t)viewId done:(void (^)(BOOL removed))done;
+- (void)starlingDispatchTouches:(NSSet<UITouch*>*)touches inView:(UIView*)view viewId:(int64_t)viewId;
+@end
+
+// The UIView of an extra view: UIKit touches on it go to the engine as that view's pointer events.
+@interface FlUIKitExtraView : UIView
+@property(nonatomic, weak) FlutterEngine* engine;
+@property(nonatomic, assign) int64_t viewId;
+@end
+
+@implementation FlUIKitExtraView
+- (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
+  [self.engine starlingDispatchTouches:touches inView:self viewId:self.viewId];
+}
+- (void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
+  [self.engine starlingDispatchTouches:touches inView:self viewId:self.viewId];
+}
+- (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
+  [self.engine starlingDispatchTouches:touches inView:self viewId:self.viewId];
+}
+- (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
+  [self.engine starlingDispatchTouches:touches inView:self viewId:self.viewId];
+}
 @end
 
 @interface FlUIKitAppDelegate : UIResponder <UIApplicationDelegate>
@@ -184,23 +209,72 @@ static void* g_open_url_user = NULL;
 // shows view 1 of the same engine. Off unless asked; nothing here is product code.
 - (void)spikeSecondViewIfAsked:(UIWindow*)window {
   if (getenv("STARLING_SPIKE_SECOND_VIEW") == NULL) return;
+  // STARLING_SPIKE_CYCLES=N: add, resize and remove N views one after another (fresh ids), logging the
+  // process's memory footprint every 10; without it, one view stays.
+  int cycles = getenv("STARLING_SPIKE_CYCLES") ? atoi(getenv("STARLING_SPIKE_CYCLES")) : 0;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-    CGFloat scale = UIScreen.mainScreen.scale;
-    CGSize size = CGSizeMake(260, 180);
-    UIView* host = [[UIView alloc] initWithFrame:CGRectMake(window.bounds.size.width - size.width - 20, 80, size.width, size.height)];
-    host.userInteractionEnabled = NO;
-    CAMetalLayer* layer = [CAMetalLayer layer];
-    layer.device = MTLCreateSystemDefaultDevice();
-    layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-    layer.opaque = YES;
-    layer.contentsScale = scale;
+    if (cycles <= 0) { [self spikeOneViewIn:window id:1 cyclesLeft:0 total:0]; return; }
+    fprintf(stderr, "[spike] footprint at start: %.1f MB\n", [self spikeFootprintMB]);
+    [self spikeOneViewIn:window id:1 cyclesLeft:cycles total:cycles];
+  });
+}
+
+- (double)spikeFootprintMB {
+  task_vm_info_data_t info;
+  mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+  if (task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&info, &count) != KERN_SUCCESS) return -1;
+  return info.phys_footprint / 1048576.0;
+}
+
+- (void)spikeOneViewIn:(UIWindow*)window id:(int64_t)viewId cyclesLeft:(int)left total:(int)total {
+  CGFloat scale = UIScreen.mainScreen.scale;
+  CGSize size = CGSizeMake(260, 180);
+  FlUIKitExtraView* host = [[FlUIKitExtraView alloc] initWithFrame:CGRectMake(window.bounds.size.width - size.width - 20, 80, size.width, size.height)];
+  host.engine = self.engine;
+  host.viewId = viewId;
+  CAMetalLayer* layer = [CAMetalLayer layer];
+  layer.device = MTLCreateSystemDefaultDevice();
+  layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+  layer.opaque = YES;
+  layer.contentsScale = scale;
+  layer.frame = host.bounds;
+  layer.drawableSize = CGSizeMake(size.width * scale, size.height * scale);
+  [host.layer addSublayer:layer];
+  [window addSubview:host];
+  FlutterEngine* engine = self.engine;
+  [engine starlingAddViewWithId:viewId layer:layer size:size pixelRatio:scale done:^(BOOL added) {
+    fprintf(stderr, "[spike] AddView(%lld) -> %s\n", viewId, added ? "added" : "REFUSED");
+  }];
+  if (left == 0) {
+    // The single-view run: it stays, grown to 340 x 260 after 2 s (it must draw whole at the new size).
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+      CGSize bigger = CGSizeMake(340, 260);
+      host.frame = CGRectMake(window.bounds.size.width - bigger.width - 20, 80, bigger.width, bigger.height);
+      layer.frame = host.bounds;
+      layer.drawableSize = CGSizeMake(bigger.width * scale, bigger.height * scale);
+      [engine starlingResizeViewWithId:viewId size:bigger pixelRatio:scale];
+    });
+    return;
+  }
+  // Resize after 300 ms, remove after 600 ms, the next view after 700 ms.
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+    CGSize bigger = CGSizeMake(320, 240);
+    host.frame = CGRectMake(window.bounds.size.width - bigger.width - 20, 80, bigger.width, bigger.height);
     layer.frame = host.bounds;
-    layer.drawableSize = CGSizeMake(size.width * scale, size.height * scale);
-    [host.layer addSublayer:layer];
-    [window addSubview:host];
-    [self.engine starlingAddViewWithId:1 layer:layer size:size pixelRatio:scale done:^(BOOL added) {
-      fprintf(stderr, "[spike] AddView(1) -> %s\n", added ? "added" : "REFUSED");
+    layer.drawableSize = CGSizeMake(bigger.width * scale, bigger.height * scale);
+    [engine starlingResizeViewWithId:viewId size:bigger pixelRatio:scale];
+  });
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 600 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+    [engine starlingRemoveViewWithId:viewId done:^(BOOL removed) {
+      if (!removed) fprintf(stderr, "[spike] RemoveView(%lld) REFUSED\n", viewId);
     }];
+    [host removeFromSuperview];
+  });
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 700 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+    int done = total - left + 1;
+    if (done % 10 == 0) fprintf(stderr, "[spike] %d cycles done, footprint %.1f MB\n", done, [self spikeFootprintMB]);
+    if (left > 1) [self spikeOneViewIn:window id:viewId + 1 cyclesLeft:left - 1 total:total];
+    else fprintf(stderr, "[spike] all %d cycles done, footprint %.1f MB\n", total, [self spikeFootprintMB]);
   });
 }
 
