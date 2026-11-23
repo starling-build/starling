@@ -1595,7 +1595,10 @@ extension RichLayout {
             // print than the places it is set in, zh-74b34f3b's 16pt
             // "東引鄉活動中心2樓" 1.8pt: windows' measurement.)
             let higher = centred && abs((styles[k]?.height ?? 0) - 1.3) < 0.001 ? 0.11 * em : 0
-            let along = box.left + min(box.right - box.left, glyph.width) / 2 + lead(k) - higher
+            // (A Japanese face's proportional place, narrower than its square, takes the glyph from the place's start, not centred
+            // on it: ja-4d99f560bb p14's eaVert "報酬，状態（セン…" in MS P Gothic, where the comma and the bracket stood 3 to 4pt up
+            // over the character before them, Word's print has them at the place's start.)
+            let along = box.left + (japanese && !plain ? glyph.width : min(box.right - box.left, glyph.width)) / 2 + lead(k) - higher
             // (Slides, where the face table holds no baseline for the face: PowerPoint sets an upright ideograph half the face's hhea
             // lineGap further toward the column's left than the square centred in its box, and (win ascent - hhea ascent) further down it.
             // Yu Gothic is the face with both: hhea lineGap 1024/2048 and win ascent 2017 (Regular) / 2024 (Bold) over hhea 1802, so 0.25 em
