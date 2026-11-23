@@ -1694,6 +1694,9 @@ extension RichLayout {
                                       baseline: $0.baseline, baselineOffset: $0.baselineOffset)
             })
         }
+        // (Its lines keep the room they were held in, scaled as the text is: a centred line in a narrower column stands where
+        // Word's does, not in the whole width's middle.)
+        wide.lineIndents = painter.lineIndents.map { LineIndent(left: $0.left / k, right: $0.right / k) }
         wide.layout(minWidth: painter.width / k, maxWidth: painter.width / k)
         _widePainters[id] = (painter, wide)
         return wide
