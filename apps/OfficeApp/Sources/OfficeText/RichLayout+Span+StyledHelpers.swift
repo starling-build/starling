@@ -365,8 +365,13 @@ extension _StyledFrame {
             // (Only a face whose line Word's metrics give: a stand-in's own ascent and descent are not the face's.)
             let own: (Double, Double)? = {
                 let drawn = theme.faceAscentDescent(family: face?.family ?? latin ?? "", bold: bold, italic: italic)
-                guard let t = (bold ? face?.boldBaseline : nil) ?? face?.baseline else { return nil }
-                guard let d = ((bold ? face?.boldHeight : nil) ?? face?.naturalHeight).map({ $0 - t }) ?? drawn?.1 else { return nil }
+                guard var t = (bold ? face?.boldBaseline : nil) ?? face?.baseline else { return nil }
+                let table = (bold ? face?.boldHeight : nil) ?? face?.naturalHeight
+                // (A face with no table entry stands on its own drawn ascent and descent, as its pure line does: a default baseline
+                // (Calibri's 0.9625) over the drawn descent made a Calibri-only line of a mixed paragraph 0.11 pt too tall at 11 pt;
+                // dx2 2cddf540's Calibri lines stepped 13.54 for Word's 13.44, beside a DokChampa run.)
+                if table == nil, let a = drawn?.0 { t = a }
+                guard let d = table.map({ $0 - t }) ?? drawn?.1 else { return nil }
                 return (t, d)
             }()
             if let ad = own {
