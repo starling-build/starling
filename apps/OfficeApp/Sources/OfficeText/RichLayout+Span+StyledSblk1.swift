@@ -37,6 +37,11 @@ extension _StyledFrame {
         flush(i)
         spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
         ctx.inserts.append(offset)
+    } else if !theme.wordRules, theme.officeLatinBreaks, p.style.eastAsian["a:zhText"] == "1", ch == ":", let b = ctx.before, b.unicodeScalars.count == 1, let bv = b.unicodeScalars.first?.value, bv >= 0x4E00 && bv <= 0x9FFF {
+        // (PowerPoint lets an ASCII ":" begin a line after an ideograph in Simplified Chinese text, where the engine keeps it with the letter before: 9e09a947a0fd p109 "…，表示" | ":年、月、日…" in the print, ours "表" | "示:年…".)
+        flush(i)
+        spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
+        ctx.inserts.append(offset)
     } else if !theme.wordRules, theme.officeLatinBreaks, ctx.before == "+", let v = ch.unicodeScalars.first?.value, v >= 0xAC00, v <= 0xD7A3 {
         // (PowerPoint parts a line after a "+" before a Hangul syllable, where the engine kept the sign with what it prefixes: ko-e114b968 p20's
         // header "매우그렇다+그렇다(%)" in a narrow cell is "매우" | "그렇다+" | "그렇다(%)" in the print, ours "+그렇다" down.)
