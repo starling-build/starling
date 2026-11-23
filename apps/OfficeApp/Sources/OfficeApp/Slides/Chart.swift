@@ -147,6 +147,8 @@ struct ChartSeries: Equatable {
     /// A scatter series' error bars along x (`c:errDir x`), by point.
     var xErrBars: ChartErrBars? = nil
     var lineHidden = false
+    /// A line series' own dash (`c:ser/c:spPr/a:ln/a:prstDash`, nil solid): PowerPoint draws it dashed along the whole line (f06692fd370c p2's sysDash series).
+    var lineDash: String? = nil
     /// A line's ends drawn as dots (`a:ln/a:headEnd`, `a:tailEnd` of type oval): their diameter in line widths (sm 2, med 3,
     /// lg 5), 0 for none. Word draws them on the line's first and last points and on the legend's key.
     var lineHead = 0.0
@@ -1734,6 +1736,7 @@ enum ChartXML {
             // circles on each point.)
             if type == .line {
                 s.lineHidden = pr?.first("a:ln")?.has("a:noFill") == true
+                s.lineDash = PptxReader.dash(pr?.first("a:ln"))
                 // (2.25 pt is what is drawn where none is given, and what this app writes: read as none, so a round trip gives back what it was sent.)
                 s.lineW = pr?.first("a:ln")?["w"].flatMap(Double.init).map { $0 / 12700 }.flatMap { $0 == 2.25 ? nil : $0 }
                 // (A shown line's "none" is no marker at all, as it was
@@ -1960,6 +1963,7 @@ enum ChartXML {
                 }
             }
             s.lineHidden = ln?.has("a:noFill") ?? false
+            s.lineDash = PptxReader.dash(ln)
             if let f = ln?.first("a:solidFill") { s.color = color(f) }
             if let m = ser.first("c:marker") {
                 s.marker = m.first("c:symbol")?["val"]
@@ -7337,7 +7341,7 @@ enum ChartPainter {
                         }
                         if pen { path.lineTo(xAt(i), vpos(v)) } else { path.moveTo(xAt(i), vpos(v)); pen = true }
                     }
-                    canvas.drawPath(path, p)
+                    canvas.drawPath(c.type == .line && c.onSlide ? SlidePainter.dashed(path, c.series[j].lineDash, width: p.strokeWidth, capped: true) : path, p)
                     // Its marks over its line, where it names them
                     // (chart-add_series_secondary_axis' circles).
                     if c.type == .line {
