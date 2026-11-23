@@ -4400,7 +4400,15 @@ private struct SlideContext {
                 case "a:fld": add(child.first("a:t")?.text ?? "", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle(), child.first("a:rPr"))
                 case "a14:m":
                     // An equation, laid out and drawn by `WriterMath` as real text (PowerPoint prints Cambria Math glyphs).
-                    for piece in child.children where piece.name == "m:oMath" || piece.name == "m:oMathPara" {
+                    // (An equation alone in its paragraph is a display equation in PowerPoint's print: centred, fractions full size,
+                    // a sum's limits over and under it. A bare m:oMath is set as one, as an m:oMathPara is.)
+                    let alone = p.children.filter { $0.name != "a:pPr" && $0.name != "a:endParaRPr" && !($0.name == "a:r" && ($0.first("a:t")?.text ?? "").isEmpty) }.count == 1
+                    for var piece in child.children where piece.name == "m:oMath" || piece.name == "m:oMathPara" {
+                        if alone, piece.name == "m:oMath", child.children.count == 1 {
+                            let para = XNode(name: "m:oMathPara", attrs: [:])
+                            para.children.append(piece)
+                            piece = para
+                        }
                         let first = piece.descendants("m:r").first?.first("a:rPr")
                         let look = first.map { LevelStyle.run($0, colors) } ?? LevelStyle()
                         let size = look.filled(from: level).size ?? 18
@@ -4537,7 +4545,9 @@ private struct SlideContext {
                 if !koParens.isEmpty { made.style.eastAsian["a:hangParens"] = koParens.map(String.init).joined(separator: ",") }
                 if !plainMarks.isEmpty { made.style.eastAsian["a:noHangMarks"] = plainMarks.map(String.init).joined(separator: ",") }
                 // (A display equation sits by its own `m:jc` (centred by default), whatever the paragraph says.)
-                if !mathImages.isEmpty, let para = p.all("a14:m").first?.first("m:oMathPara"), p.all("a:r").isEmpty {
+                let bareAlone = p.children.filter { $0.name != "a:pPr" && $0.name != "a:endParaRPr" && !($0.name == "a:r" && ($0.first("a:t")?.text ?? "").isEmpty) }.count == 1
+                    && p.first("a14:m")?.children.count == 1 && p.first("a14:m")?.first("m:oMath") != nil
+                if !mathImages.isEmpty, let para = p.all("a14:m").first?.first("m:oMathPara") ?? (bareAlone ? XNode(name: "m:oMathPara", attrs: [:]) : nil), p.all("a:r").filter({ !($0.first("a:t")?.text ?? "").isEmpty }).isEmpty {
                     switch para.first("m:oMathParaPr")?.first("m:jc")?["m:val"] {
                     case "left": made.style.alignment = .left
                     case "right": made.style.alignment = .right
