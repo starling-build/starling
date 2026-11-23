@@ -21,8 +21,6 @@ jobs:
         # starling-render label: it only prebuilds now.
         include:
           - labels: '["self-hosted","linux","prebuild"]'
-          - labels: '["self-hosted","linux","starling2"]'
-            thin: 5
     # starling2's three runners carry the gate label too, and ~20 merges an hour kept them all on prebuilds (0 gates in an hour,
     # 2026-11-21): there it builds only every 5th push; a gate that finds no base for its sha uses the nearest cached ancestor.
     runs-on: ${{ fromJSON(matrix.labels) }}
