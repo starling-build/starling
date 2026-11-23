@@ -2775,32 +2775,29 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // edge, was cut at the last column its width alone needed).
         var clipLeft = left, clipRight = right
         if spill && cell.value.isText && tp.width > width - pad * 2 && !wraps {
+            // (A mirrored page has the next column on its left: the neighbour on the page's right side is the column before.)
+            let flip = printing && printMirror != nil
+            let sr = flip ? -1 : 1   // columns step to the page's right
+            func empty(_ c: Int) -> Bool { c >= 0 && c < CellAddress.maxCols && (ws.cells[CellAddress(row: a.row, col: c)]?.value.isEmpty ?? true) }
+            func toRight(_ lim: (Double) -> Bool) {
+                var col = a.col + sr
+                while empty(col), lim(clipRight), abs(col - a.col) <= (printing ? 255 : 30) { clipRight += ca.size(col); col += sr }
+            }
+            func toLeft(_ lim: (Double) -> Bool) {
+                var col = a.col - sr
+                while empty(col), lim(clipLeft) { clipLeft -= ca.size(col); col -= sr }
+            }
             if align == .left || align == .general {
-                var col = a.col + 1
-                while col < CellAddress.maxCols, ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true,
-                      clipRight - left < tp.width + pad * 2 + inset, col <= a.col + (printing ? 255 : 30) {
-                    clipRight += ca.size(col); col += 1
-                }
+                toRight { $0 - left < tp.width + pad * 2 + inset }
             } else if align == .right {
-                var col = a.col - 1
-                while col >= 0, ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true,
-                      right - clipLeft < tp.width + pad * 2 + inset {
-                    clipLeft -= ca.size(col); col -= 1
-                }
+                toLeft { right - $0 < tp.width + pad * 2 + inset }
             } else if align == .center {
                 // Centred, half of what it lacks to each side, as far as
                 // that side's neighbours are empty (lo-tdf171828's I14 runs
                 // over H and J).
                 let side = (tp.width + pad * 2 - width) / 2
-                var col = a.col - 1
-                while col >= 0, left - clipLeft < side, ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true {
-                    clipLeft -= ca.size(col); col -= 1
-                }
-                col = a.col + 1
-                while col < CellAddress.maxCols, col <= a.col + (printing ? 255 : 30), clipRight - right < side,
-                      ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true {
-                    clipRight += ca.size(col); col += 1
-                }
+                toLeft { left - $0 < side }
+                toRight { $0 - right < side }
             }
         }
         // On paper the text stands in from its side half a point and a
