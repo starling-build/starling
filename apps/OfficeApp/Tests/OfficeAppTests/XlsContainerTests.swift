@@ -186,6 +186,24 @@ final class XlsContainerTests: XCTestCase {
         XCTAssertTrue(text("xl/styles.xml").containsSubstring("<dxfs count=\"1\"><dxf><fill><patternFill><bgColor rgb=\"FFFF0000\"/>"))
     }
 
+    func testDataValidationBecomesValidationRule() throws {
+        let bof = rec(0x809, cat(u16(0x600), [UInt8](repeating: 0, count: 14)))
+        let g0 = cat(bof, rec(0x85, cat(le32(0), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        let g = cat(bof, rec(0x85, cat(le32(UInt32(g0.count)), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        func empty() -> [UInt8] { u16(0) + [0] }
+        // whole number between 1 and 9, blank allowed, error alert shown, cells B2:B4.
+        let flags: UInt32 = 1 | 0x100 | 0x80000
+        let dv = rec(0x1BE, cat(le32(flags), empty(), empty(), empty(), empty(),
+                                u16(3), u16(0), [0x1E, 1, 0], u16(3), u16(0), [0x1E, 9, 0],
+                                u16(1), u16(1), u16(3), u16(1), u16(1)))
+        let sheet = cat(bof, dv, rec(0x0A, []))
+        let parts = try XCTUnwrap(XlsBuild.parts(BiffReader.records(g + sheet)))
+        let ws = String(decoding: parts.first { $0.name == "xl/worksheets/sheet1.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(ws.containsSubstring("type=\"whole\""))
+        XCTAssertTrue(ws.containsSubstring("sqref=\"B2:B4\""))
+        XCTAssertTrue(ws.containsSubstring("<formula2>9</formula2>"))
+    }
+
     func testFormulaTokensBecomeFormulaText() {
         let ctx = XlsFormulaContext(xtis: [], internalBooks: [], sheetNames: [], names: [])
         // A1+B2*3 : ref A1, ref B2, int 3, mul, add
