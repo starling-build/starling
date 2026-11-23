@@ -142,11 +142,11 @@ struct SheetPrintMetrics {
         "malgun gothic": Face(digit: [37, 41, 46, 48, 51, 55, 64, 73, 83], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
             screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
         // Dotum, Gulim, Batang and Gungsuh are not on the print box, so Excel prints them as a stand-in,
-        // with Malgun's rows (their own line is not yet measured against Excel) and a column's unit their own digit (font file advances of 597, 588, 610 and 597 per 1024 em) in whole dots of the
+        // with Malgun's rows (Gulim's own, measured: lab cjkrows3, Excel for Windows, 9.25 pt at 8 to 19.2 pt at 18) and a column's unit their own digit (font file advances of 597, 588, 610 and 597 per 1024 em) in whole dots of the
         // 600 dpi em (11 pt: 92 dots, Dotum's digit 54 where Malgun's is 51: 0453e2c911's two columns, 509.8 pt, 36.0 + 473.8).
         "dotum": Face(digit: [39, 44, 49, 51, 54, 58, 68, 78, 88], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
             screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
-        "gulim": Face(digit: [38, 43, 48, 50, 53, 57, 67, 76, 86], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
+        "gulim": Face(digit: [38, 43, 48, 50, 53, 57, 67, 76, 86], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
             screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
         "batang": Face(digit: [39, 45, 50, 52, 55, 60, 70, 79, 89], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
             screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
