@@ -2657,6 +2657,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         if printing { style.myanmar = true; style.kannada = true }
         if printing, face == OfficeFonts.sans || face == "Arial" || lower == "calibri" { style.arabicArial = true }
         if lower == "aptos narrow" || OfficeFonts.tabledNames.contains(lower) { style.own = lower }
+        if ["ms pmincho", "ｍｓ ｐ明朝"].contains(lower) { style.own = "ms pmincho" } else if ["ms pgothic", "ｍｓ ｐゴシック"].contains(lower) { style.own = "ms pgothic" }
         if st.underline || st.strike, let m = RichTextTheme.ruleMetrics(book.fontName(st), bold: st.bold, italic: st.italic) {
             style.rule = [m.up, m.ut, m.sp, m.st]
         }
@@ -3449,10 +3450,20 @@ final class _TextCache {
     /// The face's own widths, where its stand-in has other ones: Verdana's,
     /// drawn in DejaVu Sans (a few per cent wider in its letters, narrower
     /// in its space — the format tests' lines ran past Excel's), in ems.
+    private static let _eastAsianTables: [String: [UInt32: Double]] = [
+        "ms pmincho": SlideEastAsianWidths.parse(SlideEastAsianWidths.msPMincho.regular.other),
+        "ms pgothic": SlideEastAsianWidths.parse(SlideEastAsianWidths.msPGothic.regular.other)]
     private func _own(_ ch: Character, _ style: GridTextStyle) -> Double? {
         // A Hangul syllable is a whole em in Excel's Malgun Gothic and Dotum (style-alternate-content's
         // four-syllable "전화번호" at 11pt is 44.2 pt); the stand-in that draws it sets it 0.92.
         if ch.unicodeScalars.count == 1, let h = ch.unicodeScalars.first?.value, (0xAC00 ... 0xD7A3).contains(h) { return 1.0 }
+        // MS PMincho and MS PGothic are proportional in Excel's print (full-width brackets half an em, "１" 0.62), as
+        // their measured tables have them; the stand-in sets every ideograph-block character a whole em.
+        if style.own == "ms pmincho" || style.own == "ms pgothic", ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value {
+            let cut = style.own == "ms pmincho" ? SlideEastAsianWidths.msPMincho.regular : SlideEastAsianWidths.msPGothic.regular
+            if v >= 0x20, v <= 0x7E { return cut.ascii.count > Int(v - 0x20) ? cut.ascii[Int(v - 0x20)] : nil }
+            return Self._eastAsianTables[style.own]?[v]
+        }
         if style.own == "aptos narrow", ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value, v >= 0x20, v <= 0x7E {
             return (style.bold ? OfficeFonts.aptosNarrowBoldAdvances : OfficeFonts.aptosNarrowAdvances)[Int(v - 0x20)]
         }
@@ -3472,7 +3483,7 @@ final class _TextCache {
     /// own widths, or on a page (`GridTextStyle.dots`) — save where its
     /// script joins or stacks its letters, which only the whole run shapes.
     private func _spaces(_ run: String, _ style: GridTextStyle) -> Bool {
-        guard style.family == OfficeFonts.verdana || style.own == "aptos narrow" || OfficeFonts.tabledNames.contains(style.own) || style.dots > 0 else { return false }
+        guard style.family == OfficeFonts.verdana || style.own == "aptos narrow" || OfficeFonts.tabledNames.contains(style.own) || style.own == "ms pmincho" || style.own == "ms pgothic" || style.dots > 0 else { return false }
         return !run.unicodeScalars.contains { v in
             let x = v.value
             return (0x0300 ... 0x036F).contains(x) || (0x0590 ... 0x0DFF).contains(x) || (0x0E00 ... 0x0FFF).contains(x)
