@@ -332,6 +332,7 @@ extension SheetGridState {
         printing = true
         defer {
             printing = false
+            _clearReachMemo()
             printRowScale = 0
             printColumnMax = 0
             printMono = false
