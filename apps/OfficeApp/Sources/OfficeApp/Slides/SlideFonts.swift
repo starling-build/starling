@@ -486,6 +486,9 @@ enum SlideFonts {
         case "meiryo ui", "meiryo ui bold": return (2171.0 / 2048, 430.0 / 2048)
         case "yu gothic": return (2017.0 / 2048, 619.0 / 2048)
         case "ms gothic", "ms pgothic": return (220.0 / 256, 36.0 / 256)
+        // (Lab mixrun, 35 pt lines of fontAlgn t, ctr and b: Book Antiqua 0.96 and 0.277, PMingLiU and DFKai-SB 0.803 and 0.231.)
+        case "book antiqua": return (0.96, 0.277)
+        case "pmingliu", "新細明體", "dfkai-sb", "標楷體": return (0.803, 0.231)
         default: return nil
         }
     }

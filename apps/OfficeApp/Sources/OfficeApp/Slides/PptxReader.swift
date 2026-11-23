@@ -4489,6 +4489,16 @@ private struct SlideContext {
                 }
                 var made = RichParagraph(text: text, runs: runs, style: style)
                 made.inlineImages = mathImages
+                // (Lab mixrun, PowerPoint's print: outside a table too, fontAlgn t, ctr or b stands each run's glyph box in the 1.2 em line, as in a cell
+                // (lab tbl-rows7): the lines of Arial 35 pt with t print 2.4 pt higher than with none, Book Antiqua 1.0 lower, PMingLiU 4.7 higher. The
+                // face of the most characters stands for the line; a run of another face in it, which PowerPoint sets by its own box, is not moved.)
+                if !text.isEmpty, let algn = p.first("a:pPr")?["fontAlgn"], algn == "t" || algn == "ctr" || algn == "b",
+                   let lead = zip(runs, runs.indices).max(by: { $0.0.length != $1.0.length ? $0.0.length < $1.0.length : $0.1 > $1.1 })?.0,
+                   let face = lead.style.fontFamily, let m = SlideFonts.windowsAscentDescent(face) {
+                    let target: Double
+                    switch algn { case "t": target = m.ascent; case "ctr": target = (1.2 - (m.ascent + m.descent)) / 2 + m.ascent; default: target = 1.2 - m.descent }
+                    made.style.cellFontAlignDrop = target - 1.2 * (1 - m.descent / (m.ascent + m.descent))
+                }
                 if !koParens.isEmpty { made.style.eastAsian["a:hangParens"] = koParens.map(String.init).joined(separator: ",") }
                 if !plainMarks.isEmpty { made.style.eastAsian["a:noHangMarks"] = plainMarks.map(String.init).joined(separator: ",") }
                 // (A display equation sits by its own `m:jc` (centred by default), whatever the paragraph says.)
