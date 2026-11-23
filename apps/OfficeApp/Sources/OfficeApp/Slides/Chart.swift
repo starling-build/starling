@@ -5454,7 +5454,7 @@ enum ChartPainter {
                 let block = widest + 10 * k
                 // (Over the plot's middle, not the area's: the plot's top is half a label under the area's,
                 // its foot a label line and 3.2 over it. And the plot starts 3pt past the block.)
-                let plotTop = 0.61 * labelSize * k, plotFoot = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.3
+                let plotTop = 0.61 * labelSize * k, plotFoot = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.3 * k
                 across.paint(canvas, Offset(area.left + block / 2 - across.width / 2, area.center.dy + (plotTop - plotFoot) / 2 - across.height / 2))
                 area = Rect.fromLTRB(area.left + block + 3 * k, area.top, area.right, area.bottom)
                 across.dispose()
