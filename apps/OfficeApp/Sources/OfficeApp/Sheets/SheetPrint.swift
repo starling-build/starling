@@ -80,7 +80,11 @@ struct SheetPrintSetup: Equatable {
             // (With usePrinterDefaults set false Excel takes the printer's paper,
             // not the sheet's: nine of the corpus say A4 that way and print Letter.)
             let printers = p["usePrinterDefaults"] == "false" || p["usePrinterDefaults"] == "0"
-            if !printers, let n = Int(p["paperSize"] ?? ""), let size = papers[n] { s.paper = size }
+            if !printers, let n = Int(p["paperSize"] ?? ""), let size = papers[n] {
+                // (The printer's paper is whole dots of its 600 dpi: A4 is 4961 x 7016, 595.2 x 841.92 pt,
+                // not 595.28 x 841.89 — Excel's A4 page holds the room 28 rows of 121 and 5 of 133 dots fill.)
+                s.paper = Size((size.width * 600 / 72).rounded() * 72 / 600, (size.height * 600 / 72).rounded() * 72 / 600)
+            }
             s.landscape = p["orientation"] == "landscape"
             if let v = Double(p["scale"] ?? ""), v >= 10, v <= 400 { s.scale = v }
             s.overThenDown = p["pageOrder"] == "overThenDown"
