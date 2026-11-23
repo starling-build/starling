@@ -3425,7 +3425,11 @@ extension RichLayout {
         for piece in pieces where !piece.repeated {
             let c = piece.page % _columns
             guard c < spec.count, spec[c].width < base - 0.01 else { continue }
-            let fromTop = piece.flowTop - (k < _tops.count ? _tops[k] : 0)
+            // (The box is measured from where the paragraph's text starts, under its space before: dx2 9d7e8c61's
+            // "Exibir>Extras>Mostrar linhas de texto", 5.9 pt before, its first line at 0 in the painter and the box
+            // from 5.9, so the line took the widest column's width in a 121 pt column; Word sets it in three lines.)
+            let before = theme.wordRules && k < _spaceBefore.count && piece.flowTop > (k < _tops.count ? _tops[k] : 0) + 0.01 ? _spaceBefore[k] : 0
+            let fromTop = max(0, piece.flowTop - (k < _tops.count ? _tops[k] : 0) - before)
             out.append(ColWrapBox(top: fromTop, bottom: fromTop + (piece.flowBottom - piece.flowTop), left: 0, right: _px(base - spec[c].width), byStart: true))
         }
         return out
