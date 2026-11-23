@@ -2017,6 +2017,7 @@ private struct SlideContext {
         st.insetsFollowFont = text.insetsFollowFont
         st.sizeGroup = text.sizeGroup
         st.keepsSize = text.keepsSize
+        if text.wordLines { st.naturalLines = true }
         st.generatedHang = text.generatedHang
         st.noWrap = text.noWrap || frameless
         st.anchorCentred = text.anchorCentred
@@ -3680,6 +3681,8 @@ private struct SlideContext {
         var sizeGroup: String? = nil
         /// A diagram's text box that grows to its text: the text keeps its size.
         var keepsSize = false
+        /// `bodyPr compatLnSpc="0"`: the lines stand on Word's line (1.3 of the face's win height), as a diagram's do.
+        var wordLines = false
         var generatedHang = false
         /// `bodyPr wrap="none"`.
         var noWrap = false
@@ -4735,6 +4738,7 @@ private struct SlideContext {
                         warp: warp, runLooks: runLooks)
         body0.sizeGroup = body?.first("a:bodyPr")?["starling:sizeGroup"]
         body0.keepsSize = body?.first("a:bodyPr")?["starling:keepsSize"] == "1"
+        body0.wordLines = body?.first("a:bodyPr")?["compatLnSpc"] == "0"
         body0.generatedHang = body?.first("a:bodyPr")?["starling:generatedHang"] == "1"
         body0.anchorCentred = ["1", "true"].contains(attr("anchorCtr") ?? "")
         body0.keepsFirstSpace = ["1", "true"].contains(attr("spcFirstLastPara") ?? "")
