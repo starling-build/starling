@@ -6864,6 +6864,7 @@ enum ChartPainter {
         var cellLabels: [(text: String, bar: Rect, series: ChartSeries)] = []
         var wrapLabels = Set<Int>()
         var boldLabels = Set<Int>()
+        var deletedLabels = Set<Int>()   // (a bar's label the file deletes by point: `c:dLbl` with `c:delete`)
         // Labels that end at their point instead of starting there: a Word bar's `dLblPos inEnd`.
         var endAtPoint = Set<Int>()
         var startAtPoint = Set<Int>()
@@ -7041,6 +7042,7 @@ enum ChartPainter {
                         }
                         let reversedValues = c.valueReversed && c.onSlide && !c.stacked
                         if reversedValues { endAtPoint.insert(labels.count) }
+                        if c.onSlide, c.series[safe: j]?.labelDeleted.contains(i) == true { deletedLabels.insert(labels.count) }
                         labels.append((dataLabel(c, raw, series: j), Offset(c.stacked ? rect.center.dx : reversedValues ? min(p0, p1) - 3 * k : max(p0, p1) + 3 * k, rect.center.dy) + nudge(j, i), j))
                     } else {
                         let left = centre - group / 2 + Double(j) * step
@@ -7103,6 +7105,7 @@ enum ChartPainter {
                         if c.onSlide, c.series[safe: j]?.labelBoldPoints.contains(i) == true { boldLabels.insert(labels.count) }
                         // (A bar's label that names its category too: Excel's print of chart-tdf136267 reads "John, 3".)
                         let named = c.series[safe: j]?.labelCategoryName == true && c.onSheet ? (c.categories[safe: i] ?? "") + c.series[j].labelSeparator + shown : shown
+                        if c.onSlide, c.series[safe: j]?.labelDeleted.contains(i) == true { deletedLabels.insert(labels.count) }
                         labels.append((named, labelAt, j))
                     }
                     // In a 3-D box, the bar stands in the middle of its
@@ -7570,6 +7573,7 @@ enum ChartPainter {
                 // In the series' own label look where it has one.
                 let ser = c.series[j]
                 if !ser.labelsShown && ser.labelPointsOn.isEmpty { continue }
+                if deletedLabels.contains(li) { continue }
                 // (Word wraps a written-out label at a fifth of the chart's width less the box's 7.7 pt, after a
                 // space: sa1 06706f28's "100.00%; 10,150,000.00" is "100.00%;" over "10,150,000.00".)
                 let wrapAt = wrapLabels.contains(li) && !c.onSlide && !c.onSheet ? max(20 * k, frame.width * 0.2 - 7.7 * k) : Double.infinity
