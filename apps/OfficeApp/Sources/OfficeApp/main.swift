@@ -819,6 +819,9 @@ let siteArg: String? = {
 // with the editor presented over it. A path on the command line still opens
 // that file straight into the editor, as before — the way the simulator is
 // driven without a touch route.
+#if os(iOS)
+Clipboard.provider = IOSClipboardProvider()
+#endif
 if initialPath == nil && siteArg == nil && wikiBase == nil {
     OfficeNativeShell.install()
     OfficeNativeShell.onOpenDocument = { OfficeHost.openPath?($0) }
