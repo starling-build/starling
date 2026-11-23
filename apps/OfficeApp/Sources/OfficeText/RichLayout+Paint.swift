@@ -706,6 +706,54 @@ extension RichLayout {
         return g.painter.computeLineMetrics().map { shift((at + $0.baseline - top) / pt) * pt }
     }
 
+    /// Slides fontAlgn t, ctr or b on a paragraph whose runs differ in face or size (`alignPerRun`): every run of a line stands on its own glyph box
+    /// below the line's top (lab mixrun, PowerPoint's print: Arial, Book Antiqua, PMingLiU and DFKai-SB at 35 pt; the Latin run of a line of Chinese
+    /// stands 5.5 pt below it with t, the line's height unchanged). The engine's line has one baseline, the lowest of its runs' own, so each run is
+    /// drawn again cut to its own width and moved from it to its box. False when the paragraph is not one of these.
+    func _paintPerRunBaselines(_ i: Int, _ painter: TextPainter, at: Offset, _ canvas: any Canvas, _ document: RichDocument) -> Bool {
+        let p = document.paragraphs[i]
+        guard !theme.wordRules, p.style.alignPerRun, p.runs.count > 1 else { return false }
+        let named = _named(p, document)
+        func sizePt(_ r: CharStyle) -> Double { r.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? theme.fontSize }
+        let count = p.text.utf16.count
+        var spans: [(from: Int, to: Int, top: Double, natural: Double)] = []
+        var at0 = 0
+        for r in p.runs {
+            defer { at0 += r.length }
+            guard r.length > 0, at0 + r.length <= count, let top = r.style.alignTop, let nat = r.style.alignNatural else { continue }
+            let size = sizePt(r.style) * fontScale
+            spans.append((at0, at0 + r.length, top * size, nat * size))
+        }
+        guard spans.count > 1 else { return false }
+        let map = _map(i)
+        let starts = _lineStarts(painter, map, count: count)
+        let lines = painter.computeLineMetrics()
+        guard starts.count == lines.count else { return false }
+        var painted = false
+        for (k, st) in starts.enumerated() {
+            let en = k + 1 < starts.count ? starts[k + 1] : count
+            let here = spans.filter { $0.from < en && $0.to > st }
+            guard let line = here.map({ $0.natural }).max() else { continue }
+            let m = lines[k]
+            let y = at.dy + m.baseline
+            let above = k == 0 ? -1_000_000 : y - (m.baseline - lines[k - 1].baseline) * 3 / 4
+            let below = k == lines.count - 1 ? 1_000_000 : y + (lines[k + 1].baseline - m.baseline) / 4
+            for sp in here {
+                let a = max(sp.from, st), b = min(sp.to, en)
+                let boxes = painter.getBoxesForSelection(TextSelection(baseOffset: map.painter(a), extentOffset: map.painter(b)))
+                guard let x0 = boxes.map({ $0.left }).min(), let x1 = boxes.map({ $0.right }).max() else { continue }
+                let shift = _px(sp.top - line)
+                canvas.save()
+                canvas.clipRect(Rect.fromLTRB(at.dx + x0 - 0.5, above + shift, at.dx + x1 + 0.5, below + shift))
+                canvas.translate(0, shift)
+                painter.paint(canvas, at)
+                canvas.restore()
+                painted = true
+            }
+        }
+        return painted
+    }
+
     /// `painter` drawn at `at` line by line, each moved by its shift and
     /// cut to a band from a quarter of the way past the line above's
     /// baseline to the same past its own (a line outside its band is
@@ -790,6 +838,9 @@ extension RichLayout {
             let name = run.style.fontFamily ?? theme.fontFamily
             let family = name.map { theme.fontFamilyResolver?($0) ?? $0 }
             let drawn = theme.descentShare(family: family, bold: run.style.bold, italic: run.style.italic)
+            // (A Han run in a face PowerPoint does not have is drawn in Microsoft JhengHei there: 2724 units a line, 521 below.)
+            let jheng = p.style.eastAsian["a:missingFaceJhenghei"] == "1" && theme.faceMissingOnWindows?(name ?? "") == true
+                && (p.text.unicodeScalars.first.map { $0.value >= 0x4E00 && $0.value <= 0x9FFF } ?? false)
             var below = share
             if let least = theme.exactLineDescentOfSize, points > 0 {
                 var size = run.style.fontSize ?? document.styles.resolve(p.style)?.char.fontSize
@@ -804,14 +855,16 @@ extension RichLayout {
                 // line's top. Whatever the size and the face.)
                 if let natural = theme.singleLineHeight, theme.exactLinesAsPowerPoint {
                     let single = natural * size
-                    let depth = drawn * single
+                    // (The foot stands on the face PowerPoint draws; the strut below on the stand-in this engine draws.)
+                    let printed = jheng ? 1.2 * size : single
+                    let depth = jheng ? 521.0 / 2724 * printed : drawn * single
                     var foot = depth
-                    if points > single { foot += 0.072 * size + 0.255 * (points - single) }
+                    if points > printed { foot += 0.072 * size + 0.255 * (points - printed) }
                     // (Up to single's height the foot is a quarter of the line or the natural depth, whichever is
                     // less: PowerPoint for Windows, lab exactsmall, 44 pt Arial and DFKai-SB in exact lines of 12-30 pt
                     // put the first baseline 0.75 of the line under the top, in either face; lab p3ls at 18-36 pt, the
                     // lines from 0.69 of the size up, where the 0.755-size floor below came from, agrees.)
-                    if points <= single { foot = min(depth, 0.25 * points) } else { foot = min(foot, points + depth - 0.755 * size) }
+                    if points <= printed { foot = min(depth, 0.25 * points) } else { foot = min(foot, points + depth - 0.755 * size) }
                     foot -= 0.012 * size
                     // (The line is held by a forced strut set evenly about its face — see `_strut`'s Slides stand-in in the paragraph's
                     // painter — where `drawn` shares the line out by the face's proportions: the difference of the two baselines.)
@@ -837,6 +890,7 @@ extension RichLayout {
     public func trailingExtra(_ document: RichDocument) -> Double {
         guard theme.exactLinesAsPowerPoint, let single = theme.singleLineHeight else { return 0 }
         guard let i = document.paragraphs.lastIndex(where: { !$0.runs.isEmpty }) else { return 0 }
+        if document.paragraphs[i].style.lineHeightPoints != nil { return _exactFootExtra(i, document) }
         let p = document.paragraphs[i]
         guard p.style.lineHeightPoints == nil, let run = p.runs.last else { return 0 }
         let multiple = max(0.1, p.style.lineSpacing - theme.lineSpacingReduction)
@@ -1876,7 +1930,9 @@ extension RichLayout {
                 onlyRest.paint(canvas, textAt)
             } else if shifts.isEmpty, _verticalBody(i) || uprightIdeographs, _paintUpright(g.painter, at: textAt, canvas, mixed: true, rubyShifts: _rubyColumnShifts(i, document), baselineShift: _baselineShift(i, document)) {
                 // (A vertical section's lines: each ideograph upright down its column, as Word prints them.)
-            } else if shifts.isEmpty { if _paintMode != 2 { _paintShadowPaths(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, map: lines == nil ? _map(i) : nil); g.painter.paint(canvas, _unseenShift[i].map { Offset(textAt.dx + $0, textAt.dy) } ?? textAt) } } else { _paintShiftedLines(g.painter, at: textAt, shifts, canvas) }
+            } else if shifts.isEmpty, sidewaysDigits, !uprightIdeographs, _paintSidewaysDigits(g.painter, at: textAt, canvas) {
+                // (A sideways eaVert column: its runs of digits upright, the rest turned with the column.)
+            } else if shifts.isEmpty { if _paintMode != 2 { _paintShadowPaths(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, map: lines == nil ? _map(i) : nil); if !_paintPerRunBaselines(i, g.painter, at: textAt, canvas, document) { g.painter.paint(canvas, _unseenShift[i].map { Offset(textAt.dx + $0, textAt.dy) } ?? textAt) } } } else { _paintShiftedLines(g.painter, at: textAt, shifts, canvas) }
         }
         _paintScripts(lines?.paragraph ?? document.paragraphs[i], lines?.painter ?? g.painter, at: textAt, canvas, document,
                       map: lines == nil ? _map(i) : nil, leading: false)

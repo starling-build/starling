@@ -4,6 +4,8 @@ name: render-gate-prebuild
 on:
   push:
     branches: [main]
+    # a push that only touches notes (docs/, *.md: the board) cannot change a binary or a score: no prebuild at all (amd-8, 2026-11-23, capacity: 12 prebuilds were queued)
+    paths-ignore: ['docs/**', '**.md']
 permissions:
   contents: read
 concurrency:
@@ -53,13 +55,29 @@ jobs:
           # a sha that is already behind main is not worth a build: no gate will use it as its base
           gfetch -q --no-tags --depth=200 origin main 2>/dev/null || true
           if [ "$(git -C "$C" rev-list --count "$GITHUB_SHA..FETCH_HEAD" 2>/dev/null || echo 0)" -ge "$AHEAD" ]; then echo "SKIP_PREBUILD=1" >> "$GITHUB_ENV"; echo "main is $AHEAD+ commits ahead; skipping this prebuild (a newer sha builds; gates pair with the nearest cached ancestor)"; fi
+      - name: Skip when cached
+        if: env.SKIP_PREBUILD != '1'
+        run: |
+          # (amd-8, 2026-11-23, capacity) Skip this prebuild when this sha is already cached (a gate built it as its base), or when nothing that
+          # builds or scores OfficeApp changed since the newest cached ancestor: a gate scores against that ancestor anyway (render-gate.sh "BASE MISS").
+          cd "$HOME/clone"; EN=$(git -c safe.directory='*' -C "${ENGINE_DIR:-/nonexistent}" rev-parse --short=10 HEAD 2>/dev/null || true); BC=/data/gate/cache/eng-$EN
+          [ -n "$EN" ] && [ -d "$BC" ] || { echo "no shared cache: building"; exit 0; }
+          [ -x "$BC/$GITHUB_SHA/release/OfficeApp" ] && { echo "SKIP_PREBUILD=1" >> "$GITHUB_ENV"; echo "already cached"; exit 0; }
+          for a in $(git rev-list --max-count=40 "$GITHUB_SHA" | tail -n +2); do
+            if [ -x "$BC/$a/release/OfficeApp" ]; then
+              if git diff --name-only "$a" "$GITHUB_SHA" | grep -qvE '^(docs/|shell/|host/|registry/|macos-compat/|apps/(AppStore|Calculator|FileExplorer|FlutterDemo|ImageViewer|Settings|TaskManager|Terminal|TextEditor|VideoPlayer)App/)|\.md$'; then echo "render-relevant change since cached ${a:0:9}: building"; else echo "SKIP_PREBUILD=1" >> "$GITHUB_ENV"; echo "nothing render-relevant since cached ${a:0:9}: skipped"; fi
+              exit 0
+            fi
+          done
+          echo "no cached ancestor: building"
       - name: Prebuild
         if: env.SKIP_PREBUILD != '1'
         run: |
           set -o pipefail
           cd "$HOME/clone"
-          export JOBS=${GATE_JOBS:-$(cat "$HOME/.gate-jobs" 2>/dev/null || nproc)}; export BUILD_JOBS=$(( JOBS / 2 ))
-          [ "$JOBS" -gt 170 ] && JOBS=170
+          export JOBS=${GATE_JOBS:-$(cat "$HOME/.gate-jobs" 2>/dev/null || nproc)}
+          [ "$JOBS" -gt 64 ] && JOBS=64   # was 170: 6 AMD runners at 170 jobs each, with workers building, kept the box at load ~950 on 192 cores (2026-11-23)
+          export JOBS BUILD_JOBS=$(( JOBS / 2 ))
           GATE_PREBUILD=1 test/tools/render-gate.sh "$GITHUB_SHA" 2>&1 | tail -20 | cut -c1-200
       - name: Merge watch
         if: env.SKIP_PREBUILD != '1' && always()

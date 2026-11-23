@@ -8,6 +8,21 @@ import Foundation
 
 // MARK: - Snapshots (undo)
 
+/// A large value held by reference (copy on write): a `ShapeState` is copied many times a read, and its
+/// big fields (a text body 4.3 KB, a chart 4.4 KB, fills 1.3 KB) made it 27 KB, so a recursive reader's frame
+/// held dozens of copies (375 to 864 KB a group level in a release build; ja-85c85cb794 overflowed the stack).
+@propertyWrapper
+struct Boxed<Value: Equatable>: Equatable {
+    private final class Ref { let value: Value; init(_ value: Value) { self.value = value } }
+    private var ref: Ref
+    init(wrappedValue: Value) { ref = Ref(wrappedValue) }
+    var wrappedValue: Value {
+        get { ref.value }
+        set { ref = Ref(newValue) }
+    }
+    static func == (a: Boxed, b: Boxed) -> Bool { a.ref === b.ref || a.ref.value == b.ref.value }
+}
+
 /// Everything a shape is, as a value: what undo stores and restores.
 struct ShapeState: Equatable {
     var id: Int
@@ -21,7 +36,7 @@ struct ShapeState: Equatable {
     var anchor: TextAnchor
     var insets: EdgeInsets
     var prompt: String?
-    var text: RichDocument?
+    @Boxed var text: RichDocument?
     var font: String?
     var size: Double
     var color: Color
@@ -42,13 +57,13 @@ struct ShapeState: Equatable {
     var fillsWithBackground = false
     var inheritedPreset: ShapePreset? = nil
     var customPath: FreeformGeometry? = nil
-    var fillStyle: SlideFill? = nil
+    @Boxed var fillStyle: SlideFill? = nil
     var invisible = false
     var fileId: Int? = nil
     var sourceXML: String? = nil
-    var sourceText: RichDocument? = nil
+    @Boxed var sourceText: RichDocument? = nil
     var sourcePart: String? = nil
-    var sourceChart: Chart? = nil
+    @Boxed var sourceChart: Chart? = nil
     var field: SlideField? = nil
     var group: ShapeGroup? = nil
     var keptLine: KeptLine? = nil
@@ -64,13 +79,14 @@ struct ShapeState: Equatable {
     var outlineDash: String? = nil
     var outlineJoin: String? = nil
     var outlineCap: String? = nil
-    var outlineFill: SlideFill? = nil
+    @Boxed var outlineFill: SlideFill? = nil
     var headEnd: LineEnd? = nil
     var tailEnd: LineEnd? = nil
     var outlineCompound: String? = nil
     var textTurn = 0
     var textStacked = 0
     var uprightIdeographs = false
+    var sidewaysDigits = false
     var textSpin = 0.0
     var textRev = 0.0
     var textScene: Scene3D? = nil
@@ -1178,6 +1194,7 @@ final class DeckController: ChangeNotifier {
         st.textTurn = s.textTurn
         st.textStacked = s.textStacked
         st.uprightIdeographs = s.uprightIdeographs
+        st.sidewaysDigits = s.sidewaysDigits
         st.textSpin = s.textSpin
         st.textRev = s.textRev
         st.textScene = s.textScene
@@ -1305,6 +1322,7 @@ final class DeckController: ChangeNotifier {
         shape.textTurn = st.textTurn
         shape.textStacked = st.textStacked
         shape.uprightIdeographs = st.uprightIdeographs
+        shape.sidewaysDigits = st.sidewaysDigits
         shape.textSpin = st.textSpin
         shape.textRev = st.textRev
         shape.textScene = st.textScene
@@ -1431,6 +1449,7 @@ final class DeckController: ChangeNotifier {
         theme.fontFamilyResolver = SlideFonts.resolve
         theme.baselineScalesWithSpacing = SlideFonts.isArabicLineFace
         theme.ownDescentShare = SlideFonts.ownDescentShare   // and sets a baseline by the face named
+        theme.faceMissingOnWindows = { OfficeFonts.installed($0) == nil && SlideFonts.ownDescentShare($0) == nil && SlideFonts.diagramEastAsianLine($0) == nil }
         theme.uprightColumn = { SlideFonts.uprightColumn($0, bold: $1) }
         theme.faceResolver = SlideFonts.face                 // and sets Lucida Sans Unicode at its own widths
         theme.setsFaceAdvances = true
@@ -1448,6 +1467,7 @@ final class DeckController: ChangeNotifier {
         theme.marksEmptyListItems = false   // PowerPoint shows no bullet on an empty paragraph
         theme.markersAtHang = true          // and puts the bullet at marL + indent
         theme.singleLineHeight = 1.2        // spaces lines by the size, not the face
+        theme.exactSingleLineEm = { SlideFonts.exactSingleLineEm($0) }
         theme.omitsLeadingSpace = true      // and leaves out the space before a body's first paragraph
         theme.disablesLigatures = true      // and sets "tt" as two letters
         theme.outlineOverFill = true

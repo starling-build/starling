@@ -52,6 +52,8 @@ struct CellStyle: Hashable, Sendable {
     var hAlign: HAlign = .general
     var vAlign: VAlign = .bottom
     var wrap = false
+    /// `alignment@readingOrder`: 0 context (the first strong letter of the text sets the direction), 1 left to right, 2 right to left.
+    var readingOrder = 0
     /// Indent levels (`alignment@indent`), each three spaces of the
     /// workbook's default font: left-aligned text in from the left, right-
     /// aligned in from the right.
@@ -188,6 +190,8 @@ final class Worksheet {
     var autoFilter: AutoFilter? = nil
     /// Pictures and charts, for display (the file's parts are kept as is).
     var drawings: [SheetDrawing] = []
+    /// The pictures of the header and footer (`legacyDrawingHF`), by the VML shape's id: LH, CH, RH, LF, CF, RF.
+    var headerPictures: [String: HeaderPicture] = [:]
     /// The drawing part the file kept them in, and its root tag (with the
     /// namespaces kept anchors use).
     var drawingPart: String? = nil
@@ -545,3 +549,4 @@ struct ExternalBook: Sendable {
         sheetNames.firstIndex { $0.lowercased() == name.lowercased() }
     }
 }
+

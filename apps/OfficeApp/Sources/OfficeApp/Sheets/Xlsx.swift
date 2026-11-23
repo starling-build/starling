@@ -25,7 +25,13 @@ enum Xlsx {
     // MARK: Reading
 
     static func read(_ data: Data) throws -> Workbook {
-        let entries = try Zip.read(data).map { e -> ZipEntry in
+        try read(entries: try Zip.read(data))
+    }
+
+    /// The same reader over parts already unpacked (a zip's entries, or parts
+    /// the .xls reader built from BIFF records).
+    static func read(entries zipEntries: [ZipEntry]) throws -> Workbook {
+        let entries = zipEntries.map { e -> ZipEntry in
             var d = _unprefixMain(e.data)
             // Style tables are read by position; a font or xf wrapped in
             // mc:AlternateContent (Hancom's HCell) would otherwise vanish and
@@ -138,6 +144,7 @@ enum Xlsx {
             if let path = ws.origin {
                 (ws.drawings, ws.drawingPart, ws.drawingRoot) = SheetDrawingsXML.read(sheetPath: path, parts: parts, colors: colors, sheet: sheetRoots[path])
                 ws.objects = SheetObjectsXML.read(sheetPath: path, parts: parts, sheet: sheetRoots[path])
+                ws.headerPictures = SheetDrawingsXML.readHeaderPictures(sheetPath: path, parts: parts, sheet: sheetRoots[path])
                 // (A legacy shape placed in points, not cells, held to the
                 // cells under it, so that it prints where they print.)
                 for i in ws.objects.indices {
@@ -323,6 +330,7 @@ enum Xlsx {
                bytes[k + 2] == UInt8(ascii: " ") || bytes[k + 2] == UInt8(ascii: ">") { cellTags += 1; k += 3 } else { k += 1 }
         }
         cells.reserveCapacity(cellTags)
+        var rowsSeen: Set<Int> = []
         part.forEach { row in
             rowIndex = Int(row["r"] ?? "").map { $0 - 1 } ?? rowIndex
             let rowExtra = row.attrs.filter { !["r", "ht", "customHeight", "hidden", "spans"].contains($0.key) }
@@ -350,6 +358,7 @@ enum Xlsx {
             // not the fitted 14.52 — a page more than ours).
             // (xsd:boolean: LibreOffice writes "true" where Excel writes "1".)
             let rowHidden = row["hidden"] == "1" || row["hidden"] == "true"
+            rowsSeen.insert(rowIndex)
             if rowHidden, let af = ws.autoFilter, rowIndex > af.range.top, rowIndex <= af.range.bottom {
                 ws.filteredRows.insert(rowIndex)
                 if let h = Double(row["ht"] ?? ""), setHeight || abs(h - ws.defaultRowHeightPt) > 0.01 { ws.rowHeights[rowIndex] = h }
@@ -444,6 +453,12 @@ enum Xlsx {
                 cells[a] = cell
             }
             rowIndex += 1
+        }
+        // A sheet whose rows are hidden by default (zeroHeight): only the rows
+        // the file lists show. pt-734a1b506b's Índice lists rows 1-35 and
+        // 48-53, and Excel prints 621 pt of it, not the 800 of all 53.
+        if ["1", "true"].contains(format?["zeroHeight"] ?? ""), let last = rowsSeen.max(), last < 20000 {
+            for r in 0 ..< last where !rowsSeen.contains(r) { ws.hiddenRows.insert(r) }
         }
         // The spill values an array formula left in the file go: computing it
         // puts them back (where the formula cannot be computed, they stay).
@@ -685,10 +700,12 @@ enum Xlsx {
             if let fi = Int(xf["fillId"] ?? "0"), fi < fills.count { s.fill = fills[fi] }
             if let bi = Int(xf["borderId"] ?? "0"), bi < borders.count { s.borders = borders[bi] }
             if let al = xf.child("alignment") {
+                var justified = false
                 switch al["horizontal"] {
                 case "left": s.hAlign = .left
                 case "center", "centerContinuous": s.hAlign = .center
                 case "right": s.hAlign = .right
+                case "justify", "distributed": s.hAlign = .left; justified = true   // Excel breaks justified text into lines like a wrapped cell
                 default: break
                 }
                 switch al["vertical"] {
@@ -696,7 +713,8 @@ enum Xlsx {
                 case "center": s.vAlign = .center
                 default: break
                 }
-                s.wrap = al["wrapText"] == "1" || al["wrapText"] == "true"
+                s.wrap = al["wrapText"] == "1" || al["wrapText"] == "true" || justified
+                s.readingOrder = Int(al["readingOrder"] ?? "") ?? 0
                 s.indent = max(0, min(250, Int(al["indent"] ?? "") ?? 0))
                 s.rotation = Int(al["textRotation"] ?? "") ?? 0
             }

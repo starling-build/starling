@@ -495,6 +495,9 @@ enum SheetFunctions {
             guard case .success(let r) = _n(a[1], c) else { return .error(.value) }
             let col: Double
             if a.count >= 3 { guard case .success(let x) = _n(a[2], c) else { return .error(.value) }; col = x } else { col = 0 }
+            // (A row or column that is no whole number in range — NaN, infinite or
+            // past a million — is #REF!, as Excel's is; Int() of it traps.)
+            guard r.isFinite, col.isFinite, abs(r) < 1e9, abs(col) < 1e9 else { return .error(.ref) }
             if case .range(let s, let rg) = src {
                 // INDEX of a range is a reference — INDEX(A:A,3):B5 works.
                 var row = Int(r), cc = Int(col)
@@ -507,10 +510,15 @@ enum SheetFunctions {
                 return .scalar(c.engine.value(s, CellAddress(row: rg.top + row - 1, col: rg.left + cc - 1)))
             }
             let g = c.engine.grid(src, c)
+            // (No row and no column — INDEX(array,0) or INDEX(array,) — is the whole
+            // array; it fell through to g[0][-1] and trapped: es-87ce277a4c.)
+            if Int(r) == 0 && Int(col) == 0 { return src }
             var row = Int(r), cc = max(1, Int(col))
             // One row and no column given: the number picks the column, as for a range.
             if g.count == 1 && a.count < 3 { cc = row; row = 1 }
-            guard row >= 1, row <= g.count, cc <= (g.first?.count ?? 0) else { return .error(.ref) }
+            // (A ragged array — rows of unequal length — is checked against the row
+            // asked for, not the first: g[row - 1][cc - 1] trapped on the others.)
+            guard row >= 1, row <= g.count, cc >= 1, cc <= g[row - 1].count else { return .error(.ref) }
             return .scalar(g[row - 1][cc - 1])
         }
         t["MATCH"] = { a, c in
@@ -1094,6 +1102,13 @@ enum SheetFunctions {
             case (.number, .number), (.text, .text), (.bool, .bool): break
             default: return op == .ne
             }
+            // (Text equal or not equal, the commonest SUMIFS/COUNTIF criterion over
+            // a column of thousands of cells: ASCII text is compared byte by byte
+            // without folding either side into a new string. en-720207c0a4's
+            // 27,000 SUMIFS spent their 5 minutes in lowercased().)
+            if (op == .eq || op == .ne), case .text(let x) = cell, case .text(let y) = value, let same = SheetFunctions._asciiCaseEqual(x, y) {
+                return (op == .eq) == same
+            }
             let c = CalcEngine.compare(cell, value)
             switch op {
             case .eq: return c == 0
@@ -1105,6 +1120,26 @@ enum SheetFunctions {
             default: return false
             }
         }
+    }
+
+    /// Whether two texts are equal ignoring case, when both are plain ASCII;
+    /// nil when either holds other characters (the caller folds them properly).
+    static func _asciiCaseEqual(_ a: String, _ b: String) -> Bool? {
+        var a = a, b = b
+        return a.withUTF8 { x in b.withUTF8 { y in
+            var same = x.count == y.count
+            for i in 0 ..< x.count {
+                if x[i] >= 128 { return nil }
+                if same && i < y.count {
+                    var p = x[i], q = y[i]
+                    if p >= 65 && p <= 90 { p += 32 }
+                    if q >= 65 && q <= 90 { q += 32 }
+                    if p != q { same = false }
+                }
+            }
+            for q in y where q >= 128 { return nil }
+            return same
+        } }
     }
 
     static func _globMatch(_ s: [Character], _ p: [Character]) -> Bool {
@@ -1187,19 +1222,38 @@ enum SheetFunctions {
         // the same range this pass), then the criteria over plain arrays.
         let r = max(rows, 0), cc = max(cols, 0)
         if r > 0 && cc > 0 {
+            func clipped(_ area: (Int, CellRange)) -> CellRange {
+                CellRange(top: area.1.top, left: area.1.left, bottom: area.1.top + r - 1, right: area.1.left + cc - 1)
+            }
             func block(_ area: (Int, CellRange)) -> [CellValue] {
-                let rg = CellRange(top: area.1.top, left: area.1.left, bottom: area.1.top + r - 1, right: area.1.left + cc - 1)
+                let rg = clipped(area)
                 guard rg.bottom < CellAddress.maxRows, rg.right < CellAddress.maxCols else { return [] }
                 return c.engine.rangeValues(area.0, rg)
             }
             let blocks = areas.map(block)
             let targetBlock = targetArea.map(block)
-            for i in 0 ..< r * cc {
-                var ok = true
-                for k in 0 ..< blocks.count where !crits[k].matches(i < blocks[k].count ? blocks[k][i] : .empty) { ok = false; break }
-                guard ok else { continue }
+            func visit(_ i: Int) {
+                for k in 0 ..< blocks.count where !crits[k].matches(i < blocks[k].count ? blocks[k][i] : .empty) { return }
                 count += 1
                 if let t = targetBlock, i < t.count, let n = t[i].number { xs.append(n) }
+            }
+            // An exact text criterion (no wildcard, no operator) on a text-bearing block: only the cells holding that text
+            // can match, so walk those positions (ascending, so sums add in the same order) rather than every cell.
+            let rgOf: (Int) -> CellRange = { k in
+                let a = areas[k]; return CellRange(top: a.1.top, left: a.1.left, bottom: a.1.top + r - 1, right: a.1.left + cc - 1)
+            }
+            // Indexable criteria: exact text or number, no wildcard or operator. Walk the shortest list of matching positions.
+            var best: [Int]? = nil
+            for k in 0 ..< crits.count where crits[k].op == .eq && crits[k].glob == nil && blocks[k].count > 64
+                && rgOf(k).bottom < CellAddress.maxRows && rgOf(k).right < CellAddress.maxCols {
+                guard CalcEngine.indexKey(crits[k].value) != nil else { continue }
+                let l = c.engine.candidates(areas[k].0, rgOf(k), crits[k].value)
+                if best == nil || l.count < best!.count { best = l }
+            }
+            if let best {
+                for i in best { visit(i) }
+            } else {
+                for i in 0 ..< r * cc { visit(i) }
             }
         }
         // Cells past the used area are blank: they count when every
@@ -1279,12 +1333,7 @@ enum SheetFunctions {
         guard a.count >= 3 else { return .error(.value) }
         let key = c.engine.scalar(c.engine.evaluate(a[0], c), c)
         if let e = key.error { return .error(e) }
-        var g = c.engine.grid(c.engine.evaluate(a[1], c), c)
-        if !vertical {
-            // Transpose so the code below reads rows.
-            let cols = g.first?.count ?? 0
-            g = (0 ..< cols).map { col in g.map { $0[col] } }
-        }
+        let tableEv = c.engine.evaluate(a[1], c)
         guard case .success(let idx) = _n(a[2], c) else { return .error(.value) }
         let k = Int(idx)
         guard k >= 1 else { return .error(.value) }
@@ -1294,6 +1343,29 @@ enum SheetFunctions {
             case .success(let b): exact = !b
             case .failure(let e): return .error(e)
             }
+        }
+        // Exact VLOOKUP of a plain text or number key in a big range: the first row holding it comes from the first column's
+        // index (shared by every lookup into that range this pass), not from copying and scanning the whole table each time.
+        // (A whole-row or whole-column table is clipped to the sheet's used extent: beyond it every cell is empty.)
+        if exact, vertical, case .range(let s, let rg0) = tableEv,
+           case let rg = CellRange(top: rg0.top, left: rg0.left, bottom: min(rg0.bottom, max(rg0.top, c.engine.usedExtent(s).row)), right: rg0.right),
+           rg.rows > 64, rg.rows <= 200_000, rg.left < CellAddress.maxCols,
+           let ik = CalcEngine.indexKey(key), { () -> Bool in
+               if case .text(let t) = key { return !(t.containsSubstring("*") || t.containsSubstring("?") || t.containsSubstring("~")) }
+               return true }() {
+            let col = CellRange(top: rg.top, left: rg.left, bottom: rg.bottom, right: rg.left)
+            let firstCol = c.engine.rangeValues(s, col)
+            guard let i = c.engine.candidates(s, col, key).first(where: { CalcEngine.compare(key, firstCol[$0]) == 0 }) else { return .error(.na) }
+            guard k <= rg0.cols else { return .error(.ref) }
+            // Only the one matching cell is read, and through value(): never a cached column, so a formula there is calculated first
+            // (and a result column reading another lookup is no false cycle).
+            return .scalar(c.engine.cellValue(s, CellAddress(row: rg.top + i, col: rg.left + k - 1)))
+        }
+        var g = c.engine.grid(tableEv, c)
+        if !vertical {
+            // Transpose so the code below reads rows.
+            let cols = g.first?.count ?? 0
+            g = (0 ..< cols).map { col in g.map { $0[col] } }
         }
         let keys = g.map { $0.first ?? .empty }
         let found = exact ? keys.firstIndex { _wildcard(key, $0) && !$0.isEmpty } : _binary(key, keys, descending: false)

@@ -32,6 +32,28 @@ final class SheetsEngineTests: XCTestCase {
         c.engine.evaluate(f, sheet: 0, at: CellAddress(row: 99, col: 25))
     }
 
+    /// An exact VLOOKUP into a table whose cells are formulas (some computed after the lookup is first reached, one
+    /// reading another lookup's result) must read each cell's calculated value, in a small table and in a big one.
+    func testVlookupOverFormulaTable() {
+        for n in [10, 100] {
+            var t: [String: String] = [:]
+            for i in 1 ... n {
+                t["A\(i)"] = "=\"k\"&\(i)&Sheet1!$Z$1"                 // text keys, computed
+                t["B\(i)"] = "=\(i)+Sheet1!$Z$2"                       // numbers, from formulas below
+            }
+            t["B\(n)"] = "=Sheet1!C5*2"                                  // reads another lookup's result
+            let c = book(["C1": "=VLOOKUP(\"k\(n - 1)x\",T!A1:B\(n),2,FALSE)", "C2": "=VLOOKUP(\"k1x\",T!A1:B\(n),2,FALSE)",
+                          "C3": "=VLOOKUP(\"k\(n)x\",T!A1:B\(n),2,FALSE)", "C4": "=VLOOKUP(\"nope\",T!A1:B\(n),2,FALSE)",
+                          "Z1": "=\"x\"", "Z2": "=10*2", "C5": "=VLOOKUP(\"b\",U!A1:B2,2,FALSE)", "D1": "=C2+1"],
+                         sheets: ["T": t, "U": ["A1": "a", "B1": "=1+Sheet1!Z2", "A2": "b", "B2": "=Sheet1!Z2+1"]])
+            XCTAssertEqual(v(c, "C1"), .number(Double(n - 1) + 20), "n=\(n)")
+            XCTAssertEqual(v(c, "C2"), .number(21), "n=\(n)")
+            XCTAssertEqual(v(c, "D1"), .number(22), "n=\(n)")
+            XCTAssertEqual(v(c, "C3"), .number(42), "n=\(n)")  // (10*2+1)*2
+            XCTAssertEqual(v(c, "C4"), .error(.na), "n=\(n)")
+        }
+    }
+
     func testLambdaThroughDefinedNames() {
         let c = book(["A1": "4", "B1": "10"])
         c.book.names["DOUBLE"] = "_xlfn.LAMBDA(_xlpm.x,_xlpm.x*2)"
@@ -322,6 +344,12 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(num(c, "=COUNTIF(C1:C4,\"x\")"), 3)
         XCTAssertEqual(num(c, "=SUMIFS(B1:B4,C1:C4,\"x\",B1:B4,\">10\")"), 70)
         XCTAssertEqual(num(c, "=COUNTIFS(C1:C4,\"x\",A1:A4,\"a*\")"), 2)
+        // A text criterion is found through a table of the range's texts: case never matters, and non-ASCII texts fold too.
+        XCTAssertEqual(num(c, "=COUNTIF(C1:C4,\"X\")"), 3)
+        XCTAssertEqual(num(c, "=SUMIFS(B1:B4,A1:A4,\"BANANA\",C1:C4,\"y\")"), 20)
+        XCTAssertEqual(num(c, "=COUNTIF(C1:C4,\"z\")"), 0)
+        let u = book(["A1": "Éclair", "A2": "éclair", "A3": "tea", "B1": "1", "B2": "2", "B3": "4"])
+        XCTAssertEqual(num(u, "=SUMIF(A1:A3,\"ÉCLAIR\",B1:B3)"), 3)
         XCTAssertEqual(num(c, "=AVERAGEIF(C1:C4,\"x\",B1:B4)"), 80.0 / 3)
         XCTAssertEqual(num(c, "=COUNTIF(D1:D4,\"\")"), 4)
     }
@@ -342,6 +370,12 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(eval(c, "=INDEX(A1:B4,2,2)"), .text("three"))
         XCTAssertEqual(eval(c, "=INDEX(B1:B4,MATCH(7,A1:A4,0))"), .text("seven"))
         XCTAssertEqual(num(c, "=SUM(INDEX(A1:B4,0,1))"), 16)                  // a whole column of the range
+        // INDEX of an array with the row left out is the whole array, and trapped
+        // (es-87ce277a4c: INDEX(COUNTIF(...),) under MATCH(0,...)).
+        XCTAssertEqual(num(c, "=MATCH(0,INDEX(COUNTIF(A1:A4,D1:D3),),)"), 1)
+        XCTAssertEqual(num(c, "=INDEX(5,)"), 5)
+        XCTAssertEqual(num(c, "=INDEX(5,0)"), 5)
+        XCTAssertEqual(eval(c, "=INDEX(5,2)"), .error(.ref))
         XCTAssertEqual(eval(c, "=XLOOKUP(3,A1:A4,B1:B4)"), .text("three"))
         XCTAssertEqual(eval(c, "=XLOOKUP(4,A1:A4,B1:B4,\"none\")"), .text("none"))
         XCTAssertEqual(eval(c, "=XLOOKUP(4,A1:A4,B1:B4,,-1)"), .text("three"))
@@ -611,5 +645,29 @@ extension SheetsEngineTests {
         ExcelDate.system1904 = false
         defer { ExcelDate.system1904 = was }
         return ExcelDate.serial(y, m, d)
+    }
+
+    /// A big table whose key column is a spill, with an empty styled cell under it: the lookup sees the spilled key.
+    func testVlookupKeyOverSpillWithStyledCell() {
+        var t: [String: String] = ["A1": "=SEQUENCE(100)"]
+        for i in 1 ... 100 { t["B\(i)"] = "v\(i)" }
+        let c = book(["C1": "=VLOOKUP(5,T!A1:B100,2,FALSE)", "C2": "=VLOOKUP(7,T!A1:B100,2,FALSE)"], sheets: ["T": t])
+        let ti = c.book.sheet(named: "T")!
+        XCTAssertNotNil(c.book.sheets[ti].spilled[CellAddress("A5")!])
+        c.book.sheets[ti].cells[CellAddress("A5")!] = Cell(input: "", style: 1)
+        c.engine.recalculate()
+        XCTAssertEqual(v(c, "C1"), .text("v5"))
+        XCTAssertEqual(v(c, "C2"), .text("v7"))
+    }
+
+    /// A VLOOKUP into whole rows (2:100) or a whole column pair reads the same as a bounded table.
+    func testVlookupWholeRowTable() {
+        var t: [String: String] = [:]
+        for i in 2 ... 100 { t["A\(i)"] = "k\(i)"; t["B\(i)"] = "=\(i)*2" }
+        let c = book(["C1": "=VLOOKUP(\"k50\",T!$2:$100,2,FALSE)", "C2": "=VLOOKUP(\"k99\",T!A:B,2,FALSE)",
+                      "C3": "=VLOOKUP(\"zz\",T!$2:$100,2,FALSE)", "C4": "=VLOOKUP(\"k5\",T!$2:$100,20000,FALSE)"], sheets: ["T": t])
+        XCTAssertEqual(v(c, "C1"), .number(100))
+        XCTAssertEqual(v(c, "C2"), .number(198))
+        XCTAssertEqual(v(c, "C3"), .error(.na))
     }
 }

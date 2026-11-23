@@ -131,6 +131,15 @@ public final class RichEditableState: State<StatefulWidget> {
     /// where it started, the picture's size then, and the live size.
     private var _handleDrag: (index: Int, handle: Int, start: Offset, size: Size)? = nil
     private var _dragSize: Size? = nil
+    // Touch selection: a long press selects the word under the finger, a double
+    // tap does too, and a selection shows a handle at each end to drag.
+    private var _touchMode = false
+    private var _selHandle: (fixed: RichPosition, grabDY: Double)? = nil
+    private var _longPressGen = 0
+    private var _longPressed = false
+    private var _lastTap: (at: Double, pos: Offset) = (0, Offset(-100, -100))
+    static let knobRadius = 7.0
+
     /// The handle under a hovering pointer, for its cursor.
     private var _hoverHandle: Int? = nil
     private var _hoverOverImage = false
@@ -240,8 +249,9 @@ public final class RichEditableState: State<StatefulWidget> {
             guard let self else { return }
             if !focused { self._chords.reset() }
             if focused { self._textInput?.attach() } else { self._textInput?.detach() }
-            // A phone has to be asked for its keyboard (see TextBox).
-            if focused, !self._controller.readOnly { SoftKeyboard.show() }
+            // A phone has to be asked for its keyboard (see TextBox) — unless the
+            // platform's text-input view has the editor, which raises its own.
+            if focused, !self._controller.readOnly, self._textInput?.isAttached != true { SoftKeyboard.show() }
             self._caretVisible = true
             self._restartBlink()
             self._repaint.notifyListeners()
@@ -599,6 +609,46 @@ public final class RichEditableState: State<StatefulWidget> {
         Offset(local.dx - _originX, local.dy + _scrollY - _w.padding.top)
     }
 
+    /// The two ends of a touch selection as caret boxes in the editable's own
+    /// coordinates; nil unless the last touch was a finger and text is selected.
+    private func _selectionEnds() -> (start: Rect, end: Rect)? {
+        guard _touchMode, _focus.hasFocus, _layout.width > 0, _layout.count > 0 else { return nil }
+        let sel = _controller.selection
+        guard !sel.isCollapsed, sel.block == nil, _controller.selectedImageIndex == nil else { return nil }
+        _syncLayoutIfNeeded()
+        func box(_ p: RichPosition) -> Rect {
+            let c = _layout.canvasCaretRect(p, _controller.document)
+            return Rect.fromLTWH(c.left + _originX, c.top + _w.padding.top - _scrollY, max(c.width, 2), c.height)
+        }
+        return (box(sel.start), box(sel.end))
+    }
+
+    /// Which end a finger at `p` is holding: 0 the start, 1 the end. The
+    /// reach is a fingertip, below the caret where the knob hangs.
+    private func _selectionHandleHit(_ p: Offset) -> Int? {
+        guard let ends = _selectionEnds() else { return nil }
+        var best: (k: Int, d: Double)? = nil
+        for (k, r) in [ends.start, ends.end].enumerated() {
+            let c = Offset(r.left, r.bottom + Self.knobRadius)
+            guard abs(p.dx - c.dx) <= 22, p.dy >= r.top, p.dy <= c.dy + 22 else { continue }
+            let d = abs(p.dx - c.dx) + abs(p.dy - c.dy)
+            if best == nil || d < best!.d { best = (k, d) }
+        }
+        return best?.k
+    }
+
+    /// A finger held still on text: the word under it is selected.
+    private func _longPress(_ generation: Int, _ at: Offset) {
+        guard generation == _longPressGen, let t = _touchScroll, !t.moved, _layout.width > 0 else { return }
+        _longPressed = true
+        _focus.requestFocus()
+        _textInput?.show()
+        _syncLayoutIfNeeded()
+        _controller.selectWord(at: _layout.canvasPosition(at: _canvasPoint(at), _controller.document))
+        if _controller.hasSelection { _w.onSelectionGestureEnd?() }
+        _repaint.notifyListeners()
+    }
+
     /// The selected picture's box in the editable's own coordinates, with
     /// the live drag size when one is under way.
     private func _selectedImageBox() -> (index: Int, rect: Rect)? {
@@ -681,6 +731,9 @@ public final class RichEditableState: State<StatefulWidget> {
         let hadDrop = _dropPosition != nil || _columnDragWidths != nil || _dragSize != nil
         _dragging = false
         _touchScroll = nil
+        _selHandle = nil
+        _longPressed = false
+        _longPressGen += 1
         _unitDrag = nil
         _textDrag = nil
         _dropPosition = nil
@@ -697,9 +750,23 @@ public final class RichEditableState: State<StatefulWidget> {
     private func _pointerDown(_ event: PointerEvent) {
         _textDrag = nil
         _dropPosition = nil
+        _touchMode = event.kind == .touch
         if event.kind == .touch {
-            // A finger scrolls; whether it was a tap is known on lift.
             _momentumGeneration += 1   // a glide in progress stops under it
+            if let k = _selectionHandleHit(event.localPosition), let ends = _selectionEnds() {
+                // A selection handle: the far end stays, the finger moves this one.
+                let sel = _controller.selection
+                let grabbed = k == 0 ? ends.start : ends.end
+                _selHandle = (k == 0 ? sel.end : sel.start, event.localPosition.dy - (grabbed.top + grabbed.height / 2))
+                _touchScroll = nil
+                _dragging = false
+                return
+            }
+            // A finger scrolls; whether it was a tap (or a long press) is known later.
+            _longPressed = false
+            _longPressGen += 1
+            let generation = _longPressGen, downAt = event.localPosition
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?._longPress(generation, downAt) }
             _touchScroll = (event.localPosition.dy, _scrollY, event.localPosition.dy, Date().timeIntervalSince1970, 0, false)
             _dragging = false
             return
@@ -784,7 +851,18 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerMove(_ event: PointerEvent) {
+        if let h = _selHandle, _layout.width > 0 {
+            // The finger holds the knob below the line; the position is the line it is on.
+            let y = event.localPosition.dy
+            if y < 30 { _scrollY -= 12 } else if y > _viewport.height - 30 { _scrollY += 12 }
+            _clampScroll()
+            let pos = _layout.canvasPosition(at: _canvasPoint(Offset(event.localPosition.dx, y - h.grabDY)), _controller.document)
+            _controller.selection = RichSelection(anchor: h.fixed, focus: pos)
+            _repaint.notifyListeners()
+            return
+        }
         if var t = _touchScroll {
+            if _longPressed { return }   // held to select: the finger no longer scrolls
             let y = event.localPosition.dy
             let now = Date().timeIntervalSince1970
             if !t.moved, abs(y - t.startY) > 8 {
@@ -879,8 +957,16 @@ public final class RichEditableState: State<StatefulWidget> {
     }
 
     private func _pointerUp(_ event: PointerEvent) {
+        if _selHandle != nil {
+            _selHandle = nil
+            _w.onSelectionGestureEnd?()
+            _repaint.notifyListeners()
+            return
+        }
         if let t = _touchScroll {
             _touchScroll = nil
+            _longPressGen += 1
+            if _longPressed { _longPressed = false; return }
             if t.moved {
                 if abs(t.velocity) > 1 {
                     _momentumGeneration += 1
@@ -895,7 +981,19 @@ public final class RichEditableState: State<StatefulWidget> {
                 _focus.requestFocus()
                 _textInput?.show()
                 _syncLayoutIfNeeded()
-                _controller.moveTo(_layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document), extend: false)
+                let pos = _layout.canvasPosition(at: _canvasPoint(event.localPosition), _controller.document)
+                let now = Date().timeIntervalSince1970
+                let again = now - _lastTap.at < 0.4
+                    && abs(event.localPosition.dx - _lastTap.pos.dx) < 24 && abs(event.localPosition.dy - _lastTap.pos.dy) < 24
+                if again {
+                    // A second tap in the same place: the word.
+                    _lastTap = (0, Offset(-100, -100))
+                    _controller.selectWord(at: pos)
+                    if _controller.hasSelection { _w.onSelectionGestureEnd?() }
+                } else {
+                    _lastTap = (now, event.localPosition)
+                    _controller.moveTo(pos, extend: false)
+                }
             }
             return
         }
@@ -1107,6 +1205,24 @@ public final class RichEditableState: State<StatefulWidget> {
                 let h = Rect.fromLTWH(c.dx - half, c.dy - half, Self.handleSize, Self.handleSize)
                 canvas.drawRect(h, fill)
                 canvas.drawRect(h, line)
+            }
+        }
+
+        // A touch selection: a stem and a knob at each end, to drag.
+        if let ends = _selectionEnds() {
+            let fill = Paint()
+            fill.style = .fill
+            fill.color = _layout.theme.selectionColor.withOpacity(1)
+            let rim = Paint()
+            rim.style = .stroke
+            rim.strokeWidth = 1.5
+            rim.color = Color(0xFFFFFFFF)
+            let k = Self.knobRadius
+            for r in [ends.start, ends.end] {
+                canvas.drawRect(Rect.fromLTWH(r.left - 1, r.top, 2, r.height), fill)
+                let knob = RRect(fromRectAndRadius: Rect.fromLTWH(r.left - k, r.bottom, k * 2, k * 2), Radius(circular: k))
+                canvas.drawRRect(knob, fill)
+                canvas.drawRRect(knob, rim)
             }
         }
 

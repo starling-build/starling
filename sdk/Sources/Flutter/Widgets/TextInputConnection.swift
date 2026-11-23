@@ -30,6 +30,12 @@ public enum TextInputChannel {
     public nonisolated(unsafe) static var enabled: Bool = false
     #elseif os(macOS)
     public nonisolated(unsafe) static var enabled: Bool = ProcessInfo.processInfo.environment["STARLING_IME"] != "0"
+    #elseif os(iOS)
+    /// On by default: the engine's own text-input view is a real UITextInput
+    /// (autocorrect, dictation, composed input, the selection loupe), which
+    /// the key bar the Terminal uses is not. The Terminal never opens a
+    /// client, so nothing changes for it. STARLING_IME=0 turns it off.
+    public nonisolated(unsafe) static var enabled: Bool = ProcessInfo.processInfo.environment["STARLING_IME"] != "0"
     #else
     public nonisolated(unsafe) static var enabled: Bool = ProcessInfo.processInfo.environment["STARLING_IME"] != nil
     #endif
@@ -108,17 +114,26 @@ public enum TextInputChannel {
     }
 
     /// The client configuration for `TextInput.setClient`.
-    public static func config(multiline: Bool) -> [String: Any] {
-        [
+    /// `prose`: the text is a document's running text, so on iOS the system's
+    /// autocorrect, suggestions and sentence capitalisation apply (as in Pages).
+    /// Everywhere else, and for fields and cells, they stay off: the macOS plugin
+    /// has nothing to correct with, and a cell or a filename is not prose.
+    public static func config(multiline: Bool, prose: Bool = false) -> [String: Any] {
+        #if os(iOS)
+        let assist = prose
+        #else
+        let assist = false
+        #endif
+        return [
             "inputType": ["name": multiline ? "TextInputType.multiline" : "TextInputType.text",
                           "signed": null, "decimal": null],
             "inputAction": multiline ? "TextInputAction.newline" : "TextInputAction.done",
             "readOnly": false,
             "obscureText": false,
-            "autocorrect": false,
-            "enableSuggestions": false,
+            "autocorrect": assist,
+            "enableSuggestions": assist,
             "enableDeltaModel": false,
-            "textCapitalization": "TextCapitalization.none",
+            "textCapitalization": assist ? "TextCapitalization.sentences" : "TextCapitalization.none",
             "keyboardAppearance": "Brightness.light",
             "enableIMEPersonalizedLearning": true,
             "enableInteractiveSelection": true,

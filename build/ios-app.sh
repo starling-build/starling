@@ -112,6 +112,33 @@ case "$NAME" in
   OfficeApp) DISPLAY_NAME="${STARLING_APP_DISPLAY_NAME:-Writer}" ;;
   *) DISPLAY_NAME="${STARLING_APP_DISPLAY_NAME:-$NAME}" ;;
 esac
+# The Office app is a document app: it appears in Files' "Open in…" and as a
+# default handler, opens documents where they live (iCloud Drive, other
+# providers), and its Documents folder shows in Files. Types are declared by
+# UTI — the three OOXML ones are system-defined — so no exported types needed.
+DOCUMENT_KEYS=""
+if [ "$NAME" = "OfficeApp" ]; then
+  doctype() { # name, role, UTIs...
+    local n="$1"; shift
+    printf '    <dict><key>CFBundleTypeName</key><string>%s</string><key>CFBundleTypeRole</key><string>Editor</string><key>LSHandlerRank</key><string>Alternate</string><key>LSItemContentTypes</key><array>' "$n"
+    for u in "$@"; do printf '<string>%s</string>' "$u"; done
+    printf '</array></dict>\n'
+  }
+  DOCUMENT_KEYS="  <key>CFBundleDocumentTypes</key>
+  <array>
+$(doctype "Word Document" org.openxmlformats.wordprocessingml.document public.rtf public.plain-text)$(doctype "PowerPoint Presentation" org.openxmlformats.presentationml.presentation)$(doctype "Excel Workbook" org.openxmlformats.spreadsheetml.sheet public.comma-separated-values-text public.tab-separated-values-text)  </array>
+  <key>LSSupportsOpeningDocumentsInPlace</key> <true/>
+  <key>UIFileSharingEnabled</key>              <true/>
+  <key>UISupportsDocumentBrowser</key>         <true/>
+  <key>UISupportedInterfaceOrientations~ipad</key>
+  <array>
+    <string>UIInterfaceOrientationPortrait</string>
+    <string>UIInterfaceOrientationPortraitUpsideDown</string>
+    <string>UIInterfaceOrientationLandscapeLeft</string>
+    <string>UIInterfaceOrientationLandscapeRight</string>
+  </array>
+"
+fi
 cat > "$OUT/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -137,7 +164,7 @@ cat > "$OUT/Info.plist" <<PLIST
     <string>UIInterfaceOrientationLandscapeRight</string>
   </array>
   <key>CFBundleSupportedPlatforms</key>       <array><string>$( [ "$MODE" = device ] && echo iPhoneOS || echo iPhoneSimulator )</string></array>
-</dict>
+$DOCUMENT_KEYS</dict>
 </plist>
 PLIST
 

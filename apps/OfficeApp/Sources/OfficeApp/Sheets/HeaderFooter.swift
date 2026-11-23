@@ -84,6 +84,8 @@ enum HeaderFooterText {
 
     struct Sections: Equatable {
         var left: [Item] = [], center: [Item] = [], right: [Item] = []
+        /// The sections (0 left, 1 centre, 2 right) with a picture code (`&G`).
+        var pictures: [Int] = []
     }
 
     /// What the codes stand in for on one page.
@@ -143,7 +145,7 @@ enum HeaderFooterText {
             case "F", "f": flush(); add(.file)
             case "A", "a": flush(); add(.sheet)
             case "Z", "z": flush(); add(.path)
-            case "G", "g": break   // a picture: not drawn
+            case "G", "g": flush(); out.pictures.append(section)   // a picture: drawn by the page
             case "B", "b": flush(); style.bold.toggle()
             case "I", "i": flush(); style.italic.toggle()
             case "U", "u", "E", "e": flush(); style.underline.toggle()

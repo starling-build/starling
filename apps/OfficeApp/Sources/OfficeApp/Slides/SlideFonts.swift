@@ -86,6 +86,11 @@ enum SlideFonts {
         }
     }
 
+    /// A face whose upright column steps by each character's own vmtx advance (`SlideVerticalAdvances`).
+    static func proportionalUprightFace(_ family: String) -> Bool {
+        ["ms pgothic", "ｍｓ ｐゴシック"].contains(windowsName(family))
+    }
+
     static func windowsName(_ family: String) -> String {
         let n = family.trimmingWhitespace().lowercased()
         if missingRoman.contains(n), OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil { return "palatino linotype" }
@@ -96,7 +101,29 @@ enum SlideFonts {
         // BIZ UDP明朝): its print draws it in Yu Gothic, regular or bold, whatever the name. Property: a name with kana, or an HG/游 name with
         // ideographs, that our East Asian width table does not know. The theme's "本文"/"見出し" aliases are not this.)
         if OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil, isMissingJapaneseName(n) { return "yu gothic" }
+        // (A Chinese face the print's machine lacks (隶书/LiSu, 幼圆, 方正*, 華康*, 思源*...): its print draws it in Microsoft YaHei, quotes and all,
+        // e9180c676efa p13's 20 pt title line and p11's 14 pt column, whose “ ” are YaHei's full em, not a narrow stand-in's. Property: a name
+        // of ideographs only (no kana, no hangul, no Latin face word) that is not a face Windows or Office ships, and not installed or embedded.)
+        if OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil, simplifiedDeck, isMissingChineseName(n) { return "microsoft yahei" }
         return n == "dejavu sans" && OfficeFonts.installed(family) == nil ? "verdana" : n
+    }
+
+    /// Whether the deck's Chinese runs are Simplified (lang zh-CN/zh-SG outnumber zh-TW/HK/MO): PowerPoint's fallback for a face it lacks follows the run's language.
+    nonisolated(unsafe) private static var simplifiedDeck = false
+    static func noteSimplifiedChinese(_ v: Bool) { simplifiedDeck = v }
+
+    private static let windowsIdeographFaces: Set<String> = ["hgp創英角ｺﾞｼｯｸub", "hgp明朝e", "hgs創英角ｺﾞｼｯｸub", "hgs明朝e", "hg丸ｺﾞｼｯｸm-pro", "hg創英角ｺﾞｼｯｸub", "hg明朝e", "ud デジタル 教科書体 n-b", "ud デジタル 教科書体 nk-b", "ud デジタル 教科書体 np-b", "仿宋", "华文中宋", "华文仿宋", "华文新魏", "华文楷体", "华文琥珀", "华文细黑", "华文行楷", "宋体", "微軟正黑體", "微軟正黑體 light", "微软雅黑", "微软雅黑 light", "新宋体", "新細明體", "新細明體-extb", "楷体", "標楷體", "游ゴシック", "游ゴシック light", "游ゴシック medium", "游明朝", "游明朝 demibold", "等线", "等线 light", "細明體", "細明體-extb", "細明體_hkscs", "細明體_hkscs-extb", "細明體_mscs", "細明體_mscs-extb", "黑体", "ｍｓ 明朝", "ｍｓ ｐ明朝"]
+
+    static func isMissingChineseName(_ n: String) -> Bool {
+        var ideograph = false
+        for u in n.unicodeScalars {
+            let v = u.value
+            if (v >= 0x3041 && v <= 0x30FF) || (v >= 0x31F0 && v <= 0x31FF) || (v >= 0xFF66 && v <= 0xFF9F) || (v >= 0xAC00 && v <= 0xD7A3) { return false }
+            if v >= 0x4E00 && v <= 0x9FFF { ideograph = true }
+        }
+        guard ideograph, SlideEastAsianWidths.lookup(n) == nil else { return false }
+        // The faces the print's machine has installed (measured: installed-font-aliases-20261123.tsv, every name with ideographs, localized names included).
+        return !windowsIdeographFaces.contains(n)
     }
 
     static func isMissingJapaneseName(_ n: String) -> Bool {
@@ -308,7 +335,7 @@ enum SlideFonts {
             face.boldOtherAdvances = OfficeFonts.verdanaBoldOtherAdvances
             return face
         case "segoe ui", "segoe ui light", "segoe ui semilight", "tahoma", "trebuchet ms", "franklin gothic book",
-             "franklin gothic medium", "century gothic", "gill sans mt", "candara", "palatino linotype":
+             "franklin gothic medium", "century gothic", "gill sans mt", "candara", "palatino linotype", "corbel":
             // (Windows' own widths, `SlideFontWidths`: the bold where the
             // face has one, else the stand-in's bold.)
             let n = family.trimmingWhitespace().lowercased()
@@ -323,6 +350,7 @@ enum SlideFonts {
                 "century gothic": (SlideFontWidths.centuryGothic, SlideFontWidths.centuryGothicBold),
                 "gill sans mt": (SlideFontWidths.gillSans, SlideFontWidths.gillSansBold),
                 "candara": (SlideFontWidths.candara, SlideFontWidths.candaraBold),
+                "corbel": (OfficeFonts.corbelAdvances, OfficeFonts.corbelBoldAdvances),
                 "palatino linotype": (SlideFontWidths.palatino, SlideFontWidths.palatinoBold),
             ]
             guard let t = tables[n] else { return nil }
@@ -334,6 +362,14 @@ enum SlideFonts {
             face.hintedAdvances = ["arial", "rockwell", "tw cen mt", "trebuchet ms"].contains(n)
             if let k = SlideLatinKerns.lookup(n) { face.kerns = k.regular; face.boldKerns = k.bold ?? k.regular; face.kernsOutsideWord = true }
             if let k = SlideLatinItalicKerns.lookup(n) { face.italicKerns = k.italic; face.boldItalicKerns = k.boldItalic ?? k.italic }
+            if n == "corbel" {
+                // (Corbel's own widths, measured on Windows, as the Word path sets it: a ja deck's title in it fits "FEATURES OF ESCAPE PANIC"
+                // on one line at 40.5 pt bold caps in PowerPoint's print, the stand-in's wider letters did not.)
+                face.otherAdvances = OfficeFonts.corbelOtherAdvances
+                face.boldOtherAdvances = OfficeFonts.corbelBoldOtherAdvances
+                face.italicAdvances = OfficeFonts.corbelItalicAdvances
+                face.boldItalicAdvances = OfficeFonts.corbelBoldItalicAdvances
+            }
             if n == "tahoma" {
                 // (Tahoma's own Arabic, as the Word path sets it.)
                 face.joinedAdvances = WindowsArabicAdvances.tahoma
@@ -415,6 +451,14 @@ enum SlideFonts {
             face.otherAdvances = SlideFontWidths.rockwellCondensedOther
             face.boldOtherAdvances = SlideFontWidths.rockwellCondensedBoldOther
             return face
+        case "cambria math":
+            // (Cambria Math's own advances, for the symbols Calibri lacks that a run falls back to it for: ℃ is 0.9043 em.)
+            var face = RichResolvedFace(family: resolve(family))
+            var t: [UInt32: Double] = [:]
+            for (u, w) in OfficeFonts.cambriaMathScript where u >= 0xA0 { t[u] = Double(w.0) }
+            face.otherAdvances = t
+            face.boldOtherAdvances = t
+            return face
         case "calibri light":
             // (Calibri Light has no bold: PowerPoint emboldens the regular outline and sets each glyph at 0.9845 of the Light
             // advance (clbold lab), not at Carlito Bold's widths, which are wider and wrapped 6d178027's 48 pt title a word early.)
@@ -478,6 +522,9 @@ enum SlideFonts {
         case "meiryo ui", "meiryo ui bold": return (2171.0 / 2048, 430.0 / 2048)
         case "yu gothic": return (2017.0 / 2048, 619.0 / 2048)
         case "ms gothic", "ms pgothic": return (220.0 / 256, 36.0 / 256)
+        // (Lab mixrun, 35 pt lines of fontAlgn t, ctr and b: Book Antiqua 0.96 and 0.277, PMingLiU and DFKai-SB 0.803 and 0.231.)
+        case "book antiqua": return (0.96, 0.277)
+        case "pmingliu", "新細明體", "dfkai-sb", "標楷體": return (0.803, 0.231)
         default: return nil
         }
     }
@@ -512,6 +559,15 @@ enum SlideFonts {
         }
     }
 
+    /// Faces whose single line is exactly 1.0 em (hhea = typo = win 1760 + 288 of 2048, no gap: every HG face; measured in
+    /// /data/corpus-cache/metrics/cjk-line-20261122), where the flat 1.2 em would overstate it. ja f3a3058d2e's 18 pt lines on
+    /// 11 pt in HGPGothicE: rows 2.6 pt under n x 18 + margins.
+    static func exactSingleLineEm(_ family: String) -> Double? {
+        let n = windowsName(family)
+        let ms = ["ms gothic", "ｍｓ ゴシック", "ms pgothic", "ｍｓ ｐゴシック", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝"].contains(n)
+        return ms || n.hasPrefix("hgp") || n.hasPrefix("hgs") || n.hasPrefix("hgm") ? 1.0 : nil
+    }
+
     /// The same by the face that draws it (what the layout knows a run
     /// by): a stand-in answers for the face it stands for.
     static func drawnNaturalHeight(_ drawn: String) -> Double? {
@@ -541,7 +597,7 @@ enum SlideFonts {
         case "ms gothic", "ｍｓ ゴシック", "ms pgothic", "ｍｓ ｐゴシック", "ms ui gothic", "ｍｓ ｕｉ ゴシック", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝":
             (units, upem, descent) = (256, 256, n.contains("pgothic") || n.contains("ｐゴシック") ? 52 : 36)
         default:
-            guard n.contains("dfkai") || n.contains("標楷") else { return nil }
+            guard n.contains("dfkai") || n.contains("標楷") || n.contains("mingliu") || n.contains("細明體") else { return nil }   // (PMingLiU / MingLiU: 7c3069f9808a slide 8, 12 pt at 90% stands 14.1 apart = 0.9 x 1.306 em)
             (units, upem, descent) = (1024, 1024, 204)
         }
         return (1.3 * units / upem, (descent / units + 0.15) / 1.3)

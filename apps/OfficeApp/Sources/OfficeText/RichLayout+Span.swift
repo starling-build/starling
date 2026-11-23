@@ -279,10 +279,34 @@ extension RichLayout {
         return nil
     }
 
-    /// Runs of one or two ASCII digits beside an ideograph, in a PowerPoint vertical (eaVert) box: PowerPoint sets them upright
+    /// The length of the place a pair of upright digits takes in a vertical column, in ems, by the face that draws them.
+    /// PowerPoint's prints (lab vdig2, 28 pt and 14 pt agree): from the ideographic em top (0.88 em over the baseline) down to
+    /// the face's win descent, which fits MS Gothic, HG Maru Gothic, Meiryo, Arial and Calibri to 0.01 em (amd-opus, 2026-11-23);
+    /// SimSun, MingLiU, YaHei, JhengHei, Malgun and Yu Gothic stand longer and are measured per face (rule not named yet).
+    static func digitSlotEm(_ family: String) -> Double {
+        var f = ""
+        for u in family.unicodeScalars {
+            if u.value >= 0xFF01 && u.value <= 0xFF5E, let h = Unicode.Scalar(u.value - 0xFEE0) { f.unicodeScalars.append(h) }
+            else { f.unicodeScalars.append(u) }
+        }
+        f = f.lowercased()
+        func has(_ names: String...) -> Bool { names.contains { f.containsSubstring($0) } }
+        if has("yu gothic", "游ゴシック") { return 1.45 }
+        if has("malgun", "맑은") { return 1.307 }
+        if has("jhenghei", "微軟正黑") { return 1.293 }
+        if has("yahei", "微软雅黑") { return 1.277 }
+        if has("dfkai", "kaiti", "標楷", "mingliu", "細明") { return 1.0957 }
+        if has("simsun", "simhei", "宋体", "新宋", "黑体") { return 1.0703 }
+        if has("meiryo", "メイリオ") { return 1.320 }
+        if has("calibri") { return 1.149 }
+        if has("arial") { return 1.092 }
+        return 1.0206
+    }
+
+    /// Runs of ASCII digits beside an ideograph, cut into pieces of two, in a PowerPoint vertical (eaVert) box: PowerPoint sets them upright
     /// side by side, not on their side as the Latin letters and the marks are, each run in a place 1.0957 em long whatever
     /// its length. (Print of 6cb9bf676218 p10, p15, p24: "16", "8" and "13" at 28 pt each take 30.68 pt of the column.)
-    static func uprightDigitRuns(_ u: [UInt16]) -> [Range<Int>] {
+    static func uprightDigitRuns(_ u: [UInt16], alone: Bool = false) -> [Range<Int>] {
         func digit(_ c: UInt16) -> Bool { c >= 0x30 && c <= 0x39 }
         func letter(_ c: UInt16) -> Bool { (c >= 0x41 && c <= 0x5A) || (c >= 0x61 && c <= 0x7A) }
         func wide(_ c: UInt16) -> Bool { c >= 0x2E80 && !(c >= 0xD800 && c <= 0xDFFF) && c != 0xFFFC }
@@ -297,7 +321,12 @@ extension RichLayout {
             while a < u.count, u[a] == 0x200B { a += 1 }
             let before = b >= 0 ? u[b] : 0x20
             let after = a < u.count ? u[a] : 0x20
-            if j - i <= 2, !letter(before), !letter(after), wide(before) || wide(after) { out.append(i ..< j) }
+            if !letter(before), !letter(after), wide(before) || wide(after) || (alone && b < 0 && a >= u.count) {
+                // (A column of digits alone stands upright too: vdig2 print, "12" in a column of its own takes one em.)
+                // (A longer run goes by twos from its start, the last one possibly alone: vdig print, "123" is "12" then "3", "1234" is "12" then "34", each in a place of its own.)
+                var k = i
+                while k < j { out.append(k ..< min(k + 2, j)); k += 2 }
+            }
             i = j
         }
         return out
@@ -307,10 +336,10 @@ extension RichLayout {
                        held: Set<Int> = [], spread: [Int: Double] = [:], fitProbe: Bool = false, autoSpaces: ((Int, Double) -> Void)? = nil)
         -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) {
         var r = _spanBase(for: p, at: index, document, textWidth: textWidth, lead: lead, adjust: adjust, held: held, spread: spread, fitProbe: fitProbe, autoSpaces: autoSpaces)
-        guard !theme.wordRules, uprightIdeographs else { return r }
+        guard !theme.wordRules, uprightIdeographs || sidewaysDigits else { return r }
         // (The tree's own text: the layout put zero-width spaces between its ideographs, which the paint finds in the painter's text.)
         let units = Array(r.0.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
-        let groups = Self.uprightDigitRuns(units)
+        let groups = Self.uprightDigitRuns(units, alone: sidewaysDigits && !uprightIdeographs)
         guard !groups.isEmpty else { return r }
         // The size of the ideograph nearest each run: the place is set by it, the digits' own face being a stand-in at another size.
         var sizes: [Double?] = []
@@ -324,8 +353,8 @@ extension RichLayout {
         func nearEm(_ g: Range<Int>) -> Double? {
             func wide(_ c: UInt16) -> Bool { c >= 0x2E80 && !(c >= 0xD800 && c <= 0xDFFF) && c != 0xFFFC }
             var b = g.lowerBound - 1, a = g.upperBound
-            while b >= 0, units[b] == 0x200B { b -= 1 }
-            while a < units.count, units[a] == 0x200B { a += 1 }
+            while b >= 0, units[b] == 0x200B || (units[b] >= 0x30 && units[b] <= 0x39) { b -= 1 }
+            while a < units.count, units[a] == 0x200B || (units[a] >= 0x30 && units[a] <= 0x39) { a += 1 }
             if b >= 0, wide(units[b]) { return sizes[b] }
             if a < units.count, wide(units[a]) { return sizes[a] }
             return nil
@@ -342,11 +371,12 @@ extension RichLayout {
                 var tail: [Int: Double] = [:]
                 for g in groups where g.upperBound > lo && g.lowerBound < hi {
                     // (The run's last digit carries the extra: the digits may sit in leaves of their own.)
-                    guard g.upperBound - 1 >= lo, g.upperBound - 1 < hi, let em = nearEm(g) else { continue }
+                    guard g.upperBound - 1 >= lo, g.upperBound - 1 < hi, let em = uprightIdeographs ? nearEm(g) : own?.fontSize else { continue }
                     let digits = String(decoding: units[g], as: UTF16.self)
                     let probe = TextPainter(text: TextSpan(text: digits, style: own?.copyWith(letterSpacing: 0)), textDirection: .ltr)
                     probe.layout()
-                    let extra = 1.0957 * em - probe.width
+                    // (In a sideways column the digit's place is its own em, not the ideograph's 1.0957: the print of 44a86430c67f p10 sets an 11 pt digit and a 14 pt 月 in 25 pt.)
+                    let extra = (uprightIdeographs ? Self.digitSlotEm(own?.debugLabel ?? own?.fontFamily ?? "") : 1.0) * em - probe.width
                     probe.dispose()
                     if abs(extra) > 0.01 { cuts.append(g.upperBound - 1); cuts.append(min(g.upperBound, hi)); tail[g.upperBound - 1] = extra }
                 }
@@ -1765,6 +1795,12 @@ extension RichLayout {
                         placeOffset = upper
                         size = Size(size.width, upper + max(0, lower))
                     }
+                }
+                // (PowerPoint scales an equation's line by a percent line spacing below 100%, as it does the text's.)
+                if !theme.wordRules, image.float == nil, image.name.hasPrefix("m:o"), p.style.lineHeightPoints == nil, p.style.lineSpacing < 0.999,
+                   p.style.lineSpacing > 0.5, size.height > 0 {
+                    placeOffset *= p.style.lineSpacing
+                    size = Size(size.width, size.height * p.style.lineSpacing)
                 }
                 inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic, baselineOffset: placeOffset)))
                 // (Before 2013's layout a space after a picture wider than

@@ -131,6 +131,11 @@ struct SheetPrintMetrics {
             screenDigit: [12, 13, 15, 16, 16, 18, 21, 24, 27]),
         "malgun gothic": Face(digit: [37, 41, 46, 48, 51, 55, 64, 73, 83], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
             screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
+        // Nirmala UI: a wrapped line is the face's GDI height plus its descent at 600 dpi (12 pt: 133 + 26 = 159 dots, 50 screen
+        // pixels; zwsp2 lab, Excel 16: one line of Nirmala UI 12 is 19.07 pt, two 38.1, three 57.2, where Calibri 12 is 15.3).
+        // The other sizes follow from the face's GDI heights (gdi-textmetrics-600dpi-indic); the digits stand in as Calibri's.
+        "nirmala ui": Face(digit: [34, 38, 42, 45, 47, 51, 59, 67, 76], row: [106, 119, 131, 139, 147, 159, 185, 208, 233], screenRow: [33, 37, 41, 43, 46, 50, 58, 66, 74],
+            screenDigit: [12, 13, 14, 15, 15, 16, 19, 21, 24]),
         "yu gothic": Face(digit: [37, 42, 46, 49, 51, 56, 65, 74, 83], row: [113, 128, 140, 149, 154, 164, 192, 219, 245], screenRow: [34, 40, 44, 45, 47, 53, 59, 69, 78],
             screenDigit: [12, 13, 15, 16, 16, 18, 21, 24, 27]),
         "microsoft yahei": Face(digit: [39, 44, 49, 52, 54, 59, 69, 78, 88], row: [99, 109, 121, 125, 130, 144, 163, 185, 208], screenRow: [30, 33, 37, 38, 40, 43, 51, 61, 65],
@@ -157,7 +162,8 @@ struct SheetPrintMetrics {
             screenDigit: [13, 15, 17, 18, 18, 20, 23, 27, 30]),
         "palatino linotype": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [101, 113, 123, 130, 137, 147, 171, 194, 216], screenRow: [30, 34, 38, 39, 40, 47, 53, 61, 67],
             screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
-        "pmingliu": Face(digit: [31, 35, 39, 41, 43, 47, 55, 62, 70], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [26, 30, 33, 35, 36, 39, 45, 53, 59],
+        // PMingLiU and MingLiU print a line of em + descent + external leading (= descent) + half the descent more, in 600-dpi dots, em = round(size x 600/72), descent = em - round(0.8008 em): GDI dump at 600 dpi, 6 sizes x 2 faces, 12/12 of Excel's pitches (the planner's spec, 2026-11-23).
+        "pmingliu": Face(digit: [31, 35, 39, 41, 43, 47, 55, 62, 70], row: [87, 98, 109, 115, 119, 130, 152, 172, 195], screenRow: [26, 30, 33, 35, 36, 39, 45, 53, 59],
             screenDigit: [10, 11, 13, 13, 14, 15, 17, 20, 23]),
         "lucida sans typewriter": Face(digit: [40, 45, 50, 53, 55, 60, 70, 80, 90], row: [87, 96, 105, 112, 116, 126, 146, 164, 184], screenRow: [26, 30, 34, 35, 36, 40, 46, 53, 59],
             screenDigit: [13, 14, 16, 17, 17, 19, 22, 26, 29]),
@@ -165,7 +171,7 @@ struct SheetPrintMetrics {
             screenDigit: [14, 16, 18, 19, 19, 21, 25, 29, 32]),
         "simhei": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [25, 28, 32, 33, 34, 38, 43, 50, 56],
             screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
-        "mingliu": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [26, 30, 33, 35, 36, 39, 45, 53, 59],
+        "mingliu": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [87, 98, 109, 115, 119, 130, 152, 172, 195], screenRow: [26, 30, 33, 35, 36, 39, 45, 53, 59],
             screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
         // The bold of a face, where a workbook's default font is bold: its
         // own line, and for some its own digit.
@@ -192,7 +198,7 @@ struct SheetPrintMetrics {
         "carlito": "calibri", "liberation sans": "arial", "arimo": "arial", "helvetica": "arial",
         "helvetica neue": "arial", "liberation serif": "times new roman", "tinos": "times new roman",
         "times": "times new roman", "liberation mono": "courier new", "cousine": "courier new",
-        "courier": "courier new", "caladea": "cambria", "宋体": "simsun", "nsimsun": "simsun",
+        "courier": "courier new", "nirmala text": "nirmala ui", "caladea": "cambria", "宋体": "simsun", "nsimsun": "simsun",
         "ｍｓ ｐゴシック": "ms pgothic", "ｍｓ ゴシック": "ms gothic", "ms ui gothic": "ms pgothic",
         "ms mincho": "ms gothic", "ms pmincho": "ms pgothic", "ｍｓ 明朝": "ms gothic", "ｍｓ ｐ明朝": "ms pgothic",
         "新細明體": "pmingliu", "맑은 고딕": "malgun gothic", "游ゴシック": "yu gothic",
@@ -204,18 +210,39 @@ struct SheetPrintMetrics {
         "바탕": "malgun gothic", "batang": "malgun gothic",
     ]
 
-    private static func face(_ family: String) -> Face {
+    private static func face(_ family: String) -> Face { faces[faceKey(family)]! }
+
+    /// The key of the table face a family is measured as: its own, or the
+    /// one this app would draw it with. (Its bold is that key's "bold".)
+    private static func faceKey(_ family: String) -> String {
+        // Asked for every measured string, always with the same few family names; the answer follows from the name alone
+        // while a sheet prints (the stand-in lookups below cost more than the measure itself).
+        faceKeyLock.lock(); let known = faceKeyMemo[family]; faceKeyLock.unlock()
+        if let known { return known }
+        let key = _faceKey(family)
+        faceKeyLock.lock(); faceKeyMemo[family] = key; faceKeyLock.unlock()
+        return key
+    }
+    #if os(WASI)
+    // One thread in the browser, and no NSLock in its Foundation.
+    private struct _NoLock { func lock() {}; func unlock() {} }
+    private static let faceKeyLock = _NoLock()
+    #else
+    private static let faceKeyLock = NSLock()
+    #endif
+    nonisolated(unsafe) private static var faceKeyMemo: [String: String] = [:]
+    private static func _faceKey(_ family: String) -> String {
         let n = family.trimmingWhitespace().lowercased()
-        if let f = faces[aliases[n] ?? n] { return f }
+        if faces[aliases[n] ?? n] != nil { return aliases[n] ?? n }
         // A face nobody measured: an East Asian one by its name, the rest by
         // the clone this app would draw it with.
-        if n.unicodeScalars.contains(where: { $0.value > 0x2E7F }) { return faces["ms pgothic"]! }
+        if n.unicodeScalars.contains(where: { $0.value > 0x2E7F }) { return "ms pgothic" }
         let clone = OfficeFonts.sheetClone(family)
-        if clone == OfficeFonts.substitute("Times New Roman") { return faces["times new roman"]! }
-        if clone == OfficeFonts.substitute("Courier New") { return faces["courier new"]! }
-        if clone == OfficeFonts.substitute("Cambria") { return faces["cambria"]! }
-        if clone == OfficeFonts.substitute("Calibri") { return faces["calibri"]! }
-        return faces["arial"]!
+        if clone == OfficeFonts.substitute("Times New Roman") { return "times new roman" }
+        if clone == OfficeFonts.substitute("Courier New") { return "courier new" }
+        if clone == OfficeFonts.substitute("Cambria") { return "cambria" }
+        if clone == OfficeFonts.substitute("Calibri") { return "calibri" }
+        return "arial"
     }
 
     /// A face's ascent as Windows has it (OS/2 usWinAscent, or hhea's where
@@ -234,6 +261,13 @@ struct SheetPrintMetrics {
         guard let a = ascent(family: family), let d = descent(family: family) else { return nil }
         return a + d
     }
+    /// Where a cell's text stands: the face's own ascent and descent. No
+    /// face-specific entries: Lucida Sans Unicode stands about a tenth of
+    /// an em higher in Excel's print than its Windows line gives, and no
+    /// rule over the measured metric fields fits it with the other faces
+    /// (OPEN, baseline lab round 2).
+    static func printAscent(family: String) -> Double? { ascent(family: family) }
+    static func printDescent(family: String) -> Double? { descent(family: family) }
     private static let ascents: [String: Double] = [
         "calibri": 0.9521, "arial": 0.9053, "verdana": 1.0054, "times new roman": 0.8911, "courier new": 0.8325,
         "tahoma": 1.0005, "cambria": 0.9502, "microsoft sans serif": 0.9219, "segoe ui": 1.0791, "century gothic": 1.0059,
@@ -280,8 +314,7 @@ struct SheetPrintMetrics {
     /// The metrics of a workbook whose default font is `family` at `size`;
     /// `baseColWidth` is the sheet's (8 digits unless it says otherwise).
     static func of(family: String, size: Double, bold: Bool = false, baseColWidth: Double = 8, hinted: Bool = false, otherBook: Bool = false) -> SheetPrintMetrics {
-        let plain = aliases[family.trimmingWhitespace().lowercased()] ?? family.trimmingWhitespace().lowercased()
-        let f = (bold ? faces[plain + " bold"] : nil) ?? face(family)
+        let f = (bold ? faces[faceKey(family) + " bold"] : nil) ?? face(family)
         // (A printer's line between the sizes measured is the next whole
         // dot up: 49609's Microsoft Sans Serif 8.25 is 87 of 84 and 93,
         // its set 15 pt rows 124 dots in Excel's print where 86 made 122.)

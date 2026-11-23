@@ -316,6 +316,32 @@ extension RichLayout {
         return trim
     }
 
+    /// Slides: how much of paragraph `i`'s last line's foot, over what a single line keeps below its baseline, does not count
+    /// toward the text's height when the lines are EXACT points over single's height (PowerPoint's prints, ja 18 pt lines on
+    /// 11 pt text: every table row 2.6 pt shorter than the n x 18 + margins ours made, 2 lines and 3 alike; ja 6e4294a735's 90 pt
+    /// lines on 54 pt in a centred box stand 5 pt lower). It is the foot `_baselineShiftBase` models (0.072 of the size and 0.255
+    /// of the spacing over single, less 0.012 of the size) less the natural depth. In pixels; 0 elsewhere.
+    func _exactFootExtra(_ i: Int, _ document: RichDocument) -> Double {
+        guard theme.exactLinesAsPowerPoint, !theme.wordRules, let natural = theme.singleLineHeight else { return 0 }
+        let p = document.paragraphs[i]
+        guard let points = p.style.lineHeightPoints, !p.style.lineHeightIsMinimum, !p.text.isEmpty, let run = p.runs.last else { return 0 }
+        var size = run.style.fontSize ?? document.styles.resolve(p.style)?.char.fontSize
+            ?? document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize
+        if fontScale != 1 { size = max(1, (size * fontScale).rounded()) }
+        let face = run.style.eastAsiaFontFamily ?? run.style.fontFamily
+        let single = (face.flatMap { theme.exactSingleLineEm?($0) } ?? natural) * size
+        guard points > single else { return 0 }
+        let extra = min(0.072 * size + 0.255 * (points - single), points - 0.755 * size) - 0.012 * size
+        return _px(max(0, extra))
+    }
+
+    /// `_exactFootExtra` for a cell's paragraph `k` when it is the last of its column in the row (else 0).
+    func _slidesCellLastLineTrim(_ k: Int, _ document: RichDocument) -> Double {
+        guard let c = _cells[k], !c.vertical else { return 0 }
+        if k + 1 < _cells.count, let n = _cells[k + 1], n.row == c.row, n.table == c.table, n.column == c.column { return 0 }
+        return _exactFootExtra(k, document)
+    }
+
     func _px(_ points: Double) -> Double { points * theme.pixelsPerPoint * scale }
 
     /// Lay out every invalidated paragraph and recompute the tops.
@@ -1601,8 +1627,8 @@ extension RichLayout {
         for g in digitRuns {
             let k = g.lowerBound
             var nb = g.lowerBound - 1, na = g.upperBound
-            while nb >= 0, text[nb] == 0x200B { nb -= 1 }
-            while na < text.count, text[na] == 0x200B { na += 1 }
+            while nb >= 0, text[nb] == 0x200B || (text[nb] >= 0x30 && text[nb] <= 0x39) { nb -= 1 }
+            while na < text.count, text[na] == 0x200B || (text[na] >= 0x30 && text[na] <= 0x39) { na += 1 }
             let near = nb >= 0 && wide(text[nb]) ? nb : na
             guard styles.indices.contains(k), near < text.count, wide(text[near]), let side = styles[near], let em = side.fontSize,
                   let box = painter.getBoxesForSelection(TextSelection(baseOffset: k, extentOffset: k + 1)).first else { continue }
@@ -1615,6 +1641,44 @@ extension RichLayout {
             canvas.translate(origin.dx + box.left + em / 2 + lead(k), origin.dy + acrossC(box, em, near) + rubyColumnShift(k) + (plain ? 0.085 * em : 0) + sharedShift(k))
             canvas.rotate(-Double.pi / 2)
             glyph.paint(canvas, Offset(-glyph.width / 2, 0.38 * em - glyph.computeDistanceToActualBaseline(.alphabetic)))
+            canvas.restore()
+            glyph.dispose()
+        }
+        return true
+    }
+
+    /// A sideways eaVert column's line: the text drawn as laid out, turned with the canvas, except its runs of digits, which are drawn
+    /// upright, centred in the place `_span` made for them (the canvas is turned a quarter here: x runs down the column).
+    func _paintSidewaysDigits(_ painter: TextPainter, at origin: Offset, _ canvas: Canvas) -> Bool {
+        guard !theme.wordRules, let root = painter.text else { return false }
+        let text = Array(root.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
+        var styles: [TextStyle?] = []
+        func walk(_ span: InlineSpan, _ inherited: TextStyle?) {
+            guard let t = span as? TextSpan else { styles.append(inherited); return }
+            let own = inherited.map { $0.merge(t.style) } ?? t.style
+            if let s = t.text { styles.append(contentsOf: repeatElement(own, count: s.utf16.count)) }
+            for child in t.children ?? [] { walk(child, own) }
+        }
+        walk(root, nil)
+        guard styles.count == text.count else { return false }
+        let runs = Self.uprightDigitRuns(text, alone: true)
+        guard !runs.isEmpty, let rest = _clearedPainter(painter, runs, key: 7) else { return false }
+        rest.paint(canvas, origin)
+        for g in runs {
+            guard let first = painter.getBoxesForSelection(TextSelection(baseOffset: g.lowerBound, extentOffset: g.lowerBound + 1)).first,
+                  let last = painter.getBoxesForSelection(TextSelection(baseOffset: g.upperBound - 1, extentOffset: g.upperBound)).first else { continue }
+            let glyph = TextPainter(text: TextSpan(text: String(decoding: text[g], as: UTF16.self), style: styles[g.lowerBound]?.copyWith(letterSpacing: 0)), textDirection: .ltr)
+            glyph.layout()
+            // (Across the column it stands where the ideograph beside it does: the digit's own stand-in face has a line box of its own.)
+            var nb = g.lowerBound - 1, na = g.upperBound
+            while nb >= 0, text[nb] == 0x200B || (text[nb] >= 0x30 && text[nb] <= 0x39) { nb -= 1 }
+            while na < text.count, text[na] == 0x200B || (text[na] >= 0x30 && text[na] <= 0x39) { na += 1 }
+            let near = nb >= 0 && text[nb] >= 0x2E80 ? nb : na
+            let across = near < text.count ? painter.getBoxesForSelection(TextSelection(baseOffset: near, extentOffset: near + 1)).first : nil
+            canvas.save()
+            canvas.translate(origin.dx + (first.left + last.right) / 2, origin.dy + ((across ?? first).top + (across ?? first).bottom) / 2)
+            canvas.rotate(-Double.pi / 2)
+            glyph.paint(canvas, Offset(-glyph.width / 2, -glyph.height / 2))
             canvas.restore()
             glyph.dispose()
         }
@@ -2661,8 +2725,9 @@ extension RichLayout {
                         // (m-1) x 1.2 x size: 18pt at 115% is a row 37.15pt, 150% 43.24pt, 24pt 2 lines 115%
                         // 77.84pt; later lines pitch at m x 1.2 x size as here. The text sits where it did.)
                         let trim = _slidesCellFirstLineTrim(k, document)
-                        rowHeight = max(rowHeight, offset + _heights[k] - trim + cell.pad.top + cell.pad.bottom)
-                        bareHeight = max(bareHeight, offset + _heights[k] - trim + cell.pad.top + cell.pad.bottom - cell.rules)
+                        let lastTrim = _slidesCellLastLineTrim(k, document)
+                        rowHeight = max(rowHeight, offset + _heights[k] - trim - lastTrim + cell.pad.top + cell.pad.bottom)
+                        bareHeight = max(bareHeight, offset + _heights[k] - trim - lastTrim + cell.pad.top + cell.pad.bottom - cell.rules)
                         // (And as tall as a float its text wraps round reaches,
                         // where it stands in the cell (`_floatRect`, no higher
                         // than the row's top): zh-ab9cbe66's flow charts, 632pt
@@ -2973,7 +3038,9 @@ extension RichLayout {
                         if q.text.isEmpty, q.image == nil, q.inlineImages.isEmpty,
                            q.cell?.keptPropertiesXML?.containsSubstring("w:hideMark") ?? false { spareEnd = _heights[k] }
                     }
-                    stackByColumn[cell.column, default: 0] += _heights[k] - (stackByColumn[cell.column] == nil ? 0 : shared(k)) - spareEnd - _slidesCellFirstLineTrim(k, document)
+                    stackByColumn[cell.column, default: 0] += _heights[k] - (stackByColumn[cell.column] == nil ? 0 : shared(k)) - spareEnd
+                        - (stackByColumn[cell.column] == nil ? _slidesCellFirstLineTrim(k, document) : 0)
+                        - (cell.rowSpan > 1 ? _slidesCellLastLineTrim(k, document) : 0)
                     let need = stackByColumn[cell.column]! + cell.pad.top + cell.pad.bottom
                     spanning.append((r, min(rows.count - 1, r + cell.rowSpan - 1), need))
                 }
@@ -3066,7 +3133,7 @@ extension RichLayout {
                     if !theme.wordRules, _cells[k]!.rowSpan == 1, !_cells[k]!.vertical, k == row.first || _cells[k - 1]!.column != column {
                         anchorTrim = _slidesCellFirstLineTrim(k, document)
                     }
-                    content[column] = (content[column].map { $0 - shared(k) } ?? 0) + _heights[k] - spare - anchorTrim
+                    content[column] = (content[column].map { $0 - shared(k) } ?? 0) + _heights[k] - spare - anchorTrim - (_cells[k]!.rowSpan == 1 ? _slidesCellLastLineTrim(k, document) : 0)
                 }
                 // (… which reaches to the foot of a box floating over the
                 // text from one of its paragraphs: Word centres

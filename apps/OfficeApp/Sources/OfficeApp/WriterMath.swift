@@ -36,6 +36,8 @@ enum WriterMath {
         var baseD: Double = 0
         /// The MATH italic correction (pt) of its last glyph: a superscript beside it starts that much later (slides).
         var ic: Double = 0
+        /// The space an operator piece carries before its sign (a line broken before it sets the sign at the margin: slides).
+        var lead: Double = 0
         var draw: (any Canvas, Offset) -> Void
         var iu: Double { inkUp ?? ascent }
         var idn: Double { inkDown ?? descent }
@@ -140,6 +142,14 @@ enum WriterMath {
                 box.descent = min(box.descent, s * 0.22)
             }
         }
+        // (A slide display sum with its limits over and under is taller in PowerPoint's print than its ink and leading: lab eq-lab p7, 22 pt, the lines
+        // of 3 sums stand 3.2, 7.6 and 4.7 pt farther apart than ours, 0.15 em more above it and 0.19 em below.)
+        if display, WriterMath.slideScope, WriterMath.windows,
+           node.descendants("m:nary").contains(where: { n in !["\u{222B}", "\u{222C}", "\u{222D}", "\u{222E}"].contains(n.first("m:naryPr")?.first("m:chr")?["m:val"] ?? "\u{222B}") && n.first("m:naryPr")?.first("m:limLoc")?["m:val"] != "subSup" }) {
+            let s = Layout(display: false).runSize(node, size)
+            box.ascent += s * 0.15
+            box.descent += s * 0.19
+        }
         lock.lock()
         entries[id] = Entry(box: box, node: display ? node : nil, size: size, slide: slideScope, ink: slideInk)
         lock.unlock()
@@ -178,11 +188,19 @@ enum WriterMath {
                 while j < pieces.count, !pieces[j].breaksBefore { run += pieces[j].box.width; j += 1 }
                 if x + run > limit + 0.01 { lines.append([]); x = 0 }
             }
-            lines[lines.count - 1].append(piece.box)
-            x += piece.box.width
+            var box = piece.box
+            if slideScope, box.lead > 0, lines[lines.count - 1].isEmpty, lines.count > 1 {
+                // (PowerPoint's print of lo-tdf131553 "A / = πr²": the line broken before the sign starts with the sign itself at the margin.)
+                let inner = box, cut = box.lead
+                box = Box(width: inner.width - cut, ascent: inner.ascent, descent: inner.descent, inkUp: inner.inkUp, inkDown: inner.inkDown, baseA: inner.baseA, baseD: inner.baseD) { canvas, at in
+                    inner.draw(canvas, Offset(at.dx - cut, at.dy))
+                }
+            }
+            lines[lines.count - 1].append(box)
+            x += box.width
         }
         guard lines.count > 1 else { return nil }
-        let boxes = lines.map { layout.hbox($0) }
+        var boxes = lines.map { layout.hbox($0) }
         // (A line after the first that fills the line is not set an inch in: Word's print of sa1 5393bae9's
         // cell "PA =MAPRA*f_F" stands both lines at the cell's left edge; ours stood the second 32 pt in.)
         if let widest = boxes.dropFirst().map({ $0.width }).max() { indent = max(0, min(indent, width - widest)) }
@@ -194,9 +212,17 @@ enum WriterMath {
         let gap = node.descendants("m:f").isEmpty ? 0 : entry.size * 0.3
         var tops: [Double] = []
         var y = 0.0
+        // (A slide equation's broken lines are counted from their ink: PowerPoint's print of lo-tdf131553 stands the second line 64.5 pt under the first at 60 pt,
+        // the first's depth (0.222 em) and the second's ink height, 51.2: no leading over it.)
+        if slideScope && windows {
+            boxes = boxes.map { b in
+                var c = b; c.ascent = b.iu; c.descent = max(b.idn, entry.size * 0.222); return c
+            }
+        }
         for b in boxes { tops.append(y); y += b.ascent + b.descent + gap }
         let height = y - gap
-        let wide = boxes.enumerated().map { ($0.offset == 0 ? 0 : indent) + $0.element.width }.max() ?? 0
+        // (A slide equation broken to its box stands its lines at the box's left edge, not centred on the widest: PowerPoint's print of lo-tdf131553.)
+        let wide = slideScope ? width : (boxes.enumerated().map { ($0.offset == 0 ? 0 : indent) + $0.element.width }.max() ?? 0)
         let first = boxes[0].ascent
         let broken = Box(width: wide, ascent: first, descent: height - first) { canvas, at in
             for (k, b) in boxes.enumerated() {
@@ -578,14 +604,16 @@ enum WriterMath {
             var piece = ""
             var pieceItalic = false
             var opens = false
+            var lead = 0.0
             let ea = eastAsianFamily(r)
             func flush() { if !piece.isEmpty { parts.append(text(boldText(piece, r), size: own, italic: pieceItalic && boldText(piece, r) == piece, family: wide(piece) ? ea : nil)) }; piece = "" }
-            func close() { flush(); if !parts.isEmpty { out.append((hbox(parts), opens)) }; parts = []; opens = false }
+            func close() { flush(); if !parts.isEmpty { var b = hbox(parts); if opens { b.lead = lead }; out.append((b, opens)) }; parts = []; opens = false }
             for ch in s {
                 if "=+−-±×÷<>≤≥≈≠∓→←⇒∈∉⊂⊃∪∩".contains(ch) || (ch == "∗" && WriterMath.slideScope) {
                     close()
                     opens = true
                     let gap = own * 0.22
+                    lead = gap
                     parts.append(space(gap))
                     parts.append(text(String(ch == "-" ? "−" : ch), size: own, italic: false))
                     parts.append(space(gap))
@@ -728,7 +756,8 @@ enum WriterMath {
             // (Slides, Cambria Math: PowerPoint's print of 92ee258e p6 (18 pt) lifts a lone superscript 0.30 em, and with a subscript beside it
             // 0.367 em while the subscript stays where it is alone: 6.6 pt up and 3.7 down, ours were 8.2 and 5.6.)
             let slideTight = WriterMath.slideScope && WriterMath.windows && fixed == nil
-            let upEm = slideTight ? (sub != nil ? 0.367 : 0.30) : 0.38
+            // (A lone superscript in a DISPLAY equation stands 0.367 em too: PowerPoint's print of lo-tdf131553's "A = πr²" at 60 pt is 22.0 up, and eq-lab p7 at 22 pt 8.0.)
+            let upEm = slideTight ? (sub != nil || display ? 0.367 : 0.30) : 0.38
             let up = fixed?.0 ?? max(size * upEm, base.ascent - size * 0.95 + size * upEm) + (slideTight ? 0 : both)
             let baseDepth = base.descent
             let down = fixed?.1 ?? max(size * 0.18, baseDepth - size * 0.22 + size * 0.18) + (slideTight ? 0 : both)
@@ -774,10 +803,10 @@ enum WriterMath {
         }
 
         /// Rows stacked, each centred, the stack's middle on the math axis.
-        func column(_ rows: [Box], gap: Double, size: Double) -> Box {
+        func column(_ rows: [Box], gap: Double, size: Double, byInk: Bool = true) -> Box {
             guard rows.count > 1 else { return rows.first ?? .empty }
             let w = rows.map(\.width).max() ?? 0
-            if WriterMath.slideScope && WriterMath.windows {
+            if WriterMath.slideScope && WriterMath.windows && byInk {
                 // (Slides: PowerPoint's print of an array of fraction rows (lab mathrows, 18 and 28 pt, the same in em) stands the first
                 // row where a lone display fraction stands, and each row 2.447 em under the one above: the rows' ink and Cambria Math's StackDisplayStyleGapMin, 0.3223 em, between.)
                 var base = [0.0]
@@ -788,14 +817,21 @@ enum WriterMath {
                     for (k, r) in rows.enumerated() { r.draw(canvas, Offset(at.dx + (w - r.width) / 2, at.dy + base[k])) }
                 }
             }
-            let total = rows.reduce(0) { $0 + $1.ascent + $1.descent } + gap * Double(rows.count - 1)
-            let ascent = total / 2 + size * 0.27
-            return Box(width: w, ascent: ascent, descent: max(0, total - ascent)) { canvas, at in
+            // (A slide matrix of letters: every row a whole line of the face, Cambria's 0.95 em over and 0.222 em under, and the axis at 0.3 em.)
+            let line = !byInk
+            let asc = rows.map { line ? max($0.ascent, size * 0.95) : $0.ascent }
+            let dsc = rows.map { line ? max($0.descent, size * 0.222) : $0.descent }
+            let total = (0 ..< rows.count).reduce(0) { $0 + asc[$1] + dsc[$1] } + gap * Double(rows.count - 1)
+            let ascent = total / 2 + size * (line ? 0.3 : 0.27)
+            let below = max(0, total - ascent)
+            return Box(width: w, ascent: ascent, descent: below,
+                       inkUp: line ? ascent - asc[0] + rows[0].iu : nil,
+                       inkDown: line ? below - dsc[rows.count - 1] + rows[rows.count - 1].idn : nil) { canvas, at in
                 var y = at.dy - ascent
-                for r in rows {
-                    y += r.ascent
+                for (k, r) in rows.enumerated() {
+                    y += asc[k]
                     r.draw(canvas, Offset(at.dx + (w - r.width) / 2, y))
-                    y += r.descent + gap
+                    y += dsc[k] + gap
                 }
             }
         }
@@ -998,7 +1034,10 @@ enum WriterMath {
             let cols = rows.map(\.count).max() ?? 0
             guard cols > 0 else { return .empty }
             let s = runSize(n, size, level)
-            let gapX = s * 0.6
+            // (PowerPoint's print of a matrix of letters, lab eq-lab p7 at 22 pt: its rows are one line of the face apart (25.8 pt = 1.172 em, no gap
+            // between the boxes), its columns an em apart, and the whole stands on the axis. A matrix of fractions keeps the ink stacking.)
+            let slideLetters = WriterMath.slideScope && WriterMath.windows && n.descendants("m:f").isEmpty
+            let gapX = slideLetters ? s : s * 0.6
             var widths = [Double](repeating: 0, count: cols)
             for r in rows { for (c, b) in r.enumerated() { widths[c] = max(widths[c], b.width) } }
             let lines = rows.map { r in
@@ -1007,7 +1046,7 @@ enum WriterMath {
                     return [space(pad + (c > 0 ? gapX : 0)), b, space(pad)]
                 })
             }
-            return column(lines, gap: s * 0.2, size: s)
+            return column(lines, gap: slideLetters ? 0 : s * 0.2, size: s, byInk: !slideLetters)
         }
 
         /// The accent a combining mark stands for, set on its own.

@@ -103,6 +103,8 @@ enum Pptx {
 
     static func read(_ data: Data) throws -> (DeckState, DeckTheme, PptxPackage) {
         let package = PptxPackage(try Zip.read(data))
+        // The reader recurses through nested groups: keep ShapeState small (Boxed), or a deep deck overflows the
+        // stack (ja-85c85cb794, 8 levels at 375 KB each).
         return try PptxReader(package).read()
     }
 }
@@ -738,6 +740,48 @@ struct PptxReader {
 
     init(_ package: PptxPackage) { self.package = package }
 
+
+    /// A line feed inside a run's text (`<a:t>` holding "\n") ends the paragraph in PowerPoint's print, with the paragraph's space after and
+    /// its own line spacing (0be73c557ee1 p3: three LF-joined lines stand 34 pt apart, the 26 pt line plus the 8 pt after; an `a:br` is the
+    /// soft break that stays in the paragraph). The paragraph is split here, each piece keeping the paragraph's properties.
+    static func splitParagraphsAtLineFeeds(_ node: XNode) {
+        var out: [XNode] = []
+        var changed = false
+        for child in node.children {
+            if child.name == "a:p", child.children.contains(where: { $0.name == "a:r" && ($0.first("a:t")?.text ?? "").firstIndex(of: "\n") != nil }) {
+                changed = true
+                let pPr = child.first("a:pPr"), end = child.first("a:endParaRPr")
+                var cur = XNode(name: "a:p", attrs: child.attrs)
+                if let pPr { cur.children.append(pPr) }
+                for piece in child.children where piece.name != "a:pPr" && piece.name != "a:endParaRPr" {
+                    guard piece.name == "a:r", let t = piece.first("a:t"), t.text.firstIndex(of: "\n") != nil else { cur.children.append(piece); continue }
+                    let parts = t.text.split(separator: "\n", omittingEmptySubsequences: false)
+                    for (i, part) in parts.enumerated() {
+                        if i > 0 {
+                            if let end { cur.children.append(end) }
+                            out.append(cur)
+                            cur = XNode(name: "a:p", attrs: child.attrs)
+                            if let pPr { cur.children.append(pPr) }
+                        }
+                        if part.isEmpty { continue }
+                        let r = XNode(name: "a:r", attrs: piece.attrs)
+                        r.children = piece.children.map { c in
+                            guard c === t else { return c }
+                            let nt = XNode(name: "a:t", attrs: t.attrs); nt.text = String(part); return nt
+                        }
+                        cur.children.append(r)
+                    }
+                }
+                if let end { cur.children.append(end) }
+                out.append(cur)
+            } else {
+                splitParagraphsAtLineFeeds(child)
+                out.append(child)
+            }
+        }
+        if changed { node.children = out }
+    }
+
     func read() throws -> (DeckState, DeckTheme, PptxPackage) {
         guard let root = package.xml("_rels/.rels"),
               let presPart = root.all("Relationship").first(where: { ($0["Type"] ?? "").hasSuffix("/officeDocument") })?["Target"]
@@ -778,6 +822,18 @@ struct PptxReader {
             }
         }
         SlideFonts.noteMissingRoman(missingRoman)
+        var hans = 0, hant = 0
+        for (name, data) in package.parts where name.hasPrefix("ppt/slides/") && name.hasSuffix(".xml") {
+            let text = String(decoding: data, as: UTF8.self)
+            guard text.containsSubstring("lang=\"zh-") else { continue }
+            for piece in text.split(separator: "<") {
+                if piece.hasPrefix("a:rPr ") || piece.hasPrefix("a:endParaRPr ") || piece.hasPrefix("a:fld ") {
+                    if piece.containsSubstring("lang=\"zh-CN\"") || piece.containsSubstring("lang=\"zh-SG\"") { hans += 1 }
+                    else if piece.containsSubstring("lang=\"zh-TW\"") || piece.containsSubstring("lang=\"zh-HK\"") || piece.containsSubstring("lang=\"zh-MO\"") { hant += 1 }
+                }
+            }
+        }
+        SlideFonts.noteSimplifiedChinese(hans > hant)
         var slideParts: [String] = []
         for id in presentation.first("p:sldIdLst")?.all("p:sldId") ?? [] {
             if let rid = id["r:id"], let r = rels.first(where: { $0.id == rid }) { slideParts.append(r.target) }
@@ -808,6 +864,7 @@ struct PptxReader {
             // (clusterfuzz 4986 lost four).
             let slide = package.xml(part)
                 ?? XNode.parse(Data("<p:sld><p:cSld><p:spTree></p:spTree></p:cSld></p:sld>".utf8))!
+            Self.splitParagraphsAtLineFeeds(slide)
             let layoutPart = package.rel(part, kind: "slideLayout")?.target
             let layout = layoutPart.flatMap(package.xml)
             let masterPart = layoutPart.flatMap { package.rel($0, kind: "slideMaster")?.target }
@@ -1697,7 +1754,9 @@ private struct SlideContext {
                 // whole thing — and draw it as that fallback's shapes (or the
                 // choice's, where the fallback holds nothing this app reads:
                 // tdf131553's diagram sits in one of each).
-                var o = _opaque(el, label: "Object", transform, id: id)
+                let x0 = el.first("p:xfrm") ?? el.first("p:spPr")?.first("a:xfrm") ?? el.first("p:grpSpPr")?.first("a:xfrm")
+                    ?? el.descendant("a:xfrm") ?? el.descendant("p:xfrm")
+                var o = _opaque(el, label: "Object", transform, id: id, framed: false)
                 if case .opaque(var obj)? = o?.kind {
                     // An equation the math engine can lay out is drawn as text from the choice; the fallback picture only where it cannot.
                     let mathChoice = el.first("mc:Choice").map { c in
@@ -1716,6 +1775,8 @@ private struct SlideContext {
                         }
                     }
                     o?.kind = .opaque(obj)
+                    // A placeholder with no xfrm of its own (the layout gives the frame) has no box in the file: the drawn shape's is the object's.
+                    if x0 == nil, let f = obj.rendering.first?.frame { o?.frame = f }
                 }
                 add(o, el)
             default: continue
@@ -1963,10 +2024,12 @@ private struct SlideContext {
         st.textTurn = text.textTurn
         st.textStacked = text.textStacked
         st.uprightIdeographs = text.uprightIdeographs
+        st.sidewaysDigits = text.sidewaysDigits
         // An eaVert column in a frame turned to 270 degrees reads as one upright horizontal line in
         // PowerPoint's print (the frame's turn cancels the column's quarter turn; ideographs are not
         // kept upright against it): b3af6b818144 layout bar, b7cbab02dccf p9, d8cbc61e1a24.
         if text.textTurn > 0, text.uprightIdeographs, abs(((st.rotation.truncatingRemainder(dividingBy: 360)) + 360).truncatingRemainder(dividingBy: 360) - 270) < 0.01 { st.uprightIdeographs = false }
+        if text.textTurn > 0, text.sidewaysDigits, abs(((st.rotation.truncatingRemainder(dividingBy: 360)) + 360).truncatingRemainder(dividingBy: 360) - 270) < 0.01 { st.sidewaysDigits = false }
         st.textSpin = text.textSpin
         st.textRev = text.textRev
         st.textScene = text.textScene
@@ -3249,6 +3312,7 @@ private struct SlideContext {
             // PowerPoint's own drawing of the diagram. (LibreOffice writes
             // the part with nothing in it; that counts as none.)
             tree = renamed(t)
+            // (The drawing's `lnSpc` below 100% is kept: the print sets a SmartArt line at the percent of its face's line, as a plain box does; 7c3069f9808a's 14.1 pt wrapped pitch is 0.9 x 1.306 em, PMingLiU's diagram line (`SlideFonts.diagramEastAsianLine`). 32 Latin SmartArt decks score worse with it ignored.)
             drawingPart = dp
             // The drawing's `fontRef` is the quick style's, whatever the
             // colour scheme says: a white node of an outlined scheme
@@ -3565,11 +3629,11 @@ private struct SlideContext {
         return "Object"
     }
 
-    private func _opaque(_ el: XNode, label: String, _ transform: ((Rect) -> Rect)?, id: () -> Int) -> ShapeState? {
+    private func _opaque(_ el: XNode, label: String, _ transform: ((Rect) -> Rect)?, id: () -> Int, framed: Bool = true) -> ShapeState? {
         let x = el.first("p:xfrm") ?? el.first("p:spPr")?.first("a:xfrm") ?? el.first("p:grpSpPr")?.first("a:xfrm")
             ?? el.descendant("a:xfrm") ?? el.descendant("p:xfrm")
-        guard var frame = x.flatMap(_xfrmRect) else { return nil }
-        if let t = transform { frame = t(frame) }
+        guard var frame = x.flatMap(_xfrmRect) ?? (framed ? nil : Rect.fromLTWH(0, 0, 0, 0)) else { return nil }
+        if x != nil, let t = transform { frame = t(frame) }
         let name = el.descendant("p:cNvPr")?["name"] ?? label
         return ShapeState(id: id(), name: name,
                           kind: .opaque(OpaqueObject(xml: PptxXML.serialize(el), label: label, sourcePart: part)),
@@ -3610,6 +3674,7 @@ private struct SlideContext {
         var textTurn = 0
         var textStacked = 0
         var uprightIdeographs = false
+        var sidewaysDigits = false
         /// The text's camera turned about its axis (`scene3d/camera/rot
         /// rev`), degrees clockwise.
         var textSpin = 0.0
@@ -4006,7 +4071,10 @@ private struct SlideContext {
             switch level.algn {
             case "ctr": style.alignment = .center
             case "r": style.alignment = .right
-            case "just", "dist": style.alignment = .justify
+            case "just": style.alignment = .justify
+            // (A distributed paragraph spreads its last line across the width too, as Word's does:
+            // zh-142399e8a3 p10's "退休時領取", five characters down a 204 pt column, in PowerPoint's print 64.7 pt apart.)
+            case "dist": style.alignment = .justify; style.eastAsian["w:jc"] = "distribute"
             default: style.alignment = .left
             }
             if let hp = p.first("a:pPr")?["hangingPunct"] ?? level.hangingPunct, hp == "0" || hp == "1" { style.eastAsian["a:hangingPunct"] = hp }
@@ -4023,6 +4091,11 @@ private struct SlideContext {
             let paraZh = p.all("a:r").contains(where: { ($0.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("zh") || ($0.first("a:rPr")?["altLang"] ?? "").lowercased().hasPrefix("zh") })
             if paraZh, p.all("a:r").contains(where: { ($0.first("a:t")?.text ?? "") == ")" }) {
                 style.eastAsian["a:hangClosingZh"] = "1"
+            }
+            // (PowerPoint prints an East Asian face it does not have as Microsoft JhengHei when the run says Traditional Chinese; its
+            // exact lines stand on that face's metrics: 7fc5fcbcda59 p31, 80 pt lines of 辰宇落雁體.)
+            if p.all("a:r").contains(where: { r in ["lang", "altLang"].contains { ["zh-tw", "zh-hk", "zh-mo", "zh-hant"].contains((r.first("a:rPr")?[$0] ?? "").lowercased()) } }) {
+                style.eastAsian["a:missingFaceJhenghei"] = "1"
             }
             if p.all("a:r").contains(where: { r in
                 (r.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("zh")
@@ -4202,9 +4275,13 @@ private struct SlideContext {
                 var pieces: [(length: Int, script: String?)] = []
                 let explicitLatin = rPr?.first("a:latin")?["typeface"].map { !$0.isEmpty && !$0.hasPrefix("+") } ?? false
                 var sawLetter = false
+                let latinName = plain.fontFamily ?? ""
                 for ch in t.unicodeScalars {
                     let n = ch.utf16.count
-                    let script = Self.complexScript(ch.value) ?? (Self.isEastAsian(ch.value) && ch.value != 0x3000 ? "ea" : nil)
+                    var script = Self.complexScript(ch.value) ?? (Self.isEastAsian(ch.value) && ch.value != 0x3000 ? "ea" : nil)
+                    // (A symbol the run's Latin face lacks (by its measured coverage: ℃ ℉ № and the like, in the letterlike, arrow and math blocks) that Cambria Math holds is drawn in Cambria Math, as PowerPoint's print
+                    // does: 998cb8 p9's "65℃" step is 0.906 em, the fallback face's 1.125.)
+                    if script == nil, ch.value >= 0x2100, ch.value < 0x2400, RichLayout._latinFaceLacks(latinName, ch.value) == true, OfficeFonts.cambriaMathScript[ch.value] != nil { script = "cmath" }
                     let letter = script != nil || ch.properties.isAlphabetic
                     if pieces.isEmpty {
                         pieces.append((n, script))
@@ -4317,7 +4394,11 @@ private struct SlideContext {
                     // (Not where the complex face is one the deck embeds: its own line already holds the paragraph as PowerPoint draws it, and the
                     // Latin mark would lower it 1.3 pt: 7854f160 p1, 5a8cce85 p1 and p2 in B Nazanin and B Titr stand where the print has them.)
                     arabicTailFace = piece.script == "Arab" && !SlideFonts.isEmbedded(_csFont(s.csFont, script: "Arab", lang: s.lang, arabicCharset: s.csArabicCharset) ?? "") ? plain.fontFamily : nil
-                    if piece.script == "sym", let cjk = OfficeFonts.cjkFallback.first {
+                    if piece.script == "cmath" {
+                        c = plain
+                        c.fontFamily = "Cambria Math"
+                        c.shadow = cs.shadow; c.outline = cs.outline; c.highlight = cs.highlight; c.caps = cs.caps; c.smallCaps = cs.smallCaps
+                    } else if piece.script == "sym", let cjk = OfficeFonts.cjkFallback.first {
                         c = plain
                         c.fontFamily = cjk
                         c.shadow = cs.shadow; c.outline = cs.outline; c.highlight = cs.highlight; c.caps = cs.caps; c.smallCaps = cs.smallCaps
@@ -4366,7 +4447,15 @@ private struct SlideContext {
                 case "a:fld": add(child.first("a:t")?.text ?? "", child.first("a:rPr").map { LevelStyle.run($0, colors) } ?? LevelStyle(), child.first("a:rPr"))
                 case "a14:m":
                     // An equation, laid out and drawn by `WriterMath` as real text (PowerPoint prints Cambria Math glyphs).
-                    for piece in child.children where piece.name == "m:oMath" || piece.name == "m:oMathPara" {
+                    // (An equation alone in its paragraph is a display equation in PowerPoint's print: centred, fractions full size,
+                    // a sum's limits over and under it. A bare m:oMath is set as one, as an m:oMathPara is.)
+                    let alone = p.children.filter { $0.name != "a:pPr" && $0.name != "a:endParaRPr" && !($0.name == "a:r" && ($0.first("a:t")?.text ?? "").isEmpty) }.count == 1
+                    for var piece in child.children where piece.name == "m:oMath" || piece.name == "m:oMathPara" {
+                        if alone, piece.name == "m:oMath", child.children.count == 1 {
+                            let para = XNode(name: "m:oMathPara", attrs: [:])
+                            para.children.append(piece)
+                            piece = para
+                        }
                         let first = piece.descendants("m:r").first?.first("a:rPr")
                         let look = first.map { LevelStyle.run($0, colors) } ?? LevelStyle()
                         let size = look.filled(from: level).size ?? 18
@@ -4476,10 +4565,36 @@ private struct SlideContext {
                 }
                 var made = RichParagraph(text: text, runs: runs, style: style)
                 made.inlineImages = mathImages
+                // (Lab mixrun, PowerPoint's print: outside a table too, fontAlgn t, ctr or b stands each run's glyph box in the 1.2 em line, as in a cell
+                // (lab tbl-rows7): the lines of Arial 35 pt with t print 2.4 pt higher than with none, Book Antiqua 1.0 lower, PMingLiU 4.7 higher. The
+                // face of the most characters stands for the line; a run of another face in it, which PowerPoint sets by its own box, is not moved.)
+                if !text.isEmpty, let algn = p.first("a:pPr")?["fontAlgn"], algn == "t" || algn == "ctr" || algn == "b" {
+                    // (Each run stands on its own glyph box: `alignTop` is where its baseline falls below the line's top and `alignNatural` where
+                    // the engine's own line puts it, both in ems of the run's size. A line of runs of one face and size is moved as a whole by
+                    // `cellFontAlignDrop`; a line that mixes them is set run by run in RichLayout (lab mixrun, 97ff p6/p7).)
+                    func box(_ r: Run) -> (top: Double, natural: Double)? {
+                        guard let face = r.style.fontFamily, let m = SlideFonts.windowsAscentDescent(face) else { return nil }
+                        let target: Double
+                        switch algn { case "t": target = m.ascent; case "ctr": target = (1.2 - (m.ascent + m.descent)) / 2 + m.ascent; default: target = 1.2 - m.descent }
+                        return (target, 1.2 * (1 - m.descent / (m.ascent + m.descent)))
+                    }
+                    var seen = Set<String>()
+                    for r in runs where r.length > 0 { if let b = box(r) { seen.insert("\(b.top)/\(b.natural)/\(r.style.fontSize ?? 0)") } else { seen.insert("none") } }
+                    if seen.count > 1, !seen.contains("none") {
+                        for k in made.runs.indices where made.runs[k].length > 0 {
+                            if let b = box(made.runs[k]) { made.runs[k].style.alignTop = b.top; made.runs[k].style.alignNatural = b.natural }
+                        }
+                        made.style.alignPerRun = true
+                    } else if let lead = zip(runs, runs.indices).max(by: { $0.0.length != $1.0.length ? $0.0.length < $1.0.length : $0.1 > $1.1 })?.0, let b = box(lead) {
+                        made.style.cellFontAlignDrop = b.top - b.natural
+                    }
+                }
                 if !koParens.isEmpty { made.style.eastAsian["a:hangParens"] = koParens.map(String.init).joined(separator: ",") }
                 if !plainMarks.isEmpty { made.style.eastAsian["a:noHangMarks"] = plainMarks.map(String.init).joined(separator: ",") }
                 // (A display equation sits by its own `m:jc` (centred by default), whatever the paragraph says.)
-                if !mathImages.isEmpty, let para = p.all("a14:m").first?.first("m:oMathPara"), p.all("a:r").isEmpty {
+                let bareAlone = p.children.filter { $0.name != "a:pPr" && $0.name != "a:endParaRPr" && !($0.name == "a:r" && ($0.first("a:t")?.text ?? "").isEmpty) }.count == 1
+                    && p.first("a14:m")?.children.count == 1 && p.first("a14:m")?.first("m:oMath") != nil
+                if !mathImages.isEmpty, let para = p.all("a14:m").first?.first("m:oMathPara") ?? (bareAlone ? XNode(name: "m:oMathPara", attrs: [:]) : nil), p.all("a:r").filter({ !($0.first("a:t")?.text ?? "").isEmpty }).isEmpty {
                     switch para.first("m:oMathParaPr")?.first("m:jc")?["m:val"] {
                     case "left": made.style.alignment = .left
                     case "right": made.style.alignment = .right
@@ -4525,12 +4640,36 @@ private struct SlideContext {
         // (An eaVert column's places are the face's vmtx advance, not an em: Malgun Gothic 2176/2048 = 21.25 pt at 20 pt, printed 21.24 in lab vface;
         // set as the spacing after each ideograph, which stands centred in its place.)
         if attr("vert") == "eaVert" {
+            // (A Japanese column hangs its closing full-width marks past the column end; a horizontal Japanese line does not, 9 ja decks.)
+            for pi in bodyDocument.paragraphs.indices where bodyDocument.paragraphs[pi].text.unicodeScalars.contains(where: { [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009, 0xFF1A, 0xFF1B, 0xFF01, 0xFF1F].contains($0.value) }) {
+                bodyDocument.paragraphs[pi].style.eastAsian["a:hangClosingZh"] = "1"
+            }
             for pi in bodyDocument.paragraphs.indices { for ri in bodyDocument.paragraphs[pi].runs.indices {
                 let st = bodyDocument.paragraphs[pi].runs[ri].style
                 if let m = SlideFonts.uprightMetrics(st.fontFamily ?? "", bold: st.bold == true), m.step != 1, let size = st.fontSize {
                     bodyDocument.paragraphs[pi].runs[ri].style.letterSpacing = (st.letterSpacing ?? 0) + (m.step - 1) * size
                 }
             } }
+            // (MS PGothic's places are its vmtx advances, kana and marks narrower than an em: each such character takes the spacing that
+            // sets its place, as its own run; ja-4d99f560bb p14 steps 15-17 pt at 18 pt where an em set 18.)
+            for pi in bodyDocument.paragraphs.indices {
+                let units = Array(bodyDocument.paragraphs[pi].text.utf16)
+                var out: [Run] = [], at = 0
+                for r in bodyDocument.paragraphs[pi].runs {
+                    guard SlideFonts.proportionalUprightFace(r.style.fontFamily ?? ""), let size = r.style.fontSize else { out.append(r); at += r.length; continue }
+                    var k = at
+                    while k < at + r.length {
+                        let v = SlideVerticalAdvances.pgothicAdvance(units[k])
+                        var j = k + 1
+                        while j < at + r.length, SlideVerticalAdvances.pgothicAdvance(units[j]) == v { j += 1 }
+                        var piece = r; piece.length = j - k
+                        if let v { piece.style.letterSpacing = (r.style.letterSpacing ?? 0) + (Double(v) / 256 - 1) * size }
+                        out.append(piece); k = j
+                    }
+                    at += r.length
+                }
+                bodyDocument.paragraphs[pi].runs = out
+            }
         }
         var body0 = TextBody(document: bodyDocument, anchor: anchor, insets: insets,
                         font: _font(level0.font), size: level0.size ?? 18,
@@ -4554,6 +4693,8 @@ private struct SlideContext {
             body0.textTurn = 1
             // (A column in a face whose vertical header has a negative descent (Meiryo...) is one sideways run in PowerPoint's print.)
             body0.uprightIdeographs = !bodyDocument.paragraphs.contains { $0.runs.contains { $0.length > 0 && SlideFonts.setsEastAsianVerticalSideways($0.style.fontFamily ?? "") } }
+            // (The column's ideographs are one sideways run there, but its one or two digits beside one still stand upright: 44a86430c67f p10.)
+            body0.sidewaysDigits = !body0.uprightIdeographs
         case "vert270": body0.textTurn = -1
         case "wordArtVert": body0.textStacked = 1
         case "wordArtVertRtl": body0.textStacked = -1

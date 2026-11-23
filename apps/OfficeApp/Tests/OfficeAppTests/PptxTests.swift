@@ -322,4 +322,81 @@ final class GroupAndConnectorTests: XCTestCase {
         XCTAssertTrue(out.contains("<a:buAutoNum type=\"alphaLcParenR\" startAt=\"3\"/>"),
                       out.components(separatedBy: "buAutoNum").dropFirst().map { String($0.prefix(40)) }.joined(separator: " | "))
     }
+
+    func testFontAlgnMixedFacesGetPerRunBaselines() throws {
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        var slide = String(data: package.parts["ppt/slides/slide2.xml"]!, encoding: .utf8)!
+        func r(_ face: String, _ t: String) -> String {
+            "<a:r><a:rPr lang=\"en-US\" sz=\"3500\"><a:latin typeface=\"\(face)\"/><a:ea typeface=\"\(face)\"/></a:rPr><a:t>\(t)</a:t></a:r>"
+        }
+        let para = "<a:p><a:pPr fontAlgn=\"t\"/>" + r("Arial", "Latin ") + r("PMingLiU", "\u{4E2D}\u{6587}") + "</a:p>"
+        let bodies = slide.components(separatedBy: "<p:txBody>")
+        let body = bodies[2]
+        let lst = try XCTUnwrap(body.range(of: "</a:lstStyle>") ?? body.range(of: "<a:lstStyle/>"))
+        let end = try XCTUnwrap(body.range(of: "</p:txBody>"))
+        let rebuilt = String(body[..<lst.upperBound]) + para + String(body[end.lowerBound...])
+        slide = bodies[0] + "<p:txBody>" + bodies[1] + "<p:txBody>" + rebuilt + bodies.dropFirst(3).map { "<p:txBody>" + $0 }.joined()
+        package.parts["ppt/slides/slide2.xml"] = Data(slide.utf8)
+        let (state, _, _) = try Pptx.read(try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) }))
+        let doc = try XCTUnwrap(state.slides[1].shapes.first { $0.phIdx == "1" }?.text)
+        XCTAssertTrue(doc.paragraphs[0].style.alignPerRun)
+        let runs = doc.paragraphs[0].runs.filter { $0.length > 0 }
+        XCTAssertEqual(runs.count, 2)
+        // fontAlgn t: the glyph box's top sits at the line top, so the baseline is the face's ascent.
+        XCTAssertEqual(try XCTUnwrap(runs[0].style.alignTop), 0.905, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(runs[1].style.alignTop), 0.803, accuracy: 0.001)
+        XCTAssertNotEqual(runs[0].style.alignNatural, runs[1].style.alignNatural)
+    }
+}
+
+final class DeepGroupTests: XCTestCase {
+    /// The shape reader recurses through groups with several ShapeStates in a frame: at 27 KB each a
+    /// group level cost 375 KB of stack (ja-85c85cb794 overflowed 8 MB at 8 levels). Keep the value small.
+    func testShapeStateStaysSmall() {
+        XCTAssertLessThan(MemoryLayout<ShapeState>.size, 4096)
+    }
+
+    /// Groups nested deeper than the main thread's stack allows (the shape reader's frame is
+    /// hundreds of KB a level): reading must finish, with the innermost shape kept.
+    /// ja-85c85cb794 (8 deep) was Signal 11.
+    func testDeeplyNestedGroupsRead() throws {
+        var package = PptxPackage(try Zip.read(try Pptx.write(SlidesSample.make())))
+        var slide = String(data: package.parts["ppt/slides/slide1.xml"]!, encoding: .utf8)!
+        let depth = 40
+        let xfrm = "<p:grpSpPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"914400\" cy=\"914400\"/><a:chOff x=\"0\" y=\"0\"/><a:chExt cx=\"914400\" cy=\"914400\"/></a:xfrm></p:grpSpPr>"
+        var open = "", close = ""
+        for i in 0..<depth {
+            open += "<p:grpSp><p:nvGrpSpPr><p:cNvPr id=\"\(900 + i)\" name=\"G\(i)\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>\(xfrm)"
+            close += "</p:grpSp>"
+        }
+        let leaf = "<p:sp><p:nvSpPr><p:cNvPr id=\"999\" name=\"Leaf\"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"914400\" cy=\"914400\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:sp>"
+        slide = slide.replacingOccurrences(of: "</p:spTree>", with: open + leaf + close + "</p:spTree>")
+        package.parts["ppt/slides/slide1.xml"] = Data(slide.utf8)
+        let zipped = try Zip.write(package.parts.map { ZipEntry(name: $0.key, data: $0.value) })
+        let (state, _, _) = try Pptx.read(zipped)
+        XCTAssertTrue(state.slides[0].shapes.contains { $0.fileId == 999 })
+    }
+
+    func testMissingChineseFaceIsYaHeiInSimplifiedDecks() {
+        XCTAssertTrue(SlideFonts.isMissingChineseName("隶书"))
+        XCTAssertTrue(SlideFonts.isMissingChineseName("方正兰亭黑简体"))
+        XCTAssertFalse(SlideFonts.isMissingChineseName("宋体"))
+        XCTAssertFalse(SlideFonts.isMissingChineseName("微軟正黑體"))
+        XCTAssertFalse(SlideFonts.isMissingChineseName("ｍｓ ｐ明朝"))
+        XCTAssertFalse(SlideFonts.isMissingChineseName("Arial"))
+    }
+
+    func testLineFeedInRunTextSplitsTheParagraph() {
+        let root = XNode(name: "a:txBody", attrs: [:])
+        let p = XNode(name: "a:p", attrs: [:])
+        let pPr = XNode(name: "a:pPr", attrs: [:])
+        let r = XNode(name: "a:r", attrs: [:])
+        let t = XNode(name: "a:t", attrs: [:]); t.text = "one\ntwo"
+        r.children = [t]; p.children = [pPr, r]; root.children = [p]
+        PptxReader.splitParagraphsAtLineFeeds(root)
+        XCTAssertEqual(root.children.count, 2)
+        XCTAssertEqual(root.children[1].first("a:r")?.first("a:t")?.text, "two")
+        XCTAssertNotNil(root.children[1].first("a:pPr"))
+    }
 }

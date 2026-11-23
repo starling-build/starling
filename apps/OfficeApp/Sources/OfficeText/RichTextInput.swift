@@ -42,7 +42,7 @@ public final class RichTextInputConnection {
         guard TextInputChannel.available, !_attached else { return }
         _attached = true
         TextInputChannel.listen(owner: self) { [weak self] data in self?._handle(data) }
-        _send("TextInput.setClient", [_clientId, TextInputChannel.config(multiline: true)])
+        _send("TextInput.setClient", [_clientId, TextInputChannel.config(multiline: true, prose: true)])
         sync(force: true)
         _send("TextInput.show", nil)
     }

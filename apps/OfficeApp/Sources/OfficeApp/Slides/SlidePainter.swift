@@ -360,6 +360,7 @@ final class SlideTextCache {
             l.fontScale = shape.fontScale
             l.verticalColumn = shape.textTurn != 0
             l.uprightIdeographs = shape.uprightIdeographs
+            l.sidewaysDigits = shape.sidewaysDigits
             l.spacingFollowsFont = shape.insetsFollowFont
             l.width = w
             if shape.columns > 1, !shape.noWrap {
