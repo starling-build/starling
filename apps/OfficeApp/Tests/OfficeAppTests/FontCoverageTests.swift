@@ -46,10 +46,10 @@ final class EmojiVariationTests: XCTestCase {
         XCTAssertNil(RichLayout._variationPieces("\u{231A}\u{FE0F}"), "a colour emoji needs nothing from FE0F")
     }
 
-    /// A ZWJ sequence after a text-style emoji and U+FE0F is one piece with it: the rainbow flag
-    /// (U+1F3F3 U+FE0F U+200D U+1F308) drew as a white flag and a rainbow when the cut fell after FE0F.
     private func cut(_ s: String) -> [(text: String, kind: Int)]? { RichLayout._variationPieces(Substring(s)) }
 
+    /// A ZWJ sequence after a text-style emoji and U+FE0F is one piece with it: the rainbow flag
+    /// (U+1F3F3 U+FE0F U+200D U+1F308) drew as a white flag and a rainbow when the cut fell after FE0F.
     func testAZWJSequenceAfterTheSelectorStaysInItsPiece() throws {
         let flag = "\u{1F3F3}\u{FE0F}\u{200D}\u{1F308}"
         let pieces = try XCTUnwrap(cut("a\(flag)b"))
