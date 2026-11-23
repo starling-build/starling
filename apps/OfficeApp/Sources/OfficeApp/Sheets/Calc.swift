@@ -622,6 +622,10 @@ final class CalcEngine {
     }
 
     /// A range of a linked book's saved cells (what it was when last read).
+    /// The used extent of each linked sheet, found once (the linked cells never change).
+    private var _externalRanges: [String: EvalValue] = [:]
+    private var _externalBounds: [Int: (Int, Int)] = [:]
+
     func externalValue(_ bi: Int, _ si: Int, _ r: FormulaRef) -> EvalValue {
         let cells = book.externals[bi].cells[si] ?? [:]
         let rng = r.range
@@ -629,12 +633,21 @@ final class CalcEngine {
         // the whole sheet: only the cell's saved value tells (#REF! here).
         if rng.top == 0 && rng.bottom == CellAddress.maxRows - 1 || rng.left == 0 && rng.right == CellAddress.maxCols - 1 { return .error(.ref) }
         if r.isCell { return .scalar(cells[rng.topLeft] ?? .empty) }
-        let maxRow = cells.keys.map { $0.row }.max() ?? 0, maxCol = cells.keys.map { $0.col }.max() ?? 0
+        let bkey = bi &* 100_000 &+ si
+        let bounds: (Int, Int)
+        if let k = _externalBounds[bkey] { bounds = k } else {
+            bounds = (cells.keys.map { $0.row }.max() ?? 0, cells.keys.map { $0.col }.max() ?? 0)
+            _externalBounds[bkey] = bounds
+        }
+        let maxRow = bounds.0, maxCol = bounds.1
         let bottom = min(rng.bottom, max(maxRow, rng.top)), right = min(rng.right, max(maxCol, rng.left))
+        let rkey = "\(bi),\(si),\(rng.top),\(rng.left),\(bottom),\(right)"
+        if let hit = _externalRanges[rkey] { return hit }
         var rows: [[CellValue]] = []
         for row in rng.top ... bottom {
             rows.append((rng.left ... right).map { cells[CellAddress(row: row, col: $0)] ?? .empty })
         }
+        _externalRanges[rkey] = .array(rows)
         return .array(rows)
     }
 
