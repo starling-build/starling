@@ -987,7 +987,8 @@ enum XlsBuild {
                 r.borderColor = par.borderColor
                 r.borderColor2 = (r.borderColor2 & 0xFC00_0000) | (par.borderColor2 & 0x03FF_FFFF)
             }
-            if x.indent & 0x4000 == 0 {
+            // (A fill the cell XF carries itself prints though its "used" flag is clear: some writers never set it, and Excel shows the grey: xls-508d6f5812's label column.)
+            if x.indent & 0x4000 == 0, x.borderColor2 >> 26 == 0 {
                 r.fill = par.fill
                 r.borderColor2 = (r.borderColor2 & 0x03FF_FFFF) | (par.borderColor2 & 0xFC00_0000)
             }
