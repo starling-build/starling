@@ -1852,9 +1852,15 @@ extension RichLayout {
             let named = _named(p, document)
             let map = _map(i)
             do {
-                guard let box = g.painter.getBoxesForSelection(
+                                guard var box = g.painter.getBoxesForSelection(
                     TextSelection(baseOffset: map.painter(leader.offset), extentOffset: map.painter(leader.offset) + 1), boxHeightStyle: .max).first,
                       box.right - box.left > 1 else { return }
+                // (A tab that opens its paragraph has the engine's box only on the last few points before its stop: the leader
+                // fills the whole way from where the first line starts. dx2 23a514e6's tab-only paragraph with a dot leader
+                // stop, a full row of dots in Word's print, ours one dot at the stop.)
+                if theme.wordRules, leader.offset == 0, box.left > max(0, _px(p.style.firstLineIndent)) + 1 {
+                    box = TextBox(fromLTRBD: max(0, _px(p.style.firstLineIndent)), box.top, box.right, box.bottom, box.direction)
+                }
                 var at = 0
                 var run = p.runs[0].style
                 for r in p.runs { if leader.offset < at + r.length { run = r.style; break }; at += r.length }
