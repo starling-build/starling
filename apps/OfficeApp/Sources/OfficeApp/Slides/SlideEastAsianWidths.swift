@@ -154,7 +154,7 @@ enum SlideEastAsianWidths {
         case "hg明朝e", "hg mincho e": return hgMinchoE
         case "hgp明朝e", "hgp mincho e": return hgPMinchoE
         case "microsoft yahei", "微软雅黑": return yaHei
-        case "simsun", "宋体": return simSun
+        case "simsun", "宋体", "simhei", "黑体": return simSun
         case "hgp創英角ゴシックub", "hgp創英角ｺﾞｼｯｸub", "hgpsoeikakugothicub": return hgPSoei
         case "gulim", "굴림": return gulim
         case "gulimche", "굴림체": return gulimChe

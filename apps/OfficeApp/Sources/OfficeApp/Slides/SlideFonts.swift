@@ -86,6 +86,21 @@ enum SlideFonts {
         }
     }
 
+    /// Win ascent over em of the face an upright digit is set in (lab vdig3: the digit's baseline stands this far below its slot's start).
+    /// The CJK faces' come from `uprightMetrics`; the Latin ones are OS/2 winAscent / 2048 (latin-line-20261122).
+    static func uprightDigitAscent(_ family: String, bold: Bool) -> Double? {
+        if let m = uprightMetrics(family, bold: bold) { return m.ascent - (m.step - 1) / 2 }
+        switch windowsName(family) {
+        case "segoe ui": return 2210.0 / 2048
+        case "times new roman": return 1825.0 / 2048
+        case "verdana": return 2059.0 / 2048
+        case "arial": return 1854.0 / 2048
+        case "calibri": return 1950.0 / 2048
+        case "cambria": return 1946.0 / 2048
+        default: return nil
+        }
+    }
+
     /// A face whose upright column steps by each character's own vmtx advance (`SlideVerticalAdvances`).
     static func proportionalUprightFace(_ family: String) -> Bool {
         ["ms pgothic", "ｍｓ ｐゴシック"].contains(windowsName(family))
@@ -274,7 +289,7 @@ enum SlideFonts {
             }
             // (MS Gothic and MS Mincho, the fixed-width faces, set the curly double quotes full width, an em; the proportional P faces keep them narrow, ja a91e3e82's “思い”: lab hang3 slide 7's ” after a kanji in MS Gothic broke "課|程”" where
             // the Latin stand-in's narrow ” kept it on the line.)
-            let japaneseMS = [SlideEastAsianWidths.msGothic, SlideEastAsianWidths.msMincho]
+            let japaneseMS = [SlideEastAsianWidths.msGothic, SlideEastAsianWidths.msMincho, SlideEastAsianWidths.simSun]
             if japaneseMS.contains(where: { $0.regular.ascii == cuts.regular.ascii }) {
                 for c: UInt32 in [0x201C, 0x201D] where face.otherAdvances?[c] == nil { face.otherAdvances?[c] = 1.0; face.boldOtherAdvances?[c] = 1.0 }
             }

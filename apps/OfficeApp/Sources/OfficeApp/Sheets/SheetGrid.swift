@@ -302,6 +302,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold,
                                          baseColWidth: Double(ws.formatPrAttrs["baseColWidth"] ?? "") ?? 8)
             let widths = Dictionary(uniqueKeysWithValues: ws.colWidths.map { ($0.key, $0.value == 0 ? 0 : m.column(Xlsx._widthChars(ws, $0.key, $0.value))) })
+            // (Korean workbooks, whose Normal 맑은 고딕 is a theme font: rows nobody sized print at the stored default plus a quarter point when that is above the Calibri fit, in a sheet where no row stores a height (one that does is refitted whole to the Calibri fit: lab L4; ko-dfeb2506a1 and 25 more) — labs korow3, 17 prints 17.25 and 15 prints 15.25.)
+            let ownFace = book.defaultFontOwnName != nil && !ws.customDefaultRowHeight && ws.defaultRowHeightPt > 0 && ws.rowHeights.isEmpty
+            let ownRow = ownFace ? max(m.defaultRow, ws.defaultRowHeightPt + 0.25) : m.defaultRow
             let fitted = ws.customDefaultRowHeight || ws.defaultRowHeightPt <= 0 ? m.rowScale : m.defaultRow / ws.defaultRowHeightPt
             // The rows Excel fits again: every one whose height is only a fit
             // — Excel keeps no such height, fitting the row afresh from its
@@ -331,7 +334,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             let calibri11 = (book.defaultFontName ?? "Calibri").lowercased() == "calibri" && (book.defaultFontSize ?? 11) == 11
             func line(_ style: Int) -> Double {
                 if let known = lines[style] { return known }
-                let l = style == 0 ? m.defaultRow : Self._fittedLine(book.style(style), m, book, hinted: !ws.customDefaultRowHeight && calibri11, otherBook: !ws.customDefaultRowHeight && !calibri11)
+                let l = style == 0 ? ownRow : Self._fittedLine(book.style(style), m, book, hinted: !ws.customDefaultRowHeight && calibri11, otherBook: !ws.customDefaultRowHeight && !calibri11)
                 lines[style] = l
                 return l
             }
@@ -357,7 +360,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // a column of bold Arial 10, print at its 12.72, and
             // NumberFormatTests' gaps under its Lucida Sans Typewriter
             // columns at that face's 13.32.
-            let unsized = ws.customDefaultRowHeight ? SheetPrintMetrics.setRow(ws.defaultRowHeightPt, scale: m.rowScale) : blank
+            let unsized = ws.customDefaultRowHeight ? SheetPrintMetrics.setRow(ws.defaultRowHeightPt, scale: m.rowScale)
+                : (ownFace ? max(blank, ownRow) : blank)
             // A merged cell that wraps is no part of its rows' fit:
             // bug66675's dates of Arial 12, merged across A:D, sit in rows
             // of 14.52, and their rows grow to Arial's 15.24 once Wrap Text
@@ -376,7 +380,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 // leaves both rows at Calibri 11's 14.52 in Excel's print.)
                 if let g = merged[a.row]?.first(where: { $0.contains(a) }),
                    g.top != g.bottom || book.style(ws.cells[g.topLeft]?.style ?? cell.style).wrap { continue }
-                let l = line(cell.style)
+                let l = cell.style == 0 && cell.value.isEmpty ? m.defaultRow : line(cell.style)
                 if l > fit[a.row] ?? 0 { fit[a.row] = l; fitSize[a.row] = book.fontSize(book.style(cell.style)) }
                 let acc = book.style(cell.style).accounting
                 if acc > 0 { accounting[a.row, default: []].append((book.fontSize(book.style(cell.style)), acc)) }

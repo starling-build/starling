@@ -2602,6 +2602,8 @@ private struct SlideContext {
         fromDefaults.lineMultiple = nil; fromDefaults.linePoints = nil
         fromDefaults.beforePoints = nil; fromDefaults.beforePercent = nil
         fromDefaults.afterPoints = nil; fromDefaults.afterPercent = nil
+        // (Nor does its bold: 9e09a947a0fd's defaults say b="1", yet a table's second column prints regular Arial; bold comes from the table style.)
+        fromDefaults.bold = nil
         var base = LevelStyle.paragraph(master?.first("p:txStyles")?.first("p:otherStyle")?.first("a:lvl1pPr"), colors)
             .filled(from: fromDefaults)
         // The style the id names, when the deck defines it: the look of the
@@ -4177,7 +4179,9 @@ private struct SlideContext {
                 // (A blank bullet, the master's " ", is left to the layout's slot rule, which mirrors a hang past the margin.)
                 if let indent = level.indent {
                     let blank = style.bulletText.map { !$0.isEmpty && $0.allSatisfy { $0 == " " } } ?? false
-                    style.firstLineIndent = (blank || level.marL == nil ? indent : max(indent, -(level.marL ?? 0))) + shapeIndent
+                    // (No layer states a left edge and the paragraph has no bullet: the edge is 0, and a hang past it stands at it, ko-2a9e73116d p2 "2. 로그인…".)
+                    let edge = level.marL ?? ((level.bullet ?? Bullet.none) == .none && !blank ? 0 : nil)
+                    style.firstLineIndent = (blank || edge == nil ? indent : max(indent, -(edge ?? 0))) + shapeIndent
                     if !blank, let marL = level.marL, marL + indent < 0 { style.firstTextLead = -indent - marL }
                 }
                 // A text edge with no offset said anywhere is offset 0, as
@@ -4206,7 +4210,8 @@ private struct SlideContext {
                                                 marL: level.marL, shapeIndent: shapeIndent, level: lvl)
             default:
                 style.indentLeft = level.marL ?? 0
-                style.firstLineIndent = level.indent ?? 0
+                // (A hang past the text area's edge stands at the edge: ko-2a9e73116d p2, indent -18 with no left edge, line 1 at the edge.)
+                style.firstLineIndent = max(level.indent ?? 0, -(level.marL ?? 0))
             }
             // The paragraph's right margin (marR): the line breaks that far short of the box's edge.
             if let marR = level.marR, marR > 0 { style.indentRight = marR }
@@ -4274,6 +4279,8 @@ private struct SlideContext {
                 let runsBefore = runs.count
                 var pieces: [(length: Int, script: String?)] = []
                 let explicitLatin = rPr?.first("a:latin")?["typeface"].map { !$0.isEmpty && !$0.hasPrefix("+") } ?? false
+                // (A run whose Latin slot is the theme's East Asian font (+mn-ea) sets its spaces in that face.)
+                let latinIsEastAsianFace = rPr?.first("a:latin")?["typeface"].map { $0.hasSuffix("-ea") } ?? false
                 var sawLetter = false
                 let latinName = plain.fontFamily ?? ""
                 for ch in t.unicodeScalars {
@@ -4347,6 +4354,25 @@ private struct SlideContext {
                             at += piece.length
                             continue
                         }
+                    }
+                    if piece.script == "ea", !latinIsEastAsianFace, utf16[at ..< at + piece.length].contains(0x20) {
+                        // (A run of two or more ordinary spaces between East Asian letters is set in the Latin face too: a874c38f10a1 p63's
+                        // five spaces between 最高 and 最低 step 5.6 pt at 20 pt in PowerPoint's print, 0.28 em, not SimSun's 10.)
+                        var out: [(length: Int, script: String?)] = []
+                        var m = at
+                        let end = at + piece.length
+                        var changed = false
+                        while m < end {
+                            var e = m + 1
+                            if utf16[m] == 0x20 {
+                                while e < end, utf16[e] == 0x20 { e += 1 }
+                                if e - m >= 2 { out.append((e - m, nil)); changed = true; m = e; continue }
+                            }
+                            while e < end, !(utf16[e] == 0x20 && e + 1 < end && utf16[e + 1] == 0x20) { e += 1 }
+                            out.append((e - m, "ea"))
+                            m = e
+                        }
+                        if changed { split.append(contentsOf: out); at = end; continue }
                     }
                     if piece.script == nil, utf16[at ..< at + piece.length].contains(0x3000), utf16[at ..< at + piece.length].allSatisfy({ $0 == 0x3000 || $0 == 0x20 }) {
                         // An ideographic space is East Asian wherever it stands, also in a run of spaces alone

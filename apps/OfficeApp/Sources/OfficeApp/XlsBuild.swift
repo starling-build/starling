@@ -202,6 +202,12 @@ enum XlsBuild {
         func add(_ n: String, _ s: String) { out.append(ZipEntry(name: n, data: Data(s.utf8))) }
 
         let kept = sheets.enumerated().filter { $0.element.kind == 0 || $0.element.kind == 2 }
+        // Excel 2007 and later writes its default theme-body font as black (colour index 8, theme colour 1);
+        // a copy saved with a localized body face (Malgun Gothic, SimSun) is reloaded by an English Excel as
+        // the theme's body font (Calibri): same face as font 0, 11 pt, colour index 8, East Asian charset.
+        if let f0 = fonts.first, f0.name != "Calibri", f0.height == 220, f0.color == 8, f0.charset >= 128, f0.charset != 255 {
+            for k in fonts.indices where fonts[k].name == f0.name && fonts[k].height == 220 && fonts[k].color == 8 { fonts[k].name = "Calibri" }
+        }
         var ctx = XlsFormulaContext(xtis: xtis, internalBooks: internalBooks, sheetNames: sheets.map { $0.name }, names: [])
         ctx.names = nameRecs.map { nameText($0) }
         var wb = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">"

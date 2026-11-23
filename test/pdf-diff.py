@@ -15,6 +15,10 @@ import sys
 # so the diff cost 6x its work in CPU (amd-perf, 2026-11-22: 2607 s to 427 s over the 676 gate decks, same scores).
 for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_v, "1")
+# PyMuPDF 2.0 imports its optional layout package (onnxruntime) at `import pymupdf`: 575 threads and 60 CPU-seconds spent at import, so one scorer
+# process ran at 700-1900% CPU (OMP/OPENBLAS/OPJ_NUM_THREADS do not stop them, and a CPU mask does not either: the threads pin themselves).
+# These tools never use it; None in sys.modules makes that import fail, which pymupdf catches (amd-8, 2026-11-23: 20-page diff 64 s CPU to 1.5 s).
+sys.modules.setdefault("pymupdf.layout", None)
 
 import numpy as np
 import pymupdf

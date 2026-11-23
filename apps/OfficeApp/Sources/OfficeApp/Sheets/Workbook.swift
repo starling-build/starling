@@ -363,6 +363,8 @@ final class Workbook {
     var defaultFontName: String? = nil
     var defaultFontSize: Double? = nil
     var defaultFontBold = false
+    /// The Normal font's own face where it is a theme (scheme) font of another name.
+    var defaultFontOwnName: String? = nil
     func fontName(_ st: CellStyle) -> String { st.fontName ?? defaultFontName ?? OfficeFonts.defaultFamily }
     func fontSize(_ st: CellStyle) -> Double { st.fontSize ?? defaultFontSize ?? 11 }
     /// The widest digit of the default font, in pixels at 96 dpi — the

@@ -291,6 +291,11 @@ extension RichLayout {
         }
         f = f.lowercased()
         func has(_ names: String...) -> Bool { names.contains { f.containsSubstring($0) } }
+        // (Print of lab vdig3, 28 pt: Segoe UI, Verdana, Cambria, Times New Roman and Arial digits; the digit's own face sets the slot, not the ideograph beside it.)
+        if has("segoe ui") { return 1.293 }
+        if has("verdana") { return 1.207 }
+        if has("cambria") { return 1.139 }
+        if has("times new roman") { return 1.079 }
         if has("yu gothic", "游ゴシック") { return 1.45 }
         if has("malgun", "맑은") { return 1.307 }
         if has("jhenghei", "微軟正黑") { return 1.293 }
