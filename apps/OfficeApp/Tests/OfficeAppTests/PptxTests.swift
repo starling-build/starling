@@ -371,4 +371,13 @@ final class DeepGroupTests: XCTestCase {
         let (state, _, _) = try Pptx.read(zipped)
         XCTAssertTrue(state.slides[0].shapes.contains { $0.fileId == 999 })
     }
+
+    func testMissingChineseFaceIsYaHeiInSimplifiedDecks() {
+        XCTAssertTrue(SlideFonts.isMissingChineseName("隶书"))
+        XCTAssertTrue(SlideFonts.isMissingChineseName("方正兰亭黑简体"))
+        XCTAssertFalse(SlideFonts.isMissingChineseName("宋体"))
+        XCTAssertFalse(SlideFonts.isMissingChineseName("微軟正黑體"))
+        XCTAssertFalse(SlideFonts.isMissingChineseName("ｍｓ ｐ明朝"))
+        XCTAssertFalse(SlideFonts.isMissingChineseName("Arial"))
+    }
 }

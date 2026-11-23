@@ -795,6 +795,18 @@ struct PptxReader {
             }
         }
         SlideFonts.noteMissingRoman(missingRoman)
+        var hans = 0, hant = 0
+        for (name, data) in package.parts where name.hasPrefix("ppt/slides/") && name.hasSuffix(".xml") {
+            let text = String(decoding: data, as: UTF8.self)
+            guard text.containsSubstring("lang=\"zh-") else { continue }
+            for piece in text.split(separator: "<") {
+                if piece.hasPrefix("a:rPr ") || piece.hasPrefix("a:endParaRPr ") || piece.hasPrefix("a:fld ") {
+                    if piece.containsSubstring("lang=\"zh-CN\"") || piece.containsSubstring("lang=\"zh-SG\"") { hans += 1 }
+                    else if piece.containsSubstring("lang=\"zh-TW\"") || piece.containsSubstring("lang=\"zh-HK\"") || piece.containsSubstring("lang=\"zh-MO\"") { hant += 1 }
+                }
+            }
+        }
+        SlideFonts.noteSimplifiedChinese(hans > hant)
         var slideParts: [String] = []
         for id in presentation.first("p:sldIdLst")?.all("p:sldId") ?? [] {
             if let rid = id["r:id"], let r = rels.first(where: { $0.id == rid }) { slideParts.append(r.target) }
