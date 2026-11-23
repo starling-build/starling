@@ -9536,7 +9536,7 @@ extension ChartPainter {
             // (PowerPoint, a slide pie's label left in place: its box is kept in the chart frame, lab pie-lab1
             // p4/p8 at 24 pt, where "Zeta long name here" over the pie's top is held 42 pt down, not above it.)
             if l.fitted || (!c.onSlide && !c.onSheet && !c.chartex && h > frame.height * 0.4)
-                || (c.onSlide && c.type == .pie && point == nil && moved == nil) {
+                || (c.onSlide && c.type == .pie && point == nil) {
                 // (A 3-D pie's label the file leaves in place keeps its text 3.9pt inside the frame in a
                 // Word document: lab pie7 (Word for Windows, 32 pies, 352 labels) has 96 of them on the
                 // frame's top, their text 3.8 under it, and the furthest left and right 3.9 and 4.4 in;
@@ -9546,8 +9546,11 @@ extension ChartPainter {
                     at = Offset(min(max(at.dx, frame.left + inset + tw), frame.right - inset - tw),
                                 min(max(at.dy, frame.top + inset + th), frame.bottom - inset - th))
                 } else {
-                    at = Offset(min(max(at.dx, frame.left + w / 2), frame.right - w / 2),
-                                min(max(at.dy, frame.top + h / 2), frame.bottom - h / 2))
+                    // (A slide pie's label the file moves is held in the frame after the move too, its text 3.4 pt in: lab pie-lab6,
+                    // PowerPoint for Windows, 48 prints; outside-end labels moved toward the left edge or the foot stop there.)
+                    let hold = c.onSlide && moved != nil ? 0.4 * k : 0
+                    at = Offset(min(max(at.dx, frame.left + hold + w / 2), frame.right - hold - w / 2),
+                                min(max(at.dy, frame.top + hold + h / 2), frame.bottom - hold - h / 2))
                 }
             }
             // (A 3-D pie's outside label the file leaves in place stands clear
