@@ -48,6 +48,9 @@ final class XNode {
         return nil
     }
     func all(_ name: String) -> [XNode] { children.filter { $0.name == name } }
+    /// The relationships of a .rels part. A writer that prefixes the package namespace (`ns0:Relationship`, Python's ElementTree
+    /// default; xb fas-z22832287 and its embedded Vazirmatn) is read the same as an unprefixed one.
+    func relationships() -> [XNode] { children.filter { $0.name == "Relationship" || $0.name.hasSuffix(":Relationship") } }
     /// Every descendant by name, depth first.
     func descendants(_ name: String) -> [XNode] { children.flatMap { ($0.name == name ? [$0] : []) + $0.descendants(name) } }
 
@@ -951,7 +954,7 @@ enum DocxFormat {
     static func _withStandardMainPart(_ entries: [ZipEntry]) -> [ZipEntry] {
         guard !entries.contains(where: { $0.name == "word/document.xml" }),
               let root = entries.first(where: { $0.name == "_rels/.rels" }).flatMap({ XNode.parse($0.data) }),
-              let rel = root.all("Relationship").first(where: { ($0["Type"] ?? "").hasSuffix("/officeDocument") && $0["TargetMode"] != "External" }),
+              let rel = root.relationships().first(where: { ($0["Type"] ?? "").hasSuffix("/officeDocument") && $0["TargetMode"] != "External" }),
               var main = rel["Target"] else { return entries }
         if main.hasPrefix("/") { main.removeFirst() }
         let parts = main.split(separator: "/", omittingEmptySubsequences: false)
@@ -975,7 +978,7 @@ enum DocxFormat {
                let link = settings.first("w:linkStyles"), !_isOff(link), let attached = settings.first("w:attachedTemplate"),
                let rid = attached["r:id"],
                let relRoot = part("word/_rels/settings.xml.rels").flatMap(XNode.parse),
-               let target = relRoot.all("Relationship").first(where: { $0["Id"] == rid })?["Target"],
+               let target = relRoot.relationships().first(where: { $0["Id"] == rid })?["Target"],
                // Only an HFS target ("Volume:dir:file", colon-separated, no URL scheme) makes Word
                // replace Normal from Normal.dotm; a file URL, drive path or relative target keeps the
                // file's own Normal (Word COM, lab linkstyles: 70b475ea with a file:/// or relative
@@ -998,7 +1001,7 @@ enum DocxFormat {
         var rels: [String: String] = [:]
         var relInfo: [String: KeptRel] = [:]
         if let relData = part("word/_rels/document.xml.rels"), let relRoot = XNode.parse(relData) {
-            for r in relRoot.all("Relationship") {
+            for r in relRoot.relationships() {
                 if let id = r["Id"], let target = r["Target"] {
                     rels[id] = target
                     relInfo[id] = KeptRel(id: id, type: r["Type"] ?? "", target: target, external: r["TargetMode"] == "External")
@@ -3740,7 +3743,7 @@ enum DocxFormat {
                 rels = [:]
                 var info: [String: KeptRel] = [:]
                 if let relsData = part(dir + "/_rels/" + file + ".rels"), let relsNode = XNode.parse(relsData) {
-                    for r in relsNode.all("Relationship") {
+                    for r in relsNode.relationships() {
                         guard let id = r["Id"], let target = r["Target"] else { continue }
                         rels[id] = target
                         info[id] = KeptRel(id: id, type: r["Type"] ?? "", target: target, external: r["TargetMode"] == "External")
@@ -3811,7 +3814,7 @@ enum DocxFormat {
             rels = [:]
             var info: [String: KeptRel] = [:]
             if let relsData = part("word/_rels/footnotes.xml.rels"), let relsNode = XNode.parse(relsData) {
-                for r in relsNode.all("Relationship") {
+                for r in relsNode.relationships() {
                     guard let id = r["Id"], let target = r["Target"] else { continue }
                     rels[id] = target
                     info[id] = KeptRel(id: id, type: r["Type"] ?? "", target: target, external: r["TargetMode"] == "External")
@@ -3851,7 +3854,7 @@ enum DocxFormat {
             rels = [:]
             var info: [String: KeptRel] = [:]
             if let relsData = part("word/_rels/endnotes.xml.rels"), let relsNode = XNode.parse(relsData) {
-                for r in relsNode.all("Relationship") {
+                for r in relsNode.relationships() {
                     guard let id = r["Id"], let target = r["Target"] else { continue }
                     rels[id] = target
                     info[id] = KeptRel(id: id, type: r["Type"] ?? "", target: target, external: r["TargetMode"] == "External")
@@ -4051,7 +4054,7 @@ enum DocxFormat {
             // to the unit), drawn in their own glyphs.
             var faceTargets: [String: String] = [:]
             if let relRoot = part("word/_rels/fontTable.xml.rels").flatMap(XNode.parse) {
-                for r in relRoot.all("Relationship") {
+                for r in relRoot.relationships() {
                     if let id = r["Id"], let target = r["Target"] { faceTargets[id] = target }
                 }
             }
@@ -5934,7 +5937,7 @@ enum DocxFormat {
             let relsPath = (dir.isEmpty ? "" : dir + "/") + "_rels/" + file + ".rels"
             guard let relsData = part(relsPath), let node = XNode.parse(relsData) else { return }
             kept[relsPath] = relsData
-            for r in node.all("Relationship") where r["TargetMode"] != "External" {
+            for r in node.relationships() where r["TargetMode"] != "External" {
                 if let target = r["Target"] { keep(DocxFormat._resolvePath(dir, target)) }
             }
         }
@@ -6169,7 +6172,7 @@ enum DocxFormat {
             guard let rels = part("word/_rels/\(name).xml.rels") else { continue }
             kept["word/_rels/\(name).xml.rels"] = rels
             guard let node = XNode.parse(rels) else { continue }
-            for r in node.all("Relationship") where r["TargetMode"] != "External" {
+            for r in node.relationships() where r["TargetMode"] != "External" {
                 guard let target = r["Target"] else { continue }
                 let path = target.hasPrefix("/") ? String(target.dropFirst()) : "word/" + target
                 if let d = part(path), !_ownParts.contains(path) { kept[path] = d }
@@ -7574,17 +7577,17 @@ enum DocxFormat {
                 var comps = _resolvePath("word", rel.target).split(separator: "/").map(String.init)
                 let file = comps.popLast() ?? ""
                 let dir = comps.joined(separator: "/")
-                let over = notes.part(dir + "/_rels/" + file + ".rels").flatMap(XNode.parse)?.all("Relationship")
+                let over = notes.part(dir + "/_rels/" + file + ".rels").flatMap(XNode.parse)?.relationships()
                     .first(where: { ($0["Type"] ?? "").hasSuffix("/themeOverride") && $0["TargetMode"] != "External" })?["Target"]
                     .flatMap { notes.part(_resolvePath(dir, $0)) }
-                let shapes = notes.part(dir + "/_rels/" + file + ".rels").flatMap(XNode.parse)?.all("Relationship")
+                let shapes = notes.part(dir + "/_rels/" + file + ".rels").flatMap(XNode.parse)?.relationships()
                     .first(where: { ($0["Type"] ?? "").hasSuffix("/chartUserShapes") && $0["TargetMode"] != "External" })?["Target"]
                     .flatMap { notes.part(_resolvePath(dir, $0)) }.flatMap(XNode.parse)
                 // (A chart whose numbers live in a workbook it links to, not one it carries: Word prints its
                 // whole-number labels with thousands separators though the cache says General. Five
                 // documents of two sets (sa1 c11d31f3, dx2 f15415f0 ...: 1,030 and 11,965) against
                 // sa2 db23237f, whose embedded workbook prints 10999.)
-                let linkedSource = notes.part(dir + "/_rels/" + file + ".rels").flatMap(XNode.parse)?.all("Relationship")
+                let linkedSource = notes.part(dir + "/_rels/" + file + ".rels").flatMap(XNode.parse)?.relationships()
                     .contains(where: { ($0["Type"] ?? "").hasSuffix("/oleObject") && $0["TargetMode"] == "External" }) ?? false
                 WriterCharts.register(space, for: att.id, themePart: notes.part(_resolvePath("word", themeTarget)), themeOverride: over, userShapes: shapes, linkedSource: linkedSource)
             }
