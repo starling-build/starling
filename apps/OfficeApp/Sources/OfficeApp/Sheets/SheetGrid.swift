@@ -2622,7 +2622,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                              size: size, bold: st.bold, italic: st.italic,
                              underline: st.underline, strike: st.strike, color: c, dots: dots, hint: hint)
         let lower = book.fontName(st).trimmingWhitespace().lowercased()
-        if printing { style.myanmar = true }
+        if printing { style.myanmar = true; style.kannada = true }
         if printing, face == OfficeFonts.sans || face == "Arial" || lower == "calibri" { style.arabicArial = true }
         if lower == "aptos narrow" || OfficeFonts.tabledNames.contains(lower) { style.own = lower }
         if st.underline || st.strike, let m = RichTextTheme.ruleMetrics(book.fontName(st), bold: st.bold, italic: st.italic) {
@@ -3263,6 +3263,8 @@ struct GridTextStyle: Hashable {
     var arabicArial = false
     /// Whether the print draws this cell's Myanmar letters in Myanmar Text (Excel links to it from any face): at its advances.
     var myanmar = false
+    /// Likewise Kannada (Nirmala UI): at the cluster advances read from Excel's print.
+    var kannada = false
     /// The screen's pixels an em, where the text is fitted as Excel's
     /// screen does: each character a whole pixel wide; 0 for none.
     var screen = 0.0
@@ -3484,14 +3486,14 @@ final class _TextCache {
             // `screen` the layout units of one.)
             if let parts = _arabicParts(s, style) {
                 // (An Arabic word is one shaped width, not its letters' isolated forms: a whole pixel count of its own.)
-                return parts.reduce(0) { $0 + ($1.ems.map { ($0 * style.screenEm).rounded() * style.screen } ?? _width($1.text, { var p = style; p.arabicArial = false; p.myanmar = false; return p }())) }
+                return parts.reduce(0) { $0 + ($1.ems.map { ($0 * style.screenEm).rounded() * style.screen } ?? _width($1.text, { var p = style; p.arabicArial = false; p.myanmar = false; p.kannada = false; return p }())) }
             }
             var plain = style; plain.screen = 0
             let space = s.containsSubstring(" ") ? _measure("a a", plain) - _measure("aa", plain) : 0
             return s.reduce(0) { $0 + (($1 == " " ? space : _measure(String($1), plain)) / style.size * style.screenEm).rounded() * style.screen }
         }
         if let parts = _arabicParts(s, style) {
-            var plain = style; plain.arabicArial = false; plain.myanmar = false
+            var plain = style; plain.arabicArial = false; plain.myanmar = false; plain.kannada = false
             return parts.reduce(0) { $0 + ($1.ems.map { $0 * style.size } ?? _width($1.text, plain)) }
         }
         guard _spaces(s, style) else { return _measure(s, style) }
@@ -3506,25 +3508,32 @@ final class _TextCache {
         func isMy(_ v: UInt32) -> Bool { v >= 0x1000 && v <= 0x109F }
         let arab = style.arabicArial && s.unicodeScalars.contains(where: { ArabicRunWidth.isArabic($0.value) })
         let my = style.myanmar && s.unicodeScalars.contains(where: { isMy($0.value) })
-        guard arab || my else { return nil }
+        let kn = style.kannada && s.unicodeScalars.contains(where: { IndicAdvances.isIndic($0.value) })
+        guard arab || my || kn else { return nil }
         let table = style.bold ? WindowsArabicAdvances.arialBold : WindowsArabicAdvances.arial
         let myTable = style.bold ? MyanmarAdvances.bold : MyanmarAdvances.regular
         var parts: [(text: String, ems: Double?)] = []
-        var run = "", other = "", runMy = false
+        var run = "", other = "", runKind = 0
         func close() {
             guard !run.isEmpty else { return }
             let sc = run.unicodeScalars.map { $0.value }
-            let ems: Double? = runMy ? (sc.allSatisfy { myTable[$0] != nil } ? sc.reduce(0.0) { $0 + (myTable[$1] ?? 0) } : nil)
-                                     : ArabicRunWidth.ems(sc, advances: table)
+            let ems: Double?
+            switch runKind {
+            case 1: ems = sc.allSatisfy { myTable[$0] != nil } ? sc.reduce(0.0) { $0 + (myTable[$1] ?? 0) } : nil
+            case 2: ems = IndicAdvances.ems(run, bold: style.bold)
+            default: ems = ArabicRunWidth.ems(sc, advances: table)
+            }
             parts.append((run, ems)); run = ""
         }
         for ch in s {
             let a = arab && ch.unicodeScalars.allSatisfy { ArabicRunWidth.isArabic($0.value) && $0.value != 0x200C }
             let m = my && ch.unicodeScalars.allSatisfy { isMy($0.value) }
-            if a || m {
+            let k = kn && ch.unicodeScalars.allSatisfy { IndicAdvances.isIndic($0.value) }
+            if a || m || k {
                 if !other.isEmpty { parts.append((other, nil)); other = "" }
-                if !run.isEmpty && runMy != m { close() }
-                runMy = m
+                let kind = k ? 2 : (m ? 1 : 0)
+                if !run.isEmpty && runKind != kind { close() }
+                runKind = kind
                 run.append(ch)
             } else {
                 close(); other.append(ch)
@@ -3538,7 +3547,7 @@ final class _TextCache {
     /// The spans of such a text: each Arabic word stretched or squeezed (a horizontal scale of its glyphs) to Arial's width of it.
     private func _arabicSpans(_ s: String, _ style: GridTextStyle) -> [InlineSpan]? {
         guard let parts = _arabicParts(s, style) else { return nil }
-        var plain = style; plain.arabicArial = false; plain.myanmar = false
+        var plain = style; plain.arabicArial = false; plain.myanmar = false; plain.kannada = false
         var spans: [InlineSpan] = []
         for p in parts {
             if let ems = p.ems {
