@@ -6658,7 +6658,9 @@ enum DocxFormat {
                 if let id = rPr.first("w:rStyle")?["w:val"], let chain = notes.charStyleChains[id] {
                     for styled in chain { mark = _charStyle(styled, base: mark) }
                 }
-                markStyle = _charStyle(rPr, base: mark)
+                // (A mark flagged w:rtl that gives w:sz and no w:szCs stands at the szCs its style gives, as a complex run does: dx2 b02602d2's
+                // empty paragraph with sz 20 and w:rtl over BodyText's szCs 32 is a 19.3 pt Tahoma Bold line in Word; marks without w:rtl keep the sz.)
+                markStyle = _charStyle(rPr, base: mark, complexSize: _on(rPr.first("w:rtl")) && rPr.first("w:szCs") == nil && rPr.first("w:sz") != nil ? true : nil)
             }
             if markStyle?.hidden == true { style.markHidden = true }
             if style.markHidden, _on(pPr.first("w:rPr")?.first("w:specVanish")) { style.markSpecVanish = true }
@@ -6805,7 +6807,13 @@ enum DocxFormat {
                 // A paragraph of one ANCHORED picture has no text on its
                 // line: its mark's font is its height, as for an empty one
                 // (bib-chernigovka's title box sat in a 16pt paragraph).
-                if let mark = markStyle, only.sourceXML?.containsSubstring("<wp:anchor") == true { para.runs[0].style = mark }
+                // (The anchor is a character of that line, set in its own run's font: a run that states no size is the paragraph style's, so a
+                // mark stated smaller than that is not the height. dx2 b02602d2's picture paragraph, mark sz 20 over BodyText 16 bold, is a 19.3 pt
+                // Tahoma Bold line in Word's print, not 12.1.)
+                let styleSize = p.first("w:pPr")?.first("w:pStyle")?["w:val"].flatMap { styleIds[$0] }.flatMap { sheet[$0]?.char.fontSize }
+                if let mark = markStyle, only.sourceXML?.containsSubstring("<wp:anchor") == true,
+                   !(para.runs[0].style.fontSize == nil && styleSize != nil && mark.fontSize != nil && styleSize! > mark.fontSize!) { para.runs[0].style = mark }
+                else if only.sourceXML?.containsSubstring("<wp:anchor") == true, para.runs[0].style.fontSize == nil, let z = styleSize { para.style.mark?.fontSize = z }
             } else {
                 // (An empty cell paragraph under a table style that sets the size is as tall as that
                 // size, not Normal's: lo-7c394e05's 8pt cells under a 12pt Normal.)
