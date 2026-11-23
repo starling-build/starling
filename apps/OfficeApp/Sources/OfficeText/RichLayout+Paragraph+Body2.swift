@@ -168,6 +168,24 @@ extension _ParaFrame {
                 }
                 let spare = textWidth - right - _px(0.05)
                 guard spare > 0 else { continue }
+                // (PowerPoint widens each space of a justified East Asian line first, to half an em, and shares what is left evenly
+                // over every character and space: lab ko-squeeze, Gulim, Batang and Malgun Gothic at 12 and 19 pt print the space at
+                // 0.49 to 0.51 em with the Hangul on their own advance until then.)
+                let spaces = ((start + 1) ..< end).filter { units[$0 - 1] == 0x20 && units[$0] != 0x20 }
+                let spaceWidths: [Int: Double] = Dictionary(uniqueKeysWithValues: spaces.compactMap { g in
+                    flat.getBoxesForSelection(TextSelection(baseOffset: map.painter(g - 1), extentOffset: map.painter(g))).first.map { (g, $0.right - $0.left) } })
+                let half = _px((p.runs.first?.style.fontSize ?? theme.fontSize) * 0.5)
+                if !spaceWidths.isEmpty, half > 0 {
+                    let room = spaceWidths.values.map { max(0, half - $0) }.reduce(0, +)
+                    if spare <= room {
+                        for (g, w) in spaceWidths { spread[g] = spare * max(0, half - w) / max(room, 0.0001) }
+                    } else {
+                        let each = (spare - room) / Double(gapsAt.count)
+                        for g in gapsAt { spread[g] = each }
+                        for (g, w) in spaceWidths { spread[g, default: 0] += max(0, half - w) }
+                    }
+                    continue
+                }
                 for g in gapsAt { spread[g] = spare / Double(gapsAt.count) }
             }
             flat.dispose()
