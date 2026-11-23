@@ -9162,7 +9162,7 @@ extension ChartPainter {
                 // 31 pt high (1.73 em plus 3.6) puts them, 3 to 5 pt further in than the stand-in's own 18 pt line did.)
                 let labelStyle = Flutter.TextStyle(
                     color: colour, fontSize: size, fontWeight: labelWeight, height: malgunLine,
-                    fontFamily: OfficeFonts.substitute(labelFace),
+                    fontFamily: OfficeFonts.substitute(c.onSheet && c.font == nil && own?.face == nil ? (c.partFaces["label"] ?? labelFace) : labelFace),
                     fontFamilyFallback: Self.glyphFallback(c, traditional: l.traditional.contains(s.index)))
                 var labelText = Self.labelSpan(c, Self.keepHangulWords(shown ?? sheetText), labelStyle, traditional: l.traditional.contains(s.index))
                 if c.onSlide, let face = Self.eastAsianChartFace(labelFace) {
@@ -9170,6 +9170,9 @@ extension ChartPainter {
                     // one path the legend and the axes take: "항목 4" 34.8 pt at 12 pt in PowerPoint's print, 34.0 in the stand-in's.)
                     labelText = Self.metricSpan(Self.keepHangulWords(shown ?? sheetText), labelStyle, face, bold: labelWeight == .bold,
                         kanjiHeight: malgunLine != nil ? 1.3 : nil)
+                } else if c.onSheet, c.font == nil, own?.face == nil, let pf = c.partFaces["label"], let face = Self.latinChartFace(pf) {
+                    // (A sheet's data label in a Latin face the machine lacks (Century Gothic, Tahoma): spaced to the face's advances.)
+                    labelText = Self.metricSpan(shown ?? sheetText, labelStyle, face, bold: labelWeight == .bold)
                 }
                 return TextPainter(text: labelText, textAlign: .center, textDirection: .ltr,
                     maxLines: maxLines, ellipsis: maxLines == nil ? nil : "\u{2026}")
