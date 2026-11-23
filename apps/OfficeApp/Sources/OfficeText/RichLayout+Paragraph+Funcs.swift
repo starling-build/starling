@@ -1820,12 +1820,12 @@ extension _ParaFrame {
             // and tabs and then 8pt text, stands 0.7pt shorter than the spaces' 11pt descent makes it; with the spaces
             // and tabs set to 8pt it matches Word's print to 0.1. Only where the text is smaller than the spaces does
             // this change anything.)
-            let textTail = !_inlinePictureOnly(i, document) && document.paragraphs[i].inlineImages.count == 1
+            let textTail = !_inlinePictureOnly(i, document) && document.paragraphs[i].inlineImages.values.filter { $0.float == nil && $0.textBox == nil }.count == 1
             if pil, theme.wordRules, RichTextTheme.wordWindowsPages, _inlinePictureOnly(i, document) || textTail,
-               document.paragraphs[i].text.containsSubstring(" "),
+               document.paragraphs[i].text.containsSubstring(" ") || (textTail && document.paragraphs[i].text.containsSubstring("\t")),
                // (Pictures, not equations, all on one line: a first line of spaces that the picture then wraps from keeps
                // its own text line — dx2 pl fa1371a3.)
-               inline.allSatisfy({ $0.image.map { $0.name != "m:oMath" && $0.float == nil } ?? false }),
+               inline.allSatisfy({ $0.image.map { $0.name != "m:oMath" && ($0.float == nil || document.paragraphs[i].text.unicodeScalars.allSatisfy { $0.value == 0xFFFC || $0.value == 0x20 || $0.value == 0x09 }) } ?? false }),
                painter.computeLineMetrics().count == 1 {
                 func bare(_ s: InlineSpan) -> InlineSpan {
                     guard let t = s as? TextSpan else { return s }
