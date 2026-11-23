@@ -209,6 +209,23 @@ struct SheetPrintMetrics {
     /// The key of the table face a family is measured as: its own, or the
     /// one this app would draw it with. (Its bold is that key's "bold".)
     private static func faceKey(_ family: String) -> String {
+        // Asked for every measured string, always with the same few family names; the answer follows from the name alone
+        // while a sheet prints (the stand-in lookups below cost more than the measure itself).
+        faceKeyLock.lock(); let known = faceKeyMemo[family]; faceKeyLock.unlock()
+        if let known { return known }
+        let key = _faceKey(family)
+        faceKeyLock.lock(); faceKeyMemo[family] = key; faceKeyLock.unlock()
+        return key
+    }
+    #if os(WASI)
+    // One thread in the browser, and no NSLock in its Foundation.
+    private struct _NoLock { func lock() {}; func unlock() {} }
+    private static let faceKeyLock = _NoLock()
+    #else
+    private static let faceKeyLock = NSLock()
+    #endif
+    nonisolated(unsafe) private static var faceKeyMemo: [String: String] = [:]
+    private static func _faceKey(_ family: String) -> String {
         let n = family.trimmingWhitespace().lowercased()
         if faces[aliases[n] ?? n] != nil { return aliases[n] ?? n }
         // A face nobody measured: an East Asian one by its name, the rest by
