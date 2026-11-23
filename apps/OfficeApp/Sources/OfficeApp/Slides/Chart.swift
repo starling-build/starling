@@ -205,6 +205,8 @@ struct ChartSeries: Equatable {
     /// Those labels' own number format (`c:dLbls/c:numFmt`, not linked
     /// to the source); else they show the line's numbers' (`format`).
     var labelCode: String? = nil
+    /// A point's own number format in its cache (`c:pt formatCode`), which its label shows in place of the series'.
+    var pointLabelCode: [Int: String] = [:]
 }
 
 /// A group of a multi-level category axis: its first category and its name.
@@ -1891,6 +1893,9 @@ enum ChartXML {
             // 2,432 and 1,503 over 855 and 641 in one chart, whose caches say #,##0 for two series and General for the rest.)
             else if let d = ser.first("c:dLbls"), d.first("c:showVal")?["val"] == "1", d.first("c:numFmt").map({ ["1", "true"].contains($0["sourceLinked"] ?? "") }) ?? true {
                 s.labelCode = Self._format(ser.first("c:val")) ?? "General"
+                for pt in ser.first("c:val")?.descendant("c:numCache")?.children.filter({ $0.name == "c:pt" }) ?? [] {
+                    if let i = pt["idx"].flatMap(Int.init), let code = pt["formatCode"], !code.isEmpty, code.lowercased() != "general" { s.pointLabelCode[i] = code }
+                }
             }
             for one in ser.first("c:dLbls")?.all("c:dLbl") ?? [] {
                 if let i = one.first("c:idx")?["val"].flatMap(Int.init), one.first("c:tx") == nil,
@@ -4496,8 +4501,12 @@ enum ChartPainter {
 
     /// A data label: the value in the labels' number format where they
     /// have one ("0": 80, where the plain number is 79.63).
-    static func dataLabel(_ c: Chart, _ v0: Double, series j: Int? = nil) -> String {
+    static func dataLabel(_ c: Chart, _ v0: Double, series j: Int? = nil, point i: Int? = nil) -> String {
         let v = v0 / c.valueUnitDivisor
+        if let j, let i, let code = c.series[safe: j]?.pointLabelCode[i] {
+            let shown = chartNumberText(v, code)
+            if !shown.isEmpty { return shown }
+        }
         // (A series' own `dLbls` number format wins over the chart's, which is the first series': 81d28d42 p4's third series
         // "79.5%" in PowerPoint's print, the first series without labels and the cache 0.000, which ours printed 0.795.)
         guard let code = j.flatMap({ c.series[safe: $0]?.labelCode }) ?? c.labelFormat, code != "General" else { return label(v, percent: false) }
@@ -7078,9 +7087,10 @@ enum ChartPainter {
                         // (In Malgun Gothic's taller line the baseline stands 0.11 em higher in the label's box: ko-e114b968 p9 and p51's
                         // 10 pt labels, every one 1.1 pt low in ours.)
                         // (A label written out over the value: lines of its own below or above the value's.)
-                        var shown = c.series[safe: j]?.labelRich[i].map { $0.map { $0 ?? dataLabel(c, raw) }.joined(separator: "\n") } ?? dataLabel(c, raw)
+                        let ownLabel = dataLabel(c, raw, series: j, point: i)
+                        var shown = c.series[safe: j]?.labelRich[i].map { $0.map { $0 ?? ownLabel }.joined(separator: "\n") } ?? ownLabel
                         if let parts = c.series[safe: j]?.labelParts[i] {
-                            shown = parts.map { $0 == ChartSeries.labelValueMark ? dataLabel(c, raw) : $0 == ChartSeries.labelCellMark ? c.series[j].cellLabels[i] ?? "" : $0 }.joined()
+                            shown = parts.map { $0 == ChartSeries.labelValueMark ? ownLabel : $0 == ChartSeries.labelCellMark ? c.series[j].cellLabels[i] ?? "" : $0 }.joined()
                             wrapLabels.insert(labels.count)
                         }
                         var labelAt = Offset(rect.center.dx, c.stacked ? rect.center.dy
