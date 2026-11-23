@@ -273,7 +273,10 @@ enum DocProps {
     }
 
     /// The table properties, column widths, row properties and per-cell properties of the row a TAP sprm list describes.
-    static func row(_ g: [UInt8]) -> (tblPr: String, grid: [Int], trPr: String, cells: [(span: Int, merged: Bool, pr: String)])? {
+    /// `union`: the table's column edges when its rows do not share them (every row's edges, snapped); the row then
+    /// states its cells against that one grid, as Word's own table grid does, so a row of two cells under a four-column
+    /// table spans columns instead of taking the first two.
+    static func row(_ g: [UInt8], union: [Int]? = nil) -> (tblPr: String, grid: [Int], trPr: String, cells: [(span: Int, merged: Bool, pr: String)], edges: [Int])? {
         var edges: [Int] = [], tcs: [[UInt8]] = []
         var jc = "", gap = 0, shd: [Int] = [], height = 0
         var tb: [String] = [], header = false, cant = false
@@ -316,8 +319,10 @@ enum DocProps {
         }
         guard edges.count >= 2 else { return nil }
         let n = edges.count - 1
-        let grid = (0 ..< n).map { max(0, edges[$0 + 1] - edges[$0]) }
-        var tblPr = "<w:tblPr><w:tblW w:w=\"\(edges[n] - edges[0])\" w:type=\"dxa\"/>"
+        let ownGrid = (0 ..< n).map { max(0, edges[$0 + 1] - edges[$0]) }
+        let grid = union.map { u in (0 ..< u.count - 1).map { max(0, u[$0 + 1] - u[$0]) } } ?? ownGrid
+        func ui(_ e: Int) -> Int { union.map { u in u.indices.min(by: { abs(u[$0] - e) < abs(u[$1] - e) }) ?? 0 } ?? 0 }
+        var tblPr = "<w:tblPr><w:tblW w:w=\"\((union?.last ?? edges[n]) - edges[0])\" w:type=\"dxa\"/>"
         if !jc.isEmpty { tblPr += "<w:jc w:val=\"\(jc)\"/>" }
         tblPr += "<w:tblInd w:w=\"\(edges[0] + gap)\" w:type=\"dxa\"/>"
         let real = tb.filter { !$0.isEmpty }
@@ -334,10 +339,12 @@ enum DocProps {
             let flags = tc.count >= 2 ? OfficeArt.u16(tc, 0) : 0
             let hm = flags & 3, vm = flags >> 5 & 3, va = flags >> 7 & 3
             if hm == 2 { cells.append((0, true, "")); k += 1; continue }
-            var span = 1, w = grid[k]
-            if hm == 1 { while k + span < n, k + span < tcs.count, tcs[k + span].count >= 2, OfficeArt.u16(tcs[k + span], 0) & 3 == 2 { w += grid[k + span]; span += 1 } }
+            var span = 1, w = ownGrid[k]
+            if hm == 1 { while k + span < n, k + span < tcs.count, tcs[k + span].count >= 2, OfficeArt.u16(tcs[k + span], 0) & 3 == 2 { w += ownGrid[k + span]; span += 1 } }
+            var uspan = span
+            if let u = union { let lo = ui(edges[k]), hi = ui(edges[k + span]); uspan = max(1, hi - lo); w = max(0, u[hi] - u[lo]) }
             var pr = "<w:tcPr><w:tcW w:w=\"\(w)\" w:type=\"dxa\"/>"
-            if span > 1 { pr += "<w:gridSpan w:val=\"\(span)\"/>" }
+            if uspan > 1 { pr += "<w:gridSpan w:val=\"\(uspan)\"/>" }
             if vm == 1 { pr += "<w:vMerge/>" } else if vm == 2 { pr += "<w:vMerge w:val=\"restart\"/>" }
             if tc.count >= 20 {
                 let b = [("top", 4), ("left", 8), ("bottom", 12), ("right", 16)].map { brc($0.0, width: Int(tc[$0.1]), type: Int(tc[$0.1 + 1]), ico: Int(tc[$0.1 + 2]) & 31) }
@@ -347,10 +354,10 @@ enum DocProps {
             if k < shd.count { let f = shade(shd[k]); if !f.isEmpty { pr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(f)\"/>" } }
             if va > 0 { pr += "<w:vAlign w:val=\"\(va == 1 ? "center" : "bottom")\"/>" }
             pr += "</w:tcPr>"
-            cells.append((span, false, pr))
+            cells.append((uspan, false, pr))
             k += span
         }
-        return (tblPr, grid, trPr.isEmpty ? "" : "<w:trPr>" + trPr + "</w:trPr>", cells)
+        return (tblPr, grid, trPr.isEmpty ? "" : "<w:trPr>" + trPr + "</w:trPr>", cells, edges)
     }
 
     // MARK: lists
