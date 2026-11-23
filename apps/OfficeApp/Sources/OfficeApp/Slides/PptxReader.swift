@@ -2602,6 +2602,8 @@ private struct SlideContext {
         fromDefaults.lineMultiple = nil; fromDefaults.linePoints = nil
         fromDefaults.beforePoints = nil; fromDefaults.beforePercent = nil
         fromDefaults.afterPoints = nil; fromDefaults.afterPercent = nil
+        // (Nor does its bold: 9e09a947a0fd's defaults say b="1", yet a table's second column prints regular Arial; bold comes from the table style.)
+        fromDefaults.bold = nil
         var base = LevelStyle.paragraph(master?.first("p:txStyles")?.first("p:otherStyle")?.first("a:lvl1pPr"), colors)
             .filled(from: fromDefaults)
         // The style the id names, when the deck defines it: the look of the
