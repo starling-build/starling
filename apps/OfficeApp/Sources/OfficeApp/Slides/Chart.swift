@@ -192,6 +192,7 @@ struct ChartSeries: Equatable {
     var labelsShown = true
     /// The series' name in each label (`showSerName`), set before the value after the separator.
     var labelSeriesName = false
+    var labelCategoryName = false
     var labelSeparator = ", "
     /// A series that shows labels only through the cells it takes their text from (`c15:showDataLabelsRange`), the value
     /// and percent switches off: PowerPoint draws those texts all the same (lo-tdf149985's "19.8%" over 2017's column).
@@ -1940,6 +1941,10 @@ enum ChartXML {
             } else if ser.first("c:dLbls") != nil { s.labelsShown = false }
             else { s.labelsShown = el.first("c:dLbls")?.first("c:showVal")?["val"] == "1" || el.first("c:dLbls")?.first("c:showPercent")?["val"] == "1" }
             if s.cellLabelsOnly { s.labelsShown = true }
+            if let d = ser.first("c:dLbls") ?? el.first("c:dLbls"), d.first("c:showCatName")?["val"] == "1", d.first("c:showVal")?["val"] == "1" {
+                s.labelCategoryName = true
+                if let sep = d.first("c:separator")?.text { s.labelSeparator = sep }
+            }
             if let d = ser.first("c:dLbls") ?? el.first("c:dLbls"), d.first("c:showSerName")?["val"] == "1", d.first("c:showVal")?["val"] == "1" {
                 s.labelSeriesName = true
                 if let sep = d.first("c:separator")?.text { s.labelSeparator = sep }
@@ -7039,7 +7044,9 @@ enum ChartPainter {
                             RuleTrace.hit("word-column-label-baseline")
                         }
                         if c.onSlide, c.series[safe: j]?.labelBoldPoints.contains(i) == true { boldLabels.insert(labels.count) }
-                        labels.append((shown, labelAt, j))
+                        // (A bar's label that names its category too: Excel's print of chart-tdf136267 reads "John, 3".)
+                        let named = c.series[safe: j]?.labelCategoryName == true && c.onSheet ? (c.categories[safe: i] ?? "") + c.series[j].labelSeparator + shown : shown
+                        labels.append((named, labelAt, j))
                     }
                     // In a 3-D box, the bar stands in the middle of its
                     // depth, its own depth a 1 + gapDepth share of it.
