@@ -271,6 +271,7 @@ struct Chart: Equatable {
     var categoryAxisTitleSize: Double? = nil
     /// The axis titles say nothing of their look (openpyxl's): Excel sets them 20 pt.
     var bareAxisTitle = false
+    var axisTitleBold = false   // (a sheet's axis title that states b="1" is drawn bold)
     var axisTitleColor: Color? = nil   // (Word's own: the title's run, else its default run properties)
     /// An axis title the file places itself (`c:title/c:layout`, edge-mode
     /// x and y of the chart's frame), set across and in its own size: the
@@ -2518,6 +2519,7 @@ enum ChartXML {
                 if let fill = layer.first("a:solidFill") { c.axisTitleColor = color(fill) }
             }
         }
+        if let t = titledValue?.first("c:title") ?? titledCategory?.first("c:title"), let b = (t.descendant("a:rPr")?["b"] ?? t.descendant("a:defRPr")?["b"]) { c.axisTitleBold = ["1", "true"].contains(b) }
         func statedSize(_ ax: XNode?) -> Double? {
             guard let t = ax?.first("c:title") else { return nil }
             return (t.descendant("a:rPr")?["sz"] ?? t.descendant("a:defRPr")?["sz"]).flatMap(Double.init).map { $0 / 100 }
@@ -4057,7 +4059,7 @@ enum ChartPainter {
             _pie(c, canvas, area, k: k, theme: theme, text: text, frame: r, ink: ink)
         } else {
             _axes(c, canvas, area, frame: r, k: k, theme: theme, titleLines: titleLines, grid: c.gridColor ?? grid, text: text,
-                   titleText: { styled($0, c.onSheet && c.bareAxisTitle ? $1 * 0.9 : $1, $2, bold: false, color: c.onSlide || c.onSheet ? nil : c.axisTitleColor, family: c.onSheet && c.bareAxisTitle ? "Arial" : nil) },
+                   titleText: { styled($0, c.onSheet && c.bareAxisTitle ? $1 * 0.9 : $1, $2, bold: c.onSheet && c.axisTitleBold, color: c.onSlide || c.onSheet ? nil : c.axisTitleColor, family: c.onSheet && c.bareAxisTitle ? "Arial" : nil) },
                   categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor, part: "cat", windowsLines: true, mixedLine: 1.494, tall: true) },
                   valueText: { styled($0, $1, $2, bold: c.valueLabelBold, color: c.valueLabelColor, part: "val", tall: true) })
         }
@@ -5188,7 +5190,7 @@ enum ChartPainter {
             return max(2, min(10, Int(span / 13)))
         }()
         var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? acrossSteps ?? writerSteps ?? sheetSteps ?? hiddenSlideSteps ?? 10,
-                                                                          headroom: c.barView != nil || c.line3D ? 0 : c.secondValueAxis?.sameScale == true ? 0.10 : 0.05)
+                                                                          headroom: (c.barView != nil || c.line3D) && !(c.onSheet && c.series.allSatisfy { $0.values.allSatisfy { ($0 ?? 0) == 0 } }) ? 0 : c.secondValueAxis?.sameScale == true ? 0.10 : 0.05)
         // (Excel's axis for a hidden scatter's visible $ axis with the area and line on the group left without one runs a tenth past
         // its data, not a twentieth: chart-tdf140489's 75,887 reaches $90,000, where the 5% rule stops at 80,000; the same file
         // without the scatter, or with it on the other group, stops at 80,000 too — the Windows lab wip/lab-tdf140489.
@@ -5362,7 +5364,7 @@ enum ChartPainter {
             // axis title, "In Word the default length of the axis title box is about to
             // 80% of the length of the chart area.", breaks in two in its print.)
             let writerChart = !c.onSlide && !c.onSheet
-            let tp = axisText(t, c.onSlide ? (c.valueAxisTitleSize ?? titleSize) : titleSize, min(horizontal ? area.width : area.height, writerChart ? 0.8 * (horizontal ? frame.width : frame.height) : .infinity))
+            let tp = axisText(t, c.onSlide ? (c.valueAxisTitleSize ?? titleSize) : c.onSheet ? (c.valueAxisTitleSize.map { $0 } ?? titleSize) : titleSize, min(horizontal ? area.width : area.height, writerChart ? 0.8 * (horizontal ? frame.width : frame.height) : .infinity))
             if horizontal {
                 tp.paint(canvas, Offset(area.center.dx - tp.width / 2, area.bottom - tp.height))
                 area = Rect.fromLTRB(area.left, area.top, area.right, area.bottom - tp.height - 4 * k)
@@ -5371,7 +5373,7 @@ enum ChartPainter {
                 // from the area's left, its middle over the plot's; they break at 18% of the chart — lo-6b6ece9c's
                 // "Horizontal, long axis title which breaks" in three lines, 66.7pt the widest, the plot starting
                 // 93.8 from the area's left in Word's print.)
-                let across = axisText(t, c.onSlide ? (c.valueAxisTitleSize ?? titleSize) : titleSize, 0.18 * frame.width)
+                let across = axisText(t, c.onSlide ? (c.valueAxisTitleSize ?? titleSize) : c.onSheet ? (c.valueAxisTitleSize.map { $0 } ?? titleSize) : titleSize, 0.18 * frame.width)
                 let widest = across.computeLineMetrics().map(\.width).max() ?? across.width
                 let block = widest + 10 * k
                 // (Over the plot's middle, not the area's: the plot's top is half a label under the area's,
@@ -5391,7 +5393,7 @@ enum ChartPainter {
                 var lift = 0.0
                 if (c.onSheet && c.bareAxisTitle && c.type != .scatter) || (c.onSlide && c.categoryAxisTitleSize != nil) {
                     let names = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.3
-                    let below = c.categoryAxisTitle != nil ? axisText(c.categoryAxisTitle!, c.onSlide ? (c.categoryAxisTitleSize ?? titleSize) : titleSize, .infinity) : nil
+                    let below = c.categoryAxisTitle != nil ? axisText(c.categoryAxisTitle!, c.onSlide ? (c.categoryAxisTitleSize ?? titleSize) : c.onSheet ? (c.categoryAxisTitleSize.map { $0 } ?? titleSize) : titleSize, .infinity) : nil
                     let titleRoom = (below?.height ?? 0) + (below == nil ? 0 : 4 * k + 6 * k)
                     below?.dispose()
                     lift = (names + titleRoom - 0.61 * labelSize * k) / 2
@@ -5416,7 +5418,7 @@ enum ChartPainter {
         }
         if let t = c.categoryAxisTitle, c.categoryAxisTitleAt == nil {
             // (Excel's bare titles stand as long as four fifths of the chart: tdf119138's 162 pt "Sample length (mm)" beside a 150 pt plot.)
-            let tp = axisText(t, c.onSlide ? (c.categoryAxisTitleSize ?? titleSize) : titleSize, !c.onSlide && !c.onSheet || (c.onSheet && horizontal) ? min(horizontal && c.onSheet ? .infinity : horizontal ? area.height : area.width, 0.8 * (horizontal ? frame.height : frame.width)) : min(horizontal ? area.height : area.width, .infinity))
+            let tp = axisText(t, c.onSlide ? (c.categoryAxisTitleSize ?? titleSize) : c.onSheet ? (c.categoryAxisTitleSize.map { $0 } ?? titleSize) : titleSize, !c.onSlide && !c.onSheet || (c.onSheet && horizontal) ? min(horizontal && c.onSheet ? .infinity : horizontal ? area.height : area.width, 0.8 * (horizontal ? frame.height : frame.width)) : min(horizontal ? area.height : area.width, .infinity))
             if horizontal {
                 canvas.save()
                 canvas.translate(area.left, area.center.dy + tp.width / 2)
