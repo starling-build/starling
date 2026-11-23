@@ -186,6 +186,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     private var _editMenuUp = false
     private var _editPress = 0
     private var _drag: _Drag? = nil
+    /// A finger has touched the grid: the fill handle is drawn as a knob a finger can take.
+    private var _touchSeen = false
     /// Fingers down, by pointer id, for a pinch; and the last distance between two.
     private var _fingers: [Int: Offset] = [:]
     private var _pinchLast: Double? = nil
@@ -1553,6 +1555,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     private func _down(_ e: PointerEvent) {
         focus.requestFocus()
+        if e.kind == .touch { _touchSeen = true }
         let p = _local(e)
         let c = controller
         if e.kind == .touch {
@@ -1656,7 +1659,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // The fill handle: the small square at the selection's corner.
         if edit == nil {
             let sel = rect(c.selection)
-            if abs(p.dx - sel.right) <= 5 && abs(p.dy - sel.bottom) <= 5 {
+            // A finger takes a bigger target than a mouse.
+            let reach = e.kind == .touch ? 22.0 : 5.0
+            if abs(p.dx - sel.right) <= reach && abs(p.dy - sel.bottom) <= reach {
                 let now = Date().timeIntervalSince1970
                 if let last = _lastFillPress, now - last < 0.4 {
                     _lastFillPress = nil
@@ -2217,11 +2222,19 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             frame.color = accent
             canvas.drawRect(Rect.fromLTRB(r.left.rounded(), r.top.rounded(), r.right.rounded() - 1, r.bottom.rounded() - 1), frame)
             // The fill handle.
-            p.color = accent
-            canvas.drawRect(Rect.fromLTWH(r.right.rounded() - 4, r.bottom.rounded() - 4, 6, 6), p)
-            p.color = paper
-            canvas.drawRect(Rect.fromLTWH(r.right.rounded() - 5, r.bottom.rounded() - 5, 1, 7), p)
-            canvas.drawRect(Rect.fromLTWH(r.right.rounded() - 5, r.bottom.rounded() - 5, 7, 1), p)
+            if _touchSeen {
+                let c = Offset(r.right.rounded() - 1, r.bottom.rounded() - 1)
+                p.color = paper
+                canvas.drawCircle(c, 8, p)
+                p.color = accent
+                canvas.drawCircle(c, 6.5, p)
+            } else {
+                p.color = accent
+                canvas.drawRect(Rect.fromLTWH(r.right.rounded() - 4, r.bottom.rounded() - 4, 6, 6), p)
+                p.color = paper
+                canvas.drawRect(Rect.fromLTWH(r.right.rounded() - 5, r.bottom.rounded() - 5, 1, 7), p)
+                canvas.drawRect(Rect.fromLTWH(r.right.rounded() - 5, r.bottom.rounded() - 5, 7, 1), p)
+            }
         }
         // The fill handle's target.
         if let t = fillTarget {
