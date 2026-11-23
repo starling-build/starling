@@ -1,6 +1,6 @@
 # iPad multi-window: design for review
 
-Status: **proposal, nothing built.** Author: mac-ipad session, 2026-11-23. The ask: two documents
+Status: **reviewed 2026-11-23: GO on option B (board/20261123-152204-amd-opus.md), with the changes folded in below. Nothing built.** Author: mac-ipad session, 2026-11-23. The ask: two documents
 open side by side as two windows of the Office app (Split View of the app with itself, Stage Manager
 windows, "Open in New Window", drag a file out of the browser).
 
@@ -49,10 +49,15 @@ Each scene gets its own `FlutterEngine`, started exactly as today.
 
 One engine and one isolate-less runtime, with a `FlutterView` per scene.
 
-- **Engine repo (`starling`):** the iOS embedder gets an add-view path: a scene's
-  `FlutterViewController` attaches as view N (its own `CAMetalLayer`/surface and metrics), calls
-  `AddView`/`RemoveView` into the existing runtime hooks; pointer, key and text-input events carry the
-  view id. The runtime controller side is there.
+- **Engine repo (`starling`): this is the real work, and it is the raster side, not the add-view call.**
+  The runtime controller side is there, but `shell/common/rasterizer.cc` draws every view into ONE
+  `surface_`, and iOS (`PlatformViewIOS`: one `ios_surface_`, one `owner_controller_`) is not on the
+  embedder API that the other platforms use to give each view a drawable. A second view reaches its own
+  drawable only through the external view embedder (`PrepareFlutterView` / `SubmitFlutterView(view_id)`).
+  So: an iOS external view embedder mapping view id to a `CAMetalLayer` (not a second `surface_` in the
+  rasterizer); `rasterizer.cc:715` `GetRootCanvas()` has no view id yet (an upstream TODO). Patches live in
+  our own embedder files (small hooks in `FlutterEngine.mm` / `FlutterViewController.mm`, the `patches/`
+  series), since upstream iOS has no multi-view to be shaped like. This is the one part that can sink the plan.
 - **Framework (`sdk/`):** `runApp` stays for the first view; a `runView(id:, _ app:)` (or a `View`
   widget under a collection root, as Flutter's `runWidget`) creates a `RenderView` + tree per view and
   registers it with the existing keyed maps. `FocusManager` becomes per-view focus scopes (today one
@@ -73,13 +78,48 @@ One engine and one isolate-less runtime, with a `FlutterView` per scene.
 4. Entry points: "Open in New Window" in the browser's context menu and the document picker
    (`UIApplication.requestSceneSessionActivation`), drag-out, and state restoration per scene.
 
+## Lifecycle (added in review)
+
+- A scene that goes to the background drops only ITS view's surface. The engine's GPU-disabled switch and
+  `AppLifecycleState` are process-wide today and driven by the one view controller; Metal work from a
+  backgrounded app is a kill, so only "every scene in the background" pauses the engine.
+- iOS disconnects background scenes whenever it likes. That is `RemoveView` plus unmounting that view's tree,
+  with the document saved first, and a rebuild from the scene's restoration activity on return. Per-view
+  unmount has never run in this port: open and close the second window 50 times, watching memory and tickers.
+
+## Input routing (added in review) - check each
+
+- Pointer device ids: each `FlutterViewController` numbers its touches itself, and the engine's packet
+  converter and the `GestureBinding` hit-test table are keyed by device/pointer, so two windows touched at
+  once must not collide.
+- Text input and key events: one plugin per engine, bound to one controller; route by the key scene and carry
+  the view id on the text client. Keyboard insets per view. The UIKit edit menu and toolbar owner per scene.
+- Framework audit: 65 uses of `renderView`/implicit view in sdk; 5 files read `implicitView` directly
+  (`Adapter.swift`, `TerminalView.swift`; Office: `ScriptedInput`, `WikiShell`, `SiteShell`). Each takes its
+  view from context (`View.of`) or is marked first-view-only. Focus: keep the ONE `FocusManager`, with one focus
+  scope per view plus the view-focus event when a scene becomes key (as Flutter's `View` widget does).
+
+## Displays, accessibility, platform views
+
+A Stage Manager window can sit on an external display with another scale and refresh rate: scale is per view
+(`addView` carries it); the single frame clock follows the display link of the key scene. Accessibility (one
+bridge per engine today) and iOS platform views are out of scope here.
+
 ## Recommendation and order
 
-Option B. Build in this order, each testable on the simulator: (1) scene-based host with a *second
-scene showing the same single-view tree is refused* (one window, scene lifecycle only; no regression);
-(2) engine add-view on iOS + `runView` with a trivial second view; (3) `OfficeScene` split and
-per-view focus/input; (4) the entry points and one-document-one-window.
+Option B, in the reviewed order. Multiple scenes stay OFF (`UIApplicationSupportsMultipleScenes` = NO)
+until the last step: with it on the system itself offers "new window" (Stage Manager, App Exposé, drag to
+the edge), and a scene we cannot serve is an empty window on the user's screen.
 
-Open questions for the planner: is a shared UI thread acceptable for two documents, or must a heavy
-Sheets recalculation in one window never stall typing in the other (that would force option A)?
-Does the engine fork want the iOS add-view patch upstream-shaped, or in our own embedder file?
+1. **Engine spike (first, about a week):** a second `CAMetalLayer` in the same window showing a second
+   trivial view from one engine, through an iOS external view embedder. If it is not drawing in a week, back
+   to the board; never fall back to option A silently.
+2. Scene host with multiple scenes OFF: the scene lifecycle (manifest, window-scene delegate, `openURL` as
+   `scene:openURLContexts:`), no change in behaviour.
+3. `runView` + the second real view (render tree, hit test, metrics) in a test host.
+4. `OfficeScene` split, focus and input, lifecycle (above).
+5. Entry points (Open in New Window, drag-out, restoration), one-document-one-window, THEN turn scenes on.
+
+Answered in review: a shared UI thread is acceptable and must not force option A (builds already run on the
+platform thread, so a heavy Sheets recalculation stalls its own window today; moving recalculation off that
+thread helps one window as much as two). The engine patch goes in our own embedder files.
