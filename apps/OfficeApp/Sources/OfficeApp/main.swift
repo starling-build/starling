@@ -446,7 +446,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--doc-info"), i + 1 < CommandLi
             print("blips=\(art.blips.count) shapes=\(art.shapes.count) groups=\(art.shapes.values.filter { $0.flags & 1 != 0 }.count) children=\(art.shapes.values.filter { $0.flags & 2 != 0 }.count) crops=\(art.shapes.values.filter { $0.props[0x100] != nil || $0.props[0x101] != nil || $0.props[0x102] != nil || $0.props[0x103] != nil }.count) types=\(Dictionary(grouping: art.shapes.values.filter { $0.flags & 1 == 0 }, by: { $0.type }).mapValues { $0.count }.sorted { $0.key < $1.key }) hdrspa=\(f.range(41).map { DocArt.spas(tb, at: $0.fc, count: $0.lcb).count } ?? 0)")
             for sp in DocArt.spas(tb, at: sr.fc, count: sr.lcb) {
                 let sh = art.shapes[sp.spid]
-                print("spa cp=\(sp.cp) spid=\(sp.spid) flags=\(String(sp.flags, radix: 16)) type=\(sh?.type ?? -1) props=\((sh?.props ?? [:]).sorted { $0.key < $1.key }.map { "\(String($0.key, radix: 16)):\(String($0.value, radix: 16))" }.joined(separator: " "))")
+                print("spa cp=\(sp.cp) spid=\(sp.spid) flags=\(String(sp.flags, radix: 16)) type=\(sh?.type ?? -1) props=\((sh?.props ?? [:]).sorted { $0.key < $1.key }.map { "\(String($0.key, radix: 16)):\(String($0.value, radix: 16))" }.joined(separator: " ")) cx=\((sh?.complex ?? [:]).sorted { $0.key < $1.key }.map { "\(String($0.key, radix: 16)):\($0.value.count)" + ($0.value.count <= 40 && $0.key != 0xC0 && $0.key != 0xC5 ? "[" + $0.value.map { String($0, radix: 16) }.joined(separator: ".") + "]" : "") }.joined(separator: " "))")
             }
             print("tablesize=\(tb.count) w=\(w.count)"); if let b = f.range(56), let pl = DocProps.plex(tb, at: b.fc, count: b.lcb, size: 22) { print("txbx cps=\(pl.cps)") }
         }
