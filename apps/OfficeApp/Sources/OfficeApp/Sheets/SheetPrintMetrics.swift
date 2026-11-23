@@ -64,6 +64,14 @@ struct SheetPrintMetrics {
         (h * scale * 600 / 72 + 0.12).rounded(.down) * 72 / 600
     }
 
+    /// A row of a face the print box has but the tables lack: its stored height
+    /// is a whole number of 96-dpi screen pixels, and Excel prints each pixel as
+    /// 6.35 printer dots, rounded to a whole dot (Noto Sans 11: 16.5 pt = 22 px
+    /// = 140 dots; Roboto 10: 12.75 pt = 17 px = 108 dots).
+    static func screenPixelRow(_ pt: Double) -> Double {
+        ((pt * 96 / 72).rounded() * 6.35).rounded() * 72 / 600
+    }
+
     func fittedRow(_ font: SheetPrintMetrics) -> Double {
         font.screenRow * 72 / 192 * rowScale
     }
@@ -130,6 +138,15 @@ struct SheetPrintMetrics {
         "century gothic": Face(digit: [37, 42, 46, 49, 51, 55, 65, 74, 83], row: [91, 99, 108, 116, 119, 128, 151, 169, 193], screenRow: [26, 32, 35, 36, 38, 41, 46, 54, 61],
             screenDigit: [12, 13, 15, 16, 16, 18, 21, 24, 27]),
         "malgun gothic": Face(digit: [37, 41, 46, 48, 51, 55, 64, 73, 83], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
+            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
+        // Dotum, Gulim, Batang and Gungsuh are not on the print box, so Excel prints them as a stand-in,
+        // with Malgun's rows (their own line is not yet measured against Excel) and a column's unit their own digit (font file advances of 597, 588, 610 and 597 per 1024 em) in whole dots of the
+        // 600 dpi em (11 pt: 92 dots, Dotum's digit 54 where Malgun's is 51: 0453e2c911's two columns, 509.8 pt, 36.0 + 473.8).
+        "dotum": Face(digit: [39, 44, 49, 51, 54, 58, 68, 78, 88], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
+            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
+        "gulim": Face(digit: [38, 43, 48, 50, 53, 57, 67, 76, 86], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
+            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
+        "batang": Face(digit: [39, 45, 50, 52, 55, 60, 70, 79, 89], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
             screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
         // Nirmala UI: a wrapped line is the face's GDI height plus its descent at 600 dpi (12 pt: 133 + 26 = 159 dots, 50 screen
         // pixels; zwsp2 lab, Excel 16: one line of Nirmala UI 12 is 19.07 pt, two 38.1, three 57.2, where Calibri 12 is 15.3).
@@ -210,8 +227,7 @@ struct SheetPrintMetrics {
         "ms sans serif": "microsoft sans serif", "黑体": "simhei", "細明體": "mingliu",
         "lucida sans": "lucida sans unicode", "lucida grande": "lucida sans unicode",
         // (Dotum, Gulim and Batang left Windows; Excel prints them as Malgun Gothic.)
-        "돋움": "malgun gothic", "dotum": "malgun gothic", "굴림": "malgun gothic", "gulim": "malgun gothic",
-        "바탕": "malgun gothic", "batang": "malgun gothic",
+        "돋움": "dotum", "굴림": "gulim", "바탕": "batang", "궁서": "dotum", "gungsuh": "dotum",
     ]
 
     private static func face(_ family: String) -> Face { faces[faceKey(family)]! }

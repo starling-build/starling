@@ -91,7 +91,9 @@ extension _StyledFrame {
                 for u in rawText.unicodeScalars where u.properties.isAlphabetic { letters += 1; if u.value >= 0x10D0 && u.value <= 0x10FA { georgian += 1 } }
                 if georgian > 0, georgian * 2 >= letters {
                     let face = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased()
-                    if face != "sylfaen", face != "ghea grapalat" {
+                    // (Not where the run itself names Calibri as its complex-script face: Calibri has Georgian letters, and Word's print of dx2 4b53bd2f8f3a, whose runs say cstheme minorHAnsi, draws them in Calibri at Calibri's line; runs with no such face draw Sylfaen.)
+                    let csOwn = (run.complexFontFamily ?? "").trimmingWhitespace().lowercased()
+                    if face != "sylfaen", face != "ghea grapalat", !(csOwn == "calibri" && face == "calibri") {
                         RuleTrace.hit("word-georgian-letters-are-sylfaen")
                         run.fontFamily = "Sylfaen"
                         run.hAnsiFontFamily = nil

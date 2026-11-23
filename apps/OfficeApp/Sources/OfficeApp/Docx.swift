@@ -219,6 +219,8 @@ final class XNode {
     struct ListPart {
         let root: XNode
         let forEach: ((XNode) -> Void) -> Void
+        /// The part's bytes when this app's own reader took it (so the items can be scanned in place), else nil.
+        var bytes: [UInt8]? = nil
     }
 
     static func parse(_ data: Data, listUnder parent: String, of item: String) -> ListPart? {
@@ -228,7 +230,7 @@ final class XNode {
         own = !_systemOnly && _plainUTF8(bytes)
         #endif
         if own, let root = MiniXML.parse(bytes, emptying: parent) {
-            return ListPart(root: root) { each in MiniXML.children(named: item, ofRootChild: parent, in: bytes, each) }
+            return ListPart(root: root, forEach: { each in MiniXML.children(named: item, ofRootChild: parent, in: bytes, each) }, bytes: bytes)
         }
         guard let root = parseSystem(data) else { return nil }
         let isNamed: (XNode, String) -> Bool = { $0.name == $1 || $0.name.hasSuffix(":" + $1) }

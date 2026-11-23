@@ -3100,7 +3100,11 @@ extension RichLayout {
             guard theme.wordRules, RichTextTheme.wordWindowsPages, j >= 0, j < document.paragraphs.count,
                   document.paragraphs[j].keptTable == nil, p.keptTable == nil,
                   let a = p.cell, let b = document.paragraphs[j].cell else { return false }
-            return a.table == b.table && b.row >= a.row + a.rowSpan
+            // (Nor does it keep it before the next CELL of its own row:
+            // zh-1a3c7aa0's header row, three cells of one contextual
+            // exact 12pt line over Normal's 8pt after, is 12.0pt in
+            // Word's print, ours 20: only its last cell gave the space up.)
+            return a.table == b.table && (b.row >= a.row + a.rowSpan || b.row == a.row && a != b)
         }
         // (Word for Windows, mode 14, xd 80c852b0 p2: a contextual list item over a table whose first cell's paragraph
         // is the same style gives its space after up too, 8pt, though the cell paragraph is no list item.)

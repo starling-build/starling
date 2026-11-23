@@ -40,6 +40,10 @@ enum OfficeFormats {
         // package sits encrypted inside one, or a binary .doc. Neither is
         // text, and reading it as text wrote a copy Word could not open.
         if data.count > 8, data.starts(with: [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]) {
+            // A binary Word document (Word 97-2003) is read as the .docx it translates to.
+            if let converted = DocRead.docx(data), let d = try? DocxFormat.read(converted) {
+                return OpenedDocument(document: d.document, pageSetup: d.pageSetup)
+            }
             throw FormatError.unsupported("an encrypted or binary Word file")
         }
         // A zip starts with "PK": a .docx whatever it is called.

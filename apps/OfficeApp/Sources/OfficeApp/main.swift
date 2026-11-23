@@ -436,6 +436,23 @@ if let i = CommandLine.arguments.firstIndex(of: "--xls-parts"), i + 2 < CommandL
     } catch { exit(1) }
 }
 
+// `--doc-parts <file.doc> <dir>`: the .docx parts the reader builds from a binary Word document, written as files.
+if let i = CommandLine.arguments.firstIndex(of: "--doc-parts"), i + 2 < CommandLine.arguments.count {
+    do {
+        let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+        let dir = CommandLine.arguments[i + 2]
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let cf = try CompoundFile([UInt8](data))
+        guard let ps = DocRead.parts(cf) else {
+            if let w = cf.stream("WordDocument"), let f = DocFib(w) { print("nFib=\(f.nFib) encrypted=\(f.encrypted) table=\(f.tableStream) hasTable=\(cf.stream(f.tableStream) != nil) clx=\(String(describing: f.range(DocFib.fcClx))) ccpText=\(f.ccpText)") }
+            else { print("no WordDocument or FIB") }
+            exit(1)
+        }
+        for e in ps { try e.data.write(to: URL(fileURLWithPath: dir + "/" + e.name.split(separator: "/").joined(separator: "_"))) }
+        exit(0)
+    } catch { exit(1) }
+}
+
 // `--xls-dump <file.xls>`: the streams, record counts and sheets of a legacy workbook.
 if let i = CommandLine.arguments.firstIndex(of: "--xls-dump"), i + 1 < CommandLine.arguments.count {
     do {
@@ -668,6 +685,19 @@ if let i = CommandLine.arguments.firstIndex(of: "--sheet-pdf"), i + 2 < CommandL
         FileHandle.standardError.write("sheet pdf failed: \(error)\n".data(using: .utf8)!)
         exit(1)
     }
+}
+
+// `--xlsx-scan-stats <in.xlsx>...`: per book, how many cells the sheet reader took on its fast path and how
+// many it read as a tree (the share the scanner gave up on).
+if let i = CommandLine.arguments.firstIndex(of: "--xlsx-scan-stats") {
+    for src in CommandLine.arguments[(i + 1)...] {
+        MiniXML.scanFast = 0; MiniXML.scanTree = 0
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: src)), (try? Workbook.open(data, name: src.lastPathComponent)) != nil else {
+            print("\(src.lastPathComponent) unreadable"); continue
+        }
+        print("\(src.lastPathComponent) fast=\(MiniXML.scanFast) tree=\(MiniXML.scanTree)")
+    }
+    exit(0)
 }
 
 // `--xlsx-roundtrip <in> <out>`: read a workbook and write it back, for

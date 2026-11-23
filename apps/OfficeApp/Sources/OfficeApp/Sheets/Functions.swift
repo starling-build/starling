@@ -932,6 +932,20 @@ enum SheetFunctions {
                       _ f: (Double, Double) -> Double) -> EvalValue {
         guard a.count == 2 || (a.count == 1 && defaultSecond != nil) else { return .error(.value) }
         let y: Result<Double, ExcelError> = a.count == 2 ? _n(a[1], c) : .success(defaultSecond!)
+        // (An array first argument is taken element by element, as _num1 takes one: de-48adcf794a's SUMPRODUCT(ROUND(F11:F30,1)) summed
+        // the rounded cells in Excel, where ours met the range at its own row and gave #VALUE!.)
+        let first = c.engine.evaluate(a[0], c)
+        var multi = false
+        if case .array = first { multi = true }
+        if c.dynamic, case .range(_, let r) = first, !r.isSingle { multi = true }
+        if multi, case .success(let d) = y {
+            return .array(c.engine.gridFull(first, c).map { row in row.map { cell in
+                switch CalcEngine.toNumber(cell) {
+                case .success(let x): let z = f(x, d); return z.isNaN || z.isInfinite ? .error(.num) : .number(z)
+                case .failure(let e): return .error(e)
+                }
+            } })
+        }
         switch (_n(a[0], c), y) {
         case (.success(let x), .success(let y)): return .number(f(x, y))
         case (.failure(let e), _), (_, .failure(let e)): return .error(e)

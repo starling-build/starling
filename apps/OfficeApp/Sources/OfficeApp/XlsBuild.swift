@@ -724,6 +724,7 @@ enum XlsBuild {
         if let w = win2 {
             if w & 0x02 == 0 { view += " showGridLines=\"0\"" }
             if w & 0x04 == 0 { view += " showRowColHeaders=\"0\"" }
+            if w & 0x10 == 0 { view += " showZeros=\"0\"" }
         }
         view += " workbookViewId=\"0\">"
         if let (px, py, top, left, pnn) = pane, let w = win2, w & 0x08 != 0, px > 0 || py > 0 {

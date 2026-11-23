@@ -5149,6 +5149,29 @@ enum ChartPainter {
             lo = 0; hi = 0
             for s in c.waterfallSpans { lo = min(lo, s.from, s.to); hi = max(hi, s.from, s.to) }
         }
+        // (A bubble chart's axis takes in the discs, not only their centres: chart-bubble_chart_simple's y values 0, 2 and 4 with discs
+        // of up to 35 pt print on -1 to 5, ours 0 to 4.5. The largest disc is a quarter of the plot's shorter side; a disc's radius in
+        // value units follows from the span it stands on, so it is settled by a few passes.)
+        if c.onSheet, c.type == .scatter, c.series.contains(where: { $0.bubbleSizes != nil }) {
+            let plotH = max(40, area0.height / k * 0.968 - 36.1), plotW = max(40, area0.width / k - 40)
+            let top = c.series.compactMap { $0.bubbleSizes?.compactMap { $0 }.max() }.max() ?? 1
+            let full = 0.25 * min(plotW, plotH) * c.bubbleScale / 100
+            var lo2 = lo, hi2 = hi
+            for _ in 0 ..< 4 {
+                var nlo = lo, nhi = hi
+                for ser in c.series {
+                    guard let zs = ser.bubbleSizes else { continue }
+                    for (i, v) in ser.values.enumerated() {
+                        guard let v, let z = zs[safe: i] ?? nil, z > 0, top > 0 else { continue }
+                        let d = c.bubbleByWidth ? full * z / top : full * (z / top).squareRoot()
+                        let r = d / 2 * (hi2 - lo2) / plotH
+                        nlo = min(nlo, v - r); nhi = max(nhi, v + r)
+                    }
+                }
+                lo2 = nlo; hi2 = nhi
+            }
+            lo = lo2; hi = hi2
+        }
         let labelSize = c.valueLabelSize ?? c.baseTextSize
         // (Settled here and captured as constants: the Windows
         // toolchain's optimizer (Swift 6.2.3) fails SIL verification on
@@ -5218,7 +5241,7 @@ enum ChartPainter {
             return max(2, min(10, Int((area0.height / k - 60) / 34)))
         }()
         let sheetSteps: Int? = {
-            guard c.onSheet, !c.chartex, !horizontal, c.type != .scatter, !c.type.isPie else { return nil }
+            guard c.onSheet, !c.chartex, !horizontal, c.type != .scatter || c.series.contains(where: { $0.bubbleSizes != nil }), !c.type.isPie else { return nil }
             // (The axis spans 0.968 of the chart's height less 36pt flat, 0.455 of it less 21pt in a 3-D chart: the labels' own rows.)
             let h = area0.height / k
             let span = (c.barView != nil || c.line3D) && c.barView?.rightAngles != true ? 0.455 * h - 20.8 : 0.968 * h - 36.1
@@ -5319,7 +5342,7 @@ enum ChartPainter {
         }
         // (On a sheet, columns on the right axis leave the category axis on the lines' axis, at that axis' zero: a lines' axis from
         // -3 to 8 puts the names under its zero, chart-combined_chart_secondary_axis; one from 900 up keeps them at the foot.)
-        let atZero = !c.categoryLabelsLow && !c.categoryAxisDeleted && c.type != .scatter && !horizontal
+        let atZero = !c.categoryLabelsLow && !c.categoryAxisDeleted && (c.type != .scatter || c.onSheet) && !horizontal
             && (c.columnsOnRight && c.onSheet ? (secondScale?.lo ?? sc.lo) : sc.lo) < (c.categoryCrossesAt ?? 0)
             && c.dataTable == nil && !(c.columnsOnRight && !c.onSheet) && !c.chartex
         // (A log axis is laid out in powers: the base's log of each x.)
@@ -6676,8 +6699,8 @@ enum ChartPainter {
                 if c.scatterXGrid { canvas.drawLine(Offset(x, plot.top), Offset(x, plot.bottom), gridPaint) }
                 // (A 2007-style one's 7.6 pt under, as a line chart's:
                 // scatter-chart's printed 3.5 pt lower than 4 put them.)
-                let under = (classic ? 7.6 : c.chartex && c.onSlide ? 1 : 4) * k
-                if i < catLabels.count { catLabels[i].paint(canvas, Offset(x - catLabels[i].width / 2, plot.bottom + under + belowOut)) }
+                let under = (classic ? 7.6 : c.chartex && c.onSlide ? 1 : atZero ? 8 : 4) * k
+                if i < catLabels.count { catLabels[i].paint(canvas, Offset(x - catLabels[i].width / 2, (atZero ? zero : plot.bottom) + under + belowOut)) }
             }
         } else if horizontal {
             // (Not where the file deletes the axis: LIBRE_OFFICE-100610's.)
@@ -9166,7 +9189,7 @@ extension ChartPainter {
                 // 31 pt high (1.73 em plus 3.6) puts them, 3 to 5 pt further in than the stand-in's own 18 pt line did.)
                 let labelStyle = Flutter.TextStyle(
                     color: colour, fontSize: size, fontWeight: labelWeight, height: malgunLine,
-                    fontFamily: OfficeFonts.substitute(labelFace),
+                    fontFamily: OfficeFonts.substitute(c.onSheet && c.font == nil && own?.face == nil ? (c.partFaces["label"] ?? labelFace) : labelFace),
                     fontFamilyFallback: Self.glyphFallback(c, traditional: l.traditional.contains(s.index)))
                 var labelText = Self.labelSpan(c, Self.keepHangulWords(shown ?? sheetText), labelStyle, traditional: l.traditional.contains(s.index))
                 if c.onSlide, let face = Self.eastAsianChartFace(labelFace) {
@@ -9174,6 +9197,9 @@ extension ChartPainter {
                     // one path the legend and the axes take: "항목 4" 34.8 pt at 12 pt in PowerPoint's print, 34.0 in the stand-in's.)
                     labelText = Self.metricSpan(Self.keepHangulWords(shown ?? sheetText), labelStyle, face, bold: labelWeight == .bold,
                         kanjiHeight: malgunLine != nil ? 1.3 : nil)
+                } else if c.onSheet, c.font == nil, own?.face == nil, let pf = c.partFaces["label"], let face = Self.latinChartFace(pf) {
+                    // (A sheet's data label in a Latin face the machine lacks (Century Gothic, Tahoma): spaced to the face's advances.)
+                    labelText = Self.metricSpan(shown ?? sheetText, labelStyle, face, bold: labelWeight == .bold)
                 }
                 return TextPainter(text: labelText, textAlign: .center, textDirection: .ltr,
                     maxLines: maxLines, ellipsis: maxLines == nil ? nil : "\u{2026}")
@@ -9771,12 +9797,22 @@ extension ChartPainter {
                 let bh = tp.height + pad
                 let rim = centre.dy + (dy > 0 ? 1 : -1) * ry
                 let room = dy > 0 ? frame.bottom - rim : rim - frame.top
-                let lines = max(1, tp.computeLineMetrics().count)
-                if bh - room > tp.height / Double(lines) {
+                // (Under the rim while the box, text and 3.6 pt above and below, stands whole inside the frame 4.1 pt below the rim's
+                // point: pie-lab13, 32 prints, 9 pt fits at 50 pt of room and not 40, 12 pt at 90 and not 75. Else beside the pie with its
+                // text's foot 5.6 pt above the frame's edge.)
+                if bh + 4.15 * k > room {
                     // (Beside the pie on the slice's own side, the right on a tie: pie-lab13 at 12 and 9 pt, middles 170 and 175 degrees clockwise from the top
                     // stand right of the pie, 185 and 190 left, the straight-down slice right.)
                     let side: Double = cos(s.mid) > -1e-9 ? 1 : -1
-                    at = Offset(centre.dx + side * 1.09 * rx, dy > 0 ? frame.bottom - 4.7 * k - bh / 2 : frame.top + 4.7 * k + bh / 2)
+                    // (Its line's box, not its glyphs, ends 0.25 em lower than the 5.6 pt the glyphs stand above the edge: 3 pt at 12 pt, 2.2 at 9.)
+                    let foot = 5.6 * k - 0.25 * size
+                    let ty = dy > 0 ? frame.bottom - foot - tp.height / 2 : frame.top + foot + tp.height / 2
+                    // (Its inner top corner 3.2 pt off the pie's circle at that height: pie-lab13's 12 pt prints stand 3.6, 2.4, 3.8, 3.4 and 2.6 pt
+                    // off at 30 to 75 pt of room, the text sliding in as the room under the rim grows.)
+                    let cornerY = dy > 0 ? ty - tp.height / 2 : ty + tp.height / 2
+                    let u = max(-1, min(1, (cornerY - centre.dy) / ry))
+                    let hw = rx * (1 - u * u).squareRoot()
+                    at = Offset(centre.dx + side * (hw + 3.2 * k + (keptWidth - 1) / 2), ty)
                     roomMoved = true
                 } else {
                     tp.layout(minWidth: 0, maxWidth: keptWidth)

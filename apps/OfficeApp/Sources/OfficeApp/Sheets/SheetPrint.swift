@@ -92,8 +92,7 @@ struct SheetPrintSetup: Equatable {
             if let v = Double(p["scale"] ?? ""), v >= 10, v <= 400 { s.scale = v }
             s.overThenDown = p["pageOrder"] == "overThenDown"
             s.blackAndWhite = yes(p["blackAndWhite"])
-            if p["useFirstPageNumber"] == "1" || p["useFirstPageNumber"] == "true",
-               let n = Int(p["firstPageNumber"] ?? "") { s.firstPageNumber = n }
+            if p["useFirstPageNumber"] == "1" || p["useFirstPageNumber"] == "true" { s.firstPageNumber = Int(p["firstPageNumber"] ?? "") ?? 1 }  // (Set and unnumbered: page 1, the schema's default.)
             if fit {
                 s.fitWidth = Int(p["fitToWidth"] ?? "") ?? 1
                 s.fitHeight = Int(p["fitToHeight"] ?? "") ?? 1
@@ -175,7 +174,12 @@ enum SheetPrintLayout {
         // too, which is the cell Excel's anchor names for that corner.
         for d in ws.drawings where !d.hidden && !d.screenOnly {
             var f = ws.frame(d.anchor)
-            guard f.width > 0, f.height > 0 else { continue }
+            // (A straight line lying along a row or column has no height or width, and still prints
+            // where it lies, so its far end reaches the next cell: 0453e2c911's title rule ends at
+            // column C's edge, and Excel's second page is that one rule.)
+            var isLine = false
+            if case .shape(let shape) = d.kind, SheetShape.lineGeometries.contains(shape.geometry) { isLine = true }
+            guard isLine ? max(f.width, f.height) > 0 : f.width > 0 && f.height > 0 else { continue }
             // A turned shape covers what its turned outline covers, which is
             // not what its anchor spans.
             if case .shape(let shape) = d.kind, shape.rotation != 0 {
@@ -223,7 +227,27 @@ enum SheetPrintLayout {
         var areas: [CellRange] = []
         var rows: ClosedRange<Int>? = nil, cols: ClosedRange<Int>? = nil
         for n in book.fileNames where n.localSheet == sheet {
-            for part in n.text.split(separator: ",") {
+            // (Split at the commas outside a quoted sheet name: pt-8f96d7d880's 'VI.Zał., VII.Oświadcz'!$A$1:$AM$91 is one area, not two
+            // refs that fail to parse, which printed the sheet's whole used range in 16 pages for Excel's 3.)
+            var parts: [Substring] = []
+            do {
+                var quoted = false, start = n.text.startIndex
+                for i in n.text.indices {
+                    if n.text[i] == "'" { quoted.toggle() }
+                    else if n.text[i] == ",", !quoted { parts.append(n.text[start..<i]); start = n.text.index(after: i) }
+                }
+                parts.append(n.text[start...])
+            }
+            for part in parts {
+                // (A name that is INDIRECT of a cell holding the area's text: de-48adcf794a's Formblatt 5 and 6, "$A$1:$AE$21".)
+                var part = part
+                if part.hasPrefix("INDIRECT("), part.hasSuffix(")"),
+                   case .ref(let c)? = try? Formula.parse("=" + part.dropFirst(9).dropLast()), c.isCell,
+                   let si = c.sheet.flatMap({ book.sheet(named: $0) }) ?? Optional(sheet),
+                   si < book.sheets.count, let row = c.start.row, let col = c.start.col,
+                   case .text(let t)? = book.sheets[si].cells[CellAddress(row: row, col: col)]?.value {
+                    part = Substring(t)
+                }
                 guard let e = try? Formula.parse("=" + part), case .ref(let r) = e else { continue }
                 let end = r.end ?? r.start
                 if n.name == "_xlnm.Print_Area" {
@@ -501,13 +525,17 @@ extension SheetGridState {
             // (A whole-column merge is on the pages of the rows in use, over its columns.)
             if m.bottom == CellAddress.maxRows - 1, m.cols <= 1000, let lastRow = rowBand.keys.max() { fill(CellRange(top: m.top, left: m.left, bottom: max(m.top, lastRow), right: m.right)) }
         }
-        func cover(_ anchor: SheetAnchor) {
+        func cover(_ anchor: SheetAnchor, line: Bool = false) {
             let f = ws.frame(anchor)
-            guard f.width > 0, f.height > 0 else { return }
+            guard line ? max(f.width, f.height) > 0 : f.width > 0 && f.height > 0 else { return }
             let a = ws.marker(x: f.x, y: f.y), b = ws.marker(x: f.x + f.width, y: f.y + f.height)
             fill(CellRange(top: a.row, left: a.col, bottom: b.row, right: b.col))
         }
-        for d in ws.drawings where !d.hidden && !d.screenOnly { cover(d.anchor) }
+        for d in ws.drawings where !d.hidden && !d.screenOnly {
+            var isLine = false
+            if case .shape(let shape) = d.kind, SheetShape.lineGeometries.contains(shape.geometry) { isLine = true }
+            cover(d.anchor, line: isLine)
+        }
         for o in ws.objects where !o.screenOnly { cover(o.anchor) }
         // Only from the end: a blank page with a printed one after it stays.
         var kept = pages

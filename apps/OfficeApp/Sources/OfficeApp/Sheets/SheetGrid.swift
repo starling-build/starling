@@ -124,6 +124,8 @@ final class SheetGrid: StatefulWidget {
     let onFilterMenu: (Offset, Int) -> Void
     /// A validation list's arrow was pressed: where (global), the cell, its choices.
     let onListMenu: (Offset, CellAddress, [String]) -> Void
+    /// Two fingers pinch: the factor to multiply the zoom by.
+    let onZoom: (Double) -> Void
 
     init(key: (any Key)? = nil, controller: WorkbookController, zoom: Double,
          onEditText: @escaping (String?) -> Void,
@@ -131,7 +133,8 @@ final class SheetGrid: StatefulWidget {
          onStatus: @escaping (String) -> Void,
          onContextMenu: @escaping (Offset, GridMenuArea) -> Void = { _, _ in },
          onFilterMenu: @escaping (Offset, Int) -> Void = { _, _ in },
-         onListMenu: @escaping (Offset, CellAddress, [String]) -> Void = { _, _, _ in }) {
+         onListMenu: @escaping (Offset, CellAddress, [String]) -> Void = { _, _, _ in },
+         onZoom: @escaping (Double) -> Void = { _ in }) {
         self.controller = controller
         self.zoom = zoom
         self.onEditText = onEditText
@@ -140,6 +143,7 @@ final class SheetGrid: StatefulWidget {
         self.onContextMenu = onContextMenu
         self.onFilterMenu = onFilterMenu
         self.onListMenu = onListMenu
+        self.onZoom = onZoom
         super.init(key: key)
     }
 
@@ -184,6 +188,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     private var _drag: _Drag? = nil
     /// A finger has touched the grid: the fill handle is drawn as a knob a finger can take.
     private var _touchSeen = false
+    /// Fingers down, by pointer id, for a pinch; and the last distance between two.
+    private var _fingers: [Int: Offset] = [:]
+    private var _pinchLast: Double? = nil
+    /// A pinch is under way or just ended: the fingers lifting select nothing.
+    private var _pinched = false
     private var _lastClick: (cell: CellAddress, at: Double)? = nil
     /// The noted cell under the pointer: its note shows beside it.
     private var _hoverNote: CellAddress? = nil
@@ -398,7 +407,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // (A default face the print box has installed that the tables lack — Noto Sans 11 stored at 16.5, Roboto 10 at 12.75 — prints its
             // rows at the stored height in the printer's dots: 16.8 and 12.95 in Excel.)
             let installed = !ws.customDefaultRowHeight && ws.defaultRowHeightPt > 0 && SheetPrintMetrics.isInstalledUnmeasured(book.defaultFontName ?? OfficeFonts.defaultFamily)
-            let unsized = ws.customDefaultRowHeight || installed ? SheetPrintMetrics.setRow(ws.defaultRowHeightPt, scale: m.rowScale)
+            let unsized = installed ? SheetPrintMetrics.screenPixelRow(ws.defaultRowHeightPt)
+            : ws.customDefaultRowHeight ? SheetPrintMetrics.setRow(ws.defaultRowHeightPt, scale: m.rowScale)
                 : (ownFace ? max(blank, ownRow) : blank)
             // A merged cell that wraps is no part of its rows' fit:
             // bug66675's dates of Arial 12, merged across A:D, sit in rows
@@ -843,6 +853,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // Excel's print, ours 7.5).
             var stated = chart.statedTextScaled(by: 4.0 / 3)
             stated.onSheet = true
+            // (A bubble whose y is text, a header cell: Excel plots it at 0, as it does a text cell in any chart's values.)
+            for j in stated.series.indices {
+                guard let zs = stated.series[j].bubbleSizes else { continue }
+                for i in stated.series[j].values.indices where stated.series[j].values[i] == nil && (zs[safe: i] ?? nil) != nil { stated.series[j].values[i] = 0 }
+            }
             if stated.textSize == nil, stated.plainText || stated.sizeUnstated, !stated.styled2013 {
                 stated.textSize = 10 * 4.0 / 3
                 if stated.titleSize == nil { stated.titleSize = 18 * 4.0 / 3 }
@@ -1511,11 +1526,40 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
 
     private func _local(_ e: PointerEvent) -> Offset { _box?.globalToLocal(e.position) ?? e.position }
 
+    /// The distance between the first two fingers down, or nil with fewer.
+    private func _fingerDistance() -> Double? {
+        let pts = _fingers.sorted { $0.key < $1.key }.map(\.value)
+        guard pts.count >= 2 else { return nil }
+        let dx = pts[0].dx - pts[1].dx, dy = pts[0].dy - pts[1].dy
+        return (dx * dx + dy * dy).squareRoot()
+    }
+
+    /// A zoom change keeps the cell at the top left of the view where it was.
+    override func didUpdateWidget(_ oldWidget: StatefulWidget) {
+        super.didUpdateWidget(oldWidget)
+        if let old = oldWidget as? SheetGrid, old.zoom > 0, old.zoom != _w.zoom {
+            let f = _w.zoom / old.zoom
+            scrollX *= f
+            scrollY *= f
+        }
+    }
+
     private func _down(_ e: PointerEvent) {
         focus.requestFocus()
         if e.kind == .touch { _touchSeen = true }
         let p = _local(e)
         let c = controller
+        if e.kind == .touch {
+            _fingers[e.pointer] = e.position
+            if _fingers.count >= 2 {
+                // A second finger: whatever the first began is abandoned, and the pair pinches.
+                _drag = nil
+                _pinched = true
+                _pinchLast = _fingerDistance()
+                return
+            }
+            _pinched = false
+        }
         if e.kind == .touch, e.buttons & kSecondaryMouseButton == 0, _touchEditDown(p) { return }
         if e.buttons & kSecondaryMouseButton != 0 {
             _secondaryDown(e, at: p)
@@ -1789,6 +1833,16 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     }
 
     private func _move(_ e: PointerEvent) {
+        if e.kind == .touch, _fingers[e.pointer] != nil {
+            _fingers[e.pointer] = e.position
+            if _pinched {
+                if _fingers.count >= 2, let last = _pinchLast, last > 0, let now = _fingerDistance(), now > 0 {
+                    let f = now / last
+                    if abs(f - 1) > 0.002 { _w.onZoom(f); _pinchLast = now }
+                }
+                return
+            }
+        }
         guard let d = _drag else { return }
         let p = _local(e)
         let c = controller
@@ -1899,6 +1953,15 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     }
 
     private func _up(_ e: PointerEvent) {
+        if e.kind == .touch, _fingers[e.pointer] != nil {
+            _fingers[e.pointer] = nil
+            if _pinched {
+                _pinchLast = _fingers.count >= 2 ? _fingerDistance() : nil
+                if _fingers.isEmpty { _pinched = false }
+                _drag = nil
+                return
+            }
+        }
         _move(e)
         if case .touchScroll(_, _, let moved, let cell)? = _drag, !moved { _cellPress(cell) }
         if case .editTouch(_, let moved, let before)? = _drag, let ed = edit {
@@ -2614,7 +2677,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 while col >= max(0, first - (printing ? 255 : 8)) {
                     let a = CellAddress(row: row, col: col)
                     if let cell = ws.cells[a], !cell.value.isEmpty {
-                        if cell.value.isText && !covered.contains(a) {
+                        // (A merged area's text is its own, drawn above clipped to the area: it never runs on.)
+                        if cell.value.isText && !covered.contains(a) && !merges.contains(where: { $0.topLeft == a }) {
                             _paintCell(canvas, a, cell, in: rect(a), spill: true, ws: ws, book: book, ink: colors.ink)
                         }
                         break
@@ -2893,32 +2957,29 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // edge, was cut at the last column its width alone needed).
         var clipLeft = left, clipRight = right
         if spill && cell.value.isText && tp.width > width - pad * 2 && !wraps {
+            // (A mirrored page has the next column on its left: the neighbour on the page's right side is the column before.)
+            let flip = printing && printMirror != nil
+            let sr = flip ? -1 : 1   // columns step to the page's right
+            func empty(_ c: Int) -> Bool { c >= 0 && c < CellAddress.maxCols && (ws.cells[CellAddress(row: a.row, col: c)]?.value.isEmpty ?? true) }
+            func toRight(_ lim: (Double) -> Bool) {
+                var col = a.col + sr
+                while empty(col), lim(clipRight), abs(col - a.col) <= (printing ? 255 : 30) { clipRight += ca.size(col); col += sr }
+            }
+            func toLeft(_ lim: (Double) -> Bool) {
+                var col = a.col - sr
+                while empty(col), lim(clipLeft) { clipLeft -= ca.size(col); col -= sr }
+            }
             if align == .left || align == .general {
-                var col = a.col + 1
-                while col < CellAddress.maxCols, ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true,
-                      clipRight - left < tp.width + pad * 2 + inset, col <= a.col + (printing ? 255 : 30) {
-                    clipRight += ca.size(col); col += 1
-                }
+                toRight { $0 - left < tp.width + pad * 2 + inset }
             } else if align == .right {
-                var col = a.col - 1
-                while col >= 0, ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true,
-                      right - clipLeft < tp.width + pad * 2 + inset {
-                    clipLeft -= ca.size(col); col -= 1
-                }
+                toLeft { right - $0 < tp.width + pad * 2 + inset }
             } else if align == .center {
                 // Centred, half of what it lacks to each side, as far as
                 // that side's neighbours are empty (lo-tdf171828's I14 runs
                 // over H and J).
                 let side = (tp.width + pad * 2 - width) / 2
-                var col = a.col - 1
-                while col >= 0, left - clipLeft < side, ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true {
-                    clipLeft -= ca.size(col); col -= 1
-                }
-                col = a.col + 1
-                while col < CellAddress.maxCols, col <= a.col + (printing ? 255 : 30), clipRight - right < side,
-                      ws.cells[CellAddress(row: a.row, col: col)]?.value.isEmpty ?? true {
-                    clipRight += ca.size(col); col += 1
-                }
+                toLeft { left - $0 < side }
+                toRight { $0 - right < side }
             }
         }
         // On paper the text stands in from its side half a point and a
