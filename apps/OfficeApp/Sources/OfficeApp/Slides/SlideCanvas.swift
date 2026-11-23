@@ -275,6 +275,9 @@ final class SlideCanvasState: State<StatefulWidget> {
                 focusNode: focusNode(for: shape), autofocus: false,
                 backgroundColor: nil, zoom: px * shape.fontScale / theme.pixelsPerPoint,
                 onShortcut: _w.onShortcut,
+                onTouchMenu: { [weak controller] rect in
+                    if let controller { OfficeHost.showTouchMenu(rect, controller: controller) }
+                },
                 spellChecker: _w.spellChecker,
                 scrolls: false))))
         return Stack(children: stack)
