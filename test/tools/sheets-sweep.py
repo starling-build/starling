@@ -95,7 +95,7 @@ def main():
     if "-j" in args: i = args.index("-j"); jobs = int(args[i + 1]); del args[i:i + 2]
     BIN, OUT = os.path.realpath(args[0]), args[1]; names = args[2:]
     os.makedirs(OUT + "/pdf", exist_ok=True); os.makedirs(OUT + "/pairs", exist_ok=True)
-    items = [(n, BOOKS, XL) for n in names]
+    items = [(n, BOOKS2, XL2) if os.path.exists(f"{BOOKS2}/{n}") else (n, BOOKS, XL) for n in names]
     if not names:
         sets = os.environ.get("SHEETS_SETS", "xlsx,xlsx2,r3").split(",")
         if "xlsx" in sets:
