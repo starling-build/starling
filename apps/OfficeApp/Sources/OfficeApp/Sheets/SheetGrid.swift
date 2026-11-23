@@ -2608,7 +2608,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         var gdi = ""
         if dots > 0 {
             var name = book.fontName(st).trimmingWhitespace().lowercased()
-            let gdiName = name == "宋体" ? "simsun" : name == "微软雅黑" ? "microsoft yahei" : name
+            var gdiName = name == "宋体" ? "simsun" : name == "微软雅黑" ? "microsoft yahei" : name
+            // Faces the print box has no file for are drawn in Arial (GDI selects Arial for them).
+            if GdiAdvances.notInstalled.contains(gdiName) { gdiName = "arial" }
             if !st.italic, GdiAdvances.faces.contains(gdiName) { gdi = gdiName }
             if face == "Arial" { name = "arial" }
             let key = name + (st.bold ? " bold" : "") + (st.italic ? " italic" : "")

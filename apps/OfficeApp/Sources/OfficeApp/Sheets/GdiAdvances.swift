@@ -11,6 +11,8 @@
 /// Times New Roman at 30 an em sets Cyrillic 0.35 % narrower than that.
 enum GdiAdvances {
     /// The face names (lower case) the dump covers.
+    /// Names the Windows print box has no font for; GDI selects Arial for each.
+    static let notInstalled: Set<String> = ["aspira", "arial cyr", "arial unicode ms", "方正黑体_gbk", "方正小标宋_gbk"]
     static let faces: Set<String> = ["arial", "calibri", "candara", "century gothic", "microsoft sans serif", "microsoft yahei", "segoe ui", "simsun", "tahoma", "times new roman"]
 
     /// The advance of `scalar` in `face` at `em` pixels, or nil where the dump has none.
