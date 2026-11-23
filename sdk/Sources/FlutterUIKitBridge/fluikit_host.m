@@ -29,6 +29,10 @@ static FlUIKitStartedCallback g_on_started = NULL;
 static void* g_user_data = NULL;
 static NSString* g_title = nil;
 static CGSize g_window_size = {0, 0};
+static FlUIKitRootFactory g_root_factory = NULL;
+static void* g_root_factory_user = NULL;
+static FlUIKitOpenURLCallback g_open_url = NULL;
+static void* g_open_url_user = NULL;
 
 // Hosts the FlutterViewController as a child, pinned to the safe-area layout
 // guide rather than to the window's edges.
@@ -145,11 +149,30 @@ static CGSize g_window_size = {0, 0};
                                                                             nibName:nil
                                                                              bundle:nil];
   self.viewController = controller;
-  window.rootViewController =
+  UIViewController* editor =
       [[FlUIKitRootViewController alloc] initWithFlutterViewController:controller];
+  UIViewController* root = editor;
+  if (g_root_factory != NULL) {
+    // The app's own screen takes the editor and decides when it is shown. The
+    // factory returns a +1 reference, so the transfer hands ARC that one.
+    UIViewController* custom =
+        (__bridge_transfer UIViewController*)g_root_factory((__bridge void*)editor,
+                                                           g_root_factory_user);
+    if (custom != nil) root = custom;
+  }
+  window.rootViewController = root;
   self.window = window;
   [window makeKeyAndVisible];
   return YES;
+}
+
+// A document handed to the app from outside. Forwarded verbatim; the app owns
+// what an URL means (the host has no idea what a .docx is).
+- (BOOL)application:(UIApplication*)app
+            openURL:(NSURL*)url
+            options:(NSDictionary<UIApplicationOpenURLOptionsKey, id>*)options {
+  if (g_open_url == NULL) return NO;
+  return g_open_url(g_open_url_user, url.absoluteString.UTF8String) ? YES : NO;
 }
 
 @end
@@ -178,6 +201,16 @@ int32_t fluikit_host_run(const char* title,
     return (int32_t)UIApplicationMain(*_NSGetArgc(), *_NSGetArgv(), nil,
                                       NSStringFromClass([FlUIKitAppDelegate class]));
   }
+}
+
+void fluikit_host_set_root_factory(FlUIKitRootFactory factory, void* user) {
+  g_root_factory = factory;
+  g_root_factory_user = user;
+}
+
+void fluikit_host_set_open_url_handler(FlUIKitOpenURLCallback handler, void* user) {
+  g_open_url = handler;
+  g_open_url_user = user;
 }
 
 void fluikit_host_window_size(double* out_width, double* out_height) {

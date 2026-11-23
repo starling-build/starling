@@ -358,6 +358,10 @@ products += [
     // software keyboard and accessibility come from the same code path real
     // Flutter iOS apps use. The counterpart of FlutterCocoa on macOS.
     .library(name: "FlutterUIKit", targets: ["FlutterUIKit"]),
+    // The C surface of the host, for an app whose own UIKit code (a document
+    // browser, native toolbars) is plain Swift without C++ interop and so
+    // cannot sit inside FlutterUIKit, whose importer must never see UIKit.
+    .library(name: "FlutterUIKitBridge", targets: ["FlutterUIKitBridge"]),
 ]
 } else {
 products += [
