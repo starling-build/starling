@@ -3446,8 +3446,11 @@ enum ChartPainter {
             let pieKeyLine = printed && c.styled2013 && pie && c.pointRim != nil
                 ? max(styled("X", size, .infinity, bold: c.legendBold, color: c.legendColor, part: "legend").height,
                       ["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased()) ? 1.3301 * size * k : 0) : 0
-            let key = pieKeyLine > 0 ? 0.449 * pieKeyLine : wideKeys ? 19.2 * k : libreLegend ? 6.12 * k * m : bareLegend ? 3.7 * k * m : wordRowKeys ? 6.53 * k * m : (c.onSlide ? 6.57 : 7) * k * m, gap = pieKeyLine > 0 ? 0.2 * pieKeyLine : libreLegend ? 2.64 * k * m : bareLegend ? 4.5 * k * m : wordRowKeys ? 2.93 * k * m : (c.onSlide ? 2.92 : 4) * k * m
+            // (An Excel legend row under a chart: key 0.5 of the size square, 0.22 to its name, 0.41 between entries — chart-tdf140489's print at 9 pt: 4.5, 2.0, 3.7.)
+            let sheetRow = c.onSheet && !beside && !printed && !c.styled2013 && !wideKeys
+            let key = pieKeyLine > 0 ? 0.449 * pieKeyLine : wideKeys ? 19.2 * k : libreLegend ? 6.12 * k * m : bareLegend ? 3.7 * k * m : wordRowKeys ? 6.53 * k * m : sheetRow ? 6 * k * m : (c.onSlide ? 6.57 : 7) * k * m, gap = pieKeyLine > 0 ? 0.2 * pieKeyLine : libreLegend ? 2.64 * k * m : bareLegend ? 4.5 * k * m : wordRowKeys ? 2.93 * k * m : sheetRow ? 2.67 * k * m : (c.onSlide ? 2.92 : 4) * k * m
             var spacing = (printed ? (c.styled2013 ? 11.2 : bareLegend ? 11.8 : 13.9) : c.styled2013 ? 9.5 : 12) * k * m + (wideKeys ? 1.3 * k : 0)
+            if sheetRow { spacing = 4.93 * k * m }
             // (Names in Latin letters only stand 1.4 pt further apart at 9 pt than CJK ones do: chartex's and 61745's "Series 1" pitch 44.05 against 42.65.)
             if wordRowKeys, names.allSatisfy({ $0.unicodeScalars.allSatisfy { $0.isASCII } }) { spacing += 1.87 * k * m }
             let keyDrop = printed && c.styled2013 ? 1.3 * k * m : 0
