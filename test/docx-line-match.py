@@ -34,6 +34,10 @@ import statistics
 import subprocess
 import sys
 import unicodedata
+# PyMuPDF 2.0 imports its optional layout package (onnxruntime) at `import pymupdf`: 575 threads and 60 CPU-seconds spent at import, so one scorer
+# process ran at 700-1900% CPU (OMP/OPENBLAS/OPJ_NUM_THREADS do not stop them, and a CPU mask does not either: the threads pin themselves).
+# These tools never use it; None in sys.modules makes that import fail, which pymupdf catches (amd-8, 2026-11-23: 20-page diff 64 s CPU to 1.5 s).
+sys.modules.setdefault("pymupdf.layout", None)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 # (DOCX_WORD_REFS: another folder of Word's prints, for a sample not checked in.)

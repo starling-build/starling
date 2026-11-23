@@ -20,6 +20,8 @@ One PDF (or two for `diff`), one page range; every row is plain text, tab-free e
 
 PAGES is "3", "2-5" or "1,4,7-9" (default: all). Needs PyMuPDF; re-runs itself in ~/venv-word when the system python lacks it."""
 import os, sys, warnings
+# PyMuPDF 2.0 imports its layout package (onnxruntime: 575 threads, 60 CPU-seconds at import); this tool never uses it (amd-8, 2026-11-23).
+sys.modules.setdefault("pymupdf.layout", None)
 warnings.filterwarnings("ignore")
 try:
     import pymupdf
