@@ -1459,13 +1459,14 @@ enum OfficeFonts {
         0x78: 0.3579,
     ]
 // (Calibri's own Georgian letters, read from the Windows box's font: Word draws Georgian in Calibri where the run names Calibri as its complex-script face, dx2 4b53bd2f8f3a.)
+    // Word prints Calibri Georgian at 11 pt with each advance rounded to the 600 dpi pixel (ppem 92, 0.12 pt per px); these are hmtx advances rounded that way.
     static let calibriRegularGeorgian: [UInt32: Double] = [
-        0x10D0: 0.4521, 0x10D1: 0.5371, 0x10D2: 0.4834, 0x10D3: 0.7783, 0x10D4: 0.4639, 0x10D5: 0.4570, 0x10D6: 0.6440, 0x10D7: 0.8013,
-        0x10D8: 0.5049, 0x10D9: 0.4150, 0x10DA: 0.9683, 0x10DB: 0.5142, 0x10DC: 0.5142, 0x10DD: 0.7051, 0x10DE: 0.4570, 0x10DF: 0.4858,
-        0x10E0: 0.7061, 0x10E1: 0.4980, 0x10E2: 0.7168, 0x10E3: 0.5454, 0x10E4: 0.7642, 0x10E5: 0.4639, 0x10E6: 0.7051, 0x10E7: 0.5024,
-        0x10E8: 0.5142, 0x10E9: 0.5049, 0x10EA: 0.5347, 0x10EB: 0.5142, 0x10EC: 0.4858, 0x10ED: 0.4678, 0x10EE: 0.5142, 0x10EF: 0.6089,
-        0x10F0: 0.4292, 0x10F1: 0.5288, 0x10F2: 0.5376, 0x10F3: 0.4028, 0x10F4: 0.4028, 0x10F5: 0.4707, 0x10F6: 0.8257, 0x10F7: 0.4614,
-        0x10F8: 0.5024, 0x10F9: 0.5273, 0x10FA: 0.5361, 0x10FB: 0.4985, 0x10FC: 0.3340, 0x10FD: 0.4468, 0x10FE: 0.5278, 0x10FF: 0.5371,
+        0x10D0: 0.4582, 0x10D1: 0.5345, 0x10D2: 0.4800, 0x10D3: 0.7855, 0x10D4: 0.4691, 0x10D5: 0.4582, 0x10D6: 0.6436, 0x10D7: 0.8073,
+        0x10D8: 0.5018, 0x10D9: 0.4145, 0x10DA: 0.9709, 0x10DB: 0.5127, 0x10DC: 0.5127, 0x10DD: 0.7091, 0x10DE: 0.4582, 0x10DF: 0.4909,
+        0x10E0: 0.7091, 0x10E1: 0.5018, 0x10E2: 0.7200, 0x10E3: 0.5455, 0x10E4: 0.7636, 0x10E5: 0.4691, 0x10E6: 0.7091, 0x10E7: 0.5018,
+        0x10E8: 0.5127, 0x10E9: 0.5018, 0x10EA: 0.5345, 0x10EB: 0.5127, 0x10EC: 0.4909, 0x10ED: 0.4691, 0x10EE: 0.5127, 0x10EF: 0.6109,
+        0x10F0: 0.4255, 0x10F1: 0.5345, 0x10F2: 0.5345, 0x10F3: 0.4036, 0x10F4: 0.4036, 0x10F5: 0.4691, 0x10F6: 0.8291, 0x10F7: 0.4582,
+        0x10F8: 0.5018, 0x10F9: 0.5345, 0x10FA: 0.5345, 0x10FB: 0.5018, 0x10FC: 0.3382, 0x10FD: 0.4473, 0x10FE: 0.5345, 0x10FF: 0.5345,
     ]
     static let calibriBoldGeorgian: [UInt32: Double] = [
         0x10D0: 0.4824, 0x10D1: 0.5498, 0x10D2: 0.5181, 0x10D3: 0.7842, 0x10D4: 0.4839, 0x10D5: 0.4795, 0x10D6: 0.6606, 0x10D7: 0.8125,
