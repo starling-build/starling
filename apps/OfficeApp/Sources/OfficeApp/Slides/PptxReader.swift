@@ -4006,7 +4006,10 @@ private struct SlideContext {
             switch level.algn {
             case "ctr": style.alignment = .center
             case "r": style.alignment = .right
-            case "just", "dist": style.alignment = .justify
+            case "just": style.alignment = .justify
+            // (A distributed paragraph spreads its last line across the width too, as Word's does:
+            // zh-142399e8a3 p10's "退休時領取", five characters down a 204 pt column, in PowerPoint's print 64.7 pt apart.)
+            case "dist": style.alignment = .justify; style.eastAsian["w:jc"] = "distribute"
             default: style.alignment = .left
             }
             if let hp = p.first("a:pPr")?["hangingPunct"] ?? level.hangingPunct, hp == "0" || hp == "1" { style.eastAsian["a:hangingPunct"] = hp }
