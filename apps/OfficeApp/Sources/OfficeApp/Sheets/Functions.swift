@@ -1094,6 +1094,13 @@ enum SheetFunctions {
             case (.number, .number), (.text, .text), (.bool, .bool): break
             default: return op == .ne
             }
+            // (Text equal or not equal, the commonest SUMIFS/COUNTIF criterion over
+            // a column of thousands of cells: ASCII text is compared byte by byte
+            // without folding either side into a new string. en-720207c0a4's
+            // 27,000 SUMIFS spent their 5 minutes in lowercased().)
+            if (op == .eq || op == .ne), case .text(let x) = cell, case .text(let y) = value, let same = SheetFunctions._asciiCaseEqual(x, y) {
+                return (op == .eq) == same
+            }
             let c = CalcEngine.compare(cell, value)
             switch op {
             case .eq: return c == 0
@@ -1105,6 +1112,26 @@ enum SheetFunctions {
             default: return false
             }
         }
+    }
+
+    /// Whether two texts are equal ignoring case, when both are plain ASCII;
+    /// nil when either holds other characters (the caller folds them properly).
+    static func _asciiCaseEqual(_ a: String, _ b: String) -> Bool? {
+        var a = a, b = b
+        return a.withUTF8 { x in b.withUTF8 { y in
+            var same = x.count == y.count
+            for i in 0 ..< x.count {
+                if x[i] >= 128 { return nil }
+                if same && i < y.count {
+                    var p = x[i], q = y[i]
+                    if p >= 65 && p <= 90 { p += 32 }
+                    if q >= 65 && q <= 90 { q += 32 }
+                    if p != q { same = false }
+                }
+            }
+            for q in y where q >= 128 { return nil }
+            return same
+        } }
     }
 
     static func _globMatch(_ s: [Character], _ p: [Character]) -> Bool {
@@ -1187,14 +1214,25 @@ enum SheetFunctions {
         // the same range this pass), then the criteria over plain arrays.
         let r = max(rows, 0), cc = max(cols, 0)
         if r > 0 && cc > 0 {
+            func clipped(_ area: (Int, CellRange)) -> CellRange {
+                CellRange(top: area.1.top, left: area.1.left, bottom: area.1.top + r - 1, right: area.1.left + cc - 1)
+            }
             func block(_ area: (Int, CellRange)) -> [CellValue] {
-                let rg = CellRange(top: area.1.top, left: area.1.left, bottom: area.1.top + r - 1, right: area.1.left + cc - 1)
+                let rg = clipped(area)
                 guard rg.bottom < CellAddress.maxRows, rg.right < CellAddress.maxCols else { return [] }
                 return c.engine.rangeValues(area.0, rg)
             }
             let blocks = areas.map(block)
             let targetBlock = targetArea.map(block)
-            for i in 0 ..< r * cc {
+            // A text criterion that must be equal ("Coal", no wildcard) picks its
+            // cells from a table of where each text lies, kept for the pass.
+            var candidates: [Int]? = nil
+            for k in 0 ..< crits.count where k < areas.count && blocks[k].count == r * cc {
+                guard case .text(let t) = crits[k].value, crits[k].op == .eq, crits[k].glob == nil else { continue }
+                let hit = c.engine.textIndex(areas[k].0, clipped(areas[k]))[t.lowercased()] ?? []
+                if candidates == nil || hit.count < candidates!.count { candidates = hit }
+            }
+            for i in candidates ?? Array(0 ..< r * cc) {
                 var ok = true
                 for k in 0 ..< blocks.count where !crits[k].matches(i < blocks[k].count ? blocks[k][i] : .empty) { ok = false; break }
                 guard ok else { continue }
