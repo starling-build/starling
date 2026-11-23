@@ -6423,8 +6423,6 @@ enum OfficeFonts {
         RichTextTheme.glyphFallback.insert("Apple Color Emoji", at: 0)
         RichLayout.emojiPictographFamily = "Apple Color Emoji"
         RichLayout.emojiVariationFamily = "Apple Color Emoji"
-        // (And Apple Color Emoji joins a sequence itself - the rainbow flag, a heart on fire - so one that follows a U+FE0F stays whole.)
-        RichLayout.emojiSequencesStayWhole = true
         #endif
         if let table = try? String(contentsOf: resources.appendingPathComponent("fonts/fonts-aliases.tsv"), encoding: .utf8) {
             var aliases: [String: String] = [:]

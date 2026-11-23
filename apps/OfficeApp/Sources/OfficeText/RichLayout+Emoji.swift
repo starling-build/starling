@@ -13,10 +13,6 @@ extension RichLayout {
     /// The family the colour pictographs go by (it leads the glyph fallback: a U+FE0E takes it out for one character).
     nonisolated(unsafe) public static var emojiPictographFamily = "Noto Color Emoji Pictographs"
 
-    /// Set by a host whose emoji face joins ZWJ sequences itself (iOS: Apple Color Emoji): a text-style emoji and U+FE0F that a
-    /// ZWJ continues (U+1F3F3 U+FE0F U+200D U+1F308, the rainbow flag) is then one piece, not the pair and a stray tail.
-    nonisolated(unsafe) public static var emojiSequencesStayWhole = false
-
     /// Emoji=Yes characters that Word and PowerPoint for Windows keep as plain text even before U+FE0F (lab fe0f, both
     /// apps' prints: (c) (tm) and !! with and without it, all text in the line's own face). (R) and ?! by their kin: not printed.
     static let emojiStaysText: Set<UInt32> = [0xA9, 0xAE, 0x203C, 0x2049, 0x2122]
@@ -65,8 +61,9 @@ extension RichLayout {
                     var piece = String.UnicodeScalarView()
                     piece.append(scalars[i]); piece.append(scalars[i + 1])
                     i += 2
-                    if kind == 1, emojiSequencesStayWhole {
-                        // (ZWJ, then the next character, and its own U+FE0F: the rest of the sequence.)
+                    if kind == 1 {
+                        // (A ZWJ sequence after the pair is one piece with it - ZWJ, the next character, its own U+FE0F, and so on:
+                        // U+1F3F3 U+FE0F U+200D U+1F308 is the rainbow flag, one glyph, not a white flag and a rainbow.)
                         while i + 1 < scalars.count, scalars[i].value == 0x200D {
                             piece.append(scalars[i]); piece.append(scalars[i + 1])
                             i += 2
