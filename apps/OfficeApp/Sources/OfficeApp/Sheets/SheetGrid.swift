@@ -758,7 +758,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // Excel's print, ours 7.5).
             var stated = chart.statedTextScaled(by: 4.0 / 3)
             stated.onSheet = true
-            if stated.textSize == nil, stated.plainText, !stated.styled2013 {
+            if stated.textSize == nil, stated.plainText || stated.sizeUnstated, !stated.styled2013 {
                 stated.textSize = 10 * 4.0 / 3
                 if stated.titleSize == nil { stated.titleSize = 18 * 4.0 / 3 }
             }
