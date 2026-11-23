@@ -6350,6 +6350,12 @@ static let sylfaenAdvances: [Double] = [
             for line in table.split(separator: "\n").dropFirst() {
                 let c = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
                 guard c.count >= 7, let index = Int32(c[1]), let order = Int(c[6]) else { continue }
+                #if os(iOS)
+                // The colour emoji are CBDT bitmaps, which CoreText (iOS's only font manager) cannot
+                // read, so they never load here. Apple Color Emoji, through CoreText's own fallback,
+                // draws them (seen in Writer, Slides and Sheets), so leave them to it.
+                if c[4] == "emoji" { continue }
+                #endif
                 let path = resources.appendingPathComponent("fonts/\(c[0])").path
                 guard FileManager.default.fileExists(atPath: path) else { continue }
                 let loaded = index < 0 ? flutter.swift_bridge.LoadFontFromFile(path, c[2])
