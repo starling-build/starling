@@ -9140,6 +9140,24 @@ extension ChartPainter {
             } else {
                 tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2 - (sheetOwnWrap ? 7.7 * k : wordLabelRoom)))
             }
+            // (On a sheet a best-fit label that wraps goes through Excel's print's ladder of three boxes: a fifth of the chart's width,
+            // then 0.8 and 0.64 of that fifth, the same padding off each; it keeps the narrowest that does not add a line (lab pie4's labels
+            // at 92.4 / 72.8 / 57.0 pt on a 491 pt chart). An outEnd label wraps greedy at the first: chart-tdf136105.)
+            if c.onSheet, !c.chartex, !l.wrapNone.contains(s.index), (l.pointPositions[s.index] ?? l.position ?? "bestFit") == "bestFit" {
+                let n = tp.computeLineMetrics().count
+                if n > 1 {
+                    let pad = sheetOwnWrap ? 7.7 * k : wordLabelRoom
+                    let limit = max(20 * k, frame.width * 0.2 - pad)
+                    var keep = limit
+                    for i in 1...2 {
+                        let w = max(20 * k, frame.width * 0.2 * pow(0.8, Double(i)) - pad)
+                        tp.layout(minWidth: 0, maxWidth: w)
+                        if tp.computeLineMetrics().count != n { break }
+                        keep = w
+                    }
+                    tp.layout(minWidth: 0, maxWidth: keep)
+                }
+            }
             // (And a one-line label a little narrower: past 0.1857 of the
             // chart's width it wraps too. zh-b8de3ae2's bar of pie, 538.5pt
             // wide, keeps "補助及協助收入, 2.35%" (99.9pt at 10pt) on one line in
