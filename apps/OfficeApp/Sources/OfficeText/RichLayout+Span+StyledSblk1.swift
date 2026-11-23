@@ -37,6 +37,11 @@ extension _StyledFrame {
         flush(i)
         spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
         ctx.inserts.append(offset)
+    } else if !theme.wordRules, theme.officeLatinBreaks, p.style.eastAsian["a:zhText"] == "1", ctx.before == "\u{201D}", let v = ch.unicodeScalars.first?.value, ch.unicodeScalars.count == 1, v >= 0x4E00 && v <= 0x9FFF {
+        // (PowerPoint may wrap between a closing double quote and the ideograph after it, in Simplified Chinese text, East Asian line breaking on or off (a874c38f10a1 p30 has it off); the engine's rule keeps the two together, so the whole of 出“SettingWithCopyWarning”警 had to fit: a874c38f10a1 p30 keeps …将弹出“SettingWithCopyWarning” on one line and starts the next with 警告.)
+        flush(i)
+        spans.append(TextSpan(text: "\u{200B}", style: zeroWidth(current ?? kind).copyWith(height: 0.01)))
+        ctx.inserts.append(offset)
     } else if !theme.wordRules, theme.officeLatinBreaks, p.style.eastAsian["a:zhText"] == "1", ch == ":", let b = ctx.before, b.unicodeScalars.count == 1, let bv = b.unicodeScalars.first?.value, bv >= 0x4E00 && bv <= 0x9FFF {
         // (PowerPoint lets an ASCII ":" begin a line after an ideograph in Simplified Chinese text, where the engine keeps it with the letter before: 9e09a947a0fd p109 "…，表示" | ":年、月、日…" in the print, ours "表" | "示:年…".)
         flush(i)
