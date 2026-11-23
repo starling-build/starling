@@ -307,9 +307,20 @@ extension RichLayout {
                 }
             }
             let left = max(carried, columns.map { column in
+                // (A cell merged down whose text runs on past this row sets no
+                // height for the rest of the row: its lines fill the part and
+                // go on in the rows below. Its flow can stand a few points off
+                // the others' — a paragraph's space before, dropped at a page's
+                // head — and measuring it to the row's foot from there made the
+                // part that much taller than the cells that end in it: fb068d84
+                // p. 11, the part under "Ključno razmatranje 4" 36.1pt against
+                // Word's 32, the rows below it 4pt low.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, column.cut > c.rowTop + 0.01,
+                   let k = column.members.last, let d = _cells[k], d.rowSpan > 1, d.row + d.rowSpan - 1 > c.row,
+                   _tops[k] + _heights[k] + d.pad.bottom > rowBottom + 0.01 { return 0 }
                 // (With the cell's top margin under the rule again —
                 // see where the pieces are set below.)
-                max(0, column.bottom + (partPad(column)?.amount ?? 0) - column.cut)
+                return max(0, column.bottom + (partPad(column)?.amount ?? 0) - column.cut)
                     + (theme.wordRules ? max(0, _cells[column.members[0]]!.pad.top - _pg_ruleUnder(&pgs, document, c, parted: true)) + nestedRepeat(column) : 0)
             }.max() ?? 0)
             // (A part whose text fits is no taller than the room to the
@@ -359,7 +370,7 @@ extension RichLayout {
             // 39.55pt under 0.5pt rules, goes over whole with 40.3
             // left; at least 22 parts with 24.2 left and 23.5 does not.)
             if let traced = Self.debugRows, traced == pgs.page + 1 {
-                FileHandle.standardError.write(Data("split row \(c.row): first \(first) fresh \(fresh) y \(pgs.y / _px(1)) stated \(stated / _px(1)) avail \(avail / _px(1)) fits \(fits) rest \(rest / _px(1)) ghostBounds \(c.ghostBounds.map { $0 / _px(1) })\n".utf8))
+                FileHandle.standardError.write(Data("split row \(c.row): first \(first) fresh \(fresh) y \(pgs.y / _px(1)) stated \(stated / _px(1)) avail \(avail / _px(1)) fits \(fits) rest \(rest / _px(1)) left \(left / _px(1)) ghostLeft \(ghostLeft / _px(1)) ghostBounds \(c.ghostBounds.map { $0 / _px(1) })\n".utf8))
             }
             // (A row that opens a page of a table with no top line of its own
             // does not keep the room of the inside line above it, which Word
