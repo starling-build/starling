@@ -5416,7 +5416,12 @@ enum ChartPainter {
         let valueTitleAt = c.valueAxisTitleAt?.assumedTurn == true && (c.onSlide || c.onSheet) ? nil : c.valueAxisTitleAt
         for (t, placed) in [(c.valueAxisTitle, valueTitleAt), (c.categoryAxisTitle, c.categoryAxisTitleAt)] {
             guard let t, let placed else { continue }
-            let tp = axisText(t, placed.size ?? titleSize, .infinity)
+            // (A placed title stating no size stands at the chart's text size, else at 10 pt, in a Word chart, not at the 13.3
+            // default: dx2 99cfc5554d6e p3, "Hàm lượng than/cát, %" drawn 9.96 pt by Word.)
+            let word = !c.onSlide && !c.onSheet && !c.chartex
+            let ownSize = word && placed.size == nil ? ((t == c.valueAxisTitle ? c.valueAxisTitleSize : c.categoryAxisTitleSize) ?? 10) : nil
+            if ownSize != nil { RuleTrace.hit("word-placed-axis-title-without-size-takes-the-chart-text-size-else-10pt") }
+            let tp = axisText(t, placed.size ?? ownSize ?? titleSize, .infinity)
             let top = tp.computeLineMetrics().first.map { $0.baseline - $0.ascent } ?? 0
             if placed.turned {
                 // (Turned up, its box's top left 3 pt and 3.1 in: zh-b8de3ae2's "千元"
@@ -5427,7 +5432,15 @@ enum ChartPainter {
                 tp.paint(canvas, .zero)
                 canvas.restore()
             } else {
-                tp.paint(canvas, Offset(frame.left + placed.at.dx * frame.width + 3 * k, frame.top + placed.at.dy * frame.height + 2.9 * k - top))
+                var left = frame.left + placed.at.dx * frame.width + 3 * k
+                // (Word keeps a placed title inside its chart: one that would run past the right edge stands with its text's
+                // end on it. dx2 99cfc5554d6e p3: "Hàm lượng than/cát, %" at 71.7% of a 233.9 pt chart, glyphs ending 3 pt
+                // short of the edge.)
+                if !c.onSlide, !c.onSheet, !c.chartex, left + tp.width > frame.right - 3 * k {
+                    left = max(frame.left, frame.right - 3 * k - tp.width)
+                    RuleTrace.hit("word-placed-axis-title-stays-inside-the-chart")
+                }
+                tp.paint(canvas, Offset(left, frame.top + placed.at.dy * frame.height + 2.9 * k - top))
             }
             // (Word's own layout of a 3-D column chart still gives a value axis title the file has placed its
             // room at the left: zh-b8de3ae2's "千元" charts, the labels and the walls 17 pt further right.)
