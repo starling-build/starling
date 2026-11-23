@@ -83,11 +83,11 @@ enum DocArt {
         return v >> bit & 1 != 0
     }
 
-    static func fillLine(_ s: ArtShape, isBox: Bool) -> String {
+    static func fillLine(_ s: ArtShape, isBox: Bool, freeform: Bool = false) -> String {
         var x = ""
         let filled = flag(s, 0x1BF, bit: 4, default: isBox)
         if filled { x += "<a:solidFill><a:srgbClr val=\"\(rgb(s.props[0x181] ?? 0xFFFFFF) ?? "FFFFFF")\"/></a:solidFill>" } else { x += "<a:noFill/>" }
-        if flag(s, 0x1FF, bit: 3, default: isBox) {
+        if flag(s, 0x1FF, bit: 3, default: isBox || freeform) {
             x += "<a:ln w=\"\(s.props[0x1CB] ?? 9525)\"><a:solidFill><a:srgbClr val=\"\(rgb(s.props[0x1C0] ?? 0) ?? "000000")\"/></a:solidFill></a:ln>"
         } else { x += "<a:ln><a:noFill/></a:ln>" }
         return x
@@ -113,6 +113,96 @@ enum DocArt {
         }
     }
 
+    /// Whether a shape has something to draw: a preset outline, a freeform's own path, or WordArt text.
+    static func drawable(_ s: ArtShape) -> Bool {
+        geometry(s.type) != nil || (s.type == 136 && wordArtText(s) != nil) || (s.type == 0 && freeform(s) != nil)
+    }
+
+    /// The text of a WordArt shape.
+    static func wordArtText(_ s: ArtShape) -> String? {
+        guard let d = s.complex[0xC0], d.count >= 2 else { return nil }
+        var u: [UInt16] = []
+        var k = 0
+        while k + 1 < d.count { let c = UInt16(d[k]) | UInt16(d[k + 1]) << 8; if c == 0 { break }; u.append(c); k += 2 }
+        let t = String(decoding: u, as: UTF16.self)
+        return t.isEmpty ? nil : t
+    }
+
+    static func xmlEscape(_ t: String) -> String {
+        var o = ""
+        for c in t { switch c { case "&": o += "&amp;"; case "<": o += "&lt;"; case ">": o += "&gt;"; case "\"": o += "&quot;"; default: o.append(c) } }
+        return o
+    }
+
+    /// WordArt as a text box whose text the drawing code fits to the warp: the paragraph, in the shape's font, size and fill.
+    static func wordArtContent(_ s: ArtShape) -> String? {
+        guard let t = wordArtText(s) else { return nil }
+        var face = "Arial"
+        if let d = s.complex[0xC5], d.count >= 2 {
+            var u: [UInt16] = []
+            var k = 0
+            while k + 1 < d.count { let c = UInt16(d[k]) | UInt16(d[k + 1]) << 8; if c == 0 { break }; u.append(c); k += 2 }
+            let f = String(decoding: u, as: UTF16.self)
+            if !f.isEmpty { face = f }
+        }
+        let pt = max(1, (s.props[0xC3] ?? 0x360000) >> 16)
+        let bools = s.props[0xBF] ?? 0
+        func on(_ bit: Int) -> Bool { bools >> (16 + bit) & 1 != 0 && bools >> bit & 1 != 0 }
+        let color = rgb(s.props[0x181] ?? 0xFFFFFF) ?? "FFFFFF"
+        let rpr = "<w:rPr><w:rFonts w:ascii=\"\(xmlEscape(face))\" w:hAnsi=\"\(xmlEscape(face))\" w:eastAsia=\"\(xmlEscape(face))\"/>\(on(1) ? "<w:b/>" : "")\(on(0) ? "<w:i/>" : "")<w:color w:val=\"\(color)\"/><w:sz w:val=\"\(pt * 2)\"/></w:rPr>"
+        return "<w:p><w:pPr><w:jc w:val=\"center\"/></w:pPr><w:r>\(rpr)<w:t xml:space=\"preserve\">\(xmlEscape(t))</w:t></w:r></w:p>"
+    }
+
+    /// A freeform's path as `a:custGeom`, from the vertex and segment arrays (types of segments: line, curve, move, close, end).
+    static func freeform(_ s: ArtShape) -> String? {
+        guard let vd = s.complex[0x145], vd.count >= 6 else { return nil }
+        let n = OfficeArt.u16(vd, 0), cb = OfficeArt.u16(vd, 4)
+        let size = cb == 0xFFF0 ? 4 : cb
+        guard size == 4 || size == 8, n > 1, vd.count >= 6 + n * size else { return nil }
+        func i32(_ k: Int) -> Int { let v = OfficeArt.u32(vd, k); return v >= 0x8000_0000 ? v - 0x1_0000_0000 : v }
+        func i16(_ k: Int) -> Int { let v = OfficeArt.u16(vd, k); return v >= 0x8000 ? v - 0x10000 : v }
+        var pts: [(Int, Int)] = []
+        for k in 0 ..< n {
+            let o = 6 + k * size
+            pts.append(size == 8 ? (i32(o), i32(o + 4)) : (i16(o), i16(o + 2)))
+        }
+        let gl = s.props[0x140] ?? 0, gt = s.props[0x141] ?? 0
+        let gr = s.props[0x142] ?? 21600, gb = s.props[0x143] ?? 21600
+        func sg(_ v: Int) -> Int { v >= 0x8000_0000 ? v - 0x1_0000_0000 : v }
+        var l = sg(gl), t = sg(gt), r = sg(gr), b = sg(gb)
+        if r <= l || b <= t {
+            l = pts.map { $0.0 }.min() ?? 0; r = pts.map { $0.0 }.max() ?? 0
+            t = pts.map { $0.1 }.min() ?? 0; b = pts.map { $0.1 }.max() ?? 0
+        }
+        guard r > l || b > t else { return nil }
+        func pt(_ i: Int) -> String { "<a:pt x=\"\(pts[i].0 - l)\" y=\"\(pts[i].1 - t)\"/>" }
+        var segs: [Int] = []
+        if let sd = s.complex[0x146], sd.count >= 6 {
+            let m = OfficeArt.u16(sd, 0), sz = OfficeArt.u16(sd, 4) == 0xFFF0 ? 2 : OfficeArt.u16(sd, 4)
+            if sz == 2 { for k in 0 ..< min(m, (sd.count - 6) / 2) { segs.append(OfficeArt.u16(sd, 6 + 2 * k)) } }
+        }
+        var path = "", i = 0, open = false
+        if segs.isEmpty {
+            path += "<a:moveTo>\(pt(0))</a:moveTo>"
+            for k in 1 ..< n { path += "<a:lnTo>\(pt(k))</a:lnTo>" }
+        } else {
+            loop: for v in segs {
+                let kind = v >> 13 & 7, count = v & 0x1FFF
+                switch kind {
+                case 0: for _ in 0 ..< max(count, 1) where i < n { path += "<a:lnTo>\(pt(i))</a:lnTo>"; i += 1 }
+                case 1: for _ in 0 ..< count where i + 2 < n { path += "<a:cubicBezTo>\(pt(i))\(pt(i + 1))\(pt(i + 2))</a:cubicBezTo>"; i += 3 }
+                case 2: if i < n { path += "<a:moveTo>\(pt(i))</a:moveTo>"; i += 1; open = true }
+                case 3: path += "<a:close/>"
+                case 4: break loop
+                default: break      // escapes (auto-line and the like) draw nothing
+                }
+            }
+            _ = open
+        }
+        guard !path.isEmpty else { return nil }
+        return "<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l=\"0\" t=\"0\" r=\"r\" b=\"b\"/><a:pathLst><a:path w=\"\(max(1, r - l))\" h=\"\(max(1, b - t))\">\(path)</a:path></a:pathLst></a:custGeom>"
+    }
+
     /// The part of the picture that shows: the crop properties are fractions of the picture (16.16 fixed), top, bottom, left, right.
     static func crop(_ s: ArtShape?) -> String {
         guard let s else { return "" }
@@ -130,11 +220,13 @@ enum DocArt {
         if let rid {
             return ("<pic:pic><pic:nvPicPr><pic:cNvPr id=\"\(id)\" name=\"Picture \(id)\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"\(rid)\"/>\(crop(s))<a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr>\(xfrm)<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>", true)
         }
+        let wa = s?.type == 136 ? s.flatMap { wordArtContent($0) } : nil
+        let content = content ?? wa
         let isBox = content != nil
         let ins = [(0x81, 91440), (0x82, 45720), (0x83, 91440), (0x84, 45720)].map { s?.props[$0.0] ?? $0.1 }
         let body = isBox ? "<wps:txbx><w:txbxContent>\(content!.isEmpty ? "<w:p/>" : content!)</w:txbxContent></wps:txbx>" : ""
         let sp = s ?? ArtShape()
-        return ("<wps:wsp><wps:cNvSpPr\(isBox ? " txBox=\"1\"" : "")/><wps:spPr>\(xfrm)<a:prstGeom prst=\"\(geometry(sp.type) ?? "rect")\"><a:avLst/></a:prstGeom>\(fillLine(sp, isBox: isBox))</wps:spPr>\(body)<wps:bodyPr wrap=\"square\" lIns=\"\(ins[0])\" tIns=\"\(ins[1])\" rIns=\"\(ins[2])\" bIns=\"\(ins[3])\" anchor=\"t\"><a:noAutofit/></wps:bodyPr></wps:wsp>", false)
+        return ("<wps:wsp><wps:cNvSpPr\(isBox ? " txBox=\"1\"" : "")/><wps:spPr>\(xfrm)\(sp.type == 0 ? (freeform(sp) ?? "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom>") : "<a:prstGeom prst=\"\(geometry(sp.type) ?? "rect")\"><a:avLst/></a:prstGeom>")\(wa != nil ? "<a:noFill/><a:ln><a:noFill/></a:ln>" : fillLine(sp, isBox: isBox, freeform: sp.type == 0))</wps:spPr>\(body)<wps:bodyPr \(wa != nil ? "fromWordArt=\"1\" " : "")wrap=\"square\" lIns=\"\(ins[0])\" tIns=\"\(ins[1])\" rIns=\"\(ins[2])\" bIns=\"\(ins[3])\" anchor=\"t\">\(wa != nil ? "<a:prstTxWarp prst=\"textPlain\"><a:avLst/></a:prstTxWarp>" : "")<a:noAutofit/></wps:bodyPr></wps:wsp>", false)
     }
 
     static func graphic(shape s: ArtShape?, rid: String?, content: String?, cx: Int, cy: Int, id: Int) -> String {
@@ -151,7 +243,7 @@ enum DocArt {
         for id in ids {
             guard let c = art.shapes[id], let a = c.childAnchor, a[2] > a[0], a[3] > a[1] else { continue }
             let m = member(c)
-            if m.rid == nil, m.content == nil, geometry(c.type) == nil { continue }
+            if m.rid == nil, m.content == nil, !drawable(c) { continue }
             kids += element(shape: c, rid: m.rid, content: m.content, cx: a[2] - a[0], cy: a[3] - a[1], id: id & 0xFFFF, at: (a[0], a[1])).xml
         }
         guard !kids.isEmpty else { return nil }
