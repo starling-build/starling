@@ -2780,12 +2780,25 @@ private struct SlideContext {
                     cellNumbering.append(level.bullet == .number ? (level.autoNumType ?? "arabicPeriod", level.autoNumStart ?? 1) : nil)
                     var text = "", runs: [Run] = []
                     var cellKoParens: [Int] = []
+                    var cellMath: [String: ImageAttachment] = [:]
                     for child in p.children where child.name == "a:r" || child.name == "a:br" || child.name == "a:fld" || child.name == "a14:m" {
                         // (An equation in a cell is its letters in Cambria Math, as PowerPoint prints them: 3c1f2c4d820b p6's "(𝑎≥6)" was "()" here.)
                         let isMath = child.name == "a14:m"
-                        let t = child.name == "a:br" ? "\n" : isMath ? child.descendants("m:t").map { $0.text }.joined() : (child.first("a:t")?.text ?? "")
+                        var t = child.name == "a:br" ? "\n" : isMath ? child.descendants("m:t").map { $0.text }.joined() : (child.first("a:t")?.text ?? "")
                         guard !t.isEmpty else { continue }
                         let s = ((isMath ? child.descendants("m:r").first?.first("a:rPr") : child.first("a:rPr")).map { LevelStyle.run($0, colors) } ?? LevelStyle()).filled(from: level)
+                        // (An equation in a cell is laid out as an equation, as in a text box, its subscripts and fractions set by `WriterMath`: ja-775ea7b734 p12's
+                        // table cells hold e(1,1) with a 13 pt subscript, 3.8 pt down, where the letters alone made "1," and a wrapped "1".)
+                        var cellMathId: String? = nil
+                        if isMath, let piece = child.children.first(where: { $0.name == "m:oMath" || $0.name == "m:oMathPara" }) {
+                            WriterMath.slideScope = true; WriterMath.slideInk = s.color
+                            var att = ImageAttachment(data: Data(), width: 1, height: 1, name: piece.name)
+                            if let m = WriterMath.register(piece, for: att.id, size: s.size ?? 18) {
+                                att.width = m.width; att.height = m.height; att.baseline = m.baseline
+                                cellMath[att.id] = att; cellMathId = att.id; t = RichParagraph.inlineImageCharacter
+                            }
+                            WriterMath.slideScope = false; WriterMath.slideInk = nil
+                        }
                         cellKoParens += Self.koParenOffsets(s, t, before: text)
                         text += t
                         // (East Asian letters in the East Asian face, the rest in the Latin one, as a text box's runs: PowerPoint sets
@@ -2819,6 +2832,7 @@ private struct SlideContext {
                                 color: s.color ?? colors.scheme("tx1"), letterSpacing: s.spc.flatMap { $0 != 0 ? $0 : nil })))
                         }
                         for k in firstRun ..< runs.count {
+                        if let id = cellMathId { runs[k].style.inlineImage = id }
                         // (Kerned from the size `kern` says up, as a text box's runs.)
                         if Self._unkerned(runs[k].style.fontFamily, bold: s.bold ?? false) {
                             runs[k].style.kerningFrom = 0
@@ -2927,6 +2941,7 @@ private struct SlideContext {
                                                                                           fontFamily: _font(end?.font ?? look.font),
                                                                                           fontSize: end?.size ?? look.size ?? 18, color: look.color))], style: style)
                         : RichParagraph(text: text, runs: runs, style: style)
+                    para.inlineImages = cellMath
                     para.cell = cell
                     // (Lab tblrow2, PowerPoint's print: a cell paragraph with fontAlgn="ctr" has no first-line loss at a percent spacing,
                     // its row is the full m x 1.2 x size (MS PGothic 28 pt 150% 50.40, Arial 24 43.20); without fontAlgn the loss stays.)
