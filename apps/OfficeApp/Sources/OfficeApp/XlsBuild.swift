@@ -56,6 +56,12 @@ struct XlsXF {
     // (u16 reads return Int; the raw fields keep their natural width)
 }
 
+/// What a sheet's drawing layer produced: the picture slots it uses (indexes into the book's picture store) and one anchor element per picture.
+struct XlsDrawingOut {
+    var pics: [Int] = []
+    var anchors: [String] = []
+}
+
 enum XlsBuild {
     static func esc(_ s: String) -> String {
         var o = ""
@@ -224,14 +230,28 @@ enum XlsBuild {
         let xfs = resolveXFs(xfRecs)
         st += styleBody(fonts: fonts, xfs: xfs, palette: palette, xfExt: xfExt)
         var dxfs: [String] = []
+        var blips: [ArtBlip?] = []
+        if let g = recs.first(where: { $0.type == 0xEB }) { blips = OfficeArt.blips(group: g.body) }
 
         for (n, e) in kept.enumerated() {
             var links: [String] = []
-            let xml = sheetXML(recs, from: e.element.position, sst: sst, xfCount: max(1, xfs.count), ctx: ctx, palette: palette, dxfs: &dxfs, links: &links)
+            var drawing = XlsDrawingOut()
+            let xml = sheetXML(recs, from: e.element.position, sst: sst, xfCount: max(1, xfs.count), ctx: ctx, palette: palette, dxfs: &dxfs, links: &links, blips: blips, drawing: &drawing)
             add("xl/worksheets/sheet\(n + 1).xml", xml)
-            if !links.isEmpty {
-                add("xl/worksheets/_rels/sheet\(n + 1).xml.rels", "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
-                    + links.enumerated().map { "<Relationship Id=\"rIdL\($0.offset + 1)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink\" Target=\"\(esc($0.element))\" TargetMode=\"External\"/>" }.joined() + "</Relationships>")
+            var srels = links.enumerated().map { "<Relationship Id=\"rIdL\($0.offset + 1)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink\" Target=\"\(esc($0.element))\" TargetMode=\"External\"/>" }.joined()
+            if !drawing.pics.isEmpty {
+                srels += "<Relationship Id=\"rIdD1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing\" Target=\"../drawings/drawing\(n + 1).xml\"/>"
+                add("xl/drawings/drawing\(n + 1).xml", "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><xdr:wsDr xmlns:xdr=\"http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">" + drawing.anchors.joined() + "</xdr:wsDr>")
+                var drels = ""
+                for (k, bi) in drawing.pics.enumerated() {
+                    guard let bl = blips[bi] else { continue }
+                    drels += "<Relationship Id=\"rId\(k + 1)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"../media/image\(bi + 1).\(bl.ext)\"/>"
+                    if !out.contains(where: { $0.name == "xl/media/image\(bi + 1).\(bl.ext)" }) { out.append(ZipEntry(name: "xl/media/image\(bi + 1).\(bl.ext)", data: Data(bl.data))) }
+                }
+                add("xl/drawings/_rels/drawing\(n + 1).xml.rels", "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" + drels + "</Relationships>")
+            }
+            if !srels.isEmpty {
+                add("xl/worksheets/_rels/sheet\(n + 1).xml.rels", "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" + srels + "</Relationships>")
             }
         }
         // styles.xml last: the conditional formats' differential formats are collected by the sheets.
@@ -240,7 +260,7 @@ enum XlsBuild {
         return out
     }
 
-    private static func sheetXML(_ recs: [BiffRecord], from position: Int, sst: [String], xfCount: Int, ctx: XlsFormulaContext, palette: [(Int, Int, Int)], dxfs: inout [String], links: inout [String]) -> String {
+    private static func sheetXML(_ recs: [BiffRecord], from position: Int, sst: [String], xfCount: Int, ctx: XlsFormulaContext, palette: [(Int, Int, Int)], dxfs: inout [String], links: inout [String], blips: [ArtBlip?], drawing: inout XlsDrawingOut) -> String {
         guard var i = recs.firstIndex(where: { $0.offset == position && $0.type == 0x809 }) else { return emptySheet }
         var cells: [Int: [Int: String]] = [:]
         var rows: [Int: String] = [:]
@@ -249,6 +269,8 @@ enum XlsBuild {
         var cfGroups: [(sqref: String, base: (Int, Int), rules: [String])] = []
         var validations: [String] = []
         var tabColor = ""
+        var colSpans: [(Int, Int, Int)] = [], rowTwips: [Int: Int] = [:]
+        var art: [UInt8] = []
         var hyperlinks: [String] = []
         var cfPriority = 0
         var defColWidth: Int? = nil, stdWidth: Int? = nil
@@ -410,8 +432,10 @@ enum XlsBuild {
                 if flags & 0x10 != 0 { a += " collapsed=\"1\"" }
                 if flags & 0x80 != 0, x & 0xFFF > 0, Int(x & 0xFFF) < xfCount { a += " s=\"\(x & 0xFFF)\" customFormat=\"1\"" }
                 if !a.isEmpty { rows[r] = a }
+                rowTwips[r] = flags & 0x20 != 0 ? 0 : (h & 0x8000 == 0 && h > 0 ? h & 0x7FFF : -1)
             case 0x7D where rec.body.count >= 10:
                 let first = c.u16(), last = c.u16(), w = c.u16(), x = c.u16(), g = c.u16()
+                colSpans.append((first, last, g & 1 != 0 ? 0 : w))
                 if first < 16384 {
                     var col = "<col min=\"\(first + 1)\" max=\"\(min(last, 16383) + 1)\" width=\"\(Double(w) / 256)\" customWidth=\"1\""
                     if g & 1 != 0 { col += " hidden=\"1\"" }
@@ -493,6 +517,7 @@ enum XlsBuild {
                 if ct == 1, op == 1 || op == 2, let f2v = f2 { rule += "<formula>\(esc(f2v))</formula>" }
                 rule += "</cfRule>"
                 cfGroups[cfGroups.count - 1].rules.append(rule)
+            case 0xEC: art += rec.body
             case 0x862 where rec.body.count >= 32:
                 // SheetExt: after the header, a size, two flag words, then the tab colour's kind and value.
                 let b = rec.body
@@ -642,6 +667,25 @@ enum XlsBuild {
         if !validations.isEmpty { x += "<dataValidations count=\"\(validations.count)\">" + validations.joined() + "</dataValidations>" }
         if !hyperlinks.isEmpty { x += "<hyperlinks>" + hyperlinks.joined() + "</hyperlinks>" }
         x += pageXML(setup: setup, margins: margins, hdrFtr: hdrFtr, margin2: hdrFtrMargins, grid: printGrid, heads: printHeads, hc: hCenter, vc: vCenter, hBreaks: hBreaks, vBreaks: vBreaks)
+        if !art.isEmpty {
+            let dw = Double(stdWidth ?? (defColWidth.map { $0 * 256 + 1280 } ?? 2340)) / 256 * 7
+            let dh = Double(defRowHeight?.0 ?? 255) / 20
+            func colPx(_ c: Int) -> Double { if let sp = colSpans.last(where: { $0.0 <= c && c <= $0.1 }) { return Double(sp.2) / 256 * 7 }; return dw }
+            func rowPt(_ r: Int) -> Double { if let t = rowTwips[r], t >= 0 { return Double(t) / 20 }; return dh }
+            func emu(_ v: Double) -> Int { Int(v.rounded()) }
+            for sh in OfficeArt.shapes(drawing: art) where sh.pib > 0 && sh.pib <= blips.count && blips[sh.pib - 1] != nil {
+                guard let a = sh.anchor else { continue }
+                let slot = drawing.pics.firstIndex(of: sh.pib - 1) ?? { drawing.pics.append(sh.pib - 1); return drawing.pics.count - 1 }()
+                var w = 0.0, h = 0.0
+                if a[4] >= a[0] { for c in a[0] ... a[4] { w += colPx(c) } }
+                if a[6] >= a[2] { for r in a[2] ... a[6] { h += rowPt(r) } }
+                let x0 = colPx(a[0]) * Double(a[1]) / 1024, x1 = colPx(a[4]) * Double(a[5]) / 1024
+                let y0 = rowPt(a[2]) * Double(a[3]) / 256, y1 = rowPt(a[6]) * Double(a[7]) / 256
+                let cx = emu((w - x0 - (colPx(a[4]) - x1)) * 9525), cy = emu((h - y0 - (rowPt(a[6]) - y1)) * 12700)
+                drawing.anchors.append("<xdr:twoCellAnchor editAs=\"oneCell\"><xdr:from><xdr:col>\(a[0])</xdr:col><xdr:colOff>\(emu(x0 * 9525))</xdr:colOff><xdr:row>\(a[2])</xdr:row><xdr:rowOff>\(emu(y0 * 12700))</xdr:rowOff></xdr:from><xdr:to><xdr:col>\(a[4])</xdr:col><xdr:colOff>\(emu(x1 * 9525))</xdr:colOff><xdr:row>\(a[6])</xdr:row><xdr:rowOff>\(emu(y1 * 12700))</xdr:rowOff></xdr:to><xdr:pic><xdr:nvPicPr><xdr:cNvPr id=\"\(sh.id)\" name=\"Picture \(drawing.anchors.count + 1)\"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip r:embed=\"rId\(slot + 1)\"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></a:xfrm><a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:twoCellAnchor>")
+            }
+            if !drawing.pics.isEmpty { x += "<drawing r:id=\"rIdD1\"/>" }
+        }
         return x + "</worksheet>"
     }
 
