@@ -1375,6 +1375,23 @@ enum SheetFunctions {
             // (and a result column reading another lookup is no false cycle).
             return .scalar(c.engine.cellValue(s, CellAddress(row: rg.top + i, col: rg.left + k - 1)))
         }
+        // A table range: only its key column (or row) is read to find the match, then the one cell asked for, not every cell of
+        // the table (the clip to the used extent is the same as `grid`'s).
+        if case .range(let s, let rg) = tableEv, s >= 0, s < c.engine.book.sheets.count {
+            let used = c.engine.usedExtent(s)
+            let bottom = min(rg.bottom, max(used.row, rg.top)), right = min(rg.right, max(used.col, rg.left))
+            let n = vertical ? bottom - rg.top + 1 : right - rg.left + 1
+            let width = vertical ? right - rg.left + 1 : bottom - rg.top + 1
+            func at(_ i: Int, _ j: Int) -> CellValue {
+                vertical ? c.engine.value(s, CellAddress(row: rg.top + i, col: rg.left + j))
+                         : c.engine.value(s, CellAddress(row: rg.top + j, col: rg.left + i))
+            }
+            let keys = (0 ..< n).map { at($0, 0) }
+            let found = exact ? keys.firstIndex { _wildcard(key, $0) && !$0.isEmpty } : _binary(key, keys, descending: false)
+            guard let i = found else { return .error(.na) }
+            guard k <= width else { return .error(.ref) }
+            return .scalar(at(i, k - 1))
+        }
         var g = c.engine.grid(tableEv, c)
         if !vertical {
             // Transpose so the code below reads rows.
