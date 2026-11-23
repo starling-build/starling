@@ -803,10 +803,10 @@ enum WriterMath {
         }
 
         /// Rows stacked, each centred, the stack's middle on the math axis.
-        func column(_ rows: [Box], gap: Double, size: Double) -> Box {
+        func column(_ rows: [Box], gap: Double, size: Double, byInk: Bool = true) -> Box {
             guard rows.count > 1 else { return rows.first ?? .empty }
             let w = rows.map(\.width).max() ?? 0
-            if WriterMath.slideScope && WriterMath.windows {
+            if WriterMath.slideScope && WriterMath.windows && byInk {
                 // (Slides: PowerPoint's print of an array of fraction rows (lab mathrows, 18 and 28 pt, the same in em) stands the first
                 // row where a lone display fraction stands, and each row 2.447 em under the one above: the rows' ink and Cambria Math's StackDisplayStyleGapMin, 0.3223 em, between.)
                 var base = [0.0]
@@ -817,14 +817,21 @@ enum WriterMath {
                     for (k, r) in rows.enumerated() { r.draw(canvas, Offset(at.dx + (w - r.width) / 2, at.dy + base[k])) }
                 }
             }
-            let total = rows.reduce(0) { $0 + $1.ascent + $1.descent } + gap * Double(rows.count - 1)
-            let ascent = total / 2 + size * 0.27
-            return Box(width: w, ascent: ascent, descent: max(0, total - ascent)) { canvas, at in
+            // (A slide matrix of letters: every row a whole line of the face, Cambria's 0.95 em over and 0.222 em under, and the axis at 0.3 em.)
+            let line = !byInk
+            let asc = rows.map { line ? max($0.ascent, size * 0.95) : $0.ascent }
+            let dsc = rows.map { line ? max($0.descent, size * 0.222) : $0.descent }
+            let total = (0 ..< rows.count).reduce(0) { $0 + asc[$1] + dsc[$1] } + gap * Double(rows.count - 1)
+            let ascent = total / 2 + size * (line ? 0.3 : 0.27)
+            let below = max(0, total - ascent)
+            return Box(width: w, ascent: ascent, descent: below,
+                       inkUp: line ? ascent - asc[0] + rows[0].iu : nil,
+                       inkDown: line ? below - dsc[rows.count - 1] + rows[rows.count - 1].idn : nil) { canvas, at in
                 var y = at.dy - ascent
-                for r in rows {
-                    y += r.ascent
+                for (k, r) in rows.enumerated() {
+                    y += asc[k]
                     r.draw(canvas, Offset(at.dx + (w - r.width) / 2, y))
-                    y += r.descent + gap
+                    y += dsc[k] + gap
                 }
             }
         }
@@ -1027,7 +1034,10 @@ enum WriterMath {
             let cols = rows.map(\.count).max() ?? 0
             guard cols > 0 else { return .empty }
             let s = runSize(n, size, level)
-            let gapX = s * 0.6
+            // (PowerPoint's print of a matrix of letters, lab eq-lab p7 at 22 pt: its rows are one line of the face apart (25.8 pt = 1.172 em, no gap
+            // between the boxes), its columns an em apart, and the whole stands on the axis. A matrix of fractions keeps the ink stacking.)
+            let slideLetters = WriterMath.slideScope && WriterMath.windows && n.descendants("m:f").isEmpty
+            let gapX = slideLetters ? s : s * 0.6
             var widths = [Double](repeating: 0, count: cols)
             for r in rows { for (c, b) in r.enumerated() { widths[c] = max(widths[c], b.width) } }
             let lines = rows.map { r in
@@ -1036,7 +1046,7 @@ enum WriterMath {
                     return [space(pad + (c > 0 ? gapX : 0)), b, space(pad)]
                 })
             }
-            return column(lines, gap: s * 0.2, size: s)
+            return column(lines, gap: slideLetters ? 0 : s * 0.2, size: s, byInk: !slideLetters)
         }
 
         /// The accent a combining mark stands for, set on its own.
