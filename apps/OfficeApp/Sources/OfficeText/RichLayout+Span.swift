@@ -1766,6 +1766,12 @@ extension RichLayout {
                         size = Size(size.width, upper + max(0, lower))
                     }
                 }
+                // (PowerPoint scales an equation's line by a percent line spacing below 100%, as it does the text's.)
+                if !theme.wordRules, image.float == nil, image.name.hasPrefix("m:o"), p.style.lineHeightPoints == nil, p.style.lineSpacing < 0.999,
+                   p.style.lineSpacing > 0.5, size.height > 0 {
+                    placeOffset *= p.style.lineSpacing
+                    size = Size(size.width, size.height * p.style.lineSpacing)
+                }
                 inline.append((image, PlaceholderDimensions(size: size, alignment: alignment, baseline: TextBaseline.alphabetic, baselineOffset: placeOffset)))
                 // (Before 2013's layout a space after a picture wider than
                 // the line goes to a line of its own: lab `ps` (Word 16, a
