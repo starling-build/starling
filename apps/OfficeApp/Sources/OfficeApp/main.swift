@@ -828,6 +828,12 @@ if initialPath == nil && siteArg == nil && wikiBase == nil {
     OfficeHost.exportRequested = { name, prepare, thenOpen, done in
         OfficeNativeShell.export(name: name, prepare: prepare, thenOpen: thenOpen, done: done)
     }
+    OfficeHost.toolbarChanged = { buttons in
+        OfficeNativeShell.setToolbar(buttons?.map {
+            OfficeToolbarButton(id: $0.id, title: $0.title, symbol: $0.symbol,
+                                isOn: $0.isOn, isEnabled: $0.isEnabled, action: $0.action)
+        })
+    }
 }
 #endif
 

@@ -92,6 +92,8 @@ final class OfficeShellState: State<StatefulWidget> {
         OfficeFonts.register()
         _recent = _loadRecent()
         _wireSession()
+        controller.addListener({ [weak self] in self?._publishToolbar() }, owner: self)
+        _publishToolbar()
         // `starling.debug('layout')` from the browser's console or a script:
         // the open document's lines and pages, to diff against
         // `OfficeApp --layout` natively.
@@ -177,7 +179,27 @@ final class OfficeShellState: State<StatefulWidget> {
         }
     }
 
+    /// The buttons a native toolbar over the keyboard shows, with the caret's
+    /// state: the same questions the ribbon asks. Nothing happens on a platform
+    /// with no such toolbar.
+    private func _publishToolbar() {
+        guard OfficeHost.toolbarChanged != nil else { return }
+        let c = controller
+        let style = c.currentCharStyle
+        let list = c.document.paragraphs[min(c.selection.focus.paragraph, c.document.paragraphs.count - 1)].style.list
+        OfficeHost.publishToolbar([
+            .init(id: "undo", title: "Undo", symbol: "arrow.uturn.backward", isEnabled: c.canUndo) { c.undo() },
+            .init(id: "redo", title: "Redo", symbol: "arrow.uturn.forward", isEnabled: c.canRedo) { c.redo() },
+            .init(id: "bold", title: "Bold", symbol: "bold", isOn: style.bold) { c.toggleBold() },
+            .init(id: "italic", title: "Italic", symbol: "italic", isOn: style.italic) { c.toggleItalic() },
+            .init(id: "underline", title: "Underline", symbol: "underline", isOn: style.underline) { c.toggleUnderline() },
+            .init(id: "bullets", title: "Bullets", symbol: "list.bullet", isOn: list == .bullet) { c.toggleList(.bullet) },
+            .init(id: "numbering", title: "Numbering", symbol: "list.number", isOn: list == .numbered) { c.toggleList(.numbered) },
+        ], owner: self)
+    }
+
     override func dispose() {
+        OfficeHost.publishToolbar(nil, owner: self)
         _search.dispose()
         _findQuery.dispose()
         _findReplacement.dispose()
