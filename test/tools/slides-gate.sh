@@ -72,6 +72,16 @@ if [ "${CJK_SET:-1}" != 0 ] && [ -n "${BASE_BIN:-}" ] && [ -d "$CJ/decks" ]; the
     ln -sf "$f" "$W/in/$n"; ln -sf "$CJ/powerpoint-win/$s-orig.pdf" "$W/ppt/"
   done
 fi
+# The CJK set r3 (amd-8, 2026-11-23): pptx-cjk-r3 (cache) has six folders <lang>-<pptx|ppt>-r3-dev, each with the decks (.ppt folders: the .pptx PowerPoint converted)
+# and powerpoint-win/<stem>-orig.pdf; a deck with no print is left out. Base mode only, like r1. CJK_R3_SET=0 turns it off.
+C3=${CJK_R3_DIR:-$CC-cjk-r3}
+if [ "${CJK_R3_SET:-1}" != 0 ] && [ -n "${BASE_BIN:-}" ] && [ -d "$C3" ]; then
+  for f in "$C3"/*/*.pptx; do
+    [ -f "$f" ] || continue
+    d=${f%/*}; n=${f##*/}; s=${n%.pptx}; [ -f "$d/powerpoint-win/$s-orig.pdf" ] || continue
+    ln -sf "$f" "$W/in/$n"; ln -sf "$d/powerpoint-win/$s-orig.pdf" "$W/ppt/"
+  done
+fi
 [ -s "$CC/baseline-lines-win.tsv" ] || MISS="$MISS $CC/baseline-lines-win.tsv"
 if [ -s "$PB" ] && ! ls "$PILOT"/baseline-*lines*.tsv >/dev/null 2>&1; then MISS="$MISS $PILOT/baseline-lines-pilot-win.tsv"; fi
 [ -z "$MISS" ] || { [ -n "${BASE_BIN:-}" ] && echo "slides-gate: note, fixed-baseline inputs missing (base mode, not needed):$MISS" || { echo "slides-gate: FAILED, missing:$MISS"; exit 1; }; }
