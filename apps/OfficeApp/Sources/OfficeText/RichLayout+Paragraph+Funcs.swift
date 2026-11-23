@@ -2215,6 +2215,19 @@ extension _ParaFrame {
                 }
                 if let next = found { lead = (next.style, false) }
             }
+            // (A line opening on white space is sized by the text after it, as the strut is: a run of 11 pt spaces ahead of 8 pt text, dx2 es
+            // 51b1aa70's header, stood the 8 pt line's glyphs 3.0 pt low, on the spaces' own baseline.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, !lead.1, p.runs.count > 1, p.runs[0].length > 0,
+               p.text.prefix(p.runs[0].length).allSatisfy({ $0 == " " }) {
+                var off = p.runs[0].length
+                let u = Array(p.text)
+                for r in p.runs.dropFirst() where r.length > 0 {
+                    let end = min(u.count, off + r.length)
+                    let blank = u[off ..< end].allSatisfy { RichLayout._setsNoLine($0) }
+                    off = end
+                    if !blank { if r.style.inlineImage == nil, r.style.fontSize != nil { lead = (r.style, false); RuleTrace.hit("word-line-opening-on-spaces-stands-on-the-text-after-them") }; break }
+                }
+            }
             search: for run in p.runs {
                 let hinted = (run.style.fontHint ?? named?.char.fontHint) == "eastAsia"
                 let a = p.text.utf16.index(p.text.utf16.startIndex, offsetBy: at)

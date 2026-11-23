@@ -3162,7 +3162,7 @@ enum ChartPainter {
     }
     nonisolated(unsafe) private static var naturalAdvanceCache: [String: Double] = [:]
     /// `s` one character a span, each spaced to the face's own advance (ems of the size) less what the stand-in draws it.
-    static func metricSpan(_ s: String, _ style: Flutter.TextStyle, _ face: RichResolvedFace, bold: Bool, eastAsianOnly: Bool = false, kanjiHeight: Double? = nil) -> TextSpan {
+    static func metricSpan(_ s: String, _ style: Flutter.TextStyle, _ face: RichResolvedFace, bold: Bool, eastAsianOnly: Bool = false, kanjiHeight: Double? = nil, wholePixels: Bool = false) -> TextSpan {
         let size = style.fontSize ?? 12
         var kids: [TextSpan] = []
         var paraKanji = false
@@ -3183,6 +3183,7 @@ enum ChartPainter {
             }
             // (A line of kanji alone is on the fallback face's 1.3 em, a line with Latin or digits on the label face's.)
             let own: Flutter.TextStyle = kanjiHeight != nil && (0x4E00 ... 0x9FFF).contains(u) ? style.copyWith(height: kanjiHeight) : style
+            if wholePixels, let t0 = target { let px = size * 96 / 72; target = (t0 * px).rounded() / px }
             guard let t = target else { kids.append(TextSpan(text: String(ch), style: own)); continue }
             let key = "\(style.fontFamily ?? "")|\(bold)|\(u)"
             var nat = naturalAdvanceCache[key]
@@ -3330,8 +3331,8 @@ enum ChartPainter {
             if c.titleLineSizes.isEmpty {
                 // (A slide's title in an East Asian face the machine lacks is spaced to the face's own advances, as the labels
                 // are: ko-ab1bf295 p7's 18.6 pt "차트 제목" in Malgun Gothic Bold, 81.0 pt in PowerPoint's print, 72.6 here.)
-                if c.onSlide, !title.contains("\n"), case let raw = c.titleFont ?? c.font ?? c.axisFont ?? theme.bodyFont, let face = Self.eastAsianChartFace(raw) ?? Self.latinChartFace(raw) {
-                    span = Self.metricSpan(title, titleStyle, face, bold: c.titleBold)
+                if c.onSlide || c.onSheet, !title.contains("\n"), case let raw = c.titleFont ?? c.font ?? c.axisFont ?? theme.bodyFont, let face = Self.eastAsianChartFace(raw) ?? Self.latinChartFace(raw) {
+                    span = Self.metricSpan(title, titleStyle, face, bold: c.titleBold, wholePixels: c.onSheet)
                 } else {
                     span = TextSpan(text: title, style: titleStyle)
                 }
@@ -3353,7 +3354,7 @@ enum ChartPainter {
             // (Word's too, beside Excel's: tdf122014's 14pt title in a 432pt
             // chart wraps before "left" in Word for Windows' print, its first
             // line 340.5pt wide; ours took "left when" on it, 397pt.)
-            tp.layout(minWidth: 0, maxWidth: max(1, c.onSlide || !c.onSheet ? min(area.width, 0.8 * r.width) : area.width))
+            tp.layout(minWidth: 0, maxWidth: max(1, min(area.width, 0.8 * r.width)))
             titleLines = max(1, tp.computeLineMetrics().count)
             // (Where Word for Windows sets the theme's text in Mincho, a
             // title line holding a character Mincho lacks is JhengHei's,
@@ -5454,7 +5455,7 @@ enum ChartPainter {
                 let block = widest + 10 * k
                 // (Over the plot's middle, not the area's: the plot's top is half a label under the area's,
                 // its foot a label line and 3.2 over it. And the plot starts 3pt past the block.)
-                let plotTop = 0.61 * labelSize * k, plotFoot = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.3
+                let plotTop = 0.61 * labelSize * k, plotFoot = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.3 * k
                 across.paint(canvas, Offset(area.left + block / 2 - across.width / 2, area.center.dy + (plotTop - plotFoot) / 2 - across.height / 2))
                 area = Rect.fromLTRB(area.left + block + 3 * k, area.top, area.right, area.bottom)
                 across.dispose()
@@ -5606,8 +5607,11 @@ enum ChartPainter {
             // (A slide chart with its value axis deleted has no value labels beside the plot, and the plot takes the room: ko-c03ed80e p21's
             // nine names in 71.75 pt slots, "전력소모가 적은" on one line in PowerPoint's print, ours broke it after "전력소모가".)
             let besideNone = c.onSlide && c.valueAxisDeleted && c.plotLayout == nil && valueLabels.allSatisfy { $0.width == 0 }
+            // (A plain Word column chart's names wrap at its whole slot, measured on the plot Word really lays out (6.3 pt wider than the estimate: value labels 1.8 closer, 2.5 more left, 2.0 more right):
+            // sa1 90385e38e1 p4, "Una vez x día" (53.2 pt) stays on one line in a 53.85 pt slot and "Biblioteca o" (47.7) in 49.2, ours broke both with 2 pt off the slot.)
+            let plainWordColumn = !c.onSlide && !c.onSheet && !c.styled2013 && !c.chartex && c.axisFont == nil && c.type == .column && c.barView == nil && c.plotLayout == nil
             let beside = horizontal || (placed != nil && c.plotLayoutInner) || besideNone ? 0
-                : (valueLabels.map(\.width).max() ?? 0) - padTail + (c.styled2013 ? 8.5 : 11.1) * k + 4 * k
+                : (valueLabels.map(\.width).max() ?? 0) - padTail + (c.styled2013 ? 8.5 : 11.1) * k + 4 * k - (plainWordColumn ? (11.1 - 0.927 * (c.valueLabelSize ?? c.baseTextSize) + 4.5) * k : 0)
             let slot = ((horizontal ? along.height : along.width) - beside) / Double(n)
             // (A 3-D bar chart's names in a Word document wrap at half the chart, not a fifth: sa2 fee2a9e5687's 187.7 pt "Limpeza, higiene e
             // segurança dos equipamentos utilizados" is one line in Word's print, and "Oportunidade ... expressar sua" breaks before "opinião".)
@@ -5646,7 +5650,7 @@ enum ChartPainter {
                 }
                 return out
             }
-            catLabels = c.categories.map { n in categoryText(c.categoryAxisDeleted ? "" : holdWords(n), catSize, slotName(n, horizontal ? (c.categoryLevels.isEmpty && !(c.valueReversed && c.onSlide) ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : c.onEdges && c.type == .line ? slot * Double(c.categories.count) / Double(c.categories.count - 1) * Double(max(1, c.categoryLabelSkip)) : max(slot * Double(max(1, c.categoryLabelSkip)) - (c.onSlide ? 4.5 : 2) * k, 8 * k))) }
+            catLabels = c.categories.map { n in categoryText(c.categoryAxisDeleted ? "" : holdWords(n), catSize, slotName(n, horizontal ? (c.categoryLevels.isEmpty && !(c.valueReversed && c.onSlide) ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : c.onEdges && c.type == .line ? slot * Double(c.categories.count) / Double(c.categories.count - 1) * Double(max(1, c.categoryLabelSkip)) : max(slot * Double(max(1, c.categoryLabelSkip)) - (c.onSlide ? 4.5 : !c.onSheet && !c.styled2013 && !c.chartex && c.axisFont == nil && c.type == .column && c.barView == nil ? 0 : 2) * k, 8 * k))) }
             if !horizontal, c.type != .area, !c.categoryAxisDeleted, let turn = c.categoryLabelTurn {
                 // As the file says: turned (up to a quarter, either way) or
                 // level.
@@ -5803,15 +5807,20 @@ enum ChartPainter {
             // (A 2013-style slide chart with no value-axis ticks: the value labels end off the axis by 0.773 of their line
             // height, as a bar chart's names do (#1606), not a fixed 8.5 pt: PowerPoint's print of 6de30c85 p3, Calibri 18 pt,
             // 16.7 pt off, plot at 175.0, where ours stood 11.0 off at 169.3. The labels move out with the plot.)
+            // (A plain column chart in a Word document, 2007-style: the value labels stand off the axis by 0.927 of their size (9.3 pt at 10 pt), not 11.1,
+            // the plot starts 4.3 pt further left and ends 2.0 pt further right: sa1 90385e38e1 p4, both charts, plot 141.4 to 485.5 where ours stood 145.7 to 483.5,
+            // labels ending 132.1, as Word's print has them.)
+            let wordPlainCol = !libre && !c.styled2013 && !c.chartex && c.type == .column && c.barView == nil && c.plotLayout == nil && !horizontal && !c.onSheet && !c.onSlide
             let valGap: Double = (c.onSlide && c.styled2013 && !c.chartex && !c.valueTicksOut && !word && !libre && (valueLabels.first?.height ?? 0) > 0)
-                ? max(8.5, 0.773 * (valueLabels.first?.height ?? 0) / k - 2.9) : (c.styled2013 ? 8.5 : 11.1)
+                ? max(8.5, 0.773 * (valueLabels.first?.height ?? 0) / k - 2.9) : (c.styled2013 ? 8.5 : wordPlainCol ? 0.927 * labelSize : 11.1)
+            if wordPlainCol { valueLabelsBack = (11.1 - valGap) * k }
             if c.styled2013, valGap > 8.5 { valueLabelsBack = -(valGap - 8.5) * k; RuleTrace.hit("slide-value-labels-stand-off-by-their-line-height") }
             // (A 2007-style chart on a slide: its value labels stand off the plot by 0.927 of their size, whether or not the axis has ticks or a
             // line: PowerPoint's print of a 27-chart lab, 6 pt 5.5 off, 8 pt 7.4, 10 pt 9.3, 12 pt 11.1, 18 pt 16.7, with ticks out or none, line or none.)
             let barePlainL = c.onSlide && (!c.legend || c.legendPosition == "r") && !c.styled2013 && c.valueAxisTitle == nil && c.categoryAxisTitle == nil && !word && !libre && !c.chartex && c.barView == nil && !horizontal
             let barePlain = barePlainL && !c.legend
             let bareGap = 0.927 * labelSize * k
-            var left = (valueLabels.map(\.width).max() ?? 0) - padTail + (barePlainL ? bareGap - (area.left - frame.left - 6.5 * k) : valGap * k + besideOut) - (c.chartex && c.onSlide ? 4.5 * k : 0) - (word ? 2.5 * k : libre ? 2.4 * k : 0)
+            var left = (valueLabels.map(\.width).max() ?? 0) - padTail + (barePlainL ? bareGap - (area.left - frame.left - 6.5 * k) : valGap * k + besideOut) - (c.chartex && c.onSlide ? 4.5 * k : 0) - (wordPlainCol ? 2.5 * k : word ? 2.5 * k : libre ? 2.4 * k : 0)
             // (A 2007-style slide chart with no tick marks: its labels stand off the plot by their size, not a
             // fixed gap, and the category labels' gap grows with theirs. Windows' prints of 5864 slide 8
             // in 15 variants, bare of ticks: value labels 8.97 pt off at 10 pt, 14.56 at 16, 21.73 at 24;
@@ -5843,7 +5852,7 @@ enum ChartPainter {
             // categories 151.3 apart, ours 150.9. Not against a legend
             // beside it: tdf149985's, +0.11 so.)
             let legendBeside = c.legend && !c.legendPlaced && ["r", "l", "tr"].contains(c.legendPosition)
-            var right = edges ? (catLabels.last?.width ?? 0) / 2 : ((c.onSlide || word) && c.styled2013 && !legendBeside ? 2.1 : c.onSlide && c.plainText && !c.styled2013 && c.officeStyled && c.title == nil ? 2 : 4) * k
+            var right = edges ? (catLabels.last?.width ?? 0) / 2 : ((c.onSlide || word) && c.styled2013 && !legendBeside ? 2.1 : wordPlainCol ? 2 : c.onSlide && c.plainText && !c.styled2013 && c.officeStyled && c.title == nil ? 2 : 4) * k
             if edges { left = max(left, (catLabels.first?.width ?? 0) / 2); right = max(right, 4 * k) }
             // (A bar chart on a slide whose value axis is deleted and whose plot is left to PowerPoint: with no value
             // labels the plot starts 11.0 pt inside the frame, not 24.2, and ends 10.6 in, not 12.7: PowerPoint's

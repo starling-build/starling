@@ -81,7 +81,7 @@ enum DocProps {
             let page = (OfficeArt.u32(t, fc + 4 * (n + 1) + 4 * k) & 0x3F_FFFF) * 512
             guard page + 512 <= w.count else { continue }
             let count = Int(w[page + 511])
-            guard count > 0, page + 4 * (count + 1) <= 511 else { continue }
+            guard count > 0, 4 * (count + 1) <= 511 else { continue }
             for i in 0 ..< count {
                 let f0 = OfficeArt.u32(w, page + 4 * i), f1 = OfficeArt.u32(w, page + 4 * (i + 1))
                 var g: [UInt8] = []
@@ -106,7 +106,15 @@ enum DocProps {
                     let width = pc.compressed ? 1 : 2
                     let a = max(f0, pc.fc), b = min(f1, pc.fc + (pc.cpEnd - pc.cp) * width)
                     guard b > a else { continue }
-                    out.append(DocPropRun(cp: pc.cp + (a - pc.fc) / width, cpEnd: pc.cp + (b - pc.fc + width - 1) / width, grpprl: g, istd: istd))
+                    // A piece's own modifier comes after the paragraph's or character's sprms (sgc 1 paragraph, 2 character).
+                    var gp = g
+                    if !pc.grpprl.isEmpty {
+                        for s in sprms(pc.grpprl) where (s.op >> 10 & 7) == (paragraph ? 1 : 2) {
+                            let len: [UInt8] = s.op >> 13 != 6 ? [] : s.op == 0xD608 ? [UInt8((s.operand.count + 1) & 255), UInt8((s.operand.count + 1) >> 8)] : [UInt8(s.operand.count)]
+                            gp += [UInt8(s.op & 255), UInt8(s.op >> 8)] + len + s.operand
+                        }
+                    }
+                    out.append(DocPropRun(cp: pc.cp + (a - pc.fc) / width, cpEnd: pc.cp + (b - pc.fc + width - 1) / width, grpprl: gp, istd: istd))
                 }
             }
         }
@@ -183,12 +191,15 @@ enum DocProps {
         var keepNext = false, keepLines = false, pageBreak = false, widow: Bool?
         var before: Int?, after: Int?, line: (Int, Int)?
         var left: Int?, right: Int?, first: Int?, jc: String?
+        var ilfo = 0, ilvl = 0
         for s in sprms(g) where s.sgc == 1 {
             switch s.op {
             case 0x2406: keepNext = s.u8 == 1
             case 0x2405: keepLines = s.u8 == 1
             case 0x2407: pageBreak = s.u8 == 1
             case 0x2431: widow = s.u8 == 1
+            case 0x460B: ilfo = s.i16
+            case 0x260A: ilvl = s.u8
             case 0xA413: before = s.u16
             case 0xA414: after = s.u16
             case 0x6412: if s.operand.count >= 4 { line = (OfficeArt.u16(s.operand, 0), OfficeArt.u16(s.operand, 2)) }
@@ -203,6 +214,7 @@ enum DocProps {
         if keepLines { x += "<w:keepLines/>" }
         if pageBreak { x += "<w:pageBreakBefore/>" }
         if let widow { x += widow ? "<w:widowControl/>" : "<w:widowControl w:val=\"0\"/>" }
+        if ilfo > 0 { x += "<w:numPr><w:ilvl w:val=\"\(min(ilvl, 8))\"/><w:numId w:val=\"\(ilfo)\"/></w:numPr>" }
         if before != nil || after != nil || line != nil {
             x += "<w:spacing"
             if let before { x += " w:before=\"\(before)\"" }
@@ -222,6 +234,185 @@ enum DocProps {
         }
         if let jc { x += "<w:jc w:val=\"\(jc)\"/>" }
         return x.isEmpty ? "" : "<w:pPr>" + x + "</w:pPr>"
+    }
+
+    /// A symbol character (font name, code as hex) set by the symbol sprm, or nil.
+    static func symbol(_ g: [UInt8], fonts: [String]) -> (String, String)? {
+        for s in sprms(g) where s.op == 0x6A09 && s.operand.count >= 4 {
+            let f = s.u16, ch = OfficeArt.u16(s.operand, 2)
+            guard f < fonts.count, !fonts[f].isEmpty else { return nil }
+            return (attr(fonts[f]), hex(UInt8(ch >> 8)) + hex(UInt8(ch & 255)))
+        }
+        return nil
+    }
+
+    // MARK: tables
+
+    /// Whether a paragraph's properties put it in a table, and whether its mark ends a row.
+    static func tableFlags(_ g: [UInt8]) -> (inTable: Bool, rowEnd: Bool) {
+        var a = false, r = false
+        for s in sprms(g) where s.sgc == 1 {
+            if s.op == 0x2416 { a = s.u8 == 1 }
+            if s.op == 0x2417 { r = s.u8 == 1 }
+        }
+        return (a, r)
+    }
+
+    private static func brc(_ tag: String, width: Int, type: Int, ico c: Int, rgb: String? = nil) -> String {
+        if type == 0 || type == 0xFF || width == 0 { return "<w:\(tag) w:val=\"nil\"/>" }
+        let v = [1: "single", 2: "single", 3: "double", 5: "single", 6: "dotted", 7: "dashed", 8: "dotDash", 9: "dotDotDash",
+                 10: "triple", 20: "wave", 22: "outset", 21: "inset"][type] ?? "single"
+        let col = rgb ?? (c > 0 && c < ico.count ? ico[c] : "auto")
+        return "<w:\(tag) w:val=\"\(v)\" w:sz=\"\(max(2, min(96, width)))\" w:space=\"0\" w:color=\"\(col)\"/>"
+    }
+
+    private static func shade(_ v: Int) -> String {
+        let fore = v & 31, back = v >> 5 & 31, pat = v >> 10 & 63
+        let c = pat == 1 ? fore : back
+        return c > 0 && c < ico.count ? ico[c] : ""
+    }
+
+    /// The table properties, column widths, row properties and per-cell properties of the row a TAP sprm list describes.
+    static func row(_ g: [UInt8]) -> (tblPr: String, grid: [Int], trPr: String, cells: [(span: Int, merged: Bool, pr: String)])? {
+        var edges: [Int] = [], tcs: [[UInt8]] = []
+        var jc = "", gap = 0, shd: [Int] = [], height = 0
+        var tb: [String] = [], header = false, cant = false
+        let names = ["top", "left", "bottom", "right", "insideH", "insideV"]
+        for s in sprms(g) where s.sgc == 5 {
+            switch s.op {
+            case 0xD608:
+                let o = s.operand
+                guard o.count >= 3 else { break }
+                let n = Int(o[0])
+                guard o.count >= 1 + 2 * (n + 1) else { break }
+                edges = (0 ... n).map { let v = OfficeArt.u16(o, 1 + 2 * $0); return v >= 0x8000 ? v - 0x10000 : v }
+                tcs = (0 ..< n).map { k in
+                    let a = 1 + 2 * (n + 1) + 20 * k
+                    return a + 20 <= o.count ? Array(o[a ..< a + 20]) : []
+                }
+            case 0x5400: jc = ["left", "center", "right"][min(s.u16 & 0xFF, 2)]
+            case 0x9602: gap = s.i16
+            case 0x9407: height = s.i16
+            case 0x3404: header = s.u8 != 0
+            case 0x3403: cant = s.u8 != 0
+            case 0xD609: shd = stride(from: 0, to: s.operand.count - 1, by: 2).map { OfficeArt.u16(s.operand, $0) }
+            case 0xD613:
+                let o = s.operand
+                tb = (0 ..< 6).map { k in
+                    let a = 8 * k
+                    guard a + 8 <= o.count else { return "" }
+                    let rgb = o[a + 3] == 0xFF ? nil : hex(o[a]) + hex(o[a + 1]) + hex(o[a + 2])
+                    return brc(names[k], width: Int(o[a + 4]), type: Int(o[a + 5]), ico: 0, rgb: rgb)
+                }
+            case 0xD605 where tb.isEmpty:
+                let o = s.operand
+                tb = (0 ..< 6).map { k in
+                    let a = 4 * k
+                    guard a + 4 <= o.count else { return "" }
+                    return brc(names[k], width: Int(o[a]), type: Int(o[a + 1]), ico: Int(o[a + 2]) & 31)
+                }
+            default: break
+            }
+        }
+        guard edges.count >= 2 else { return nil }
+        let n = edges.count - 1
+        let grid = (0 ..< n).map { max(0, edges[$0 + 1] - edges[$0]) }
+        var tblPr = "<w:tblPr><w:tblW w:w=\"\(edges[n] - edges[0])\" w:type=\"dxa\"/>"
+        if !jc.isEmpty { tblPr += "<w:jc w:val=\"\(jc)\"/>" }
+        tblPr += "<w:tblInd w:w=\"\(edges[0] + gap)\" w:type=\"dxa\"/>"
+        let real = tb.filter { !$0.isEmpty }
+        if !real.isEmpty { tblPr += "<w:tblBorders>" + real.joined() + "</w:tblBorders>" }
+        tblPr += "<w:tblLayout w:type=\"fixed\"/><w:tblCellMar><w:left w:w=\"\(gap)\" w:type=\"dxa\"/><w:right w:w=\"\(gap)\" w:type=\"dxa\"/></w:tblCellMar></w:tblPr>"
+        var trPr = ""
+        if cant { trPr += "<w:cantSplit/>" }
+        if height != 0 { trPr += height < 0 ? "<w:trHeight w:val=\"\(-height)\" w:hRule=\"exact\"/>" : "<w:trHeight w:val=\"\(height)\" w:hRule=\"atLeast\"/>" }
+        if header { trPr += "<w:tblHeader/>" }
+        var cells: [(span: Int, merged: Bool, pr: String)] = []
+        var k = 0
+        while k < n {
+            let tc = k < tcs.count ? tcs[k] : []
+            let flags = tc.count >= 2 ? OfficeArt.u16(tc, 0) : 0
+            let hm = flags & 3, vm = flags >> 5 & 3, va = flags >> 7 & 3
+            if hm == 2 { cells.append((0, true, "")); k += 1; continue }
+            var span = 1, w = grid[k]
+            if hm == 1 { while k + span < n, k + span < tcs.count, tcs[k + span].count >= 2, OfficeArt.u16(tcs[k + span], 0) & 3 == 2 { w += grid[k + span]; span += 1 } }
+            var pr = "<w:tcPr><w:tcW w:w=\"\(w)\" w:type=\"dxa\"/>"
+            if span > 1 { pr += "<w:gridSpan w:val=\"\(span)\"/>" }
+            if vm == 1 { pr += "<w:vMerge/>" } else if vm == 2 { pr += "<w:vMerge w:val=\"restart\"/>" }
+            if tc.count >= 20 {
+                let b = [("top", 4), ("left", 8), ("bottom", 12), ("right", 16)].map { brc($0.0, width: Int(tc[$0.1]), type: Int(tc[$0.1 + 1]), ico: Int(tc[$0.1 + 2]) & 31) }
+                let some = b.filter { !$0.contains("w:val=\"nil\"") }
+                if !some.isEmpty { pr += "<w:tcBorders>" + some.joined() + "</w:tcBorders>" }
+            }
+            if k < shd.count { let f = shade(shd[k]); if !f.isEmpty { pr += "<w:shd w:val=\"clear\" w:color=\"auto\" w:fill=\"\(f)\"/>" } }
+            if va > 0 { pr += "<w:vAlign w:val=\"\(va == 1 ? "center" : "bottom")\"/>" }
+            pr += "</w:tcPr>"
+            cells.append((span, false, pr))
+            k += span
+        }
+        return (tblPr, grid, trPr.isEmpty ? "" : "<w:trPr>" + trPr + "</w:trPr>", cells)
+    }
+
+    // MARK: lists
+
+    /// numbering.xml from the list tables (PlfLst: the list definitions; PlfLfo: the numbers paragraphs refer to).
+    static func numbering(_ t: [UInt8], lst: (fc: Int, lcb: Int), lfo: (fc: Int, lcb: Int)?, fonts: [String]) -> String? {
+        let end = lst.fc + lst.lcb
+        guard lst.fc >= 0, end <= t.count, lst.lcb >= 2 else { return nil }
+        let cLst = OfficeArt.u16(t, lst.fc)
+        var p = lst.fc + 2
+        var lsids: [Int] = [], simple: [Bool] = []
+        for _ in 0 ..< cLst {
+            guard p + 28 <= end else { return nil }
+            lsids.append(OfficeArt.u32(t, p)); simple.append(t[p + 26] & 1 != 0)
+            p += 28
+        }
+        let fmts: [Int: String] = [0: "decimal", 1: "upperRoman", 2: "lowerRoman", 3: "upperLetter", 4: "lowerLetter", 5: "ordinal",
+                                   22: "decimalZero", 23: "bullet", 255: "none"]
+        var abs = ""
+        for li in 0 ..< cLst {
+            abs += "<w:abstractNum w:abstractNumId=\"\(li)\"><w:multiLevelType w:val=\"\(simple[li] ? "singleLevel" : "multilevel")\"/>"
+            for lv in 0 ..< (simple[li] ? 1 : 9) {
+                guard p + 28 <= end else { break }
+                let start = OfficeArt.u32(t, p), nfc = Int(t[p + 4]), fl = Int(t[p + 5])
+                let nums = Array(t[p + 6 ..< p + 15]), follow = Int(t[p + 15])
+                let cbC = Int(t[p + 24]), cbP = Int(t[p + 25])
+                p += 28
+                guard p + cbP + cbC + 2 <= end else { break }
+                let pap = Array(t[p ..< p + cbP]), chp = Array(t[p + cbP ..< p + cbP + cbC])
+                p += cbP + cbC
+                let cch = OfficeArt.u16(t, p); p += 2
+                guard p + 2 * cch <= end else { break }
+                var text = ""
+                for k in 0 ..< cch {
+                    let c = OfficeArt.u16(t, p + 2 * k)
+                    if c < 9 { text += "%\(c + 1)" } else if let u = Unicode.Scalar(c) { text += attr(String(Character(u))) }
+                }
+                p += 2 * cch
+                var rp = rPr(chp, fonts: fonts)
+                if nfc == 23, rp.isEmpty { rp = "" }
+                let ppr = pPr(pap)
+                abs += "<w:lvl w:ilvl=\"\(lv)\"><w:start w:val=\"\(start)\"/><w:numFmt w:val=\"\(fmts[nfc] ?? "decimal")\"/>"
+                if fl & 4 != 0 { abs += "<w:isLgl/>" }
+                abs += "<w:suff w:val=\"\(follow == 1 ? "space" : follow == 2 ? "nothing" : "tab")\"/>"
+                abs += "<w:lvlText w:val=\"\(text)\"/><w:lvlJc w:val=\"\(["left", "center", "right"][min(fl & 3, 2)])\"/>"
+                abs += ppr + rp + "</w:lvl>"
+                _ = nums
+            }
+            abs += "</w:abstractNum>"
+        }
+        var nums = ""
+        if let lfo, lfo.fc + 4 <= t.count {
+            let n = OfficeArt.u32(t, lfo.fc)
+            for k in 0 ..< n {
+                let a = lfo.fc + 4 + 16 * k
+                guard a + 16 <= t.count else { break }
+                let id = OfficeArt.u32(t, a)
+                let idx = lsids.firstIndex(of: id) ?? 0
+                nums += "<w:num w:numId=\"\(k + 1)\"><w:abstractNumId w:val=\"\(idx)\"/></w:num>"
+            }
+        }
+        return abs.isEmpty || nums.isEmpty ? nil : abs + nums
     }
 
     /// The styles of the STSH as `w:style` elements, and the document's default font number.
