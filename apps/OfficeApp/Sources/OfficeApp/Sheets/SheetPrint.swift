@@ -257,7 +257,8 @@ enum SheetPrintLayout {
             s = 1
             let totalW = cols.reduce(0) { $0 + width($1) }, totalH = rows.reduce(0) { $0 + height($1) }
             if let n = setup.fitWidth, n > 0 { s = min(s, availW0 * Double(n) / (totalW + titleWidth * Double(n))) }
-            if let n = setup.fitHeight, n > 0 { s = min(s, availH0 * Double(n) / (totalH + titleHeight * Double(n))) }
+            // Excel counts the repeated title rows once more than the page count when fitting the height (fr-c8df50734c, 2 pages: 92%, not 94%).
+            if let n = setup.fitHeight, n > 0 { s = min(s, availH0 * Double(n) / (totalH + titleHeight * Double(n + 1))) }
             // Excel's fit is a whole percent, the largest at which the pages
             // asked for hold everything.
             s = max(0.1, (s * 100).rounded(.down) / 100)
