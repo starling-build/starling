@@ -436,7 +436,7 @@ extension SheetGridState {
                                                  width: { ca.size($0) }, height: { ra.size($0) })
                 // (With titles repeating, no page is blank: Excel prints them all.)
                 if names.titleRows != nil || names.titleCols != nil { return job }
-                return (_withoutTrailingBlanks(job.pages, ws: ws, book: book, overThenDown: setup.overThenDown), job.scale)
+                return (_withoutTrailingBlanks(job.pages, ws: ws, book: book, overThenDown: setup.overThenDown, styledBlanks: !names.areas.isEmpty), job.scale)
             }
             parts.append(Part(sheet: si, setup: setup, names: names, jobs: jobs))
         }
@@ -456,7 +456,7 @@ extension SheetGridState {
     /// last page that has anything on it — a value, a fill or border, a
     /// merged area, a drawing, text running in from a neighbour. A blank
     /// page between printed ones stays, and the first always does.
-    private func _withoutTrailingBlanks(_ pages: [SheetPage], ws: Worksheet, book: Workbook, overThenDown: Bool) -> [SheetPage] {
+    private func _withoutTrailingBlanks(_ pages: [SheetPage], ws: Worksheet, book: Workbook, overThenDown: Bool, styledBlanks: Bool = false) -> [SheetPage] {
         guard pages.count > 1 else { return pages }
         // Each row and column to the band it prints in.
         var rowBands: [[Int]] = [], colBands: [[Int]] = []
@@ -481,7 +481,9 @@ extension SheetGridState {
                 }
             } else if cell.style != 0 {
                 let st = book.style(cell.style)
-                if st.fill != nil || st.borders != CellStyle.Borders() { filled.insert([r, c]) }
+                // (Inside a print area a blank cell of any style of its own is in the used range: xls-20af187900's
+                // area A1:X20 with a column break at V has Excel print the page of V1:V4, blank but for a font.)
+                if st.fill != nil || st.borders != CellStyle.Borders() || (styledBlanks && st != book.style(0)) { filled.insert([r, c]) }
             }
         }
         for (a, v) in ws.spilled where !v.isEmpty { fill(CellRange(top: a.row, left: a.col, bottom: a.row, right: a.col)) }
