@@ -338,8 +338,13 @@ extension RichLayout {
     }
 
     /// A space with no ink (U+3000 and the other non-ASCII blanks) is not drawn by Word or PowerPoint, and their PDF text layer has none of
-    /// them (0 of 756 Word prints, 0 of 2073 Excel prints). It is laid out as before, but painted clear, which the PDF leaves out.
+    /// them (0 of 756 Word prints; Excel prints DO keep them, 4563 in the 62 xlsx2 prints, so Sheets does not use this path). It is laid out as before, but painted clear, which the PDF leaves out.
     static func _isInklessBlank(_ u: UInt32) -> Bool { u == 0x3000 || u == 0x2003 || u == 0x2002 || u == 0x2009 || u == 0x200A || u == 0x2005 || u == 0x2006 || u == 0x2007 || u == 0x2008 || u == 0x2004 }
+
+    static func _hasBlank(_ t: TextSpan) -> Bool {
+        if let x = t.text, x.unicodeScalars.contains(where: { _isInklessBlank($0.value) }) { return true }
+        return (t.children ?? []).contains { ($0 as? TextSpan).map { _hasBlank($0) } ?? false }
+    }
 
     static func _hideBlanks(_ t: TextSpan, _ inherited: TextStyle?) -> TextSpan {
         let own = inherited.map { $0.merge(t.style) } ?? t.style
@@ -372,7 +377,8 @@ extension RichLayout {
                        held: Set<Int> = [], spread: [Int: Double] = [:], fitProbe: Bool = false, autoSpaces: ((Int, Double) -> Void)? = nil)
         -> (TextSpan, [(image: ImageAttachment?, dimensions: PlaceholderDimensions)], [Int]) {
         var r = _spanUnhidden(for: p, at: index, document, textWidth: textWidth, lead: lead, adjust: adjust, held: held, spread: spread, fitProbe: fitProbe, autoSpaces: autoSpaces)
-        r.0 = Self._hideBlanks(r.0, nil)
+        // Word only: in a deck the lone blank run takes another face's line (PowerPoint titles 2-4 pt off, pptx-pilot c0c961a37b2a473a 100 to 98.8), so Slides keeps the blank in its text.
+        if theme.wordRules, Self._hasBlank(r.0) { r.0 = Self._hideBlanks(r.0, nil) }
         return r
     }
 
