@@ -223,7 +223,7 @@ enum XlsBuild {
         var defRowHeight: (Int, Bool)? = nil
         var pendingFormula: (Int, Int, Int, String)? = nil
         // Shared and array formulas, by their first cell, found before the cells that use them.
-        var shared: [Int: [UInt8]] = [:], arrays: [Int: (String, [UInt8])] = [:]
+        var shared: [Int: [UInt8]] = [:], sharedRanges: [(Int, Int, Int, Int, Int)] = [], arrays: [Int: (String, [UInt8])] = [:]
         do {
             var k = i, d = 0
             while k < recs.count {
@@ -233,9 +233,9 @@ enum XlsBuild {
                 if d != 1 { continue }
                 var bc = BiffCursor(q)
                 if q.type == 0x4BC, q.body.count >= 10 {
-                    let r1 = bc.u16(); bc.skip(2); let c1 = bc.u8()
+                    let r1 = bc.u16(), r2 = bc.u16(), c1 = bc.u8(), c2 = bc.u8()
                     let n = Int(q.body[8]) | Int(q.body[9]) << 8
-                    if 10 + n <= q.body.count { shared[r1 << 8 | c1] = Array(q.body[10 ..< 10 + n]) }
+                    if 10 + n <= q.body.count { shared[r1 << 8 | c1] = Array(q.body[10 ..< 10 + n]); sharedRanges.append((r1, r2, c1, c2, r1 << 8 | c1)) }
                 } else if q.type == 0x221, q.body.count >= 14 {
                     let r1 = bc.u16(), r2 = bc.u16(), c1 = bc.u8(), c2 = bc.u8()
                     let n = Int(q.body[12]) | Int(q.body[13]) << 8
@@ -338,7 +338,7 @@ enum XlsBuild {
                         if fr == r, fc == col, let t = XlsFormula.decompile(ar, row: r, col: col, relative: false, ctx: ctx) {
                             f = "<f t=\"array\" ref=\"\(rng)\">\(esc(t))</f>"
                         }
-                    } else if let sh = shared[key], let t = XlsFormula.decompile(sh, row: r, col: col, relative: true, ctx: ctx) {
+                    } else if let sh = shared[key] ?? sharedRanges.first(where: { fr >= $0.0 && fr <= $0.1 && fc >= $0.2 && fc <= $0.3 }).flatMap({ shared[$0.4] }), let t = XlsFormula.decompile(sh, row: r, col: col, relative: true, ctx: ctx) {
                         f = "<f>\(esc(t))</f>"
                     }
                 } else if let t = XlsFormula.decompile(rg, row: r, col: col, relative: false, ctx: ctx) {
