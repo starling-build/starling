@@ -9682,6 +9682,29 @@ extension ChartPainter {
                 }
                 at = Offset(at.dx + m[0] * frame.width, at.dy + m[1] * frame.height)
             }
+            // (PowerPoint, a slide pie's outside label that pressed against the chart's edge would cover the rim's point by more than
+            // a line of its own is not pressed there but moved out beside the pie, its middle 1.09 of the radius across and its foot
+            // held 4.7 pt in the frame, with a leader from the rim: pie-lab12's controls and set c, 12 pt "6, 6, 4" at 60 degrees on a
+            // 420 pt chart. Set b's 12 pt box, 7 pt over the rim's point, keeps its place with no leader, as sets a and b with room do.
+            // The narrower widths Word gives set c are not explained yet, so the box keeps its natural one.)
+            var roomMoved = false
+            if c.onSlide, c.type == .pie, !c.onSheet, point == nil, c.ofPie == nil, inner == 0, l.outside, !fitsInside, moved == nil,
+               abs(dy) > 0.8, c.pieLabels?.position == "bestFit" || c.pieLabels?.position == nil {
+                // (The box as its natural layout has it, against the room under or over the rim's point.)
+                let keptWidth = (tp.computeLineMetrics().map { $0.width }.max() ?? tp.width) + 1
+                tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2 - wordLabelRoom))
+                let bh = tp.height + pad
+                let rim = centre.dy + (dy > 0 ? 1 : -1) * ry
+                let room = dy > 0 ? frame.bottom - rim : rim - frame.top
+                let lines = max(1, tp.computeLineMetrics().count)
+                if bh - room > tp.height / Double(lines) {
+                    let side: Double = centre.dx - frame.left < frame.right - centre.dx ? 1 : -1
+                    at = Offset(centre.dx + side * 1.09 * rx, dy > 0 ? frame.bottom - 4.7 * k - bh / 2 : frame.top + 4.7 * k + bh / 2)
+                    roomMoved = true
+                } else {
+                    tp.layout(minWidth: 0, maxWidth: keptWidth)
+                }
+            }
             // (Kept inside the frame: Word's labels over a 3-D pie's top
             // stand under the frame's edge in lab p3d, where ours were cut.)
             // (PowerPoint, a slide pie's label left in place: its box is kept in the chart frame, lab pie-lab1
@@ -9748,7 +9771,7 @@ extension ChartPainter {
             let leftOut = l.outside && !fitsInside
             // The leader: from the slice's outer edge to the box's nearest
             // point, where the label has left its slice.
-            if l.leaders || (spreadMoved && l.leadersUnset), moved != nil || leftOut || spreadMoved {
+            if roomMoved || (l.leaders || (spreadMoved && l.leadersUnset)) && (moved != nil || leftOut || spreadMoved) {
                 // (A doughnut's leader ends in the middle of its ring: tdf161607's, Excel's print.)
                 let from = on(s.mid, c.type == .doughnut ? (1 + Double(c.holeSize) / 100) / 2 : 1)
                 let to = Offset(min(max(from.dx, box.left), box.right), min(max(from.dy, box.top), box.bottom))
