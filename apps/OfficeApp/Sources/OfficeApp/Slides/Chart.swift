@@ -5186,7 +5186,7 @@ enum ChartPainter {
             guard c.onSheet, !c.chartex, !horizontal, c.type != .scatter, !c.type.isPie else { return nil }
             // (The axis spans 0.968 of the chart's height less 36pt flat, 0.455 of it less 21pt in a 3-D chart: the labels' own rows.)
             let h = area0.height / k
-            let span = c.barView != nil || c.line3D ? 0.455 * h - 20.8 : 0.968 * h - 36.1
+            let span = (c.barView != nil || c.line3D) && c.barView?.rightAngles != true ? 0.455 * h - 20.8 : 0.968 * h - 36.1
             return max(2, min(10, Int(span / 13)))
         }()
         var valueScale = c.percent ? (lo: 0.0, hi: 1.0, step: 0.1) : scale(lo, max(hi, c.valueMax ?? hi), intervals: tableSteps ?? acrossSteps ?? writerSteps ?? sheetSteps ?? hiddenSlideSteps ?? 10,
