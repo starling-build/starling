@@ -2891,7 +2891,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 case .top: y0 = _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .top)
                 case .center:
                     // (Text taller than the longest row Excel has (409.5 pt) starts at the row's head, not centred past it; a text only a little over its row stays centred, 49273: CVLKRA-KYC's 38 lines in a row of 409.5 pt, Excel's first at the row's top + 0.8 pt.)
-                    let over = n * pitch + one > 409.5 * scale
+                    let over = n * pitch + one > min(409.5 * scale, bottom - top)
                     y0 = over ? _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .top)
                         : _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .center) - n / 2 * pitch - lift
                 case .bottom: y0 = _footTop(st, book, ws, row: a.row, texts.painter("X", style), bottom: bottom) - n * pitch
