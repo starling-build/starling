@@ -18,7 +18,7 @@ extension RichLayout {
     ]
 
     /// true when the named Latin face is known and its cmap lacks `u`; nil when the face is not in the table.
-    static func _latinFaceLacks(_ face: String, _ u: UInt32) -> Bool? {
+    public static func _latinFaceLacks(_ face: String, _ u: UInt32) -> Bool? {
         guard (0x2010 ... 0x2BFF).contains(u), let ranges = _latinSymbolCmap[face.lowercased()] else { return nil }
         return !ranges.contains { $0.contains(u) }
     }

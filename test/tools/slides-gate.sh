@@ -63,6 +63,15 @@ if [ "${ZH_SET:-1}" != 0 ] && [ -s "$ZH/baseline-zh-win.tsv" ] && [ -s "$ZH/base
   done
   [ -z "$MISS" ] && { ZX=1; { cat "$BASEALL"; cat "$ZH/baseline-zh-win.tsv"; } > "$W/base-all-zh.tsv"; BASEALL=$W/base-all-zh.tsv; }
 fi
+# The CJK set r1 (amd-8, 2026-11-22): pptx-cjk-r1 (cache) holds decks/<stem>.pptx (130 pptx, 114 legacy .ppt that PowerPoint converted) and powerpoint-win/<stem>-orig.pdf;
+# a deck with no print is left out. It has no fixed baseline: it is judged base against PR, so only in base mode. CJK_SET=0 turns it off.
+CJ=${CJK_DIR:-$CC-cjk-r1}
+if [ "${CJK_SET:-1}" != 0 ] && [ -n "${BASE_BIN:-}" ] && [ -d "$CJ/decks" ]; then
+  for f in "$CJ"/decks/*.pptx; do
+    n=${f##*/}; s=${n%.pptx}; [ -f "$CJ/powerpoint-win/$s-orig.pdf" ] || continue
+    ln -sf "$f" "$W/in/$n"; ln -sf "$CJ/powerpoint-win/$s-orig.pdf" "$W/ppt/"
+  done
+fi
 [ -s "$CC/baseline-lines-win.tsv" ] || MISS="$MISS $CC/baseline-lines-win.tsv"
 if [ -s "$PB" ] && ! ls "$PILOT"/baseline-*lines*.tsv >/dev/null 2>&1; then MISS="$MISS $PILOT/baseline-lines-pilot-win.tsv"; fi
 [ -z "$MISS" ] || { [ -n "${BASE_BIN:-}" ] && echo "slides-gate: note, fixed-baseline inputs missing (base mode, not needed):$MISS" || { echo "slides-gate: FAILED, missing:$MISS"; exit 1; }; }

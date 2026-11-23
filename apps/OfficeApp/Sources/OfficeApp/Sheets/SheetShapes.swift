@@ -21,11 +21,15 @@ struct ShapeRun: Equatable {
     var size: Double          // points
     var bold = false, italic = false, underline = false
     var color: Color? = nil
+    /// `a:latin@typeface` when it names a face (not a theme slot such as +mn-lt).
+    var face: String? = nil
 }
 
 struct ShapeParagraph: Equatable {
     var align = "l"           // l, ctr, r, just
     var runs: [ShapeRun] = []
+    /// `a:endParaRPr@sz`: the size of an empty paragraph's line.
+    var endSize: Double? = nil
     /// An equation the paragraph holds (`a14:m`'s `m:oMathPara` or
     /// `m:oMath`, in mc:Choice), drawn through WriterMath, and its size.
     var math: ShapeMath? = nil
@@ -44,6 +48,8 @@ struct SheetShape: Equatable {
     var line: Color?
     var lineWidth: Double     // points
     var paragraphs: [ShapeParagraph] = []
+    /// `bodyPr@upright`: the shape turns, its text stays upright.
+    var upright = false
     var anchor = "t"          // bodyPr@anchor: t, ctr, b
     var insets = (left: 7.2, top: 3.6, right: 7.2, bottom: 3.6)
     var textColor: Color? = nil
@@ -72,7 +78,7 @@ struct SheetShape: Equatable {
     static func == (a: SheetShape, b: SheetShape) -> Bool {
         a.geometry == b.geometry && a.fill == b.fill && a.line == b.line && a.lineWidth == b.lineWidth
             && a.paragraphs == b.paragraphs && a.anchor == b.anchor && a.textColor == b.textColor
-            && a.rotation == b.rotation && a.children == b.children && a.headArrow == b.headArrow && a.tailArrow == b.tailArrow
+            && a.rotation == b.rotation && a.upright == b.upright && a.children == b.children && a.headArrow == b.headArrow && a.tailArrow == b.tailArrow
     }
 
     /// A group (`grpSp`): its members placed by its child coordinate space
@@ -156,12 +162,14 @@ struct SheetShape: Equatable {
         if let body = sp.child("txBody") {
             if let b = body.child("bodyPr") {
                 s.anchor = b["anchor"] ?? "t"
+                s.upright = b["upright"] == "1"
                 func emu(_ k: String, _ d: Double) -> Double { b[k].flatMap(Double.init).map { $0 / 12700 } ?? d }
                 s.insets = (emu("lIns", 7.2), emu("tIns", 3.6), emu("rIns", 7.2), emu("bIns", 3.6))
             }
             for p in body.kids("p") {
                 var para = ShapeParagraph(align: p.child("pPr")?["algn"] ?? "l")
                 let defaults = p.child("pPr")?.child("defRPr")
+                para.endSize = p.child("endParaRPr")?["sz"].flatMap(Double.init).map { $0 / 100 }
                 for r in p.children {
                     let local = r.name.split(separator: ":").last ?? ""
                     if local == "br" { para.runs.append(ShapeRun(text: "\n", size: 11)); continue }
@@ -182,6 +190,7 @@ struct SheetShape: Equatable {
                     var run = ShapeRun(text: t.text, size: attr("sz").flatMap(Double.init).map { $0 / 100 } ?? 11)
                     run.bold = attr("b") == "1"; run.italic = attr("i") == "1"
                     run.underline = (attr("u") ?? "none") != "none"
+                    if let f = rp?.child("latin")?["typeface"], !f.isEmpty, !f.hasPrefix("+") { run.face = f }
                     run.color = color(rp?.child("solidFill") ?? defaults?.child("solidFill"))
                     para.runs.append(run)
                 }
@@ -204,7 +213,7 @@ struct SheetShape: Equatable {
     }
 
     /// Draw it into `r` at `k` pixels per point.
-    func paint(_ canvas: any Canvas, in r: Rect, pxPerPt k: Double, font: String) {
+    func paint(_ canvas: any Canvas, in r: Rect, pxPerPt k: Double, font: String, lineHeight: Double? = nil) {
         canvas.save()
         defer { canvas.restore() }
         if rotation != 0 {
@@ -226,7 +235,7 @@ struct SheetShape: Equatable {
                 let w = native ? nativeExtent.width * k * fit : r.width, h = native ? nativeExtent.height * k * fit : r.height
                 let cr = Rect.fromLTWH(r.left + f.left * w, r.top + f.top * h, f.width * w, f.height * h)
                 guard cr.width > 0.5 || cr.height > 0.5 else { continue }
-                child.shape.paint(canvas, in: cr, pxPerPt: k, font: font)
+                child.shape.paint(canvas, in: cr, pxPerPt: k, font: font, lineHeight: lineHeight)
             }
             return
         }
@@ -264,29 +273,42 @@ struct SheetShape: Equatable {
             }
         }
         guard paragraphs.contains(where: { !$0.runs.isEmpty || $0.math != nil }) else { return }
-        let box = Rect.fromLTRB(r.left + insets.left * k, r.top + insets.top * k, r.right - insets.right * k, r.bottom - insets.bottom * k)
+        // (An upright text of a shape turned a quarter lies in the box as it stands on the page.)
+        let tr = upright && rotation != 0 ? unturned(r) : r
+        // (A rounded rectangle's text lies inside its corners: its preset's text rectangle is inset by 0.29289 of the radius.)
+        let corner = geometry == "roundRect" ? min(tr.width, tr.height) * 0.1667 * 0.29289 : 0
+        let box = Rect.fromLTRB(tr.left + corner + insets.left * k, tr.top + corner + insets.top * k, tr.right - corner - insets.right * k, tr.bottom - corner - insets.bottom * k)
         guard box.width > 2 else { return }
+        // Excel's line steps by the face's own line (13.43 pt for Calibri 11); the painter lays a line out in whole
+        // units, so a sheet's text is laid out `over` times larger and drawn back at 1/over.
+        let over: Double = lineHeight == nil ? 1 : 8
         var painters: [TextPainter] = []
         // An equation's box in place of its paragraph's text, by index.
         var equations: [Int: WriterMath.Box] = [:]
         for (i, para) in paragraphs.enumerated() {
             if para.runs.isEmpty, let m = para.math, let eq = WriterMath.box(m.node, size: m.size) { equations[i] = eq }
-            let spans = (para.runs.isEmpty ? [ShapeRun(text: " ", size: 11)] : para.runs).map { run -> InlineSpan in
+            let spans = (para.runs.isEmpty ? [ShapeRun(text: " ", size: para.endSize ?? 11)] : para.runs).map { run -> InlineSpan in
                 TextSpan(text: run.text, style: Flutter.TextStyle(
-                    color: run.color ?? textColor ?? Color(0xFF000000), fontSize: max(3, run.size * k),
-                    fontWeight: run.bold ? .bold : .normal, fontStyle: run.italic ? .italic : .normal,
-                    decoration: run.underline ? .underline : nil, fontFamily: font))
+                    color: run.color ?? textColor ?? Color(0xFF000000), fontSize: max(3, run.size * k) * over,
+                    fontWeight: run.bold ? .bold : .normal, fontStyle: run.italic ? .italic : .normal, height: run.face.flatMap { lineHeight == nil ? nil : SheetPrintMetrics.lineEm(family: $0) } ?? lineHeight,
+                    decoration: run.underline ? .underline : nil, fontFamily: run.face.map { OfficeFonts.drawn($0) } ?? font))
             }
             let align: TextAlign = para.align == "ctr" ? .center : para.align == "r" ? .right : para.align == "just" ? .justify : .left
             let tp = TextPainter(text: TextSpan(children: spans), textAlign: align, textDirection: .ltr)
-            tp.layout(minWidth: box.width, maxWidth: box.width)
+            tp.layout(minWidth: box.width * over, maxWidth: box.width * over)
             painters.append(tp)
         }
-        func tall(_ i: Int) -> Double { equations[i].map { ($0.ascent + $0.descent) * k } ?? painters[i].height }
+        func tall(_ i: Int) -> Double { equations[i].map { ($0.ascent + $0.descent) * k } ?? painters[i].height / over }
         let height = painters.indices.reduce(0) { $0 + tall($1) }
         var y = anchor == "ctr" ? box.center.dy - height / 2 : anchor == "b" ? box.bottom - height : box.top
         canvas.save()
-        canvas.clipRect(r)
+        if upright, rotation != 0 {
+            let c = r.center
+            canvas.translate(c.dx, c.dy)
+            canvas.rotate(-rotation * .pi / 180)
+            canvas.translate(-c.dx, -c.dy)
+        }
+        canvas.clipRect(tr)
         for (i, tp) in painters.enumerated() {
             if let eq = equations[i] {
                 let w = eq.width * k
@@ -297,7 +319,11 @@ struct SheetShape: Equatable {
                 eq.draw(canvas, Offset(0, eq.ascent))
                 canvas.restore()
             } else {
-                tp.paint(canvas, Offset(box.left, y))
+                canvas.save()
+                canvas.translate(box.left, y)
+                canvas.scale(1 / over, 1 / over)
+                tp.paint(canvas, Offset(0, 0))
+                canvas.restore()
             }
             y += tall(i)
             tp.dispose()

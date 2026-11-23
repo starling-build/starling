@@ -98,8 +98,7 @@ enum ReadBench {
             t4 = now()
             what = "\(deck.slides.count) slides, \(deck.slides.reduce(0) { $0 + $1.shapes.count }) shapes"
         case "xlsx", "csv", "tsv":
-            let book = path.pathExtension.lowercased() == "xlsx" ? try Xlsx.read(data)
-                : Csv.read(String(decoding: data, as: UTF8.self), name: name.deletingPathExtension)
+            let book = try Workbook.open(data, name: name)
             t2 = now()
             let c = WorkbookController()
             c.load(book)

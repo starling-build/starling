@@ -1222,6 +1222,7 @@ final class DeckController: ChangeNotifier {
             || (st.keepsFirstSpace && tt.omitsLeadingSpace) {
             let fresh = _textTheme(font: st.font ?? theme.bodyFont, size: st.size, color: st.color)
             fresh.listIndent = st.listIndent
+            if st.textTurn == 0, st.textStacked == 0 { fresh.faceResolver = { var f = SlideFonts.face($0, $1); f?.boldIdeographScale = nil; return f } }
             if st.keepsFirstSpace { fresh.omitsLeadingSpace = false }
             if st.naturalLines { Self.naturalLines(fresh, font: st.font ?? theme.bodyFont, doc: st.text) }
             shape.textTheme = fresh
@@ -1332,8 +1333,10 @@ final class DeckController: ChangeNotifier {
     private func _make(_ st: ShapeState) -> SlideShape {
         let theme = st.text == nil ? nil : _textTheme(font: st.font ?? self.theme.bodyFont, size: st.size, color: st.color)
         theme?.listIndent = st.listIndent
-        if st.keepsFirstSpace { theme?.omitsLeadingSpace = false }
+        // (The emboldened ideograph's 0.983 step is a column's: along a horizontal line it steps a full em, lab vk against 1892a5a76df6 p207.)
+        if st.textTurn == 0, st.textStacked == 0 { theme?.faceResolver = { var f = SlideFonts.face($0, $1); f?.boldIdeographScale = nil; return f } }
         if st.naturalLines, let theme { Self.naturalLines(theme, font: st.font ?? self.theme.bodyFont, doc: st.text) }
+        if st.textTurn > 0, !st.uprightIdeographs, let theme { let own = theme.ownDescentShare; theme.ownDescentShare = { SlideFonts.sidewaysColumnShare($0) ?? own?($0) } }
         let shape = SlideShape(id: st.id, name: st.name, kind: st.kind, frame: st.frame,
                                text: st.text.map(_textController), textTheme: theme,
                                anchor: st.anchor, prompt: st.prompt)
@@ -1428,6 +1431,8 @@ final class DeckController: ChangeNotifier {
         theme.fontFamilyResolver = SlideFonts.resolve
         theme.baselineScalesWithSpacing = SlideFonts.isArabicLineFace
         theme.ownDescentShare = SlideFonts.ownDescentShare   // and sets a baseline by the face named
+        theme.faceMissingOnWindows = { OfficeFonts.installed($0) == nil && SlideFonts.ownDescentShare($0) == nil && SlideFonts.diagramEastAsianLine($0) == nil }
+        theme.uprightColumn = { SlideFonts.uprightColumn($0, bold: $1) }
         theme.faceResolver = SlideFonts.face                 // and sets Lucida Sans Unicode at its own widths
         theme.setsFaceAdvances = true
         theme.symbolAdvance = Metafile.symbolAdvance   // and sets a Symbol run's glyphs at the face's own advances
@@ -1444,6 +1449,7 @@ final class DeckController: ChangeNotifier {
         theme.marksEmptyListItems = false   // PowerPoint shows no bullet on an empty paragraph
         theme.markersAtHang = true          // and puts the bullet at marL + indent
         theme.singleLineHeight = 1.2        // spaces lines by the size, not the face
+        theme.exactSingleLineEm = { SlideFonts.exactSingleLineEm($0) }
         theme.omitsLeadingSpace = true      // and leaves out the space before a body's first paragraph
         theme.disablesLigatures = true      // and sets "tt" as two letters
         theme.outlineOverFill = true

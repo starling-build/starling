@@ -60,7 +60,10 @@ extension RichLayout {
     /// the span, or nil where no line holds two faces.
     func _mixedFaceLinesSpan(_ span: TextSpan, _ p: RichParagraph, _ painter: TextPainter) -> TextSpan? {
         guard theme.exactLinesAsPowerPoint, let single = theme.singleLineHeight, p.style.lineHeightPoints == nil,
-              abs(max(0.1, p.style.lineSpacing - theme.lineSpacingReduction) - 1) < 1e-9 else { return nil }
+              p.style.lineSpacing > 0 else { return nil }
+        // (A proportional line, 90% of the single line: the pieces' line scales with it.)
+        let factor = max(0.1, p.style.lineSpacing - theme.lineSpacingReduction)
+        // (Above single spacing the plain path already sets the pitch as PowerPoint does; the split gave 27.5 pt for 28.8 at 120%.)
         // The lines, as ranges of the painter's text.
         var lines: [(Int, Int)] = []
         var at = 0
@@ -117,11 +120,20 @@ extension RichLayout {
         }
         guard Set(perLine.flatMap { $0.map(\.name) }).count > 1 else { return nil }
         // Each line's (ascent, descent, height) in the style's units.
+        // (PowerPoint's lines of one paragraph step by one pitch, so where every line is as tall as the others they share ONE split
+        // of it: the tallest ascent and deepest depth of the whole paragraph. A split of its own per line made the step between two
+        // lines down(1) + up(2), 27.5 pt for 28.8 at 120% in d46fe10bdc99 p12, where one line held a SimSun piece and the next did not.)
+        let heights = perLine.map { pcs in single * factor * (pcs.map(\.size).max() ?? 0) }
+        let uniform = Set(heights.filter { $0 > 0 }.map { ($0 * 100).rounded() }).count == 1
+        let allA = perLine.flatMap { $0 }.map { $0.size * (single - $0.depth) }.max() ?? 0
+        let allD = perLine.flatMap { $0 }.map { $0.size * $0.depth }.max() ?? 0
+        RichLayout._mixedLinesShare = nil
+        if uniform, allA + allD > 0 { RichLayout._mixedLinesShare = (allD / (allA + allD), (perLine.flatMap { $0 }.map(\.size).max() ?? 0)) }
         let splits: [(up: Double, down: Double, height: Double)?] = perLine.map { pieces in
             guard !pieces.isEmpty else { return nil }
-            let a = pieces.map { $0.size * (single - $0.depth) }.max() ?? 0
-            let d = pieces.map { $0.size * $0.depth }.max() ?? 0
-            let h = single * (pieces.map(\.size).max() ?? 0)
+            let a = uniform ? allA : (pieces.map { $0.size * (single - $0.depth) }.max() ?? 0)
+            let d = uniform ? allD : (pieces.map { $0.size * $0.depth }.max() ?? 0)
+            let h = single * factor * (pieces.map(\.size).max() ?? 0)
             guard a + d > 0 else { return nil }
             return (h * a / (a + d), h * d / (a + d), h)
         }
@@ -149,5 +161,44 @@ extension RichLayout {
             return TextSpan(text: nil, children: parts + kids, style: t.style, recognizer: t.recognizer, locale: t.locale)
         }
         return rebuild(span) as? TextSpan
+    }
+}
+
+extension RichLayout {
+    /// A piece the run's own face may not have the letters of (any script past Latin) is drawn by whatever face has them, and the
+    /// engine sets a line to the tallest ascent plus the deepest descent of the faces on it, so one line of a paragraph came out
+    /// taller than the next (ce81583c p1's 72 pt Arabic title at 200%: 175.8 pt and 172.8). PowerPoint's line is the face the run
+    /// asked for. Each such piece is held to the split of its own style's face, by the descent share of the face the run is set in
+    /// (the substitute for a missing face), not by drawing a probe, which a fallback draws too.
+    static func _holdingFallbackSplit(_ span: TextSpan, theme: RichTextTheme) -> TextSpan {
+        // (A piece the NAMED face has every glyph of is drawn by it, so no fallback line is in play: the named face's own cmap decides
+        // where it is measured (RichLayout._latinFaceLacks, U+2010-2BFF); past that range and past Latin a Latin-class face lacks the glyph.)
+        func mayFallBack(_ s: String, named: String) -> Bool {
+            s.unicodeScalars.contains { u in
+                guard u.value >= 0x250 else { return false }
+                return RichLayout._latinFaceLacks(named, u.value) ?? true
+            }
+        }
+        func faceName(_ x: TextStyle) -> String {
+            var name = x.debugLabel ?? x.fontFamily ?? ""
+            while name.hasSuffix(".copyWith") || name.hasPrefix("(") {
+                name = name.hasSuffix(".copyWith") ? String(name.dropLast(9)) : name
+                if name.hasPrefix("(") && name.hasSuffix(")") { name = String(name.dropFirst().dropLast()) } else { break }
+            }
+            return name.trimmingWhitespace().lowercased()
+        }
+        func walk(_ s: InlineSpan) -> InlineSpan {
+            guard let t = s as? TextSpan else { return s }
+            var st = t.style
+            if let x = st, let text = t.text, x.ascentOverride == nil, let fs = x.fontSize, fs > 0.5, let h = x.height, mayFallBack(text, named: faceName(x)) {
+                let share = theme.descentShare(family: x.fontFamily, bold: x.fontWeight == .bold, italic: x.fontStyle == .italic)
+                if share > 0, share < 1 {
+                    let total = h * fs
+                    st = x.copyWith(ascentOverride: total * (1 - share), descentOverride: total * share, height: h)
+                }
+            }
+            return TextSpan(text: t.text, children: t.children?.map { walk($0) }, style: st, recognizer: t.recognizer, locale: t.locale)
+        }
+        return (walk(span) as? TextSpan) ?? span
     }
 }

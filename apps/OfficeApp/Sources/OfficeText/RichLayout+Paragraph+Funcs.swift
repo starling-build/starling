@@ -1501,12 +1501,13 @@ extension _ParaFrame {
                 let again = laidOutPlain(split)
                 RichLayout._mixedOfPainter[ObjectIdentifier(again)] = nil
                 if again.computeLineMetrics().count == painter.computeLineMetrics().count {
-                    painter.dispose(); painter = again; RichLayout._mixedOfPainter[ObjectIdentifier(painter)] = (0, 0)
+                    painter.dispose(); painter = again; RichLayout._mixedOfPainter[ObjectIdentifier(painter)] = RichLayout._mixedLinesShare.map { ($0.depth, $0.size / _px(1)) } ?? (0, 0)
                 } else { again.dispose() }
             }
             return painter
         }
-        func laidOutPlain(_ span: TextSpan) -> TextPainter {
+        func laidOutPlain(_ span0: TextSpan) -> TextPainter {
+            let span = theme.exactLinesAsPowerPoint ? RichLayout._holdingFallbackSplit(span0, theme: theme) : span0
             let rises = RichLayout._risesForNumber(inline)
             numberLift = 0
             // (A number larger than its text lifts the first line alone;
@@ -1543,6 +1544,14 @@ extension _ParaFrame {
                 pil = false
             }
             var strut = pil ? nil : _strut(span, near: spacedOver || thaiNear, wide: thaiNear)
+            // (Slides: a line of so many points is that many whatever faces it mixes. Without a strut each run's box is that tall about
+            // its own face's ascent and descent, and a line of ideographs beside digits in another face stacks to 0.5 pt more than
+            // PowerPoint's 30: 6cb9bf676218 p11's third column steps 30.5 for its 30.0. The line is held by the first run's face.)
+            if strut == nil, !theme.wordRules, theme.exactLinesAsPowerPoint, !pil, style.lineHeightPoints != nil, !style.lineHeightIsMinimum,
+               let lead = _firstLeafStyle(span), let size = lead.fontSize, size > 0.5, let h = lead.height, h > 0.05 {
+                strut = StrutStyle(fontFamily: lead.fontFamily, fontFamilyFallback: lead.fontFamilyFallback, fontSize: size, height: h,
+                                   leadingDistribution: .even, fontWeight: lead.fontWeight, forceStrutHeight: true)
+            }
             if pil, theme.wordRules, RichTextTheme.wordWindowsPages,
                style.lineSpacing > 1.001, style.lineSpacing < 1.5, style.lineHeightPoints == nil, !inline.isEmpty, inline.allSatisfy({ $0.image != nil && $0.image?.float == nil && $0.image?.name != "m:oMath" }),
                let r = _strut(span, near: spacedOver || thaiNear, wide: thaiNear), let rs = r.fontSize, let rh = r.height,

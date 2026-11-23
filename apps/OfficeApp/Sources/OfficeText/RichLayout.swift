@@ -186,6 +186,9 @@ public final class RichTextTheme {
     /// pages have Arial (1.15 by its metrics), Consolas (1.17) and Lucida
     /// Sans Unicode (1.47) all at 1.2; Word's is the face's.
     public var singleLineHeight: Double? = nil
+    /// Slides: a face whose own single line (ascent + descent, ems) differs from `singleLineHeight`'s flat 1.2: what an exact
+    /// line's trailing foot is measured against (`_exactFootExtra`).
+    public var exactSingleLineEm: ((String) -> Double?)? = nil
     /// Whether letters are set one by one, the face's ligatures (Calibri's
     /// "tt", "ti") left out: PowerPoint sets "formatting" 0.6 pt wider
     /// than the engine does with them, and breaks its lines by that.
@@ -333,6 +336,10 @@ public final class RichTextTheme {
     /// line's baseline by the face it names: Verdana's at 0.83 of the
     /// line, where DejaVu Sans, drawing it, has 0.80.
     public var ownDescentShare: ((String) -> Double?)? = nil
+    /// Slides: whether a face is neither installed on Windows nor one the tables know (PowerPoint then draws it as its fallback).
+    public var faceMissingOnWindows: ((String) -> Bool)? = nil
+    /// Slides: an upright East Asian column's own line, in em, by face and weight: usWinAscent and usWinAscent + usWinDescent (nil: unknown).
+    public var uprightColumn: ((String, Bool) -> (ascent: Double, line: Double)?)? = nil
     /// Slides: a face whose first baseline scales with a shrink's line spacing, with no floor under it (see `baselineShift`).
     public var baselineScalesWithSpacing: ((String) -> Bool)? = nil
     /// Slides: the share of a spacing over single's extra that stands
@@ -1658,6 +1665,8 @@ public final class RichLayout {
     /// Paragraphs laid out on `_mixedFaceSpan`'s line, which sets their baseline itself.
     var _mixedFace: [Int: (depth: Double, size: Double)] = [:]
     nonisolated(unsafe) static var _mixing = false
+    /// (depth share, size) of the last uniform multi-line split, for the baseline shift of its paragraph.
+    nonisolated(unsafe) static var _mixedLinesShare: (depth: Double, size: Double)? = nil
     nonisolated(unsafe) static var _mixedOfPainter: [ObjectIdentifier: (depth: Double, size: Double)] = [:]
     var _inlineBoxes: [[Int]] = []
     /// An inline object's own height where its box is a page tall (`_span`), by id.
@@ -2283,7 +2292,7 @@ extension RichTextTheme {
     /// The underline and strikeout rule of the face a run NAMES (position of the rule's top over the baseline and
     /// thickness, in em), from the measured table: PowerPoint draws it so whatever face stands in. Nil where the
     /// face is not in the table.
-    static func ruleMetrics(_ name: String?, bold: Bool, italic: Bool) -> (up: Double, ut: Double, sp: Double, st: Double)? {
+    public static func ruleMetrics(_ name: String?, bold: Bool, italic: Bool) -> (up: Double, ut: Double, sp: Double, st: Double)? {
         guard let name else { return nil }
         let style = (bold ? " bold" : "") + (italic ? " italic" : "")
         let n = name.lowercased().trimmingWhitespace()

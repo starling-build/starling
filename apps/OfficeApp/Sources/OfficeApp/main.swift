@@ -421,6 +421,33 @@ if let i = CommandLine.arguments.firstIndex(of: "--page-roundtrip"), i + 1 < Com
     }
 }
 
+// `--xls-parts <file.xls> <dir>`: the .xlsx parts the reader builds from a legacy workbook, written as files.
+if let i = CommandLine.arguments.firstIndex(of: "--xls-parts"), i + 2 < CommandLine.arguments.count {
+    do {
+        let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+        let dir = CommandLine.arguments[i + 2]
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let cf = try CompoundFile([UInt8](data))
+        guard let wbs = Xls.workbookStream(cf) else { exit(1) }
+        for e in XlsBuild.parts(BiffReader.records(wbs)) ?? [] {
+            try e.data.write(to: URL(fileURLWithPath: dir + "/" + e.name.split(separator: "/").joined(separator: "_")))
+        }
+        exit(0)
+    } catch { exit(1) }
+}
+
+// `--xls-dump <file.xls>`: the streams, record counts and sheets of a legacy workbook.
+if let i = CommandLine.arguments.firstIndex(of: "--xls-dump"), i + 1 < CommandLine.arguments.count {
+    do {
+        let data = try Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+        print(try Xls.dump([UInt8](data)), terminator: "")
+        exit(0)
+    } catch {
+        FileHandle.standardError.write("xls dump failed: \(error)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
+
 // `--sheet-layout <file.xlsx|csv>`: the active sheet as the grid lays it out
 // (SheetLayoutDump) — the native half of test/sheets-layout.sh, which diffs
 // it against `starling.debug('sheet')` in the browser.
@@ -430,11 +457,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--sheet-layout"), i + 1 < Comma
         let src = CommandLine.arguments[i + 1]
         let data = try Data(contentsOf: URL(fileURLWithPath: src))
         let c = WorkbookController()
-        if src.pathExtension.lowercased() == "xlsx" {
-            c.load(try Xlsx.read(data))
-        } else {
-            c.load(Csv.read(String(decoding: data, as: UTF8.self), name: src.lastPathComponent.deletingPathExtension))
-        }
+        c.load(try Workbook.open(data, name: src.lastPathComponent))
         print(SheetLayoutDump.text(c), terminator: "")
         exit(0)
     } catch {
@@ -623,7 +646,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--sheet-pdf"), i + 2 < CommandL
         let src = CommandLine.arguments[i + 1], dst = CommandLine.arguments[i + 2]
         let data = try Data(contentsOf: URL(fileURLWithPath: src))
         let c = WorkbookController()
-        c.load(try Xlsx.read(data))
+        c.load(try Workbook.open(data, name: src.lastPathComponent))
         let grid = SheetGridState(headless: c)
         let cap = Int(ProcessInfo.processInfo.environment["SHEET_PDF_MAX_PAGES"] ?? "") ?? 200
         var done: Bool? = nil
