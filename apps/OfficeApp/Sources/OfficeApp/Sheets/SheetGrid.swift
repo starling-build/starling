@@ -3379,6 +3379,9 @@ final class _TextCache {
     /// column wrapped to other lines and other heights than Excel's.
     func _breakLines(_ text: String, _ style: GridTextStyle, _ maxWidth: Double) -> String {
         var out: [String] = []
+        // (On the grid of whole dots or pixels the widths are whole counts times the unit: compare the counts, so a line exactly
+        // the room is not lost to a float tie. CVLKRA-KYC's "same as" is 198 dots in a room of 198, as Excel sets it on one line.)
+        func le(_ a: Double, _ b: Double) -> Bool { style.screen > 0 ? (a / style.screen).rounded() <= (b / style.screen).rounded() : a <= b }
         for paragraph in text.split(separator: "\n", omittingEmptySubsequences: false) {
             // The places a line may end: at a space, and after a hyphen
             // ("Non-" / "Individual").
@@ -3397,7 +3400,7 @@ final class _TextCache {
             // everything before its hyphen does (52716's "holz@zv.uni-").
             func hangFits(_ text: String, _ used: Double) -> Bool {
                 guard text.hasSuffix("-"), text.count > 1 else { return false }
-                return used + _width(String(text.dropLast()), style) <= maxWidth
+                return le(used + _width(String(text.dropLast()), style), maxWidth)
             }
             // (Spaces where a line breaks are not carried to the next: chart-
             // tdf159450's "Lion …… dd …… XYZ" starts its second line at XYZ.)
@@ -3407,7 +3410,7 @@ final class _TextCache {
                     if piece.text.isEmpty { continue }
                 } else if k > 0 {
                     let w = _width(piece.sep + piece.text, style)
-                    if lineWidth + w <= maxWidth || hangFits(piece.sep + piece.text, lineWidth) { line += piece.sep + piece.text; lineWidth += w; continue }
+                    if le(lineWidth + w, maxWidth) || hangFits(piece.sep + piece.text, lineWidth) { line += piece.sep + piece.text; lineWidth += w; continue }
                     if !line.isEmpty { out.append(line) }
                     line = ""; lineWidth = 0; broken = true
                     if piece.text.isEmpty { continue }
@@ -3415,7 +3418,7 @@ final class _TextCache {
                 var rest = piece.text
                 while !rest.isEmpty {
                     let w = _width(String(rest), style)
-                    if lineWidth + w <= maxWidth || hangFits(String(rest), lineWidth) { line += rest; lineWidth += w; break }
+                    if le(lineWidth + w, maxWidth) || hangFits(String(rest), lineWidth) { line += rest; lineWidth += w; break }
                     if !line.isEmpty { out.append(line); line = ""; lineWidth = 0; continue }
                     // Longer than a line: as many characters as fit, one at least.
                     var cut = rest.index(after: rest.startIndex)
@@ -3425,8 +3428,8 @@ final class _TextCache {
                         // trailing space does: 52716's "ders@rz.uni-" is 153.7
                         // of the screen's 151 px and stands on one line in
                         // Excel's print, where "christian.and" at 154.5 does not.)
-                        if _width(String(rest[..<next]), style) > maxWidth,
-                           !(rest[cut] == "-" && _width(String(rest[..<cut]), style) <= maxWidth) { break }
+                        if !le(_width(String(rest[..<next]), style), maxWidth),
+                           !(rest[cut] == "-" && le(_width(String(rest[..<cut]), style), maxWidth)) { break }
                         cut = next
                     }
                     out.append(String(rest[..<cut])); rest = rest[cut...]
