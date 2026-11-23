@@ -9,6 +9,7 @@
 
 import XCTest
 import Flutter
+import FlutterSwiftBridge
 import OfficeText
 import FlutterSwiftBridge
 @testable import OfficeApp
@@ -28,8 +29,8 @@ final class EngineRound2Tests: XCTestCase {
     }
 
     /// Each line's text range, in UTF-16 offsets.
-    private func lines(_ tp: TextPainter) -> [TextRange] {
-        var out: [TextRange] = []
+    private func lines(_ tp: TextPainter) -> [FlutterSwiftBridge.TextRange] {
+        var out: [FlutterSwiftBridge.TextRange] = []
         var at = 0
         let end = tp.plainText.utf16.count
         while at < end {

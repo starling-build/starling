@@ -129,6 +129,8 @@ public struct CharStyle: Hashable, Codable, Sendable {
     public var bold = false
     /// Bold that came from w:b with no w:bCs on the style or run that set it (a complex-script run does not take it).
     public var boldWithoutBCs = false
+    /// The complex-script weight (w:bCs) a style or run set, kept apart from w:b so a later style that only turns w:b off does not undo it.
+    public var bCsFromStyle: Bool? = nil
     public var italic = false
     public var underline = false
     public var strikethrough = false
