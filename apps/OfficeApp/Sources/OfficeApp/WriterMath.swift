@@ -756,7 +756,8 @@ enum WriterMath {
             // (Slides, Cambria Math: PowerPoint's print of 92ee258e p6 (18 pt) lifts a lone superscript 0.30 em, and with a subscript beside it
             // 0.367 em while the subscript stays where it is alone: 6.6 pt up and 3.7 down, ours were 8.2 and 5.6.)
             let slideTight = WriterMath.slideScope && WriterMath.windows && fixed == nil
-            let upEm = slideTight ? (sub != nil ? 0.367 : 0.30) : 0.38
+            // (A lone superscript in a DISPLAY equation stands 0.367 em too: PowerPoint's print of lo-tdf131553's "A = πr²" at 60 pt is 22.0 up, and eq-lab p7 at 22 pt 8.0.)
+            let upEm = slideTight ? (sub != nil || display ? 0.367 : 0.30) : 0.38
             let up = fixed?.0 ?? max(size * upEm, base.ascent - size * 0.95 + size * upEm) + (slideTight ? 0 : both)
             let baseDepth = base.descent
             let down = fixed?.1 ?? max(size * 0.18, baseDepth - size * 0.22 + size * 0.18) + (slideTight ? 0 : both)
