@@ -362,7 +362,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // a column of bold Arial 10, print at its 12.72, and
             // NumberFormatTests' gaps under its Lucida Sans Typewriter
             // columns at that face's 13.32.
-            let unsized = ws.customDefaultRowHeight ? SheetPrintMetrics.setRow(ws.defaultRowHeightPt, scale: m.rowScale)
+            // (A default face the print box has installed that the tables lack — Noto Sans 11 stored at 16.5, Roboto 10 at 12.75 — prints its
+            // rows at the stored height in the printer's dots: 16.8 and 12.95 in Excel.)
+            let installed = !ws.customDefaultRowHeight && ws.defaultRowHeightPt > 0 && SheetPrintMetrics.isInstalledUnmeasured(book.defaultFontName ?? OfficeFonts.defaultFamily)
+            let unsized = ws.customDefaultRowHeight || installed ? SheetPrintMetrics.setRow(ws.defaultRowHeightPt, scale: m.rowScale)
                 : (ownFace ? max(blank, ownRow) : blank)
             // A merged cell that wraps is no part of its rows' fit:
             // bug66675's dates of Arial 12, merged across A:D, sit in rows
@@ -415,7 +418,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 // 15.75 for 15, print at 14.88 for 14.52 — 39 of the 192-dpi
                 // screen's pixels for 38.
                 let thick = ["thickBot", "thickTop"].filter { ["1", "true"].contains(ws.rowAttrs[r]?[$0] ?? "") }.count
-                fit[r] = max(fit[r] ?? 0, floor) + Double(thick) * 72 / 192 * m.rowScale
+                fit[r] = max(fit[r] ?? 0, floor, installed ? unsized : 0) + Double(thick) * 72 / 192 * m.rowScale
             }
             for (r, line) in fit {
                 // (A row of super- or subscript keeps the file's fit: `Worksheet.scriptRows`.)
