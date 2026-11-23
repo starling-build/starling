@@ -764,7 +764,7 @@ enum XlsBuild {
                 let isChart = k < objTypes.count && objTypes[k] == 5
                 var slot = 0
                 if isChart { guard chartNo < drawing.charts.count else { continue }; chartNo += 1 }
-                else {
+                else if sh.type != 20 || sh.pib != 0 {
                     guard sh.pib > 0, sh.pib <= blips.count, blips[sh.pib - 1] != nil else { continue }
                     slot = drawing.pics.firstIndex(of: sh.pib - 1) ?? { drawing.pics.append(sh.pib - 1); return drawing.pics.count - 1 }()
                 }
@@ -775,6 +775,16 @@ enum XlsBuild {
                 let y0 = rowPt(a[2]) * Double(a[3]) / 256, y1 = rowPt(a[6]) * Double(a[7]) / 256
                 let cx = emu((w - x0 - (colPx(a[4]) - x1)) * 9525), cy = emu((h - y0 - (rowPt(a[6]) - y1)) * 12700)
                 let head = "<xdr:twoCellAnchor editAs=\"oneCell\"><xdr:from><xdr:col>\(a[0])</xdr:col><xdr:colOff>\(emu(x0 * 9525))</xdr:colOff><xdr:row>\(a[2])</xdr:row><xdr:rowOff>\(emu(y0 * 12700))</xdr:rowOff></xdr:from><xdr:to><xdr:col>\(a[4])</xdr:col><xdr:colOff>\(emu(x1 * 9525))</xdr:colOff><xdr:row>\(a[6])</xdr:row><xdr:rowOff>\(emu(y1 * 12700))</xdr:rowOff></xdr:to>"
+                if sh.type == 20, sh.pib == 0 {
+                    // A straight line (msosptLine): its colour and width are the shape's own, black and 0.75 pt when it names none.
+                    let lc = sh.props[0x1C0] ?? 0x8000040
+                    let hex = lc >> 24 == 0 ? [lc & 255, lc >> 8 & 255, lc >> 16 & 255].map { (v: Int) -> String in let d = Array("0123456789ABCDEF"); return String([d[v >> 4], d[v & 15]]) }.joined() : "000000"
+                    let lw = sh.props[0x1CB] ?? 9525
+                    if let flags = sh.props[0x1FF], flags & 8 == 0 { continue }
+                    let wh = max(0, (w - x0 - (colPx(a[4]) - x1)) * 9525), hh = max(0, (h - y0 - (rowPt(a[6]) - y1)) * 12700)
+                    drawing.anchors.append(head + "<xdr:sp macro=\"\" textlink=\"\"><xdr:nvSpPr><xdr:cNvPr id=\"\(sh.id)\" name=\"Line \(sh.id)\"/><xdr:cNvSpPr/></xdr:nvSpPr><xdr:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(emu(wh))\" cy=\"\(emu(hh))\"/></a:xfrm><a:prstGeom prst=\"line\"><a:avLst/></a:prstGeom><a:noFill/><a:ln w=\"\(lw)\"><a:solidFill><a:srgbClr val=\"\(hex)\"/></a:solidFill></a:ln></xdr:spPr></xdr:sp><xdr:clientData/></xdr:twoCellAnchor>")
+                    continue
+                }
                 if isChart {
                     drawing.anchors.append(head + "<xdr:graphicFrame macro=\"\"><xdr:nvGraphicFramePr><xdr:cNvPr id=\"\(sh.id)\" name=\"Chart \(chartNo)\"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr><xdr:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"\(cx)\" cy=\"\(cy)\"/></xdr:xfrm><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/chart\"><c:chart xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" r:id=\"@CHART\(chartNo - 1)@\"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor>")
                 } else {

@@ -710,7 +710,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     }
 
     func _paintDrawing(_ canvas: any Canvas, _ d: SheetDrawing, chart: Chart?, in r: Rect, theme: DeckTheme) {
-        guard r.width > 1, r.height > 1 else { return }
+        // (A straight line along one axis has no extent across it: Excel's 2.25 pt title rule is a shape of zero height.)
+        var isLine = false
+        if case .shape(let shape) = d.kind, SheetShape.lineGeometries.contains(shape.geometry) { isLine = true }
+        guard isLine ? max(r.width, r.height) > 1 : r.width > 1 && r.height > 1 else { return }
         switch d.kind {
         case .other: return
         case .shape(let shape):
