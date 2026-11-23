@@ -142,6 +142,10 @@ struct SheetPrintMetrics {
             screenDigit: [12, 14, 16, 16, 17, 19, 22, 25, 28]),
         "meiryo": Face(digit: [37, 42, 46, 49, 57, 62, 73, 83, 93], row: [113, 128, 140, 149, 152, 164, 190, 216, 242], screenRow: [34, 40, 44, 45, 47, 51, 58, 69, 76],
             screenDigit: [12, 13, 15, 16, 18, 20, 23, 27, 30]),
+        // Meiryo UI: the line pitch Excel prints (lab meiryoui-rows: 97, 109, 118, 131, 141, 164 dots at 8, 9, 10, 11, 12, 14 pt),
+        // about 0.86 of Meiryo's; 10.5, 16 and 18 pt at the same ratio.
+        "meiryo ui": Face(digit: [37, 42, 46, 49, 57, 62, 73, 83, 93], row: [97, 109, 118, 127, 131, 141, 164, 186, 209], screenRow: [27, 33, 37, 38, 40, 44, 51, 62, 69],
+            screenDigit: [12, 13, 15, 16, 18, 20, 23, 27, 30]),
         "ms gothic": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [25, 28, 32, 33, 34, 38, 43, 50, 56],
             screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
         "arial narrow": Face(digit: [31, 34, 38, 40, 42, 46, 53, 61, 68], row: [86, 97, 106, 111, 116, 126, 143, 163, 183], screenRow: [27, 31, 34, 36, 36, 40, 47, 54, 61],
@@ -202,7 +206,7 @@ struct SheetPrintMetrics {
         "ｍｓ ｐゴシック": "ms pgothic", "ｍｓ ゴシック": "ms gothic", "ms ui gothic": "ms pgothic",
         "ms mincho": "ms gothic", "ms pmincho": "ms pgothic", "ｍｓ 明朝": "ms gothic", "ｍｓ ｐ明朝": "ms pgothic",
         "新細明體": "pmingliu", "맑은 고딕": "malgun gothic", "游ゴシック": "yu gothic",
-        "微软雅黑": "microsoft yahei", "メイリオ": "meiryo", "meiryo ui": "meiryo",
+        "微软雅黑": "microsoft yahei", "メイリオ": "meiryo", 
         "ms sans serif": "microsoft sans serif", "黑体": "simhei", "細明體": "mingliu",
         "lucida sans": "lucida sans unicode", "lucida grande": "lucida sans unicode",
         // (Dotum, Gulim and Batang left Windows; Excel prints them as Malgun Gothic.)
