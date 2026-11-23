@@ -1458,7 +1458,24 @@ enum OfficeFonts {
         0x60: 0.5000, 0x61: 0.4600, 0x63: 0.4087, 0x64: 0.4771, 0x65: 0.4429, 0x6F: 0.4600, 0x70: 0.4771, 0x72: 0.2725,
         0x78: 0.3579,
     ]
-static let sylfaenAdvances: [Double] = [
+// (Calibri's own Georgian letters, read from the Windows box's font: Word draws Georgian in Calibri where the run names Calibri as its complex-script face, dx2 4b53bd2f8f3a.)
+    static let calibriRegularGeorgian: [UInt32: Double] = [
+        0x10D0: 0.4521, 0x10D1: 0.5371, 0x10D2: 0.4834, 0x10D3: 0.7783, 0x10D4: 0.4639, 0x10D5: 0.4570, 0x10D6: 0.6440, 0x10D7: 0.8013,
+        0x10D8: 0.5049, 0x10D9: 0.4150, 0x10DA: 0.9683, 0x10DB: 0.5142, 0x10DC: 0.5142, 0x10DD: 0.7051, 0x10DE: 0.4570, 0x10DF: 0.4858,
+        0x10E0: 0.7061, 0x10E1: 0.4980, 0x10E2: 0.7168, 0x10E3: 0.5454, 0x10E4: 0.7642, 0x10E5: 0.4639, 0x10E6: 0.7051, 0x10E7: 0.5024,
+        0x10E8: 0.5142, 0x10E9: 0.5049, 0x10EA: 0.5347, 0x10EB: 0.5142, 0x10EC: 0.4858, 0x10ED: 0.4678, 0x10EE: 0.5142, 0x10EF: 0.6089,
+        0x10F0: 0.4292, 0x10F1: 0.5288, 0x10F2: 0.5376, 0x10F3: 0.4028, 0x10F4: 0.4028, 0x10F5: 0.4707, 0x10F6: 0.8257, 0x10F7: 0.4614,
+        0x10F8: 0.5024, 0x10F9: 0.5273, 0x10FA: 0.5361, 0x10FB: 0.4985, 0x10FC: 0.3340, 0x10FD: 0.4468, 0x10FE: 0.5278, 0x10FF: 0.5371,
+    ]
+    static let calibriBoldGeorgian: [UInt32: Double] = [
+        0x10D0: 0.4824, 0x10D1: 0.5498, 0x10D2: 0.5181, 0x10D3: 0.7842, 0x10D4: 0.4839, 0x10D5: 0.4795, 0x10D6: 0.6606, 0x10D7: 0.8125,
+        0x10D8: 0.5083, 0x10D9: 0.4341, 0x10DA: 1.0083, 0x10DB: 0.5317, 0x10DC: 0.5303, 0x10DD: 0.7329, 0x10DE: 0.4629, 0x10DF: 0.5527,
+        0x10E0: 0.7344, 0x10E1: 0.5127, 0x10E2: 0.7720, 0x10E3: 0.6450, 0x10E4: 0.7969, 0x10E5: 0.4761, 0x10E6: 0.7344, 0x10E7: 0.5278,
+        0x10E8: 0.5317, 0x10E9: 0.5229, 0x10EA: 0.5957, 0x10EB: 0.5317, 0x10EC: 0.4736, 0x10ED: 0.5205, 0x10EE: 0.5303, 0x10EF: 0.6938,
+        0x10F0: 0.4712, 0x10F1: 0.5996, 0x10F2: 0.5669, 0x10F3: 0.4365, 0x10F4: 0.4141, 0x10F5: 0.5225, 0x10F6: 0.8374, 0x10F7: 0.4644,
+        0x10F8: 0.5229, 0x10F9: 0.5498, 0x10FA: 0.5493, 0x10FB: 0.5371, 0x10FC: 0.3535, 0x10FD: 0.4819, 0x10FE: 0.5669, 0x10FF: 0.5498,
+    ]
+    static let sylfaenAdvances: [Double] = [
         0.2500, 0.2651, 0.3481, 0.5000, 0.5004, 0.8398, 0.6002, 0.1718, 0.3271, 0.3271, 0.3120, 0.5000, 0.2500, 0.3789, 0.2500,
         0.3101, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.2500, 0.2500, 0.5000, 0.5000,
         0.5000, 0.3911, 0.9134, 0.7100, 0.6021, 0.6470, 0.7241, 0.5840, 0.5352, 0.7080, 0.7622, 0.3530, 0.3232, 0.6670, 0.5518,
@@ -4981,6 +4998,11 @@ static let sylfaenAdvances: [Double] = [
                 face.naturalHeight = 2322.0 / 2048
                 face.baseline = 1886.0 / 2048
                 RuleTrace.hit("franklin-cond-own-line")
+            }
+            // Georgian letters in Calibri (Word for Windows' Calibri has them; Carlito has none): the font's own widths.
+            if wordOnWindows, family.trimmingWhitespace().lowercased() == "calibri" {
+                face.otherAdvances = (face.otherAdvances ?? [:]).merging(calibriRegularGeorgian) { $1 }
+                face.boldOtherAdvances = (face.boldOtherAdvances ?? face.otherAdvances ?? [:]).merging(calibriBoldGeorgian) { $1 }
             }
             // Sylfaen's own line in Word for Windows' print: win 2062 over and 635 under of 2048 (1.317 em). xs 5ed52035's 11pt
             // Armenian lines (set in GHEA Grapalat, which Word for Windows lacks and draws as Sylfaen) at 1.0667 step 15.5 in Word, where the DejaVu stand-in stepped 14.0; and its own widths.
