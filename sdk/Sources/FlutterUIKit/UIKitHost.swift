@@ -68,7 +68,13 @@ public final class UIKitHost {
             // STARLING_SPIKE_SECOND_VIEW set, the host adds a second view in a corner of
             // the window (fluikit_host.m) and this is the tree it shows.
             if ProcessInfo.processInfo.environment["STARLING_SPIKE_SECOND_VIEW"] != nil {
-                multiViewContentBuilder = { view in SpikeTapTile(viewId: view.viewId) }
+                multiViewContentBuilder = { view in
+                    // STARLING_SPIKE_EMPTY_TREE: a view with nothing in it (isolates the leak from the tree).
+                    if ProcessInfo.processInfo.environment["STARLING_SPIKE_EMPTY_TREE"] != nil {
+                        return SizedBox(width: 1, height: 1) as Widget
+                    }
+                    return SpikeTapTile(viewId: view.viewId) as Widget
+                }
             }
             runApp(box.builder())
         }, box)
@@ -134,7 +140,7 @@ private final class SpikeTapTileState: State<StatefulWidget> {
                 fputs("[spike] view \(id) tap \(self.taps)\n", stderr)
             }, child:
                 ColoredBox(color: taps % 2 == 0 ? Color(0xFF2E7D32) : Color(0xFFEF6C00), child:
-                    Center(child: Text("view \(id): \(taps) taps",
+                    Center(child: Text(ProcessInfo.processInfo.environment["STARLING_SPIKE_FIXED_TEXT"] != nil ? "view" : "view \(id): \(taps) taps",
                                        style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 28))))))
     }
 }

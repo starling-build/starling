@@ -7,6 +7,7 @@
 #import <QuartzCore/QuartzCore.h>
 #import <UIKit/UIKit.h>
 #include <mach/mach.h>
+#include <malloc/malloc.h>
 
 // The process's real argc/argv. UIApplicationMain declares both _Nonnull and
 // forwards them to the app; Swift's `main` has already consumed them by the
@@ -214,9 +215,17 @@ static void* g_open_url_user = NULL;
   int cycles = getenv("STARLING_SPIKE_CYCLES") ? atoi(getenv("STARLING_SPIKE_CYCLES")) : 0;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
     if (cycles <= 0) { [self spikeOneViewIn:window id:1 cyclesLeft:0 total:0]; return; }
-    fprintf(stderr, "[spike] footprint at start: %.1f MB\n", [self spikeFootprintMB]);
+    fprintf(stderr, "[spike] footprint at start: %.1f MB, heap %.1f MB\n", [self spikeFootprintMB], [self spikeHeapMB]);
     [self spikeOneViewIn:window id:1 cyclesLeft:cycles total:cycles];
   });
+}
+
+// The malloc heap's bytes in use, all zones: with the footprint, tells a heap leak (objects)
+// from the rest (textures, mapped memory).
+- (double)spikeHeapMB {
+  malloc_statistics_t st = {0};
+  malloc_zone_statistics(NULL, &st);
+  return st.size_in_use / 1048576.0;
 }
 
 - (double)spikeFootprintMB {
@@ -232,16 +241,22 @@ static void* g_open_url_user = NULL;
   FlUIKitExtraView* host = [[FlUIKitExtraView alloc] initWithFrame:CGRectMake(window.bounds.size.width - size.width - 20, 80, size.width, size.height)];
   host.engine = self.engine;
   host.viewId = viewId;
-  CAMetalLayer* layer = [CAMetalLayer layer];
+  // STARLING_SPIKE_NULL: the same timers and logging with no view at all (the app's own idle drift).
+  BOOL nullRun = getenv("STARLING_SPIKE_NULL") != NULL;
+  CAMetalLayer* layer = nullRun ? nil : [CAMetalLayer layer];
   layer.device = MTLCreateSystemDefaultDevice();
   layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
   layer.opaque = YES;
   layer.contentsScale = scale;
   layer.frame = host.bounds;
   layer.drawableSize = CGSizeMake(size.width * scale, size.height * scale);
-  [host.layer addSublayer:layer];
-  [window addSubview:host];
-  FlutterEngine* engine = self.engine;
+  if (!nullRun) {
+    [host.layer addSublayer:layer];
+    [window addSubview:host];
+  }
+  // STARLING_SPIKE_UI_ONLY: the UIView and its CAMetalLayer come and go, the engine is never told (isolates the leak).
+  BOOL uiOnly = nullRun || getenv("STARLING_SPIKE_UI_ONLY") != NULL;
+  FlutterEngine* engine = uiOnly ? nil : self.engine;
   [engine starlingAddViewWithId:viewId layer:layer size:size pixelRatio:scale done:^(BOOL added) {
     fprintf(stderr, "[spike] AddView(%lld) -> %s\n", viewId, added ? "added" : "REFUSED");
   }];
@@ -256,25 +271,26 @@ static void* g_open_url_user = NULL;
     });
     return;
   }
-  // Resize after 300 ms, remove after 600 ms, the next view after 700 ms.
-  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 300 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+  // Resize after half the view's life (600 ms; STARLING_SPIKE_LIFE_MS), remove at the end of it, the next view 100 ms later.
+  int64_t life = getenv("STARLING_SPIKE_LIFE_MS") ? atoi(getenv("STARLING_SPIKE_LIFE_MS")) : 600;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (life / 2) * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
     CGSize bigger = CGSizeMake(320, 240);
     host.frame = CGRectMake(window.bounds.size.width - bigger.width - 20, 80, bigger.width, bigger.height);
     layer.frame = host.bounds;
     layer.drawableSize = CGSizeMake(bigger.width * scale, bigger.height * scale);
     [engine starlingResizeViewWithId:viewId size:bigger pixelRatio:scale];
   });
-  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 600 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, life * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
     [engine starlingRemoveViewWithId:viewId done:^(BOOL removed) {
       if (!removed) fprintf(stderr, "[spike] RemoveView(%lld) REFUSED\n", viewId);
     }];
     [host removeFromSuperview];
   });
-  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 700 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (life + 100) * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
     int done = total - left + 1;
-    if (done % 10 == 0) fprintf(stderr, "[spike] %d cycles done, footprint %.1f MB\n", done, [self spikeFootprintMB]);
+    if (done % 10 == 0) fprintf(stderr, "[spike] %d cycles done, footprint %.1f MB, heap %.1f MB\n", done, [self spikeFootprintMB], [self spikeHeapMB]);
     if (left > 1) [self spikeOneViewIn:window id:viewId + 1 cyclesLeft:left - 1 total:total];
-    else fprintf(stderr, "[spike] all %d cycles done, footprint %.1f MB\n", total, [self spikeFootprintMB]);
+    else fprintf(stderr, "[spike] all %d cycles done, footprint %.1f MB, heap %.1f MB\n", total, [self spikeFootprintMB], [self spikeHeapMB]);
   });
 }
 
