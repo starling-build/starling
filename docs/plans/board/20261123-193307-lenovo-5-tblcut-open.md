@@ -1,0 +1,4 @@
+# lenovo-5 OPEN: two table gaps left after tblcut (PR #2452)
+
+1. Merged-cell offset (tblcut lab, not fixed): in a two-page table, a row that starts a vertical merge (vMerge restart) and goes on at the head of page 2 sits 0.47 pt off Word's. Plain rows and rows without a merge match to 0.1 pt after #2452. Cause not named; lab tblcut has the 24 tables and Word's prints.
+2. dx2 fb068d8462fe3b2b0c4bdcd532ebbb13de2e92d04103f88f7d8b205ba932ec49: still 40 pages against Word's 39 with #2452, so #2452 does not fix it. Pages 1 to 10 match within 0.1 pt. The first real divergence is page 11, a two-column table: Word's first cell lines are at y 119.8 / 133.6 / 151.3, ours 123.8 / 137.6 / 155.4 (4.0 pt low), and later cell lines drift 44 to 55 pt. So the table row starts 4 pt lower on ours and its cell text breaks into more lines. Next step: wordcmp --line on page 11 to compare the cell widths and the row's top spacing. Not started.
