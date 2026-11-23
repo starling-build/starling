@@ -245,7 +245,7 @@ enum OfficeFonts {
     /// Chinese face and is not one — Word sets its letters, digits and
     /// quotes in a Latin face. (A face Word has it knows whatever the
     /// table says: six files of the corpus declare 宋体 that way.)
-    private nonisolated(unsafe) static var declaredLatin: Set<String> = []
+    private nonisolated(unsafe) static var declaredLatin: Set<String> = [] { didSet { faceGen &+= 1 } }
     #if os(WASI)
     // One thread in the browser, and no NSLock in its Foundation.
     private struct _NoLock { func lock() {}; func unlock() {} }
@@ -259,20 +259,41 @@ enum OfficeFonts {
     /// the stand-in and East Asian face lookups with the same few names; searching by character,
     /// each answer cost more than the rest of the span. Bounded: a long-lived editor that meets
     /// many names starts over rather than grow.
-    nonisolated(unsafe) private static var hasMemo: [String: [String: Bool]] = [:]
+    /// The two strings as one key, hashed and compared by their UTF-8 bytes: String's own hash
+    /// normalises every non-ASCII name (a 宋体 face name is hashed through NFC on every one of the
+    /// ~40 asks per span), which was a third of a Chinese document's whole layout time. Two spellings
+    /// of one name that differ in bytes only get two entries; each holds the same pure answer.
+    private struct HasKey: Hashable {
+        let name: String, key: String
+        static func same(_ x: String, _ y: String) -> Bool {
+            var x = x, y = y
+            return x.withUTF8 { p in y.withUTF8 { q in p.count == q.count && p.elementsEqual(q) } }
+        }
+        static func == (a: HasKey, b: HasKey) -> Bool {
+            same(a.name, b.name) && same(a.key, b.key)
+        }
+        func hash(into h: inout Hasher) {
+            var n = name, k = key
+            n.withUTF8 { h.combine(bytes: UnsafeRawBufferPointer($0)) }
+            h.combine(UInt8(0))
+            k.withUTF8 { h.combine(bytes: UnsafeRawBufferPointer($0)) }
+        }
+    }
+    nonisolated(unsafe) private static var hasMemo: [HasKey: Bool] = [:]
     #if os(WASI)
     private static let hasLock = _NoLock()
     #else
     private static let hasLock = NSLock()
     #endif
     static func faceHas(_ name: String, _ key: String) -> Bool {
+        let k = HasKey(name: name, key: key)
         hasLock.lock()
-        if let hit = hasMemo[name]?[key] { hasLock.unlock(); return hit }
+        if let hit = hasMemo[k] { hasLock.unlock(); return hit }
         hasLock.unlock()
         let answer = name.containsSubstring(key)
         hasLock.lock()
         if hasMemo.count > 4096 { hasMemo.removeAll() }
-        hasMemo[name, default: [:]][key] = answer
+        hasMemo[k] = answer
         hasLock.unlock()
         return answer
     }
@@ -293,14 +314,14 @@ enum OfficeFonts {
     /// file that embeds a face notes it; another that names it without
     /// does not unnote it, nor does it need to (the note only stops the
     /// fallback).
-    nonisolated(unsafe) private static var embedded: Set<String> = []
+    nonisolated(unsafe) private static var embedded: Set<String> = [] { didSet { faceGen &+= 1 } }
     /// The font table's `w:altName` for each East Asian name: the face
     /// Word uses where it has none of the name's own. zh-64044a1d's
     /// cover names 華康粗圓體, alternate 新細明體, and Word's print draws
     /// PMingLiU — where ours took the YaHei this Word falls back to for
     /// a name with no alternate, and the cover's seven 26pt lines came
     /// out three pitches each instead of two (121 pages to Word's 103).
-    nonisolated(unsafe) private static var altNames: [String: String] = [:]
+    nonisolated(unsafe) private static var altNames: [String: String] = [:] { didSet { faceGen &+= 1 } }
     static func noteAltNames(_ names: [String: String]) {
         declaredLock.lock()
         defer { declaredLock.unlock() }
@@ -340,10 +361,10 @@ enum OfficeFonts {
         /// one — the entry Word for Mac reads (lab tsim2, see `eastAsianFace`).
         var lastFamily: String? = nil
     }
-    nonisolated(unsafe) private static var fontEntries: [String: FontEntry] = [:]
+    nonisolated(unsafe) private static var fontEntries: [String: FontEntry] = [:] { didSet { faceGen &+= 1 } }
     /// Whether the document's text holds Devanagari to Malayalam letters: Arial Unicode MS there is the Word layout's own path (Yu Gothic or Leelawadee
     /// UI by run), not the shared missing-face stand-in (which took dx2 31a0a560 from 100 to 3.8).
-    nonisolated(unsafe) private static var indicText = false
+    nonisolated(unsafe) private static var indicText = false { didSet { faceGen &+= 1 } }
     static func noteIndicText(_ on: Bool) { declaredLock.lock(); defer { declaredLock.unlock() }; indicText = on }
     static var documentHasIndicText: Bool { declaredLock.lock(); defer { declaredLock.unlock() }; return indicText }
     static func noteFontEntries(_ entries: [String: FontEntry]) {
@@ -716,19 +737,19 @@ enum OfficeFonts {
     /// drew the platform's (PingFang) for every one. The measure stays
     /// the square model `eastAsianFace` gives an embedded name; the face
     /// changes what is drawn, not where.
-    nonisolated(unsafe) private static var embeddedFaces: [String: String] = [:]
-    nonisolated(unsafe) private static var loadedEmbedded: Set<String> = []
+    nonisolated(unsafe) private static var embeddedFaces: [String: String] = [:] { didSet { faceGen &+= 1 } }
+    nonisolated(unsafe) private static var loadedEmbedded: Set<String> = [] { didSet { faceGen &+= 1 } }
     /// Each loaded embedded face's line (`lineMetrics`).
-    nonisolated(unsafe) private static var embeddedLines: [String: (ascent: Double, descent: Double)] = [:]
+    nonisolated(unsafe) private static var embeddedLines: [String: (ascent: Double, descent: Double)] = [:] { didSet { faceGen &+= 1 } }
     /// The characters each loaded embedded face holds (its `cmap`).
-    nonisolated(unsafe) private static var embeddedCoverage: [String: Set<UInt32>] = [:]
+    nonisolated(unsafe) private static var embeddedCoverage: [String: Set<UInt32>] = [:] { didSet { faceGen &+= 1 } }
     /// Each loaded embedded face's advances for the ASCII letters and
     /// digits it holds (`alnumAdvances`).
-    nonisolated(unsafe) private static var embeddedAlnum: [String: [UInt32: Double]] = [:]
+    nonisolated(unsafe) private static var embeddedAlnum: [String: [UInt32: Double]] = [:] { didSet { faceGen &+= 1 } }
     /// Each loaded embedded face's own family, from its `name` table.
-    nonisolated(unsafe) private static var embeddedNames: [String: String] = [:]
+    nonisolated(unsafe) private static var embeddedNames: [String: String] = [:] { didSet { faceGen &+= 1 } }
     /// The loaded embedded faces that carry bitmaps (`EBDT`).
-    nonisolated(unsafe) private static var embeddedBitmaps: Set<String> = []
+    nonisolated(unsafe) private static var embeddedBitmaps: Set<String> = [] { didSet { faceGen &+= 1 } }
 
     /// Whether an sfnt has table `tag`.
     static func hasTable(_ data: Data, _ tag: String) -> Bool {
@@ -4616,7 +4637,40 @@ enum OfficeFonts {
     /// face itself and the user takes the machine's faces — that face, with
     /// Word's line and baseline for it but none of the widths, scales or
     /// substitutes that make a stand-in pass for it.
+    /// Bumped whenever any state the face choice reads is written (each such variable's didSet), so a
+    /// remembered choice is used only while none changed. A document load sets them all before layout;
+    /// layout then asks for the same few (name, script) pairs once per text span.
+    nonisolated(unsafe) static var faceGen = 0
+    nonisolated(unsafe) private static var faceMemo: [FaceKey: RichResolvedFace?] = [:]
+    nonisolated(unsafe) private static var faceMemoGen = -1
+    private static let faceMemoOn = ProcessInfo.processInfo.environment["OFFICE_RULE_TRACE"] == nil
+    private static let faceMemoLock = hasLock
+    private struct FaceKey: Hashable {
+        let family: String, eastAsian: Bool
+        static func == (a: FaceKey, b: FaceKey) -> Bool {
+            a.eastAsian == b.eastAsian && HasKey.same(a.family, b.family)
+        }
+        func hash(into h: inout Hasher) {
+            var n = family
+            n.withUTF8 { h.combine(bytes: UnsafeRawBufferPointer($0)) }
+            h.combine(eastAsian)
+        }
+    }
     static func face(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
+        guard faceMemoOn, let family else { return faceCentred(family, eastAsian: eastAsian) }
+        let key = FaceKey(family: family, eastAsian: eastAsian)
+        faceMemoLock.lock()
+        if faceMemoGen != faceGen { faceMemo.removeAll(); faceMemoGen = faceGen }
+        if let hit = faceMemo[key] { faceMemoLock.unlock(); return hit }
+        faceMemoLock.unlock()
+        let gen = faceGen
+        let r = faceCentred(family, eastAsian: eastAsian)
+        faceMemoLock.lock()
+        if gen == faceGen, faceMemoGen == gen { faceMemo[key] = .some(r) }
+        faceMemoLock.unlock()
+        return r
+    }
+    private static func faceCentred(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
         guard var f = faceUncentred(family, eastAsian: eastAsian) else { return nil }
         // (Where Word centres a line in an exact one — `w:textAlignment` "center" — lab ctr-exact (Word for Windows, 12 and 16pt
         // in 27 and 22.5pt exact lines): Times' line box for it leaves out the line gap its baseline stands under, 0.021 em
@@ -4710,7 +4764,7 @@ enum OfficeFonts {
     /// so that no baseline moves with the machine's fonts. The web has no
     /// list of the machine's faces: bundled only.
     enum FontSource: String { case local, bundled }
-    nonisolated(unsafe) private static var _fontSource: FontSource? = nil
+    nonisolated(unsafe) private static var _fontSource: FontSource? = nil { didSet { faceGen &+= 1 } }
     static var fontSource: FontSource {
         #if os(WASI)
         return .bundled
@@ -5845,11 +5899,11 @@ enum OfficeFonts {
     /// The faces this platform draws Chinese in where the named one is
     /// missing, after the symbol fallback (`RichTextTheme.glyphFallback`):
     /// what the Latin side of an East Asian family falls back to first.
-    nonisolated(unsafe) static var cjkFallback: [String] = []
+    nonisolated(unsafe) static var cjkFallback: [String] = [] { didSet { faceGen &+= 1 } }
     /// The bundled face a Word font name stands for (Resources/fonts/fonts-aliases.tsv, read with
     /// fonts.tsv at registration): its ideographs are drawn in that face before the glyph fallback's
     /// general chain. Empty where the faces are not bundled (macOS, Windows, the web).
-    nonisolated(unsafe) static var bundledAliases: [String: String] = [:]
+    nonisolated(unsafe) static var bundledAliases: [String: String] = [:] { didSet { faceGen &+= 1 } }
     static func bundledAlias(_ name: String) -> String? {
         bundledAliases.isEmpty ? nil : bundledAliases[name.lowercased()]
     }
