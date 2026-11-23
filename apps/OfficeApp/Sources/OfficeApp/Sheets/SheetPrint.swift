@@ -72,11 +72,14 @@ struct SheetPrintSetup: Equatable {
         let fit = yes(node("sheetPr")?.child("pageSetUpPr")?["fitToPage"])
         if let p = node("pageSetup") {
             // Windows' paper numbers (DMPAPER_*): Letter, Tabloid, Legal,
-            // Executive, A3, A4 (and A4 Small), A5, B4 and B5 (JIS), A6.
+            // Executive, A3, A4 (and A4 Small), A5, B4 and B5 (JIS), A6, Statement,
+            // Folio, Quarto, 10x14, 11x17 and Note.
             let papers: [Int: Size] = [1: Size(612, 792), 2: Size(612, 792), 3: Size(792, 1224), 5: Size(612, 1008),
                                        7: Size(522, 756), 8: Size(841.89, 1190.55), 9: Size(595.28, 841.89),
                                        10: Size(595.28, 841.89), 11: Size(419.53, 595.28), 12: Size(728.5, 1031.81),
-                                       13: Size(515.91, 728.5), 70: Size(297.64, 419.53)]
+                                       13: Size(515.91, 728.5), 70: Size(297.64, 419.53),
+                                       6: Size(396, 612), 14: Size(612, 936), 15: Size(609.45, 779.53), 16: Size(720, 1008),
+                                       17: Size(792, 1224), 18: Size(612, 792)]
             // (With usePrinterDefaults set false Excel takes the printer's paper,
             // not the sheet's: nine of the corpus say A4 that way and print Letter.)
             let printers = p["usePrinterDefaults"] == "false" || p["usePrinterDefaults"] == "0"
