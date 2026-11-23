@@ -3376,6 +3376,12 @@ final class _TextCache {
                 } while !rest.isEmpty
             }
             var line = "", lineWidth = 0.0
+            // A hyphen a line ends on hangs past the room: the piece fits when
+            // everything before its hyphen does (52716's "holz@zv.uni-").
+            func hangFits(_ text: String, _ used: Double) -> Bool {
+                guard text.hasSuffix("-"), text.count > 1 else { return false }
+                return used + _width(String(text.dropLast()), style) <= maxWidth
+            }
             // (Spaces where a line breaks are not carried to the next: chart-
             // tdf159450's "Lion …… dd …… XYZ" starts its second line at XYZ.)
             var broken = false
@@ -3384,7 +3390,7 @@ final class _TextCache {
                     if piece.text.isEmpty { continue }
                 } else if k > 0 {
                     let w = _width(piece.sep + piece.text, style)
-                    if lineWidth + w <= maxWidth { line += piece.sep + piece.text; lineWidth += w; continue }
+                    if lineWidth + w <= maxWidth || hangFits(piece.sep + piece.text, lineWidth) { line += piece.sep + piece.text; lineWidth += w; continue }
                     if !line.isEmpty { out.append(line) }
                     line = ""; lineWidth = 0; broken = true
                     if piece.text.isEmpty { continue }
@@ -3392,7 +3398,7 @@ final class _TextCache {
                 var rest = piece.text
                 while !rest.isEmpty {
                     let w = _width(String(rest), style)
-                    if lineWidth + w <= maxWidth { line += rest; lineWidth += w; break }
+                    if lineWidth + w <= maxWidth || hangFits(String(rest), lineWidth) { line += rest; lineWidth += w; break }
                     if !line.isEmpty { out.append(line); line = ""; lineWidth = 0; continue }
                     // Longer than a line: as many characters as fit, one at least.
                     var cut = rest.index(after: rest.startIndex)
