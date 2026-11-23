@@ -3344,7 +3344,10 @@ final class _TextCache {
     func painter(_ text: String, _ style: GridTextStyle, maxWidth: Double = .infinity, align: TextAlign = .left) -> TextPainter {
         let k = Key(text: text, style: style, width: maxWidth.isFinite ? Int(maxWidth) : -1, align: align)
         if let tp = _cache[k] { return tp }
-        if _cache.count > 4000 { clear() }
+        // Evict without dispose(): a caller still holds painters it took a moment
+        // ago (a wide number's ### re-lays out after fetching its first one), and
+        // a disposed painter traps on .width.
+        if _cache.count > 4000 { _cache.removeAll(); _widths.removeAll() }
         let lines = maxWidth.isFinite ? _breakLines(NumberFormat.unpad(text), style, maxWidth) : text
         let tp = TextPainter(text: _span(lines, style), textAlign: align, textDirection: style.rtl ? .rtl : .ltr)
         tp.layout(minWidth: 0, maxWidth: style.screen > 0 ? .infinity : maxWidth)
