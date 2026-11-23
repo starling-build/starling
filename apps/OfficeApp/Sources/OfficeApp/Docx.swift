@@ -7745,10 +7745,13 @@ enum DocxFormat {
             let digitsOnly = DocxFormat.wordOnWindows && s.unicodeScalars.contains { (0x30 ... 0x39).contains($0.value) }
                 && s.unicodeScalars.allSatisfy { (0x30 ... 0x39).contains($0.value) || "-./:,%".unicodeScalars.contains($0) }
             if (cs.rightToLeft && !digitsOnly) || s.unicodeScalars.contains(where: { (0x0590 ... 0x08FF).contains($0.value) || (0xFB1D ... 0xFDFF).contains($0.value) || (0xFE70 ... 0xFEFF).contains($0.value) }) { cs.csLetters = true }
+            // (… unless the run says w:hint="cs": dx2 1ba3a908's "בדצמבר 2023", w:rtl, hint cs, Hebrew letters, steps like the Arial Hebrew line
+            // around it, 13.8 pt, not Calibri's 14.65 the number's Latin face would give. Persian runs with the same hint keep the number in the Latin
+            // face: xb fas-z2070387's "(1403)" and "14(2)" among B Lotus words, Mitra.)
             // (A right-to-left run of Arabic letters with ASCII numbers inside it: Word draws each number in the Latin face, and that face's line
             // raises the line it is on, Tahoma's 13.3 pt step over Arial's 12.6. dx2 491931cb page 1, Tahoma Latin and B Nazanin cs, "0011234555"
             // among Persian words: Word's lines with a number step 13.3 pt, those without 12.6, ours stayed on Arial's. The number is its own run.)
-            if DocxFormat.wordOnWindows, cs.rightToLeft, !digitsOnly, cs.csLetters, s.unicodeScalars.contains(where: { (0x30 ... 0x39).contains($0.value) }),
+            if DocxFormat.wordOnWindows, cs.rightToLeft, !digitsOnly, !(cs.fontHint == "cs" && s.unicodeScalars.contains { (0x0590 ... 0x05FF).contains($0.value) }), cs.csLetters, s.unicodeScalars.contains(where: { (0x30 ... 0x39).contains($0.value) }),
                s.unicodeScalars.contains(where: { (0x0590 ... 0x08FF).contains($0.value) || (0xFB1D ... 0xFDFF).contains($0.value) || (0xFE70 ... 0xFEFF).contains($0.value) }) {
                 let u = Array(s.unicodeScalars)
                 func isDigit(_ i: Int) -> Bool { (0x30 ... 0x39).contains(u[i].value) }
