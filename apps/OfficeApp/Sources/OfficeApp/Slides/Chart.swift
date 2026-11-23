@@ -698,6 +698,8 @@ struct Chart: Equatable {
     var legendLineRound = false
     var legendFill: Color? = nil
     var plainText = false
+    /// The chart-space text names no size (sz absent): Excel prints it at 10 pt, as a chart with no text properties at all.
+    var sizeUnstated = false
     /// The labels' and legend's size where nothing says one: PowerPoint
     /// 2013's 12 pt for a chart that colours its text (as a new chart
     /// does), the 2007 default of 10 for one that says nothing at all —
@@ -2130,6 +2132,7 @@ enum ChartXML {
             return n.children.contains(where: greyText)
         }
         c.styled2013 = greyText(space)
+        c.sizeUnstated = spaceRun != nil && spaceRun?["sz"] == nil
         c.officeStyled = space.descendant("c:style") != nil
         if let f = spaceRun?.first("a:solidFill") {
             let mods = f.first("a:schemeClr").map { n in n.children.map { "\($0.name)=\($0["val"] ?? "")" }.sorted() } ?? []
