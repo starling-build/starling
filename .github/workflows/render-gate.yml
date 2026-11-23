@@ -4,6 +4,10 @@ name: render-gate
 on:
   pull_request:
     branches: [main]
+  # merge queue (amd-8, 2026-11-23, user): one gate run tests a group of up to 4 queued PRs on top of main (GITHUB_SHA is the group's tip; its
+  # base_sha is main). HEAD is a plain commit chain, not a merge, so render-gate.sh diffs BASE_SHA..HEAD and gate-rebase.sh leaves it alone.
+  merge_group:
+    types: [checks_requested]
 permissions:
   contents: read
   issues: write
@@ -16,7 +20,7 @@ jobs:
   #  render-gate-run (self-hosted) the heavy gate; skipped when classify says "no render-relevant change"
   #  render-gate (ubuntu-latest)  the REQUIRED check (the ruleset names "render-gate"): green when the run job passed or was skipped
   classify:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'merge_group' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -31,7 +35,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
-          gh api --paginate "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" -q '.[]|.filename, (.previous_filename // empty)' | sort -u > files.txt
+          if [ "${{ github.event_name }}" = merge_group ]; then
+            gh api --paginate "repos/${{ github.repository }}/compare/${{ github.event.merge_group.base_sha }}...${{ github.event.merge_group.head_sha }}" -q '.files[]|.filename, (.previous_filename // empty)' | sort -u > files.txt
+          else
+            gh api --paginate "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" -q '.[]|.filename, (.previous_filename // empty)' | sort -u > files.txt
+          fi
           n=$(wc -l < files.txt); echo "changed files: $n"; head -5 files.txt
           PAT=$(grep -vE '^#|^$' test/tools/render-paths.txt | paste -sd'|')
           TOOL='^\.github/workflows/render-gate|^test/tools/(render-gate|docx-pair|docx-combine|docx-line-match|docx-line-sweep|gen-render-paths|slides-gate|pptx-combine)|^test/docx-line-match\.py|^test/pptx-line-match\.py|^test/tools/render-paths\.txt'
@@ -46,7 +54,7 @@ jobs:
       - name: Update persistent clone
         env:
           GH_TOKEN: ${{ github.token }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
         run: |
           set -e
           C=$HOME/clone
@@ -68,7 +76,7 @@ jobs:
       - name: Render gate
         env:
           GH_TOKEN: ${{ github.token }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           # no merge queue any more: every PR runs the full gate (named documents + sample) against its base.
@@ -97,7 +105,7 @@ jobs:
           exit 0
   render-gate:
     needs: [classify, render-gate-run]
-    if: always() && github.event.pull_request.head.repo.full_name == github.repository
+    if: always() && (github.event_name == 'merge_group' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
