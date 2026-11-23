@@ -841,6 +841,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // Excel's print, ours 7.5).
             var stated = chart.statedTextScaled(by: 4.0 / 3)
             stated.onSheet = true
+            // (A bubble whose y is text, a header cell: Excel plots it at 0, as it does a text cell in any chart's values.)
+            for j in stated.series.indices {
+                guard let zs = stated.series[j].bubbleSizes else { continue }
+                for i in stated.series[j].values.indices where stated.series[j].values[i] == nil && (zs[safe: i] ?? nil) != nil { stated.series[j].values[i] = 0 }
+            }
             if stated.textSize == nil, stated.plainText || stated.sizeUnstated, !stated.styled2013 {
                 stated.textSize = 10 * 4.0 / 3
                 if stated.titleSize == nil { stated.titleSize = 18 * 4.0 / 3 }

@@ -5149,6 +5149,29 @@ enum ChartPainter {
             lo = 0; hi = 0
             for s in c.waterfallSpans { lo = min(lo, s.from, s.to); hi = max(hi, s.from, s.to) }
         }
+        // (A bubble chart's axis takes in the discs, not only their centres: chart-bubble_chart_simple's y values 0, 2 and 4 with discs
+        // of up to 35 pt print on -1 to 5, ours 0 to 4.5. The largest disc is a quarter of the plot's shorter side; a disc's radius in
+        // value units follows from the span it stands on, so it is settled by a few passes.)
+        if c.onSheet, c.type == .scatter, c.series.contains(where: { $0.bubbleSizes != nil }) {
+            let plotH = max(40, area0.height / k * 0.968 - 36.1), plotW = max(40, area0.width / k - 40)
+            let top = c.series.compactMap { $0.bubbleSizes?.compactMap { $0 }.max() }.max() ?? 1
+            let full = 0.25 * min(plotW, plotH) * c.bubbleScale / 100
+            var lo2 = lo, hi2 = hi
+            for _ in 0 ..< 4 {
+                var nlo = lo, nhi = hi
+                for ser in c.series {
+                    guard let zs = ser.bubbleSizes else { continue }
+                    for (i, v) in ser.values.enumerated() {
+                        guard let v, let z = zs[safe: i] ?? nil, z > 0, top > 0 else { continue }
+                        let d = c.bubbleByWidth ? full * z / top : full * (z / top).squareRoot()
+                        let r = d / 2 * (hi2 - lo2) / plotH
+                        nlo = min(nlo, v - r); nhi = max(nhi, v + r)
+                    }
+                }
+                lo2 = nlo; hi2 = nhi
+            }
+            lo = lo2; hi = hi2
+        }
         let labelSize = c.valueLabelSize ?? c.baseTextSize
         // (Settled here and captured as constants: the Windows
         // toolchain's optimizer (Swift 6.2.3) fails SIL verification on
@@ -5218,7 +5241,7 @@ enum ChartPainter {
             return max(2, min(10, Int((area0.height / k - 60) / 34)))
         }()
         let sheetSteps: Int? = {
-            guard c.onSheet, !c.chartex, !horizontal, c.type != .scatter, !c.type.isPie else { return nil }
+            guard c.onSheet, !c.chartex, !horizontal, c.type != .scatter || c.series.contains(where: { $0.bubbleSizes != nil }), !c.type.isPie else { return nil }
             // (The axis spans 0.968 of the chart's height less 36pt flat, 0.455 of it less 21pt in a 3-D chart: the labels' own rows.)
             let h = area0.height / k
             let span = (c.barView != nil || c.line3D) && c.barView?.rightAngles != true ? 0.455 * h - 20.8 : 0.968 * h - 36.1
