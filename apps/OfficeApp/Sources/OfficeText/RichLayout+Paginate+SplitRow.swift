@@ -937,6 +937,7 @@ extension RichLayout {
             if theme.wordRules {
                 lift = Self._rowOpensBare(i, j, document) ? 0 : _pg_ruleUnder(&pgs, document, c, parted: true)
                 if lift > 0, !repeats { lift = max(lift, lift + _pg_headLift(&pgs, document, i, j, c)) }
+                if lift > 0, !repeats { lift += _mixedTopLine(i, j, document) }
                 pgs.y += lift
             }
             // (The notes marked in what this page will hold of the row.)

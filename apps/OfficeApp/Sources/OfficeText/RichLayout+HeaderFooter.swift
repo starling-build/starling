@@ -2920,6 +2920,17 @@ extension RichLayout {
             && !_rowHasContinuedTopUnsaid(i, document)
     }
 
+    /// The widest top line any cell of the row of paragraphs `i ..< j` draws, in a table whose own top edge is not
+    /// stated on: Word for Windows sets such a row at a page's head that much lower than ours, text of every cell of
+    /// it (zh-15f60bacd0d, pages 10 to 19: rows of cells saying nil above stand 0.5pt low in ours from the row's first
+    /// line to the page's foot; matched lines 770 to 1215 of 1338).
+    func _mixedTopLine(_ i: Int, _ j: Int, _ document: RichDocument) -> Double {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, j > i, j <= document.paragraphs.count,
+              let first = document.paragraphs[i].cell, let ts = document.tableStyles[first.table], ts.edges?.top != true else { return 0 }
+        let cells = (i ..< j).compactMap { document.paragraphs[$0].cell }
+        return (i ..< j).compactMap { _cells[$0]?.ownTopRule }.max() ?? 0
+    }
+
     /// A cell merged down from above, whose own part of this row does not
     /// say "no top", keeps the row's top line (lab `flbare2`: an opener
     /// whose continued first column states only its right edge sits half a

@@ -1184,6 +1184,11 @@ extension RichLayout {
            shown + extra + _pg_ruleUnder(&pgs, document, c) <= pgs.contentH + 0.01 {
             pgs.y += extra
         }
+        if pgs.y < 0.01, c.firstInRow, c.row > 0, case let mixed = _mixedTopLine(pgs.i, j, document), mixed > 0.01,
+           shown + mixed + _pg_ruleUnder(&pgs, document, c) <= pgs.contentH + 0.01 {
+            RuleTrace.hit("word-row-at-a-page-head-of-mixed-top-lines-stands-under-the-widest")
+            pgs.y += mixed
+        }
         // (A row at a page's head whose every cell says nil above, in a table with no top line of its own, has no line
         // over it: the line under the row before stays on the page before, and the row is that line's room shorter with
         // its text as much higher. sa1 8b5747ec's date row, 27.6pt in Word's print, ours 28.55.)
