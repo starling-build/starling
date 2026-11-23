@@ -157,7 +157,8 @@ build_base() {   # builds BSHA into the shared cache once: the sha lock makes a 
 }
 if [ ! -x "$BC/$BSHA/release/OfficeApp" ] && [ "${GATE_WARM:-0}" != 1 ]; then   # GATE_WARM=1 (gate-warm.sh): warm the PR scratch only, no base
   # normally the prebuild (GATE_PREBUILD=1 render-gate.sh <sha>, after each main push) has filled the cache and this is skipped
-  build_base & BPID=$!
+  # (amd-8, 2026-11-23, design D of amd-opus) base FIRST, then the PR: two wide builds at once on a loaded box (-j 30 each) made the 1302 s and 1689 s gate builds
+  build_base & BPID=$!; wait $BPID; BRC=$?
 fi
 # base cached: render+score the uncached base documents WHILE the PR builds (the base pass needs only the base binary; the
 # build is mostly one thread, so the two overlap). Measured 2026-11-20: the base pass ran after the build and took ~3-4 min.
@@ -178,7 +179,7 @@ if [ "$MODE" = full ] && [ "${GATE_SLIDES:-1}" = 1 ] && [ "${GATE_PREBUILD:-0}" 
   fi
 fi
 [ "${GATE_PREBUILD:-0}" = 1 ] && { echo "render-gate: PR build alone $(( $(date +%s)-TB )) s; changed since this scratch's last build: $( [ -n "$PREV" ] && git diff --name-only "$PREV" HEAD 2>/dev/null | wc -l || echo unknown) files (prev ${PREV:0:9})"; git rev-parse HEAD > "$W/build.rev"; [ "${GATE_WARM:-0}" = 1 ] && { echo "render-gate: scratch warm on $(git rev-parse --short HEAD)"; exit 0; }
-[ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; exit 1; }
+[ -z "${BPID:-}" ] || [ "${BRC:-0}" = 0 ] || { echo "render-gate: BASE BUILD FAILED"; exit 1; }
   BASEBIN=$BC/$BSHA/release/OfficeApp; fill_rows; chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null; echo "render-gate: base $BSHA cached"
   # the Slides BASE render too (amd-8, 2026-11-22): the same sweep the PR gate would otherwise draw for its base, cached per main sha + engine, so the PR gate draws only its own side
   if [ "${GATE_SLIDES:-1}" = 1 ] && [ "${GATE_WARM:-0}" != 1 ] && [ -x "$BASEBIN" ]; then
@@ -186,7 +187,7 @@ fi
     chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null
   fi
   exit 0; }
-[ -z "${BPID:-}" ] || wait $BPID || { echo "render-gate: BASE BUILD FAILED"; tail -15 "$W/base-build.log" | cut -c1-200; exit 1; }
+[ -z "${BPID:-}" ] || [ "${BRC:-0}" = 0 ] || { echo "render-gate: BASE BUILD FAILED"; tail -15 "$W/base-build.log" | cut -c1-200; exit 1; }
 BASEBIN=$BC/$BSHA/release/OfficeApp
 [ -z "$FPID" ] || { wait $FPID; cat "$W/fillrows.out"; echo "render-gate: base rows ready at $(( $(date +%s)-T0 )) s"; }
 BIN=$(ls "$W"/build/*/release/OfficeApp 2>/dev/null | head -1); [ -x "$BIN" ] && [ -x "$BASEBIN" ] || { echo "render-gate: no binary"; exit 2; }
