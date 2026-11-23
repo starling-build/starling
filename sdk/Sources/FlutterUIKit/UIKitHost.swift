@@ -64,6 +64,17 @@ public final class UIKitHost {
             // to know whether this host has a keyboard to offer.
             UIKitSoftKeyboard.install()
             let box = Unmanaged<Box>.fromOpaque(userData).takeUnretainedValue()
+            // The second-surface spike (docs/plans/ipad-multi-window.md, step 1): with
+            // STARLING_SPIKE_SECOND_VIEW set, the host adds a second view in a corner of
+            // the window (fluikit_host.m) and this is the tree it shows.
+            if ProcessInfo.processInfo.environment["STARLING_SPIKE_SECOND_VIEW"] != nil {
+                multiViewContentBuilder = { view in
+                    Directionality(textDirection: .ltr, child:
+                        ColoredBox(color: Color(0xFF2E7D32), child:
+                            Center(child: Text("view \(view.viewId)",
+                                               style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 28)))))
+                }
+            }
             runApp(box.builder())
         }, box)
         // UIApplicationMain only returns on a failure to launch at all, and the
