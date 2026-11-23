@@ -237,6 +237,7 @@ final class CFEvaluator {
             case .cellIs(let op, let f1, let f2):
                 guard !v.isEmpty || op == "equal" || op == "notEqual" else { break }
                 let x = _value(f1, rule, a), c1 = CalcEngine.compare(v, x)
+                if case .error = x { break }     // an error operand matches nothing
                 switch op {
                 case "lessThan": hit = c1 < 0
                 case "lessThanOrEqual": hit = c1 <= 0
