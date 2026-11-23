@@ -1325,9 +1325,10 @@ extension RichLayout {
             // (From the paragraph's top, its space before included, mid-page too: amd-opus's lab 3, eight variants, among them a
             // replica of zh-4e5fe46f p6's table box, all stand a space before above where the text's top would put them.)
         }
+        // (A top-and-bottom picture too: dx2 7d7592a1's ornament, 46.4 under a line, anchored in the title's second line, stands 9.6 pt lower in Word's print than from the paragraph's top.)
         // (From the line: the top of the line the anchor stands in, not the paragraph's first line — dx2 es 335fbcf8's crest, 28.4pt
         // under a line, anchored in the title's second line, stands 14.3pt lower in Word's print than from the title's top.)
-        if theme.wordRules, RichTextTheme.wordWindowsPages, float.verticalAlign == nil, float.verticalFrom == "line", float.wraps == false, pushed == 0,
+        if theme.wordRules, RichTextTheme.wordWindowsPages, float.verticalAlign == nil, float.verticalFrom == "line", float.wraps == false || float.takesRoom, pushed == 0,
            i < _cells.count, _cells[i] == nil, i < _inline.count, let k = _inline[i].firstIndex(where: { $0.id == image.id }),
            k < _inlineBoxes[i].count, let all = g.painter.inlinePlaceholderBoxes, _inlineBoxes[i][k] < all.count {
             let box = all[_inlineBoxes[i][k]]
