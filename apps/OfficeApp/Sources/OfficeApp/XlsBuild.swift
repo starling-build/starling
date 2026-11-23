@@ -242,6 +242,7 @@ enum XlsBuild {
         var cols: [String] = []
         var merges: [String] = []
         var cfGroups: [(sqref: String, base: (Int, Int), rules: [String])] = []
+        var validations: [String] = []
         var cfPriority = 0
         var defColWidth: Int? = nil, stdWidth: Int? = nil
         var defRowHeight: (Int, Bool)? = nil
@@ -485,6 +486,45 @@ enum XlsBuild {
                 if ct == 1, op == 1 || op == 2, let f2v = f2 { rule += "<formula>\(esc(f2v))</formula>" }
                 rule += "</cfRule>"
                 cfGroups[cfGroups.count - 1].rules.append(rule)
+            case 0x1BE where rec.body.count >= 20:
+                // DV: flags, four texts (prompt title, error title, prompt, error), two formulas, the cells.
+                let fl = Int(c.u32())
+                let pt = c.unicodeString16(), et = c.unicodeString16(), pm = c.unicodeString16(), em = c.unicodeString16()
+                let n1 = c.u16(); c.skip(2)
+                let t1 = c.pos + n1 <= rec.body.count ? Array(rec.body[c.pos ..< c.pos + n1]) : []
+                c.skip(n1)
+                let n2 = c.u16(); c.skip(2)
+                let t2 = c.pos + n2 <= rec.body.count ? Array(rec.body[c.pos ..< c.pos + n2]) : []
+                c.skip(n2)
+                let n = c.u16()
+                var refs: [(Int, Int, Int, Int)] = []
+                var k = 0
+                while k < n, c.pos + 8 <= rec.body.count {
+                    let r1 = c.u16(), r2 = c.u16(), c1 = c.u16(), c2 = c.u16()
+                    if r1 <= r2, c1 <= c2 { refs.append((r1, c1, r2, c2)) }
+                    k += 1
+                }
+                guard let first = refs.first else { break }
+                let types = ["none", "whole", "decimal", "list", "date", "time", "textLength", "custom"]
+                let ty = fl & 0xF
+                guard ty > 0, ty < types.count else { break }
+                let ops = ["between", "notBetween", "equal", "notEqual", "greaterThan", "lessThan", "greaterThanOrEqual", "lessThanOrEqual"]
+                let op = fl >> 20 & 0xF
+                var a = "<dataValidation type=\"\(types[ty])\""
+                if fl >> 4 & 7 == 1 { a += " errorStyle=\"warning\"" } else if fl >> 4 & 7 == 2 { a += " errorStyle=\"information\"" }
+                if op > 0, op < ops.count { a += " operator=\"\(ops[op])\"" }
+                if fl & 0x100 != 0 { a += " allowBlank=\"1\"" }
+                if fl & 0x200 != 0, ty == 3 { a += " showDropDown=\"1\"" }
+                if fl & 0x40000 != 0 { a += " showInputMessage=\"1\"" }
+                if fl & 0x80000 != 0 { a += " showErrorMessage=\"1\"" }
+                if !et.isEmpty, et != "\0" { a += " errorTitle=\"\(esc(et))\"" }
+                if !em.isEmpty, em != "\0" { a += " error=\"\(esc(em))\"" }
+                if !pt.isEmpty, pt != "\0" { a += " promptTitle=\"\(esc(pt))\"" }
+                if !pm.isEmpty, pm != "\0" { a += " prompt=\"\(esc(pm))\"" }
+                a += " sqref=\"" + refs.map { cellRange($0.0, $0.1, $0.2, $0.3) }.joined(separator: " ") + "\">"
+                if n1 > 0, let f = XlsFormula.decompile(t1, row: first.0, col: first.1, relative: true, ctx: ctx) { a += "<formula1>\(esc(f))</formula1>" }
+                if n2 > 0, let f = XlsFormula.decompile(t2, row: first.0, col: first.1, relative: true, ctx: ctx) { a += "<formula2>\(esc(f))</formula2>" }
+                validations.append(a + "</dataValidation>")
             case 0xE5 where rec.body.count >= 2:
                 let n = c.u16()
                 var k = 0
@@ -539,6 +579,7 @@ enum XlsBuild {
         for g in cfGroups where !g.rules.isEmpty && !g.sqref.isEmpty {
             x += "<conditionalFormatting sqref=\"\(g.sqref)\">" + g.rules.joined() + "</conditionalFormatting>"
         }
+        if !validations.isEmpty { x += "<dataValidations count=\"\(validations.count)\">" + validations.joined() + "</dataValidations>" }
         x += pageXML(setup: setup, margins: margins, hdrFtr: hdrFtr, margin2: hdrFtrMargins, grid: printGrid, heads: printHeads, hc: hCenter, vc: vCenter, hBreaks: hBreaks, vBreaks: vBreaks)
         return x + "</worksheet>"
     }
