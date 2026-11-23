@@ -30,7 +30,11 @@ struct ArtShape {
     var pib = 0
     var anchor: [Int]? = nil      // colL dxL rwT dyT colR dxR rwB dyB
     var props: [Int: Int] = [:]
+    var complex: [Int: [UInt8]] = [:]   // the data of the complex properties (vertices, text, font name)
     var name: String? = nil
+    var parent = 0                  // the group this shape sits in (0 for the drawing's own top group)
+    var groupRect: [Int]? = nil     // a group's own coordinate space: left, top, right, bottom
+    var childAnchor: [Int]? = nil   // a group member's place in its group's space: left, top, right, bottom
 }
 
 enum OfficeArt {
@@ -65,7 +69,7 @@ enum OfficeArt {
         return out
     }
 
-    private static func fbse(_ b: [UInt8], _ e: ArtRecord) -> ArtBlip? {
+    static func fbse(_ b: [UInt8], _ e: ArtRecord) -> ArtBlip? {
         // btWin32, btMacOS, uid (16), tag, size, cRef, foDelay, unused, cbName, unused, unused, name, then the picture.
         let s = e.body.lowerBound
         let cbName = Int(b.indices.contains(s + 33) ? b[s + 33] : 0)
@@ -74,7 +78,7 @@ enum OfficeArt {
         return blipRecord(b, ArtRecord(ver: u16(b, at) & 0xF, inst: u16(b, at) >> 4, type: u16(b, at + 2), body: at + 8 ..< min(e.body.upperBound, at + 8 + u32(b, at + 4))))
     }
 
-    private static func blipRecord(_ b: [UInt8], _ r: ArtRecord) -> ArtBlip? {
+    static func blipRecord(_ b: [UInt8], _ r: ArtRecord) -> ArtBlip? {
         var p = r.body.lowerBound
         let end = r.body.upperBound
         switch r.type {
@@ -113,12 +117,15 @@ enum OfficeArt {
 
     /// The shapes of a sheet's drawing, in file order. `stream` is every
     /// MSODRAWING record of the sheet joined.
-    static func shapes(drawing b: [UInt8]) -> [ArtShape] {
+    static func shapes(drawing b: [UInt8], in whole: Range<Int>? = nil) -> [ArtShape] {
         var out: [ArtShape] = []
-        func walk(_ r: Range<Int>) {
+        func i32(_ k: Int) -> Int { let v = u32(b, k); return v >= 0x8000_0000 ? v - 0x1_0000_0000 : v }
+        func walk(_ r: Range<Int>, parent: Int = 0, isGroup: Bool = false) {
+            var cur = parent, first = isGroup
             for rec in records(b, in: r) where rec.isContainer {
                 if rec.type == 0xF004 {
                     var s = ArtShape()
+                    s.parent = first ? parent : cur
                     for c in records(b, in: rec.body) {
                         switch c.type {
                         case 0xF00A: s.type = c.inst; s.id = u32(b, c.body.lowerBound); s.flags = u32(b, c.body.lowerBound + 4)
@@ -132,6 +139,20 @@ enum OfficeArt {
                                 s.props[pid & 0x3FFF] = v
                                 if pid & 0x3FFF == 0x104 { s.pib = v }
                             }
+                            var q = c.body.lowerBound + 6 * n
+                            for k in 0 ..< n {
+                                let o = c.body.lowerBound + 6 * k
+                                guard o + 6 <= c.body.upperBound else { break }
+                                let pid = u16(b, o), v = u32(b, o + 2)
+                                guard pid & 0x8000 != 0 else { continue }
+                                // (An array's size leaves out its 6-byte header: those properties carry both flag bits.)
+                                let size = v + (pid & 0x4000 != 0 ? 6 : 0)
+                                let e = min(q + size, c.body.upperBound)
+                                if q <= e { s.complex[pid & 0x3FFF] = Array(b[q ..< e]) }
+                                q += size
+                            }
+                        case 0xF009: if c.body.count >= 16 { let o = c.body.lowerBound; s.groupRect = [i32(o), i32(o + 4), i32(o + 8), i32(o + 12)] }
+                        case 0xF00F: if c.body.count >= 16 { let o = c.body.lowerBound; s.childAnchor = [i32(o), i32(o + 4), i32(o + 8), i32(o + 12)] }
                         case 0xF010:
                             let o = c.body.lowerBound
                             if c.body.count >= 18 { s.anchor = [u16(b, o + 2), u16(b, o + 4), u16(b, o + 6), u16(b, o + 8), u16(b, o + 10), u16(b, o + 12), u16(b, o + 14), u16(b, o + 16)] }
@@ -139,10 +160,11 @@ enum OfficeArt {
                         }
                     }
                     out.append(s)
-                } else { walk(rec.body) }
+                    if first { cur = s.id; first = false }
+                } else if rec.type == 0xF003 { walk(rec.body, parent: cur, isGroup: true) } else { walk(rec.body, parent: cur) }
             }
         }
-        walk(0 ..< b.count)
+        walk(whole ?? 0 ..< b.count)
         return out
     }
 }

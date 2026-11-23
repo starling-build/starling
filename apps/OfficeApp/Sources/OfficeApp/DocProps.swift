@@ -106,7 +106,15 @@ enum DocProps {
                     let width = pc.compressed ? 1 : 2
                     let a = max(f0, pc.fc), b = min(f1, pc.fc + (pc.cpEnd - pc.cp) * width)
                     guard b > a else { continue }
-                    out.append(DocPropRun(cp: pc.cp + (a - pc.fc) / width, cpEnd: pc.cp + (b - pc.fc + width - 1) / width, grpprl: g, istd: istd))
+                    // A piece's own modifier comes after the paragraph's or character's sprms (sgc 1 paragraph, 2 character).
+                    var gp = g
+                    if !pc.grpprl.isEmpty {
+                        for s in sprms(pc.grpprl) where (s.op >> 10 & 7) == (paragraph ? 1 : 2) {
+                            let len: [UInt8] = s.op >> 13 != 6 ? [] : s.op == 0xD608 ? [UInt8((s.operand.count + 1) & 255), UInt8((s.operand.count + 1) >> 8)] : [UInt8(s.operand.count)]
+                            gp += [UInt8(s.op & 255), UInt8(s.op >> 8)] + len + s.operand
+                        }
+                    }
+                    out.append(DocPropRun(cp: pc.cp + (a - pc.fc) / width, cpEnd: pc.cp + (b - pc.fc + width - 1) / width, grpprl: gp, istd: istd))
                 }
             }
         }

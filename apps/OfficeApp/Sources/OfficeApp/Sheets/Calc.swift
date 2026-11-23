@@ -74,6 +74,7 @@ final class CalcEngine {
     /// formulas that read them.
     func recalculate() {
         _graph = nil
+        _orderMemo = nil
         _rangeCache.removeAll(keepingCapacity: true); _textIndexCache.removeAll(keepingCapacity: true)
         _extents.removeAll()
         _done.removeAll(keepingCapacity: true)
@@ -310,7 +311,25 @@ final class CalcEngine {
         }
     }
 
+    /// The order last built in this recalculate(), and what it was built from: the formulas cannot change inside one, so
+    /// a round whose known spills are the last round's (and each iteration of a looping book) walks the same graph.
+    private var _orderMemo: (spills: [Int], order: [SheetCell], graph: _Graph, cycle: Set<SheetCell>)? = nil
+
     private func _evaluationOrder() -> [SheetCell] {
+        var sig: [Int] = []
+        for (si, l) in _knownSpills.sorted(by: { $0.key < $1.key }) {
+            for (a, r) in l.sorted(by: { ($0.0.row, $0.0.col) < ($1.0.row, $1.0.col) }) { sig += [si, a.row, a.col, r.top, r.left, r.bottom, r.right] }
+        }
+        if let m = _orderMemo, m.spills == sig {
+            _cycle = m.cycle; _graph = m.graph
+            return m.order
+        }
+        let order = _buildEvaluationOrder()
+        if let g = _graph { _orderMemo = (sig, order, g, _cycle) }
+        return order
+    }
+
+    private func _buildEvaluationOrder() -> [SheetCell] {
         // Every formula cell, sorted; its position is its id in the walk below. (The walk keeps its marks in arrays
         // indexed by id, not in dictionaries keyed by node: a dictionary hit per mark per edge was a fifth of a big book's load.)
         var found: [(SheetCell, FormulaExpr)] = []
