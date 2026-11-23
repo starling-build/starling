@@ -3287,7 +3287,8 @@ enum ChartPainter {
             // (A part's face is its own txPr's: PowerPoint sets a value axis or legend with no face of its own in the theme's, not in the face
             // the category axis names. es 3df36ff6 p5: Trebuchet on the categories and labels, Calibri on the percent axis and the legend.)
             // (A part with a face of its own beats the chart-wide default too: 99f6ddd1 p19's axes say Meiryo under a chart-wide MS PGothic, and PowerPoint sets the labels in Meiryo.)
-            let ownFace = part != nil && c.onSlide && c.font != nil ? c.partFaces[part!] : nil
+            // (A sheet's category labels take the face their own txPr names, set in its measured advances; the value axis and legend keep the default, which Excel's prints match better: chart-tdf130657, chart-tdf100084.)
+            let ownFace = part != nil && (c.onSlide && c.font != nil || c.onSheet && part == "cat") ? c.partFaces[part!] : nil
             let partFont = part != nil && c.onSlide && c.font == nil && c.axisFont != nil ? OfficeFonts.substitute(c.partFaces[part!] ?? theme.bodyFont) : ownFace.map { OfficeFonts.substitute($0) } ?? font
             // (A slide label set in a Japanese face whose Windows line is measured, taller than the Latin 1.15 (Meiryo UI 1.270, Meiryo
             // 1.500, Yu Gothic 1.290): its line is the face's own, ascent + descent. 99f6ddd1 p23's 12 pt Meiryo UI percent labels are
@@ -3304,7 +3305,7 @@ enum ChartPainter {
             var span = windowsLines ? Self.labelSpan(c, s, style, mixedLine: mixedLine) : TextSpan(text: s, style: style)
             // (A Japanese or Korean face the machine lacks (Meiryo, Yu Gothic, MS Gothic...): each character is spaced out or in to the face's own
             // advance, as PowerPoint's print sets it, not the stand-in's: Meiryo's labels are wider than Carlito's.)
-            if (!windowsLines || (span.children ?? []).isEmpty), family == nil, case let raw = ownFace ?? c.font ?? (c.onSheet ? nil : c.axisFont) ?? theme.bodyFont, let face = Self.eastAsianChartFace(raw) ?? (c.onSlide ? Self.latinChartFace(raw) : nil) {
+            if (!windowsLines || (span.children ?? []).isEmpty), family == nil, case let raw = ownFace ?? c.font ?? (c.onSheet ? nil : c.axisFont) ?? theme.bodyFont, let face = Self.eastAsianChartFace(raw) ?? (c.onSlide || ownFace != nil ? Self.latinChartFace(raw) : nil) {
                 span = Self.metricSpan(s, style, face, bold: bold)
             } else if (!windowsLines || (span.children ?? []).isEmpty), family == nil, c.japaneseLang, let jf = c.japaneseFaceOverride ?? theme.japaneseFace, Self.eastAsianChartFace(ownFace ?? c.font ?? (c.onSheet ? nil : c.axisFont) ?? theme.bodyFont) == nil,
                       s.unicodeScalars.contains(where: { $0.value >= 0x3040 }), let face = Self.eastAsianChartFace(jf) {
