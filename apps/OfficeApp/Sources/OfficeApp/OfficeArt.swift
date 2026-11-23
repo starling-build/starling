@@ -31,6 +31,9 @@ struct ArtShape {
     var anchor: [Int]? = nil      // colL dxL rwT dyT colR dxR rwB dyB
     var props: [Int: Int] = [:]
     var name: String? = nil
+    var parent = 0                  // the group this shape sits in (0 for the drawing's own top group)
+    var groupRect: [Int]? = nil     // a group's own coordinate space: left, top, right, bottom
+    var childAnchor: [Int]? = nil   // a group member's place in its group's space: left, top, right, bottom
 }
 
 enum OfficeArt {
@@ -115,10 +118,13 @@ enum OfficeArt {
     /// MSODRAWING record of the sheet joined.
     static func shapes(drawing b: [UInt8], in whole: Range<Int>? = nil) -> [ArtShape] {
         var out: [ArtShape] = []
-        func walk(_ r: Range<Int>) {
+        func i32(_ k: Int) -> Int { let v = u32(b, k); return v >= 0x8000_0000 ? v - 0x1_0000_0000 : v }
+        func walk(_ r: Range<Int>, parent: Int = 0, isGroup: Bool = false) {
+            var cur = parent, first = isGroup
             for rec in records(b, in: r) where rec.isContainer {
                 if rec.type == 0xF004 {
                     var s = ArtShape()
+                    s.parent = first ? parent : cur
                     for c in records(b, in: rec.body) {
                         switch c.type {
                         case 0xF00A: s.type = c.inst; s.id = u32(b, c.body.lowerBound); s.flags = u32(b, c.body.lowerBound + 4)
@@ -132,6 +138,8 @@ enum OfficeArt {
                                 s.props[pid & 0x3FFF] = v
                                 if pid & 0x3FFF == 0x104 { s.pib = v }
                             }
+                        case 0xF009: if c.body.count >= 16 { let o = c.body.lowerBound; s.groupRect = [i32(o), i32(o + 4), i32(o + 8), i32(o + 12)] }
+                        case 0xF00F: if c.body.count >= 16 { let o = c.body.lowerBound; s.childAnchor = [i32(o), i32(o + 4), i32(o + 8), i32(o + 12)] }
                         case 0xF010:
                             let o = c.body.lowerBound
                             if c.body.count >= 18 { s.anchor = [u16(b, o + 2), u16(b, o + 4), u16(b, o + 6), u16(b, o + 8), u16(b, o + 10), u16(b, o + 12), u16(b, o + 14), u16(b, o + 16)] }
@@ -139,7 +147,8 @@ enum OfficeArt {
                         }
                     }
                     out.append(s)
-                } else { walk(rec.body) }
+                    if first { cur = s.id; first = false }
+                } else if rec.type == 0xF003 { walk(rec.body, parent: cur, isGroup: true) } else { walk(rec.body, parent: cur) }
             }
         }
         walk(whole ?? 0 ..< b.count)
