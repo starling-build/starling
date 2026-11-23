@@ -2264,7 +2264,10 @@ extension RichLayout {
                         pgs.y >= 0.01, _cells[pgs.i] == nil, pgs.i == 0 || _cells[pgs.i - 1] == nil || _pages[pgs.page].isEmpty,
                         // (A heading with text under a table that stands on the page keeps its space before: xb jpn-z22306877's Heading1 under
                         // a table 190 pt tall at the top of page 3, 24 pt in Word's print, ours 0 and every line after it 24 pt high.)
-                        !(pgs.i > 0 && _cells[pgs.i - 1] != nil && !document.paragraphs[pgs.i].text.isEmpty) {
+                        !(pgs.i > 0 && _cells[pgs.i - 1] != nil && !document.paragraphs[pgs.i].text.isEmpty),
+                        // (Not in unequal-width columns: dx2 9d7e8c61's "Exibir>Extras>..." and "Outros ICMLs..." keep 5.9 and 2 pt of space
+                        // before at the tops of columns two and three in Word's print; the equal-width 99cfc555 drops it.)
+                        _setup(ofParagraph: pgs.i).columnSpec == nil {
                     RuleTrace.hit("column-break-paragraph-drops-its-space-before-at-column-top")
                     cursor = min(bottom, top + lead)
                 }
