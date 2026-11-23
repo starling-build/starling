@@ -835,6 +835,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         guard Metafile.isMetafile(data) else { return nil }
         _ = _imagesOfThisBook()
         if let known = _metafiles[key] { return known }
+        Metafile.textFollowsRecordAdvances = true
+        defer { Metafile.textFollowsRecordAdvances = false }
         let played = Metafile(data, id: key)
         _metafiles[key] = .some(played)
         return played
