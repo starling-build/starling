@@ -237,7 +237,11 @@ RECHK() { dk=""; src=0; if [ -n "${SLPID:-}" ]; then wait "$SLPID"; src=$?; if [
   echo "render-gate: re-check: Slides $([ -z "${SLPID:-}" ] && echo "not run" || { [ "$src" != 1 ] && echo "clean, not run again" || { [ -n "$dk" ] && echo "$(wc -l < "$dk") blocked deck(s) only" || echo "blocked, no decks named: all"; }; })"
   exec env GATE_RECHECK_DOCS="$1" GATE_RECHECK_DECKS="$dk" GATE_SLIDES=$([ "$src" = 1 ] && echo 1 || echo 0) GATE_EXACT_BASE=1 "$SELF" "$BASE_SHA"; }
 if [ -n "$DROPS" ] && [ -n "$EXACTB" ]; then echo "render-gate: drops against the cached ancestor ($DROPS ); rerunning against the exact base"; RECHK "$(echo $DROPS)"; fi
-if [ -n "$DROPS" ]; then echo "render-gate: BLOCKED, v2 drops not approved:$DROPS"; exit 1; fi
+if [ -n "$DROPS" ]; then
+  # (amd-8, 2026-11-23, #2426: a block that printed no numbers could not be checked) every blocking doc with its v2 before/after and line counts, and the base it was compared with
+  echo "render-gate: v2 drops (base ${BSHA:0:9}$([ -n "$EXACTB" ] && echo ", the cached ancestor of ${EXACTB:0:9}" || echo ", exact") binary $BC/$BSHA/release/OfficeApp; each line is the pair's own: v2 base -> PR, lines matched/total):"
+  for d in $DROPS; do grep -hE "(^| |/)${d}([ .]|$)" "$W/down.txt" | head -2 | cut -c1-220 | sed 's/^/render-gate:   /'; grep -hE "(^| |/)${d}([ .]|$)" "$W"/pair.log 2>/dev/null | grep -vE '^ *DOWN' | head -2 | cut -c1-220 | sed 's/^/render-gate:   pair: /'; done
+  echo "render-gate: BLOCKED, v2 drops not approved:$DROPS"; exit 1; fi
 [ "$DN" = 0 ] || [ -s "$W/down.txt" ] || { echo "render-gate: drops reported but not parsed"; exit 1; }
 # Slides step result (started before the Word pair, see SLPID): block on decks worse than the BASE render (same runner and engine; the fixed baselines are the drift report only)
 if [ -n "${SLPID:-}" ]; then
