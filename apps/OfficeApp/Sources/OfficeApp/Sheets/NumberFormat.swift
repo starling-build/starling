@@ -929,6 +929,9 @@ enum NumberFormat {
                     // The letter keeps the case it was written in: a/p, A/P.
                     out.append(hh < 12 ? chars[k] : chars[k + 2]); k += 3; continue
                 }
+                // (Japanese weekday codes: aaa and aaaa are the day's name as ddd and dddd are, in Excel's English print.)
+                if rest.hasPrefix("aaaa") { out += _dayNames[weekday]; k += 4; continue }
+                if rest.hasPrefix("aaa") { out += String(_dayNames[weekday].prefix(3)); k += 3; continue }
                 out.append(ch); k += 1; continue
             case "[":
                 // Elapsed time: [h], [hh], [mm], [s]…
