@@ -2442,8 +2442,9 @@ enum ChartXML {
         if let da = axes.first(where: { $0.name == "c:dateAx" }), !yearsAxis,
            let step = da.first("c:majorUnit")?["val"].flatMap(Int.init), step > 0,
            let unit = da.first("c:majorTimeUnit")?["val"], ["days", "months", "years"].contains(unit),
-           let code = da.first("c:numFmt").flatMap({ ["0", "false"].contains($0["sourceLinked"] ?? "1") ? $0["formatCode"] : nil }), !code.isEmpty,
-           let cache = plot.descendant("c:ser")?.first("c:cat"), cache.descendant("c:numCache") != nil {
+           let cache = plot.descendant("c:ser")?.first("c:cat"), let numCache = cache.descendant("c:numCache"),
+           // (A name linked to the source takes the numbers' own format, the cache's: 75bf2dcbbd98 p5 "yyyy/m/d" and "[$-404]e/m/d;@" print 2016/1/1, 2016/2/1.)
+           let code = da.first("c:numFmt").flatMap({ ["0", "false"].contains($0["sourceLinked"] ?? "1") ? $0["formatCode"] : numCache.first("c:formatCode")?.text }), !code.isEmpty {
             let serials = _points(cache).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
             if serials.count == categories.count, serials.count > 1, serials.allSatisfy({ $0 != nil }) {
                 let days = serials.map { $0! }
@@ -2459,6 +2460,8 @@ enum ChartXML {
                     let doy = (153 * (m > 2 ? m - 3 : m + 9) + 2) / 5 + d - 1, doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
                     return Double(era * 146097 + doe - 719468 + 25569)
                 }
+                // (A date's "e" is the 4-digit year: "[$-404]e/m/d" prints 2015/7/1.)
+                let dateCode = code.contains(Character("E")) ? code : code.map { $0 == "e" ? "yyyy" : String($0) }.joined()
                 var labels = Array(repeating: "", count: days.count)
                 let first = civil(days[0])
                 var k = 0, idx = 0
@@ -2470,7 +2473,7 @@ enum ChartXML {
                     default: at = serial(first.y + k * step, first.m, first.d)
                     }
                     guard let i = days.firstIndex(where: { $0 >= at }) else { break }
-                    if i >= idx { labels[i] = chartNumberText(at, code); idx = i + 1 }
+                    if i >= idx { labels[i] = chartNumberText(at, dateCode); idx = i + 1 }
                     k += 1
                 }
                 c.categories = labels
@@ -3600,6 +3603,18 @@ enum ChartPainter {
                 entries = []
                 lines = []
             }
+            // (A slide legend in a box of its own too short for all its rows drops the last ones: 75bf2dcbbd98 p5's two charts, 11 and 12
+            // entries of 8 pt in boxes 20.9 and 21.2 pt tall, stand two rows of four in PowerPoint's print, the rows 10.5 apart.)
+            var boxHoldsRows = false
+            if c.onSlide, let box, !pie, lines.count > 1, textH > 0 {
+                let keep = max(1, Int((box.height / textH).rounded(.down)))
+                if keep < lines.count {
+                    RuleTrace.hit("slide-legend-box-drops-the-rows-it-cannot-hold")
+                    boxHoldsRows = true
+                    droppedLegend = lines[keep...].flatMap { $0 }
+                    lines = Array(lines[..<keep])
+                }
+            }
             let slotH = slideSidePie ? (entries.map { $0.tp.height }.max() ?? 0) : 0
             var lineHs = lines.map { line in
                 let tall = line.map { $0.tp.height }.max() ?? 0
@@ -3626,7 +3641,7 @@ enum ChartPainter {
             // among them: zh-61aaad09's two entries, in a box 94% of the
             // chart's height, stand 57pt apart in Word's print, each in the
             // middle of its half.)
-            if let box, lineHs.reduce(0, +) < box.height, !lines.isEmpty {
+            if let box, lineHs.reduce(0, +) < box.height || boxHoldsRows, !lines.isEmpty {
                 lineHs = lines.map { _ in box.height / Double(lines.count) }
             }
             let linesH = lineHs.reduce(0, +)
@@ -9673,3 +9688,4 @@ func chartNumberText(_ v: Double, _ code: String) -> String {
     }
     return out
 }
+
