@@ -573,6 +573,12 @@ private struct Player {
             map = ["l": "●", "m": "❍", "n": "■", "o": "□", "q": "❑", "r": "❒", "s": "⬧", "t": "⧫", "u": "◆", "v": "❖",
                    "w": "⬥", "§": "▪", "¨": "◻", "ü": "✓", "û": "✗", "þ": "☑", "ý": "☒", "Ø": "➢", "à": "→", "ß": "←",
                    "á": "↑", "â": "↓", "è": "➔", "ð": "⇨", "J": "☺", "L": "☹", "(": "☎", "*": "✉", "F": "☞", "E": "☜"]
+            // (Wingdings' numbered circles: 0x80 is the circled 0, 0x81-0x8A the circled 1-10, 0x8B the black 0 and 0x8C-0x95 the
+            // black 1-10: zh-142399e8a3 p10's footnote marks, U+F081-F085 in a run's `a:sym` Wingdings, printed 1-5 in circles
+            // by PowerPoint, a box in ours.)
+            let circled: [Character] = ["\u{24EA}"] + (0x2460 ... 0x2469).compactMap { Unicode.Scalar($0).map(Character.init) }
+            let black: [Character] = ["\u{24FF}"] + (0x2776 ... 0x277F).compactMap { Unicode.Scalar($0).map(Character.init) }
+            for (i, g) in (circled + black).enumerated() { if let k = Unicode.Scalar(0x80 + i) { map[Character(k)] = g } }
         } else if name.hasPrefix("webdings") {
             map = ["n": "●", "g": "■", "c": "▪", "a": "✔", "r": "✖", "3": "◀", "4": "▶", "5": "▲", "6": "▼", "=": "●",
                    "<": "■", "i": "ℹ", "s": "?", "x": "⊘", "y": "❤"]
