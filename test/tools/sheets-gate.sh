@@ -38,12 +38,16 @@ b, n = rd(base), rd(new); ok = set(open(acc).read().split())
 def f(x):
     try: return float(x)
     except ValueError: return None
-bad = []; worse = better = 0
+bad = []; ot = []; worse = better = 0
 for k, p in b.items():
     q = n.get(k)
     if p[6].startswith("ERROR"): continue
     if q is None or q[6].startswith("ERROR"):
-        if k not in ok: bad.append((99, f"{k}: printed before, now {q[6] if q else 'missing'}"))
+        if k not in ok:
+            st = q[6] if q else 'missing'
+            # a render that timed out or has no row is the STEP running out of time on a loaded box (amd-8, 2026-11-23, #2451 under load 369), not a drop: say so, rerun the gate
+            if q is None or "timeout" in st or "Terminated" in st or "Killed" in st: st += "  [STEP RAN OUT OF TIME / box overloaded, not a drop: rerun the gate]"; ot.append(k)
+            bad.append((99, f"{k}: printed before, now {st}"))
         continue
     px0, px1, l0, l1 = f(p[3]), f(q[3]), f(p[5]), f(q[5])
     if px0 is not None and px1 is not None:
@@ -54,6 +58,7 @@ for k, p in b.items():
     elif l0 is None and l1 is not None and False: pass
 nb = sum(1 for v in n.values() if v[6] == "ok" or v[6] == "ok-empty")
 print(f"sheets-gate: {nb} books scored; pixels worse {worse}, better {better}; blocked {len(bad)}")
+if ot: print(f"sheets-gate: WARNING {len(ot)} book(s) timed out or have no result: the step was cut short by load, these are not drops")
 for _, m in sorted(bad, reverse=True)[:15]:
     print("sheets-gate: BLOCKED-BOOK " + m.split(":")[0] + "   " + m)
 sys.exit(1 if bad else 0)

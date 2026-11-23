@@ -436,6 +436,28 @@ if let i = CommandLine.arguments.firstIndex(of: "--xls-parts"), i + 2 < CommandL
     } catch { exit(1) }
 }
 
+// `--doc-info <file.doc>`: story lengths and the non-empty FIB ranges.
+if let i = CommandLine.arguments.firstIndex(of: "--doc-info"), i + 1 < CommandLine.arguments.count {
+    if let data = try? Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[i + 1])), let cf = try? CompoundFile([UInt8](data)),
+       let w = cf.stream("WordDocument"), let f = DocFib(w) {
+        print("nFib=\(f.nFib) text=\(f.ccpText) ftn=\(f.ccpFtn) hdd=\(f.ccpHdd) atn=\(f.ccpAtn) edn=\(f.ccpEdn) txbx=\(f.ccpTxbx) hdrtxbx=\(f.ccpHdrTxbx)")
+        if let tb = cf.stream(f.tableStream), let sr = f.range(40), let dg = f.range(50) {
+            let art = DocArt.art(t: tb, w: w, at: dg.fc, count: dg.lcb)
+            print("blips=\(art.blips.count) shapes=\(art.shapes.count) groups=\(art.shapes.values.filter { $0.flags & 1 != 0 }.count) children=\(art.shapes.values.filter { $0.flags & 2 != 0 }.count) crops=\(art.shapes.values.filter { $0.props[0x100] != nil || $0.props[0x101] != nil || $0.props[0x102] != nil || $0.props[0x103] != nil }.count) types=\(Dictionary(grouping: art.shapes.values.filter { $0.flags & 1 == 0 }, by: { $0.type }).mapValues { $0.count }.sorted { $0.key < $1.key }) hdrspa=\(f.range(41).map { DocArt.spas(tb, at: $0.fc, count: $0.lcb).count } ?? 0)")
+            for sp in DocArt.spas(tb, at: sr.fc, count: sr.lcb) {
+                let sh = art.shapes[sp.spid]
+                print("spa cp=\(sp.cp) spid=\(sp.spid) flags=\(String(sp.flags, radix: 16)) type=\(sh?.type ?? -1) props=\((sh?.props ?? [:]).sorted { $0.key < $1.key }.map { "\(String($0.key, radix: 16)):\(String($0.value, radix: 16))" }.joined(separator: " ")) cx=\((sh?.complex ?? [:]).sorted { $0.key < $1.key }.map { "\(String($0.key, radix: 16)):\($0.value.count)" + ($0.value.count <= 40 && $0.key != 0xC0 && $0.key != 0xC5 ? "[" + $0.value.map { String($0, radix: 16) }.joined(separator: ".") + "]" : "") }.joined(separator: " "))")
+            }
+            print("tablesize=\(tb.count) w=\(w.count)"); if let b = f.range(56), let pl = DocProps.plex(tb, at: b.fc, count: b.lcb, size: 22) { print("txbx cps=\(pl.cps)") }
+        }
+        if let tb = cf.stream(f.tableStream), let c = f.range(DocFib.fcClx), c.fc >= 0, c.fc + c.lcb <= tb.count {
+            let ps = DocRead.pieces(clx: Array(tb[c.fc ..< c.fc + c.lcb]))
+            print("pieces=\(ps.count) comp=\(ps.filter { $0.compressed }.count) prm0=\(ps.filter { $0.prm != 0 && $0.prm & 1 == 0 }.map { $0.prm >> 1 & 0x7F }) prm1=\(ps.filter { $0.prm & 1 != 0 }.count) fComplex=\(OfficeArt.u16(w, 10) >> 2 & 1)")
+        }
+        print(f.fcLcb.enumerated().filter { $0.element.lcb > 0 }.map { "\($0.offset):\($0.element.fc)+\($0.element.lcb)" }.joined(separator: " "))
+    }
+    exit(0)
+}
 // `--doc-parts <file.doc> <dir>`: the .docx parts the reader builds from a binary Word document, written as files.
 if let i = CommandLine.arguments.firstIndex(of: "--doc-parts"), i + 2 < CommandLine.arguments.count {
     do {
