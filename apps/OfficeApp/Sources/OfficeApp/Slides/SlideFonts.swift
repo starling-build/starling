@@ -96,10 +96,28 @@ enum SlideFonts {
         // BIZ UDP明朝): its print draws it in Yu Gothic, regular or bold, whatever the name. Property: a name with kana, or an HG/游 name with
         // ideographs, that our East Asian width table does not know. The theme's "本文"/"見出し" aliases are not this.)
         if OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil, isMissingJapaneseName(n) { return "yu gothic" }
-        // (隶书 (LiSu) is not on the machine PowerPoint printed on: its print draws it in Microsoft YaHei, quotes and all, e9180c676efa p13's
-        // 20 pt title line and p11's 14 pt column, whose “ ” are YaHei's full em, not a narrow stand-in's.)
-        if (n == "隶书" || n == "lisu"), OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil { return "microsoft yahei" }
+        // (A Chinese face the print's machine lacks (隶书/LiSu, 幼圆, 方正*, 華康*, 思源*...): its print draws it in Microsoft YaHei, quotes and all,
+        // e9180c676efa p13's 20 pt title line and p11's 14 pt column, whose “ ” are YaHei's full em, not a narrow stand-in's. Property: a name
+        // of ideographs only (no kana, no hangul, no Latin face word) that is not a face Windows or Office ships, and not installed or embedded.)
+        if OfficeFonts.installed(family) == nil, embeddedFamily(family) == nil, simplifiedDeck, isMissingChineseName(n) { return "microsoft yahei" }
         return n == "dejavu sans" && OfficeFonts.installed(family) == nil ? "verdana" : n
+    }
+
+    /// Whether the deck's Chinese runs are Simplified (lang zh-CN/zh-SG outnumber zh-TW/HK/MO): PowerPoint's fallback for a face it lacks follows the run's language.
+    nonisolated(unsafe) private static var simplifiedDeck = false
+    static func noteSimplifiedChinese(_ v: Bool) { simplifiedDeck = v }
+
+    static func isMissingChineseName(_ n: String) -> Bool {
+        var ideograph = false
+        for u in n.unicodeScalars {
+            let v = u.value
+            if (v >= 0x3041 && v <= 0x30FF) || (v >= 0x31F0 && v <= 0x31FF) || (v >= 0xFF66 && v <= 0xFF9F) || (v >= 0xAC00 && v <= 0xD7A3) { return false }
+            if v >= 0x4E00 && v <= 0x9FFF { ideograph = true }
+        }
+        guard ideograph, SlideEastAsianWidths.lookup(n) == nil else { return false }
+        // Faces Windows or Office installs (宋体, 新宋体, 黑体, 楷体, 仿宋, 等线, 微软雅黑, the 华文 set, the Traditional MingLiU, DFKai and JhengHei).
+        let shipped = ["宋体", "黑体", "楷体", "仿宋", "等线", "雅黑", "华文", "細明體", "标楷体", "標楷體", "正黑體", "正黑体", "宋體", "黑體", "楷體", "仿宋體"]
+        return !shipped.contains(where: { n.containsSubstring($0) })
     }
 
     static func isMissingJapaneseName(_ n: String) -> Bool {
