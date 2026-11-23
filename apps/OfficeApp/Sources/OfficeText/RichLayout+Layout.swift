@@ -1561,7 +1561,8 @@ extension RichLayout {
             // layer holds the plain "、" "「" "。", the face's vert feature drawing the vertical shape, where
             // the Chinese faces' prints hold U+FE10..FE44 themselves: so a Japanese face draws the plain
             // mark with vert, and the PDF's text is the plain mark too.)
-            let japanese = ["meiryo", "メイリオ", "ms mincho", "ms gothic", "ＭＳ", "yu mincho", "yu gothic", "游"].contains { family.lowercased().containsSubstring($0) }
+            // (MS P Gothic and MS P Mincho are the proportional siblings of MS Gothic and MS Mincho: the same face's vert forms.)
+            let japanese = ["meiryo", "メイリオ", "ms mincho", "ms gothic", "ms pgothic", "ms pmincho", "ＭＳ", "yu mincho", "yu gothic", "游"].contains { family.lowercased().containsSubstring($0) }
             let form = plain || japanese ? ch : (Self._verticalForms[ch] ?? ch)
             let vertMark = japanese && !plain && Self._verticalForms[ch] != nil
             // (Its own advance, without the run's letter spacing: that
