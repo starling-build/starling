@@ -23,9 +23,21 @@ SCR="${1:-$PWD/.build-shared}"
 ENG="${STARLING_ENGINE_OUT:-}/libflutter_engine.so"
 STAMP="$SCR/.engine-stamp"
 NOW="$(readlink -f "$ENG" 2>/dev/null) $(stat -c '%s %Y' "$ENG" 2>/dev/null)"
+# (amd-8, 2026-11-23, design C of amd-opus 20261123-181113) No Swift compile reads the engine tree (every include path is under sdk/);
+# the engine is a LINK input only. So when only the library's size or mtime changed (a rebuild in place, the usual engine push),
+# delete the two linked outputs (OfficeApp, libFlutterShared.so) and let SwiftPM relink: seconds, not a cold build (541-1689 s on
+# every scratch of the fleet at each engine push). A changed engine PATH is baked into the link flags, so it still wipes everything,
+# as does BUILD_ENGINE_WIPE=1. The smoke test below still guards the result.
 if [ -f "$STAMP" ] && [ "$(cat "$STAMP")" != "$NOW" ]; then
-  echo "build-office-fast: engine changed since this scratch was built; wiping object state (full rebuild)" >&2
-  rm -rf "$SCR"/x86_64-unknown-linux-gnu/release/*.build "$SCR"/release.yaml "$SCR"/build.db
+  OLDP=$(cut -d" " -f1 "$STAMP"); NEWP=${NOW%% *}
+  REL="$SCR/x86_64-unknown-linux-gnu/release"
+  if [ "$OLDP" = "$NEWP" ] && [ -z "${BUILD_ENGINE_WIPE:-}" ]; then
+    echo "build-office-fast: engine library changed since this scratch was built; relinking only (no recompile)" >&2
+    rm -f "$REL/OfficeApp" "$REL/libFlutterShared.so"
+  else
+    echo "build-office-fast: engine path changed since this scratch was built; wiping object state (full rebuild)" >&2
+    rm -rf "$REL"/*.build "$SCR"/release.yaml "$SCR"/build.db
+  fi
 fi
 build() {
   swift build ${BUILD_JOBS:+-j $BUILD_JOBS} -c release --package-path apps/OfficeApp --scratch-path "${1:-$PWD/.build-shared}" \
