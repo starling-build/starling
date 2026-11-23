@@ -415,6 +415,14 @@ enum SlideFonts {
             face.otherAdvances = SlideFontWidths.rockwellCondensedOther
             face.boldOtherAdvances = SlideFontWidths.rockwellCondensedBoldOther
             return face
+        case "cambria math":
+            // (Cambria Math's own advances, for the symbols Calibri lacks that a run falls back to it for: ℃ is 0.9043 em.)
+            var face = RichResolvedFace(family: resolve(family))
+            var t: [UInt32: Double] = [:]
+            for (u, w) in OfficeFonts.cambriaMathScript where u >= 0xA0 { t[u] = Double(w.0) }
+            face.otherAdvances = t
+            face.boldOtherAdvances = t
+            return face
         case "calibri light":
             // (Calibri Light has no bold: PowerPoint emboldens the regular outline and sets each glyph at 0.9845 of the Light
             // advance (clbold lab), not at Carlito Bold's widths, which are wider and wrapped 6d178027's 48 pt title a word early.)
