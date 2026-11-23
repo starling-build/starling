@@ -2618,7 +2618,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                              size: size, bold: st.bold, italic: st.italic,
                              underline: st.underline, strike: st.strike, color: c, dots: dots, hint: hint)
         let lower = book.fontName(st).trimmingWhitespace().lowercased()
-        if printing, face == OfficeFonts.sans || face == "Arial" { style.arabicArial = true }
+        if printing, face == OfficeFonts.sans || face == "Arial" || lower == "calibri" { style.arabicArial = true }
         if lower == "aptos narrow" || OfficeFonts.tabledNames.contains(lower) { style.own = lower }
         if st.underline || st.strike, let m = RichTextTheme.ruleMetrics(book.fontName(st), bold: st.bold, italic: st.italic) {
             style.rule = [m.up, m.ut, m.sp, m.st]
@@ -3467,6 +3467,10 @@ final class _TextCache {
         if style.screen > 0 {
             // (Screen fit: each character a whole pixel of the 192-dpi screen,
             // `screen` the layout units of one.)
+            if let parts = _arabicParts(s, style) {
+                // (An Arabic word is one shaped width, not its letters' isolated forms: a whole pixel count of its own.)
+                return parts.reduce(0) { $0 + ($1.ems.map { ($0 * style.screenEm).rounded() * style.screen } ?? _width($1.text, { var p = style; p.arabicArial = false; return p }())) }
+            }
             var plain = style; plain.screen = 0
             let space = s.containsSubstring(" ") ? _measure("a a", plain) - _measure("aa", plain) : 0
             return s.reduce(0) { $0 + (($1 == " " ? space : _measure(String($1), plain)) / style.size * style.screenEm).rounded() * style.screen }
