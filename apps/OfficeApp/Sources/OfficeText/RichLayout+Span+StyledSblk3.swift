@@ -69,6 +69,11 @@ extension _StyledFrame {
             // carry `<w:bdr w:val="none"/>`, and Word sets "14号" with
             // 2pt between, a quarter of its 8pt; ours took the run for
             // ruled and set 4, and every line held a character less.)
+            // (Beside an ideograph, a superscript or subscript digit or letter takes a quarter of ITS size, not the line's:
+            // zh-e68a2f57's cell "0.5辆/100 m²建筑面积" (mode 14, balanced, 12pt, the "2" 8pt) sets the "2" and "建" 1.3-1.6 apart
+            // squeezed, 2.0 whole; ours took 3.0 and wrapped "积" where Word keeps the line.)
+            if document.balancesSpaceWidth, RichTextTheme.wordWindowsPages, ch.isASCII, run.script != .normal,
+               let shown = style(kind).fontSize, shown > 0.5, em > shown { gap *= shown / em }
             if document.balancesSpaceWidth, let xml = run.keptXML, let r = xml.rangeOfSubstring("<w:bdr "),
                case let tag = xml[r.upperBound...].prefix(while: { $0 != ">" }),
                !tag.containsSubstring("w:val=\"none\""), !tag.containsSubstring("w:val=\"nil\"") { gap *= 2 }
