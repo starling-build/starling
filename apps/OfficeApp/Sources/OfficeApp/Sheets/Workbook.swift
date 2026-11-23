@@ -188,6 +188,8 @@ final class Worksheet {
     var autoFilter: AutoFilter? = nil
     /// Pictures and charts, for display (the file's parts are kept as is).
     var drawings: [SheetDrawing] = []
+    /// The pictures of the header and footer (`legacyDrawingHF`), by the VML shape's id: LH, CH, RH, LF, CF, RF.
+    var headerPictures: [String: HeaderPicture] = [:]
     /// The drawing part the file kept them in, and its root tag (with the
     /// namespaces kept anchors use).
     var drawingPart: String? = nil
@@ -545,3 +547,4 @@ struct ExternalBook: Sendable {
         sheetNames.firstIndex { $0.lowercased() == name.lowercased() }
     }
 }
+
