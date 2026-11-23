@@ -144,6 +144,8 @@ enum DocRead {
         var comments: [Int: Int] = [:]
         var endnotes: [Int: Int] = [:]
         var noteKind = ""            // "footnote" or "endnote" inside a note's own text
+        var shapes: [Int: (xml: String, behind: Bool)] = [:]   // character position of a shape anchor -> its drawing run
+        var picture: ((Int) -> String?)?         // the run of the inline picture whose data sits at an offset of the Data stream
     }
 
     /// The paragraphs of a story as `w:p` elements: a paragraph mark (0D, or 07 for a cell or row end)
@@ -171,12 +173,15 @@ enum DocRead {
         func instrRun(_ f: Field) -> String { "<w:r>" + rpr + "<w:instrText xml:space=\"preserve\">" + esc(f.instr) + "</w:instrText></w:r>" }
         var cache: [UInt8] = [], cacheValid = false
         var sym: (String, String)?
+        var curG: [UInt8] = []
+        var front = "", back = ""     // shapes of the paragraph: behind the text come first, in front of it last (the order they are painted in)
         var tbl = "", rowCells: [String] = [], cellXml = ""
         func endTable() { if !tbl.isEmpty { xml += tbl + "</w:tbl>"; tbl = "" } }
         for (k, c) in t.enumerated() {
             let cp = ctx.base + k
             if !chp.isEmpty {
                 let g = cover(chp, &ci, cp)?.grpprl ?? []
+                curG = g
                 if !cacheValid || g != cache { flush(); cache = g; cacheValid = true; rpr = DocProps.rPr(g, fonts: fonts); sym = DocProps.symbol(g, fonts: fonts) }
             }
             if let f = fields.last, f.inInstr, c != 0x14, c != 0x15, c != 0x13 {
@@ -209,7 +214,7 @@ enum DocRead {
                 }
                 var pp = DocProps.pPr(pr?.grpprl ?? [], istd: pr?.istd ?? 0)
                 if let sp = ctx.sectEnds[cp] { pp = pp.isEmpty ? "<w:pPr>" + sp + "</w:pPr>" : String(pp.dropLast(8)) + sp + "</w:pPr>" }
-                let para = "<w:p>" + pp + runs + "</w:p>"; runs = ""
+                let para = "<w:p>" + pp + back + runs + front + "</w:p>"; runs = ""; back = ""; front = ""
                 if tf.inTable {
                     cellXml += para
                     if c == 0x07 { rowCells.append(cellXml); cellXml = "" }
@@ -230,6 +235,10 @@ enum DocRead {
                 if !ctx.noteKind.isEmpty, k == 0 { runs += "<w:r>" + rpr + "<w:\(ctx.noteKind)Ref/></w:r>" }
                 else if let id = ctx.footnotes[cp] { runs += "<w:r><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr><w:footnoteReference w:id=\"\(id)\"/></w:r>" }
                 else if let id = ctx.endnotes[cp] { runs += "<w:r><w:rPr><w:vertAlign w:val=\"superscript\"/></w:rPr><w:endnoteReference w:id=\"\(id)\"/></w:r>" }
+            case 0x08:
+                if let x = ctx.shapes[cp] { if x.behind { back += x.xml } else { front += x.xml } }
+            case 0x01:
+                if let f = ctx.picture, let o = DocProps.sprms(curG).last(where: { $0.op == 0x6A03 }), let x = f(OfficeArt.u32(o.operand, 0)) { flush(); runs += x }
             case 0x05:
                 if let id = ctx.comments[cp] { flush(); runs += "<w:r><w:commentReference w:id=\"\(id)\"/></w:r>" }
             case 0x13: fields.append(Field())
@@ -256,7 +265,7 @@ enum DocRead {
         }
         flush()
         if !tbl.isEmpty { endTable(); xml += "<w:p/>" }
-        if !runs.isEmpty { xml += "<w:p>" + runs + "</w:p>" }
+        if !runs.isEmpty || !back.isEmpty || !front.isEmpty { xml += "<w:p>" + back + runs + front + "</w:p>" }
         return xml
     }
 
@@ -272,7 +281,7 @@ enum DocRead {
         let fonts = fib.range(DocFib.fcSttbfFfn).map { DocProps.fonts(tbl, at: $0.fc, count: $0.lcb) } ?? []
         let st = fib.range(DocFib.fcStshf).map { DocProps.styles(tbl, at: $0.fc, count: $0.lcb, fonts: fonts) }
         let hddEnd = fib.ccpText + fib.ccpFtn + fib.ccpHdd
-        let all = text(w, pieces: pcs, count: hddEnd + fib.ccpAtn + fib.ccpEdn)
+        let all = text(w, pieces: pcs, count: hddEnd + fib.ccpAtn + fib.ccpEdn + fib.ccpTxbx + fib.ccpHdrTxbx)
         func slice(_ a: Int, _ b: Int) -> [UInt16] { (a >= 0 && b <= all.count && a < b) ? Array(all[a ..< b]) : [] }
         func story(_ a: Int, _ b: Int, _ ctx: StoryContext = StoryContext()) -> String {
             var c = ctx; c.base = a
@@ -280,7 +289,7 @@ enum DocRead {
         }
         var extra: [ZipEntry] = [], rels = "", types = ""
         func e(_ name: String, _ s: String) -> ZipEntry { ZipEntry(name: name, data: Data(s.utf8)) }
-        let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\""
+        let ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\" xmlns:wps=\"http://schemas.microsoft.com/office/word/2010/wordprocessingShape\""
         let head = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
         let relBase = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/"
         let ctBase = "application/vnd.openxmlformats-officedocument.wordprocessingml."
@@ -355,6 +364,45 @@ enum DocRead {
                 types += "<Override PartName=\"/word/comments.xml\" ContentType=\"\(ctBase)comments+xml\"/>"
             }
         }
+        // Drawings: pictures in the line (Data stream), and shapes the text anchors (PlcSpaMom), with their text boxes.
+        var media: [ZipEntry] = []
+        var imageTypes = Set<String>()
+        func addImage(_ b: ArtBlip) -> String {
+            let n = media.count + 1
+            media.append(ZipEntry(name: "word/media/image\(n).\(b.ext)", data: Data(b.data)))
+            imageTypes.insert(b.ext)
+            rels += "<Relationship Id=\"rIdImg\(n)\" Type=\"\(relBase)image\" Target=\"media/image\(n).\(b.ext)\"/>"
+            return "rIdImg\(n)"
+        }
+        let dataStream = cf.stream("Data") ?? []
+        var inlineCache: [Int: String?] = [:]
+        let picture: (Int) -> String? = { off in
+            if let c = inlineCache[off] { return c }
+            let r = DocArt.inline(data: dataStream, at: off, rid: addImage)
+            inlineCache[off] = r
+            return r
+        }
+        var shapeRuns: [Int: (xml: String, behind: Bool)] = [:]
+        if let sr = fib.range(40), let dg = fib.range(50) {
+            let art = DocArt.art(t: tbl, w: w, at: dg.fc, count: dg.lcb)
+            let boxes = fib.range(56).flatMap { DocProps.plex(tbl, at: $0.fc, count: $0.lcb, size: 22) }
+            let boxStart = hddEnd + fib.ccpAtn + fib.ccpEdn
+            for (k, sp) in DocArt.spas(tbl, at: sr.fc, count: sr.lcb).enumerated() {
+                let shape = art.shapes[sp.spid]
+                var rid: String?
+                if let pib = shape?.pib, pib > 0, pib <= art.blips.count, let b = art.blips[pib - 1] { rid = addImage(b) }
+                var content: String?
+                if rid == nil, let shape, let tx = shape.props[0x80], let boxes {
+                    let i = (tx >> 16) - 1
+                    if i >= 0, i < boxes.cps.count - 1 {
+                        var c = StoryContext(); c.picture = picture
+                        content = story(boxStart + boxes.cps[i], boxStart + boxes.cps[i + 1], c)
+                    }
+                }
+                if rid == nil, content == nil, shape == nil { continue }
+                shapeRuns[sp.cp] = (DocArt.floating(sp, shape: shape, rid: rid, content: content, order: k), sp.behind)
+            }
+        }
         // Sections: each ends at a section mark; the last one's properties close the body.
         var ends: [Int: String] = [:]
         var last = "", lastEnd = fib.ccpText
@@ -369,8 +417,12 @@ enum DocRead {
             }
         }
         if last.isEmpty { last = DocProps.sectPr([], refs: "") }
-        var ctx = StoryContext(); ctx.sectEnds = ends; ctx.footnotes = fnMap; ctx.endnotes = enMap; ctx.comments = cmMap
+        var ctx = StoryContext(); ctx.sectEnds = ends; ctx.footnotes = fnMap; ctx.endnotes = enMap; ctx.comments = cmMap; ctx.shapes = shapeRuns; ctx.picture = picture
         let body = story(0, fib.ccpText, ctx)
+        for x in imageTypes.sorted() {
+            let ct = ["png": "image/png", "jpeg": "image/jpeg", "bmp": "image/bmp", "emf": "image/x-emf", "wmf": "image/x-wmf", "tiff": "image/tiff", "pict": "image/pict"][x] ?? "application/octet-stream"
+            types += "<Default Extension=\"\(x)\" ContentType=\"\(ct)\"/>"
+        }
         _ = lastEnd
         let df = st.flatMap { $0.font < fonts.count && !fonts[$0.font].isEmpty ? fonts[$0.font] : nil } ?? "Times New Roman"
         let dflt = "<w:rFonts w:ascii=\"\(df)\" w:hAnsi=\"\(df)\" w:eastAsia=\"\(df)\" w:cs=\"\(df)\"/>"
@@ -394,7 +446,7 @@ enum DocRead {
             e("word/_rels/document.xml.rels", head + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"\(relBase)styles\" Target=\"styles.xml\"/>" + rels + "</Relationships>"),
             e("word/styles.xml", head + "<w:styles \(ns)><w:docDefaults><w:rPrDefault><w:rPr>\(dflt)<w:sz w:val=\"20\"/><w:szCs w:val=\"20\"/></w:rPr></w:rPrDefault><w:pPrDefault/></w:docDefaults>" + styleXml + "</w:styles>"),
             e("word/document.xml", head + "<w:document \(ns)><w:body>" + body + last + "</w:body></w:document>"),
-        ] + extra + settings
+        ] + extra + settings + media
     }
 
     /// A binary Word document as a .docx package, or nil.

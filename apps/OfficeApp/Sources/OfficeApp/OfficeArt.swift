@@ -65,7 +65,7 @@ enum OfficeArt {
         return out
     }
 
-    private static func fbse(_ b: [UInt8], _ e: ArtRecord) -> ArtBlip? {
+    static func fbse(_ b: [UInt8], _ e: ArtRecord) -> ArtBlip? {
         // btWin32, btMacOS, uid (16), tag, size, cRef, foDelay, unused, cbName, unused, unused, name, then the picture.
         let s = e.body.lowerBound
         let cbName = Int(b.indices.contains(s + 33) ? b[s + 33] : 0)
@@ -74,7 +74,7 @@ enum OfficeArt {
         return blipRecord(b, ArtRecord(ver: u16(b, at) & 0xF, inst: u16(b, at) >> 4, type: u16(b, at + 2), body: at + 8 ..< min(e.body.upperBound, at + 8 + u32(b, at + 4))))
     }
 
-    private static func blipRecord(_ b: [UInt8], _ r: ArtRecord) -> ArtBlip? {
+    static func blipRecord(_ b: [UInt8], _ r: ArtRecord) -> ArtBlip? {
         var p = r.body.lowerBound
         let end = r.body.upperBound
         switch r.type {
@@ -113,7 +113,7 @@ enum OfficeArt {
 
     /// The shapes of a sheet's drawing, in file order. `stream` is every
     /// MSODRAWING record of the sheet joined.
-    static func shapes(drawing b: [UInt8]) -> [ArtShape] {
+    static func shapes(drawing b: [UInt8], in whole: Range<Int>? = nil) -> [ArtShape] {
         var out: [ArtShape] = []
         func walk(_ r: Range<Int>) {
             for rec in records(b, in: r) where rec.isContainer {
@@ -142,7 +142,7 @@ enum OfficeArt {
                 } else { walk(rec.body) }
             }
         }
-        walk(0 ..< b.count)
+        walk(whole ?? 0 ..< b.count)
         return out
     }
 }
