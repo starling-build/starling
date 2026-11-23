@@ -470,7 +470,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                     // (Counted by its lines, not its height: a line that holds a
                     // full-width bracket stands taller in a fallback face, and
                     // 3.69 lines' height is three lines, not four.)
-                    let tall = Double(wrapped.computeLineMetrics().count + Int(trailing)) * Self._fittedLine(st, m, book)
+                    // (Excel's rows stop at 409.5 pt: CVLKRA-KYC's 38-line Remark cell is a row of 409.5 on its page, its text cut there.)
+                    let tall = min(409.5, Double(wrapped.computeLineMetrics().count + Int(trailing)) * Self._fittedLine(st, m, book))
                     if tall > heights[a.row] ?? m.defaultRow { heights[a.row] = tall }
                 }
                 // A wrapped, bottom-aligned text of a font smaller than the default's in a
@@ -2843,7 +2844,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 let y0: Double
                 switch st.vAlign {
                 case .top: y0 = _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .top)
-                case .center: y0 = _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .center) - n / 2 * pitch - lift
+                case .center:
+                    // (Text taller than the longest row Excel has (409.5 pt) starts at the row's head, not centred past it; a text only a little over its row stays centred, 49273: CVLKRA-KYC's 38 lines in a row of 409.5 pt, Excel's first at the row's top + 0.8 pt.)
+                    let over = n * pitch + one > 409.5 * scale
+                    y0 = over ? _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .top)
+                        : _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .center) - n / 2 * pitch - lift
                 case .bottom: y0 = _footTop(st, book, ws, row: a.row, texts.painter("X", style), bottom: bottom) - n * pitch
                 }
                 for (i, line) in lines.enumerated() {
