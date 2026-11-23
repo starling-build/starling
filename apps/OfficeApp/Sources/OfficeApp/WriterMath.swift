@@ -140,6 +140,14 @@ enum WriterMath {
                 box.descent = min(box.descent, s * 0.22)
             }
         }
+        // (A slide display sum with its limits over and under is taller in PowerPoint's print than its ink and leading: lab eq-lab p7, 22 pt, the lines
+        // of 3 sums stand 3.2, 7.6 and 4.7 pt farther apart than ours, 0.15 em more above it and 0.19 em below.)
+        if display, WriterMath.slideScope, WriterMath.windows,
+           node.descendants("m:nary").contains(where: { n in !["\u{222B}", "\u{222C}", "\u{222D}", "\u{222E}"].contains(n.first("m:naryPr")?.first("m:chr")?["m:val"] ?? "\u{222B}") && n.first("m:naryPr")?.first("m:limLoc")?["m:val"] != "subSup" }) {
+            let s = Layout(display: false).runSize(node, size)
+            box.ascent += s * 0.15
+            box.descent += s * 0.19
+        }
         lock.lock()
         entries[id] = Entry(box: box, node: display ? node : nil, size: size, slide: slideScope, ink: slideInk)
         lock.unlock()
