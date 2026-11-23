@@ -274,6 +274,7 @@ struct Chart: Equatable {
     var categoryAxisTitleSize: Double? = nil
     /// The axis titles say nothing of their look (openpyxl's): Excel sets them 20 pt.
     var bareAxisTitle = false
+    var axisTitleDefaultBold = false
     var axisTitleBold = false   // (a sheet's axis title that states b="1" is drawn bold)
     var axisTitleColor: Color? = nil   // (Word's own: the title's run, else its default run properties)
     /// An axis title the file places itself (`c:title/c:layout`, edge-mode
@@ -2540,6 +2541,11 @@ enum ChartXML {
         }
         c.valueAxisTitleSize = statedSize(titledValue)
         c.categoryAxisTitleSize = statedSize(titledCategory)
+        // (A title that states no size, in a chart that states its text size: bold, at that size. ja-1ac2a16bb5 p11, 20 pt.)
+        if space.first("c:txPr") != nil, let ts = c.textSize {
+            if c.valueAxisTitle != nil, c.valueAxisTitleSize == nil { c.valueAxisTitleSize = ts; c.axisTitleDefaultBold = true }
+            if c.categoryAxisTitle != nil, c.categoryAxisTitleSize == nil { c.categoryAxisTitleSize = ts; c.axisTitleDefaultBold = true }
+        }
         c.categoryAxisTitleAt = c.categoryAxisTitle == nil ? nil : placed(titledCategory)
         c.valueAxisTitleAt = c.valueAxisTitle == nil ? nil : placed(titledValue)
         c.valueAxisTitleAcross = c.valueAxisTitle != nil && c.valueAxisTitleAt == nil && titledValue?.first("c:title")?.descendant("a:bodyPr")?["rot"] == "0"
@@ -4094,7 +4100,7 @@ enum ChartPainter {
             _pie(c, canvas, area, k: k, theme: theme, text: text, frame: r, ink: ink)
         } else {
             _axes(c, canvas, area, frame: r, k: k, theme: theme, titleLines: titleLines, grid: c.gridColor ?? grid, text: text,
-                   titleText: { styled($0, c.onSheet && c.bareAxisTitle ? $1 * 0.9 : $1, $2, bold: c.onSheet && c.axisTitleBold, color: c.onSlide || c.onSheet ? nil : c.axisTitleColor, family: c.onSheet && c.bareAxisTitle ? "Arial" : nil) },
+                   titleText: { styled($0, c.onSheet && c.bareAxisTitle ? $1 * 0.9 : $1, $2, bold: c.onSheet && c.axisTitleBold || c.onSlide && c.axisTitleDefaultBold, color: c.onSlide || c.onSheet ? nil : c.axisTitleColor, family: c.onSheet && c.bareAxisTitle ? "Arial" : nil) },
                   categoryText: { styled($0, $1, $2, bold: c.categoryLabelBold, color: c.categoryLabelColor, part: "cat", windowsLines: true, mixedLine: 1.494, tall: true) },
                   valueText: { styled($0, $1, $2, bold: c.valueLabelBold, color: c.valueLabelColor, part: "val", tall: true) })
         }
