@@ -9348,7 +9348,49 @@ extension ChartPainter {
                 // (PowerPoint, a pie on a slide at bestFit: the box stands as far out along the slice's middle
                 // as it fits slice and disc, 0.86-0.94 of the radius: lab pie-lab1, 9 pt labels.)
                 let top = (share > 0.99 || c.onSlide) && !c.onSheet ? 0.95 : 0.6
+                // (PowerPoint, a pie on a slide at bestFit: Word tests each text LINE against the slice's two edges, on a
+                // single-spaced box (the line the face's 130% spacing is drawn from, 21 px of 96 dpi), its outer edge 5 pt
+                // inside the rim along the slice's middle line and slid across it until the lines' corners stand as far
+                // from the middle line on one side as the other; the text is then drawn from that box's top at the real
+                // spacing, so it overflows downward. Lab pie-lab8 (Word for Windows, 12 pt Malgun, 5 flip angles
+                // down and right), planner's note 20261123-034700.)
+                let lineTest = c.onSlide && c.type == .pie && !c.onSheet && abs(rx - ry) < 0.5 && rx > 0
+                func placeLines() -> Offset? {
+                    let ms = tp.computeLineMetrics()
+                    let n = ms.count
+                    guard n > 0, tp.height > 0 else { return nil }
+                    let drawn = tp.height / Double(n)
+                    let single = (drawn / k / 1.3 / 0.75).rounded() * 0.75 * k
+                    let ws = ms.map { $0.width }
+                    let bw = ws.max() ?? 0, bh = single * Double(n)
+                    let ux = cos(s.mid), uy = sin(s.mid), vx = -uy, vy = ux
+                    let u0 = rx - 5 * k - (abs(ux) * bw + abs(uy) * bh) / 2
+                    func extremes(_ t: Double) -> (Double, Double) {
+                        var hi = -Double.infinity, lo = Double.infinity
+                        for (i, w) in ws.enumerated() {
+                            let y0 = -bh / 2 + Double(i) * single
+                            for (dx, dy) in [(-w / 2, y0), (w / 2, y0), (-w / 2, y0 + single), (w / 2, y0 + single)] {
+                                let u = max(0.01, u0 + dx * ux + dy * uy), v = t + dx * vx + dy * vy
+                                let a = atan2(v, u)
+                                hi = max(hi, a); lo = min(lo, a)
+                            }
+                        }
+                        return (hi, lo)
+                    }
+                    var a = -rx, b = rx
+                    for _ in 0 ..< 48 {
+                        let m = (a + b) / 2
+                        let (hi, lo) = extremes(m)
+                        if hi + lo < 0 { a = m } else { b = m }
+                    }
+                    let t = (a + b) / 2
+                    let (hi, _) = extremes(t)
+                    guard hi <= half else { return nil }
+                    let mx = centre.dx + ux * u0 + vx * t, my = centre.dy + uy * u0 + vy * t
+                    return Offset(mx, my - bh / 2 + tp.height / 2)
+                }
                 func place(_ bw: Double, _ bh: Double) -> Offset? {
+                    if lineTest { return placeLines() }
                     let step: Double = top > 0.6 ? -0.01 : -0.05
                     let corners: [(Double, Double)] = [(-bw / 2, -bh / 2), (bw / 2, -bh / 2), (-bw / 2, bh / 2), (bw / 2, bh / 2)]
                     for f in stride(from: top, through: 0.3, by: step) {
@@ -9654,7 +9696,9 @@ extension ChartPainter {
                 continue
             }
             taken.append(Rect.fromLTWH(at.dx - tp.width / 2, at.dy - tp.height / 2, tp.width, tp.height))
-            let box = Rect.fromLTWH(at.dx - w / 2, at.dy - h / 2, w, h)
+            // (The re-wrapped label's box is the one it was laid out in last, not the first layout's.)
+            let (bw2, bh2) = c.onSlide && c.type == .pie && !c.onSheet && insideAt != nil ? (tp.width + pad * 2, tp.height + pad) : (w, h)
+            let box = Rect.fromLTWH(at.dx - bw2 / 2, at.dy - bh2 / 2, bw2, bh2)
             let leftOut = l.outside && !fitsInside
             // The leader: from the slice's outer edge to the box's nearest
             // point, where the label has left its slice.
