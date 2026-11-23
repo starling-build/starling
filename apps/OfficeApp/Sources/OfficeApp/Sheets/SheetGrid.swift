@@ -2687,7 +2687,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         }
         var (text, color) = NumberFormat.display(cell.value, st.numberFormat, width: chars, pads: true)
         if cell.value.isText, !st.wrap { text = Self.shown(text) }
-        let style = _textStyle(st, color: color, ink: ink)
+        var style = _textStyle(st, color: color, ink: ink)
         // Pads before the text (`_W0`, Accounting's `_(@_)`) are a gap of
         // their characters' width ahead of it. (Spaced out as `_TextCache`
         // spaces the rest, the text after them was drawn half the spacing
@@ -2717,6 +2717,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // Wrapped text: lines within the cell's width, never spilling.
         let wraps = st.wrap && cell.value.isText
         let lineAlign: TextAlign = align == .center ? .center : align == .right ? .right : .left
+        style.rtl = cell.value.isText && _cellIsRTL(st, text)
         var tp = texts.painter(text, style, maxWidth: wraps ? wrapRoom(width, pad * 2 + wrapLess) : .infinity, align: wraps ? lineAlign : .left)
         // A number too wide for its cell is ####, never cut.
         if case .number = cell.value, lead + tp.width > width - pad * 2 {
@@ -3260,6 +3261,8 @@ private final class _GridPainter: CustomPainter {
 
 /// A cell's font, hashable, so laid-out text can be cached by it.
 struct GridTextStyle: Hashable {
+    /// The paragraph runs right to left (a cell's reading order: see `CellStyle.readingOrder`).
+    var rtl = false
     var family: String
     var size: Double
     var bold = false
@@ -3313,6 +3316,17 @@ struct GridTextStyle: Hashable {
     }
 }
 
+/// A cell's paragraph direction: its reading order, or with "context" (0) the first strong letter of its text.
+func _cellIsRTL(_ st: CellStyle, _ text: String) -> Bool {
+    if st.readingOrder != 0 { return st.readingOrder == 2 }
+    for u in text.unicodeScalars {
+        let v = u.value
+        if (0x590 ... 0x8FF).contains(v) || (0xFB1D ... 0xFDFF).contains(v) || (0xFE70 ... 0xFEFF).contains(v) { return true }
+        if u.properties.isAlphabetic { return false }
+    }
+    return false
+}
+
 /// Laid-out text for the grid, kept across frames: a screen of cells
 /// repaints on every scroll, and laying out the same strings again each
 /// time is most of the cost. Evicted wholesale when it grows large.
@@ -3332,7 +3346,7 @@ final class _TextCache {
         if let tp = _cache[k] { return tp }
         if _cache.count > 4000 { clear() }
         let lines = maxWidth.isFinite ? _breakLines(NumberFormat.unpad(text), style, maxWidth) : text
-        let tp = TextPainter(text: _span(lines, style), textAlign: align, textDirection: .ltr)
+        let tp = TextPainter(text: _span(lines, style), textAlign: align, textDirection: style.rtl ? .rtl : .ltr)
         tp.layout(minWidth: 0, maxWidth: style.screen > 0 ? .infinity : maxWidth)
         _cache[k] = tp
         return tp

@@ -714,6 +714,7 @@ enum Xlsx {
                 default: break
                 }
                 s.wrap = al["wrapText"] == "1" || al["wrapText"] == "true" || justified
+                s.readingOrder = Int(al["readingOrder"] ?? "") ?? 0
                 s.indent = max(0, min(250, Int(al["indent"] ?? "") ?? 0))
                 s.rotation = Int(al["textRotation"] ?? "") ?? 0
             }

@@ -52,6 +52,8 @@ struct CellStyle: Hashable, Sendable {
     var hAlign: HAlign = .general
     var vAlign: VAlign = .bottom
     var wrap = false
+    /// `alignment@readingOrder`: 0 context (the first strong letter of the text sets the direction), 1 left to right, 2 right to left.
+    var readingOrder = 0
     /// Indent levels (`alignment@indent`), each three spaces of the
     /// workbook's default font: left-aligned text in from the left, right-
     /// aligned in from the right.
