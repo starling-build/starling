@@ -4177,7 +4177,9 @@ private struct SlideContext {
                 // (A blank bullet, the master's " ", is left to the layout's slot rule, which mirrors a hang past the margin.)
                 if let indent = level.indent {
                     let blank = style.bulletText.map { !$0.isEmpty && $0.allSatisfy { $0 == " " } } ?? false
-                    style.firstLineIndent = (blank || level.marL == nil ? indent : max(indent, -(level.marL ?? 0))) + shapeIndent
+                    // (No layer states a left edge and the paragraph has no bullet: the edge is 0, and a hang past it stands at it, ko-2a9e73116d p2 "2. 로그인…".)
+                    let edge = level.marL ?? ((level.bullet ?? Bullet.none) == .none && !blank ? 0 : nil)
+                    style.firstLineIndent = (blank || edge == nil ? indent : max(indent, -(edge ?? 0))) + shapeIndent
                     if !blank, let marL = level.marL, marL + indent < 0 { style.firstTextLead = -indent - marL }
                 }
                 // A text edge with no offset said anywhere is offset 0, as
@@ -4206,7 +4208,8 @@ private struct SlideContext {
                                                 marL: level.marL, shapeIndent: shapeIndent, level: lvl)
             default:
                 style.indentLeft = level.marL ?? 0
-                style.firstLineIndent = level.indent ?? 0
+                // (A hang past the text area's edge stands at the edge: ko-2a9e73116d p2, indent -18 with no left edge, line 1 at the edge.)
+                style.firstLineIndent = max(level.indent ?? 0, -(level.marL ?? 0))
             }
             // The paragraph's right margin (marR): the line breaks that far short of the box's edge.
             if let marR = level.marR, marR > 0 { style.indentRight = marR }
