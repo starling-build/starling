@@ -2578,6 +2578,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     static let excelTextScale = 7.0 / 7.43
 
     /// The text style a cell draws with.
+    /// The room a printed wrapped line has: on the print grid, the column's whole dots less 26 x the print scale
+    /// (Excel's prints at 4 scales: margin windows 24.5-27.5 at 100%, 19.5-22 at 81%, 13-13.75 at 50%); the row's
+    /// HEIGHT stays the screen-grid fit.
+    func wrapRoom(_ width: Double, _ less: Double) -> Double {
+        guard printing, printTextScale > 0, printRowScale > 0 else { return max(1, width - less) }
+        let dpu = printTextScale / scale * 600 / 72
+        return max(1, ((width * dpu + 1e-6 - 26 * printRowScale).rounded(.down)) / dpu)
+    }
     func _textStyle(_ st: CellStyle, color: UInt32?, ink: Color) -> GridTextStyle {
         let c = printing && printMono ? Int64(0xFF00_0000) : (color ?? st.color).map { Int64(0xFF00_0000) | Int64($0) } ?? Int64(ink.value)
         let book = controller.book
@@ -2698,7 +2706,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // Wrapped text: lines within the cell's width, never spilling.
         let wraps = st.wrap && cell.value.isText
         let lineAlign: TextAlign = align == .center ? .center : align == .right ? .right : .left
-        var tp = texts.painter(text, style, maxWidth: wraps ? max(1, width - pad * 2 - wrapLess) : .infinity, align: wraps ? lineAlign : .left)
+        var tp = texts.painter(text, style, maxWidth: wraps ? wrapRoom(width, pad * 2 + wrapLess) : .infinity, align: wraps ? lineAlign : .left)
         // A number too wide for its cell is ####, never cut.
         if case .number = cell.value, lead + tp.width > width - pad * 2 {
             let hashes = max(1, Int((width - pad * 2) / max(1, texts.painter("#", style).width)))
@@ -2818,7 +2826,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // the first at the head, the middle in the centre — stands where
         // one line would (52716's last lines with their rows' numbers).
         if printing && wraps {
-            let lines = texts._breakLines(NumberFormat.unpad(text), style, max(1, width - pad * 2 - wrapLess))
+            let lines = texts._breakLines(NumberFormat.unpad(text), style, wrapRoom(width, pad * 2 + wrapLess))
                 .split(separator: "\n", omittingEmptySubsequences: false)
             if lines.count > 1 {
                 let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
