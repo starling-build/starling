@@ -16,6 +16,9 @@ import Foundation
 /// other than the copy and mask ones, hatches and EMF+ are approximated or
 /// skipped.
 final class Metafile {
+    /// Set around a spreadsheet picture's parse: Excel's print of an EMF's text follows the record's own advances (dx array).
+    nonisolated(unsafe) static var textFollowsRecordAdvances = false
+
     /// Scoring against PowerPoint for Mac's prints (the Windows ones are the default).
     static let macReference = ProcessInfo.processInfo.environment["STARLING_PPT_MAC"] != nil
     enum Step {
@@ -540,7 +543,7 @@ private struct Player {
             text: shown, at: map(ref), size: size, face: dc.font.face, bold: dc.font.bold, italic: dc.font.italic,
             underline: dc.font.underline, color: dc.textColor, align: dc.textAlign,
             angle: turn - flipY * dc.font.escapement / 10 * .pi / 180, baselineDrop: drop, pixel: pixel,
-            advances: RichTextTheme.wordWindowsPages && !isWMF && string.utf16.count == shown.utf16.count && shown.count == advances?.count
+            advances: (RichTextTheme.wordWindowsPages || Metafile.textFollowsRecordAdvances) && !isWMF && string.utf16.count == shown.utf16.count && shown.count == advances?.count
                 ? advances?.map { $0 * scaleX } : nil)))
     }
 
