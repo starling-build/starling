@@ -8865,10 +8865,12 @@ extension ChartPainter {
                     .replacingAll("\u{E000}p", with: "\(whole[s.index] ?? Int((s.value / sum * 100).rounded()))%")
             // (On a sheet with none written, Excel's print joins with ", ": chart-ser_labels "Ser2, 7", chart-tdf133190 "Datapoint 4, 1", chart-tdf108107 "2019, 2".)
             // (On a sheet, a pie whose labels are all set Outside End: Excel stacks the name over the share, chart-piechart_outside.)
+            // (A slide's pie names and shares on ONE line, "女性, 48%", when its category names are CJK: ja-f3a3058d2e p4 in PowerPoint's print;
+            // Latin ones stack them.)
             // (", " where the chart's text is Chinese, Japanese or Korean:
             // zh-b8de3ae2's "其他收入, 16.39%" in Word's print; and in a Word document's chart
             // whatever its text: lo-f9b9a8fc47c97aa6's "datalabel1, 2".)
-            } ?? parts.joined(separator: l.separator ?? (parts.count > 1 ? ((c.onSlide || (c.onSheet && l.position == "outEnd")) && c.type == .pie ? "\n" : c.eastAsianText || !c.onSlide ? ", " : "; ") : ""))
+            } ?? parts.joined(separator: l.separator ?? (parts.count > 1 ? (((c.onSlide && !c.eastAsianText && !c.categories.contains { $0.unicodeScalars.contains { $0.value >= 0x2E80 } }) || (c.onSheet && l.position == "outEnd")) && c.type == .pie ? "\n" : c.eastAsianText || !c.onSlide || (c.type == .pie && c.categories.contains { $0.unicodeScalars.contains { $0.value >= 0x2E80 } }) ? ", " : "; ") : ""))
             let dark = { () -> Bool in
                 let v = s.color.value
                 return 0.299 * Double((v >> 16) & 0xFF) + 0.587 * Double((v >> 8) & 0xFF) + 0.114 * Double(v & 0xFF) < 150
