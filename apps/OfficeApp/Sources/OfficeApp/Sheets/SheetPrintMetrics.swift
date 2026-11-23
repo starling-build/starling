@@ -132,14 +132,14 @@ struct SheetPrintMetrics {
         "malgun gothic": Face(digit: [37, 41, 46, 48, 51, 55, 64, 73, 83], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
             screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
         // Dotum, Gulim, Batang and Gungsuh are not on the print box, so Excel prints them as a stand-in,
-        // with their own line (winAsc + winDesc = 1.0 em, so 15 screen pixels at 11 pt; the set rows print 3 dots per 192-dpi pixel: 0453e2c911's 24 pt rows are 23.05 pt apart where Malgun's make 23.7) and a column's unit their own digit (font file advances of 597, 588, 610 and 597 per 1024 em) in whole dots of the
+        // with Malgun's rows (their own line is not yet measured against Excel) and a column's unit their own digit (font file advances of 597, 588, 610 and 597 per 1024 em) in whole dots of the
         // 600 dpi em (11 pt: 92 dots, Dotum's digit 54 where Malgun's is 51: 0453e2c911's two columns, 509.8 pt, 36.0 + 473.8).
-        "dotum": Face(digit: [39, 44, 49, 51, 54, 58, 68, 78, 88], row: [66, 72, 78, 84, 90, 96, 114, 126, 144], screenRow: [22, 24, 26, 28, 30, 32, 38, 42, 48],
-            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26]),
-        "gulim": Face(digit: [38, 43, 48, 50, 53, 57, 67, 76, 86], row: [66, 72, 78, 84, 90, 96, 114, 126, 144], screenRow: [22, 24, 26, 28, 30, 32, 38, 42, 48],
-            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26]),
-        "batang": Face(digit: [39, 45, 50, 52, 55, 60, 70, 79, 89], row: [66, 72, 78, 84, 90, 96, 114, 126, 144], screenRow: [22, 24, 26, 28, 30, 32, 38, 42, 48],
-            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26]),
+        "dotum": Face(digit: [39, 44, 49, 51, 54, 58, 68, 78, 88], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
+            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
+        "gulim": Face(digit: [38, 43, 48, 50, 53, 57, 67, 76, 86], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
+            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
+        "batang": Face(digit: [39, 45, 50, 52, 55, 60, 70, 79, 89], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],
+            screenDigit: [12, 13, 15, 15, 16, 18, 20, 24, 26], offTable: [6: 23], hinted: [10: 41.75]),
         // Nirmala UI: a wrapped line is the face's GDI height plus its descent at 600 dpi (12 pt: 133 + 26 = 159 dots, 50 screen
         // pixels; zwsp2 lab, Excel 16: one line of Nirmala UI 12 is 19.07 pt, two 38.1, three 57.2, where Calibri 12 is 15.3).
         // The other sizes follow from the face's GDI heights (gdi-textmetrics-600dpi-indic); the digits stand in as Calibri's.
