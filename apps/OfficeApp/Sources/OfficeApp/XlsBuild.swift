@@ -248,6 +248,8 @@ enum XlsBuild {
         var hdrFtr: [String?] = [nil, nil]
         var fitToPage = false
         var win2: Int? = nil
+        var summaryBelow = true, summaryRight = true
+        var pane: (Int, Int, Int, Int, Int)? = nil
         var printGrid = false, printHeads = false, hCenter = false, vCenter = false
         var hBreaks: [(Int, Int, Int)] = [], vBreaks: [(Int, Int, Int)] = []
         var hdrFtrMargins: (Double, Double)? = nil
@@ -275,7 +277,11 @@ enum XlsBuild {
             case 0x14, 0x15 where rec.body.count >= 3:
                 let cch = c.u16()
                 if cch > 0 { let f = c.u8(); hdrFtr[Int(rec.type) - 0x14] = c.chars(cch, wide: f & 1 == 1) }
-            case 0x81 where rec.body.count >= 2: fitToPage = c.u16() & 0x100 != 0
+            case 0x81 where rec.body.count >= 2:
+                let g = c.u16()
+                fitToPage = g & 0x100 != 0
+                summaryBelow = g & 0x40 != 0; summaryRight = g & 0x80 != 0
+            case 0x41 where rec.body.count >= 10: pane = (c.u16(), c.u16(), c.u16(), c.u16(), c.u16())
             case 0x23E where rec.body.count >= 2: win2 = c.u16()
             case 0x2A: printHeads = c.u16() != 0
             case 0x2B: printGrid = c.u16() != 0
@@ -368,6 +374,8 @@ enum XlsBuild {
                 var a = ""
                 if h & 0x8000 == 0, h > 0 { a += " ht=\"\(Double(h & 0x7FFF) / 20)\"" + (flags & 0x40 != 0 ? " customHeight=\"1\"" : "") }
                 if flags & 0x20 != 0 { a += " hidden=\"1\"" }
+                if flags & 7 != 0 { a += " outlineLevel=\"\(flags & 7)\"" }
+                if flags & 0x10 != 0 { a += " collapsed=\"1\"" }
                 if flags & 0x80 != 0, x & 0xFFF > 0, Int(x & 0xFFF) < xfCount { a += " s=\"\(x & 0xFFF)\" customFormat=\"1\"" }
                 if !a.isEmpty { rows[r] = a }
             case 0x7D where rec.body.count >= 10:
@@ -375,6 +383,8 @@ enum XlsBuild {
                 if first < 16384 {
                     var col = "<col min=\"\(first + 1)\" max=\"\(min(last, 16383) + 1)\" width=\"\(Double(w) / 256)\" customWidth=\"1\""
                     if g & 1 != 0 { col += " hidden=\"1\"" }
+                    if g >> 8 & 7 != 0 { col += " outlineLevel=\"\(g >> 8 & 7)\"" }
+                    if g & 0x1000 != 0 { col += " collapsed=\"1\"" }
                     if x > 0 && x < xfCount { col += " style=\"\(x)\"" }
                     cols.append(col + "/>")
                 }
@@ -395,7 +405,12 @@ enum XlsBuild {
             }
         }
         var x = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">"
-        if fitToPage { x += "<sheetPr><pageSetUpPr fitToPage=\"1\"/></sheetPr>" }
+        if fitToPage || !summaryBelow || !summaryRight {
+            x += "<sheetPr>"
+            if !summaryBelow || !summaryRight { x += "<outlinePr" + (summaryBelow ? "" : " summaryBelow=\"0\"") + (summaryRight ? "" : " summaryRight=\"0\"") + "/>" }
+            if fitToPage { x += "<pageSetUpPr fitToPage=\"1\"/>" }
+            x += "</sheetPr>"
+        }
         var fmt = ""
         if let s = stdWidth { fmt += " defaultColWidth=\"\(Double(s) / 256)\"" }
         else if let d = defColWidth, d != 8 {
@@ -408,7 +423,16 @@ enum XlsBuild {
             if w & 0x02 == 0 { view += " showGridLines=\"0\"" }
             if w & 0x04 == 0 { view += " showRowColHeaders=\"0\"" }
         }
-        x += view + " workbookViewId=\"0\"/></sheetViews>"
+        view += " workbookViewId=\"0\">"
+        if let (px, py, top, left, pnn) = pane, let w = win2, w & 0x08 != 0, px > 0 || py > 0 {
+            var pa = "<pane"
+            if px > 0 { pa += " xSplit=\"\(px)\"" }
+            if py > 0 { pa += " ySplit=\"\(py)\"" }
+            let active = ["bottomRight", "topRight", "bottomLeft", "topLeft"][min(pnn, 3)]
+            pa += " topLeftCell=\"\(colName(left))\(top + 1)\" activePane=\"\(active)\" state=\"\(w & 0x100 != 0 ? "frozen" : "frozenSplit")\"/>"
+            view += pa
+        }
+        x += view + "</sheetView></sheetViews>"
         if let (h, custom) = defRowHeight, h > 0 { fmt += " defaultRowHeight=\"\(Double(h) / 20)\"" + (custom ? " customHeight=\"1\"" : "") }
         if !fmt.isEmpty { x += "<sheetFormatPr\(fmt)/>" }
         if !cols.isEmpty { x += "<cols>" + cols.joined() + "</cols>" }
