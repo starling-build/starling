@@ -157,7 +157,8 @@ struct SheetPrintMetrics {
             screenDigit: [13, 15, 17, 18, 18, 20, 23, 27, 30]),
         "palatino linotype": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [101, 113, 123, 130, 137, 147, 171, 194, 216], screenRow: [30, 34, 38, 39, 40, 47, 53, 61, 67],
             screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
-        "pmingliu": Face(digit: [31, 35, 39, 41, 43, 47, 55, 62, 70], row: [77, 85, 93, 98, 102, 130, 127, 143, 160], screenRow: [26, 30, 33, 35, 36, 39, 45, 53, 59],
+        // PMingLiU and MingLiU print a line of em + descent + external leading (= descent) + half the descent more, in 600-dpi dots, em = round(size x 600/72), descent = em - round(0.8008 em): GDI dump at 600 dpi, 6 sizes x 2 faces, 12/12 of Excel's pitches (the planner's spec, 2026-11-23).
+        "pmingliu": Face(digit: [31, 35, 39, 41, 43, 47, 55, 62, 70], row: [87, 98, 109, 115, 119, 130, 152, 172, 195], screenRow: [26, 30, 33, 35, 36, 39, 45, 53, 59],
             screenDigit: [10, 11, 13, 13, 14, 15, 17, 20, 23]),
         "lucida sans typewriter": Face(digit: [40, 45, 50, 53, 55, 60, 70, 80, 90], row: [87, 96, 105, 112, 116, 126, 146, 164, 184], screenRow: [26, 30, 34, 35, 36, 40, 46, 53, 59],
             screenDigit: [13, 14, 16, 17, 17, 19, 22, 26, 29]),
@@ -165,7 +166,7 @@ struct SheetPrintMetrics {
             screenDigit: [14, 16, 18, 19, 19, 21, 25, 29, 32]),
         "simhei": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [25, 28, 32, 33, 34, 38, 43, 50, 56],
             screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
-        "mingliu": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [77, 85, 93, 98, 102, 110, 127, 143, 160], screenRow: [26, 30, 33, 35, 36, 39, 45, 53, 59],
+        "mingliu": Face(digit: [34, 38, 42, 44, 46, 50, 59, 67, 75], row: [87, 98, 109, 115, 119, 130, 152, 172, 195], screenRow: [26, 30, 33, 35, 36, 39, 45, 53, 59],
             screenDigit: [11, 12, 14, 14, 15, 16, 19, 22, 24]),
         // The bold of a face, where a workbook's default font is bold: its
         // own line, and for some its own digit.
