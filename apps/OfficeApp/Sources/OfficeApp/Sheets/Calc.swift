@@ -786,7 +786,7 @@ final class CalcEngine {
     /// booleans, text case-insensitively; an empty cell is 0, "" or FALSE
     /// to match the other side.
     /// Case-insensitive order of two all-ASCII strings with no allocation (the same order as comparing their
-    /// lowercased() forms); nil when either holds a non-ASCII byte, so the caller takes the Unicode path.
+    /// lowercased() forms); nil when the first differing byte, or a tail after an equal prefix, is non-ASCII, so the caller takes the Unicode path.
     static func asciiCompareFolded(_ x: String, _ y: String) -> Int? {
         var x = x, y = y
         return x.withUTF8 { a in y.withUTF8 { b -> Int? in
@@ -794,6 +794,7 @@ final class CalcEngine {
             var i = 0
             while i < n {
                 var p = a[i], q = b[i]
+                if p == q { i += 1; continue }   // identical bytes fold identically, accented or not
                 if p >= 0x80 || q >= 0x80 { return nil }
                 if p >= 0x41 && p <= 0x5A { p += 32 }
                 if q >= 0x41 && q <= 0x5A { q += 32 }
@@ -834,6 +835,8 @@ final class CalcEngine {
             if x == y || abs(x - y) <= max(abs(x), abs(y)) * 1e-15 { return 0 }
             return x < y ? -1 : 1
         case (.text(let x), .text(let y)):
+            if x.isEmpty || y.isEmpty { return x.isEmpty ? (y.isEmpty ? 0 : -1) : 1 }
+            if x.utf8.count == y.utf8.count, x.utf8.elementsEqual(y.utf8) { return 0 }
             if let r = CalcEngine.asciiCompareFolded(x, y) { return r }
             let lx = x.lowercased(), ly = y.lowercased()
             return lx < ly ? -1 : (lx > ly ? 1 : 0)
