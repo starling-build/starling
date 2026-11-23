@@ -335,7 +335,7 @@ extension RichLayout {
                         var cs = (run.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
                         switch cs {
                         case "kalimati": cs = "mangal"
-                        case "mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "utsaah", "shonar bangla": break
+                        case "mangal", "kokila", "aparajita", "raavi", "shruti", "gautami", "vrinda", "utsaah", "shonar bangla", "vijaya": break
                         default: cs = text.unicodeScalars.contains(where: { $0.value >= 0x980 && $0.value < 0xA00 }) ? Self._bengaliMissingFace(cs, document) : "nirmala ui"
                         }
                         // (Shonar Bangla Bold is its own face: 1721+978 of 2048; a first line of Bengali alone stands on its ascent, 15.1 pt at 18 pt, not on the stand-in's 0.96 em: dx2 3f7da49c's title, Word's baseline 60.1.)
@@ -349,7 +349,7 @@ extension RichLayout {
                         let noLatin = (cs == "kokila" || cs == "shonar bangla") && !(cs == "shonar bangla"
                             ? _shonarFirstLineHasLatin(p, units: units, firstEnd: firstEnd, named: named, document: document)
                             : units[0 ..< min(firstEnd, units.count)].contains(where: { ($0 >= 0x30 && $0 <= 0x39) || ($0 >= 0x41 && $0 <= 0x5A) || ($0 >= 0x61 && $0 <= 0x7A) }))
-                        if cs == "utsaah" || cs == "kokila" || (cs == "shonar bangla" && noLatin), noLatin || (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == cs,
+                        if cs == "utsaah" || cs == "kokila" || cs == "vijaya" || (cs == "shonar bangla" && noLatin), noLatin || (run.style.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased() == cs,
                            abs(size * metrics.0 - target) > 0.01,
                            // (An at-least line taller than the face keeps its old place: 6c7504e9 heading, 24 pt at least over a 16 pt face. A multiple puts its extra under the line, so the baseline stays on the face's ascent: lab mmatrix2.)
                            !(cs == "kokila" && ((p.style.lineHeightPoints ?? 0) > size * (metrics.0 + metrics.1) + 0.01)) {
