@@ -357,6 +357,7 @@ final class CalcEngine {
             }
             return out
         }
+        var nameParsed: [String: FormulaExpr?] = [:]
         func inputs(_ id: Int) -> [Int] {
             switch nodes[id] {
             case .range(let si, let r):
@@ -377,7 +378,9 @@ final class CalcEngine {
                 var names: [String] = []
                 Formula.names(f, into: &names)
                 for n in names {
-                    if let t = book.nameText(n, sheet: k.sheet), let e = try? Formula.parse(t) {
+                    let nk = "\(k.sheet)|\(n)"
+                    if nameParsed[nk] == nil { nameParsed[nk] = .some(book.nameText(n, sheet: k.sheet).flatMap { try? Formula.parse($0) }) }
+                    if let e = nameParsed[nk]! {
                         Formula.references(Formula.shifted(e, rows: k.cell.row, cols: k.cell.col, wrapping: true), into: &refs, indexed: &indexed)
                     }
                 }
