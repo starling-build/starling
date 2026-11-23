@@ -839,6 +839,8 @@ enum XlsBuild {
                 switch builtin { case 6: name = "_xlnm.Print_Area"; case 7: name = "_xlnm.Print_Titles"; case 0xD: name = "_xlnm._FilterDatabase"; default: continue }
             } else {
                 let f = c.u8(); name = c.chars(cch, wide: f & 1 == 1)
+                // A plain name spelled like a built-in one is that built-in (Excel's own conversion does the same).
+                for b in ["Print_Area", "Print_Titles", "_FilterDatabase"] where name.lowercased() == b.lowercased() { name = "_xlnm." + b }
             }
             let end = min(r.body.count, c.pos + cce)
             guard let text = formulaRanges(Array(r.body[c.pos ..< end]), xtis: xtis, sheetNames: sheetNames), !text.isEmpty else { continue }
