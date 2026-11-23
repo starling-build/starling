@@ -113,7 +113,9 @@ BSHA=$(git rev-parse "$BASE_SHA")
 # against it is the exact base built and the gate rerun (GATE_EXACT_BASE=1), so a drop that came from main in between is not
 # blamed on the PR. Accepted blind spot: a main commit in between that improved a document the PR then undoes (hourly rounds).
 EXACTB=
-if [ "${GATE_PREBUILD:-0}" != 1 ] && [ "${GATE_EXACT_BASE:-0}" != 1 ] && [ ! -x "$BC/$BSHA/release/OfficeApp" ]; then
+# amd-8, 2026-11-23: OFF by default (starling-bd): the gate builds and renders the real base (one builder per sha, the others wait on the lock) instead of scoring against an older ancestor,
+# which hid a PR's effect of whatever main changed in between. GATE_ANCESTOR_FALLBACK=1 brings the old behaviour back.
+if [ "${GATE_ANCESTOR_FALLBACK:-0}" = 1 ] && [ "${GATE_PREBUILD:-0}" != 1 ] && [ "${GATE_EXACT_BASE:-0}" != 1 ] && [ ! -x "$BC/$BSHA/release/OfficeApp" ]; then
   for a in $(git rev-list --max-count=150 "$BSHA" 2>/dev/null | tail -n +2); do
     if [ -x "$BC/$a/release/OfficeApp" ]; then EXACTB=$BSHA; BSHA=$a; echo "render-gate: base ${EXACTB:0:9} not cached; scoring against the cached ancestor ${a:0:9}"; break; fi
   done
