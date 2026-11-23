@@ -183,12 +183,15 @@ enum DocProps {
         var keepNext = false, keepLines = false, pageBreak = false, widow: Bool?
         var before: Int?, after: Int?, line: (Int, Int)?
         var left: Int?, right: Int?, first: Int?, jc: String?
+        var ilfo = 0, ilvl = 0
         for s in sprms(g) where s.sgc == 1 {
             switch s.op {
             case 0x2406: keepNext = s.u8 == 1
             case 0x2405: keepLines = s.u8 == 1
             case 0x2407: pageBreak = s.u8 == 1
             case 0x2431: widow = s.u8 == 1
+            case 0x460B: ilfo = s.i16
+            case 0x260A: ilvl = s.u8
             case 0xA413: before = s.u16
             case 0xA414: after = s.u16
             case 0x6412: if s.operand.count >= 4 { line = (OfficeArt.u16(s.operand, 0), OfficeArt.u16(s.operand, 2)) }
@@ -203,6 +206,7 @@ enum DocProps {
         if keepLines { x += "<w:keepLines/>" }
         if pageBreak { x += "<w:pageBreakBefore/>" }
         if let widow { x += widow ? "<w:widowControl/>" : "<w:widowControl w:val=\"0\"/>" }
+        if ilfo > 0 { x += "<w:numPr><w:ilvl w:val=\"\(min(ilvl, 8))\"/><w:numId w:val=\"\(ilfo)\"/></w:numPr>" }
         if before != nil || after != nil || line != nil {
             x += "<w:spacing"
             if let before { x += " w:before=\"\(before)\"" }
@@ -329,6 +333,68 @@ enum DocProps {
             k += span
         }
         return (tblPr, grid, trPr.isEmpty ? "" : "<w:trPr>" + trPr + "</w:trPr>", cells)
+    }
+
+    // MARK: lists
+
+    /// numbering.xml from the list tables (PlfLst: the list definitions; PlfLfo: the numbers paragraphs refer to).
+    static func numbering(_ t: [UInt8], lst: (fc: Int, lcb: Int), lfo: (fc: Int, lcb: Int)?, fonts: [String]) -> String? {
+        let end = lst.fc + lst.lcb
+        guard lst.fc >= 0, end <= t.count, lst.lcb >= 2 else { return nil }
+        let cLst = OfficeArt.u16(t, lst.fc)
+        var p = lst.fc + 2
+        var lsids: [Int] = [], simple: [Bool] = []
+        for _ in 0 ..< cLst {
+            guard p + 28 <= end else { return nil }
+            lsids.append(OfficeArt.u32(t, p)); simple.append(t[p + 26] & 1 != 0)
+            p += 28
+        }
+        let fmts: [Int: String] = [0: "decimal", 1: "upperRoman", 2: "lowerRoman", 3: "upperLetter", 4: "lowerLetter", 5: "ordinal",
+                                   22: "decimalZero", 23: "bullet", 255: "none"]
+        var abs = ""
+        for li in 0 ..< cLst {
+            abs += "<w:abstractNum w:abstractNumId=\"\(li)\"><w:multiLevelType w:val=\"\(simple[li] ? "singleLevel" : "multilevel")\"/>"
+            for lv in 0 ..< (simple[li] ? 1 : 9) {
+                guard p + 28 <= end else { break }
+                let start = OfficeArt.u32(t, p), nfc = Int(t[p + 4]), fl = Int(t[p + 5])
+                let nums = Array(t[p + 6 ..< p + 15]), follow = Int(t[p + 15])
+                let cbC = Int(t[p + 24]), cbP = Int(t[p + 25])
+                p += 28
+                guard p + cbP + cbC + 2 <= end else { break }
+                let pap = Array(t[p ..< p + cbP]), chp = Array(t[p + cbP ..< p + cbP + cbC])
+                p += cbP + cbC
+                let cch = OfficeArt.u16(t, p); p += 2
+                guard p + 2 * cch <= end else { break }
+                var text = ""
+                for k in 0 ..< cch {
+                    let c = OfficeArt.u16(t, p + 2 * k)
+                    if c < 9 { text += "%\(c + 1)" } else if let u = Unicode.Scalar(c) { text += attr(String(Character(u))) }
+                }
+                p += 2 * cch
+                var rp = rPr(chp, fonts: fonts)
+                if nfc == 23, rp.isEmpty { rp = "" }
+                let ppr = pPr(pap)
+                abs += "<w:lvl w:ilvl=\"\(lv)\"><w:start w:val=\"\(start)\"/><w:numFmt w:val=\"\(fmts[nfc] ?? "decimal")\"/>"
+                if fl & 4 != 0 { abs += "<w:isLgl/>" }
+                abs += "<w:suff w:val=\"\(follow == 1 ? "space" : follow == 2 ? "nothing" : "tab")\"/>"
+                abs += "<w:lvlText w:val=\"\(text)\"/><w:lvlJc w:val=\"\(["left", "center", "right"][min(fl & 3, 2)])\"/>"
+                abs += ppr + rp + "</w:lvl>"
+                _ = nums
+            }
+            abs += "</w:abstractNum>"
+        }
+        var nums = ""
+        if let lfo, lfo.fc + 4 <= t.count {
+            let n = OfficeArt.u32(t, lfo.fc)
+            for k in 0 ..< n {
+                let a = lfo.fc + 4 + 16 * k
+                guard a + 16 <= t.count else { break }
+                let id = OfficeArt.u32(t, a)
+                let idx = lsids.firstIndex(of: id) ?? 0
+                nums += "<w:num w:numId=\"\(k + 1)\"><w:abstractNumId w:val=\"\(idx)\"/></w:num>"
+            }
+        }
+        return abs.isEmpty || nums.isEmpty ? nil : abs + nums
     }
 
     /// The styles of the STSH as `w:style` elements, and the document's default font number.
