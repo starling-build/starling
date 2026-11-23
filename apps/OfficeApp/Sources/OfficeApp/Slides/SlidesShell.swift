@@ -203,6 +203,12 @@ final class SlidesShellState: State<StatefulWidget> {
                 self._open(picked.name, data: picked.data)
             }
             #else
+            // A host with its own document browser (the iPad's) takes Open;
+            // unsaved edits still get Backstage's prompt first.
+            if OfficeHost.openRequested != nil {
+                self.session.replacing { _ = OfficeHost.openRequested?() }
+                return
+            }
             self.setState { self._backstage = .open }
             #endif
         }
@@ -580,6 +586,7 @@ final class SlidesShellState: State<StatefulWidget> {
                path.pathExtension.lowercased() == "pptx" {
                 do {
                     try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+                    OfficeHost.documentSaved?(path)
                     self._savedEdits = self.deck.edits
                     try? FileManager.default.removeItem(atPath: self._recoveryPath(for: path))
                     self.setState { self.session.dirty = false }
@@ -734,6 +741,7 @@ final class SlidesShellState: State<StatefulWidget> {
             WebFiles.download(data, as: path.lastPathComponent)
             #else
             try data.write(to: URL(fileURLWithPath: path), options: .atomic)
+            OfficeHost.documentSaved?(path)
             #endif
             // Saved: the copy beside the old name (or the untitled one) goes.
             _dropRecovery()

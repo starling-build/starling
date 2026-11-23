@@ -145,7 +145,14 @@ enum SheetPrintLayout {
         for (a, v) in ws.spilled where !v.isEmpty { take(a.row, a.col) }
         // A merged area is something to print though its cells are empty:
         // Excel gives a sheet of nothing but merges its page.
-        for m in ws.merges where m.rows * m.cols <= 100_000 {
+        for m in ws.merges {
+            // (One that runs to the sheet's last row is a whole-column merge, the counterpart: it prints down the rows in use, over the
+            // columns it spans: ar-9da079ade9's H1:AW1048576 is four blank pages across in Excel's print.)
+            if m.bottom == CellAddress.maxRows - 1, m.right != CellAddress.maxCols - 1, m.cols <= 1000,
+               (m.left ... m.right).contains(where: { !ws.isColHidden($0) }) {
+                take(m.top, m.left); take(m.top, m.right); continue
+            }
+            guard m.rows * m.cols <= 100_000 else { continue }
             // (Not one that is wholly in hidden rows or columns.)
             guard (m.top ... m.bottom).contains(where: { !ws.isRowHidden($0) }),
                   (m.left ... m.right).contains(where: { !ws.isColHidden($0) }) else { continue }
@@ -366,11 +373,14 @@ extension SheetGridState {
             // K and L, at Excel's 65% where ours left them out and made 75%.
             // (Fitted to a number of pages tall, the area is the whole height
             // that is fitted, empty rows too: lo-tdf148820's A1:I35 is
-            // Excel's 74%, where the used rows alone gave 91%.)
+            // Excel's 74%, where the used rows alone gave 91%. With rows
+            // repeating as titles every page of the area prints, so the
+            // empty rows count too: fr-6f58bbeee7's A1:M152 over a sheet
+            // used to 144 is a fifth row band in Excel's print.)
             let setup = SheetPrintSetup.read(ws)
             let fitsTall = (setup.fitHeight ?? 0) > 0
             let areas = names.areas.isEmpty ? [used] : names.areas.map { a in
-                CellRange(top: a.top, left: a.left, bottom: fitsTall ? a.bottom : min(a.bottom, max(a.top, used.bottom)),
+                CellRange(top: a.top, left: a.left, bottom: fitsTall || (names.titleRows != nil && a.bottom < CellAddress.maxRows - 1) ? a.bottom : min(a.bottom, max(a.top, used.bottom)),
                           right: a.right == CellAddress.maxCols - 1 ? max(a.left, used.right) : a.right)
             }
             await _preloadPictures(ws)
@@ -445,7 +455,11 @@ extension SheetGridState {
             let st = book.style(style)
             if st.fill != nil || st.borders != CellStyle.Borders() { for c in colBands.indices { filled.insert([r, c]) } }
         }
-        for m in ws.merges where m.rows * m.cols <= 100_000 { fill(m) }
+        for m in ws.merges {
+            if m.rows * m.cols <= 100_000 { fill(m); continue }
+            // (A whole-column merge is on the pages of the rows in use, over its columns.)
+            if m.bottom == CellAddress.maxRows - 1, m.cols <= 1000, let lastRow = rowBand.keys.max() { fill(CellRange(top: m.top, left: m.left, bottom: max(m.top, lastRow), right: m.right)) }
+        }
         func cover(_ anchor: SheetAnchor) {
             let f = ws.frame(anchor)
             guard f.width > 0, f.height > 0 else { return }

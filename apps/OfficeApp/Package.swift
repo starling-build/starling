@@ -83,6 +83,7 @@ let appTarget: Target = {
                 "OfficeText",
                 "CZlib",
                 .product(name: "FlutterUIKit", package: "FlutterSwift"),
+                "OfficeUIKit",
             ],
             resources: resources,
             swiftSettings: [.interoperabilityMode(.Cxx), .swiftLanguageMode(.v5)],
@@ -288,6 +289,21 @@ let textTarget: Target = .target(
         : [.interoperabilityMode(.Cxx), .swiftLanguageMode(.v5), .unsafeFlags(glibcMathCompat)]
 )
 
+// The iPad's native frame (document browser, scenes): plain Swift over UIKit,
+// no C++ interop, reaching the host only through FlutterUIKitBridge's C API.
+let nativeShellTargets: [Target] = {
+    #if os(macOS)
+    if iosBuild {
+        return [.target(
+            name: "OfficeUIKit",
+            dependencies: [.product(name: "FlutterUIKitBridge", package: "FlutterSwift")],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        )]
+    }
+    #endif
+    return []
+}()
+
 let package = Package(
     name: "OfficeApp",
     platforms: (wasmBuild || platformConstraints.isEmpty) ? nil : platformConstraints,
@@ -299,6 +315,7 @@ let package = Package(
         wasmBuild ? webAppTarget : appTarget,
         zlibTarget,
         textTarget,
+    ] + nativeShellTargets + [
         // Round-trip tests for the file formats. `swift test --package-path
         // apps/OfficeApp` — pure Swift over the document model, no window.
         .testTarget(

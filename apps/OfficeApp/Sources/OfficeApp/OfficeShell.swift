@@ -276,6 +276,12 @@ final class OfficeShellState: State<StatefulWidget> {
                 self._open(picked.name, data: picked.data)
             }
             #else
+            // A host with its own document browser (the iPad's) takes Open;
+            // unsaved edits still get Backstage's prompt first.
+            if OfficeHost.openRequested != nil {
+                self.session.replacing { _ = OfficeHost.openRequested?() }
+                return
+            }
             self.setState { self._backstage = .open }
             #endif
         }
@@ -398,6 +404,7 @@ final class OfficeShellState: State<StatefulWidget> {
             if self.session.autoSave, !self._recovered, let path = self.session.path {
                 do {
                     try OfficeFormats.write(self.controller.document, to: path, pageSetup: self.session.pageSetup)
+                    OfficeHost.documentSaved?(path)
                     self._savedRevision = self.controller.revision
                     try? FileManager.default.removeItem(atPath: self._recoveryPath(for: path))
                     self.setState { self.session.dirty = false }
@@ -574,6 +581,7 @@ final class OfficeShellState: State<StatefulWidget> {
     private func _saveTo(_ path: String) {
         do {
             try OfficeFormats.write(controller.document, to: path, pageSetup: session.pageSetup)
+            OfficeHost.documentSaved?(path)
             // The recovery copies this document may have left: under its
             // new name, its old name, and the untitled slot if it had no name.
             let fm = FileManager.default

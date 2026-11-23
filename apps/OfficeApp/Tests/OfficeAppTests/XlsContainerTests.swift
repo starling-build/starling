@@ -95,4 +95,128 @@ final class XlsContainerTests: XCTestCase {
             if let f = try? CompoundFile(bad) { _ = f.streamPaths; _ = f.stream("Workbook").map(BiffReader.records) }
         }
     }
+
+    private func u16(_ v: Int) -> [UInt8] { [UInt8(v & 255), UInt8(v >> 8 & 255)] }
+
+    /// A book with a string split across CONTINUE (1 byte per character, then 2), numbers in RK, MULRK and plain form, a boolean, an error and a merge.
+    private func cat(_ parts: [UInt8]...) -> [UInt8] { parts.flatMap { $0 } }
+
+    private func valuesBook() -> [UInt8] {
+        func globals(_ sheetAt: Int) -> [UInt8] {
+            let bof = rec(0x809, cat(u16(0x600), [UInt8](repeating: 0, count: 14)))
+            let sstBody = cat(le32(2), le32(2), u16(2), [0, 0x61, 0x62], u16(4), [0, 0x63, 0x64])
+            let sst = cat(rec(0xFC, sstBody), rec(0x3C, [1, 0x65, 0, 0x66, 0]))
+            let sheet = rec(0x85, cat(le32(UInt32(sheetAt)), [0, 0, 1, 0, 0x53]))
+            return cat(bof, sst, sheet, rec(0x0A, []))
+        }
+        let at = globals(0).count
+        let bof = rec(0x809, cat(u16(0x600), [UInt8](repeating: 0, count: 14)))
+        let bits = (2.5).bitPattern
+        let lo = UInt32(bits & 0xFFFF_FFFF), hi = UInt32(bits >> 32)
+        let a1 = rec(0xFD, cat(u16(0), u16(0), u16(0), le32(1)))
+        let b1 = rec(0x27E, cat(u16(0), u16(1), u16(0), le32(314 << 2 | 3)))
+        let row2 = rec(0xBD, cat(u16(1), u16(0), u16(0), le32(7 << 2 | 2), u16(0), le32(25 << 2 | 2), u16(1)))
+        let a3 = rec(0x203, cat(u16(2), u16(0), u16(0), le32(lo), le32(hi)))
+        let b3 = rec(0x205, cat(u16(2), u16(1), u16(0), [1, 0]))
+        let c3 = rec(0x205, cat(u16(2), u16(2), u16(0), [0x07, 1]))
+        let merge = rec(0xE5, cat(u16(1), u16(3), u16(4), u16(0), u16(1)))
+        return cat(globals(at), bof, a1, b1, row2, a3, b3, c3, merge, rec(0x0A, []))
+    }
+
+    func testValuesComeThroughWhateverTheirRecordKind() throws {
+        let wb = try Xls.read(Data(compound(stream: "Workbook", valuesBook())))
+        let s = try XCTUnwrap(wb.sheets.first)
+        XCTAssertEqual(s.name, "S")
+        func v(_ r: Int, _ c: Int) -> CellValue? { s.cells[CellAddress(row: r, col: c)]?.value }
+        XCTAssertEqual(v(0, 0), .text("cdef"))
+        XCTAssertEqual(v(0, 1), .number(3.14))
+        XCTAssertEqual(v(1, 0), .number(7))
+        XCTAssertEqual(v(1, 1), .number(25))
+        XCTAssertEqual(v(2, 0), .number(2.5))
+        XCTAssertEqual(v(2, 1), .bool(true))
+        XCTAssertEqual(s.merges, [CellRange(top: 3, left: 0, bottom: 4, right: 1)])
+    }
+
+    func testADamagedBookStillReadsOrThrowsNeverTraps() {
+        let good = compound(stream: "Workbook", valuesBook())
+        var seed: UInt64 = 99
+        for _ in 0 ..< 600 {
+            var bad = good
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            bad[512 + Int(seed >> 33) % 1024] ^= UInt8(truncatingIfNeeded: seed >> 20) | 1
+            _ = try? Xls.read(Data(bad))
+        }
+    }
+
+    func testPageSetupFollowsTheSetupRecord() {
+        func page(_ grbit: Int, scale: Int = 100, paper: Int = 9) -> String {
+            XlsBuild.pageXML(setup: [0: paper, 1: scale, 2: 1, 3: 1, 4: 1, 5: grbit], margins: [nil, nil, nil, nil],
+                             hdrFtr: [nil, nil], margin2: nil, grid: false, heads: false, hc: false, vc: false,
+                             hBreaks: [], vBreaks: [])
+        }
+        let landscape = page(0, scale: 80)
+        XCTAssertTrue(landscape.containsSubstring("orientation=\"landscape\""))
+        XCTAssertTrue(landscape.containsSubstring("scale=\"80\""))
+        XCTAssertTrue(landscape.containsSubstring("paperSize=\"9\""))
+        // fNoPls: the printer settings are invalid, so paper and scale mean nothing.
+        let noPls = page(4, scale: 330)
+        XCTAssertFalse(noPls.containsSubstring("scale="))
+        XCTAssertFalse(noPls.containsSubstring("paperSize"))
+        XCTAssertTrue(noPls.containsSubstring("orientation=\"portrait\""))
+        // fNoOrient: the orientation bit is ignored, the page is portrait.
+        XCTAssertTrue(page(0x40).containsSubstring("orientation=\"portrait\""))
+    }
+
+    func testConditionalFormatsBecomeRulesWithDifferentialFormats() throws {
+        let bof = rec(0x809, cat(u16(0x600), [UInt8](repeating: 0, count: 14)))
+        let globals = cat(bof, rec(0x85, cat(le32(0), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        let at = globals.count
+        let g = cat(bof, rec(0x85, cat(le32(UInt32(at)), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        // CONDFMT: one rule, bounding range A1:A3, one range A1:A3.
+        let cf = rec(0x1B0, cat(u16(1), u16(0), u16(0), u16(2), u16(0), u16(0), u16(1), u16(0), u16(2), u16(0), u16(0)))
+        // CF: cell value, greater than, a formula of one integer (30), a pattern block with a red background.
+        let rule = rec(0x1B1, cat([1, 5], u16(3), u16(0), le32(0xA03B_FFFF), u16(0x0280), u16(0), u16(0x0540), [0x1E, 30, 0]))
+        let sheet = cat(bof, cf, rule, rec(0x0A, []))
+        let parts = try XCTUnwrap(XlsBuild.parts(BiffReader.records(g + sheet)))
+        func text(_ n: String) -> String { String(decoding: parts.first { $0.name == n }!.data, as: UTF8.self) }
+        let ws = text("xl/worksheets/sheet1.xml")
+        XCTAssertTrue(ws.containsSubstring("<conditionalFormatting sqref=\"A1:A3\">"))
+        XCTAssertTrue(ws.containsSubstring("operator=\"greaterThan\""))
+        XCTAssertTrue(ws.containsSubstring("<formula>30</formula>"))
+        XCTAssertTrue(text("xl/styles.xml").containsSubstring("<dxfs count=\"1\"><dxf><fill><patternFill><bgColor rgb=\"FFFF0000\"/>"))
+    }
+
+    func testDataValidationBecomesValidationRule() throws {
+        let bof = rec(0x809, cat(u16(0x600), [UInt8](repeating: 0, count: 14)))
+        let g0 = cat(bof, rec(0x85, cat(le32(0), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        let g = cat(bof, rec(0x85, cat(le32(UInt32(g0.count)), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        func empty() -> [UInt8] { u16(0) + [0] }
+        // whole number between 1 and 9, blank allowed, error alert shown, cells B2:B4.
+        let flags: UInt32 = 1 | 0x100 | 0x80000
+        let dv = rec(0x1BE, cat(le32(flags), empty(), empty(), empty(), empty(),
+                                u16(3), u16(0), [0x1E, 1, 0], u16(3), u16(0), [0x1E, 9, 0],
+                                u16(1), u16(1), u16(3), u16(1), u16(1)))
+        let sheet = cat(bof, dv, rec(0x0A, []))
+        let parts = try XCTUnwrap(XlsBuild.parts(BiffReader.records(g + sheet)))
+        let ws = String(decoding: parts.first { $0.name == "xl/worksheets/sheet1.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(ws.containsSubstring("type=\"whole\""))
+        XCTAssertTrue(ws.containsSubstring("sqref=\"B2:B4\""))
+        XCTAssertTrue(ws.containsSubstring("<formula2>9</formula2>"))
+    }
+
+    func testFormulaTokensBecomeFormulaText() {
+        let ctx = XlsFormulaContext(xtis: [], internalBooks: [], sheetNames: [], names: [])
+        // A1+B2*3 : ref A1, ref B2, int 3, mul, add
+        let t: [UInt8] = [0x24, 0, 0, 0, 0xC0, 0x24, 1, 0, 1, 0xC0, 0x1E, 3, 0, 0x05, 0x03]
+        XCTAssertEqual(XlsFormula.decompile(t, row: 5, col: 5, relative: false, ctx: ctx), "A1+B2*3")
+        // SUM(A1:B2): area, SUM with one argument
+        let s: [UInt8] = [0x25, 0, 0, 1, 0, 0, 0xC0, 1, 0xC0, 0x22, 1, 4, 0]
+        XCTAssertEqual(XlsFormula.decompile(s, row: 0, col: 3, relative: false, ctx: ctx), "SUM(A1:B2)")
+        // A shared formula's relative reference is an offset from the cell.
+        let r: [UInt8] = [0x2C, 0xFF, 0xFF, 0xFF, 0xC0]
+        XCTAssertEqual(XlsFormula.decompile(r, row: 4, col: 2, relative: true, ctx: ctx), "B4")
+        // A function this reader does not know leaves the cell on its cached value.
+        let u: [UInt8] = [0x21, 0xFF, 0x7F]
+        XCTAssertNil(XlsFormula.decompile(u, row: 0, col: 0, relative: false, ctx: ctx))
+    }
 }

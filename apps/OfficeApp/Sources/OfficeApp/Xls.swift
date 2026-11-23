@@ -93,14 +93,23 @@ enum Xls {
         let sh = sheets(recs)
         text += "sheets: \(sh.count)\n"
         for s in sh { text += "  \(s.name) kind=\(s.kind) hidden=\(s.hidden)\n" }
+        // STARLING_XLS_HEX=0x1b1 lists the bytes of every record of that type.
+        if let h = ProcessInfo.processInfo.environment["STARLING_XLS_HEX"], let want = UInt16(h.dropFirst(2), radix: 16) {
+            for r in recs where r.type == want {
+                text += "rec 0x" + String(want, radix: 16) + ": " + r.body.map { String($0, radix: 16).count == 1 ? "0" + String($0, radix: 16) : String($0, radix: 16) }.joined() + "\n"
+            }
+        }
         return text
     }
 
-    /// A workbook with the sheets of the file. (M0: names and order only.)
+    /// The workbook of a BIFF8 file: its records turned into SpreadsheetML
+    /// parts and read by the xlsx reader. A BIFF5 file gives its sheets empty (M7).
     static func read(_ data: Data) throws -> Workbook {
         let file = try CompoundFile([UInt8](data))
         guard let wb = workbookStream(file) else { throw ReadError.notAnXls }
-        let sh = sheets(BiffReader.records(wb))
+        let recs = BiffReader.records(wb)
+        if let parts = XlsBuild.parts(recs) { return try Xlsx.read(entries: parts) }
+        let sh = sheets(recs)
         guard !sh.isEmpty else { throw ReadError.truncated }
         return Workbook(sheets: sh.map { Worksheet(name: $0.name) })
     }

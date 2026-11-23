@@ -529,6 +529,15 @@ enum SlideFonts {
         }
     }
 
+    /// Faces whose single line is exactly 1.0 em (hhea = typo = win 1760 + 288 of 2048, no gap: every HG face; measured in
+    /// /data/corpus-cache/metrics/cjk-line-20261122), where the flat 1.2 em would overstate it. ja f3a3058d2e's 18 pt lines on
+    /// 11 pt in HGPGothicE: rows 2.6 pt under n x 18 + margins.
+    static func exactSingleLineEm(_ family: String) -> Double? {
+        let n = windowsName(family)
+        let ms = ["ms gothic", "ｍｓ ゴシック", "ms pgothic", "ｍｓ ｐゴシック", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝"].contains(n)
+        return ms || n.hasPrefix("hgp") || n.hasPrefix("hgs") || n.hasPrefix("hgm") ? 1.0 : nil
+    }
+
     /// The same by the face that draws it (what the layout knows a run
     /// by): a stand-in answers for the face it stands for.
     static func drawnNaturalHeight(_ drawn: String) -> Double? {
@@ -558,7 +567,7 @@ enum SlideFonts {
         case "ms gothic", "ｍｓ ゴシック", "ms pgothic", "ｍｓ ｐゴシック", "ms ui gothic", "ｍｓ ｕｉ ゴシック", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝":
             (units, upem, descent) = (256, 256, n.contains("pgothic") || n.contains("ｐゴシック") ? 52 : 36)
         default:
-            guard n.contains("dfkai") || n.contains("標楷") else { return nil }
+            guard n.contains("dfkai") || n.contains("標楷") || n.contains("mingliu") || n.contains("細明體") else { return nil }   // (PMingLiU / MingLiU: 7c3069f9808a slide 8, 12 pt at 90% stands 14.1 apart = 0.9 x 1.306 em)
             (units, upem, descent) = (1024, 1024, 204)
         }
         return (1.3 * units / upem, (descent / units + 0.15) / 1.3)

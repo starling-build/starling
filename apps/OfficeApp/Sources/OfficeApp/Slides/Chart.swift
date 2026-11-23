@@ -188,6 +188,9 @@ struct ChartSeries: Equatable {
     /// Whether this series' labels show at all: a chart whose group says
     /// "no values" shows only the series that say so themselves.
     var labelsShown = true
+    /// The series' name in each label (`showSerName`), set before the value after the separator.
+    var labelSeriesName = false
+    var labelSeparator = ", "
     /// A series that shows labels only through the cells it takes their text from (`c15:showDataLabelsRange`), the value
     /// and percent switches off: PowerPoint draws those texts all the same (lo-tdf149985's "19.8%" over 2017's column).
     var cellLabelsOnly = false
@@ -756,6 +759,9 @@ struct Chart: Equatable {
         var pointPositions: [Int: String] = [:]
         /// The points whose own label the file deletes (`c:dLbl/c:delete`): Word draws none for them.
         var deleted: Set<Int> = []
+        /// A point's own label box says `a:bodyPr wrap` "none" (one line) or "square" (wraps at the box's width).
+        var wrapNone: Set<Int> = []
+        var wrapSquare: Set<Int> = []
         /// A point's own text size, from its label's own rich text.
         var sizes: [Int: Double] = [:]
         /// A point's label as the file writes it (`c:dLbl/c:tx/c:rich`),
@@ -1928,6 +1934,10 @@ enum ChartXML {
             } else if ser.first("c:dLbls") != nil { s.labelsShown = false }
             else { s.labelsShown = el.first("c:dLbls")?.first("c:showVal")?["val"] == "1" || el.first("c:dLbls")?.first("c:showPercent")?["val"] == "1" }
             if s.cellLabelsOnly { s.labelsShown = true }
+            if let d = ser.first("c:dLbls") ?? el.first("c:dLbls"), d.first("c:showSerName")?["val"] == "1", d.first("c:showVal")?["val"] == "1" {
+                s.labelSeriesName = true
+                if let sep = d.first("c:separator")?.text { s.labelSeparator = sep }
+            }
             series.append(s)
         }
         guard !series.isEmpty || allowEmpty else { return nil }
@@ -2280,6 +2290,11 @@ enum ChartXML {
                                                        bold: d["b"].map { $0 == "1" || $0 == "true" },
                                                        face: d.first("a:latin")?["typeface"].flatMap { $0.hasPrefix("+") || $0.isEmpty ? nil : $0 },   // (a theme slot, "+mn-lt", names no face of its own: ab55f8b0's four small labels came out in Cambria's stand-in)
                                                        color: d.first("a:solidFill").flatMap { color($0) })
+                }
+                switch one.first("c:txPr")?.first("a:bodyPr")?["wrap"] {
+                case "none": l.wrapNone.insert(i)
+                case "square": l.wrapSquare.insert(i)
+                default: break
                 }
                 // (A slide pie's custom-text label says its colour on its runs: ko-e114b968's white "매우 긍정적으로 변화했다" in its dark slice.)
                 if l.own[i] == nil, let rp = one.first("c:tx")?.first("c:rich")?.descendant("a:rPr") ?? one.first("c:tx")?.first("c:rich")?.descendant("a:defRPr"),
@@ -5274,6 +5289,17 @@ enum ChartPainter {
                     }
                 }
                 xScale = scale(xAll.min() ?? 0, xAll.max() ?? 1, intervals: 8)
+                if c.onSheet, c.xMin == nil, c.xMax == nil {
+                    // (On a sheet Excel takes the finest step that keeps its ticks 36.4 pt apart or more (between the 34.4 pt that
+                    // chart-tdf135184RoundLineCap's 0.5 steps would stand, which it refuses, and the 38.4 of chart-trendline's, which it keeps).)
+                    let room = area0.width - 20
+                    for n in [16, 12, 8, 6, 4, 3, 2] {
+                        let t = scale(xAll.min() ?? 0, xAll.max() ?? 1, intervals: n)
+                        // (Finer than the usual eight only by halves: chart-tdf126033's 0 to 2.5 keeps its 0.5, not 0.2.)
+                        if t.step < xScale.step - 1e-12, abs(t.step / pow(10, floor(log10(t.step))) - 5) > 1e-6 { continue }
+                        if (t.hi - t.lo) / t.step * 36.4 <= room || n == 2 { xScale = t; break }
+                    }
+                }
                 if c.xMin != nil || c.xMax != nil { xScale = fixedScale(auto: xScale, min: c.xMin, max: c.xMax, step: nil) }
             }
         }
@@ -5337,7 +5363,7 @@ enum ChartPainter {
                 let block = widest + 10 * k
                 // (Over the plot's middle, not the area's: the plot's top is half a label under the area's,
                 // its foot a label line and 3.2 over it. And the plot starts 3pt past the block.)
-                let plotTop = 0.61 * labelSize * k, plotFoot = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.2 * k
+                let plotTop = 0.61 * labelSize * k, plotFoot = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.3
                 across.paint(canvas, Offset(area.left + block / 2 - across.width / 2, area.center.dy + (plotTop - plotFoot) / 2 - across.height / 2))
                 area = Rect.fromLTRB(area.left + block + 3 * k, area.top, area.right, area.bottom)
                 across.dispose()
@@ -5351,7 +5377,7 @@ enum ChartPainter {
                 // stands 17 px over where ours was, its middle at the plot's.)
                 var lift = 0.0
                 if (c.onSheet && c.bareAxisTitle && c.type != .scatter) || (c.onSlide && c.categoryAxisTitleSize != nil) {
-                    let names = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.2 * k
+                    let names = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.3
                     let below = c.categoryAxisTitle != nil ? axisText(c.categoryAxisTitle!, c.onSlide ? (c.categoryAxisTitleSize ?? titleSize) : titleSize, .infinity) : nil
                     let titleRoom = (below?.height ?? 0) + (below == nil ? 0 : 4 * k + 6 * k)
                     below?.dispose()
@@ -5433,7 +5459,7 @@ enum ChartPainter {
             return shown.isEmpty ? tickLabel(v) : shown
         }
         // (On a sheet the right-hand axis' labels stand 0.927 x their size off the plot, as the slide rule has the left's: chart-axis_title_default_rotation's 10 pt labels 9.4 pt off in Excel's print, ours 4.5.)
-        let sheetSecondGap = 0.927 * labelSize
+        let sheetSecondGap = 0.927 * labelSize * k
         let valueLabelsRaw = ticks.map { valueText(c.valueAxisDeleted ? "" : valueLabel($0), labelSize, .infinity) }
         // The second axis' labels, in its own format ("60.00%").
         let secondTicks = secondScale.map { s2 in Array(stride(from: s2.lo, through: s2.hi + s2.step * 1e-6, by: s2.step)) } ?? []
@@ -5498,7 +5524,7 @@ enum ChartPainter {
             // (A laid-out plot on a slide leaves the names the room between the chart's edge and the plot: 81d28d42 p29's names break
             // at the plot's left, not at a third of the chart.)
             let laidRoom = c.onSlide && c.plotLayoutInner ? placed.map { $0.left - area.left - 10 * k } : nil
-            let barNameWidth = max((!c.onSlide && !c.onSheet ? 0.2 : 0.3) * area.width, laidRoom ?? 0)
+            let barNameWidth = max((!c.onSlide && !c.onSheet ? 0.2 : c.onSlide && !c.plotLayoutInner ? 0.5 : 0.3) * area.width, laidRoom ?? 0)
             // (Under a multi-level axis the names are not wrapped: lo tdf126244's
             // "Categoria 1 Categoria 1 Categoria 4" is one line in Word's print.)
             // (PowerPoint wraps a Hangul category name only at its spaces, never inside a word: a word joiner between
@@ -5776,8 +5802,8 @@ enum ChartPainter {
             }
             // (A title of the second axis, in a Word document whose file leaves the plot to Word, takes a band beyond its
             // labels: zh-b8de3ae2's chart 10 has them 19 pt further in than ours, its "%" past them.)
-            if !secondLabels.isEmpty, !c.onSlide, !c.onSheet, !c.chartex, c.plotLayout == nil, c.secondValueAxis?.deleted != true, c.secondValueAxis?.title != nil {
-                right += 1.22 * (c.axisTitleSize ?? 10) * k + 7 * k
+            if !secondLabels.isEmpty, !c.onSlide, !c.chartex, c.plotLayout == nil, c.secondValueAxis?.deleted != true, c.secondValueAxis?.title != nil {
+                right += c.onSheet ? 31.9 : 1.22 * (c.axisTitleSize ?? 10) * k + 7 * k
             }
             // (On a sheet the plot stands 1.72 pt further in at the left,
             // its labels with it, and 1.25 at the right: Excel's prints of
@@ -6488,6 +6514,17 @@ enum ChartPainter {
         }
         // (Its title, turned, 4.6 pt past the widest label and over the plot's middle: zh-b8de3ae2's
         // "%" at 534.6 where the labels end 530, in a Word document whose file places the plot.)
+        if c.onSheet, !c.chartex, c.plotLayout == nil, let t = c.secondValueAxis?.title, c.secondValueAxis?.deleted != true, !secondLabels.isEmpty {
+            // (On a sheet Excel turns it clockwise, its text starting 3.2 pt past the labels, centred on the plot.)
+            let tp = text(t, c.axisTitleSize ?? 10, .infinity)
+            let left = plot.right + sheetSecondGap + (secondLabels.map(\.width).max() ?? 0) + 3.3
+            canvas.save()
+            canvas.translate(left + tp.height, plot.center.dy - tp.width / 2)
+            canvas.rotate(.pi / 2)
+            tp.paint(canvas, .zero)
+            canvas.restore()
+            tp.dispose()
+        }
         if !c.onSlide, !c.onSheet, !c.chartex, c.plotLayout == nil || c.plotLayoutInner, let t = c.secondValueAxis?.title, c.secondValueAxis?.deleted != true {
             let tp = text(t, c.axisTitleSize ?? 10, .infinity)
             let edge = plot.right + 10.1 * k + (secondLabels.map(\.width).max() ?? 0) + 3.6 * k
@@ -7402,7 +7439,7 @@ enum ChartPainter {
                         rim.color = c.lineColor(series: j, accents: theme.accents)
                         canvas.drawCircle(Offset(x, vpj(v)), max(1.5, 2.5 * k), rim)
                     }
-                    labels.append((dataLabel(c, v, series: j), Offset(x, vpj(v) - 9 * k), j))
+                    labels.append(((c.series[j].labelSeriesName ? c.series[j].name + c.series[j].labelSeparator : "") + dataLabel(c, v, series: j), Offset(x, vpj(v) - (c.onSheet ? 9 * k + 4 : 9 * k)), j))
                 }
             }
         case .pie, .doughnut, .radar:
@@ -9080,7 +9117,14 @@ extension ChartPainter {
             let wordLabelRoom = c.onSlide && !c.chartex ? 5.75 * k
                 : !c.onSlide && !c.onSheet && !c.chartex && !c.eastAsianText ? 7.7 * k
                 : c.onSheet && !c.chartex ? frame.width * 0.01 : 0
-            tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2 - wordLabelRoom))
+            // (On a sheet Excel's print keeps a label whose box says wrap="none" on one line, and wraps one that says
+            // wrap="square" at a fifth of the chart less 7.7 pt: chart-tdf133190's "Datapoint with" / "word wrap, 2, 1.5".)
+            let sheetOwnWrap = c.onSheet && !c.chartex && (l.wrapNone.contains(s.index) || l.wrapSquare.contains(s.index))
+            if sheetOwnWrap, l.wrapNone.contains(s.index) {
+                tp.layout(minWidth: 0, maxWidth: .infinity)
+            } else {
+                tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * 0.2 - (sheetOwnWrap ? 7.7 * k : wordLabelRoom)))
+            }
             // (And a one-line label a little narrower: past 0.1857 of the
             // chart's width it wraps too. zh-b8de3ae2's bar of pie, 538.5pt
             // wide, keeps "補助及協助收入, 2.35%" (99.9pt at 10pt) on one line in
@@ -9547,7 +9591,7 @@ extension ChartPainter {
             // (PowerPoint, a slide pie's label left in place: its box is kept in the chart frame, lab pie-lab1
             // p4/p8 at 24 pt, where "Zeta long name here" over the pie's top is held 42 pt down, not above it.)
             if l.fitted || (!c.onSlide && !c.onSheet && !c.chartex && h > frame.height * 0.4)
-                || (c.onSlide && c.type == .pie && point == nil && moved == nil) {
+                || (c.onSlide && c.type == .pie && point == nil) {
                 // (A 3-D pie's label the file leaves in place keeps its text 3.9pt inside the frame in a
                 // Word document: lab pie7 (Word for Windows, 32 pies, 352 labels) has 96 of them on the
                 // frame's top, their text 3.8 under it, and the furthest left and right 3.9 and 4.4 in;
@@ -9557,8 +9601,11 @@ extension ChartPainter {
                     at = Offset(min(max(at.dx, frame.left + inset + tw), frame.right - inset - tw),
                                 min(max(at.dy, frame.top + inset + th), frame.bottom - inset - th))
                 } else {
-                    at = Offset(min(max(at.dx, frame.left + w / 2), frame.right - w / 2),
-                                min(max(at.dy, frame.top + h / 2), frame.bottom - h / 2))
+                    // (A slide pie's label the file moves is held in the frame after the move too, its text 3.4 pt in: lab pie-lab6,
+                    // PowerPoint for Windows, 48 prints; outside-end labels moved toward the left edge or the foot stop there.)
+                    let hold = c.onSlide && moved != nil ? 0.4 * k : 0
+                    at = Offset(min(max(at.dx, frame.left + hold + w / 2), frame.right - hold - w / 2),
+                                min(max(at.dy, frame.top + hold + h / 2), frame.bottom - hold - h / 2))
                 }
             }
             // (A 3-D pie's outside label the file leaves in place stands clear

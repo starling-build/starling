@@ -842,6 +842,7 @@ extension RichLayout {
     public func trailingExtra(_ document: RichDocument) -> Double {
         guard theme.exactLinesAsPowerPoint, let single = theme.singleLineHeight else { return 0 }
         guard let i = document.paragraphs.lastIndex(where: { !$0.runs.isEmpty }) else { return 0 }
+        if document.paragraphs[i].style.lineHeightPoints != nil { return _exactFootExtra(i, document) }
         let p = document.paragraphs[i]
         guard p.style.lineHeightPoints == nil, let run = p.runs.last else { return 0 }
         let multiple = max(0.1, p.style.lineSpacing - theme.lineSpacingReduction)
