@@ -518,6 +518,11 @@ extension _StyledFrame {
                         RuleTrace.hit("word-myanmar-letters-are-a-myanmar-text-line")
                         return ("myanmar text", 1)
                     }
+                    // (Khmer letters, in any run: Noto Sans Khmer and the rest are missing on Windows and Word draws them in Khmer UI, its line 1.1318 em; dx2 5a4c85e0.)
+                    if text.unicodeScalars.contains(where: { $0.value >= 0x1780 && $0.value <= 0x17FF }) {
+                        RuleTrace.hit("word-khmer-letters-are-khmer-ui")
+                        return ("khmer ui", 1)
+                    }
                     // (Sinhala letters, in any run: Word draws them in Nirmala UI, whose line is 1.079 + 0.251 em; dx2 827a8947.)
                     if text.unicodeScalars.contains(where: { $0.value >= 0xD80 && $0.value <= 0xDFF }) {
                         RuleTrace.hit("word-sinhala-letters-are-a-nirmala-ui-line")
@@ -1105,6 +1110,7 @@ extension _StyledFrame {
                 insideWide = !wideIndicWords.isEmpty && wideIndicWords.contains { offset > $0.lowerBound && offset < $0.upperBound }
                 // (Myanmar: the line joiner goes before each consonant, so every line that holds Myanmar letters has Myanmar Text's line.)
                 myanmarJoin = indic?.face == "myanmar text" && (ch.unicodeScalars.first.map { $0.value >= 0x1000 && $0.value <= 0x1021 } ?? false)
+                    || (indic?.face == "khmer ui" && ctx.before?.unicodeScalars.last?.value != 0x17D2 && (ch.unicodeScalars.first.map { $0.value >= 0x1780 && $0.value <= 0x17A2 } ?? false))
                 if theme.wordRules, RichTextTheme.wordWindowsPages, let u = ch.unicodeScalars.first?.value, RichLayout._isIndic(u) || myanmarJoin,
                    myanmarJoin || insideWide || !(ctx.before?.unicodeScalars.first.map { RichLayout._isIndic($0.value) || $0.value == 0x200D || $0.value == 0x200C } ?? false) {
                     let face0 = indic?.face
