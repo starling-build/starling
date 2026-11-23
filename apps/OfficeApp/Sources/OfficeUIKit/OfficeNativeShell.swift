@@ -51,6 +51,16 @@ public enum OfficeNativeShell {
         shared?.writeBack(path)
     }
 
+    /// Writes a copy to a temporary file with `prepare`, then asks the user
+    /// where to put it. See OfficeHost.exportRequested.
+    public static func export(name: String,
+                              prepare: @escaping (String, @escaping (Bool) -> Void) -> Void,
+                              thenOpen: Bool,
+                              done: @escaping (String?) -> Void) {
+        guard let shell = shared else { done(nil); return }
+        shell.presentExport(name: name, prepare: prepare, thenOpen: thenOpen, done: done)
+    }
+
     /// Whether a document is being edited right now.
     public static var isEditing: Bool { shared?.session != nil }
 
@@ -70,6 +80,32 @@ public enum OfficeNativeShell {
     }
 
     nonisolated(unsafe) fileprivate static var shared: OfficeBrowserController?
+}
+
+/// The system's export picker for one file, and the clean-up after it.
+private final class ExportPicker: NSObject, UIDocumentPickerDelegate {
+    let controller: UIDocumentPickerViewController
+    private let dir: URL
+    private let finish: (URL?) -> Void
+
+    init(file: URL, dir: URL, finish: @escaping (URL?) -> Void) {
+        self.dir = dir
+        self.finish = finish
+        controller = UIDocumentPickerViewController(forExporting: [file], asCopy: true)
+        super.init()
+        controller.delegate = self
+        controller.shouldShowFileExtensions = true
+    }
+
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        try? FileManager.default.removeItem(at: dir)
+        finish(urls.first)
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        try? FileManager.default.removeItem(at: dir)
+        finish(nil)
+    }
 }
 
 /// One document being edited: where it came from and the copy being edited.
@@ -212,6 +248,47 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
         sheet.popoverPresentationController?.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
         sheet.popoverPresentationController?.permittedArrowDirections = []
         present(sheet, animated: true)
+    }
+
+    // MARK: Save As and Export
+
+    private var exportPicker: ExportPicker?
+
+    /// The file is written in the app's temporary directory first and handed to
+    /// the system's picker as a copy, so the user chooses the place (iCloud
+    /// Drive, On My iPad, another app's folder) and the picker does the writing.
+    func presentExport(name: String,
+                       prepare: @escaping (String, @escaping (Bool) -> Void) -> Void,
+                       thenOpen: Bool,
+                       done: @escaping (String?) -> Void) {
+        guard exportPicker == nil else { done(nil); return }
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Exports", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let file = dir.appendingPathComponent(name)
+        do { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) } catch {
+            alert("Could not export \(name)", error.localizedDescription)
+            done(nil)
+            return
+        }
+        prepare(file.path) { [weak self] ok in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                guard ok else {
+                    try? FileManager.default.removeItem(at: dir)
+                    self.alert("Could not write \(name)", "")
+                    done(nil)
+                    return
+                }
+                let picker = ExportPicker(file: file, dir: dir) { [weak self] picked in
+                    self?.exportPicker = nil
+                    if let picked, thenOpen { self?.open(picked) }
+                    done(picked?.lastPathComponent)
+                }
+                self.exportPicker = picker
+                (self.editor.presentedViewController ?? self.editor).present(picker.controller, animated: true)
+            }
+        }
     }
 
     // MARK: Saving
