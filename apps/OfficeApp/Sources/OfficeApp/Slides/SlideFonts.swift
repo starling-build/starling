@@ -529,6 +529,15 @@ enum SlideFonts {
         }
     }
 
+    /// Faces whose single line is exactly 1.0 em (hhea = typo = win 1760 + 288 of 2048, no gap: every HG face; measured in
+    /// /data/corpus-cache/metrics/cjk-line-20261122), where the flat 1.2 em would overstate it. ja f3a3058d2e's 18 pt lines on
+    /// 11 pt in HGPGothicE: rows 2.6 pt under n x 18 + margins.
+    static func exactSingleLineEm(_ family: String) -> Double? {
+        let n = windowsName(family)
+        let ms = ["ms gothic", "ｍｓ ゴシック", "ms pgothic", "ｍｓ ｐゴシック", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝"].contains(n)
+        return ms || n.hasPrefix("hgp") || n.hasPrefix("hgs") || n.hasPrefix("hgm") ? 1.0 : nil
+    }
+
     /// The same by the face that draws it (what the layout knows a run
     /// by): a stand-in answers for the face it stands for.
     static func drawnNaturalHeight(_ drawn: String) -> Double? {
