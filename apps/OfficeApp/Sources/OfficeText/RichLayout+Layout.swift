@@ -316,6 +316,31 @@ extension RichLayout {
         return trim
     }
 
+    /// Slides: how much of paragraph `i`'s last line's foot, over what a single line keeps below its baseline, does not count
+    /// toward the text's height when the lines are EXACT points over single's height (PowerPoint's prints, ja 18 pt lines on
+    /// 11 pt text: every table row 2.6 pt shorter than the n x 18 + margins ours made, 2 lines and 3 alike; ja 6e4294a735's 90 pt
+    /// lines on 54 pt in a centred box stand 5 pt lower). It is the foot `_baselineShiftBase` models (0.072 of the size and 0.255
+    /// of the spacing over single, less 0.012 of the size) less the natural depth. In pixels; 0 elsewhere.
+    func _exactFootExtra(_ i: Int, _ document: RichDocument) -> Double {
+        guard theme.exactLinesAsPowerPoint, !theme.wordRules, let natural = theme.singleLineHeight else { return 0 }
+        let p = document.paragraphs[i]
+        guard let points = p.style.lineHeightPoints, !p.style.lineHeightIsMinimum, !p.text.isEmpty, let run = p.runs.last else { return 0 }
+        var size = run.style.fontSize ?? document.styles.resolve(p.style)?.char.fontSize
+            ?? document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize
+        if fontScale != 1 { size = max(1, (size * fontScale).rounded()) }
+        let single = natural * size
+        guard points > single else { return 0 }
+        let extra = min(0.072 * size + 0.255 * (points - single), points - 0.755 * size) - 0.012 * size
+        return _px(max(0, extra))
+    }
+
+    /// `_exactFootExtra` for a cell's paragraph `k` when it is the last of its column in the row (else 0).
+    func _slidesCellLastLineTrim(_ k: Int, _ document: RichDocument) -> Double {
+        guard let c = _cells[k], !c.vertical else { return 0 }
+        if k + 1 < _cells.count, let n = _cells[k + 1], n.row == c.row, n.table == c.table, n.column == c.column { return 0 }
+        return _exactFootExtra(k, document)
+    }
+
     func _px(_ points: Double) -> Double { points * theme.pixelsPerPoint * scale }
 
     /// Lay out every invalidated paragraph and recompute the tops.
@@ -2661,8 +2686,9 @@ extension RichLayout {
                         // (m-1) x 1.2 x size: 18pt at 115% is a row 37.15pt, 150% 43.24pt, 24pt 2 lines 115%
                         // 77.84pt; later lines pitch at m x 1.2 x size as here. The text sits where it did.)
                         let trim = _slidesCellFirstLineTrim(k, document)
-                        rowHeight = max(rowHeight, offset + _heights[k] - trim + cell.pad.top + cell.pad.bottom)
-                        bareHeight = max(bareHeight, offset + _heights[k] - trim + cell.pad.top + cell.pad.bottom - cell.rules)
+                        let lastTrim = _slidesCellLastLineTrim(k, document)
+                        rowHeight = max(rowHeight, offset + _heights[k] - trim - lastTrim + cell.pad.top + cell.pad.bottom)
+                        bareHeight = max(bareHeight, offset + _heights[k] - trim - lastTrim + cell.pad.top + cell.pad.bottom - cell.rules)
                         // (And as tall as a float its text wraps round reaches,
                         // where it stands in the cell (`_floatRect`, no higher
                         // than the row's top): zh-ab9cbe66's flow charts, 632pt
@@ -3066,7 +3092,7 @@ extension RichLayout {
                     if !theme.wordRules, _cells[k]!.rowSpan == 1, !_cells[k]!.vertical, k == row.first || _cells[k - 1]!.column != column {
                         anchorTrim = _slidesCellFirstLineTrim(k, document)
                     }
-                    content[column] = (content[column].map { $0 - shared(k) } ?? 0) + _heights[k] - spare - anchorTrim
+                    content[column] = (content[column].map { $0 - shared(k) } ?? 0) + _heights[k] - spare - anchorTrim - (_cells[k]!.rowSpan == 1 ? _slidesCellLastLineTrim(k, document) : 0)
                 }
                 // (… which reaches to the foot of a box floating over the
                 // text from one of its paragraphs: Word centres
