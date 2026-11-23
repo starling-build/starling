@@ -88,6 +88,13 @@ extension _ParaFrame {
         tabRuns = theme.wordRules && RichTextTheme.wordWindowsPages
             ? Set(tabs.keys.filter { t in (t > 0 && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t - 1)] == 0x09) || (t + 1 < p.text.utf16.count && p.text.utf16[p.text.utf16.index(p.text.utf16.startIndex, offsetBy: t + 1)] == 0x09) }).subtracting(atMargin)
             : []
+        // (A run of tabs after one that reached a right-aligned stop at the margin does not wrap: Word's print of a header, the
+        // stops centre 4536 and right 9072 twips (the margin), a picture and three tabs, keeps the third tab on the picture's
+        // line, the text after it standing past the margin (lab hdrtab h4, h5; dx2 cc08e083160f's header, 16.5 pt lower in ours).)
+        if !tabRuns.isEmpty, style.tabStops.contains(where: { $0.alignment == .right && abs(_px($0.position) - textWidth) < 0.5 }) {
+            tabRuns = []
+            RuleTrace.hit("word-tabs-after-a-right-stop-at-the-margin-stay-on-the-line")
+        }
         if !tabRuns.isEmpty { RuleTrace.hit("tab-runs-do-not-hang-past-the-margin") }
         tabsHeld = (theme.wordRules && style.alignment == .justify ? Set(tabs.keys).subtracting(atMargin) : []).union(leadTab && style.alignment == .justify ? (leadSpaces.isEmpty ? [0] : leadSpaces) : []).union(underHeld).union(beforeTabs).union(tabRuns).union(lonePastTabs).union(afterTabWraps)
             .union(theme.wordRules && RichTextTheme.wordWindowsPages ? RichLayout._underlinedClosingCounted(p) : [])
