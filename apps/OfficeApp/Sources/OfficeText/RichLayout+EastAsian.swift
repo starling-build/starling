@@ -570,6 +570,7 @@ extension RichLayout {
         var lineSpaced = false  // … or ends, so far, with one
         var lineBlank = false   // a space character (U+0020) on the line so far
         var wordSpaces: [(k: Int, w: Double)] = []   // this line's space characters, and their widths
+        var interiorKept = false   // (the spaces inside the piece being weighed are already in wordSpaces)
         var spaceBaseX = 0.0   // x where the text before the line's last space ends (where that word starts)
         var breaks: [(end: Int, opener: Range<Int>, over: Double)] = []   // where a line ended because what followed was over
         // (A line's word spaces, measured: lab `wsf` (Word for Windows, 14pt, mode 15, 24 ideographs
@@ -2108,6 +2109,18 @@ extension RichLayout {
                    !wordSpaces.isEmpty || (!(spaces + ownSpaces).isEmpty && units[a] != 0xFFFC && !isSpace(units[a])) {
                     // (Less what its last mark hangs.)
                     var need = x + w - after - width - hang
+                    // (A piece that crosses a word space - Thai breaks only where the line fills - is weighed with that space among the
+                    // line's spaces: Word squeezes every space of the line, the one inside the taken stretch too. dx2 a3710694's
+                    // "แสงศรี เลขานุการ…โคกสำราญ" needs 4.49 of six spaces' 5.33, and with five, 4.44, ours left the phrase for the next line.)
+                    let spacesBeforePiece = wordSpaces.count
+                    let lastSpaceBeforePiece = wordSpaces.last
+                    var interiorAdded = false
+                    if RichTextTheme.wordWindowsPages, last > a {
+                        for k in a ..< last where units[k] == 0x20 && (a ..< k).contains(where: { !isSpace(units[$0]) })
+                            && !(((k + 1) ..< units.count).first(where: { units[$0] != 0x20 }).map { units[$0] == 0x09 } ?? false) {
+                            wordSpaces.append((k, boxes(k, k + 1))); interiorAdded = true
+                        }
+                    }
                     // (Right to left, an Arabic word is placed in pieces; the squeeze weighs the whole
                     // word, and takes its other pieces with it: kash2 lab, docs/plans/kashida.md.)
                     var restPieces = 0
@@ -2250,7 +2263,7 @@ extension RichLayout {
                         && units[a] >= 0xAC00 && units[a] <= 0xD7A3
                     // (An Indic word is placed in pieces too, so a piece inside a word measures from where the word starts: kok15/kok14 lab, a justified Kokila line
                     // takes its 18th word 10 pt over with 17 spaces; measured from the piece, the stretch looked 6 pt and the test refused it.)
-                    let stretch = width - ((arabicLine || hangulPiece || indicPiece || georgianPiece) && !wordSpaces.isEmpty ? spaceBaseX : x - (wordSpaces.last?.w ?? 0))
+                    let stretch = width - ((arabicLine || hangulPiece || indicPiece || georgianPiece) && !wordSpaces.isEmpty ? spaceBaseX : x - (lastSpaceBeforePiece?.w ?? 0))
                     let lowJoins = arabicLine && p.style.eastAsian["w:jc"] == "lowKashida" && !wordSpaces.isEmpty
                         ? 3.1 * Double(ArabicForms.joins(units[lineFrom ..< max(piece.b, wordSpaces.last?.k ?? lineFrom)].map { UInt32($0) }[...])) : 0
                     // (A Hangul word whose first piece took the line full by squeezing its marks goes on, a syllable at a time, into the spaces:
@@ -2258,9 +2271,9 @@ extension RichLayout {
                     // what the line would stretch if the word went down.)
                     let wordMarkGive = hangulPiece && pieceIndex > 0 && x >= width - hair && wordSpaces.count >= 2
                         ? -(pieces[pieceIndex - 1].a ..< a).reduce(0.0) { isSpace(units[$1]) ? $0 : $0 + min(0, adjust[$1] ?? 0) } : 0
-                    let halfStretch = wordSpaces.count < 2 || balancedLatinSqueeze || koLegacySqueeze  // (a left-aligned line has no stretch to weigh: oxsdk-1c09b12993's notes)
+                    let halfStretch = spacesBeforePiece < 2 || balancedLatinSqueeze || koLegacySqueeze  // (a left-aligned line has no stretch to weigh: oxsdk-1c09b12993's notes)
                         || (wordMarkGive > 0 ? need + wordMarkGive <= stretch / 2 + hair
-                            : need / Double(wordSpaces.count) <= stretch / (Double(wordSpaces.count - 1) + lowJoins) / 2 + hair)
+                            : need / Double(wordSpaces.count) <= stretch / (Double(spacesBeforePiece - 1) + lowJoins) / 2 + hair)
                     // (Where automatic spaces give, off a character grid,
                     // they give as marks do from 2013's layout: what the
                     // spaces must give, as a share of what they can, is no
@@ -2326,6 +2339,9 @@ extension RichLayout {
                         if hang > 0 { adjust[tail, default: 0] -= hang }
                         fits = true
                         wordRest = restPieces
+                    }
+                    if interiorAdded {
+                        if fits { interiorKept = true } else { wordSpaces.removeAll { $0.k >= a } }
                     }
                 }
                 // (A Thai stretch's closing "?" hangs past the margin, its whole
@@ -2499,7 +2515,8 @@ extension RichLayout {
             let spacesBefore = wordSpaces.count
             if squeezesSpaces, !flanked, RichTextTheme.wordWindowsPages, last > a {
                 for k in a ..< last where units[k] == 0x20 && (a ..< k).contains(where: { !isSpace(units[$0]) })
-                    && !(((k + 1) ..< units.count).first(where: { units[$0] != 0x20 }).map { units[$0] == 0x09 } ?? false) {
+                    && !(((k + 1) ..< units.count).first(where: { units[$0] != 0x20 }).map { units[$0] == 0x09 } ?? false)
+                    && !wordSpaces.contains(where: { $0.k == k }) {
                     wordSpaces.append((k, boxes(k, k + 1)))
                 }
             }
@@ -2510,7 +2527,7 @@ extension RichLayout {
             }
             // (What a tab follows is set where the tab stop puts it: the spaces before the line's last tab give nothing.)
             if let tab = (a ..< piece.b).last(where: { units[$0] == 0x09 }) { wordSpaces.removeAll { $0.k < tab } }
-            if wordSpaces.count != spacesBefore, let lastSpace = wordSpaces.last { spaceBaseX = x - lastSpace.w }
+            if wordSpaces.count != spacesBefore || interiorKept, let lastSpace = wordSpaces.last { spaceBaseX = x - lastSpace.w; interiorKept = false }
             if topLinePunct, let k = lineOpener, k > (lastTab ?? -1), own.contains(k), Self._openingUnits.contains(units[k]),
                !(onFirstLine && firstGiven) {
                 leadOpeners[k] = units.count
