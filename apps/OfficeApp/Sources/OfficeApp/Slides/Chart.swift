@@ -2638,7 +2638,9 @@ enum ChartXML {
             c.gridWidth = ln["w"].flatMap(Double.init).map { $0 / 12700 }
         }
         if let valueAxis {
+            // (Gridlines whose line is `a:noFill` are not drawn: f06692fd370c p2 drew a dark band under its dashed 50 line.)
             c.valueGrid = valueAxis.first("c:majorGridlines") != nil
+                && valueAxis.first("c:majorGridlines")?.first("c:spPr")?.first("a:ln")?.first("a:noFill") == nil
             // (An axis whose labels are "none" and whose line is hidden draws nothing,
             // as a deleted one does: ko-e114b968 p23's bars with no scale.)
             c.valueAxisDeleted = ["1", "true"].contains(valueAxis.first("c:delete")?["val"] ?? "")
