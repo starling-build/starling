@@ -795,6 +795,30 @@ final class OfficeShellState: State<StatefulWidget> {
 
     // MARK: Clipboard and the context menu
 
+    /// The host's edit menu for a finger's selection or caret (iPad: the system
+    /// menu). Nothing happens on a host that draws none.
+    private func _showTouchMenu(_ rect: Rect?) {
+        #if !os(WASI)
+        guard let show = OfficeHost.editMenuRequested else { return }
+        guard let r = rect else { OfficeHost.editMenuDismissed?(); return }
+        let c = controller
+        var items: [OfficeHost.EditMenuItem] = []
+        if c.hasSelection {
+            if !c.readOnly {
+                items.append(.init(title: "Cut", symbol: "scissors") { if let d = c.cutSelectionData() { Clipboard.setData(d) } })
+            }
+            items.append(.init(title: "Copy", symbol: "doc.on.doc") { if let d = c.copySelectionData() { Clipboard.setData(d) } })
+        } else if !c.readOnly {
+            items.append(.init(title: "Select", symbol: "character.cursor.ibeam") { c.selectWord(at: c.caret) })
+        }
+        if !c.readOnly {
+            items.append(.init(title: "Paste", symbol: "doc.on.clipboard") { [weak self] in self?._paste(plain: false) })
+        }
+        items.append(.init(title: "Select All", symbol: "selection.pin.in.out") { c.selectAll() })
+        show(r.left, r.top, r.width, r.height, items, c.hasSelection ? c.selectedText : nil)
+        #endif
+    }
+
     private func _paste(plain: Bool) {
         Clipboard.getData(plain ? Clipboard.kTextPlain : Clipboard.kAll) { [weak self] data in
             guard let self, let data, !data.isEmpty else { return }
@@ -1140,6 +1164,7 @@ final class OfficeShellState: State<StatefulWidget> {
             // Format Painter applies when a selection gesture ends, as Word does.
             onSelectionGestureEnd: { [weak self] in self?._applyPainter() },
             onContextMenu: { [weak self] point in self?._showContextMenu(at: point) },
+            onTouchMenu: { [weak self] rect in self?._showTouchMenu(rect) },
             spellChecker: session.checkSpelling ? _spelling : nil
         )
     }

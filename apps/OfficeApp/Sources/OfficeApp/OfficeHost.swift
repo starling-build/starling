@@ -48,6 +48,21 @@ enum OfficeHost {
         let action: () -> Void
     }
 
+    /// One entry of the host's edit menu over a selection (Cut, Copy, ...).
+    struct EditMenuItem {
+        let title: String
+        let symbol: String
+        var isEnabled = true
+        let action: () -> Void
+    }
+
+    /// Set by a host that draws its own edit menu for a finger's selection:
+    /// the rect of the selection or caret in the editor view's coordinates
+    /// (nil withdraws the menu), the entries, and the selected text if any.
+    static var editMenuRequested: ((_ x: Double, _ y: Double, _ width: Double, _ height: Double,
+                                    _ items: [EditMenuItem], _ selectedText: String?) -> Void)?
+    static var editMenuDismissed: (() -> Void)?
+
     /// Set by a host that draws a native toolbar. The editor in front
     /// publishes its buttons through it, and publishes nil when it goes away,
     /// so a deck or a workbook shows none.

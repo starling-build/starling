@@ -829,6 +829,13 @@ if initialPath == nil && siteArg == nil && wikiBase == nil {
     OfficeHost.exportRequested = { name, prepare, thenOpen, done in
         OfficeNativeShell.export(name: name, prepare: prepare, thenOpen: thenOpen, done: done)
     }
+    OfficeHost.editMenuRequested = { x, y, w, h, items, text in
+        OfficeNativeShell.showEditMenu(CGRect(x: x, y: y, width: w, height: h),
+                                       items: items.map { OfficeEditMenuItem(title: $0.title, symbol: $0.symbol,
+                                                                              isEnabled: $0.isEnabled, action: $0.action) },
+                                       text: text)
+    }
+    OfficeHost.editMenuDismissed = { OfficeNativeShell.showEditMenu(nil, items: [], text: nil) }
     OfficeHost.toolbarChanged = { buttons in
         OfficeNativeShell.setToolbar(buttons?.map {
             OfficeToolbarButton(id: $0.id, title: $0.title, symbol: $0.symbol,

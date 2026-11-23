@@ -53,6 +53,9 @@ public final class RichEditable: StatefulWidget {
     /// A right click, with the pointer's position in global coordinates.
     /// The caret has moved there unless the click was inside the selection.
     public let onContextMenu: ((Offset) -> Void)?
+    /// A finger's selection or caret wants the system edit menu: the rect to
+    /// point at in global coordinates, or nil to take the menu away.
+    public let onTouchMenu: ((Rect?) -> Void)?
     /// False pins the text at the top and draws no scroll thumb: a slide's
     /// text box, whose text overflows its frame rather than scrolling.
     public let scrolls: Bool
@@ -70,6 +73,7 @@ public final class RichEditable: StatefulWidget {
                 onLinkActivate: ((String) -> Void)? = nil,
                 onSelectionGestureEnd: (() -> Void)? = nil,
                 onContextMenu: ((Offset) -> Void)? = nil,
+                onTouchMenu: ((Rect?) -> Void)? = nil,
                 spellChecker: RichSpellChecker? = nil,
                 scrolls: Bool = true) {
         self.controller = controller
@@ -88,6 +92,7 @@ public final class RichEditable: StatefulWidget {
         self.onLinkActivate = onLinkActivate
         self.onSelectionGestureEnd = onSelectionGestureEnd
         self.onContextMenu = onContextMenu
+        self.onTouchMenu = onTouchMenu
         self.spellChecker = spellChecker
         self.scrolls = scrolls
         super.init(key: key)
@@ -637,6 +642,29 @@ public final class RichEditableState: State<StatefulWidget> {
         return best?.k
     }
 
+    /// Asks the host for the edit menu at the selection (or the caret), or
+    /// takes it away. The rect is clipped to what is on screen.
+    private func _touchMenu(_ show: Bool) {
+        guard let callback = _w.onTouchMenu else { return }
+        guard show, _layout.width > 0, _layout.count > 0, let box = context?.findRenderObject() as? RenderBox else {
+            callback(nil)
+            return
+        }
+        _syncLayoutIfNeeded()
+        let sel = _controller.selection
+        var rects = sel.isCollapsed ? [] : _layout.canvasSelectionRects(sel, _controller.document)
+        if rects.isEmpty { rects = [_layout.canvasCaretRect(sel.focus, _controller.document)] }
+        var r = rects[0]
+        for q in rects.dropFirst() { r = Rect.fromLTRB(min(r.left, q.left), min(r.top, q.top), max(r.right, q.right), max(r.bottom, q.bottom)) }
+        let local = Rect.fromLTWH(r.left + _originX, r.top + _w.padding.top - _scrollY, max(r.width, 2), r.height)
+        let view = Rect.fromLTWH(0, 0, _viewport.width, _viewport.height)
+        let l = max(local.left, view.left), t = max(local.top, view.top)
+        let rr = min(local.right, view.right), b = min(local.bottom, view.bottom)
+        guard rr > l, b > t else { callback(nil); return }
+        let o = box.localToGlobal(Offset(l, t))
+        callback(Rect.fromLTWH(o.dx, o.dy, rr - l, b - t))
+    }
+
     /// A finger held still on text: the word under it is selected.
     private func _longPress(_ generation: Int, _ at: Offset) {
         guard generation == _longPressGen, let t = _touchScroll, !t.moved, _layout.width > 0 else { return }
@@ -647,6 +675,7 @@ public final class RichEditableState: State<StatefulWidget> {
         _controller.selectWord(at: _layout.canvasPosition(at: _canvasPoint(at), _controller.document))
         if _controller.hasSelection { _w.onSelectionGestureEnd?() }
         _repaint.notifyListeners()
+        _touchMenu(true)
     }
 
     /// The selected picture's box in the editable's own coordinates, with
@@ -753,6 +782,7 @@ public final class RichEditableState: State<StatefulWidget> {
         _touchMode = event.kind == .touch
         if event.kind == .touch {
             _momentumGeneration += 1   // a glide in progress stops under it
+            _touchMenu(false)
             if let k = _selectionHandleHit(event.localPosition), let ends = _selectionEnds() {
                 // A selection handle: the far end stays, the finger moves this one.
                 let sel = _controller.selection
@@ -961,6 +991,7 @@ public final class RichEditableState: State<StatefulWidget> {
             _selHandle = nil
             _w.onSelectionGestureEnd?()
             _repaint.notifyListeners()
+            _touchMenu(true)
             return
         }
         if let t = _touchScroll {
@@ -990,9 +1021,13 @@ public final class RichEditableState: State<StatefulWidget> {
                     _lastTap = (0, Offset(-100, -100))
                     _controller.selectWord(at: pos)
                     if _controller.hasSelection { _w.onSelectionGestureEnd?() }
+                    _touchMenu(true)
                 } else {
                     _lastTap = (now, event.localPosition)
+                    // A tap on the caret itself asks for the menu, as on iOS text.
+                    let onCaret = _controller.selection.isCollapsed && _controller.caret == pos
                     _controller.moveTo(pos, extend: false)
+                    if onCaret { _touchMenu(true) }
                 }
             }
             return

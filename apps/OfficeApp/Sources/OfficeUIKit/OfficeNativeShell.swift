@@ -68,6 +68,12 @@ public enum OfficeNativeShell {
         shared?.toolbar.update(buttons)
     }
 
+    /// The edit menu over a selection or caret at `rect` (the editor view's
+    /// coordinates); nil takes it away. Main thread only.
+    public static func showEditMenu(_ rect: CGRect?, items: [OfficeEditMenuItem], text: String?) {
+        shared?.editMenu.show(rect, items: items, text: text)
+    }
+
     /// The last buttons published, kept for an editor that mounted before the
     /// browser had the bar in its view.
     nonisolated(unsafe) fileprivate static var latestToolbar: [OfficeToolbarButton]?
@@ -151,12 +157,14 @@ private final class EditingSession {
 final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocumentBrowserViewControllerDelegate {
     private let editor: UIViewController
     fileprivate let toolbar: EditorToolbar
+    fileprivate let editMenu: EditMenuPresenter
     fileprivate var session: EditingSession?
     private let queue = DispatchQueue(label: "office.writeback")
 
     init(editor: UIViewController) {
         self.editor = editor
         self.toolbar = EditorToolbar(host: editor)
+        self.editMenu = EditMenuPresenter(host: editor)
         let types = [
             "org.openxmlformats.wordprocessingml.document",
             "org.openxmlformats.presentationml.presentation",
@@ -233,6 +241,7 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
             // and a setState before that is a frame that is never drawn.
             present(editor, animated: true) {
                 self.toolbar.attach()
+                self.editMenu.attach()
                 self.toolbar.update(OfficeNativeShell.latestToolbar)
                 OfficeNativeShell.onOpenDocument?(path)
             }
