@@ -66,6 +66,12 @@ final class SheetsEngineTests: XCTestCase {
         XCTAssertEqual(v(c, "C4"), .number(24))
     }
 
+    /// A range ending past the last cell of its own still reads the spill under it.
+    func testRangePastUsedAreaReadsSpill() {
+        let c = book(["E1": "2", "A1": "=SEQUENCE(3)*$E$1", "C1": "=SUM(A2:A3)"])
+        XCTAssertEqual(v(c, "C1"), .number(10))
+    }
+
     func testLambdaThroughDefinedNames() {
         let c = book(["A1": "4", "B1": "10"])
         c.book.names["DOUBLE"] = "_xlfn.LAMBDA(_xlpm.x,_xlpm.x*2)"

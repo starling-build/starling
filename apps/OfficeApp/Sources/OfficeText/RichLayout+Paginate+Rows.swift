@@ -22,6 +22,15 @@ extension RichLayout {
         return rows[c.row] ?? 0
     }
 
+    /// A part of a row that goes on at a page's head, in a table ruled at the table level alone, stating no cell spacing,
+    /// its cells saying nothing of their top: Word's print (lab tblcut, 24 two-page tables) sets its text right under the
+    /// page's top margin, where ours made room for the line the row above ended on.
+    func _pg_partedOpensUnderNoLine(_ document: RichDocument, _ c: _CellGeo) -> Bool {
+        guard RichTextTheme.wordWindowsPages, let ts = document.tableStyles[c.table], ts.cellSpacing == nil,
+              ts.borders && !ts.bordersFromCells, c.edges?.top == nil, c.borders.top == nil else { return false }
+        return true
+    }
+
     func _pg_ruleUnder(_ pgs: inout _PState, _ document: RichDocument, _ c: _CellGeo, parted: Bool = false, across: Bool = false) -> Double {
         guard theme.wordRules else { return 0 }
         // (A first cell merged down past the row is no measure of the
@@ -52,6 +61,10 @@ extension RichLayout {
         // nor zh-d68ac84a's p36 row with 0.53 left, mode 14.)
         if parted {
             let own = max(0, c.rules - c.ruleBelow)
+            if own > 0, _pg_partedOpensUnderNoLine(document, c) {
+                RuleTrace.hit("word-parted-row-goes-on-under-table-lines-in-the-rule-it-has")
+                return 0
+            }
             // (A table framed by outer lines with none between its rows
             // still closes a parted row with its bottom line and opens
             // the next page's part with its top: lo-e1104feb's floating

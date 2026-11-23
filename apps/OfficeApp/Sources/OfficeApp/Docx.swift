@@ -4028,7 +4028,9 @@ enum DocxFormat {
         }
         if let table = part("word/fontTable.xml").flatMap(XNode.parse) {
             for font in table.all("w:font") {
-                if let name = font["w:name"], let usb2 = font.first("w:sig")?["w:usb2"], let v = UInt32(usb2, radix: 16), v & 0x100 != 0 {
+                if let name = font["w:name"], let usb2 = font.first("w:sig")?["w:usb2"], let v = UInt32(usb2, radix: 16), v & 0x100 != 0,
+                   // (Only a face Windows lacks: Sakkal Majalla's own table carries the Thaana bit and Word draws it in Sakkal Majalla, a 1.40 em line, not MV Boli's 1.611: dx2 be31e911's body 25.8 pt a line against 22.4 in Word.)
+                   name.trimmingWhitespace().lowercased() == "mv boli" || !WordWindowsFaces.names.contains(name.trimmingWhitespace().lowercased()) {
                     document.thaanaFaces.insert(name.trimmingWhitespace().lowercased())
                 }
             }
@@ -6658,7 +6660,9 @@ enum DocxFormat {
                 if let id = rPr.first("w:rStyle")?["w:val"], let chain = notes.charStyleChains[id] {
                     for styled in chain { mark = _charStyle(styled, base: mark) }
                 }
-                markStyle = _charStyle(rPr, base: mark)
+                // (A mark flagged w:rtl that gives w:sz and no w:szCs stands at the szCs its style gives, as a complex run does: dx2 b02602d2's
+                // empty paragraph with sz 20 and w:rtl over BodyText's szCs 32 is a 19.3 pt Tahoma Bold line in Word; marks without w:rtl keep the sz.)
+                markStyle = _charStyle(rPr, base: mark, complexSize: _on(rPr.first("w:rtl")) && rPr.first("w:szCs") == nil && rPr.first("w:sz") != nil ? true : nil)
             }
             if markStyle?.hidden == true { style.markHidden = true }
             if style.markHidden, _on(pPr.first("w:rPr")?.first("w:specVanish")) { style.markSpecVanish = true }
@@ -6805,7 +6809,13 @@ enum DocxFormat {
                 // A paragraph of one ANCHORED picture has no text on its
                 // line: its mark's font is its height, as for an empty one
                 // (bib-chernigovka's title box sat in a 16pt paragraph).
-                if let mark = markStyle, only.sourceXML?.containsSubstring("<wp:anchor") == true { para.runs[0].style = mark }
+                // (The anchor is a character of that line, set in its own run's font: a run that states no size is the paragraph style's, so a
+                // mark stated smaller than that is not the height. dx2 b02602d2's picture paragraph, mark sz 20 over BodyText 16 bold, is a 19.3 pt
+                // Tahoma Bold line in Word's print, not 12.1.)
+                let styleSize = p.first("w:pPr")?.first("w:pStyle")?["w:val"].flatMap { styleIds[$0] }.flatMap { sheet[$0]?.char.fontSize }
+                if let mark = markStyle, only.sourceXML?.containsSubstring("<wp:anchor") == true,
+                   !(para.runs[0].style.fontSize == nil && styleSize != nil && mark.fontSize != nil && styleSize! > mark.fontSize!) { para.runs[0].style = mark }
+                else if only.sourceXML?.containsSubstring("<wp:anchor") == true, para.runs[0].style.fontSize == nil, let z = styleSize { para.style.mark?.fontSize = z }
             } else {
                 // (An empty cell paragraph under a table style that sets the size is as tall as that
                 // size, not Normal's: lo-7c394e05's 8pt cells under a 12pt Normal.)
@@ -7933,6 +7943,9 @@ enum DocxFormat {
                 // (The same where the weight comes from the PARAGRAPH style: dx2 f0001d05's Title (b, no bCs), a Kokila run with w:cs and no weight of its own, prints regular.)
                 if indicOnly, _on(rPr.first("w:cs")), rPr.first("w:b") == nil, rPr.first("w:bCs") == nil, !cs.bold,
                    let n = style.named, sheet[n]?.char.boldWithoutBCs == true { cs.off.insert(.bold) }
+                // (A right-to-left run that says neither b nor bCs takes the bCs of its paragraph style, whatever w:b that style gives: ara-z11030406-663296's Heading3, b 0 over Normal's b + bCs, prints Traditional Arabic Bold.)
+                if cs.rightToLeft, _on(rPr.first("w:rtl")), rPr.first("w:b") == nil, rPr.first("w:bCs") == nil, !cs.bold,
+                   let n = style.named ?? style.heading.map({ "Heading\($0)" }), sheet[n]?.char.bCsFromStyle == true, sheet[n]?.char.bold == false { cs.bold = true; cs.off.remove(.bold) }
             }
             // (A page number kept in its result's look with \* MERGEFORMAT keeps its weight and
             // loses the rest of it: lab pgf (Word for Windows, 2026-11-02) — an Arial Bold 15.5pt
@@ -9256,7 +9269,7 @@ enum DocxFormat {
             cs.keptXML = ["w:bdr", "w:w", "w:position", "w:fitText", "w:cs", "w:em", "w:lang", "w:eastAsianLayout", "w:snapToGrid"].compactMap { all[$0] }.joined()
         }
         if let z = szCs { cs.complexFontSize = z }
-        if bCs != nil { cs.boldWithoutBCs = false } else if sawB { cs.boldWithoutBCs = cs.bold }
+        if bCs != nil { cs.boldWithoutBCs = false; cs.bCsFromStyle = bCs } else if sawB { cs.boldWithoutBCs = cs.bold }
         if complexText ?? cs.rightToLeft {
             // (A complex run's weight is its bCs even when the run also states b: af19d946's Heading3 run, b 0 / bCs, prints Devanagari in Nirmala UI Bold.)
             if let b = bCs { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }
