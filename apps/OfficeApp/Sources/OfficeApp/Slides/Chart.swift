@@ -85,6 +85,7 @@ func chartErrBarPath(_ eb: ChartErrBars, k: Double, vertical: Bool, at: Double, 
 struct ChartSeries: Equatable {
     static let labelValueMark = "\u{1}V"
     static let labelCellMark = "\u{1}C"
+    static let labelCategoryMark = "\u{1}K"
     var name: String
     /// A line of a combination that stands on the columns' own value axis though another line group has an axis of its own at the right.
     var onMainAxis = false
@@ -1918,12 +1919,12 @@ enum ChartXML {
                             if k > 0 { parts.append("\n") }
                             for run in p.children {
                                 if run.name == "a:fld" {
-                                    parts.append(run["type"] == "CELLRANGE" ? ChartSeries.labelCellMark : ChartSeries.labelValueMark)
+                                    parts.append(run["type"] == "CELLRANGE" ? ChartSeries.labelCellMark : run["type"] == "CATEGORYNAME" ? ChartSeries.labelCategoryMark : ChartSeries.labelValueMark)
                                 } else if run.name == "a:r" { parts.append(run.first("a:t")?.text ?? ""); literal = true }
                             }
                         }
                         let fieldTypes = Set(rich.all("a:p").flatMap { $0.all("a:fld") }.compactMap { $0["type"] })
-                        if fieldTypes.isSubset(of: ["VALUE", "CELLRANGE"]), literal || fieldTypes.contains("CELLRANGE") {
+                        if fieldTypes.isSubset(of: ["VALUE", "CELLRANGE", "CATEGORYNAME"]), literal || fieldTypes.contains("CELLRANGE") {
                             s.labelParts[i] = parts
                         }
                     }
@@ -7090,7 +7091,7 @@ enum ChartPainter {
                         let ownLabel = dataLabel(c, raw, series: j, point: i)
                         var shown = c.series[safe: j]?.labelRich[i].map { $0.map { $0 ?? ownLabel }.joined(separator: "\n") } ?? ownLabel
                         if let parts = c.series[safe: j]?.labelParts[i] {
-                            shown = parts.map { $0 == ChartSeries.labelValueMark ? ownLabel : $0 == ChartSeries.labelCellMark ? c.series[j].cellLabels[i] ?? "" : $0 }.joined()
+                            shown = parts.map { $0 == ChartSeries.labelValueMark ? ownLabel : $0 == ChartSeries.labelCategoryMark ? c.categories[safe: i] ?? "" : $0 == ChartSeries.labelCellMark ? c.series[j].cellLabels[i] ?? "" : $0 }.joined()
                             wrapLabels.insert(labels.count)
                         }
                         var labelAt = Offset(rect.center.dx, c.stacked ? rect.center.dy
@@ -7376,7 +7377,7 @@ enum ChartPainter {
                     }
                     if c.type == .line, c.onSlide, let parts = c.series[j].labelParts[i] {
                         let value = shownLine
-                        shownLine = parts.map { $0 == ChartSeries.labelValueMark ? value : $0 == ChartSeries.labelCellMark ? c.series[j].cellLabels[i] ?? "" : $0 }.joined()
+                        shownLine = parts.map { $0 == ChartSeries.labelValueMark ? value : $0 == ChartSeries.labelCategoryMark ? c.categories[safe: i] ?? "" : $0 == ChartSeries.labelCellMark ? c.series[j].cellLabels[i] ?? "" : $0 }.joined()
                     }
                     labels.append((shownLine, Offset(x, y), j))
                 }
