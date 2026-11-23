@@ -9083,7 +9083,8 @@ extension ChartPainter {
             // zh-b8de3ae2's 3-D pie sizes "人事費, 87,167,004, 15.29%" 0.127, and Word's print sets it in three lines,
             // "人事費" / "87,167,004," / "15.29%"; ours took the fifth and kept "人事費87,167,004," on one. Less the
             // label's 7.7pt of margin, it broke "87,167,004" from its comma.)
-            if !c.onSlide, !c.onSheet, !c.chartex, let bw = l.boxWidths[s.index] {
+            // (On a slide too: ja-ed69bd1e3d p4's pie gives "男性 12～19才, 0%" (71.6 pt) a box 0.2425 of the chart, and PowerPoint's print keeps it on one line.)
+            if !c.onSheet, !c.chartex, let bw = l.boxWidths[s.index] {
                 tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * bw))
             }
             // (In a Word document a label, its 3pt of room counted, taller than half the chart ends in an
@@ -9306,11 +9307,20 @@ extension ChartPainter {
                 if let p = place(bw, bh) { return p }
                 // (PowerPoint, a pie on a slide at bestFit: a label too wide for its slice wraps at its last space and stands inside
                 // when that fits: ja-2089008cf3 p4's "女性, 28%" as two lines in a 100° slice, ours one line outside.)
-                if c.onSlide, c.type == .pie, tp.computeLineMetrics().count == 1 {
-                    let one = tp.width
-                    tp.layout(minWidth: 0, maxWidth: one - 1)
-                    if tp.computeLineMetrics().count > 1, let p = place(tp.width, tp.height) { return p }
-                    tp.layout(minWidth: 0, maxWidth: one + 1)
+                // (And wider than the slice holds: narrower and narrower until the wrapped box fits, ja-a4af5b236a p4's
+                // "男性 40~49 / 才, 13%" inside a 17% slice. A label that fits nowhere stays outside at its own width.)
+                if c.onSlide, c.type == .pie, !c.onSheet {
+                    let start = tp.computeLineMetrics().map { $0.width }.max() ?? tp.width
+                    var mw = start - 1.5 * k
+                    var found: Offset?
+                    while mw >= 18 * k {
+                        tp.layout(minWidth: 0, maxWidth: mw)
+                        let lw = tp.computeLineMetrics().map { $0.width }.max() ?? tp.width
+                        if let p = place(lw + pad * 2, tp.height + pad) { found = p; break }
+                        mw = min(mw, lw) - 1.5 * k
+                    }
+                    if let found { return found }
+                    tp.layout(minWidth: 0, maxWidth: start + 1)
                 }
                 return nil
             }()
