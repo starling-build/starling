@@ -226,8 +226,13 @@ enum XlsBuild {
         var dxfs: [String] = []
 
         for (n, e) in kept.enumerated() {
-            let xml = sheetXML(recs, from: e.element.position, sst: sst, xfCount: max(1, xfs.count), ctx: ctx, palette: palette, dxfs: &dxfs)
+            var links: [String] = []
+            let xml = sheetXML(recs, from: e.element.position, sst: sst, xfCount: max(1, xfs.count), ctx: ctx, palette: palette, dxfs: &dxfs, links: &links)
             add("xl/worksheets/sheet\(n + 1).xml", xml)
+            if !links.isEmpty {
+                add("xl/worksheets/_rels/sheet\(n + 1).xml.rels", "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
+                    + links.enumerated().map { "<Relationship Id=\"rIdL\($0.offset + 1)\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink\" Target=\"\(esc($0.element))\" TargetMode=\"External\"/>" }.joined() + "</Relationships>")
+            }
         }
         // styles.xml last: the conditional formats' differential formats are collected by the sheets.
         out.removeAll { $0.name == "xl/styles.xml" }
@@ -235,7 +240,7 @@ enum XlsBuild {
         return out
     }
 
-    private static func sheetXML(_ recs: [BiffRecord], from position: Int, sst: [String], xfCount: Int, ctx: XlsFormulaContext, palette: [(Int, Int, Int)], dxfs: inout [String]) -> String {
+    private static func sheetXML(_ recs: [BiffRecord], from position: Int, sst: [String], xfCount: Int, ctx: XlsFormulaContext, palette: [(Int, Int, Int)], dxfs: inout [String], links: inout [String]) -> String {
         guard var i = recs.firstIndex(where: { $0.offset == position && $0.type == 0x809 }) else { return emptySheet }
         var cells: [Int: [Int: String]] = [:]
         var rows: [Int: String] = [:]
@@ -243,6 +248,7 @@ enum XlsBuild {
         var merges: [String] = []
         var cfGroups: [(sqref: String, base: (Int, Int), rules: [String])] = []
         var validations: [String] = []
+        var hyperlinks: [String] = []
         var cfPriority = 0
         var defColWidth: Int? = nil, stdWidth: Int? = nil
         var defRowHeight: (Int, Bool)? = nil
@@ -525,6 +531,49 @@ enum XlsBuild {
                 if n1 > 0, let f = XlsFormula.decompile(t1, row: first.0, col: first.1, relative: true, ctx: ctx) { a += "<formula1>\(esc(f))</formula1>" }
                 if n2 > 0, let f = XlsFormula.decompile(t2, row: first.0, col: first.1, relative: true, ctx: ctx) { a += "<formula2>\(esc(f))</formula2>" }
                 validations.append(a + "</dataValidation>")
+            case 0x1B8 where rec.body.count >= 32:
+                // HLINK: the cells, a GUID, then flags and the optional parts in a fixed order.
+                let r1 = c.u16(), r2 = c.u16(), c1 = c.u16(), c2 = c.u16()
+                c.skip(20)
+                let fl = Int(c.u32())
+                let b = rec.body
+                func str() -> String {   // u32 count of UTF-16 units, the last being a null
+                    guard c.pos + 4 <= b.count else { return "" }
+                    let n = Int(c.u32())
+                    guard n >= 0, n < 10000, c.pos + 2 * n <= b.count else { c.pos = b.count; return "" }
+                    var u: [UInt16] = []
+                    for k in 0 ..< n { u.append(UInt16(b[c.pos + 2 * k]) | UInt16(b[c.pos + 2 * k + 1]) << 8) }
+                    c.skip(2 * n)
+                    while u.last == 0 { u.removeLast() }
+                    return String(decoding: u, as: UTF16.self)
+                }
+                var display = "", url = "", loc = ""
+                if fl & 0x14 == 0x14 { display = str() }
+                if fl & 0x80 != 0 { _ = str() }
+                if fl & 1 != 0 {
+                    if fl & 0x100 != 0 { url = str() }
+                    else if c.pos + 20 <= b.count {
+                        let g0 = b[c.pos]
+                        c.skip(16)
+                        if g0 == 0xE0 {   // URL moniker: byte length, then the UTF-16 address
+                            let n = Int(c.u32())
+                            if n >= 2, n < 20000, c.pos + n <= b.count {
+                                var u: [UInt16] = []
+                                var k = 0
+                                while k + 1 < n { u.append(UInt16(b[c.pos + k]) | UInt16(b[c.pos + k + 1]) << 8); k += 2 }
+                                while u.last == 0 { u.removeLast() }
+                                url = String(decoding: u, as: UTF16.self)
+                            }
+                        }
+                    }
+                }
+                if fl & 8 != 0, !(fl & 1 != 0 && url.isEmpty) { loc = str() }
+                guard r1 <= r2, c1 <= c2, !url.isEmpty || !loc.isEmpty else { break }
+                var a = "<hyperlink ref=\"\(cellRange(r1, c1, r2, c2))\""
+                if !url.isEmpty { links.append(url); a += " r:id=\"rIdL\(links.count)\"" }
+                if !loc.isEmpty { a += " location=\"\(esc(loc))\"" }
+                if !display.isEmpty { a += " display=\"\(esc(display))\"" }
+                hyperlinks.append(a + "/>")
             case 0xE5 where rec.body.count >= 2:
                 let n = c.u16()
                 var k = 0
@@ -536,7 +585,7 @@ enum XlsBuild {
             default: break
             }
         }
-        var x = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">"
+        var x = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">"
         if fitToPage || !summaryBelow || !summaryRight {
             x += "<sheetPr>"
             if !summaryBelow || !summaryRight { x += "<outlinePr" + (summaryBelow ? "" : " summaryBelow=\"0\"") + (summaryRight ? "" : " summaryRight=\"0\"") + "/>" }
@@ -580,6 +629,7 @@ enum XlsBuild {
             x += "<conditionalFormatting sqref=\"\(g.sqref)\">" + g.rules.joined() + "</conditionalFormatting>"
         }
         if !validations.isEmpty { x += "<dataValidations count=\"\(validations.count)\">" + validations.joined() + "</dataValidations>" }
+        if !hyperlinks.isEmpty { x += "<hyperlinks>" + hyperlinks.joined() + "</hyperlinks>" }
         x += pageXML(setup: setup, margins: margins, hdrFtr: hdrFtr, margin2: hdrFtrMargins, grid: printGrid, heads: printHeads, hc: hCenter, vc: vCenter, hBreaks: hBreaks, vBreaks: vBreaks)
         return x + "</worksheet>"
     }
