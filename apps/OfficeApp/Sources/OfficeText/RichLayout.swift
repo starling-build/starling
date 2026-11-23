@@ -339,6 +339,8 @@ public final class RichTextTheme {
     /// Slides: whether a face is neither installed on Windows nor one the tables know (PowerPoint then draws it as its fallback).
     public var faceMissingOnWindows: ((String) -> Bool)? = nil
     /// Slides: an upright East Asian column's own line, in em, by face and weight: usWinAscent and usWinAscent + usWinDescent (nil: unknown).
+    /// A face's win ascent over its em, for the baseline of an upright digit (Slides).
+    public var uprightDigitAscent: ((String, Bool) -> Double?)? = nil
     public var uprightColumn: ((String, Bool) -> (ascent: Double, line: Double)?)? = nil
     /// Slides: a face whose first baseline scales with a shrink's line spacing, with no floor under it (see `baselineShift`).
     public var baselineScalesWithSpacing: ((String) -> Bool)? = nil

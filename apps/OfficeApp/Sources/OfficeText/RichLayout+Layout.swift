@@ -1602,8 +1602,10 @@ extension RichLayout {
             // (Slides: the column's own line, `theme.uprightColumn`: the glyph is centred in win ascent + descent + 0.2 em from the column's
             // right edge and stands (win ascent - 0.876 em) lower than the engine's unshifted place, as printed in lab vface 2026-11-22.)
             let column: (ascent: Double, line: Double)? = theme.wordRules || !uprightIdeographs ? nil : styles[k].flatMap { st in
+                // (The label of a merged style reads "(Arial).merge(...)": its own face is the name inside the first parentheses.)
                 var f = (st.debugLabel ?? st.fontFamily ?? "")
-                while f.hasSuffix(".copyWith") { f = String(f.dropLast(9)); if f.hasPrefix("("), f.hasSuffix(")") { f = String(f.dropFirst().dropLast()) } }
+                while f.hasPrefix("(") { f = String(f.dropFirst()) }
+                if let close = f.firstIndex(of: ")") { f = String(f[..<close]) }
                 return theme.uprightColumn?(f, (st.fontWeight?.value ?? 400) >= 600)
             }
             var columnAcross = acrossC(box, em, k)
@@ -1640,7 +1642,17 @@ extension RichLayout {
             canvas.save()
             canvas.translate(origin.dx + box.left + em / 2 + lead(k), origin.dy + acrossC(box, em, near) + rubyColumnShift(k) + (plain ? 0.085 * em : 0) + sharedShift(k))
             canvas.rotate(-Double.pi / 2)
-            glyph.paint(canvas, Offset(-glyph.width / 2, 0.38 * em - glyph.computeDistanceToActualBaseline(.alphabetic)))
+            // (Slides: the digit stands with its baseline a win ascent of ITS OWN face below the place's start, whatever the ideograph beside it:
+            // print of lab vdig3, 7 faces to 0.1 pt, Segoe UI 30.1 pt, Arial 25.3, YaHei 29.7, MS Gothic 24.0 at 28 pt.)
+            var baseline = 0.38 * em
+            if !theme.wordRules, uprightIdeographs, let st = styles[k] {
+                var f = (st.debugLabel ?? st.fontFamily ?? "")
+                // (A merged style's label reads "(Arial).merge(...)": its own face is the name inside the first parentheses.)
+                while f.hasPrefix("(") { f = String(f.dropFirst()) }
+                if let close = f.firstIndex(of: ")") { f = String(f[..<close]) }
+                if let asc = theme.uprightDigitAscent?(f, (st.fontWeight?.value ?? 400) >= 600) { baseline = asc * (st.fontSize ?? em) - 0.5 * em }
+            }
+            glyph.paint(canvas, Offset(-glyph.width / 2, baseline - glyph.computeDistanceToActualBaseline(.alphabetic)))
             canvas.restore()
             glyph.dispose()
         }
