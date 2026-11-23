@@ -308,6 +308,11 @@ struct SheetPrintMetrics {
 
     /// The metrics of a workbook whose default font is `family` at `size`;
     /// `baseColWidth` is the sheet's (8 digits unless it says otherwise).
+    /// A theme-font Normal face Excel's print box fits the unsized rows in by its stored default height (labs korow3: 맑은 고딕's 17 prints
+    /// 17.25 and 15 prints 15.25). The other East Asian faces measured (宋体, ＭＳ Ｐゴシック, 新細明體, 游ゴシック) print at Calibri's fit whatever
+    /// default they store: that box does not have them.
+    static func fitsRowsInOwnFace(_ name: String) -> Bool { name == "맑은 고딕" || name.lowercased() == "malgun gothic" }
+
     static func of(family: String, size: Double, bold: Bool = false, baseColWidth: Double = 8, hinted: Bool = false, otherBook: Bool = false) -> SheetPrintMetrics {
         let f = (bold ? faces[faceKey(family) + " bold"] : nil) ?? face(family)
         // (A printer's line between the sizes measured is the next whole
