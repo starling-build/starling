@@ -9417,13 +9417,14 @@ extension ChartPainter {
                 // "男性 40~49 / 才, 13%" inside a 17% slice. A label that fits nowhere stays outside at its own width.)
                 if c.onSlide, c.type == .pie, !c.onSheet {
                     let start = tp.computeLineMetrics().map { $0.width }.max() ?? tp.width
-                    var mw = start - 1.5 * k
                     var found: Offset?
-                    while mw >= 18 * k {
-                        tp.layout(minWidth: 0, maxWidth: mw)
+                    // (PowerPoint's print, pie-lab9's 66 slides and ja-16be16fa31 p4: a label that does not fit inside is set again in one of three
+                    // narrower fixed widths, 0.8, 0.64 and 0.512 of a fifth of the chart's width (67 and 54 pt in a 420 pt chart), whatever
+                    // its text or size; the first that stands inside wins, never an in-between width.)
+                    for f in [0.16, 0.128, 0.1024] {
+                        tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * f))
                         let lw = tp.computeLineMetrics().map { $0.width }.max() ?? tp.width
                         if let p = place(lw + pad * 2, tp.height + pad) { found = p; break }
-                        mw = min(mw, lw) - 1.5 * k
                     }
                     if let found { return found }
                     tp.layout(minWidth: 0, maxWidth: start + 1)
