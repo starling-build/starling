@@ -410,6 +410,12 @@ enum MiniXML {
                     guard !f.hasV else { return nil }
                     f.hasV = true
                     if b[i + 2] == UInt8(ascii: "/") { guard b[i + 3] == UInt8(ascii: ">") else { return nil }; i += 4; continue }
+                    // <v xml:space="preserve">: the tree reader keeps every character of a text, so the attribute changes nothing.
+                    if b[i + 2] == 0x20 {
+                        let lit = Array(" xml:space=\"preserve\">".utf8)
+                        guard i + 2 + lit.count < end, b[(i + 2) ..< (i + 2 + lit.count)].elementsEqual(lit) else { return nil }
+                        i += lit.count - 1
+                    }
                     guard b[i + 2] == UInt8(ascii: ">") else { return nil }
                     i += 3
                     let ts = i
