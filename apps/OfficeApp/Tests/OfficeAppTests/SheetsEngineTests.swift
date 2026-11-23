@@ -32,6 +32,28 @@ final class SheetsEngineTests: XCTestCase {
         c.engine.evaluate(f, sheet: 0, at: CellAddress(row: 99, col: 25))
     }
 
+    /// An exact VLOOKUP into a table whose cells are formulas (some computed after the lookup is first reached, one
+    /// reading another lookup's result) must read each cell's calculated value, in a small table and in a big one.
+    func testVlookupOverFormulaTable() {
+        for n in [10, 100] {
+            var t: [String: String] = [:]
+            for i in 1 ... n {
+                t["A\(i)"] = "=\"k\"&\(i)&Sheet1!$Z$1"                 // text keys, computed
+                t["B\(i)"] = "=\(i)+Sheet1!$Z$2"                       // numbers, from formulas below
+            }
+            t["B\(n)"] = "=Sheet1!C5*2"                                  // reads another lookup's result
+            let c = book(["C1": "=VLOOKUP(\"k\(n - 1)x\",T!A1:B\(n),2,FALSE)", "C2": "=VLOOKUP(\"k1x\",T!A1:B\(n),2,FALSE)",
+                          "C3": "=VLOOKUP(\"k\(n)x\",T!A1:B\(n),2,FALSE)", "C4": "=VLOOKUP(\"nope\",T!A1:B\(n),2,FALSE)",
+                          "Z1": "=\"x\"", "Z2": "=10*2", "C5": "=VLOOKUP(\"b\",U!A1:B2,2,FALSE)", "D1": "=C2+1"],
+                         sheets: ["T": t, "U": ["A1": "a", "B1": "=1+Sheet1!Z2", "A2": "b", "B2": "=Sheet1!Z2+1"]])
+            XCTAssertEqual(v(c, "C1"), .number(Double(n - 1) + 20), "n=\(n)")
+            XCTAssertEqual(v(c, "C2"), .number(21), "n=\(n)")
+            XCTAssertEqual(v(c, "D1"), .number(22), "n=\(n)")
+            XCTAssertEqual(v(c, "C3"), .number(42), "n=\(n)")  // (10*2+1)*2
+            XCTAssertEqual(v(c, "C4"), .error(.na), "n=\(n)")
+        }
+    }
+
     func testLambdaThroughDefinedNames() {
         let c = book(["A1": "4", "B1": "10"])
         c.book.names["DOUBLE"] = "_xlfn.LAMBDA(_xlpm.x,_xlpm.x*2)"
