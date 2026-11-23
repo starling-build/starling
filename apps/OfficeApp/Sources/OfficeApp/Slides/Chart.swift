@@ -147,6 +147,8 @@ struct ChartSeries: Equatable {
     /// A scatter series' error bars along x (`c:errDir x`), by point.
     var xErrBars: ChartErrBars? = nil
     var lineHidden = false
+    /// A line series' own dash (`c:ser/c:spPr/a:ln/a:prstDash`, nil solid): PowerPoint draws it dashed along the whole line (f06692fd370c p2's sysDash series).
+    var lineDash: String? = nil
     /// A line's ends drawn as dots (`a:ln/a:headEnd`, `a:tailEnd` of type oval): their diameter in line widths (sm 2, med 3,
     /// lg 5), 0 for none. Word draws them on the line's first and last points and on the legend's key.
     var lineHead = 0.0
@@ -1734,6 +1736,7 @@ enum ChartXML {
             // circles on each point.)
             if type == .line {
                 s.lineHidden = pr?.first("a:ln")?.has("a:noFill") == true
+                s.lineDash = PptxReader.dash(pr?.first("a:ln"))
                 // (2.25 pt is what is drawn where none is given, and what this app writes: read as none, so a round trip gives back what it was sent.)
                 s.lineW = pr?.first("a:ln")?["w"].flatMap(Double.init).map { $0 / 12700 }.flatMap { $0 == 2.25 ? nil : $0 }
                 // (A shown line's "none" is no marker at all, as it was
@@ -1960,6 +1963,7 @@ enum ChartXML {
                 }
             }
             s.lineHidden = ln?.has("a:noFill") ?? false
+            s.lineDash = PptxReader.dash(ln)
             if let f = ln?.first("a:solidFill") { s.color = color(f) }
             if let m = ser.first("c:marker") {
                 s.marker = m.first("c:symbol")?["val"]
@@ -2527,7 +2531,11 @@ enum ChartXML {
             // (A plain 2007 chart's text is 10 pt, so a stated 12 pt is a size of its own: 99f6ddd1 p23's value axis, sz 1200, is 12 pt in PowerPoint's print, 10 here.)
             c.valueLabelSize = sz / 100
         }
+        // (Columns on the value axis at the right, their own category axis deleted and the lines' shown: the names are the lines'
+        // axis': chart-testCombinedChartAxis.)
         let categoryAxis = type == .scatter ? axes.first { ["b", "t"].contains($0.first("c:axPos")?["val"] ?? "") }
+            : columnsOnRight && axes.first(where: { $0.name != "c:valAx" }).map({ ["1", "true"].contains($0.first("c:delete")?["val"] ?? "") }) == true
+                ? axes.first { $0.name != "c:valAx" && !["1", "true"].contains($0.first("c:delete")?["val"] ?? "") } ?? axes.first { $0.name != "c:valAx" }
             : axes.first { $0.name != "c:valAx" }
         c.categoryTicksOut = ["out", "cross"].contains(categoryAxis?.first("c:majorTickMark")?["val"] ?? "")
         if type == .scatter, let categoryAxis { c.scatterXGrid = categoryAxis.first("c:majorGridlines") != nil }
@@ -3458,7 +3466,7 @@ enum ChartPainter {
                 && !(c.type == .line || c.type == .radar || c.type == .scatter)
             // (A 2013-style slide pie's legend: the key 0.449 of the legend's line, 3.2 pt at Malgun 9 pt's 12 -> the name 0.2 of it
             // after, in PowerPoint's print of ko-ab1bf295 p7: 7.17 and 3.25 pt; Calibri's 0.449 x 14.6 matches its 6.57.)
-            let pieKeyLine = printed && c.styled2013 && pie && c.pointRim != nil
+            let pieKeyLine = printed && c.styled2013 && (pie && c.pointRim != nil || !pie)
                 ? max(styled("X", size, .infinity, bold: c.legendBold, color: c.legendColor, part: "legend").height,
                       ["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased()) ? 1.3301 * size * k : 0) : 0
             // (An Excel legend row under a chart: key 0.5 of the size square, 0.22 to its name, 0.41 between entries — chart-tdf140489's print at 9 pt: 4.5, 2.0, 3.7.)
@@ -5471,7 +5479,7 @@ enum ChartPainter {
         }
         // (Columns on the value axis at the right, lines on one at the left: PowerPoint's b3af6b818144 p26 and p29 print each axis' labels
         // on its own side, so the layout reads the left set as the lines' and the right as the columns'.)
-        let swapSides = c.onSlide && c.columnsOnRight && !horizontal && c.type == .column && !secondLabelsRaw.isEmpty
+        let swapSides = (c.onSlide || c.onSheet) && c.columnsOnRight && !horizontal && c.type == .column && !secondLabelsRaw.isEmpty
         let valueLabels = swapSides ? secondLabelsRaw : valueLabelsRaw
         let secondLabels = swapSides ? valueLabelsRaw : secondLabelsRaw
         // (A format's last pad, `_)`, is part of the gap to the plot, not of the labels' width: lo-tdf149985's
@@ -7337,7 +7345,7 @@ enum ChartPainter {
                         }
                         if pen { path.lineTo(xAt(i), vpos(v)) } else { path.moveTo(xAt(i), vpos(v)); pen = true }
                     }
-                    canvas.drawPath(path, p)
+                    canvas.drawPath(c.type == .line && c.onSlide ? SlidePainter.dashed(path, c.series[j].lineDash, width: p.strokeWidth, capped: true) : path, p)
                     // Its marks over its line, where it names them
                     // (chart-add_series_secondary_axis' circles).
                     if c.type == .line {

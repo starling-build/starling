@@ -282,6 +282,11 @@ final class Backstage: StatelessWidget {
         case .saveAs: onClose(); session.onSaveAs?(); return
         default: break
         }
+        #else
+        // A host with its own panels (the iPad's document browser and export
+        // picker) takes these over; the in-app file lists stay for the rest.
+        if p == .open, OfficeHost.openRequested != nil { onClose(); session.onOpen?(); return }
+        if p == .saveAs, OfficeHost.exportRequested != nil { onClose(); session.onSaveAs?(); return }
         #endif
         session.unsavedPrompt = nil
         onPage(p)

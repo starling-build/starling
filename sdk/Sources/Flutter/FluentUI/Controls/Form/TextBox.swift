@@ -252,7 +252,11 @@ class _TextBoxState: State<StatefulWidget>, TextInputClient {
                 // Only on gain. Hiding on loss would close the keyboard for the
                 // instant between one field blurring and the next focusing,
                 // which on a form is every time you move between two fields.
-                SoftKeyboard.show()
+                //
+                // Not when the engine's text-input view has the field: it raises
+                // the keyboard itself, with autocorrect and composed input, and a
+                // second responder asking for the key bar would take it over.
+                if self._ime?.isAttached != true { SoftKeyboard.show() }
             } else {
                 self._stopCaretBlink()
             }

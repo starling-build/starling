@@ -292,10 +292,30 @@ final class OfficeShellState: State<StatefulWidget> {
             // The browser names and places a download; "save as" is save.
             self._save()
             #else
+            // A host with its own picker (the iPad's) names and places the
+            // copy, and the editor carries on in it.
+            if let ask = OfficeHost.exportRequested {
+                let name = self.session.path.map { $0.lastPathComponent }
+                    ?? self.session.title.deletingPathExtension + ".docx"
+                ask(name, { [weak self] path, finished in
+                    guard let self else { finished(false); return }
+                    finished((try? OfficeFormats.write(self.controller.document, to: path,
+                                                       pageSetup: self.session.pageSetup)) != nil)
+                }, true) { _ in }
+                return
+            }
             self.setState { self._backstage = .saveAs }
             #endif
         }
         session.onExport = { [weak self] ext in self?._export(ext) }
+        #if os(iOS)
+        // OFFICE_DRIVE_EXPORT=pdf: File → Export → PDF a few seconds after the
+        // document opens, so a driven run can reach the export picker
+        // without a tile tap.
+        if let ext = ProcessInfo.processInfo.environment["OFFICE_DRIVE_EXPORT"], !ext.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in self?.session.onExport?(ext) }
+        }
+        #endif
         session.onFind = { [weak self] replace in self?._openFind(replace: replace) }
         session.onHeaderFooter = { [weak self] in
             guard let self else { return }
@@ -628,6 +648,22 @@ final class OfficeShellState: State<StatefulWidget> {
         }
         return
         #endif
+        if let ask = OfficeHost.exportRequested {
+            setState { _backstage = nil }
+            ask(target.lastPathComponent, { [weak self] path, finished in
+                guard let self else { finished(false); return }
+                if ext == "pdf" {
+                    finished(PdfExport.write(self.controller.document, pageSetup: self.session.pageSetup,
+                                             theme: self.session.theme, to: path, title: self.session.title))
+                } else {
+                    finished((try? OfficeFormats.write(self.controller.document, to: path,
+                                                       pageSetup: self.session.pageSetup)) != nil)
+                }
+            }, false) { [weak self] picked in
+                if let picked { self?._flash("Exported \(picked)") }
+            }
+            return
+        }
         do {
             if ext == "pdf" {
                 guard PdfExport.write(controller.document, pageSetup: session.pageSetup, theme: session.theme,

@@ -219,10 +219,28 @@ final class SlidesShellState: State<StatefulWidget> {
             // The browser names and places a download; "save as" is save.
             self._save()
             #else
+            if let ask = OfficeHost.exportRequested {
+                self._endEditing()
+                let name = self.session.path.map { $0.lastPathComponent }
+                    ?? self.session.title.deletingPathExtension + ".pptx"
+                ask(name, { [weak self] path, finished in
+                    guard let self else { finished(false); return }
+                    finished((try? Pptx.write(self.deck).write(to: URL(fileURLWithPath: path))) != nil)
+                }, true) { _ in }
+                return
+            }
             self.setState { self._backstage = .saveAs }
             #endif
         }
         session.onExport = { [weak self] ext in self?._export(ext) }
+        #if os(iOS)
+        // OFFICE_DRIVE_EXPORT=pdf: File → Export → PDF a few seconds after the
+        // document opens, so a driven run can reach the export picker
+        // without a tile tap.
+        if let ext = ProcessInfo.processInfo.environment["OFFICE_DRIVE_EXPORT"], !ext.isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in self?.session.onExport?(ext) }
+        }
+        #endif
         hostDebugQuery = { [weak self] kind in
             // `starling.debug('pdf')`: File → Export → PDF without the clicks —
             // the download is what a script then compares. 'name' and
@@ -764,6 +782,25 @@ final class SlidesShellState: State<StatefulWidget> {
         let base = session.path.map { $0.deletingPathExtension } ?? homeDirectory() + "/Documents/" + session.title.deletingPathExtension
         let target = base + "." + ext
         _endEditing()
+        #if !os(WASI)
+        if let ask = OfficeHost.exportRequested {
+            setState { _backstage = nil }
+            ask(target.lastPathComponent, { [weak self] path, finished in
+                guard let self else { finished(false); return }
+                if ext == "pptx" {
+                    finished((try? Pptx.write(self.deck).write(to: URL(fileURLWithPath: path))) != nil)
+                } else {
+                    Task { @MainActor [weak self] in
+                        guard let self else { finished(false); return }
+                        finished(await SlidesPdf.write(self.deck, cache: self._cache, to: path, title: self.session.title))
+                    }
+                }
+            }, false) { [weak self] picked in
+                if let picked { self?._flash("Exported \(picked)") }
+            }
+            return
+        }
+        #endif
         if ext == "pptx" {
             do {
                 let data = try Pptx.write(deck)

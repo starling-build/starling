@@ -373,14 +373,15 @@ extension SheetGridState {
             // K and L, at Excel's 65% where ours left them out and made 75%.
             // (Fitted to a number of pages tall, the area is the whole height
             // that is fitted, empty rows too: lo-tdf148820's A1:I35 is
-            // Excel's 74%, where the used rows alone gave 91%. With rows
-            // repeating as titles every page of the area prints, so the
-            // empty rows count too: fr-6f58bbeee7's A1:M152 over a sheet
-            // used to 144 is a fifth row band in Excel's print.)
+            // Excel's 74%, where the used rows alone gave 91%. A print area
+            // runs to its own last row, empty rows too, unless it is whole
+            // columns: fr-6f58bbeee7's A1:M152 over a sheet used to 144 is a
+            // fifth row band in Excel's print; blank pages at the end are
+            // dropped below as before.)
             let setup = SheetPrintSetup.read(ws)
             let fitsTall = (setup.fitHeight ?? 0) > 0
             let areas = names.areas.isEmpty ? [used] : names.areas.map { a in
-                CellRange(top: a.top, left: a.left, bottom: fitsTall || (names.titleRows != nil && a.bottom < CellAddress.maxRows - 1) ? a.bottom : min(a.bottom, max(a.top, used.bottom)),
+                CellRange(top: a.top, left: a.left, bottom: fitsTall || a.bottom < CellAddress.maxRows - 1 ? a.bottom : min(a.bottom, max(a.top, used.bottom)),
                           right: a.right == CellAddress.maxCols - 1 ? max(a.left, used.right) : a.right)
             }
             await _preloadPictures(ws)

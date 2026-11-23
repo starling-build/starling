@@ -204,6 +204,21 @@ final class XlsContainerTests: XCTestCase {
         XCTAssertTrue(ws.containsSubstring("<formula2>9</formula2>"))
     }
 
+    func testHyperlinkBecomesLinkWithAddress() throws {
+        let bof = rec(0x809, cat(u16(0x600), [UInt8](repeating: 0, count: 14)))
+        let g0 = cat(bof, rec(0x85, cat(le32(0), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        let g = cat(bof, rec(0x85, cat(le32(UInt32(g0.count)), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        let url = Array("http://a.b/".utf16 + [0]).flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }
+        let guid: [UInt8] = [0xD0, 0xC9, 0xEA, 0x79, 0xF9, 0xBA, 0xCE, 0x11, 0x8C, 0x82, 0, 0xAA, 0, 0x4B, 0xA9, 0x0B]
+        let moniker: [UInt8] = [0xE0] + [UInt8](repeating: 0, count: 15)
+        _ = guid
+        let h = rec(0x1B8, cat(u16(0), u16(0), u16(0), u16(0), moniker, le32(2), le32(3), moniker, le32(UInt32(url.count)), url))
+        let parts = try XCTUnwrap(XlsBuild.parts(BiffReader.records(g + cat(bof, h, rec(0x0A, [])))))
+        func text(_ n: String) -> String { String(decoding: parts.first { $0.name == n }!.data, as: UTF8.self) }
+        XCTAssertTrue(text("xl/worksheets/sheet1.xml").containsSubstring("<hyperlink ref=\"A1\" r:id=\"rIdL1\"/>"))
+        XCTAssertTrue(text("xl/worksheets/_rels/sheet1.xml.rels").containsSubstring("Target=\"http://a.b/\""))
+    }
+
     func testFormulaTokensBecomeFormulaText() {
         let ctx = XlsFormulaContext(xtis: [], internalBooks: [], sheetNames: [], names: [])
         // A1+B2*3 : ref A1, ref B2, int 3, mul, add
