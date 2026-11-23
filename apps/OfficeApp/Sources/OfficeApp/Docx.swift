@@ -7941,6 +7941,9 @@ enum DocxFormat {
                 // (The same where the weight comes from the PARAGRAPH style: dx2 f0001d05's Title (b, no bCs), a Kokila run with w:cs and no weight of its own, prints regular.)
                 if indicOnly, _on(rPr.first("w:cs")), rPr.first("w:b") == nil, rPr.first("w:bCs") == nil, !cs.bold,
                    let n = style.named, sheet[n]?.char.boldWithoutBCs == true { cs.off.insert(.bold) }
+                // (A right-to-left run that says neither b nor bCs takes the bCs of its paragraph style, whatever w:b that style gives: ara-z11030406-663296's Heading3, b 0 over Normal's b + bCs, prints Traditional Arabic Bold.)
+                if cs.rightToLeft, _on(rPr.first("w:rtl")), rPr.first("w:b") == nil, rPr.first("w:bCs") == nil, !cs.bold,
+                   let n = style.named ?? style.heading.map({ "Heading\($0)" }), sheet[n]?.char.bCsFromStyle == true, sheet[n]?.char.bold == false { cs.bold = true; cs.off.remove(.bold) }
             }
             // (A page number kept in its result's look with \* MERGEFORMAT keeps its weight and
             // loses the rest of it: lab pgf (Word for Windows, 2026-11-02) — an Arial Bold 15.5pt
@@ -9264,7 +9267,7 @@ enum DocxFormat {
             cs.keptXML = ["w:bdr", "w:w", "w:position", "w:fitText", "w:cs", "w:em", "w:lang", "w:eastAsianLayout", "w:snapToGrid"].compactMap { all[$0] }.joined()
         }
         if let z = szCs { cs.complexFontSize = z }
-        if bCs != nil { cs.boldWithoutBCs = false } else if sawB { cs.boldWithoutBCs = cs.bold }
+        if bCs != nil { cs.boldWithoutBCs = false; cs.bCsFromStyle = bCs } else if sawB { cs.boldWithoutBCs = cs.bold }
         if complexText ?? cs.rightToLeft {
             // (A complex run's weight is its bCs even when the run also states b: af19d946's Heading3 run, b 0 / bCs, prints Devanagari in Nirmala UI Bold.)
             if let b = bCs { cs.bold = b; if b { cs.off.remove(.bold) } else { cs.off.insert(.bold) } }
