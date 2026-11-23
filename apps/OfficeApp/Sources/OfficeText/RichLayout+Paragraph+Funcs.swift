@@ -2469,6 +2469,15 @@ extension _ParaFrame {
                     RuleTrace.hit("word-myanmar-first-line-under-at-least-stands-on-myanmar-text")
                     target = max(least, up + down) - down
                 }
+                // (A first line of Myanmar letters under single or multiple spacing stands on Myanmar Text's ascent too, 1.036 em, not on the Latin
+                // stand-in's 0.95: lab mmline, 11 pt at 240 and 276 auto, every Burmese paragraph 0.95 pt higher in ours than in Word's print.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, style.lineHeightPoints == nil,
+                   !p.text.isEmpty, let size = lead.0.fontSize ?? named?.char.fontSize ?? _normalChar(document)?.fontSize ?? Optional(theme.fontSize),
+                   String(p.text.prefix(max(0, painter.getLineBoundary(TextPosition(offset: 0)).end - _lead(i)))).unicodeScalars.contains(where: { $0.value >= 0x1000 && $0.value < 0x10A0 }),
+                   size * 2122.0 / 2048 > target + 0.01 {
+                    RuleTrace.hit("word-myanmar-first-line-under-auto-spacing-stands-on-myanmar-text")
+                    target = size * 2122.0 / 2048
+                }
                 // (A first line holding a Malgun-drawn symbol of a missing Korean face: see `_koreanSymbolFirstLineRaise`.)
                 if theme.wordRules, RichTextTheme.wordWindowsPages, style.lineHeightPoints == nil,
                    let raise = _koreanSymbolFirstLineRaise(p, painter: painter, lead: _lead(i), named: named, document: document) {

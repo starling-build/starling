@@ -623,7 +623,7 @@ public final class RichTextTheme {
               let t = (bold ? face.boldBaseline : nil) ?? face.baseline,
               let natural = (bold ? face.boldHeight : nil) ?? face.naturalHeight
                 ?? (eastAsian ? nil : naturalLineHeight(family: face.family, bold: bold, italic: italic)) else { return nil }
-        return (t - natural / 2) * size
+        return (t - natural / 2 - face.centreLift) * size
     }
 
     /// How tall a single line of `style`'s text is, in points — or nil
@@ -1176,6 +1176,8 @@ public struct RichResolvedFace: Sendable {
     public var family: String
     public var sizeScale: Double
     public var naturalHeight: Double?
+    /// How far (in ems) Word centres a line in an exact one above half this face's line box (lab ctr-exact).
+    public var centreLift: Double = 0
     /// The face's `head.flags` bit 4 is set (hinting instructions may alter advance widths: Calibri, Arial, Rockwell, Tw Cen MT, Trebuchet MS; clear in the cloud Aptos and Open Sans).
     /// PowerPoint's font size grid then only widens its lines (16 pt prints at 15.96 and is as wide as at 16); a face without it scales linearly.
     public var hintedAdvances = false
