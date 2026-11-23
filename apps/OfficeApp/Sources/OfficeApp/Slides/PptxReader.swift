@@ -103,24 +103,9 @@ enum Pptx {
 
     static func read(_ data: Data) throws -> (DeckState, DeckTheme, PptxPackage) {
         let package = PptxPackage(try Zip.read(data))
-        #if os(WASI)
+        // The reader recurses through nested groups: keep ShapeState small (Boxed), or a deep deck overflows the
+        // stack (ja-85c85cb794, 8 levels at 375 KB each).
         return try PptxReader(package).read()
-        #else
-        // The shape reader recurses through nested groups and its frame is large (about 375 KB a level in
-        // a release build), so a deck nesting groups 8 deep overflowed the main thread's 8 MB stack
-        // (ja-85c85cb794: Signal 11). Read on a thread with a stack that depth cannot exhaust.
-        final class Box: @unchecked Sendable { var result: Result<(DeckState, DeckTheme, PptxPackage), Error>? }
-        let box = Box()
-        let done = DispatchSemaphore(value: 0)
-        let worker = Thread {
-            box.result = Result { try PptxReader(package).read() }
-            done.signal()
-        }
-        worker.stackSize = 1 << 30
-        worker.start()
-        done.wait()
-        return try box.result!.get()
-        #endif
     }
 }
 
