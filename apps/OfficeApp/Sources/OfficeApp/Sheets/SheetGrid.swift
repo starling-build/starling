@@ -384,7 +384,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 // are 22.9 in Excel's print, where the merged text alone made them the default 15.3; a row with no stored height stays at the
                 // default, as its L8:R8 headers do.)
                 if let g = merged[a.row]?.first(where: { $0.contains(a) }),
-                   g.top != g.bottom || book.style(ws.cells[g.topLeft]?.style ?? cell.style).wrap, a == g.topLeft || g.top != g.bottom || !ws.fittedRows.contains(a.row) { continue }
+                   g.top != g.bottom || (a == g.topLeft && book.style(cell.style).wrap) { continue }
                 let l = cell.style == 0 && cell.value.isEmpty ? m.defaultRow : line(cell.style)
                 if l > fit[a.row] ?? 0 { fit[a.row] = l; fitSize[a.row] = book.fontSize(book.style(cell.style)) }
                 let acc = book.style(cell.style).accounting
