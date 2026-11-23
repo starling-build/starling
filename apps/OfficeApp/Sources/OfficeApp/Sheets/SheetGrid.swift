@@ -380,8 +380,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 // (Nor is one merged down over rows, wrapping or not:
                 // LIBRE_OFFICE-128382-0's date of Calibri 14 in D22:D23
                 // leaves both rows at Calibri 11's 14.52 in Excel's print.)
+                // (The cells a one-row merge covers keep their own fonts in a row that stores a fit: ar-175270c37b's B2:R2 titles of B Zar 18
+                // are 22.9 in Excel's print, where the merged text alone made them the default 15.3; a row with no stored height stays at the
+                // default, as its L8:R8 headers do.)
                 if let g = merged[a.row]?.first(where: { $0.contains(a) }),
-                   g.top != g.bottom || book.style(ws.cells[g.topLeft]?.style ?? cell.style).wrap { continue }
+                   g.top != g.bottom || book.style(ws.cells[g.topLeft]?.style ?? cell.style).wrap, a == g.topLeft || g.top != g.bottom || !ws.fittedRows.contains(a.row) { continue }
                 let l = cell.style == 0 && cell.value.isEmpty ? m.defaultRow : line(cell.style)
                 if l > fit[a.row] ?? 0 { fit[a.row] = l; fitSize[a.row] = book.fontSize(book.style(cell.style)) }
                 let acc = book.style(cell.style).accounting
