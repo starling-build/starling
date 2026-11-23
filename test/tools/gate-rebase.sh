@@ -17,11 +17,15 @@
   if [ -n "${GATE_BASECACHE:-}" ]; then BC=$GATE_BASECACHE; elif [ -d /data/gate/cache ]; then BC=/data/gate/cache; else exit 0; fi
   BC=$BC/eng-$EN
   OLD=$(git rev-parse HEAD); B=$(git rev-parse HEAD^1); P=$(git rev-parse HEAD^2)
-  if [ -x "$BC/$B/release/OfficeApp" ]; then echo "gate-rebase: base ${B:0:9} is cached"; exit 0; fi
+  # complete = binary AND the Slides base render (a base with a binary only makes every gate draw ~1300 decks again: 1629 s in run 45233932130)
+  full() { [ -x "$BC/$1/release/OfficeApp" ] && [ -s "$BC/$1/slides/combined.tsv" ]; }
+  if full "$B"; then echo "gate-rebase: base ${B:0:9} is fully cached"; exit 0; fi
+  if [ -x "$BC/$B/release/OfficeApp" ] && ! git rev-list --max-count="${GATE_REBASE_MAX:-60}" "$B" | tail -n +2 | while read -r a; do full "$a" && echo y && break; done | grep -q y; then echo "gate-rebase: base ${B:0:9} is cached"; exit 0; fi
   A=
   for a in $(git rev-list --max-count="${GATE_REBASE_MAX:-60}" "$B" | tail -n +2); do
-    [ -x "$BC/$a/release/OfficeApp" ] && { A=$a; break; }
+    full "$a" && { A=$a; break; }
   done
+  if [ -z "$A" ]; then for a in $(git rev-list --max-count="${GATE_REBASE_MAX:-60}" "$B" | tail -n +2); do [ -x "$BC/$a/release/OfficeApp" ] && { A=$a; break; }; done; fi
   [ -n "$A" ] || { echo "gate-rebase: no cached ancestor of ${B:0:9} within ${GATE_REBASE_MAX:-60} commits; exact base"; exit 0; }
   G="-c user.name=render-gate -c user.email=render-gate@localhost"
   if git checkout -q --detach "$A" 2>/dev/null && git $G merge -q --no-edit --no-ff -m "render-gate test merge of ${P:0:9} onto ${A:0:9}" "$P" >/dev/null 2>&1; then
