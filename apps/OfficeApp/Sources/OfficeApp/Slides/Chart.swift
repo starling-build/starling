@@ -5270,8 +5270,6 @@ enum ChartPainter {
         // (Not where the columns stand on the other axis: chart-
         // testCombinedChartAxis' go below their zero, and its labels stay
         // at the foot of the lines' axis.)
-        let atZero = !c.categoryLabelsLow && !c.categoryAxisDeleted && c.type != .scatter && !horizontal && sc.lo < (c.categoryCrossesAt ?? 0)
-            && c.dataTable == nil && !c.columnsOnRight && !c.chartex
         // The lines' own axis, scaled as the first is, by their values.
         var secondScale: (lo: Double, hi: Double, step: Double)? = nil
         if let second = c.secondValueAxis, second.sameScale, !horizontal {
@@ -5284,6 +5282,11 @@ enum ChartPainter {
             }
             secondScale = s2
         }
+        // (On a sheet, columns on the right axis leave the category axis on the lines' axis, at that axis' zero: a lines' axis from
+        // -3 to 8 puts the names under its zero, chart-combined_chart_secondary_axis; one from 900 up keeps them at the foot.)
+        let atZero = !c.categoryLabelsLow && !c.categoryAxisDeleted && c.type != .scatter && !horizontal
+            && (c.columnsOnRight && c.onSheet ? (secondScale?.lo ?? sc.lo) : sc.lo) < (c.categoryCrossesAt ?? 0)
+            && c.dataTable == nil && !(c.columnsOnRight && !c.onSheet) && !c.chartex
         // (A log axis is laid out in powers: the base's log of each x.)
         let xt: (Double) -> Double = { v in c.xLogBase.map { log(max(v, 1e-300)) / log($0) } ?? v }
         var xScale = (lo: 0.0, hi: Double(n), step: 1.0)
