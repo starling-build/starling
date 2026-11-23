@@ -3128,6 +3128,21 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// left of right-aligned, to both sides of centred. Nil when it stays
     /// in its own cell.
     func textReach(_ a: CellAddress, _ cell: Cell, ws: Worksheet, book: Workbook) -> ClosedRange<Int>? {
+        // (Printing asks again for every cell, for each sheet's used area and each job's pages: the same
+        // answer while the widths stand.)
+        guard printing else { return _textReach(a, cell, ws: ws, book: book) }
+        let key = _ReachKey(sheet: ObjectIdentifier(ws), addr: a, colMax: printColumnMax, zoom: zoom)
+        if let known = _reachMemo[key] { return known }
+        let found = _textReach(a, cell, ws: ws, book: book)
+        _reachMemo[key] = .some(found)
+        return found
+    }
+
+    private struct _ReachKey: Hashable { let sheet: ObjectIdentifier; let addr: CellAddress; let colMax: Double; let zoom: Double }
+    private var _reachMemo: [_ReachKey: ClosedRange<Int>?] = [:]
+    func _clearReachMemo() { _reachMemo.removeAll() }
+
+    private func _textReach(_ a: CellAddress, _ cell: Cell, ws: Worksheet, book: Workbook) -> ClosedRange<Int>? {
         guard case .text(let raw) = cell.value else { return nil }
         let st = book.style(cell.style)
         let ca = cols
@@ -3138,6 +3153,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // NumberFormatTests' "Improper Fractions" in column D printed no
         // column E, where Excel prints five pages of it.)
         guard width > 0, !st.wrap, st.rotation != 90, st.rotation != 180, Double(raw.count) * book.fontSize(st) * scale * 1.5 > width else { return nil }
+        // (A text with no empty neighbour on the side it runs over stays in its cell, however long: no need to measure it.)
+        let leftFree = a.col > 0 && (ws.cells[CellAddress(row: a.row, col: a.col - 1)]?.value.isEmpty ?? true)
+        let rightFree = a.col < CellAddress.maxCols - 1 && (ws.cells[CellAddress(row: a.row, col: a.col + 1)]?.value.isEmpty ?? true)
+        switch st.hAlign {
+        case .center: if !leftFree && !rightFree { return nil }
+        case .right: if !leftFree { return nil }
+        default: if !rightFree { return nil }
+        }
         if ws.merges.contains(where: { $0.contains(a) }) { return nil }
         let text = Self.shown(NumberFormat.display(cell.value, st.numberFormat, width: 255).text)
         var need = texts.painter(text, _textStyle(st, color: nil, ink: Color(0xFF00_0000))).width + 4 * zoom
