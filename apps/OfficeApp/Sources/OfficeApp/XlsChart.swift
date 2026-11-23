@@ -26,6 +26,7 @@ private struct XlsSer {
     var parent = -1                      // a trendline's own pseudo-series: the series it belongs to
     var trend: (type: Int, order: Int, fwd: Double, back: Double, eq: Bool, rsq: Bool)? = nil
     var trends: [XlsSer] = []
+    var sizes: XlsChartRef? = nil        // a bubble chart's third range
 }
 
 private struct XlsGrp {
@@ -33,6 +34,7 @@ private struct XlsGrp {
     var flags = 0
     var gap = 150, overlap = 0
     var angle = 0, donut = 0
+    var secondary = false, bubbles = false
 }
 
 private struct XlsAx {
@@ -43,6 +45,7 @@ private struct XlsAx {
     var grid = false, minorGrid = false
     var line: String? = nil
     var title: String? = nil
+    var secondary = false
 }
 
 enum XlsChart {
@@ -115,6 +118,7 @@ enum XlsChart {
                 case 0: series[curSeries].name = ref
                 case 2: series[curSeries].cats = ref
                 case 1: series[curSeries].vals = ref
+                case 3: series[curSeries].sizes = ref
                 default: break
                 }
             case 0x100D:
@@ -138,7 +142,7 @@ enum XlsChart {
                 series[curSeries].trend = (Int(b[0]), Int(b[1]), f64(12), f64(20), b[10] != 0, b[11] != 0)
             case 0x1045: if curSeries >= 0 { series[curSeries].group = u16(b, 0) }
             case 0x1014:
-                groups.append(XlsGrp()); inGroup = true; curSeries = -1
+                groups.append(XlsGrp()); groups[groups.count - 1].secondary = axisParent == 1; inGroup = true; curSeries = -1
             case 0x1017 where !groups.isEmpty:
                 groups[groups.count - 1].type = 0x1017; groups[groups.count - 1].overlap = i16(b, 0); groups[groups.count - 1].gap = u16(b, 2)
                 // Bar flags: bit 0 horizontal, bit 1 stacked, bit 2 100%; the emitter reads stacked as bit 0, 100% as bit 1, horizontal as bit 2.
@@ -149,13 +153,14 @@ enum XlsChart {
             case 0x1019 where !groups.isEmpty:
                 groups[groups.count - 1].type = 0x1019; groups[groups.count - 1].angle = u16(b, 0); groups[groups.count - 1].donut = u16(b, 2)
             case 0x101B where !groups.isEmpty:
-                groups[groups.count - 1].type = 0x101B
-            case 0x103C where !groups.isEmpty, 0x103E where !groups.isEmpty, 0x103F where !groups.isEmpty:
+                groups[groups.count - 1].angle = u16(b, 0)
+                groups[groups.count - 1].type = 0x101B; groups[groups.count - 1].bubbles = b.count >= 6 && u16(b, 4) & 1 != 0
+            case 0x103C where !groups.isEmpty, 0x103E where !groups.isEmpty, 0x103F where !groups.isEmpty, 0x1040 where !groups.isEmpty:
                 groups[groups.count - 1].type = Int(r.type)
             case 0x1041: axisParent = u16(b, 0)
                 if axisParent == 0, b.count >= 18 { plot = [u16(b, 2) | u16(b, 4) << 16, u16(b, 6) | u16(b, 8) << 16, u16(b, 10) | u16(b, 12) << 16, u16(b, 14) | u16(b, 16) << 16] }
-            case 0x101D where axisParent == 0:
-                var a = XlsAx(); a.type = u16(b, 0); axes.append(a); curAxis = axes.count - 1
+            case 0x101D where axisParent <= 1:
+                var a = XlsAx(); a.secondary = axisParent == 1; a.type = u16(b, 0); axes.append(a); curAxis = axes.count - 1
             case 0x1020 where curAxis >= 0:
                 axes[curAxis].between = u16(b, 6) & 1 == 1
                 axes[curAxis].reverse = u16(b, 6) & 4 != 0
@@ -207,7 +212,7 @@ enum XlsChart {
             series[series[i].parent].trends.insert(series[i], at: 0)
         }
         guard !series.isEmpty, !groups.isEmpty else { return nil }
-        let supported: Set<Int> = [0x1017, 0x1018, 0x1019, 0x101A, 0x101B]
+        let supported: Set<Int> = [0x1017, 0x1018, 0x1019, 0x101A, 0x101B, 0x103E, 0x1040]
         guard groups.allSatisfy({ supported.contains($0.type) }) else { return nil }
 
         func esc(_ s: String) -> String { XlsBuild.esc(s) }
@@ -244,25 +249,27 @@ enum XlsChart {
         }
 
         var plotXML = ""
-        let catAxId = 111_111, valAxId = 222_222
+        let catAxId = 111_111, valAxId = 222_222, catAx2Id = 333_333, valAx2Id = 444_444
         var usesAxes = false
         for (gi, g) in groups.enumerated() {
             let members = series.enumerated().filter { $0.element.group == gi && !($0.element.parent >= 0 && $0.element.trend != nil) }
             guard !members.isEmpty else { continue }
             let isPie = g.type == 0x1019, isScatter = g.type == 0x101B, isLine = g.type == 0x1018, isBar = g.type == 0x1017
+            let bubbles = isScatter && g.bubbles
+            let linish = isLine || isScatter || g.type == 0x103E
             var sers = ""
             for (k, (_, s)) in members.enumerated() {
                 var x = "<c:ser><c:idx val=\"\(k)\"/><c:order val=\"\(k)\"/>"
                 if let n = s.name { x += "<c:tx>" + ref(n, numeric: false) + "</c:tx>" }
                 else if let t = s.nameText { x += "<c:tx><c:v>\(esc(t))</c:v></c:tx>" }
                 // Shape properties: a line chart's series is its line; a bar's, its fill.
-                if isLine || isScatter {
+                if linish {
                     if let l = s.line { x += "<c:spPr>" + lineProps(l) + "</c:spPr>" }
                 } else if let f = s.fill {
                     x += "<c:spPr>" + (f.pattern == 0 ? "<a:noFill/>" : solid(f.rgb)) + (s.line.map { lineProps($0) } ?? "") + "</c:spPr>"
                 }
-                if isBar { x += "<c:invertIfNegative val=\"0\"/>" }
-                if isLine || isScatter {
+                if isBar || bubbles { x += "<c:invertIfNegative val=\"0\"/>" }
+                if (linish) && !bubbles {
                     if let m = s.marker, m.type > 0 {
                         let sym = ["none", "square", "diamond", "triangle", "x", "star", "dot", "dash", "circle", "plus"][min(m.type, 9)]
                         x += "<c:marker><c:symbol val=\"\(sym)\"/><c:size val=\"\(max(2, min(72, m.size)))\"/><c:spPr>\(solid(m.fg))<a:ln>\(solid(m.bg))</a:ln></c:spPr></c:marker>"
@@ -286,7 +293,8 @@ enum XlsChart {
                 if isScatter {
                     if let c = s.cats { x += "<c:xVal>" + ref(c, numeric: true) + "</c:xVal>" }
                     if let v = s.vals { x += "<c:yVal>" + ref(v, numeric: true) + "</c:yVal>" }
-                    x += "<c:smooth val=\"\(s.smooth ? 1 : 0)\"/>"
+                    if bubbles { if let z = s.sizes { x += "<c:bubbleSize>" + ref(z, numeric: true) + "</c:bubbleSize>" }; x += "<c:bubble3D val=\"0\"/>" }
+                    else { x += "<c:smooth val=\"\(s.smooth ? 1 : 0)\"/>" }
                 } else {
                     if let c = s.cats { x += "<c:cat>" + ref(c, numeric: !s.catText) + "</c:cat>" }
                     if let v = s.vals { x += "<c:val>" + ref(v, numeric: true) + "</c:val>" }
@@ -295,7 +303,7 @@ enum XlsChart {
                 sers += x + "</c:ser>"
             }
             let grouping = g.flags & 2 != 0 ? "percentStacked" : g.flags & 1 != 0 ? "stacked" : "clustered"
-            let axRefs = "<c:axId val=\"\(catAxId)\"/><c:axId val=\"\(valAxId)\"/>"
+            let axRefs = "<c:axId val=\"\(g.secondary ? catAx2Id : catAxId)\"/><c:axId val=\"\(g.secondary ? valAx2Id : valAxId)\"/>"
             switch g.type {
             case 0x1017:
                 let stacked = g.flags & 3 != 0
@@ -306,6 +314,12 @@ enum XlsChart {
                 usesAxes = true
             case 0x101A:
                 plotXML += "<c:areaChart><c:grouping val=\"\(g.flags & 2 != 0 ? "percentStacked" : g.flags & 1 != 0 ? "stacked" : "standard")\"/><c:varyColors val=\"0\"/>\(sers)" + axRefs + "</c:areaChart>"
+                usesAxes = true
+            case 0x103E, 0x1040:
+                plotXML += "<c:radarChart><c:radarStyle val=\"\(g.type == 0x1040 ? "filled" : "marker")\"/><c:varyColors val=\"0\"/>\(sers)" + axRefs + "</c:radarChart>"
+                usesAxes = true
+            case 0x101B where g.bubbles:
+                plotXML += "<c:bubbleChart><c:varyColors val=\"0\"/>\(sers)<c:bubbleScale val=\"\(g.angle)\"/><c:showNegBubbles val=\"0\"/>" + axRefs + "</c:bubbleChart>"
                 usesAxes = true
             case 0x101B:
                 plotXML += "<c:scatterChart><c:scatterStyle val=\"lineMarker\"/><c:varyColors val=\"0\"/>\(sers)" + axRefs + "</c:scatterChart>"
@@ -320,35 +334,39 @@ enum XlsChart {
         let scatter = groups.contains { $0.type == 0x101B }
         let horizontal = groups.contains { $0.type == 0x1017 && $0.flags & 4 != 0 }
         if usesAxes {
-            func axis(_ a: XlsAx?, cat: Bool, id: Int, cross: Int, pos: String) -> String {
+            func axis(_ a: XlsAx?, cat: Bool, id: Int, cross: Int, pos: String, second: Bool = false) -> String {
                 let a = a ?? XlsAx()
                 var x = cat ? "<c:catAx>" : "<c:valAx>"
                 x += "<c:axId val=\"\(id)\"/><c:scaling>" + (a.log ? "<c:logBase val=\"10\"/>" : "") + "<c:orientation val=\"\(a.reverse ? "maxMin" : "minMax")\"/>"
                 if let m = a.max { x += "<c:max val=\"\(m)\"/>" }
                 if let m = a.min { x += "<c:min val=\"\(m)\"/>" }
-                x += "</c:scaling><c:delete val=\"0\"/><c:axPos val=\"\(pos)\"/>"
+                x += "</c:scaling><c:delete val=\"\(second && cat ? 1 : 0)\"/><c:axPos val=\"\(pos)\"/>"
                 if a.grid { x += "<c:majorGridlines/>" }
                 if a.minorGrid { x += "<c:minorGridlines/>" }
                 let link = (cat && !scatter) || (scatter && cat) ? 3 : 2
-                if let t = titles[horizontal ? (link == 3 ? 2 : 3) : link] { x += richTitle(t.0, t.1) }
+                if !second, let t = titles[horizontal ? (link == 3 ? 2 : 3) : link] { x += richTitle(t.0, t.1) }
                 x += "<c:numFmt formatCode=\"General\" sourceLinked=\"1\"/>"
                 func mark(_ v: Int) -> String { v == 1 ? "in" : v == 2 ? "out" : v == 3 ? "cross" : "none" }
                 x += "<c:majorTickMark val=\"\(mark(a.marks.major))\"/><c:minorTickMark val=\"\(mark(a.marks.minor))\"/>"
                 x += "<c:tickLblPos val=\"\(a.labelPos == 0 ? "none" : a.labelPos == 1 ? "low" : a.labelPos == 2 ? "high" : "nextTo")\"/>"
-                x += "<c:crossAx val=\"\(cross)\"/><c:crosses val=\"autoZero\"/>"
+                x += "<c:crossAx val=\"\(cross)\"/><c:crosses val=\"\(second && !cat ? "max" : "autoZero")\"/>"
                 if cat { x += "<c:auto val=\"1\"/><c:lblAlgn val=\"ctr\"/><c:lblOffset val=\"100\"/><c:noMultiLvlLbl val=\"0\"/>" }
                 else {
-                    x += "<c:crossBetween val=\"\((axes.first { $0.type == 0 }?.between ?? true) && !scatter ? "between" : "midCat")\"/>"
+                    x += "<c:crossBetween val=\"\((axes.first { $0.type == 0 && !$0.secondary }?.between ?? true) && !scatter ? "between" : "midCat")\"/>"
                     if let m = a.major { x += "<c:majorUnit val=\"\(m)\"/>" }
                     if let m = a.minor { x += "<c:minorUnit val=\"\(m)\"/>" }
                 }
                 return x + (cat ? "</c:catAx>" : "</c:valAx>")
             }
-            let catA = axes.first { $0.type == 0 }, valA = axes.first { $0.type == 1 }
+            let catA = axes.first { $0.type == 0 && !$0.secondary }, valA = axes.first { $0.type == 1 && !$0.secondary }
             if scatter {
                 plotXML += axis(catA, cat: false, id: catAxId, cross: valAxId, pos: "b") + axis(valA, cat: false, id: valAxId, cross: catAxId, pos: "l")
             } else {
                 plotXML += axis(catA, cat: true, id: catAxId, cross: valAxId, pos: horizontal ? "l" : "b") + axis(valA, cat: false, id: valAxId, cross: catAxId, pos: horizontal ? "b" : "l")
+            }
+            if groups.contains(where: { $0.secondary }) {
+                plotXML += axis(axes.first { $0.type == 0 && $0.secondary }, cat: true, id: catAx2Id, cross: valAx2Id, pos: horizontal ? "l" : "b", second: true)
+                    + axis(axes.first { $0.type == 1 && $0.secondary }, cat: false, id: valAx2Id, cross: catAx2Id, pos: horizontal ? "t" : "r", second: true)
             }
         }
         var x = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><c:chartSpace xmlns:c=\"http://schemas.openxmlformats.org/drawingml/2006/chart\" xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><c:roundedCorners val=\"0\"/><c:chart>"
