@@ -44,6 +44,18 @@ struct BiffCursor {
     }
 }
 
+struct XlsFont {
+    var height = 200, flags = 0, color = 0x7FFF, weight = 400, script = 0, underline = 0, family = 0, charset = 0
+    var name = "Arial"
+}
+
+struct XlsXF {
+    var font = 0, format = 0, flags = 1, align = 0, indent = 0, border = 0, borderColor = 0
+    var borderColor2: UInt32 = 0
+    var fill: UInt16 = 0
+    // (u16 reads return Int; the raw fields keep their natural width)
+}
+
 enum XlsBuild {
     static func esc(_ s: String) -> String {
         var o = ""
@@ -102,7 +114,9 @@ enum XlsBuild {
         var activeTab = 0
         var sst: [String] = []
         var formats: [(Int, String)] = []
-        var xfFormat: [Int] = []
+        var fonts: [XlsFont] = []
+        var xfRecs: [XlsXF] = []
+        var palette = defaultPalette
         var sheets: [Xls.SheetInfo] = []
         // Globals end at the first EOF.
         var i = 0
@@ -116,7 +130,26 @@ enum XlsBuild {
             case 0x22: date1904 = c.u16() == 1
             case 0x3D where r.body.count >= 12: c.skip(10); activeTab = c.u16()
             case 0x41E: let id = c.u16(); formats.append((id, c.unicodeString16()))
-            case 0xE0: c.skip(2); xfFormat.append(c.u16())
+            case 0x31 where r.body.count >= 14:
+                if fonts.count == 4 { fonts.append(fonts[0]) }   // font index 4 does not exist
+                var f = XlsFont()
+                f.height = c.u16(); f.flags = c.u16(); f.color = c.u16(); f.weight = c.u16(); f.script = c.u16()
+                f.underline = c.u8(); f.family = c.u8(); f.charset = c.u8(); c.skip(1)
+                let n = c.u8(), fl = c.u8()
+                f.name = c.chars(n, wide: fl & 1 == 1)
+                fonts.append(f)
+            case 0xE0 where r.body.count >= 20:
+                var x = XlsXF()
+                x.font = c.u16(); x.format = c.u16(); x.flags = c.u16(); x.align = c.u16(); x.indent = c.u16()
+                x.border = c.u16(); x.borderColor = c.u16(); x.borderColor2 = UInt32(truncatingIfNeeded: c.u32()); x.fill = UInt16(truncatingIfNeeded: c.u16())
+                xfRecs.append(x)
+            case 0x92:
+                let n = c.u16()
+                var k = 0
+                while k < n, k < 56, c.pos + 4 <= r.body.count {
+                    palette[k] = (c.u8(), c.u8(), c.u8()); c.skip(1)
+                    k += 1
+                }
             case 0xFC:
                 c.skip(8)
                 while !c.atEnd { sst.append(c.unicodeString16()) }
@@ -153,16 +186,13 @@ enum XlsBuild {
         if !custom.isEmpty {
             st += "<numFmts count=\"\(custom.count)\">" + custom.map { "<numFmt numFmtId=\"\($0.0)\" formatCode=\"\(esc($0.1))\"/>" }.joined() + "</numFmts>"
         }
-        st += "<fonts count=\"1\"><font><sz val=\"10\"/><name val=\"Arial\"/></font></fonts>"
-        st += "<fills count=\"2\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/></fill></fills>"
-        st += "<borders count=\"1\"><border><left/><right/><top/><bottom/><diagonal/></border></borders>"
-        st += "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>"
-        let xfs = xfFormat.isEmpty ? [0] : xfFormat
-        st += "<cellXfs count=\"\(xfs.count)\">" + xfs.map { "<xf numFmtId=\"\($0)\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyNumberFormat=\"1\"/>" }.joined() + "</cellXfs>"
+        if fonts.isEmpty { fonts = [XlsFont()] }
+        let xfs = resolveXFs(xfRecs)
+        st += styleBody(fonts: fonts, xfs: xfs, palette: palette)
         add("xl/styles.xml", st + "</styleSheet>")
 
         for (n, e) in kept.enumerated() {
-            let xml = sheetXML(recs, from: e.element.position, sst: sst, xfCount: xfs.count)
+            let xml = sheetXML(recs, from: e.element.position, sst: sst, xfCount: max(1, xfs.count))
             add("xl/worksheets/sheet\(n + 1).xml", xml)
         }
         return out
@@ -301,6 +331,146 @@ enum XlsBuild {
         x += "</sheetData>"
         if !merges.isEmpty { x += "<mergeCells count=\"\(merges.count)\">" + merges.joined() + "</mergeCells>" }
         return x + "</worksheet>"
+    }
+
+    // MARK: Styles
+
+    static let defaultPalette: [(Int, Int, Int)] = {
+        let hex: [UInt32] = [
+            0x000000, 0xFFFFFF, 0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF, 0x00FFFF,
+            0x800000, 0x008000, 0x000080, 0x808000, 0x800080, 0x008080, 0xC0C0C0, 0x808080,
+            0x9999FF, 0x993366, 0xFFFFCC, 0xCCFFFF, 0x660066, 0xFF8080, 0x0066CC, 0xCCCCFF,
+            0x000080, 0xFF00FF, 0xFFFF00, 0x00FFFF, 0x800080, 0x800000, 0x008080, 0x0000FF,
+            0x00CCFF, 0xCCFFFF, 0xCCFFCC, 0xFFFF99, 0x99CCFF, 0xFF99CC, 0xCC99FF, 0xFFCC99,
+            0x3366FF, 0x33CCCC, 0x99CC00, 0xFFCC00, 0xFF9900, 0xFF6600, 0x666699, 0x969696,
+            0x003366, 0x339966, 0x003300, 0x333300, 0x993300, 0x993366, 0x333399, 0x333333]
+        return hex.map { (Int($0 >> 16), Int($0 >> 8 & 255), Int($0 & 255)) }
+    }()
+
+    /// The colour of a BIFF colour index as RRGGBB, nil for the automatic colours.
+    static func rgb(_ icv: Int, _ palette: [(Int, Int, Int)]) -> String? {
+        var c: (Int, Int, Int)
+        if icv < 8 { c = defaultPalette[icv] }
+        else if icv >= 8, icv < 64, icv - 8 < palette.count { c = palette[icv - 8] }
+        else { return nil }
+        func h(_ v: Int) -> String { let d = Array("0123456789ABCDEF"); return String([d[v >> 4 & 15], d[v & 15]]) }
+        return h(c.0) + h(c.1) + h(c.2)
+    }
+
+    /// Cell XFs take what their "used" bits leave unset from the parent style XF.
+    static func resolveXFs(_ xs: [XlsXF]) -> [XlsXF] {
+        var out = xs
+        for (i, x) in xs.enumerated() where x.flags & 4 == 0 {
+            let p = Int(x.flags >> 4)
+            guard p < xs.count, p != i else { continue }
+            let par = xs[p]
+            var r = x
+            if x.indent & 0x0400 == 0 { r.format = par.format }
+            if x.indent & 0x0800 == 0 { r.font = par.font }
+            if x.indent & 0x1000 == 0 { r.align = par.align; r.indent = (r.indent & 0xFC00) | (par.indent & 0x03FF) }
+            if x.indent & 0x2000 == 0 {
+                r.border = par.border
+                r.borderColor = par.borderColor
+                r.borderColor2 = (r.borderColor2 & 0xFC00_0000) | (par.borderColor2 & 0x03FF_FFFF)
+            }
+            if x.indent & 0x4000 == 0 {
+                r.fill = par.fill
+                r.borderColor2 = (r.borderColor2 & 0x03FF_FFFF) | (par.borderColor2 & 0xFC00_0000)
+            }
+            if x.indent & 0x8000 == 0 { r.flags = (r.flags & ~3) | (par.flags & 3) }
+            out[i] = r
+        }
+        return out
+    }
+
+    private static let patterns = ["none", "solid", "mediumGray", "darkGray", "lightGray", "darkHorizontal", "darkVertical", "darkDown", "darkUp",
+                                   "darkGrid", "darkTrellis", "lightHorizontal", "lightVertical", "lightDown", "lightUp", "lightGrid", "lightTrellis",
+                                   "gray125", "gray0625"]
+    private static let lineStyles = ["", "thin", "medium", "dashed", "dotted", "thick", "double", "hair", "mediumDashed", "dashDot",
+                                     "mediumDashDot", "dashDotDot", "mediumDashDotDot", "slantDashDot"]
+
+    private static func colorTag(_ name: String, _ icv: Int, _ palette: [(Int, Int, Int)]) -> String {
+        if let c = rgb(icv, palette) { return "<\(name) rgb=\"FF\(c)\"/>" }
+        return "<\(name) auto=\"1\"/>"
+    }
+
+    static func styleBody(fonts: [XlsFont], xfs: [XlsXF], palette: [(Int, Int, Int)]) -> String {
+        var fx = "<fonts count=\"\(fonts.count)\">"
+        for f in fonts {
+            fx += "<font>"
+            if f.weight >= 700 { fx += "<b/>" }
+            if f.flags & 2 != 0 { fx += "<i/>" }
+            if f.flags & 8 != 0 { fx += "<strike/>" }
+            switch f.underline {
+            case 1: fx += "<u/>"
+            case 2: fx += "<u val=\"double\"/>"
+            case 0x21: fx += "<u val=\"singleAccounting\"/>"
+            case 0x22: fx += "<u val=\"doubleAccounting\"/>"
+            default: break
+            }
+            if f.script == 1 { fx += "<vertAlign val=\"superscript\"/>" } else if f.script == 2 { fx += "<vertAlign val=\"subscript\"/>" }
+            fx += "<sz val=\"\(Double(f.height) / 20)\"/>"
+            if let c = rgb(f.color, palette) { fx += "<color rgb=\"FF\(c)\"/>" }
+            fx += "<name val=\"\(esc(f.name))\"/>"
+            fx += "<family val=\"\(f.family)\"/>"
+            if f.charset != 0 { fx += "<charset val=\"\(f.charset)\"/>" }
+            fx += "</font>"
+        }
+        fx += "</fonts>"
+
+        var fills: [String] = ["<fill><patternFill patternType=\"none\"/></fill>", "<fill><patternFill patternType=\"gray125\"/></fill>"]
+        var borders: [String] = []
+        var xml = ""
+        func intern(_ list: inout [String], _ item: String) -> Int {
+            if let k = list.firstIndex(of: item) { return k }
+            list.append(item); return list.count - 1
+        }
+        let list = xfs.isEmpty ? [XlsXF()] : xfs
+        for x in list {
+            // fill
+            let pat = Int(x.borderColor2 >> 26) & 0x3F
+            var fillId = 0
+            if pat > 0, pat < patterns.count {
+                let fg = Int(x.fill) & 0x7F, bg = Int(x.fill >> 7) & 0x7F
+                let f = "<fill><patternFill patternType=\"\(patterns[pat])\">" + colorTag("fgColor", fg == 64 ? 0 : fg, palette) + colorTag("bgColor", bg == 65 ? 1 : bg, palette) + "</patternFill></fill>"
+                fillId = intern(&fills, f)
+            }
+            // border
+            let b = Int(x.border), bc = Int(x.borderColor), bc2 = Int(x.borderColor2)
+            func side(_ tag: String, _ style: Int, _ icv: Int) -> String {
+                guard style > 0, style < lineStyles.count else { return "<\(tag)/>" }
+                return "<\(tag) style=\"\(lineStyles[style])\">" + colorTag("color", icv, palette) + "</\(tag)>"
+            }
+            let diagStyle = bc2 >> 21 & 0xF
+            var bx = "<border" + (bc & 0x4000 != 0 ? " diagonalDown=\"1\"" : "") + (bc & 0x8000 != 0 ? " diagonalUp=\"1\"" : "") + ">"
+            bx += side("left", b & 0xF, bc & 0x7F) + side("right", b >> 4 & 0xF, bc >> 7 & 0x7F)
+            bx += side("top", b >> 8 & 0xF, bc2 & 0x7F) + side("bottom", b >> 12 & 0xF, bc2 >> 7 & 0x7F)
+            bx += side("diagonal", bc & 0xC000 != 0 ? diagStyle : 0, bc2 >> 14 & 0x7F) + "</border>"
+            let borderId = intern(&borders, bx)
+            // alignment
+            var al = ""
+            let h = Int(x.align) & 7, v = Int(x.align >> 4) & 7, rot = Int(x.align >> 8) & 0xFF
+            let hn = ["", "left", "center", "right", "fill", "justify", "centerContinuous", "distributed"]
+            let vn = ["top", "center", "", "justify", "distributed"]
+            if h > 0 { al += " horizontal=\"\(hn[h])\"" }
+            if v < vn.count, !vn[v].isEmpty { al += " vertical=\"\(vn[v])\"" }
+            if x.align & 8 != 0 { al += " wrapText=\"1\"" }
+            if rot != 0 { al += " textRotation=\"\(rot)\"" }
+            if x.indent & 0xF != 0 { al += " indent=\"\(x.indent & 0xF)\"" }
+            if x.indent & 0x10 != 0 { al += " shrinkToFit=\"1\"" }
+            let prot = x.flags & 1 == 0 || x.flags & 2 != 0
+            var xf = "<xf numFmtId=\"\(x.format)\" fontId=\"\(Int(x.font) < fonts.count ? Int(x.font) : 0)\" fillId=\"\(fillId)\" borderId=\"\(borderId)\" xfId=\"0\" applyNumberFormat=\"1\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\""
+            xf += al.isEmpty ? "" : " applyAlignment=\"1\""
+            xf += prot ? " applyProtection=\"1\"" : ""
+            xf += ">"
+            if !al.isEmpty { xf += "<alignment\(al)/>" }
+            if prot { xf += "<protection locked=\"\(x.flags & 1)\" hidden=\"\(x.flags >> 1 & 1)\"/>" }
+            xml += xf + "</xf>"
+        }
+        let fl = "<fills count=\"\(fills.count)\">" + fills.joined() + "</fills>"
+        let bl = "<borders count=\"\(borders.count)\">" + borders.joined() + "</borders>"
+        let csx = "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>"
+        return fx + fl + bl + csx + "<cellXfs count=\"\(list.count)\">" + xml + "</cellXfs>"
     }
 
     private static let emptySheet = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData/></worksheet>"
