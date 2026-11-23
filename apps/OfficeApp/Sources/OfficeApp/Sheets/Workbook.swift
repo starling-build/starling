@@ -97,19 +97,32 @@ struct RichRun: Hashable, Sendable {
     var script = 0
 }
 
+/// The fields a cell rarely has, read only by save, the formula bar and a few editing paths: kept apart so copying a Cell (every read of
+/// one copies it) retains one reference, not five. Immutable: a write replaces the whole object, so no two cells ever share an edit.
+final class CellExtra: @unchecked Sendable {
+    let input: String?
+    let arrayRef: String?
+    let rawFormula: String?
+    let spillRange: CellRange?
+    let keptAttrs: [String: String]
+    init(input: String? = nil, arrayRef: String? = nil, rawFormula: String? = nil, spillRange: CellRange? = nil, keptAttrs: [String: String] = [:]) {
+        self.input = input; self.arrayRef = arrayRef; self.rawFormula = rawFormula; self.spillRange = spillRange; self.keptAttrs = keptAttrs
+    }
+    var isBlank: Bool { input == nil && arrayRef == nil && rawFormula == nil && spillRange == nil && keptAttrs.isEmpty }
+}
+
 struct Cell: Sendable {
     /// What was typed, as shown in the formula bar: "12", "=A1*2", "Total".
+    /// Not stored by the loader (a string for every number cell and every formula was most of its allocations): while unset, a
+    /// formula's text is its parsed formula's and a constant's is its value's.
     var input: String {
         get {
-            if let i = _input { return i }
-            // Not stored by the loader (a string for every number cell and every formula was most of its allocations): made on demand.
+            if let i = _x?.input { return i }
             if let f = formula { return Formula.text(f) }
             return Cell.text(of: value)
         }
-        set { _input = newValue }
+        set { _set(input: .some(newValue)) }
     }
-    /// nil until set: a loaded formula's text is its parsed formula's, a loaded constant's is its value's.
-    private var _input: String?
     static func text(of v: CellValue) -> String {
         switch v {
         case .text(let s): return s
@@ -123,35 +136,58 @@ struct Cell: Sendable {
     var formula: FormulaExpr? = nil
     /// The current value: the constant, or the formula's last result.
     var value: CellValue = .empty {
-        willSet { if _input == nil, formula == nil, !value.isEmpty { _input = Cell.text(of: value) } }
+        willSet { if _x?.input == nil, formula == nil, !value.isEmpty { _set(input: .some(Cell.text(of: value))) } }
     }
     var style: Int = 0
     /// The value a file carried for this formula. Kept when our engine
     /// cannot compute it (a function we do not have), so the cell shows
     /// what Excel last computed instead of #NAME?.
     var cached: CellValue? = nil
-    /// An array formula's range, as the file had it (t="array" ref=…).
-    var arrayRef: String? = nil
-    /// A formula this engine cannot read (structured references, syntax it
-    /// lacks), or a shared one depending on such: the file's `<f>` element,
-    /// written back exactly until the cell is edited. Its value is the
-    /// file's cached result.
-    var rawFormula: String? = nil
     /// A dynamic-array formula (typed here, or an array formula from a
     /// file): an array result spills into the cells below and right,
     /// operators work element by element. A file's other formulas keep
     /// Excel's implicit intersection, as they were written for it.
     var dynamic = false
+    private var _x: CellExtra? = nil
+
+    /// An array formula's range, as the file had it (t="array" ref=…).
+    var arrayRef: String? {
+        get { _x?.arrayRef }
+        set { _set(arrayRef: .some(newValue)) }
+    }
+    /// A formula this engine cannot read (structured references, syntax it
+    /// lacks), or a shared one depending on such: the file's `<f>` element,
+    /// written back exactly until the cell is edited. Its value is the
+    /// file's cached result.
+    var rawFormula: String? {
+        get { _x?.rawFormula }
+        set { _set(rawFormula: .some(newValue)) }
+    }
     /// The range its result spilled over, this cell at its top-left.
-    var spillRange: CellRange? = nil
+    var spillRange: CellRange? {
+        get { _x?.spillRange }
+        set { _set(spillRange: .some(newValue)) }
+    }
     /// The file's vm / cm / ph on this cell — an image in the cell, a
     /// linked data type, other metadata — written back until it is edited.
-    var keptAttrs: [String: String] = [:]
+    var keptAttrs: [String: String] {
+        get { _x?.keptAttrs ?? [:] }
+        set { _set(keptAttrs: newValue) }
+    }
+
+    private mutating func _set(input: String?? = nil, arrayRef: String?? = nil, rawFormula: String?? = nil, spillRange: CellRange?? = nil,
+                               keptAttrs: [String: String]? = nil) {
+        let o = _x
+        let n = CellExtra(input: input ?? o?.input, arrayRef: arrayRef ?? o?.arrayRef, rawFormula: rawFormula ?? o?.rawFormula,
+                          spillRange: spillRange ?? o?.spillRange, keptAttrs: keptAttrs ?? o?.keptAttrs ?? [:])
+        _x = n.isBlank ? nil : n
+    }
 
     init(input: String? = "", formula: FormulaExpr? = nil, value: CellValue = .empty, style: Int = 0, cached: CellValue? = nil,
          arrayRef: String? = nil, rawFormula: String? = nil, dynamic: Bool = false, spillRange: CellRange? = nil, keptAttrs: [String: String] = [:]) {
-        self._input = input; self.formula = formula; self.value = value; self.style = style; self.cached = cached
-        self.arrayRef = arrayRef; self.rawFormula = rawFormula; self.dynamic = dynamic; self.spillRange = spillRange; self.keptAttrs = keptAttrs
+        self.formula = formula; self.value = value; self.style = style; self.cached = cached; self.dynamic = dynamic
+        let x = CellExtra(input: input, arrayRef: arrayRef, rawFormula: rawFormula, spillRange: spillRange, keptAttrs: keptAttrs)
+        self._x = x.isBlank ? nil : x
     }
 
     var isFormula: Bool { formula != nil || input.hasPrefix("=") }
