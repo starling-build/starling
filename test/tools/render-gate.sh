@@ -187,6 +187,11 @@ fi
     S0=$(date +%s); BASE_ONLY=1 LQ=$LQ BASE_BIN=$BASEBIN BASE_CACHE=$BC/$BSHA/slides test/tools/slides-gate.sh "$BASEBIN" "${JOBS:-32}" > "$W/slides-base.out" 2>&1; echo "render-gate: slides base $BSHA rendered in $(( $(date +%s)-S0 )) s ($(tail -1 "$W/slides-base.out" | cut -c1-120))"
     chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null
   fi
+  # the Sheets BASE too (amd-8, 2026-11-23, coordinator): sheets-gate.sh BASE_ONLY writes $BC/$BSHA/sheets/per-book.tsv, so a PR gate never draws it (only 9 of 14 cached shas had it)
+  if [ "${GATE_SHEETS:-1}" = 1 ] && [ "${GATE_WARM:-0}" != 1 ] && [ -x "$BASEBIN" ]; then
+    BASE_ONLY=1 LQ=$LQ test/tools/sheets-gate.sh "$BASEBIN" "$BASEBIN" "$BC/$BSHA/sheets" "${JOBS:-32}" > "$W/sheets-base.out" 2>&1; echo "render-gate: sheets base $BSHA: $(tail -1 "$W/sheets-base.out" | cut -c1-120)"
+    chmod -R g+rwX,o+rX "$BC/$BSHA" 2>/dev/null
+  fi
   exit 0; }
 [ -z "${BPID:-}" ] || [ "${BRC:-0}" = 0 ] || { echo "render-gate: BASE BUILD FAILED"; tail -15 "$W/base-build.log" | cut -c1-200; exit 1; }
 BASEBIN=$BC/$BSHA/release/OfficeApp
