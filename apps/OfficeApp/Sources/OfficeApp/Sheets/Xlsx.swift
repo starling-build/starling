@@ -705,7 +705,7 @@ enum Xlsx {
                 case "left": s.hAlign = .left
                 case "center", "centerContinuous": s.hAlign = .center
                 case "right": s.hAlign = .right
-                case "justify", "distributed": s.hAlign = .left; justified = true   // Excel breaks justified text into lines like a wrapped cell
+                case "justify", "distributed": s.hAlign = .left; justified = true; s.justify = al["horizontal"] == "justify"   // Excel breaks justified text into lines like a wrapped cell
                 default: break
                 }
                 switch al["vertical"] {

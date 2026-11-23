@@ -2716,7 +2716,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let wrapLess = 0.15 * zoom
         // Wrapped text: lines within the cell's width, never spilling.
         let wraps = st.wrap && cell.value.isText
-        let lineAlign: TextAlign = align == .center ? .center : align == .right ? .right : .left
+        let lineAlign: TextAlign = align == .center ? .center : align == .right ? .right : st.justify && wraps ? .justify : .left
         style.rtl = cell.value.isText && _cellIsRTL(st, text)
         var tp = texts.painter(text, style, maxWidth: wraps ? wrapRoom(width, pad * 2 + wrapLess) : .infinity, align: wraps ? lineAlign : .left)
         // A number too wide for its cell is ####, never cut.
@@ -2861,8 +2861,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                         : _printTop(st, book, ws, row: a.row, texts.painter("X", style), top: top, bottom: bottom, .center) - n / 2 * pitch - lift
                 case .bottom: y0 = _footTop(st, book, ws, row: a.row, texts.painter("X", style), bottom: bottom) - n * pitch
                 }
+                let hardEnds = st.justify ? texts._paragraphEnds(text, style, max(1, width - pad * 2 - wrapLess)) : []
                 for (i, line) in lines.enumerated() {
-                    let lp = texts.painter(String(line), style)
+                    let lp = st.justify && wraps && i < lines.count - 1 && !hardEnds.contains(i) ? texts.painter(String(line), style, maxWidth: max(1, width - pad * 2 - wrapLess), align: .justify, spreadLast: true) : texts.painter(String(line), style)
                     let x: Double
                     switch align {
                     case .right: x = right - rightMargin - inset - lp.width
@@ -3336,21 +3337,51 @@ final class _TextCache {
         let style: GridTextStyle
         let width: Int   // the wrap width in whole pixels; -1 for none
         let align: TextAlign
+        let spreadLast: Bool
     }
     private var _cache: [Key: TextPainter] = [:]
 
     /// `align` matters only to wrapped text: it is how its lines sit
     /// against each other inside the paragraph.
-    func painter(_ text: String, _ style: GridTextStyle, maxWidth: Double = .infinity, align: TextAlign = .left) -> TextPainter {
-        let k = Key(text: text, style: style, width: maxWidth.isFinite ? Int(maxWidth) : -1, align: align)
+    func painter(_ text: String, _ style: GridTextStyle, maxWidth: Double = .infinity, align: TextAlign = .left, spreadLast: Bool = false) -> TextPainter {
+        let k = Key(text: text, style: style, width: maxWidth.isFinite ? Int(maxWidth) : -1, align: align, spreadLast: spreadLast)
         if let tp = _cache[k] { return tp }
         // Evict without dispose(): a caller still holds painters it took a moment
         // ago (a wide number's ### re-lays out after fetching its first one), and
         // a disposed painter traps on .width.
         if _cache.count > 4000 { _cache.removeAll(); _widths.removeAll() }
         let lines = maxWidth.isFinite ? _breakLines(NumberFormat.unpad(text), style, maxWidth) : text
-        let tp = TextPainter(text: _span(lines, style), textAlign: align, textDirection: style.rtl ? .rtl : .ltr)
-        tp.layout(minWidth: 0, maxWidth: style.screen > 0 ? .infinity : maxWidth)
+        var span = _span(lines, style)
+        // Justified: each line but the last is spread to the full width by its spaces, as Excel prints it.
+        if align == .justify, maxWidth.isFinite, !lines.contains(NumberFormat.padMark) {
+            let rows = lines.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+            let space = _measure("a a", style) - _measure("aa", style)
+            let own = _spaces(lines, style)
+            let ends = spreadLast ? Set<Int>() : _paragraphEnds(text, style, maxWidth)
+            var kids: [InlineSpan] = []
+            for (i, row) in rows.enumerated() {
+                let gaps = row.reduce(0) { $0 + ($1 == " " ? 1 : 0) }
+                let last = (i == rows.count - 1 && !spreadLast) || (maxWidth.isFinite && !spreadLast && ends.contains(i))
+                // (The line as it is set: the sum of its letters' advances when they are set one by one.)
+                let natural = own ? row.reduce(0.0) { $0 + _advance($1, $1 == " " ? space : _measure(String($1), style), style) } : _measure(row, style)
+                let extra = !last && gaps > 0 && row.last != " " ? max(0, maxWidth - natural) / Double(gaps) : 0
+                if own {
+                    let cs = Array(row)
+                    for (j, ch) in cs.enumerated() {
+                        let nat = ch == " " ? space : _measure(String(ch), style)
+                        // (The spread rides on the letter before each space: the engine ignores a space's own spacing.)
+                        let a = _advance(ch, nat, style) + (j + 1 < cs.count && cs[j + 1] == " " ? extra : 0)
+                        kids.append(TextSpan(text: String(ch), style: a == nat ? style.flutter : style.flutter.copyWith(letterSpacing: a - nat)))
+                    }
+                } else {
+                    kids.append(TextSpan(text: row, style: extra > 0 ? style.flutter.copyWith(wordSpacing: extra) : style.flutter))
+                }
+                if i < rows.count - 1 { kids.append(TextSpan(text: "\n", style: style.flutter)) }
+            }
+            span = TextSpan(children: kids)
+        }
+        let tp = TextPainter(text: span, textAlign: align == .justify ? .left : align, textDirection: style.rtl ? .rtl : .ltr)
+        tp.layout(minWidth: 0, maxWidth: style.screen > 0 || spreadLast ? .infinity : maxWidth)
         _cache[k] = tp
         return tp
     }
@@ -3442,6 +3473,16 @@ final class _TextCache {
             let a = _advance(ch, natural, style)
             return TextSpan(text: String(ch), style: a == natural ? style.flutter : style.flutter.copyWith(letterSpacing: a - natural))
         }
+    }
+
+    /// The indices of the lines `_breakLines` makes that end a paragraph (the cell text's own line breaks): a justified cell leaves these unspread.
+    func _paragraphEnds(_ text: String, _ style: GridTextStyle, _ maxWidth: Double) -> Set<Int> {
+        var ends = Set<Int>(), n = 0
+        for par in NumberFormat.unpad(text).split(separator: "\n", omittingEmptySubsequences: false) {
+            n += _breakLines(String(par), style, maxWidth).split(separator: "\n", omittingEmptySubsequences: false).count
+            ends.insert(n - 1)
+        }
+        return ends
     }
 
     /// Wrapped text broken where Excel breaks it: a word that does not
@@ -3602,7 +3643,7 @@ final class _TextCache {
     }
     /// The stand-in's own width of `s`.
     private func _measure(_ s: String, _ style: GridTextStyle) -> Double {
-        let k = Key(text: s, style: style, width: -1, align: .left)
+        let k = Key(text: s, style: style, width: -1, align: .left, spreadLast: false)
         if let w = _widths[k] { return w }
         if _widths.count > 20000 { _widths.removeAll() }
         let tp = TextPainter(text: TextSpan(text: s, style: style.flutter), textDirection: .ltr)
