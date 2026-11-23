@@ -73,6 +73,21 @@ jobs:
         # (amd-8, 2026-11-23) main moves every few minutes, so the merge's first parent is rarely cached and every gate built and rendered a fresh base (40-50 min runs).
         # Re-make the test merge on the newest cached ancestor of that parent: the gate then compares exactly the PR's change. GATE_REBASE=0 turns it off.
         run: cd "$HOME/clone" && bash test/tools/gate-rebase.sh 2>&1 | tail -3 || true
+      - name: Group PR bodies (merge queue)
+        # a group run has no PR_BODY: read the body of every PR whose commit is in the group, so ACCEPT lines (waivers) keep living in PR bodies
+        if: github.event_name == 'merge_group'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GB: ${{ github.event.merge_group.base_sha }}
+          GH_: ${{ github.event.merge_group.head_sha }}
+        run: |
+          G=$HOME/scratch/group; rm -rf "$G"; mkdir -p "$G"
+          for c in $(gh api --paginate "repos/${{ github.repository }}/compare/$GB...$GH_" -q '.commits[].sha'); do
+            for n in $(gh api "repos/${{ github.repository }}/commits/$c/pulls" -q '.[].number' 2>/dev/null); do
+              [ -f "$G/$n.body" ] || gh api "repos/${{ github.repository }}/pulls/$n" -q '.body // ""' > "$G/$n.body" 2>/dev/null || true
+            done
+          done
+          ls "$G" | tr '\n' ' '; echo
       - name: Render gate
         env:
           GH_TOKEN: ${{ github.token }}
@@ -81,6 +96,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           # no merge queue any more: every PR runs the full gate (named documents + sample) against its base.
           GATE_TARGETS_ONLY: '0'
+          # under a merge queue the pull_request run only builds; the full render runs once for the group
+          GATE_LIGHT: ${{ github.event_name == 'pull_request' && '1' || '0' }}
         run: |
           set -o pipefail
           cd "$HOME/clone"
