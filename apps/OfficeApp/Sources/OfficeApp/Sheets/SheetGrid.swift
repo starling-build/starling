@@ -2586,13 +2586,14 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     static let excelTextScale = 7.0 / 7.43
 
     /// The text style a cell draws with.
-    /// The room a printed wrapped line has: on the print grid, the column's whole dots less 26 x the print scale
-    /// (Excel's prints at 4 scales: margin windows 24.5-27.5 at 100%, 19.5-22 at 81%, 13-13.75 at 50%); the row's
+    /// The room a printed wrapped line has: on the print grid, the column's whole dots less 3 + 23.5 x the print scale
+    /// (lab col-wrap, Excel prints at 100/90/83/66/50/40%, Calibri 11 and Arial 10: the margin that breaks 7 and 8 digits per
+    /// column is 26.5-27+, 22.5-25.5, 22.5-23.4, 17.5-18.4, 14.5-15, 12.5-13.4 dots; 354 columns, 27 mismatches with 26 x scale, 6 with this); the row's
     /// HEIGHT stays the screen-grid fit.
     func wrapRoom(_ width: Double, _ less: Double) -> Double {
         guard printing, printTextScale > 0, printRowScale > 0 else { return max(1, width - less) }
         let dpu = printTextScale / scale * 600 / 72
-        return max(1, ((width * dpu + 1e-6 - 26 * printRowScale).rounded(.down)) / dpu)
+        return max(1, ((width * dpu + 1e-6 - (3 + 23.5 * printRowScale)).rounded(.down)) / dpu)
     }
     func _textStyle(_ st: CellStyle, color: UInt32?, ink: Color) -> GridTextStyle {
         let c = printing && printMono ? Int64(0xFF00_0000) : (color ?? st.color).map { Int64(0xFF00_0000) | Int64($0) } ?? Int64(ink.value)
