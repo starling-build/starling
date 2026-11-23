@@ -5337,7 +5337,7 @@ enum ChartPainter {
                 let block = widest + 10 * k
                 // (Over the plot's middle, not the area's: the plot's top is half a label under the area's,
                 // its foot a label line and 3.2 over it. And the plot starts 3pt past the block.)
-                let plotTop = 0.61 * labelSize * k, plotFoot = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.2 * k
+                let plotTop = 0.61 * labelSize * k, plotFoot = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.3
                 across.paint(canvas, Offset(area.left + block / 2 - across.width / 2, area.center.dy + (plotTop - plotFoot) / 2 - across.height / 2))
                 area = Rect.fromLTRB(area.left + block + 3 * k, area.top, area.right, area.bottom)
                 across.dispose()
@@ -5351,7 +5351,7 @@ enum ChartPainter {
                 // stands 17 px over where ours was, its middle at the plot's.)
                 var lift = 0.0
                 if (c.onSheet && c.bareAxisTitle && c.type != .scatter) || (c.onSlide && c.categoryAxisTitleSize != nil) {
-                    let names = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.2 * k
+                    let names = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.3
                     let below = c.categoryAxisTitle != nil ? axisText(c.categoryAxisTitle!, c.onSlide ? (c.categoryAxisTitleSize ?? titleSize) : titleSize, .infinity) : nil
                     let titleRoom = (below?.height ?? 0) + (below == nil ? 0 : 4 * k + 6 * k)
                     below?.dispose()
@@ -5433,7 +5433,7 @@ enum ChartPainter {
             return shown.isEmpty ? tickLabel(v) : shown
         }
         // (On a sheet the right-hand axis' labels stand 0.927 x their size off the plot, as the slide rule has the left's: chart-axis_title_default_rotation's 10 pt labels 9.4 pt off in Excel's print, ours 4.5.)
-        let sheetSecondGap = 0.927 * labelSize
+        let sheetSecondGap = 0.927 * labelSize * k
         let valueLabelsRaw = ticks.map { valueText(c.valueAxisDeleted ? "" : valueLabel($0), labelSize, .infinity) }
         // The second axis' labels, in its own format ("60.00%").
         let secondTicks = secondScale.map { s2 in Array(stride(from: s2.lo, through: s2.hi + s2.step * 1e-6, by: s2.step)) } ?? []
@@ -5776,8 +5776,8 @@ enum ChartPainter {
             }
             // (A title of the second axis, in a Word document whose file leaves the plot to Word, takes a band beyond its
             // labels: zh-b8de3ae2's chart 10 has them 19 pt further in than ours, its "%" past them.)
-            if !secondLabels.isEmpty, !c.onSlide, !c.onSheet, !c.chartex, c.plotLayout == nil, c.secondValueAxis?.deleted != true, c.secondValueAxis?.title != nil {
-                right += 1.22 * (c.axisTitleSize ?? 10) * k + 7 * k
+            if !secondLabels.isEmpty, !c.onSlide, !c.chartex, c.plotLayout == nil, c.secondValueAxis?.deleted != true, c.secondValueAxis?.title != nil {
+                right += c.onSheet ? 31.9 : 1.22 * (c.axisTitleSize ?? 10) * k + 7 * k
             }
             // (On a sheet the plot stands 1.72 pt further in at the left,
             // its labels with it, and 1.25 at the right: Excel's prints of
@@ -6488,6 +6488,17 @@ enum ChartPainter {
         }
         // (Its title, turned, 4.6 pt past the widest label and over the plot's middle: zh-b8de3ae2's
         // "%" at 534.6 where the labels end 530, in a Word document whose file places the plot.)
+        if c.onSheet, !c.chartex, c.plotLayout == nil, let t = c.secondValueAxis?.title, c.secondValueAxis?.deleted != true, !secondLabels.isEmpty {
+            // (On a sheet Excel turns it clockwise, its text starting 3.2 pt past the labels, centred on the plot.)
+            let tp = text(t, c.axisTitleSize ?? 10, .infinity)
+            let left = plot.right + sheetSecondGap + (secondLabels.map(\.width).max() ?? 0) + 3.3
+            canvas.save()
+            canvas.translate(left + tp.height, plot.center.dy - tp.width / 2)
+            canvas.rotate(.pi / 2)
+            tp.paint(canvas, .zero)
+            canvas.restore()
+            tp.dispose()
+        }
         if !c.onSlide, !c.onSheet, !c.chartex, c.plotLayout == nil || c.plotLayoutInner, let t = c.secondValueAxis?.title, c.secondValueAxis?.deleted != true {
             let tp = text(t, c.axisTitleSize ?? 10, .infinity)
             let edge = plot.right + 10.1 * k + (secondLabels.map(\.width).max() ?? 0) + 3.6 * k
