@@ -54,6 +54,18 @@ final class SheetsEngineTests: XCTestCase {
         }
     }
 
+    /// The key column (or row) of an approximate VLOOKUP / HLOOKUP made of formulas is calculated before it is compared.
+    func testLookupKeysThatAreFormulas() {
+        var t: [String: String] = [:], h: [String: String] = [:]
+        for i in 1 ... 30 { t["A\(i)"] = "=\(i)*Sheet1!$Z$2"; t["B\(i)"] = "=\"v\"&\(i)"; h["\(CellAddress.columnName(i - 1))1"] = "=\(i)*Sheet1!$Z$2"; h["\(CellAddress.columnName(i - 1))2"] = "=\(i)+Sheet1!$Z$2" }
+        let c = book(["C1": "=VLOOKUP(95,T!A1:B30,2,TRUE)", "C2": "=VLOOKUP(5,T!A1:B30,2,TRUE)", "C3": "=VLOOKUP(1,T!A1:B30,2,TRUE)",
+                      "C4": "=HLOOKUP(95,H!A1:AD2,2,TRUE)", "Z2": "=5"], sheets: ["T": t, "H": h])
+        XCTAssertEqual(v(c, "C1"), .text("v19"))
+        XCTAssertEqual(v(c, "C2"), .text("v1"))
+        XCTAssertEqual(v(c, "C3"), .error(.na))
+        XCTAssertEqual(v(c, "C4"), .number(24))
+    }
+
     func testLambdaThroughDefinedNames() {
         let c = book(["A1": "4", "B1": "10"])
         c.book.names["DOUBLE"] = "_xlfn.LAMBDA(_xlpm.x,_xlpm.x*2)"
