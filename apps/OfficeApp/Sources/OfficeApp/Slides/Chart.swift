@@ -9421,6 +9421,21 @@ extension ChartPainter {
                     // its text or size; the first that stands inside wins, never an in-between width.)
                     for f in [0.16, 0.128, 0.1024] {
                         tp.layout(minWidth: 0, maxWidth: max(20 * k, frame.width * f))
+                        // (A step that would cut a word in two is not taken, pie-lab10: a 9-digit word in a 60 degree slice stays in
+                        // its natural wrap outside, where the 5 + 4 digit cut would have stood inside.)
+                        let chars = Array(text)
+                        let lc = tp.computeLineMetrics().count
+                        let lh = tp.height / Double(max(1, lc))
+                        var cutsWord = false
+                        for i in 0..<max(0, lc - 1) {
+                            let end = tp.getLineBoundary(tp.getPositionForOffset(Offset(1, (Double(i) + 0.5) * lh))).end
+                            if end > 0, end < chars.count {
+                                let a = chars[end - 1], b = chars[end]
+                                func wordy(_ ch: Character) -> Bool { (ch.isLetter || ch.isNumber) && (ch.unicodeScalars.first?.value ?? 0) < 0x2E80 }
+                                if wordy(a) && wordy(b) { cutsWord = true }
+                            }
+                        }
+                        if cutsWord { continue }
                         let lw = tp.computeLineMetrics().map { $0.width }.max() ?? tp.width
                         if let p = place(lw + pad * 2, tp.height + pad) { found = p; break }
                     }
