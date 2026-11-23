@@ -3,6 +3,8 @@
 
 #include "include/FlutterUIKitBridge.h"
 
+#import <Metal/Metal.h>
+#import <QuartzCore/QuartzCore.h>
 #import <UIKit/UIKit.h>
 
 // The process's real argc/argv. UIApplicationMain declares both _Nonnull and
@@ -94,6 +96,16 @@ static void* g_open_url_user = NULL;
 
 @end
 
+// Our own additions to the engine's iOS embedder (FlutterEngine+StarlingViews.h in
+// starling-engine): views beyond the first, each with a CAMetalLayer of its own.
+@interface FlutterEngine (StarlingViews)
+- (void)starlingAddViewWithId:(int64_t)viewId
+                        layer:(CAMetalLayer*)layer
+                         size:(CGSize)size
+                   pixelRatio:(double)pixelRatio
+                         done:(void (^)(BOOL added))done;
+@end
+
 @interface FlUIKitAppDelegate : UIResponder <UIApplicationDelegate>
 @property(nonatomic, strong) UIWindow* window;
 @property(nonatomic, strong) FlutterEngine* engine;
@@ -163,7 +175,33 @@ static void* g_open_url_user = NULL;
   window.rootViewController = root;
   self.window = window;
   [window makeKeyAndVisible];
+  [self spikeSecondViewIfAsked:window];
   return YES;
+}
+
+// The second-surface spike (docs/plans/ipad-multi-window.md, step 1): with
+// STARLING_SPIKE_SECOND_VIEW set, a second CAMetalLayer in a corner of the window
+// shows view 1 of the same engine. Off unless asked; nothing here is product code.
+- (void)spikeSecondViewIfAsked:(UIWindow*)window {
+  if (getenv("STARLING_SPIKE_SECOND_VIEW") == NULL) return;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    CGFloat scale = UIScreen.mainScreen.scale;
+    CGSize size = CGSizeMake(260, 180);
+    UIView* host = [[UIView alloc] initWithFrame:CGRectMake(window.bounds.size.width - size.width - 20, 80, size.width, size.height)];
+    host.userInteractionEnabled = NO;
+    CAMetalLayer* layer = [CAMetalLayer layer];
+    layer.device = MTLCreateSystemDefaultDevice();
+    layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+    layer.opaque = YES;
+    layer.contentsScale = scale;
+    layer.frame = host.bounds;
+    layer.drawableSize = CGSizeMake(size.width * scale, size.height * scale);
+    [host.layer addSublayer:layer];
+    [window addSubview:host];
+    [self.engine starlingAddViewWithId:1 layer:layer size:size pixelRatio:scale done:^(BOOL added) {
+      fprintf(stderr, "[spike] AddView(1) -> %s\n", added ? "added" : "REFUSED");
+    }];
+  });
 }
 
 // A document handed to the app from outside. Forwarded verbatim; the app owns
