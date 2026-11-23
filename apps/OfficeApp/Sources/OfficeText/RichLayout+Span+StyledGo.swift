@@ -503,7 +503,8 @@ extension _StyledFrame {
                         return ("mv boli", 1)
                     }
                     // (A run whose complex-script face carries the font table's Thaana mark and is missing on Windows: Word sets the run whole in MV Boli, its digits, spaces and punctuation too, so a digit-only cell is a 1.611 em line; dx2 e3906782.)
-                    if !text.isEmpty, !document.thaanaFaces.isEmpty,
+                    // (Not where the run holds Myanmar letters: a face's font table can carry the Thaana bit and Myanmar letters too, dx2 80bde9af's Myanmar3, and Word draws those in Myanmar Text.)
+                    if !text.isEmpty, !document.thaanaFaces.isEmpty, !text.unicodeScalars.contains(where: { $0.value >= 0x1000 && $0.value <= 0x109F }),
                        document.thaanaFaces.contains((run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased())
                         || (!text.unicodeScalars.contains(where: { ($0.value >= 0x41 && $0.value <= 0x5A) || ($0.value >= 0x61 && $0.value <= 0x7A) || $0.value > 0x7F && !($0.value >= 0x0600 && $0.value <= 0x06FF) && $0.value != 0x2019 })
                             && document.thaanaFaces.contains((run.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased())) {

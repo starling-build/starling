@@ -3650,7 +3650,11 @@ enum ChartPainter {
             let malgun = c.onSlide && !["l", "tr"].contains(c.legendPosition) && c.legendBox == nil
                 && ["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased())
             let latinH = entries.isEmpty ? size * k : latin.height
-            let textH = max(latinH, malgun ? 1.3301 * size * k : 0)
+            // (A slide legend in an MS Gothic / Mincho face stands on the face's own 1 em line (win ascent + descent), not the
+            // Latin 1.15: pie-lab14's MS PGothic column 14.93 pt apart at 9 pt and 17.88 at 12 (1.0 em + 6), ours 16.33 and 19.8.)
+            let fullEmFace = c.onSlide && c.legendBox == nil && ["ms pgothic", "ｍｓ ｐゴシック", "ms gothic", "ｍｓ ゴシック", "ms mincho", "ｍｓ 明朝", "ms pmincho", "ｍｓ ｐ明朝", "ms ui gothic"]
+                .contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased())
+            let textH = fullEmFace ? size * k : max(latinH, malgun ? 1.3301 * size * k : 0)
             latin.dispose()
             // (On a sheet a legend beside the plot sets its entries 1.2213 x the size + 5.88 pt apart: Excel's
             // COM readback of the lab legend, 8, 10 and 14 pt at 15.67, 18.08, 22.92 — ours 14.5, 16.5, 21.5.)
@@ -9446,33 +9450,43 @@ extension ChartPainter {
                     // (The tallest line: a kanji-only line is drawn tighter than the face's own, the single-spaced box is the face's.)
                     let drawn = ms.map { $0.height }.max() ?? tp.height / Double(n)
                     let single = (drawn / k / 1.3 / 0.75).rounded() * 0.75 * k
+                    let hs = ms.map { $0.height }
                     let ws = ms.map { $0.width }
-                    let bw = ws.max() ?? 0, bh = single * Double(n)
+                    let bw = ws.max() ?? 0
                     let ux = cos(s.mid), uy = sin(s.mid), vx = -uy, vy = ux
-                    let u0 = rx - 5 * k - (abs(ux) * bw + abs(uy) * bh) / 2
-                    func extremes(_ t: Double) -> (Double, Double) {
-                        var hi = -Double.infinity, lo = Double.infinity
-                        for (i, w) in ws.enumerated() {
-                            let y0 = -bh / 2 + Double(i) * single
-                            for (dx, dy) in [(-w / 2, y0), (w / 2, y0), (-w / 2, y0 + single), (w / 2, y0 + single)] {
-                                let u = max(0.01, u0 + dx * ux + dy * uy), v = t + dx * vx + dy * vy
-                                let a = atan2(v, u)
-                                hi = max(hi, a); lo = min(lo, a)
+                    // (The fit is tested on the single-spaced box; the text stands where its real lines' box centres, in the print of pie-lab16's
+                    // 3-line label at 8 angles: the single box put it 6 to 14 pt low, the real one within 4.)
+                    func solve(_ real: Bool) -> (hi: Double, at: Offset) {
+                        func rowTop(_ i: Int) -> Double { real ? hs[..<i].reduce(0, +) : Double(i) * single }
+                        func rowH(_ i: Int) -> Double { real ? hs[i] : single }
+                        let bh = rowTop(n - 1) + rowH(n - 1)
+                        let u0 = rx - 5 * k - (abs(ux) * bw + abs(uy) * bh) / 2
+                        func extremes(_ t: Double) -> (Double, Double) {
+                            var hi = -Double.infinity, lo = Double.infinity
+                            for (i, w) in ws.enumerated() {
+                                let y0 = -bh / 2 + rowTop(i)
+                                for (dx, dy) in [(-w / 2, y0), (w / 2, y0), (-w / 2, y0 + rowH(i)), (w / 2, y0 + rowH(i))] {
+                                    let u = max(0.01, u0 + dx * ux + dy * uy), v = t + dx * vx + dy * vy
+                                    let a = atan2(v, u)
+                                    hi = max(hi, a); lo = min(lo, a)
+                                }
                             }
+                            return (hi, lo)
                         }
-                        return (hi, lo)
+                        var a = -rx, b = rx
+                        for _ in 0 ..< 48 {
+                            let m = (a + b) / 2
+                            let (hi, lo) = extremes(m)
+                            if hi + lo < 0 { a = m } else { b = m }
+                        }
+                        let t = (a + b) / 2
+                        let (hi, _) = extremes(t)
+                        let mx = centre.dx + ux * u0 + vx * t, my = centre.dy + uy * u0 + vy * t
+                        return (hi, Offset(mx, my - bh / 2 + tp.height / 2))
                     }
-                    var a = -rx, b = rx
-                    for _ in 0 ..< 48 {
-                        let m = (a + b) / 2
-                        let (hi, lo) = extremes(m)
-                        if hi + lo < 0 { a = m } else { b = m }
-                    }
-                    let t = (a + b) / 2
-                    let (hi, _) = extremes(t)
-                    guard hi <= half else { return nil }
-                    let mx = centre.dx + ux * u0 + vx * t, my = centre.dy + uy * u0 + vy * t
-                    return Offset(mx, my - bh / 2 + tp.height / 2)
+                    let fit = solve(false)
+                    guard fit.hi <= half else { return nil }
+                    return solve(true).at
                 }
                 func place(_ bw: Double, _ bh: Double) -> Offset? {
                     if lineTest { return placeLines() }
