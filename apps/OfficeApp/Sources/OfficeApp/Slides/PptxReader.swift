@@ -4054,7 +4054,7 @@ private struct SlideContext {
                 style.eastAsian["a:missingFaceJhenghei"] = "1"
             }
             if p.all("a:r").contains(where: { r in
-                (r.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("zh")
+                (r.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("zh") || (r.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("ja")
                     && (r.first("a:t")?.text ?? "").unicodeScalars.contains(where: { [0xFF09, 0x300D, 0x300F, 0x3011, 0x3015, 0x300B, 0x3009, 0xFF1A, 0xFF1B, 0xFF01, 0xFF1F].contains($0.value) }) }) {
                 style.eastAsian["a:hangClosingZh"] = "1"
             }
