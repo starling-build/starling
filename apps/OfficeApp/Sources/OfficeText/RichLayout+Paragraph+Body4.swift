@@ -17,8 +17,25 @@ extension _ParaFrame {
         // existing placement of a band keeps them off — lo shape-anchored-in-follow.)
         if theme.wordRules, RichTextTheme.wordWindowsPages, p.cell == nil, !p.text.isEmpty, !style.rightToLeft, _columns <= 1 {
             for image in p.inlineImages.inOrder {
-                guard let float = image.float, float.takesRoom || float.bandsPage, !float.wraps, float.verticalAlign == nil, float.verticalFrom == "paragraph", float.y > 0 else { continue }
-                keepClear = (_px(float.y - float.distanceTop), _px(float.y + image.height + float.effectBottom + float.distanceBottom))
+                guard let float = image.float, float.takesRoom || float.bandsPage, !float.wraps, float.verticalAlign == nil, float.verticalFrom == "paragraph" || float.verticalFrom == "line", float.y > 0 else { continue }
+                // (From a line: the offset is taken from the top of the line the anchor is in, and a line that would meet the band goes
+                // under it. dx2 7d7592a1's squiggle, 46.4pt from the line of "AuerbachsKellertheaterStaufen", the title's second.)
+                var lineTop = 0.0
+                if float.verticalFrom == "line" {
+                    guard RichTextTheme.wordWindowsPages, let n = p.inlineImages.inOrder.firstIndex(where: { $0.id == image.id }), n < _inlineBoxes[i].count,
+                          let all = painter.inlinePlaceholderBoxes, _inlineBoxes[i][n] < all.count else { continue }
+                    let box = all[_inlineBoxes[i][n]]
+                    let mid = (box.top + box.bottom) / 2
+                    let lines = painter.computeLineMetrics()
+                    guard let at = lines.lastIndex(where: { $0.baseline - $0.ascent <= mid + 0.01 }) else { continue }
+                    // (An anchor that wrapped onto a line of its own, a line only as tall as it, belongs to the line before it:
+                    // Word keeps the anchor at the end of the text.)
+                    var line = lines[at]
+                    if at > 0, abs(box.bottom - box.top - (line.baseline + line.descent - (line.baseline - line.ascent))) < 0.5 { line = lines[at - 1] }
+                    lineTop = line.baseline - line.ascent
+                    RuleTrace.hit("word-band-from-a-line-is-set-from-the-top-of-the-line-its-anchor-is-in")
+                }
+                keepClear = (lineTop + _px(float.y - float.distanceTop), lineTop + _px(float.y + image.height + float.effectBottom + float.distanceBottom))
                 break
             }
         }
