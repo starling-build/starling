@@ -2837,7 +2837,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let lower = book.fontName(st).trimmingWhitespace().lowercased()
         if printing { style.myanmar = true; style.kannada = true }
         if printing, face == OfficeFonts.sans || face == "Arial" || lower == "calibri" { style.arabicArial = true }
-        if lower == "aptos narrow" || OfficeFonts.tabledNames.contains(lower) { style.own = lower }
+        if lower == "aptos narrow" || lower == "arial narrow" || OfficeFonts.tabledNames.contains(lower) { style.own = lower }
         if ["ms pmincho", "ｍｓ ｐ明朝"].contains(lower) { style.own = "ms pmincho" } else if ["ms pgothic", "ｍｓ ｐゴシック"].contains(lower) { style.own = "ms pgothic" }
         if st.underline || st.strike, let m = RichTextTheme.ruleMetrics(book.fontName(st), bold: st.bold, italic: st.italic) {
             style.rule = [m.up, m.ut, m.sp, m.st]
@@ -3906,6 +3906,10 @@ final class _TextCache {
         if style.own == "aptos narrow", ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value, v >= 0x20, v <= 0x7E {
             return (style.bold ? OfficeFonts.aptosNarrowBoldAdvances : OfficeFonts.aptosNarrowAdvances)[Int(v - 0x20)]
         }
+        // Arial Narrow has no free clone: the sans stand-in draws it, set at Arial Narrow's own advances (the Word tables).
+        if style.own == "arial narrow", ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value, v >= 0x20, v <= 0x7E {
+            return (style.bold ? OfficeFonts.arialNarrowBoldAdvances : OfficeFonts.arialNarrowAdvances)[Int(v - 0x20)]
+        }
         if OfficeFonts.tabledNames.contains(style.own), ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value,
            let face = OfficeFonts.tabledFaceCached(style.own) {
             // (Word's table for the face, as its print set it: bold, italic and bold italic its own.)
@@ -3922,7 +3926,7 @@ final class _TextCache {
     /// own widths, or on a page (`GridTextStyle.dots`) — save where its
     /// script joins or stacks its letters, which only the whole run shapes.
     private func _spaces(_ run: String, _ style: GridTextStyle) -> Bool {
-        guard style.family == OfficeFonts.verdana || style.own == "aptos narrow" || OfficeFonts.tabledNames.contains(style.own) || style.own == "ms pmincho" || style.own == "ms pgothic" || style.dots > 0 else { return false }
+        guard style.family == OfficeFonts.verdana || style.own == "aptos narrow" || style.own == "arial narrow" || OfficeFonts.tabledNames.contains(style.own) || style.own == "ms pmincho" || style.own == "ms pgothic" || style.dots > 0 else { return false }
         return !run.unicodeScalars.contains { v in
             let x = v.value
             return (0x0300 ... 0x036F).contains(x) || (0x0590 ... 0x0DFF).contains(x) || (0x0E00 ... 0x0FFF).contains(x)
@@ -4060,7 +4064,9 @@ final class _TextCache {
             }
             var plain = style; plain.screen = 0
             let space = s.containsSubstring(" ") ? _measure("a a", plain) - _measure("aa", plain) : 0
-            return s.reduce(0) { $0 + (($1 == " " ? space : _measure(String($1), plain)) / style.size * style.screenEm).rounded() * style.screen }
+            // (Arial Narrow has no clone: its own advances, as the page sets it, not the stand-in's wider ones.)
+            let narrow = style.own == "arial narrow"
+            return s.reduce(0) { $0 + (($1 == " " ? space : (narrow ? _own($1, plain).map { $0 * style.size } : nil) ?? _measure(String($1), plain)) / style.size * style.screenEm).rounded() * style.screen }
         }
         if let parts = _arabicParts(s, style) {
             var plain = style; plain.arabicArial = false; plain.myanmar = false; plain.kannada = false
