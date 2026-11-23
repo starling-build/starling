@@ -528,8 +528,13 @@ final class Workbook {
 
     func sheet(named name: String) -> Int? {
         let n = name.lowercased()
-        return sheets.firstIndex { $0.name.lowercased() == n }
+        // A remembered index is trusted only after the sheet at it still has that name.
+        if let i = _sheetIndexCache[n], i < sheets.count, sheets[i].name.lowercased() == n { return i }
+        let r = sheets.firstIndex { $0.name.lowercased() == n }
+        if let r { _sheetIndexCache[n] = r }
+        return r
     }
+    private var _sheetIndexCache: [String: Int] = [:]
 
     /// The index of a style, added to the table if new.
     func styleIndex(_ s: CellStyle) -> Int {
