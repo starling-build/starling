@@ -1355,8 +1355,9 @@ enum SheetFunctions {
             let firstCol = c.engine.rangeValues(s, col)
             guard let i = c.engine.candidates(s, col, key).first(where: { CalcEngine.compare(key, firstCol[$0]) == 0 }) else { return .error(.na) }
             guard k <= rg.cols else { return .error(.ref) }
-            let resCol = CellRange(top: rg.top, left: rg.left + k - 1, bottom: rg.bottom, right: rg.left + k - 1)
-            return .scalar(c.engine.rangeValues(s, resCol)[i])
+            // Only the one matching cell is read, and through value(): never a cached column, so a formula there is calculated first
+            // (and a result column reading another lookup is no false cycle).
+            return .scalar(c.engine.cellValue(s, CellAddress(row: rg.top + i, col: rg.left + k - 1)))
         }
         var g = c.engine.grid(tableEv, c)
         if !vertical {

@@ -233,6 +233,13 @@ final class CalcEngine {
         return e
     }
 
+    /// One cell as a range read sees it: a formula is calculated first; a spill's cell holds the spilled value.
+    func cellValue(_ sheet: Int, _ a: CellAddress) -> CellValue {
+        let ws = book.sheets[sheet]
+        if let cell = ws.cells[a] { return cell.formula == nil ? cell.value : value(sheet, a) }
+        return ws.spilled[a] ?? .empty
+    }
+
     func rangeValues(_ sheet: Int, _ r: CellRange) -> [CellValue] {
         let key = _RangeKey(sheet: sheet, range: r)
         if let v = _rangeCache[key] { return v }
