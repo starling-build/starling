@@ -9550,7 +9550,10 @@ extension ChartPainter {
                 // (On a slide a flat pie's outside label the file leaves in place stands 10.7 pt from the rim, not 4: lab pie-lab1,
                 // PowerPoint for Windows, outside end at 9, 12 and 18 pt, 6 to 12 slices, the labels' radial places 6.5 to 8 pt beyond ours.)
                 let slideGap = point == nil && c.onSlide && l.outside && c.ofPie == nil && inner == 0
-                let gap = (tuneFlat ? 0 : slideGap ? 10.7 : 4) * k
+                // (A label set on Malgun Gothic's 1.73 em line stands 1.2 pt from the rim, not 10.7: pie-lab13 and lab15, 12 and 9 pt, 2 to 5 lines
+                // of kanji under the pie, Word's first line 9 to 10 pt higher than ours in all 26 prints with room.)
+                let malgunGap = slideGap && ["맑은 고딕", "malgun gothic"].contains(labelFace.lowercased())
+                let gap = (tuneFlat ? 0 : malgunGap ? 1.2 : slideGap ? 10.7 : 4) * k
                 // (Where the file moves it, from `movedEdge`'s point when
                 // given: a 3-D pie's.)
                 let edge = l.moves[s.index] != nil ? movedEdge.map { Offset($0(s.mid).dx + lift.dx, $0(s.mid).dy + lift.dy) } ?? on(s.mid, 1) : on(s.mid, 1)
@@ -9756,7 +9759,9 @@ extension ChartPainter {
                 let room = dy > 0 ? frame.bottom - rim : rim - frame.top
                 let lines = max(1, tp.computeLineMetrics().count)
                 if bh - room > tp.height / Double(lines) {
-                    let side: Double = centre.dx - frame.left < frame.right - centre.dx ? 1 : -1
+                    // (Beside the pie on the slice's own side, the right on a tie: pie-lab13 at 12 and 9 pt, middles 170 and 175 degrees clockwise from the top
+                    // stand right of the pie, 185 and 190 left, the straight-down slice right.)
+                    let side: Double = cos(s.mid) > -1e-9 ? 1 : -1
                     at = Offset(centre.dx + side * 1.09 * rx, dy > 0 ? frame.bottom - 4.7 * k - bh / 2 : frame.top + 4.7 * k + bh / 2)
                     roomMoved = true
                 } else {
