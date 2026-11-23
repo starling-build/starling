@@ -117,7 +117,10 @@ esac
 # providers), and its Documents folder shows in Files. Types are declared by
 # UTI — the three OOXML ones are system-defined — so no exported types needed.
 DOCUMENT_KEYS=""
-if [ "$NAME" = "OfficeApp" ]; then
+# ($NAME has lost its "App" suffix by here, so test $APP: comparing $NAME to "OfficeApp"
+# was never true, and the document types, file sharing and the iPad orientations
+# - all four are what make iPadOS offer Split View and Stage Manager - were never written.)
+if [ "$APP" = "OfficeApp" ]; then
   doctype() { # name, role, UTIs...
     local n="$1"; shift
     printf '    <dict><key>CFBundleTypeName</key><string>%s</string><key>CFBundleTypeRole</key><string>Editor</string><key>LSHandlerRank</key><string>Alternate</string><key>LSItemContentTypes</key><array>' "$n"
