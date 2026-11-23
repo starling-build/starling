@@ -5609,13 +5609,15 @@ enum ChartPainter {
             let beside = horizontal || (placed != nil && c.plotLayoutInner) || besideNone ? 0
                 : (valueLabels.map(\.width).max() ?? 0) - padTail + (c.styled2013 ? 8.5 : 11.1) * k + 4 * k
             let slot = ((horizontal ? along.height : along.width) - beside) / Double(n)
+            // (A 3-D bar chart's names in a Word document wrap at half the chart, not a fifth: sa2 fee2a9e5687's 187.7 pt "Limpeza, higiene e
+            // segurança dos equipamentos utilizados" is one line in Word's print, and "Oportunidade ... expressar sua" breaks before "opinião".)
             // (A bar chart's category names in a Word document wrap at a fifth of the
             // chart: lo tdf128996's "A very long category name 4" is two lines in Word's
             // print, "A very long category" over "name 4", ours one line a third wide.)
             // (A laid-out plot on a slide leaves the names the room between the chart's edge and the plot: 81d28d42 p29's names break
             // at the plot's left, not at a third of the chart.)
             let laidRoom = c.onSlide && c.plotLayoutInner ? placed.map { $0.left - area.left - 10 * k } : nil
-            let barNameWidth = max((!c.onSlide && !c.onSheet ? 0.2 : c.onSlide && !c.plotLayoutInner ? 0.5 : 0.3) * area.width, laidRoom ?? 0)
+            let barNameWidth = max((!c.onSlide && !c.onSheet ? (c.barView != nil ? 0.5 : 0.2) : c.onSlide && !c.plotLayoutInner ? 0.5 : 0.3) * area.width, laidRoom ?? 0)
             // (Under a multi-level axis the names are not wrapped: lo tdf126244's
             // "Categoria 1 Categoria 1 Categoria 4" is one line in Word's print.)
             // (PowerPoint wraps a Hangul category name only at its spaces, never inside a word: a word joiner between
