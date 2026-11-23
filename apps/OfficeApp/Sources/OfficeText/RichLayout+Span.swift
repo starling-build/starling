@@ -282,7 +282,7 @@ extension RichLayout {
     /// Runs of ASCII digits beside an ideograph, cut into pieces of two, in a PowerPoint vertical (eaVert) box: PowerPoint sets them upright
     /// side by side, not on their side as the Latin letters and the marks are, each run in a place 1.0957 em long whatever
     /// its length. (Print of 6cb9bf676218 p10, p15, p24: "16", "8" and "13" at 28 pt each take 30.68 pt of the column.)
-    static func uprightDigitRuns(_ u: [UInt16]) -> [Range<Int>] {
+    static func uprightDigitRuns(_ u: [UInt16], alone: Bool = false) -> [Range<Int>] {
         func digit(_ c: UInt16) -> Bool { c >= 0x30 && c <= 0x39 }
         func letter(_ c: UInt16) -> Bool { (c >= 0x41 && c <= 0x5A) || (c >= 0x61 && c <= 0x7A) }
         func wide(_ c: UInt16) -> Bool { c >= 0x2E80 && !(c >= 0xD800 && c <= 0xDFFF) && c != 0xFFFC }
@@ -297,7 +297,8 @@ extension RichLayout {
             while a < u.count, u[a] == 0x200B { a += 1 }
             let before = b >= 0 ? u[b] : 0x20
             let after = a < u.count ? u[a] : 0x20
-            if !letter(before), !letter(after), wide(before) || wide(after) {
+            if !letter(before), !letter(after), wide(before) || wide(after) || (alone && b < 0 && a >= u.count) {
+                // (A column of digits alone stands upright too: vdig2 print, "12" in a column of its own takes one em.)
                 // (A longer run goes by twos from its start, the last one possibly alone: vdig print, "123" is "12" then "3", "1234" is "12" then "34", each in a place of its own.)
                 var k = i
                 while k < j { out.append(k ..< min(k + 2, j)); k += 2 }
@@ -314,7 +315,7 @@ extension RichLayout {
         guard !theme.wordRules, uprightIdeographs || sidewaysDigits else { return r }
         // (The tree's own text: the layout put zero-width spaces between its ideographs, which the paint finds in the painter's text.)
         let units = Array(r.0.toPlainText(includeSemanticsLabels: false, includePlaceholders: true).utf16)
-        let groups = Self.uprightDigitRuns(units)
+        let groups = Self.uprightDigitRuns(units, alone: sidewaysDigits && !uprightIdeographs)
         guard !groups.isEmpty else { return r }
         // The size of the ideograph nearest each run: the place is set by it, the digits' own face being a stand-in at another size.
         var sizes: [Double?] = []

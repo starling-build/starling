@@ -1661,7 +1661,7 @@ extension RichLayout {
         }
         walk(root, nil)
         guard styles.count == text.count else { return false }
-        let runs = Self.uprightDigitRuns(text)
+        let runs = Self.uprightDigitRuns(text, alone: true)
         guard !runs.isEmpty, let rest = _clearedPainter(painter, runs, key: 7) else { return false }
         rest.paint(canvas, origin)
         for g in runs {
