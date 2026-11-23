@@ -328,7 +328,8 @@ extension RichLayout {
         var size = run.style.fontSize ?? document.styles.resolve(p.style)?.char.fontSize
             ?? document.styles[RichNamedStyle.normalId]?.char.fontSize ?? theme.fontSize
         if fontScale != 1 { size = max(1, (size * fontScale).rounded()) }
-        let single = natural * size
+        let face = run.style.eastAsiaFontFamily ?? run.style.fontFamily
+        let single = (face.flatMap { theme.exactSingleLineEm?($0) } ?? natural) * size
         guard points > single else { return 0 }
         let extra = min(0.072 * size + 0.255 * (points - single), points - 0.755 * size) - 0.012 * size
         return _px(max(0, extra))
