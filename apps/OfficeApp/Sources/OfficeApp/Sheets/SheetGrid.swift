@@ -495,9 +495,9 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // whole printer dots as any other. picture.xlsx's 14 pt rows are
             // 118 dots, 14.16, in Excel's print; rounded, 119 put its picture's
             // foot 3.4 pt low.)
-            // (A row's height is whole dots at 100% before it is scaled to the fit: ar-8e69c7a297's
+            // (A row's height is whole dots at 100% (nearest) before it is scaled to the fit: ar-8e69c7a297's
             // B Nazanin 12 rows, 121.18 dots at 100%, are 121 dots, and 83 at 69%, not 84.)
-            func wholeRow(_ h: Double) -> Double { whole(h <= 0 ? h : (h * 600 / 72 + 0.12).rounded(.down) * 72 / 600) }
+            func wholeRow(_ h: Double) -> Double { whole(h <= 0 ? h : (h * 600 / 72).rounded() * 72 / 600) }
             rows = GridAxis(def: wholeRow(unsized),
                             overrides: heights.mapValues(wholeRow), hidden: ws.filteredRows.union(ws.hiddenRows), scale: scale)
         } else {
