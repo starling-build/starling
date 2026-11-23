@@ -4140,12 +4140,15 @@ enum OfficeFonts {
                 case "corbel": face.advances = corbelAdvances; face.otherAdvances = corbelOtherAdvances; face.boldOtherAdvances = corbelBoldOtherAdvances; face.boldAdvances = corbelBoldAdvances; face.italicAdvances = corbelItalicAdvances; face.boldItalicAdvances = corbelBoldItalicAdvances; face.naturalHeight = 1.2207; face.baseline = 0.9521
                 case "consolas": face.advances = consolasAdvances; face.boldAdvances = consolasBoldAdvances; face.italicAdvances = consolasItalicAdvances; face.boldItalicAdvances = consolasBoldItalicAdvances; face.naturalHeight = 1.1709; face.baseline = 0.9199
                 case "century gothic": face.advances = centuryGothicAdvances; face.boldAdvances = centuryGothicBoldAdvances; face.italicAdvances = centuryGothicItalicAdvances; face.boldItalicAdvances = centuryGothicBoldItalicAdvances; face.naturalHeight = 1.2261; face.baseline = 1.0059
+                // (Dotum and Gulim Latin: Word's print advances, so Sheets sets digits 0.583/0.574 em, not the stand-in's 0.556.)
+                case "dotum", "돋움": face.advances = dotumAdvances; face.boldAdvances = dotumAdvances; face.italicAdvances = dotumAdvances; face.boldItalicAdvances = dotumAdvances
+                case "gulim", "굴림": face.advances = gulimAdvances; face.boldAdvances = gulimAdvances; face.italicAdvances = gulimAdvances; face.boldItalicAdvances = gulimAdvances
         default: break
         }
     }
 
     /// The faces whose Word tables Sheets reads (lower case).
-    static let tabledNames: Set<String> = ["georgia", "century gothic", "comic sans ms", "garamond", "corbel", "consolas", "tahoma"]
+    static let tabledNames: Set<String> = ["dotum", "gulim", "돋움", "굴림", "georgia", "century gothic", "comic sans ms", "garamond", "corbel", "consolas", "tahoma"]
     nonisolated(unsafe) private static var tabledCache: [String: RichResolvedFace?] = [:]
     private static let tabledLock = RegistryLock()
     static func tabledFaceCached(_ name: String) -> RichResolvedFace? {
