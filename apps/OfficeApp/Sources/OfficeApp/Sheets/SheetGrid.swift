@@ -556,7 +556,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                         }
                         tall = min(409.5, total)
                     }
-                    if tall > heights[a.row] ?? m.defaultRow { heights[a.row] = tall }
+                    // (A row with a thick border at its head or foot is a pixel taller for each, its wrapped lines too: es-478232b76e's
+                    // two-line rows, 25.5 + 1.5 = 27 in Excel, were 25.5 and a page held a row too many.)
+                    let thick = ["thickBot", "thickTop"].filter { ["1", "true"].contains(ws.rowAttrs[a.row]?[$0] ?? "") }.count
+                    let withThick = tall + Double(thick) * 72 / 192 * m.rowScale
+                    if withThick > heights[a.row] ?? m.defaultRow { heights[a.row] = withThick }
                 }
                 // A wrapped, bottom-aligned text of a font smaller than the default's in a
                 // merged cell makes its row
