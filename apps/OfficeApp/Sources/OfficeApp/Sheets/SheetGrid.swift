@@ -543,11 +543,16 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                             }
                         }
                         var total = 0.0
+                        // (A string of one line-run is wrapped as the cell is, by its own mix of faces: en-3cbcd9ce60's bold "Configuration:" + plain
+                        // 12 pt text wrapped in the bold face alone took 7 lines for Excel's 6.)
+                        if segs.count == 1 { total = Double(wrapped.computeLineMetrics().count + Int(trailing)) * segs[0].2 }
+                        else {
                         for (i, seg) in segs.enumerated() {
-                            if seg.0.isEmpty { if i < segs.count - 1 || segs.count == 1 { total += seg.2 }; continue }
+                            if seg.0.isEmpty { total += seg.2; continue }
                             var ss = _textStyle(seg.1, color: nil, ink: Color(0xFF00_0000))
                             ss.screen = style.screen; ss.screenEm = (book.fontSize(seg.1) * 192 / 72).rounded()
                             total += Double(texts.painter(seg.0, ss, maxWidth: width).computeLineMetrics().count) * seg.2
+                        }
                         }
                         tall = min(409.5, total)
                     }
