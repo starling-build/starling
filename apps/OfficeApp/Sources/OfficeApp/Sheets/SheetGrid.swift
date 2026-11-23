@@ -3829,9 +3829,10 @@ final class _TextCache {
     func richLines(_ text: String, runs: [(text: String, style: GridTextStyle)], maxWidth: Double) -> [[(String, GridTextStyle)]] {
         var main = 0
         for (i, r) in runs.enumerated() where r.text.count > runs[main].text.count { main = i }
-        let lines = _breakLines(NumberFormat.unpad(text), runs[main].style, maxWidth)
         var which: [Int] = []
         for (i, r) in runs.enumerated() { which += Array(repeating: i, count: r.text.count) }
+        let plain = NumberFormat.unpad(text)
+        let lines = _breakLines(plain, runs[main].style, maxWidth, runs: plain.count == which.count ? which.map { ($0, runs[$0].style) } : nil)
         let orig = Array(text)
         var p = 0, cur = 0
         var out: [[(String, Int)]] = [[]]
@@ -3984,7 +3985,24 @@ final class _TextCache {
     /// the paragraph, a long word was cut wherever the line it met
     /// stopped — "are upd" / "ating" — and CVLKRA's narrow Remarks
     /// column wrapped to other lines and other heights than Excel's.
-    func _breakLines(_ text: String, _ style: GridTextStyle, _ maxWidth: Double) -> String {
+    func _breakLines(_ text: String, _ style: GridTextStyle, _ maxWidth: Double, runs: [(Int, GridTextStyle)]? = nil) -> String {
+        // (A rich string's pieces are measured each in its own run's font: `runs` holds, per character of `text`, its run's style.)
+        func W(_ s: Substring) -> Double {
+            guard let runs, runs.count == text.count, !s.isEmpty else { return _width(String(s), style) }
+            var at = text.distance(from: text.startIndex, to: s.startIndex)
+            var total = 0.0, cur = ""
+            var st = runs[at]
+            for c in s {
+                if runs[at].0 != st.0 { total += _width(cur, st.1); cur = ""; st = runs[at] }
+                cur.append(c); at += 1
+            }
+            return total + _width(cur, st.1)
+        }
+        func sepW(_ piece: Substring) -> Double {
+            guard let runs, runs.count == text.count else { return _width(" ", style) }
+            let at = text.distance(from: text.startIndex, to: piece.startIndex)
+            return _width(" ", runs[max(0, at - 1)].1)
+        }
         var out: [String] = []
         // (On the grid of whole dots or pixels the widths are whole counts times the unit: compare the counts, so a line exactly
         // the room is not lost to a float tie. CVLKRA-KYC's "same as" is 198 dots in a room of 198, as Excel sets it on one line.)
@@ -4016,7 +4034,7 @@ final class _TextCache {
                 if broken && line.isEmpty {
                     if piece.text.isEmpty { continue }
                 } else if k > 0 {
-                    let w = _width(piece.sep + piece.text, style)
+                    let w = (piece.sep.isEmpty ? 0 : sepW(piece.text)) + W(piece.text)
                     if le(lineWidth + w, maxWidth) || hangFits(piece.sep + piece.text, lineWidth) { line += piece.sep + piece.text; lineWidth += w; continue }
                     if !line.isEmpty { out.append(line) }
                     line = ""; lineWidth = 0; broken = true
@@ -4024,7 +4042,7 @@ final class _TextCache {
                 }
                 var rest = piece.text
                 while !rest.isEmpty {
-                    let w = _width(String(rest), style)
+                    let w = W(rest)
                     if le(lineWidth + w, maxWidth) || hangFits(String(rest), lineWidth) { line += rest; lineWidth += w; break }
                     if !line.isEmpty { out.append(line); line = ""; lineWidth = 0; continue }
                     // Longer than a line: as many characters as fit, one at least.
@@ -4035,7 +4053,7 @@ final class _TextCache {
                         // trailing space does: 52716's "ders@rz.uni-" is 153.7
                         // of the screen's 151 px and stands on one line in
                         // Excel's print, where "christian.and" at 154.5 does not.)
-                        if !le(_width(String(rest[..<next]), style), maxWidth),
+                        if !le(W(rest[..<next]), maxWidth),
                            !(rest[cut] == "-" && le(_width(String(rest[..<cut]), style), maxWidth)) { break }
                         cut = next
                     }
