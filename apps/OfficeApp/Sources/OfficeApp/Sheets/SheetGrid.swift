@@ -2683,7 +2683,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             default: align = printing && printMirror != nil ? .right : .left
             }
         }
-        let pad = 2 * zoom   // Excel's cell margin
+        // Excel's cell margin, 2 px a side; a print takes it in whole dots, rounded up (CVLKRA p19: its 36.18 pt of text
+        // width, "Individu" 23.7 pt fits and "reponse" 24.0 does not, where 2 px gave 24.06).
+        let padDots = printing && printTextScale > 0 ? printTextScale / scale * 600 / 72 : 0
+        let pad = padDots > 0 ? (2 * zoom * padDots - 1e-6).rounded(.up) / padDots : 2 * zoom
         // Wrapped text: lines within the cell's width, never spilling.
         let wraps = st.wrap && cell.value.isText
         let lineAlign: TextAlign = align == .center ? .center : align == .right ? .right : .left
