@@ -362,13 +362,14 @@ extension RichLayout {
             if target >= 0 {
                 var moved: [PagePiece] = []
                 var edge = pgs.y
-                while let last = _pages[pgs.page].last, last.paragraph < pgs.i, _cells[last.paragraph] == nil, !last.repeated,
+                while let last = _pages[pgs.page].last, last.paragraph < pgs.i, _cells[last.paragraph] == nil, !last.repeated, _deferrable(document.paragraphs[last.paragraph]),
                       last.pageY >= target - _px(1) || edge - _px(document.paragraphs[last.paragraph].style.spaceAfter) - Self._multipleSlack(document.paragraphs[last.paragraph].style, last.paragraph < _heights.count ? _heights[last.paragraph] : 0) > target + 0.01 {
                     edge = last.pageY
                     moved.insert(_pages[pgs.page].removeLast(), at: 0)
                     if let k = _allPieces.lastIndex(of: moved[0]) { _allPieces.remove(at: k) }
                 }
                 if !moved.isEmpty {
+                    RuleTrace.hit("word-text-before-a-raised-float-stands-under-it")
                     pgs.deferredUnder = moved
                     pgs.deferredTable = c.table
                     pgs.reordered = true
@@ -1473,5 +1474,16 @@ extension RichLayout {
         }
         if pgs.y > pgs.contentH - 0.01, !_pg_tableEndsOverAnchor(&pgs, document, c, j) { _pg_newPage(&pgs, document) }
         pgs.i = j
+    }
+}
+
+extension RichLayout {
+    /// A line the raised float would reach into that has something in it. An empty paragraph (no text, no picture)
+    /// stays where it is: moved under the table it can push the section's closing mark past the foot and leave a
+    /// blank page that Word does not print. dx2 9b7b98d205: a 4pt and an 11pt empty paragraph over a tblpY -496
+    /// table, 30 pages in ours and 28 in Word's print.
+    @inline(never)
+    func _deferrable(_ p: RichParagraph) -> Bool {
+        p.image != nil || !p.inlineImages.isEmpty || p.text.contains { $0 != " " }
     }
 }
