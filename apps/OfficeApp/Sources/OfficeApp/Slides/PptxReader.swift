@@ -740,6 +740,48 @@ struct PptxReader {
 
     init(_ package: PptxPackage) { self.package = package }
 
+
+    /// A line feed inside a run's text (`<a:t>` holding "\n") ends the paragraph in PowerPoint's print, with the paragraph's space after and
+    /// its own line spacing (0be73c557ee1 p3: three LF-joined lines stand 34 pt apart, the 26 pt line plus the 8 pt after; an `a:br` is the
+    /// soft break that stays in the paragraph). The paragraph is split here, each piece keeping the paragraph's properties.
+    static func splitParagraphsAtLineFeeds(_ node: XNode) {
+        var out: [XNode] = []
+        var changed = false
+        for child in node.children {
+            if child.name == "a:p", child.children.contains(where: { $0.name == "a:r" && ($0.first("a:t")?.text ?? "").firstIndex(of: "\n") != nil }) {
+                changed = true
+                let pPr = child.first("a:pPr"), end = child.first("a:endParaRPr")
+                var cur = XNode(name: "a:p", attrs: child.attrs)
+                if let pPr { cur.children.append(pPr) }
+                for piece in child.children where piece.name != "a:pPr" && piece.name != "a:endParaRPr" {
+                    guard piece.name == "a:r", let t = piece.first("a:t"), t.text.firstIndex(of: "\n") != nil else { cur.children.append(piece); continue }
+                    let parts = t.text.split(separator: "\n", omittingEmptySubsequences: false)
+                    for (i, part) in parts.enumerated() {
+                        if i > 0 {
+                            if let end { cur.children.append(end) }
+                            out.append(cur)
+                            cur = XNode(name: "a:p", attrs: child.attrs)
+                            if let pPr { cur.children.append(pPr) }
+                        }
+                        if part.isEmpty { continue }
+                        let r = XNode(name: "a:r", attrs: piece.attrs)
+                        r.children = piece.children.map { c in
+                            guard c === t else { return c }
+                            let nt = XNode(name: "a:t", attrs: t.attrs); nt.text = String(part); return nt
+                        }
+                        cur.children.append(r)
+                    }
+                }
+                if let end { cur.children.append(end) }
+                out.append(cur)
+            } else {
+                splitParagraphsAtLineFeeds(child)
+                out.append(child)
+            }
+        }
+        if changed { node.children = out }
+    }
+
     func read() throws -> (DeckState, DeckTheme, PptxPackage) {
         guard let root = package.xml("_rels/.rels"),
               let presPart = root.all("Relationship").first(where: { ($0["Type"] ?? "").hasSuffix("/officeDocument") })?["Target"]
@@ -822,6 +864,7 @@ struct PptxReader {
             // (clusterfuzz 4986 lost four).
             let slide = package.xml(part)
                 ?? XNode.parse(Data("<p:sld><p:cSld><p:spTree></p:spTree></p:cSld></p:sld>".utf8))!
+            Self.splitParagraphsAtLineFeeds(slide)
             let layoutPart = package.rel(part, kind: "slideLayout")?.target
             let layout = layoutPart.flatMap(package.xml)
             let masterPart = layoutPart.flatMap { package.rel($0, kind: "slideMaster")?.target }
