@@ -45,8 +45,11 @@ extension _StyledFrame {
         ctx.inserts.append(offset)
     } else if !theme.wordRules, theme.officeLatinBreaks, ch == "(", let b = ctx.before, let v = b.unicodeScalars.first?.value, v >= 0xAC00, v <= 0xD7A3 {
         // (And keeps an ASCII "(" with the Hangul syllable before it: the same header's "그렇다(%)" stays whole.)
+        // (Unless a Latin letter follows the "(": ko-2a9e73116d p8's "…정보서비스(www.ntis.go.kr)에 접속" parts the line before the
+        // "(", where the engine held "스(www…" whole and parted the word a syllable early.)
+        let latinFollows = following.map { $0.isASCII && $0.isLetter } ?? false
         flush(i)
-        spans.append(TextSpan(text: "\u{2060}", style: zeroWidth(current ?? kind)))
+        spans.append(TextSpan(text: latinFollows ? "\u{200B}" : "\u{2060}", style: zeroWidth(current ?? kind)))
         ctx.inserts.append(offset)
     } else if !theme.wordRules, theme.officeLatinBreaks, let b = ctx.before, ch.unicodeScalars.count == 1, "ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶー".contains(ch), p.style.eastAsian["a:looseKinsoku"] != "1",
               b.unicodeScalars.count == 1, let bv = b.unicodeScalars.first?.value, bv >= 0x3041 && bv <= 0x9FFF {
