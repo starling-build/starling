@@ -616,6 +616,21 @@ extension RichLayout {
                 let sp = Self._multipleSplit(ascent: 0.905, descent: 1.149 - 0.905, multiple: multiple)
                 look = look.copyWith(ascentOverride: px * sp.0, descentOverride: px * sp.1, height: 1.149 * multiple, leadingDistribution: .even)
             }
+            // (An empty paragraph whose mark is w:rtl and whose complex face is Arial or Times New Roman, which Word has: the mark's line is that face's
+            // own 1.149 em, not the Latin face's. dx2 1ba3a908's Hebrew letter, Calibri Latin over a cs Arial (theme minorBidi), its empty marks 12 pt:
+            // 13.8 pt apart in Word's print, ours 14.65 on Calibri's line, so the first text line stood 3.4 pt low and the page 4.9 by its fourth.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, !emptyBidiOwnLine, p.style.list == nil, p.style.lineHeightPoints == nil,
+               mark.rightToLeft, look.ascentOverride == nil, let px = look.fontSize, px > 0.5,
+               case let cs = (mark.complexFontFamily ?? markNamed?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased(),
+               cs == "arial" || cs == "times new roman",
+               case let latinFace = (mark.fontFamily ?? markNamed?.char.fontFamily ?? _normalChar(document)?.fontFamily ?? "").trimmingWhitespace().lowercased(),
+               latinFace != cs {
+                RuleTrace.hit("word-empty-rtl-mark-in-arial-or-times-complex-face-is-its-own-line")
+                let multiple = p.style.lineSpacing > 0.5 ? p.style.lineSpacing : 1
+                let asc = cs == "arial" ? 0.905 : 0.891, tall = cs == "arial" ? 1.149 : 1.1499
+                let sp = Self._multipleSplit(ascent: asc, descent: tall - asc, multiple: multiple)
+                look = look.copyWith(ascentOverride: px * sp.0, descentOverride: px * sp.1, height: tall * multiple, leadingDistribution: .even)
+            }
             // (An empty paragraph whose mark is w:rtl in a complex face Word lacks and names an alternate for (B YAGOT, alternate Times New
             // Roman), the face itself with no line of ours: the mark's line is the Latin face's at that size, as without w:rtl. dx2 6e7a3d11's
             // empty Times marks, 10 pt on a 0.9 multiple, are 10.35 apart in Word's print, ours 10.55 on the Noto stand-in's 1.172 em.)
