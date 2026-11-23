@@ -4105,6 +4105,10 @@ private struct SlideContext {
                 style.eastAsian["a:hangClosingZh"] = "1"
             }
             if (p.first("a:pPr")?["eaLnBrk"] ?? level.eaLnBrk) == "0" { style.eastAsian["a:eaLnBrk"] = "0" }
+            // (A paragraph whose runs are all tagged en-US, with no East Asian language anywhere, gets no East Asian line rules in PowerPoint's print: a3e81ffb3c9d p8
+            // opens lines with ， and 」 where ours kept them with the ideograph before.)
+            let runLangs = p.all("a:r").compactMap { $0.first("a:rPr")?["lang"]?.lowercased() }
+            if !runLangs.isEmpty, runLangs.allSatisfy({ $0.hasPrefix("en") }), !p.all("a:r").contains(where: { ($0.first("a:rPr")?["altLang"] ?? "").lowercased().hasPrefix("zh") }) { style.eastAsian["a:eaLnBrk"] = "0" }
             // (A Simplified Chinese paragraph (zh-CN, zh-SG) keeps a mark with the ideograph before it even with East Asian line breaking off: 9e09a947a0fd p77 breaks 集合。 before 合, never
             // before 。; the lab that set a mark alone at a line start was Japanese, and PowerPoint's Traditional Chinese (zh-TW) prints also set a mark alone, 2ecd39405f78 p9.)
             if p.all("a:r").contains(where: { ($0.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("zh-c") || ($0.first("a:rPr")?["lang"] ?? "").lowercased().hasPrefix("zh-s") }) { style.eastAsian["a:zhText"] = "1" }
