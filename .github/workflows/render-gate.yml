@@ -50,7 +50,9 @@ jobs:
   render-gate-run:
     needs: classify
     # (amd-8, 2026-11-23, coordinator) with a merge queue the pull_request run takes NO self-hosted runner unless it changes the gate tooling: the group run builds and renders
-    if: needs.classify.outputs.heavy == '1' && (github.event_name == 'merge_group' || needs.classify.outputs.tool == '1')
+    # (2026-11-23, user) ONE merger lands everything in batch PRs: a pull_request on a branch batch/* runs the FULL gate (ACCEPT lines from its body);
+    # any other pull_request fails the required check fast (final job below) and takes no runner. merge_group is inert unless a queue rule returns.
+    if: needs.classify.outputs.heavy == '1' && (github.event_name == 'merge_group' || startsWith(github.head_ref, 'batch/'))
     runs-on: [self-hosted, linux, starling-render]
     timeout-minutes: 90
     steps:
@@ -111,7 +113,7 @@ jobs:
           # no merge queue any more: every PR runs the full gate (named documents + sample) against its base.
           GATE_TARGETS_ONLY: '0'
           # under a merge queue the pull_request run only builds; the full render runs once for the group
-          GATE_LIGHT: ${{ github.event_name == 'pull_request' && '1' || '0' }}
+          GATE_LIGHT: '0'
         run: |
           set -o pipefail
           cd "$HOME/clone"
@@ -140,6 +142,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Only batch PRs may merge
+        if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'batch/')
+        run: |
+          echo "render-gate: this PR lands via a merger batch (batch/*): it is not merged on its own, so its render is never skipped."
+          exit 1
       - run: |
           echo "classify=${{ needs.classify.result }} run=${{ needs.render-gate-run.result }}"
           [ "${{ needs.classify.result }}" = success ] || exit 1
