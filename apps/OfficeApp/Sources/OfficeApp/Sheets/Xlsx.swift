@@ -685,10 +685,12 @@ enum Xlsx {
             if let fi = Int(xf["fillId"] ?? "0"), fi < fills.count { s.fill = fills[fi] }
             if let bi = Int(xf["borderId"] ?? "0"), bi < borders.count { s.borders = borders[bi] }
             if let al = xf.child("alignment") {
+                var justified = false
                 switch al["horizontal"] {
                 case "left": s.hAlign = .left
                 case "center", "centerContinuous": s.hAlign = .center
                 case "right": s.hAlign = .right
+                case "justify", "distributed": s.hAlign = .left; justified = true   // Excel breaks justified text into lines like a wrapped cell
                 default: break
                 }
                 switch al["vertical"] {
@@ -696,7 +698,7 @@ enum Xlsx {
                 case "center": s.vAlign = .center
                 default: break
                 }
-                s.wrap = al["wrapText"] == "1" || al["wrapText"] == "true"
+                s.wrap = al["wrapText"] == "1" || al["wrapText"] == "true" || justified
                 s.indent = max(0, min(250, Int(al["indent"] ?? "") ?? 0))
                 s.rotation = Int(al["textRotation"] ?? "") ?? 0
             }
