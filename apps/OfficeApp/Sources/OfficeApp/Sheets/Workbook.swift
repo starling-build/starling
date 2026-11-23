@@ -52,6 +52,8 @@ struct CellStyle: Hashable, Sendable {
     var hAlign: HAlign = .general
     var vAlign: VAlign = .bottom
     var wrap = false
+    /// `alignment@horizontal="justify"`: wrapped lines but the last spread to the cell's width (the alignment itself stays left).
+    var justify = false
     /// Indent levels (`alignment@indent`), each three spaces of the
     /// workbook's default font: left-aligned text in from the left, right-
     /// aligned in from the right.
