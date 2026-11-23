@@ -3162,7 +3162,7 @@ enum ChartPainter {
     }
     nonisolated(unsafe) private static var naturalAdvanceCache: [String: Double] = [:]
     /// `s` one character a span, each spaced to the face's own advance (ems of the size) less what the stand-in draws it.
-    static func metricSpan(_ s: String, _ style: Flutter.TextStyle, _ face: RichResolvedFace, bold: Bool, eastAsianOnly: Bool = false, kanjiHeight: Double? = nil) -> TextSpan {
+    static func metricSpan(_ s: String, _ style: Flutter.TextStyle, _ face: RichResolvedFace, bold: Bool, eastAsianOnly: Bool = false, kanjiHeight: Double? = nil, wholePixels: Bool = false) -> TextSpan {
         let size = style.fontSize ?? 12
         var kids: [TextSpan] = []
         var paraKanji = false
@@ -3183,6 +3183,7 @@ enum ChartPainter {
             }
             // (A line of kanji alone is on the fallback face's 1.3 em, a line with Latin or digits on the label face's.)
             let own: Flutter.TextStyle = kanjiHeight != nil && (0x4E00 ... 0x9FFF).contains(u) ? style.copyWith(height: kanjiHeight) : style
+            if wholePixels, let t0 = target { let px = size * 96 / 72; target = (t0 * px).rounded() / px }
             guard let t = target else { kids.append(TextSpan(text: String(ch), style: own)); continue }
             let key = "\(style.fontFamily ?? "")|\(bold)|\(u)"
             var nat = naturalAdvanceCache[key]
@@ -3331,7 +3332,7 @@ enum ChartPainter {
                 // (A slide's title in an East Asian face the machine lacks is spaced to the face's own advances, as the labels
                 // are: ko-ab1bf295 p7's 18.6 pt "차트 제목" in Malgun Gothic Bold, 81.0 pt in PowerPoint's print, 72.6 here.)
                 if c.onSlide || c.onSheet, !title.contains("\n"), case let raw = c.titleFont ?? c.font ?? c.axisFont ?? theme.bodyFont, let face = Self.eastAsianChartFace(raw) ?? Self.latinChartFace(raw) {
-                    span = Self.metricSpan(title, titleStyle, face, bold: c.titleBold)
+                    span = Self.metricSpan(title, titleStyle, face, bold: c.titleBold, wholePixels: c.onSheet)
                 } else {
                     span = TextSpan(text: title, style: titleStyle)
                 }
@@ -3353,7 +3354,7 @@ enum ChartPainter {
             // (Word's too, beside Excel's: tdf122014's 14pt title in a 432pt
             // chart wraps before "left" in Word for Windows' print, its first
             // line 340.5pt wide; ours took "left when" on it, 397pt.)
-            tp.layout(minWidth: 0, maxWidth: max(1, c.onSlide || !c.onSheet ? min(area.width, 0.8 * r.width) : area.width))
+            tp.layout(minWidth: 0, maxWidth: max(1, min(area.width, 0.8 * r.width)))
             titleLines = max(1, tp.computeLineMetrics().count)
             // (Where Word for Windows sets the theme's text in Mincho, a
             // title line holding a character Mincho lacks is JhengHei's,
