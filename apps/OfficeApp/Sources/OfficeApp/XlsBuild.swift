@@ -117,6 +117,38 @@ enum XlsBuild {
     }
 
     /// The parts of an equivalent .xlsx, or nil when the file is not BIFF8.
+    /// An Office 2007-2010 theme colour (index as in a cell colour: 0 light 1, 1 dark 1, 2 light 2, 3 dark 2, 4-9 accents)
+    /// with Excel's tint (lighter above 0, darker below), as RRGGBB.
+    static func themeTintHex(_ idx: Int, _ tint: Double) -> String? {
+        let base = ["FFFFFF", "000000", "EEECE1", "1F497D", "4F81BD", "C0504D", "9BBB59", "8064A2", "4BACC6", "F79646"]
+        guard idx >= 0, idx < base.count else { return nil }
+        let v = Array(base[idx].utf8)
+        func hv(_ x: UInt8) -> Int { Int(x >= 65 ? x - 55 : x - 48) }
+        let r = Double(hv(v[0]) * 16 + hv(v[1])) / 255, g = Double(hv(v[2]) * 16 + hv(v[3])) / 255, b = Double(hv(v[4]) * 16 + hv(v[5])) / 255
+        let mx = max(r, g, b), mn = min(r, g, b)
+        var h = 0.0, s = 0.0, l = (mx + mn) / 2
+        if mx != mn {
+            let d = mx - mn
+            s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn)
+            if mx == r { h = (g - b) / d + (g < b ? 6 : 0) } else if mx == g { h = (b - r) / d + 2 } else { h = (r - g) / d + 4 }
+            h /= 6
+        }
+        l = tint < 0 ? l * (1 + tint) : l * (1 - tint) + tint
+        func f(_ p: Double, _ q: Double, _ tt: Double) -> Double {
+            var t = tt; if t < 0 { t += 1 }; if t > 1 { t -= 1 }
+            if t < 1.0 / 6 { return p + (q - p) * 6 * t }
+            if t < 0.5 { return q }
+            if t < 2.0 / 3 { return p + (q - p) * (2.0 / 3 - t) * 6 }
+            return p
+        }
+        var rgb = [l, l, l]
+        if s != 0 {
+            let q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q
+            rgb = [f(p, q, h + 1.0 / 3), f(p, q, h), f(p, q, h - 1.0 / 3)]
+        }
+        return rgb.map { x -> String in let n = Int((x * 255).rounded()); let d = Array("0123456789ABCDEF"); return String(d[n / 16]) + String(d[n % 16]) }.joined()
+    }
+
     static func parts(_ recs: [BiffRecord]) -> [ZipEntry]? {
         guard let first = recs.first, first.type == 0x809, first.body.count >= 2,
               Int(first.body[0]) | Int(first.body[1]) << 8 == 0x600 else { return nil }
@@ -165,8 +197,11 @@ enum XlsBuild {
                     let t = c.u16(), cb = c.u16()
                     let end = c.pos + cb - 4
                     if (t == 4 || t == 5), cb == 20, c.pos + 16 <= r.body.count {
-                        let kind = c.u16(); c.skip(2)
-                        if kind == 2 {
+                        let kind = c.u16(); let tintRaw = Int(Int16(truncatingIfNeeded: c.u16()))
+                        if kind == 3, c.pos + 4 <= r.body.count {
+                            let idx = Int(c.u32())
+                            if let hex = themeTintHex(idx, Double(tintRaw) / 32767) { if t == 4 { e.fg = hex } else { e.bg = hex } }
+                        } else if kind == 2 {
                             let rr = c.u8(), gg = c.u8(), bb = c.u8()
                             let hex = [rr, gg, bb].map { (String($0, radix: 16, uppercase: true).count == 1 ? "0" : "") + String($0, radix: 16, uppercase: true) }.joined()
                             if t == 4 { e.fg = hex } else { e.bg = hex }
