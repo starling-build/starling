@@ -1674,7 +1674,11 @@ enum ChartXML {
             let name = ser.first("c:tx").map { _texts($0, "c:v").joined() } ?? "Series\(series.count + 1)"
             if series.isEmpty { named = ser.first("c:tx") != nil }
             let cat = ser.first("c:cat") ?? ser.first("c:xVal")
-            let val = ser.first("c:val") ?? ser.first("c:yVal")
+            // (A bubble series with no y values or no sizes has no bubbles: Excel's print of lab bubble1 draws five discs for y + size
+            // (x or not), none for x, y, size alone, x + y, or x + size, only the frame and the axes.)
+            let bubbleless = el.name == "c:bubbleChart" && (ser.first("c:yVal") == nil || ser.first("c:bubbleSize") == nil)
+            if bubbleless { RuleTrace.hit("bubble-series-without-y-values-or-sizes-has-no-bubbles") }
+            let val = bubbleless ? nil : (ser.first("c:val") ?? ser.first("c:yVal"))
             var names = cat.map(_points) ?? []
             if levels.isEmpty, let cache = cat?.descendant("c:multiLvlStrCache") {
                 levels = cache.all("c:lvl").dropFirst().map { lvl in
@@ -1731,7 +1735,7 @@ enum ChartXML {
                 let style = el.first("c:scatterStyle")?["val"] ?? "marker"
                 let ln = pr?.first("a:ln")
                 s.joined = ln.map { $0.first("a:noFill") == nil } ?? (style != "marker" && style != "none")
-                if let bz = ser.first("c:bubbleSize") { s.bubbleSizes = _points(bz).map { $0.flatMap { Double($0.trimmingWhitespace()) } } }
+                if !bubbleless, let bz = ser.first("c:bubbleSize") { s.bubbleSizes = _points(bz).map { $0.flatMap { Double($0.trimmingWhitespace()) } } }
                 if let xv = ser.first("c:xVal") {
                     let pts = _points(xv).map { $0.flatMap { Double($0.trimmingWhitespace()) } }
                     // (The first series' list is the shared one; a later one that repeats it needs none.)
