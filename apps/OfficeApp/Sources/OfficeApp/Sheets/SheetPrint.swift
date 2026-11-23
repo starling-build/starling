@@ -228,7 +228,18 @@ enum SheetPrintLayout {
         var areas: [CellRange] = []
         var rows: ClosedRange<Int>? = nil, cols: ClosedRange<Int>? = nil
         for n in book.fileNames where n.localSheet == sheet {
-            for part in n.text.split(separator: ",") {
+            // (Split at the commas outside a quoted sheet name: pt-8f96d7d880's 'VI.Zał., VII.Oświadcz'!$A$1:$AM$91 is one area, not two
+            // refs that fail to parse, which printed the sheet's whole used range in 16 pages for Excel's 3.)
+            var parts: [Substring] = []
+            do {
+                var quoted = false, start = n.text.startIndex
+                for i in n.text.indices {
+                    if n.text[i] == "'" { quoted.toggle() }
+                    else if n.text[i] == ",", !quoted { parts.append(n.text[start..<i]); start = n.text.index(after: i) }
+                }
+                parts.append(n.text[start...])
+            }
+            for part in parts {
                 guard let e = try? Formula.parse("=" + part), case .ref(let r) = e else { continue }
                 let end = r.end ?? r.start
                 if n.name == "_xlnm.Print_Area" {
