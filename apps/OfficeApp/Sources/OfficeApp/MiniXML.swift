@@ -35,6 +35,56 @@ enum MiniXML {
         withoutActuallyEscaping(each) { p.each = $0; _ = p.document(); p.each = nil }
     }
 
+    /// What the sheet reader needs of one `<c>`: the same fields whether the cell was read straight from the
+    /// bytes (`scanRows`) or came out of a tree (a cell the scanner gave up on).
+    struct XlsxCell {
+        var r: String? = nil, s: String? = nil, t: String? = nil
+        var kept: [(String, String)] = []            // vm, cm, ph
+        var hasV = false, v = ""
+        var hasF = false
+        var fT: String? = nil, fSi: String? = nil, fRef: String? = nil
+        var fExtra: [(String, String)] = []          // any other <f> attribute (only from a tree)
+        var fText = ""
+        var inlineNode: XNode? = nil                 // <is>, only from a tree
+
+        /// From a `<c>` node, as the reader always read it.
+        init(node c: XNode) {
+            r = c["r"]; s = c["s"]; t = c["t"]
+            if c.attrs.count > 1 { for (k, val) in c.attrs where k == "vm" || k == "cm" || k == "ph" { kept.append((k, val)) } }
+            if let vn = c.child("v") { hasV = true; v = vn.text }
+            inlineNode = c.child("is")
+            if let f = c.child("f") {
+                hasF = true; fT = f["t"]; fSi = f["si"]; fRef = f["ref"]; fText = f.text
+                for (k, val) in f.attrs where k != "t" && k != "si" && k != "ref" { fExtra.append((k, val)) }
+            }
+        }
+        init() {}
+    }
+
+    /// Each child named `item` of the root's first child named `parent`, as its own start tag (a node with the
+    /// attributes only), the byte range of the whole element and the byte range of what is inside it. The
+    /// children are NOT built. False when the bytes cannot be read this way (nothing was handed over).
+    static func scanRows(named item: String, ofRootChild parent: String, in bytes: [UInt8],
+                         _ each: (XNode, Range<Int>, Range<Int>) -> Void) {
+        var p = Parser(bytes)
+        p.listParent = Array(parent.utf8)
+        p.listItem = Array(item.utf8)
+        withoutActuallyEscaping(each) { p.rawRow = $0; _ = p.document(); p.rawRow = nil }
+    }
+
+    /// The `<c>` elements in `body` (a row's contents), each handed over in order. A cell the scanner does not
+    /// recognise exactly is read by the tree parser, in its place.
+    static func scanCells(in bytes: [UInt8], body: Range<Int>, _ cell: (XlsxCell) -> Void) {
+        var p = Parser(bytes)
+        p.scanCells(body: body, cell)
+    }
+
+    /// The cells of a row element read as a tree.
+    static func treeCells(in bytes: [UInt8], element: Range<Int>) -> [XlsxCell] {
+        guard let row = parse(Array(bytes[element])) else { return [] }
+        return row.kids("c").map { XlsxCell(node: $0) }
+    }
+
     private struct Parser {
         let b: [UInt8]
         var i = 0
@@ -45,6 +95,8 @@ enum MiniXML {
         var listParent: [UInt8]? = nil
         var listItem: [UInt8]? = nil
         var each: ((XNode) -> Void)? = nil
+        /// `scanRows`: the item's start tag as a node, its element range, its body range.
+        var rawRow: ((XNode, Range<Int>, Range<Int>) -> Void)? = nil
 
         /// An open element: its node when it is being built, and whether
         /// it is the list's parent or one of the items handed over.
@@ -200,6 +252,15 @@ enum MiniXML {
                 if elementName == "w:cr" { elementName = "w:br" }
                 let node = XNode(name: elementName, attrs: attrs)
                 frame.node = node
+                if frame.isItem, let raw = rawRow {
+                    let tagStart = nameStart - 1
+                    if selfClosing { raw(node, tagStart ..< i, i ..< i); continue }
+                    let bodyStart = i
+                    guard let (bodyEnd, after) = findEnd(name, from: i) else { i = b.count; continue }
+                    i = after
+                    raw(node, tagStart ..< after, bodyStart ..< bodyEnd)
+                    continue
+                }
                 if frame.isItem {
                     if selfClosing { each?(node) }
                 } else if let parent = top?.node {
@@ -213,6 +274,184 @@ enum MiniXML {
                 if !selfClosing { stack.append(frame) }
             }
             return root
+        }
+
+        /// The end tag that closes the element named `nm`, from `start` (inside it): where it starts and where it
+        /// ends. Comments, CDATA and processing instructions are stepped over. Nil when there is none.
+        mutating func findEnd(_ nm: Range<Int>, from start: Int) -> (Int, Int)? {
+            i = start
+            while i < b.count {
+                guard let lt = b[i...].firstIndex(of: UInt8(ascii: "<")) else { return nil }
+                i = lt
+                guard i + 1 < b.count else { return nil }
+                let c1 = b[i + 1]
+                if c1 == UInt8(ascii: "?") { skip(past: "?>"); continue }
+                if c1 == UInt8(ascii: "!") {
+                    if peek("<!--") { skip(past: "-->") } else if peek("<![CDATA[") { i += 9; skip(past: "]]>") } else { skip(past: ">") }
+                    continue
+                }
+                if c1 == UInt8(ascii: "/") {
+                    let ns = i + 2
+                    var e = ns
+                    while e < b.count, b[e] != UInt8(ascii: ">") { e += 1 }
+                    guard e < b.count else { return nil }
+                    var ne = e
+                    while ne > ns, b[ne - 1] == 0x20 || b[ne - 1] == 0x09 || b[ne - 1] == 0x0A || b[ne - 1] == 0x0D { ne -= 1 }
+                    if b[ns ..< ne].elementsEqual(b[nm]) { let at = i; i = e + 1; return (at, e + 1) }
+                    i = e + 1
+                    continue
+                }
+                i += 1
+            }
+            return nil
+        }
+
+        func isSpace(_ c: UInt8) -> Bool { c == 0x20 || c == 0x09 || c == 0x0A || c == 0x0D }
+
+        mutating func scanCells(body: Range<Int>, _ cell: (XlsxCell) -> Void) {
+            let end = body.upperBound
+            i = body.lowerBound
+            while true {
+                while i < end, b[i] != UInt8(ascii: "<") { i += 1 }
+                if i >= end { return }
+                guard i + 2 < end, b[i + 1] == UInt8(ascii: "c"),
+                      isSpace(b[i + 2]) || b[i + 2] == UInt8(ascii: ">") || b[i + 2] == UInt8(ascii: "/") else {
+                    // Not a plain cell: what is left of the row is read as a tree.
+                    var wrapped = Array("<row>".utf8)
+                    wrapped.append(contentsOf: b[i ..< end])
+                    wrapped.append(contentsOf: "</row>".utf8)
+                    if let row = MiniXML.parse(wrapped) { for c in row.kids("c") { cell(XlsxCell(node: c)) } }
+                    return
+                }
+                let start = i
+                if let f = fastCell(end: end) { cell(f); continue }
+                // Given up on: this one cell, as a tree, then on.
+                i = start + 2
+                var quote: UInt8 = 0
+                var selfClosing = false
+                var closed = false
+                while i < end {
+                    let c = b[i]
+                    if quote != 0 { if c == quote { quote = 0 } }
+                    else if c == UInt8(ascii: "\"") || c == UInt8(ascii: "'") { quote = c }
+                    else if c == UInt8(ascii: ">") { selfClosing = b[i - 1] == UInt8(ascii: "/"); i += 1; closed = true; break }
+                    i += 1
+                }
+                guard closed else { return }
+                var after = i
+                if !selfClosing {
+                    guard let (_, a) = findEnd(start + 1 ..< start + 2, from: i) else { return }
+                    after = a
+                }
+                if let node = MiniXML.parse(Array(b[start ..< after])) { cell(XlsxCell(node: node)) }
+                i = after
+            }
+        }
+
+        /// One attribute's value at `i` (after the "="): quoted, decoded as the tree parser does. Nil if not quoted.
+        mutating func quotedValue(_ end: Int) -> String? {
+            guard i < end else { return nil }
+            let q = b[i]
+            guard q == UInt8(ascii: "\"") || q == UInt8(ascii: "'") else { return nil }
+            i += 1
+            let vs = i
+            while i < end, b[i] != q { i += 1 }
+            guard i < end else { return nil }
+            let v = decode(b[vs ..< i], attribute: true)
+            i += 1
+            return v
+        }
+
+        /// A `<c>` read straight from the bytes, or nil when it is anything but the plain shapes (the caller then
+        /// reads the cell as a tree, which knows every other shape).
+        mutating func fastCell(end: Int) -> XlsxCell? {
+            var f = XlsxCell()
+            var seen: UInt8 = 0
+            i += 2
+            while true {
+                while i < end, isSpace(b[i]) { i += 1 }
+                guard i < end else { return nil }
+                if b[i] == UInt8(ascii: ">") { i += 1; break }
+                if b[i] == UInt8(ascii: "/") { guard i + 1 < end, b[i + 1] == UInt8(ascii: ">") else { return nil }; i += 2; return f }
+                let ns = i
+                while i < end, !isSpace(b[i]), b[i] != UInt8(ascii: "="), b[i] != UInt8(ascii: ">"), b[i] != UInt8(ascii: "/") { i += 1 }
+                let n = i - ns
+                while i < end, isSpace(b[i]) { i += 1 }
+                guard i < end, b[i] == UInt8(ascii: "=") else { return nil }
+                i += 1
+                while i < end, isSpace(b[i]) { i += 1 }
+                guard let val = quotedValue(end) else { return nil }
+                if n == 1 {
+                    switch b[ns] {
+                    case UInt8(ascii: "r"): guard seen & 1 == 0 else { return nil }; seen |= 1; f.r = val
+                    case UInt8(ascii: "s"): guard seen & 2 == 0 else { return nil }; seen |= 2; f.s = val
+                    case UInt8(ascii: "t"): guard seen & 4 == 0 else { return nil }; seen |= 4; f.t = val
+                    default: return nil
+                    }
+                } else if n == 2 {
+                    let k = String(decoding: b[ns ..< ns + 2], as: UTF8.self)
+                    guard k == "cm" || k == "vm" || k == "ph", !f.kept.contains(where: { $0.0 == k }) else { return nil }
+                    f.kept.append((k, val))
+                } else { return nil }
+            }
+            while true {
+                while i < end, b[i] != UInt8(ascii: "<") { guard isSpace(b[i]) else { return nil }; i += 1 }
+                guard i + 3 < end else { return nil }
+                let c1 = b[i + 1]
+                if c1 == UInt8(ascii: "/") {
+                    guard b[i + 2] == UInt8(ascii: "c"), b[i + 3] == UInt8(ascii: ">") else { return nil }
+                    i += 4
+                    return f
+                }
+                if c1 == UInt8(ascii: "v") {
+                    guard !f.hasV else { return nil }
+                    f.hasV = true
+                    if b[i + 2] == UInt8(ascii: "/") { guard b[i + 3] == UInt8(ascii: ">") else { return nil }; i += 4; continue }
+                    guard b[i + 2] == UInt8(ascii: ">") else { return nil }
+                    i += 3
+                    let ts = i
+                    while i < end, b[i] != UInt8(ascii: "<") { i += 1 }
+                    guard i + 3 < end, b[i + 1] == UInt8(ascii: "/"), b[i + 2] == UInt8(ascii: "v"), b[i + 3] == UInt8(ascii: ">") else { return nil }
+                    f.v = decode(b[ts ..< i])
+                    i += 4
+                    continue
+                }
+                if c1 == UInt8(ascii: "f") {
+                    guard !f.hasF else { return nil }
+                    f.hasF = true
+                    i += 2
+                    var fseen: UInt8 = 0
+                    var selfClosed = false
+                    while true {
+                        while i < end, isSpace(b[i]) { i += 1 }
+                        guard i < end else { return nil }
+                        if b[i] == UInt8(ascii: ">") { i += 1; break }
+                        if b[i] == UInt8(ascii: "/") { guard i + 1 < end, b[i + 1] == UInt8(ascii: ">") else { return nil }; i += 2; selfClosed = true; break }
+                        let ns = i
+                        while i < end, !isSpace(b[i]), b[i] != UInt8(ascii: "="), b[i] != UInt8(ascii: ">"), b[i] != UInt8(ascii: "/") { i += 1 }
+                        let k = String(decoding: b[ns ..< i], as: UTF8.self)
+                        while i < end, isSpace(b[i]) { i += 1 }
+                        guard i < end, b[i] == UInt8(ascii: "=") else { return nil }
+                        i += 1
+                        while i < end, isSpace(b[i]) { i += 1 }
+                        guard let val = quotedValue(end) else { return nil }
+                        switch k {
+                        case "t": guard fseen & 1 == 0 else { return nil }; fseen |= 1; f.fT = val
+                        case "si": guard fseen & 2 == 0 else { return nil }; fseen |= 2; f.fSi = val
+                        case "ref": guard fseen & 4 == 0 else { return nil }; fseen |= 4; f.fRef = val
+                        default: return nil
+                        }
+                    }
+                    if selfClosed { continue }
+                    let ts = i
+                    while i < end, b[i] != UInt8(ascii: "<") { i += 1 }
+                    guard i + 3 < end, b[i + 1] == UInt8(ascii: "/"), b[i + 2] == UInt8(ascii: "f"), b[i + 3] == UInt8(ascii: ">") else { return nil }
+                    f.fText = decode(b[ts ..< i])
+                    i += 4
+                    continue
+                }
+                return nil
+            }
         }
 
         mutating func readNameRange() -> Range<Int> {
