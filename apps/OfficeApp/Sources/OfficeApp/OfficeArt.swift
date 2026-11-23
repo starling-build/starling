@@ -30,6 +30,7 @@ struct ArtShape {
     var pib = 0
     var anchor: [Int]? = nil      // colL dxL rwT dyT colR dxR rwB dyB
     var props: [Int: Int] = [:]
+    var complex: [Int: [UInt8]] = [:]   // the data of the complex properties (vertices, text, font name)
     var name: String? = nil
     var parent = 0                  // the group this shape sits in (0 for the drawing's own top group)
     var groupRect: [Int]? = nil     // a group's own coordinate space: left, top, right, bottom
@@ -137,6 +138,18 @@ enum OfficeArt {
                                 let pid = u16(b, o), v = u32(b, o + 2)
                                 s.props[pid & 0x3FFF] = v
                                 if pid & 0x3FFF == 0x104 { s.pib = v }
+                            }
+                            var q = c.body.lowerBound + 6 * n
+                            for k in 0 ..< n {
+                                let o = c.body.lowerBound + 6 * k
+                                guard o + 6 <= c.body.upperBound else { break }
+                                let pid = u16(b, o), v = u32(b, o + 2)
+                                guard pid & 0x8000 != 0 else { continue }
+                                // (An array's size leaves out its 6-byte header: those properties carry both flag bits.)
+                                let size = v + (pid & 0x4000 != 0 ? 6 : 0)
+                                let e = min(q + size, c.body.upperBound)
+                                if q <= e { s.complex[pid & 0x3FFF] = Array(b[q ..< e]) }
+                                q += size
                             }
                         case 0xF009: if c.body.count >= 16 { let o = c.body.lowerBound; s.groupRect = [i32(o), i32(o + 4), i32(o + 8), i32(o + 12)] }
                         case 0xF00F: if c.body.count >= 16 { let o = c.body.lowerBound; s.childAnchor = [i32(o), i32(o + 4), i32(o + 8), i32(o + 12)] }

@@ -2932,6 +2932,29 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let lineAlign: TextAlign = align == .center ? .center : align == .right ? .right : st.justify && wraps ? .justify : .left
         style.rtl = cell.value.isText && _cellIsRTL(st, text)
         var tp = texts.painter(text, style, maxWidth: wraps ? wrapRoom(width, pad * 2 + wrapLess) : .infinity, align: wraps ? lineAlign : .left)
+        // A wrapped rich string: its runs' own fonts on the lines the paragraph's wrap gives.
+        var richParts: [(text: String, style: GridTextStyle)] = [], richLns: [[(String, GridTextStyle)]] = []
+        if wraps, !style.rtl, let rr = ws.richText[a], case .text(let raw) = cell.value, raw == text, rr.map(\.text).joined() == text,
+           rr.count > 1, !rr.contains(where: { $0.script != 0 }), !text.contains(NumberFormat.padMark), lineAlign != .justify {
+            let parts = rr.map { run -> (text: String, style: GridTextStyle) in
+                var rs = st
+                if run.bold != nil {
+                    rs.bold = run.bold ?? false; rs.italic = run.italic ?? false
+                    rs.underline = run.underline ?? false; rs.strike = run.strike ?? false
+                }
+                if let f = run.fontName { rs.fontName = f }
+                if let z = run.size { rs.fontSize = z }
+                if let c = run.color { rs.color = c }
+                var gs = _textStyle(rs, color: color, ink: ink)
+                gs.rtl = style.rtl
+                return (run.text, gs)
+            }
+            richParts = parts
+            let room = wrapRoom(width, pad * 2 + wrapLess)
+            let ls = texts.richLines(text, runs: parts, maxWidth: room)
+            richLns = ls
+            tp = texts.richLine(ls.enumerated().flatMap { i, l in (i > 0 ? [("\n", parts[0].style)] : []) + l }, align: lineAlign, maxWidth: room)
+        }
         // A number too wide for its cell is ####, never cut.
         if case .number = cell.value, lead + tp.width > width - pad * 2 {
             let hashes = max(1, Int((width - pad * 2) / max(1, texts.painter("#", style).width)))
@@ -3052,8 +3075,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         // the first at the head, the middle in the centre — stands where
         // one line would (52716's last lines with their rows' numbers).
         if printing && wraps {
-            let lines = texts._breakLines(NumberFormat.unpad(text), style, wrapRoom(width, pad * 2 + wrapLess))
-                .split(separator: "\n", omittingEmptySubsequences: false)
+            let lines = richLns.isEmpty ? texts._breakLines(NumberFormat.unpad(text), style, wrapRoom(width, pad * 2 + wrapLess))
+                .split(separator: "\n", omittingEmptySubsequences: false) : richLns.map { Substring($0.map(\.0).joined()) }
             if lines.count > 1 {
                 let m = SheetPrintMetrics.of(family: book.defaultFontName ?? OfficeFonts.defaultFamily, size: book.defaultFontSize ?? 11, bold: book.defaultFontBold)
                 // The face's own printed line in dots (57523's Calibri Bold 10 header: 109 dots, 13.08 pt, where the screen
@@ -3073,7 +3096,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                 }
                 let hardEnds = st.justify ? texts._paragraphEnds(text, style, max(1, width - pad * 2 - wrapLess)) : []
                 for (i, line) in lines.enumerated() {
-                    let lp = st.justify && wraps && i < lines.count - 1 && !hardEnds.contains(i) ? texts.painter(String(line), style, maxWidth: max(1, width - pad * 2 - wrapLess), align: .justify, spreadLast: true) : texts.painter(String(line), style)
+                    let lp = !richLns.isEmpty ? texts.richLine(richLns[i], align: .left, maxWidth: .infinity) : st.justify && wraps && i < lines.count - 1 && !hardEnds.contains(i) ? texts.painter(String(line), style, maxWidth: max(1, width - pad * 2 - wrapLess), align: .justify, spreadLast: true) : texts.painter(String(line), style)
                     let x: Double
                     switch align {
                     case .right: x = right - rightMargin - inset - lp.width
@@ -3794,6 +3817,42 @@ final class _TextCache {
         let tp = TextPainter(text: span, textAlign: align == .justify ? .left : align, textDirection: style.rtl ? .rtl : .ltr)
         tp.layout(minWidth: 0, maxWidth: style.screen > 0 || spreadLast ? .infinity : maxWidth)
         _cache[k] = tp
+        return tp
+    }
+
+    /// A wrapped rich string's lines, broken as the run that holds most of it sets them: each line as runs of text, each in its
+    /// own font (Excel wraps the whole string at once, so a bold heading in a plain paragraph is wrapped by the paragraph's face).
+    func richLines(_ text: String, runs: [(text: String, style: GridTextStyle)], maxWidth: Double) -> [[(String, GridTextStyle)]] {
+        var main = 0
+        for (i, r) in runs.enumerated() where r.text.count > runs[main].text.count { main = i }
+        let lines = _breakLines(NumberFormat.unpad(text), runs[main].style, maxWidth)
+        var which: [Int] = []
+        for (i, r) in runs.enumerated() { which += Array(repeating: i, count: r.text.count) }
+        let orig = Array(text)
+        var p = 0, cur = 0
+        var out: [[(String, Int)]] = [[]]
+        func put(_ c: Character, _ k: Int) {
+            if let l = out[out.count - 1].last, l.1 == k { out[out.count - 1][out[out.count - 1].count - 1].0.append(c) } else { out[out.count - 1].append((String(c), k)) }
+        }
+        for c in lines {
+            if c == "\n" {
+                if p < orig.count, orig[p] == "\n" || orig[p] == " " { cur = which[p]; p += 1 }
+                out.append([])
+            } else {
+                while p < orig.count, orig[p] == " ", c != " " { p += 1 }
+                if p < orig.count { cur = which[p]; p += 1 }
+                put(c, cur)
+            }
+        }
+        return out.map { $0.map { ($0.0, runs[$0.1].style) } }
+    }
+
+    /// One line of runs, set.
+    func richLine(_ pieces: [(String, GridTextStyle)], align: TextAlign, maxWidth: Double) -> TextPainter {
+        let first = pieces.first?.1
+        let tp = TextPainter(text: TextSpan(children: pieces.map { _span($0.0, $0.1) }),
+                             textAlign: align == .justify ? .left : align, textDirection: first?.rtl == true ? .rtl : .ltr)
+        tp.layout(minWidth: 0, maxWidth: first?.screen ?? 0 > 0 ? .infinity : maxWidth)
         return tp
     }
 
