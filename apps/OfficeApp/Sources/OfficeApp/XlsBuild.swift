@@ -117,6 +117,7 @@ enum XlsBuild {
         var fonts: [XlsFont] = []
         var xfRecs: [XlsXF] = []
         var palette = defaultPalette
+        var xfExt: [Int: (fg: String?, bg: String?)] = [:]
         var sheets: [Xls.SheetInfo] = []
         var xtis: [(Int, Int)] = []
         var nameRecs: [BiffRecord] = []
@@ -146,6 +147,24 @@ enum XlsBuild {
                 x.font = c.u16(); x.format = c.u16(); x.flags = c.u16(); x.align = c.u16(); x.indent = c.u16()
                 x.border = c.u16(); x.borderColor = c.u16(); x.borderColor2 = UInt32(truncatingIfNeeded: c.u32()); x.fill = UInt16(truncatingIfNeeded: c.u16())
                 xfRecs.append(x)
+            case 0x87D where r.body.count >= 20:
+                // XFExt: FrtHeader(12), reserved(2), ixfe, reserved(2), cexts, then ExtProps.
+                c.skip(12); c.skip(2); let ixfe = c.u16(); c.skip(2); let n = c.u16()
+                var e: (fg: String?, bg: String?) = (nil, nil)
+                for _ in 0 ..< n where c.pos + 4 <= r.body.count {
+                    let t = c.u16(), cb = c.u16()
+                    let end = c.pos + cb - 4
+                    if (t == 4 || t == 5), cb == 20, c.pos + 16 <= r.body.count {
+                        let kind = c.u16(); c.skip(2)
+                        if kind == 2 {
+                            let rr = c.u8(), gg = c.u8(), bb = c.u8()
+                            let hex = [rr, gg, bb].map { (String($0, radix: 16, uppercase: true).count == 1 ? "0" : "") + String($0, radix: 16, uppercase: true) }.joined()
+                            if t == 4 { e.fg = hex } else { e.bg = hex }
+                        }
+                    }
+                    c.pos = max(c.pos, min(end, r.body.count))
+                }
+                xfExt[ixfe] = e
             case 0x92:
                 let n = c.u16()
                 var k = 0
@@ -203,7 +222,7 @@ enum XlsBuild {
         }
         if fonts.isEmpty { fonts = [XlsFont()] }
         let xfs = resolveXFs(xfRecs)
-        st += styleBody(fonts: fonts, xfs: xfs, palette: palette)
+        st += styleBody(fonts: fonts, xfs: xfs, palette: palette, xfExt: xfExt)
         add("xl/styles.xml", st + "</styleSheet>")
 
         for (n, e) in kept.enumerated() {
@@ -478,7 +497,7 @@ enum XlsBuild {
             if !noPls, setup[3] ?? 1 != 1 { a += " fitToWidth=\"\(setup[3] ?? 1)\"" }
             if !noPls, setup[4] ?? 1 != 1 { a += " fitToHeight=\"\(setup[4] ?? 1)\"" }
             if g & 1 != 0 { a += " pageOrder=\"overThenDown\"" }
-            if g & 4 == 0 { a += " orientation=\"\(g & 2 != 0 ? "portrait" : "landscape")\"" } else { a += " orientation=\"portrait\"" }
+            if g & 4 == 0, g & 0x40 == 0 { a += " orientation=\"\(g & 2 != 0 ? "portrait" : "landscape")\"" } else { a += " orientation=\"portrait\"" }
             if g & 8 != 0 { a += " blackAndWhite=\"1\"" }
             if g & 0x10 != 0 { a += " draft=\"1\"" }
             x += "<pageSetup\(a)/>"
@@ -658,7 +677,7 @@ enum XlsBuild {
         return "<\(name) auto=\"1\"/>"
     }
 
-    static func styleBody(fonts: [XlsFont], xfs: [XlsXF], palette: [(Int, Int, Int)]) -> String {
+    static func styleBody(fonts: [XlsFont], xfs: [XlsXF], palette: [(Int, Int, Int)], xfExt: [Int: (fg: String?, bg: String?)] = [:]) -> String {
         var fx = "<fonts count=\"\(fonts.count)\">"
         for f in fonts {
             fx += "<font>"
@@ -690,13 +709,16 @@ enum XlsBuild {
             list.append(item); return list.count - 1
         }
         let list = xfs.isEmpty ? [XlsXF()] : xfs
-        for x in list {
+        for (xi, x) in list.enumerated() {
             // fill
             let pat = Int(x.borderColor2 >> 26) & 0x3F
             var fillId = 0
             if pat > 0, pat < patterns.count {
                 let fg = Int(x.fill) & 0x7F, bg = Int(x.fill >> 7) & 0x7F
-                let f = "<fill><patternFill patternType=\"\(patterns[pat])\">" + colorTag("fgColor", fg == 64 ? 0 : fg, palette) + colorTag("bgColor", bg == 65 ? 1 : bg, palette) + "</patternFill></fill>"
+                let ext = xfExt[xi]
+                let fgTag = ext?.fg.map { "<fgColor rgb=\"FF\($0)\"/>" } ?? colorTag("fgColor", fg == 64 ? 0 : fg, palette)
+                let bgTag = ext?.bg.map { "<bgColor rgb=\"FF\($0)\"/>" } ?? colorTag("bgColor", bg == 65 ? 1 : bg, palette)
+                let f = "<fill><patternFill patternType=\"\(patterns[pat])\">" + fgTag + bgTag + "</patternFill></fill>"
                 fillId = intern(&fills, f)
             }
             // border
