@@ -61,6 +61,10 @@ jobs:
           gfetch -q --no-tags --depth=200 origin "$GITHUB_SHA" "$BASE_SHA"
           git -C "$C" checkout -q -f --detach "$GITHUB_SHA"
           git -C "$C" clean -fdq
+      - name: Rebase the test merge onto a cached base
+        # (amd-8, 2026-11-23) main moves every few minutes, so the merge's first parent is rarely cached and every gate built and rendered a fresh base (40-50 min runs).
+        # Re-make the test merge on the newest cached ancestor of that parent: the gate then compares exactly the PR's change. GATE_REBASE=0 turns it off.
+        run: cd "$HOME/clone" && bash test/tools/gate-rebase.sh 2>&1 | tail -3 || true
       - name: Render gate
         env:
           GH_TOKEN: ${{ github.token }}
