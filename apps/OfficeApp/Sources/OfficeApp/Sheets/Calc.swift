@@ -223,13 +223,15 @@ final class CalcEngine {
     /// added or removed): writing computed values back would otherwise make
     /// every reader of a whole column rescan the sheet. Each pass starts
     /// afresh, since moving rows keeps the count and changes the extent.
-    private var _extents: [Int: (count: Int, extent: CellAddress)] = [:]
+    private var _extents: [Int: (count: Int, spilled: Int, extent: CellAddress)] = [:]
 
+    /// (Spilled cells are on the sheet too: a range ending past the last cell of its own still reads them.)
     func usedExtent(_ sheet: Int) -> CellAddress {
         let ws = book.sheets[sheet]
-        if let e = _extents[sheet], e.count == ws.cells.count { return e.extent }
-        let e = ws.usedExtent
-        _extents[sheet] = (ws.cells.count, e)
+        if let e = _extents[sheet], e.count == ws.cells.count, e.spilled == ws.spilled.count { return e.extent }
+        var e = ws.usedExtent
+        for a in ws.spilled.keys { e.row = max(e.row, a.row); e.col = max(e.col, a.col) }
+        _extents[sheet] = (ws.cells.count, ws.spilled.count, e)
         return e
     }
 
