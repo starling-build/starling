@@ -4579,7 +4579,8 @@ enum OfficeFonts {
                 // (Its Hebrew letters' own advances, read from Word's prints: set word by word, `joinedScaled`.)
                 face.otherAdvances = davidOtherAdvances; face.boldOtherAdvances = davidBoldOtherAdvances
             }
-            face.naturalHeight = tall; face.boldHeight = asked == "simplified arabic" ? 3405.0 / 2048 : tall
+            // (Traditional Arabic bold is a taller line, 1.532 em: Word's prints step 11 to 18 pt bold lines by 1.53 to 1.538 em (xb ara-z11030406-663296: 24.5 pt at 16, 27.6 at 18; 500+ pairs), the regular 1.495.)
+            face.naturalHeight = tall; face.boldHeight = asked == "simplified arabic" ? 3405.0 / 2048 : asked == "traditional arabic" ? 1.532 : tall
             // (Simplified Arabic: hhea 2416 + 979 over 2048, bold 989, from Word's print; a4945c74's 14pt lines under a 0.7 multiple step 16.3.)
         }
         // (… and its clone first in the chain, so the spaces and marks are set
