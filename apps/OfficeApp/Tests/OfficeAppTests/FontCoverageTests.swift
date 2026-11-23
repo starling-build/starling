@@ -45,4 +45,23 @@ final class EmojiVariationTests: XCTestCase {
         XCTAssertNil(RichLayout._variationPieces("a\u{A9}\u{FE0F} \u{2122}\u{FE0F} \u{203C}\u{FE0F}"), "(c) (tm) !! stay text in Word and PowerPoint")
         XCTAssertNil(RichLayout._variationPieces("\u{231A}\u{FE0F}"), "a colour emoji needs nothing from FE0F")
     }
+
+    /// A ZWJ sequence after a text-style emoji and U+FE0F is one piece with it: the rainbow flag
+    /// (U+1F3F3 U+FE0F U+200D U+1F308) drew as a white flag and a rainbow when the cut fell after FE0F.
+    private func cut(_ s: String) -> [(text: String, kind: Int)]? { RichLayout._variationPieces(Substring(s)) }
+
+    func testAZWJSequenceAfterTheSelectorStaysInItsPiece() throws {
+        let flag = "\u{1F3F3}\u{FE0F}\u{200D}\u{1F308}"
+        let pieces = try XCTUnwrap(cut("a\(flag)b"))
+        XCTAssertEqual(pieces.map(\.text), ["a", flag, "b"])
+        XCTAssertEqual(pieces.map(\.kind), [0, 1, 0])
+        // A heart on fire (U+2764 U+FE0F U+200D U+1F525), and a joined character with a selector of its own
+        // (U+2640 U+FE0F after the ZWJ): each stays whole.
+        let fire = "\u{2764}\u{FE0F}\u{200D}\u{1F525}"
+        XCTAssertEqual(try XCTUnwrap(cut(fire)).map(\.text), [fire])
+        let both = "\u{2764}\u{FE0F}\u{200D}\u{2640}\u{FE0F}x"
+        XCTAssertEqual(try XCTUnwrap(cut(both)).map(\.text), ["\u{2764}\u{FE0F}\u{200D}\u{2640}\u{FE0F}", "x"])
+        // A selector pair with no ZWJ after it is still cut off alone.
+        XCTAssertEqual(try XCTUnwrap(cut("\u{2764}\u{FE0F}x")).map(\.text), ["\u{2764}\u{FE0F}", "x"])
+    }
 }
