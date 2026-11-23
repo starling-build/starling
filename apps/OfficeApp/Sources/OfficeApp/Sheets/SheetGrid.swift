@@ -2667,7 +2667,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             chars = max(1, Int(width / (7 * zoom)))
         }
         var (text, color) = NumberFormat.display(cell.value, st.numberFormat, width: chars, pads: true)
-        if cell.value.isText { text = Self.shown(text) }
+        if cell.value.isText, !st.wrap { text = Self.shown(text) }
         let style = _textStyle(st, color: color, ink: ink)
         // Pads before the text (`_W0`, Accounting's `_(@_)`) are a gap of
         // their characters' width ahead of it. (Spaced out as `_TextCache`
@@ -3085,9 +3085,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         canvas.restore()
     }
 
-    /// What a cell shows of its text: the first 1,024 characters, as
-    /// Excel's grid does (the formula bar has the rest). lo-cell-value's
-    /// 2,472 run over ten printed pages to the 1,024th and stop there.
+    /// What a cell shows of its text when it is not wrapped: the first 1,024
+    /// characters, as Excel's grid does (the formula bar has the rest).
+    /// lo-cell-value's 2,472 run over ten printed pages to the 1,024th and
+    /// stop there. A wrapped cell prints all of it (ar-d7e763fe3f A5:J5).
     static func shown(_ text: String) -> String {
         text.count > 1024 ? String(text.prefix(1024)) : text
     }
