@@ -4122,6 +4122,9 @@ enum OfficeFonts {
                     face.naturalHeight = 1.40; face.boldHeight = 1.40
                     RuleTrace.hit("sakkal-latin-run-has-the-faces-own-line")
                 case "comic sans ms": face.advances = comicSansAdvances; face.boldAdvances = comicSansBoldAdvances; face.otherAdvances = comicSansOtherAdvances; face.boldOtherAdvances = comicSansBoldOtherAdvances; face.naturalHeight = 1.3936; face.baseline = 1.1021
+                // (DokChampa's own line, from its file (upem 2048, USE_TYPO_METRICS set): typo 1999 + 555 + gap 200 above the ascent. dx2 2cddf540's
+                // three empty paragraphs with a DokChampa mark stood 1 pt short; row 8 dy -0.85 to -0.05, mean |dy| 15.6 to 6.2 pt.)
+                case "dokchampa": face.naturalHeight = 1.3447; face.baseline = 1.0737
                 case "mystical woods smooth script": face.advances = mysticalWoodsAdvances; face.otherAdvances = mysticalWoodsOtherAdvances; face.naturalHeight = 1.7; face.baseline = 1.3
                 case "garamond": face.advances = garamondAdvances; face.boldAdvances = garamondBoldAdvances; face.italicAdvances = garamondItalicAdvances; face.naturalHeight = 1.1250; face.baseline = 0.8618
                 case "georgia": face.advances = georgiaAdvances; face.boldAdvances = georgiaBoldAdvances; face.italicAdvances = georgiaItalicAdvances; face.boldItalicAdvances = georgiaBoldItalicAdvances; face.otherAdvances = georgiaOtherAdvances.merging(georgiaCyrillicAdvances) { $1 }; face.boldOtherAdvances = georgiaBoldOtherAdvances.merging(georgiaBoldCyrillicAdvances) { $1 }; face.naturalHeight = 1.1362; face.baseline = 0.9170
