@@ -52,7 +52,12 @@ enum OfficeFonts {
     /// Verdana's lines an eighth short.
     static let verdana = "DejaVu Sans"
     /// The colour-emoji face (U+1F000 and up), first in the glyph fallback; web hosts use the same name.
+    #if os(iOS)
+    /// (On iOS the bundled CBDT faces cannot load, so the colour emoji are the system's, named here for every fallback list.)
+    static let emojiPictographs = "Apple Color Emoji"
+    #else
     static let emojiPictographs = "Noto Color Emoji Pictographs"
+    #endif
     /// Liberation Sans and Serif as a Word document's lines take them:
     /// the same faces with their line gap moved over the ascent (see
     /// `_gapAbove`), registered under these names beside the plain ones.
@@ -6411,6 +6416,16 @@ enum OfficeFonts {
                 RichTextTheme.glyphFallback.insert(OfficeFonts.emojiPictographs, at: 0)
             }
         }
+        #if os(iOS)
+        // Colour emoji are the system's on iOS (the bundled CBDT faces cannot load, see above), and its face
+        // goes FIRST: behind DejaVu Sans, which has U+1F600 and kin as black outlines, a slide's smiley was one.
+        RichTextTheme.glyphFallback.removeAll { $0 == "Apple Color Emoji" }
+        RichTextTheme.glyphFallback.insert("Apple Color Emoji", at: 0)
+        RichLayout.emojiPictographFamily = "Apple Color Emoji"
+        RichLayout.emojiVariationFamily = "Apple Color Emoji"
+        // (And Apple Color Emoji joins a sequence itself - the rainbow flag, a heart on fire - so one that follows a U+FE0F stays whole.)
+        RichLayout.emojiSequencesStayWhole = true
+        #endif
         if let table = try? String(contentsOf: resources.appendingPathComponent("fonts/fonts-aliases.tsv"), encoding: .utf8) {
             var aliases: [String: String] = [:]
             for line in table.split(separator: "\n").dropFirst() {
