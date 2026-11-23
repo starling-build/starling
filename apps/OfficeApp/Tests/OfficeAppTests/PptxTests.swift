@@ -325,6 +325,12 @@ final class GroupAndConnectorTests: XCTestCase {
 }
 
 final class DeepGroupTests: XCTestCase {
+    /// The shape reader recurses through groups with several ShapeStates in a frame: at 27 KB each a
+    /// group level cost 375 KB of stack (ja-85c85cb794 overflowed 8 MB at 8 levels). Keep the value small.
+    func testShapeStateStaysSmall() {
+        XCTAssertLessThan(MemoryLayout<ShapeState>.size, 4096)
+    }
+
     /// Groups nested deeper than the main thread's stack allows (the shape reader's frame is
     /// hundreds of KB a level): reading must finish, with the innermost shape kept.
     /// ja-85c85cb794 (8 deep) was Signal 11.

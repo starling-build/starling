@@ -18,7 +18,7 @@ enum PlaceholderRole: String {
     case ctrTitle, subTitle, title, body
 }
 
-enum ShapeKind: Equatable {
+indirect enum ShapeKind: Equatable {
     case placeholder(PlaceholderRole)
     case textBox
     /// A preset drawing (`prstGeom`): its DrawingML name.
