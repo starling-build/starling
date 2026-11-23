@@ -219,6 +219,16 @@ final class XlsContainerTests: XCTestCase {
         XCTAssertTrue(text("xl/worksheets/_rels/sheet1.xml.rels").containsSubstring("Target=\"http://a.b/\""))
     }
 
+    func testSheetExtGivesTheTabColour() throws {
+        let bof = rec(0x809, cat(u16(0x600), [UInt8](repeating: 0, count: 14)))
+        let g0 = cat(bof, rec(0x85, cat(le32(0), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        let g = cat(bof, rec(0x85, cat(le32(UInt32(g0.count)), [0, 0, 1, 0, 0x53])), rec(0x0A, []))
+        let ext = rec(0x862, cat(u16(0x862), [UInt8](repeating: 0, count: 10), le32(0x28), le32(0), le32(0), le32(2), [0x00, 0xB0, 0xF0, 0xFF], [UInt8](repeating: 0, count: 16)))
+        let parts = try XCTUnwrap(XlsBuild.parts(BiffReader.records(g + cat(bof, ext, rec(0x0A, [])))))
+        let ws = String(decoding: parts.first { $0.name == "xl/worksheets/sheet1.xml" }!.data, as: UTF8.self)
+        XCTAssertTrue(ws.containsSubstring("<tabColor rgb=\"FF00B0F0\"/>"))
+    }
+
     func testFormulaTokensBecomeFormulaText() {
         let ctx = XlsFormulaContext(xtis: [], internalBooks: [], sheetNames: [], names: [])
         // A1+B2*3 : ref A1, ref B2, int 3, mul, add
