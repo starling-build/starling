@@ -86,6 +86,21 @@ enum SlideFonts {
         }
     }
 
+    /// Win ascent over em of the face an upright digit is set in (lab vdig3: the digit's baseline stands this far below its slot's start).
+    /// The CJK faces' come from `uprightMetrics`; the Latin ones are OS/2 winAscent / 2048 (latin-line-20261122).
+    static func uprightDigitAscent(_ family: String, bold: Bool) -> Double? {
+        if let m = uprightMetrics(family, bold: bold) { return m.ascent - (m.step - 1) / 2 }
+        switch windowsName(family) {
+        case "segoe ui": return 2210.0 / 2048
+        case "times new roman": return 1825.0 / 2048
+        case "verdana": return 2059.0 / 2048
+        case "arial": return 1854.0 / 2048
+        case "calibri": return 1950.0 / 2048
+        case "cambria": return 1946.0 / 2048
+        default: return nil
+        }
+    }
+
     /// A face whose upright column steps by each character's own vmtx advance (`SlideVerticalAdvances`).
     static func proportionalUprightFace(_ family: String) -> Bool {
         ["ms pgothic", "ｍｓ ｐゴシック"].contains(windowsName(family))
