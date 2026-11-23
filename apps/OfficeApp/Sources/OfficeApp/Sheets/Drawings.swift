@@ -852,3 +852,39 @@ extension WorkbookController {
         selectedDrawing = index
     }
 }
+
+/// A picture the header or footer shows (`&G`): its bytes and the size the VML gives it, in points.
+struct HeaderPicture: Equatable {
+    var path: String
+    var data: Data
+    var width: Double
+    var height: Double
+}
+
+extension SheetDrawingsXML {
+    private static func _all(_ n: XNode, _ local: String) -> [XNode] {
+        n.children.flatMap { ($0.name.split(separator: ":").last.map(String.init) == local ? [$0] : []) + _all($0, local) }
+    }
+
+    /// The header/footer pictures a sheet's `legacyDrawingHF` part holds.
+    static func readHeaderPictures(sheetPath: String, parts: [String: Data], sheet: XNode?) -> [String: HeaderPicture] {
+        guard let sheet = sheet ?? parts[sheetPath].flatMap({ XNode.parse($0) }),
+              let rid = sheet.child("legacyDrawingHF")?["r:id"], let vmlPath = _relTargets(parts, of: sheetPath)[rid],
+              let bytes = parts[vmlPath], let root = XNode.parse(bytes) else { return [:] }
+        let rels = _relTargets(parts, of: vmlPath)
+        var out: [String: HeaderPicture] = [:]
+        for shape in _all(root, "shape") {
+            guard let id = shape["id"], ["LH", "CH", "RH", "LF", "CF", "RF"].contains(id),
+                  let image = _all(shape, "imagedata").first, let rel = image["o:relid"], let path = rels[rel], let data = parts[path] else { continue }
+            var width = 0.0, height = 0.0
+            for item in (shape["style"] ?? "").split(separator: ";") {
+                let kv = item.split(separator: ":", maxSplits: 1).map { String($0).trimmingWhitespace() }
+                guard kv.count == 2 else { continue }
+                let v = Double(kv[1].replacingAll("pt", with: "")) ?? 0
+                if kv[0] == "width" { width = v } else if kv[0] == "height" { height = v }
+            }
+            if width > 0, height > 0 { out[id] = HeaderPicture(path: path, data: data, width: width, height: height) }
+        }
+        return out
+    }
+}
