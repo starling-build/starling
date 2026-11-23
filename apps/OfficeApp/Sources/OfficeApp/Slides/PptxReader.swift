@@ -4274,6 +4274,8 @@ private struct SlideContext {
                 let runsBefore = runs.count
                 var pieces: [(length: Int, script: String?)] = []
                 let explicitLatin = rPr?.first("a:latin")?["typeface"].map { !$0.isEmpty && !$0.hasPrefix("+") } ?? false
+                // (A run whose Latin slot is the theme's East Asian font (+mn-ea) sets its spaces in that face.)
+                let latinIsEastAsianFace = rPr?.first("a:latin")?["typeface"].map { $0.hasSuffix("-ea") } ?? false
                 var sawLetter = false
                 let latinName = plain.fontFamily ?? ""
                 for ch in t.unicodeScalars {
@@ -4347,6 +4349,25 @@ private struct SlideContext {
                             at += piece.length
                             continue
                         }
+                    }
+                    if piece.script == "ea", !latinIsEastAsianFace, utf16[at ..< at + piece.length].contains(0x20) {
+                        // (A run of two or more ordinary spaces between East Asian letters is set in the Latin face too: a874c38f10a1 p63's
+                        // five spaces between 最高 and 最低 step 5.6 pt at 20 pt in PowerPoint's print, 0.28 em, not SimSun's 10.)
+                        var out: [(length: Int, script: String?)] = []
+                        var m = at
+                        let end = at + piece.length
+                        var changed = false
+                        while m < end {
+                            var e = m + 1
+                            if utf16[m] == 0x20 {
+                                while e < end, utf16[e] == 0x20 { e += 1 }
+                                if e - m >= 2 { out.append((e - m, nil)); changed = true; m = e; continue }
+                            }
+                            while e < end, !(utf16[e] == 0x20 && e + 1 < end && utf16[e + 1] == 0x20) { e += 1 }
+                            out.append((e - m, "ea"))
+                            m = e
+                        }
+                        if changed { split.append(contentsOf: out); at = end; continue }
                     }
                     if piece.script == nil, utf16[at ..< at + piece.length].contains(0x3000), utf16[at ..< at + piece.length].allSatisfy({ $0 == 0x3000 || $0 == 0x20 }) {
                         // An ideographic space is East Asian wherever it stands, also in a run of spaces alone
