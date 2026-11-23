@@ -172,8 +172,9 @@ echo "render-gate: PR build $(( $(date +%s)-TB )) s, load $(cut -d" " -f1-3 /pro
 # shared text/layout code (OfficeText, Slides, sdk, build files) still runs it.
 SLPID=""
 if [ "$MODE" = full ] && [ "${GATE_SLIDES:-1}" = 1 ] && [ "${GATE_PREBUILD:-0}" != 1 ]; then
-  if [ -n "${CH:-}" ] && ! echo "$CH" | grep -vE '^(docs/|test/(tools|corpus)/|apps/OfficeApp/Sources/OfficeApp/Docx\.swift$|apps/OfficeApp/Sources/(OfficeApp|OfficeText)/WordWindowsFaces\.swift$)' | grep -q .; then
-    echo "render-gate: Slides step skipped (Word-reader-only change)"
+  SHO=$(echo "$CH" | xargs python3 test/tools/sheets-only.py 2>/dev/null); [ -n "$SHO" ] || SHO=/nonexistent   # Sheets files only the Sheets path uses (test/tools/sheets-only.py)
+  if [ -n "${CH:-}" ] && ! echo "$CH" | grep -vE '^(docs/|test/(tools|corpus)/|apps/[A-Za-z]+/Tests/|apps/OfficeApp/Sources/OfficeApp/Docx\.swift$|apps/OfficeApp/Sources/(OfficeApp|OfficeText)/WordWindowsFaces\.swift$)' | grep -vxF "$SHO" | grep -q .; then
+    echo "render-gate: Slides step skipped (change touches only Word-reader, Sheets-only, docs or test-tool files)"
   else
     SLIDES_ONLY=${GATE_RECHECK_DECKS:-} LQ=$LQ BASE_BIN=$BC/$BSHA/release/OfficeApp BASE_CACHE=$BC/$BSHA/slides test/tools/slides-gate.sh "$(ls "$W"/build/*/release/OfficeApp | head -1)" 32 > "$W/slides.out" 2>&1 & SLPID=$!
   fi
@@ -242,7 +243,7 @@ if [ -n "${SLPID:-}" ]; then
 fi
 # Sheets step (amd-8, 2026-11-22): every workbook Excel printed, drawn by the PR binary and by the base (base cached per main sha in $BC/$BSHA/sheets),
 # compared per book on pixels and text lines (test/tools/sheets-gate.sh, ~40 s a side). GATE_SHEETS=0 turns it off. Skipped for Word-reader-only changes, as Slides.
-if [ "$MODE" = full ] && [ "${GATE_SHEETS:-1}" = 1 ] && [ "${GATE_PREBUILD:-0}" != 1 ] && ! { [ -n "${CH:-}" ] && ! echo "$CH" | grep -vE '^(docs/|test/(tools|corpus)/|apps/OfficeApp/Sources/OfficeApp/Docx\.swift$|apps/OfficeApp/Sources/(OfficeApp|OfficeText)/WordWindowsFaces\.swift$)' | grep -q .; }; then
+if [ "$MODE" = full ] && [ "${GATE_SHEETS:-1}" = 1 ] && [ "${GATE_PREBUILD:-0}" != 1 ] && ! { [ -n "${CH:-}" ] && ! echo "$CH" | grep -vE '^(docs/|test/(tools|corpus)/|apps/[A-Za-z]+/Tests/|apps/OfficeApp/Sources/OfficeApp/Docx\.swift$|apps/OfficeApp/Sources/(OfficeApp|OfficeText)/WordWindowsFaces\.swift$)' | grep -q .; }; then
   LQ=$LQ test/tools/sheets-gate.sh "$BIN" "$BASEBIN" "$BC/$BSHA/sheets" "${JOBS:-32}" > "$W/sheets.out" 2>&1; shrc=$?; tail -8 "$W/sheets.out" | cut -c1-200
   [ "$shrc" = 1 ] && { echo "render-gate: BLOCKED, Sheets books worse than the base (above)"; exit 1; }
 fi
