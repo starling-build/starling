@@ -3462,7 +3462,7 @@ enum ChartPainter {
                 && !(c.type == .line || c.type == .radar || c.type == .scatter)
             // (A 2013-style slide pie's legend: the key 0.449 of the legend's line, 3.2 pt at Malgun 9 pt's 12 -> the name 0.2 of it
             // after, in PowerPoint's print of ko-ab1bf295 p7: 7.17 and 3.25 pt; Calibri's 0.449 x 14.6 matches its 6.57.)
-            let pieKeyLine = printed && c.styled2013 && pie && c.pointRim != nil
+            let pieKeyLine = printed && c.styled2013 && (pie && c.pointRim != nil || !pie)
                 ? max(styled("X", size, .infinity, bold: c.legendBold, color: c.legendColor, part: "legend").height,
                       ["맑은 고딕", "malgun gothic"].contains((c.font ?? c.axisFont ?? theme.bodyFont ?? "").lowercased()) ? 1.3301 * size * k : 0) : 0
             // (An Excel legend row under a chart: key 0.5 of the size square, 0.22 to its name, 0.41 between entries — chart-tdf140489's print at 9 pt: 4.5, 2.0, 3.7.)
