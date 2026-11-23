@@ -2531,7 +2531,11 @@ enum ChartXML {
             // (A plain 2007 chart's text is 10 pt, so a stated 12 pt is a size of its own: 99f6ddd1 p23's value axis, sz 1200, is 12 pt in PowerPoint's print, 10 here.)
             c.valueLabelSize = sz / 100
         }
+        // (Columns on the value axis at the right, their own category axis deleted and the lines' shown: the names are the lines'
+        // axis': chart-testCombinedChartAxis.)
         let categoryAxis = type == .scatter ? axes.first { ["b", "t"].contains($0.first("c:axPos")?["val"] ?? "") }
+            : columnsOnRight && axes.first(where: { $0.name != "c:valAx" }).map({ ["1", "true"].contains($0.first("c:delete")?["val"] ?? "") }) == true
+                ? axes.first { $0.name != "c:valAx" && !["1", "true"].contains($0.first("c:delete")?["val"] ?? "") } ?? axes.first { $0.name != "c:valAx" }
             : axes.first { $0.name != "c:valAx" }
         c.categoryTicksOut = ["out", "cross"].contains(categoryAxis?.first("c:majorTickMark")?["val"] ?? "")
         if type == .scatter, let categoryAxis { c.scatterXGrid = categoryAxis.first("c:majorGridlines") != nil }
@@ -5475,7 +5479,7 @@ enum ChartPainter {
         }
         // (Columns on the value axis at the right, lines on one at the left: PowerPoint's b3af6b818144 p26 and p29 print each axis' labels
         // on its own side, so the layout reads the left set as the lines' and the right as the columns'.)
-        let swapSides = c.onSlide && c.columnsOnRight && !horizontal && c.type == .column && !secondLabelsRaw.isEmpty
+        let swapSides = (c.onSlide || c.onSheet) && c.columnsOnRight && !horizontal && c.type == .column && !secondLabelsRaw.isEmpty
         let valueLabels = swapSides ? secondLabelsRaw : valueLabelsRaw
         let secondLabels = swapSides ? valueLabelsRaw : secondLabelsRaw
         // (A format's last pad, `_)`, is part of the gap to the plot, not of the labels' width: lo-tdf149985's
