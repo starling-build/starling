@@ -157,9 +157,6 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     /// columns of 105 to 600 px, whose pad runs 9, 10, 11, 12, 14, 16.5 px, and to
     /// no_drawing_patriarch's 416 px URLs (room 397-402).
     static let screenFitPad = 7.5
-    static let screenFitPadGdi = 9.5
-    static let screenFitFloorGdi = 11.0
-    static let screenFitShareGdi = 0.015
     /// The least pad: 52716's rows and CVLKRA-KYC's remarks, in columns of 105-160 px, fit at 11 where the lab's rows fit at 10.
     static let screenFitFloor = 11.0
     static let screenFitShare = 0.0145
@@ -517,9 +514,10 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
                         let covered = text.unicodeScalars.allSatisfy { $0.value == 10 || $0.value == 13 || GdiAdvances.advance(gdiName, bold: st.bold, em: 27, $0.value) != nil }
                         if !st.italic, covered, GdiAdvances.faces.contains(gdiName) { style.gdi = gdiName }
                         let column = (chars * m.screenDigit).rounded(.down)
-                        // (GDI-measured rows are a width the dump gives whole; the older fit below belongs to the scaled-outline measure.)
-                        let gdi = !style.gdi.isEmpty
-                        let dp = gdi ? Self.screenFitPadGdi : Self.screenFitPad, dfl = gdi ? Self.screenFitFloorGdi : Self.screenFitFloor, dsh = gdi ? Self.screenFitShareGdi : Self.screenFitShare
+                        // (Measured by GDI advances the pad is the same fit as the scaled measure's up to an em of 29 px and grows with the em past it:
+                        // pad needed 13 px at a 207 px column of Arial 12 bold (em 32), 28+ at 1238 of Times 12, against 12.6 and 25 for the fit.)
+                        let grow = style.gdi.isEmpty ? 1.0 : max(1.0, style.screenEm / 29)
+                        let dp = Self.screenFitPad * grow, dfl = Self.screenFitFloor * grow, dsh = Self.screenFitShare * grow
                         width = (column - max(dfl, dp + dsh * column)).rounded(.down) * style.screen
                     }
                     // (Line breaks at the end draw nothing but are lines to the
