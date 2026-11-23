@@ -5368,6 +5368,15 @@ enum ChartPainter {
             if horizontal {
                 tp.paint(canvas, Offset(area.center.dx - tp.width / 2, area.bottom - tp.height))
                 area = Rect.fromLTRB(area.left, area.top, area.right, area.bottom - tp.height - 4 * k)
+            } else if c.valueAxisTitleAcross, c.onSheet {
+                // (Excel sets a value-axis title the file does not turn (rot 0) across, 7.8 pt in from the chart's inner edge, centred on the plot,
+                // and the labels start 4 pt past its end: chart-axis_title_rotation, 72 to 109 over labels from 113.)
+                let across = axisText(t, c.valueAxisTitleSize ?? titleSize, .infinity)
+                let widest = across.computeLineMetrics().map(\.width).max() ?? across.width
+                let plotTop = 0.61 * labelSize * k, plotFoot = 1.22 * (c.categoryLabelSize ?? c.baseTextSize) * k + 3.3
+                across.paint(canvas, Offset(area.left + 7.8 * k, area.center.dy + (plotTop - plotFoot) / 2 - across.height / 2))
+                area = Rect.fromLTRB(area.left + (7.8 + 4) * k + widest, area.top, area.right, area.bottom)
+                across.dispose()
             } else if c.valueAxisTitleAcross, writerChart {
                 // (Across, in a Word document: lines centred in a block the widest line and ten points wide,
                 // from the area's left, its middle over the plot's; they break at 18% of the chart — lo-6b6ece9c's
