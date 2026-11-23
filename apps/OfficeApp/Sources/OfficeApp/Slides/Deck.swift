@@ -563,6 +563,8 @@ final class SlideShape {
     var textStacked = 0
     /// `bodyPr vert="eaVert"`: its ideographs stand upright in the turned lines.
     var uprightIdeographs = false
+    /// An `eaVert` column set sideways (a cloud-delivered face): its one or two digits beside an ideograph stand upright all the same.
+    var sidewaysDigits = false
     /// The text turned about its own middle, degrees clockwise (a
     /// camera's `rev`, the other way).
     var textSpin = 0.0
