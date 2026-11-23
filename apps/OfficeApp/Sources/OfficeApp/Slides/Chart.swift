@@ -5607,8 +5607,11 @@ enum ChartPainter {
             // (A slide chart with its value axis deleted has no value labels beside the plot, and the plot takes the room: ko-c03ed80e p21's
             // nine names in 71.75 pt slots, "전력소모가 적은" on one line in PowerPoint's print, ours broke it after "전력소모가".)
             let besideNone = c.onSlide && c.valueAxisDeleted && c.plotLayout == nil && valueLabels.allSatisfy { $0.width == 0 }
+            // (A plain Word column chart's names wrap at its whole slot, measured on the plot Word really lays out (6.3 pt wider than the estimate: value labels 1.8 closer, 2.5 more left, 2.0 more right):
+            // sa1 90385e38e1 p4, "Una vez x día" (53.2 pt) stays on one line in a 53.85 pt slot and "Biblioteca o" (47.7) in 49.2, ours broke both with 2 pt off the slot.)
+            let plainWordColumn = !c.onSlide && !c.onSheet && !c.styled2013 && !c.chartex && c.axisFont == nil && c.type == .column && c.barView == nil && c.plotLayout == nil
             let beside = horizontal || (placed != nil && c.plotLayoutInner) || besideNone ? 0
-                : (valueLabels.map(\.width).max() ?? 0) - padTail + (c.styled2013 ? 8.5 : 11.1) * k + 4 * k
+                : (valueLabels.map(\.width).max() ?? 0) - padTail + (c.styled2013 ? 8.5 : 11.1) * k + 4 * k - (plainWordColumn ? (11.1 - 0.927 * (c.valueLabelSize ?? c.baseTextSize) + 4.5) * k : 0)
             let slot = ((horizontal ? along.height : along.width) - beside) / Double(n)
             // (A 3-D bar chart's names in a Word document wrap at half the chart, not a fifth: sa2 fee2a9e5687's 187.7 pt "Limpeza, higiene e
             // segurança dos equipamentos utilizados" is one line in Word's print, and "Oportunidade ... expressar sua" breaks before "opinião".)
@@ -5647,7 +5650,7 @@ enum ChartPainter {
                 }
                 return out
             }
-            catLabels = c.categories.map { n in categoryText(c.categoryAxisDeleted ? "" : holdWords(n), catSize, slotName(n, horizontal ? (c.categoryLevels.isEmpty && !(c.valueReversed && c.onSlide) ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : c.onEdges && c.type == .line ? slot * Double(c.categories.count) / Double(c.categories.count - 1) * Double(max(1, c.categoryLabelSkip)) : max(slot * Double(max(1, c.categoryLabelSkip)) - (c.onSlide ? 4.5 : 2) * k, 8 * k))) }
+            catLabels = c.categories.map { n in categoryText(c.categoryAxisDeleted ? "" : holdWords(n), catSize, slotName(n, horizontal ? (c.categoryLevels.isEmpty && !(c.valueReversed && c.onSlide) ? barNameWidth : .infinity) : c.categoryLabelsSparse ? .infinity : c.onEdges && c.type == .line ? slot * Double(c.categories.count) / Double(c.categories.count - 1) * Double(max(1, c.categoryLabelSkip)) : max(slot * Double(max(1, c.categoryLabelSkip)) - (c.onSlide ? 4.5 : !c.onSheet && !c.styled2013 && !c.chartex && c.axisFont == nil && c.type == .column && c.barView == nil ? 0 : 2) * k, 8 * k))) }
             if !horizontal, c.type != .area, !c.categoryAxisDeleted, let turn = c.categoryLabelTurn {
                 // As the file says: turned (up to a quarter, either way) or
                 // level.
