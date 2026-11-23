@@ -133,7 +133,8 @@ extension RichLayout {
               !(RichTextTheme.wordWindowsPages && !wholeRow && Self._partedFrame(ts)),
               (i ..< j).contains(where: { k in
                   document.paragraphs[k].cell.map { d in !(d.bordersXML ?? "").containsSubstring("<w:top ") && d.edges?.top == nil } ?? false
-              }) || Self._rowHasContinuedTopUnsaid(i, document) else { return 0 }
+              }) || Self._rowHasContinuedTopUnsaid(i, document)
+                || (document.tableStyles[c.table]?.cellSpacing != nil && !(document.tableStyles[c.table]?.rowsUnspaced.contains(c.row) ?? false)) else { return 0 }
         // (A table that states its cell spacing, even none, rules each cell on its own: the table's top line framing the row opening a
         // page stands over the row's own top line, not in place of it. zh-15f60bacd's tables, cell spacing 0 over 0.5pt lines: every
         // page they go on over opens 0.5pt lower in Word's print than ours.)
