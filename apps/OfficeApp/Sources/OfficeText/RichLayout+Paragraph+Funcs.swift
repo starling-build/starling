@@ -1825,7 +1825,7 @@ extension _ParaFrame {
                document.paragraphs[i].text.containsSubstring(" ") || (textTail && document.paragraphs[i].text.containsSubstring("\t")),
                // (Pictures, not equations, all on one line: a first line of spaces that the picture then wraps from keeps
                // its own text line — dx2 pl fa1371a3.)
-               inline.allSatisfy({ $0.image.map { $0.name != "m:oMath" && ($0.float == nil || document.paragraphs[i].text.unicodeScalars.allSatisfy { $0.value == 0xFFFC || $0.value == 0x20 || $0.value == 0x09 }) } ?? false }),
+               inline.allSatisfy({ $0.image.map { $0.name != "m:oMath" } ?? false }),
                painter.computeLineMetrics().count == 1 {
                 func bare(_ s: InlineSpan) -> InlineSpan {
                     guard let t = s as? TextSpan else { return s }
