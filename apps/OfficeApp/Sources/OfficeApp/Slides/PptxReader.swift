@@ -647,6 +647,17 @@ struct LevelStyle {
         s.eaFont = r.first("a:ea")?["typeface"].flatMap { $0.isEmpty ? nil : $0 }
         s.lang = r["lang"].flatMap { $0.isEmpty ? nil : $0 }
         s.altLang = r["altLang"].flatMap { $0.isEmpty ? nil : $0 }
+        // (An East Asian face PowerPoint does not have, named in a Traditional Chinese run and declared with the Big5 charset (-120), is
+        // drawn in Microsoft JhengHei, Latin letters and ideographs alike, at JhengHei's advances: lab tcfall2, 5 faces x 4 attribute
+        // variants, lines within 0.5 pt. With no charset the Latin letters are narrower (JhengHei UI's, not yet measured), and the GB2312,
+        // Shift-JIS and Hangul charsets draw yet other Latin: those are left as they were.)
+        if let lang = (s.lang ?? s.altLang)?.lowercased(), ["zh-tw", "zh-hk", "zh-mo", "zh-hant"].contains(lang),
+           r.first("a:ea")?["charset"] == "-120", let ea = s.eaFont,
+           ea.unicodeScalars.contains(where: { $0.value >= 0x4E00 && $0.value <= 0x9FFF }),
+           !WordWindowsFaces.names.contains(ea.trimmingWhitespace().lowercased()), !SlideFonts.isEmbedded(ea) {
+            if s.font == ea { s.font = "Microsoft JhengHei" }
+            s.eaFont = "Microsoft JhengHei"
+        }
         if let fill = r.first("a:solidFill") { s.color = colors.color(in: fill) }
         // Text filled with a gradient is drawn as such in WordArt (its run
         // looks); elsewhere in the gradient's middle colour, not the black
