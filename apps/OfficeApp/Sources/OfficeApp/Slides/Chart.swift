@@ -3743,7 +3743,9 @@ enum ChartPainter {
                     RuleTrace.hit("slide-placed-bottom-legend-keeps-its-row-below-the-plot")
                     area = Rect.fromLTRB(area.left, area.top, area.right, min(area.bottom, r.top + box.top * r.height - 8.4 * k - 2.23))
                 }
-                if !pie, !c.onSlide, !c.onSheet, c.plotLayout == nil, c.legendPosition == "b" {
+                // (A sheet's too: Excel's print of chart-legend_manual_layout, the legend moved to the top, ends the plot 21 pt
+                // above where ours did, the bottom legend's row kept.)
+                if !pie, !c.onSlide, c.plotLayout == nil, c.legendPosition == "b" {
                     RuleTrace.hit("legend-box-keeps-its-row-below-the-plot")
                     area = Rect.fromLTRB(area.left, area.top, area.right,
                                          area.bottom - 1.2 * k - lineH - 8.4 * k)
