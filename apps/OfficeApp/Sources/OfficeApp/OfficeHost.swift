@@ -22,6 +22,40 @@ enum OfficeHost {
     /// document at `path`, whatever its kind.
     static var openPath: ((String) -> Void)?
 
+    /// One button of the native toolbar over the on-screen keyboard. `symbol`
+    /// is an SF Symbol name; state is a snapshot, re-published when it changes.
+    struct ToolbarButton {
+        let id: String
+        let title: String
+        let symbol: String
+        var isOn = false
+        var isEnabled = true
+        let action: () -> Void
+    }
+
+    /// Set by a host that draws a native toolbar. The editor in front
+    /// publishes its buttons through it, and publishes nil when it goes away,
+    /// so a deck or a workbook shows none.
+    static var toolbarChanged: (([ToolbarButton]?) -> Void)?
+
+    private nonisolated(unsafe) static var toolbarOwner: ObjectIdentifier?
+
+    /// Publish `buttons` for `owner`, or withdraw them (nil). A new editor
+    /// mounts before the one it replaces is disposed, so a withdrawal counts
+    /// only from whoever published last; otherwise the old one's dispose would
+    /// wipe the new one's bar.
+    static func publishToolbar(_ buttons: [ToolbarButton]?, owner: AnyObject) {
+        guard let changed = toolbarChanged else { return }
+        if buttons != nil {
+            toolbarOwner = ObjectIdentifier(owner)
+        } else if toolbarOwner != ObjectIdentifier(owner) {
+            return
+        } else {
+            toolbarOwner = nil
+        }
+        changed(buttons)
+    }
+
     /// Writes an empty document of `kind` to `path`. Used by the host's own
     /// "New" so a blank file exists before the editor opens it.
     static func writeBlank(kind: String, to path: String) -> Bool {

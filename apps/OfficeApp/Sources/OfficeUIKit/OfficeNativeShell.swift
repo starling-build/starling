@@ -51,6 +51,17 @@ public enum OfficeNativeShell {
         shared?.writeBack(path)
     }
 
+    /// The buttons of the bar over the keyboard (nil: none). Safe to call on
+    /// the main thread only.
+    public static func setToolbar(_ buttons: [OfficeToolbarButton]?) {
+        latestToolbar = buttons
+        shared?.toolbar.update(buttons)
+    }
+
+    /// The last buttons published, kept for an editor that mounted before the
+    /// browser had the bar in its view.
+    nonisolated(unsafe) fileprivate static var latestToolbar: [OfficeToolbarButton]?
+
     /// Whether a document is being edited right now.
     public static var isEditing: Bool { shared?.session != nil }
 
@@ -88,11 +99,13 @@ private final class EditingSession {
 
 final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocumentBrowserViewControllerDelegate {
     private let editor: UIViewController
+    fileprivate let toolbar: EditorToolbar
     fileprivate var session: EditingSession?
     private let queue = DispatchQueue(label: "office.writeback")
 
     init(editor: UIViewController) {
         self.editor = editor
+        self.toolbar = EditorToolbar(host: editor)
         let types = [
             "org.openxmlformats.wordprocessingml.document",
             "org.openxmlformats.presentationml.presentation",
@@ -167,7 +180,11 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
             // The document is handed over once the editor is on screen: the
             // engine only takes a frame request while its view is attached,
             // and a setState before that is a frame that is never drawn.
-            present(editor, animated: true) { OfficeNativeShell.onOpenDocument?(path) }
+            present(editor, animated: true) {
+                self.toolbar.attach()
+                self.toolbar.update(OfficeNativeShell.latestToolbar)
+                OfficeNativeShell.onOpenDocument?(path)
+            }
         } else {
             OfficeNativeShell.onOpenDocument?(path)
         }

@@ -802,6 +802,12 @@ if initialPath == nil && siteArg == nil && wikiBase == nil {
     OfficeNativeShell.makeBlank = { OfficeHost.writeBlank(kind: $0, to: $1) }
     OfficeHost.documentSaved = { OfficeNativeShell.documentSaved($0) }
     OfficeHost.openRequested = { OfficeNativeShell.showBrowser(); return true }
+    OfficeHost.toolbarChanged = { buttons in
+        OfficeNativeShell.setToolbar(buttons?.map {
+            OfficeToolbarButton(id: $0.id, title: $0.title, symbol: $0.symbol,
+                                isOn: $0.isOn, isEnabled: $0.isEnabled, action: $0.action)
+        })
+    }
 }
 #endif
 
