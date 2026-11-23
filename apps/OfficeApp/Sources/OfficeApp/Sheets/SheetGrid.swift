@@ -2605,8 +2605,11 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         let dots = printing && printTextScale > 0 ? printTextScale / scale * 600 / 72 : 0
         let face = OfficeFonts.sheetFace(book.fontName(st))
         var hint = ""
+        var gdi = ""
         if dots > 0 {
             var name = book.fontName(st).trimmingWhitespace().lowercased()
+            let gdiName = name == "宋体" ? "simsun" : name == "微软雅黑" ? "microsoft yahei" : name
+            if !st.italic, GdiAdvances.faces.contains(gdiName) { gdi = gdiName }
             if face == "Arial" { name = "arial" }
             let key = name + (st.bold ? " bold" : "") + (st.italic ? " italic" : "")
             if SheetHinting.has(key), name == "arial" || name == "times new roman" || OfficeFonts.sheetFaceIsOwn(name) { hint = key }
@@ -2622,6 +2625,7 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
         var style = GridTextStyle(family: face,
                              size: size, bold: st.bold, italic: st.italic,
                              underline: st.underline, strike: st.strike, color: c, dots: dots, hint: hint)
+        style.gdi = gdi
         let lower = book.fontName(st).trimmingWhitespace().lowercased()
         if printing { style.myanmar = true; style.kannada = true }
         if printing, face == OfficeFonts.sans || face == "Arial" || lower == "calibri" { style.arabicArial = true }
@@ -3283,6 +3287,9 @@ struct GridTextStyle: Hashable {
     /// The face whose hinted widths it is set to (`SheetHinting`), where
     /// what draws it has that face's advances; "" for none.
     var hint = ""
+    /// The face (lower case) whose GDI advances at the print's whole em (`GdiAdvances`) set each
+    /// character it lists, as Excel's print does; "" for none.
+    var gdi = ""
     /// The face whose own widths it is set to, where Excel's face has none
     /// in the stand-in that draws it ("aptos narrow", lower case); "" for none.
     var own = ""
@@ -3425,6 +3432,10 @@ final class _TextCache {
         // 36 pt it breaks.)
         let exact = (style.size * style.dots * 1e6).rounded() / 1e6
         let em = exact.rounded(.toNearestOrEven)
+        if !style.gdi.isEmpty, ch.unicodeScalars.count == 1, let v = ch.unicodeScalars.first?.value,
+           let g = GdiAdvances.advance(style.gdi, bold: style.bold, em: Int(em), v) {
+            return Double(g) / style.dots
+        }
         let hinted = style.hint.isEmpty ? 0 : SheetHinting.departure(style.hint, em: Int(em), ch)
         return ((a / style.size * em).rounded() + Double(hinted)) / style.dots
     }
