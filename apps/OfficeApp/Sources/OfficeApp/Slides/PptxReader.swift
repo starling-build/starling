@@ -4361,6 +4361,9 @@ private struct SlideContext {
                     if piece.script == "ea", !latinIsEastAsianFace, utf16[at ..< at + piece.length].contains(0x20) {
                         // (A run of two or more ordinary spaces between East Asian letters is set in the Latin face too: a874c38f10a1 p63's
                         // five spaces between 最高 and 最低 step 5.6 pt at 20 pt in PowerPoint's print, 0.28 em, not SimSun's 10.)
+                        // (PMingLiU is not on PowerPoint's print box: a single space between ideographs of a run in it steps the Latin face's
+                        // 0.25 em, 0b068d237320 p45's 6.7 pt at 28 pt, not the fallback's 14.)
+                        let proportionalMing = ["pmingliu", "新細明體"].contains((_eaFont(s.eaFont ?? s.font, scalar: 0x4E00, lang: s.lang, latin: s.font) ?? "").lowercased())
                         var out: [(length: Int, script: String?)] = []
                         var m = at
                         let end = at + piece.length
@@ -4369,7 +4372,7 @@ private struct SlideContext {
                             var e = m + 1
                             if utf16[m] == 0x20 {
                                 while e < end, utf16[e] == 0x20 { e += 1 }
-                                if e - m >= 2 { out.append((e - m, nil)); changed = true; m = e; continue }
+                                if e - m >= 2 || proportionalMing { out.append((e - m, nil)); changed = true; m = e; continue }
                             }
                             while e < end, !(utf16[e] == 0x20 && e + 1 < end && utf16[e + 1] == 0x20) { e += 1 }
                             out.append((e - m, "ea"))
