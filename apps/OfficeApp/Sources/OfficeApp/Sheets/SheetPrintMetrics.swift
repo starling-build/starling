@@ -320,6 +320,11 @@ struct SheetPrintMetrics {
     /// A theme-font Normal face Excel's print box fits the unsized rows in by its stored default height (labs korow3: 맑은 고딕's 17 prints
     /// 17.25 and 15 prints 15.25). The other East Asian faces measured (宋体, ＭＳ Ｐゴシック, 新細明體, 游ゴシック) print at Calibri's fit whatever
     /// default they store: that box does not have them.
+    /// A face the print box has installed (even as a cloud font) that the tables have no measure of: its rows print at the height the book stored.
+    static func isInstalledUnmeasured(_ family: String) -> Bool {
+        let n = family.trimmingWhitespace().lowercased()
+        return faces[aliases[n] ?? n] == nil && SheetInstalledFonts.names.contains(n)
+    }
     static func fitsRowsInOwnFace(_ name: String) -> Bool { name == "맑은 고딕" || name.lowercased() == "malgun gothic" }
 
     static func of(family: String, size: Double, bold: Bool = false, baseColWidth: Double = 8, hinted: Bool = false, otherBook: Bool = false) -> SheetPrintMetrics {
