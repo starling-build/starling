@@ -3786,7 +3786,7 @@ enum ChartPainter {
                 // (A box under a legend said to stand at the right, the plot left to Word: the plot
                 // still gives up a legend column's room — lo-1e8fa600's full-width box, its plot
                 // ending 58pt short of where ours did in Word's print.)
-                if !pie, !c.onSlide, !c.onSheet, c.plotLayout == nil, c.legendPosition == "r", !c.legendOverlay {
+                if !pie, !c.onSheet, c.plotLayout == nil, c.legendPosition == "r", !c.legendOverlay {
                     RuleTrace.hit("legend-box-keeps-its-column-beside-the-plot")
                     area = Rect.fromLTRB(area.left, area.top, area.right - columnW - 9 * k, area.bottom)
                 }
