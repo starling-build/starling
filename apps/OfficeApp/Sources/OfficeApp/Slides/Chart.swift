@@ -5804,6 +5804,8 @@ enum ChartPainter {
             // (A 2007-style chart's plot starts 2.6 pt further off its
             // value labels — line- and scatter-chart's at 152.3, the
             // labels where ours are.)
+            // (A sheet chart whose value axis has ticks out: the plot starts 0.773 of a label line height, less 6, from the labels, and the labels
+            // end 3.9 closer to the plot than the 8.5 pt gap: Excel prints of 14 such books (tdf130657 plot 354.5 to 350.5 = Excel, labels 290.8 to 294.7), mean error 78.4 to 73.9 pt over 150 books, no book worse.)
             // (A 2013-style slide chart with no value-axis ticks: the value labels end off the axis by 0.773 of their line
             // height, as a bar chart's names do (#1606), not a fixed 8.5 pt: PowerPoint's print of 6de30c85 p3, Calibri 18 pt,
             // 16.7 pt off, plot at 175.0, where ours stood 11.0 off at 169.3. The labels move out with the plot.)
@@ -5812,8 +5814,9 @@ enum ChartPainter {
             // labels ending 132.1, as Word's print has them.)
             let wordPlainCol = !libre && !c.styled2013 && !c.chartex && c.type == .column && c.barView == nil && c.plotLayout == nil && !horizontal && !c.onSheet && !c.onSlide
             let valGap: Double = (c.onSlide && c.styled2013 && !c.chartex && !c.valueTicksOut && !word && !libre && (valueLabels.first?.height ?? 0) > 0)
-                ? max(8.5, 0.773 * (valueLabels.first?.height ?? 0) / k - 2.9) : (c.styled2013 ? 8.5 : wordPlainCol ? 0.927 * labelSize : 11.1)
+                ? max(8.5, 0.773 * (valueLabels.first?.height ?? 0) / k - 2.9) : (c.onSheet && !c.styled2013 && c.valueTicksOut && (valueLabels.first?.height ?? 0) > 0 ? 0.773 * (valueLabels.first?.height ?? 0) / k - 6.0 : (c.styled2013 ? 8.5 : wordPlainCol ? 0.927 * labelSize : 11.1))
             if wordPlainCol { valueLabelsBack = (11.1 - valGap) * k }
+            if c.onSheet && !c.styled2013 && c.valueTicksOut { valueLabelsBack = 3.9; RuleTrace.hit("sheet-value-labels-stand-off-by-their-line-height") }
             if c.styled2013, valGap > 8.5 { valueLabelsBack = -(valGap - 8.5) * k; RuleTrace.hit("slide-value-labels-stand-off-by-their-line-height") }
             // (A 2007-style chart on a slide: its value labels stand off the plot by 0.927 of their size, whether or not the axis has ticks or a
             // line: PowerPoint's print of a 27-chart lab, 6 pt 5.5 off, 8 pt 7.4, 10 pt 9.3, 12 pt 11.1, 18 pt 16.7, with ticks out or none, line or none.)
