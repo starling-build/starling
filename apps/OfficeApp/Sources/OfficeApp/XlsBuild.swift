@@ -248,6 +248,7 @@ enum XlsBuild {
         var merges: [String] = []
         var cfGroups: [(sqref: String, base: (Int, Int), rules: [String])] = []
         var validations: [String] = []
+        var tabColor = ""
         var hyperlinks: [String] = []
         var cfPriority = 0
         var defColWidth: Int? = nil, stdWidth: Int? = nil
@@ -492,6 +493,16 @@ enum XlsBuild {
                 if ct == 1, op == 1 || op == 2, let f2v = f2 { rule += "<formula>\(esc(f2v))</formula>" }
                 rule += "</cfRule>"
                 cfGroups[cfGroups.count - 1].rules.append(rule)
+            case 0x862 where rec.body.count >= 32:
+                // SheetExt: after the header, a size, two flag words, then the tab colour's kind and value.
+                let b = rec.body
+                let kind = Int(b[24]) | Int(b[25]) << 8
+                if kind == 2, rec.body.count >= 31 { 
+                    let hx = b[28 ... 30].map { (String($0, radix: 16, uppercase: true).count == 1 ? "0" : "") + String($0, radix: 16, uppercase: true) }.joined()
+                    tabColor = "<tabColor rgb=\"FF\(hx)\"/>"
+                }
+                else if kind == 3 { tabColor = "<tabColor theme=\"\(Int(b[28]))\"/>" }
+                else if kind == 1 { tabColor = "<tabColor indexed=\"\(Int(b[28]))\"/>" }
             case 0x1BE where rec.body.count >= 20:
                 // DV: flags, four texts (prompt title, error title, prompt, error), two formulas, the cells.
                 let fl = Int(c.u32())
@@ -586,8 +597,8 @@ enum XlsBuild {
             }
         }
         var x = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">"
-        if fitToPage || !summaryBelow || !summaryRight {
-            x += "<sheetPr>"
+        if fitToPage || !summaryBelow || !summaryRight || !tabColor.isEmpty {
+            x += "<sheetPr>" + tabColor
             if !summaryBelow || !summaryRight { x += "<outlinePr" + (summaryBelow ? "" : " summaryBelow=\"0\"") + (summaryRight ? "" : " summaryRight=\"0\"") + "/>" }
             if fitToPage { x += "<pageSetUpPr fitToPage=\"1\"/>" }
             x += "</sheetPr>"
