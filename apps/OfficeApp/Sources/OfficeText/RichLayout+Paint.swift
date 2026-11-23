@@ -1868,7 +1868,9 @@ extension RichLayout {
                 // pitch; the line keeps the dots between the text and the number that fit the grid.)
                 if RichTextTheme.wordWindowsPages, leader.fill.count == 1, one.width > 0.5 {
                     let px = _px(72.0 / 600.0)
-                    let pitch = max(px, (one.width / px).rounded() * px)
+                    // (the advance is taken at a whole-pixel em: 14 pt is 117 px, not 116.67; zh-06c46ba9 Calibri 14 dots every 3.60 pt)
+                    let emPx = max(1.0, ((style.fontSize ?? 0) / px).rounded())
+                    let pitch = max(px, ((style.fontSize ?? 0) > 0 ? one.width / style.fontSize! * emPx : one.width / px).rounded() * px)
                     let origin = _px(_setup(ofParagraph: i).marginLeft)
                     let left = origin + g.textLeft + box.left, right = origin + g.textLeft + box.right
                     let first = (left / pitch - 1e-6).rounded(.up)
