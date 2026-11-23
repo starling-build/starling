@@ -163,6 +163,8 @@ final class XlsContainerTests: XCTestCase {
         XCTAssertFalse(noPls.containsSubstring("scale="))
         XCTAssertFalse(noPls.containsSubstring("paperSize"))
         XCTAssertTrue(noPls.containsSubstring("orientation=\"portrait\""))
+        // fNoOrient: the orientation bit is ignored, the page is portrait.
+        XCTAssertTrue(page(0x40).containsSubstring("orientation=\"portrait\""))
     }
 
     func testFormulaTokensBecomeFormulaText() {
