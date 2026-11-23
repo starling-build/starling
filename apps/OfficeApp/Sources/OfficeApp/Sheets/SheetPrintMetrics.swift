@@ -134,7 +134,9 @@ struct SheetPrintMetrics {
         "georgia": Face(digit: [41, 46, 51, 54, 56, 61, 72, 82, 92], row: [85, 94, 104, 108, 113, 122, 141, 160, 180], screenRow: [27, 31, 34, 35, 36, 40, 46, 53, 60],
             screenDigit: [13, 15, 17, 17, 18, 20, 23, 26, 29]),
         "trebuchet ms": Face(digit: [35, 39, 44, 46, 48, 52, 61, 70, 79], row: [92, 103, 113, 118, 124, 133, 154, 174, 195], screenRow: [28, 31, 37, 38, 38, 41, 48, 56, 62],
-            screenDigit: [11, 13, 14, 15, 15, 17, 19, 23, 25]),
+            // (Excel's own print of Trebuchet MS rows at every size 12-26, lab/trebrow, as screen px: 12 41, 13 45, 14 48, 15 51, 16 56,
+            // 17 58, 18 62, 19 66, 20 68, 21 73, 22 75, 23 79, 24 82, 25 86, 26 89; the sizes between the table's points stood off by a px.)
+            screenDigit: [11, 13, 14, 15, 15, 17, 19, 23, 25], offTable: [15: 51, 17: 58, 19: 66, 20: 68, 21: 73, 22: 75, 24: 82, 26: 89]),
         "century gothic": Face(digit: [37, 42, 46, 49, 51, 55, 65, 74, 83], row: [91, 99, 108, 116, 119, 128, 151, 169, 193], screenRow: [26, 32, 35, 36, 38, 41, 46, 54, 61],
             screenDigit: [12, 13, 15, 16, 16, 18, 21, 24, 27]),
         "malgun gothic": Face(digit: [37, 41, 46, 48, 51, 55, 64, 73, 83], row: [102, 114, 124, 130, 139, 149, 172, 192, 219], screenRow: [35, 35, 42, 42, 45, 51, 55, 66, 72],

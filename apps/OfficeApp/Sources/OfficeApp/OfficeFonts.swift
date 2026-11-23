@@ -4617,6 +4617,17 @@ enum OfficeFonts {
     /// Word's line and baseline for it but none of the widths, scales or
     /// substitutes that make a stand-in pass for it.
     static func face(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
+        guard var f = faceUncentred(family, eastAsian: eastAsian) else { return nil }
+        // (Where Word centres a line in an exact one — `w:textAlignment` "center" — lab ctr-exact (Word for Windows, 12 and 16pt
+        // in 27 and 22.5pt exact lines): Times' line box for it leaves out the line gap its baseline stands under, 0.021 em
+        // (ours stood 0.25-0.38pt low); Microsoft JhengHei's stands 0.037 em lower than half its 1.729 (0.40-0.65pt low).
+        // DFKai-SB, SimSun and YaHei matched.)
+        if f.family == wordSerif { f.centreLift = 0.021 }
+        else if let n = family?.lowercased(), (n.containsSubstring("jhenghei") || n.containsSubstring("微軟正黑")), !n.containsSubstring(" ui") { f.centreLift = 0.037 }
+        return f
+    }
+
+    private static func faceUncentred(_ family: String?, eastAsian: Bool) -> RichResolvedFace? {
         let face = standInFace(family, eastAsian: eastAsian)
         guard let family, let face else { return face }
         guard let own = installed(family) ?? installedOriginal(of: face.family, for: family, math: face.setsMath) else { return face }

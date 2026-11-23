@@ -473,7 +473,7 @@ extension SheetGridState {
                                                  width: { ca.size($0) }, height: { ra.size($0) })
                 // (With titles repeating, no page is blank: Excel prints them all.)
                 if names.titleRows != nil || names.titleCols != nil { return job }
-                return (_withoutTrailingBlanks(job.pages, ws: ws, book: book, overThenDown: setup.overThenDown, styledBlanks: !names.areas.isEmpty), job.scale)
+                return (_withoutTrailingBlanks(job.pages, ws: ws, book: book, overThenDown: setup.overThenDown, styledBlanks: !names.areas.isEmpty, usedRows: names.areas.isEmpty ? nil : used.top ... used.bottom), job.scale)
             }
             parts.append(Part(sheet: si, setup: setup, names: names, jobs: jobs))
         }
@@ -493,7 +493,7 @@ extension SheetGridState {
     /// last page that has anything on it — a value, a fill or border, a
     /// merged area, a drawing, text running in from a neighbour. A blank
     /// page between printed ones stays, and the first always does.
-    private func _withoutTrailingBlanks(_ pages: [SheetPage], ws: Worksheet, book: Workbook, overThenDown: Bool, styledBlanks: Bool = false) -> [SheetPage] {
+    private func _withoutTrailingBlanks(_ pages: [SheetPage], ws: Worksheet, book: Workbook, overThenDown: Bool, styledBlanks: Bool = false, usedRows: ClosedRange<Int>? = nil) -> [SheetPage] {
         guard pages.count > 1 else { return pages }
         // Each row and column to the band it prints in.
         var rowBands: [[Int]] = [], colBands: [[Int]] = []
@@ -547,6 +547,9 @@ extension SheetGridState {
             cover(d.anchor, line: isLine)
         }
         for o in ws.objects where !o.screenOnly { cover(o.anchor) }
+        // (Inside a print area, a page whose rows lie within the sheet's used rows is printed even if the
+        // area holds nothing there: en-7e987a08ce's A1:A86 with its text in column B is six pages in Excel.)
+        if let ur = usedRows { for r in rowBands.indices where rowBands[r].contains(where: { ur.contains($0) }) { for c in colBands.indices { filled.insert([r, c]) } } }
         // Only from the end: a blank page with a printed one after it stays.
         var kept = pages
         while kept.count > 1, let last = kept.last,
