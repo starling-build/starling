@@ -84,6 +84,8 @@ final class OfficeSession {
     /// body being edited (the shell points this at it), so the Font and
     /// Paragraph groups, undo and the clipboard work unchanged.
     var controller = RichDocumentController()
+    /// The line the Borders menu applies to a cell's sides (table layout tab).
+    var cellPen = CellBorderLine()
     /// The deck, in Slides.
     let deck: DeckController?
     /// The workbook, in Sheets.
