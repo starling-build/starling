@@ -271,4 +271,43 @@ final class PptContainerTests: XCTestCase {
         XCTAssertFalse(xml.contains("i=\""), xml)
         XCTAssertFalse(xml.contains("marL"), xml)
     }
+
+    func testMasterTextStylesReachPlaceholdersWithoutTheirOwnRuns() throws {
+        func persist(_ id: Int, _ slideId: Int) -> [UInt8] { rec(0x03F3, le32(id) + le32(0) + le32(1) + le32(slideId) + le32(0)) }
+        var atom: [UInt8] = le32(5760) + le32(4320)
+        atom += [UInt8](repeating: 0, count: 22)
+        atom += le16(1)
+        atom += [UInt8](repeating: 0, count: 6)
+        var kids = rec(0x03E9, atom)
+        kids += rec(0x0FF0, ver: 15, inst: 1, persist(2, 0x8000_0000))
+        kids += rec(0x0FF0, ver: 15, inst: 0, persist(3, 256))
+        var d = rec(0x03E8, ver: 15, kids)
+        // Body style, two levels: level 1 has a bullet "•", left margin 300 and 28 pt; level 2 only 24 pt.
+        var style: [UInt8] = le16(2)
+        style += le32(0x1 | 0x80 | 0x100) + le16(1) + le16(0x2022) + le16(300)
+        style += le32(0x2_0000) + le16(28)
+        style += le32(0) + le32(0x2_0000) + le16(24)
+        let master = rec(0x03F8, ver: 15, rec(0x03EF, [UInt8](repeating: 0, count: 24)) + rec(0x0FA3, inst: 1, style))
+        let bodyShape = rec(0xF004, ver: 15, rec(0xF00A, ver: 2, inst: 1, le32(2) + le32(0x400)) + rec(0xF010, le16(100) + le16(100) + le16(2000) + le16(900))
+            + rec(0xF011, ver: 15, rec(0x0BC3, le32(0) + [14, 0, 0, 0])) + rec(0xF00D, ver: 15, rec(0x0F9F, le32(1)) + rec(0x0FA8, Array("Body".utf8))))
+        let top = rec(0xF003, ver: 15, rec(0xF004, ver: 15, rec(0xF00A, ver: 2, inst: 0, le32(1) + le32(5))) + bodyShape)
+        let slide = rec(0x03EE, ver: 15, rec(0x03EF, [UInt8](repeating: 0, count: 12) + le32(0x8000_0000) + le32(0) + le16(7) + le16(0)) + rec(0x040C, ver: 15, rec(0xF002, ver: 15, top)))
+        var offs: [Int] = []
+        for p in [master, slide] { offs.append(d.count); d += p }
+        let dir = d.count
+        d += directory([(1, [0]), (2, [offs[0]]), (3, [offs[1]])])
+        let edit = d.count
+        d += userEdit(lastEdit: 0, directory: dir, document: 1)
+        let f = try PptFile(currentUser: currentUser(offset: edit), document: d)
+        XCTAssertEqual(f.masters[0].textStyles[1]?.count, 2)
+        XCTAssertEqual(f.masters[0].textStyles[1]?[0].char.size, 28)
+        XCTAssertEqual(f.masters[0].textStyles[1]?[1].para.leftMargin, nil)
+        let xml = f.textStylesXML(of: f.masters[0])
+        XCTAssertTrue(xml.contains("<a:lvl1pPr marL=\"\(PptBuild.emu(300))\">"), xml)
+        XCTAssertTrue(xml.contains("<a:buChar char=\"\u{2022}\"/>"), xml)
+        XCTAssertTrue(xml.contains("<a:defRPr sz=\"2800\"/>"), xml)
+        XCTAssertTrue(xml.contains("<a:lvl2pPr><a:defRPr sz=\"2400\"/></a:lvl2pPr>"), xml)
+        let (state, _, _) = try PptxReader(PptxPackage(PptBuild.parts(f))).read()
+        XCTAssertEqual(state.slides[0].shapes.first?.text?.paragraphs.first?.runs.first?.style.fontSize, 28)
+    }
 }

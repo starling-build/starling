@@ -27,6 +27,8 @@ struct PptFile {
         var background: Int? = nil
         /// The text of a slide's placeholders, in SlideListWithText order (what OutlineTextRefAtom indexes).
         var texts: [PptTextBlock] = []
+        /// A master's TextMasterStyleAtoms by text type (0 title, 1 body, 4 other...).
+        var textStyles: [Int: [PptStyle.Level]] = [:]
         var followsMasterObjects: Bool { flags & 1 != 0 }
         var followsMasterScheme: Bool { flags & 2 != 0 }
         var followsMasterBackground: Bool { flags & 4 != 0 }
@@ -132,6 +134,8 @@ struct PptFile {
             case 0x03EF where r.body.count >= 22:
                 p.masterRef = OfficeArt.u32(data, r.body.lowerBound + 12)
                 p.flags = OfficeArt.u16(data, r.body.lowerBound + 20)
+            case 0x0FA3:
+                p.textStyles[r.inst] = PptStyle.parseMaster(data, in: r.body, type: r.inst)
             case 0x07F0 where r.body.count >= 32:
                 if r.inst == 1 || p.scheme == nil {
                     let b = r.body.lowerBound

@@ -102,7 +102,7 @@ enum PptBuild {
             let m = v.master < f.masters.count ? f.masters[v.master] : nil
             add("ppt/slideMasters/slideMaster\(k).xml", "<p:sldMaster \(ns)><p:cSld>\(background(m?.background))\(tree)</p:cSld>"
                 + "<p:clrMap bg1=\"lt1\" tx1=\"dk1\" bg2=\"lt2\" tx2=\"dk2\" accent1=\"accent1\" accent2=\"accent2\" accent3=\"accent3\" accent4=\"accent4\" accent5=\"accent5\" accent6=\"accent6\" hlink=\"hlink\" folHlink=\"folHlink\"/>"
-                + "<p:sldLayoutIdLst><p:sldLayoutId id=\"\(2147483649 + 2 * i)\" r:id=\"rId1\"/></p:sldLayoutIdLst></p:sldMaster>")
+                + "<p:sldLayoutIdLst><p:sldLayoutId id=\"\(2147483649 + 2 * i)\" r:id=\"rId1\"/></p:sldLayoutIdLst>\(m.map { f.textStylesXML(of: $0) } ?? "")</p:sldMaster>")
             add("ppt/slideMasters/_rels/slideMaster\(k).xml.rels", rels([("rId1", "slideLayout", "../slideLayouts/slideLayout\(k).xml"), ("rId2", "theme", "../theme/theme\(k).xml")]))
             add("ppt/slideLayouts/slideLayout\(k).xml", "<p:sldLayout \(ns) type=\"blank\"><p:cSld>\(tree)</p:cSld></p:sldLayout>")
             add("ppt/slideLayouts/_rels/slideLayout\(k).xml.rels", rels([("rId1", "slideMaster", "../slideMasters/slideMaster\(k).xml")]))

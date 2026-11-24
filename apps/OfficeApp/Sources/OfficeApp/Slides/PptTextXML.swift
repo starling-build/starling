@@ -26,7 +26,7 @@ extension PptFile {
     }
 
     /// `a:pPr` for a paragraph run (empty when it states nothing).
-    func paragraphProps(_ p: PptParaRun) -> String {
+    func paragraphProps(_ p: PptParaRun, tag: String = "a:pPr", defaults: String = "") -> String {
         var attrs = ""
         if p.level > 0 { attrs += " lvl=\"\(min(p.level, 8))\"" }
         if let l = p.leftMargin { attrs += " marL=\"\(PptBuild.emu(l))\"" }
@@ -52,11 +52,12 @@ extension PptFile {
         if let tabs = p.tabs {
             kids += "<a:tabLst>" + tabs.map { "<a:tab pos=\"\(PptBuild.emu($0.position))\" algn=\"\(["l", "ctr", "r", "dec"][min($0.type, 3)])\"/>" }.joined() + "</a:tabLst>"
         }
-        return attrs.isEmpty && kids.isEmpty ? "" : (kids.isEmpty ? "<a:pPr\(attrs)/>" : "<a:pPr\(attrs)>\(kids)</a:pPr>")
+        kids += defaults
+        return attrs.isEmpty && kids.isEmpty ? "" : (kids.isEmpty ? "<\(tag)\(attrs)/>" : "<\(tag)\(attrs)>\(kids)</\(tag)>")
     }
 
     /// `a:rPr` for a character run (empty when it states nothing).
-    func runProps(_ c: PptCharRun) -> String {
+    func runProps(_ c: PptCharRun, tag: String = "a:rPr") -> String {
         var attrs = ""
         if let s = c.size { attrs += " sz=\"\(s * 100)\"" }
         if let v = c.bold { attrs += " b=\"\(v ? 1 : 0)\"" }
@@ -68,7 +69,7 @@ extension PptFile {
         if let f = face(c.font) { kids += "<a:latin typeface=\"\(f)\"/>" }
         if let f = face(c.eastAsianFont) { kids += "<a:ea typeface=\"\(f)\"/>" }
         if let f = face(c.symbolFont) { kids += "<a:sym typeface=\"\(f)\"/>" }
-        return attrs.isEmpty && kids.isEmpty ? "" : (kids.isEmpty ? "<a:rPr\(attrs)/>" : "<a:rPr\(attrs)>\(kids)</a:rPr>")
+        return attrs.isEmpty && kids.isEmpty ? "" : (kids.isEmpty ? "<\(tag)\(attrs)/>" : "<\(tag)\(attrs)>\(kids)</\(tag)>")
     }
 
     /// The `a:p` elements of a block.
@@ -114,5 +115,21 @@ extension PptFile {
             ps = pe + 1
         }
         return out
+    }
+
+    /// A master's `p:txStyles`: title, body and other text styles from its TextMasterStyleAtoms.
+    func textStylesXML(of master: Page) -> String {
+        func style(_ tag: String, _ type: Int) -> String {
+            guard let levels = master.textStyles[type], !levels.isEmpty else { return "" }
+            var out = "<p:\(tag)>"
+            for (k, l) in levels.enumerated() {
+                var para = l.para
+                para.level = 0
+                out += paragraphProps(para, tag: "a:lvl\(k + 1)pPr", defaults: runProps(l.char, tag: "a:defRPr"))
+            }
+            return out + "</p:\(tag)>"
+        }
+        let body = style("titleStyle", 0) + style("bodyStyle", 1) + style("otherStyle", 4)
+        return body.isEmpty ? "" : "<p:txStyles>\(body)</p:txStyles>"
     }
 }
