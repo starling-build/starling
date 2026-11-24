@@ -12,7 +12,7 @@ import FluentSystemIcons
 import Foundation
 
 enum BackstagePage: Int, CaseIterable {
-    case home, new, open, info, save, saveAs, export, print, options, close
+    case home, new, open, info, save, saveAs, export, share, print, options, close
     /// Not in the rail: the picture picker Insert → Pictures opens.
     case insertPicture
     /// Not in the rail: Home's publication creation and folder picker.
@@ -27,6 +27,7 @@ enum BackstagePage: Int, CaseIterable {
         case .save: return "Save"
         case .saveAs: return "Save As"
         case .export: return "Export"
+        case .share: return "Share"
         case .print: return "Print"
         case .options: return "Options"
         case .close: return "Close"
@@ -45,6 +46,7 @@ enum BackstagePage: Int, CaseIterable {
         case .save: return FluentSystemIcons.save
         case .saveAs: return FluentSystemIcons.save
         case .export: return FluentSystemIcons.documentPdf
+        case .share: return FluentSystemIcons.share
         case .print: return FluentSystemIcons.print
         case .options: return FluentSystemIcons.settings
         case .close: return FluentSystemIcons.chromeClose
@@ -113,7 +115,8 @@ final class Backstage: StatelessWidget {
                 Text(session.kind.appName, style: fluent.typography.bodyStrong?.copyWith(color: ink)),
             ])),
         ]
-        for p in BackstagePage.allCases where p != .insertPicture && p != .openSite && p != .createSite {
+        for p in BackstagePage.allCases where p != .insertPicture && p != .openSite && p != .createSite
+            && (p != .share || scene.shareRequested != nil) {
             let selected = p == page
             items.append(GestureDetector(onTap: { [self] in self._go(p) }, child: DecoratedBox(
                 decoration: BoxDecoration(color: selected ? Color(0x33FFFFFF) : Color(0x00000000)),
@@ -139,6 +142,7 @@ final class Backstage: StatelessWidget {
         case .save, .saveAs: return _panel(.save, fluent)
         case .info: return _info(fluent)
         case .export: return _export(fluent)
+        case .share: return _export(fluent, share: true)
         case .print: return _simple("Print", hostPrintPDF != nil
                                     ? "Prints the document as laid out on screen, through the system print dialog."
                                     : "This host has no print dialog; Export makes a PDF to print elsewhere.",
@@ -410,30 +414,28 @@ final class Backstage: StatelessWidget {
         return Column(crossAxisAlignment: .start, children: rows)
     }
 
-    private func _export(_ fluent: FluentThemeData) -> Widget {
-        Column(crossAxisAlignment: .start, children: [
-            _heading("Export", fluent),
-            Text("Choose a format. The file lands beside the document, or in Documents.",
+    /// The format tiles of Export, or of Share: the same formats, the copy
+    /// going to the host's share sheet instead of a file.
+    private func _export(_ fluent: FluentThemeData, share: Bool = false) -> Widget {
+        let go: (String) -> Void = { [session] ext in share ? session.onShare?(ext) : session.onExport?(ext) }
+        return Column(crossAxisAlignment: .start, children: [
+            _heading(share ? "Share" : "Export", fluent),
+            Text(share ? "Choose a format, then pick where to send the copy: Messages, Mail, AirDrop or another app."
+                       : "Choose a format. The file lands beside the document, or in Documents.",
                  style: fluent.typography.body?.copyWith(color: fluent.resources.textFillColorSecondary)),
             Chrome.vgap(16),
-            session.kind == .workbook ? Row(children: [
-                _template("PDF (.pdf)", FluentSystemIcons.documentPdf, fluent) { [session] in session.onExport?("pdf") },
-                Chrome.gap(16),
-                _template("CSV (.csv)", FluentSystemIcons.table, fluent) { [session] in session.onExport?("csv") },
-            ]) : session.kind == .presentation ? Row(children: [
-                _template("PDF (.pdf)", FluentSystemIcons.documentPdf, fluent) { [session] in session.onExport?("pdf") },
-                Chrome.gap(16),
-                _template("PowerPoint (.pptx)", FluentSystemIcons.desktop, fluent) { [session] in session.onExport?("pptx") },
-            ]) : Row(children: [
-                _template("PDF (.pdf)", FluentSystemIcons.documentPdf, fluent) { [session] in session.onExport?("pdf") },
-                Chrome.gap(16),
-                _template("Word (.docx)", FluentSystemIcons.document, fluent) { [session] in session.onExport?("docx") },
-                Chrome.gap(16),
-                _template("Markdown (.md)", FluentSystemIcons.document, fluent) { [session] in session.onExport?("md") },
-                Chrome.gap(16),
-                _template("Rich Text (.rtf)", FluentSystemIcons.document, fluent) { [session] in session.onExport?("rtf") },
-                Chrome.gap(16),
-                _template("Plain Text (.txt)", FluentSystemIcons.document, fluent) { [session] in session.onExport?("txt") },
+            session.kind == .workbook ? Wrap(spacing: 16, runSpacing: 12, children: [
+                _template("PDF (.pdf)", FluentSystemIcons.documentPdf, fluent) { go("pdf") },
+                _template("CSV (.csv)", FluentSystemIcons.table, fluent) { go("csv") },
+            ]) : session.kind == .presentation ? Wrap(spacing: 16, runSpacing: 12, children: [
+                _template("PDF (.pdf)", FluentSystemIcons.documentPdf, fluent) { go("pdf") },
+                _template("PowerPoint (.pptx)", FluentSystemIcons.desktop, fluent) { go("pptx") },
+            ]) : Wrap(spacing: 16, runSpacing: 12, children: [
+                _template("PDF (.pdf)", FluentSystemIcons.documentPdf, fluent) { go("pdf") },
+                _template("Word (.docx)", FluentSystemIcons.document, fluent) { go("docx") },
+                _template("Markdown (.md)", FluentSystemIcons.document, fluent) { go("md") },
+                _template("Rich Text (.rtf)", FluentSystemIcons.document, fluent) { go("rtf") },
+                _template("Plain Text (.txt)", FluentSystemIcons.document, fluent) { go("txt") },
             ]),
         ])
     }

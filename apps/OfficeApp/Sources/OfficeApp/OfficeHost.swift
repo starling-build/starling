@@ -86,6 +86,16 @@ final class OfficeScene {
                                   _ thenOpen: Bool,
                                   _ done: @escaping (String?) -> Void) -> Void)?
 
+    /// The host's share sheet (Messages, Mail, AirDrop, other apps): the same
+    /// shape as `exportRequested`, which it replaces for File → Share. The
+    /// copy is written to a temporary file, offered, and removed afterwards;
+    /// `thenOpen` is ignored. Nil on a host without one, and the Share page
+    /// then stays out of Backstage's rail.
+    var shareRequested: ((_ name: String,
+                                 _ prepare: @escaping (_ path: String, _ finished: @escaping (Bool) -> Void) -> Void,
+                                 _ thenOpen: Bool,
+                                 _ done: @escaping (String?) -> Void) -> Void)?
+
     /// Set by a host that draws its own edit menu for a finger's selection:
     /// the rect of the selection or caret in the editor view's coordinates
     /// (nil withdraws the menu), the entries, and the selected text if any.

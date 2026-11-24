@@ -102,6 +102,16 @@ public enum OfficeNativeShell {
         shell.presentExport(name: name, prepare: prepare, thenOpen: thenOpen, done: done)
     }
 
+    /// Writes a copy to a temporary file with `prepare`, then offers it to the
+    /// system share sheet. See OfficeHost.shareRequested.
+    public static func share(name: String,
+                             prepare: @escaping (String, @escaping (Bool) -> Void) -> Void,
+                             viewId: Int = 0,
+                             done: @escaping (String?) -> Void) {
+        guard let shell = shells[viewId] else { done(nil); return }
+        shell.presentShare(name: name, prepare: prepare, done: done)
+    }
+
     /// Runs the browser's "Open in New Window" action for `url` in window `viewId`, as its menu item does (a test:
     /// the menu itself is a system popover no in-app driver can tap).
     public static func runNewWindowAction(viewId: Int, url: URL) {
@@ -434,6 +444,49 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
                     let w = self.editor.view.window
                     fputs("[export] view \(self.viewId) presents the picker over its own window: scene \(w?.windowScene?.session.persistentIdentifier ?? "none"), key \(w?.isKeyWindow == true)\n", stderr)
                 }
+            }
+        }
+    }
+
+    /// The share sheet over a copy of the document, written in the app's
+    /// temporary directory under the document's own name (the recipient sees
+    /// `Report.docx`, not a working-copy name) and removed when the sheet
+    /// closes. `done` gets the file's name if the user sent it somewhere.
+    func presentShare(name: String,
+                      prepare: @escaping (String, @escaping (Bool) -> Void) -> Void,
+                      done: @escaping (String?) -> Void) {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Shares", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let file = dir.appendingPathComponent(name)
+        do { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) } catch {
+            alert("Could not share \(name)", error.localizedDescription)
+            done(nil)
+            return
+        }
+        prepare(file.path) { [weak self] ok in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                guard ok else {
+                    try? FileManager.default.removeItem(at: dir)
+                    self.alert("Could not write \(name)", "")
+                    done(nil)
+                    return
+                }
+                let sheet = UIActivityViewController(activityItems: [file], applicationActivities: nil)
+                sheet.completionWithItemsHandler = { _, completed, _, _ in
+                    try? FileManager.default.removeItem(at: dir)
+                    done(completed ? name : nil)
+                }
+                let presenter = self.editor.presentedViewController ?? self.editor
+                // An iPad shows the sheet as a popover, which needs somewhere to point: the top right of the
+                // window, where the Share command sits.
+                if let pop = sheet.popoverPresentationController {
+                    pop.sourceView = presenter.view
+                    pop.sourceRect = CGRect(x: presenter.view.bounds.maxX - 60, y: 40, width: 1, height: 1)
+                    pop.permittedArrowDirections = [.up]
+                }
+                presenter.present(sheet, animated: true)
             }
         }
     }
