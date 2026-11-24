@@ -45,6 +45,37 @@ final class AbsentSymbolBulletLayoutTests: XCTestCase {
         XCTAssertEqual(noto, plain, accuracy: 0.3, "noto \(noto) plain \(plain)")
     }
 
+    /// es-3b20b19c25 page 7: a ● bullet in Noto Sans Symbols (absent on Windows) is the text's face's glyph, 0.604 em
+    /// in Times, so a 12pt label fits a 9pt hang and the text starts at the hang, not at the next default stop.
+    func testAnAbsentSymbolFaceGeometricBulletFitsItsHang() throws {
+        func textX(ea: String, label: String = "\u{25CF}") throws -> Double {
+            var p = RichParagraph(text: "item one of the list")
+            p.style.list = .bullet; p.style.listId = "7"; p.style.listLevel = 0
+            p.style.indentLeft = 9; p.style.firstLineIndent = -9
+            var doc = RichDocument(paragraphs: [p])
+            var level = ListLevelFormat(text: label, format: .bullet)
+            level.numberRPrXML = "<w:rPr><w:rFonts w:ascii=\"Noto Sans Symbols\" w:hAnsi=\"Noto Sans Symbols\" w:eastAsia=\"\(ea)\" w:cs=\"Noto Sans Symbols\"/></w:rPr>"
+            doc.listFormats["7"] = [0: level]
+            var ents = try Zip.read(try DocxFormat.write(doc, pageSetup: .letter))
+            let di = try XCTUnwrap(ents.firstIndex { $0.name == "word/document.xml" })
+            let xml = String(decoding: ents[di].data, as: UTF8.self).replacingOccurrences(of: "<w:ind w:hanging=\"180\"/>", with: "<w:ind w:left=\"180\" w:hanging=\"180\"/>")
+            ents[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+            let back = try DocxFormat.read(try Zip.write(ents)).document
+            let theme = RichTextTheme(fontFamily: "Times New Roman", fontSize: 12)
+            theme.wordRules = true
+            theme.faceResolver = { OfficeFonts.face(($0 ?? "").lowercased().hasPrefix("noto sans symbols") ? "Arial Black" : $0, eastAsian: $1) }
+            let layout = RichLayout(theme: theme, paragraphCount: back.paragraphs.count)
+            layout.width = 400
+            layout.ensureLaidOut(back)
+            return layout.caretRect(RichPosition(paragraph: 0, offset: 0), back).left / theme.pixelsPerPoint
+        }
+        let was = RichTextTheme.wordWindowsPages
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = was }
+        let x = try textX(ea: "Noto Sans Symbols")
+        XCTAssertEqual(x, 9, accuracy: 0.5, "text starts at \(x)")
+    }
+
     /// A multiple's extra under the text hangs over a page's footnotes: with
     /// 1.5 lines Word's print keeps a last line whose text ends above the
     /// separator though its extra reaches into it (es-28716e1db6 page 3, lab
