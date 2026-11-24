@@ -260,6 +260,11 @@ extension RichLayout {
             // table: it is as blank as an empty one. LibreOffice's tdf164500, the logo's
             // paragraph after the table, stands beside it in Word's print.)
             func blank(_ p: RichParagraph) -> Bool {
+                // (A line of anchored pictures or text boxes alone, no inline one: its marks are objects, not text.)
+                if p.image == nil, RichTextTheme.wordWindowsPages, !p.inlineImages.isEmpty,
+                   p.inlineImages.values.allSatisfy({ $0.sourceXML?.containsSubstring("<wp:anchor") == true }) {
+                    return !p.text.contains { $0 != " " && $0 != "\u{FFFC}" }
+                }
                 guard let image = p.image else { return !p.text.contains { $0 != " " } }
                 return RichTextTheme.wordWindowsPages && !p.text.contains { $0 != " " && $0 != "\u{FFFC}" }
                     && image.sourceXML?.containsSubstring("<wp:anchor") == true
@@ -395,6 +400,14 @@ extension RichLayout {
                 // (An anchor beside a float that is raised stands one line under the
                 // line that float hangs from: its own table is 12.9pt under the
                 // first's top in Word's print of lo-e998b55c, not level with it.)
+                // (A table centred in the margin and raised above its anchor, the anchor a line of objects: the line stands
+                // the raise under the table's top, which keeps the margin. ja-caad796afb's page 2: its text boxes stand
+                // 9.35pt = tblpY -186 twips lower in Word's print than level with the table.)
+                if theme.wordRules, RichTextTheme.wordWindowsPages, ts.floatOffsetY == nil, let up = ts.floatRaiseY, blank(document.paragraphs[pgs.i]),
+                   ts.keptPosition?.containsSubstring("w:tblpXSpec=\"center\"") == true, startPage == pgs.page {
+                    RuleTrace.hit("word-anchor-line-beside-a-centred-raised-table-stands-the-raise-under-its-top")
+                    pgs.y = top + _px(up)
+                }
                 if ts.floatOffsetY == nil, first > 0, first - 1 < _heights.count, _anchorBesideLeftTable(prev, pgs.i, document) {
                     pgs.y = top + _px(ts.floatRaiseY ?? 0) + _heights[first - 1]
                 }
