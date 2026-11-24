@@ -1,8 +1,9 @@
 import XCTest
+import FluentSystemIcons
 
 /// The UI face's ellipsis (U+2026) is three periods set as one composite glyph. Its stored box once
 /// covered only the first period, and a renderer that clips a glyph to that box (iOS's) drew "Print…"
-/// as "Print.". The box must span all three.
+/// as "Print.". The font file stays as shipped; the copy loaded into the engine is corrected, and its box must span all three.
 final class SelawikEllipsisTests: XCTestCase {
     private func u16(_ d: [UInt8], _ o: Int) -> Int { Int(d[o]) << 8 | Int(d[o + 1]) }
     private func i16(_ d: [UInt8], _ o: Int) -> Int { let v = u16(d, o); return v >= 0x8000 ? v - 0x10000 : v }
@@ -12,7 +13,7 @@ final class SelawikEllipsisTests: XCTestCase {
     private func box(_ face: String, _ ch: Int) throws -> (Int, Int) {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .appendingPathComponent("../../../../sdk/Sources/FluentSystemIcons/Resources/\(face).ttf").standardizedFileURL
-        let d = [UInt8](try Data(contentsOf: url))
+        let d = [UInt8](SelawikFont.correctingEllipsisBox(try Data(contentsOf: url)))
         var tab: [String: Int] = [:]
         for i in 0..<u16(d, 4) {
             let o = 12 + 16 * i
@@ -39,6 +40,14 @@ final class SelawikEllipsisTests: XCTestCase {
         let off = wide ? u32(d, loca + 4 * gid) : u16(d, loca + 2 * gid) * 2
         let p = tab["glyf"]! + off
         return (i16(d, p + 2), i16(d, p + 6))
+    }
+
+    func testTheShippedFileIsUntouched() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appendingPathComponent("../../../../sdk/Sources/FluentSystemIcons/Resources/Selawik-Regular.ttf").standardizedFileURL
+        let raw = try Data(contentsOf: url)
+        XCTAssertEqual(SelawikFont.correctingEllipsisBox(Data([1, 2, 3])), Data([1, 2, 3]), "not a font: unchanged")
+        XCTAssertNotEqual(SelawikFont.correctingEllipsisBox(raw), raw, "the loaded copy differs from the file")
     }
 
     func testTheEllipsisBoxSpansThreePeriods() throws {
