@@ -67,7 +67,7 @@ extension RichLayout {
         var kokilaOwn = false, latinOwn = false, latinStacked = false, bengaliSeen = false, nirmalaSeen = false
         func visit(_ s: InlineSpan) {
             guard uniform, let t = s as? TextSpan else { return }
-            if t.text == "\u{2060}", fieldStrut == nil, let st = t.style, let fs = st.fontSize, fs > 0.5 { fieldStrut = st }
+            if t.text == "\u{2060}\u{2060}\u{2060}", fieldStrut == nil, let st = t.style, let fs = st.fontSize, fs > 0.5 { fieldStrut = st }
             if let st = t.style, let tx = t.text, tx.unicodeScalars.contains(where: { $0.value >= 0x900 && $0.value < 0xD80 }), st.ascentOverride != nil, st.debugLabel?.lowercased().containsSubstring("nirmala ui") == true { nirmalaSeen = true }
             if let st = t.style, let tx = t.text {
                 if st.ascentOverride != nil, st.debugLabel?.lowercased().containsSubstring("kokila") == true { kokilaOwn = true }

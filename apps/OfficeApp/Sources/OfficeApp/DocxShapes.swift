@@ -1949,7 +1949,7 @@ extension DocxFormat {
                     // 22.8 pt, not 22.34 (lab fas1 A/B: dropping the field gives 22.34), and its first baseline 0.48 pt lower.)
                     if child.name == "w:fldSimple", RichTextTheme.wordWindowsPages, child.children.isEmpty, !notes.inHeaderFooter {
                         RuleTrace.hit("empty-simple-field-leaves-a-default-face-strut")
-                        addText("\u{2060}", cellChar)
+                        addText("\u{2060}\u{2060}\u{2060}", cellChar)
                     }
                     walkInline(child, link: link, revision: revision)
                 case "m:oMathPara", "m:oMath":
