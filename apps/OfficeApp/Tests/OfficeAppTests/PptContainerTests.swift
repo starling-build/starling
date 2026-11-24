@@ -297,6 +297,19 @@ final class PptContainerTests: XCTestCase {
         XCTAssertEqual(state.slides[0].shapes[0].kind, .geometry(ShapePreset(rawValue: "ellipse")))
     }
 
+    func testShadedAndPictureFillsBecomeGradientAndBlipFills() {
+        var s = ArtShape()
+        s.type = 1
+        s.props = [0x1BF: 0x10001, 0x180: 7, 0x181: 0xFF0000, 0x183: 0x0000FF, 0x18B: 90 << 16]
+        let g = PptFile.fillLineXML(s, placeholder: false)
+        XCTAssertTrue(g.contains("<a:gradFill"))
+        XCTAssertTrue(g.contains("<a:lin ang=\"5400000\""))
+        s.props = [0x1BF: 0x10001, 0x180: 3, 0x181: 0xFF0000, 0x186: 4]
+        let b = PptFile.fillLineXML(s, placeholder: false) { $0 == 4 ? "rId9" : nil }
+        XCTAssertTrue(b.contains("<a:blip r:embed=\"rId9\"/>"))
+        XCTAssertTrue(PptFile.fillLineXML(s, placeholder: false).contains("<a:solidFill>"))
+    }
+
     func testPicturesComeFromThePicturesStreamThroughTheStore() throws {
         func persist(_ id: Int, _ slideId: Int) -> [UInt8] {
             var b: [UInt8] = le32(id)

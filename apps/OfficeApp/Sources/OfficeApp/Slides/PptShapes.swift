@@ -18,11 +18,24 @@ extension PptFile {
     }
 
     /// Fill and outline of a shape from its properties; a placeholder or a shape that sets nothing inherits.
-    static func fillLineXML(_ s: ArtShape, placeholder: Bool) -> String {
+    static func fillLineXML(_ s: ArtShape, placeholder: Bool, picture: (Int) -> String? = { _ in nil }) -> String {
         var x = ""
         let boxy = !placeholder && s.type != 202
         if DocArt.flag(s, 0x1BF, bit: 4, default: boxy && s.type != 20 && s.type != 32) {
-            x += "<a:solidFill>\(artColor(s.props[0x181] ?? 0xFFFFFF))</a:solidFill>"
+            let fore = artColor(s.props[0x181] ?? 0xFFFFFF)
+            switch s.props[0x180] ?? 0 {
+            case 4...7:
+                // A shaded fill: fore colour to back colour along the fill angle (16.16 degrees).
+                let angle = (((s.props[0x18B] ?? 0) >> 16) % 360 + 360) % 360 * 60000
+                x += "<a:gradFill rotWithShape=\"1\"><a:gsLst><a:gs pos=\"0\">\(fore)</a:gs><a:gs pos=\"100000\">\(artColor(s.props[0x183] ?? 0xFFFFFF))</a:gs></a:gsLst><a:lin ang=\"\(angle)\" scaled=\"0\"/></a:gradFill>"
+            case 2, 3:
+                if let pib = s.props[0x186], let rid = picture(pib) {
+                    let tile = s.props[0x180] == 2 ? "<a:tile/>" : "<a:stretch><a:fillRect/></a:stretch>"
+                    x += "<a:blipFill><a:blip r:embed=\"\(rid)\"/>\(tile)</a:blipFill>"
+                } else { x += "<a:solidFill>\(fore)</a:solidFill>" }
+            default:
+                x += "<a:solidFill>\(fore)</a:solidFill>"
+            }
         } else if !placeholder || s.props[0x1BF] != nil { x += "<a:noFill/>" }
         if DocArt.flag(s, 0x1FF, bit: 3, default: boxy) {
             x += "<a:ln w=\"\(s.props[0x1CB] ?? 9525)\"><a:solidFill>\(artColor(s.props[0x1C0] ?? 0))</a:solidFill></a:ln>"
@@ -108,7 +121,7 @@ extension PptFile {
             if let p = placeholder { xml += phType.map { "<p:ph type=\"\($0)\"/>" } ?? (p == 0 ? "" : "<p:ph/>") }
             xml += "</p:nvPr></p:nvSpPr><p:spPr>"
             xml += xfrm("xfrm", anchor, rot: rotation(art), flipH: art.flags & 0x40 != 0, flipV: art.flags & 0x80 != 0)
-            xml += geometry + Self.fillLineXML(art, placeholder: placeholder != nil) + "</p:spPr>"
+            xml += geometry + Self.fillLineXML(art, placeholder: placeholder != nil, picture: picture) + "</p:spPr>"
             if block != nil || placeholder != nil {
                 xml += "<p:txBody><a:bodyPr/><a:lstStyle/>" + paragraphsXML(block) + "</p:txBody>"
             }
