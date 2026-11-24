@@ -291,6 +291,9 @@ final class Worksheet {
     /// The sheet view's other attributes — zoom, scroll position, show
     /// zeros, right to left, page layout view — written back as read.
     var viewAttrs: [String: String] = [:]
+    /// A split (not frozen) pane as the file had it: `pane`'s attributes and each `selection`'s, written back while the sheet has no frozen pane.
+    var splitPane: [String: String]? = nil
+    var splitSelections: [[String: String]] = []
     /// Whether the file gave the sheet a view (`sheetView`) at all. Excel
     /// prints a sheet without one with its set row heights halved — labs
     /// of 20 pt rows, Excel 16, 2026-10-15: 9.72 pt on paper, 19.32 with an
@@ -304,6 +307,8 @@ final class Worksheet {
     /// Cells holding a rich string, as its runs. Drawn so only while their
     /// text is still the cell's (an edit leaves them behind).
     var richText: [CellAddress: [RichRun]] = [:]
+    /// A rich string's own XML (its runs' properties, phonetic guides) with the plain text it held: written back as read while the cell's text is still that.
+    var richRaw: [CellAddress: (text: String, xml: String)] = [:]
     /// A formatted row's span as the file gave it (`spans`): the columns
     /// in it the file has no cell for. Excel makes them cells in the row's
     /// format, and a fill or border there prints (FormatConditionTests'
@@ -399,9 +404,12 @@ final class Worksheet {
         s.rowAttrs = rowAttrs
         s.formatPrAttrs = formatPrAttrs
         s.viewAttrs = viewAttrs
+        s.splitPane = splitPane
+        s.splitSelections = splitSelections
         s.hasView = hasView
         s.scriptRows = scriptRows
         s.richText = richText
+        s.richRaw = richRaw
         s.rowSpanGaps = rowSpanGaps
         s.hiddenColRuns = hiddenColRuns
         s.tables = tables

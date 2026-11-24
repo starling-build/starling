@@ -68,6 +68,7 @@ enum Xlsx {
         var sst: [String] = []
         var sstScripts: Set<Int> = []
         var sstRuns: [Int: [RichRun]] = [:]
+        var sstRaw: [Int: String] = [:]
         if let s = xml("xl/sharedStrings.xml") {
             for si in s.kids("si") {
                 // (Rich text with a raised or lowered run: its row's fit is Excel's own.)
@@ -78,6 +79,8 @@ enum Xlsx {
                 if runs.count > 1, runs.contains(where: { $0.child("rPr") != nil }) {
                     sstRuns[sst.count] = runs.map { _richRun($0, theme: theme, themeFonts: themeFonts, themeless: themeless) }
                 }
+                // (A rich string is kept as the file wrote it, run properties, phonetic guides and all, for a save that leaves its cell's text alone.)
+                if !si.kids("r").isEmpty || si.child("rPh") != nil, let raw = _siXML(si) { sstRaw[sst.count] = raw }
                 sst.append(_text(si))
             }
         }
@@ -133,7 +136,7 @@ enum Xlsx {
             guard let name = s["name"], let rid, let path = wbRels[rid] else { continue }
             let ws = Worksheet(name: name)
             ws.origin = path
-            if let raw = _part(parts, path) { sheetRoots[path] = try _readSheet(raw, into: ws, sst: sst, sstScripts: sstScripts, sstRuns: sstRuns, book: book) }
+            if let raw = _part(parts, path) { sheetRoots[path] = try _readSheet(raw, into: ws, sst: sst, sstScripts: sstScripts, sstRuns: sstRuns, sstRaw: sstRaw, book: book) }
             if s["state"] == "hidden" || s["state"] == "veryHidden" { ws.hidden = true }
             if s["state"] == "veryHidden" { ws.veryHidden = true }
             book.sheets.append(ws)
@@ -247,7 +250,7 @@ enum Xlsx {
 
     /// Returns the part's root with `sheetData` left out (see `sheetRoots`).
     @discardableResult
-    private static func _readSheet(_ raw: Data, into ws: Worksheet, sst: [String], sstScripts: Set<Int> = [], sstRuns: [Int: [RichRun]] = [:],
+    private static func _readSheet(_ raw: Data, into ws: Worksheet, sst: [String], sstScripts: Set<Int> = [], sstRuns: [Int: [RichRun]] = [:], sstRaw: [Int: String] = [:],
                                    book: Workbook) throws -> XNode {
         let bytes = [UInt8](raw)
         // The elements we do not model, kept as their original text.
@@ -271,6 +274,10 @@ enum Xlsx {
             if let pane = view.child("pane"), pane["state"] == "frozen" || pane["state"] == "frozenSplit" {
                 ws.freezeCols = Int(Double(pane["xSplit"] ?? "0") ?? 0)
                 ws.freezeRows = Int(Double(pane["ySplit"] ?? "0") ?? 0)
+            } else if let pane = view.child("pane") {
+                // A split: the divider is a position, not a cell count, so it is kept as the file wrote it.
+                ws.splitPane = pane.attrs
+                ws.splitSelections = view.kids("selection").map(\.attrs)
             }
             if let sel = view.kids("selection").last, let a = sel["activeCell"].flatMap({ CellAddress($0) }) { ws.savedActive = a }
             if view["showGridLines"] == "0" { ws.showGridlines = false }
@@ -387,6 +394,7 @@ enum Xlsx {
                     value = Int(vText ?? "").flatMap { $0 < sst.count ? CellValue.text(sst[$0]) : nil } ?? .empty
                     if let i = Int(vText ?? ""), sstScripts.contains(i) { ws.scriptRows.insert(a.row) }
                     if let i = Int(vText ?? ""), let runs = sstRuns[i] { ws.richText[a] = runs }
+                    if let i = Int(vText ?? ""), let raw = sstRaw[i], i < sst.count { ws.richRaw[a] = (sst[i], raw) }
                 // (An inline string with nothing in it is still a string, the empty
                 // one: a cell with a value, which Excel prints the sheet as far as.)
                 case "inlineStr": value = .text(c.inlineNode.map { _text($0) } ?? "")
@@ -1219,6 +1227,13 @@ enum Xlsx {
             view += "<pane" + (ws.freezeCols > 0 ? " xSplit=\"\(ws.freezeCols)\"" : "") + (ws.freezeRows > 0 ? " ySplit=\"\(ws.freezeRows)\"" : "")
                 + " topLeftCell=\"\(tl)\" activePane=\"\(pane)\" state=\"frozen\"/>"
             view += "<selection pane=\"\(pane)\" activeCell=\"\(active.a1)\" sqref=\"\(active.a1)\"/>"
+        } else if let split = ws.splitPane {
+            view += "<pane" + split.sorted { $0.key < $1.key }.map { " \($0.key)=\"\(_esc($0.value))\"" }.joined() + "/>"
+            let activePane = split["activePane"] ?? "topLeft"
+            for var sel in ws.splitSelections {
+                if (sel["pane"] ?? "topLeft") == activePane { sel["activeCell"] = active.a1; sel["sqref"] = active.a1 }
+                view += "<selection" + sel.sorted { $0.key < $1.key }.map { " \($0.key)=\"\(_esc($0.value))\"" }.joined() + "/>"
+            }
         } else {
             view += "<selection activeCell=\"\(active.a1)\" sqref=\"\(active.a1)\"/>"
         }
@@ -1295,7 +1310,7 @@ enum Xlsx {
             let cells = (byRow[r] ?? []).sorted { $0.0.col < $1.0.col }
             if cells.isEmpty { data += "/>"; continue }
             data += ">"
-            for (a, c) in cells { data += _cellXML(a, c, dynamicCm: dynamicCm, stringIndex: stringIndex) }
+            for (a, c) in cells { data += _cellXML(a, c, dynamicCm: dynamicCm, rich: ws.richRaw[a], stringIndex: stringIndex) }
             data += "</row>"
         }
         generated["sheetData"] = data + "</sheetData>"
@@ -1411,7 +1426,7 @@ enum Xlsx {
         return nil
     }
 
-    private static func _cellXML(_ a: CellAddress, _ c: Cell, dynamicCm: Int? = nil, stringIndex: (String) -> Int) -> String {
+    private static func _cellXML(_ a: CellAddress, _ c: Cell, dynamicCm: Int? = nil, rich: (text: String, xml: String)? = nil, stringIndex: (String) -> Int) -> String {
         var s = "<c r=\"\(a.a1)\"" + (c.style != 0 ? " s=\"\(c.style)\"" : "")
         var attrs = c.keptAttrs
         if let cm = dynamicCm, c.dynamic, c.formula != nil, c.spillRange != nil || c.arrayRef != nil { attrs["cm"] = "\(cm)" }
@@ -1446,6 +1461,8 @@ enum Xlsx {
             if c.input.hasPrefix("=") && c.input.count > 1 {
                 return s + " t=\"str\"><f>\(_esc(String(c.input.dropFirst())))</f><v>\(_esc(t))</v></c>"
             }
+            // (A rich string whose text the user has not touched goes back as it was read.)
+            if let rich, rich.text == t { return s + " t=\"s\"><v>\(stringIndex(_richMark + rich.xml))</v></c>" }
             return s + " t=\"s\"><v>\(stringIndex(t))</v></c>"
         case .bool(let b): return s + " t=\"b\"><v>\(b ? 1 : 0)</v></c>"
         case .error(let e): return s + " t=\"e\"><v>\(_esc(e.rawValue))</v></c>"
@@ -1464,9 +1481,28 @@ enum Xlsx {
         return "\(n)"
     }
 
+    /// Marks a shared-string entry that is a rich string's own XML, not plain text.
+    static let _richMark = "\u{1}rich\u{1}"
+
+    /// The inside of a shared string item as the file wrote it, or nil where it cannot be written back faithfully.
+    static func _siXML(_ si: XNode) -> String? {
+        func out(_ n: XNode) -> String? {
+            if n.name.contains(":") { return nil }
+            var a = n.attrs.keys.sorted().map { " \($0)=\"\(_esc(n.attrs[$0]!))\"" }.joined()
+            if n.name == "t", n.attrs["xml:space"] == nil, n.text.first == " " || n.text.last == " " || n.text.containsSubstring("\n") { a += " xml:space=\"preserve\"" }
+            var inner = ""
+            for c in n.children { guard let x = out(c) else { return nil }; inner += x }
+            return "<\(n.name)\(a)>" + inner + _esc(n.text) + "</\(n.name)>"
+        }
+        var all = ""
+        for c in si.children { guard let x = out(c) else { return nil }; all += x }
+        return all
+    }
+
     private static func _sstXML(_ sst: [String]) -> String {
         var s = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"\(sst.count)\" uniqueCount=\"\(sst.count)\">"
         for t in sst {
+            if t.hasPrefix(_richMark) { s += "<si>\(t.dropFirst(_richMark.count))</si>"; continue }
             let space = t.first == " " || t.last == " " || t.containsSubstring("\n") ? " xml:space=\"preserve\"" : ""
             s += "<si><t\(space)>\(_esc(t))</t></si>"
         }
@@ -1538,15 +1574,28 @@ enum Xlsx {
                 guard let src, b < src.xfs.count, b < book.styles.count else { return nil }
                 return (book.styles[b], src.xfs[b])
             }
+            // The font this one was derived from, child by child: what the change left alone (a theme colour and its
+            // tint, the family, charset and scheme, a double underline, a script) is written as the file had it.
+            var baseFont: [String: String] = [:]
+            if let base, let fid = Int(base.xf.attrs["fontId"] ?? "0"), fid < fonts.count {
+                for (name, text) in RawXML.split(Array(fonts[fid].utf8)).children { baseFont[name] = text }
+            }
+            let sameFace = base.map { $0.style.fontName == st.fontName } ?? false
             var font = "<font>"
             if st.bold { font += "<b/>" }
             if st.italic { font += "<i/>" }
             if st.strike { font += "<strike/>" }
-            if st.underline { font += "<u/>" }
+            if st.underline {
+                if let b = base, b.style.underline, b.style.accounting == st.accounting, let u = baseFont["u"] { font += u } else { font += "<u/>" }
+            }
+            if st.script != 0, let b = base, b.style.script == st.script, let v = baseFont["vertAlign"] { font += v }
             font += "<sz val=\"\(_num(book.fontSize(st)))\"/>"
-            font += st.color.map { "<color rgb=\"FF\(_hex($0))\"/>" } ?? "<color theme=\"1\"/>"
-            font += "<name val=\"\(_esc(book.fontName(st)))\"/><family val=\"2\"/>"
-            if st.fontName == nil && book.defaultFontName == nil { font += "<scheme val=\"minor\"/>" }
+            if let b = base, b.style.color == st.color, let c = baseFont["color"] { font += c }
+            else { font += st.color.map { "<color rgb=\"FF\(_hex($0))\"/>" } ?? "<color theme=\"1\"/>" }
+            font += "<name val=\"\(_esc(book.fontName(st)))\"/>"
+            font += sameFace ? (baseFont["family"] ?? "<family val=\"2\"/>") : "<family val=\"2\"/>"
+            if sameFace { font += (baseFont["charset"] ?? "") + (baseFont["scheme"] ?? "") }
+            else if st.fontName == nil && book.defaultFontName == nil { font += "<scheme val=\"minor\"/>" }
             font += "</font>"
             func same(_ a: CellStyle, _ b: CellStyle, _ keys: [PartialKeyPath<CellStyle>]) -> Bool {
                 keys.allSatisfy { k in String(describing: a[keyPath: k]) == String(describing: b[keyPath: k]) }
@@ -1558,8 +1607,18 @@ enum Xlsx {
             if let base, st.fill == base.style.fill, let f = Int(base.xf.attrs["fillId"] ?? "0") { fillId = f }
             else { fillId = st.fill.map { index(&fills, "<fill><patternFill patternType=\"solid\"><fgColor rgb=\"FF\(_hex($0))\"/><bgColor indexed=\"64\"/></patternFill></fill>") } ?? 0 }
             let b = st.borders
+            // A side the change left alone (same line, kind and colour) is written as the file had it: theme colour, tint.
+            var baseSides: [String: String] = [:]
+            if let base, let bid = Int(base.xf.attrs["borderId"] ?? "0"), bid < borders.count {
+                for (name, text) in RawXML.split(Array(borders[bid].utf8)).children { baseSides[name] = text }
+            }
             func side(_ name: String, _ on: Bool) -> String {
                 guard on else { return "<\(name)/>" }
+                if let base, let kept = baseSides[name] {
+                    let bb = base.style.borders
+                    let was: Bool = name == "left" ? bb.left : name == "right" ? bb.right : name == "top" ? bb.top : bb.bottom
+                    if was, bb.kinds[name] == b.kinds[name], bb.colors[name] == b.colors[name] { return kept }
+                }
                 let color = b.colors[name].map { "<color rgb=\"FF\(_hex($0))\"/>" } ?? "<color indexed=\"64\"/>"
                 return "<\(name) style=\"\(b.kinds[name] ?? "thin")\">\(color)</\(name)>"
             }

@@ -364,3 +364,66 @@ extension XlsxTests {
         XCTAssertTrue(out.containsSubstring("showZeros=\"0\" topLeftCell=\"A3\" zoomScale=\"85\""), out)
     }
 }
+
+// X-P0-2: a split pane and theme colours survive a save.
+extension XlsxTests {
+    private func patched(_ part: String, _ edit: (inout String) throws -> Void) throws -> [ZipEntry] {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "karma_performance", withExtension: "xlsx", subdirectory: "Fixtures"))
+        var entries = try Zip.read(try Data(contentsOf: url))
+        let i = try XCTUnwrap(entries.firstIndex { $0.name == part })
+        var s = String(decoding: entries[i].data, as: UTF8.self)
+        try edit(&s)
+        entries[i] = ZipEntry(name: entries[i].name, data: Data(s.utf8))
+        return entries
+    }
+
+    private func part(_ data: Data, _ name: String) throws -> String {
+        String(decoding: try XCTUnwrap(try Zip.read(data).first { $0.name == name }).data, as: UTF8.self)
+    }
+
+    func testSplitPaneSurvivesSave() throws {
+        let entries = try patched("xl/worksheets/sheet1.xml") { s in
+            let r = try XCTUnwrap(s.findRange(of: "<selection activeCell=\"N12\" sqref=\"N12\"/>"))
+            s.replaceSubrange(r, with: "<pane xSplit=\"2400\" ySplit=\"1800\" topLeftCell=\"C5\" activePane=\"bottomRight\"/>"
+                + "<selection pane=\"topRight\"/><selection pane=\"bottomLeft\"/><selection pane=\"bottomRight\" activeCell=\"N12\" sqref=\"N12\"/>")
+        }
+        let book = try Xlsx.read(try Zip.write(entries))
+        let out = try part(try Xlsx.write(book), "xl/worksheets/sheet1.xml")
+        XCTAssertTrue(out.containsSubstring("<pane activePane=\"bottomRight\" topLeftCell=\"C5\" xSplit=\"2400\" ySplit=\"1800\"/>"), out)
+        XCTAssertFalse(out.containsSubstring("state=\"frozen\""))
+        XCTAssertTrue(out.containsSubstring("<selection pane=\"topRight\"/><selection pane=\"bottomLeft\"/>"), out)
+        XCTAssertTrue(out.containsSubstring("<selection activeCell=\"N12\" pane=\"bottomRight\" sqref=\"N12\"/>"), out)
+        // Reads back, and the cells and the neighbouring view settings are the same.
+        let again = try Xlsx.read(try Xlsx.write(book))
+        XCTAssertEqual(again.sheets[0].splitPane?["xSplit"], "2400")
+        XCTAssertEqual(again.sheets[0].freezeRows, 0)
+        XCTAssertEqual(again.sheets[0].cells.count, book.sheets[0].cells.count)
+    }
+
+    func testEditingAFontKeepsItsThemeColourAndScheme() throws {
+        let entries = try patched("xl/styles.xml") { s in
+            s = s.replacingAll("<fonts count=\"1\">", with: "<fonts count=\"2\">")
+            let f = try XCTUnwrap(s.findRange(of: "</fonts>"))
+            s.replaceSubrange(f, with: "<font><u val=\"double\"/><sz val=\"11\"/><color theme=\"4\" tint=\"0.39997558519241921\"/><name val=\"Calibri\"/><family val=\"2\"/><scheme val=\"minor\"/></font></fonts>")
+            s = s.replacingAll("<borders count=\"1\">", with: "<borders count=\"2\">")
+            let b = try XCTUnwrap(s.findRange(of: "</borders>"))
+            s.replaceSubrange(b, with: "<border><left/><right/><top style=\"thin\"><color theme=\"5\" tint=\"-0.25\"/></top><bottom/><diagonal/></border></borders>")
+            s = s.replacingAll("<cellXfs count=\"2\">", with: "<cellXfs count=\"3\">")
+            let x = try XCTUnwrap(s.findRange(of: "</cellXfs>"))
+            s.replaceSubrange(x, with: "<xf numFmtId=\"0\" fontId=\"1\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyFont=\"1\" applyBorder=\"1\"/></cellXfs>")
+        }
+        let c = WorkbookController()
+        c.load(try Xlsx.read(try Zip.write(entries)))
+        c.setInputs([(CellAddress("A40")!, "x")])
+        c.sheet.cells[CellAddress("A40")!]?.style = 2
+        c.select(CellAddress("A40")!)
+        c.setStyle { $0.bold = true; $0.borders.bottom = true }      // a change to the font and to another side
+        let out = try part(try Xlsx.write(c.book), "xl/styles.xml")
+        XCTAssertNotNil(XNode.parse(Data(out.utf8)))
+        XCTAssertTrue(out.containsSubstring("<color theme=\"4\" tint=\"0.39997558519241921\"/>"), out)
+        XCTAssertTrue(out.containsSubstring("<u val=\"double\"/>"), out)
+        XCTAssertTrue(out.containsSubstring("<scheme val=\"minor\"/></font>"), out)
+        XCTAssertTrue(out.containsSubstring("<top style=\"thin\"><color theme=\"5\" tint=\"-0.25\"/></top>"), out)
+        XCTAssertFalse(out.containsSubstring("<color rgb=\"FF"), "no theme colour turned into a fixed one")
+    }
+}

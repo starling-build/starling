@@ -172,6 +172,53 @@ final class TableTests: XCTestCase {
         XCTAssertEqual(table.text?.paragraphs.first?.runs.first?.style.bold, true)
     }
 
+    /// S-P0-1: a drag, a resize or a turn patches the frame in the shape's own
+    /// XML; what the model does not hold (link, vertical text, wrap off, tab
+    /// stops, right-to-left, character spacing, adjust value, alt text) stays.
+    func testMovingAShapePatchesItsFrameAndKeepsWhatTheModelDoesNotHold() throws {
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        let sp = "<p:sp><p:nvSpPr><p:cNvPr id=\"90\" name=\"Rounded\" descr=\"alt words\"><a:hlinkClick r:id=\"rId9\"/></p:cNvPr><p:cNvSpPr/><p:nvPr/></p:nvSpPr>"
+            + "<p:spPr><a:xfrm><a:off x=\"1270000\" y=\"1270000\"/><a:ext cx=\"2540000\" cy=\"1270000\"/></a:xfrm>"
+            + "<a:prstGeom prst=\"roundRect\"><a:avLst><a:gd name=\"adj\" fmla=\"val 31234\"/></a:avLst></a:prstGeom>"
+            + "<a:solidFill><a:srgbClr val=\"336699\"/></a:solidFill></p:spPr>"
+            + "<p:txBody><a:bodyPr vert=\"vert\" wrap=\"none\" rtlCol=\"1\"/><a:lstStyle/><a:p><a:pPr rtl=\"1\"><a:tabLst><a:tab pos=\"914400\" algn=\"l\"/></a:tabLst></a:pPr>"
+            + "<a:r><a:rPr lang=\"en-US\" spc=\"300\"><a:ea typeface=\"MS Mincho\"/></a:rPr><a:t>kept words</a:t></a:r></a:p></p:txBody></p:sp>"
+        var slide = String(data: package.parts["ppt/slides/slide2.xml"]!, encoding: .utf8)!
+        slide = slide.replacingOccurrences(of: "</p:spTree>", with: sp + "</p:spTree>")
+        package.parts["ppt/slides/slide2.xml"] = Data(slide.utf8)
+        var rels = String(data: package.parts["ppt/slides/_rels/slide2.xml.rels"]!, encoding: .utf8)!
+        rels = rels.replacingOccurrences(of: "</Relationships>", with: "<Relationship Id=\"rId9\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink\" Target=\"https://example.org/\" TargetMode=\"External\"/></Relationships>")
+        package.parts["ppt/slides/_rels/slide2.xml.rels"] = Data(rels.utf8)
+        var entries: [ZipEntry] = []
+        for (k, v) in package.parts { entries.append(ZipEntry(name: k, data: v)) }
+        var (state, theme, pkg) = try Pptx.read(try Zip.write(entries))
+
+        let si = try XCTUnwrap(state.slides.firstIndex { $0.shapes.contains { $0.name == "Rounded" } })
+        let i = try XCTUnwrap(state.slides[si].shapes.firstIndex { $0.name == "Rounded" })
+        state.slides[si].shapes[i].frame = Rect.fromLTWH(200, 150, 300, 80)
+        state.slides[si].shapes[i].rotation = 30
+
+        let out = PptxPackage(try Zip.read(try PptxWriter.write(state, theme: theme, package: pkg)))
+        let part = try XCTUnwrap(out.parts.keys.first { k in
+            k.hasPrefix("ppt/slides/slide") && String(data: out.parts[k]!, encoding: .utf8)!.contains("name=\"Rounded\"")
+        })
+        let written = String(data: out.parts[part]!, encoding: .utf8)!
+        for kept in ["descr=\"alt words\"", "hlinkClick", "val 31234", "vert=\"vert\"", "wrap=\"none\"", "rtl=\"1\"",
+                     "pos=\"914400\"", "spc=\"300\"", "MS Mincho", "kept words"] {
+            XCTAssertTrue(written.contains(kept), "kept after a move: \(kept)")
+        }
+        XCTAssertTrue(written.contains("<a:off x=\"2540000\" y=\"1905000\"/>"), "moved")
+        XCTAssertTrue(written.contains("<a:ext cx=\"3810000\" cy=\"1016000\"/>"), "resized")
+        XCTAssertTrue(written.contains("rot=\"1800000\""), "turned")
+        let (again, _, _) = try Pptx.read(try PptxWriter.write(state, theme: theme, package: pkg))
+        let back = try XCTUnwrap(again.slides.flatMap { $0.shapes }.first { $0.name == "Rounded" })
+        XCTAssertEqual(back.frame, Rect.fromLTWH(200, 150, 300, 80))
+        XCTAssertEqual(back.rotation, 30)
+        // The neighbours on the slide are untouched.
+        XCTAssertEqual(again.slides[si].shapes.count, state.slides[si].shapes.count)
+    }
+
     func testAnUneditedTableIsKeptAndAnEditedOneRewritten() throws {
         // Swap the written style GUID for another of PowerPoint's: kept, it
         // survives; once a cell is edited, our own table replaces it.
