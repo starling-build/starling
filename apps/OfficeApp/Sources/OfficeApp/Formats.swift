@@ -23,7 +23,7 @@ enum OfficeFormats {
     static let writable = ["docx", "rtf", "md", "txt"]
     /// What any shell's picker accepts: every kind's files, since a pick
     /// of another kind switches shells with the same bytes.
-    static let pickable = readable + ["pptx", "ppt", "xlsx", "csv", "tsv"]
+    static let pickable = readable + ["pptx", "ppt", "xls", "xlsx", "csv", "tsv"]
 
     enum FormatError: Error { case unreadable, unsupported(String) }
 

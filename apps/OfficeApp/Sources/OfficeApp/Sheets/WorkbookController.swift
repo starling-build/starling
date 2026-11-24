@@ -698,6 +698,36 @@ final class WorkbookController: ChangeNotifier {
         }
     }
 
+    /// The sheet a Delete Sheet asked for and is waiting on the user's word (Excel asks when the sheet holds anything).
+    /// A refusal the shell shows once (then clears).
+    var chartNotice: String?
+    private(set) var pendingSheetDelete: Int? = nil
+
+    /// Whether deleting sheet `i` throws something away: cells, charts, pictures or shapes.
+    func sheetHasContent(_ i: Int) -> Bool {
+        guard book.sheets.indices.contains(i) else { return false }
+        let ws = book.sheets[i]
+        return !ws.cells.isEmpty || !ws.drawings.isEmpty || !ws.objects.isEmpty
+    }
+
+    /// Delete Sheet from a menu: an empty sheet goes at once; one with content waits for `confirmSheetDelete`.
+    func requestDeleteSheet(_ i: Int) {
+        guard book.sheets.count > 1, book.sheets.indices.contains(i) else { return }
+        if sheetHasContent(i) { pendingSheetDelete = i; _notify(selectionOnly: true) } else { deleteSheet(i) }
+    }
+
+    func confirmSheetDelete() {
+        guard let i = pendingSheetDelete else { return }
+        pendingSheetDelete = nil
+        deleteSheet(i)
+    }
+
+    func cancelSheetDelete() {
+        guard pendingSheetDelete != nil else { return }
+        pendingSheetDelete = nil
+        _notify(selectionOnly: true)
+    }
+
     func deleteSheet(_ i: Int) {
         if _structureLocked() { return }
         guard book.sheets.count > 1, visibleSheets.count > 1 || book.sheets[i].hidden else { return }

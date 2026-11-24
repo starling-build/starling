@@ -326,7 +326,7 @@ final class Backstage: StatelessWidget {
         return Column(crossAxisAlignment: .stretch, children: rows + [
             Expanded(child: FluentFilePanel(
                 mode: mode, initialDirectory: start, suggestedName: suggested,
-                extensions: mode == .open ? OfficeFormats.readable + ["pptx", "xlsx", "csv", "tsv"]
+                extensions: mode == .open ? OfficeFormats.readable + ["pptx", "xls", "xlsx", "csv", "tsv"]
                     : session.kind == .presentation ? ["pptx"] : session.kind == .workbook ? ["xlsx", "csv", "tsv"] : OfficeFormats.writable,
                 onDone: { [session, onClose, onOpenPath, onSavePath] path in
                     guard let path else { onClose(); return }
