@@ -178,7 +178,9 @@ enum DocProps {
         on(0x0836, "i"); if flags[0x0836] == true { x += "<w:iCs/>" }
         on(0x083B, "caps"); on(0x083A, "smallCaps"); on(0x0837, "strike"); on(0x0838, "outline"); on(0x0839, "shadow"); on(0x083C, "vanish")
         if let color { x += "<w:color w:val=\"\(color)\"/>" }
-        if let kern { x += "<w:kern w:val=\"\(kern)\"/>" }
+        // Only where the run names a face whose own kern pairs we hold (Verdana): for Times New Roman, pt-60f18b461d's
+        // header line wraps in Word's print but fits kerned, so a bare "kern" sprm is not proof Word kerned the run.
+        if let kern, a?.lowercased() == "verdana" { x += "<w:kern w:val=\"\(kern)\"/>" }
         if let size, size > 0 { x += "<w:sz w:val=\"\(size)\"/><w:szCs w:val=\"\(size)\"/>" }
         if !hl.isEmpty { x += "<w:highlight w:val=\"\(hl)\"/>" }
         if !ul.isEmpty { x += "<w:u w:val=\"\(ul)\"/>" }
