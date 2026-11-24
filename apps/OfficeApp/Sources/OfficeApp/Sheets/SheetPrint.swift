@@ -393,6 +393,7 @@ extension SheetGridState {
             printing = false
             _clearReachMemo()
             printRowScale = 0
+            printSetScaled = false
             printColumnMax = 0
             printMono = false
             if c.activeSheet != savedSheet { c.activeSheet = savedSheet }
@@ -446,6 +447,7 @@ extension SheetGridState {
             }
             await _preloadPictures(ws)
             printRowScale = setup.fitWidth == nil && setup.fitHeight == nil ? setup.scale / 100 : 0
+            printSetScaled = setup.fitWidth == nil && setup.fitHeight == nil && setup.scale < 100
             printMono = setup.blackAndWhite
             printColumnMax = setup.fitWidth == nil && setup.fitHeight == nil ? setup.printableWidth / (setup.scale / 100) : 0
             let ca = cols, ra = rows   // in points while printing
@@ -590,6 +592,7 @@ extension SheetGridState {
         // 15.12 at 51% in Excel's print, 126 dots, where ours, unrounded,
         // stepped 15.18 and stood 1.2 low by its page's foot.)
         printRowScale = setup.fitWidth == nil && setup.fitHeight == nil ? setup.scale / 100 : jobs.count == 1 ? jobs[0].scale : 0
+        printSetScaled = setup.fitWidth == nil && setup.fitHeight == nil && setup.scale < 100
         printMono = setup.blackAndWhite
         printColumnMax = setup.fitWidth == nil && setup.fitHeight == nil ? setup.printableWidth / (setup.scale / 100) : 0
         let ca = cols, ra = rows   // in points while printing
