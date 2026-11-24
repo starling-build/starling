@@ -782,6 +782,22 @@ public final class RichDocumentController: ChangeNotifier {
         return true
     }
 
+    /// Turn the picture at `index` (or its inline picture `id`) a quarter turn: `quarters` of 1 is clockwise, -1 anticlockwise. The
+    /// picture's box swaps width and height (it stands in its turned box), one undo step. Returns false when `quarters` is a
+    /// whole turn, there is no picture, or the picture floats (a floating picture keeps its unturned size: W-OB-3).
+    @discardableResult
+    public func rotatePicture(at index: Int, inline id: String? = nil, quarters: Int) -> Bool {
+        guard index < document.paragraphs.count, quarters % 4 != 0 else { return false }
+        guard let old = id.map({ document.paragraphs[index].inlineImages[$0] }) ?? document.paragraphs[index].image else { return false }
+        guard old.float == nil else { return false }
+        var new = old
+        let degrees = (old.rotation + Double(quarters % 4) * 90).truncatingRemainder(dividingBy: 360)
+        new.rotation = degrees < 0 ? degrees + 360 : degrees
+        if quarters % 2 != 0 { swap(&new.width, &new.height) }
+        edit { perform(id.map { .setInlineImage(index, id: $0, old: old, new: new) } ?? .setImage(index, old: old, new: new)) }
+        return true
+    }
+
     /// Swap the pixels of the picture at `index` (or its inline picture `id`) for `data`, one undo step. The picture keeps its
     /// width and its alternative text; its height follows the new picture's shape so nothing is stretched. The old
     /// picture's own markup (crop, effects) is dropped, as a replacement starts afresh. A floating picture is not replaced

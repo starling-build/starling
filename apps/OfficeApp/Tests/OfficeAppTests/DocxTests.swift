@@ -553,6 +553,46 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(cleared.paragraphs.compactMap(\.image).first?.width ?? 0, 200, accuracy: 0.2)
     }
 
+    /// W-OB-1: turning a picture a quarter swaps its box, undoes in one step, and the file holds the unturned frame with the turn
+    /// in `a:xfrm rot` (first from a generated picture, then patched into the kept markup); four turns bring it home.
+    func testTurningAPictureAQuarterSwapsItsBoxAndSavesTheTurn() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var img = ImageAttachment(data: png, width: 200, height: 100)
+        img.altText = "Map"
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "above"), RichParagraph(image: img), RichParagraph(text: "below")]))
+        XCTAssertFalse(c.rotatePicture(at: 1, quarters: 4))
+        XCTAssertFalse(c.rotatePicture(at: 0, quarters: 1), "a text paragraph is not a picture")
+        XCTAssertTrue(c.rotatePicture(at: 1, quarters: 1))
+        XCTAssertEqual(c.document.paragraphs[1].image?.rotation, 90)
+        XCTAssertEqual(c.document.paragraphs[1].image?.width, 100)
+        XCTAssertEqual(c.document.paragraphs[1].image?.height, 200)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[1].image?.rotation, 0)
+        XCTAssertEqual(c.document.paragraphs[1].image?.width, 200)
+        c.redo()
+        let once = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        let first = try XCTUnwrap(once.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(first.rotation, 90)
+        XCTAssertEqual(first.width, 100, accuracy: 0.2)
+        XCTAssertEqual(first.height, 200, accuracy: 0.2)
+        XCTAssertEqual(first.altText, "Map")
+        // Turned again from the file's markup: 180, the box as it was at first; then back to 0 with a left turn.
+        let d = RichDocumentController(document: once)
+        let at = try XCTUnwrap(once.paragraphs.firstIndex { $0.image != nil })
+        XCTAssertTrue(d.rotatePicture(at: at, quarters: 1))
+        let twice = try DocxFormat.read(try DocxFormat.write(d.document, pageSetup: .letter)).document
+        let second = try XCTUnwrap(twice.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(second.rotation, 180)
+        XCTAssertEqual(second.width, 200, accuracy: 0.2)
+        XCTAssertEqual(second.height, 100, accuracy: 0.2)
+        XCTAssertTrue(d.rotatePicture(at: at, quarters: 2))
+        let home = try DocxFormat.read(try DocxFormat.write(d.document, pageSetup: .letter)).document
+        let back = try XCTUnwrap(home.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(back.rotation, 0)
+        XCTAssertEqual(back.width, 200, accuracy: 0.2)
+        XCTAssertEqual(home.paragraphs.map(\.text).filter { !$0.isEmpty }, ["above", "below"])
+    }
+
     /// Tracked changes stay tracked: an insertion and a deletion read as
     /// marked runs and are written back as the changes they were, so Word
     /// shows the same markup for the copy.
