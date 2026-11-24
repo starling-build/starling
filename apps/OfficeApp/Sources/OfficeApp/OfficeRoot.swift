@@ -128,6 +128,9 @@ private final class _OfficeRootState: State<StatefulWidget> {
         case .presentation: home = SlidesShell(initialPath: _path, startBlank: _generation > 0 && _path == nil, onSwitch: onSwitch)
         case .workbook: home = SheetsShell(initialPath: _path, onSwitch: onSwitch)
         }
+        // A touch anywhere in this window makes its editor's buttons the native bar's (windows share one bar).
+        let scene = officeScene
+        let touched = Listener(onPointerDown: { _ in scene.activate() }, behavior: .translucent, child: home)
         // The key is on the app, not on `home`: FluentApp reads `home`
         // once, into its first route, so a new home under the same app is
         // never shown.
@@ -136,11 +139,11 @@ private final class _OfficeRootState: State<StatefulWidget> {
             darkTheme: OfficeAppearance.theme(.dark),
             themeMode: _dark ? .dark : .light,
             home: _update.map { release in
-                UpdateNoticeHost(release: release, home: home) { [weak self] in
+                UpdateNoticeHost(release: release, home: touched) { [weak self] in
                     UpdateCheck.dismiss(release, store: SettingsUpdateStore())
                     self?.setState { self?._update = nil }
                 }
-            } ?? home,
+            } ?? touched,
             title: _kind.appName
         ))
     }

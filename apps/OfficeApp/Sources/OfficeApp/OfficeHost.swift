@@ -170,7 +170,23 @@ final class OfficeScene {
         } else {
             toolbarOwner = nil
         }
-        changed(buttons)
+        currentButtons = buttons
+        if buttons != nil { Self.active = self }
+        // A window that is not the active one keeps its buttons to itself until the user is in it again.
+        if buttons == nil || Self.active === self { changed(buttons) }
+    }
+
+    /// The buttons this window last published, for when it becomes the active window again.
+    private var currentButtons: [ToolbarButton]?
+
+    /// The window the user last touched: the native bar (one for the screen) shows its buttons.
+    nonisolated(unsafe) private static weak var active: OfficeScene?
+
+    /// The user touched this window: if another window had the bar, it is this window's now.
+    func activate() {
+        guard Self.active !== self else { return }
+        Self.active = self
+        if let changed = toolbarChanged, let b = currentButtons { changed(b) }
     }
 }
 

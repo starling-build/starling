@@ -872,6 +872,34 @@ let siteArg: String? = {
 // that file straight into the editor, as before — the way the simulator is
 // driven without a touch route.
 #if os(iOS)
+/// What every window's scene shares of the native shell: the saved-file notice, the edit menu and the formatting
+/// bar over the keyboard. `viewId` is the Flutter view the window draws in; the edit menu's rect arrives in that view's
+/// coordinates and the menu lives in the window's, so it is moved by the view's place there. The bar is one for the
+/// screen: the editor that published last (the one the user is working in) owns it.
+func connectNativeHooks(_ scene: OfficeScene, viewId: Int) {
+    let log = ProcessInfo.processInfo.environment["OFFICE_HOST_LOG"] != nil
+    scene.documentSaved = { OfficeNativeShell.documentSaved($0) }
+    scene.editMenuRequested = { x, y, w, h, items, text in
+        let o = viewId == 0 ? nil : TextInputChannel.viewOrigin?(viewId)
+        let rect = CGRect(x: x + (o?.x ?? 0), y: y + (o?.y ?? 0), width: w, height: h)
+        if log { fputs("[office] view \(viewId) edit menu at \(rect.origin.x),\(rect.origin.y)\n", stderr) }
+        OfficeNativeShell.showEditMenu(rect,
+                                       items: items.map { OfficeEditMenuItem(title: $0.title, symbol: $0.symbol,
+                                                                              isEnabled: $0.isEnabled, action: $0.action) },
+                                       text: text)
+    }
+    scene.editMenuDismissed = { OfficeNativeShell.showEditMenu(nil, items: [], text: nil) }
+    scene.toolbarChanged = { buttons in
+        if log { fputs("[office] view \(viewId) toolbar: \(buttons.map { "\($0.count) buttons" } ?? "withdrawn")\n", stderr) }
+        OfficeNativeShell.setToolbar(buttons?.map {
+            OfficeToolbarButton(id: $0.id, title: $0.title, symbol: $0.symbol,
+                                isOn: $0.isOn, isEnabled: $0.isEnabled, action: $0.action)
+        })
+    }
+}
+#endif
+
+#if os(iOS)
 Clipboard.provider = IOSClipboardProvider()
 // iPadOS may end an app it has put in the background: every window writes what it has not saved yet first.
 _ = NotificationCenter.default.addObserver(forName: Notification.Name("UIApplicationDidEnterBackgroundNotification"), object: nil, queue: .main) { _ in
@@ -883,24 +911,11 @@ if initialPath == nil && siteArg == nil && wikiBase == nil {
     OfficeNativeShell.install()
     OfficeNativeShell.onOpenDocument = { OfficeScene.main.openPath?($0) }
     OfficeNativeShell.makeBlank = { OfficeHost.writeBlank(kind: $0, to: $1) }
-    OfficeScene.main.documentSaved = { OfficeNativeShell.documentSaved($0) }
+    connectNativeHooks(OfficeScene.main, viewId: 0)
     OfficeScene.main.openRequested = { OfficeNativeShell.showBrowser(); return true }
     hostPrintPDF = { path in DispatchQueue.main.async { OfficeNativeShell.printPDF(path) } }
     OfficeScene.main.exportRequested = { name, prepare, thenOpen, done in
         OfficeNativeShell.export(name: name, prepare: prepare, thenOpen: thenOpen, done: done)
-    }
-    OfficeScene.main.editMenuRequested = { x, y, w, h, items, text in
-        OfficeNativeShell.showEditMenu(CGRect(x: x, y: y, width: w, height: h),
-                                       items: items.map { OfficeEditMenuItem(title: $0.title, symbol: $0.symbol,
-                                                                              isEnabled: $0.isEnabled, action: $0.action) },
-                                       text: text)
-    }
-    OfficeScene.main.editMenuDismissed = { OfficeNativeShell.showEditMenu(nil, items: [], text: nil) }
-    OfficeScene.main.toolbarChanged = { buttons in
-        OfficeNativeShell.setToolbar(buttons?.map {
-            OfficeToolbarButton(id: $0.id, title: $0.title, symbol: $0.symbol,
-                                isOn: $0.isOn, isEnabled: $0.isEnabled, action: $0.action)
-        })
     }
 }
 #endif
@@ -911,6 +926,7 @@ if initialPath == nil && siteArg == nil && wikiBase == nil {
 // size it). Off unless asked; the real entry points are step 5.
 if let second = ProcessInfo.processInfo.environment["OFFICE_SECOND_VIEW_DOC"], !second.isEmpty {
     let scene = OfficeScene()
+    connectNativeHooks(scene, viewId: 1)
     runView(id: 1) {
         OfficeSceneScope(scene: scene, child: OfficeRoot(initialPath: second, kind: DocumentKind.kind(forPath: second)))
     }
