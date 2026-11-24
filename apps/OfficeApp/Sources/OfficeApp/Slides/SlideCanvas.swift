@@ -184,8 +184,12 @@ final class SlideCanvasState: State<StatefulWidget> {
         // dragged to move), only a band along the edges for a text box
         // (whose inside belongs to its editor). Off while its text is
         // being edited, so the editor takes the clicks.
-        let band = 6.0
+        // (6 pt on a slide shown at full size; a quarter of the box's shorter drawn side at most: on a slide shown at
+        // 100 pt wide a 14 pt-tall box is 2 pt tall on screen, and two 6 pt bands would cover all of it, so a tap
+        // could only select it, never edit its text — seen in a 375 pt Split View pane.)
         let isLine = shape.preset?.isLine == true
+        // (A line has no inside to protect, and its frame can be zero tall: it keeps the full 6.)
+        let band = isLine ? 6.0 : max(1.0, min(6.0, min(abs(f.width), abs(f.height)) * px / 4))
         let gripRect = isLine
             ? Rect.fromLTRB(min(f.left, f.right) * px - band, min(f.top, f.bottom) * px - band,
                             max(f.left, f.right) * px + band, max(f.top, f.bottom) * px + band)

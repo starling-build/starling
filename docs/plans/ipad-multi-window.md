@@ -242,6 +242,17 @@ cycles on a device, frames stopping when a scene is backgrounded on a device.
   document saves nothing. All in the bridge/app; with one window nothing changes (view 0 reopens its last
   document, which is what restoration means).
 
+## Slides in a narrow window (2026-11-24)
+
+Found in round 4 (a 375 pt Split View pane): the slide showed about 100 pt wide beside the thumbnail rail, and a text
+box's 6 pt grip bands (selection/drag, on the box's edges) covered a small box entirely, so a tap selected it and
+never put the caret in its text. Two changes: the rail is hidden below 600 pt of window width (the slide gets the
+width; the sorter still lists every slide; `SizeReporter` at the shell's root, the shell has no LayoutBuilder), and
+the band is at most a quarter of the box's shorter drawn side (6 pt on a slide at full size, a line keeps 6). Measured
+in the simulator (Split View, ex.docx | sl.pptx, 375 pt pane): the slide is 312 pt wide and a tap on the subtitle
+box starts a text client and typed text lands in it ("[input] type view 1 ... focus=slide shape 2", text in the
+box). Not done: a way to bring the rail back in a narrow window; touch targets for resize handles on a tiny slide.
+
 ## Recommendation and order
 
 Option B, in the reviewed order. Multiple scenes stay OFF (`UIApplicationSupportsMultipleScenes` = NO)
