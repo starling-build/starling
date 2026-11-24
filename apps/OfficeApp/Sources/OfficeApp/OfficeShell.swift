@@ -7,6 +7,7 @@
 // never rebuilds anything but the editor's own painter.
 
 import Flutter
+import FluentSystemIcons
 import OfficeText
 import FlutterSwiftBridge
 import Foundation
@@ -851,11 +852,9 @@ final class OfficeShellState: State<StatefulWidget> {
     /// then formatting, then the table or picture it sits in.
     private func _showContextMenu(at point: Offset) {
         let c = controller
-        var items: [MenuFlyoutItemBase] = []
-        func item(_ text: String, enabled: Bool = true, _ action: @escaping () -> Void) {
-            items.append(MenuFlyoutItem(text: Text(text), onPressed: enabled ? action : nil))
-        }
-        func sep() { if !(items.last is MenuFlyoutSeparator), !items.isEmpty { items.append(MenuFlyoutSeparator()) } }
+        let menu = ContextMenuBuilder()
+        func item(_ text: String, enabled: Bool = true, _ action: @escaping () -> Void) { menu.item(text, enabled: enabled, action) }
+        func sep() { menu.separator() }
         // A misspelled word under the click: its corrections first, as Word.
         if let checker = _spelling, session.checkSpelling, !c.hasSelection {
             let pos = c.selection.focus
@@ -864,7 +863,7 @@ final class OfficeShellState: State<StatefulWidget> {
                 let word = _utf16Slice(text, r)
                 let guesses = checker.suggestions(for: word).prefix(5)
                 if guesses.isEmpty {
-                    items.append(MenuFlyoutItem(text: Text("(No Spelling Suggestions)"), onPressed: nil))
+                    item("(No Spelling Suggestions)", enabled: false) {}
                 }
                 for g in guesses {
                     item(g) { [weak self] in
@@ -899,9 +898,9 @@ final class OfficeShellState: State<StatefulWidget> {
         item("Paste: Keep Text Only") { [weak self] in self?._paste(mode: .textOnly) }
         item("Paste: Picture") { [weak self] in self?._paste(mode: .picture) }
         sep()
-        item("Bold") { c.toggleBold() }
-        item("Italic") { c.toggleItalic() }
-        item("Underline") { c.toggleUnderline() }
+        menu.miniButton(FluentSystemIcons.textBold, "Bold", on: c.selectionAll { $0.bold }) { c.toggleBold() }
+        menu.miniButton(FluentSystemIcons.textItalic, "Italic", on: c.selectionAll { $0.italic }) { c.toggleItalic() }
+        menu.miniButton(FluentSystemIcons.textUnderline, "Underline", on: c.selectionAll { $0.underline }) { c.toggleUnderline() }
         if c.currentLink == nil { item("Link…") { [weak self] in self?._openLink() } }
         if let i = c.selectedImageIndex, let image = c.document.paragraphs[i].image {
             sep()
@@ -930,7 +929,7 @@ final class OfficeShellState: State<StatefulWidget> {
         sep()
         item("Select All") { c.selectAll() }
         guard let context else { return }
-        _contextMenu.showFlyout(in: context, at: point) { _ in MenuFlyout(items: items) }
+        menu.show(_contextMenu, in: context, at: point)
     }
 
     // MARK: Links

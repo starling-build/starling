@@ -997,11 +997,15 @@ final class SheetsShellState: State<StatefulWidget> {
     private func _showContextMenu(at point: Offset, _ area: GridMenuArea) {
         guard let grid = _grid else { return }
         let c = wb
-        var items: [MenuFlyoutItemBase] = []
-        func item(_ text: String, enabled: Bool = true, _ action: @escaping () -> Void) {
-            items.append(MenuFlyoutItem(text: Text(text), onPressed: enabled ? action : nil))
+        let menu = ContextMenuBuilder()
+        func item(_ text: String, enabled: Bool = true, _ action: @escaping () -> Void) { menu.item(text, enabled: enabled, action) }
+        func sep() { menu.separator() }
+        if case .cells = area {
+            let st = c.style(at: c.active)
+            menu.miniButton(FluentSystemIcons.textBold, "Bold", on: st.bold) { c.toggleStyle(\.bold) }
+            menu.miniButton(FluentSystemIcons.textItalic, "Italic", on: st.italic) { c.toggleStyle(\.italic) }
+            menu.miniButton(FluentSystemIcons.textUnderline, "Underline", on: st.underline) { c.toggleStyle(\.underline) }
         }
-        func sep() { if !(items.last is MenuFlyoutSeparator), !items.isEmpty { items.append(MenuFlyoutSeparator()) } }
         // A picture or chart: delete it, or change what kind of chart it is.
         if case .drawing(let i) = area {
             item("Delete") { c.deleteDrawing(i) }
@@ -1012,7 +1016,7 @@ final class SheetsShellState: State<StatefulWidget> {
                 }
             }
             guard let context else { return }
-            _contextMenu.showFlyout(in: context, at: point) { _ in MenuFlyout(items: items) }
+            menu.show(_contextMenu, in: context, at: point)
             return
         }
         item("Cut") { grid.copySelection(cut: true) }
@@ -1063,6 +1067,6 @@ final class SheetsShellState: State<StatefulWidget> {
         case .drawing: break
         }
         guard let context else { return }
-        _contextMenu.showFlyout(in: context, at: point) { _ in MenuFlyout(items: items) }
+        menu.show(_contextMenu, in: context, at: point)
     }
 }
