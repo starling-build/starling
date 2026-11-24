@@ -1793,6 +1793,9 @@ extension DocxFormat {
                     // no room there, where its 300 by 200 stand-in set
                     // the table 187pt low.)
                     guard !child.children.isEmpty else { break }
+                    // (A VML pict of shape types only is definitions, not a shape: pt-408a10293d's first paragraph holds two and nothing else;
+                    // read as a picture it stood a grey 300 by 200 box 187 pt tall on page 1, none in Word's print.)
+                    if child.name == "w:pict", child.children.allSatisfy({ $0.name == "v:shapetype" }) { break }
                     // (A VML polyline alone — LibreOffice's FDO76248, a
                     // vertical rule over a table, `points` and no size —
                     // is not a box: read as the 300 by 200 stand-in it

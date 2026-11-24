@@ -206,4 +206,20 @@ final class CorpusFixTests: XCTestCase {
         let p = try anchoredPictureParagraph(bidi: true)
         XCTAssertEqual(p.runs[0].style.fontSize ?? p.style.mark?.fontSize, 16)
     }
+
+    /// A `w:pict` that holds only VML shape types defines shapes and draws none: it is no picture and takes no room
+    /// (pt-408a10293d stood a grey 300 by 200 stand-in on page 1).
+    func testAPictOfShapeTypesAloneIsNoPicture() throws {
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 10, height: 10))]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:r><w:pict><v:shapetype xmlns:v=\"urn:schemas-microsoft-com:vml\" id=\"_x0000_t75\" coordsize=\"21600,21600\" path=\"m@4@5l@4@11@9@11@9@5xe\"/></w:pict></w:r></w:p>"
+            + "<w:p><w:r><w:t>Text</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertTrue(doc.paragraphs.allSatisfy { $0.image == nil && $0.inlineImages.isEmpty })
+    }
 }
