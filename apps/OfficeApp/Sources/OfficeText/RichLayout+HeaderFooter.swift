@@ -122,7 +122,9 @@ extension RichLayout {
         for p in hf.document.paragraphs {
             for (image, float) in Self._hfWrapBoxes(p) {
                 let xml = image.sourceXML ?? ""
-                let w = _px(image.width), h = _px(image.height)
+                // (A wrapping spAutoFit box holds the text at its text's height, not the stale one in the file: pt 3e4a9b9379's
+                // 595pt box stated 110.6pt tall holding one 10pt line, the body 128pt low.)
+                let w = _px(image.width), h = _fittedBoxHeight(image, hf.document)
                 // (Placed down from a header's paragraph, which stands at the header distance: zh 837ac08d's
                 // 96pt picture, header distance 0, holds the text under it; from the margin it would not reach.)
                 let origin = float.verticalFrom == "page" ? 0 : (float.verticalFrom == "paragraph" && float.verticalAlign == nil ? _px(setup.headerDistance) : marginTop)
@@ -2267,8 +2269,13 @@ extension RichLayout {
                 // (Not when that line holds an inline picture: sa1 90385e38's header line of spaces and a 48.5pt logo stays at the header's top
                 // over the banner in Word's print, and the body starts at the banner's foot, 108.1, not a line lower, 193.4.)
                 let lineHoldsPicture = theme.wordRules && RichTextTheme.wordWindowsPages && hp.inlineImages.inOrder.contains(where: { $0.float == nil })
-                let line = wrapped && !lineHoldsPicture && j < header.layout._heights.count ? header.layout._heights[j] : 0
-                var below = _px(wrapped ? f.y : lift) + _px(image.height * (wrapped && f.wrapsTight ? f.wrapBottomShare : 1)) + _px(f.distanceBottom)
+                // (A box that starts under the paragraph's own line leaves that line where it is: pt 3e4a9b9379's box 90pt down from a one-line paragraph.)
+                let boxBelowLine = theme.wordRules && RichTextTheme.wordWindowsPages && j < header.layout._heights.count && f.y >= 0 && _px(f.y) >= header.layout._heights[j]
+                let line = wrapped && !lineHoldsPicture && !boxBelowLine && j < header.layout._heights.count ? header.layout._heights[j] : 0
+                // (A wrapping spAutoFit box ends the header at its text's height, not the stale one in the file: pt 3e4a9b9379's 595pt box
+                // stated 110.6pt tall holding one 10pt line, Word's body from 158, ours 128pt low.)
+                let boxHeight = wrapped && !f.wrapsTight && image.textBox?.autoHeight == true ? _fittedBoxHeight(image, header.document) : _px(image.height * (wrapped && f.wrapsTight ? f.wrapBottomShare : 1))
+                var below = _px(wrapped ? f.y : lift) + boxHeight + _px(f.distanceBottom)
                 // (The empty line moves down whole lines until it clears the picture's wrap foot, so its top is a multiple of the line height:
                 // sa1 2303e6f9 lab hdrpoly, Word's body top steps by 13.42pt with the picture's height and its polygon's foot, never between.)
                 // (Only a tight wrap's: a square one's line lands at the picture's foot and its distance, not on a whole line below it: dx2 zh 837ac08d's 95.8pt square picture, the body at 150.62 in Word's print, a line lower, 162.9, with the rounding.)
