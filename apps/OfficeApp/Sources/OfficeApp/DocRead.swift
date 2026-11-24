@@ -339,7 +339,7 @@ enum DocRead {
                 let part = "\(tag)\(k)_\(j).xml"
                 let hd = headerDrawings(a, b)
                 var hc = StoryContext(); hc.shapes = hd.shapes; hc.picture = hd.picture
-                extra.append(e("word/" + part, head + "<w:\(tag == "header" ? "hdr" : "ftr") \(ns)>" + story(a, b, hc) + "</w:\(tag == "header" ? "hdr" : "ftr")>"))
+                extra.append(e("word/" + part, head + "<w:\(tag == "header" ? "hdr" : "ftr") \(ns)>" + story(a, b - a > 1 ? b - 1 : b, hc) + "</w:\(tag == "header" ? "hdr" : "ftr")>"))
                 if !hd.rels.isEmpty { extra.append(e("word/_rels/" + part + ".rels", head + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" + hd.rels + "</Relationships>")) }
                 rels += "<Relationship Id=\"\(id)\" Type=\"\(relBase)\(tag)\" Target=\"\(part)\"/>"
                 types += "<Override PartName=\"/word/\(part)\" ContentType=\"\(ctBase)\(tag).xml\"/>"
