@@ -27,7 +27,7 @@ extension RichLayout {
                 for c in 0..<_columns {
                     let a = _px(setup.columnOffset(c)), b = a + _px(setup.columnWidth)
                     var hit: [(Double, Double)] = []
-                    for t in seeds where t.right > a && t.left < b && max(0, t.left - a) < em && max(0, b - t.right) < em {
+                    for t in seeds where t.right > a && t.left < b && max(0, t.left - a) < pitch && max(0, b - t.right) < pitch {
                         hit.append((max(0, t.top), min(flow, t.bottom)))
                     }
                     hit.sort { $0.0 < $1.0 }
@@ -78,16 +78,16 @@ extension RichLayout {
         let spec = setup.columnOffset(column)
         let start = _px(spec), width = _px(setup.columnWidth)
         let em = _px(12)
+        let line = max(em, Self._lineBottoms(geometry(pgs.i).painter).first ?? em)
         var blocked: [(Double, Double)] = []
         for s in seeds {
-            // (Beside it, room for one em: the text there, as before.)
+            // (A line goes beside a float only where its whole pitch fits, stepping from the float's edge: a gap under one pitch stays empty.)
             let before = max(0, s.left - start), after = max(0, start + width - s.right)
-            guard s.right > start, s.left < start + width, before < em, after < em else { continue }
+            guard s.right > start, s.left < start + width, before < line, after < line else { continue }
             blocked.append((max(0, s.top), min(pgs.contentH, s.bottom)))
         }
         guard !blocked.isEmpty else { return }
         blocked.sort { $0.0 < $1.0 }
-        let line = max(em, Self._lineBottoms(geometry(pgs.i).painter).first ?? em)
         var at = pgs.y
         for b in blocked where b.1 > at {
             if b.0 - at >= line - 0.01 { break }
