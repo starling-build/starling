@@ -73,6 +73,8 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _chartData = false
     /// The Header & Footer dialog is up.
     private var _headerFooter = false
+    /// Font Color > More Colors is open.
+    private var _colorOpen = false
     /// The Animation Pane is open beside the slide.
     private var _animationPane = false
     /// A thumbnail being dragged to a new place: where it started, the
@@ -291,6 +293,10 @@ final class SlidesShellState: State<StatefulWidget> {
             guard let self else { return }
             self._pictureForBackground = false
             self._pickPicture()
+        }
+        session.onMoreColors = { [weak self] in
+            guard let self else { return }
+            self.setState { self._colorOpen = true }
         }
         session.onHeaderFooter = { [weak self] in
             guard let self else { return }
@@ -1235,6 +1241,19 @@ final class SlidesShellState: State<StatefulWidget> {
                         self?.setState { self?._headerFooter = false }
                     },
                     onCancel: { [weak self] in self?.setState { self?._headerFooter = false } })),
+            ])
+        }
+        if _colorOpen {
+            let now = session.controller.currentCharStyle.color
+            return Stack(children: [
+                IgnorePointer(ignoring: true, child: window),
+                Positioned(left: 0, top: 0, right: 0, bottom: 0, child: CustomColorDialog(
+                    initial: now.map { UInt32(truncatingIfNeeded: $0.value) & 0xFFFFFF } ?? 0,
+                    onOK: { [weak self] rgb in
+                        self?.session.controller.setTextColor(Color(Int64(0xFF00_0000 | rgb)))
+                        self?.setState { self?._colorOpen = false }
+                    },
+                    onCancel: { [weak self] in self?.setState { self?._colorOpen = false } })),
             ])
         }
         guard let page = _backstage else { return window }
