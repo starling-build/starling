@@ -316,6 +316,8 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
     var printRowScale = 0.0
     /// A print at a set scale below 100 % (not fitted to pages): the rows a face sets on another screen row (`Face.setScreenRow`) take it.
     var printSetScaled = false
+    /// A print at a set scale (not fit to pages), at any scale: `printSetScaled` is its scale below 100.
+    var printNoFit = false
     var printPct = 100.0
     /// The widest a column prints, in points before the page's scale: the
     /// page's width between its margins. Excel's print cuts a wider column
@@ -366,12 +368,13 @@ final class SheetGridState: State<StatefulWidget>, TextInputClient {
             // (A sheet the file gives no view prints its set heights halved:
             // `Worksheet.hasView`.)
             // (A face whose set rows stand on another screen row (`Face.setScreenRow`) takes it only in a print at a set scale below 100 %: Excel's 50.1 pt rows print at 28.1 at 58 % in a 新細明體 12 book where the 100 % print's follow the fitted row.)
-            let setBase = printSetScaled ? m.setRowScale : m.rowScale
+            let setOwnNow = m.setOwn && (printSetScaled || (printNoFit && m.setOwnAt100))
+            let setBase = setOwnNow ? m.setRowScale : m.rowScale
             let setScale = ws.hasView ? setBase : setBase / 2
             var heights = Dictionary(uniqueKeysWithValues: ws.rowHeights.compactMap { (r, h) -> (Int, Double)? in
                 let fit = ws.fittedRows.contains(r)
                 if fit, h > 0 { return (r, ws.scriptRows.contains(r) ? h * fitted : m.defaultRow) }
-                return (r, fit ? h * fitted : (printSetScaled && m.setOwn ? SheetPrintMetrics.setRowOwn(h, scale: setScale, printPct: printPct) : SheetPrintMetrics.setRow(h, scale: setScale)))
+                return (r, fit ? h * fitted : (setOwnNow ? SheetPrintMetrics.setRowOwn(h, scale: setScale, printPct: printPct) : SheetPrintMetrics.setRow(h, scale: setScale)))
             })
             // A row fitted afresh is as tall as its tallest font's line —
             // fitted on the screen, then printed (`fittedRow`) — its empty
