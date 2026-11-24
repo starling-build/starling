@@ -3201,6 +3201,18 @@ final class DocxTests: XCTestCase {
         }
     }
 
+    func testASimplifiedArabicLineStandsItsHheaAscentUnderTheTop() throws {
+        // Word for Windows, lab sp1 (xb ara-z3803947): a bold 14pt Simplified Arabic line stands its first baseline 16.58 pt under the top
+        // (hhea ascent 2416/2048 = 1.18 em) in a 1.658 em line, where the Naskh stand-in stood it 13.5.
+        let was = OfficeFonts.wordOnWindows
+        OfficeFonts.wordOnWindows = true
+        defer { OfficeFonts.wordOnWindows = was; OfficeFonts.noteFontEntries([:]) }
+        OfficeFonts.noteAltNames([:]); OfficeFonts.noteFontEntries([:]); OfficeFonts.noteEmbedded([]); OfficeFonts.noteEmbeddedFaces([:])
+        let face = try XCTUnwrap(OfficeFonts.complexFace("Simplified Arabic"))
+        XCTAssertEqual(try XCTUnwrap(face.baseline), 2416.0 / 2048, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(face.naturalHeight), 3395.0 / 2048, accuracy: 0.001)
+    }
+
     func testAnOpeningMarkMayEndALineSqueezedUnderCompressPunctuation() throws {
         // Word for Windows, compat 15, compressPunctuation, kinsoku on (labs
         // opn1/opn11, zh 8787f4): with room for half an em or more the opener
