@@ -52,6 +52,24 @@ final class ChartTests: XCTestCase {
         XCTAssertEqual(tall.height, 170.5, accuracy: 1.5)
     }
 
+    /// Word's 3-D columns at right angles, two categories, in the place the file leaves (lab bar3dwide3, a 360 pt frame; the place 300 pt high here so the width binds): the back wall's top at 2.1 pt, the depth 54.0 pt across, the picture 367.2 pt wide in Word's print
+    /// (box 3.5 pt narrower than its picture's edge to edge: 1.1 + 2.4 of blank).
+    func testWord3DColumnsStandInTheirPlaceByOneSlotOfDepth() {
+        let m = ChartPainter.word3DColumnsBox(spanWidth: 360 - 30.1, placeHeight: 300, categories: 2, gap: 1.5, gapDepth: 1.5,
+                                              depth: 1, rotX: 15, rotY: 20)
+        // width binds: front + depth = Av - 3.5 exactly
+        XCTAssertEqual(m.width, 360 - 30.1 - 3.5, accuracy: 0.01)
+        XCTAssertEqual(m.top, 2.1, accuracy: 0.001)
+        // depth across = sin 20 / 2 (gap and gapDepth both 150%) of the front
+        let front = m.width / (1 + 0.5 * 0.342020)
+        XCTAssertEqual(m.width - front, 0.5 * 0.342020 * front, accuracy: 0.01)
+        // a short place: the height binds, the box is centred across the span
+        let low = ChartPainter.word3DColumnsBox(spanWidth: 169.9, placeHeight: 103.8, categories: 2, gap: 1.5, gapDepth: 1.5, depth: 1, rotX: 15, rotY: 20)
+        XCTAssertEqual(low.height, 103.8 - 3.5, accuracy: 0.01)
+        XCTAssertLessThan(low.width, 169.9 - 3.5)
+        XCTAssertEqual(low.left, (169.9 - low.width - 3.5) / 2 + 1.1, accuracy: 0.01)
+    }
+
     func testStackingAndBlanks() throws {
         var c = Chart.sample(.column)
         c.stacked = true

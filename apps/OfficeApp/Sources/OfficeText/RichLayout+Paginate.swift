@@ -321,6 +321,22 @@ extension RichLayout {
                 pgs.anchorAboveBottom = pgs.y
                 pgs.y = fb.y - (pgs.i < _spaceBefore.count ? _spaceBefore[pgs.i] : 0)
             }
+            // (A picture alone in the paragraph after a floating table, narrower than the room at the table's left,
+            // stands there, level with the table's top, not under its rows. Word's print of sa1 sect5's two-column
+            // section: the 203.6pt chart after a right-aligned 285pt table stands in the 215pt at its left, 9pt under
+            // the table's top; ours set it under the rows, 72pt low, and the page ran over.)
+            if theme.wordRules, RichTextTheme.wordWindowsPages, pgs.besideTable == nil, pgs.resumeCursor == nil, pgs.i > 0, pgs.i < _heights.count,
+               _cells[pgs.i] == nil, !_pageBreak[pgs.i],
+               document.paragraphs[pgs.i].image != nil || _inlinePictureOnly(pgs.i, document),
+               let prev = _cells[pgs.i - 1]?.table, !_floatLeavesNoStrip(prev, pgs.i, document),
+               let ts = document.tableStyles[prev], ts.floatsOverText, !ts.pageAnchored, let down = ts.floatOffsetY, down > 0,
+               let fb = pgs.floatRunBase, fb.table == prev, fb.page == pgs.page, fb.y < pgs.y - 0.01,
+               _pictureFitsLeftOf(prev, pgs.i, document) {
+                RuleTrace.hit("word-picture-after-a-floating-table-stands-in-the-room-at-its-left")
+                pgs.besideTable = (pgs.y, pgs.page)
+                pgs.anchorAboveBottom = pgs.y
+                pgs.y = fb.y - (pgs.i < _spaceBefore.count ? _spaceBefore[pgs.i] : 0)
+            }
             // (A table as wide as the text leaves no strip: what follows goes under
             // it, not up at its anchor — 6e6d8e9e's blank lines after its sections.)
             if theme.wordRules, pgs.besideTable == nil, pgs.i > 0, _cells[pgs.i] == nil, let prev = _cells[pgs.i - 1]?.table,
@@ -858,7 +874,9 @@ extension RichLayout {
                         var rest = (from: piece.flowTop, to: piece.flowBottom)
                         if !bandsHere.isEmpty, theme.wordRules {
                             let h = rest.to - rest.from
-                            for band in bandsHere.sorted(by: { $0.pageY < $1.pageY }) where top + base + h > band.pageY + 0.01 && top + base < band.pageY + band.height - 0.01 {
+                            // (A picture that fits the room at the left of a floating table stands beside it, level with it: sect5's chart, 203.6pt in the 215pt at its table's left.)
+                            for band in bandsHere.sorted(by: { $0.pageY < $1.pageY }) where top + base + h > band.pageY + 0.01 && top + base < band.pageY + band.height - 0.01
+                                && !(_cells[band.paragraph].map { _floatedPictureFitsLeftOf($0.table, piece.paragraph, document) } ?? false) {
                                 top = band.pageY + band.height - base
                             }
                         }
@@ -3599,5 +3617,32 @@ extension RichLayout {
             dist = Double(kept[r.upperBound...].prefix { $0 == "-" || $0.isNumber }) ?? 0
         }
         return _tableLeft(table, document) - _px(dist / 20)
+    }
+}
+
+extension RichLayout {
+    /// The width in points of the picture that is all a paragraph holds (one picture, or the inline ones side by side).
+    @inline(never)
+    func _pictureFitsLeftOf(_ table: String, _ i: Int, _ document: RichDocument) -> Bool {
+        guard theme.wordRules, RichTextTheme.wordWindowsPages, let width = _pictureOnlyWidth(i, document), width > 0,
+              // (A table set against the right margin: its picture's room is the strip at its left. One set at a point across the page is a
+              // case Word's print has not shown for pictures: lo-88b299584c476bd2 keeps its picture under the table.)
+              let ts = document.tableStyles[table], ts.alignment == .right || (ts.keptPosition ?? "").containsSubstring("tblpXSpec=\"right\"") else { return false }
+        return _px(width) <= _tableLeftRoom(table, document)
+    }
+
+    /// The same, for a table that floats over the text by a given drop and is not page-anchored (the sect5 case).
+    @inline(never)
+    func _floatedPictureFitsLeftOf(_ table: String, _ i: Int, _ document: RichDocument) -> Bool {
+        guard let ts = document.tableStyles[table], ts.floatsOverText, !ts.pageAnchored, let down = ts.floatOffsetY, down > 0 else { return false }
+        return _pictureFitsLeftOf(table, i, document)
+    }
+
+    @inline(never)
+    func _pictureOnlyWidth(_ i: Int, _ document: RichDocument) -> Double? {
+        let p = document.paragraphs[i]
+        if let image = p.image, !p.text.contains(where: { $0 != " " && $0 != "\u{FFFC}" }) { return image.width }
+        guard _inlinePictureOnly(i, document) else { return nil }
+        return p.inlineImages.values.reduce(0) { $0 + $1.width }
     }
 }
