@@ -421,6 +421,23 @@ final class OfficeShellState: State<StatefulWidget> {
     /// Render to a PDF in the temporary directory and hand it to the host's
     /// print dialog.
     private func _print() {
+        _outOfThisBlock { [weak self] in self?._printNow() }
+    }
+
+    /// Runs `work` from the run loop, not from the block it was asked in. A PDF still waits for the pictures a
+    /// header's metafile or a drawing group decodes on the main queue (the body's, headers' and text boxes' reach
+    /// it through the layout's mailbox), by spinning the run loop, which cannot drain a serial queue it is itself
+    /// running a block of; asked from one (the driven tap of the simulator tests is one) that wait runs out its
+    /// eight seconds and the picture prints as a grey box. A plain call outside iOS, where nothing is known to.
+    private func _outOfThisBlock(_ work: @escaping () -> Void) {
+        #if os(iOS)
+        RunLoop.main.perform(work)
+        #else
+        work()
+        #endif
+    }
+
+    private func _printNow() {
         #if os(WASI)
         _flash("Printing is not available in the browser yet")
         #else
@@ -719,8 +736,10 @@ final class OfficeShellState: State<StatefulWidget> {
             ask(target.lastPathComponent, { [weak self] path, finished in
                 guard let self else { finished(false); return }
                 if ext == "pdf" {
-                    finished(PdfExport.write(self.controller.document, pageSetup: self.session.pageSetup,
-                                             theme: self.session.theme, to: path, title: self.session.title))
+                    self._outOfThisBlock {
+                        finished(PdfExport.write(self.controller.document, pageSetup: self.session.pageSetup,
+                                                 theme: self.session.theme, to: path, title: self.session.title))
+                    }
                 } else {
                     finished((try? OfficeFormats.write(self.controller.document, to: path,
                                                        pageSetup: self.session.pageSetup)) != nil)
