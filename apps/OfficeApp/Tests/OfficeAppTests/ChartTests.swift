@@ -39,6 +39,14 @@ final class ChartTests: XCTestCase {
     /// Excel's box of a 3-D area at right angles, from Windows lab view3d's prints (480 x 288 pt, its room 398.4 x 224.6 pt):
     /// the front 340.0 x 96.7 pt, its depth 57.2 across, for two series; 297.2 x 126.8 and 101.0 for four; hPercent 100 makes the
     /// front 170.5 high.
+    /// Word's print of dx2 9f8856f2: a deleted value axis with a minimum of 40 and data to 54.1 ends at 55 by 5; 20 and 52.0 end at 60 by 10.
+    func testAWordLineChartsDeletedAxisWithAMinimumEndsAtAStepOfAboutFiveToTheRun() {
+        let a = ChartPainter.wordLineMinimumScale(min: 40, dataMax: 54.1)
+        XCTAssertEqual(a.lo, 40); XCTAssertEqual(a.hi, 55); XCTAssertEqual(a.step, 5)
+        let b = ChartPainter.wordLineMinimumScale(min: 20, dataMax: 52.0)
+        XCTAssertEqual(b.hi, 60); XCTAssertEqual(b.step, 10)
+    }
+
     func testA3DAreaAtRightAnglesStandsInItsRoomAsExcelPrintsIt() {
         let two = ChartPainter.area3DRightBox(roomW: 398.4, roomH: 224.6, series: 2, categories: 4, depth: 1, heightPercent: nil, rotX: 15, rotY: 20)
         XCTAssertEqual(two.width, 340.0, accuracy: 1.5)
