@@ -670,6 +670,45 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try DocxFormat.read(try DocxFormat.write(back, pageSetup: .letter)).document.paragraphs[0].text, "\u{2612} no diploma")
     }
 
+    /// A header's top-and-bottom picture set 0.4pt down from its own line pushes none of the header's lines (lab hdrline, Word for
+    /// Windows; ko-2927800653): one anchor line ends the header at the picture's foot, 63.0 on a 30pt header distance, not a line lower.
+    func testHeaderPictureSetFromItsOwnLinePushesNoLine() throws {
+        var doc = RichDocument(paragraphs: [RichParagraph(text: "body")])
+        doc.header = "x"
+        var entries = try Zip.read(try DocxFormat.write(doc, pageSetup: .a4))
+        let hi = try XCTUnwrap(entries.firstIndex { $0.name == "word/header1.xml" })
+        let anchor = "<w:p><w:r><w:drawing><wp:anchor distT=\"0\" distB=\"0\" distL=\"114300\" distR=\"114300\" simplePos=\"0\" relativeHeight=\"1\" behindDoc=\"0\" locked=\"0\" layoutInCell=\"1\" allowOverlap=\"1\">"
+            + "<wp:simplePos x=\"0\" y=\"0\"/><wp:positionH relativeFrom=\"column\"><wp:posOffset>4952365</wp:posOffset></wp:positionH>"
+            + "<wp:positionV relativeFrom=\"line\"><wp:posOffset>5080</wp:posOffset></wp:positionV><wp:extent cx=\"1451610\" cy=\"635000\"/>"
+            + "<wp:wrapTopAndBottom/><wp:docPr id=\"2\" name=\"p\"/><a:graphic xmlns:a=\"http://schemas.openxmlformats.org/drawingml/2006/main\">"
+            + "<a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><pic:pic xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">"
+            + "<pic:nvPicPr><pic:cNvPr id=\"0\" name=\"p\"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed=\"rId1\"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>"
+            + "<pic:spPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"1451610\" cy=\"635000\"/></a:xfrm><a:prstGeom prst=\"rect\"/></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p>"
+        let header = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:hdr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" xmlns:wp=\"http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing\">\(anchor)</w:hdr>"
+        entries[hi] = ZipEntry(name: "word/header1.xml", data: Data(header.utf8))
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        entries.append(ZipEntry(name: "word/media/image1.png", data: png))
+        entries.append(ZipEntry(name: "word/_rels/header1.xml.rels", data: Data("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/image\" Target=\"media/image1.png\"/></Relationships>".utf8)))
+        let di = try XCTUnwrap(entries.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        xml = xml.replacingAll("<w:pgMar ", with: "<w:pgMar w:header=\"600\" ")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        let opened = try DocxFormat.read(try Zip.write(entries))
+        let theme = RichTextTheme(fontFamily: OfficeFonts.sans)
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: opened.document.paragraphs.count)
+        let setup = opened.pageSetup ?? .a4
+        l.pageSetup = setup
+        l.width = setup.columnWidth * theme.pixelsPerPoint
+        l.ensureLaidOut(opened.document)
+        // The body starts a few points under the picture's foot (30 + 0.4 + 50); a pushed line would add 14 or more.
+        let top = l.bodyBandPoints(page: 0, opened.document).top
+        XCTAssertGreaterThanOrEqual(top, 30 + 0.4 + 50)
+        XCTAssertLessThan(top, 30 + 0.4 + 50 + 10)
+    }
+
     func testRichAndFirstPageHeadersKeptVerbatim() throws {
         // A default header holding a table (60329's banner) and a
         // first-page header: both parts come back as they were, the
