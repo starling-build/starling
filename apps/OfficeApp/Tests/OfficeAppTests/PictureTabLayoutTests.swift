@@ -72,6 +72,40 @@ final class PictureTabLayoutTests: XCTestCase {
         XCTAssertEqual(end(p), 450, accuracy: 0.5)
     }
 
+    func testATabAfterSpacesStartsAfterThemAndEndsOnItsDefaultStop() throws {
+        // Word's lab tabend: "WWW…W" + six spaces + three tabs. The tab starts where the spaces end and goes to the next
+        // 36 pt stop; ours measured it from the last letter and drew it ending 18 pt short of its stop.
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        for letters in 20...40 {
+        var p = RichParagraph(text: String(repeating: "W", count: letters) + String(repeating: " ", count: 6) + "\t\t\t")
+        p.style = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1)
+        let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+        theme.wordRules = true
+        let px = theme.pixelsPerPoint
+        var document = RichDocument(paragraphs: [p])
+        document.compatibilityMode = 15
+        let layout = RichLayout(theme: theme, paragraphCount: 1)
+        layout.width = 450 * px
+        layout.ensureLaidOut(document)
+        let painter = layout.geometry(0).painter
+        func box(_ i: Int) -> (left: Double, right: Double) {
+            let b = painter.getBoxesForSelection(TextSelection(baseOffset: i, extentOffset: i + 1)).first
+            return ((b?.left ?? 0) / px, (b?.right ?? 0) / px)
+        }
+        let spacesEnd = box(letters + 5).right
+        let tab = box(letters + 6)
+        if spacesEnd < 414 {
+        XCTAssertEqual(tab.left, spacesEnd, accuracy: 0.5)
+        XCTAssertEqual(tab.right.truncatingRemainder(dividingBy: 36), 0, accuracy: 0.5, "\(letters) letters: the tab ends on a 36 pt stop")
+        XCTAssertGreaterThan(tab.right, spacesEnd)
+        }
+        // Three stops on from the spaces' end the last tab's stop; past the 450 pt edge it opens a second line.
+        let lastStop = (spacesEnd / 36).rounded(.down) * 36 + 36 * 3
+        XCTAssertEqual(painter.computeLineMetrics().count, lastStop > 450.5 ? 2 : 1, "\(letters) letters, last stop \(lastStop)")
+        }
+    }
+
     func testAFormCheckBoxIsADrawnSquareOfWordsAdvance() throws {
         // form_footnotes: Word draws a FORMCHECKBOX ("☐") as a 9.36pt
         // square with 1.06 before and 1.08 after it at 10pt — an 11.5pt
