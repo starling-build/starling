@@ -89,4 +89,45 @@ final class SplitCellLayoutTests: XCTestCase {
         }
         XCTAssertEqual(try textLeft("outset") - textLeft("single"), 0.375, accuracy: 0.01)
     }
+
+    /// A table that states its cell spacing (even none) rules each cell on its own, so the table's top line framing the row that opens a
+    /// continued page stands over the row's own top line: the page opens a line lower than without the statement
+    /// (zh-15f60bacd, dx2 af62a100da33: every continued page opened 0.5 pt higher in ours than in Word's print).
+    func testASpacedTablesContinuedPageOpensALineLower() throws {
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        func secondPageTop(spacing: Double?) throws -> Double {
+            var line = RichParagraphStyle(spaceAfter: 0, lineSpacing: 1)
+            line.lineHeightPoints = 20
+            var paragraphs: [RichParagraph] = []
+            for r in 0 ..< 8 {
+                var p = RichParagraph(text: "Row \(r)", style: line)
+                p.cell = CellRef(table: "T", row: r, column: 0)
+                p.cell?.bordersXML = "<w:tcBorders><w:top w:val=\"single\" w:sz=\"4\"/></w:tcBorders>"
+                paragraphs.append(p)
+            }
+            var document = RichDocument(paragraphs: paragraphs)
+            document.compatibilityMode = 15
+            document.tableColumns["T"] = [200]
+            var table = TableStyle(borders: true)
+            table.cellSpacing = spacing
+            table.cellMarginTop = 0
+            table.cellMarginBottom = 0
+            document.tableStyles["T"] = table
+            var page = PageSetup.letter
+            page.height = 100
+            page.marginTop = 10
+            page.marginBottom = 10
+            let theme = RichTextTheme(fontFamily: OfficeFonts.serif)
+            theme.wordRules = true
+            let layout = RichLayout(theme: theme, paragraphCount: paragraphs.count)
+            layout.pageSetup = page
+            layout.width = page.columnWidth * theme.pixelsPerPoint
+            layout.ensureLaidOut(document)
+            let first = try XCTUnwrap(layout.pieces.flatMap { $0 }.first { $0.page == 1 && $0.part != .rules })
+            return first.pageY / theme.pixelsPerPoint
+        }
+        let plain = try secondPageTop(spacing: nil), stated = try secondPageTop(spacing: 0)
+        XCTAssertEqual(stated - plain, 0.5, accuracy: 0.05)
+    }
 }
