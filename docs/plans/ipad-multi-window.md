@@ -1,6 +1,6 @@
 # iPad multi-window: design for review
 
-Status: **reviewed 2026-11-23: GO on option B (board/20261123-152204-amd-opus.md), with the changes folded in below. Nothing built.** Author: mac-ipad session, 2026-11-23. The ask: two documents
+Status: **reviewed 2026-11-23: GO on option B (board/20261123-152204-amd-opus.md), with the changes folded in below. Built so far (2026-11-23): engine raster side (starling-engine 1a36a4fe3c8: view id to CAMetalLayer, add/resize/remove, touches by view id), the per-view leak fixed (four ARC cycles, #2515), scene host with scenes off, `runView` with a real scrolling list in view 1 (test host, env-gated). Steps 4-5 not started.** Author: mac-ipad session, 2026-11-23. The ask: two documents
 open side by side as two windows of the Office app (Split View of the app with itself, Stage Manager
 windows, "Open in New Window", drag a file out of the browser).
 
