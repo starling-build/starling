@@ -652,6 +652,8 @@ public struct RichParagraphStyle: Hashable, Codable, Sendable {
     public var lineSpacingUnstated = false
     /// Slides: the face the paragraph's end mark names when it is not the last run's. PowerPoint counts it in the depth of the line that ends the paragraph.
     public var endMarkFace: String? = nil
+    /// The end mark came from the last run's Latin face (no endParaRPr): it raises the last line alone, the lines before it do not share its split.
+    public var endMarkLastOnly = false
     /// Slides table cells: the share of the line below the baseline (Windows descent over ascent plus descent) of the face with the most of it, the biggest run's or the end mark's (lab tbl-rows3: it sets the first-line loss of a percent line spacing above 100%).
     public var cellDescentShare: Double? = nil
     /// Slides table cells: fontAlgn ctr takes the full m x 1.2 x size first line, no trim (lab tblrow2).

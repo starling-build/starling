@@ -1519,7 +1519,14 @@ extension _ParaFrame {
             } else if !lines1(painter), inline.isEmpty, let split = _mixedFaceLinesSpan(span, p, painter) {
                 let again = laidOutPlain(split)
                 RichLayout._mixedOfPainter[ObjectIdentifier(again)] = nil
-                if again.computeLineMetrics().count == painter.computeLineMetrics().count {
+                func ends(_ q: TextPainter, _ n: Int) -> [Int] {
+                    var out: [Int] = []; var at = 0
+                    while out.count < 200 { let r = q.getLineBoundary(TextPosition(offset: at)); if r.end <= at { break }; out.append(r.end); at = r.end; if out.count >= n + 1 { break } }
+                    return out
+                }
+                let n = painter.computeLineMetrics().count
+                // (Where the end mark is the only second face, the rebuilt pieces must break where the plain paragraph does: they wrapped a character early.)
+                if again.computeLineMetrics().count == n, !RichLayout._mixedByMarkOnly || ends(again, n) == ends(painter, n) {
                     painter.dispose(); painter = again; RichLayout._mixedOfPainter[ObjectIdentifier(painter)] = RichLayout._mixedLinesShare.map { ($0.depth, $0.size / _px(1)) } ?? (0, 0)
                 } else { again.dispose() }
             }
