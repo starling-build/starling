@@ -1291,7 +1291,12 @@ extension DocxFormat {
             // number run Word sets in the Latin face, Tahoma's taller line: 29.4 pt steps, ours 28.5 on Arial's.)
             let digitsOnly = DocxFormat.wordOnWindows && s.unicodeScalars.contains { (0x30 ... 0x39).contains($0.value) }
                 && s.unicodeScalars.allSatisfy { (0x30 ... 0x39).contains($0.value) || "-./:,%".unicodeScalars.contains($0) }
-            if (cs.rightToLeft && !digitsOnly) || s.unicodeScalars.contains(where: { (0x0590 ... 0x08FF).contains($0.value) || (0xFB1D ... 0xFDFF).contains($0.value) || (0xFE70 ... 0xFEFF).contains($0.value) }) { cs.csLetters = true }
+            // (… nor a run of ASCII punctuation and spaces in Calibri, a face Word has: dx2 99905488's '"' runs, w:rtl, cs Calibri, hint cs, step
+            // the line by Calibri's own height in Word's print, where the fallback face the letters would take is a taller line.)
+            let calibriPunct = DocxFormat.wordOnWindows && (cs.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "calibri"
+                && s.unicodeScalars.allSatisfy { $0.isASCII && !(0x30 ... 0x39).contains($0.value) && !(0x41 ... 0x5A).contains($0.value) && !(0x61 ... 0x7A).contains($0.value) }
+                && s.unicodeScalars.contains { $0.value > 0x20 }
+            if (cs.rightToLeft && !digitsOnly && !calibriPunct) || s.unicodeScalars.contains(where: { (0x0590 ... 0x08FF).contains($0.value) || (0xFB1D ... 0xFDFF).contains($0.value) || (0xFE70 ... 0xFEFF).contains($0.value) }) { cs.csLetters = true }
             // (… unless the run says w:hint="cs": dx2 1ba3a908's "בדצמבר 2023", w:rtl, hint cs, Hebrew letters, steps like the Arial Hebrew line
             // around it, 13.8 pt, not Calibri's 14.65 the number's Latin face would give. Persian runs with the same hint keep the number in the Latin
             // face: xb fas-z2070387's "(1403)" and "14(2)" among B Lotus words, Mitra.)
