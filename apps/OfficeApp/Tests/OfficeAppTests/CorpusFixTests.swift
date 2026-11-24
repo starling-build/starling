@@ -202,4 +202,38 @@ final class CorpusFixTests: XCTestCase {
         XCTAssertGreaterThan(fixed, PageSetup.letter.headerDistance + 30 + 100, "a fixed-height box: the body stands under its stated foot")
         XCTAssertLessThan(fitted, fixed - 60, "an autofit box: under its one text line")
     }
+
+    /// A `w:pict` holding only a `v:shapetype` (no shape of it) draws
+    /// nothing: es-28716e1db6's header carried one and it stood a 164.7 pt
+    /// line on every page. It must make no picture or object.
+    func testAPictHoldingOnlyAShapeTypeTakesNoRoom() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:r><w:pict><v:shapetype xmlns:v=\"urn:schemas-microsoft-com:vml\" id=\"_x0000_m2050\" coordsize=\"21600,21600\" o:spt=\"136\" "
+            + "xmlns:o=\"urn:schemas-microsoft-com:office:office\" path=\"m@7,l@8,m@5,21600l@6,21600e\"><v:path/></v:shapetype></w:pict></w:r><w:r><w:t>y</w:t></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertTrue(doc.paragraphs.allSatisfy { $0.image == nil && $0.inlineImages.isEmpty })
+    }
+
+    /// A connector `v:shape` of 500pt by 0pt is a straight line: its height
+    /// is 0, not absent. Read as absent it stood the 300 by 200 stand-in
+    /// (es-e3d5fed41c's rule row was 188 pt too tall).
+    func testAVmlShapeOfZeroHeightIsALineNotTheStandIn() throws {
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "x")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:r><w:pict><v:shape xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:w10=\"urn:schemas-microsoft-com:office:word\" id=\"s1\" type=\"#_x0000_t32\" "
+            + "style=\"width:500pt; height:0pt; margin-left:0pt; margin-top:0pt; mso-position-horizontal-relative:char; mso-position-vertical-relative:line;\">"
+            + "<w10:wrap type=\"inline\"/><v:stroke weight=\"1.25pt\" color=\"#013785\"/></v:shape></w:pict></w:r></w:p>")
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let image = try XCTUnwrap(doc.paragraphs.compactMap { $0.image ?? $0.inlineImages.values.first }.first)
+        XCTAssertLessThan(image.height, 5)
+    }
 }

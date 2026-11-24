@@ -462,8 +462,11 @@ extension DocxFormat {
             } else if let shape = _vmlTop(node), shape.name != "v:line", let st = shape["style"] {
                 for pair in st.split(separator: ";") {
                     let kv = pair.split(separator: ":", maxSplits: 1)
-                    guard kv.count == 2, let v = _length(String(kv[1])), v > 0 else { continue }
-                    if kv[0].trimmingWhitespace() == "width" { w = v } else if kv[0].trimmingWhitespace() == "height" { h = v }
+                    guard kv.count == 2, let v = _length(String(kv[1])), v >= 0 else { continue }
+                    // (A height of 0 is a straight line's — a connector `v:shape` of
+                    // 500pt by 0pt — not an absent one: read as absent it stood the
+                    // 300 by 200 stand-in, a row 188pt too tall in es-e3d5fed41c.)
+                    if kv[0].trimmingWhitespace() == "width", v > 0 { w = v } else if kv[0].trimmingWhitespace() == "height" { h = max(v, 0.01) }
                 }
                 // (A horizontal rule — an HTML page's <hr>, `o:hr` — is a
                 // line of its height across the column, its width 0 in the
@@ -1793,6 +1796,10 @@ extension DocxFormat {
                     // wrapped the text beside it in a grey square and sent
                     // 10 lines of page 3 to the right. It takes no room and
                     // wraps nothing in Word's print.)
+                    // (A pict holding only a shape TYPE — a `v:shapetype` and no shape
+                    // of it — draws nothing and takes no room: es-28716e1db6's header
+                    // carried one and stood 164.7 pt tall on every page.)
+                    if child.name == "w:pict", child.children.allSatisfy({ $0.name == "v:shapetype" }) { break }
                     if child.name == "w:pict", child.descendant("v:polyline") != nil,
                        child.descendant("v:textbox") == nil, child.descendant("v:imagedata") == nil { break }
                     // (A horizontal rule is a block: after text in the same paragraph Word sets it on a line of its own,
