@@ -26,13 +26,13 @@ final class UIShellHarnessTests: XCTestCase {
         XCTAssertTrue(ui.tap(text: "Insert"))
     }
 
-    /// S-P0-4: a deck has no painter or paragraph marks, and no zoom to fit to.
+    /// S-P0-4: a deck has no painter or paragraph marks. (Fit now works: S-VW-1.)
     func testSlidesShowsNoControlThatCannotWork() {
         let ui = app(SlidesShell(initialPath: nil, startBlank: true, onSwitch: { _, _ in }))
         let tips = ui.tips().joined(separator: "|")
         XCTAssertFalse(tips.contains("Format Painter"))
         XCTAssertFalse(tips.contains("Show/Hide"))
-        XCTAssertFalse(tips.contains("Fit slide"))
+        XCTAssertTrue(tips.contains("Fit slide"), "S-VW-1: Fit slide to window does something now")
         XCTAssertTrue(tips.contains("Font Color"), "the colour menu stays")
     }
 
