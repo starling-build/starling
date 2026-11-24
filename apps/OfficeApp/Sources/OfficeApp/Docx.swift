@@ -3085,13 +3085,7 @@ enum DocxFormat {
             document.hasKana = kana
         }
         if let table = part("word/fontTable.xml").flatMap(XNode.parse) {
-            for font in table.all("w:font") {
-                if let name = font["w:name"], let usb2 = font.first("w:sig")?["w:usb2"], let v = UInt32(usb2, radix: 16), v & 0x100 != 0,
-                   // (Only a face Windows lacks: Sakkal Majalla's own table carries the Thaana bit and Word draws it in Sakkal Majalla, a 1.40 em line, not MV Boli's 1.611: dx2 be31e911's body 25.8 pt a line against 22.4 in Word.)
-                   name.trimmingWhitespace().lowercased() == "mv boli" || !WordWindowsFaces.names.contains(name.trimmingWhitespace().lowercased()) {
-                    document.thaanaFaces.insert(name.trimmingWhitespace().lowercased())
-                }
-            }
+            document.thaanaFaces.formUnion(Self.thaanaFaceNames(table))
             var charsets: [String: String] = [:]
             for font in table.all("w:font") {
                 guard let name = font["w:name"], name.unicodeScalars.contains(where: { $0.value >= 0x2E80 }),
@@ -3347,6 +3341,32 @@ enum DocxFormat {
 
 
 extension DocxFormat {
+    /// The faces a font table marks Thaana (MV Boli, or a face Windows lacks whose signature carries the Thaana bit).
+    static func thaanaFaceNames(_ table: XNode) -> Set<String> {
+        var out = Set<String>()
+        for font in table.all("w:font") {
+                if let name = font["w:name"], let usb2 = font.first("w:sig")?["w:usb2"], let v = UInt32(usb2, radix: 16), v & 0x100 != 0,
+                   // (Only a face Windows lacks: Sakkal Majalla's own table carries the Thaana bit and Word draws it in Sakkal Majalla, a 1.40 em line, not MV Boli's 1.611: dx2 be31e911's body 25.8 pt a line against 22.4 in Word.)
+                   name.trimmingWhitespace().lowercased() == "mv boli" || !WordWindowsFaces.names.contains(name.trimmingWhitespace().lowercased()),
+                   // (A font-table entry of an East Asian charset (80 Shift-JIS, 81 Hangul, 86 GB2312, 88 Big5) is no Thaana face even when its signature claims every script: 한컴바탕 was laid out as an MV Boli line, 1.611 em against Batang's 1.303.)
+                   !Self.isEastAsianCharset(font.first("w:charset")?["w:val"]) {
+                    out.insert(name.trimmingWhitespace().lowercased())
+                }
+            }
+        return out
+    }
+
+    static func thaanaFaceNames(fontTableXML: String) throws -> Set<String> {
+        guard let t = XNode.parse(Data(fontTableXML.utf8)) else { return [] }
+        return thaanaFaceNames(t)
+    }
+
+    /// Font-table charsets of the East Asian scripts (hex): 80 Shift-JIS, 81 Hangul, 86 GB2312, 88 Big5.
+    static func isEastAsianCharset(_ charset: String?) -> Bool {
+        guard let c = charset?.uppercased() else { return false }
+        return ["80", "81", "86", "88"].contains(c)
+    }
+
     /// A signed half-point count (`w:position`, `w:spacing` of a run), or a number with a
     /// unit (`6pt`, `-0.5mm`, `1in`; ST_SignedHpsMeasure), in points. Word honours the unit
     /// form: xb docx-8f1703b9 writes `w:position w:val="6pt"` and its raised word stands 6 pt up.
