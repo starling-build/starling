@@ -500,6 +500,35 @@ final class Ribbon: StatelessWidget {
     private func _pictureFormat(_ fluent: FluentThemeData) -> [Widget] {
         let c = session.controller
         let s = session.summary
+        if let i = s.imageIndex, let id = s.inlineImageID, let image = c.document.paragraphs[i].inlineImages[id] {
+            let aspect = image.height / max(1, image.width)
+            let size = Chrome.group("Size", fluent, [
+                Chrome.rows([
+                    Chrome.spinner("Width", image.width, fluent, step: 6) { v in
+                        c.setInlineImageSize(in: i, id: id, width: v, height: v * aspect)
+                    },
+                    Chrome.vgap(2),
+                    Chrome.spinner("Height", image.height, fluent, step: 6) { v in
+                        c.setInlineImageSize(in: i, id: id, width: v / max(0.01, aspect), height: v)
+                    },
+                ]),
+                Chrome.gap(8),
+                Chrome.rows([
+                    Chrome.small(FluentSystemIcons.image, "Original Size", fluent, enabled: s.imageHasNatural) {
+                        if let nw = image.naturalWidth, let nh = image.naturalHeight {
+                            c.setInlineImageSize(in: i, id: id, width: nw, height: nh)
+                        }
+                    },
+                    Chrome.small(FluentSystemIcons.zoomOut, "Half Size", fluent) {
+                        c.setInlineImageSize(in: i, id: id, width: image.width / 2, height: image.height / 2)
+                    },
+                ]),
+            ])
+            let remove = Chrome.group("Picture", fluent, [
+                Chrome.big(FluentSystemIcons.delete, "Delete", fluent) { c.deleteForward() },
+            ])
+            return [size, remove]
+        }
         guard let i = s.imageIndex, let image = c.document.paragraphs[i].image else { return [] }
         let aspect = image.height / max(1, image.width)
         let size = Chrome.group("Size", fluent, [

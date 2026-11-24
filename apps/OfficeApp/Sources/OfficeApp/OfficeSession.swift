@@ -21,6 +21,8 @@ struct ToolbarSummary: Equatable {
     var styleId = RichNamedStyle.normalId
     /// The selected picture, if any: its paragraph and shown size in points.
     var imageIndex: Int? = nil
+    /// Set when the selected picture sits in a line of text (then `imageIndex` is its paragraph).
+    var inlineImageID: String? = nil
     var imageWidth = 0.0
     var imageHeight = 0.0
     var imageHasNatural = false
@@ -312,6 +314,12 @@ final class OfficeSession {
         s.painting = paintedStyle != nil
         if let i = c.selectedImageIndex, let image = c.document.paragraphs[i].image {
             s.imageIndex = i
+            s.imageWidth = image.width
+            s.imageHeight = image.height
+            s.imageHasNatural = image.naturalWidth != nil
+        } else if let hit = c.selectedInlineImage, let image = c.document.paragraphs[hit.paragraph].inlineImages[hit.id] {
+            s.imageIndex = hit.paragraph
+            s.inlineImageID = hit.id
             s.imageWidth = image.width
             s.imageHeight = image.height
             s.imageHasNatural = image.naturalWidth != nil
