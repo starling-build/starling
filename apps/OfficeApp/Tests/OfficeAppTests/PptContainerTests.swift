@@ -240,6 +240,63 @@ final class PptContainerTests: XCTestCase {
         XCTAssertEqual(shapes[1].frame.top, 100, accuracy: 0.5)
     }
 
+    func testShapesWithoutTextKeepTheirGeometryFillAndGroupSpace() throws {
+        func persist(_ id: Int, _ slideId: Int) -> [UInt8] {
+            var b: [UInt8] = le32(id)
+            b += le32(0) + le32(1) + le32(slideId) + le32(0)
+            return rec(0x03F3, b)
+        }
+        var atom: [UInt8] = le32(5760)
+        atom += le32(4320)
+        atom += [UInt8](repeating: 0, count: 22)
+        atom += le16(1)
+        atom += [UInt8](repeating: 0, count: 6)
+        var kids = rec(0x03E9, atom)
+        kids += rec(0x0FF0, ver: 15, inst: 1, persist(2, 0x8000_0000))
+        kids += rec(0x0FF0, ver: 15, inst: 0, persist(3, 256))
+        var d = rec(0x03E8, ver: 15, kids)
+        func opt(_ props: [(Int, Int)]) -> [UInt8] {
+            var b: [UInt8] = []
+            for (pid, v) in props { b += le16(pid) + le32(v) }
+            return rec(0xF00B, ver: 3, inst: props.count, b)
+        }
+        func shape(type: Int, flags: Int = 0x400, props: [(Int, Int)], anchor: [Int], extra: [UInt8] = []) -> [UInt8] {
+            var k = rec(0xF00A, ver: 2, inst: type, le32(2) + le32(flags))
+            k += opt(props) + extra
+            var a: [UInt8] = []
+            for v in anchor { a += le16(v) }
+            k += rec(0xF010, a)
+            return rec(0xF004, ver: 15, k)
+        }
+        let head = rec(0xF004, ver: 15, rec(0xF00A, ver: 2, inst: 0, le32(1) + le32(5)))
+        // A red ellipse (fill colour is blue-green-red: 0x0000FF is red), then a group whose space is 0..1000 square placed at 1000,1000..3000,3000.
+        let ellipse = shape(type: 3, props: [(0x181, 0x0000FF), (0x1BF, 0x10_0010), (0x1FF, 0x8_0000)], anchor: [100, 200, 1100, 1200])
+        var space: [UInt8] = []
+        for v in [0, 0, 1000, 1000] { space += le32(v) }
+        let gHead = rec(0xF004, ver: 15, rec(0xF009, ver: 1, space) + rec(0xF00A, ver: 2, inst: 0, le32(9) + le32(0x201)) + rec(0xF010, le16(1000) + le16(1000) + le16(3000) + le16(3000)))
+        let inner = shape(type: 1, props: [(0x181, 0x00FF00), (0x1BF, 0x10_0010), (0x1FF, 0x8_0000)], anchor: [0, 0, 500, 500])
+        let group = rec(0xF003, ver: 15, gHead + inner)
+        let top = rec(0xF003, ver: 15, head + ellipse + group)
+        let pageKids = rec(0x03EF, [UInt8](repeating: 0, count: 12) + le32(0x8000_0000) + le32(0) + le16(7) + le16(0))
+            + rec(0x040C, ver: 15, rec(0xF002, ver: 15, top))
+        let master = rec(0x03F8, ver: 15, rec(0x03EF, [UInt8](repeating: 0, count: 24)))
+        var offs: [Int] = []
+        for p in [master, rec(0x03EE, ver: 15, pageKids)] { offs.append(d.count); d += p }
+        let dir = d.count
+        d += directory([(1, [0]), (2, [offs[0]]), (3, [offs[1]])])
+        let edit = d.count
+        d += userEdit(lastEdit: 0, directory: dir, document: 1)
+        let f = try PptFile(currentUser: currentUser(offset: edit), document: d)
+        let xml = f.shapeXML(of: f.slides[0])
+        XCTAssertTrue(xml.contains("prst=\"ellipse\""))
+        XCTAssertTrue(xml.contains("<a:srgbClr val=\"FF0000\"/>"))
+        XCTAssertTrue(xml.contains("<p:grpSp>"))
+        XCTAssertTrue(xml.contains("<a:chExt cx=\"\(PptBuild.emu(1000))\" cy=\"\(PptBuild.emu(1000))\"/>"))
+        let (state, _, _) = try PptxReader(PptxPackage(PptBuild.parts(f))).read()
+        XCTAssertEqual(state.slides[0].shapes.count, 2)
+        XCTAssertEqual(state.slides[0].shapes[0].kind, .geometry(ShapePreset(rawValue: "ellipse")))
+    }
+
     func testStyleRunsKeepOnlyTheFieldsTheirMaskNames() throws {
         // "Big red": one paragraph (level 1, centred, nothing else), runs "Big " (bold red 24 pt) and "red" (no fields).
         var atom: [UInt8] = le32(8) + le16(1) + le32(0x800) + le16(1)
