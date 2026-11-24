@@ -105,4 +105,72 @@ public final class WidgetTester {
         tap(at: c)
         return true
     }
+
+    // MARK: Icon-only controls
+
+    /// The centre of the first element whose widget satisfies `match`.
+    private func centre(where match: (Widget) -> Bool) -> Offset? {
+        for e in elements() where match(e.widget) {
+            guard let box = e.findRenderObject() as? RenderBox, box.hasSize else { continue }
+            return box.localToGlobal(Offset(box.size.width / 2, box.size.height / 2))
+        }
+        return nil
+    }
+
+    /// Every tooltip message on screen, in tree order: the names of icon-only buttons.
+    public func tips() -> [String] { elements().compactMap { ($0.widget as? Tooltip)?.message } }
+
+    public func has(tip: String) -> Bool { centre(where: { ($0 as? Tooltip)?.message == tip }) != nil }
+
+    /// Taps the control whose tooltip is `tip` (an icon-only button has no label).
+    @discardableResult public func tap(tip: String) -> Bool {
+        guard let c = centre(where: { ($0 as? Tooltip)?.message == tip }) else { return false }
+        tap(at: c)
+        return true
+    }
+
+    /// Taps the widget keyed `ValueKey(id)`: an identifier a control carries for tests.
+    @discardableResult public func tap(id: String) -> Bool {
+        guard let c = centre(where: { ($0.key as? ValueKey<String>)?.value == id }) else { return false }
+        tap(at: c)
+        return true
+    }
+
+    public func has(id: String) -> Bool { centre(where: { ($0.key as? ValueKey<String>)?.value == id }) != nil }
+
+    // MARK: Keys
+
+    public enum Key {
+        case enter, escape, tab, backspace
+        var logical: Int64 {
+            switch self {
+            case .enter: return 0x1_0000_000D
+            case .escape: return 0x1_0000_001B
+            case .tab: return 0x1_0000_0009
+            case .backspace: return 0x1_0000_0008
+            }
+        }
+    }
+
+    /// Presses and lifts `key` through the focus manager, as the shell's key handler does. True when a handler used it.
+    @discardableResult public func press(_ key: Key) -> Bool {
+        var used = false
+        for type in [KeyEventType.down, .up] {
+            let data = KeyData(timeStamp: 0, type: type, physical: 0, logical: key.logical, character: nil, synthesized: false)
+            if FocusManager.instance.dispatchKeyData(data) { used = true }
+        }
+        pump()
+        return used
+    }
+
+    /// Types `text` into the focused field, one character at a time (tap the field first).
+    public func type(_ text: String) {
+        for ch in text {
+            let s = String(ch)
+            let down = KeyData(timeStamp: 0, type: .down, physical: 0, logical: Int64(ch.unicodeScalars.first!.value), character: s, synthesized: false)
+            _ = FocusManager.instance.dispatchKeyData(down)
+            _ = FocusManager.instance.dispatchKeyData(KeyData(timeStamp: 0, type: .up, physical: 0, logical: down.logical, character: nil, synthesized: false))
+        }
+        pump()
+    }
 }
