@@ -177,6 +177,55 @@ final class DeckController: ChangeNotifier {
     private(set) var firstSlideNum = 1
     var theme = DeckTheme()
     private(set) var revision = 0
+
+    // MARK: View zoom (not part of the document: no undo step, nothing saved)
+
+    /// Pixels per point the editing canvas draws at, or nil to fit the slide
+    /// to the window. 96/72 px per point is 100 %.
+    private(set) var viewScale: Double? = nil
+    /// The scale "fit" gives at the canvas's current size (the canvas writes it).
+    var viewFitScale = 0.0
+    /// How far a zoomed-in slide is dragged off centre, in pixels.
+    private(set) var viewPan = Offset.zero
+    static let pxPerPercent = 96.0 / 72.0 / 100.0
+    static let zoomSteps: [Double] = [10, 25, 33, 50, 66, 75, 100, 125, 150, 200, 300, 400]
+
+    /// The zoom in percent as drawn now.
+    var viewPercent: Int {
+        Int(((viewScale ?? viewFitScale) / DeckController.pxPerPercent).rounded())
+    }
+    var viewIsFit: Bool { viewScale == nil }
+
+    func notifyViewChanged() { notifyListeners() }
+
+    func fitView() {
+        guard viewScale != nil || viewPan != .zero else { return }
+        viewScale = nil; viewPan = .zero
+        notifyListeners()
+    }
+
+    /// A zoom of `percent` (10...400); the slide stays centred unless panned.
+    func setViewZoom(percent: Double) {
+        let p = max(10, min(400, percent))
+        viewScale = p * DeckController.pxPerPercent
+        if p <= 100 * viewFitScale / (96.0 / 72.0) { viewPan = .zero }
+        notifyListeners()
+    }
+
+    /// The next step of the zoom ladder above (or below) the zoom shown now.
+    func stepViewZoom(_ direction: Int) {
+        let now = Double(viewPercent)
+        let next = direction > 0
+            ? (DeckController.zoomSteps.first { $0 > now + 0.5 } ?? 400)
+            : (DeckController.zoomSteps.last { $0 < now - 0.5 } ?? 10)
+        setViewZoom(percent: next)
+    }
+
+    func panView(dx: Double, dy: Double) {
+        guard viewScale != nil else { return }
+        viewPan = Offset(viewPan.dx + dx, viewPan.dy + dy)
+        notifyListeners()
+    }
     /// Moves on every change to the content (not on selection or moving
     /// between slides): what "unsaved" compares against.
     private(set) var edits = 0

@@ -1582,6 +1582,18 @@ final class SlidesShellState: State<StatefulWidget> {
             Chrome.toggle(FluentSystemIcons.grid, "Slide Sorter", _sorter, fluent) { [weak self] in
                 self?.session.onSlidesView?(true)
             },
+            Chrome.gap(8),
+            Padding(key: ValueKey("zoom.out"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.icon(FluentSystemIcons.zoomOut, "Zoom Out", fluent) { [weak self] in
+                self?.deck.stepViewZoom(-1)
+            }),
+            SizedBox(key: ValueKey("zoom.percent"), width: 44, height: nil,
+                     child: Text("\(deck.viewPercent)%", style: caption)),
+            Padding(key: ValueKey("zoom.in"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.icon(FluentSystemIcons.zoomIn, "Zoom In", fluent) { [weak self] in
+                self?.deck.stepViewZoom(1)
+            }),
+            Padding(key: ValueKey("zoom.fit"), padding: EdgeInsets(left: 0, top: 0, right: 0, bottom: 0), child: Chrome.icon(FluentSystemIcons.pageFit, "Fit slide to window", fluent) { [weak self] in
+                self?.deck.fitView()
+            }),
         ]
         return DecoratedBox(
             decoration: BoxDecoration(
