@@ -1897,6 +1897,13 @@ enum DocxFormat {
                     style.textOutdent = 0
                     style.cellMarginRight = 0.5
                 }
+                // (The same file states its own table margin: the table stands on the page's margin all the same and its text one margin in,
+                // not set out by it: lab tbauto, Word for Windows, compat 12, 80-twip margins, text at 76 and 81 with 50-twip spacing.)
+                else if Self.wordOnWindows, noDefaultTableStyle, own.left != nil, styled.left == nil {
+                    RuleTrace.hit("no-default-table-style-own-margin-not-set-out")
+                    style.textOutdent = 0
+                    style.notSetOut = true
+                }
                 // (… unless its first cell states its own: the table is set
                 // out by the margin of the cell whose text it lines up.
                 // zh-6143e5f0's plans, cells of zero margin in a table of
