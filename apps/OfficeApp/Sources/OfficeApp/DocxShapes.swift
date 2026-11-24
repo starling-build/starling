@@ -1428,6 +1428,8 @@ extension DocxFormat {
                 // (Tamil takes bCs/iCs but not szCs: da732dfb's sz 14 / szCs 20 subtitle prints at 14 in Word. Only a run with no Latin letters.)
                 let tamilOnly = !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A } && runText.unicodeScalars.contains { (0x0B80...0x0BFF).contains($0.value) }
                 let complex = complexSize || tamilOnly
+                // (Only a Thai run: the Arabic-script docs xb fas-z22867828 and ara-z23060052 lose lines when their flagged runs take the style's szCs.)
+                let thaiStyleSize = csFlag && rPr.first("w:sz") == nil && rPr.first("w:szCs") == nil && runText.unicodeScalars.contains { (0x0E00...0x0E7F).contains($0.value) }
                 let indicOnly = !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A }
                     && runText.unicodeScalars.contains { (0x0900...0x0B7F).contains($0.value) }
                 let rtlLettersOnly = !runText.isEmpty && !runText.unicodeScalars.contains { ($0.value | 0x20) >= 0x61 && ($0.value | 0x20) <= 0x7A } && runText.unicodeScalars.contains { (0x0590...0x05FF).contains($0.value) }
@@ -1436,9 +1438,9 @@ extension DocxFormat {
                 // and plain, whatever the runs name.)
                 let inContents = notes.fields.contains { $0.instr.uppercased().trimmingWhitespace(newlines: true).hasPrefix("TOC") }
                 if let id = rPr.first("w:rStyle")?["w:val"], let chain = notes.charStyleChains[id], !(inContents && id.lowercased() == "hyperlink") {
-                    for styled in chain { cs = _charStyle(styled, base: cs, complexText: complex, complexSize: complexSize, indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly) }
+                    for styled in chain { cs = _charStyle(styled, base: cs, complexText: complex, complexSize: complexSize, thaiStyleSize: thaiStyleSize, indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly) }
                 }
-                cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize, indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly)
+                cs = _charStyle(rPr, base: cs, complexText: complex, complexSize: complexSize, thaiStyleSize: thaiStyleSize, indicOnly: indicOnly, rtlLettersOnly: rtlLettersOnly)
                 // (Only a webHidden run in a header or footer, or any body run, as in a contents list: the PAGE results of the footers of 7d58f74e, b9164bf3 and fcd0d58c, with just rtl, stay complex and print in Arial.)
                 // (A run of ASCII digits flagged w:rtl with no szCs or cs font of its own is a plain Latin run to Word: 47480880's PAGEREF results.)
                 // (Arabic: the same for a PAGE result in a footer, whose face is the style's ascii one at the szCs: xb ara-z5177238's "2" under cs Simplified Arabic, an installed face, is Times New Roman 14.04 in two Word prints, sz 12 / szCs 14.)
