@@ -151,7 +151,7 @@ build_base() {   # builds BSHA into the shared cache once: the sha lock makes a 
   if { [ -d "$W/basetree/.git" ] || [ -f "$W/basetree/.git" ]; } && git -C "$W/basetree" checkout -q --detach "$BSHA" 2>/dev/null; then :
   else rm -rf "$W/basetree"; git worktree prune; git worktree add -f --detach "$W/basetree" "$BSHA" -q || { echo "render-gate: cannot check out base"; return 2; }; fi
   ln -sfn "$ENGINE_DIR" "$W/basetree/engine"
-  ( cd "$W/basetree" && test/tools/build-office-fast.sh "$W/basebuild" > "$W/base-build.log" 2>&1 ) || return 1
+  ( cd "$W/basetree" && $( [ -x "$HOME/bin/build-slot.sh" ] && echo "$HOME/bin/build-slot.sh" ) test/tools/build-office-fast.sh "$W/basebuild" > "$W/base-build.log" 2>&1 ) || return 1
   local BREL; BREL=$(dirname "$(ls "$W"/basebuild/*/release/OfficeApp | head -1)")
   rm -rf "$BC/$BSHA.tmp"; mkdir -p "$BC/$BSHA.tmp"; cp -a "$BREL" "$BC/$BSHA.tmp/release"
   mkdir -p "$BC/$BSHA"; rm -rf "$BC/$BSHA/release"; mv "$BC/$BSHA.tmp/release" "$BC/$BSHA/release"; rmdir "$BC/$BSHA.tmp"
@@ -167,7 +167,7 @@ fi
 FPID=
 if [ -z "${BPID:-}" ] && [ "${GATE_LIGHT:-0}" != 1 ]; then BASEBIN=$BC/$BSHA/release/OfficeApp; ( fill_rows ) > "$W/fillrows.out" 2>&1 & FPID=$!; fi
 PREV=$(cat "$W/build.rev" 2>/dev/null); TB=$(date +%s)
-test/tools/build-office-fast.sh "$W/build" > "$W/build.log" 2>&1 || { echo "render-gate: BUILD FAILED"; tail -15 "$W/build.log" | cut -c1-200; exit 1; }
+$( [ -x "$HOME/bin/build-slot.sh" ] && echo "$HOME/bin/build-slot.sh" ) test/tools/build-office-fast.sh "$W/build" > "$W/build.log" 2>&1 || { echo "render-gate: BUILD FAILED"; tail -15 "$W/build.log" | cut -c1-200; exit 1; }
 echo "render-gate: PR build $(( $(date +%s)-TB )) s, load $(cut -d" " -f1-3 /proc/loadavg), -j ${BUILD_JOBS:-default}; compiled: $(grep -aoE "[A-Za-z0-9+_]+\.swift" "$W/build.log" | sort -u | head -12 | tr "\n" " ")"   # the build alone; "build step" below also waits for the base rows/base build
 # LIGHT (the pull_request run under a merge queue, amd-8, 2026-11-23): the PR builds, nothing renders; the full render runs once per merge_group
 if [ "${GATE_LIGHT:-0}" = 1 ]; then echo "render-gate: light run: the PR builds; the full render runs in the merge queue's group run"; exit 0; fi
