@@ -45,4 +45,18 @@ final class DocxKeptFieldsTests: XCTestCase {
         XCTAssertTrue(xml[end.upperBound...].contains(": caption"))
         XCTAssertFalse(xml[begin.lowerBound..<end.upperBound].contains("caption"))
     }
+
+    /// Set KEPT_FIELDS_OUT to a path to save the document for a check in Word.
+    func testWriteForWordCheck() throws {
+        guard let out = ProcessInfo.processInfo.environment["KEPT_FIELDS_OUT"] else { return }
+        let body = fields.map { "<w:p><w:r><w:t xml:space=\"preserve\">\($0.0): </w:t></w:r>\(cf($0.0, $0.1))</w:p>" }.joined()
+            + "<w:p>\(cf("FILENAME", "name.docx"))</w:p><w:p>\(cf("DOCPROPERTY Company", "Acme"))</w:p>"
+        var parts = try Zip.read(DocxFormat.write(RichDocument(paragraphs: [RichParagraph()]), pageSetup: .letter))
+        let di = try XCTUnwrap(parts.firstIndex { $0.name == "word/document.xml" })
+        var xml = String(decoding: parts[di].data, as: UTF8.self)
+        xml.insert(contentsOf: body, at: try XCTUnwrap(xml.range(of: "<w:body>")).upperBound)
+        parts[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let read = try DocxFormat.read(try Zip.write(parts))
+        try DocxFormat.write(read.document, pageSetup: .letter).write(to: URL(fileURLWithPath: out))
+    }
 }
