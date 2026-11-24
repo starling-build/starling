@@ -406,4 +406,25 @@ final class DeepGroupTests: XCTestCase {
         XCTAssertFalse(SlideFonts.isMissingJapaneseName("hgs明朝e"))
         XCTAssertEqual(SlideFonts.ownDescentShare("HGS明朝E"), 288.0 / 2048)
     }
+
+    func testAnEquationInATableCellIsLaidOutAsAnEquation() throws {
+        // A cell holding an a14:m equation used to read as flat letters ("e1");
+        // it is now one inline equation image, so its subscript is set down.
+        let deck = SlidesSample.make()
+        var package = PptxPackage(try Zip.read(try Pptx.write(deck)))
+        let part = try XCTUnwrap(package.parts.keys.first { k in
+            k.hasPrefix("ppt/slides/slide") && String(data: package.parts[k]!, encoding: .utf8)!.contains("<a:tbl>")
+        })
+        var slide = String(data: package.parts[part]!, encoding: .utf8)!
+        let math = "<a14:m xmlns:a14=\"http://schemas.microsoft.com/office/drawing/2010/main\" xmlns:m=\"http://schemas.openxmlformats.org/officeDocument/2006/math\"><m:oMath><m:sSub><m:e><m:r><m:t>e</m:t></m:r></m:e><m:sub><m:r><m:t>1</m:t></m:r></m:sub></m:sSub></m:oMath></a14:m>"
+        let range = try XCTUnwrap(slide.range(of: "<a:r>", options: [], range: slide.range(of: "<a:tbl>")!.upperBound..<slide.endIndex))
+        slide.insert(contentsOf: math, at: range.lowerBound)
+        package.parts[part] = Data(slide.utf8)
+        var entries: [ZipEntry] = []
+        for (k, v) in package.parts { entries.append(ZipEntry(name: k, data: v)) }
+        let (state, _, _) = try Pptx.read(try Zip.write(entries))
+        let table = try XCTUnwrap(state.slides.flatMap { $0.shapes }.first { $0.kind == .table })
+        let withMath = table.text?.paragraphs.filter { !$0.inlineImages.isEmpty } ?? []
+        XCTAssertEqual(withMath.count, 1, "the cell's equation is an inline equation image")
+    }
 }
