@@ -697,9 +697,15 @@ void fluikit_scene_activate(int64_t view_id) {
   dispatch_async(dispatch_get_main_queue(), ^{
     UIWindowScene* scene = g_scenes[@(view_id)];
     if (scene == nil) return;
+    // Asked as one window of the app bringing another forward (requestingScene): without it the simulator sent the
+    // whole app to the home screen when the window asked for was the first one.
+    UIWindowSceneActivationRequestOptions* options = [UIWindowSceneActivationRequestOptions new];
+    for (NSNumber* key in g_scenes) {
+      if (key.longLongValue != view_id) { options.requestingScene = g_scenes[key]; break; }
+    }
     [UIApplication.sharedApplication requestSceneSessionActivation:scene.session
                                                       userActivity:nil
-                                                           options:nil
+                                                           options:options
                                                       errorHandler:^(NSError* error) {
       fprintf(stderr, "[FlUIKitHost] could not bring window %lld forward: %s\n", view_id, error.localizedDescription.UTF8String);
     }];

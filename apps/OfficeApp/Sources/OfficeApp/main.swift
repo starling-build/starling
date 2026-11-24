@@ -1077,6 +1077,22 @@ if let spec = ProcessInfo.processInfo.environment["OFFICE_EXPORT_AFTER"] {
         }
     }
 }
+// OFFICE_BROWSER_ACTION_AFTER=<ms>:<viewId>:<path>[,...] runs window <viewId>'s browser "Open in New Window" action on
+// that file, after a delay, and logs the windows before and two seconds after.
+if let specs = ProcessInfo.processInfo.environment["OFFICE_BROWSER_ACTION_AFTER"] {
+    for spec in specs.split(separator: ",") {
+        let parts = spec.split(separator: ":", maxSplits: 2).map(String.init)
+        guard parts.count == 3, let ms = Int(parts[0]), let view = Int(parts[1]) else { continue }
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(ms)) {
+            let before = OfficeScene.byView.keys.sorted()
+            OfficeNativeShell.runNewWindowAction(viewId: view, url: URL(fileURLWithPath: parts[2]))
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                let docs = OfficeScene.byView.sorted { $0.key < $1.key }.map { "\($0.key)=\(($0.value.documentPath as NSString?)?.lastPathComponent ?? "none")" }
+                fputs("[action] view \(view) Open in New Window \((parts[2] as NSString).lastPathComponent): windows \(before) -> \(OfficeScene.byView.keys.sorted()), documents \(docs)\n", stderr)
+            }
+        }
+    }
+}
 if let spec = ProcessInfo.processInfo.environment["OFFICE_NEW_WINDOW_AFTER"] {
     let parts = spec.split(separator: ":", maxSplits: 1).map(String.init)
     if let ms = Int(parts[0]) {

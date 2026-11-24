@@ -102,6 +102,12 @@ public enum OfficeNativeShell {
         shell.presentExport(name: name, prepare: prepare, thenOpen: thenOpen, done: done)
     }
 
+    /// Runs the browser's "Open in New Window" action for `url` in window `viewId`, as its menu item does (a test:
+    /// the menu itself is a system popover no in-app driver can tap).
+    public static func runNewWindowAction(viewId: Int, url: URL) {
+        shells[viewId]?.newWindowHandler?([url])
+    }
+
     /// How many window controllers are alive (a leak hunt).
     public static var liveBrowsers: Int { OfficeBrowserController.live }
 
@@ -216,6 +222,8 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
     private let queue = DispatchQueue(label: "office.writeback")
     /// The Flutter view this window shows (0 for the first window).
     let viewId: Int
+    /// What the browser's "Open in New Window" does (the action's own closure, so a test runs the same code).
+    fileprivate var newWindowHandler: (([URL]) -> Void)?
     /// The last buttons published, kept for an editor that mounted before the browser had the bar in its view.
     fileprivate var latestToolbar: [OfficeToolbarButton]?
 
@@ -240,11 +248,16 @@ final class OfficeBrowserController: UIDocumentBrowserViewController, UIDocument
         allowsPickingMultipleItems = false
         shouldShowFileExtensions = true
         // The browser's own context menu: the same file in a window of its own.
+        // A file some window already shows is brought forward, not opened twice (one document, one window).
+        let openInNewWindow: ([URL]) -> Void = { urls in
+            guard let url = urls.first else { return }
+            if OfficeNativeShell.focusIfOpen?(url.path, -1) == true { return }
+            OfficeNativeShell.openInNewWindow(url)
+        }
+        newWindowHandler = openInNewWindow
         let newWindow = UIDocumentBrowserAction(identifier: "build.starling.office.new-window",
                                                 localizedTitle: "Open in New Window",
-                                                availability: [.menu, .navigationBar]) { urls in
-            if let url = urls.first { OfficeNativeShell.openInNewWindow(url) }
-        }
+                                                availability: [.menu, .navigationBar], handler: openInNewWindow)
         newWindow.supportedContentTypes = types.map(\.identifier)
         newWindow.supportsMultipleItems = false
         customActions = [newWindow]
