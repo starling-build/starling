@@ -734,6 +734,15 @@ private struct SlideXML {
                 return kept(xml, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId,
                             rotation: moved ? s.rotation : nil, placeIfMissing: moved)
             }
+            // Typed in since it was read, nothing else changed (bar its place): the shape as it was,
+            // the typed text patched into its own runs (S-P0-1b).
+            if let xml = s.sourceXML, let read = s.readShape, read.unchangedExceptPlacementAndText(s), s.field == nil,
+               let old = s.sourceText, let new = s.text, let patched = PptxTextPatch.apply(xml, old: old, new: new),
+               let p = source, let part = s.sourcePart {
+                let moved = read.frame != s.frame || read.rotation != s.rotation
+                return kept(patched, sourcePart: part, package: p, builder: &builder, patch: s.frame, fileId: s.fileId,
+                            rotation: moved ? s.rotation : nil, placeIfMissing: moved)
+            }
             let id = _id(s.fileId)
             var nv = "<p:cNvPr id=\"\(id)\" name=\"\(name)\"/>"
             var ph = ""
