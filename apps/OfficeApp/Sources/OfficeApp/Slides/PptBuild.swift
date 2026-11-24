@@ -123,7 +123,7 @@ enum PptBuild {
             let m = v.master < f.masters.count ? f.masters[v.master] : nil
             let mp = partPictures(3)
             let masterShapes = m.map { f.shapeXML(of: $0, master: true, picture: mp.rid) } ?? ""
-            add("ppt/slideMasters/slideMaster\(k).xml", "<p:sldMaster \(ns)><p:cSld>\(background(m?.background))\(slideTree(masterShapes))</p:cSld>"
+            add("ppt/slideMasters/slideMaster\(k).xml", "<p:sldMaster \(ns)><p:cSld>\(m.flatMap { f.backgroundXML(of: $0, picture: mp.rid) } ?? background(m?.background))\(slideTree(masterShapes))</p:cSld>"
                 + "<p:clrMap bg1=\"lt1\" tx1=\"dk1\" bg2=\"lt2\" tx2=\"dk2\" accent1=\"accent1\" accent2=\"accent2\" accent3=\"accent3\" accent4=\"accent4\" accent5=\"accent5\" accent6=\"accent6\" hlink=\"hlink\" folHlink=\"folHlink\"/>"
                 + "<p:sldLayoutIdLst><p:sldLayoutId id=\"\(2147483649 + 2 * i)\" r:id=\"rId1\"/></p:sldLayoutIdLst>\(m.map { f.textStylesXML(of: $0) } ?? "")</p:sldMaster>")
             add("ppt/slideMasters/_rels/slideMaster\(k).xml.rels", rels([("rId1", "slideLayout", "../slideLayouts/slideLayout\(k).xml"), ("rId2", "theme", "../theme/theme\(k).xml")] + mp.rels()))
@@ -137,7 +137,8 @@ enum PptBuild {
             let attrs = s.followsMasterObjects ? "" : " showMasterSp=\"0\""
             let own = s.followsMasterBackground ? nil : s.background
             let sp = partPictures(2)
-            add("ppt/slides/slide\(k).xml", "<p:sld \(ns)\(attrs)><p:cSld>\(background(own))\(slideTree(f.shapeXML(of: s, picture: sp.rid)))</p:cSld></p:sld>")
+            let bg = s.followsMasterBackground ? "" : (f.backgroundXML(of: s, picture: sp.rid) ?? background(own))
+            add("ppt/slides/slide\(k).xml", "<p:sld \(ns)\(attrs)><p:cSld>\(bg)\(slideTree(f.shapeXML(of: s, picture: sp.rid)))</p:cSld></p:sld>")
             add("ppt/slides/_rels/slide\(k).xml.rels", rels([("rId1", "slideLayout", "../slideLayouts/slideLayout\(slideVariant[i] + 1).xml")] + sp.rels()))
         }
         let mimes = ["png": "image/png", "jpeg": "image/jpeg", "bmp": "image/bmp", "tiff": "image/tiff", "emf": "image/x-emf", "wmf": "image/x-wmf", "pict": "image/x-pict"]

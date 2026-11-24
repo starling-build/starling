@@ -19,6 +19,16 @@ extension PptFile {
 
     /// Fill and outline of a shape from its properties; a placeholder or a shape that sets nothing inherits.
     static func fillLineXML(_ s: ArtShape, placeholder: Bool, picture: (Int) -> String? = { _ in nil }) -> String {
+        var x = fillXML(s, placeholder: placeholder, picture: picture)
+        let boxy = !placeholder && s.type != 202
+        if DocArt.flag(s, 0x1FF, bit: 3, default: boxy) {
+            x += "<a:ln w=\"\(s.props[0x1CB] ?? 9525)\"><a:solidFill>\(artColor(s.props[0x1C0] ?? 0))</a:solidFill></a:ln>"
+        } else if !placeholder || s.props[0x1FF] != nil { x += "<a:ln><a:noFill/></a:ln>" }
+        return x
+    }
+
+    /// The fill of a shape's properties (solid, shaded or picture); empty when a placeholder sets nothing.
+    static func fillXML(_ s: ArtShape, placeholder: Bool, picture: (Int) -> String? = { _ in nil }) -> String {
         var x = ""
         let boxy = !placeholder && s.type != 202
         if DocArt.flag(s, 0x1BF, bit: 4, default: boxy && s.type != 20 && s.type != 32) {
@@ -37,10 +47,24 @@ extension PptFile {
                 x += "<a:solidFill>\(fore)</a:solidFill>"
             }
         } else if !placeholder || s.props[0x1BF] != nil { x += "<a:noFill/>" }
-        if DocArt.flag(s, 0x1FF, bit: 3, default: boxy) {
-            x += "<a:ln w=\"\(s.props[0x1CB] ?? 9525)\"><a:solidFill>\(artColor(s.props[0x1C0] ?? 0))</a:solidFill></a:ln>"
-        } else if !placeholder || s.props[0x1FF] != nil { x += "<a:ln><a:noFill/></a:ln>" }
         return x
+    }
+
+    /// `p:bg` from the drawing's background shape (a fill the colour scheme alone cannot say: picture, shaded); nil when it has none.
+    func backgroundXML(of page: Page, picture: (Int) -> String?) -> String? {
+        guard let c = record(persistId: page.persistId), c.isContainer else { return nil }
+        for drawing in OfficeArt.records(data, in: c.body) where drawing.type == 0x040C {
+            for dg in OfficeArt.records(data, in: drawing.body) where dg.type == 0xF002 {
+                for sp in OfficeArt.records(data, in: dg.body) where sp.type == 0xF004 && sp.isContainer {
+                    guard let art = OfficeArt.shapes(drawing: data, in: (sp.body.lowerBound - 8) ..< sp.body.upperBound).first,
+                          art.props[0x180] != nil else { continue }
+                    let fill = Self.fillXML(art, placeholder: false, picture: picture)
+                    guard fill.contains("<a:gradFill") || fill.contains("<a:blipFill") else { return nil }
+                    return "<p:bg><p:bgPr>\(fill)<a:effectLst/></p:bgPr></p:bg>"
+                }
+            }
+        }
+        return nil
     }
 
     /// `a:bodyPr` from the text properties of a shape: insets (0x81-0x84, EMU), wrap (0x85), anchor (0x87),
