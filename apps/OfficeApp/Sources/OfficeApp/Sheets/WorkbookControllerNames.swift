@@ -160,15 +160,20 @@ extension WorkbookController {
     }
 
     /// Typing a new name in the name box names the selection (Excel does the same). One undo step.
-    @discardableResult
-    func defineNameForSelection(_ name: String) -> NameProblem? {
+    /// The selection as an absolute reference ("Data!$A$1:$B$4"), quoting the sheet name when it needs it.
+    func selectionReference() -> String? {
         let r = selection
         func abs(_ a: CellAddress) -> String { "$" + CellAddress.columnName(a.col) + "$" + String(a.row + 1) }
         let cells = r.topLeft == r.bottomRight ? abs(r.topLeft) : abs(r.topLeft) + ":" + abs(r.bottomRight)
         var sheetName = sheet.name
         let plain = !sheetName.isEmpty && sheetName.allSatisfy { $0.isLetter || $0.isNumber || $0 == "_" }
         if !plain { sheetName = "'" + sheetName.replacingAll("'", with: "''") + "'" }
-        return defineName(name, refersTo: sheetName + "!" + cells)
+        return sheetName + "!" + cells
+    }
+
+    @discardableResult
+    func defineNameForSelection(_ name: String) -> NameProblem? {
+        defineName(name, refersTo: selectionReference() ?? "")
     }
 
     private func _renameNameInFormulas(from oldKey: String, to new: String) {

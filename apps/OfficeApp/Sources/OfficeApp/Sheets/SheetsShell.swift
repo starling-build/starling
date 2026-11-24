@@ -64,6 +64,7 @@ final class SheetsShellState: State<StatefulWidget> {
     private let _renameText = TextEditingController()
     private var _lastTabClick: (index: Int, at: Date)? = nil
     private var _findOpen = false
+    private var _namesOpen = false
     private var _findReplace = false
     private var _findStatus = ""
     private let _findQuery = TextEditingController()
@@ -336,6 +337,8 @@ final class SheetsShellState: State<StatefulWidget> {
             _flash(m)
         case .editNote:
             _editNote(at: wb.active)
+        case .nameManager:
+            setState { _namesOpen = true }
         }
     }
 
@@ -849,6 +852,13 @@ final class SheetsShellState: State<StatefulWidget> {
         ]
         let window = ColoredBox(color: fluent.scaffoldBackgroundColor,
                                 child: Column(crossAxisAlignment: .stretch, children: column))
+        if _namesOpen {
+            return Stack(children: [window, Positioned(left: 0, top: 0, right: 0, bottom: 0, child: NameManagerDialog(
+                controller: wb, onClose: { [weak self] in
+                    self?.setState { self?._namesOpen = false }
+                    self?._grid?.focus.requestFocus()
+                }))])
+        }
         guard let page = _backstage else { return window }
         return Stack(children: [
             window,

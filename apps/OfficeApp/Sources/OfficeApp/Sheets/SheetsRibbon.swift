@@ -20,6 +20,7 @@ enum SheetCommand {
     case zoom(Double)
     case toggleGridlines
     case status(String)
+    case nameManager               // Formulas → Name Manager
     case editNote                  // Review → New/Edit Note: the editor beside the active cell
 }
 
@@ -29,7 +30,7 @@ extension Ribbon {
         switch tab {
         case .home: return _sheetsHome(wb, fluent)
         case .insert: return [_chartsGroup(wb, fluent), _functionsGroup(wb, fluent)]
-        case .formulas: return [_autoSumGroup(wb, fluent), _functionsGroup(wb, fluent)]
+        case .formulas: return [_autoSumGroup(wb, fluent), _functionsGroup(wb, fluent), _namesGroup(wb, fluent)]
         case .data: return [_sortGroup(wb, fluent), _outlineGroup(wb, fluent)]
         case .view: return [_sheetsZoomGroup(wb, fluent)]
         case .review: return [_notesGroup(wb, fluent)]
@@ -228,6 +229,12 @@ extension Ribbon {
             return
         }
         wb.onCommand?(.startFormula("=SUM("))
+    }
+
+    private func _namesGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
+        Chrome.group("Defined Names", fluent, [
+            Chrome.big(FluentSystemIcons.rename, "Name Manager", fluent) { wb.onCommand?(.nameManager) },
+        ])
     }
 
     private func _autoSumGroup(_ wb: WorkbookController, _ fluent: FluentThemeData) -> Widget {
