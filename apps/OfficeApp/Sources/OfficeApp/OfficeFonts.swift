@@ -5415,6 +5415,18 @@ enum OfficeFonts {
             // narrower than — its letters 15% wider than Liberation Sans
             // Bold's on average: its own widths and line, 1.41 ems by
             // its hhea, the ascent 1.1006. SampleDoc's 16pt heading.)
+            // (Roboto Slab ExtraBold, a cloud font Word downloads and we do not have: its own advances and line, 1.3189 ems by
+            // its hhea (2146 + 555 of 2048), metrics only, drawn in the stand-in. Word's print of dx2 7d4b5fee5a50 breaks the
+            // 11pt title "...za leto" / "2024" where the stand-in's narrower letters kept it on one line.)
+            if family.trimmingWhitespace().lowercased() == "roboto slab extrabold" {
+                face.advances = robotoSlabExtraBoldAdvances
+                face.boldAdvances = robotoSlabExtraBoldAdvances
+                face.otherAdvances = robotoSlabExtraBoldOtherAdvances
+                face.boldOtherAdvances = robotoSlabExtraBoldOtherAdvances
+                face.naturalHeight = 1.3189
+                face.baseline = 1.0479
+                RuleTrace.hit("roboto-slab-extrabold-own-metrics")
+            }
             if family.trimmingWhitespace().lowercased() == "arial black" {
                 face.advances = arialBlackAdvances
                 face.boldAdvances = arialBlackAdvances
