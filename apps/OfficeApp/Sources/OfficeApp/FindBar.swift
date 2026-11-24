@@ -48,7 +48,7 @@ final class FindBar: StatelessWidget {
             // The field takes the keyboard as the bar opens: ⌘F then type.
             SizedBox(width: 260, height: 30, child: FluentTextBox(
                 controller: query,
-                placeholderText: session.kind == .presentation ? "Search presentation" : "Search document",
+                placeholderText: session.kind == .presentation ? "Search presentation" : session.kind == .workbook ? "Search workbook" : "Search document",
                 onSubmitted: { [onNext] _ in onNext(false) }, autofocus: true, onFocusChanged: blurred,
                 tabGroup: "find", tabOrder: 0)),
             Chrome.gap(6),
