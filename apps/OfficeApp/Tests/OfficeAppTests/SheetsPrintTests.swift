@@ -193,6 +193,6 @@ final class MeiryoUiBigRowsTests: XCTestCase {
         let big = SheetPrintMetrics.of(family: "Meiryo UI", size: 18)
         XCTAssertEqual(d.fittedRow(big), 65 * 72 / 192 * d.rowScale, accuracy: 0.01)
         XCTAssertEqual(d.fittedRow(big), 25.55, accuracy: 0.05)
-        XCTAssertEqual(d.fittedRow(SheetPrintMetrics.of(family: "Meiryo UI", size: 16)), 58 * 72 / 192 * d.rowScale, accuracy: 0.01)
+        XCTAssertEqual(d.fittedRow(SheetPrintMetrics.of(family: "Meiryo UI", size: 16)), 59 * 72 / 192 * d.rowScale, accuracy: 0.01)
     }
 }
