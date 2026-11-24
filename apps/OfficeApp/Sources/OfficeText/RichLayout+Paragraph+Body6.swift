@@ -184,7 +184,10 @@ extension _ParaFrame {
                       image.height > 0, float.wrapSide == nil, !image.data.isEmpty || RichLayout.drawsObject?(image) == true else { continue }
                 // (A hair of it above the paragraph, 24pt up in sa2 86737b97: Word does not lift it to the margin, it stands
                 // 24pt above the paragraph and the first line is set at its foot, 36.25pt down.)
-                if !lineEndsAbove(_px(max(0, float.y) - float.distanceTop)) {
+                // (A paragraph-relative offset counts from the first line's top, after the space before: sa1 c4f2b4bd's closing line, 6pt
+                // before and a 42pt line, stays above a box 42.65pt down.)
+                let lineOnly = float.y > 0 ? (firstLine().map { $0.top > 0 && $0.top + $0.line > _px(float.y - float.distanceTop) && $0.line <= _px(float.y - float.distanceTop) + 0.01 } ?? false) : false
+                if !lineOnly, !lineEndsAbove(_px(max(0, float.y) - float.distanceTop)) {
                     RuleTrace.hit("word-first-line-set-under-a-top-and-bottom-picture-at-the-paragraphs-top")
                     push = max(push, pushUnder(_px(float.y + image.height + float.effectBottom + float.distanceBottom)))
                 }
