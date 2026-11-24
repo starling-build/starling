@@ -3204,6 +3204,123 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(face.naturalHeight), 3395.0 / 2048, accuracy: 0.001)
     }
 
+    func testAnArabicChartsetFaceWindowsLacksSetsItsLatinTextInArial() throws {
+        // Word for Windows, "B Nazanin" (font table: charset B2, no alternate): its digits and Latin letters are ArialMT in
+        // Word's print (dx2 fc332781), not the Carlito stand-in's Calibri-height line.
+        _ = OfficeFonts.register()
+        let was = OfficeFonts.wordOnWindows
+        OfficeFonts.wordOnWindows = true
+        defer { OfficeFonts.wordOnWindows = was; OfficeFonts.noteFontEntries([:]) }
+        OfficeFonts.noteFontEntries(["b nazanin": OfficeFonts.FontEntry(alt: nil, family: "roman", panoseZero: true, charset: "B2")])
+        let nazanin = OfficeFonts.face("B Nazanin", eastAsian: false)
+        let arial = OfficeFonts.face("Arial", eastAsian: false)
+        XCTAssertNotNil(nazanin)
+        XCTAssertEqual(nazanin?.family, arial?.family, "the Latin text of the missing Arabic-charset face is Arial's")
+        OfficeFonts.noteFontEntries([:])
+        XCTAssertNotEqual(OfficeFonts.face("B Nazanin", eastAsian: false)?.family, arial?.family, "a name the table lacks keeps the stand-in")
+    }
+
+    /// Line height (pt) of one rtl paragraph, B Nazanin (Arabic charset, no alternate) as the faces; Word-for-Windows mode set here.
+    private func nazaninLineHeight(text: String, face: String = "B Nazanin", markRtl: Bool = false, hint: String? = nil) throws -> Double {
+        guard TestText.icuLoaded else { throw XCTSkip("no icudtl.dat (STARLING_ICU)") }
+        _ = OfficeFonts.register()
+        let was = OfficeFonts.wordOnWindows
+        OfficeFonts.wordOnWindows = true
+        RichTextTheme.wordWindowsPages = true
+        defer { OfficeFonts.wordOnWindows = was; RichTextTheme.wordWindowsPages = false; OfficeFonts.noteFontEntries([:]) }
+        OfficeFonts.noteFontEntries(["b nazanin": OfficeFonts.FontEntry(alt: nil, family: "roman", panoseZero: true, charset: "B2")])
+        var style = CharStyle()
+        style.fontFamily = face
+        style.complexFontFamily = face
+        style.fontSize = 14
+        style.rightToLeft = true
+        style.fontHint = hint
+        var p = RichParagraph(text: text, runs: text.isEmpty ? [] : [Run(length: text.utf16.count, style: style)])
+        p.style.rightToLeft = true
+        p.style.lineSpacing = 1.5
+        if text.isEmpty { var m = CharStyle(); m.fontFamily = face; m.complexFontFamily = face; m.fontSize = 14; m.rightToLeft = markRtl; p.style.mark = m }
+        var doc = RichDocument(paragraphs: [p])
+        doc.readFromFile = true
+        // The document's Normal style, as the corpus file has it (Calibri 11, complex Arial): the mark's own B Nazanin overrides it.
+        var base = CharStyle(); base.fontFamily = "Calibri"; base.complexFontFamily = "Arial"; base.fontSize = 11
+        doc.styles[RichNamedStyle.normalId] = RichNamedStyle(id: RichNamedStyle.normalId, name: "Normal", paragraph: RichParagraphStyle(), char: base)
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.drawn
+        theme.faceResolver = OfficeFonts.face
+        theme.complexFaceResolver = OfficeFonts.complexFace
+        theme.complexFaceKeepsDigits = OfficeFonts.complexFaceKeepsDigits
+        theme.winLineBox = OfficeFonts.standInWinBox
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: 1)
+        l.width = 400 * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        return text.isEmpty ? l.geometry(0).height / theme.pixelsPerPoint : (l.geometry(0).painter.computeLineMetrics().first?.height ?? 0) / theme.pixelsPerPoint
+    }
+
+    func testDigitsInAnRtlB_NazaninRunKeepArialsLine() throws {
+        // dx2 fc332781: " 1333 " in an rtl run is ArialMT, a 1.149 em line, not Carlito's 1.22.
+        XCTAssertEqual(try nazaninLineHeight(text: " 1333 "), try nazaninLineHeight(text: " 1333 ", face: "Arial"), accuracy: 0.05)
+    }
+
+    /// Heights (pt) of the paragraphs of a body written as raw WordprocessingML, B Nazanin (Arabic charset, no alternate) as the faces.
+    private func nazaninBodyHeights(_ body: String) throws -> [Double] {
+        guard TestText.icuLoaded else { throw XCTSkip("no icudtl.dat (STARLING_ICU)") }
+        _ = OfficeFonts.register()
+        let was = OfficeFonts.wordOnWindows
+        OfficeFonts.wordOnWindows = true
+        RichTextTheme.wordWindowsPages = true
+        defer { OfficeFonts.wordOnWindows = was; RichTextTheme.wordWindowsPages = false; OfficeFonts.noteFontEntries([:]) }
+        OfficeFonts.noteFontEntries(["b nazanin": OfficeFonts.FontEntry(alt: nil, family: "roman", panoseZero: true, charset: "B2")])
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(text: "a")]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let b = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        xml.replaceSubrange(b.upperBound ..< sect.lowerBound, with: body)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        // The file's defaults as fc332781 has them: Calibri through the theme, the theme's East Asian face empty, cs Arial through minorBidi.
+        let si = try XCTUnwrap(entries.firstIndex { $0.name == "word/styles.xml" })
+        var styles = String(decoding: entries[si].data, as: UTF8.self)
+        let dd = try XCTUnwrap(styles.range(of: "<w:docDefaults>")), de = try XCTUnwrap(styles.range(of: "</w:docDefaults>"))
+        styles.replaceSubrange(dd.lowerBound ..< de.upperBound, with: "<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:asciiTheme=\"minorHAnsi\" w:eastAsiaTheme=\"minorHAnsi\" w:hAnsiTheme=\"minorHAnsi\" w:cstheme=\"minorBidi\"/><w:sz w:val=\"22\"/><w:szCs w:val=\"22\"/><w:lang w:val=\"en-US\" w:eastAsia=\"en-US\" w:bidi=\"ar-SA\"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after=\"200\" w:line=\"276\" w:lineRule=\"auto\"/></w:pPr></w:pPrDefault></w:docDefaults>")
+        entries[si] = ZipEntry(name: "word/styles.xml", data: Data(styles.utf8))
+        entries.append(ZipEntry(name: "word/theme/theme1.xml", data: Data("""
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="T"><a:themeElements><a:fontScheme name="F"><a:majorFont><a:latin typeface="Cambria"/><a:ea typeface=""/><a:cs typeface="Times New Roman"/></a:majorFont><a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface="Arial"/></a:minorFont></a:fontScheme></a:themeElements></a:theme>
+            """.utf8)))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        let theme = RichTextTheme(fontFamily: OfficeFonts.defaultFamily)
+        theme.fontFamilyResolver = OfficeFonts.drawn
+        theme.faceResolver = OfficeFonts.face
+        theme.complexFaceResolver = OfficeFonts.complexFace
+        theme.complexFaceKeepsDigits = OfficeFonts.complexFaceKeepsDigits
+        theme.winLineBox = OfficeFonts.standInWinBox
+        theme.averageCharWidth = OfficeFonts.averageCharWidth
+        theme.wordRules = true
+        let l = RichLayout(theme: theme, paragraphCount: doc.paragraphs.count)
+        l.width = 400 * theme.pixelsPerPoint
+        l.ensureLaidOut(doc)
+        return (0 ..< doc.paragraphs.count).map { l.geometry($0).height / theme.pixelsPerPoint }
+    }
+
+    private func nazaninPara(_ runs: String, mark: Bool = true) -> String {
+        let f = "<w:rFonts w:ascii=\"B Nazanin\" w:hAnsi=\"B Nazanin\" w:cs=\"B Nazanin\"/><w:sz w:val=\"28\"/><w:szCs w:val=\"28\"/>"
+        return "<w:p><w:pPr><w:bidi/><w:spacing w:after=\"0\" w:line=\"360\" w:lineRule=\"auto\"/><w:rPr>\(f)</w:rPr></w:pPr>\(runs)</w:p>"
+    }
+
+    func testHintedGuillemetsInAnRtlB_NazaninRunKeepArialsLine() throws {
+        // dx2 fc332781: w:hint="eastAsia" "«" and "»" runs (rtl, no East Asian face named) are Arial like the unhinted ones, so a paragraph
+        // of them is as long as without the hint (before: the hint took a fallback face, taller lines and wider marks).
+        func para(_ hint: String) -> String {
+            func run(_ t: String, _ h: String) -> String {
+                "<w:r><w:rPr><w:rFonts w:ascii=\"B Nazanin\" w:hAnsi=\"B Nazanin\" w:cs=\"B Nazanin\"\(h)/><w:sz w:val=\"28\"/><w:szCs w:val=\"28\"/><w:rtl/></w:rPr><w:t xml:space=\"preserve\">\(t)</w:t></w:r>"
+            }
+            return nazaninPara((0 ..< 30).map { _ in run("بسم ", "") + run("«", hint) + run("الله", "") + run("»", hint) + run(" ", "") }.joined())
+        }
+        let h = try nazaninBodyHeights(para(" w:hint=\"eastAsia\"") + para(""))
+        XCTAssertEqual(h[0], h[1], accuracy: 0.05)
+    }
+
     func testAnOpeningMarkMayEndALineSqueezedUnderCompressPunctuation() throws {
         // Word for Windows, compat 15, compressPunctuation, kinsoku on (labs
         // opn1/opn11, zh 8787f4): with room for half an em or more the opener
