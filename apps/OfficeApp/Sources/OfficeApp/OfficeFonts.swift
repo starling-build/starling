@@ -4189,7 +4189,8 @@ enum OfficeFonts {
         return face
     }
 
-    private static let wordOnWindows = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "windows"
+    /// (A var so a unit test can switch the Windows-fonts mode on and back; the process sets it once from OFFICE_WORD_FONTS.)
+    nonisolated(unsafe) static var wordOnWindows = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "windows" { didSet { faceGen &+= 1 } }
     /// The face Word for Windows sets a Latin name it has no face for,
     /// and whose font-table entry gives no alternate, by the entry's
     /// Unicode signature — not its PANOSE (windows' labs `lint` and
