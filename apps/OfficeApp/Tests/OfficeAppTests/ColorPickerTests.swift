@@ -43,7 +43,7 @@ final class ColorPickerTests: XCTestCase {
 
     private func picker(_ got: @escaping (ColorChoice) -> Void, more: @escaping () -> Void = {}) -> WidgetTester {
         WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: Center(child: ColorPicker(
-            recent: [0x123456], automaticLabel: "Automatic", noneLabel: "No Color", onChoose: got, onMore: more)), title: "T"), size: Size(800, 600))
+            recent: [0x123456], automaticLabel: "Automatic", noneLabel: "No Color", onChoose: got, onMore: more)), title: "T"), size: Size(1280, 800))
     }
 
     func testThePickerChoosesThemeStandardRecentAndSpecial() {
@@ -64,7 +64,7 @@ final class ColorPickerTests: XCTestCase {
     func testTheCustomDialogKeepsHexAndChannelsInStep() {
         var got: UInt32?
         let ui = WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: CustomColorDialog(
-            initial: 0x102030, onOK: { got = $0 }, onCancel: {}), title: "T"), size: Size(900, 600))
+            initial: 0x102030, onOK: { got = $0 }, onCancel: {}), title: "T"), size: Size(1280, 800))
         XCTAssertTrue(ui.texts().contains("More Colors"))
         func box(_ i: Int) -> RenderBox {
             ui.elements().filter { $0.widget is FluentTextBox }[i].findRenderObject() as! RenderBox

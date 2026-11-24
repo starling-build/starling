@@ -33,7 +33,7 @@ final class UnitSpinnerTests: XCTestCase {
     }
 
     private func spinner(_ value: Double, _ unit: LengthUnit, _ got: @escaping (Double) -> Void) -> WidgetTester {
-        WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: Center(child: UnitSpinner(points: value, unit: unit, onChanged: got)), title: "T"), size: Size(600, 300))
+        WidgetTester(FluentApp(theme: OfficeAppearance.theme(.light), home: Center(child: UnitSpinner(points: value, unit: unit, onChanged: got)), title: "T"), size: Size(1280, 800))
     }
 
     func testButtonsStepTheValue() {
