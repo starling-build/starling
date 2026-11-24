@@ -4172,12 +4172,15 @@ enum OfficeFonts {
                 case "corbel": face.advances = corbelAdvances; face.otherAdvances = corbelOtherAdvances; face.boldOtherAdvances = corbelBoldOtherAdvances; face.boldAdvances = corbelBoldAdvances; face.italicAdvances = corbelItalicAdvances; face.boldItalicAdvances = corbelBoldItalicAdvances; face.naturalHeight = 1.2207; face.baseline = 0.9521
                 case "consolas": face.advances = consolasAdvances; face.boldAdvances = consolasBoldAdvances; face.italicAdvances = consolasItalicAdvances; face.boldItalicAdvances = consolasBoldItalicAdvances; face.naturalHeight = 1.1709; face.baseline = 0.9199
                 case "century gothic": face.advances = centuryGothicAdvances; face.boldAdvances = centuryGothicBoldAdvances; face.italicAdvances = centuryGothicItalicAdvances; face.boldItalicAdvances = centuryGothicBoldItalicAdvances; face.naturalHeight = 1.2261; face.baseline = 1.0059
+                // (Dotum and Gulim Latin: Word's print advances, so Sheets sets digits 0.583/0.574 em, not the stand-in's 0.556.)
+                case "dotum", "돋움": face.advances = dotumAdvances; face.boldAdvances = dotumAdvances; face.italicAdvances = dotumAdvances; face.boldItalicAdvances = dotumAdvances
+                case "gulim", "굴림": face.advances = gulimAdvances; face.boldAdvances = gulimAdvances; face.italicAdvances = gulimAdvances; face.boldItalicAdvances = gulimAdvances
         default: break
         }
     }
 
     /// The faces whose Word tables Sheets reads (lower case).
-    static let tabledNames: Set<String> = ["georgia", "century gothic", "comic sans ms", "garamond", "corbel", "consolas", "tahoma"]
+    static let tabledNames: Set<String> = ["dotum", "gulim", "돋움", "굴림", "georgia", "century gothic", "comic sans ms", "garamond", "corbel", "consolas", "tahoma"]
     nonisolated(unsafe) private static var tabledCache: [String: RichResolvedFace?] = [:]
     private static let tabledLock = RegistryLock()
     static func tabledFaceCached(_ name: String) -> RichResolvedFace? {
@@ -5244,7 +5247,10 @@ enum OfficeFonts {
                     tabledName = alt
                 }
                 let lineBefore = face.naturalHeight
-                Self.applyTabled(tabledName, to: &face); Self.applyTabledMore(tabledName, to: &face)
+                // (Dotum and Gulim tables are Excel's: Word already sets Korean text at the right widths, and a Word A/B lost dx2 0b3859a7 100 to 50.)
+                if !["dotum", "gulim", "돋움", "굴림"].contains(tabledName.trimmingWhitespace().lowercased()) {
+                    Self.applyTabled(tabledName, to: &face); Self.applyTabledMore(tabledName, to: &face)
+                }
                 tableSetLine = face.naturalHeight != lineBefore
             }
             // (Arial Narrow, drawn as the sans clone, at its own widths and line.)
