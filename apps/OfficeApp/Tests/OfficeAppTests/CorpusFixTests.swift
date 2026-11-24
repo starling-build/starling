@@ -291,4 +291,27 @@ final class CorpusFixTests: XCTestCase {
         let doc = try DocxFormat.read(try Zip.write(entries)).document
         XCTAssertTrue(doc.paragraphs.allSatisfy { $0.image == nil && $0.inlineImages.isEmpty })
     }
+
+    /// An empty paragraph that ends a section the next continues keeps its line but loses its space before (lab sec1: 24 pt; pt-6c544802ed).
+    func testAnEmptySectionBreakParagraphLosesItsSpaceBefore() throws {
+        RichTextTheme.wordWindowsPages = true
+        defer { RichTextTheme.wordWindowsPages = false }
+        let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        var entries = try Zip.read(try DocxFormat.write(RichDocument(paragraphs: [RichParagraph(image: ImageAttachment(data: png, width: 10, height: 10))]), pageSetup: .a4))
+        let di = entries.firstIndex { $0.name == "word/document.xml" }!
+        var xml = String(decoding: entries[di].data, as: UTF8.self)
+        let body = try XCTUnwrap(xml.range(of: "<w:body>")), sect = try XCTUnwrap(xml.range(of: "<w:sectPr"))
+        let page = "<w:pgSz w:w=\"11906\" w:h=\"16838\"/>"
+        xml.replaceSubrange(body.upperBound ..< sect.lowerBound, with:
+            "<w:p><w:pPr><w:spacing w:before=\"480\"/><w:sectPr>\(page)</w:sectPr></w:pPr></w:p>"
+            + "<w:p><w:pPr><w:spacing w:before=\"480\"/></w:pPr></w:p>"
+            + "<w:p><w:r><w:t>Text</w:t></w:r></w:p>")
+        let last = try XCTUnwrap(xml.range(of: "<w:sectPr", options: .backwards))
+        let close = try XCTUnwrap(xml.range(of: ">", range: last.upperBound ..< xml.endIndex))
+        xml.insert(contentsOf: "<w:type w:val=\"continuous\"/>", at: close.upperBound)
+        entries[di] = ZipEntry(name: "word/document.xml", data: Data(xml.utf8))
+        let doc = try DocxFormat.read(try Zip.write(entries)).document
+        XCTAssertEqual(doc.paragraphs[0].style.spaceBefore, 0)
+        XCTAssertEqual(doc.paragraphs[1].style.spaceBefore, 24)
+    }
 }

@@ -268,6 +268,12 @@ extension DocxFormat {
                 let breaks = sect.attrs.removeValue(forKey: "x-next-breaks").map { $0 == "1" }
                     ?? ((sect.first("w:type")?["w:val"] ?? "nextPage") != "continuous")
                 if breaks { sectionBreakAfter = true }
+                // (An empty paragraph that ends a section the next continues on the page has no space before in Word's print, its line stays:
+                // lab sec1 (24 pt before: the text under it starts 24.0 pt higher than under a plain empty paragraph; with a letter in it the
+                // space stays), pt-6c544802ed's 8.9 pt.)
+                func hasRunHere(_ n: XNode) -> Bool { n.children.contains { $0.name == "w:r" || hasRunHere($0) } }
+                if !breaks, RichTextTheme.wordWindowsPages, style.spaceBefore > 0,
+                   !p.children.contains(where: { $0.name != "w:pPr" && ($0.name == "w:r" || hasRunHere($0)) }) { style.spaceBefore = 0 }
                 sectionMarginsChange = sect.attrs.removeValue(forKey: "x-next-vmargins") == "1"
                 style.sectionBreaksPage = breaks
                 // The section's own page size, margins and columns, kept
