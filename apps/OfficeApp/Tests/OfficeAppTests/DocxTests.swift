@@ -3085,6 +3085,7 @@ final class DocxTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(named.length, 20, "the comma gives 2 pt of its quarter em")
         let unnamed = try firstLine(text, width: 20 * 12 - 2, hangs: false, mode: 15, justified: true, documentLanguage: "zh-TW", unnamedEastAsianDefault: true)
         XCTAssertLessThan(unnamed.length, 20, "no East Asian face in the defaults: no squeeze")
+    }
 
     func testALatinFigureAmongTimesArabicKeepsEveryLineAtTimesOwnStep() throws {
         // Word for Windows (dx2 9f8856f2 page 5, micro-doc lab d2): an Arabic paragraph at 14 pt, 1.5 lines, on Times New Roman, with a
