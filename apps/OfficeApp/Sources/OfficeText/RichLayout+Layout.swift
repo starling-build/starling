@@ -1883,6 +1883,14 @@ extension RichLayout {
     /// column 0.5/1/2 pt; with 5.4 pt margins nothing is added).
     @inline(never)
     func _autofitRuleRoom(_ table: String, _ document: RichDocument, _ padL: Double, _ padR: Double) -> Double {
+        // (A spaced table's cells do not share their rules: each draws its own, whole, inside its box, so a column's least is
+        // its cell margins and both rules more. dx2 8ba99a6d, 0.75pt rules and spacing: a column of one fixed width is 71.0pt in
+        // Word's print, 1.5pt over its text and margins.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, let ts = document.tableStyles[table], (ts.cellSpacing ?? 0) > 0, ts.contentFit == true,
+           ts.edges?.left ?? (ts.borders && !ts.bordersFromCells) {
+            RuleTrace.hit("spaced-table-column-least-holds-both-whole-rules")
+            return _px(ts.edgeWidths["left"] ?? ts.borderWidth ?? 0.5) + _px(ts.edgeWidths["right"] ?? ts.borderWidth ?? 0.5)
+        }
         guard theme.wordRules, RichTextTheme.wordWindowsPages, (document.compatibilityMode ?? 0) >= 15,
               let ts = document.tableStyles[table], ts.cellSpacing == nil, ts.contentFit != true, ts.widthPercent == nil,
               ts.edges?.left ?? (ts.borders && !ts.bordersFromCells) else { return 0 }
