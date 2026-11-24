@@ -6018,7 +6018,7 @@ enum ChartPainter {
             let wordPlainCol = !libre && !c.styled2013 && !c.chartex && c.type == .column && c.barView == nil && c.plotLayout == nil && !horizontal && !c.onSheet && !c.onSlide
             let sheetTickLength = 6.0   // the outward tick mark, which stands inside that gap
             let valGap: Double = (c.onSlide && c.styled2013 && !c.chartex && !c.valueTicksOut && !word && !libre && (valueLabels.first?.height ?? 0) > 0)
-                ? max(8.5, 0.773 * (valueLabels.first?.height ?? 0) / k - 2.9) : (c.onSheet && !c.styled2013 && c.valueTicksOut && (valueLabels.first?.height ?? 0) > 0 ? 0.773 * (valueLabels.first?.height ?? 0) / k - sheetTickLength : (c.styled2013 ? 8.5 : wordPlainCol ? 0.927 * labelSize : 11.1))
+                ? max(8.5, 0.773 * (valueLabels.first?.height ?? 0) / k - 2.9) : (c.onSheet && !c.styled2013 && c.valueTicksOut && (valueLabels.first?.height ?? 0) > 0 ? 0.773 * (valueLabels.first?.height ?? 0) / k - sheetTickLength : (c.styled2013 ? (c.onSheet && !c.chartex && !libre && !word ? 8.5 + 0.927 * (labelSize - 12) : 8.5) : wordPlainCol ? 0.927 * labelSize : 11.1))
             // (A 2013-style chart on a sheet: the value labels stand off the axis by 0.927 of their size's change from the default 9 pt, 7.4, 9.2 and 11.1 pt at 8, 10 and 12 pt in Excel's prints, lab axgap1; ours stood 8.2 at all three.)
             if wordPlainCol { valueLabelsBack = (11.1 - valGap) * k }
             if c.onSheet && !c.styled2013 && c.valueTicksOut { valueLabelsBack = 3.9; RuleTrace.hit("sheet-value-labels-stand-off-by-their-line-height") }
