@@ -492,6 +492,31 @@ final class DocxTests: XCTestCase {
         XCTAssertEqual(cleared.paragraphs[0].inlineImages.values.first?.altText, "")
     }
 
+    /// W-OB-1: Change Picture swaps the pixels of a picture in its own paragraph, keeps its width and alt text, follows the new
+    /// picture's shape, undoes in one step, and the saved file holds the new pixels and the paragraphs around it.
+    func testChangingAPictureKeepsItsWidthAndAltTextAndSavesTheNewPixels() throws {
+        let old = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")!
+        let new = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
+        XCTAssertNotEqual(old, new)
+        var img = ImageAttachment(data: old, width: 200, height: 100)
+        img.altText = "Site plan"
+        let c = RichDocumentController(document: RichDocument(paragraphs: [RichParagraph(text: "above"), RichParagraph(image: img), RichParagraph(text: "below")]))
+        XCTAssertTrue(c.replacePicture(at: 1, with: new, name: "new.png", naturalWidth: 100, naturalHeight: 400))
+        XCTAssertEqual(c.document.paragraphs[1].image?.width, 200)
+        XCTAssertEqual(c.document.paragraphs[1].image?.height, 800)
+        c.undo()
+        XCTAssertEqual(c.document.paragraphs[1].image?.data, old)
+        XCTAssertEqual(c.document.paragraphs[1].image?.height, 100)
+        c.redo()
+        XCTAssertFalse(c.replacePicture(at: 0, with: new, name: "x.png", naturalWidth: 1, naturalHeight: 1), "a text paragraph is not a picture")
+        let back = try DocxFormat.read(try DocxFormat.write(c.document, pageSetup: .letter)).document
+        XCTAssertEqual(back.paragraphs.map(\.text).filter { !$0.isEmpty }, ["above", "below"])
+        let saved = try XCTUnwrap(back.paragraphs.compactMap(\.image).first)
+        XCTAssertEqual(saved.data, new)
+        XCTAssertEqual(saved.altText, "Site plan")
+        XCTAssertEqual(saved.width, 200, accuracy: 0.1)
+    }
+
     /// Tracked changes stay tracked: an insertion and a deletion read as
     /// marked runs and are written back as the changes they were, so Word
     /// shows the same markup for the copy.
