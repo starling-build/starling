@@ -427,7 +427,7 @@ extension DocxFormat {
     /// groups by where the schema puts them.
     /// `OFFICE_WORD_FONTS=windows`: laid out as Word for Windows does where
     /// it differs from Word for Mac (the background's header marks).
-    static let wordOnWindows = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "windows"
+    static var wordOnWindows = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "windows"
     static let wordOnMac = ProcessInfo.processInfo.environment["OFFICE_WORD_FONTS"] == "mac"
 
     /// What a VML WordArt shape adds to its line's height in Word for
