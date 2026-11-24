@@ -240,7 +240,7 @@ enum DocRead {
                 }
                 var pp = DocProps.pPr(pr?.grpprl ?? [], istd: pr?.istd ?? 0)
                 // the paragraph mark's own character properties (they size an empty paragraph's line)
-                if !rpr.isEmpty { pp = pp.isEmpty ? "<w:pPr>" + rpr + "</w:pPr>" : String(pp.dropLast(8)) + rpr + "</w:pPr>" }
+                pp = DocProps.withMarkProps(pp, rpr)
                 if let sp = ctx.sectEnds[cp] { pp = pp.isEmpty ? "<w:pPr>" + sp + "</w:pPr>" : String(pp.dropLast(8)) + sp + "</w:pPr>" }
                 let para = "<w:p>" + pp + back + runs + front + "</w:p>"; runs = ""; back = ""; front = ""
                 if tf.inTable {

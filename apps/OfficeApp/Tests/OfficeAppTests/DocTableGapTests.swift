@@ -25,3 +25,19 @@ final class DocTableGapTests: XCTestCase {
         XCTAssertTrue(r.tblPr.contains("<w:left w:w=\"40\""), r.tblPr)
     }
 }
+
+/// A .doc paragraph mark's character properties (sizing an empty paragraph's line) go inside the paragraph's pPr.
+final class DocParagraphMarkTests: XCTestCase {
+    func testMarkPropsJoinAnExistingPPr() {
+        let x = DocProps.withMarkProps("<w:pPr><w:jc w:val=\"center\"/></w:pPr>", "<w:rPr><w:sz w:val=\"40\"/></w:rPr>")
+        XCTAssertEqual(x, "<w:pPr><w:jc w:val=\"center\"/><w:rPr><w:sz w:val=\"40\"/></w:rPr></w:pPr>")
+    }
+
+    func testMarkPropsMakeAPPrWhenThereIsNone() {
+        XCTAssertEqual(DocProps.withMarkProps("", "<w:rPr><w:sz w:val=\"40\"/></w:rPr>"), "<w:pPr><w:rPr><w:sz w:val=\"40\"/></w:rPr></w:pPr>")
+    }
+
+    func testNoMarkPropsLeavesPPrAlone() {
+        XCTAssertEqual(DocProps.withMarkProps("<w:pPr/>", ""), "<w:pPr/>")
+    }
+}

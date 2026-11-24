@@ -185,6 +185,12 @@ enum DocProps {
         return String([d[Int(b >> 4)], d[Int(b & 15)]])
     }
 
+    /// A paragraph's `<w:pPr>` with the paragraph mark's own character properties (`<w:rPr>`) added: they size an empty paragraph's line.
+    static func withMarkProps(_ pPr: String, _ rPr: String) -> String {
+        if rPr.isEmpty { return pPr }
+        return pPr.isEmpty ? "<w:pPr>" + rPr + "</w:pPr>" : String(pPr.dropLast(8)) + rPr + "</w:pPr>"
+    }
+
     /// `<w:pPr>` for a paragraph property list ("" when it sets nothing).
     static func pPr(_ g: [UInt8], istd: Int = 0) -> String {
         var x = istd > 0 ? "<w:pStyle w:val=\"S\(istd)\"/>" : ""
