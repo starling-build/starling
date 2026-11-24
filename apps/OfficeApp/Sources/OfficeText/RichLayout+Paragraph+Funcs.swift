@@ -397,7 +397,9 @@ extension _ParaFrame {
                 if let spacing = ts.cellSpacing, spacing > 0 {
                     let sp = _px(spacing)
                     let lastColumn = c.column + c.span >= widths.count
-                    pad = EdgeInsets(left: pad.left + sp + (c.column == 0 ? sp : 0),
+                    // (A bordered cell's text stands half the cell line further in: 8ba99a6d's outset 0.75 pt lines, 0.39 pt in Word's print.)
+                    let lineHalf = theme.wordRules && RichTextTheme.wordWindowsPages && (document.compatibilityMode ?? 12) >= 15 && ts.borders && ts.borderStyle == "outset" ? _px((ts.borderWidth ?? 0.5) / 2) : 0
+                    pad = EdgeInsets(left: pad.left + sp + lineHalf + (c.column == 0 ? sp : 0),
                                      top: pad.top + sp + (c.row == 0 ? sp : 0),
                                      right: pad.right + sp + (lastColumn ? sp : 0),
                                      bottom: pad.bottom + sp + (c.row + c.rowSpan - 1 >= rows ? sp : 0))
