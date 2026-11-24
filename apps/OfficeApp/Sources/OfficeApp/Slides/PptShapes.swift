@@ -109,6 +109,9 @@ extension PptFile {
                     // top, left, right, bottom
                     if ch.body.count >= 16 { anchor = [s32(b), s32(b + 4), s32(b + 8), s32(b + 12)] }
                     else if ch.body.count >= 8 { anchor = [s16(b), s16(b + 2), s16(b + 4), s16(b + 6)] }
+                case 0xF00F:
+                    // a shape inside a group: left, top, right, bottom in the group's own coordinates
+                    if ch.body.count >= 16 { anchor = [s32(b + 4), s32(b), s32(b + 8), s32(b + 12)] }
                 case 0xF011:
                     for d in OfficeArt.records(data, in: ch.body) where d.type == 0x0BC3 && d.body.count >= 5 {
                         placeholder = Int(data[d.body.lowerBound + 4])

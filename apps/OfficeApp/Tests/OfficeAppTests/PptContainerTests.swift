@@ -274,7 +274,11 @@ final class PptContainerTests: XCTestCase {
         var space: [UInt8] = []
         for v in [0, 0, 1000, 1000] { space += le32(v) }
         let gHead = rec(0xF004, ver: 15, rec(0xF009, ver: 1, space) + rec(0xF00A, ver: 2, inst: 0, le32(9) + le32(0x201)) + rec(0xF010, le16(1000) + le16(1000) + le16(3000) + le16(3000)))
-        let inner = shape(type: 1, props: [(0x181, 0x00FF00), (0x1BF, 0x10_0010), (0x1FF, 0x8_0000)], anchor: [0, 0, 500, 500])
+        // A shape inside a group carries a child anchor (left, top, right, bottom), not a client anchor.
+        var innerKids = rec(0xF00A, ver: 2, inst: 1, le32(3) + le32(0x400))
+        innerKids += opt([(0x181, 0x00FF00), (0x1BF, 0x10_0010), (0x1FF, 0x8_0000)])
+        innerKids += rec(0xF00F, le32(100) + le32(200) + le32(500) + le32(600))
+        let inner = rec(0xF004, ver: 15, innerKids)
         let group = rec(0xF003, ver: 15, gHead + inner)
         let top = rec(0xF003, ver: 15, head + ellipse + group)
         let pageKids = rec(0x03EF, [UInt8](repeating: 0, count: 12) + le32(0x8000_0000) + le32(0) + le16(7) + le16(0))
@@ -291,6 +295,7 @@ final class PptContainerTests: XCTestCase {
         XCTAssertTrue(xml.contains("prst=\"ellipse\""))
         XCTAssertTrue(xml.contains("<a:srgbClr val=\"FF0000\"/>"))
         XCTAssertTrue(xml.contains("<p:grpSp>"))
+        XCTAssertTrue(xml.contains("<a:off x=\"\(PptBuild.emu(100))\" y=\"\(PptBuild.emu(200))\"/><a:ext cx=\"\(PptBuild.emu(400))\" cy=\"\(PptBuild.emu(400))\"/>"))
         XCTAssertTrue(xml.contains("<a:chExt cx=\"\(PptBuild.emu(1000))\" cy=\"\(PptBuild.emu(1000))\"/>"))
         let (state, _, _) = try PptxReader(PptxPackage(PptBuild.parts(f))).read()
         XCTAssertEqual(state.slides[0].shapes.count, 2)
