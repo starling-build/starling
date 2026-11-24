@@ -17,6 +17,7 @@ import Foundation
 #if os(Windows)
 import FlutterWin32
 #elseif os(macOS)
+import AppKit
 import FlutterCocoa
 #elseif os(iOS)
 import FlutterUIKit
@@ -941,6 +942,7 @@ func connectNativeHooks(_ scene: OfficeScene, viewId: Int) {
 }
 #endif
 
+
 #if os(iOS)
 Clipboard.provider = IOSClipboardProvider()
 // iPadOS may end an app it has put in the background: every window writes what it has not saved yet first.
@@ -976,6 +978,21 @@ if initialPath == nil && siteArg == nil && wikiBase == nil {
         scene.flushPendingSaves()
         if viewId != 0 { OfficeScene.byView[viewId] = nil } else { scene.releaseDocument() }
         fputs("[office] window \(viewId) closed\n", stderr)
+    }
+}
+#endif
+
+#if os(macOS)
+// The window's close button and ⌘Q end the process (the Cocoa host terminates after its last window): what the
+// editors have not saved is written first, as on iPad. Without it a Sheets workbook (no AutoSave) lost every edit
+// since the last ⌘S, and a document lost what its 2-second AutoSave timer had not yet written. Both the window's
+// close and the app's termination are watched: whichever comes first writes (a second finds nothing dirty).
+for name in [NSWindow.willCloseNotification, NSApplication.willTerminateNotification] {
+    // (queue: nil: run in the poster, on the main thread, now. A block queued on `.main` never ran: the app exits
+    // inside terminate, before the run loop turns again.)
+    _ = NotificationCenter.default.addObserver(forName: name, object: nil, queue: nil) { n in
+        if ProcessInfo.processInfo.environment["OFFICE_HOST_LOG"] != nil { fputs("[office] \(n.name.rawValue): saving every window's pending edits\n", stderr) }
+        OfficeScene.flushAll()
     }
 }
 #endif

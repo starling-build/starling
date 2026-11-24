@@ -76,6 +76,9 @@ final class WorkbookController: ChangeNotifier {
 
     func markSaved() { edits = 0; _notify(selectionOnly: true) }
 
+    /// A workbook restored from a recovery copy: unsaved by definition, whatever the edit count says.
+    func markUnsaved() { edits = max(edits, 1); _notify(selectionOnly: true) }
+
     /// Before writing a file: each sheet's active cell and the front tab,
     /// so the file reopens where it was left.
     func stashViewState() {
