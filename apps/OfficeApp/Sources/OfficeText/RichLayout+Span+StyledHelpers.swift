@@ -185,7 +185,7 @@ extension _StyledFrame {
             // (Lao in Leelawadee UI beside spaces: Word draws the spaces in Browallia New, whose deeper descent sets the line, 1.08 + 0.372 em
             // = 1.452 (pitch 18.75 pt at 12 pt on 259; dx2 30f73046 page 2), where Leelawadee's own line is 1.36.)
             if indic.face == "leelawadee ui", theme.wordRules, RichTextTheme.wordWindowsPages,
-               p.text.unicodeScalars.contains(where: { $0.value >= 0x0E81 && $0.value <= 0x0EDF }), p.text.unicodeScalars.contains(where: { $0.value == 0x20 }) {
+               p.text.unicodeScalars.contains(where: { $0.value >= 0x0E81 && $0.value <= 0x0EDF }), p.text.unicodeScalars.contains(where: { $0.value == 0x20 }), latinFace?.spacesInBrowallia == true {
                 RuleTrace.hit("word-lao-line-with-spaces-takes-browallia-descent")
                 below = max(below, 0.372 * multiple)
             }

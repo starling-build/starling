@@ -1354,6 +1354,8 @@ public struct RichResolvedFace: Sendable {
     /// A math face (Cambria Math): its characters past ASCII come from
     /// the platform's math face, set inside the run's line.
     public var setsMath = false
+    /// The face's spaces are drawn in Browallia New, whose descent (0.372 em) is deeper than Leelawadee UI's Lao line: a Lao line holding one takes it.
+    public var spacesInBrowallia = false
 
     public init(family: String, sizeScale: Double = 1, naturalHeight: Double? = nil, boldSpread: Double = 0,
                 classScales: [Double]? = nil, baseline: Double? = nil, isEastAsian: Bool = false) {
