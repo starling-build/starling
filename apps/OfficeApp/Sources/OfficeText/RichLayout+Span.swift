@@ -177,6 +177,17 @@ extension RichLayout {
             let multiple = lineSpacing > 1 ? lineSpacing : 1
             return look.copyWith(ascentOverride: r.0 * multiple * px, descentOverride: r.1 * multiple * px, height: (r.0 + r.1) * multiple, leadingDistribution: .even)
         }
+        // (A complex-script mark (`w:cs`) whose complex face is Cordia New, as the theme's Thai face is, is a Cordia line at szCs: its own 1.388 em, the
+        // multiple on top. Word's print of dx2 228c1f233c7a, lab c228 v0 against v1: the empty centred paragraph, szCs 14, steps 22.28 pt (+10 after); ours 19.65.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, document.readFromFile, let kept = mark.keptXML,
+           kept.containsSubstring("<w:cs/>") || kept.containsSubstring("<w:cs "),
+           (mark.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased() == "cordia new" {
+            RuleTrace.hit("word-empty-cs-mark-in-cordia-new-is-a-cordia-line")
+            let multiple = lineSpacing > 1 ? lineSpacing : 1
+            var size = px
+            if let f = mark.fontSize, f > 0.5, let z = mark.complexFontSize ?? named?.char.complexFontSize ?? _normalChar(document)?.complexFontSize, z > 0.5 { size = px * z / f }
+            return look.copyWith(ascentOverride: 0.892 * multiple * size, descentOverride: 0.496 * multiple * size, height: 1.388 * multiple * size / px, leadingDistribution: .even)
+        }
         guard let kept = mark.keptXML, kept.containsSubstring("<w:cs/>") || kept.containsSubstring("<w:cs "),
               let m = Self._indicLines["mangal"] else { return nil }
         let cs = (mark.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily ?? "").trimmingWhitespace().lowercased()
