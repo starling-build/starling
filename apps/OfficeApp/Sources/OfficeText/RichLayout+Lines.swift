@@ -831,7 +831,7 @@ extension RichLayout {
         guard theme.wordRules, RichTextTheme.wordWindowsPages, i > 0, mark.text.isEmpty || objectsOnly,
               let ts = document.tableStyles[table], ts.floatOffsetY != nil || ts.floatRaiseY != nil, ts.floatsOverText, !ts.pageAnchored, let kept = ts.keptPosition,
               kept.containsSubstring("w:vertAnchor=\"text\""),
-              !kept.containsSubstring("w:tblpXSpec") || kept.containsSubstring("w:tblpXSpec=\"center\""), let widths = _columnWidths[table] else { return false }
+              !kept.containsSubstring("w:tblpXSpec") || (objectsOnly && kept.containsSubstring("w:tblpXSpec=\"center\"")), let widths = _columnWidths[table] else { return false }
         func twips(_ name: String) -> Double {
             guard let r = kept.rangeOfSubstring("\(name)=\"") else { return 0 }
             return Double(kept[r.upperBound...].prefix { $0 == "-" || $0.isNumber }) ?? 0
