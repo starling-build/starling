@@ -155,6 +155,23 @@ extension _StyledFrame {
             let sp = RichLayout._multipleSplit(ascent: sp0.0, descent: sp0.1, multiple: multiple)
             s = s.copyWith(ascentOverride: size * sp.0, descentOverride: size * sp.1, height: (sp0.0 + sp0.1) * multiple, leadingDistribution: .even)
         }
+        // (A Latin run, in a face whose own line Word's print gave (_latinFaceLines), beside a face Word lacks that we draw in Arial, in a right-to-left paragraph above single: the paragraph's Arial
+        // runs carry Arial's split of the multiple (extra below the baseline), and a Times New Roman space or digit run beside them took
+        // the stand-in's proportional one, 1.12 em above where Arial has 0.905, so five lines stood 19.1 apart for Word's 16.6. dx2
+        // 99905488: Times New Roman lines print 16.5 in Word.)
+        if theme.wordRules, RichTextTheme.wordWindowsPages, kind >= 0, s.ascentOverride == nil, p.style.lineHeightPoints == nil, pitch == nil,
+           p.style.lineSpacing > 1, run.ruby == nil, !run.rightToLeft || !run.csLetters, let size = s.fontSize, size > 0.5,
+           let latin = (run.fontFamily ?? named?.char.fontFamily ?? _normalChar(document)?.fontFamily)?.trimmingWhitespace().lowercased(),
+           let faceLine = RichLayout._latinFaceLines[latin],
+           p.runs.contains(where: { r in
+               guard r.style.rightToLeft, r.style.csLetters else { return false }
+               let rcs = r.style.complexFontFamily ?? named?.char.complexFontFamily ?? _normalChar(document)?.complexFontFamily
+               return theme.complexFace(rcs, latin: latin, letters: true)?.arialStandIn == true
+           }) {
+            RuleTrace.hit("word-times-run-beside-arial-stand-in-keeps-its-baseline-extra-below")
+            let sp = RichLayout._multipleSplit(ascent: faceLine.0, descent: faceLine.1 - faceLine.0, multiple: p.style.lineSpacing)
+            s = s.copyWith(ascentOverride: size * sp.0, descentOverride: size * sp.1, height: faceLine.1 * p.style.lineSpacing, leadingDistribution: .even)
+        }
         if kind == -4, let cjk = RichLayout._cjkFaceFamily {
             RuleTrace.hit("word-east-asian-shape-is-the-cjk-faces-glyph")
             s = s.copyWith(fontFamily: cjk)
@@ -1318,4 +1335,10 @@ extension _StyledFrame {
         let up = String(c).uppercased()
         return up.utf16.count == String(c).utf16.count && up.count == 1 ? Character(up) : c
     }
+}
+
+extension RichLayout {
+    /// Word's own baseline and line height, in ems, of Latin faces whose lines were read from its prints (dx2 99905488: Times New
+    /// Roman 0.891 / 1.1499, Calibri 0.952 / 1.2207), keyed by lower-case family.
+    static let _latinFaceLines: [String: (Double, Double)] = ["times new roman": (0.891, 1.1499), "calibri": (0.952, 1.2207)]
 }
