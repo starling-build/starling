@@ -934,6 +934,36 @@ final class DeckController: ChangeNotifier {
     /// The selection as values, for the shape clipboard.
     func copySelection() -> [ShapeState] { selection.map(_state) }
 
+    // The deck's own shape clipboard. It belongs to the deck because a
+    // picture names an image the deck holds: pasted into another deck it
+    // would name nothing.
+    private(set) var shapeClipboard: [ShapeState] = []
+    private var _pasteCount = 0
+    var canPasteShapes: Bool { !shapeClipboard.isEmpty }
+
+    /// Copy the selected shapes. False when none are selected.
+    @discardableResult func copyShapes() -> Bool {
+        guard !selection.isEmpty else { return false }
+        shapeClipboard = copySelection(); _pasteCount = 0
+        return true
+    }
+
+    /// Copy, then delete: one undo step.
+    @discardableResult func cutShapes() -> Bool {
+        guard copyShapes() else { return false }
+        deleteSelection()
+        return true
+    }
+
+    /// Paste the shape clipboard. Each paste of the same copy lands a step
+    /// further down and right, so a second paste does not hide the first.
+    @discardableResult func pasteShapes() -> Bool {
+        guard canPasteShapes else { return false }
+        _pasteCount += 1
+        paste(shapeClipboard, offset: 18 * Double(_pasteCount))
+        return true
+    }
+
     func paste(_ states: [ShapeState], offset: Double = 18) {
         guard !states.isEmpty else { return }
         _checkpoint()

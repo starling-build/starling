@@ -304,6 +304,11 @@ final class OfficeSession {
     var onLink: (() -> Void)?
     var onMoreColors: (() -> Void)?
     var onModifyStyle: ((String) -> Void)?
+    /// Slides: Cut / Copy / Paste of the selected shapes. Each returns true
+    /// when it handled the command, false to fall through to the text path.
+    var onShapeCopy: (() -> Bool)?
+    var onShapeCut: (() -> Bool)?
+    var onShapePaste: (() -> Bool)?
     /// Paste from the system clipboard; true = plain text only.
     var onPaste: ((Bool) -> Void)?
     /// Paste Options (W-ED-1): paste the clipboard in the chosen way.

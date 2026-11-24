@@ -245,7 +245,10 @@ final class Ribbon: StatelessWidget {
         let c = session.controller
         let s = session.summary
         return Chrome.group("Clipboard", fluent, [
-            Chrome.big(FluentSystemIcons.paste, "Paste", fluent) { [session] in session.onPaste?(false) },
+            Chrome.big(FluentSystemIcons.paste, "Paste", fluent) { [session] in
+                if session.onShapePaste?() == true { return }
+                session.onPaste?(false)
+            },
             Chrome.splitChevron("Paste Options", fluent, items: [
                 MenuFlyoutItem(text: Text("Keep Source Formatting"), onPressed: { [session] in session.onPasteMode?(.keepSource) }),
                 MenuFlyoutItem(text: Text("Merge Formatting"), onPressed: { [session] in session.onPasteMode?(.mergeFormatting) }),
@@ -254,11 +257,13 @@ final class Ribbon: StatelessWidget {
             ]),
             Chrome.gap(2),
             Chrome.rows([
-                Chrome.small(FluentSystemIcons.cut, "Cut", fluent, enabled: s.hasSelection) { [session] in
+                Chrome.small(FluentSystemIcons.cut, "Cut", fluent, enabled: s.hasSelection || session.deck?.selection.isEmpty == false) { [session] in
+                    if session.deck?.selection.isEmpty == false, session.onShapeCut?() == true { return }
                     if let d = c.cutSelectionData() { Clipboard.setData(d) }
                     session.onStatus?("Cut")
                 },
-                Chrome.small(FluentSystemIcons.copy, "Copy", fluent, enabled: s.hasSelection) { [session] in
+                Chrome.small(FluentSystemIcons.copy, "Copy", fluent, enabled: s.hasSelection || session.deck?.selection.isEmpty == false) { [session] in
+                    if session.deck?.selection.isEmpty == false, session.onShapeCopy?() == true { return }
                     if let d = c.copySelectionData() { Clipboard.setData(d) }
                     session.onStatus?("Copied")
                 },

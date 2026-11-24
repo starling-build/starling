@@ -59,7 +59,6 @@ final class SlidesShellState: State<StatefulWidget> {
     private var _autosaveGeneration = 0
     private var _lastAutosaveEdits = -1
     /// Shapes copied with ⌘C/⌘X while no text was being edited.
-    private var _shapeClipboard: [ShapeState] = []
     /// Normal (canvas and notes) or Slide Sorter (a grid of every slide).
     private var _sorter = false
     /// The slide show, when running: the slide it started from.
@@ -275,6 +274,19 @@ final class SlidesShellState: State<StatefulWidget> {
             return nil
         }
         session.onStatus = { [weak self] m in self?._flash(m) }
+        // The ribbon's Cut, Copy and Paste act on the selected shapes first.
+        session.onShapeCopy = { [weak self] in
+            guard let self, self._active == nil, !self._notesActive, self.deck.copyShapes() else { return false }
+            self._flash("Copied"); return true
+        }
+        session.onShapeCut = { [weak self] in
+            guard let self, self._active == nil, !self._notesActive else { return false }
+            return self.deck.cutShapes()
+        }
+        session.onShapePaste = { [weak self] in
+            guard let self, self._active == nil, !self._notesActive else { return false }
+            return self.deck.pasteShapes()
+        }
         session.onPaste = { [weak self] plain in
             guard let self else { return }
             let c = self.session.controller
@@ -1131,9 +1143,9 @@ final class SlidesShellState: State<StatefulWidget> {
         case "s" where mods.contains(.shift): session.onSaveAs?()
         case "s": session.onSave?()
         case "a" where !typing: deck.selectShapes(deck.currentSlide.shapes)
-        case "c" where shapes: _shapeClipboard = deck.copySelection(); _flash("Copied")
-        case "x" where shapes: _shapeClipboard = deck.copySelection(); deck.deleteSelection()
-        case "v" where !typing && !_shapeClipboard.isEmpty: deck.paste(_shapeClipboard)
+        case "c" where shapes: deck.copyShapes(); _flash("Copied")
+        case "x" where shapes: deck.cutShapes()
+        case "v" where !typing && deck.canPasteShapes: deck.pasteShapes()
         case "d" where shapes: deck.duplicateSelection()
         case "d" where !typing: deck.duplicateSlide(deck.current)
         case "f": _openFind(replace: false)
