@@ -1626,7 +1626,7 @@ extension RichLayout {
     }
 
     /// Whether a floating picture is turned by an odd number of quarters.
-    static func _quarterTurned(_ image: ImageAttachment) -> Bool {
+    public static func _quarterTurned(_ image: ImageAttachment) -> Bool {
         let r = (image.rotation.truncatingRemainder(dividingBy: 180) + 180).truncatingRemainder(dividingBy: 180)
         return abs(r - 90) < 1
     }

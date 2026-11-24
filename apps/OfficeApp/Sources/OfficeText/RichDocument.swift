@@ -1191,6 +1191,8 @@ public struct ImageAttachment: Hashable, Codable, Sendable {
     /// the file held, so a save patches the kept markup only when the text was changed.
     /// What `crop` was when the file was read, so a save rewrites the kept markup's `a:srcRect` only after a crop.
     public var sourceCrop: PictureCrop? = nil
+    /// What `rotation` was when the file was read (see `sourceCrop`).
+    public var sourceRotation: Double = 0
     public var altText: String = ""
     public var sourceAltText: String = ""
     /// The properties of the run the picture sat in (`w:rPr`), as the
